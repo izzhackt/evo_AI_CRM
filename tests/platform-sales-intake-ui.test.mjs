@@ -12,12 +12,6 @@ const salesSource = source(
 const leadDetailSource = source(
   "../src/components/platform/core/CanonicalLeadDetail.tsx",
 );
-const clientDetailSource = source(
-  "../src/components/platform/core/CanonicalClientDetail.tsx",
-);
-const linkedContextSource = source(
-  "../src/components/platform/core/CanonicalRecordEvidence.tsx",
-);
 const transcriptRouteSource = source(
   "../src/app/(staff)/sales/[id]/conversations/[conversationId]/page.tsx",
 );
@@ -51,28 +45,12 @@ test("connected Sales exposes a separately paginated, filterable U3 intake queue
   assert.match(salesSource, /intakeInvalid/);
 });
 
-test("canonical lead conversations stay inside the nested Sales route", () => {
-  assert.match(leadDetailSource, /conversationHrefPrefix/);
-  assert.match(
-    leadDetailSource,
-    /`\/sales\/\$\{lead\.id\}\/conversations`/,
-  );
-  assert.match(linkedContextSource, /conversationHrefPrefix/);
-  assert.match(
-    linkedContextSource,
-    /`\$\{conversationHrefPrefix\}\/\$\{conversation\.id\}`/,
-  );
-});
-
-test("canonical client context cannot escape receive-only Sales into legacy WhatsApp", () => {
-  assert.match(clientDetailSource, /conversationHrefPrefix=\{null\}/);
+test("canonical lead detail reads the PostgreSQL snapshot without legacy canonical context helpers", () => {
+  assert.match(leadDetailSource, /CanonicalLeadSnapshot/);
+  assert.match(leadDetailSource, /canonical-lead-detail/);
   assert.doesNotMatch(
-    linkedContextSource,
-    /conversationHrefPrefix\s*=\s*["']\/whatsapp["']/,
-  );
-  assert.match(
-    linkedContextSource,
-    /data-testid="canonical-linked-conversation-read-only"/,
+    leadDetailSource,
+    /PlatformCanonicalLeadDetail|CanonicalAuthorityNotice|CanonicalExternalIdentifiers|CanonicalProvenanceList|CanonicalLinkedContext|DuplicateStatus|Supabase/i,
   );
 });
 

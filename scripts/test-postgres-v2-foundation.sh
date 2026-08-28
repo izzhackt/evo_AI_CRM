@@ -12,6 +12,7 @@ broken_log="$tmp_dir/broken-migration.log"
 canonical_acceptance_result="$tmp_dir/canonical-acceptance.json"
 private_document_root="$tmp_dir/private-documents"
 missing_private_document_root="$tmp_dir/missing-private-documents"
+canonical_lead_id=""
 private_document_case_id=""
 app_pid=""
 compose_args=()
@@ -222,6 +223,21 @@ private_document_browser_assert() {
       --config=playwright.private-documents.config.ts
 }
 
+canonical_read_browser_assert() {
+  local read_mode="$1"
+  assert_app_reachable
+  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
+    EVO_EXPECT_CANONICAL_READ_MODE="$read_mode" \
+    EVO_CANONICAL_LEAD_ID="$canonical_lead_id" \
+    EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
+    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
+    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
+    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
+    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    "$node_bin" node_modules/@playwright/test/cli.js test \
+      --config=playwright.canonical-crm.config.ts
+}
+
 assert_no_gate_value_logs() {
   local value
   for value in \
@@ -265,6 +281,7 @@ EVO_DB_PATH="$tmp_dir/inert-local.db" \
   NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321" \
   start_app ""
 browser_assert 503 database_configuration_missing
+canonical_read_browser_assert unavailable
 stop_app
 
 # Malformed configuration must be distinguished from an absent value without
@@ -324,28 +341,31 @@ DATABASE_URL="$database_url" \
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
     tests/canonical-crm-postgres.test.mjs
-private_document_case_id="$(
+read -r canonical_lead_id private_document_case_id <<<"$(
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
     "$node_bin" --input-type=module <<'EOF'
 import { readFile } from "node:fs/promises";
 
 const path = process.env.EVO_CANONICAL_ACCEPTANCE_RESULT_FILE;
 const result = JSON.parse(await readFile(path, "utf8"));
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 if (
+  typeof result.canonicalLeadId !== "string" ||
+  !uuidPattern.test(result.canonicalLeadId) ||
   typeof result.privateDocumentCaseId !== "string" ||
-  !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    result.privateDocumentCaseId,
-  )
+  !uuidPattern.test(result.privateDocumentCaseId)
 ) {
-  throw new Error("Canonical acceptance did not return a valid handoff case id");
+  throw new Error("Canonical acceptance did not return valid lead and case ids");
 }
-console.log(result.privateDocumentCaseId);
+console.log(result.canonicalLeadId, result.privateDocumentCaseId);
 EOF
 )"
 echo "Canonical CRM graph, transactional idempotency, gate and append-only event checks passed."
 
 browser_assert 200
 development_gate_browser_assert configured
+canonical_read_browser_assert configured
 private_document_browser_assert configured
 assert_no_gate_value_logs
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, lt, or, sql } from "drizzle-orm";
 
 import {
   evoConversations,
@@ -26,6 +26,41 @@ const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
+const ISO_TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+export const CANONICAL_STUDENT_CASE_STATUSES = [
+  "active",
+  "paused",
+  "closed",
+] as const;
+
+export type CanonicalStudentCaseStatus =
+  (typeof CANONICAL_STUDENT_CASE_STATUSES)[number];
+
+export type CanonicalReadCursor = Readonly<{
+  updatedAt: string;
+  id: string;
+}>;
+
+export type CanonicalStudentCaseQueueRow = Readonly<{
+  studentCaseId: string;
+  leadId: string;
+  personId: string;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+  status: CanonicalStudentCaseStatus;
+  assignedRole: FixedRole;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export type CanonicalStudentCaseQueuePage = Readonly<{
+  rows: readonly CanonicalStudentCaseQueueRow[];
+  hasNext: boolean;
+  nextCursor: CanonicalReadCursor | null;
+}>;
 
 export const CANONICAL_CRM_ERROR_CODES = [
   "invalid_input",
@@ -143,6 +178,89 @@ function uuid(value: unknown): string {
   const normalized = value.toLowerCase();
   if (normalized === NIL_UUID) invalidInput();
   return normalized;
+}
+
+function isCanonicalStudentCaseStatus(
+  value: unknown,
+): value is CanonicalStudentCaseStatus {
+  return CANONICAL_STUDENT_CASE_STATUSES.some((status) => status === value);
+}
+
+function optionalCanonicalReadCursor(
+  value: unknown,
+): CanonicalReadCursor | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    invalidInput();
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (keys.length !== 2 || keys[0] !== "id" || keys[1] !== "updatedAt") {
+    invalidInput();
+  }
+  return parseCanonicalReadCursor(record.updatedAt, record.id);
+}
+
+function canonicalReadPageSize(value: unknown): number {
+  if (value === undefined) return 25;
+  if (
+    !Number.isInteger(value) ||
+    (value as number) < 1 ||
+    (value as number) > 50
+  ) {
+    invalidInput();
+  }
+  return value as number;
+}
+
+function canonicalReadQuery(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") invalidInput();
+  const normalized = value.trim();
+  if (normalized.length === 0) return undefined;
+  if (normalized.length > 120 || CONTROL_CHARACTER_PATTERN.test(normalized)) {
+    invalidInput();
+  }
+  return normalized;
+}
+
+function literalLikePattern(value: string): string {
+  return `%${value.replace(/[\\%_]/g, "\\$&")}%`;
+}
+
+export function parseCanonicalReadCursor(
+  updatedAt: unknown,
+  id: unknown,
+): CanonicalReadCursor {
+  if (typeof updatedAt !== "string") invalidInput();
+  const match = ISO_TIMESTAMP_PATTERN.exec(updatedAt);
+  if (!match) invalidInput();
+
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText] =
+    match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const calendarProbe = new Date(Date.UTC(year, month - 1, day));
+  if (
+    calendarProbe.getUTCFullYear() !== year ||
+    calendarProbe.getUTCMonth() !== month - 1 ||
+    calendarProbe.getUTCDate() !== day ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    Number(match[7]) > 23 ||
+    Number(match[8]) > 59
+  ) {
+    invalidInput();
+  }
+
+  const parsed = new Date(updatedAt);
+  if (!Number.isFinite(parsed.getTime())) invalidInput();
+  return { updatedAt: parsed.toISOString(), id: uuid(id) };
 }
 
 function fixedRole(value: unknown): FixedRole {
@@ -417,6 +535,13 @@ async function runTransaction<T>(
 
 function databaseRole(value: string): FixedRole {
   if (!isFixedRole(value)) throw new CanonicalCrmRepositoryError("unavailable");
+  return value;
+}
+
+function databaseStudentCaseStatus(value: string): CanonicalStudentCaseStatus {
+  if (!isCanonicalStudentCaseStatus(value)) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
   return value;
 }
 
@@ -1160,4 +1285,89 @@ export async function getCanonicalStudentCaseSnapshot(
   return runTransaction((transaction) =>
     selectStudentCaseSnapshot(transaction, studentCaseId),
   );
+}
+
+export async function listCanonicalStudentCases(
+  input: Readonly<{
+    actorRole: FixedRole;
+    cursor?: CanonicalReadCursor;
+    status?: CanonicalStudentCaseStatus;
+    pageSize?: number;
+    query?: string;
+  }>,
+): Promise<CanonicalStudentCaseQueuePage> {
+  actorRole(input.actorRole, ["admin", "admissions"]);
+  const cursor = optionalCanonicalReadCursor(input.cursor);
+  const pageSize = canonicalReadPageSize(input.pageSize);
+  const query = canonicalReadQuery(input.query);
+  if (
+    input.status !== undefined &&
+    !isCanonicalStudentCaseStatus(input.status)
+  ) {
+    invalidInput();
+  }
+
+  return runTransaction(async (transaction) => {
+    const cursorDate = cursor ? new Date(cursor.updatedAt) : undefined;
+    const searchPattern = query ? literalLikePattern(query) : undefined;
+    const result = await transaction
+      .select({
+        studentCaseId: evoStudentCases.id,
+        leadId: evoStudentCases.leadId,
+        personId: evoStudentCases.personId,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+        status: evoStudentCases.status,
+        assignedRole: evoStudentCases.ownerRole,
+        createdAt: evoStudentCases.createdAt,
+        updatedAt: evoStudentCases.updatedAt,
+      })
+      .from(evoStudentCases)
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .where(
+        and(
+          input.status ? eq(evoStudentCases.status, input.status) : undefined,
+          cursorDate
+            ? or(
+                lt(evoStudentCases.updatedAt, cursorDate),
+                and(
+                  eq(evoStudentCases.updatedAt, cursorDate),
+                  lt(evoStudentCases.id, cursor!.id),
+                ),
+              )
+            : undefined,
+          searchPattern
+            ? or(
+                ilike(evoPeople.fullName, searchPattern),
+                ilike(evoPeople.email, searchPattern),
+                ilike(evoPeople.phoneE164, searchPattern),
+                ilike(evoPeople.id, searchPattern),
+                ilike(evoStudentCases.id, searchPattern),
+                ilike(evoStudentCases.leadId, searchPattern),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(desc(evoStudentCases.updatedAt), desc(evoStudentCases.id))
+      .limit(pageSize + 1);
+
+    const hasNext = result.length > pageSize;
+    const rows = result.slice(0, pageSize).map((row) => ({
+      ...row,
+      status: databaseStudentCaseStatus(row.status),
+      assignedRole: databaseRole(row.assignedRole),
+      createdAt: dateString(row.createdAt),
+      updatedAt: dateString(row.updatedAt),
+    }));
+    const lastRow = rows.at(-1);
+    return {
+      rows,
+      hasNext,
+      nextCursor:
+        hasNext && lastRow
+          ? { updatedAt: lastRow.updatedAt, id: lastRow.studentCaseId }
+          : null,
+    };
+  });
 }

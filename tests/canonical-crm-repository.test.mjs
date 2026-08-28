@@ -3,17 +3,21 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  CANONICAL_STUDENT_CASE_STATUSES,
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
   createCanonicalPersonLead,
   getCanonicalLeadSnapshot,
   getCanonicalStudentCaseSnapshot,
   handoffCanonicalLeadToAdmissions,
+  listCanonicalStudentCases,
   normalizeCanonicalPersonIdentity,
+  parseCanonicalReadCursor,
   recordCanonicalSalesGateEvidence,
 } from "../src/lib/server/canonical-crm-repository.ts";
 
 const UUID_A = "11111111-1111-4111-8111-111111111111";
+const UUID_B = "22222222-2222-4222-8222-222222222222";
 
 function rejectsWithCode(code) {
   return (error) =>
@@ -35,6 +39,34 @@ test("canonical person identity normalization is deterministic", () => {
       normalizedPhone: "+996555123456",
     },
   );
+});
+
+test("canonical read cursor normalizes one real timestamp and non-nil UUID pair", () => {
+  assert.deepEqual(CANONICAL_STUDENT_CASE_STATUSES, [
+    "active",
+    "paused",
+    "closed",
+  ]);
+  assert.deepEqual(
+    parseCanonicalReadCursor("2026-08-28T16:30:00+04:00", UUID_B),
+    {
+      updatedAt: "2026-08-28T12:30:00.000Z",
+      id: UUID_B,
+    },
+  );
+
+  for (const [updatedAt, id] of [
+    [undefined, UUID_B],
+    ["2026-08-28T12:30:00.000Z", undefined],
+    ["2026-02-30T12:30:00.000Z", UUID_B],
+    ["2026-08-28", UUID_B],
+    ["2026-08-28T12:30:00.000Z", "00000000-0000-0000-0000-000000000000"],
+  ]) {
+    assert.throws(
+      () => parseCanonicalReadCursor(updatedAt, id),
+      rejectsWithCode("invalid_input"),
+    );
+  }
 });
 
 test("canonical phone normalization rejects letters instead of deleting them", () => {
@@ -168,6 +200,39 @@ test("snapshot reads reject malformed UUIDs before database access", async () =>
     getCanonicalStudentCaseSnapshot({
       actorRole: "admissions",
       studentCaseId: "case-1",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+});
+
+test("student case queue enforces role and bounded read inputs before database access", async () => {
+  await assert.rejects(
+    listCanonicalStudentCases({ actorRole: "sales" }),
+    rejectsWithCode("forbidden"),
+  );
+
+  for (const pageSize of [0, 51, 1.5, "25"]) {
+    await assert.rejects(
+      listCanonicalStudentCases({ actorRole: "admin", pageSize }),
+      rejectsWithCode("invalid_input"),
+    );
+  }
+  await assert.rejects(
+    listCanonicalStudentCases({ actorRole: "admin", status: "blocked" }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    listCanonicalStudentCases({ actorRole: "admissions", query: "x".repeat(121) }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    listCanonicalStudentCases({
+      actorRole: "admin",
+      cursor: {
+        updatedAt: "2026-08-28T12:30:00.000Z",
+        id: UUID_B,
+        extra: "second-token",
+      },
     }),
     rejectsWithCode("invalid_input"),
   );

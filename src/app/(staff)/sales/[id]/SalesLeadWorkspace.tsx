@@ -17,11 +17,11 @@ import {
   getPlatformAdmissionsGate,
   PlatformAdmissionsGateRepositoryError,
 } from "@/lib/platform-admissions-gate";
-import {
-  PlatformCanonicalRecordsRepositoryError,
-  getPlatformCanonicalLead,
-} from "@/lib/platform-canonical-records";
 import { requirePlatformSalesActor } from "@/lib/platform-guards";
+import {
+  CanonicalCrmRepositoryError,
+  getCanonicalLeadSnapshot,
+} from "@/lib/server/canonical-crm-repository";
 import {
   PlatformSalesWorkflowRepositoryError,
   getPlatformSalesLeadDetail,
@@ -35,47 +35,107 @@ export async function SalesLeadWorkspace({
     getT(),
     requirePlatformSalesActor(),
   ]);
-  const [workflowResult, ownerResult, gateResult, handoffResult, canonicalLead] = await Promise.all([
-    getPlatformSalesLeadDetail(actor, id)
-      .then((lead) => ({ lead, unavailable: false as const }))
-      .catch((error: unknown) => {
-        if (error instanceof PlatformSalesWorkflowRepositoryError) {
-          return { lead: null, unavailable: true as const };
-        }
-        throw error;
-      }),
-    listPlatformSalesOwnerOptions(actor, { pageSize: 50 })
-      .then((page) => ({ page, unavailable: false as const }))
-      .catch((error: unknown) => {
-        if (error instanceof PlatformSalesWorkflowRepositoryError) {
-          return { page: null, unavailable: true as const };
-        }
-        throw error;
-      }),
-    getPlatformAdmissionsGate(actor, id)
-      .then((gate) => ({ gate, unavailable: false as const }))
-      .catch((error: unknown) => {
-        if (error instanceof PlatformAdmissionsGateRepositoryError) {
-          return { gate: null, unavailable: true as const };
-        }
-        throw error;
-      }),
-    getPlatformAdmissionsHandoff(actor, id)
-      .then((handoff) => ({ handoff, unavailable: false as const }))
-      .catch((error: unknown) => {
-        if (error instanceof PlatformAdmissionsHandoffRepositoryError) {
-          return { handoff: null, unavailable: true as const };
-        }
-        throw error;
-      }),
-    getPlatformCanonicalLead(actor, id).catch((error: unknown) => {
-      if (error instanceof PlatformCanonicalRecordsRepositoryError) return null;
-      throw error;
-    }),
-  ]);
+  let canonicalLead: Awaited<ReturnType<typeof getCanonicalLeadSnapshot>>;
+  try {
+    canonicalLead = await getCanonicalLeadSnapshot({
+      actorRole: actor.platformRole,
+      leadId: id,
+    });
+  } catch (error: unknown) {
+    if (
+      error instanceof CanonicalCrmRepositoryError &&
+      error.code === "not_found"
+    ) {
+      notFound();
+    }
+    throw error;
+  }
+
+  const [workflowResult, ownerResult, gateResult, handoffResult] =
+    await Promise.all([
+      getPlatformSalesLeadDetail(actor, id)
+        .then((lead) => ({ lead, unavailable: false as const }))
+        .catch((error: unknown) => {
+          if (error instanceof PlatformSalesWorkflowRepositoryError) {
+            return { lead: null, unavailable: true as const };
+          }
+          throw error;
+        }),
+      listPlatformSalesOwnerOptions(actor, { pageSize: 50 })
+        .then((page) => ({ page, unavailable: false as const }))
+        .catch((error: unknown) => {
+          if (error instanceof PlatformSalesWorkflowRepositoryError) {
+            return { page: null, unavailable: true as const };
+          }
+          throw error;
+        }),
+      getPlatformAdmissionsGate(actor, id)
+        .then((gate) => ({ gate, unavailable: false as const }))
+        .catch((error: unknown) => {
+          if (error instanceof PlatformAdmissionsGateRepositoryError) {
+            return { gate: null, unavailable: true as const };
+          }
+          throw error;
+        }),
+      getPlatformAdmissionsHandoff(actor, id)
+        .then((handoff) => ({ handoff, unavailable: false as const }))
+        .catch((error: unknown) => {
+          if (error instanceof PlatformAdmissionsHandoffRepositoryError) {
+            return { handoff: null, unavailable: true as const };
+          }
+          throw error;
+        }),
+    ]);
+
+  const canonicalPanel = (
+    <section
+      className="border-t border-border pt-6"
+      aria-label={
+        locale === "en"
+          ? "Canonical PostgreSQL lead"
+          : "Канонический лид PostgreSQL"
+      }
+      data-testid="sales-workflow-canonical-context"
+    >
+      <CanonicalLeadDetail lead={canonicalLead} locale={locale} />
+    </section>
+  );
 
   if (workflowResult.unavailable) {
-    return <SalesLeadWorkflowDetailUnavailable locale={locale} />;
+    return (
+      <div className="space-y-8">
+        {canonicalPanel}
+        <SalesLeadWorkflowDetailUnavailable locale={locale} />
+        {gateResult.gate ? (
+          <SalesAdmissionsGateCard
+            gate={gateResult.gate}
+            locale={locale}
+            requestIds={{
+              confirmContract: randomUUID(),
+              confirmFirstPayment: randomUUID(),
+              overrideGate: randomUUID(),
+            }}
+          />
+        ) : (
+          <SalesAdmissionsGateUnavailable
+            locale={locale}
+            reason={gateResult.unavailable ? "read_failure" : "not_initialized"}
+          />
+        )}
+        {handoffResult.handoff ? (
+          <SalesAdmissionsHandoffCard
+            handoff={handoffResult.handoff}
+            locale={locale}
+            requestId={randomUUID()}
+          />
+        ) : (
+          <SalesAdmissionsHandoffUnavailable
+            locale={locale}
+            reason={handoffResult.unavailable ? "read_failure" : "not_initialized"}
+          />
+        )}
+      </div>
+    );
   }
   if (!workflowResult.lead) notFound();
 
@@ -88,7 +148,8 @@ export async function SalesLeadWorkspace({
 
   return (
     <div className="space-y-8">
-      <div data-testid={canonicalLead ? undefined : "canonical-lead-detail"}>
+      {canonicalPanel}
+      <div>
         <SalesLeadWorkflowDetail
           lead={workflowResult.lead}
           locale={locale}
@@ -128,15 +189,6 @@ export async function SalesLeadWorkspace({
           reason={handoffResult.unavailable ? "read_failure" : "not_initialized"}
         />
       )}
-      {canonicalLead ? (
-        <section
-          className="border-t border-border pt-6"
-          aria-label={locale === "en" ? "Read-only canonical context" : "Канонический контекст только для чтения"}
-          data-testid="sales-workflow-canonical-context"
-        >
-          <CanonicalLeadDetail lead={canonicalLead} locale={locale} />
-        </section>
-      ) : null}
     </div>
   );
 }

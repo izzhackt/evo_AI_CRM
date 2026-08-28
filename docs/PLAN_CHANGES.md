@@ -12324,3 +12324,40 @@ requires authentication, authorization, input validation and non-sensitive
 errors at https://nextjs.org/docs/app/guides/backend-for-frontend. Drizzle
 documents transaction commit/rollback behavior at
 https://orm.drizzle.team/docs/transactions.
+
+## 2026-08-28 - Split mixed canonical read paths while deleting the Supabase lead-detail authority
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under Issue #429 and the owner's replace-not-layer rule.
+Change type: active slice boundary, read-path replacement, and legacy-eradication sequencing.
+Affected plan section: V2-5 (#429) canonical CRM model and minimal event log.
+
+Reason: `src/lib/platform-canonical-records.ts` mixed two different concerns:
+the active Sales canonical lead detail and the `/clients` register, while both
+still read Supabase RPC projections instead of the new PostgreSQL authority.
+Deleting only the Sales half would leave a hidden canonical-data exception;
+pulling full Student 360 into this slice would instead steal #432 scope.
+
+Decision:
+
+1. In the second #429 PR, replace the active Sales canonical lead detail read
+   path with the PostgreSQL/Drizzle repository backed by the new V2 canonical
+   schema and fixed-role rules.
+2. Replace `/clients` only as a lean PostgreSQL Student Case queue with search,
+   status and keyset pagination. Full Student 360 tasks, documents,
+   applications, visa and finance behavior remains #432.
+3. Delete `src/lib/platform-canonical-records.ts` and any temporary renamed
+   clients-only copy in the same PR. No active import may remain after merge.
+4. The PostgreSQL read surfaces expose only fields V2 stores now. They must not
+   reintroduce organizations, memberships, WAHA provenance, external
+   identifiers, Supabase RPCs or compatibility payloads.
+5. Replace the old implementation-level canonical-records tests with outcome
+   tests at the canonical repository and real page boundaries, plus real app
+   and browser proof on the existing OrbStack PostgreSQL harness.
+
+Validation impact: before merge attach an `rg` inventory proving that
+`src/lib/platform-canonical-records.ts` and its renamed variants are gone and
+that both active reads point only at the canonical PostgreSQL repository. Real
+browser proof must cover `/sales/:leadId` and the `/clients` Student Case queue
+on PostgreSQL data and must fail clearly without `DATABASE_URL`, including the
+Sales lead detail route itself.

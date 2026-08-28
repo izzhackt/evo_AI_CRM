@@ -14,6 +14,7 @@ import {
   listCanonicalLeadConversations,
   listCanonicalSalesLeads,
   listCanonicalStudentCases,
+  receiveCanonicalWhatsAppInbound,
   recordCanonicalSalesGateEvidence,
   updateCanonicalSalesLeadWorkflow,
 } from "../src/lib/server/canonical-crm-repository.ts";
@@ -202,6 +203,220 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     assert.equal(secondMessagePage.messages[0].body, inboundInput.body);
     assert.equal(secondMessagePage.hasNext, false);
     assert.equal(secondMessagePage.nextCursor, null);
+
+    const decimalRunId = runId.replace(/\D/g, "").padEnd(12, "0").slice(0, 12);
+    const conflictSeedLead = await createCanonicalPersonLead({
+      ...technicalCommandContext(runId, "atomic-conflict-seed"),
+      displayName: `atomic-conflict-seed-${runId}`,
+      email: `atomic-conflict-seed-${runId}@acceptance.invalid`,
+      source: `technical-atomic-conflict-${runId}`,
+    });
+    const conflictingConversationExternalId =
+      `technical-atomic-conflict-conversation-${runId}`;
+    await sql`
+      insert into evo_conversations (
+        id,
+        lead_id,
+        channel,
+        external_conversation_id,
+        status,
+        owning_role
+      ) values (
+        ${randomUUID()},
+        ${conflictSeedLead.leadId},
+        'whatsapp',
+        ${conflictingConversationExternalId},
+        'open',
+        'sales'
+      )
+    `;
+    const [countsBeforeAtomicConflict] = await sql`
+      select
+        (select count(*)::int from evo_people) as people,
+        (select count(*)::int from evo_leads) as leads,
+        (select count(*)::int from evo_business_events) as events,
+        (select count(*)::int from evo_command_receipts) as receipts
+    `;
+    await assert.rejects(
+      receiveCanonicalWhatsAppInbound({
+        ...technicalCommandContext(runId, "atomic-conflict"),
+        displayName: `atomic-conflicting-identity-${runId}`,
+        phone: `+997${decimalRunId}`,
+        externalConversationId: conflictingConversationExternalId,
+        externalMessageId: `technical-atomic-conflict-message-${runId}`,
+        body: `technical-atomic-conflict-body-${runId}`,
+        occurredAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+      repositoryError("conflict"),
+    );
+    const [countsAfterAtomicConflict] = await sql`
+      select
+        (select count(*)::int from evo_people) as people,
+        (select count(*)::int from evo_leads) as leads,
+        (select count(*)::int from evo_business_events) as events,
+        (select count(*)::int from evo_command_receipts) as receipts
+    `;
+    assert.deepEqual(
+      countsAfterAtomicConflict,
+      countsBeforeAtomicConflict,
+      "a conversation/identity conflict must roll back the person, lead, events and receipt",
+    );
+
+    const atomicPhone = `+998${decimalRunId}`;
+    const atomicOccurredAt = new Date(Date.now() + 10 * 60_000);
+    const intermediateAtomicOccurredAt = new Date(
+      atomicOccurredAt.getTime() + 30_000,
+    );
+    const laterAtomicOccurredAt = new Date(atomicOccurredAt.getTime() + 60_000);
+    const olderAtomicOccurredAt = new Date(atomicOccurredAt.getTime() - 60_000);
+    const atomicInboundInput = {
+      ...technicalCommandContext(runId, "atomic-inbound"),
+      displayName: `atomic-order-${runId}-primary`,
+      phone: atomicPhone,
+      externalConversationId: `technical-atomic-conversation-${runId}`,
+      externalMessageId: `technical-atomic-message-${runId}`,
+      body: `technical-atomic-body-${runId}`,
+      occurredAt: atomicOccurredAt.toISOString(),
+    };
+    const atomicInbound =
+      await receiveCanonicalWhatsAppInbound(atomicInboundInput);
+
+    const readAtomicRecency = async () => {
+      const [snapshot] = await sql`
+        select
+          lead.version as lead_version,
+          to_char(
+            lead.updated_at at time zone 'UTC',
+            'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+          ) as lead_updated_at,
+          conversation.version as conversation_version,
+          to_char(
+            conversation.updated_at at time zone 'UTC',
+            'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+          ) as conversation_updated_at
+        from evo_leads lead
+        join evo_conversations conversation on conversation.lead_id = lead.id
+        where lead.id = ${atomicInbound.leadId}
+          and conversation.id = ${atomicInbound.conversationId}
+      `;
+      assert.ok(snapshot, "atomic inbound lead/conversation recency must exist");
+      return {
+        leadVersion: Number(snapshot.lead_version),
+        leadUpdatedAt: snapshot.lead_updated_at,
+        conversationVersion: Number(snapshot.conversation_version),
+        conversationUpdatedAt: snapshot.conversation_updated_at,
+      };
+    };
+
+    assert.deepEqual(await readAtomicRecency(), {
+      leadVersion: 1,
+      leadUpdatedAt: atomicOccurredAt.toISOString(),
+      conversationVersion: 1,
+      conversationUpdatedAt: atomicOccurredAt.toISOString(),
+    });
+
+    const secondAtomicConversation = await receiveCanonicalWhatsAppInbound({
+      ...atomicInboundInput,
+      ...technicalCommandContext(runId, "atomic-inbound-second-conversation"),
+      externalConversationId:
+        `technical-atomic-conversation-second-${runId}`,
+      externalMessageId: `technical-atomic-message-second-${runId}`,
+      body: `technical-atomic-body-second-${runId}`,
+      occurredAt: intermediateAtomicOccurredAt.toISOString(),
+    });
+    assert.equal(secondAtomicConversation.leadId, atomicInbound.leadId);
+    assert.notEqual(
+      secondAtomicConversation.conversationId,
+      atomicInbound.conversationId,
+    );
+
+    const laterAtomicInbound = await receiveCanonicalWhatsAppInbound({
+      ...atomicInboundInput,
+      ...technicalCommandContext(runId, "atomic-inbound-later"),
+      externalMessageId: `technical-atomic-message-later-${runId}`,
+      body: `technical-atomic-body-later-${runId}`,
+      occurredAt: laterAtomicOccurredAt.toISOString(),
+    });
+    assert.equal(laterAtomicInbound.leadId, atomicInbound.leadId);
+    assert.equal(laterAtomicInbound.conversationId, atomicInbound.conversationId);
+    const laterAtomicRecency = await readAtomicRecency();
+    assert.deepEqual(laterAtomicRecency, {
+      leadVersion: 1,
+      leadUpdatedAt: laterAtomicOccurredAt.toISOString(),
+      conversationVersion: 1,
+      conversationUpdatedAt: laterAtomicOccurredAt.toISOString(),
+    });
+
+    const orderedAtomicConversations = await listCanonicalLeadConversations({
+      actorRole: "sales",
+      leadId: atomicInbound.leadId,
+      pageSize: 10,
+    });
+    assert.deepEqual(
+      orderedAtomicConversations
+        .slice(0, 2)
+        .map((conversation) => conversation.conversationId),
+      [atomicInbound.conversationId, secondAtomicConversation.conversationId],
+      "the conversation touched by the later provider message must sort first",
+    );
+
+    const comparisonAtomicLead = await receiveCanonicalWhatsAppInbound({
+      ...technicalCommandContext(runId, "atomic-inbound-comparison-lead"),
+      displayName: `atomic-order-${runId}-secondary`,
+      phone: `+999${decimalRunId}`,
+      externalConversationId:
+        `technical-atomic-comparison-conversation-${runId}`,
+      externalMessageId: `technical-atomic-comparison-message-${runId}`,
+      body: `technical-atomic-comparison-body-${runId}`,
+      occurredAt: intermediateAtomicOccurredAt.toISOString(),
+    });
+    const orderedAtomicLeads = await listCanonicalSalesLeads({
+      actorRole: "sales",
+      query: `atomic-order-${runId}`,
+      pageSize: 10,
+    });
+    assert.deepEqual(
+      orderedAtomicLeads.rows.slice(0, 2).map((row) => row.leadId),
+      [atomicInbound.leadId, comparisonAtomicLead.leadId],
+      "the lead touched by the later provider message must sort first",
+    );
+
+    const exactAtomicReplay =
+      await receiveCanonicalWhatsAppInbound(atomicInboundInput);
+    assert.deepEqual(exactAtomicReplay, atomicInbound);
+    assert.deepEqual(await readAtomicRecency(), laterAtomicRecency);
+
+    const naturalAtomicDuplicate = await receiveCanonicalWhatsAppInbound({
+      ...atomicInboundInput,
+      ...technicalCommandContext(runId, "atomic-inbound-natural-duplicate"),
+    });
+    assert.deepEqual(naturalAtomicDuplicate, atomicInbound);
+    assert.deepEqual(await readAtomicRecency(), laterAtomicRecency);
+
+    const olderAtomicInbound = await receiveCanonicalWhatsAppInbound({
+      ...atomicInboundInput,
+      ...technicalCommandContext(runId, "atomic-inbound-older"),
+      externalMessageId: `technical-atomic-message-older-${runId}`,
+      body: `technical-atomic-body-older-${runId}`,
+      occurredAt: olderAtomicOccurredAt.toISOString(),
+    });
+    assert.equal(olderAtomicInbound.leadId, atomicInbound.leadId);
+    assert.equal(olderAtomicInbound.conversationId, atomicInbound.conversationId);
+    assert.deepEqual(await readAtomicRecency(), laterAtomicRecency);
+
+    const [atomicIdentityCounts] = await sql`
+      select
+        count(distinct person.id)::int as people,
+        count(distinct lead.id)::int as whatsapp_leads
+      from evo_people person
+      join evo_leads lead on lead.person_id = person.id
+      where person.phone_e164 = ${atomicPhone}
+        and lead.source = 'whatsapp'
+    `;
+    assert.deepEqual(atomicIdentityCounts, {
+      people: 1,
+      whatsapp_leads: 1,
+    });
 
     const unrelatedLead = await createCanonicalPersonLead({
       ...technicalCommandContext(runId, "unrelated-lead"),

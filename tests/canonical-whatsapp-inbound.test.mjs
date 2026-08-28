@@ -76,15 +76,8 @@ function dependencies(overrides = {}) {
     values: {
       getSecret: () => TEST_HMAC_MATERIAL,
       now: () => NOW_SECONDS * 1_000,
-      createPersonLead: async (input) => {
-        calls.push(["createPersonLead", input]);
-        return {
-          leadId: LEAD_ID,
-          personId: "44444444-4444-4444-8444-444444444444",
-        };
-      },
-      appendInboundMessage: async (input) => {
-        calls.push(["appendInboundMessage", input]);
+      receiveInbound: async (input) => {
+        calls.push(["receiveInbound", input]);
         return {
           leadId: LEAD_ID,
           conversationId: CONVERSATION_ID,
@@ -115,28 +108,15 @@ test("a valid signed event enters the canonical Sales workflow with stable ident
   });
   assert.deepEqual(repository.calls, [
     [
-      "createPersonLead",
+      "receiveInbound",
       {
         actorRole: "sales",
         idempotencyKey:
-          "wa-lead:b743ee3356eb69a37d48ea48491c1298650dc5cd1862c2100f8394b2a9f881d4",
+          "wa-inbound:d41a6a6cc8f9ceed18b2e87d8c9169d9669e99824de5cd8a780826d766f45b4b",
         correlationId:
           "wa:d41a6a6cc8f9ceed18b2e87d8c9169d9669e99824de5cd8a780826d766f45b4b",
         displayName: "WhatsApp ••••3456",
         phone: "+996555123456",
-        source: "whatsapp",
-      },
-    ],
-    [
-      "appendInboundMessage",
-      {
-        actorRole: "sales",
-        idempotencyKey:
-          "wa-msg:d41a6a6cc8f9ceed18b2e87d8c9169d9669e99824de5cd8a780826d766f45b4b",
-        correlationId:
-          "wa:d41a6a6cc8f9ceed18b2e87d8c9169d9669e99824de5cd8a780826d766f45b4b",
-        leadId: LEAD_ID,
-        channel: "whatsapp",
         externalConversationId: "wa-conversation-42",
         externalMessageId: "wa-message-99",
         body: "Need help with my application",
@@ -310,7 +290,7 @@ test("accepted payload text and identifiers are normalized before canonical comm
   );
 
   assert.equal(response.status, 202);
-  const [, messageInput] = repository.calls[1];
+  const [, messageInput] = repository.calls[0];
   assert.equal(messageInput.externalConversationId, "wa-conversation-42");
   assert.equal(messageInput.externalMessageId, "wa-message-99");
   assert.equal(messageInput.body, "First line\nSecond line");
@@ -327,15 +307,14 @@ test("exact delivery retries keep the same canonical command identities and resp
   assert.equal(first.status, 202);
   assert.equal(replay.status, 202);
   assert.deepEqual(await responseJson(first), await responseJson(replay));
-  assert.equal(repository.calls.length, 4);
-  assert.deepEqual(repository.calls[0][1], repository.calls[2][1]);
-  assert.deepEqual(repository.calls[1][1], repository.calls[3][1]);
+  assert.equal(repository.calls.length, 2);
+  assert.deepEqual(repository.calls[0][1], repository.calls[1][1]);
 });
 
 test("changed content under the same provider message identity returns a safe conflict", async () => {
   let acceptedBody = null;
   const repository = dependencies({
-    appendInboundMessage: async (input) => {
+    receiveInbound: async (input) => {
       if (acceptedBody === null) acceptedBody = input.body;
       else if (acceptedBody !== input.body) {
         throw new CanonicalCrmRepositoryError("idempotency_conflict");
@@ -398,7 +377,7 @@ test("canonical and unexpected failures map to stable non-sensitive responses", 
   for (const [name, failure, status, errorCode] of cases) {
     await t.test(name, async () => {
       const repository = dependencies({
-        createPersonLead: async () => {
+        receiveInbound: async () => {
           throw failure;
         },
       });

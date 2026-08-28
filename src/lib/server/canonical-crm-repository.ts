@@ -2,7 +2,17 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { and, desc, eq, ilike, lt, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  ilike,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import {
   evoConversations,
@@ -17,6 +27,12 @@ import {
   evoBusinessEvents,
   evoCommandReceipts,
 } from "../../db/schema/canonical-crm-events.ts";
+import {
+  CANONICAL_SALES_DUE_FILTERS,
+  CANONICAL_SALES_STAGES,
+  type CanonicalSalesDueFilter,
+  type CanonicalSalesStage,
+} from "../canonical-sales-workflow-contract.ts";
 import { isFixedRole, type FixedRole } from "../fixed-role-policy.ts";
 import { getDatabase } from "./database.ts";
 
@@ -28,6 +44,10 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const ISO_TIMESTAMP_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(?:Z|[+-](\d{2}):(\d{2}))$/;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export { CANONICAL_SALES_DUE_FILTERS, CANONICAL_SALES_STAGES };
+export type { CanonicalSalesDueFilter, CanonicalSalesStage };
 
 export const CANONICAL_STUDENT_CASE_STATUSES = [
   "active",
@@ -98,11 +118,22 @@ export type CanonicalLeadSnapshot = Readonly<{
   email: string | null;
   phone: string | null;
   source: string;
-  stage: string;
+  stage: CanonicalSalesStage;
   ownerRole: FixedRole;
+  qualificationSummary: string | null;
+  nextAction: string | null;
+  nextActionAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
+}>;
+
+export type CanonicalSalesLeadQueueRow = CanonicalLeadSnapshot;
+
+export type CanonicalSalesLeadQueuePage = Readonly<{
+  rows: readonly CanonicalSalesLeadQueueRow[];
+  hasNext: boolean;
+  nextCursor: CanonicalReadCursor | null;
 }>;
 
 export type CanonicalStudentCaseSnapshot = Readonly<{
@@ -186,6 +217,26 @@ function isCanonicalStudentCaseStatus(
   return CANONICAL_STUDENT_CASE_STATUSES.some((status) => status === value);
 }
 
+function isCanonicalSalesStage(value: unknown): value is CanonicalSalesStage {
+  return CANONICAL_SALES_STAGES.some((stage) => stage === value);
+}
+
+function optionalCanonicalSalesStage(
+  value: unknown,
+): CanonicalSalesStage | undefined {
+  if (value === undefined) return undefined;
+  if (!isCanonicalSalesStage(value)) invalidInput();
+  return value;
+}
+
+function canonicalSalesDueFilter(value: unknown): CanonicalSalesDueFilter {
+  if (value === undefined) return "all";
+  if (!CANONICAL_SALES_DUE_FILTERS.some((filter) => filter === value)) {
+    invalidInput();
+  }
+  return value as CanonicalSalesDueFilter;
+}
+
 function optionalCanonicalReadCursor(
   value: unknown,
 ): CanonicalReadCursor | undefined {
@@ -226,6 +277,21 @@ function canonicalReadQuery(value: unknown): string | undefined {
 
 function literalLikePattern(value: string): string {
   return `%${value.replace(/[\\%_]/g, "\\$&")}%`;
+}
+
+function canonicalSalesDueCondition(filter: CanonicalSalesDueFilter) {
+  switch (filter) {
+    case "all":
+      return undefined;
+    case "scheduled":
+      return isNotNull(evoLeads.nextActionAt);
+    case "unscheduled":
+      return isNull(evoLeads.nextActionAt);
+    case "due_today":
+      return sql<boolean>`(${evoLeads.nextActionAt} at time zone 'Asia/Bishkek')::date = (now() at time zone 'Asia/Bishkek')::date`;
+    case "overdue":
+      return sql<boolean>`(${evoLeads.nextActionAt} at time zone 'Asia/Bishkek')::date < (now() at time zone 'Asia/Bishkek')::date`;
+  }
 }
 
 export function parseCanonicalReadCursor(
@@ -313,6 +379,25 @@ function isoTimestamp(value: unknown): Date {
   const parsed = new Date(value);
   if (!Number.isFinite(parsed.getTime())) invalidInput();
   return parsed;
+}
+
+function canonicalSalesDeadline(value: unknown): Date {
+  if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) {
+    invalidInput();
+  }
+  const parsed = new Date(`${value}T03:00:00.000Z`);
+  if (
+    !Number.isFinite(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== value
+  ) {
+    invalidInput();
+  }
+  return parsed;
+}
+
+function positiveVersion(value: unknown): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 1) invalidInput();
+  return Number(value);
 }
 
 function sha256(value: Readonly<Record<string, unknown>>): string {
@@ -538,6 +623,20 @@ function databaseRole(value: string): FixedRole {
   return value;
 }
 
+function databaseSalesOwnerRole(value: string): "sales" {
+  if (value !== "sales") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function databaseSalesStage(value: string): CanonicalSalesStage {
+  if (!isCanonicalSalesStage(value)) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
 function databaseStudentCaseStatus(value: string): CanonicalStudentCaseStatus {
   if (!isCanonicalStudentCaseStatus(value)) {
     throw new CanonicalCrmRepositoryError("unavailable");
@@ -550,6 +649,10 @@ function dateString(value: Date): string {
     throw new CanonicalCrmRepositoryError("unavailable");
   }
   return value.toISOString();
+}
+
+function optionalDateString(value: Date | null): string | null {
+  return value === null ? null : dateString(value);
 }
 
 async function selectLeadSnapshot(
@@ -566,6 +669,9 @@ async function selectLeadSnapshot(
       source: evoLeads.source,
       stage: evoLeads.stage,
       ownerRole: evoLeads.ownerRole,
+      qualificationSummary: evoLeads.qualificationSummary,
+      nextAction: evoLeads.nextAction,
+      nextActionAt: evoLeads.nextActionAt,
       version: evoLeads.version,
       createdAt: evoLeads.createdAt,
       updatedAt: evoLeads.updatedAt,
@@ -577,7 +683,9 @@ async function selectLeadSnapshot(
   if (!row) throw new CanonicalCrmRepositoryError("not_found");
   return {
     ...row,
-    ownerRole: databaseRole(row.ownerRole),
+    stage: databaseSalesStage(row.stage),
+    ownerRole: databaseSalesOwnerRole(row.ownerRole),
+    nextActionAt: optionalDateString(row.nextActionAt),
     createdAt: dateString(row.createdAt),
     updatedAt: dateString(row.updatedAt),
   };
@@ -922,6 +1030,143 @@ export async function appendCanonicalInboundMessage(
   });
 }
 
+export async function updateCanonicalSalesLeadWorkflow(
+  contextInput: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+  }>,
+  input: Readonly<{
+    leadId: string;
+    expectedVersion: number;
+    stage: CanonicalSalesStage;
+    qualificationSummary?: string | null;
+    nextAction?: string | null;
+    nextActionAt?: string | null;
+    reason?: string | null;
+  }>,
+): Promise<CanonicalLeadSnapshot> {
+  const context = parseCommandContext(contextInput, ["admin", "sales"]);
+  const leadId = uuid(input.leadId);
+  const expectedVersion = positiveVersion(input.expectedVersion);
+  const stage = optionalCanonicalSalesStage(input.stage);
+  if (!stage || stage === "handed_off") invalidInput();
+
+  const qualificationSummary = optionalBoundedText(
+    input.qualificationSummary,
+    { maxLength: 2_000, collapseWhitespace: true },
+  );
+  if (
+    (stage === "qualified" || stage === "handoff_ready") &&
+    !qualificationSummary
+  ) {
+    invalidInput();
+  }
+
+  const suppliedReason = optionalBoundedText(input.reason, {
+    maxLength: 2_000,
+    collapseWhitespace: true,
+  });
+  let nextAction: string | null;
+  let nextActionAt: Date | null;
+  let reason: string | null;
+  if (stage === "disqualified") {
+    if (!suppliedReason) invalidInput();
+    nextAction = null;
+    nextActionAt = null;
+    reason = suppliedReason;
+  } else {
+    if (suppliedReason) invalidInput();
+    nextAction = boundedText(input.nextAction, {
+      maxLength: 500,
+      collapseWhitespace: true,
+    });
+    nextActionAt = canonicalSalesDeadline(input.nextActionAt);
+    reason = null;
+  }
+
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    leadId,
+    expectedVersion,
+    stage,
+    qualificationSummary,
+    nextAction,
+    nextActionAt: nextActionAt?.toISOString() ?? null,
+    reason,
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.sales_lead.workflow_update",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return selectLeadSnapshot(
+        transaction,
+        resultUuid(reservation.resultPayload, "leadId"),
+      );
+    }
+
+    const [lead] = await transaction
+      .select({
+        id: evoLeads.id,
+        stage: evoLeads.stage,
+        ownerRole: evoLeads.ownerRole,
+        version: evoLeads.version,
+      })
+      .from(evoLeads)
+      .where(eq(evoLeads.id, leadId))
+      .limit(1)
+      .for("update");
+    if (!lead) throw new CanonicalCrmRepositoryError("not_found");
+    const fromStage = databaseSalesStage(lead.stage);
+    databaseSalesOwnerRole(lead.ownerRole);
+    if (fromStage === "handed_off" || lead.version !== expectedVersion) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+
+    const [updated] = await transaction
+      .update(evoLeads)
+      .set({
+        stage,
+        qualificationSummary,
+        nextAction,
+        nextActionAt,
+        version: sql`${evoLeads.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(evoLeads.id, leadId),
+          eq(evoLeads.ownerRole, "sales"),
+          eq(evoLeads.version, expectedVersion),
+        ),
+      )
+      .returning({ id: evoLeads.id });
+    if (!updated) throw new CanonicalCrmRepositoryError("conflict");
+
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "lead",
+      businessObjectId: leadId,
+      transition: "sales_lead.workflow_updated",
+      fromState: fromStage,
+      toState: stage,
+      reason,
+    });
+    const result = await selectLeadSnapshot(transaction, leadId);
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "lead",
+      businessObjectId: leadId,
+      resultPayload: { leadId },
+    });
+    return result;
+  });
+}
+
 export async function recordCanonicalSalesGateEvidence(
   input: Readonly<{
     actorRole: FixedRole;
@@ -1235,6 +1480,8 @@ export async function handoffCanonicalLeadToAdmissions(
       .update(evoLeads)
       .set({
         stage: "handed_off",
+        nextAction: null,
+        nextActionAt: null,
         version: sql`${evoLeads.version} + 1`,
         updatedAt: new Date(),
       })
@@ -1367,6 +1614,93 @@ export async function listCanonicalStudentCases(
       nextCursor:
         hasNext && lastRow
           ? { updatedAt: lastRow.updatedAt, id: lastRow.studentCaseId }
+          : null,
+    };
+  });
+}
+
+export async function listCanonicalSalesLeads(
+  input: Readonly<{
+    actorRole: FixedRole;
+    cursor?: CanonicalReadCursor;
+    stage?: CanonicalSalesStage;
+    due?: CanonicalSalesDueFilter;
+    pageSize?: number;
+    query?: string;
+  }>,
+): Promise<CanonicalSalesLeadQueuePage> {
+  actorRole(input.actorRole, ["admin", "sales"]);
+  const cursor = optionalCanonicalReadCursor(input.cursor);
+  const stage = optionalCanonicalSalesStage(input.stage);
+  const due = canonicalSalesDueFilter(input.due);
+  const pageSize = canonicalReadPageSize(input.pageSize);
+  const query = canonicalReadQuery(input.query);
+
+  return runTransaction(async (transaction) => {
+    const cursorDate = cursor ? new Date(cursor.updatedAt) : undefined;
+    const searchPattern = query ? literalLikePattern(query) : undefined;
+    const result = await transaction
+      .select({
+        leadId: evoLeads.id,
+        personId: evoPeople.id,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+        source: evoLeads.source,
+        stage: evoLeads.stage,
+        ownerRole: evoLeads.ownerRole,
+        qualificationSummary: evoLeads.qualificationSummary,
+        nextAction: evoLeads.nextAction,
+        nextActionAt: evoLeads.nextActionAt,
+        version: evoLeads.version,
+        createdAt: evoLeads.createdAt,
+        updatedAt: evoLeads.updatedAt,
+      })
+      .from(evoLeads)
+      .innerJoin(evoPeople, eq(evoPeople.id, evoLeads.personId))
+      .where(
+        and(
+          stage ? eq(evoLeads.stage, stage) : undefined,
+          canonicalSalesDueCondition(due),
+          cursorDate
+            ? or(
+                lt(evoLeads.updatedAt, cursorDate),
+                and(
+                  eq(evoLeads.updatedAt, cursorDate),
+                  lt(evoLeads.id, cursor!.id),
+                ),
+              )
+            : undefined,
+          searchPattern
+            ? or(
+                ilike(evoPeople.fullName, searchPattern),
+                ilike(evoPeople.email, searchPattern),
+                ilike(evoPeople.phoneE164, searchPattern),
+                ilike(evoPeople.id, searchPattern),
+                ilike(evoLeads.id, searchPattern),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(desc(evoLeads.updatedAt), desc(evoLeads.id))
+      .limit(pageSize + 1);
+
+    const hasNext = result.length > pageSize;
+    const rows = result.slice(0, pageSize).map((row) => ({
+      ...row,
+      stage: databaseSalesStage(row.stage),
+      ownerRole: databaseSalesOwnerRole(row.ownerRole),
+      nextActionAt: optionalDateString(row.nextActionAt),
+      createdAt: dateString(row.createdAt),
+      updatedAt: dateString(row.updatedAt),
+    }));
+    const lastRow = rows.at(-1);
+    return {
+      rows,
+      hasNext,
+      nextCursor:
+        hasNext && lastRow
+          ? { updatedAt: lastRow.updatedAt, id: lastRow.leadId }
           : null,
     };
   });

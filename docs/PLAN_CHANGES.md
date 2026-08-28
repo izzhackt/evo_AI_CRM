@@ -12361,3 +12361,71 @@ that both active reads point only at the canonical PostgreSQL repository. Real
 browser proof must cover `/sales/:leadId` and the `/clients` Student Case queue
 on PostgreSQL data and must fail clearly without `DATABASE_URL`, including the
 Sales lead detail route itself.
+
+## 2026-08-28 - Split #430 by product workflow and inbound transport
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under Issue #430 and the owner's product-first rule.
+Change type: active-slice sequencing and replace-not-layer deletion boundary.
+Affected plan section: V2-6 (#430) Sales pipeline, qualification and inbound WhatsApp.
+
+Reason: the staff Sales workflow and the inbound WhatsApp HTTP boundary have
+different failure and review surfaces. Combining UI replacement, transactional
+qualification commands, webhook authentication and legacy worker deletion in
+one PR would make the product behavior harder to verify. The owner requires
+small sequential PRs, while the replacement rule forbids treating unfinished
+inbound work as proof of a completed Sales pipeline or retaining an alternate
+Sales repository after the new workflow is proven.
+
+Decision:
+
+1. The first #430 PR replaces the active `/sales` queue and `/sales/:leadId`
+   workflow with the canonical PostgreSQL repository. It owns search, canonical
+   stage filtering, due-state filtering, qualification summary, the required
+   next action and deadline, optimistic version checks, idempotency, correlation
+   and a minimal business event for every accepted mutation.
+2. `admin` and `sales` may read and change the Sales workflow; `admissions` is
+   denied at the server repository and route boundaries. Ownership is the fixed
+   `sales` role. The old organization membership/user-owner selector is deleted
+   and is not replaced with per-user identity or grants.
+3. The first PR removes the Supabase Sales workflow repository, contract,
+   actions, owner search, forms, implementation tests and their imports after
+   real PostgreSQL/application/browser proof. It also removes the old intake
+   queue and Supabase gate/handoff cards from the new Sales screens. Gate and
+   handoff return only through canonical #431; full conversation transport and
+   transcript replacement remain unfinished #430 scope, not a fallback for the
+   completed workflow.
+4. Canonical stages use only the schema vocabulary: `new`, `qualifying`,
+   `qualified`, `disqualified`, `handoff_ready` and `handed_off`. A normal Sales
+   edit cannot manufacture `handed_off`; #431 owns that transition. Active
+   qualification states require a meaningful next action and deadline;
+   disqualification requires a reason and clears future action.
+5. The second #430 PR replaces the inbound WhatsApp capability with one private
+   local HTTP adapter that validates its own request boundary and calls the
+   canonical PostgreSQL person/lead/conversation/message command idempotently.
+   In the same PR it deletes the superseded inbound webhook/worker/routes,
+   environment/config and implementation tests owned by that capability. It
+   never sends WhatsApp, writes amoCRM, calls a provider or claims provider
+   health; missing authorized provider access remains an explicit blocked
+   state.
+6. #431 keeps contract/first-payment evidence and Sales-to-Admissions handoff;
+   #432 keeps Student 360; #433 keeps staff outbound workflow and human-reviewed
+   Gemini. Frozen V1 deployments and historical source documents remain
+   unchanged and are never imported as a V2 runtime authority.
+
+Validation impact: the first PR must prove Sales/Admin success, Admissions
+denial, stable keyset pagination, literal search, accepted mutation, stale
+version conflict, duplicate-idempotency replay, event creation and missing
+`DATABASE_URL` failure against real local PostgreSQL and Chromium. Before merge,
+attach an `rg` inventory showing no active `platform-sales-workflow`, owner
+membership selector, Supabase Sales workflow RPC, alternate Sales screen or
+workflow fallback remains. The second PR owns the corresponding inbound route,
+webhook, worker and provider-config deletion inventory.
+
+Official implementation references: current Next.js guidance says Server
+Actions receive `FormData`, must validate and authorize on the server, may
+return serializable validation state and may revalidate affected paths at
+https://nextjs.org/docs/app/guides/forms. Drizzle documents parameterized
+updates and PostgreSQL `returning()` at https://orm.drizzle.team/docs/update;
+the existing canonical repository transaction and idempotency contract remains
+the controlling local pattern.

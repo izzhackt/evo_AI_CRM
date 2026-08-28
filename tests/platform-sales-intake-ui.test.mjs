@@ -19,30 +19,13 @@ const transcriptSource = source(
   "../src/components/platform/communications/PlatformSalesReadOnlyTranscript.tsx",
 );
 
-test("connected Sales exposes a separately paginated, filterable U3 intake queue", () => {
-  assert.match(salesSource, /listPlatformSalesIntake\(actor,/);
-  assert.match(salesSource, /intake_before_at/);
-  assert.match(salesSource, /intake_before_id/);
-  assert.match(salesSource, /intake_state/);
-  assert.match(salesSource, /intake_q/);
-  for (const state of [
-    "queued",
-    "retrying",
-    "received",
-    "manual_review",
-    "unsupported",
-    "terminal_failure",
-  ]) {
-    assert.match(salesSource, new RegExp(state));
-  }
-  assert.match(
+test("canonical Sales queue does not expose the old intake composite", () => {
+  assert.match(salesSource, /listCanonicalSalesLeads\(/);
+  assert.match(salesSource, /sales-inbound-blocked/);
+  assert.doesNotMatch(
     salesSource,
-    /`\/sales\/\$\{row\.canonicalLeadId\}\/conversations\/\$\{row\.conversationId\}`/,
+    /listPlatformSalesIntake|intake_before_at|intake_before_id|intake_state|intake_q|sales-intake-empty|sales-intake-unavailable|normalizeIntakeSearchParams|intakeInvalid/,
   );
-  assert.match(salesSource, /sales-intake-empty/);
-  assert.match(salesSource, /sales-intake-unavailable/);
-  assert.match(salesSource, /normalizeIntakeSearchParams/);
-  assert.match(salesSource, /intakeInvalid/);
 });
 
 test("canonical lead detail reads the PostgreSQL snapshot without legacy canonical context helpers", () => {

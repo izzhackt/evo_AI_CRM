@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  CANONICAL_SALES_DUE_FILTERS,
+  CANONICAL_SALES_STAGES,
   CANONICAL_STUDENT_CASE_STATUSES,
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
@@ -10,10 +12,12 @@ import {
   getCanonicalLeadSnapshot,
   getCanonicalStudentCaseSnapshot,
   handoffCanonicalLeadToAdmissions,
+  listCanonicalSalesLeads,
   listCanonicalStudentCases,
   normalizeCanonicalPersonIdentity,
   parseCanonicalReadCursor,
   recordCanonicalSalesGateEvidence,
+  updateCanonicalSalesLeadWorkflow,
 } from "../src/lib/server/canonical-crm-repository.ts";
 
 const UUID_A = "11111111-1111-4111-8111-111111111111";
@@ -42,6 +46,21 @@ test("canonical person identity normalization is deterministic", () => {
 });
 
 test("canonical read cursor normalizes one real timestamp and non-nil UUID pair", () => {
+  assert.deepEqual(CANONICAL_SALES_STAGES, [
+    "new",
+    "qualifying",
+    "qualified",
+    "disqualified",
+    "handoff_ready",
+    "handed_off",
+  ]);
+  assert.deepEqual(CANONICAL_SALES_DUE_FILTERS, [
+    "all",
+    "scheduled",
+    "unscheduled",
+    "due_today",
+    "overdue",
+  ]);
   assert.deepEqual(CANONICAL_STUDENT_CASE_STATUSES, [
     "active",
     "paused",
@@ -233,6 +252,126 @@ test("student case queue enforces role and bounded read inputs before database a
         id: UUID_B,
         extra: "second-token",
       },
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+});
+
+test("Sales lead queue enforces role and bounded read inputs before database access", async () => {
+  await assert.rejects(
+    listCanonicalSalesLeads({ actorRole: "admissions" }),
+    rejectsWithCode("forbidden"),
+  );
+
+  for (const pageSize of [0, 51, 1.5, "25"]) {
+    await assert.rejects(
+      listCanonicalSalesLeads({ actorRole: "admin", pageSize }),
+      rejectsWithCode("invalid_input"),
+    );
+  }
+  await assert.rejects(
+    listCanonicalSalesLeads({ actorRole: "sales", stage: "prospect" }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    listCanonicalSalesLeads({ actorRole: "admin", due: "tomorrow" }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    listCanonicalSalesLeads({ actorRole: "sales", query: "x".repeat(121) }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    listCanonicalSalesLeads({
+      actorRole: "admin",
+      cursor: {
+        updatedAt: "2026-08-28T12:30:00.000Z",
+        id: UUID_A,
+        extra: "second-token",
+      },
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+});
+
+const VALID_SALES_WORKFLOW_CONTEXT = {
+  actorRole: "sales",
+  idempotencyKey: "sales-workflow:update:1",
+  correlationId: "request:sales-workflow:1",
+};
+
+const VALID_SALES_WORKFLOW_INPUT = {
+  leadId: UUID_A,
+  expectedVersion: 1,
+  stage: "qualifying",
+  qualificationSummary: null,
+  nextAction: "Confirm the technical follow-up",
+  nextActionAt: "2026-08-29",
+  reason: null,
+};
+
+test("Admissions cannot mutate the canonical Sales workflow", async () => {
+  await assert.rejects(
+    updateCanonicalSalesLeadWorkflow(
+      { ...VALID_SALES_WORKFLOW_CONTEXT, actorRole: "admissions" },
+      VALID_SALES_WORKFLOW_INPUT,
+    ),
+    rejectsWithCode("forbidden"),
+  );
+});
+
+test("normal Sales workflow updates cannot manufacture handed_off", async () => {
+  await assert.rejects(
+    updateCanonicalSalesLeadWorkflow(VALID_SALES_WORKFLOW_CONTEXT, {
+      ...VALID_SALES_WORKFLOW_INPUT,
+      stage: "handed_off",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+});
+
+test("active Sales workflow stages require a meaningful action and exact real date", async () => {
+  for (const patch of [
+    { nextAction: " " },
+    { nextActionAt: "2026-02-30" },
+    { nextActionAt: "2026-8-29" },
+  ]) {
+    await assert.rejects(
+      updateCanonicalSalesLeadWorkflow(VALID_SALES_WORKFLOW_CONTEXT, {
+        ...VALID_SALES_WORKFLOW_INPUT,
+        ...patch,
+      }),
+      rejectsWithCode("invalid_input"),
+    );
+  }
+});
+
+test("qualified Sales workflow stages require a qualification summary", async () => {
+  for (const stage of ["qualified", "handoff_ready"]) {
+    await assert.rejects(
+      updateCanonicalSalesLeadWorkflow(VALID_SALES_WORKFLOW_CONTEXT, {
+        ...VALID_SALES_WORKFLOW_INPUT,
+        stage,
+        qualificationSummary: " ",
+      }),
+      rejectsWithCode("invalid_input"),
+    );
+  }
+});
+
+test("disqualification requires a reason and optimistic version is positive", async () => {
+  await assert.rejects(
+    updateCanonicalSalesLeadWorkflow(VALID_SALES_WORKFLOW_CONTEXT, {
+      ...VALID_SALES_WORKFLOW_INPUT,
+      stage: "disqualified",
+      reason: " ",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    updateCanonicalSalesLeadWorkflow(VALID_SALES_WORKFLOW_CONTEXT, {
+      ...VALID_SALES_WORKFLOW_INPUT,
+      expectedVersion: 0,
     }),
     rejectsWithCode("invalid_input"),
   );

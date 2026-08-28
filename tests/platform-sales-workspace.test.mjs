@@ -18,16 +18,28 @@ const leadWorkspaceSource = readFileSync(
   new URL("../src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx", import.meta.url),
   "utf8",
 );
+const workflowActionSource = readFileSync(
+  new URL("../src/lib/server/canonical-sales-workflow-actions.ts", import.meta.url),
+  "utf8",
+);
+const workflowFormSource = readFileSync(
+  new URL(
+    "../src/components/platform/sales/CanonicalSalesWorkflowForm.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 test("sales has one direct workspace route with server authorization", () => {
   assert.match(routeSource, /import \{ SalesWorkspace \}/);
   assert.match(routeSource, /<SalesWorkspace searchParams=\{searchParams\}/);
   assert.match(workspaceSource, /requirePlatformSalesActor\(\)/);
-  assert.match(workspaceSource, /listPlatformSalesLeads\(actor,/);
-  assert.match(workspaceSource, /listPlatformSalesOwnerOptions\(actor,/);
+  assert.match(workspaceSource, /canonical-crm-repository/);
+  assert.match(workspaceSource, /parseCanonicalReadCursor/);
+  assert.match(workspaceSource, /listCanonicalSalesLeads/);
   assert.doesNotMatch(
     `${routeSource}\n${workspaceSource}`,
-    /FixtureSales|ConnectedCanonicalSales|isUiContractFixtureMode|better-sqlite3|@\/lib\/(?:db|queries|actions)/,
+    /FixtureSales|ConnectedCanonicalSales|isUiContractFixtureMode|better-sqlite3|listPlatformSalesIntake|listPlatformSalesLeads|listPlatformSalesOwnerOptions|SalesLeadWorkflowForm|SalesOwnerSearchField/,
   );
 });
 
@@ -45,12 +57,33 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
     leadWorkspaceSource,
     /getPlatformCanonicalLead|PlatformCanonicalRecordsRepositoryError/,
   );
-  assert.match(leadWorkspaceSource, /data-testid="sales-workflow-canonical-context"/);
+  assert.match(leadWorkspaceSource, /data-testid="canonical-sales-lead-workspace"/);
+  assert.match(leadWorkspaceSource, /CanonicalSalesWorkflowForm/);
+  assert.doesNotMatch(
+    leadWorkspaceSource,
+    /getPlatformSalesLeadDetail|SalesLeadWorkflowDetail|SalesAdmissionsGateCard|SalesAdmissionsHandoffCard/,
+  );
 });
 
 test("sales workspace links canonical UUID records and owns workflow actions", () => {
   assert.match(workspaceSource, /href=\{`\/sales\/\$\{lead\.leadId\}`\}/);
   assert.match(workspaceSource, /data-testid="canonical-lead-row"/);
-  assert.match(workspaceSource, /SalesLeadWorkflowForm/);
-  assert.match(workspaceSource, /data-workflow-version=\{lead\.workflowVersion\}/);
+  assert.match(workspaceSource, /data-record-version=\{lead\.version\}/);
+  assert.match(workspaceSource, /sales-inbound-blocked/);
+  assert.match(workspaceSource, /canonical-records-unavailable/);
+});
+
+test("sales workflow writes only through the canonical PostgreSQL command", () => {
+  assert.match(workflowActionSource, /requirePlatformSalesActor\(\)/);
+  assert.match(workflowActionSource, /updateCanonicalSalesLeadWorkflow\(/);
+  assert.match(workflowActionSource, /revalidatePath\("\/sales"\)/);
+  assert.doesNotMatch(
+    `${workflowActionSource}\n${workflowFormSource}`,
+    /supabase|platform-sales-workflow|mutatePlatformSalesLeadWorkflow|fallback/i,
+  );
+  assert.match(workflowFormSource, /name="expected_version"/);
+  assert.match(workflowFormSource, /name="qualification_summary"/);
+  assert.match(workflowFormSource, /name="next_action"/);
+  assert.match(workflowFormSource, /name="next_action_at"/);
+  assert.match(workflowFormSource, /candidate !== "handed_off"/);
 });

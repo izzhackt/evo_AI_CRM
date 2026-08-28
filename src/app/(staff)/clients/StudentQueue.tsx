@@ -2,13 +2,9 @@ import Link from "next/link";
 
 import { Icon } from "@/components/icons";
 import {
-  CanonicalAuthorityNotice,
   CanonicalKeyBadge,
   CanonicalUuid,
-  DuplicateStatus,
-  canonicalRecordCopy,
   formatCanonicalTimestamp,
-  humanizeCanonicalKey,
 } from "@/components/platform/core/CanonicalRecordsPresentation";
 import {
   EmptyState,
@@ -19,96 +15,96 @@ import {
   inputCls,
 } from "@/components/ui";
 import { getT, type Locale } from "@/lib/i18n";
-import {
-  PLATFORM_CANONICAL_CLIENT_LIFECYCLE_STATES,
-  PlatformCanonicalRecordsRepositoryError,
-  listPlatformCanonicalClients,
-  parsePlatformCanonicalCursor,
-  type PlatformCanonicalClientLifecycleState,
-  type PlatformCanonicalClientSummary,
-  type PlatformCanonicalCursor,
-} from "@/lib/platform-canonical-records";
 import { requirePlatformClientsActor } from "@/lib/platform-guards";
+import {
+  CANONICAL_STUDENT_CASE_STATUSES,
+  CanonicalCrmRepositoryError,
+  listCanonicalStudentCases,
+  parseCanonicalReadCursor,
+  type CanonicalReadCursor,
+  type CanonicalStudentCaseQueueRow,
+  type CanonicalStudentCaseStatus,
+} from "@/lib/server/canonical-crm-repository";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
   before_id?: string | string[];
-  lifecycle?: string | string[];
+  status?: string | string[];
   q?: string | string[];
 }>;
 
 const COPY = {
   ru: {
-    title: "Клиенты EVO",
+    title: "Student Cases",
     description:
-      "Канонический реестр людей в EVO. Лиды, Student Cases и диалоги показаны как связанные записи, а не как личность клиента.",
-    search: "Поиск по имени, контакту или EVO UUID",
-    lifecycle: "Состояние",
-    allLifecycle: "Все состояния",
+      "Это рабочий список Student Cases для Admissions в V2. Каждая строка — отдельное дело, с которым работает команда.",
+    authority: "Источник данных: текущая база EVO V2.",
+    search: "Поиск по имени, контакту, Lead UUID или Student Case UUID",
+    status: "Статус дела",
+    allStatuses: "Все статусы",
     apply: "Применить",
     clear: "Сбросить",
-    client: "Клиент EVO",
+    studentCase: "Student Case",
+    person: "Человек",
+    lead: "Lead",
     contacts: "Контакты",
-    linkedLeads: "Лиды",
-    secondary: "Связанный контекст",
+    owner: "Роль",
     updated: "Обновлено",
-    conversations: "диалогов",
-    studentCases: "Student Cases",
-    empty:
-      "Канонических клиентов в доступной вам организации пока нет. Student Cases и разговоры не подставляются вместо личности клиента.",
+    empty: "В доступном вам списке пока нет Student Cases.",
     first: "К началу",
-    next: "Следующие клиенты",
+    next: "Следующие записи",
     found: "На странице",
-    duplicates: "С открытыми дублями",
-    linked: "Со связанными лидами",
+    active: "Активные",
+    paused: "На паузе",
+    closed: "Закрытые",
   },
   ky: {
-    title: "EVO кардарлары",
+    title: "Student Cases",
     description:
-      "EVOдогу адамдардын каноникалык реестри. Лиддер, Student Cases жана диалогдор кардардын инсандыгы эмес, байланышкан жазуулар катары көрсөтүлөт.",
-    search: "Аты, байланыш же EVO UUID боюнча издөө",
-    lifecycle: "Абалы",
-    allLifecycle: "Бардык абалдар",
+      "Бул V2деги Admissions үчүн Student Cases тизмеси. Ар бир сап команда иштеген өзүнчө иш.",
+    authority: "Маалымат булагы: EVO V2нин учурдагы базасы.",
+    search: "Аты, байланыш, Lead UUID же Student Case UUID боюнча издөө",
+    status: "Иштин абалы",
+    allStatuses: "Бардык абалдар",
     apply: "Колдонуу",
     clear: "Тазалоо",
-    client: "EVO кардары",
+    studentCase: "Student Case",
+    person: "Адам",
+    lead: "Lead",
     contacts: "Байланыштар",
-    linkedLeads: "Лиддер",
-    secondary: "Байланышкан контекст",
+    owner: "Роль",
     updated: "Жаңыртылды",
-    conversations: "диалог",
-    studentCases: "Student Cases",
-    empty:
-      "Жеткиликтүү уюмда каноникалык кардарлар азырынча жок. Student Cases жана диалогдор кардардын инсандыгынын ордуна коюлбайт.",
+    empty: "Жеткиликтүү тизмеде азырынча Student Cases жок.",
     first: "Башына",
-    next: "Кийинки кардарлар",
+    next: "Кийинки жазуулар",
     found: "Бул бетте",
-    duplicates: "Ачык дубликат менен",
-    linked: "Лиди байланышкан",
+    active: "Активдүү",
+    paused: "Токтотулган",
+    closed: "Жабык",
   },
   en: {
-    title: "EVO clients",
+    title: "Student Cases",
     description:
-      "The canonical people register in EVO. Leads, Student Cases, and conversations are linked records, not the client's identity.",
-    search: "Search name, contact, or EVO UUID",
-    lifecycle: "Lifecycle",
-    allLifecycle: "All lifecycle states",
+      "This is the working Student Case list for Admissions in V2. Each row is a case the team works on.",
+    authority: "Data source: the current EVO V2 database.",
+    search: "Search name, contact, Lead UUID, or Student Case UUID",
+    status: "Case status",
+    allStatuses: "All statuses",
     apply: "Apply",
     clear: "Clear",
-    client: "EVO client",
+    studentCase: "Student Case",
+    person: "Person",
+    lead: "Lead",
     contacts: "Contacts",
-    linkedLeads: "Leads",
-    secondary: "Linked context",
+    owner: "Owner role",
     updated: "Updated",
-    conversations: "conversations",
-    studentCases: "Student Cases",
-    empty:
-      "There are no canonical clients in your accessible organization yet. Student Cases and conversations are not substituted for client identity.",
+    empty: "There are no Student Cases in your accessible list yet.",
     first: "Back to first",
-    next: "Next clients",
+    next: "Next records",
     found: "On this page",
-    duplicates: "With open duplicates",
-    linked: "With linked leads",
+    active: "Active",
+    paused: "Paused",
+    closed: "Closed",
   },
 } as const;
 
@@ -121,15 +117,16 @@ export async function StudentQueue({
     searchParams,
   ]);
   const normalized = normalizeSearchParams(params);
-  const page = await listPlatformCanonicalClients(actor, {
-    cursor: normalized.cursor,
-    lifecycleState: normalized.lifecycle,
+  const page = await listCanonicalStudentCases({
+    actorRole: actor.platformRole,
+    cursor: normalized.cursor ?? undefined,
+    status: normalized.status,
     pageSize: 50,
     query: normalized.query,
   });
 
   return (
-    <CanonicalClientsPresentation
+    <CanonicalStudentCasesPresentation
       locale={locale}
       rows={page.rows}
       params={normalized}
@@ -140,27 +137,31 @@ export async function StudentQueue({
 }
 
 type NormalizedParams = Readonly<{
-  cursor: PlatformCanonicalCursor | null;
-  lifecycle?: PlatformCanonicalClientLifecycleState;
+  cursor: CanonicalReadCursor | null;
+  status?: CanonicalStudentCaseStatus;
   query?: string;
 }>;
 
 function normalizeSearchParams(params: SearchParams): NormalizedParams {
-  assertOnlySearchKeys(params, ["before_at", "before_id", "lifecycle", "q"]);
+  assertOnlySearchKeys(params, ["before_at", "before_id", "status", "q"]);
   const beforeAt = singleValue(params.before_at);
   const beforeId = singleValue(params.before_id);
-  const lifecycle = trimmed(singleValue(params.lifecycle));
+  const status = trimmed(singleValue(params.status));
   if (
-    lifecycle &&
-    !PLATFORM_CANONICAL_CLIENT_LIFECYCLE_STATES.includes(
-      lifecycle as PlatformCanonicalClientLifecycleState,
-    )
+    status &&
+    !CANONICAL_STUDENT_CASE_STATUSES.includes(status as CanonicalStudentCaseStatus)
   ) {
-    throw new PlatformCanonicalRecordsRepositoryError();
+    throw new CanonicalCrmRepositoryError("invalid_input");
+  }
+  if ((beforeAt && !beforeId) || (!beforeAt && beforeId)) {
+    throw new CanonicalCrmRepositoryError("invalid_input");
   }
   return {
-    cursor: parsePlatformCanonicalCursor(beforeAt ?? null, beforeId ?? null),
-    lifecycle: lifecycle as PlatformCanonicalClientLifecycleState | undefined,
+    cursor:
+      beforeAt && beforeId
+        ? parseCanonicalReadCursor(beforeAt, beforeId)
+        : null,
+    status: status as CanonicalStudentCaseStatus | undefined,
     query: trimmed(singleValue(params.q)),
   };
 }
@@ -170,12 +171,12 @@ function assertOnlySearchKeys(
   allowedKeys: readonly string[],
 ) {
   if (Object.keys(params).some((key) => !allowedKeys.includes(key))) {
-    throw new PlatformCanonicalRecordsRepositoryError();
+    throw new CanonicalCrmRepositoryError("invalid_input");
   }
 }
 
 function singleValue(value: string | string[] | undefined) {
-  if (Array.isArray(value)) throw new PlatformCanonicalRecordsRepositoryError();
+  if (Array.isArray(value)) throw new CanonicalCrmRepositoryError("invalid_input");
   return value;
 }
 
@@ -184,7 +185,7 @@ function trimmed(value: string | undefined) {
   return result ? result : undefined;
 }
 
-function CanonicalClientsPresentation({
+function CanonicalStudentCasesPresentation({
   locale,
   rows,
   params,
@@ -192,27 +193,29 @@ function CanonicalClientsPresentation({
   nextCursor,
 }: Readonly<{
   locale: Locale;
-  rows: readonly PlatformCanonicalClientSummary[];
+  rows: readonly CanonicalStudentCaseQueueRow[];
   params: NormalizedParams;
   hasNext: boolean;
-  nextCursor: PlatformCanonicalCursor | null;
+  nextCursor: CanonicalReadCursor | null;
 }>) {
   const copy = COPY[locale];
-  const shared = canonicalRecordCopy(locale);
-  const duplicateCount = rows.filter(
-    (client) => client.hasOpenDuplicateCandidates,
-  ).length;
-  const linkedCount = rows.filter((client) => client.linkedLeadCount > 0).length;
+  const activeCount = rows.filter((studentCase) => studentCase.status === "active").length;
+  const pausedCount = rows.filter((studentCase) => studentCase.status === "paused").length;
+  const closedCount = rows.filter((studentCase) => studentCase.status === "closed").length;
 
   return (
-    <div className="min-w-0 space-y-5" data-testid="canonical-clients-page">
+    <div className="min-w-0 space-y-5" data-testid="canonical-student-cases-page">
       <PageHeader title={copy.title} description={copy.description} />
-      <CanonicalAuthorityNotice locale={locale} />
+
+      <section className="rounded-card border border-border bg-surface-2 px-5 py-4">
+        <p className="text-[12.5px] text-fg-2">{copy.authority}</p>
+      </section>
 
       <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-[12px] text-fg-3">
         <Metric label={copy.found} value={rows.length} />
-        <Metric label={copy.duplicates} value={duplicateCount} />
-        <Metric label={copy.linked} value={linkedCount} />
+        <Metric label={copy.active} value={activeCount} />
+        <Metric label={copy.paused} value={pausedCount} />
+        <Metric label={copy.closed} value={closedCount} />
       </div>
 
       <form
@@ -230,14 +233,14 @@ function CanonicalClientsPresentation({
         />
         <select
           className={inputCls}
-          name="lifecycle"
-          defaultValue={params.lifecycle ?? ""}
-          aria-label={copy.lifecycle}
+          name="status"
+          defaultValue={params.status ?? ""}
+          aria-label={copy.status}
         >
-          <option value="">{copy.allLifecycle}</option>
-          {PLATFORM_CANONICAL_CLIENT_LIFECYCLE_STATES.map((state) => (
-            <option key={state} value={state}>
-              {humanizeCanonicalKey(state)}
+          <option value="">{copy.allStatuses}</option>
+          {CANONICAL_STUDENT_CASE_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {copy[status]}
             </option>
           ))}
         </select>
@@ -251,9 +254,9 @@ function CanonicalClientsPresentation({
         </div>
       </form>
 
-      <section aria-label={copy.title} data-testid="canonical-client-list">
+      <section aria-label={copy.title} data-testid="canonical-student-case-list">
         {rows.length === 0 ? (
-          <div className="border-y border-border" data-testid="canonical-clients-empty">
+          <div className="border-y border-border" data-testid="canonical-student-cases-empty">
             <EmptyState text={copy.empty} />
           </div>
         ) : (
@@ -261,60 +264,62 @@ function CanonicalClientsPresentation({
             <table className="w-full min-w-[820px] text-left text-[12.5px]">
               <thead className="border-b border-border bg-surface-2 text-[10.5px] uppercase tracking-[0.04em] text-fg-3">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">{copy.client}</th>
+                  <th className="px-4 py-3 font-semibold">{copy.studentCase}</th>
+                  <th className="px-4 py-3 font-semibold">{copy.person}</th>
+                  <th className="px-4 py-3 font-semibold">{copy.lead}</th>
                   <th className="px-3 py-3 font-semibold">{copy.contacts}</th>
-                  <th className="px-3 py-3 font-semibold">{copy.lifecycle}</th>
-                  <th className="px-3 py-3 font-semibold">{copy.linkedLeads}</th>
-                  <th className="px-3 py-3 font-semibold">{copy.secondary}</th>
+                  <th className="px-3 py-3 font-semibold">{copy.status}</th>
+                  <th className="px-3 py-3 font-semibold">{copy.owner}</th>
                   <th className="px-4 py-3 font-semibold">{copy.updated}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {rows.map((client) => (
+                {rows.map((studentCase) => (
                   <tr
-                    key={client.id}
+                    key={studentCase.studentCaseId}
                     className="transition-colors hover:bg-surface-2"
-                    data-testid="canonical-client-row"
-                    data-client-id={client.id}
+                    data-testid="canonical-student-case-row"
+                    data-student-case-id={studentCase.studentCaseId}
+                    data-lead-id={studentCase.leadId}
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       <Link
-                        href={`/clients/${client.id}`}
-                        className="font-semibold text-fg hover:text-accent"
-                        aria-label={`${client.displayName} · ${client.id}`}
+                        href={`/clients/${studentCase.studentCaseId}`}
+                        className="font-semibold text-accent hover:underline"
                       >
-                        {client.displayName}
+                        <span className="block">{studentCase.displayName}</span>
+                        <span className="mt-1 block">
+                          <CanonicalUuid value={studentCase.studentCaseId} />
+                        </span>
                       </Link>
-                      <div className="mt-1">
-                        <CanonicalUuid value={client.id} />
-                      </div>
-                      <div className="mt-1">
-                        <DuplicateStatus
-                          count={client.openDuplicateCandidateCount}
-                          locale={locale}
-                        />
-                      </div>
                     </td>
-                    <td className="px-3 py-3 text-fg-2">
-                      <div>{client.email ?? shared.unavailable}</div>
-                      <div className="mt-1 text-[11.5px] text-fg-3">
-                        {client.phone ?? shared.unavailable}
-                      </div>
+                    <td className="px-4 py-3 align-top">
+                      <CanonicalUuid value={studentCase.personId} />
                     </td>
-                    <td className="px-3 py-3">
-                      <CanonicalKeyBadge value={client.lifecycleState} tone="accent" />
+                    <td className="px-4 py-3 align-top">
+                      <Link
+                        href={`/sales/${studentCase.leadId}`}
+                        className="font-medium text-accent hover:underline"
+                      >
+                        <CanonicalUuid value={studentCase.leadId} />
+                      </Link>
                     </td>
-                    <td className="px-3 py-3 font-mono font-semibold text-fg-2">
-                      {client.linkedLeadCount}
-                    </td>
-                    <td className="px-3 py-3 text-[11.5px] text-fg-3">
-                      <div>{client.linkedConversationCount} {copy.conversations}</div>
-                      <div className="mt-1">
-                        {client.linkedStudentCaseCount} {copy.studentCases}
+                    <td className="px-3 py-3 align-top">
+                      <div className="space-y-1">
+                        <div>{studentCase.email ?? "—"}</div>
+                        <div>{studentCase.phone ?? "—"}</div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-[11px] text-fg-3">
-                      {formatCanonicalTimestamp(client.updatedAt, locale)}
+                    <td className="px-3 py-3 align-top">
+                      <CanonicalKeyBadge value={studentCase.status} />
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <CanonicalKeyBadge value={studentCase.assignedRole} />
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <span className="font-mono text-[11.5px] text-fg-3">
+                        {formatCanonicalTimestamp(studentCase.updatedAt, locale)}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -350,10 +355,10 @@ function Metric({ label, value }: Readonly<{ label: string; value: number }>) {
   );
 }
 
-function clientsHref(params: NormalizedParams, cursor?: PlatformCanonicalCursor) {
+function clientsHref(params: NormalizedParams, cursor?: CanonicalReadCursor) {
   const query = new URLSearchParams();
   if (params.query) query.set("q", params.query);
-  if (params.lifecycle) query.set("lifecycle", params.lifecycle);
+  if (params.status) query.set("status", params.status);
   if (cursor) {
     query.set("before_at", cursor.updatedAt);
     query.set("before_id", cursor.id);

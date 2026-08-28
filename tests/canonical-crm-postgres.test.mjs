@@ -10,6 +10,7 @@ import {
   appendCanonicalInboundMessage,
   createCanonicalPersonLead,
   handoffCanonicalLeadToAdmissions,
+  listCanonicalStudentCases,
   recordCanonicalSalesGateEvidence,
 } from "../src/lib/server/canonical-crm-repository.ts";
 import { closeDatabaseConnections } from "../src/lib/server/database.ts";
@@ -285,7 +286,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
 
     const overrideLead = await createCanonicalPersonLead({
       ...commandContext(runId, "override-lead", "admin"),
-      displayName: `technical-override-subject-${runId}`,
+      displayName: `technical-Xliteral-${runId}`,
       email: `override-${runId}@acceptance.invalid`,
       source: `technical-source-${runId}`,
     });
@@ -334,6 +335,139 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         { transition: "sales_admissions.handoff_override", eventSequence: 2 },
       ],
     );
+
+    const phoneSuffix = (
+      BigInt(`0x${runId.replaceAll("-", "").slice(0, 10)}`) % 1_000_000_000n
+    )
+      .toString()
+      .padStart(9, "0");
+    const literalPhone = `+971${phoneSuffix}`;
+    const literalEmail = `literal-${runId}@acceptance.invalid`;
+    const literalLead = await createCanonicalPersonLead({
+      ...commandContext(runId, "literal-lead", "admin"),
+      displayName: `technical 100%_literal ${runId}`,
+      email: literalEmail,
+      phone: literalPhone,
+      source: `technical-source-${runId}`,
+    });
+    await sql`
+      update evo_leads
+      set stage = 'qualified', version = version + 1, updated_at = now()
+      where id = ${literalLead.leadId}
+    `;
+    const literalHandoff = await handoffCanonicalLeadToAdmissions({
+      ...commandContext(runId, "literal-handoff", "admin"),
+      leadId: literalLead.leadId,
+      adminOverride: { reason: `technical-read-acceptance-${runId}` },
+    });
+
+    const newestAt = "2026-08-28T15:00:00.000Z";
+    const tiedAt = "2026-08-28T14:00:00.000Z";
+    await sql`
+      update evo_student_cases
+      set status = 'active', updated_at = ${newestAt}
+      where id = ${handoff.studentCaseId}
+    `;
+    await sql`
+      update evo_student_cases
+      set status = 'paused', updated_at = ${tiedAt}
+      where id = ${override.studentCaseId}
+    `;
+    await sql`
+      update evo_student_cases
+      set status = 'closed', updated_at = ${tiedAt}
+      where id = ${literalHandoff.studentCaseId}
+    `;
+
+    await assert.rejects(
+      listCanonicalStudentCases({ actorRole: "sales", query: runId }),
+      repositoryError("forbidden"),
+    );
+
+    const tiedIds = [override.studentCaseId, literalHandoff.studentCaseId].sort(
+      (left, right) => (left > right ? -1 : left < right ? 1 : 0),
+    );
+    const firstQueuePage = await listCanonicalStudentCases({
+      actorRole: "admin",
+      pageSize: 2,
+      query: runId,
+    });
+    assert.deepEqual(
+      firstQueuePage.rows.map((row) => row.studentCaseId),
+      [handoff.studentCaseId, tiedIds[0]],
+    );
+    assert.equal(firstQueuePage.hasNext, true);
+    assert.deepEqual(firstQueuePage.nextCursor, {
+      updatedAt: tiedAt,
+      id: tiedIds[0],
+    });
+
+    const secondQueuePage = await listCanonicalStudentCases({
+      actorRole: "admissions",
+      cursor: firstQueuePage.nextCursor,
+      pageSize: 2,
+      query: runId,
+    });
+    assert.deepEqual(
+      secondQueuePage.rows.map((row) => row.studentCaseId),
+      [tiedIds[1]],
+    );
+    assert.equal(secondQueuePage.hasNext, false);
+    assert.equal(secondQueuePage.nextCursor, null);
+    assert.equal(
+      new Set(
+        [...firstQueuePage.rows, ...secondQueuePage.rows].map(
+          (row) => row.studentCaseId,
+        ),
+      ).size,
+      3,
+    );
+
+    const pausedQueue = await listCanonicalStudentCases({
+      actorRole: "admissions",
+      status: "paused",
+      query: runId,
+    });
+    assert.equal(pausedQueue.rows.length, 1);
+    const [pausedRow] = pausedQueue.rows;
+    assert.deepEqual(
+      {
+        ...pausedRow,
+        createdAt: undefined,
+      },
+      {
+        studentCaseId: override.studentCaseId,
+        leadId: overrideLead.leadId,
+        personId: overrideLead.personId,
+        displayName: `technical-Xliteral-${runId}`,
+        email: `override-${runId}@acceptance.invalid`,
+        phone: null,
+        status: "paused",
+        assignedRole: "admissions",
+        createdAt: undefined,
+        updatedAt: tiedAt,
+      },
+    );
+    assert.match(pausedRow.createdAt, /^\d{4}-\d{2}-\d{2}T/);
+
+    for (const query of [
+      "%_literal",
+      literalEmail,
+      literalPhone,
+      literalLead.personId,
+      literalLead.leadId,
+      literalHandoff.studentCaseId,
+    ]) {
+      const searchPage = await listCanonicalStudentCases({
+        actorRole: "admin",
+        query,
+      });
+      assert.deepEqual(
+        searchPage.rows.map((row) => row.studentCaseId),
+        [literalHandoff.studentCaseId],
+        `literal queue search failed for ${query}`,
+      );
+    }
 
     await sql.begin(async (transaction) => {
       await transaction`
@@ -529,11 +663,25 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     );
     assert.equal(eventCountAfterMutation, eventCountBeforeMutation);
 
+    const originalDatabaseUrl = process.env.DATABASE_URL;
+    await closeDatabaseConnections();
+    process.env.DATABASE_URL =
+      "postgresql://technical:technical@127.0.0.1:1/technical";
+    try {
+      await assert.rejects(
+        listCanonicalStudentCases({ actorRole: "admin", query: runId }),
+        repositoryError("unavailable"),
+      );
+    } finally {
+      process.env.DATABASE_URL = originalDatabaseUrl;
+      await closeDatabaseConnections();
+    }
+
     const resultFile = process.env.EVO_CANONICAL_ACCEPTANCE_RESULT_FILE;
     if (resultFile) {
       await writeFile(
         resultFile,
-        `${JSON.stringify({ privateDocumentCaseId: handoff.studentCaseId })}\n`,
+        `${JSON.stringify({ canonicalLeadId: lead.leadId, privateDocumentCaseId: handoff.studentCaseId })}\n`,
         { encoding: "utf8", mode: 0o600 },
       );
     }

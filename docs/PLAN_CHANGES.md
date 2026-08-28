@@ -12244,3 +12244,83 @@ Handlers must be treated as public-facing endpoints with their own role checks:
 https://nextjs.org/docs/app/guides/authentication. The current Data Security
 guide likewise treats every exported Server Action as a public HTTP endpoint:
 https://nextjs.org/docs/app/guides/data-security.
+
+## 2026-08-28 - Make PostgreSQL metadata and one private local byte path the V2-4 authority
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner-approved V2-4 scope in #428.
+Change type: private-file persistence, authorized application routes and
+Supabase Storage runtime replacement.
+Affected plan section: V2-4 (#428); the broader canonical CRM/case model and
+remaining Supabase business repositories still expire in #429.
+
+Reason: V2 has a real PostgreSQL migration gate and fixed-role sessions, but it
+has no local file-byte authority. The old Supabase Storage migration, bucket
+configuration and P2H proof remain frozen V1/historical inputs; the active app
+does not have a working V2 document upload/download path. UI placeholders and
+Supabase document-metadata RPCs cannot prove private local persistence, and
+adding a second adapter or fallback would violate replace-not-layer.
+
+Decision:
+
+1. Require `EVO_PRIVATE_DOCUMENT_ROOT` as an absolute, dedicated local path
+   outside the repository's public/static tree. Missing, relative, symlinked,
+   non-directory or otherwise unusable storage fails clearly. The application
+   never derives this root or any object path from request data.
+2. Store logical document and immutable version metadata in PostgreSQL. Each
+   logical document has an opaque UUID and a validated case UUID business link.
+   Each version has a server-generated UUID/object key, monotonic version
+   number, display-only original filename, declared PDF/JPEG/PNG MIME type,
+   byte length, SHA-256 checksum, creating fixed role and timestamps. The
+   canonical case foreign key arrives with #429; V2-4 does not invent a second
+   case table or repository.
+3. Make Admissions and Admin the authorized document roles through the shared
+   fixed-role capability policy. Sales, Admin-as-Sales preview, anonymous and
+   invalid sessions are denied by both Proxy and the Route Handler. No client
+   state, filename, case UUID, document UUID or object key grants access.
+4. Add three exact application boundaries: initial multipart upload,
+   immutable-version download and resubmission. Accept at most 25 MiB and only
+   the exact expected form fields. Reject path separators, control characters,
+   traversal-shaped filenames, unknown fields and client-supplied object keys.
+5. Open every final object with exclusive create (`wx`) and mode `0600`, write
+   all bytes, flush the file handle and close it before committing metadata.
+   Metadata is committed in one PostgreSQL transaction only after the file is
+   complete. A database failure removes the uncommitted object; a process crash
+   may leave an unreachable orphan but never an accepted partial document.
+   Resubmission always creates a new object and version and never overwrites.
+6. On download, resolve metadata by the opaque version UUID, repeat fixed-role
+   authorization, reject missing/non-regular/symlinked files, read only the
+   server-computed object path and recompute length plus SHA-256 before serving.
+   Any mismatch is an unavailable/integrity failure with no path disclosure or
+   fallback. Bytes are never placed in `public/` or returned through a direct
+   filesystem URL.
+7. Keep frozen V1 Supabase migrations, tests, runbooks and configuration as
+   historical rollback inputs only. The new V2 schema, service, routes, tests
+   and harness must have no Supabase Storage import or call. Supabase document
+   metadata reads/review commands remain solely under the already named #429
+   repository expiry and are not accepted as V2-4 file proof.
+8. Prove the slice with disposable real PostgreSQL on OrbStack, committed
+   Drizzle history, a real private directory, real PDF-like byte buffers, the
+   running Next application and Chromium. Exercise Admissions and Admin,
+   Sales/anonymous/Admin-as-Sales denial, traversal, guessed UUID, attempted
+   object-key injection, immutable resubmission, byte/checksum equality,
+   non-public reachability and missing-root failure. Technical UUIDs prove only
+   mechanics, not a real applicant/case or provider acceptance.
+
+Validation impact: add focused configuration/path/metadata tests, extend the
+Node 22 PostgreSQL harness with the real private directory and Chromium file
+route proof, then run full unit/security suites, lint, typecheck and production
+build. Before merge attach an `rg` inventory proving the V2 file modules and
+routes contain no Supabase Storage, SQLite, public/static or fallback import;
+prove unavailable storage returns a closed error rather than another path.
+
+Official implementation references: Node 22 documents that promise-based file
+operations are not automatically synchronized, that `FileHandle.sync()` asks
+the OS to flush file data and metadata, and that exclusive `wx` creation fails
+when a path already exists at
+https://nodejs.org/docs/latest-v22.x/api/fs.html. Next.js documents Route
+Handlers as public HTTP boundaries using the Web Request/Response APIs and
+requires authentication, authorization, input validation and non-sensitive
+errors at https://nextjs.org/docs/app/guides/backend-for-frontend. Drizzle
+documents transaction commit/rollback behavior at
+https://orm.drizzle.team/docs/transactions.

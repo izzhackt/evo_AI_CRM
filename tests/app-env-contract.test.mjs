@@ -33,6 +33,8 @@ const PRODUCTION_SECRET_KEY_SHA256 =
   "c41f89ee15ffcb680cc9280437549d3cea84c18a6abdfd7d934ebb9bc6735004";
 
 const example = `
+DATABASE_URL=
+EVO_PRIVATE_DOCUMENT_ROOT=
 EVO_CRM_DOMAIN=crm.evoadmissions.com
 EVO_CADDY_NETWORK=evo_public_web
 NEXT_PUBLIC_SUPABASE_URL=https://replace-with-project.supabase.co
@@ -52,8 +54,18 @@ EVO_ALLOW_DEMO_SEED=0
 ANTHROPIC_API_KEY=
 `;
 
+// The committed staging template is a frozen V1 deployment input. Validate it
+// against the matching historical contract without making V2 runtime settings
+// part of that deployment boundary.
+const frozenV1Example = example.replace(
+  "DATABASE_URL=\nEVO_PRIVATE_DOCUMENT_ROOT=\n",
+  "",
+);
+
 function valid(overrides = {}) {
   const values = {
+    DATABASE_URL: "",
+    EVO_PRIVATE_DOCUMENT_ROOT: "",
     EVO_CRM_DOMAIN: "crm.evoadmissions.com",
     EVO_CADDY_NETWORK: "evo_public_web",
     NEXT_PUBLIC_SUPABASE_URL: "https://staging.supabase.co",
@@ -110,9 +122,49 @@ test("accepts required runtime values while allowing disabled optional integrati
   );
 });
 
+test("V2 PostgreSQL configuration requires one dedicated absolute private document root", () => {
+  const databaseUrl = "postgresql://evo:private@127.0.0.1:5432/evo";
+  expectInvalid(
+    valid({ DATABASE_URL: databaseUrl }),
+    "v2_required_env_value_missing",
+  );
+  expectInvalid(
+    valid({ EVO_PRIVATE_DOCUMENT_ROOT: "/var/lib/evo-v2/documents" }),
+    "v2_required_env_value_missing",
+  );
+  for (const documentRoot of ["relative/documents", "/"]) {
+    expectInvalid(
+      valid({
+        DATABASE_URL: databaseUrl,
+        EVO_PRIVATE_DOCUMENT_ROOT: documentRoot,
+      }),
+      "v2_private_document_root_invalid",
+    );
+  }
+  assert.deepEqual(
+    validateAppEnvironmentContract({
+      exampleText: example,
+      actualText: valid({
+        DATABASE_URL: databaseUrl,
+        EVO_PRIVATE_DOCUMENT_ROOT: "/var/lib/evo-v2/documents",
+      }),
+    }),
+    { ok: true, code: "valid" },
+  );
+});
+
 test("the committed staging template is intentionally non-deployable until secrets are injected", () => {
   const template = readFileSync("deploy/env.staging.example", "utf8");
-  expectInvalid(template, "placeholder_env_value_rejected");
+  assert.throws(
+    () =>
+      validateAppEnvironmentContract({
+        exampleText: frozenV1Example,
+        actualText: template,
+      }),
+    (error) =>
+      error instanceof AppEnvironmentContractError &&
+      error.code === "placeholder_env_value_rejected",
+  );
 });
 
 test("controlled staging binds the concrete Compose app environment to the approved non-production Supabase identity", () => {

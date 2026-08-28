@@ -106,7 +106,7 @@ test("private document storage rejects missing, malformed and non-directory root
       "private_document_root_missing",
     );
 
-    for (const value of [" ", "relative/private", ` ${temporary}`, `${temporary} `, missing, file]) {
+    for (const value of [" ", "relative/private", "/", ` ${temporary}`, `${temporary} `, missing, file]) {
       process.env.EVO_PRIVATE_DOCUMENT_ROOT = value;
       await rejectsWithCode(
         writePrivateDocumentObject(preparedPdf()),

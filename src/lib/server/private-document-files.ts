@@ -124,6 +124,12 @@ async function requireObjectsDirectory(): Promise<string> {
   }
 
   const configuredRoot = resolve(configured);
+  if (configuredRoot === resolve(configuredRoot, "..")) {
+    throw fileError(
+      "private_document_root_invalid",
+      "Private document storage configuration is invalid",
+    );
+  }
   let rootInfo;
   try {
     rootInfo = await lstat(configuredRoot);

@@ -31,7 +31,7 @@ the completed U5 gate contract is recorded in
 [`docs/platform/u5-contract-first-payment-gate.md`](docs/platform/u5-contract-first-payment-gate.md),
 the completed U6 handoff contract is recorded in
 [`docs/platform/u6-sales-admissions-handoff.md`](docs/platform/u6-sales-admissions-handoff.md),
-the active U7 canonical case workspace contract is recorded in
+the completed historical U7 canonical case workspace contract is recorded in
 [`docs/platform/u7-admissions-case-workspace.md`](docs/platform/u7-admissions-case-workspace.md),
 and the completed U1 authority/evidence boundary remains in
 [`docs/platform/u1-unified-staff-access.md`](docs/platform/u1-unified-staff-access.md).

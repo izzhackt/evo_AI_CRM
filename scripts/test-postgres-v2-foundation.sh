@@ -12,6 +12,10 @@ broken_log="$tmp_dir/broken-migration.log"
 canonical_acceptance_result="$tmp_dir/canonical-acceptance.json"
 private_document_root="$tmp_dir/private-documents"
 missing_private_document_root="$tmp_dir/missing-private-documents"
+inbound_test_phone="+15550004300"
+inbound_test_conversation_id="v2-browser-conversation-430"
+inbound_test_message_id="v2-browser-message-430"
+inbound_test_text="V2 inbound browser proof 430"
 canonical_lead_id=""
 private_document_case_id=""
 app_pid=""
@@ -71,6 +75,7 @@ gate_sales_identifier="sales-local-$RANDOM"
 gate_sales_secret="$(openssl rand -hex 32)"
 gate_admissions_identifier="admissions-local-$RANDOM"
 gate_admissions_secret="$(openssl rand -hex 32)"
+whatsapp_inbound_secret="$(openssl rand -hex 32)"
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 broken_database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${broken_database}"
 
@@ -108,9 +113,14 @@ start_app() {
   local app_database_url="$1"
   local gate_mode="${2:-configured}"
   local document_mode="${3:-configured}"
+  local inbound_mode="${4:-configured}"
   local document_root="$private_document_root"
+  local inbound_secret="$whatsapp_inbound_secret"
   if [[ "$document_mode" == "unavailable" ]]; then
     document_root="$missing_private_document_root"
+  fi
+  if [[ "$inbound_mode" == "unavailable" ]]; then
+    inbound_secret=""
   fi
   : >"$app_log"
   if [[ "$gate_mode" == "configured" ]]; then
@@ -123,6 +133,7 @@ start_app() {
       EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
       EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
       EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+      EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   else
@@ -136,6 +147,7 @@ start_app() {
       -u EVO_DEV_GATE_ADMISSIONS_SECRET \
       DATABASE_URL="$app_database_url" \
       EVO_PRIVATE_DOCUMENT_ROOT="$document_root" \
+      EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   fi
@@ -230,6 +242,11 @@ canonical_read_browser_assert() {
     EVO_EXPECT_CANONICAL_READ_MODE="$read_mode" \
     EVO_CANONICAL_LEAD_ID="$canonical_lead_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
+    EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$whatsapp_inbound_secret" \
+    EVO_V2_INBOUND_TEST_PHONE="$inbound_test_phone" \
+    EVO_V2_INBOUND_TEST_CONVERSATION_ID="$inbound_test_conversation_id" \
+    EVO_V2_INBOUND_TEST_MESSAGE_ID="$inbound_test_message_id" \
+    EVO_V2_INBOUND_TEST_TEXT="$inbound_test_text" \
     EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
     EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
     EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
@@ -240,7 +257,7 @@ canonical_read_browser_assert() {
       --config=playwright.canonical-crm.config.ts
 }
 
-assert_no_gate_value_logs() {
+assert_no_secret_or_payload_logs() {
   local value
   for value in \
     "gate-invalid-identifier-probe" \
@@ -252,9 +269,14 @@ assert_no_gate_value_logs() {
     "$gate_sales_identifier" \
     "$gate_sales_secret" \
     "$gate_admissions_identifier" \
-    "$gate_admissions_secret"; do
+    "$gate_admissions_secret" \
+    "$whatsapp_inbound_secret" \
+    "$inbound_test_phone" \
+    "$inbound_test_conversation_id" \
+    "$inbound_test_message_id" \
+    "$inbound_test_text"; do
     if grep -F "$value" "$app_log" >/dev/null; then
-      fail "The application log exposed a submitted or configured gate value"
+      fail "The application log exposed a submitted secret or inbound payload value"
     fi
   done
 }
@@ -369,7 +391,7 @@ browser_assert 200
 development_gate_browser_assert configured
 canonical_read_browser_assert configured
 private_document_browser_assert configured
-assert_no_gate_value_logs
+assert_no_secret_or_payload_logs
 
 document_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_documents;')"
 version_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_document_versions;')"
@@ -377,6 +399,17 @@ version_count="$(docker exec "$container_id" psql --username "$postgres_user" --
 [[ "$version_count" == "2" ]] || fail "Private document browser proof did not persist exactly two immutable versions"
 linked_document_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_documents AS document INNER JOIN evo_student_cases AS student_case ON student_case.id = document.case_id;')"
 [[ "$linked_document_count" == "1" ]] || fail "Private document browser proof did not persist a canonical case foreign key"
+
+inbound_conversation_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_conversations WHERE external_conversation_id = '${inbound_test_conversation_id}';")"
+inbound_message_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_messages WHERE external_message_id = '${inbound_test_message_id}';")"
+inbound_person_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_people WHERE phone_e164 = '${inbound_test_phone}';")"
+inbound_lead_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_leads AS lead INNER JOIN evo_people AS person ON person.id = lead.person_id WHERE person.phone_e164 = '${inbound_test_phone}' AND lead.source = 'whatsapp';")"
+inbound_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE transition = 'message.received' AND business_object_id IN (SELECT id FROM evo_messages WHERE external_message_id = '${inbound_test_message_id}');")"
+[[ "$inbound_conversation_count" == "1" ]] || fail "Inbound HTTP proof did not persist exactly one canonical conversation"
+[[ "$inbound_message_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate canonical messages"
+[[ "$inbound_person_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate canonical people"
+[[ "$inbound_lead_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate canonical WhatsApp leads"
+[[ "$inbound_event_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate message events"
 
 stored_object_count="$(EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" "$node_bin" --input-type=module <<'EOF'
 import { lstat, readdir } from "node:fs/promises";
@@ -449,11 +482,16 @@ docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres
 stop_app
 start_app "$database_url" configured unavailable
 private_document_browser_assert unavailable
-assert_no_gate_value_logs
+assert_no_secret_or_payload_logs
+
+stop_app
+start_app "$database_url" configured configured unavailable
+canonical_read_browser_assert inbound-unavailable
+assert_no_secret_or_payload_logs
 
 stop_app
 start_app "$database_url" unavailable
 development_gate_browser_assert unavailable
-assert_no_gate_value_logs
+assert_no_secret_or_payload_logs
 
 echo "Real PostgreSQL, Drizzle, canonical CRM, development gate, private files, application and Chromium proof passed."

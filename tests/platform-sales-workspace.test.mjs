@@ -29,6 +29,20 @@ const workflowFormSource = readFileSync(
   ),
   "utf8",
 );
+const transcriptRouteSource = readFileSync(
+  new URL(
+    "../src/app/(staff)/sales/[id]/conversations/[conversationId]/page.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const conversationsSource = readFileSync(
+  new URL(
+    "../src/components/platform/sales/CanonicalSalesConversations.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 test("sales has one direct workspace route with server authorization", () => {
   assert.match(routeSource, /import \{ SalesWorkspace \}/);
@@ -59,9 +73,49 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
   );
   assert.match(leadWorkspaceSource, /data-testid="canonical-sales-lead-workspace"/);
   assert.match(leadWorkspaceSource, /CanonicalSalesWorkflowForm/);
+  assert.match(leadWorkspaceSource, /listCanonicalLeadConversations\(/);
+  assert.match(leadWorkspaceSource, /CanonicalSalesConversationList/);
   assert.doesNotMatch(
     leadWorkspaceSource,
-    /getPlatformSalesLeadDetail|SalesLeadWorkflowDetail|SalesAdmissionsGateCard|SalesAdmissionsHandoffCard/,
+    /getPlatformSalesLeadDetail|SalesLeadWorkflowDetail|SalesAdmissionsGateCard|SalesAdmissionsHandoffCard|platform-sales-intake|platform-communications/,
+  );
+});
+
+test("sales lead detail links only its canonical PostgreSQL conversations", () => {
+  assert.match(conversationsSource, /data-testid="canonical-sales-conversations"/);
+  assert.match(conversationsSource, /data-testid="canonical-sales-conversation-link"/);
+  assert.match(conversationsSource, /data-conversation-id=\{conversation\.conversationId\}/);
+  assert.match(
+    conversationsSource,
+    /href=\{`\/sales\/\$\{leadId\}\/conversations\/\$\{conversation\.conversationId\}`\}/,
+  );
+  assert.doesNotMatch(conversationsSource, /Supabase|amoCRM|manual-send|Gemini/i);
+});
+
+test("nested Sales transcript is canonical, bounded, and strictly read-only", () => {
+  assert.match(transcriptRouteSource, /requirePlatformSalesActor\(\)/);
+  assert.match(transcriptRouteSource, /parseCanonicalMessageCursor\(/);
+  assert.match(transcriptRouteSource, /getCanonicalLeadConversationThread\(/);
+  assert.match(transcriptRouteSource, /pageSize:\s*50/);
+  assert.match(transcriptRouteSource, /CanonicalSalesConversationTranscript/);
+  assert.doesNotMatch(
+    transcriptRouteSource,
+    /platform-sales-intake|platform-communications|getPlatformConversationThread|isPlatformLeadConversationLinked/,
+  );
+  assert.match(conversationsSource, /data-testid="canonical-sales-transcript"/);
+  assert.match(conversationsSource, /data-testid="canonical-sales-message"/);
+  assert.match(conversationsSource, /data-message-id=\{message\.messageId\}/);
+  assert.match(
+    conversationsSource,
+    /data-testid="canonical-whatsapp-provider-blocked"/,
+  );
+  assert.match(
+    conversationsSource,
+    /data-testid="canonical-records-unavailable"/,
+  );
+  assert.doesNotMatch(
+    conversationsSource,
+    /<form|<button|PlatformConversationView|PlatformGemini|PlatformAutonomous|PlatformAmoCrm|messaging-actions|amocrm|realtime/i,
   );
 });
 

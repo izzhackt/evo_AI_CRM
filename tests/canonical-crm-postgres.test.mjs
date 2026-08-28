@@ -9,7 +9,9 @@ import {
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
   createCanonicalPersonLead,
+  getCanonicalLeadConversationThread,
   handoffCanonicalLeadToAdmissions,
+  listCanonicalLeadConversations,
   listCanonicalSalesLeads,
   listCanonicalStudentCases,
   recordCanonicalSalesGateEvidence,
@@ -137,6 +139,83 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         body: `different-technical-payload-${runId}`,
       }),
       repositoryError("idempotency_conflict"),
+    );
+
+    const laterInbound = await appendCanonicalInboundMessage({
+      ...commandContext(runId, "inbound-later"),
+      leadId: lead.leadId,
+      channel: "whatsapp",
+      externalConversationId: inboundInput.externalConversationId,
+      externalMessageId: `technical-message-later-${runId}`,
+      body: `technical-inbound-later-${runId}`,
+      occurredAt: "2026-08-28T12:01:00.000Z",
+    });
+    assert.equal(laterInbound.conversationId, inbound.conversationId);
+
+    const conversations = await listCanonicalLeadConversations({
+      actorRole: "sales",
+      leadId: lead.leadId,
+    });
+    assert.deepEqual(
+      conversations.map((conversation) => ({
+        conversationId: conversation.conversationId,
+        leadId: conversation.leadId,
+        channel: conversation.channel,
+        status: conversation.status,
+      })),
+      [
+        {
+          conversationId: inbound.conversationId,
+          leadId: lead.leadId,
+          channel: "whatsapp",
+          status: "open",
+        },
+      ],
+    );
+
+    const firstMessagePage = await getCanonicalLeadConversationThread({
+      actorRole: "admin",
+      leadId: lead.leadId,
+      conversationId: inbound.conversationId,
+      pageSize: 1,
+    });
+    assert.equal(firstMessagePage.conversation.leadId, lead.leadId);
+    assert.equal(firstMessagePage.messages.length, 1);
+    assert.equal(
+      firstMessagePage.messages[0].body,
+      `technical-inbound-later-${runId}`,
+    );
+    assert.equal(firstMessagePage.hasNext, true);
+    assert.deepEqual(firstMessagePage.nextCursor, {
+      occurredAt: "2026-08-28T12:01:00.000Z",
+      id: laterInbound.messageId,
+    });
+
+    const secondMessagePage = await getCanonicalLeadConversationThread({
+      actorRole: "sales",
+      leadId: lead.leadId,
+      conversationId: inbound.conversationId,
+      cursor: firstMessagePage.nextCursor,
+      pageSize: 1,
+    });
+    assert.equal(secondMessagePage.messages.length, 1);
+    assert.equal(secondMessagePage.messages[0].body, inboundInput.body);
+    assert.equal(secondMessagePage.hasNext, false);
+    assert.equal(secondMessagePage.nextCursor, null);
+
+    const unrelatedLead = await createCanonicalPersonLead({
+      ...technicalCommandContext(runId, "unrelated-lead"),
+      displayName: `unrelated-technical-subject-${runId}`,
+      email: `unrelated-${runId}@acceptance.invalid`,
+      source: `technical-source-${runId}`,
+    });
+    await assert.rejects(
+      getCanonicalLeadConversationThread({
+        actorRole: "sales",
+        leadId: unrelatedLead.leadId,
+        conversationId: inbound.conversationId,
+      }),
+      repositoryError("not_found"),
     );
 
     await assert.rejects(

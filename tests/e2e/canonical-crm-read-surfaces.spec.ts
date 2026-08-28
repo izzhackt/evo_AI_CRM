@@ -1,7 +1,24 @@
-import { expect, test, type Page } from "@playwright/test";
+import { createHmac } from "node:crypto";
+
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
 
 const mode = process.env.EVO_EXPECT_CANONICAL_READ_MODE ?? "configured";
 const unavailableProbeLeadId = "00000000-0000-4000-8000-000000000429";
+const unavailableProbeConversationId =
+  "00000000-0000-4000-8000-000000000430";
+const inboundPhone = process.env.EVO_V2_INBOUND_TEST_PHONE ?? "+15550004300";
+const inboundConversationId =
+  process.env.EVO_V2_INBOUND_TEST_CONVERSATION_ID ??
+  "v2-browser-conversation-430";
+const inboundMessageId =
+  process.env.EVO_V2_INBOUND_TEST_MESSAGE_ID ?? "v2-browser-message-430";
+const inboundText =
+  process.env.EVO_V2_INBOUND_TEST_TEXT ?? "V2 inbound browser proof 430";
 
 function requireUuid(name: string): string {
   const value = process.env[name];
@@ -39,6 +56,34 @@ async function submitGate(page: Page, role: TestRole) {
   await page.getByTestId("open-role-workspace").click();
 }
 
+function requireInboundSecret(): string {
+  const value = process.env.EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET;
+  if (!value) throw new Error("missing V2 inbound test secret");
+  return value;
+}
+
+function signedInboundHeaders(rawBody: string, timestamp: string) {
+  const signature = createHmac("sha256", requireInboundSecret())
+    .update(`${timestamp}.${rawBody}`)
+    .digest("hex");
+  return {
+    "content-type": "application/json",
+    "x-evo-v2-timestamp": timestamp,
+    "x-evo-v2-signature": signature,
+  };
+}
+
+async function postSignedInbound(
+  request: APIRequestContext,
+  rawBody: string,
+  timestamp = Math.floor(Date.now() / 1_000).toString(),
+) {
+  return request.post("/api/v2/whatsapp/inbound", {
+    data: rawBody,
+    headers: signedInboundHeaders(rawBody, timestamp),
+  });
+}
+
 test("missing PostgreSQL authority fails closed without a read fallback", async ({
   page,
 }) => {
@@ -56,6 +101,142 @@ test("missing PostgreSQL authority fails closed without a read fallback", async 
   await page.goto(`/sales/${unavailableProbeLeadId}`);
   await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
   await expect(page.getByTestId("canonical-lead-detail")).toHaveCount(0);
+
+  await page.goto(
+    `/sales/${unavailableProbeLeadId}/conversations/${unavailableProbeConversationId}`,
+  );
+  await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
+  await expect(page.getByTestId("canonical-sales-transcript")).toHaveCount(0);
+});
+
+test("missing inbound secret fails closed at the real HTTP boundary", async ({
+  request,
+}) => {
+  test.skip(
+    mode !== "inbound-unavailable",
+    "only exercised without inbound secret",
+  );
+  const rawBody = JSON.stringify({
+    event: "message.received",
+    senderPhone: inboundPhone,
+    externalConversationId: inboundConversationId,
+    externalMessageId: inboundMessageId,
+    text: inboundText,
+    occurredAt: "2026-08-28T12:00:00.000Z",
+  });
+
+  const response = await postSignedInbound(request, rawBody);
+  expect(response.status()).toBe(503);
+  expect(await response.json()).toEqual({
+    ok: false,
+    error: "inbound_unavailable",
+  });
+});
+
+test("signed inbound HTTP persists once and is visible in the Sales transcript", async ({
+  page,
+  request,
+}) => {
+  test.skip(mode !== "configured", "only exercised in configured mode");
+  const occurredAt = "2026-08-28T12:00:00.000Z";
+  const payload = {
+    event: "message.received",
+    senderPhone: inboundPhone,
+    externalConversationId: inboundConversationId,
+    externalMessageId: inboundMessageId,
+    text: inboundText,
+    occurredAt,
+  } as const;
+  const rawBody = JSON.stringify(payload);
+  const now = Math.floor(Date.now() / 1_000).toString();
+
+  const invalidSignature = await request.post("/api/v2/whatsapp/inbound", {
+    data: rawBody,
+    headers: {
+      "content-type": "application/json",
+      "x-evo-v2-timestamp": now,
+      "x-evo-v2-signature": "0".repeat(64),
+    },
+  });
+  expect(invalidSignature.status()).toBe(403);
+
+  const stale = (Math.floor(Date.now() / 1_000) - 301).toString();
+  expect((await postSignedInbound(request, rawBody, stale)).status()).toBe(403);
+
+  const wrongMediaType = await request.post("/api/v2/whatsapp/inbound", {
+    data: rawBody,
+    headers: {
+      ...signedInboundHeaders(rawBody, now),
+      "content-type": "text/plain",
+    },
+  });
+  expect(wrongMediaType.status()).toBe(415);
+
+  const invalidRawBody = JSON.stringify({ ...payload, unexpected: true });
+  expect((await postSignedInbound(request, invalidRawBody)).status()).toBe(400);
+
+  const oversizedRawBody = JSON.stringify({
+    ...payload,
+    text: "x".repeat(65_536),
+  });
+  expect((await postSignedInbound(request, oversizedRawBody)).status()).toBe(413);
+
+  const accepted = await postSignedInbound(request, rawBody);
+  expect(accepted.status()).toBe(202);
+  const acceptedBody = (await accepted.json()) as Record<string, unknown>;
+  expect(acceptedBody.ok).toBe(true);
+  const leadId = String(acceptedBody.leadId);
+  const conversationId = String(acceptedBody.conversationId);
+  const messageId = String(acceptedBody.messageId);
+  for (const value of [leadId, conversationId, messageId]) {
+    expect(value).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+  }
+
+  const replay = await postSignedInbound(request, rawBody);
+  expect(replay.status()).toBe(202);
+  expect(await replay.json()).toEqual(acceptedBody);
+
+  const changedRawBody = JSON.stringify({
+    ...payload,
+    text: `${inboundText} changed`,
+  });
+  expect((await postSignedInbound(request, changedRawBody)).status()).toBe(409);
+
+  await submitGate(page, "sales");
+  await page.goto(`/sales?q=${encodeURIComponent(inboundPhone)}`);
+  await expect(
+    page.locator(
+      `[data-testid="canonical-lead-row"][data-lead-id="${leadId}"]`,
+    ),
+  ).toBeVisible();
+
+  await page.goto(`/sales/${leadId}`);
+  const conversationLink = page.locator(
+    `[data-testid="canonical-sales-conversation-link"][data-conversation-id="${conversationId}"]`,
+  );
+  await expect(conversationLink).toBeVisible();
+  await conversationLink.click();
+  await expect(page).toHaveURL(
+    new RegExp(`/sales/${leadId}/conversations/${conversationId}$`),
+  );
+  await expect(page.getByTestId("canonical-sales-transcript")).toContainText(
+    inboundText,
+  );
+  await expect(
+    page.locator(
+      `[data-testid="canonical-sales-message"][data-message-id="${messageId}"]`,
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-whatsapp-provider-blocked"),
+  ).toBeVisible();
+
+  await submitGate(page, "admissions");
+  await page.goto(`/sales/${leadId}/conversations/${conversationId}`);
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales/);
+  await expect(page.getByTestId("canonical-sales-transcript")).toHaveCount(0);
 });
 
 test("Admissions reads the real canonical Student Case queue", async ({ page }) => {

@@ -12464,3 +12464,83 @@ Validation impact: the PostgreSQL test must prove unchanged version,
 receipt. Chromium must prove the reason is cleared/disabled and the subsequent
 active-stage save succeeds. Run the full V2 database/browser harness and normal
 CI gates; no provider, V1 or production state is touched.
+
+## 2026-08-28 - Make one private HTTP adapter the V2 WhatsApp inbound authority
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under Issue #430 and the owner's replace-not-layer rule.
+Change type: inbound transport replacement, canonical transcript read and
+legacy runtime eradication.
+Affected plan section: V2-6 (#430) inbound WhatsApp workflow.
+
+Reason: the root application still exposes several mutually incompatible
+inbound writers: Supabase event/work/history/media routes, a Supabase
+lead-agent sync route and legacy SQLite webhooks. Its Sales transcript also
+reads the Supabase communication projection. Keeping any of them active after
+the canonical adapter is proven would create multiple runtime paths and data
+authorities, invalidate browser acceptance and violate replace-not-layer.
+
+Decision:
+
+1. Add exactly one root V2 inbound endpoint at
+   `/api/v2/whatsapp/inbound`. It is private application infrastructure, never
+   a public provider-health claim, and accepts only `application/json` bodies
+   no larger than 64 KiB. Its exact payload is
+   `{ event: "message.received", senderPhone, externalConversationId,
+   externalMessageId, text, occurredAt }`; unknown fields, non-E.164 senders,
+   blank identifiers/text and non-UTC ISO timestamps are rejected.
+2. Require `EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET` from ignored environment
+   secrets. Authenticate the exact raw body with SHA-256 HMAC over
+   `<unix-seconds>.<raw-body>`, using `x-evo-v2-timestamp` and
+   `x-evo-v2-signature`, constant-time comparison and a five-minute replay
+   window. A missing secret fails unavailable; invalid signatures fail denied;
+   responses and logs never expose secret values or message bodies.
+3. The adapter derives stable technical idempotency keys from the normalized
+   phone and external conversation/message identifiers, then calls only the
+   canonical PostgreSQL person/lead and inbound-message commands. Replaying the
+   same signed event returns the same accepted identities without duplicate
+   rows or business events; reusing an external message identity with changed
+   content conflicts. A partial first attempt is safe to retry because both
+   commands are independently idempotent.
+4. Add bounded canonical PostgreSQL conversation-list and transcript reads for
+   `admin` and `sales`, linked to the exact canonical lead. The Sales lead page
+   links to a strictly read-only transcript under
+   `/sales/:leadId/conversations/:conversationId`. Admissions and anonymous
+   sessions are denied. This surface has no manual send, autonomous reply,
+   Gemini, realtime subscription or provider call.
+5. After real database/application/browser proof, delete the root Supabase
+   ingress, projection worker, history import, media worker and lead-agent sync
+   routes/modules; delete the mounted legacy SQLite WhatsApp webhook routes and
+   their inbound-only helpers; delete the Supabase Sales intake/transcript path;
+   and remove their tests, active route allowlisting, scripts and root env
+   contract. Retained outbound/manual-send/autonomous-reply/Gemini code remains
+   owned by #433 and may not be reachable from this Sales proof surface.
+6. Frozen V1 deployment configuration, Supabase migration/test history,
+   historical ADRs, runbooks, archived docs, evidence and other decision or
+   rollback documentation remain unchanged as historical inputs. The separate
+   `agent-lead2-inbox` application also remains outside this root V2 slice.
+   None may be imported, executed or bundled as the V2 inbound authority.
+7. Real provider delivery is not part of this local acceptance. Until separately
+   authorized credentials and a non-production provider case exist, the Sales
+   UI must state that provider acceptance is blocked. The adapter must not send
+   WhatsApp, mutate WAHA configuration, write amoCRM, touch V1 staging or
+   production, or claim live provider success.
+
+Validation impact: extend the OrbStack disposable-PostgreSQL harness with the
+running Next application and Chromium. Prove bad-signature denial, one valid
+signed HTTP event, exact replay, changed-content conflict, one canonical
+conversation/message in PostgreSQL, discovery of the resulting lead in Sales,
+and navigation to the persisted transcript. Run unit/security suites, lint,
+typecheck and production build. Before merge attach a root-scoped `rg`
+inventory proving there is exactly one mounted inbound writer, no Sales import
+of the Supabase communications/intake path, no active import of the removed
+webhook/worker/config modules and a clear missing-secret/database failure with
+no fallback. Technical identifiers in the disposable database prove mechanics,
+not a real customer case or provider acceptance.
+
+Official implementation references: Next.js documents Route Handlers as Web
+Request/Response boundaries and recommends authentication, authorization,
+validation and non-sensitive errors for webhook-style endpoints at
+https://nextjs.org/docs/app/api-reference/file-conventions/route and
+https://nextjs.org/docs/app/guides/backend-for-frontend. Node.js documents
+`createHmac()` and `timingSafeEqual()` at https://nodejs.org/api/crypto.html.

@@ -951,6 +951,311 @@ export async function createCanonicalPersonLead(
   });
 }
 
+type ValidatedCanonicalInboundMessage = Readonly<{
+  context: CommandContext;
+  leadId: string;
+  externalConversationId: string;
+  externalMessageId: string;
+  body: string;
+  occurredAt: Date;
+  eventSequence: number;
+}>;
+
+async function appendCanonicalInboundMessageInTransaction(
+  transaction: DatabaseTransaction,
+  input: ValidatedCanonicalInboundMessage,
+): Promise<CanonicalInboundMessageResult> {
+  await transaction.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`whatsapp:${input.externalConversationId}:${input.externalMessageId}`}, 0))`,
+  );
+
+  const [lead] = await transaction
+    .select({ id: evoLeads.id })
+    .from(evoLeads)
+    .where(eq(evoLeads.id, input.leadId))
+    .limit(1);
+  if (!lead) throw new CanonicalCrmRepositoryError("not_found");
+
+  let [conversation] = await transaction
+    .select({ id: evoConversations.id, leadId: evoConversations.leadId })
+    .from(evoConversations)
+    .where(
+      and(
+        eq(evoConversations.channel, "whatsapp"),
+        eq(
+          evoConversations.externalConversationId,
+          input.externalConversationId,
+        ),
+      ),
+    )
+    .limit(1);
+
+  if (!conversation) {
+    const proposedConversationId = randomUUID();
+    const [createdConversation] = await transaction
+      .insert(evoConversations)
+      .values({
+        id: proposedConversationId,
+        leadId: input.leadId,
+        channel: "whatsapp",
+        externalConversationId: input.externalConversationId,
+        status: "open",
+        owningRole: "sales",
+      })
+      .onConflictDoNothing()
+      .returning({
+        id: evoConversations.id,
+        leadId: evoConversations.leadId,
+      });
+    conversation = createdConversation;
+    if (!conversation) {
+      [conversation] = await transaction
+        .select({ id: evoConversations.id, leadId: evoConversations.leadId })
+        .from(evoConversations)
+        .where(
+          and(
+            eq(evoConversations.channel, "whatsapp"),
+            eq(
+              evoConversations.externalConversationId,
+              input.externalConversationId,
+            ),
+          ),
+        )
+        .limit(1);
+    }
+  }
+  if (!conversation) throw new CanonicalCrmRepositoryError("unavailable");
+  if (conversation.leadId !== input.leadId) {
+    throw new CanonicalCrmRepositoryError("conflict");
+  }
+
+  const [duplicateMessage] = await transaction
+    .select({
+      id: evoMessages.id,
+      body: evoMessages.body,
+      occurredAt: evoMessages.occurredAt,
+    })
+    .from(evoMessages)
+    .where(
+      and(
+        eq(evoMessages.conversationId, conversation.id),
+        eq(evoMessages.externalMessageId, input.externalMessageId),
+      ),
+    )
+    .limit(1);
+
+  let messageId: string;
+  if (duplicateMessage) {
+    if (
+      duplicateMessage.body !== input.body ||
+      duplicateMessage.occurredAt.getTime() !== input.occurredAt.getTime()
+    ) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+    messageId = duplicateMessage.id;
+  } else {
+    messageId = randomUUID();
+    await transaction.insert(evoMessages).values({
+      id: messageId,
+      conversationId: conversation.id,
+      direction: "inbound",
+      externalMessageId: input.externalMessageId,
+      body: input.body,
+      authorRole: null,
+      occurredAt: input.occurredAt,
+      correlationId: input.context.correlationId,
+      idempotencyKey: input.context.idempotencyKey,
+    });
+
+    const occurredAtIso = input.occurredAt.toISOString();
+    // Inbound activity advances queue recency without invalidating an
+    // operator's optimistic workflow version.
+    const [refreshedConversation] = await transaction
+      .update(evoConversations)
+      .set({
+        updatedAt: sql`greatest(${evoConversations.updatedAt}, ${occurredAtIso}::timestamptz)`,
+      })
+      .where(eq(evoConversations.id, conversation.id))
+      .returning({ id: evoConversations.id });
+    const [refreshedLead] = await transaction
+      .update(evoLeads)
+      .set({
+        updatedAt: sql`greatest(${evoLeads.updatedAt}, ${occurredAtIso}::timestamptz)`,
+      })
+      .where(eq(evoLeads.id, input.leadId))
+      .returning({ id: evoLeads.id });
+    if (!refreshedConversation || !refreshedLead) {
+      throw new CanonicalCrmRepositoryError("unavailable");
+    }
+
+    await insertBusinessEvent(transaction, {
+      context: input.context,
+      businessObjectType: "message",
+      businessObjectId: messageId,
+      transition: "message.received",
+      toState: "received",
+      eventSequence: input.eventSequence,
+    });
+  }
+
+  return {
+    conversationId: conversation.id,
+    messageId,
+    leadId: input.leadId,
+  };
+}
+
+export async function receiveCanonicalWhatsAppInbound(
+  input: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+    displayName: string;
+    phone: string;
+    externalConversationId: string;
+    externalMessageId: string;
+    body: string;
+    occurredAt: string;
+  }>,
+): Promise<CanonicalInboundMessageResult> {
+  const context = parseCommandContext(input, ["admin", "sales"]);
+  const identity = normalizeCanonicalPersonIdentity({
+    displayName: input.displayName,
+    phone: input.phone,
+  });
+  const phone = identity.normalizedPhone;
+  if (!phone) invalidInput();
+  const externalConversationId = externalIdentifier(
+    input.externalConversationId,
+  );
+  const externalMessageId = externalIdentifier(input.externalMessageId);
+  const body = messageBody(input.body);
+  const occurredAt = isoTimestamp(input.occurredAt);
+  const requestHash = sha256({
+    actorRole: context.actorRole,
+    ...identity,
+    channel: "whatsapp",
+    externalConversationId,
+    externalMessageId,
+    body,
+    occurredAt: occurredAt.toISOString(),
+  });
+
+  return runTransaction(async (transaction) => {
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical.whatsapp_inbound.receive",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return {
+        conversationId: resultUuid(
+          reservation.resultPayload,
+          "conversationId",
+        ),
+        messageId: resultUuid(reservation.resultPayload, "messageId"),
+        leadId: resultUuid(reservation.resultPayload, "leadId"),
+      };
+    }
+
+    await transaction.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`whatsapp-phone:${phone}`}, 0))`,
+    );
+
+    let people = await transaction
+      .select({ id: evoPeople.id })
+      .from(evoPeople)
+      .where(eq(evoPeople.phoneE164, phone))
+      .limit(2);
+    let personId: string;
+    if (people.length === 0) {
+      const [createdPerson] = await transaction
+        .insert(evoPeople)
+        .values({
+          id: randomUUID(),
+          fullName: identity.displayName,
+          phoneE164: phone,
+        })
+        .onConflictDoNothing()
+        .returning({ id: evoPeople.id });
+      if (createdPerson) {
+        personId = createdPerson.id;
+      } else {
+        people = await transaction
+          .select({ id: evoPeople.id })
+          .from(evoPeople)
+          .where(eq(evoPeople.phoneE164, phone))
+          .limit(2);
+        if (people.length !== 1) {
+          throw new CanonicalCrmRepositoryError("conflict");
+        }
+        personId = people[0]!.id;
+      }
+    } else {
+      if (people.length !== 1) {
+        throw new CanonicalCrmRepositoryError("conflict");
+      }
+      personId = people[0]!.id;
+    }
+
+    const whatsappLeads = await transaction
+      .select({ id: evoLeads.id })
+      .from(evoLeads)
+      .where(
+        and(eq(evoLeads.personId, personId), eq(evoLeads.source, "whatsapp")),
+      )
+      .limit(2);
+    if (whatsappLeads.length > 1) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+
+    let leadId: string;
+    let messageEventSequence = 1;
+    const [existingLead] = whatsappLeads;
+    if (existingLead) {
+      leadId = existingLead.id;
+    } else {
+      leadId = randomUUID();
+      await transaction.insert(evoLeads).values({
+        id: leadId,
+        personId,
+        source: "whatsapp",
+        stage: "new",
+        ownerRole: "sales",
+      });
+      await insertBusinessEvent(transaction, {
+        context,
+        businessObjectType: "lead",
+        businessObjectId: leadId,
+        transition: "lead.created",
+        toState: "new",
+        eventSequence: 1,
+      });
+      messageEventSequence = 2;
+    }
+
+    const result = await appendCanonicalInboundMessageInTransaction(
+      transaction,
+      {
+        context,
+        leadId,
+        externalConversationId,
+        externalMessageId,
+        body,
+        occurredAt,
+        eventSequence: messageEventSequence,
+      },
+    );
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "message",
+      businessObjectId: result.messageId,
+      resultPayload: result,
+    });
+    return result;
+  });
+}
+
 export async function appendCanonicalInboundMessage(
   input: Readonly<{
     actorRole: FixedRole;
@@ -1000,119 +1305,22 @@ export async function appendCanonicalInboundMessage(
       };
     }
 
-    await transaction.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`whatsapp:${externalConversationId}:${externalMessageId}`}, 0))`,
-    );
-
-    const [lead] = await transaction
-      .select({ id: evoLeads.id })
-      .from(evoLeads)
-      .where(eq(evoLeads.id, leadId))
-      .limit(1);
-    if (!lead) throw new CanonicalCrmRepositoryError("not_found");
-
-    let [conversation] = await transaction
-      .select({ id: evoConversations.id, leadId: evoConversations.leadId })
-      .from(evoConversations)
-      .where(
-        and(
-          eq(evoConversations.channel, "whatsapp"),
-          eq(evoConversations.externalConversationId, externalConversationId),
-        ),
-      )
-      .limit(1);
-
-    if (!conversation) {
-      const proposedConversationId = randomUUID();
-      const [createdConversation] = await transaction
-        .insert(evoConversations)
-        .values({
-          id: proposedConversationId,
-          leadId,
-          channel: "whatsapp",
-          externalConversationId,
-          status: "open",
-          owningRole: "sales",
-        })
-        .onConflictDoNothing()
-        .returning({
-          id: evoConversations.id,
-          leadId: evoConversations.leadId,
-        });
-      conversation = createdConversation;
-      if (!conversation) {
-        [conversation] = await transaction
-          .select({ id: evoConversations.id, leadId: evoConversations.leadId })
-          .from(evoConversations)
-          .where(
-            and(
-              eq(evoConversations.channel, "whatsapp"),
-              eq(
-                evoConversations.externalConversationId,
-                externalConversationId,
-              ),
-            ),
-          )
-          .limit(1);
-      }
-    }
-    if (!conversation) throw new CanonicalCrmRepositoryError("unavailable");
-    if (conversation.leadId !== leadId) {
-      throw new CanonicalCrmRepositoryError("conflict");
-    }
-
-    const [duplicateMessage] = await transaction
-      .select({
-        id: evoMessages.id,
-        conversationId: evoMessages.conversationId,
-        body: evoMessages.body,
-        occurredAt: evoMessages.occurredAt,
-      })
-      .from(evoMessages)
-      .where(
-        and(
-          eq(evoMessages.conversationId, conversation.id),
-          eq(evoMessages.externalMessageId, externalMessageId),
-        ),
-      )
-      .limit(1);
-
-    let messageId: string;
-    if (duplicateMessage) {
-      if (
-        duplicateMessage.body !== body ||
-        duplicateMessage.occurredAt.getTime() !== occurredAt.getTime()
-      ) {
-        throw new CanonicalCrmRepositoryError("conflict");
-      }
-      messageId = duplicateMessage.id;
-    } else {
-      messageId = randomUUID();
-      await transaction.insert(evoMessages).values({
-        id: messageId,
-        conversationId: conversation.id,
-        direction: "inbound",
+    const result = await appendCanonicalInboundMessageInTransaction(
+      transaction,
+      {
+        context,
+        leadId,
+        externalConversationId,
         externalMessageId,
         body,
-        authorRole: null,
         occurredAt,
-        correlationId: context.correlationId,
-        idempotencyKey: context.idempotencyKey,
-      });
-      await insertBusinessEvent(transaction, {
-        context,
-        businessObjectType: "message",
-        businessObjectId: messageId,
-        transition: "message.received",
-        toState: "received",
-      });
-    }
-
-    const result = { conversationId: conversation.id, messageId, leadId };
+        eventSequence: 1,
+      },
+    );
     await completeCommand(transaction, {
       receiptId: reservation.receiptId,
       businessObjectType: "message",
-      businessObjectId: messageId,
+      businessObjectId: result.messageId,
       resultPayload: result,
     });
     return result;

@@ -7,9 +7,8 @@ import {
 } from "node:crypto";
 
 import {
-  appendCanonicalInboundMessage,
   CanonicalCrmRepositoryError,
-  createCanonicalPersonLead,
+  receiveCanonicalWhatsAppInbound,
 } from "./canonical-crm-repository.ts";
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -23,32 +22,23 @@ const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const MESSAGE_CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 
-type CreatePersonLeadInput = Parameters<typeof createCanonicalPersonLead>[0];
-type AppendInboundMessageInput = Parameters<
-  typeof appendCanonicalInboundMessage
+type ReceiveInboundInput = Parameters<
+  typeof receiveCanonicalWhatsAppInbound
 >[0];
-
-type CreatePersonLeadResult = Readonly<{ leadId: string }>;
-type AppendInboundMessageResult = Awaited<
-  ReturnType<typeof appendCanonicalInboundMessage>
+type ReceiveInboundResult = Awaited<
+  ReturnType<typeof receiveCanonicalWhatsAppInbound>
 >;
 
 export type CanonicalWhatsAppInboundDependencies = Readonly<{
   getSecret(): string | undefined;
   now(): number;
-  createPersonLead(
-    input: CreatePersonLeadInput,
-  ): Promise<CreatePersonLeadResult>;
-  appendInboundMessage(
-    input: AppendInboundMessageInput,
-  ): Promise<AppendInboundMessageResult>;
+  receiveInbound(input: ReceiveInboundInput): Promise<ReceiveInboundResult>;
 }>;
 
 const defaultDependencies: CanonicalWhatsAppInboundDependencies = {
   getSecret: () => process.env.EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET,
   now: Date.now,
-  createPersonLead: createCanonicalPersonLead,
-  appendInboundMessage: appendCanonicalInboundMessage,
+  receiveInbound: receiveCanonicalWhatsAppInbound,
 };
 
 type InboundPayload = Readonly<{
@@ -304,20 +294,12 @@ export function createCanonicalWhatsAppInboundHandler(
       );
       const correlationId = `wa:${messageIdentityHash}`;
 
-      const lead = await dependencies.createPersonLead({
+      const message = await dependencies.receiveInbound({
         actorRole: "sales",
-        idempotencyKey: `wa-lead:${sha256(payload.senderPhone)}`,
+        idempotencyKey: `wa-inbound:${messageIdentityHash}`,
         correlationId,
         displayName: `WhatsApp ••••${payload.senderPhone.slice(-4)}`,
         phone: payload.senderPhone,
-        source: "whatsapp",
-      });
-      const message = await dependencies.appendInboundMessage({
-        actorRole: "sales",
-        idempotencyKey: `wa-msg:${messageIdentityHash}`,
-        correlationId,
-        leadId: lead.leadId,
-        channel: "whatsapp",
         externalConversationId: payload.externalConversationId,
         externalMessageId: payload.externalMessageId,
         body: payload.text,

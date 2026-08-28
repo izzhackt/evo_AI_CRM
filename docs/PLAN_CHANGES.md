@@ -12544,3 +12544,37 @@ validation and non-sensitive errors for webhook-style endpoints at
 https://nextjs.org/docs/app/api-reference/file-conventions/route and
 https://nextjs.org/docs/app/guides/backend-for-frontend. Node.js documents
 `createHmac()` and `timingSafeEqual()` at https://nodejs.org/api/crypto.html.
+
+## 2026-08-29 - Make V2 WhatsApp identity resolution and message receipt atomic
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex following the exact-head review of the V2-6 inbound replacement.
+Change type: V2-6 transactional correctness correction.
+Affected plan section: V2-6 (#430) inbound WhatsApp workflow.
+
+Reason: resolving or creating the canonical person/WhatsApp lead in one command
+and appending the provider message in a second command could leave an orphaned
+person, lead, event and receipt when the message then conflicted with an
+existing conversation identity. It also made one HTTP delivery span two
+separate idempotency boundaries.
+
+Decision: the HTTP adapter invokes one repository command,
+`receiveCanonicalWhatsAppInbound`, under one PostgreSQL transaction and one
+`wa-inbound:<message-identity-hash>` idempotency key. That command reserves its
+receipt, serializes phone identity resolution, reuses or creates exactly one
+WhatsApp lead, resolves the conversation, appends the message and business
+event, and completes the receipt atomically. A downstream conflict rolls back
+every change. New messages advance lead and conversation `updated_at` with
+`greatest(current, occurredAt)` but do not change workflow versions; exact
+replay, a natural provider duplicate and an older out-of-order message cannot
+move recency backwards or increment those versions.
+
+Validation impact: real PostgreSQL acceptance must prove a seeded
+conversation/identity conflict leaves person, lead, event and receipt counts
+unchanged; two different messages from one phone reuse one WhatsApp lead; a
+later message advances lead/conversation recency to its provider timestamp;
+and exact replay, natural duplicate and an older message preserve that recency
+and both workflow versions. The real Sales lead and conversation read surfaces
+must also sort the later-touched rows ahead of otherwise matching rows with an
+intermediate provider timestamp. Handler unit tests must expose only the
+single `receiveInbound` dependency and stable atomic command identity.

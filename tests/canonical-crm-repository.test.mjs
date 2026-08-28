@@ -565,6 +565,32 @@ test("canonical admissions queues reject malformed cursors before database acces
   }
 });
 
+test("canonical admissions queue cursors use one lossless millisecond bucket and UUID order", async () => {
+  const source = await readFile(
+    new URL("../src/lib/server/canonical-crm-repository.ts", import.meta.url),
+    "utf8",
+  );
+  const queueFunctions = [
+    "listCanonicalUniversityApplications",
+    "listCanonicalVisaMilestones",
+    "listCanonicalFinanceStops",
+  ];
+  for (const [index, functionName] of queueFunctions.entries()) {
+    const start = source.indexOf(`export async function ${functionName}`);
+    const nextName = queueFunctions[index + 1];
+    const end = nextName
+      ? source.indexOf(`export async function ${nextName}`)
+      : source.indexOf("export async function listCanonicalLeadConversations");
+    const queueSource = source.slice(start, end);
+    assert.match(queueSource, /date_trunc\('milliseconds'/);
+    assert.match(queueSource, /\$\{cursorTimestamp\}, \$\{/);
+    assert.match(queueSource, /\$\{cursor\.updatedAt\}::timestamptz/);
+    assert.match(queueSource, /\$\{cursor\.id\}/);
+    assert.doesNotMatch(queueSource, /cursorDate/);
+    assert.match(queueSource, /desc\(cursorTimestamp\)/);
+  }
+});
+
 test("sales is denied every canonical admissions operations seam before database access", async () => {
   const readInputs = [
     () =>

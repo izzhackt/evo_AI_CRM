@@ -12894,8 +12894,9 @@ over the active application, visa, finance and canonical Student 360 files has
 no import of `@/lib/db`, `@/lib/queries`, the old platform operation modules or
 Supabase. Only the three queue pages remain under their route trees; a missing
 PostgreSQL authority fails closed instead of reaching a removed detail or
-fallback path. Those queues use deterministic timestamp-plus-UUID cursors, so
-records after the first 50 remain reachable. Paused or closed handed-off cases
+fallback path. Those queues order and filter on the same PostgreSQL
+millisecond timestamp bucket plus UUID, so JavaScript timestamp precision
+cannot skip records after the first 50. Paused or closed handed-off cases
 remain readable in Student 360 but render no application, visa or finance
 mutation controls; the repository independently rejects every such write.
 

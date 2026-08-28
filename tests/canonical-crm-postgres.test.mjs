@@ -1805,27 +1805,39 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           row.isStopped === false,
       ),
     );
+    const precisionVisaIds = finalOperations.visaMilestones
+      .slice(0, 2)
+      .map((row) => row.visaMilestoneId)
+      .sort((left, right) => (left > right ? -1 : left < right ? 1 : 0));
+    const [higherPrecisionVisaId, lowerPrecisionVisaId] = precisionVisaIds;
+    assert.ok(higherPrecisionVisaId);
+    assert.ok(lowerPrecisionVisaId);
+    await sql`
+      update evo_visa_milestones
+      set updated_at = case
+        when id = ${higherPrecisionVisaId}
+          then '2099-01-01T12:00:00.123900Z'::timestamptz
+        else '2099-01-01T12:00:00.123100Z'::timestamptz
+      end
+      where id in (${higherPrecisionVisaId}, ${lowerPrecisionVisaId})
+    `;
     const firstVisaPage = await listCanonicalVisaMilestones({
       actorRole: "admissions",
-      pageSize: 2,
+      pageSize: 1,
     });
-    assert.equal(firstVisaPage.rows.length, 2);
+    assert.equal(firstVisaPage.rows.length, 1);
     assert.equal(firstVisaPage.hasNext, true);
-    assert.ok(firstVisaPage.nextCursor);
+    assert.deepEqual(firstVisaPage.nextCursor, {
+      updatedAt: "2099-01-01T12:00:00.123Z",
+      id: higherPrecisionVisaId,
+    });
     const secondVisaPage = await listCanonicalVisaMilestones({
       actorRole: "admissions",
       cursor: firstVisaPage.nextCursor ?? undefined,
-      pageSize: 2,
+      pageSize: 1,
     });
-    assert.equal(secondVisaPage.rows.length, 2);
-    assert.equal(
-      secondVisaPage.rows.some((row) =>
-        firstVisaPage.rows.some(
-          (firstRow) => firstRow.visaMilestoneId === row.visaMilestoneId,
-        ),
-      ),
-      false,
-    );
+    assert.equal(secondVisaPage.rows.length, 1);
+    assert.equal(secondVisaPage.rows[0]?.visaMilestoneId, lowerPrecisionVisaId);
     const [operationEvidence] = await sql`
       select
         (

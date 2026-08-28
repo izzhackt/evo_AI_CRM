@@ -3987,7 +3987,7 @@ export async function listCanonicalUniversityApplications(
   const pageSize = canonicalReadPageSize(input.pageSize);
 
   return runTransaction(async (transaction) => {
-    const cursorDate = cursor ? new Date(cursor.updatedAt) : undefined;
+    const cursorTimestamp = sql<Date>`date_trunc('milliseconds', ${evoUniversityApplications.updatedAt})`;
     const result = await transaction
       .select({
         applicationId: evoUniversityApplications.id,
@@ -4031,19 +4031,13 @@ export async function listCanonicalUniversityApplications(
         and(
           eq(evoStudentCases.status, "active"),
           eq(evoLeads.stage, "handed_off"),
-          cursorDate
-            ? or(
-                lt(evoUniversityApplications.updatedAt, cursorDate),
-                and(
-                  eq(evoUniversityApplications.updatedAt, cursorDate),
-                  lt(evoUniversityApplications.id, cursor!.id),
-                ),
-              )
+          cursor
+            ? sql<boolean>`(${cursorTimestamp}, ${evoUniversityApplications.id}) < (${cursor.updatedAt}::timestamptz, ${cursor.id})`
             : undefined,
         ),
       )
       .orderBy(
-        desc(evoUniversityApplications.updatedAt),
+        desc(cursorTimestamp),
         desc(evoUniversityApplications.id),
       )
       .limit(pageSize + 1);
@@ -4075,7 +4069,7 @@ export async function listCanonicalVisaMilestones(
   const pageSize = canonicalReadPageSize(input.pageSize);
 
   return runTransaction(async (transaction) => {
-    const cursorDate = cursor ? new Date(cursor.updatedAt) : undefined;
+    const cursorTimestamp = sql<Date>`date_trunc('milliseconds', ${evoVisaMilestones.updatedAt})`;
     const result = await transaction
       .select({
         visaMilestoneId: evoVisaMilestones.id,
@@ -4117,18 +4111,12 @@ export async function listCanonicalVisaMilestones(
         and(
           eq(evoStudentCases.status, "active"),
           eq(evoLeads.stage, "handed_off"),
-          cursorDate
-            ? or(
-                lt(evoVisaMilestones.updatedAt, cursorDate),
-                and(
-                  eq(evoVisaMilestones.updatedAt, cursorDate),
-                  lt(evoVisaMilestones.id, cursor!.id),
-                ),
-              )
+          cursor
+            ? sql<boolean>`(${cursorTimestamp}, ${evoVisaMilestones.id}) < (${cursor.updatedAt}::timestamptz, ${cursor.id})`
             : undefined,
         ),
       )
-      .orderBy(desc(evoVisaMilestones.updatedAt), desc(evoVisaMilestones.id))
+      .orderBy(desc(cursorTimestamp), desc(evoVisaMilestones.id))
       .limit(pageSize + 1);
     const hasNext = result.length > pageSize;
     const rows = result.slice(0, pageSize).map(canonicalVisaMilestoneRow);
@@ -4156,7 +4144,7 @@ export async function listCanonicalFinanceStops(
   const pageSize = canonicalReadPageSize(input.pageSize);
 
   return runTransaction(async (transaction) => {
-    const cursorDate = cursor ? new Date(cursor.updatedAt) : undefined;
+    const cursorTimestamp = sql<Date>`date_trunc('milliseconds', ${evoFinanceStopStates.changedAt})`;
     const result = await transaction
       .select({
         financeStopId: evoFinanceStopStates.id,
@@ -4192,19 +4180,13 @@ export async function listCanonicalFinanceStops(
         and(
           eq(evoStudentCases.status, "active"),
           eq(evoLeads.stage, "handed_off"),
-          cursorDate
-            ? or(
-                lt(evoFinanceStopStates.changedAt, cursorDate),
-                and(
-                  eq(evoFinanceStopStates.changedAt, cursorDate),
-                  lt(evoFinanceStopStates.id, cursor!.id),
-                ),
-              )
+          cursor
+            ? sql<boolean>`(${cursorTimestamp}, ${evoFinanceStopStates.id}) < (${cursor.updatedAt}::timestamptz, ${cursor.id})`
             : undefined,
         ),
       )
       .orderBy(
-        desc(evoFinanceStopStates.changedAt),
+        desc(cursorTimestamp),
         desc(evoFinanceStopStates.id),
       )
       .limit(pageSize + 1);

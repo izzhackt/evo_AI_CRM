@@ -61,6 +61,22 @@ database commands. The active product-first build uses one local EVO
 organization and does not build multi-organization tenancy, memberships,
 cross-organization RLS or fine-grained per-user grants.
 
+### Replace, do not layer
+
+Each completed V2 slice leaves exactly one active runtime, data authority,
+session/file path and UI for the capability it replaces. After real
+database/application/browser proof, the same slice removes the superseded
+runtime code, imports, dependencies, implementation tests, environment/config,
+scripts, routes, webhooks/workers and parallel `Legacy*`/`Connected*`/
+`Fixture*` screens. Its PR includes a scoped `rg` inventory and a real
+fail-closed check showing no fallback survives.
+
+Only frozen V1 staging/production and historical ADRs, migrations and evidence
+may remain as inert deployment/rollback inputs; V2 may not import, execute,
+bundle or treat them as authority. Temporary coexistence requires explicit
+owner approval with named files, reason, expiry/exit criteria and a deletion
+issue. Phase 0 records this rule and deletes no V1 code.
+
 ### Product paths that must work
 
 1. Start real local PostgreSQL, apply the complete migration chain and query it

@@ -109,6 +109,23 @@ organizations, memberships, multi-tenant administration, cross-organization
 RLS or fine-grained per-user grants. Database constraints and service checks
 still prevent a role from invoking another role's consequential command.
 
+### Replace, do not layer
+
+A completed V2 slice owns one active runtime path, data authority,
+auth/session path, private-file path and UI for each capability it replaces.
+Real database, application and browser proof triggers deletion of the
+superseded active code, imports, dependencies, implementation-level tests,
+environment/config, scripts, routes, webhooks/workers and parallel screens in
+that same slice. Outcome tests at the new module interface replace old
+implementation tests. A scoped `rg` inventory and a fail-closed no-fallback
+proof are merge evidence.
+
+Frozen V1 staging/production plus historical ADRs, migrations and evidence are
+the only exception. They remain inert deployment/rollback inputs and cannot be
+imported, executed, bundled or treated as V2 authority. Any temporary
+coexistence requires explicit owner approval with named files, reason,
+expiry/exit criteria and a deletion issue.
+
 ### Canonical CRM and event model
 
 PostgreSQL owns the V2 records for people, leads, conversations, messages,

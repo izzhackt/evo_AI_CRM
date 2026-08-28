@@ -33,9 +33,9 @@
   2026-08-28, parent issue #407, ADR 0022, `docs/EVO_LAUNCH_PLAN.md`, and the
   latest merged `docs/PLAN_CHANGES.md` entry define the target and #424 through
   #433 order.
-- EVO remains one internal product with one login, one UI, one role model and
-  one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks, Documents
-  and AI are modules, not separate target products.
+- EVO remains one internal product with one access surface, one UI, one role
+  model and one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks,
+  Documents and AI are modules, not separate target products.
 - Active V2 is a private local CRM product-validation contour, not a
   production-readiness program. Its runtime is the existing Next.js app, one
   real private PostgreSQL database, Drizzle migrations, a two-field
@@ -61,6 +61,31 @@
 - Existing production sections below describe historical V1 boundaries and
   safety inputs only; they do not override the active local V2 scope or
   authorize a production change.
+
+## V2 Replacement Discipline
+
+- V2 uses **replace, do not layer**. A completed slice has exactly one active
+  runtime path, data authority, auth/session path, private-file path and UI for
+  every capability that slice replaces.
+- Do not retain `Legacy*`, `Connected*` or `Fixture*` parallel screens;
+  SQLite/Supabase compatibility adapters; dual reads/writes; fallback
+  repositories; shadow runtimes; permanent feature flags; superseded
+  webhooks/workers; or stale package, environment, config, script and deploy
+  dependencies "just in case."
+- After real database, application and browser proof exists, delete the
+  superseded runtime code, imports, dependencies, implementation-level tests,
+  environment/config entries, scripts and routes in the same slice. Replace
+  old implementation tests with outcome tests at the new module interface.
+- Before merge, attach a scoped `rg`/inventory proving that no active import or
+  runtime reference to the superseded path remains. Also prove that a missing
+  or failed primary path stops clearly instead of falling back.
+- Frozen V1 staging/production and historical ADRs, migrations and evidence are
+  the only exception. Preserve them as deployment/rollback inputs until a
+  separately authorized cutover, but never import, execute, bundle or treat
+  them as V2 authority.
+- Temporary coexistence requires explicit owner approval naming every file,
+  the reason, an expiry or exit criterion and a deletion issue. Open-ended
+  compatibility is prohibited.
 
 ## Local Container Runtime
 
@@ -157,8 +182,10 @@ canonical store or new dependency.
 - CRM-to-WAHA base URL: `http://evo-crm-waha:3000`.
 - The lead-agent owns WAHA inbound automation:
   `http://evo-lead-agent:8000/webhooks/waha`.
-- The CRM legacy WAHA webhook route may remain for compatibility, but new WAHA
-  session configuration should point at the lead-agent private webhook.
+- The CRM legacy WAHA webhook route describes the frozen V1 deployment only.
+  It is not V2 compatibility permission: V2 must not import, execute, bundle or
+  route through it, and the replacing V2 slice must remove its superseded
+  active references after real proof.
 - The lead-agent resolves/creates amoCRM contact and lead first, then posts a
   signed internal sync event to:
   `http://evo-crm-app:3000/api/internal/lead-agent/whatsapp`.

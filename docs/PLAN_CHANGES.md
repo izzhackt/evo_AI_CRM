@@ -11957,3 +11957,53 @@ CI. Follow-on slices use real PostgreSQL, actual migrations, real file bytes,
 actual app/browser paths and ordinary CI. Technical records may prove mechanics
 but cannot be called real business acceptance. Missing provider credentials
 must produce a truthful blocked state, never a mock or fake success.
+
+## 2026-08-28 - Require replacement instead of layered V2 compatibility
+
+Date: 2026-08-28, workspace timezone (+04).
+Author: Codex under the owner's explicit replacement rule.
+Change type: runtime replacement discipline, slice acceptance criteria and
+legacy-eradication issue mapping.
+Affected plan section: active V2 implementation rules, ADR 0022 and issues
+#424-#433 under parent #407.
+
+Reason: a new self-hosted path beside active SQLite/Supabase paths would test a
+shadow product, retain contradictory authorities and make failure silently fall
+back to V1. That would delay the main CRM proof and create permanent migration
+debt.
+
+Owner decision:
+
+1. Use "replace, do not layer." A completed V2 slice has exactly one active
+   runtime path, data authority, auth/session path, private-file path and UI for
+   every capability it replaces.
+2. Do not keep parallel `Legacy*`, `Connected*` or `Fixture*` screens,
+   SQLite/Supabase adapters, dual reads/writes, fallback repositories, shadow
+   runtimes, permanent feature flags, old webhooks/workers or stale package,
+   environment, config, script and deploy dependencies for safety.
+3. After real database, application and browser proof, delete the superseded
+   active code, imports, dependencies, implementation-level tests,
+   environment/config, scripts and routes in the same slice. Replace old tests
+   with outcome tests at the new module interface.
+4. Every replacing PR must attach a scoped `rg`/inventory showing no active
+   reference remains and must prove that a missing or failed primary path stops
+   clearly instead of falling back.
+5. Preserve frozen V1 staging/production and historical ADRs, migrations and
+   evidence as inert deployment/rollback inputs until separately authorized
+   cutover. They may not be imported, executed, bundled or treated as V2
+   authority. Phase 0 deletes no V1 code.
+6. Temporary coexistence needs explicit owner approval naming the files,
+   reason, expiry/exit criteria and deletion issue. Open-ended compatibility is
+   prohibited.
+
+Issue mapping: #425 owns database/migration-foundation eradication; #426 owns
+session/access-path eradication; #427 owns parallel role-UI eradication; #428
+owns private-file-path eradication; #429 owns canonical data/RPC/repository
+eradication; #430-#433 each remove the superseded workflow routes,
+webhooks/workers and interface paths for the vertical capability they replace.
+#424 records the rule only and physically deletes no V1 code.
+
+Validation impact: each implementation PR needs real database/app/browser
+proof for its owned capability, outcome tests at the new interface, an exact
+`rg` inventory, a deliberate primary-path failure test and the normal
+independent-review/exact-head/match-head/exact-main gates.

@@ -387,15 +387,8 @@ test("repository scopes the safe memory read to the authenticated actor organiza
   ]);
 });
 
-test("UI contract exposes stable P5F1 controls without resume/autonomy or a raw query field", async () => {
-  const [cardSource, actionsSource, repositorySource] = await Promise.all([
-    readFile(
-      new URL(
-        "../src/components/platform/communications/PlatformAiMemoryCard.tsx",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
+test("AI memory mutations stay server-authorized and repository reads remain explicitly gated", async () => {
+  const [actionsSource, repositorySource] = await Promise.all([
     readFile(new URL("../src/lib/platform-ai-memory-actions.ts", import.meta.url), "utf8"),
     readFile(
       new URL("../src/lib/server/platform-ai-memory-repository.ts", import.meta.url),
@@ -403,32 +396,6 @@ test("UI contract exposes stable P5F1 controls without resume/autonomy or a raw 
     ),
   ]);
 
-  for (const testId of [
-    "platform-ai-memory-card",
-    "platform-ai-memory-control-state",
-    "platform-ai-memory-fact-form",
-    "platform-ai-memory-summary-source",
-    "platform-ai-memory-fact-source",
-    "platform-ai-memory-qualification-source",
-    "platform-ai-memory-fact-key",
-    "platform-ai-memory-fact-value",
-    "platform-ai-memory-fact-save",
-    "platform-ai-memory-qualification-form",
-    "platform-ai-memory-qualification-state",
-    "platform-ai-memory-qualification-save",
-    "platform-ai-memory-control-pause",
-    "platform-ai-memory-control-staff-takeover",
-    "platform-ai-memory-control-staff-only",
-    "platform-ai-memory-lexical-preview",
-    "platform-ai-memory-retrieval-evidence",
-  ]) {
-    assert.match(cardSource, new RegExp(testId));
-  }
-  assert.doesNotMatch(cardSource, /\bResume\b|resumeAutonomy|rawQuery|p_query/);
-  assert.match(cardSource, /data-control-state/);
-  assert.match(cardSource, /data-retrieval-mode/);
-  assert.match(cardSource, /data-retrieval-outcome/);
-  assert.match(cardSource, /data-provider-proof-state/);
   assert.match(actionsSource, /requirePlatformMessagingActor/);
   assert.equal(
     actionsSource.match(/field\(formData, "sourceMessageId"\)/g)?.length,

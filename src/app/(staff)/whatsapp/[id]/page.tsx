@@ -1,217 +1,163 @@
 import { notFound } from "next/navigation";
 
-import { PlatformConversationView } from "@/components/platform/communications/PlatformConversationView";
-import { PlatformMessagingRealtime } from "@/components/platform/communications/PlatformMessagingRealtime";
+import { CanonicalStaffWhatsAppWorkspace } from "@/components/platform/communications/CanonicalStaffWhatsApp";
 import { getT } from "@/lib/i18n";
-import {
-  getPlatformConversationThread,
-  getPlatformWahaSessionHealth,
-  isPlatformConversationId,
-  listPlatformConversations,
-  parsePlatformConversationCursor,
-} from "@/lib/platform-communications";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
 import {
-  getPlatformConversationWorkflow,
-  listApprovedPlatformKnowledge,
-} from "@/lib/platform-messaging-workflow";
-import { getPlatformConversationBw4Workspace } from "@/lib/platform-bw4-workflow";
-import { getPlatformAmoCrmCanonicalContext } from "@/lib/server/platform-amocrm-canonical-context-service";
-import { loadPlatformAutonomousReplyConfig } from "@/lib/server/platform-autonomous-reply-config";
-import { readPlatformAutonomousReplyState } from "@/lib/server/platform-autonomous-replies-repository";
-import {
-  readPlatformAiRetrievalCapabilities,
-  readPlatformAiRetrievalEvidence,
-  readPlatformConversationAiMemory,
-} from "@/lib/server/platform-ai-memory-repository";
-import { readPlatformGeminiProposal } from "@/lib/server/platform-gemini-proposals-repository";
-import { readPlatformGeminiProposalReviews } from "@/lib/server/platform-gemini-proposal-reviews-repository";
-import { getSupabasePublicConfig } from "@/lib/supabase/config";
+  CanonicalCrmRepositoryError,
+  getCanonicalStaffConversationThread,
+  listCanonicalStaffConversations,
+  parseCanonicalMessageCursor,
+  parseCanonicalReadCursor,
+  type CanonicalMessageCursor,
+  type CanonicalReadCursor,
+} from "@/lib/server/canonical-crm-repository";
 
-import { CommunicationsSourceDisclosure } from "../CommunicationsSourceDisclosure";
-
-type ConversationSearchParams = Promise<{
-  mode?: string | string[];
-  result?: string | string[];
-  u9_result?: string | string[];
+type SearchParams = Readonly<{
   before_at?: string | string[];
   before_id?: string | string[];
   messages_before_at?: string | string[];
   messages_before_id?: string | string[];
 }>;
 
-function decisionMutationOutcome(value: string | string[] | undefined) {
-  if (value === "saved" || value === "invalid" || value === "unavailable") {
-    return value;
-  }
-  return null;
-}
-
-function autonomousReplyRuntimeEnabled() {
-  try {
-    const config = loadPlatformAutonomousReplyConfig();
-    return config.enabled && !config.killSwitchEngaged;
-  } catch {
-    return false;
-  }
-}
-
-export default async function ConversationPage({
+export default async function WhatsAppConversationPage({
   params,
   searchParams,
-}: {
+}: Readonly<{
   params: Promise<{ id: string }>;
-  searchParams: ConversationSearchParams;
-}) {
-  const [{ id }, resolvedSearchParams, { t }, actor] = await Promise.all([
+  searchParams: Promise<SearchParams>;
+}>) {
+  const [{ id }, query, { locale }, actor] = await Promise.all([
     params,
     searchParams,
     getT(),
     requirePlatformMessagingActor(),
   ]);
-  if (!isPlatformConversationId(id)) notFound();
-  const conversationCursor = parsePlatformConversationCursor(
-    resolvedSearchParams.before_at,
-    resolvedSearchParams.before_id,
-  );
-  const messageCursor = parsePlatformConversationCursor(
-    resolvedSearchParams.messages_before_at,
-    resolvedSearchParams.messages_before_id,
-  );
+  assertExpectedQueryKeys(query, [
+    "before_at",
+    "before_id",
+    "messages_before_at",
+    "messages_before_id",
+  ]);
+  const queueCursor = parseQueueCursor(query);
+  const messageCursor = parseMessageCursor(query);
 
-  const [
-    conversationPage,
-    thread,
-    latestThread,
-    workflow,
-    knowledge,
-    bw4Workspace,
-  ] =
-    await Promise.all([
-      listPlatformConversations(actor, { cursor: conversationCursor, pageSize: 50 }),
-      getPlatformConversationThread(actor, id, { cursor: messageCursor, pageSize: 100 }),
-      messageCursor
-        ? getPlatformConversationThread(actor, id, { pageSize: 100 })
-        : Promise.resolve(null),
-      getPlatformConversationWorkflow(actor, id),
-      listApprovedPlatformKnowledge(actor),
-      getPlatformConversationBw4Workspace(actor, id).catch(() => null),
+  let queue;
+  let thread;
+  try {
+    [queue, thread] = await Promise.all([
+      listCanonicalStaffConversations({
+        actorRole: actor.platformRole,
+        cursor: queueCursor ?? undefined,
+        pageSize: 50,
+      }),
+      getCanonicalStaffConversationThread({
+        actorRole: actor.platformRole,
+        conversationId: id,
+        cursor: messageCursor ?? undefined,
+        pageSize: 50,
+      }),
     ]);
-  if (!thread || !workflow) notFound();
-  const supabaseConfig = getSupabasePublicConfig();
-  const [
-    amocrmCanonicalContext,
-    aiMemory,
-    aiRetrievalCapabilities,
-    geminiProposal,
-    geminiProposalReviews,
-    autonomousReply,
-    wahaSessionHealth,
-  ] =
-    await Promise.all([
-      getPlatformAmoCrmCanonicalContext(actor, thread.conversation),
-      readPlatformConversationAiMemory(actor, id).catch(() => null),
-      readPlatformAiRetrievalCapabilities(actor, id).catch(() => null),
-      readPlatformGeminiProposal(actor, id).then(
-        (proposal) => ({ proposal, unavailable: false as const }),
-        () => ({ proposal: null, unavailable: true as const }),
-      ),
-      readPlatformGeminiProposalReviews(actor, id, 20).then(
-        (reviews) => ({ reviews, unavailable: false as const }),
-        () => ({ reviews: [], unavailable: true as const }),
-      ),
-      readPlatformAutonomousReplyState(actor, id).then(
-        (state) => ({ state, unavailable: false as const }),
-        () => ({ state: null, unavailable: true as const }),
-      ),
-      thread.conversation.wahaSessionName === "evo-inbox"
-        ? getPlatformWahaSessionHealth(actor, "evo-inbox")
-        : Promise.resolve(null),
-    ]);
-  const aiRetrievalEvidence = aiMemory?.latestRetrieval
-    ? await readPlatformAiRetrievalEvidence(
-        actor,
-        id,
-        aiMemory.latestRetrieval.requestId,
-      ).catch(() => null)
-    : null;
+  } catch (error: unknown) {
+    if (error instanceof CanonicalCrmRepositoryError) {
+      if (error.code === "invalid_input" || error.code === "not_found") {
+        notFound();
+      }
+    }
+    throw error;
+  }
 
   return (
-    <div className="space-y-4" data-testid="whatsapp-conversation">
-      <CommunicationsSourceDisclosure
-        title={t("platformCommunicationsSource")}
-        description={t("platformCommunicationsSourceHint")}
-        mobileSummary={t("platformCommunicationsSourceSummary")}
-      />
-      <PlatformMessagingRealtime
-        organizationId={actor.organizationId}
-        supabaseConfig={supabaseConfig}
-      />
-      <PlatformConversationView
-        conversations={conversationPage.rows}
-        conversation={thread.conversation}
-        messages={thread.messages}
-        contextMessages={latestThread?.messages ?? thread.messages}
-        conversationListResetHref={conversationCursor
-          ? threadHref(id, null, messageCursor)
-          : null}
-        conversationListNextHref={conversationPage.nextCursor
-          ? threadHref(id, conversationPage.nextCursor, messageCursor)
-          : null}
-        conversationQuery={conversationCursor
-          ? cursorQuery(conversationCursor.sortAt, conversationCursor.id)
-          : ""}
-        newestMessagesHref={messageCursor
-          ? threadHref(id, conversationCursor, null)
-          : null}
-        olderMessagesHref={thread.nextMessageCursor
-          ? threadHref(id, conversationCursor, thread.nextMessageCursor)
-          : null}
-        workflow={workflow}
-        knowledge={knowledge}
-        bw4Workspace={bw4Workspace}
-        wahaSessionHealth={wahaSessionHealth}
-        amocrmCanonicalContext={amocrmCanonicalContext}
-        aiMemory={aiMemory}
-        aiRetrievalCapabilities={aiRetrievalCapabilities}
-        aiRetrievalEvidence={aiRetrievalEvidence}
-        geminiProposal={geminiProposal.proposal}
-        geminiProposalUnavailable={geminiProposal.unavailable}
-        geminiProposalReviews={geminiProposalReviews.reviews}
-        geminiProposalReviewsUnavailable={geminiProposalReviews.unavailable}
-        geminiReviewMutationOutcome={decisionMutationOutcome(
-          resolvedSearchParams.u9_result,
-        )}
-        autonomousReplyState={autonomousReply.state}
-        autonomousReplyUnavailable={autonomousReply.unavailable}
-        autonomousReplyRuntimeEnabled={autonomousReplyRuntimeEnabled()}
-        decisionMutationOutcome={decisionMutationOutcome(
-          resolvedSearchParams.result,
-        )}
-      />
-    </div>
+    <CanonicalStaffWhatsAppWorkspace
+      locale={locale}
+      actorRole={actor.platformRole}
+      conversations={queue.rows}
+      queueCursor={queueCursor}
+      queueResetHref={queueCursor ? "/whatsapp" : null}
+      queueNextHref={queue.nextCursor ? queueHref(queue.nextCursor) : null}
+      selectedConversationId={id}
+      thread={{
+        conversation: thread.conversation,
+        messages: thread.messages,
+        newestMessagesHref: messageCursor ? threadHref(id, queueCursor) : null,
+        olderMessagesHref: thread.nextCursor
+          ? threadHref(id, queueCursor, thread.nextCursor)
+          : null,
+      }}
+    />
   );
 }
 
-function cursorQuery(sortAt: string, id: string): string {
-  const params = new URLSearchParams({ before_at: sortAt, before_id: id });
-  return `?${params.toString()}`;
+function parseQueueCursor(params: SearchParams): CanonicalReadCursor | null {
+  const beforeAt = singleValue(params.before_at);
+  const beforeId = singleValue(params.before_id);
+  if (beforeAt === undefined && beforeId === undefined) return null;
+  try {
+    return parseCanonicalReadCursor(beforeAt, beforeId);
+  } catch (error: unknown) {
+    if (
+      error instanceof CanonicalCrmRepositoryError &&
+      error.code === "invalid_input"
+    ) {
+      notFound();
+    }
+    throw error;
+  }
+}
+
+function parseMessageCursor(params: SearchParams): CanonicalMessageCursor | null {
+  const beforeAt = singleValue(params.messages_before_at);
+  const beforeId = singleValue(params.messages_before_id);
+  if (beforeAt === undefined && beforeId === undefined) return null;
+  try {
+    return parseCanonicalMessageCursor(beforeAt, beforeId);
+  } catch (error: unknown) {
+    if (
+      error instanceof CanonicalCrmRepositoryError &&
+      error.code === "invalid_input"
+    ) {
+      notFound();
+    }
+    throw error;
+  }
+}
+
+function singleValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) notFound();
+  return value;
+}
+
+function assertExpectedQueryKeys(
+  params: SearchParams,
+  allowedKeys: readonly string[],
+) {
+  if (Object.keys(params).some((key) => !allowedKeys.includes(key))) {
+    notFound();
+  }
+}
+
+function queueHref(cursor: CanonicalReadCursor) {
+  const query = new URLSearchParams({
+    before_at: cursor.updatedAt,
+    before_id: cursor.id,
+  });
+  return `/whatsapp?${query.toString()}`;
 }
 
 function threadHref(
-  id: string,
-  conversationCursor: Readonly<{ sortAt: string; id: string }> | null,
-  messageCursor: Readonly<{ sortAt: string; id: string }> | null,
-): string {
-  const params = new URLSearchParams();
-  if (conversationCursor) {
-    params.set("before_at", conversationCursor.sortAt);
-    params.set("before_id", conversationCursor.id);
+  conversationId: string,
+  queueCursor: CanonicalReadCursor | null,
+  messageCursor?: CanonicalMessageCursor,
+) {
+  const query = new URLSearchParams();
+  if (queueCursor) {
+    query.set("before_at", queueCursor.updatedAt);
+    query.set("before_id", queueCursor.id);
   }
   if (messageCursor) {
-    params.set("messages_before_at", messageCursor.sortAt);
-    params.set("messages_before_id", messageCursor.id);
+    query.set("messages_before_at", messageCursor.occurredAt);
+    query.set("messages_before_id", messageCursor.id);
   }
-  const serialized = params.toString();
-  return `/whatsapp/${id}${serialized ? `?${serialized}` : ""}`;
+  const serialized = query.toString();
+  return `/whatsapp/${conversationId}${serialized ? `?${serialized}` : ""}`;
 }

@@ -264,7 +264,10 @@ does not authorize two active implementations of any completed capability:
    the lead's conversations to Admissions atomically with the canonical
    handoff; there is no second inbox, Supabase Realtime refresh, RPC read or
    SQLite fallback. This PR is read-only from the staff UI and exposes no send
-   action.
+   action. The superseded `/api/ai/draft` route is also removed in V2-9A:
+   it reads the deleted SQLite WhatsApp tables and has no surviving UI caller.
+   V2-9B introduces the canonical proposal adapter directly, without a
+   compatibility window or fallback to that route.
 2. V2-9B adds one server-only Gemini draft adapter over the canonical
    transcript and stores each successfully validated result in
    `evo_ai_proposals`. The persisted record identifies the conversation,

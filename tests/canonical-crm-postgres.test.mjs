@@ -13,6 +13,7 @@ import {
   createCanonicalUniversityApplication,
   createCanonicalPersonLead,
   getCanonicalAdmissionsOperationsSnapshot,
+  getCanonicalStaffConversationThread,
   getCanonicalLeadConversationThread,
   getCanonicalLeadGateSnapshot,
   getCanonicalStudentCaseHandoffSnapshot,
@@ -21,6 +22,7 @@ import {
   listCanonicalFinanceStops,
   listCanonicalLeadConversations,
   listCanonicalSalesLeads,
+  listCanonicalStaffConversations,
   listCanonicalStudentCases,
   listCanonicalUniversityApplications,
   listCanonicalVisaMilestones,
@@ -187,6 +189,58 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           status: "open",
         },
       ],
+    );
+
+    const salesQueueBeforeHandoff = await listCanonicalStaffConversations({
+      actorRole: "sales",
+      pageSize: 10,
+    });
+    assert.equal(salesQueueBeforeHandoff.rows.length, 1);
+    assert.deepEqual(salesQueueBeforeHandoff.rows[0], {
+      conversationId: inbound.conversationId,
+      leadId: lead.leadId,
+      studentCaseId: null,
+      personId: lead.personId,
+      displayName: leadInput.displayName,
+      email: leadInput.email,
+      phone: null,
+      leadStage: "new",
+      channel: "whatsapp",
+      externalConversationId: inboundInput.externalConversationId,
+      status: "open",
+      owningRole: "sales",
+      version: 1,
+      createdAt: conversations[0].createdAt,
+      updatedAt: conversations[0].updatedAt,
+    });
+    const admissionsQueueBeforeHandoff = await listCanonicalStaffConversations({
+      actorRole: "admissions",
+      pageSize: 10,
+    });
+    assert.deepEqual(admissionsQueueBeforeHandoff.rows, []);
+    const adminQueueBeforeHandoff = await listCanonicalStaffConversations({
+      actorRole: "admin",
+      pageSize: 10,
+    });
+    assert.equal(adminQueueBeforeHandoff.rows.length, 1);
+
+    const directThreadBeforeHandoff = await getCanonicalStaffConversationThread({
+      actorRole: "sales",
+      conversationId: inbound.conversationId,
+      pageSize: 1,
+    });
+    assert.equal(
+      directThreadBeforeHandoff.conversation.displayName,
+      leadInput.displayName,
+    );
+    assert.equal(directThreadBeforeHandoff.conversation.studentCaseId, null);
+    assert.equal(directThreadBeforeHandoff.messages[0].body, `technical-inbound-later-${runId}`);
+    await assert.rejects(
+      getCanonicalStaffConversationThread({
+        actorRole: "admissions",
+        conversationId: inbound.conversationId,
+      }),
+      repositoryError("not_found"),
     );
 
     const firstMessagePage = await getCanonicalLeadConversationThread({
@@ -603,7 +657,11 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         { transition: "visa_milestone.created", eventSequence: 8 },
         { transition: "visa_milestone.created", eventSequence: 9 },
         { transition: "visa_milestone.created", eventSequence: 10 },
-        { transition: "sales_admissions.handed_off", eventSequence: 11 },
+        {
+          transition: "conversation.ownership_transferred",
+          eventSequence: 11,
+        },
+        { transition: "sales_admissions.handed_off", eventSequence: 12 },
       ],
     );
     assert.equal(normalHandoffEvents[0].businessObjectType, "student_case");
@@ -618,8 +676,10 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         (event) => event.businessObjectType === "visa_milestone",
       ),
     );
-    assert.equal(normalHandoffEvents[10].businessObjectType, "handoff");
-    assert.equal(normalHandoffEvents[10].businessObjectId, handoff.handoffId);
+    assert.equal(normalHandoffEvents[10].businessObjectType, "conversation");
+    assert.equal(normalHandoffEvents[10].businessObjectId, inbound.conversationId);
+    assert.equal(normalHandoffEvents[11].businessObjectType, "handoff");
+    assert.equal(normalHandoffEvents[11].businessObjectId, handoff.handoffId);
 
     const handedOffGate = await getCanonicalLeadGateSnapshot({
       actorRole: "admin",
@@ -628,6 +688,96 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     assert.equal(handedOffGate.state, "satisfied");
     assert.equal(handedOffGate.normalHandoffAllowed, false);
     assert.equal(handedOffGate.handoff?.handoffId, handoff.handoffId);
+
+    const salesQueueAfterHandoff = await listCanonicalStaffConversations({
+      actorRole: "sales",
+      pageSize: 10,
+    });
+    assert.equal(
+      salesQueueAfterHandoff.rows.some(
+        (conversation) => conversation.leadId === lead.leadId,
+      ),
+      false,
+    );
+    const admissionsQueueAfterHandoff = await listCanonicalStaffConversations({
+      actorRole: "admissions",
+      pageSize: 10,
+    });
+    const handedOffConversation = admissionsQueueAfterHandoff.rows.find(
+      (conversation) => conversation.conversationId === inbound.conversationId,
+    );
+    assert.ok(handedOffConversation);
+    assert.equal(
+      handedOffConversation.conversationId,
+      inbound.conversationId,
+    );
+    assert.equal(
+      handedOffConversation.studentCaseId,
+      handoff.studentCaseId,
+    );
+    assert.equal(handedOffConversation.owningRole, "admissions");
+    assert.equal(handedOffConversation.leadStage, "handed_off");
+    assert.equal(handedOffConversation.version, 2);
+    const adminQueueAfterHandoff = await listCanonicalStaffConversations({
+      actorRole: "admin",
+      pageSize: 10,
+    });
+    assert.ok(
+      adminQueueAfterHandoff.rows.some(
+        (conversation) => conversation.conversationId === inbound.conversationId,
+      ),
+    );
+
+    await assert.rejects(
+      getCanonicalStaffConversationThread({
+        actorRole: "sales",
+        conversationId: inbound.conversationId,
+      }),
+      repositoryError("not_found"),
+    );
+    const admissionsThreadAfterHandoff = await getCanonicalStaffConversationThread({
+      actorRole: "admissions",
+      conversationId: inbound.conversationId,
+      pageSize: 1,
+    });
+    assert.equal(
+      admissionsThreadAfterHandoff.conversation.studentCaseId,
+      handoff.studentCaseId,
+    );
+    assert.equal(
+      admissionsThreadAfterHandoff.conversation.owningRole,
+      "admissions",
+    );
+    assert.equal(
+      admissionsThreadAfterHandoff.messages[0].body,
+      `technical-inbound-later-${runId}`,
+    );
+
+    const newConversationAfterHandoff = await appendCanonicalInboundMessage({
+      ...commandContext(runId, "inbound-new-conversation-after-handoff"),
+      leadId: lead.leadId,
+      channel: "whatsapp",
+      externalConversationId: `technical-conversation-after-handoff-${runId}`,
+      externalMessageId: `technical-message-after-handoff-${runId}`,
+      body: `technical-inbound-after-handoff-${runId}`,
+      occurredAt: "2026-08-28T12:02:00.000Z",
+    });
+    const newAdmissionsThread = await getCanonicalStaffConversationThread({
+      actorRole: "admissions",
+      conversationId: newConversationAfterHandoff.conversationId,
+    });
+    assert.equal(newAdmissionsThread.conversation.owningRole, "admissions");
+    assert.equal(
+      newAdmissionsThread.conversation.studentCaseId,
+      handoff.studentCaseId,
+    );
+    await assert.rejects(
+      getCanonicalStaffConversationThread({
+        actorRole: "sales",
+        conversationId: newConversationAfterHandoff.conversationId,
+      }),
+      repositoryError("not_found"),
+    );
 
     const admissionsHandoff = await getCanonicalStudentCaseHandoffSnapshot({
       actorRole: "admissions",

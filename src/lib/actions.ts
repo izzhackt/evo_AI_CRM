@@ -11,7 +11,6 @@ import {
   hashPassword,
   setSetting,
 } from "./db";
-import { getDefaultWhatsAppAccount, sendWhatsApp } from "./whatsapp";
 import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
 import { currentUser, isStaff, type SessionUser } from "./auth";
 import { isUiContractFixtureMode } from "./runtime-mode";
@@ -31,10 +30,6 @@ import {
   workflowOwnerForState,
   type StudentCaseState,
 } from "./student-case-policy";
-import {
-  canCreateManualWhatsAppConversation,
-} from "./whatsapp-policy";
-import { getConversationForActor } from "./queries";
 
 function str(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
@@ -72,10 +67,6 @@ async function requireSalesStaff() {
   const user = await requireStaff();
   if (user.role !== "admin" && user.role !== "sales") redirect("/dashboard");
   return user;
-}
-
-async function requireWhatsAppStaff() {
-  return requireStaff();
 }
 
 function assertClientCapability(
@@ -463,52 +454,6 @@ export async function sendChannelMessageAction(form: FormData) {
   db().prepare("INSERT INTO channel_messages (channel_id, author_id, text) VALUES (?, ?, ?)")
     .run(channelId, user.id, text);
   revalidatePath(`/chat/${channelId}`);
-}
-
-// ---------- whatsapp ----------
-
-export async function sendWaMessageAction(form: FormData) {
-  const user = await requireWhatsAppStaff();
-  const conversationId = optNum(form, "conversation_id");
-  const text = str(form, "text");
-  if (!conversationId || !text) return;
-  const conv = getConversationForActor(user, conversationId);
-  if (!conv) notFound();
-
-  const result = await sendWhatsApp(conv.phone, text, conv.wa_account_id);
-  const d = db();
-  d.prepare("INSERT INTO wa_messages (conversation_id, direction, text, status, author_id, wa_id) VALUES (?, 'out', ?, ?, ?, ?)")
-    .run(conversationId, text, result.status, user.id, result.waId ?? null);
-  d.prepare("UPDATE wa_conversations SET last_message_at = datetime('now'), unread = 0 WHERE id = ?").run(conversationId);
-  revalidatePath(`/whatsapp/${conversationId}`);
-  revalidatePath("/whatsapp");
-}
-
-export async function createConversationAction(form: FormData) {
-  const user = await requireWhatsAppStaff();
-  if (!canCreateManualWhatsAppConversation(user)) notFound();
-  const phone = normalizePhone(str(form, "phone"));
-  if (!phone) return;
-  const d = db();
-  const accountId = getDefaultWhatsAppAccount()?.id ?? null;
-  const existing = accountId
-    ? d.prepare("SELECT id FROM wa_conversations WHERE phone = ? AND wa_account_id = ?").get(phone, accountId) as { id: number } | undefined
-    : d.prepare("SELECT id FROM wa_conversations WHERE phone = ? AND wa_account_id IS NULL").get(phone) as { id: number } | undefined;
-  const id = existing
-    ? existing.id
-    : d.prepare("INSERT INTO wa_conversations (wa_account_id, phone, name, last_message_at) VALUES (?, ?, ?, datetime('now'))")
-        .run(accountId, phone, str(form, "name") || null).lastInsertRowid;
-  revalidatePath("/whatsapp");
-  redirect(`/whatsapp/${id}`);
-}
-
-export async function markConversationReadAction(form: FormData) {
-  const user = await requireWhatsAppStaff();
-  const id = optNum(form, "id");
-  if (!id) return;
-  if (!getConversationForActor(user, id)) notFound();
-  db().prepare("UPDATE wa_conversations SET unread = 0 WHERE id = ?").run(id);
-  revalidatePath("/whatsapp");
 }
 
 // ---------- telephony ----------

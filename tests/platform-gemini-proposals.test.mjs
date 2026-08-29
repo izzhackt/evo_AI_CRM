@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import test from "node:test";
 
@@ -303,74 +302,5 @@ test("staff repository fails closed on RPC errors, duplicates and tenant mismatc
         },
       ),
     PlatformGeminiProposalContractError,
-  );
-});
-
-test("accepted conversation renders a localized read-only safe proposal inspector", async () => {
-  const [cardSource, viewSource, pageSource, repositorySource, i18nSource] =
-    await Promise.all([
-      readFile(
-        new URL(
-          "../src/components/platform/communications/PlatformGeminiProposalCard.tsx",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-      readFile(
-        new URL(
-          "../src/components/platform/communications/PlatformConversationView.tsx",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-      readFile(
-        new URL("../src/app/(staff)/whatsapp/[id]/page.tsx", import.meta.url),
-        "utf8",
-      ),
-      readFile(
-        new URL(
-          "../src/lib/server/platform-gemini-proposals-repository.ts",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-      readFile(new URL("../src/lib/i18n-data.ts", import.meta.url), "utf8"),
-    ]);
-
-  for (const testId of [
-    "platform-gemini-proposal-card",
-    "platform-gemini-proposal-status",
-    "platform-gemini-proposal-reply",
-    "platform-gemini-proposal-qualification",
-    "platform-gemini-proposal-memory-changes",
-    "platform-gemini-proposal-citations",
-    "platform-gemini-proposal-unavailable",
-  ]) {
-    assert.match(cardSource, new RegExp(testId));
-  }
-  assert.match(cardSource, /data-human-review-required/);
-  assert.match(cardSource, /data-autonomous-authority/);
-  assert.match(cardSource, /data-provider-proof-state/);
-  assert.match(cardSource, /reviewPlatformGeminiProposalAction/);
-  assert.match(cardSource, /name="decision" value="accepted"/);
-  assert.match(cardSource, /name="decision" value="edited"/);
-  assert.match(cardSource, /name="decision" value="rejected"/);
-  assert.doesNotMatch(cardSource, /provider_interaction_ref|context_sha|prompt_text|raw_waha/i);
-  assert.match(viewSource, /PlatformGeminiProposalCard/);
-  assert.match(viewSource, /unavailable=\{geminiProposalUnavailable\}/);
-  assert.match(pageSource, /readPlatformGeminiProposal/);
-  assert.match(pageSource, /unavailable: false as const/);
-  assert.match(pageSource, /unavailable: true as const/);
-  assert.match(pageSource, /geminiProposalUnavailable=\{geminiProposal\.unavailable\}/);
-  assert.doesNotMatch(pageSource, /error\.message|String\(error\)|console\.(?:error|warn)/);
-  assert.match(repositorySource, /staff_gemini_proposal/);
-  assert.doesNotMatch(repositorySource, /EVO_PLATFORM_GEMINI_PROPOSALS_ENABLED/);
-  assert.equal(
-    i18nSource.match(/platformGeminiProposalReviewRequired:/g)?.length,
-    3,
-  );
-  assert.equal(
-    i18nSource.match(/platformGeminiProposalUnavailable:/g)?.length,
-    3,
   );
 });

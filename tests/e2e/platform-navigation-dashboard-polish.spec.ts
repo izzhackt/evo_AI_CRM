@@ -13,7 +13,6 @@ const coreEvidenceDir = path.join(
 );
 
 type StatusRow = { id: number; status: string };
-type UnreadRow = { id: number; unread: number };
 
 function replaceDashboardStateWithAllClear() {
   const databasePath =
@@ -24,15 +23,11 @@ function replaceDashboardStateWithAllClear() {
     leads: database.prepare("SELECT id, status FROM leads").all() as StatusRow[],
     tasks: database.prepare("SELECT id, status FROM tasks").all() as StatusRow[],
     payments: database.prepare("SELECT id, status FROM payments").all() as StatusRow[],
-    conversations: database
-      .prepare("SELECT id, unread FROM wa_conversations")
-      .all() as UnreadRow[],
   };
   database.transaction(() => {
     database.prepare("UPDATE leads SET status = 'no_request'").run();
     database.prepare("UPDATE tasks SET status = 'done'").run();
     database.prepare("UPDATE payments SET status = 'paid'").run();
-    database.prepare("UPDATE wa_conversations SET unread = 0").run();
   })();
   database.close();
 
@@ -42,15 +37,9 @@ function replaceDashboardStateWithAllClear() {
       const restoreLead = restoreDatabase.prepare("UPDATE leads SET status = ? WHERE id = ?");
       const restoreTask = restoreDatabase.prepare("UPDATE tasks SET status = ? WHERE id = ?");
       const restorePayment = restoreDatabase.prepare("UPDATE payments SET status = ? WHERE id = ?");
-      const restoreConversation = restoreDatabase.prepare(
-        "UPDATE wa_conversations SET unread = ? WHERE id = ?",
-      );
       previous.leads.forEach((row) => restoreLead.run(row.status, row.id));
       previous.tasks.forEach((row) => restoreTask.run(row.status, row.id));
       previous.payments.forEach((row) => restorePayment.run(row.status, row.id));
-      previous.conversations.forEach((row) =>
-        restoreConversation.run(row.unread, row.id),
-      );
     })();
     restoreDatabase.close();
   };

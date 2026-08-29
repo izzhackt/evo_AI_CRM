@@ -160,3 +160,10 @@ jobs:
 
       - name: Test
         run: uv run pytest
+
+      - name: Test the root knowledge-ingestion package
+        working-directory: ${{ github.workspace }}
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONPATH: ${{ github.workspace }}
+        run: uv run --project evo-lead-agent pytest tests/knowledge_ingestion

@@ -481,7 +481,7 @@ export async function saveSettingsAction(form: FormData) {
     const value = str(form, key);
     if (form.has(key)) setSetting(key, value);
   }
-  const secretKeys = ["tel_api_key", "anthropic_api_key"];
+  const secretKeys = ["tel_api_key"];
   for (const key of secretKeys) {
     if (form.has(key)) setPreservedSecret(key, str(form, key));
   }
@@ -517,7 +517,6 @@ export async function getIntegrationStatus() {
       whatsapp: false,
       whatsappState: "not_configured" as const,
       telephony: false,
-      ai: false,
       amocrm: {
         status: "not_configured" as const,
         missing: [
@@ -537,7 +536,6 @@ export async function getIntegrationStatus() {
     whatsapp: false,
     whatsappState: "not_configured" as "not_configured" | "configured" | "blocked",
     telephony: !!telephonyProvider && !!telephonyApiKey,
-    ai: !!getSetting("anthropic_api_key") || !!process.env.ANTHROPIC_API_KEY,
     amocrm: getAmoCrmLocalStatus(),
   };
 }

@@ -84,7 +84,6 @@ test("V2-8C removes the legacy SQLite document authority from active runtime", (
     "src/lib/db.ts",
     "src/lib/queries.ts",
     "src/app/(staff)/dashboard/page.tsx",
-    "src/app/api/ai/summary/route.ts",
     "tests/e2e/platform-navigation-dashboard-polish.spec.ts",
     "tests/e2e/production-smoke.spec.ts",
   ]) {

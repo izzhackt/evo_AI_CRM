@@ -115,19 +115,6 @@ async function login(
   ]);
 }
 
-async function browserFetch(page: Page, url: string, init?: RequestInit) {
-  return page.evaluate(
-    async ({ requestUrl, requestInit }) => {
-      const response = await fetch(requestUrl, requestInit);
-      return {
-        status: response.status,
-        body: await response.text(),
-      };
-    },
-    { requestUrl: url, requestInit: init },
-  );
-}
-
 test.describe("P1C staff object scope", () => {
   test("Admin has full access while Sales, Curator, and Finance receive only their case projection", async ({
     context,
@@ -231,40 +218,6 @@ test.describe("P1C staff object scope", () => {
       await page.goto("/documents");
       await expect(page.locator("body")).not.toContainText("Мотивационное письмо");
       expect((await page.goto("/documents/1"))?.status()).toBe(404);
-    } finally {
-      cleanupObjectScopeFixtures();
-    }
-  });
-
-  test("AI summary rejects post-handoff and unrelated staff before the provider boundary", async ({
-    context,
-    page,
-  }, testInfo) => {
-    desktopOnly(testInfo);
-    await login(context, page, "admin@demo.kg", "admin123", /\/dashboard$/);
-    prepareObjectScopeFixtures();
-
-    const requestSummary = () => browserFetch(page, "/api/ai/summary", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: 1 }),
-    });
-
-    try {
-      await login(context, page, "sales@demo.kg", "sales123", /\/sales$/);
-      let response = await requestSummary();
-      expect(response.status).toBe(404);
-      expect(JSON.parse(response.body)).toEqual({ error: "not_found" });
-
-      await login(context, page, OTHER_SALES_EMAIL, "sales123", /\/sales$/);
-      response = await requestSummary();
-      expect(response.status).toBe(404);
-      expect(JSON.parse(response.body)).toEqual({ error: "not_found" });
-
-      await login(context, page, OTHER_CURATOR_EMAIL, "curator123", /\/clients$/);
-      response = await requestSummary();
-      expect(response.status).toBe(404);
-      expect(JSON.parse(response.body)).toEqual({ error: "not_found" });
     } finally {
       cleanupObjectScopeFixtures();
     }

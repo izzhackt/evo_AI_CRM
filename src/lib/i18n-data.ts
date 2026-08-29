@@ -426,16 +426,6 @@ const ru: Dict = {
   logCall: "Записать звонок",
   telephonyDemoNote: "Телефония not_configured: реальные звонки из АТС пока не импортируются. Добавьте провайдера и API-ключ в настройках перед использованием webhook.",
 
-  aiAssistant: "AI-ассистент",
-  aiDraftReply: "Черновик ответа",
-  aiSummary: "Сводка по студенту",
-  aiGenerate: "Сгенерировать",
-  aiNotConfigured: "Claude AI не подключён. Добавьте ключ Anthropic API в настройках.",
-  aiPrompt: "Что нужно сделать?",
-  aiThinking: "Claude думает…",
-  aiUseDraft: "Вставить в ответ",
-  studentAiSummaryHint: "AI формирует только сводку для сотрудника. Перед использованием проверьте факты.",
-
   integrationSettings: "Настройки интеграций",
   settingsSaved: "Сохранено",
   waSection: "WhatsApp Cloud API (Meta)",
@@ -456,8 +446,6 @@ const ru: Dict = {
   telProvider: "Провайдер",
   telApiKey: "API-ключ провайдера",
   telWebhookHint: "Укажите этот адрес в настройках вашей АТС как webhook о звонках:",
-  aiSection: "Claude AI (Anthropic)",
-  aiApiKey: "Anthropic API Key",
   webhookUrl: "Webhook URL",
   adminOnly: "Доступно только руководству",
   amocrmSection: "amoCRM",
@@ -1165,7 +1153,6 @@ const ru: Dict = {
   recoveryTitle: "Не удалось загрузить центр внимания",
   recoveryHint: "Повторите запрос. Если ошибка сохраняется, данные не изменялись этим экраном.",
   serverEnforced: "Проверяется сервером",
-  adminReadinessTruth: "Наличие реквизитов означает только локальную настройку. Живой обмен с amoCRM, WhatsApp, телефонией и Anthropic этим обзором не выполняется и не подтверждается.",
   section: "Раздел",
   accessAllowed: "Доступ разрешён",
   accessDenied: "Доступ запрещён",
@@ -1175,7 +1162,6 @@ const ru: Dict = {
   otherPbx: "Другая АТС",
   exampleDomain: "https://ваш-домен",
   whatsappAccountPlaceholder: "Рабочий номер WhatsApp",
-  anthropicKeyHint: "Ключ создаётся в консоли Anthropic. Наличие ключа не подтверждает живой ответ провайдера.",
 };
 
 const ky: Dict = {
@@ -1595,16 +1581,6 @@ const ky: Dict = {
   logCall: "Чалууну каттоо",
   telephonyDemoNote: "Телефония not_configured: АТСтен келген чыныгы чалуулар азырынча импорттолбойт. Webhook колдонордон мурун жөндөөлөргө провайдерди жана API ачкычын кошуңуз.",
 
-  aiAssistant: "AI-жардамчы",
-  aiDraftReply: "Жооптун долбоору",
-  aiSummary: "Студент боюнча корутунду",
-  aiGenerate: "Түзүү",
-  aiNotConfigured: "Claude AI туташтырылган эмес. Жөндөөлөргө Anthropic API ачкычын кошуңуз.",
-  aiPrompt: "Эмне кылуу керек?",
-  aiThinking: "Claude ойлонууда…",
-  aiUseDraft: "Жоопко коюу",
-  studentAiSummaryHint: "AI кызматкер үчүн гана корутунду түзөт. Колдонуудан мурун фактыларды текшериңиз.",
-
   integrationSettings: "Интеграция жөндөөлөрү",
   settingsSaved: "Сакталды",
   waSection: "WhatsApp Cloud API (Meta)",
@@ -1625,8 +1601,6 @@ const ky: Dict = {
   telProvider: "Провайдер",
   telApiKey: "Провайдердин API-ачкычы",
   telWebhookHint: "Бул даректи АТСиңиздин жөндөөлөрүндө webhook катары көрсөтүңүз:",
-  aiSection: "Claude AI (Anthropic)",
-  aiApiKey: "Anthropic API Key",
   webhookUrl: "Webhook URL",
   adminOnly: "Жетекчиликке гана жеткиликтүү",
   amocrmSection: "amoCRM",
@@ -2335,7 +2309,6 @@ const ky: Dict = {
   recoveryTitle: "Көңүл буруу борборун жүктөө мүмкүн болгон жок",
   recoveryHint: "Сурамды кайталаңыз. Ката кайталанса да, бул экран маалыматты өзгөрткөн жок.",
   serverEnforced: "Серверде текшерилет",
-  adminReadinessTruth: "Реквизиттердин болушу жергиликтүү жөндөөнү гана билдирет. amoCRM, WhatsApp, телефония жана Anthropic менен жандуу алмашуу бул обзордо аткарылбайт жана ырасталбайт.",
   section: "Бөлүм",
   accessAllowed: "Кирүүгө уруксат",
   accessDenied: "Кирүүгө тыюу салынган",
@@ -2345,7 +2318,6 @@ const ky: Dict = {
   otherPbx: "Башка АТС",
   exampleDomain: "https://сиздин-домен",
   whatsappAccountPlaceholder: "Жумушчу WhatsApp номери",
-  anthropicKeyHint: "Ачкыч Anthropic консолунда түзүлөт. Ачкычтын болушу провайдердин жандуу жообун ырастабайт.",
 };
 
 const en: Dict = {
@@ -2765,16 +2737,6 @@ const en: Dict = {
   logCall: "Log a call",
   telephonyDemoNote: "Telephony not_configured: live PBX calls are not imported yet. Add a provider and API key in settings before using the webhook.",
 
-  aiAssistant: "AI assistant",
-  aiDraftReply: "Draft reply",
-  aiSummary: "Student summary",
-  aiGenerate: "Generate",
-  aiNotConfigured: "Claude AI is not connected. Add your Anthropic API key in settings.",
-  aiPrompt: "What do you need?",
-  aiThinking: "Claude is thinking…",
-  aiUseDraft: "Insert into reply",
-  studentAiSummaryHint: "AI only prepares a summary for staff. Verify the facts before using it.",
-
   integrationSettings: "Integration settings",
   settingsSaved: "Saved",
   waSection: "WhatsApp Cloud API (Meta)",
@@ -2795,8 +2757,6 @@ const en: Dict = {
   telProvider: "Provider",
   telApiKey: "Provider API key",
   telWebhookHint: "Set this URL as the call webhook in your PBX settings:",
-  aiSection: "Claude AI (Anthropic)",
-  aiApiKey: "Anthropic API Key",
   webhookUrl: "Webhook URL",
   adminOnly: "Management only",
   amocrmSection: "amoCRM",
@@ -3504,7 +3464,6 @@ const en: Dict = {
   recoveryTitle: "The attention center could not be loaded",
   recoveryHint: "Retry the request. If the error persists, this screen did not change any data.",
   serverEnforced: "Enforced by the server",
-  adminReadinessTruth: "Credentials indicate local configuration only. This overview does not exercise or confirm live exchange with amoCRM, WhatsApp, telephony, or Anthropic.",
   section: "Section",
   accessAllowed: "Access allowed",
   accessDenied: "Access denied",
@@ -3514,7 +3473,6 @@ const en: Dict = {
   otherPbx: "Other PBX",
   exampleDomain: "https://your-domain",
   whatsappAccountPlaceholder: "Work WhatsApp number",
-  anthropicKeyHint: "Create the key in the Anthropic console. A stored key does not confirm a live provider response.",
 };
 
 export const DICTS: Record<Locale, Dict> = { ru, ky, en };

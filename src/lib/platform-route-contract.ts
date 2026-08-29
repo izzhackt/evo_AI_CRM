@@ -35,7 +35,6 @@ const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/internal/platform-messaging/waha/autonomous-reply",
   "/api/internal/platform-messaging/manual-send/work",
   "/api/internal/platform-operations/portal-overdue",
-  "/api/internal/platform-ai/gemini/proposal",
 ]);
 export function platformHomeRoute(role: FixedRole): "/sales" | "/clients" {
   return fixedRoleHomeRoute(role);

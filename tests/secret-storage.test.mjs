@@ -34,7 +34,7 @@ test("production refuses to store a runtime secret without its encryption key", 
     },
     () => {
       assert.throws(
-        () => encryptRuntimeSecret("anthropic_api_key", "provider-secret"),
+        () => encryptRuntimeSecret("tel_api_key", "provider-secret"),
         /secret_encryption_unavailable/,
       );
     },
@@ -48,7 +48,7 @@ test("production refuses legacy plaintext runtime secrets", () => {
       EVO_SECRET_ENCRYPTION_KEY: "independent-encryption-key",
     },
     () => {
-      assert.equal(decryptRuntimeSecret("anthropic_api_key", "plaintext-secret"), null);
+      assert.equal(decryptRuntimeSecret("tel_api_key", "plaintext-secret"), null);
     },
   );
 });
@@ -60,10 +60,10 @@ test("AES-GCM runtime secret storage round-trips and detects tampering", () => {
       EVO_SECRET_ENCRYPTION_KEY: "independent-encryption-key",
     },
     () => {
-      const encrypted = encryptRuntimeSecret("anthropic_api_key", "provider-secret");
+      const encrypted = encryptRuntimeSecret("tel_api_key", "provider-secret");
       assert.match(encrypted, /^enc:v1:/);
       assert.notEqual(encrypted, "provider-secret");
-      assert.equal(decryptRuntimeSecret("anthropic_api_key", encrypted), "provider-secret");
+      assert.equal(decryptRuntimeSecret("tel_api_key", encrypted), "provider-secret");
       assert.equal(decryptRuntimeSecret("another_key", encrypted), null);
     },
   );

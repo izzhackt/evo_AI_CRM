@@ -156,12 +156,19 @@ let sendCount = 0;
 let listReadCount = 0;
 let exactReadCount = 0;
 const requests = [];
+const listReadRecipients = [];
 const storedMessages = [];
 
 function writeResult() {
   writeFileSync(
     resultFile,
-    JSON.stringify({ sendCount, listReadCount, exactReadCount, requests }),
+    JSON.stringify({
+      sendCount,
+      listReadCount,
+      exactReadCount,
+      requests,
+      listReadRecipients,
+    }),
     { mode: 0o600 },
   );
 }
@@ -207,7 +214,7 @@ const server = createServer(async (request, response) => {
           : "technical-provider-recovered-message-465",
       timestamp: Math.floor(Date.now() / 1000),
       from: providerAccount,
-      to: body.chatId,
+      to: sendCount === 2 ? providerAccountLid : body.chatId,
       fromMe: true,
       source: "api",
       body: body.text,
@@ -237,6 +244,7 @@ const server = createServer(async (request, response) => {
     );
     const recipient = decodeURIComponent(encodedRecipient.replace(/\/$/u, ""));
     listReadCount += 1;
+    listReadRecipients.push(recipient);
     writeResult();
     json(
       response,

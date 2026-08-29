@@ -4,7 +4,6 @@ import { isIP } from "node:net";
 
 const ALLOWED_WAHA_HOSTNAMES = new Set(["evo-inbox-waha", "evo-v2-waha"]);
 const SESSION_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const MIN_API_KEY_BYTES = 16;
 const MAX_API_KEY_BYTES = 4_096;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_MESSAGE_ID_BYTES = 1_024;
@@ -206,7 +205,7 @@ function readApiKey(value: string | undefined): string | null {
   const byteLength = Buffer.byteLength(value, "utf8");
   if (
     value !== value.trim() ||
-    byteLength < MIN_API_KEY_BYTES ||
+    byteLength < 1 ||
     byteLength > MAX_API_KEY_BYTES ||
     /[\u0000-\u001f\u007f]/u.test(value)
   ) {

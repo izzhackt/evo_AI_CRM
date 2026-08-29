@@ -49,6 +49,10 @@ test("discovery repository keeps one exact account and one idempotent sanitized 
       pipelineCatalog: Object.freeze([
         Object.freeze({ id: "2001", name: "Sales", statuses: [] }),
       ]),
+      leadTagCatalog: Object.freeze([
+        Object.freeze({ id: "3001", name: "EVO V2 Sales" }),
+        Object.freeze({ id: "3002", name: "EVO V2 Admissions" }),
+      ]),
       userCatalog: Object.freeze([
         Object.freeze({ id: "4001", name: "Sales", isActive: true }),
       ]),
@@ -73,7 +77,7 @@ test("discovery repository keeps one exact account and one idempotent sanitized 
       where provider_account_id = ${providerAccountId}
     `;
     const snapshots = await sql`
-      select snapshot_sha256, pipeline_catalog, user_catalog,
+      select snapshot_sha256, pipeline_catalog, lead_tag_catalog, user_catalog,
              lead_custom_field_catalog, contact_custom_field_catalog
       from evo_amocrm_discovery_snapshots
       where account_id = ${first.accountId}
@@ -81,6 +85,10 @@ test("discovery repository keeps one exact account and one idempotent sanitized 
     assert.equal(accounts.length, 1);
     assert.equal(snapshots.length, 1);
     assert.equal(snapshots[0].snapshot_sha256, snapshotSha256);
+    assert.deepEqual(snapshots[0].lead_tag_catalog, [
+      { id: "3001", name: "EVO V2 Sales" },
+      { id: "3002", name: "EVO V2 Admissions" },
+    ]);
     assert.equal(JSON.stringify(snapshots[0]).includes("token"), false);
 
     await assert.rejects(

@@ -47,6 +47,10 @@ function serviceHarness(options = {}) {
   };
   const links = [];
   const notes = new Map();
+  const tagNames = new Map([
+    ["31", "EVO V2 Sales"],
+    ["32", "EVO V2 Admissions"],
+  ]);
   let remainingLinkReadFailures = options.failLinkReads ?? 0;
   const settlementFailures = new Set(options.failSettlementOnceFor ?? []);
 
@@ -151,8 +155,8 @@ function serviceHarness(options = {}) {
     prepareUpdateLeadTags: (input) =>
       prepared("lead_tag_update", input, () => {
         lead._embedded.tags = (input.add ?? []).map((tag, index) => ({
-          id: index + 1,
-          name: tag.name,
+          id: Number(tag.id ?? index + 1),
+          name: tag.name ?? tagNames.get(String(tag.id)),
         }));
         return "202";
       }),
@@ -236,8 +240,8 @@ function serviceHarness(options = {}) {
         accountBaseUrl: "https://example.amocrm.ru",
         snapshotSha256: "a".repeat(64),
         discoveredAt: "2030-01-01T00:00:00.000Z",
-        sales: { pipelineId: "11", statusId: "12", responsibleUserId: "13", tagName: "EVO V2 Sales" },
-        admissions: { pipelineId: "21", statusId: "22", responsibleUserId: "23", tagName: "EVO V2 Admissions" },
+        sales: { pipelineId: "11", statusId: "12", responsibleUserId: "13", tagId: "31", tagName: "EVO V2 Sales" },
+        admissions: { pipelineId: "21", statusId: "22", responsibleUserId: "23", tagId: "32", tagName: "EVO V2 Admissions" },
         contactCustomFields: { phoneFieldId: "501", emailFieldId: "502" },
       };
     },
@@ -281,6 +285,12 @@ function serviceHarness(options = {}) {
       },
       starterTasks: [],
     }),
+    readBlockingCommand: async ({ personId, leadId }) =>
+      [...attempts.values()].find(
+        (attempt) =>
+          (attempt.status === "prepared" || attempt.status === "unknown") &&
+          (attempt.personId === personId || attempt.leadId === leadId),
+      ) ?? null,
     readBindings: async () => ({ contactId: contactBinding, leadId: leadBinding }),
     prepareCommand: async (input) => {
       const existing = attempts.get(input.idempotencyKey);
@@ -353,6 +363,7 @@ function serviceHarness(options = {}) {
 
   return {
     dependencies,
+    lead,
     providerCalls,
     attempts,
     getDiscoveryCalls: () => discoveryCalls,
@@ -402,6 +413,13 @@ test("Sales sync proves every required amoCRM effect in product order", async ()
     "dispatch:lead_tag_update",
     "read:lead",
   ]);
+  assert.deepEqual(harness.lead._embedded.tags, [
+    { id: 31, name: "EVO V2 Sales" },
+  ]);
+  const tagAttempt = [...harness.attempts.values()].find(
+    ({ operationName }) => operationName === "lead_tag_update",
+  );
+  assert.equal(tagAttempt?.providerRequestMetadata.expected.tagId, "31");
 });
 
 test("exact Sales replay returns stored proof without another provider call", async () => {
@@ -456,6 +474,47 @@ test("changed content under the same browser request is a conflict and never dis
     harness.providerCalls.some((call) => call.startsWith("dispatch:")),
     false,
   );
+  assert.equal(harness.getDiscoveryCalls(), discoveryCalls);
+});
+
+test("same request detects server routing drift before reporting an exact replay", async () => {
+  const harness = serviceHarness();
+  const input = {
+    actorRole: "sales",
+    leadId: SALES_LEAD_ID,
+    baseRequestId: BASE_REQUEST_ID,
+    noteText: "Sales sync reviewed by staff",
+  };
+  assert.equal(
+    (await executeCanonicalAmoCrmSalesSync(input, harness.dependencies)).status,
+    "accepted",
+  );
+  const discoveryCalls = harness.getDiscoveryCalls();
+  harness.providerCalls.splice(0);
+
+  const conflict = await executeCanonicalAmoCrmSalesSync(input, {
+    ...harness.dependencies,
+    loadCommandConfig: () => ({
+      sales: {
+        pipelineId: "11",
+        statusId: "99",
+        responsibleUserId: "13",
+        tagName: "EVO V2 Sales",
+      },
+      admissions: {
+        pipelineId: "21",
+        statusId: "22",
+        responsibleUserId: "23",
+        tagName: "EVO V2 Admissions",
+      },
+    }),
+  });
+
+  assert.deepEqual(
+    [conflict.status, conflict.reason],
+    ["request_conflict", "idempotency_conflict"],
+  );
+  assert.deepEqual(harness.providerCalls, []);
   assert.equal(harness.getDiscoveryCalls(), discoveryCalls);
 });
 
@@ -582,6 +641,43 @@ test("an unknown provider outcome stops the sequence and exact replay never retr
   assert.equal(replay.status, "unknown");
   assert.equal(replay.reason, "provider_result_unknown");
   assert.deepEqual(harness.providerCalls, []);
+  assert.equal(harness.getDiscoveryCalls(), discoveryCalls);
+});
+
+test("a new browser request is blocked before contact dispatch while any later lead effect is unresolved", async () => {
+  const harness = serviceHarness({ unknownOperation: "lead_note_create" });
+  const first = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: BASE_REQUEST_ID,
+      noteText: "Sales sync reviewed by staff",
+    },
+    harness.dependencies,
+  );
+  assert.equal(first.status, "unknown");
+  assert.equal(first.steps.at(-1).operationName, "lead_note_create");
+  const discoveryCalls = harness.getDiscoveryCalls();
+  harness.providerCalls.splice(0);
+
+  const blocked = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: "99999999-9999-4999-8999-999999999999",
+      noteText: "A new browser request must not write",
+    },
+    harness.dependencies,
+  );
+
+  assert.deepEqual(
+    [blocked.status, blocked.reason, blocked.attemptId],
+    ["unknown", "provider_result_unknown", first.attemptId],
+  );
+  assert.equal(
+    harness.providerCalls.some((call) => call.startsWith("dispatch:")),
+    false,
+  );
   assert.equal(harness.getDiscoveryCalls(), discoveryCalls);
 });
 

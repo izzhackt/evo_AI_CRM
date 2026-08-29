@@ -36,6 +36,13 @@
       "when": 1788026084841,
       "tag": "0004_v2_amocrm_canonical_writes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788046127614,
+      "tag": "0005_v2_amocrm_lead_tag_catalog",
+      "breakpoints": true
     }
   ]
 }

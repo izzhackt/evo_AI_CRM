@@ -28,6 +28,7 @@ export type CanonicalAmoCrmDiscoveryPersistenceInput = Readonly<{
   snapshot: Readonly<{
     snapshotSha256: string;
     pipelineCatalog: CanonicalAmoCrmSanitizedCatalog;
+    leadTagCatalog: CanonicalAmoCrmSanitizedCatalog;
     userCatalog: CanonicalAmoCrmSanitizedCatalog;
     leadCustomFieldCatalog: CanonicalAmoCrmSanitizedCatalog;
     contactCustomFieldCatalog: CanonicalAmoCrmSanitizedCatalog;
@@ -164,6 +165,7 @@ export function createCanonicalAmoCrmDiscoveryRepository(
               accountId,
               snapshotSha256: input.snapshot.snapshotSha256,
               pipelineCatalog: mutableCatalog(input.snapshot.pipelineCatalog),
+              leadTagCatalog: mutableCatalog(input.snapshot.leadTagCatalog),
               userCatalog: mutableCatalog(input.snapshot.userCatalog),
               leadCustomFieldCatalog: mutableCatalog(
                 input.snapshot.leadCustomFieldCatalog,

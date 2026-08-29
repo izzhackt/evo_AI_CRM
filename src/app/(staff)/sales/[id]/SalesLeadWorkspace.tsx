@@ -11,6 +11,7 @@ import { CanonicalSalesWorkflowForm } from "@/components/platform/sales/Canonica
 import { getT } from "@/lib/i18n";
 import { requirePlatformSalesActor } from "@/lib/platform-guards";
 import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
+import { readBlockingCanonicalAmoCrmCommand } from "@/lib/server/canonical-amocrm-command-repository";
 import {
   CanonicalCrmRepositoryError,
   getCanonicalLeadGateSnapshot,
@@ -52,12 +53,36 @@ export async function SalesLeadWorkspace({ id }: Readonly<{ id: string }>) {
     }
     throw error;
   }
+  const blockingAmoCrmAttempt =
+    lead.stage === "handed_off" || lead.ownerRole !== "sales"
+      ? null
+      : await readBlockingCanonicalAmoCrmCommand({
+          authorization: {
+            actorRole: actor.platformRole,
+            workflowScope: "sales_pre_handoff",
+            workflowLeadId: lead.leadId,
+            studentCaseId: null,
+          },
+          personId: lead.personId,
+          leadId: lead.leadId,
+        });
 
   return (
     <div className="space-y-5" data-testid="canonical-sales-lead-workspace">
       <CanonicalLeadDetail lead={lead} locale={locale} />
       <CanonicalAmoCrmCommandPanel
         availability={amoCrmAvailability}
+        blockingAttempt={
+          blockingAmoCrmAttempt === null
+            ? null
+            : {
+                attemptId: blockingAmoCrmAttempt.attemptId,
+                operationName: blockingAmoCrmAttempt.operationName,
+                status: blockingAmoCrmAttempt.status as "prepared" | "unknown",
+                providerDispatchedAt:
+                  blockingAmoCrmAttempt.providerDispatchedAt,
+              }
+        }
         scope="sales"
         leadId={lead.leadId}
         locale={locale}

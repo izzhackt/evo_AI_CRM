@@ -94,6 +94,7 @@ export type CanonicalAmoCrmProviderDependencies = Readonly<{
 export type CanonicalAmoCrmReadProvider = Readonly<{
   getAccount: () => Promise<unknown>;
   getPipelines: () => Promise<unknown>;
+  getLeadTags: () => Promise<unknown>;
   getUsers: () => Promise<unknown>;
   getLeadCustomFields: () => Promise<unknown>;
   getContactCustomFields: () => Promise<unknown>;
@@ -180,8 +181,8 @@ export type CanonicalAmoCrmLeadNoteInput = Readonly<{
 export type CanonicalAmoCrmLeadTagsInput = Readonly<{
   requestId: string;
   leadId: string | number;
-  add?: readonly Readonly<{ id?: string | number; name?: string }>[];
-  remove?: readonly Readonly<{ id?: string | number; name?: string }>[];
+  add?: readonly Readonly<{ id: string | number }>[];
+  remove?: readonly Readonly<{ id: string | number }>[];
 }>;
 
 export type CanonicalAmoCrmPreparedMutation = Readonly<{
@@ -1053,7 +1054,7 @@ function leadMutationBody(
 }
 
 function tagList(
-  value: readonly Readonly<{ id?: string | number; name?: string }>[] | undefined,
+  value: readonly Readonly<{ id: string | number }>[] | undefined,
 ): readonly unknown[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
@@ -1061,15 +1062,16 @@ function tagList(
   }
   return Object.freeze(
     value.map((tag) => {
-      if (!tag || typeof tag !== "object") return invalidMutationRequest();
-      if ((tag.id === undefined) === (tag.name === undefined)) {
+      if (
+        !tag ||
+        typeof tag !== "object" ||
+        Array.isArray(tag) ||
+        Object.keys(tag).length !== 1 ||
+        !Object.prototype.hasOwnProperty.call(tag, "id")
+      ) {
         return invalidMutationRequest();
       }
-      return Object.freeze(
-        tag.id === undefined
-          ? { name: boundedMutationText(tag.name, 255) }
-          : { id: providerEntityId(tag.id).json },
-      );
+      return Object.freeze({ id: providerEntityId(tag.id).json });
     }),
   );
 }
@@ -1334,6 +1336,8 @@ export function createCanonicalAmoCrmReadProvider(
     getAccount: () => canonicalRead(config, dependencies, "/api/v4/account"),
     getPipelines: () =>
       canonicalListRead(config, dependencies, "/api/v4/leads/pipelines"),
+    getLeadTags: () =>
+      canonicalListRead(config, dependencies, "/api/v4/leads/tags"),
     getUsers: () => canonicalListRead(config, dependencies, "/api/v4/users"),
     getLeadCustomFields: () =>
       canonicalListRead(config, dependencies, "/api/v4/leads/custom_fields"),

@@ -87,6 +87,11 @@ type SanitizedUser = Readonly<{
   isActive: boolean;
 }>;
 
+type SanitizedTag = Readonly<{
+  id: string;
+  name: string;
+}>;
+
 type SanitizedCustomField = Readonly<{
   id: string;
   name: string;
@@ -108,6 +113,14 @@ type SanitizedAccount = Readonly<{
   country: string | null;
 }>;
 
+export type CanonicalAmoCrmResolvedRoleCommandRoute = Readonly<{
+  pipelineId: string;
+  statusId: string;
+  responsibleUserId: string;
+  tagId: string;
+  tagName: string;
+}>;
+
 export type CanonicalAmoCrmCommandRoutingSnapshot = Readonly<{
   canonicalAccountId: string;
   discoverySnapshotId: string;
@@ -115,8 +128,8 @@ export type CanonicalAmoCrmCommandRoutingSnapshot = Readonly<{
   accountBaseUrl: string;
   snapshotSha256: string;
   discoveredAt: string;
-  sales: CanonicalAmoCrmCommandConfig["sales"];
-  admissions: CanonicalAmoCrmCommandConfig["admissions"];
+  sales: CanonicalAmoCrmResolvedRoleCommandRoute;
+  admissions: CanonicalAmoCrmResolvedRoleCommandRoute;
   contactCustomFields: Readonly<{
     phoneFieldId: string;
     emailFieldId: string;
@@ -327,6 +340,20 @@ function parseUsers(value: unknown): readonly SanitizedUser[] {
   return Object.freeze(users);
 }
 
+function parseTag(value: unknown): SanitizedTag {
+  const source = record(value);
+  return Object.freeze({
+    id: providerId(source.id),
+    name: boundedExactText(source.name, 128),
+  });
+}
+
+function parseLeadTags(value: unknown): readonly SanitizedTag[] {
+  return Object.freeze(
+    uniqueSorted(embeddedCollection(value, "tags").map(parseTag)),
+  );
+}
+
 function parseFieldCode(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   const code = boundedExactText(value, MAX_FIELD_TYPE_BYTES);
@@ -372,24 +399,35 @@ function parseCustomFields(value: unknown): readonly SanitizedCustomField[] {
   );
 }
 
-function validateRoute(
+function resolveRoute(
   route: CanonicalAmoCrmCommandConfig["sales"],
   pipelines: readonly SanitizedPipeline[],
   users: readonly SanitizedUser[],
-): void {
-  const pipeline = pipelines.find((candidate) => candidate.id === route.pipelineId);
+  leadTags: readonly SanitizedTag[],
+): CanonicalAmoCrmResolvedRoleCommandRoute {
+  const pipeline = pipelines.find(
+    (candidate) => candidate.id === route.pipelineId,
+  );
   const user = users.find(
     (candidate) => candidate.id === route.responsibleUserId,
+  );
+  const matchingTags = leadTags.filter(
+    (candidate) => candidate.name === route.tagName,
   );
   if (
     !pipeline ||
     pipeline.isArchive ||
     !pipeline.statuses.some((status) => status.id === route.statusId) ||
     !user ||
-    !user.isActive
+    !user.isActive ||
+    matchingTags.length !== 1
   ) {
     throw new CanonicalAmoCrmDiscoveryError("mapping_invalid");
   }
+  return Object.freeze({
+    ...route,
+    tagId: matchingTags[0]!.id,
+  });
 }
 
 function exactContactField(
@@ -448,28 +486,42 @@ export async function discoverCanonicalAmoCrmCommandRouting(
   const accountResponse = await input.provider.getAccount();
   const account = parseAccount(accountResponse, input.providerConfig);
   const pipelineResponse = await input.provider.getPipelines();
+  const leadTagResponse = await input.provider.getLeadTags();
   const userResponse = await input.provider.getUsers();
   const leadFieldResponse = await input.provider.getLeadCustomFields();
   const contactFieldResponse = await input.provider.getContactCustomFields();
 
   const pipelines = parsePipelines(pipelineResponse);
+  const leadTags = parseLeadTags(leadTagResponse);
   const users = parseUsers(userResponse);
   const leadCustomFields = parseCustomFields(leadFieldResponse);
   const contactCustomFields = parseCustomFields(contactFieldResponse);
 
-  validateRoute(input.commandConfig.sales, pipelines, users);
-  validateRoute(input.commandConfig.admissions, pipelines, users);
+  const sales = resolveRoute(
+    input.commandConfig.sales,
+    pipelines,
+    users,
+    leadTags,
+  );
+  const admissions = resolveRoute(
+    input.commandConfig.admissions,
+    pipelines,
+    users,
+    leadTags,
+  );
   const phoneField = exactContactField(contactCustomFields, "PHONE");
   const emailField = exactContactField(contactCustomFields, "EMAIL");
 
   const pipelineCatalog = catalog(pipelines);
+  const leadTagCatalog = catalog(leadTags);
   const userCatalog = catalog(users);
   const leadCustomFieldCatalog = catalog(leadCustomFields);
   const contactCustomFieldCatalog = catalog(contactCustomFields);
   const snapshotSha256 = discoveryHash({
-    schemaVersion: 1,
+    schemaVersion: 2,
     account,
     pipelineCatalog,
+    leadTagCatalog,
     userCatalog,
     leadCustomFieldCatalog,
     contactCustomFieldCatalog,
@@ -484,6 +536,7 @@ export async function discoverCanonicalAmoCrmCommandRouting(
       snapshot: Object.freeze({
         snapshotSha256,
         pipelineCatalog,
+        leadTagCatalog,
         userCatalog,
         leadCustomFieldCatalog,
         contactCustomFieldCatalog,
@@ -501,8 +554,6 @@ export async function discoverCanonicalAmoCrmCommandRouting(
     throw new CanonicalAmoCrmDiscoveryError("persistence_failed");
   }
 
-  const sales = Object.freeze({ ...input.commandConfig.sales });
-  const admissions = Object.freeze({ ...input.commandConfig.admissions });
   return Object.freeze({
     canonicalAccountId: persisted.accountId,
     discoverySnapshotId: persisted.snapshotId,

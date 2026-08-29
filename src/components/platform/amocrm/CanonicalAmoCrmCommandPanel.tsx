@@ -145,6 +145,13 @@ const OPERATION_LABELS = {
   lead_tag_update: "Exact tags",
 } as const;
 
+export type CanonicalAmoCrmBlockingAttempt = Readonly<{
+  attemptId: string;
+  operationName: keyof typeof OPERATION_LABELS;
+  status: "prepared" | "unknown";
+  providerDispatchedAt: string | null;
+}>;
+
 const INITIAL_STATE: CanonicalAmoCrmCommandActionState = Object.freeze({
   status: "idle",
   reason: "idle",
@@ -223,6 +230,7 @@ function ResultState({
 
 export function CanonicalAmoCrmCommandPanel({
   availability,
+  blockingAttempt = null,
   leadId,
   locale,
   requestId,
@@ -230,6 +238,7 @@ export function CanonicalAmoCrmCommandPanel({
   studentCaseId = null,
 }: Readonly<{
   availability: CanonicalAmoCrmCommandAvailability;
+  blockingAttempt?: CanonicalAmoCrmBlockingAttempt | null;
   leadId: string;
   locale: Locale;
   requestId: string;
@@ -251,6 +260,54 @@ export function CanonicalAmoCrmCommandPanel({
     reconcileCanonicalAmoCrmCommandAction,
     INITIAL_STATE,
   );
+  const persistedBlockingState: CanonicalAmoCrmCommandActionState =
+    blockingAttempt === null
+      ? INITIAL_STATE
+      : Object.freeze({
+          status:
+            blockingAttempt.status === "unknown" ||
+            blockingAttempt.providerDispatchedAt !== null
+              ? "unknown"
+              : "blocked",
+          reason:
+            blockingAttempt.status === "unknown"
+              ? "stored_unknown"
+              : blockingAttempt.providerDispatchedAt !== null
+                ? "dispatch_outcome_unresolved"
+                : "dispatch_not_started",
+          attemptId: blockingAttempt.attemptId,
+          steps: Object.freeze([
+            Object.freeze({
+              operationName: blockingAttempt.operationName,
+              status:
+                blockingAttempt.status === "unknown" ||
+                blockingAttempt.providerDispatchedAt !== null
+                  ? "unknown"
+                  : "blocked",
+              reason:
+                blockingAttempt.status === "unknown"
+                  ? "stored_unknown"
+                  : blockingAttempt.providerDispatchedAt !== null
+                    ? "dispatch_outcome_unresolved"
+                    : "dispatch_not_started",
+              attemptId: blockingAttempt.attemptId,
+            }),
+          ]),
+        });
+  const displayedSyncState =
+    syncState.status === "idle" ? persistedBlockingState : syncState;
+  const activeUnknownState =
+    reconcileState.status === "unknown"
+      ? reconcileState
+      : syncState.status === "unknown"
+        ? syncState
+        : persistedBlockingState.status === "unknown"
+          ? persistedBlockingState
+          : null;
+  const flowBlocked =
+    blockingAttempt !== null ||
+    syncState.status === "unknown" ||
+    reconcileState.status === "unknown";
 
   useEffect(() => {
     if (syncState.status !== "idle" || reconcileState.status !== "idle") {
@@ -313,7 +370,7 @@ export function CanonicalAmoCrmCommandPanel({
               rows={3}
               maxLength={1000}
               required
-              disabled={!ready || syncing || syncState.status === "unknown"}
+              disabled={!ready || syncing || flowBlocked}
               placeholder={copy.notePlaceholder}
               className="mt-1.5 min-h-24 w-full resize-y rounded-ctl border border-border-strong bg-surface px-3 py-2.5 text-[13.5px] text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="canonical-amocrm-note-text"
@@ -325,16 +382,16 @@ export function CanonicalAmoCrmCommandPanel({
           <button
             type="submit"
             className={btnCls}
-            disabled={!ready || syncing || syncState.status === "unknown"}
+            disabled={!ready || syncing || flowBlocked}
             data-testid="canonical-amocrm-sync"
           >
             {syncing ? copy.submitting : copy.submit}
           </button>
         </form>
 
-        <ResultState state={syncState} locale={locale} />
+        <ResultState state={displayedSyncState} locale={locale} />
 
-        {syncState.status === "unknown" && syncState.attemptId ? (
+        {activeUnknownState?.attemptId ? (
           <form action={reconcileAction}>
             <input
               type="hidden"
@@ -354,7 +411,7 @@ export function CanonicalAmoCrmCommandPanel({
             <input
               type="hidden"
               name="attempt_id"
-              value={syncState.attemptId}
+              value={activeUnknownState.attemptId}
             />
             <button
               type="submit"

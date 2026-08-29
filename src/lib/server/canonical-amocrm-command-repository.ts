@@ -45,6 +45,12 @@ export type ReadCanonicalAmoCrmBindingsInput = Readonly<{
   leadId: string;
 }>;
 
+export type ReadBlockingCanonicalAmoCrmCommandInput = Readonly<{
+  authorization: CanonicalAmoCrmWorkflowAuthorization;
+  personId: string;
+  leadId: string;
+}>;
+
 export type CanonicalAmoCrmBindingsSnapshot = Readonly<{
   contactId: string | null;
   leadId: string | null;
@@ -982,6 +988,55 @@ export async function readCanonicalAmoCrmBindings(
         contactId: contactBinding?.providerId ?? null,
         leadId: leadBinding?.providerId ?? null,
       });
+    }),
+  );
+}
+
+export async function readBlockingCanonicalAmoCrmCommand(
+  rawInput: ReadBlockingCanonicalAmoCrmCommandInput,
+): Promise<CanonicalAmoCrmCommandSnapshot | null> {
+  const authorization = parseAuthorization(rawInput.authorization);
+  const personId = uuid(rawInput.personId);
+  const leadId = uuid(rawInput.leadId);
+  if (leadId !== authorization.workflowLeadId) repositoryError("forbidden");
+  const businessObjectType =
+    authorization.workflowScope === "sales_pre_handoff"
+      ? "amocrm_sales_lead"
+      : "amocrm_admissions_case";
+  const businessObjectId =
+    authorization.workflowScope === "sales_pre_handoff"
+      ? authorization.workflowLeadId
+      : (authorization.studentCaseId as string);
+
+  return repositoryOperation(() =>
+    getDatabase().transaction(async (transaction) => {
+      await assertWorkflowAuthorization(transaction, authorization, personId);
+      const [row] = await transaction
+        .select(attemptSelection)
+        .from(evoAmoCrmOperationAttempts)
+        .innerJoin(
+          evoCommandReceipts,
+          eq(evoCommandReceipts.id, evoAmoCrmOperationAttempts.commandReceiptId),
+        )
+        .where(
+          and(
+            inArray(evoAmoCrmOperationAttempts.status, ["prepared", "unknown"]),
+            eq(evoCommandReceipts.businessObjectType, businessObjectType),
+            eq(evoCommandReceipts.businessObjectId, businessObjectId),
+            or(
+              eq(evoAmoCrmOperationAttempts.personId, personId),
+              eq(evoAmoCrmOperationAttempts.leadId, leadId),
+            ),
+          ),
+        )
+        .orderBy(
+          evoAmoCrmOperationAttempts.createdAt,
+          evoAmoCrmOperationAttempts.id,
+        )
+        .limit(1);
+      if (!row) return null;
+      assertStoredWorkflow(row as StoredAttemptRow, authorization);
+      return snapshot(row as StoredAttemptRow, authorization);
     }),
   );
 }

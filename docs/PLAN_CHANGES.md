@@ -14216,3 +14216,69 @@ This closes the local implementation-proof portion of the current command/UI
 slice. The remaining unfinished gate inside #466 is now only the real connected
 amoCRM write acceptance plus the same-slice legacy-runtime eradication
 inventory required by the replacement discipline.
+
+## 2026-08-30 - Correct whole-flow amoCRM ambiguity, reload recovery, route replay and exact tag authority
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under owner-authorized issue #466.
+Change type: fail-closed correction after independent exact-head review.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+Independent review found that the first implementation guarded an ambiguous
+amoCRM outcome only at the object touched by the individual step. A late
+lead-scoped `unknown` could therefore allow a new browser request to repeat an
+earlier contact update before reaching the lead-scoped guard. Review also found
+that the reconciliation button depended on client memory, that exact replay did
+not compare all current route configuration, and that a configured tag name was
+not resolved to an existing provider tag ID before mutation.
+
+The corrected contract is:
+
+- before any new mutation sequence, PostgreSQL checks the whole canonical
+  person/lead workflow for any `prepared` or `unknown` attempt; a blocker from
+  either object stops the sequence before the first contact dispatch;
+- the owning Sales and Student 360 server workspaces load the persisted blocking
+  attempt, so reload, a new tab or an operator handoff still shows the exact
+  attempt ID and the explicit read-only reconciliation control;
+- same-request replay compares the saved expected pipeline, status,
+  responsible user and tag name with the current server route before it may
+  report `exact_replay`;
+- discovery reads the existing amoCRM lead-tag catalog and requires each
+  configured role tag name to resolve to exactly one existing tag ID. The write
+  command uses that ID and cannot create a tag by name or fall back. Kommo
+  documents the bounded catalog read at
+  <https://developers.kommo.com/reference/list-of-entity-tags>;
+- the sanitized tag catalog becomes part of the immutable PostgreSQL discovery
+  evidence and snapshot hash.
+
+Clarification of the immediately preceding validation entry: the earlier
+Chromium matrix proved panel placement, fixed-role visibility and three blocked
+provider prerequisites. It did **not** submit an amoCRM command, produce an
+`unknown` result, reload that result or execute reconciliation. Its wording
+about preserving request feedback and the reconciliation path described the
+implemented UI contract plus unit coverage, not completed browser execution.
+This correction requires a real disposable-PostgreSQL browser row to survive an
+application restart/reload with the exact attempt and safe reconciliation
+control visible. Real connected provider mutation remains a separate unfinished
+acceptance gate and is not claimed here.
+
+The required correction proof is now complete. On Node `22.23.1`, with
+OrbStack `Running` and Docker context exactly `orbstack`:
+
+- `npm run test:u9` passed all 90 provider, discovery, command, action, UI,
+  Gemini, WAHA and replacement-inventory tests;
+- `npm run lint`, `npm run typecheck`, `npm run build` and `git diff --check`
+  passed;
+- `npm run test:database:local` passed from a clean disposable PostgreSQL
+  database through the exact six-migration Drizzle history and the complete
+  application/Chromium matrix;
+- the browser proof now persists a technical `unknown` amoCRM attempt in real
+  PostgreSQL, restarts/reloads the application surface, displays the same exact
+  attempt ID and reconciliation control, and keeps new sync disabled without a
+  provider mutation or fallback;
+- the pre-existing Sales-to-Admissions handoff and Admin exception browser
+  flows stayed green after blocking-attempt lookup was limited to the active
+  owning workflow phase.
+
+This evidence remains local and provider-isolated. It does not claim a real
+connected amoCRM write, V1 mutation, deployment or cutover.

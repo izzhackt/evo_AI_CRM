@@ -90,6 +90,14 @@ function providerResponses(overrides = {}) {
         ],
       },
     },
+    leadTags: {
+      _embedded: {
+        tags: [
+          { id: 8002, name: "EVO V2 Admissions" },
+          { id: 8001, name: "EVO V2 Sales" },
+        ],
+      },
+    },
     users: {
       _embedded: {
         users: [
@@ -154,6 +162,10 @@ function fakeProvider(source, calls) {
     getPipelines: async () => {
       calls.push("pipelines");
       return source.pipelines;
+    },
+    getLeadTags: async () => {
+      calls.push("lead-tags");
+      return source.leadTags;
     },
     getUsers: async () => {
       calls.push("users");
@@ -247,6 +259,7 @@ test("discovers, sanitizes, hashes and persists one immutable exact-account rout
   assert.deepEqual(calls, [
     "account",
     "pipelines",
+    "lead-tags",
     "users",
     "lead-custom-fields",
     "contact-custom-fields",
@@ -256,6 +269,10 @@ test("discovers, sanitizes, hashes and persists one immutable exact-account rout
   assert.equal(writes[0].account.accountBaseUrl, PROVIDER_CONFIG.accountOrigin);
   assert.equal(writes[0].account.accountSubdomain, "evo-admissions");
   assert.match(writes[0].snapshot.snapshotSha256, /^[0-9a-f]{64}$/);
+  assert.deepEqual(writes[0].snapshot.leadTagCatalog, [
+    { id: "8001", name: "EVO V2 Sales" },
+    { id: "8002", name: "EVO V2 Admissions" },
+  ]);
   assert.equal(JSON.stringify(writes[0]).includes("must-not-cross"), false);
   assert.equal(JSON.stringify(writes[0]).includes("private@example"), false);
   assert.equal(JSON.stringify(writes[0]).includes("+000000000"), false);
@@ -264,12 +281,14 @@ test("discovers, sanitizes, hashes and persists one immutable exact-account rout
     pipelineId: "2001",
     statusId: "3001",
     responsibleUserId: "4001",
+    tagId: "8001",
     tagName: "EVO V2 Sales",
   });
   assert.deepEqual(snapshot.admissions, {
     pipelineId: "2002",
     statusId: "3002",
     responsibleUserId: "4002",
+    tagId: "8002",
     tagName: "EVO V2 Admissions",
   });
   assert.deepEqual(snapshot.contactCustomFields, {
@@ -282,6 +301,49 @@ test("discovers, sanitizes, hashes and persists one immutable exact-account rout
   assert.equal(Object.isFrozen(snapshot), true);
   assert.equal(Object.isFrozen(snapshot.sales), true);
   assert.equal(Object.isFrozen(snapshot.contactCustomFields), true);
+});
+
+test("exact lead tag IDs participate in the immutable discovery hash", async () => {
+  async function discoverWithSalesTagId(tagId) {
+    let persistedHash = null;
+    const snapshot = await discoverCanonicalAmoCrmCommandRouting({
+      providerConfig: PROVIDER_CONFIG,
+      commandConfig: loadCanonicalAmoCrmCommandConfig(ROUTING_ENV),
+      provider: fakeProvider(
+        providerResponses({
+          leadTags: {
+            _embedded: {
+              tags: [
+                { id: tagId, name: "EVO V2 Sales" },
+                { id: 8002, name: "EVO V2 Admissions" },
+              ],
+            },
+          },
+        }),
+        [],
+      ),
+      repository: Object.freeze({
+        persist: async (input) => {
+          persistedHash = input.snapshot.snapshotSha256;
+          return Object.freeze({
+            accountId: "11111111-1111-4111-8111-111111111111",
+            snapshotId: "22222222-2222-4222-8222-222222222222",
+            discoveredAt: input.snapshot.discoveredAt,
+          });
+        },
+      }),
+      correlationId: `discovery-tag-hash-${tagId}`,
+      now: () => new Date("2026-08-29T08:00:00.000Z"),
+    });
+    return { persistedHash, snapshot };
+  }
+
+  const first = await discoverWithSalesTagId(8001);
+  const second = await discoverWithSalesTagId(8003);
+
+  assert.notEqual(first.persistedHash, second.persistedHash);
+  assert.equal(first.snapshot.sales.tagId, "8001");
+  assert.equal(second.snapshot.sales.tagId, "8003");
 });
 
 test("fails before persistence when the provider account origin is not the configured exact account", async () => {
@@ -318,7 +380,7 @@ test("fails before persistence when the provider account origin is not the confi
   assert.deepEqual(calls, ["account"]);
 });
 
-test("fails closed for a wrong pipeline/status relationship, inactive owner or ambiguous contact field code", async () => {
+test("fails closed for invalid routing, non-exact tag mapping or ambiguous contact field code", async () => {
   const cases = [
     [
       "mapping_invalid",
@@ -349,6 +411,46 @@ test("fails closed for a wrong pipeline/status relationship, inactive owner or a
               { id: 6001, name: "Phone", code: "PHONE", type: "multitext" },
               { id: 6003, name: "Other phone", code: "PHONE", type: "multitext" },
               { id: 6002, name: "Email", code: "EMAIL", type: "multitext" },
+            ],
+          },
+        },
+      }),
+    ],
+    [
+      "mapping_invalid",
+      ROUTING_ENV,
+      providerResponses({
+        leadTags: {
+          _embedded: {
+            tags: [{ id: 8002, name: "EVO V2 Admissions" }],
+          },
+        },
+      }),
+    ],
+    [
+      "mapping_invalid",
+      ROUTING_ENV,
+      providerResponses({
+        leadTags: {
+          _embedded: {
+            tags: [
+              { id: 8001, name: "EVO V2 Sales" },
+              { id: 8002, name: "EVO V2 Sales" },
+              { id: 8003, name: "EVO V2 Admissions" },
+            ],
+          },
+        },
+      }),
+    ],
+    [
+      "provider_response_invalid",
+      ROUTING_ENV,
+      providerResponses({
+        leadTags: {
+          _embedded: {
+            tags: [
+              { id: 0, name: "EVO V2 Sales" },
+              { id: 8002, name: "EVO V2 Admissions" },
             ],
           },
         },

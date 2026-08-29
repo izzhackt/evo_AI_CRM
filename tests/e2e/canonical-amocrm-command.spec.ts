@@ -5,6 +5,7 @@ type ProofMode =
   "provider-not-authorized" | "routing-missing" | "token-missing";
 
 const proofMode = requiredProofMode();
+const blockingAttemptId = optionalUuid("EVO_EXPECT_AMOCRM_BLOCKING_ATTEMPT_ID");
 
 const BLOCKED_COPY: Readonly<Record<ProofMode, RegExp>> = Object.freeze({
   "provider-not-authorized":
@@ -31,6 +32,19 @@ function requireUuid(name: string): string {
   const value = process.env[name];
   if (
     !value ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+      value,
+    )
+  ) {
+    throw new Error(`${name} must be a valid non-nil UUID`);
+  }
+  return value.toLowerCase();
+}
+
+function optionalUuid(name: string): string | null {
+  const value = process.env[name];
+  if (value === undefined || value === "") return null;
+  if (
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
       value,
     )
@@ -78,9 +92,11 @@ async function expectBlockedPanel(
   const panel = page.getByTestId("canonical-amocrm-command-panel");
   await expect(panel).toBeVisible();
   await expect(panel).toHaveAttribute("data-scope", input.scope);
-  await expect(panel.locator(`input[name="${input.targetField}"]`)).toHaveValue(
-    input.targetId,
-  );
+  await expect(
+    page
+      .getByTestId("canonical-amocrm-sync-form")
+      .locator(`input[name="${input.targetField}"]`),
+  ).toHaveValue(input.targetId);
 
   const availability = page.getByTestId(
     "canonical-amocrm-provider-availability",
@@ -89,7 +105,19 @@ async function expectBlockedPanel(
   await expect(availability).toContainText(BLOCKED_COPY[proofMode]);
   await expect(page.getByTestId("canonical-amocrm-note-text")).toBeDisabled();
   await expect(page.getByTestId("canonical-amocrm-sync")).toBeDisabled();
-  await expect(page.getByTestId("canonical-amocrm-reconcile")).toHaveCount(0);
+  if (input.scope === "sales" && blockingAttemptId !== null) {
+    await expect(page.getByTestId("canonical-amocrm-command-state")).toHaveAttribute(
+      "data-status",
+      "unknown",
+    );
+    await expect(
+      page.getByTestId("canonical-amocrm-terminal-attempt-id"),
+    ).toHaveText(blockingAttemptId);
+    await expect(page.getByTestId("canonical-amocrm-reconcile")).toBeVisible();
+    await expect(page.getByTestId("canonical-amocrm-reconcile")).toBeDisabled();
+  } else {
+    await expect(page.getByTestId("canonical-amocrm-reconcile")).toHaveCount(0);
+  }
 
   const html = await page.content();
   const secretProbe = process.env.EVO_EXPECT_AMOCRM_SECRET_PROBE;
@@ -198,4 +226,29 @@ test("wrong fixed roles are denied before either owning amoCRM panel renders", a
   await expect(page.getByTestId("canonical-amocrm-command-panel")).toHaveCount(
     0,
   );
+});
+
+test("a PostgreSQL-stored unknown attempt survives reload with safe reconciliation visible", async ({
+  page,
+}) => {
+  test.skip(blockingAttemptId === null, "no persisted blocker requested for this matrix run");
+  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
+  await submitGate(page, "sales");
+  await expectBlockedPanel(page, {
+    route: `/sales/${leadId}`,
+    scope: "sales",
+    targetField: "lead_id",
+    targetId: leadId,
+  });
+
+  await page.reload();
+  await expect(page.getByTestId("canonical-amocrm-command-state")).toHaveAttribute(
+    "data-status",
+    "unknown",
+  );
+  await expect(
+    page.getByTestId("canonical-amocrm-terminal-attempt-id"),
+  ).toHaveText(blockingAttemptId as string);
+  await expect(page.getByTestId("canonical-amocrm-reconcile")).toBeVisible();
+  await expect(page.getByTestId("canonical-amocrm-sync")).toBeDisabled();
 });

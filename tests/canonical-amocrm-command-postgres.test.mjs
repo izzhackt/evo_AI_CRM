@@ -8,6 +8,7 @@ import {
   CanonicalAmoCrmCommandRepositoryError,
   claimCanonicalAmoCrmCommandDispatch,
   prepareCanonicalAmoCrmCommand,
+  readBlockingCanonicalAmoCrmCommand,
   readCanonicalAmoCrmBindings,
   readCanonicalAmoCrmCommand,
   readCanonicalAmoCrmCommandByIdempotencyKey,
@@ -477,6 +478,13 @@ test("unknown and rejected outcomes never create bindings and unknown requires e
     );
     assert.equal(unknownSettled.attempt.status, "unknown");
     assert.equal(unknownSettled.attempt.resultLeadId, null);
+    const flowBlocker = await readBlockingCanonicalAmoCrmCommand({
+      authorization: unknownInput.authorization,
+      personId: unknownLead.personId,
+      leadId: unknownLead.leadId,
+    });
+    assert.equal(flowBlocker?.attemptId, unknownPrepared.attempt.attemptId);
+    assert.equal(flowBlocker?.operationName, "lead_create");
 
     await assert.rejects(
       prepareCanonicalAmoCrmCommand(

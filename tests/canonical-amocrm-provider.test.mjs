@@ -266,6 +266,7 @@ test("read provider exposes only the bounded canonical discovery calls", async (
 
   await provider.getAccount();
   await provider.getPipelines();
+  await provider.getLeadTags();
   await provider.getUsers();
   await provider.getLeadCustomFields();
   await provider.getContactCustomFields();
@@ -278,6 +279,7 @@ test("read provider exposes only the bounded canonical discovery calls", async (
     [
       "/api/v4/account",
       "/api/v4/leads/pipelines?limit=250&page=1",
+      "/api/v4/leads/tags?limit=250&page=1",
       "/api/v4/users?limit=250&page=1",
       "/api/v4/leads/custom_fields?limit=250&page=1",
       "/api/v4/contacts/custom_fields?limit=250&page=1",
@@ -704,7 +706,7 @@ test("canonical amoCRM emits the reviewed contact, lead, link, note, stage, resp
   await provider.updateLeadTags({
     requestId: "l-tags",
     leadId: "202",
-    add: [{ id: "31" }, { name: "V2 validated" }],
+    add: [{ id: "31" }, { id: "33" }],
     remove: [{ id: "32" }],
   });
 
@@ -755,7 +757,7 @@ test("canonical amoCRM emits the reviewed contact, lead, link, note, stage, resp
   ]);
   assert.deepEqual(calls[8].body, {
     request_id: "l-tags",
-    tags_to_add: [{ id: 31 }, { name: "V2 validated" }],
+    tags_to_add: [{ id: 31 }, { id: 33 }],
     tags_to_delete: [{ id: 32 }],
   });
 });
@@ -842,6 +844,12 @@ test("canonical amoCRM rejects unsafe IDs and payloads before any dispatch", asy
     () => provider.updateContact({ requestId: "ok", contactId: "1" }),
     () => provider.createLeadNote({ requestId: "ok", leadId: "1", text: "" }),
     () => provider.updateLeadTags({ requestId: "ok", leadId: "1" }),
+    () =>
+      provider.prepareUpdateLeadTags({
+        requestId: "ok",
+        leadId: "1",
+        add: [{ name: "must-not-create" }],
+      }),
     () =>
       provider.updateLeadTags({
         requestId: "ok",

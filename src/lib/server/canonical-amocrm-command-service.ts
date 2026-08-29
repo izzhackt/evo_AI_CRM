@@ -8,6 +8,7 @@ import {
   claimCanonicalAmoCrmCommandDispatch,
   CanonicalAmoCrmCommandRepositoryError,
   prepareCanonicalAmoCrmCommand,
+  readBlockingCanonicalAmoCrmCommand,
   readCanonicalAmoCrmBindings,
   readCanonicalAmoCrmCommand,
   readCanonicalAmoCrmCommandByIdempotencyKey,
@@ -123,6 +124,7 @@ export type CanonicalAmoCrmCommandServiceDependencies = Readonly<{
   ) => Promise<CanonicalAmoCrmCommandRoutingSnapshot>;
   getLeadSnapshot?: typeof getCanonicalLeadSnapshot;
   getStudentCaseHandoffSnapshot?: typeof getCanonicalStudentCaseHandoffSnapshot;
+  readBlockingCommand?: typeof readBlockingCanonicalAmoCrmCommand;
   readBindings?: typeof readCanonicalAmoCrmBindings;
   prepareCommand?: PrepareCommand;
   claimDispatch?: ClaimDispatch;
@@ -179,7 +181,7 @@ type FlowContext = Readonly<{
   displayName: string;
   email: string | null;
   phone: string | null;
-  route: CanonicalAmoCrmRoleCommandRoute;
+  route: CanonicalAmoCrmCommandRoutingSnapshot["sales"];
   baseRequestId: string;
   noteText: string;
 }>;
@@ -209,6 +211,8 @@ function resolveDependencies(
     getStudentCaseHandoffSnapshot:
       overrides.getStudentCaseHandoffSnapshot ??
       getCanonicalStudentCaseHandoffSnapshot,
+    readBlockingCommand:
+      overrides.readBlockingCommand ?? readBlockingCanonicalAmoCrmCommand,
     readBindings: overrides.readBindings ?? readCanonicalAmoCrmBindings,
     prepareCommand: overrides.prepareCommand ?? prepareCanonicalAmoCrmCommand,
     claimDispatch:
@@ -356,6 +360,7 @@ function leadReadback(
     pipelineId?: string;
     statusId?: string;
     responsibleUserId?: string;
+    tagId?: string;
     tagName?: string;
   }>,
 ): VerifiedReadback {
@@ -384,10 +389,20 @@ function leadReadback(
   ) {
     throw new ReadbackMismatchError();
   }
-  if (expected.tagName !== undefined) {
+  if (expected.tagId !== undefined || expected.tagName !== undefined) {
+    if (expected.tagId === undefined || expected.tagName === undefined) {
+      throw new ReadbackMismatchError();
+    }
     const embedded = record(response._embedded ?? {});
     const tags = collection(embedded.tags ?? []);
-    if (!tags.some((value) => record(value).name === expected.tagName)) {
+    if (
+      !tags.some((value) => {
+        const tag = record(value);
+        return (
+          providerId(tag.id) === expected.tagId && tag.name === expected.tagName
+        );
+      })
+    ) {
       throw new ReadbackMismatchError();
     }
   }
@@ -405,9 +420,12 @@ function leadReadback(
       ...(expected.responsibleUserId === undefined
         ? {}
         : { responsibleUserId: expected.responsibleUserId }),
-      ...(expected.tagName === undefined
+      ...(expected.tagName === undefined || expected.tagId === undefined
         ? {}
-        : { tagNameSha256: valueHash(expected.tagName) }),
+        : {
+            tagId: expected.tagId,
+            tagNameSha256: valueHash(expected.tagName),
+          }),
     }),
     providerUpdatedAt: optionalProviderUpdatedAt(response.updated_at),
   });
@@ -1149,16 +1167,18 @@ async function executeLeadEffect(
     prepared = context.provider.prepareUpdateLeadTags({
       requestId,
       leadId: providerLeadId,
-      add: Object.freeze([Object.freeze({ name: context.route.tagName })]),
+      add: Object.freeze([Object.freeze({ id: context.route.tagId })]),
     });
     expected = Object.freeze({
       entity: "lead",
       leadId: providerLeadId,
+      tagId: context.route.tagId,
       tagNameSha256: valueHash(context.route.tagName),
     });
     verify = async (provider) =>
       leadReadback(await provider.getLeadById(providerLeadId), {
         leadId: providerLeadId,
+        tagId: context.route.tagId,
         tagName: context.route.tagName,
       });
   }
@@ -1199,6 +1219,7 @@ function storedRequestMatchesCurrentContext(
     email: string | null;
     phone: string | null;
     noteText: string;
+    route: CanonicalAmoCrmRoleCommandRoute;
   }>,
 ): boolean {
   if (attempt.actorRole !== context.actorRole) return false;
@@ -1224,10 +1245,28 @@ function storedRequestMatchesCurrentContext(
     attempt.operationName === "lead_create" ||
     attempt.operationName === "lead_update"
   ) {
-    return expected.nameSha256 === valueHash(context.displayName);
+    return (
+      expected.nameSha256 === valueHash(context.displayName) &&
+      (attempt.operationName !== "lead_create" ||
+        (expected.pipelineId === context.route.pipelineId &&
+          expected.statusId === context.route.statusId &&
+          expected.responsibleUserId === context.route.responsibleUserId))
+    );
+  }
+  if (attempt.operationName === "lead_pipeline_status_update") {
+    return (
+      expected.pipelineId === context.route.pipelineId &&
+      expected.statusId === context.route.statusId
+    );
+  }
+  if (attempt.operationName === "lead_responsible_update") {
+    return expected.responsibleUserId === context.route.responsibleUserId;
   }
   if (attempt.operationName === "lead_note_create") {
     return expected.textSha256 === valueHash(context.noteText);
+  }
+  if (attempt.operationName === "lead_tag_update") {
+    return expected.tagNameSha256 === valueHash(context.route.tagName);
   }
   return true;
 }
@@ -1242,6 +1281,7 @@ async function preflightStoredFlow(
     email: string | null;
     phone: string | null;
     noteText: string;
+    route: CanonicalAmoCrmRoleCommandRoute;
   }>,
 ): Promise<CanonicalAmoCrmSyncResult | null> {
   const read = async (operationName: EvoAmoCrmOperationName) =>
@@ -1292,6 +1332,7 @@ async function preflightStoredFlow(
     email: input.email,
     phone: input.phone,
     noteText: input.noteText,
+    route: input.route,
   };
   const appendStored = (
     attempt: CanonicalAmoCrmCommandSnapshot,
@@ -1342,6 +1383,30 @@ async function preflightStoredFlow(
     if (laterTerminal !== null) return laterTerminal;
   }
   return aggregate("accepted", "exact_replay", ordered.map(publicStep));
+}
+
+async function preflightBlockingFlow(
+  dependencies: ResolvedDependencies,
+  input: Readonly<{
+    authorization: CanonicalAmoCrmWorkflowAuthorization;
+    personId: string;
+    leadId: string;
+  }>,
+): Promise<CanonicalAmoCrmSyncResult | null> {
+  let attempt: CanonicalAmoCrmCommandSnapshot | null;
+  try {
+    attempt = await dependencies.readBlockingCommand(input);
+  } catch (error) {
+    const code = repositoryErrorCode(error);
+    return aggregate(
+      code === "forbidden" || code === "not_found" ? "blocked" : "error",
+      code ?? "blocking_attempt_lookup_failed",
+      [],
+    );
+  }
+  if (attempt === null) return null;
+  const step = replayStep(attempt);
+  return aggregate(step.status, step.reason, [publicStep(step)]);
 }
 
 async function executeFlow(context: FlowContext): Promise<CanonicalAmoCrmSyncResult> {
@@ -1403,6 +1468,7 @@ function configurationResult(error: unknown): CanonicalAmoCrmSyncResult {
 async function initializeProviders(
   dependencies: ResolvedDependencies,
   correlationId: string,
+  currentCommandConfig?: CanonicalAmoCrmCommandConfig,
 ): Promise<
   | Readonly<{
       status: "ready";
@@ -1415,7 +1481,7 @@ async function initializeProviders(
   let commandConfig: CanonicalAmoCrmCommandConfig;
   try {
     providerConfig = dependencies.loadProviderConfig();
-    commandConfig = dependencies.loadCommandConfig();
+    commandConfig = currentCommandConfig ?? dependencies.loadCommandConfig();
   } catch (error) {
     return Object.freeze({ status: "blocked", result: configurationResult(error) });
   }
@@ -1476,6 +1542,12 @@ export async function executeCanonicalAmoCrmSalesSync(
     workflowLeadId: lead.leadId,
     studentCaseId: null,
   });
+  let commandConfig: CanonicalAmoCrmCommandConfig;
+  try {
+    commandConfig = dependencies.loadCommandConfig();
+  } catch (error) {
+    return configurationResult(error);
+  }
   const stored = await preflightStoredFlow(dependencies, {
     authorization,
     actorRole: role,
@@ -1484,9 +1556,16 @@ export async function executeCanonicalAmoCrmSalesSync(
     email: lead.email,
     phone: lead.phone,
     noteText: note,
+    route: commandConfig.sales,
   });
   if (stored !== null) return stored;
-  const providers = await initializeProviders(dependencies, requestId);
+  const blocking = await preflightBlockingFlow(dependencies, {
+    authorization,
+    personId: lead.personId,
+    leadId: lead.leadId,
+  });
+  if (blocking !== null) return blocking;
+  const providers = await initializeProviders(dependencies, requestId, commandConfig);
   if (providers.status === "blocked") return providers.result;
   return executeFlow({
     dependencies,
@@ -1544,6 +1623,12 @@ export async function executeCanonicalAmoCrmAdmissionsSync(
     workflowLeadId: studentCase.leadId,
     studentCaseId: studentCase.studentCaseId,
   });
+  let commandConfig: CanonicalAmoCrmCommandConfig;
+  try {
+    commandConfig = dependencies.loadCommandConfig();
+  } catch (error) {
+    return configurationResult(error);
+  }
   const stored = await preflightStoredFlow(dependencies, {
     authorization,
     actorRole: role,
@@ -1552,9 +1637,16 @@ export async function executeCanonicalAmoCrmAdmissionsSync(
     email: null,
     phone: null,
     noteText: note,
+    route: commandConfig.admissions,
   });
   if (stored !== null) return stored;
-  const providers = await initializeProviders(dependencies, requestId);
+  const blocking = await preflightBlockingFlow(dependencies, {
+    authorization,
+    personId: studentCase.personId,
+    leadId: studentCase.leadId,
+  });
+  if (blocking !== null) return blocking;
+  const providers = await initializeProviders(dependencies, requestId, commandConfig);
   if (providers.status === "blocked") return providers.result;
   const bindings = await dependencies.readBindings({
     accountId: providers.routing.canonicalAccountId,
@@ -1712,16 +1804,22 @@ function storedLeadReadback(
     evidence.responsibleUserId = responsibleUserId;
   } else if (operationName === "lead_tag_update") {
     const expectedHash = optionalExpectedHash(expected, "tagNameSha256");
+    const tagId = requiredExpected(expected, "tagId");
     const embedded = record(response._embedded ?? {});
     if (
       expectedHash === null ||
       !collection(embedded.tags ?? []).some((tagValue) => {
         const tag = record(tagValue);
-        return typeof tag.name === "string" && valueHash(tag.name) === expectedHash;
+        return (
+          providerId(tag.id) === tagId &&
+          typeof tag.name === "string" &&
+          valueHash(tag.name) === expectedHash
+        );
       })
     ) {
       throw new ReadbackMismatchError();
     }
+    evidence.tagId = tagId;
     evidence.tagNameSha256 = expectedHash;
   } else {
     throw new ReadbackMismatchError();

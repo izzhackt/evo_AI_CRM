@@ -28,6 +28,12 @@ test("canonical amoCRM command panels are placed on the owning CRM workspaces", 
     sales,
     /<CanonicalAmoCrmCommandPanel[\s\S]*scope="sales"[\s\S]*leadId=\{lead\.leadId\}/,
   );
+  assert.match(sales, /readBlockingCanonicalAmoCrmCommand/);
+  assert.match(
+    sales,
+    /lead\.stage === "handed_off" \|\| lead\.ownerRole !== "sales"/,
+  );
+  assert.match(sales, /blockingAttempt=/);
 
   assert.match(admissions, /CanonicalAmoCrmCommandPanel/);
   assert.ok(
@@ -39,6 +45,12 @@ test("canonical amoCRM command panels are placed on the owning CRM workspaces", 
     admissions,
     /<CanonicalAmoCrmCommandPanel[\s\S]*scope="admissions"[\s\S]*leadId=\{studentCase\.leadId\}[\s\S]*studentCaseId=\{studentCase\.studentCaseId\}/,
   );
+  assert.match(admissions, /readBlockingCanonicalAmoCrmCommand/);
+  assert.match(
+    admissions,
+    /studentCase\.status !== "active" \|\|[\s\S]*studentCase\.assignedRole !== "admissions"/,
+  );
+  assert.match(admissions, /blockingAttempt=/);
 });
 
 test("the panel exposes exact inputs, honest states, per-step evidence, and explicit unknown reconciliation", () => {
@@ -57,10 +69,12 @@ test("the panel exposes exact inputs, honest states, per-step evidence, and expl
   assert.match(panel, /data-testid="canonical-amocrm-terminal-attempt-id"/);
   assert.match(panel, /data-testid="canonical-amocrm-reconcile"/);
   assert.match(panel, /syncState\.status === "unknown"/);
+  assert.match(panel, /persistedBlockingState/);
+  assert.match(panel, /activeUnknownState/);
   assert.match(panel, /name="note_text"/);
   assert.match(panel, /maxLength=\{1000\}/);
   assert.match(panel, /required/);
-  assert.match(panel, /disabled=\{!ready \|\| syncing \|\| syncState\.status === "unknown"\}/);
+  assert.match(panel, /disabled=\{!ready \|\| syncing \|\| flowBlocked\}/);
 
   for (const status of [
     "accepted",

@@ -184,14 +184,23 @@ export function CanonicalStaffWhatsAppWorkspace({
           </div>
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 text-[12px]">
             {queueResetHref ? (
-              <Link href={queueResetHref} className={btnGhostCls}>
+              <Link
+                href={queueResetHref}
+                className={btnGhostCls}
+                data-testid="canonical-staff-whatsapp-queue-reset"
+              >
                 ← {copy.newestQueue}
               </Link>
             ) : (
               <span />
             )}
             {queueNextHref ? (
-              <Link href={queueNextHref} className={btnGhostCls} rel="next">
+              <Link
+                href={queueNextHref}
+                className={btnGhostCls}
+                rel="next"
+                data-testid="canonical-staff-whatsapp-queue-next"
+              >
                 {copy.olderQueue} →
               </Link>
             ) : null}
@@ -400,14 +409,23 @@ function ConversationThread({
           aria-label={copy.transcript}
         >
           {newestMessagesHref ? (
-            <Link href={newestMessagesHref} className={btnGhostCls}>
+            <Link
+              href={newestMessagesHref}
+              className={btnGhostCls}
+              data-testid="canonical-staff-whatsapp-messages-reset"
+            >
               ← {copy.newestMessages}
             </Link>
           ) : (
             <span />
           )}
           {olderMessagesHref ? (
-            <Link href={olderMessagesHref} className={btnGhostCls} rel="next">
+            <Link
+              href={olderMessagesHref}
+              className={btnGhostCls}
+              rel="next"
+              data-testid="canonical-staff-whatsapp-messages-next"
+            >
               {copy.olderMessages} →
             </Link>
           ) : null}

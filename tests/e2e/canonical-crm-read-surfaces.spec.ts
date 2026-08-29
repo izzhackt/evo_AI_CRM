@@ -84,6 +84,31 @@ async function postSignedInbound(
   });
 }
 
+async function postAcceptedInbound(
+  request: APIRequestContext,
+  payload: Readonly<{
+    event: "message.received";
+    senderPhone: string;
+    externalConversationId: string;
+    externalMessageId: string;
+    text: string;
+    occurredAt: string;
+  }>,
+) {
+  const response = await postSignedInbound(request, JSON.stringify(payload));
+  expect(response.status()).toBe(202);
+  const body = (await response.json()) as Record<string, unknown>;
+  const conversationId = String(body.conversationId);
+  const messageId = String(body.messageId);
+  expect(conversationId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  expect(messageId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  return { conversationId, messageId };
+}
+
 test("missing PostgreSQL authority fails closed without a read fallback", async ({
   page,
 }) => {
@@ -146,6 +171,7 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
   request,
 }) => {
   test.skip(mode !== "configured", "only exercised in configured mode");
+  test.setTimeout(90_000);
   const occurredAt = "2026-08-28T12:00:00.000Z";
   const payload = {
     event: "message.received",
@@ -264,6 +290,162 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     page.getByTestId("canonical-staff-whatsapp-page").locator("form"),
   ).toHaveCount(0);
 
+  const queueConversationIds = new Set<string>();
+  for (let index = 0; index < 50; index += 1) {
+    const suffix = index.toString().padStart(2, "0");
+    const result = await postAcceptedInbound(request, {
+      event: "message.received",
+      senderPhone: inboundPhone,
+      externalConversationId: `v2-queue-page-conversation-430-${suffix}`,
+      externalMessageId: `v2-queue-page-message-430-${suffix}`,
+      text: `V2 queue pagination proof ${suffix}`,
+      occurredAt: new Date(Date.UTC(2026, 7, 28, 12, 30, index)).toISOString(),
+    });
+    queueConversationIds.add(result.conversationId);
+  }
+  expect(queueConversationIds.size).toBe(50);
+
+  await page.goto("/whatsapp");
+  await expect(staffQueueRow).toHaveCount(0);
+  const queueRows = page.getByTestId("canonical-staff-whatsapp-row");
+  await expect(queueRows).toHaveCount(50);
+  const firstQueuePageIds = await queueRows.evaluateAll((rows) =>
+    rows.map((row) => row.getAttribute("data-conversation-id")),
+  );
+  expect(firstQueuePageIds.every(Boolean)).toBe(true);
+  const queueNextLink = page.getByTestId("canonical-staff-whatsapp-queue-next");
+  await expect(queueNextLink).toBeVisible();
+  const queueNextHref = await queueNextLink.getAttribute("href");
+  if (!queueNextHref) throw new Error("queue pagination link is missing its href");
+  const queueNextUrl = new URL(queueNextHref, page.url());
+  const queueBeforeAt = queueNextUrl.searchParams.get("before_at");
+  const queueBeforeId = queueNextUrl.searchParams.get("before_id");
+  if (!queueBeforeAt || !queueBeforeId) {
+    throw new Error("queue pagination link is missing its canonical cursor pair");
+  }
+  await queueNextLink.click();
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname === "/whatsapp" &&
+      url.searchParams.get("before_at") === queueBeforeAt &&
+      url.searchParams.get("before_id") === queueBeforeId,
+  );
+  await expect(queueRows.first()).toBeVisible();
+  const secondQueuePageIds = await queueRows.evaluateAll((rows) =>
+    rows.map((row) => row.getAttribute("data-conversation-id")),
+  );
+  expect(secondQueuePageIds.length).toBeGreaterThan(0);
+  expect(
+    secondQueuePageIds.some((id) => firstQueuePageIds.includes(id)),
+  ).toBe(false);
+  const queueResetLink = page.getByTestId(
+    "canonical-staff-whatsapp-queue-reset",
+  );
+  await expect(queueResetLink).toHaveAttribute("href", "/whatsapp");
+  await queueResetLink.click();
+  await expect(page).toHaveURL(/\/whatsapp$/);
+  await expect(queueRows).toHaveCount(50);
+  expect(
+    await queueRows.evaluateAll((rows) =>
+      rows.map((row) => row.getAttribute("data-conversation-id")),
+    ),
+  ).toEqual(firstQueuePageIds);
+  await expect(staffQueueRow).toHaveCount(0);
+
+  const threadMessageIds: string[] = [];
+  let latestThreadPageText = "";
+  const threadPaginationBaseMs = Date.now() + 1_000;
+  for (let index = 0; index < 50; index += 1) {
+    const suffix = index.toString().padStart(2, "0");
+    latestThreadPageText = `V2 thread pagination proof ${suffix}`;
+    const result = await postAcceptedInbound(request, {
+      event: "message.received",
+      senderPhone: inboundPhone,
+      externalConversationId: inboundConversationId,
+      externalMessageId: `v2-thread-page-message-430-${suffix}`,
+      text: latestThreadPageText,
+      occurredAt: new Date(threadPaginationBaseMs + index).toISOString(),
+    });
+    expect(result.conversationId).toBe(conversationId);
+    threadMessageIds.push(result.messageId);
+  }
+  expect(new Set(threadMessageIds).size).toBe(50);
+
+  await page.goto(`/whatsapp/${conversationId}`);
+  await expect(
+    page.locator(
+      `[data-testid="canonical-staff-whatsapp-message"][data-message-id="${messageId}"]`,
+    ),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
+    latestThreadPageText,
+  );
+  const messagesNextLink = page.getByTestId(
+    "canonical-staff-whatsapp-messages-next",
+  );
+  await expect(messagesNextLink).toBeVisible();
+  const messagesNextHref = await messagesNextLink.getAttribute("href");
+  if (!messagesNextHref) {
+    throw new Error("message pagination link is missing its href");
+  }
+  const messagesNextUrl = new URL(messagesNextHref, page.url());
+  const messagesBeforeAt = messagesNextUrl.searchParams.get(
+    "messages_before_at",
+  );
+  const messagesBeforeId = messagesNextUrl.searchParams.get(
+    "messages_before_id",
+  );
+  if (!messagesBeforeAt || !messagesBeforeId) {
+    throw new Error("message pagination link is missing its canonical cursor pair");
+  }
+  await messagesNextLink.click();
+  await expect(
+    page.locator(
+      `[data-testid="canonical-staff-whatsapp-message"][data-message-id="${messageId}"]`,
+    ),
+  ).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("messages_before_at")).toBe(
+    messagesBeforeAt,
+  );
+  expect(new URL(page.url()).searchParams.get("messages_before_id")).toBe(
+    messagesBeforeId,
+  );
+  const messagesResetLink = page.getByTestId(
+    "canonical-staff-whatsapp-messages-reset",
+  );
+  await expect(messagesResetLink).toHaveAttribute(
+    "href",
+    `/whatsapp/${conversationId}`,
+  );
+  await messagesResetLink.click();
+  await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`));
+  await expect(
+    page.locator(
+      `[data-testid="canonical-staff-whatsapp-message"][data-message-id="${messageId}"]`,
+    ),
+  ).toHaveCount(0);
+
+  for (const malformedPath of [
+    `/whatsapp?before_at=not-a-timestamp&before_id=${queueBeforeId}`,
+    `/whatsapp?before_at=${encodeURIComponent(queueBeforeAt)}`,
+    `/whatsapp?before_id=${queueBeforeId}`,
+    `/whatsapp?before_at=${encodeURIComponent(queueBeforeAt)}&before_at=${encodeURIComponent(queueBeforeAt)}&before_id=${queueBeforeId}`,
+    "/whatsapp?unexpected=true",
+    `/whatsapp/${conversationId}?messages_before_at=not-a-timestamp&messages_before_id=${messagesBeforeId}`,
+    `/whatsapp/${conversationId}?messages_before_at=${encodeURIComponent(messagesBeforeAt)}`,
+    `/whatsapp/${conversationId}?messages_before_id=${messagesBeforeId}`,
+    `/whatsapp/${conversationId}?messages_before_at=${encodeURIComponent(messagesBeforeAt)}&messages_before_at=${encodeURIComponent(messagesBeforeAt)}&messages_before_id=${messagesBeforeId}`,
+    `/whatsapp/${conversationId}?unexpected=true`,
+  ]) {
+    await page.goto(malformedPath);
+    await expect(
+      page.getByRole("heading", { name: "404", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("canonical-staff-whatsapp-thread"),
+    ).toHaveCount(0);
+  }
+
   await submitGate(page, "admissions");
   await page.goto("/whatsapp");
   await expect(page.getByTestId("canonical-staff-whatsapp-page")).toBeVisible();
@@ -281,7 +463,7 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
   await submitGate(page, "admin");
   await page.goto(`/whatsapp/${conversationId}`);
   await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
-    inboundText,
+    latestThreadPageText,
   );
 
   await page.goto("/");
@@ -304,6 +486,11 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
       `[data-testid="canonical-staff-whatsapp-row"][data-conversation-id="${conversationId}"]`,
     ),
   ).toHaveCount(0);
+  await page.goto(`/whatsapp/${conversationId}`);
+  await expect(
+    page.getByRole("heading", { name: "404", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toHaveCount(0);
 
   await page.goto("/");
   await page.getByTestId("preview-role-sales").click();

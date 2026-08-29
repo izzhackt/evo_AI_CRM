@@ -388,6 +388,363 @@ test("canonical WhatsApp send is durable, exactly-once and truthfully reconciled
   }
 });
 
+test("an unknown WhatsApp attempt is recovered exactly once from one bounded provider read", async () => {
+  const databaseUrl = requiredDatabaseUrl();
+  const sql = postgres(databaseUrl, {
+    idle_timeout: 5,
+    max: 4,
+    onnotice: () => undefined,
+  });
+  const runId = randomUUID();
+  let scenarioSequence = 0;
+
+  async function createAttempt(status = "unknown") {
+    scenarioSequence += 1;
+    const scenario = scenarioSequence;
+    const recipient = `155501${String(scenario).padStart(5, "0")}@c.us`;
+    const finalText = `technical-recovery-${scenario}-${runId}`;
+    const lead = await createCanonicalPersonLead({
+      ...requestContext(),
+      displayName: `technical-recovery-${scenario}-${runId}`,
+      email: `${scenario}-${runId}@acceptance.invalid`,
+      source: `technical-recovery-${runId}`,
+    });
+    const inbound = await appendCanonicalInboundMessage({
+      ...requestContext(),
+      leadId: lead.leadId,
+      channel: "whatsapp",
+      externalConversationId: recipient,
+      externalMessageId: `technical-recovery-inbound-${scenario}-${runId}`,
+      body: `technical-recovery-inbound-${scenario}-${runId}`,
+      occurredAt: "2026-08-29T08:20:00.000Z",
+    });
+    const attempt = await executeCanonicalWhatsAppSend(
+      requestContext(),
+      {
+        conversationId: inbound.conversationId,
+        sessionName: "technical-recovery-session",
+        finalText,
+        confirmedRecipient: recipient,
+      },
+      async () =>
+        status === "unknown"
+          ? { status: "unknown", failureCode: "provider_timeout" }
+          : { status: "rejected", failureCode: "provider_forbidden" },
+    );
+    return {
+      attempt,
+      conversationId: inbound.conversationId,
+      finalText,
+      recipient,
+    };
+  }
+
+  function occurredInside(attempt) {
+    assert.ok(attempt.settledAt);
+    return new Date(
+      Math.floor(
+        (Date.parse(attempt.createdAt) + Date.parse(attempt.settledAt)) / 2,
+      ),
+    ).toISOString();
+  }
+
+  async function assertStillUnknown(scenario) {
+    assert.deepEqual(
+      await readLatestCanonicalWhatsAppSendAttempt({
+        actorRole: "admin",
+        conversationId: scenario.conversationId,
+      }),
+      scenario.attempt,
+    );
+  }
+
+  try {
+    const scenario = await createAttempt();
+    assert.equal(scenario.attempt.status, "unknown");
+    assert.equal(scenario.attempt.providerMessageId, null);
+    assert.ok(scenario.attempt.settledAt);
+
+    let wrongRoleReads = 0;
+    await assert.rejects(
+      reconcileCanonicalWhatsAppSendAttempt(
+        requestContext("admissions"),
+        {
+          conversationId: scenario.conversationId,
+          attemptId: scenario.attempt.attemptId,
+        },
+        async () => {
+          wrongRoleReads += 1;
+          throw new Error(
+            "wrong-role reconcile must fail before provider read",
+          );
+        },
+      ),
+      repositoryError("not_found"),
+    );
+    assert.equal(wrongRoleReads, 0);
+    await assertStillUnknown(scenario);
+
+    for (const [label, providerMessage] of [
+      [
+        "body",
+        {
+          providerMessageId: `provider-wrong-body-${runId}`,
+          providerOccurredAt: occurredInside(scenario.attempt),
+          recipientChatId: scenario.recipient,
+          fromMe: true,
+          body: `${scenario.finalText}-changed`,
+          ack: 1,
+          ackName: "SERVER",
+          source: "api",
+        },
+      ],
+      [
+        "recipient",
+        {
+          providerMessageId: `provider-wrong-recipient-${runId}`,
+          providerOccurredAt: occurredInside(scenario.attempt),
+          recipientChatId: "15550999999@c.us",
+          fromMe: true,
+          body: scenario.finalText,
+          ack: 1,
+          ackName: "SERVER",
+          source: "api",
+        },
+      ],
+      [
+        "time-window",
+        {
+          providerMessageId: `provider-outside-window-${runId}`,
+          providerOccurredAt: new Date(
+            (Math.ceil(Date.parse(scenario.attempt.settledAt) / 1_000) + 1) *
+              1_000,
+          ).toISOString(),
+          recipientChatId: scenario.recipient,
+          fromMe: true,
+          body: scenario.finalText,
+          ack: 1,
+          ackName: "SERVER",
+          source: "api",
+        },
+      ],
+    ]) {
+      await assert.rejects(
+        reconcileCanonicalWhatsAppSendAttempt(
+          requestContext(),
+          {
+            conversationId: scenario.conversationId,
+            attemptId: scenario.attempt.attemptId,
+          },
+          async () => providerMessage,
+        ),
+        repositoryError("unavailable"),
+        `${label} mismatch must fail closed`,
+      );
+      await assertStillUnknown(scenario);
+    }
+
+    const rejected = await createAttempt("rejected");
+    let rejectedReads = 0;
+    await assert.rejects(
+      reconcileCanonicalWhatsAppSendAttempt(
+        requestContext(),
+        {
+          conversationId: rejected.conversationId,
+          attemptId: rejected.attempt.attemptId,
+        },
+        async () => {
+          rejectedReads += 1;
+          throw new Error("rejected attempt must fail before provider read");
+        },
+      ),
+      repositoryError("conflict"),
+    );
+    assert.equal(rejectedReads, 0);
+    assert.deepEqual(
+      await readLatestCanonicalWhatsAppSendAttempt({
+        actorRole: "admin",
+        conversationId: rejected.conversationId,
+      }),
+      rejected.attempt,
+    );
+
+    const recoveryContext = requestContext();
+    const providerMessageId = `provider-recovered-${runId}`;
+    let recoveryReads = 0;
+    const recovered = await reconcileCanonicalWhatsAppSendAttempt(
+      recoveryContext,
+      {
+        conversationId: scenario.conversationId,
+        attemptId: scenario.attempt.attemptId,
+      },
+      async (request) => {
+        recoveryReads += 1;
+        assert.deepEqual(request, {
+          attemptId: scenario.attempt.attemptId,
+          sessionName: "technical-recovery-session",
+          recipientChatId: scenario.recipient,
+          providerMessageId: null,
+          expectedText: scenario.finalText,
+          windowStartedAt: scenario.attempt.createdAt,
+          windowEndedAt: scenario.attempt.settledAt,
+        });
+        return {
+          providerMessageId,
+          providerOccurredAt: new Date(
+            Math.floor(Date.parse(scenario.attempt.createdAt) / 1_000) * 1_000,
+          ).toISOString(),
+          recipientChatId: scenario.recipient,
+          fromMe: true,
+          body: scenario.finalText,
+          ack: 3,
+          ackName: "READ",
+          source: "api",
+        };
+      },
+    );
+    assert.equal(recoveryReads, 1);
+    assert.equal(recovered.attemptId, scenario.attempt.attemptId);
+    assert.equal(recovered.status, "accepted");
+    assert.ok(recovered.messageId);
+    assert.equal(recovered.providerMessageId, providerMessageId);
+    assert.equal(recovered.ack, 3);
+    assert.equal(recovered.ackName, "READ");
+    assert.equal(recovered.failureCode, null);
+    assert.equal(recovered.settledAt, scenario.attempt.settledAt);
+    assert.ok(recovered.lastReconciledAt);
+
+    const replay = await reconcileCanonicalWhatsAppSendAttempt(
+      recoveryContext,
+      {
+        conversationId: scenario.conversationId,
+        attemptId: scenario.attempt.attemptId,
+      },
+      async () => {
+        recoveryReads += 1;
+        throw new Error("exact recovery replay must not read the provider");
+      },
+    );
+    assert.deepEqual(replay, recovered);
+    assert.equal(recoveryReads, 1);
+
+    const [durable] = await sql`
+      select
+        attempt.status,
+        attempt.failure_code,
+        message.external_message_id,
+        message.body,
+        event.transition,
+        receipt.status as receipt_status
+      from evo_whatsapp_send_attempts as attempt
+      inner join evo_messages as message on message.id = attempt.message_id
+      inner join evo_business_events as event
+        on event.business_object_type = 'whatsapp_send_attempt'
+        and event.business_object_id = attempt.id
+        and event.transition = 'whatsapp_send.recovered'
+      inner join evo_command_receipts as receipt
+        on receipt.business_object_type = 'whatsapp_send_attempt'
+        and receipt.business_object_id = attempt.id
+        and receipt.command_name = 'canonical_whatsapp.reconcile'
+      where attempt.id = ${scenario.attempt.attemptId}
+    `;
+    assert.deepEqual(durable, {
+      status: "accepted",
+      failure_code: null,
+      external_message_id: providerMessageId,
+      body: scenario.finalText,
+      transition: "whatsapp_send.recovered",
+      receipt_status: "succeeded",
+    });
+    const [{ message_count: messageCount }] = await sql`
+      select count(*)::int as message_count
+      from evo_messages
+      where conversation_id = ${scenario.conversationId}
+        and direction = 'outbound'
+        and external_message_id = ${providerMessageId}
+    `;
+    assert.equal(messageCount, 1);
+
+    const endBoundary = await createAttempt();
+    const endBoundaryResult = await reconcileCanonicalWhatsAppSendAttempt(
+      requestContext(),
+      {
+        conversationId: endBoundary.conversationId,
+        attemptId: endBoundary.attempt.attemptId,
+      },
+      async (request) => {
+        assert.equal(request.windowStartedAt, endBoundary.attempt.createdAt);
+        assert.equal(request.windowEndedAt, endBoundary.attempt.settledAt);
+        return {
+          providerMessageId: `provider-window-end-${runId}`,
+          providerOccurredAt: new Date(
+            Math.ceil(Date.parse(endBoundary.attempt.settledAt) / 1_000) *
+              1_000,
+          ).toISOString(),
+          recipientChatId: endBoundary.recipient,
+          fromMe: true,
+          body: endBoundary.finalText,
+          ack: 1,
+          ackName: "SERVER",
+          source: "api",
+        };
+      },
+    );
+    assert.equal(endBoundaryResult.status, "accepted");
+
+    const reused = await createAttempt();
+    let reusedReads = 0;
+    await assert.rejects(
+      reconcileCanonicalWhatsAppSendAttempt(
+        recoveryContext,
+        {
+          conversationId: reused.conversationId,
+          attemptId: reused.attempt.attemptId,
+        },
+        async () => {
+          reusedReads += 1;
+          throw new Error("changed recovery reuse must not read the provider");
+        },
+      ),
+      repositoryError("idempotency_conflict"),
+    );
+    assert.equal(reusedReads, 0);
+    await assertStillUnknown(reused);
+
+    const duplicate = await createAttempt();
+    await assert.rejects(
+      reconcileCanonicalWhatsAppSendAttempt(
+        requestContext(),
+        {
+          conversationId: duplicate.conversationId,
+          attemptId: duplicate.attempt.attemptId,
+        },
+        async () => ({
+          providerMessageId,
+          providerOccurredAt: occurredInside(duplicate.attempt),
+          recipientChatId: duplicate.recipient,
+          fromMe: true,
+          body: duplicate.finalText,
+          ack: 3,
+          ackName: "READ",
+          source: "api",
+        }),
+      ),
+      repositoryError("unavailable"),
+    );
+    await assertStillUnknown(duplicate);
+    const [{ duplicate_count: duplicateCount }] = await sql`
+      select count(*)::int as duplicate_count
+      from evo_messages
+      where conversation_id = ${duplicate.conversationId}
+        and direction = 'outbound'
+    `;
+    assert.equal(duplicateCount, 0);
+  } finally {
+    await closeDatabaseConnections();
+    await sql.end({ timeout: 5 });
+  }
+});
+
 test("parallel exact replay serializes to one WhatsApp dispatch on PostgreSQL", async () => {
   const databaseUrl = requiredDatabaseUrl();
   const sql = postgres(databaseUrl, { idle_timeout: 5, max: 4, onnotice: () => undefined });

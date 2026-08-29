@@ -28,6 +28,10 @@ const wahaAcceptanceResultFile =
   process.env.EVO_V2_WAHA_ACCEPTANCE_RESULT_FILE ?? "";
 const outboundRecipient = inboundPhone.replace(/^\+/u, "") + "@c.us";
 const outboundText = "V2 isolated browser send proof 465";
+const recoveryInboundPhone = "+15550004999";
+const recoveryInboundConversationId = "15550004999@c.us";
+const recoveryRecipient = "15550004999@c.us";
+const recoveryText = "V2 isolated unknown recovery proof 465";
 
 function requireUuid(name: string): string {
   const value = process.env[name];
@@ -108,6 +112,7 @@ async function canonicalWhatsAppOutboundProof(conversationId: string) {
         attempt.final_text,
         attempt.actor_role,
         attempt.provider_message_id,
+        attempt.failure_code,
         attempt.ack,
         attempt.ack_name,
         message.direction,
@@ -125,7 +130,7 @@ async function canonicalWhatsAppOutboundProof(conversationId: string) {
             and counted_message.direction = 'outbound'
         ) as outbound_count
       from evo_whatsapp_send_attempts as attempt
-      inner join evo_messages as message on message.id = attempt.message_id
+      left join evo_messages as message on message.id = attempt.message_id
       where attempt.conversation_id = ${conversationId}
       order by attempt.created_at desc, attempt.id desc
       limit 1
@@ -693,13 +698,107 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     await readFile(wahaAcceptanceResultFile, "utf8"),
   ) as {
     sendCount: number;
-    request: Record<string, unknown>;
+    listReadCount: number;
+    exactReadCount: number;
+    requests: Record<string, unknown>[];
   };
   assert.equal(providerProof.sendCount, 1, "the UI must POST to WAHA exactly once");
-  assert.deepEqual(providerProof.request, {
+  assert.equal(providerProof.listReadCount, 0);
+  assert.equal(providerProof.exactReadCount, 1);
+  assert.deepEqual(providerProof.requests, [{
     session: expectedWahaSessionName,
     chatId: outboundRecipient,
     text: outboundText,
+  }]);
+
+  const recoverySeed = await postAcceptedInbound(request, {
+    event: "message.received",
+    senderPhone: recoveryInboundPhone,
+    externalConversationId: recoveryInboundConversationId,
+    externalMessageId: "v2-browser-recovery-message-465",
+    text: "V2 inbound seed for unknown-send recovery proof 465",
+    occurredAt: new Date().toISOString(),
+  });
+  await page.goto(`/whatsapp/${recoverySeed.conversationId}`);
+  await expect(page.getByTestId("canonical-whatsapp-outbound-recipient")).toContainText(
+    recoveryRecipient,
+  );
+  await page.getByTestId("canonical-whatsapp-outbound-text").fill(recoveryText);
+  await page.getByTestId("canonical-whatsapp-outbound-confirm").check();
+  await page.getByTestId("canonical-whatsapp-outbound-send").click();
+
+  const unknownState = page.getByTestId("canonical-whatsapp-outbound-state");
+  await expect(unknownState).toHaveAttribute("data-status", "unknown");
+  await expect(unknownState).toHaveAttribute(
+    "data-reason",
+    "provider_malformed_response",
+  );
+  await expect(page.getByTestId("canonical-whatsapp-latest-attempt")).toContainText(
+    /unknown/i,
+  );
+  await expect(page.getByTestId("canonical-whatsapp-outbound-send")).toBeDisabled();
+  const recoveryButton = page.getByTestId(
+    "canonical-whatsapp-outbound-reconcile",
+  );
+  await expect(recoveryButton).toContainText(/найти уже отправленное/i);
+
+  const unknownProof = await canonicalWhatsAppOutboundProof(
+    recoverySeed.conversationId,
+  );
+  assert.ok(unknownProof, "the ambiguous POST outcome must persist one attempt");
+  assert.equal(unknownProof.status, "unknown");
+  assert.equal(unknownProof.failure_code, "provider_malformed_response");
+  assert.equal(unknownProof.provider_message_id, null);
+  assert.equal(unknownProof.direction, null);
+  assert.equal(Number(unknownProof.attempt_count), 1);
+  assert.equal(Number(unknownProof.outbound_count), 0);
+
+  await recoveryButton.click();
+  await expect(page.getByTestId("canonical-whatsapp-reconcile-state")).toHaveAttribute(
+    "data-status",
+    "reconciled",
+  );
+  await expect(page.getByTestId("canonical-whatsapp-latest-attempt")).toContainText(
+    /accepted/i,
+  );
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
+    recoveryText,
+  );
+
+  const recoveredProof = await canonicalWhatsAppOutboundProof(
+    recoverySeed.conversationId,
+  );
+  assert.ok(recoveredProof, "GET-only recovery must settle the existing attempt");
+  assert.equal(recoveredProof.status, "accepted");
+  assert.equal(recoveredProof.failure_code, null);
+  assert.equal(
+    recoveredProof.provider_message_id,
+    "technical-provider-recovered-message-465",
+  );
+  assert.equal(recoveredProof.direction, "outbound");
+  assert.equal(recoveredProof.body, recoveryText);
+  assert.equal(Number(recoveredProof.attempt_count), 1);
+  assert.equal(Number(recoveredProof.outbound_count), 1);
+
+  const recoveredProviderProof = JSON.parse(
+    await readFile(wahaAcceptanceResultFile, "utf8"),
+  ) as {
+    sendCount: number;
+    listReadCount: number;
+    exactReadCount: number;
+    requests: Record<string, unknown>[];
+  };
+  assert.equal(
+    recoveredProviderProof.sendCount,
+    2,
+    "recovery must not POST a third provider operation",
+  );
+  assert.equal(recoveredProviderProof.listReadCount, 1);
+  assert.equal(recoveredProviderProof.exactReadCount, 1);
+  assert.deepEqual(recoveredProviderProof.requests[1], {
+    session: expectedWahaSessionName,
+    chatId: recoveryRecipient,
+    text: recoveryText,
   });
 
   const queueConversationIds = new Set<string>();

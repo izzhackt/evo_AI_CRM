@@ -5,6 +5,7 @@ import {
   CANONICAL_WAHA_PROVIDER_TIMEOUT_MS,
   CanonicalWahaProviderConfigurationError,
   CanonicalWahaProviderError,
+  findUniqueCanonicalWahaMessage,
   getCanonicalWahaMessage,
   loadCanonicalWahaProviderConfig,
   probeCanonicalWahaSession,
@@ -139,6 +140,8 @@ test("WAHA provider accepts only private/internal origins and bounded server sec
 test("WAHA provider probes the exact configured session and requires WORKING", async () => {
   const requests = [];
   const timeoutSignals = [];
+  const phoneRecipientId = "971500000000@c.us";
+  const lidRecipientId = "100000000000000@lid";
 
   const result = await probeCanonicalWahaSession(configuredEnvironment(), {
     createTimeoutSignal(timeoutMs) {
@@ -148,7 +151,11 @@ test("WAHA provider probes the exact configured session and requires WORKING", a
     fetch: async (input, init) => {
       requests.push({ input: String(input), init });
       return new Response(
-        JSON.stringify({ name: "evo-inbox", status: "WORKING" }),
+        JSON.stringify({
+          name: "evo-inbox",
+          status: "WORKING",
+          me: { id: phoneRecipientId, lid: lidRecipientId },
+        }),
         { status: 200 },
       );
     },
@@ -157,7 +164,10 @@ test("WAHA provider probes the exact configured session and requires WORKING", a
   assert.deepEqual(result, {
     status: "working",
     sessionName: "evo-inbox",
+    selfRecipientIds: [phoneRecipientId, lidRecipientId],
   });
+  assert.equal(Object.isFrozen(result), true);
+  assert.equal(Object.isFrozen(result.selfRecipientIds), true);
   assert.equal(requests.length, 1);
   assert.equal(
     requests[0].input,
@@ -169,6 +179,219 @@ test("WAHA provider probes the exact configured session and requires WORKING", a
   assert.equal(requests[0].init.headers["X-Api-Key"], WAHA_API_KEY);
   assert.deepEqual(timeoutSignals, [CANONICAL_WAHA_PROVIDER_TIMEOUT_MS]);
   assert.equal(JSON.stringify(result).includes(WAHA_API_KEY), false);
+});
+
+test("WAHA session proof permits a direct me.id when me.lid is absent", async () => {
+  const result = await probeCanonicalWahaSession(configuredEnvironment(), {
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          name: "evo-inbox",
+          status: "WORKING",
+          me: { id: "971500000000@c.us" },
+        }),
+        { status: 200 },
+      ),
+  });
+
+  assert.deepEqual(result.selfRecipientIds, ["971500000000@c.us"]);
+  assert.equal(Object.isFrozen(result.selfRecipientIds), true);
+});
+
+test("WAHA send accepts a self alias only through the exact probed session proof", async () => {
+  const phoneRecipientId = "971500000000@c.us";
+  const lidRecipientId = "100000000000000@lid";
+  const text = "Technical self verification";
+  const sessionProof = await probeCanonicalWahaSession(configuredEnvironment(), {
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          name: "evo-inbox",
+          status: "WORKING",
+          me: { id: phoneRecipientId, lid: lidRecipientId },
+        }),
+        { status: 200 },
+      ),
+  });
+
+  const result = await sendCanonicalWahaText(
+    { recipientId: phoneRecipientId, text, sessionProof },
+    configuredEnvironment(),
+    {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            id: "true_100000000000000@lid_ALIAS",
+            timestamp: 1787994000,
+            from: phoneRecipientId,
+            to: lidRecipientId,
+            fromMe: true,
+            source: "api",
+            body: text,
+            ack: 1,
+            ackName: "SERVER",
+          }),
+          { status: 201 },
+        ),
+    },
+  );
+
+  assert.equal(result.recipientId, phoneRecipientId);
+});
+
+test("a genuine session proof permits an exact customer recipient without granting a self alias", async () => {
+  const phoneRecipientId = "971500000000@c.us";
+  const lidRecipientId = "100000000000000@lid";
+  const customerRecipientId = "971501234567@c.us";
+  const text = "Reviewed customer message";
+  const sessionProof = await probeCanonicalWahaSession(configuredEnvironment(), {
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          name: "evo-inbox",
+          status: "WORKING",
+          me: { id: phoneRecipientId, lid: lidRecipientId },
+        }),
+        { status: 200 },
+      ),
+  });
+
+  const exact = await sendCanonicalWahaText(
+    { recipientId: customerRecipientId, text, sessionProof },
+    configuredEnvironment(),
+    {
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            id: "true_971501234567@c.us_CUSTOMER",
+            timestamp: 1787994000,
+            from: phoneRecipientId,
+            to: customerRecipientId,
+            fromMe: true,
+            source: "api",
+            body: text,
+            ack: 1,
+            ackName: "SERVER",
+          }),
+          { status: 201 },
+        ),
+    },
+  );
+  assert.equal(exact.recipientId, customerRecipientId);
+
+  await assert.rejects(
+    () =>
+      sendCanonicalWahaText(
+        { recipientId: customerRecipientId, text, sessionProof },
+        configuredEnvironment(),
+        {
+          fetch: async () =>
+            new Response(
+              JSON.stringify({
+                id: "true_100000000000000@lid_WRONG_ALIAS",
+                timestamp: 1787994000,
+                from: phoneRecipientId,
+                to: lidRecipientId,
+                fromMe: true,
+                source: "api",
+                body: text,
+                ack: 1,
+                ackName: "SERVER",
+              }),
+              { status: 201 },
+            ),
+        },
+      ),
+    (error) =>
+      error instanceof CanonicalWahaProviderError &&
+      error.code === "provider_malformed_response" &&
+      error.disposition === "unknown",
+  );
+});
+
+test("WAHA session identity and supplied proofs fail closed when malformed, duplicate, or unrelated", async () => {
+  const phoneRecipientId = "971500000000@c.us";
+  const malformedSessions = [
+    { name: "evo-inbox", status: "WORKING" },
+    { name: "evo-inbox", status: "WORKING", me: {} },
+    {
+      name: "evo-inbox",
+      status: "WORKING",
+      me: { id: "120363123456@g.us" },
+    },
+    {
+      name: "evo-inbox",
+      status: "WORKING",
+      me: { id: phoneRecipientId, lid: "not-a-direct-id" },
+    },
+    {
+      name: "evo-inbox",
+      status: "WORKING",
+      me: { id: phoneRecipientId, lid: phoneRecipientId },
+    },
+  ];
+
+  for (const responseValue of malformedSessions) {
+    await assert.rejects(
+      () =>
+        probeCanonicalWahaSession(configuredEnvironment(), {
+          fetch: async () =>
+            new Response(JSON.stringify(responseValue), { status: 200 }),
+        }),
+      (error) =>
+        error instanceof CanonicalWahaProviderError &&
+        error.code === "provider_malformed_response" &&
+        error.disposition === "unknown",
+    );
+  }
+
+  const invalidProofs = [
+    Object.freeze({
+      status: "working",
+      sessionName: "evo-inbox",
+      selfRecipientIds: Object.freeze([
+        phoneRecipientId,
+        "100000000000000@lid",
+      ]),
+    }),
+    {
+      status: "working",
+      sessionName: "other-session",
+      selfRecipientIds: [phoneRecipientId],
+    },
+    {
+      status: "working",
+      sessionName: "evo-inbox",
+      selfRecipientIds: [phoneRecipientId, phoneRecipientId],
+    },
+    {
+      status: "working",
+      sessionName: "evo-inbox",
+      selfRecipientIds: ["100000000000000@lid"],
+    },
+  ];
+
+  for (const sessionProof of invalidProofs) {
+    let requests = 0;
+    await assert.rejects(
+      () =>
+        sendCanonicalWahaText(
+          { recipientId: phoneRecipientId, text: "Reviewed", sessionProof },
+          configuredEnvironment(),
+          {
+            fetch: async () => {
+              requests += 1;
+              throw new Error("must not fetch");
+            },
+          },
+        ),
+      (error) =>
+        error instanceof CanonicalWahaProviderError &&
+        error.code === "invalid_request" &&
+        error.disposition === "rejected",
+    );
+    assert.equal(requests, 0);
+  }
 });
 
 test("WAHA provider sends exact reviewed text through official sendText and normalizes its ACK", async () => {
@@ -278,6 +501,281 @@ test("WAHA provider reconciles one exact message without downloading media", asy
   assert.equal(requests[0].init.method, "GET");
   assert.equal(requests[0].init.headers.Accept, "application/json");
   assert.equal(requests[0].init.headers["X-Api-Key"], WAHA_API_KEY);
+});
+
+test("WAHA exact-message readback accepts a self alias only through session proof", async () => {
+  const phoneRecipientId = "971500000000@c.us";
+  const lidRecipientId = "100000000000000@lid";
+  const expectedText = "Technical self verification";
+  const providerMessageId = "true_100000000000000@lid_READBACK";
+  const sessionProof = await probeCanonicalWahaSession(configuredEnvironment(), {
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          name: "evo-inbox",
+          status: "WORKING",
+          me: { id: phoneRecipientId, lid: lidRecipientId },
+        }),
+        { status: 200 },
+      ),
+  });
+
+  const responseValue = {
+    id: providerMessageId,
+    timestamp: 1787994050,
+    from: phoneRecipientId,
+    to: lidRecipientId,
+    fromMe: true,
+    body: expectedText,
+    ack: 3,
+    ackName: "READ",
+  };
+  const result = await getCanonicalWahaMessage(
+    {
+      recipientId: phoneRecipientId,
+      providerMessageId,
+      expectedText,
+      sessionProof,
+    },
+    configuredEnvironment(),
+    {
+      fetch: async () =>
+        new Response(JSON.stringify(responseValue), { status: 200 }),
+    },
+  );
+  assert.equal(result.recipientId, phoneRecipientId);
+
+  await assert.rejects(
+    () =>
+      getCanonicalWahaMessage(
+        { recipientId: phoneRecipientId, providerMessageId, expectedText },
+        configuredEnvironment(),
+        {
+          fetch: async () =>
+            new Response(JSON.stringify(responseValue), { status: 200 }),
+        },
+      ),
+    (error) =>
+      error instanceof CanonicalWahaProviderError &&
+      error.code === "provider_malformed_response" &&
+      error.disposition === "unknown",
+  );
+});
+
+test("WAHA provider finds one exact unknown-attempt message in an inclusive bounded window", async () => {
+  const requests = [];
+  const phoneRecipientId = "971500000000@c.us";
+  const lidRecipientId = "100000000000000@lid";
+  const expectedText = "Technical self verification";
+  const sessionProof = await probeCanonicalWahaSession(configuredEnvironment(), {
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          name: "evo-inbox",
+          status: "WORKING",
+          me: { id: phoneRecipientId, lid: lidRecipientId },
+        }),
+        { status: 200 },
+      ),
+  });
+
+  const result = await findUniqueCanonicalWahaMessage(
+    {
+      recipientId: phoneRecipientId,
+      expectedText,
+      windowStartTimestamp: 1787994000,
+      windowEndTimestamp: 1787994060,
+      sessionProof,
+    },
+    configuredEnvironment(),
+    {
+      fetch: async (input, init) => {
+        requests.push({ input: String(input), init });
+        return new Response(
+          JSON.stringify([
+            {
+              id: "true_100000000000000@lid_TOO_EARLY",
+              timestamp: 1787993999.999,
+              from: phoneRecipientId,
+              to: lidRecipientId,
+              fromMe: true,
+              source: "api",
+              body: expectedText,
+              ack: 1,
+              ackName: "SERVER",
+            },
+            {
+              id: "false_100000000000000@lid_INBOUND",
+              timestamp: 1787994030,
+              from: lidRecipientId,
+              to: phoneRecipientId,
+              fromMe: false,
+              body: expectedText,
+              ack: 1,
+              ackName: "SERVER",
+            },
+            {
+              id: "true_100000000000000@lid_EXACT",
+              timestamp: 1787994060,
+              from: phoneRecipientId,
+              to: lidRecipientId,
+              fromMe: true,
+              source: "api",
+              body: expectedText,
+              ack: 2,
+              ackName: "DEVICE",
+            },
+          ]),
+          { status: 200 },
+        );
+      },
+    },
+  );
+
+  assert.deepEqual(result, {
+    id: "true_100000000000000@lid_EXACT",
+    timestamp: 1787994060,
+    recipientId: phoneRecipientId,
+    fromMe: true,
+    source: "api",
+    body: expectedText,
+    ack: 2,
+    ackName: "DEVICE",
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(
+    requests[0].input,
+    "http://evo-inbox-waha:3000/api/evo-inbox/chats/971500000000%40c.us/messages?limit=20&downloadMedia=false",
+  );
+  assert.equal(requests[0].init.method, "GET");
+  assert.equal(requests[0].init.body, undefined);
+});
+
+test("WAHA unknown-attempt finder reports zero and multiple exact matches without sending or retrying", async () => {
+  const recipientId = "971501234567@c.us";
+  const expectedText = "Final reviewed text";
+  const exactMessage = {
+    id: "true_971501234567@c.us_UNKNOWN",
+    timestamp: 1787994030,
+    from: "971500000000@c.us",
+    to: recipientId,
+    fromMe: true,
+    source: "api",
+    body: expectedText,
+    ack: 1,
+    ackName: "SERVER",
+  };
+  const cases = [
+    ["zero", [], "provider_message_not_found"],
+    [
+      "multiple",
+      [exactMessage, { ...exactMessage, id: `${exactMessage.id}_SECOND` }],
+      "provider_message_ambiguous",
+    ],
+  ];
+
+  for (const [label, responseValue, code] of cases) {
+    const requests = [];
+    await assert.rejects(
+      () =>
+        findUniqueCanonicalWahaMessage(
+          {
+            recipientId,
+            expectedText,
+            windowStartTimestamp: 1787994000,
+            windowEndTimestamp: 1787994060,
+          },
+          configuredEnvironment(),
+          {
+            fetch: async (input, init) => {
+              requests.push({ input: String(input), init });
+              return new Response(JSON.stringify(responseValue), { status: 200 });
+            },
+          },
+        ),
+      (error) =>
+        error instanceof CanonicalWahaProviderError &&
+        error.code === code &&
+        error.disposition === "unknown",
+      label,
+    );
+    assert.equal(requests.length, 1, label);
+    assert.equal(requests[0].init.method, "GET", label);
+    assert.equal(requests[0].init.body, undefined, label);
+  }
+});
+
+test("WAHA unknown-attempt finder ignores every non-exact identity, content, source, ACK, and time candidate", async () => {
+  const recipientId = "971501234567@c.us";
+  const expectedText = "Final reviewed text";
+  const exactShape = {
+    id: "true_971501234567@c.us_CANDIDATE",
+    timestamp: 1787994030,
+    from: "971500000000@c.us",
+    to: recipientId,
+    fromMe: true,
+    source: "api",
+    body: expectedText,
+    ack: 1,
+    ackName: "SERVER",
+  };
+  const nearMatches = [
+    { ...exactShape, timestamp: 1787993999.999 },
+    { ...exactShape, timestamp: 1787994060.001 },
+    { ...exactShape, fromMe: false },
+    { ...exactShape, to: "971501234568@c.us" },
+    { ...exactShape, body: "Different text" },
+    { ...exactShape, source: "app" },
+    { ...exactShape, ackName: "READ" },
+  ];
+
+  await assert.rejects(
+    () =>
+      findUniqueCanonicalWahaMessage(
+        {
+          recipientId,
+          expectedText,
+          windowStartTimestamp: 1787994000,
+          windowEndTimestamp: 1787994060,
+        },
+        configuredEnvironment(),
+        {
+          fetch: async () =>
+            new Response(JSON.stringify(nearMatches), { status: 200 }),
+        },
+      ),
+    (error) =>
+      error instanceof CanonicalWahaProviderError &&
+      error.code === "provider_message_not_found" &&
+      error.disposition === "unknown",
+  );
+});
+
+test("WAHA unknown-attempt finder rejects an unbounded window before provider access", async () => {
+  let requests = 0;
+  await assert.rejects(
+    () =>
+      findUniqueCanonicalWahaMessage(
+        {
+          recipientId: "971501234567@c.us",
+          expectedText: "Final reviewed text",
+          windowStartTimestamp: 1787994000,
+          windowEndTimestamp: 1787994901,
+        },
+        configuredEnvironment(),
+        {
+          fetch: async () => {
+            requests += 1;
+            throw new Error("must not fetch");
+          },
+        },
+      ),
+    (error) =>
+      error instanceof CanonicalWahaProviderError &&
+      error.code === "invalid_request" &&
+      error.disposition === "rejected",
+  );
+  assert.equal(requests, 0);
 });
 
 test("WAHA provider accepts only the six documented numeric and named ACK pairs", async () => {
@@ -529,7 +1027,11 @@ test("WAHA session probe distinguishes explicit non-WORKING from ambiguous failu
       "not-working",
       async () =>
         new Response(
-          JSON.stringify({ name: "evo-inbox", status: "STARTING" }),
+          JSON.stringify({
+            name: "evo-inbox",
+            status: "STARTING",
+            me: { id: "971500000000@c.us" },
+          }),
           { status: 200 },
         ),
       "session_not_working",
@@ -539,7 +1041,11 @@ test("WAHA session probe distinguishes explicit non-WORKING from ambiguous failu
       "wrong-session",
       async () =>
         new Response(
-          JSON.stringify({ name: "other-session", status: "WORKING" }),
+          JSON.stringify({
+            name: "other-session",
+            status: "WORKING",
+            me: { id: "971500000000@c.us" },
+          }),
           { status: 200 },
         ),
       "provider_malformed_response",

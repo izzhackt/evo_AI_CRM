@@ -217,6 +217,7 @@ type ProviderReadback = Readonly<{
 async function readProviderMessage(
   providerMessageId: string,
   selfId: string,
+  selfRecipientIds: ReadonlySet<string>,
 ): Promise<ProviderReadback> {
   const baseUrl = requireEnv("EVO_V2_CONNECTED_WAHA_BASE_URL");
   const apiKey = requireEnv("EVO_V2_CONNECTED_WAHA_API_KEY");
@@ -264,8 +265,8 @@ async function readProviderMessage(
       "Provider readback message identity changed",
     );
     ensure(
-      record.to === selfId,
-      "Provider readback recipient was not the connected session self",
+      typeof record.to === "string" && selfRecipientIds.has(record.to),
+      "Provider readback recipient was not one of the exact connected-session self identities",
     );
     ensure(
       record.fromMe === true,
@@ -336,6 +337,14 @@ test("one explicit browser action sends the reviewed text to the connected WAHA 
   ensure(
     DIRECT_RECIPIENT.test(selfId),
     "Connected WAHA self identity is not a direct chat address",
+  );
+  const selfLid = process.env.EVO_V2_CONNECTED_WAHA_SELF_LID ?? "";
+  ensure(
+    selfLid === "" || (DIRECT_RECIPIENT.test(selfLid) && selfLid !== selfId),
+    "The optional connected WAHA self LID is invalid",
+  );
+  const selfRecipientIds = new Set(
+    selfLid === "" ? [selfId] : [selfId, selfLid],
   );
   const sessionName = requireEnv("EVO_V2_CONNECTED_WAHA_SESSION_NAME");
   const { conversationId } = await seedDisposableConversation(
@@ -441,6 +450,7 @@ test("one explicit browser action sends the reviewed text to the connected WAHA 
   const readback = await readProviderMessage(
     initialProof.providerMessageId,
     selfId,
+    selfRecipientIds,
   );
   ensure(
     readback.id === initialProof.providerMessageId,

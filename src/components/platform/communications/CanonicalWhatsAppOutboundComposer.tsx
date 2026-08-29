@@ -40,6 +40,7 @@ const COPY = {
     status: "Статус",
     ack: "Доставка",
     reconcile: "Обновить доставку из WAHA",
+    recover: "Найти уже отправленное в WAHA",
     reconciling: "Проверяем точное сообщение…",
     reconciled: "Статус доставки обновлён без повторной отправки.",
     noAttempt: "Отправок из V2 по этому диалогу ещё нет.",
@@ -67,6 +68,7 @@ const COPY = {
     status: "Статус",
     ack: "Жеткирүү",
     reconcile: "WAHA'дан жеткирүүнү жаңыртуу",
+    recover: "WAHA'дан жөнөтүлгөн билдирүүнү табуу",
     reconciling: "Так билдирүүнү текшерип жатабыз…",
     reconciled: "Жеткирүү абалы кайра жөнөтүүсүз жаңырды.",
     noAttempt: "Бул диалог үчүн V2 жөнөтүүсү азырынча жок.",
@@ -94,6 +96,7 @@ const COPY = {
     status: "Status",
     ack: "Delivery",
     reconcile: "Refresh delivery from WAHA",
+    recover: "Find the already-sent WAHA message",
     reconciling: "Reading the exact message…",
     reconciled: "Delivery was refreshed without sending again.",
     noAttempt: "V2 has not sent from this conversation yet.",
@@ -165,6 +168,10 @@ export function CanonicalWhatsAppOutboundComposer({
   const configured = availability.status === "configured";
   const unresolvedAttempt =
     latestAttempt?.status === "prepared" || latestAttempt?.status === "unknown";
+  const canReconcileAttempt =
+    latestAttempt?.status === "unknown" ||
+    (latestAttempt?.status === "accepted" &&
+      latestAttempt.providerMessageId !== null);
 
   useEffect(() => {
     if (
@@ -310,7 +317,7 @@ export function CanonicalWhatsAppOutboundComposer({
               {copy.status}: <strong>{latestAttempt.status}</strong>
               {latestAttempt.ackName ? ` · ${copy.ack}: ${latestAttempt.ackName}` : ""}
             </p>
-            {latestAttempt.status === "accepted" && latestAttempt.providerMessageId ? (
+            {canReconcileAttempt ? (
               <form action={reconcileAction}>
                 <input type="hidden" name="conversation_id" value={conversationId} />
                 <input type="hidden" name="attempt_id" value={latestAttempt.attemptId} />
@@ -325,7 +332,11 @@ export function CanonicalWhatsAppOutboundComposer({
                   disabled={!configured || reconciling}
                   data-testid="canonical-whatsapp-outbound-reconcile"
                 >
-                  {reconciling ? copy.reconciling : copy.reconcile}
+                  {reconciling
+                    ? copy.reconciling
+                    : latestAttempt.status === "unknown"
+                      ? copy.recover
+                      : copy.reconcile}
                 </button>
               </form>
             ) : null}

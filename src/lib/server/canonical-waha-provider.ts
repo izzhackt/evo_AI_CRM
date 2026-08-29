@@ -8,7 +8,10 @@ const MAX_API_KEY_BYTES = 4_096;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_MESSAGE_ID_BYTES = 1_024;
 const MAX_TEXT_BYTES = 64 * 1024;
+const MAX_UNKNOWN_ATTEMPT_WINDOW_SECONDS = 15 * 60;
+const UNKNOWN_ATTEMPT_MESSAGE_LIMIT = 20;
 const DIRECT_RECIPIENT_PATTERN = /^[1-9]\d{4,31}@(c\.us|lid)$/u;
+const CANONICAL_WAHA_SESSION_PROOFS = new WeakSet<object>();
 
 export const CANONICAL_WAHA_PROVIDER_TIMEOUT_MS = 10_000;
 
@@ -70,6 +73,20 @@ export type CanonicalWahaMessage = Readonly<{
   ackName: CanonicalWahaAckName;
 }>;
 
+export type CanonicalWahaSessionProof = Readonly<{
+  status: "working";
+  sessionName: string;
+  selfRecipientIds: readonly [string, ...string[]];
+}>;
+
+export type CanonicalWahaUnknownAttemptLookup = Readonly<{
+  recipientId: string;
+  expectedText: string;
+  windowStartTimestamp: number;
+  windowEndTimestamp: number;
+  sessionProof?: CanonicalWahaSessionProof;
+}>;
+
 export type CanonicalWahaProviderErrorDisposition = "rejected" | "unknown";
 
 export type CanonicalWahaProviderErrorCode =
@@ -86,6 +103,8 @@ export type CanonicalWahaProviderErrorCode =
   | "provider_network_failure"
   | "provider_unavailable"
   | "provider_malformed_response"
+  | "provider_message_not_found"
+  | "provider_message_ambiguous"
   | "session_not_working"
   | "message_rejected";
 
@@ -316,6 +335,46 @@ function directRecipient(value: unknown): value is string {
   return typeof value === "string" && DIRECT_RECIPIENT_PATTERN.test(value);
 }
 
+function isCanonicalSessionProof(
+  value: unknown,
+  sessionName: string,
+): value is CanonicalWahaSessionProof {
+  if (
+    !isRecord(value) ||
+    !CANONICAL_WAHA_SESSION_PROOFS.has(value) ||
+    value.status !== "working" ||
+    value.sessionName !== sessionName ||
+    !Array.isArray(value.selfRecipientIds) ||
+    value.selfRecipientIds.length < 1 ||
+    value.selfRecipientIds.length > 2 ||
+    value.selfRecipientIds.some((candidate) => !directRecipient(candidate)) ||
+    new Set(value.selfRecipientIds).size !== value.selfRecipientIds.length
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isSessionProofForRecipient(
+  value: unknown,
+  sessionName: string,
+  recipientId: string,
+): value is CanonicalWahaSessionProof {
+  return (
+    isCanonicalSessionProof(value, sessionName) &&
+    value.selfRecipientIds.includes(recipientId)
+  );
+}
+
+function requireOptionalSessionProof(
+  value: CanonicalWahaSessionProof | undefined,
+  sessionName: string,
+): void {
+  if (value !== undefined && !isCanonicalSessionProof(value, sessionName)) {
+    throw new CanonicalWahaProviderError("invalid_request", "rejected");
+  }
+}
+
 function validatedRequestText(value: unknown): value is string {
   return (
     typeof value === "string" &&
@@ -331,6 +390,8 @@ function normalizeMessage(
     recipientId: string;
     text: string;
     providerMessageId?: string;
+    sessionName: string;
+    sessionProof?: CanonicalWahaSessionProof;
   }>,
 ): CanonicalWahaMessage {
   if (
@@ -342,7 +403,17 @@ function normalizeMessage(
     !Number.isFinite(value.timestamp) ||
     value.timestamp <= 0 ||
     !directRecipient(value.from) ||
-    value.to !== expected.recipientId ||
+    !directRecipient(value.to) ||
+    !(
+      value.to === expected.recipientId ||
+      (expected.sessionProof !== undefined &&
+        isSessionProofForRecipient(
+          expected.sessionProof,
+          expected.sessionName,
+          expected.recipientId,
+        ) &&
+        expected.sessionProof.selfRecipientIds.includes(value.to))
+    ) ||
     value.fromMe !== true ||
     (value.source !== undefined && value.source !== "api") ||
     value.body !== expected.text ||
@@ -483,7 +554,7 @@ async function providerJson(response: Response): Promise<unknown> {
 export async function probeCanonicalWahaSession(
   environment: Readonly<Record<string, string | undefined>> = process.env,
   dependencies: CanonicalWahaProviderDependencies = {},
-): Promise<Readonly<{ status: "working"; sessionName: string }>> {
+): Promise<CanonicalWahaSessionProof> {
   const config = requireReadyConfig(environment);
   const fetchImpl = dependencies.fetch ?? fetch;
   const createTimeoutSignal =
@@ -509,7 +580,11 @@ export async function probeCanonicalWahaSession(
   if (
     !isRecord(value) ||
     value.name !== config.sessionName ||
-    typeof value.status !== "string"
+    typeof value.status !== "string" ||
+    !isRecord(value.me) ||
+    !directRecipient(value.me.id) ||
+    (value.me.lid !== undefined && !directRecipient(value.me.lid)) ||
+    value.me.lid === value.me.id
   ) {
     throw new CanonicalWahaProviderError(
       "provider_malformed_response",
@@ -519,7 +594,16 @@ export async function probeCanonicalWahaSession(
   if (value.status !== "WORKING") {
     throw new CanonicalWahaProviderError("session_not_working", "rejected");
   }
-  return Object.freeze({ status: "working", sessionName: config.sessionName });
+  const selfRecipientIds = Object.freeze(
+    value.me.lid === undefined ? [value.me.id] : [value.me.id, value.me.lid],
+  ) as readonly [string, ...string[]];
+  const proof = Object.freeze({
+    status: "working",
+    sessionName: config.sessionName,
+    selfRecipientIds,
+  });
+  CANONICAL_WAHA_SESSION_PROOFS.add(proof);
+  return proof;
 }
 
 export async function sendCanonicalWahaText(
@@ -527,6 +611,7 @@ export async function sendCanonicalWahaText(
     recipientId: string;
     text: string;
     replyTo?: string;
+    sessionProof?: CanonicalWahaSessionProof;
   }>,
   environment: Readonly<Record<string, string | undefined>> = process.env,
   dependencies: CanonicalWahaProviderDependencies = {},
@@ -541,6 +626,10 @@ export async function sendCanonicalWahaText(
   }
 
   const config = requireReadyConfig(environment);
+  requireOptionalSessionProof(
+    input.sessionProof,
+    config.sessionName,
+  );
   const fetchImpl = dependencies.fetch ?? fetch;
   const createTimeoutSignal =
     dependencies.createTimeoutSignal ??
@@ -568,6 +657,8 @@ export async function sendCanonicalWahaText(
   return normalizeMessage(await providerJson(response), {
     recipientId: input.recipientId,
     text: input.text,
+    sessionName: config.sessionName,
+    sessionProof: input.sessionProof,
   });
 }
 
@@ -576,6 +667,7 @@ export async function getCanonicalWahaMessage(
     recipientId: string;
     providerMessageId: string;
     expectedText: string;
+    sessionProof?: CanonicalWahaSessionProof;
   }>,
   environment: Readonly<Record<string, string | undefined>> = process.env,
   dependencies: CanonicalWahaProviderDependencies = {},
@@ -589,6 +681,10 @@ export async function getCanonicalWahaMessage(
   }
 
   const config = requireReadyConfig(environment);
+  requireOptionalSessionProof(
+    input.sessionProof,
+    config.sessionName,
+  );
   const fetchImpl = dependencies.fetch ?? fetch;
   const createTimeoutSignal =
     dependencies.createTimeoutSignal ??
@@ -614,5 +710,103 @@ export async function getCanonicalWahaMessage(
     recipientId: input.recipientId,
     text: input.expectedText,
     providerMessageId: input.providerMessageId,
+    sessionName: config.sessionName,
+    sessionProof: input.sessionProof,
   });
+}
+
+export async function findUniqueCanonicalWahaMessage(
+  input: CanonicalWahaUnknownAttemptLookup,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  dependencies: CanonicalWahaProviderDependencies = {},
+): Promise<CanonicalWahaMessage> {
+  if (
+    !directRecipient(input.recipientId) ||
+    !validatedRequestText(input.expectedText) ||
+    !Number.isFinite(input.windowStartTimestamp) ||
+    input.windowStartTimestamp <= 0 ||
+    !Number.isFinite(input.windowEndTimestamp) ||
+    input.windowEndTimestamp < input.windowStartTimestamp ||
+    input.windowEndTimestamp - input.windowStartTimestamp >
+      MAX_UNKNOWN_ATTEMPT_WINDOW_SECONDS
+  ) {
+    throw new CanonicalWahaProviderError("invalid_request", "rejected");
+  }
+
+  const config = requireReadyConfig(environment);
+  requireOptionalSessionProof(
+    input.sessionProof,
+    config.sessionName,
+  );
+  const fetchImpl = dependencies.fetch ?? fetch;
+  const createTimeoutSignal =
+    dependencies.createTimeoutSignal ??
+    ((timeoutMs: number) => AbortSignal.timeout(timeoutMs));
+  const requestUrl =
+    `${config.baseUrl}/api/${encodeURIComponent(config.sessionName)}` +
+    `/chats/${encodeURIComponent(input.recipientId)}/messages` +
+    `?limit=${UNKNOWN_ATTEMPT_MESSAGE_LIMIT}&downloadMedia=false`;
+  const response = await providerFetch(fetchImpl, requestUrl, {
+    method: "GET",
+    headers: Object.freeze({
+      Accept: "application/json",
+      "X-Api-Key": config.apiKey,
+    }),
+    redirect: "error",
+    signal: createTimeoutSignal(config.timeoutMs),
+  });
+  if (!response.ok) {
+    throw responseError(response.status);
+  }
+  const value = await providerJson(response);
+  if (!Array.isArray(value) || value.length > UNKNOWN_ATTEMPT_MESSAGE_LIMIT) {
+    throw new CanonicalWahaProviderError(
+      "provider_malformed_response",
+      "unknown",
+    );
+  }
+
+  const matches: CanonicalWahaMessage[] = [];
+  for (const candidate of value) {
+    if (
+      !isRecord(candidate) ||
+      typeof candidate.timestamp !== "number" ||
+      !Number.isFinite(candidate.timestamp) ||
+      candidate.timestamp < input.windowStartTimestamp ||
+      candidate.timestamp > input.windowEndTimestamp
+    ) {
+      continue;
+    }
+    try {
+      matches.push(
+        normalizeMessage(candidate, {
+          recipientId: input.recipientId,
+          text: input.expectedText,
+          sessionName: config.sessionName,
+          sessionProof: input.sessionProof,
+        }),
+      );
+    } catch (error) {
+      if (
+        !(error instanceof CanonicalWahaProviderError) ||
+        error.code !== "provider_malformed_response"
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  if (matches.length === 0) {
+    throw new CanonicalWahaProviderError(
+      "provider_message_not_found",
+      "unknown",
+    );
+  }
+  if (matches.length > 1) {
+    throw new CanonicalWahaProviderError(
+      "provider_message_ambiguous",
+      "unknown",
+    );
+  }
+  return matches[0];
 }

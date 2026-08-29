@@ -26,6 +26,7 @@ compose_args=()
 waha_api_key=""
 waha_session_name=""
 self_id=""
+self_lid=""
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -59,7 +60,7 @@ cleanup() {
   fi
 
   rm -f -- "$provider_bundle_file" "$session_response_file" >/dev/null 2>&1 || true
-  unset waha_api_key self_id
+  unset waha_api_key self_id self_lid
 
   if (( compose_started == 1 )); then
     if (( run_succeeded == 1 )); then
@@ -348,7 +349,7 @@ done
 [[ "$session_status" == "200" ]] \
   || fail "The existing WAHA session was not reachable through the private tunnel"
 chmod 600 "$session_response_file"
-self_id="$(EVO_V2_SESSION_RESPONSE_FILE="$session_response_file" "$node_bin" --input-type=module <<'EOF'
+read -r self_id self_lid <<<"$(EVO_V2_SESSION_RESPONSE_FILE="$session_response_file" "$node_bin" --input-type=module <<'EOF'
 import { readFileSync } from "node:fs";
 
 let value;
@@ -362,16 +363,22 @@ if (
   value.status !== "WORKING" ||
   !value.me ||
   typeof value.me.id !== "string" ||
-  !/^[1-9]\d{4,31}@(c\.us|lid)$/.test(value.me.id)
+  !/^[1-9]\d{4,31}@(c\.us|lid)$/.test(value.me.id) ||
+  (value.me.lid !== undefined &&
+    (typeof value.me.lid !== "string" ||
+      !/^[1-9]\d{4,31}@(c\.us|lid)$/.test(value.me.lid) ||
+      value.me.lid === value.me.id))
 ) {
   process.exit(1);
 }
-process.stdout.write(value.me.id);
+process.stdout.write(`${value.me.id} ${value.me.lid ?? ""}`);
 EOF
-)" || fail "The connected WAHA session is not WORKING with a direct self identifier"
+)" || fail "The connected WAHA session is not WORKING with direct self identifiers"
 rm -f -- "$session_response_file"
 [[ "$self_id" =~ ^[1-9][0-9]{4,31}@(c\.us|lid)$ ]] \
   || fail "The connected WAHA self identifier is not a direct @c.us/@lid address"
+[[ -z "$self_lid" || "$self_lid" =~ ^[1-9][0-9]{4,31}@(c\.us|lid)$ ]] \
+  || fail "The connected WAHA self LID is not a direct @c.us/@lid address"
 
 docker compose "${compose_args[@]}" up --detach postgres >/dev/null
 compose_started=1
@@ -429,6 +436,7 @@ if ! PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   EVO_V2_CONNECTED_WAHA_API_KEY="$waha_api_key" \
   EVO_V2_CONNECTED_WAHA_SESSION_NAME="$waha_session_name" \
   EVO_V2_CONNECTED_WAHA_SELF_ID="$self_id" \
+  EVO_V2_CONNECTED_WAHA_SELF_LID="$self_lid" \
   "$node_bin" node_modules/@playwright/test/cli.js test \
     tests/e2e/canonical-waha-connected-provider.spec.ts \
     --config=playwright.config.ts \

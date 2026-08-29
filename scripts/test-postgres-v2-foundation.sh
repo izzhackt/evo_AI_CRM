@@ -151,8 +151,20 @@ const apiKey = process.env.EVO_TEST_WAHA_API_KEY;
 const session = process.env.EVO_TEST_WAHA_SESSION;
 const resultFile = process.env.EVO_TEST_WAHA_RESULT_FILE;
 const providerAccount = "971500000000@c.us";
+const providerAccountLid = "100000000000000@lid";
 let sendCount = 0;
-let storedMessage = null;
+let listReadCount = 0;
+let exactReadCount = 0;
+const requests = [];
+const storedMessages = [];
+
+function writeResult() {
+  writeFileSync(
+    resultFile,
+    JSON.stringify({ sendCount, listReadCount, exactReadCount, requests }),
+    { mode: 0o600 },
+  );
+}
 
 function json(response, status, body) {
   const encoded = JSON.stringify(body);
@@ -170,7 +182,11 @@ const server = createServer(async (request, response) => {
   }
   const url = new URL(request.url ?? "/", `http://127.0.0.1:${port}`);
   if (request.method === "GET" && url.pathname === `/api/sessions/${session}`) {
-    json(response, 200, { name: session, status: "WORKING" });
+    json(response, 200, {
+      name: session,
+      status: "WORKING",
+      me: { id: providerAccount, lid: providerAccountLid },
+    });
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/sendText") {
@@ -178,15 +194,17 @@ const server = createServer(async (request, response) => {
     for await (const chunk of request) raw += chunk;
     const body = JSON.parse(raw);
     sendCount += 1;
-    writeFileSync(resultFile, JSON.stringify({ sendCount, request: body }), {
-      mode: 0o600,
-    });
-    if (sendCount !== 1) {
+    requests.push(body);
+    writeResult();
+    if (sendCount > 2) {
       json(response, 409, { error: "duplicate_send" });
       return;
     }
-    storedMessage = {
-      id: "technical-provider-message-465",
+    const storedMessage = {
+      id:
+        sendCount === 1
+          ? "technical-provider-message-465"
+          : "technical-provider-recovered-message-465",
       timestamp: Math.floor(Date.now() / 1000),
       from: providerAccount,
       to: body.chatId,
@@ -196,18 +214,53 @@ const server = createServer(async (request, response) => {
       ack: 1,
       ackName: "SERVER",
     };
+    storedMessages.push(storedMessage);
+    if (sendCount === 2) {
+      json(response, 200, { ...storedMessage, body: `${body.text} malformed` });
+      return;
+    }
     json(response, 200, storedMessage);
     return;
   }
+
+  const messagesPrefix = `/api/${session}/chats/`;
   if (
     request.method === "GET" &&
-    storedMessage &&
-    url.pathname ===
-      `/api/${session}/chats/${encodeURIComponent(storedMessage.to)}/messages/${encodeURIComponent(storedMessage.id)}` &&
+    url.pathname.startsWith(messagesPrefix) &&
+    url.pathname.endsWith("/messages") &&
+    url.searchParams.get("limit") === "20" &&
     url.searchParams.get("downloadMedia") === "false"
   ) {
-    json(response, 200, storedMessage);
+    const encodedRecipient = url.pathname.slice(
+      messagesPrefix.length,
+      -"/messages".length,
+    );
+    const recipient = decodeURIComponent(encodedRecipient.replace(/\/$/u, ""));
+    listReadCount += 1;
+    writeResult();
+    json(
+      response,
+      200,
+      storedMessages.filter((message) => message.to === recipient),
+    );
     return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.searchParams.get("downloadMedia") === "false"
+  ) {
+    const matchedMessage = storedMessages.find(
+      (message) =>
+        url.pathname ===
+        `/api/${session}/chats/${encodeURIComponent(message.to)}/messages/${encodeURIComponent(message.id)}`,
+    );
+    if (matchedMessage) {
+      exactReadCount += 1;
+      writeResult();
+      json(response, 200, matchedMessage);
+      return;
+    }
   }
   json(response, 404, { error: "not_found" });
 });

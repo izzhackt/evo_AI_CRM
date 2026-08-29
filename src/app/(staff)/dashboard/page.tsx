@@ -94,13 +94,6 @@ export default async function DashboardPage() {
       tone: "danger" as const,
     },
     {
-      href: "/documents",
-      label: t("documentsInReview"),
-      value: stats.documentsInReview,
-      icon: "folder" as const,
-      tone: "warning" as const,
-    },
-    {
       href: "/tasks",
       label: t("urgentTasks"),
       value: stats.urgentTasks,

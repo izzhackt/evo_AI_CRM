@@ -55,31 +55,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-stop_stale_next_dev_server() {
+assert_next_dev_lock_available() {
   local lock_path="$repo_root/.next/dev/lock"
   [[ -e "$lock_path" ]] || return 0
 
-  local stale_pid=""
-  while IFS= read -r stale_pid; do
-    [[ -n "$stale_pid" ]] || continue
+  command -v lsof >/dev/null 2>&1 \
+    || fail "Cannot inspect the existing Next dev lock at ${lock_path}: lsof is unavailable"
 
-    local stale_cwd=""
-    stale_cwd="$(lsof -a -p "$stale_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1)"
-    [[ "$stale_cwd" == "$repo_root" ]] || continue
-
-    local stale_command=""
-    stale_command="$(ps -p "$stale_pid" -o command= 2>/dev/null || true)"
-    [[ "$stale_command" == *"next-server"* || "$stale_command" == *"node_modules/next"* ]] || continue
-
-    kill "$stale_pid" >/dev/null 2>&1 || true
-    local deadline=$((SECONDS + 15))
-    while kill -0 "$stale_pid" >/dev/null 2>&1; do
-      (( SECONDS < deadline )) || fail "Stale next dev server ${stale_pid} in ${repo_root} did not stop"
-      sleep 1
-    done
-  done < <(lsof -t -- "$lock_path" 2>/dev/null | sort -u)
-
-  return 0
+  local holder_pids=""
+  holder_pids="$(lsof -t -- "$lock_path" 2>/dev/null | sort -u || true)"
+  [[ -z "$holder_pids" ]] || fail \
+    "Cannot start isolated V2 proof: an active process owns ${lock_path} (PID(s): $(echo "$holder_pids" | tr '\n' ' ')). Stop that development server explicitly and rerun. No process was terminated."
 }
 
 if [[ "$($node_bin --version)" != v22.* ]]; then
@@ -151,7 +137,7 @@ start_app() {
   if [[ "$inbound_mode" == "unavailable" ]]; then
     inbound_secret=""
   fi
-  stop_stale_next_dev_server
+  assert_next_dev_lock_available
   : >"$app_log"
   if [[ "$gate_mode" == "configured" ]]; then
     DATABASE_URL="$app_database_url" \

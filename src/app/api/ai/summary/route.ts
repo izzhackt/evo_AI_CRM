@@ -7,7 +7,6 @@ import { roleCanAccessStaffRoute } from "@/lib/domain";
 import {
   getClientForActor,
   clientApplicationsForActor,
-  clientDocumentsForActor,
   clientVisaCaseForActor,
   clientPaymentsForActor,
   clientUpdatesForActor,
@@ -33,7 +32,6 @@ export async function POST(req: NextRequest) {
   }
 
   const apps = clientApplicationsForActor(user, client.id);
-  const docs = clientDocumentsForActor(user, client.id);
   const visa = clientVisaCaseForActor(user, client.id);
   const payments = clientPaymentsForActor(user, client.id);
   const updates = clientUpdatesForActor(user, client.id).slice(0, 5);
@@ -45,9 +43,6 @@ export async function POST(req: NextRequest) {
 
 Заявки в вузы:
 ${apps.map((a) => `- ${a.university} (${a.program ?? "—"}), статус: ${a.status}, дедлайн: ${a.deadline ?? "—"}`).join("\n") || "нет"}
-
-Документы:
-${docs.map((d) => `- ${d.name}: ${d.status}`).join("\n") || "нет"}
 
 Виза: ${visa ? `${visa.country}, статус: ${visa.status}` : "не открыта"}
 

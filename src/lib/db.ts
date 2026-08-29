@@ -26,8 +26,6 @@ export const STAGES = [
 ] as const;
 export type Stage = (typeof STAGES)[number];
 
-export const DOC_STATUSES = ["required", "uploaded", "review", "approved", "rejected"] as const;
-
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
   const hash = scryptSync(password, salt, 64).toString("hex");
@@ -94,15 +92,6 @@ function init(d: Database.Database) {
       deadline TEXT,
       status TEXT NOT NULL DEFAULT 'preparing',
       notes TEXT,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS documents (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      client_id INTEGER NOT NULL REFERENCES clients(id),
-      name TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'required',
-      comment TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -643,13 +632,6 @@ function seed(d: Database.Database) {
     "Рекомендация", "США", "Магистратура", "Нужна стипендия, рассматривает Fulbright",
     "pending", null, null, null, null
   );
-
-  const insertDoc = d.prepare("INSERT INTO documents (client_id, name, status) VALUES (?, ?, ?)");
-  insertDoc.run(c1.lastInsertRowid, "Аттестат (нотариальный перевод)", "approved");
-  insertDoc.run(c1.lastInsertRowid, "Сертификат IELTS", "approved");
-  insertDoc.run(c1.lastInsertRowid, "Мотивационное письмо", "review");
-  insertDoc.run(c1.lastInsertRowid, "Рекомендательное письмо", "required");
-  insertDoc.run(c2.lastInsertRowid, "Диплом бакалавра", "required");
 
   const insertTask = d.prepare(
     "INSERT INTO tasks (title, description, client_id, assignee_id, due_date, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)"

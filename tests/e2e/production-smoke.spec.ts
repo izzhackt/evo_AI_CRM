@@ -162,7 +162,6 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
     page.getByRole("navigation", { name: "Разделы дела студента" }).getByRole("link", { name: "Профиль студента" }),
   ).toBeVisible();
   await expect(page.locator("#applications").getByRole("heading", { name: "Заявки в вузы", exact: true })).toBeVisible();
-  await expect(page.locator("#documents").getByRole("heading", { name: "Документы", exact: true })).toBeVisible();
   await expect(page.locator("#payments").getByRole("heading", { name: "Платежи", exact: true })).toBeVisible();
   await saveScreenshot(page, testInfo, "student-360-detail");
   expect(runtimeErrors).toEqual([]);

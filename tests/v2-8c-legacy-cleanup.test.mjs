@@ -75,3 +75,31 @@ test("V2-8C removes stale document assertions from fixture browser suites", () =
     );
   }
 });
+
+test("V2-8C removes the legacy SQLite document authority from active runtime", () => {
+  const legacyDocumentPattern =
+    /(?:CREATE TABLE IF NOT EXISTS|FROM|JOIN|INSERT INTO|UPDATE|DELETE FROM)\s+documents\b|clientDocuments(?:ForActor)?|documentsInReview|byDocumentStatus/i;
+
+  for (const path of [
+    "src/lib/db.ts",
+    "src/lib/queries.ts",
+    "src/app/(staff)/dashboard/page.tsx",
+    "src/app/api/ai/summary/route.ts",
+    "tests/e2e/platform-navigation-dashboard-polish.spec.ts",
+    "tests/e2e/production-smoke.spec.ts",
+  ]) {
+    assert.doesNotMatch(
+      source(path),
+      legacyDocumentPattern,
+      `${path} must not retain a SQLite document read, seed, KPI, or fixture path`,
+    );
+  }
+});
+
+test("V2 real-service proof never terminates an existing development server", () => {
+  const harness = source("scripts/test-postgres-v2-foundation.sh");
+
+  assert.match(harness, /assert_next_dev_lock_available/);
+  assert.match(harness, /No process was terminated/);
+  assert.doesNotMatch(harness, /stop_stale_next_dev_server|kill\s+["']?\$stale_pid/);
+});

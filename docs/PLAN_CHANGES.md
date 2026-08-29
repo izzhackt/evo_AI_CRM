@@ -13055,3 +13055,33 @@ repository. Add a streamed no-length regression test. Remove `/documents`
 from the two superseded fixture browser journeys and guard that removal in the
 legacy-eradication test; the real PostgreSQL/private-file Chromium spec remains
 the sole browser acceptance authority for the V2-8C document workflow.
+
+## 2026-08-29 - Remove the final SQLite document consumers and preserve dev sessions
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after final replace-contract review of PR #453.
+Change type: replacement-completeness and safe-test-harness correction without
+a product-contract change.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Reason: the dashboard still displayed a document-review KPI calculated from
+the legacy SQLite `documents` table even though V2 private documents have no
+review-status field. The legacy AI summary and unused SQLite portal snapshot
+helpers also kept the old document model reachable in the active source
+module. Separately, the real-service harness could terminate an existing
+repo-scoped Next development server when it encountered `.next/dev/lock`.
+
+Decision: remove the misleading dashboard document-review card rather than
+invent a PostgreSQL status that does not exist. Delete every remaining SQLite
+document table creation, demo seed, query, actor helper, dashboard aggregate,
+legacy AI-summary input, unused portal snapshot builder, translation and
+fixture assertion from active `src`/browser-test code. Existing V1 databases
+and historical artifacts are not dropped or rewritten; any old table already
+on disk is inert and is not V2 authority.
+
+Replace the harness process-termination behavior with a check-only preflight.
+A stale lock file with no holder is tolerated, while a live holder produces an
+explicit blocker with its PID and instructions to stop it manually. The
+harness terminates only the application process it started itself; it never
+stops a pre-existing development server.

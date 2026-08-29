@@ -410,14 +410,25 @@ guess, simulate or fall back.
    disclosing the same request again.
 2. **V2-10B / #465 — WAHA outbound.** Add one server-only adapter for the
    official `POST /api/sendText` operation and one explicit send action on the
-   canonical conversation UI. The action rechecks current role ownership and
-   persists a unique send intent before the network call. Success records the
-   provider message identity; message creation and delivery/ACK progression are
-   reconciled into canonical outbound state. A timeout or lost response becomes
-   an explicit unknown outcome and is not blindly resent. Staff-authored final
-   text and accepted/edited Gemini text share this one send command; the model
-   cannot invoke it. No broadcast, autonomous worker, second sender or fallback
-   route is allowed.
+   canonical conversation UI. This slice deletes the separate WAHA preflight
+   panel as an active surface: the same send path performs the exact `WORKING`
+   session check internally and, after a successful send response, performs the
+   immediate provider read-back needed to reconcile current delivery/ACK state.
+   The action rechecks current role ownership and persists a unique send attempt
+   and processing receipt before any provider request. Only the direct canonical
+   chat identity (`@c.us` or `@lid`) already received from that conversation is
+   eligible. Success records the provider message identity and timestamp, then
+   creates the one canonical outbound message plus the latest reconciled ACK
+   marker. A timeout, lost response, provider 5xx or malformed success response
+   becomes a durable `unknown` result with no fake message and no blind resend;
+   an explicit provider rejection becomes a durable `rejected` result. Exact
+   request replay returns the stored result, while changed-payload reuse
+   conflicts. Sales and Admissions may send only while the conversation still
+   belongs to their role, and Admin is the union. Staff-authored final text and
+   the exact accepted/edited Gemini text share this one send command; the model
+   cannot invoke it. No group/broadcast send, autonomous worker, second sender,
+   standalone preflight UI, public webhook dependency or fallback route is
+   allowed.
 3. **V2-10C / #466 — amoCRM writes.** Add one canonical server-only integration
    over account metadata discovered from the real connected amoCRM account.
    PostgreSQL remains the business authority and stores durable provider

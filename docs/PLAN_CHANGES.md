@@ -14147,3 +14147,22 @@ Current official provider references:
 - <https://developers.kommo.com/reference/add-notes>
 - <https://developers.kommo.com/reference/add-tags>
 - <https://developers.kommo.com/reference/update-tags-single-entity>
+
+Validation status at this implementation boundary:
+
+- Node `22.23.1` focused unit coverage passed in `npm run test:u9` with the new
+  canonical amoCRM provider, discovery, command service, server action and UI
+  suites green alongside the existing canonical Gemini and WAHA V2 suites.
+- Focused lint for the touched amoCRM command/discovery/UI files, `git diff
+  --check`, and `npm run typecheck` passed without adding a second runtime or
+  fallback path.
+- A clean disposable PostgreSQL instance with all five committed Drizzle
+  migrations proved `tests/canonical-amocrm-schema-postgres.test.mjs`,
+  `tests/canonical-amocrm-command-postgres.test.mjs`, and
+  `tests/canonical-amocrm-discovery-postgres.test.mjs` green under Node
+  `22.23.1`, including exact replay, advisory-lock serialization, phase-bound
+  authorization, explicit `unknown`/`rejected` settlement, and idempotent
+  discovery snapshot persistence.
+- The broader browser/provider acceptance remains a separate unfinished gate:
+  this slice does not yet claim a real connected amoCRM mutation, the final
+  Chromium proof, or #467 end-to-end provider completion.

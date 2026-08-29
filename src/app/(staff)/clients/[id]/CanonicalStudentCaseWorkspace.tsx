@@ -10,11 +10,13 @@ import {
   CanonicalAdmissionsTaskPanel,
   type CanonicalAdmissionsTaskRequestIds,
 } from "@/components/platform/admissions/CanonicalAdmissionsTaskPanel";
+import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
 import { CanonicalPrivateDocumentsPanel } from "@/components/platform/documents/CanonicalPrivateDocumentsPanel";
 import { Card, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import { getT } from "@/lib/i18n";
 import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
+import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
 import {
   CanonicalCrmRepositoryError,
   getCanonicalAdmissionsOperationsSnapshot,
@@ -132,9 +134,10 @@ function Fact({
 export async function CanonicalStudentCaseWorkspace({
   id,
 }: Readonly<{ id: string }>) {
-  const [{ locale }, actor] = await Promise.all([
+  const [{ locale }, actor, amoCrmAvailability] = await Promise.all([
     getT(),
     requirePlatformAdmissionsActor("/clients"),
+    readCanonicalAmoCrmCommandAvailability(),
   ]);
 
   let studentCase: Awaited<ReturnType<typeof getCanonicalStudentCaseSnapshot>>;
@@ -357,6 +360,15 @@ export async function CanonicalStudentCaseWorkspace({
         caseId={id}
         caseStatus={studentCase.status}
         documents={documents}
+      />
+
+      <CanonicalAmoCrmCommandPanel
+        availability={amoCrmAvailability}
+        scope="admissions"
+        leadId={studentCase.leadId}
+        studentCaseId={studentCase.studentCaseId}
+        locale={locale}
+        requestId={randomUUID()}
       />
 
       <CanonicalAdmissionsOperationsPanel

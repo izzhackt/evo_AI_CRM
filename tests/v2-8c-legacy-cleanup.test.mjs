@@ -21,6 +21,7 @@ test("V2-8C removes the superseded Admissions document runtime files", () => {
     "src/lib/platform-document-review.ts",
     "src/lib/platform-document-review-actions.ts",
     "src/lib/platform-student-profile-actions.ts",
+    "tests/e2e/platform-documents-experience.spec.ts",
     "tests/platform-admissions-case-workspace.test.mjs",
   ]) {
     assert.equal(

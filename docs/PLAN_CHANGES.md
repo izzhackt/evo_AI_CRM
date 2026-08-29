@@ -13011,3 +13011,24 @@ discovery and the complete `npm run test:database:local` real-service gate.
 Frozen V1 deployments and historical ADRs, migrations, runbooks, archived
 docs, evidence and other decision/rollback documentation remain preserved and
 were not executed or modified as V2 authority.
+
+## 2026-08-29 - Close the V2-8C queue acceptance gap
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after independent exact-head review of PR #453.
+Change type: acceptance correction without a product-contract change.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Reason: the first V2-8C head still retained a default Playwright journey for
+the deleted SQLite document-review UI, including the removed numeric
+`/documents/:id` route. Its real PostgreSQL browser proof exercised Student 360
+but did not open the new `/documents` queue.
+
+Decision: delete that superseded browser spec and keep it absent in the V2-8C
+legacy-eradication test. Extend the real PostgreSQL/Chromium acceptance to open
+`/documents` after resubmission, prove the queue renders exactly the newest
+version and owning document identifier, and follow its exact
+`/clients/:caseId#documents` link back to the same Student 360 document. The
+complete `npm run test:database:local` gate passes with this correction; no
+runtime, provider or production boundary changed.

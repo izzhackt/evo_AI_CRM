@@ -279,6 +279,33 @@ test("private documents use one authorized PostgreSQL and filesystem path", asyn
   ]);
   expect(await downloadBytes(historicalDownload)).toEqual(initialBytes);
 
+  await page.goto("/documents");
+  const queue = page.getByTestId("canonical-private-document-queue");
+  await expect(queue).toBeVisible();
+  const queueRow = queue
+    .getByTestId("canonical-private-document-queue-row")
+    .filter({ hasText: "acceptance-replacement.pdf" });
+  await expect(queueRow).toHaveCount(1);
+  await expect(queueRow).toHaveAttribute("data-document-id", documentId);
+  await expect(queueRow).toContainText("acceptance-replacement.pdf");
+  await expect(queueRow).toContainText("Версия 2");
+  await expect(queueRow).toContainText("active");
+  const student360Link = queueRow.getByRole("link", {
+    name: "Открыть в Student 360",
+  });
+  await expect(student360Link).toHaveAttribute(
+    "href",
+    `/clients/${caseId}#documents`,
+  );
+  await student360Link.click();
+  await expect(page).toHaveURL(`/clients/${caseId}#documents`);
+  await expect(
+    page
+      .getByTestId("canonical-private-documents")
+      .getByTestId("canonical-private-document")
+      .filter({ hasText: "acceptance-replacement.pdf" }),
+  ).toBeVisible();
+
   if (!acceptanceResultFile) {
     throw new Error("EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE is required");
   }

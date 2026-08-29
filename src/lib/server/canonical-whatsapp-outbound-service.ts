@@ -15,12 +15,14 @@ import type {
 import {
   CanonicalWahaProviderConfigurationError,
   CanonicalWahaProviderError,
+  findUniqueCanonicalWahaMessage,
   getCanonicalWahaMessage,
   loadCanonicalWahaProviderConfig,
   probeCanonicalWahaSession,
   sendCanonicalWahaText,
   type CanonicalWahaMessage,
   type CanonicalWahaProviderDependencies,
+  type CanonicalWahaSessionProof,
 } from "./canonical-waha-provider.ts";
 
 export type CanonicalWhatsAppOutboundReason =
@@ -40,6 +42,8 @@ export type CanonicalWhatsAppOutboundReason =
   | "provider_network_failure"
   | "provider_unavailable"
   | "provider_malformed_response"
+  | "provider_message_not_found"
+  | "provider_message_ambiguous"
   | "session_not_working"
   | "message_rejected";
 
@@ -151,8 +155,12 @@ export async function sendCanonicalWhatsAppOutbound(
         replyToExternalMessageId: form.replyToExternalMessageId,
       },
       async (request) => {
+        let sessionProof: CanonicalWahaSessionProof;
         try {
-          await probeCanonicalWahaSession(environment, dependencies.provider);
+          sessionProof = await probeCanonicalWahaSession(
+            environment,
+            dependencies.provider,
+          );
         } catch (error) {
           if (error instanceof CanonicalWahaProviderError) {
             return { status: "rejected", failureCode: error.code };
@@ -169,6 +177,7 @@ export async function sendCanonicalWhatsAppOutbound(
               ...(request.replyToExternalMessageId
                 ? { replyTo: request.replyToExternalMessageId }
                 : {}),
+              sessionProof,
             },
             environment,
             dependencies.provider,
@@ -190,6 +199,7 @@ export async function sendCanonicalWhatsAppOutbound(
               recipientId: request.recipientChatId,
               providerMessageId: sent.id,
               expectedText: request.text,
+              sessionProof,
             },
             environment,
             dependencies.provider,
@@ -230,6 +240,7 @@ export async function reconcileCanonicalWhatsAppOutbound(
   const configuration = configurationResult(environment);
   if (configuration.status === "blocked") return configuration;
 
+  let providerFailureReason: CanonicalWhatsAppOutboundReason | null = null;
   try {
     const attempt = await reconcileCanonicalWhatsAppSendAttempt(
       {
@@ -239,27 +250,57 @@ export async function reconcileCanonicalWhatsAppOutbound(
       },
       { conversationId: form.conversationId, attemptId: form.attemptId },
       async (request) => {
-        if (request.sessionName !== configuration.sessionName) {
-          throw new CanonicalWahaProviderError(
-            "configuration_invalid",
-            "rejected",
-          );
-        }
-        return providerMessage(
-          await getCanonicalWahaMessage(
-            {
-              recipientId: request.recipientChatId,
-              providerMessageId: request.providerMessageId,
-              expectedText: request.expectedText,
-            },
+        try {
+          if (request.sessionName !== configuration.sessionName) {
+            throw new CanonicalWahaProviderError(
+              "configuration_invalid",
+              "rejected",
+            );
+          }
+          const sessionProof = await probeCanonicalWahaSession(
             environment,
             dependencies.provider,
-          ),
-        );
+          );
+          const message = request.providerMessageId
+            ? await getCanonicalWahaMessage(
+                {
+                  recipientId: request.recipientChatId,
+                  providerMessageId: request.providerMessageId,
+                  expectedText: request.expectedText,
+                  sessionProof,
+                },
+                environment,
+                dependencies.provider,
+              )
+            : await findUniqueCanonicalWahaMessage(
+                {
+                  recipientId: request.recipientChatId,
+                  expectedText: request.expectedText,
+                  windowStartTimestamp: Math.floor(
+                    Date.parse(request.windowStartedAt) / 1_000,
+                  ),
+                  windowEndTimestamp: Math.ceil(
+                    Date.parse(request.windowEndedAt) / 1_000,
+                  ),
+                  sessionProof,
+                },
+                environment,
+                dependencies.provider,
+              );
+          return providerMessage(message);
+        } catch (error) {
+          if (error instanceof CanonicalWahaProviderError) {
+            providerFailureReason = error.code;
+          }
+          throw error;
+        }
       },
     );
     return Object.freeze({ status: "reconciled", attempt });
   } catch (error) {
+    if (providerFailureReason !== null) {
+      return Object.freeze({ status: "error", reason: providerFailureReason });
+    }
     if (error instanceof CanonicalWahaProviderError) {
       return Object.freeze({ status: "error", reason: error.code });
     }

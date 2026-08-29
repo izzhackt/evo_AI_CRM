@@ -6208,8 +6208,10 @@ export type CanonicalWhatsAppMessageReader = (
     attemptId: string;
     sessionName: string;
     recipientChatId: string;
-    providerMessageId: string;
+    providerMessageId: string | null;
     expectedText: string;
+    windowStartedAt: string;
+    windowEndedAt: string;
   }>,
 ) => Promise<CanonicalWhatsAppProviderMessage>;
 
@@ -6239,11 +6241,15 @@ export async function reconcileCanonicalWhatsAppSendAttempt(
       attemptId,
       conversationId,
     });
-    if (
-      attempt.status !== "accepted" ||
-      attempt.providerMessageId === null ||
-      attempt.ack === null
-    ) {
+    const isAccepted =
+      attempt.status === "accepted" &&
+      attempt.providerMessageId !== null &&
+      attempt.ack !== null;
+    const isRecoverableUnknown =
+      attempt.status === "unknown" &&
+      attempt.providerMessageId === null &&
+      attempt.ack === null;
+    if ((!isAccepted && !isRecoverableUnknown) || attempt.settledAt === null) {
       throw new CanonicalCrmRepositoryError("conflict");
     }
     const reservation = await reserveCommand(transaction, {
@@ -6267,18 +6273,85 @@ export async function reconcileCanonicalWhatsAppSendAttempt(
           recipientChatId: attempt.recipientChatId,
           providerMessageId: attempt.providerMessageId,
           expectedText: attempt.finalText,
+          windowStartedAt: attempt.createdAt,
+          windowEndedAt: attempt.settledAt,
         }),
         {
-          providerMessageId: attempt.providerMessageId,
+          ...(attempt.providerMessageId === null
+            ? {}
+            : { providerMessageId: attempt.providerMessageId }),
           recipientChatId: attempt.recipientChatId,
           body: attempt.finalText,
         },
       );
+      if (isRecoverableUnknown) {
+        const providerOccurredAt = Math.floor(
+          Date.parse(providerMessage.providerOccurredAt) / 1_000,
+        );
+        const windowStartedAt = Math.floor(Date.parse(attempt.createdAt) / 1_000);
+        const windowEndedAt = Math.ceil(Date.parse(attempt.settledAt) / 1_000);
+        if (
+          providerOccurredAt < windowStartedAt ||
+          providerOccurredAt > windowEndedAt ||
+          providerMessage.ack === -1
+        ) {
+          invalidInput();
+        }
+      }
     } catch {
       throw new CanonicalCrmRepositoryError("unavailable");
     }
 
     const reconciledAt = new Date();
+    if (isRecoverableUnknown) {
+      const messageId = randomUUID();
+      await transaction.insert(evoMessages).values({
+        id: messageId,
+        conversationId,
+        direction: "outbound",
+        externalMessageId: providerMessage.providerMessageId,
+        body: attempt.finalText,
+        authorRole: attempt.actorRole,
+        occurredAt: new Date(providerMessage.providerOccurredAt),
+        correlationId: context.correlationId,
+        idempotencyKey: `canonical-whatsapp-message:${context.idempotencyKey}`,
+      });
+      await transaction
+        .update(evoWhatsappSendAttempts)
+        .set({
+          messageId,
+          status: "accepted",
+          providerMessageId: providerMessage.providerMessageId,
+          providerOccurredAt: new Date(providerMessage.providerOccurredAt),
+          providerSource: providerMessage.source,
+          ack: providerMessage.ack,
+          ackName: providerMessage.ackName,
+          failureCode: null,
+          lastReconciledAt: reconciledAt,
+          version: attempt.version + 1,
+          updatedAt: reconciledAt,
+        })
+        .where(eq(evoWhatsappSendAttempts.id, attemptId));
+      await insertBusinessEvent(transaction, {
+        context,
+        businessObjectType: "whatsapp_send_attempt",
+        businessObjectId: attemptId,
+        transition: "whatsapp_send.recovered",
+        fromState: "unknown",
+        toState: "accepted",
+      });
+      await completeCommand(transaction, {
+        receiptId: reservation.receiptId,
+        businessObjectType: "whatsapp_send_attempt",
+        businessObjectId: attemptId,
+        resultPayload: { attemptId },
+      });
+      return selectCanonicalWhatsappSendAttemptById(transaction, attemptId);
+    }
+
+    if (attempt.ack === null) {
+      throw new CanonicalCrmRepositoryError("unavailable");
+    }
     const advanced = providerMessage.ack > attempt.ack;
     await transaction
       .update(evoWhatsappSendAttempts)

@@ -15,7 +15,7 @@ test("database status route reports the exact requested foundation state", async
         ok: true,
         status: "ready",
         database: "postgresql",
-        contractVersion: 3,
+        contractVersion: 4,
       };
 
   if ((expectedStatus === 200) !== !expectedCode) {

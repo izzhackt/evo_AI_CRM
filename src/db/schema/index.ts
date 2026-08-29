@@ -12,3 +12,4 @@ export {
 export * from "./canonical-crm-core.ts";
 export * from "./canonical-crm-events.ts";
 export * from "./canonical-crm-operations.ts";
+export * from "./canonical-amocrm.ts";

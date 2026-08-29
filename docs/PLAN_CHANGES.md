@@ -14045,3 +14045,53 @@ Current official provider references:
 - <https://developers.kommo.com/reference/adding-leads>
 - <https://developers.kommo.com/reference/linking-entities>
 - <https://developers.kommo.com/reference/add-notes>
+
+## 2026-08-29 - Establish the canonical amoCRM provider and database foundation
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #466.
+Change type: first reviewed implementation slice.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+The first #466 slice adds no business mutation UI and performs no real amoCRM
+write. It establishes the only permitted V2 provider and persistence boundary
+needed by the later explicit commands:
+
+- a dedicated `EVO_V2_AMOCRM_*` server-only configuration namespace with two
+  exact enable/standing-authorization flags, a pinned HTTPS amoCRM/Kommo
+  account origin and a V2-owned ignored token file;
+- private token-file reads that reject symlinks, unsafe permissions, malformed
+  or oversized content, plus atomic refresh rotation through same-directory
+  create/fsync/rename and directory fsync;
+- one bounded provider client with redacted errors, timeout and response-size
+  limits, process-wide pacing below seven requests per second, one serialized
+  OAuth refresh and at most one replay after `401`;
+- exact first-page discovery requests with `limit=250&page=1`; a provider
+  `next` link blocks as `discovery_incomplete` instead of silently accepting a
+  partial account map;
+- Drizzle migration `0004` and PostgreSQL contract version 4 for account
+  identity, bounded sanitized discovery snapshots, canonical person/contact
+  and lead/amoCRM-lead bindings, and provider-operation attempts tied one-to-one
+  to immutable command receipts.
+
+Every operation attempt now freezes a bounded sanitized request record, its
+hash, exact canonical target and exact provider target before dispatch. Create
+operations alone may start without a foreign target. Transport timestamps,
+HTTP status, request ID, result IDs and bounded read-back evidence are separate
+fields. The database permits only `prepared`, `accepted`, `unknown` and
+`rejected`; a binding created by a provider operation must reference the same
+attempt with actual status `accepted`, the same canonical object and the same
+result provider ID. `unknown` and `rejected` attempts cannot seed bindings.
+Discovery-only bindings remain possible without claiming a write attempt.
+Tokens, authorization headers and secret-shaped JSON keys are rejected from
+provider request/read-back storage.
+
+Verification used OrbStack (`Running`, Docker context exactly `orbstack`), Node
+`22.23.1`, a clean disposable PostgreSQL instance, all five committed Drizzle
+migrations, the real Next.js application and Chromium. The focused provider
+suite passed 14 tests; the active V2 unit lane passed 53 tests; lint and
+typecheck passed; the full database/browser gate passed with exact migration
+history, repeated migration verification, canonical CRM/WhatsApp/amoCRM
+PostgreSQL tests, fail-closed missing-primary behavior and the fixed-role
+browser contour. No Supabase/SQLite fallback, `EVO_AGENT_AMO_*` runtime import,
+real provider mutation, V1 deployment change or customer-data action occurred.

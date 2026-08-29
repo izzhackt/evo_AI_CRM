@@ -29,10 +29,11 @@
 
 ## Current Product Authority
 
-- For active V2 implementation work, the owner's product-first direction of
-  2026-08-28, parent issue #407, ADR 0022, `docs/EVO_LAUNCH_PLAN.md`, and the
-  latest merged `docs/PLAN_CHANGES.md` entry define the target and #424 through
-  #433 order.
+- For active V2 implementation work, the owner's product-first foundation
+  direction of 2026-08-28 plus the real-provider authorization of 2026-08-29,
+  parent issue #463, ADR 0023, `docs/EVO_LAUNCH_PLAN.md`, and the latest merged
+  `docs/PLAN_CHANGES.md` entry define the target and #464 through #467 order.
+  Parent #407 and issues #424 through #433 remain the completed foundation.
 - EVO remains one internal product with one access surface, one UI, one role
   model and one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks,
   Documents and AI are modules, not separate target products.
@@ -51,13 +52,23 @@
 - Supabase runtime dependencies, dual-read, dual-write, fallback repositories
   and compatibility layers are prohibited in the completed V2 product path.
 - V1 staging and production are frozen boundaries. Do not deploy V2 over V1,
-  delete V1, migrate customer data, send WhatsApp, write amoCRM, create paid
-  infrastructure, or perform final cutover without separate explicit owner
-  authorization.
-- WhatsApp and Gemini remain real product paths, not mocks or fake success.
-  Real provider calls or changes still require credentials and separate
-  authorization; missing access must show blocked. Gemini remains advisory and
-  human-reviewed. Outbound WhatsApp and amoCRM writes remain forbidden.
+  delete V1, migrate historical customer data, create paid infrastructure, or
+  perform final cutover without separate explicit owner authorization. The
+  2026-08-29 authorization permits provider actions only through the active
+  private V2 canonical paths under #463-#467; it does not authorize running a
+  frozen V1 sender/writer or changing a V1 deployment.
+- WhatsApp, Gemini and amoCRM are permanent real V2 product paths, not mocks or
+  fake success. Use the existing connected providers and ignored server-only
+  secrets. Gemini remains advisory and human-reviewed; it never sends or
+  changes CRM state. WhatsApp outbound requires an explicit authorized staff
+  action over final reviewed text. amoCRM writes are explicit server-authorized
+  integrations while PostgreSQL remains the only V2 business authority. No
+  autonomous reply, broadcast, dual-write, fallback provider or blind retry
+  after an ambiguous external result is permitted.
+- The standing provider authorization removes routine approval pauses for the
+  #464-#467 sequence. Missing credentials, an unresolvable recipient/case,
+  provider rejection, or a requested side effect outside that sequence must
+  still fail clearly rather than be guessed or simulated.
 - Existing production sections below describe historical V1 boundaries and
   safety inputs only; they do not override the active local V2 scope or
   authorize a production change.

@@ -1,17 +1,18 @@
 # EVO Launch Plan
 
-Status: active product-first V2 local-development contract
-Date: 2026-08-28 (Asia/Dubai)
-Authority: owner direction, parent issue #407, ADR 0022, this plan and the
-latest append-only `docs/PLAN_CHANGES.md` entry
+Status: active product-first V2 local-development and real-provider contract
+Date: 2026-08-29 (Asia/Dubai)
+Authority: owner direction, parent issue #463, ADR 0023, ADR 0022 for the
+completed foundation, this plan and the latest append-only
+`docs/PLAN_CHANGES.md` entry
 Verified starting baseline: GitHub `origin/main` at
-`9b185dba93b2363d9bf942483b2c0febee4c3b30`
+`f176153328bf407fa76a7ed9daa31c8b01a92de5`
 
 ## Current V2 authority: validate the CRM product first
 
-The active goal is to prove the main EVO CRM product quickly in a private local
-contour. It is not to build production infrastructure or declare V2 ready to
-replace V1.
+The active goal is to prove the main EVO CRM product and its real provider
+operations quickly in a private local contour. It is not to build production
+infrastructure or declare V2 ready to replace V1.
 
 V2 keeps one staff interface and the core workflow across Sales, Student 360,
 Admissions, Documents, Applications, Visa, Finance, WhatsApp and advisory AI.
@@ -45,7 +46,9 @@ cookie that carries only the selected technical role and expiry.
 This is development access, not staff identity. There is no active account
 lifecycle, signup, invitation, password recovery, per-user grant system,
 membership administration or real-staff claim. The local contour remains
-private/non-public and contains no real applicant/customer data.
+private/non-public. It does not ingest or migrate a broad real customer data
+set; #464-#467 may use only the minimum fields and transcript context from one
+owner-authorized existing real conversation/case needed for provider proof.
 
 The roles still have real server-side behavior:
 
@@ -122,31 +125,37 @@ issue. Phase 0 records this rule and deletes no V1 code.
 2. Enter the real app through each fixed technical role and verify the exact
    role interface plus direct server denials.
 3. Create and qualify a canonical Sales lead with owner and next action.
-4. Show the lead and communications in the WhatsApp workflow without enabling
-   an outbound production action.
+4. Show the lead and communications in the WhatsApp workflow and let an
+   authorized staff role explicitly send final reviewed text through WAHA.
 5. Enforce contract plus first mandatory payment before normal handoff.
 6. Perform the audited Sales-to-Admissions handoff.
 7. Operate Student 360: case, tasks, private documents, applications and visa.
 8. Raise and release the minimal finance stop with a durable reason.
-9. Produce and human-review a Gemini draft without granting the model action
-   authority.
-10. Explain every consequential transition through the minimal event log.
+9. Produce a real Gemini draft and human-review it without granting the model
+   action authority.
+10. Execute the required amoCRM contact, lead, link, pipeline/status,
+    responsible-user, note and tag commands while PostgreSQL remains canonical.
+11. Explain every consequential transition and provider attempt through the
+    minimal event log and durable command receipts.
 
 Private documents need real local persistence, authorized upload/download and
 resubmission, metadata, byte length and checksum. Full backup/restore drills,
 off-host retention and production rollback evidence are not active scope.
 
-WhatsApp and Gemini must remain real product paths rather than mocks or fake
-success. Provider credentials or provider-side actions are exercised only when
-separately authorized; until then the actual adapter must report blocked. No
-outbound WhatsApp, amoCRM write, provider configuration mutation or production
-claim is authorized.
+WhatsApp, Gemini and amoCRM must remain real product paths rather than mocks or
+fake success. The owner authorized #464-#467 on 2026-08-29 to use the existing
+connected providers from the private V2 contour without routine confirmation.
+Credentials stay in ignored server-only configuration. Gemini remains
+advisory; only a staff role may send final reviewed text or invoke an explicit
+amoCRM command. No autonomous reply, broadcast, fallback provider, blind retry
+after an ambiguous result, V1 runtime change or production-readiness claim is
+authorized.
 
-### Active sequential issue contract
+### Completed foundation issue contract
 
 | Order | Issue | Product outcome |
 | --- | --- | --- |
-| V2-0 | #424 | merge this product-first architecture and issue reset |
+| V2-0 | #424 | product-first architecture and issue reset |
 | V2-1 | #425 | real private PostgreSQL and Drizzle migration gate |
 | V2-2 | #426 | two-field development gate and three fixed role sessions |
 | V2-3 | #427 | fixed Admin/Sales/Admissions server-side behavior and Admin preview |
@@ -157,10 +166,23 @@ claim is authorized.
 | V2-8 | #432 | Student 360, tasks, documents, applications, visa and finance stop/release |
 | V2-9 | #433 | staff WhatsApp workflow and human-reviewed Gemini draft |
 
-Only #424 through #433 are active V2 long-run issues. They execute in order as
-small PRs. Each PR requires independent exact-head review, all protected
-exact-head CI checks, `gh pr merge --match-head-commit` and exact-main CI
-verification before the next slice starts.
+#424 through #433 and parent #407 are completed foundation history. They are
+not reopened or used as permission to revive deleted provider writers.
+
+### Active real-provider issue contract
+
+| Order | Issue | Product outcome |
+| --- | --- | --- |
+| V2-10A | #464 | real Gemini provider acceptance on the canonical proposal/review path |
+| V2-10B | #465 | one canonical human-reviewed WhatsApp outbound path through WAHA |
+| V2-10C | #466 | permanent PostgreSQL-authoritative amoCRM writes and provider bindings |
+| V2-10D | #467 | bounded real provider, PostgreSQL, application and browser acceptance |
+
+Only #464 through #467 are active V2 long-run issues under parent #463. They
+execute in this exact order as small PRs. Each PR requires independent
+exact-head review, all protected exact-head CI checks,
+`gh pr merge --match-head-commit` and exact-main CI verification before the
+next slice starts.
 
 V2-8 (#432) is intentionally delivered as three internal vertical PRs under
 the same issue:
@@ -347,12 +369,12 @@ selection also follows
 API-version contract at
 <https://ai.google.dev/gemini-api/docs/api-versions>.
 
-No V2-9 browser or server route can send WhatsApp, write amoCRM, enable an
-autonomous reply or invoke a fallback provider. A real WAHA/Gemini call remains
-a separate owner-authorized provider action. Without that authorization the
-application and browser proof must show `blocked` without an external request
-while real PostgreSQL proposal-review mechanics are exercised through isolated
-technical records, not presented as staff or business acceptance.
+At #433 exit, no V2-9 browser or server route could send WhatsApp, write
+amoCRM, enable an autonomous reply or invoke a fallback provider. That was the
+truthful pre-authorization boundary proved by V2-9. The 2026-08-29 owner
+decision and ADR 0023 now supersede only the no-real-call/no-write restriction
+for the new #464-#467 canonical paths; they do not revive any deleted V2-9
+sender, writer, worker or fallback.
 
 Each internal PR deletes the superseded active runtime for the capability it
 proves. By #433 exit, the V2 app import/route graph contains no Supabase/SQLite
@@ -362,6 +384,75 @@ or review repository, or old WhatsApp/Gemini implementation test. Frozen V1
 deployments and historical ADRs, migrations, runbooks, archived docs, evidence
 and other decision/rollback documentation remain unchanged and are excluded
 from the active-import inventory.
+
+#### V2-10 real-provider execution contract
+
+V2-10 uses the existing connected provider accounts and four sequential
+issues. The owner granted standing authority for the actions inside this
+contract; agents do not pause for routine confirmation after every provider
+call. A missing secret, provider denial, unresolvable recipient/case or a side
+effect outside the named issues remains a real stop rather than permission to
+guess, simulate or fall back.
+
+1. **V2-10A / #464 — Gemini acceptance.** Exercise the existing canonical
+   Interactions adapter with `store: false`, tools disabled, one explicit model
+   and structured JSON on the minimum authorized context from an existing real
+   conversation. PostgreSQL locks the source context and command receipt as
+   already defined by V2-9. The application validates the response, stores the
+   proposal and requires Accept/Edit/Reject in the actual staff UI. There is no
+   artificial call-count or cost limit in the product contract, but a completed
+   receipt replays instead of paying for or disclosing the same request again.
+2. **V2-10B / #465 — WAHA outbound.** Add one server-only adapter for the
+   official `POST /api/sendText` operation and one explicit send action on the
+   canonical conversation UI. The action rechecks current role ownership and
+   persists a unique send intent before the network call. Success records the
+   provider message identity; message creation and delivery/ACK progression are
+   reconciled into canonical outbound state. A timeout or lost response becomes
+   an explicit unknown outcome and is not blindly resent. Staff-authored final
+   text and accepted/edited Gemini text share this one send command; the model
+   cannot invoke it. No broadcast, autonomous worker, second sender or fallback
+   route is allowed.
+3. **V2-10C / #466 — amoCRM writes.** Add one canonical server-only integration
+   over account metadata discovered from the real connected amoCRM account.
+   PostgreSQL remains the business authority and stores durable provider
+   bindings/command receipts. Explicit product commands may create, update and
+   link contacts/leads and apply the required pipeline, status,
+   responsible-user, note and tag operations. Every operation uses exact
+   server-side role/workflow authorization, provider correlation and read-back.
+   An ambiguous result is reconciled before retry; amoCRM is never a dual-write
+   authority, fallback repository or source of a second workflow state.
+4. **V2-10D / #467 — real acceptance.** Use one minimized owner-authorized
+   existing real conversation/case whose private identifiers stay out of Git
+   and GitHub evidence. Prove `Gemini proposal -> human review -> explicit WAHA
+   send -> provider identity/ACK -> amoCRM command/read-back` through the real
+   application, PostgreSQL and Chromium. If no exact safe case can be resolved,
+   the run blocks honestly rather than selecting an arbitrary customer or
+   creating fake business data.
+
+Provider secrets remain in ignored server-only files or the authorized secret
+injection workflow and never enter browser state, PostgreSQL business rows,
+logs, Git, issues or PR evidence. #465 and #466 replace the completed read-only
+restrictions with exactly one active provider path each; their slices delete
+any superseded active writer, token/config dependency, route, script and
+implementation test after real proof. Frozen V1 deployments and historical
+artifacts remain inert and unchanged.
+
+The contracts follow the current official provider documentation:
+
+- WAHA send, session, event and API-key contracts:
+  <https://waha.devlike.pro/docs/how-to/send-messages/>,
+  <https://waha.devlike.pro/docs/how-to/sessions/>,
+  <https://waha.devlike.pro/docs/how-to/events/> and
+  <https://waha.devlike.pro/docs/how-to/security/>;
+- Gemini Interactions and structured output:
+  <https://ai.google.dev/gemini-api/docs/interactions-overview> and
+  <https://ai.google.dev/gemini-api/docs/structured-output>;
+- amoCRM/Kommo OAuth, contacts, leads, links and notes:
+  <https://developers.kommo.com/docs/oauth-20>,
+  <https://developers.kommo.com/reference/add-contacts>,
+  <https://developers.kommo.com/reference/adding-leads>,
+  <https://developers.kommo.com/reference/link-entities> and
+  <https://developers.kommo.com/reference/add-notes>.
 
 ### Real validation boundary
 
@@ -377,19 +468,22 @@ from the active-import inventory.
 
 ### Deferred before any real use
 
-The following are preserved only as one deferred-before-real-use note and are
-not active issues, dependencies or blockers for local product validation:
+The following are preserved only as one deferred-before-broad-real-use note
+and are not active issues, dependencies or blockers for local product and
+bounded provider validation:
 production-grade staff authentication/account lifecycle; multi-organization
 tenancy and cross-organization RLS; fine-grained per-user grants; public/VPS
 deployment, DNS/TLS/Caddy and paid infrastructure; production monitoring,
 health center, compliance-style audit/export; full database/file restore drills
-and production rollback proof; managed staff/provider acceptance; a 10-day or
-five-case pilot; historical migration; replacement, cutover and tagging.
+and production rollback proof; managed staff acceptance; a 10-day or five-case
+pilot; broad or historical customer migration; replacement, cutover and
+tagging.
 
-Before real staff, real customer data, public/managed exposure or any V1
-replacement, the owner must create and authorize a new plan covering the
-applicable deferred controls. This note grants no deployment, migration,
-provider mutation or cutover authority.
+Before real staff identities, routine or bulk real-customer processing,
+public/managed exposure or any V1 replacement, the owner must create and
+authorize a new plan covering the applicable deferred controls. The bounded
+provider authority in #463-#467 grants no deployment, broad migration or
+cutover authority.
 
 V1 staging and production, their code, data, images, runbooks and rollback
 artifacts remain unchanged. The V1 history below is retained as evidence and

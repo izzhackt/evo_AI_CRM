@@ -7,18 +7,22 @@ V2 self-hosted replacement line.
 
 The active contract is [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md)
 together with
-[`ADR 0022`](docs/adr/0022-build-evo-v2-as-a-self-hosted-postgresql-monolith.md),
-parent issue `#407`, and the latest append-only entry in
-[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-08-28, V1 staging
-and production remain frozen deployment boundaries while V2 replaces the old
-Supabase-native target with a private local PostgreSQL/Drizzle product contour,
-a two-field development gate, three fixed technical roles, server-enforced
-role behavior, private document persistence and a minimal business event log.
-Production authentication, multi-organization tenancy, public deployment,
-readiness/recovery, pilot, migration and cutover work are deferred before real
-use rather than active blockers. Any glossary entry below that names Supabase
-as the target canonical runtime should be read as historical V1 evidence unless
-a newer contract explicitly reactivates it.
+[`ADR 0023`](docs/adr/0023-activate-real-provider-operations-in-private-v2.md),
+[`ADR 0022`](docs/adr/0022-build-evo-v2-as-a-self-hosted-postgresql-monolith.md)
+for the completed foundation, parent issue `#463`, and the latest append-only
+entry in [`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-08-29, V1
+staging and production remain frozen deployment boundaries while V2 uses a
+private local PostgreSQL/Drizzle product contour, a two-field development gate,
+three fixed technical roles, server-enforced role behavior, private document
+persistence and a minimal business event log. Active #464-#467 now add real
+human-reviewed Gemini, staff-controlled WAHA outbound and
+PostgreSQL-authoritative amoCRM writes through the existing connected provider
+accounts. Production authentication, multi-organization tenancy, public
+deployment, readiness/recovery, pilot, broad migration and cutover work remain
+deferred. Any glossary entry below that names Supabase as the target canonical
+runtime or receive-only provider behavior should be read as historical V1 or
+completed pre-authorization evidence unless a newer contract explicitly
+reactivates it.
 
 The completed U2 contract is
 recorded in
@@ -52,9 +56,32 @@ or a second source of truth.
 **V2 Product-First Local Contour**:
 The private non-production EVO environment used to prove the main CRM workflow
 on real local PostgreSQL, Drizzle migrations, private document bytes and the
-actual browser. It is not public, contains no real applicant/customer data and
-does not prove production readiness.
+actual browser. It is not public and does not prove production readiness. It
+does not ingest or migrate a broad customer dataset; bounded provider
+acceptance may use only the minimum authorized context from one existing real
+conversation/case.
 _Avoid_: production candidate, managed acceptance, pilot environment
+
+**Private V2 Provider Operation**:
+An explicit server-authorized action from the private V2 app to an existing
+connected provider under #463-#467. It is correlated to canonical PostgreSQL
+state and may call Gemini, send final reviewed WhatsApp text or update amoCRM.
+It is not a V1 deployment action, autonomous worker or production cutover.
+_Avoid_: background automation, provider demo, V1 sender
+
+**Human-Reviewed WhatsApp Send**:
+One explicit staff command on a conversation currently owned by the effective
+role. The final text may be staff-authored or accepted/edited from Gemini, but
+the model cannot invoke the send. PostgreSQL records the intent before WAHA;
+ambiguous results are reconciled instead of blindly resent.
+_Avoid_: AI reply, broadcast, retry-until-success
+
+**PostgreSQL-Authoritative amoCRM Integration**:
+The active V2 target in #466: PostgreSQL owns the business state and durable
+command identity while amoCRM receives explicit create/update/link,
+pipeline/status, responsible-user, note and tag operations. Provider IDs and
+read-back are bindings/evidence, not a second source of truth.
+_Avoid_: amoCRM master record, dual-write authority, legacy writer fallback
 
 **Development Access Profile**:
 One of the fixed Director/Admin, Sales Manager or Admissions Manager technical
@@ -62,15 +89,15 @@ roles entered through the two-field server-side development gate. It exists to
 exercise real role behavior and is not a staff account or verified identity.
 _Avoid_: user account, employee identity, production authentication
 
-**First Live Rollout**:
+**Historical First Live Rollout**:
 The first production proof that one controlled real inbound WhatsApp message can travel through the admissions lead path and become visible to staff. It is not a full automation launch.
 _Avoid_: launch, go-live, full rollout
 
-**Receive-Only Rollout**:
+**Historical Receive-Only Rollout**:
 A rollout mode where inbound messages may be captured, resolved, and shown to staff, but the system must not send WhatsApp replies.
 _Avoid_: passive mode, demo mode
 
-**Dedicated Test Number**:
+**Historical Dedicated Test Number**:
 An EVO-controlled sanitized sender number used to prove the live message path
 into the single production `evo-inbox` number without exposing a personal,
 customer, or primary admissions sender. It is not a second production WAHA
@@ -181,12 +208,13 @@ not a reason to terminally consume it. Autonomous media understanding requires a
 separate approval.
 _Avoid_: empty message, ignored webhook, successful no-op
 
-**Read-Mostly amoCRM Adapter**:
-The temporary bounded adapter that reads/imports verified external contact,
+**Historical Read-Mostly amoCRM Adapter**:
+The completed pre-#466 boundary that reads/imports verified external contact,
 lead, responsible-user and stage values plus permitted references. EVO records
-their provenance and remains canonical. The adapter performs no provider write,
-inferred mapping, name-based identity match or silent fallback.
-_Avoid_: permanent synchronization, stage writer, external identity authority
+their provenance and remains canonical. It performs no provider write,
+inferred mapping, name-based identity match or silent fallback. ADR 0023
+supersedes this as the active target only when #466 proves and replaces it.
+_Avoid_: current write path, stage authority, permanent compatibility adapter
 
 **Companion First Launch Surface**:
 Historical separate-product scope. Useful messaging capability may be rebuilt
@@ -203,7 +231,7 @@ _Avoid_: current acceptance, outbound proof
 The redesign of all retained Companion WAHA CRM App surfaces around EVO admissions work, rather than a light rename of WACRM.
 _Avoid_: light rebrand, template skin
 
-**Unified EVO Platform**:
+**Historical Unified EVO Platform (V1)**:
 The one EVO Admissions product: a single entry point and accepted UI shell for
 staff and the Student Portal, one Supabase Auth/RBAC organization model, one
 cross-module workflow, and one logical operational data model. CRM/admissions,

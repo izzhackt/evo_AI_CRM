@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import {
   CanonicalGeminiProposalOutputError,
@@ -9,8 +9,7 @@ import {
 import type { FixedRole } from "../fixed-role-policy.ts";
 import {
   CanonicalCrmRepositoryError,
-  createCanonicalGeminiProposal,
-  getCanonicalGeminiProposalContext,
+  executeCanonicalGeminiProposal,
   type CanonicalGeminiProposalSnapshot,
   type CanonicalGeminiProposalSourceContext,
 } from "./canonical-crm-repository.ts";
@@ -72,57 +71,9 @@ function error(
   return Object.freeze({ status: "error", reason });
 }
 
-function sourceContext(
-  context: Awaited<ReturnType<typeof getCanonicalGeminiProposalContext>>,
-): CanonicalGeminiProposalSourceContext | null {
-  const messages = context.messages.map((message) => ({
-    id: message.messageId,
-    direction: message.direction,
-    occurredAt: message.occurredAt,
-    body: message.body,
-  }));
-  if (
-    messages.length === 0 ||
-    messages.some((message) => message.body.length > 8_000) ||
-    messages.reduce((total, message) => total + message.body.length, 0) > 32_000
-  ) {
-    return null;
-  }
-  return Object.freeze({
-    schemaVersion: 1,
-    promptPolicyVersion: CANONICAL_GEMINI_PROPOSAL_PROMPT_POLICY_VERSION,
-    conversationId: context.conversationId,
-    studentCaseId: context.studentCaseId,
-    sourceMessage: Object.freeze({
-      id: context.sourceMessage.messageId,
-      direction: "inbound",
-      occurredAt: context.sourceMessage.occurredAt,
-      body: context.sourceMessage.body,
-    }),
-    messages: Object.freeze(messages),
-  });
-}
-
 function prompt(context: CanonicalGeminiProposalSourceContext): string {
   return `UNTRUSTED CANONICAL TRANSCRIPT JSON (oldest to newest):
 ${JSON.stringify([...context.messages].reverse())}`;
-}
-
-function idempotencyKey(input: Readonly<{
-  actorRole: FixedRole;
-  conversationId: string;
-  sourceMessageId: string;
-  model: string;
-}>): string {
-  const digest = createHash("sha256")
-    .update(
-      JSON.stringify({
-        ...input,
-        promptPolicyVersion: CANONICAL_GEMINI_PROPOSAL_PROMPT_POLICY_VERSION,
-      }),
-    )
-    .digest("hex");
-  return `canonical-gemini:${digest}`;
 }
 
 export async function requestCanonicalGeminiProposal(
@@ -145,91 +96,60 @@ export async function requestCanonicalGeminiProposal(
   }
   if (config.status === "blocked") return blocked(config.reason);
 
-  let context;
   try {
-    context = await getCanonicalGeminiProposalContext(input);
-  } catch (repositoryError) {
-    if (repositoryError instanceof CanonicalCrmRepositoryError) {
+    const proposal = await executeCanonicalGeminiProposal(
+      {
+        actorRole: input.actorRole,
+        correlationId: randomUUID(),
+      },
+      {
+        conversationId: input.conversationId,
+        model: config.model,
+        promptPolicyVersion: CANONICAL_GEMINI_PROPOSAL_PROMPT_POLICY_VERSION,
+      },
+      async (sourceContext) => {
+        const providerResult =
+          await createCanonicalGeminiProposalProvider(
+            config.apiKey,
+          ).createProposal({
+            model: config.model,
+            systemInstruction: CANONICAL_GEMINI_PROPOSAL_SYSTEM_INSTRUCTION,
+            prompt: prompt(sourceContext),
+            timeoutMs: config.timeoutMs,
+          });
+        const parsedOutput = parseCanonicalGeminiProposalOutput(
+          providerResult.outputText,
+        );
+        return {
+          proposalText: parsedOutput.replyText,
+          providerCreatedAt: new Date().toISOString(),
+        };
+      },
+    );
+    return Object.freeze({ status: "created", proposal });
+  } catch (requestError) {
+    if (requestError instanceof CanonicalGeminiProposalProviderError) {
+      if (requestError.code === "malformed_output") {
+        return error("invalid_provider_output");
+      }
+      return error(requestError.code);
+    }
+    if (requestError instanceof CanonicalGeminiProposalOutputError) {
+      return error("invalid_provider_output");
+    }
+    if (requestError instanceof CanonicalCrmRepositoryError) {
       if (
-        repositoryError.code === "not_found" ||
-        repositoryError.code === "forbidden" ||
-        repositoryError.code === "invalid_input"
+        requestError.code === "not_found" ||
+        requestError.code === "forbidden" ||
+        requestError.code === "invalid_input"
       ) {
         return error("conversation_not_available");
       }
-      if (repositoryError.code === "conflict") {
+      if (requestError.code === "conflict") {
         return error("source_context_not_available");
       }
       return error("storage_unavailable");
     }
-    throw repositoryError;
-  }
-  const canonicalSourceContext = sourceContext(context);
-  if (!canonicalSourceContext) return error("source_context_not_available");
-
-  let providerResult;
-  try {
-    providerResult = await createCanonicalGeminiProposalProvider(
-      config.apiKey,
-    ).createProposal({
-      model: config.model,
-      systemInstruction: CANONICAL_GEMINI_PROPOSAL_SYSTEM_INSTRUCTION,
-      prompt: prompt(canonicalSourceContext),
-      timeoutMs: config.timeoutMs,
-    });
-  } catch (providerError) {
-    if (providerError instanceof CanonicalGeminiProposalProviderError) {
-      if (providerError.code === "malformed_output") {
-        return error("invalid_provider_output");
-      }
-      return error(providerError.code);
-    }
     return error("provider_unavailable");
-  }
-
-  let parsedOutput;
-  try {
-    parsedOutput = parseCanonicalGeminiProposalOutput(providerResult.outputText);
-  } catch (outputError) {
-    if (outputError instanceof CanonicalGeminiProposalOutputError) {
-      return error("invalid_provider_output");
-    }
-    throw outputError;
-  }
-
-  try {
-    const proposal = await createCanonicalGeminiProposal(
-      {
-        actorRole: input.actorRole,
-        correlationId: randomUUID(),
-        idempotencyKey: idempotencyKey({
-          actorRole: input.actorRole,
-          conversationId: context.conversationId,
-          sourceMessageId: context.sourceMessage.messageId,
-          model: config.model,
-        }),
-      },
-      {
-        conversationId: context.conversationId,
-        sourceMessageId: context.sourceMessage.messageId,
-        model: config.model,
-        proposalText: parsedOutput.replyText,
-        sourceContext: canonicalSourceContext,
-        providerCreatedAt: new Date().toISOString(),
-      },
-    );
-    return Object.freeze({ status: "created", proposal });
-  } catch (repositoryError) {
-    if (repositoryError instanceof CanonicalCrmRepositoryError) {
-      if (
-        repositoryError.code === "not_found" ||
-        repositoryError.code === "forbidden" ||
-        repositoryError.code === "conflict"
-      ) {
-        return error("conversation_not_available");
-      }
-      return error("storage_unavailable");
-    }
-    throw repositoryError;
   }
 }

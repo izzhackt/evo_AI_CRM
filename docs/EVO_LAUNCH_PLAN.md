@@ -291,6 +291,19 @@ does not authorize two active implementations of any completed capability:
    execution and write no proposal. This replacement deletes the old
    HMAC/Supabase proposal execution, SQLite/Anthropic summary and deterministic
    Prepared AI canned-response contour; none remains as a callable fallback.
+
+   Before any transcript reaches Gemini, the repository locks the canonical
+   lead row, rechecks the caller's current owning-role access, reads the newest
+   bounded transcript and reserves a deterministic command receipt. It keeps
+   that same PostgreSQL transaction and lead lock through the configured
+   provider call, whose timeout is bounded to at most 60 seconds, and through
+   proposal/event persistence. Inbound ingestion and Sales-to-Admissions
+   handoff take the same lead lock, so neither ownership nor source messages
+   can change during disclosure. A concurrent duplicate waits, replays the
+   completed receipt and does not call Gemini again. The latest-proposal read
+   joins current conversation authorization and the proposal in one SQL
+   statement, so it cannot return a draft after a role handoff between two
+   reads.
 3. V2-9C adds the human Accept/Edit/Reject workflow over that same PostgreSQL
    proposal. A role may request or review only a conversation it owns; Admin
    may operate the union. Accept preserves the proposed text, Edit requires

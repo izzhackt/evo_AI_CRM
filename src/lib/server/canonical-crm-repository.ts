@@ -7,7 +7,6 @@ import {
   desc,
   eq,
   ilike,
-  inArray,
   isNotNull,
   isNull,
   lt,
@@ -4814,41 +4813,22 @@ export async function getCanonicalStaffConversationThread(
   });
 }
 
-export async function getCanonicalGeminiProposalContext(
-  input: Readonly<{
-    actorRole: FixedRole;
-    conversationId: string;
-  }>,
-): Promise<CanonicalGeminiProposalContext> {
-  const thread = await getCanonicalStaffConversationThread({
-    actorRole: input.actorRole,
-    conversationId: input.conversationId,
-    pageSize: 20,
-  });
-  const sourceMessage = thread.messages[0];
-  if (!sourceMessage || sourceMessage.direction !== "inbound") {
-    throw new CanonicalCrmRepositoryError("conflict");
-  }
-  const inboundSourceMessage = { ...sourceMessage, direction: "inbound" as const };
-  return {
-    conversationId: thread.conversation.conversationId,
-    leadId: thread.conversation.leadId,
-    studentCaseId: thread.conversation.studentCaseId,
-    owningRole: thread.conversation.owningRole,
-    sourceMessage: inboundSourceMessage,
-    messages: thread.messages,
-  };
-}
-
 async function authorizedGeminiConversation(
   transaction: DatabaseTransaction,
   input: Readonly<{ actorRole: FixedRole; conversationId: string }>,
-): Promise<Readonly<{ leadId: string; studentCaseId: string | null }>> {
+): Promise<
+  Readonly<{
+    leadId: string;
+    studentCaseId: string | null;
+    owningRole: "sales" | "admissions";
+  }>
+> {
   const [conversation] = await transaction
     .select({
       conversationId: evoConversations.id,
       leadId: evoConversations.leadId,
       studentCaseId: evoSalesAdmissionsHandoffs.studentCaseId,
+      owningRole: evoConversations.owningRole,
     })
     .from(evoConversations)
     .leftJoin(
@@ -4869,13 +4849,20 @@ async function authorizedGeminiConversation(
   return {
     leadId: conversation.leadId,
     studentCaseId: conversation.studentCaseId,
+    owningRole: databaseConversationOwningRole(conversation.owningRole),
   };
 }
 
 async function lockAuthorizedGeminiConversation(
   transaction: DatabaseTransaction,
   input: Readonly<{ actorRole: FixedRole; conversationId: string }>,
-): Promise<Readonly<{ leadId: string; studentCaseId: string | null }>> {
+): Promise<
+  Readonly<{
+    leadId: string;
+    studentCaseId: string | null;
+    owningRole: "sales" | "admissions";
+  }>
+> {
   const [reference] = await transaction
     .select({ leadId: evoConversations.leadId })
     .from(evoConversations)
@@ -4902,6 +4889,60 @@ async function lockAuthorizedGeminiConversation(
   return authorizedGeminiConversation(transaction, input);
 }
 
+async function selectLockedCanonicalGeminiProposalContext(
+  transaction: DatabaseTransaction,
+  input: Readonly<{ actorRole: FixedRole; conversationId: string }>,
+): Promise<CanonicalGeminiProposalContext> {
+  const conversation = await lockAuthorizedGeminiConversation(
+    transaction,
+    input,
+  );
+  const messageRows = await transaction
+    .select({
+      messageId: evoMessages.id,
+      conversationId: evoMessages.conversationId,
+      direction: evoMessages.direction,
+      externalMessageId: evoMessages.externalMessageId,
+      body: evoMessages.body,
+      authorRole: evoMessages.authorRole,
+      occurredAt: evoMessages.occurredAt,
+      createdAt: evoMessages.createdAt,
+    })
+    .from(evoMessages)
+    .where(eq(evoMessages.conversationId, input.conversationId))
+    .orderBy(desc(evoMessages.occurredAt), desc(evoMessages.id))
+    .limit(20);
+  const messages = messageRows.map(canonicalConversationMessageRow);
+  const sourceMessage = messages[0];
+  if (!sourceMessage || sourceMessage.direction !== "inbound") {
+    throw new CanonicalCrmRepositoryError("conflict");
+  }
+  return {
+    conversationId: input.conversationId,
+    leadId: conversation.leadId,
+    studentCaseId: conversation.studentCaseId,
+    owningRole: conversation.owningRole,
+    sourceMessage: { ...sourceMessage, direction: "inbound" },
+    messages,
+  };
+}
+
+export async function getCanonicalGeminiProposalContext(
+  input: Readonly<{
+    actorRole: FixedRole;
+    conversationId: string;
+  }>,
+): Promise<CanonicalGeminiProposalContext> {
+  const actor = actorRole(input.actorRole, ["admin", "sales", "admissions"]);
+  const conversationId = uuid(input.conversationId);
+  return runTransaction((transaction) =>
+    selectLockedCanonicalGeminiProposalContext(transaction, {
+      actorRole: actor,
+      conversationId,
+    }),
+  );
+}
+
 async function selectCanonicalGeminiProposalById(
   transaction: DatabaseTransaction,
   proposalId: string,
@@ -4926,139 +4967,181 @@ async function selectCanonicalGeminiProposalById(
   return canonicalGeminiProposalRow(row);
 }
 
-export async function createCanonicalGeminiProposal(
+export type CanonicalGeminiProposalGeneration = Readonly<{
+  proposalText: string;
+  providerCreatedAt: string;
+}>;
+
+export type CanonicalGeminiProposalGenerator = (
+  sourceContext: CanonicalGeminiProposalSourceContext,
+) => Promise<CanonicalGeminiProposalGeneration>;
+
+class CanonicalGeminiProposalGenerationAbort extends Error {
+  readonly generationError: unknown;
+
+  constructor(generationError: unknown) {
+    super("Canonical Gemini proposal generation aborted.");
+    this.name = "CanonicalGeminiProposalGenerationAbort";
+    this.generationError = generationError;
+  }
+}
+
+function canonicalGeminiProposalSourceContext(
+  context: CanonicalGeminiProposalContext,
+  promptPolicyVersion: string,
+): CanonicalGeminiProposalSourceContext {
+  const messages = context.messages.map((message) => ({
+    id: message.messageId,
+    direction: message.direction,
+    occurredAt: message.occurredAt,
+    body: message.body,
+  }));
+  if (
+    messages.length === 0 ||
+    messages.some((message) => message.body.length > 8_000) ||
+    messages.reduce((total, message) => total + message.body.length, 0) > 32_000
+  ) {
+    throw new CanonicalCrmRepositoryError("conflict");
+  }
+  const validated = canonicalGeminiSourceContext({
+    schemaVersion: 1,
+    promptPolicyVersion,
+    conversationId: context.conversationId,
+    studentCaseId: context.studentCaseId,
+    sourceMessage: {
+      id: context.sourceMessage.messageId,
+      direction: "inbound",
+      occurredAt: context.sourceMessage.occurredAt,
+      body: context.sourceMessage.body,
+    },
+    messages,
+  });
+  return Object.freeze({
+    ...validated,
+    sourceMessage: Object.freeze({ ...validated.sourceMessage }),
+    messages: Object.freeze(
+      validated.messages.map((message) => Object.freeze({ ...message })),
+    ),
+  });
+}
+
+export async function executeCanonicalGeminiProposal(
   contextInput: Readonly<{
     actorRole: FixedRole;
-    idempotencyKey: string;
     correlationId: string;
   }>,
   input: Readonly<{
     conversationId: string;
-    sourceMessageId: string;
     model: string;
-    proposalText: string;
-    sourceContext: CanonicalGeminiProposalSourceContext;
-    providerCreatedAt: string;
+    promptPolicyVersion: string;
   }>,
+  generate: CanonicalGeminiProposalGenerator,
 ): Promise<CanonicalGeminiProposalSnapshot> {
-  const context = parseCommandContext(
-    contextInput,
-    ["admin", "sales", "admissions"],
-  );
+  const actor = actorRole(contextInput.actorRole, [
+    "admin",
+    "sales",
+    "admissions",
+  ]);
+  const correlation = correlationId(contextInput.correlationId);
   const conversationId = uuid(input.conversationId);
-  const sourceMessageId = uuid(input.sourceMessageId);
   const model = boundedText(input.model, { maxLength: 128 });
-  const proposalText = messageBody(input.proposalText);
-  if (proposalText.length > 3_000) invalidInput();
-  const sourceContext = canonicalGeminiSourceContext(input.sourceContext);
-  const providerCreatedAt = isoTimestamp(input.providerCreatedAt);
-  if (
-    sourceContext.conversationId !== conversationId ||
-    sourceContext.sourceMessage.id !== sourceMessageId
-  ) {
-    invalidInput();
-  }
-  const requestHash = sha256({
-    conversationId,
-    sourceMessageId,
-    model,
-    sourceContext,
+  const promptPolicyVersion = boundedText(input.promptPolicyVersion, {
+    maxLength: 80,
   });
+  if (typeof generate !== "function") invalidInput();
 
-  return runTransaction(async (transaction) => {
-    const conversation = await lockAuthorizedGeminiConversation(transaction, {
-      actorRole: context.actorRole,
-      conversationId,
-    });
-    if (sourceContext.studentCaseId !== conversation.studentCaseId) {
-      throw new CanonicalCrmRepositoryError("conflict");
-    }
-
-    const reservation = await reserveCommand(transaction, {
-      commandName: "canonical_gemini_proposal.create",
-      context,
-      requestHash,
-    });
-    if (reservation.kind === "replay") {
-      return selectCanonicalGeminiProposalById(
-        transaction,
-        resultUuid(reservation.resultPayload, "proposalId"),
+  try {
+    return await getDatabase().transaction(async (transaction) => {
+      // Keep the canonical lead-row lock through the bounded provider call.
+      // Inbound ingestion and handoff use the same lock, so authorization and
+      // the exact transcript cannot change after disclosure has been approved.
+      const proposalContext =
+        await selectLockedCanonicalGeminiProposalContext(transaction, {
+          actorRole: actor,
+          conversationId,
+        });
+      const sourceContext = canonicalGeminiProposalSourceContext(
+        proposalContext,
+        promptPolicyVersion,
       );
-    }
-
-    const persistedMessages = await transaction
-      .select({
-        messageId: evoMessages.id,
-        direction: evoMessages.direction,
-        body: evoMessages.body,
-        occurredAt: evoMessages.occurredAt,
-      })
-      .from(evoMessages)
-      .where(
-        and(
-          eq(evoMessages.conversationId, conversationId),
-          inArray(
-            evoMessages.id,
-            sourceContext.messages.map((message) => message.id),
-          ),
-        ),
+      const idempotencyKey = commandKey(
+        `canonical-gemini:${sha256({
+          actorRole: actor,
+          conversationId,
+          sourceMessageId: sourceContext.sourceMessage.id,
+          model,
+          promptPolicyVersion,
+        })}`,
       );
-    if (persistedMessages.length !== sourceContext.messages.length) {
-      throw new CanonicalCrmRepositoryError("conflict");
-    }
-    const persistedById = new Map(
-      persistedMessages.map((message) => [message.messageId, message]),
-    );
-    for (const message of sourceContext.messages) {
-      const persisted = persistedById.get(message.id);
-      if (
-        !persisted ||
-        persisted.direction !== message.direction ||
-        persisted.body !== message.body ||
-        dateString(persisted.occurredAt) !== message.occurredAt
-      ) {
-        throw new CanonicalCrmRepositoryError("conflict");
+      const context: CommandContext = {
+        actorRole: actor,
+        correlationId: correlation,
+        idempotencyKey,
+      };
+      const requestHash = sha256({
+        conversationId,
+        sourceMessageId: sourceContext.sourceMessage.id,
+        model,
+        sourceContext,
+      });
+      const reservation = await reserveCommand(transaction, {
+        commandName: "canonical_gemini_proposal.execute",
+        context,
+        requestHash,
+      });
+      if (reservation.kind === "replay") {
+        return selectCanonicalGeminiProposalById(
+          transaction,
+          resultUuid(reservation.resultPayload, "proposalId"),
+        );
       }
-    }
-    const [latestMessage] = await transaction
-      .select({ messageId: evoMessages.id })
-      .from(evoMessages)
-      .where(eq(evoMessages.conversationId, conversationId))
-      .orderBy(desc(evoMessages.occurredAt), desc(evoMessages.id))
-      .limit(1);
-    if (!latestMessage || latestMessage.messageId !== sourceMessageId) {
-      throw new CanonicalCrmRepositoryError("conflict");
-    }
 
-    const proposalId = randomUUID();
-    await transaction.insert(evoAiProposals).values({
-      id: proposalId,
-      conversationId,
-      studentCaseId: conversation.studentCaseId,
-      provider: "gemini",
-      model,
-      proposalText,
-      sourceContext,
-      providerCreatedAt,
-      correlationId: context.correlationId,
-      idempotencyKey: context.idempotencyKey,
+      let generated: CanonicalGeminiProposalGeneration;
+      try {
+        generated = await generate(sourceContext);
+      } catch (generationError) {
+        throw new CanonicalGeminiProposalGenerationAbort(generationError);
+      }
+      const proposalText = messageBody(generated.proposalText);
+      if (proposalText.length > 3_000) invalidInput();
+      const providerCreatedAt = isoTimestamp(generated.providerCreatedAt);
+
+      const proposalId = randomUUID();
+      await transaction.insert(evoAiProposals).values({
+        id: proposalId,
+        conversationId,
+        studentCaseId: proposalContext.studentCaseId,
+        provider: "gemini",
+        model,
+        proposalText,
+        sourceContext,
+        providerCreatedAt,
+        correlationId: context.correlationId,
+        idempotencyKey: context.idempotencyKey,
+      });
+      await insertBusinessEvent(transaction, {
+        context,
+        businessObjectType: "ai_proposal",
+        businessObjectId: proposalId,
+        transition: "ai_proposal.created",
+        fromState: null,
+        toState: "pending",
+      });
+      await completeCommand(transaction, {
+        receiptId: reservation.receiptId,
+        businessObjectType: "ai_proposal",
+        businessObjectId: proposalId,
+        resultPayload: { proposalId },
+      });
+      return selectCanonicalGeminiProposalById(transaction, proposalId);
     });
-    await insertBusinessEvent(transaction, {
-      context,
-      businessObjectType: "ai_proposal",
-      businessObjectId: proposalId,
-      transition: "ai_proposal.created",
-      fromState: null,
-      toState: "pending",
-    });
-    await completeCommand(transaction, {
-      receiptId: reservation.receiptId,
-      businessObjectType: "ai_proposal",
-      businessObjectId: proposalId,
-      resultPayload: { proposalId },
-    });
-    return selectCanonicalGeminiProposalById(transaction, proposalId);
-  });
+  } catch (error) {
+    if (error instanceof CanonicalGeminiProposalGenerationAbort) {
+      throw error.generationError;
+    }
+    if (error instanceof CanonicalCrmRepositoryError) throw error;
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
 }
 
 export async function readLatestCanonicalGeminiProposal(
@@ -5070,28 +5153,40 @@ export async function readLatestCanonicalGeminiProposal(
   const actor = actorRole(input.actorRole, ["admin", "sales", "admissions"]);
   const conversationId = uuid(input.conversationId);
   return runTransaction(async (transaction) => {
-    await authorizedGeminiConversation(transaction, {
-      actorRole: actor,
-      conversationId,
-    });
     const [row] = await transaction
       .select({
-        proposalId: evoAiProposals.id,
-        conversationId: evoAiProposals.conversationId,
-        studentCaseId: evoAiProposals.studentCaseId,
-        provider: evoAiProposals.provider,
-        model: evoAiProposals.model,
-        proposalText: evoAiProposals.proposalText,
-        sourceContext: evoAiProposals.sourceContext,
-        reviewDecision: evoAiProposals.reviewDecision,
-        providerCreatedAt: evoAiProposals.providerCreatedAt,
-        createdAt: evoAiProposals.createdAt,
+        authorizedConversationId: evoConversations.id,
+        proposal: {
+          proposalId: evoAiProposals.id,
+          conversationId: evoAiProposals.conversationId,
+          studentCaseId: evoAiProposals.studentCaseId,
+          provider: evoAiProposals.provider,
+          model: evoAiProposals.model,
+          proposalText: evoAiProposals.proposalText,
+          sourceContext: evoAiProposals.sourceContext,
+          reviewDecision: evoAiProposals.reviewDecision,
+          providerCreatedAt: evoAiProposals.providerCreatedAt,
+          createdAt: evoAiProposals.createdAt,
+        },
       })
-      .from(evoAiProposals)
-      .where(eq(evoAiProposals.conversationId, conversationId))
+      .from(evoConversations)
+      .leftJoin(
+        evoAiProposals,
+        eq(evoAiProposals.conversationId, evoConversations.id),
+      )
+      .where(
+        and(
+          eq(evoConversations.id, conversationId),
+          eq(evoConversations.channel, "whatsapp"),
+          actor === "admin"
+            ? undefined
+            : eq(evoConversations.owningRole, actor),
+        ),
+      )
       .orderBy(desc(evoAiProposals.createdAt), desc(evoAiProposals.id))
       .limit(1);
-    return row ? canonicalGeminiProposalRow(row) : null;
+    if (!row) throw new CanonicalCrmRepositoryError("not_found");
+    return row.proposal ? canonicalGeminiProposalRow(row.proposal) : null;
   });
 }
 

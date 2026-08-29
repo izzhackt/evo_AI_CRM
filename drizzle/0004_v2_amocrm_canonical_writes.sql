@@ -30,6 +30,7 @@ CREATE TABLE "evo_amocrm_contact_bindings" (
 	"person_id" text NOT NULL,
 	"provider_contact_id" text NOT NULL,
 	"created_by_attempt_id" text,
+	"created_by_attempt_status" text,
 	"provider_updated_at" timestamp with time zone,
 	"last_verified_at" timestamp with time zone NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
@@ -40,6 +41,7 @@ CREATE TABLE "evo_amocrm_contact_bindings" (
 	CONSTRAINT "evo_amocrm_contacts_attempt_unique" UNIQUE("created_by_attempt_id"),
 	CONSTRAINT "evo_amocrm_contacts_id_uuid_check" CHECK ("evo_amocrm_contact_bindings"."id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'),
 	CONSTRAINT "evo_amocrm_contacts_provider_id_check" CHECK ("evo_amocrm_contact_bindings"."provider_contact_id" ~ '^[1-9][0-9]{0,19}$'),
+	CONSTRAINT "evo_amocrm_contacts_creation_status_check" CHECK (("evo_amocrm_contact_bindings"."created_by_attempt_id" is null and "evo_amocrm_contact_bindings"."created_by_attempt_status" is null) or ("evo_amocrm_contact_bindings"."created_by_attempt_id" is not null and "evo_amocrm_contact_bindings"."created_by_attempt_status" = 'accepted')),
 	CONSTRAINT "evo_amocrm_contacts_version_check" CHECK ("evo_amocrm_contact_bindings"."version" > 0)
 );
 --> statement-breakpoint
@@ -71,6 +73,7 @@ CREATE TABLE "evo_amocrm_lead_bindings" (
 	"lead_id" text NOT NULL,
 	"provider_lead_id" text NOT NULL,
 	"created_by_attempt_id" text,
+	"created_by_attempt_status" text,
 	"provider_updated_at" timestamp with time zone,
 	"last_verified_at" timestamp with time zone NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
@@ -81,6 +84,7 @@ CREATE TABLE "evo_amocrm_lead_bindings" (
 	CONSTRAINT "evo_amocrm_leads_attempt_unique" UNIQUE("created_by_attempt_id"),
 	CONSTRAINT "evo_amocrm_leads_id_uuid_check" CHECK ("evo_amocrm_lead_bindings"."id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'),
 	CONSTRAINT "evo_amocrm_leads_provider_id_check" CHECK ("evo_amocrm_lead_bindings"."provider_lead_id" ~ '^[1-9][0-9]{0,19}$'),
+	CONSTRAINT "evo_amocrm_leads_creation_status_check" CHECK (("evo_amocrm_lead_bindings"."created_by_attempt_id" is null and "evo_amocrm_lead_bindings"."created_by_attempt_status" is null) or ("evo_amocrm_lead_bindings"."created_by_attempt_id" is not null and "evo_amocrm_lead_bindings"."created_by_attempt_status" = 'accepted')),
 	CONSTRAINT "evo_amocrm_leads_version_check" CHECK ("evo_amocrm_lead_bindings"."version" > 0)
 );
 --> statement-breakpoint
@@ -118,8 +122,8 @@ CREATE TABLE "evo_amocrm_operation_attempts" (
 	"last_reconciled_at" timestamp with time zone,
 	CONSTRAINT "evo_amocrm_attempts_receipt_unique" UNIQUE("command_receipt_id"),
 	CONSTRAINT "evo_amocrm_attempts_idempotency_unique" UNIQUE("idempotency_key"),
-	CONSTRAINT "evo_amocrm_attempts_contact_binding_unique" UNIQUE("account_id","id","person_id","result_contact_id"),
-	CONSTRAINT "evo_amocrm_attempts_lead_binding_unique" UNIQUE("account_id","id","lead_id","result_lead_id"),
+	CONSTRAINT "evo_amocrm_attempts_contact_binding_unique" UNIQUE("account_id","id","status","person_id","result_contact_id"),
+	CONSTRAINT "evo_amocrm_attempts_lead_binding_unique" UNIQUE("account_id","id","status","lead_id","result_lead_id"),
 	CONSTRAINT "evo_amocrm_attempts_id_uuid_check" CHECK ("evo_amocrm_operation_attempts"."id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'),
 	CONSTRAINT "evo_amocrm_attempts_provider_check" CHECK ("evo_amocrm_operation_attempts"."provider" = 'amocrm'),
 	CONSTRAINT "evo_amocrm_attempts_operation_check" CHECK ("evo_amocrm_operation_attempts"."operation_name" in ('contact_create', 'contact_update', 'lead_create', 'lead_update', 'contact_lead_link', 'lead_pipeline_status_update', 'lead_responsible_update', 'lead_note_create', 'lead_tag_update')),
@@ -148,11 +152,11 @@ CREATE TABLE "evo_amocrm_operation_attempts" (
 --> statement-breakpoint
 ALTER TABLE "evo_amocrm_contact_bindings" ADD CONSTRAINT "evo_amocrm_contact_bindings_account_id_evo_amocrm_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."evo_amocrm_accounts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evo_amocrm_contact_bindings" ADD CONSTRAINT "evo_amocrm_contact_bindings_person_id_evo_people_id_fk" FOREIGN KEY ("person_id") REFERENCES "public"."evo_people"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "evo_amocrm_contact_bindings" ADD CONSTRAINT "evo_amocrm_contacts_creation_attempt_fk" FOREIGN KEY ("account_id","created_by_attempt_id","person_id","provider_contact_id") REFERENCES "public"."evo_amocrm_operation_attempts"("account_id","id","person_id","result_contact_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evo_amocrm_contact_bindings" ADD CONSTRAINT "evo_amocrm_contacts_creation_attempt_fk" FOREIGN KEY ("account_id","created_by_attempt_id","created_by_attempt_status","person_id","provider_contact_id") REFERENCES "public"."evo_amocrm_operation_attempts"("account_id","id","status","person_id","result_contact_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evo_amocrm_discovery_snapshots" ADD CONSTRAINT "evo_amocrm_discovery_snapshots_account_id_evo_amocrm_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."evo_amocrm_accounts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evo_amocrm_lead_bindings" ADD CONSTRAINT "evo_amocrm_lead_bindings_account_id_evo_amocrm_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."evo_amocrm_accounts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evo_amocrm_lead_bindings" ADD CONSTRAINT "evo_amocrm_lead_bindings_lead_id_evo_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."evo_leads"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "evo_amocrm_lead_bindings" ADD CONSTRAINT "evo_amocrm_leads_creation_attempt_fk" FOREIGN KEY ("account_id","created_by_attempt_id","lead_id","provider_lead_id") REFERENCES "public"."evo_amocrm_operation_attempts"("account_id","id","lead_id","result_lead_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evo_amocrm_lead_bindings" ADD CONSTRAINT "evo_amocrm_leads_creation_attempt_fk" FOREIGN KEY ("account_id","created_by_attempt_id","created_by_attempt_status","lead_id","provider_lead_id") REFERENCES "public"."evo_amocrm_operation_attempts"("account_id","id","status","lead_id","result_lead_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evo_amocrm_operation_attempts" ADD CONSTRAINT "evo_amocrm_operation_attempts_account_id_evo_amocrm_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."evo_amocrm_accounts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evo_amocrm_operation_attempts" ADD CONSTRAINT "evo_amocrm_operation_attempts_command_receipt_id_evo_command_receipts_id_fk" FOREIGN KEY ("command_receipt_id") REFERENCES "public"."evo_command_receipts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evo_amocrm_operation_attempts" ADD CONSTRAINT "evo_amocrm_operation_attempts_person_id_evo_people_id_fk" FOREIGN KEY ("person_id") REFERENCES "public"."evo_people"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint

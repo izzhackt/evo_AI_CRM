@@ -1,5 +1,5 @@
 {
-  "id": "16db79c6-66a2-48ff-a356-20e936935420",
+  "id": "bac782c2-4f8c-4664-b167-0796fd68f323",
   "prevId": "10317fa6-3cc7-41af-bf60-abe5d7ec0f56",
   "version": "7",
   "dialect": "postgresql",
@@ -181,6 +181,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "created_by_attempt_status": {
+          "name": "created_by_attempt_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "provider_updated_at": {
           "name": "provider_updated_at",
           "type": "timestamp with time zone",
@@ -266,12 +272,14 @@
           "columnsFrom": [
             "account_id",
             "created_by_attempt_id",
+            "created_by_attempt_status",
             "person_id",
             "provider_contact_id"
           ],
           "columnsTo": [
             "account_id",
             "id",
+            "status",
             "person_id",
             "result_contact_id"
           ],
@@ -314,6 +322,10 @@
         "evo_amocrm_contacts_provider_id_check": {
           "name": "evo_amocrm_contacts_provider_id_check",
           "value": "\"evo_amocrm_contact_bindings\".\"provider_contact_id\" ~ '^[1-9][0-9]{0,19}$'"
+        },
+        "evo_amocrm_contacts_creation_status_check": {
+          "name": "evo_amocrm_contacts_creation_status_check",
+          "value": "(\"evo_amocrm_contact_bindings\".\"created_by_attempt_id\" is null and \"evo_amocrm_contact_bindings\".\"created_by_attempt_status\" is null) or (\"evo_amocrm_contact_bindings\".\"created_by_attempt_id\" is not null and \"evo_amocrm_contact_bindings\".\"created_by_attempt_status\" = 'accepted')"
         },
         "evo_amocrm_contacts_version_check": {
           "name": "evo_amocrm_contacts_version_check",
@@ -515,6 +527,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "created_by_attempt_status": {
+          "name": "created_by_attempt_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "provider_updated_at": {
           "name": "provider_updated_at",
           "type": "timestamp with time zone",
@@ -600,12 +618,14 @@
           "columnsFrom": [
             "account_id",
             "created_by_attempt_id",
+            "created_by_attempt_status",
             "lead_id",
             "provider_lead_id"
           ],
           "columnsTo": [
             "account_id",
             "id",
+            "status",
             "lead_id",
             "result_lead_id"
           ],
@@ -648,6 +668,10 @@
         "evo_amocrm_leads_provider_id_check": {
           "name": "evo_amocrm_leads_provider_id_check",
           "value": "\"evo_amocrm_lead_bindings\".\"provider_lead_id\" ~ '^[1-9][0-9]{0,19}$'"
+        },
+        "evo_amocrm_leads_creation_status_check": {
+          "name": "evo_amocrm_leads_creation_status_check",
+          "value": "(\"evo_amocrm_lead_bindings\".\"created_by_attempt_id\" is null and \"evo_amocrm_lead_bindings\".\"created_by_attempt_status\" is null) or (\"evo_amocrm_lead_bindings\".\"created_by_attempt_id\" is not null and \"evo_amocrm_lead_bindings\".\"created_by_attempt_status\" = 'accepted')"
         },
         "evo_amocrm_leads_version_check": {
           "name": "evo_amocrm_leads_version_check",
@@ -1000,6 +1024,7 @@
           "columns": [
             "account_id",
             "id",
+            "status",
             "person_id",
             "result_contact_id"
           ]
@@ -1010,6 +1035,7 @@
           "columns": [
             "account_id",
             "id",
+            "status",
             "lead_id",
             "result_lead_id"
           ]

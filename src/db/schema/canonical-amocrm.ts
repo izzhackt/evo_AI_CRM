@@ -263,12 +263,14 @@ export const evoAmoCrmOperationAttempts = pgTable(
     unique("evo_amocrm_attempts_contact_binding_unique").on(
       table.accountId,
       table.id,
+      table.status,
       table.personId,
       table.resultContactId,
     ),
     unique("evo_amocrm_attempts_lead_binding_unique").on(
       table.accountId,
       table.id,
+      table.status,
       table.leadId,
       table.resultLeadId,
     ),
@@ -390,6 +392,7 @@ export const evoAmoCrmContactBindings = pgTable(
       .references(() => evoPeople.id, { onDelete: "restrict" }),
     providerContactId: text("provider_contact_id").notNull(),
     createdByAttemptId: text("created_by_attempt_id"),
+    createdByAttemptStatus: text("created_by_attempt_status"),
     providerUpdatedAt: timestamp("provider_updated_at", {
       withTimezone: true,
       mode: "date",
@@ -427,12 +430,14 @@ export const evoAmoCrmContactBindings = pgTable(
       columns: [
         table.accountId,
         table.createdByAttemptId,
+        table.createdByAttemptStatus,
         table.personId,
         table.providerContactId,
       ],
       foreignColumns: [
         evoAmoCrmOperationAttempts.accountId,
         evoAmoCrmOperationAttempts.id,
+        evoAmoCrmOperationAttempts.status,
         evoAmoCrmOperationAttempts.personId,
         evoAmoCrmOperationAttempts.resultContactId,
       ],
@@ -445,6 +450,10 @@ export const evoAmoCrmContactBindings = pgTable(
     check(
       "evo_amocrm_contacts_provider_id_check",
       sql`${table.providerContactId} ~ '^[1-9][0-9]{0,19}$'`,
+    ),
+    check(
+      "evo_amocrm_contacts_creation_status_check",
+      sql`(${table.createdByAttemptId} is null and ${table.createdByAttemptStatus} is null) or (${table.createdByAttemptId} is not null and ${table.createdByAttemptStatus} = 'accepted')`,
     ),
     check("evo_amocrm_contacts_version_check", sql`${table.version} > 0`),
   ],
@@ -462,6 +471,7 @@ export const evoAmoCrmLeadBindings = pgTable(
       .references(() => evoLeads.id, { onDelete: "restrict" }),
     providerLeadId: text("provider_lead_id").notNull(),
     createdByAttemptId: text("created_by_attempt_id"),
+    createdByAttemptStatus: text("created_by_attempt_status"),
     providerUpdatedAt: timestamp("provider_updated_at", {
       withTimezone: true,
       mode: "date",
@@ -499,12 +509,14 @@ export const evoAmoCrmLeadBindings = pgTable(
       columns: [
         table.accountId,
         table.createdByAttemptId,
+        table.createdByAttemptStatus,
         table.leadId,
         table.providerLeadId,
       ],
       foreignColumns: [
         evoAmoCrmOperationAttempts.accountId,
         evoAmoCrmOperationAttempts.id,
+        evoAmoCrmOperationAttempts.status,
         evoAmoCrmOperationAttempts.leadId,
         evoAmoCrmOperationAttempts.resultLeadId,
       ],
@@ -517,6 +529,10 @@ export const evoAmoCrmLeadBindings = pgTable(
     check(
       "evo_amocrm_leads_provider_id_check",
       sql`${table.providerLeadId} ~ '^[1-9][0-9]{0,19}$'`,
+    ),
+    check(
+      "evo_amocrm_leads_creation_status_check",
+      sql`(${table.createdByAttemptId} is null and ${table.createdByAttemptStatus} is null) or (${table.createdByAttemptId} is not null and ${table.createdByAttemptStatus} = 'accepted')`,
     ),
     check("evo_amocrm_leads_version_check", sql`${table.version} > 0`),
   ],

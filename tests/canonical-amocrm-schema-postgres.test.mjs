@@ -693,8 +693,8 @@ test("canonical amoCRM persistence keeps PostgreSQL authoritative and provider o
     assert.deepEqual(Array.from(retainedTargets), [
       {
         status: "rejected",
-        target_lead_id: "6002",
-        result_lead_id: "6002",
+        target_lead_id: "6001",
+        result_lead_id: null,
         request_method: "POST",
         provider_request_sha256: "7".repeat(64),
         dispatched: true,
@@ -704,8 +704,8 @@ test("canonical amoCRM persistence keeps PostgreSQL authoritative and provider o
       },
       {
         status: "unknown",
-        target_lead_id: "6001",
-        result_lead_id: null,
+        target_lead_id: "6002",
+        result_lead_id: "6002",
         request_method: "PATCH",
         provider_request_sha256: "6".repeat(64),
         dispatched: true,

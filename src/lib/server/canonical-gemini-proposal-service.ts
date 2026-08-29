@@ -122,7 +122,7 @@ export async function requestCanonicalGeminiProposal(
         );
         return {
           proposalText: parsedOutput.replyText,
-          providerCreatedAt: new Date().toISOString(),
+          providerCreatedAt: providerResult.providerCreatedAt,
         };
       },
     );

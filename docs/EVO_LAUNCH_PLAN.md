@@ -398,10 +398,16 @@ guess, simulate or fall back.
    Interactions adapter with `store: false`, tools disabled, one explicit model
    and structured JSON on the minimum authorized context from an existing real
    conversation. PostgreSQL locks the source context and command receipt as
-   already defined by V2-9. The application validates the response, stores the
-   proposal and requires Accept/Edit/Reject in the actual staff UI. There is no
-   artificial call-count or cost limit in the product contract, but a completed
-   receipt replays instead of paying for or disclosing the same request again.
+   already defined by V2-9. The application validates the response, persists
+   the provider-returned `created` timestamp and stores the proposal before it
+   requires Accept/Edit/Reject in the actual staff UI. A stateless
+   `store: false` response may omit the provider interaction ID; absence is
+   stored as no reference, a returned reference must validate, and the app must
+   never invent one. Current SDK HTTP failures are classified from structural
+   status and bounded provider error-info reasons, never from provider message
+   text. There is no artificial call-count or cost limit in the product
+   contract, but a completed receipt replays instead of paying for or
+   disclosing the same request again.
 2. **V2-10B / #465 — WAHA outbound.** Add one server-only adapter for the
    official `POST /api/sendText` operation and one explicit send action on the
    canonical conversation UI. The action rechecks current role ownership and

@@ -3,12 +3,14 @@ import { notFound } from "next/navigation";
 import { CanonicalStaffWhatsAppWorkspace } from "@/components/platform/communications/CanonicalStaffWhatsApp";
 import { getT } from "@/lib/i18n";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
+import { readCanonicalGeminiProposalAvailability } from "@/lib/server/canonical-gemini-proposal-config";
 import {
   CanonicalCrmRepositoryError,
   getCanonicalStaffConversationThread,
   listCanonicalStaffConversations,
   parseCanonicalMessageCursor,
   parseCanonicalReadCursor,
+  readLatestCanonicalGeminiProposal,
   type CanonicalMessageCursor,
   type CanonicalReadCursor,
 } from "@/lib/server/canonical-crm-repository";
@@ -44,8 +46,9 @@ export default async function WhatsAppConversationPage({
 
   let queue;
   let thread;
+  let geminiProposal;
   try {
-    [queue, thread] = await Promise.all([
+    [queue, thread, geminiProposal] = await Promise.all([
       listCanonicalStaffConversations({
         actorRole: actor.platformRole,
         cursor: queueCursor ?? undefined,
@@ -56,6 +59,10 @@ export default async function WhatsAppConversationPage({
         conversationId: id,
         cursor: messageCursor ?? undefined,
         pageSize: 50,
+      }),
+      readLatestCanonicalGeminiProposal({
+        actorRole: actor.platformRole,
+        conversationId: id,
       }),
     ]);
   } catch (error: unknown) {
@@ -79,6 +86,8 @@ export default async function WhatsAppConversationPage({
       thread={{
         conversation: thread.conversation,
         messages: thread.messages,
+        geminiAvailability: readCanonicalGeminiProposalAvailability(),
+        geminiProposal,
         newestMessagesHref: messageCursor ? threadHref(id, queueCursor) : null,
         olderMessagesHref: thread.nextCursor
           ? threadHref(id, queueCursor, thread.nextCursor)

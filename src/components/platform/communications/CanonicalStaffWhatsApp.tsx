@@ -2,11 +2,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { formatCanonicalTimestamp } from "@/components/platform/core/CanonicalRecordsPresentation";
+import { CanonicalGeminiProposalPanel } from "@/components/platform/communications/CanonicalGeminiProposalPanel";
 import { EmptyState, PageHeader, btnGhostCls, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import type { FixedRole } from "@/lib/fixed-role-policy";
+import type { CanonicalGeminiProposalAvailability } from "@/lib/server/canonical-gemini-proposal-config";
 import type {
   CanonicalConversationMessage,
+  CanonicalGeminiProposalSnapshot,
   CanonicalReadCursor,
   CanonicalStaffConversationQueueRow,
 } from "@/lib/server/canonical-crm-repository";
@@ -15,7 +18,7 @@ const COPY = {
   ru: {
     title: "WhatsApp · Inbox",
     description:
-      "Локальная staff-очередь читается только из канонической базы EVO PostgreSQL. Отправка, автоответы и Gemini-ревью на этой странице отсутствуют.",
+      "Staff-очередь и Gemini-черновики работают только через каноническую базу EVO PostgreSQL. Отправки и автоответов на этой странице нет.",
     queueTitle: "Диалоги",
     queueDescription:
       "Sales видит свои диалоги до handoff, Admissions видит переданные диалоги, Admin видит объединение без запасного источника.",
@@ -56,7 +59,7 @@ const COPY = {
   ky: {
     title: "WhatsApp · Inbox",
     description:
-      "Жергиликтүү staff кезеги EVO каноникалык PostgreSQL базасынан гана окулат. Бул бетте жөнөтүү, авто-жооп жана Gemini кароосу жок.",
+      "Staff кезеги жана Gemini долбоорлору EVO каноникалык PostgreSQL базасы аркылуу гана иштейт. Бул бетте жөнөтүү жана авто-жооп жок.",
     queueTitle: "Диалогдор",
     queueDescription:
       "Sales handoff'ко чейин өз диалогдорун көрөт, Admissions өткөрүлгөн диалогдорду көрөт, Admin запассыз бириктирилген көрүнүштү көрөт.",
@@ -97,7 +100,7 @@ const COPY = {
   en: {
     title: "WhatsApp · Inbox",
     description:
-      "This local staff queue reads only from EVO's canonical PostgreSQL database. Sending, automated replies, and Gemini review are absent from this page.",
+      "The staff queue and Gemini drafts use only EVO's canonical PostgreSQL database. Sending and automated replies are absent from this page.",
     queueTitle: "Conversations",
     queueDescription:
       "Sales sees its conversations before handoff, Admissions sees handed-off conversations, and Admin sees the union without a fallback source.",
@@ -148,6 +151,8 @@ type WorkspaceProps = Readonly<{
   thread?: {
     conversation: CanonicalStaffConversationQueueRow;
     messages: readonly CanonicalConversationMessage[];
+    geminiAvailability: CanonicalGeminiProposalAvailability;
+    geminiProposal: CanonicalGeminiProposalSnapshot | null;
     newestMessagesHref: string | null;
     olderMessagesHref: string | null;
   } | null;
@@ -267,6 +272,8 @@ export function CanonicalStaffWhatsAppWorkspace({
               locale={locale}
               conversation={thread.conversation}
               messages={thread.messages}
+              geminiAvailability={thread.geminiAvailability}
+              geminiProposal={thread.geminiProposal}
               newestMessagesHref={thread.newestMessagesHref}
               olderMessagesHref={thread.olderMessagesHref}
             />
@@ -294,6 +301,8 @@ function ConversationThread({
   locale,
   conversation,
   messages,
+  geminiAvailability,
+  geminiProposal,
   newestMessagesHref,
   olderMessagesHref,
 }: Readonly<{
@@ -301,6 +310,8 @@ function ConversationThread({
   locale: Locale;
   conversation: CanonicalStaffConversationQueueRow;
   messages: readonly CanonicalConversationMessage[];
+  geminiAvailability: CanonicalGeminiProposalAvailability;
+  geminiProposal: CanonicalGeminiProposalSnapshot | null;
   newestMessagesHref: string | null;
   olderMessagesHref: string | null;
 }>) {
@@ -367,6 +378,13 @@ function ConversationThread({
           {copy.transcriptDescription}
         </p>
       </div>
+
+      <CanonicalGeminiProposalPanel
+        locale={locale}
+        conversationId={conversation.conversationId}
+        availability={geminiAvailability}
+        proposal={geminiProposal}
+      />
 
       {messages.length === 0 ? (
         <EmptyState text={copy.emptyMessages} />

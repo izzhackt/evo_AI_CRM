@@ -277,6 +277,20 @@ does not authorize two active implementations of any completed capability:
    disabled provider authorization, provider failure or invalid output reports
    a truthful blocked/error state and writes no proposal; no alternate model,
    local generator or canned draft may succeed instead.
+
+   The active V2-9B entry point is a staff server action on the canonical
+   `/whatsapp/:conversationId` page, not an internal HMAC endpoint. The
+   provider uses the stable `v1` `@google/genai` Interactions API with `store: false`,
+   synchronous execution, tools disabled and JSON `response_format`. The exact
+   system instruction treats every transcript message as untrusted data rather
+   than model instructions. The exact
+   `EVO_V2_GEMINI_MODEL` value is required; EVO has no implicit model. A real
+   call additionally requires both `EVO_V2_GEMINI_PROPOSALS_ENABLED=1` and
+   `EVO_V2_GEMINI_PROVIDER_AUTHORIZED=1`, plus the server-only
+   `EVO_V2_GEMINI_API_KEY`. All other states are blocked before provider
+   execution and write no proposal. This replacement deletes the old
+   HMAC/Supabase proposal execution, SQLite/Anthropic summary and deterministic
+   Prepared AI canned-response contour; none remains as a callable fallback.
 3. V2-9C adds the human Accept/Edit/Reject workflow over that same PostgreSQL
    proposal. A role may request or review only a conversation it owns; Admin
    may operate the union. Accept preserves the proposed text, Edit requires
@@ -296,7 +310,11 @@ validated by EVO. The model name is configuration, not a silently changing
 default. These contracts are documented at
 <https://waha.devlike.pro/docs/how-to/security/>,
 <https://waha.devlike.pro/docs/how-to/sessions/> and
-<https://ai.google.dev/gemini-api/docs/structured-output>.
+<https://ai.google.dev/gemini-api/docs/structured-output>. The Interactions
+selection also follows
+<https://ai.google.dev/gemini-api/docs/interactions-overview> and the stable
+API-version contract at
+<https://ai.google.dev/gemini-api/docs/api-versions>.
 
 No V2-9 browser or server route can send WhatsApp, write amoCRM, enable an
 autonomous reply or invoke a fallback provider. A real WAHA/Gemini call remains

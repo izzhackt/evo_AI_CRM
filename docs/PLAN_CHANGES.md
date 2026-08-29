@@ -13301,3 +13301,85 @@ message links emitted by the application, verify that the second-page result
 set changes, and verify that reset restores the newest page. Mirror incomplete,
 duplicate and unknown-key rejection across both queue and thread routes. This
 strengthens acceptance only; the V2-9A runtime contract remains unchanged.
+
+## 2026-08-29 - Replace the Gemini proposal execution path with canonical V2
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #433 V2-9B.
+Change type: implementation clarification and named temporary-coexistence
+inventory within the already approved V2-9 sequence.
+Affected plan section: V2-9B canonical Gemini proposal.
+
+Reason: the retained proposal endpoint authenticated an internal HMAC request,
+read and wrote Supabase RPC shapes, required Supabase service configuration and
+had no caller from the canonical staff WhatsApp page. The separate legacy AI
+summary endpoint used the SQLite client graph and Anthropic. Keeping either as
+an active option would violate the one-path replacement rule and would not test
+the V2 CRM product.
+
+Decision: make the only active Gemini proposal entry a staff-authorized server
+action on `/whatsapp/:conversationId`. It reads an ownership-filtered,
+bounded, exact transcript from canonical PostgreSQL; treats the newest inbound
+message as the source; supplies a separate system instruction that treats all
+transcript messages as untrusted data; uses the committed `@google/genai` Interactions API with
+`store: false`, `background: false`, tools disabled and JSON
+`response_format`; parses the JSON and applies a second EVO business
+validation; and only then inserts the proposal, command receipt and minimal
+`ai_proposal.created` event in one PostgreSQL transaction. The persisted row
+contains the derived optional Student Case, explicit configured model,
+application-observed provider completion time and the exact message IDs,
+timestamps, directions and bodies sent as provider context.
+
+There is no implicit model or alternate generator. The active environment
+contract is `EVO_V2_GEMINI_PROPOSALS_ENABLED`,
+`EVO_V2_GEMINI_PROVIDER_AUTHORIZED`, `EVO_V2_GEMINI_MODEL`,
+`EVO_V2_GEMINI_TIMEOUT_MS` and server-only `EVO_V2_GEMINI_API_KEY`. Missing
+authorization, key or model is a blocked result before provider execution;
+provider failure or rejected output writes no proposal. Local acceptance keeps
+the authorization flag at `0`, so it proves the real browser/app blocked state
+and zero writes without claiming a Gemini call. Real PostgreSQL tests use only
+isolated technical records to prove ownership, Student Case derivation, exact
+source context, transactionality, replay and event lineage.
+
+Delete in V2-9B the superseded internal Gemini proposal route and its
+HMAC/Supabase execution config, client, service and implementation test. Also
+delete `/api/ai/summary`, its orphan component, the sole Anthropic client and
+the now-unused Anthropic SDK dependency. Remove the dead Anthropic key from the
+active application settings, secret-setting allowlist, translations and root
+development environment example as well. Frozen V1 deployment examples,
+runbooks and historical tests remain unchanged as preservation evidence, but
+V2 never imports or executes them. The active route allowlist no longer
+contains the deleted internal proposal endpoint.
+
+The earlier deterministic Prepared AI drawer, canned-response library, policy
+contract and implementation test are also superseded by this one canonical
+provider path and are deleted in V2-9B. The still-useful promise-audit command
+now verifies the canonical Gemini prompt and application-side output guardrails
+instead of importing the deleted Anthropic and Prepared AI modules. Historical
+promise-audit documentation remains unchanged as V1 decision evidence.
+
+The owner-approved A/B/C sequence in Issue #433 permits only this named,
+short-lived coexistence until V2-9C replaces human review:
+
+- `src/lib/platform-gemini-proposal-review-actions.ts`;
+- `src/lib/platform-gemini-proposal-reviews.ts`;
+- `src/lib/server/platform-gemini-proposals-repository.ts`;
+- `src/lib/server/platform-gemini-proposal-reviews-repository.ts`;
+- `tests/platform-gemini-proposals.test.mjs` and
+  `tests/platform-gemini-human-review.test.mjs`.
+
+These files remain solely because V2-9C owns Accept/Edit/Reject. They are not
+imported by the V2-9B page, action, service or canonical proposal repository.
+Their expiry and deletion issue is the V2-9C slice of #433; they must be removed
+before #433 can close. No other proposal compatibility window is authorized.
+
+Current official implementation references:
+
+- Gemini Interactions API overview:
+  <https://ai.google.dev/gemini-api/docs/interactions-overview>.
+- Gemini structured output:
+  <https://ai.google.dev/gemini-api/docs/structured-output>.
+- Gemini API-key security:
+  <https://ai.google.dev/gemini-api/docs/api-key>.
+- Gemini API versions and stable `v1` Interactions endpoint:
+  <https://ai.google.dev/gemini-api/docs/api-versions>.

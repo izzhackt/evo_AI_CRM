@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import assert from "node:assert/strict";
 
 import {
   expect,
@@ -6,6 +7,7 @@ import {
   type APIRequestContext,
   type Page,
 } from "@playwright/test";
+import postgres from "postgres";
 
 const mode = process.env.EVO_EXPECT_CANONICAL_READ_MODE ?? "configured";
 const unavailableProbeLeadId = "00000000-0000-4000-8000-000000000429";
@@ -60,6 +62,26 @@ function requireInboundSecret(): string {
   const value = process.env.EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET;
   if (!value) throw new Error("missing V2 inbound test secret");
   return value;
+}
+
+async function canonicalProposalCount(conversationId: string): Promise<number> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("missing canonical PostgreSQL test URL");
+  const sql = postgres(databaseUrl, {
+    idle_timeout: 5,
+    max: 1,
+    onnotice: () => undefined,
+  });
+  try {
+    const [row] = await sql`
+      select count(*)::int as count
+      from evo_ai_proposals
+      where conversation_id = ${conversationId}
+    `;
+    return Number(row.count);
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
 }
 
 function signedInboundHeaders(rawBody: string, timestamp: string) {
@@ -286,8 +308,32 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
   await expect(
     page.getByTestId("canonical-staff-whatsapp-provider-blocked"),
   ).toBeVisible();
+  const proposalCountBefore = await canonicalProposalCount(conversationId);
   await expect(
-    page.getByTestId("canonical-staff-whatsapp-page").locator("form"),
+    page.getByTestId("canonical-gemini-proposal-panel"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-gemini-proposal-availability"),
+  ).toHaveAttribute("data-reason", "provider_not_authorized");
+  await page.getByTestId("canonical-gemini-proposal-request").click();
+  await expect(
+    page.getByTestId("canonical-gemini-proposal-action-state"),
+  ).toHaveAttribute("data-status", "blocked");
+  await expect(
+    page.getByTestId("canonical-gemini-proposal-action-state"),
+  ).toHaveAttribute("data-reason", "provider_not_authorized");
+  assert.equal(
+    await canonicalProposalCount(conversationId),
+    proposalCountBefore,
+    "a blocked provider request must not persist a proposal",
+  );
+  await expect(
+    page.getByTestId("canonical-staff-whatsapp-page").locator("textarea"),
+  ).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("canonical-staff-whatsapp-page")
+      .getByRole("button", { name: /отправить|send/i }),
   ).toHaveCount(0);
 
   const queueConversationIds = new Set<string>();

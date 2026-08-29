@@ -7,6 +7,7 @@ import {
   desc,
   eq,
   ilike,
+  inArray,
   isNotNull,
   isNull,
   lt,
@@ -29,6 +30,7 @@ import {
 } from "../../db/schema/canonical-crm-events.ts";
 import {
   evoAdmissionsTasks,
+  evoAiProposals,
   evoFinanceStopStates,
   evoUniversityApplications,
   evoVisaMilestones,
@@ -227,6 +229,47 @@ export type CanonicalConversationMessage = Readonly<{
   body: string;
   authorRole: FixedRole | null;
   occurredAt: string;
+  createdAt: string;
+}>;
+
+export type CanonicalGeminiProposalSourceMessage = Readonly<{
+  id: string;
+  direction: "inbound" | "outbound";
+  occurredAt: string;
+  body: string;
+}>;
+
+export type CanonicalGeminiProposalSourceContext = Readonly<{
+  schemaVersion: 1;
+  promptPolicyVersion: string;
+  conversationId: string;
+  studentCaseId: string | null;
+  sourceMessage: CanonicalGeminiProposalSourceMessage &
+    Readonly<{ direction: "inbound" }>;
+  messages: readonly CanonicalGeminiProposalSourceMessage[];
+}>;
+
+export type CanonicalGeminiProposalContext = Readonly<{
+  conversationId: string;
+  leadId: string;
+  studentCaseId: string | null;
+  owningRole: "sales" | "admissions";
+  sourceMessage: CanonicalConversationMessage &
+    Readonly<{ direction: "inbound" }>;
+  messages: readonly CanonicalConversationMessage[];
+}>;
+
+export type CanonicalGeminiProposalSnapshot = Readonly<{
+  proposalId: string;
+  conversationId: string;
+  studentCaseId: string | null;
+  provider: "gemini";
+  model: string;
+  proposalText: string;
+  sourceMessageId: string;
+  sourceContext: CanonicalGeminiProposalSourceContext;
+  reviewDecision: "pending" | "accepted" | "edited" | "rejected";
+  providerCreatedAt: string;
   createdAt: string;
 }>;
 
@@ -719,6 +762,80 @@ function messageBody(value: unknown): string {
     invalidInput();
   }
   return normalized;
+}
+
+function exactRecord(value: unknown, keys: readonly string[]): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    invalidInput();
+  }
+  const candidate = value as Record<string, unknown>;
+  const actualKeys = Object.keys(candidate).sort();
+  const expectedKeys = [...keys].sort();
+  if (
+    actualKeys.length !== expectedKeys.length ||
+    actualKeys.some((key, index) => key !== expectedKeys[index])
+  ) {
+    invalidInput();
+  }
+  return candidate;
+}
+
+function canonicalGeminiSourceMessage(
+  value: unknown,
+): CanonicalGeminiProposalSourceMessage {
+  const candidate = exactRecord(value, ["id", "direction", "occurredAt", "body"]);
+  if (candidate.direction !== "inbound" && candidate.direction !== "outbound") {
+    invalidInput();
+  }
+  const body = messageBody(candidate.body);
+  if (body.length > 8_000) invalidInput();
+  return {
+    id: uuid(candidate.id),
+    direction: candidate.direction,
+    occurredAt: isoTimestamp(candidate.occurredAt).toISOString(),
+    body,
+  };
+}
+
+function canonicalGeminiSourceContext(
+  value: unknown,
+): CanonicalGeminiProposalSourceContext {
+  const candidate = exactRecord(value, [
+    "schemaVersion",
+    "promptPolicyVersion",
+    "conversationId",
+    "studentCaseId",
+    "sourceMessage",
+    "messages",
+  ]);
+  if (candidate.schemaVersion !== 1 || !Array.isArray(candidate.messages)) {
+    invalidInput();
+  }
+  if (candidate.messages.length === 0 || candidate.messages.length > 20) {
+    invalidInput();
+  }
+  const sourceMessage = canonicalGeminiSourceMessage(candidate.sourceMessage);
+  if (sourceMessage.direction !== "inbound") invalidInput();
+  const inboundSourceMessage = { ...sourceMessage, direction: "inbound" as const };
+  const messages = candidate.messages.map(canonicalGeminiSourceMessage);
+  if (
+    messages[0]?.id !== sourceMessage.id ||
+    new Set(messages.map((message) => message.id)).size !== messages.length ||
+    messages.reduce((total, message) => total + message.body.length, 0) > 32_000
+  ) {
+    invalidInput();
+  }
+  return {
+    schemaVersion: 1,
+    promptPolicyVersion: boundedText(candidate.promptPolicyVersion, {
+      maxLength: 80,
+    }),
+    conversationId: uuid(candidate.conversationId),
+    studentCaseId:
+      candidate.studentCaseId === null ? null : uuid(candidate.studentCaseId),
+    sourceMessage: inboundSourceMessage,
+    messages,
+  };
 }
 
 function isoTimestamp(value: unknown): Date {
@@ -1225,6 +1342,70 @@ function canonicalConversationMessageRow(
     direction,
     authorRole: normalizedAuthorRole,
     occurredAt: dateString(row.occurredAt),
+    createdAt: dateString(row.createdAt),
+  };
+}
+
+function databaseGeminiReviewDecision(
+  value: string,
+): CanonicalGeminiProposalSnapshot["reviewDecision"] {
+  if (
+    value === "pending" ||
+    value === "accepted" ||
+    value === "edited" ||
+    value === "rejected"
+  ) {
+    return value;
+  }
+  throw new CanonicalCrmRepositoryError("unavailable");
+}
+
+function canonicalGeminiProposalRow(
+  row: Readonly<{
+    proposalId: string;
+    conversationId: string;
+    studentCaseId: string | null;
+    provider: string;
+    model: string;
+    proposalText: string;
+    sourceContext: Record<string, unknown>;
+    reviewDecision: string;
+    providerCreatedAt: Date;
+    createdAt: Date;
+  }>,
+): CanonicalGeminiProposalSnapshot {
+  if (row.provider !== "gemini") {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  let sourceContext: CanonicalGeminiProposalSourceContext;
+  try {
+    sourceContext = canonicalGeminiSourceContext(row.sourceContext);
+  } catch (error) {
+    if (
+      error instanceof CanonicalCrmRepositoryError &&
+      error.code === "invalid_input"
+    ) {
+      throw new CanonicalCrmRepositoryError("unavailable");
+    }
+    throw error;
+  }
+  if (
+    sourceContext.conversationId !== row.conversationId ||
+    sourceContext.studentCaseId !== row.studentCaseId
+  ) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return {
+    proposalId: row.proposalId,
+    conversationId: row.conversationId,
+    studentCaseId: row.studentCaseId,
+    provider: "gemini",
+    model: row.model,
+    proposalText: row.proposalText,
+    sourceMessageId: sourceContext.sourceMessage.id,
+    sourceContext,
+    reviewDecision: databaseGeminiReviewDecision(row.reviewDecision),
+    providerCreatedAt: dateString(row.providerCreatedAt),
     createdAt: dateString(row.createdAt),
   };
 }
@@ -4630,6 +4811,287 @@ export async function getCanonicalStaffConversationThread(
           ? { occurredAt: lastMessage.occurredAt, id: lastMessage.messageId }
           : null,
     };
+  });
+}
+
+export async function getCanonicalGeminiProposalContext(
+  input: Readonly<{
+    actorRole: FixedRole;
+    conversationId: string;
+  }>,
+): Promise<CanonicalGeminiProposalContext> {
+  const thread = await getCanonicalStaffConversationThread({
+    actorRole: input.actorRole,
+    conversationId: input.conversationId,
+    pageSize: 20,
+  });
+  const sourceMessage = thread.messages[0];
+  if (!sourceMessage || sourceMessage.direction !== "inbound") {
+    throw new CanonicalCrmRepositoryError("conflict");
+  }
+  const inboundSourceMessage = { ...sourceMessage, direction: "inbound" as const };
+  return {
+    conversationId: thread.conversation.conversationId,
+    leadId: thread.conversation.leadId,
+    studentCaseId: thread.conversation.studentCaseId,
+    owningRole: thread.conversation.owningRole,
+    sourceMessage: inboundSourceMessage,
+    messages: thread.messages,
+  };
+}
+
+async function authorizedGeminiConversation(
+  transaction: DatabaseTransaction,
+  input: Readonly<{ actorRole: FixedRole; conversationId: string }>,
+): Promise<Readonly<{ leadId: string; studentCaseId: string | null }>> {
+  const [conversation] = await transaction
+    .select({
+      conversationId: evoConversations.id,
+      leadId: evoConversations.leadId,
+      studentCaseId: evoSalesAdmissionsHandoffs.studentCaseId,
+    })
+    .from(evoConversations)
+    .leftJoin(
+      evoSalesAdmissionsHandoffs,
+      eq(evoSalesAdmissionsHandoffs.leadId, evoConversations.leadId),
+    )
+    .where(
+      and(
+        eq(evoConversations.id, input.conversationId),
+        eq(evoConversations.channel, "whatsapp"),
+        input.actorRole === "admin"
+          ? undefined
+          : eq(evoConversations.owningRole, input.actorRole),
+      ),
+    )
+    .limit(1);
+  if (!conversation) throw new CanonicalCrmRepositoryError("not_found");
+  return {
+    leadId: conversation.leadId,
+    studentCaseId: conversation.studentCaseId,
+  };
+}
+
+async function lockAuthorizedGeminiConversation(
+  transaction: DatabaseTransaction,
+  input: Readonly<{ actorRole: FixedRole; conversationId: string }>,
+): Promise<Readonly<{ leadId: string; studentCaseId: string | null }>> {
+  const [reference] = await transaction
+    .select({ leadId: evoConversations.leadId })
+    .from(evoConversations)
+    .where(
+      and(
+        eq(evoConversations.id, input.conversationId),
+        eq(evoConversations.channel, "whatsapp"),
+      ),
+    )
+    .limit(1);
+  if (!reference) throw new CanonicalCrmRepositoryError("not_found");
+
+  const [lockedLead] = await transaction
+    .select({ leadId: evoLeads.id })
+    .from(evoLeads)
+    .where(eq(evoLeads.id, reference.leadId))
+    .limit(1)
+    .for("update");
+  if (!lockedLead) throw new CanonicalCrmRepositoryError("not_found");
+
+  // Inbound ingestion and handoff take the same lead-row lock before changing
+  // the conversation. Re-authorize after the lock so the source freshness and
+  // owning-role checks remain stable until this proposal transaction commits.
+  return authorizedGeminiConversation(transaction, input);
+}
+
+async function selectCanonicalGeminiProposalById(
+  transaction: DatabaseTransaction,
+  proposalId: string,
+): Promise<CanonicalGeminiProposalSnapshot> {
+  const [row] = await transaction
+    .select({
+      proposalId: evoAiProposals.id,
+      conversationId: evoAiProposals.conversationId,
+      studentCaseId: evoAiProposals.studentCaseId,
+      provider: evoAiProposals.provider,
+      model: evoAiProposals.model,
+      proposalText: evoAiProposals.proposalText,
+      sourceContext: evoAiProposals.sourceContext,
+      reviewDecision: evoAiProposals.reviewDecision,
+      providerCreatedAt: evoAiProposals.providerCreatedAt,
+      createdAt: evoAiProposals.createdAt,
+    })
+    .from(evoAiProposals)
+    .where(eq(evoAiProposals.id, proposalId))
+    .limit(1);
+  if (!row) throw new CanonicalCrmRepositoryError("unavailable");
+  return canonicalGeminiProposalRow(row);
+}
+
+export async function createCanonicalGeminiProposal(
+  contextInput: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+  }>,
+  input: Readonly<{
+    conversationId: string;
+    sourceMessageId: string;
+    model: string;
+    proposalText: string;
+    sourceContext: CanonicalGeminiProposalSourceContext;
+    providerCreatedAt: string;
+  }>,
+): Promise<CanonicalGeminiProposalSnapshot> {
+  const context = parseCommandContext(
+    contextInput,
+    ["admin", "sales", "admissions"],
+  );
+  const conversationId = uuid(input.conversationId);
+  const sourceMessageId = uuid(input.sourceMessageId);
+  const model = boundedText(input.model, { maxLength: 128 });
+  const proposalText = messageBody(input.proposalText);
+  if (proposalText.length > 3_000) invalidInput();
+  const sourceContext = canonicalGeminiSourceContext(input.sourceContext);
+  const providerCreatedAt = isoTimestamp(input.providerCreatedAt);
+  if (
+    sourceContext.conversationId !== conversationId ||
+    sourceContext.sourceMessage.id !== sourceMessageId
+  ) {
+    invalidInput();
+  }
+  const requestHash = sha256({
+    conversationId,
+    sourceMessageId,
+    model,
+    sourceContext,
+  });
+
+  return runTransaction(async (transaction) => {
+    const conversation = await lockAuthorizedGeminiConversation(transaction, {
+      actorRole: context.actorRole,
+      conversationId,
+    });
+    if (sourceContext.studentCaseId !== conversation.studentCaseId) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical_gemini_proposal.create",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return selectCanonicalGeminiProposalById(
+        transaction,
+        resultUuid(reservation.resultPayload, "proposalId"),
+      );
+    }
+
+    const persistedMessages = await transaction
+      .select({
+        messageId: evoMessages.id,
+        direction: evoMessages.direction,
+        body: evoMessages.body,
+        occurredAt: evoMessages.occurredAt,
+      })
+      .from(evoMessages)
+      .where(
+        and(
+          eq(evoMessages.conversationId, conversationId),
+          inArray(
+            evoMessages.id,
+            sourceContext.messages.map((message) => message.id),
+          ),
+        ),
+      );
+    if (persistedMessages.length !== sourceContext.messages.length) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+    const persistedById = new Map(
+      persistedMessages.map((message) => [message.messageId, message]),
+    );
+    for (const message of sourceContext.messages) {
+      const persisted = persistedById.get(message.id);
+      if (
+        !persisted ||
+        persisted.direction !== message.direction ||
+        persisted.body !== message.body ||
+        dateString(persisted.occurredAt) !== message.occurredAt
+      ) {
+        throw new CanonicalCrmRepositoryError("conflict");
+      }
+    }
+    const [latestMessage] = await transaction
+      .select({ messageId: evoMessages.id })
+      .from(evoMessages)
+      .where(eq(evoMessages.conversationId, conversationId))
+      .orderBy(desc(evoMessages.occurredAt), desc(evoMessages.id))
+      .limit(1);
+    if (!latestMessage || latestMessage.messageId !== sourceMessageId) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+
+    const proposalId = randomUUID();
+    await transaction.insert(evoAiProposals).values({
+      id: proposalId,
+      conversationId,
+      studentCaseId: conversation.studentCaseId,
+      provider: "gemini",
+      model,
+      proposalText,
+      sourceContext,
+      providerCreatedAt,
+      correlationId: context.correlationId,
+      idempotencyKey: context.idempotencyKey,
+    });
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "ai_proposal",
+      businessObjectId: proposalId,
+      transition: "ai_proposal.created",
+      fromState: null,
+      toState: "pending",
+    });
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "ai_proposal",
+      businessObjectId: proposalId,
+      resultPayload: { proposalId },
+    });
+    return selectCanonicalGeminiProposalById(transaction, proposalId);
+  });
+}
+
+export async function readLatestCanonicalGeminiProposal(
+  input: Readonly<{
+    actorRole: FixedRole;
+    conversationId: string;
+  }>,
+): Promise<CanonicalGeminiProposalSnapshot | null> {
+  const actor = actorRole(input.actorRole, ["admin", "sales", "admissions"]);
+  const conversationId = uuid(input.conversationId);
+  return runTransaction(async (transaction) => {
+    await authorizedGeminiConversation(transaction, {
+      actorRole: actor,
+      conversationId,
+    });
+    const [row] = await transaction
+      .select({
+        proposalId: evoAiProposals.id,
+        conversationId: evoAiProposals.conversationId,
+        studentCaseId: evoAiProposals.studentCaseId,
+        provider: evoAiProposals.provider,
+        model: evoAiProposals.model,
+        proposalText: evoAiProposals.proposalText,
+        sourceContext: evoAiProposals.sourceContext,
+        reviewDecision: evoAiProposals.reviewDecision,
+        providerCreatedAt: evoAiProposals.providerCreatedAt,
+        createdAt: evoAiProposals.createdAt,
+      })
+      .from(evoAiProposals)
+      .where(eq(evoAiProposals.conversationId, conversationId))
+      .orderBy(desc(evoAiProposals.createdAt), desc(evoAiProposals.id))
+      .limit(1);
+    return row ? canonicalGeminiProposalRow(row) : null;
   });
 }
 

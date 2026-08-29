@@ -150,6 +150,8 @@ start_app() {
       EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
       EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
       EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
+      EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
+      EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   else
@@ -164,6 +166,8 @@ start_app() {
       DATABASE_URL="$app_database_url" \
       EVO_PRIVATE_DOCUMENT_ROOT="$document_root" \
       EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
+      EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
+      EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   fi
@@ -262,6 +266,7 @@ canonical_read_browser_assert() {
   local read_mode="$1"
   assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
+    DATABASE_URL="$database_url" \
     EVO_EXPECT_CANONICAL_READ_MODE="$read_mode" \
     EVO_CANONICAL_LEAD_ID="$canonical_lead_id" \
     EVO_CANONICAL_OVERRIDE_LEAD_ID="$canonical_override_lead_id" \

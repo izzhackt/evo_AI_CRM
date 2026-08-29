@@ -9,10 +9,12 @@ import {
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
   assertCanonicalFinanceStop,
+  createCanonicalGeminiProposal,
   createCanonicalAdmissionsTask,
   createCanonicalUniversityApplication,
   createCanonicalPersonLead,
   getCanonicalAdmissionsOperationsSnapshot,
+  getCanonicalGeminiProposalContext,
   getCanonicalStaffConversationThread,
   getCanonicalLeadConversationThread,
   getCanonicalLeadGateSnapshot,
@@ -26,6 +28,7 @@ import {
   listCanonicalStudentCases,
   listCanonicalUniversityApplications,
   listCanonicalVisaMilestones,
+  readLatestCanonicalGeminiProposal,
   receiveCanonicalWhatsAppInbound,
   recordCanonicalSalesGateEvidence,
   releaseCanonicalFinanceStop,
@@ -35,6 +38,7 @@ import {
   updateCanonicalUniversityApplication,
   updateCanonicalSalesLeadWorkflow,
 } from "../src/lib/server/canonical-crm-repository.ts";
+import { requestCanonicalGeminiProposal } from "../src/lib/server/canonical-gemini-proposal-service.ts";
 import { closeDatabaseConnections } from "../src/lib/server/database.ts";
 
 function requiredDatabaseUrl() {
@@ -169,6 +173,56 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       occurredAt: "2026-08-28T12:01:00.000Z",
     });
     assert.equal(laterInbound.conversationId, inbound.conversationId);
+
+    const salesGeminiContext = await getCanonicalGeminiProposalContext({
+      actorRole: "sales",
+      conversationId: inbound.conversationId,
+    });
+    assert.equal(salesGeminiContext.studentCaseId, null);
+    assert.equal(salesGeminiContext.sourceMessage.messageId, laterInbound.messageId);
+    assert.deepEqual(
+      salesGeminiContext.messages.map((message) => message.messageId),
+      [laterInbound.messageId, inbound.messageId],
+    );
+    await assert.rejects(
+      getCanonicalGeminiProposalContext({
+        actorRole: "admissions",
+        conversationId: inbound.conversationId,
+      }),
+      repositoryError("not_found"),
+    );
+    assert.equal(
+      (
+        await getCanonicalGeminiProposalContext({
+          actorRole: "admin",
+          conversationId: inbound.conversationId,
+        })
+      ).sourceMessage.messageId,
+      laterInbound.messageId,
+    );
+
+    const proposalCountBeforeBlockedRequest = Number(
+      (await sql`select count(*)::int as count from evo_ai_proposals`)[0].count,
+    );
+    assert.deepEqual(
+      await requestCanonicalGeminiProposal(
+        {
+          actorRole: "sales",
+          conversationId: inbound.conversationId,
+        },
+        {
+          EVO_V2_GEMINI_PROPOSALS_ENABLED: "1",
+          EVO_V2_GEMINI_PROVIDER_AUTHORIZED: "0",
+        },
+      ),
+      { status: "blocked", reason: "provider_not_authorized" },
+    );
+    assert.equal(
+      Number(
+        (await sql`select count(*)::int as count from evo_ai_proposals`)[0].count,
+      ),
+      proposalCountBeforeBlockedRequest,
+    );
 
     const conversations = await listCanonicalLeadConversations({
       actorRole: "sales",
@@ -751,6 +805,137 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     assert.equal(
       admissionsThreadAfterHandoff.messages[0].body,
       `technical-inbound-later-${runId}`,
+    );
+
+    await assert.rejects(
+      getCanonicalGeminiProposalContext({
+        actorRole: "sales",
+        conversationId: inbound.conversationId,
+      }),
+      repositoryError("not_found"),
+    );
+    const admissionsGeminiContext = await getCanonicalGeminiProposalContext({
+      actorRole: "admissions",
+      conversationId: inbound.conversationId,
+    });
+    assert.equal(admissionsGeminiContext.studentCaseId, handoff.studentCaseId);
+    assert.equal(
+      admissionsGeminiContext.sourceMessage.messageId,
+      laterInbound.messageId,
+    );
+
+    const proposalCommand = technicalCommandContext(
+      runId,
+      "canonical-gemini-proposal",
+      "admissions",
+    );
+    const proposalSourceContext = {
+      schemaVersion: 1,
+      promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+      conversationId: inbound.conversationId,
+      studentCaseId: handoff.studentCaseId,
+      sourceMessage: {
+        id: laterInbound.messageId,
+        direction: "inbound",
+        occurredAt: "2026-08-28T12:01:00.000Z",
+        body: `technical-inbound-later-${runId}`,
+      },
+      messages: admissionsGeminiContext.messages.map((message) => ({
+        id: message.messageId,
+        direction: message.direction,
+        occurredAt: message.occurredAt,
+        body: message.body,
+      })),
+    };
+    const proposalInput = {
+      conversationId: inbound.conversationId,
+      sourceMessageId: laterInbound.messageId,
+      model: `technical-model-${runId}`,
+      proposalText: `technical-proposal-${runId}`,
+      sourceContext: proposalSourceContext,
+      providerCreatedAt: occurredAt,
+    };
+    const canonicalProposal = await createCanonicalGeminiProposal(
+      proposalCommand,
+      proposalInput,
+    );
+    const canonicalProposalReplay = await createCanonicalGeminiProposal(
+      proposalCommand,
+      proposalInput,
+    );
+    assert.deepEqual(canonicalProposalReplay, canonicalProposal);
+    assert.equal(canonicalProposal.studentCaseId, handoff.studentCaseId);
+    assert.equal(canonicalProposal.reviewDecision, "pending");
+    assert.equal(canonicalProposal.sourceMessageId, laterInbound.messageId);
+    await assert.rejects(
+      createCanonicalGeminiProposal(proposalCommand, {
+        ...proposalInput,
+        model: `different-technical-model-${runId}`,
+      }),
+      repositoryError("idempotency_conflict"),
+    );
+
+    const latestCanonicalProposal = await readLatestCanonicalGeminiProposal({
+      actorRole: "admissions",
+      conversationId: inbound.conversationId,
+    });
+    assert.deepEqual(latestCanonicalProposal, canonicalProposal);
+    await assert.rejects(
+      readLatestCanonicalGeminiProposal({
+        actorRole: "sales",
+        conversationId: inbound.conversationId,
+      }),
+      repositoryError("not_found"),
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_business_events
+            where idempotency_key = ${proposalCommand.idempotencyKey}
+              and business_object_type = 'ai_proposal'
+              and transition = 'ai_proposal.created'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+
+    const postProposalInbound = await appendCanonicalInboundMessage({
+      ...commandContext(runId, "inbound-after-proposal"),
+      leadId: lead.leadId,
+      channel: "whatsapp",
+      externalConversationId: inboundInput.externalConversationId,
+      externalMessageId: `technical-message-after-proposal-${runId}`,
+      body: `technical-inbound-after-proposal-${runId}`,
+      occurredAt: "2026-08-28T12:01:30.000Z",
+    });
+    assert.equal(postProposalInbound.conversationId, inbound.conversationId);
+    assert.deepEqual(
+      await createCanonicalGeminiProposal(proposalCommand, proposalInput),
+      canonicalProposal,
+      "an exact completed command must replay even after the conversation advances",
+    );
+    await assert.rejects(
+      createCanonicalGeminiProposal(
+        technicalCommandContext(
+          runId,
+          "canonical-gemini-stale-source",
+          "admissions",
+        ),
+        proposalInput,
+      ),
+      repositoryError("conflict"),
+    );
+    assert.equal(
+      (
+        await getCanonicalGeminiProposalContext({
+          actorRole: "admissions",
+          conversationId: inbound.conversationId,
+        })
+      ).sourceMessage.messageId,
+      postProposalInbound.messageId,
     );
 
     const newConversationAfterHandoff = await appendCanonicalInboundMessage({
@@ -2153,29 +2338,6 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           ${randomUUID()},
           ${handoff.studentCaseId},
           ${`technical-task-${runId}`}
-        )
-      `;
-      await transaction`
-        insert into evo_ai_proposals (
-          id,
-          conversation_id,
-          student_case_id,
-          model,
-          proposal_text,
-          source_context,
-          provider_created_at,
-          correlation_id,
-          idempotency_key
-        ) values (
-          ${randomUUID()},
-          ${inbound.conversationId},
-          ${handoff.studentCaseId},
-          ${`technical-model-${runId}`},
-          ${`technical-proposal-${runId}`},
-          ${transaction.json({ acceptanceRunId: runId })},
-          ${occurredAt},
-          ${`acceptance:${runId}:ai`},
-          ${`acceptance:${runId}:ai`}
         )
       `;
     });

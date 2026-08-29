@@ -47,7 +47,7 @@ test("anonymous requests cannot reach any transcription endpoint", async ({ page
   }
 });
 
-test("finance role is denied documents, portal data, AI, and transcription", async ({ page }) => {
+test("finance role is denied documents, portal data, and transcription", async ({ page }) => {
   await login(page, "finance@demo.kg", "finance123", /\/finance$/);
 
   await page.goto("/documents");
@@ -58,34 +58,17 @@ test("finance role is denied documents, portal data, AI, and transcription", asy
   await page.goto("/transcription-lab");
   await expect(page).toHaveURL(/\/access-denied\?from=%2Ftranscription-lab$/);
 
-  const summary = await browserFetch(page, "/api/ai/summary", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ clientId: 1 }),
-  });
-  expect(summary.status).toBe(401);
-  expect(JSON.parse(summary.body)).toEqual({ error: "unauthorized" });
-
   const transcription = await browserFetch(page, "/api/transcription/jobs/20260101000000-aaaaaaaa");
   expect(transcription.status).toBe(403);
   expect(JSON.parse(transcription.body)).toEqual({ error: "forbidden" });
 });
 
-test("client cannot access finance, documents, client records, AI, or transcription", async ({ page }) => {
+test("client cannot access finance, documents, client records, or transcription", async ({ page }) => {
   await login(page, "client@demo.kg", "client123", /\/portal$/);
 
   for (const route of ["/finance", "/documents", "/clients", "/transcription-lab"]) {
     await page.goto(route);
     await expect(page).toHaveURL(/\/portal$/);
-  }
-
-  for (const route of ["/api/ai/summary"]) {
-    const response = await browserFetch(page, route, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: 1, conversationId: 1 }),
-    });
-    expect(response.status, route).toBe(401);
   }
 
   const transcription = await browserFetch(page, "/api/transcription/jobs/20260101000000-aaaaaaaa");

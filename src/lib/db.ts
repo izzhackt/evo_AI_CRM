@@ -35,7 +35,6 @@ export function hashPassword(password: string): string {
 let _db: Database.Database | null = null;
 const SECRET_SETTING_KEYS = new Set([
   "tel_api_key",
-  "anthropic_api_key",
   "amocrm_client_secret",
   "amocrm_refresh_token",
   "lead_agent_sync_secret",

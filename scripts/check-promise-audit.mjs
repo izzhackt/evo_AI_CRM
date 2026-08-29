@@ -11,10 +11,6 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function extractPreparedResponses(source) {
-  return [...source.matchAll(/response:\s*"([^"]*)"/g)].map((match) => match[1]);
-}
-
 function walkFiles(relativeDir, extensions) {
   const absoluteDir = path.join(repoRoot, relativeDir);
   const entries = readdirSync(absoluteDir, { withFileTypes: true });
@@ -30,9 +26,9 @@ function walkFiles(relativeDir, extensions) {
 }
 
 const audit = read("docs/PROMISE_AUDIT.md");
-const ai = read("src/lib/ai.ts");
+const aiService = read("src/lib/server/canonical-gemini-proposal-service.ts");
+const aiContract = read("src/lib/canonical-gemini-proposal-contract.ts");
 const i18n = `${read("src/lib/i18n.ts")}\n${read("src/lib/i18n-data.ts")}`;
-const preparedAi = read("src/lib/prepared-ai.ts");
 const publicCopyChangeset = read("docs/PUBLIC_PROMISE_COPY_CHANGESET.md");
 const publicLiveAudit = read("docs/PUBLIC_PROMISE_LIVE_AUDIT.md");
 
@@ -99,17 +95,19 @@ assert(
 );
 
 for (const guardrail of [
-  "Не обещай поступление",
-  "Не используй формулировки вроде",
-  "Не заявляй, что WhatsApp, телефония, amoCRM или Anthropic успешно подключены",
+  "You never send messages or take actions.",
+  "do not promise admission, visas, scholarships, deadlines, discounts, payments, or outcomes",
+  "Return only JSON matching the supplied schema.",
 ]) {
-  assert(ai.includes(guardrail), `live AI system prompt is missing guardrail: ${guardrail}`);
+  assert(
+    aiService.includes(guardrail),
+    `canonical Gemini prompt is missing guardrail: ${guardrail}`,
+  );
 }
-
 assert(
-  preparedAi.includes("without inventing terms or overpromising") &&
-    preparedAi.includes("Do not promise admission probability."),
-  "prepared AI prompt library is missing explicit overpromise/admission-probability guardrails",
+  aiContract.includes("UNSAFE_OUTCOME_PATTERNS") &&
+    aiContract.includes("unsafe_semantics"),
+  "canonical Gemini output contract is missing application-side promise guardrails",
 );
 
 const forbiddenPreparedAnswerPatterns = [
@@ -124,18 +122,12 @@ const controlledSurfaceFiles = [
   ...walkFiles("src/app", [".ts", ".tsx"]),
   ...walkFiles("src/components", [".ts", ".tsx"]),
   ...walkFiles("src/lib", [".ts", ".tsx"]),
-].filter((file) => file !== "src/lib/ai.ts");
+];
 
 for (const file of controlledSurfaceFiles) {
   const content = read(file);
   for (const pattern of forbiddenPreparedAnswerPatterns) {
     assert(!pattern.test(content), `${file} contains unsupported guarantee wording`);
-  }
-}
-
-for (const response of extractPreparedResponses(preparedAi)) {
-  for (const pattern of forbiddenPreparedAnswerPatterns) {
-    assert(!pattern.test(response), `prepared AI response contains unsupported guarantee wording: ${response}`);
   }
 }
 

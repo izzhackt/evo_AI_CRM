@@ -723,7 +723,13 @@ app_environment=(
   "EVO_V2_GEMINI_PROPOSALS_ENABLED=0"
   "EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0"
 )
+app_env_command=(env)
 if [[ "$finalize_only" == "1" ]]; then
+  app_env_command+=(
+    -u EVO_V2_WAHA_BASE_URL
+    -u EVO_V2_WAHA_API_KEY
+    -u EVO_V2_WAHA_SESSION_NAME
+  )
   app_environment+=(
     "EVO_V2_WAHA_ENABLED=0"
     "EVO_V2_WAHA_PROVIDER_AUTHORIZED=0"
@@ -737,10 +743,11 @@ else
     "EVO_V2_WAHA_SESSION_NAME=$waha_session_name"
   )
 fi
-env "${app_environment[@]}" "$node_bin" node_modules/next/dist/bin/next dev \
+"${app_env_command[@]}" "${app_environment[@]}" \
+  "$node_bin" node_modules/next/dist/bin/next dev \
     --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
 app_pid=$!
-unset app_environment
+unset app_env_command app_environment
 chmod 600 "$app_log"
 wait_for_local_http "http://127.0.0.1:${app_port}/login" "$app_pid" "The real Next application"
 

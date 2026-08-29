@@ -13415,8 +13415,9 @@ conversation-filtered joined SQL statement.
 
 Real PostgreSQL acceptance now controls the generation callback only to test
 database orchestration without claiming provider acceptance: two concurrent
-requests execute it once, and a concurrently attempted inbound mutation cannot
-commit until the bounded generation transaction releases the lead lock. The
-real app/Chromium acceptance continues to keep provider authorization at `0`
-and proves a blocked UI plus zero writes. No Gemini request is authorized or
-claimed by these tests.
+requests execute it once; actual Sales-to-Admissions handoff and inbound
+mutation commands are each proven unable to commit until the bounded generation
+transaction releases the lead lock; provider failure and rejected unsafe output
+each roll back both receipt and proposal. The real app/Chromium acceptance
+continues to keep provider authorization at `0` and proves a blocked UI plus
+zero writes. No Gemini request is authorized or claimed by these tests.

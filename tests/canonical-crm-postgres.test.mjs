@@ -6,6 +6,11 @@ import test from "node:test";
 import postgres from "postgres";
 
 import {
+  CANONICAL_GEMINI_PROPOSAL_SCHEMA_VERSION,
+  CanonicalGeminiProposalOutputError,
+  parseCanonicalGeminiProposalOutput,
+} from "../src/lib/canonical-gemini-proposal-contract.ts";
+import {
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
   assertCanonicalFinanceStop,
@@ -661,7 +666,59 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       leadId: lead.leadId,
       expectedVersion: qualifiedLead.version,
     };
-    const handoff = await handoffCanonicalLeadToAdmissions(handoffInput);
+    let releasePreHandoffGeneration;
+    let markPreHandoffGenerationStarted;
+    const preHandoffGenerationRelease = new Promise((resolve) => {
+      releasePreHandoffGeneration = resolve;
+    });
+    const preHandoffGenerationStarted = new Promise((resolve) => {
+      markPreHandoffGenerationStarted = resolve;
+    });
+    const preHandoffProposalExecution = executeCanonicalGeminiProposal(
+      {
+        actorRole: "sales",
+        correlationId: `acceptance:${runId}:canonical-gemini-handoff-lock-proof`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        model: `technical-pre-handoff-lock-model-${runId}`,
+        promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+      },
+      async (sourceContext) => {
+        markPreHandoffGenerationStarted(sourceContext);
+        await preHandoffGenerationRelease;
+        return {
+          proposalText: `technical-pre-handoff-proposal-${runId}`,
+          providerCreatedAt: "2026-08-28T12:00:30.000Z",
+        };
+      },
+    );
+    const preHandoffSourceContext = await preHandoffGenerationStarted;
+    assert.equal(preHandoffSourceContext.sourceMessage.id, laterInbound.messageId);
+
+    const handoffExecution = handoffCanonicalLeadToAdmissions(handoffInput);
+    let handoffSettledWhileGenerationRuns = false;
+    void handoffExecution.then(
+      () => {
+        handoffSettledWhileGenerationRuns = true;
+      },
+      () => {
+        handoffSettledWhileGenerationRuns = true;
+      },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    assert.equal(
+      handoffSettledWhileGenerationRuns,
+      false,
+      "handoff must wait while the bounded provider call holds the lead lock",
+    );
+    releasePreHandoffGeneration();
+    const [preHandoffProposal, handoff] = await Promise.all([
+      preHandoffProposalExecution,
+      handoffExecution,
+    ]);
+    assert.equal(preHandoffProposal.studentCaseId, null);
+    assert.equal(preHandoffProposal.sourceMessageId, laterInbound.messageId);
     const handoffEventCountBeforeReplay = Number(
       (
         await sql`
@@ -823,12 +880,12 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       admissionsGeminiContext.sourceMessage.messageId,
       laterInbound.messageId,
     );
-    assert.equal(
+    assert.deepEqual(
       await readLatestCanonicalGeminiProposal({
         actorRole: "admissions",
         conversationId: inbound.conversationId,
       }),
-      null,
+      preHandoffProposal,
     );
 
     const proposalInput = {
@@ -977,6 +1034,62 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       ),
       0,
       "provider failure must not persist a proposal",
+    );
+
+    const invalidOutputCorrelation =
+      `acceptance:${runId}:canonical-gemini-invalid-output`;
+    await assert.rejects(
+      executeCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: invalidOutputCorrelation,
+        },
+        {
+          ...proposalInput,
+          model: `technical-invalid-output-model-${runId}`,
+        },
+        async () => {
+          const parsedOutput = parseCanonicalGeminiProposalOutput(
+            JSON.stringify({
+              schema_version: CANONICAL_GEMINI_PROPOSAL_SCHEMA_VERSION,
+              reply_text: "Гарантируем поступление без риска.",
+            }),
+          );
+          return {
+            proposalText: parsedOutput.replyText,
+            providerCreatedAt: "2026-08-28T12:01:07.000Z",
+          };
+        },
+      ),
+      (error) =>
+        error instanceof CanonicalGeminiProposalOutputError &&
+        error.code === "unsafe_semantics",
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_command_receipts
+            where correlation_id = ${invalidOutputCorrelation}
+          `
+        )[0].count,
+      ),
+      0,
+      "rejected provider output must roll back its processing receipt",
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_ai_proposals
+            where correlation_id = ${invalidOutputCorrelation}
+          `
+        )[0].count,
+      ),
+      0,
+      "rejected provider output must not persist a proposal",
     );
 
     let releaseLockedGeneration;

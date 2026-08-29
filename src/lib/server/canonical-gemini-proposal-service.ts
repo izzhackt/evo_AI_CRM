@@ -150,6 +150,6 @@ export async function requestCanonicalGeminiProposal(
       }
       return error("storage_unavailable");
     }
-    return error("provider_unavailable");
+    throw requestError;
   }
 }

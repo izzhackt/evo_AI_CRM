@@ -24,6 +24,10 @@ const ACK_NAMES = Object.freeze({
 
 test.use({ trace: "off", screenshot: "off", video: "off" });
 test.describe.configure({ mode: "serial" });
+test.skip(
+  process.env.EVO_V2_REAL_WAHA_ACCEPTANCE !== "1",
+  "requires the explicit connected-provider acceptance harness",
+);
 
 function requireEnv(name: string): string {
   const value = process.env[name];

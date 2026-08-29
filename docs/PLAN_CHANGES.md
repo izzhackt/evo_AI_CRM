@@ -13085,3 +13085,56 @@ A stale lock file with no holder is tolerated, while a live holder produces an
 explicit blocker with its PID and instructions to stop it manually. The
 harness terminates only the application process it started itself; it never
 stops a pre-existing development server.
+
+## 2026-08-29 - Stream private-document uploads and complete unavailable-path proof
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after independent security and correctness review of PR #453.
+Change type: security, truthful-copy and acceptance correction without a
+product-contract change.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Reason: the bounded private-document request reader still accumulated the
+entire multipart body, reparsed it into `FormData` and copied the `File` into a
+second request-sized array before persistence. A 25 MiB upload therefore had
+multiple simultaneous in-process copies even though oversize bodies were
+rejected. Review also found that the shared `/documents` hint still described
+a deleted review/decision workflow, while the missing-root browser proof
+covered create but not the separate resubmission and download storage paths.
+
+Decision: make `busboy` `1.6.0` the single private-document multipart parser.
+The route now authorizes before reading, bounds total request bytes plus file,
+field, part and header counts, consumes exactly one file stream, and writes
+each chunk directly to the private object while incrementally computing its
+length, SHA-256 and small MIME signature. It accepts exactly 25 MiB, rejects
+the first excess byte, removes partial or invalid objects and passes only a
+server-branded stored-upload handle to the PostgreSQL repository. The former
+prepared-buffer/write path was deleted. The small legacy multipart helper
+remains for the unrelated transcription route but is not imported or reachable
+from the V2 private-document path.
+
+Update all three language variants of the `/documents` hint to state its real
+read-only latest-version behavior and direct upload/resubmission work to
+Student 360. Extend the same real browser unavailable-root run to prove safe
+`503 document_storage_unavailable` responses for create, resubmission and
+download against the already persisted canonical document/version IDs, with
+no fallback store.
+
+Follow-up correctness review found that streaming had moved case/document
+eligibility checks behind object creation. Keep the existing transaction-time
+checks, but also preflight the handed-off active case or document before the
+first file byte can reach private storage. Create requests must present their
+single `caseId` field before the file; file-first or earlier-invalid multipart
+requests are rejected without calling storage. Resubmission validates its URL
+document ID before reading the multipart body. Tests prove role and invalid,
+unknown or inactive target denials leave storage untouched; malformed trailing
+parts remain fail-closed and their uncommitted object is discarded.
+
+The first clean real-browser rerun exposed a Next development-server readiness
+race: `/api/health` was ready while the exact database-status route still
+returned a transient `404`. The harness now waits until both health is `200`
+and `/api/database/status` has reached one of its two truthful states (`200` or
+`503`) before starting Playwright. A second full PostgreSQL/Chromium run passed;
+this readiness correction prevents a fresh checkout from depending on warmed
+route-discovery state.

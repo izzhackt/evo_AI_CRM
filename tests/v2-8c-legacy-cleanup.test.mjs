@@ -103,3 +103,24 @@ test("V2 real-service proof never terminates an existing development server", ()
   assert.match(harness, /No process was terminated/);
   assert.doesNotMatch(harness, /stop_stale_next_dev_server|kill\s+["']?\$stale_pid/);
 });
+
+test("V2 real-service proof waits for the exact database route before browser acceptance", () => {
+  const harness = source("scripts/test-postgres-v2-foundation.sh");
+
+  assert.match(harness, /database_status_code=/);
+  assert.match(harness, /\/api\/database\/status/);
+  assert.match(harness, /database_status_code" == "200".*database_status_code" == "503"/s);
+});
+
+test("V2 private document uploads stream to storage without whole-body parsing", () => {
+  const route = source("src/lib/server/private-document-route-handlers.ts");
+  const multipart = source("src/lib/server/private-document-multipart.ts");
+  const files = source("src/lib/server/private-document-files.ts");
+
+  assert.doesNotMatch(route, /readMultipartFormData|\.formData\(|\.arrayBuffer\(/);
+  assert.match(multipart, /Busboy/);
+  assert.match(multipart, /pipeline\(/);
+  assert.doesNotMatch(multipart, /Buffer\.concat|\.formData\(|\.arrayBuffer\(/);
+  assert.match(files, /for await \(const value of input\.chunks\)/);
+  assert.doesNotMatch(files, /PreparedPrivateDocumentFile|preparedStates/);
+});

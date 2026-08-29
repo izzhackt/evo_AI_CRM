@@ -8,6 +8,7 @@ import test from "node:test";
 import postgres from "postgres";
 
 import { closeDatabaseConnections } from "../src/lib/server/database.ts";
+import { storePrivateDocumentObject } from "../src/lib/server/private-document-files.ts";
 import {
   createPrivateDocument,
   downloadPrivateDocumentVersion,
@@ -37,6 +38,16 @@ function repositoryError(code) {
     assert.equal(error.code, code);
     return true;
   };
+}
+
+function storedPdf(originalFilename, bytes) {
+  return storePrivateDocumentObject({
+    originalFilename,
+    declaredMimeType: "application/pdf",
+    chunks: (async function* () {
+      yield bytes;
+    })(),
+  });
 }
 
 test("private document repository binds metadata and bytes to handed-off canonical cases", async () => {
@@ -72,9 +83,7 @@ test("private document repository binds metadata and bytes to handed-off canonic
       createPrivateDocument({
         actorRole: "sales",
         caseId,
-        originalFilename: "initial.pdf",
-        declaredMimeType: "application/pdf",
-        bytes: INITIAL_BYTES,
+        upload: await storedPdf("initial.pdf", INITIAL_BYTES),
       }),
       repositoryError("not_found"),
     );
@@ -82,9 +91,7 @@ test("private document repository binds metadata and bytes to handed-off canonic
     const initial = await createPrivateDocument({
       actorRole: "admissions",
       caseId,
-      originalFilename: "initial.pdf",
-      declaredMimeType: "application/pdf",
-      bytes: INITIAL_BYTES,
+      upload: await storedPdf("initial.pdf", INITIAL_BYTES),
     });
     const initialCaseDocuments = await listPrivateDocumentsForCase({
       actorRole: "admissions",
@@ -98,9 +105,7 @@ test("private document repository binds metadata and bytes to handed-off canonic
     const replacement = await resubmitPrivateDocument({
       actorRole: "admin",
       documentId: initial.documentId,
-      originalFilename: "replacement.pdf",
-      declaredMimeType: "application/pdf",
-      bytes: REPLACEMENT_BYTES,
+      upload: await storedPdf("replacement.pdf", REPLACEMENT_BYTES),
     });
     const caseDocuments = await listPrivateDocumentsForCase({
       actorRole: "admin",
@@ -138,9 +143,7 @@ test("private document repository binds metadata and bytes to handed-off canonic
       createPrivateDocument({
         actorRole: "admissions",
         caseId,
-        originalFilename: "blocked-new.pdf",
-        declaredMimeType: "application/pdf",
-        bytes: INITIAL_BYTES,
+        upload: await storedPdf("blocked-new.pdf", INITIAL_BYTES),
       }),
       repositoryError("not_found"),
     );
@@ -148,9 +151,7 @@ test("private document repository binds metadata and bytes to handed-off canonic
       resubmitPrivateDocument({
         actorRole: "admissions",
         documentId: initial.documentId,
-        originalFilename: "blocked.pdf",
-        declaredMimeType: "application/pdf",
-        bytes: REPLACEMENT_BYTES,
+        upload: await storedPdf("blocked.pdf", REPLACEMENT_BYTES),
       }),
       repositoryError("not_found"),
     );

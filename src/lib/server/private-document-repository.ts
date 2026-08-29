@@ -16,10 +16,10 @@ import {
 import { fixedRoleCan, type FixedRole } from "../fixed-role-policy.ts";
 import { getDatabase } from "./database.ts";
 import {
-  preparePrivateDocumentFile,
   readPrivateDocumentObject,
   removePrivateDocumentObject,
-  writePrivateDocumentObject,
+  requireStoredPrivateDocumentUpload,
+  type StoredPrivateDocumentUpload,
 } from "./private-document-files.ts";
 
 const UUID_PATTERN =
@@ -195,6 +195,28 @@ async function cleanupUncommittedObject(objectKey: string): Promise<void> {
     // The row is never committed, so an unsuccessful cleanup can leave only an
     // unreachable private orphan. Do not replace the original safe DB error.
   }
+}
+
+export async function assertPrivateDocumentCreateTargetWritable(input: Readonly<{
+  actorRole: FixedRole;
+  caseId: string;
+}>): Promise<string> {
+  assertDocumentRole(input.actorRole, "documents.write");
+  const caseId = parseUuid(input.caseId);
+  if (!caseId) throw new PrivateDocumentRepositoryError("invalid_input");
+  await assertReadableCase(caseId, true);
+  return caseId;
+}
+
+export async function assertPrivateDocumentResubmitTargetWritable(input: Readonly<{
+  actorRole: FixedRole;
+  documentId: string;
+}>): Promise<string> {
+  assertDocumentRole(input.actorRole, "documents.write");
+  const documentId = parseUuid(input.documentId);
+  if (!documentId) throw new PrivateDocumentRepositoryError("invalid_input");
+  await assertReadableDocument(documentId, true);
+  return documentId;
 }
 
 export async function listPrivateDocumentsForCase(input: Readonly<{
@@ -381,25 +403,15 @@ export async function listPrivateDocuments(input: Readonly<{
 export async function createPrivateDocument(input: Readonly<{
   actorRole: FixedRole;
   caseId: string;
-  originalFilename: string;
-  declaredMimeType: string;
-  bytes: Uint8Array;
+  upload: StoredPrivateDocumentUpload;
 }>): Promise<PrivateDocumentVersionMetadata> {
-  assertDocumentRole(input.actorRole, "documents.write");
-  const caseId = parseUuid(input.caseId);
-  if (!caseId) throw new PrivateDocumentRepositoryError("invalid_input");
-  await assertReadableCase(caseId, true);
-
-  const prepared = preparePrivateDocumentFile({
-    originalFilename: input.originalFilename,
-    declaredMimeType: input.declaredMimeType,
-    bytes: input.bytes,
-  });
-  const stored = await writePrivateDocumentObject(prepared);
-  const documentId = randomUUID();
-  const versionId = randomUUID();
+  const upload = requireStoredPrivateDocumentUpload(input.upload);
 
   try {
+    const caseId = await assertPrivateDocumentCreateTargetWritable(input);
+
+    const documentId = randomUUID();
+    const versionId = randomUUID();
     const row = await getDatabase().transaction(async (transaction) => {
       const [studentCase] = await transaction
         .select({ id: evoStudentCases.id })
@@ -427,11 +439,11 @@ export async function createPrivateDocument(input: Readonly<{
           id: versionId,
           documentId,
           versionNumber: 1,
-          objectKey: stored.objectKey,
-          originalFilename: prepared.originalFilename,
-          declaredMimeType: prepared.declaredMimeType,
-          byteLength: stored.byteLength,
-          sha256: stored.sha256,
+          objectKey: upload.objectKey,
+          originalFilename: upload.originalFilename,
+          declaredMimeType: upload.declaredMimeType,
+          byteLength: upload.byteLength,
+          sha256: upload.sha256,
           createdByRole: input.actorRole,
         })
         .returning({
@@ -448,7 +460,7 @@ export async function createPrivateDocument(input: Readonly<{
 
     return toMetadata({ documentId, caseId, versionId, ...row });
   } catch (error) {
-    await cleanupUncommittedObject(stored.objectKey);
+    await cleanupUncommittedObject(upload.objectKey);
     if (error instanceof PrivateDocumentRepositoryError) throw error;
     throw new PrivateDocumentRepositoryError("unavailable");
   }
@@ -457,24 +469,14 @@ export async function createPrivateDocument(input: Readonly<{
 export async function resubmitPrivateDocument(input: Readonly<{
   actorRole: FixedRole;
   documentId: string;
-  originalFilename: string;
-  declaredMimeType: string;
-  bytes: Uint8Array;
+  upload: StoredPrivateDocumentUpload;
 }>): Promise<PrivateDocumentVersionMetadata> {
-  assertDocumentRole(input.actorRole, "documents.write");
-  const documentId = parseUuid(input.documentId);
-  if (!documentId) throw new PrivateDocumentRepositoryError("invalid_input");
-  await assertReadableDocument(documentId, true);
-
-  const prepared = preparePrivateDocumentFile({
-    originalFilename: input.originalFilename,
-    declaredMimeType: input.declaredMimeType,
-    bytes: input.bytes,
-  });
-  const stored = await writePrivateDocumentObject(prepared);
-  const versionId = randomUUID();
+  const upload = requireStoredPrivateDocumentUpload(input.upload);
 
   try {
+    const documentId = await assertPrivateDocumentResubmitTargetWritable(input);
+
+    const versionId = randomUUID();
     const row = await getDatabase().transaction(async (transaction) => {
       const [document] = await transaction
         .select({
@@ -513,11 +515,11 @@ export async function resubmitPrivateDocument(input: Readonly<{
           id: versionId,
           documentId,
           versionNumber: latestVersion + 1,
-          objectKey: stored.objectKey,
-          originalFilename: prepared.originalFilename,
-          declaredMimeType: prepared.declaredMimeType,
-          byteLength: stored.byteLength,
-          sha256: stored.sha256,
+          objectKey: upload.objectKey,
+          originalFilename: upload.originalFilename,
+          declaredMimeType: upload.declaredMimeType,
+          byteLength: upload.byteLength,
+          sha256: upload.sha256,
           createdByRole: input.actorRole,
         })
         .returning({
@@ -540,7 +542,7 @@ export async function resubmitPrivateDocument(input: Readonly<{
 
     return toMetadata({ documentId, versionId, ...row });
   } catch (error) {
-    await cleanupUncommittedObject(stored.objectKey);
+    await cleanupUncommittedObject(upload.objectKey);
     if (error instanceof PrivateDocumentRepositoryError) throw error;
     throw new PrivateDocumentRepositoryError("unavailable");
   }

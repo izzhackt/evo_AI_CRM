@@ -171,13 +171,17 @@ start_app() {
 
   local deadline=$((SECONDS + 120))
   local code=""
+  local database_status_code=""
   while (( SECONDS < deadline )); do
     if ! kill -0 "$app_pid" >/dev/null 2>&1; then
       sed -n '1,200p' "$app_log" >&2
       fail "The application exited before browser validation"
     fi
     code="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${app_port}/api/health" || true)"
-    [[ "$code" == "200" ]] && return
+    database_status_code="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${app_port}/api/database/status" || true)"
+    if [[ "$code" == "200" && ( "$database_status_code" == "200" || "$database_status_code" == "503" ) ]]; then
+      return
+    fi
     sleep 2
   done
   sed -n '1,200p' "$app_log" >&2
@@ -241,6 +245,8 @@ private_document_browser_assert() {
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_DOCUMENT_MODE="$document_mode" \
     EVO_PRIVATE_DOCUMENT_CASE_ID="$private_document_case_id" \
+    EVO_PRIVATE_DOCUMENT_ID="${private_document_id:-}" \
+    EVO_PRIVATE_DOCUMENT_VERSION_ID="${replacement_document_version_id:-}" \
     EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE="$private_document_acceptance_result" \
     EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
     EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \

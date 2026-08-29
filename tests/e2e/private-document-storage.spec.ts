@@ -23,6 +23,20 @@ function requirePrivateDocumentCaseId(): string {
 const caseId = requirePrivateDocumentCaseId();
 const guessedDocumentId = "00000000-0000-4000-8000-000000000498";
 const guessedVersionId = "00000000-0000-4000-8000-000000000499";
+const unavailableDocumentId =
+  documentMode === "unavailable"
+    ? requireUuid(
+        process.env.EVO_PRIVATE_DOCUMENT_ID ?? null,
+        "EVO_PRIVATE_DOCUMENT_ID",
+      )
+    : guessedDocumentId;
+const unavailableVersionId =
+  documentMode === "unavailable"
+    ? requireUuid(
+        process.env.EVO_PRIVATE_DOCUMENT_VERSION_ID ?? null,
+        "EVO_PRIVATE_DOCUMENT_VERSION_ID",
+      )
+    : guessedVersionId;
 const initialBytes = Buffer.from(
   "%PDF-1.4\n% EVO V2 private persistence acceptance\n1 0 obj\n<<>>\nendobj\n%%EOF\n",
 );
@@ -356,6 +370,29 @@ test("an unavailable private root fails closed without a fallback", async ({
     await page.context().request.post("/api/v2/documents", {
       multipart: uploadMultipart(initialBytes),
     }),
+    503,
+    "document_storage_unavailable",
+  );
+  await expectError(
+    await page.context().request.post(
+      `/api/v2/documents/${unavailableDocumentId}/resubmissions`,
+      {
+        multipart: {
+          file: {
+            name: "unavailable-resubmission.pdf",
+            mimeType: "application/pdf",
+            buffer: replacementBytes,
+          },
+        },
+      },
+    ),
+    503,
+    "document_storage_unavailable",
+  );
+  await expectError(
+    await page.context().request.get(
+      `/api/v2/document-versions/${unavailableVersionId}/download`,
+    ),
     503,
     "document_storage_unavailable",
   );

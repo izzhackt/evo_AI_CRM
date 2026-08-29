@@ -418,11 +418,19 @@ guess, simulate or fall back.
    The action rechecks current role ownership and persists a unique send attempt
    and processing receipt before any provider request. Only the direct canonical
    chat identity (`@c.us` or `@lid`) already received from that conversation is
-   eligible. Success records the provider message identity and timestamp, then
-   creates the one canonical outbound message plus the latest reconciled ACK
-   marker. A timeout, lost response, provider 5xx or malformed success response
-   becomes a durable `unknown` result with no fake message and no blind resend;
-   an explicit provider rejection becomes a durable `rejected` result. Exact
+   eligible. The `WORKING` session response also proves its own `me.id` and
+   optional `me.lid`; when the canonical recipient is one of those self
+   identities, WAHA may return either member of that exact provider-proven pair.
+   No unrelated or inferred recipient alias is accepted. Success records the
+   provider message identity and timestamp, then creates the one canonical
+   outbound message plus the latest reconciled ACK marker. A timeout, lost
+   response, provider 5xx or malformed success response becomes a durable
+   `unknown` result with no fake message and no blind resend. The same UI may
+   perform a read-only, bounded reconciliation of that exact attempt: only one
+   provider message matching its immutable text, time window, outbound direction
+   and verified recipient identity may settle it; zero or multiple matches leave
+   it `unknown`. An explicit provider rejection becomes a durable `rejected`
+   result. Exact
    request replay returns the stored result, while changed-payload reuse
    conflicts. Sales and Admissions may send only while the conversation still
    belongs to their role, and Admin is the union. Staff-authored final text and

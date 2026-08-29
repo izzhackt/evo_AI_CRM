@@ -14095,3 +14095,55 @@ history, repeated migration verification, canonical CRM/WhatsApp/amoCRM
 PostgreSQL tests, fail-closed missing-primary behavior and the fixed-role
 browser contour. No Supabase/SQLite fallback, `EVO_AGENT_AMO_*` runtime import,
 real provider mutation, V1 deployment change or customer-data action occurred.
+
+## 2026-08-29 - Implement explicit canonical amoCRM sync commands before broad acceptance
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #466.
+Change type: second reviewed implementation slice.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+The next #466 slice stays product-first and avoids a broad admin/provider
+control surface. Instead it adds two explicit server-authorized sync command
+paths over the already merged provider/database foundation:
+
+- a Sales-side command on the canonical lead workspace that upserts the bound
+  contact and lead, links them, and applies the Sales-owned amoCRM fields from
+  the current EVO lead state;
+- an Admissions-side command on the canonical Student 360 workspace that
+  updates the already bound lead with the current handoff/admissions state,
+  responsible user, workflow note and exact tag set required by the case.
+
+For this private non-production contour, exact provider target IDs needed for
+pipeline/status/responsible-user routing are server-only ignored V2
+configuration, not a new public settings UI. Account identity and catalogs are
+still read from the connected amoCRM account through the canonical provider and
+persisted as bounded discovery evidence when commands run. The command service
+must fail closed if the required V2 target mapping, canonical binding, account
+discovery or workflow precondition is missing; it may not guess IDs, fuzzy-
+search amoCRM as a second authority, or fall back to legacy settings/runtime.
+
+Every sync command must preserve the same safety contour already used for
+WhatsApp send:
+
+- one immutable command receipt and one amoCRM attempt prepared before network
+  dispatch;
+- exact request replay returns the stored result, while changed-payload reuse
+  conflicts;
+- transport loss or ambiguous provider read-back settles `unknown` and blocks a
+  blind retry until explicit reconciliation;
+- server-side authorization is derived from the current canonical workflow
+  state, with Admin as the functional superset, Sales before handoff, and
+  Admissions after handoff.
+
+Current official provider references:
+
+- <https://developers.kommo.com/docs/oauth-20>
+- <https://developers.kommo.com/reference/add-contacts>
+- <https://developers.kommo.com/reference/update-contacts>
+- <https://developers.kommo.com/reference/adding-leads>
+- <https://developers.kommo.com/reference/updating-leads>
+- <https://developers.kommo.com/reference/linking-entities>
+- <https://developers.kommo.com/reference/add-notes>
+- <https://developers.kommo.com/reference/add-tags>
+- <https://developers.kommo.com/reference/update-tags-single-entity>

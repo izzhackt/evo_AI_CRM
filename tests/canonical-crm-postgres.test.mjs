@@ -1257,7 +1257,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     const acceptedReplay = await reviewCanonicalGeminiProposal(
       {
         actorRole: "admissions",
-        correlationId: `acceptance:${runId}:canonical-gemini-review-accept-replay`,
+        correlationId: `acceptance:${runId}:canonical-gemini-review-accept`,
       },
       acceptedReviewInput,
     );
@@ -1293,7 +1293,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       reviewCanonicalGeminiProposal(
         {
           actorRole: "admissions",
-          correlationId: `acceptance:${runId}:canonical-gemini-review-accept-conflict`,
+          correlationId: `acceptance:${runId}:canonical-gemini-review-accept`,
         },
         {
           conversationId: inbound.conversationId,
@@ -1301,6 +1301,16 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           reviewDecision: "rejected",
           reviewReason: `technical-review-conflict-${runId}`,
         },
+      ),
+      repositoryError("idempotency_conflict"),
+    );
+    await assert.rejects(
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-accept-new-request`,
+        },
+        acceptedReviewInput,
       ),
       repositoryError("conflict"),
     );
@@ -1371,7 +1381,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     const editedReplay = await reviewCanonicalGeminiProposal(
       {
         actorRole: "admissions",
-        correlationId: `acceptance:${runId}:canonical-gemini-review-edit-replay`,
+        correlationId: `acceptance:${runId}:canonical-gemini-review-edit`,
       },
       {
         conversationId: inbound.conversationId,
@@ -1477,7 +1487,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     const rejectedReplay = await reviewCanonicalGeminiProposal(
       {
         actorRole: "admin",
-        correlationId: `acceptance:${runId}:canonical-gemini-review-reject-replay`,
+        correlationId: `acceptance:${runId}:canonical-gemini-review-reject`,
       },
       {
         conversationId: inbound.conversationId,
@@ -1625,7 +1635,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       reviewCanonicalGeminiProposal(
         {
           actorRole: "sales",
-          correlationId: `acceptance:${runId}:canonical-gemini-review-stale-replay-denied`,
+          correlationId: `acceptance:${runId}:canonical-gemini-review-stale-replay-accept`,
         },
         staleReplayReviewInput,
       ),
@@ -1762,6 +1772,115 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         conversationId: inbound.conversationId,
       }),
       concurrentWinner,
+    );
+
+    const concurrentAcceptRequestId =
+      `acceptance:${runId}:canonical-gemini-review-concurrent-accept`;
+    const concurrentRejectRequestId =
+      `acceptance:${runId}:canonical-gemini-review-concurrent-reject`;
+    const concurrentRaceReceipts = await sql`
+      select idempotency_key, status, business_object_id
+      from evo_command_receipts
+      where command_name = 'canonical_gemini_proposal.review'
+        and idempotency_key in (
+          ${concurrentAcceptRequestId},
+          ${concurrentRejectRequestId}
+        )
+      order by idempotency_key asc
+    `;
+    assert.deepEqual(
+      concurrentRaceReceipts.map((receipt) => ({
+        idempotencyKey: receipt.idempotency_key,
+        status: receipt.status,
+        businessObjectId: receipt.business_object_id,
+      })),
+      [
+        {
+          idempotencyKey:
+            concurrentWinner.reviewDecision === "accepted"
+              ? concurrentAcceptRequestId
+              : concurrentRejectRequestId,
+          status: "succeeded",
+          businessObjectId: concurrentPendingProposal.proposalId,
+        },
+      ],
+      "a concurrent fresh request must lose without leaving a processing receipt",
+    );
+
+    const concurrentReplayPendingProposal =
+      await executeCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-concurrent-replay-proposal`,
+        },
+        {
+          conversationId: inbound.conversationId,
+          model: `technical-review-concurrent-replay-model-${runId}`,
+          promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+        },
+        async () => ({
+          proposalText: `technical-review-concurrent-replay-proposal-${runId}`,
+          providerCreatedAt: "2026-08-28T12:01:45.000Z",
+        }),
+      );
+    const concurrentReplayRequestId =
+      `acceptance:${runId}:canonical-gemini-review-concurrent-replay`;
+    const concurrentReplayInput = {
+      conversationId: inbound.conversationId,
+      proposalId: concurrentReplayPendingProposal.proposalId,
+      reviewDecision: "accepted",
+    };
+    const [concurrentReplayFirst, concurrentReplaySecond] = await Promise.all([
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: concurrentReplayRequestId,
+        },
+        concurrentReplayInput,
+      ),
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: concurrentReplayRequestId,
+        },
+        concurrentReplayInput,
+      ),
+    ]);
+    assert.deepEqual(concurrentReplaySecond, concurrentReplayFirst);
+    assert.equal(concurrentReplayFirst.reviewDecision, "accepted");
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_business_events
+            where business_object_id = ${concurrentReplayPendingProposal.proposalId}
+              and transition = 'ai_proposal.accepted'
+          `
+        )[0].count,
+      ),
+      1,
+      "concurrent exact replay must create one review transition",
+    );
+    assert.deepEqual(
+      (
+        await sql`
+          select status, business_object_id
+          from evo_command_receipts
+          where command_name = 'canonical_gemini_proposal.review'
+            and idempotency_key = ${concurrentReplayRequestId}
+        `
+      ).map((receipt) => ({
+        status: receipt.status,
+        businessObjectId: receipt.business_object_id,
+      })),
+      [
+        {
+          status: "succeeded",
+          businessObjectId: concurrentReplayPendingProposal.proposalId,
+        },
+      ],
+      "concurrent exact replay must leave one succeeded receipt",
     );
     assert.equal(
       Number(

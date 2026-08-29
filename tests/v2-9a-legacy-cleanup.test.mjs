@@ -83,7 +83,9 @@ test("V2-9A keeps one canonical PostgreSQL staff WhatsApp read surface", () => {
   }
   assert.doesNotMatch(listPage, /getSupabasePublicConfig/);
   assert.doesNotMatch(threadPage, /getSupabasePublicConfig/);
-  assert.doesNotMatch(workspace, /<form\b|sendText|manual-send/i);
+  assert.doesNotMatch(workspace, /sendText|manual-send/i);
+  assert.match(workspace, /CanonicalGeminiProposalPanel/);
+  assert.match(workspace, /CanonicalWahaPreflightPanel/);
   assert.match(workspace, /canonical-staff-whatsapp-provider-blocked/);
   assert.doesNotMatch(routeContract, /platform-messaging\/media/);
   assert.doesNotMatch(sensitivePermissions, /\/api\/ai\/draft/);

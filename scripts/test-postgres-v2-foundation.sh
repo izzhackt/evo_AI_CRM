@@ -152,6 +152,11 @@ start_app() {
       EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
       EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
       EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
+      EVO_V2_WAHA_PREFLIGHT_ENABLED=1 \
+      EVO_V2_WAHA_PROVIDER_AUTHORIZED=0 \
+      EVO_V2_WAHA_BASE_URL=http://evo-v2-waha:3000 \
+      EVO_V2_WAHA_API_KEY=technical-waha-preflight-key \
+      EVO_V2_WAHA_SESSION_NAME=evo-v2-technical \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   else
@@ -168,6 +173,11 @@ start_app() {
       EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
       EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
       EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
+      EVO_V2_WAHA_PREFLIGHT_ENABLED=1 \
+      EVO_V2_WAHA_PROVIDER_AUTHORIZED=0 \
+      EVO_V2_WAHA_BASE_URL=http://evo-v2-waha:3000 \
+      EVO_V2_WAHA_API_KEY=technical-waha-preflight-key \
+      EVO_V2_WAHA_SESSION_NAME=evo-v2-technical \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   fi

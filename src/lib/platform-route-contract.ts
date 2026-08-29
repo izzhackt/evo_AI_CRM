@@ -32,8 +32,6 @@ const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
-  "/api/internal/platform-messaging/waha/autonomous-reply",
-  "/api/internal/platform-messaging/manual-send/work",
   "/api/internal/platform-operations/portal-overdue",
 ]);
 export function platformHomeRoute(role: FixedRole): "/sales" | "/clients" {

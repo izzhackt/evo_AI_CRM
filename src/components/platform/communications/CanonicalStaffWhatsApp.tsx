@@ -3,10 +3,12 @@ import type { ReactNode } from "react";
 
 import { formatCanonicalTimestamp } from "@/components/platform/core/CanonicalRecordsPresentation";
 import { CanonicalGeminiProposalPanel } from "@/components/platform/communications/CanonicalGeminiProposalPanel";
+import { CanonicalWahaPreflightPanel } from "@/components/platform/communications/CanonicalWahaPreflightPanel";
 import { EmptyState, PageHeader, btnGhostCls, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import type { FixedRole } from "@/lib/fixed-role-policy";
 import type { CanonicalGeminiProposalAvailability } from "@/lib/server/canonical-gemini-proposal-config";
+import type { CanonicalWahaPreflightAvailability } from "@/lib/server/canonical-waha-preflight";
 import type {
   CanonicalConversationMessage,
   CanonicalGeminiProposalSnapshot,
@@ -43,7 +45,7 @@ const COPY = {
       "Сообщения показаны от новых к старым. На этой странице нет отправки, автономных действий или fallback-провайдера.",
     emptyMessages: "В этой переписке пока нет сообщений.",
     providerBlocked:
-      "Провайдер WAHA не вызывался и не проверялся. Эта страница доказывает только чтение сохранённых данных из EVO.",
+      "WAHA доступен только для отдельной read-only проверки статуса сессии. EVO не запускает сессию и не отправляет сообщения с этой страницы.",
     incoming: "Входящее",
     outgoing: "Исходящее · история",
     roleSales: "Sales",
@@ -84,7 +86,7 @@ const COPY = {
       "Билдирүүлөр жаңысынан эскисине көрсөтүлөт. Бул бетте жөнөтүү, автономдуу аракеттер же fallback-провайдер жок.",
     emptyMessages: "Бул кат алышууда билдирүүлөр азырынча жок.",
     providerBlocked:
-      "WAHA провайдери чакырылган же текшерилген эмес. Бул бет EVO'догу сакталган маалыматтарды окууну гана далилдейт.",
+      "WAHA сессиянын абалын өзүнчө read-only текшерүү үчүн гана жеткиликтүү. EVO бул беттен сессияны иштетпейт жана билдирүү жөнөтпөйт.",
     incoming: "Кирген",
     outgoing: "Чыккан · тарых",
     roleSales: "Sales",
@@ -125,7 +127,7 @@ const COPY = {
       "Messages are shown newest first. There is no sending, autonomous action, or fallback provider on this page.",
     emptyMessages: "There are no messages in this conversation yet.",
     providerBlocked:
-      "The WAHA provider was not called or verified. This page proves only reading persisted data from EVO.",
+      "WAHA is available only for a separate read-only session check. EVO cannot start a session or send a message from this page.",
     incoming: "Incoming",
     outgoing: "Outgoing · history",
     roleSales: "Sales",
@@ -147,12 +149,15 @@ type WorkspaceProps = Readonly<{
   queueCursor: CanonicalReadCursor | null;
   queueResetHref: string | null;
   queueNextHref: string | null;
+  wahaAvailability: CanonicalWahaPreflightAvailability;
+  wahaPreflightRequestId: string;
   selectedConversationId?: string | null;
   thread?: {
     conversation: CanonicalStaffConversationQueueRow;
     messages: readonly CanonicalConversationMessage[];
     geminiAvailability: CanonicalGeminiProposalAvailability;
     geminiProposal: CanonicalGeminiProposalSnapshot | null;
+    geminiReviewRequestId: string | null;
     newestMessagesHref: string | null;
     olderMessagesHref: string | null;
   } | null;
@@ -165,6 +170,8 @@ export function CanonicalStaffWhatsAppWorkspace({
   queueCursor,
   queueResetHref,
   queueNextHref,
+  wahaAvailability,
+  wahaPreflightRequestId,
   selectedConversationId = null,
   thread = null,
 }: WorkspaceProps) {
@@ -179,6 +186,11 @@ export function CanonicalStaffWhatsAppWorkspace({
       >
         {copy.providerBlocked}
       </div>
+      <CanonicalWahaPreflightPanel
+        locale={locale}
+        availability={wahaAvailability}
+        requestId={wahaPreflightRequestId}
+      />
       <div className="flex h-[calc(100vh-310px)] min-h-[520px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
         <aside className="w-full shrink-0 border-b border-border bg-surface-2 lg:w-[360px] lg:border-r lg:border-b-0">
           <div className="border-b border-border px-4 py-4">
@@ -274,6 +286,7 @@ export function CanonicalStaffWhatsAppWorkspace({
               messages={thread.messages}
               geminiAvailability={thread.geminiAvailability}
               geminiProposal={thread.geminiProposal}
+              geminiReviewRequestId={thread.geminiReviewRequestId}
               newestMessagesHref={thread.newestMessagesHref}
               olderMessagesHref={thread.olderMessagesHref}
             />
@@ -303,6 +316,7 @@ function ConversationThread({
   messages,
   geminiAvailability,
   geminiProposal,
+  geminiReviewRequestId,
   newestMessagesHref,
   olderMessagesHref,
 }: Readonly<{
@@ -312,6 +326,7 @@ function ConversationThread({
   messages: readonly CanonicalConversationMessage[];
   geminiAvailability: CanonicalGeminiProposalAvailability;
   geminiProposal: CanonicalGeminiProposalSnapshot | null;
+  geminiReviewRequestId: string | null;
   newestMessagesHref: string | null;
   olderMessagesHref: string | null;
 }>) {
@@ -384,6 +399,7 @@ function ConversationThread({
         conversationId={conversation.conversationId}
         availability={geminiAvailability}
         proposal={geminiProposal}
+        reviewRequestId={geminiReviewRequestId}
       />
 
       {messages.length === 0 ? (

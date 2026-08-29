@@ -264,6 +264,46 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     page.getByTestId("canonical-staff-whatsapp-page").locator("form"),
   ).toHaveCount(0);
 
+  const futureCursorAt = "2099-08-29T12:00:00.000Z";
+  const maximumCursorId = "ffffffff-ffff-4fff-bfff-ffffffffffff";
+  const queueCursor = new URLSearchParams({
+    before_at: futureCursorAt,
+    before_id: maximumCursorId,
+  });
+  await page.goto(`/whatsapp?${queueCursor.toString()}`);
+  await expect(staffQueueRow).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-staff-whatsapp-queue-reset"),
+  ).toHaveAttribute("href", "/whatsapp");
+
+  const messageCursor = new URLSearchParams({
+    messages_before_at: futureCursorAt,
+    messages_before_id: maximumCursorId,
+  });
+  await page.goto(`/whatsapp/${conversationId}?${messageCursor.toString()}`);
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
+    inboundText,
+  );
+  await expect(
+    page.getByTestId("canonical-staff-whatsapp-messages-reset"),
+  ).toHaveAttribute("href", `/whatsapp/${conversationId}`);
+
+  for (const malformedPath of [
+    `/whatsapp?before_at=not-a-timestamp&before_id=${conversationId}`,
+    `/whatsapp?before_at=${encodeURIComponent(futureCursorAt)}`,
+    `/whatsapp?before_at=${encodeURIComponent(futureCursorAt)}&before_at=${encodeURIComponent(futureCursorAt)}&before_id=${maximumCursorId}`,
+    "/whatsapp?unexpected=true",
+    `/whatsapp/${conversationId}?messages_before_at=not-a-timestamp&messages_before_id=${messageId}`,
+  ]) {
+    await page.goto(malformedPath);
+    await expect(
+      page.getByRole("heading", { name: "404", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("canonical-staff-whatsapp-thread"),
+    ).toHaveCount(0);
+  }
+
   await submitGate(page, "admissions");
   await page.goto("/whatsapp");
   await expect(page.getByTestId("canonical-staff-whatsapp-page")).toBeVisible();
@@ -304,6 +344,11 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
       `[data-testid="canonical-staff-whatsapp-row"][data-conversation-id="${conversationId}"]`,
     ),
   ).toHaveCount(0);
+  await page.goto(`/whatsapp/${conversationId}`);
+  await expect(
+    page.getByRole("heading", { name: "404", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toHaveCount(0);
 
   await page.goto("/");
   await page.getByTestId("preview-role-sales").click();

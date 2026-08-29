@@ -13272,3 +13272,24 @@ Validation evidence on this exact V2-9A tree:
 - `npm run lint -- src/app/(staff)/whatsapp/page.tsx src/app/(staff)/whatsapp/[id]/page.tsx src/components/platform/communications/CanonicalStaffWhatsApp.tsx src/lib/server/canonical-crm-repository.ts tests/canonical-crm-postgres.test.mjs tests/canonical-crm-repository.test.mjs tests/e2e/canonical-crm-read-surfaces.spec.ts tests/e2e/sensitive-permissions.spec.ts tests/v2-9a-legacy-cleanup.test.mjs src/lib/queries.ts`
 - `npm run typecheck`
 - `bash scripts/test-postgres-v2-foundation.sh`
+
+## 2026-08-29 - Close the V2-9A cursor and Admin-preview browser gaps
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after independent exact-head review of PR #455.
+Change type: acceptance correction without a product-contract change.
+Affected plan section: V2-9A canonical staff WhatsApp read surface.
+
+Reason: the first reviewed V2-9A head validated malformed queue/message
+cursors at the repository boundary, and validated direct Sales/Admissions
+role denial plus Admin role-preview queue filtering in Chromium. It did not
+exercise valid cursor URLs through the real application, malformed cursor URLs
+through the route-level 404 boundary, or a direct thread URL while Admin was
+previewing the Admissions interface.
+
+Decision: add stable queue/message pagination test IDs and extend the same real
+PostgreSQL/Next/Chromium journey to prove valid cursor URLs, reset links,
+malformed, incomplete, duplicate and unknown query rejection, and direct-thread
+denial under Admin-as-Admissions preview. These are outcome tests at the
+canonical route boundary; they add no alternate read path, provider call, send
+action, production mutation or compatibility behavior.

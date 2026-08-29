@@ -13600,3 +13600,76 @@ browser case submitted the real server action to `127.0.0.1:1`, rendered
 `not-working / provider_unreachable`, and exposed no outbound control.
 `npm run test:unit` passed 338 tests, `npm run test:security` passed 344 tests,
 and full ESLint, TypeScript, production build and `git diff --check` passed.
+
+## 2026-08-29 - Authorize permanent real-provider operations in private V2
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: EVO owner, recorded by Codex under parent #463.
+Change type: owner-authorized scope and architecture amendment before
+implementation.
+Affected plan sections: Current V2 authority, product paths, active issue
+contract, V2-9 provider boundary, new V2-10 provider contract, real validation
+and deferred-before-broad-real-use note.
+
+Owner decision: keep V2 private/local and leave V1 deployment/cutover frozen,
+but make real provider operations part of the active heavy CRM product. amoCRM
+writes are a permanent function rather than a one-time acceptance probe. Use
+the existing connected Gemini, WAHA and amoCRM accounts. The owner authorizes
+all amoCRM operations required by the workflow, permits minimum necessary real
+conversation/case context for Gemini/provider proof, grants standing execution
+authority without routine per-call confirmation, and explicitly declines an
+artificial Gemini call-count or cost limit.
+
+This entry supersedes only the earlier V2-9 no-real-call/no-send/no-amoCRM-write
+restriction for new canonical work under #464-#467. The earlier entries remain
+truthful evidence of what #433 proved before authorization. They do not permit
+reviving the manual-send/autonomous workers or the legacy SQLite/Supabase
+amoCRM writer that V2 removed.
+
+Architecture decision: PostgreSQL remains the only V2 business authority.
+Gemini remains advisory, uses the existing canonical server-only Interactions
+adapter with `store: false`, and cannot take action. WAHA outbound becomes one
+explicit staff-controlled command over final reviewed text, with durable send
+intent/provider identity/ACK state and no blind retry after an ambiguous
+result. amoCRM becomes one server-only outbound integration with durable
+provider bindings and commands for contact/lead create, update and link plus
+the required pipeline/status, responsible-user, note and tag operations. It is
+not a second authority, dual-write path, fallback repository or compatibility
+layer.
+
+Provider secrets must be injected from ignored local configuration or the
+authorized secret workflow and must never be copied into chat, Git, browser
+state, PostgreSQL business rows, logs, issues or PR evidence. Real acceptance
+uses one minimized owner-authorized existing real conversation/case. If an
+exact safe recipient/case cannot be resolved from canonical/provider state,
+the run blocks honestly rather than selecting an arbitrary customer or
+creating fake business data.
+
+The completed foundation parent #407 and children #424-#433 remain closed. The
+new exact active sequence is:
+
+1. #464 — real Gemini provider acceptance;
+2. #465 — canonical human-reviewed WhatsApp outbound;
+3. #466 — PostgreSQL-authoritative amoCRM writes;
+4. #467 — real provider end-to-end acceptance.
+
+Parent #463 owns the sequence. Each child is a small sequential PR with
+independent plan-freshness/implementation review, exact-head CI,
+`gh pr merge --match-head-commit` and exact-main verification. This Phase 0
+amendment changes no runtime code, makes no Gemini/WAHA/amoCRM call and does not
+modify a V1 application, deployment, provider webhook, customer migration or
+cutover boundary.
+
+The amended contracts follow the current official provider documentation:
+
+- <https://waha.devlike.pro/docs/how-to/send-messages/>
+- <https://waha.devlike.pro/docs/how-to/sessions/>
+- <https://waha.devlike.pro/docs/how-to/events/>
+- <https://waha.devlike.pro/docs/how-to/security/>
+- <https://ai.google.dev/gemini-api/docs/interactions-overview>
+- <https://ai.google.dev/gemini-api/docs/structured-output>
+- <https://developers.kommo.com/docs/oauth-20>
+- <https://developers.kommo.com/reference/add-contacts>
+- <https://developers.kommo.com/reference/adding-leads>
+- <https://developers.kommo.com/reference/link-entities>
+- <https://developers.kommo.com/reference/add-notes>

@@ -620,7 +620,7 @@ test("WAHA provider finds one exact unknown-attempt message in an inclusive boun
               from: phoneRecipientId,
               to: lidRecipientId,
               fromMe: true,
-              source: "api",
+              source: "app",
               body: expectedText,
               ack: 2,
               ackName: "DEVICE",
@@ -637,7 +637,7 @@ test("WAHA provider finds one exact unknown-attempt message in an inclusive boun
     timestamp: 1787994060,
     recipientId: phoneRecipientId,
     fromMe: true,
-    source: "api",
+    source: "app",
     body: expectedText,
     ack: 2,
     ackName: "DEVICE",
@@ -645,13 +645,13 @@ test("WAHA provider finds one exact unknown-attempt message in an inclusive boun
   assert.equal(requests.length, 2);
   assert.equal(
     requests[0].input,
-    "http://evo-inbox-waha:3000/api/evo-inbox/chats/971500000000%40c.us/messages?limit=20&downloadMedia=false",
+    "http://evo-inbox-waha:3000/api/evo-inbox/chats/971500000000%40c.us/messages?limit=100&downloadMedia=false&filter.timestamp.gte=1787994000&filter.timestamp.lte=1787994060&filter.fromMe=true",
   );
   assert.equal(requests[0].init.method, "GET");
   assert.equal(requests[0].init.body, undefined);
   assert.equal(
     requests[1].input,
-    "http://evo-inbox-waha:3000/api/evo-inbox/chats/100000000000000%40lid/messages?limit=20&downloadMedia=false",
+    "http://evo-inbox-waha:3000/api/evo-inbox/chats/100000000000000%40lid/messages?limit=100&downloadMedia=false&filter.timestamp.gte=1787994000&filter.timestamp.lte=1787994060&filter.fromMe=true",
   );
   assert.equal(requests[1].init.method, "GET");
   assert.equal(requests[1].init.body, undefined);
@@ -734,8 +734,8 @@ test("WAHA unknown-attempt finder searches both exact self chat IDs and deduplic
   assert.deepEqual(
     requests.map((request) => request.input),
     [
-      "http://evo-inbox-waha:3000/api/evo-inbox/chats/971500000000%40c.us/messages?limit=20&downloadMedia=false",
-      "http://evo-inbox-waha:3000/api/evo-inbox/chats/100000000000000%40lid/messages?limit=20&downloadMedia=false",
+      "http://evo-inbox-waha:3000/api/evo-inbox/chats/971500000000%40c.us/messages?limit=100&downloadMedia=false&filter.timestamp.gte=1787994000&filter.timestamp.lte=1787994060&filter.fromMe=true",
+      "http://evo-inbox-waha:3000/api/evo-inbox/chats/100000000000000%40lid/messages?limit=100&downloadMedia=false&filter.timestamp.gte=1787994000&filter.timestamp.lte=1787994060&filter.fromMe=true",
     ],
   );
 });
@@ -814,7 +814,7 @@ test("WAHA unknown-attempt finder ignores every non-exact identity, content, sou
     { ...exactShape, fromMe: false },
     { ...exactShape, to: "971501234568@c.us" },
     { ...exactShape, body: "Different text" },
-    { ...exactShape, source: "app" },
+    { ...exactShape, source: "browser" },
     { ...exactShape, ackName: "READ" },
   ];
 
@@ -1040,7 +1040,7 @@ test("WAHA rejects malformed outbound identity, content, source, timestamp, or A
     { ...valid, from: "" },
     { ...valid, to: "971501234568@c.us" },
     { ...valid, fromMe: false },
-    { ...valid, source: "app" },
+    { ...valid, source: "browser" },
     { ...valid, body: "different text" },
     { ...valid, ack: 2, ackName: "READ" },
     { ...valid, ack: 5, ackName: "UNKNOWN" },

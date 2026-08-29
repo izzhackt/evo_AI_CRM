@@ -598,7 +598,7 @@ test("an unknown WhatsApp attempt is recovered exactly once from one bounded pro
           body: scenario.finalText,
           ack: 3,
           ackName: "READ",
-          source: "api",
+          source: "app",
         };
       },
     );
@@ -609,6 +609,7 @@ test("an unknown WhatsApp attempt is recovered exactly once from one bounded pro
     assert.equal(recovered.providerMessageId, providerMessageId);
     assert.equal(recovered.ack, 3);
     assert.equal(recovered.ackName, "READ");
+    assert.equal(recovered.providerSource, "app");
     assert.equal(recovered.failureCode, null);
     assert.equal(recovered.settledAt, scenario.attempt.settledAt);
     assert.ok(recovered.lastReconciledAt);
@@ -631,6 +632,7 @@ test("an unknown WhatsApp attempt is recovered exactly once from one bounded pro
       select
         attempt.status,
         attempt.failure_code,
+        attempt.provider_source,
         message.external_message_id,
         message.body,
         event.transition,
@@ -650,6 +652,7 @@ test("an unknown WhatsApp attempt is recovered exactly once from one bounded pro
     assert.deepEqual(durable, {
       status: "accepted",
       failure_code: null,
+      provider_source: "app",
       external_message_id: providerMessageId,
       body: scenario.finalText,
       transition: "whatsapp_send.recovered",

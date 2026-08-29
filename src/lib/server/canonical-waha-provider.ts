@@ -9,7 +9,7 @@ const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_MESSAGE_ID_BYTES = 1_024;
 const MAX_TEXT_BYTES = 64 * 1024;
 const MAX_UNKNOWN_ATTEMPT_WINDOW_SECONDS = 15 * 60;
-const UNKNOWN_ATTEMPT_MESSAGE_LIMIT = 20;
+const UNKNOWN_ATTEMPT_MESSAGE_LIMIT = 100;
 const DIRECT_RECIPIENT_PATTERN = /^[1-9]\d{4,31}@(c\.us|lid)$/u;
 const CANONICAL_WAHA_SESSION_PROOFS = new WeakSet<object>();
 
@@ -67,7 +67,7 @@ export type CanonicalWahaMessage = Readonly<{
   timestamp: number;
   recipientId: string;
   fromMe: true;
-  source: "api" | null;
+  source: "api" | "app" | null;
   body: string;
   ack: CanonicalWahaAck;
   ackName: CanonicalWahaAckName;
@@ -429,7 +429,9 @@ function normalizeMessage(
         expected.sessionProof.selfRecipientIds.includes(value.to))
     ) ||
     value.fromMe !== true ||
-    (value.source !== undefined && value.source !== "api") ||
+    (value.source !== undefined &&
+      value.source !== "api" &&
+      value.source !== "app") ||
     value.body !== expected.text ||
     !(
       value.ack === -1 ||
@@ -452,7 +454,8 @@ function normalizeMessage(
     timestamp: value.timestamp,
     recipientId: expected.recipientId,
     fromMe: true,
-    source: value.source === "api" ? "api" : null,
+    source:
+      value.source === "api" || value.source === "app" ? value.source : null,
     body: expected.text,
     ack: value.ack,
     ackName: ACK_NAMES[value.ack],
@@ -763,10 +766,17 @@ export async function findUniqueCanonicalWahaMessage(
     input.sessionProof,
   );
   for (const lookupRecipientId of lookupRecipientIds) {
+    const query = new URLSearchParams({
+      limit: String(UNKNOWN_ATTEMPT_MESSAGE_LIMIT),
+      downloadMedia: "false",
+      "filter.timestamp.gte": String(input.windowStartTimestamp),
+      "filter.timestamp.lte": String(input.windowEndTimestamp),
+      "filter.fromMe": "true",
+    });
     const requestUrl =
       `${config.baseUrl}/api/${encodeURIComponent(config.sessionName)}` +
       `/chats/${encodeURIComponent(lookupRecipientId)}/messages` +
-      `?limit=${UNKNOWN_ATTEMPT_MESSAGE_LIMIT}&downloadMedia=false`;
+      `?${query.toString()}`;
     const response = await providerFetch(fetchImpl, requestUrl, {
       method: "GET",
       headers: Object.freeze({

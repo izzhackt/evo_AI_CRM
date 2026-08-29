@@ -13383,3 +13383,41 @@ Current official implementation references:
   <https://ai.google.dev/gemini-api/docs/api-key>.
 - Gemini API versions and stable `v1` Interactions endpoint:
   <https://ai.google.dev/gemini-api/docs/api-versions>.
+
+## 2026-08-29 - Close Gemini disclosure and duplicate-execution races
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after independent exact-head V2-9B review.
+Change type: acceptance correction without a provider or scope expansion.
+Affected plan section: V2-9B canonical Gemini proposal.
+
+Reason: the first V2-9B head read an authorized transcript, called Gemini and
+only then opened the transaction that rechecked ownership and reserved the
+command. A handoff in that interval could deny persistence only after the
+former role's transcript had already reached Gemini. Concurrent identical
+requests could also call Gemini twice before one database write replayed, and
+the latest-proposal reader authorized and fetched in separate statements.
+
+Decision: replace the split read/call/write sequence with one canonical
+PostgreSQL execution boundary. It locks the lead row, reauthorizes the role,
+selects the current 20-message bounded source context and derives/reserves the
+deterministic command before provider execution. The same transaction keeps
+the lead lock across the configured Gemini call, bounded by the existing
+1-60-second timeout contract, output validation, proposal insert, event and
+receipt completion. Canonical inbound ingestion and handoff already take that
+lead lock, so they wait rather than changing the disclosed context or owning
+role. A concurrent duplicate waits and then replays the stored proposal
+without running its provider callback. Provider or output failure rolls the
+whole transaction back and is returned with its truthful provider/output
+error; it is not disguised as storage failure and leaves no processing
+receipt. Fold latest-proposal authorization and proposal selection into one
+conversation-filtered joined SQL statement.
+
+Real PostgreSQL acceptance now controls the generation callback only to test
+database orchestration without claiming provider acceptance: two concurrent
+requests execute it once; actual Sales-to-Admissions handoff and inbound
+mutation commands are each proven unable to commit until the bounded generation
+transaction releases the lead lock; provider failure and rejected unsafe output
+each roll back both receipt and proposal. The real app/Chromium acceptance
+continues to keep provider authorization at `0` and proves a blocked UI plus
+zero writes. No Gemini request is authorized or claimed by these tests.

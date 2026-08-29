@@ -44,8 +44,8 @@ test("the active V2-9B graph is canonical PostgreSQL with no fallback route", ()
   const promiseAudit = source("scripts/check-promise-audit.mjs");
 
   assert.match(action, /requirePlatformMessagingActor/);
-  assert.match(service, /getCanonicalGeminiProposalContext/);
-  assert.match(service, /createCanonicalGeminiProposal/);
+  assert.match(service, /executeCanonicalGeminiProposal/);
+  assert.doesNotMatch(service, /getCanonicalGeminiProposalContext/);
   assert.match(repository, /evoAiProposals/);
   assert.doesNotMatch(
     `${action}\n${service}`,

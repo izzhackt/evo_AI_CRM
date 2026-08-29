@@ -6,13 +6,18 @@ import test from "node:test";
 import postgres from "postgres";
 
 import {
+  CANONICAL_GEMINI_PROPOSAL_SCHEMA_VERSION,
+  CanonicalGeminiProposalOutputError,
+  parseCanonicalGeminiProposalOutput,
+} from "../src/lib/canonical-gemini-proposal-contract.ts";
+import {
   CanonicalCrmRepositoryError,
   appendCanonicalInboundMessage,
   assertCanonicalFinanceStop,
-  createCanonicalGeminiProposal,
   createCanonicalAdmissionsTask,
   createCanonicalUniversityApplication,
   createCanonicalPersonLead,
+  executeCanonicalGeminiProposal,
   getCanonicalAdmissionsOperationsSnapshot,
   getCanonicalGeminiProposalContext,
   getCanonicalStaffConversationThread,
@@ -661,7 +666,59 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       leadId: lead.leadId,
       expectedVersion: qualifiedLead.version,
     };
-    const handoff = await handoffCanonicalLeadToAdmissions(handoffInput);
+    let releasePreHandoffGeneration;
+    let markPreHandoffGenerationStarted;
+    const preHandoffGenerationRelease = new Promise((resolve) => {
+      releasePreHandoffGeneration = resolve;
+    });
+    const preHandoffGenerationStarted = new Promise((resolve) => {
+      markPreHandoffGenerationStarted = resolve;
+    });
+    const preHandoffProposalExecution = executeCanonicalGeminiProposal(
+      {
+        actorRole: "sales",
+        correlationId: `acceptance:${runId}:canonical-gemini-handoff-lock-proof`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        model: `technical-pre-handoff-lock-model-${runId}`,
+        promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+      },
+      async (sourceContext) => {
+        markPreHandoffGenerationStarted(sourceContext);
+        await preHandoffGenerationRelease;
+        return {
+          proposalText: `technical-pre-handoff-proposal-${runId}`,
+          providerCreatedAt: "2026-08-28T12:00:30.000Z",
+        };
+      },
+    );
+    const preHandoffSourceContext = await preHandoffGenerationStarted;
+    assert.equal(preHandoffSourceContext.sourceMessage.id, laterInbound.messageId);
+
+    const handoffExecution = handoffCanonicalLeadToAdmissions(handoffInput);
+    let handoffSettledWhileGenerationRuns = false;
+    void handoffExecution.then(
+      () => {
+        handoffSettledWhileGenerationRuns = true;
+      },
+      () => {
+        handoffSettledWhileGenerationRuns = true;
+      },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    assert.equal(
+      handoffSettledWhileGenerationRuns,
+      false,
+      "handoff must wait while the bounded provider call holds the lead lock",
+    );
+    releasePreHandoffGeneration();
+    const [preHandoffProposal, handoff] = await Promise.all([
+      preHandoffProposalExecution,
+      handoffExecution,
+    ]);
+    assert.equal(preHandoffProposal.studentCaseId, null);
+    assert.equal(preHandoffProposal.sourceMessageId, laterInbound.messageId);
     const handoffEventCountBeforeReplay = Number(
       (
         await sql`
@@ -823,57 +880,86 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       admissionsGeminiContext.sourceMessage.messageId,
       laterInbound.messageId,
     );
-
-    const proposalCommand = technicalCommandContext(
-      runId,
-      "canonical-gemini-proposal",
-      "admissions",
+    assert.deepEqual(
+      await readLatestCanonicalGeminiProposal({
+        actorRole: "admissions",
+        conversationId: inbound.conversationId,
+      }),
+      preHandoffProposal,
     );
-    const proposalSourceContext = {
-      schemaVersion: 1,
-      promptPolicyVersion: "v2-canonical-gemini-draft-v1",
-      conversationId: inbound.conversationId,
-      studentCaseId: handoff.studentCaseId,
-      sourceMessage: {
-        id: laterInbound.messageId,
-        direction: "inbound",
-        occurredAt: "2026-08-28T12:01:00.000Z",
-        body: `technical-inbound-later-${runId}`,
-      },
-      messages: admissionsGeminiContext.messages.map((message) => ({
-        id: message.messageId,
-        direction: message.direction,
-        occurredAt: message.occurredAt,
-        body: message.body,
-      })),
-    };
+
     const proposalInput = {
       conversationId: inbound.conversationId,
-      sourceMessageId: laterInbound.messageId,
       model: `technical-model-${runId}`,
-      proposalText: `technical-proposal-${runId}`,
-      sourceContext: proposalSourceContext,
-      providerCreatedAt: occurredAt,
+      promptPolicyVersion: "v2-canonical-gemini-draft-v1",
     };
-    const canonicalProposal = await createCanonicalGeminiProposal(
-      proposalCommand,
+    let releaseFirstGeneration;
+    let markFirstGenerationStarted;
+    const firstGenerationRelease = new Promise((resolve) => {
+      releaseFirstGeneration = resolve;
+    });
+    const firstGenerationStarted = new Promise((resolve) => {
+      markFirstGenerationStarted = resolve;
+    });
+    let duplicateGenerationCalls = 0;
+    const firstProposalExecution = executeCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-first`,
+      },
       proposalInput,
+      async (sourceContext) => {
+        duplicateGenerationCalls += 1;
+        markFirstGenerationStarted(sourceContext);
+        await firstGenerationRelease;
+        return {
+          proposalText: `technical-proposal-${runId}`,
+          providerCreatedAt: "2026-08-28T12:01:05.000Z",
+        };
+      },
     );
-    const canonicalProposalReplay = await createCanonicalGeminiProposal(
-      proposalCommand,
+    const firstProposalSourceContext = await firstGenerationStarted;
+    assert.equal(Object.isFrozen(firstProposalSourceContext), true);
+    assert.equal(Object.isFrozen(firstProposalSourceContext.sourceMessage), true);
+    assert.equal(Object.isFrozen(firstProposalSourceContext.messages), true);
+    assert.ok(
+      firstProposalSourceContext.messages.every((message) =>
+        Object.isFrozen(message),
+      ),
+    );
+    assert.equal(
+      firstProposalSourceContext.sourceMessage.id,
+      laterInbound.messageId,
+    );
+    const duplicateProposalExecution = executeCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-duplicate`,
+      },
       proposalInput,
+      async () => {
+        duplicateGenerationCalls += 1;
+        return {
+          proposalText: `unexpected-duplicate-proposal-${runId}`,
+          providerCreatedAt: "2026-08-28T12:01:05.000Z",
+        };
+      },
     );
+    await new Promise((resolve) => setImmediate(resolve));
+    releaseFirstGeneration();
+    const [canonicalProposal, canonicalProposalReplay] = await Promise.all([
+      firstProposalExecution,
+      duplicateProposalExecution,
+    ]);
     assert.deepEqual(canonicalProposalReplay, canonicalProposal);
+    assert.equal(
+      duplicateGenerationCalls,
+      1,
+      "concurrent duplicate requests must execute the provider callback once",
+    );
     assert.equal(canonicalProposal.studentCaseId, handoff.studentCaseId);
     assert.equal(canonicalProposal.reviewDecision, "pending");
     assert.equal(canonicalProposal.sourceMessageId, laterInbound.messageId);
-    await assert.rejects(
-      createCanonicalGeminiProposal(proposalCommand, {
-        ...proposalInput,
-        model: `different-technical-model-${runId}`,
-      }),
-      repositoryError("idempotency_conflict"),
-    );
 
     const latestCanonicalProposal = await readLatestCanonicalGeminiProposal({
       actorRole: "admissions",
@@ -893,8 +979,8 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           await sql`
             select count(*)::int as count
             from evo_business_events
-            where idempotency_key = ${proposalCommand.idempotencyKey}
-              and business_object_type = 'ai_proposal'
+            where business_object_type = 'ai_proposal'
+              and business_object_id = ${canonicalProposal.proposalId}
               and transition = 'ai_proposal.created'
           `
         )[0].count,
@@ -902,7 +988,140 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       1,
     );
 
-    const postProposalInbound = await appendCanonicalInboundMessage({
+    const failedGenerationCorrelation =
+      `acceptance:${runId}:canonical-gemini-provider-failure`;
+    const expectedGenerationError = new Error(
+      "technical provider failure for transaction proof",
+    );
+    await assert.rejects(
+      executeCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: failedGenerationCorrelation,
+        },
+        {
+          ...proposalInput,
+          model: `technical-failing-model-${runId}`,
+        },
+        async () => {
+          throw expectedGenerationError;
+        },
+      ),
+      (error) => error === expectedGenerationError,
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_command_receipts
+            where correlation_id = ${failedGenerationCorrelation}
+          `
+        )[0].count,
+      ),
+      0,
+      "provider failure must roll back its processing receipt",
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_ai_proposals
+            where correlation_id = ${failedGenerationCorrelation}
+          `
+        )[0].count,
+      ),
+      0,
+      "provider failure must not persist a proposal",
+    );
+
+    const invalidOutputCorrelation =
+      `acceptance:${runId}:canonical-gemini-invalid-output`;
+    await assert.rejects(
+      executeCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: invalidOutputCorrelation,
+        },
+        {
+          ...proposalInput,
+          model: `technical-invalid-output-model-${runId}`,
+        },
+        async () => {
+          const parsedOutput = parseCanonicalGeminiProposalOutput(
+            JSON.stringify({
+              schema_version: CANONICAL_GEMINI_PROPOSAL_SCHEMA_VERSION,
+              reply_text: "Гарантируем поступление без риска.",
+            }),
+          );
+          return {
+            proposalText: parsedOutput.replyText,
+            providerCreatedAt: "2026-08-28T12:01:07.000Z",
+          };
+        },
+      ),
+      (error) =>
+        error instanceof CanonicalGeminiProposalOutputError &&
+        error.code === "unsafe_semantics",
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_command_receipts
+            where correlation_id = ${invalidOutputCorrelation}
+          `
+        )[0].count,
+      ),
+      0,
+      "rejected provider output must roll back its processing receipt",
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_ai_proposals
+            where correlation_id = ${invalidOutputCorrelation}
+          `
+        )[0].count,
+      ),
+      0,
+      "rejected provider output must not persist a proposal",
+    );
+
+    let releaseLockedGeneration;
+    let markLockedGenerationStarted;
+    const lockedGenerationRelease = new Promise((resolve) => {
+      releaseLockedGeneration = resolve;
+    });
+    const lockedGenerationStarted = new Promise((resolve) => {
+      markLockedGenerationStarted = resolve;
+    });
+    const lockProofInput = {
+      ...proposalInput,
+      model: `technical-lock-model-${runId}`,
+    };
+    const lockedProposalExecution = executeCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-lock-proof`,
+      },
+      lockProofInput,
+      async (sourceContext) => {
+        markLockedGenerationStarted(sourceContext);
+        await lockedGenerationRelease;
+        return {
+          proposalText: `technical-locked-proposal-${runId}`,
+          providerCreatedAt: "2026-08-28T12:01:10.000Z",
+        };
+      },
+    );
+    const lockedSourceContext = await lockedGenerationStarted;
+    assert.equal(lockedSourceContext.sourceMessage.id, laterInbound.messageId);
+    const postProposalInboundExecution = appendCanonicalInboundMessage({
       ...commandContext(runId, "inbound-after-proposal"),
       leadId: lead.leadId,
       channel: "whatsapp",
@@ -911,23 +1130,49 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       body: `technical-inbound-after-proposal-${runId}`,
       occurredAt: "2026-08-28T12:01:30.000Z",
     });
+    let inboundSettledWhileGenerationRuns = false;
+    void postProposalInboundExecution.then(
+      () => {
+        inboundSettledWhileGenerationRuns = true;
+      },
+      () => {
+        inboundSettledWhileGenerationRuns = true;
+      },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    assert.equal(
+      inboundSettledWhileGenerationRuns,
+      false,
+      "inbound mutation must wait while the bounded provider call holds the lead lock",
+    );
+    releaseLockedGeneration();
+    const [lockedProposal, postProposalInbound] = await Promise.all([
+      lockedProposalExecution,
+      postProposalInboundExecution,
+    ]);
+    assert.equal(lockedProposal.sourceMessageId, laterInbound.messageId);
     assert.equal(postProposalInbound.conversationId, inbound.conversationId);
-    assert.deepEqual(
-      await createCanonicalGeminiProposal(proposalCommand, proposalInput),
-      canonicalProposal,
-      "an exact completed command must replay even after the conversation advances",
+    let advancedGenerationCalls = 0;
+    const advancedProposal = await executeCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-advanced-source`,
+      },
+      lockProofInput,
+      async (sourceContext) => {
+        advancedGenerationCalls += 1;
+        assert.equal(
+          sourceContext.sourceMessage.id,
+          postProposalInbound.messageId,
+        );
+        return {
+          proposalText: `technical-advanced-proposal-${runId}`,
+          providerCreatedAt: "2026-08-28T12:01:35.000Z",
+        };
+      },
     );
-    await assert.rejects(
-      createCanonicalGeminiProposal(
-        technicalCommandContext(
-          runId,
-          "canonical-gemini-stale-source",
-          "admissions",
-        ),
-        proposalInput,
-      ),
-      repositoryError("conflict"),
-    );
+    assert.equal(advancedGenerationCalls, 1);
+    assert.equal(advancedProposal.sourceMessageId, postProposalInbound.messageId);
     assert.equal(
       (
         await getCanonicalGeminiProposalContext({

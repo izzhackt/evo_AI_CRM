@@ -55,6 +55,33 @@ cleanup() {
 }
 trap cleanup EXIT
 
+stop_stale_next_dev_server() {
+  local lock_path="$repo_root/.next/dev/lock"
+  [[ -e "$lock_path" ]] || return 0
+
+  local stale_pid=""
+  while IFS= read -r stale_pid; do
+    [[ -n "$stale_pid" ]] || continue
+
+    local stale_cwd=""
+    stale_cwd="$(lsof -a -p "$stale_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1)"
+    [[ "$stale_cwd" == "$repo_root" ]] || continue
+
+    local stale_command=""
+    stale_command="$(ps -p "$stale_pid" -o command= 2>/dev/null || true)"
+    [[ "$stale_command" == *"next-server"* || "$stale_command" == *"node_modules/next"* ]] || continue
+
+    kill "$stale_pid" >/dev/null 2>&1 || true
+    local deadline=$((SECONDS + 15))
+    while kill -0 "$stale_pid" >/dev/null 2>&1; do
+      (( SECONDS < deadline )) || fail "Stale next dev server ${stale_pid} in ${repo_root} did not stop"
+      sleep 1
+    done
+  done < <(lsof -t -- "$lock_path" 2>/dev/null | sort -u)
+
+  return 0
+}
+
 if [[ "$($node_bin --version)" != v22.* ]]; then
   fail "The database foundation gate requires Node 22.x"
 fi
@@ -124,6 +151,7 @@ start_app() {
   if [[ "$inbound_mode" == "unavailable" ]]; then
     inbound_secret=""
   fi
+  stop_stale_next_dev_server
   : >"$app_log"
   if [[ "$gate_mode" == "configured" ]]; then
     DATABASE_URL="$app_database_url" \

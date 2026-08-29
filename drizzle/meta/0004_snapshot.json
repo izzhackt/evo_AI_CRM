@@ -1,0 +1,3878 @@
+{
+  "id": "16db79c6-66a2-48ff-a356-20e936935420",
+  "prevId": "10317fa6-3cc7-41af-bf60-abe5d7ec0f56",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.evo_amocrm_accounts": {
+      "name": "evo_amocrm_accounts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'amocrm'"
+        },
+        "provider_account_id": {
+          "name": "provider_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_base_url": {
+          "name": "account_base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_subdomain": {
+          "name": "account_subdomain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_name": {
+          "name": "account_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_amocrm_accounts_provider_id_unique": {
+          "name": "evo_amocrm_accounts_provider_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "provider",
+            "provider_account_id"
+          ]
+        },
+        "evo_amocrm_accounts_base_url_unique": {
+          "name": "evo_amocrm_accounts_base_url_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_base_url"
+          ]
+        },
+        "evo_amocrm_accounts_subdomain_unique": {
+          "name": "evo_amocrm_accounts_subdomain_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_subdomain"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_amocrm_accounts_id_uuid_check": {
+          "name": "evo_amocrm_accounts_id_uuid_check",
+          "value": "\"evo_amocrm_accounts\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_amocrm_accounts_provider_check": {
+          "name": "evo_amocrm_accounts_provider_check",
+          "value": "\"evo_amocrm_accounts\".\"provider\" = 'amocrm'"
+        },
+        "evo_amocrm_accounts_provider_id_check": {
+          "name": "evo_amocrm_accounts_provider_id_check",
+          "value": "\"evo_amocrm_accounts\".\"provider_account_id\" ~ '^[1-9][0-9]{0,19}$'"
+        },
+        "evo_amocrm_accounts_base_url_check": {
+          "name": "evo_amocrm_accounts_base_url_check",
+          "value": "\"evo_amocrm_accounts\".\"account_base_url\" ~ '^https://[a-z0-9][a-z0-9-]{0,62}[.](amocrm[.]ru|kommo[.]com)$'"
+        },
+        "evo_amocrm_accounts_subdomain_check": {
+          "name": "evo_amocrm_accounts_subdomain_check",
+          "value": "\"evo_amocrm_accounts\".\"account_subdomain\" ~ '^[a-z0-9][a-z0-9-]{0,62}$'"
+        },
+        "evo_amocrm_accounts_name_check": {
+          "name": "evo_amocrm_accounts_name_check",
+          "value": "char_length(btrim(\"evo_amocrm_accounts\".\"account_name\")) between 1 and 255"
+        },
+        "evo_amocrm_accounts_timezone_check": {
+          "name": "evo_amocrm_accounts_timezone_check",
+          "value": "char_length(btrim(\"evo_amocrm_accounts\".\"timezone\")) between 1 and 128"
+        },
+        "evo_amocrm_accounts_country_check": {
+          "name": "evo_amocrm_accounts_country_check",
+          "value": "\"evo_amocrm_accounts\".\"country\" is null or char_length(btrim(\"evo_amocrm_accounts\".\"country\")) between 1 and 128"
+        },
+        "evo_amocrm_accounts_version_check": {
+          "name": "evo_amocrm_accounts_version_check",
+          "value": "\"evo_amocrm_accounts\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_amocrm_contact_bindings": {
+      "name": "evo_amocrm_contact_bindings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_contact_id": {
+          "name": "provider_contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_attempt_id": {
+          "name": "created_by_attempt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_updated_at": {
+          "name": "provider_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_verified_at": {
+          "name": "last_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_amocrm_contacts_person_idx": {
+          "name": "evo_amocrm_contacts_person_idx",
+          "columns": [
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_amocrm_contact_bindings_account_id_evo_amocrm_accounts_id_fk": {
+          "name": "evo_amocrm_contact_bindings_account_id_evo_amocrm_accounts_id_fk",
+          "tableFrom": "evo_amocrm_contact_bindings",
+          "tableTo": "evo_amocrm_accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_amocrm_contact_bindings_person_id_evo_people_id_fk": {
+          "name": "evo_amocrm_contact_bindings_person_id_evo_people_id_fk",
+          "tableFrom": "evo_amocrm_contact_bindings",
+          "tableTo": "evo_people",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_amocrm_contacts_creation_attempt_fk": {
+          "name": "evo_amocrm_contacts_creation_attempt_fk",
+          "tableFrom": "evo_amocrm_contact_bindings",
+          "tableTo": "evo_amocrm_operation_attempts",
+          "columnsFrom": [
+            "account_id",
+            "created_by_attempt_id",
+            "person_id",
+            "provider_contact_id"
+          ],
+          "columnsTo": [
+            "account_id",
+            "id",
+            "person_id",
+            "result_contact_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_amocrm_contacts_account_person_unique": {
+          "name": "evo_amocrm_contacts_account_person_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "person_id"
+          ]
+        },
+        "evo_amocrm_contacts_account_provider_unique": {
+          "name": "evo_amocrm_contacts_account_provider_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "provider_contact_id"
+          ]
+        },
+        "evo_amocrm_contacts_attempt_unique": {
+          "name": "evo_amocrm_contacts_attempt_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "created_by_attempt_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_amocrm_contacts_id_uuid_check": {
+          "name": "evo_amocrm_contacts_id_uuid_check",
+          "value": "\"evo_amocrm_contact_bindings\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_amocrm_contacts_provider_id_check": {
+          "name": "evo_amocrm_contacts_provider_id_check",
+          "value": "\"evo_amocrm_contact_bindings\".\"provider_contact_id\" ~ '^[1-9][0-9]{0,19}$'"
+        },
+        "evo_amocrm_contacts_version_check": {
+          "name": "evo_amocrm_contacts_version_check",
+          "value": "\"evo_amocrm_contact_bindings\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_amocrm_discovery_snapshots": {
+      "name": "evo_amocrm_discovery_snapshots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_sha256": {
+          "name": "snapshot_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pipeline_catalog": {
+          "name": "pipeline_catalog",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "user_catalog": {
+          "name": "user_catalog",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "lead_custom_field_catalog": {
+          "name": "lead_custom_field_catalog",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "contact_custom_field_catalog": {
+          "name": "contact_custom_field_catalog",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "redaction_version": {
+          "name": "redaction_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "discovered_at": {
+          "name": "discovered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_amocrm_discovery_account_time_idx": {
+          "name": "evo_amocrm_discovery_account_time_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "discovered_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_amocrm_discovery_snapshots_account_id_evo_amocrm_accounts_id_fk": {
+          "name": "evo_amocrm_discovery_snapshots_account_id_evo_amocrm_accounts_id_fk",
+          "tableFrom": "evo_amocrm_discovery_snapshots",
+          "tableTo": "evo_amocrm_accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_amocrm_discovery_account_hash_unique": {
+          "name": "evo_amocrm_discovery_account_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "snapshot_sha256"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_amocrm_discovery_id_uuid_check": {
+          "name": "evo_amocrm_discovery_id_uuid_check",
+          "value": "\"evo_amocrm_discovery_snapshots\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_amocrm_discovery_snapshot_hash_check": {
+          "name": "evo_amocrm_discovery_snapshot_hash_check",
+          "value": "\"evo_amocrm_discovery_snapshots\".\"snapshot_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "evo_amocrm_discovery_catalog_shape_check": {
+          "name": "evo_amocrm_discovery_catalog_shape_check",
+          "value": "jsonb_typeof(\"evo_amocrm_discovery_snapshots\".\"pipeline_catalog\") = 'array' and jsonb_typeof(\"evo_amocrm_discovery_snapshots\".\"user_catalog\") = 'array' and jsonb_typeof(\"evo_amocrm_discovery_snapshots\".\"lead_custom_field_catalog\") = 'array' and jsonb_typeof(\"evo_amocrm_discovery_snapshots\".\"contact_custom_field_catalog\") = 'array'"
+        },
+        "evo_amocrm_discovery_catalog_size_check": {
+          "name": "evo_amocrm_discovery_catalog_size_check",
+          "value": "octet_length(\"evo_amocrm_discovery_snapshots\".\"pipeline_catalog\"::text) <= 1048576 and octet_length(\"evo_amocrm_discovery_snapshots\".\"user_catalog\"::text) <= 1048576 and octet_length(\"evo_amocrm_discovery_snapshots\".\"lead_custom_field_catalog\"::text) <= 1048576 and octet_length(\"evo_amocrm_discovery_snapshots\".\"contact_custom_field_catalog\"::text) <= 1048576"
+        },
+        "evo_amocrm_discovery_catalog_secret_check": {
+          "name": "evo_amocrm_discovery_catalog_secret_check",
+          "value": "(\"evo_amocrm_discovery_snapshots\".\"pipeline_catalog\"::text || \"evo_amocrm_discovery_snapshots\".\"user_catalog\"::text || \"evo_amocrm_discovery_snapshots\".\"lead_custom_field_catalog\"::text || \"evo_amocrm_discovery_snapshots\".\"contact_custom_field_catalog\"::text) !~* '\"[^\"]*(token|secret|authorization|api[_-]?key)[^\"]*\"[[:space:]]*:'"
+        },
+        "evo_amocrm_discovery_redaction_check": {
+          "name": "evo_amocrm_discovery_redaction_check",
+          "value": "\"evo_amocrm_discovery_snapshots\".\"redaction_version\" = 1"
+        },
+        "evo_amocrm_discovery_correlation_check": {
+          "name": "evo_amocrm_discovery_correlation_check",
+          "value": "char_length(btrim(\"evo_amocrm_discovery_snapshots\".\"correlation_id\")) between 1 and 255"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_amocrm_lead_bindings": {
+      "name": "evo_amocrm_lead_bindings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_lead_id": {
+          "name": "provider_lead_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_attempt_id": {
+          "name": "created_by_attempt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_updated_at": {
+          "name": "provider_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_verified_at": {
+          "name": "last_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_amocrm_leads_lead_idx": {
+          "name": "evo_amocrm_leads_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_amocrm_lead_bindings_account_id_evo_amocrm_accounts_id_fk": {
+          "name": "evo_amocrm_lead_bindings_account_id_evo_amocrm_accounts_id_fk",
+          "tableFrom": "evo_amocrm_lead_bindings",
+          "tableTo": "evo_amocrm_accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_amocrm_lead_bindings_lead_id_evo_leads_id_fk": {
+          "name": "evo_amocrm_lead_bindings_lead_id_evo_leads_id_fk",
+          "tableFrom": "evo_amocrm_lead_bindings",
+          "tableTo": "evo_leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_amocrm_leads_creation_attempt_fk": {
+          "name": "evo_amocrm_leads_creation_attempt_fk",
+          "tableFrom": "evo_amocrm_lead_bindings",
+          "tableTo": "evo_amocrm_operation_attempts",
+          "columnsFrom": [
+            "account_id",
+            "created_by_attempt_id",
+            "lead_id",
+            "provider_lead_id"
+          ],
+          "columnsTo": [
+            "account_id",
+            "id",
+            "lead_id",
+            "result_lead_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_amocrm_leads_account_lead_unique": {
+          "name": "evo_amocrm_leads_account_lead_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "lead_id"
+          ]
+        },
+        "evo_amocrm_leads_account_provider_unique": {
+          "name": "evo_amocrm_leads_account_provider_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "provider_lead_id"
+          ]
+        },
+        "evo_amocrm_leads_attempt_unique": {
+          "name": "evo_amocrm_leads_attempt_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "created_by_attempt_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_amocrm_leads_id_uuid_check": {
+          "name": "evo_amocrm_leads_id_uuid_check",
+          "value": "\"evo_amocrm_lead_bindings\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_amocrm_leads_provider_id_check": {
+          "name": "evo_amocrm_leads_provider_id_check",
+          "value": "\"evo_amocrm_lead_bindings\".\"provider_lead_id\" ~ '^[1-9][0-9]{0,19}$'"
+        },
+        "evo_amocrm_leads_version_check": {
+          "name": "evo_amocrm_leads_version_check",
+          "value": "\"evo_amocrm_lead_bindings\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_amocrm_operation_attempts": {
+      "name": "evo_amocrm_operation_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "command_receipt_id": {
+          "name": "command_receipt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'amocrm'"
+        },
+        "operation_name": {
+          "name": "operation_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_role": {
+          "name": "actor_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'prepared'"
+        },
+        "provider_request_metadata": {
+          "name": "provider_request_metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_request_sha256": {
+          "name": "provider_request_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prepared_at": {
+          "name": "prepared_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "target_contact_id": {
+          "name": "target_contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_lead_id": {
+          "name": "target_lead_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result_contact_id": {
+          "name": "result_contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result_lead_id": {
+          "name": "result_lead_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_http_status": {
+          "name": "provider_http_status",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_request_id": {
+          "name": "provider_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_dispatched_at": {
+          "name": "provider_dispatched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_responded_at": {
+          "name": "provider_responded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_readback": {
+          "name": "provider_readback",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_readback_sha256": {
+          "name": "provider_readback_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_readback_at": {
+          "name": "provider_readback_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "settled_at": {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_reconciled_at": {
+          "name": "last_reconciled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "evo_amocrm_attempts_account_status_idx": {
+          "name": "evo_amocrm_attempts_account_status_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "evo_amocrm_attempts_person_created_idx": {
+          "name": "evo_amocrm_attempts_person_created_idx",
+          "columns": [
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "evo_amocrm_attempts_lead_created_idx": {
+          "name": "evo_amocrm_attempts_lead_created_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_amocrm_operation_attempts_account_id_evo_amocrm_accounts_id_fk": {
+          "name": "evo_amocrm_operation_attempts_account_id_evo_amocrm_accounts_id_fk",
+          "tableFrom": "evo_amocrm_operation_attempts",
+          "tableTo": "evo_amocrm_accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_amocrm_operation_attempts_command_receipt_id_evo_command_receipts_id_fk": {
+          "name": "evo_amocrm_operation_attempts_command_receipt_id_evo_command_receipts_id_fk",
+          "tableFrom": "evo_amocrm_operation_attempts",
+          "tableTo": "evo_command_receipts",
+          "columnsFrom": [
+            "command_receipt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_amocrm_operation_attempts_person_id_evo_people_id_fk": {
+          "name": "evo_amocrm_operation_attempts_person_id_evo_people_id_fk",
+          "tableFrom": "evo_amocrm_operation_attempts",
+          "tableTo": "evo_people",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_amocrm_operation_attempts_lead_id_evo_leads_id_fk": {
+          "name": "evo_amocrm_operation_attempts_lead_id_evo_leads_id_fk",
+          "tableFrom": "evo_amocrm_operation_attempts",
+          "tableTo": "evo_leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_amocrm_attempts_receipt_unique": {
+          "name": "evo_amocrm_attempts_receipt_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "command_receipt_id"
+          ]
+        },
+        "evo_amocrm_attempts_idempotency_unique": {
+          "name": "evo_amocrm_attempts_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "idempotency_key"
+          ]
+        },
+        "evo_amocrm_attempts_contact_binding_unique": {
+          "name": "evo_amocrm_attempts_contact_binding_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "id",
+            "person_id",
+            "result_contact_id"
+          ]
+        },
+        "evo_amocrm_attempts_lead_binding_unique": {
+          "name": "evo_amocrm_attempts_lead_binding_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "id",
+            "lead_id",
+            "result_lead_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_amocrm_attempts_id_uuid_check": {
+          "name": "evo_amocrm_attempts_id_uuid_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_amocrm_attempts_provider_check": {
+          "name": "evo_amocrm_attempts_provider_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"provider\" = 'amocrm'"
+        },
+        "evo_amocrm_attempts_operation_check": {
+          "name": "evo_amocrm_attempts_operation_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"operation_name\" in ('contact_create', 'contact_update', 'lead_create', 'lead_update', 'contact_lead_link', 'lead_pipeline_status_update', 'lead_responsible_update', 'lead_note_create', 'lead_tag_update')"
+        },
+        "evo_amocrm_attempts_object_target_check": {
+          "name": "evo_amocrm_attempts_object_target_check",
+          "value": "(\"evo_amocrm_operation_attempts\".\"operation_name\" in ('contact_create', 'contact_update') and \"evo_amocrm_operation_attempts\".\"person_id\" is not null and \"evo_amocrm_operation_attempts\".\"lead_id\" is null) or (\"evo_amocrm_operation_attempts\".\"operation_name\" in ('lead_create', 'lead_update', 'lead_pipeline_status_update', 'lead_responsible_update', 'lead_note_create', 'lead_tag_update') and \"evo_amocrm_operation_attempts\".\"person_id\" is null and \"evo_amocrm_operation_attempts\".\"lead_id\" is not null) or (\"evo_amocrm_operation_attempts\".\"operation_name\" = 'contact_lead_link' and \"evo_amocrm_operation_attempts\".\"person_id\" is not null and \"evo_amocrm_operation_attempts\".\"lead_id\" is not null)"
+        },
+        "evo_amocrm_attempts_role_check": {
+          "name": "evo_amocrm_attempts_role_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"actor_role\" in ('admin', 'sales', 'admissions')"
+        },
+        "evo_amocrm_attempts_status_check": {
+          "name": "evo_amocrm_attempts_status_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"status\" in ('prepared', 'accepted', 'unknown', 'rejected')"
+        },
+        "evo_amocrm_attempts_request_shape_check": {
+          "name": "evo_amocrm_attempts_request_shape_check",
+          "value": "jsonb_typeof(\"evo_amocrm_operation_attempts\".\"provider_request_metadata\") = 'object' and octet_length(\"evo_amocrm_operation_attempts\".\"provider_request_metadata\"::text) <= 65536"
+        },
+        "evo_amocrm_attempts_request_secret_check": {
+          "name": "evo_amocrm_attempts_request_secret_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"provider_request_metadata\"::text !~* '\"[^\"]*(token|secret|authorization|api[_-]?key|header)[^\"]*\"[[:space:]]*:'"
+        },
+        "evo_amocrm_attempts_request_hash_check": {
+          "name": "evo_amocrm_attempts_request_hash_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"provider_request_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "evo_amocrm_attempts_provider_id_check": {
+          "name": "evo_amocrm_attempts_provider_id_check",
+          "value": "(\"evo_amocrm_operation_attempts\".\"target_contact_id\" is null or \"evo_amocrm_operation_attempts\".\"target_contact_id\" ~ '^[1-9][0-9]{0,19}$') and (\"evo_amocrm_operation_attempts\".\"target_lead_id\" is null or \"evo_amocrm_operation_attempts\".\"target_lead_id\" ~ '^[1-9][0-9]{0,19}$') and (\"evo_amocrm_operation_attempts\".\"result_contact_id\" is null or \"evo_amocrm_operation_attempts\".\"result_contact_id\" ~ '^[1-9][0-9]{0,19}$') and (\"evo_amocrm_operation_attempts\".\"result_lead_id\" is null or \"evo_amocrm_operation_attempts\".\"result_lead_id\" ~ '^[1-9][0-9]{0,19}$')"
+        },
+        "evo_amocrm_attempts_provider_target_check": {
+          "name": "evo_amocrm_attempts_provider_target_check",
+          "value": "(\"evo_amocrm_operation_attempts\".\"operation_name\" in ('contact_create', 'lead_create') and \"evo_amocrm_operation_attempts\".\"target_contact_id\" is null and \"evo_amocrm_operation_attempts\".\"target_lead_id\" is null) or (\"evo_amocrm_operation_attempts\".\"operation_name\" = 'contact_update' and \"evo_amocrm_operation_attempts\".\"target_contact_id\" is not null and \"evo_amocrm_operation_attempts\".\"target_lead_id\" is null) or (\"evo_amocrm_operation_attempts\".\"operation_name\" in ('lead_update', 'lead_pipeline_status_update', 'lead_responsible_update', 'lead_note_create', 'lead_tag_update') and \"evo_amocrm_operation_attempts\".\"target_contact_id\" is null and \"evo_amocrm_operation_attempts\".\"target_lead_id\" is not null) or (\"evo_amocrm_operation_attempts\".\"operation_name\" = 'contact_lead_link' and \"evo_amocrm_operation_attempts\".\"target_contact_id\" is not null and \"evo_amocrm_operation_attempts\".\"target_lead_id\" is not null)"
+        },
+        "evo_amocrm_attempts_provider_result_check": {
+          "name": "evo_amocrm_attempts_provider_result_check",
+          "value": "(\"evo_amocrm_operation_attempts\".\"operation_name\" = 'contact_create' and \"evo_amocrm_operation_attempts\".\"result_lead_id\" is null) or (\"evo_amocrm_operation_attempts\".\"operation_name\" = 'contact_update' and \"evo_amocrm_operation_attempts\".\"result_lead_id\" is null and (\"evo_amocrm_operation_attempts\".\"result_contact_id\" is null or \"evo_amocrm_operation_attempts\".\"result_contact_id\" = \"evo_amocrm_operation_attempts\".\"target_contact_id\")) or (\"evo_amocrm_operation_attempts\".\"operation_name\" = 'lead_create' and \"evo_amocrm_operation_attempts\".\"result_contact_id\" is null) or (\"evo_amocrm_operation_attempts\".\"operation_name\" in ('lead_update', 'lead_pipeline_status_update', 'lead_responsible_update', 'lead_note_create', 'lead_tag_update') and \"evo_amocrm_operation_attempts\".\"result_contact_id\" is null and (\"evo_amocrm_operation_attempts\".\"result_lead_id\" is null or \"evo_amocrm_operation_attempts\".\"result_lead_id\" = \"evo_amocrm_operation_attempts\".\"target_lead_id\")) or (\"evo_amocrm_operation_attempts\".\"operation_name\" = 'contact_lead_link' and ((\"evo_amocrm_operation_attempts\".\"result_contact_id\" is null and \"evo_amocrm_operation_attempts\".\"result_lead_id\" is null) or (\"evo_amocrm_operation_attempts\".\"result_contact_id\" = \"evo_amocrm_operation_attempts\".\"target_contact_id\" and \"evo_amocrm_operation_attempts\".\"result_lead_id\" = \"evo_amocrm_operation_attempts\".\"target_lead_id\")))"
+        },
+        "evo_amocrm_attempts_transport_check": {
+          "name": "evo_amocrm_attempts_transport_check",
+          "value": "(\"evo_amocrm_operation_attempts\".\"provider_dispatched_at\" is null and \"evo_amocrm_operation_attempts\".\"provider_responded_at\" is null and \"evo_amocrm_operation_attempts\".\"provider_http_status\" is null and \"evo_amocrm_operation_attempts\".\"provider_request_id\" is null) or (\"evo_amocrm_operation_attempts\".\"provider_dispatched_at\" is not null and \"evo_amocrm_operation_attempts\".\"provider_responded_at\" is null and \"evo_amocrm_operation_attempts\".\"provider_http_status\" is null and \"evo_amocrm_operation_attempts\".\"provider_request_id\" is null) or (\"evo_amocrm_operation_attempts\".\"provider_dispatched_at\" is not null and \"evo_amocrm_operation_attempts\".\"provider_responded_at\" is not null and \"evo_amocrm_operation_attempts\".\"provider_http_status\" between 100 and 599)"
+        },
+        "evo_amocrm_attempts_request_id_check": {
+          "name": "evo_amocrm_attempts_request_id_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"provider_request_id\" is null or (char_length(btrim(\"evo_amocrm_operation_attempts\".\"provider_request_id\")) between 1 and 255 and \"evo_amocrm_operation_attempts\".\"provider_request_id\" !~ '[[:cntrl:]]')"
+        },
+        "evo_amocrm_attempts_timestamp_order_check": {
+          "name": "evo_amocrm_attempts_timestamp_order_check",
+          "value": "(\"evo_amocrm_operation_attempts\".\"provider_dispatched_at\" is null or \"evo_amocrm_operation_attempts\".\"provider_dispatched_at\" >= \"evo_amocrm_operation_attempts\".\"prepared_at\") and (\"evo_amocrm_operation_attempts\".\"provider_responded_at\" is null or \"evo_amocrm_operation_attempts\".\"provider_responded_at\" >= \"evo_amocrm_operation_attempts\".\"provider_dispatched_at\") and (\"evo_amocrm_operation_attempts\".\"settled_at\" is null or \"evo_amocrm_operation_attempts\".\"settled_at\" >= \"evo_amocrm_operation_attempts\".\"prepared_at\") and (\"evo_amocrm_operation_attempts\".\"last_reconciled_at\" is null or (\"evo_amocrm_operation_attempts\".\"settled_at\" is not null and \"evo_amocrm_operation_attempts\".\"last_reconciled_at\" >= \"evo_amocrm_operation_attempts\".\"settled_at\"))"
+        },
+        "evo_amocrm_attempts_readback_tuple_check": {
+          "name": "evo_amocrm_attempts_readback_tuple_check",
+          "value": "(\"evo_amocrm_operation_attempts\".\"provider_readback\" is null and \"evo_amocrm_operation_attempts\".\"provider_readback_sha256\" is null and \"evo_amocrm_operation_attempts\".\"provider_readback_at\" is null) or (\"evo_amocrm_operation_attempts\".\"provider_readback\" is not null and \"evo_amocrm_operation_attempts\".\"provider_readback_sha256\" ~ '^[0-9a-f]{64}$' and \"evo_amocrm_operation_attempts\".\"provider_readback_at\" is not null)"
+        },
+        "evo_amocrm_attempts_readback_shape_check": {
+          "name": "evo_amocrm_attempts_readback_shape_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"provider_readback\" is null or jsonb_typeof(\"evo_amocrm_operation_attempts\".\"provider_readback\") = 'object'"
+        },
+        "evo_amocrm_attempts_readback_size_check": {
+          "name": "evo_amocrm_attempts_readback_size_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"provider_readback\" is null or octet_length(\"evo_amocrm_operation_attempts\".\"provider_readback\"::text) <= 1048576"
+        },
+        "evo_amocrm_attempts_readback_secret_check": {
+          "name": "evo_amocrm_attempts_readback_secret_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"provider_readback\" is null or \"evo_amocrm_operation_attempts\".\"provider_readback\"::text !~* '\"[^\"]*(token|secret|authorization|api[_-]?key)[^\"]*\"[[:space:]]*:'"
+        },
+        "evo_amocrm_attempts_failure_check": {
+          "name": "evo_amocrm_attempts_failure_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"failure_code\" is null or char_length(btrim(\"evo_amocrm_operation_attempts\".\"failure_code\")) between 1 and 80"
+        },
+        "evo_amocrm_attempts_correlation_check": {
+          "name": "evo_amocrm_attempts_correlation_check",
+          "value": "char_length(btrim(\"evo_amocrm_operation_attempts\".\"correlation_id\")) between 1 and 255"
+        },
+        "evo_amocrm_attempts_idempotency_check": {
+          "name": "evo_amocrm_attempts_idempotency_check",
+          "value": "char_length(btrim(\"evo_amocrm_operation_attempts\".\"idempotency_key\")) between 1 and 255"
+        },
+        "evo_amocrm_attempts_version_check": {
+          "name": "evo_amocrm_attempts_version_check",
+          "value": "\"evo_amocrm_operation_attempts\".\"version\" > 0"
+        },
+        "evo_amocrm_attempts_state_check": {
+          "name": "evo_amocrm_attempts_state_check",
+          "value": "(\"evo_amocrm_operation_attempts\".\"status\" = 'prepared' and \"evo_amocrm_operation_attempts\".\"result_contact_id\" is null and \"evo_amocrm_operation_attempts\".\"result_lead_id\" is null and \"evo_amocrm_operation_attempts\".\"provider_responded_at\" is null and \"evo_amocrm_operation_attempts\".\"provider_http_status\" is null and \"evo_amocrm_operation_attempts\".\"provider_request_id\" is null and \"evo_amocrm_operation_attempts\".\"provider_readback\" is null and \"evo_amocrm_operation_attempts\".\"provider_readback_sha256\" is null and \"evo_amocrm_operation_attempts\".\"provider_readback_at\" is null and \"evo_amocrm_operation_attempts\".\"failure_code\" is null and \"evo_amocrm_operation_attempts\".\"settled_at\" is null and \"evo_amocrm_operation_attempts\".\"last_reconciled_at\" is null) or (\"evo_amocrm_operation_attempts\".\"status\" = 'accepted' and \"evo_amocrm_operation_attempts\".\"provider_dispatched_at\" is not null and \"evo_amocrm_operation_attempts\".\"provider_responded_at\" is not null and \"evo_amocrm_operation_attempts\".\"provider_http_status\" between 200 and 299 and \"evo_amocrm_operation_attempts\".\"provider_readback\" is not null and \"evo_amocrm_operation_attempts\".\"provider_readback_sha256\" is not null and \"evo_amocrm_operation_attempts\".\"provider_readback_at\" is not null and \"evo_amocrm_operation_attempts\".\"failure_code\" is null and \"evo_amocrm_operation_attempts\".\"settled_at\" is not null and ((\"evo_amocrm_operation_attempts\".\"operation_name\" = 'contact_create' and \"evo_amocrm_operation_attempts\".\"result_contact_id\" is not null) or (\"evo_amocrm_operation_attempts\".\"operation_name\" = 'contact_update' and \"evo_amocrm_operation_attempts\".\"result_contact_id\" = \"evo_amocrm_operation_attempts\".\"target_contact_id\") or (\"evo_amocrm_operation_attempts\".\"operation_name\" = 'lead_create' and \"evo_amocrm_operation_attempts\".\"result_lead_id\" is not null) or (\"evo_amocrm_operation_attempts\".\"operation_name\" in ('lead_update', 'lead_pipeline_status_update', 'lead_responsible_update', 'lead_note_create', 'lead_tag_update') and \"evo_amocrm_operation_attempts\".\"result_lead_id\" = \"evo_amocrm_operation_attempts\".\"target_lead_id\") or (\"evo_amocrm_operation_attempts\".\"operation_name\" = 'contact_lead_link' and \"evo_amocrm_operation_attempts\".\"result_contact_id\" = \"evo_amocrm_operation_attempts\".\"target_contact_id\" and \"evo_amocrm_operation_attempts\".\"result_lead_id\" = \"evo_amocrm_operation_attempts\".\"target_lead_id\"))) or (\"evo_amocrm_operation_attempts\".\"status\" = 'unknown' and \"evo_amocrm_operation_attempts\".\"provider_dispatched_at\" is not null and \"evo_amocrm_operation_attempts\".\"failure_code\" is not null and \"evo_amocrm_operation_attempts\".\"settled_at\" is not null) or (\"evo_amocrm_operation_attempts\".\"status\" = 'rejected' and \"evo_amocrm_operation_attempts\".\"provider_dispatched_at\" is not null and \"evo_amocrm_operation_attempts\".\"provider_responded_at\" is not null and \"evo_amocrm_operation_attempts\".\"provider_http_status\" between 300 and 599 and \"evo_amocrm_operation_attempts\".\"result_contact_id\" is null and \"evo_amocrm_operation_attempts\".\"result_lead_id\" is null and \"evo_amocrm_operation_attempts\".\"failure_code\" is not null and \"evo_amocrm_operation_attempts\".\"settled_at\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_conversations": {
+      "name": "evo_conversations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'whatsapp'"
+        },
+        "external_conversation_id": {
+          "name": "external_conversation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "owning_role": {
+          "name": "owning_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'sales'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_conversations_lead_idx": {
+          "name": "evo_conversations_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_conversations_lead_id_evo_leads_id_fk": {
+          "name": "evo_conversations_lead_id_evo_leads_id_fk",
+          "tableFrom": "evo_conversations",
+          "tableTo": "evo_leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_conversations_external_unique": {
+          "name": "evo_conversations_external_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "channel",
+            "external_conversation_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_conversations_id_uuid_check": {
+          "name": "evo_conversations_id_uuid_check",
+          "value": "\"evo_conversations\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_conversations_channel_check": {
+          "name": "evo_conversations_channel_check",
+          "value": "\"evo_conversations\".\"channel\" = 'whatsapp'"
+        },
+        "evo_conversations_external_id_check": {
+          "name": "evo_conversations_external_id_check",
+          "value": "\"evo_conversations\".\"external_conversation_id\" is null or char_length(btrim(\"evo_conversations\".\"external_conversation_id\")) > 0"
+        },
+        "evo_conversations_status_check": {
+          "name": "evo_conversations_status_check",
+          "value": "\"evo_conversations\".\"status\" in ('open', 'closed')"
+        },
+        "evo_conversations_owning_role_check": {
+          "name": "evo_conversations_owning_role_check",
+          "value": "\"evo_conversations\".\"owning_role\" in ('sales', 'admissions')"
+        },
+        "evo_conversations_version_check": {
+          "name": "evo_conversations_version_check",
+          "value": "\"evo_conversations\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_leads": {
+      "name": "evo_leads",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stage": {
+          "name": "stage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'new'"
+        },
+        "owner_role": {
+          "name": "owner_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'sales'"
+        },
+        "qualification_summary": {
+          "name": "qualification_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_action": {
+          "name": "next_action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_action_at": {
+          "name": "next_action_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_leads_person_idx": {
+          "name": "evo_leads_person_idx",
+          "columns": [
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "evo_leads_stage_idx": {
+          "name": "evo_leads_stage_idx",
+          "columns": [
+            {
+              "expression": "stage",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_leads_person_id_evo_people_id_fk": {
+          "name": "evo_leads_person_id_evo_people_id_fk",
+          "tableFrom": "evo_leads",
+          "tableTo": "evo_people",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "evo_leads_id_uuid_check": {
+          "name": "evo_leads_id_uuid_check",
+          "value": "\"evo_leads\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_leads_source_check": {
+          "name": "evo_leads_source_check",
+          "value": "char_length(btrim(\"evo_leads\".\"source\")) > 0"
+        },
+        "evo_leads_stage_check": {
+          "name": "evo_leads_stage_check",
+          "value": "\"evo_leads\".\"stage\" in ('new', 'qualifying', 'qualified', 'disqualified', 'handoff_ready', 'handed_off')"
+        },
+        "evo_leads_owner_role_check": {
+          "name": "evo_leads_owner_role_check",
+          "value": "\"evo_leads\".\"owner_role\" = 'sales'"
+        },
+        "evo_leads_next_action_check": {
+          "name": "evo_leads_next_action_check",
+          "value": "\"evo_leads\".\"next_action_at\" is null or (\"evo_leads\".\"next_action\" is not null and char_length(btrim(\"evo_leads\".\"next_action\")) > 0)"
+        },
+        "evo_leads_version_check": {
+          "name": "evo_leads_version_check",
+          "value": "\"evo_leads\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_messages": {
+      "name": "evo_messages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "conversation_id": {
+          "name": "conversation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "direction": {
+          "name": "direction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_message_id": {
+          "name": "external_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_role": {
+          "name": "author_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_messages_conversation_idx": {
+          "name": "evo_messages_conversation_idx",
+          "columns": [
+            {
+              "expression": "conversation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_messages_conversation_id_evo_conversations_id_fk": {
+          "name": "evo_messages_conversation_id_evo_conversations_id_fk",
+          "tableFrom": "evo_messages",
+          "tableTo": "evo_conversations",
+          "columnsFrom": [
+            "conversation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_messages_idempotency_unique": {
+          "name": "evo_messages_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "idempotency_key"
+          ]
+        },
+        "evo_messages_external_unique": {
+          "name": "evo_messages_external_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "conversation_id",
+            "external_message_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_messages_id_uuid_check": {
+          "name": "evo_messages_id_uuid_check",
+          "value": "\"evo_messages\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_messages_direction_check": {
+          "name": "evo_messages_direction_check",
+          "value": "\"evo_messages\".\"direction\" in ('inbound', 'outbound')"
+        },
+        "evo_messages_external_id_check": {
+          "name": "evo_messages_external_id_check",
+          "value": "(\"evo_messages\".\"direction\" = 'inbound' and \"evo_messages\".\"external_message_id\" is not null and char_length(btrim(\"evo_messages\".\"external_message_id\")) > 0) or (\"evo_messages\".\"direction\" = 'outbound' and (\"evo_messages\".\"external_message_id\" is null or char_length(btrim(\"evo_messages\".\"external_message_id\")) > 0))"
+        },
+        "evo_messages_author_role_check": {
+          "name": "evo_messages_author_role_check",
+          "value": "(\"evo_messages\".\"direction\" = 'inbound' and \"evo_messages\".\"author_role\" is null) or (\"evo_messages\".\"direction\" = 'outbound' and \"evo_messages\".\"author_role\" is not null and \"evo_messages\".\"author_role\" in ('admin', 'sales', 'admissions'))"
+        },
+        "evo_messages_body_check": {
+          "name": "evo_messages_body_check",
+          "value": "char_length(btrim(\"evo_messages\".\"body\")) > 0"
+        },
+        "evo_messages_correlation_check": {
+          "name": "evo_messages_correlation_check",
+          "value": "char_length(btrim(\"evo_messages\".\"correlation_id\")) > 0"
+        },
+        "evo_messages_idempotency_check": {
+          "name": "evo_messages_idempotency_check",
+          "value": "char_length(btrim(\"evo_messages\".\"idempotency_key\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_people": {
+      "name": "evo_people",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone_e164": {
+          "name": "phone_e164",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_people_phone_unique": {
+          "name": "evo_people_phone_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "phone_e164"
+          ]
+        },
+        "evo_people_email_unique": {
+          "name": "evo_people_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_people_id_uuid_check": {
+          "name": "evo_people_id_uuid_check",
+          "value": "\"evo_people\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_people_full_name_check": {
+          "name": "evo_people_full_name_check",
+          "value": "char_length(btrim(\"evo_people\".\"full_name\")) > 0"
+        },
+        "evo_people_contact_check": {
+          "name": "evo_people_contact_check",
+          "value": "\"evo_people\".\"phone_e164\" is not null or \"evo_people\".\"email\" is not null"
+        },
+        "evo_people_phone_check": {
+          "name": "evo_people_phone_check",
+          "value": "\"evo_people\".\"phone_e164\" is null or \"evo_people\".\"phone_e164\" ~ '^[+][1-9][0-9]{6,14}$'"
+        },
+        "evo_people_email_check": {
+          "name": "evo_people_email_check",
+          "value": "\"evo_people\".\"email\" is null or \"evo_people\".\"email\" ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'"
+        },
+        "evo_people_version_check": {
+          "name": "evo_people_version_check",
+          "value": "\"evo_people\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_sales_admissions_handoffs": {
+      "name": "evo_sales_admissions_handoffs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "student_case_id": {
+          "name": "student_case_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract_evidence_id": {
+          "name": "contract_evidence_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_payment_evidence_id": {
+          "name": "first_payment_evidence_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_override": {
+          "name": "is_override",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "override_reason": {
+          "name": "override_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "executed_by_role": {
+          "name": "executed_by_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "executed_at": {
+          "name": "executed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "evo_sales_admissions_handoffs_lead_id_evo_leads_id_fk": {
+          "name": "evo_sales_admissions_handoffs_lead_id_evo_leads_id_fk",
+          "tableFrom": "evo_sales_admissions_handoffs",
+          "tableTo": "evo_leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_sales_admissions_handoffs_student_case_id_evo_student_cases_id_fk": {
+          "name": "evo_sales_admissions_handoffs_student_case_id_evo_student_cases_id_fk",
+          "tableFrom": "evo_sales_admissions_handoffs",
+          "tableTo": "evo_student_cases",
+          "columnsFrom": [
+            "student_case_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_sales_admissions_handoffs_contract_evidence_id_evo_sales_gate_evidence_id_fk": {
+          "name": "evo_sales_admissions_handoffs_contract_evidence_id_evo_sales_gate_evidence_id_fk",
+          "tableFrom": "evo_sales_admissions_handoffs",
+          "tableTo": "evo_sales_gate_evidence",
+          "columnsFrom": [
+            "contract_evidence_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_sales_admissions_handoffs_first_payment_evidence_id_evo_sales_gate_evidence_id_fk": {
+          "name": "evo_sales_admissions_handoffs_first_payment_evidence_id_evo_sales_gate_evidence_id_fk",
+          "tableFrom": "evo_sales_admissions_handoffs",
+          "tableTo": "evo_sales_gate_evidence",
+          "columnsFrom": [
+            "first_payment_evidence_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_sales_admissions_handoffs_lead_unique": {
+          "name": "evo_sales_admissions_handoffs_lead_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "lead_id"
+          ]
+        },
+        "evo_sales_admissions_handoffs_case_unique": {
+          "name": "evo_sales_admissions_handoffs_case_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "student_case_id"
+          ]
+        },
+        "evo_sales_admissions_handoffs_idempotency_unique": {
+          "name": "evo_sales_admissions_handoffs_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "idempotency_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_sales_admissions_handoffs_id_uuid_check": {
+          "name": "evo_sales_admissions_handoffs_id_uuid_check",
+          "value": "\"evo_sales_admissions_handoffs\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_sales_admissions_handoffs_gate_check": {
+          "name": "evo_sales_admissions_handoffs_gate_check",
+          "value": "(\"evo_sales_admissions_handoffs\".\"is_override\" and \"evo_sales_admissions_handoffs\".\"contract_evidence_id\" is null and \"evo_sales_admissions_handoffs\".\"first_payment_evidence_id\" is null) or (not \"evo_sales_admissions_handoffs\".\"is_override\" and \"evo_sales_admissions_handoffs\".\"contract_evidence_id\" is not null and \"evo_sales_admissions_handoffs\".\"first_payment_evidence_id\" is not null)"
+        },
+        "evo_sales_admissions_handoffs_override_check": {
+          "name": "evo_sales_admissions_handoffs_override_check",
+          "value": "(\"evo_sales_admissions_handoffs\".\"is_override\" and \"evo_sales_admissions_handoffs\".\"executed_by_role\" = 'admin' and \"evo_sales_admissions_handoffs\".\"override_reason\" is not null and char_length(btrim(\"evo_sales_admissions_handoffs\".\"override_reason\")) > 0) or (not \"evo_sales_admissions_handoffs\".\"is_override\" and \"evo_sales_admissions_handoffs\".\"executed_by_role\" in ('admin', 'sales') and \"evo_sales_admissions_handoffs\".\"override_reason\" is null)"
+        },
+        "evo_sales_admissions_handoffs_correlation_check": {
+          "name": "evo_sales_admissions_handoffs_correlation_check",
+          "value": "char_length(btrim(\"evo_sales_admissions_handoffs\".\"correlation_id\")) > 0"
+        },
+        "evo_sales_admissions_handoffs_idempotency_check": {
+          "name": "evo_sales_admissions_handoffs_idempotency_check",
+          "value": "char_length(btrim(\"evo_sales_admissions_handoffs\".\"idempotency_key\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_sales_gate_evidence": {
+      "name": "evo_sales_gate_evidence",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_type": {
+          "name": "evidence_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decision": {
+          "name": "decision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_reference": {
+          "name": "evidence_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_minor": {
+          "name": "amount_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_by_role": {
+          "name": "recorded_by_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_sales_gate_evidence_lead_idx": {
+          "name": "evo_sales_gate_evidence_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_sales_gate_evidence_lead_id_evo_leads_id_fk": {
+          "name": "evo_sales_gate_evidence_lead_id_evo_leads_id_fk",
+          "tableFrom": "evo_sales_gate_evidence",
+          "tableTo": "evo_leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_sales_gate_evidence_idempotency_unique": {
+          "name": "evo_sales_gate_evidence_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "idempotency_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_sales_gate_evidence_id_uuid_check": {
+          "name": "evo_sales_gate_evidence_id_uuid_check",
+          "value": "\"evo_sales_gate_evidence\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_sales_gate_evidence_type_check": {
+          "name": "evo_sales_gate_evidence_type_check",
+          "value": "\"evo_sales_gate_evidence\".\"evidence_type\" in ('contract', 'first_payment')"
+        },
+        "evo_sales_gate_evidence_decision_check": {
+          "name": "evo_sales_gate_evidence_decision_check",
+          "value": "\"evo_sales_gate_evidence\".\"decision\" in ('confirmed', 'rejected')"
+        },
+        "evo_sales_gate_evidence_reference_check": {
+          "name": "evo_sales_gate_evidence_reference_check",
+          "value": "char_length(btrim(\"evo_sales_gate_evidence\".\"evidence_reference\")) > 0"
+        },
+        "evo_sales_gate_evidence_payment_check": {
+          "name": "evo_sales_gate_evidence_payment_check",
+          "value": "(\"evo_sales_gate_evidence\".\"evidence_type\" = 'contract' and \"evo_sales_gate_evidence\".\"amount_minor\" is null and \"evo_sales_gate_evidence\".\"currency\" is null) or (\"evo_sales_gate_evidence\".\"evidence_type\" = 'first_payment' and \"evo_sales_gate_evidence\".\"amount_minor\" is not null and \"evo_sales_gate_evidence\".\"amount_minor\" > 0 and \"evo_sales_gate_evidence\".\"currency\" is not null and \"evo_sales_gate_evidence\".\"currency\" ~ '^[A-Z]{3}$')"
+        },
+        "evo_sales_gate_evidence_role_check": {
+          "name": "evo_sales_gate_evidence_role_check",
+          "value": "\"evo_sales_gate_evidence\".\"recorded_by_role\" in ('admin', 'sales')"
+        },
+        "evo_sales_gate_evidence_reason_check": {
+          "name": "evo_sales_gate_evidence_reason_check",
+          "value": "\"evo_sales_gate_evidence\".\"decision\" = 'confirmed' or (\"evo_sales_gate_evidence\".\"reason\" is not null and char_length(btrim(\"evo_sales_gate_evidence\".\"reason\")) > 0)"
+        },
+        "evo_sales_gate_evidence_correlation_check": {
+          "name": "evo_sales_gate_evidence_correlation_check",
+          "value": "char_length(btrim(\"evo_sales_gate_evidence\".\"correlation_id\")) > 0"
+        },
+        "evo_sales_gate_evidence_idempotency_check": {
+          "name": "evo_sales_gate_evidence_idempotency_check",
+          "value": "char_length(btrim(\"evo_sales_gate_evidence\".\"idempotency_key\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_student_cases": {
+      "name": "evo_student_cases",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lead_id": {
+          "name": "lead_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "owner_role": {
+          "name": "owner_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'admissions'"
+        },
+        "next_action": {
+          "name": "next_action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_action_at": {
+          "name": "next_action_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_student_cases_person_idx": {
+          "name": "evo_student_cases_person_idx",
+          "columns": [
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_student_cases_person_id_evo_people_id_fk": {
+          "name": "evo_student_cases_person_id_evo_people_id_fk",
+          "tableFrom": "evo_student_cases",
+          "tableTo": "evo_people",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_student_cases_lead_id_evo_leads_id_fk": {
+          "name": "evo_student_cases_lead_id_evo_leads_id_fk",
+          "tableFrom": "evo_student_cases",
+          "tableTo": "evo_leads",
+          "columnsFrom": [
+            "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_student_cases_lead_unique": {
+          "name": "evo_student_cases_lead_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "lead_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_student_cases_id_uuid_check": {
+          "name": "evo_student_cases_id_uuid_check",
+          "value": "\"evo_student_cases\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_student_cases_status_check": {
+          "name": "evo_student_cases_status_check",
+          "value": "\"evo_student_cases\".\"status\" in ('active', 'paused', 'closed')"
+        },
+        "evo_student_cases_owner_role_check": {
+          "name": "evo_student_cases_owner_role_check",
+          "value": "\"evo_student_cases\".\"owner_role\" = 'admissions'"
+        },
+        "evo_student_cases_next_action_check": {
+          "name": "evo_student_cases_next_action_check",
+          "value": "\"evo_student_cases\".\"next_action_at\" is null or (\"evo_student_cases\".\"next_action\" is not null and char_length(btrim(\"evo_student_cases\".\"next_action\")) > 0)"
+        },
+        "evo_student_cases_version_check": {
+          "name": "evo_student_cases_version_check",
+          "value": "\"evo_student_cases\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_business_events": {
+      "name": "evo_business_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "actor_role": {
+          "name": "actor_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_object_type": {
+          "name": "business_object_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_object_id": {
+          "name": "business_object_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transition": {
+          "name": "transition",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_state": {
+          "name": "from_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_state": {
+          "name": "to_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_sequence": {
+          "name": "event_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_business_events_object_idx": {
+          "name": "evo_business_events_object_idx",
+          "columns": [
+            {
+              "expression": "business_object_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_object_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "evo_business_events_correlation_idx": {
+          "name": "evo_business_events_correlation_idx",
+          "columns": [
+            {
+              "expression": "correlation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_business_events_idempotency_sequence_unique": {
+          "name": "evo_business_events_idempotency_sequence_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "idempotency_key",
+            "event_sequence"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_business_events_id_uuid_check": {
+          "name": "evo_business_events_id_uuid_check",
+          "value": "\"evo_business_events\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_business_events_actor_role_check": {
+          "name": "evo_business_events_actor_role_check",
+          "value": "\"evo_business_events\".\"actor_role\" in ('admin', 'sales', 'admissions')"
+        },
+        "evo_business_events_object_type_check": {
+          "name": "evo_business_events_object_type_check",
+          "value": "\"evo_business_events\".\"business_object_type\" in ('person', 'lead', 'conversation', 'message', 'student_case', 'gate_evidence', 'handoff', 'task', 'document', 'application', 'visa_milestone', 'finance_stop', 'ai_proposal', 'whatsapp_send_attempt')"
+        },
+        "evo_business_events_object_id_check": {
+          "name": "evo_business_events_object_id_check",
+          "value": "\"evo_business_events\".\"business_object_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_business_events_transition_check": {
+          "name": "evo_business_events_transition_check",
+          "value": "char_length(btrim(\"evo_business_events\".\"transition\")) > 0"
+        },
+        "evo_business_events_reason_check": {
+          "name": "evo_business_events_reason_check",
+          "value": "\"evo_business_events\".\"transition\" !~ '(override|reject|stop|release|close|cancel|disqual)' or (\"evo_business_events\".\"reason\" is not null and char_length(btrim(\"evo_business_events\".\"reason\")) > 0)"
+        },
+        "evo_business_events_correlation_check": {
+          "name": "evo_business_events_correlation_check",
+          "value": "char_length(btrim(\"evo_business_events\".\"correlation_id\")) > 0"
+        },
+        "evo_business_events_idempotency_check": {
+          "name": "evo_business_events_idempotency_check",
+          "value": "char_length(btrim(\"evo_business_events\".\"idempotency_key\")) > 0"
+        },
+        "evo_business_events_sequence_check": {
+          "name": "evo_business_events_sequence_check",
+          "value": "\"evo_business_events\".\"event_sequence\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_command_receipts": {
+      "name": "evo_command_receipts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "command_name": {
+          "name": "command_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_role": {
+          "name": "actor_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_object_type": {
+          "name": "business_object_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "business_object_id": {
+          "name": "business_object_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'processing'"
+        },
+        "result_payload": {
+          "name": "result_payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_command_receipts_correlation_idx": {
+          "name": "evo_command_receipts_correlation_idx",
+          "columns": [
+            {
+              "expression": "correlation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_command_receipts_idempotency_unique": {
+          "name": "evo_command_receipts_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "idempotency_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_command_receipts_id_uuid_check": {
+          "name": "evo_command_receipts_id_uuid_check",
+          "value": "\"evo_command_receipts\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_command_receipts_command_name_check": {
+          "name": "evo_command_receipts_command_name_check",
+          "value": "char_length(btrim(\"evo_command_receipts\".\"command_name\")) > 0"
+        },
+        "evo_command_receipts_idempotency_check": {
+          "name": "evo_command_receipts_idempotency_check",
+          "value": "char_length(btrim(\"evo_command_receipts\".\"idempotency_key\")) > 0"
+        },
+        "evo_command_receipts_request_hash_check": {
+          "name": "evo_command_receipts_request_hash_check",
+          "value": "\"evo_command_receipts\".\"request_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "evo_command_receipts_correlation_check": {
+          "name": "evo_command_receipts_correlation_check",
+          "value": "char_length(btrim(\"evo_command_receipts\".\"correlation_id\")) > 0"
+        },
+        "evo_command_receipts_actor_role_check": {
+          "name": "evo_command_receipts_actor_role_check",
+          "value": "\"evo_command_receipts\".\"actor_role\" in ('admin', 'sales', 'admissions')"
+        },
+        "evo_command_receipts_object_check": {
+          "name": "evo_command_receipts_object_check",
+          "value": "(\"evo_command_receipts\".\"business_object_type\" is null and \"evo_command_receipts\".\"business_object_id\" is null) or (\"evo_command_receipts\".\"business_object_type\" is not null and char_length(btrim(\"evo_command_receipts\".\"business_object_type\")) > 0 and \"evo_command_receipts\".\"business_object_id\" is not null and \"evo_command_receipts\".\"business_object_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')"
+        },
+        "evo_command_receipts_status_check": {
+          "name": "evo_command_receipts_status_check",
+          "value": "\"evo_command_receipts\".\"status\" in ('processing', 'succeeded', 'failed')"
+        },
+        "evo_command_receipts_completion_check": {
+          "name": "evo_command_receipts_completion_check",
+          "value": "(\"evo_command_receipts\".\"status\" = 'processing' and \"evo_command_receipts\".\"result_payload\" is null and \"evo_command_receipts\".\"failure_code\" is null and \"evo_command_receipts\".\"completed_at\" is null) or (\"evo_command_receipts\".\"status\" = 'succeeded' and \"evo_command_receipts\".\"result_payload\" is not null and jsonb_typeof(\"evo_command_receipts\".\"result_payload\") = 'object' and \"evo_command_receipts\".\"failure_code\" is null and \"evo_command_receipts\".\"completed_at\" is not null) or (\"evo_command_receipts\".\"status\" = 'failed' and \"evo_command_receipts\".\"result_payload\" is null and \"evo_command_receipts\".\"failure_code\" is not null and char_length(btrim(\"evo_command_receipts\".\"failure_code\")) > 0 and \"evo_command_receipts\".\"completed_at\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_admissions_tasks": {
+      "name": "evo_admissions_tasks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "student_case_id": {
+          "name": "student_case_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "details": {
+          "name": "details",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "assigned_role": {
+          "name": "assigned_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'admissions'"
+        },
+        "due_at": {
+          "name": "due_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_by_role": {
+          "name": "closed_by_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closure_reason": {
+          "name": "closure_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_admissions_tasks_case_idx": {
+          "name": "evo_admissions_tasks_case_idx",
+          "columns": [
+            {
+              "expression": "student_case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "evo_admissions_tasks_status_due_idx": {
+          "name": "evo_admissions_tasks_status_due_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "due_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_admissions_tasks_student_case_id_evo_student_cases_id_fk": {
+          "name": "evo_admissions_tasks_student_case_id_evo_student_cases_id_fk",
+          "tableFrom": "evo_admissions_tasks",
+          "tableTo": "evo_student_cases",
+          "columnsFrom": [
+            "student_case_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "evo_admissions_tasks_id_uuid_check": {
+          "name": "evo_admissions_tasks_id_uuid_check",
+          "value": "\"evo_admissions_tasks\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_admissions_tasks_title_check": {
+          "name": "evo_admissions_tasks_title_check",
+          "value": "char_length(btrim(\"evo_admissions_tasks\".\"title\")) > 0"
+        },
+        "evo_admissions_tasks_status_check": {
+          "name": "evo_admissions_tasks_status_check",
+          "value": "\"evo_admissions_tasks\".\"status\" in ('open', 'completed', 'cancelled')"
+        },
+        "evo_admissions_tasks_assigned_role_check": {
+          "name": "evo_admissions_tasks_assigned_role_check",
+          "value": "\"evo_admissions_tasks\".\"assigned_role\" = 'admissions'"
+        },
+        "evo_admissions_tasks_closure_check": {
+          "name": "evo_admissions_tasks_closure_check",
+          "value": "(\"evo_admissions_tasks\".\"status\" = 'open' and \"evo_admissions_tasks\".\"closed_at\" is null and \"evo_admissions_tasks\".\"closed_by_role\" is null and \"evo_admissions_tasks\".\"closure_reason\" is null) or (\"evo_admissions_tasks\".\"status\" = 'completed' and \"evo_admissions_tasks\".\"closed_at\" is not null and \"evo_admissions_tasks\".\"closed_by_role\" is not null and \"evo_admissions_tasks\".\"closed_by_role\" in ('admin', 'admissions')) or (\"evo_admissions_tasks\".\"status\" = 'cancelled' and \"evo_admissions_tasks\".\"closed_at\" is not null and \"evo_admissions_tasks\".\"closed_by_role\" is not null and \"evo_admissions_tasks\".\"closed_by_role\" in ('admin', 'admissions') and \"evo_admissions_tasks\".\"closure_reason\" is not null and char_length(btrim(\"evo_admissions_tasks\".\"closure_reason\")) > 0)"
+        },
+        "evo_admissions_tasks_version_check": {
+          "name": "evo_admissions_tasks_version_check",
+          "value": "\"evo_admissions_tasks\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_ai_proposals": {
+      "name": "evo_ai_proposals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "conversation_id": {
+          "name": "conversation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "student_case_id": {
+          "name": "student_case_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'gemini'"
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "proposal_text": {
+          "name": "proposal_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_context": {
+          "name": "source_context",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "review_decision": {
+          "name": "review_decision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "reviewed_text": {
+          "name": "reviewed_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_by_role": {
+          "name": "reviewed_by_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_reason": {
+          "name": "review_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_created_at": {
+          "name": "provider_created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_ai_proposals_conversation_idx": {
+          "name": "evo_ai_proposals_conversation_idx",
+          "columns": [
+            {
+              "expression": "conversation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_ai_proposals_conversation_id_evo_conversations_id_fk": {
+          "name": "evo_ai_proposals_conversation_id_evo_conversations_id_fk",
+          "tableFrom": "evo_ai_proposals",
+          "tableTo": "evo_conversations",
+          "columnsFrom": [
+            "conversation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_ai_proposals_student_case_id_evo_student_cases_id_fk": {
+          "name": "evo_ai_proposals_student_case_id_evo_student_cases_id_fk",
+          "tableFrom": "evo_ai_proposals",
+          "tableTo": "evo_student_cases",
+          "columnsFrom": [
+            "student_case_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_ai_proposals_idempotency_unique": {
+          "name": "evo_ai_proposals_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "idempotency_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_ai_proposals_id_uuid_check": {
+          "name": "evo_ai_proposals_id_uuid_check",
+          "value": "\"evo_ai_proposals\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_ai_proposals_provider_check": {
+          "name": "evo_ai_proposals_provider_check",
+          "value": "\"evo_ai_proposals\".\"provider\" = 'gemini'"
+        },
+        "evo_ai_proposals_model_check": {
+          "name": "evo_ai_proposals_model_check",
+          "value": "char_length(btrim(\"evo_ai_proposals\".\"model\")) > 0"
+        },
+        "evo_ai_proposals_text_check": {
+          "name": "evo_ai_proposals_text_check",
+          "value": "char_length(btrim(\"evo_ai_proposals\".\"proposal_text\")) > 0"
+        },
+        "evo_ai_proposals_source_context_check": {
+          "name": "evo_ai_proposals_source_context_check",
+          "value": "jsonb_typeof(\"evo_ai_proposals\".\"source_context\") = 'object'"
+        },
+        "evo_ai_proposals_decision_check": {
+          "name": "evo_ai_proposals_decision_check",
+          "value": "\"evo_ai_proposals\".\"review_decision\" in ('pending', 'accepted', 'edited', 'rejected')"
+        },
+        "evo_ai_proposals_review_check": {
+          "name": "evo_ai_proposals_review_check",
+          "value": "(\"evo_ai_proposals\".\"review_decision\" = 'pending' and \"evo_ai_proposals\".\"reviewed_text\" is null and \"evo_ai_proposals\".\"reviewed_by_role\" is null and \"evo_ai_proposals\".\"reviewed_at\" is null and \"evo_ai_proposals\".\"review_reason\" is null) or (\"evo_ai_proposals\".\"review_decision\" in ('accepted', 'edited') and \"evo_ai_proposals\".\"reviewed_text\" is not null and char_length(btrim(\"evo_ai_proposals\".\"reviewed_text\")) > 0 and \"evo_ai_proposals\".\"reviewed_by_role\" is not null and \"evo_ai_proposals\".\"reviewed_by_role\" in ('admin', 'sales', 'admissions') and \"evo_ai_proposals\".\"reviewed_at\" is not null) or (\"evo_ai_proposals\".\"review_decision\" = 'rejected' and \"evo_ai_proposals\".\"reviewed_text\" is null and \"evo_ai_proposals\".\"reviewed_by_role\" is not null and \"evo_ai_proposals\".\"reviewed_by_role\" in ('admin', 'sales', 'admissions') and \"evo_ai_proposals\".\"reviewed_at\" is not null and \"evo_ai_proposals\".\"review_reason\" is not null and char_length(btrim(\"evo_ai_proposals\".\"review_reason\")) > 0)"
+        },
+        "evo_ai_proposals_correlation_check": {
+          "name": "evo_ai_proposals_correlation_check",
+          "value": "char_length(btrim(\"evo_ai_proposals\".\"correlation_id\")) > 0"
+        },
+        "evo_ai_proposals_idempotency_check": {
+          "name": "evo_ai_proposals_idempotency_check",
+          "value": "char_length(btrim(\"evo_ai_proposals\".\"idempotency_key\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_finance_stop_states": {
+      "name": "evo_finance_stop_states",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "student_case_id": {
+          "name": "student_case_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_stopped": {
+          "name": "is_stopped",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "changed_by_role": {
+          "name": "changed_by_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "changed_at": {
+          "name": "changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "evo_finance_stop_states_student_case_id_evo_student_cases_id_fk": {
+          "name": "evo_finance_stop_states_student_case_id_evo_student_cases_id_fk",
+          "tableFrom": "evo_finance_stop_states",
+          "tableTo": "evo_student_cases",
+          "columnsFrom": [
+            "student_case_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_finance_stop_states_case_unique": {
+          "name": "evo_finance_stop_states_case_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "student_case_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_finance_stop_states_id_uuid_check": {
+          "name": "evo_finance_stop_states_id_uuid_check",
+          "value": "\"evo_finance_stop_states\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_finance_stop_states_reason_check": {
+          "name": "evo_finance_stop_states_reason_check",
+          "value": "char_length(btrim(\"evo_finance_stop_states\".\"reason\")) > 0"
+        },
+        "evo_finance_stop_states_role_check": {
+          "name": "evo_finance_stop_states_role_check",
+          "value": "\"evo_finance_stop_states\".\"changed_by_role\" in ('admin', 'admissions')"
+        },
+        "evo_finance_stop_states_version_check": {
+          "name": "evo_finance_stop_states_version_check",
+          "value": "\"evo_finance_stop_states\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_university_applications": {
+      "name": "evo_university_applications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "student_case_id": {
+          "name": "student_case_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "institution_name": {
+          "name": "institution_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "program_name": {
+          "name": "program_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_intake": {
+          "name": "target_intake",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "owner_role": {
+          "name": "owner_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'admissions'"
+        },
+        "next_action": {
+          "name": "next_action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_action_at": {
+          "name": "next_action_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_reason": {
+          "name": "decision_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_university_applications_case_idx": {
+          "name": "evo_university_applications_case_idx",
+          "columns": [
+            {
+              "expression": "student_case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_university_applications_student_case_id_evo_student_cases_id_fk": {
+          "name": "evo_university_applications_student_case_id_evo_student_cases_id_fk",
+          "tableFrom": "evo_university_applications",
+          "tableTo": "evo_student_cases",
+          "columnsFrom": [
+            "student_case_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_university_applications_target_unique": {
+          "name": "evo_university_applications_target_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "student_case_id",
+            "institution_name",
+            "program_name",
+            "target_intake"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_university_applications_id_uuid_check": {
+          "name": "evo_university_applications_id_uuid_check",
+          "value": "\"evo_university_applications\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_university_applications_names_check": {
+          "name": "evo_university_applications_names_check",
+          "value": "char_length(btrim(\"evo_university_applications\".\"institution_name\")) > 0 and char_length(btrim(\"evo_university_applications\".\"program_name\")) > 0 and char_length(btrim(\"evo_university_applications\".\"target_intake\")) > 0"
+        },
+        "evo_university_applications_status_check": {
+          "name": "evo_university_applications_status_check",
+          "value": "\"evo_university_applications\".\"status\" in ('draft', 'submitted', 'accepted', 'rejected', 'withdrawn')"
+        },
+        "evo_university_applications_owner_role_check": {
+          "name": "evo_university_applications_owner_role_check",
+          "value": "\"evo_university_applications\".\"owner_role\" = 'admissions'"
+        },
+        "evo_university_applications_next_action_check": {
+          "name": "evo_university_applications_next_action_check",
+          "value": "\"evo_university_applications\".\"next_action_at\" is null or (\"evo_university_applications\".\"next_action\" is not null and char_length(btrim(\"evo_university_applications\".\"next_action\")) > 0)"
+        },
+        "evo_university_applications_timeline_check": {
+          "name": "evo_university_applications_timeline_check",
+          "value": "(\"evo_university_applications\".\"status\" = 'draft' and \"evo_university_applications\".\"submitted_at\" is null and \"evo_university_applications\".\"decided_at\" is null) or (\"evo_university_applications\".\"status\" = 'submitted' and \"evo_university_applications\".\"submitted_at\" is not null and \"evo_university_applications\".\"decided_at\" is null) or (\"evo_university_applications\".\"status\" in ('accepted', 'rejected') and \"evo_university_applications\".\"submitted_at\" is not null and \"evo_university_applications\".\"decided_at\" is not null and \"evo_university_applications\".\"decided_at\" >= \"evo_university_applications\".\"submitted_at\") or (\"evo_university_applications\".\"status\" = 'withdrawn' and \"evo_university_applications\".\"decided_at\" is not null)"
+        },
+        "evo_university_applications_reason_check": {
+          "name": "evo_university_applications_reason_check",
+          "value": "\"evo_university_applications\".\"status\" not in ('rejected', 'withdrawn') or (\"evo_university_applications\".\"decision_reason\" is not null and char_length(btrim(\"evo_university_applications\".\"decision_reason\")) > 0)"
+        },
+        "evo_university_applications_version_check": {
+          "name": "evo_university_applications_version_check",
+          "value": "\"evo_university_applications\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_visa_milestones": {
+      "name": "evo_visa_milestones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "student_case_id": {
+          "name": "student_case_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "milestone_kind": {
+          "name": "milestone_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "owner_role": {
+          "name": "owner_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'admissions'"
+        },
+        "next_action": {
+          "name": "next_action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_action_at": {
+          "name": "next_action_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_at": {
+          "name": "due_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blocked_reason": {
+          "name": "blocked_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evo_visa_milestones_case_idx": {
+          "name": "evo_visa_milestones_case_idx",
+          "columns": [
+            {
+              "expression": "student_case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_visa_milestones_student_case_id_evo_student_cases_id_fk": {
+          "name": "evo_visa_milestones_student_case_id_evo_student_cases_id_fk",
+          "tableFrom": "evo_visa_milestones",
+          "tableTo": "evo_student_cases",
+          "columnsFrom": [
+            "student_case_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_visa_milestones_case_kind_unique": {
+          "name": "evo_visa_milestones_case_kind_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "student_case_id",
+            "milestone_kind"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_visa_milestones_id_uuid_check": {
+          "name": "evo_visa_milestones_id_uuid_check",
+          "value": "\"evo_visa_milestones\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_visa_milestones_kind_check": {
+          "name": "evo_visa_milestones_kind_check",
+          "value": "\"evo_visa_milestones\".\"milestone_kind\" in ('document_preparation', 'appointment', 'submission', 'biometrics', 'interview', 'decision')"
+        },
+        "evo_visa_milestones_status_check": {
+          "name": "evo_visa_milestones_status_check",
+          "value": "\"evo_visa_milestones\".\"status\" in ('pending', 'in_progress', 'completed', 'blocked')"
+        },
+        "evo_visa_milestones_owner_role_check": {
+          "name": "evo_visa_milestones_owner_role_check",
+          "value": "\"evo_visa_milestones\".\"owner_role\" = 'admissions'"
+        },
+        "evo_visa_milestones_next_action_check": {
+          "name": "evo_visa_milestones_next_action_check",
+          "value": "\"evo_visa_milestones\".\"next_action_at\" is null or (\"evo_visa_milestones\".\"next_action\" is not null and char_length(btrim(\"evo_visa_milestones\".\"next_action\")) > 0)"
+        },
+        "evo_visa_milestones_completion_check": {
+          "name": "evo_visa_milestones_completion_check",
+          "value": "(\"evo_visa_milestones\".\"status\" = 'completed' and \"evo_visa_milestones\".\"completed_at\" is not null) or (\"evo_visa_milestones\".\"status\" <> 'completed' and \"evo_visa_milestones\".\"completed_at\" is null)"
+        },
+        "evo_visa_milestones_blocked_check": {
+          "name": "evo_visa_milestones_blocked_check",
+          "value": "(\"evo_visa_milestones\".\"status\" = 'blocked' and \"evo_visa_milestones\".\"blocked_reason\" is not null and char_length(btrim(\"evo_visa_milestones\".\"blocked_reason\")) > 0) or (\"evo_visa_milestones\".\"status\" <> 'blocked' and \"evo_visa_milestones\".\"blocked_reason\" is null)"
+        },
+        "evo_visa_milestones_version_check": {
+          "name": "evo_visa_milestones_version_check",
+          "value": "\"evo_visa_milestones\".\"version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_whatsapp_send_attempts": {
+      "name": "evo_whatsapp_send_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "conversation_id": {
+          "name": "conversation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_proposal_id": {
+          "name": "source_proposal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'waha'"
+        },
+        "session_name": {
+          "name": "session_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipient_chat_id": {
+          "name": "recipient_chat_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reply_to_external_message_id": {
+          "name": "reply_to_external_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "final_text": {
+          "name": "final_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_role": {
+          "name": "actor_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'prepared'"
+        },
+        "provider_message_id": {
+          "name": "provider_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_occurred_at": {
+          "name": "provider_occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_source": {
+          "name": "provider_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ack": {
+          "name": "ack",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ack_name": {
+          "name": "ack_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "settled_at": {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_reconciled_at": {
+          "name": "last_reconciled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "evo_whatsapp_send_attempts_conversation_created_idx": {
+          "name": "evo_whatsapp_send_attempts_conversation_created_idx",
+          "columns": [
+            {
+              "expression": "conversation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evo_whatsapp_send_attempts_conversation_id_evo_conversations_id_fk": {
+          "name": "evo_whatsapp_send_attempts_conversation_id_evo_conversations_id_fk",
+          "tableFrom": "evo_whatsapp_send_attempts",
+          "tableTo": "evo_conversations",
+          "columnsFrom": [
+            "conversation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_whatsapp_send_attempts_message_id_evo_messages_id_fk": {
+          "name": "evo_whatsapp_send_attempts_message_id_evo_messages_id_fk",
+          "tableFrom": "evo_whatsapp_send_attempts",
+          "tableTo": "evo_messages",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "evo_whatsapp_send_attempts_source_proposal_id_evo_ai_proposals_id_fk": {
+          "name": "evo_whatsapp_send_attempts_source_proposal_id_evo_ai_proposals_id_fk",
+          "tableFrom": "evo_whatsapp_send_attempts",
+          "tableTo": "evo_ai_proposals",
+          "columnsFrom": [
+            "source_proposal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_whatsapp_send_attempts_idempotency_unique": {
+          "name": "evo_whatsapp_send_attempts_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "idempotency_key"
+          ]
+        },
+        "evo_whatsapp_send_attempts_message_unique": {
+          "name": "evo_whatsapp_send_attempts_message_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "message_id"
+          ]
+        },
+        "evo_whatsapp_send_attempts_provider_message_unique": {
+          "name": "evo_whatsapp_send_attempts_provider_message_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "provider",
+            "session_name",
+            "provider_message_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_whatsapp_send_attempts_id_uuid_check": {
+          "name": "evo_whatsapp_send_attempts_id_uuid_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_whatsapp_send_attempts_provider_check": {
+          "name": "evo_whatsapp_send_attempts_provider_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"provider\" = 'waha'"
+        },
+        "evo_whatsapp_send_attempts_session_check": {
+          "name": "evo_whatsapp_send_attempts_session_check",
+          "value": "char_length(btrim(\"evo_whatsapp_send_attempts\".\"session_name\")) between 1 and 128"
+        },
+        "evo_whatsapp_send_attempts_recipient_check": {
+          "name": "evo_whatsapp_send_attempts_recipient_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"recipient_chat_id\" ~ '^[1-9][0-9]{4,31}@(c[.]us|lid)$'"
+        },
+        "evo_whatsapp_send_attempts_reply_check": {
+          "name": "evo_whatsapp_send_attempts_reply_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"reply_to_external_message_id\" is null or char_length(btrim(\"evo_whatsapp_send_attempts\".\"reply_to_external_message_id\")) between 1 and 255"
+        },
+        "evo_whatsapp_send_attempts_text_check": {
+          "name": "evo_whatsapp_send_attempts_text_check",
+          "value": "char_length(btrim(\"evo_whatsapp_send_attempts\".\"final_text\")) between 1 and 3000"
+        },
+        "evo_whatsapp_send_attempts_role_check": {
+          "name": "evo_whatsapp_send_attempts_role_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"actor_role\" in ('admin', 'sales', 'admissions')"
+        },
+        "evo_whatsapp_send_attempts_status_check": {
+          "name": "evo_whatsapp_send_attempts_status_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"status\" in ('prepared', 'accepted', 'unknown', 'rejected')"
+        },
+        "evo_whatsapp_send_attempts_provider_message_check": {
+          "name": "evo_whatsapp_send_attempts_provider_message_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"provider_message_id\" is null or char_length(btrim(\"evo_whatsapp_send_attempts\".\"provider_message_id\")) between 1 and 1024"
+        },
+        "evo_whatsapp_send_attempts_source_check": {
+          "name": "evo_whatsapp_send_attempts_source_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"provider_source\" is null or char_length(btrim(\"evo_whatsapp_send_attempts\".\"provider_source\")) between 1 and 32"
+        },
+        "evo_whatsapp_send_attempts_ack_check": {
+          "name": "evo_whatsapp_send_attempts_ack_check",
+          "value": "(\"evo_whatsapp_send_attempts\".\"ack\" is null and \"evo_whatsapp_send_attempts\".\"ack_name\" is null) or (\"evo_whatsapp_send_attempts\".\"ack\" = -1 and \"evo_whatsapp_send_attempts\".\"ack_name\" = 'ERROR') or (\"evo_whatsapp_send_attempts\".\"ack\" = 0 and \"evo_whatsapp_send_attempts\".\"ack_name\" = 'PENDING') or (\"evo_whatsapp_send_attempts\".\"ack\" = 1 and \"evo_whatsapp_send_attempts\".\"ack_name\" = 'SERVER') or (\"evo_whatsapp_send_attempts\".\"ack\" = 2 and \"evo_whatsapp_send_attempts\".\"ack_name\" = 'DEVICE') or (\"evo_whatsapp_send_attempts\".\"ack\" = 3 and \"evo_whatsapp_send_attempts\".\"ack_name\" = 'READ') or (\"evo_whatsapp_send_attempts\".\"ack\" = 4 and \"evo_whatsapp_send_attempts\".\"ack_name\" = 'PLAYED')"
+        },
+        "evo_whatsapp_send_attempts_failure_check": {
+          "name": "evo_whatsapp_send_attempts_failure_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"failure_code\" is null or char_length(btrim(\"evo_whatsapp_send_attempts\".\"failure_code\")) between 1 and 80"
+        },
+        "evo_whatsapp_send_attempts_correlation_check": {
+          "name": "evo_whatsapp_send_attempts_correlation_check",
+          "value": "char_length(btrim(\"evo_whatsapp_send_attempts\".\"correlation_id\")) > 0"
+        },
+        "evo_whatsapp_send_attempts_idempotency_check": {
+          "name": "evo_whatsapp_send_attempts_idempotency_check",
+          "value": "char_length(btrim(\"evo_whatsapp_send_attempts\".\"idempotency_key\")) > 0"
+        },
+        "evo_whatsapp_send_attempts_version_check": {
+          "name": "evo_whatsapp_send_attempts_version_check",
+          "value": "\"evo_whatsapp_send_attempts\".\"version\" > 0"
+        },
+        "evo_whatsapp_send_attempts_state_check": {
+          "name": "evo_whatsapp_send_attempts_state_check",
+          "value": "(\"evo_whatsapp_send_attempts\".\"status\" = 'prepared' and \"evo_whatsapp_send_attempts\".\"message_id\" is null and \"evo_whatsapp_send_attempts\".\"provider_message_id\" is null and \"evo_whatsapp_send_attempts\".\"provider_occurred_at\" is null and \"evo_whatsapp_send_attempts\".\"provider_source\" is null and \"evo_whatsapp_send_attempts\".\"ack\" is null and \"evo_whatsapp_send_attempts\".\"ack_name\" is null and \"evo_whatsapp_send_attempts\".\"failure_code\" is null and \"evo_whatsapp_send_attempts\".\"settled_at\" is null and \"evo_whatsapp_send_attempts\".\"last_reconciled_at\" is null) or (\"evo_whatsapp_send_attempts\".\"status\" = 'accepted' and \"evo_whatsapp_send_attempts\".\"message_id\" is not null and \"evo_whatsapp_send_attempts\".\"provider_message_id\" is not null and \"evo_whatsapp_send_attempts\".\"provider_occurred_at\" is not null and \"evo_whatsapp_send_attempts\".\"ack\" is not null and \"evo_whatsapp_send_attempts\".\"ack_name\" is not null and \"evo_whatsapp_send_attempts\".\"failure_code\" is null and \"evo_whatsapp_send_attempts\".\"settled_at\" is not null) or (\"evo_whatsapp_send_attempts\".\"status\" in ('unknown', 'rejected') and \"evo_whatsapp_send_attempts\".\"message_id\" is null and \"evo_whatsapp_send_attempts\".\"provider_message_id\" is null and \"evo_whatsapp_send_attempts\".\"provider_occurred_at\" is null and \"evo_whatsapp_send_attempts\".\"provider_source\" is null and \"evo_whatsapp_send_attempts\".\"ack\" is null and \"evo_whatsapp_send_attempts\".\"ack_name\" is null and \"evo_whatsapp_send_attempts\".\"failure_code\" is not null and \"evo_whatsapp_send_attempts\".\"settled_at\" is not null and \"evo_whatsapp_send_attempts\".\"last_reconciled_at\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_database_contract": {
+      "name": "evo_database_contract",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "authority": {
+          "name": "authority",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.evo_private_document_versions": {
+      "name": "evo_private_document_versions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_number": {
+          "name": "version_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_filename": {
+          "name": "original_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "declared_mime_type": {
+          "name": "declared_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "byte_length": {
+          "name": "byte_length",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_role": {
+          "name": "created_by_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "evo_private_document_versions_document_id_evo_private_documents_id_fk": {
+          "name": "evo_private_document_versions_document_id_evo_private_documents_id_fk",
+          "tableFrom": "evo_private_document_versions",
+          "tableTo": "evo_private_documents",
+          "columnsFrom": [
+            "document_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "evo_private_document_versions_document_version_unique": {
+          "name": "evo_private_document_versions_document_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "document_id",
+            "version_number"
+          ]
+        },
+        "evo_private_document_versions_object_key_unique": {
+          "name": "evo_private_document_versions_object_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "object_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "evo_private_document_versions_id_uuid_check": {
+          "name": "evo_private_document_versions_id_uuid_check",
+          "value": "\"evo_private_document_versions\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_private_document_versions_object_key_uuid_check": {
+          "name": "evo_private_document_versions_object_key_uuid_check",
+          "value": "\"evo_private_document_versions\".\"object_key\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_private_document_versions_version_number_check": {
+          "name": "evo_private_document_versions_version_number_check",
+          "value": "\"evo_private_document_versions\".\"version_number\" > 0"
+        },
+        "evo_private_document_versions_original_filename_check": {
+          "name": "evo_private_document_versions_original_filename_check",
+          "value": "char_length(\"evo_private_document_versions\".\"original_filename\") > 0"
+        },
+        "evo_private_document_versions_declared_mime_type_check": {
+          "name": "evo_private_document_versions_declared_mime_type_check",
+          "value": "\"evo_private_document_versions\".\"declared_mime_type\" in ('application/pdf', 'image/jpeg', 'image/png')"
+        },
+        "evo_private_document_versions_byte_length_check": {
+          "name": "evo_private_document_versions_byte_length_check",
+          "value": "\"evo_private_document_versions\".\"byte_length\" > 0 and \"evo_private_document_versions\".\"byte_length\" <= 26214400"
+        },
+        "evo_private_document_versions_sha256_check": {
+          "name": "evo_private_document_versions_sha256_check",
+          "value": "\"evo_private_document_versions\".\"sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "evo_private_document_versions_created_by_role_check": {
+          "name": "evo_private_document_versions_created_by_role_check",
+          "value": "\"evo_private_document_versions\".\"created_by_role\" in ('admin', 'admissions')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evo_private_documents": {
+      "name": "evo_private_documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_role": {
+          "name": "created_by_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "evo_private_documents_case_id_evo_student_cases_id_fk": {
+          "name": "evo_private_documents_case_id_evo_student_cases_id_fk",
+          "tableFrom": "evo_private_documents",
+          "tableTo": "evo_student_cases",
+          "columnsFrom": [
+            "case_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "evo_private_documents_id_uuid_check": {
+          "name": "evo_private_documents_id_uuid_check",
+          "value": "\"evo_private_documents\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_private_documents_case_id_uuid_check": {
+          "name": "evo_private_documents_case_id_uuid_check",
+          "value": "\"evo_private_documents\".\"case_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
+        },
+        "evo_private_documents_created_by_role_check": {
+          "name": "evo_private_documents_created_by_role_check",
+          "value": "\"evo_private_documents\".\"created_by_role\" in ('admin', 'admissions')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

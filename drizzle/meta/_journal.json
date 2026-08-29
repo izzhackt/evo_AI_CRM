@@ -29,6 +29,13 @@
       "when": 1788010524493,
       "tag": "0003_v2_whatsapp_outbound",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788025843580,
+      "tag": "0004_v2_amocrm_canonical_writes",
+      "breakpoints": true
     }
   ]
 }

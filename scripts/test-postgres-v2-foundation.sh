@@ -595,9 +595,9 @@ DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
 migration_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM drizzle.__drizzle_migrations;')"
 contract_version="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT version FROM evo_database_contract WHERE id = 1;')"
-[[ "$migration_count" == "4" ]] || fail "Expected exact 0000 -> 0001 -> 0002 -> 0003 migration history"
-[[ "$contract_version" == "3" ]] || fail "Canonical CRM migration did not publish database contract version 3"
-echo "Exact 0000 -> 0001 -> 0002 -> 0003 migration, repeat migration and stored history passed."
+[[ "$migration_count" == "5" ]] || fail "Expected exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 migration history"
+[[ "$contract_version" == "4" ]] || fail "Canonical CRM migration did not publish database contract version 4"
+echo "Exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 migration, repeat migration and stored history passed."
 
 DATABASE_URL="$database_url" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
@@ -610,6 +610,10 @@ DATABASE_URL="$database_url" \
     --test-concurrency=1 \
     tests/canonical-crm-postgres.test.mjs \
     tests/canonical-whatsapp-outbound-postgres.test.mjs
+DATABASE_URL="$database_url" \
+  "$node_bin" --conditions=react-server --experimental-strip-types --test \
+    --test-concurrency=1 \
+    tests/canonical-amocrm-schema-postgres.test.mjs
 read -r canonical_lead_id canonical_override_lead_id private_document_case_id <<<"$(
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
     "$node_bin" --input-type=module <<'EOF'
@@ -818,10 +822,10 @@ EOF
 
 # Runtime contract drift blocks the real browser path.
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE evo_database_contract SET version = 4 WHERE id = 1;" >/dev/null
+  --command "UPDATE evo_database_contract SET version = 5 WHERE id = 1;" >/dev/null
 browser_assert 503 database_contract_mismatch
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE evo_database_contract SET version = 3 WHERE id = 1;" >/dev/null
+  --command "UPDATE evo_database_contract SET version = 4 WHERE id = 1;" >/dev/null
 browser_assert 200
 
 # Applied-history proof covers missing, extra, reordered and tampered rows while

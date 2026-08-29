@@ -69,6 +69,9 @@ test("V2-9A keeps one canonical PostgreSQL staff WhatsApp read surface", () => {
   const workspace = source(
     "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
   );
+  const outboundComposer = source(
+    "src/components/platform/communications/CanonicalWhatsAppOutboundComposer.tsx",
+  );
   const routeContract = source("src/lib/platform-route-contract.ts");
   const sensitivePermissions = source("tests/e2e/sensitive-permissions.spec.ts");
 
@@ -83,10 +86,10 @@ test("V2-9A keeps one canonical PostgreSQL staff WhatsApp read surface", () => {
   }
   assert.doesNotMatch(listPage, /getSupabasePublicConfig/);
   assert.doesNotMatch(threadPage, /getSupabasePublicConfig/);
-  assert.doesNotMatch(workspace, /sendText|manual-send/i);
+  assert.doesNotMatch(workspace, /manual-send/i);
   assert.match(workspace, /CanonicalGeminiProposalPanel/);
-  assert.match(workspace, /CanonicalWahaPreflightPanel/);
-  assert.match(workspace, /canonical-staff-whatsapp-provider-blocked/);
+  assert.match(workspace, /CanonicalWhatsAppOutboundComposer/);
+  assert.match(outboundComposer, /canonical-whatsapp-outbound-composer/);
   assert.doesNotMatch(routeContract, /platform-messaging\/media/);
   assert.doesNotMatch(sensitivePermissions, /\/api\/ai\/draft/);
 });

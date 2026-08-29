@@ -53,6 +53,9 @@ test("V2-9C removes superseded legacy review, manual-send, autonomy, and dead wo
     "src/lib/server/platform-manual-send-config.ts",
     "src/lib/server/platform-manual-send-processor.ts",
     "src/lib/server/platform-manual-send-waha-client.ts",
+    "src/lib/server/canonical-waha-preflight-actions.ts",
+    "src/lib/server/canonical-waha-preflight.ts",
+    "src/components/platform/communications/CanonicalWahaPreflightPanel.tsx",
     "tests/platform-autonomous-replies-ui.test.mjs",
     "tests/platform-autonomous-reply.test.mjs",
     "tests/platform-gemini-human-review.test.mjs",
@@ -75,22 +78,23 @@ test("V2-9C active runtime inventory stays canonical while excluding preserved h
   const packageManifest = source("package.json");
   const environment = source(".env.example");
   const routeContract = source("src/lib/platform-route-contract.ts");
-  const wahaPreflightActions = source(
-    "src/lib/server/canonical-waha-preflight-actions.ts",
-  );
   const activeInventory = activeInventoryFiles
     .map((relativePath) => `# ${relativePath}\n${source(relativePath)}`)
     .join("\n");
 
   assert.match(packageManifest, /tests\/v2-9c-legacy-cleanup\.test\.mjs/);
-  assert.match(packageManifest, /tests\/canonical-waha-preflight\.test\.mjs/);
+  assert.match(packageManifest, /tests\/canonical-waha-provider\.test\.mjs/);
+  assert.match(
+    packageManifest,
+    /tests\/canonical-whatsapp-outbound-form\.test\.mjs/,
+  );
   assert.doesNotMatch(
     packageManifest,
     /platform:manual-send:|platform-manual-send|platform-autonomous-repl(?:y|ies)|platform-gemini-(?:human-review|proposals)|v2-9b-legacy-cleanup/,
   );
 
   assert.match(environment, /^EVO_PLATFORM_GEMINI_API_KEY=$/m);
-  assert.match(environment, /^EVO_V2_WAHA_PREFLIGHT_ENABLED=0$/m);
+  assert.match(environment, /^EVO_V2_WAHA_ENABLED=0$/m);
   assert.match(environment, /^EVO_V2_WAHA_PROVIDER_AUTHORIZED=0$/m);
   assert.match(environment, /^EVO_V2_WAHA_BASE_URL=$/m);
   assert.match(environment, /^EVO_V2_WAHA_API_KEY=$/m);
@@ -104,16 +108,9 @@ test("V2-9C active runtime inventory stays canonical while excluding preserved h
     routeContract,
     /\/api\/internal\/platform-messaging\/waha\/autonomous-reply|\/api\/internal\/platform-messaging\/manual-send\/work/,
   );
-  assert.match(wahaPreflightActions, /^"use server";/);
-  assert.doesNotMatch(
-    wahaPreflightActions,
-    /export\s+(?:const|let|var|class)\s/,
-    'a "use server" module may export only async runtime functions',
-  );
-
   assert.doesNotMatch(
     activeInventory,
-    /platform-gemini-proposal-review-actions|platform-gemini-proposals-repository|platform-gemini-proposal-reviews-repository|platform-manual-send|platform-autonomous-repl(?:y|ies)|platform-messaging-actions|platform-messaging-workflow|sendText|\/api\/internal\/platform-messaging\/waha\/autonomous-reply|\/api\/internal\/platform-messaging\/manual-send\/work/,
+    /canonical-waha-preflight|CanonicalWahaPreflight|EVO_V2_WAHA_PREFLIGHT_ENABLED|platform-gemini-proposal-review-actions|platform-gemini-proposals-repository|platform-gemini-proposal-reviews-repository|platform-manual-send|platform-autonomous-repl(?:y|ies)|platform-messaging-actions|platform-messaging-workflow|\/api\/internal\/platform-messaging\/waha\/autonomous-reply|\/api\/internal\/platform-messaging\/manual-send\/work/,
   );
 
   for (const preservedHistoricalRoot of [

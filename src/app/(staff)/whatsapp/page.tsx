@@ -1,11 +1,8 @@
-import { randomUUID } from "node:crypto";
-
 import { notFound } from "next/navigation";
 
 import { CanonicalStaffWhatsAppWorkspace } from "@/components/platform/communications/CanonicalStaffWhatsApp";
 import { getT } from "@/lib/i18n";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
-import { readCanonicalWahaPreflightAvailability } from "@/lib/server/canonical-waha-preflight";
 import {
   CanonicalCrmRepositoryError,
   parseCanonicalReadCursor,
@@ -56,8 +53,6 @@ export default async function WhatsAppPage({
       queueCursor={cursor}
       queueResetHref={cursor ? "/whatsapp" : null}
       queueNextHref={page.nextCursor ? queueHref(page.nextCursor) : null}
-      wahaAvailability={readCanonicalWahaPreflightAvailability()}
-      wahaPreflightRequestId={randomUUID()}
     />
   );
 }

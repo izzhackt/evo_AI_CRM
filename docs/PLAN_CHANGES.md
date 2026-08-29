@@ -13806,3 +13806,60 @@ Official behavior used by this contract:
 - <https://waha.devlike.pro/docs/how-to/chats/>
 - <https://waha.devlike.pro/docs/how-to/contacts/>
 - <https://waha.devlike.pro/docs/overview/changelog/>
+
+## 2026-08-29 - Implement the single V2-10B WhatsApp outbound path
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #465.
+Change type: implementation evidence and fail-closed clarification.
+Affected plan section: V2-10B canonical human-reviewed WhatsApp outbound.
+
+Implementation result: V2 now has one server action, provider adapter,
+PostgreSQL attempt/message authority and composer for staff-confirmed direct
+WhatsApp sends. The superseded standalone preflight UI, action, module, flag
+and tests were removed from the active runtime in the same slice. No
+Supabase/SQLite adapter, alternate sender, autonomous reply, public webhook or
+fallback path was added.
+
+The committed migration adds `evo_whatsapp_send_attempts`. A command persists
+its `prepared` attempt and processing receipt before the provider callback can
+run. Exact replay returns the stored attempt, including after a server-side
+session configuration rotation; changed business payload conflicts. The
+current lead/conversation ownership and exact direct recipient are rechecked
+under the canonical lead lock before dispatch. A second fresh send is blocked
+while any attempt for the conversation is `prepared` or `unknown`, so an
+ambiguous operation cannot be turned into a blind resend with a new request
+identifier. Explicit rejection permits a later new human decision.
+
+The adapter accepts only a private/internal origin and sends one official
+`POST /api/sendText` after the exact configured session reports `WORKING`.
+Official WAHA OpenAPI defines `to` as the chat recipient for `fromMe: true`
+outbound messages; therefore provider acceptance validates the exact canonical
+recipient against `to`, while `from` must be a bounded direct account ID. The
+browser receives only configured/blocked state, never the API key, base URL or
+session name. `ERROR/-1` is a rejected send and creates no canonical outbound
+message. Timeout, network loss, 5xx and malformed success remain `unknown` and
+cannot trigger an automatic or fresh blind send. A valid accepted message is
+read back by its exact provider ID, and later reconciliation advances its ACK
+only monotonically.
+
+Local verification used OrbStack (`Running`, Docker context exactly
+`orbstack`), Node `22.23.1`, four committed Drizzle migrations, a disposable
+real PostgreSQL database, the real Next.js application and Chromium. The
+browser verified exact recipient/final text, explicit confirmation, one HTTP
+`sendText`, immediate exact-message read-back, one accepted attempt and one
+canonical outbound message. PostgreSQL tests separately proved the durable
+pre-dispatch boundary, wrong-role/stale-recipient rejection before dispatch,
+accepted/rejected/unknown truthfulness, unresolved-send blocking, exact and
+changed replay, parallel exact replay with one dispatch, and monotonic ACK.
+The HTTP service used for this isolated application proof implements the
+current WAHA request/response contract; it is not claimed as real connected
+provider acceptance. The separately controlled live self-recipient proof
+remains required after reviewed code is merged and before #465 is closed.
+
+Current official provider references:
+
+- <https://waha.devlike.pro/docs/how-to/send-messages/>
+- <https://waha.devlike.pro/docs/how-to/sessions/>
+- <https://waha.devlike.pro/docs/how-to/chats/>
+- <https://waha.devlike.pro/swagger/openapi.json>

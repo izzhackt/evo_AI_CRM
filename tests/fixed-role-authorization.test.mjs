@@ -10,7 +10,12 @@ import {
 } from "../src/lib/fixed-role-policy.ts";
 
 test("fixed roles enforce the Sales, Admissions and Admin union", () => {
-  for (const capability of ["sales.read", "sales.write", "messaging.read"]) {
+  for (const capability of [
+    "sales.read",
+    "sales.write",
+    "messaging.read",
+    "messaging.send",
+  ]) {
     assert.equal(fixedRoleCan("sales", capability), true, capability);
   }
   for (const capability of [
@@ -28,6 +33,7 @@ test("fixed roles enforce the Sales, Admissions and Admin union", () => {
     "documents.read",
     "documents.write",
     "messaging.read",
+    "messaging.send",
   ]) {
     assert.equal(fixedRoleCan("admissions", capability), true, capability);
   }

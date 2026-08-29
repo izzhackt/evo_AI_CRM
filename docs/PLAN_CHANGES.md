@@ -14166,3 +14166,47 @@ Validation status at this implementation boundary:
 - The broader browser/provider acceptance remains a separate unfinished gate:
   this slice does not yet claim a real connected amoCRM mutation, the final
   Chromium proof, or #467 end-to-end provider completion.
+
+## 2026-08-29 - Complete local PostgreSQL and Chromium proof for canonical amoCRM command surfaces
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #466.
+Change type: validation completion for the current implementation slice.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+The canonical amoCRM command slice now has the local application/browser proof
+that was still pending in the prior #466 entry. This is still a private V2
+validation step only: no real connected amoCRM mutation, no V1 path, and no
+provider fallback were used.
+
+Validated behavior:
+
+- the Sales workspace renders the only active V2 amoCRM sync command surface
+  for the current lead and keeps request-scoped action feedback stable across
+  `router.refresh()` instead of remounting away the exact server result;
+- the Student 360 workspace renders the only active Admissions-side amoCRM sync
+  command surface for the current case and preserves the same honest terminal
+  states, explicit reconciliation path and fixed-role authorization contour;
+- browser proof covers the fail-closed states required by the product-first
+  contract: provider authorization absent, exact routing missing, and private
+  OAuth token unavailable;
+- the full local database/browser gate still proves the real PostgreSQL
+  authority, Drizzle migration journal, canonical CRM read/write workflow,
+  private document persistence and the fixed-role development gate with the
+  canonical amoCRM command surface active inside that same runtime.
+
+Validation used OrbStack (`Running`, Docker context exactly `orbstack`) and
+Node `22.23.1` explicitly, because the repository gate rejects other Node
+majors for this proof. The following checks passed in that exact runtime:
+
+- `npm run test:u9`
+- `npm run lint`
+- `npm run typecheck`
+- `npm run build`
+- `npm run test:database:local`
+- `git diff --check`
+
+This closes the local implementation-proof portion of the current command/UI
+slice. The remaining unfinished gate inside #466 is now only the real connected
+amoCRM write acceptance plus the same-slice legacy-runtime eradication
+inventory required by the replacement discipline.

@@ -13450,13 +13450,14 @@ The only active WAHA provider surface is a server-only, GET-only session
 preflight configured by `EVO_V2_WAHA_PREFLIGHT_ENABLED`,
 `EVO_V2_WAHA_PROVIDER_AUTHORIZED`, `EVO_V2_WAHA_BASE_URL`,
 `EVO_V2_WAHA_API_KEY` and `EVO_V2_WAHA_SESSION_NAME`. `blocked` means disabled,
-missing or invalid configuration. `configured` means the complete private
-configuration exists but separate provider authorization is absent, so EVO
-makes no request. `working` requires a fresh authorized
-`GET /api/sessions/{session}` response for the exact configured session with
-status `WORKING`. Every other observed status, provider failure or malformed
-response is `not-working`. The key is sent only as `X-Api-Key`; no provider
-secret enters client props or logs.
+missing or invalid configuration, credentials or separate provider
+authorization, and EVO makes no request. `configured` means the complete valid
+private configuration and provider authorization exist but no fresh preflight
+has been requested in the current interaction. `working` requires a fresh
+authorized `GET /api/sessions/{session}` response for the exact configured
+session with status `WORKING`. Every other observed status, provider failure or
+malformed response is `not-working`. The key is sent only as `X-Api-Key`; no
+provider secret enters client props or logs.
 
 Replace-not-layer exit: after canonical PostgreSQL/application/browser proof,
 the same V2-9C slice deletes the Supabase-backed proposal/review modules, the

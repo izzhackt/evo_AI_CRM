@@ -322,13 +322,15 @@ does not authorize two active implementations of any completed capability:
    server-only environment contract is `EVO_V2_WAHA_PREFLIGHT_ENABLED`,
    `EVO_V2_WAHA_PROVIDER_AUTHORIZED`, `EVO_V2_WAHA_BASE_URL`,
    `EVO_V2_WAHA_API_KEY` and `EVO_V2_WAHA_SESSION_NAME`. Disabled, missing or
-   invalid configuration is `blocked`; complete configuration without separate
-   provider authorization is `configured` and performs no request. Only an
-   authorized `GET /api/sessions/{session}` response for the exact configured
-   session whose status is exactly `WORKING` is `working`. Any other observed
-   status, provider failure or malformed response is `not-working`. The API key
-   stays server-only in `X-Api-Key`. There is no start, restart, logout, QR,
-   send or other mutating WAHA command and no reachable `sendText` path.
+   invalid configuration, credentials or separate provider authorization is
+   `blocked` and performs no request. `configured` means the complete valid
+   configuration and provider authorization are present but no fresh preflight
+   has been requested in the current interaction. Only an authorized
+   `GET /api/sessions/{session}` response for the exact configured session whose
+   status is exactly `WORKING` is `working`. Any other observed status, provider
+   failure or malformed response is `not-working`. The API key stays server-only
+   in `X-Api-Key`. There is no start, restart, logout, QR, send or other mutating
+   WAHA command and no reachable `sendText` path.
 
 The current provider contract follows the official WAHA session and API-key
 documentation and the official Gemini structured-output documentation. WAHA
@@ -348,10 +350,9 @@ API-version contract at
 No V2-9 browser or server route can send WhatsApp, write amoCRM, enable an
 autonomous reply or invoke a fallback provider. A real WAHA/Gemini call remains
 a separate owner-authorized provider action. Without that authorization the
-application and browser proof must show `configured` or `blocked` without an
-external request while real PostgreSQL proposal-review mechanics are exercised
-through isolated technical records, not presented as staff or business
-acceptance.
+application and browser proof must show `blocked` without an external request
+while real PostgreSQL proposal-review mechanics are exercised through isolated
+technical records, not presented as staff or business acceptance.
 
 Each internal PR deletes the superseded active runtime for the capability it
 proves. By #433 exit, the V2 app import/route graph contains no Supabase/SQLite

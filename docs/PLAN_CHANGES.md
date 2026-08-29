@@ -13540,3 +13540,61 @@ kept `EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0` and
 `EVO_V2_WAHA_PROVIDER_AUTHORIZED=0`, so no Gemini or WAHA request was made.
 Real provider preflight, outbound WhatsApp, V1/production mutation and any
 real-staff or cutover activity remain separate explicit owner gates.
+
+## 2026-08-29 - Correct V2-9C request identity and configured preflight proof
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after post-merge exact-tree review of PR #460.
+Change type: bounded acceptance correction; no provider or deployment expansion.
+Affected plan section: V2-9C review idempotency, WAHA browser proof and V1 carveout.
+
+Reason: independent review found that `review_request_id` was validated and
+stored as correlation evidence but the receipt key was derived from the review
+payload. That made equal payloads with different request IDs replay and left
+the UI's `request_conflict` state unreachable. Review also required the
+configured WAHA submit/result wiring to be exercised through the real app,
+rather than proving only its blocked rendering. A separate proposed cleanup of
+release-profile references was rejected because ADR 0022 and the launch plan
+explicitly require frozen V1 staging/production deployment and rollback inputs
+to remain unchanged.
+
+Decision: use the exact validated browser `review_request_id` as both the
+correlation ID and canonical review receipt key. The same request ID plus the
+same payload may replay only after fresh current-role authorization. Reusing
+that request ID with another decision/text/reason fails with
+`idempotency_conflict`; using a new request ID after a proposal has finalized
+fails as already reviewed. Real PostgreSQL acceptance must prove all three
+cases plus unchanged one-event/one-receipt counts and post-handoff stale-role
+denial.
+
+Add one isolated browser harness mode with the complete technical WAHA config,
+but point it only to the deliberately unreachable private loopback URL
+`http://127.0.0.1:1`. In that mode the provider-authorization flag may be `1`
+solely to pass the configuration gate; the real server action must attempt its
+bounded GET, render `not-working / provider_unreachable`, expose no secret and
+leave every outbound control absent. No mock server, fake `WORKING` response,
+external hostname or real provider is used. The existing authorization-`0`
+blocked and zero-request proof remains unchanged.
+
+Clarification: `.github/workflows/evo-fast-release.yml`,
+`scripts/evo-fast-release.sh`, `scripts/evo-release-environment-profile.mjs`
+and their V1 boundary tests are frozen V1 staging/production deployment and
+rollback inputs. Their legacy worker names are excluded from the active V2
+import/runtime inventory under the explicit preservation exception and remain
+unchanged. The V2-9C acceptance record's removed `scripts` are the three named
+active manual-send worker/provisioning scripts deleted by PR #460, not these
+frozen V1 controls. This correction does not execute or modify either V1
+deployment boundary.
+
+Implemented and verified outcome: the canonical repository now keys the review
+receipt from the exact correlation/request ID while retaining a separate
+payload hash for conflict detection. Real PostgreSQL acceptance proves exact
+replay, request-ID reuse with changed payload, a fresh request after
+finalization, stale-role denial after handoff, and unchanged one-event,
+one-receipt counts. The full OrbStack harness ran with Node `22.23.1`, Docker
+context `orbstack`, a disposable real PostgreSQL service, all three committed
+Drizzle migrations, the real Next.js app and Chromium. Its configured WAHA
+browser case submitted the real server action to `127.0.0.1:1`, rendered
+`not-working / provider_unreachable`, and exposed no outbound control.
+`npm run test:unit` passed 338 tests, `npm run test:security` passed 344 tests,
+and full ESLint, TypeScript, production build and `git diff --check` passed.

@@ -21,6 +21,8 @@ const inboundMessageId =
   process.env.EVO_V2_INBOUND_TEST_MESSAGE_ID ?? "v2-browser-message-430";
 const inboundText =
   process.env.EVO_V2_INBOUND_TEST_TEXT ?? "V2 inbound browser proof 430";
+const expectedWahaSessionName =
+  process.env.EVO_EXPECT_WAHA_SESSION_NAME ?? "evo-v2-technical";
 
 function requireUuid(name: string): string {
   const value = process.env[name];
@@ -433,6 +435,59 @@ test("missing inbound secret fails closed at the real HTTP boundary", async ({
     ok: false,
     error: "inbound_unavailable",
   });
+});
+
+test("configured WAHA preflight submits the real server action and reports an unreachable private endpoint", async ({
+  page,
+}) => {
+  test.skip(
+    mode !== "waha-unreachable",
+    "only exercised against the isolated unreachable-loopback preflight target",
+  );
+
+  await submitGate(page, "sales");
+  await page.goto("/whatsapp");
+  await expect(page.getByTestId("canonical-staff-whatsapp-page")).toBeVisible();
+
+  const availability = page.getByTestId(
+    "canonical-waha-preflight-availability",
+  );
+  await expect(availability).toHaveAttribute("data-status", "configured");
+  await expect(availability).toHaveAttribute(
+    "data-session-name",
+    expectedWahaSessionName,
+  );
+  await expect(availability).not.toHaveAttribute("data-reason", /.+/);
+
+  const requestId = page.getByTestId("canonical-waha-preflight-request-id");
+  await expect(requestId).toHaveValue(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  await page.getByTestId("canonical-waha-preflight-submit").click();
+
+  const result = page.getByTestId("canonical-waha-preflight-result");
+  await expect(result).toHaveAttribute("data-status", "not-working");
+  await expect(result).toHaveAttribute("data-reason", "provider_unreachable");
+  await expect(result).toHaveAttribute(
+    "data-session-name",
+    expectedWahaSessionName,
+  );
+  await expect(result).toContainText(/не подтверждена как WORKING/i);
+
+  const checkedAt = await result.getAttribute("data-checked-at");
+  assert.ok(checkedAt, "the real server action must report when the check completed");
+  assert.ok(
+    Number.isFinite(Date.parse(checkedAt)),
+    "the real server action must report a valid checked-at timestamp",
+  );
+  await expect(
+    page.getByTestId("canonical-whatsapp-outbound-composer"),
+  ).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("canonical-staff-whatsapp-page")
+      .getByRole("button", { name: /отправить|send/i }),
+  ).toHaveCount(0);
 });
 
 test("signed inbound HTTP persists once and is visible in the Sales transcript", async ({

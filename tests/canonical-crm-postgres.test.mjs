@@ -1257,7 +1257,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     const acceptedReplay = await reviewCanonicalGeminiProposal(
       {
         actorRole: "admissions",
-        correlationId: `acceptance:${runId}:canonical-gemini-review-accept-replay`,
+        correlationId: `acceptance:${runId}:canonical-gemini-review-accept`,
       },
       acceptedReviewInput,
     );
@@ -1293,7 +1293,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       reviewCanonicalGeminiProposal(
         {
           actorRole: "admissions",
-          correlationId: `acceptance:${runId}:canonical-gemini-review-accept-conflict`,
+          correlationId: `acceptance:${runId}:canonical-gemini-review-accept`,
         },
         {
           conversationId: inbound.conversationId,
@@ -1301,6 +1301,16 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
           reviewDecision: "rejected",
           reviewReason: `technical-review-conflict-${runId}`,
         },
+      ),
+      repositoryError("idempotency_conflict"),
+    );
+    await assert.rejects(
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-accept-new-request`,
+        },
+        acceptedReviewInput,
       ),
       repositoryError("conflict"),
     );
@@ -1371,7 +1381,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     const editedReplay = await reviewCanonicalGeminiProposal(
       {
         actorRole: "admissions",
-        correlationId: `acceptance:${runId}:canonical-gemini-review-edit-replay`,
+        correlationId: `acceptance:${runId}:canonical-gemini-review-edit`,
       },
       {
         conversationId: inbound.conversationId,
@@ -1477,7 +1487,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
     const rejectedReplay = await reviewCanonicalGeminiProposal(
       {
         actorRole: "admin",
-        correlationId: `acceptance:${runId}:canonical-gemini-review-reject-replay`,
+        correlationId: `acceptance:${runId}:canonical-gemini-review-reject`,
       },
       {
         conversationId: inbound.conversationId,
@@ -1625,7 +1635,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       reviewCanonicalGeminiProposal(
         {
           actorRole: "sales",
-          correlationId: `acceptance:${runId}:canonical-gemini-review-stale-replay-denied`,
+          correlationId: `acceptance:${runId}:canonical-gemini-review-stale-replay-accept`,
         },
         staleReplayReviewInput,
       ),

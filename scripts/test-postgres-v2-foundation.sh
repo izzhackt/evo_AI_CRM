@@ -91,6 +91,8 @@ gate_sales_secret="$(openssl rand -hex 32)"
 gate_admissions_identifier="admissions-local-$RANDOM"
 gate_admissions_secret="$(openssl rand -hex 32)"
 whatsapp_inbound_secret="$(openssl rand -hex 32)"
+waha_preflight_api_key="technical-waha-preflight-key"
+waha_preflight_session_name="evo-v2-technical"
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 broken_database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${broken_database}"
 
@@ -129,13 +131,22 @@ start_app() {
   local gate_mode="${2:-configured}"
   local document_mode="${3:-configured}"
   local inbound_mode="${4:-configured}"
+  local waha_mode="${5:-blocked}"
   local document_root="$private_document_root"
   local inbound_secret="$whatsapp_inbound_secret"
+  local waha_provider_authorized=0
+  local waha_base_url="http://evo-v2-waha:3000"
   if [[ "$document_mode" == "unavailable" ]]; then
     document_root="$missing_private_document_root"
   fi
   if [[ "$inbound_mode" == "unavailable" ]]; then
     inbound_secret=""
+  fi
+  if [[ "$waha_mode" == "unreachable-loopback" ]]; then
+    waha_provider_authorized=1
+    waha_base_url="http://127.0.0.1:1"
+  elif [[ "$waha_mode" != "blocked" ]]; then
+    fail "Unknown isolated WAHA preflight harness mode: $waha_mode"
   fi
   assert_next_dev_lock_available
   : >"$app_log"
@@ -153,10 +164,10 @@ start_app() {
       EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
       EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
       EVO_V2_WAHA_PREFLIGHT_ENABLED=1 \
-      EVO_V2_WAHA_PROVIDER_AUTHORIZED=0 \
-      EVO_V2_WAHA_BASE_URL=http://evo-v2-waha:3000 \
-      EVO_V2_WAHA_API_KEY=technical-waha-preflight-key \
-      EVO_V2_WAHA_SESSION_NAME=evo-v2-technical \
+      EVO_V2_WAHA_PROVIDER_AUTHORIZED="$waha_provider_authorized" \
+      EVO_V2_WAHA_BASE_URL="$waha_base_url" \
+      EVO_V2_WAHA_API_KEY="$waha_preflight_api_key" \
+      EVO_V2_WAHA_SESSION_NAME="$waha_preflight_session_name" \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   else
@@ -174,10 +185,10 @@ start_app() {
       EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
       EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
       EVO_V2_WAHA_PREFLIGHT_ENABLED=1 \
-      EVO_V2_WAHA_PROVIDER_AUTHORIZED=0 \
-      EVO_V2_WAHA_BASE_URL=http://evo-v2-waha:3000 \
-      EVO_V2_WAHA_API_KEY=technical-waha-preflight-key \
-      EVO_V2_WAHA_SESSION_NAME=evo-v2-technical \
+      EVO_V2_WAHA_PROVIDER_AUTHORIZED="$waha_provider_authorized" \
+      EVO_V2_WAHA_BASE_URL="$waha_base_url" \
+      EVO_V2_WAHA_API_KEY="$waha_preflight_api_key" \
+      EVO_V2_WAHA_SESSION_NAME="$waha_preflight_session_name" \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   fi
@@ -281,6 +292,7 @@ canonical_read_browser_assert() {
     EVO_CANONICAL_LEAD_ID="$canonical_lead_id" \
     EVO_CANONICAL_OVERRIDE_LEAD_ID="$canonical_override_lead_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
+    EVO_EXPECT_WAHA_SESSION_NAME="$waha_preflight_session_name" \
     EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$whatsapp_inbound_secret" \
     EVO_V2_INBOUND_TEST_PHONE="$inbound_test_phone" \
     EVO_V2_INBOUND_TEST_CONVERSATION_ID="$inbound_test_conversation_id" \
@@ -310,6 +322,7 @@ assert_no_secret_or_payload_logs() {
     "$gate_admissions_identifier" \
     "$gate_admissions_secret" \
     "$whatsapp_inbound_secret" \
+    "$waha_preflight_api_key" \
     "$inbound_test_phone" \
     "$inbound_test_conversation_id" \
     "$inbound_test_message_id" \
@@ -657,6 +670,11 @@ docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
   --command 'DROP TABLE public.evo_test_migration_history_backup;' >/dev/null
+
+stop_app
+start_app "$database_url" configured configured configured unreachable-loopback
+canonical_read_browser_assert waha-unreachable
+assert_no_secret_or_payload_logs
 
 stop_app
 start_app "$database_url" configured unavailable

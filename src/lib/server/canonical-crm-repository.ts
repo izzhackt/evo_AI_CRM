@@ -5306,16 +5306,10 @@ export async function reviewCanonicalGeminiProposal(
           proposalId,
         },
       );
-      const idempotencyKey = commandKey(
-        `canonical-gemini-review:${sha256({
-          actorRole: actor,
-          conversationId,
-          proposalId,
-          reviewDecision,
-          reviewedText: reviewInput.reviewedText,
-          reviewReason: reviewInput.reviewReason,
-        })}`,
-      );
+      // The browser review_request_id arrives as the correlation ID. Use that
+      // exact request identity for the receipt key so only the same request can
+      // replay; reusing it with another payload becomes idempotency_conflict.
+      const idempotencyKey = commandKey(correlation);
       const requestHash = sha256({
         conversationId,
         proposalId,

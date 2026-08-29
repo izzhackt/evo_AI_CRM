@@ -97,6 +97,8 @@ export async function reviewCanonicalGeminiProposalAction(
     const proposal = await reviewCanonicalGeminiProposal(
       {
         actorRole: actor.platformRole,
+        // One browser request ID is both the trace correlation and the exact
+        // idempotency identity enforced by the canonical repository.
         correlationId: requestId,
       },
       {

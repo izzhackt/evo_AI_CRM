@@ -65,7 +65,7 @@ test("operations queues and records work on responsive staff surfaces", async ({
 }) => {
   await login(page, "admin@demo.kg", "admin123", /\/dashboard$/);
 
-  for (const route of ["/applications", "/documents", "/visa", "/finance"]) {
+  for (const route of ["/applications", "/visa", "/finance"]) {
     await page.goto(route);
     await expect(page.locator("main")).toBeVisible();
     await expect(page.locator(".provider-status:visible", { hasText: "AI: только черновики" })).toBeVisible();

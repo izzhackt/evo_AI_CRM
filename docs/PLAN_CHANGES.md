@@ -13032,3 +13032,26 @@ version and owning document identifier, and follow its exact
 `/clients/:caseId#documents` link back to the same Student 360 document. The
 complete `npm run test:database:local` gate passes with this correction; no
 runtime, provider or production boundary changed.
+
+## 2026-08-29 - Bound multipart parsing and finish stale document-test removal
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after final independent exact-head review of PR #453.
+Change type: security and acceptance correction without a product-contract
+change.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Reason: the corrected head still let a multipart request with no truthful
+`Content-Length` reach the platform parser before enforcing the 25 MiB file
+limit, and two broad fixture/SQLite Playwright suites still carried assertions
+for the removed document queue/detail experience.
+
+Decision: read every private-document multipart stream through the shared
+bounded reader before parsing fields, count actual bytes even when
+`Content-Length` is absent or understated, cancel the stream above the request
+cap and return the same safe `413 file_too_large` response without calling the
+repository. Add a streamed no-length regression test. Remove `/documents`
+from the two superseded fixture browser journeys and guard that removal in the
+legacy-eradication test; the real PostgreSQL/private-file Chromium spec remains
+the sole browser acceptance authority for the V2-8C document workflow.

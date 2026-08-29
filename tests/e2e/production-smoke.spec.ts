@@ -84,7 +84,6 @@ test("staff can log in, navigate core pages, and create a real lead", async ({ p
     ["/sales", "Воронка поступления"],
     ["/clients", "Student 360"],
     ["/applications", "Очередь заявок"],
-    ["/documents", "Очередь документов"],
     ["/finance", "Финансовый обзор"],
     ["/reports", "Отчётность продаж"],
     ["/settings", "Настройки"],

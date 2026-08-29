@@ -62,3 +62,16 @@ test("V2-8C keeps one canonical private-document write path with no fallback imp
     /<form|\/documents\/\$\{|DocumentDecisionPanel|DocumentJourney|DocumentSubmitButton|document-copy|@\/lib\/(?:actions|queries|db)|supabase|sqlite|fallback/i,
   );
 });
+
+test("V2-8C removes stale document assertions from fixture browser suites", () => {
+  for (const path of [
+    "tests/e2e/production-smoke.spec.ts",
+    "tests/e2e/platform-operations.spec.ts",
+  ]) {
+    assert.doesNotMatch(
+      source(path),
+      /["']\/documents["']|Очередь документов|href\^=["']\/documents\//,
+      `${path} must not exercise the replaced fixture/SQLite document UI`,
+    );
+  }
+});

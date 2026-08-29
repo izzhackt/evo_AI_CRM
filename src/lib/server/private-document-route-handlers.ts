@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { FixedRoleCapability } from "../fixed-role-policy.ts";
+import { readMultipartFormData } from "../request.ts";
 import type { PrivateDocumentAuthorization } from "./private-document-authorization.ts";
 import {
   PRIVATE_DOCUMENT_MAX_BYTES,
@@ -128,12 +129,17 @@ async function readExactMultipartFields(
 ): Promise<Map<string, FormDataEntryValue> | null> {
   if (!isMultipartRequest(request)) return null;
 
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
+  const parsed = await readMultipartFormData(request, MAX_MULTIPART_BODY_BYTES);
+  if ("error" in parsed) {
+    if (parsed.error === "request_too_large") {
+      throw new PrivateDocumentFileError(
+        "private_document_bytes_too_large",
+        "Private document request exceeds the allowed size",
+      );
+    }
     return null;
   }
+  const formData = parsed.formData;
 
   const entries = new Map<string, FormDataEntryValue>();
   for (const [name, value] of formData.entries()) {

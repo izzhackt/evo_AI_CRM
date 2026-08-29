@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PrivateDocumentFileError } from "../src/lib/server/private-document-files.ts";
+import {
+  PRIVATE_DOCUMENT_MAX_BYTES,
+  PrivateDocumentFileError,
+} from "../src/lib/server/private-document-files.ts";
 import { PrivateDocumentRepositoryError } from "../src/lib/server/private-document-repository.ts";
 import {
   createPrivateDocumentDownloadHandler,
@@ -175,6 +178,39 @@ test("upload rejects an obviously oversized multipart body before parsing it", a
     body: "ignored",
   }));
   await assertSafeError(response, 413, "file_too_large");
+});
+
+test("upload rejects oversized streamed multipart bodies without a truthful content-length", async () => {
+  const handler = createPrivateDocumentUploadHandler(dependencies({
+    create: async () => assert.fail("oversized streamed body must not reach storage"),
+  }));
+  for (const contentLength of [null, "1"]) {
+    const chunk = new Uint8Array(1024 * 1024);
+    const chunkCount = Math.ceil((PRIVATE_DOCUMENT_MAX_BYTES + 64 * 1024 + 1) / chunk.byteLength);
+    let emitted = 0;
+    const body = new ReadableStream({
+      pull(controller) {
+        if (emitted >= chunkCount) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(chunk);
+        emitted += 1;
+      },
+    });
+    const headers = new Headers({
+      "content-type": "multipart/form-data; boundary=streamed-body",
+    });
+    if (contentLength !== null) headers.set("content-length", contentLength);
+    const response = await handler(new Request("http://local.test/api/v2/documents", {
+      method: "POST",
+      headers,
+      body,
+      duplex: "half",
+    }));
+
+    await assertSafeError(response, 413, "file_too_large");
+  }
 });
 
 test("resubmission returns a safe 404 for malformed and guessed document IDs", async () => {

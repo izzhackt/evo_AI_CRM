@@ -17,7 +17,7 @@ export function positiveInteger(value: unknown): number | null {
 }
 
 export async function readMultipartFormData(
-  req: NextRequest,
+  req: Request,
   maxBytes: number,
 ): Promise<{ formData: FormData } | { error: "invalid_multipart_request" | "request_too_large" }> {
   const contentType = req.headers.get("content-type") ?? "";

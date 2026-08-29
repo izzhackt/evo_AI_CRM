@@ -252,6 +252,65 @@ Student 360/private-document boundary and attach a scoped inventory proving no
 active Student 360 or staff-document import, route or mutation can reach
 SQLite, Supabase or a fallback.
 
+#### V2-9 WhatsApp and advisory-Gemini execution contract
+
+V2-9 is delivered as three small replacement PRs under Issue #433. The split
+does not authorize two active implementations of any completed capability:
+
+1. V2-9A replaces the staff `/whatsapp` queue and `/whatsapp/:conversationId`
+   transcript with canonical PostgreSQL reads. Sales sees Sales-owned
+   conversations, Admissions sees Admissions-owned conversations and Admin
+   sees their union through the exact role-preview policy. Handoff transfers
+   the lead's conversations to Admissions atomically with the canonical
+   handoff; there is no second inbox, Supabase Realtime refresh, RPC read or
+   SQLite fallback. This PR is read-only from the staff UI and exposes no send
+   action.
+2. V2-9B adds one server-only Gemini draft adapter over the canonical
+   transcript and stores each successfully validated result in
+   `evo_ai_proposals`. The persisted record identifies the conversation,
+   optional Student Case, provider, configured model, provider time and exact
+   source message context. The adapter requests structured JSON and validates
+   the returned value again as untrusted application input. Missing key,
+   disabled provider authorization, provider failure or invalid output reports
+   a truthful blocked/error state and writes no proposal; no alternate model,
+   local generator or canned draft may succeed instead.
+3. V2-9C adds the human Accept/Edit/Reject workflow over that same PostgreSQL
+   proposal. A role may request or review only a conversation it owns; Admin
+   may operate the union. Accept preserves the proposed text, Edit requires
+   the final reviewed text and Reject requires a reason. Every decision is
+   single-use, idempotent and appends a minimal `ai_proposal` business event.
+   Acceptance is not send authorization and never creates an outbound message.
+   The same PR exposes only a read-only WAHA session preflight adapter with a
+   truthful configured/blocked/working/not-working result. It does not contain
+   a reachable `sendText` command.
+
+The current provider contract follows the official WAHA session and API-key
+documentation and the official Gemini structured-output documentation. WAHA
+uses a server-only `X-Api-Key`; only `WORKING` counts as ready. Gemini uses the
+committed `@google/genai` SDK, a server-only key, an explicitly configured
+model and a small JSON schema whose final value is parsed and business-
+validated by EVO. The model name is configuration, not a silently changing
+default. These contracts are documented at
+<https://waha.devlike.pro/docs/how-to/security/>,
+<https://waha.devlike.pro/docs/how-to/sessions/> and
+<https://ai.google.dev/gemini-api/docs/structured-output>.
+
+No V2-9 browser or server route can send WhatsApp, write amoCRM, enable an
+autonomous reply or invoke a fallback provider. A real WAHA/Gemini call remains
+a separate owner-authorized provider action. Without that authorization the
+application and browser proof must show the blocked state while real
+PostgreSQL proposal-review mechanics are exercised through isolated technical
+records, not presented as staff or business acceptance.
+
+Each internal PR deletes the superseded active runtime for the capability it
+proves. By #433 exit, the V2 app import/route graph contains no Supabase/SQLite
+staff WhatsApp reads, Supabase browser realtime, old AI draft/summary route,
+manual-send worker, autonomous-reply worker, Supabase-backed Gemini proposal
+or review repository, or old WhatsApp/Gemini implementation test. Frozen V1
+deployments and historical ADRs, migrations, runbooks, archived docs, evidence
+and other decision/rollback documentation remain unchanged and are excluded
+from the active-import inventory.
+
 ### Real validation boundary
 
 - Use Node `22.23.1` and OrbStack with Docker context exactly `orbstack`.

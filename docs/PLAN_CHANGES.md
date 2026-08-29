@@ -13138,3 +13138,59 @@ and `/api/database/status` has reached one of its two truthful states (`200` or
 `503`) before starting Playwright. A second full PostgreSQL/Chromium run passed;
 this readiness correction prevents a fresh checkout from depending on warmed
 route-discovery state.
+
+## 2026-08-29 - Pin the V2-9 WhatsApp and advisory-Gemini replacement boundary
+
+Status: accepted before V2-9 implementation.
+Author: Codex under Issue #433 and the owner's product-first and
+replace-not-layer rules.
+Change type: active-slice sequencing, provider boundary and final legacy
+eradication.
+Affected plan section: V2-9 (#433).
+
+Reason: the canonical PostgreSQL foundation already owns inbound WhatsApp
+messages, conversations and the `evo_ai_proposals` table, but the active staff
+`/whatsapp` screens, Gemini proposal/review path, browser realtime and
+manual/autonomous workers still use Supabase RPCs or service clients. Treating
+those connected screens as V2 would preserve a second data/runtime authority.
+At the same time, the owner has not authorized a real Gemini call or outbound
+WhatsApp, so provider readiness must be represented as blocked rather than
+simulated or silently exercised.
+
+Decision:
+
+1. Deliver #433 as three sequential exact-head PRs. V2-9A replaces the
+   `/whatsapp` queue and direct transcript with role-filtered canonical
+   PostgreSQL reads and transfers conversation ownership to Admissions inside
+   the existing atomic handoff. It removes the Supabase RPC/realtime read path
+   and has no staff send action.
+2. V2-9B creates one server-only Gemini structured-output adapter and one
+   canonical proposal command over `evo_ai_proposals`. Provider/model/time and
+   exact canonical source-message context are durable. EVO parses and validates
+   the model result as untrusted input. Missing key or explicit provider
+   authorization, provider failure or invalid output writes no proposal and
+   reports a truthful blocked/error state; there is no fake or alternate
+   generator.
+3. V2-9C adds server-authorized, idempotent Accept/Edit/Reject decisions and an
+   append-only `ai_proposal` event. A decision never sends WhatsApp or changes
+   other CRM state. Add only a read-only WAHA session-status adapter; according
+   to the official WAHA contract it sends `X-Api-Key` from server secrets and
+   treats only `WORKING` as ready. Do not expose or retain a reachable
+   `POST /api/sendText` command.
+4. A real Gemini/WAHA request still needs separate owner authorization. Local
+   acceptance exercises the real app, PostgreSQL and browser for every
+   locally available state, including missing-provider blocking and human
+   review of isolated technical records. It may not claim provider or business
+   acceptance from fixtures, mocks or seeded demo data.
+5. Delete superseded active `/whatsapp`, Supabase Realtime/RPC, old AI
+   draft/summary, manual-send/autonomous worker and Supabase-backed Gemini
+   code, routes, config and implementation tests as their replacement slices
+   prove the new outcomes. The final scoped `rg` inventory excludes only frozen
+   V1 deployments and historical ADRs, migrations, runbooks, archived docs,
+   evidence and other decision/rollback documentation, which remain unchanged.
+
+Current official contract references:
+
+- WAHA API security: <https://waha.devlike.pro/docs/how-to/security/>.
+- WAHA session states: <https://waha.devlike.pro/docs/how-to/sessions/>.
+- Gemini structured output: <https://ai.google.dev/gemini-api/docs/structured-output>.

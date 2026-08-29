@@ -10,6 +10,7 @@ app_log="$tmp_dir/app.log"
 verification_log="$tmp_dir/verification.log"
 broken_log="$tmp_dir/broken-migration.log"
 canonical_acceptance_result="$tmp_dir/canonical-acceptance.json"
+private_document_acceptance_result="$tmp_dir/private-document-acceptance.json"
 private_document_root="$tmp_dir/private-documents"
 missing_private_document_root="$tmp_dir/missing-private-documents"
 inbound_test_phone="+15550004300"
@@ -226,6 +227,7 @@ private_document_browser_assert() {
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_DOCUMENT_MODE="$document_mode" \
     EVO_PRIVATE_DOCUMENT_CASE_ID="$private_document_case_id" \
+    EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE="$private_document_acceptance_result" \
     EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
     EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
     EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
@@ -364,6 +366,11 @@ contract_version="$(docker exec "$container_id" psql --username "$postgres_user"
 echo "Exact 0000 -> 0001 -> 0002 migration, repeat migration and stored history passed."
 
 DATABASE_URL="$database_url" \
+  "$node_bin" --conditions=react-server --experimental-strip-types --test \
+    tests/private-document-repository-postgres.test.mjs
+echo "Private document case scope, immutable metadata reads and fail-closed repository checks passed."
+
+DATABASE_URL="$database_url" \
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
     tests/canonical-crm-postgres.test.mjs
@@ -409,6 +416,95 @@ version_count="$(docker exec "$container_id" psql --username "$postgres_user" --
 [[ "$version_count" == "2" ]] || fail "Private document browser proof did not persist exactly two immutable versions"
 linked_document_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_documents AS document INNER JOIN evo_student_cases AS student_case ON student_case.id = document.case_id;')"
 [[ "$linked_document_count" == "1" ]] || fail "Private document browser proof did not persist a canonical case foreign key"
+
+read -r private_document_id initial_document_version_id initial_document_sha initial_document_bytes replacement_document_version_id replacement_document_sha replacement_document_bytes <<<"$(
+  EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE="$private_document_acceptance_result" \
+    EVO_PRIVATE_DOCUMENT_CASE_ID="$private_document_case_id" \
+    "$node_bin" --input-type=module <<'EOF'
+import { readFile } from "node:fs/promises";
+
+const path = process.env.EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE;
+const result = JSON.parse(await readFile(path, "utf8"));
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const shaPattern = /^[0-9a-f]{64}$/;
+if (
+  !uuidPattern.test(result.documentId) ||
+  result.caseId !== process.env.EVO_PRIVATE_DOCUMENT_CASE_ID ||
+  !Array.isArray(result.versions) ||
+  result.versions.length !== 2 ||
+  result.versions.some(
+    (version, index) =>
+      !uuidPattern.test(version.versionId) ||
+      version.versionNumber !== index + 1 ||
+      !Number.isSafeInteger(version.byteLength) ||
+      version.byteLength <= 0 ||
+      !shaPattern.test(version.sha256),
+  ) ||
+  Object.hasOwn(result, "objectKey") ||
+  result.versions.some((version) => Object.hasOwn(version, "objectKey"))
+) {
+  throw new Error("Private document UI acceptance result has an invalid shape");
+}
+console.log(
+  result.documentId,
+  result.versions[0].versionId,
+  result.versions[0].sha256,
+  result.versions[0].byteLength,
+  result.versions[1].versionId,
+  result.versions[1].sha256,
+  result.versions[1].byteLength,
+);
+EOF
+)"
+
+private_document_row="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT case_id || '|' || created_by_role FROM evo_private_documents WHERE id = '${private_document_id}';")"
+[[ "$private_document_row" == "${private_document_case_id}|admissions" ]] || fail "Private document UI proof did not bind the logical document to the canonical case and role"
+
+initial_document_row="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT version_number || '|' || original_filename || '|' || declared_mime_type || '|' || byte_length || '|' || sha256 || '|' || created_by_role || '|' || object_key FROM evo_private_document_versions WHERE document_id = '${private_document_id}' AND id = '${initial_document_version_id}';")"
+replacement_document_row="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT version_number || '|' || original_filename || '|' || declared_mime_type || '|' || byte_length || '|' || sha256 || '|' || created_by_role || '|' || object_key FROM evo_private_document_versions WHERE document_id = '${private_document_id}' AND id = '${replacement_document_version_id}';")"
+IFS='|' read -r initial_version_number initial_filename initial_mime initial_bytes initial_sha initial_role initial_object_key <<<"$initial_document_row"
+IFS='|' read -r replacement_version_number replacement_filename replacement_mime replacement_bytes replacement_sha replacement_role replacement_object_key <<<"$replacement_document_row"
+[[ "$initial_version_number" == "1" && "$initial_filename" == "acceptance.pdf" && "$initial_mime" == "application/pdf" && "$initial_bytes" == "$initial_document_bytes" && "$initial_sha" == "$initial_document_sha" && "$initial_role" == "admissions" ]] || fail "Initial private document SQL metadata does not match the Student 360 upload"
+[[ "$replacement_version_number" == "2" && "$replacement_filename" == "acceptance-replacement.pdf" && "$replacement_mime" == "application/pdf" && "$replacement_bytes" == "$replacement_document_bytes" && "$replacement_sha" == "$replacement_document_sha" && "$replacement_role" == "admissions" ]] || fail "Replacement private document SQL metadata does not match the Student 360 resubmission"
+
+EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" \
+  EVO_INITIAL_OBJECT_KEY="$initial_object_key" \
+  EVO_INITIAL_OBJECT_SHA="$initial_document_sha" \
+  EVO_INITIAL_OBJECT_BYTES="$initial_document_bytes" \
+  EVO_REPLACEMENT_OBJECT_KEY="$replacement_object_key" \
+  EVO_REPLACEMENT_OBJECT_SHA="$replacement_document_sha" \
+  EVO_REPLACEMENT_OBJECT_BYTES="$replacement_document_bytes" \
+  "$node_bin" --input-type=module <<'EOF'
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+const proofs = [
+  {
+    key: process.env.EVO_INITIAL_OBJECT_KEY,
+    sha256: process.env.EVO_INITIAL_OBJECT_SHA,
+    byteLength: Number(process.env.EVO_INITIAL_OBJECT_BYTES),
+  },
+  {
+    key: process.env.EVO_REPLACEMENT_OBJECT_KEY,
+    sha256: process.env.EVO_REPLACEMENT_OBJECT_SHA,
+    byteLength: Number(process.env.EVO_REPLACEMENT_OBJECT_BYTES),
+  },
+];
+for (const proof of proofs) {
+  if (!/^[0-9a-f-]{36}$/.test(proof.key ?? "")) {
+    throw new Error("Private document object key is not opaque");
+  }
+  const bytes = await readFile(
+    join(process.env.EVO_PRIVATE_DOCUMENT_ROOT, "objects", proof.key),
+  );
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  if (bytes.byteLength !== proof.byteLength || sha256 !== proof.sha256) {
+    throw new Error("Private document object bytes do not match PostgreSQL metadata");
+  }
+}
+EOF
 
 inbound_conversation_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_conversations WHERE external_conversation_id = '${inbound_test_conversation_id}';")"
 inbound_message_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_messages WHERE external_message_id = '${inbound_test_message_id}';")"

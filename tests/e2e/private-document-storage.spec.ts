@@ -1,19 +1,24 @@
 import { createHash, randomUUID } from "node:crypto";
+import { writeFile } from "node:fs/promises";
 
 import { expect, test, type Page } from "@playwright/test";
 
 const documentMode = process.env.EVO_EXPECT_DOCUMENT_MODE ?? "configured";
-function requirePrivateDocumentCaseId(): string {
-  const value = process.env.EVO_PRIVATE_DOCUMENT_CASE_ID;
-  if (
-    !value ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  ) {
-    throw new Error("EVO_PRIVATE_DOCUMENT_CASE_ID must be a valid non-nil UUID");
+const acceptanceResultFile =
+  process.env.EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE ?? "";
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireUuid(value: string | null, label: string): string {
+  if (!value || !uuidPattern.test(value)) {
+    throw new Error(`${label} must be a valid non-nil UUID`);
   }
   return value;
+}
+
+function requirePrivateDocumentCaseId(): string {
+  const value = process.env.EVO_PRIVATE_DOCUMENT_CASE_ID;
+  return requireUuid(value ?? null, "EVO_PRIVATE_DOCUMENT_CASE_ID");
 }
 const caseId = requirePrivateDocumentCaseId();
 const guessedDocumentId = "00000000-0000-4000-8000-000000000498";
@@ -24,18 +29,6 @@ const initialBytes = Buffer.from(
 const replacementBytes = Buffer.from(
   "%PDF-1.4\n% EVO V2 immutable replacement version\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n",
 );
-
-type DocumentMetadata = Readonly<{
-  documentId: string;
-  caseId: string;
-  versionId: string;
-  versionNumber: number;
-  originalFilename: string;
-  declaredMimeType: string;
-  byteLength: number;
-  sha256: string;
-  createdAt: string;
-}>;
 
 function credentials(role: "admin" | "sales" | "admissions") {
   const prefix = `EVO_DEV_GATE_${role.toUpperCase()}`;
@@ -67,11 +60,14 @@ function uploadMultipart(bytes: Buffer, filename = "acceptance.pdf") {
   };
 }
 
-function expectPrivateResponseHeaders(
-  headers: Record<string, string>,
-): void {
-  expect(headers["cache-control"]).toContain("no-store");
-  expect(headers["x-content-type-options"]).toBe("nosniff");
+async function downloadBytes(
+  download: import("@playwright/test").Download,
+): Promise<Buffer> {
+  const stream = await download.createReadStream();
+  if (!stream) throw new Error("private document download stream unavailable");
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
 }
 
 async function expectError(
@@ -186,29 +182,6 @@ test("private documents use one authorized PostgreSQL and filesystem path", asyn
     "invalid_request",
   );
 
-  const createResponse = await api.post("/api/v2/documents", {
-    multipart: uploadMultipart(initialBytes),
-  });
-  expect(createResponse.status()).toBe(201);
-  expectPrivateResponseHeaders(createResponse.headers());
-  const createBody = (await createResponse.json()) as {
-    document: DocumentMetadata;
-  };
-  const initial = createBody.document;
-  expect(initial).toMatchObject({
-    caseId,
-    versionNumber: 1,
-    originalFilename: "acceptance.pdf",
-    declaredMimeType: "application/pdf",
-    byteLength: initialBytes.byteLength,
-    sha256: createHash("sha256").update(initialBytes).digest("hex"),
-  });
-  expect(initial.documentId).toMatch(/^[0-9a-f-]{36}$/);
-  expect(initial.versionId).toMatch(/^[0-9a-f-]{36}$/);
-  expect(JSON.stringify(createBody)).not.toMatch(
-    /objectKey|object_key|private.document.root|\/objects\//i,
-  );
-
   await expectError(
     await api.post(
       `/api/v2/documents/${guessedDocumentId}/resubmissions`,
@@ -225,67 +198,118 @@ test("private documents use one authorized PostgreSQL and filesystem path", asyn
     "document_not_found",
   );
 
-  const initialDownload = await api.get(
-    `/api/v2/document-versions/${initial.versionId}/download`,
-  );
-  expect(initialDownload.status()).toBe(200);
-  expectPrivateResponseHeaders(initialDownload.headers());
-  expect(initialDownload.headers()["content-type"]).toContain("application/pdf");
-  expect(initialDownload.headers()["content-disposition"]).toContain(
-    "attachment",
-  );
-  expect(Number(initialDownload.headers()["content-length"])).toBe(
-    initialBytes.byteLength,
-  );
-  expect(await initialDownload.body()).toEqual(initialBytes);
+  await page.goto(`/clients/${caseId}#documents`);
+  const documentPanel = page.getByTestId("canonical-private-documents");
+  await expect(documentPanel).toBeVisible();
+  await expect(
+    documentPanel.getByTestId("canonical-private-document"),
+  ).toHaveCount(0);
 
-  const resubmitResponse = await api.post(
-    `/api/v2/documents/${initial.documentId}/resubmissions`,
-    {
-      multipart: {
-        file: {
-          name: "acceptance-replacement.pdf",
-          mimeType: "application/pdf",
-          buffer: replacementBytes,
-        },
-      },
-    },
+  const uploadForm = documentPanel.getByTestId(
+    "canonical-private-document-upload-form",
   );
-  expect(resubmitResponse.status()).toBe(201);
-  expectPrivateResponseHeaders(resubmitResponse.headers());
-  const resubmitBody = (await resubmitResponse.json()) as {
-    document: DocumentMetadata;
-  };
-  const replacement = resubmitBody.document;
-  expect(replacement).toMatchObject({
-    documentId: initial.documentId,
-    caseId,
-    versionNumber: 2,
-    originalFilename: "acceptance-replacement.pdf",
-    byteLength: replacementBytes.byteLength,
-    sha256: createHash("sha256").update(replacementBytes).digest("hex"),
+  await uploadForm.locator('input[type="file"]').setInputFiles({
+    name: "acceptance.pdf",
+    mimeType: "application/pdf",
+    buffer: initialBytes,
   });
-  expect(replacement.versionId).not.toBe(initial.versionId);
-  expect(JSON.stringify(resubmitBody)).not.toMatch(
-    /objectKey|object_key|private.document.root|\/objects\//i,
+  await uploadForm.locator('button[type="submit"]').click();
+
+  const documentRow = documentPanel
+    .getByTestId("canonical-private-document")
+    .filter({ hasText: "acceptance.pdf" });
+  await expect(documentRow).toBeVisible();
+  const documentId = requireUuid(
+    await documentRow.getAttribute("data-document-id"),
+    "Student 360 document id",
+  );
+  const initialLink = documentRow.locator(
+    '[data-testid="canonical-private-document-download"][data-version-number="1"]',
+  );
+  await expect(initialLink).toBeVisible();
+  const initialVersionId = requireUuid(
+    await initialLink.getAttribute("data-version-id"),
+    "initial document version id",
+  );
+  await expect(initialLink).toHaveAttribute(
+    "href",
+    `/api/v2/document-versions/${initialVersionId}/download`,
   );
 
-  const replacementDownload = await api.get(
-    `/api/v2/document-versions/${replacement.versionId}/download`,
+  const [initialDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    initialLink.click(),
+  ]);
+  expect(initialDownload.suggestedFilename()).toBe("acceptance.pdf");
+  expect(await downloadBytes(initialDownload)).toEqual(initialBytes);
+
+  const resubmissionForm = documentRow.getByTestId(
+    "canonical-private-document-resubmit-form",
   );
-  expect(replacementDownload.status()).toBe(200);
-  expect(await replacementDownload.body()).toEqual(replacementBytes);
-  expect(
-    await (
-      await api.get(
-        `/api/v2/document-versions/${initial.versionId}/download`,
-      )
-    ).body(),
-  ).toEqual(initialBytes);
+  await resubmissionForm.locator('input[type="file"]').setInputFiles({
+    name: "acceptance-replacement.pdf",
+    mimeType: "application/pdf",
+    buffer: replacementBytes,
+  });
+  await resubmissionForm.locator('button[type="submit"]').click();
+
+  const replacementLink = documentRow.locator(
+    '[data-testid="canonical-private-document-download"][data-version-number="2"]',
+  );
+  await expect(replacementLink).toBeVisible();
+  await expect(documentRow).toContainText("acceptance-replacement.pdf");
+  const replacementVersionId = requireUuid(
+    await replacementLink.getAttribute("data-version-id"),
+    "replacement document version id",
+  );
+  expect(replacementVersionId).not.toBe(initialVersionId);
+
+  const [replacementDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    replacementLink.click(),
+  ]);
+  expect(replacementDownload.suggestedFilename()).toBe(
+    "acceptance-replacement.pdf",
+  );
+  expect(await downloadBytes(replacementDownload)).toEqual(replacementBytes);
+
+  const [historicalDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    initialLink.click(),
+  ]);
+  expect(await downloadBytes(historicalDownload)).toEqual(initialBytes);
+
+  if (!acceptanceResultFile) {
+    throw new Error("EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE is required");
+  }
+  await writeFile(
+    acceptanceResultFile,
+    `${JSON.stringify({
+      caseId,
+      documentId,
+      versions: [
+        {
+          versionId: initialVersionId,
+          versionNumber: 1,
+          originalFilename: "acceptance.pdf",
+          byteLength: initialBytes.byteLength,
+          sha256: createHash("sha256").update(initialBytes).digest("hex"),
+        },
+        {
+          versionId: replacementVersionId,
+          versionNumber: 2,
+          originalFilename: "acceptance-replacement.pdf",
+          byteLength: replacementBytes.byteLength,
+          sha256: createHash("sha256").update(replacementBytes).digest("hex"),
+        },
+      ],
+    })}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
 
   for (const publicCandidate of [
-    `/private-documents/${replacement.versionId}`,
-    `/uploads/${replacement.versionId}`,
+    `/private-documents/${replacementVersionId}`,
+    `/uploads/${replacementVersionId}`,
   ]) {
     const response = await api.get(publicCandidate, { maxRedirects: 0 });
     expect(response.status()).toBe(307);

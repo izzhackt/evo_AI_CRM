@@ -2,8 +2,13 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import { eq, max } from "drizzle-orm";
+import { and, desc, eq, max, sql } from "drizzle-orm";
 
+import {
+  evoLeads,
+  evoPeople,
+  evoStudentCases,
+} from "../../db/schema/canonical-crm-core.ts";
 import {
   evoPrivateDocuments,
   evoPrivateDocumentVersions,
@@ -38,6 +43,36 @@ export type PrivateDocumentDownload = Readonly<{
   bytes: Buffer;
 }>;
 
+export type PrivateDocumentCaseStatus = "active" | "paused" | "closed";
+
+export type PrivateDocumentRecord = Readonly<{
+  documentId: string;
+  caseId: string;
+  leadId: string;
+  personId: string;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+  caseStatus: PrivateDocumentCaseStatus;
+  createdAt: string;
+  updatedAt: string;
+  versions: readonly PrivateDocumentVersionMetadata[];
+}>;
+
+export type PrivateDocumentQueueRow = Readonly<{
+  documentId: string;
+  caseId: string;
+  leadId: string;
+  personId: string;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+  caseStatus: PrivateDocumentCaseStatus;
+  createdAt: string;
+  updatedAt: string;
+  latestVersion: PrivateDocumentVersionMetadata;
+}>;
+
 export class PrivateDocumentRepositoryError extends Error {
   readonly code: "invalid_input" | "not_found" | "unavailable";
 
@@ -61,6 +96,72 @@ function assertDocumentRole(
   if (!fixedRoleCan(actorRole, capability)) {
     throw new PrivateDocumentRepositoryError("not_found");
   }
+}
+
+function databaseCaseStatus(value: string): PrivateDocumentCaseStatus {
+  if (value === "active" || value === "paused" || value === "closed") {
+    return value;
+  }
+  throw new PrivateDocumentRepositoryError("unavailable");
+}
+
+function owningLeadJoin() {
+  return and(
+    eq(evoLeads.id, evoStudentCases.leadId),
+    eq(evoLeads.personId, evoStudentCases.personId),
+  );
+}
+
+async function assertReadableCase(
+  caseId: string,
+  requireActive: boolean,
+): Promise<void> {
+  let row;
+  try {
+    [row] = await getDatabase()
+      .select({ id: evoStudentCases.id })
+      .from(evoStudentCases)
+      .innerJoin(evoLeads, owningLeadJoin())
+      .where(
+        and(
+          eq(evoStudentCases.id, caseId),
+          eq(evoLeads.stage, "handed_off"),
+          requireActive ? eq(evoStudentCases.status, "active") : undefined,
+        ),
+      )
+      .limit(1);
+  } catch {
+    throw new PrivateDocumentRepositoryError("unavailable");
+  }
+  if (!row) throw new PrivateDocumentRepositoryError("not_found");
+}
+
+async function assertReadableDocument(
+  documentId: string,
+  requireActive: boolean,
+): Promise<void> {
+  let row;
+  try {
+    [row] = await getDatabase()
+      .select({ id: evoPrivateDocuments.id })
+      .from(evoPrivateDocuments)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoPrivateDocuments.caseId),
+      )
+      .innerJoin(evoLeads, owningLeadJoin())
+      .where(
+        and(
+          eq(evoPrivateDocuments.id, documentId),
+          eq(evoLeads.stage, "handed_off"),
+          requireActive ? eq(evoStudentCases.status, "active") : undefined,
+        ),
+      )
+      .limit(1);
+  } catch {
+    throw new PrivateDocumentRepositoryError("unavailable");
+  }
+  if (!row) throw new PrivateDocumentRepositoryError("not_found");
 }
 
 function toMetadata(row: Readonly<{
@@ -96,6 +197,187 @@ async function cleanupUncommittedObject(objectKey: string): Promise<void> {
   }
 }
 
+export async function listPrivateDocumentsForCase(input: Readonly<{
+  actorRole: FixedRole;
+  caseId: string;
+}>): Promise<readonly PrivateDocumentRecord[]> {
+  assertDocumentRole(input.actorRole, "documents.read");
+  const caseId = parseUuid(input.caseId);
+  if (!caseId) throw new PrivateDocumentRepositoryError("invalid_input");
+  await assertReadableCase(caseId, false);
+
+  let rows;
+  try {
+    rows = await getDatabase()
+      .select({
+        documentId: evoPrivateDocuments.id,
+        caseId: evoStudentCases.id,
+        leadId: evoLeads.id,
+        personId: evoPeople.id,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+        caseStatus: evoStudentCases.status,
+        documentCreatedAt: evoPrivateDocuments.createdAt,
+        documentUpdatedAt: evoPrivateDocuments.updatedAt,
+        versionId: evoPrivateDocumentVersions.id,
+        versionNumber: evoPrivateDocumentVersions.versionNumber,
+        originalFilename: evoPrivateDocumentVersions.originalFilename,
+        declaredMimeType: evoPrivateDocumentVersions.declaredMimeType,
+        byteLength: evoPrivateDocumentVersions.byteLength,
+        sha256: evoPrivateDocumentVersions.sha256,
+        versionCreatedAt: evoPrivateDocumentVersions.createdAt,
+      })
+      .from(evoPrivateDocuments)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoPrivateDocuments.caseId),
+      )
+      .innerJoin(evoLeads, owningLeadJoin())
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .innerJoin(
+        evoPrivateDocumentVersions,
+        eq(evoPrivateDocumentVersions.documentId, evoPrivateDocuments.id),
+      )
+      .where(
+        and(
+          eq(evoStudentCases.id, caseId),
+          eq(evoLeads.stage, "handed_off"),
+        ),
+      )
+      .orderBy(
+        desc(evoPrivateDocuments.updatedAt),
+        desc(evoPrivateDocuments.id),
+        desc(evoPrivateDocumentVersions.versionNumber),
+        desc(evoPrivateDocumentVersions.id),
+      );
+  } catch (error) {
+    if (error instanceof PrivateDocumentRepositoryError) throw error;
+    throw new PrivateDocumentRepositoryError("unavailable");
+  }
+
+  const documents = new Map<
+    string,
+    Omit<PrivateDocumentRecord, "versions"> & {
+      versions: PrivateDocumentVersionMetadata[];
+    }
+  >();
+  for (const row of rows) {
+    let document = documents.get(row.documentId);
+    if (!document) {
+      document = {
+        documentId: row.documentId,
+        caseId: row.caseId,
+        leadId: row.leadId,
+        personId: row.personId,
+        displayName: row.displayName,
+        email: row.email,
+        phone: row.phone,
+        caseStatus: databaseCaseStatus(row.caseStatus),
+        createdAt: row.documentCreatedAt.toISOString(),
+        updatedAt: row.documentUpdatedAt.toISOString(),
+        versions: [],
+      };
+      documents.set(row.documentId, document);
+    }
+    document.versions.push(
+      toMetadata({
+        documentId: row.documentId,
+        caseId: row.caseId,
+        versionId: row.versionId,
+        versionNumber: row.versionNumber,
+        originalFilename: row.originalFilename,
+        declaredMimeType: row.declaredMimeType,
+        byteLength: row.byteLength,
+        sha256: row.sha256,
+        createdAt: row.versionCreatedAt,
+      }),
+    );
+  }
+  return [...documents.values()];
+}
+
+export async function listPrivateDocuments(input: Readonly<{
+  actorRole: FixedRole;
+}>): Promise<readonly PrivateDocumentQueueRow[]> {
+  assertDocumentRole(input.actorRole, "documents.read");
+
+  try {
+    const rows = await getDatabase()
+      .select({
+        documentId: evoPrivateDocuments.id,
+        caseId: evoStudentCases.id,
+        leadId: evoLeads.id,
+        personId: evoPeople.id,
+        displayName: evoPeople.fullName,
+        email: evoPeople.email,
+        phone: evoPeople.phoneE164,
+        caseStatus: evoStudentCases.status,
+        documentCreatedAt: evoPrivateDocuments.createdAt,
+        documentUpdatedAt: evoPrivateDocuments.updatedAt,
+        versionId: evoPrivateDocumentVersions.id,
+        versionNumber: evoPrivateDocumentVersions.versionNumber,
+        originalFilename: evoPrivateDocumentVersions.originalFilename,
+        declaredMimeType: evoPrivateDocumentVersions.declaredMimeType,
+        byteLength: evoPrivateDocumentVersions.byteLength,
+        sha256: evoPrivateDocumentVersions.sha256,
+        versionCreatedAt: evoPrivateDocumentVersions.createdAt,
+      })
+      .from(evoPrivateDocuments)
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoPrivateDocuments.caseId),
+      )
+      .innerJoin(evoLeads, owningLeadJoin())
+      .innerJoin(evoPeople, eq(evoPeople.id, evoStudentCases.personId))
+      .innerJoin(
+        evoPrivateDocumentVersions,
+        eq(evoPrivateDocumentVersions.documentId, evoPrivateDocuments.id),
+      )
+      .where(
+        and(
+          eq(evoLeads.stage, "handed_off"),
+          sql<boolean>`${evoPrivateDocumentVersions.versionNumber} = (
+            select max(private_document_latest.version_number)
+            from evo_private_document_versions as private_document_latest
+            where private_document_latest.document_id = ${evoPrivateDocuments.id}
+          )`,
+        ),
+      )
+      .orderBy(
+        desc(evoPrivateDocuments.updatedAt),
+        desc(evoPrivateDocuments.id),
+      );
+
+    return rows.map((row) => ({
+      documentId: row.documentId,
+      caseId: row.caseId,
+      leadId: row.leadId,
+      personId: row.personId,
+      displayName: row.displayName,
+      email: row.email,
+      phone: row.phone,
+      caseStatus: databaseCaseStatus(row.caseStatus),
+      createdAt: row.documentCreatedAt.toISOString(),
+      updatedAt: row.documentUpdatedAt.toISOString(),
+      latestVersion: toMetadata({
+        documentId: row.documentId,
+        caseId: row.caseId,
+        versionId: row.versionId,
+        versionNumber: row.versionNumber,
+        originalFilename: row.originalFilename,
+        declaredMimeType: row.declaredMimeType,
+        byteLength: row.byteLength,
+        sha256: row.sha256,
+        createdAt: row.versionCreatedAt,
+      }),
+    }));
+  } catch (error) {
+    if (error instanceof PrivateDocumentRepositoryError) throw error;
+    throw new PrivateDocumentRepositoryError("unavailable");
+  }
+}
+
 export async function createPrivateDocument(input: Readonly<{
   actorRole: FixedRole;
   caseId: string;
@@ -106,6 +388,7 @@ export async function createPrivateDocument(input: Readonly<{
   assertDocumentRole(input.actorRole, "documents.write");
   const caseId = parseUuid(input.caseId);
   if (!caseId) throw new PrivateDocumentRepositoryError("invalid_input");
+  await assertReadableCase(caseId, true);
 
   const prepared = preparePrivateDocumentFile({
     originalFilename: input.originalFilename,
@@ -118,6 +401,21 @@ export async function createPrivateDocument(input: Readonly<{
 
   try {
     const row = await getDatabase().transaction(async (transaction) => {
+      const [studentCase] = await transaction
+        .select({ id: evoStudentCases.id })
+        .from(evoStudentCases)
+        .innerJoin(evoLeads, owningLeadJoin())
+        .where(
+          and(
+            eq(evoStudentCases.id, caseId),
+            eq(evoStudentCases.status, "active"),
+            eq(evoLeads.stage, "handed_off"),
+          ),
+        )
+        .for("update")
+        .limit(1);
+      if (!studentCase) throw new PrivateDocumentRepositoryError("not_found");
+
       await transaction.insert(evoPrivateDocuments).values({
         id: documentId,
         caseId,
@@ -166,13 +464,7 @@ export async function resubmitPrivateDocument(input: Readonly<{
   assertDocumentRole(input.actorRole, "documents.write");
   const documentId = parseUuid(input.documentId);
   if (!documentId) throw new PrivateDocumentRepositoryError("invalid_input");
-
-  const [existing] = await getDatabase()
-    .select({ id: evoPrivateDocuments.id })
-    .from(evoPrivateDocuments)
-    .where(eq(evoPrivateDocuments.id, documentId))
-    .limit(1);
-  if (!existing) throw new PrivateDocumentRepositoryError("not_found");
+  await assertReadableDocument(documentId, true);
 
   const prepared = preparePrivateDocumentFile({
     originalFilename: input.originalFilename,
@@ -190,7 +482,18 @@ export async function resubmitPrivateDocument(input: Readonly<{
           caseId: evoPrivateDocuments.caseId,
         })
         .from(evoPrivateDocuments)
-        .where(eq(evoPrivateDocuments.id, documentId))
+        .innerJoin(
+          evoStudentCases,
+          eq(evoStudentCases.id, evoPrivateDocuments.caseId),
+        )
+        .innerJoin(evoLeads, owningLeadJoin())
+        .where(
+          and(
+            eq(evoPrivateDocuments.id, documentId),
+            eq(evoStudentCases.status, "active"),
+            eq(evoLeads.stage, "handed_off"),
+          ),
+        )
         .for("update")
         .limit(1);
       if (!document) throw new PrivateDocumentRepositoryError("not_found");
@@ -270,7 +573,17 @@ export async function downloadPrivateDocumentVersion(input: Readonly<{
         evoPrivateDocuments,
         eq(evoPrivateDocuments.id, evoPrivateDocumentVersions.documentId),
       )
-      .where(eq(evoPrivateDocumentVersions.id, versionId))
+      .innerJoin(
+        evoStudentCases,
+        eq(evoStudentCases.id, evoPrivateDocuments.caseId),
+      )
+      .innerJoin(evoLeads, owningLeadJoin())
+      .where(
+        and(
+          eq(evoPrivateDocumentVersions.id, versionId),
+          eq(evoLeads.stage, "handed_off"),
+        ),
+      )
       .limit(1);
   } catch {
     throw new PrivateDocumentRepositoryError("unavailable");

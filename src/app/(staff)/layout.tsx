@@ -27,6 +27,7 @@ const CONNECTED_STAFF_ROUTES = new Set([
   "/sales",
   "/clients",
   "/applications",
+  "/documents",
   "/tasks",
   "/whatsapp",
   "/settings",

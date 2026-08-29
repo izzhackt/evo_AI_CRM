@@ -8,6 +8,7 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/sales",
   "/clients",
   "/applications",
+  "/documents",
   "/visa",
   "/finance",
   "/tasks",

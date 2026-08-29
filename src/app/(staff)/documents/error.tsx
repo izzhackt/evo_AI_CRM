@@ -3,9 +3,32 @@
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { Icon } from "@/components/icons";
-import { getDocumentExperienceCopy } from "@/components/platform/documents/document-copy";
 import { btnCls, btnGhostCls } from "@/components/ui";
 import type { Locale } from "@/lib/i18n-data";
+
+const COPY = {
+  ru: {
+    errorTitle: "Документы временно недоступны",
+    errorDescription:
+      "PostgreSQL или приватное файловое хранилище не ответило. Старый путь не используется.",
+    tryAgain: "Повторить",
+    backToQueue: "К очереди",
+  },
+  ky: {
+    errorTitle: "Документтер убактылуу жеткиликсиз",
+    errorDescription:
+      "PostgreSQL же жеке файл сактагычы жооп берген жок. Эски жол колдонулбайт.",
+    tryAgain: "Кайра аракет кылуу",
+    backToQueue: "Кезекке кайтуу",
+  },
+  en: {
+    errorTitle: "Documents are temporarily unavailable",
+    errorDescription:
+      "PostgreSQL or private file storage did not respond. No legacy path is used.",
+    tryAgain: "Try again",
+    backToQueue: "Back to queue",
+  },
+} as const;
 
 export default function DocumentsError({
   reset,
@@ -31,7 +54,7 @@ export default function DocumentsError({
     () => "ru" as Locale,
   );
 
-  const copy = getDocumentExperienceCopy(locale);
+  const copy = COPY[locale];
 
   return (
     <section

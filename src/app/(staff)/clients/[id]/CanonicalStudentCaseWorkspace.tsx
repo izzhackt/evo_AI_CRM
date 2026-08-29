@@ -10,6 +10,7 @@ import {
   CanonicalAdmissionsTaskPanel,
   type CanonicalAdmissionsTaskRequestIds,
 } from "@/components/platform/admissions/CanonicalAdmissionsTaskPanel";
+import { CanonicalPrivateDocumentsPanel } from "@/components/platform/documents/CanonicalPrivateDocumentsPanel";
 import { Card, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import { getT } from "@/lib/i18n";
@@ -21,6 +22,10 @@ import {
   getCanonicalStudentCaseSnapshot,
   listCanonicalAdmissionsTasks,
 } from "@/lib/server/canonical-crm-repository";
+import {
+  listPrivateDocumentsForCase,
+  PrivateDocumentRepositoryError,
+} from "@/lib/server/private-document-repository";
 
 const COPY = {
   ru: {
@@ -140,8 +145,9 @@ export async function CanonicalStudentCaseWorkspace({
   let operations: Awaited<
     ReturnType<typeof getCanonicalAdmissionsOperationsSnapshot>
   >;
+  let documents: Awaited<ReturnType<typeof listPrivateDocumentsForCase>>;
   try {
-    [studentCase, handoff, tasksPage, operations] = await Promise.all([
+    [studentCase, handoff, tasksPage, operations, documents] = await Promise.all([
       getCanonicalStudentCaseSnapshot({
         actorRole: actor.platformRole,
         studentCaseId: id,
@@ -159,11 +165,17 @@ export async function CanonicalStudentCaseWorkspace({
         actorRole: actor.platformRole,
         studentCaseId: id,
       }),
+      listPrivateDocumentsForCase({
+        actorRole: actor.platformRole,
+        caseId: id,
+      }),
     ]);
   } catch (error: unknown) {
     if (
-      error instanceof CanonicalCrmRepositoryError &&
-      error.code === "not_found"
+      ((error instanceof CanonicalCrmRepositoryError &&
+        error.code === "not_found") ||
+        (error instanceof PrivateDocumentRepositoryError &&
+          error.code === "not_found"))
     ) {
       notFound();
     }
@@ -338,6 +350,13 @@ export async function CanonicalStudentCaseWorkspace({
             : undefined
         }
         hasNext={tasksPage.hasNext}
+      />
+
+      <CanonicalPrivateDocumentsPanel
+        locale={locale}
+        caseId={id}
+        caseStatus={studentCase.status}
+        documents={documents}
       />
 
       <CanonicalAdmissionsOperationsPanel

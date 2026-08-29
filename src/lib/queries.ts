@@ -388,60 +388,6 @@ export function clientTasks(clientId: number) {
   }[];
 }
 
-export type DocumentQueueRow = {
-  id: number;
-  client_id: number;
-  client_name: string;
-  stage: Stage;
-  manager_name: string | null;
-  name: string;
-  status: string;
-  comment: string | null;
-  updated_at: string;
-  application_total: number;
-  active_applications: number;
-  open_tasks: number;
-  pending_payments: number;
-};
-
-export function allDocuments(opts: { status?: string } = {}): DocumentQueueRow[] {
-  const where: string[] = [];
-  const params: unknown[] = [];
-  if (opts.status) {
-    where.push("doc.status = ?");
-    params.push(opts.status);
-  }
-  const sql = `
-    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
-      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
-      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    JOIN users u ON u.id = c.user_id
-    LEFT JOIN users m ON m.id = c.manager_id
-    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-    ORDER BY doc.status = 'approved', doc.status = 'rejected', doc.updated_at DESC
-  `;
-  return db().prepare(sql).all(...params) as DocumentQueueRow[];
-}
-
-export function getDocument(id: number): DocumentQueueRow | undefined {
-  return db().prepare(`
-    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
-      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
-      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    JOIN users u ON u.id = c.user_id
-    LEFT JOIN users m ON m.id = c.manager_id
-    WHERE doc.id = ?
-  `).get(id) as DocumentQueueRow | undefined;
-}
-
 export function clientUpdates(clientId: number) {
   return db().prepare(`
     SELECT up.*, a.name AS author_name
@@ -512,7 +458,6 @@ export type OperatorNotificationKind =
   | "task_overdue"
   | "task_priority"
   | "whatsapp_unread"
-  | "document_attention"
   | "payment_overdue"
   | "application_deadline";
 
@@ -645,32 +590,6 @@ export function listOperatorNotificationsForActor(
 
   if (["admin", "sales", "curator"].includes(actor.role)) {
     const clientScope = buildFullClientPredicate(actor, "c");
-    const documents = d.prepare(`
-      SELECT doc.id, doc.name, doc.status, doc.updated_at, u.name AS client_name
-      FROM documents doc
-      JOIN clients c ON c.id = doc.client_id
-      JOIN users u ON u.id = c.user_id
-      WHERE doc.status IN ('uploaded', 'review', 'rejected')
-        AND (${clientScope.sql})
-      ORDER BY doc.status = 'rejected' DESC, doc.updated_at DESC
-      LIMIT ?
-    `).all(...clientScope.params, sourceLimit) as {
-      id: number; name: string; status: string; updated_at: string; client_name: string;
-    }[];
-    for (const document of documents) {
-      const rejected = document.status === "rejected";
-      items.push({
-        id: `document-${document.id}`,
-        kind: "document_attention",
-        group: rejected ? "urgent" : "upcoming",
-        title: document.name,
-        subject: document.client_name,
-        href: `/documents/${document.id}`,
-        occurred_at: document.updated_at,
-        priority: rejected ? 0 : 3,
-      });
-    }
-
     const applications = d.prepare(`
       SELECT ap.id, ap.university, ap.deadline, u.name AS client_name
       FROM applications ap
@@ -1025,51 +944,6 @@ export function studentCaseAuditForActor(
     WHERE audit.client_id = ? AND (${scope.sql})
     ORDER BY audit.occurred_at DESC, audit.id DESC
   `).all(clientId, ...scope.params) as StudentCaseAuditRow[];
-}
-
-export function listDocumentsForActor(
-  actor: AccessActor,
-  opts: { status?: string } = {},
-): DocumentQueueRow[] {
-  const scope = buildFullClientPredicate(actor, "c");
-  const where = [`(${scope.sql})`];
-  const params: unknown[] = [...scope.params];
-  if (opts.status) {
-    where.push("doc.status = ?");
-    params.push(opts.status);
-  }
-  return db().prepare(`
-    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
-      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
-      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    JOIN users u ON u.id = c.user_id
-    LEFT JOIN users m ON m.id = c.manager_id
-    WHERE ${where.join(" AND ")}
-    ORDER BY doc.status = 'approved', doc.status = 'rejected', doc.updated_at DESC
-  `).all(...params) as DocumentQueueRow[];
-}
-
-export function getDocumentForActor(
-  actor: AccessActor,
-  id: number,
-): DocumentQueueRow | undefined {
-  const scope = buildFullClientPredicate(actor, "c");
-  return db().prepare(`
-    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
-      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
-      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    JOIN users u ON u.id = c.user_id
-    LEFT JOIN users m ON m.id = c.manager_id
-    WHERE doc.id = ? AND (${scope.sql})
-  `).get(id, ...scope.params) as DocumentQueueRow | undefined;
 }
 
 type WhatsAppAccessProbeRow = {

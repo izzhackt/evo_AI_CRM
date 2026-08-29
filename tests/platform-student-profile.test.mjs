@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -239,41 +238,4 @@ test("profile UUID parser rejects nil and malformed identifiers", () => {
   assert.equal(parsePlatformStudentProfileUuid(CASE_ID.toUpperCase()), CASE_ID);
   assert.equal(parsePlatformStudentProfileUuid("00000000-0000-0000-0000-000000000000"), null);
   assert.equal(parsePlatformStudentProfileUuid("not-a-uuid"), null);
-});
-
-test("profile modules stay isolated while Student 360 owns the single UI", () => {
-  for (const file of [
-    "src/lib/platform-student-profile.ts",
-    "src/lib/platform-student-profile-actions.ts",
-    "src/app/(staff)/clients/[id]/StudentWorkspace.tsx",
-    "src/app/(staff)/clients/[id]/StudentWorkspacePresenter.tsx",
-  ]) {
-    const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
-    assert.doesNotMatch(source, /better-sqlite3|edu_session|service[_-]?role/i, file);
-    assert.doesNotMatch(source, /from\s+["']@\/lib\/(?:db|auth|queries|actions)["']/, file);
-  }
-
-  const actionSource = readFileSync(
-    new URL("../src/lib/platform-student-profile-actions.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(actionSource, /rpc\("upsert_student_profile"/);
-  assert.match(actionSource, /rpc\("apply_country_requirement_version"/);
-  assert.match(actionSource, /p_expected_revision/);
-  assert.match(actionSource, /p_citizenship_country/);
-  assert.match(actionSource, /p_decision_participant_labels/);
-  assert.match(actionSource, /p_reason/);
-  assert.match(actionSource, /retry_request_id/);
-
-  const workspace = readFileSync(
-    new URL(
-      "../src/app/(staff)/clients/[id]/StudentWorkspace.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  assert.match(workspace, /getPlatformStudentProfile\(actor,/);
-  assert.match(workspace, /platform-student-profile-actions/);
-  assert.match(workspace, /countryRequirementVersions/);
-  assert.match(workspace, /<StudentWorkspacePresenter/);
 });

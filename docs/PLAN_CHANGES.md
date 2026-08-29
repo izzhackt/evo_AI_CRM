@@ -12960,3 +12960,54 @@ Student 360/private-document interface and attach the final scoped `rg`
 inventory. Frozen V1 deployments plus historical ADRs, migrations, runbooks,
 archived docs, evidence and other decision/rollback documentation remain inert
 and preserved under the repository-wide exception.
+
+## 2026-08-29 - Complete the V2-8C private-document replacement boundary
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #432 after real PostgreSQL, private-file and Chromium
+proof.
+Change type: implementation boundary and final Admissions legacy-deletion
+record.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Decision: Student 360 now reads document metadata through the canonical
+PostgreSQL repository and is the sole upload/resubmission UI. `/documents` is
+the read-only queue over the same authority and links back to the owning case.
+The repository binds every metadata/byte read to a handed-off case, limits
+writes to active cases, permits only Admissions/Admin, keeps paused/closed
+cases read-only and never returns an object key to the UI. The three existing
+`/api/v2` routes remain the only byte mutation/download boundary.
+
+Real acceptance used Node `22.23.1`, OrbStack `Running`, Docker context
+`orbstack`, a disposable real PostgreSQL container, all three committed
+Drizzle migrations, the actual Next application and desktop Chromium. The
+browser uploaded one PDF in Student 360, downloaded the exact bytes, submitted
+one replacement version, downloaded both the exact replacement and original
+historical bytes, and exercised anonymous, Sales, Admin-preview, guessed-ID,
+malformed-file and missing-private-root denials. Direct SQL and filesystem
+checks then proved one logical document, two immutable version rows, their
+case/role binding, exact filenames, MIME types, lengths and SHA-256 values, and
+two opaque object files with matching bytes. The repository test separately
+proved active writes, paused/closed reads, inactive and non-handed-off denials,
+and no denied-write residue.
+
+The same slice deleted the inactive `StudentWorkspace` and presenter,
+Supabase/RPC Admissions case workspace and actions, document-review/status
+modules, student-profile write actions, SQLite `/documents` detail/action and
+queue queries, obsolete document notification projection, components, copy and
+implementation tests. `tests/v2-8c-legacy-cleanup.test.mjs` keeps those files
+absent and rejects fallback imports in the active Student 360/document UI.
+The final scoped inventory finds no old symbol or module reference under
+`src`; remaining names exist only in negative outcome tests. The active UI has
+no SQLite, Supabase, fallback or object-key reference; the only object-key use
+is the server repository's private persistence/integrity path. Missing
+PostgreSQL, storage configuration or bytes continues to fail explicitly.
+
+Validated before review with `npm run test:unit` (436 passing),
+`npm run test:security`, `npm run test:u8` (19 passing), `npm run lint`,
+`npm run typecheck`, `npm run build`, `git diff --check`, Playwright test
+discovery and the complete `npm run test:database:local` real-service gate.
+Frozen V1 deployments and historical ADRs, migrations, runbooks, archived
+docs, evidence and other decision/rollback documentation remain preserved and
+were not executed or modified as V2 authority.

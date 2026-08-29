@@ -4,7 +4,6 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import {
-  DOC_STATUSES,
   LEAD_STATUSES,
   STAGES,
   db,
@@ -66,14 +65,6 @@ async function requireStaff() {
 async function requireAdminStaff() {
   const user = await requireStaff();
   if (user.role !== "admin") redirect("/dashboard");
-  return user;
-}
-
-async function requireAdmissionsStaff() {
-  const user = await requireStaff();
-  if (user.role !== "admin" && user.role !== "admissions") {
-    redirect("/dashboard");
-  }
   return user;
 }
 
@@ -371,34 +362,6 @@ export async function closeStudentCaseAction(form: FormData) {
 
 export async function reopenStudentCaseAction(form: FormData) {
   await transitionStudentCase(form, "closed", "active", "reopened");
-}
-
-// ---------- documents ----------
-
-export async function addDocumentAction(form: FormData) {
-  const actor = await requireAdmissionsStaff();
-  const clientId = optNum(form, "client_id");
-  const name = str(form, "name");
-  if (!clientId || !name) return;
-  assertClientCapability(actor, clientId, "write_documents");
-  db().prepare("INSERT INTO documents (client_id, name) VALUES (?, ?)").run(clientId, name);
-  revalidateStaffCrm(clientId);
-}
-
-export async function setDocumentStatusAction(form: FormData) {
-  const actor = await requireAdmissionsStaff();
-  const id = optNum(form, "id");
-  const status = str(form, "status");
-  if (!id || !(DOC_STATUSES as readonly string[]).includes(status)) return;
-  const d = db();
-  const row = d.prepare("SELECT client_id FROM documents WHERE id = ?").get(id) as { client_id: number } | undefined;
-  if (!row) notFound();
-  assertClientCapability(actor, row.client_id, "write_documents");
-  d
-    .prepare("UPDATE documents SET status = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(status, id);
-  revalidateStaffCrm(row.client_id);
-  revalidatePath("/portal");
 }
 
 // ---------- sales / leads ----------

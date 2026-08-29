@@ -8,6 +8,7 @@ import {
 import {
   buildCanonicalGeminiInteractionRequest,
   CanonicalGeminiProposalProviderError,
+  mapCanonicalGeminiProviderFailure,
   normalizeCanonicalGeminiInteraction,
 } from "../src/lib/server/canonical-gemini-proposal-client.ts";
 import {
@@ -118,6 +119,7 @@ test("provider interaction normalization accepts only completed non-empty output
     normalizeCanonicalGeminiInteraction({
       id: "interaction-technical",
       status: "completed",
+      created: "2026-08-29T08:15:30Z",
       output_text: JSON.stringify({
         schema_version: CANONICAL_GEMINI_PROPOSAL_SCHEMA_VERSION,
         reply_text: "Спасибо за сообщение. Уточните, пожалуйста, желаемую страну.",
@@ -126,6 +128,7 @@ test("provider interaction normalization accepts only completed non-empty output
     }),
     {
       interactionRef: "interaction-technical",
+      providerCreatedAt: "2026-08-29T08:15:30Z",
       outputText: JSON.stringify({
         schema_version: CANONICAL_GEMINI_PROPOSAL_SCHEMA_VERSION,
         reply_text: "Спасибо за сообщение. Уточните, пожалуйста, желаемую страну.",
@@ -133,14 +136,95 @@ test("provider interaction normalization accepts only completed non-empty output
     },
   );
 
+  assert.deepEqual(
+    normalizeCanonicalGeminiInteraction({
+      status: "completed",
+      created: "2026-08-29T08:15:31Z",
+      output_text: JSON.stringify({
+        schema_version: CANONICAL_GEMINI_PROPOSAL_SCHEMA_VERSION,
+        reply_text: "Спасибо. Уточните, пожалуйста, желаемую программу.",
+      }),
+      errors: [],
+    }),
+    {
+      interactionRef: null,
+      providerCreatedAt: "2026-08-29T08:15:31Z",
+      outputText: JSON.stringify({
+        schema_version: CANONICAL_GEMINI_PROPOSAL_SCHEMA_VERSION,
+        reply_text: "Спасибо. Уточните, пожалуйста, желаемую программу.",
+      }),
+    },
+  );
+
   for (const interaction of [
-    { id: "failed", status: "failed", output_text: null, errors: [] },
-    { id: "errored", status: "completed", output_text: "{}", errors: [{}] },
-    { id: "empty", status: "completed", output_text: "   ", errors: [] },
+    {
+      id: "failed",
+      status: "failed",
+      created: "2026-08-29T08:15:30Z",
+      output_text: null,
+      errors: [],
+    },
+    {
+      id: "errored",
+      status: "completed",
+      created: "2026-08-29T08:15:30Z",
+      output_text: "{}",
+      errors: [{}],
+    },
+    {
+      id: "empty",
+      status: "completed",
+      created: "2026-08-29T08:15:30Z",
+      output_text: "   ",
+      errors: [],
+    },
+    {
+      id: "missing-created",
+      status: "completed",
+      output_text: "{}",
+      errors: [],
+    },
+    {
+      id: "invalid-created",
+      status: "completed",
+      created: "not-a-provider-timestamp",
+      output_text: "{}",
+      errors: [],
+    },
   ]) {
     assert.throws(
       () => normalizeCanonicalGeminiInteraction(interaction),
       (error) => error instanceof CanonicalGeminiProposalProviderError,
+    );
+  }
+});
+
+test("current Interactions SDK HTTP failures preserve truthful provider reasons", () => {
+  const invalidKey = mapCanonicalGeminiProviderFailure({
+    name: "BadRequestError",
+    status: 400,
+    statusCode: 400,
+    body: JSON.stringify([
+      {
+        error: {
+          code: 400,
+          status: "INVALID_ARGUMENT",
+          details: [{ reason: "API_KEY_INVALID" }],
+        },
+      },
+    ]),
+  });
+  assert.equal(invalidKey.code, "provider_authentication_failed");
+
+  for (const [status, code] of [
+    [403, "provider_forbidden"],
+    [429, "provider_rate_limited"],
+    [503, "provider_unavailable"],
+    [400, "provider_rejected"],
+  ]) {
+    assert.equal(
+      mapCanonicalGeminiProviderFailure({ status, statusCode: status }).code,
+      code,
     );
   }
 });

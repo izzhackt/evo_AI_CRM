@@ -13673,3 +13673,46 @@ The amended contracts follow the current official provider documentation:
 - <https://developers.kommo.com/reference/adding-leads>
 - <https://developers.kommo.com/reference/link-entities>
 - <https://developers.kommo.com/reference/add-notes>
+
+## 2026-08-29 - Preserve truthful Gemini provider outcomes in V2-10A
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #464.
+Change type: implementation clarification backed by real provider evidence.
+Affected plan section: V2-10A real Gemini provider acceptance.
+
+Reason: the first real call through the canonical staff UI exposed two current
+Interactions behaviors that the pre-provider contract and unit doubles had not
+proved. First, a successful synchronous `store: false` response returned the
+provider `created` timestamp but omitted the otherwise typed interaction ID.
+Second, the current SDK represents HTTP failures with status/body-bearing error
+classes rather than the older exported `ApiError` assumption. The existing
+adapter discarded `created`, substituted a local application timestamp and
+misclassified an invalid key as generic provider unavailability.
+
+Decision: a completed response must contain a valid provider-returned `created`
+timestamp, and that exact value becomes `provider_created_at`; a missing or
+invalid timestamp is malformed output and writes no proposal. A stateless
+response may omit `id`; absence remains `null`, while any returned ID must pass
+the bounded reference validator. The adapter never fabricates a provider
+reference. Provider failures are mapped from numeric HTTP status plus bounded,
+parsed error-info reason fields. Provider message strings are neither logged nor
+used as control flow, and malformed or oversized bodies reveal nothing and map
+to the safest truthful generic outcome.
+
+Sanitized real evidence: one minimized existing inbound message passed through
+the actual two-field development gate, canonical staff conversation page,
+Gemini model `gemini-3.5-flash`, PostgreSQL proposal persistence and the real
+Accept action. The stored provider time came from the response, the source
+message/hash and review event matched, and no outbound message was created. A
+repeat request replayed the same completed receipt without another proposal or
+provider execution. A separate minimized existing inbound message exercised an
+intentionally invalid technical credential: the UI reported
+`provider_authentication_failed`, and PostgreSQL contained no proposal, event or
+succeeded execution receipt for that request. No raw message, personal
+identifier, provider secret or provider response text entered Git, logs, issue
+text or this evidence.
+
+This clarification does not authorize WhatsApp send, amoCRM mutation, an
+alternate model/provider, fallback output or V1 deployment changes. Those
+boundaries remain assigned to #465-#467 and the frozen V1 carveout.

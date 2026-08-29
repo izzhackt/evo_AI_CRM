@@ -13863,3 +13863,53 @@ Current official provider references:
 - <https://waha.devlike.pro/docs/how-to/sessions/>
 - <https://waha.devlike.pro/docs/how-to/chats/>
 - <https://waha.devlike.pro/swagger/openapi.json>
+
+## 2026-08-29 - Reconcile WAHA self identity aliases without a second send
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #465.
+Change type: connected-provider correction before implementation.
+Affected plan section: V2-10B canonical human-reviewed WhatsApp outbound.
+
+Reason: the first exact-main connected acceptance on
+`9c3df2e0d56378f6bf94af8d7592e525e9d41bcf` passed every pre-dispatch boundary,
+wrote its durable marker and performed one browser send to the current WAHA
+session itself. The provider accepted exactly one message, but its synchronous
+response used the session's `me.lid` in `message.to` while EVO had sent to the
+same session's `me.id`. EVO therefore classified a real success as
+`provider_malformed_response`, left the PostgreSQL attempt truthfully `unknown`
+and created no canonical outbound message. Read-only provider reconciliation
+then found exactly one matching outbound message, with source `api` and ACK
+`READ`; no second send was attempted. No account ID, phone number, API key,
+message ID or customer data entered Git, issue text or this record.
+
+Decision: the `WORKING` session probe becomes the sole authority for the
+session's own direct identity pair. It validates `me.id` and optional `me.lid`
+and passes only that frozen set into POST and exact-message normalization. When
+the requested canonical recipient is one of those values, a response addressed
+to the other is accepted and normalized back to the original canonical
+recipient. This exception never applies to an unrelated recipient and never
+permits suffix guessing or numeric inference.
+
+An `unknown` attempt remains a send blocker and gains one explicit read-only
+recovery path, not a retry path. The provider query is bounded to the immutable
+attempt text and time window, requires `fromMe: true`, an allowed source, a valid
+ACK pair and the exact requested recipient or its session-proven self alias, and
+must produce exactly one match. Zero or multiple matches remain unresolved. A
+unique match creates the canonical outbound message and promotes the original
+attempt to `accepted` in one PostgreSQL transaction with an event and idempotent
+command receipt. It never calls `sendText`.
+
+The preserved disposable PostgreSQL database and pre-dispatch marker from the
+first run are the acceptance authority for this correction. After reviewed code
+reaches exact `main`, a recovery-only browser proof must use that existing
+attempt through a GET-only provider contour, verify the exact provider message
+and ACK, and write sanitized evidence linking the dispatch SHA and correction
+SHA. Blind rerun of the original send harness remains prohibited.
+
+Current official provider references:
+
+- <https://waha.devlike.pro/docs/how-to/sessions/>
+- <https://waha.devlike.pro/docs/how-to/contacts/#api-lids>
+- <https://waha.devlike.pro/docs/overview/changelog/>
+- <https://waha.devlike.pro/docs/how-to/send-messages/>

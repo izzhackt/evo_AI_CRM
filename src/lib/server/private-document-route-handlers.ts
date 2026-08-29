@@ -3,10 +3,17 @@ import "server-only";
 import type { FixedRoleCapability } from "../fixed-role-policy.ts";
 import type { PrivateDocumentAuthorization } from "./private-document-authorization.ts";
 import {
-  PRIVATE_DOCUMENT_MAX_BYTES,
   PrivateDocumentFileError,
+  type StoredPrivateDocumentUpload,
 } from "./private-document-files.ts";
 import {
+  defaultPrivateDocumentMultipartStorage,
+  readPrivateDocumentMultipart,
+  type PrivateDocumentMultipartStorage,
+} from "./private-document-multipart.ts";
+import {
+  assertPrivateDocumentCreateTargetWritable,
+  assertPrivateDocumentResubmitTargetWritable,
   createPrivateDocument,
   downloadPrivateDocumentVersion,
   PrivateDocumentRepositoryError,
@@ -18,9 +25,6 @@ import {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
-const MULTIPART_OVERHEAD_ALLOWANCE_BYTES = 64 * 1024;
-const MAX_MULTIPART_BODY_BYTES =
-  PRIVATE_DOCUMENT_MAX_BYTES + MULTIPART_OVERHEAD_ALLOWANCE_BYTES;
 
 type DocumentCapability = Extract<
   FixedRoleCapability,
@@ -32,11 +36,23 @@ type ResubmitDocumentInput = Parameters<typeof resubmitPrivateDocument>[0];
 type DownloadDocumentInput = Parameters<
   typeof downloadPrivateDocumentVersion
 >[0];
+type AssertCreateTargetWritableInput = Parameters<
+  typeof assertPrivateDocumentCreateTargetWritable
+>[0];
+type AssertResubmitTargetWritableInput = Parameters<
+  typeof assertPrivateDocumentResubmitTargetWritable
+>[0];
 
 export type PrivateDocumentRouteDependencies = Readonly<{
   authorize(
     capability: DocumentCapability,
   ): Promise<PrivateDocumentAuthorization>;
+  assertCreateTargetWritable(
+    input: AssertCreateTargetWritableInput,
+  ): Promise<unknown>;
+  assertResubmitTargetWritable(
+    input: AssertResubmitTargetWritableInput,
+  ): Promise<unknown>;
   create(
     input: CreateDocumentInput,
   ): Promise<PrivateDocumentVersionMetadata>;
@@ -44,6 +60,7 @@ export type PrivateDocumentRouteDependencies = Readonly<{
     input: ResubmitDocumentInput,
   ): Promise<PrivateDocumentVersionMetadata>;
   download(input: DownloadDocumentInput): Promise<PrivateDocumentDownload>;
+  multipartStorage: PrivateDocumentMultipartStorage;
 }>;
 
 const defaultDependencies: PrivateDocumentRouteDependencies = {
@@ -53,9 +70,12 @@ const defaultDependencies: PrivateDocumentRouteDependencies = {
     );
     return authorizePrivateDocumentRequest(capability);
   },
+  assertCreateTargetWritable: assertPrivateDocumentCreateTargetWritable,
+  assertResubmitTargetWritable: assertPrivateDocumentResubmitTargetWritable,
   create: createPrivateDocument,
   resubmit: resubmitPrivateDocument,
   download: downloadPrivateDocumentVersion,
+  multipartStorage: defaultPrivateDocumentMultipartStorage,
 };
 
 const RESPONSE_HEADERS = {
@@ -98,90 +118,15 @@ function parseUuid(value: unknown): string | null {
   return normalized === NIL_UUID ? null : normalized;
 }
 
-function isMultipartRequest(request: Request): boolean {
-  const contentType = request.headers.get("content-type");
-  return (
-    contentType !== null &&
-    /^multipart\/form-data\s*;/i.test(contentType) &&
-    /(?:^|;)\s*boundary=(?:"[^"]+"|[^;\s]+)(?:;|$)/i.test(contentType)
-  );
-}
-
-function multipartBodyIsTooLarge(request: Request): boolean {
-  const value = request.headers.get("content-length");
-  if (value === null || !/^\d+$/.test(value)) return false;
-  const length = Number(value);
-  return Number.isSafeInteger(length) && length > MAX_MULTIPART_BODY_BYTES;
-}
-
-type ParsedUpload = Readonly<{
-  originalFilename: string;
-  declaredMimeType: string;
-  bytes: Uint8Array;
-}>;
-
-type ParsedCreateUpload = ParsedUpload & Readonly<{ caseId: string }>;
-
-async function readExactMultipartFields(
-  request: Request,
-  expectedNames: ReadonlySet<string>,
-): Promise<Map<string, FormDataEntryValue> | null> {
-  if (!isMultipartRequest(request)) return null;
-
-  let formData: FormData;
+async function discardUploadQuietly(
+  dependencies: PrivateDocumentRouteDependencies,
+  upload: StoredPrivateDocumentUpload,
+): Promise<void> {
   try {
-    formData = await request.formData();
+    await dependencies.multipartStorage.discard(upload);
   } catch {
-    return null;
+    // Preserve the original safe route error.
   }
-
-  const entries = new Map<string, FormDataEntryValue>();
-  for (const [name, value] of formData.entries()) {
-    if (!expectedNames.has(name) || entries.has(name)) return null;
-    entries.set(name, value);
-  }
-  if (entries.size !== expectedNames.size) return null;
-  return entries;
-}
-
-async function readUpload(value: FormDataEntryValue): Promise<ParsedUpload | null> {
-  if (typeof value === "string") return null;
-  if (value.size > PRIVATE_DOCUMENT_MAX_BYTES) {
-    throw new PrivateDocumentFileError(
-      "private_document_bytes_too_large",
-      "Private document exceeds the allowed size",
-    );
-  }
-
-  return {
-    originalFilename: value.name,
-    declaredMimeType: value.type,
-    bytes: new Uint8Array(await value.arrayBuffer()),
-  };
-}
-
-async function parseCreateUpload(request: Request): Promise<ParsedCreateUpload | null> {
-  const entries = await readExactMultipartFields(
-    request,
-    new Set(["caseId", "file"]),
-  );
-  if (!entries) return null;
-
-  const caseId = entries.get("caseId");
-  const file = entries.get("file");
-  if (typeof caseId !== "string" || file === undefined) return null;
-  const upload = await readUpload(file);
-  if (!upload) return null;
-  const normalizedCaseId = parseUuid(caseId);
-  if (!normalizedCaseId) return null;
-  return { caseId: normalizedCaseId, ...upload };
-}
-
-async function parseResubmission(request: Request): Promise<ParsedUpload | null> {
-  const entries = await readExactMultipartFields(request, new Set(["file"]));
-  if (!entries) return null;
-  const file = entries.get("file");
-  return file === undefined ? null : readUpload(file);
 }
 
 async function authorize(
@@ -261,25 +206,45 @@ export function createPrivateDocumentUploadHandler(
   return async (request) => {
     const authorization = await authorize(dependencies, "documents.write");
     if (authorization instanceof Response) return authorization;
-    if (multipartBodyIsTooLarge(request)) {
-      return errorResponse(413, "file_too_large");
-    }
 
-    let upload: ParsedCreateUpload | null;
+    let parsed;
     try {
-      upload = await parseCreateUpload(request);
+      parsed = await readPrivateDocumentMultipart(
+        request,
+        "create",
+        dependencies.multipartStorage,
+        async ({ caseId }) => {
+          await dependencies.assertCreateTargetWritable({
+            actorRole: authorization.actorRole,
+            caseId,
+          });
+        },
+      );
     } catch (error) {
       return repositoryErrorResponse(error, 400);
     }
-    if (!upload) return errorResponse(400, "invalid_request");
+    if (parsed.status === "request_too_large") {
+      return errorResponse(413, "file_too_large");
+    }
+    if (parsed.status === "invalid_request") {
+      return errorResponse(400, "invalid_request");
+    }
+
+    const caseId = parseUuid(parsed.value.caseId);
+    if (!caseId) {
+      await discardUploadQuietly(dependencies, parsed.value.upload);
+      return errorResponse(400, "invalid_request");
+    }
 
     try {
       const metadata = await dependencies.create({
         actorRole: authorization.actorRole,
-        ...upload,
+        caseId,
+        upload: parsed.value.upload,
       });
       return jsonResponse(201, metadata);
     } catch (error) {
+      await discardUploadQuietly(dependencies, parsed.value.upload);
       return repositoryErrorResponse(error, 400);
     }
   };
@@ -297,26 +262,42 @@ export function createPrivateDocumentResubmissionHandler(
 
     const documentId = parseUuid((await context.params).documentId);
     if (!documentId) return errorResponse(404, "document_not_found");
-    if (multipartBodyIsTooLarge(request)) {
-      return errorResponse(413, "file_too_large");
-    }
 
-    let upload: ParsedUpload | null;
     try {
-      upload = await parseResubmission(request);
+      await dependencies.assertResubmitTargetWritable({
+        actorRole: authorization.actorRole,
+        documentId,
+      });
     } catch (error) {
       return repositoryErrorResponse(error, 404);
     }
-    if (!upload) return errorResponse(400, "invalid_request");
+
+    let parsed;
+    try {
+      parsed = await readPrivateDocumentMultipart(
+        request,
+        "resubmit",
+        dependencies.multipartStorage,
+      );
+    } catch (error) {
+      return repositoryErrorResponse(error, 404);
+    }
+    if (parsed.status === "request_too_large") {
+      return errorResponse(413, "file_too_large");
+    }
+    if (parsed.status === "invalid_request") {
+      return errorResponse(400, "invalid_request");
+    }
 
     try {
       const metadata = await dependencies.resubmit({
         actorRole: authorization.actorRole,
         documentId,
-        ...upload,
+        upload: parsed.value.upload,
       });
       return jsonResponse(201, metadata);
     } catch (error) {
+      await discardUploadQuietly(dependencies, parsed.value.upload);
       return repositoryErrorResponse(error, 404);
     }
   };

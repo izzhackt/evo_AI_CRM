@@ -16,8 +16,10 @@ export function positiveInteger(value: unknown): number | null {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+// Small legacy multipart consumers still use this helper. Private V2 document
+// uploads deliberately do not: their route streams directly to private storage.
 export async function readMultipartFormData(
-  req: NextRequest,
+  req: Request,
   maxBytes: number,
 ): Promise<{ formData: FormData } | { error: "invalid_multipart_request" | "request_too_large" }> {
   const contentType = req.headers.get("content-type") ?? "";

@@ -1,5 +1,19 @@
-import { getDocumentExperienceCopy } from "@/components/platform/documents/document-copy";
 import { getLocale } from "@/lib/i18n";
+
+const COPY = {
+  ru: {
+    loading: "Загружаем приватные документы…",
+    loadingHint: "Читаем последние версии из PostgreSQL.",
+  },
+  ky: {
+    loading: "Жеке документтер жүктөлүүдө…",
+    loadingHint: "PostgreSQL базасынан акыркы версиялар окулууда.",
+  },
+  en: {
+    loading: "Loading private documents…",
+    loadingHint: "Reading the latest versions from PostgreSQL.",
+  },
+} as const;
 
 function SkeletonBlock({ className }: { className: string }) {
   return (
@@ -12,7 +26,7 @@ function SkeletonBlock({ className }: { className: string }) {
 
 export default async function DocumentsLoading() {
   const locale = await getLocale();
-  const copy = getDocumentExperienceCopy(locale);
+  const copy = COPY[locale];
 
   return (
     <div

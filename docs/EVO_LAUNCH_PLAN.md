@@ -214,6 +214,44 @@ Each internal PR must remove the old runtime path for the capability it proves;
 the split is not permission for dual read/write or fallback. Issue #432 remains
 open until all three verticals and the final scoped legacy inventory are green.
 
+#### V2-8C private documents and final Admissions replacement contract
+
+V2-8C reuses the already proven #428 authority exactly: PostgreSQL
+`evo_private_documents` and `evo_private_document_versions`, opaque objects
+under the private `EVO_PRIVATE_DOCUMENT_ROOT`, and the three `/api/v2`
+upload, resubmission and download routes. It does not copy bytes into
+PostgreSQL, introduce a second document model, revive Supabase document slots
+or use the legacy SQLite `documents` table.
+
+Student 360 is the only document write UI. Admissions and Admin can upload a
+PDF, JPEG or PNG of at most 25 MiB, see the stored metadata and immutable
+version history, download any listed version and resubmit a new version of the
+same document. `/documents` becomes a read-only PostgreSQL queue over the same
+authority, showing the latest version and linking back to the owning Student
+360 document section; the legacy numeric `/documents/:id` detail and its
+mutation action are removed rather than adapted.
+
+Every metadata read and byte download resolves the owning handed-off case on
+the server. Upload and resubmission additionally require that case to be
+active. Admissions and Admin are the only allowed roles; Sales, unknown UUIDs,
+documents outside a handed-off canonical case, inactive-case writes, missing
+PostgreSQL and missing or invalid private storage fail closed without an
+alternate data or file path.
+Responses and UI metadata never expose the opaque object key. Paused or closed
+handed-off cases remain readable but render no upload or resubmission controls.
+
+The slice replaces, rather than preserves, the old document review/status
+workflow. V2-8C has no fake required-document slots or production review
+approval lane: an uploaded document, its immutable versions, verified bytes
+and owning case are the complete active product contract. After real
+PostgreSQL, application, file-byte and Chromium proof, delete the inactive
+`StudentWorkspace`/presenter, old Admissions case-workspace and document-review
+actions/repositories, the SQLite staff document queue/detail/action path and
+their implementation-level tests. Keep only outcome tests at the new
+Student 360/private-document boundary and attach a scoped inventory proving no
+active Student 360 or staff-document import, route or mutation can reach
+SQLite, Supabase or a fallback.
+
 ### Real validation boundary
 
 - Use Node `22.23.1` and OrbStack with Docker context exactly `orbstack`.

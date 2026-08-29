@@ -45,17 +45,15 @@ export class PrivateDocumentFileError extends Error {
   }
 }
 
-export type PreparedPrivateDocumentFile = Readonly<{
-  originalFilename: string;
-  declaredMimeType: PrivateDocumentMimeType;
-  byteLength: number;
-  sha256: string;
-}>;
-
 export type StoredPrivateDocumentObject = Readonly<{
   objectKey: string;
   byteLength: number;
   sha256: string;
+}>;
+
+export type StoredPrivateDocumentUpload = StoredPrivateDocumentObject & Readonly<{
+  originalFilename: string;
+  declaredMimeType: PrivateDocumentMimeType;
 }>;
 
 export type PrivateDocumentObjectRead = Readonly<{
@@ -64,12 +62,7 @@ export type PrivateDocumentObjectRead = Readonly<{
   expectedSha256: string;
 }>;
 
-type PreparedState = Readonly<{
-  objectKey: string;
-  bytes: Buffer;
-}>;
-
-const preparedStates = new WeakMap<PreparedPrivateDocumentFile, PreparedState>();
+const storedUploadStates = new WeakSet<StoredPrivateDocumentUpload>();
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/u;
@@ -252,28 +245,6 @@ function validateMimeType(value: unknown): PrivateDocumentMimeType {
   return value as PrivateDocumentMimeType;
 }
 
-function validateBytes(value: unknown): Buffer {
-  if (!(value instanceof Uint8Array)) {
-    throw fileError(
-      "private_document_bytes_empty",
-      "Private document bytes are required",
-    );
-  }
-  if (value.byteLength === 0) {
-    throw fileError(
-      "private_document_bytes_empty",
-      "Private document bytes are required",
-    );
-  }
-  if (value.byteLength > PRIVATE_DOCUMENT_MAX_BYTES) {
-    throw fileError(
-      "private_document_bytes_too_large",
-      "Private document exceeds the allowed size",
-    );
-  }
-  return Buffer.from(value);
-}
-
 function bytesMatchMimeType(bytes: Buffer, mimeType: PrivateDocumentMimeType): boolean {
   if (mimeType === "application/pdf") {
     return bytes.length >= 5 && bytes.subarray(0, 5).equals(Buffer.from("%PDF-", "ascii"));
@@ -285,42 +256,6 @@ function bytesMatchMimeType(bytes: Buffer, mimeType: PrivateDocumentMimeType): b
     bytes.length >= 8 &&
     bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
   );
-}
-
-export function preparePrivateDocumentFile(input: {
-  originalFilename: unknown;
-  declaredMimeType: unknown;
-  bytes: unknown;
-}): PreparedPrivateDocumentFile {
-  const originalFilename = validateOriginalFilename(input.originalFilename);
-  const declaredMimeType = validateMimeType(input.declaredMimeType);
-  const bytes = validateBytes(input.bytes);
-  if (!bytesMatchMimeType(bytes, declaredMimeType)) {
-    throw fileError(
-      "private_document_content_mismatch",
-      "Private document content does not match its MIME type",
-    );
-  }
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const prepared = Object.freeze({
-    originalFilename,
-    declaredMimeType,
-    byteLength: bytes.length,
-    sha256,
-  });
-  preparedStates.set(prepared, Object.freeze({ objectKey: randomUUID(), bytes }));
-  return prepared;
-}
-
-function requirePreparedState(prepared: PreparedPrivateDocumentFile): PreparedState {
-  const state = preparedStates.get(prepared);
-  if (state === undefined) {
-    throw fileError(
-      "private_document_prepared_file_invalid",
-      "Prepared private document is invalid",
-    );
-  }
-  return state;
 }
 
 async function removeCreatedObject(path: string): Promise<void> {
@@ -336,12 +271,16 @@ async function removeCreatedObject(path: string): Promise<void> {
   }
 }
 
-export async function writePrivateDocumentObject(
-  prepared: PreparedPrivateDocumentFile,
-): Promise<StoredPrivateDocumentObject> {
-  const state = requirePreparedState(prepared);
+export async function storePrivateDocumentObject(input: Readonly<{
+  originalFilename: unknown;
+  declaredMimeType: unknown;
+  chunks: AsyncIterable<Uint8Array>;
+}>): Promise<StoredPrivateDocumentUpload> {
+  const originalFilename = validateOriginalFilename(input.originalFilename);
+  const declaredMimeType = validateMimeType(input.declaredMimeType);
   const objectsDirectory = await requireObjectsDirectory();
-  const objectPath = join(objectsDirectory, state.objectKey);
+  const objectKey = randomUUID();
+  const objectPath = join(objectsDirectory, objectKey);
   let handle;
   try {
     handle = await open(objectPath, "wx", 0o600);
@@ -358,25 +297,76 @@ export async function writePrivateDocumentObject(
     );
   }
 
+  const signature = Buffer.alloc(8);
+  const hash = createHash("sha256");
+  let signatureLength = 0;
+  let byteLength = 0;
   let writeComplete = false;
   try {
     await handle.chmod(0o600);
-    let offset = 0;
-    while (offset < state.bytes.length) {
-      const result = await handle.write(
-        state.bytes,
-        offset,
-        state.bytes.length - offset,
-        offset,
-      );
-      if (result.bytesWritten <= 0) {
+    for await (const value of input.chunks) {
+      if (!(value instanceof Uint8Array)) {
         throw fileError(
-          "private_document_storage_unavailable",
-          "Private document storage is unavailable",
+          "private_document_bytes_empty",
+          "Private document bytes are required",
         );
       }
-      offset += result.bytesWritten;
+      if (value.byteLength === 0) continue;
+      if (byteLength + value.byteLength > PRIVATE_DOCUMENT_MAX_BYTES) {
+        throw fileError(
+          "private_document_bytes_too_large",
+          "Private document exceeds the allowed size",
+        );
+      }
+
+      const bytes = Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+      const signatureBytes = Math.min(
+        signature.length - signatureLength,
+        bytes.length,
+      );
+      if (signatureBytes > 0) {
+        bytes.copy(signature, signatureLength, 0, signatureBytes);
+        signatureLength += signatureBytes;
+      }
+      hash.update(bytes);
+
+      let chunkOffset = 0;
+      while (chunkOffset < bytes.length) {
+        const result = await handle.write(
+          bytes,
+          chunkOffset,
+          bytes.length - chunkOffset,
+          byteLength + chunkOffset,
+        );
+        if (result.bytesWritten <= 0) {
+          throw fileError(
+            "private_document_storage_unavailable",
+            "Private document storage is unavailable",
+          );
+        }
+        chunkOffset += result.bytesWritten;
+      }
+      byteLength += bytes.length;
     }
+
+    if (byteLength === 0) {
+      throw fileError(
+        "private_document_bytes_empty",
+        "Private document bytes are required",
+      );
+    }
+    if (
+      !bytesMatchMimeType(
+        signature.subarray(0, signatureLength),
+        declaredMimeType,
+      )
+    ) {
+      throw fileError(
+        "private_document_content_mismatch",
+        "Private document content does not match its MIME type",
+      );
+    }
+
     await handle.sync();
     await handle.close();
     handle = undefined;
@@ -403,11 +393,27 @@ export async function writePrivateDocumentObject(
       "Private document storage is unavailable",
     );
   }
-  return Object.freeze({
-    objectKey: state.objectKey,
-    byteLength: prepared.byteLength,
-    sha256: prepared.sha256,
+  const stored = Object.freeze({
+    originalFilename,
+    declaredMimeType,
+    objectKey,
+    byteLength,
+    sha256: hash.digest("hex"),
   });
+  storedUploadStates.add(stored);
+  return stored;
+}
+
+export function requireStoredPrivateDocumentUpload(
+  value: StoredPrivateDocumentUpload,
+): StoredPrivateDocumentUpload {
+  if (!storedUploadStates.has(value)) {
+    throw fileError(
+      "private_document_prepared_file_invalid",
+      "Stored private document upload is invalid",
+    );
+  }
+  return value;
 }
 
 function validateObjectKey(value: unknown): string {

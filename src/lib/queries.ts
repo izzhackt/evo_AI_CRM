@@ -1,5 +1,4 @@
-import { db, LEAD_ACTIVE_STATUSES, Stage, STAGES } from "./db";
-import { STUDENT_PORTAL_SECTIONS, StudentPortalSnapshot } from "./contracts/student-portal";
+import { db, LEAD_ACTIVE_STATUSES, Stage } from "./db";
 import {
   buildFullClientPredicate,
   buildVisaClientPredicate,
@@ -43,7 +42,6 @@ export type ClientRow = {
   curator_name: string | null;
   overdue_tasks: number;
   overdue_payments: number;
-  rejected_documents: number;
 };
 
 const CLIENT_SELECT = `
@@ -64,13 +62,7 @@ const CLIENT_SELECT = `
              AND p.status != 'paid'
              AND p.due_date IS NOT NULL
              AND p.due_date < date('now')
-         ) AS overdue_payments,
-         (
-           SELECT COUNT(*)
-           FROM documents doc
-           WHERE doc.client_id = c.id
-             AND doc.status = 'rejected'
-         ) AS rejected_documents
+         ) AS overdue_payments
   FROM clients c
   JOIN users u ON u.id = c.user_id
   LEFT JOIN users m ON m.id = c.manager_id
@@ -98,265 +90,10 @@ export function getClient(id: number): ClientRow | undefined {
   return db().prepare(CLIENT_SELECT + " WHERE c.id = ?").get(id) as ClientRow | undefined;
 }
 
-export function getClientByUserId(userId: number): ClientRow | undefined {
-  return db().prepare(CLIENT_SELECT + " WHERE c.user_id = ?").get(userId) as ClientRow | undefined;
-}
-
-export type StudentPortalContactRow = {
-  id: number;
-  name: string;
-  role: string;
-  email: string;
-  phone: string | null;
-};
-
-export type StudentPortalTaskRow = {
-  id: number;
-  title: string;
-  description: string | null;
-  due_date: string | null;
-  status: string;
-  priority: string;
-  assignee_name: string | null;
-};
-
-type StudentPortalUpdateRow = {
-  id: number;
-  message: string;
-  created_at: string;
-  author_name: string | null;
-  is_read: number;
-};
-
-function staffContact(id: number | null): StudentPortalContactRow | null {
-  if (!id) return null;
-  const row = db()
-    .prepare("SELECT id, name, role, email, phone FROM users WHERE id = ? AND role != 'client'")
-    .get(id) as StudentPortalContactRow | undefined;
-  return row ?? null;
-}
-
-function portalStageTimeline(stage: Stage): StudentPortalSnapshot["stageTimeline"] {
-  const visibleStages = STAGES.filter((s) => s !== "archived");
-  const safeStage = stage === "archived" ? "enrolled" : stage;
-  const currentIndex = Math.max(0, visibleStages.indexOf(safeStage));
-  return visibleStages.map((stageItem, index) => ({
-    stage: stageItem,
-    labelKey: `stage.${stageItem}` as const,
-    state: index < currentIndex ? "complete" : index === currentIndex ? "current" : "locked",
-  }));
-}
-
-function portalProgressPercent(stage: Stage) {
-  const visibleStages = STAGES.filter((s) => s !== "archived");
-  const safeStage = stage === "archived" ? "enrolled" : stage;
-  const currentIndex = Math.max(0, visibleStages.indexOf(safeStage));
-  return Math.round(((currentIndex + 1) / visibleStages.length) * 100);
-}
-
-function portalPaymentStatus(payment: { status: string; due_date: string | null }, today: string) {
-  return payment.status !== "paid" && payment.due_date && payment.due_date < today ? "overdue" : payment.status;
-}
-
-function portalNextAction(
-  snapshot: Pick<StudentPortalSnapshot, "applications" | "documents" | "payments" | "tasks" | "visa">,
-  today: string,
-): StudentPortalSnapshot["nextAction"] {
-  const urgentTask = snapshot.tasks.find((task) => task.priority === "urgent" || task.priority === "high");
-  if (urgentTask) {
-    return {
-      labelKey: "portalNextTask",
-      detail: urgentTask.title,
-      dueDate: urgentTask.dueDate,
-      severity: urgentTask.priority === "urgent" ? "urgent" : "warning",
-    };
-  }
-
-  const openDocument = snapshot.documents.find((document) => document.status === "required" || document.status === "rejected");
-  if (openDocument) {
-    return {
-      labelKey: "portalNextDocument",
-      detail: openDocument.name,
-      dueDate: null,
-      severity: openDocument.status === "rejected" ? "urgent" : "warning",
-    };
-  }
-
-  const nextApplication = snapshot.applications.find(
-    (application) => application.deadline && application.status !== "enrolled" && application.status !== "rejected",
-  );
-  if (nextApplication) {
-    return {
-      labelKey: "portalNextDeadline",
-      detail: nextApplication.university,
-      dueDate: nextApplication.deadline,
-      severity: nextApplication.deadline && nextApplication.deadline < today ? "urgent" : "normal",
-    };
-  }
-
-  const openPayment = snapshot.payments.find((payment) => payment.status !== "paid");
-  if (openPayment) {
-    const visibleStatus = openPayment.dueDate && openPayment.dueDate < today ? "overdue" : openPayment.status;
-    return {
-      labelKey: visibleStatus === "overdue" ? "portalNextOverduePayment" : "portalNextPayment",
-      detail: openPayment.title,
-      dueDate: openPayment.dueDate,
-      severity: visibleStatus === "overdue" ? "urgent" : "normal",
-    };
-  }
-
-  if (snapshot.visa?.appointmentAt) {
-    return {
-      labelKey: "portalNextVisa",
-      detail: snapshot.visa.country,
-      dueDate: snapshot.visa.appointmentAt,
-      severity: "normal",
-    };
-  }
-
-  return null;
-}
-
-function buildStudentCaseSnapshot(client: ClientRow): StudentPortalSnapshot {
-  const today = new Date().toISOString().slice(0, 10);
-  const tasks = db().prepare(`
-    SELECT t.id, t.title, t.description, t.due_date, t.status, t.priority, a.name AS assignee_name
-    FROM tasks t
-    LEFT JOIN users a ON a.id = t.assignee_id
-    WHERE t.client_id = ? AND t.status != 'done'
-    ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-      t.due_date IS NULL, t.due_date, t.created_at DESC
-  `).all(client.id) as StudentPortalTaskRow[];
-
-  const rawSnapshot = {
-    applications: clientApplications(client.id),
-    documents: clientDocuments(client.id),
-    visa: clientVisaCase(client.id),
-    payments: clientPayments(client.id),
-    updates: db().prepare(`
-      SELECT up.*, a.name AS author_name
-      FROM updates up LEFT JOIN users a ON a.id = up.author_id
-      WHERE up.client_id = ? ORDER BY up.created_at DESC
-    `).all(client.id) as StudentPortalUpdateRow[],
-    tasks,
-  };
-
-  const snapshot: StudentPortalSnapshot = {
-    student: {
-      id: client.user_id,
-      name: client.name,
-      email: client.email,
-      phone: client.phone,
-    },
-    client: {
-      id: client.id,
-      stage: client.stage,
-      targetCountry: client.target_country,
-      targetDegree: client.target_degree,
-      managerId: client.manager_id,
-      curatorId: client.curator_id,
-    },
-    visibleSections: STUDENT_PORTAL_SECTIONS,
-    stageTimeline: portalStageTimeline(client.stage),
-    progressPercent: portalProgressPercent(client.stage),
-    nextAction: null,
-    manager: staffContact(client.manager_id),
-    curator: staffContact(client.curator_id),
-    updates: rawSnapshot.updates.map((update) => ({
-      id: update.id,
-      message: update.message,
-      authorName: update.author_name,
-      createdAt: update.created_at,
-      isRead: Boolean(update.is_read),
-    })),
-    applications: rawSnapshot.applications.map((application) => ({
-      id: application.id,
-      university: application.university,
-      country: application.country,
-      program: application.program,
-      degree: application.degree,
-      deadline: application.deadline,
-      status: application.status as StudentPortalSnapshot["applications"][number]["status"],
-      notes: application.notes,
-    })),
-    documents: rawSnapshot.documents.map((document) => ({
-      id: document.id,
-      name: document.name,
-      status: document.status as StudentPortalSnapshot["documents"][number]["status"],
-      comment: document.comment,
-      updatedAt: document.updated_at,
-    })),
-    visa: rawSnapshot.visa
-      ? {
-          id: rawSnapshot.visa.id,
-          country: rawSnapshot.visa.country,
-          status: rawSnapshot.visa.status as NonNullable<StudentPortalSnapshot["visa"]>["status"],
-          appointmentAt: rawSnapshot.visa.appointment_at,
-          notes: rawSnapshot.visa.notes,
-        }
-      : null,
-    payments: rawSnapshot.payments.map((payment) => ({
-      id: payment.id,
-      title: payment.title,
-      amount: payment.amount,
-      currency: payment.currency,
-      dueDate: payment.due_date,
-      paidAt: payment.paid_at,
-      status: portalPaymentStatus(payment, today) as StudentPortalSnapshot["payments"][number]["status"],
-    })),
-    tasks: rawSnapshot.tasks.map((task) => ({
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      dueDate: task.due_date,
-      status: task.status as StudentPortalSnapshot["tasks"][number]["status"],
-      priority: task.priority as StudentPortalSnapshot["tasks"][number]["priority"],
-      assigneeName: task.assignee_name,
-    })),
-    generatedAt: new Date().toISOString(),
-  };
-  return { ...snapshot, nextAction: portalNextAction(snapshot, today) };
-}
-
-/**
- * Complete admissions snapshot for an authorized staff client-detail view.
- *
- * Authorization and object scope belong at the route/action boundary. Unlike
- * the student portal query below, this read model intentionally remains
- * available while a confirmed case is still pending assignment.
- */
-export function studentCaseSnapshotForUser(
-  userId: number,
-): StudentPortalSnapshot | undefined {
-  const client = getClientByUserId(userId);
-  return client ? buildStudentCaseSnapshot(client) : undefined;
-}
-
-export function studentPortalSnapshotForUser(userId: number): StudentPortalSnapshot | undefined {
-  const client = getClientByUserId(userId);
-  if (
-    !client
-    || !client.contract_confirmed_at?.trim()
-    || !client.contract_confirmation_ref?.trim()
-    || client.curator_id === null
-    || !client.portal_activated_at?.trim()
-    || (client.case_state !== "active" && client.case_state !== "closed")
-  ) {
-    return undefined;
-  }
-  return buildStudentCaseSnapshot(client);
-}
-
 export function clientApplications(clientId: number) {
   return db().prepare("SELECT * FROM applications WHERE client_id = ? ORDER BY deadline IS NULL, deadline").all(clientId) as {
     id: number; university: string; country: string | null; program: string | null;
     degree: string | null; deadline: string | null; status: string; notes: string | null;
-  }[];
-}
-
-export function clientDocuments(clientId: number) {
-  return db().prepare("SELECT * FROM documents WHERE client_id = ? ORDER BY id").all(clientId) as {
-    id: number; name: string; status: string; comment: string | null; updated_at: string;
   }[];
 }
 
@@ -386,60 +123,6 @@ export function clientTasks(clientId: number) {
     id: number; title: string; description: string | null; due_date: string | null;
     status: string; priority: string; assignee_name: string | null;
   }[];
-}
-
-export type DocumentQueueRow = {
-  id: number;
-  client_id: number;
-  client_name: string;
-  stage: Stage;
-  manager_name: string | null;
-  name: string;
-  status: string;
-  comment: string | null;
-  updated_at: string;
-  application_total: number;
-  active_applications: number;
-  open_tasks: number;
-  pending_payments: number;
-};
-
-export function allDocuments(opts: { status?: string } = {}): DocumentQueueRow[] {
-  const where: string[] = [];
-  const params: unknown[] = [];
-  if (opts.status) {
-    where.push("doc.status = ?");
-    params.push(opts.status);
-  }
-  const sql = `
-    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
-      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
-      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    JOIN users u ON u.id = c.user_id
-    LEFT JOIN users m ON m.id = c.manager_id
-    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-    ORDER BY doc.status = 'approved', doc.status = 'rejected', doc.updated_at DESC
-  `;
-  return db().prepare(sql).all(...params) as DocumentQueueRow[];
-}
-
-export function getDocument(id: number): DocumentQueueRow | undefined {
-  return db().prepare(`
-    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
-      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
-      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    JOIN users u ON u.id = c.user_id
-    LEFT JOIN users m ON m.id = c.manager_id
-    WHERE doc.id = ?
-  `).get(id) as DocumentQueueRow | undefined;
 }
 
 export function clientUpdates(clientId: number) {
@@ -512,7 +195,6 @@ export type OperatorNotificationKind =
   | "task_overdue"
   | "task_priority"
   | "whatsapp_unread"
-  | "document_attention"
   | "payment_overdue"
   | "application_deadline";
 
@@ -645,32 +327,6 @@ export function listOperatorNotificationsForActor(
 
   if (["admin", "sales", "curator"].includes(actor.role)) {
     const clientScope = buildFullClientPredicate(actor, "c");
-    const documents = d.prepare(`
-      SELECT doc.id, doc.name, doc.status, doc.updated_at, u.name AS client_name
-      FROM documents doc
-      JOIN clients c ON c.id = doc.client_id
-      JOIN users u ON u.id = c.user_id
-      WHERE doc.status IN ('uploaded', 'review', 'rejected')
-        AND (${clientScope.sql})
-      ORDER BY doc.status = 'rejected' DESC, doc.updated_at DESC
-      LIMIT ?
-    `).all(...clientScope.params, sourceLimit) as {
-      id: number; name: string; status: string; updated_at: string; client_name: string;
-    }[];
-    for (const document of documents) {
-      const rejected = document.status === "rejected";
-      items.push({
-        id: `document-${document.id}`,
-        kind: "document_attention",
-        group: rejected ? "urgent" : "upcoming",
-        title: document.name,
-        subject: document.client_name,
-        href: `/documents/${document.id}`,
-        occurred_at: document.updated_at,
-        priority: rejected ? 0 : 3,
-      });
-    }
-
     const applications = d.prepare(`
       SELECT ap.id, ap.university, ap.deadline, u.name AS client_name
       FROM applications ap
@@ -914,7 +570,6 @@ export function getClientForActor(
 }
 
 export type ClientApplicationRow = ReturnType<typeof clientApplications>[number];
-export type ClientDocumentRow = ReturnType<typeof clientDocuments>[number];
 export type ClientVisaRow = NonNullable<ReturnType<typeof clientVisaCase>>;
 export type ClientPaymentRow = ReturnType<typeof clientPayments>[number];
 export type ClientTaskRow = ReturnType<typeof clientTasks>[number];
@@ -932,20 +587,6 @@ export function clientApplicationsForActor(
     WHERE ap.client_id = ? AND (${scope.sql})
     ORDER BY ap.deadline IS NULL, ap.deadline
   `).all(clientId, ...scope.params) as ClientApplicationRow[];
-}
-
-export function clientDocumentsForActor(
-  actor: AccessActor,
-  clientId: number,
-): ClientDocumentRow[] {
-  const scope = buildFullClientPredicate(actor, "c");
-  return db().prepare(`
-    SELECT doc.*
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    WHERE doc.client_id = ? AND (${scope.sql})
-    ORDER BY doc.id
-  `).all(clientId, ...scope.params) as ClientDocumentRow[];
 }
 
 export function clientVisaCaseForActor(
@@ -1025,51 +666,6 @@ export function studentCaseAuditForActor(
     WHERE audit.client_id = ? AND (${scope.sql})
     ORDER BY audit.occurred_at DESC, audit.id DESC
   `).all(clientId, ...scope.params) as StudentCaseAuditRow[];
-}
-
-export function listDocumentsForActor(
-  actor: AccessActor,
-  opts: { status?: string } = {},
-): DocumentQueueRow[] {
-  const scope = buildFullClientPredicate(actor, "c");
-  const where = [`(${scope.sql})`];
-  const params: unknown[] = [...scope.params];
-  if (opts.status) {
-    where.push("doc.status = ?");
-    params.push(opts.status);
-  }
-  return db().prepare(`
-    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
-      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
-      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    JOIN users u ON u.id = c.user_id
-    LEFT JOIN users m ON m.id = c.manager_id
-    WHERE ${where.join(" AND ")}
-    ORDER BY doc.status = 'approved', doc.status = 'rejected', doc.updated_at DESC
-  `).all(...params) as DocumentQueueRow[];
-}
-
-export function getDocumentForActor(
-  actor: AccessActor,
-  id: number,
-): DocumentQueueRow | undefined {
-  const scope = buildFullClientPredicate(actor, "c");
-  return db().prepare(`
-    SELECT doc.*, c.id AS client_id, c.stage, u.name AS client_name, m.name AS manager_name,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id) AS application_total,
-      (SELECT COUNT(*) FROM applications ap WHERE ap.client_id = c.id AND ap.status IN ('preparing', 'submitted', 'offer')) AS active_applications,
-      (SELECT COUNT(*) FROM tasks t WHERE t.client_id = c.id AND t.status != 'done') AS open_tasks,
-      (SELECT COUNT(*) FROM payments p WHERE p.client_id = c.id AND p.status != 'paid') AS pending_payments
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    JOIN users u ON u.id = c.user_id
-    LEFT JOIN users m ON m.id = c.manager_id
-    WHERE doc.id = ? AND (${scope.sql})
-  `).get(id, ...scope.params) as DocumentQueueRow | undefined;
 }
 
 type WhatsAppAccessProbeRow = {
@@ -1911,13 +1507,6 @@ export function dashboardStatsForActor(actor: AccessActor) {
   const activeLeads = canReadLeadOperations
     ? count(`SELECT COUNT(*) c FROM leads l WHERE ${ACTIVE_LEAD_SQL}`)
     : 0;
-  const documentsInReview = count(
-    `SELECT COUNT(*) c
-     FROM documents doc
-     JOIN clients c ON c.id = doc.client_id
-     WHERE doc.status IN ('uploaded','review') AND (${clientScope.sql})`,
-    clientScope.params,
-  );
   const overduePayments = canReadFinanceProjection
     ? count("SELECT COUNT(*) c FROM payments WHERE status != 'paid' AND due_date IS NOT NULL AND due_date < date('now')")
     : 0;
@@ -1945,13 +1534,6 @@ export function dashboardStatsForActor(actor: AccessActor) {
     JOIN clients c ON c.id = ap.client_id
     WHERE ${clientScope.sql}
     GROUP BY ap.status
-  `).all(...clientScope.params) as { status: string; c: number }[];
-  const byDocumentStatus = d.prepare(`
-    SELECT doc.status, COUNT(*) c
-    FROM documents doc
-    JOIN clients c ON c.id = doc.client_id
-    WHERE ${clientScope.sql}
-    GROUP BY doc.status
   `).all(...clientScope.params) as { status: string; c: number }[];
   const byTaskStatus = d.prepare(`
     SELECT t.status, COUNT(*) c
@@ -1989,13 +1571,11 @@ export function dashboardStatsForActor(actor: AccessActor) {
     openTasks,
     pendingPayments,
     activeLeads,
-    documentsInReview,
     overduePayments,
     urgentTasks,
     byStage,
     byLeadStatus,
     byApplicationStatus,
-    byDocumentStatus,
     byTaskStatus,
     byPaymentStatus,
     deadlines,

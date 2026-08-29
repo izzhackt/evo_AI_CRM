@@ -48,9 +48,12 @@ test("the same policy resolves home routes and direct page access", () => {
   assert.equal(fixedRoleCanAccessRoute("sales", "/sales"), true);
   assert.equal(fixedRoleCanAccessRoute("sales", "/clients"), false);
   assert.equal(fixedRoleCanAccessRoute("sales", "/applications"), false);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/documents"), false);
   assert.equal(fixedRoleCanAccessRoute("admissions", "/sales"), false);
   assert.equal(fixedRoleCanAccessRoute("admissions", "/clients"), true);
   assert.equal(fixedRoleCanAccessRoute("admissions", "/applications"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/documents"), true);
+  assert.equal(fixedRoleCanAccessRoute("admin", "/documents"), true);
   assert.equal(fixedRoleCanAccessRoute("admin", "/settings"), true);
   assert.equal(fixedRoleCanAccessRoute("sales", "/settings"), false);
   assert.equal(fixedRoleCanAccessRoute("admissions", "/settings"), false);

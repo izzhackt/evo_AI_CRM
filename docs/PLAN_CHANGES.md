@@ -12916,3 +12916,225 @@ SQLite/Supabase projections. This bounded coexistence expires in V2-8C before
 #432 may close; it is not a fallback or authority for the V2-8B routes, and it
 does not authorize deleting frozen V1 deployments or historical
 decision/rollback documentation.
+
+## 2026-08-29 - Pin the V2-8C private-document and final Admissions boundary
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #432 on exact-main
+`8a3ead5490b56dec2c798078ad6d64e61b10b468`.
+Change type: implementation contract before coding.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Decision: keep the #428 `evo_private_documents`,
+`evo_private_document_versions`, private object directory and exact `/api/v2`
+file routes as the single authority. Add only the missing case-scoped metadata
+reads and canonical UI. Student 360 is the sole upload/resubmission surface;
+`/documents` is a read-only queue over the same rows and latest versions. Do
+not preserve the old SQLite document review queue, numeric detail, status
+workflow or Supabase document-slot/RPC model as an adapter or parallel path.
+
+All reads and downloads must resolve a real handed-off PostgreSQL case.
+Uploads and resubmissions additionally require an active case. Admissions and
+Admin may use the document path; Sales, unknown identifiers and documents
+outside a handed-off canonical case fail closed. The UI never receives storage
+object keys. Paused and closed cases may
+read existing metadata and bytes but expose no write controls. Missing
+PostgreSQL, private-root configuration, object bytes or checksum integrity is
+an explicit unavailable result with no filesystem, SQLite or Supabase
+fallback.
+
+Acceptance must use the actual two-field development gate, Next application,
+PostgreSQL migrations, private files and desktop Chromium to upload through
+Student 360, render the new metadata, download exact initial bytes, resubmit,
+render the incremented immutable version and download exact replacement bytes.
+Direct PostgreSQL and filesystem checks bind the returned document/version IDs
+to exact version numbers, byte lengths, SHA-256 values and opaque object files;
+role, case, inactive-case and unavailable-path denials write nothing.
+
+After that proof, delete the inactive `StudentWorkspace` and presenter, old
+Admissions case-workspace and document-review actions/repositories, the
+SQLite-backed `/documents` queue/detail/action implementation and their old
+implementation tests. Replace them with outcome tests at the canonical
+Student 360/private-document interface and attach the final scoped `rg`
+inventory. Frozen V1 deployments plus historical ADRs, migrations, runbooks,
+archived docs, evidence and other decision/rollback documentation remain inert
+and preserved under the repository-wide exception.
+
+## 2026-08-29 - Complete the V2-8C private-document replacement boundary
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #432 after real PostgreSQL, private-file and Chromium
+proof.
+Change type: implementation boundary and final Admissions legacy-deletion
+record.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Decision: Student 360 now reads document metadata through the canonical
+PostgreSQL repository and is the sole upload/resubmission UI. `/documents` is
+the read-only queue over the same authority and links back to the owning case.
+The repository binds every metadata/byte read to a handed-off case, limits
+writes to active cases, permits only Admissions/Admin, keeps paused/closed
+cases read-only and never returns an object key to the UI. The three existing
+`/api/v2` routes remain the only byte mutation/download boundary.
+
+Real acceptance used Node `22.23.1`, OrbStack `Running`, Docker context
+`orbstack`, a disposable real PostgreSQL container, all three committed
+Drizzle migrations, the actual Next application and desktop Chromium. The
+browser uploaded one PDF in Student 360, downloaded the exact bytes, submitted
+one replacement version, downloaded both the exact replacement and original
+historical bytes, and exercised anonymous, Sales, Admin-preview, guessed-ID,
+malformed-file and missing-private-root denials. Direct SQL and filesystem
+checks then proved one logical document, two immutable version rows, their
+case/role binding, exact filenames, MIME types, lengths and SHA-256 values, and
+two opaque object files with matching bytes. The repository test separately
+proved active writes, paused/closed reads, inactive and non-handed-off denials,
+and no denied-write residue.
+
+The same slice deleted the inactive `StudentWorkspace` and presenter,
+Supabase/RPC Admissions case workspace and actions, document-review/status
+modules, student-profile write actions, SQLite `/documents` detail/action and
+queue queries, obsolete document notification projection, components, copy and
+implementation tests. `tests/v2-8c-legacy-cleanup.test.mjs` keeps those files
+absent and rejects fallback imports in the active Student 360/document UI.
+The final scoped inventory finds no old symbol or module reference under
+`src`; remaining names exist only in negative outcome tests. The active UI has
+no SQLite, Supabase, fallback or object-key reference; the only object-key use
+is the server repository's private persistence/integrity path. Missing
+PostgreSQL, storage configuration or bytes continues to fail explicitly.
+
+Validated before review with `npm run test:unit` (436 passing),
+`npm run test:security`, `npm run test:u8` (19 passing), `npm run lint`,
+`npm run typecheck`, `npm run build`, `git diff --check`, Playwright test
+discovery and the complete `npm run test:database:local` real-service gate.
+Frozen V1 deployments and historical ADRs, migrations, runbooks, archived
+docs, evidence and other decision/rollback documentation remain preserved and
+were not executed or modified as V2 authority.
+
+## 2026-08-29 - Close the V2-8C queue acceptance gap
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after independent exact-head review of PR #453.
+Change type: acceptance correction without a product-contract change.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Reason: the first V2-8C head still retained a default Playwright journey for
+the deleted SQLite document-review UI, including the removed numeric
+`/documents/:id` route. Its real PostgreSQL browser proof exercised Student 360
+but did not open the new `/documents` queue.
+
+Decision: delete that superseded browser spec and keep it absent in the V2-8C
+legacy-eradication test. Extend the real PostgreSQL/Chromium acceptance to open
+`/documents` after resubmission, prove the queue renders exactly the newest
+version and owning document identifier, and follow its exact
+`/clients/:caseId#documents` link back to the same Student 360 document. The
+complete `npm run test:database:local` gate passes with this correction; no
+runtime, provider or production boundary changed.
+
+## 2026-08-29 - Bound multipart parsing and finish stale document-test removal
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after final independent exact-head review of PR #453.
+Change type: security and acceptance correction without a product-contract
+change.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Reason: the corrected head still let a multipart request with no truthful
+`Content-Length` reach the platform parser before enforcing the 25 MiB file
+limit, and two broad fixture/SQLite Playwright suites still carried assertions
+for the removed document queue/detail experience.
+
+Decision: read every private-document multipart stream through the shared
+bounded reader before parsing fields, count actual bytes even when
+`Content-Length` is absent or understated, cancel the stream above the request
+cap and return the same safe `413 file_too_large` response without calling the
+repository. Add a streamed no-length regression test. Remove `/documents`
+from the two superseded fixture browser journeys and guard that removal in the
+legacy-eradication test; the real PostgreSQL/private-file Chromium spec remains
+the sole browser acceptance authority for the V2-8C document workflow.
+
+## 2026-08-29 - Remove the final SQLite document consumers and preserve dev sessions
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after final replace-contract review of PR #453.
+Change type: replacement-completeness and safe-test-harness correction without
+a product-contract change.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Reason: the dashboard still displayed a document-review KPI calculated from
+the legacy SQLite `documents` table even though V2 private documents have no
+review-status field. The legacy AI summary and unused SQLite portal snapshot
+helpers also kept the old document model reachable in the active source
+module. Separately, the real-service harness could terminate an existing
+repo-scoped Next development server when it encountered `.next/dev/lock`.
+
+Decision: remove the misleading dashboard document-review card rather than
+invent a PostgreSQL status that does not exist. Delete every remaining SQLite
+document table creation, demo seed, query, actor helper, dashboard aggregate,
+legacy AI-summary input, unused portal snapshot builder, translation and
+fixture assertion from active `src`/browser-test code. Existing V1 databases
+and historical artifacts are not dropped or rewritten; any old table already
+on disk is inert and is not V2 authority.
+
+Replace the harness process-termination behavior with a check-only preflight.
+A stale lock file with no holder is tolerated, while a live holder produces an
+explicit blocker with its PID and instructions to stop it manually. The
+harness terminates only the application process it started itself; it never
+stops a pre-existing development server.
+
+## 2026-08-29 - Stream private-document uploads and complete unavailable-path proof
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex after independent security and correctness review of PR #453.
+Change type: security, truthful-copy and acceptance correction without a
+product-contract change.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Reason: the bounded private-document request reader still accumulated the
+entire multipart body, reparsed it into `FormData` and copied the `File` into a
+second request-sized array before persistence. A 25 MiB upload therefore had
+multiple simultaneous in-process copies even though oversize bodies were
+rejected. Review also found that the shared `/documents` hint still described
+a deleted review/decision workflow, while the missing-root browser proof
+covered create but not the separate resubmission and download storage paths.
+
+Decision: make `busboy` `1.6.0` the single private-document multipart parser.
+The route now authorizes before reading, bounds total request bytes plus file,
+field, part and header counts, consumes exactly one file stream, and writes
+each chunk directly to the private object while incrementally computing its
+length, SHA-256 and small MIME signature. It accepts exactly 25 MiB, rejects
+the first excess byte, removes partial or invalid objects and passes only a
+server-branded stored-upload handle to the PostgreSQL repository. The former
+prepared-buffer/write path was deleted. The small legacy multipart helper
+remains for the unrelated transcription route but is not imported or reachable
+from the V2 private-document path.
+
+Update all three language variants of the `/documents` hint to state its real
+read-only latest-version behavior and direct upload/resubmission work to
+Student 360. Extend the same real browser unavailable-root run to prove safe
+`503 document_storage_unavailable` responses for create, resubmission and
+download against the already persisted canonical document/version IDs, with
+no fallback store.
+
+Follow-up correctness review found that streaming had moved case/document
+eligibility checks behind object creation. Keep the existing transaction-time
+checks, but also preflight the handed-off active case or document before the
+first file byte can reach private storage. Create requests must present their
+single `caseId` field before the file; file-first or earlier-invalid multipart
+requests are rejected without calling storage. Resubmission validates its URL
+document ID before reading the multipart body. Tests prove role and invalid,
+unknown or inactive target denials leave storage untouched; malformed trailing
+parts remain fail-closed and their uncommitted object is discarded.
+
+The first clean real-browser rerun exposed a Next development-server readiness
+race: `/api/health` was ready while the exact database-status route still
+returned a transient `404`. The harness now waits until both health is `200`
+and `/api/database/status` has reached one of its two truthful states (`200` or
+`503`) before starting Playwright. A second full PostgreSQL/Chromium run passed;
+this readiness correction prevents a fresh checkout from depending on warmed
+route-discovery state.

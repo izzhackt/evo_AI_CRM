@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PrivateDocumentFileError } from "../src/lib/server/private-document-files.ts";
+import {
+  PRIVATE_DOCUMENT_MAX_BYTES,
+  PrivateDocumentFileError,
+} from "../src/lib/server/private-document-files.ts";
 import { PrivateDocumentRepositoryError } from "../src/lib/server/private-document-repository.ts";
 import {
   createPrivateDocumentDownloadHandler,
@@ -47,9 +50,26 @@ function authorized(role = "admissions") {
 function dependencies(overrides = {}) {
   return {
     authorize: async () => authorized(),
+    assertCreateTargetWritable: async () => {},
+    assertResubmitTargetWritable: async () => {},
     create: async () => metadata,
     resubmit: async () => ({ ...metadata, versionNumber: 2 }),
     download: async () => ({ metadata, bytes: Buffer.from(PDF_BYTES) }),
+    multipartStorage: {
+      async store({ originalFilename, declaredMimeType, chunks }) {
+        const observedBytes = [];
+        for await (const chunk of chunks) observedBytes.push(...chunk);
+        return Object.freeze({
+          originalFilename,
+          declaredMimeType,
+          objectKey: "10000000-0000-4000-8000-000000000099",
+          byteLength: observedBytes.length,
+          sha256: "b".repeat(64),
+          observedBytes,
+        });
+      },
+      async discard() {},
+    },
     ...overrides,
   };
 }
@@ -68,6 +88,34 @@ function validCreateRequest() {
     ["caseId", CASE_ID],
     ["file", new File([PDF_BYTES], "application.pdf", { type: "application/pdf" })],
   ]);
+}
+
+function streamedFileRequest(fileChunkCount, finalFileBytes = new Uint8Array()) {
+  const boundary = "evo-private-document-boundary";
+  const encoder = new TextEncoder();
+  const oneMiB = new Uint8Array(1024 * 1024);
+  oneMiB.set(encoder.encode("%PDF-"), 0);
+  const body = new ReadableStream({
+    async start(controller) {
+      controller.enqueue(encoder.encode(
+        `--${boundary}\r\nContent-Disposition: form-data; name="caseId"\r\n\r\n${CASE_ID}\r\n` +
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="boundary.pdf"\r\n` +
+        "Content-Type: application/pdf\r\n\r\n",
+      ));
+      for (let index = 0; index < fileChunkCount; index += 1) {
+        controller.enqueue(oneMiB);
+      }
+      if (finalFileBytes.byteLength > 0) controller.enqueue(finalFileBytes);
+      controller.enqueue(encoder.encode(`\r\n--${boundary}--\r\n`));
+      controller.close();
+    },
+  });
+  return new Request("http://local.test/api/v2/documents", {
+    method: "POST",
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+    body,
+    duplex: "half",
+  });
 }
 
 async function assertSafeError(response, status, code) {
@@ -97,10 +145,71 @@ test("upload authenticates before reading the multipart body", async () => {
 });
 
 test("upload returns 403 for a role rejected by server authorization", async () => {
+  let storeCalls = 0;
   const handler = createPrivateDocumentUploadHandler(dependencies({
     authorize: async () => ({ status: "forbidden", actor: null }),
+    multipartStorage: {
+      async store() {
+        storeCalls += 1;
+        throw new Error("storage must not be reached");
+      },
+      async discard() {},
+    },
   }));
   await assertSafeError(await handler(validCreateRequest()), 403, "forbidden");
+  assert.equal(storeCalls, 0);
+});
+
+test("upload validates the target before private storage receives file bytes", async () => {
+  let storeCalls = 0;
+  let createCalled = false;
+  const handler = createPrivateDocumentUploadHandler(dependencies({
+    assertCreateTargetWritable: async ({ actorRole, caseId }) => {
+      assert.equal(actorRole, "admissions");
+      assert.equal(caseId, CASE_ID);
+      throw new PrivateDocumentRepositoryError("not_found");
+    },
+    create: async () => {
+      createCalled = true;
+      return metadata;
+    },
+    multipartStorage: {
+      async store() {
+        storeCalls += 1;
+        throw new Error("storage must not be reached");
+      },
+      async discard() {},
+    },
+  }));
+
+  await assertSafeError(await handler(validCreateRequest()), 404, "document_not_found");
+  assert.equal(storeCalls, 0);
+  assert.equal(createCalled, false);
+});
+
+test("upload rejects file-first multipart without touching private storage", async () => {
+  let targetChecks = 0;
+  let storeCalls = 0;
+  const handler = createPrivateDocumentUploadHandler(dependencies({
+    assertCreateTargetWritable: async () => {
+      targetChecks += 1;
+    },
+    multipartStorage: {
+      async store() {
+        storeCalls += 1;
+        throw new Error("storage must not be reached");
+      },
+      async discard() {},
+    },
+  }));
+
+  const response = await handler(uploadRequest([
+    ["file", new File([PDF_BYTES], "application.pdf", { type: "application/pdf" })],
+    ["caseId", CASE_ID],
+  ]));
+  await assertSafeError(response, 400, "invalid_request");
+  assert.equal(targetChecks, 0);
+  assert.equal(storeCalls, 0);
 });
 
 test("upload accepts only caseId and file and never exposes a storage key", async () => {
@@ -118,9 +227,10 @@ test("upload accepts only caseId and file and never exposes a storage key", asyn
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.equal(received.actorRole, "admissions");
   assert.equal(received.caseId, CASE_ID);
-  assert.equal(received.originalFilename, "application.pdf");
-  assert.equal(received.declaredMimeType, "application/pdf");
-  assert.deepEqual(received.bytes, PDF_BYTES);
+  assert.equal(received.upload.originalFilename, "application.pdf");
+  assert.equal(received.upload.declaredMimeType, "application/pdf");
+  assert.deepEqual(received.upload.observedBytes, [...PDF_BYTES]);
+  assert.equal("bytes" in received, false);
   const payload = await response.json();
   assert.deepEqual(payload, { document: metadata });
   assert.equal(JSON.stringify(payload).includes("objectKey"), false);
@@ -128,10 +238,22 @@ test("upload accepts only caseId and file and never exposes a storage key", asyn
 
 test("upload rejects unknown, duplicated, and client-controlled storage fields", async () => {
   let createCalls = 0;
+  let discardCalls = 0;
+  let storeCalls = 0;
+  const baseStorage = dependencies().multipartStorage;
   const handler = createPrivateDocumentUploadHandler(dependencies({
     create: async () => {
       createCalls += 1;
       return metadata;
+    },
+    multipartStorage: {
+      async store(input) {
+        storeCalls += 1;
+        return baseStorage.store(input);
+      },
+      discard: async () => {
+        discardCalls += 1;
+      },
     },
   }));
   const file = new File([PDF_BYTES], "application.pdf", { type: "application/pdf" });
@@ -145,15 +267,26 @@ test("upload rejects unknown, duplicated, and client-controlled storage fields",
     await assertSafeError(await handler(request), 400, "invalid_request");
   }
   assert.equal(createCalls, 0);
+  assert.equal(storeCalls, 2, "invalid parts before the file must not reach storage");
+  assert.equal(discardCalls, 2, "invalid trailing parts must discard uncommitted objects");
 });
 
 test("upload maps traversal filenames to a stable invalid-request response", async () => {
+  let createCalled = false;
   const handler = createPrivateDocumentUploadHandler(dependencies({
     create: async () => {
-      throw new PrivateDocumentFileError(
-        "private_document_filename_invalid",
-        "must not be returned",
-      );
+      createCalled = true;
+      return metadata;
+    },
+    multipartStorage: {
+      store: async ({ originalFilename }) => {
+        assert.equal(originalFilename, "../private.pdf");
+        throw new PrivateDocumentFileError(
+          "private_document_filename_invalid",
+          "must not be returned",
+        );
+      },
+      discard: async () => {},
     },
   }));
   const request = uploadRequest([
@@ -162,6 +295,7 @@ test("upload maps traversal filenames to a stable invalid-request response", asy
   ]);
 
   await assertSafeError(await handler(request), 400, "invalid_request");
+  assert.equal(createCalled, false);
 });
 
 test("upload rejects an obviously oversized multipart body before parsing it", async () => {
@@ -177,6 +311,79 @@ test("upload rejects an obviously oversized multipart body before parsing it", a
   await assertSafeError(response, 413, "file_too_large");
 });
 
+test("upload rejects oversized streamed multipart bodies without a truthful content-length", async () => {
+  const handler = createPrivateDocumentUploadHandler(dependencies({
+    create: async () => assert.fail("oversized streamed body must not reach storage"),
+  }));
+  for (const contentLength of [null, "1"]) {
+    const chunk = new Uint8Array(1024 * 1024);
+    const chunkCount = Math.ceil((PRIVATE_DOCUMENT_MAX_BYTES + 64 * 1024 + 1) / chunk.byteLength);
+    let emitted = 0;
+    const body = new ReadableStream({
+      pull(controller) {
+        if (emitted >= chunkCount) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(chunk);
+        emitted += 1;
+      },
+    });
+    const headers = new Headers({
+      "content-type": "multipart/form-data; boundary=streamed-body",
+    });
+    if (contentLength !== null) headers.set("content-length", contentLength);
+    const response = await handler(new Request("http://local.test/api/v2/documents", {
+      method: "POST",
+      headers,
+      body,
+      duplex: "half",
+    }));
+
+    await assertSafeError(response, 413, "file_too_large");
+  }
+});
+
+test("streamed multipart accepts exactly 25 MiB and rejects the first excess byte", async () => {
+  let storedBytes = 0;
+  let discardCalls = 0;
+  const multipartStorage = {
+    async store({ originalFilename, declaredMimeType, chunks }) {
+      storedBytes = 0;
+      for await (const chunk of chunks) storedBytes += chunk.byteLength;
+      return Object.freeze({
+        originalFilename,
+        declaredMimeType,
+        objectKey: "10000000-0000-4000-8000-000000000098",
+        byteLength: storedBytes,
+        sha256: "c".repeat(64),
+      });
+    },
+    async discard() {
+      discardCalls += 1;
+    },
+  };
+  const handler = createPrivateDocumentUploadHandler(dependencies({
+    multipartStorage,
+    create: async (input) => {
+      assert.equal(input.upload.byteLength, PRIVATE_DOCUMENT_MAX_BYTES);
+      return metadata;
+    },
+  }));
+
+  const accepted = await handler(streamedFileRequest(25));
+  assert.equal(accepted.status, 201);
+  assert.equal(storedBytes, PRIVATE_DOCUMENT_MAX_BYTES);
+
+  await assertSafeError(
+    await handler(streamedFileRequest(25, new Uint8Array([0]))),
+    413,
+    "file_too_large",
+  );
+  assert.equal(storedBytes, PRIVATE_DOCUMENT_MAX_BYTES + 1);
+  assert.equal(discardCalls, 1);
+});
+
 test("resubmission returns a safe 404 for malformed and guessed document IDs", async () => {
   const malformed = createPrivateDocumentResubmissionHandler(dependencies());
   await assertSafeError(
@@ -188,9 +395,24 @@ test("resubmission returns a safe 404 for malformed and guessed document IDs", a
     "document_not_found",
   );
 
+  let storeCalls = 0;
+  let resubmitCalled = false;
   const guessed = createPrivateDocumentResubmissionHandler(dependencies({
-    resubmit: async () => {
+    assertResubmitTargetWritable: async ({ actorRole, documentId }) => {
+      assert.equal(actorRole, "admissions");
+      assert.equal(documentId, DOCUMENT_ID);
       throw new PrivateDocumentRepositoryError("not_found");
+    },
+    resubmit: async () => {
+      resubmitCalled = true;
+      return { ...metadata, versionNumber: 2 };
+    },
+    multipartStorage: {
+      async store() {
+        storeCalls += 1;
+        throw new Error("storage must not be reached");
+      },
+      async discard() {},
     },
   }));
   await assertSafeError(
@@ -201,6 +423,8 @@ test("resubmission returns a safe 404 for malformed and guessed document IDs", a
     404,
     "document_not_found",
   );
+  assert.equal(storeCalls, 0);
+  assert.equal(resubmitCalled, false);
 });
 
 test("download returns exact bytes with safe non-cacheable attachment headers", async () => {

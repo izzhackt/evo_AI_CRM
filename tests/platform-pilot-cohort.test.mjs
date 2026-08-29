@@ -602,39 +602,6 @@ test("U10 parses only exact bounded include/exclude forms", () => {
   assert.equal(parsePlatformPilotMembershipForm(form), null);
 });
 
-test("U10 UI exposes status, provenance, bounded history, EVO-only authority, and admin forms", () => {
-  const card = readFileSync(
-    new URL("../src/components/platform/cases/PlatformPilotCohortCard.tsx", import.meta.url),
-    "utf8",
-  );
-  const connected = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/StudentWorkspace.tsx", import.meta.url),
-    "utf8",
-  );
-  const fixture = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/StudentWorkspacePresenter.tsx", import.meta.url),
-    "utf8",
-  );
-  const i18n = readFileSync(new URL("../src/lib/i18n-data.ts", import.meta.url), "utf8");
-
-  for (const fragment of [
-    "platform-pilot-cohort-card",
-    "platform-pilot-write-boundary",
-    "platform-pilot-membership-history",
-    "platform-pilot-membership-",
-    "membership_action",
-    "legacyWriteBoundary",
-    "noFallback",
-  ]) assert.match(card, new RegExp(fragment));
-  assert.match(connected, /getPlatformStudentCasePilotCohort/);
-  assert.match(connected, /getPlatformPilotWriteBoundary\(actor, studentCase\.studentCaseId, "legacy_crm"\)/);
-  assert.match(fixture, /<PlatformPilotCohortCard/);
-  assert.equal(i18n.match(/platformPilotCohortEvoOnly:/g)?.length, 3);
-  assert.match(i18n, /только EVO\/Supabase/);
-  assert.match(i18n, /EVO\/Supabase гана/);
-  assert.match(i18n, /EVO\/Supabase only/);
-});
-
 test("U10 TS/UI slice contains no provider, outbox, message-send, or legacy-write effect", () => {
   const paths = [
     "../src/lib/platform-pilot-cohort.ts",

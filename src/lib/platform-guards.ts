@@ -59,6 +59,10 @@ export function requirePlatformApplicationsActor(): Promise<ActivePlatformActor>
   return requirePlatformAdmissionsActor("/applications");
 }
 
+export function requirePlatformDocumentsActor(): Promise<ActivePlatformActor> {
+  return requirePlatformCapability("documents.read", "/documents");
+}
+
 export async function requirePlatformSalesActor(): Promise<ActivePlatformActor> {
   return requirePlatformCapability("sales.read", "/sales");
 }

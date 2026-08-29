@@ -20,7 +20,6 @@ const ICON_BY_KIND: Record<OperatorNotification["kind"], IconName> = {
   task_overdue: "alert",
   task_priority: "check-square",
   whatsapp_unread: "message-circle",
-  document_attention: "file-check",
   payment_overdue: "wallet",
   application_deadline: "calendar",
 };

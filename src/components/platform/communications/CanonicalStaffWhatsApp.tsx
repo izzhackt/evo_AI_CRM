@@ -3,24 +3,25 @@ import type { ReactNode } from "react";
 
 import { formatCanonicalTimestamp } from "@/components/platform/core/CanonicalRecordsPresentation";
 import { CanonicalGeminiProposalPanel } from "@/components/platform/communications/CanonicalGeminiProposalPanel";
-import { CanonicalWahaPreflightPanel } from "@/components/platform/communications/CanonicalWahaPreflightPanel";
+import { CanonicalWhatsAppOutboundComposer } from "@/components/platform/communications/CanonicalWhatsAppOutboundComposer";
 import { EmptyState, PageHeader, btnGhostCls, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import type { FixedRole } from "@/lib/fixed-role-policy";
 import type { CanonicalGeminiProposalAvailability } from "@/lib/server/canonical-gemini-proposal-config";
-import type { CanonicalWahaPreflightAvailability } from "@/lib/server/canonical-waha-preflight";
+import type { CanonicalWahaProviderAvailability } from "@/lib/server/canonical-waha-provider";
 import type {
   CanonicalConversationMessage,
   CanonicalGeminiProposalSnapshot,
   CanonicalReadCursor,
   CanonicalStaffConversationQueueRow,
+  CanonicalWhatsAppSendAttemptSnapshot,
 } from "@/lib/server/canonical-crm-repository";
 
 const COPY = {
   ru: {
     title: "WhatsApp · Inbox",
     description:
-      "Staff-очередь и Gemini-черновики работают только через каноническую базу EVO PostgreSQL. Отправки и автоответов на этой странице нет.",
+      "Staff-очередь, Gemini-черновики и подтверждённая человеком отправка работают через одну каноническую базу EVO PostgreSQL.",
     queueTitle: "Диалоги",
     queueDescription:
       "Sales видит свои диалоги до handoff, Admissions видит переданные диалоги, Admin видит объединение без запасного источника.",
@@ -40,12 +41,10 @@ const COPY = {
     olderQueue: "Более старые диалоги",
     newestMessages: "К новым сообщениям",
     olderMessages: "Более старые сообщения",
-    transcript: "Переписка WhatsApp · только чтение",
+    transcript: "Переписка WhatsApp",
     transcriptDescription:
-      "Сообщения показаны от новых к старым. На этой странице нет отправки, автономных действий или fallback-провайдера.",
+      "Сообщения показаны от новых к старым. Отправка доступна только через форму с явным подтверждением; автономного или запасного отправителя нет.",
     emptyMessages: "В этой переписке пока нет сообщений.",
-    providerBlocked:
-      "WAHA доступен только для отдельной read-only проверки статуса сессии. EVO не запускает сессию и не отправляет сообщения с этой страницы.",
     incoming: "Входящее",
     outgoing: "Исходящее · история",
     roleSales: "Sales",
@@ -61,7 +60,7 @@ const COPY = {
   ky: {
     title: "WhatsApp · Inbox",
     description:
-      "Staff кезеги жана Gemini долбоорлору EVO каноникалык PostgreSQL базасы аркылуу гана иштейт. Бул бетте жөнөтүү жана авто-жооп жок.",
+      "Staff кезеги, Gemini долбоорлору жана адам ырастаган жөнөтүү бир EVO PostgreSQL булагы аркылуу иштейт.",
     queueTitle: "Диалогдор",
     queueDescription:
       "Sales handoff'ко чейин өз диалогдорун көрөт, Admissions өткөрүлгөн диалогдорду көрөт, Admin запассыз бириктирилген көрүнүштү көрөт.",
@@ -81,12 +80,10 @@ const COPY = {
     olderQueue: "Эски диалогдор",
     newestMessages: "Жаңы билдирүүлөргө",
     olderMessages: "Эски билдирүүлөр",
-    transcript: "WhatsApp кат алышуусу · окуу гана",
+    transcript: "WhatsApp кат алышуусу",
     transcriptDescription:
-      "Билдирүүлөр жаңысынан эскисине көрсөтүлөт. Бул бетте жөнөтүү, автономдуу аракеттер же fallback-провайдер жок.",
+      "Билдирүүлөр жаңысынан эскисине көрсөтүлөт. Жөнөтүү ачык ырастоо формасы аркылуу гана; автономдуу же запас жөнөтүүчү жок.",
     emptyMessages: "Бул кат алышууда билдирүүлөр азырынча жок.",
-    providerBlocked:
-      "WAHA сессиянын абалын өзүнчө read-only текшерүү үчүн гана жеткиликтүү. EVO бул беттен сессияны иштетпейт жана билдирүү жөнөтпөйт.",
     incoming: "Кирген",
     outgoing: "Чыккан · тарых",
     roleSales: "Sales",
@@ -102,7 +99,7 @@ const COPY = {
   en: {
     title: "WhatsApp · Inbox",
     description:
-      "The staff queue and Gemini drafts use only EVO's canonical PostgreSQL database. Sending and automated replies are absent from this page.",
+      "The staff queue, Gemini drafts and human-confirmed sending use one canonical EVO PostgreSQL authority.",
     queueTitle: "Conversations",
     queueDescription:
       "Sales sees its conversations before handoff, Admissions sees handed-off conversations, and Admin sees the union without a fallback source.",
@@ -122,12 +119,10 @@ const COPY = {
     olderQueue: "Older conversations",
     newestMessages: "Newest messages",
     olderMessages: "Older messages",
-    transcript: "WhatsApp transcript · read-only",
+    transcript: "WhatsApp transcript",
     transcriptDescription:
-      "Messages are shown newest first. There is no sending, autonomous action, or fallback provider on this page.",
+      "Messages are newest first. Sending exists only behind explicit confirmation; there is no autonomous or fallback sender.",
     emptyMessages: "There are no messages in this conversation yet.",
-    providerBlocked:
-      "WAHA is available only for a separate read-only session check. EVO cannot start a session or send a message from this page.",
     incoming: "Incoming",
     outgoing: "Outgoing · history",
     roleSales: "Sales",
@@ -149,8 +144,6 @@ type WorkspaceProps = Readonly<{
   queueCursor: CanonicalReadCursor | null;
   queueResetHref: string | null;
   queueNextHref: string | null;
-  wahaAvailability: CanonicalWahaPreflightAvailability;
-  wahaPreflightRequestId: string;
   selectedConversationId?: string | null;
   thread?: {
     conversation: CanonicalStaffConversationQueueRow;
@@ -158,6 +151,10 @@ type WorkspaceProps = Readonly<{
     geminiAvailability: CanonicalGeminiProposalAvailability;
     geminiProposal: CanonicalGeminiProposalSnapshot | null;
     geminiReviewRequestId: string | null;
+    wahaAvailability: CanonicalWahaProviderAvailability;
+    latestSendAttempt: CanonicalWhatsAppSendAttemptSnapshot | null;
+    sendRequestId: string;
+    reconcileRequestId: string;
     newestMessagesHref: string | null;
     olderMessagesHref: string | null;
   } | null;
@@ -170,8 +167,6 @@ export function CanonicalStaffWhatsAppWorkspace({
   queueCursor,
   queueResetHref,
   queueNextHref,
-  wahaAvailability,
-  wahaPreflightRequestId,
   selectedConversationId = null,
   thread = null,
 }: WorkspaceProps) {
@@ -180,18 +175,7 @@ export function CanonicalStaffWhatsAppWorkspace({
   return (
     <div className="space-y-4" data-testid="canonical-staff-whatsapp-page">
       <PageHeader title={copy.title} description={copy.description} />
-      <div
-        className="rounded-card border border-border bg-info-weak px-4 py-3 text-[13px] leading-6 text-info"
-        data-testid="canonical-staff-whatsapp-provider-blocked"
-      >
-        {copy.providerBlocked}
-      </div>
-      <CanonicalWahaPreflightPanel
-        locale={locale}
-        availability={wahaAvailability}
-        requestId={wahaPreflightRequestId}
-      />
-      <div className="flex h-[calc(100vh-310px)] min-h-[520px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
+      <div className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
         <aside className="w-full shrink-0 border-b border-border bg-surface-2 lg:w-[360px] lg:border-r lg:border-b-0">
           <div className="border-b border-border px-4 py-4">
             <h2 className="text-[14px] font-semibold text-fg">{copy.queueTitle}</h2>
@@ -287,6 +271,10 @@ export function CanonicalStaffWhatsAppWorkspace({
               geminiAvailability={thread.geminiAvailability}
               geminiProposal={thread.geminiProposal}
               geminiReviewRequestId={thread.geminiReviewRequestId}
+              wahaAvailability={thread.wahaAvailability}
+              latestSendAttempt={thread.latestSendAttempt}
+              sendRequestId={thread.sendRequestId}
+              reconcileRequestId={thread.reconcileRequestId}
               newestMessagesHref={thread.newestMessagesHref}
               olderMessagesHref={thread.olderMessagesHref}
             />
@@ -317,6 +305,10 @@ function ConversationThread({
   geminiAvailability,
   geminiProposal,
   geminiReviewRequestId,
+  wahaAvailability,
+  latestSendAttempt,
+  sendRequestId,
+  reconcileRequestId,
   newestMessagesHref,
   olderMessagesHref,
 }: Readonly<{
@@ -327,6 +319,10 @@ function ConversationThread({
   geminiAvailability: CanonicalGeminiProposalAvailability;
   geminiProposal: CanonicalGeminiProposalSnapshot | null;
   geminiReviewRequestId: string | null;
+  wahaAvailability: CanonicalWahaProviderAvailability;
+  latestSendAttempt: CanonicalWhatsAppSendAttemptSnapshot | null;
+  sendRequestId: string;
+  reconcileRequestId: string;
   newestMessagesHref: string | null;
   olderMessagesHref: string | null;
 }>) {
@@ -400,6 +396,39 @@ function ConversationThread({
         availability={geminiAvailability}
         proposal={geminiProposal}
         reviewRequestId={geminiReviewRequestId}
+      />
+
+      <CanonicalWhatsAppOutboundComposer
+        key={
+          geminiProposal &&
+          (geminiProposal.reviewDecision === "accepted" ||
+            geminiProposal.reviewDecision === "edited")
+            ? geminiProposal.proposalId
+            : "staff-authored"
+        }
+        locale={locale}
+        conversationId={conversation.conversationId}
+        recipientChatId={conversation.externalConversationId}
+        availability={wahaAvailability}
+        latestAttempt={latestSendAttempt}
+        sendRequestId={sendRequestId}
+        reconcileRequestId={reconcileRequestId}
+        suggestedText={
+          geminiProposal &&
+          (geminiProposal.reviewDecision === "accepted" ||
+            geminiProposal.reviewDecision === "edited") &&
+          geminiProposal.reviewedText
+            ? geminiProposal.reviewedText
+            : ""
+        }
+        sourceProposalId={
+          geminiProposal &&
+          (geminiProposal.reviewDecision === "accepted" ||
+            geminiProposal.reviewDecision === "edited") &&
+          geminiProposal.reviewedText
+            ? geminiProposal.proposalId
+            : null
+        }
       />
 
       {messages.length === 0 ? (

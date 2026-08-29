@@ -45,6 +45,10 @@ export async function requirePlatformMessagingActor(): Promise<ActivePlatformAct
   return requirePlatformCapability("messaging.read", "/whatsapp");
 }
 
+export async function requirePlatformMessagingSendActor(): Promise<ActivePlatformActor> {
+  return requirePlatformCapability("messaging.send", "/whatsapp");
+}
+
 export async function requirePlatformAdmissionsActor(
   route: "/clients" | "/applications" = "/clients",
 ): Promise<ActivePlatformActor> {

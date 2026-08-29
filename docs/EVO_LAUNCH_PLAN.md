@@ -340,19 +340,20 @@ does not authorize two active implementations of any completed capability:
    never authorizes send, creates an outbound message or changes consequential
    CRM state.
 
-   The same slice exposes only one read-only WAHA session preflight. Its
-   server-only environment contract is `EVO_V2_WAHA_PREFLIGHT_ENABLED`,
-   `EVO_V2_WAHA_PROVIDER_AUTHORIZED`, `EVO_V2_WAHA_BASE_URL`,
-   `EVO_V2_WAHA_API_KEY` and `EVO_V2_WAHA_SESSION_NAME`. Disabled, missing or
-   invalid configuration, credentials or separate provider authorization is
-   `blocked` and performs no request. `configured` means the complete valid
-   configuration and provider authorization are present but no fresh preflight
-   has been requested in the current interaction. Only an authorized
-   `GET /api/sessions/{session}` response for the exact configured session whose
-   status is exactly `WORKING` is `working`. Any other observed status, provider
-   failure or malformed response is `not-working`. The API key stays server-only
-   in `X-Api-Key`. There is no start, restart, logout, QR, send or other mutating
-   WAHA command and no reachable `sendText` path.
+   V2-10B / #465 supersedes the V2-9 read-only WAHA preflight. The standalone
+   preflight UI, action, module and retired flag alias are not active runtime
+   paths. Session verification now belongs to the one canonical server-only
+   WAHA provider adapter and is used inside the explicit outbound workflow,
+   not exposed as a second staff operation. The active environment contract is
+   `EVO_V2_WAHA_ENABLED`, `EVO_V2_WAHA_PROVIDER_AUTHORIZED`,
+   `EVO_V2_WAHA_BASE_URL`, `EVO_V2_WAHA_API_KEY` and
+   `EVO_V2_WAHA_SESSION_NAME`. Disabled, missing or invalid configuration,
+   credentials or provider authorization is `blocked` and performs no provider
+   request. Before the single outbound request, the adapter requires an
+   authorized `GET /api/sessions/{session}` response for the exact configured
+   session whose status is exactly `WORKING`; otherwise the send stops clearly.
+   The API key stays server-only in `X-Api-Key`. Start, restart, logout and QR
+   operations remain outside the V2 product path.
 
 The current provider contract follows the official WAHA session and API-key
 documentation and the official Gemini structured-output documentation. WAHA
@@ -410,14 +411,25 @@ guess, simulate or fall back.
    disclosing the same request again.
 2. **V2-10B / #465 — WAHA outbound.** Add one server-only adapter for the
    official `POST /api/sendText` operation and one explicit send action on the
-   canonical conversation UI. The action rechecks current role ownership and
-   persists a unique send intent before the network call. Success records the
-   provider message identity; message creation and delivery/ACK progression are
-   reconciled into canonical outbound state. A timeout or lost response becomes
-   an explicit unknown outcome and is not blindly resent. Staff-authored final
-   text and accepted/edited Gemini text share this one send command; the model
-   cannot invoke it. No broadcast, autonomous worker, second sender or fallback
-   route is allowed.
+   canonical conversation UI. This slice deletes the separate WAHA preflight
+   panel as an active surface: the same send path performs the exact `WORKING`
+   session check internally and, after a successful send response, performs the
+   immediate provider read-back needed to reconcile current delivery/ACK state.
+   The action rechecks current role ownership and persists a unique send attempt
+   and processing receipt before any provider request. Only the direct canonical
+   chat identity (`@c.us` or `@lid`) already received from that conversation is
+   eligible. Success records the provider message identity and timestamp, then
+   creates the one canonical outbound message plus the latest reconciled ACK
+   marker. A timeout, lost response, provider 5xx or malformed success response
+   becomes a durable `unknown` result with no fake message and no blind resend;
+   an explicit provider rejection becomes a durable `rejected` result. Exact
+   request replay returns the stored result, while changed-payload reuse
+   conflicts. Sales and Admissions may send only while the conversation still
+   belongs to their role, and Admin is the union. Staff-authored final text and
+   the exact accepted/edited Gemini text share this one send command; the model
+   cannot invoke it. No group/broadcast send, autonomous worker, second sender,
+   standalone preflight UI, public webhook dependency or fallback route is
+   allowed.
 3. **V2-10C / #466 — amoCRM writes.** Add one canonical server-only integration
    over account metadata discovered from the real connected amoCRM account.
    PostgreSQL remains the business authority and stores durable provider

@@ -7,6 +7,8 @@ project_name="evo-database-foundation-$RANDOM-$$"
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/evo-database-foundation.XXXXXX")"
 env_file="$tmp_dir/postgres.env"
 app_log="$tmp_dir/app.log"
+waha_log="$tmp_dir/waha.log"
+waha_acceptance_result="$tmp_dir/waha-acceptance.json"
 verification_log="$tmp_dir/verification.log"
 broken_log="$tmp_dir/broken-migration.log"
 canonical_acceptance_result="$tmp_dir/canonical-acceptance.json"
@@ -14,13 +16,14 @@ private_document_acceptance_result="$tmp_dir/private-document-acceptance.json"
 private_document_root="$tmp_dir/private-documents"
 missing_private_document_root="$tmp_dir/missing-private-documents"
 inbound_test_phone="+15550004300"
-inbound_test_conversation_id="v2-browser-conversation-430"
+inbound_test_conversation_id="15550004300@c.us"
 inbound_test_message_id="v2-browser-message-430"
 inbound_test_text="V2 inbound browser proof 430"
 canonical_lead_id=""
 canonical_override_lead_id=""
 private_document_case_id=""
 app_pid=""
+waha_pid=""
 compose_args=()
 
 fail() {
@@ -45,6 +48,10 @@ cleanup() {
   if [[ -n "$app_pid" ]]; then
     kill "$app_pid" >/dev/null 2>&1 || true
     wait "$app_pid" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$waha_pid" ]]; then
+    kill "$waha_pid" >/dev/null 2>&1 || true
+    wait "$waha_pid" >/dev/null 2>&1 || true
   fi
   if (( ${#compose_args[@]} > 0 )); then
     docker compose "${compose_args[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
@@ -91,8 +98,10 @@ gate_sales_secret="$(openssl rand -hex 32)"
 gate_admissions_identifier="admissions-local-$RANDOM"
 gate_admissions_secret="$(openssl rand -hex 32)"
 whatsapp_inbound_secret="$(openssl rand -hex 32)"
-waha_preflight_api_key="technical-waha-preflight-key"
-waha_preflight_session_name="evo-v2-technical"
+waha_api_key="technical-waha-provider-key"
+waha_session_name="evo-v2-technical"
+waha_port="${EVO_DATABASE_WAHA_PORT:-$(free_port)}"
+waha_base_url="http://127.0.0.1:${waha_port}"
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 broken_database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${broken_database}"
 
@@ -126,6 +135,104 @@ if [[ "$status" != "healthy" ]]; then
   fail "The private PostgreSQL container did not become healthy"
 fi
 
+start_isolated_waha_service() {
+  [[ -z "$waha_pid" ]] || fail "The isolated WAHA-shaped service is already running"
+  : >"$waha_log"
+  EVO_TEST_WAHA_PORT="$waha_port" \
+    EVO_TEST_WAHA_API_KEY="$waha_api_key" \
+    EVO_TEST_WAHA_SESSION="$waha_session_name" \
+    EVO_TEST_WAHA_RESULT_FILE="$waha_acceptance_result" \
+    "$node_bin" --input-type=module >"$waha_log" 2>&1 <<'EOF' &
+import { writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+
+const port = Number(process.env.EVO_TEST_WAHA_PORT);
+const apiKey = process.env.EVO_TEST_WAHA_API_KEY;
+const session = process.env.EVO_TEST_WAHA_SESSION;
+const resultFile = process.env.EVO_TEST_WAHA_RESULT_FILE;
+const providerAccount = "971500000000@c.us";
+let sendCount = 0;
+let storedMessage = null;
+
+function json(response, status, body) {
+  const encoded = JSON.stringify(body);
+  response.writeHead(status, {
+    "Content-Type": "application/json",
+    "Content-Length": Buffer.byteLength(encoded),
+  });
+  response.end(encoded);
+}
+
+const server = createServer(async (request, response) => {
+  if (request.headers["x-api-key"] !== apiKey) {
+    json(response, 401, { error: "unauthorized" });
+    return;
+  }
+  const url = new URL(request.url ?? "/", `http://127.0.0.1:${port}`);
+  if (request.method === "GET" && url.pathname === `/api/sessions/${session}`) {
+    json(response, 200, { name: session, status: "WORKING" });
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/sendText") {
+    let raw = "";
+    for await (const chunk of request) raw += chunk;
+    const body = JSON.parse(raw);
+    sendCount += 1;
+    writeFileSync(resultFile, JSON.stringify({ sendCount, request: body }), {
+      mode: 0o600,
+    });
+    if (sendCount !== 1) {
+      json(response, 409, { error: "duplicate_send" });
+      return;
+    }
+    storedMessage = {
+      id: "technical-provider-message-465",
+      timestamp: Math.floor(Date.now() / 1000),
+      from: providerAccount,
+      to: body.chatId,
+      fromMe: true,
+      source: "api",
+      body: body.text,
+      ack: 1,
+      ackName: "SERVER",
+    };
+    json(response, 200, storedMessage);
+    return;
+  }
+  if (
+    request.method === "GET" &&
+    storedMessage &&
+    url.pathname ===
+      `/api/${session}/chats/${encodeURIComponent(storedMessage.to)}/messages/${encodeURIComponent(storedMessage.id)}` &&
+    url.searchParams.get("downloadMedia") === "false"
+  ) {
+    json(response, 200, storedMessage);
+    return;
+  }
+  json(response, 404, { error: "not_found" });
+});
+
+server.listen(port, "127.0.0.1");
+EOF
+  waha_pid=$!
+
+  local deadline=$((SECONDS + 30))
+  local code=""
+  while (( SECONDS < deadline )); do
+    if ! kill -0 "$waha_pid" >/dev/null 2>&1; then
+      sed -n '1,160p' "$waha_log" >&2
+      fail "The isolated WAHA-shaped service exited before browser validation"
+    fi
+    code="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+      --header "X-Api-Key: ${waha_api_key}" \
+      "${waha_base_url}/api/sessions/${waha_session_name}" || true)"
+    [[ "$code" == "200" ]] && return
+    sleep 1
+  done
+  sed -n '1,160p' "$waha_log" >&2
+  fail "The isolated WAHA-shaped service did not become ready"
+}
+
 start_app() {
   local app_database_url="$1"
   local gate_mode="${2:-configured}"
@@ -135,18 +242,18 @@ start_app() {
   local document_root="$private_document_root"
   local inbound_secret="$whatsapp_inbound_secret"
   local waha_provider_authorized=0
-  local waha_base_url="http://evo-v2-waha:3000"
+  local app_waha_base_url="http://evo-v2-waha:3000"
   if [[ "$document_mode" == "unavailable" ]]; then
     document_root="$missing_private_document_root"
   fi
   if [[ "$inbound_mode" == "unavailable" ]]; then
     inbound_secret=""
   fi
-  if [[ "$waha_mode" == "unreachable-loopback" ]]; then
+  if [[ "$waha_mode" == "local-service" ]]; then
     waha_provider_authorized=1
-    waha_base_url="http://127.0.0.1:1"
+    app_waha_base_url="$waha_base_url"
   elif [[ "$waha_mode" != "blocked" ]]; then
-    fail "Unknown isolated WAHA preflight harness mode: $waha_mode"
+    fail "Unknown isolated WAHA harness mode: $waha_mode"
   fi
   assert_next_dev_lock_available
   : >"$app_log"
@@ -163,11 +270,11 @@ start_app() {
       EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
       EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
       EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
-      EVO_V2_WAHA_PREFLIGHT_ENABLED=1 \
+      EVO_V2_WAHA_ENABLED=1 \
       EVO_V2_WAHA_PROVIDER_AUTHORIZED="$waha_provider_authorized" \
-      EVO_V2_WAHA_BASE_URL="$waha_base_url" \
-      EVO_V2_WAHA_API_KEY="$waha_preflight_api_key" \
-      EVO_V2_WAHA_SESSION_NAME="$waha_preflight_session_name" \
+      EVO_V2_WAHA_BASE_URL="$app_waha_base_url" \
+      EVO_V2_WAHA_API_KEY="$waha_api_key" \
+      EVO_V2_WAHA_SESSION_NAME="$waha_session_name" \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   else
@@ -184,11 +291,11 @@ start_app() {
       EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
       EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
       EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
-      EVO_V2_WAHA_PREFLIGHT_ENABLED=1 \
+      EVO_V2_WAHA_ENABLED=1 \
       EVO_V2_WAHA_PROVIDER_AUTHORIZED="$waha_provider_authorized" \
-      EVO_V2_WAHA_BASE_URL="$waha_base_url" \
-      EVO_V2_WAHA_API_KEY="$waha_preflight_api_key" \
-      EVO_V2_WAHA_SESSION_NAME="$waha_preflight_session_name" \
+      EVO_V2_WAHA_BASE_URL="$app_waha_base_url" \
+      EVO_V2_WAHA_API_KEY="$waha_api_key" \
+      EVO_V2_WAHA_SESSION_NAME="$waha_session_name" \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   fi
@@ -292,7 +399,8 @@ canonical_read_browser_assert() {
     EVO_CANONICAL_LEAD_ID="$canonical_lead_id" \
     EVO_CANONICAL_OVERRIDE_LEAD_ID="$canonical_override_lead_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
-    EVO_EXPECT_WAHA_SESSION_NAME="$waha_preflight_session_name" \
+    EVO_EXPECT_WAHA_SESSION_NAME="$waha_session_name" \
+    EVO_V2_WAHA_ACCEPTANCE_RESULT_FILE="$waha_acceptance_result" \
     EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$whatsapp_inbound_secret" \
     EVO_V2_INBOUND_TEST_PHONE="$inbound_test_phone" \
     EVO_V2_INBOUND_TEST_CONVERSATION_ID="$inbound_test_conversation_id" \
@@ -322,7 +430,7 @@ assert_no_secret_or_payload_logs() {
     "$gate_admissions_identifier" \
     "$gate_admissions_secret" \
     "$whatsapp_inbound_secret" \
-    "$waha_preflight_api_key" \
+    "$waha_api_key" \
     "$inbound_test_phone" \
     "$inbound_test_conversation_id" \
     "$inbound_test_message_id" \
@@ -409,9 +517,9 @@ DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
 migration_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM drizzle.__drizzle_migrations;')"
 contract_version="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT version FROM evo_database_contract WHERE id = 1;')"
-[[ "$migration_count" == "3" ]] || fail "Expected exact 0000 -> 0001 -> 0002 migration history"
+[[ "$migration_count" == "4" ]] || fail "Expected exact 0000 -> 0001 -> 0002 -> 0003 migration history"
 [[ "$contract_version" == "3" ]] || fail "Canonical CRM migration did not publish database contract version 3"
-echo "Exact 0000 -> 0001 -> 0002 migration, repeat migration and stored history passed."
+echo "Exact 0000 -> 0001 -> 0002 -> 0003 migration, repeat migration and stored history passed."
 
 DATABASE_URL="$database_url" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
@@ -421,7 +529,9 @@ echo "Private document case scope, immutable metadata reads and fail-closed repo
 DATABASE_URL="$database_url" \
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
-    tests/canonical-crm-postgres.test.mjs
+    --test-concurrency=1 \
+    tests/canonical-crm-postgres.test.mjs \
+    tests/canonical-whatsapp-outbound-postgres.test.mjs
 read -r canonical_lead_id canonical_override_lead_id private_document_case_id <<<"$(
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
     "$node_bin" --input-type=module <<'EOF'
@@ -452,6 +562,9 @@ EOF
 )"
 echo "Canonical CRM graph, transactional idempotency, gate and append-only event checks passed."
 
+stop_app
+start_isolated_waha_service
+start_app "$database_url" configured configured configured local-service
 browser_assert 200
 development_gate_browser_assert configured
 canonical_read_browser_assert configured
@@ -670,11 +783,6 @@ docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
   --command 'DROP TABLE public.evo_test_migration_history_backup;' >/dev/null
-
-stop_app
-start_app "$database_url" configured configured configured unreachable-loopback
-canonical_read_browser_assert waha-unreachable
-assert_no_secret_or_payload_logs
 
 stop_app
 start_app "$database_url" configured unavailable

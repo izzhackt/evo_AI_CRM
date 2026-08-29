@@ -127,7 +127,7 @@ export const evoBusinessEvents = pgTable(
     ),
     check(
       "evo_business_events_object_type_check",
-      sql`${table.businessObjectType} in ('person', 'lead', 'conversation', 'message', 'student_case', 'gate_evidence', 'handoff', 'task', 'document', 'application', 'visa_milestone', 'finance_stop', 'ai_proposal')`,
+      sql`${table.businessObjectType} in ('person', 'lead', 'conversation', 'message', 'student_case', 'gate_evidence', 'handoff', 'task', 'document', 'application', 'visa_milestone', 'finance_stop', 'ai_proposal', 'whatsapp_send_attempt')`,
     ),
     check(
       "evo_business_events_object_id_check",

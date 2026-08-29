@@ -1,5 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import {
   expect,
@@ -16,13 +17,17 @@ const unavailableProbeConversationId =
 const inboundPhone = process.env.EVO_V2_INBOUND_TEST_PHONE ?? "+15550004300";
 const inboundConversationId =
   process.env.EVO_V2_INBOUND_TEST_CONVERSATION_ID ??
-  "v2-browser-conversation-430";
+  "15550004300@c.us";
 const inboundMessageId =
   process.env.EVO_V2_INBOUND_TEST_MESSAGE_ID ?? "v2-browser-message-430";
 const inboundText =
   process.env.EVO_V2_INBOUND_TEST_TEXT ?? "V2 inbound browser proof 430";
 const expectedWahaSessionName =
   process.env.EVO_EXPECT_WAHA_SESSION_NAME ?? "evo-v2-technical";
+const wahaAcceptanceResultFile =
+  process.env.EVO_V2_WAHA_ACCEPTANCE_RESULT_FILE ?? "";
+const outboundRecipient = inboundPhone.replace(/^\+/u, "") + "@c.us";
+const outboundText = "V2 isolated browser send proof 465";
 
 function requireUuid(name: string): string {
   const value = process.env[name];
@@ -81,6 +86,51 @@ async function canonicalProposalCount(conversationId: string): Promise<number> {
       where conversation_id = ${conversationId}
     `;
     return Number(row.count);
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
+async function canonicalWhatsAppOutboundProof(conversationId: string) {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("missing canonical PostgreSQL test URL");
+  const sql = postgres(databaseUrl, {
+    idle_timeout: 5,
+    max: 1,
+    onnotice: () => undefined,
+  });
+  try {
+    const [row] = await sql`
+      select
+        attempt.status,
+        attempt.session_name,
+        attempt.recipient_chat_id,
+        attempt.final_text,
+        attempt.actor_role,
+        attempt.provider_message_id,
+        attempt.ack,
+        attempt.ack_name,
+        message.direction,
+        message.body,
+        message.external_message_id,
+        (
+          select count(*)::int
+          from evo_whatsapp_send_attempts as counted_attempt
+          where counted_attempt.conversation_id = ${conversationId}
+        ) as attempt_count,
+        (
+          select count(*)::int
+          from evo_messages as counted_message
+          where counted_message.conversation_id = ${conversationId}
+            and counted_message.direction = 'outbound'
+        ) as outbound_count
+      from evo_whatsapp_send_attempts as attempt
+      inner join evo_messages as message on message.id = attempt.message_id
+      where attempt.conversation_id = ${conversationId}
+      order by attempt.created_at desc, attempt.id desc
+      limit 1
+    `;
+    return row;
   } finally {
     await sql.end({ timeout: 5 });
   }
@@ -437,59 +487,6 @@ test("missing inbound secret fails closed at the real HTTP boundary", async ({
   });
 });
 
-test("configured WAHA preflight submits the real server action and reports an unreachable private endpoint", async ({
-  page,
-}) => {
-  test.skip(
-    mode !== "waha-unreachable",
-    "only exercised against the isolated unreachable-loopback preflight target",
-  );
-
-  await submitGate(page, "sales");
-  await page.goto("/whatsapp");
-  await expect(page.getByTestId("canonical-staff-whatsapp-page")).toBeVisible();
-
-  const availability = page.getByTestId(
-    "canonical-waha-preflight-availability",
-  );
-  await expect(availability).toHaveAttribute("data-status", "configured");
-  await expect(availability).toHaveAttribute(
-    "data-session-name",
-    expectedWahaSessionName,
-  );
-  await expect(availability).not.toHaveAttribute("data-reason", /.+/);
-
-  const requestId = page.getByTestId("canonical-waha-preflight-request-id");
-  await expect(requestId).toHaveValue(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-  );
-  await page.getByTestId("canonical-waha-preflight-submit").click();
-
-  const result = page.getByTestId("canonical-waha-preflight-result");
-  await expect(result).toHaveAttribute("data-status", "not-working");
-  await expect(result).toHaveAttribute("data-reason", "provider_unreachable");
-  await expect(result).toHaveAttribute(
-    "data-session-name",
-    expectedWahaSessionName,
-  );
-  await expect(result).toContainText(/не подтверждена как WORKING/i);
-
-  const checkedAt = await result.getAttribute("data-checked-at");
-  assert.ok(checkedAt, "the real server action must report when the check completed");
-  assert.ok(
-    Number.isFinite(Date.parse(checkedAt)),
-    "the real server action must report a valid checked-at timestamp",
-  );
-  await expect(
-    page.getByTestId("canonical-whatsapp-outbound-composer"),
-  ).toHaveCount(0);
-  await expect(
-    page
-      .getByTestId("canonical-staff-whatsapp-page")
-      .getByRole("button", { name: /отправить|send/i }),
-  ).toHaveCount(0);
-});
-
 test("signed inbound HTTP persists once and is visible in the Sales transcript", async ({
   page,
   request,
@@ -607,18 +604,11 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
       `[data-testid="canonical-staff-whatsapp-message"][data-message-id="${messageId}"]`,
     ),
   ).toBeVisible();
+  const composer = page.getByTestId("canonical-whatsapp-outbound-composer");
+  await expect(composer).toBeVisible();
   await expect(
-    page.getByTestId("canonical-staff-whatsapp-provider-blocked"),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId("canonical-waha-preflight-availability"),
-  ).toHaveAttribute("data-status", "blocked");
-  await expect(
-    page.getByTestId("canonical-waha-preflight-availability"),
-  ).toHaveAttribute("data-reason", "provider_not_authorized");
-  await expect(page.getByTestId("canonical-waha-preflight-submit")).toHaveCount(
-    0,
-  );
+    page.getByTestId("canonical-whatsapp-provider-availability"),
+  ).toHaveAttribute("data-status", "configured");
   const proposalCountBefore = await canonicalProposalCount(conversationId);
   await expect(
     page.getByTestId("canonical-gemini-proposal-panel"),
@@ -638,14 +628,6 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     proposalCountBefore,
     "a blocked provider request must not persist a proposal",
   );
-  await expect(
-    page.getByTestId("canonical-whatsapp-outbound-composer"),
-  ).toHaveCount(0);
-  await expect(
-    page
-      .getByTestId("canonical-staff-whatsapp-page")
-      .getByRole("button", { name: /отправить|send/i }),
-  ).toHaveCount(0);
   const technicalReviewBaseMs = Date.now() + 5_000;
   await reviewTechnicalProposalViaUi(page, conversationId, messageId, {
     decision: "accepted",
@@ -664,11 +646,61 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     providerCreatedAt: new Date(technicalReviewBaseMs + 2_000).toISOString(),
     reviewReason: "Technical rejection reason for browser proof.",
   });
-  await expect(
-    page
-      .getByTestId("canonical-staff-whatsapp-page")
-      .getByRole("button", { name: /отправить|send/i }),
-  ).toHaveCount(0);
+  const recipient = page.getByTestId("canonical-whatsapp-outbound-recipient");
+  const finalText = page.getByTestId("canonical-whatsapp-outbound-text");
+  const confirmation = page.getByTestId("canonical-whatsapp-outbound-confirm");
+  const send = page.getByTestId("canonical-whatsapp-outbound-send");
+  await expect(recipient).toContainText(outboundRecipient);
+  await finalText.fill(outboundText);
+  await expect(send).toBeDisabled();
+  await confirmation.check();
+  await expect(send).toBeEnabled();
+  await send.click();
+
+  const sendState = page.getByTestId("canonical-whatsapp-outbound-state");
+  await expect(sendState).toHaveAttribute("data-status", "accepted");
+  await expect(sendState).toContainText(/сообщение сохранено в EVO/i);
+  await expect(page.getByTestId("canonical-whatsapp-latest-attempt")).toContainText(
+    /accepted/i,
+  );
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
+    outboundText,
+  );
+
+  const databaseProof = await canonicalWhatsAppOutboundProof(conversationId);
+  assert.ok(databaseProof, "the canonical send must persist an accepted attempt");
+  assert.equal(databaseProof.status, "accepted");
+  assert.equal(databaseProof.session_name, expectedWahaSessionName);
+  assert.equal(databaseProof.recipient_chat_id, outboundRecipient);
+  assert.equal(databaseProof.final_text, outboundText);
+  assert.equal(databaseProof.actor_role, "sales");
+  assert.equal(databaseProof.provider_message_id, "technical-provider-message-465");
+  assert.equal(Number(databaseProof.ack), 1);
+  assert.equal(databaseProof.ack_name, "SERVER");
+  assert.equal(databaseProof.direction, "outbound");
+  assert.equal(databaseProof.body, outboundText);
+  assert.equal(
+    databaseProof.external_message_id,
+    "technical-provider-message-465",
+  );
+  assert.equal(Number(databaseProof.attempt_count), 1);
+  assert.equal(Number(databaseProof.outbound_count), 1);
+
+  if (!wahaAcceptanceResultFile) {
+    throw new Error("missing isolated WAHA acceptance result file");
+  }
+  const providerProof = JSON.parse(
+    await readFile(wahaAcceptanceResultFile, "utf8"),
+  ) as {
+    sendCount: number;
+    request: Record<string, unknown>;
+  };
+  assert.equal(providerProof.sendCount, 1, "the UI must POST to WAHA exactly once");
+  assert.deepEqual(providerProof.request, {
+    session: expectedWahaSessionName,
+    chatId: outboundRecipient,
+    text: outboundText,
+  });
 
   const queueConversationIds = new Set<string>();
   for (let index = 0; index < 50; index += 1) {

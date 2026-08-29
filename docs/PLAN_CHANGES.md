@@ -13716,3 +13716,150 @@ text or this evidence.
 This clarification does not authorize WhatsApp send, amoCRM mutation, an
 alternate model/provider, fallback output or V1 deployment changes. Those
 boundaries remain assigned to #465-#467 and the frozen V1 carveout.
+
+## 2026-08-29 - Collapse WAHA preflight into the single V2-10B outbound path
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #465.
+Change type: implementation-boundary clarification before coding.
+Affected plan section: V2-10B canonical human-reviewed WhatsApp outbound.
+
+Reason: exact-main inventory after #464 showed that active V2 still exposed a
+dedicated read-only WAHA preflight panel and action on `/whatsapp`, while the
+owner contract for #465 requires one active provider path for outbound
+messaging. Keeping both the standalone preflight surface and the canonical send
+surface would recreate the forbidden layered runtime: two WAHA paths for one
+capability, one of them already mutating provider state indirectly through
+operator checks and one of them about to send.
+
+Decision: #465 replaces the standalone preflight surface rather than extending
+it. The session `WORKING` verification becomes an internal prerequisite of the
+only canonical send command, and the same command performs the immediate
+provider read-back needed to record the current delivery/ACK marker after a
+successful send. The durable receipt remains the exact fail-closed authority
+for replay and for explicit unknown outcomes when the provider call times out
+or the response is lost. A successful send persists one canonical outbound
+message plus the latest reconciled delivery fields; an unknown outcome persists
+no fake message and no blind resend path.
+
+This change does not authorize broadcast, autonomous reply, a second sender,
+V1 webhook reuse, a second WAHA UI, or public exposure of the private WAHA
+runtime. It narrows the active V2 surface to one human-reviewed outbound path.
+
+## 2026-08-29 - Pin V2-10B send-attempt and direct-recipient semantics
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #465.
+Change type: implementation contract before outbound code.
+Affected plan section: V2-10B canonical human-reviewed WhatsApp outbound.
+
+Reason: the single-path decision above still needs exact fail-closed semantics
+for role ownership, recipients, provider ambiguity and idempotent replay. The
+connected WAHA session was rechecked read-only and reports `WORKING` on the
+`WEBJS` engine. Current client-supplied message-ID support is documented only
+for NOWEB and GOWS, so V2 must not pretend the connected WEBJS session can make
+an uncertain request intrinsically idempotent at the provider.
+
+Decision: rename the active feature flag to `EVO_V2_WAHA_ENABLED` and do not
+retain the preflight-only flag as a compatibility alias. Add `messaging.send`
+to all three fixed technical roles, while the repository rechecks the current
+conversation `owning_role` under the same lead-row lock used by inbound and
+handoff. Admin remains the union. Only the exact direct chat ID already attached
+to the canonical conversation may be used; WAHA's current `@c.us` and `@lid`
+direct forms are valid, while group, broadcast, channel and guessed recipients
+are rejected before the provider send call.
+
+One browser request ID is both the idempotency and correlation identity. The
+first transaction stores a unique `prepared` send attempt and processing
+receipt before any provider request, but does not create a canonical outbound
+message yet. The single provider adapter then checks the exact session and may
+issue at most one `POST /api/sendText`. A structurally valid response must match
+the exact recipient and text and return a provider message ID, timestamp and
+consistent ACK; only then does the settlement transaction create the canonical
+outbound message. An explicit non-success response settles the attempt as
+`rejected`. A timeout, lost response, provider 5xx or malformed 2xx body settles
+it as `unknown`, because WhatsApp may already have accepted the message. Both
+outcomes complete the durable receipt, so exact replay cannot send again. A
+crash that leaves `prepared`/processing state fails closed for investigation.
+
+The private/local contour reconciles delivery without new public
+infrastructure. After a successful send, the same command uses WAHA's official
+single-message `GET /api/{session}/chats/{chatId}/messages/{messageId}` read-back
+and stores the latest consistent ACK. A later explicit staff reconcile action
+may repeat that exact read and advance ACK only monotonically through ERROR,
+PENDING, SERVER, DEVICE, READ and PLAYED. Material transitions append minimal
+business events against the send attempt/message; raw provider responses, API
+keys and private provider configuration are never stored or exposed to the
+browser.
+
+The composer shows the exact canonical recipient and final text and requires
+explicit confirmation. The exact final text of an accepted/edited Gemini
+proposal may be linked as its source; changed text is ordinary staff-authored
+copy, not falsely attributed to Gemini. Neither path gives the model send
+authority.
+
+Official behavior used by this contract:
+
+- <https://waha.devlike.pro/docs/how-to/send-messages/>
+- <https://waha.devlike.pro/docs/how-to/events/>
+- <https://waha.devlike.pro/docs/how-to/receive-messages/>
+- <https://waha.devlike.pro/docs/how-to/chats/>
+- <https://waha.devlike.pro/docs/how-to/contacts/>
+- <https://waha.devlike.pro/docs/overview/changelog/>
+
+## 2026-08-29 - Implement the single V2-10B WhatsApp outbound path
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #465.
+Change type: implementation evidence and fail-closed clarification.
+Affected plan section: V2-10B canonical human-reviewed WhatsApp outbound.
+
+Implementation result: V2 now has one server action, provider adapter,
+PostgreSQL attempt/message authority and composer for staff-confirmed direct
+WhatsApp sends. The superseded standalone preflight UI, action, module, flag
+and tests were removed from the active runtime in the same slice. No
+Supabase/SQLite adapter, alternate sender, autonomous reply, public webhook or
+fallback path was added.
+
+The committed migration adds `evo_whatsapp_send_attempts`. A command persists
+its `prepared` attempt and processing receipt before the provider callback can
+run. Exact replay returns the stored attempt, including after a server-side
+session configuration rotation; changed business payload conflicts. The
+current lead/conversation ownership and exact direct recipient are rechecked
+under the canonical lead lock before dispatch. A second fresh send is blocked
+while any attempt for the conversation is `prepared` or `unknown`, so an
+ambiguous operation cannot be turned into a blind resend with a new request
+identifier. Explicit rejection permits a later new human decision.
+
+The adapter accepts only a private/internal origin and sends one official
+`POST /api/sendText` after the exact configured session reports `WORKING`.
+Official WAHA OpenAPI defines `to` as the chat recipient for `fromMe: true`
+outbound messages; therefore provider acceptance validates the exact canonical
+recipient against `to`, while `from` must be a bounded direct account ID. The
+browser receives only configured/blocked state, never the API key, base URL or
+session name. `ERROR/-1` is a rejected send and creates no canonical outbound
+message. Timeout, network loss, 5xx and malformed success remain `unknown` and
+cannot trigger an automatic or fresh blind send. A valid accepted message is
+read back by its exact provider ID, and later reconciliation advances its ACK
+only monotonically.
+
+Local verification used OrbStack (`Running`, Docker context exactly
+`orbstack`), Node `22.23.1`, four committed Drizzle migrations, a disposable
+real PostgreSQL database, the real Next.js application and Chromium. The
+browser verified exact recipient/final text, explicit confirmation, one HTTP
+`sendText`, immediate exact-message read-back, one accepted attempt and one
+canonical outbound message. PostgreSQL tests separately proved the durable
+pre-dispatch boundary, wrong-role/stale-recipient rejection before dispatch,
+accepted/rejected/unknown truthfulness, unresolved-send blocking, exact and
+changed replay, parallel exact replay with one dispatch, and monotonic ACK.
+The HTTP service used for this isolated application proof implements the
+current WAHA request/response contract; it is not claimed as real connected
+provider acceptance. The separately controlled live self-recipient proof
+remains required after reviewed code is merged and before #465 is closed.
+
+Current official provider references:
+
+- <https://waha.devlike.pro/docs/how-to/send-messages/>
+- <https://waha.devlike.pro/docs/how-to/sessions/>
+- <https://waha.devlike.pro/docs/how-to/chats/>
+- <https://waha.devlike.pro/swagger/openapi.json>

@@ -33,6 +33,7 @@ import {
   evoFinanceStopStates,
   evoUniversityApplications,
   evoVisaMilestones,
+  evoWhatsappSendAttempts,
 } from "../../db/schema/canonical-crm-operations.ts";
 import {
   CANONICAL_SALES_DUE_FILTERS,
@@ -54,6 +55,7 @@ const ISO_TIMESTAMP_PATTERN =
 const TASK_DUE_TIMESTAMP_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-](\d{2}):(\d{2}))$/;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DIRECT_WAHA_CHAT_ID_PATTERN = /^[1-9][0-9]{4,31}@(c[.]us|lid)$/;
 
 export { CANONICAL_SALES_DUE_FILTERS, CANONICAL_SALES_STAGES };
 export type { CanonicalSalesDueFilter, CanonicalSalesStage };
@@ -274,6 +276,77 @@ export type CanonicalGeminiProposalSnapshot = Readonly<{
   reviewReason: string | null;
   providerCreatedAt: string;
   createdAt: string;
+}>;
+
+export const CANONICAL_WAHA_ACK_NAMES = {
+  [-1]: "ERROR",
+  0: "PENDING",
+  1: "SERVER",
+  2: "DEVICE",
+  3: "READ",
+  4: "PLAYED",
+} as const;
+
+export type CanonicalWahaAck = keyof typeof CANONICAL_WAHA_ACK_NAMES;
+export type CanonicalWahaAckName =
+  (typeof CANONICAL_WAHA_ACK_NAMES)[CanonicalWahaAck];
+
+export type CanonicalWhatsAppProviderMessage = Readonly<{
+  providerMessageId: string;
+  providerOccurredAt: string;
+  recipientChatId: string;
+  fromMe: true;
+  body: string;
+  ack: CanonicalWahaAck;
+  ackName: CanonicalWahaAckName;
+  source: "api" | null;
+}>;
+
+export type CanonicalWhatsAppDispatchRequest = Readonly<{
+  attemptId: string;
+  sessionName: string;
+  recipientChatId: string;
+  text: string;
+  replyToExternalMessageId: string | null;
+}>;
+
+export type CanonicalWhatsAppDispatchOutcome =
+  | Readonly<{
+      status: "accepted";
+      message: CanonicalWhatsAppProviderMessage;
+    }>
+  | Readonly<{
+      status: "unknown" | "rejected";
+      failureCode: string;
+    }>;
+
+export type CanonicalWhatsAppDispatcher = (
+  request: CanonicalWhatsAppDispatchRequest,
+) => Promise<CanonicalWhatsAppDispatchOutcome>;
+
+export type CanonicalWhatsAppSendAttemptSnapshot = Readonly<{
+  attemptId: string;
+  conversationId: string;
+  messageId: string | null;
+  sourceProposalId: string | null;
+  provider: "waha";
+  sessionName: string;
+  recipientChatId: string;
+  replyToExternalMessageId: string | null;
+  finalText: string;
+  actorRole: FixedRole;
+  status: "prepared" | "accepted" | "unknown" | "rejected";
+  providerMessageId: string | null;
+  providerOccurredAt: string | null;
+  providerSource: "api" | null;
+  ack: CanonicalWahaAck | null;
+  ackName: CanonicalWahaAckName | null;
+  failureCode: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  settledAt: string | null;
+  lastReconciledAt: string | null;
 }>;
 
 export type CanonicalLeadConversationThread = Readonly<{
@@ -754,6 +827,10 @@ function externalIdentifier(value: unknown): string {
   return boundedText(value, { maxLength: 255 });
 }
 
+function canonicalWahaProviderMessageId(value: unknown): string {
+  return boundedText(value, { maxLength: 1_024 });
+}
+
 function messageBody(value: unknown): string {
   if (typeof value !== "string") invalidInput();
   const normalized = value.replace(/\r\n?/g, "\n").trim();
@@ -765,6 +842,131 @@ function messageBody(value: unknown): string {
     invalidInput();
   }
   return normalized;
+}
+
+function canonicalWhatsappFinalText(value: unknown): string {
+  const text = messageBody(value);
+  if (text.length > 3_000) invalidInput();
+  return text;
+}
+
+function canonicalWahaSessionName(value: unknown): string {
+  const name = boundedText(value, { maxLength: 128 });
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(name)) invalidInput();
+  return name;
+}
+
+function canonicalDirectWahaChatId(value: unknown): string {
+  if (typeof value !== "string" || !DIRECT_WAHA_CHAT_ID_PATTERN.test(value)) {
+    invalidInput();
+  }
+  return value;
+}
+
+function canonicalWhatsappFailureCode(value: unknown): string {
+  const code = boundedText(value, { maxLength: 80 });
+  if (!/^[a-z][a-z0-9_]*$/.test(code)) invalidInput();
+  return code;
+}
+
+function canonicalWahaAckPair(
+  ackValue: unknown,
+  ackNameValue: unknown,
+): Readonly<{ ack: CanonicalWahaAck; ackName: CanonicalWahaAckName }> {
+  if (
+    typeof ackValue !== "number" ||
+    !Number.isInteger(ackValue) ||
+    !(ackValue in CANONICAL_WAHA_ACK_NAMES)
+  ) {
+    invalidInput();
+  }
+  const ack = ackValue as CanonicalWahaAck;
+  const ackName = CANONICAL_WAHA_ACK_NAMES[ack];
+  if (ackNameValue !== ackName) invalidInput();
+  return { ack, ackName };
+}
+
+function canonicalWhatsappProviderMessage(
+  value: unknown,
+  expected: Readonly<{
+    providerMessageId?: string;
+    recipientChatId: string;
+    body: string;
+  }>,
+): CanonicalWhatsAppProviderMessage {
+  const candidate = exactRecord(value, [
+    "providerMessageId",
+    "providerOccurredAt",
+    "recipientChatId",
+    "fromMe",
+    "body",
+    "ack",
+    "ackName",
+    "source",
+  ]);
+  const providerMessageId = canonicalWahaProviderMessageId(
+    candidate.providerMessageId,
+  );
+  if (
+    (expected.providerMessageId !== undefined &&
+      providerMessageId !== expected.providerMessageId) ||
+    candidate.recipientChatId !== expected.recipientChatId ||
+    candidate.fromMe !== true ||
+    candidate.body !== expected.body ||
+    (candidate.source !== "api" && candidate.source !== null)
+  ) {
+    invalidInput();
+  }
+  const ack = canonicalWahaAckPair(candidate.ack, candidate.ackName);
+  return Object.freeze({
+    providerMessageId,
+    providerOccurredAt: isoTimestamp(candidate.providerOccurredAt).toISOString(),
+    recipientChatId: expected.recipientChatId,
+    fromMe: true,
+    body: expected.body,
+    ack: ack.ack,
+    ackName: ack.ackName,
+    source: candidate.source,
+  });
+}
+
+function canonicalWhatsappDispatchOutcome(
+  value: unknown,
+  expected: Readonly<{ recipientChatId: string; body: string }>,
+): CanonicalWhatsAppDispatchOutcome {
+  try {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      invalidInput();
+    }
+    const status = (value as Record<string, unknown>).status;
+    if (status === "accepted") {
+      const candidate = exactRecord(value, ["status", "message"]);
+      const message = canonicalWhatsappProviderMessage(candidate.message, expected);
+      if (message.ack === -1) {
+        return Object.freeze({
+          status: "rejected",
+          failureCode: "message_rejected",
+        });
+      }
+      return Object.freeze({
+        status,
+        message,
+      });
+    }
+    if (status === "unknown" || status === "rejected") {
+      const candidate = exactRecord(value, ["status", "failureCode"]);
+      return Object.freeze({
+        status,
+        failureCode: canonicalWhatsappFailureCode(candidate.failureCode),
+      });
+    }
+    invalidInput();
+  } catch {
+    return Object.freeze({
+      status: "unknown",
+      failureCode: "provider_result_invalid",
+    });
+  }
 }
 
 function exactRecord(value: unknown, keys: readonly string[]): Record<string, unknown> {
@@ -1441,6 +1643,125 @@ function canonicalGeminiProposalRow(
     reviewReason: row.reviewReason,
     providerCreatedAt: dateString(row.providerCreatedAt),
     createdAt: dateString(row.createdAt),
+  });
+}
+
+function databaseWhatsappSendStatus(
+  value: string,
+): CanonicalWhatsAppSendAttemptSnapshot["status"] {
+  if (
+    value === "prepared" ||
+    value === "accepted" ||
+    value === "unknown" ||
+    value === "rejected"
+  ) {
+    return value;
+  }
+  throw new CanonicalCrmRepositoryError("unavailable");
+}
+
+function databaseNullableWahaAckPair(
+  ackValue: number | null,
+  ackNameValue: string | null,
+): Readonly<{
+  ack: CanonicalWahaAck | null;
+  ackName: CanonicalWahaAckName | null;
+}> {
+  if (ackValue === null && ackNameValue === null) {
+    return { ack: null, ackName: null };
+  }
+  if (ackValue === null || ackNameValue === null) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  try {
+    return canonicalWahaAckPair(ackValue, ackNameValue);
+  } catch {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+}
+
+function canonicalWhatsappSendAttemptRow(
+  row: Readonly<{
+    attemptId: string;
+    conversationId: string;
+    messageId: string | null;
+    sourceProposalId: string | null;
+    provider: string;
+    sessionName: string;
+    recipientChatId: string;
+    replyToExternalMessageId: string | null;
+    finalText: string;
+    actorRole: string;
+    status: string;
+    providerMessageId: string | null;
+    providerOccurredAt: Date | null;
+    providerSource: string | null;
+    ack: number | null;
+    ackName: string | null;
+    failureCode: string | null;
+    version: number;
+    createdAt: Date;
+    updatedAt: Date;
+    settledAt: Date | null;
+    lastReconciledAt: Date | null;
+  }>,
+): CanonicalWhatsAppSendAttemptSnapshot {
+  if (
+    row.provider !== "waha" ||
+    (row.providerSource !== null && row.providerSource !== "api")
+  ) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  const status = databaseWhatsappSendStatus(row.status);
+  const ack = databaseNullableWahaAckPair(row.ack, row.ackName);
+  if (
+    (status === "prepared" &&
+      (row.messageId !== null ||
+        row.providerMessageId !== null ||
+        row.providerOccurredAt !== null ||
+        ack.ack !== null ||
+        row.failureCode !== null ||
+        row.settledAt !== null)) ||
+    (status === "accepted" &&
+      (row.messageId === null ||
+        row.providerMessageId === null ||
+        row.providerOccurredAt === null ||
+        ack.ack === null ||
+        row.failureCode !== null ||
+        row.settledAt === null)) ||
+    ((status === "unknown" || status === "rejected") &&
+      (row.messageId !== null ||
+        row.providerMessageId !== null ||
+        row.providerOccurredAt !== null ||
+        ack.ack !== null ||
+        row.failureCode === null ||
+        row.settledAt === null))
+  ) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return Object.freeze({
+    attemptId: row.attemptId,
+    conversationId: row.conversationId,
+    messageId: row.messageId,
+    sourceProposalId: row.sourceProposalId,
+    provider: "waha",
+    sessionName: row.sessionName,
+    recipientChatId: row.recipientChatId,
+    replyToExternalMessageId: row.replyToExternalMessageId,
+    finalText: row.finalText,
+    actorRole: databaseRole(row.actorRole),
+    status,
+    providerMessageId: row.providerMessageId,
+    providerOccurredAt: optionalDateString(row.providerOccurredAt),
+    providerSource: row.providerSource,
+    ack: ack.ack,
+    ackName: ack.ackName,
+    failureCode: row.failureCode,
+    version: positiveVersion(row.version),
+    createdAt: dateString(row.createdAt),
+    updatedAt: dateString(row.updatedAt),
+    settledAt: optionalDateString(row.settledAt),
+    lastReconciledAt: optionalDateString(row.lastReconciledAt),
   });
 }
 
@@ -5434,6 +5755,594 @@ export async function readLatestCanonicalGeminiProposal(
       .limit(1);
     if (!row) throw new CanonicalCrmRepositoryError("not_found");
     return row.proposal ? canonicalGeminiProposalRow(row.proposal) : null;
+  });
+}
+
+type LockedCanonicalWhatsappConversation = Readonly<{
+  leadId: string;
+  status: "open" | "closed";
+  owningRole: "sales" | "admissions";
+  externalConversationId: string | null;
+}>;
+
+async function lockCanonicalWhatsappConversation(
+  transaction: DatabaseTransaction,
+  conversationId: string,
+): Promise<LockedCanonicalWhatsappConversation> {
+  const [reference] = await transaction
+    .select({ leadId: evoConversations.leadId })
+    .from(evoConversations)
+    .where(
+      and(
+        eq(evoConversations.id, conversationId),
+        eq(evoConversations.channel, "whatsapp"),
+      ),
+    )
+    .limit(1);
+  if (!reference) throw new CanonicalCrmRepositoryError("not_found");
+
+  const [lockedLead] = await transaction
+    .select({ leadId: evoLeads.id })
+    .from(evoLeads)
+    .where(eq(evoLeads.id, reference.leadId))
+    .limit(1)
+    .for("update");
+  if (!lockedLead) throw new CanonicalCrmRepositoryError("not_found");
+
+  const [conversation] = await transaction
+    .select({
+      leadId: evoConversations.leadId,
+      status: evoConversations.status,
+      owningRole: evoConversations.owningRole,
+      externalConversationId: evoConversations.externalConversationId,
+    })
+    .from(evoConversations)
+    .where(
+      and(
+        eq(evoConversations.id, conversationId),
+        eq(evoConversations.channel, "whatsapp"),
+      ),
+    )
+    .limit(1);
+  if (!conversation) throw new CanonicalCrmRepositoryError("not_found");
+  return {
+    leadId: conversation.leadId,
+    status: databaseConversationStatus(conversation.status),
+    owningRole: databaseConversationOwningRole(conversation.owningRole),
+    externalConversationId: conversation.externalConversationId,
+  };
+}
+
+function canonicalWhatsappActorAuthorized(
+  actor: FixedRole,
+  conversation: LockedCanonicalWhatsappConversation,
+): boolean {
+  return actor === "admin" || conversation.owningRole === actor;
+}
+
+function assertCanonicalWhatsappSendBoundary(
+  actor: FixedRole,
+  conversation: LockedCanonicalWhatsappConversation,
+  confirmedRecipient: string,
+): void {
+  if (!canonicalWhatsappActorAuthorized(actor, conversation)) {
+    throw new CanonicalCrmRepositoryError("not_found");
+  }
+  if (conversation.status !== "open") {
+    throw new CanonicalCrmRepositoryError("conflict");
+  }
+  if (
+    conversation.externalConversationId === null ||
+    !DIRECT_WAHA_CHAT_ID_PATTERN.test(conversation.externalConversationId) ||
+    conversation.externalConversationId !== confirmedRecipient
+  ) {
+    throw new CanonicalCrmRepositoryError("conflict");
+  }
+}
+
+async function canonicalWhatsappReplyTarget(
+  transaction: DatabaseTransaction,
+  conversationId: string,
+  value: string | null,
+): Promise<string | null> {
+  if (value === null) return null;
+  const externalMessageId = externalIdentifier(value);
+  const [message] = await transaction
+    .select({ id: evoMessages.id })
+    .from(evoMessages)
+    .where(
+      and(
+        eq(evoMessages.conversationId, conversationId),
+        eq(evoMessages.direction, "inbound"),
+        eq(evoMessages.externalMessageId, externalMessageId),
+      ),
+    )
+    .limit(1);
+  if (!message) throw new CanonicalCrmRepositoryError("invalid_input");
+  return externalMessageId;
+}
+
+async function canonicalWhatsappSourceProposal(
+  transaction: DatabaseTransaction,
+  input: Readonly<{
+    conversationId: string;
+    sourceProposalId: string | null;
+    finalText: string;
+  }>,
+): Promise<string | null> {
+  if (input.sourceProposalId === null) return null;
+  const [proposal] = await transaction
+    .select({
+      proposalId: evoAiProposals.id,
+      reviewDecision: evoAiProposals.reviewDecision,
+      reviewedText: evoAiProposals.reviewedText,
+    })
+    .from(evoAiProposals)
+    .where(
+      and(
+        eq(evoAiProposals.id, input.sourceProposalId),
+        eq(evoAiProposals.conversationId, input.conversationId),
+      ),
+    )
+    .limit(1);
+  if (
+    !proposal ||
+    (proposal.reviewDecision !== "accepted" &&
+      proposal.reviewDecision !== "edited") ||
+    proposal.reviewedText !== input.finalText
+  ) {
+    return null;
+  }
+  return proposal.proposalId;
+}
+
+async function assertNoUnresolvedCanonicalWhatsappSend(
+  transaction: DatabaseTransaction,
+  conversationId: string,
+): Promise<void> {
+  const [unresolved] = await transaction
+    .select({ id: evoWhatsappSendAttempts.id })
+    .from(evoWhatsappSendAttempts)
+    .where(
+      and(
+        eq(evoWhatsappSendAttempts.conversationId, conversationId),
+        or(
+          eq(evoWhatsappSendAttempts.status, "prepared"),
+          eq(evoWhatsappSendAttempts.status, "unknown"),
+        ),
+      ),
+    )
+    .limit(1);
+  if (unresolved) throw new CanonicalCrmRepositoryError("conflict");
+}
+
+const whatsappAttemptSelection = {
+  attemptId: evoWhatsappSendAttempts.id,
+  conversationId: evoWhatsappSendAttempts.conversationId,
+  messageId: evoWhatsappSendAttempts.messageId,
+  sourceProposalId: evoWhatsappSendAttempts.sourceProposalId,
+  provider: evoWhatsappSendAttempts.provider,
+  sessionName: evoWhatsappSendAttempts.sessionName,
+  recipientChatId: evoWhatsappSendAttempts.recipientChatId,
+  replyToExternalMessageId: evoWhatsappSendAttempts.replyToExternalMessageId,
+  finalText: evoWhatsappSendAttempts.finalText,
+  actorRole: evoWhatsappSendAttempts.actorRole,
+  status: evoWhatsappSendAttempts.status,
+  providerMessageId: evoWhatsappSendAttempts.providerMessageId,
+  providerOccurredAt: evoWhatsappSendAttempts.providerOccurredAt,
+  providerSource: evoWhatsappSendAttempts.providerSource,
+  ack: evoWhatsappSendAttempts.ack,
+  ackName: evoWhatsappSendAttempts.ackName,
+  failureCode: evoWhatsappSendAttempts.failureCode,
+  version: evoWhatsappSendAttempts.version,
+  createdAt: evoWhatsappSendAttempts.createdAt,
+  updatedAt: evoWhatsappSendAttempts.updatedAt,
+  settledAt: evoWhatsappSendAttempts.settledAt,
+  lastReconciledAt: evoWhatsappSendAttempts.lastReconciledAt,
+} as const;
+
+async function selectCanonicalWhatsappSendAttemptById(
+  transaction: DatabaseTransaction,
+  attemptId: string,
+): Promise<CanonicalWhatsAppSendAttemptSnapshot> {
+  const [row] = await transaction
+    .select(whatsappAttemptSelection)
+    .from(evoWhatsappSendAttempts)
+    .where(eq(evoWhatsappSendAttempts.id, attemptId))
+    .limit(1);
+  if (!row) throw new CanonicalCrmRepositoryError("unavailable");
+  return canonicalWhatsappSendAttemptRow(row);
+}
+
+async function selectLockedCanonicalWhatsappSendAttempt(
+  transaction: DatabaseTransaction,
+  input: Readonly<{ attemptId: string; conversationId: string }>,
+): Promise<CanonicalWhatsAppSendAttemptSnapshot> {
+  const [row] = await transaction
+    .select(whatsappAttemptSelection)
+    .from(evoWhatsappSendAttempts)
+    .where(
+      and(
+        eq(evoWhatsappSendAttempts.id, input.attemptId),
+        eq(evoWhatsappSendAttempts.conversationId, input.conversationId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  if (!row) throw new CanonicalCrmRepositoryError("not_found");
+  return canonicalWhatsappSendAttemptRow(row);
+}
+
+function canonicalWhatsappCommandContext(
+  input: Readonly<{
+    actorRole: unknown;
+    idempotencyKey: unknown;
+    correlationId: unknown;
+  }>,
+): CommandContext {
+  const context = parseCommandContext(
+    input,
+    ["admin", "sales", "admissions"],
+  );
+  const idempotency = uuid(context.idempotencyKey);
+  const correlation = uuid(context.correlationId);
+  if (idempotency !== correlation) invalidInput();
+  return { ...context, idempotencyKey: idempotency, correlationId: correlation };
+}
+
+export async function executeCanonicalWhatsAppSend(
+  contextInput: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+  }>,
+  input: Readonly<{
+    conversationId: string;
+    sessionName: string;
+    finalText: string;
+    confirmedRecipient: string;
+    sourceProposalId?: string | null;
+    replyToExternalMessageId?: string | null;
+  }>,
+  dispatch: CanonicalWhatsAppDispatcher,
+): Promise<CanonicalWhatsAppSendAttemptSnapshot> {
+  const context = canonicalWhatsappCommandContext(contextInput);
+  const conversationId = uuid(input.conversationId);
+  const sessionName = canonicalWahaSessionName(input.sessionName);
+  const finalText = canonicalWhatsappFinalText(input.finalText);
+  const confirmedRecipient = canonicalDirectWahaChatId(input.confirmedRecipient);
+  const sourceProposalId =
+    input.sourceProposalId === undefined || input.sourceProposalId === null
+      ? null
+      : uuid(input.sourceProposalId);
+  const replyToExternalMessageId =
+    input.replyToExternalMessageId === undefined ||
+    input.replyToExternalMessageId === null
+      ? null
+      : externalIdentifier(input.replyToExternalMessageId);
+  if (typeof dispatch !== "function") invalidInput();
+
+  const prepared = await runTransaction(async (transaction) => {
+    const conversation = await lockCanonicalWhatsappConversation(
+      transaction,
+      conversationId,
+    );
+    assertCanonicalWhatsappSendBoundary(
+      context.actorRole,
+      conversation,
+      confirmedRecipient,
+    );
+    const requestHash = sha256({
+      conversationId,
+      finalText,
+      confirmedRecipient,
+      sourceProposalId,
+      replyToExternalMessageId,
+    });
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical_whatsapp.send",
+      context,
+      requestHash,
+    });
+    if (reservation.kind === "replay") {
+      return Object.freeze({
+        kind: "replay" as const,
+        attempt: await selectCanonicalWhatsappSendAttemptById(
+          transaction,
+          resultUuid(reservation.resultPayload, "attemptId"),
+        ),
+      });
+    }
+
+    await assertNoUnresolvedCanonicalWhatsappSend(transaction, conversationId);
+
+    const replyTarget = await canonicalWhatsappReplyTarget(
+      transaction,
+      conversationId,
+      replyToExternalMessageId,
+    );
+    const linkedProposalId = await canonicalWhatsappSourceProposal(transaction, {
+      conversationId,
+      sourceProposalId,
+      finalText,
+    });
+    const attemptId = randomUUID();
+    await transaction.insert(evoWhatsappSendAttempts).values({
+      id: attemptId,
+      conversationId,
+      sourceProposalId: linkedProposalId,
+      provider: "waha",
+      sessionName,
+      recipientChatId: confirmedRecipient,
+      replyToExternalMessageId: replyTarget,
+      finalText,
+      actorRole: context.actorRole,
+      status: "prepared",
+      correlationId: context.correlationId,
+      idempotencyKey: context.idempotencyKey,
+    });
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "whatsapp_send_attempt",
+      businessObjectId: attemptId,
+      transition: "whatsapp_send.prepared",
+      fromState: null,
+      toState: "prepared",
+      eventSequence: 1,
+    });
+    return Object.freeze({
+      kind: "new" as const,
+      receiptId: reservation.receiptId,
+      attemptId,
+    });
+  });
+  if (prepared.kind === "replay") return prepared.attempt;
+
+  return runTransaction(async (transaction) => {
+    const conversation = await lockCanonicalWhatsappConversation(
+      transaction,
+      conversationId,
+    );
+    const attempt = await selectLockedCanonicalWhatsappSendAttempt(transaction, {
+      attemptId: prepared.attemptId,
+      conversationId,
+    });
+    if (attempt.status !== "prepared") {
+      throw new CanonicalCrmRepositoryError("unavailable");
+    }
+
+    let outcome: CanonicalWhatsAppDispatchOutcome;
+    if (!canonicalWhatsappActorAuthorized(context.actorRole, conversation)) {
+      outcome = { status: "rejected", failureCode: "authorization_changed" };
+    } else if (conversation.status !== "open") {
+      outcome = { status: "rejected", failureCode: "conversation_closed" };
+    } else if (
+      conversation.externalConversationId !== attempt.recipientChatId ||
+      !DIRECT_WAHA_CHAT_ID_PATTERN.test(attempt.recipientChatId)
+    ) {
+      outcome = { status: "rejected", failureCode: "recipient_changed" };
+    } else {
+      try {
+        outcome = canonicalWhatsappDispatchOutcome(
+          await dispatch({
+            attemptId: attempt.attemptId,
+            sessionName: attempt.sessionName,
+            recipientChatId: attempt.recipientChatId,
+            text: attempt.finalText,
+            replyToExternalMessageId: attempt.replyToExternalMessageId,
+          }),
+          {
+            recipientChatId: attempt.recipientChatId,
+            body: attempt.finalText,
+          },
+        );
+      } catch {
+        outcome = { status: "unknown", failureCode: "provider_unavailable" };
+      }
+    }
+
+    const settledAt = new Date();
+    if (outcome.status === "accepted") {
+      const messageId = randomUUID();
+      await transaction.insert(evoMessages).values({
+        id: messageId,
+        conversationId,
+        direction: "outbound",
+        externalMessageId: outcome.message.providerMessageId,
+        body: attempt.finalText,
+        authorRole: context.actorRole,
+        occurredAt: new Date(outcome.message.providerOccurredAt),
+        correlationId: context.correlationId,
+        idempotencyKey: `canonical-whatsapp-message:${context.idempotencyKey}`,
+      });
+      await transaction
+        .update(evoWhatsappSendAttempts)
+        .set({
+          messageId,
+          status: "accepted",
+          providerMessageId: outcome.message.providerMessageId,
+          providerOccurredAt: new Date(outcome.message.providerOccurredAt),
+          providerSource: outcome.message.source,
+          ack: outcome.message.ack,
+          ackName: outcome.message.ackName,
+          settledAt,
+          lastReconciledAt: settledAt,
+          version: attempt.version + 1,
+          updatedAt: settledAt,
+        })
+        .where(eq(evoWhatsappSendAttempts.id, attempt.attemptId));
+    } else {
+      await transaction
+        .update(evoWhatsappSendAttempts)
+        .set({
+          status: outcome.status,
+          failureCode: outcome.failureCode,
+          settledAt,
+          version: attempt.version + 1,
+          updatedAt: settledAt,
+        })
+        .where(eq(evoWhatsappSendAttempts.id, attempt.attemptId));
+    }
+    await insertBusinessEvent(transaction, {
+      context,
+      businessObjectType: "whatsapp_send_attempt",
+      businessObjectId: attempt.attemptId,
+      transition: `whatsapp_send.${outcome.status}`,
+      fromState: "prepared",
+      toState: outcome.status,
+      reason: outcome.status === "accepted" ? null : outcome.failureCode,
+      eventSequence: 2,
+    });
+    await completeCommand(transaction, {
+      receiptId: prepared.receiptId,
+      businessObjectType: "whatsapp_send_attempt",
+      businessObjectId: attempt.attemptId,
+      resultPayload: { attemptId: attempt.attemptId },
+    });
+    return selectCanonicalWhatsappSendAttemptById(transaction, attempt.attemptId);
+  });
+}
+
+export type CanonicalWhatsAppMessageReader = (
+  request: Readonly<{
+    attemptId: string;
+    sessionName: string;
+    recipientChatId: string;
+    providerMessageId: string;
+    expectedText: string;
+  }>,
+) => Promise<CanonicalWhatsAppProviderMessage>;
+
+export async function reconcileCanonicalWhatsAppSendAttempt(
+  contextInput: Readonly<{
+    actorRole: FixedRole;
+    idempotencyKey: string;
+    correlationId: string;
+  }>,
+  input: Readonly<{ conversationId: string; attemptId: string }>,
+  readProviderMessage: CanonicalWhatsAppMessageReader,
+): Promise<CanonicalWhatsAppSendAttemptSnapshot> {
+  const context = canonicalWhatsappCommandContext(contextInput);
+  const conversationId = uuid(input.conversationId);
+  const attemptId = uuid(input.attemptId);
+  if (typeof readProviderMessage !== "function") invalidInput();
+
+  return runTransaction(async (transaction) => {
+    const conversation = await lockCanonicalWhatsappConversation(
+      transaction,
+      conversationId,
+    );
+    if (!canonicalWhatsappActorAuthorized(context.actorRole, conversation)) {
+      throw new CanonicalCrmRepositoryError("not_found");
+    }
+    const attempt = await selectLockedCanonicalWhatsappSendAttempt(transaction, {
+      attemptId,
+      conversationId,
+    });
+    if (
+      attempt.status !== "accepted" ||
+      attempt.providerMessageId === null ||
+      attempt.ack === null
+    ) {
+      throw new CanonicalCrmRepositoryError("conflict");
+    }
+    const reservation = await reserveCommand(transaction, {
+      commandName: "canonical_whatsapp.reconcile",
+      context,
+      requestHash: sha256({ conversationId, attemptId }),
+    });
+    if (reservation.kind === "replay") {
+      return selectCanonicalWhatsappSendAttemptById(
+        transaction,
+        resultUuid(reservation.resultPayload, "attemptId"),
+      );
+    }
+
+    let providerMessage: CanonicalWhatsAppProviderMessage;
+    try {
+      providerMessage = canonicalWhatsappProviderMessage(
+        await readProviderMessage({
+          attemptId,
+          sessionName: attempt.sessionName,
+          recipientChatId: attempt.recipientChatId,
+          providerMessageId: attempt.providerMessageId,
+          expectedText: attempt.finalText,
+        }),
+        {
+          providerMessageId: attempt.providerMessageId,
+          recipientChatId: attempt.recipientChatId,
+          body: attempt.finalText,
+        },
+      );
+    } catch {
+      throw new CanonicalCrmRepositoryError("unavailable");
+    }
+
+    const reconciledAt = new Date();
+    const advanced = providerMessage.ack > attempt.ack;
+    await transaction
+      .update(evoWhatsappSendAttempts)
+      .set({
+        ack: advanced ? providerMessage.ack : attempt.ack,
+        ackName: advanced ? providerMessage.ackName : attempt.ackName,
+        providerSource: attempt.providerSource ?? providerMessage.source,
+        lastReconciledAt: reconciledAt,
+        version: advanced ? attempt.version + 1 : attempt.version,
+        updatedAt: reconciledAt,
+      })
+      .where(eq(evoWhatsappSendAttempts.id, attemptId));
+    if (advanced) {
+      await insertBusinessEvent(transaction, {
+        context,
+        businessObjectType: "whatsapp_send_attempt",
+        businessObjectId: attemptId,
+        transition: "whatsapp_send.ack_advanced",
+        fromState: attempt.ackName,
+        toState: providerMessage.ackName,
+      });
+    }
+    await completeCommand(transaction, {
+      receiptId: reservation.receiptId,
+      businessObjectType: "whatsapp_send_attempt",
+      businessObjectId: attemptId,
+      resultPayload: { attemptId },
+    });
+    return selectCanonicalWhatsappSendAttemptById(transaction, attemptId);
+  });
+}
+
+export async function readLatestCanonicalWhatsAppSendAttempt(
+  input: Readonly<{ actorRole: FixedRole; conversationId: string }>,
+): Promise<CanonicalWhatsAppSendAttemptSnapshot | null> {
+  const actor = actorRole(input.actorRole, ["admin", "sales", "admissions"]);
+  const conversationId = uuid(input.conversationId);
+  return runTransaction(async (transaction) => {
+    const [row] = await transaction
+      .select({
+        authorizedConversationId: evoConversations.id,
+        attempt: whatsappAttemptSelection,
+      })
+      .from(evoConversations)
+      .leftJoin(
+        evoWhatsappSendAttempts,
+        eq(evoWhatsappSendAttempts.conversationId, evoConversations.id),
+      )
+      .where(
+        and(
+          eq(evoConversations.id, conversationId),
+          eq(evoConversations.channel, "whatsapp"),
+          actor === "admin"
+            ? undefined
+            : eq(evoConversations.owningRole, actor),
+        ),
+      )
+      .orderBy(
+        desc(evoWhatsappSendAttempts.createdAt),
+        desc(evoWhatsappSendAttempts.id),
+      )
+      .limit(1);
+    if (!row) throw new CanonicalCrmRepositoryError("not_found");
+    return row.attempt ? canonicalWhatsappSendAttemptRow(row.attempt) : null;
   });
 }
 

@@ -6,7 +6,7 @@ import { CanonicalStaffWhatsAppWorkspace } from "@/components/platform/communica
 import { getT } from "@/lib/i18n";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
 import { readCanonicalGeminiProposalAvailability } from "@/lib/server/canonical-gemini-proposal-config";
-import { readCanonicalWahaPreflightAvailability } from "@/lib/server/canonical-waha-preflight";
+import { readCanonicalWahaProviderAvailability } from "@/lib/server/canonical-waha-provider";
 import {
   CanonicalCrmRepositoryError,
   getCanonicalStaffConversationThread,
@@ -14,6 +14,7 @@ import {
   parseCanonicalMessageCursor,
   parseCanonicalReadCursor,
   readLatestCanonicalGeminiProposal,
+  readLatestCanonicalWhatsAppSendAttempt,
   type CanonicalMessageCursor,
   type CanonicalReadCursor,
 } from "@/lib/server/canonical-crm-repository";
@@ -50,8 +51,9 @@ export default async function WhatsAppConversationPage({
   let queue;
   let thread;
   let geminiProposal;
+  let latestSendAttempt;
   try {
-    [queue, thread, geminiProposal] = await Promise.all([
+    [queue, thread, geminiProposal, latestSendAttempt] = await Promise.all([
       listCanonicalStaffConversations({
         actorRole: actor.platformRole,
         cursor: queueCursor ?? undefined,
@@ -64,6 +66,10 @@ export default async function WhatsAppConversationPage({
         pageSize: 50,
       }),
       readLatestCanonicalGeminiProposal({
+        actorRole: actor.platformRole,
+        conversationId: id,
+      }),
+      readLatestCanonicalWhatsAppSendAttempt({
         actorRole: actor.platformRole,
         conversationId: id,
       }),
@@ -85,8 +91,6 @@ export default async function WhatsAppConversationPage({
       queueCursor={queueCursor}
       queueResetHref={queueCursor ? "/whatsapp" : null}
       queueNextHref={queue.nextCursor ? queueHref(queue.nextCursor) : null}
-      wahaAvailability={readCanonicalWahaPreflightAvailability()}
-      wahaPreflightRequestId={randomUUID()}
       selectedConversationId={id}
       thread={{
         conversation: thread.conversation,
@@ -95,6 +99,10 @@ export default async function WhatsAppConversationPage({
         geminiProposal,
         geminiReviewRequestId:
           geminiProposal?.reviewDecision === "pending" ? randomUUID() : null,
+        wahaAvailability: readCanonicalWahaProviderAvailability(),
+        latestSendAttempt,
+        sendRequestId: randomUUID(),
+        reconcileRequestId: randomUUID(),
         newestMessagesHref: messageCursor ? threadHref(id, queueCursor) : null,
         olderMessagesHref: thread.nextCursor
           ? threadHref(id, queueCursor, thread.nextCursor)

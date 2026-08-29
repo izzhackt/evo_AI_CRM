@@ -13,6 +13,7 @@ import {
 
 import {
   evoConversations,
+  evoMessages,
   evoStudentCases,
 } from "./canonical-crm-core.ts";
 
@@ -348,6 +349,141 @@ export const evoAiProposals = pgTable(
     check(
       "evo_ai_proposals_idempotency_check",
       sql`char_length(btrim(${table.idempotencyKey})) > 0`,
+    ),
+  ],
+);
+
+export const evoWhatsappSendAttempts = pgTable(
+  "evo_whatsapp_send_attempts",
+  {
+    id: text("id").primaryKey(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => evoConversations.id, { onDelete: "restrict" }),
+    messageId: text("message_id").references(() => evoMessages.id, {
+      onDelete: "restrict",
+    }),
+    sourceProposalId: text("source_proposal_id").references(
+      () => evoAiProposals.id,
+      { onDelete: "restrict" },
+    ),
+    provider: text("provider").default("waha").notNull(),
+    sessionName: text("session_name").notNull(),
+    recipientChatId: text("recipient_chat_id").notNull(),
+    replyToExternalMessageId: text("reply_to_external_message_id"),
+    finalText: text("final_text").notNull(),
+    actorRole: text("actor_role").notNull(),
+    status: text("status").default("prepared").notNull(),
+    providerMessageId: text("provider_message_id"),
+    providerOccurredAt: timestamp("provider_occurred_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    providerSource: text("provider_source"),
+    ack: integer("ack"),
+    ackName: text("ack_name"),
+    failureCode: text("failure_code"),
+    correlationId: text("correlation_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .defaultNow()
+      .notNull(),
+    settledAt: timestamp("settled_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    lastReconciledAt: timestamp("last_reconciled_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+  },
+  (table) => [
+    unique("evo_whatsapp_send_attempts_idempotency_unique").on(
+      table.idempotencyKey,
+    ),
+    unique("evo_whatsapp_send_attempts_message_unique").on(table.messageId),
+    unique("evo_whatsapp_send_attempts_provider_message_unique").on(
+      table.provider,
+      table.sessionName,
+      table.providerMessageId,
+    ),
+    index("evo_whatsapp_send_attempts_conversation_created_idx").on(
+      table.conversationId,
+      table.createdAt,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_id_uuid_check",
+      sql`${table.id} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_provider_check",
+      sql`${table.provider} = 'waha'`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_session_check",
+      sql`char_length(btrim(${table.sessionName})) between 1 and 128`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_recipient_check",
+      sql`${table.recipientChatId} ~ '^[1-9][0-9]{4,31}@(c[.]us|lid)$'`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_reply_check",
+      sql`${table.replyToExternalMessageId} is null or char_length(btrim(${table.replyToExternalMessageId})) between 1 and 255`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_text_check",
+      sql`char_length(btrim(${table.finalText})) between 1 and 3000`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_role_check",
+      sql`${table.actorRole} in ('admin', 'sales', 'admissions')`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_status_check",
+      sql`${table.status} in ('prepared', 'accepted', 'unknown', 'rejected')`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_provider_message_check",
+      sql`${table.providerMessageId} is null or char_length(btrim(${table.providerMessageId})) between 1 and 1024`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_source_check",
+      sql`${table.providerSource} is null or char_length(btrim(${table.providerSource})) between 1 and 32`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_ack_check",
+      sql`(${table.ack} is null and ${table.ackName} is null) or (${table.ack} = -1 and ${table.ackName} = 'ERROR') or (${table.ack} = 0 and ${table.ackName} = 'PENDING') or (${table.ack} = 1 and ${table.ackName} = 'SERVER') or (${table.ack} = 2 and ${table.ackName} = 'DEVICE') or (${table.ack} = 3 and ${table.ackName} = 'READ') or (${table.ack} = 4 and ${table.ackName} = 'PLAYED')`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_failure_check",
+      sql`${table.failureCode} is null or char_length(btrim(${table.failureCode})) between 1 and 80`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_correlation_check",
+      sql`char_length(btrim(${table.correlationId})) > 0`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_idempotency_check",
+      sql`char_length(btrim(${table.idempotencyKey})) > 0`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_version_check",
+      sql`${table.version} > 0`,
+    ),
+    check(
+      "evo_whatsapp_send_attempts_state_check",
+      sql`(${table.status} = 'prepared' and ${table.messageId} is null and ${table.providerMessageId} is null and ${table.providerOccurredAt} is null and ${table.providerSource} is null and ${table.ack} is null and ${table.ackName} is null and ${table.failureCode} is null and ${table.settledAt} is null and ${table.lastReconciledAt} is null) or (${table.status} = 'accepted' and ${table.messageId} is not null and ${table.providerMessageId} is not null and ${table.providerOccurredAt} is not null and ${table.ack} is not null and ${table.ackName} is not null and ${table.failureCode} is null and ${table.settledAt} is not null) or (${table.status} in ('unknown', 'rejected') and ${table.messageId} is null and ${table.providerMessageId} is null and ${table.providerOccurredAt} is null and ${table.providerSource} is null and ${table.ack} is null and ${table.ackName} is null and ${table.failureCode} is not null and ${table.settledAt} is not null and ${table.lastReconciledAt} is null)`,
     ),
   ],
 );

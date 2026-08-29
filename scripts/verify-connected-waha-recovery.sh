@@ -6,11 +6,15 @@ umask 077
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 node_bin="${EVO_NODE_BIN:-node}"
 fixed_dispatch_sha="9c3df2e0d56378f6bf94af8d7592e525e9d41bcf"
+fixed_recovery_occurred_sha="104ea651a14a373418ed2e2308ac8b008fb1fb3d"
 dispatch_sha="${EVO_V2_WAHA_DISPATCH_SHA:-}"
 reconciliation_sha="${1:-${EVO_V2_RECOVERY_MAIN_SHA:-}}"
+recovery_occurred_sha="${EVO_V2_RECOVERY_OCCURRED_MAIN_SHA:-}"
+finalize_only="${EVO_V2_WAHA_RECOVERY_FINALIZE:-0}"
 preserved_tmp_dir="${EVO_V2_WAHA_PRESERVED_TMP_DIR:-}"
 project_name="${EVO_V2_WAHA_PRESERVED_COMPOSE_PROJECT:-}"
 expected_provider_id_sha256="${EVO_V2_EXPECTED_PROVIDER_MESSAGE_ID_SHA256:-}"
+expected_provider_source="${EVO_V2_EXPECTED_PROVIDER_SOURCE:-app}"
 ssh_host="hermes-vps"
 run_succeeded=0
 compose_started=0
@@ -24,6 +28,8 @@ tunnel_log=""
 proxy_log=""
 proxy_stats_file=""
 proxy_ready_file=""
+prior_playwright_log=""
+prior_playwright_result=""
 app_log=""
 playwright_log=""
 private_document_root=""
@@ -133,12 +139,25 @@ esac
 [[ "$#" -le 1 ]] || fail "Usage: $0 <exact-reconciliation-origin-main-sha>"
 [[ "${EVO_V2_REAL_WAHA_RECOVERY:-}" == "1" ]] \
   || fail "Set EVO_V2_REAL_WAHA_RECOVERY=1 for the recovery-only acceptance"
+[[ "$finalize_only" == "0" || "$finalize_only" == "1" ]] \
+  || fail "EVO_V2_WAHA_RECOVERY_FINALIZE must be exactly 0 or 1"
 [[ "$dispatch_sha" == "$fixed_dispatch_sha" ]] \
   || fail "EVO_V2_WAHA_DISPATCH_SHA must identify the one preserved dispatch"
 [[ "$reconciliation_sha" =~ ^[0-9a-f]{40}$ ]] \
   || fail "Provide the exact 40-character reconciliation main SHA"
 [[ "$expected_provider_id_sha256" =~ ^[0-9a-f]{64}$ ]] \
   || fail "EVO_V2_EXPECTED_PROVIDER_MESSAGE_ID_SHA256 must be the expected digest"
+[[ "$expected_provider_source" == "api" || "$expected_provider_source" == "app" ]] \
+  || fail "EVO_V2_EXPECTED_PROVIDER_SOURCE must be exactly api or app"
+if [[ "$finalize_only" == "1" ]]; then
+  [[ "$recovery_occurred_sha" == "$fixed_recovery_occurred_sha" ]] \
+    || fail "Finalization must identify the one exact main SHA where recovery occurred"
+  [[ "$recovery_occurred_sha" != "$reconciliation_sha" ]] \
+    || fail "Recovery and evidence-finalization SHAs must be distinct"
+else
+  [[ -z "$recovery_occurred_sha" ]] \
+    || fail "Recovery occurrence SHA is accepted only in finalization mode"
+fi
 [[ -n "$preserved_tmp_dir" && -d "$preserved_tmp_dir" && ! -L "$preserved_tmp_dir" ]] \
   || fail "EVO_V2_WAHA_PRESERVED_TMP_DIR must be the preserved real-WAHA directory"
 [[ "$project_name" =~ ^evo-v2-real-waha-[0-9]+-[0-9]+$ ]] \
@@ -178,6 +197,12 @@ origin_main_sha="$(git rev-parse refs/remotes/origin/main)"
   || fail "HEAD, the supplied reconciliation SHA and freshly fetched origin/main must match exactly"
 git merge-base --is-ancestor "$head_sha" "$origin_main_sha" \
   || fail "The recovery SHA is not current origin/main"
+if [[ "$finalize_only" == "1" ]]; then
+  git cat-file -e "${recovery_occurred_sha}^{commit}" \
+    || fail "The recorded recovery occurrence SHA is unavailable"
+  git merge-base --is-ancestor "$recovery_occurred_sha" "$head_sha" \
+    || fail "The evidence-finalization main does not descend from the recovery occurrence"
+fi
 [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]] \
   || fail "The worktree changed during exact-main verification"
 
@@ -232,9 +257,17 @@ EOF
   fail "The original dispatch marker does not match the preserved authorized action"
 fi
 
-runtime_dir="$preserved_tmp_dir/recovery-$reconciliation_sha"
+if [[ "$finalize_only" == "1" ]]; then
+  prior_runtime_dir="$preserved_tmp_dir/recovery-$recovery_occurred_sha"
+  [[ -d "$prior_runtime_dir" && ! -L "$prior_runtime_dir" ]] \
+    || fail "The exact preserved recovery diagnostics are missing"
+  runtime_dir="$preserved_tmp_dir/finalization-$reconciliation_sha"
+else
+  prior_runtime_dir=""
+  runtime_dir="$preserved_tmp_dir/recovery-$reconciliation_sha"
+fi
 [[ ! -e "$runtime_dir" ]] \
-  || fail "Recovery diagnostics already exist for this SHA; inspect them instead of rerunning"
+  || fail "Recovery or finalization diagnostics already exist for this SHA; inspect them instead of rerunning"
 mkdir -p "$runtime_dir"
 chmod 700 "$preserved_tmp_dir" "$runtime_dir"
 provider_bundle_file="$runtime_dir/provider.bundle"
@@ -315,6 +348,71 @@ preserved_volume="$(docker inspect --format '{{range .Mounts}}{{if eq .Destinati
 [[ -n "$preserved_volume" && "$preserved_volume" == "$project_name"_* ]] \
   || fail "The preserved PostgreSQL data volume is missing or belongs to another project"
 
+app_port="$(free_port)"
+if [[ "$finalize_only" == "1" ]]; then
+  proxy_stats_file="$prior_runtime_dir/get-only-proxy-stats.json"
+  proxy_log="$prior_runtime_dir/get-only-proxy.log"
+  prior_playwright_log="$prior_runtime_dir/playwright.log"
+  prior_playwright_result="$prior_runtime_dir/playwright-results/.last-run.json"
+  for preserved_recovery_file in \
+    "$proxy_stats_file" \
+    "$proxy_log" \
+    "$prior_playwright_log" \
+    "$prior_playwright_result"; do
+    [[ -f "$preserved_recovery_file" && ! -L "$preserved_recovery_file" ]] \
+      || fail "A required preserved recovery diagnostic is missing or unsafe"
+  done
+  [[ ! -s "$proxy_log" ]] \
+    || fail "The preserved GET-only proxy emitted diagnostics"
+  if ! EVO_V2_PROXY_STATS_FILE="$proxy_stats_file" \
+    EVO_V2_PRIOR_PLAYWRIGHT_LOG="$prior_playwright_log" \
+    EVO_V2_PRIOR_PLAYWRIGHT_RESULT="$prior_playwright_result" \
+    "$node_bin" --input-type=module <<'EOF'
+import { readFileSync } from "node:fs";
+
+let stats;
+let result;
+let log;
+try {
+  stats = JSON.parse(readFileSync(process.env.EVO_V2_PROXY_STATS_FILE, "utf8"));
+  result = JSON.parse(
+    readFileSync(process.env.EVO_V2_PRIOR_PLAYWRIGHT_RESULT, "utf8"),
+  );
+  log = readFileSync(process.env.EVO_V2_PRIOR_PLAYWRIGHT_LOG, "utf8");
+} catch {
+  process.exit(1);
+}
+const exactKeys = [
+  "forwardedGetCount",
+  "getCount",
+  "maxResponseBytesObserved",
+  "otherMethodCount",
+  "postCount",
+  "rejectedCount",
+  "schemaVersion",
+].sort();
+const staleAssertion = "Recovery changed the authorized actor/provider lineage";
+if (
+  JSON.stringify(Object.keys(stats).sort()) !== JSON.stringify(exactKeys) ||
+  stats.schemaVersion !== 1 ||
+  stats.getCount !== 3 ||
+  stats.forwardedGetCount !== 3 ||
+  stats.postCount !== 0 ||
+  stats.otherMethodCount !== 0 ||
+  stats.rejectedCount !== 0 ||
+  !Number.isInteger(stats.maxResponseBytesObserved) ||
+  stats.maxResponseBytesObserved < 1 ||
+  stats.maxResponseBytesObserved > 1024 * 1024 ||
+  result?.status !== "failed" ||
+  log.split(staleAssertion).length !== 2
+) {
+  process.exit(1);
+}
+EOF
+  then
+    fail "The preserved recovery diagnostics do not prove the one completed GET-only recovery"
+  fi
+else
 # Read only the existing lead-agent client credential, session and private WAHA
 # container address. Values are encoded in the protected SSH stream and never
 # printed.
@@ -405,7 +503,6 @@ fi
 
 tunnel_port="$(free_port)"
 proxy_port="$(free_port)"
-app_port="$(free_port)"
 ssh -NT \
   -o BatchMode=yes \
   -o ConnectTimeout=15 \
@@ -583,6 +680,7 @@ done
 [[ -f "$proxy_ready_file" ]] \
   || fail "The GET-only WAHA proxy did not become ready"
 chmod 600 "$proxy_ready_file" "$proxy_stats_file"
+fi
 
 docker compose "${compose_args[@]}" up --detach postgres >/dev/null
 compose_started=1
@@ -611,40 +709,62 @@ gate_admissions_secret="$(openssl rand -hex 32)"
 inbound_secret="$(openssl rand -hex 32)"
 
 assert_next_dev_lock_available
-DATABASE_URL="$database_url" \
-EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" \
-EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
-EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
-EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
-EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
-EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
-EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
-EVO_V2_GEMINI_PROPOSALS_ENABLED=0 \
-EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
-EVO_V2_WAHA_ENABLED=1 \
-EVO_V2_WAHA_PROVIDER_AUTHORIZED=1 \
-EVO_V2_WAHA_BASE_URL="http://127.0.0.1:${proxy_port}" \
-EVO_V2_WAHA_API_KEY="$waha_api_key" \
-EVO_V2_WAHA_SESSION_NAME="$waha_session_name" \
+app_environment=(
+  "DATABASE_URL=$database_url"
+  "EVO_PRIVATE_DOCUMENT_ROOT=$private_document_root"
+  "EVO_DEV_GATE_SESSION_SECRET=$gate_session_secret"
+  "EVO_DEV_GATE_ADMIN_IDENTIFIER=$gate_admin_identifier"
+  "EVO_DEV_GATE_ADMIN_SECRET=$gate_admin_secret"
+  "EVO_DEV_GATE_SALES_IDENTIFIER=$gate_sales_identifier"
+  "EVO_DEV_GATE_SALES_SECRET=$gate_sales_secret"
+  "EVO_DEV_GATE_ADMISSIONS_IDENTIFIER=$gate_admissions_identifier"
+  "EVO_DEV_GATE_ADMISSIONS_SECRET=$gate_admissions_secret"
+  "EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET=$inbound_secret"
+  "EVO_V2_GEMINI_PROPOSALS_ENABLED=0"
+  "EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0"
+)
+app_env_command=(env)
+if [[ "$finalize_only" == "1" ]]; then
+  app_env_command+=(
+    -u EVO_V2_WAHA_BASE_URL
+    -u EVO_V2_WAHA_API_KEY
+    -u EVO_V2_WAHA_SESSION_NAME
+  )
+  app_environment+=(
+    "EVO_V2_WAHA_ENABLED=0"
+    "EVO_V2_WAHA_PROVIDER_AUTHORIZED=0"
+  )
+else
+  app_environment+=(
+    "EVO_V2_WAHA_ENABLED=1"
+    "EVO_V2_WAHA_PROVIDER_AUTHORIZED=1"
+    "EVO_V2_WAHA_BASE_URL=http://127.0.0.1:${proxy_port}"
+    "EVO_V2_WAHA_API_KEY=$waha_api_key"
+    "EVO_V2_WAHA_SESSION_NAME=$waha_session_name"
+  )
+fi
+"${app_env_command[@]}" "${app_environment[@]}" \
   "$node_bin" node_modules/next/dist/bin/next dev \
     --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
 app_pid=$!
+unset app_env_command app_environment
 chmod 600 "$app_log"
 wait_for_local_http "http://127.0.0.1:${app_port}/login" "$app_pid" "The real Next application"
 
-# The browser test receives no WAHA URL, session or API key. Every provider
-# read therefore has to originate inside the real server and traverse the
-# GET-only proxy; a provider POST is rejected and counted before it can escape.
+# The browser test receives no WAHA URL, session or API key. Normal recovery
+# reads must traverse the GET-only proxy. Finalization starts the app with WAHA
+# disabled and only verifies the already accepted PostgreSQL/browser result.
 if ! PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   DATABASE_URL="$database_url" \
   EVO_V2_REAL_WAHA_RECOVERY=1 \
+  EVO_V2_WAHA_RECOVERY_FINALIZE="$finalize_only" \
+  EVO_V2_RECOVERY_OCCURRED_MAIN_SHA="$recovery_occurred_sha" \
   EVO_V2_WAHA_DISPATCH_SHA="$dispatch_sha" \
   EVO_V2_WAHA_DISPATCH_RECORDED_AT="$dispatch_recorded_at" \
   EVO_V2_RECOVERY_MAIN_SHA="$reconciliation_sha" \
   EVO_V2_WAHA_EVIDENCE_DIR="$evidence_dir" \
   EVO_V2_EXPECTED_PROVIDER_MESSAGE_ID_SHA256="$expected_provider_id_sha256" \
+  EVO_V2_EXPECTED_PROVIDER_SOURCE="$expected_provider_source" \
   EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
   EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
   "$node_bin" node_modules/@playwright/test/cli.js test \
@@ -662,8 +782,11 @@ chmod 600 "$playwright_log"
   || fail "Recovery did not produce sanitized success evidence"
 if ! EVO_V2_RECOVERY_EVIDENCE="$recovered_success_evidence" \
   EVO_V2_EXPECTED_DISPATCH_SHA="$dispatch_sha" \
-  EVO_V2_EXPECTED_RECOVERY_SHA="$reconciliation_sha" \
+  EVO_V2_EXPECTED_RECOVERY_SHA="${recovery_occurred_sha:-$reconciliation_sha}" \
+  EVO_V2_EXPECTED_FINALIZATION_SHA="$reconciliation_sha" \
   EVO_V2_EXPECTED_PROVIDER_ID_SHA256="$expected_provider_id_sha256" \
+  EVO_V2_EXPECTED_PROVIDER_SOURCE="$expected_provider_source" \
+  EVO_V2_EXPECT_FINALIZATION="$finalize_only" \
   "$node_bin" --input-type=module <<'EOF'
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -687,17 +810,33 @@ const ackNames = Object.freeze({
   3: "READ",
   4: "PLAYED",
 });
+const finalization = process.env.EVO_V2_EXPECT_FINALIZATION === "1";
+const invalidMode = finalization
+  ? evidence?.schemaVersion !== 2 ||
+    evidence?.finalizationSha !== process.env.EVO_V2_EXPECTED_FINALIZATION_SHA ||
+    evidence?.action !== "resume_after_accepted_recovery_without_provider_calls" ||
+    evidence?.provider?.lookup !== "validated_preserved_get_only_unique_match" ||
+    evidence?.browser?.recoveryButtonClicked !== false ||
+    evidence?.browser?.finalizationReadOnly !== true ||
+    evidence?.boundaries?.finalizationProviderTransport !==
+      "disabled_no_provider_configuration"
+  : evidence?.schemaVersion !== 1 ||
+    evidence?.finalizationSha !== undefined ||
+    evidence?.action !== "one_explicit_browser_recovery_without_resend" ||
+    evidence?.provider?.lookup !== "bounded_get_only_unique_match" ||
+    evidence?.browser?.recoveryButtonClicked !== true ||
+    evidence?.browser?.finalizationReadOnly !== false ||
+    evidence?.boundaries?.finalizationProviderTransport !== null;
 if (
-  evidence?.schemaVersion !== 1 ||
+  invalidMode ||
   evidence?.kind !== "evo-v2-connected-waha-unknown-recovery" ||
   evidence?.status !== "passed" ||
   evidence?.dispatchSha !== process.env.EVO_V2_EXPECTED_DISPATCH_SHA ||
   evidence?.reconciliationSha !== process.env.EVO_V2_EXPECTED_RECOVERY_SHA ||
   !isoTimestamp.test(evidence?.completedAt ?? "") ||
-  evidence?.action !== "one_explicit_browser_recovery_without_resend" ||
   evidence?.finalTextSha256 !== expectedFinalTextSha256 ||
   evidence?.providerMessageIdSha256 !== process.env.EVO_V2_EXPECTED_PROVIDER_ID_SHA256 ||
-  evidence?.provider?.lookup !== "bounded_get_only_unique_match" ||
+  evidence?.provider?.source !== process.env.EVO_V2_EXPECTED_PROVIDER_SOURCE ||
   ![0, 1, 2, 3, 4].includes(evidence?.provider?.ack) ||
   evidence?.provider?.ackName !== ackNames[evidence?.provider?.ack] ||
   evidence?.database?.sameAttemptRecovered !== true ||
@@ -707,7 +846,6 @@ if (
   evidence?.database?.outboundMessageCount !== 1 ||
   evidence?.browser?.role !== "sales" ||
   evidence?.browser?.sendButtonClicked !== false ||
-  evidence?.browser?.recoveryButtonClicked !== true ||
   evidence?.boundaries?.database !== "preserved_disposable_local_postgresql" ||
   evidence?.boundaries?.providerTransport !== "harness_enforced_get_only_proxy" ||
   evidence?.boundaries?.productionDatabaseMutated !== false ||
@@ -724,6 +862,7 @@ fi
 chmod 600 "$dispatch_marker" "$recovered_success_evidence"
 
 if ! EVO_V2_PROXY_STATS_FILE="$proxy_stats_file" \
+  EVO_V2_EXPECT_FINALIZATION="$finalize_only" \
   "$node_bin" --input-type=module <<'EOF'
 import { readFileSync } from "node:fs";
 
@@ -742,13 +881,17 @@ const exactKeys = [
   "rejectedCount",
   "schemaVersion",
 ];
+const finalization = process.env.EVO_V2_EXPECT_FINALIZATION === "1";
+const validGetCounts = finalization
+  ? stats?.getCount === 3 && stats?.forwardedGetCount === 3
+  : Number.isInteger(stats?.getCount) &&
+    stats.getCount >= 1 &&
+    stats.getCount <= 16 &&
+    stats.forwardedGetCount === stats.getCount;
 if (
   JSON.stringify(Object.keys(stats).sort()) !== JSON.stringify(exactKeys) ||
   stats.schemaVersion !== 1 ||
-  !Number.isInteger(stats.getCount) ||
-  stats.getCount < 1 ||
-  stats.getCount > 16 ||
-  stats.forwardedGetCount !== stats.getCount ||
+  !validGetCounts ||
   stats.postCount !== 0 ||
   stats.otherMethodCount !== 0 ||
   stats.rejectedCount !== 0 ||

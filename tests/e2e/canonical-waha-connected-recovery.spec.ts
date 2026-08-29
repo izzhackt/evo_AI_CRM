@@ -309,11 +309,19 @@ test("recovers the one preserved unknown WAHA result without another send", asyn
     process.env.EVO_V2_REAL_WAHA_RECOVERY === "1",
     "Connected-provider recovery requires the explicit harness flag",
   );
+  const finalizationOnly =
+    process.env.EVO_V2_WAHA_RECOVERY_FINALIZE === "1";
   const dispatchSha = requireEnv("EVO_V2_WAHA_DISPATCH_SHA");
-  const reconciliationSha = requireEnv("EVO_V2_RECOVERY_MAIN_SHA");
+  const currentMainSha = requireEnv("EVO_V2_RECOVERY_MAIN_SHA");
+  const recoverySha = finalizationOnly
+    ? requireEnv("EVO_V2_RECOVERY_OCCURRED_MAIN_SHA")
+    : currentMainSha;
   ensure(
-    SHA40.test(dispatchSha) && SHA40.test(reconciliationSha),
-    "Recovery requires exact dispatch and reconciliation SHAs",
+    SHA40.test(dispatchSha) &&
+      SHA40.test(currentMainSha) &&
+      SHA40.test(recoverySha) &&
+      (!finalizationOnly || recoverySha !== currentMainSha),
+    "Recovery requires exact and distinct dispatch, recovery, and finalization SHAs",
   );
   const dispatchRecordedAt = requireEnv(
     "EVO_V2_WAHA_DISPATCH_RECORDED_AT",
@@ -330,6 +338,13 @@ test("recovers the one preserved unknown WAHA result without another send", asyn
   ensure(
     SHA256.test(expectedProviderMessageIdSha256),
     "Expected provider message identity must be a SHA-256 digest",
+  );
+  const expectedProviderSource = requireEnv(
+    "EVO_V2_EXPECTED_PROVIDER_SOURCE",
+  );
+  ensure(
+    expectedProviderSource === "api" || expectedProviderSource === "app",
+    "Expected provider source must be exactly api or app",
   );
 
   const evidenceDir = path.resolve(requireEnv("EVO_V2_WAHA_EVIDENCE_DIR"));
@@ -348,7 +363,6 @@ test("recovers the one preserved unknown WAHA result without another send", asyn
   await chmod(evidenceDir, 0o700);
 
   const before = await readUniqueUnknownAttempt();
-  ensure(before.status === "unknown", "The preserved attempt is not unknown");
   ensure(
     before.actorRole === "sales" && before.provider === "waha",
     "The preserved attempt is not the authorized Sales WAHA action",
@@ -358,59 +372,86 @@ test("recovers the one preserved unknown WAHA result without another send", asyn
     "The preserved attempt text differs from the reviewed final text",
   );
   ensure(
-    before.failureCode === "provider_malformed_response",
-    "The preserved attempt does not have the expected ambiguity reason",
-  );
-  ensure(
-    before.messageId === null &&
-      before.providerMessageId === null &&
-      before.providerOccurredAt === null &&
-      before.providerSource === null &&
-      before.ack === null &&
-      before.ackName === null,
-    "The unknown attempt already contains accepted provider/message fields",
-  );
-  ensure(
-    before.attemptCount === 1 &&
-      before.matchingTextCount === 1 &&
-      before.outboundCount === 0,
-    "The preserved database does not contain exactly one attempt and zero outbound messages",
-  );
-  ensure(
     before.createdAt.getTime() >= dispatchRecordedAtMs &&
       before.createdAt.getTime() <= dispatchRecordedAtMs + 60_000 &&
       before.settledAt.getTime() >= before.createdAt.getTime() &&
       before.settledAt.getTime() <= dispatchRecordedAtMs + 120_000,
     "The preserved attempt is outside the original dispatch marker window",
   );
+  if (finalizationOnly) {
+    ensure(
+      before.status === "accepted" && before.failureCode === null,
+      "Finalization requires the already recovered accepted attempt",
+    );
+    ensure(
+      before.attemptCount === 1 &&
+        before.matchingTextCount === 1 &&
+        before.outboundCount === 1,
+      "Finalization requires exactly one attempt and one outbound message",
+    );
+  } else {
+    ensure(before.status === "unknown", "The preserved attempt is not unknown");
+    ensure(
+      before.failureCode === "provider_malformed_response",
+      "The preserved attempt does not have the expected ambiguity reason",
+    );
+    ensure(
+      before.messageId === null &&
+        before.providerMessageId === null &&
+        before.providerOccurredAt === null &&
+        before.providerSource === null &&
+        before.ack === null &&
+        before.ackName === null,
+      "The unknown attempt already contains accepted provider/message fields",
+    );
+    ensure(
+      before.attemptCount === 1 &&
+        before.matchingTextCount === 1 &&
+        before.outboundCount === 0,
+      "The preserved database does not contain exactly one attempt and zero outbound messages",
+    );
+  }
 
   await submitSalesGate(page);
   await page.goto(`/whatsapp/${before.conversationId}`);
   await expect(
     page.getByTestId("canonical-staff-whatsapp-thread"),
   ).toBeVisible();
-  await expect(
-    page.getByTestId("canonical-whatsapp-provider-availability"),
-  ).toHaveAttribute("data-status", "configured");
-  await expect(
-    page.getByTestId("canonical-whatsapp-latest-attempt"),
-  ).toContainText(/unknown/i);
-  await expect(
-    page.getByTestId("canonical-whatsapp-outbound-unresolved"),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId("canonical-whatsapp-outbound-send"),
-  ).toBeDisabled();
-
   const recovery = page.getByTestId(
     "canonical-whatsapp-outbound-reconcile",
   );
-  await expect(recovery).toBeVisible();
-  await expect(recovery).toBeEnabled();
-  await recovery.click();
-  await expect(
-    page.getByTestId("canonical-whatsapp-reconcile-state"),
-  ).toHaveAttribute("data-status", "reconciled", { timeout: 30_000 });
+  if (finalizationOnly) {
+    await expect(
+      page.getByTestId("canonical-whatsapp-provider-availability"),
+    ).toHaveAttribute("data-status", "blocked");
+    await expect(
+      page.getByTestId("canonical-whatsapp-latest-attempt"),
+    ).toContainText(/accepted/i);
+    await expect(
+      page.getByTestId("canonical-whatsapp-outbound-send"),
+    ).toBeDisabled();
+    await expect(recovery).toBeVisible();
+    await expect(recovery).toBeDisabled();
+  } else {
+    await expect(
+      page.getByTestId("canonical-whatsapp-provider-availability"),
+    ).toHaveAttribute("data-status", "configured");
+    await expect(
+      page.getByTestId("canonical-whatsapp-latest-attempt"),
+    ).toContainText(/unknown/i);
+    await expect(
+      page.getByTestId("canonical-whatsapp-outbound-unresolved"),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("canonical-whatsapp-outbound-send"),
+    ).toBeDisabled();
+    await expect(recovery).toBeVisible();
+    await expect(recovery).toBeEnabled();
+    await recovery.click();
+    await expect(
+      page.getByTestId("canonical-whatsapp-reconcile-state"),
+    ).toHaveAttribute("data-status", "reconciled", { timeout: 30_000 });
+  }
   await expect(
     page.getByTestId("canonical-staff-whatsapp-thread"),
   ).toContainText(FINAL_TEXT);
@@ -428,7 +469,7 @@ test("recovers the one preserved unknown WAHA result without another send", asyn
   ensure(
     after.actorRole === "sales" &&
       after.provider === "waha" &&
-      after.providerSource === "api",
+      after.providerSource === expectedProviderSource,
     "Recovery changed the authorized actor/provider lineage",
   );
   ensure(
@@ -453,17 +494,23 @@ test("recovers the one preserved unknown WAHA result without another send", asyn
   );
 
   await durableCreateJson(path.join(evidenceDir, "recovered-success.json"), {
-    schemaVersion: 1,
+    schemaVersion: finalizationOnly ? 2 : 1,
     kind: "evo-v2-connected-waha-unknown-recovery",
     status: "passed",
     dispatchSha,
-    reconciliationSha,
+    reconciliationSha: recoverySha,
+    ...(finalizationOnly ? { finalizationSha: currentMainSha } : {}),
     completedAt: new Date().toISOString(),
-    action: "one_explicit_browser_recovery_without_resend",
+    action: finalizationOnly
+      ? "resume_after_accepted_recovery_without_provider_calls"
+      : "one_explicit_browser_recovery_without_resend",
     finalTextSha256: sha256(FINAL_TEXT),
     providerMessageIdSha256: sha256(after.providerMessageId),
     provider: {
-      lookup: "bounded_get_only_unique_match",
+      lookup: finalizationOnly
+        ? "validated_preserved_get_only_unique_match"
+        : "bounded_get_only_unique_match",
+      source: after.providerSource,
       ack: after.ack,
       ackName: after.ackName,
     },
@@ -477,11 +524,15 @@ test("recovers the one preserved unknown WAHA result without another send", asyn
     browser: {
       role: "sales",
       sendButtonClicked: false,
-      recoveryButtonClicked: true,
+      recoveryButtonClicked: !finalizationOnly,
+      finalizationReadOnly: finalizationOnly,
     },
     boundaries: {
       database: "preserved_disposable_local_postgresql",
       providerTransport: "harness_enforced_get_only_proxy",
+      finalizationProviderTransport: finalizationOnly
+        ? "disabled_no_provider_configuration"
+        : null,
       productionDatabaseMutated: false,
       deploymentMutated: false,
     },

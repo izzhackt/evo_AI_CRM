@@ -311,7 +311,7 @@ preserved_container_id="$(docker compose "${compose_args[@]}" ps --all --quiet p
   || fail "The preserved PostgreSQL container is missing; recovery will not create a replacement"
 [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$preserved_container_id")" == "$project_name" ]] \
   || fail "The preserved PostgreSQL container belongs to a different Compose project"
-preserved_volume="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}' "$preserved_container_id")"
+preserved_volume="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql"}}{{.Name}}{{end}}{{end}}' "$preserved_container_id")"
 [[ -n "$preserved_volume" && "$preserved_volume" == "$project_name"_* ]] \
   || fail "The preserved PostgreSQL data volume is missing or belongs to another project"
 

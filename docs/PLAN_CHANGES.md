@@ -13947,3 +13947,35 @@ Current official provider references:
 
 - <https://waha.devlike.pro/docs/how-to/chats/#get-messages>
 - <https://waha.devlike.pro/docs/how-to/events/#message>
+
+## 2026-08-29 - Finalize the completed WAHA recovery without another provider call
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #465.
+Change type: append-only connected-provider evidence correction.
+Affected plan section: V2-10B canonical human-reviewed WhatsApp outbound.
+
+The exact-main recovery at `104ea651a14a373418ed2e2308ac8b008fb1fb3d`
+completed the intended business transition in the preserved disposable
+PostgreSQL database: the one original attempt became `accepted`, its failure
+was cleared and exactly one canonical outbound message was bound to the
+expected provider message digest. The enforced provider proxy recorded three
+bounded GET requests, three forwarded GET requests and zero POST, other-method
+or rejected requests. The browser acceptance then failed only in its
+post-transition evidence assertion because it still required source `api`;
+the real WAHA history value was the documented source `app`. Consequently the
+database result is complete, but `recovered-success.json` was not written.
+
+Decision: the original recovery must never be repeated. One fail-closed
+evidence-finalization pass may resume only from that exact recovery SHA and its
+preserved diagnostics. It first requires the exact `3/3/0` GET/forwarded/POST
+counters, an empty proxy diagnostic log and the exact stale assertion failure.
+It then restarts only the preserved PostgreSQL database and the local Next.js
+application with WAHA disabled and without a provider URL, API key or session.
+The browser performs read-only Sales-role verification of the already accepted
+attempt and message; it does not click send or reconcile. The final evidence
+records both the recovery SHA and the later exact-main finalization SHA, the
+truthful source `app`, and the no-provider-call finalization boundary. The
+preserved database, volume and diagnostics may be removed only after this
+sanitized evidence passes its own validation. Any failed finalization remains
+preserved and cannot be rerun at the same SHA.

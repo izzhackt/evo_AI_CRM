@@ -12916,3 +12916,47 @@ SQLite/Supabase projections. This bounded coexistence expires in V2-8C before
 #432 may close; it is not a fallback or authority for the V2-8B routes, and it
 does not authorize deleting frozen V1 deployments or historical
 decision/rollback documentation.
+
+## 2026-08-29 - Pin the V2-8C private-document and final Admissions boundary
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #432 on exact-main
+`8a3ead5490b56dec2c798078ad6d64e61b10b468`.
+Change type: implementation contract before coding.
+Affected plan section: V2-8C private documents and final Admissions
+replacement.
+
+Decision: keep the #428 `evo_private_documents`,
+`evo_private_document_versions`, private object directory and exact `/api/v2`
+file routes as the single authority. Add only the missing case-scoped metadata
+reads and canonical UI. Student 360 is the sole upload/resubmission surface;
+`/documents` is a read-only queue over the same rows and latest versions. Do
+not preserve the old SQLite document review queue, numeric detail, status
+workflow or Supabase document-slot/RPC model as an adapter or parallel path.
+
+All reads and downloads must resolve a real handed-off PostgreSQL case.
+Uploads and resubmissions additionally require an active case. Admissions and
+Admin may use the document path; Sales, unknown identifiers and documents
+outside a handed-off canonical case fail closed. The UI never receives storage
+object keys. Paused and closed cases may
+read existing metadata and bytes but expose no write controls. Missing
+PostgreSQL, private-root configuration, object bytes or checksum integrity is
+an explicit unavailable result with no filesystem, SQLite or Supabase
+fallback.
+
+Acceptance must use the actual two-field development gate, Next application,
+PostgreSQL migrations, private files and desktop Chromium to upload through
+Student 360, render the new metadata, download exact initial bytes, resubmit,
+render the incremented immutable version and download exact replacement bytes.
+Direct PostgreSQL and filesystem checks bind the returned document/version IDs
+to exact version numbers, byte lengths, SHA-256 values and opaque object files;
+role, case, inactive-case and unavailable-path denials write nothing.
+
+After that proof, delete the inactive `StudentWorkspace` and presenter, old
+Admissions case-workspace and document-review actions/repositories, the
+SQLite-backed `/documents` queue/detail/action implementation and their old
+implementation tests. Replace them with outcome tests at the canonical
+Student 360/private-document interface and attach the final scoped `rg`
+inventory. Frozen V1 deployments plus historical ADRs, migrations, runbooks,
+archived docs, evidence and other decision/rollback documentation remain inert
+and preserved under the repository-wide exception.

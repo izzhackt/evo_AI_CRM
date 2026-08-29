@@ -428,7 +428,7 @@ test("recovers the one preserved unknown WAHA result without another send", asyn
   ensure(
     after.actorRole === "sales" &&
       after.provider === "waha" &&
-      after.providerSource === "api",
+      after.providerSource === "app",
     "Recovery changed the authorized actor/provider lineage",
   );
   ensure(

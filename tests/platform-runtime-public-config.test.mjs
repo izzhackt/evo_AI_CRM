@@ -89,14 +89,7 @@ test("browser clients are reused only for the exact runtime public configuration
   }
 });
 
-test("realtime client components use injected runtime config and never read browser environment variables", () => {
-  const messagingRealtime = readFileSync(
-    new URL(
-      "../src/components/platform/communications/PlatformMessagingRealtime.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
+test("portal realtime uses injected runtime config and never reads browser environment variables", () => {
   const portalRealtime = readFileSync(
     new URL(
       "../src/components/platform/portal/PortalNotificationsRealtime.tsx",
@@ -105,23 +98,16 @@ test("realtime client components use injected runtime config and never read brow
     "utf8",
   );
 
-  for (const source of [messagingRealtime, portalRealtime]) {
-    assert.match(source, /supabaseConfig:\s*SupabasePublicConfig/);
-    assert.match(
-      source,
-      /createSupabaseBrowserClient\(\{\s*url:\s*supabaseUrl,\s*publishableKey:\s*supabasePublishableKey,?\s*\}\)/,
-    );
-    assert.match(source, /supabasePublishableKey/);
-    assert.match(source, /supabaseUrl/);
-    assert.doesNotMatch(
-      source,
-      /getSupabasePublicConfig|process\.env|NEXT_PUBLIC_SUPABASE_/,
-    );
-  }
-
+  assert.match(portalRealtime, /supabaseConfig:\s*SupabasePublicConfig/);
   assert.match(
-    messagingRealtime,
-    /\[organizationId,\s*router,\s*supabasePublishableKey,\s*supabaseUrl\]/,
+    portalRealtime,
+    /createSupabaseBrowserClient\(\{\s*url:\s*supabaseUrl,\s*publishableKey:\s*supabasePublishableKey,?\s*\}\)/,
+  );
+  assert.match(portalRealtime, /supabasePublishableKey/);
+  assert.match(portalRealtime, /supabaseUrl/);
+  assert.doesNotMatch(
+    portalRealtime,
+    /getSupabasePublicConfig|process\.env|NEXT_PUBLIC_SUPABASE_/,
   );
   assert.match(
     portalRealtime,
@@ -129,7 +115,7 @@ test("realtime client components use injected runtime config and never read brow
   );
 });
 
-test("server entry points resolve public Supabase config at request runtime and pass only that public object", () => {
+test("only the portal realtime surface reads public Supabase config at request runtime", () => {
   const listPage = readFileSync(
     new URL("../src/app/(staff)/whatsapp/page.tsx", import.meta.url),
     "utf8",
@@ -143,32 +129,27 @@ test("server entry points resolve public Supabase config at request runtime and 
     "utf8",
   );
 
-  for (const source of [listPage, threadPage, portalLayout]) {
-    assert.match(
+  for (const source of [listPage, threadPage]) {
+    assert.doesNotMatch(
       source,
       /import\s*\{\s*getSupabasePublicConfig\s*\}\s*from\s*"@\/lib\/supabase\/config"/,
     );
     assert.doesNotMatch(
       source,
-      /SUPABASE_SERVICE_ROLE|serviceRole|service_role|SUPABASE_SECRET/,
+      /getSupabasePublicConfig|PlatformMessagingRealtime|supabaseConfig|platform-communications|LegacyWhatsApp|LegacyConversation/,
     );
+    assert.match(source, /listCanonicalStaffConversations|getCanonicalStaffConversationThread/);
+    assert.doesNotMatch(source, /SUPABASE_SERVICE_ROLE|serviceRole|service_role|SUPABASE_SECRET/);
   }
 
-  for (const source of [listPage, threadPage]) {
-    const runtimeRead = source.indexOf(
-      "const supabaseConfig = getSupabasePublicConfig();",
-    );
-    assert.ok(runtimeRead >= 0);
-    assert.doesNotMatch(
-      source,
-      /isUiContractFixtureMode|LegacyWhatsApp|LegacyConversation/,
-    );
-    assert.match(
-      source,
-      /<PlatformMessagingRealtime[\s\S]*?organizationId=\{actor\.organizationId\}[\s\S]*?supabaseConfig=\{supabaseConfig\}[\s\S]*?\/>/,
-    );
-  }
-
+  assert.match(
+    portalLayout,
+    /import\s*\{\s*getSupabasePublicConfig\s*\}\s*from\s*"@\/lib\/supabase\/config"/,
+  );
+  assert.doesNotMatch(
+    portalLayout,
+    /SUPABASE_SERVICE_ROLE|serviceRole|service_role|SUPABASE_SECRET/,
+  );
   assert.match(
     portalLayout,
     /const supabaseConfig = notificationsRealtimeScope\s*\?\s*getSupabasePublicConfig\(\)\s*:\s*null;/,

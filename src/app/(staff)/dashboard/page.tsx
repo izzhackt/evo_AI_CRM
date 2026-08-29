@@ -49,9 +49,9 @@ export default async function DashboardPage() {
         channelActivity: {
           incomingCalls: 0,
           outgoingCalls: 0,
-          incomingMessages: 0,
-          outgoingMessages: 0,
-          unreadConversations: 0,
+          incomingMessages: null,
+          outgoingMessages: null,
+          unreadConversations: null,
           avgResponseMinutes: null,
         },
       };

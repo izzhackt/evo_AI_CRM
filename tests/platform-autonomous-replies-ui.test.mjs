@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import test from "node:test";
 
@@ -307,60 +306,4 @@ test("control mutation binds the actor organization and validates the safe resul
     ),
     PlatformAutonomousReplyRepositoryError,
   );
-});
-
-test("accepted conversation UI exposes safe desktop/mobile controls without private identifiers", async () => {
-  const [component, view, page, actions, i18n] = await Promise.all([
-    readFile(
-      new URL(
-        "../src/components/platform/communications/PlatformAutonomousReplyCard.tsx",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
-    readFile(
-      new URL(
-        "../src/components/platform/communications/PlatformConversationView.tsx",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
-    readFile(
-      new URL("../src/app/(staff)/whatsapp/[id]/page.tsx", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../src/lib/platform-autonomous-reply-actions.ts", import.meta.url),
-      "utf8",
-    ),
-    readFile(new URL("../src/lib/i18n-data.ts", import.meta.url), "utf8"),
-  ]);
-
-  assert.match(component, /setPlatformAutonomyControlAction/);
-  assert.match(component, /value="enabled"/);
-  assert.match(component, /value="paused"/);
-  assert.match(component, /value="staff_takeover"/);
-  assert.match(component, /data-runtime-enabled/);
-  assert.match(i18n, /Accepted by WAHA — delivery is not confirmed/);
-  assert.equal(view.split("<PlatformAutonomousReplyCard").length - 1, 2);
-  assert.match(page, /readPlatformAutonomousReplyState/);
-  assert.match(page, /loadPlatformAutonomousReplyConfig/);
-  assert.match(actions, /requirePlatformMessagingActor/);
-  assert.match(actions, /expectedVersion/);
-  assert.equal(
-    i18n.split("platformAutonomousReplyRuntimeDisabledHint:").length - 1,
-    3,
-  );
-
-  for (const forbidden of [
-    "waha_message_id",
-    "provider_message_id",
-    "provider_response",
-    "chat_id",
-    "amocrm_lead_id",
-    "kommo_conversation_id",
-  ]) {
-    assert.equal(component.includes(forbidden), false, forbidden);
-    assert.equal(view.includes(forbidden), false, forbidden);
-  }
 });

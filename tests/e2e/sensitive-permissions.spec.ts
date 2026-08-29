@@ -66,13 +66,6 @@ test("finance role is denied documents, portal data, AI, and transcription", asy
   expect(summary.status).toBe(401);
   expect(JSON.parse(summary.body)).toEqual({ error: "unauthorized" });
 
-  const draft = await browserFetch(page, "/api/ai/draft", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ conversationId: 1 }),
-  });
-  expect(draft.status).toBe(401);
-
   const transcription = await browserFetch(page, "/api/transcription/jobs/20260101000000-aaaaaaaa");
   expect(transcription.status).toBe(403);
   expect(JSON.parse(transcription.body)).toEqual({ error: "forbidden" });
@@ -86,7 +79,7 @@ test("client cannot access finance, documents, client records, AI, or transcript
     await expect(page).toHaveURL(/\/portal$/);
   }
 
-  for (const route of ["/api/ai/summary", "/api/ai/draft"]) {
+  for (const route of ["/api/ai/summary"]) {
     const response = await browserFetch(page, route, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

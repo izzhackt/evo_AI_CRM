@@ -34,11 +34,6 @@ export function hashPassword(password: string): string {
 
 let _db: Database.Database | null = null;
 const SECRET_SETTING_KEYS = new Set([
-  "wa_token",
-  "wa_verify_token",
-  "wa_app_secret",
-  "waha_api_key",
-  "waha_webhook_secret",
   "tel_api_key",
   "anthropic_api_key",
   "amocrm_client_secret",
@@ -191,51 +186,6 @@ function init(d: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS wa_accounts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      provider TEXT NOT NULL DEFAULT 'meta',
-      name TEXT NOT NULL,
-      session_name TEXT,
-      phone TEXT,
-      status TEXT NOT NULL DEFAULT 'not_configured',
-      owner_user_id INTEGER REFERENCES users(id),
-      is_default INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS wa_conversations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      wa_account_id INTEGER REFERENCES wa_accounts(id),
-      phone TEXT NOT NULL,
-      name TEXT,
-      lead_id INTEGER REFERENCES leads(id),
-      client_id INTEGER REFERENCES clients(id),
-      amo_lead_id INTEGER,
-      amo_contact_id INTEGER,
-      agent_state TEXT,
-      agent_summary TEXT,
-      agent_handoff_reason TEXT,
-      agent_draft_review_text TEXT,
-      agent_draft_review_status TEXT,
-      agent_draft_review_provider TEXT,
-      agent_draft_review_model TEXT,
-      agent_last_synced_at TEXT,
-      last_message_at TEXT,
-      unread INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS wa_messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      conversation_id INTEGER NOT NULL REFERENCES wa_conversations(id),
-      direction TEXT NOT NULL,
-      text TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'demo',
-      author_id INTEGER REFERENCES users(id),
-      wa_id TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
     CREATE TABLE IF NOT EXISTS calls (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       direction TEXT NOT NULL,
@@ -261,21 +211,6 @@ function init(d: Database.Database) {
 }
 
 function migrate(d: Database.Database) {
-  d.exec(`
-    CREATE TABLE IF NOT EXISTS wa_accounts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      provider TEXT NOT NULL DEFAULT 'meta',
-      name TEXT NOT NULL,
-      session_name TEXT,
-      phone TEXT,
-      status TEXT NOT NULL DEFAULT 'not_configured',
-      owner_user_id INTEGER REFERENCES users(id),
-      is_default INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  migrateWhatsAppConversations(d);
   const taskCols = (d.prepare("PRAGMA table_info(tasks)").all() as { name: string }[]).map((c) => c.name);
   if (!taskCols.includes("priority")) {
     d.exec("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'");
@@ -293,16 +228,6 @@ function migrate(d: Database.Database) {
   addColumnIfMissing(d, "leads", "agent_draft_review_provider", "TEXT");
   addColumnIfMissing(d, "leads", "agent_draft_review_model", "TEXT");
   addColumnIfMissing(d, "leads", "agent_last_synced_at", "TEXT");
-  addColumnIfMissing(d, "wa_conversations", "amo_lead_id", "INTEGER");
-  addColumnIfMissing(d, "wa_conversations", "amo_contact_id", "INTEGER");
-  addColumnIfMissing(d, "wa_conversations", "agent_state", "TEXT");
-  addColumnIfMissing(d, "wa_conversations", "agent_summary", "TEXT");
-  addColumnIfMissing(d, "wa_conversations", "agent_handoff_reason", "TEXT");
-  addColumnIfMissing(d, "wa_conversations", "agent_draft_review_text", "TEXT");
-  addColumnIfMissing(d, "wa_conversations", "agent_draft_review_status", "TEXT");
-  addColumnIfMissing(d, "wa_conversations", "agent_draft_review_provider", "TEXT");
-  addColumnIfMissing(d, "wa_conversations", "agent_draft_review_model", "TEXT");
-  addColumnIfMissing(d, "wa_conversations", "agent_last_synced_at", "TEXT");
   addColumnIfMissing(d, "clients", "case_state", "TEXT NOT NULL DEFAULT 'pending'");
   addColumnIfMissing(d, "clients", "contract_confirmed_at", "TEXT");
   addColumnIfMissing(d, "clients", "contract_confirmation_ref", "TEXT");
@@ -336,27 +261,12 @@ function migrate(d: Database.Database) {
     WHERE type = 'status' AND text IN ('new', 'contacted', 'meeting', 'proposal', 'won', 'lost')
   `);
   d.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_accounts_provider_session
-      ON wa_accounts(provider, session_name)
-      WHERE session_name IS NOT NULL;
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_conversations_account_phone
-      ON wa_conversations(wa_account_id, phone)
-      WHERE wa_account_id IS NOT NULL;
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_conversations_legacy_phone
-      ON wa_conversations(phone)
-      WHERE wa_account_id IS NULL;
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_messages_wa_id
-      ON wa_messages(wa_id)
-      WHERE wa_id IS NOT NULL;
     CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_amo_lead_id
       ON leads(amo_lead_id)
       WHERE amo_lead_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_leads_amo_contact_id
       ON leads(amo_contact_id)
       WHERE amo_contact_id IS NOT NULL;
-    CREATE INDEX IF NOT EXISTS idx_wa_conversations_amo_lead_id
-      ON wa_conversations(amo_lead_id)
-      WHERE amo_lead_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_clients_case_state
       ON clients(case_state);
     CREATE INDEX IF NOT EXISTS idx_clients_curator_case_state
@@ -538,55 +448,6 @@ function addColumnIfMissing(
   }
 }
 
-function migrateWhatsAppConversations(d: Database.Database) {
-  const cols = (d.prepare("PRAGMA table_info(wa_conversations)").all() as { name: string }[]).map((c) => c.name);
-  const indexes = d.prepare("PRAGMA index_list(wa_conversations)").all() as { name: string; origin: string }[];
-  const hasAccountId = cols.includes("wa_account_id");
-  const hasTableUniquePhone = indexes.some((idx) => idx.origin === "u");
-  if (!hasAccountId && !hasTableUniquePhone) {
-    d.exec("ALTER TABLE wa_conversations ADD COLUMN wa_account_id INTEGER REFERENCES wa_accounts(id)");
-    return;
-  }
-  if (!hasTableUniquePhone) return;
-
-  d.pragma("foreign_keys = OFF");
-  try {
-    d.exec(`
-      CREATE TABLE IF NOT EXISTS wa_conversations_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        wa_account_id INTEGER REFERENCES wa_accounts(id),
-        phone TEXT NOT NULL,
-        name TEXT,
-        lead_id INTEGER REFERENCES leads(id),
-        client_id INTEGER REFERENCES clients(id),
-        amo_lead_id INTEGER,
-        amo_contact_id INTEGER,
-        agent_state TEXT,
-        agent_summary TEXT,
-        agent_handoff_reason TEXT,
-        agent_draft_review_text TEXT,
-        agent_draft_review_status TEXT,
-        agent_draft_review_provider TEXT,
-        agent_draft_review_model TEXT,
-        agent_last_synced_at TEXT,
-        last_message_at TEXT,
-        unread INTEGER NOT NULL DEFAULT 0
-      );
-      INSERT INTO wa_conversations_new (
-        id, wa_account_id, phone, name, lead_id, client_id, last_message_at, unread
-      )
-        SELECT
-          id, ${hasAccountId ? "wa_account_id" : "NULL"}, phone, name, lead_id, client_id,
-          last_message_at, unread
-        FROM wa_conversations;
-      DROP TABLE wa_conversations;
-      ALTER TABLE wa_conversations_new RENAME TO wa_conversations;
-    `);
-  } finally {
-    d.pragma("foreign_keys = ON");
-  }
-}
-
 export function getSetting(key: string): string | null {
   const row = db().prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
   if (!row) return null;
@@ -694,19 +555,6 @@ function seedV2(d: Database.Database) {
   insertMsg.run(chGeneral.lastInsertRowid, curator, "Отлично! Сразу вопрос: куда писать по визовым кейсам?");
   insertMsg.run(chGeneral.lastInsertRowid, admin, "Создала канал #кураторы, визовые вопросы туда");
   insertMsg.run(chSales.lastInsertRowid, sales, "За неделю 4 новых лида с Instagram, 1 договор подписан 💪");
-
-  const insertConv = d.prepare(
-    "INSERT INTO wa_conversations (phone, name, lead_id, last_message_at, unread) VALUES (?, ?, ?, datetime('now'), ?)"
-  );
-  const conv1 = insertConv.run("+996700123456", "Темирлан Касымов", l1.lastInsertRowid, 1);
-  const conv2 = insertConv.run("+996555654321", "Асель Бекова", l2.lastInsertRowid, 0);
-
-  const insertWa = d.prepare(
-    "INSERT INTO wa_messages (conversation_id, direction, text, status, author_id) VALUES (?, ?, ?, ?, ?)"
-  );
-  insertWa.run(conv1.lastInsertRowid, "in", "Здравствуйте! Видел ваш пост про обучение в Германии. Сколько стоят ваши услуги?", "demo", null);
-  insertWa.run(conv2.lastInsertRowid, "in", "Добрый день, дочка в 11 классе, хотим в США на Computer Science", "demo", null);
-  insertWa.run(conv2.lastInsertRowid, "out", "Добрый день! Отличный выбор. Приглашаем на бесплатную консультацию — расскажем про стипендии и подготовку к SAT. Когда вам удобно?", "demo", sales);
 
   const insertCall = d.prepare(
     "INSERT INTO calls (direction, phone, manager_id, lead_id, started_at, duration_sec, status, notes) VALUES (?, ?, ?, ?, datetime('now', ?), ?, ?, ?)"

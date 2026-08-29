@@ -19,7 +19,6 @@ const GROUP_ORDER = ["urgent", "today", "upcoming"] as const;
 const ICON_BY_KIND: Record<OperatorNotification["kind"], IconName> = {
   task_overdue: "alert",
   task_priority: "check-square",
-  whatsapp_unread: "message-circle",
   payment_overdue: "wallet",
   application_deadline: "calendar",
 };
@@ -157,11 +156,7 @@ export default async function NotificationsPage() {
                           </h3>
                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-fg-3">
                             {item.subject && (
-                              <span>
-                                {item.kind === "whatsapp_unread"
-                                  ? `${item.subject} · ${t("unread")}`
-                                  : item.subject}
-                              </span>
+                              <span>{item.subject}</span>
                             )}
                             <span className="inline-flex items-center gap-1">
                               <Icon name="clock" size={13} />

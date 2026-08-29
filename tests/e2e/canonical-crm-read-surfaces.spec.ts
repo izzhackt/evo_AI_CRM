@@ -107,6 +107,14 @@ test("missing PostgreSQL authority fails closed without a read fallback", async 
   );
   await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
   await expect(page.getByTestId("canonical-sales-transcript")).toHaveCount(0);
+
+  await page.goto("/whatsapp");
+  await expect(page.getByTestId("whatsapp-error")).toBeVisible();
+  await expect(page.getByTestId("canonical-staff-whatsapp-page")).toHaveCount(0);
+
+  await page.goto(`/whatsapp/${unavailableProbeConversationId}`);
+  await expect(page.getByTestId("whatsapp-error")).toBeVisible();
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toHaveCount(0);
 });
 
 test("missing inbound secret fails closed at the real HTTP boundary", async ({
@@ -231,6 +239,91 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
   ).toBeVisible();
   await expect(
     page.getByTestId("canonical-whatsapp-provider-blocked"),
+  ).toBeVisible();
+
+  await page.goto("/whatsapp");
+  await expect(page.getByTestId("canonical-staff-whatsapp-page")).toBeVisible();
+  const staffQueueRow = page.locator(
+    `[data-testid="canonical-staff-whatsapp-row"][data-conversation-id="${conversationId}"]`,
+  );
+  await expect(staffQueueRow).toBeVisible();
+  await staffQueueRow.getByRole("link").click();
+  await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`));
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
+    inboundText,
+  );
+  await expect(
+    page.locator(
+      `[data-testid="canonical-staff-whatsapp-message"][data-message-id="${messageId}"]`,
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-staff-whatsapp-provider-blocked"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-staff-whatsapp-page").locator("form"),
+  ).toHaveCount(0);
+
+  await submitGate(page, "admissions");
+  await page.goto("/whatsapp");
+  await expect(page.getByTestId("canonical-staff-whatsapp-page")).toBeVisible();
+  await expect(
+    page.locator(
+      `[data-testid="canonical-staff-whatsapp-row"][data-conversation-id="${conversationId}"]`,
+    ),
+  ).toHaveCount(0);
+  await page.goto(`/whatsapp/${conversationId}`);
+  await expect(
+    page.getByRole("heading", { name: "404", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toHaveCount(0);
+
+  await submitGate(page, "admin");
+  await page.goto(`/whatsapp/${conversationId}`);
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
+    inboundText,
+  );
+
+  await page.goto("/");
+  await page.getByTestId("preview-role-admissions").click();
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-role",
+    "admissions",
+  );
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-authority-role",
+    "admin",
+  );
+  await page.goto("/whatsapp");
+  await expect(page.getByTestId("staff-role-preview")).toHaveAttribute(
+    "data-effective-role",
+    "admissions",
+  );
+  await expect(
+    page.locator(
+      `[data-testid="canonical-staff-whatsapp-row"][data-conversation-id="${conversationId}"]`,
+    ),
+  ).toHaveCount(0);
+
+  await page.goto("/");
+  await page.getByTestId("preview-role-sales").click();
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-role",
+    "sales",
+  );
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-authority-role",
+    "admin",
+  );
+  await page.goto("/whatsapp");
+  await expect(page.getByTestId("staff-role-preview")).toHaveAttribute(
+    "data-effective-role",
+    "sales",
+  );
+  await expect(
+    page.locator(
+      `[data-testid="canonical-staff-whatsapp-row"][data-conversation-id="${conversationId}"]`,
+    ),
   ).toBeVisible();
 
   await submitGate(page, "admissions");

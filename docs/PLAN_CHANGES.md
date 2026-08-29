@@ -13194,3 +13194,81 @@ Current official contract references:
 - WAHA API security: <https://waha.devlike.pro/docs/how-to/security/>.
 - WAHA session states: <https://waha.devlike.pro/docs/how-to/sessions/>.
 - Gemini structured output: <https://ai.google.dev/gemini-api/docs/structured-output>.
+
+## 2026-08-29 - Complete the V2-9A canonical staff WhatsApp replacement proof
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #433 after local V2-9A implementation and rerun of
+the full PostgreSQL foundation gate.
+Change type: execution evidence, legacy eradication and acceptance correction
+without changing the accepted V2-9 contract.
+Affected plan section: V2-9A canonical staff WhatsApp read surface.
+
+Reason: the accepted V2-9 contract required `/whatsapp` to become one active
+canonical PostgreSQL read path with no Supabase RPC/realtime read surface, no
+staff send action and no hidden SQLite fallback. The implementation also had to
+prove Admin exact-role preview and fail-closed behavior in the browser, then
+delete superseded runtime code and tests in the same slice.
+
+Decision: complete the canonical `/whatsapp` queue and thread replacement on
+top of `listCanonicalStaffConversations` and
+`getCanonicalStaffConversationThread`, both filtered by server role and using
+the PostgreSQL repository as the only active authority. The Sales handoff path
+now transfers conversation ownership to Admissions in the same transaction and
+records ordered `conversation.ownership_transferred` events before the handoff
+event; inbound lead creation locks the selected lead row to serialize inbound
+message creation with handoff and avoid ownership races. The active staff read
+UI is one canonical `CanonicalStaffWhatsApp` workspace with truthful blocked
+provider copy and no send form, autonomous action, realtime panel or fallback
+source disclosure.
+
+Delete the superseded active runtime in the same slice: the old `/whatsapp`
+connected cards/panels, realtime/media route, SQLite WhatsApp helpers,
+`/api/ai/draft`, obsolete notification/dashboard WhatsApp runtime, related
+tests and stale translation keys. Replace implementation-coupled coverage with
+new canonical repository tests, browser proof and `tests/v2-9a-legacy-cleanup`
+so the slice now proves absence of the removed active path instead of keeping
+parallel behavior alive.
+
+The first rerun exposed an acceptance-test race, not a product defect: Admin
+role-preview buttons call a server action that updates the signed session and
+redirects to `/`, but the browser proof navigated to `/whatsapp` before the
+redirected page confirmed the new effective role. Fix the test to wait for the
+updated `active-role` state before opening `/whatsapp`. The first direct
+thread-page implementation also requested `pageSize: 100` even though the
+canonical repository contract caps reads at `50`, which produced an
+`invalid_input` 404 on the detail route; keep the page at `50` so the page and
+repository contract remain exact.
+
+Scoped replacement inventory for V2-9A:
+
+- Active `/whatsapp` pages and the canonical workspace no longer import
+  `@/lib/platform-communications`, `@/lib/queries`, `@/lib/db`,
+  `getSupabasePublicConfig`, `PlatformMessagingRealtime`, `PlatformWaList`,
+  `PlatformConversationView`, `LegacyWhatsApp`, `LegacyConversation`,
+  `whatsapp-policy` or `/api/ai/draft`.
+- Missing or malformed PostgreSQL authority still fails closed with the
+  existing `whatsapp-error` boundary; there is no alternate local database or
+  read fallback.
+
+Explicit temporary coexistence still allowed under Issue #433 only until the
+named follow-up slices delete them:
+
+- `src/app/api/internal/platform-ai/gemini/proposal/route.ts` for V2-9B.
+- `src/app/api/internal/platform-messaging/manual-send/work/route.ts` for
+  V2-9C final worker removal.
+- `src/app/api/internal/platform-messaging/waha/autonomous-reply/route.ts` for
+  V2-9C final worker removal.
+- `src/lib/platform-ai-memory-actions.ts` and
+  `src/lib/platform-messaging-actions.ts` as non-`/whatsapp` legacy action
+  seams that still depend on `src/lib/platform-communications.ts` and must be
+  deleted when the canonical Gemini/manual-decision path replaces them.
+
+Validation evidence on this exact V2-9A tree:
+
+- `npm run test:u1`
+- `node --conditions=react-server --experimental-strip-types --test tests/platform-ai-memory.test.mjs tests/platform-amocrm-canonical-context-ui.test.mjs tests/platform-autonomous-replies-ui.test.mjs tests/platform-gemini-proposals.test.mjs`
+- `npm run test:u11`
+- `npm run lint -- src/app/(staff)/whatsapp/page.tsx src/app/(staff)/whatsapp/[id]/page.tsx src/components/platform/communications/CanonicalStaffWhatsApp.tsx src/lib/server/canonical-crm-repository.ts tests/canonical-crm-postgres.test.mjs tests/canonical-crm-repository.test.mjs tests/e2e/canonical-crm-read-surfaces.spec.ts tests/e2e/sensitive-permissions.spec.ts tests/v2-9a-legacy-cleanup.test.mjs src/lib/queries.ts`
+- `npm run typecheck`
+- `bash scripts/test-postgres-v2-foundation.sh`

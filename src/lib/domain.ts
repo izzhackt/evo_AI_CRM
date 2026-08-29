@@ -193,9 +193,6 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
 export const TASK_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 
-export const MESSAGE_DIRECTIONS = ["in", "out"] as const;
-export type MessageDirection = (typeof MESSAGE_DIRECTIONS)[number];
-
 export const CALL_DIRECTIONS = ["in", "out"] as const;
 export type CallDirection = (typeof CALL_DIRECTIONS)[number];
 
@@ -308,35 +305,6 @@ export type Task = {
   readonly status: TaskStatus;
   readonly priority: TaskPriority;
   readonly createdBy: EntityId | null;
-  readonly createdAt: DateTimeString;
-};
-
-export type WhatsAppConversation = {
-  readonly id: EntityId;
-  readonly phone: string;
-  readonly name: string | null;
-  readonly leadId: EntityId | null;
-  readonly clientId: EntityId | null;
-  readonly lastMessageAt: DateTimeString | null;
-  readonly unread: number;
-};
-
-export type WhatsAppMessage = {
-  readonly id: EntityId;
-  readonly conversationId: EntityId;
-  readonly direction: MessageDirection;
-  readonly text: string;
-  readonly status:
-    | "sent"
-    | "received"
-    | "delivered"
-    | "read"
-    | "failed"
-    | "unknown"
-    | "prepared"
-    | "demo";
-  readonly authorId: EntityId | null;
-  readonly providerMessageId: string | null;
   readonly createdAt: DateTimeString;
 };
 

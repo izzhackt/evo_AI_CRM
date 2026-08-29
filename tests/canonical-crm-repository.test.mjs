@@ -15,6 +15,7 @@ import {
   createCanonicalUniversityApplication,
   createCanonicalPersonLead,
   getCanonicalAdmissionsOperationsSnapshot,
+  getCanonicalStaffConversationThread,
   getCanonicalLeadConversationThread,
   getCanonicalLeadGateSnapshot,
   getCanonicalLeadSnapshot,
@@ -24,6 +25,7 @@ import {
   listCanonicalFinanceStops,
   listCanonicalLeadConversations,
   listCanonicalSalesLeads,
+  listCanonicalStaffConversations,
   listCanonicalStudentCases,
   listCanonicalUniversityApplications,
   listCanonicalVisaMilestones,
@@ -228,6 +230,45 @@ test("all consequential commands require bounded idempotency and correlation key
       expectedVersion: 1,
     }),
     rejectsWithCode("invalid_input"),
+  );
+});
+
+test("canonical staff WhatsApp reads validate role and cursor inputs before database access", async () => {
+  await assert.rejects(
+    listCanonicalStaffConversations({
+      actorRole: "student",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    listCanonicalStaffConversations({
+      actorRole: "sales",
+      cursor: { updatedAt: "not-a-timestamp", id: UUID_A },
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    getCanonicalStaffConversationThread({
+      actorRole: "admissions",
+      conversationId: "not-a-uuid",
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    getCanonicalStaffConversationThread({
+      actorRole: "sales",
+      conversationId: UUID_A,
+      cursor: { occurredAt: "2026-13-28T12:00:00.000Z", id: UUID_B },
+    }),
+    rejectsWithCode("invalid_input"),
+  );
+  await assert.rejects(
+    getCanonicalLeadConversationThread({
+      actorRole: "admissions",
+      leadId: UUID_A,
+      conversationId: UUID_B,
+    }),
+    rejectsWithCode("forbidden"),
   );
 });
 

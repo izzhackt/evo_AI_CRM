@@ -384,6 +384,20 @@ function validatedRequestText(value: unknown): value is string {
   );
 }
 
+function unknownAttemptLookupRecipientIds(
+  recipientId: string,
+  sessionName: string,
+  sessionProof: CanonicalWahaSessionProof | undefined,
+): readonly [string, ...string[]] {
+  if (
+    sessionProof !== undefined &&
+    isSessionProofForRecipient(sessionProof, sessionName, recipientId)
+  ) {
+    return sessionProof.selfRecipientIds;
+  }
+  return [recipientId];
+}
+
 function normalizeMessage(
   value: unknown,
   expected: Readonly<{
@@ -742,71 +756,79 @@ export async function findUniqueCanonicalWahaMessage(
   const createTimeoutSignal =
     dependencies.createTimeoutSignal ??
     ((timeoutMs: number) => AbortSignal.timeout(timeoutMs));
-  const requestUrl =
-    `${config.baseUrl}/api/${encodeURIComponent(config.sessionName)}` +
-    `/chats/${encodeURIComponent(input.recipientId)}/messages` +
-    `?limit=${UNKNOWN_ATTEMPT_MESSAGE_LIMIT}&downloadMedia=false`;
-  const response = await providerFetch(fetchImpl, requestUrl, {
-    method: "GET",
-    headers: Object.freeze({
-      Accept: "application/json",
-      "X-Api-Key": config.apiKey,
-    }),
-    redirect: "error",
-    signal: createTimeoutSignal(config.timeoutMs),
-  });
-  if (!response.ok) {
-    throw responseError(response.status);
-  }
-  const value = await providerJson(response);
-  if (!Array.isArray(value) || value.length > UNKNOWN_ATTEMPT_MESSAGE_LIMIT) {
-    throw new CanonicalWahaProviderError(
-      "provider_malformed_response",
-      "unknown",
-    );
-  }
-
-  const matches: CanonicalWahaMessage[] = [];
-  for (const candidate of value) {
-    if (
-      !isRecord(candidate) ||
-      typeof candidate.timestamp !== "number" ||
-      !Number.isFinite(candidate.timestamp) ||
-      candidate.timestamp < input.windowStartTimestamp ||
-      candidate.timestamp > input.windowEndTimestamp
-    ) {
-      continue;
+  const matches = new Map<string, CanonicalWahaMessage>();
+  const lookupRecipientIds = unknownAttemptLookupRecipientIds(
+    input.recipientId,
+    config.sessionName,
+    input.sessionProof,
+  );
+  for (const lookupRecipientId of lookupRecipientIds) {
+    const requestUrl =
+      `${config.baseUrl}/api/${encodeURIComponent(config.sessionName)}` +
+      `/chats/${encodeURIComponent(lookupRecipientId)}/messages` +
+      `?limit=${UNKNOWN_ATTEMPT_MESSAGE_LIMIT}&downloadMedia=false`;
+    const response = await providerFetch(fetchImpl, requestUrl, {
+      method: "GET",
+      headers: Object.freeze({
+        Accept: "application/json",
+        "X-Api-Key": config.apiKey,
+      }),
+      redirect: "error",
+      signal: createTimeoutSignal(config.timeoutMs),
+    });
+    if (!response.ok) {
+      throw responseError(response.status);
     }
-    try {
-      matches.push(
-        normalizeMessage(candidate, {
+    const value = await providerJson(response);
+    if (!Array.isArray(value) || value.length > UNKNOWN_ATTEMPT_MESSAGE_LIMIT) {
+      throw new CanonicalWahaProviderError(
+        "provider_malformed_response",
+        "unknown",
+      );
+    }
+
+    for (const candidate of value) {
+      if (
+        !isRecord(candidate) ||
+        typeof candidate.timestamp !== "number" ||
+        !Number.isFinite(candidate.timestamp) ||
+        candidate.timestamp < input.windowStartTimestamp ||
+        candidate.timestamp > input.windowEndTimestamp
+      ) {
+        continue;
+      }
+      try {
+        const message = normalizeMessage(candidate, {
           recipientId: input.recipientId,
           text: input.expectedText,
           sessionName: config.sessionName,
           sessionProof: input.sessionProof,
-        }),
-      );
-    } catch (error) {
-      if (
-        !(error instanceof CanonicalWahaProviderError) ||
-        error.code !== "provider_malformed_response"
-      ) {
-        throw error;
+        });
+        matches.set(message.id, message);
+      } catch (error) {
+        if (
+          !(error instanceof CanonicalWahaProviderError) ||
+          error.code !== "provider_malformed_response"
+        ) {
+          throw error;
+        }
       }
     }
   }
 
-  if (matches.length === 0) {
+  const uniqueMatches = [...matches.values()];
+
+  if (uniqueMatches.length === 0) {
     throw new CanonicalWahaProviderError(
       "provider_message_not_found",
       "unknown",
     );
   }
-  if (matches.length > 1) {
+  if (uniqueMatches.length > 1) {
     throw new CanonicalWahaProviderError(
       "provider_message_ambiguous",
       "unknown",
     );
   }
-  return matches[0];
+  return uniqueMatches[0];
 }

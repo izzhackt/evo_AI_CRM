@@ -642,13 +642,102 @@ test("WAHA provider finds one exact unknown-attempt message in an inclusive boun
     ack: 2,
     ackName: "DEVICE",
   });
-  assert.equal(requests.length, 1);
+  assert.equal(requests.length, 2);
   assert.equal(
     requests[0].input,
     "http://evo-inbox-waha:3000/api/evo-inbox/chats/971500000000%40c.us/messages?limit=20&downloadMedia=false",
   );
   assert.equal(requests[0].init.method, "GET");
   assert.equal(requests[0].init.body, undefined);
+  assert.equal(
+    requests[1].input,
+    "http://evo-inbox-waha:3000/api/evo-inbox/chats/100000000000000%40lid/messages?limit=20&downloadMedia=false",
+  );
+  assert.equal(requests[1].init.method, "GET");
+  assert.equal(requests[1].init.body, undefined);
+});
+
+test("WAHA unknown-attempt finder searches both exact self chat IDs and deduplicates one provider message", async () => {
+  const requests = [];
+  const phoneRecipientId = "971500000000@c.us";
+  const lidRecipientId = "100000000000000@lid";
+  const expectedText = "Technical self recovery";
+  const sessionProof = await probeCanonicalWahaSession(configuredEnvironment(), {
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          name: "evo-inbox",
+          status: "WORKING",
+          me: { id: phoneRecipientId, lid: lidRecipientId },
+        }),
+        { status: 200 },
+      ),
+  });
+
+  const result = await findUniqueCanonicalWahaMessage(
+    {
+      recipientId: phoneRecipientId,
+      expectedText,
+      windowStartTimestamp: 1787994000,
+      windowEndTimestamp: 1787994060,
+      sessionProof,
+    },
+    configuredEnvironment(),
+    {
+      fetch: async (input, init) => {
+        requests.push({ input: String(input), init });
+        const url = String(input);
+        if (url.includes("/chats/971500000000%40c.us/")) {
+          return new Response(JSON.stringify([]), { status: 200 });
+        }
+        return new Response(
+          JSON.stringify([
+            {
+              id: "true_100000000000000@lid_DEDUPED",
+              timestamp: 1787994030,
+              from: phoneRecipientId,
+              to: lidRecipientId,
+              fromMe: true,
+              source: "api",
+              body: expectedText,
+              ack: 1,
+              ackName: "SERVER",
+            },
+            {
+              id: "true_100000000000000@lid_DEDUPED",
+              timestamp: 1787994030,
+              from: phoneRecipientId,
+              to: lidRecipientId,
+              fromMe: true,
+              source: "api",
+              body: expectedText,
+              ack: 1,
+              ackName: "SERVER",
+            },
+          ]),
+          { status: 200 },
+        );
+      },
+    },
+  );
+
+  assert.deepEqual(result, {
+    id: "true_100000000000000@lid_DEDUPED",
+    timestamp: 1787994030,
+    recipientId: phoneRecipientId,
+    fromMe: true,
+    source: "api",
+    body: expectedText,
+    ack: 1,
+    ackName: "SERVER",
+  });
+  assert.deepEqual(
+    requests.map((request) => request.input),
+    [
+      "http://evo-inbox-waha:3000/api/evo-inbox/chats/971500000000%40c.us/messages?limit=20&downloadMedia=false",
+      "http://evo-inbox-waha:3000/api/evo-inbox/chats/100000000000000%40lid/messages?limit=20&downloadMedia=false",
+    ],
+  );
 });
 
 test("WAHA unknown-attempt finder reports zero and multiple exact matches without sending or retrying", async () => {

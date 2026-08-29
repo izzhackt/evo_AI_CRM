@@ -26,11 +26,13 @@ const expectedWahaSessionName =
   process.env.EVO_EXPECT_WAHA_SESSION_NAME ?? "evo-v2-technical";
 const wahaAcceptanceResultFile =
   process.env.EVO_V2_WAHA_ACCEPTANCE_RESULT_FILE ?? "";
+const expectedWahaSelfLid =
+  process.env.EVO_EXPECT_WAHA_SELF_LID ?? "100000000000000@lid";
 const outboundRecipient = inboundPhone.replace(/^\+/u, "") + "@c.us";
 const outboundText = "V2 isolated browser send proof 465";
-const recoveryInboundPhone = "+15550004999";
-const recoveryInboundConversationId = "15550004999@c.us";
-const recoveryRecipient = "15550004999@c.us";
+const recoveryInboundPhone = "+971500000000";
+const recoveryInboundConversationId = "971500000000@c.us";
+const recoveryRecipient = "971500000000@c.us";
 const recoveryText = "V2 isolated unknown recovery proof 465";
 
 function requireUuid(name: string): string {
@@ -787,19 +789,24 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     listReadCount: number;
     exactReadCount: number;
     requests: Record<string, unknown>[];
+    listReadRecipients: string[];
   };
   assert.equal(
     recoveredProviderProof.sendCount,
     2,
     "recovery must not POST a third provider operation",
   );
-  assert.equal(recoveredProviderProof.listReadCount, 1);
+  assert.equal(recoveredProviderProof.listReadCount, 2);
   assert.equal(recoveredProviderProof.exactReadCount, 1);
   assert.deepEqual(recoveredProviderProof.requests[1], {
     session: expectedWahaSessionName,
     chatId: recoveryRecipient,
     text: recoveryText,
   });
+  assert.deepEqual(recoveredProviderProof.listReadRecipients, [
+    recoveryRecipient,
+    expectedWahaSelfLid,
+  ]);
 
   const queueConversationIds = new Set<string>();
   for (let index = 0; index < 50; index += 1) {

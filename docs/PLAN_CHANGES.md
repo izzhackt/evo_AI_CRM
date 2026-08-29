@@ -13979,3 +13979,69 @@ truthful source `app`, and the no-provider-call finalization boundary. The
 preserved database, volume and diagnostics may be removed only after this
 sanitized evidence passes its own validation. Any failed finalization remains
 preserved and cannot be rerun at the same SHA.
+
+## 2026-08-29 - Split canonical amoCRM writes into reviewed replacement slices
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issues #463 and #466.
+Change type: implementation sequencing before code.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+The owner confirmed that amoCRM writes are a permanent V2 product capability,
+that the already connected account and credentials should be used, and that
+the authorized command set includes contact and lead create/update/link plus
+pipeline, status, responsible-user, note and tag operations. Routine
+per-operation approval is not required inside this contract. Real acceptance
+must still use one clearly marked validation entity or one exact minimized
+owner-authorized case; it must never select an arbitrary customer, invoke a V1
+writer or mutate the frozen V1 deployment.
+
+Decision: implement #466 as three small sequential reviewed slices:
+
+1. **Provider and PostgreSQL foundation.** Add a dedicated server-only
+   `EVO_V2_AMOCRM_*` runtime contract, an ignored atomic token file, strict
+   connected-account discovery, bounded OAuth refresh/request handling and
+   committed Drizzle tables for sanitized account snapshots, exact canonical
+   entity bindings and durable provider-operation attempts. PostgreSQL remains
+   the only business/workflow authority. Access and refresh tokens never enter
+   PostgreSQL, browser state, logs or evidence. Existing connected credentials
+   may be injected into this new namespace only for the isolated acceptance
+   process; legacy `EVO_AGENT_AMO_*`, SQLite and Supabase paths do not become
+   V2 runtime dependencies.
+2. **Explicit commands and product UI.** Add role- and workflow-authorized
+   commands for contact/lead create, update and link and for assignment/stage,
+   note and tag effects. Every mutation reserves an immutable PostgreSQL
+   receipt and `prepared` attempt before the provider call, issues no more than
+   one provider mutation, performs the smallest exact read-back and settles as
+   `accepted`, `rejected` or `unknown`. Exact request replay returns its stored
+   result; changed-payload reuse conflicts; `unknown` blocks retry until an
+   explicit read-only reconciliation resolves it. Provider discovery supplies
+   account-specific IDs; commands never guess or fuzzy-search a second
+   authority.
+3. **Connected proof and eradication.** After exact-head review and exact-main
+   merge, exercise the real application, private PostgreSQL and connected
+   amoCRM account on the designated validation target, capture only sanitized
+   IDs/hashes and read-back evidence, and prove missing primary configuration
+   fails clearly. In the same completed replacement slice delete the active
+   legacy SQLite amoCRM writer/config/check imports and the Supabase-bound
+   `platform-amocrm-*` runtime, dependencies and implementation tests that the
+   canonical module supersedes. Preserve frozen V1 deployments and historical
+   ADRs, migrations, runbooks, archived docs, evidence and other historical
+   decision/rollback documentation unchanged and inert.
+
+The provider client is pinned to the configured HTTPS amoCRM/Kommo account
+origin, uses bounded time and response sizes, respects the documented provider
+rate limit, permits at most one refresh plus one replay after an authentication
+failure and rotates the ignored token file atomically. A transport loss after
+a mutation is `unknown`, never fake success. Gemini keeps minimized necessary
+context but no artificial call-count limit, as already decided in ADR 0023.
+
+Current official provider references:
+
+- <https://developers.kommo.com/docs/oauth-20>
+- <https://developers.kommo.com/reference/get-token>
+- <https://developers.kommo.com/docs/limitations>
+- <https://developers.kommo.com/reference/add-contacts>
+- <https://developers.kommo.com/reference/adding-leads>
+- <https://developers.kommo.com/reference/linking-entities>
+- <https://developers.kommo.com/reference/add-notes>

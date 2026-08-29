@@ -725,8 +725,9 @@ async function executePreparedStep(
     } catch (settlementError) {
       return internalStep(
         input.operationName,
-        "error",
-        repositoryErrorCode(settlementError) ?? "failure_settlement_failed",
+        "unknown",
+        repositoryErrorCode(settlementError) ??
+          "provider_outcome_persistence_unresolved",
         claim.attempt.attemptId,
       );
     }
@@ -756,8 +757,9 @@ async function executePreparedStep(
     } catch (settlementError) {
       return internalStep(
         input.operationName,
-        "error",
-        repositoryErrorCode(settlementError) ?? "readback_settlement_failed",
+        "unknown",
+        repositoryErrorCode(settlementError) ??
+          "provider_outcome_persistence_unresolved",
         claim.attempt.attemptId,
       );
     }
@@ -785,8 +787,9 @@ async function executePreparedStep(
   } catch (error) {
     return internalStep(
       input.operationName,
-      "error",
-      repositoryErrorCode(error) ?? "accepted_settlement_failed",
+      "unknown",
+      repositoryErrorCode(error) ??
+        "provider_outcome_persistence_unresolved",
       claim.attempt.attemptId,
     );
   }
@@ -1875,7 +1878,9 @@ export async function reconcileCanonicalAmoCrmSyncAttempt(
       [],
     );
   }
-  if (attempt.status !== "unknown") {
+  const claimedPrepared =
+    attempt.status === "prepared" && attempt.providerDispatchedAt !== null;
+  if (attempt.status !== "unknown" && !claimedPrepared) {
     const step = replayStep(attempt);
     return aggregate(step.status, step.reason, [publicStep(step)]);
   }

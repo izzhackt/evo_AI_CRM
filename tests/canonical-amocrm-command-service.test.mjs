@@ -48,6 +48,7 @@ function serviceHarness(options = {}) {
   const links = [];
   const notes = new Map();
   let remainingLinkReadFailures = options.failLinkReads ?? 0;
+  const settlementFailures = new Set(options.failSettlementOnceFor ?? []);
 
   const prepared = (operationName, input, apply) => {
     const request = {
@@ -318,6 +319,9 @@ function serviceHarness(options = {}) {
     },
     settleCommand: async (attemptId, _authorization, outcome) => {
       const attempt = [...attempts.values()].find((value) => value.attemptId === attemptId);
+      if (settlementFailures.delete(attempt.operationName)) {
+        throw new Error("simulated PostgreSQL settlement failure");
+      }
       Object.assign(attempt, outcome);
       if (outcome.status === "accepted" && attempt.operationName === "contact_create") {
         contactBinding = outcome.resultContactId;
@@ -340,6 +344,7 @@ function serviceHarness(options = {}) {
         Object.assign(attempt, outcome);
         return { kind: "reconciled", attempt };
       }
+      attempt.status = "unknown";
       attempt.failureCode = outcome.failureCode;
       return { kind: "unchanged", attempt };
     },
@@ -578,6 +583,70 @@ test("an unknown provider outcome stops the sequence and exact replay never retr
   assert.equal(replay.reason, "provider_result_unknown");
   assert.deepEqual(harness.providerCalls, []);
   assert.equal(harness.getDiscoveryCalls(), discoveryCalls);
+});
+
+test("a post-dispatch settlement failure is unknown and exact replay cannot write again", async () => {
+  const harness = serviceHarness({
+    failSettlementOnceFor: ["lead_pipeline_status_update"],
+  });
+  const input = {
+    actorRole: "sales",
+    leadId: SALES_LEAD_ID,
+    baseRequestId: BASE_REQUEST_ID,
+    noteText: "Sales sync reviewed by staff",
+  };
+
+  const first = await executeCanonicalAmoCrmSalesSync(
+    input,
+    harness.dependencies,
+  );
+
+  assert.equal(first.status, "unknown");
+  assert.equal(
+    first.steps.at(-1).operationName,
+    "lead_pipeline_status_update",
+  );
+  assert.notEqual(first.attemptId, null);
+  assert.equal(
+    harness.providerCalls.filter(
+      (call) => call === "dispatch:lead_pipeline_status_update",
+    ).length,
+    1,
+  );
+  assert.equal(
+    harness.providerCalls.includes("dispatch:lead_responsible_update"),
+    false,
+  );
+  const discoveryCalls = harness.getDiscoveryCalls();
+  harness.providerCalls.splice(0);
+
+  const replay = await executeCanonicalAmoCrmSalesSync(
+    input,
+    harness.dependencies,
+  );
+
+  assert.equal(replay.status, "unknown");
+  assert.equal(replay.reason, "dispatch_outcome_unresolved");
+  assert.equal(replay.attemptId, first.attemptId);
+  assert.deepEqual(harness.providerCalls, []);
+  assert.equal(harness.getDiscoveryCalls(), discoveryCalls);
+
+  const reconciled = await reconcileCanonicalAmoCrmSyncAttempt(
+    {
+      actorRole: "sales",
+      workflowScope: "sales_pre_handoff",
+      leadId: SALES_LEAD_ID,
+      studentCaseId: null,
+      attemptId: first.attemptId,
+    },
+    harness.dependencies,
+  );
+
+  assert.deepEqual(
+    [reconciled.status, reconciled.reason, reconciled.attemptId],
+    ["accepted", "reconciled_effect_verified", first.attemptId],
+  );
+  assert.deepEqual(harness.providerCalls, ["read:lead"]);
 });
 
 test("role, live phase, and provider configuration failures block before provider execution", async () => {

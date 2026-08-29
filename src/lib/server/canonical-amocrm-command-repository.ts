@@ -1231,6 +1231,7 @@ async function settlePreparedRow(
   transaction: DatabaseTransaction,
   row: StoredAttemptRow,
   outcome: NormalizedSettlement,
+  expectedStatus: "prepared" | "unknown",
   reconciled: boolean,
 ): Promise<void> {
   assertAcceptedResultMatchesOperation(row, outcome);
@@ -1257,7 +1258,7 @@ async function settlePreparedRow(
     .where(
       and(
         eq(evoAmoCrmOperationAttempts.id, row.attemptId),
-        eq(evoAmoCrmOperationAttempts.status, reconciled ? "unknown" : "prepared"),
+        eq(evoAmoCrmOperationAttempts.status, expectedStatus),
       ),
     )
     .returning({ id: evoAmoCrmOperationAttempts.id });
@@ -1312,7 +1313,7 @@ export async function settleCanonicalAmoCrmCommand(
         });
       }
       if (row.providerDispatchedAt === null) repositoryError("state_conflict");
-      await settlePreparedRow(transaction, row, outcome, false);
+      await settlePreparedRow(transaction, row, outcome, "prepared", false);
       const settled = await selectByAttemptId(transaction, attemptId);
       if (!settled) repositoryError("unavailable");
       return Object.freeze({
@@ -1354,17 +1355,30 @@ export async function reconcileUnknownCanonicalAmoCrmCommand(
       const row = await selectByAttemptId(transaction, attemptId);
       if (!row) repositoryError("not_found");
       await authorizeStored(transaction, row, authorization);
-      if (row.status !== "unknown") {
-        if (accepted && row.status === "accepted" && isExactSettlementReplay(row, accepted)) {
-          return Object.freeze({
-            kind: "replay" as const,
-            attempt: snapshot(row, authorization),
-          });
-        }
+      if (
+        accepted &&
+        row.status === "accepted" &&
+        isExactSettlementReplay(row, accepted)
+      ) {
+        return Object.freeze({
+          kind: "replay" as const,
+          attempt: snapshot(row, authorization),
+        });
+      }
+      const claimedPrepared =
+        row.status === "prepared" && row.providerDispatchedAt !== null;
+      if (row.status !== "unknown" && !claimedPrepared) {
         repositoryError("state_conflict");
       }
+      const sourceStatus = row.status as "prepared" | "unknown";
       if (accepted) {
-        await settlePreparedRow(transaction, row, accepted, true);
+        await settlePreparedRow(
+          transaction,
+          row,
+          accepted,
+          sourceStatus,
+          true,
+        );
         const reconciled = await selectByAttemptId(transaction, attemptId);
         if (!reconciled) repositoryError("unavailable");
         return Object.freeze({
@@ -1373,14 +1387,16 @@ export async function reconcileUnknownCanonicalAmoCrmCommand(
         });
       }
       const now = new Date();
-      await transaction
+      const [updated] = await transaction
         .update(evoAmoCrmOperationAttempts)
         .set({
+          status: "unknown",
           failureCode,
           providerReadback: readback ?? row.providerReadback,
           providerReadbackSha256:
             readback === null ? row.providerReadbackSha256 : sha256(readback),
           providerReadbackAt: readbackAt ?? row.providerReadbackAt,
+          settledAt: sourceStatus === "prepared" ? now : row.settledAt,
           lastReconciledAt: now,
           updatedAt: now,
           version: sql`${evoAmoCrmOperationAttempts.version} + 1`,
@@ -1388,9 +1404,11 @@ export async function reconcileUnknownCanonicalAmoCrmCommand(
         .where(
           and(
             eq(evoAmoCrmOperationAttempts.id, attemptId),
-            eq(evoAmoCrmOperationAttempts.status, "unknown"),
+            eq(evoAmoCrmOperationAttempts.status, sourceStatus),
           ),
-        );
+        )
+        .returning({ id: evoAmoCrmOperationAttempts.id });
+      if (!updated) repositoryError("state_conflict");
       const unchanged = await selectByAttemptId(transaction, attemptId);
       if (!unchanged) repositoryError("unavailable");
       return Object.freeze({

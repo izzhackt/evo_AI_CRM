@@ -14190,6 +14190,12 @@ Validated behavior:
 - browser proof covers the fail-closed states required by the product-first
   contract: provider authorization absent, exact routing missing, and private
   OAuth token unavailable;
+- an independently found post-dispatch persistence gap is closed: once a
+  provider dispatch has been claimed, a settlement failure is returned as
+  `unknown`, never as a retryable generic error; exact replay performs no
+  provider call, and explicit read-only reconciliation may now resolve a
+  claimed `prepared` attempt or durably retain it as `unknown` without another
+  mutation;
 - the full local database/browser gate still proves the real PostgreSQL
   authority, Drizzle migration journal, canonical CRM read/write workflow,
   private document persistence and the fixed-role development gate with the

@@ -576,6 +576,60 @@ test("unknown and rejected outcomes never create bindings and unknown requires e
   }
 });
 
+test("a claimed prepared attempt enters durable unknown reconciliation without another dispatch", async () => {
+  const sql = postgres(requiredDatabaseUrl(), {
+    idle_timeout: 5,
+    max: 4,
+    onnotice: () => undefined,
+  });
+  const runId = randomUUID();
+  try {
+    const accountId = await createAccount(sql, runId);
+    const lead = await createLead(runId, "claimed-prepared-reconcile");
+    const context = commandContext("sales");
+    const input = leadCreateInput(accountId, lead, context, {
+      name: "Claimed prepared technical lead",
+    });
+    const prepared = await prepareCanonicalAmoCrmCommand(input);
+    await claimCanonicalAmoCrmCommandDispatch(
+      prepared.attempt.attemptId,
+      input.authorization,
+    );
+
+    const reconciled = await reconcileUnknownCanonicalAmoCrmCommand(
+      prepared.attempt.attemptId,
+      input.authorization,
+      {
+        status: "still_unknown",
+        failureCode: "reconciliation_target_unavailable",
+      },
+    );
+
+    assert.equal(reconciled.kind, "unchanged");
+    assert.equal(reconciled.attempt.status, "unknown");
+    assert.equal(
+      reconciled.attempt.failureCode,
+      "reconciliation_target_unavailable",
+    );
+    assert.ok(reconciled.attempt.lastReconciledAt);
+
+    const [state] = await sql`
+      select
+        (select count(*)::int from evo_amocrm_lead_bindings
+          where account_id = ${accountId} and lead_id = ${lead.leadId}) as binding_count,
+        (select status from evo_command_receipts
+          where id = ${prepared.attempt.commandReceiptId}) as receipt_status
+    `;
+    assert.deepEqual(state, {
+      binding_count: 0,
+      receipt_status: "processing",
+    });
+  } finally {
+    await closeDatabaseConnections();
+    await sql.end({ timeout: 5 });
+  }
+});
+
 test("concurrent exact prepare creates one durable attempt and returns one replay", async () => {
   const sql = postgres(requiredDatabaseUrl(), {
     idle_timeout: 5,

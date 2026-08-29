@@ -13590,8 +13590,10 @@ Implemented and verified outcome: the canonical repository now keys the review
 receipt from the exact correlation/request ID while retaining a separate
 payload hash for conflict detection. Real PostgreSQL acceptance proves exact
 replay, request-ID reuse with changed payload, a fresh request after
-finalization, stale-role denial after handoff, and unchanged one-event,
-one-receipt counts. The full OrbStack harness ran with Node `22.23.1`, Docker
+finalization, stale-role denial after handoff, two parallel identical requests
+leaving one succeeded receipt/event, and two parallel fresh requests leaving
+one winner without a stray processing receipt. The full OrbStack harness ran
+with Node `22.23.1`, Docker
 context `orbstack`, a disposable real PostgreSQL service, all three committed
 Drizzle migrations, the real Next.js app and Chromium. Its configured WAHA
 browser case submitted the real server action to `127.0.0.1:1`, rendered

@@ -13421,3 +13421,62 @@ transaction releases the lead lock; provider failure and rejected unsafe output
 each roll back both receipt and proposal. The real app/Chromium acceptance
 continues to keep provider authorization at `0` and proves a blocked UI plus
 zero writes. No Gemini request is authorized or claimed by these tests.
+
+## 2026-08-29 - Pin one canonical human-review and read-only WAHA preflight path
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #433 V2-9C.
+Change type: product contract clarification before implementation.
+Affected plan section: V2-9C human review, WAHA preflight and legacy exit.
+
+Reason: the canonical proposal table already has final-review columns, but the
+active plan did not define replay authorization or the exact meaning of the four
+WAHA preflight states. The repository also still contains superseded
+Supabase-backed proposal-review modules and reachable manual-send/autonomous
+routes. Adding another review or provider surface beside them would violate the
+owner's replace-not-layer rule.
+
+Decision: keep review on `/whatsapp/[id]` and mutate the existing
+`evo_ai_proposals` row only. Accept copies the immutable proposal text, Edit
+stores one bounded final reviewed text and Reject stores one bounded non-empty
+reason. The PostgreSQL transaction locks the authorized proposal/conversation
+boundary, rechecks current ownership, finalizes a pending proposal once,
+appends one decision event and completes one command receipt. An exact command
+replay must still pass current authorization before returning its stored result;
+a different concurrent or later decision fails closed. Review has no transport
+side effect and is never send authorization.
+
+The only active WAHA provider surface is a server-only, GET-only session
+preflight configured by `EVO_V2_WAHA_PREFLIGHT_ENABLED`,
+`EVO_V2_WAHA_PROVIDER_AUTHORIZED`, `EVO_V2_WAHA_BASE_URL`,
+`EVO_V2_WAHA_API_KEY` and `EVO_V2_WAHA_SESSION_NAME`. `blocked` means disabled,
+missing or invalid configuration. `configured` means the complete private
+configuration exists but separate provider authorization is absent, so EVO
+makes no request. `working` requires a fresh authorized
+`GET /api/sessions/{session}` response for the exact configured session with
+status `WORKING`. Every other observed status, provider failure or malformed
+response is `not-working`. The key is sent only as `X-Api-Key`; no provider
+secret enters client props or logs.
+
+Replace-not-layer exit: after canonical PostgreSQL/application/browser proof,
+the same V2-9C slice deletes the Supabase-backed proposal/review modules, the
+manual-send and autonomous-reply app routes, processors, clients, config,
+workers/provisioning scripts, old environment knobs and implementation-coupled
+tests. It also removes their route allowlist and package-script references.
+Scoped inventory must show that no active V2 import or route can reach
+`platform-gemini-*`, `platform-manual-send*`, `platform-autonomous-reply*` or
+`sendText`, and that unavailable provider state fails clearly rather than
+falling back. Frozen V1 deployments and historical ADRs, migrations, runbooks,
+archived docs, evidence and other decision/rollback documentation remain
+unchanged outside the active runtime graph.
+
+Provider validation boundary: these changes authorize no real WAHA request.
+Local and CI acceptance keep `EVO_V2_WAHA_PROVIDER_AUTHORIZED=0`, prove no
+external request and make no provider-readiness claim. A real read-only
+preflight still needs separate owner authorization; outbound WhatsApp remains
+out of scope. The HTTP contract follows the current official WAHA session and
+API-key documentation:
+
+- <https://waha.devlike.pro/docs/how-to/sessions/>
+- <https://waha.devlike.pro/docs/how-to/security/>
+- <https://waha.devlike.pro/docs/how-to/events/>

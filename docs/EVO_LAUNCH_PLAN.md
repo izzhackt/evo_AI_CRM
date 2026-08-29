@@ -305,14 +305,30 @@ does not authorize two active implementations of any completed capability:
    statement, so it cannot return a draft after a role handoff between two
    reads.
 3. V2-9C adds the human Accept/Edit/Reject workflow over that same PostgreSQL
-   proposal. A role may request or review only a conversation it owns; Admin
-   may operate the union. Accept preserves the proposed text, Edit requires
-   the final reviewed text and Reject requires a reason. Every decision is
-   single-use, idempotent and appends a minimal `ai_proposal` business event.
-   Acceptance is not send authorization and never creates an outbound message.
-   The same PR exposes only a read-only WAHA session preflight adapter with a
-   truthful configured/blocked/working/not-working result. It does not contain
-   a reachable `sendText` command.
+   proposal and on the same canonical `/whatsapp/[id]` panel. It does not add a
+   second review screen or review store. A role may review only a conversation
+   it currently owns; Admin may operate the union. Accept preserves the stored
+   proposal text, Edit requires the final reviewed text and Reject requires a
+   non-empty reason. The repository rechecks current conversation ownership
+   while locking the proposal/conversation boundary, writes the final review to
+   the existing `evo_ai_proposals` row and appends exactly one
+   `ai_proposal.accepted`, `ai_proposal.edited` or `ai_proposal.rejected` event
+   in the same transaction. The same request replays only after a fresh access
+   check; a different concurrent or later final decision fails closed. Review
+   never authorizes send, creates an outbound message or changes consequential
+   CRM state.
+
+   The same slice exposes only one read-only WAHA session preflight. Its
+   server-only environment contract is `EVO_V2_WAHA_PREFLIGHT_ENABLED`,
+   `EVO_V2_WAHA_PROVIDER_AUTHORIZED`, `EVO_V2_WAHA_BASE_URL`,
+   `EVO_V2_WAHA_API_KEY` and `EVO_V2_WAHA_SESSION_NAME`. Disabled, missing or
+   invalid configuration is `blocked`; complete configuration without separate
+   provider authorization is `configured` and performs no request. Only an
+   authorized `GET /api/sessions/{session}` response for the exact configured
+   session whose status is exactly `WORKING` is `working`. Any other observed
+   status, provider failure or malformed response is `not-working`. The API key
+   stays server-only in `X-Api-Key`. There is no start, restart, logout, QR,
+   send or other mutating WAHA command and no reachable `sendText` path.
 
 The current provider contract follows the official WAHA session and API-key
 documentation and the official Gemini structured-output documentation. WAHA
@@ -332,9 +348,10 @@ API-version contract at
 No V2-9 browser or server route can send WhatsApp, write amoCRM, enable an
 autonomous reply or invoke a fallback provider. A real WAHA/Gemini call remains
 a separate owner-authorized provider action. Without that authorization the
-application and browser proof must show the blocked state while real
-PostgreSQL proposal-review mechanics are exercised through isolated technical
-records, not presented as staff or business acceptance.
+application and browser proof must show `configured` or `blocked` without an
+external request while real PostgreSQL proposal-review mechanics are exercised
+through isolated technical records, not presented as staff or business
+acceptance.
 
 Each internal PR deletes the superseded active runtime for the capability it
 proves. By #433 exit, the V2 app import/route graph contains no Supabase/SQLite

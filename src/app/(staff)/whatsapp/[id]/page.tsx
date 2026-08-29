@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
+
 import { notFound } from "next/navigation";
 
 import { CanonicalStaffWhatsAppWorkspace } from "@/components/platform/communications/CanonicalStaffWhatsApp";
 import { getT } from "@/lib/i18n";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
 import { readCanonicalGeminiProposalAvailability } from "@/lib/server/canonical-gemini-proposal-config";
+import { readCanonicalWahaPreflightAvailability } from "@/lib/server/canonical-waha-preflight";
 import {
   CanonicalCrmRepositoryError,
   getCanonicalStaffConversationThread,
@@ -82,12 +85,16 @@ export default async function WhatsAppConversationPage({
       queueCursor={queueCursor}
       queueResetHref={queueCursor ? "/whatsapp" : null}
       queueNextHref={queue.nextCursor ? queueHref(queue.nextCursor) : null}
+      wahaAvailability={readCanonicalWahaPreflightAvailability()}
+      wahaPreflightRequestId={randomUUID()}
       selectedConversationId={id}
       thread={{
         conversation: thread.conversation,
         messages: thread.messages,
         geminiAvailability: readCanonicalGeminiProposalAvailability(),
         geminiProposal,
+        geminiReviewRequestId:
+          geminiProposal?.reviewDecision === "pending" ? randomUUID() : null,
         newestMessagesHref: messageCursor ? threadHref(id, queueCursor) : null,
         olderMessagesHref: thread.nextCursor
           ? threadHref(id, queueCursor, thread.nextCursor)

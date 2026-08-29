@@ -268,6 +268,10 @@ export type CanonicalGeminiProposalSnapshot = Readonly<{
   sourceMessageId: string;
   sourceContext: CanonicalGeminiProposalSourceContext;
   reviewDecision: "pending" | "accepted" | "edited" | "rejected";
+  reviewedText: string | null;
+  reviewedByRole: FixedRole | null;
+  reviewedAt: string | null;
+  reviewReason: string | null;
   providerCreatedAt: string;
   createdAt: string;
 }>;
@@ -824,7 +828,7 @@ function canonicalGeminiSourceContext(
   ) {
     invalidInput();
   }
-  return {
+  return freezeCanonicalGeminiProposalSourceContext({
     schemaVersion: 1,
     promptPolicyVersion: boundedText(candidate.promptPolicyVersion, {
       maxLength: 80,
@@ -834,7 +838,7 @@ function canonicalGeminiSourceContext(
       candidate.studentCaseId === null ? null : uuid(candidate.studentCaseId),
     sourceMessage: inboundSourceMessage,
     messages,
-  };
+  });
 }
 
 function isoTimestamp(value: unknown): Date {
@@ -1359,6 +1363,26 @@ function databaseGeminiReviewDecision(
   throw new CanonicalCrmRepositoryError("unavailable");
 }
 
+function databaseOptionalFixedRole(value: string | null): FixedRole | null {
+  if (value === null) return null;
+  if (!isFixedRole(value)) {
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+  return value;
+}
+
+function freezeCanonicalGeminiProposalSourceContext(
+  sourceContext: CanonicalGeminiProposalSourceContext,
+): CanonicalGeminiProposalSourceContext {
+  return Object.freeze({
+    ...sourceContext,
+    sourceMessage: Object.freeze({ ...sourceContext.sourceMessage }),
+    messages: Object.freeze(
+      sourceContext.messages.map((message) => Object.freeze({ ...message })),
+    ),
+  });
+}
+
 function canonicalGeminiProposalRow(
   row: Readonly<{
     proposalId: string;
@@ -1369,6 +1393,10 @@ function canonicalGeminiProposalRow(
     proposalText: string;
     sourceContext: Record<string, unknown>;
     reviewDecision: string;
+    reviewedText: string | null;
+    reviewedByRole: string | null;
+    reviewedAt: Date | null;
+    reviewReason: string | null;
     providerCreatedAt: Date;
     createdAt: Date;
   }>,
@@ -1394,19 +1422,26 @@ function canonicalGeminiProposalRow(
   ) {
     throw new CanonicalCrmRepositoryError("unavailable");
   }
-  return {
+  const frozenSourceContext = freezeCanonicalGeminiProposalSourceContext(
+    sourceContext,
+  );
+  return Object.freeze({
     proposalId: row.proposalId,
     conversationId: row.conversationId,
     studentCaseId: row.studentCaseId,
     provider: "gemini",
     model: row.model,
     proposalText: row.proposalText,
-    sourceMessageId: sourceContext.sourceMessage.id,
-    sourceContext,
+    sourceMessageId: frozenSourceContext.sourceMessage.id,
+    sourceContext: frozenSourceContext,
     reviewDecision: databaseGeminiReviewDecision(row.reviewDecision),
+    reviewedText: row.reviewedText,
+    reviewedByRole: databaseOptionalFixedRole(row.reviewedByRole),
+    reviewedAt: optionalDateString(row.reviewedAt),
+    reviewReason: row.reviewReason,
     providerCreatedAt: dateString(row.providerCreatedAt),
     createdAt: dateString(row.createdAt),
-  };
+  });
 }
 
 function dateString(value: Date): string {
@@ -4957,6 +4992,10 @@ async function selectCanonicalGeminiProposalById(
       proposalText: evoAiProposals.proposalText,
       sourceContext: evoAiProposals.sourceContext,
       reviewDecision: evoAiProposals.reviewDecision,
+      reviewedText: evoAiProposals.reviewedText,
+      reviewedByRole: evoAiProposals.reviewedByRole,
+      reviewedAt: evoAiProposals.reviewedAt,
+      reviewReason: evoAiProposals.reviewReason,
       providerCreatedAt: evoAiProposals.providerCreatedAt,
       createdAt: evoAiProposals.createdAt,
     })
@@ -4965,6 +5004,70 @@ async function selectCanonicalGeminiProposalById(
     .limit(1);
   if (!row) throw new CanonicalCrmRepositoryError("unavailable");
   return canonicalGeminiProposalRow(row);
+}
+
+function canonicalGeminiProposalReviewDecision(
+  value: unknown,
+): "accepted" | "edited" | "rejected" {
+  if (value === "accepted" || value === "edited" || value === "rejected") {
+    return value;
+  }
+  invalidInput();
+}
+
+function canonicalGeminiProposalReviewedText(value: unknown): string {
+  const reviewedText = messageBody(value);
+  if (reviewedText.length > 3_000) invalidInput();
+  return reviewedText;
+}
+
+type LockedCanonicalGeminiProposal = Readonly<{
+  proposalId: string;
+  conversationId: string;
+  studentCaseId: string | null;
+  proposalText: string;
+  reviewDecision: CanonicalGeminiProposalSnapshot["reviewDecision"];
+}>;
+
+async function selectLockedAuthorizedCanonicalGeminiProposal(
+  transaction: DatabaseTransaction,
+  input: Readonly<{
+    actorRole: FixedRole;
+    conversationId: string;
+    proposalId: string;
+  }>,
+): Promise<LockedCanonicalGeminiProposal> {
+  await lockAuthorizedGeminiConversation(transaction, {
+    actorRole: input.actorRole,
+    conversationId: input.conversationId,
+  });
+
+  const [proposal] = await transaction
+    .select({
+      proposalId: evoAiProposals.id,
+      conversationId: evoAiProposals.conversationId,
+      studentCaseId: evoAiProposals.studentCaseId,
+      proposalText: evoAiProposals.proposalText,
+      reviewDecision: evoAiProposals.reviewDecision,
+    })
+    .from(evoAiProposals)
+    .where(
+      and(
+        eq(evoAiProposals.id, input.proposalId),
+        eq(evoAiProposals.conversationId, input.conversationId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  if (!proposal) throw new CanonicalCrmRepositoryError("not_found");
+
+  return {
+    proposalId: proposal.proposalId,
+    conversationId: proposal.conversationId,
+    studentCaseId: proposal.studentCaseId,
+    proposalText: proposal.proposalText,
+    reviewDecision: databaseGeminiReviewDecision(proposal.reviewDecision),
+  };
 }
 
 export type CanonicalGeminiProposalGeneration = Readonly<{
@@ -5144,6 +5247,152 @@ export async function executeCanonicalGeminiProposal(
   }
 }
 
+export async function reviewCanonicalGeminiProposal(
+  contextInput: Readonly<{
+    actorRole: FixedRole;
+    correlationId: string;
+  }>,
+  input: Readonly<{
+    conversationId: string;
+    proposalId: string;
+    reviewDecision: "accepted" | "edited" | "rejected";
+    reviewedText?: string;
+    reviewReason?: string;
+  }>,
+): Promise<CanonicalGeminiProposalSnapshot> {
+  const actor = actorRole(contextInput.actorRole, [
+    "admin",
+    "sales",
+    "admissions",
+  ]);
+  const correlation = correlationId(contextInput.correlationId);
+  const conversationId = uuid(input.conversationId);
+  const proposalId = uuid(input.proposalId);
+  const reviewDecision = canonicalGeminiProposalReviewDecision(
+    input.reviewDecision,
+  );
+  const reviewInput = (() => {
+    switch (reviewDecision) {
+      case "accepted":
+        if (
+          input.reviewedText !== undefined ||
+          input.reviewReason !== undefined
+        ) {
+          invalidInput();
+        }
+        return { reviewedText: null, reviewReason: null };
+      case "edited":
+        if (input.reviewReason !== undefined) invalidInput();
+        return {
+          reviewedText: canonicalGeminiProposalReviewedText(input.reviewedText),
+          reviewReason: null,
+        };
+      case "rejected":
+        if (input.reviewedText !== undefined) invalidInput();
+        return {
+          reviewedText: null,
+          reviewReason: boundedText(input.reviewReason, { maxLength: 2_000 }),
+        };
+    }
+  })();
+
+  try {
+    return await getDatabase().transaction(async (transaction) => {
+      const lockedProposal = await selectLockedAuthorizedCanonicalGeminiProposal(
+        transaction,
+        {
+          actorRole: actor,
+          conversationId,
+          proposalId,
+        },
+      );
+      const idempotencyKey = commandKey(
+        `canonical-gemini-review:${sha256({
+          actorRole: actor,
+          conversationId,
+          proposalId,
+          reviewDecision,
+          reviewedText: reviewInput.reviewedText,
+          reviewReason: reviewInput.reviewReason,
+        })}`,
+      );
+      const requestHash = sha256({
+        conversationId,
+        proposalId,
+        reviewDecision,
+        reviewedText: reviewInput.reviewedText,
+        reviewReason: reviewInput.reviewReason,
+      });
+      const reservation = await reserveCommand(transaction, {
+        commandName: "canonical_gemini_proposal.review",
+        context: {
+          actorRole: actor,
+          correlationId: correlation,
+          idempotencyKey,
+        },
+        requestHash,
+      });
+      if (reservation.kind === "replay") {
+        return selectCanonicalGeminiProposalById(
+          transaction,
+          resultUuid(reservation.resultPayload, "proposalId"),
+        );
+      }
+      if (lockedProposal.reviewDecision !== "pending") {
+        throw new CanonicalCrmRepositoryError("conflict");
+      }
+
+      const reviewedText =
+        reviewDecision === "accepted"
+          ? lockedProposal.proposalText
+          : reviewInput.reviewedText;
+      const reviewedAt = new Date();
+      const [updated] = await transaction
+        .update(evoAiProposals)
+        .set({
+          reviewDecision,
+          reviewedText,
+          reviewedByRole: actor,
+          reviewedAt,
+          reviewReason: reviewInput.reviewReason,
+        })
+        .where(
+          and(
+            eq(evoAiProposals.id, proposalId),
+            eq(evoAiProposals.conversationId, conversationId),
+            eq(evoAiProposals.reviewDecision, "pending"),
+          ),
+        )
+        .returning({ proposalId: evoAiProposals.id });
+      if (!updated) throw new CanonicalCrmRepositoryError("conflict");
+
+      await insertBusinessEvent(transaction, {
+        context: {
+          actorRole: actor,
+          correlationId: correlation,
+          idempotencyKey,
+        },
+        businessObjectType: "ai_proposal",
+        businessObjectId: proposalId,
+        transition: `ai_proposal.${reviewDecision}`,
+        fromState: "pending",
+        toState: reviewDecision,
+        reason: reviewInput.reviewReason,
+      });
+      await completeCommand(transaction, {
+        receiptId: reservation.receiptId,
+        businessObjectType: "ai_proposal",
+        businessObjectId: proposalId,
+        resultPayload: { proposalId },
+      });
+      return selectCanonicalGeminiProposalById(transaction, proposalId);
+    });
+  } catch (error) {
+    if (error instanceof CanonicalCrmRepositoryError) throw error;
+    throw new CanonicalCrmRepositoryError("unavailable");
+  }
+}
+
 export async function readLatestCanonicalGeminiProposal(
   input: Readonly<{
     actorRole: FixedRole;
@@ -5165,6 +5414,10 @@ export async function readLatestCanonicalGeminiProposal(
           proposalText: evoAiProposals.proposalText,
           sourceContext: evoAiProposals.sourceContext,
           reviewDecision: evoAiProposals.reviewDecision,
+          reviewedText: evoAiProposals.reviewedText,
+          reviewedByRole: evoAiProposals.reviewedByRole,
+          reviewedAt: evoAiProposals.reviewedAt,
+          reviewReason: evoAiProposals.reviewReason,
           providerCreatedAt: evoAiProposals.providerCreatedAt,
           createdAt: evoAiProposals.createdAt,
         },

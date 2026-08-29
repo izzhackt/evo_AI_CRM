@@ -37,6 +37,7 @@ import {
   receiveCanonicalWhatsAppInbound,
   recordCanonicalSalesGateEvidence,
   releaseCanonicalFinanceStop,
+  reviewCanonicalGeminiProposal,
   transitionCanonicalAdmissionsTask,
   transitionCanonicalUniversityApplication,
   transitionCanonicalVisaMilestone,
@@ -1181,6 +1182,599 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
         })
       ).sourceMessage.messageId,
       postProposalInbound.messageId,
+    );
+
+    const outboundMessagesBeforeReview = Number(
+      (
+        await sql`
+          select count(*)::int as count
+          from evo_messages
+          where conversation_id = ${inbound.conversationId}
+            and direction = 'outbound'
+        `
+      )[0].count,
+    );
+    assert.equal(outboundMessagesBeforeReview, 0);
+
+    const acceptedPendingProposal = await executeCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-accept-proposal`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        model: `technical-review-accept-model-${runId}`,
+        promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+      },
+      async () => ({
+        proposalText: `technical-review-accept-proposal-${runId}`,
+        providerCreatedAt: "2026-08-28T12:01:40.000Z",
+      }),
+    );
+    assert.equal(acceptedPendingProposal.reviewDecision, "pending");
+    assert.equal(acceptedPendingProposal.reviewedText, null);
+    assert.equal(acceptedPendingProposal.reviewedByRole, null);
+    assert.equal(acceptedPendingProposal.reviewedAt, null);
+    assert.equal(acceptedPendingProposal.reviewReason, null);
+    const acceptedReviewInput = {
+      conversationId: inbound.conversationId,
+      proposalId: acceptedPendingProposal.proposalId,
+      reviewDecision: "accepted",
+    };
+    const acceptedProposal = await reviewCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-accept`,
+      },
+      acceptedReviewInput,
+    );
+    assert.equal(acceptedProposal.reviewDecision, "accepted");
+    assert.equal(acceptedProposal.proposalText, acceptedPendingProposal.proposalText);
+    assert.equal(acceptedProposal.reviewedText, acceptedPendingProposal.proposalText);
+    assert.equal(acceptedProposal.reviewedByRole, "admissions");
+    assert.ok(acceptedProposal.reviewedAt);
+    assert.equal(
+      Number.isFinite(new Date(acceptedProposal.reviewedAt).getTime()),
+      true,
+    );
+    assert.equal(acceptedProposal.reviewReason, null);
+    assert.deepEqual(acceptedProposal.sourceContext, acceptedPendingProposal.sourceContext);
+    assert.equal(Object.isFrozen(acceptedProposal), true);
+    assert.equal(Object.isFrozen(acceptedProposal.sourceContext), true);
+    assert.equal(Object.isFrozen(acceptedProposal.sourceContext.sourceMessage), true);
+    assert.ok(
+      acceptedProposal.sourceContext.messages.every((message) =>
+        Object.isFrozen(message),
+      ),
+    );
+    assert.deepEqual(
+      await readLatestCanonicalGeminiProposal({
+        actorRole: "admissions",
+        conversationId: inbound.conversationId,
+      }),
+      acceptedProposal,
+    );
+    const acceptedReplay = await reviewCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-accept-replay`,
+      },
+      acceptedReviewInput,
+    );
+    assert.deepEqual(acceptedReplay, acceptedProposal);
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_business_events
+            where business_object_id = ${acceptedPendingProposal.proposalId}
+              and transition = 'ai_proposal.accepted'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_command_receipts
+            where business_object_id = ${acceptedPendingProposal.proposalId}
+              and command_name = 'canonical_gemini_proposal.review'
+              and status = 'succeeded'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+    await assert.rejects(
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-accept-conflict`,
+        },
+        {
+          conversationId: inbound.conversationId,
+          proposalId: acceptedPendingProposal.proposalId,
+          reviewDecision: "rejected",
+          reviewReason: `technical-review-conflict-${runId}`,
+        },
+      ),
+      repositoryError("conflict"),
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_command_receipts
+            where business_object_id = ${acceptedPendingProposal.proposalId}
+              and command_name = 'canonical_gemini_proposal.review'
+              and status = 'succeeded'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+
+    const editedPendingProposal = await executeCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-edit-proposal`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        model: `technical-review-edit-model-${runId}`,
+        promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+      },
+      async () => ({
+        proposalText: `technical-review-edit-proposal-${runId}`,
+        providerCreatedAt: "2026-08-28T12:01:41.000Z",
+      }),
+    );
+    await assert.rejects(
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-edit-invalid`,
+        },
+        {
+          conversationId: inbound.conversationId,
+          proposalId: editedPendingProposal.proposalId,
+          reviewDecision: "edited",
+        },
+      ),
+      repositoryError("invalid_input"),
+    );
+    const editedProposal = await reviewCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-edit`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        proposalId: editedPendingProposal.proposalId,
+        reviewDecision: "edited",
+        reviewedText: `technical-reviewed-proposal-${runId}`,
+      },
+    );
+    assert.equal(editedProposal.reviewDecision, "edited");
+    assert.equal(editedProposal.proposalText, editedPendingProposal.proposalText);
+    assert.equal(editedProposal.reviewedText, `technical-reviewed-proposal-${runId}`);
+    assert.notEqual(editedProposal.reviewedText, editedProposal.proposalText);
+    assert.equal(editedProposal.reviewedByRole, "admissions");
+    assert.ok(editedProposal.reviewedAt);
+    assert.equal(editedProposal.reviewReason, null);
+    assert.deepEqual(editedProposal.sourceContext, editedPendingProposal.sourceContext);
+    const editedReplay = await reviewCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-edit-replay`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        proposalId: editedPendingProposal.proposalId,
+        reviewDecision: "edited",
+        reviewedText: `technical-reviewed-proposal-${runId}`,
+      },
+    );
+    assert.deepEqual(editedReplay, editedProposal);
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_business_events
+            where business_object_id = ${editedPendingProposal.proposalId}
+              and transition = 'ai_proposal.edited'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_command_receipts
+            where business_object_id = ${editedPendingProposal.proposalId}
+              and command_name = 'canonical_gemini_proposal.review'
+              and status = 'succeeded'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+
+    const rejectedPendingProposal = await executeCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-reject-proposal`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        model: `technical-review-reject-model-${runId}`,
+        promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+      },
+      async () => ({
+        proposalText: `technical-review-reject-proposal-${runId}`,
+        providerCreatedAt: "2026-08-28T12:01:42.000Z",
+      }),
+    );
+    await assert.rejects(
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admin",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-reject-invalid-accept`,
+        },
+        {
+          conversationId: inbound.conversationId,
+          proposalId: rejectedPendingProposal.proposalId,
+          reviewDecision: "accepted",
+          reviewedText: "should-not-pass",
+        },
+      ),
+      repositoryError("invalid_input"),
+    );
+    await assert.rejects(
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admin",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-reject-invalid`,
+        },
+        {
+          conversationId: inbound.conversationId,
+          proposalId: rejectedPendingProposal.proposalId,
+          reviewDecision: "rejected",
+        },
+      ),
+      repositoryError("invalid_input"),
+    );
+    const rejectedProposal = await reviewCanonicalGeminiProposal(
+      {
+        actorRole: "admin",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-reject`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        proposalId: rejectedPendingProposal.proposalId,
+        reviewDecision: "rejected",
+        reviewReason: `technical-review-rejection-${runId}`,
+      },
+    );
+    assert.equal(rejectedProposal.reviewDecision, "rejected");
+    assert.equal(rejectedProposal.proposalText, rejectedPendingProposal.proposalText);
+    assert.equal(rejectedProposal.reviewedText, null);
+    assert.equal(rejectedProposal.reviewedByRole, "admin");
+    assert.ok(rejectedProposal.reviewedAt);
+    assert.equal(
+      rejectedProposal.reviewReason,
+      `technical-review-rejection-${runId}`,
+    );
+    const rejectedReplay = await reviewCanonicalGeminiProposal(
+      {
+        actorRole: "admin",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-reject-replay`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        proposalId: rejectedPendingProposal.proposalId,
+        reviewDecision: "rejected",
+        reviewReason: `technical-review-rejection-${runId}`,
+      },
+    );
+    assert.deepEqual(rejectedReplay, rejectedProposal);
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_business_events
+            where business_object_id = ${rejectedPendingProposal.proposalId}
+              and transition = 'ai_proposal.rejected'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_command_receipts
+            where business_object_id = ${rejectedPendingProposal.proposalId}
+              and command_name = 'canonical_gemini_proposal.review'
+              and status = 'succeeded'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+
+    const staleReplayIdentity = randomUUID();
+    const staleReplayLead = await createCanonicalPersonLead({
+      ...commandContext(runId, "review-stale-replay-lead"),
+      displayName: `technical-review-stale-replay-${staleReplayIdentity}`,
+      email: `technical-review-stale-replay-${staleReplayIdentity}@acceptance.invalid`,
+      source: "technical-review-stale-replay-source",
+    });
+    const staleReplayInbound = await appendCanonicalInboundMessage({
+      ...commandContext(runId, "review-stale-replay-inbound"),
+      leadId: staleReplayLead.leadId,
+      channel: "whatsapp",
+      externalConversationId: `technical-review-stale-replay-conversation-${staleReplayIdentity}`,
+      externalMessageId: `technical-review-stale-replay-message-${staleReplayIdentity}`,
+      body: "technical-review-stale-replay-body",
+      occurredAt: "2026-08-28T12:01:42.500Z",
+    });
+    const staleReplayPendingProposal = await executeCanonicalGeminiProposal(
+      {
+        actorRole: "sales",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-stale-replay-proposal`,
+      },
+      {
+        conversationId: staleReplayInbound.conversationId,
+        model: `technical-review-stale-replay-model-${runId}`,
+        promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+      },
+      async () => ({
+        proposalText: `technical-review-stale-replay-proposal-${runId}`,
+        providerCreatedAt: "2026-08-28T12:01:42.600Z",
+      }),
+    );
+    const staleReplayReviewInput = {
+      conversationId: staleReplayInbound.conversationId,
+      proposalId: staleReplayPendingProposal.proposalId,
+      reviewDecision: "accepted",
+    };
+    const staleReplayAcceptedProposal = await reviewCanonicalGeminiProposal(
+      {
+        actorRole: "sales",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-stale-replay-accept`,
+      },
+      staleReplayReviewInput,
+    );
+    assert.equal(staleReplayAcceptedProposal.reviewDecision, "accepted");
+    assert.equal(staleReplayAcceptedProposal.reviewedByRole, "sales");
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_business_events
+            where business_object_id = ${staleReplayPendingProposal.proposalId}
+              and transition = 'ai_proposal.accepted'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_command_receipts
+            where business_object_id = ${staleReplayPendingProposal.proposalId}
+              and command_name = 'canonical_gemini_proposal.review'
+              and status = 'succeeded'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+    const staleReplayQualifiedLead = await updateCanonicalSalesLeadWorkflow(
+      commandContext(runId, "review-stale-replay-qualified"),
+      {
+        leadId: staleReplayLead.leadId,
+        expectedVersion: staleReplayLead.version,
+        stage: "qualified",
+        qualificationSummary: "Technical stale replay qualification",
+        nextAction: "Complete stale replay handoff gate",
+        nextActionAt: "2026-08-29",
+      },
+    );
+    await recordCanonicalSalesGateEvidence({
+      ...commandContext(runId, "review-stale-replay-contract"),
+      leadId: staleReplayLead.leadId,
+      evidenceType: "contract",
+      decision: "confirmed",
+      evidenceReference: `technical-review-stale-replay-contract-${runId}`,
+      occurredAt: "2026-08-28T12:01:42.700Z",
+    });
+    await recordCanonicalSalesGateEvidence({
+      ...commandContext(runId, "review-stale-replay-payment"),
+      leadId: staleReplayLead.leadId,
+      evidenceType: "first_payment",
+      decision: "confirmed",
+      evidenceReference: `technical-review-stale-replay-payment-${runId}`,
+      amountMinor: 1,
+      currency: "USD",
+      occurredAt: "2026-08-28T12:01:42.800Z",
+    });
+    await handoffCanonicalLeadToAdmissions({
+      ...commandContext(runId, "review-stale-replay-handoff"),
+      leadId: staleReplayLead.leadId,
+      expectedVersion: staleReplayQualifiedLead.version,
+    });
+    await assert.rejects(
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "sales",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-stale-replay-denied`,
+        },
+        staleReplayReviewInput,
+      ),
+      repositoryError("not_found"),
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_business_events
+            where business_object_id = ${staleReplayPendingProposal.proposalId}
+              and transition = 'ai_proposal.accepted'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_command_receipts
+            where business_object_id = ${staleReplayPendingProposal.proposalId}
+              and command_name = 'canonical_gemini_proposal.review'
+              and status = 'succeeded'
+          `
+        )[0].count,
+      ),
+      1,
+    );
+
+    const staleSalesPendingProposal = await executeCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-stale-sales-proposal`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        model: `technical-review-stale-sales-model-${runId}`,
+        promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+      },
+      async () => ({
+        proposalText: `technical-review-stale-sales-proposal-${runId}`,
+        providerCreatedAt: "2026-08-28T12:01:43.000Z",
+      }),
+    );
+    await assert.rejects(
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "sales",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-stale-sales`,
+        },
+        {
+          conversationId: inbound.conversationId,
+          proposalId: staleSalesPendingProposal.proposalId,
+          reviewDecision: "accepted",
+        },
+      ),
+      repositoryError("not_found"),
+    );
+
+    const concurrentPendingProposal = await executeCanonicalGeminiProposal(
+      {
+        actorRole: "admissions",
+        correlationId: `acceptance:${runId}:canonical-gemini-review-concurrent-proposal`,
+      },
+      {
+        conversationId: inbound.conversationId,
+        model: `technical-review-concurrent-model-${runId}`,
+        promptPolicyVersion: "v2-canonical-gemini-draft-v1",
+      },
+      async () => ({
+        proposalText: `technical-review-concurrent-proposal-${runId}`,
+        providerCreatedAt: "2026-08-28T12:01:44.000Z",
+      }),
+    );
+    const concurrentReviewResults = await Promise.allSettled([
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admissions",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-concurrent-accept`,
+        },
+        {
+          conversationId: inbound.conversationId,
+          proposalId: concurrentPendingProposal.proposalId,
+          reviewDecision: "accepted",
+        },
+      ),
+      reviewCanonicalGeminiProposal(
+        {
+          actorRole: "admin",
+          correlationId: `acceptance:${runId}:canonical-gemini-review-concurrent-reject`,
+        },
+        {
+          conversationId: inbound.conversationId,
+          proposalId: concurrentPendingProposal.proposalId,
+          reviewDecision: "rejected",
+          reviewReason: `technical-review-concurrent-rejection-${runId}`,
+        },
+      ),
+    ]);
+    const concurrentFulfilled = concurrentReviewResults.filter(
+      (result) => result.status === "fulfilled",
+    );
+    const concurrentRejected = concurrentReviewResults.filter(
+      (result) => result.status === "rejected",
+    );
+    assert.equal(concurrentFulfilled.length, 1);
+    assert.equal(concurrentRejected.length, 1);
+    assert.equal(repositoryError("conflict")(concurrentRejected[0].reason), true);
+    const concurrentWinner = concurrentFulfilled[0].value;
+    assert.ok(
+      concurrentWinner.reviewDecision === "accepted" ||
+        concurrentWinner.reviewDecision === "rejected",
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_business_events
+            where business_object_id = ${concurrentPendingProposal.proposalId}
+              and transition in ('ai_proposal.accepted', 'ai_proposal.rejected')
+          `
+        )[0].count,
+      ),
+      1,
+    );
+    assert.deepEqual(
+      await readLatestCanonicalGeminiProposal({
+        actorRole: "admissions",
+        conversationId: inbound.conversationId,
+      }),
+      concurrentWinner,
+    );
+    assert.equal(
+      Number(
+        (
+          await sql`
+            select count(*)::int as count
+            from evo_messages
+            where conversation_id = ${inbound.conversationId}
+              and direction = 'outbound'
+          `
+        )[0].count,
+      ),
+      0,
     );
 
     const newConversationAfterHandoff = await appendCanonicalInboundMessage({

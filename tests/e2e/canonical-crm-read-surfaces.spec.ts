@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 
 import {
@@ -84,6 +84,165 @@ async function canonicalProposalCount(conversationId: string): Promise<number> {
   }
 }
 
+async function seedCanonicalProposal(
+  conversationId: string,
+  messageId: string,
+  options: Readonly<{
+    proposalText?: string;
+    providerCreatedAt?: string;
+  }> = {},
+): Promise<Readonly<{ proposalId: string; proposalText: string; outboundCount: number }>> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("missing canonical PostgreSQL test URL");
+  const sql = postgres(databaseUrl, {
+    idle_timeout: 5,
+    max: 1,
+    onnotice: () => undefined,
+  });
+  try {
+    const [source] = await sql`
+      select
+        message.id as message_id,
+        message.body,
+        message.direction,
+        message.occurred_at,
+        (
+          select student_case.id
+          from evo_student_cases as student_case
+          where student_case.lead_id = conversation.lead_id
+          order by student_case.created_at desc, student_case.id desc
+          limit 1
+        ) as student_case_id,
+        (
+          select count(*)::int
+          from evo_messages as outbound
+          where outbound.conversation_id = conversation.id
+            and outbound.direction = 'outbound'
+        ) as outbound_count
+      from evo_conversations as conversation
+      inner join evo_messages as message
+        on message.conversation_id = conversation.id
+      where conversation.id = ${conversationId}
+        and message.id = ${messageId}
+        and message.direction = 'inbound'
+    `;
+    assert.ok(source, "canonical inbound source must exist before technical proposal seeding");
+    const occurredAt = new Date(source.occurred_at).toISOString();
+    const providerCreatedAt = options.providerCreatedAt ?? new Date().toISOString();
+    const proposalId = randomUUID();
+    const proposalText =
+      options.proposalText ?? "Technical browser-review proposal; not provider output.";
+    const sourceMessage = {
+      id: String(source.message_id),
+      direction: "inbound",
+      occurredAt,
+      body: String(source.body),
+    } as const;
+    const sourceContext = {
+      schemaVersion: 1,
+      promptPolicyVersion: "evo-v2-9c-browser-technical-v1",
+      conversationId,
+      studentCaseId:
+        source.student_case_id === null ? null : String(source.student_case_id),
+      sourceMessage,
+      messages: [sourceMessage],
+    };
+    await sql`
+      insert into evo_ai_proposals (
+        id,
+        conversation_id,
+        student_case_id,
+        provider,
+        model,
+        proposal_text,
+        source_context,
+        provider_created_at,
+        correlation_id,
+        idempotency_key
+      ) values (
+        ${proposalId},
+        ${conversationId},
+        ${sourceContext.studentCaseId},
+        'gemini',
+        'technical-browser-no-provider',
+        ${proposalText},
+        ${sql.json(sourceContext)},
+        ${providerCreatedAt},
+        ${`browser-review:${proposalId}`},
+        ${`browser-review:${proposalId}`}
+      )
+    `;
+    return {
+      proposalId,
+      proposalText,
+      outboundCount: Number(source.outbound_count),
+    };
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
+async function canonicalProposalReviewProof(proposalId: string) {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("missing canonical PostgreSQL test URL");
+  const sql = postgres(databaseUrl, {
+    idle_timeout: 5,
+    max: 1,
+    onnotice: () => undefined,
+  });
+  try {
+    const [row] = await sql`
+      select
+        proposal.review_decision,
+        proposal.reviewed_text,
+        proposal.reviewed_by_role,
+        proposal.reviewed_at,
+        proposal.review_reason,
+        (
+          select count(*)::int
+          from evo_business_events as event
+          where event.business_object_type = 'ai_proposal'
+            and event.business_object_id = proposal.id
+            and event.transition = 'ai_proposal.accepted'
+        ) as accepted_event_count,
+        (
+          select count(*)::int
+          from evo_business_events as event
+          where event.business_object_type = 'ai_proposal'
+            and event.business_object_id = proposal.id
+            and event.transition = 'ai_proposal.edited'
+        ) as edited_event_count,
+        (
+          select count(*)::int
+          from evo_business_events as event
+          where event.business_object_type = 'ai_proposal'
+            and event.business_object_id = proposal.id
+            and event.transition = 'ai_proposal.rejected'
+        ) as rejected_event_count,
+        (
+          select count(*)::int
+          from evo_command_receipts as receipt
+          where receipt.business_object_type = 'ai_proposal'
+            and receipt.business_object_id = proposal.id
+            and receipt.command_name = 'canonical_gemini_proposal.review'
+            and receipt.status = 'succeeded'
+        ) as succeeded_receipt_count,
+        (
+          select count(*)::int
+          from evo_messages as outbound
+          where outbound.conversation_id = proposal.conversation_id
+            and outbound.direction = 'outbound'
+        ) as outbound_count
+      from evo_ai_proposals as proposal
+      where proposal.id = ${proposalId}
+    `;
+    assert.ok(row, "reviewed canonical proposal must remain persisted");
+    return row;
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
 function signedInboundHeaders(rawBody: string, timestamp: string) {
   const signature = createHmac("sha256", requireInboundSecret())
     .update(`${timestamp}.${rawBody}`)
@@ -104,6 +263,94 @@ async function postSignedInbound(
     data: rawBody,
     headers: signedInboundHeaders(rawBody, timestamp),
   });
+}
+
+async function reviewTechnicalProposalViaUi(
+  page: Page,
+  conversationId: string,
+  messageId: string,
+  input: Readonly<{
+    decision: "accepted" | "edited" | "rejected";
+    proposalText: string;
+    providerCreatedAt: string;
+    reviewedText?: string;
+    reviewReason?: string;
+  }>,
+) {
+  const technicalProposal = await seedCanonicalProposal(conversationId, messageId, {
+    proposalText: input.proposalText,
+    providerCreatedAt: input.providerCreatedAt,
+  });
+  await page.reload();
+  const storedProposal = page.getByTestId("canonical-gemini-proposal-latest");
+  await expect(storedProposal).toHaveAttribute(
+    "data-proposal-id",
+    technicalProposal.proposalId,
+  );
+  await expect(storedProposal).toHaveAttribute("data-review-decision", "pending");
+  await expect(storedProposal).toContainText(technicalProposal.proposalText);
+  await expect(page.getByTestId("canonical-gemini-review-controls")).toBeVisible();
+
+  if (input.decision === "accepted") {
+    await page.getByTestId("canonical-gemini-review-accept").click();
+  } else if (input.decision === "edited") {
+    const reviewedText = input.reviewedText;
+    if (!reviewedText) throw new Error("edited review requires reviewedText");
+    await page.getByTestId("canonical-gemini-review-edited-text").fill(reviewedText);
+    await page.getByTestId("canonical-gemini-review-edit").click();
+  } else {
+    const reviewReason = input.reviewReason;
+    if (!reviewReason) throw new Error("rejected review requires reviewReason");
+    await page.getByTestId("canonical-gemini-review-reason").fill(reviewReason);
+    await page.getByTestId("canonical-gemini-review-reject").click();
+  }
+
+  await expect(page.getByTestId("canonical-gemini-review-final")).toHaveAttribute(
+    "data-review-decision",
+    input.decision,
+  );
+  await expect(page.getByTestId("canonical-gemini-review-controls")).toHaveCount(0);
+
+  const reviewProof = await canonicalProposalReviewProof(technicalProposal.proposalId);
+  assert.equal(reviewProof.review_decision, input.decision);
+  assert.equal(reviewProof.reviewed_by_role, "sales");
+  assert.ok(reviewProof.reviewed_at, `${input.decision} review must store its timestamp`);
+  assert.equal(Number(reviewProof.succeeded_receipt_count), 1);
+
+  if (input.decision === "accepted") {
+    assert.equal(reviewProof.reviewed_text, technicalProposal.proposalText);
+    assert.equal(reviewProof.review_reason, null);
+    assert.equal(Number(reviewProof.accepted_event_count), 1);
+    assert.equal(Number(reviewProof.edited_event_count), 0);
+    assert.equal(Number(reviewProof.rejected_event_count), 0);
+  } else if (input.decision === "edited") {
+    assert.equal(reviewProof.reviewed_text, input.reviewedText);
+    assert.equal(reviewProof.review_reason, null);
+    assert.equal(Number(reviewProof.accepted_event_count), 0);
+    assert.equal(Number(reviewProof.edited_event_count), 1);
+    assert.equal(Number(reviewProof.rejected_event_count), 0);
+    await expect(page.getByTestId("canonical-gemini-review-final-text")).toContainText(
+      input.reviewedText ?? "",
+    );
+  } else {
+    assert.equal(reviewProof.reviewed_text, null);
+    assert.equal(reviewProof.review_reason, input.reviewReason);
+    assert.equal(Number(reviewProof.accepted_event_count), 0);
+    assert.equal(Number(reviewProof.edited_event_count), 0);
+    assert.equal(Number(reviewProof.rejected_event_count), 1);
+    await expect(page.getByTestId("canonical-gemini-review-final-reason")).toContainText(
+      input.reviewReason ?? "",
+    );
+    await expect(page.getByTestId("canonical-gemini-review-final-text")).toHaveCount(0);
+  }
+
+  assert.equal(
+    Number(reviewProof.outbound_count),
+    technicalProposal.outboundCount,
+    `${input.decision} review must not create an outbound WhatsApp message`,
+  );
+
+  return technicalProposal;
 }
 
 async function postAcceptedInbound(
@@ -308,6 +555,15 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
   await expect(
     page.getByTestId("canonical-staff-whatsapp-provider-blocked"),
   ).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-waha-preflight-availability"),
+  ).toHaveAttribute("data-status", "blocked");
+  await expect(
+    page.getByTestId("canonical-waha-preflight-availability"),
+  ).toHaveAttribute("data-reason", "provider_not_authorized");
+  await expect(page.getByTestId("canonical-waha-preflight-submit")).toHaveCount(
+    0,
+  );
   const proposalCountBefore = await canonicalProposalCount(conversationId);
   await expect(
     page.getByTestId("canonical-gemini-proposal-panel"),
@@ -328,8 +584,31 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     "a blocked provider request must not persist a proposal",
   );
   await expect(
-    page.getByTestId("canonical-staff-whatsapp-page").locator("textarea"),
+    page.getByTestId("canonical-whatsapp-outbound-composer"),
   ).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("canonical-staff-whatsapp-page")
+      .getByRole("button", { name: /отправить|send/i }),
+  ).toHaveCount(0);
+  const technicalReviewBaseMs = Date.now() + 5_000;
+  await reviewTechnicalProposalViaUi(page, conversationId, messageId, {
+    decision: "accepted",
+    proposalText: "Technical browser-review accept proposal; not provider output.",
+    providerCreatedAt: new Date(technicalReviewBaseMs).toISOString(),
+  });
+  await reviewTechnicalProposalViaUi(page, conversationId, messageId, {
+    decision: "edited",
+    proposalText: "Technical browser-review edit proposal; not provider output.",
+    providerCreatedAt: new Date(technicalReviewBaseMs + 1_000).toISOString(),
+    reviewedText: "Edited technical final answer for browser proof.",
+  });
+  await reviewTechnicalProposalViaUi(page, conversationId, messageId, {
+    decision: "rejected",
+    proposalText: "Technical browser-review reject proposal; not provider output.",
+    providerCreatedAt: new Date(technicalReviewBaseMs + 2_000).toISOString(),
+    reviewReason: "Technical rejection reason for browser proof.",
+  });
   await expect(
     page
       .getByTestId("canonical-staff-whatsapp-page")

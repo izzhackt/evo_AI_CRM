@@ -13481,3 +13481,62 @@ API-key documentation:
 - <https://waha.devlike.pro/docs/how-to/sessions/>
 - <https://waha.devlike.pro/docs/how-to/security/>
 - <https://waha.devlike.pro/docs/how-to/events/>
+
+## 2026-08-29 - Complete the V2-9C review and read-only provider boundary
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under Issue #433 V2-9C.
+Change type: implementation and acceptance record; no provider authorization.
+Affected plan section: V2-9C human review, WAHA preflight and legacy exit.
+
+Implemented outcome: `/whatsapp/[id]` now provides the only active V2
+Accept/Edit/Reject interface and finalizes the existing `evo_ai_proposals` row.
+The server action accepts one exact six-field form contract, rejects unknown,
+duplicate, missing, malformed and decision-incompatible fields, and passes one
+bounded canonical command to PostgreSQL. The repository reauthorizes the
+current fixed role before replay, locks the current conversation/proposal
+boundary, preserves the immutable source proposal/context, records the exact
+final text or rejection reason, appends one matching business event and
+completes one review receipt. Exact replay returns the stored result only while
+the role still owns the conversation; a post-handoff stale-role replay is
+denied without another event or receipt. None of the three decisions creates
+an outbound message or transport command.
+
+The same WhatsApp workspace now exposes one server-only WAHA session preflight.
+It remains blocked unless both exact control flags and every required secret
+value are present. A configured request is restricted to `localhost`,
+`*.localhost`, the exact `evo-inbox-waha` or `evo-v2-waha` service names, or a
+private IP address; arbitrary single-label, `.internal` and `.local` hosts fail
+closed before the API key can leave the process. The only permitted operation
+is the bounded `GET /api/sessions/{session}` with `X-Api-Key`; no session
+creation, mutation, send or retry path exists.
+
+Replace-not-layer cleanup removed the superseded Supabase-backed proposal and
+review modules, manual-send route/workers/config/clients/scripts, autonomous
+reply route/processors/config/clients, dead messaging workflow and their active
+package, route, environment and implementation-test references. The canonical
+inventory test rejects any active import or reachable route containing those
+paths or `sendText`. Frozen V1 deployment artifacts and historical ADRs,
+migrations, runbooks, archived docs, evidence and other decision/rollback
+documentation remain preserved and outside the V2 runtime graph.
+
+Acceptance evidence used Node `22.23.1` with OrbStack `Running` and Docker
+context `orbstack`. `npm run test:u1`, `npm run test:u9`, changed-file ESLint,
+TypeScript, `npm run build` and `git diff --check` passed. The complete
+`EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node bash
+scripts/test-postgres-v2-foundation.sh` harness created a disposable real
+PostgreSQL service, applied and rechecked all three committed Drizzle
+migrations, passed the canonical repository suite, and exercised the real app
+in Chromium. Browser proof covered Accept, Edit and Reject through the rendered
+forms, then verified each persisted decision, final text/reason, exactly one
+matching event, exactly one succeeded review receipt and zero outbound
+messages. Fail-closed runs also proved missing database, gate, inbound-secret
+and private-file authority do not open an alternate path.
+
+All proposal records used by browser acceptance are explicitly isolated
+technical records inserted into the disposable database; they are not fake
+business acceptance and make no Gemini/provider claim. Local and CI validation
+kept `EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0` and
+`EVO_V2_WAHA_PROVIDER_AUTHORIZED=0`, so no Gemini or WAHA request was made.
+Real provider preflight, outbound WhatsApp, V1/production mutation and any
+real-staff or cutover activity remain separate explicit owner gates.

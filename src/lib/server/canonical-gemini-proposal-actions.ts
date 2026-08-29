@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
 
+import { exactActionStringFields } from "./action-form-fields";
+import {
+  CanonicalCrmRepositoryError,
+  reviewCanonicalGeminiProposal,
+} from "./canonical-crm-repository";
+import { parseCanonicalGeminiReviewForm } from "./canonical-gemini-review-form";
 import { requestCanonicalGeminiProposal } from "./canonical-gemini-proposal-service";
 
 const UUID_PATTERN =
@@ -15,9 +21,24 @@ export type CanonicalGeminiProposalActionState = Readonly<{
   proposalId: string | null;
 }>;
 
-function single(form: FormData, key: string): FormDataEntryValue | undefined {
-  const values = form.getAll(key);
-  return values.length === 1 ? values[0] : undefined;
+export type CanonicalGeminiProposalReviewActionState = Readonly<{
+  status:
+    | "idle"
+    | "reviewed"
+    | "invalid"
+    | "forbidden"
+    | "not_available"
+    | "already_reviewed"
+    | "request_conflict"
+    | "error";
+  decision: "accepted" | "edited" | "rejected" | null;
+  proposalId: string | null;
+}>;
+
+const REQUEST_FIELDS = ["conversation_id"] as const;
+function normalizedUuid(value: string | undefined): string | null {
+  if (value === undefined || !UUID_PATTERN.test(value)) return null;
+  return value.toLowerCase();
 }
 
 export async function requestCanonicalGeminiProposalAction(
@@ -25,11 +46,9 @@ export async function requestCanonicalGeminiProposalAction(
   form: FormData,
 ): Promise<CanonicalGeminiProposalActionState> {
   const actor = await requirePlatformMessagingActor();
-  const conversationId = single(form, "conversation_id");
-  if (
-    typeof conversationId !== "string" ||
-    !UUID_PATTERN.test(conversationId)
-  ) {
+  const fields = exactActionStringFields(form, REQUEST_FIELDS);
+  const conversationId = normalizedUuid(fields?.get("conversation_id"));
+  if (conversationId === null) {
     return Object.freeze({
       status: "invalid",
       reason: "invalid_conversation",
@@ -39,10 +58,10 @@ export async function requestCanonicalGeminiProposalAction(
 
   const result = await requestCanonicalGeminiProposal({
     actorRole: actor.platformRole,
-    conversationId: conversationId.toLowerCase(),
+    conversationId,
   });
   if (result.status === "created") {
-    revalidatePath(`/whatsapp/${conversationId.toLowerCase()}`);
+    revalidatePath(`/whatsapp/${conversationId}`);
     return Object.freeze({
       status: "created",
       reason: null,
@@ -54,4 +73,64 @@ export async function requestCanonicalGeminiProposalAction(
     reason: result.reason,
     proposalId: null,
   });
+}
+
+function invalidReviewState(): CanonicalGeminiProposalReviewActionState {
+  return Object.freeze({
+    status: "invalid",
+    decision: null,
+    proposalId: null,
+  });
+}
+
+export async function reviewCanonicalGeminiProposalAction(
+  _previous: CanonicalGeminiProposalReviewActionState,
+  form: FormData,
+): Promise<CanonicalGeminiProposalReviewActionState> {
+  const actor = await requirePlatformMessagingActor();
+  const review = parseCanonicalGeminiReviewForm(form);
+  if (review === null) return invalidReviewState();
+
+  const { conversationId, proposalId, requestId, decision } = review;
+
+  try {
+    const proposal = await reviewCanonicalGeminiProposal(
+      {
+        actorRole: actor.platformRole,
+        correlationId: requestId,
+      },
+      {
+        conversationId,
+        proposalId,
+        reviewDecision: decision,
+        ...(decision === "edited"
+          ? { reviewedText: review.reviewedText }
+          : {}),
+        ...(decision === "rejected"
+          ? { reviewReason: review.reviewReason }
+          : {}),
+      },
+    );
+    revalidatePath(`/whatsapp/${conversationId}`);
+    return Object.freeze({
+      status: "reviewed",
+      decision,
+      proposalId: proposal.proposalId,
+    });
+  } catch (error: unknown) {
+    if (!(error instanceof CanonicalCrmRepositoryError)) throw error;
+    const status = {
+      invalid_input: "invalid",
+      forbidden: "forbidden",
+      not_found: "not_available",
+      conflict: "already_reviewed",
+      idempotency_conflict: "request_conflict",
+      gate_unsatisfied: "invalid",
+      unavailable: "error",
+    }[error.code] as Exclude<
+      CanonicalGeminiProposalReviewActionState["status"],
+      "idle" | "reviewed"
+    >;
+    return Object.freeze({ status, decision, proposalId });
+  }
 }

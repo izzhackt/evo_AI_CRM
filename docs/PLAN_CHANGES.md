@@ -13913,3 +13913,37 @@ Current official provider references:
 - <https://waha.devlike.pro/docs/how-to/contacts/#api-lids>
 - <https://waha.devlike.pro/docs/overview/changelog/>
 - <https://waha.devlike.pro/docs/how-to/send-messages/>
+
+## 2026-08-29 - Use WAHA's bounded history contract for unknown recovery
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #465.
+Change type: append-only connected-provider evidence correction.
+Affected plan section: V2-10B canonical human-reviewed WhatsApp outbound.
+
+The preserved GET-only browser recovery proved that querying only the newest
+20 chat messages is not a sufficient recovery boundary: the one authorized
+technical message still existed, but newer provider traffic had moved it out
+of that unfiltered page. A sanitized server-side diagnostic using the same
+connected session found exactly one match for the immutable text and dispatch
+window under both session-proven self aliases. Its provider message ID hash
+matched the previously recorded expected digest and its ACK was `READ`. The
+history representation reported source `app`, correcting the earlier
+observation in the preceding entry that described it as `api`. No additional
+WhatsApp send occurred.
+
+Decision: unknown-attempt recovery uses WAHA's documented history filters for
+the already bounded EVO attempt window: `filter.timestamp.gte`,
+`filter.timestamp.lte`, `filter.fromMe=true`, `downloadMedia=false` and a
+maximum of 100 results. It still performs at most one GET per exact
+session-proven recipient alias, deduplicates by provider message ID and fails
+closed on zero or multiple unique matches. WAHA documents message `source` as
+`app|api`, so both exact values are retained truthfully; an absent source stays
+`null` and every other value remains malformed. Recipient, reviewed body,
+direction, timestamp window, ACK pair and unique provider ID checks remain
+unchanged. Recovery still has no POST or resend path.
+
+Current official provider references:
+
+- <https://waha.devlike.pro/docs/how-to/chats/#get-messages>
+- <https://waha.devlike.pro/docs/how-to/events/#message>

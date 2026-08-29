@@ -299,7 +299,7 @@ export type CanonicalWhatsAppProviderMessage = Readonly<{
   body: string;
   ack: CanonicalWahaAck;
   ackName: CanonicalWahaAckName;
-  source: "api" | null;
+  source: "api" | "app" | null;
 }>;
 
 export type CanonicalWhatsAppDispatchRequest = Readonly<{
@@ -338,7 +338,7 @@ export type CanonicalWhatsAppSendAttemptSnapshot = Readonly<{
   status: "prepared" | "accepted" | "unknown" | "rejected";
   providerMessageId: string | null;
   providerOccurredAt: string | null;
-  providerSource: "api" | null;
+  providerSource: "api" | "app" | null;
   ack: CanonicalWahaAck | null;
   ackName: CanonicalWahaAckName | null;
   failureCode: string | null;
@@ -913,7 +913,9 @@ function canonicalWhatsappProviderMessage(
     candidate.recipientChatId !== expected.recipientChatId ||
     candidate.fromMe !== true ||
     candidate.body !== expected.body ||
-    (candidate.source !== "api" && candidate.source !== null)
+    (candidate.source !== "api" &&
+      candidate.source !== "app" &&
+      candidate.source !== null)
   ) {
     invalidInput();
   }
@@ -1708,7 +1710,9 @@ function canonicalWhatsappSendAttemptRow(
 ): CanonicalWhatsAppSendAttemptSnapshot {
   if (
     row.provider !== "waha" ||
-    (row.providerSource !== null && row.providerSource !== "api")
+    (row.providerSource !== null &&
+      row.providerSource !== "api" &&
+      row.providerSource !== "app")
   ) {
     throw new CanonicalCrmRepositoryError("unavailable");
   }

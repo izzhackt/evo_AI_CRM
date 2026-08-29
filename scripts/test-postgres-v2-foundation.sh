@@ -216,7 +216,7 @@ const server = createServer(async (request, response) => {
       from: providerAccount,
       to: sendCount === 2 ? providerAccountLid : body.chatId,
       fromMe: true,
-      source: "api",
+      source: sendCount === 2 ? "app" : "api",
       body: body.text,
       ack: 1,
       ackName: "SERVER",
@@ -235,9 +235,20 @@ const server = createServer(async (request, response) => {
     request.method === "GET" &&
     url.pathname.startsWith(messagesPrefix) &&
     url.pathname.endsWith("/messages") &&
-    url.searchParams.get("limit") === "20" &&
-    url.searchParams.get("downloadMedia") === "false"
+    url.searchParams.get("limit") === "100" &&
+    url.searchParams.get("downloadMedia") === "false" &&
+    url.searchParams.get("filter.fromMe") === "true"
   ) {
+    const windowStart = Number(url.searchParams.get("filter.timestamp.gte"));
+    const windowEnd = Number(url.searchParams.get("filter.timestamp.lte"));
+    if (
+      !Number.isFinite(windowStart) ||
+      !Number.isFinite(windowEnd) ||
+      windowEnd < windowStart
+    ) {
+      json(response, 400, { error: "invalid_window" });
+      return;
+    }
     const encodedRecipient = url.pathname.slice(
       messagesPrefix.length,
       -"/messages".length,
@@ -249,7 +260,13 @@ const server = createServer(async (request, response) => {
     json(
       response,
       200,
-      storedMessages.filter((message) => message.to === recipient),
+      storedMessages.filter(
+        (message) =>
+          message.to === recipient &&
+          message.fromMe === true &&
+          message.timestamp >= windowStart &&
+          message.timestamp <= windowEnd,
+      ),
     );
     return;
   }

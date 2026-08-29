@@ -122,12 +122,18 @@ test("WAHA provider accepts only private/internal origins and bounded server sec
       { EVO_V2_WAHA_BASE_URL: "http://user:pass@evo-inbox-waha:3000" },
       "unsafe_base_url",
     ],
-    [{ EVO_V2_WAHA_API_KEY: "short" }, "unsafe_api_key"],
     [{ EVO_V2_WAHA_API_KEY: ` ${WAHA_API_KEY}` }, "unsafe_api_key"],
+    [{ EVO_V2_WAHA_API_KEY: "\u0000short" }, "unsafe_api_key"],
     [{ EVO_V2_WAHA_SESSION_NAME: "evo inbox" }, "invalid_session_name"],
   ]) {
     expectConfigurationError(configuredEnvironment(overrides), code);
   }
+
+  const shortKey = loadCanonicalWahaProviderConfig(
+    configuredEnvironment({ EVO_V2_WAHA_API_KEY: "waha-key" }),
+  );
+  assert.equal(shortKey.status, "ready");
+  assert.equal(shortKey.apiKey, "waha-key");
 });
 
 test("WAHA provider probes the exact configured session and requires WORKING", async () => {

@@ -13293,3 +13293,11 @@ malformed, incomplete, duplicate and unknown query rejection, and direct-thread
 denial under Admin-as-Admissions preview. These are outcome tests at the
 canonical route boundary; they add no alternate read path, provider call, send
 action, production mutation or compatibility behavior.
+
+Independent review rejected the first synthetic valid-cursor check because it
+could pass even if the repository ignored the cursor. Replace that weak proof
+with more than one real page of signed inbound records, follow the queue and
+message links emitted by the application, verify that the second-page result
+set changes, and verify that reset restores the newest page. Mirror incomplete,
+duplicate and unknown-key rejection across both queue and thread routes. This
+strengthens acceptance only; the V2-9A runtime contract remains unchanged.

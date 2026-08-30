@@ -477,6 +477,23 @@ guess, simulate or fall back.
    amoCRM command/read-back` through the real application, PostgreSQL and
    Chromium. If no exact safe target can be resolved, the run blocks honestly
    rather than selecting an arbitrary customer or creating fake business data.
+   Deliver this final proof through this reviewed plan stage, one separately
+   reviewed inert harness PR and one bounded exact-main execution. The harness
+   PR adds the combined runner and its fail-closed tests without calling a
+   provider. Then run that merged harness against one disposable PostgreSQL
+   database and the private local application. The run
+   may request one real Gemini proposal automatically, but it must stop in a
+   visible `review_required` state before any WAHA send or amoCRM command. One
+   real human must inspect the actual proposal in Chromium and either accept it
+   or edit it, then explicitly confirm the final send. This is required product
+   input, not a new provider-operation approval; the standing #463 authority
+   remains sufficient and no routine confirmation is added. Playwright, Codex
+   and Gemini must not click the review or send controls on the human's behalf.
+   After the reviewed send, the same run may execute the explicit amoCRM sync,
+   reconcile provider identities and ACK, prove exact replay/no duplicates and
+   finalize only hashed/count evidence. An interrupted or ambiguous run
+   preserves its private database and dispatch markers and resumes by exact
+   reconciliation; it never starts a second send or selects another target.
 
 Provider secrets remain in ignored server-only files or the authorized secret
 injection workflow and never enter browser state, PostgreSQL business rows,

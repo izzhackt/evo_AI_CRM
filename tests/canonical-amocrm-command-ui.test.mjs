@@ -68,11 +68,11 @@ test("the panel exposes exact inputs, honest states, per-step evidence, and expl
   assert.match(panel, /data-testid="canonical-amocrm-command-step"/);
   assert.match(panel, /data-testid="canonical-amocrm-terminal-attempt-id"/);
   assert.match(panel, /data-testid="canonical-amocrm-reconcile"/);
-  assert.match(panel, /syncState\.status === "unknown"/);
+  assert.match(panel, /resolveCanonicalAmoCrmCommandPanelState/);
   assert.match(panel, /persistedBlockingState/);
   assert.match(panel, /activeUnknownState/);
   assert.match(panel, /attemptId: blockingAttempt\.attemptId/);
-  assert.match(panel, /blockingAttempt !== null \|\|/);
+  assert.match(panel, /const flowBlocked = panelState\.flowBlocked/);
   assert.match(panel, /name="note_text"/);
   assert.match(panel, /maxLength=\{1000\}/);
   assert.match(panel, /required/);

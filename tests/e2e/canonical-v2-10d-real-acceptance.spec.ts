@@ -92,16 +92,22 @@ function providerId(value: unknown, message: string): string {
   return parsed;
 }
 
-function requiredMode(): "blocked" | "operator" | "recovery" {
+function requiredMode(): "blocked" | "operator" | "recovery" | "post-waha" {
   const mode = process.env.EVO_V2_REAL_END_TO_END_MODE;
-  if (mode !== "blocked" && mode !== "operator" && mode !== "recovery") {
+  if (
+    mode !== "blocked" &&
+    mode !== "operator" &&
+    mode !== "recovery" &&
+    mode !== "post-waha"
+  ) {
     throw new Error("EVO_V2_REAL_END_TO_END_MODE is invalid");
   }
   return mode;
 }
 
 function acceptanceInputs() {
-  const recoveryMode = requiredMode() === "recovery";
+  const mode = requiredMode();
+  const recoveryMode = mode === "recovery" || mode === "post-waha";
   const recoverySha = requireEnv("EVO_V2_ACCEPTANCE_MAIN_SHA");
   ensure(
     SHA40.test(recoverySha),
@@ -213,6 +219,85 @@ async function durableCreateJson(
   } finally {
     await directory.close();
   }
+}
+
+async function durableCreateOrValidateWahaCheckpoint(
+  filePath: string,
+  expected: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  try {
+    await durableCreateJson(filePath, expected);
+    return;
+  } catch (error) {
+    const code =
+      error !== null && typeof error === "object" && "code" in error
+        ? error.code
+        : undefined;
+    if (code !== "EEXIST") throw error;
+  }
+
+  const existing = await privateJson(
+    filePath,
+    "V2-10D post-WAHA recovery marker",
+  );
+  const existingRecovery = record(
+    existing.recovery,
+    "V2-10D post-WAHA recovery metadata is invalid",
+  );
+  const existingHashes = record(
+    existing.hashes,
+    "V2-10D post-WAHA hashes are invalid",
+  );
+  const existingReview = record(
+    existing.review,
+    "V2-10D post-WAHA review counts are invalid",
+  );
+  const existingWaha = record(
+    existing.waha,
+    "V2-10D post-WAHA WAHA counts are invalid",
+  );
+  const existingAmo = record(
+    existing.amocrm,
+    "V2-10D post-WAHA amoCRM counts are invalid",
+  );
+  const existingBoundaries = record(
+    existing.boundaries,
+    "V2-10D post-WAHA boundaries are invalid",
+  );
+  const expectedRecovery = record(expected.recovery, "Expected recovery");
+  const expectedHashes = record(expected.hashes, "Expected hashes");
+  const expectedReview = record(expected.review, "Expected review");
+  const expectedWaha = record(expected.waha, "Expected WAHA proof");
+  const expectedAmo = record(expected.amocrm, "Expected amoCRM proof");
+  const expectedBoundaries = record(expected.boundaries, "Expected boundaries");
+
+  ensure(
+    existing.schemaVersion === expected.schemaVersion &&
+      existing.kind === expected.kind &&
+      existing.status === expected.status &&
+      existing.gitSha === expected.gitSha &&
+      existing.nextAuthorizedStep === expected.nextAuthorizedStep &&
+      existingRecovery.occurred === expectedRecovery.occurred &&
+      existingRecovery.stage === expectedRecovery.stage &&
+      existingRecovery.codeSha === expectedRecovery.codeSha &&
+      existingHashes.proposalSha256 === expectedHashes.proposalSha256 &&
+      existingHashes.reviewedTextSha256 === expectedHashes.reviewedTextSha256 &&
+      existingHashes.providerMessageIdSha256 ===
+        expectedHashes.providerMessageIdSha256 &&
+      existingReview.decision === expectedReview.decision &&
+      existingReview.proposalCount === expectedReview.proposalCount &&
+      existingWaha.status === expectedWaha.status &&
+      existingWaha.attemptCount === expectedWaha.attemptCount &&
+      existingWaha.outboundMessageCount === expectedWaha.outboundMessageCount &&
+      existingWaha.databaseAck === expectedWaha.databaseAck &&
+      existingWaha.readbackAck === expectedWaha.readbackAck &&
+      existingWaha.exactReadback === expectedWaha.exactReadback &&
+      existingAmo.attemptCount === expectedAmo.attemptCount &&
+      existingAmo.receiptCount === expectedAmo.receiptCount &&
+      existingAmo.bindingCount === expectedAmo.bindingCount &&
+      JSON.stringify(existingBoundaries) === JSON.stringify(expectedBoundaries),
+    "Existing post-WAHA checkpoint differs from the exact preserved result",
+  );
 }
 
 function signedInboundHeaders(
@@ -1158,6 +1243,171 @@ async function exactAmoCrmProviderReadback(
   });
 }
 
+async function runAmoCrmSyncReplayAndReload(
+  page: Page,
+  input: Readonly<{
+    databaseUrl: string;
+    leadId: string;
+    conversationId: string;
+    seedCorrelationId: string;
+    discoverySnapshotSha256: string;
+    expectedWahaProviderMessageId: string;
+    runtime: Record<string, unknown>;
+    context: Record<string, unknown>;
+  }>,
+) {
+  await page.goto(`/sales/${input.leadId}`);
+  const amoPanel = page.getByTestId("canonical-amocrm-command-panel");
+  await expect(amoPanel).toBeVisible();
+  await expect(
+    amoPanel.getByTestId("canonical-amocrm-provider-availability"),
+  ).toHaveAttribute("data-status", "ready");
+  const amoRequestId = await amoPanel
+    .getByTestId("canonical-amocrm-sync-form")
+    .locator('input[name="request_id"]')
+    .inputValue();
+  ensure(
+    UUID.test(amoRequestId),
+    "The exact amoCRM command identity is invalid",
+  );
+  await amoPanel
+    .getByTestId("canonical-amocrm-note-text")
+    .fill(AMOCRM_NOTE_TEXT);
+  await amoPanel.getByTestId("canonical-amocrm-sync").click();
+  await expect(
+    amoPanel.getByTestId("canonical-amocrm-command-state"),
+  ).toHaveAttribute("data-status", "accepted", { timeout: 150_000 });
+  const amoSteps = amoPanel.getByTestId("canonical-amocrm-command-step");
+  await expect(amoSteps).toHaveCount(OPERATIONS.length);
+  for (const operation of OPERATIONS) {
+    await expect(
+      amoPanel.locator(
+        `[data-testid="canonical-amocrm-command-step"][data-operation="${operation}"]`,
+      ),
+    ).toHaveCount(1);
+  }
+  const amoDatabase = await acceptedAmoCrmDatabaseProof(input.databaseUrl, {
+    leadId: input.leadId,
+    requestId: amoRequestId,
+    seedCorrelationId: input.seedCorrelationId,
+    discoverySnapshotSha256: input.discoverySnapshotSha256,
+  });
+  const amoProvider = await exactAmoCrmProviderReadback(
+    input.runtime,
+    input.context,
+    amoDatabase,
+  );
+  const beforeReplay = await readMutationCounts(
+    input.databaseUrl,
+    input.leadId,
+    input.conversationId,
+  );
+
+  const replayRequestInput = amoPanel
+    .getByTestId("canonical-amocrm-sync-form")
+    .locator('input[name="request_id"]');
+  await replayRequestInput.evaluate((element, exactRequestId) => {
+    (element as HTMLInputElement).value = exactRequestId;
+  }, amoRequestId);
+  await amoPanel
+    .getByTestId("canonical-amocrm-note-text")
+    .fill(AMOCRM_NOTE_TEXT);
+  const replayResponsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "POST" &&
+      url.pathname === `/sales/${input.leadId}`
+    );
+  });
+  await amoPanel.getByTestId("canonical-amocrm-sync").click();
+  const replayResponse = await replayResponsePromise;
+  ensure(replayResponse.ok(), "The exact amoCRM UI replay was rejected");
+  await expect(
+    amoPanel.getByTestId("canonical-amocrm-command-state"),
+  ).toHaveAttribute("data-status", "accepted");
+  const replayDatabase = await acceptedAmoCrmDatabaseProof(input.databaseUrl, {
+    leadId: input.leadId,
+    requestId: amoRequestId,
+    seedCorrelationId: input.seedCorrelationId,
+    discoverySnapshotSha256: input.discoverySnapshotSha256,
+  });
+  ensure(
+    replayDatabase.attemptCount === amoDatabase.attemptCount &&
+      replayDatabase.receiptCount === amoDatabase.receiptCount &&
+      replayDatabase.contactBindingCount === amoDatabase.contactBindingCount &&
+      replayDatabase.leadBindingCount === amoDatabase.leadBindingCount &&
+      replayDatabase.providerContactId === amoDatabase.providerContactId &&
+      replayDatabase.providerLeadId === amoDatabase.providerLeadId &&
+      replayDatabase.providerNoteId === amoDatabase.providerNoteId &&
+      replayDatabase.providerManagedTagId ===
+        amoDatabase.providerManagedTagId &&
+      replayDatabase.readbackSetSha256 === amoDatabase.readbackSetSha256,
+    "Exact amoCRM replay created another attempt, receipt, binding, or entity",
+  );
+  const replayProvider = await exactAmoCrmProviderReadback(
+    input.runtime,
+    input.context,
+    replayDatabase,
+  );
+  ensure(
+    replayProvider.exactReadback === true &&
+      replayProvider.entitySetSha256 === amoProvider.entitySetSha256 &&
+      replayProvider.validationContactCount ===
+        amoProvider.validationContactCount &&
+      replayProvider.validationLeadCount === amoProvider.validationLeadCount &&
+      replayProvider.validationNoteCount === amoProvider.validationNoteCount &&
+      replayProvider.managedRoleTagCount === amoProvider.managedRoleTagCount &&
+      replayProvider.mainContactCount === amoProvider.mainContactCount,
+    "Exact amoCRM replay changed the provider entity set",
+  );
+  const afterReplay = await readMutationCounts(
+    input.databaseUrl,
+    input.leadId,
+    input.conversationId,
+  );
+  ensure(
+    afterReplay.proposalCount === beforeReplay.proposalCount &&
+      afterReplay.wahaAttemptCount === beforeReplay.wahaAttemptCount &&
+      afterReplay.outboundMessageCount === beforeReplay.outboundMessageCount &&
+      afterReplay.messageCount === beforeReplay.messageCount &&
+      afterReplay.amocrmAttemptCount === beforeReplay.amocrmAttemptCount &&
+      afterReplay.commandReceiptCount === beforeReplay.commandReceiptCount &&
+      afterReplay.contactBindingCount === beforeReplay.contactBindingCount &&
+      afterReplay.leadBindingCount === beforeReplay.leadBindingCount &&
+      afterReplay.businessEventCount === beforeReplay.businessEventCount,
+    "Exact replay added a message, attempt, receipt, binding, or business event",
+  );
+
+  await page.reload();
+  await expect(
+    page.getByTestId("canonical-sales-lead-workspace"),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByTestId("canonical-amocrm-command-panel")
+      .getByTestId("canonical-amocrm-provider-availability"),
+  ).toHaveAttribute("data-status", "ready");
+  const persistedWaha = await readWahaDatabaseProof(
+    input.databaseUrl,
+    input.conversationId,
+  );
+  const persistedAmo = await acceptedAmoCrmDatabaseProof(input.databaseUrl, {
+    leadId: input.leadId,
+    requestId: amoRequestId,
+    seedCorrelationId: input.seedCorrelationId,
+    discoverySnapshotSha256: input.discoverySnapshotSha256,
+  });
+  ensure(
+    persistedWaha.providerMessageId === input.expectedWahaProviderMessageId &&
+      persistedWaha.attemptCount === 1 &&
+      persistedWaha.outboundCount === 1 &&
+      persistedAmo.readbackSetSha256 === amoDatabase.readbackSetSha256,
+    "Reload changed the persisted canonical provider results",
+  );
+
+  return Object.freeze({ amoDatabase, amoProvider, beforeReplay, afterReplay });
+}
+
 test("all three provider authorities fail closed before any dispatch", async ({
   page,
   request,
@@ -1307,7 +1557,8 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
   request,
 }) => {
   const mode = requiredMode();
-  test.skip(mode === "blocked", "blocked-authority pass runs separately");
+  const postWahaRecovery = mode === "post-waha";
+  test.skip(mode === "blocked" || postWahaRecovery, "separate pass");
   const recoveryMode = mode === "recovery";
   test.setTimeout(recoveryMode ? 0 : 45 * 60 * 1_000);
   const { gitSha, recoverySha, evidenceDir, runtimeFile, contextFile } =
@@ -1817,155 +2068,79 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
     "WAHA reconciliation changed identity, duplicated a send, or regressed ACK",
   );
 
-  await page.goto(`/sales/${leadId}`);
-  const amoPanel = page.getByTestId("canonical-amocrm-command-panel");
-  await expect(amoPanel).toBeVisible();
-  await expect(
-    amoPanel.getByTestId("canonical-amocrm-provider-availability"),
-  ).toHaveAttribute("data-status", "ready");
-  const amoRequestId = await amoPanel
-    .getByTestId("canonical-amocrm-sync-form")
-    .locator('input[name="request_id"]')
-    .inputValue();
-  ensure(
-    UUID.test(amoRequestId),
-    "The exact amoCRM command identity is invalid",
-  );
-  await amoPanel
-    .getByTestId("canonical-amocrm-note-text")
-    .fill(AMOCRM_NOTE_TEXT);
-  await amoPanel.getByTestId("canonical-amocrm-sync").click();
-  await expect(
-    amoPanel.getByTestId("canonical-amocrm-command-state"),
-  ).toHaveAttribute("data-status", "accepted", { timeout: 150_000 });
-  const amoSteps = amoPanel.getByTestId("canonical-amocrm-command-step");
-  await expect(amoSteps).toHaveCount(OPERATIONS.length);
-  for (const operation of OPERATIONS) {
-    await expect(
-      amoPanel.locator(
-        `[data-testid="canonical-amocrm-command-step"][data-operation="${operation}"]`,
-      ),
-    ).toHaveCount(1);
-  }
-  const amoDatabase = await acceptedAmoCrmDatabaseProof(databaseUrl, {
-    leadId,
-    requestId: amoRequestId,
-    seedCorrelationId,
-    discoverySnapshotSha256: discovery.snapshotSha256,
-  });
-  const amoProvider = await exactAmoCrmProviderReadback(
-    runtime,
-    context,
-    amoDatabase,
-  );
-  const beforeReplay = await readMutationCounts(
-    databaseUrl,
-    leadId,
-    seed.conversationId,
-  );
-
-  const replayRequestInput = amoPanel
-    .getByTestId("canonical-amocrm-sync-form")
-    .locator('input[name="request_id"]');
-  await replayRequestInput.evaluate((element, exactRequestId) => {
-    (element as HTMLInputElement).value = exactRequestId;
-  }, amoRequestId);
-  await amoPanel
-    .getByTestId("canonical-amocrm-note-text")
-    .fill(AMOCRM_NOTE_TEXT);
-  const replayResponsePromise = page.waitForResponse((response) => {
-    const url = new URL(response.url());
-    return (
-      response.request().method() === "POST" &&
-      url.pathname === `/sales/${leadId}`
-    );
-  });
-  await amoPanel.getByTestId("canonical-amocrm-sync").click();
-  const replayResponse = await replayResponsePromise;
-  ensure(replayResponse.ok(), "The exact amoCRM UI replay was rejected");
-  await expect(
-    amoPanel.getByTestId("canonical-amocrm-command-state"),
-  ).toHaveAttribute("data-status", "accepted");
-  const replayDatabase = await acceptedAmoCrmDatabaseProof(databaseUrl, {
-    leadId,
-    requestId: amoRequestId,
-    seedCorrelationId,
-    discoverySnapshotSha256: discovery.snapshotSha256,
-  });
-  ensure(
-    replayDatabase.attemptCount === amoDatabase.attemptCount &&
-      replayDatabase.receiptCount === amoDatabase.receiptCount &&
-      replayDatabase.contactBindingCount === amoDatabase.contactBindingCount &&
-      replayDatabase.leadBindingCount === amoDatabase.leadBindingCount &&
-      replayDatabase.providerContactId === amoDatabase.providerContactId &&
-      replayDatabase.providerLeadId === amoDatabase.providerLeadId &&
-      replayDatabase.providerNoteId === amoDatabase.providerNoteId &&
-      replayDatabase.providerManagedTagId ===
-        amoDatabase.providerManagedTagId &&
-      replayDatabase.readbackSetSha256 === amoDatabase.readbackSetSha256,
-    "Exact amoCRM replay created another attempt, receipt, binding, or entity",
-  );
-  const replayProvider = await exactAmoCrmProviderReadback(
-    runtime,
-    context,
-    replayDatabase,
-  );
-  ensure(
-    replayProvider.exactReadback === true &&
-      replayProvider.entitySetSha256 === amoProvider.entitySetSha256 &&
-      replayProvider.validationContactCount ===
-        amoProvider.validationContactCount &&
-      replayProvider.validationLeadCount === amoProvider.validationLeadCount &&
-      replayProvider.validationNoteCount === amoProvider.validationNoteCount &&
-      replayProvider.managedRoleTagCount === amoProvider.managedRoleTagCount &&
-      replayProvider.mainContactCount === amoProvider.mainContactCount,
-    "Exact amoCRM replay changed the provider entity set",
-  );
-  const afterReplay = await readMutationCounts(
+  const beforeAmo = await readMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
   );
   ensure(
-    afterReplay.proposalCount === beforeReplay.proposalCount &&
-      afterReplay.wahaAttemptCount === beforeReplay.wahaAttemptCount &&
-      afterReplay.outboundMessageCount === beforeReplay.outboundMessageCount &&
-      afterReplay.messageCount === beforeReplay.messageCount &&
-      afterReplay.amocrmAttemptCount === beforeReplay.amocrmAttemptCount &&
-      afterReplay.commandReceiptCount === beforeReplay.commandReceiptCount &&
-      afterReplay.contactBindingCount === beforeReplay.contactBindingCount &&
-      afterReplay.leadBindingCount === beforeReplay.leadBindingCount &&
-      afterReplay.businessEventCount === beforeReplay.businessEventCount,
-    "Exact replay added a message, attempt, receipt, binding, or business event",
+    beforeAmo.proposalCount === 1 &&
+      beforeAmo.wahaAttemptCount === 1 &&
+      beforeAmo.outboundMessageCount === 1 &&
+      beforeAmo.amocrmAttemptCount === 0 &&
+      beforeAmo.commandReceiptCount === 0 &&
+      beforeAmo.contactBindingCount === 0 &&
+      beforeAmo.leadBindingCount === 0,
+    "The reconciled WAHA checkpoint is not isolated from amoCRM state",
+  );
+  await durableCreateOrValidateWahaCheckpoint(
+    path.join(evidenceDir, "waha-reconciled.json"),
+    {
+      schemaVersion: 1,
+      kind: "evo-v2-10d-waha-reconciled",
+      status: "reconciled",
+      gitSha,
+      recovery: {
+        occurred: recoveryMode,
+        stage: "post-waha",
+        codeSha: recoverySha,
+      },
+      completedAt: new Date().toISOString(),
+      hashes: {
+        proposalSha256: sha256(pendingProposal.proposalText),
+        reviewedTextSha256: sha256(reviewedText),
+        providerMessageIdSha256: sha256(reconciledWaha.providerMessageId),
+      },
+      review: {
+        decision,
+        proposalCount: reviewedProposal.proposalCount,
+      },
+      waha: {
+        status: reconciledWaha.status,
+        attemptCount: reconciledWaha.attemptCount,
+        outboundMessageCount: reconciledWaha.outboundCount,
+        databaseAck: initialWaha.ack,
+        readbackAck: wahaReadback.ack,
+        exactReadback: true,
+      },
+      amocrm: {
+        attemptCount: beforeAmo.amocrmAttemptCount,
+        receiptCount: beforeAmo.commandReceiptCount,
+        bindingCount:
+          beforeAmo.contactBindingCount + beforeAmo.leadBindingCount,
+      },
+      nextAuthorizedStep: "admin_amocrm_sync_only",
+      boundaries: {
+        providerReadMethod: "GET",
+        whatsappActionRepeated: false,
+        v1ApplicationPathExecuted: false,
+        deploymentMutated: false,
+        fallbackObserved: false,
+      },
+    },
   );
 
-  await page.reload();
-  await expect(
-    page.getByTestId("canonical-sales-lead-workspace"),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByTestId("canonical-amocrm-command-panel")
-      .getByTestId("canonical-amocrm-provider-availability"),
-  ).toHaveAttribute("data-status", "ready");
-  const persistedWaha = await readWahaDatabaseProof(
-    databaseUrl,
-    seed.conversationId,
-  );
-  const persistedAmo = await acceptedAmoCrmDatabaseProof(databaseUrl, {
-    leadId,
-    requestId: amoRequestId,
-    seedCorrelationId,
-    discoverySnapshotSha256: discovery.snapshotSha256,
-  });
-  ensure(
-    persistedWaha.providerMessageId === reconciledWaha.providerMessageId &&
-      persistedWaha.attemptCount === 1 &&
-      persistedWaha.outboundCount === 1 &&
-      persistedAmo.readbackSetSha256 === amoDatabase.readbackSetSha256,
-    "Reload changed the persisted canonical provider results",
-  );
-
+  const { amoDatabase, amoProvider, beforeReplay, afterReplay } =
+    await runAmoCrmSyncReplayAndReload(page, {
+      databaseUrl,
+      leadId,
+      conversationId: seed.conversationId,
+      seedCorrelationId,
+      discoverySnapshotSha256: discovery.snapshotSha256,
+      expectedWahaProviderMessageId: reconciledWaha.providerMessageId,
+      runtime,
+      context,
+    });
   await durableCreateJson(path.join(evidenceDir, "success.json"), {
     schemaVersion: 1,
     kind: "evo-v2-10d-real-provider-workflow",
@@ -2024,6 +2199,335 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
     boundaries: {
       database: "disposable_local_postgresql",
       target: "connected_waha_session_self_validation_entity",
+      v1ApplicationPathExecuted: false,
+      deploymentMutated: false,
+      fallbackObserved: false,
+    },
+  });
+});
+
+test("post-WAHA recovery proves the accepted send before one amoCRM sync", async ({
+  page,
+}) => {
+  const mode = requiredMode();
+  test.skip(mode !== "post-waha", "post-WAHA recovery runs separately");
+  test.setTimeout(0);
+
+  const { gitSha, recoverySha, evidenceDir, runtimeFile, contextFile } =
+    acceptanceInputs();
+  await mkdir(evidenceDir, { recursive: true, mode: 0o700 });
+  await chmod(evidenceDir, 0o700);
+
+  const blockedMarker = await privateJson(
+    path.join(evidenceDir, "authority-blocked.json"),
+    "V2-10D disabled-authority marker",
+  );
+  ensure(
+    blockedMarker.status === "passed" &&
+      blockedMarker.gitSha === gitSha &&
+      blockedMarker.proofMode === "all-provider-authority-disabled",
+    "The exact original-SHA disabled-authority proof is missing",
+  );
+
+  const runtime = await privateJson(
+    runtimeFile,
+    "Private V2-10D provider runtime",
+  );
+  const context = await privateJson(
+    contextFile,
+    "Private V2-10D validation context",
+  );
+  const leadId = context.leadId;
+  const seedCorrelationId = context.seedCorrelationId;
+  const expectedPhoneSha256 = context.selfPhoneSha256;
+  const discovery = record(
+    context.discovery,
+    "Private amoCRM discovery context is missing",
+  );
+  ensure(
+    typeof leadId === "string" && UUID.test(leadId),
+    "Validation lead is invalid",
+  );
+  ensure(
+    typeof seedCorrelationId === "string" && UUID.test(seedCorrelationId),
+    "Validation seed correlation is invalid",
+  );
+  ensure(
+    typeof expectedPhoneSha256 === "string" && SHA256.test(expectedPhoneSha256),
+    "Validation phone digest is invalid",
+  );
+  ensure(
+    typeof discovery.snapshotSha256 === "string" &&
+      SHA256.test(discovery.snapshotSha256),
+    "amoCRM discovery snapshot digest is invalid",
+  );
+
+  const { selfId, selfRecipientIds } = connectedSelfIdentities();
+  const phoneE164 = `+${selfId.slice(0, selfId.indexOf("@"))}`;
+  ensure(
+    sha256(phoneE164) === expectedPhoneSha256,
+    "Connected WAHA self identity does not match the preserved lead",
+  );
+  const databaseUrl = requireEnv("DATABASE_URL");
+  const sessionName = requireEnv("EVO_V2_CONNECTED_WAHA_SESSION_NAME");
+  const seed = await readExistingSelfConversation(databaseUrl, {
+    leadId,
+    selfId,
+  });
+  const reviewedProposal = await readProposalProof(
+    databaseUrl,
+    seed.conversationId,
+  );
+  ensure(
+    reviewedProposal.provider === "gemini" &&
+      reviewedProposal.model.length > 0 &&
+      reviewedProposal.proposalText.length > 0 &&
+      (reviewedProposal.reviewDecision === "accepted" ||
+        reviewedProposal.reviewDecision === "edited") &&
+      typeof reviewedProposal.reviewedText === "string" &&
+      reviewedProposal.reviewedText.trim().length > 0 &&
+      reviewedProposal.reviewedByRole === "admin" &&
+      reviewedProposal.reviewedAt instanceof Date &&
+      reviewedProposal.proposalCount === 1,
+    "Post-WAHA recovery requires one accepted or edited human review",
+  );
+  const reviewedText = reviewedProposal.reviewedText;
+
+  const reviewRequiredMarker = await privateJson(
+    path.join(evidenceDir, "review-required.json"),
+    "V2-10D preserved human-review marker",
+  );
+  const reviewRequiredProposal = record(
+    reviewRequiredMarker.proposal,
+    "V2-10D preserved human-review proposal is invalid",
+  );
+  const reviewRequiredProviderMutation = record(
+    reviewRequiredMarker.providerMutation,
+    "V2-10D preserved human-review provider counts are invalid",
+  );
+  ensure(
+    reviewRequiredMarker.status === "review_required" &&
+      reviewRequiredMarker.gitSha === gitSha &&
+      reviewRequiredProposal.proposalIdSha256 ===
+        sha256(reviewedProposal.proposalId) &&
+      reviewRequiredProposal.draftSha256 ===
+        sha256(reviewedProposal.proposalText) &&
+      reviewRequiredProposal.modelSha256 === sha256(reviewedProposal.model) &&
+      reviewRequiredProposal.proposalCount === reviewedProposal.proposalCount &&
+      reviewRequiredProposal.reviewDecision === "pending" &&
+      reviewRequiredProviderMutation.wahaSendAttemptCount === 0 &&
+      reviewRequiredProviderMutation.wahaOutboundMessageCount === 0 &&
+      reviewRequiredProviderMutation.amocrmProviderAttemptCount === 0 &&
+      reviewRequiredProviderMutation.amocrmBindingCount === 0,
+    "The preserved review-required marker does not match the reviewed proposal",
+  );
+
+  const beforeReadback = await readMutationCounts(
+    databaseUrl,
+    leadId,
+    seed.conversationId,
+  );
+  ensure(
+    beforeReadback.proposalCount === 1 &&
+      beforeReadback.wahaAttemptCount === 1 &&
+      beforeReadback.outboundMessageCount === 1 &&
+      beforeReadback.amocrmAttemptCount === 0 &&
+      beforeReadback.commandReceiptCount === 0 &&
+      beforeReadback.contactBindingCount === 0 &&
+      beforeReadback.leadBindingCount === 0,
+    "Post-WAHA recovery did not begin from one accepted send and zero amoCRM state",
+  );
+
+  const dispatchMarker = await privateJson(
+    path.join(evidenceDir, "dispatch-attempt.json"),
+    "V2-10D preserved dispatch marker",
+  );
+  const dispatchReview = record(
+    dispatchMarker.review,
+    "V2-10D preserved dispatch review is invalid",
+  );
+  const dispatchWhatsapp = record(
+    dispatchMarker.whatsapp,
+    "V2-10D preserved dispatch counts are invalid",
+  );
+  ensure(
+    dispatchMarker.status === "dispatch_intent_recorded" &&
+      dispatchMarker.gitSha === gitSha &&
+      dispatchReview.decision === reviewedProposal.reviewDecision &&
+      dispatchReview.proposalIdSha256 === sha256(reviewedProposal.proposalId) &&
+      dispatchReview.reviewedTextSha256 === sha256(reviewedText) &&
+      dispatchWhatsapp.targetClass === "connected_provider_session_self" &&
+      dispatchWhatsapp.sendAttemptCountBeforeHumanAction === 0,
+    "The preserved dispatch marker does not match the accepted review",
+  );
+
+  const acceptedWaha = await readWahaDatabaseProof(
+    databaseUrl,
+    seed.conversationId,
+  );
+  ensure(
+    acceptedWaha.status === "accepted" &&
+      acceptedWaha.sessionName === sessionName &&
+      acceptedWaha.recipientChatId === selfId &&
+      acceptedWaha.finalText === reviewedText &&
+      acceptedWaha.messageBody === reviewedText &&
+      acceptedWaha.actorRole === "admin" &&
+      acceptedWaha.sourceProposalId === reviewedProposal.proposalId &&
+      acceptedWaha.providerMessageId.length > 0 &&
+      acceptedWaha.messageExternalId === acceptedWaha.providerMessageId &&
+      acceptedWaha.attemptCount === 1 &&
+      acceptedWaha.outboundCount === 1 &&
+      acceptedWaha.ack >= 0 &&
+      acceptedWaha.ack <= 4 &&
+      acceptedWaha.ackName === ACK_NAMES[acceptedWaha.ack as 0 | 1 | 2 | 3 | 4],
+    "PostgreSQL does not contain one exact accepted WAHA result",
+  );
+  const wahaReadback = await readWahaProviderMessage(
+    acceptedWaha.providerMessageId,
+    reviewedText,
+    selfId,
+    selfRecipientIds,
+  );
+  ensure(
+    wahaReadback.id === acceptedWaha.providerMessageId &&
+      wahaReadback.ack >= acceptedWaha.ack,
+    "Exact GET-only WAHA readback regressed from PostgreSQL",
+  );
+  const afterReadback = await readMutationCounts(
+    databaseUrl,
+    leadId,
+    seed.conversationId,
+  );
+  ensure(
+    sameMutationCounts(beforeReadback, afterReadback),
+    "GET-only WAHA readback changed PostgreSQL or amoCRM state",
+  );
+
+  const wahaCheckpoint = {
+    schemaVersion: 1,
+    kind: "evo-v2-10d-waha-reconciled",
+    status: "reconciled",
+    gitSha,
+    recovery: {
+      occurred: true,
+      stage: "post-waha",
+      codeSha: recoverySha,
+    },
+    completedAt: new Date().toISOString(),
+    hashes: {
+      proposalSha256: sha256(reviewedProposal.proposalText),
+      reviewedTextSha256: sha256(reviewedText),
+      providerMessageIdSha256: sha256(acceptedWaha.providerMessageId),
+    },
+    review: {
+      decision: reviewedProposal.reviewDecision,
+      proposalCount: reviewedProposal.proposalCount,
+    },
+    waha: {
+      status: acceptedWaha.status,
+      attemptCount: acceptedWaha.attemptCount,
+      outboundMessageCount: acceptedWaha.outboundCount,
+      databaseAck: acceptedWaha.ack,
+      readbackAck: wahaReadback.ack,
+      exactReadback: true,
+    },
+    amocrm: {
+      attemptCount: beforeReadback.amocrmAttemptCount,
+      receiptCount: beforeReadback.commandReceiptCount,
+      bindingCount:
+        beforeReadback.contactBindingCount + beforeReadback.leadBindingCount,
+    },
+    nextAuthorizedStep: "admin_amocrm_sync_only",
+    boundaries: {
+      providerReadMethod: "GET",
+      whatsappActionRepeated: false,
+      geminiActionRepeated: false,
+      humanReviewRepeated: false,
+      v1ApplicationPathExecuted: false,
+      deploymentMutated: false,
+      fallbackObserved: false,
+    },
+  } as const;
+  await durableCreateOrValidateWahaCheckpoint(
+    path.join(evidenceDir, "waha-reconciled.json"),
+    wahaCheckpoint,
+  );
+
+  await submitAdminGate(page);
+  const { amoDatabase, amoProvider, beforeReplay, afterReplay } =
+    await runAmoCrmSyncReplayAndReload(page, {
+      databaseUrl,
+      leadId,
+      conversationId: seed.conversationId,
+      seedCorrelationId,
+      discoverySnapshotSha256: discovery.snapshotSha256,
+      expectedWahaProviderMessageId: acceptedWaha.providerMessageId,
+      runtime,
+      context,
+    });
+
+  await durableCreateJson(path.join(evidenceDir, "success.json"), {
+    schemaVersion: 1,
+    kind: "evo-v2-10d-real-provider-workflow",
+    status: "passed",
+    gitSha,
+    recovery: {
+      occurred: true,
+      stage: "post-waha",
+      codeSha: recoverySha,
+    },
+    completedAt: new Date().toISOString(),
+    action: "one_human_reviewed_self_send_then_one_admin_amocrm_sync",
+    hashes: {
+      proposalSha256: sha256(reviewedProposal.proposalText),
+      reviewedTextSha256: sha256(reviewedText),
+      wahaReceiptSha256: sha256(acceptedWaha.providerMessageId),
+      amoEntitySetSha256: amoProvider.entitySetSha256,
+    },
+    review: {
+      decision: reviewedProposal.reviewDecision,
+      proposalCount: reviewedProposal.proposalCount,
+      humanActionObserved: true,
+    },
+    waha: {
+      attemptCount: acceptedWaha.attemptCount,
+      outboundMessageCount: acceptedWaha.outboundCount,
+      exactReadback: true,
+      initialAck: acceptedWaha.ack,
+      readbackAck: wahaReadback.ack,
+      reconciledAck: acceptedWaha.ack,
+    },
+    amocrm: {
+      attemptCount: amoDatabase.attemptCount,
+      receiptCount: amoDatabase.receiptCount,
+      contactBindingCount: amoDatabase.contactBindingCount,
+      leadBindingCount: amoDatabase.leadBindingCount,
+      validationContactCount: amoProvider.validationContactCount,
+      validationLeadCount: amoProvider.validationLeadCount,
+      validationNoteCount: amoProvider.validationNoteCount,
+      exactReadback: amoProvider.exactReadback,
+    },
+    replay: {
+      messageDelta: afterReplay.messageCount - beforeReplay.messageCount,
+      providerAttemptDelta:
+        afterReplay.amocrmAttemptCount - beforeReplay.amocrmAttemptCount,
+      receiptDelta:
+        afterReplay.commandReceiptCount - beforeReplay.commandReceiptCount,
+      bindingDelta:
+        afterReplay.contactBindingCount +
+        afterReplay.leadBindingCount -
+        beforeReplay.contactBindingCount -
+        beforeReplay.leadBindingCount,
+      businessEventDelta:
+        afterReplay.businessEventCount - beforeReplay.businessEventCount,
+      providerEntitySetUnchanged: true,
+    },
+    boundaries: {
+      database: "disposable_local_postgresql",
+      target: "connected_waha_session_self_validation_entity",
+      whatsappActionRepeated: false,
+      geminiActionRepeated: false,
+      humanReviewRepeated: false,
       v1ApplicationPathExecuted: false,
       deploymentMutated: false,
       fallbackObserved: false,

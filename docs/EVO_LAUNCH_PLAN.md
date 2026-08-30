@@ -500,6 +500,12 @@ guess, simulate or fall back.
    finalize only hashed/count evidence. An interrupted or ambiguous run
    preserves its private database and dispatch markers and resumes by exact
    reconciliation; it never starts a second send or selects another target.
+   Recovery has two explicit durable boundaries: the pre-send human-review
+   checkpoint and a post-WAHA checkpoint created only after PostgreSQL plus an
+   exact read-only provider lookup prove the one reviewed message identity and
+   ACK. A run resumed from the post-WAHA boundary disables Gemini and WAHA
+   mutation authority, performs no inbound seed, review action or send, and may
+   continue only with the one remaining amoCRM sync, read-back and exact replay.
    A provider rejection before a proposal exists, with zero downstream
    mutations, writes immutable exact-SHA failure evidence and stops. A fresh
    attempt is permitted only after a concrete new provider signal such as an

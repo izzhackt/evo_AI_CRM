@@ -9,6 +9,7 @@ expected_main_sha="${1:-${EVO_V2_EXPECTED_MAIN_SHA:-}}"
 original_attempt_sha="${EVO_V2_10D_ORIGINAL_ATTEMPT_SHA:-}"
 preserved_tmp_dir="${EVO_V2_10D_PRESERVED_TMP_DIR:-}"
 project_name="${EVO_V2_10D_PRESERVED_COMPOSE_PROJECT:-}"
+recovery_stage="${EVO_V2_10D_RECOVERY_STAGE:-review}"
 provider_env_file="${EVO_V2_AMOCRM_PROVIDER_ENV_FILE:-$repo_root/data/private-v2-provider.env}"
 token_file="${EVO_V2_AMOCRM_TOKEN_FILE:-$repo_root/data/private-v2-amocrm-token.json}"
 ssh_host="hermes-vps"
@@ -24,7 +25,18 @@ esac
 
 [[ "$#" -le 1 ]] || fail "Usage: $0 <exact-recovery-origin-main-sha>"
 [[ "${EVO_V2_REAL_END_TO_END_RECOVERY:-}" == "1" ]] \
-  || fail "Set EVO_V2_REAL_END_TO_END_RECOVERY=1 for the one preserved review recovery"
+  || fail "Set EVO_V2_REAL_END_TO_END_RECOVERY=1 for the one preserved V2-10D recovery"
+case "$recovery_stage" in
+  review)
+    playwright_mode="recovery"
+    waha_provider_authorized=1
+    ;;
+  post-waha)
+    playwright_mode="post-waha"
+    waha_provider_authorized=0
+    ;;
+  *) fail "EVO_V2_10D_RECOVERY_STAGE must be exactly review or post-waha" ;;
+esac
 [[ "$expected_main_sha" =~ ^[0-9a-f]{40}$ ]] \
   || fail "Provide the exact 40-character recovery origin/main SHA"
 [[ "$original_attempt_sha" =~ ^[0-9a-f]{40}$ ]] \
@@ -96,14 +108,21 @@ evidence_dir="$evidence_root/$original_attempt_sha"
 authority_marker="$evidence_dir/authority-blocked.json"
 review_marker="$evidence_dir/review-required.json"
 dispatch_marker="$evidence_dir/dispatch-attempt.json"
+waha_marker="$evidence_dir/waha-reconciled.json"
 success_marker="$evidence_dir/success.json"
 [[ -f "$authority_marker" && -f "$review_marker" ]] \
   || fail "The preserved disabled-authority and review markers are required"
-[[ ! -e "$dispatch_marker" \
-  && ! -e "$success_marker" \
+[[ ! -e "$success_marker" \
   && ! -e "$evidence_dir/review-rejected.json" \
   && ! -e "$evidence_dir/proposal-error.json" ]] \
-  || fail "The preserved attempt is no longer at the pre-dispatch review boundary"
+  || fail "The preserved attempt is already terminal"
+if [[ "$recovery_stage" == "review" ]]; then
+  [[ ! -e "$dispatch_marker" && ! -e "$waha_marker" ]] \
+    || fail "The preserved attempt is no longer at the pre-dispatch review boundary"
+else
+  [[ -f "$dispatch_marker" ]] \
+    || fail "Post-WAHA recovery requires the durable dispatch marker"
+fi
 
 tmp_root="$(cd "${TMPDIR:-/tmp}" && pwd -P)"
 [[ -n "$preserved_tmp_dir" && -d "$preserved_tmp_dir" && ! -L "$preserved_tmp_dir" ]] \
@@ -413,8 +432,8 @@ EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
 EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
 EVO_V2_GEMINI_PROPOSALS_ENABLED=0 \
 EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
-EVO_V2_WAHA_ENABLED=1 \
-EVO_V2_WAHA_PROVIDER_AUTHORIZED=1 \
+EVO_V2_WAHA_ENABLED="$waha_provider_authorized" \
+EVO_V2_WAHA_PROVIDER_AUTHORIZED="$waha_provider_authorized" \
 EVO_V2_WAHA_BASE_URL="http://127.0.0.1:${tunnel_port}" \
 EVO_V2_WAHA_API_KEY="$waha_api_key" \
 EVO_V2_WAHA_SESSION_NAME="$waha_session_name" \
@@ -432,7 +451,7 @@ wait_for_local_http "http://127.0.0.1:${app_port}/api/health" "$app_pid" "The pr
 PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
 DATABASE_URL="$database_url" \
 EVO_V2_REAL_END_TO_END_ACCEPTANCE=1 \
-EVO_V2_REAL_END_TO_END_MODE=recovery \
+EVO_V2_REAL_END_TO_END_MODE="$playwright_mode" \
 EVO_V2_ACCEPTANCE_MAIN_SHA="$head_sha" \
 EVO_V2_10D_ORIGINAL_ATTEMPT_SHA="$original_attempt_sha" \
 EVO_V2_10D_EVIDENCE_DIR="$evidence_dir" \
@@ -458,7 +477,7 @@ EVO_V2_CONNECTED_WAHA_SELF_LID="$self_lid" \
   || fail "The V2-10D review recovery stopped; inspect protected diagnostics before any continuation"
 chmod 600 "$browser_log"
 
-for required_marker in "$authority_marker" "$review_marker" "$dispatch_marker" "$success_marker"; do
+for required_marker in "$authority_marker" "$review_marker" "$dispatch_marker" "$waha_marker" "$success_marker"; do
   [[ -f "$required_marker" ]] || fail "Recovery did not produce every required durable marker"
   chmod 600 "$required_marker"
 done
@@ -466,27 +485,39 @@ done
 EVO_V2_10D_EVIDENCE_DIR="$evidence_dir" \
 EVO_V2_ORIGINAL_ATTEMPT_SHA="$original_attempt_sha" \
 EVO_V2_RECOVERY_MAIN_SHA="$head_sha" \
+EVO_V2_RECOVERY_STAGE="$recovery_stage" \
   "$node_bin" --input-type=module <<'EOF' || fail "The recovered V2-10D evidence is invalid"
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 const directory = process.env.EVO_V2_10D_EVIDENCE_DIR;
 const attemptSha = process.env.EVO_V2_ORIGINAL_ATTEMPT_SHA;
 const recoverySha = process.env.EVO_V2_RECOVERY_MAIN_SHA;
-const names = ["authority-blocked.json", "review-required.json", "dispatch-attempt.json", "success.json"];
+const recoveryStage = process.env.EVO_V2_RECOVERY_STAGE;
+const names = ["authority-blocked.json", "review-required.json", "dispatch-attempt.json", "waha-reconciled.json", "success.json"];
 const records = Object.fromEntries(await Promise.all(names.map(async (name) => [name, JSON.parse(await readFile(join(directory, name), "utf8"))])));
 const assert = (condition) => { if (!condition) throw new Error("redacted_v2_10d_recovery_evidence_invalid"); };
 for (const record of Object.values(records)) assert(record && typeof record === "object" && record.gitSha === attemptSha);
 const authority = records["authority-blocked.json"];
 const review = records["review-required.json"];
 const dispatch = records["dispatch-attempt.json"];
+const waha = records["waha-reconciled.json"];
 const success = records["success.json"];
 assert(authority.status === "passed" && authority.checks?.fallbackObserved === false);
 assert(review.status === "review_required" && review.proposal?.proposalCount === 1);
 assert(review.providerMutation?.wahaSendAttemptCount === 0);
 assert(review.providerMutation?.amocrmProviderAttemptCount === 0);
 assert(dispatch.status === "dispatch_intent_recorded");
-assert(dispatch.recovery?.occurred === true && dispatch.recovery?.codeSha === recoverySha);
+assert(dispatch.recovery?.occurred === true && typeof dispatch.recovery?.codeSha === "string");
+assert(recoveryStage === "review" || recoveryStage === "post-waha");
+assert(waha.status === "reconciled" && waha.recovery?.occurred === true && waha.recovery?.stage === "post-waha" && waha.recovery?.codeSha === recoverySha);
+assert(waha.review?.decision === "accepted" || waha.review?.decision === "edited");
+assert(waha.waha?.attemptCount === 1 && waha.waha?.outboundMessageCount === 1 && waha.waha?.exactReadback === true);
+assert(waha.amocrm?.attemptCount === 0 && waha.amocrm?.receiptCount === 0 && waha.amocrm?.bindingCount === 0);
+assert(waha.nextAuthorizedStep === "admin_amocrm_sync_only");
+assert(waha.boundaries?.providerReadMethod === "GET" && waha.boundaries?.whatsappActionRepeated === false);
+assert(waha.boundaries?.v1ApplicationPathExecuted === false && waha.boundaries?.deploymentMutated === false && waha.boundaries?.fallbackObserved === false);
 assert(success.status === "passed" && success.recovery?.occurred === true && success.recovery?.codeSha === recoverySha);
+if (recoveryStage === "post-waha") assert(success.recovery?.stage === "post-waha");
 assert(success.review?.decision === "accepted" || success.review?.decision === "edited");
 assert(success.review?.proposalCount === 1 && success.review?.humanActionObserved === true);
 assert(success.waha?.attemptCount === 1 && success.waha?.outboundMessageCount === 1 && success.waha?.exactReadback === true);
@@ -512,5 +543,5 @@ for (const record of Object.values(records)) inspect(record);
 EOF
 
 run_succeeded=1
-printf 'V2-10D preserved review recovery passed at exact main SHA %s. Sanitized evidence: %s\n' \
-  "$head_sha" "$success_marker"
+printf 'V2-10D preserved %s recovery passed at exact main SHA %s. Sanitized evidence: %s\n' \
+  "$recovery_stage" "$head_sha" "$success_marker"

@@ -478,8 +478,8 @@ function selectedProviderRouting(accountRaw, pipelinesRaw, usersRaw) {
       (status) =>
         status.isEditable === true &&
         status.type === 0 &&
-        status.type !== 142 &&
-        status.type !== 143,
+        status.id !== "142" &&
+        status.id !== "143",
     )
     .sort(
       (left, right) =>

@@ -674,6 +674,52 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
   });
   const provider = await exactProviderReadback(runtime, context, database);
 
+  // Re-submit the exact browser command identity and payload. A normal server
+  // refresh may rotate the hidden request ID, so this acceptance-only probe
+  // restores the original value in the rendered form to emulate an exact
+  // transport replay. The canonical service must return stored success without
+  // another provider mutation.
+  const replayRequestInput = panel
+    .getByTestId("canonical-amocrm-sync-form")
+    .locator('input[name="request_id"]');
+  await replayRequestInput.evaluate((element, exactRequestId) => {
+    (element as HTMLInputElement).value = exactRequestId;
+  }, requestId);
+  await panel.getByTestId("canonical-amocrm-note-text").fill(NOTE_TEXT);
+  const replayResponsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "POST" &&
+      url.pathname === `/sales/${leadId}`
+    );
+  });
+  await panel.getByTestId("canonical-amocrm-sync").click();
+  const replayResponse = await replayResponsePromise;
+  ensure(replayResponse.ok(), "The exact UI replay request was rejected");
+  await expect(
+    panel.getByTestId("canonical-amocrm-command-state"),
+  ).toHaveAttribute("data-status", "accepted");
+  const replayDatabase = await acceptedDatabaseProof(
+    requireEnv("DATABASE_URL"),
+    {
+      leadId,
+      requestId,
+      seedCorrelationId,
+      discoverySnapshotSha256: discovery.snapshotSha256,
+    },
+  );
+  ensure(
+    replayDatabase.attemptCount === database.attemptCount &&
+      replayDatabase.receiptCount === database.receiptCount &&
+      replayDatabase.contactBindingCount === database.contactBindingCount &&
+      replayDatabase.leadBindingCount === database.leadBindingCount &&
+      replayDatabase.providerContactId === database.providerContactId &&
+      replayDatabase.providerLeadId === database.providerLeadId &&
+      replayDatabase.providerNoteId === database.providerNoteId &&
+      replayDatabase.readbackSetSha256 === database.readbackSetSha256,
+    "Exact UI replay created a new attempt, receipt, binding or provider entity",
+  );
+
   await page.reload();
   await expect(page.getByTestId("canonical-sales-lead-workspace")).toBeVisible();
   await expect(
@@ -722,12 +768,17 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       eventCount: database.eventCount,
       discoverySnapshotCount: database.discoverySnapshotCount,
       readbackSetSha256: database.readbackSetSha256,
+      exactUiReplay: true,
+      replayAddedAttemptCount: 0,
+      replayAddedReceiptCount: 0,
+      replayAddedBindingCount: 0,
       persistedAfterReload: true,
     },
     boundaries: {
       database: "disposable_local_postgresql",
       target: "connected_waha_session_self_validation_entity",
-      v1RuntimeExecuted: false,
+      v1ApplicationPathExecuted: false,
+      existingWahaSessionReadOnly: true,
       deploymentMutated: false,
       fallbackObserved: false,
     },

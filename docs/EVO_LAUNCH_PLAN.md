@@ -467,6 +467,12 @@ guess, simulate or fall back.
    `POST /oauth2/access_token` during normal command execution. If the token is
    missing, expired, revoked, malformed or rejected, the command path fails
    clearly with no fallback auth path or blind retry.
+   The active V2 amoCRM path does not require or exercise the private-
+   integration permissions `files`, `files_delete`, `notifications` or
+   `push_notifications`. Their presence on the already connected integration,
+   if any, is pre-existing provider configuration rather than V2 authority:
+   do not add, modify or reissue token permissions solely for this acceptance
+   run.
    An ambiguous result is reconciled before retry; amoCRM is never a dual-write
    authority, fallback repository or source of a second workflow state.
 4. **V2-10D / #467 — real acceptance.** Use one minimized owner-authorized

@@ -235,6 +235,11 @@ that implied refresh-token rotation as the V2 runtime dependency:
   V2 fails clearly with no fallback auth path or blind retry;
 - the frozen V1 OAuth bundle remains historical rollback evidence only and must
   never be imported, executed, bundled or treated as V2 authority.
+- the active V2 product path does not require or exercise the private-
+  integration permissions `files`, `files_delete`, `notifications` or
+  `push_notifications`. Any such permissions already present on the connected
+  integration remain untouched provider configuration, not V2 authority and
+  not a reason to modify or reissue its token during #467.
 
 This amendment is supported by the current official Kommo contracts:
 

@@ -14364,3 +14364,46 @@ deployment change, a V1 provider mutation, a customer-data migration or an
 arbitrary amoCRM write target. It narrows #467 to the smallest truthful real
 provider proof surface. ADR 0023 now carries the same append-only target-selection
 amendment so the active authority set no longer conflicts.
+
+## 2026-08-30 - Execute V2-10C connected amoCRM proof through one validation entity
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under the owner's standing authorization for #466 and #467.
+Change type: exact-main execution refinement before the connected write proof.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+PR #483 merged as exact main `b0754c5b3b49756f4d2585d80e313648eb33175f`
+with a tree identical to its independently approved head. The first canonical,
+server-only read against the already connected amoCRM account succeeded from an
+isolated token copy. It discovered one active main pipeline, six selectable
+non-terminal statuses, one active current-user match and no existing exact
+`EVO V2 Sales` or `EVO V2 Admissions` managed tags. Only collection counts and
+a catalog hash were emitted; provider IDs, names, tokens and raw responses stay
+in a private temporary directory.
+
+The remaining #466 proof therefore uses this bounded path:
+
+- ensure the two exact managed lead tags through the documented
+  `POST /api/v4/leads/tags` provider operation, accepting the provider's
+  existing-tag response when the name already exists and never relying on
+  undocumented implicit tag creation;
+- resolve the one active main pipeline, one editable non-terminal status and
+  the connected active current user from canonical read discovery rather than
+  guessing account IDs;
+- resolve the connected WAHA session self identity read-only, seed one clearly
+  named local validation lead with that same phone, and execute the amoCRM
+  command only through the private V2 application UI and its PostgreSQL command
+  path;
+- persist and compare exact provider readback, bindings, receipts, events and
+  browser state, while publishing only redacted counts, hashes and outcome
+  states;
+- first prove that disabled provider authority fails clearly with no fallback;
+  then permit exactly one connected dispatch for the validation entity;
+- after real proof, remove the superseded active SQLite amoCRM settings/check
+  adapter and dormant parallel `platform-amocrm-*` read lane owned by the
+  replaced capability, while preserving shared non-amo SQLite code and frozen
+  V1 history.
+
+This refinement does not change the canonical data authority or widen the
+standing authorization. It permits no arbitrary customer selection, no V1
+file/container/route change, no customer migration, deployment or cutover.

@@ -354,7 +354,7 @@ tunnel_pid=$!
 chmod 600 "$tunnel_log"
 wait_for_local_http "http://127.0.0.1:${tunnel_port}/" "$tunnel_pid" "The private WAHA tunnel"
 
-docker compose "${compose_args[@]}" up --detach postgres >/dev/null
+docker compose "${compose_args[@]}" start postgres >/dev/null
 compose_started=1
 health_deadline=$((SECONDS + 120))
 postgres_status=""

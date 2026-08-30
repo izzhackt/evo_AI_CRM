@@ -41,7 +41,7 @@ test("V2-10D recovery binds one preserved review to exact current main", async (
   );
   const postgresStart = sourceIndex(
     source,
-    'docker compose "${compose_args[@]}" up --detach postgres',
+    'docker compose "${compose_args[@]}" start postgres',
   );
   const recoveryMode = sourceIndex(
     source,

@@ -193,3 +193,20 @@ and exact-main verification before the next child starts.
   prerequisites, but routine approval prompts do not.
 - Production authentication, public/VPS deployment, broad customer migration,
   readiness/recovery, pilot and cutover remain deferred.
+
+## Amendment 2026-08-30: exact target selection for #467
+
+For #467 target selection only, this amendment supersedes the earlier phrases
+"one minimized existing real conversation/case" in the Context and Decision
+section 5. The owner-authorized acceptance run must use exactly one safe target:
+
+- one already identified existing real conversation/case; or
+- when no such exact safe case is identified, one clearly marked validation
+  entity tied to the connected WAHA session self identity.
+
+The validation entity is bounded technical provider evidence, not a fake/demo
+business record and not permission to claim customer or business acceptance.
+The run must never select an arbitrary customer merely to complete the test.
+Private identifiers, raw transcript text, tokens and provider responses remain
+outside Git and GitHub evidence. All other ADR 0023 decisions and the frozen V1
+boundary remain unchanged.

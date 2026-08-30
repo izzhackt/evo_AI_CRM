@@ -14335,3 +14335,32 @@ Validation on Node `22.23.1`, OrbStack `Running` and Docker context exactly
 
 This is still isolated product proof. It does not claim a connected amoCRM
 mutation, provider-account acceptance, V1 mutation, deployment or cutover.
+
+## 2026-08-30 - Clarify the exact safe target for V2-10D real provider acceptance
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under owner-authorized parent #463 and child #467.
+Change type: execution-contract clarification before implementation.
+Affected plan section: V2-10D bounded real provider, PostgreSQL, application and browser acceptance.
+
+The active #467 issue text still says "one minimized existing real
+conversation/case," but the newer real-provider decisions already reject
+arbitrary customer selection and allow a clearly marked validation entity where
+that is the safer exact target. The safe interpretation for #467 is now:
+
+- use one owner-authorized exact provider target only;
+- prefer an existing real conversation/case when one exact safe target is
+  already identified;
+- otherwise use one clearly marked validation entity tied to the connected
+  WAHA session self identity, so the run proves the real canonical product path
+  without selecting an arbitrary customer or broadening customer-data handling;
+- keep identifiers, raw transcript text, tokens and provider responses out of
+  Git, GitHub evidence and browser-visible logs;
+- if neither an exact real target nor a bounded self-identity validation
+  target can be resolved from the connected providers, block honestly.
+
+This clarification changes no product runtime path and does not authorize a V1
+deployment change, a V1 provider mutation, a customer-data migration or an
+arbitrary amoCRM write target. It narrows #467 to the smallest truthful real
+provider proof surface. ADR 0023 now carries the same append-only target-selection
+amendment so the active authority set no longer conflicts.

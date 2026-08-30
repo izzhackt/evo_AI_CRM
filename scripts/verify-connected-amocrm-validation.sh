@@ -261,7 +261,8 @@ done
   --self-file "$self_file"
 
 DATABASE_URL="$database_url" \
-  "$node_bin" scripts/prepare-connected-amocrm-validation.mjs seed \
+  "$node_bin" --conditions=react-server --experimental-strip-types \
+    scripts/prepare-connected-amocrm-validation.mjs seed \
     --self-file "$self_file" \
     --context-file "$context_file"
 

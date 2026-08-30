@@ -51,6 +51,10 @@ test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async (
   assert.ok(tunnelIndex > addressValidationIndex && forwardIndex > tunnelIndex);
   assert.match(source, /-L "127\.0\.0\.1:\$\{tunnel_port\}:/u);
   assert.match(source, /read-waha-self/u);
+  assert.match(
+    source,
+    /"\$node_bin" --conditions=react-server --experimental-strip-types \\\n+\s+scripts\/prepare-connected-amocrm-validation\.mjs seed/u,
+  );
   assert.match(source, /authority-blocked\.json/u);
   assert.match(source, /provider-preparation-attempt\.json/u);
   assert.match(source, /dispatch-attempt\.json/u);

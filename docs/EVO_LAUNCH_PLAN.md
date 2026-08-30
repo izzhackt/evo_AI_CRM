@@ -6,7 +6,7 @@ Authority: owner direction, parent issue #463, ADR 0023, ADR 0022 for the
 completed foundation, this plan and the latest append-only
 `docs/PLAN_CHANGES.md` entry
 Verified starting baseline: GitHub `origin/main` at
-`f176153328bf407fa76a7ed9daa31c8b01a92de5`
+`afb2a3724b1e6730b21401938a088a987b2ace13`
 
 ## Current V2 authority: validate the CRM product first
 
@@ -48,7 +48,10 @@ lifecycle, signup, invitation, password recovery, per-user grant system,
 membership administration or real-staff claim. The local contour remains
 private/non-public. It does not ingest or migrate a broad real customer data
 set; #464-#467 may use only the minimum fields and transcript context from one
-owner-authorized existing real conversation/case needed for provider proof.
+owner-authorized exact provider target needed for proof: either an existing
+real conversation/case or one clearly marked validation entity on the connected
+session self identity. The run must never select an arbitrary customer merely
+to satisfy acceptance.
 
 The roles still have real server-side behavior:
 
@@ -448,12 +451,13 @@ guess, simulate or fall back.
    An ambiguous result is reconciled before retry; amoCRM is never a dual-write
    authority, fallback repository or source of a second workflow state.
 4. **V2-10D / #467 — real acceptance.** Use one minimized owner-authorized
-   existing real conversation/case whose private identifiers stay out of Git
-   and GitHub evidence. Prove `Gemini proposal -> human review -> explicit WAHA
-   send -> provider identity/ACK -> amoCRM command/read-back` through the real
-   application, PostgreSQL and Chromium. If no exact safe case can be resolved,
-   the run blocks honestly rather than selecting an arbitrary customer or
-   creating fake business data.
+   exact provider target whose private identifiers stay out of Git and GitHub
+   evidence: either an existing real conversation/case or one clearly marked
+   validation entity on the connected session self identity. Prove `Gemini
+   proposal -> human review -> explicit WAHA send -> provider identity/ACK ->
+   amoCRM command/read-back` through the real application, PostgreSQL and
+   Chromium. If no exact safe target can be resolved, the run blocks honestly
+   rather than selecting an arbitrary customer or creating fake business data.
 
 Provider secrets remain in ignored server-only files or the authorized secret
 injection workflow and never enter browser state, PostgreSQL business rows,

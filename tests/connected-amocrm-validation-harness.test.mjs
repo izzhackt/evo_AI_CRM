@@ -71,6 +71,35 @@ test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async (
   assert.doesNotMatch(source, /source\s+.*provider/u);
 });
 
+test("connected amoCRM harness canonicalizes a trailing-slash TMPDIR before creating private paths", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "evo-amocrm-tmp-root."));
+  try {
+    const result = spawnSync(
+      "bash",
+      [fileURLToPath(SHELL_PATH), "0".repeat(40)],
+      {
+        cwd: fileURLToPath(new URL("..", import.meta.url)),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          EVO_NODE_BIN: process.execPath,
+          EVO_V2_REAL_AMOCRM_ACCEPTANCE: "0",
+          TMPDIR: `${directory}/`,
+        },
+      },
+    );
+
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /Connected amoCRM acceptance requires EVO_V2_REAL_AMOCRM_ACCEPTANCE=1/u,
+    );
+    assert.doesNotMatch(result.stderr, /\/{2}evo-v2-real-amocrm\./u);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("preparation helper maps only the explicit legacy provider keys into private V2 state", async () => {
   const source = await readFile(PREPARE_PATH, "utf8");
 

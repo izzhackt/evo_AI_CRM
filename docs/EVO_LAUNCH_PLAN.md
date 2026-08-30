@@ -500,6 +500,14 @@ guess, simulate or fall back.
    finalize only hashed/count evidence. An interrupted or ambiguous run
    preserves its private database and dispatch markers and resumes by exact
    reconciliation; it never starts a second send or selects another target.
+   A provider rejection before a proposal exists, with zero downstream
+   mutations, writes immutable exact-SHA failure evidence and stops. A fresh
+   attempt is permitted only after a concrete new provider signal such as an
+   owner-supplied credential that passes a real non-mutating provider check,
+   an append-only authorization entry, a newly reviewed and merged exact-main
+   SHA and an empty evidence directory for that SHA. The prior failure marker
+   is never edited, moved or deleted, and the fresh attempt remains single and
+   bounded rather than becoming an automatic retry loop.
 
 Provider secrets remain in ignored server-only files or the authorized secret
 injection workflow and never enter browser state, PostgreSQL business rows,

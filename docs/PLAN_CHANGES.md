@@ -14619,3 +14619,38 @@ its long-lived token solely for #467. The inert acceptance harness must contain
 no amoCRM file or notification operation, and the exact-main run must stop if
 the canonical implemented path cannot complete instead of broadening provider
 permissions or adding a fallback.
+
+## 2026-08-30 - Authorize one fresh V2-10D attempt after Gemini credential rotation
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under the owner's explicit instruction to replace the copied
+Gemini key and try the real path.
+Change type: bounded external-input retry authorization; no acceptance or
+provider-side-effect weakening.
+Affected plan section: V2-10D real acceptance and Issue #467.
+
+The exact-main attempt on
+`449fdb21fca03f24d4b92f53d0e5634d2fd5cec7` stopped before human review with
+the real Gemini `provider_rate_limited` result. Its exact-SHA evidence remains
+immutable. It recorded zero proposals, WAHA attempts/messages, amoCRM attempts
+or provider bindings, so there is no provider side effect to reconcile and no
+authority to edit, move or delete the old marker.
+
+The owner then supplied a replacement Gemini credential through the local
+clipboard and explicitly authorized replacing the private key and trying the
+real path. The value was handled only through process stdin, was not printed,
+hashed into public evidence or written to the repository, and passed a real
+non-mutating Gemini model-list request with HTTP 200 before installation. Only
+`GEMINI_API_KEY` in the existing root-owned mode-0600 Hermes Lead Agent
+environment was atomically replaced; all non-key lines were verified
+unchanged, a root-only recovery copy was retained, and no V1 container was
+restarted or deployed.
+
+After this amendment is independently reviewed, merged and green on exact
+`main`, it authorizes exactly one fresh #467 execution against the new SHA and
+its initially empty evidence directory. The old failure directory remains
+preserved. Another provider-stage failure stops again without looping. A
+successful proposal must still wait for the real human review/edit decision
+and explicit single-send confirmation before WAHA or amoCRM can mutate; all
+other target, read-back, replay, privacy and frozen-V1 boundaries remain
+unchanged.

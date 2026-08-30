@@ -5604,3 +5604,136 @@ later itemized, separately approved and recoverability-checked operation.
   <https://supabase.com/docs/guides/deployment/going-into-prod>.
 - Docker Compose project-name isolation:
   <https://docs.docker.com/compose/how-tos/project-name/>.
+
+## V2-11 — Staff frontend truth and journey completion (2026-08-31)
+
+V2-11 is the current frontend completion contract for the private local V2
+product contour. It supersedes older UI-only descriptions where they conflict,
+but it does not change the frozen V1 production boundary or authorize a
+deployment, provider mutation, customer-data mutation or cutover.
+
+### Outcome and evidence baseline
+
+The frontend is complete only when one root Next.js application presents the
+three fixed staff roles — Admin, Sales and Admissions — and the complete core
+journey works against the real local PostgreSQL V2 authority:
+
+`Sales pipeline -> Lead 360 and qualification -> contract/payment gate ->
+audited handoff -> Student 360 -> tasks/documents/applications/visa/minimal
+finance stop or release -> WhatsApp with a human-reviewed Gemini draft`.
+
+Finance is a module available to Admin and Admissions, not a fourth role.
+Marketing and Student Portal remain outside this active staff slice. The
+Claude Design lineage committed under `docs/design/evo-platform` and the
+2026-08-29 UX/UI evidence package are visual references only; no EVO-owned
+Figma file is verified, and historical images never count as current runtime
+or provider proof.
+
+The exact starting baseline is `origin/main` commit
+`f87bd37fa4ed2b88b35fc2a263459f5d1bcff0a0`, whose exact-head EVO Platform CI
+was green when this block began. The live audit uses the root application and
+the preserved local PostgreSQL V2 contract without
+`EVO_UI_CONTRACT_FIXTURES`, demo seed, mock provider or fallback repository.
+The route and state inventory is maintained in
+`docs/frontend/V2_FRONTEND_COMPLETION_MATRIX.md`.
+
+### Product and safety invariants
+
+1. Keep exactly one staff product, one shell, one fixed-role policy, one active
+   route per capability and PostgreSQL as the only V2 business authority.
+2. Admin is the functional superset and may preview the exact Sales or
+   Admissions interface. Sales cannot cross the audited handoff boundary;
+   Admissions cannot perform Sales work before handoff.
+3. `/applications`, `/documents`, `/visa` and `/finance` are operational queues;
+   Student 360 remains the canonical case write surface. `/tasks` is the shared
+   operational task queue. `/whatsapp` is the one role-scoped staff inbox.
+4. Loading, empty, error, access-denied, blocked and not-configured states must
+   be explicit. A configured provider is not described as verified; a provider
+   previously accepted in a separate run is not described as available in a
+   runtime that lacks its current server-side configuration.
+5. Gemini is advisory. It may create a draft, but only a staff member may edit,
+   approve and explicitly send the final text. No autonomous send, blind retry
+   or fallback provider exists.
+6. Preserve the accepted EVO visual language, responsive shell and semantic
+   status treatment. Do not preserve stale Supabase/U2/PR copy, fixture labels,
+   duplicate active routes or legacy runtime behavior for compatibility.
+7. Keyboard navigation, visible focus, semantic headings, descriptive document
+   titles, contrast, reflow and target sizing are release criteria, not polish.
+8. Browser proof may read the real local V2 data and select Admin role previews.
+   It must not send WhatsApp, request Gemini, write amoCRM, alter provider
+   settings, deploy, or mutate real customer data.
+
+### Delivery blocks
+
+#### V2-11A — current-main matrix and implementation contract
+
+- Record every core page, role, active route, code owner, runtime state and
+  responsive/accessibility/provider observation.
+- Attach only screenshots captured from the current no-fixture runtime.
+- Separate verified defects from desired future work and from proof that is
+  blocked by an absent external credential or service.
+
+#### V2-11B — truthful shell, roles and navigation
+
+- Make the visible navigation match the server-enforced fixed-role contract,
+  including Visa and Finance for Admissions and Admin.
+- Replace hard-coded global provider badges with runtime-derived,
+  non-secret disclosure that distinguishes `not configured`, `configured but
+  not verified here`, and a real blocked result.
+- Remove stale active V2 references to Supabase, U2 delivery slices, old PRs or
+  fixture-only behavior, without rewriting historical evidence.
+- Give each core route a descriptive document title and one clear main heading.
+
+#### V2-11C — core workflow usability, states and responsive access
+
+- Make the Sales queue usable without a single unbounded mobile page while
+  preserving cursor/query validation and one canonical read path.
+- Keep Lead 360 and Student 360 information dense but navigable, with the
+  required gate, owner, next action, blockers and linked work surfaces visible.
+- Make a selected WhatsApp conversation reachable before or independently of
+  a long mobile queue, while preserving the one-inbox authority.
+- Add missing loading/error/not-found coverage at the closest useful route
+  boundary, and verify safe recovery actions.
+- Correct confirmed focus, target-size, contrast, label or heading defects using
+  the existing design tokens and components.
+
+#### V2-11D — real completion audit
+
+- Run type checks, lint, focused outcome tests and a production build on the
+  exact PR head with the repository Node 22 runtime.
+- Start the real root app against the real local PostgreSQL V2 database with no
+  fixture, demo, mock or fallback flag and verify Admin, Sales and Admissions.
+- Check desktop (1280x720), tablet (834x1194) and mobile (390x844) for navigation,
+  reflow, blocked/not-configured disclosure and the complete core journey.
+- Capture fresh final screenshots and an explicit negative inventory for stale
+  active frontend references. Record separately: code correctness, local real
+  runtime proof, real provider proof and production proof.
+
+### Merge and completion gates
+
+Each V2-11 block is a small conventional-commit PR. A separate reviewer must
+return `approved` for the exact PR head before the controller may merge it with
+an exact-head guard. Exact-main CI must be green before the next block begins.
+The long run must not claim frontend completion while a verified core route,
+role, state, viewport, keyboard path or current-runtime provider disclosure is
+unproved. An absent external provider credential blocks only that provider
+proof; it does not block finishing the remaining local frontend work.
+
+### Current official implementation basis
+
+- Next.js error boundaries and expected-error handling:
+  <https://nextjs.org/docs/app/getting-started/error-handling>.
+- Next.js route announcements, lint accessibility checks and semantic titles:
+  <https://nextjs.org/docs/architecture/accessibility>.
+- Next.js loading and navigation behavior:
+  <https://nextjs.org/docs/app/getting-started/linking-and-navigating>.
+- React action-state and form-status patterns:
+  <https://react.dev/reference/react/useActionState> and
+  <https://react.dev/reference/react-dom/hooks/useFormStatus>.
+- Playwright accessibility testing and screenshots:
+  <https://playwright.dev/docs/accessibility-testing> and
+  <https://playwright.dev/docs/screenshots>.
+- WCAG 2.2 reflow, target size and focus requirements:
+  <https://www.w3.org/WAI/WCAG22/Understanding/reflow.html>,
+  <https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html> and
+  <https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html>.

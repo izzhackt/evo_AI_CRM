@@ -13,7 +13,7 @@ const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const imageDigests = { evo_inbox: `sha256:${"2".repeat(64)}`, lead_agent: `sha256:${"3".repeat(64)}`, main_crm: `sha256:${"1".repeat(64)}` };
 const targetPlatform = { architecture: "amd64", os: "linux", variant: "" };
 const p8Segments = () => Object.fromEntries(["configuration_identity", "image_identity", "migration_identity", "repository_identity", "runtime_setting_inventory", "validation_identity"].map((name) => [name, { candidate_commit: candidate, evidence: { path: `${name.replaceAll("_", "-")}.json`, sha256: "9".repeat(64) }, operation: `verify_${name}`, result: "verified", status: "verified", timestamp: "2026-08-14T00:00:00.000Z" }]));
-const baseArgs = (f) => ({ candidateCommit: candidate, candidateManifestPath: f.candidateManifestPath, collectionIndexPath: f.collectionIndexPath, evidenceIndexPath: f.evidenceIndexPath, evidenceRoot: f.evidenceRoot, inputPath: f.inputPath, mergedMainCommit: merged, outputPath: f.outputPath, p8bEvidenceIndexPath: f.p8bEvidenceIndexPath, prNumber: 179, repoRoot, timestamp: "2026-08-14T00:00:00.000Z" });
+const baseArgs = (f) => ({ candidateCommit: candidate, candidateManifestPath: f.candidateManifestPath, collectionIndexPath: f.collectionIndexPath, evidenceIndexPath: f.evidenceIndexPath, evidenceRoot: f.evidenceRoot, inputPath: f.inputPath, mainlineCommit: merged, mergedMainCommit: merged, outputPath: f.outputPath, p8bEvidenceIndexPath: f.p8bEvidenceIndexPath, prNumber: 179, repoRoot, timestamp: "2026-08-14T00:00:00.000Z" });
 
 function fixture(statuses = {}) {
   const root = mkdtempSync(join(tmpdir(), "p8c-"));
@@ -89,6 +89,7 @@ test("binds the P8B head to the identical squash-main tree without relabelling i
   const f = fixture({ hermes: "blocked" });
   const report = createP8CReport(baseArgs(f));
   assert.equal(report.candidate.pr_head_commit, candidate);
+  assert.equal(report.candidate.mainline_commit, merged);
   assert.equal(report.candidate.merged_main_commit, merged);
   assert.equal(report.candidate.trees_equal, true);
   assert.deepEqual(report.candidate.image_digests, imageDigests);
@@ -100,6 +101,14 @@ test("binds the P8B head to the identical squash-main tree without relabelling i
   assert.equal(report.schema_version, 2);
   assert.equal(report.overall_status, "blocked");
   assert.equal(JSON.parse(readFileSync(f.outputPath, "utf8")).candidate.pr_head_commit, candidate);
+});
+
+test("binds merged-main ancestry to the supplied immutable mainline commit", () => {
+  const f = fixture();
+  assert.throws(
+    () => createP8CReport({ ...baseArgs(f), mainlineCommit: candidate }),
+    /merged main commit is not an ancestor of the supplied mainline commit/,
+  );
 });
 
 test("rejects candidates that are not the closed linux/amd64 platform", () => {
@@ -189,7 +198,7 @@ test("keeps closed, version-discriminated report schema branches", () => {
   const v2Candidate = createP8CReport(baseArgs(fixture())).candidate;
   assert.equal(structurallyValid(v2Candidate, schema.$defs.candidate_v2), true);
   const v1Candidate = { ...v2Candidate };
-  for (const key of ["candidate_evidence_index_sha256", "candidate_manifest_sha256", "p8b2_collection_index_sha256", "target_platform"]) delete v1Candidate[key];
+  for (const key of ["candidate_evidence_index_sha256", "candidate_manifest_sha256", "mainline_commit", "p8b2_collection_index_sha256", "target_platform"]) delete v1Candidate[key];
   assert.equal(structurallyValid(v1Candidate, schema.$defs.candidate_v1), true);
   assert.equal(structurallyValid(v1Candidate, schema.$defs.candidate_v2), false);
   assert.equal(structurallyValid({ ...v1Candidate, unknown: true }, schema.$defs.candidate_v1), false);

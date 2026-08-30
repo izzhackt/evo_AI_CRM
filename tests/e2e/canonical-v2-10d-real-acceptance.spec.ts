@@ -361,6 +361,23 @@ async function readMutationCounts(
   }
 }
 
+function sameMutationCounts(
+  before: MutationCounts,
+  after: MutationCounts,
+): boolean {
+  return (
+    before.proposalCount === after.proposalCount &&
+    before.wahaAttemptCount === after.wahaAttemptCount &&
+    before.outboundMessageCount === after.outboundMessageCount &&
+    before.messageCount === after.messageCount &&
+    before.amocrmAttemptCount === after.amocrmAttemptCount &&
+    before.commandReceiptCount === after.commandReceiptCount &&
+    before.contactBindingCount === after.contactBindingCount &&
+    before.leadBindingCount === after.leadBindingCount &&
+    before.businessEventCount === after.businessEventCount
+  );
+}
+
 type ProposalProof = Readonly<{
   proposalId: string;
   provider: string;
@@ -1321,9 +1338,51 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
   ).toHaveText(selfId);
 
   await page.getByTestId("canonical-gemini-proposal-request").click();
-  await expect(
-    page.getByTestId("canonical-gemini-proposal-action-state"),
-  ).toHaveAttribute("data-status", "created", { timeout: 90_000 });
+  const proposalActionState = page.getByTestId(
+    "canonical-gemini-proposal-action-state",
+  );
+  await expect
+    .poll(
+      async () =>
+        (await proposalActionState.getAttribute("data-status")) ?? "",
+      { timeout: 90_000 },
+    )
+    .toMatch(/^(?:blocked|created|error|invalid)$/u);
+  const proposalStatus = await proposalActionState.getAttribute("data-status");
+  if (proposalStatus !== "created") {
+    const proposalReason = await proposalActionState.getAttribute("data-reason");
+    ensure(
+      typeof proposalReason === "string" &&
+        /^[a-z][a-z0-9_]{0,63}$/u.test(proposalReason),
+      "The proposal-stage failure reason was not a bounded code",
+    );
+    const afterProposalFailure = await readMutationCounts(
+      databaseUrl,
+      leadId,
+      seed.conversationId,
+    );
+    ensure(
+      sameMutationCounts(beforeProposal, afterProposalFailure),
+      "The failed Gemini proposal stage changed canonical or provider mutation state",
+    );
+    await durableCreateJson(path.join(evidenceDir, "proposal-error.json"), {
+      schemaVersion: 1,
+      kind: "evo-v2-10d-proposal-error",
+      status: "stopped_before_review",
+      gitSha,
+      createdAt: new Date().toISOString(),
+      actionStatus: proposalStatus,
+      reasonCode: proposalReason,
+      providerMutationCounts: afterProposalFailure,
+      boundaries: {
+        humanReviewReached: false,
+        outboundDispatchReached: false,
+        amocrmSyncReached: false,
+        retryAuthorized: false,
+      },
+    });
+    throw new Error("The real Gemini proposal stopped before human review");
+  }
   const latestProposal = page.getByTestId("canonical-gemini-proposal-latest");
   await expect(latestProposal).toBeVisible();
   await expect(latestProposal).toHaveAttribute(

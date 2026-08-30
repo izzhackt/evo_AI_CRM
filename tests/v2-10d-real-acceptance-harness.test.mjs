@@ -193,6 +193,41 @@ test("V2-10D failure preserves PostgreSQL state and forbids blind recovery", asy
   assert.doesNotMatch(source, /curl[^\n]*-X\s+(?:POST|PATCH|PUT|DELETE)/u);
 });
 
+test("V2-10D records a sanitized proposal-stage provider error before stopping", async () => {
+  const source = await readFile(SPEC_PATH, "utf8");
+  const operatorMode = sourceIndex(source, 'requiredMode() !== "operator"');
+  const proposalRequest = source.indexOf(
+    'getByTestId("canonical-gemini-proposal-request").click()',
+    operatorMode,
+  );
+  assert.notEqual(proposalRequest, -1, "missing operator Gemini request");
+  const proposalFailureReadback = sourceIndex(
+    source,
+    "const afterProposalFailure = await readMutationCounts(",
+  );
+  const proposalErrorMarker = sourceIndex(source, '"proposal-error.json"');
+  const reviewMarker = sourceIndex(source, '"review-required.json"');
+
+  assert.ok(proposalRequest < proposalFailureReadback);
+  assert.ok(proposalFailureReadback < proposalErrorMarker);
+  assert.ok(proposalErrorMarker < reviewMarker);
+  assert.match(source, /proposalStatus !== "created"/u);
+  assert.match(source, /sameMutationCounts\(beforeProposal, afterProposalFailure\)/u);
+  assert.match(source, /kind: "evo-v2-10d-proposal-error"/u);
+  assert.match(source, /status: "stopped_before_review"/u);
+  assert.match(source, /actionStatus: proposalStatus/u);
+  assert.match(source, /reasonCode: proposalReason/u);
+  assert.match(source, /providerMutationCounts: afterProposalFailure/u);
+  const proposalErrorEnd = sourceIndex(
+    source,
+    'throw new Error("The real Gemini proposal stopped before human review")',
+  );
+  assert.doesNotMatch(
+    source.slice(proposalErrorMarker, proposalErrorEnd),
+    /proposalText|reviewedText|phone|selfId|token|apiKey|providerMessageId/iu,
+  );
+});
+
 test("V2-10D normalizes one WAHA phone identity and uses no excluded amoCRM capability", async () => {
   const shell = await readFile(SHELL_PATH, "utf8");
   const spec = await readFile(SPEC_PATH, "utf8");

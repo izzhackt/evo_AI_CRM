@@ -4,9 +4,6 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 
 const ACCOUNT_DOMAIN_PATTERN =
   /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.(amocrm\.ru|kommo\.com)$/u;
-const MIN_CLIENT_ID_BYTES = 8;
-const MIN_CLIENT_SECRET_BYTES = 16;
-const MAX_CREDENTIAL_BYTES = 4_096;
 const MAX_PATH_BYTES = 4_096;
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MIN_TIMEOUT_MS = 1_000;
@@ -17,9 +14,6 @@ export const CANONICAL_AMOCRM_REQUEST_INTERVAL_MS = 150;
 
 export type CanonicalAmoCrmMissingConfiguration =
   | "base_url"
-  | "client_id"
-  | "client_secret"
-  | "redirect_uri"
   | "token_file";
 
 export type CanonicalAmoCrmBlockedReason =
@@ -39,9 +33,6 @@ export type CanonicalAmoCrmProviderConfig =
       accountDomain: string;
       accountOrigin: string;
       accountSubdomain: string;
-      clientId: string;
-      clientSecret: string;
-      redirectUri: string;
       tokenFilePath: string;
       timeoutMs: number;
       maxResponseBytes: number;
@@ -52,9 +43,6 @@ export type CanonicalAmoCrmConfigurationErrorCode =
   | "invalid_enabled_flag"
   | "invalid_authorization_flag"
   | "invalid_base_url"
-  | "invalid_client_id"
-  | "invalid_client_secret"
-  | "invalid_redirect_uri"
   | "invalid_token_file"
   | "invalid_timeout";
 
@@ -75,23 +63,6 @@ function flag(
   if (value === undefined || value === "" || value === "0") return false;
   if (value === "1") return true;
   throw new CanonicalAmoCrmConfigurationError(errorCode);
-}
-
-function boundedText(
-  value: string,
-  minimumBytes: number,
-  errorCode: "invalid_client_id" | "invalid_client_secret",
-): string {
-  const bytes = Buffer.byteLength(value, "utf8");
-  if (
-    value.trim() !== value ||
-    bytes < minimumBytes ||
-    bytes > MAX_CREDENTIAL_BYTES ||
-    /[\u0000-\u001f\u007f]/u.test(value)
-  ) {
-    throw new CanonicalAmoCrmConfigurationError(errorCode);
-  }
-  return value;
 }
 
 function account(value: string): Readonly<{
@@ -127,31 +98,6 @@ function account(value: string): Readonly<{
     origin: `https://${domain}`,
     subdomain: match[1],
   });
-}
-
-function redirect(value: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new CanonicalAmoCrmConfigurationError("invalid_redirect_uri");
-  }
-
-  const isLoopbackHttp =
-    parsed.protocol === "http:" &&
-    (parsed.hostname === "localhost" ||
-      parsed.hostname === "127.0.0.1" ||
-      parsed.hostname === "[::1]");
-  if (
-    value.trim() !== value ||
-    (parsed.protocol !== "https:" && !isLoopbackHttp) ||
-    parsed.username !== "" ||
-    parsed.password !== "" ||
-    parsed.hash !== ""
-  ) {
-    throw new CanonicalAmoCrmConfigurationError("invalid_redirect_uri");
-  }
-  return value;
 }
 
 function tokenFile(value: string): string {
@@ -218,9 +164,6 @@ export function loadCanonicalAmoCrmProviderConfig(
 
   const values = Object.freeze({
     base_url: environment.EVO_V2_AMOCRM_BASE_URL,
-    client_id: environment.EVO_V2_AMOCRM_CLIENT_ID,
-    client_secret: environment.EVO_V2_AMOCRM_CLIENT_SECRET,
-    redirect_uri: environment.EVO_V2_AMOCRM_REDIRECT_URI,
     token_file: environment.EVO_V2_AMOCRM_TOKEN_FILE,
   });
   const missing = (Object.entries(values) as [CanonicalAmoCrmMissingConfiguration, string | undefined][])
@@ -240,13 +183,6 @@ export function loadCanonicalAmoCrmProviderConfig(
     accountDomain: normalizedAccount.domain,
     accountOrigin: normalizedAccount.origin,
     accountSubdomain: normalizedAccount.subdomain,
-    clientId: boundedText(values.client_id!, MIN_CLIENT_ID_BYTES, "invalid_client_id"),
-    clientSecret: boundedText(
-      values.client_secret!,
-      MIN_CLIENT_SECRET_BYTES,
-      "invalid_client_secret",
-    ),
-    redirectUri: redirect(values.redirect_uri!),
     tokenFilePath: tokenFile(values.token_file!),
     timeoutMs: timeout(environment.EVO_V2_AMOCRM_TIMEOUT_MS),
     maxResponseBytes: CANONICAL_AMOCRM_MAX_RESPONSE_BYTES,

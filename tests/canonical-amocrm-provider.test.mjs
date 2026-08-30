@@ -4,7 +4,6 @@ import {
   lstat,
   mkdtemp,
   readFile,
-  readdir,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -27,13 +26,9 @@ import {
 import {
   CanonicalAmoCrmTokenFileError,
   readCanonicalAmoCrmTokenFile,
-  rotateCanonicalAmoCrmTokenFile,
 } from "../src/lib/server/canonical-amocrm-token-store.ts";
 
 const SECRET_ACCESS = "access-token-that-must-never-leak";
-const SECRET_REFRESH = "refresh-token-that-must-never-leak";
-const SECRET_CLIENT = "client-secret-that-must-never-leak";
-
 async function makePrivateTokenFile(prefix = "evo-v2-amocrm-") {
   const directory = await mkdtemp(join(tmpdir(), prefix));
   const tokenFilePath = join(directory, "token.json");
@@ -42,8 +37,6 @@ async function makePrivateTokenFile(prefix = "evo-v2-amocrm-") {
     `${JSON.stringify({
       token_type: "Bearer",
       access_token: SECRET_ACCESS,
-      refresh_token: SECRET_REFRESH,
-      expires_in: 86_400,
     })}\n`,
     { encoding: "utf8", mode: 0o600 },
   );
@@ -56,9 +49,6 @@ function readyEnvironment(tokenFilePath) {
     EVO_V2_AMOCRM_WRITES_ENABLED: "1",
     EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "1",
     EVO_V2_AMOCRM_BASE_URL: "https://evoadmissions.amocrm.ru",
-    EVO_V2_AMOCRM_CLIENT_ID: "technical-client-id-123456",
-    EVO_V2_AMOCRM_CLIENT_SECRET: SECRET_CLIENT,
-    EVO_V2_AMOCRM_REDIRECT_URI: "https://private.evo.example/oauth/amocrm",
     EVO_V2_AMOCRM_TOKEN_FILE: tokenFilePath,
   };
 }
@@ -122,13 +112,7 @@ test("canonical amoCRM requires standing authorization and every server-only val
     {
       status: "blocked",
       reason: "configuration_missing",
-      missing: [
-        "base_url",
-        "client_id",
-        "client_secret",
-        "redirect_uri",
-        "token_file",
-      ],
+      missing: ["base_url", "token_file"],
     },
   );
 
@@ -137,7 +121,6 @@ test("canonical amoCRM requires standing authorization and every server-only val
       ...readyEnvironment(undefined),
       EVO_V2_AMOCRM_TOKEN_FILE: undefined,
       EVO_V2_AMOCRM_ACCESS_TOKEN: SECRET_ACCESS,
-      EVO_V2_AMOCRM_REFRESH_TOKEN: SECRET_REFRESH,
     }),
     {
       status: "blocked",
@@ -162,7 +145,7 @@ test("canonical amoCRM normalizes a strict HTTPS account and exposes fixed safet
   assert.equal("supabaseUrl" in config, false);
 });
 
-test("canonical amoCRM rejects malformed flags, unsafe hosts, and unsafe redirect URIs", async () => {
+test("canonical amoCRM rejects malformed flags, unsafe hosts, and unsafe token paths", async () => {
   const { tokenFilePath } = await makePrivateTokenFile();
   const base = readyEnvironment(tokenFilePath);
   const cases = [
@@ -176,7 +159,6 @@ test("canonical amoCRM rejects malformed flags, unsafe hosts, and unsafe redirec
     [{ ...base, EVO_V2_AMOCRM_BASE_URL: "https://evo.amocrm.ru.evil.test" }, "invalid_base_url"],
     [{ ...base, EVO_V2_AMOCRM_BASE_URL: "https://evo.amocrm.ru/api/v4" }, "invalid_base_url"],
     [{ ...base, EVO_V2_AMOCRM_BASE_URL: "https://user:pass@evo.amocrm.ru" }, "invalid_base_url"],
-    [{ ...base, EVO_V2_AMOCRM_REDIRECT_URI: "http://public.example/callback" }, "invalid_redirect_uri"],
     [{ ...base, EVO_V2_AMOCRM_TOKEN_FILE: "  token.json" }, "invalid_token_file"],
     [
       { ...base, EVO_V2_AMOCRM_TOKEN_FILE: "src/accidental-token.json" },
@@ -189,28 +171,37 @@ test("canonical amoCRM rejects malformed flags, unsafe hosts, and unsafe redirec
       () => loadCanonicalAmoCrmProviderConfig(environment),
       (error) =>
         error instanceof CanonicalAmoCrmConfigurationError &&
-        error.code === code &&
-        !error.message.includes(SECRET_CLIENT),
+        error.code === code,
     );
   }
 });
 
-test("token store accepts only a private regular file and rotates it atomically", async () => {
-  const { directory, tokenFilePath } = await makePrivateTokenFile();
+test("token store accepts only a private exact long-lived token file", async () => {
+  const { tokenFilePath } = await makePrivateTokenFile();
   assert.equal((await readCanonicalAmoCrmTokenFile(tokenFilePath)).accessToken, SECRET_ACCESS);
-
-  await rotateCanonicalAmoCrmTokenFile(tokenFilePath, {
-    tokenType: "Bearer",
-    accessToken: "new-access-token-kept-private",
-    refreshToken: "new-refresh-token-kept-private",
-    expiresInSeconds: 3_600,
-  });
-
-  const persisted = JSON.parse(await readFile(tokenFilePath, "utf8"));
-  assert.equal(persisted.access_token, "new-access-token-kept-private");
-  assert.equal(persisted.refresh_token, "new-refresh-token-kept-private");
   assert.equal((await lstat(tokenFilePath)).mode & 0o777, 0o600);
-  assert.deepEqual(await readdir(directory), ["token.json"]);
+
+  for (const extra of [
+    { refresh_token: "legacy-refresh-token" },
+    { expires_in: 86_400 },
+    { unexpected: "compatibility-is-forbidden" },
+  ]) {
+    await writeFile(
+      tokenFilePath,
+      `${JSON.stringify({
+        token_type: "Bearer",
+        access_token: SECRET_ACCESS,
+        ...extra,
+      })}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    );
+    await assert.rejects(
+      readCanonicalAmoCrmTokenFile(tokenFilePath),
+      (error) =>
+        error instanceof CanonicalAmoCrmTokenFileError &&
+        error.code === "invalid_content",
+    );
+  }
 
   await chmod(tokenFilePath, 0o644);
   await assert.rejects(
@@ -336,67 +327,29 @@ test("all provider calls are process-paced below seven requests per second", asy
   }
 });
 
-test("one 401 performs one serialized refresh and one replay, including concurrent callers", async () => {
-  const { tokenFilePath } = await makePrivateTokenFile("evo-v2-amocrm-refresh-");
+test("a 401 fails closed for concurrent read callers without refresh or replay", async () => {
+  const { tokenFilePath } = await makePrivateTokenFile("evo-v2-amocrm-auth-");
   const calls = [];
   const provider = createCanonicalAmoCrmReadProvider(readyConfig(tokenFilePath), {
     ...virtualClock(),
     fetch: async (url, init) => {
       const authorization = init?.headers?.Authorization ?? null;
       calls.push({ path: new URL(url).pathname, method: init?.method, authorization });
-      if (new URL(url).pathname === "/oauth2/access_token") {
-        const request = JSON.parse(String(init?.body));
-        assert.equal(request.client_secret, SECRET_CLIENT);
-        assert.equal(request.refresh_token, SECRET_REFRESH);
-        return jsonResponse({
-          token_type: "Bearer",
-          access_token: "refreshed-access-token",
-          refresh_token: "refreshed-refresh-token",
-          expires_in: 86_400,
-        });
-      }
-      if (authorization === `Bearer ${SECRET_ACCESS}`) {
-        return new Response(null, { status: 401 });
-      }
-      return jsonResponse({ id: 42 });
+      assert.equal(authorization, `Bearer ${SECRET_ACCESS}`);
+      return new Response(null, { status: 401 });
     },
   });
 
-  const [account, users] = await Promise.all([provider.getAccount(), provider.getUsers()]);
-  assert.deepEqual(account, { id: 42 });
-  assert.deepEqual(users, { id: 42 });
-  assert.equal(calls.filter((call) => call.path === "/oauth2/access_token").length, 1);
-  assert.equal(calls.filter((call) => call.method === "POST").length, 1);
-  assert.equal(calls.at(-1).authorization, "Bearer refreshed-access-token");
-  assert.equal((await readCanonicalAmoCrmTokenFile(tokenFilePath)).refreshToken, "refreshed-refresh-token");
-});
-
-test("a rejected replay stops after one refresh without blind retry", async () => {
-  const { tokenFilePath } = await makePrivateTokenFile("evo-v2-amocrm-replay-");
-  let calls = 0;
-  const provider = createCanonicalAmoCrmReadProvider(readyConfig(tokenFilePath), {
-    ...virtualClock(),
-    fetch: async (url) => {
-      calls += 1;
-      if (new URL(url).pathname === "/oauth2/access_token") {
-        return jsonResponse({
-          token_type: "Bearer",
-          access_token: "refreshed-access-token",
-          refresh_token: "refreshed-refresh-token",
-          expires_in: 3_600,
-        });
-      }
-      return jsonResponse({ secret: SECRET_ACCESS }, { status: 401 });
-    },
-  });
-
-  await assert.rejects(provider.getAccount(), (error) => {
-    assert.ok(error instanceof CanonicalAmoCrmProviderError);
-    assert.equal(error.code, "authentication_failed");
-    assert.equal(error.message.includes(SECRET_ACCESS), false);
-    return true;
-  });
-  assert.equal(calls, 3);
+  const results = await Promise.allSettled([provider.getAccount(), provider.getUsers()]);
+  assert.equal(results.length, 2);
+  for (const result of results) {
+    assert.equal(result.status, "rejected");
+    assert.ok(result.reason instanceof CanonicalAmoCrmProviderError);
+    assert.equal(result.reason.code, "authentication_failed");
+    assert.equal(result.reason.message.includes(SECRET_ACCESS), false);
+  }
+  assert.equal(calls.length, 2);
+  assert.equal(calls.some(({ path }) => path === "/oauth2/access_token"), false);
 });
 
 test("provider rejects oversized and secret-bearing failures without exposing response content", async () => {
@@ -419,7 +372,7 @@ test("provider rejects oversized and secret-bearing failures without exposing re
     ...virtualClock(),
     fetch: async () =>
       jsonResponse(
-        { error: SECRET_ACCESS, refresh: SECRET_REFRESH, client: SECRET_CLIENT },
+        { error: SECRET_ACCESS, client: "client-secret-kept-private" },
         { status: 429 },
       ),
   });
@@ -429,8 +382,7 @@ test("provider rejects oversized and secret-bearing failures without exposing re
     assert.equal(error.status, 429);
     const serialized = `${error.name} ${error.message} ${JSON.stringify(error)}`;
     assert.equal(serialized.includes(SECRET_ACCESS), false);
-    assert.equal(serialized.includes(SECRET_REFRESH), false);
-    assert.equal(serialized.includes(SECRET_CLIENT), false);
+    assert.equal(serialized.includes("client-secret-kept-private"), false);
     return true;
   });
 });
@@ -544,7 +496,6 @@ test("canonical amoCRM creates one contact through the pinned origin and exposes
     },
   });
   assert.equal(JSON.stringify(result).includes(SECRET_ACCESS), false);
-  assert.equal(JSON.stringify(result).includes(SECRET_CLIENT), false);
 });
 
 test("canonical amoCRM freezes and hashes the exact mutation before one-shot dispatch", async () => {
@@ -762,7 +713,7 @@ test("canonical amoCRM emits the reviewed contact, lead, link, note, stage, resp
   });
 });
 
-test("canonical amoCRM reads back only exact provider IDs and uses GET-safe token refresh", async () => {
+test("canonical amoCRM reads back only exact provider IDs through GET-safe bearer reads", async () => {
   const { tokenFilePath } = await makePrivateTokenFile();
   const calls = [];
   const provider = createCanonicalAmoCrmWriteProvider(readyConfig(tokenFilePath), {

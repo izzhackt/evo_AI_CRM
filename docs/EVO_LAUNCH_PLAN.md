@@ -443,6 +443,13 @@ guess, simulate or fall back.
    allowed.
 3. **V2-10C / #466 — amoCRM writes.** Add one canonical server-only integration
    over account metadata discovered from the real connected amoCRM account.
+   The account read requests `with=datetime_settings` and obtains timezone only
+   from the documented `_embedded.datetime_settings.timezone` object; it must
+   not invent an undocumented top-level timezone field. Custom-field `code`
+   values are bounded, exact, inert provider strings rather than application
+   identifiers with an invented leading-character grammar. Only the exact
+   unique `PHONE` and `EMAIL` codes have routing meaning; every other code is
+   catalog evidence and is never executed or interpolated.
    PostgreSQL remains the business authority and stores durable provider
    bindings/command receipts. Explicit product commands may create, update and
    link contacts/leads and apply the required pipeline, status,

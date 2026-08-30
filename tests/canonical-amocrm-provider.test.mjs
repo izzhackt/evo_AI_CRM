@@ -277,7 +277,7 @@ test("read provider exposes only the bounded canonical discovery calls", async (
       return `${parsed.pathname}${parsed.search}`;
     }),
     [
-      "/api/v4/account",
+      "/api/v4/account?with=datetime_settings",
       "/api/v4/leads/pipelines?limit=250&page=1",
       "/api/v4/leads/tags?limit=250&page=1",
       "/api/v4/users?limit=250&page=1",

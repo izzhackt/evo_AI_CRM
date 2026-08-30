@@ -41,12 +41,16 @@ function providerResponses(overrides = {}) {
       id: 1001,
       name: "EVO Admissions",
       subdomain: "evo-admissions",
-      timezone: "Asia/Bishkek",
       country: "KG",
       access_token: "must-not-cross-the-boundary",
       _links: {
         self: {
           href: "https://evo-admissions.amocrm.ru/api/v4/account",
+        },
+      },
+      _embedded: {
+        datetime_settings: {
+          timezone: "Asia/Bishkek",
         },
       },
     },
@@ -123,6 +127,13 @@ function providerResponses(overrides = {}) {
             id: 5001,
             name: "Program",
             code: null,
+            type: "text",
+            enums: null,
+          },
+          {
+            id: 5002,
+            name: "Provider-owned source",
+            code: "_SOURCE",
             type: "text",
             enums: null,
           },
@@ -268,10 +279,22 @@ test("discovers, sanitizes, hashes and persists one immutable exact-account rout
   assert.equal(writes[0].account.providerAccountId, "1001");
   assert.equal(writes[0].account.accountBaseUrl, PROVIDER_CONFIG.accountOrigin);
   assert.equal(writes[0].account.accountSubdomain, "evo-admissions");
+  assert.equal(writes[0].account.timezone, "Asia/Bishkek");
+  assert.equal(writes[0].account.country, "KG");
   assert.match(writes[0].snapshot.snapshotSha256, /^[0-9a-f]{64}$/);
   assert.deepEqual(writes[0].snapshot.leadTagCatalog, [
     { id: "8001", name: "EVO V2 Sales" },
     { id: "8002", name: "EVO V2 Admissions" },
+  ]);
+  assert.deepEqual(writes[0].snapshot.leadCustomFieldCatalog, [
+    { id: "5001", name: "Program", code: null, type: "text", enums: [] },
+    {
+      id: "5002",
+      name: "Provider-owned source",
+      code: "_SOURCE",
+      type: "text",
+      enums: [],
+    },
   ]);
   assert.equal(JSON.stringify(writes[0]).includes("must-not-cross"), false);
   assert.equal(JSON.stringify(writes[0]).includes("private@example"), false);
@@ -486,6 +509,35 @@ test("fails closed for invalid routing, duplicate tag mapping or ambiguous conta
               { id: 8001, name: "EVO V2 Sales" },
               { id: 8002, name: "EVO V2 Sales" },
               { id: 8003, name: "EVO V2 Admissions" },
+            ],
+          },
+        },
+      }),
+    ],
+    [
+      "provider_response_invalid",
+      ROUTING_ENV,
+      providerResponses({
+        account: {
+          ...providerResponses().account,
+          _embedded: {},
+        },
+      }),
+    ],
+    [
+      "provider_response_invalid",
+      ROUTING_ENV,
+      providerResponses({
+        leadCustomFields: {
+          _embedded: {
+            custom_fields: [
+              {
+                id: 5001,
+                name: "Invalid provider code",
+                code: " PADDED",
+                type: "text",
+                enums: null,
+              },
             ],
           },
         },

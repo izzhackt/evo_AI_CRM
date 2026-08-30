@@ -114,8 +114,7 @@ function requiredText(value: unknown, maximum = MAX_NAME_LENGTH): string {
 
 function optionalCode(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  const code = requiredText(value, 128);
-  return /^[A-Z0-9_]+$/.test(code) ? code : invalidShape();
+  return requiredText(value, 128);
 }
 
 function requiredBoolean(value: unknown): boolean {

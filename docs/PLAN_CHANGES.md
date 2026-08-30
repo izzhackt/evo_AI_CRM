@@ -14458,3 +14458,40 @@ The correction does not widen provider authority, choose an arbitrary customer,
 touch the frozen V1 runtime, deploy, migrate data or authorize cutover. The first
 real command still targets only the bounded self-identity validation entity and
 must produce matching application, PostgreSQL, provider and browser evidence.
+
+## 2026-08-30 - Align V2-10C discovery with the connected amoCRM metadata contract
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under the owner's standing authorization for #466 and #467.
+Change type: provider-contract correction before the connected write proof.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+The exact-main connected acceptance stopped before any provider dispatch with
+`provider_response_invalid`. A second read-only, secret-safe shape probe proved
+that transport, OAuth, account identity, pipeline/status selection, active-user
+selection, tags and contact `PHONE`/`EMAIL` fields were available. It also
+isolated two incorrect assumptions in the V2 discovery sanitizer:
+
+- the official account response does not define a top-level `timezone`; timezone
+  is returned inside `_embedded.datetime_settings` only when the account request
+  includes `with=datetime_settings`;
+- the official custom-field contract defines `code` as a string but does not
+  promise that it begins with a letter. The connected account contains valid
+  provider-owned codes beginning with an underscore.
+
+V2-10C therefore requests the documented datetime settings expansion, requires
+the exact bounded nested timezone, and treats every non-null custom-field code
+as a bounded exact inert string. The sanitizer still rejects empty, padded,
+control-character or oversized values. Only one exact `PHONE` field and one
+exact `EMAIL` field are accepted for contact routing; unrelated provider codes
+remain catalog-only evidence and cannot influence a command, path, query or SQL
+expression.
+
+The correction is based on the current official contracts:
+https://www.amocrm.ru/developers/content/crm_platform/account-info and
+https://www.amocrm.ru/developers/content/crm_platform/custom-fields.
+
+No amoCRM contact, lead, tag, note or customer record was changed by the failed
+preparation. This correction authorizes no arbitrary customer target, V1
+runtime change, deployment, migration or cutover. The bounded self-identity
+validation command remains the first and only authorized connected write proof.

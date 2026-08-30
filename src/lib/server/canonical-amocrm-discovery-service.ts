@@ -281,12 +281,14 @@ function parseAccount(
     rawCountry === undefined || rawCountry === null
       ? null
       : boundedExactText(rawCountry, 128);
+  const embedded = record(source._embedded);
+  const datetimeSettings = record(embedded.datetime_settings);
   return Object.freeze({
     providerAccountId: providerId(source.id),
     accountBaseUrl: config.accountOrigin,
     accountSubdomain,
     accountName: boundedExactText(source.name, 255),
-    timezone: boundedExactText(source.timezone, 128),
+    timezone: boundedExactText(datetimeSettings.timezone, 128),
     country,
   });
 }
@@ -356,9 +358,7 @@ function parseLeadTags(value: unknown): readonly SanitizedTag[] {
 
 function parseFieldCode(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-  const code = boundedExactText(value, MAX_FIELD_TYPE_BYTES);
-  if (!/^[A-Z][A-Z0-9_]{0,127}$/u.test(code)) return invalidResponse();
-  return code;
+  return boundedExactText(value, MAX_FIELD_TYPE_BYTES);
 }
 
 function parseCustomField(value: unknown): SanitizedCustomField {

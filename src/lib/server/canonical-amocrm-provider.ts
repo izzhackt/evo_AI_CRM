@@ -1354,7 +1354,12 @@ export function createCanonicalAmoCrmReadProvider(
   dependencies: CanonicalAmoCrmProviderDependencies = {},
 ): CanonicalAmoCrmReadProvider {
   return Object.freeze({
-    getAccount: () => canonicalRead(config, dependencies, "/api/v4/account"),
+    getAccount: () =>
+      canonicalRead(
+        config,
+        dependencies,
+        "/api/v4/account?with=datetime_settings",
+      ),
     getPipelines: () =>
       canonicalListRead(config, dependencies, "/api/v4/leads/pipelines"),
     getLeadTags: () =>

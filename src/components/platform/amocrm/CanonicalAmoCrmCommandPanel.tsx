@@ -4,6 +4,7 @@ import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { btnCls, btnGhostCls, Card, cn } from "@/components/ui";
+import { resolveCanonicalAmoCrmCommandPanelState } from "@/lib/canonical-amocrm-command-panel-state";
 import type { Locale } from "@/lib/i18n";
 import {
   reconcileCanonicalAmoCrmCommandAction,
@@ -294,20 +295,28 @@ export function CanonicalAmoCrmCommandPanel({
             }),
           ]),
         });
-  const displayedSyncState =
-    syncState.status === "idle" ? persistedBlockingState : syncState;
+  const panelState = resolveCanonicalAmoCrmCommandPanelState({
+    blockingAttemptId: blockingAttempt?.attemptId ?? null,
+    persistedBlockingStatus: persistedBlockingState.status,
+    reconcileState,
+    syncState,
+  });
+  const displayedSyncState = panelState.showSyncState
+    ? syncState.status === "idle"
+      ? panelState.showPersistedBlockingState
+        ? persistedBlockingState
+        : INITIAL_STATE
+      : syncState
+    : INITIAL_STATE;
   const activeUnknownState =
-    reconcileState.status === "unknown"
+    panelState.activeUnknownSource === "reconcile"
       ? reconcileState
-      : syncState.status === "unknown"
+      : panelState.activeUnknownSource === "sync"
         ? syncState
-        : persistedBlockingState.status === "unknown"
+        : panelState.activeUnknownSource === "persisted"
           ? persistedBlockingState
           : null;
-  const flowBlocked =
-    blockingAttempt !== null ||
-    syncState.status === "unknown" ||
-    reconcileState.status === "unknown";
+  const flowBlocked = panelState.flowBlocked;
 
   useEffect(() => {
     if (syncState.status !== "idle" || reconcileState.status !== "idle") {

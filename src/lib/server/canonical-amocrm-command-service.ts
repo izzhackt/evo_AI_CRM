@@ -368,6 +368,7 @@ function leadReadback(
     tagName?: string;
     oppositeTagId?: string;
     oppositeTagName?: string;
+    unrelatedTagSetSha256?: string;
   }>,
 ): VerifiedReadback {
   const response = record(value);
@@ -399,13 +400,15 @@ function leadReadback(
     expected.tagId !== undefined ||
     expected.tagName !== undefined ||
     expected.oppositeTagId !== undefined ||
-    expected.oppositeTagName !== undefined
+    expected.oppositeTagName !== undefined ||
+    expected.unrelatedTagSetSha256 !== undefined
   ) {
     if (
       expected.tagId === undefined ||
       expected.tagName === undefined ||
       expected.oppositeTagId === undefined ||
       expected.oppositeTagName === undefined ||
+      expected.unrelatedTagSetSha256 === undefined ||
       expected.tagId === expected.oppositeTagId
     ) {
       throw new ReadbackMismatchError();
@@ -421,7 +424,13 @@ function leadReadback(
       }) ||
       tags.some(
         (value) => providerId(record(value).id) === expected.oppositeTagId,
-      )
+      ) ||
+      unrelatedTagSetSha256(
+        response,
+        expected.leadId,
+        expected.tagId,
+        expected.oppositeTagId,
+      ) !== expected.unrelatedTagSetSha256
     ) {
       throw new ReadbackMismatchError();
     }
@@ -443,34 +452,66 @@ function leadReadback(
       ...(expected.tagName === undefined ||
           expected.tagId === undefined ||
           expected.oppositeTagId === undefined ||
-          expected.oppositeTagName === undefined
+          expected.oppositeTagName === undefined ||
+          expected.unrelatedTagSetSha256 === undefined
         ? {}
         : {
             tagId: expected.tagId,
             tagNameSha256: valueHash(expected.tagName),
             oppositeTagId: expected.oppositeTagId,
             oppositeTagNameSha256: valueHash(expected.oppositeTagName),
+            unrelatedTagSetSha256: expected.unrelatedTagSetSha256,
           }),
     }),
     providerUpdatedAt: optionalProviderUpdatedAt(response.updated_at),
   });
 }
 
+function unrelatedTagSetSha256(
+  value: unknown,
+  leadId: string,
+  roleTagId: string,
+  oppositeTagId: string,
+): string {
+  const response = record(value);
+  if (providerId(response.id) !== leadId || roleTagId === oppositeTagId) {
+    throw new ReadbackMismatchError();
+  }
+  const embedded = record(response._embedded ?? {});
+  const seen = new Set<string>();
+  const unrelated = collection(embedded.tags ?? [])
+    .map((tagValue) => {
+      const tag = record(tagValue);
+      const id = providerId(tag.id);
+      if (seen.has(id) || typeof tag.name !== "string" || tag.name.length === 0) {
+        throw new ReadbackMismatchError();
+      }
+      seen.add(id);
+      return Object.freeze({ id, nameSha256: valueHash(tag.name) });
+    })
+    .filter(({ id }) => id !== roleTagId && id !== oppositeTagId)
+    .sort((left, right) => left.id.localeCompare(right.id));
+  return valueHash(JSON.stringify(unrelated));
+}
+
 function mainContactLinkExists(value: unknown, contactId: string): boolean {
   const response = record(value);
   const embedded = record(response._embedded);
-  return collection(embedded.links).some((linkValue) => {
+  const mainContacts = collection(embedded.links).filter((linkValue) => {
     const link = record(linkValue);
     const metadata = link.metadata;
     return (
       link.to_entity_type === "contacts" &&
-      providerId(link.to_entity_id) === contactId &&
       typeof metadata === "object" &&
       metadata !== null &&
       !Array.isArray(metadata) &&
       (metadata as Record<string, unknown>).main_contact === true
     );
   });
+  return (
+    mainContacts.length === 1 &&
+    providerId(record(mainContacts[0]).to_entity_id) === contactId
+  );
 }
 
 function linkReadback(
@@ -1214,6 +1255,22 @@ async function executeLeadEffect(
         context.noteText,
       );
   } else {
+    let preservedUnrelatedTagSetSha256: string;
+    try {
+      preservedUnrelatedTagSetSha256 = unrelatedTagSetSha256(
+        await context.provider.getLeadById(providerLeadId),
+        providerLeadId,
+        context.route.tagId,
+        context.oppositeTag.tagId,
+      );
+    } catch {
+      return internalStep(
+        "lead_tag_update",
+        "error",
+        "tag_baseline_read_failed",
+        null,
+      );
+    }
     prepared = context.provider.prepareUpdateLeadTags({
       requestId,
       leadId: providerLeadId,
@@ -1229,6 +1286,7 @@ async function executeLeadEffect(
       tagNameSha256: valueHash(context.route.tagName),
       oppositeTagId: context.oppositeTag.tagId,
       oppositeTagNameSha256: valueHash(context.oppositeTag.tagName),
+      unrelatedTagSetSha256: preservedUnrelatedTagSetSha256,
     });
     verify = async (provider) =>
       leadReadback(await provider.getLeadById(providerLeadId), {
@@ -1237,6 +1295,7 @@ async function executeLeadEffect(
         tagName: context.route.tagName,
         oppositeTagId: context.oppositeTag.tagId,
         oppositeTagName: context.oppositeTag.tagName,
+        unrelatedTagSetSha256: preservedUnrelatedTagSetSha256,
       });
   }
   const result = await executePreparedStep(
@@ -1877,11 +1936,16 @@ function storedLeadReadback(
     );
     const tagId = requiredExpected(expected, "tagId");
     const oppositeTagId = requiredExpected(expected, "oppositeTagId");
+    const unrelatedTagSetHash = optionalExpectedHash(
+      expected,
+      "unrelatedTagSetSha256",
+    );
     const embedded = record(response._embedded ?? {});
     const tags = collection(embedded.tags ?? []);
     if (
       expectedHash === null ||
       oppositeExpectedHash === null ||
+      unrelatedTagSetHash === null ||
       tagId === oppositeTagId ||
       !tags.some((tagValue) => {
         const tag = record(tagValue);
@@ -1893,7 +1957,9 @@ function storedLeadReadback(
       }) ||
       tags.some(
         (tagValue) => providerId(record(tagValue).id) === oppositeTagId,
-      )
+      ) ||
+      unrelatedTagSetSha256(response, leadId, tagId, oppositeTagId) !==
+        unrelatedTagSetHash
     ) {
       throw new ReadbackMismatchError();
     }
@@ -1901,6 +1967,7 @@ function storedLeadReadback(
     evidence.tagNameSha256 = expectedHash;
     evidence.oppositeTagId = oppositeTagId;
     evidence.oppositeTagNameSha256 = oppositeExpectedHash;
+    evidence.unrelatedTagSetSha256 = unrelatedTagSetHash;
   } else {
     throw new ReadbackMismatchError();
   }

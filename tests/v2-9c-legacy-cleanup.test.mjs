@@ -99,6 +99,51 @@ test("V2-10C removes the superseded legacy amoCRM OAuth settings path", () => {
   );
 });
 
+test("V2-10C removes the dormant Supabase-bound amoCRM read lane", () => {
+  for (const relativePath of [
+    "src/lib/platform-amocrm-canonical-context.ts",
+    "src/lib/platform-amocrm-discovery-contract.ts",
+    "src/lib/server/platform-amocrm-read-config.ts",
+    "src/lib/server/platform-amocrm-canonical-context-client.ts",
+    "src/lib/server/platform-amocrm-canonical-context-repository.ts",
+    "src/lib/server/platform-amocrm-canonical-context-service.ts",
+    "src/lib/server/platform-amocrm-discovery-client.ts",
+    "src/lib/server/platform-amocrm-mapping-repository.ts",
+    "tests/platform-amocrm-canonical-context.test.mjs",
+    "tests/platform-amocrm-canonical-context-ui.test.mjs",
+    "tests/platform-amocrm-discovery.test.mjs",
+  ]) {
+    assert.equal(existsSync(fromRepo(relativePath)), false, relativePath);
+  }
+
+  const environment = source(".env.example");
+  const packageManifest = source("package.json");
+  const i18nData = source("src/lib/i18n-data.ts");
+  // Frozen historical docs, scripts, and deployment inputs are intentionally
+  // outside this active-runtime inventory.
+  const activeRuntimeInventory = [
+    ...collectFiles("src/app"),
+    ...collectFiles("src/components"),
+    ...collectFiles("src/lib"),
+  ]
+    .map((relativePath) => `# ${relativePath}\n${source(relativePath)}`)
+    .join("\n");
+
+  assert.doesNotMatch(
+    environment,
+    /EVO_PLATFORM_AMOCRM_(?:READ_ENABLED|ACCOUNT_DOMAIN|READ_TOKEN)/,
+  );
+  assert.doesNotMatch(
+    packageManifest,
+    /tests\/platform-amocrm-(?:discovery|canonical-context(?:-ui)?)\.test\.mjs/,
+  );
+  assert.doesNotMatch(i18nData, /platformAmoCrmContext/);
+  assert.doesNotMatch(
+    activeRuntimeInventory,
+    /platform-amocrm|platformAmoCrmContext|EVO_PLATFORM_AMOCRM_(?:READ_ENABLED|ACCOUNT_DOMAIN|READ_TOKEN)/,
+  );
+});
+
 test("V2-9C active runtime inventory stays canonical while excluding preserved historical deployment artifacts", () => {
   const activeInventoryFiles = [
     ...collectFiles("src/app"),

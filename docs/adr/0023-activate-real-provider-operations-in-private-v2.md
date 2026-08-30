@@ -177,6 +177,8 @@ and exact-main verification before the next child starts.
   <https://ai.google.dev/gemini-api/docs/interactions-overview>,
   <https://ai.google.dev/gemini-api/docs/structured-output>.
 - amoCRM/Kommo OAuth and entity operations:
+  <https://developers.kommo.com/docs/private-integration>,
+  <https://developers.kommo.com/docs/long-lived-token>,
   <https://developers.kommo.com/docs/oauth-20>,
   <https://developers.kommo.com/reference/add-contacts>,
   <https://developers.kommo.com/reference/adding-leads>,
@@ -210,3 +212,37 @@ The run must never select an arbitrary customer merely to complete the test.
 Private identifiers, raw transcript text, tokens and provider responses remain
 outside Git and GitHub evidence. All other ADR 0023 decisions and the frozen V1
 boundary remain unchanged.
+
+## Amendment 2026-08-30: replace the active V2 amoCRM auth path with a private long-lived token
+
+The owner-directed product-first V2 program cannot keep blocking on a dead
+refresh-token pair when the official private-integration contract supports a
+single long-lived Bearer token for this exact contour. The exact connected V2
+write proof reached real preparation on `main` and then stopped before
+dispatch: the copied access token returned HTTP 401, the copied refresh token
+returned HTTP 401, and no amoCRM write occurred.
+
+For active #466 and #467 only, this amendment supersedes the earlier wording
+that implied refresh-token rotation as the V2 runtime dependency:
+
+- the only active V2 amoCRM auth path is one server-only long-lived token from
+  the existing private integration, stored in ignored secret material and sent
+  as `Authorization: Bearer <token>`;
+- V2 no longer depends on `client_id`, `client_secret`, `redirect_uri`,
+  `refresh_token`, or `POST /oauth2/access_token` during normal command
+  execution;
+- if the long-lived token is missing, expired, revoked, malformed or rejected,
+  V2 fails clearly with no fallback auth path or blind retry;
+- the frozen V1 OAuth bundle remains historical rollback evidence only and must
+  never be imported, executed, bundled or treated as V2 authority.
+
+This amendment is supported by the current official Kommo contracts:
+
+- private integrations may use a long-lived token and/or authorization code:
+  <https://developers.kommo.com/docs/private-integration>;
+- a long-lived token is generated in the private integration, has no
+  `refresh_token`, is valid for 1 day to 5 years, and must be saved securely:
+  <https://developers.kommo.com/docs/long-lived-token>;
+- OAuth refresh tokens expire after 3 months of inactivity, and once a newly
+  returned refresh token is used, the previous one becomes outdated:
+  <https://developers.kommo.com/docs/oauth-20>.

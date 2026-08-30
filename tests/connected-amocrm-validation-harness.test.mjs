@@ -59,6 +59,9 @@ test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async (
   assert.match(source, /success\.database\?\.replayAddedReceiptCount === 0/u);
   assert.match(source, /success\.database\?\.replayAddedBindingCount === 0/u);
   assert.match(source, /success\.database\?\.replayProviderEntitySetUnchanged === true/u);
+  assert.match(source, /success\.provider\?\.validationContactCount === 1/u);
+  assert.match(source, /success\.provider\?\.validationLeadCount === 1/u);
+  assert.match(source, /success\.provider\?\.validationNoteCount === 1/u);
   assert.match(source, /success\.boundaries\?\.v1ApplicationPathExecuted === false/u);
   assert.match(source, /success\.boundaries\?\.existingWahaSessionReadOnly === true/u);
   assert.match(source, /forbiddenKey/u);
@@ -248,6 +251,15 @@ test("connected amoCRM browser acceptance is inert without its explicit flag", a
   assert.match(source, /replayAddedReceiptCount:\s*0/u);
   assert.match(source, /replayAddedBindingCount:\s*0/u);
   assert.match(source, /replayProviderEntitySetUnchanged:\s*true/u);
+  assert.match(source, /validationContactCount:\s*provider\.validationContactCount/u);
+  assert.match(source, /validationLeadCount:\s*provider\.validationLeadCount/u);
+  assert.match(source, /validationNoteCount:\s*provider\.validationNoteCount/u);
+  assert.match(source, /\/api\/v4\/contacts\?limit=250&filter%5Bname%5D%5B%5D=/u);
+  assert.match(source, /\/api\/v4\/leads\?limit=250&filter%5Bname%5D%5B%5D=/u);
+  assert.match(
+    source,
+    /\/notes\?limit=250&filter%5Bnote_type%5D%5B%5D=common/u,
+  );
   assert.match(source, /persistedAfterReload:\s*true/u);
   assert.match(source, /v1ApplicationPathExecuted:\s*false/u);
   assert.match(source, /existingWahaSessionReadOnly:\s*true/u);

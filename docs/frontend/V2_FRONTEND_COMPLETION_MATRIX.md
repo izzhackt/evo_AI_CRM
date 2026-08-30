@@ -1,7 +1,9 @@
 # V2 frontend completion matrix
 
-Status: active V2-11 evidence ledger.  
-Audit baseline: `f87bd37fa4ed2b88b35fc2a263459f5d1bcff0a0` on 2026-08-31 (+04).  
+Status: active V2-11 evidence ledger.
+
+Audit baseline: `f87bd37fa4ed2b88b35fc2a263459f5d1bcff0a0` on 2026-08-31 (+04).
+
 Runtime: root Next.js app on the real local PostgreSQL V2 contract; no
 `EVO_UI_CONTRACT_FIXTURES`, demo seed, mock provider or fallback repository.
 

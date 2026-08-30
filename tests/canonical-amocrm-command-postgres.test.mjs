@@ -5,6 +5,10 @@ import test from "node:test";
 import postgres from "postgres";
 
 import {
+  readV2_10dMutationCounts,
+  sameV2_10dMutationCounts,
+} from "../scripts/v2-10d-mutation-counts.mjs";
+import {
   CanonicalAmoCrmCommandRepositoryError,
   claimCanonicalAmoCrmCommandDispatch,
   prepareCanonicalAmoCrmCommand,
@@ -1053,6 +1057,71 @@ test("role authorization is phase-bound and admin still needs the exact workflow
   } finally {
     await closeDatabaseConnections();
     await sql.end({ timeout: 5 });
+  }
+});
+
+test("V2-10D amoCRM receipt proof ignores successful non-amo commands", async () => {
+  const sql = postgres(requiredDatabaseUrl(), {
+    max: 1,
+    onnotice: () => undefined,
+  });
+  const receiptId = randomUUID();
+  const leadId = randomUUID();
+  const conversationId = randomUUID();
+
+  try {
+    const before = await readV2_10dMutationCounts(
+      requiredDatabaseUrl(),
+      leadId,
+      conversationId,
+    );
+    const [beforeTotal] = await sql`
+      select count(*)::integer as count from evo_command_receipts
+    `;
+
+    await sql`
+      insert into evo_command_receipts (
+        id,
+        command_name,
+        idempotency_key,
+        request_hash,
+        correlation_id,
+        actor_role,
+        status,
+        result_payload,
+        completed_at
+      ) values (
+        ${receiptId},
+        'canonical_gemini_proposal.review',
+        ${`v2-10d-non-amo-${receiptId}`},
+        ${createHash("sha256").update(receiptId).digest("hex")},
+        ${`v2-10d-non-amo-${receiptId}`},
+        'admin',
+        'succeeded',
+        ${sql.json({ accepted: true })},
+        now()
+      )
+    `;
+
+    const after = await readV2_10dMutationCounts(
+      requiredDatabaseUrl(),
+      leadId,
+      conversationId,
+    );
+    const [afterTotal] = await sql`
+      select count(*)::integer as count from evo_command_receipts
+    `;
+
+    assert.equal(Number(afterTotal.count), Number(beforeTotal.count) + 1);
+    assert.equal(after.amocrmAttemptCount, before.amocrmAttemptCount);
+    assert.equal(after.amocrmReceiptCount, before.amocrmReceiptCount);
+    assert.equal(sameV2_10dMutationCounts(before, after), true);
+  } finally {
+    try {
+      await sql`delete from evo_command_receipts where id = ${receiptId}`;
+    } finally {
+      await sql.end({ timeout: 5 });
+    }
   }
 });
 

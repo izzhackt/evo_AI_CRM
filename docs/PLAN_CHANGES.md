@@ -14780,3 +14780,41 @@ The correction must pass focused tests, independent exact-head review, green
 exact-head CI, SHA-bound merge and exact-main CI before it touches the
 preserved state. It changes no V1 deployment, customer data, public endpoint,
 migration or cutover boundary.
+
+## 2026-08-31 - Replace the stale frontend release view with a current V2 completion contract
+
+Date: 2026-08-31, workspace timezone (+04).
+Author: Codex under the owner's delegated persistent frontend long run.
+Change type: active frontend scope and evidence contract; no production,
+provider or customer-data mutation authority.
+Affected plan section: V2-11 staff frontend truth and journey completion.
+
+The real no-fixture root application on exact shared-main commit
+`f87bd37fa4ed2b88b35fc2a263459f5d1bcff0a0` already reads the private local
+PostgreSQL V2 contract and exposes the canonical Sales, Lead 360, Student 360,
+application, document, visa, finance, task and WhatsApp surfaces. The same
+runtime also proves that its visible shell is behind its server contract:
+Admin and Admissions can open Visa and Finance directly but those modules are
+filtered out of navigation; the shell hard-codes amoCRM and WhatsApp as
+blocked; active Sales and Inbox copy still refers to Supabase, U2 and an old PR;
+and the most important mobile queues become very long before the selected work
+surface is reached. These are frontend truth defects, not requests for a new
+backend or a second UI.
+
+The updated authority therefore makes V2-11 the current frontend contract. It
+keeps exactly three staff roles, treats Finance as a module, preserves the
+accepted Claude visual direction, and finishes the core Sales-to-Admissions
+journey inside the existing root app. Marketing and Student Portal remain
+future scope. Historical screenshots and the committed prototype remain design
+references only; current browser screenshots must come from the real local V2
+runtime and cannot prove a provider or production state.
+
+Implementation is divided into reviewable PRs: first the route/role/state
+matrix; then truthful shell/navigation/provider disclosure; then responsive
+workflow and accessibility/state corrections; and finally an exact-current-main
+completion audit. Each PR requires an independent exact-head review and green
+CI before merge. The run may read local V2 and production state where already
+authorized, but it must not deploy, call Gemini, send WhatsApp, write amoCRM,
+change provider settings or touch customer data. Missing provider credentials
+remain a truthful provider-proof blocker and never justify a mock, fixture,
+fallback or simulated success.

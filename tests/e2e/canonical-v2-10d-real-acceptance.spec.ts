@@ -10,6 +10,8 @@ import {
 } from "@playwright/test";
 import postgres from "postgres";
 
+import { durableCreateOrValidateWahaCheckpoint } from "../../scripts/v2-10d-waha-checkpoint.mjs";
+
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const PROVIDER_ID = /^[1-9][0-9]{0,9}$/u;
@@ -221,84 +223,11 @@ async function durableCreateJson(
   }
 }
 
-async function durableCreateOrValidateWahaCheckpoint(
-  filePath: string,
-  expected: Readonly<Record<string, unknown>>,
-): Promise<void> {
-  try {
-    await durableCreateJson(filePath, expected);
-    return;
-  } catch (error) {
-    const code =
-      error !== null && typeof error === "object" && "code" in error
-        ? error.code
-        : undefined;
-    if (code !== "EEXIST") throw error;
-  }
-
-  const existing = await privateJson(
-    filePath,
-    "V2-10D post-WAHA recovery marker",
-  );
-  const existingRecovery = record(
-    existing.recovery,
-    "V2-10D post-WAHA recovery metadata is invalid",
-  );
-  const existingHashes = record(
-    existing.hashes,
-    "V2-10D post-WAHA hashes are invalid",
-  );
-  const existingReview = record(
-    existing.review,
-    "V2-10D post-WAHA review counts are invalid",
-  );
-  const existingWaha = record(
-    existing.waha,
-    "V2-10D post-WAHA WAHA counts are invalid",
-  );
-  const existingAmo = record(
-    existing.amocrm,
-    "V2-10D post-WAHA amoCRM counts are invalid",
-  );
-  const existingBoundaries = record(
-    existing.boundaries,
-    "V2-10D post-WAHA boundaries are invalid",
-  );
-  const expectedRecovery = record(expected.recovery, "Expected recovery");
-  const expectedHashes = record(expected.hashes, "Expected hashes");
-  const expectedReview = record(expected.review, "Expected review");
-  const expectedWaha = record(expected.waha, "Expected WAHA proof");
-  const expectedAmo = record(expected.amocrm, "Expected amoCRM proof");
-  const expectedBoundaries = record(expected.boundaries, "Expected boundaries");
-
-  ensure(
-    existing.schemaVersion === expected.schemaVersion &&
-      existing.kind === expected.kind &&
-      existing.status === expected.status &&
-      existing.gitSha === expected.gitSha &&
-      existing.nextAuthorizedStep === expected.nextAuthorizedStep &&
-      existingRecovery.occurred === expectedRecovery.occurred &&
-      existingRecovery.stage === expectedRecovery.stage &&
-      existingRecovery.codeSha === expectedRecovery.codeSha &&
-      existingHashes.proposalSha256 === expectedHashes.proposalSha256 &&
-      existingHashes.reviewedTextSha256 === expectedHashes.reviewedTextSha256 &&
-      existingHashes.providerMessageIdSha256 ===
-        expectedHashes.providerMessageIdSha256 &&
-      existingReview.decision === expectedReview.decision &&
-      existingReview.proposalCount === expectedReview.proposalCount &&
-      existingWaha.status === expectedWaha.status &&
-      existingWaha.attemptCount === expectedWaha.attemptCount &&
-      existingWaha.outboundMessageCount === expectedWaha.outboundMessageCount &&
-      existingWaha.databaseAck === expectedWaha.databaseAck &&
-      existingWaha.readbackAck === expectedWaha.readbackAck &&
-      existingWaha.exactReadback === expectedWaha.exactReadback &&
-      existingAmo.attemptCount === expectedAmo.attemptCount &&
-      existingAmo.receiptCount === expectedAmo.receiptCount &&
-      existingAmo.bindingCount === expectedAmo.bindingCount &&
-      JSON.stringify(existingBoundaries) === JSON.stringify(expectedBoundaries),
-    "Existing post-WAHA checkpoint differs from the exact preserved result",
-  );
-}
+const wahaCheckpointIo = Object.freeze({
+  create: durableCreateJson,
+  read: (filePath: string) =>
+    privateJson(filePath, "V2-10D post-WAHA recovery marker"),
+});
 
 function signedInboundHeaders(
   rawBody: string,
@@ -2128,6 +2057,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
         fallbackObserved: false,
       },
     },
+    wahaCheckpointIo,
   );
 
   const { amoDatabase, amoProvider, beforeReplay, afterReplay } =
@@ -2451,6 +2381,7 @@ test("post-WAHA recovery proves the accepted send before one amoCRM sync", async
   await durableCreateOrValidateWahaCheckpoint(
     path.join(evidenceDir, "waha-reconciled.json"),
     wahaCheckpoint,
+    wahaCheckpointIo,
   );
 
   await submitAdminGate(page);

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 
+import { durableCreateOrValidateWahaCheckpoint } from "../scripts/v2-10d-waha-checkpoint.mjs";
+
 const RECOVERY_SHELL_PATH = new URL(
   "../scripts/verify-v2-10d-review-recovery.sh",
   import.meta.url,
@@ -17,6 +19,102 @@ function sourceIndex(source, fragment) {
   assert.notEqual(index, -1, `missing recovery fragment: ${fragment}`);
   return index;
 }
+
+function wahaCheckpoint(readbackAck) {
+  return {
+    schemaVersion: 1,
+    kind: "evo-v2-10d-waha-reconciled",
+    status: "reconciled",
+    gitSha: "a".repeat(40),
+    recovery: {
+      occurred: true,
+      stage: "post-waha",
+      codeSha: "b".repeat(40),
+    },
+    hashes: {
+      proposalSha256: "c".repeat(64),
+      reviewedTextSha256: "d".repeat(64),
+      providerMessageIdSha256: "e".repeat(64),
+    },
+    review: { decision: "edited", proposalCount: 1 },
+    waha: {
+      status: "accepted",
+      attemptCount: 1,
+      outboundMessageCount: 1,
+      databaseAck: 2,
+      readbackAck,
+      exactReadback: true,
+    },
+    amocrm: { attemptCount: 0, receiptCount: 0, bindingCount: 0 },
+    nextAuthorizedStep: "admin_amocrm_sync_only",
+    boundaries: {
+      providerReadMethod: "GET",
+      whatsappActionRepeated: false,
+      geminiActionRepeated: false,
+      humanReviewRepeated: false,
+      v1ApplicationPathExecuted: false,
+      deploymentMutated: false,
+      fallbackObserved: false,
+    },
+  };
+}
+
+function existingMarkerIo(existing) {
+  let createCount = 0;
+  let readCount = 0;
+  return {
+    io: {
+      create: async () => {
+        createCount += 1;
+        throw Object.assign(new Error("checkpoint exists"), { code: "EEXIST" });
+      },
+      read: async () => {
+        readCount += 1;
+        return existing;
+      },
+    },
+    counts: () => ({ createCount, readCount }),
+  };
+}
+
+test("post-WAHA checkpoint accepts ACK progress but rejects regression", async () => {
+  const existing = wahaCheckpoint(2);
+  const progressing = wahaCheckpoint(3);
+  const progressIo = existingMarkerIo(existing);
+
+  await durableCreateOrValidateWahaCheckpoint(
+    "/private/waha-reconciled.json",
+    progressing,
+    progressIo.io,
+  );
+  assert.deepEqual(progressIo.counts(), { createCount: 1, readCount: 1 });
+
+  const regressionIo = existingMarkerIo(wahaCheckpoint(3));
+  await assert.rejects(
+    durableCreateOrValidateWahaCheckpoint(
+      "/private/waha-reconciled.json",
+      wahaCheckpoint(2),
+      regressionIo.io,
+    ),
+    /ACK regressed/u,
+  );
+});
+
+test("post-WAHA checkpoint still rejects provider identity drift", async () => {
+  const existing = wahaCheckpoint(2);
+  const changedIdentity = wahaCheckpoint(3);
+  changedIdentity.hashes.providerMessageIdSha256 = "f".repeat(64);
+  const markerIo = existingMarkerIo(existing);
+
+  await assert.rejects(
+    durableCreateOrValidateWahaCheckpoint(
+      "/private/waha-reconciled.json",
+      changedIdentity,
+      markerIo.io,
+    ),
+    /differs from the exact preserved result/u,
+  );
+});
 
 test("V2-10D recovery binds one preserved review to exact current main", async () => {
   const source = await readFile(RECOVERY_SHELL_PATH, "utf8");

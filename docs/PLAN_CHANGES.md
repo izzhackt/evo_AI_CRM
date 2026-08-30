@@ -14678,3 +14678,54 @@ not an additional approval step. A real Chromium regression captures the
 pre-hydration DOM state, requires the edit control to be disabled then, waits
 for hydration to enable it, fills the exact final text and proves the exact
 PostgreSQL review value. No provider call is part of this correction proof.
+
+## 2026-08-30 - Resume the one preserved V2-10D human review without replay
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex after the owner declared readiness for the required human review.
+Change type: fail-closed recovery contract for an interrupted acceptance; no
+new provider authority and no new validation entity.
+Affected plan section: V2-10D human review, single dispatch and exact
+reconciliation.
+
+The first execution on exact main
+`bdd27c2987f7420c4527b0d636754e990dc9d55f` reached its durable
+`review_required` boundary and then stopped when the fixed browser wait
+expired before the human action. Its protected local PostgreSQL database and
+private runtime context remain available. Exact read-only reconciliation shows
+one pending Gemini proposal and zero WAHA attempts, outbound messages, amoCRM
+attempts, contact bindings or lead bindings. The original harness correctly
+forbids a blind rerun, but it does not yet provide the resume path promised by
+the V2-10D contract.
+
+Add one recovery-only contour with these boundaries:
+
+1. It must identify both the original attempt SHA and the current exact-main
+   recovery-code SHA, require the original `review-required.json`, the exact
+   preserved Compose project and its protected temporary directory, and fail
+   closed if a dispatch, success, rejection or proposal-error marker already
+   exists.
+2. It restarts only the preserved local PostgreSQL service, reads the existing
+   conversation and proposal, and verifies their exact hashes and counts
+   against the durable marker. It must not seed another inbound event, request
+   Gemini again, create another proposal or validation target, deploy, or
+   execute a frozen V1 path.
+3. Gemini request authority is disabled during recovery. WAHA and amoCRM
+   authority remain limited to the already authorized one self-send and one
+   validation sync, and both stay unreachable until the same pending proposal
+   has a durable human `accepted` or `edited` decision.
+4. The headed browser may wait without a fixed human-action deadline. Neither
+   Playwright nor Codex clicks the review, edit, confirmation or send controls.
+   Immediately before the human can send, the contour writes the durable
+   dispatch-intent marker and locks the composer to the reviewed text.
+5. Success still requires exact WAHA provider read-back and ACK, one amoCRM
+   write/read-back set, an exact no-duplicate replay, sanitized evidence, and
+   zero fallback. Any mismatch or interrupted/ambiguous provider result stops
+   and preserves the same state for read-only reconciliation; it never retries
+   the provider mutation blindly.
+
+The recovery implementation itself must pass an independent exact-head review,
+ordinary CI, controlled merge and exact-main CI before it may touch the
+preserved acceptance state. This amendment does not authorize any second
+Gemini call, second provider target, V1/production mutation, deployment,
+migration or cutover.

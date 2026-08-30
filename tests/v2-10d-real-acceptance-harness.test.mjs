@@ -195,7 +195,7 @@ test("V2-10D failure preserves PostgreSQL state and forbids blind recovery", asy
 
 test("V2-10D records a sanitized proposal-stage provider error before stopping", async () => {
   const source = await readFile(SPEC_PATH, "utf8");
-  const operatorMode = sourceIndex(source, 'requiredMode() !== "operator"');
+  const operatorMode = sourceIndex(source, "if (!recoveryMode)");
   const proposalRequest = source.indexOf(
     'getByTestId("canonical-gemini-proposal-request").click()',
     operatorMode,
@@ -212,7 +212,10 @@ test("V2-10D records a sanitized proposal-stage provider error before stopping",
   assert.ok(proposalFailureReadback < proposalErrorMarker);
   assert.ok(proposalErrorMarker < reviewMarker);
   assert.match(source, /proposalStatus !== "created"/u);
-  assert.match(source, /sameMutationCounts\(beforeProposal, afterProposalFailure\)/u);
+  assert.match(
+    source,
+    /sameMutationCounts\(beforeProposal, afterProposalFailure\)/u,
+  );
   assert.match(source, /kind: "evo-v2-10d-proposal-error"/u);
   assert.match(source, /status: "stopped_before_review"/u);
   assert.match(source, /actionStatus: proposalStatus/u);
@@ -268,7 +271,7 @@ test("V2-10D browser proof leaves review and send authority with the human", asy
     'process.env.EVO_V2_REAL_END_TO_END_ACCEPTANCE !== "1"',
   );
   const blockedMode = sourceIndex(source, 'requiredMode() !== "blocked"');
-  const operatorMode = sourceIndex(source, 'requiredMode() !== "operator"');
+  const operatorMode = sourceIndex(source, 'test.skip(mode === "blocked"');
   const proposalRequest = source.indexOf(
     'getByTestId("canonical-gemini-proposal-request").click()',
     operatorMode,
@@ -334,7 +337,10 @@ test("V2-10D browser proof leaves review and send authority with the human", asy
   );
   assert.match(source, /status: "review_required"/u);
   assert.match(source, /status: "dispatch_intent_recorded"/u);
-  assert.match(source, /test\.setTimeout\(45 \* 60 \* 1_000\)/u);
+  assert.match(
+    source,
+    /test\.setTimeout\(recoveryMode \? 0 : 45 \* 60 \* 1_000\)/u,
+  );
   assert.match(
     source,
     /test\.use\(\{ trace: "off", screenshot: "off", video: "off" \}\)/u,

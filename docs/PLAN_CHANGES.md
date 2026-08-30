@@ -14282,3 +14282,56 @@ OrbStack `Running` and Docker context exactly `orbstack`:
 
 This evidence remains local and provider-isolated. It does not claim a real
 connected amoCRM write, V1 mutation, deployment or cutover.
+
+## 2026-08-30 - Close exact provider-effect and cross-phase recovery gaps in V2-10C
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under owner-authorized issue #466.
+Change type: second exact-head review correction and local proof completion.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+Independent review of the first V2-10C correction found three remaining
+product-integrity gaps. The canonical command path now closes them without a
+second provider, repository, UI or compatibility route:
+
+- contact-to-lead linkage is accepted only when amoCRM readback identifies the
+  exact contact as `metadata.main_contact=true`; an existing non-main link is
+  corrected and verified instead of being mistaken for completion;
+- Sales and Admissions tag transitions use the two exact existing tag IDs from
+  discovery: add the owning role tag, remove the opposite role tag, preserve
+  unrelated provider tags, and require readback to prove both presence and
+  absence. Discovery rejects a mapping where both role names resolve to the
+  same ID;
+- an unresolved Sales attempt for the same canonical lead remains visible and
+  read-only-reconcilable after an active Admin-override handoff. Admissions or
+  Admin must still hold the live matching Student 360 phase; another lead, an
+  obsolete Sales authorization, a new dispatch claim and ordinary settlement
+  remain forbidden.
+
+Exact replay remains provider-read/write free. It compares the immutable
+stored request/readback evidence, including the exact discovered role tag IDs,
+with the current configured Sales and Admissions tag names. Configuration
+drift conflicts rather than rediscovering or mutating the provider during
+replay. A repeated exact cross-phase reconciliation returns the stored result;
+a changed outcome is denied.
+
+The PostgreSQL command timeline now also uses the database clock for the
+durable dispatch claim. Provider observation times are bounded to that stored
+dispatch floor before settlement, eliminating host/container clock skew while
+the repository continues to reject a genuinely out-of-order transport result.
+
+Validation on Node `22.23.1`, OrbStack `Running` and Docker context exactly
+`orbstack` passed:
+
+- `npm run test:u9` with all 94 tests;
+- `npm run lint`, `npm run typecheck`, `npm run build` and `git diff --check`;
+- `npm run test:database:local` from a clean disposable PostgreSQL database
+  through all six committed Drizzle migrations and the complete Chromium
+  matrix;
+- browser proof for both the active Sales unknown and the same-lead Sales
+  unknown carried into an active Admissions Student 360 after Admin override,
+  before and after reload, with the exact attempt, lead and case identities,
+  visible reconciliation and new sync disabled.
+
+This is still isolated product proof. It does not claim a connected amoCRM
+mutation, provider-account acceptance, V1 mutation, deployment or cutover.

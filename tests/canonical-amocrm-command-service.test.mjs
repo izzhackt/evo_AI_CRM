@@ -27,6 +27,7 @@ function valueSha256(value) {
 
 function serviceHarness(options = {}) {
   const providerCalls = [];
+  const providerInputs = [];
   let discoveryCalls = 0;
   const attempts = new Map();
   let contactBinding = options.contactBinding ?? null;
@@ -43,9 +44,9 @@ function serviceHarness(options = {}) {
     pipeline_id: 11,
     status_id: 12,
     responsible_user_id: 13,
-    _embedded: { tags: [] },
+    _embedded: { tags: structuredClone(options.initialTags ?? []) },
   };
-  const links = [];
+  const links = structuredClone(options.initialLinks ?? []);
   const notes = new Map();
   const tagNames = new Map([
     ["31", "EVO V2 Sales"],
@@ -55,6 +56,7 @@ function serviceHarness(options = {}) {
   const settlementFailures = new Set(options.failSettlementOnceFor ?? []);
 
   const prepared = (operationName, input, apply) => {
+    providerInputs.push({ operationName, input: structuredClone(input) });
     const request = {
       method: operationName.includes("create") || operationName === "contact_lead_link"
         ? "POST"
@@ -130,10 +132,25 @@ function serviceHarness(options = {}) {
       }),
     prepareLinkContactToLead: (input) =>
       prepared("contact_lead_link", input, () => {
-        links.splice(0, links.length, {
-          to_entity_id: Number(input.contactId),
-          to_entity_type: "contacts",
-        });
+        for (const link of links) {
+          if (link.to_entity_type === "contacts") {
+            link.metadata = { ...link.metadata, main_contact: false };
+          }
+        }
+        const existing = links.find(
+          (link) =>
+            link.to_entity_type === "contacts" &&
+            String(link.to_entity_id) === input.contactId,
+        );
+        if (existing) {
+          existing.metadata = { ...existing.metadata, main_contact: true };
+        } else {
+          links.push({
+            to_entity_id: Number(input.contactId),
+            to_entity_type: "contacts",
+            metadata: { main_contact: true },
+          });
+        }
         return "202";
       }),
     prepareUpdateLeadPipelineStatus: (input) =>
@@ -154,10 +171,27 @@ function serviceHarness(options = {}) {
       }),
     prepareUpdateLeadTags: (input) =>
       prepared("lead_tag_update", input, () => {
-        lead._embedded.tags = (input.add ?? []).map((tag, index) => ({
-          id: Number(tag.id ?? index + 1),
-          name: tag.name ?? tagNames.get(String(tag.id)),
-        }));
+        const removedIds = new Set(
+          options.ignoreTagRemovals
+            ? []
+            : (input.remove ?? []).map((tag) => String(tag.id)),
+        );
+        const retained = lead._embedded.tags.filter(
+          (tag) => !removedIds.has(String(tag.id)),
+        );
+        for (const [index, tag] of (input.add ?? []).entries()) {
+          const id = String(tag.id ?? index + 1);
+          const added = {
+            id: Number(id),
+            name: tag.name ?? tagNames.get(id),
+          };
+          const existingIndex = retained.findIndex(
+            (candidate) => String(candidate.id) === id,
+          );
+          if (existingIndex === -1) retained.push(added);
+          else retained[existingIndex] = added;
+        }
+        lead._embedded.tags = retained;
         return "202";
       }),
     getContactById: async () => {
@@ -364,14 +398,21 @@ function serviceHarness(options = {}) {
   return {
     dependencies,
     lead,
+    links,
     providerCalls,
+    providerInputs,
     attempts,
     getDiscoveryCalls: () => discoveryCalls,
   };
 }
 
 test("Sales sync proves every required amoCRM effect in product order", async () => {
-  const harness = serviceHarness();
+  const harness = serviceHarness({
+    initialTags: [
+      { id: 32, name: "EVO V2 Admissions" },
+      { id: 99, name: "Unrelated provider tag" },
+    ],
+  });
   const result = await executeCanonicalAmoCrmSalesSync(
     {
       actorRole: "sales",
@@ -414,12 +455,60 @@ test("Sales sync proves every required amoCRM effect in product order", async ()
     "read:lead",
   ]);
   assert.deepEqual(harness.lead._embedded.tags, [
+    { id: 99, name: "Unrelated provider tag" },
     { id: 31, name: "EVO V2 Sales" },
   ]);
+  const tagInput = harness.providerInputs.find(
+    ({ operationName }) => operationName === "lead_tag_update",
+  )?.input;
+  assert.deepEqual(tagInput?.add, [{ id: "31" }]);
+  assert.deepEqual(tagInput?.remove, [{ id: "32" }]);
   const tagAttempt = [...harness.attempts.values()].find(
     ({ operationName }) => operationName === "lead_tag_update",
   );
   assert.equal(tagAttempt?.providerRequestMetadata.expected.tagId, "31");
+  assert.equal(tagAttempt?.providerRequestMetadata.expected.oppositeTagId, "32");
+});
+
+test("a non-main existing contact link is corrected and only accepted after main-contact readback", async () => {
+  const harness = serviceHarness({
+    contactBinding: "101",
+    leadBinding: "202",
+    initialLinks: [
+      {
+        to_entity_id: 101,
+        to_entity_type: "contacts",
+        metadata: { main_contact: false },
+      },
+    ],
+  });
+
+  const result = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: BASE_REQUEST_ID,
+      noteText: "Sales sync reviewed by staff",
+    },
+    harness.dependencies,
+  );
+
+  assert.equal(result.status, "accepted");
+  assert.equal(
+    harness.providerCalls.includes("dispatch:contact_lead_link"),
+    true,
+  );
+  assert.deepEqual(harness.links, [
+    {
+      to_entity_id: 101,
+      to_entity_type: "contacts",
+      metadata: { main_contact: true },
+    },
+  ]);
+  assert.equal(
+    result.steps.find(({ operationName }) => operationName === "contact_lead_link")?.status,
+    "accepted",
+  );
 });
 
 test("exact Sales replay returns stored proof without another provider call", async () => {
@@ -512,6 +601,30 @@ test("same request detects server routing drift before reporting an exact replay
 
   assert.deepEqual(
     [conflict.status, conflict.reason],
+    ["request_conflict", "idempotency_conflict"],
+  );
+  assert.deepEqual(harness.providerCalls, []);
+  assert.equal(harness.getDiscoveryCalls(), discoveryCalls);
+
+  const oppositeTagConflict = await executeCanonicalAmoCrmSalesSync(input, {
+    ...harness.dependencies,
+    loadCommandConfig: () => ({
+      sales: {
+        pipelineId: "11",
+        statusId: "12",
+        responsibleUserId: "13",
+        tagName: "EVO V2 Sales",
+      },
+      admissions: {
+        pipelineId: "21",
+        statusId: "22",
+        responsibleUserId: "23",
+        tagName: "Changed Admissions role tag",
+      },
+    }),
+  });
+  assert.deepEqual(
+    [oppositeTagConflict.status, oppositeTagConflict.reason],
     ["request_conflict", "idempotency_conflict"],
   );
   assert.deepEqual(harness.providerCalls, []);
@@ -828,7 +941,14 @@ test("a provider 4xx rejection is terminal, visible, and never retried", async (
 });
 
 test("Admissions sync updates exact existing bindings and proves every post-handoff effect", async () => {
-  const harness = serviceHarness({ contactBinding: "101", leadBinding: "202" });
+  const harness = serviceHarness({
+    contactBinding: "101",
+    leadBinding: "202",
+    initialTags: [
+      { id: 31, name: "EVO V2 Sales" },
+      { id: 99, name: "Unrelated provider tag" },
+    ],
+  });
 
   const result = await executeCanonicalAmoCrmAdmissionsSync(
     {
@@ -870,6 +990,15 @@ test("Admissions sync updates exact existing bindings and proves every post-hand
     "dispatch:lead_tag_update",
     "read:lead",
   ]);
+  assert.deepEqual(harness.lead._embedded.tags, [
+    { id: 99, name: "Unrelated provider tag" },
+    { id: 32, name: "EVO V2 Admissions" },
+  ]);
+  const tagInput = harness.providerInputs.find(
+    ({ operationName }) => operationName === "lead_tag_update",
+  )?.input;
+  assert.deepEqual(tagInput?.add, [{ id: "32" }]);
+  assert.deepEqual(tagInput?.remove, [{ id: "31" }]);
 });
 
 test("Admissions sync fails closed when either exact PostgreSQL binding is missing", async () => {
@@ -931,6 +1060,146 @@ test("explicit reconciliation proves an ambiguous exact update by readback witho
     ["accepted", "reconciled_effect_verified", attemptId],
   );
   assert.deepEqual(harness.providerCalls, ["read:lead"]);
+});
+
+test("link reconciliation never accepts a matching contact that is not the main contact", async () => {
+  const harness = serviceHarness({
+    contactBinding: "101",
+    leadBinding: "202",
+    initialLinks: [
+      {
+        to_entity_id: 101,
+        to_entity_type: "contacts",
+        metadata: { main_contact: false },
+      },
+    ],
+    unknownOperation: "contact_lead_link",
+  });
+  const initial = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: BASE_REQUEST_ID,
+      noteText: "Sales sync reviewed by staff",
+    },
+    harness.dependencies,
+  );
+  assert.equal(initial.status, "unknown");
+  assert.equal(initial.steps.at(-1)?.operationName, "contact_lead_link");
+  harness.providerCalls.splice(0);
+
+  const reconciled = await reconcileCanonicalAmoCrmSyncAttempt(
+    {
+      actorRole: "sales",
+      workflowScope: "sales_pre_handoff",
+      leadId: SALES_LEAD_ID,
+      studentCaseId: null,
+      attemptId: initial.attemptId,
+    },
+    harness.dependencies,
+  );
+
+  assert.deepEqual(
+    [reconciled.status, reconciled.reason],
+    ["unknown", "reconciliation_readback_mismatch"],
+  );
+  assert.deepEqual(harness.providerCalls, ["read:links"]);
+});
+
+test("tag verification requires the role tag present and the opposite role tag absent", async () => {
+  const normal = serviceHarness({
+    initialTags: [{ id: 32, name: "EVO V2 Admissions" }],
+    ignoreTagRemovals: true,
+  });
+  const normalResult = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: BASE_REQUEST_ID,
+      noteText: "Sales sync reviewed by staff",
+    },
+    normal.dependencies,
+  );
+  assert.deepEqual(
+    [normalResult.status, normalResult.reason, normalResult.steps.at(-1)?.operationName],
+    ["unknown", "readback_mismatch", "lead_tag_update"],
+  );
+
+  const ambiguous = serviceHarness({
+    initialTags: [{ id: 32, name: "EVO V2 Admissions" }],
+    ignoreTagRemovals: true,
+    unknownAfterApplyOperation: "lead_tag_update",
+  });
+  const initial = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: BASE_REQUEST_ID,
+      noteText: "Sales sync reviewed by staff",
+    },
+    ambiguous.dependencies,
+  );
+  assert.equal(initial.status, "unknown");
+  ambiguous.providerCalls.splice(0);
+
+  const reconciled = await reconcileCanonicalAmoCrmSyncAttempt(
+    {
+      actorRole: "sales",
+      workflowScope: "sales_pre_handoff",
+      leadId: SALES_LEAD_ID,
+      studentCaseId: null,
+      attemptId: initial.attemptId,
+    },
+    ambiguous.dependencies,
+  );
+
+  assert.deepEqual(
+    [reconciled.status, reconciled.reason],
+    ["unknown", "reconciliation_readback_mismatch"],
+  );
+  assert.deepEqual(ambiguous.providerCalls, ["read:lead"]);
+});
+
+test("tag reconciliation accepts the exact role transition and preserves unrelated tags", async () => {
+  const harness = serviceHarness({
+    initialTags: [
+      { id: 32, name: "EVO V2 Admissions" },
+      { id: 99, name: "Unrelated provider tag" },
+    ],
+    unknownAfterApplyOperation: "lead_tag_update",
+  });
+  const initial = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: BASE_REQUEST_ID,
+      noteText: "Sales sync reviewed by staff",
+    },
+    harness.dependencies,
+  );
+  assert.equal(initial.status, "unknown");
+  harness.providerCalls.splice(0);
+
+  const reconciled = await reconcileCanonicalAmoCrmSyncAttempt(
+    {
+      actorRole: "sales",
+      workflowScope: "sales_pre_handoff",
+      leadId: SALES_LEAD_ID,
+      studentCaseId: null,
+      attemptId: initial.attemptId,
+    },
+    harness.dependencies,
+  );
+
+  assert.deepEqual(
+    [reconciled.status, reconciled.reason],
+    ["accepted", "reconciled_effect_verified"],
+  );
+  assert.deepEqual(harness.providerCalls, ["read:lead"]);
+  assert.deepEqual(harness.lead._embedded.tags, [
+    { id: 99, name: "Unrelated provider tag" },
+    { id: 31, name: "EVO V2 Sales" },
+  ]);
 });
 
 test("explicit reconciliation leaves an ambiguous note unknown when no exact note ID is recoverable", async () => {

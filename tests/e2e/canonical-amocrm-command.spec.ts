@@ -1,11 +1,39 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 type TestRole = "admin" | "sales" | "admissions";
 type ProofMode =
   "provider-not-authorized" | "routing-missing" | "token-missing";
 
 const proofMode = requiredProofMode();
-const blockingAttemptId = optionalUuid("EVO_EXPECT_AMOCRM_BLOCKING_ATTEMPT_ID");
+const salesBlockingAttemptId = optionalUuid(
+  "EVO_EXPECT_AMOCRM_SALES_BLOCKING_ATTEMPT_ID",
+);
+const salesBlockingLeadId = optionalUuid(
+  "EVO_EXPECT_AMOCRM_SALES_BLOCKING_LEAD_ID",
+);
+const admissionsBlockingAttemptId = optionalUuid(
+  "EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_ATTEMPT_ID",
+);
+const admissionsBlockingLeadId = optionalUuid(
+  "EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_LEAD_ID",
+);
+const admissionsBlockingCaseId = optionalUuid(
+  "EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_CASE_ID",
+);
+if ((salesBlockingAttemptId === null) !== (salesBlockingLeadId === null)) {
+  throw new Error("Sales blocking attempt and lead IDs must be supplied together");
+}
+if (
+  new Set([
+    admissionsBlockingAttemptId === null,
+    admissionsBlockingLeadId === null,
+    admissionsBlockingCaseId === null,
+  ]).size !== 1
+) {
+  throw new Error(
+    "Admissions blocking attempt, lead and case IDs must be supplied together",
+  );
+}
 
 const BLOCKED_COPY: Readonly<Record<ProofMode, RegExp>> = Object.freeze({
   "provider-not-authorized":
@@ -75,6 +103,21 @@ async function submitGate(page: Page, role: TestRole) {
   await page.getByTestId("open-role-workspace").click();
 }
 
+async function expectPersistedUnknownState(
+  panel: Locator,
+  attemptId: string,
+) {
+  await expect(
+    panel.getByTestId("canonical-amocrm-command-state"),
+  ).toHaveAttribute("data-status", "unknown");
+  await expect(
+    panel.getByTestId("canonical-amocrm-terminal-attempt-id"),
+  ).toHaveText(attemptId);
+  await expect(panel.getByTestId("canonical-amocrm-reconcile")).toBeVisible();
+  await expect(panel.getByTestId("canonical-amocrm-reconcile")).toBeDisabled();
+  await expect(panel.getByTestId("canonical-amocrm-sync")).toBeDisabled();
+}
+
 async function expectBlockedPanel(
   page: Page,
   input: Readonly<{
@@ -82,6 +125,8 @@ async function expectBlockedPanel(
     scope: "sales" | "admissions";
     targetField: "lead_id" | "student_case_id";
     targetId: string;
+    blockingAttemptId?: string | null;
+    expectedLeadId?: string;
   }>,
 ) {
   await page.goto(input.route);
@@ -93,30 +138,31 @@ async function expectBlockedPanel(
   await expect(panel).toBeVisible();
   await expect(panel).toHaveAttribute("data-scope", input.scope);
   await expect(
-    page
+    panel
       .getByTestId("canonical-amocrm-sync-form")
       .locator(`input[name="${input.targetField}"]`),
   ).toHaveValue(input.targetId);
+  if (input.expectedLeadId) {
+    await expect(
+      page
+        .getByTestId("canonical-student-case-workspace")
+        .getByText(input.expectedLeadId, { exact: true }),
+    ).toBeVisible();
+  }
 
-  const availability = page.getByTestId(
+  const availability = panel.getByTestId(
     "canonical-amocrm-provider-availability",
   );
   await expect(availability).toHaveAttribute("data-status", "blocked");
   await expect(availability).toContainText(BLOCKED_COPY[proofMode]);
-  await expect(page.getByTestId("canonical-amocrm-note-text")).toBeDisabled();
-  await expect(page.getByTestId("canonical-amocrm-sync")).toBeDisabled();
-  if (input.scope === "sales" && blockingAttemptId !== null) {
-    await expect(page.getByTestId("canonical-amocrm-command-state")).toHaveAttribute(
-      "data-status",
-      "unknown",
-    );
-    await expect(
-      page.getByTestId("canonical-amocrm-terminal-attempt-id"),
-    ).toHaveText(blockingAttemptId);
-    await expect(page.getByTestId("canonical-amocrm-reconcile")).toBeVisible();
-    await expect(page.getByTestId("canonical-amocrm-reconcile")).toBeDisabled();
+  await expect(panel.getByTestId("canonical-amocrm-note-text")).toBeDisabled();
+  await expect(panel.getByTestId("canonical-amocrm-sync")).toBeDisabled();
+  if (input.blockingAttemptId) {
+    await expectPersistedUnknownState(panel, input.blockingAttemptId);
   } else {
-    await expect(page.getByTestId("canonical-amocrm-reconcile")).toHaveCount(0);
+    await expect(panel.getByTestId("canonical-amocrm-reconcile")).toHaveCount(
+      0,
+    );
   }
 
   const html = await page.content();
@@ -128,6 +174,7 @@ async function expectBlockedPanel(
   expect(html).not.toMatch(
     /access_token|refresh_token|client_secret|authorization["':\s]+bearer|"_embedded"/iu,
   );
+  return panel;
 }
 
 test("amoCRM commands stay visibly disabled when the selected server prerequisite is absent", async ({
@@ -140,6 +187,7 @@ test("amoCRM commands stay visibly disabled when the selected server prerequisit
     scope: "sales",
     targetField: "lead_id",
     targetId: leadId,
+    blockingAttemptId: salesBlockingAttemptId,
   });
 });
 
@@ -228,27 +276,67 @@ test("wrong fixed roles are denied before either owning amoCRM panel renders", a
   );
 });
 
-test("a PostgreSQL-stored unknown attempt survives reload with safe reconciliation visible", async ({
+test("an active Sales PostgreSQL-stored unknown attempt survives reload with safe reconciliation visible", async ({
   page,
 }) => {
-  test.skip(blockingAttemptId === null, "no persisted blocker requested for this matrix run");
-  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
+  test.skip(
+    salesBlockingAttemptId === null || salesBlockingLeadId === null,
+    "no persisted Sales blocker requested for this matrix run",
+  );
+  const leadId = salesBlockingLeadId as string;
   await submitGate(page, "sales");
-  await expectBlockedPanel(page, {
+  const panel = await expectBlockedPanel(page, {
     route: `/sales/${leadId}`,
     scope: "sales",
     targetField: "lead_id",
     targetId: leadId,
+    blockingAttemptId: salesBlockingAttemptId,
   });
 
   await page.reload();
-  await expect(page.getByTestId("canonical-amocrm-command-state")).toHaveAttribute(
-    "data-status",
-    "unknown",
+  await expectPersistedUnknownState(
+    panel,
+    salesBlockingAttemptId as string,
+  );
+});
+
+test("a prior Sales unknown survives Admin override handoff into active Admissions Student 360", async ({
+  page,
+}) => {
+  test.skip(
+    admissionsBlockingAttemptId === null ||
+      admissionsBlockingLeadId === null ||
+      admissionsBlockingCaseId === null,
+    "no persisted Admissions carry blocker requested for this matrix run",
+  );
+  const studentCaseId = admissionsBlockingCaseId as string;
+  await submitGate(page, "admissions");
+  const panel = await expectBlockedPanel(page, {
+    route: `/clients/${studentCaseId}`,
+    scope: "admissions",
+    targetField: "student_case_id",
+    targetId: studentCaseId,
+    blockingAttemptId: admissionsBlockingAttemptId,
+    expectedLeadId: admissionsBlockingLeadId as string,
+  });
+  await expect(
+    page.getByTestId("canonical-student-case-workspace"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-student-case-handoff"),
+  ).toContainText(/Исключение Admin|Admin өзгөчө чечими|Admin exception/u);
+  await expect(
+    page.getByTestId("canonical-handoff-override-reason"),
+  ).toHaveText(
+    "Technical browser proof: carry prior Sales ambiguity into active Admissions",
+  );
+
+  await page.reload();
+  await expectPersistedUnknownState(
+    panel,
+    admissionsBlockingAttemptId as string,
   );
   await expect(
-    page.getByTestId("canonical-amocrm-terminal-attempt-id"),
-  ).toHaveText(blockingAttemptId as string);
-  await expect(page.getByTestId("canonical-amocrm-reconcile")).toBeVisible();
-  await expect(page.getByTestId("canonical-amocrm-sync")).toBeDisabled();
+    page.getByTestId("canonical-student-case-workspace"),
+  ).toBeVisible();
 });

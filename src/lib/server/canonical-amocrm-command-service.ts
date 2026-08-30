@@ -182,6 +182,10 @@ type FlowContext = Readonly<{
   email: string | null;
   phone: string | null;
   route: CanonicalAmoCrmCommandRoutingSnapshot["sales"];
+  oppositeTag: Readonly<{
+    tagId: string;
+    tagName: string;
+  }>;
   baseRequestId: string;
   noteText: string;
 }>;
@@ -362,6 +366,8 @@ function leadReadback(
     responsibleUserId?: string;
     tagId?: string;
     tagName?: string;
+    oppositeTagId?: string;
+    oppositeTagName?: string;
   }>,
 ): VerifiedReadback {
   const response = record(value);
@@ -389,8 +395,19 @@ function leadReadback(
   ) {
     throw new ReadbackMismatchError();
   }
-  if (expected.tagId !== undefined || expected.tagName !== undefined) {
-    if (expected.tagId === undefined || expected.tagName === undefined) {
+  if (
+    expected.tagId !== undefined ||
+    expected.tagName !== undefined ||
+    expected.oppositeTagId !== undefined ||
+    expected.oppositeTagName !== undefined
+  ) {
+    if (
+      expected.tagId === undefined ||
+      expected.tagName === undefined ||
+      expected.oppositeTagId === undefined ||
+      expected.oppositeTagName === undefined ||
+      expected.tagId === expected.oppositeTagId
+    ) {
       throw new ReadbackMismatchError();
     }
     const embedded = record(response._embedded ?? {});
@@ -401,7 +418,10 @@ function leadReadback(
         return (
           providerId(tag.id) === expected.tagId && tag.name === expected.tagName
         );
-      })
+      }) ||
+      tags.some(
+        (value) => providerId(record(value).id) === expected.oppositeTagId,
+      )
     ) {
       throw new ReadbackMismatchError();
     }
@@ -420,25 +440,35 @@ function leadReadback(
       ...(expected.responsibleUserId === undefined
         ? {}
         : { responsibleUserId: expected.responsibleUserId }),
-      ...(expected.tagName === undefined || expected.tagId === undefined
+      ...(expected.tagName === undefined ||
+          expected.tagId === undefined ||
+          expected.oppositeTagId === undefined ||
+          expected.oppositeTagName === undefined
         ? {}
         : {
             tagId: expected.tagId,
             tagNameSha256: valueHash(expected.tagName),
+            oppositeTagId: expected.oppositeTagId,
+            oppositeTagNameSha256: valueHash(expected.oppositeTagName),
           }),
     }),
     providerUpdatedAt: optionalProviderUpdatedAt(response.updated_at),
   });
 }
 
-function linkExists(value: unknown, contactId: string): boolean {
+function mainContactLinkExists(value: unknown, contactId: string): boolean {
   const response = record(value);
   const embedded = record(response._embedded);
   return collection(embedded.links).some((linkValue) => {
     const link = record(linkValue);
+    const metadata = link.metadata;
     return (
       link.to_entity_type === "contacts" &&
-      providerId(link.to_entity_id) === contactId
+      providerId(link.to_entity_id) === contactId &&
+      typeof metadata === "object" &&
+      metadata !== null &&
+      !Array.isArray(metadata) &&
+      (metadata as Record<string, unknown>).main_contact === true
     );
   });
 }
@@ -448,12 +478,13 @@ function linkReadback(
   leadId: string,
   contactId: string,
 ): VerifiedReadback {
-  if (!linkExists(value, contactId)) throw new ReadbackMismatchError();
+  if (!mainContactLinkExists(value, contactId)) throw new ReadbackMismatchError();
   return Object.freeze({
     evidence: Object.freeze({
       entity: "lead_contact_link",
       leadId,
       contactId,
+      mainContact: true,
     }),
     providerUpdatedAt: null,
   });
@@ -605,17 +636,24 @@ function acceptedResultIds(
   return Object.freeze({ resultContactId: null, resultLeadId: input.targetLeadId });
 }
 
-function responseTime(dependencies: ResolvedDependencies): string {
+function responseTime(
+  dependencies: ResolvedDependencies,
+  notBefore: string | null = null,
+): string {
   const value = dependencies.now();
   if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
     throw new Error("invalid_clock");
   }
-  return value.toISOString();
+  if (notBefore === null) return value.toISOString();
+  const floor = new Date(notBefore);
+  if (!Number.isFinite(floor.getTime())) throw new Error("invalid_clock");
+  return new Date(Math.max(value.getTime(), floor.getTime())).toISOString();
 }
 
 async function settleProviderFailure(
   input: StepExecutionInput,
   attemptId: string,
+  providerDispatchedAt: string | null,
   error: unknown,
   dependencies: ResolvedDependencies,
 ): Promise<InternalStep> {
@@ -631,7 +669,7 @@ async function settleProviderFailure(
       : error instanceof Error && error.message === "readback_mismatch"
         ? "readback_mismatch"
         : "provider_result_unknown";
-  const occurredAt = responseTime(dependencies);
+  const occurredAt = responseTime(dependencies, providerDispatchedAt);
   const outcome: SettleCanonicalAmoCrmCommandOutcome =
     status === "rejected"
       ? Object.freeze({
@@ -737,6 +775,7 @@ async function executePreparedStep(
       return await settleProviderFailure(
         input,
         claim.attempt.attemptId,
+        claim.attempt.providerDispatchedAt,
         error,
         dependencies,
       );
@@ -756,7 +795,10 @@ async function executePreparedStep(
     verified = await input.verify(provider, mutation.entityId);
   } catch (error) {
     try {
-      const occurredAt = responseTime(dependencies);
+      const occurredAt = responseTime(
+        dependencies,
+        claim.attempt.providerDispatchedAt,
+      );
       const settled = await dependencies.settleCommand(
         claim.attempt.attemptId,
         input.authorization,
@@ -783,7 +825,10 @@ async function executePreparedStep(
     }
   }
 
-  const occurredAt = responseTime(dependencies);
+  const occurredAt = responseTime(
+    dependencies,
+    claim.attempt.providerDispatchedAt,
+  );
   const ids = acceptedResultIds(input, mutation.entityId);
   try {
     const settled = await dependencies.settleCommand(
@@ -1048,7 +1093,12 @@ async function executeLink(
     );
   }
   try {
-    if (linkExists(await context.provider.getLeadLinks(leadId), contactId)) {
+    if (
+      mainContactLinkExists(
+        await context.provider.getLeadLinks(leadId),
+        contactId,
+      )
+    ) {
       return internalStep(
         "contact_lead_link",
         "accepted",
@@ -1168,18 +1218,25 @@ async function executeLeadEffect(
       requestId,
       leadId: providerLeadId,
       add: Object.freeze([Object.freeze({ id: context.route.tagId })]),
+      remove: Object.freeze([
+        Object.freeze({ id: context.oppositeTag.tagId }),
+      ]),
     });
     expected = Object.freeze({
       entity: "lead",
       leadId: providerLeadId,
       tagId: context.route.tagId,
       tagNameSha256: valueHash(context.route.tagName),
+      oppositeTagId: context.oppositeTag.tagId,
+      oppositeTagNameSha256: valueHash(context.oppositeTag.tagName),
     });
     verify = async (provider) =>
       leadReadback(await provider.getLeadById(providerLeadId), {
         leadId: providerLeadId,
         tagId: context.route.tagId,
         tagName: context.route.tagName,
+        oppositeTagId: context.oppositeTag.tagId,
+        oppositeTagName: context.oppositeTag.tagName,
       });
   }
   const result = await executePreparedStep(
@@ -1220,6 +1277,7 @@ function storedRequestMatchesCurrentContext(
     phone: string | null;
     noteText: string;
     route: CanonicalAmoCrmRoleCommandRoute;
+    oppositeTagName: string;
   }>,
 ): boolean {
   if (attempt.actorRole !== context.actorRole) return false;
@@ -1266,7 +1324,10 @@ function storedRequestMatchesCurrentContext(
     return expected.textSha256 === valueHash(context.noteText);
   }
   if (attempt.operationName === "lead_tag_update") {
-    return expected.tagNameSha256 === valueHash(context.route.tagName);
+    return (
+      expected.tagNameSha256 === valueHash(context.route.tagName) &&
+      expected.oppositeTagNameSha256 === valueHash(context.oppositeTagName)
+    );
   }
   return true;
 }
@@ -1282,6 +1343,7 @@ async function preflightStoredFlow(
     phone: string | null;
     noteText: string;
     route: CanonicalAmoCrmRoleCommandRoute;
+    oppositeTagName: string;
   }>,
 ): Promise<CanonicalAmoCrmSyncResult | null> {
   const read = async (operationName: EvoAmoCrmOperationName) =>
@@ -1333,6 +1395,7 @@ async function preflightStoredFlow(
     phone: input.phone,
     noteText: input.noteText,
     route: input.route,
+    oppositeTagName: input.oppositeTagName,
   };
   const appendStored = (
     attempt: CanonicalAmoCrmCommandSnapshot,
@@ -1557,6 +1620,7 @@ export async function executeCanonicalAmoCrmSalesSync(
     phone: lead.phone,
     noteText: note,
     route: commandConfig.sales,
+    oppositeTagName: commandConfig.admissions.tagName,
   });
   if (stored !== null) return stored;
   const blocking = await preflightBlockingFlow(dependencies, {
@@ -1579,6 +1643,7 @@ export async function executeCanonicalAmoCrmSalesSync(
     email: lead.email,
     phone: lead.phone,
     route: providers.routing.sales,
+    oppositeTag: providers.routing.admissions,
     baseRequestId: requestId,
     noteText: note,
   });
@@ -1638,6 +1703,7 @@ export async function executeCanonicalAmoCrmAdmissionsSync(
     phone: null,
     noteText: note,
     route: commandConfig.admissions,
+    oppositeTagName: commandConfig.sales.tagName,
   });
   if (stored !== null) return stored;
   const blocking = await preflightBlockingFlow(dependencies, {
@@ -1669,6 +1735,7 @@ export async function executeCanonicalAmoCrmAdmissionsSync(
     email: null,
     phone: null,
     route: providers.routing.admissions,
+    oppositeTag: providers.routing.sales,
     baseRequestId: requestId,
     noteText: note,
   });
@@ -1804,23 +1871,36 @@ function storedLeadReadback(
     evidence.responsibleUserId = responsibleUserId;
   } else if (operationName === "lead_tag_update") {
     const expectedHash = optionalExpectedHash(expected, "tagNameSha256");
+    const oppositeExpectedHash = optionalExpectedHash(
+      expected,
+      "oppositeTagNameSha256",
+    );
     const tagId = requiredExpected(expected, "tagId");
+    const oppositeTagId = requiredExpected(expected, "oppositeTagId");
     const embedded = record(response._embedded ?? {});
+    const tags = collection(embedded.tags ?? []);
     if (
       expectedHash === null ||
-      !collection(embedded.tags ?? []).some((tagValue) => {
+      oppositeExpectedHash === null ||
+      tagId === oppositeTagId ||
+      !tags.some((tagValue) => {
         const tag = record(tagValue);
         return (
           providerId(tag.id) === tagId &&
           typeof tag.name === "string" &&
           valueHash(tag.name) === expectedHash
         );
-      })
+      }) ||
+      tags.some(
+        (tagValue) => providerId(record(tagValue).id) === oppositeTagId,
+      )
     ) {
       throw new ReadbackMismatchError();
     }
     evidence.tagId = tagId;
     evidence.tagNameSha256 = expectedHash;
+    evidence.oppositeTagId = oppositeTagId;
+    evidence.oppositeTagNameSha256 = oppositeExpectedHash;
   } else {
     throw new ReadbackMismatchError();
   }
@@ -2031,7 +2111,10 @@ export async function reconcileCanonicalAmoCrmSyncAttempt(
     );
   }
 
-  const reconciledAt = responseTime(dependencies);
+  const reconciledAt = responseTime(
+    dependencies,
+    attempt.providerDispatchedAt,
+  );
   const ids = reconciledResultIds(attempt);
   const outcome: ReconcileUnknownCanonicalAmoCrmCommandOutcome = Object.freeze({
     status: "accepted",

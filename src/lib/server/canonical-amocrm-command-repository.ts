@@ -725,12 +725,44 @@ function assertStoredWorkflow(
   }
 }
 
+function isPriorSalesAttemptRecoverableAfterHandoff(
+  row: StoredAttemptRow,
+  authorization: CanonicalAmoCrmWorkflowAuthorization,
+  allowAcceptedReplay = false,
+): boolean {
+  return (
+    authorization.workflowScope === "admissions_post_handoff" &&
+    (authorization.actorRole === "admin" || authorization.actorRole === "admissions") &&
+    (row.status === "prepared" ||
+      row.status === "unknown" ||
+      (allowAcceptedReplay && row.status === "accepted")) &&
+    (row.actorRole === "admin" || row.actorRole === "sales") &&
+    (row.receiptActorRole === "admin" || row.receiptActorRole === "sales") &&
+    row.receiptBusinessObjectType === "amocrm_sales_lead" &&
+    row.receiptBusinessObjectId === authorization.workflowLeadId &&
+    (row.leadId === null || row.leadId === authorization.workflowLeadId)
+  );
+}
+
 async function authorizeStored(
   transaction: DatabaseTransaction,
   row: StoredAttemptRow,
   authorization: CanonicalAmoCrmWorkflowAuthorization,
+  options: Readonly<{
+    allowPriorSalesHandoffRecovery?: boolean;
+    allowAcceptedPriorSalesReplay?: boolean;
+  }> = {},
 ): Promise<void> {
-  assertStoredWorkflow(row, authorization);
+  if (
+    !options.allowPriorSalesHandoffRecovery ||
+    !isPriorSalesAttemptRecoverableAfterHandoff(
+      row,
+      authorization,
+      options.allowAcceptedPriorSalesReplay,
+    )
+  ) {
+    assertStoredWorkflow(row, authorization);
+  }
   await assertWorkflowAuthorization(transaction, authorization, row.personId);
 }
 
@@ -925,7 +957,9 @@ export async function readCanonicalAmoCrmCommand(
     getDatabase().transaction(async (transaction) => {
       const row = await selectByAttemptId(transaction, attemptId);
       if (!row) repositoryError("not_found");
-      await authorizeStored(transaction, row, authorization);
+      await authorizeStored(transaction, row, authorization, {
+        allowPriorSalesHandoffRecovery: true,
+      });
       return snapshot(row, authorization);
     }),
   );
@@ -941,7 +975,9 @@ export async function readCanonicalAmoCrmCommandByIdempotencyKey(
     getDatabase().transaction(async (transaction) => {
       const row = await selectByIdempotencyKey(transaction, idempotencyKey);
       if (!row) return null;
-      await authorizeStored(transaction, row, authorization);
+      await authorizeStored(transaction, row, authorization, {
+        allowPriorSalesHandoffRecovery: true,
+      });
       return snapshot(row, authorization);
     }),
   );
@@ -999,14 +1035,25 @@ export async function readBlockingCanonicalAmoCrmCommand(
   const personId = uuid(rawInput.personId);
   const leadId = uuid(rawInput.leadId);
   if (leadId !== authorization.workflowLeadId) repositoryError("forbidden");
-  const businessObjectType =
+  const businessObjectCondition =
     authorization.workflowScope === "sales_pre_handoff"
-      ? "amocrm_sales_lead"
-      : "amocrm_admissions_case";
-  const businessObjectId =
-    authorization.workflowScope === "sales_pre_handoff"
-      ? authorization.workflowLeadId
-      : (authorization.studentCaseId as string);
+      ? and(
+          eq(evoCommandReceipts.businessObjectType, "amocrm_sales_lead"),
+          eq(evoCommandReceipts.businessObjectId, authorization.workflowLeadId),
+        )
+      : or(
+          and(
+            eq(evoCommandReceipts.businessObjectType, "amocrm_admissions_case"),
+            eq(
+              evoCommandReceipts.businessObjectId,
+              authorization.studentCaseId as string,
+            ),
+          ),
+          and(
+            eq(evoCommandReceipts.businessObjectType, "amocrm_sales_lead"),
+            eq(evoCommandReceipts.businessObjectId, authorization.workflowLeadId),
+          ),
+        );
 
   return repositoryOperation(() =>
     getDatabase().transaction(async (transaction) => {
@@ -1021,8 +1068,7 @@ export async function readBlockingCanonicalAmoCrmCommand(
         .where(
           and(
             inArray(evoAmoCrmOperationAttempts.status, ["prepared", "unknown"]),
-            eq(evoCommandReceipts.businessObjectType, businessObjectType),
-            eq(evoCommandReceipts.businessObjectId, businessObjectId),
+            businessObjectCondition,
             or(
               eq(evoAmoCrmOperationAttempts.personId, personId),
               eq(evoAmoCrmOperationAttempts.leadId, leadId),
@@ -1035,7 +1081,9 @@ export async function readBlockingCanonicalAmoCrmCommand(
         )
         .limit(1);
       if (!row) return null;
-      assertStoredWorkflow(row as StoredAttemptRow, authorization);
+      await authorizeStored(transaction, row as StoredAttemptRow, authorization, {
+        allowPriorSalesHandoffRecovery: true,
+      });
       return snapshot(row as StoredAttemptRow, authorization);
     }),
   );
@@ -1078,8 +1126,8 @@ export async function claimCanonicalAmoCrmCommandDispatch(
       const [claimed] = await transaction
         .update(evoAmoCrmOperationAttempts)
         .set({
-          providerDispatchedAt: new Date(),
-          updatedAt: new Date(),
+          providerDispatchedAt: sql`now()`,
+          updatedAt: sql`now()`,
           version: sql`${evoAmoCrmOperationAttempts.version} + 1`,
         })
         .where(
@@ -1409,12 +1457,15 @@ export async function reconcileUnknownCanonicalAmoCrmCommand(
       );
       const row = await selectByAttemptId(transaction, attemptId);
       if (!row) repositoryError("not_found");
-      await authorizeStored(transaction, row, authorization);
-      if (
-        accepted &&
+      const acceptedReplay =
+        accepted !== null &&
         row.status === "accepted" &&
-        isExactSettlementReplay(row, accepted)
-      ) {
+        isExactSettlementReplay(row, accepted);
+      await authorizeStored(transaction, row, authorization, {
+        allowPriorSalesHandoffRecovery: true,
+        allowAcceptedPriorSalesReplay: acceptedReplay,
+      });
+      if (acceptedReplay) {
         return Object.freeze({
           kind: "replay" as const,
           attempt: snapshot(row, authorization),

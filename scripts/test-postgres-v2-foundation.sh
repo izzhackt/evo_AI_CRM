@@ -105,8 +105,11 @@ waha_base_url="http://127.0.0.1:${waha_port}"
 amocrm_client_id="technical-amocrm-client-466"
 amocrm_client_secret_probe="$(openssl rand -hex 24)"
 amocrm_token_file="$tmp_dir/missing-amocrm-token.json"
-amocrm_browser_blocker_id=""
-amocrm_browser_lead_id=""
+amocrm_sales_blocking_attempt_id=""
+amocrm_sales_blocking_lead_id=""
+amocrm_admissions_blocking_attempt_id=""
+amocrm_admissions_blocking_lead_id=""
+amocrm_admissions_blocking_case_id=""
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 broken_database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${broken_database}"
 
@@ -560,8 +563,12 @@ amocrm_command_browser_assert() {
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_AMOCRM_BROWSER_MODE="$proof_mode" \
     EVO_EXPECT_AMOCRM_SECRET_PROBE="$amocrm_client_secret_probe" \
-    EVO_EXPECT_AMOCRM_BLOCKING_ATTEMPT_ID="$amocrm_browser_blocker_id" \
-    EVO_CANONICAL_LEAD_ID="${amocrm_browser_lead_id:-$canonical_lead_id}" \
+    EVO_EXPECT_AMOCRM_SALES_BLOCKING_ATTEMPT_ID="$amocrm_sales_blocking_attempt_id" \
+    EVO_EXPECT_AMOCRM_SALES_BLOCKING_LEAD_ID="$amocrm_sales_blocking_lead_id" \
+    EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_ATTEMPT_ID="$amocrm_admissions_blocking_attempt_id" \
+    EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_LEAD_ID="$amocrm_admissions_blocking_lead_id" \
+    EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_CASE_ID="$amocrm_admissions_blocking_case_id" \
+    EVO_CANONICAL_LEAD_ID="${amocrm_sales_blocking_lead_id:-$canonical_lead_id}" \
     EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
     EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
     EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
@@ -735,15 +742,44 @@ browser_assert 200
 development_gate_browser_assert configured
 canonical_read_browser_assert configured
 amocrm_command_browser_assert provider-not-authorized
-read -r amocrm_browser_blocker_id amocrm_browser_lead_id <<<"$(
+read -r \
+  amocrm_sales_blocking_attempt_id \
+  amocrm_sales_blocking_lead_id \
+  amocrm_admissions_blocking_attempt_id \
+  amocrm_admissions_blocking_lead_id \
+  amocrm_admissions_blocking_case_id <<<"$(
   DATABASE_URL="$database_url" \
     "$node_bin" --conditions=react-server --experimental-strip-types \
       scripts/seed-canonical-amocrm-browser-blocker.mjs
 )"
-[[ "$amocrm_browser_blocker_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
-  || fail "The isolated amoCRM blocker seed did not return a valid attempt id"
-[[ "$amocrm_browser_lead_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
-  || fail "The isolated amoCRM blocker seed did not return a valid lead id"
+for seeded_uuid in \
+  "$amocrm_sales_blocking_attempt_id" \
+  "$amocrm_sales_blocking_lead_id" \
+  "$amocrm_admissions_blocking_attempt_id" \
+  "$amocrm_admissions_blocking_lead_id" \
+  "$amocrm_admissions_blocking_case_id"; do
+  [[ "$seeded_uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
+    || fail "The isolated amoCRM cross-phase blocker seed did not return five valid UUIDs"
+done
+amocrm_admissions_carry_row="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "
+  SELECT
+    attempt.status || '|' || receipt.business_object_type || '|' ||
+    lead.stage || '|' || student_case.status || '|' || handoff.is_override
+  FROM evo_amocrm_operation_attempts AS attempt
+  INNER JOIN evo_command_receipts AS receipt
+    ON receipt.id = attempt.command_receipt_id
+  INNER JOIN evo_leads AS lead
+    ON lead.id = attempt.lead_id
+  INNER JOIN evo_student_cases AS student_case
+    ON student_case.lead_id = lead.id
+  INNER JOIN evo_sales_admissions_handoffs AS handoff
+    ON handoff.student_case_id = student_case.id
+  WHERE attempt.id = '${amocrm_admissions_blocking_attempt_id}'
+    AND lead.id = '${amocrm_admissions_blocking_lead_id}'
+    AND student_case.id = '${amocrm_admissions_blocking_case_id}';
+")"
+[[ "$amocrm_admissions_carry_row" == "unknown|amocrm_sales_lead|handed_off|active|true" ]] \
+  || fail "The isolated amoCRM seed did not preserve the Sales unknown across an active Admin override handoff"
 private_document_browser_assert configured
 assert_no_secret_or_payload_logs
 

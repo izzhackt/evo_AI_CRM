@@ -509,6 +509,9 @@ export async function discoverCanonicalAmoCrmCommandRouting(
     users,
     leadTags,
   );
+  if (sales.tagId === admissions.tagId) {
+    throw new CanonicalAmoCrmDiscoveryError("mapping_invalid");
+  }
   const phoneField = exactContactField(contactCustomFields, "PHONE");
   const emailField = exactContactField(contactCustomFields, "EMAIL");
 

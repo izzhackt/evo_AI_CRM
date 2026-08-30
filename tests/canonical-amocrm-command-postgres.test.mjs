@@ -17,6 +17,8 @@ import {
 } from "../src/lib/server/canonical-amocrm-command-repository.ts";
 import {
   createCanonicalPersonLead,
+  handoffCanonicalLeadToAdmissions,
+  updateCanonicalSalesLeadWorkflow,
 } from "../src/lib/server/canonical-crm-repository.ts";
 import { closeDatabaseConnections } from "../src/lib/server/database.ts";
 
@@ -181,8 +183,14 @@ function contactCreateInput(
   };
 }
 
-function acceptedLeadOutcome(providerLeadId = "700001") {
-  const now = new Date().toISOString();
+function timestampAtOrAfter(notBefore) {
+  const floor = Date.parse(notBefore ?? "");
+  assert.ok(Number.isFinite(floor));
+  return new Date(Math.max(Date.now(), floor)).toISOString();
+}
+
+function acceptedLeadOutcome(providerLeadId = "700001", providerDispatchedAt) {
+  const now = timestampAtOrAfter(providerDispatchedAt);
   return {
     status: "accepted",
     providerHttpStatus: 200,
@@ -317,15 +325,16 @@ test("accepted create settles its receipt and binding atomically with exact sett
     });
     assert.deepEqual(bindingsBefore, { contactId: null, leadId: null });
     const prepared = await prepareCanonicalAmoCrmCommand(input);
-    assert.equal(
-      (await claimCanonicalAmoCrmCommandDispatch(
-        prepared.attempt.attemptId,
-        input.authorization,
-      )).kind,
-      "claimed",
+    const claimed = await claimCanonicalAmoCrmCommandDispatch(
+      prepared.attempt.attemptId,
+      input.authorization,
     );
+    assert.equal(claimed.kind, "claimed");
 
-    const outcome = acceptedLeadOutcome("700011");
+    const outcome = acceptedLeadOutcome(
+      "700011",
+      claimed.attempt.providerDispatchedAt,
+    );
     const settled = await settleCanonicalAmoCrmCommand(
       prepared.attempt.attemptId,
       input.authorization,
@@ -367,11 +376,13 @@ test("accepted create settles its receipt and binding atomically with exact sett
       commandContext("sales"),
     );
     const contactPrepared = await prepareCanonicalAmoCrmCommand(contactInput);
-    await claimCanonicalAmoCrmCommandDispatch(
+    const contactClaimed = await claimCanonicalAmoCrmCommandDispatch(
       contactPrepared.attempt.attemptId,
       contactInput.authorization,
     );
-    const contactTime = new Date().toISOString();
+    const contactTime = timestampAtOrAfter(
+      contactClaimed.attempt.providerDispatchedAt,
+    );
     const contactSettled = await settleCanonicalAmoCrmCommand(
       contactPrepared.attempt.attemptId,
       contactInput.authorization,
@@ -509,7 +520,9 @@ test("unknown and rejected outcomes never create bindings and unknown requires e
     assert.equal(stillUnknown.attempt.status, "unknown");
     assert.ok(stillUnknown.attempt.lastReconciledAt);
 
-    const reconcileTime = new Date().toISOString();
+    const reconcileTime = timestampAtOrAfter(
+      stillUnknown.attempt.providerDispatchedAt,
+    );
     const reconciled = await reconcileUnknownCanonicalAmoCrmCommand(
       unknownPrepared.attempt.attemptId,
       unknownInput.authorization,
@@ -537,11 +550,13 @@ test("unknown and rejected outcomes never create bindings and unknown requires e
       { name: "Rejected technical lead" },
     );
     const rejectedPrepared = await prepareCanonicalAmoCrmCommand(rejectedInput);
-    await claimCanonicalAmoCrmCommandDispatch(
+    const rejectedClaimed = await claimCanonicalAmoCrmCommandDispatch(
       rejectedPrepared.attempt.attemptId,
       rejectedInput.authorization,
     );
-    const rejectedAt = new Date().toISOString();
+    const rejectedAt = timestampAtOrAfter(
+      rejectedClaimed.attempt.providerDispatchedAt,
+    );
     const rejected = await settleCanonicalAmoCrmCommand(
       rejectedPrepared.attempt.attemptId,
       rejectedInput.authorization,
@@ -632,6 +647,173 @@ test("a claimed prepared attempt enters durable unknown reconciliation without a
       binding_count: 0,
       receipt_status: "processing",
     });
+  } finally {
+    await closeDatabaseConnections();
+    await sql.end({ timeout: 5 });
+  }
+});
+
+test("Admissions can reconcile the exact unresolved Sales attempt after canonical handoff without cross-lead access", async () => {
+  const sql = postgres(requiredDatabaseUrl(), {
+    idle_timeout: 5,
+    max: 4,
+    onnotice: () => undefined,
+  });
+  const runId = randomUUID();
+  try {
+    const accountId = await createAccount(sql, runId);
+    const lead = await createLead(runId, "cross-phase-recovery");
+    const salesInput = leadCreateInput(
+      accountId,
+      lead,
+      commandContext("sales"),
+      { name: "Cross-phase recovery technical lead" },
+    );
+    const prepared = await prepareCanonicalAmoCrmCommand(salesInput);
+    const activeSalesWorkflow = await updateCanonicalSalesLeadWorkflow(
+      commandContext("sales"),
+      {
+        leadId: lead.leadId,
+        expectedVersion: lead.version,
+        stage: "qualifying",
+        nextAction: "Resolve the technical amoCRM attempt before handoff",
+        nextActionAt: "2099-01-01",
+      },
+    );
+    await claimCanonicalAmoCrmCommandDispatch(
+      prepared.attempt.attemptId,
+      salesInput.authorization,
+    );
+    await settleCanonicalAmoCrmCommand(
+      prepared.attempt.attemptId,
+      salesInput.authorization,
+      { status: "unknown", failureCode: "transport_timeout" },
+    );
+
+    const qualified = await updateCanonicalSalesLeadWorkflow(
+      commandContext("admin"),
+      {
+        leadId: lead.leadId,
+        expectedVersion: activeSalesWorkflow.version,
+        stage: "qualified",
+        qualificationSummary: "Technical qualification for cross-phase recovery",
+        nextAction: "Execute the canonical Admin override handoff",
+        nextActionAt: "2099-01-01",
+      },
+    );
+    const handoff = await handoffCanonicalLeadToAdmissions({
+      ...commandContext("admin"),
+      leadId: lead.leadId,
+      expectedVersion: qualified.version,
+      adminOverride: {
+        reason: "Technical Admin override for cross-phase amoCRM recovery",
+      },
+    });
+    assert.equal(handoff.isOverride, true);
+    const admissions = admissionsAuthorization(
+      lead.leadId,
+      handoff.studentCaseId,
+    );
+
+    const blocker = await readBlockingCanonicalAmoCrmCommand({
+      authorization: admissions,
+      personId: lead.personId,
+      leadId: lead.leadId,
+    });
+    assert.equal(blocker?.attemptId, prepared.attempt.attemptId);
+    assert.equal(blocker?.status, "unknown");
+
+    const unrelatedLead = await createLead(runId, "unrelated-cross-phase");
+    const unrelatedQualified = await updateCanonicalSalesLeadWorkflow(
+      commandContext("admin"),
+      {
+        leadId: unrelatedLead.leadId,
+        expectedVersion: unrelatedLead.version,
+        stage: "qualified",
+        qualificationSummary: "Technical unrelated qualification",
+        nextAction: "Execute the unrelated canonical Admin override handoff",
+        nextActionAt: "2099-01-01",
+      },
+    );
+    const unrelatedHandoff = await handoffCanonicalLeadToAdmissions({
+      ...commandContext("admin"),
+      leadId: unrelatedLead.leadId,
+      expectedVersion: unrelatedQualified.version,
+      adminOverride: {
+        reason: "Technical unrelated Admin override",
+      },
+    });
+    await assert.rejects(
+      readCanonicalAmoCrmCommand(
+        prepared.attempt.attemptId,
+        admissionsAuthorization(
+          unrelatedLead.leadId,
+          unrelatedHandoff.studentCaseId,
+        ),
+      ),
+      repositoryError("forbidden"),
+    );
+    await assert.rejects(
+      readCanonicalAmoCrmCommand(
+        prepared.attempt.attemptId,
+        admissionsAuthorization(lead.leadId, handoff.studentCaseId, "sales"),
+      ),
+      repositoryError("forbidden"),
+    );
+    await assert.rejects(
+      readCanonicalAmoCrmCommand(
+        prepared.attempt.attemptId,
+        salesAuthorization(lead.leadId),
+      ),
+      repositoryError("forbidden"),
+    );
+
+    const reconciledAt = timestampAtOrAfter(blocker.providerDispatchedAt);
+    const acceptedOutcome = {
+      status: "accepted",
+      providerHttpStatus: 200,
+      providerRequestId: "cross-phase-readback-request-id",
+      providerRespondedAt: reconciledAt,
+      providerReadback: { id: 700041, marker: "cross-phase-exact-marker" },
+      providerReadbackAt: reconciledAt,
+      resultContactId: null,
+      resultLeadId: "700041",
+      providerUpdatedAt: reconciledAt,
+    };
+    const reconciled = await reconcileUnknownCanonicalAmoCrmCommand(
+      prepared.attempt.attemptId,
+      admissions,
+      acceptedOutcome,
+    );
+    assert.equal(reconciled.kind, "reconciled");
+    assert.equal(reconciled.attempt.attemptId, prepared.attempt.attemptId);
+    assert.equal(reconciled.attempt.status, "accepted");
+    const replayed = await reconcileUnknownCanonicalAmoCrmCommand(
+      prepared.attempt.attemptId,
+      admissions,
+      acceptedOutcome,
+    );
+    assert.equal(replayed.kind, "replay");
+    assert.equal(replayed.attempt.attemptId, prepared.attempt.attemptId);
+    await assert.rejects(
+      reconcileUnknownCanonicalAmoCrmCommand(
+        prepared.attempt.attemptId,
+        admissions,
+        {
+          ...acceptedOutcome,
+          providerRequestId: "different-cross-phase-readback-request-id",
+        },
+      ),
+      repositoryError("forbidden"),
+    );
+    assert.equal(
+      await readBlockingCanonicalAmoCrmCommand({
+        authorization: admissions,
+        personId: lead.personId,
+        leadId: lead.leadId,
+      }),
+      null,
+    );
   } finally {
     await closeDatabaseConnections();
     await sql.end({ timeout: 5 });

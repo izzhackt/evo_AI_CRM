@@ -418,6 +418,14 @@ test("fails closed for invalid routing, non-exact tag mapping or ambiguous conta
     ],
     [
       "mapping_invalid",
+      {
+        ...ROUTING_ENV,
+        EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME: "EVO V2 Sales",
+      },
+      providerResponses(),
+    ],
+    [
+      "mapping_invalid",
       ROUTING_ENV,
       providerResponses({
         leadTags: {

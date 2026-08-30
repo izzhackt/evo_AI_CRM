@@ -719,6 +719,18 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       replayDatabase.readbackSetSha256 === database.readbackSetSha256,
     "Exact UI replay created a new attempt, receipt, binding or provider entity",
   );
+  const replayProvider = await exactProviderReadback(
+    runtime,
+    context,
+    replayDatabase,
+  );
+  ensure(
+    replayProvider.exactReadback === true &&
+      replayProvider.entitySetSha256 === provider.entitySetSha256 &&
+      replayProvider.managedRoleTagCount === provider.managedRoleTagCount &&
+      replayProvider.mainContactCount === provider.mainContactCount,
+    "Exact UI replay changed the provider entity set",
+  );
 
   await page.reload();
   await expect(page.getByTestId("canonical-sales-lead-workspace")).toBeVisible();
@@ -772,6 +784,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       replayAddedAttemptCount: 0,
       replayAddedReceiptCount: 0,
       replayAddedBindingCount: 0,
+      replayProviderEntitySetUnchanged: true,
       persistedAfterReload: true,
     },
     boundaries: {

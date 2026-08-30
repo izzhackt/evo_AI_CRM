@@ -215,7 +215,9 @@ stop_app() {
   --token-file "$token_file" \
   --runtime-file "$runtime_file"
 
-if ! ssh "$ssh_host" \
+if ! ssh -o BatchMode=yes \
+  -o ConnectTimeout=15 \
+  "$ssh_host" \
   "container_id=\$(docker ps --filter \"name=^/${container_name}\$\" --format '{{.ID}}'); \
   [[ -n \"\$container_id\" ]]; \
   docker inspect --format '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' \
@@ -226,8 +228,13 @@ then
 fi
 container_ip="$(awk 'NF { print; exit }' "$ssh_probe_log")"
 [[ -n "$container_ip" ]] || fail "The connected WAHA container address was empty"
+"$node_bin" scripts/prepare-connected-amocrm-validation.mjs validate-private-ipv4 \
+  --value "$container_ip" \
+  || fail "The connected WAHA container address was not an exact private IPv4 address"
 
-ssh -o ExitOnForwardFailure=yes \
+ssh -o BatchMode=yes \
+  -o ConnectTimeout=15 \
+  -o ExitOnForwardFailure=yes \
   -o ServerAliveInterval=15 \
   -o ServerAliveCountMax=3 \
   -N \
@@ -319,6 +326,70 @@ stop_app
   || fail "The connected amoCRM run did not produce dispatch-attempt.json"
 [[ -f "$evidence_dir/success.json" ]] \
   || fail "The connected amoCRM run did not produce success.json"
+
+EVO_V2_AMOCRM_EVIDENCE_DIR="$evidence_dir" \
+  EVO_V2_ACCEPTANCE_MAIN_SHA="$expected_main_sha" \
+  "$node_bin" --input-type=module <<'EOF' \
+  || fail "The connected amoCRM evidence did not prove the exact redacted acceptance boundary"
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+const evidenceDir = process.env.EVO_V2_AMOCRM_EVIDENCE_DIR;
+const expectedSha = process.env.EVO_V2_ACCEPTANCE_MAIN_SHA;
+const fileNames = [
+  "authority-blocked.json",
+  "provider-preparation-attempt.json",
+  "dispatch-attempt.json",
+  "success.json",
+];
+const evidence = Object.fromEntries(
+  await Promise.all(
+    fileNames.map(async (fileName) => [
+      fileName,
+      JSON.parse(await readFile(join(evidenceDir, fileName), "utf8")),
+    ]),
+  ),
+);
+const blocked = evidence["authority-blocked.json"];
+const preparation = evidence["provider-preparation-attempt.json"];
+const dispatch = evidence["dispatch-attempt.json"];
+const success = evidence["success.json"];
+const assert = (condition) => {
+  if (!condition) throw new Error("redacted_acceptance_evidence_invalid");
+};
+
+for (const marker of Object.values(evidence)) {
+  assert(marker && typeof marker === "object" && marker.gitSha === expectedSha);
+}
+assert(blocked.status === "passed" && blocked.checks?.providerAttemptCount === 0);
+assert(blocked.checks?.bindingCount === 0 && blocked.checks?.fallbackObserved === false);
+assert(preparation.status === "started" && dispatch.status === "started");
+assert(dispatch.action === "one_explicit_admin_sync");
+assert(success.status === "passed" && success.action === "one_explicit_admin_sync");
+assert(success.provider?.exactReadback === true);
+assert(success.database?.attemptCount === 7 && success.database?.receiptCount === 7);
+assert(success.database?.exactUiReplay === true);
+assert(success.database?.replayAddedAttemptCount === 0);
+assert(success.database?.replayAddedReceiptCount === 0);
+assert(success.database?.replayAddedBindingCount === 0);
+assert(success.database?.replayProviderEntitySetUnchanged === true);
+assert(success.database?.persistedAfterReload === true);
+assert(success.boundaries?.v1ApplicationPathExecuted === false);
+assert(success.boundaries?.existingWahaSessionReadOnly === true);
+assert(success.boundaries?.deploymentMutated === false);
+assert(success.boundaries?.fallbackObserved === false);
+
+const forbiddenKey = /^(?:access_?token|refresh_?token|client_?secret|api_?key|phone|contact_?id|lead_?id|note_?id|pipeline_?id|status_?id|responsible_?user_?id)$/iu;
+const inspect = (value) => {
+  if (Array.isArray(value)) return value.forEach(inspect);
+  if (!value || typeof value !== "object") return;
+  for (const [key, child] of Object.entries(value)) {
+    assert(!forbiddenKey.test(key));
+    inspect(child);
+  }
+};
+for (const marker of Object.values(evidence)) inspect(marker);
+EOF
 
 run_succeeded=1
 printf 'Connected amoCRM acceptance passed at %s\n' "$evidence_dir"

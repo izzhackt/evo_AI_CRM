@@ -10,6 +10,7 @@ import {
   rename,
   unlink,
 } from "node:fs/promises";
+import { isIP } from "node:net";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { parseEnv } from "node:util";
 
@@ -68,6 +69,18 @@ function exactProviderId(value, code = "provider_response_invalid") {
         : "";
   if (!PROVIDER_ID.test(parsed) || Number(parsed) > 2_147_483_647) fail(code);
   return parsed;
+}
+
+function validatePrivateIpv4(parsed) {
+  const value = requiredOption(parsed, "value");
+  if (isIP(value) !== 4) fail("private_tunnel_address_invalid");
+
+  const [first, second] = value.split(".").map(Number);
+  const isPrivate =
+    first === 10 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168);
+  if (!isPrivate) fail("private_tunnel_address_invalid");
 }
 
 function record(value, code = "private_input_invalid") {
@@ -785,6 +798,10 @@ async function main() {
   if (command === "mark-attempt") {
     assertExactOptions(parsed, ["kind", "git-sha", "output"]);
     return createAttemptMarker(parsed);
+  }
+  if (command === "validate-private-ipv4") {
+    assertExactOptions(parsed, ["value"]);
+    return validatePrivateIpv4(parsed);
   }
   if (command === "run-app") {
     assertExactOptions(

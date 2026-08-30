@@ -41,11 +41,27 @@ test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async (
   assert.match(source, /mktemp -d/u);
   assert.match(source, /private legacy provider env file/u);
   assert.match(source, /private token file/u);
+  assert.equal([...source.matchAll(/-o BatchMode=yes/gu)].length, 2);
+  assert.equal([...source.matchAll(/-o ConnectTimeout=15/gu)].length, 2);
+  const addressReadIndex = source.indexOf('container_ip="$(awk');
+  const addressValidationIndex = source.indexOf("validate-private-ipv4");
+  const tunnelIndex = source.indexOf("ssh -o BatchMode=yes", addressValidationIndex);
+  const forwardIndex = source.indexOf('-L "127.0.0.1:${tunnel_port}:', tunnelIndex);
+  assert.ok(addressReadIndex >= 0 && addressValidationIndex > addressReadIndex);
+  assert.ok(tunnelIndex > addressValidationIndex && forwardIndex > tunnelIndex);
   assert.match(source, /-L "127\.0\.0\.1:\$\{tunnel_port\}:/u);
   assert.match(source, /read-waha-self/u);
   assert.match(source, /authority-blocked\.json/u);
   assert.match(source, /provider-preparation-attempt\.json/u);
   assert.match(source, /dispatch-attempt\.json/u);
+  assert.match(source, /success\.database\?\.exactUiReplay === true/u);
+  assert.match(source, /success\.database\?\.replayAddedAttemptCount === 0/u);
+  assert.match(source, /success\.database\?\.replayAddedReceiptCount === 0/u);
+  assert.match(source, /success\.database\?\.replayAddedBindingCount === 0/u);
+  assert.match(source, /success\.database\?\.replayProviderEntitySetUnchanged === true/u);
+  assert.match(source, /success\.boundaries\?\.v1ApplicationPathExecuted === false/u);
+  assert.match(source, /success\.boundaries\?\.existingWahaSessionReadOnly === true/u);
+  assert.match(source, /forbiddenKey/u);
   assert.match(source, /canonical-amocrm-connected-provider\.spec\.ts/u);
   assert.doesNotMatch(source, /set -x/u);
   assert.doesNotMatch(source, /curl[^\n]*-X\s+(POST|PATCH|PUT|DELETE)/u);
@@ -86,10 +102,57 @@ test("preparation helper maps only the explicit legacy provider keys into privat
   assert.match(source, /is_archive/u);
   assert.match(source, /is_editable/u);
   assert.match(source, /current_user_id/u);
+  assert.match(source, /status\.id !== "142"/u);
+  assert.match(source, /status\.id !== "143"/u);
+  assert.doesNotMatch(source, /status\.type !== "?14[23]"?/u);
   assert.match(source, /createCanonicalPersonLead/u);
   assert.match(source, /discoverCanonicalAmoCrmCommandRouting/u);
   assert.match(source, /spawn/u);
   assert.doesNotMatch(source, /console\.log\([^)]*(token|secret|apiKey)/iu);
+});
+
+test("private tunnel address validation accepts only exact RFC1918 IPv4", () => {
+  const invoke = (value) =>
+    spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(PREPARE_PATH),
+        "validate-private-ipv4",
+        "--value",
+        value,
+      ],
+      {
+        cwd: new URL("..", import.meta.url),
+        encoding: "utf8",
+        timeout: 10_000,
+      },
+    );
+
+  for (const value of ["10.0.0.1", "172.16.0.1", "172.31.255.254", "192.168.1.1"]) {
+    const result = invoke(value);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "");
+  }
+
+  for (const value of [
+    "8.8.8.8",
+    "127.0.0.1",
+    "169.254.1.1",
+    "172.15.0.1",
+    "172.32.0.1",
+    "10.0.0.1 ",
+    "010.0.0.1",
+    "10.0.0.999",
+    "::1",
+    "-oProxyCommand=invalid",
+  ]) {
+    const result = invoke(value);
+    assert.notEqual(result.status, 0);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /private_tunnel_address_invalid|arguments_invalid/u);
+    assert.doesNotMatch(result.stderr, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+  }
 });
 
 test("preparation CLI maps a private bundle without executing it and rejects loose permissions", async () => {
@@ -180,6 +243,15 @@ test("connected amoCRM browser acceptance is inert without its explicit flag", a
   assert.match(source, /provider-not-authorized/u);
   assert.match(source, /one_explicit_admin_sync/u);
   assert.match(source, /exactReadback/u);
+  assert.match(source, /exactUiReplay/u);
+  assert.match(source, /replayAddedAttemptCount:\s*0/u);
+  assert.match(source, /replayAddedReceiptCount:\s*0/u);
+  assert.match(source, /replayAddedBindingCount:\s*0/u);
+  assert.match(source, /replayProviderEntitySetUnchanged:\s*true/u);
+  assert.match(source, /persistedAfterReload:\s*true/u);
+  assert.match(source, /v1ApplicationPathExecuted:\s*false/u);
+  assert.match(source, /existingWahaSessionReadOnly:\s*true/u);
+  assert.doesNotMatch(source, /v1RuntimeExecuted/u);
 
   const result = spawnSync(
     process.execPath,

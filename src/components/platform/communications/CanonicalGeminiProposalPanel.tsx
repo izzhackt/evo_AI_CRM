@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
 import { btnCls, btnGhostCls, cn } from "@/components/ui";
@@ -160,6 +160,10 @@ const INITIAL_REQUEST_STATE: CanonicalGeminiProposalActionState = Object.freeze(
 const INITIAL_REVIEW_STATE: CanonicalGeminiProposalReviewActionState =
   Object.freeze({ status: "idle", decision: null, proposalId: null });
 
+const subscribeToHydration = () => () => undefined;
+const clientHydrationSnapshot = () => true;
+const serverHydrationSnapshot = () => false;
+
 function reasonText(locale: Locale, reason: string | null): string {
   const copy = COPY[locale];
   if (
@@ -252,6 +256,11 @@ export function CanonicalGeminiProposalPanel({
     reviewCanonicalGeminiProposalAction,
     INITIAL_REVIEW_STATE,
   );
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    clientHydrationSnapshot,
+    serverHydrationSnapshot,
+  );
 
   useEffect(() => {
     if (requestState.status === "created" || reviewState.status === "reviewed") {
@@ -263,6 +272,7 @@ export function CanonicalGeminiProposalPanel({
     <section
       className="space-y-4 rounded-card border border-border bg-surface-2 p-4"
       data-testid="canonical-gemini-proposal-panel"
+      data-hydrated={hydrated ? "true" : "false"}
     >
       <div>
         <h3 className="text-[15px] font-semibold text-fg">{copy.title}</h3>
@@ -290,7 +300,7 @@ export function CanonicalGeminiProposalPanel({
         <button
           type="submit"
           className={btnCls}
-          disabled={requesting}
+          disabled={!hydrated || requesting}
           data-testid="canonical-gemini-proposal-request"
         >
           {requesting ? copy.pending : copy.request}
@@ -353,7 +363,7 @@ export function CanonicalGeminiProposalPanel({
             <button
               type="submit"
               className={btnCls}
-              disabled={reviewing}
+              disabled={!hydrated || reviewing}
               data-testid="canonical-gemini-review-accept"
             >
               {reviewing ? copy.saving : copy.accept}
@@ -382,6 +392,7 @@ export function CanonicalGeminiProposalPanel({
               id={`canonical-gemini-review-edit-${proposal.proposalId}`}
               name="reviewed_text"
               defaultValue={proposal.proposalText}
+              disabled={!hydrated || reviewing}
               required
               maxLength={3000}
               rows={5}
@@ -391,7 +402,7 @@ export function CanonicalGeminiProposalPanel({
             <button
               type="submit"
               className={btnGhostCls}
-              disabled={reviewing}
+              disabled={!hydrated || reviewing}
               data-testid="canonical-gemini-review-edit"
             >
               {reviewing ? copy.saving : copy.saveEdit}
@@ -419,6 +430,7 @@ export function CanonicalGeminiProposalPanel({
             <textarea
               id={`canonical-gemini-review-reason-${proposal.proposalId}`}
               name="review_reason"
+              disabled={!hydrated || reviewing}
               required
               maxLength={2000}
               rows={3}
@@ -429,7 +441,7 @@ export function CanonicalGeminiProposalPanel({
             <button
               type="submit"
               className={btnGhostCls}
-              disabled={reviewing}
+              disabled={!hydrated || reviewing}
               data-testid="canonical-gemini-review-reject"
             >
               {reviewing ? copy.saving : copy.reject}

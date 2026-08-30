@@ -115,6 +115,18 @@ function requiredOption(parsed, name) {
   return value;
 }
 
+function assertExactOptions(parsed, allowedNames, commandRequired = false) {
+  const allowed = new Set(allowedNames);
+  if (
+    [...parsed.options.keys()].some((name) => !allowed.has(name)) ||
+    (commandRequired
+      ? parsed.commandArgs.length < 1
+      : parsed.commandArgs.length !== 0)
+  ) {
+    fail("arguments_invalid");
+  }
+}
+
 function absolutePath(value, code = "private_path_invalid") {
   const safe = exactText(value, code);
   if (!isAbsolute(safe) || resolve(safe) !== safe) fail(code);
@@ -754,12 +766,34 @@ async function main() {
   const [command, ...rawArgs] = process.argv.slice(2);
   if (!command) fail("arguments_invalid");
   const parsed = parseOptions(rawArgs);
-  if (command === "map") return mapLegacyProvider(parsed);
-  if (command === "read-waha-self") return readWahaSelf(parsed);
-  if (command === "seed") return seedValidationLead(parsed);
-  if (command === "discover") return discoverProviderRouting(parsed);
-  if (command === "mark-attempt") return createAttemptMarker(parsed);
-  if (command === "run-app") return runApp(parsed);
+  if (command === "map") {
+    assertExactOptions(parsed, ["provider-env", "token-file", "runtime-file"]);
+    return mapLegacyProvider(parsed);
+  }
+  if (command === "read-waha-self") {
+    assertExactOptions(parsed, ["runtime-file", "base-url", "self-file"]);
+    return readWahaSelf(parsed);
+  }
+  if (command === "seed") {
+    assertExactOptions(parsed, ["self-file", "context-file"]);
+    return seedValidationLead(parsed);
+  }
+  if (command === "discover") {
+    assertExactOptions(parsed, ["runtime-file", "context-file"]);
+    return discoverProviderRouting(parsed);
+  }
+  if (command === "mark-attempt") {
+    assertExactOptions(parsed, ["kind", "git-sha", "output"]);
+    return createAttemptMarker(parsed);
+  }
+  if (command === "run-app") {
+    assertExactOptions(
+      parsed,
+      ["runtime-file", "context-file", "provider-authorized"],
+      true,
+    );
+    return runApp(parsed);
+  }
   fail("arguments_invalid");
 }
 

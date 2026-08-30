@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const SHELL_PATH = new URL(
@@ -80,6 +90,84 @@ test("preparation helper maps only the explicit legacy provider keys into privat
   assert.match(source, /discoverCanonicalAmoCrmCommandRouting/u);
   assert.match(source, /spawn/u);
   assert.doesNotMatch(source, /console\.log\([^)]*(token|secret|apiKey)/iu);
+});
+
+test("preparation CLI maps a private bundle without executing it and rejects loose permissions", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "evo-amocrm-map-test."));
+  const providerEnv = join(directory, "provider.env");
+  const tokenFile = join(directory, "token.json");
+  const runtimeFile = join(directory, "runtime.json");
+  const refusedRuntimeFile = join(directory, "refused-runtime.json");
+  await chmod(directory, 0o700);
+  try {
+    await writeFile(
+      providerEnv,
+      [
+        "EVO_AGENT_AMO_BASE_URL=https://technical.amocrm.ru",
+        "EVO_AGENT_AMO_CLIENT_ID=technical-client-id",
+        "EVO_AGENT_AMO_CLIENT_SECRET=technical-client-secret",
+        "EVO_AGENT_AMO_REDIRECT_URI=http://127.0.0.1/oauth/amocrm",
+        "EVO_AGENT_WAHA_API_KEY=technical-api-key",
+        "EVO_AGENT_WAHA_SESSION=technical-session",
+        "UNRELATED_VALUE=must-not-be-mapped",
+        "",
+      ].join("\n"),
+      { mode: 0o600 },
+    );
+    await writeFile(
+      tokenFile,
+      `${JSON.stringify({
+        access_token: "technical-access-token",
+        refresh_token: "technical-refresh-token",
+      })}\n`,
+      { mode: 0o600 },
+    );
+
+    const invoke = (outputPath) =>
+      spawnSync(
+        process.execPath,
+        [
+          "--conditions=react-server",
+          "--experimental-strip-types",
+          fileURLToPath(PREPARE_PATH),
+          "map",
+          "--provider-env",
+          providerEnv,
+          "--token-file",
+          tokenFile,
+          "--runtime-file",
+          outputPath,
+        ],
+        {
+          cwd: new URL("..", import.meta.url),
+          encoding: "utf8",
+          timeout: 10_000,
+        },
+      );
+
+    const accepted = invoke(runtimeFile);
+    assert.equal(accepted.status, 0, accepted.stderr);
+    assert.equal(accepted.stdout, "");
+    const runtime = JSON.parse(await readFile(runtimeFile, "utf8"));
+    assert.deepEqual(Object.keys(runtime.providerEnvironment).sort(), [
+      "EVO_V2_AMOCRM_BASE_URL",
+      "EVO_V2_AMOCRM_CLIENT_ID",
+      "EVO_V2_AMOCRM_CLIENT_SECRET",
+      "EVO_V2_AMOCRM_REDIRECT_URI",
+      "EVO_V2_AMOCRM_TOKEN_FILE",
+    ]);
+    assert.equal(runtime.providerEnvironment.EVO_V2_AMOCRM_TOKEN_FILE, tokenFile);
+    assert.equal(Object.hasOwn(runtime.providerEnvironment, "UNRELATED_VALUE"), false);
+    assert.equal((await stat(runtimeFile)).mode & 0o077, 0);
+
+    await chmod(providerEnv, 0o644);
+    const refused = invoke(refusedRuntimeFile);
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /legacy_provider_env_invalid/u);
+    await assert.rejects(() => stat(refusedRuntimeFile), { code: "ENOENT" });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("connected amoCRM browser acceptance is inert without its explicit flag", async () => {

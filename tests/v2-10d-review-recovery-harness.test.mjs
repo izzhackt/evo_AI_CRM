@@ -62,6 +62,11 @@ test("V2-10D recovery binds one preserved review to exact current main", async (
   assert.match(source, /\$\(orb status\).*Running/u);
   assert.match(source, /\$\(docker context show\).*orbstack/u);
   assert.match(source, /V2-10D review recovery requires Node 22[.]x/u);
+  assert.match(
+    source,
+    /eq [. ]Destination "\/var\/lib\/postgresql"/u,
+  );
+  assert.doesNotMatch(source, /\/var\/lib\/postgresql\/data/u);
   assert.doesNotMatch(source, /\bseed\b/iu);
   assert.doesNotMatch(source, /GEMINI_API_KEY|GEMINI_MODEL/u);
   assert.doesNotMatch(source, /provider-preparation-attempt/u);

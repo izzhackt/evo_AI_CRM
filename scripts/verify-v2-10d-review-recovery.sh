@@ -177,7 +177,7 @@ postgres_container_id="$(docker compose "${compose_args[@]}" ps --all --quiet po
 volume_name="${project_name}_postgres-local-data"
 docker volume inspect "$volume_name" >/dev/null \
   || fail "The exact preserved PostgreSQL volume is unavailable"
-[[ "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}' "$postgres_container_id")" == "$volume_name" ]] \
+[[ "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql"}}{{.Name}}{{end}}{{end}}' "$postgres_container_id")" == "$volume_name" ]] \
   || fail "The preserved PostgreSQL container is not attached to its exact data volume"
 
 run_tmp_dir="$(mktemp -d "$tmp_root/evo-v2-10d-recovery.XXXXXX")"

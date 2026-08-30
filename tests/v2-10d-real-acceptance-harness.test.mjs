@@ -203,7 +203,7 @@ test("V2-10D records a sanitized proposal-stage provider error before stopping",
   assert.notEqual(proposalRequest, -1, "missing operator Gemini request");
   const proposalFailureReadback = sourceIndex(
     source,
-    "const afterProposalFailure = await readMutationCounts(",
+    "const afterProposalFailure = await readV2_10dMutationCounts(",
   );
   const proposalErrorMarker = sourceIndex(source, '"proposal-error.json"');
   const reviewMarker = sourceIndex(source, '"review-required.json"');
@@ -214,7 +214,7 @@ test("V2-10D records a sanitized proposal-stage provider error before stopping",
   assert.match(source, /proposalStatus !== "created"/u);
   assert.match(
     source,
-    /sameMutationCounts\(beforeProposal, afterProposalFailure\)/u,
+    /sameV2_10dMutationCounts\(beforeProposal, afterProposalFailure\)/u,
   );
   assert.match(source, /kind: "evo-v2-10d-proposal-error"/u);
   assert.match(source, /status: "stopped_before_review"/u);

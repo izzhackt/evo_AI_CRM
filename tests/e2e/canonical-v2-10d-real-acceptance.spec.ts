@@ -10,6 +10,10 @@ import {
 } from "@playwright/test";
 import postgres from "postgres";
 
+import {
+  readV2_10dMutationCounts,
+  sameV2_10dMutationCounts,
+} from "../../scripts/v2-10d-mutation-counts.mjs";
 import { durableCreateOrValidateWahaCheckpoint } from "../../scripts/v2-10d-waha-checkpoint.mjs";
 
 const UUID =
@@ -367,88 +371,6 @@ async function submitAdminGate(page: Page): Promise<void> {
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-authority-role",
     "admin",
-  );
-}
-
-type MutationCounts = Readonly<{
-  proposalCount: number;
-  wahaAttemptCount: number;
-  outboundMessageCount: number;
-  messageCount: number;
-  amocrmAttemptCount: number;
-  commandReceiptCount: number;
-  contactBindingCount: number;
-  leadBindingCount: number;
-  businessEventCount: number;
-}>;
-
-async function readMutationCounts(
-  connectionString: string,
-  leadId: string,
-  conversationId: string,
-): Promise<MutationCounts> {
-  const sql = postgres(connectionString, { max: 1, onnotice: () => undefined });
-  try {
-    const [row] = await sql`
-      select
-        (select count(*)::integer
-          from evo_ai_proposals
-          where conversation_id = ${conversationId}) as proposal_count,
-        (select count(*)::integer
-          from evo_whatsapp_send_attempts
-          where conversation_id = ${conversationId}) as waha_attempt_count,
-        (select count(*)::integer
-          from evo_messages
-          where conversation_id = ${conversationId}
-            and direction = 'outbound') as outbound_message_count,
-        (select count(*)::integer
-          from evo_messages
-          where conversation_id = ${conversationId}) as message_count,
-        (select count(*)::integer
-          from evo_amocrm_operation_attempts) as amocrm_attempt_count,
-        (select count(*)::integer
-          from evo_command_receipts) as command_receipt_count,
-        (select count(*)::integer
-          from evo_amocrm_contact_bindings
-          where person_id = (select person_id from evo_leads where id = ${leadId}))
-          as contact_binding_count,
-        (select count(*)::integer
-          from evo_amocrm_lead_bindings
-          where lead_id = ${leadId}) as lead_binding_count,
-        (select count(*)::integer
-          from evo_business_events) as business_event_count
-    `;
-    ensure(row, "PostgreSQL mutation-count proof was unavailable");
-    return Object.freeze({
-      proposalCount: Number(row.proposal_count),
-      wahaAttemptCount: Number(row.waha_attempt_count),
-      outboundMessageCount: Number(row.outbound_message_count),
-      messageCount: Number(row.message_count),
-      amocrmAttemptCount: Number(row.amocrm_attempt_count),
-      commandReceiptCount: Number(row.command_receipt_count),
-      contactBindingCount: Number(row.contact_binding_count),
-      leadBindingCount: Number(row.lead_binding_count),
-      businessEventCount: Number(row.business_event_count),
-    });
-  } finally {
-    await sql.end({ timeout: 5 });
-  }
-}
-
-function sameMutationCounts(
-  before: MutationCounts,
-  after: MutationCounts,
-): boolean {
-  return (
-    before.proposalCount === after.proposalCount &&
-    before.wahaAttemptCount === after.wahaAttemptCount &&
-    before.outboundMessageCount === after.outboundMessageCount &&
-    before.messageCount === after.messageCount &&
-    before.amocrmAttemptCount === after.amocrmAttemptCount &&
-    before.commandReceiptCount === after.commandReceiptCount &&
-    before.contactBindingCount === after.contactBindingCount &&
-    before.leadBindingCount === after.leadBindingCount &&
-    before.businessEventCount === after.businessEventCount
   );
 }
 
@@ -1226,7 +1148,7 @@ async function runAmoCrmSyncReplayAndReload(
     input.context,
     amoDatabase,
   );
-  const beforeReplay = await readMutationCounts(
+  const beforeReplay = await readV2_10dMutationCounts(
     input.databaseUrl,
     input.leadId,
     input.conversationId,
@@ -1289,7 +1211,7 @@ async function runAmoCrmSyncReplayAndReload(
       replayProvider.mainContactCount === amoProvider.mainContactCount,
     "Exact amoCRM replay changed the provider entity set",
   );
-  const afterReplay = await readMutationCounts(
+  const afterReplay = await readV2_10dMutationCounts(
     input.databaseUrl,
     input.leadId,
     input.conversationId,
@@ -1300,7 +1222,7 @@ async function runAmoCrmSyncReplayAndReload(
       afterReplay.outboundMessageCount === beforeReplay.outboundMessageCount &&
       afterReplay.messageCount === beforeReplay.messageCount &&
       afterReplay.amocrmAttemptCount === beforeReplay.amocrmAttemptCount &&
-      afterReplay.commandReceiptCount === beforeReplay.commandReceiptCount &&
+      afterReplay.amocrmReceiptCount === beforeReplay.amocrmReceiptCount &&
       afterReplay.contactBindingCount === beforeReplay.contactBindingCount &&
       afterReplay.leadBindingCount === beforeReplay.leadBindingCount &&
       afterReplay.businessEventCount === beforeReplay.businessEventCount,
@@ -1371,7 +1293,7 @@ test("all three provider authorities fail closed before any dispatch", async ({
     expectedPhoneSha256,
   });
   const databaseUrl = requireEnv("DATABASE_URL");
-  const before = await readMutationCounts(
+  const before = await readV2_10dMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
@@ -1435,7 +1357,7 @@ test("all three provider authorities fail closed before any dispatch", async ({
   ).toBeDisabled();
   await expect(amoPanel.getByTestId("canonical-amocrm-sync")).toBeDisabled();
 
-  const after = await readMutationCounts(
+  const after = await readV2_10dMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
@@ -1446,7 +1368,7 @@ test("all three provider authorities fail closed before any dispatch", async ({
       after.outboundMessageCount === before.outboundMessageCount &&
       after.messageCount === before.messageCount &&
       after.amocrmAttemptCount === before.amocrmAttemptCount &&
-      after.commandReceiptCount === before.commandReceiptCount &&
+      after.amocrmReceiptCount === before.amocrmReceiptCount &&
       after.contactBindingCount === before.contactBindingCount &&
       after.leadBindingCount === before.leadBindingCount &&
       after.businessEventCount === before.businessEventCount,
@@ -1549,7 +1471,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
         expectedLeadId: leadId,
         expectedPhoneSha256,
       });
-  const beforeProposal = await readMutationCounts(
+  const beforeProposal = await readV2_10dMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
@@ -1601,13 +1523,13 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
           /^[a-z][a-z0-9_]{0,63}$/u.test(proposalReason),
         "The proposal-stage failure reason was not a bounded code",
       );
-      const afterProposalFailure = await readMutationCounts(
+      const afterProposalFailure = await readV2_10dMutationCounts(
         databaseUrl,
         leadId,
         seed.conversationId,
       );
       ensure(
-        sameMutationCounts(beforeProposal, afterProposalFailure),
+        sameV2_10dMutationCounts(beforeProposal, afterProposalFailure),
         "The failed Gemini proposal stage changed canonical or provider mutation state",
       );
       await durableCreateJson(path.join(evidenceDir, "proposal-error.json"), {
@@ -1663,7 +1585,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
       pendingProposal.proposalCount === 1,
     "PostgreSQL did not persist exactly the provider-created pending proposal",
   );
-  const atReviewRequired = await readMutationCounts(
+  const atReviewRequired = await readV2_10dMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
@@ -1786,7 +1708,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
       reviewedProposal.reviewedAt instanceof Date,
     "PostgreSQL did not persist the exact human review decision",
   );
-  const afterReview = await readMutationCounts(
+  const afterReview = await readV2_10dMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
@@ -1844,7 +1766,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
     UUID.test(sendRequestId),
     "The exact WAHA send request identity is invalid",
   );
-  const beforeDispatchMarker = await readMutationCounts(
+  const beforeDispatchMarker = await readV2_10dMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
@@ -1997,7 +1919,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
     "WAHA reconciliation changed identity, duplicated a send, or regressed ACK",
   );
 
-  const beforeAmo = await readMutationCounts(
+  const beforeAmo = await readV2_10dMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
@@ -2007,7 +1929,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
       beforeAmo.wahaAttemptCount === 1 &&
       beforeAmo.outboundMessageCount === 1 &&
       beforeAmo.amocrmAttemptCount === 0 &&
-      beforeAmo.commandReceiptCount === 0 &&
+      beforeAmo.amocrmReceiptCount === 0 &&
       beforeAmo.contactBindingCount === 0 &&
       beforeAmo.leadBindingCount === 0,
     "The reconciled WAHA checkpoint is not isolated from amoCRM state",
@@ -2044,7 +1966,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
       },
       amocrm: {
         attemptCount: beforeAmo.amocrmAttemptCount,
-        receiptCount: beforeAmo.commandReceiptCount,
+        receiptCount: beforeAmo.amocrmReceiptCount,
         bindingCount:
           beforeAmo.contactBindingCount + beforeAmo.leadBindingCount,
       },
@@ -2116,7 +2038,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
       providerAttemptDelta:
         afterReplay.amocrmAttemptCount - beforeReplay.amocrmAttemptCount,
       receiptDelta:
-        afterReplay.commandReceiptCount - beforeReplay.commandReceiptCount,
+        afterReplay.amocrmReceiptCount - beforeReplay.amocrmReceiptCount,
       bindingDelta:
         afterReplay.contactBindingCount +
         afterReplay.leadBindingCount -
@@ -2252,7 +2174,7 @@ test("post-WAHA recovery proves the accepted send before one amoCRM sync", async
     "The preserved review-required marker does not match the reviewed proposal",
   );
 
-  const beforeReadback = await readMutationCounts(
+  const beforeReadback = await readV2_10dMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
@@ -2262,7 +2184,7 @@ test("post-WAHA recovery proves the accepted send before one amoCRM sync", async
       beforeReadback.wahaAttemptCount === 1 &&
       beforeReadback.outboundMessageCount === 1 &&
       beforeReadback.amocrmAttemptCount === 0 &&
-      beforeReadback.commandReceiptCount === 0 &&
+      beforeReadback.amocrmReceiptCount === 0 &&
       beforeReadback.contactBindingCount === 0 &&
       beforeReadback.leadBindingCount === 0,
     "Post-WAHA recovery did not begin from one accepted send and zero amoCRM state",
@@ -2323,13 +2245,13 @@ test("post-WAHA recovery proves the accepted send before one amoCRM sync", async
       wahaReadback.ack >= acceptedWaha.ack,
     "Exact GET-only WAHA readback regressed from PostgreSQL",
   );
-  const afterReadback = await readMutationCounts(
+  const afterReadback = await readV2_10dMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
   );
   ensure(
-    sameMutationCounts(beforeReadback, afterReadback),
+    sameV2_10dMutationCounts(beforeReadback, afterReadback),
     "GET-only WAHA readback changed PostgreSQL or amoCRM state",
   );
 
@@ -2363,7 +2285,7 @@ test("post-WAHA recovery proves the accepted send before one amoCRM sync", async
     },
     amocrm: {
       attemptCount: beforeReadback.amocrmAttemptCount,
-      receiptCount: beforeReadback.commandReceiptCount,
+      receiptCount: beforeReadback.amocrmReceiptCount,
       bindingCount:
         beforeReadback.contactBindingCount + beforeReadback.leadBindingCount,
     },
@@ -2443,7 +2365,7 @@ test("post-WAHA recovery proves the accepted send before one amoCRM sync", async
       providerAttemptDelta:
         afterReplay.amocrmAttemptCount - beforeReplay.amocrmAttemptCount,
       receiptDelta:
-        afterReplay.commandReceiptCount - beforeReplay.commandReceiptCount,
+        afterReplay.amocrmReceiptCount - beforeReplay.amocrmReceiptCount,
       bindingDelta:
         afterReplay.contactBindingCount +
         afterReplay.leadBindingCount -

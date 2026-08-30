@@ -188,6 +188,26 @@ test("builds a deterministic sanitized snapshot and drops provider extras", () =
   assert.deepEqual(normalizePersistedPlatformAmoCrmMappingSnapshot(snapshot), snapshot);
 });
 
+test("accepts provider-owned custom field codes as bounded inert strings", () => {
+  const snapshot = validSnapshot({
+    leadCustomFields: {
+      _embedded: {
+        custom_fields: [
+          {
+            id: 5001,
+            name: "Provider owned source",
+            code: "source-field_1",
+            type: "text",
+            enums: null,
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(snapshot.lead_custom_fields[0].code, "source-field_1");
+});
+
 test("fails closed for account mismatch, duplicate IDs and empty required mappings", () => {
   assert.throws(
     () => validSnapshot({ accountDomain: "another.amocrm.ru" }),

@@ -306,14 +306,45 @@ umask 077
 env_file="/opt/evo-crm/.env.lead-agent"
 container_name="evo-crm-waha-1"
 [[ -r "$env_file" ]]
-set -a
-# shellcheck disable=SC1090
-. "$env_file"
-set +a
-: "${EVO_AGENT_WAHA_API_KEY:?}"
-: "${EVO_AGENT_WAHA_SESSION:?}"
-: "${GEMINI_API_KEY:?}"
-: "${EVO_AGENT_GEMINI_MODEL:?}"
+declare -A env_values=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%$'\r'}"
+  [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]] \
+    || continue
+  key="${BASH_REMATCH[2]}"
+  case "$key" in
+    EVO_AGENT_WAHA_API_KEY|EVO_AGENT_WAHA_SESSION|GEMINI_API_KEY|EVO_AGENT_GEMINI_MODEL) ;;
+    *) continue ;;
+  esac
+  [[ -z "${env_values[$key]+present}" ]] || exit 1
+  raw_value="${BASH_REMATCH[3]}"
+  raw_value="${raw_value#"${raw_value%%[![:space:]]*}"}"
+  raw_value="${raw_value%"${raw_value##*[![:space:]]}"}"
+  [[ -n "$raw_value" ]] || exit 1
+  first_character="${raw_value:0:1}"
+  last_character="${raw_value: -1}"
+  if [[ "$first_character" == "'" || "$first_character" == '"' ]]; then
+    [[ ${#raw_value} -ge 2 && "$last_character" == "$first_character" ]] \
+      || exit 1
+    raw_value="${raw_value:1:${#raw_value}-2}"
+  elif [[ "$raw_value" == *"'"* || "$raw_value" == *'"'* ]]; then
+    exit 1
+  fi
+  [[ -n "$raw_value" && ${#raw_value} -le 4096 ]] || exit 1
+  env_values["$key"]="$raw_value"
+done <"$env_file"
+
+for required_key in \
+  EVO_AGENT_WAHA_API_KEY \
+  EVO_AGENT_WAHA_SESSION \
+  GEMINI_API_KEY \
+  EVO_AGENT_GEMINI_MODEL; do
+  [[ -n "${env_values[$required_key]+present}" ]] || exit 1
+done
+EVO_AGENT_WAHA_API_KEY="${env_values[EVO_AGENT_WAHA_API_KEY]}"
+EVO_AGENT_WAHA_SESSION="${env_values[EVO_AGENT_WAHA_SESSION]}"
+GEMINI_API_KEY="${env_values[GEMINI_API_KEY]}"
+EVO_AGENT_GEMINI_MODEL="${env_values[EVO_AGENT_GEMINI_MODEL]}"
 [[ "$EVO_AGENT_WAHA_SESSION" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$ ]]
 
 container_id="$(docker ps --filter "name=^/${container_name}$" --format '{{.ID}}')"
@@ -525,6 +556,7 @@ EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
 EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
 EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
 EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+EVO_V2_REAL_END_TO_END_PROJECT=desktop-chromium \
 EVO_V2_CONNECTED_WAHA_BASE_URL="http://127.0.0.1:${tunnel_port}" \
 EVO_V2_CONNECTED_WAHA_API_KEY="$waha_api_key" \
 EVO_V2_CONNECTED_WAHA_SESSION_NAME="$waha_session_name" \
@@ -572,6 +604,7 @@ EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
 EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
 EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
 EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+EVO_V2_REAL_END_TO_END_PROJECT=desktop-chromium \
 EVO_V2_CONNECTED_WAHA_BASE_URL="http://127.0.0.1:${tunnel_port}" \
 EVO_V2_CONNECTED_WAHA_API_KEY="$waha_api_key" \
 EVO_V2_CONNECTED_WAHA_SESSION_NAME="$waha_session_name" \

@@ -111,6 +111,10 @@ test("V2-10D harness uses ignored private secrets and protected evidence", async
   assert.ok(remoteWaha < remoteGemini);
   assert.match(source, /chmod 600 "\$provider_bundle_file" "\$ssh_probe_log"/u);
   assert.match(source, /rm -f -- "\$provider_bundle_file"/u);
+  assert.match(source, /declare -A env_values=\(\)/u);
+  assert.match(source, /while IFS= read -r line/u);
+  assert.match(source, /env_values\["\$key"\]="\$raw_value"/u);
+  assert.doesNotMatch(source, /^\s*\.\s+"\$env_file"/mu);
 });
 
 test("V2-10D harness proves disabled authority before one headed operator run", async () => {
@@ -159,6 +163,11 @@ test("V2-10D harness proves disabled authority before one headed operator run", 
   );
   assert.match(source, /--project=desktop-chromium/u);
   assert.match(source, /--workers=1/u);
+  assert.equal(
+    [...source.matchAll(/EVO_V2_REAL_END_TO_END_PROJECT=desktop-chromium/gu)]
+      .length,
+    2,
+  );
 });
 
 test("V2-10D failure preserves PostgreSQL state and forbids blind recovery", async () => {
@@ -253,6 +262,11 @@ test("V2-10D browser proof leaves review and send authority with the human", asy
   assert.ok(submitBlocker < humanReviewWait);
   assert.ok(humanReviewWait < dispatchMarker);
   assert.ok(dispatchMarker < submitUnblocker);
+  assert.match(
+    source,
+    /process\.env\.EVO_V2_REAL_END_TO_END_PROJECT !== "desktop-chromium"/u,
+  );
+  assert.match(source, /testInfo\.project\.name !== "desktop-chromium"/u);
 
   for (const humanControl of [
     "canonical-gemini-review-accept",

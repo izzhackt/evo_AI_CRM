@@ -43,6 +43,16 @@ test.skip(
   process.env.EVO_V2_REAL_END_TO_END_ACCEPTANCE !== "1",
   "requires the explicit V2-10D real-provider acceptance harness",
 );
+test.beforeEach(async ({}, testInfo) => {
+  if (
+    process.env.EVO_V2_REAL_END_TO_END_PROJECT !== "desktop-chromium" ||
+    testInfo.project.name !== "desktop-chromium"
+  ) {
+    throw new Error(
+      "V2-10D real-provider acceptance requires the exact desktop-chromium project",
+    );
+  }
+});
 
 function ensure(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

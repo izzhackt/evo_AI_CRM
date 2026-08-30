@@ -117,7 +117,7 @@ export type CanonicalAmoCrmResolvedRoleCommandRoute = Readonly<{
   pipelineId: string;
   statusId: string;
   responsibleUserId: string;
-  tagId: string;
+  tagId: string | null;
   tagName: string;
 }>;
 
@@ -420,13 +420,13 @@ function resolveRoute(
     !pipeline.statuses.some((status) => status.id === route.statusId) ||
     !user ||
     !user.isActive ||
-    matchingTags.length !== 1
+    matchingTags.length > 1
   ) {
     throw new CanonicalAmoCrmDiscoveryError("mapping_invalid");
   }
   return Object.freeze({
     ...route,
-    tagId: matchingTags[0]!.id,
+    tagId: matchingTags[0]?.id ?? null,
   });
 }
 
@@ -509,7 +509,10 @@ export async function discoverCanonicalAmoCrmCommandRouting(
     users,
     leadTags,
   );
-  if (sales.tagId === admissions.tagId) {
+  if (
+    sales.tagName === admissions.tagName ||
+    (sales.tagId !== null && sales.tagId === admissions.tagId)
+  ) {
     throw new CanonicalAmoCrmDiscoveryError("mapping_invalid");
   }
   const phoneField = exactContactField(contactCustomFields, "PHONE");

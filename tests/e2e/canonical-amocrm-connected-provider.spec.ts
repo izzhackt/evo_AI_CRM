@@ -285,6 +285,14 @@ async function acceptedDatabaseProof(
       noteAttempt.provider_readback.entityId,
       "The note readback identity is invalid",
     );
+    const tagAttempt = attempts.find(
+      (attempt) => attempt.operation_name === "lead_tag_update",
+    );
+    ensure(tagAttempt?.provider_readback, "The tag attempt lacks readback evidence");
+    const providerManagedTagId = providerId(
+      tagAttempt.provider_readback.tagId,
+      "The managed tag readback identity is invalid",
+    );
 
     const eventRows = await sql<
       Array<{ correlation_id: string; transition: string }>
@@ -320,6 +328,7 @@ async function acceptedDatabaseProof(
       providerContactId,
       providerLeadId,
       providerNoteId,
+      providerManagedTagId,
       readbackSetSha256: sha256(
         attempts
           .map((attempt) => attempt.provider_readback_sha256)
@@ -464,14 +473,16 @@ async function exactProviderReadback(
       name: tag.name,
     });
   });
+  const exactSalesTags = leadTags.filter(
+    (tag) => tag.name === "EVO V2 Sales",
+  );
   ensure(
-    leadTags.some(
-      (tag) => tag.id === String(sales.tagId) && tag.name === "EVO V2 Sales",
-    ) &&
-      !leadTags.some(
-        (tag) =>
-          tag.id === String(admissions.tagId) || tag.name === "EVO V2 Admissions",
-      ),
+    exactSalesTags.length === 1 &&
+      exactSalesTags[0].id === database.providerManagedTagId &&
+      (sales.tagId === null || exactSalesTags[0].id === String(sales.tagId)) &&
+      !leadTags.some((tag) => tag.name === "EVO V2 Admissions") &&
+      (admissions.tagId === null ||
+        !leadTags.some((tag) => tag.id === String(admissions.tagId))),
     "Provider lead tags did not preserve the exact fixed-role state",
   );
 
@@ -803,6 +814,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       replayDatabase.providerContactId === database.providerContactId &&
       replayDatabase.providerLeadId === database.providerLeadId &&
       replayDatabase.providerNoteId === database.providerNoteId &&
+      replayDatabase.providerManagedTagId === database.providerManagedTagId &&
       replayDatabase.readbackSetSha256 === database.readbackSetSha256,
     "Exact UI replay created a new attempt, receipt, binding or provider entity",
   );
@@ -853,7 +865,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     discovery: {
       snapshotSha256: discovery.snapshotSha256,
       routingSha256: discovery.routingSha256,
-      managedTagCount: discovery.managedTagCount,
+      managedTagCountBeforeCommand: discovery.managedTagCountBeforeCommand,
       activeCurrentUserCount: discovery.activeCurrentUserCount,
     },
     provider: {

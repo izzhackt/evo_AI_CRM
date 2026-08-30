@@ -14407,3 +14407,54 @@ The remaining #466 proof therefore uses this bounded path:
 This refinement does not change the canonical data authority or widen the
 standing authorization. It permits no arbitrary customer selection, no V1
 file/container/route change, no customer migration, deployment or cutover.
+
+## 2026-08-30 - Replace the non-working amoCRM tag bootstrap with the canonical lead command
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under the owner's standing authorization for #466 and #467.
+Change type: provider-evidence correction before implementation.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+The exact connected account returned HTTP 200 with a valid HAL content type for
+three bounded attempts to create one missing managed lead tag through
+`POST /api/v4/leads/tags`, but each response contained zero tags and a follow-up
+exact-name read still contained zero matches. No tag, contact, lead or customer
+record was created by those attempts. The earlier entry's dedicated-tag
+bootstrap is therefore superseded for active V2 execution; repeating it would
+be a blind loop rather than provider proof.
+
+The permanent product path now uses the provider's documented lead-update
+capability instead:
+
+- discovery always resolves the exact pipeline, status and active responsible
+  user, rejects duplicate exact managed-tag names, and permits a missing
+  managed tag to have `tagId: null` only until the first canonical lead command;
+- the one existing `lead_tag_update` command adds an absent managed tag by its
+  exact configured name, while an already discovered tag continues to use its
+  provider ID;
+- the command reads the lead back, requires exactly one matching managed tag,
+  captures the provider-created ID in evidence, proves the opposite role tag is
+  absent and proves every unrelated tag was preserved;
+- unknown outcomes reconcile against the same exact-name and unrelated-tag
+  evidence before any retry; ambiguous or duplicate matches remain blocked;
+- provider outcome timestamps advance one serialized millisecond when clamped
+  to a PostgreSQL dispatch snapshot, because JavaScript ISO strings discard the
+  database's sub-millisecond precision; this preserves the real transport-order
+  constraint even for an immediate provider response;
+- repository-owned settlement and reconciliation timestamps stay on the
+  PostgreSQL clock and retain the stored database floor, so small host/container
+  clock differences cannot make a completed command appear earlier than its
+  durable preparation;
+- the connected acceptance harness no longer owns a second tag writer or calls
+  `POST /api/v4/leads/tags`.
+
+This is consistent with the current official amoCRM tag contract, which allows
+an entity tag model to identify a tag by either `id` or `name`, and with the
+later collision-safe `tags_to_add`/`tags_to_delete` entity-update keys:
+https://www.amocrm.ru/developers/content/crm_platform/tags-api and
+https://developers.kommo.com/changelog/updates-in-api-documentation.
+
+The correction does not widen provider authority, choose an arbitrary customer,
+touch the frozen V1 runtime, deploy, migrate data or authorize cutover. The first
+real command still targets only the bounded self-identity validation entity and
+must produce matching application, PostgreSQL, provider and browser evidence.

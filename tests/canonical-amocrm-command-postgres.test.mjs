@@ -186,7 +186,7 @@ function contactCreateInput(
 function timestampAtOrAfter(notBefore) {
   const floor = Date.parse(notBefore ?? "");
   assert.ok(Number.isFinite(floor));
-  return new Date(Math.max(Date.now(), floor)).toISOString();
+  return new Date(Math.max(Date.now(), floor + 1)).toISOString();
 }
 
 function acceptedLeadOutcome(providerLeadId = "700001", providerDispatchedAt) {
@@ -299,6 +299,49 @@ test("amoCRM command prepare, exact replay and one-time dispatch claim are durab
     const replayAfterClaim = await prepareCanonicalAmoCrmCommand(input);
     assert.equal(replayAfterClaim.kind, "replay");
     assert.ok(replayAfterClaim.attempt.providerDispatchedAt);
+  } finally {
+    await closeDatabaseConnections();
+    await sql.end({ timeout: 5 });
+  }
+});
+
+test("settlement remains monotonic when the PostgreSQL clock leads the application clock", async () => {
+  const sql = postgres(requiredDatabaseUrl(), {
+    idle_timeout: 5,
+    max: 4,
+    onnotice: () => undefined,
+  });
+  const runId = randomUUID();
+  try {
+    const accountId = await createAccount(sql, runId);
+    const lead = await createLead(runId, "database-clock-floor");
+    const input = leadCreateInput(accountId, lead, commandContext("sales"));
+    const prepared = await prepareCanonicalAmoCrmCommand(input);
+    const claimed = await claimCanonicalAmoCrmCommandDispatch(
+      prepared.attempt.attemptId,
+      input.authorization,
+    );
+    assert.equal(claimed.kind, "claimed");
+
+    const databaseFloor = new Date(Date.now() + 5_000).toISOString();
+    await sql`
+      update evo_amocrm_operation_attempts
+      set
+        prepared_at = ${databaseFloor},
+        provider_dispatched_at = ${databaseFloor}
+      where id = ${prepared.attempt.attemptId}
+    `;
+
+    const settled = await settleCanonicalAmoCrmCommand(
+      prepared.attempt.attemptId,
+      input.authorization,
+      { status: "unknown", failureCode: "transport_timeout" },
+    );
+    assert.equal(settled.kind, "settled");
+    assert.equal(settled.attempt.status, "unknown");
+    assert.ok(
+      Date.parse(settled.attempt.settledAt) >= Date.parse(databaseFloor),
+    );
   } finally {
     await closeDatabaseConnections();
     await sql.end({ timeout: 5 });

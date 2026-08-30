@@ -135,7 +135,12 @@ test("preparation helper maps only the explicit legacy provider keys into privat
   assert.match(source, /lstat/u);
   assert.match(source, /0o077/u);
   assert.match(source, /wx/u);
-  assert.match(source, /prepareEnsureLeadTag|ensureLeadTag/u);
+  assert.doesNotMatch(
+    source,
+    /createCanonicalAmoCrmWriteProvider|prepareEnsureLeadTag|ensureLeadTag/u,
+  );
+  assert.match(source, /sales: discovery\.sales/u);
+  assert.match(source, /admissions: discovery\.admissions/u);
   assert.match(source, /EVO V2 Sales/u);
   assert.match(source, /EVO V2 Admissions/u);
   assert.match(source, /is_main/u);

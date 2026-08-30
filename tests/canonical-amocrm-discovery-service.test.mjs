@@ -346,6 +346,58 @@ test("exact lead tag IDs participate in the immutable discovery hash", async () 
   assert.equal(second.snapshot.sales.tagId, "8003");
 });
 
+test("missing managed tags remain bootstrap-ready while duplicate names fail closed", async () => {
+  const persisted = [];
+  const repository = Object.freeze({
+    persist: async (input) => {
+      persisted.push(input);
+      return Object.freeze({
+        accountId: "11111111-1111-4111-8111-111111111111",
+        snapshotId: "22222222-2222-4222-8222-222222222222",
+        discoveredAt: input.snapshot.discoveredAt,
+      });
+    },
+  });
+  const snapshot = await discoverCanonicalAmoCrmCommandRouting({
+    providerConfig: PROVIDER_CONFIG,
+    commandConfig: loadCanonicalAmoCrmCommandConfig(ROUTING_ENV),
+    provider: fakeProvider(
+      providerResponses({ leadTags: { _embedded: { tags: [] } } }),
+      [],
+    ),
+    repository,
+    correlationId: "discovery-missing-managed-tags",
+    now: () => new Date("2026-08-29T08:00:00.000Z"),
+  });
+
+  assert.equal(snapshot.sales.tagId, null);
+  assert.equal(snapshot.admissions.tagId, null);
+  assert.equal(persisted.length, 1);
+
+  await assert.rejects(
+    discoverCanonicalAmoCrmCommandRouting({
+      providerConfig: PROVIDER_CONFIG,
+      commandConfig: loadCanonicalAmoCrmCommandConfig({
+        ...ROUTING_ENV,
+        EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME: "EVO V2 Sales",
+      }),
+      provider: fakeProvider(
+        providerResponses({ leadTags: { _embedded: { tags: [] } } }),
+        [],
+      ),
+      repository,
+      correlationId: "discovery-duplicate-managed-name",
+      now: () => new Date("2026-08-29T08:00:00.000Z"),
+    }),
+    (error) => {
+      assert.ok(error instanceof CanonicalAmoCrmDiscoveryError);
+      assert.equal(error.code, "mapping_invalid");
+      return true;
+    },
+  );
+  assert.equal(persisted.length, 1);
+});
+
 test("fails before persistence when the provider account origin is not the configured exact account", async () => {
   const calls = [];
   let persisted = false;
@@ -380,7 +432,7 @@ test("fails before persistence when the provider account origin is not the confi
   assert.deepEqual(calls, ["account"]);
 });
 
-test("fails closed for invalid routing, non-exact tag mapping or ambiguous contact field code", async () => {
+test("fails closed for invalid routing, duplicate tag mapping or ambiguous contact field code", async () => {
   const cases = [
     [
       "mapping_invalid",
@@ -423,17 +475,6 @@ test("fails closed for invalid routing, non-exact tag mapping or ambiguous conta
         EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME: "EVO V2 Sales",
       },
       providerResponses(),
-    ],
-    [
-      "mapping_invalid",
-      ROUTING_ENV,
-      providerResponses({
-        leadTags: {
-          _embedded: {
-            tags: [{ id: 8002, name: "EVO V2 Admissions" }],
-          },
-        },
-      }),
     ],
     [
       "mapping_invalid",

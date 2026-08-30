@@ -176,10 +176,20 @@ function serviceHarness(options = {}) {
         const removedIds = new Set(
           options.ignoreTagRemovals
             ? []
-            : (input.remove ?? []).map((tag) => String(tag.id)),
+            : (input.remove ?? [])
+                .filter((tag) => tag.id !== undefined)
+                .map((tag) => String(tag.id)),
+        );
+        const removedNames = new Set(
+          options.ignoreTagRemovals
+            ? []
+            : (input.remove ?? [])
+                .filter((tag) => tag.name !== undefined)
+                .map((tag) => tag.name),
         );
         const retained = lead._embedded.tags.filter((tag) => {
           if (removedIds.has(String(tag.id))) return false;
+          if (removedNames.has(tag.name)) return false;
           if (
             options.dropUnrelatedTagsOnUpdate &&
             String(tag.id) !== "31" &&
@@ -190,7 +200,18 @@ function serviceHarness(options = {}) {
           return true;
         });
         for (const [index, tag] of (input.add ?? []).entries()) {
-          const id = String(tag.id ?? index + 1);
+          const existingByName = retained.find(
+            (candidate) => tag.name !== undefined && candidate.name === tag.name,
+          );
+          const id = String(
+            tag.id ??
+              existingByName?.id ??
+              (tag.name === "EVO V2 Sales"
+                ? 8101
+                : tag.name === "EVO V2 Admissions"
+                  ? 8102
+                  : index + 1),
+          );
           const added = {
             id: Number(id),
             name: tag.name ?? tagNames.get(id),
@@ -284,8 +305,21 @@ function serviceHarness(options = {}) {
         accountBaseUrl: "https://example.amocrm.ru",
         snapshotSha256: "a".repeat(64),
         discoveredAt: "2030-01-01T00:00:00.000Z",
-        sales: { pipelineId: "11", statusId: "12", responsibleUserId: "13", tagId: "31", tagName: "EVO V2 Sales" },
-        admissions: { pipelineId: "21", statusId: "22", responsibleUserId: "23", tagId: "32", tagName: "EVO V2 Admissions" },
+        sales: {
+          pipelineId: "11",
+          statusId: "12",
+          responsibleUserId: "13",
+          tagId: options.salesTagId === undefined ? "31" : options.salesTagId,
+          tagName: "EVO V2 Sales",
+        },
+        admissions: {
+          pipelineId: "21",
+          statusId: "22",
+          responsibleUserId: "23",
+          tagId:
+            options.admissionsTagId === undefined ? "32" : options.admissionsTagId,
+          tagName: "EVO V2 Admissions",
+        },
         contactCustomFields: { phoneFieldId: "501", emailFieldId: "502" },
       };
     },
@@ -402,7 +436,8 @@ function serviceHarness(options = {}) {
       attempt.failureCode = outcome.failureCode;
       return { kind: "unchanged", attempt };
     },
-    now: () => new Date("2030-01-01T00:00:02.000Z"),
+    now: () =>
+      new Date(options.now ?? "2030-01-01T00:00:02.000Z"),
   };
 
   return {
@@ -482,6 +517,108 @@ test("Sales sync proves every required amoCRM effect in product order", async ()
   assert.match(
     tagAttempt?.providerRequestMetadata.expected.unrelatedTagSetSha256,
     /^[0-9a-f]{64}$/u,
+  );
+});
+
+test("Sales sync bootstraps a missing managed tag by exact name and learns its provider ID", async () => {
+  const harness = serviceHarness({
+    salesTagId: null,
+    admissionsTagId: null,
+    initialTags: [{ id: 99, name: "Unrelated provider tag" }],
+  });
+
+  const result = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: BASE_REQUEST_ID,
+      noteText: "Sales sync reviewed by staff",
+    },
+    harness.dependencies,
+  );
+
+  assert.deepEqual(
+    [result.status, result.reason],
+    ["accepted", "all_effects_verified"],
+  );
+  const tagInput = harness.providerInputs.find(
+    ({ operationName }) => operationName === "lead_tag_update",
+  )?.input;
+  assert.deepEqual(tagInput?.add, [{ name: "EVO V2 Sales" }]);
+  assert.equal(tagInput?.remove, undefined);
+  assert.deepEqual(harness.lead._embedded.tags, [
+    { id: 99, name: "Unrelated provider tag" },
+    { id: 8101, name: "EVO V2 Sales" },
+  ]);
+  const tagAttempt = [...harness.attempts.values()].find(
+    ({ operationName }) => operationName === "lead_tag_update",
+  );
+  assert.equal(tagAttempt?.providerRequestMetadata.expected.tagId, null);
+  assert.equal(tagAttempt?.providerRequestMetadata.expected.oppositeTagId, null);
+  assert.equal(tagAttempt?.providerReadback?.tagId, "8101");
+});
+
+test("a name-bootstrapped managed tag reconciles an unknown result without redispatch", async () => {
+  const harness = serviceHarness({
+    salesTagId: null,
+    admissionsTagId: null,
+    initialTags: [{ id: 99, name: "Unrelated provider tag" }],
+    unknownAfterApplyOperation: "lead_tag_update",
+  });
+  const initial = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: BASE_REQUEST_ID,
+      noteText: "Sales sync reviewed by staff",
+    },
+    harness.dependencies,
+  );
+  assert.deepEqual(
+    [initial.status, initial.reason, initial.steps.at(-1)?.operationName],
+    ["unknown", "provider_result_unknown", "lead_tag_update"],
+  );
+  harness.providerCalls.splice(0);
+
+  const reconciled = await reconcileCanonicalAmoCrmSyncAttempt(
+    {
+      actorRole: "sales",
+      workflowScope: "sales_pre_handoff",
+      leadId: SALES_LEAD_ID,
+      studentCaseId: null,
+      attemptId: initial.attemptId,
+    },
+    harness.dependencies,
+  );
+
+  assert.deepEqual(
+    [reconciled.status, reconciled.reason],
+    ["accepted", "reconciled_effect_verified"],
+  );
+  assert.deepEqual(harness.providerCalls, ["read:lead"]);
+  assert.equal(
+    harness.providerCalls.filter((call) => call === "dispatch:lead_tag_update").length,
+    0,
+  );
+});
+
+test("provider outcomes advance past the database dispatch millisecond floor", async () => {
+  const harness = serviceHarness({ now: "2030-01-01T00:00:01.000Z" });
+
+  const result = await executeCanonicalAmoCrmSalesSync(
+    {
+      actorRole: "sales",
+      leadId: SALES_LEAD_ID,
+      baseRequestId: BASE_REQUEST_ID,
+      noteText: "Sales sync reviewed by staff",
+    },
+    harness.dependencies,
+  );
+
+  assert.equal(result.status, "accepted");
+  assert.equal(
+    [...harness.attempts.values()][0]?.providerRespondedAt,
+    "2030-01-01T00:00:01.001Z",
   );
 });
 

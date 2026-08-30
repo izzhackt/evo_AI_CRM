@@ -1339,7 +1339,6 @@ async function settlePreparedRow(
 ): Promise<void> {
   assertAcceptedResultMatchesOperation(row, outcome);
   assertTransportOrder(row, outcome);
-  const now = new Date();
   const [updated] = await transaction
     .update(evoAmoCrmOperationAttempts)
     .set({
@@ -1353,9 +1352,23 @@ async function settlePreparedRow(
       providerReadbackSha256: outcome.providerReadbackSha256,
       providerReadbackAt: outcome.providerReadbackAt,
       failureCode: outcome.failureCode,
-      settledAt: now,
-      lastReconciledAt: reconciled ? now : null,
-      updatedAt: now,
+      // Keep repository-owned timestamps on the PostgreSQL clock. Provider
+      // dispatch is also database-owned, while a JS Date loses microseconds
+      // and the application/container clocks can differ slightly.
+      settledAt: sql`coalesce(
+        ${evoAmoCrmOperationAttempts.settledAt},
+        greatest(now(), ${evoAmoCrmOperationAttempts.preparedAt})
+      )`,
+      lastReconciledAt: reconciled
+        ? sql`greatest(
+            now(),
+            coalesce(
+              ${evoAmoCrmOperationAttempts.settledAt},
+              ${evoAmoCrmOperationAttempts.preparedAt}
+            )
+          )`
+        : null,
+      updatedAt: sql`greatest(now(), ${evoAmoCrmOperationAttempts.updatedAt})`,
       version: sql`${evoAmoCrmOperationAttempts.version} + 1`,
     })
     .where(
@@ -1374,8 +1387,8 @@ async function settlePreparedRow(
         status: "succeeded",
         resultPayload: receiptResult(row, outcome),
         failureCode: null,
-        completedAt: now,
-        updatedAt: now,
+        completedAt: sql`greatest(now(), ${evoCommandReceipts.createdAt})`,
+        updatedAt: sql`greatest(now(), ${evoCommandReceipts.updatedAt})`,
       })
       .where(eq(evoCommandReceipts.id, row.commandReceiptId));
   } else if (outcome.status === "rejected") {
@@ -1385,8 +1398,8 @@ async function settlePreparedRow(
         status: "failed",
         resultPayload: null,
         failureCode: outcome.failureCode,
-        completedAt: now,
-        updatedAt: now,
+        completedAt: sql`greatest(now(), ${evoCommandReceipts.createdAt})`,
+        updatedAt: sql`greatest(now(), ${evoCommandReceipts.updatedAt})`,
       })
       .where(eq(evoCommandReceipts.id, row.commandReceiptId));
   }
@@ -1492,7 +1505,6 @@ export async function reconcileUnknownCanonicalAmoCrmCommand(
           attempt: snapshot(reconciled, authorization),
         });
       }
-      const now = new Date();
       const [updated] = await transaction
         .update(evoAmoCrmOperationAttempts)
         .set({
@@ -1502,9 +1514,21 @@ export async function reconcileUnknownCanonicalAmoCrmCommand(
           providerReadbackSha256:
             readback === null ? row.providerReadbackSha256 : sha256(readback),
           providerReadbackAt: readbackAt ?? row.providerReadbackAt,
-          settledAt: sourceStatus === "prepared" ? now : row.settledAt,
-          lastReconciledAt: now,
-          updatedAt: now,
+          settledAt: sql`coalesce(
+            ${evoAmoCrmOperationAttempts.settledAt},
+            greatest(now(), ${evoAmoCrmOperationAttempts.preparedAt})
+          )`,
+          lastReconciledAt: sql`greatest(
+            now(),
+            coalesce(
+              ${evoAmoCrmOperationAttempts.settledAt},
+              ${evoAmoCrmOperationAttempts.preparedAt}
+            )
+          )`,
+          updatedAt: sql`greatest(
+            now(),
+            ${evoAmoCrmOperationAttempts.updatedAt}
+          )`,
           version: sql`${evoAmoCrmOperationAttempts.version} + 1`,
         })
         .where(

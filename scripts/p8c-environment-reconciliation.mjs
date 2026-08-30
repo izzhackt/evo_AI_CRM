@@ -93,6 +93,19 @@ function validateP8EvidenceIndex(value, candidateCommit, label) {
   }
 }
 function git(repoRoot, args) { return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8" }).trim(); }
+function gitIsAncestor(repoRoot, ancestor, descendant) {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", ancestor, descendant], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return true;
+  } catch (error) {
+    if (error?.status === 1) return false;
+    throw error;
+  }
+}
 function inside(root, path) { return path === root || path.startsWith(`${root}${sep}`); }
 function rejectSymlinkAncestors(baseRoot, targetPath, label) {
   const root = resolve(baseRoot);
@@ -165,8 +178,8 @@ function deriveSegmentStatus(checks) {
   return "verified";
 }
 
-export function createP8CReport({ candidateCommit, candidateManifestPath, collectionIndexPath, evidenceIndexPath, evidenceRoot, inputPath, mergedMainCommit, outputPath, p8bEvidenceIndexPath, prNumber, repoRoot, timestamp }) {
-  for (const [label, value] of [["candidate commit", candidateCommit], ["merged main commit", mergedMainCommit]]) if (!SHA.test(value)) fail(`${label} must be a full lowercase Git SHA`);
+export function createP8CReport({ candidateCommit, candidateManifestPath, collectionIndexPath, evidenceIndexPath, evidenceRoot, inputPath, mainlineCommit, mergedMainCommit, outputPath, p8bEvidenceIndexPath, prNumber, repoRoot, timestamp }) {
+  for (const [label, value] of [["candidate commit", candidateCommit], ["merged main commit", mergedMainCommit], ["mainline commit", mainlineCommit]]) if (!SHA.test(value)) fail(`${label} must be a full lowercase Git SHA`);
   if (!Number.isInteger(prNumber) || prNumber < 1) fail("PR number must be positive");
   utc(timestamp, "timestamp");
   const root = realpathSync(resolve(repoRoot));
@@ -281,12 +294,13 @@ export function createP8CReport({ candidateCommit, candidateManifestPath, collec
   }
   git(root, ["cat-file", "-e", `${candidateCommit}^{commit}`]);
   git(root, ["cat-file", "-e", `${mergedMainCommit}^{commit}`]);
+  git(root, ["cat-file", "-e", `${mainlineCommit}^{commit}`]);
   const prHeadTree = git(root, ["rev-parse", `${candidateCommit}^{tree}`]);
   const mergedMainTree = git(root, ["rev-parse", `${mergedMainCommit}^{tree}`]);
   if (prHeadTree !== mergedMainTree) fail("candidate PR head and merged main trees differ");
-  git(root, ["merge-base", "--is-ancestor", mergedMainCommit, "origin/main"]);
+  if (!gitIsAncestor(root, mergedMainCommit, mainlineCommit)) fail("merged main commit is not an ancestor of the supplied mainline commit");
   const report = {
-    candidate: { candidate_evidence_index_sha256: indexArtifact.hash, candidate_manifest_sha256: manifestArtifact.hash, image_digests: imageDigests, merged_main_commit: mergedMainCommit, merged_main_tree: mergedMainTree, p8b2_collection_index_sha256: collectionArtifact.hash, p8b_evidence_index_sha256: p8bIndexArtifact.hash, pr_head_commit: candidateCommit, pr_head_tree: prHeadTree, pr_number: prNumber, target_platform: manifest.target_platform, trees_equal: true },
+    candidate: { candidate_evidence_index_sha256: indexArtifact.hash, candidate_manifest_sha256: manifestArtifact.hash, image_digests: imageDigests, mainline_commit: mainlineCommit, merged_main_commit: mergedMainCommit, merged_main_tree: mergedMainTree, p8b2_collection_index_sha256: collectionArtifact.hash, p8b_evidence_index_sha256: p8bIndexArtifact.hash, pr_head_commit: candidateCommit, pr_head_tree: prHeadTree, pr_number: prNumber, target_platform: manifest.target_platform, trees_equal: true },
     generated_at: timestamp,
     overall_status: deriveOverallStatus(segments),
     schema_version: 2,
@@ -316,7 +330,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const values = args(process.argv.slice(2));
     const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-    const report = createP8CReport({ candidateCommit: values.candidate, candidateManifestPath: values["candidate-manifest"], collectionIndexPath: values["collection-index"], evidenceIndexPath: values["evidence-index"], evidenceRoot: values["evidence-root"], inputPath: values.input, mergedMainCommit: values["merged-main"], outputPath: values.output, p8bEvidenceIndexPath: values["p8b-evidence-index"], prNumber: Number(values["pr-number"]), repoRoot, timestamp: values.timestamp });
+    const mainlineCommit = values.mainline ?? git(repoRoot, ["rev-parse", "origin/main^{commit}"]);
+    const report = createP8CReport({ candidateCommit: values.candidate, candidateManifestPath: values["candidate-manifest"], collectionIndexPath: values["collection-index"], evidenceIndexPath: values["evidence-index"], evidenceRoot: values["evidence-root"], inputPath: values.input, mainlineCommit, mergedMainCommit: values["merged-main"], outputPath: values.output, p8bEvidenceIndexPath: values["p8b-evidence-index"], prNumber: Number(values["pr-number"]), repoRoot, timestamp: values.timestamp });
     process.stdout.write(`${JSON.stringify({ overall_status: report.overall_status, output: relative(repoRoot, resolve(values.output)) })}\n`);
   } catch (error) {
     process.stderr.write(`${error.message}\n`); process.exitCode = 1;

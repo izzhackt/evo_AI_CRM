@@ -36,6 +36,7 @@
       "properties": {
         "pr_number": { "type": "integer", "minimum": 1 },
         "pr_head_commit": { "$ref": "#/$defs/git_sha" }, "merged_main_commit": { "$ref": "#/$defs/git_sha" },
+        "mainline_commit": { "$ref": "#/$defs/git_sha" },
         "pr_head_tree": { "$ref": "#/$defs/git_sha" }, "merged_main_tree": { "$ref": "#/$defs/git_sha" },
         "p8b_evidence_index_sha256": { "$ref": "#/$defs/sha256" }, "candidate_manifest_sha256": { "$ref": "#/$defs/sha256" },
         "candidate_evidence_index_sha256": { "$ref": "#/$defs/sha256" }, "p8b2_collection_index_sha256": { "$ref": "#/$defs/sha256" },

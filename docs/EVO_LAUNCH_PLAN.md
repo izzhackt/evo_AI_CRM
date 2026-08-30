@@ -461,6 +461,12 @@ guess, simulate or fall back.
    provider-created ID and rejects duplicate exact-name matches; there is no
    separate tag-bootstrap writer or prerequisite manual setup. Existing tag
    IDs remain the preferred mutation identity after discovery.
+   The active V2 auth path is one private-integration long-lived Bearer token
+   stored only in ignored server-side secret material. V2 does not depend on
+   `refresh_token` rotation, `client_id`, `client_secret`, `redirect_uri` or
+   `POST /oauth2/access_token` during normal command execution. If the token is
+   missing, expired, revoked, malformed or rejected, the command path fails
+   clearly with no fallback auth path or blind retry.
    An ambiguous result is reconciled before retry; amoCRM is never a dual-write
    authority, fallback repository or source of a second workflow state.
 4. **V2-10D / #467 — real acceptance.** Use one minimized owner-authorized

@@ -14495,3 +14495,52 @@ No amoCRM contact, lead, tag, note or customer record was changed by the failed
 preparation. This correction authorizes no arbitrary customer target, V1
 runtime change, deployment, migration or cutover. The bounded self-identity
 validation command remains the first and only authorized connected write proof.
+
+## 2026-08-30 - Replace the active V2 amoCRM auth dependency with a private long-lived token
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under the owner's standing authorization for #466 and #467.
+Change type: auth-path correction before the connected amoCRM write proof.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+The current exact-main connected acceptance proved that the remaining blocker is
+not the V2 write workflow itself but the old OAuth pair copied from the frozen
+V1 contour. The read-only preparation reached the real connected account path
+and stopped before dispatch: the copied access token returned HTTP 401 and the
+copied refresh token returned HTTP 401. No contact, lead, tag, note or
+customer record was changed by this blocked run.
+
+For active private V2, the owner-directed product-first path is now one
+server-only private-integration long-lived Bearer token instead of
+refresh-token rotation:
+
+- the only active V2 amoCRM auth artifact is one ignored secret token file
+  containing the private integration's long-lived token;
+- V2 no longer depends on `client_id`, `client_secret`, `redirect_uri`,
+  `refresh_token`, or `POST /oauth2/access_token` during normal amoCRM command
+  execution;
+- if that token is missing, expired, revoked, malformed or rejected, the
+  canonical command path fails clearly and does not fall back to OAuth refresh,
+  legacy V1 files, or a second provider path;
+- frozen V1 OAuth files, env, runbooks, archived docs and rollback evidence
+  remain preserved historical inputs only and must never be imported,
+  executed, bundled or treated as V2 authority.
+
+This correction is grounded in the current official Kommo contracts:
+
+- private integrations expose the keys/scopes screen and may use the long-lived
+  token and/or authorization code:
+  https://developers.kommo.com/docs/private-integration
+- long-lived tokens are for private integrations, have no `refresh_token`, are
+  valid from 1 day to 5 years, and must be saved securely:
+  https://developers.kommo.com/docs/long-lived-token
+- OAuth refresh tokens expire after 3 months of inactivity, and once a newly
+  returned refresh token is used, the previous one becomes outdated:
+  https://developers.kommo.com/docs/oauth-20
+
+This changes the active V2 auth dependency only. It does not widen provider
+scope, choose an arbitrary customer, authorize a V1 mutation, authorize public
+deployment, or claim the long-lived token already exists. Real #466 proof still
+requires one exact connected private token, real provider read-back, exact-main
+validation, and replace-not-layer cleanup of superseded active OAuth-refresh
+runtime code and tests in the same slice.

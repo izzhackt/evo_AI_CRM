@@ -512,13 +512,100 @@ async function exactProviderReadback(
     "Provider note readback did not match the reviewed text",
   );
 
+  // Provider-side scoped collections are the duplicate detector. Re-reading
+  // only the IDs persisted in PostgreSQL would miss an accidental extra
+  // contact, lead, or note created by an exact replay.
+  const contactSearch = await providerGet(
+    parsedBase.origin,
+    `/api/v4/contacts?limit=250&filter%5Bname%5D%5B%5D=${encodeURIComponent(displayName)}`,
+    accessToken,
+  );
+  const validationContacts = array(
+    record(
+      contactSearch._embedded,
+      "Provider contact search envelope was invalid",
+    ).contacts,
+    "Provider contact search collection was invalid",
+  ).filter((candidate) => {
+    const scopedContact = record(candidate, "Provider contact search item was invalid");
+    return scopedContact.name === displayName;
+  });
+  ensure(
+    validationContacts.length === 1,
+    "Provider validation scope contains a duplicate or changed contact",
+  );
+  const validationContactId = providerId(
+    record(validationContacts[0], "Provider validation contact was invalid").id,
+    "Provider validation contact identity was invalid",
+  );
+  ensure(
+    validationContactId === database.providerContactId,
+    "Provider validation contact changed identity",
+  );
+
+  const leadSearch = await providerGet(
+    parsedBase.origin,
+    `/api/v4/leads?limit=250&filter%5Bname%5D%5B%5D=${encodeURIComponent(displayName)}`,
+    accessToken,
+  );
+  const validationLeads = array(
+    record(leadSearch._embedded, "Provider lead search envelope was invalid").leads,
+    "Provider lead search collection was invalid",
+  ).filter((candidate) => {
+    const scopedLead = record(candidate, "Provider lead search item was invalid");
+    return scopedLead.name === displayName;
+  });
+  ensure(
+    validationLeads.length === 1,
+    "Provider validation scope contains a duplicate or changed lead",
+  );
+  const validationLeadId = providerId(
+    record(validationLeads[0], "Provider validation lead was invalid").id,
+    "Provider validation lead identity was invalid",
+  );
+  ensure(
+    validationLeadId === database.providerLeadId,
+    "Provider validation lead changed identity",
+  );
+
+  const noteSearch = await providerGet(
+    parsedBase.origin,
+    `/api/v4/leads/${database.providerLeadId}/notes?limit=250&filter%5Bnote_type%5D%5B%5D=common`,
+    accessToken,
+  );
+  const validationNotes = array(
+    record(noteSearch._embedded, "Provider note search envelope was invalid").notes,
+    "Provider note search collection was invalid",
+  ).filter((candidate) => {
+    const scopedNote = record(candidate, "Provider note search item was invalid");
+    const params = record(scopedNote.params, "Provider note search params were invalid");
+    return scopedNote.note_type === "common" && params.text === NOTE_TEXT;
+  });
+  ensure(
+    validationNotes.length === 1,
+    "Provider validation scope contains a duplicate or changed reviewed note",
+  );
+  const validationNoteId = providerId(
+    record(validationNotes[0], "Provider validation note was invalid").id,
+    "Provider validation note identity was invalid",
+  );
+  ensure(
+    validationNoteId === database.providerNoteId,
+    "Provider validation note changed identity",
+  );
+
   return Object.freeze({
     exactReadback: true,
     entitySetSha256: sha256(
-      [database.providerContactId, database.providerLeadId, database.providerNoteId]
-        .sort()
-        .join(":"),
+      [
+        `contact:${validationContactId}`,
+        `lead:${validationLeadId}`,
+        `note:${validationNoteId}`,
+      ].join(":"),
     ),
+    validationContactCount: validationContacts.length,
+    validationLeadCount: validationLeads.length,
+    validationNoteCount: validationNotes.length,
     managedRoleTagCount: 1,
     mainContactCount: mainContacts.length,
   });
@@ -719,6 +806,21 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       replayDatabase.readbackSetSha256 === database.readbackSetSha256,
     "Exact UI replay created a new attempt, receipt, binding or provider entity",
   );
+  const replayProvider = await exactProviderReadback(
+    runtime,
+    context,
+    replayDatabase,
+  );
+  ensure(
+    replayProvider.exactReadback === true &&
+      replayProvider.entitySetSha256 === provider.entitySetSha256 &&
+      replayProvider.validationContactCount === provider.validationContactCount &&
+      replayProvider.validationLeadCount === provider.validationLeadCount &&
+      replayProvider.validationNoteCount === provider.validationNoteCount &&
+      replayProvider.managedRoleTagCount === provider.managedRoleTagCount &&
+      replayProvider.mainContactCount === provider.mainContactCount,
+    "Exact UI replay changed the provider entity set",
+  );
 
   await page.reload();
   await expect(page.getByTestId("canonical-sales-lead-workspace")).toBeVisible();
@@ -757,6 +859,9 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     provider: {
       exactReadback: provider.exactReadback,
       entitySetSha256: provider.entitySetSha256,
+      validationContactCount: provider.validationContactCount,
+      validationLeadCount: provider.validationLeadCount,
+      validationNoteCount: provider.validationNoteCount,
       managedRoleTagCount: provider.managedRoleTagCount,
       mainContactCount: provider.mainContactCount,
     },
@@ -772,6 +877,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       replayAddedAttemptCount: 0,
       replayAddedReceiptCount: 0,
       replayAddedBindingCount: 0,
+      replayProviderEntitySetUnchanged: true,
       persistedAfterReload: true,
     },
     boundaries: {

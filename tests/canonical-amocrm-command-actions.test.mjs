@@ -116,7 +116,7 @@ registerHooks({
           export async function readCanonicalAmoCrmTokenFile() {
             const error = globalThis.__canonicalAmoCrmCommandActionHarness.tokenError;
             if (error) throw error;
-            return { accessToken: "not-exposed", refreshToken: "not-exposed" };
+            return { accessToken: "not-exposed" };
           }
         `),
       };

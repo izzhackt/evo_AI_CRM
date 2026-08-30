@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 node_bin="${EVO_NODE_BIN:-node}"
@@ -102,9 +103,8 @@ waha_api_key="technical-waha-provider-key"
 waha_session_name="evo-v2-technical"
 waha_port="${EVO_DATABASE_WAHA_PORT:-$(free_port)}"
 waha_base_url="http://127.0.0.1:${waha_port}"
-amocrm_client_id="technical-amocrm-client-466"
-amocrm_client_secret_probe="$(openssl rand -hex 24)"
-amocrm_token_file="$tmp_dir/missing-amocrm-token.json"
+amocrm_token_probe="$(openssl rand -hex 24)"
+amocrm_token_file="$tmp_dir/amocrm-token.json"
 amocrm_sales_blocking_attempt_id=""
 amocrm_sales_blocking_lead_id=""
 amocrm_admissions_blocking_attempt_id=""
@@ -353,7 +353,7 @@ start_app() {
   fi
   if [[ "$amocrm_mode" == "routing-missing" ]]; then
     amocrm_provider_authorized=1
-  elif [[ "$amocrm_mode" == "token-missing" ]]; then
+  elif [[ "$amocrm_mode" == "token-missing" || "$amocrm_mode" == "token-invalid" ]]; then
     amocrm_provider_authorized=1
     amocrm_sales_pipeline_id="466001"
     amocrm_sales_status_id="466002"
@@ -389,9 +389,6 @@ start_app() {
       EVO_V2_AMOCRM_WRITES_ENABLED=1 \
       EVO_V2_AMOCRM_PROVIDER_AUTHORIZED="$amocrm_provider_authorized" \
       EVO_V2_AMOCRM_BASE_URL="https://evo-v2-technical.amocrm.ru" \
-      EVO_V2_AMOCRM_CLIENT_ID="$amocrm_client_id" \
-      EVO_V2_AMOCRM_CLIENT_SECRET="$amocrm_client_secret_probe" \
-      EVO_V2_AMOCRM_REDIRECT_URI="http://127.0.0.1:${app_port}/oauth/amocrm" \
       EVO_V2_AMOCRM_TOKEN_FILE="$amocrm_token_file" \
       EVO_V2_AMOCRM_SALES_PIPELINE_ID="$amocrm_sales_pipeline_id" \
       EVO_V2_AMOCRM_SALES_STATUS_ID="$amocrm_sales_status_id" \
@@ -425,9 +422,6 @@ start_app() {
       EVO_V2_AMOCRM_WRITES_ENABLED=1 \
       EVO_V2_AMOCRM_PROVIDER_AUTHORIZED="$amocrm_provider_authorized" \
       EVO_V2_AMOCRM_BASE_URL="https://evo-v2-technical.amocrm.ru" \
-      EVO_V2_AMOCRM_CLIENT_ID="$amocrm_client_id" \
-      EVO_V2_AMOCRM_CLIENT_SECRET="$amocrm_client_secret_probe" \
-      EVO_V2_AMOCRM_REDIRECT_URI="http://127.0.0.1:${app_port}/oauth/amocrm" \
       EVO_V2_AMOCRM_TOKEN_FILE="$amocrm_token_file" \
       EVO_V2_AMOCRM_SALES_PIPELINE_ID="$amocrm_sales_pipeline_id" \
       EVO_V2_AMOCRM_SALES_STATUS_ID="$amocrm_sales_status_id" \
@@ -562,7 +556,7 @@ amocrm_command_browser_assert() {
   assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_AMOCRM_BROWSER_MODE="$proof_mode" \
-    EVO_EXPECT_AMOCRM_SECRET_PROBE="$amocrm_client_secret_probe" \
+    EVO_EXPECT_AMOCRM_TOKEN_PROBE="$amocrm_token_probe" \
     EVO_EXPECT_AMOCRM_SALES_BLOCKING_ATTEMPT_ID="$amocrm_sales_blocking_attempt_id" \
     EVO_EXPECT_AMOCRM_SALES_BLOCKING_LEAD_ID="$amocrm_sales_blocking_lead_id" \
     EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_ATTEMPT_ID="$amocrm_admissions_blocking_attempt_id" \
@@ -597,7 +591,7 @@ assert_no_secret_or_payload_logs() {
     "$gate_admissions_secret" \
     "$whatsapp_inbound_secret" \
     "$waha_api_key" \
-    "$amocrm_client_secret_probe" \
+    "$amocrm_token_probe" \
     "$inbound_test_phone" \
     "$inbound_test_conversation_id" \
     "$inbound_test_message_id" \
@@ -1017,8 +1011,18 @@ amocrm_command_browser_assert routing-missing
 assert_no_secret_or_payload_logs
 
 stop_app
+[[ ! -e "$amocrm_token_file" ]] \
+  || fail "The isolated amoCRM missing-token proof requires an absent token file"
 start_app "$database_url" configured configured configured blocked token-missing
 amocrm_command_browser_assert token-missing
+assert_no_secret_or_payload_logs
+
+stop_app
+printf '{"token_type":"Bearer","access_token":"%s","refresh_token":"legacy-refresh-must-fail"}\n' \
+  "$amocrm_token_probe" >"$amocrm_token_file"
+chmod 0600 "$amocrm_token_file"
+start_app "$database_url" configured configured configured blocked token-invalid
+amocrm_command_browser_assert token-invalid
 assert_no_secret_or_payload_logs
 
 echo "Real PostgreSQL, Drizzle, canonical CRM, development gate, private files, application and Chromium proof passed."

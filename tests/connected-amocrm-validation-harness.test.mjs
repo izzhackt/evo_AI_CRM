@@ -113,9 +113,6 @@ test("preparation helper maps only the explicit legacy provider keys into privat
 
   for (const legacyKey of [
     "EVO_AGENT_AMO_BASE_URL",
-    "EVO_AGENT_AMO_CLIENT_ID",
-    "EVO_AGENT_AMO_CLIENT_SECRET",
-    "EVO_AGENT_AMO_REDIRECT_URI",
     "EVO_AGENT_WAHA_API_KEY",
     "EVO_AGENT_WAHA_SESSION",
   ]) {
@@ -123,9 +120,6 @@ test("preparation helper maps only the explicit legacy provider keys into privat
   }
   for (const v2Key of [
     "EVO_V2_AMOCRM_BASE_URL",
-    "EVO_V2_AMOCRM_CLIENT_ID",
-    "EVO_V2_AMOCRM_CLIENT_SECRET",
-    "EVO_V2_AMOCRM_REDIRECT_URI",
     "EVO_V2_AMOCRM_TOKEN_FILE",
   ]) {
     assert.match(source, new RegExp(v2Key, "u"));
@@ -205,6 +199,7 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
   const providerEnv = join(directory, "provider.env");
   const tokenFile = join(directory, "token.json");
   const runtimeFile = join(directory, "runtime.json");
+  const legacyRuntimeFile = join(directory, "legacy-runtime.json");
   const refusedRuntimeFile = join(directory, "refused-runtime.json");
   await chmod(directory, 0o700);
   try {
@@ -226,7 +221,7 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
       tokenFile,
       `${JSON.stringify({
         access_token: "technical-access-token",
-        refresh_token: "technical-refresh-token",
+        token_type: "Bearer",
       })}\n`,
       { mode: 0o600 },
     );
@@ -259,14 +254,36 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
     const runtime = JSON.parse(await readFile(runtimeFile, "utf8"));
     assert.deepEqual(Object.keys(runtime.providerEnvironment).sort(), [
       "EVO_V2_AMOCRM_BASE_URL",
-      "EVO_V2_AMOCRM_CLIENT_ID",
-      "EVO_V2_AMOCRM_CLIENT_SECRET",
-      "EVO_V2_AMOCRM_REDIRECT_URI",
       "EVO_V2_AMOCRM_TOKEN_FILE",
     ]);
     assert.equal(runtime.providerEnvironment.EVO_V2_AMOCRM_TOKEN_FILE, tokenFile);
     assert.equal(Object.hasOwn(runtime.providerEnvironment, "UNRELATED_VALUE"), false);
     assert.equal((await stat(runtimeFile)).mode & 0o077, 0);
+
+    await writeFile(
+      tokenFile,
+      `${JSON.stringify({
+        access_token: "technical-access-token",
+        token_type: "Bearer",
+        refresh_token: "legacy-refresh-token",
+        expires_in: 86_400,
+      })}\n`,
+      { mode: 0o600 },
+    );
+    const legacyBundle = invoke(legacyRuntimeFile);
+    assert.notEqual(legacyBundle.status, 0);
+    assert.equal(legacyBundle.stdout, "");
+    assert.match(legacyBundle.stderr, /token_file_invalid/u);
+    await assert.rejects(() => stat(legacyRuntimeFile), { code: "ENOENT" });
+
+    await writeFile(
+      tokenFile,
+      `${JSON.stringify({
+        access_token: "technical-access-token",
+        token_type: "Bearer",
+      })}\n`,
+      { mode: 0o600 },
+    );
 
     await chmod(providerEnv, 0o644);
     const refused = invoke(refusedRuntimeFile);

@@ -1,26 +1,15 @@
 import "server-only";
 
 import { constants } from "node:fs";
-import {
-  chmod,
-  lstat,
-  open,
-  rename,
-  unlink,
-} from "node:fs/promises";
-import { randomUUID } from "node:crypto";
-import { basename, dirname, join } from "node:path";
+import { lstat, open } from "node:fs/promises";
 
 const MAX_TOKEN_FILE_BYTES = 16 * 1024;
 const MIN_TOKEN_BYTES = 8;
 const MAX_TOKEN_BYTES = 12 * 1024;
-const MAX_EXPIRES_IN_SECONDS = 10 * 365 * 24 * 60 * 60;
 
 export type CanonicalAmoCrmTokenSet = Readonly<{
   tokenType: "Bearer";
   accessToken: string;
-  refreshToken: string;
-  expiresInSeconds: number;
 }>;
 
 export type CanonicalAmoCrmTokenFileErrorCode =
@@ -29,8 +18,7 @@ export type CanonicalAmoCrmTokenFileErrorCode =
   | "unsafe_permissions"
   | "file_too_large"
   | "invalid_content"
-  | "read_failed"
-  | "rotation_failed";
+  | "read_failed";
 
 export class CanonicalAmoCrmTokenFileError extends Error {
   readonly code: CanonicalAmoCrmTokenFileErrorCode;
@@ -62,18 +50,20 @@ export function parseCanonicalAmoCrmTokenSet(
     throw new CanonicalAmoCrmTokenFileError("invalid_content");
   }
   const candidate = value as Record<string, unknown>;
+  const keys = Object.keys(candidate).sort();
+  if (
+    keys.length !== 2 ||
+    keys[0] !== "access_token" ||
+    keys[1] !== "token_type"
+  ) {
+    throw new CanonicalAmoCrmTokenFileError("invalid_content");
+  }
   const tokenType = candidate.token_type;
   const accessToken = token(candidate.access_token);
-  const refreshToken = token(candidate.refresh_token);
-  const expiresInSeconds = candidate.expires_in;
   if (
     typeof tokenType !== "string" ||
     tokenType.toLowerCase() !== "bearer" ||
-    !accessToken ||
-    !refreshToken ||
-    !Number.isSafeInteger(expiresInSeconds) ||
-    (expiresInSeconds as number) < 1 ||
-    (expiresInSeconds as number) > MAX_EXPIRES_IN_SECONDS
+    !accessToken
   ) {
     throw new CanonicalAmoCrmTokenFileError("invalid_content");
   }
@@ -81,8 +71,6 @@ export function parseCanonicalAmoCrmTokenSet(
   return Object.freeze({
     tokenType: "Bearer",
     accessToken,
-    refreshToken,
-    expiresInSeconds: expiresInSeconds as number,
   });
 }
 
@@ -168,62 +156,5 @@ export async function readCanonicalAmoCrmTokenFile(
     throw mapReadError(error);
   } finally {
     await handle?.close().catch(() => undefined);
-  }
-}
-
-function serializedToken(tokenSet: CanonicalAmoCrmTokenSet): string {
-  const normalized = parseCanonicalAmoCrmTokenSet({
-    token_type: tokenSet.tokenType,
-    access_token: tokenSet.accessToken,
-    refresh_token: tokenSet.refreshToken,
-    expires_in: tokenSet.expiresInSeconds,
-  });
-  return `${JSON.stringify(
-    {
-      token_type: normalized.tokenType,
-      access_token: normalized.accessToken,
-      refresh_token: normalized.refreshToken,
-      expires_in: normalized.expiresInSeconds,
-    },
-    null,
-    2,
-  )}\n`;
-}
-
-export async function rotateCanonicalAmoCrmTokenFile(
-  tokenFilePath: string,
-  tokenSet: CanonicalAmoCrmTokenSet,
-): Promise<void> {
-  const directoryPath = dirname(tokenFilePath);
-  const temporaryPath = join(
-    directoryPath,
-    `.${basename(tokenFilePath)}.${process.pid}.${randomUUID()}.tmp`,
-  );
-  let temporaryHandle: Awaited<ReturnType<typeof open>> | null = null;
-  try {
-    temporaryHandle = await open(
-      temporaryPath,
-      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
-      0o600,
-    );
-    await temporaryHandle.writeFile(serializedToken(tokenSet), {
-      encoding: "utf8",
-    });
-    await temporaryHandle.sync();
-    await temporaryHandle.close();
-    temporaryHandle = null;
-    await chmod(temporaryPath, 0o600);
-    await rename(temporaryPath, tokenFilePath);
-
-    const directoryHandle = await open(directoryPath, constants.O_RDONLY);
-    try {
-      await directoryHandle.sync();
-    } finally {
-      await directoryHandle.close();
-    }
-  } catch {
-    await temporaryHandle?.close().catch(() => undefined);
-    await unlink(temporaryPath).catch(() => undefined);
-    throw new CanonicalAmoCrmTokenFileError("rotation_failed");
   }
 }

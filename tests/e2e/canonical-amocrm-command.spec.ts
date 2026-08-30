@@ -2,7 +2,10 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 type TestRole = "admin" | "sales" | "admissions";
 type ProofMode =
-  "provider-not-authorized" | "routing-missing" | "token-missing";
+  | "provider-not-authorized"
+  | "routing-missing"
+  | "token-missing"
+  | "token-invalid";
 
 const proofMode = requiredProofMode();
 const salesBlockingAttemptId = optionalUuid(
@@ -42,6 +45,8 @@ const BLOCKED_COPY: Readonly<Record<ProofMode, RegExp>> = Object.freeze({
     /Не настроен точный маршрут amoCRM\.|Exact amoCRM routing is not configured\.|amoCRM үчүн так маршрут конфигурацияланган эмес\./u,
   "token-missing":
     /Закрытый OAuth-токен недоступен серверу\.|The private OAuth token is unavailable to the server\.|Жеке OAuth токени серверге жеткиликсиз\./u,
+  "token-invalid":
+    /Закрытый OAuth-токен недоступен серверу\.|The private OAuth token is unavailable to the server\.|Жеке OAuth токени серверге жеткиликсиз\./u,
 });
 
 function requiredProofMode(): ProofMode {
@@ -49,7 +54,8 @@ function requiredProofMode(): ProofMode {
   if (
     value !== "provider-not-authorized" &&
     value !== "routing-missing" &&
-    value !== "token-missing"
+    value !== "token-missing" &&
+    value !== "token-invalid"
   ) {
     throw new Error("EVO_EXPECT_AMOCRM_BROWSER_MODE is invalid");
   }
@@ -166,9 +172,9 @@ async function expectBlockedPanel(
   }
 
   const html = await page.content();
-  const secretProbe = process.env.EVO_EXPECT_AMOCRM_SECRET_PROBE;
+  const secretProbe = process.env.EVO_EXPECT_AMOCRM_TOKEN_PROBE;
   if (!secretProbe) {
-    throw new Error("missing amoCRM secret-leak probe");
+    throw new Error("missing amoCRM token-leak probe");
   }
   expect(html).not.toContain(secretProbe);
   expect(html).not.toMatch(

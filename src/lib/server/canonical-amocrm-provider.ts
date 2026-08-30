@@ -4,9 +4,7 @@ import { createHash } from "node:crypto";
 
 import type { CanonicalAmoCrmProviderConfig } from "./canonical-amocrm-provider-config.ts";
 import {
-  parseCanonicalAmoCrmTokenSet,
   readCanonicalAmoCrmTokenFile,
-  rotateCanonicalAmoCrmTokenFile,
   type CanonicalAmoCrmTokenSet,
 } from "./canonical-amocrm-token-store.ts";
 
@@ -18,7 +16,6 @@ type CanonicalAmoCrmReadyConfig = Extract<
 export type CanonicalAmoCrmProviderErrorCode =
   | "invalid_request"
   | "token_unavailable"
-  | "token_refresh_failed"
   | "authentication_failed"
   | "provider_rejected"
   | "provider_unavailable"
@@ -267,10 +264,6 @@ type PaceState = {
 };
 
 const PACE_BY_ACCOUNT_ORIGIN = new Map<string, PaceState>();
-const REFRESH_BY_TOKEN_FILE = new Map<
-  string,
-  Promise<CanonicalAmoCrmTokenSet>
->();
 
 function defaultSleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -460,68 +453,6 @@ async function providerFetch(
   });
 }
 
-async function refreshToken(
-  config: CanonicalAmoCrmReadyConfig,
-  dependencies: CanonicalAmoCrmProviderDependencies,
-  failedAccessToken: string,
-): Promise<CanonicalAmoCrmTokenSet> {
-  const existing = REFRESH_BY_TOKEN_FILE.get(config.tokenFilePath);
-  if (existing) return existing;
-
-  const work = (async () => {
-    let current: CanonicalAmoCrmTokenSet;
-    try {
-      current = await readCanonicalAmoCrmTokenFile(config.tokenFilePath);
-    } catch {
-      throw new CanonicalAmoCrmProviderError("token_refresh_failed");
-    }
-    if (current.accessToken !== failedAccessToken) return current;
-
-    let response: ProviderResponse;
-    try {
-      response = await providerFetch(
-        config,
-        dependencies,
-        "/oauth2/access_token",
-        {
-          method: "POST",
-          headers: Object.freeze({ "Content-Type": "application/json" }),
-          body: JSON.stringify({
-            client_id: config.clientId,
-            client_secret: config.clientSecret,
-            grant_type: "refresh_token",
-            refresh_token: current.refreshToken,
-            redirect_uri: config.redirectUri,
-          }),
-        },
-      );
-    } catch {
-      throw new CanonicalAmoCrmProviderError("token_refresh_failed");
-    }
-    if (response.status < 200 || response.status >= 300) {
-      throw new CanonicalAmoCrmProviderError("token_refresh_failed");
-    }
-
-    let refreshed: CanonicalAmoCrmTokenSet;
-    try {
-      refreshed = parseCanonicalAmoCrmTokenSet(response.json);
-      await rotateCanonicalAmoCrmTokenFile(config.tokenFilePath, refreshed);
-    } catch {
-      throw new CanonicalAmoCrmProviderError("token_refresh_failed");
-    }
-    return refreshed;
-  })();
-
-  REFRESH_BY_TOKEN_FILE.set(config.tokenFilePath, work);
-  try {
-    return await work;
-  } finally {
-    if (REFRESH_BY_TOKEN_FILE.get(config.tokenFilePath) === work) {
-      REFRESH_BY_TOKEN_FILE.delete(config.tokenFilePath);
-    }
-  }
-}
-
 async function readWithToken(
   config: CanonicalAmoCrmReadyConfig,
   dependencies: CanonicalAmoCrmProviderDependencies,
@@ -556,31 +487,13 @@ async function canonicalRead(
     initialToken.accessToken,
   );
   if (first.status >= 200 && first.status < 300) return first.json;
-  if (first.status !== 401) {
-    throw new CanonicalAmoCrmProviderError("provider_rejected", {
+  if (first.status === 401) {
+    throw new CanonicalAmoCrmProviderError("authentication_failed", {
       status: first.status,
     });
   }
-
-  const refreshed = await refreshToken(
-    config,
-    dependencies,
-    initialToken.accessToken,
-  );
-  const replay = await readWithToken(
-    config,
-    dependencies,
-    path,
-    refreshed.accessToken,
-  );
-  if (replay.status >= 200 && replay.status < 300) return replay.json;
-  if (replay.status === 401) {
-    throw new CanonicalAmoCrmProviderError("authentication_failed", {
-      status: replay.status,
-    });
-  }
   throw new CanonicalAmoCrmProviderError("provider_rejected", {
-    status: replay.status,
+    status: first.status,
   });
 }
 

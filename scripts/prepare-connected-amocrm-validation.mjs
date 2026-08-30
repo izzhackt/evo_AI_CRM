@@ -24,9 +24,6 @@ const MANAGED_TAGS = Object.freeze({
 });
 const LEGACY_KEYS = Object.freeze({
   baseUrl: "EVO_AGENT_AMO_BASE_URL",
-  clientId: "EVO_AGENT_AMO_CLIENT_ID",
-  clientSecret: "EVO_AGENT_AMO_CLIENT_SECRET",
-  redirectUri: "EVO_AGENT_AMO_REDIRECT_URI",
   wahaApiKey: "EVO_AGENT_WAHA_API_KEY",
   wahaSession: "EVO_AGENT_WAHA_SESSION",
 });
@@ -260,24 +257,6 @@ async function mapLegacyProvider(parsed) {
       "legacy_amocrm_base_url_invalid",
       2_048,
     ),
-    EVO_V2_AMOCRM_CLIENT_ID: requiredLegacyValue(
-      values,
-      LEGACY_KEYS.clientId,
-      "legacy_amocrm_client_id_invalid",
-      4_096,
-    ),
-    EVO_V2_AMOCRM_CLIENT_SECRET: requiredLegacyValue(
-      values,
-      LEGACY_KEYS.clientSecret,
-      "legacy_amocrm_client_secret_invalid",
-      4_096,
-    ),
-    EVO_V2_AMOCRM_REDIRECT_URI: requiredLegacyValue(
-      values,
-      LEGACY_KEYS.redirectUri,
-      "legacy_amocrm_redirect_uri_invalid",
-      2_048,
-    ),
     // The legacy EVO_AGENT_AMO_TOKEN_FILE path is deliberately not trusted.
     // The harness maps only the caller's explicit private token copy.
     EVO_V2_AMOCRM_TOKEN_FILE: tokenFilePath,
@@ -307,8 +286,21 @@ async function mapLegacyProvider(parsed) {
     fail("token_file_invalid");
   }
   const tokenRecord = record(token, "token_file_invalid");
+  const tokenKeys = Object.keys(tokenRecord).sort();
+  if (
+    tokenKeys.length !== 2 ||
+    tokenKeys[0] !== "access_token" ||
+    tokenKeys[1] !== "token_type"
+  ) {
+    fail("token_file_invalid");
+  }
   exactText(tokenRecord.access_token, "token_file_invalid", 16_384);
-  exactText(tokenRecord.refresh_token, "token_file_invalid", 16_384);
+  if (
+    exactText(tokenRecord.token_type, "token_file_invalid", 32).toLowerCase() !==
+    "bearer"
+  ) {
+    fail("token_file_invalid");
+  }
 
   await createPrivateJson(outputPath, {
     schemaVersion: 1,

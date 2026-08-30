@@ -45,7 +45,7 @@ test("V2-10D recovery binds one preserved review to exact current main", async (
   );
   const recoveryMode = sourceIndex(
     source,
-    "EVO_V2_REAL_END_TO_END_MODE=recovery",
+    'EVO_V2_REAL_END_TO_END_MODE="$playwright_mode"',
   );
 
   assert.ok(explicitAuthority < exactMainFetch);
@@ -62,10 +62,7 @@ test("V2-10D recovery binds one preserved review to exact current main", async (
   assert.match(source, /\$\(orb status\).*Running/u);
   assert.match(source, /\$\(docker context show\).*orbstack/u);
   assert.match(source, /V2-10D review recovery requires Node 22[.]x/u);
-  assert.match(
-    source,
-    /eq [. ]Destination "\/var\/lib\/postgresql"/u,
-  );
+  assert.match(source, /eq [. ]Destination "\/var\/lib\/postgresql"/u);
   assert.doesNotMatch(source, /\/var\/lib\/postgresql\/data/u);
   assert.doesNotMatch(source, /\bseed\b/iu);
   assert.doesNotMatch(source, /GEMINI_API_KEY|GEMINI_MODEL/u);
@@ -121,6 +118,64 @@ test("V2-10D recovery restores state without another proposal and waits for the 
       source,
       new RegExp(
         `getByTestId\\(["']${humanControl}["']\\)[.](?:click|check)\\(`,
+        "u",
+      ),
+    );
+  }
+});
+
+test("V2-10D post-WAHA recovery is amoCRM-only and resumes from durable provider proof", async () => {
+  const shellSource = await readFile(RECOVERY_SHELL_PATH, "utf8");
+  const specSource = await readFile(SPEC_PATH, "utf8");
+
+  assert.match(
+    shellSource,
+    /recovery_stage="\$\{EVO_V2_10D_RECOVERY_STAGE:-review\}"/u,
+  );
+  assert.match(shellSource, /post-waha\)/u);
+  assert.match(shellSource, /playwright_mode="post-waha"/u);
+  assert.match(shellSource, /waha-reconciled[.]json/u);
+  assert.match(shellSource, /EVO_V2_REAL_END_TO_END_MODE="\$playwright_mode"/u);
+  assert.match(
+    shellSource,
+    /EVO_V2_WAHA_PROVIDER_AUTHORIZED="\$waha_provider_authorized"/u,
+  );
+  assert.match(
+    shellSource,
+    /EVO_V2_WAHA_ENABLED="\$waha_provider_authorized"/u,
+  );
+  assert.match(shellSource, /post-waha.*waha_provider_authorized=0/su);
+
+  assert.match(
+    specSource,
+    /"blocked" \| "operator" \| "recovery" \| "post-waha"/u,
+  );
+  assert.match(specSource, /const postWahaRecovery = mode === "post-waha"/u);
+  assert.match(specSource, /waha-reconciled[.]json/u);
+  assert.match(specSource, /nextAuthorizedStep: "admin_amocrm_sync_only"/u);
+  assert.match(specSource, /initialAck/u);
+  assert.match(specSource, /providerMessageIdSha256/u);
+  assert.match(specSource, /reviewedTextSha256/u);
+  assert.match(specSource, /amocrmAttemptCount === 0/u);
+
+  const postWahaTest = specSource.slice(
+    sourceIndex(
+      specSource,
+      'test("post-WAHA recovery proves the accepted send before one amoCRM sync"',
+    ),
+  );
+  for (const forbiddenPostWahaAction of [
+    "seedCanonicalSelfConversation(",
+    "page.goto(`/whatsapp/",
+    'getByTestId("canonical-gemini-proposal-request")',
+    'getByTestId("canonical-gemini-review-',
+    'getByTestId("canonical-whatsapp-outbound-send")',
+    'getByTestId("canonical-whatsapp-outbound-reconcile")',
+  ]) {
+    assert.doesNotMatch(
+      postWahaTest,
+      new RegExp(
+        forbiddenPostWahaAction.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"),
         "u",
       ),
     );

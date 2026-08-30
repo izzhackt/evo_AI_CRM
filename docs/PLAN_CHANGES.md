@@ -14729,3 +14729,54 @@ ordinary CI, controlled merge and exact-main CI before it may touch the
 preserved acceptance state. This amendment does not authorize any second
 Gemini call, second provider target, V1/production mutation, deployment,
 migration or cutover.
+
+## 2026-08-30 - Resume V2-10D from the reconciled post-WAHA checkpoint
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under the owner's standing authorization for #463 and #467.
+Change type: fail-closed recovery correction after one ambiguous WAHA response;
+no new provider authority and no second validation entity.
+Affected plan section: V2-10D exact reconciliation and amoCRM continuation.
+
+The preserved attempt
+`bdd27c2987f7420c4527b0d636754e990dc9d55f` recorded its durable dispatch
+intent, received an ambiguous synchronous WAHA response, and correctly stopped
+instead of resending. A bounded read-only provider lookup then found exactly
+one matching outbound message with one provider identity, and canonical
+reconciliation updated the existing PostgreSQL attempt to `accepted` with the
+provider identity and `READ` ACK. The attempt now contains one Gemini proposal,
+one durable human accepted/edited decision, one WAHA attempt and one canonical
+outbound message, while amoCRM still has zero attempts, receipts and bindings.
+
+The remaining failure is in the acceptance harness, not the product authority:
+the browser reloaded after reconciliation, so its transient React action state
+disappeared and the test kept waiting for a DOM status even though PostgreSQL
+and WAHA already agreed. A blind rerun is forbidden because it could issue a
+second WhatsApp message.
+
+Add one explicit `post-waha` recovery stage to the existing V2-10D recovery
+harness:
+
+1. Require the original attempt SHA, current exact-main recovery SHA, preserved
+   Compose project/private directory, the authority, review and dispatch
+   markers, and no success, rejection or proposal-error marker.
+2. Start only the preserved PostgreSQL state and the private app. Do not seed an
+   inbound message, call Gemini, repeat human review or expose WAHA send
+   authority. WAHA access in this stage is read-only and exists solely to
+   verify the already persisted provider message identity, exact reviewed-text
+   digest and non-regressing ACK.
+3. Materialize or re-verify one private `waha-reconciled.json` checkpoint only
+   after PostgreSQL and the exact provider read-back agree on one attempt, one
+   outbound message, the same proposal and reviewed text, and zero amoCRM
+   state. The checkpoint contains hashes, counts and status only.
+4. Continue through the canonical Admin Sales UI with exactly one amoCRM sync,
+   exact provider read-back, persisted reload proof and exact replay showing no
+   extra messages, attempts, receipts, bindings, events or provider entities.
+5. Any mismatch stops with the same protected database and markers. The stage
+   never falls back to review recovery, never sends WhatsApp, never requests a
+   second Gemini proposal and never creates another validation target.
+
+The correction must pass focused tests, independent exact-head review, green
+exact-head CI, SHA-bound merge and exact-main CI before it touches the
+preserved state. It changes no V1 deployment, customer data, public endpoint,
+migration or cutover boundary.

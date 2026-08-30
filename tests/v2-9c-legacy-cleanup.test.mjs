@@ -68,6 +68,37 @@ test("V2-9C removes superseded legacy review, manual-send, autonomy, and dead wo
   }
 });
 
+test("V2-10C removes the superseded legacy amoCRM OAuth settings path", () => {
+  for (const relativePath of [
+    "src/lib/amocrm.ts",
+    "src/lib/contracts/amo-crm.ts",
+  ]) {
+    assert.equal(existsSync(fromRepo(relativePath)), false, relativePath);
+  }
+
+  const actions = source("src/lib/actions.ts");
+  const contractExports = source("src/lib/contracts/index.ts");
+  const db = source("src/lib/db.ts");
+  const environment = source(".env.example");
+
+  assert.doesNotMatch(actions, /from "\.\/amocrm"/);
+  assert.doesNotMatch(
+    actions,
+    /amocrm_account_base_url|amocrm_client_id|amocrm_client_secret|amocrm_redirect_uri|amocrm_refresh_token/,
+  );
+  assert.doesNotMatch(actions, /checkAmoCrmAction|createAmoCrmAdapter|getAmoCrmLocalStatus/);
+  assert.doesNotMatch(db, /amocrm_client_secret|amocrm_refresh_token/);
+
+  assert.doesNotMatch(contractExports, /amo-crm/);
+
+  assert.match(environment, /^EVO_V2_AMOCRM_BASE_URL=$/m);
+  assert.match(environment, /^EVO_V2_AMOCRM_TOKEN_FILE=data\/secrets\/v2-amocrm-token\.json$/m);
+  assert.doesNotMatch(
+    environment,
+    /EVO_V2_AMOCRM_CLIENT_ID=|EVO_V2_AMOCRM_CLIENT_SECRET=|EVO_V2_AMOCRM_REDIRECT_URI=/,
+  );
+});
+
 test("V2-9C active runtime inventory stays canonical while excluding preserved historical deployment artifacts", () => {
   const activeInventoryFiles = [
     ...collectFiles("src/app"),

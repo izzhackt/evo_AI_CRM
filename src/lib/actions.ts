@@ -9,9 +9,7 @@ import {
   db,
   getSetting,
   hashPassword,
-  setSetting,
 } from "./db";
-import { createAmoCrmAdapter, getAmoCrmLocalStatus, normalizeAmoCrmAccountBaseUrl } from "./amocrm";
 import { currentUser, isStaff, type SessionUser } from "./auth";
 import { isUiContractFixtureMode } from "./runtime-mode";
 import {
@@ -471,62 +469,12 @@ export async function logCallAction(form: FormData) {
   revalidatePath("/calls");
 }
 
-// ---------- settings ----------
-
-export async function saveSettingsAction(form: FormData) {
-  const user = await currentUser();
-  if (!user || user.role !== "admin") redirect("/dashboard");
-  const keys = ["tel_provider"];
-  for (const key of keys) {
-    const value = str(form, key);
-    if (form.has(key)) setSetting(key, value);
-  }
-  const secretKeys = ["tel_api_key"];
-  for (const key of secretKeys) {
-    if (form.has(key)) setPreservedSecret(key, str(form, key));
-  }
-
-  if (form.has("amocrm_account_base_url")) {
-    const rawBaseUrl = str(form, "amocrm_account_base_url");
-    const normalizedBaseUrl = normalizeAmoCrmAccountBaseUrl(rawBaseUrl);
-    if (rawBaseUrl && !normalizedBaseUrl) {
-      setSetting("amocrm_last_error", "invalid_account_domain");
-      revalidatePath("/settings");
-      return;
-    }
-    setSetting("amocrm_account_base_url", normalizedBaseUrl ?? "");
-    setSetting("amocrm_client_id", str(form, "amocrm_client_id"));
-    setPreservedSecret("amocrm_client_secret", str(form, "amocrm_client_secret"));
-    setSetting("amocrm_redirect_uri", str(form, "amocrm_redirect_uri"));
-    setPreservedSecret("amocrm_refresh_token", str(form, "amocrm_refresh_token"));
-    setPositiveIntegerSetting("amocrm_pipeline_id", str(form, "amocrm_pipeline_id"));
-    setPositiveIntegerSetting("amocrm_status_id", str(form, "amocrm_status_id"));
-    setPositiveIntegerSetting("amocrm_responsible_user_id", str(form, "amocrm_responsible_user_id"));
-    setPositiveIntegerSetting("amocrm_target_country_field_id", str(form, "amocrm_target_country_field_id"));
-    setPositiveIntegerSetting("amocrm_source_field_id", str(form, "amocrm_source_field_id"));
-    setSetting("amocrm_last_error", "");
-    setSetting("amocrm_last_check", "");
-  }
-
-  revalidatePath("/settings");
-}
-
 export async function getIntegrationStatus() {
   if (!isUiContractFixtureMode()) {
     return {
       whatsapp: false,
       whatsappState: "not_configured" as const,
       telephony: false,
-      amocrm: {
-        status: "not_configured" as const,
-        missing: [
-          "accountBaseUrl",
-          "clientId",
-          "clientSecret",
-          "redirectUri",
-          "refreshToken",
-        ] as const,
-      },
     };
   }
 
@@ -536,43 +484,7 @@ export async function getIntegrationStatus() {
     whatsapp: false,
     whatsappState: "not_configured" as "not_configured" | "configured" | "blocked",
     telephony: !!telephonyProvider && !!telephonyApiKey,
-    amocrm: getAmoCrmLocalStatus(),
   };
-}
-
-export async function checkAmoCrmAction() {
-  const user = await currentUser();
-  if (!user || user.role !== "admin") redirect("/dashboard");
-  const status = isUiContractFixtureMode()
-    ? (() => {
-        const local = getAmoCrmLocalStatus();
-        return local.status === "configured"
-          ? { status: "blocked" as const, reason: "fixture_external_calls_disabled" }
-          : local;
-      })()
-    : await createAmoCrmAdapter().getConnectionState();
-  if (status.status === "not_configured") {
-    setSetting("amocrm_last_check", `not_configured:${status.missing.join(",")}`);
-  } else if (status.status === "blocked") {
-    setSetting("amocrm_last_check", `blocked:${status.reason}`);
-  } else {
-    setSetting("amocrm_last_check", `configured:${status.accountBaseUrl}`);
-  }
-  revalidatePath("/settings");
-  redirect("/settings?amocrm_check=1");
-}
-
-function setPreservedSecret(key: string, value: string) {
-  if (value || !getSetting(key)) setSetting(key, value);
-}
-
-function setPositiveIntegerSetting(key: string, value: string) {
-  if (!value) {
-    setSetting(key, "");
-    return;
-  }
-  const parsed = Number.parseInt(value, 10);
-  setSetting(key, Number.isSafeInteger(parsed) && parsed > 0 ? String(parsed) : "");
 }
 
 // ---------- updates ----------

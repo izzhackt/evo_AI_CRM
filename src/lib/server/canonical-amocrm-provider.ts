@@ -185,6 +185,11 @@ export type CanonicalAmoCrmLeadTagsInput = Readonly<{
   remove?: readonly Readonly<{ id: string | number }>[];
 }>;
 
+export type CanonicalAmoCrmEnsureLeadTagInput = Readonly<{
+  requestId: string;
+  name: string;
+}>;
+
 export type CanonicalAmoCrmPreparedMutation = Readonly<{
   request: CanonicalAmoCrmRequestMetadata;
   body: unknown;
@@ -248,6 +253,12 @@ export type CanonicalAmoCrmWriteProvider = Readonly<{
   ) => CanonicalAmoCrmPreparedMutation;
   updateLeadTags: (
     input: CanonicalAmoCrmLeadTagsInput,
+  ) => Promise<CanonicalAmoCrmMutationResult>;
+  prepareEnsureLeadTag: (
+    input: CanonicalAmoCrmEnsureLeadTagInput,
+  ) => CanonicalAmoCrmPreparedMutation;
+  ensureLeadTag: (
+    input: CanonicalAmoCrmEnsureLeadTagInput,
   ) => Promise<CanonicalAmoCrmMutationResult>;
   getContactById: (contactId: string | number) => Promise<unknown>;
   getLeadById: (leadId: string | number) => Promise<unknown>;
@@ -806,6 +817,51 @@ function providerCreatedEntityId(
   return providerEntityId(entity.id).text;
 }
 
+function leadTagName(value: unknown): string {
+  const name = boundedMutationText(value, 255);
+  if (/[\u0000-\u001f\u007f-\u009f\uD800-\uDFFF]/u.test(name)) {
+    return invalidMutationRequest();
+  }
+  return name;
+}
+
+function providerEnsuredLeadTagId(
+  value: unknown,
+  expectedName: string,
+  expectedRequestId: string,
+): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new CanonicalAmoCrmProviderError("invalid_response");
+  }
+  const record = value as Record<string, unknown>;
+  const embedded = record._embedded;
+  if (
+    record._total_items !== 1 ||
+    !embedded ||
+    typeof embedded !== "object" ||
+    Array.isArray(embedded)
+  ) {
+    throw new CanonicalAmoCrmProviderError("invalid_response");
+  }
+  const tags = (embedded as Record<string, unknown>).tags;
+  if (!Array.isArray(tags) || tags.length !== 1) {
+    throw new CanonicalAmoCrmProviderError("invalid_response");
+  }
+  const tag = tags[0];
+  if (!tag || typeof tag !== "object" || Array.isArray(tag)) {
+    throw new CanonicalAmoCrmProviderError("invalid_response");
+  }
+  const tagRecord = tag as Record<string, unknown>;
+  if (
+    typeof tagRecord.id !== "number" ||
+    tagRecord.name !== expectedName ||
+    tagRecord.request_id !== expectedRequestId
+  ) {
+    throw new CanonicalAmoCrmProviderError("invalid_response");
+  }
+  return providerEntityId(tagRecord.id).text;
+}
+
 function exactEntityReadback(value: unknown, expectedId: string): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new CanonicalAmoCrmProviderError("invalid_response");
@@ -1081,6 +1137,7 @@ function tagList(
 // https://developers.kommo.com/reference/adding-leads
 // https://developers.kommo.com/reference/linking-entities
 // https://developers.kommo.com/reference/add-notes
+// https://developers.kommo.com/reference/add-tags
 export function createCanonicalAmoCrmWriteProvider(
   config: CanonicalAmoCrmReadyConfig,
   dependencies: CanonicalAmoCrmProviderDependencies = {},
@@ -1261,6 +1318,17 @@ export function createCanonicalAmoCrmWriteProvider(
         },
       );
     },
+    prepareEnsureLeadTag: (input) => {
+      const name = leadTagName(input.name);
+      const requestId = commandRequestId(input.requestId);
+      return prepare(
+        "POST",
+        "/api/v4/leads/tags",
+        requestId,
+        [{ name, request_id: requestId }],
+        (value) => providerEnsuredLeadTagId(value, name, requestId),
+      );
+    },
     createContact: (input) => provider.prepareCreateContact(input).dispatch(),
     updateContact: (input) => provider.prepareUpdateContact(input).dispatch(),
     createLead: (input) => provider.prepareCreateLead(input).dispatch(),
@@ -1273,6 +1341,7 @@ export function createCanonicalAmoCrmWriteProvider(
       provider.prepareLinkContactToLead(input).dispatch(),
     createLeadNote: (input) => provider.prepareCreateLeadNote(input).dispatch(),
     updateLeadTags: (input) => provider.prepareUpdateLeadTags(input).dispatch(),
+    ensureLeadTag: (input) => provider.prepareEnsureLeadTag(input).dispatch(),
     getContactById: async (value) => {
       const contactId = providerEntityId(value);
       return exactEntityReadback(

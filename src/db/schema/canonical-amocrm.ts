@@ -117,6 +117,10 @@ export const evoAmoCrmDiscoverySnapshots = pgTable(
       .$type<Array<Record<string, unknown>>>()
       .default(sql`'[]'::jsonb`)
       .notNull(),
+    leadTagCatalog: jsonb("lead_tag_catalog")
+      .$type<Array<Record<string, unknown>>>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
     userCatalog: jsonb("user_catalog")
       .$type<Array<Record<string, unknown>>>()
       .default(sql`'[]'::jsonb`)
@@ -161,15 +165,15 @@ export const evoAmoCrmDiscoverySnapshots = pgTable(
     ),
     check(
       "evo_amocrm_discovery_catalog_shape_check",
-      sql`jsonb_typeof(${table.pipelineCatalog}) = 'array' and jsonb_typeof(${table.userCatalog}) = 'array' and jsonb_typeof(${table.leadCustomFieldCatalog}) = 'array' and jsonb_typeof(${table.contactCustomFieldCatalog}) = 'array'`,
+      sql`jsonb_typeof(${table.pipelineCatalog}) = 'array' and jsonb_typeof(${table.leadTagCatalog}) = 'array' and jsonb_typeof(${table.userCatalog}) = 'array' and jsonb_typeof(${table.leadCustomFieldCatalog}) = 'array' and jsonb_typeof(${table.contactCustomFieldCatalog}) = 'array'`,
     ),
     check(
       "evo_amocrm_discovery_catalog_size_check",
-      sql`octet_length(${table.pipelineCatalog}::text) <= 1048576 and octet_length(${table.userCatalog}::text) <= 1048576 and octet_length(${table.leadCustomFieldCatalog}::text) <= 1048576 and octet_length(${table.contactCustomFieldCatalog}::text) <= 1048576`,
+      sql`octet_length(${table.pipelineCatalog}::text) <= 1048576 and octet_length(${table.leadTagCatalog}::text) <= 1048576 and octet_length(${table.userCatalog}::text) <= 1048576 and octet_length(${table.leadCustomFieldCatalog}::text) <= 1048576 and octet_length(${table.contactCustomFieldCatalog}::text) <= 1048576`,
     ),
     check(
       "evo_amocrm_discovery_catalog_secret_check",
-      sql`(${table.pipelineCatalog}::text || ${table.userCatalog}::text || ${table.leadCustomFieldCatalog}::text || ${table.contactCustomFieldCatalog}::text) !~* '"[^"]*(token|secret|authorization|api[_-]?key)[^"]*"[[:space:]]*:'`,
+      sql`(${table.pipelineCatalog}::text || ${table.leadTagCatalog}::text || ${table.userCatalog}::text || ${table.leadCustomFieldCatalog}::text || ${table.contactCustomFieldCatalog}::text) !~* '"[^"]*(token|secret|authorization|api[_-]?key)[^"]*"[[:space:]]*:'`,
     ),
     check(
       "evo_amocrm_discovery_redaction_check",

@@ -102,6 +102,14 @@ waha_api_key="technical-waha-provider-key"
 waha_session_name="evo-v2-technical"
 waha_port="${EVO_DATABASE_WAHA_PORT:-$(free_port)}"
 waha_base_url="http://127.0.0.1:${waha_port}"
+amocrm_client_id="technical-amocrm-client-466"
+amocrm_client_secret_probe="$(openssl rand -hex 24)"
+amocrm_token_file="$tmp_dir/missing-amocrm-token.json"
+amocrm_sales_blocking_attempt_id=""
+amocrm_sales_blocking_lead_id=""
+amocrm_admissions_blocking_attempt_id=""
+amocrm_admissions_blocking_lead_id=""
+amocrm_admissions_blocking_case_id=""
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 broken_database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${broken_database}"
 
@@ -317,10 +325,20 @@ start_app() {
   local document_mode="${3:-configured}"
   local inbound_mode="${4:-configured}"
   local waha_mode="${5:-blocked}"
+  local amocrm_mode="${6:-provider-not-authorized}"
   local document_root="$private_document_root"
   local inbound_secret="$whatsapp_inbound_secret"
   local waha_provider_authorized=0
   local app_waha_base_url="http://evo-v2-waha:3000"
+  local amocrm_provider_authorized=0
+  local amocrm_sales_pipeline_id=""
+  local amocrm_sales_status_id=""
+  local amocrm_sales_responsible_user_id=""
+  local amocrm_sales_tag_name=""
+  local amocrm_admissions_pipeline_id=""
+  local amocrm_admissions_status_id=""
+  local amocrm_admissions_responsible_user_id=""
+  local amocrm_admissions_tag_name=""
   if [[ "$document_mode" == "unavailable" ]]; then
     document_root="$missing_private_document_root"
   fi
@@ -332,6 +350,21 @@ start_app() {
     app_waha_base_url="$waha_base_url"
   elif [[ "$waha_mode" != "blocked" ]]; then
     fail "Unknown isolated WAHA harness mode: $waha_mode"
+  fi
+  if [[ "$amocrm_mode" == "routing-missing" ]]; then
+    amocrm_provider_authorized=1
+  elif [[ "$amocrm_mode" == "token-missing" ]]; then
+    amocrm_provider_authorized=1
+    amocrm_sales_pipeline_id="466001"
+    amocrm_sales_status_id="466002"
+    amocrm_sales_responsible_user_id="466003"
+    amocrm_sales_tag_name="EVO V2 Sales"
+    amocrm_admissions_pipeline_id="466004"
+    amocrm_admissions_status_id="466005"
+    amocrm_admissions_responsible_user_id="466006"
+    amocrm_admissions_tag_name="EVO V2 Admissions"
+  elif [[ "$amocrm_mode" != "provider-not-authorized" ]]; then
+    fail "Unknown isolated amoCRM harness mode: $amocrm_mode"
   fi
   assert_next_dev_lock_available
   : >"$app_log"
@@ -353,6 +386,21 @@ start_app() {
       EVO_V2_WAHA_BASE_URL="$app_waha_base_url" \
       EVO_V2_WAHA_API_KEY="$waha_api_key" \
       EVO_V2_WAHA_SESSION_NAME="$waha_session_name" \
+      EVO_V2_AMOCRM_WRITES_ENABLED=1 \
+      EVO_V2_AMOCRM_PROVIDER_AUTHORIZED="$amocrm_provider_authorized" \
+      EVO_V2_AMOCRM_BASE_URL="https://evo-v2-technical.amocrm.ru" \
+      EVO_V2_AMOCRM_CLIENT_ID="$amocrm_client_id" \
+      EVO_V2_AMOCRM_CLIENT_SECRET="$amocrm_client_secret_probe" \
+      EVO_V2_AMOCRM_REDIRECT_URI="http://127.0.0.1:${app_port}/oauth/amocrm" \
+      EVO_V2_AMOCRM_TOKEN_FILE="$amocrm_token_file" \
+      EVO_V2_AMOCRM_SALES_PIPELINE_ID="$amocrm_sales_pipeline_id" \
+      EVO_V2_AMOCRM_SALES_STATUS_ID="$amocrm_sales_status_id" \
+      EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID="$amocrm_sales_responsible_user_id" \
+      EVO_V2_AMOCRM_SALES_TAG_NAME="$amocrm_sales_tag_name" \
+      EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID="$amocrm_admissions_pipeline_id" \
+      EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID="$amocrm_admissions_status_id" \
+      EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID="$amocrm_admissions_responsible_user_id" \
+      EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME="$amocrm_admissions_tag_name" \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   else
@@ -374,6 +422,21 @@ start_app() {
       EVO_V2_WAHA_BASE_URL="$app_waha_base_url" \
       EVO_V2_WAHA_API_KEY="$waha_api_key" \
       EVO_V2_WAHA_SESSION_NAME="$waha_session_name" \
+      EVO_V2_AMOCRM_WRITES_ENABLED=1 \
+      EVO_V2_AMOCRM_PROVIDER_AUTHORIZED="$amocrm_provider_authorized" \
+      EVO_V2_AMOCRM_BASE_URL="https://evo-v2-technical.amocrm.ru" \
+      EVO_V2_AMOCRM_CLIENT_ID="$amocrm_client_id" \
+      EVO_V2_AMOCRM_CLIENT_SECRET="$amocrm_client_secret_probe" \
+      EVO_V2_AMOCRM_REDIRECT_URI="http://127.0.0.1:${app_port}/oauth/amocrm" \
+      EVO_V2_AMOCRM_TOKEN_FILE="$amocrm_token_file" \
+      EVO_V2_AMOCRM_SALES_PIPELINE_ID="$amocrm_sales_pipeline_id" \
+      EVO_V2_AMOCRM_SALES_STATUS_ID="$amocrm_sales_status_id" \
+      EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID="$amocrm_sales_responsible_user_id" \
+      EVO_V2_AMOCRM_SALES_TAG_NAME="$amocrm_sales_tag_name" \
+      EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID="$amocrm_admissions_pipeline_id" \
+      EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID="$amocrm_admissions_status_id" \
+      EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID="$amocrm_admissions_responsible_user_id" \
+      EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME="$amocrm_admissions_tag_name" \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   fi
@@ -494,6 +557,31 @@ canonical_read_browser_assert() {
       --config=playwright.canonical-crm.config.ts
 }
 
+amocrm_command_browser_assert() {
+  local proof_mode="$1"
+  assert_app_reachable
+  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
+    EVO_EXPECT_AMOCRM_BROWSER_MODE="$proof_mode" \
+    EVO_EXPECT_AMOCRM_SECRET_PROBE="$amocrm_client_secret_probe" \
+    EVO_EXPECT_AMOCRM_SALES_BLOCKING_ATTEMPT_ID="$amocrm_sales_blocking_attempt_id" \
+    EVO_EXPECT_AMOCRM_SALES_BLOCKING_LEAD_ID="$amocrm_sales_blocking_lead_id" \
+    EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_ATTEMPT_ID="$amocrm_admissions_blocking_attempt_id" \
+    EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_LEAD_ID="$amocrm_admissions_blocking_lead_id" \
+    EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_CASE_ID="$amocrm_admissions_blocking_case_id" \
+    EVO_CANONICAL_LEAD_ID="${amocrm_sales_blocking_lead_id:-$canonical_lead_id}" \
+    EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
+    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
+    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
+    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
+    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
+    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    "$node_bin" node_modules/@playwright/test/cli.js test \
+      --config=playwright.config.ts \
+      --project=desktop-chromium \
+      tests/e2e/canonical-amocrm-command.spec.ts
+}
+
 assert_no_secret_or_payload_logs() {
   local value
   for value in \
@@ -509,6 +597,7 @@ assert_no_secret_or_payload_logs() {
     "$gate_admissions_secret" \
     "$whatsapp_inbound_secret" \
     "$waha_api_key" \
+    "$amocrm_client_secret_probe" \
     "$inbound_test_phone" \
     "$inbound_test_conversation_id" \
     "$inbound_test_message_id" \
@@ -595,9 +684,9 @@ DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
 DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
 migration_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM drizzle.__drizzle_migrations;')"
 contract_version="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT version FROM evo_database_contract WHERE id = 1;')"
-[[ "$migration_count" == "5" ]] || fail "Expected exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 migration history"
+[[ "$migration_count" == "6" ]] || fail "Expected exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 -> 0005 migration history"
 [[ "$contract_version" == "4" ]] || fail "Canonical CRM migration did not publish database contract version 4"
-echo "Exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 migration, repeat migration and stored history passed."
+echo "Exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 -> 0005 migration, repeat migration and stored history passed."
 
 DATABASE_URL="$database_url" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
@@ -613,7 +702,9 @@ DATABASE_URL="$database_url" \
 DATABASE_URL="$database_url" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
     --test-concurrency=1 \
-    tests/canonical-amocrm-schema-postgres.test.mjs
+    tests/canonical-amocrm-schema-postgres.test.mjs \
+    tests/canonical-amocrm-command-postgres.test.mjs \
+    tests/canonical-amocrm-discovery-postgres.test.mjs
 read -r canonical_lead_id canonical_override_lead_id private_document_case_id <<<"$(
   EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
     "$node_bin" --input-type=module <<'EOF'
@@ -650,6 +741,45 @@ start_app "$database_url" configured configured configured local-service
 browser_assert 200
 development_gate_browser_assert configured
 canonical_read_browser_assert configured
+amocrm_command_browser_assert provider-not-authorized
+read -r \
+  amocrm_sales_blocking_attempt_id \
+  amocrm_sales_blocking_lead_id \
+  amocrm_admissions_blocking_attempt_id \
+  amocrm_admissions_blocking_lead_id \
+  amocrm_admissions_blocking_case_id <<<"$(
+  DATABASE_URL="$database_url" \
+    "$node_bin" --conditions=react-server --experimental-strip-types \
+      scripts/seed-canonical-amocrm-browser-blocker.mjs
+)"
+for seeded_uuid in \
+  "$amocrm_sales_blocking_attempt_id" \
+  "$amocrm_sales_blocking_lead_id" \
+  "$amocrm_admissions_blocking_attempt_id" \
+  "$amocrm_admissions_blocking_lead_id" \
+  "$amocrm_admissions_blocking_case_id"; do
+  [[ "$seeded_uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
+    || fail "The isolated amoCRM cross-phase blocker seed did not return five valid UUIDs"
+done
+amocrm_admissions_carry_row="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "
+  SELECT
+    attempt.status || '|' || receipt.business_object_type || '|' ||
+    lead.stage || '|' || student_case.status || '|' || handoff.is_override
+  FROM evo_amocrm_operation_attempts AS attempt
+  INNER JOIN evo_command_receipts AS receipt
+    ON receipt.id = attempt.command_receipt_id
+  INNER JOIN evo_leads AS lead
+    ON lead.id = attempt.lead_id
+  INNER JOIN evo_student_cases AS student_case
+    ON student_case.lead_id = lead.id
+  INNER JOIN evo_sales_admissions_handoffs AS handoff
+    ON handoff.student_case_id = student_case.id
+  WHERE attempt.id = '${amocrm_admissions_blocking_attempt_id}'
+    AND lead.id = '${amocrm_admissions_blocking_lead_id}'
+    AND student_case.id = '${amocrm_admissions_blocking_case_id}';
+")"
+[[ "$amocrm_admissions_carry_row" == "unknown|amocrm_sales_lead|handed_off|active|true" ]] \
+  || fail "The isolated amoCRM seed did not preserve the Sales unknown across an active Admin override handoff"
 private_document_browser_assert configured
 assert_no_secret_or_payload_logs
 
@@ -879,6 +1009,16 @@ assert_no_secret_or_payload_logs
 stop_app
 start_app "$database_url" unavailable
 development_gate_browser_assert unavailable
+assert_no_secret_or_payload_logs
+
+stop_app
+start_app "$database_url" configured configured configured blocked routing-missing
+amocrm_command_browser_assert routing-missing
+assert_no_secret_or_payload_logs
+
+stop_app
+start_app "$database_url" configured configured configured blocked token-missing
+amocrm_command_browser_assert token-missing
 assert_no_secret_or_payload_logs
 
 echo "Real PostgreSQL, Drizzle, canonical CRM, development gate, private files, application and Chromium proof passed."

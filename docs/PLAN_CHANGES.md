@@ -14095,3 +14095,243 @@ history, repeated migration verification, canonical CRM/WhatsApp/amoCRM
 PostgreSQL tests, fail-closed missing-primary behavior and the fixed-role
 browser contour. No Supabase/SQLite fallback, `EVO_AGENT_AMO_*` runtime import,
 real provider mutation, V1 deployment change or customer-data action occurred.
+
+## 2026-08-29 - Implement explicit canonical amoCRM sync commands before broad acceptance
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #466.
+Change type: second reviewed implementation slice.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+The next #466 slice stays product-first and avoids a broad admin/provider
+control surface. Instead it adds two explicit server-authorized sync command
+paths over the already merged provider/database foundation:
+
+- a Sales-side command on the canonical lead workspace that upserts the bound
+  contact and lead, links them, and applies the Sales-owned amoCRM fields from
+  the current EVO lead state;
+- an Admissions-side command on the canonical Student 360 workspace that
+  updates the already bound lead with the current handoff/admissions state,
+  responsible user, workflow note and exact tag set required by the case.
+
+For this private non-production contour, exact provider target IDs needed for
+pipeline/status/responsible-user routing are server-only ignored V2
+configuration, not a new public settings UI. Account identity and catalogs are
+still read from the connected amoCRM account through the canonical provider and
+persisted as bounded discovery evidence when commands run. The command service
+must fail closed if the required V2 target mapping, canonical binding, account
+discovery or workflow precondition is missing; it may not guess IDs, fuzzy-
+search amoCRM as a second authority, or fall back to legacy settings/runtime.
+
+Every sync command must preserve the same safety contour already used for
+WhatsApp send:
+
+- one immutable command receipt and one amoCRM attempt prepared before network
+  dispatch;
+- exact request replay returns the stored result, while changed-payload reuse
+  conflicts;
+- transport loss or ambiguous provider read-back settles `unknown` and blocks a
+  blind retry until explicit reconciliation;
+- server-side authorization is derived from the current canonical workflow
+  state, with Admin as the functional superset, Sales before handoff, and
+  Admissions after handoff.
+
+Current official provider references:
+
+- <https://developers.kommo.com/docs/oauth-20>
+- <https://developers.kommo.com/reference/add-contacts>
+- <https://developers.kommo.com/reference/update-contacts>
+- <https://developers.kommo.com/reference/adding-leads>
+- <https://developers.kommo.com/reference/updating-leads>
+- <https://developers.kommo.com/reference/linking-entities>
+- <https://developers.kommo.com/reference/add-notes>
+- <https://developers.kommo.com/reference/add-tags>
+- <https://developers.kommo.com/reference/update-tags-single-entity>
+
+Validation status at this implementation boundary:
+
+- Node `22.23.1` focused unit coverage passed in `npm run test:u9` with the new
+  canonical amoCRM provider, discovery, command service, server action and UI
+  suites green alongside the existing canonical Gemini and WAHA V2 suites.
+- Focused lint for the touched amoCRM command/discovery/UI files, `git diff
+  --check`, and `npm run typecheck` passed without adding a second runtime or
+  fallback path.
+- A clean disposable PostgreSQL instance with all five committed Drizzle
+  migrations proved `tests/canonical-amocrm-schema-postgres.test.mjs`,
+  `tests/canonical-amocrm-command-postgres.test.mjs`, and
+  `tests/canonical-amocrm-discovery-postgres.test.mjs` green under Node
+  `22.23.1`, including exact replay, advisory-lock serialization, phase-bound
+  authorization, explicit `unknown`/`rejected` settlement, and idempotent
+  discovery snapshot persistence.
+- The broader browser/provider acceptance remains a separate unfinished gate:
+  this slice does not yet claim a real connected amoCRM mutation, the final
+  Chromium proof, or #467 end-to-end provider completion.
+
+## 2026-08-29 - Complete local PostgreSQL and Chromium proof for canonical amoCRM command surfaces
+
+Date: 2026-08-29, workspace timezone (+04).
+Author: Codex under owner-authorized issue #466.
+Change type: validation completion for the current implementation slice.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+The canonical amoCRM command slice now has the local application/browser proof
+that was still pending in the prior #466 entry. This is still a private V2
+validation step only: no real connected amoCRM mutation, no V1 path, and no
+provider fallback were used.
+
+Validated behavior:
+
+- the Sales workspace renders the only active V2 amoCRM sync command surface
+  for the current lead and keeps request-scoped action feedback stable across
+  `router.refresh()` instead of remounting away the exact server result;
+- the Student 360 workspace renders the only active Admissions-side amoCRM sync
+  command surface for the current case and preserves the same honest terminal
+  states, explicit reconciliation path and fixed-role authorization contour;
+- browser proof covers the fail-closed states required by the product-first
+  contract: provider authorization absent, exact routing missing, and private
+  OAuth token unavailable;
+- an independently found post-dispatch persistence gap is closed: once a
+  provider dispatch has been claimed, a settlement failure is returned as
+  `unknown`, never as a retryable generic error; exact replay performs no
+  provider call, and explicit read-only reconciliation may now resolve a
+  claimed `prepared` attempt or durably retain it as `unknown` without another
+  mutation;
+- the full local database/browser gate still proves the real PostgreSQL
+  authority, Drizzle migration journal, canonical CRM read/write workflow,
+  private document persistence and the fixed-role development gate with the
+  canonical amoCRM command surface active inside that same runtime.
+
+Validation used OrbStack (`Running`, Docker context exactly `orbstack`) and
+Node `22.23.1` explicitly, because the repository gate rejects other Node
+majors for this proof. The following checks passed in that exact runtime:
+
+- `npm run test:u9`
+- `npm run lint`
+- `npm run typecheck`
+- `npm run build`
+- `npm run test:database:local`
+- `git diff --check`
+
+This closes the local implementation-proof portion of the current command/UI
+slice. The remaining unfinished gate inside #466 is now only the real connected
+amoCRM write acceptance plus the same-slice legacy-runtime eradication
+inventory required by the replacement discipline.
+
+## 2026-08-30 - Correct whole-flow amoCRM ambiguity, reload recovery, route replay and exact tag authority
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under owner-authorized issue #466.
+Change type: fail-closed correction after independent exact-head review.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+Independent review found that the first implementation guarded an ambiguous
+amoCRM outcome only at the object touched by the individual step. A late
+lead-scoped `unknown` could therefore allow a new browser request to repeat an
+earlier contact update before reaching the lead-scoped guard. Review also found
+that the reconciliation button depended on client memory, that exact replay did
+not compare all current route configuration, and that a configured tag name was
+not resolved to an existing provider tag ID before mutation.
+
+The corrected contract is:
+
+- before any new mutation sequence, PostgreSQL checks the whole canonical
+  person/lead workflow for any `prepared` or `unknown` attempt; a blocker from
+  either object stops the sequence before the first contact dispatch;
+- the owning Sales and Student 360 server workspaces load the persisted blocking
+  attempt, so reload, a new tab or an operator handoff still shows the exact
+  attempt ID and the explicit read-only reconciliation control;
+- same-request replay compares the saved expected pipeline, status,
+  responsible user and tag name with the current server route before it may
+  report `exact_replay`;
+- discovery reads the existing amoCRM lead-tag catalog and requires each
+  configured role tag name to resolve to exactly one existing tag ID. The write
+  command uses that ID and cannot create a tag by name or fall back. Kommo
+  documents the bounded catalog read at
+  <https://developers.kommo.com/reference/list-of-entity-tags>;
+- the sanitized tag catalog becomes part of the immutable PostgreSQL discovery
+  evidence and snapshot hash.
+
+Clarification of the immediately preceding validation entry: the earlier
+Chromium matrix proved panel placement, fixed-role visibility and three blocked
+provider prerequisites. It did **not** submit an amoCRM command, produce an
+`unknown` result, reload that result or execute reconciliation. Its wording
+about preserving request feedback and the reconciliation path described the
+implemented UI contract plus unit coverage, not completed browser execution.
+This correction requires a real disposable-PostgreSQL browser row to survive an
+application restart/reload with the exact attempt and safe reconciliation
+control visible. Real connected provider mutation remains a separate unfinished
+acceptance gate and is not claimed here.
+
+The required correction proof is now complete. On Node `22.23.1`, with
+OrbStack `Running` and Docker context exactly `orbstack`:
+
+- `npm run test:u9` passed all 90 provider, discovery, command, action, UI,
+  Gemini, WAHA and replacement-inventory tests;
+- `npm run lint`, `npm run typecheck`, `npm run build` and `git diff --check`
+  passed;
+- `npm run test:database:local` passed from a clean disposable PostgreSQL
+  database through the exact six-migration Drizzle history and the complete
+  application/Chromium matrix;
+- the browser proof now persists a technical `unknown` amoCRM attempt in real
+  PostgreSQL, restarts/reloads the application surface, displays the same exact
+  attempt ID and reconciliation control, and keeps new sync disabled without a
+  provider mutation or fallback;
+- the pre-existing Sales-to-Admissions handoff and Admin exception browser
+  flows stayed green after blocking-attempt lookup was limited to the active
+  owning workflow phase.
+
+This evidence remains local and provider-isolated. It does not claim a real
+connected amoCRM write, V1 mutation, deployment or cutover.
+
+## 2026-08-30 - Close exact provider-effect and cross-phase recovery gaps in V2-10C
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under owner-authorized issue #466.
+Change type: second exact-head review correction and local proof completion.
+Affected plan section: V2-10C PostgreSQL-authoritative amoCRM writes.
+
+Independent review of the first V2-10C correction found three remaining
+product-integrity gaps. The canonical command path now closes them without a
+second provider, repository, UI or compatibility route:
+
+- contact-to-lead linkage is accepted only when amoCRM readback identifies the
+  exact contact as `metadata.main_contact=true`; an existing non-main link is
+  corrected and verified instead of being mistaken for completion;
+- Sales and Admissions tag transitions use the two exact existing tag IDs from
+  discovery: add the owning role tag, remove the opposite role tag, preserve
+  unrelated provider tags, and require readback to prove both presence and
+  absence. Discovery rejects a mapping where both role names resolve to the
+  same ID;
+- an unresolved Sales attempt for the same canonical lead remains visible and
+  read-only-reconcilable after an active Admin-override handoff. Admissions or
+  Admin must still hold the live matching Student 360 phase; another lead, an
+  obsolete Sales authorization, a new dispatch claim and ordinary settlement
+  remain forbidden.
+
+Exact replay remains provider-read/write free. It compares the immutable
+stored request/readback evidence, including the exact discovered role tag IDs,
+with the current configured Sales and Admissions tag names. Configuration
+drift conflicts rather than rediscovering or mutating the provider during
+replay. A repeated exact cross-phase reconciliation returns the stored result;
+a changed outcome is denied.
+
+The PostgreSQL command timeline now also uses the database clock for the
+durable dispatch claim. Provider observation times are bounded to that stored
+dispatch floor before settlement, eliminating host/container clock skew while
+the repository continues to reject a genuinely out-of-order transport result.
+
+Validation on Node `22.23.1`, OrbStack `Running` and Docker context exactly
+`orbstack` passed:
+
+- `npm run test:u9` with all 94 tests;
+- `npm run lint`, `npm run typecheck`, `npm run build` and `git diff --check`;
+- `npm run test:database:local` from a clean disposable PostgreSQL database
+  through all six committed Drizzle migrations and the complete Chromium
+  matrix;
+- browser proof for both the active Sales unknown and the same-lead Sales
+  unknown carried into an active Admissions Student 360 after Admin override,
+  before and after reload, with the exact attempt, lead and case identities,
+  visible reconciliation and new sync disabled.
+
+This is still isolated product proof. It does not claim a connected amoCRM
+mutation, provider-account acceptance, V1 mutation, deployment or cutover.

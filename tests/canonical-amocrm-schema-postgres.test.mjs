@@ -60,6 +60,7 @@ test("canonical amoCRM persistence keeps PostgreSQL authoritative and provider o
         account_id,
         snapshot_sha256,
         pipeline_catalog,
+        lead_tag_catalog,
         user_catalog,
         lead_custom_field_catalog,
         contact_custom_field_catalog,
@@ -70,6 +71,7 @@ test("canonical amoCRM persistence keeps PostgreSQL authoritative and provider o
         ${accountId},
         ${"a".repeat(64)},
         ${sql.json([{ id: "1001", name: "Sales" }])},
+        ${sql.json([{ id: "1501", name: "EVO V2 Sales" }])},
         ${sql.json([{ id: "2001", name: "Technical operator" }])},
         ${sql.json([{ id: "3001", name: "Source" }])},
         ${sql.json([{ id: "4001", name: "Phone" }])},
@@ -85,6 +87,7 @@ test("canonical amoCRM persistence keeps PostgreSQL authoritative and provider o
           account_id,
           snapshot_sha256,
           pipeline_catalog,
+          lead_tag_catalog,
           user_catalog,
           lead_custom_field_catalog,
           contact_custom_field_catalog,
@@ -94,11 +97,41 @@ test("canonical amoCRM persistence keeps PostgreSQL authoritative and provider o
           ${randomUUID()},
           ${accountId},
           ${"b".repeat(64)},
+          '[]'::jsonb,
           ${sql.json([{ access_token: "must-never-be-persisted" }])},
           '[]'::jsonb,
           '[]'::jsonb,
           '[]'::jsonb,
           ${`${correlationId}-unsafe`},
+          '2026-08-29T10:01:00.000Z'
+        )
+      `,
+      postgresError("23514"),
+    );
+
+    await assert.rejects(
+      sql`
+        insert into evo_amocrm_discovery_snapshots (
+          id,
+          account_id,
+          snapshot_sha256,
+          pipeline_catalog,
+          lead_tag_catalog,
+          user_catalog,
+          lead_custom_field_catalog,
+          contact_custom_field_catalog,
+          correlation_id,
+          discovered_at
+        ) values (
+          ${randomUUID()},
+          ${accountId},
+          ${"c".repeat(64)},
+          '[]'::jsonb,
+          '{}'::jsonb,
+          '[]'::jsonb,
+          '[]'::jsonb,
+          '[]'::jsonb,
+          ${`${correlationId}-invalid-tag-shape`},
           '2026-08-29T10:01:00.000Z'
         )
       `,

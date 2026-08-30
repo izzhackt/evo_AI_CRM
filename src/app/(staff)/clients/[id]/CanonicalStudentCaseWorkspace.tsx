@@ -10,11 +10,14 @@ import {
   CanonicalAdmissionsTaskPanel,
   type CanonicalAdmissionsTaskRequestIds,
 } from "@/components/platform/admissions/CanonicalAdmissionsTaskPanel";
+import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
 import { CanonicalPrivateDocumentsPanel } from "@/components/platform/documents/CanonicalPrivateDocumentsPanel";
 import { Card, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import { getT } from "@/lib/i18n";
 import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
+import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
+import { readBlockingCanonicalAmoCrmCommand } from "@/lib/server/canonical-amocrm-command-repository";
 import {
   CanonicalCrmRepositoryError,
   getCanonicalAdmissionsOperationsSnapshot,
@@ -132,9 +135,10 @@ function Fact({
 export async function CanonicalStudentCaseWorkspace({
   id,
 }: Readonly<{ id: string }>) {
-  const [{ locale }, actor] = await Promise.all([
+  const [{ locale }, actor, amoCrmAvailability] = await Promise.all([
     getT(),
     requirePlatformAdmissionsActor("/clients"),
+    readCanonicalAmoCrmCommandAvailability(),
   ]);
 
   let studentCase: Awaited<ReturnType<typeof getCanonicalStudentCaseSnapshot>>;
@@ -181,6 +185,19 @@ export async function CanonicalStudentCaseWorkspace({
     }
     throw error;
   }
+  const blockingAmoCrmAttempt =
+    studentCase.status !== "active" || studentCase.assignedRole !== "admissions"
+      ? null
+      : await readBlockingCanonicalAmoCrmCommand({
+          authorization: {
+            actorRole: actor.platformRole,
+            workflowScope: "admissions_post_handoff",
+            workflowLeadId: studentCase.leadId,
+            studentCaseId: studentCase.studentCaseId,
+          },
+          personId: studentCase.personId,
+          leadId: studentCase.leadId,
+        });
 
   const copy = COPY[locale];
   const transitionRequestIds: CanonicalAdmissionsTaskRequestIds =
@@ -357,6 +374,26 @@ export async function CanonicalStudentCaseWorkspace({
         caseId={id}
         caseStatus={studentCase.status}
         documents={documents}
+      />
+
+      <CanonicalAmoCrmCommandPanel
+        availability={amoCrmAvailability}
+        blockingAttempt={
+          blockingAmoCrmAttempt === null
+            ? null
+            : {
+                attemptId: blockingAmoCrmAttempt.attemptId,
+                operationName: blockingAmoCrmAttempt.operationName,
+                status: blockingAmoCrmAttempt.status as "prepared" | "unknown",
+                providerDispatchedAt:
+                  blockingAmoCrmAttempt.providerDispatchedAt,
+              }
+        }
+        scope="admissions"
+        leadId={studentCase.leadId}
+        studentCaseId={studentCase.studentCaseId}
+        locale={locale}
+        requestId={randomUUID()}
       />
 
       <CanonicalAdmissionsOperationsPanel

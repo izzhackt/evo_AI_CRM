@@ -14544,3 +14544,57 @@ deployment, or claim the long-lived token already exists. Real #466 proof still
 requires one exact connected private token, real provider read-back, exact-main
 validation, and replace-not-layer cleanup of superseded active OAuth-refresh
 runtime code and tests in the same slice.
+
+## 2026-08-30 - Bind V2-10D to one genuine human-review checkpoint
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under the owner's standing authorization for #463 and #467.
+Change type: execution-contract clarification before the combined acceptance
+harness.
+Affected plan section: V2-10D bounded real provider, PostgreSQL, application
+and browser acceptance.
+
+V2-10C is now complete on exact `origin/main`
+`f70ef27a4705f57d02a1459cf1cf63de227b53be`: the real connected amoCRM proof
+passed on one WAHA-self validation entity, PR #496 removed the legacy
+SQLite/OAuth-refresh path, PR #497 removed the dormant Supabase-bound
+`platform-amocrm-*` lane, both exact-head reviews and CI passed, and final
+exact-main CI run `33301645032` passed. Issue #466 is closed. V2-10D may now
+compose the already canonical Gemini, WAHA and amoCRM paths; it must not add a
+second provider adapter or revive any deleted runtime.
+
+The final #467 proof is split into this reviewed plan stage, one separately
+reviewed code stage and one bounded execution:
+
+1. Add one inert exact-main orchestration harness, one serial Chromium spec and
+   static fail-closed harness tests. The implementation PR performs no Gemini,
+   WAHA or amoCRM call.
+2. After merge and green exact-main CI, run the harness against one disposable
+   PostgreSQL database, the private local app and one clearly marked validation
+   entity resolved from the connected WAHA session self identity. The harness
+   may seed only the minimum local validation context and request one real
+   Gemini proposal.
+3. Before any WAHA send or amoCRM command, the run writes a durable private
+   `review_required` marker and stops at the actual Chromium review surface.
+   One real human must inspect the provider-created proposal and either accept
+   it or edit it, then explicitly confirm the final WhatsApp send. Playwright,
+   Codex and Gemini do not click those controls on the human's behalf.
+4. After PostgreSQL proves an `accepted` or `edited` decision whose exact text
+   is the composer source, the same run executes or observes the explicit send,
+   reconciles the unique provider message identity and ACK, executes one
+   authorized amoCRM sync for that same validation entity and reads every
+   provider effect back.
+5. Exact replay must add no message, provider entity, note, binding, receipt or
+   business event. Evidence contains hashes, counts and boundary booleans only;
+   tokens, identifiers, raw transcript text and raw provider payloads remain in
+   mode-0600 private diagnostics outside Git and GitHub.
+
+The owner has already authorized the real provider operations under #463, so
+the human checkpoint is not another approval prompt. It is the business action
+being tested: a person, rather than a model or automation, decides the exact
+text that may be sent. If a human is unavailable, the run remains safely at
+`review_required` with no send or amoCRM mutation. If the process stops after a
+dispatch marker or receives an ambiguous provider result, it preserves the
+private database and resumes by exact read-only reconciliation; it never
+blindly reruns, sends twice, chooses another target, mutates V1, deploys or
+performs cutover.

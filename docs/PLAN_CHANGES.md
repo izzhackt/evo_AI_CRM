@@ -14654,3 +14654,27 @@ successful proposal must still wait for the real human review/edit decision
 and explicit single-send confirmation before WAHA or amoCRM can mutate; all
 other target, read-back, replay, privacy and frozen-V1 boundaries remain
 unchanged.
+
+## 2026-08-30 - Fail closed during Gemini review hydration before V2-10D
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex during the exact-main #467 continuation.
+Change type: acceptance-blocking UI correctness fix; no provider authority or
+workflow expansion.
+Affected plan section: V2-10D human review and real browser proof.
+
+Exact-main CI on the merged credential-retry checkpoint exposed a real browser
+race in the canonical Gemini review form. The server-rendered edit textarea and
+review buttons were interactive before React hydration completed. Under CI
+timing, an edit could be applied against the pre-hydration DOM and then be
+replaced or combined with the proposal's server-rendered default during
+hydration. The resulting PostgreSQL assertion correctly rejected a final text
+that did not exactly equal the human's intended edit.
+
+The canonical panel must now render provider-request and review controls
+disabled in server HTML and throughout hydration, then enable them only after
+React reports the client snapshot. This is a fail-closed interaction boundary,
+not an additional approval step. A real Chromium regression captures the
+pre-hydration DOM state, requires the edit control to be disabled then, waits
+for hydration to enable it, fills the exact final text and proves the exact
+PostgreSQL review value. No provider call is part of this correction proof.

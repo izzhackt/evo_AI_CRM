@@ -340,6 +340,26 @@ async function reviewTechnicalProposalViaUi(
     proposalText: input.proposalText,
     providerCreatedAt: input.providerCreatedAt,
   });
+  if (input.decision === "edited") {
+    const reviewedText = input.reviewedText;
+    if (!reviewedText) throw new Error("edited review requires reviewedText");
+    await page.addInitScript(
+      (proposalText) => {
+        const capturePreHydrationState = () => {
+          const editor = document.querySelector<HTMLTextAreaElement>(
+            '[data-testid="canonical-gemini-review-edited-text"]',
+          );
+          if (!editor || editor.value !== proposalText) return;
+          editor.dataset.preHydrationDisabled = String(editor.disabled);
+          observer.disconnect();
+        };
+        const observer = new MutationObserver(capturePreHydrationState);
+        observer.observe(document, { childList: true, subtree: true });
+        capturePreHydrationState();
+      },
+      input.proposalText,
+    );
+  }
   await page.reload();
   const storedProposal = page.getByTestId("canonical-gemini-proposal-latest");
   await expect(storedProposal).toHaveAttribute(
@@ -355,7 +375,11 @@ async function reviewTechnicalProposalViaUi(
   } else if (input.decision === "edited") {
     const reviewedText = input.reviewedText;
     if (!reviewedText) throw new Error("edited review requires reviewedText");
-    await page.getByTestId("canonical-gemini-review-edited-text").fill(reviewedText);
+    const editor = page.getByTestId("canonical-gemini-review-edited-text");
+    await expect(editor).toHaveAttribute("data-pre-hydration-disabled", "true");
+    await expect(editor).toBeEnabled();
+    await editor.fill(reviewedText);
+    await expect(editor).toHaveValue(reviewedText);
     await page.getByTestId("canonical-gemini-review-edit").click();
   } else {
     const reviewReason = input.reviewReason;

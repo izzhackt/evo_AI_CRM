@@ -14598,3 +14598,24 @@ dispatch marker or receives an ambiguous provider result, it preserves the
 private database and resumes by exact read-only reconciliation; it never
 blindly reruns, sends twice, chooses another target, mutates V1, deploys or
 performs cutover.
+
+## 2026-08-30 - Exclude unused amoCRM permissions from active V2 authority
+
+Date: 2026-08-30, workspace timezone (+04).
+Author: Codex under the owner's #467 scope clarification.
+Change type: least-privilege acceptance clarification; no provider mutation.
+Affected plan section: V2-10C amoCRM writes and V2-10D real acceptance.
+
+The active V2 amoCRM workflow uses only the account, user, pipeline/status,
+custom-field, contact, lead, link, note and tag operations already implemented
+and proved through the canonical server-side provider path. It does not require
+or exercise the private-integration permissions `files`, `files_delete`,
+`notifications` or `push_notifications`.
+
+If any of those four permissions are already present on the existing connected
+integration, that is pre-existing provider configuration rather than active V2
+authority. Do not modify the integration, remove or add permissions, or reissue
+its long-lived token solely for #467. The inert acceptance harness must contain
+no amoCRM file or notification operation, and the exact-main run must stop if
+the canonical implemented path cannot complete instead of broadening provider
+permissions or adding a fallback.

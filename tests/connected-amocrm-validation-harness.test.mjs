@@ -55,6 +55,10 @@ test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async (
     source,
     /"\$node_bin" --conditions=react-server --experimental-strip-types \\\n+\s+scripts\/prepare-connected-amocrm-validation\.mjs seed/u,
   );
+  assert.match(
+    source,
+    /"\$node_bin" --conditions=react-server --experimental-strip-types \\\n+\s+scripts\/prepare-connected-amocrm-validation\.mjs discover/u,
+  );
   assert.match(source, /authority-blocked\.json/u);
   assert.match(source, /provider-preparation-attempt\.json/u);
   assert.match(source, /dispatch-attempt\.json/u);

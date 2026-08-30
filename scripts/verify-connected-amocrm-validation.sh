@@ -294,7 +294,8 @@ stop_app
   --output "$evidence_dir/provider-preparation-attempt.json"
 
 DATABASE_URL="$database_url" \
-  "$node_bin" scripts/prepare-connected-amocrm-validation.mjs discover \
+  "$node_bin" --conditions=react-server --experimental-strip-types \
+    scripts/prepare-connected-amocrm-validation.mjs discover \
     --runtime-file "$runtime_file" \
     --context-file "$context_file"
 

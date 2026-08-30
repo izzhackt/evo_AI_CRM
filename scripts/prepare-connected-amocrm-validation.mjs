@@ -571,9 +571,6 @@ async function discoverProviderRouting(parsed) {
     const readProvider = providerModule.createCanonicalAmoCrmReadProvider(
       providerConfig,
     );
-    const writeProvider = providerModule.createCanonicalAmoCrmWriteProvider(
-      providerConfig,
-    );
 
     const accountRaw = await readProvider.getAccount();
     const pipelinesRaw = await readProvider.getPipelines();
@@ -584,24 +581,7 @@ async function discoverProviderRouting(parsed) {
       usersRaw,
     );
 
-    let managed = exactManagedTags(await readProvider.getLeadTags());
-    for (const [role, name] of Object.entries(MANAGED_TAGS)) {
-      if (managed.result[role] === null) {
-        const prepared = writeProvider.prepareEnsureLeadTag({
-          requestId: randomUUID(),
-          name,
-        });
-        await prepared.dispatch();
-      }
-    }
-    managed = exactManagedTags(await readProvider.getLeadTags());
-    if (
-      managed.result.sales === null ||
-      managed.result.admissions === null ||
-      managed.result.sales.id === managed.result.admissions.id
-    ) {
-      fail("managed_tags_not_ready");
-    }
+    const managed = exactManagedTags(await readProvider.getLeadTags());
 
     const commandEnvironment = Object.freeze({
       EVO_V2_AMOCRM_SALES_PIPELINE_ID: selection.pipelineId,
@@ -626,20 +606,8 @@ async function discoverProviderRouting(parsed) {
       });
 
     const routing = Object.freeze({
-      sales: Object.freeze({
-        pipelineId: selection.pipelineId,
-        statusId: selection.salesStatusId,
-        responsibleUserId: selection.responsibleUserId,
-        tagName: MANAGED_TAGS.sales,
-        tagId: managed.result.sales.id,
-      }),
-      admissions: Object.freeze({
-        pipelineId: selection.pipelineId,
-        statusId: selection.admissionsStatusId,
-        responsibleUserId: selection.responsibleUserId,
-        tagName: MANAGED_TAGS.admissions,
-        tagId: managed.result.admissions.id,
-      }),
+      sales: discovery.sales,
+      admissions: discovery.admissions,
       contactCustomFields: discovery.contactCustomFields,
     });
     await replacePrivateJson(contextPath, {
@@ -651,8 +619,11 @@ async function discoverProviderRouting(parsed) {
         pipelineCount: selection.pipelineCount,
         editableStatusCount: selection.editableStatusCount,
         activeCurrentUserCount: selection.activeCurrentUserCount,
-        managedTagCount: 2,
-        leadTagCatalogCount: managed.tags.length,
+        managedTagCountBeforeCommand: [
+          managed.result.sales,
+          managed.result.admissions,
+        ].filter((tag) => tag !== null).length,
+        leadTagCatalogCountBeforeCommand: managed.tags.length,
       }),
     });
   } finally {

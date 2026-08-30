@@ -183,7 +183,7 @@ type FlowContext = Readonly<{
   phone: string | null;
   route: CanonicalAmoCrmCommandRoutingSnapshot["sales"];
   oppositeTag: Readonly<{
-    tagId: string;
+    tagId: string | null;
     tagName: string;
   }>;
   baseRequestId: string;
@@ -364,9 +364,9 @@ function leadReadback(
     pipelineId?: string;
     statusId?: string;
     responsibleUserId?: string;
-    tagId?: string;
+    tagId?: string | null;
     tagName?: string;
-    oppositeTagId?: string;
+    oppositeTagId?: string | null;
     oppositeTagName?: string;
     unrelatedTagSetSha256?: string;
   }>,
@@ -396,6 +396,7 @@ function leadReadback(
   ) {
     throw new ReadbackMismatchError();
   }
+  let verifiedRoleTagId: string | null = null;
   if (
     expected.tagId !== undefined ||
     expected.tagName !== undefined ||
@@ -408,32 +409,44 @@ function leadReadback(
       expected.tagName === undefined ||
       expected.oppositeTagId === undefined ||
       expected.oppositeTagName === undefined ||
-      expected.unrelatedTagSetSha256 === undefined ||
-      expected.tagId === expected.oppositeTagId
+      expected.unrelatedTagSetSha256 === undefined
     ) {
       throw new ReadbackMismatchError();
     }
     const embedded = record(response._embedded ?? {});
     const tags = collection(embedded.tags ?? []);
+    const roleTags = tags.filter((value) => {
+      const tag = record(value);
+      return typeof tag.name === "string" && tag.name === expected.tagName;
+    });
     if (
-      !tags.some((value) => {
+      expected.tagName === expected.oppositeTagName ||
+      (expected.tagId !== null &&
+        expected.oppositeTagId !== null &&
+        expected.tagId === expected.oppositeTagId) ||
+      roleTags.length !== 1 ||
+      (expected.tagId !== null &&
+        providerId(record(roleTags[0]).id) !== expected.tagId) ||
+      tags.some((value) => {
         const tag = record(value);
         return (
-          providerId(tag.id) === expected.tagId && tag.name === expected.tagName
+          tag.name === expected.oppositeTagName ||
+          (expected.oppositeTagId !== null &&
+            providerId(tag.id) === expected.oppositeTagId)
         );
       }) ||
-      tags.some(
-        (value) => providerId(record(value).id) === expected.oppositeTagId,
-      ) ||
       unrelatedTagSetSha256(
         response,
         expected.leadId,
         expected.tagId,
+        valueHash(expected.tagName),
         expected.oppositeTagId,
+        valueHash(expected.oppositeTagName),
       ) !== expected.unrelatedTagSetSha256
     ) {
       throw new ReadbackMismatchError();
     }
+    verifiedRoleTagId = providerId(record(roleTags[0]).id);
   }
   return Object.freeze({
     evidence: Object.freeze({
@@ -456,7 +469,7 @@ function leadReadback(
           expected.unrelatedTagSetSha256 === undefined
         ? {}
         : {
-            tagId: expected.tagId,
+            tagId: verifiedRoleTagId,
             tagNameSha256: valueHash(expected.tagName),
             oppositeTagId: expected.oppositeTagId,
             oppositeTagNameSha256: valueHash(expected.oppositeTagName),
@@ -470,11 +483,19 @@ function leadReadback(
 function unrelatedTagSetSha256(
   value: unknown,
   leadId: string,
-  roleTagId: string,
-  oppositeTagId: string,
+  roleTagId: string | null,
+  roleTagNameSha256: string,
+  oppositeTagId: string | null,
+  oppositeTagNameSha256: string,
 ): string {
   const response = record(value);
-  if (providerId(response.id) !== leadId || roleTagId === oppositeTagId) {
+  if (
+    providerId(response.id) !== leadId ||
+    roleTagNameSha256 === oppositeTagNameSha256 ||
+    (roleTagId !== null &&
+      oppositeTagId !== null &&
+      roleTagId === oppositeTagId)
+  ) {
     throw new ReadbackMismatchError();
   }
   const embedded = record(response._embedded ?? {});
@@ -489,7 +510,13 @@ function unrelatedTagSetSha256(
       seen.add(id);
       return Object.freeze({ id, nameSha256: valueHash(tag.name) });
     })
-    .filter(({ id }) => id !== roleTagId && id !== oppositeTagId)
+    .filter(
+      ({ id, nameSha256 }) =>
+        id !== roleTagId &&
+        id !== oppositeTagId &&
+        nameSha256 !== roleTagNameSha256 &&
+        nameSha256 !== oppositeTagNameSha256,
+    )
     .sort((left, right) => left.id.localeCompare(right.id));
   return valueHash(JSON.stringify(unrelated));
 }
@@ -688,7 +715,11 @@ function responseTime(
   if (notBefore === null) return value.toISOString();
   const floor = new Date(notBefore);
   if (!Number.isFinite(floor.getTime())) throw new Error("invalid_clock");
-  return new Date(Math.max(value.getTime(), floor.getTime())).toISOString();
+  // PostgreSQL retains sub-millisecond precision that is lost when the
+  // dispatch snapshot crosses the JavaScript ISO boundary. Advancing the
+  // serialized floor by one millisecond guarantees the provider outcome is
+  // never stored before the real database dispatch instant.
+  return new Date(Math.max(value.getTime(), floor.getTime() + 1)).toISOString();
 }
 
 async function settleProviderFailure(
@@ -1261,7 +1292,9 @@ async function executeLeadEffect(
         await context.provider.getLeadById(providerLeadId),
         providerLeadId,
         context.route.tagId,
+        valueHash(context.route.tagName),
         context.oppositeTag.tagId,
+        valueHash(context.oppositeTag.tagName),
       );
     } catch {
       return internalStep(
@@ -1274,10 +1307,18 @@ async function executeLeadEffect(
     prepared = context.provider.prepareUpdateLeadTags({
       requestId,
       leadId: providerLeadId,
-      add: Object.freeze([Object.freeze({ id: context.route.tagId })]),
-      remove: Object.freeze([
-        Object.freeze({ id: context.oppositeTag.tagId }),
+      add: Object.freeze([
+        context.route.tagId === null
+          ? Object.freeze({ name: context.route.tagName })
+          : Object.freeze({ id: context.route.tagId }),
       ]),
+      ...(context.oppositeTag.tagId === null
+        ? {}
+        : {
+            remove: Object.freeze([
+              Object.freeze({ id: context.oppositeTag.tagId }),
+            ]),
+          }),
     });
     expected = Object.freeze({
       entity: "lead",
@@ -1830,6 +1871,18 @@ function requiredExpected(
   return value;
 }
 
+function optionalExpectedProviderId(
+  expected: Readonly<Record<string, string | null>>,
+  key: string,
+): string | null {
+  const value = expected[key];
+  if (value === null) return null;
+  if (typeof value !== "string" || value.length === 0) {
+    throw new ReadbackMismatchError();
+  }
+  return providerId(value);
+}
+
 function optionalExpectedHash(
   expected: Readonly<Record<string, string | null>>,
   key: string,
@@ -1934,36 +1987,52 @@ function storedLeadReadback(
       expected,
       "oppositeTagNameSha256",
     );
-    const tagId = requiredExpected(expected, "tagId");
-    const oppositeTagId = requiredExpected(expected, "oppositeTagId");
+    const tagId = optionalExpectedProviderId(expected, "tagId");
+    const oppositeTagId = optionalExpectedProviderId(expected, "oppositeTagId");
     const unrelatedTagSetHash = optionalExpectedHash(
       expected,
       "unrelatedTagSetSha256",
     );
     const embedded = record(response._embedded ?? {});
     const tags = collection(embedded.tags ?? []);
+    const roleTags = tags.filter((tagValue) => {
+      const tag = record(tagValue);
+      return (
+        typeof tag.name === "string" &&
+        valueHash(tag.name) === expectedHash
+      );
+    });
     if (
       expectedHash === null ||
       oppositeExpectedHash === null ||
       unrelatedTagSetHash === null ||
-      tagId === oppositeTagId ||
-      !tags.some((tagValue) => {
+      expectedHash === oppositeExpectedHash ||
+      (tagId !== null &&
+        oppositeTagId !== null &&
+        tagId === oppositeTagId) ||
+      roleTags.length !== 1 ||
+      (tagId !== null && providerId(record(roleTags[0]).id) !== tagId) ||
+      tags.some((tagValue) => {
         const tag = record(tagValue);
         return (
-          providerId(tag.id) === tagId &&
-          typeof tag.name === "string" &&
-          valueHash(tag.name) === expectedHash
+          (typeof tag.name === "string" &&
+            valueHash(tag.name) === oppositeExpectedHash) ||
+          (oppositeTagId !== null && providerId(tag.id) === oppositeTagId)
         );
       }) ||
-      tags.some(
-        (tagValue) => providerId(record(tagValue).id) === oppositeTagId,
-      ) ||
-      unrelatedTagSetSha256(response, leadId, tagId, oppositeTagId) !==
+      unrelatedTagSetSha256(
+        response,
+        leadId,
+        tagId,
+        expectedHash,
+        oppositeTagId,
+        oppositeExpectedHash,
+      ) !==
         unrelatedTagSetHash
     ) {
       throw new ReadbackMismatchError();
     }
-    evidence.tagId = tagId;
+    evidence.tagId = providerId(record(roleTags[0]).id);
     evidence.tagNameSha256 = expectedHash;
     evidence.oppositeTagId = oppositeTagId;
     evidence.oppositeTagNameSha256 = oppositeExpectedHash;

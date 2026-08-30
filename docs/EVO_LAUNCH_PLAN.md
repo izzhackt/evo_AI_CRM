@@ -448,6 +448,12 @@ guess, simulate or fall back.
    link contacts/leads and apply the required pipeline, status,
    responsible-user, note and tag operations. Every operation uses exact
    server-side role/workflow authorization, provider correlation and read-back.
+   Managed Sales and Admissions tag names are part of the routing contract,
+   but their provider IDs may be absent on the first command. In that case the
+   same canonical lead-tag mutation adds the exact tag by name, reads back the
+   provider-created ID and rejects duplicate exact-name matches; there is no
+   separate tag-bootstrap writer or prerequisite manual setup. Existing tag
+   IDs remain the preferred mutation identity after discovery.
    An ambiguous result is reconciled before retry; amoCRM is never a dual-write
    authority, fallback repository or source of a second workflow state.
 4. **V2-10D / #467 — real acceptance.** Use one minimized owner-authorized

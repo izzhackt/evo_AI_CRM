@@ -92,17 +92,32 @@ function providerId(value: unknown, message: string): string {
   return parsed;
 }
 
-function requiredMode(): "blocked" | "operator" {
+function requiredMode(): "blocked" | "operator" | "recovery" {
   const mode = process.env.EVO_V2_REAL_END_TO_END_MODE;
-  if (mode !== "blocked" && mode !== "operator") {
+  if (mode !== "blocked" && mode !== "operator" && mode !== "recovery") {
     throw new Error("EVO_V2_REAL_END_TO_END_MODE is invalid");
   }
   return mode;
 }
 
 function acceptanceInputs() {
-  const gitSha = requireEnv("EVO_V2_ACCEPTANCE_MAIN_SHA");
-  ensure(SHA40.test(gitSha), "V2-10D acceptance requires an exact main SHA");
+  const recoveryMode = requiredMode() === "recovery";
+  const recoverySha = requireEnv("EVO_V2_ACCEPTANCE_MAIN_SHA");
+  ensure(
+    SHA40.test(recoverySha),
+    "V2-10D acceptance requires an exact main SHA",
+  );
+  const gitSha = recoveryMode
+    ? requireEnv("EVO_V2_10D_ORIGINAL_ATTEMPT_SHA")
+    : recoverySha;
+  ensure(
+    SHA40.test(gitSha),
+    "V2-10D recovery requires the exact original attempt SHA",
+  );
+  ensure(
+    !recoveryMode || recoverySha !== gitSha,
+    "V2-10D recovery code and original attempt SHAs must be distinct",
+  );
   const evidenceDir = path.resolve(requireEnv("EVO_V2_10D_EVIDENCE_DIR"));
   const expectedEvidenceDir = path.resolve(
     process.cwd(),
@@ -117,6 +132,7 @@ function acceptanceInputs() {
   );
   return Object.freeze({
     gitSha,
+    recoverySha,
     evidenceDir,
     runtimeFile: path.resolve(requireEnv("EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE")),
     contextFile: path.resolve(requireEnv("EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE")),
@@ -276,6 +292,50 @@ async function seedCanonicalSelfConversation(
     "The signed self-validation seed returned an invalid message",
   );
   return Object.freeze({ leadId, conversationId, messageId });
+}
+
+async function readExistingSelfConversation(
+  databaseUrl: string,
+  input: Readonly<{ leadId: string; selfId: string }>,
+) {
+  const sql = postgres(databaseUrl, { max: 1 });
+  try {
+    const rows = await sql<
+      Array<{ conversation_id: string; lead_id: string; message_id: string }>
+    >`
+      select
+        conversation.id as conversation_id,
+        conversation.lead_id,
+        message.id as message_id
+      from evo_conversations as conversation
+      join evo_messages as message
+        on message.conversation_id = conversation.id
+      where conversation.channel = 'whatsapp'
+        and conversation.external_conversation_id = ${input.selfId}
+        and conversation.lead_id = ${input.leadId}
+        and message.direction = 'inbound'
+        and message.body = ${VALIDATION_INBOUND_TEXT}
+      order by message.created_at asc, message.id asc
+    `;
+    ensure(
+      rows.length === 1,
+      "Recovery did not find exactly one preserved self-validation conversation",
+    );
+    const row = rows[0];
+    ensure(
+      UUID.test(row.conversation_id) &&
+        row.lead_id === input.leadId &&
+        UUID.test(row.message_id),
+      "The preserved self-validation conversation is invalid",
+    );
+    return Object.freeze({
+      leadId: row.lead_id,
+      conversationId: row.conversation_id,
+      messageId: row.message_id,
+    });
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
 }
 
 async function submitAdminGate(page: Page): Promise<void> {
@@ -1246,12 +1306,12 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
   page,
   request,
 }) => {
-  test.skip(
-    requiredMode() !== "operator",
-    "blocked-authority pass runs separately",
-  );
-  test.setTimeout(45 * 60 * 1_000);
-  const { gitSha, evidenceDir, runtimeFile, contextFile } = acceptanceInputs();
+  const mode = requiredMode();
+  test.skip(mode === "blocked", "blocked-authority pass runs separately");
+  const recoveryMode = mode === "recovery";
+  test.setTimeout(recoveryMode ? 0 : 45 * 60 * 1_000);
+  const { gitSha, recoverySha, evidenceDir, runtimeFile, contextFile } =
+    acceptanceInputs();
   await mkdir(evidenceDir, { recursive: true, mode: 0o700 });
   await chmod(evidenceDir, 0o700);
   const blockedMarker = await privateJson(
@@ -1300,26 +1360,28 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
 
   const { selfId, selfRecipientIds } = connectedSelfIdentities();
   const sessionName = requireEnv("EVO_V2_CONNECTED_WAHA_SESSION_NAME");
-  const seed = await seedCanonicalSelfConversation(request, {
-    gitSha,
-    selfId,
-    expectedLeadId: leadId,
-    expectedPhoneSha256,
-  });
   const databaseUrl = requireEnv("DATABASE_URL");
+  const seed = recoveryMode
+    ? await readExistingSelfConversation(databaseUrl, { leadId, selfId })
+    : await seedCanonicalSelfConversation(request, {
+        gitSha,
+        selfId,
+        expectedLeadId: leadId,
+        expectedPhoneSha256,
+      });
   const beforeProposal = await readMutationCounts(
     databaseUrl,
     leadId,
     seed.conversationId,
   );
   ensure(
-    beforeProposal.proposalCount === 0 &&
+    beforeProposal.proposalCount === (recoveryMode ? 1 : 0) &&
       beforeProposal.wahaAttemptCount === 0 &&
       beforeProposal.outboundMessageCount === 0 &&
       beforeProposal.amocrmAttemptCount === 0 &&
       beforeProposal.contactBindingCount === 0 &&
       beforeProposal.leadBindingCount === 0,
-    "Operator pass did not begin from a clean provider-mutation state",
+    "Operator or recovery pass did not begin from the exact preserved provider-mutation state",
   );
 
   await submitAdminGate(page);
@@ -1329,7 +1391,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
   ).toBeVisible();
   await expect(
     page.getByTestId("canonical-gemini-proposal-availability"),
-  ).toHaveAttribute("data-status", "ready");
+  ).toHaveAttribute("data-status", recoveryMode ? "blocked" : "ready");
   await expect(
     page.getByTestId("canonical-whatsapp-provider-availability"),
   ).toHaveAttribute("data-status", "configured");
@@ -1337,51 +1399,55 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
     page.getByTestId("canonical-whatsapp-outbound-recipient"),
   ).toHaveText(selfId);
 
-  await page.getByTestId("canonical-gemini-proposal-request").click();
-  const proposalActionState = page.getByTestId(
-    "canonical-gemini-proposal-action-state",
-  );
-  await expect
-    .poll(
-      async () =>
-        (await proposalActionState.getAttribute("data-status")) ?? "",
-      { timeout: 90_000 },
-    )
-    .toMatch(/^(?:blocked|created|error|invalid)$/u);
-  const proposalStatus = await proposalActionState.getAttribute("data-status");
-  if (proposalStatus !== "created") {
-    const proposalReason = await proposalActionState.getAttribute("data-reason");
-    ensure(
-      typeof proposalReason === "string" &&
-        /^[a-z][a-z0-9_]{0,63}$/u.test(proposalReason),
-      "The proposal-stage failure reason was not a bounded code",
+  if (!recoveryMode) {
+    await page.getByTestId("canonical-gemini-proposal-request").click();
+    const proposalActionState = page.getByTestId(
+      "canonical-gemini-proposal-action-state",
     );
-    const afterProposalFailure = await readMutationCounts(
-      databaseUrl,
-      leadId,
-      seed.conversationId,
-    );
-    ensure(
-      sameMutationCounts(beforeProposal, afterProposalFailure),
-      "The failed Gemini proposal stage changed canonical or provider mutation state",
-    );
-    await durableCreateJson(path.join(evidenceDir, "proposal-error.json"), {
-      schemaVersion: 1,
-      kind: "evo-v2-10d-proposal-error",
-      status: "stopped_before_review",
-      gitSha,
-      createdAt: new Date().toISOString(),
-      actionStatus: proposalStatus,
-      reasonCode: proposalReason,
-      providerMutationCounts: afterProposalFailure,
-      boundaries: {
-        humanReviewReached: false,
-        outboundDispatchReached: false,
-        amocrmSyncReached: false,
-        retryAuthorized: false,
-      },
-    });
-    throw new Error("The real Gemini proposal stopped before human review");
+    await expect
+      .poll(
+        async () =>
+          (await proposalActionState.getAttribute("data-status")) ?? "",
+        { timeout: 90_000 },
+      )
+      .toMatch(/^(?:blocked|created|error|invalid)$/u);
+    const proposalStatus =
+      await proposalActionState.getAttribute("data-status");
+    if (proposalStatus !== "created") {
+      const proposalReason =
+        await proposalActionState.getAttribute("data-reason");
+      ensure(
+        typeof proposalReason === "string" &&
+          /^[a-z][a-z0-9_]{0,63}$/u.test(proposalReason),
+        "The proposal-stage failure reason was not a bounded code",
+      );
+      const afterProposalFailure = await readMutationCounts(
+        databaseUrl,
+        leadId,
+        seed.conversationId,
+      );
+      ensure(
+        sameMutationCounts(beforeProposal, afterProposalFailure),
+        "The failed Gemini proposal stage changed canonical or provider mutation state",
+      );
+      await durableCreateJson(path.join(evidenceDir, "proposal-error.json"), {
+        schemaVersion: 1,
+        kind: "evo-v2-10d-proposal-error",
+        status: "stopped_before_review",
+        gitSha,
+        createdAt: new Date().toISOString(),
+        actionStatus: proposalStatus,
+        reasonCode: proposalReason,
+        providerMutationCounts: afterProposalFailure,
+        boundaries: {
+          humanReviewReached: false,
+          outboundDispatchReached: false,
+          amocrmSyncReached: false,
+          retryAuthorized: false,
+        },
+      });
+      throw new Error("The real Gemini proposal stopped before human review");
+    }
   }
   const latestProposal = page.getByTestId("canonical-gemini-proposal-latest");
   await expect(latestProposal).toBeVisible();
@@ -1431,35 +1497,66 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
       atReviewRequired.leadBindingCount === 0,
     "The Gemini proposal stage mutated WAHA or amoCRM state",
   );
-  await durableCreateJson(path.join(evidenceDir, "review-required.json"), {
-    schemaVersion: 1,
-    kind: "evo-v2-10d-human-review",
-    status: "review_required",
-    gitSha,
-    createdAt: new Date().toISOString(),
-    proposal: {
-      proposalIdSha256: sha256(pendingProposal.proposalId),
-      draftSha256: sha256(pendingProposal.proposalText),
-      modelSha256: sha256(pendingProposal.model),
-      proposalCount: pendingProposal.proposalCount,
-      reviewDecision: pendingProposal.reviewDecision,
-    },
-    providerMutation: {
-      wahaSendAttemptCount: atReviewRequired.wahaAttemptCount,
-      wahaOutboundMessageCount: atReviewRequired.outboundMessageCount,
-      amocrmProviderAttemptCount: atReviewRequired.amocrmAttemptCount,
-      amocrmBindingCount:
-        atReviewRequired.contactBindingCount +
-        atReviewRequired.leadBindingCount,
-    },
-    boundaries: {
-      target: "connected_waha_session_self_validation_entity",
-      humanActionRequired: true,
-      automatedReviewAction: false,
-      automatedSendAction: false,
-      rerunPolicy: "preserve_database_and_inspect_before_any_rerun",
-    },
-  });
+  if (recoveryMode) {
+    const reviewMarker = await privateJson(
+      path.join(evidenceDir, "review-required.json"),
+      "V2-10D preserved human-review marker",
+    );
+    const reviewMarkerProposal = record(
+      reviewMarker.proposal,
+      "V2-10D preserved proposal marker is invalid",
+    );
+    const reviewMarkerProviderMutation = record(
+      reviewMarker.providerMutation,
+      "V2-10D preserved provider counts are invalid",
+    );
+    ensure(
+      reviewMarker.status === "review_required" &&
+        reviewMarker.gitSha === gitSha &&
+        reviewMarkerProposal.proposalIdSha256 ===
+          sha256(pendingProposal.proposalId) &&
+        reviewMarkerProposal.draftSha256 ===
+          sha256(pendingProposal.proposalText) &&
+        reviewMarkerProposal.modelSha256 === sha256(pendingProposal.model) &&
+        reviewMarkerProposal.proposalCount === 1 &&
+        reviewMarkerProposal.reviewDecision === "pending" &&
+        reviewMarkerProviderMutation.wahaSendAttemptCount === 0 &&
+        reviewMarkerProviderMutation.wahaOutboundMessageCount === 0 &&
+        reviewMarkerProviderMutation.amocrmProviderAttemptCount === 0 &&
+        reviewMarkerProviderMutation.amocrmBindingCount === 0,
+      "The preserved review marker does not match PostgreSQL exactly",
+    );
+  } else {
+    await durableCreateJson(path.join(evidenceDir, "review-required.json"), {
+      schemaVersion: 1,
+      kind: "evo-v2-10d-human-review",
+      status: "review_required",
+      gitSha,
+      createdAt: new Date().toISOString(),
+      proposal: {
+        proposalIdSha256: sha256(pendingProposal.proposalId),
+        draftSha256: sha256(pendingProposal.proposalText),
+        modelSha256: sha256(pendingProposal.model),
+        proposalCount: pendingProposal.proposalCount,
+        reviewDecision: pendingProposal.reviewDecision,
+      },
+      providerMutation: {
+        wahaSendAttemptCount: atReviewRequired.wahaAttemptCount,
+        wahaOutboundMessageCount: atReviewRequired.outboundMessageCount,
+        amocrmProviderAttemptCount: atReviewRequired.amocrmAttemptCount,
+        amocrmBindingCount:
+          atReviewRequired.contactBindingCount +
+          atReviewRequired.leadBindingCount,
+      },
+      boundaries: {
+        target: "connected_waha_session_self_validation_entity",
+        humanActionRequired: true,
+        automatedReviewAction: false,
+        automatedSendAction: false,
+        rerunPolicy: "preserve_database_and_inspect_before_any_rerun",
+      },
+    });
+  }
 
   // Keep the outbound controls inert across the review refresh until the
   // durable dispatch marker exists. This does not choose a review or send;
@@ -1489,8 +1586,9 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
   // This is the real product decision. The headed browser remains on the
   // canonical review controls; Playwright deliberately does not click accept,
   // edit, or reject on behalf of the human operator.
+  const humanActionTimeout = recoveryMode ? 0 : 20 * 60 * 1_000;
   const finalReview = page.getByTestId("canonical-gemini-review-final");
-  await expect(finalReview).toBeVisible({ timeout: 20 * 60 * 1_000 });
+  await expect(finalReview).toBeVisible({ timeout: humanActionTimeout });
   const decision = await finalReview.getAttribute("data-review-decision");
   ensure(
     decision === "accepted" || decision === "edited" || decision === "rejected",
@@ -1582,6 +1680,10 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
     kind: "evo-v2-10d-real-provider-workflow",
     status: "dispatch_intent_recorded",
     gitSha,
+    recovery: {
+      occurred: recoveryMode,
+      codeSha: recoverySha,
+    },
     createdAt: new Date().toISOString(),
     review: {
       decision,
@@ -1649,7 +1751,7 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
   // headed browser. Playwright only observes the resulting canonical state.
   const sendState = page.getByTestId("canonical-whatsapp-outbound-state");
   await expect(sendState).toHaveAttribute("data-status", "accepted", {
-    timeout: 10 * 60 * 1_000,
+    timeout: recoveryMode ? 0 : 10 * 60 * 1_000,
   });
   await page.evaluate(() => {
     const scopedWindow = window as Window & {
@@ -1869,6 +1971,10 @@ test("one human-reviewed Gemini proposal drives one WAHA self-send and one amoCR
     kind: "evo-v2-10d-real-provider-workflow",
     status: "passed",
     gitSha,
+    recovery: {
+      occurred: recoveryMode,
+      codeSha: recoverySha,
+    },
     completedAt: new Date().toISOString(),
     action: "one_human_reviewed_self_send_then_one_admin_amocrm_sync",
     hashes: {

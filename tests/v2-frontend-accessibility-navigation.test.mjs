@@ -96,3 +96,30 @@ test("dark accent text keeps normal-text contrast without changing brand fills",
   assert.ok(contrast(token, "#3b1117") >= 4.5);
   assert.match(darkTheme, /--accent:\s*#d70217/);
 });
+
+test("shell navigation group labels never outrank the page heading", () => {
+  const nav = source("src/components/StaffNav.tsx");
+
+  assert.equal(nav.match(/<h1[\s>]/g), null);
+
+  // The desktop sidebar renders alongside <main>, so its group headings used
+  // to open the outline ahead of the page h1 on every staff route. They are
+  // labels now, with the same aria-labelledby association.
+  assert.match(nav, /<p id=\{headingId\} className="staff-nav-group__label">/);
+  assert.match(nav, /aria-labelledby=\{headingId\}/);
+  assert.equal(
+    nav.match(/<h2[\s>]/g)?.length,
+    1,
+    "only the mobile menu dialog title may be an h2",
+  );
+  assert.match(nav, /id="mobile-staff-menu-title"/);
+
+  // The mobile sheet is a modal <dialog> that is display:none at >=768px, so
+  // its group headings never competed with the page h1 and stay headings:
+  // they are how a 14-item, two-column menu is traversed.
+  assert.match(nav, /<h3 id=\{headingId\} className="staff-menu-sheet__group-label">/);
+
+  const styles = source("src/app/globals.css");
+  assert.match(styles, /\.staff-menu-sheet__group-label \{/);
+  assert.doesNotMatch(styles, /\.staff-menu-sheet__group h3 \{/);
+});

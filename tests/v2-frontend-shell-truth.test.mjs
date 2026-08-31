@@ -45,3 +45,42 @@ test("active shell copy describes PostgreSQL V2 without stale delivery slices", 
     /Supabase|\bU2\b|Этот PR|This PR|intake-композит|intake composite|fallback/i,
   );
 });
+
+test("the locale switcher never drags a legacy action module into a live route", () => {
+  const localeActions = source("src/lib/locale-actions.ts");
+  assert.match(localeActions, /^"use server";/);
+  assert.match(localeActions, /export async function setLocaleAction/);
+  assert.equal(
+    localeActions.match(/^export async function/gm)?.length,
+    1,
+    "the locale action module must export exactly one action",
+  );
+  for (const forbidden of ["./db", "./actions", "supabase", "better-sqlite3"]) {
+    assert.ok(
+      !localeActions.includes(forbidden),
+      `locale-actions must not import ${forbidden}`,
+    );
+  }
+
+  for (const switcher of [
+    "src/components/LangSwitcher.tsx",
+    "src/components/platform/PlatformLangSwitcher.tsx",
+    "src/components/platform/portal/PortalLanguageSwitcher.tsx",
+    "src/components/platform/portal/PortalShell.tsx",
+  ]) {
+    const moduleSource = source(switcher);
+    assert.match(
+      moduleSource,
+      /from "@\/lib\/locale-actions"/,
+      `${switcher} must use the isolated locale action`,
+    );
+    assert.ok(
+      !moduleSource.includes('from "@/lib/actions"'),
+      `${switcher} must not import the legacy SQLite action module`,
+    );
+    assert.ok(
+      !moduleSource.includes("platform-admissions-actions"),
+      `${switcher} must not import the Supabase action module`,
+    );
+  }
+});

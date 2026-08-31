@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "re
 import { usePathname } from "next/navigation";
 
 import { LOCALES, type Locale } from "@/lib/i18n-data";
-import { setPlatformLocaleAction } from "@/lib/platform-admissions-actions";
+import { setLocaleAction } from "@/lib/locale-actions";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
 
 import { PortalIcon } from "./PortalIcon";
@@ -38,7 +38,7 @@ export function PortalPlatformLanguageSwitcher({
 }) {
   return (
     <form
-      action={setPlatformLocaleAction}
+      action={setLocaleAction}
       aria-label={label}
       className={styles.languageForm}
     >

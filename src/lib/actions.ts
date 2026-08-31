@@ -2,7 +2,6 @@
 
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import {
   LEAD_STATUSES,
   STAGES,
@@ -18,7 +17,6 @@ import {
   type ClientAccessSubject,
   type ClientCapability,
 } from "./access";
-import { LOCALES, type Locale } from "./i18n-data";
 import { normalizePhone } from "./phone";
 import {
   canTransitionStudentCase,
@@ -111,14 +109,6 @@ function revalidateStaffCrm(clientId?: number | null) {
   revalidatePath("/tasks");
   revalidatePath("/finance");
   if (clientId) revalidatePath(`/clients/${clientId}`);
-}
-
-export async function setLocaleAction(form: FormData) {
-  const locale = str(form, "locale") as Locale;
-  if (!(LOCALES as readonly string[]).includes(locale)) return;
-  const store = await cookies();
-  store.set("locale", locale, { path: "/", maxAge: 60 * 60 * 24 * 365 });
-  revalidatePath("/", "layout");
 }
 
 // ---------- clients ----------

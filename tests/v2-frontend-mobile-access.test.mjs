@@ -32,3 +32,25 @@ test("selected WhatsApp work opens independently of the long mobile queue", () =
     /function queueHref\(queueCursor: CanonicalReadCursor \| null\) \{[\s\S]*before_at:[\s\S]*before_id:/,
   );
 });
+
+test("operational queue case links keep a practical target size", () => {
+  const routes = [
+    "src/app/(staff)/applications/page.tsx",
+    "src/app/(staff)/visa/page.tsx",
+    "src/app/(staff)/finance/page.tsx",
+  ];
+
+  for (const route of routes) {
+    const moduleSource = source(route);
+    assert.match(
+      moduleSource,
+      /className="inline-flex min-h-11 shrink-0 items-start pt-0\.5 text-\[12px\] font-semibold text-accent hover:underline"/,
+      `${route} must give its Student 360 link a 44 px target`,
+    );
+    assert.doesNotMatch(
+      moduleSource,
+      /className="shrink-0 text-\[12px\] font-semibold text-accent hover:underline"/,
+      `${route} must not keep the 17 px inline target`,
+    );
+  }
+});

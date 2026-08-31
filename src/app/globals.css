@@ -52,7 +52,9 @@
   --border-strong: #3b4048;
   --text: #f4f5f6;
   --text-2: #b4b8bf;
-  --text-3: #878c94;
+  /* Passes 4.5:1 on every dark surface, including the tinted *-weak
+     panels used by denied, blocked and status surfaces. */
+  --text-3: #979ca4;
   --accent: #d70217;
   --accent-text: #f24b58;
   --accent-2: #b00213;

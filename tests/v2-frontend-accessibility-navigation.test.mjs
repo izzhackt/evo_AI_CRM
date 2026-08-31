@@ -6,6 +6,33 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
+/**
+ * WCAG 2.x relative luminance and contrast ratio. One implementation for every
+ * contrast contract in this file, so the tests cannot drift apart.
+ */
+function relativeLuminance(hex) {
+  const channels = hex
+    .slice(1)
+    .match(/.{2}/g)
+    .map((part) => Number.parseInt(part, 16) / 255)
+    .map((value) =>
+      value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4,
+    );
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(foreground, background) {
+  const lighter = Math.max(
+    relativeLuminance(foreground),
+    relativeLuminance(background),
+  );
+  const darker = Math.min(
+    relativeLuminance(foreground),
+    relativeLuminance(background),
+  );
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 test("Student 360 exposes localized links to every core workflow section", () => {
   const workspace = source(
     "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
@@ -74,25 +101,67 @@ test("dark accent text keeps normal-text contrast without changing brand fills",
     /\[data-theme\] \.text-accent\s*\{\s*color:\s*var\(--accent-text\)/,
   );
 
-  const luminance = (hex) => {
-    const channels = hex
-      .slice(1)
-      .match(/.{2}/g)
-      .map((part) => Number.parseInt(part, 16) / 255)
-      .map((value) =>
-        value <= 0.04045
-          ? value / 12.92
-          : ((value + 0.055) / 1.055) ** 2.4,
-      );
-    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-  };
-  const contrast = (foreground, background) => {
-    const lighter = Math.max(luminance(foreground), luminance(background));
-    const darker = Math.min(luminance(foreground), luminance(background));
-    return (lighter + 0.05) / (darker + 0.05);
-  };
-
-  assert.ok(contrast(token, "#15171b") >= 4.5);
-  assert.ok(contrast(token, "#3b1117") >= 4.5);
+  assert.ok(contrastRatio(token, "#15171b") >= 4.5);
+  assert.ok(contrastRatio(token, "#3b1117") >= 4.5);
   assert.match(darkTheme, /--accent:\s*#d70217/);
+});
+
+test("dark muted text stays readable on every tinted surface", () => {
+  const styles = source("src/app/globals.css");
+  const darkBlock = styles.match(/\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(darkBlock, "the dark theme block must be readable");
+
+  function token(name) {
+    const match = darkBlock.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, "i"));
+    assert.ok(match, `dark --${name} must be a hex token`);
+    return match[1];
+  }
+
+  const mutedText = token("text-3");
+  const surfaces = [
+    "bg",
+    "surface",
+    "surface-2",
+    "surface-3",
+    "accent-weak",
+    "ok-weak",
+    "warn-weak",
+    "danger-weak",
+    "info-weak",
+    "violet-weak",
+  ];
+
+  for (const surface of surfaces) {
+    const ratio = contrastRatio(mutedText, token(surface));
+    assert.ok(
+      ratio >= 4.5,
+      `dark --text-3 on --${surface} is ${ratio.toFixed(2)}:1, below 4.5:1`,
+    );
+  }
+});
+
+test("dark accent text is pinned to the surfaces it is used on", () => {
+  const styles = source("src/app/globals.css");
+  const darkBlock = styles.match(/\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(darkBlock, "the dark theme block must be readable");
+
+  function token(name) {
+    const match = darkBlock.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, "i"));
+    assert.ok(match, `dark --${name} must be a hex token`);
+    return match[1];
+  }
+
+  // --accent-text clears 4.5:1 on these and only these; it fails on the other
+  // tinted surfaces (ok/warn/info/violet-weak, surface-3). This pins the token
+  // so a change to it cannot silently drop one of the surfaces it is used on.
+  // It does not police pairings: those are cross-element (tint on a parent,
+  // text on a nested child) and a class-string check cannot see them.
+  const accentText = token("accent-text");
+  for (const surface of ["bg", "surface", "surface-2", "accent-weak"]) {
+    const ratio = contrastRatio(accentText, token(surface));
+    assert.ok(
+      ratio >= 4.5,
+      `dark --accent-text on --${surface} is ${ratio.toFixed(2)}:1, below 4.5:1`,
+    );
+  }
 });

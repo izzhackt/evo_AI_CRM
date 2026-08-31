@@ -161,7 +161,7 @@ const INITIAL_STATE: CanonicalAmoCrmCommandActionState = Object.freeze({
 });
 
 function stateTone(status: CanonicalAmoCrmCommandActionState["status"]): string {
-  if (status === "accepted") return "border-success/30 bg-success-weak text-success";
+  if (status === "accepted") return "border-ok/30 bg-ok-weak text-ok";
   if (status === "unknown" || status === "blocked") {
     return "border-warn/30 bg-warn-weak text-warn";
   }
@@ -196,7 +196,7 @@ function ResultState({
             {state.steps.map((step, index) => (
               <li
                 key={`${step.operationName}-${index}`}
-                className="flex items-center justify-between gap-3 rounded-control bg-surface/70 px-2.5 py-2 text-[12px] text-fg-2"
+                className="flex items-center justify-between gap-3 rounded-ctl bg-surface/70 px-2.5 py-2 text-[12px] text-fg-2"
                 data-testid="canonical-amocrm-command-step"
                 data-operation={step.operationName}
                 data-status={step.status}
@@ -339,9 +339,9 @@ export function CanonicalAmoCrmCommandPanel({
         </p>
         <div
           className={cn(
-            "rounded-control border px-3 py-2 text-[12px] font-medium",
+            "rounded-ctl border px-3 py-2 text-[12px] font-medium",
             ready
-              ? "border-success/30 bg-success-weak text-success"
+              ? "border-ok/30 bg-ok-weak text-ok"
               : "border-warn/30 bg-warn-weak text-warn",
           )}
           data-testid="canonical-amocrm-provider-availability"

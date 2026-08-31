@@ -281,9 +281,9 @@ export function CanonicalGeminiProposalPanel({
 
       <div
         className={cn(
-          "rounded-control border px-3 py-2 text-[13px]",
+          "rounded-ctl border px-3 py-2 text-[13px]",
           availability.status === "ready"
-            ? "border-success/30 bg-success-weak text-success"
+            ? "border-ok/30 bg-ok-weak text-ok"
             : "border-info/30 bg-info-weak text-info",
         )}
         data-testid="canonical-gemini-proposal-availability"
@@ -326,7 +326,7 @@ export function CanonicalGeminiProposalPanel({
         <h4 className="text-[13px] font-semibold text-fg">{copy.latest}</h4>
         {proposal ? (
           <blockquote
-            className="mt-2 whitespace-pre-wrap rounded-control border border-border bg-surface px-3 py-3 text-[13.5px] leading-6 text-fg"
+            className="mt-2 whitespace-pre-wrap rounded-ctl border border-border bg-surface px-3 py-3 text-[13.5px] leading-6 text-fg"
             data-testid="canonical-gemini-proposal-latest"
             data-proposal-id={proposal.proposalId}
             data-source-message-id={proposal.sourceMessageId}
@@ -396,7 +396,7 @@ export function CanonicalGeminiProposalPanel({
               required
               maxLength={3000}
               rows={5}
-              className="w-full rounded-control border border-border bg-surface px-3 py-2 text-[13.5px] leading-6 text-fg"
+              className="w-full rounded-ctl border border-border bg-surface px-3 py-2 text-[13.5px] leading-6 text-fg"
               data-testid="canonical-gemini-review-edited-text"
             />
             <button
@@ -435,7 +435,7 @@ export function CanonicalGeminiProposalPanel({
               maxLength={2000}
               rows={3}
               placeholder={copy.rejectPlaceholder}
-              className="w-full rounded-control border border-border bg-surface px-3 py-2 text-[13.5px] leading-6 text-fg"
+              className="w-full rounded-ctl border border-border bg-surface px-3 py-2 text-[13.5px] leading-6 text-fg"
               data-testid="canonical-gemini-review-reason"
             />
             <button
@@ -455,7 +455,7 @@ export function CanonicalGeminiProposalPanel({
           role="status"
           className={cn(
             "text-[13px] leading-6",
-            reviewState.status === "reviewed" ? "text-success" : "text-danger",
+            reviewState.status === "reviewed" ? "text-ok" : "text-danger",
           )}
           data-testid="canonical-gemini-review-action-state"
           data-status={reviewState.status}
@@ -467,7 +467,7 @@ export function CanonicalGeminiProposalPanel({
 
       {proposal && proposal.reviewDecision !== "pending" ? (
         <div
-          className="space-y-2 rounded-control border border-success/30 bg-success-weak px-3 py-3 text-[13px] text-fg"
+          className="space-y-2 rounded-ctl border border-ok/30 bg-ok-weak px-3 py-3 text-[13px] text-fg"
           data-testid="canonical-gemini-review-final"
           data-review-decision={proposal.reviewDecision}
         >

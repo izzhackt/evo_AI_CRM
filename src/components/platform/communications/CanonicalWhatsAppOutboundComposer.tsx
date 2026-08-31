@@ -196,9 +196,9 @@ export function CanonicalWhatsAppOutboundComposer({
 
       <div
         className={cn(
-          "rounded-control border px-3 py-2 text-[13px]",
+          "rounded-ctl border px-3 py-2 text-[13px]",
           configured
-            ? "border-success/30 bg-success-weak text-success"
+            ? "border-ok/30 bg-ok-weak text-ok"
             : "border-warn/30 bg-warn-weak text-warn",
         )}
         data-testid="canonical-whatsapp-provider-availability"
@@ -228,7 +228,7 @@ export function CanonicalWhatsAppOutboundComposer({
             {copy.recipient}
           </p>
           <code
-            className="mt-1 block break-all rounded-control border border-border bg-surface px-3 py-2 text-[13px] text-fg"
+            className="mt-1 block break-all rounded-ctl border border-border bg-surface px-3 py-2 text-[13px] text-fg"
             data-testid="canonical-whatsapp-outbound-recipient"
           >
             {recipientChatId ?? "—"}
@@ -252,7 +252,7 @@ export function CanonicalWhatsAppOutboundComposer({
             setMessageText(event.target.value);
             setConfirmed(false);
           }}
-          className="w-full rounded-control border border-border bg-surface px-3 py-2 text-[13.5px] leading-6 text-fg"
+          className="w-full rounded-ctl border border-border bg-surface px-3 py-2 text-[13.5px] leading-6 text-fg"
           data-testid="canonical-whatsapp-outbound-text"
         />
 
@@ -299,7 +299,7 @@ export function CanonicalWhatsAppOutboundComposer({
           role="status"
           className={cn(
             "text-[13px] leading-6",
-            sendState.status === "accepted" ? "text-success" : "text-danger",
+            sendState.status === "accepted" ? "text-ok" : "text-danger",
           )}
           data-testid="canonical-whatsapp-outbound-state"
           data-status={sendState.status}
@@ -350,7 +350,7 @@ export function CanonicalWhatsAppOutboundComposer({
             className={cn(
               "text-[12px]",
               reconcileState.status === "reconciled"
-                ? "text-success"
+                ? "text-ok"
                 : "text-danger",
             )}
             data-testid="canonical-whatsapp-reconcile-state"

@@ -155,7 +155,8 @@ test("sales workspace links canonical UUID records and owns workflow actions", (
   assert.match(workspaceSource, /href=\{`\/sales\/\$\{lead\.leadId\}`\}/);
   assert.match(workspaceSource, /data-testid="canonical-lead-row"/);
   assert.match(workspaceSource, /data-record-version=\{lead\.version\}/);
-  assert.match(workspaceSource, /sales-inbound-blocked/);
+  assert.match(workspaceSource, /PostgreSQL V2/);
+  assert.doesNotMatch(workspaceSource, /sales-inbound-blocked|Этот PR|\bU2\b|supabase/i);
   assert.match(workspaceSource, /canonical-records-unavailable/);
 });
 

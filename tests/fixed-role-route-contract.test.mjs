@@ -128,7 +128,8 @@ test("the documents route is a read-only canonical queue linked to Student 360",
     canonicalDocumentsLayoutSource,
     /requirePlatformDocumentsActor\(\)/,
   );
-  assert.match(staffLayoutSource, /CONNECTED_STAFF_ROUTES[\s\S]*"\/documents"/);
+  assert.match(staffLayoutSource, /new Set\(FIXED_ROLE_ROUTES\)/);
+  assert.doesNotMatch(staffLayoutSource, /CONNECTED_STAFF_ROUTES/);
 });
 
 test("fixed roles resolve to their exact private workspaces", () => {

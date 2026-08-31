@@ -49,5 +49,11 @@ test("the staff shell renders exact effective-role navigation and an Admin contr
     layoutSource,
     /loadFixtureShellProvider|Legacy|Connected|isUiContractFixtureMode|settings\?tab=staff/,
   );
+  assert.match(layoutSource, /readCanonicalAmoCrmProviderAvailability/);
+  assert.match(layoutSource, /readCanonicalWahaProviderAvailability/);
+  assert.match(layoutSource, /readCanonicalGeminiProposalAvailability/);
+  assert.match(layoutSource, /providerDisplayStatus/);
   assert.doesNotMatch(topBarSource, /connectedRoutesOnly|notification-menu|ADD_ROUTES/);
+  assert.match(topBarSource, /integrationStatus\.ai/);
+  assert.doesNotMatch(topBarSource, /<h1/);
 });

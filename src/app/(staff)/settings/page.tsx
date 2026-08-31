@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
+
 import { Card, PageHeader } from "@/components/ui";
 import { selectDevelopmentRolePreviewAction } from "@/lib/development-gate-actions";
 import { requirePlatformCapability } from "@/lib/platform-guards";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 
 const ROLE_COPY = {
   admin: {
@@ -16,6 +19,14 @@ const ROLE_COPY = {
     description: "Переданные Student 360, документы, applications и visa.",
   },
 } as const;
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildRouteMetadata({
+    ru: "Настройки",
+    ky: "Жөндөөлөр",
+    en: "Settings",
+  });
+}
 
 export default async function SettingsPage() {
   const actor = await requirePlatformCapability("admin.preview", "/settings");

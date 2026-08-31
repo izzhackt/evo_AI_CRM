@@ -1,3 +1,6 @@
+import type { Metadata } from "next";
+
+import { buildRouteMetadata } from "@/lib/route-metadata";
 import { SalesWorkspace } from "./SalesWorkspace";
 
 type SalesSearchParams = Readonly<{
@@ -7,6 +10,14 @@ type SalesSearchParams = Readonly<{
   q?: string | string[];
   stage?: string | string[];
 }>;
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildRouteMetadata({
+    ru: "Лиды EVO",
+    ky: "EVO лиддери",
+    en: "EVO leads",
+  });
+}
 
 export default async function SalesPageContent({
   searchParams,

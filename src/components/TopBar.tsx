@@ -7,23 +7,26 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Icon } from "@/components/icons";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
 import type { Locale } from "@/lib/i18n-data";
+import type { ProviderDisplayStatus } from "@/lib/provider-display-status";
 
 type Meta = { title: string; hint?: string };
-
-type ProviderState = "not_configured" | "configured_not_verified" | "blocked";
 
 const STATUS_COPY: Record<
   Locale,
   {
     platform: string;
-    ai: string;
-    amo: Record<ProviderState, string>;
-    whatsapp: Record<ProviderState, string>;
+    ai: Record<ProviderDisplayStatus, string>;
+    amo: Record<ProviderDisplayStatus, string>;
+    whatsapp: Record<ProviderDisplayStatus, string>;
   }
 > = {
   ru: {
     platform: "EVO Platform",
-    ai: "AI: только черновики",
+    ai: {
+      not_configured: "Gemini: не настроено",
+      configured_not_verified: "Gemini: настроено, не проверено",
+      blocked: "Gemini: заблокировано",
+    },
     amo: {
       not_configured: "amoCRM: не настроено",
       configured_not_verified: "amoCRM: настроено, не проверено",
@@ -37,7 +40,11 @@ const STATUS_COPY: Record<
   },
   ky: {
     platform: "EVO Platform",
-    ai: "AI: черновик гана",
+    ai: {
+      not_configured: "Gemini: жөндөлгөн эмес",
+      configured_not_verified: "Gemini: жөндөлгөн, текшерилген жок",
+      blocked: "Gemini: бөгөттөлгөн",
+    },
     amo: {
       not_configured: "amoCRM: жөндөлгөн эмес",
       configured_not_verified: "amoCRM: жөндөлгөн, текшерилген жок",
@@ -51,7 +58,11 @@ const STATUS_COPY: Record<
   },
   en: {
     platform: "EVO Platform",
-    ai: "AI: drafts only",
+    ai: {
+      not_configured: "Gemini: not configured",
+      configured_not_verified: "Gemini: configured, not verified",
+      blocked: "Gemini: blocked",
+    },
     amo: {
       not_configured: "amoCRM: not configured",
       configured_not_verified: "amoCRM: configured, not verified",
@@ -77,8 +88,9 @@ export function TopBar({
   locale: Locale;
   themeLabel: string;
   integrationStatus: {
-    amo: ProviderState;
-    whatsapp: ProviderState;
+    ai: ProviderDisplayStatus;
+    amo: ProviderDisplayStatus;
+    whatsapp: ProviderDisplayStatus;
   };
   homeHref?: string;
   languageSwitcher: ReactNode;
@@ -87,6 +99,7 @@ export function TopBar({
   const base = `/${pathname.split("/")[1] ?? ""}`;
   const meta = titles[base] ?? titles["/dashboard"];
   const statusCopy = STATUS_COPY[locale];
+  const aiStatusCopy = statusCopy.ai[integrationStatus.ai];
   const amoStatusCopy = statusCopy.amo[integrationStatus.amo];
   const whatsappStatusCopy = statusCopy.whatsapp[integrationStatus.whatsapp];
 
@@ -101,13 +114,13 @@ export function TopBar({
           <div className="staff-topbar__breadcrumb" aria-label={`${statusCopy.platform}: ${meta.title}`}>
             <span>{statusCopy.platform}</span>
             <Icon name="chevron-right" size={14} />
-            <h1 className="staff-topbar__desktop-title">{meta.title}</h1>
+            <p className="staff-topbar__desktop-title">{meta.title}</p>
           </div>
-          <h1 className="staff-topbar__mobile-title">{meta.title}</h1>
+          <p className="staff-topbar__mobile-title">{meta.title}</p>
           {meta.hint && <p className="staff-topbar__hint">{meta.hint}</p>}
         </div>
 
-        <div className="staff-topbar__status" aria-label={`${amoStatusCopy}; ${whatsappStatusCopy}; ${statusCopy.ai}`}>
+        <div className="staff-topbar__status" aria-label={`${amoStatusCopy}; ${whatsappStatusCopy}; ${aiStatusCopy}`}>
           <span className={`provider-status provider-status--${integrationStatus.amo.replaceAll("_", "-")}`}>
             <span className="provider-status__dot" aria-hidden="true" />
             {amoStatusCopy}
@@ -116,9 +129,9 @@ export function TopBar({
             <span className="provider-status__dot" aria-hidden="true" />
             {whatsappStatusCopy}
           </span>
-          <span className="provider-status provider-status--draft">
+          <span className={`provider-status provider-status--${integrationStatus.ai.replaceAll("_", "-")}`}>
             <span className="provider-status__dot" aria-hidden="true" />
-            {statusCopy.ai}
+            {aiStatusCopy}
           </span>
         </div>
 
@@ -139,9 +152,9 @@ export function TopBar({
             <span className="provider-status__dot" aria-hidden="true" />
             {whatsappStatusCopy}
           </span>
-          <span className="provider-status provider-status--draft">
+          <span className={`provider-status provider-status--${integrationStatus.ai.replaceAll("_", "-")}`}>
             <span className="provider-status__dot" aria-hidden="true" />
-            {statusCopy.ai}
+            {aiStatusCopy}
           </span>
         </div>
         <div className="staff-topbar__mobile-language">

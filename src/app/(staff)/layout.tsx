@@ -10,11 +10,22 @@ import {
   selectDevelopmentRolePreviewAction,
 } from "@/lib/development-gate-actions";
 import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
-import { isFixedRole, type FixedRole } from "@/lib/fixed-role-policy";
+import {
+  FIXED_ROLE_ROUTES,
+  isFixedRole,
+  type FixedRole,
+} from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import type { StaffRole } from "@/lib/roles";
 import { formatReleaseLabel, readReleaseMetadata } from "@/lib/release-metadata";
+import {
+  providerDisplayStatus,
+  type ProviderDisplayStatus,
+} from "@/lib/provider-display-status";
+import { readCanonicalAmoCrmProviderAvailability } from "@/lib/server/canonical-amocrm-provider-config";
+import { readCanonicalGeminiProposalAvailability } from "@/lib/server/canonical-gemini-proposal-config";
+import { readCanonicalWahaProviderAvailability } from "@/lib/server/canonical-waha-provider";
 
 const NAV_GROUP_DEFS = [
   { key: "navOperations", hrefs: ["/dashboard", "/sales", "/clients", "/applications", "/documents", "/visa"] },
@@ -22,16 +33,6 @@ const NAV_GROUP_DEFS = [
   { key: "navAnalytics", hrefs: ["/tasks", "/reports", "/finance"] },
   { key: "navSystem", hrefs: ["/settings"] },
 ] as const;
-
-const CONNECTED_STAFF_ROUTES = new Set([
-  "/sales",
-  "/clients",
-  "/applications",
-  "/documents",
-  "/tasks",
-  "/whatsapp",
-  "/settings",
-]);
 
 const SHELL_COPY: Record<
   Locale,
@@ -81,8 +82,9 @@ type ShellProvider = {
   logout: () => Promise<void>;
   LanguageSwitcher: ComponentType<{ current: Locale }>;
   integrationStatus: {
-    amo: "not_configured" | "configured_not_verified" | "blocked";
-    whatsapp: "not_configured" | "configured_not_verified" | "blocked";
+    ai: ProviderDisplayStatus;
+    amo: ProviderDisplayStatus;
+    whatsapp: ProviderDisplayStatus;
   };
 };
 
@@ -106,6 +108,9 @@ async function loadShellProvider(): Promise<ShellProvider> {
   if (!isFixedRole(actor.platformRole) || !isStaffRole(actor.platformRole)) {
     throw new Error("fixed_role_shell_received_unsupported_role");
   }
+  const amoAvailability = readCanonicalAmoCrmProviderAvailability();
+  const geminiAvailability = readCanonicalGeminiProposalAvailability();
+  const wahaAvailability = readCanonicalWahaProviderAvailability();
 
   return {
     user: {
@@ -114,12 +119,13 @@ async function loadShellProvider(): Promise<ShellProvider> {
       authorityRole: actor.authorityRole,
     },
     homeHref: guards.platformHomeRoute(actor.platformRole),
-    availableRoutes: new Set(CONNECTED_STAFF_ROUTES),
+    availableRoutes: new Set(FIXED_ROLE_ROUTES),
     logout: logoutDevelopmentGateAction,
     LanguageSwitcher: language.PlatformLangSwitcher,
     integrationStatus: {
-      amo: "blocked",
-      whatsapp: "blocked",
+      ai: providerDisplayStatus(geminiAvailability),
+      amo: providerDisplayStatus(amoAvailability),
+      whatsapp: providerDisplayStatus(wahaAvailability),
     },
   };
 }

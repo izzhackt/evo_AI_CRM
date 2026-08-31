@@ -14,8 +14,8 @@ export const CANONICAL_RECORD_COPY = {
   ru: {
     authorityTitle: "Источник истины — EVO",
     authorityBody:
-      "Личность, текущий этап и ответственный читаются из канонической модели EVO в Supabase. Внешние ID, переписка и Student Case показаны только как связанные источники и контекст.",
-    readOnly: "Только чтение в U2",
+      "Личность, текущий этап и ответственный читаются из канонической модели EVO в локальной PostgreSQL V2. Внешние ID, переписка и Student Case показаны только как связанный контекст, а не как второй источник истины.",
+    readOnly: "Только чтение в текущем срезе",
     canonicalId: "EVO UUID",
     externalIdentifiers: "Внешние идентификаторы",
     provenance: "Происхождение данных",
@@ -40,8 +40,8 @@ export const CANONICAL_RECORD_COPY = {
   ky: {
     authorityTitle: "Чындыктын булагы — EVO",
     authorityBody:
-      "Инсан, учурдагы этап жана жооптуу кызматкер Supabase'теги EVO каноникалык моделинен окулат. Тышкы ID, кат алышуу жана Student Case байланышкан булак жана контекст катары гана көрсөтүлөт.",
-    readOnly: "U2де окуу гана",
+      "Инсан, учурдагы этап жана жооптуу кызматкер жергиликтүү PostgreSQL V2деги EVO каноникалык моделинен окулат. Тышкы ID, кат алышуу жана Student Case экинчи чындык булагы эмес, байланышкан контекст катары гана көрсөтүлөт.",
+    readOnly: "Учурдагы кесимде окуу гана",
     canonicalId: "EVO UUID",
     externalIdentifiers: "Тышкы идентификаторлор",
     provenance: "Маалыматтын келип чыгышы",
@@ -66,8 +66,8 @@ export const CANONICAL_RECORD_COPY = {
   en: {
     authorityTitle: "Source of truth — EVO",
     authorityBody:
-      "Identity, current stage, and owner come from EVO's canonical model in Supabase. External IDs, conversations, and Student Cases are shown only as linked source evidence and context.",
-    readOnly: "Read-only in U2",
+      "Identity, current stage, and owner come from EVO's local PostgreSQL V2 canonical model. External IDs, conversations, and Student Cases are shown only as linked context, not as a second source of truth.",
+    readOnly: "Read-only in this runtime",
     canonicalId: "EVO UUID",
     externalIdentifiers: "External identifiers",
     provenance: "Data provenance",

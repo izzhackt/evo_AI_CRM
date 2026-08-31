@@ -99,7 +99,8 @@ test("the active tasks route is one canonical Admissions queue", () => {
     /@\/lib\/(?:actions|db|queries)|requireStaffRoute|TASK_COLUMNS|TASK_PRIORITIES|listTasksForActor|fallback/i,
   );
 
-  assert.match(shellSource, /CONNECTED_STAFF_ROUTES[\s\S]*"\/tasks"/);
+  assert.match(shellSource, /new Set\(FIXED_ROLE_ROUTES\)/);
+  assert.doesNotMatch(shellSource, /CONNECTED_STAFF_ROUTES/);
   assert.match(
     domainSource,
     /href: APP_ROUTES\.staff\.tasks,[\s\S]*?allowedRoles: \["admin", "admissions"\]/,

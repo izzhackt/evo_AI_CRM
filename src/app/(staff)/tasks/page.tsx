@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -6,7 +7,16 @@ import {
 } from "@/components/platform/admissions/CanonicalAdmissionsTaskPanel";
 import { getT } from "@/lib/i18n";
 import { requirePlatformCapability } from "@/lib/platform-guards";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 import { listCanonicalAdmissionsTasks } from "@/lib/server/canonical-crm-repository";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildRouteMetadata({
+    ru: "Задачи команды",
+    ky: "Команданын тапшырмалары",
+    en: "Team tasks",
+  });
+}
 
 export default async function TasksPage() {
   const [{ locale }, actor] = await Promise.all([

@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Card, btnGhostCls, cn } from "@/components/ui";
 import { getT } from "@/lib/i18n";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 import { requirePlatformCapability } from "@/lib/platform-guards";
 import {
   CanonicalCrmRepositoryError,
@@ -68,6 +70,14 @@ const COPY = {
     },
   },
 } as const;
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildRouteMetadata({
+    ru: COPY.ru.title,
+    ky: COPY.ky.title,
+    en: COPY.en.title,
+  });
+}
 
 const STATUS_CLASS = {
   pending: "bg-surface-2 text-fg-2",

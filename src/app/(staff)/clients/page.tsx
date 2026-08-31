@@ -1,1 +1,1 @@
-export { default } from "./ClientsPageContent";
+export { default, generateMetadata } from "./ClientsPageContent";

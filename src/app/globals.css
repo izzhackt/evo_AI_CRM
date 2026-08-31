@@ -29,8 +29,6 @@
   --danger-weak: #fceaea;
   --info: #14548f;
   --info-weak: #e7f0f9;
-  --violet: #7e4bc9;
-  --violet-weak: #f0eafa;
   --focus-ring: #d70217;
   --focus-halo: rgb(215 2 23 / 0.16);
   --sidebar: #131519;
@@ -68,8 +66,6 @@
   --danger-weak: #431c1c;
   --info: #72ace0;
   --info-weak: #18344e;
-  --violet: #b899e8;
-  --violet-weak: #312545;
   --focus-ring: #ff5263;
   --focus-halo: rgb(215 2 23 / 0.34);
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -10px rgb(0 0 0 / 0.5);
@@ -115,7 +111,6 @@
   --evo-sidebar-active: var(--accent);
   --evo-stage-processing: var(--info);
   --evo-stage-qualified: var(--accent);
-  --evo-stage-meeting: var(--violet);
   --evo-stage-done: var(--warn);
   --evo-stage-won: var(--ok);
   --evo-stage-lost: var(--text-3);
@@ -145,8 +140,6 @@
   --color-danger-weak: var(--danger-weak);
   --color-info: var(--info);
   --color-info-weak: var(--info-weak);
-  --color-violet: var(--violet);
-  --color-violet-weak: var(--violet-weak);
 
   --color-background: var(--bg);
   --color-foreground: var(--text);
@@ -201,7 +194,10 @@ textarea {
    caret, selection and data numerals are the cheapest signal that a page was
    built rather than assembled. */
 html {
-  caret-color: var(--accent);
+  /* --accent-text, not --accent: the raw brand red sits at 3.04:1 on dark
+     surfaces, and the themed token is what every other accent-tinted
+     element in this sheet already uses. */
+  caret-color: var(--accent-text);
 }
 
 /* Identifiers, money, dates and versions must align column to column. */
@@ -245,14 +241,32 @@ table th,
 
 .evo-iso-field {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  /* Decoration only: never intercepts a click or a caret. */
+  /* A corner wedge, not a full-bleed wash. Two reasons, and the second is
+     the binding one:
+     1. the logobook composes Pattern No. 1 into one corner, leaving the rest
+        of the page clear;
+     2. axe resolves an element's background by walking what covers it, and it
+        cannot compute an SVG's contribution -- so any decoration lying over
+        text turns every contrast check underneath it from a violation into an
+        `incomplete`, which no gate fails on. A full-bleed field blinded the
+        contrast check on 12 elements of /login, the one page every person
+        meets. Decoration must never be able to do that, so this occupies a
+        region that carries no text, and disappears entirely when the viewport
+        is too small to guarantee that. */
+  inset: auto 0 0 auto;
+  width: 34%;
+  height: 38%;
   pointer-events: none;
-  color: var(--accent);
   user-select: none;
+  --evo-iso-ink: var(--accent);
 }
+
+@media (width < 1024px) {
+  .evo-iso-field {
+    display: none;
+  }
+}
+
 
 /* Shared EVO identity */
 .evo-wordmark {
@@ -295,7 +309,6 @@ table th,
   /* 10.55:1 on the sidebar ground. */
   color: #c1c5cb;
 }
-
 
 /* Staff shell */
 .skip-link {

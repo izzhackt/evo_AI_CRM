@@ -14,7 +14,9 @@ export type EvoMarkTone = "brand" | "inverted" | "mono";
 
 const TONE_FILL: Record<EvoMarkTone, string> = {
   brand: "var(--accent)",
-  inverted: "var(--on-accent)",
+  // On the dark sidebar, which is not an accent surface -- so this is
+  // white, not "the foreground that sits on accent".
+  inverted: "#ffffff",
   mono: "currentColor",
 };
 
@@ -32,7 +34,6 @@ export function EvoMark({
       viewBox="0 0 100 100"
       width={size}
       height={size}
-      role="presentation"
       aria-hidden="true"
       focusable="false"
       className={className}

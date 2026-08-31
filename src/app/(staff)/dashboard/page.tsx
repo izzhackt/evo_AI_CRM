@@ -25,7 +25,7 @@ import {
 const FUNNEL_BAR: Record<string, string> = {
   processing_mp: "bg-info",
   qualified: "bg-accent",
-  meeting_scheduled: "bg-surface-3",
+  meeting_scheduled: "bg-fg-2",
   meeting_done: "bg-warn",
   contract_signed: "bg-ok",
 };

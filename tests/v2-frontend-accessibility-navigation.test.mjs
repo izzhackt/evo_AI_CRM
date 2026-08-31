@@ -160,8 +160,11 @@ test("scrollable inbox regions are reachable by keyboard", () => {
 test("hand-written accent text uses the theme-aware accent token", () => {
   const styles = source("src/app/globals.css");
 
+  // Anchored to the `color` property itself: the previous pattern also
+  // matched the tail of `caret-color: var(--accent);`, which is not a text
+  // colour, so it would have failed on a correct change.
   assert.equal(
-    styles.match(/color: var\(--accent\);/g),
+    styles.match(/(?:^|[\s;{])color: var\(--accent\);/gm),
     null,
     "raw --accent must never be used as a text colour; it fails 4.5:1 on dark surfaces",
   );
@@ -222,7 +225,6 @@ test("dark muted text stays readable on every tinted surface", () => {
     "warn-weak",
     "danger-weak",
     "info-weak",
-    "violet-weak",
   ];
 
   for (const surface of surfaces) {
@@ -246,7 +248,7 @@ test("dark accent text is pinned to the surfaces it is used on", () => {
   }
 
   // --accent-text clears 4.5:1 on these and only these; it fails on the other
-  // tinted surfaces (ok/warn/info/violet-weak, surface-3). This pins the token
+  // tinted surfaces (ok/warn/info-weak, surface-3). This pins the token
   // so a change to it cannot silently drop one of the surfaces it is used on.
   // It does not police pairings: those are cross-element (tint on a parent,
   // text on a nested child) and a class-string check cannot see them.

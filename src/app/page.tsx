@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EvoIsometricField } from "@/components/platform/brand/EvoIsometricField";
+import { EvoMark } from "@/components/platform/brand/EvoMark";
 
 import {
   logoutDevelopmentGateAction,
@@ -55,12 +56,10 @@ export default async function Home() {
       className="relative min-h-dvh bg-bg px-4 py-8 text-fg sm:px-8"
     >
       <EvoIsometricField />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-6">
         <header className="flex flex-wrap items-center justify-between gap-4 rounded-[20px] border border-border bg-surface px-5 py-4 shadow-evo">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-[11px] bg-accent text-lg font-bold text-on-accent">
-              E
-            </span>
+            <EvoMark size={30} />
             <span>
               <span className="block text-base font-bold">EVO Admissions CRM</span>
               <span className="block text-xs text-fg-3">Private local V2</span>

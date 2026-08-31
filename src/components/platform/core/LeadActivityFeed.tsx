@@ -4,7 +4,7 @@ import { Icon, type IconName } from "@/components/icons";
 const ACT_CHIP: Record<string, { icon: IconName; cls: string }> = {
   wa: { icon: "message-circle", cls: "bg-ok-weak text-ok" },
   call: { icon: "phone", cls: "bg-info-weak text-info" },
-  note: { icon: "message-square", cls: "bg-violet-weak text-violet" },
+  note: { icon: "message-square", cls: "bg-surface-2 text-fg-2" },
   status: { icon: "funnel", cls: "bg-accent-weak text-accent" },
 };
 

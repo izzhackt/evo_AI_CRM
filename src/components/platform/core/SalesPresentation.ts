@@ -9,7 +9,7 @@ const LOCALE_TAG: Record<Locale, string> = {
 export const SALES_STAGE_TONE = {
   processing_mp: "bg-info",
   qualified: "bg-accent",
-  meeting_scheduled: "bg-violet",
+  meeting_scheduled: "bg-surface-3",
   meeting_done: "bg-warn",
   contract_signed: "bg-ok",
   no_request: "bg-border-strong",

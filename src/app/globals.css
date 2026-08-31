@@ -197,6 +197,22 @@ textarea {
   font-feature-settings: "tnum";
 }
 
+/* Browser surfaces ship as defaults belonging to no design system. The
+   caret, selection and data numerals are the cheapest signal that a page was
+   built rather than assembled. */
+html {
+  caret-color: var(--accent);
+}
+
+/* Identifiers, money, dates and versions must align column to column. */
+.font-mono,
+table td,
+table th,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
 ::selection {
   background: var(--accent-weak);
 }
@@ -227,11 +243,22 @@ textarea {
   background-clip: content-box;
 }
 
+.evo-iso-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Decoration only: never intercepts a click or a caret. */
+  pointer-events: none;
+  color: var(--accent);
+  user-select: none;
+}
+
 /* Shared EVO identity */
 .evo-wordmark {
   display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
+  align-items: center;
+  gap: 9px;
   white-space: nowrap;
   color: var(--text);
   line-height: 1;
@@ -239,28 +266,36 @@ textarea {
 .evo-wordmark--inverted {
   color: #ffffff;
 }
+.evo-wordmark__mark {
+  flex: none;
+}
+.evo-wordmark__lettering {
+  display: flex;
+  flex-direction: column;
+  /* The logobook stacks ADMISSIONS under EVO on a shared left edge. */
+  gap: 3px;
+}
 .evo-wordmark__name {
   font-size: 19px;
   font-weight: 800;
   letter-spacing: -0.025em;
 }
-.evo-wordmark__dot {
-  width: 6px;
-  height: 6px;
-  flex: none;
-  align-self: center;
-  border-radius: 999px;
-  background: #d70217;
-}
 .evo-wordmark__admissions {
-  position: relative;
-  top: -1px;
   font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  /* Wide tracking is the lockup's own proportion, not UI tracking. */
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  opacity: 0.72;
+  /* Solid, never an opacity: text whose colour depends on what happens to be
+     painted behind it cannot be contrast-checked, by a tool or by a person.
+     5.09:1 on the page ground. */
+  color: var(--text-3);
 }
+.evo-wordmark--inverted .evo-wordmark__admissions {
+  /* 10.55:1 on the sidebar ground. */
+  color: #c1c5cb;
+}
+
 
 /* Staff shell */
 .skip-link {

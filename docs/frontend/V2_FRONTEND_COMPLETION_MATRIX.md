@@ -156,3 +156,73 @@ authorization and resolvable target plus a separately authorized side effect.
 Production proof requires a separately authorized deploy and production-entry
 verification. These gates do not conceal a remaining local frontend defect, and
 this run did not broaden authority to cross them.
+
+## V2-11E — independent second-round audit (2026-08-31)
+
+A second launch-control audit re-derived this matrix from scratch on a clean
+worktree at `origin/main` `37edad36f329b5c3dee4e507e01918d24317f360`, against a
+separately provisioned local PostgreSQL V2 database (6 Drizzle migrations,
+contract version 4) populated only through the canonical repository write path,
+served by the production standalone entry (`node .next/standalone/server.js`,
+the Dockerfile `CMD`) with Gemini, WAHA and amoCRM left unconfigured.
+
+It did not reproduce the first round's "locally complete" conclusion. Fourteen
+verified defects were found, each contradicting a checklist item above, plus one
+found by re-reading the merged result and one found by the final regression.
+
+### What the first round's evidence could not have caught
+
+| Gap | Why the first round missed it |
+| --- | --- |
+| The four `tests/v2-frontend-*.test.mjs` contracts cited above as "focused outcome contracts" were referenced by **no npm script and no CI step**. | They were only ever run by hand. |
+| `npm run test:a11y` — the declared accessibility gate — **could not run**: it drove a login form, routes and a dialog that the fixed-role contract had already removed. CI never invoked it. | A dead gate reports nothing, so it never reported red. |
+| Contrast was sampled on four pages. `/access-denied` was never measured, and dark mobile was never measured at all. | Both carried real WCAG 1.4.3 failures. |
+| The mobile shell was checked at 390x844, where the WhatsApp pane does not scroll. | At Pixel 5's 393x727 it scrolls with no keyboard access. |
+
+### Second-round defects and fixes
+
+| Defect on `37edad36` | Fix |
+| --- | --- |
+| `/tasks` rendered zero `h1`. | #516 |
+| Dark `--text-3` measured 4.37:1 on `--danger-weak` (axe, `/access-denied`) and failed on every tinted surface. | #517 |
+| Queue → Student 360 link was 17.4 px tall on three queues. | #518 |
+| Four sidebar nav group `h2`s preceded the page `h1` on every staff route at >=768 px. | #519 |
+| `/access-denied` and `/platform-pending` had no document title. | #520 |
+| `/sales` and `/clients` had no loading boundary. | #521 |
+| An unexpected query key on four queues rendered "PostgreSQL did not respond" with an unrecoverable retry, without contacting the database. | #522 |
+| Every `/clients` row linked into `/sales/[id]`, denied for Admissions; the Sales handoff card linked into `/clients/[id]`, denied for Sales. | #523 |
+| Dark mobile bottom-nav active label measured 3.34:1 on every route; section-sheet link 3.06:1. | #524 |
+| Both language switchers pulled a SQLite and a Supabase `"use server"` module into the live route graph, registering 15 legacy actions across 15 routes. | #525 |
+| `text-success`, `bg-success-weak`, `border-success`, `rounded-control`, `bg-bg-2` and `shadow-evo-sm` emitted zero CSS: provider success states rendered unstyled. | #526 |
+| `/whatsapp` scroll regions were unreachable by keyboard at a short viewport (axe `scrollable-region-focusable`, serious). | #527 |
+| The accessibility gate could not run. | #528 |
+| The frontend contracts ran nowhere. | #529 |
+| `/clients` stated four zero counts above "the queue was not read". | #530 |
+| `/`, the post-gate entry route, had no document title. | #531 |
+
+Each PR received an independent review on its exact head. Reviews returned real
+blockers — including a `node:crypto` edge into a client bundle, a queue skeleton
+leaking onto detail routes, a broken existing e2e contract, and several test
+guards that could not fail — which were fixed and re-reviewed before merge.
+
+### Second-round evidence levels
+
+| Level | Result |
+| --- | --- |
+| Code | Complete for the V2-11 staff slice, and now enforced: `test:frontend` runs in CI through `pretest:unit`. |
+| Local V2 runtime | 324 real-browser measurements on exact merged main across Admin/Sales/Admissions x 1280x720, 834x1194, 390x844 x light/dark: **0** axe WCAG 2.2 A/AA violations, **0** horizontal overflow, exactly one `h1` everywhere, **0** generic titles, **0** unlabelled controls. `npm run test:a11y` passes 8/8 including Pixel 5. |
+| Provider | Still not proved. Gemini, WAHA and amoCRM were unconfigured and unauthorized; no provider call, send or write was attempted. |
+| Production | Still not proved and not authorized. No deploy, no production or customer-data change. |
+
+### Known and deliberately not fixed
+
+- `/tasks` caps at 50 rows with no pagination. `listCanonicalAdmissionsTasks`
+  accepts no cursor and returns no `nextCursor`, so this is a repository
+  change, not a frontend one.
+- `/whatsapp` keeps a segment-level `loading.tsx` that also covers
+  `/whatsapp/[id]`, the same shape #521 removed from `/sales` and `/clients`.
+- Fourteen legacy SQLite Server Actions remain registered on the deferred
+  `/calls` and `/chat` routes, which already fail closed at the proxy.
+  Removing them means deleting deferred routes, which is a scope decision.
+- Wiring `test:a11y` into `scripts/test-postgres-v2-foundation.sh`, and
+  therefore into CI, changes CI cost and gating behaviour.

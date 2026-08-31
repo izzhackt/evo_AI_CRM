@@ -14792,6 +14792,34 @@ exact-head CI, SHA-bound merge and exact-main CI before it touches the
 preserved state. It changes no V1 deployment, customer data, public endpoint,
 migration or cutover boundary.
 
+## 2026-08-31 - Complete fail-closed route states for canonical staff queues
+
+Date: 2026-08-31, workspace timezone (+04).
+Author: Codex under the owner's delegated persistent frontend long run.
+Change type: frontend state architecture refinement inside V2-11; no provider,
+production or customer-data mutation authority.
+Affected plan section: V2-11 loading, empty, error, blocked and not-configured
+state acceptance.
+
+The exact shared-main runtime at
+`101245ad993427364442dcf5ab088820bee464d9` has route-local loading and error
+boundaries for Sales, Clients, Documents, WhatsApp and Settings, but the
+canonical Applications, Visa, Finance and Tasks queues still fall through to a
+more distant boundary. A slow or failed PostgreSQL read can therefore replace
+too much of the staff workspace and gives the operator less specific recovery
+guidance than the neighboring completed modules.
+
+Add one small reusable queue-state presentation inside the existing root app
+and route-local `loading.tsx` and `error.tsx` boundaries for Applications,
+Visa, Finance and Tasks. The boundaries must keep the accepted visual system,
+announce progress or failure to assistive technology, provide a real retry and
+a safe return to the same canonical queue, and describe PostgreSQL failure
+without implying a legacy fallback or live provider result. This refinement
+does not create a second route, repository, provider path or compatibility
+layer. It must be covered by focused source/outcome tests, independent
+exact-head review, green CI and exact-main verification before the next
+frontend block starts.
+
 ## 2026-08-31 - Replace the stale frontend release view with a current V2 completion contract
 
 Date: 2026-08-31, workspace timezone (+04).

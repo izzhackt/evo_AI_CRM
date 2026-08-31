@@ -5719,6 +5719,31 @@ role, state, viewport, keyboard path or current-runtime provider disclosure is
 unproved. An absent external provider credential blocks only that provider
 proof; it does not block finishing the remaining local frontend work.
 
+### V2-11 local frontend completion result
+
+The implementation audit closed the verified local staff-frontend gaps on
+current main `638a027fd9904e67105d2de51f559b2153752bc0`. PRs #509 through
+#514 delivered the matrix, truthful shell, fixed-role navigation, bounded
+mobile Sales and WhatsApp flows, nearest route states, Student 360 navigation,
+mobile control sizing and dark-theme normal-text contrast. The accumulated
+current-main implementation was then exercised through the root application
+against the real local PostgreSQL V2 database without fixture, demo, mock or
+fallback paths.
+
+The real browser audit covered Admin, Sales and Admissions, direct negative
+permissions, the contract/payment handoff evidence, Student 360 operational
+modules, human-reviewed WhatsApp, safe empty and real database-error states,
+light/dark themes and the required 1280x720, 834x1194 and 390x844 viewports.
+Fresh current-main screenshots and the exact role/page/state measurements are
+recorded in `docs/frontend/V2_FRONTEND_COMPLETION_MATRIX.md`.
+
+This result proves code correctness and the sampled local real-runtime journey.
+It does not prove Gemini, WAHA or amoCRM provider behavior and does not prove a
+production deployment. No provider call, send, CRM write, customer-data
+mutation or production change was attempted. Those external gates still
+require their exact credential, authorization and resolvable target, while a
+production check additionally requires separately authorized deployment.
+
 ### Current official implementation basis
 
 - Next.js error boundaries and expected-error handling:

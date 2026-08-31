@@ -373,7 +373,10 @@ function ConversationThread({
             {actorRole === "admissions" ? (
               conversation.leadId
             ) : (
-              <Link href={`/sales/${conversation.leadId}`} className="text-accent hover:underline">
+              <Link
+                href={`/sales/${conversation.leadId}`}
+                className="inline-flex min-h-11 items-center break-all rounded-ctl px-1 text-accent hover:underline"
+              >
                 {conversation.leadId}
               </Link>
             )}
@@ -385,7 +388,7 @@ function ConversationThread({
               ) : (
                 <Link
                   href={`/clients/${conversation.studentCaseId}`}
-                  className="text-accent hover:underline"
+                  className="inline-flex min-h-11 items-center break-all rounded-ctl px-1 text-accent hover:underline"
                 >
                   {conversation.studentCaseId}
                 </Link>

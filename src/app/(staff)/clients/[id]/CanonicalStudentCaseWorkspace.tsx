@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
@@ -12,7 +13,7 @@ import {
 } from "@/components/platform/admissions/CanonicalAdmissionsTaskPanel";
 import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
 import { CanonicalPrivateDocumentsPanel } from "@/components/platform/documents/CanonicalPrivateDocumentsPanel";
-import { Card, cn } from "@/components/ui";
+import { btnGhostCls, Card, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import { getT } from "@/lib/i18n";
 import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
@@ -56,6 +57,13 @@ const COPY = {
     taskOpen: "Открыта",
     taskCompleted: "Завершена",
     taskCancelled: "Отменена",
+    sectionNavigation: "Разделы кейса",
+    summaryNavigation: "Обзор",
+    handoffNavigation: "Передача",
+    tasksNavigation: "Задачи",
+    documentsNavigation: "Документы",
+    amocrmNavigation: "amoCRM",
+    operationsNavigation: "Заявки, виза и финансы",
   },
   ky: {
     eyebrow: "Admissions · Student 360",
@@ -82,6 +90,13 @@ const COPY = {
     taskOpen: "Ачык",
     taskCompleted: "Аяктады",
     taskCancelled: "Жокко чыгарылды",
+    sectionNavigation: "Кейс бөлүмдөрү",
+    summaryNavigation: "Обзор",
+    handoffNavigation: "Өткөрүү",
+    tasksNavigation: "Тапшырмалар",
+    documentsNavigation: "Документтер",
+    amocrmNavigation: "amoCRM",
+    operationsNavigation: "Арыздар, виза жана каржы",
   },
   en: {
     eyebrow: "Admissions · Student 360",
@@ -108,6 +123,13 @@ const COPY = {
     taskOpen: "Open",
     taskCompleted: "Completed",
     taskCancelled: "Cancelled",
+    sectionNavigation: "Case sections",
+    summaryNavigation: "Overview",
+    handoffNavigation: "Handoff",
+    tasksNavigation: "Tasks",
+    documentsNavigation: "Documents",
+    amocrmNavigation: "amoCRM",
+    operationsNavigation: "Applications, visa and finance",
   },
 } as const;
 
@@ -247,8 +269,32 @@ export async function CanonicalStudentCaseWorkspace({
         </p>
       </header>
 
-      <Card title={copy.title} className="shadow-none">
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <nav
+        aria-label={copy.sectionNavigation}
+        data-testid="canonical-student-case-section-navigation"
+        className="flex gap-2 overflow-x-auto pb-1"
+      >
+        {[
+          ["case-summary", copy.summaryNavigation],
+          ["case-handoff", copy.handoffNavigation],
+          ["case-tasks", copy.tasksNavigation],
+          ["case-documents", copy.documentsNavigation],
+          ["case-amocrm", copy.amocrmNavigation],
+          ["case-operations", copy.operationsNavigation],
+        ].map(([target, label]) => (
+          <Link
+            key={target}
+            href={`#${target}`}
+            className={cn(btnGhostCls, "shrink-0 whitespace-nowrap")}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      <div id="case-summary" className="scroll-mt-24">
+        <Card title={copy.title} className="shadow-none">
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Fact label={copy.status}>
             <span className="font-medium text-fg">{studentCase.status}</span>
           </Fact>
@@ -269,14 +315,16 @@ export async function CanonicalStudentCaseWorkspace({
           <Fact label={copy.updatedAt}>
             {formatTimestamp(studentCase.updatedAt, locale)}
           </Fact>
-        </dl>
-      </Card>
+          </dl>
+        </Card>
+      </div>
 
-      <Card title={copy.handoff} className="shadow-none">
-        <dl
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          data-testid="canonical-student-case-handoff"
-        >
+      <div id="case-handoff" className="scroll-mt-24">
+        <Card title={copy.handoff} className="shadow-none">
+          <dl
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            data-testid="canonical-student-case-handoff"
+          >
           <Fact label={copy.handoff}>
             <span
               className={cn(
@@ -308,104 +356,113 @@ export async function CanonicalStudentCaseWorkspace({
               {handoff.handoff.firstPaymentEvidenceId ?? copy.absent}
             </span>
           </Fact>
-        </dl>
-      </Card>
+          </dl>
+        </Card>
+      </div>
 
-      <section className="border-t border-border pt-5">
-        <h2 className="text-[14.5px] font-semibold text-fg">
-          {copy.starterTasks}
-        </h2>
-        {handoff.starterTasks.length === 0 ? (
-          <p className="mt-3 text-[12.5px] text-fg-3">{copy.noTasks}</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-border border-y border-border">
-            {handoff.starterTasks.map((task) => (
-              <li
-                key={task.taskId}
-                className="flex gap-4 py-3"
-                data-testid="canonical-admissions-starter-task"
-              >
-                <span
-                  className={cn(
-                    "mt-0.5 h-fit shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
-                    task.status === "completed"
-                      ? "bg-ok-weak text-ok"
-                      : task.status === "cancelled"
-                        ? "bg-surface-2 text-fg-3"
-                        : "bg-info-weak text-info",
-                  )}
+      <div id="case-tasks" className="scroll-mt-24 space-y-5">
+        <section className="border-t border-border pt-5">
+          <h2 className="text-[14.5px] font-semibold text-fg">
+            {copy.starterTasks}
+          </h2>
+          {handoff.starterTasks.length === 0 ? (
+            <p className="mt-3 text-[12.5px] text-fg-3">{copy.noTasks}</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-border border-y border-border">
+              {handoff.starterTasks.map((task) => (
+                <li
+                  key={task.taskId}
+                  className="flex gap-4 py-3"
+                  data-testid="canonical-admissions-starter-task"
                 >
-                  {task.status === "completed"
-                    ? copy.taskCompleted
-                    : task.status === "cancelled"
-                      ? copy.taskCancelled
-                      : copy.taskOpen}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[13px] font-medium text-fg">
-                    {task.title}
-                  </p>
-                  {task.details ? (
-                    <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-5 text-fg-3">
-                      {task.details}
+                  <span
+                    className={cn(
+                      "mt-0.5 h-fit shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+                      task.status === "completed"
+                        ? "bg-ok-weak text-ok"
+                        : task.status === "cancelled"
+                          ? "bg-surface-2 text-fg-3"
+                          : "bg-info-weak text-info",
+                    )}
+                  >
+                    {task.status === "completed"
+                      ? copy.taskCompleted
+                      : task.status === "cancelled"
+                        ? copy.taskCancelled
+                        : copy.taskOpen}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-fg">
+                      {task.title}
                     </p>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                    {task.details ? (
+                      <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-5 text-fg-3">
+                        {task.details}
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <CanonicalAdmissionsTaskPanel
-        locale={locale}
-        tasks={tasksPage.rows}
-        transitionRequestIds={transitionRequestIds}
-        create={
-          studentCase.status === "active"
-            ? { studentCaseId: id, requestId: randomUUID() }
-            : undefined
-        }
-        hasNext={tasksPage.hasNext}
-      />
+        <CanonicalAdmissionsTaskPanel
+          locale={locale}
+          tasks={tasksPage.rows}
+          transitionRequestIds={transitionRequestIds}
+          create={
+            studentCase.status === "active"
+              ? { studentCaseId: id, requestId: randomUUID() }
+              : undefined
+          }
+          hasNext={tasksPage.hasNext}
+        />
+      </div>
 
-      <CanonicalPrivateDocumentsPanel
-        locale={locale}
-        caseId={id}
-        caseStatus={studentCase.status}
-        documents={documents}
-      />
+      <div id="case-documents" className="scroll-mt-24">
+        <CanonicalPrivateDocumentsPanel
+          locale={locale}
+          caseId={id}
+          caseStatus={studentCase.status}
+          documents={documents}
+        />
+      </div>
 
-      <CanonicalAmoCrmCommandPanel
-        availability={amoCrmAvailability}
-        blockingAttempt={
-          blockingAmoCrmAttempt === null
-            ? null
-            : {
-                attemptId: blockingAmoCrmAttempt.attemptId,
-                operationName: blockingAmoCrmAttempt.operationName,
-                status: blockingAmoCrmAttempt.status as "prepared" | "unknown",
-                providerDispatchedAt:
-                  blockingAmoCrmAttempt.providerDispatchedAt,
-              }
-        }
-        scope="admissions"
-        leadId={studentCase.leadId}
-        studentCaseId={studentCase.studentCaseId}
-        locale={locale}
-        requestId={randomUUID()}
-      />
+      <div id="case-amocrm" className="scroll-mt-24">
+        <CanonicalAmoCrmCommandPanel
+          availability={amoCrmAvailability}
+          blockingAttempt={
+            blockingAmoCrmAttempt === null
+              ? null
+              : {
+                  attemptId: blockingAmoCrmAttempt.attemptId,
+                  operationName: blockingAmoCrmAttempt.operationName,
+                  status: blockingAmoCrmAttempt.status as "prepared" | "unknown",
+                  providerDispatchedAt:
+                    blockingAmoCrmAttempt.providerDispatchedAt,
+                }
+          }
+          scope="admissions"
+          leadId={studentCase.leadId}
+          studentCaseId={studentCase.studentCaseId}
+          locale={locale}
+          requestId={randomUUID()}
+        />
+      </div>
 
-      <CanonicalAdmissionsOperationsPanel
-        locale={locale}
-        actorRole={actor.platformRole}
-        studentCaseId={id}
-        studentCaseStatus={operations.studentCase.status}
-        applications={operations.applications}
-        visaMilestones={operations.visaMilestones}
-        financeStop={operations.financeStop}
-        requestIds={operationRequestIds}
-      />
+      <div id="case-operations" className="scroll-mt-24">
+        <CanonicalAdmissionsOperationsPanel
+          locale={locale}
+          actorRole={actor.platformRole}
+          studentCaseId={id}
+          studentCaseStatus={operations.studentCase.status}
+          applications={operations.applications}
+          visaMilestones={operations.visaMilestones}
+          financeStop={operations.financeStop}
+          requestIds={operationRequestIds}
+        />
+      </div>
     </div>
   );
 }

@@ -61,7 +61,11 @@ function credentials(role: FixedRole) {
   return { identifier, secret };
 }
 
-async function openDevelopmentGate(page: Page, role: FixedRole) {
+async function openDevelopmentGate(
+  page: Page,
+  role: FixedRole,
+  { stayOnEntry = false }: { stayOnEntry?: boolean } = {},
+) {
   const { identifier, secret } = credentials(role);
   await page.context().clearCookies();
   await page.goto("/login");
@@ -71,6 +75,9 @@ async function openDevelopmentGate(page: Page, role: FixedRole) {
     .locator('form[aria-labelledby="login-title"] button[type="submit"]')
     .click();
   await expect(page.getByTestId("development-workspace")).toBeVisible();
+  // The entry page is a surface in its own right; callers auditing it stop here
+  // rather than continuing into the staff shell.
+  if (stayOnEntry) return;
   await page.getByTestId("open-role-workspace").click();
 }
 
@@ -92,6 +99,26 @@ async function expectNoAutomatedWcagViolations(page: Page, context: string) {
             .join("\n")}`,
       )
       .join("\n\n")}`,
+  ).toEqual([]);
+}
+
+/**
+ * A decoration must never be able to blind the contrast check.
+ *
+ * axe resolves an element's background by walking what covers it. It cannot
+ * compute the contribution of an SVG, and it cannot see through a stacking
+ * context, so either one lying over text downgrades every contrast result
+ * underneath from `violations` to `incomplete` -- and a gate that asserts on
+ * violations alone then passes a page whose text is unreadable. A full-bleed
+ * brand pattern did exactly that to 12 elements of /login, and an injected
+ * 1.2:1 regression went undetected until this check existed.
+ */
+async function expectContrastActuallyChecked(page: Page, context: string) {
+  const results = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze();
+  const unresolved = results.incomplete.filter(({ id }) => id === "color-contrast");
+  expect(
+    unresolved.flatMap(({ nodes }) => nodes.map(({ target }) => target.join(" "))),
+    `${context}: contrast could not be resolved, so a failure here would not be reported`,
   ).toEqual([]);
 }
 
@@ -135,6 +162,27 @@ for (const role of ["admin", "sales", "admissions"] as const) {
     }
   });
 }
+
+test("the unauthenticated gate and the entry page meet the WCAG A/AA gate", async ({
+  page,
+}) => {
+  // These two carry the brand surfaces -- the isometric field and the large
+  // mark -- and neither was analysed before, so a decorative regression on
+  // either could not fail this gate. /login is also the only page a person
+  // sees before authenticating.
+  await page.goto("/login");
+  await expect(page.locator("main")).toBeVisible();
+  await expectExactlyOneMainHeading(page, "login");
+  await expectNoDocumentOverflow(page, "login");
+  await expectNoAutomatedWcagViolations(page, "login");
+  await expectContrastActuallyChecked(page, "login");
+
+  await openDevelopmentGate(page, "admin", { stayOnEntry: true });
+  await expectExactlyOneMainHeading(page, "entry");
+  await expectNoDocumentOverflow(page, "entry");
+  await expectNoAutomatedWcagViolations(page, "entry");
+  await expectContrastActuallyChecked(page, "entry");
+});
 
 test("a deferred module fails closed without accessibility violations", async ({
   page,

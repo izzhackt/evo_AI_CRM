@@ -5,7 +5,7 @@ import { cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import type { DashboardCopy } from "./DashboardCopy";
 
-type AttentionTone = "danger" | "warning" | "info" | "violet";
+type AttentionTone = "danger" | "warning" | "info";
 
 export type DashboardAttentionItem = {
   href: string;
@@ -44,11 +44,6 @@ const TONE_CLASSES: Record<
     icon: "bg-info-weak text-info",
     value: "bg-info-weak text-info",
     dot: "bg-info",
-  },
-  violet: {
-    icon: "bg-violet-weak text-violet",
-    value: "bg-violet-weak text-violet",
-    dot: "bg-violet",
   },
 };
 

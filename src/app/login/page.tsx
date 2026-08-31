@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
 import { LoginForm } from "@/components/AuthForms";
+import { EvoIsometricField } from "@/components/platform/brand/EvoIsometricField";
+import { EvoMark } from "@/components/platform/brand/EvoMark";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getT } from "@/lib/i18n";
@@ -84,10 +86,9 @@ export default async function LoginPage({
 
   return (
     <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">
+      <EvoIsometricField />
       <div className="absolute left-5 top-5 flex items-center gap-2.5">
-        <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-accent text-lg font-bold text-on-accent">
-          E
-        </span>
+        <EvoMark size={34} />
         <span className="leading-tight">
           <span className="block text-md font-bold text-fg">EVO</span>
           <span className="block text-xs text-fg-3">Admissions CRM</span>

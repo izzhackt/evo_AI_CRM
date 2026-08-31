@@ -5,7 +5,7 @@ export function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-type Tone = "neutral" | "info" | "ok" | "warn" | "danger" | "violet" | "accent";
+type Tone = "neutral" | "info" | "ok" | "warn" | "danger" | "accent";
 
 const TONE_CLS: Record<Tone, string> = {
   neutral: "bg-surface-2 text-fg-2",
@@ -13,7 +13,6 @@ const TONE_CLS: Record<Tone, string> = {
   ok: "bg-ok-weak text-ok",
   warn: "bg-warn-weak text-warn",
   danger: "bg-danger-weak text-danger",
-  violet: "bg-violet-weak text-violet",
   accent: "bg-accent-weak text-accent",
 };
 
@@ -22,9 +21,9 @@ const BADGE_TONE: Record<string, Tone> = {
   // client stages
   lead: "neutral",
   consultation: "info",
-  contract: "violet",
+  contract: "accent",
   documents: "warn",
-  applying: "violet",
+  applying: "info",
   offer: "ok",
   visa: "info",
   enrolled: "ok",
@@ -48,7 +47,7 @@ const BADGE_TONE: Record<string, Tone> = {
   // lead pipeline statuses
   processing_mp: "info",
   qualified: "info",
-  meeting_scheduled: "violet",
+  meeting_scheduled: "neutral",
   meeting_done: "warn",
   contract_signed: "ok",
   no_request: "neutral",

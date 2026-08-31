@@ -25,7 +25,7 @@ import {
 const FUNNEL_BAR: Record<string, string> = {
   processing_mp: "bg-info",
   qualified: "bg-accent",
-  meeting_scheduled: "bg-violet",
+  meeting_scheduled: "bg-fg-2",
   meeting_done: "bg-warn",
   contract_signed: "bg-ok",
 };
@@ -98,7 +98,7 @@ export default async function DashboardPage() {
       label: t("urgentTasks"),
       value: stats.urgentTasks,
       icon: "check-square" as const,
-      tone: "violet" as const,
+      tone: "info" as const,
     },
     ...(cockpit.channelActivity.unreadConversations === null
       ? []

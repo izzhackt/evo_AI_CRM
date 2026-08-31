@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
@@ -6,6 +7,7 @@ import {
 } from "@/lib/development-gate-actions";
 import { fixedRoleHomeRoute } from "@/lib/fixed-role-policy";
 import { requirePlatformActor } from "@/lib/platform-guards";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 import { readDatabaseStatus } from "@/lib/server/database-status";
 
 const ROLE_LABELS = {
@@ -13,6 +15,26 @@ const ROLE_LABELS = {
   sales: "Sales Manager",
   admissions: "Admissions Manager",
 } as const;
+
+const COPY = {
+  ru: {
+    tabTitle: "Вход подтверждён",
+  },
+  ky: {
+    tabTitle: "Кирүү ырасталды",
+  },
+  en: {
+    tabTitle: "Access verified",
+  },
+} as const;
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildRouteMetadata({
+    ru: COPY.ru.tabTitle,
+    ky: COPY.ky.tabTitle,
+    en: COPY.en.tabTitle,
+  });
+}
 
 export default async function Home() {
   const [actor, database] = await Promise.all([

@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { buildRouteMetadata } from "@/lib/route-metadata";
 import { CanonicalStaffWhatsAppWorkspace } from "@/components/platform/communications/CanonicalStaffWhatsApp";
 import { getT } from "@/lib/i18n";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
@@ -25,6 +27,14 @@ type SearchParams = Readonly<{
   messages_before_at?: string | string[];
   messages_before_id?: string | string[];
 }>;
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildRouteMetadata({
+    ru: "WhatsApp · Диалог",
+    ky: "WhatsApp · Диалог",
+    en: "WhatsApp · Conversation",
+  });
+}
 
 export default async function WhatsAppConversationPage({
   params,

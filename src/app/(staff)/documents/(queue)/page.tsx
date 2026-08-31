@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Card } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import { getT } from "@/lib/i18n";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 import { requirePlatformDocumentsActor } from "@/lib/platform-guards";
 import { listPrivateDocuments } from "@/lib/server/private-document-repository";
 
@@ -50,6 +52,14 @@ const COPY = {
     open: "Open in Student 360",
   },
 } as const;
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildRouteMetadata({
+    ru: COPY.ru.title,
+    ky: COPY.ky.title,
+    en: COPY.en.title,
+  });
+}
 
 function formatBytes(byteLength: number, locale: Locale): string {
   if (byteLength < 1024) return `${byteLength} B`;

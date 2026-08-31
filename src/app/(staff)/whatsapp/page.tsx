@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { buildRouteMetadata } from "@/lib/route-metadata";
 import { CanonicalStaffWhatsAppWorkspace } from "@/components/platform/communications/CanonicalStaffWhatsApp";
 import { getT } from "@/lib/i18n";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
@@ -14,6 +16,14 @@ type SearchParams = Readonly<{
   before_at?: string | string[];
   before_id?: string | string[];
 }>;
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildRouteMetadata({
+    ru: "WhatsApp · Inbox",
+    ky: "WhatsApp · Inbox",
+    en: "WhatsApp · Inbox",
+  });
+}
 
 export default async function WhatsAppPage({
   searchParams,

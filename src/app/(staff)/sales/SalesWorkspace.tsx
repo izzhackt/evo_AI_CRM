@@ -42,7 +42,7 @@ const COPY = {
   ru: {
     title: "Лиды EVO",
     description:
-      "Каноническая очередь Sales читает лиды напрямую из локальной PostgreSQL модели EVO без intake-композита и без fallback-пути.",
+      "Рабочая очередь Sales читает лиды напрямую из единой локальной PostgreSQL V2 базы EVO.",
     search: "Поиск по имени, email, телефону, Lead UUID или Person UUID",
     stage: "Этап",
     due: "Срок следующего действия",
@@ -55,9 +55,6 @@ const COPY = {
     queueTitle: "Каноническая очередь Sales",
     queueDescription:
       "Показан один активный V2 путь: lead, этап, owner role и next action из canonical PostgreSQL.",
-    blockedTitle: "WhatsApp inbound пока заблокирован",
-    blockedBody:
-      "Этот PR показывает только каноническую Sales очередь. Реальный inbound WhatsApp adapter и provider-доступ не активированы на этом экране и не должны выглядеть как healthy.",
     found: "Найдено на странице",
     noAction: "Не назначено",
     noDeadline: "Без срока",
@@ -70,7 +67,7 @@ const COPY = {
     invalid:
       "Фильтр отклонён. Очередь не читалась, потому что параметры запроса не прошли строгую нормализацию.",
     unavailable:
-      "Каноническая очередь недоступна. Это read failure, а не пустой результат, и fallback не используется.",
+      "Очередь лидов недоступна из-за ошибки чтения. Это не означает, что лидов нет; попробуйте обновить страницу.",
     stage_new: "Новый",
     stage_qualifying: "В квалификации",
     stage_qualified: "Квалифицирован",
@@ -88,7 +85,7 @@ const COPY = {
   ky: {
     title: "EVO лиддери",
     description:
-      "Sales'тин каноникалык кезеги EVOнун жергиликтүү PostgreSQL моделинен түз окулат, intake-композитсиз жана fallback жолусуз.",
+      "Sales жумуш кезеги EVOнун бирдиктүү жергиликтүү PostgreSQL V2 базасынан түз окулат.",
     search: "Аты, email, телефон, Lead UUID же Person UUID боюнча издөө",
     stage: "Этап",
     due: "Кийинки аракеттин мөөнөтү",
@@ -101,9 +98,6 @@ const COPY = {
     queueTitle: "Sales'тин каноникалык кезеги",
     queueDescription:
       "Бул жерде бир гана активдүү V2 жол көрсөтүлөт: canonical PostgreSQL'ден lead, этап, owner role жана next action.",
-    blockedTitle: "WhatsApp inbound азыр бөгөттөлгөн",
-    blockedBody:
-      "Бул PR canonical Sales queue гана көрсөтөт. Реалдуу inbound WhatsApp adapter жана provider мүмкүнчүлүгү бул экранда активдүү эмес жана healthy болуп көрүнбөшү керек.",
     found: "Барактагы саны",
     noAction: "Дайындалган эмес",
     noDeadline: "Мөөнөтү жок",
@@ -116,7 +110,7 @@ const COPY = {
     invalid:
       "Чыпка четке кагылды. Сурам параметрлери катуу нормалдаштыруудан өтпөгөндүктөн кезек окулган жок.",
     unavailable:
-      "Каноникалык кезек жеткиликсиз. Бул бош натыйжа эмес, окуу катасы, жана fallback колдонулбайт.",
+      "Лиддер кезеги окуу катасынан улам жеткиликсиз. Бул лиддер жок дегенди билдирбейт; баракты жаңыртып көрүңүз.",
     stage_new: "Жаңы",
     stage_qualifying: "Квалификацияда",
     stage_qualified: "Квалификациядан өттү",
@@ -134,7 +128,7 @@ const COPY = {
   en: {
     title: "EVO leads",
     description:
-      "The canonical Sales queue reads leads directly from EVO's local PostgreSQL model, with no intake composite and no fallback path.",
+      "The Sales work queue reads leads directly from EVO's single local PostgreSQL V2 database.",
     search: "Search by name, email, phone, Lead UUID, or Person UUID",
     stage: "Stage",
     due: "Next-action due state",
@@ -147,9 +141,6 @@ const COPY = {
     queueTitle: "Canonical Sales queue",
     queueDescription:
       "This page shows one active V2 path only: lead, stage, owner role, and next action from canonical PostgreSQL.",
-    blockedTitle: "WhatsApp inbound is currently blocked",
-    blockedBody:
-      "This PR exposes only the canonical Sales queue. The real inbound WhatsApp adapter and provider access are not active on this screen and must not appear healthy.",
     found: "Found on page",
     noAction: "Not scheduled",
     noDeadline: "No deadline",
@@ -162,7 +153,7 @@ const COPY = {
     invalid:
       "The filter was rejected. The queue was not read because the request parameters failed strict normalization.",
     unavailable:
-      "The canonical queue is unavailable. This is a read failure, not an empty result, and no fallback is used.",
+      "The lead queue is unavailable because the read failed. This does not mean there are no leads; try refreshing the page.",
     stage_new: "New",
     stage_qualifying: "Qualifying",
     stage_qualified: "Qualified",
@@ -276,14 +267,6 @@ function CanonicalSalesPresentation({
       <div className="space-y-5" data-testid="canonical-sales-page">
         <PageHeader title={copy.title} description={copy.description} />
         <CanonicalAuthorityNotice locale={locale} />
-
-        <section
-          className="rounded-card border border-warn bg-warn-weak px-5 py-4"
-          data-testid="sales-inbound-blocked"
-        >
-          <h2 className="text-[14.5px] font-semibold text-warn">{copy.blockedTitle}</h2>
-          <p className="mt-1 text-[13px] leading-5 text-fg-2">{copy.blockedBody}</p>
-        </section>
 
         <section className="space-y-4" aria-labelledby="sales-workflow-title">
           <div className="space-y-1">

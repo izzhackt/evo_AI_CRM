@@ -28,7 +28,7 @@ const COPY = {
     emptyQueue: "Сохранённых диалогов пока нет.",
     emptyThreadTitle: "Выберите диалог",
     emptyThreadText:
-      "Откройте запись из очереди слева. EVO не подставляет Supabase или другой резервный путь.",
+      "Откройте запись из очереди слева. Это единственная staff-очередь WhatsApp в текущем V2 runtime.",
     openConversation: "Открыть диалог",
     updated: "Обновлено",
     lead: "Лид",
@@ -67,7 +67,7 @@ const COPY = {
     emptyQueue: "Сакталган диалогдор азырынча жок.",
     emptyThreadTitle: "Диалог тандаңыз",
     emptyThreadText:
-      "Сол жактагы кезектен жазууну ачыңыз. EVO Supabase же башка резервдик жолду койбойт.",
+      "Сол жактагы кезектен жазууну ачыңыз. Бул учурдагы V2 runtime'дагы жалгыз staff WhatsApp кезеги.",
     openConversation: "Диалогду ачуу",
     updated: "Жаңыртылды",
     lead: "Лид",
@@ -102,11 +102,11 @@ const COPY = {
       "The staff queue, Gemini drafts and human-confirmed sending use one canonical EVO PostgreSQL authority.",
     queueTitle: "Conversations",
     queueDescription:
-      "Sales sees its conversations before handoff, Admissions sees handed-off conversations, and Admin sees the union without a fallback source.",
+      "Sales sees its conversations before handoff, Admissions sees handed-off conversations, and Admin sees the combined staff queue.",
     emptyQueue: "There are no persisted conversations yet.",
     emptyThreadTitle: "Select a conversation",
     emptyThreadText:
-      "Open an entry from the queue on the left. EVO does not substitute Supabase or another fallback path.",
+      "Open an entry from the queue on the left. This is the only staff WhatsApp queue in the current V2 runtime.",
     openConversation: "Open conversation",
     updated: "Updated",
     lead: "Lead",
@@ -121,7 +121,7 @@ const COPY = {
     olderMessages: "Older messages",
     transcript: "WhatsApp transcript",
     transcriptDescription:
-      "Messages are newest first. Sending exists only behind explicit confirmation; there is no autonomous or fallback sender.",
+      "Messages are newest first. A staff member must verify the recipient and final text before each send; autonomous sending is disabled.",
     emptyMessages: "There are no messages in this conversation yet.",
     incoming: "Incoming",
     outgoing: "Outgoing · history",

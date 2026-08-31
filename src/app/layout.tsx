@@ -8,7 +8,10 @@ import { getLocale } from "@/lib/i18n";
 const THEME_INIT = `(function(){try{var m=document.cookie.match(/(?:^|; )theme=(dark|light)/);var t=m?m[1]:((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
 
 export const metadata: Metadata = {
-  title: "EVO Admissions CRM — командный центр поступления",
+  title: {
+    default: "EVO Admissions CRM",
+    template: "%s | EVO Admissions CRM",
+  },
   description: "EVO Admissions CRM для студентов, заявок в вузы, документов, виз, задач и финансов",
 };
 

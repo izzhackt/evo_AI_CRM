@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
+
 import { LoginForm } from "@/components/AuthForms";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 
 const COPY: Record<
   Locale,
@@ -47,6 +50,14 @@ const COPY: Record<
     title: "EVO V2 access",
   },
 };
+
+export async function generateMetadata(): Promise<Metadata> {
+  return buildRouteMetadata({
+    ru: COPY.ru.title,
+    ky: COPY.ky.title,
+    en: COPY.en.title,
+  });
+}
 
 type LoginPageSearchParams = Promise<{
   error?: string | string[];

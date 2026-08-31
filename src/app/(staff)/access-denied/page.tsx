@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -7,6 +8,7 @@ import { currentUser, isStaff } from "@/lib/auth";
 import { ROLE_HOME_ROUTE, STAFF_NAV_ITEMS, roleCanAccessStaffRoute } from "@/lib/domain";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 
 type Copy = {
   eyebrow: string;
@@ -20,6 +22,7 @@ type Copy = {
   security: string;
   unknown: string;
   transcription: string;
+  tabTitle: string;
 };
 
 const COPY: Record<Locale, Copy> = {
@@ -37,6 +40,7 @@ const COPY: Record<Locale, Copy> = {
     security: "Доступ проверен на сервере",
     unknown: "Защищённый раздел",
     transcription: "Лаборатория транскрибации",
+    tabTitle: "Нет доступа",
   },
   ky: {
     eyebrow: "Кирүү чектелген",
@@ -52,6 +56,7 @@ const COPY: Record<Locale, Copy> = {
     security: "Кирүү укугу серверде текшерилди",
     unknown: "Корголгон бөлүм",
     transcription: "Транскрипция лабораториясы",
+    tabTitle: "Кирүүгө укук жок",
   },
   en: {
     eyebrow: "Restricted access",
@@ -67,8 +72,19 @@ const COPY: Record<Locale, Copy> = {
     security: "Access was checked on the server",
     unknown: "Protected section",
     transcription: "Transcription lab",
+    tabTitle: "Access denied",
   },
 };
+
+export async function generateMetadata(): Promise<Metadata> {
+  // Short noun phrase, matching every other route title and the shell's own
+  // label for this state. The h1 stays the full sentence.
+  return buildRouteMetadata({
+    ru: COPY.ru.tabTitle,
+    ky: COPY.ky.tabTitle,
+    en: COPY.en.tabTitle,
+  });
+}
 
 function firstValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

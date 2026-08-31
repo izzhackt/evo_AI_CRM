@@ -2,9 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import {
+  MIN_STAFF_SURFACES,
+  staffOperatingSurfaces,
+} from "./helpers/staff-surfaces.mjs";
+
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
+
 
 /**
  * WCAG 2.x relative luminance and contrast ratio. One implementation for every
@@ -301,4 +307,120 @@ test("the shared task panel heading stays subordinate to the page h1", () => {
   assert.equal(panel.match(/<h1[\s>]/g), null);
   assert.match(panel, /id="canonical-admissions-task-panel-title"/);
   assert.match(tasksRoute, /<h1/);
+});
+
+test("staff type sizes come from the scale, not ad-hoc pixel values", () => {
+  const theme = source("src/app/globals.css");
+  const themeStart = theme.indexOf("@theme inline");
+  const themeBlock = theme.slice(themeStart);
+  const steps = [...themeBlock.matchAll(/--text-([a-z0-9]+):\s*(\d+)px/g)].map(
+    (match) => ({ name: match[1], px: Number(match[2]) }),
+  );
+
+  assert.ok(steps.length >= 8, `a usable scale needs at least 8 steps, got ${steps.length}`);
+  const sizes = steps.map((step) => step.px).sort((a, b) => a - b);
+  assert.equal(sizes[0], 11, "functional floor is 11px");
+  assert.ok(sizes.includes(12), "body floor is 12px");
+  assert.equal(new Set(sizes).size, sizes.length, "two steps must not share a size");
+
+  // A dense Operate surface carries many type elements at once; exaggerated
+  // contrast between adjacent steps reads as noise rather than hierarchy.
+  for (let index = 1; index < sizes.length; index += 1) {
+    const ratio = sizes[index] / sizes[index - 1];
+    assert.ok(
+      ratio >= 1.05 && ratio <= 1.25,
+      `step ${sizes[index - 1]}px -> ${sizes[index]}px is ${ratio.toFixed(3)}, outside 1.05-1.25`,
+    );
+  }
+
+  // Every text- utility a surface names must resolve to a declared step.
+  // Tailwind ships text-4xl and up; using one silently steps off this scale.
+  const declared = new Set(steps.map((step) => step.name));
+  for (const surface of staffOperatingSurfaces()) {
+    for (const [, name] of source(surface).matchAll(
+      /(?<![\w-])(?:[a-z0-9]+:)*text-(2xs|xs|sm|base|md|lg|xl|\d?xl)(?![\w-])/g,
+    )) {
+      assert.ok(
+        declared.has(name),
+        `${surface} uses text-${name}, which is not a step in the scale`,
+      );
+    }
+    // Ad-hoc text-[13.5px] is how twenty different sizes accumulated.
+    // px is not the only way to write an ad-hoc size.
+    const literals =
+      source(surface).match(
+        /text-\[(?:length:)?\d+(?:\.\d+)?(?:px|rem|em|pt|%)\]|fontSize:\s*["'`]?\d/g,
+      ) ?? [];
+    assert.deepEqual(
+      literals,
+      [],
+      `${surface} uses ad-hoc ${literals[0]} instead of the type scale`,
+    );
+  }
+
+  // The stylesheet's own rules were converted to the scale by hand; nothing
+  // stopped one from being left as a raw pixel value.
+  // Comments are stripped first: prose about font sizes is not a font size,
+  // and the `scale-exempt:` marker is re-attached per declaration below.
+  const withComments = theme.slice(0, themeStart) + themeBlock.slice(themeBlock.indexOf("}"));
+  const rules = withComments.replace(
+    /\/\*[\s\S]*?\*\//g,
+    (comment) => (comment.includes("scale-exempt:") ? "/*scale-exempt:*/" : " "),
+  );
+  // A literal size is allowed only when the comment attached to that very
+  // declaration carries an explicit `scale-exempt:` marker -- e.g. the 16px
+  // iOS touch floor, which is a floor rather than a step. Anything else is
+  // drift. The marker must sit between the previous declaration and this one,
+  // so a marker elsewhere in the file cannot license it.
+  // Both `font-size: 13px` and the `font:` shorthand's size slot.
+  const rawSizes = [...rules.matchAll(/font-size:\s*\d+(?:\.\d+)?(?:px|rem|em|pt)|[^-\w]font:\s*[^;{}]*?\d+(?:\.\d+)?(?:px|rem|em|pt)/gi)]
+    .filter((match) => {
+      const preceding = rules.slice(0, match.index);
+      const boundary = Math.max(
+        preceding.lastIndexOf(";"),
+        preceding.lastIndexOf("{"),
+        preceding.lastIndexOf("}"),
+      );
+      return !preceding.slice(boundary + 1).includes("scale-exempt:");
+    })
+    .map((match) => match[0]);
+  assert.deepEqual(
+    rawSizes,
+    [],
+    `globals.css sets ${rawSizes[0]} directly instead of var(--text-*)`,
+  );
+});
+
+test("no staff surface reintroduces a kicker above its heading", () => {
+  // The eyebrow label is a page-scaffold habit: the heading carries its own
+  // weight, and the label above it is a tell rather than information.
+  // Matched by composition rather than by literal class order, because class
+  // order is arbitrary and an ordered regex is evaded by rearranging it.
+  for (const surface of staffOperatingSurfaces()) {
+    const moduleSource = source(surface);
+    // Every string literal in the module, not just a static className="...".
+    // cn(...) is this codebase's dominant idiom, and a kicker written through
+    // it, through a template literal, or through a hoisted constant would
+    // otherwise pass. Any tracking utility counts, and the accent can be
+    // named directly, via its text token, or as a bare CSS variable.
+    for (const [, classes] of moduleSource.matchAll(/["'`]([^"'`\n]*)["'`]/g)) {
+      if (!classes.includes("uppercase")) continue;
+      const names = classes.split(/\s+/);
+      const has = (test) => names.some((name) => test.test(name));
+      const kicker =
+        has(/^(?:[a-z0-9-]+:)?uppercase$/) &&
+        has(/^(?:[a-z0-9-]+:)?tracking-(?:\[[^\]]+\]|wide|wider|widest)$/) &&
+        has(/^(?:[a-z0-9-]+:)?text-(?:accent(?:-text)?|\[var\(--accent[^)]*\)\])$/);
+      assert.ok(!kicker, `${surface} reintroduces an accent kicker: "${classes}"`);
+    }
+    assert.ok(
+      !/\beyebrow\b/i.test(moduleSource),
+      `${surface} reintroduces an eyebrow`,
+    );
+  }
+
+  assert.ok(
+    staffOperatingSurfaces().length >= MIN_STAFF_SURFACES,
+    "the surface walk returned too few files to be a real guard",
+  );
 });

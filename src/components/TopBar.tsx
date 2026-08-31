@@ -9,7 +9,7 @@ import { EvoWordmark } from "@/components/platform/EvoWordmark";
 import type { Locale } from "@/lib/i18n-data";
 import type { ProviderDisplayStatus } from "@/lib/provider-display-status";
 
-type Meta = { title: string; hint?: string };
+type Meta = { title: string };
 
 const STATUS_COPY: Record<
   Locale,
@@ -117,7 +117,6 @@ export function TopBar({
             <p className="staff-topbar__desktop-title">{meta.title}</p>
           </div>
           <p className="staff-topbar__mobile-title">{meta.title}</p>
-          {meta.hint && <p className="staff-topbar__hint">{meta.hint}</p>}
         </div>
 
         <div className="staff-topbar__status" aria-label={`${amoStatusCopy}; ${whatsappStatusCopy}; ${aiStatusCopy}`}>

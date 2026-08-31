@@ -167,7 +167,7 @@ export function CanonicalPrivateDocumentsPanel({
       <p
         role="status"
         className={cn(
-          "text-[12px]",
+          "text-xs",
           submission.status === "saved" ? "text-ok" : "text-danger",
         )}
       >
@@ -179,7 +179,7 @@ export function CanonicalPrivateDocumentsPanel({
   return (
     <section id="documents" data-testid="canonical-private-documents" className="scroll-mt-24">
       <Card title={copy.title} className="shadow-none">
-        <p className="text-[12.5px] leading-5 text-fg-3">{copy.description}</p>
+        <p className="text-sm leading-5 text-fg-3">{copy.description}</p>
 
         {canWrite ? (
           <form
@@ -188,7 +188,7 @@ export function CanonicalPrivateDocumentsPanel({
             onSubmit={(event) => submit(event, "upload", "/api/v2/documents", true)}
           >
             <div>
-              <h3 className="text-[13px] font-semibold text-fg">{copy.uploadTitle}</h3>
+              <h3 className="text-sm font-semibold text-fg">{copy.uploadTitle}</h3>
               <label className="mt-3 block">
                 <span className={labelCls}>{copy.fileLabel}</span>
                 <input
@@ -199,7 +199,7 @@ export function CanonicalPrivateDocumentsPanel({
                   className={inputCls}
                 />
               </label>
-              <p className="mt-1 text-[11.5px] text-fg-3">{copy.fileHint}</p>
+              <p className="mt-1 text-xs text-fg-3">{copy.fileHint}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -215,13 +215,13 @@ export function CanonicalPrivateDocumentsPanel({
             </div>
           </form>
         ) : (
-          <p className="mt-4 rounded-card border border-border bg-surface-2 px-4 py-3 text-[12.5px] text-fg-2">
+          <p className="mt-4 rounded-card border border-border bg-surface-2 px-4 py-3 text-sm text-fg-2">
             {copy.readOnly}
           </p>
         )}
 
         {documents.length === 0 ? (
-          <p className="mt-5 text-[12.5px] text-fg-3">{copy.empty}</p>
+          <p className="mt-5 text-sm text-fg-3">{copy.empty}</p>
         ) : (
           <ul className="mt-5 space-y-4">
             {documents.map((document) => (
@@ -231,7 +231,7 @@ export function CanonicalPrivateDocumentsPanel({
                 data-document-id={document.documentId}
                 className="rounded-card border border-border bg-surface p-4"
               >
-                <h3 className="text-[13px] font-semibold text-fg">
+                <h3 className="text-sm font-semibold text-fg">
                   {document.versions[0]?.originalFilename ?? copy.title}
                 </h3>
 
@@ -242,14 +242,14 @@ export function CanonicalPrivateDocumentsPanel({
                       className="rounded-ctl border border-border bg-surface-2 px-3 py-3"
                     >
                       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                        <div className="min-w-0 text-[12px] text-fg-2">
+                        <div className="min-w-0 text-xs text-fg-2">
                           <p className="break-words font-medium text-fg">
                             {copy.version} {version.versionNumber} · {version.originalFilename}
                           </p>
                           <p className="mt-1">
                             {copy.created}: {formatTimestamp(version.createdAt, locale)} · {copy.size}: {formatBytes(version.byteLength, locale)}
                           </p>
-                          <p className="mt-1 break-all font-mono text-[10.5px] text-fg-3">
+                          <p className="mt-1 break-all font-mono text-2xs text-fg-3">
                             {copy.checksum}: {version.sha256}
                           </p>
                         </div>
@@ -258,7 +258,7 @@ export function CanonicalPrivateDocumentsPanel({
                           data-version-id={version.versionId}
                           data-version-number={version.versionNumber}
                           href={`/api/v2/document-versions/${version.versionId}/download`}
-                          className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-ctl border border-border bg-surface px-3 text-[12px] font-semibold text-fg hover:bg-surface-2"
+                          className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-ctl border border-border bg-surface px-3 text-xs font-semibold text-fg hover:bg-surface-2"
                         >
                           {copy.download}
                         </a>
@@ -290,7 +290,7 @@ export function CanonicalPrivateDocumentsPanel({
                         className={inputCls}
                       />
                     </label>
-                    <p className="text-[11.5px] text-fg-3">{copy.fileHint}</p>
+                    <p className="text-xs text-fg-3">{copy.fileHint}</p>
                     <div className="flex flex-wrap items-center gap-3">
                       <button
                         type="submit"

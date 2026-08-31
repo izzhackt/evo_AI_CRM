@@ -190,13 +190,13 @@ export function CanonicalWhatsAppOutboundComposer({
       data-testid="canonical-whatsapp-outbound-composer"
     >
       <div>
-        <h3 className="text-[15px] font-semibold text-fg">{copy.title}</h3>
-        <p className="mt-1 text-[13px] leading-6 text-fg-3">{copy.description}</p>
+        <h3 className="text-md font-semibold text-fg">{copy.title}</h3>
+        <p className="mt-1 text-sm leading-6 text-fg-3">{copy.description}</p>
       </div>
 
       <div
         className={cn(
-          "rounded-ctl border px-3 py-2 text-[13px]",
+          "rounded-ctl border px-3 py-2 text-sm",
           configured
             ? "border-ok/30 bg-ok-weak text-ok"
             : "border-warn/30 bg-warn-weak text-warn",
@@ -224,21 +224,21 @@ export function CanonicalWhatsAppOutboundComposer({
         <input type="hidden" name="reply_to_external_message_id" value="" />
 
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">
             {copy.recipient}
           </p>
           <code
-            className="mt-1 block break-all rounded-ctl border border-border bg-surface px-3 py-2 text-[13px] text-fg"
+            className="mt-1 block break-all rounded-ctl border border-border bg-surface px-3 py-2 text-sm text-fg"
             data-testid="canonical-whatsapp-outbound-recipient"
           >
             {recipientChatId ?? "—"}
           </code>
           {!directRecipient ? (
-            <p className="mt-1 text-[12px] text-danger">{copy.invalidRecipient}</p>
+            <p className="mt-1 text-xs text-danger">{copy.invalidRecipient}</p>
           ) : null}
         </div>
 
-        <label className="block text-[13px] font-medium text-fg" htmlFor="canonical-whatsapp-final-text">
+        <label className="block text-sm font-medium text-fg" htmlFor="canonical-whatsapp-final-text">
           {copy.text}
         </label>
         <textarea
@@ -252,11 +252,11 @@ export function CanonicalWhatsAppOutboundComposer({
             setMessageText(event.target.value);
             setConfirmed(false);
           }}
-          className="w-full rounded-ctl border border-border bg-surface px-3 py-2 text-[13.5px] leading-6 text-fg"
+          className="w-full rounded-ctl border border-border bg-surface px-3 py-2 text-base leading-6 text-fg"
           data-testid="canonical-whatsapp-outbound-text"
         />
 
-        <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-ctl px-2 py-2 text-[13px] leading-5 text-fg-2 hover:bg-surface-2">
+        <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-ctl px-2 py-2 text-sm leading-5 text-fg-2 hover:bg-surface-2">
           <input
             type="checkbox"
             name="confirm_send"
@@ -286,7 +286,7 @@ export function CanonicalWhatsAppOutboundComposer({
         </button>
         {unresolvedAttempt ? (
           <p
-            className="text-[12px] leading-5 text-danger"
+            className="text-xs leading-5 text-danger"
             data-testid="canonical-whatsapp-outbound-unresolved"
           >
             {copy.unresolved}
@@ -298,7 +298,7 @@ export function CanonicalWhatsAppOutboundComposer({
         <p
           role="status"
           className={cn(
-            "text-[13px] leading-6",
+            "text-sm leading-6",
             sendState.status === "accepted" ? "text-ok" : "text-danger",
           )}
           data-testid="canonical-whatsapp-outbound-state"
@@ -310,10 +310,10 @@ export function CanonicalWhatsAppOutboundComposer({
       ) : null}
 
       <div className="space-y-2 border-t border-border pt-3" data-testid="canonical-whatsapp-latest-attempt">
-        <h4 className="text-[13px] font-semibold text-fg">{copy.lastAttempt}</h4>
+        <h4 className="text-sm font-semibold text-fg">{copy.lastAttempt}</h4>
         {latestAttempt ? (
           <>
-            <p className="text-[12px] text-fg-3">
+            <p className="text-xs text-fg-3">
               {copy.status}: <strong>{latestAttempt.status}</strong>
               {latestAttempt.ackName ? ` · ${copy.ack}: ${latestAttempt.ackName}` : ""}
             </p>
@@ -342,13 +342,13 @@ export function CanonicalWhatsAppOutboundComposer({
             ) : null}
           </>
         ) : (
-          <p className="text-[12px] text-fg-3">{copy.noAttempt}</p>
+          <p className="text-xs text-fg-3">{copy.noAttempt}</p>
         )}
         {reconcileState.status !== "idle" ? (
           <p
             role="status"
             className={cn(
-              "text-[12px]",
+              "text-xs",
               reconcileState.status === "reconciled"
                 ? "text-ok"
                 : "text-danger",

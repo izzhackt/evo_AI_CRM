@@ -39,10 +39,10 @@ export function SalesQuickAdd({
           <Icon name="plus" size={17} />
         </span>
         <div>
-          <h2 id="sales-add-title" className="text-[14px] font-semibold text-fg">
+          <h2 id="sales-add-title" className="text-base font-semibold text-fg">
             {t("quickAddLead")}
           </h2>
-          <p id="sales-add-hint" className="mt-0.5 text-[12px] leading-5 text-fg-3">
+          <p id="sales-add-hint" className="mt-0.5 text-xs leading-5 text-fg-3">
             {writeBlocked
               ? (blockedHint ?? t("amocrmBlocked"))
               : copy.quickAddHint}

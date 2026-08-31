@@ -93,15 +93,15 @@ function BoundaryRow({
 }>) {
   return (
     <div className="rounded-ctl border border-border bg-surface-2 p-3">
-      <dt className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-fg-3">
+      <dt className="text-2xs font-bold uppercase tracking-[0.06em] text-fg-3">
         {label}
       </dt>
       <dd
-        className={`mt-1 text-[12.5px] font-semibold ${boundary.allowed ? "text-ok" : "text-danger"}`}
+        className={`mt-1 text-sm font-semibold ${boundary.allowed ? "text-ok" : "text-danger"}`}
       >
         {boundary.allowed ? allowedLabel : blockedLabel}
       </dd>
-      <dd className="mt-1 font-mono text-[10.5px] text-fg-3">
+      <dd className="mt-1 font-mono text-2xs text-fg-3">
         {boundary.reasonCode}
       </dd>
     </div>
@@ -138,10 +138,10 @@ export function PlatformPilotCohortCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="pilot-cohort-title" className="text-[15px] font-bold text-fg">
+          <h2 id="pilot-cohort-title" className="text-md font-bold text-fg">
             {labels.title}
           </h2>
-          <p className="mt-1 max-w-4xl text-[12.5px] leading-5 text-fg-3">
+          <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
             {labels.hint}
           </p>
         </div>
@@ -157,7 +157,7 @@ export function PlatformPilotCohortCard({
       {outcome && (
         <p
           role="status"
-          className="mt-3 rounded-ctl border border-border bg-surface-2 px-3 py-2 text-[12.5px] text-fg-2"
+          className="mt-3 rounded-ctl border border-border bg-surface-2 px-3 py-2 text-sm text-fg-2"
           data-testid={`platform-pilot-cohort-result-${outcome}`}
         >
           {outcomeMessage(outcome, labels)}
@@ -166,7 +166,7 @@ export function PlatformPilotCohortCard({
 
       {unavailable || !cohort || !legacyWriteBoundary ? (
         <p
-          className="mt-4 rounded-ctl border border-danger/20 bg-danger-weak p-3 text-[12.5px] text-danger"
+          className="mt-4 rounded-ctl border border-danger/20 bg-danger-weak p-3 text-sm text-danger"
           data-testid="platform-pilot-cohort-unavailable"
         >
           {labels.unavailable}
@@ -175,54 +175,54 @@ export function PlatformPilotCohortCard({
         <>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-ctl bg-surface-2 p-3">
-              <div className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-fg-3">
+              <div className="text-2xs font-bold uppercase tracking-[0.06em] text-fg-3">
                 {labels.status}
               </div>
-              <div className="mt-1 text-[12.5px] font-semibold text-fg">
+              <div className="mt-1 text-sm font-semibold text-fg">
                 {labels.statusLabels[cohort.membershipStatus]}
               </div>
             </div>
             <div className="rounded-ctl bg-surface-2 p-3">
-              <div className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-fg-3">
+              <div className="text-2xs font-bold uppercase tracking-[0.06em] text-fg-3">
                 {labels.basis}
               </div>
-              <div className="mt-1 text-[12.5px] font-semibold text-fg">
+              <div className="mt-1 text-sm font-semibold text-fg">
                 {cohort.membershipBasis
                   ? labels.basisLabels[cohort.membershipBasis]
                   : labels.notApplicable}
               </div>
             </div>
             <div className="rounded-ctl bg-surface-2 p-3 sm:col-span-2">
-              <div className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-fg-3">
+              <div className="text-2xs font-bold uppercase tracking-[0.06em] text-fg-3">
                 {labels.reason}
               </div>
-              <div className="mt-1 break-words text-[12.5px] font-semibold text-fg">
+              <div className="mt-1 break-words text-sm font-semibold text-fg">
                 {cohort.reason ?? labels.notApplicable}
               </div>
             </div>
             <div className="rounded-ctl bg-surface-2 p-3 sm:col-span-2">
-              <div className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-fg-3">
+              <div className="text-2xs font-bold uppercase tracking-[0.06em] text-fg-3">
                 {labels.provenance}
               </div>
-              <div className="mt-1 break-all font-mono text-[11px] text-fg-2">
+              <div className="mt-1 break-all font-mono text-xs text-fg-2">
                 {cohort.provenance
                   ? provenanceLabel(cohort.provenance)
                   : labels.notApplicable}
               </div>
             </div>
             <div className="rounded-ctl bg-surface-2 p-3">
-              <div className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-fg-3">
+              <div className="text-2xs font-bold uppercase tracking-[0.06em] text-fg-3">
                 {labels.actor}
               </div>
-              <div className="mt-1 text-[12.5px] font-semibold text-fg">
+              <div className="mt-1 text-sm font-semibold text-fg">
                 {cohort.changedByName ?? labels.notApplicable}
               </div>
             </div>
             <div className="rounded-ctl bg-surface-2 p-3">
-              <div className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-fg-3">
+              <div className="text-2xs font-bold uppercase tracking-[0.06em] text-fg-3">
                 {labels.changedAt}
               </div>
-              <div className="mt-1 font-mono text-[10.5px] text-fg-2">
+              <div className="mt-1 font-mono text-2xs text-fg-2">
                 {cohort.changedAt ?? labels.notApplicable}
               </div>
             </div>
@@ -230,47 +230,47 @@ export function PlatformPilotCohortCard({
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <div className="rounded-nav border border-border p-4">
-              <h3 className="text-[13px] font-bold text-fg">{labels.configuration}</h3>
+              <h3 className="text-sm font-bold text-fg">{labels.configuration}</h3>
               {cohort.configuration ? (
                 <dl className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <dt className="text-[10.5px] font-bold uppercase text-fg-3">{labels.configurationState}</dt>
-                    <dd className="mt-1 text-[12.5px] font-semibold text-fg">
+                    <dt className="text-2xs font-bold uppercase text-fg-3">{labels.configurationState}</dt>
+                    <dd className="mt-1 text-sm font-semibold text-fg">
                       {cohort.configuration.state === "active"
                         ? labels.configurationActive
                         : labels.configurationPaused}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-[10.5px] font-bold uppercase text-fg-3">{labels.cutoff}</dt>
-                    <dd className="mt-1 font-mono text-[10.5px] text-fg-2">{cohort.configuration.cutoffAt}</dd>
+                    <dt className="text-2xs font-bold uppercase text-fg-3">{labels.cutoff}</dt>
+                    <dd className="mt-1 font-mono text-2xs text-fg-2">{cohort.configuration.cutoffAt}</dd>
                   </div>
                   <div>
-                    <dt className="text-[10.5px] font-bold uppercase text-fg-3">{labels.configurationVersion}</dt>
-                    <dd className="mt-1 text-[12.5px] font-semibold text-fg">{cohort.configuration.version}</dd>
+                    <dt className="text-2xs font-bold uppercase text-fg-3">{labels.configurationVersion}</dt>
+                    <dd className="mt-1 text-sm font-semibold text-fg">{cohort.configuration.version}</dd>
                   </div>
                   <div>
-                    <dt className="text-[10.5px] font-bold uppercase text-fg-3">{labels.actor}</dt>
-                    <dd className="mt-1 text-[12.5px] font-semibold text-fg">{cohort.configuration.changedByName}</dd>
+                    <dt className="text-2xs font-bold uppercase text-fg-3">{labels.actor}</dt>
+                    <dd className="mt-1 text-sm font-semibold text-fg">{cohort.configuration.changedByName}</dd>
                   </div>
                   <div className="sm:col-span-2">
-                    <dt className="text-[10.5px] font-bold uppercase text-fg-3">{labels.reason}</dt>
-                    <dd className="mt-1 text-[12.5px] text-fg-2">{cohort.configuration.reason}</dd>
+                    <dt className="text-2xs font-bold uppercase text-fg-3">{labels.reason}</dt>
+                    <dd className="mt-1 text-sm text-fg-2">{cohort.configuration.reason}</dd>
                   </div>
                   <div className="sm:col-span-2">
-                    <dt className="text-[10.5px] font-bold uppercase text-fg-3">{labels.provenance}</dt>
-                    <dd className="mt-1 break-all font-mono text-[10.5px] text-fg-2">
+                    <dt className="text-2xs font-bold uppercase text-fg-3">{labels.provenance}</dt>
+                    <dd className="mt-1 break-all font-mono text-2xs text-fg-2">
                       {provenanceLabel(cohort.configuration.provenance)}
                     </dd>
                   </div>
                 </dl>
               ) : (
-                <p className="mt-3 text-[12.5px] text-fg-3">{labels.configurationMissing}</p>
+                <p className="mt-3 text-sm text-fg-3">{labels.configurationMissing}</p>
               )}
             </div>
 
             <div className="rounded-nav border border-border p-4">
-              <h3 className="text-[13px] font-bold text-fg">{labels.counts}</h3>
+              <h3 className="text-sm font-bold text-fg">{labels.counts}</h3>
               <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
                 {[
                   [labels.countOutside, cohort.counts.outside],
@@ -279,8 +279,8 @@ export function PlatformPilotCohortCard({
                   [labels.countTotal, cohort.counts.total],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-ctl bg-surface-2 p-3 text-center">
-                    <dt className="text-[10.5px] font-bold uppercase text-fg-3">{label}</dt>
-                    <dd className="mt-1 text-[18px] font-bold text-fg">{value}</dd>
+                    <dt className="text-2xs font-bold uppercase text-fg-3">{label}</dt>
+                    <dd className="mt-1 text-xl font-bold text-fg">{value}</dd>
                   </div>
                 ))}
               </dl>
@@ -288,7 +288,7 @@ export function PlatformPilotCohortCard({
           </div>
 
           <div className="mt-5 rounded-nav border border-info/20 bg-info-weak p-4" data-testid="platform-pilot-write-boundary">
-            <h3 className="text-[13px] font-bold text-info">{labels.authority}: {labels.evoOnly}</h3>
+            <h3 className="text-sm font-bold text-info">{labels.authority}: {labels.evoOnly}</h3>
             <dl className="mt-3 grid gap-3 sm:grid-cols-2">
               <BoundaryRow
                 boundary={cohort.writeBoundary}
@@ -303,7 +303,7 @@ export function PlatformPilotCohortCard({
                 blockedLabel={labels.legacyBlocked}
               />
             </dl>
-            <p className="mt-3 text-[11.5px] font-semibold text-fg-2">{labels.noFallback}</p>
+            <p className="mt-3 text-xs font-semibold text-fg-2">{labels.noFallback}</p>
           </div>
 
           {canManage && (
@@ -313,7 +313,7 @@ export function PlatformPilotCohortCard({
                 className="rounded-nav border border-border p-4"
                 data-testid="platform-pilot-configuration-form"
               >
-                <h3 className="text-[13px] font-bold text-fg">{labels.configure}</h3>
+                <h3 className="text-sm font-bold text-fg">{labels.configure}</h3>
                 <input type="hidden" name="student_case_id" value={cohort.studentCaseId} />
                 <input type="hidden" name="request_id" value={configurationRequestId} />
                 <label className={`${labelCls} mt-3 block`}>
@@ -360,7 +360,7 @@ export function PlatformPilotCohortCard({
                     <input type="hidden" name="student_case_id" value={cohort.studentCaseId} />
                     <input type="hidden" name="membership_action" value={action} />
                     <input type="hidden" name="request_id" value={requestId} />
-                    <h3 className="text-[13px] font-bold text-fg">{actionLabel}</h3>
+                    <h3 className="text-sm font-bold text-fg">{actionLabel}</h3>
                     <label className={`${labelCls} mt-3 block`}>
                       {labels.manualReason}
                       <input name="reason" className={`${inputCls} mt-1`} maxLength={1000} required />
@@ -377,19 +377,19 @@ export function PlatformPilotCohortCard({
           )}
 
           <div className="mt-5">
-            <h3 className="text-[13px] font-bold text-fg">{labels.history}</h3>
+            <h3 className="text-sm font-bold text-fg">{labels.history}</h3>
             {cohort.history.length === 0 ? (
-              <p className="mt-2 text-[12.5px] text-fg-3">{labels.historyEmpty}</p>
+              <p className="mt-2 text-sm text-fg-3">{labels.historyEmpty}</p>
             ) : (
               <ol className="mt-2 divide-y divide-border" data-testid="platform-pilot-membership-history">
                 {cohort.history.map((entry) => (
-                  <li key={entry.eventId} className="py-3 text-[12px]">
+                  <li key={entry.eventId} className="py-3 text-xs">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-semibold text-fg">{labels.basisLabels[entry.basis]}</span>
-                      <span className="font-mono text-[10.5px] text-fg-3">{entry.changedAt}</span>
+                      <span className="font-mono text-2xs text-fg-3">{entry.changedAt}</span>
                     </div>
                     <p className="mt-1 text-fg-2">{entry.reason}</p>
-                    <p className="mt-1 break-all font-mono text-[10.5px] text-fg-3">
+                    <p className="mt-1 break-all font-mono text-2xs text-fg-3">
                       {provenanceLabel(entry.provenance)} · {entry.changedByName}
                     </p>
                   </li>

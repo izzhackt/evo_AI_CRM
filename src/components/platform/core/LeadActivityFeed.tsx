@@ -52,8 +52,8 @@ export function LeadActivityFeed({
                   <Icon name={chip.icon} size={14} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] leading-6 text-fg">{body}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-fg-3">
+                  <div className="text-base leading-6 text-fg">{body}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-fg-3">
                     <span>{labels.activityType[activity.type] ?? activity.type}</span>
                     <span>·</span>
                     <span>{activity.author_name ?? "—"}</span>

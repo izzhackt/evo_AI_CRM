@@ -15,7 +15,7 @@ export function SalesViewSwitch({
   copy: SalesCopy;
 }) {
   const linkClass =
-    "inline-flex min-h-9 items-center justify-center rounded-nav px-3 text-[12.5px] font-semibold transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none";
+    "inline-flex min-h-9 items-center justify-center rounded-nav px-3 text-sm font-semibold transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none";
 
   return (
     <nav

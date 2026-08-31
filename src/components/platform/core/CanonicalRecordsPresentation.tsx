@@ -116,20 +116,20 @@ export function CanonicalAuthorityNotice({
   const copy = canonicalRecordCopy(locale);
   return (
     <aside
-      className="flex gap-3 border-l-[3px] border-accent bg-accent-weak/45 px-4 py-3"
+      className="flex gap-3 border-l border-accent bg-accent-weak/45 px-4 py-3"
       data-testid="canonical-evo-authority"
     >
       <Icon name="shield" size={18} className="mt-0.5 shrink-0 text-accent" />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-[13px] font-semibold text-fg">
+          <h2 className="text-sm font-semibold text-fg">
             {copy.authorityTitle}
           </h2>
-          <span className="rounded-full bg-surface px-2 py-0.5 text-[10.5px] font-semibold text-fg-3">
+          <span className="rounded-full bg-surface px-2 py-0.5 text-2xs font-semibold text-fg-3">
             {copy.readOnly}
           </span>
         </div>
-        <p className="mt-1 max-w-4xl text-[12.5px] leading-5 text-fg-2">
+        <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-2">
           {copy.authorityBody}
         </p>
       </div>
@@ -147,7 +147,7 @@ export function CanonicalKeyBadge({
   return (
     <span
       className={cn(
-        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold leading-4",
+        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-xs font-semibold leading-4",
         tone === "accent" && "bg-accent-weak text-accent",
         tone === "ok" && "bg-ok-weak text-ok",
         tone === "warn" && "bg-warn-weak text-warn",
@@ -162,7 +162,7 @@ export function CanonicalKeyBadge({
 
 export function CanonicalUuid({ value }: Readonly<{ value: string }>) {
   return (
-    <span className="break-all font-mono text-[11px] text-fg-3">{value}</span>
+    <span className="break-all font-mono text-xs text-fg-3">{value}</span>
   );
 }
 
@@ -181,7 +181,7 @@ export function CanonicalSection({
       data-testid={testId}
       aria-label={title}
     >
-      <h2 className="text-[13px] font-semibold text-fg">{title}</h2>
+      <h2 className="text-sm font-semibold text-fg">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -195,7 +195,7 @@ export function DuplicateStatus({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-1 text-[11.5px] font-semibold",
+        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
         count > 0 ? "bg-warn-weak text-warn" : "bg-ok-weak text-ok",
       )}
       data-testid="canonical-duplicate-status"

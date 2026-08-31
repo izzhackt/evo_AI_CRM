@@ -26,7 +26,7 @@ export function StudentProgress({
   if (compact) {
     return (
       <div className="min-w-[128px]">
-        <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-fg-3">
+        <div className="mb-1.5 flex items-center justify-between gap-2 text-xs text-fg-3">
           <span className="truncate">{currentLabel}</span>
           <span className="shrink-0 font-mono">{progress}%</span>
         </div>
@@ -48,7 +48,7 @@ export function StudentProgress({
   return (
     <div className="overflow-x-auto pb-1">
       <div className="min-w-[720px]">
-        <div className="mb-1.5 flex items-center justify-between gap-3 text-[12px]">
+        <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
           <span className="font-medium text-fg-2">{currentLabel}</span>
           <span className="shrink-0 font-mono font-semibold text-fg">{progress}%</span>
         </div>
@@ -94,7 +94,7 @@ export function StudentProgress({
               />
               <span
                 className={cn(
-                  "mt-2 block max-w-[110px] text-[10.5px] leading-4",
+                  "mt-2 block max-w-[110px] text-2xs leading-4",
                   current ? "font-bold text-fg" : complete ? "font-medium text-fg-2" : "text-fg-3",
                 )}
               >

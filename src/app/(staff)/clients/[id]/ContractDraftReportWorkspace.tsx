@@ -127,7 +127,7 @@ const RESULT_COPY: Record<
   },
 };
 
-const textAreaCls = cn(inputCls, "h-auto min-h-24 resize-y py-2 font-mono text-[12px]");
+const textAreaCls = cn(inputCls, "h-auto min-h-24 resize-y py-2 font-mono text-xs");
 
 function HiddenContext({
   studentCaseId,
@@ -163,8 +163,8 @@ function ReasonField({ id }: { id: string }) {
 function EvidenceHash({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 border-b border-border pb-3">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">{label}</dt>
-      <dd className="mt-1 break-all font-mono text-[11px] text-fg-2">{value}</dd>
+      <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">{label}</dt>
+      <dd className="mt-1 break-all font-mono text-xs text-fg-2">{value}</dd>
     </div>
   );
 }
@@ -183,14 +183,14 @@ function ArtifactMeta({
   return (
     <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
       <div className="min-w-0 border-b border-border pb-3">
-        <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">Создал</dt>
-        <dd className="mt-1 break-all font-mono text-[11px] text-fg-2">{createdBy}</dd>
-        <dd className="mt-1 font-mono text-[10.5px] text-fg-3">{createdAt}</dd>
+        <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">Создал</dt>
+        <dd className="mt-1 break-all font-mono text-xs text-fg-2">{createdBy}</dd>
+        <dd className="mt-1 font-mono text-2xs text-fg-3">{createdAt}</dd>
       </div>
       <div className="min-w-0 border-b border-border pb-3">
-        <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">Review</dt>
-        <dd className="mt-1 break-all font-mono text-[11px] text-fg-2">{reviewedBy ?? "—"}</dd>
-        <dd className="mt-1 font-mono text-[10.5px] text-fg-3">{reviewedAt ?? "—"}</dd>
+        <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">Review</dt>
+        <dd className="mt-1 break-all font-mono text-xs text-fg-2">{reviewedBy ?? "—"}</dd>
+        <dd className="mt-1 font-mono text-2xs text-fg-3">{reviewedAt ?? "—"}</dd>
       </div>
     </dl>
   );
@@ -264,8 +264,8 @@ function TemplateLifecycle({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="text-[13.5px] font-bold text-fg">{template.title}</h4>
-          <p className="mt-1 font-mono text-[11px] text-fg-3">
+          <h4 className="text-base font-bold text-fg">{template.title}</h4>
+          <p className="mt-1 font-mono text-xs text-fg-3">
             {template.templateKey} · v{template.version}
           </p>
         </div>
@@ -273,15 +273,15 @@ function TemplateLifecycle({
       </div>
       <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
         <div className="min-w-0 border-b border-border pb-3">
-          <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">Канонический источник</dt>
-          <dd className="mt-1 break-all text-[12px] text-fg-2">
+          <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">Канонический источник</dt>
+          <dd className="mt-1 break-all text-xs text-fg-2">
             {source ? (
               <a className="text-accent underline-offset-2 hover:underline" href={source.sourceUrl} target="_blank" rel="noreferrer">
                 {source.sourceUrl}
               </a>
             ) : "Источник недоступен этой роли"}
           </dd>
-          <dd className="mt-1 font-mono text-[10.5px] text-fg-3">
+          <dd className="mt-1 font-mono text-2xs text-fg-3">
             revision: {template.sourceRevision}
           </dd>
         </div>
@@ -346,10 +346,10 @@ function DraftArtifact({
       data-draft-version={draft.version}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h4 className="text-[13.5px] font-bold text-fg">Договор · v{draft.version}</h4>
+        <h4 className="text-base font-bold text-fg">Договор · v{draft.version}</h4>
         <Badge value={draft.status} label={draft.status} />
       </div>
-      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-nav border border-border bg-surface-2 p-4 font-mono text-[12px] leading-6 text-fg" data-testid="platform-contract-rendered-draft">
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-nav border border-border bg-surface-2 p-4 font-mono text-xs leading-6 text-fg" data-testid="platform-contract-rendered-draft">
         {draft.renderedText}
       </pre>
       <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
@@ -413,7 +413,7 @@ function PostContractItemForm({
           name="owner_membership_id"
           defaultValue={item.ownerMembershipId ?? ""}
           maxLength={36}
-          className={cn(inputCls, "mt-1 font-mono text-[12px]")}
+          className={cn(inputCls, "mt-1 font-mono text-xs")}
         />
       </label>
       <label className={labelCls}>
@@ -469,10 +469,10 @@ function ReportArtifact({
       data-template-id={report.contractTemplateVersionId}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h4 className="text-[13.5px] font-bold text-fg">Постдоговорный отчёт · v{report.version}</h4>
+        <h4 className="text-base font-bold text-fg">Постдоговорный отчёт · v{report.version}</h4>
         <Badge value={report.status} label={report.status} />
       </div>
-      <p className="text-[11.5px] text-fg-3">
+      <p className="text-xs text-fg-3">
         Шаблон: {templateLabel(template, report.contractTemplateVersionId)}
       </p>
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -484,8 +484,8 @@ function ReportArtifact({
           ["Заблокировано", report.blockedItemCount],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-nav border border-border bg-surface-2 p-3">
-            <dt className="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-fg-3">{label}</dt>
-            <dd className="mt-1 font-mono text-[18px] font-bold text-fg">{value}</dd>
+            <dt className="text-2xs font-semibold uppercase tracking-[0.04em] text-fg-3">{label}</dt>
+            <dd className="mt-1 font-mono text-xl font-bold text-fg">{value}</dd>
           </div>
         ))}
       </dl>
@@ -500,14 +500,14 @@ function ReportArtifact({
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="text-[12.5px] font-semibold text-fg">{item.label}</p>
+                <p className="text-sm font-semibold text-fg">{item.label}</p>
                 <Badge value={item.status} label={item.status} />
               </div>
-              <p className="mt-1 break-all font-mono text-[10.5px] text-fg-3">
+              <p className="mt-1 break-all font-mono text-2xs text-fg-3">
                 owner: {item.ownerMembershipId} ({item.ownerRole}) · revision {item.revision}
               </p>
             </div>
-            <dl className="grid gap-2 text-[11.5px]">
+            <dl className="grid gap-2 text-xs">
               <div>
                 <dt className="font-semibold text-fg-3">Evidence</dt>
                 <dd className="mt-0.5 break-all text-fg-2">{item.evidenceRef ?? "—"}</dd>
@@ -576,11 +576,10 @@ export function ContractDraftReportWorkspace({
       className="scroll-mt-24 space-y-4 rounded-card border border-border bg-surface p-4 shadow-evo sm:p-5"
     >
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-accent">BW6 · Student 360</p>
-        <h2 id="contract-workflow-title" className="mt-1 text-[17px] font-black tracking-[-0.02em] text-fg">
+        <h2 id="contract-workflow-title" className="mt-1 text-lg font-black tracking-[-0.02em] text-fg">
           Договор и постдоговорный отчёт
         </h2>
-        <p className="mt-1 max-w-4xl text-[12.5px] leading-5 text-fg-3">
+        <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
           Версии создаются только из проверенного источника и разрешённых типизированных полей. Черновик не является подписанным юридическим договором или доказательством доставки.
         </p>
       </div>
@@ -607,7 +606,7 @@ export function ContractDraftReportWorkspace({
 
       {workspace.canManageTemplates ? (
         <details className="rounded-nav border border-border bg-surface-2 p-4" data-testid="platform-contract-template-create-panel">
-          <summary className="cursor-pointer text-[13.5px] font-bold text-fg">Создать версию шаблона</summary>
+          <summary className="cursor-pointer text-base font-bold text-fg">Создать версию шаблона</summary>
           <form
             action={actions.createTemplate}
             data-testid="platform-contract-template-create-form"
@@ -646,21 +645,21 @@ export function ContractDraftReportWorkspace({
             <label className={cn(labelCls, "sm:col-span-2")}>
               Plain-text шаблон
               <textarea name="template_text" required minLength={10} maxLength={20_000} rows={8} className={textAreaCls} aria-describedby="contract-template-text-hint" />
-              <span id="contract-template-text-hint" className="mt-1 block text-[11px] font-normal leading-4 text-fg-3">
+              <span id="contract-template-text-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
                 Только текст и объявленные placeholders. Значение никогда не вставляется как HTML.
               </span>
             </label>
             <label className={labelCls}>
               Typed manifest · по одной строке
               <textarea name="manifest_lines" required minLength={5} maxLength={10_000} rows={6} className={textAreaCls} aria-describedby="contract-manifest-hint" />
-              <span id="contract-manifest-hint" className="mt-1 block text-[11px] font-normal leading-4 text-fg-3">
+              <span id="contract-manifest-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
                 field_key|source_path|value_type|required
               </span>
             </label>
             <label className={labelCls}>
               Checklist blueprint · по одной строке
               <textarea name="checklist_lines" required minLength={5} maxLength={10_000} rows={6} className={textAreaCls} aria-describedby="contract-checklist-hint" />
-              <span id="contract-checklist-hint" className="mt-1 block text-[11px] font-normal leading-4 text-fg-3">
+              <span id="contract-checklist-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
                 item_key|label|owner_role|next_action
               </span>
             </label>
@@ -674,7 +673,7 @@ export function ContractDraftReportWorkspace({
 
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="min-w-0 rounded-nav border border-border p-4" aria-labelledby="contract-template-list-title">
-          <h3 id="contract-template-list-title" className="text-[14px] font-bold text-fg">Версии шаблона</h3>
+          <h3 id="contract-template-list-title" className="text-base font-bold text-fg">Версии шаблона</h3>
           <div className="mt-4 space-y-4" data-testid="platform-contract-template-list">
             {workspace.templates.length > 0 ? workspace.templates.map((template) => (
               <TemplateLifecycle key={template.contractTemplateVersionId} workspace={workspace} template={template} actions={actions} requestIdFor={requestIdFor} />
@@ -685,8 +684,8 @@ export function ContractDraftReportWorkspace({
         <section className="min-w-0 rounded-nav border border-border p-4" aria-labelledby="contract-draft-list-title">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 id="contract-draft-list-title" className="text-[14px] font-bold text-fg">Неизменяемые версии договора</h3>
-              <p className="mt-1 text-[11.5px] leading-4 text-fg-3">Новая генерация всегда создаёт новую версию.</p>
+              <h3 id="contract-draft-list-title" className="text-base font-bold text-fg">Неизменяемые версии договора</h3>
+              <p className="mt-1 text-xs leading-4 text-fg-3">Новая генерация всегда создаёт новую версию.</p>
             </div>
           </div>
           {workspace.canGenerateContract ? (
@@ -719,8 +718,8 @@ export function ContractDraftReportWorkspace({
       <section className="rounded-nav border border-border p-4" aria-labelledby="post-contract-items-title">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 id="post-contract-items-title" className="text-[14px] font-bold text-fg">Постдоговорный чек-лист</h3>
-            <p className="mt-1 text-[11.5px] leading-4 text-fg-3">Delivered требует evidence. Open, in progress и blocked требуют owner и следующего действия.</p>
+            <h3 id="post-contract-items-title" className="text-base font-bold text-fg">Постдоговорный чек-лист</h3>
+            <p className="mt-1 text-xs leading-4 text-fg-3">Delivered требует evidence. Open, in progress и blocked требуют owner и следующего действия.</p>
           </div>
         </div>
         {workspace.canManagePostContract ? (
@@ -754,8 +753,8 @@ export function ContractDraftReportWorkspace({
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h4 className="text-[13.5px] font-bold text-fg">{item.label}</h4>
-                  <p className="mt-1 font-mono text-[10.5px] text-fg-3">
+                  <h4 className="text-base font-bold text-fg">{item.label}</h4>
+                  <p className="mt-1 font-mono text-2xs text-fg-3">
                     {item.itemKey} · revision {item.revision} · {templateLabel(
                       templateById.get(item.contractTemplateVersionId),
                       item.contractTemplateVersionId,
@@ -765,9 +764,9 @@ export function ContractDraftReportWorkspace({
                 <Badge value={item.status} label={item.status} />
               </div>
               <dl className="grid gap-3 sm:grid-cols-3">
-                <div><dt className={labelCls}>Owner</dt><dd className="break-all font-mono text-[11px] text-fg-2">{item.ownerMembershipId ?? item.ownerRole}</dd></div>
-                <div><dt className={labelCls}>Следующее действие</dt><dd className="whitespace-pre-wrap text-[12px] text-fg-2">{item.nextAction ?? "—"}</dd></div>
-                <div><dt className={labelCls}>Evidence</dt><dd className="break-all text-[12px] text-fg-2">{item.evidenceRef ?? "—"}</dd></div>
+                <div><dt className={labelCls}>Owner</dt><dd className="break-all font-mono text-xs text-fg-2">{item.ownerMembershipId ?? item.ownerRole}</dd></div>
+                <div><dt className={labelCls}>Следующее действие</dt><dd className="max-w-[60ch] whitespace-pre-wrap text-xs text-fg-2">{item.nextAction ?? "—"}</dd></div>
+                <div><dt className={labelCls}>Evidence</dt><dd className="break-all text-xs text-fg-2">{item.evidenceRef ?? "—"}</dd></div>
               </dl>
               {workspace.canManagePostContract ? <PostContractItemForm workspace={workspace} item={item} action={actions.updateItem} requestIdFor={requestIdFor} /> : null}
             </article>
@@ -778,8 +777,8 @@ export function ContractDraftReportWorkspace({
       <section className="rounded-nav border border-border p-4" aria-labelledby="post-contract-report-title">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 id="post-contract-report-title" className="text-[14px] font-bold text-fg">Версии постдоговорного отчёта</h3>
-            <p className="mt-1 text-[11.5px] leading-4 text-fg-3">Каждая версия фиксирует delivered/open/blocked counts, owner, evidence и next action на момент генерации.</p>
+            <h3 id="post-contract-report-title" className="text-base font-bold text-fg">Версии постдоговорного отчёта</h3>
+            <p className="mt-1 text-xs leading-4 text-fg-3">Каждая версия фиксирует delivered/open/blocked counts, owner, evidence и next action на момент генерации.</p>
           </div>
         </div>
         {workspace.canManagePostContract ? (

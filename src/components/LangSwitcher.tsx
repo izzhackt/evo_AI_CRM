@@ -17,7 +17,7 @@ export function LangSwitcher({ current }: { current: Locale }) {
           title={LOCALE_NAMES[l]}
           aria-label={LOCALE_NAMES[l]}
           aria-pressed={l === current}
-          className={`min-h-9 rounded-[8px] px-2.5 py-1.5 text-[12px] font-semibold uppercase transition-[background-color,color] duration-150 ease-out ${
+          className={`min-h-9 rounded-[8px] px-2.5 py-1.5 text-xs font-semibold uppercase transition-[background-color,color] duration-150 ease-out ${
             l === current
               ? "bg-surface text-fg shadow-evo"
               : "text-fg-3 hover:text-fg-2"

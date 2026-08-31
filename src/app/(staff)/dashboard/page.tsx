@@ -200,7 +200,7 @@ export default async function DashboardPage() {
             <Link
               href="/sales"
               aria-label={t("admissionsPipeline")}
-              className="inline-flex h-8 items-center gap-1 rounded-nav px-2 text-[12px] font-semibold text-accent hover:bg-accent-weak"
+              className="inline-flex h-8 items-center gap-1 rounded-nav px-2 text-xs font-semibold text-accent hover:bg-accent-weak"
             >
               <Icon name="chevron-right" size={15} />
             </Link>
@@ -215,7 +215,7 @@ export default async function DashboardPage() {
                   href={`/sales?status=${stage.status}`}
                   className="flex items-center gap-3 rounded-nav px-2 py-1.5 transition-[background-color] hover:bg-surface-2"
                 >
-                  <span className="w-36 shrink-0 truncate text-[12.5px] text-fg-2 sm:w-40 sm:text-[13px]">
+                  <span className="w-36 shrink-0 truncate text-sm text-fg-2 sm:w-40 sm:text-sm">
                     {t(`lead.${stage.status}`)}
                   </span>
                   <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-surface-2">
@@ -229,7 +229,7 @@ export default async function DashboardPage() {
                       }}
                     />
                   </span>
-                  <span className="w-8 shrink-0 text-right font-mono text-[13px] font-semibold text-fg">
+                  <span className="w-8 shrink-0 text-right font-mono text-sm font-semibold text-fg">
                     {count}
                   </span>
                 </Link>
@@ -245,10 +245,10 @@ export default async function DashboardPage() {
                 key={tile.label}
                 className="min-w-0 rounded-ctl bg-surface-2 px-3 py-2.5"
               >
-                <div className="truncate text-[11.5px] text-fg-3">
+                <div className="truncate text-xs text-fg-3">
                   {tile.label}
                 </div>
-                <div className="mt-1 font-mono text-[16px] font-semibold text-fg">
+                <div className="mt-1 font-mono text-lg font-semibold text-fg">
                   {tile.value}
                 </div>
               </div>
@@ -262,7 +262,7 @@ export default async function DashboardPage() {
         action={
           <Link
             href="/applications"
-            className="inline-flex min-h-8 items-center gap-1 rounded-nav px-2 text-[12px] font-semibold text-accent hover:bg-accent-weak"
+            className="inline-flex min-h-8 items-center gap-1 rounded-nav px-2 text-xs font-semibold text-accent hover:bg-accent-weak"
           >
             {copy.allApplications}
             <Icon name="chevron-right" size={14} />
@@ -281,16 +281,16 @@ export default async function DashboardPage() {
                 <div className="min-w-0">
                   <Link
                     href={`/clients/${deadline.client_id}`}
-                    className="text-[13.5px] font-semibold text-fg hover:text-accent"
+                    className="text-base font-semibold text-fg hover:text-accent"
                   >
                     {deadline.client_name}
                   </Link>
-                  <div className="truncate text-[12px] text-fg-3">
+                  <div className="truncate text-xs text-fg-3">
                     {deadline.university}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <span className="font-mono text-[12.5px] text-fg-2">
+                  <span className="font-mono text-sm text-fg-2">
                     {deadline.deadline}
                   </span>
                   <Badge
@@ -311,8 +311,8 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="max-w-full overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left text-[13px]">
-              <thead className="border-b border-border text-[11px] uppercase tracking-[0.04em] text-fg-3">
+            <table className="w-full min-w-[700px] text-left text-sm">
+              <thead className="border-b border-border text-xs uppercase tracking-[0.04em] text-fg-3">
                 <tr>
                   <th className="px-5 py-2.5 font-semibold">{t("manager")}</th>
                   <th className="px-3 py-2.5 text-right font-semibold">
@@ -343,7 +343,7 @@ export default async function DashboardPage() {
                         href={`/sales?manager=${manager.id}`}
                         className="flex items-center gap-2.5"
                       >
-                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-weak text-[11px] font-semibold text-accent">
+                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-weak text-xs font-semibold text-accent">
                           {manager.name.slice(0, 1)}
                         </span>
                         <span className="font-medium text-fg hover:text-accent">

@@ -61,10 +61,10 @@ export function LeadInsightRail({
     <div className="space-y-5">
       <Card title={labels.sourceOfTruthTitle}>
         <div className="rounded-ctl border border-warn/25 bg-warn-weak/60 px-3.5 py-3">
-          <div className="inline-flex min-h-6 items-center rounded-full bg-surface px-2.5 py-0.5 text-[11.5px] font-semibold text-warn">
+          <div className="inline-flex min-h-6 items-center rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-warn">
             {labels.syncStatus}
           </div>
-          <dl className="mt-3 space-y-2.5 text-[12.5px]">
+          <dl className="mt-3 space-y-2.5 text-sm">
             <div className="flex justify-between gap-3">
               <dt className="text-fg-3">{labels.stage}</dt>
               <dd className="text-right font-medium text-fg">{sync.stageLabel}</dd>
@@ -82,7 +82,7 @@ export function LeadInsightRail({
               <dd className="text-right font-mono text-fg">{sync.updatedAt}</dd>
             </div>
           </dl>
-          <p className="mt-3 text-[12px] leading-5 text-fg-3">
+          <p className="mt-3 text-xs leading-5 text-fg-3">
             {labels.sourceOfTruthHint}
           </p>
         </div>
@@ -91,10 +91,10 @@ export function LeadInsightRail({
           <div className="mt-4 space-y-3">
             {sync.channel ? (
               <div className="rounded-ctl border border-border bg-surface-2 px-3.5 py-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">{labels.lastChannel}</div>
-                <div className="mt-1.5 text-[13.5px] font-medium text-fg">{sync.channel}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.05em] text-fg-3">{labels.lastChannel}</div>
+                <div className="mt-1.5 text-base font-medium text-fg">{sync.channel}</div>
                 {sync.conversationHref ? (
-                  <Link href={sync.conversationHref} className={cn(btnGhostCls, "mt-3 h-10 text-[12px]")}>
+                  <Link href={sync.conversationHref} className={cn(btnGhostCls, "mt-3 h-10 text-xs")}>
                     <Icon name="message-circle" size={14} />
                     {labels.whatsapp}
                   </Link>
@@ -104,8 +104,8 @@ export function LeadInsightRail({
 
             {sync.draftReviewText ? (
               <div className="rounded-ctl border border-border bg-surface-2 px-3.5 py-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">{labels.draftReview}</div>
-                <div className="mt-1.5 text-[12.5px] leading-5 text-fg">{sync.draftReviewText}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.05em] text-fg-3">{labels.draftReview}</div>
+                <div className="mt-1.5 text-sm leading-5 text-fg">{sync.draftReviewText}</div>
                 <div className="mt-2">
                   <Badge
                     value="review"
@@ -120,7 +120,7 @@ export function LeadInsightRail({
 
       <Card title={labels.nextTask}>
         <div className={cn(
-          "mb-4 rounded-ctl px-3.5 py-3 text-[13px] font-medium",
+          "mb-4 rounded-ctl px-3.5 py-3 text-sm font-medium",
           nextTask.overdueTasks > 0 ? "bg-danger-weak text-danger" : nextTask.openTasks === 0 ? "bg-warn-weak text-warn" : "bg-ok-weak text-ok",
         )}>
           {taskSummary}

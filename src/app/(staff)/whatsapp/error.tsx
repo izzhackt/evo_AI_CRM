@@ -27,10 +27,10 @@ export default function WhatsAppError({
             lang={locale}
             className={`locale-copy locale-copy--${locale}`}
           >
-            <h1 className="mt-4 text-[19px] font-bold text-fg">
+            <h1 className="mt-4 text-xl font-bold text-fg">
               {dict.whatsappErrorTitle}
             </h1>
-            <p className="mt-2 text-[13px] leading-6 text-fg-2">
+            <p className="mt-2 text-sm leading-6 text-fg-2">
               {dict.whatsappErrorHint}
             </p>
             <button type="button" onClick={reset} className={`${btnCls} mt-5`}>

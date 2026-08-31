@@ -94,8 +94,8 @@ export function CanonicalSalesConversationList({
       data-testid="canonical-sales-conversations"
     >
       <div>
-        <h2 className="text-[16px] font-bold text-fg">{copy.conversations}</h2>
-        <p className="mt-1 max-w-3xl text-[12.5px] leading-5 text-fg-3">
+        <h2 className="text-lg font-bold text-fg">{copy.conversations}</h2>
+        <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
           {copy.conversationsDescription}
         </p>
       </div>
@@ -115,10 +115,10 @@ export function CanonicalSalesConversationList({
                 data-conversation-id={conversation.conversationId}
               >
                 <span className="min-w-0">
-                  <span className="block text-[13px] font-semibold text-fg">
+                  <span className="block text-sm font-semibold text-fg">
                     {copy.openConversation}
                   </span>
-                  <span className="mt-1 block break-all font-mono text-[10.5px] text-fg-3">
+                  <span className="mt-1 block break-all font-mono text-2xs text-fg-3">
                     {conversation.conversationId}
                   </span>
                 </span>
@@ -128,7 +128,7 @@ export function CanonicalSalesConversationList({
                     value={conversation.status}
                     tone={conversation.status === "open" ? "ok" : "neutral"}
                   />
-                  <span className="text-[11px] text-fg-3">
+                  <span className="text-xs text-fg-3">
                     {copy.updated}: {formatCanonicalTimestamp(conversation.updatedAt, locale)}
                   </span>
                 </span>
@@ -169,10 +169,8 @@ export function CanonicalSalesConversationTranscript({
           ← {copy.back}
         </Link>
         <div>
-          <div className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-accent">
-            {copy.transcript}
-          </div>
-          <p className="mt-2 max-w-3xl text-[12.5px] leading-5 text-fg-3">
+          <h2 className="text-md font-semibold text-fg">{copy.transcript}</h2>
+          <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">
             {copy.transcriptDescription}
           </p>
         </div>
@@ -203,7 +201,7 @@ export function CanonicalSalesConversationTranscript({
                 data-message-id={message.messageId}
                 data-message-direction={message.direction}
               >
-                <div className="text-[11px] text-fg-3">
+                <div className="text-xs text-fg-3">
                   <div
                     className={cn(
                       "font-semibold",
@@ -216,7 +214,7 @@ export function CanonicalSalesConversationTranscript({
                     {formatCanonicalTimestamp(message.occurredAt, locale)}
                   </time>
                 </div>
-                <p className="min-w-0 whitespace-pre-wrap break-words text-[13px] leading-6 text-fg">
+                <p className="min-w-0 whitespace-pre-wrap break-words text-sm leading-6 text-fg">
                   {message.body}
                 </p>
               </li>
@@ -261,7 +259,7 @@ export function CanonicalSalesTranscriptUnavailable({
       <Link href={`/sales/${leadId}`} className={btnGhostCls}>
         ← {copy.back}
       </Link>
-      <p className="max-w-2xl text-[13px] leading-6 text-fg-3">
+      <p className="max-w-[60ch] text-sm leading-6 text-fg-3">
         {copy.unavailable}
       </p>
     </div>
@@ -271,7 +269,7 @@ export function CanonicalSalesTranscriptUnavailable({
 function ProviderBlockedNotice({ locale }: Readonly<{ locale: Locale }>) {
   return (
     <aside
-      className="border-l-[3px] border-warn bg-warn-weak/40 px-4 py-3 text-[12px] leading-5 text-fg-2"
+      className="border-l border-warn bg-warn-weak/40 px-4 py-3 text-xs leading-5 text-fg-2"
       data-testid="canonical-whatsapp-provider-blocked"
     >
       {COPY[locale].providerBlocked}

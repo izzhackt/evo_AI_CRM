@@ -270,7 +270,7 @@ function ActionMessage({
       role="status"
       data-testid={testId}
       className={cn(
-        "text-[12px]",
+        "text-xs",
         state.status === "saved" ? "text-ok" : "text-danger",
       )}
     >
@@ -306,7 +306,7 @@ function CreateTaskForm({
       className="rounded-ctl border border-border bg-surface-2 p-4"
       data-testid="canonical-admissions-task-create-form"
     >
-      <h3 className="text-[13px] font-semibold text-fg">{copy.createTitle}</h3>
+      <h3 className="text-sm font-semibold text-fg">{copy.createTitle}</h3>
       <input type="hidden" name="request_id" value={state.requestId} />
       <input type="hidden" name="student_case_id" value={studentCaseId} />
       <input type="hidden" name="due_at" value={dueAt} />
@@ -477,18 +477,18 @@ function TaskItem({
       <article aria-labelledby={headingId}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 id={headingId} className="break-words text-[13px] font-semibold text-fg">
+            <h3 id={headingId} className="break-words text-sm font-semibold text-fg">
               {task.title}
             </h3>
             {task.details ? (
-              <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-5 text-fg-3">
+              <p className="mt-1 max-w-[60ch] whitespace-pre-wrap text-sm leading-5 text-fg-3">
                 {task.details}
               </p>
             ) : null}
           </div>
           <span
             className={cn(
-              "shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+              "shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold",
               task.status === "completed"
                 ? "bg-ok-weak text-ok"
                 : task.status === "cancelled"
@@ -500,7 +500,7 @@ function TaskItem({
           </span>
         </div>
 
-        <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[11.5px] text-fg-3">
+        <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-fg-3">
           <div>
             <dt className="inline font-semibold">{copy.createdAt}: </dt>
             <dd className="inline">{formatTimestamp(task.createdAt, locale)}</dd>
@@ -518,7 +518,7 @@ function TaskItem({
         </dl>
 
         {showCase ? (
-          <div className="mt-3 rounded-ctl bg-surface-2 p-3 text-[12px] text-fg-2">
+          <div className="mt-3 rounded-ctl bg-surface-2 p-3 text-xs text-fg-2">
             <p className="font-medium text-fg">
               {copy.case}: {task.displayName}
             </p>
@@ -536,7 +536,7 @@ function TaskItem({
         ) : null}
 
         {task.closureReason ? (
-          <p className="mt-3 text-[12px] text-fg-3">
+          <p className="mt-3 text-xs text-fg-3">
             <strong>{copy.closureReason}:</strong> {task.closureReason}
           </p>
         ) : null}
@@ -575,11 +575,11 @@ export function CanonicalAdmissionsTaskPanel({
         <div className="border-b border-border pb-4">
           <h2
             id="canonical-admissions-task-panel-title"
-            className="text-[15px] font-semibold text-fg"
+            className="text-md font-semibold text-fg"
           >
             {showCase ? copy.queueTitle : copy.panelTitle}
           </h2>
-          <p className="mt-1 max-w-3xl text-[12.5px] leading-5 text-fg-3">
+          <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
             {showCase ? copy.queueDescription : copy.panelDescription}
           </p>
         </div>
@@ -595,7 +595,7 @@ export function CanonicalAdmissionsTaskPanel({
         ) : null}
 
         {tasks.length === 0 ? (
-          <p className="mt-4 text-[12.5px] text-fg-3">{copy.empty}</p>
+          <p className="mt-4 text-sm text-fg-3">{copy.empty}</p>
         ) : (
           <ul
             role="list"
@@ -620,7 +620,7 @@ export function CanonicalAdmissionsTaskPanel({
         )}
 
         {hasNext ? (
-          <p className="mt-4 text-[12px] text-warn" role="status">
+          <p className="mt-4 text-xs text-warn" role="status">
             {copy.moreTasks}
           </p>
         ) : null}

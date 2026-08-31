@@ -20,7 +20,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
   const messages = channelMessages(channelId);
 
   return (
-    <div className="flex h-[calc(100vh-150px)] min-h-[420px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
+    <div className="flex h-[calc(100dvh-150px)] min-h-[420px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
       <AutoRefresh />
       {/* Channel list */}
       <aside className="hidden w-[260px] shrink-0 flex-col border-r border-border md:flex">

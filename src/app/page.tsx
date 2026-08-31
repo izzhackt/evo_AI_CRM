@@ -59,7 +59,7 @@ export default async function Home() {
               E
             </span>
             <span>
-              <span className="block text-base font-bold">EVO Admissions CRM</span>
+              <span className="block text-md font-bold">EVO Admissions CRM</span>
               <span className="block text-xs text-fg-3">Private local V2</span>
             </span>
           </div>
@@ -75,10 +75,10 @@ export default async function Home() {
         </header>
 
         <section className="rounded-[24px] border border-border bg-surface p-6 shadow-evo-lg sm:p-8">
-          <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="mt-3 text-3xl font-bold tracking-tight">
             Вход в EVO V2 подтверждён
           </h1>
-          <p className="mt-3 max-w-[60ch] text-sm leading-6 text-fg-3 sm:text-base">
+          <p className="mt-3 max-w-[60ch] text-sm leading-6 text-fg-3">
             Это техническая роль для локальной проверки CRM, а не аккаунт
             сотрудника и не production-аутентификация.
           </p>
@@ -154,7 +154,7 @@ export default async function Home() {
           <Link
             href={fixedRoleHomeRoute(role)}
             data-testid="open-role-workspace"
-            className="mt-5 inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent"
+            className="mt-5 inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-base font-semibold text-on-accent"
           >
             Открыть рабочий интерфейс
           </Link>

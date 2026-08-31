@@ -27,7 +27,7 @@ export default async function WhatsAppLoading() {
         </p>
       </div>
 
-      <div className="flex h-[calc(100vh-310px)] min-h-[500px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
+      <div className="flex h-[calc(100dvh-310px)] min-h-[500px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
         <div className="w-full border-border md:w-[336px] md:shrink-0 md:border-r">
           <div className="border-b border-border p-4">
             <Skeleton className="h-9 w-full" />

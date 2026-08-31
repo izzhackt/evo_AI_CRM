@@ -49,7 +49,7 @@ export default async function SettingsPage() {
               aria-pressed={actor.platformRole === role}
               className="min-h-36 rounded-card border border-border bg-bg p-5 text-left transition-colors hover:border-accent aria-pressed:border-accent aria-pressed:bg-accent-weak"
             >
-              <span className="block text-base font-bold text-fg">
+              <span className="block text-md font-bold text-fg">
                 {ROLE_COPY[role].title}
               </span>
               <span className="mt-2 block text-sm leading-6 text-fg-3">

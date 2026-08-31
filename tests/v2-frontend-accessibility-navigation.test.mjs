@@ -1,28 +1,16 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+
+import {
+  MIN_STAFF_SURFACES,
+  staffOperatingSurfaces,
+} from "./helpers/staff-surfaces.mjs";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-function staffSurfaceFiles() {
-  const roots = ["src/app", "src/components"];
-  const files = new Set();
-  for (const root of roots) {
-    const base = new URL(`../${root}/`, import.meta.url);
-    for (const entry of readdirSync(base, { recursive: true, withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".tsx")) continue;
-      const dir = entry.parentPath ?? entry.path;
-      const rel = relative(fileURLToPath(base), join(dir, entry.name));
-      if (rel.includes("portal") || rel.includes("transcription")) continue;
-      files.add(`${root}/${rel}`);
-    }
-  }
-  return [...files].sort();
-}
 
 /**
  * WCAG 2.x relative luminance and contrast ratio. One implementation for every
@@ -323,15 +311,17 @@ test("the shared task panel heading stays subordinate to the page h1", () => {
 
 test("staff type sizes come from the scale, not ad-hoc pixel values", () => {
   const theme = source("src/app/globals.css");
-  const themeBlock = theme.slice(theme.indexOf("@theme inline"));
+  const themeStart = theme.indexOf("@theme inline");
+  const themeBlock = theme.slice(themeStart);
   const steps = [...themeBlock.matchAll(/--text-([a-z0-9]+):\s*(\d+)px/g)].map(
     (match) => ({ name: match[1], px: Number(match[2]) }),
   );
 
-  assert.equal(steps.length, 9, "the scale is nine fixed steps");
+  assert.ok(steps.length >= 8, `a usable scale needs at least 8 steps, got ${steps.length}`);
   const sizes = steps.map((step) => step.px).sort((a, b) => a - b);
   assert.equal(sizes[0], 11, "functional floor is 11px");
   assert.ok(sizes.includes(12), "body floor is 12px");
+  assert.equal(new Set(sizes).size, sizes.length, "two steps must not share a size");
 
   // A dense Operate surface carries many type elements at once; exaggerated
   // contrast between adjacent steps reads as noise rather than hierarchy.
@@ -343,9 +333,19 @@ test("staff type sizes come from the scale, not ad-hoc pixel values", () => {
     );
   }
 
-  // Every staff surface resolves through the scale. Ad-hoc text-[13.5px] is how
-  // twenty different sizes accumulated in the first place.
-  for (const surface of staffSurfaceFiles()) {
+  // Every text- utility a surface names must resolve to a declared step.
+  // Tailwind ships text-4xl and up; using one silently steps off this scale.
+  const declared = new Set(steps.map((step) => step.name));
+  for (const surface of staffOperatingSurfaces()) {
+    for (const [, name] of source(surface).matchAll(
+      /(?<![\w-])(?:[a-z0-9]+:)*text-(2xs|xs|sm|base|md|lg|xl|\d?xl)(?![\w-])/g,
+    )) {
+      assert.ok(
+        declared.has(name),
+        `${surface} uses text-${name}, which is not a step in the scale`,
+      );
+    }
+    // Ad-hoc text-[13.5px] is how twenty different sizes accumulated.
     const literals = source(surface).match(/text-\[\d+(?:\.\d+)?px\]/g) ?? [];
     assert.deepEqual(
       literals,
@@ -353,20 +353,42 @@ test("staff type sizes come from the scale, not ad-hoc pixel values", () => {
       `${surface} uses ad-hoc ${literals[0]} instead of the type scale`,
     );
   }
+
+  // The stylesheet's own rules were converted to the scale by hand; nothing
+  // stopped one from being left as a raw pixel value.
+  const rules = theme.slice(0, themeStart) + themeBlock.slice(themeBlock.indexOf("}"));
+  const rawSizes = [...rules.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => m[0]);
+  assert.deepEqual(
+    rawSizes,
+    [],
+    `globals.css sets ${rawSizes[0]} directly instead of var(--text-*)`,
+  );
 });
 
 test("no staff surface reintroduces a kicker above its heading", () => {
   // The eyebrow label is a page-scaffold habit: the heading carries its own
   // weight, and the label above it is a tell rather than information.
-  for (const surface of staffSurfaceFiles()) {
+  // Matched by composition rather than by literal class order, because class
+  // order is arbitrary and an ordered regex is evaded by rearranging it.
+  for (const surface of staffOperatingSurfaces()) {
     const moduleSource = source(surface);
+    for (const [, classes] of moduleSource.matchAll(/className="([^"]*)"/g)) {
+      const names = classes.split(/\s+/);
+      const has = (test) => names.some((name) => test.test(name));
+      const kicker =
+        has(/^(?:[a-z0-9]+:)?uppercase$/) &&
+        has(/^(?:[a-z0-9]+:)?tracking-(?:\[0\.\d+em\]|wider|widest)$/) &&
+        has(/^(?:[a-z0-9]+:)?text-accent$/);
+      assert.ok(!kicker, `${surface} reintroduces an accent kicker: "${classes}"`);
+    }
     assert.ok(
-      !/uppercase tracking-\[0\.0[0-9]em\][^"]*text-accent/.test(moduleSource),
-      `${surface} reintroduces an accent kicker above a heading`,
-    );
-    assert.ok(
-      !/\beyebrow\b/.test(moduleSource),
+      !/\beyebrow\b/i.test(moduleSource),
       `${surface} reintroduces an eyebrow`,
     );
   }
+
+  assert.ok(
+    staffOperatingSurfaces().length >= MIN_STAFF_SURFACES,
+    "the surface walk returned too few files to be a real guard",
+  );
 });

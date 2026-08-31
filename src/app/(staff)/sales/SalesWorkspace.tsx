@@ -279,7 +279,7 @@ function CanonicalSalesPresentation({
           </div>
 
           <form className={filterBarCls} method="get">
-            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs font-semibold tracking-[0.05em] text-fg-3">
+            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs font-semibold text-fg-3">
               {copy.search}
               <input
                 type="search"
@@ -289,7 +289,7 @@ function CanonicalSalesPresentation({
               />
             </label>
 
-            <label className="flex min-w-[190px] flex-col gap-1 text-xs font-semibold tracking-[0.05em] text-fg-3">
+            <label className="flex min-w-[190px] flex-col gap-1 text-xs font-semibold text-fg-3">
               {copy.stage}
               <select name="stage" defaultValue={params.stage ?? ""} className={inputCls}>
                 <option value="">{copy.allStages}</option>
@@ -301,7 +301,7 @@ function CanonicalSalesPresentation({
               </select>
             </label>
 
-            <label className="flex min-w-[190px] flex-col gap-1 text-xs font-semibold tracking-[0.05em] text-fg-3">
+            <label className="flex min-w-[190px] flex-col gap-1 text-xs font-semibold text-fg-3">
               {copy.due}
               <select name="due" defaultValue={params.due} className={inputCls}>
                 <option value="all">{copy.allDue}</option>

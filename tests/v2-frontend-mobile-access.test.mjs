@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { staffOperatingSurfaces } from "./helpers/staff-surfaces.mjs";
+
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
@@ -51,6 +53,22 @@ test("operational queue case links keep a practical target size", () => {
       moduleSource,
       /className="shrink-0 text-xs font-semibold text-accent hover:underline"/,
       `${route} must not keep the 17 px inline target`,
+    );
+  }
+});
+
+test("staff surfaces size to the dynamic viewport, not the static one", () => {
+  // On mobile Safari and Chrome, 100vh is the viewport with the browser
+  // chrome retracted, so a full-height pane is taller than what is visible
+  // and its last row sits under the address bar. 100dvh tracks the real one.
+  for (const surface of staffOperatingSurfaces()) {
+    const moduleSource = readFileSync(
+      new URL(`../${surface}`, import.meta.url),
+      "utf8",
+    );
+    assert.ok(
+      !/\b\d*\.?\d*vh\b/.test(moduleSource),
+      `${surface} sizes to vh; use dvh so mobile browser chrome is accounted for`,
     );
   }
 });

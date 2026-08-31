@@ -109,7 +109,16 @@ test("dashboard has one attention label and exposes the action queue", async ({
 }) => {
   await login(page);
 
-  await expect(page.getByText("Сегодня требует внимания", { exact: true })).toHaveCount(1);
+  // This assertion guarded against the attention label appearing twice: an
+  // accent kicker sat above the h2 and repeated it. The kicker is gone, so
+  // what remains to check is that it has not come back.
+  //
+  // NOTE: the enclosing spec targets /dashboard, which V2 does not serve --
+  // it is absent from FIXED_ROLE_ROUTES and redirects to /platform-pending --
+  // and it drives a SQLite fixture database V2 does not use. It cannot pass
+  // on the V2 runtime for reasons that predate this change, and it runs in no
+  // npm script and no CI step. Treat it as V1 residue, not as a live gate.
+  await expect(page.getByText("Сегодня требует внимания", { exact: true })).toHaveCount(0);
   const attention = page.getByRole("region", { name: "Требует внимания сейчас" });
   const values = await attention.locator("ul > li > a > span:nth-of-type(3)").allTextContents();
   const counts = values.map((value) => Number(value.replace(/\D/g, "")));

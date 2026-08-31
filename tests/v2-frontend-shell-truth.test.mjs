@@ -1,26 +1,14 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
+
+import { MIN_ALL_SURFACES, allSurfaceFiles } from "./helpers/staff-surfaces.mjs";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-function staffSurfaceFiles() {
-  const roots = ["src/app", "src/components"];
-  const files = new Set();
-  for (const root of roots) {
-    const base = new URL(`../${root}/`, import.meta.url);
-    for (const entry of readdirSync(base, { recursive: true, withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".tsx")) continue;
-      const dir = entry.parentPath ?? entry.path;
-      files.add(`${root}/${relative(fileURLToPath(base), join(dir, entry.name))}`);
-    }
-  }
-  return [...files].sort();
-}
 
 const routeFiles = [
   "src/app/login/page.tsx",
@@ -148,8 +136,8 @@ test("staff surfaces only use utilities the theme actually defines", () => {
       .filter(Boolean);
   }
 
-  const surfaces = staffSurfaceFiles();
-  assert.ok(surfaces.length > 100, `expected the whole staff surface set, got ${surfaces.length}`);
+  const surfaces = allSurfaceFiles();
+  assert.ok(surfaces.length >= MIN_ALL_SURFACES, `expected the whole staff surface set, got ${surfaces.length}`);
 
   for (const surface of surfaces) {
     for (const token of classTokens(source(surface))) {

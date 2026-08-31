@@ -1,103 +1,158 @@
 # V2 frontend completion matrix
 
-Status: active V2-11 evidence ledger.
+Status: V2-11 local frontend completion evidence ledger.
 
-Audit baseline: `f87bd37fa4ed2b88b35fc2a263459f5d1bcff0a0` on 2026-08-31 (+04).
+Initial audit baseline: `f87bd37fa4ed2b88b35fc2a263459f5d1bcff0a0`.
 
-Runtime: root Next.js app on the real local PostgreSQL V2 contract; no
-`EVO_UI_CONTRACT_FIXTURES`, demo seed, mock provider or fallback repository.
+Validated current-main implementation: `638a027fd9904e67105d2de51f559b2153752bc0`
+on 2026-08-31 (+04). Exact-main EVO Platform CI run `33348880349` is the
+successful merge-level check for this snapshot.
 
-This matrix compares the intended private V2 staff product with current code
-and current browser behavior. Historical Claude Design screenshots and the
-2026-08-29 UX/UI evidence package inform visual intent only. They are not
-runtime, provider or production proof.
+Runtime: the root Next.js application on the real local PostgreSQL V2 contract;
+no `EVO_UI_CONTRACT_FIXTURES`, demo seed, mock provider or fallback repository.
+Historical Claude Design screenshots and the 2026-08-29 UX/UI package informed
+visual intent only and are not runtime, provider or production proof.
 
-## Evidence levels
+## Evidence levels and completion boundary
 
-| Level | Meaning |
-| --- | --- |
-| Code | Route, policy or component exists and passes static tests. |
-| Local V2 runtime | The root app rendered from the real local PostgreSQL V2 database with no fixture/demo/fallback mode. |
-| Provider | The current runtime exercised the real external provider and reconciled the result. |
-| Production | The exact code was deployed and verified through the real production entry point. |
+| Level | Result | Meaning |
+| --- | --- | --- |
+| Code | Complete for the V2-11 staff frontend slice. | The route, fixed-role policy, component and outcome contracts pass on the reviewed implementation. |
+| Local V2 runtime | Complete for the sampled end-to-end staff journey. | The root app rendered real local PostgreSQL records for Admin, Sales and Admissions without fixture, demo or fallback paths. |
+| Provider | Not proved in this run. | No Gemini request, WAHA send or amoCRM write was authorized or attempted. The UI fails closed and discloses the current server state. |
+| Production | Not proved and not authorized. | No deploy, production provider action or real customer-data mutation occurred. |
 
-The current long run has Code and Local V2 runtime evidence. It does not have
-current provider or production authority, so those two levels remain explicitly
-unproved even where earlier acceptance evidence exists.
+“Frontend complete” below means Code plus Local V2 runtime for the active
+private staff product. It never means that external providers or production
+have been accepted.
 
-## Role and route matrix
+## Delivery and review ledger
 
-| Surface | Target roles | Current route and code | Current real-runtime result | Disposition |
-| --- | --- | --- | --- | --- |
-| Login/private gate | Admin, Sales, Admissions | `/login`, development gate | Works and truthfully states that this is the private local V2 gate, not production auth. | Keep; add route-specific title check. |
-| Sales pipeline | Admin, Sales | `/sales`, `SalesWorkspace` | Reads 41 PostgreSQL leads. Admin/Sales allowed; Admissions denied. Mobile page is about 9,816 px high before all 41 rows finish. Active copy still says Supabase, U2 and old PR/inbound blocked. | Fix truth copy and bounded queue usability. |
-| Lead 360 and qualification | Admin, Sales | `/sales/[id]`, `SalesLeadWorkspace` | Real lead opens with owner, stage, gate evidence, provider panels and linked Student Case. Admissions denied. | Keep one authority; correct current-runtime provider wording and title/heading semantics. |
-| Audited handoff | Admin, Sales action; Admissions receives | Lead 360 server actions and repository | Existing handed-off lead links to a real Student Case with contract/payment evidence. No mutation executed in this audit. | Preserve gate and negative role tests. |
-| Student queue | Admin, Admissions | `/clients`, `StudentQueue` | Reads 12 PostgreSQL cases. Sales denied. | Keep; validate empty/error/loading and bounded navigation. |
-| Student 360 | Admin, Admissions | `/clients/[id]`, `CanonicalStudentCaseWorkspace` | Real case renders handoff evidence, tasks, documents, amoCRM, applications, visa and finance stop/release in one very long page. Sales denied. | Add navigable section structure without creating another write surface. |
-| Applications queue | Admin, Admissions | `/applications` | Direct route works; Sales denied. Queue is read-only and Student 360 remains the write surface. | Add missing route loading/error boundary and title; verify empty/blocked states. |
-| Documents queue | Admin, Admissions | `/documents` | Direct route works; Sales denied. Existing loading and error boundaries are present. | Verify settled loading/error/empty states and title. |
-| Visa queue | Admin, Admissions | `/visa` | Direct route works for both roles and Sales is denied, but Visa is absent from their visible navigation. | Fix shell route filter; add loading/error/title coverage. |
-| Finance stop/release | Admin, Admissions | `/finance` | Direct route works for both roles and Sales is denied, but Finance is absent from their visible navigation. | Fix shell route filter; retain Finance as a module, never a role; add state/title coverage. |
-| Tasks | Admin, Admissions | `/tasks` | Direct route works; Sales denied. Current page is a long operational queue. | Verify responsive grouping and add state/title coverage. |
-| WhatsApp inbox | all three, role-scoped | `/whatsapp`, `CanonicalStaffWhatsAppWorkspace` | Admin sees the union, Sales pre-handoff rows, Admissions handed-off rows. PostgreSQL is the only queue source. Empty instruction still names Supabase. | Remove stale implementation jargon; retain role-scoped authority and cursor path. |
-| WhatsApp conversation and human review | all three, scoped | `/whatsapp/[id]`, canonical Gemini/send panels | Real handed-off conversation renders transcript, linked case, Gemini disabled/not configured, invalid recipient, human confirmation checkbox and disabled one-send button. No provider call or send executed. On mobile the selected conversation follows the full queue. | Put selected work within practical mobile reach; preserve explicit human review and fail-closed send. |
-| Settings/role preview | Admin | `/settings`; shell Admin preview controls | Admin can preview exact `admin`, `sales` and `admissions` interfaces. Non-admin roles are denied. | Keep and cover exact nav parity for each preview. |
-| Deferred modules | none in active V2 core | `/dashboard`, `/calls`, `/chat`, `/notifications`, `/reports`, `/portal` | Fixed-role users are redirected to `/platform-pending`; no core workflow depends on them. | Keep out of active nav and completion claims. Do not revive legacy runtime. |
-
-## Navigation contract
-
-| Effective role | Required primary surfaces | Current visible surfaces | Verified gap |
+| PR | Exact head | Merge commit | Delivered result |
 | --- | --- | --- | --- |
-| Admin | Sales, Student 360, Applications, Documents, Visa, Finance, Tasks, WhatsApp, Settings | Sales, Student 360, Applications, Documents, Tasks, WhatsApp, Settings | Visa and Finance are filtered by `CONNECTED_STAFF_ROUTES` despite server access. |
-| Sales | Sales, WhatsApp | Sales, WhatsApp | No missing core module observed. |
-| Admissions | Student 360, Applications, Documents, Visa, Finance, Tasks, WhatsApp | Student 360, Applications, Documents, Tasks, WhatsApp | Visa and Finance are filtered despite server access. |
+| #509 | `73e73615eab8f81b532ec03fcddede5a0879837f` | `9f807693a43baabb836db8763470ec88bef9e22b` | V2-11 contract and initial target/current/runtime matrix. This PR was merged externally before the controller received the reviewer verdict; the later independent current-main audit covers its contract rather than hiding that sequencing exception. |
+| #510 | `dd9656e35f3df3f003cb6976d67b6ee6be5f6962` | `e96a9298cca24428c8ae394691197cebd01d0be2` | Runtime-derived shell/provider disclosure, exact fixed-role navigation, current V2 copy and route titles/headings. |
+| #511 | `2a090230ede08019dfcfd1722a105c0cf6b5fa04` | `101245ad993427364442dcf5ab088820bee464d9` | Bounded Sales mobile queue and selected WhatsApp work before the hidden mobile queue. |
+| #512 | `a63776b17375e9123be2cf4c779fdf41bc00748f` | `81d6e30a3ec16563ddc20f3979bc499474a8467d` | Nearest useful loading and error boundaries for Applications, Visa, Finance and Tasks. |
+| #513 | `45d125e289553a9c6529cfed2f15ffe56346cb7c` | `83c6031cf1d0e6268350ff1082761df55e927f70` | Student 360 section navigation, 44 px mobile controls and focused accessibility contracts. |
+| #514 | `a413fcc7e29b98567e8be9d24f17bc5aeeab42de` | `638a027fd9904e67105d2de51f559b2153752bc0` | Separate dark-theme accent-text token with normal-text contrast while preserving the EVO brand fill. |
 
-## State and accessibility matrix
+PRs #510 through #514 received an independent exact-head approval and green
+exact-head CI before merge. Every merge was followed by exact-main CI before
+the next implementation block.
 
-| Check | Current evidence | Gap or next proof |
+## Role and route completion matrix
+
+| Surface | Allowed roles | Active route | Current code and real-runtime result | Verdict |
+| --- | --- | --- | --- | --- |
+| Private gate | Admin, Sales, Admissions | `/login` | Two-field local development gate clearly says it is not production authentication. | Complete locally. |
+| Sales pipeline | Admin, Sales | `/sales` | Real PostgreSQL queue, 15-row bounded page, validated cursor/filter, empty filter state and practical mobile height. Admissions is denied. | Complete locally. |
+| Lead 360 and qualification | Admin, Sales | `/sales/[id]` | Real lead shows owner, stage, qualification, provider disclosure and contract/first-payment evidence. | Complete locally. |
+| Audited handoff | Admin, Sales action; Admissions receives | Lead 360 action and linked Student Case | A real handed-off record links gate evidence to Student 360. Audit was read-only; no handoff was triggered. | UI and read path complete; mutation deliberately not repeated. |
+| Student queue | Admin, Admissions | `/clients` | Real PostgreSQL cases render; Sales is denied. | Complete locally. |
+| Student 360 | Admin, Admissions | `/clients/[id]` | One canonical case surface exposes audited handoff, tasks, documents, applications, visa and finance stop/release with six reachable section links. | Complete locally. |
+| Applications | Admin, Admissions | `/applications` | Real queue, nearest loading/error recovery and canonical Student 360 write link. Sales is denied. | Complete locally. |
+| Documents | Admin, Admissions | `/documents` | Real queue with explicit loading/error/empty behavior. Sales is denied. | Complete locally. |
+| Visa | Admin, Admissions | `/visa` | Visible in the correct shell, real queue, nearest loading/error recovery. Sales is denied. | Complete locally. |
+| Finance | Admin, Admissions | `/finance` | Visible as a module, never a role; real minimal stop/release queue and nearest loading/error recovery. Sales is denied. | Complete locally. |
+| Tasks | Admin, Admissions | `/tasks` | Real operational queue and nearest loading/error recovery. Sales is denied. | Complete locally. |
+| WhatsApp inbox | all three, role-scoped | `/whatsapp` | One PostgreSQL-backed inbox: Admin union, Sales pre-handoff, Admissions handed-off. Mobile hides the queue after a conversation is selected. | Complete locally. |
+| Human-reviewed conversation | all three, role-scoped | `/whatsapp/[id]` | Transcript and linked case render; Gemini advisory state, 44 px confirmation control and one explicit send action fail closed. No provider call occurred. | UI complete; provider proof absent. |
+| Settings and role preview | Admin | `/settings` and shell preview | Admin previews the exact Admin, Sales or Admissions navigation. Non-admin roles are denied. | Complete locally. |
+| Deferred modules | none in active V2 core | `/dashboard`, `/calls`, `/chat`, `/notifications`, `/reports`, `/portal` | Fixed staff roles fail closed to `/platform-pending`; no core journey depends on them. | Correctly deferred. |
+
+## Navigation and negative permissions
+
+| Effective role | Exact visible primary navigation | Direct negative proof |
 | --- | --- | --- |
-| Loading | Route boundaries exist for WhatsApp, Documents, Settings and Notifications. | Core Applications, Visa, Finance and Tasks lack a nearest useful loading boundary. |
-| Error | Route boundaries exist for Sales, Clients, WhatsApp, Documents, Settings and Notifications. | Core Applications, Visa, Finance and Tasks lack a nearest useful error boundary. |
-| Not found | Lead 360 and Student 360 have local not-found states. Query parsers fail closed. | Add one safe global/route fallback only where it improves a verified core path. |
-| Access denied | Direct negative checks sent Sales away from Admissions modules and Admissions away from Sales/Settings. | Preserve server enforcement and retest every fixed role after shell changes. |
-| Blocked/not configured | Conversation body truthfully says Gemini is off and the recipient is invalid. | Shell badges hard-code `blocked`, which falsely collapses not-configured, not-verified-here and real provider failure. |
-| Empty | Queues include empty-state components/copy. | Exercise real empty query/state without fixtures or destructive database edits; use safe filters or repository outcome tests. |
-| Headings | Main content and TopBar both expose level-one headings on core screens. | Keep one clear page `h1`; make shell context subordinate or non-heading. |
-| Document titles | Core pages share one generic title. | Add descriptive per-route metadata so screen-reader route announcements identify the new page. |
-| Reflow | No document-level horizontal overflow at 1280, 834 or 390 px on sampled Sales, Student 360 and WhatsApp pages. | Sales and WhatsApp are vertically impractical on mobile; selected conversation follows the full queue. |
-| Target size | One inline Student Case link is 16 px high and the send-confirmation checkbox is 13x13 px in the sampled mobile conversation. | Verify spacing exception for the link; enlarge the checkbox/control target using existing form patterns. |
-| Keyboard/focus | Skip link exists and core controls are native links/buttons/inputs. | Complete focus-order and visible-focus proof after implementation; retain no keyboard trap. |
-| Contrast | Semantic status tokens are used throughout the core UI. | Run automated contrast checks plus manual review on light/dark themes after final styling changes. |
+| Admin | Sales, Student 360, Applications, Documents, Visa, WhatsApp, Tasks, Finance, Settings | Admin remains the functional superset and can preview the other exact interfaces. |
+| Sales | Sales, WhatsApp | Direct `/clients` redirects to `/access-denied?from=%2Fclients`; Admissions-only routes remain server denied. |
+| Admissions | Student 360, Applications, Documents, Visa, WhatsApp, Tasks, Finance | Direct `/sales` is denied; Sales-only work is not exposed. |
 
-## Responsive evidence sampled on current main
+Finance remains an Admissions/Admin module. Marketing and Student Portal remain
+outside the active V2 staff core.
 
-| Viewport | Routes sampled | Result |
+## State and accessibility completion matrix
+
+| Check | Current evidence | Verdict / limit |
 | --- | --- | --- |
-| Desktop 1280x720 | Login, Sales, Lead 360, Student 360, WhatsApp inbox/conversation | No global horizontal overflow. Full core data is present. Long pages and stale shell/provider copy remain. |
-| Tablet 834x1194 | Student 360 | Sidebar and content reflow without global horizontal overflow; the case remains a roughly 5,901 px single page without section navigation. |
-| Mobile 390x844 | Sales, WhatsApp conversation | Bottom navigation and header render without global horizontal overflow. Sales is roughly 9,816 px high; selected WhatsApp work begins after the full conversation list. |
+| Loading | Nearest route `loading.tsx` boundaries cover all core queues and conversations; focused contracts and CI build pass. | Complete by code/outcome evidence; no artificial delay was added merely to make a screenshot. |
+| Error | With the same app pointed at a deliberately unreachable PostgreSQL URL, `/applications` rendered “PostgreSQL did not respond” plus retry and queue recovery, with no legacy source. | Real fail-closed runtime proof complete. |
+| Not found | Detail routes keep local not-found behavior and query/cursor parsing fails closed. | Complete for active routes. |
+| Access denied | Negative direct-route checks for Sales and Admissions land on the explicit denied surface. | Complete and server enforced. |
+| Blocked/not configured | Shell badges derive from server flags; conversation copy distinguishes absent authorization, invalid recipient and no current verification. | Truthful local disclosure complete; provider acceptance is not claimed. |
+| Empty | Sales safely filtered with `no-such-evo-lead-20260831` and rendered the real zero-result state without changing the database. | Real runtime proof complete. |
+| Headings and titles | Core routes have descriptive metadata and one page-level `h1`; shell context is subordinate. | Complete by focused contracts and browser inspection. |
+| Reflow | No document-level horizontal overflow on sampled 1280, 834 or 390 px views. | Complete for the required viewports. |
+| Target size | Student 360 quick links are 44 px; WhatsApp back link is 44 px; confirmation input remains 20 px inside a 56 px labelled target. | Meets the current mobile target-size contract. |
+| Keyboard and focus | Skip link, native links/buttons/inputs and global `:focus-visible` 2 px outline plus 3 px halo are covered by focused tests; no trap was observed. | Code and browser inspection complete. The in-app wrapper did not provide a reliable full manual Tab-order trace, so that stronger claim is not made. |
+| Contrast | Corrected direct-text evaluator reports zero normal/large-text failures on Sales, Lead 360, Student 360 and WhatsApp in light and dark themes. Dark accent text is 5.06:1 on the normal surface and 4.63:1 on the weak-accent surface. | Complete for sampled core pages; brand fill remains `#d70217`. |
+
+## Responsive current-main evidence
+
+| Viewport | Current-main route | Measured result |
+| --- | --- | --- |
+| Desktop 1280x720 | Admin `/sales` | 15 rows, full Admin navigation, no horizontal overflow. |
+| Desktop 1280x720, dark | Lead 360 | Gate/provider/detail content visible, no overflow, zero sampled contrast failures. |
+| Tablet 834x1194 | Student 360 | Six 44 px quick links, scrollable section navigation, no document overflow. |
+| Mobile 390x844 | WhatsApp conversation | 44 px back target, 56 px confirmation label, unchecked send approval, queue removed from layout, no overflow. |
 
 ## Provider-truth ledger
 
-| Provider | Current local runtime | What may be claimed |
+| Provider | Current local runtime | Claim boundary |
 | --- | --- | --- |
-| PostgreSQL | Connected; core queues and detail pages rendered from the real local V2 schema. | Local V2 data authority proved for sampled reads. |
-| Gemini | Current conversation says the feature is off; no request was made. | Not configured/available in this runtime; human-review UI is present. No current provider proof. |
-| WhatsApp/WAHA | Current recipient is deliberately invalid and send is blocked; no send was attempted. | Human-confirmed fail-closed UI is present. No current provider-send proof. |
-| amoCRM | Current detail states that the local runtime lacks the required configuration; no sync was attempted. | Not configured/verified in this runtime. Earlier acceptance is historical evidence only. |
+| PostgreSQL | Connected to the real local V2 schema; core queues and detail pages rendered real records. | Sampled local V2 reads are proved. |
+| Gemini | Feature presentation is enabled, current authorization is absent, and no request was made. | Human-review UI and fail-closed disclosure are proved; Gemini provider behavior is not. |
+| WhatsApp/WAHA | Current authorization is absent, the sampled recipient is invalid, confirmation stayed unchecked and no send was attempted. | Fail-closed human-send UI is proved; delivery is not. |
+| amoCRM | Current write authorization is absent and no sync was attempted. | Local disclosure is proved; provider write/reconciliation is not. |
+
+## Negative active-runtime inventory
+
+The current core staff routes and shell have no active Supabase authority,
+`EVO_UI_CONTRACT_FIXTURES`, U2/old-PR delivery copy, `Legacy*`, `Connected*` or
+`Fixture*` component path. Explicit error copy may say that no legacy source or
+fallback screen is used; that is a fail-closed guarantee, not a fallback.
+Deferred portal code remains outside the active fixed-role route graph and is
+not imported as V2 authority.
+
+Focused outcome contracts:
+
+- `tests/v2-frontend-shell-truth.test.mjs`
+- `tests/v2-frontend-mobile-access.test.mjs`
+- `tests/v2-frontend-route-states.test.mjs`
+- `tests/v2-frontend-accessibility-navigation.test.mjs`
+
+## Current-main screenshot ledger
+
+These local artifacts were captured from exact current main
+`638a027fd9904e67105d2de51f559b2153752bc0`. They are intentionally ignored by
+Git and do not imply provider or production proof.
+
+- `output/playwright/frontend-final-20260831/current-main-01-admin-sales-desktop.png`
+- `output/playwright/frontend-final-20260831/current-main-02-student360-tablet.png`
+- `output/playwright/frontend-final-20260831/current-main-03-whatsapp-mobile.png`
+- `output/playwright/frontend-final-20260831/current-main-04-lead360-dark.png`
+- `output/playwright/frontend-final-20260831/15-applications-real-database-error.png`
 
 ## Completion checklist
 
-- [ ] V2-11A matrix and contract independently reviewed and merged.
-- [ ] Navigation matches server access for all three fixed roles.
-- [ ] Current-runtime provider badges derive from real server configuration/result.
-- [ ] No active core UI copy names Supabase, U2, an old PR, fixtures or a fallback.
-- [ ] Core routes have descriptive titles and one main heading.
-- [ ] Sales and selected WhatsApp work are practically reachable on mobile.
-- [ ] Required loading, empty, error, denied, blocked and not-configured states are covered.
-- [ ] Keyboard, focus, contrast, target size and reflow gates pass in light and dark themes.
-- [ ] Typecheck, lint, focused tests and production build pass on exact PR heads.
-- [ ] Final Admin/Sales/Admissions browser journey passes on the real no-fixture local V2 runtime.
-- [ ] Fresh desktop, tablet and mobile screenshots are attached to the completion audit.
-- [ ] Provider and production proof remain separate and truthful.
+- [x] V2-11 contract and matrix are present; the final accumulated current-main state receives independent review in the completion-evidence PR.
+- [x] Navigation matches server access for Admin, Sales and Admissions.
+- [x] Current-runtime provider badges derive from server configuration and result state.
+- [x] Active core UI contains no stale Supabase/U2/old-PR/fixture authority or fallback path.
+- [x] Core routes have descriptive titles and one main heading.
+- [x] Sales and selected WhatsApp work are practically reachable on mobile.
+- [x] Loading, empty, error, denied, blocked and not-configured states are covered.
+- [x] Focus, contrast, target size and reflow gates pass within the evidence limits stated above.
+- [x] Typecheck, lint, focused tests and production build passed on exact implementation PR heads.
+- [x] Admin/Sales/Admissions browser journeys passed on the real no-fixture local V2 runtime.
+- [x] Fresh desktop, tablet and mobile current-main screenshots were captured.
+- [x] Provider and production proof remain separate and truthful.
+
+## Remaining external gates
+
+Real Gemini, WAHA and amoCRM acceptance requires the exact provider credential,
+authorization and resolvable target plus a separately authorized side effect.
+Production proof requires a separately authorized deploy and production-entry
+verification. These gates do not conceal a remaining local frontend defect, and
+this run did not broaden authority to cross them.

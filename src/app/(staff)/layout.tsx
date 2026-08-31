@@ -39,13 +39,11 @@ const SHELL_COPY: Record<
   MobileNavCopy & {
     skip: string;
     accessDeniedTitle: string;
-    accessDeniedHint: string;
   }
 > = {
   ru: {
     skip: "Перейти к основному содержимому",
     accessDeniedTitle: "Нет доступа",
-    accessDeniedHint: "Права роли проверены на сервере",
     navigationLabel: "Основная навигация",
     moreLabel: "Ещё",
     menuTitle: "Все разделы",
@@ -54,7 +52,6 @@ const SHELL_COPY: Record<
   ky: {
     skip: "Негизги мазмунга өтүү",
     accessDeniedTitle: "Кирүүгө укук жок",
-    accessDeniedHint: "Ролдун укуктары серверде текшерилди",
     navigationLabel: "Негизги навигация",
     moreLabel: "Дагы",
     menuTitle: "Бардык бөлүмдөр",
@@ -63,7 +60,6 @@ const SHELL_COPY: Record<
   en: {
     skip: "Skip to main content",
     accessDeniedTitle: "Access denied",
-    accessDeniedHint: "Role permissions were checked on the server",
     navigationLabel: "Primary navigation",
     moreLabel: "More",
     menuTitle: "All sections",
@@ -160,25 +156,24 @@ export default async function StaffLayout({
     }))
     .filter((group) => group.items.length > 0);
 
-  const titles: Record<string, { title: string; hint?: string }> = {
+  const titles: Record<string, { title: string }> = {
     "/access-denied": {
       title: shellCopy.accessDeniedTitle,
-      hint: shellCopy.accessDeniedHint,
     },
-    "/dashboard": { title: t("commandCenter"), hint: t("commandCenterHint") },
-    "/sales": { title: t("admissionsPipeline"), hint: t("admissionsPipelineHint") },
-    "/clients": { title: t("student360"), hint: t("student360Hint") },
-    "/applications": { title: t("applicationQueue"), hint: t("applicationQueueHint") },
-    "/documents": { title: t("documentQueue"), hint: t("documentQueueHint") },
-    "/visa": { title: t("visaQueue"), hint: t("visaQueueHint") },
+    "/dashboard": { title: t("commandCenter") },
+    "/sales": { title: t("admissionsPipeline") },
+    "/clients": { title: t("student360") },
+    "/applications": { title: t("applicationQueue") },
+    "/documents": { title: t("documentQueue") },
+    "/visa": { title: t("visaQueue") },
     "/whatsapp": { title: `${t("whatsapp")} · ${t("inbox")}` },
     "/calls": { title: t("callLog") },
-    "/chat": { title: t("chat"), hint: t("channels") },
-    "/notifications": { title: t("notifications"), hint: t("notificationsHint") },
-    "/tasks": { title: t("taskBoard"), hint: t("taskBoardHint") },
+    "/chat": { title: t("chat") },
+    "/notifications": { title: t("notifications") },
+    "/tasks": { title: t("taskBoard") },
     "/reports": { title: t("salesReport") },
-    "/finance": { title: t("financeOverview"), hint: t("financeOverviewHint") },
-    "/settings": { title: t("settings"), hint: t("adminOnly") },
+    "/finance": { title: t("financeOverview") },
+    "/settings": { title: t("settings") },
   };
   const LanguageSwitcher = provider.LanguageSwitcher;
   const releaseLabel = formatReleaseLabel(readReleaseMetadata());

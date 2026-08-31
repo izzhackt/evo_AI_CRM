@@ -1,9 +1,27 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+function staffSurfaceFiles() {
+  const roots = ["src/app", "src/components"];
+  const files = new Set();
+  for (const root of roots) {
+    const base = new URL(`../${root}/`, import.meta.url);
+    for (const entry of readdirSync(base, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".tsx")) continue;
+      const dir = entry.parentPath ?? entry.path;
+      const rel = relative(fileURLToPath(base), join(dir, entry.name));
+      if (rel.includes("portal") || rel.includes("transcription")) continue;
+      files.add(`${root}/${rel}`);
+    }
+  }
+  return [...files].sort();
 }
 
 /**
@@ -301,4 +319,54 @@ test("the shared task panel heading stays subordinate to the page h1", () => {
   assert.equal(panel.match(/<h1[\s>]/g), null);
   assert.match(panel, /id="canonical-admissions-task-panel-title"/);
   assert.match(tasksRoute, /<h1/);
+});
+
+test("staff type sizes come from the scale, not ad-hoc pixel values", () => {
+  const theme = source("src/app/globals.css");
+  const themeBlock = theme.slice(theme.indexOf("@theme inline"));
+  const steps = [...themeBlock.matchAll(/--text-([a-z0-9]+):\s*(\d+)px/g)].map(
+    (match) => ({ name: match[1], px: Number(match[2]) }),
+  );
+
+  assert.equal(steps.length, 9, "the scale is nine fixed steps");
+  const sizes = steps.map((step) => step.px).sort((a, b) => a - b);
+  assert.equal(sizes[0], 11, "functional floor is 11px");
+  assert.ok(sizes.includes(12), "body floor is 12px");
+
+  // A dense Operate surface carries many type elements at once; exaggerated
+  // contrast between adjacent steps reads as noise rather than hierarchy.
+  for (let index = 1; index < sizes.length; index += 1) {
+    const ratio = sizes[index] / sizes[index - 1];
+    assert.ok(
+      ratio >= 1.05 && ratio <= 1.25,
+      `step ${sizes[index - 1]}px -> ${sizes[index]}px is ${ratio.toFixed(3)}, outside 1.05-1.25`,
+    );
+  }
+
+  // Every staff surface resolves through the scale. Ad-hoc text-[13.5px] is how
+  // twenty different sizes accumulated in the first place.
+  for (const surface of staffSurfaceFiles()) {
+    const literals = source(surface).match(/text-\[\d+(?:\.\d+)?px\]/g) ?? [];
+    assert.deepEqual(
+      literals,
+      [],
+      `${surface} uses ad-hoc ${literals[0]} instead of the type scale`,
+    );
+  }
+});
+
+test("no staff surface reintroduces a kicker above its heading", () => {
+  // The eyebrow label is a page-scaffold habit: the heading carries its own
+  // weight, and the label above it is a tell rather than information.
+  for (const surface of staffSurfaceFiles()) {
+    const moduleSource = source(surface);
+    assert.ok(
+      !/uppercase tracking-\[0\.0[0-9]em\][^"]*text-accent/.test(moduleSource),
+      `${surface} reintroduces an accent kicker above a heading`,
+    );
+    assert.ok(
+      !/\beyebrow\b/.test(moduleSource),
+      `${surface} reintroduces an eyebrow`,
+    );
+  }
 });

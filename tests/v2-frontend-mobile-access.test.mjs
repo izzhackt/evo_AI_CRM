@@ -44,12 +44,12 @@ test("operational queue case links keep a practical target size", () => {
     const moduleSource = source(route);
     assert.match(
       moduleSource,
-      /className="inline-flex min-h-11 shrink-0 items-start pt-0\.5 text-\[12px\] font-semibold text-accent hover:underline"/,
+      /className="inline-flex min-h-11 shrink-0 items-start pt-0\.5 text-xs font-semibold text-accent hover:underline"/,
       `${route} must give its Student 360 link a 44 px target`,
     );
     assert.doesNotMatch(
       moduleSource,
-      /className="shrink-0 text-\[12px\] font-semibold text-accent hover:underline"/,
+      /className="shrink-0 text-xs font-semibold text-accent hover:underline"/,
       `${route} must not keep the 17 px inline target`,
     );
   }

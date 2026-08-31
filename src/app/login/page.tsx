@@ -85,12 +85,12 @@ export default async function LoginPage({
   return (
     <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">
       <div className="absolute left-5 top-5 flex items-center gap-2.5">
-        <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-accent text-[16px] font-bold text-on-accent">
+        <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-accent text-lg font-bold text-on-accent">
           E
         </span>
         <span className="leading-tight">
-          <span className="block text-[15px] font-bold text-fg">EVO</span>
-          <span className="block text-[11px] text-fg-3">Admissions CRM</span>
+          <span className="block text-md font-bold text-fg">EVO</span>
+          <span className="block text-xs text-fg-3">Admissions CRM</span>
         </span>
       </div>
       <div className="absolute right-5 top-5 flex items-center gap-2.5">
@@ -99,10 +99,10 @@ export default async function LoginPage({
       </div>
 
       <div className="page-in w-full max-w-[392px] rounded-[20px] border border-border bg-surface p-7 shadow-evo-lg">
-        <h1 id="login-title" className="text-[22px] font-bold leading-tight text-fg">
+        <h1 id="login-title" className="text-2xl font-bold leading-tight text-fg">
           {copy.title}
         </h1>
-        <p className="mt-1.5 text-[13px] leading-6 text-fg-3">{copy.intro}</p>
+        <p className="mt-1.5 text-sm leading-6 text-fg-3">{copy.intro}</p>
         <div className="mt-6">
           <LoginForm labels={copy} initialError={initialError} />
         </div>

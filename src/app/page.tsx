@@ -75,13 +75,10 @@ export default async function Home() {
         </header>
 
         <section className="rounded-[24px] border border-border bg-surface p-6 shadow-evo-lg sm:p-8">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">
-            Контур проверки продукта
-          </p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
             Вход в EVO V2 подтверждён
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-fg-3 sm:text-base">
+          <p className="mt-3 max-w-[60ch] text-sm leading-6 text-fg-3 sm:text-base">
             Это техническая роль для локальной проверки CRM, а не аккаунт
             сотрудника и не production-аутентификация.
           </p>

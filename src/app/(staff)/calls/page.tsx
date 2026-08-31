@@ -103,8 +103,8 @@ export default async function CallsPage({
 
       <section className="grid gap-3 rounded-card border border-border bg-surface p-4 shadow-evo lg:grid-cols-[1fr_auto] lg:items-center">
         <div>
-          <h2 className="text-[14px] font-bold text-fg">{t("taskMeetingJourney")}</h2>
-          <p className="mt-1 text-[12.5px] leading-5 text-fg-3">
+          <h2 className="text-base font-bold text-fg">{t("taskMeetingJourney")}</h2>
+          <p className="mt-1 text-sm leading-5 text-fg-3">
             {t("meetingSupportUnavailable")} {t("taskMeetingJourneyHint")}
           </p>
         </div>
@@ -115,14 +115,14 @@ export default async function CallsPage({
       </section>
 
       <details id="add" className="scroll-mt-24 rounded-card border border-border bg-surface shadow-evo">
-        <summary className="cursor-pointer list-none px-5 py-4 text-[14px] font-bold text-fg">
+        <summary className="cursor-pointer list-none px-5 py-4 text-base font-bold text-fg">
           <span className="inline-flex items-center gap-2">
             <Icon name="phone" size={16} />
             {t("manualInteractionLog")}
           </span>
         </summary>
         <div className="border-t border-border p-4">
-          <p className="mb-3 text-[12px] leading-5 text-fg-3">{t("manualInteractionHint")}</p>
+          <p className="mb-3 text-xs leading-5 text-fg-3">{t("manualInteractionHint")}</p>
           <form action={logCallAction} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <input name="phone" required placeholder={t("phone")} className={inputCls} />
             <select name="direction" aria-label={t("direction")} className={inputCls}>
@@ -159,7 +159,7 @@ export default async function CallsPage({
 
       <section aria-labelledby="call-journal-title" className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 id="call-journal-title" className="text-[15px] font-bold text-fg">
+          <h2 id="call-journal-title" className="text-md font-bold text-fg">
             {t("callJournal")}
           </h2>
           <form className="grid grid-cols-2 gap-2 sm:flex">
@@ -199,18 +199,18 @@ export default async function CallsPage({
                   <div>
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
                         incoming ? "bg-info-weak text-info" : "bg-surface-2 text-fg-2",
                       )}
                     >
                       <Icon name={incoming ? "call-in" : "call-out"} size={13} />
                       {incoming ? t("call.in") : t("call.out")}
                     </span>
-                    <div className="mt-2 font-mono text-[14px] font-semibold text-fg">{call.phone}</div>
+                    <div className="mt-2 font-mono text-base font-semibold text-fg">{call.phone}</div>
                   </div>
                   <Badge value={call.status} label={t(`call.${call.status}`)} />
                 </div>
-                <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-[11px]">
+                <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs">
                   <div>
                     <dt className="text-fg-3">{t("linkedLead")}</dt>
                     <dd className="mt-0.5 text-fg">
@@ -248,8 +248,8 @@ export default async function CallsPage({
 
         <Card bodyClassName="hidden px-0 py-0 md:block">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[13px]">
-              <thead className="border-b border-border bg-surface-2 text-[11px] uppercase tracking-[0.04em] text-fg-3">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-border bg-surface-2 text-xs uppercase tracking-[0.04em] text-fg-3">
                 <tr>
                   <th className="px-5 py-3 font-semibold">{t("direction")}</th>
                   <th className="px-4 py-3 font-semibold">{t("phone")}</th>
@@ -269,7 +269,7 @@ export default async function CallsPage({
                       <td className="px-5 py-3">
                         <span
                           className={cn(
-                            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold",
+                            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold",
                             incoming ? "bg-info-weak text-info" : "bg-surface-2 text-fg-2",
                           )}
                         >
@@ -277,7 +277,7 @@ export default async function CallsPage({
                           {incoming ? t("call.in") : t("call.out")}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-mono text-[12.5px] text-fg">{call.phone}</td>
+                      <td className="px-4 py-3 font-mono text-sm text-fg">{call.phone}</td>
                       <td className="px-4 py-3">
                         {call.lead_id ? (
                           <Link href={`/sales/${call.lead_id}`} className="text-accent hover:underline">
@@ -289,10 +289,10 @@ export default async function CallsPage({
                       <td className="px-4 py-3">
                         <Badge value={call.status} label={t(`call.${call.status}`)} />
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-[12.5px] text-fg-2">
+                      <td className="px-4 py-3 text-right font-mono text-sm text-fg-2">
                         {fmtDuration(call.duration_sec)}
                       </td>
-                      <td className="px-4 py-3 font-mono text-[11.5px] text-fg-3">
+                      <td className="px-4 py-3 font-mono text-xs text-fg-3">
                         {call.started_at}
                       </td>
                       <td className="px-5 py-3">

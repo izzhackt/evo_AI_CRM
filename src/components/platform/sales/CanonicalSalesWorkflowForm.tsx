@@ -149,8 +149,8 @@ export function CanonicalSalesWorkflowForm({
         className="rounded-card border border-border bg-surface px-5 py-4"
         data-testid="canonical-sales-workflow-terminal"
       >
-        <h2 className="text-[15px] font-semibold text-fg">{copy.title}</h2>
-        <p className="mt-2 text-[13px] leading-5 text-fg-2">{copy.terminal}</p>
+        <h2 className="text-md font-semibold text-fg">{copy.title}</h2>
+        <p className="mt-2 text-sm leading-5 text-fg-2">{copy.terminal}</p>
       </section>
     );
   }
@@ -168,8 +168,8 @@ export function CanonicalSalesWorkflowForm({
       <input type="hidden" name="expected_version" value={version} />
 
       <div>
-        <h2 className="text-[15px] font-semibold text-fg">{copy.title}</h2>
-        <p className="mt-1 text-[12.5px] leading-5 text-fg-2">
+        <h2 className="text-md font-semibold text-fg">{copy.title}</h2>
+        <p className="mt-1 text-sm leading-5 text-fg-2">
           {copy.description}
         </p>
       </div>

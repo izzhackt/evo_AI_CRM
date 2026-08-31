@@ -34,7 +34,6 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-5" data-testid="fixed-role-settings">
       <PageHeader
-        eyebrow="Private local V2"
         title="Точные интерфейсы фиксированных ролей"
         description="Это не управление сотрудниками. Admin меняет только подписанный effective role своей короткой development-сессии."
       />

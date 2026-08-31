@@ -184,19 +184,19 @@ function ResultState({
       data-testid="canonical-amocrm-command-state"
       data-status={state.status}
     >
-      <p className="text-[12.5px] font-medium">
+      <p className="text-sm font-medium">
         {copy.statuses[state.status as TerminalStatus]}
       </p>
       {state.steps.length > 0 ? (
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.04em]">
+          <p className="text-xs font-semibold uppercase tracking-[0.04em]">
             {copy.steps}
           </p>
           <ol className="mt-2 space-y-1.5">
             {state.steps.map((step, index) => (
               <li
                 key={`${step.operationName}-${index}`}
-                className="flex items-center justify-between gap-3 rounded-ctl bg-surface/70 px-2.5 py-2 text-[12px] text-fg-2"
+                className="flex items-center justify-between gap-3 rounded-ctl bg-surface/70 px-2.5 py-2 text-xs text-fg-2"
                 data-testid="canonical-amocrm-command-step"
                 data-operation={step.operationName}
                 data-status={step.status}
@@ -214,11 +214,11 @@ function ResultState({
       ) : null}
       {state.attemptId ? (
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.04em]">
+          <p className="text-xs font-semibold uppercase tracking-[0.04em]">
             {copy.attempt}
           </p>
           <code
-            className="mt-1 block break-all text-[11.5px] text-fg-2"
+            className="mt-1 block break-all text-xs text-fg-2"
             data-testid="canonical-amocrm-terminal-attempt-id"
           >
             {state.attemptId}
@@ -334,12 +334,12 @@ export function CanonicalAmoCrmCommandPanel({
         data-testid="canonical-amocrm-command-panel"
         data-scope={scope}
       >
-        <p className="text-[12.5px] leading-5 text-fg-3">
+        <p className="text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
         <div
           className={cn(
-            "rounded-ctl border px-3 py-2 text-[12px] font-medium",
+            "rounded-ctl border px-3 py-2 text-xs font-medium",
             ready
               ? "border-ok/30 bg-ok-weak text-ok"
               : "border-warn/30 bg-warn-weak text-warn",
@@ -371,7 +371,7 @@ export function CanonicalAmoCrmCommandPanel({
           )}
           <input type="hidden" name="request_id" value={requestId} />
           <label className="block">
-            <span className="text-[12px] font-medium text-fg-2">
+            <span className="text-xs font-medium text-fg-2">
               {copy.noteLabel}
             </span>
             <textarea
@@ -381,10 +381,10 @@ export function CanonicalAmoCrmCommandPanel({
               required
               disabled={!ready || syncing || flowBlocked}
               placeholder={copy.notePlaceholder}
-              className="mt-1.5 min-h-24 w-full resize-y rounded-ctl border border-border-strong bg-surface px-3 py-2.5 text-[13.5px] text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-1.5 min-h-24 w-full resize-y rounded-ctl border border-border-strong bg-surface px-3 py-2.5 text-base text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="canonical-amocrm-note-text"
             />
-            <span className="mt-1 block text-[11.5px] text-fg-3">
+            <span className="mt-1 block text-xs text-fg-3">
               {copy.noteHint}
             </span>
           </label>

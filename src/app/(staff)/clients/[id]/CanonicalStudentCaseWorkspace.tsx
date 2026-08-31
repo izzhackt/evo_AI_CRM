@@ -33,7 +33,6 @@ import {
 
 const COPY = {
   ru: {
-    eyebrow: "Admissions · Student 360",
     title: "Кейс студента",
     description:
       "Это минимальный канонический контекст после передачи из Sales. Все данные прочитаны из PostgreSQL EVO V2.",
@@ -66,7 +65,6 @@ const COPY = {
     operationsNavigation: "Заявки, виза и финансы",
   },
   ky: {
-    eyebrow: "Admissions · Student 360",
     title: "Студенттин кейси",
     description:
       "Бул Sales бөлүмүнөн өткөрүлгөндөн кийинки минималдуу каноникалык контекст. Бардык маалымат EVO V2 PostgreSQL базасынан окулду.",
@@ -99,7 +97,6 @@ const COPY = {
     operationsNavigation: "Арыздар, виза жана каржы",
   },
   en: {
-    eyebrow: "Admissions · Student 360",
     title: "Student case",
     description:
       "This is the minimal canonical context after Sales handoff. Every value is read from EVO V2 PostgreSQL.",
@@ -146,10 +143,10 @@ function Fact({
 }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
     <div className="min-w-0">
-      <dt className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+      <dt className="text-2xs font-semibold uppercase tracking-[0.05em] text-fg-3">
         {label}
       </dt>
-      <dd className="mt-1.5 break-words text-[12.5px] text-fg-2">{children}</dd>
+      <dd className="mt-1.5 break-words text-sm text-fg-2">{children}</dd>
     </div>
   );
 }
@@ -258,13 +255,10 @@ export async function CanonicalStudentCaseWorkspace({
   return (
     <div className="space-y-5" data-testid="canonical-student-case-workspace">
       <header className="border-b border-border pb-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">
-          {copy.eyebrow}
-        </p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-fg">
           {studentCase.displayName}
         </h1>
-        <p className="mt-2 max-w-3xl text-[13px] leading-5 text-fg-3">
+        <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
       </header>
@@ -300,12 +294,12 @@ export async function CanonicalStudentCaseWorkspace({
           </Fact>
           <Fact label={copy.assignedRole}>{studentCase.assignedRole}</Fact>
           <Fact label={copy.caseId}>
-            <span className="font-mono text-[11.5px]">
+            <span className="font-mono text-xs">
               {studentCase.studentCaseId}
             </span>
           </Fact>
           <Fact label={copy.leadId}>
-            <span className="font-mono text-[11.5px]">
+            <span className="font-mono text-xs">
               {studentCase.leadId}
             </span>
           </Fact>
@@ -347,12 +341,12 @@ export async function CanonicalStudentCaseWorkspace({
             </Fact>
           ) : null}
           <Fact label={copy.contractEvidence}>
-            <span className="font-mono text-[11.5px]">
+            <span className="font-mono text-xs">
               {handoff.handoff.contractEvidenceId ?? copy.absent}
             </span>
           </Fact>
           <Fact label={copy.paymentEvidence}>
-            <span className="font-mono text-[11.5px]">
+            <span className="font-mono text-xs">
               {handoff.handoff.firstPaymentEvidenceId ?? copy.absent}
             </span>
           </Fact>
@@ -362,11 +356,11 @@ export async function CanonicalStudentCaseWorkspace({
 
       <div id="case-tasks" className="scroll-mt-24 space-y-5">
         <section className="border-t border-border pt-5">
-          <h2 className="text-[14.5px] font-semibold text-fg">
+          <h2 className="text-base font-semibold text-fg">
             {copy.starterTasks}
           </h2>
           {handoff.starterTasks.length === 0 ? (
-            <p className="mt-3 text-[12.5px] text-fg-3">{copy.noTasks}</p>
+            <p className="mt-3 text-sm text-fg-3">{copy.noTasks}</p>
           ) : (
             <ul className="mt-3 divide-y divide-border border-y border-border">
               {handoff.starterTasks.map((task) => (
@@ -377,7 +371,7 @@ export async function CanonicalStudentCaseWorkspace({
                 >
                   <span
                     className={cn(
-                      "mt-0.5 h-fit shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+                      "mt-0.5 h-fit shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold",
                       task.status === "completed"
                         ? "bg-ok-weak text-ok"
                         : task.status === "cancelled"
@@ -392,11 +386,11 @@ export async function CanonicalStudentCaseWorkspace({
                         : copy.taskOpen}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-fg">
+                    <p className="text-sm font-medium text-fg">
                       {task.title}
                     </p>
                     {task.details ? (
-                      <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-5 text-fg-3">
+                      <p className="mt-1 max-w-[60ch] whitespace-pre-wrap text-sm leading-5 text-fg-3">
                         {task.details}
                       </p>
                     ) : null}

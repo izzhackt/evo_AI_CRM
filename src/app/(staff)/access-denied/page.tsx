@@ -11,7 +11,6 @@ import type { Locale } from "@/lib/i18n-data";
 import { buildRouteMetadata } from "@/lib/route-metadata";
 
 type Copy = {
-  eyebrow: string;
   title: string;
   description: string;
   requested: string;
@@ -27,7 +26,6 @@ type Copy = {
 
 const COPY: Record<Locale, Copy> = {
   ru: {
-    eyebrow: "Доступ ограничен",
     title: "Нет доступа к разделу",
     description:
       "Этот раздел не входит в права вашей роли. Защищённые данные раздела не загружались.",
@@ -43,7 +41,6 @@ const COPY: Record<Locale, Copy> = {
     tabTitle: "Нет доступа",
   },
   ky: {
-    eyebrow: "Кирүү чектелген",
     title: "Бул бөлүмгө кирүүгө укук жок",
     description:
       "Бул бөлүм сиздин ролуңузга берилген эмес. Бөлүмдүн корголгон маалыматтары жүктөлгөн жок.",
@@ -59,7 +56,6 @@ const COPY: Record<Locale, Copy> = {
     tabTitle: "Кирүүгө укук жок",
   },
   en: {
-    eyebrow: "Restricted access",
     title: "You do not have access to this section",
     description:
       "This section is outside the permissions assigned to your role. Its protected data was not loaded.",
@@ -123,7 +119,6 @@ export default async function AccessDeniedPage({
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow={copy.eyebrow}
         title={copy.title}
         description={copy.description}
       />
@@ -139,17 +134,17 @@ export default async function AccessDeniedPage({
                 <Icon name="alert" size={22} />
               </span>
               <div className="min-w-0">
-                <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-danger">
+                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-danger">
                   {copy.security}
                 </p>
                 <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div>
-                    <dt className="text-[12px] font-medium text-fg-3">{copy.requested}</dt>
-                    <dd className="mt-1 text-[15px] font-semibold text-fg">{requestedLabel}</dd>
+                    <dt className="text-xs font-medium text-fg-3">{copy.requested}</dt>
+                    <dd className="mt-1 text-md font-semibold text-fg">{requestedLabel}</dd>
                   </div>
                   <div>
-                    <dt className="text-[12px] font-medium text-fg-3">{copy.role}</dt>
-                    <dd className="mt-1 text-[15px] font-semibold text-fg">{t(`role.${user.role}`)}</dd>
+                    <dt className="text-xs font-medium text-fg-3">{copy.role}</dt>
+                    <dd className="mt-1 text-md font-semibold text-fg">{t(`role.${user.role}`)}</dd>
                   </div>
                 </dl>
               </div>
@@ -158,8 +153,8 @@ export default async function AccessDeniedPage({
 
           <div className="flex flex-col justify-between gap-5 rounded-card border border-border bg-surface-2 p-5 sm:p-6">
             <div>
-              <h2 className="text-[15px] font-semibold text-fg">{copy.nextTitle}</h2>
-              <p className="mt-2 text-[13px] leading-6 text-fg-3">{copy.nextDescription}</p>
+              <h2 className="text-md font-semibold text-fg">{copy.nextTitle}</h2>
+              <p className="mt-2 text-sm leading-6 text-fg-3">{copy.nextDescription}</p>
             </div>
             <Link href={home} className={btnCls}>
               <Icon name="arrow-left" size={17} />

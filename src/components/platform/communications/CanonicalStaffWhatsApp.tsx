@@ -179,7 +179,7 @@ export function CanonicalStaffWhatsAppWorkspace({
   return (
     <div className="space-y-4" data-testid="canonical-staff-whatsapp-page">
       <PageHeader title={copy.title} description={copy.description} />
-      <div className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
+      <div className="flex h-[calc(100dvh-220px)] min-h-[520px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
         <aside
           className={cn(
             "w-full shrink-0 border-b border-border bg-surface-2 lg:block lg:w-[360px] lg:border-r lg:border-b-0",
@@ -187,12 +187,12 @@ export function CanonicalStaffWhatsAppWorkspace({
           )}
         >
           <div className="border-b border-border px-4 py-4">
-            <h2 className="text-[14px] font-semibold text-fg">{copy.queueTitle}</h2>
-            <p className="mt-1 text-[12.5px] leading-5 text-fg-3">
+            <h2 className="text-base font-semibold text-fg">{copy.queueTitle}</h2>
+            <p className="mt-1 text-sm leading-5 text-fg-3">
               {copy.queueDescription}
             </p>
           </div>
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 text-[12px]">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 text-xs">
             {queueResetHref ? (
               <Link
                 href={queueResetHref}
@@ -246,14 +246,24 @@ export function CanonicalStaffWhatsAppWorkspace({
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate text-[13.5px] font-semibold text-fg">
+                            <p className="truncate text-base font-semibold text-fg">
                               {conversation.displayName}
                             </p>
-                            <p className="truncate text-[12px] text-fg-3">
+                            <p
+                              className={cn(
+                                "truncate text-xs",
+                                active ? "text-accent-weak-muted" : "text-fg-3",
+                              )}
+                            >
                               {conversation.phone ?? conversation.email ?? conversation.conversationId}
                             </p>
                           </div>
-                          <span className="shrink-0 text-[11px] text-fg-3">
+                          <span
+                            className={cn(
+                              "shrink-0 text-xs",
+                              active ? "text-accent-weak-muted" : "text-fg-3",
+                            )}
+                          >
                             {formatCanonicalTimestamp(conversation.updatedAt, locale)}
                           </span>
                         </div>
@@ -312,10 +322,10 @@ export function CanonicalStaffWhatsAppWorkspace({
               className="flex h-full flex-col items-center justify-center px-6 text-center"
               data-testid="canonical-staff-whatsapp-empty"
             >
-              <h2 className="text-[16px] font-semibold text-fg">
+              <h2 className="text-lg font-semibold text-fg">
                 {copy.emptyThreadTitle}
               </h2>
-              <p className="mt-2 max-w-lg text-[13px] leading-6 text-fg-3">
+              <p className="mt-2 max-w-lg text-sm leading-6 text-fg-3">
                 {copy.emptyThreadText}
               </p>
             </div>
@@ -365,10 +375,10 @@ function ConversationThread({
       <div className="space-y-3 border-b border-border pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="truncate text-[18px] font-bold text-fg">
+            <h2 className="truncate text-xl font-bold text-fg">
               {conversation.displayName}
             </h2>
-            <p className="mt-1 text-[13px] text-fg-3">
+            <p className="mt-1 text-sm text-fg-3">
               {copy.updated}: {formatCanonicalTimestamp(conversation.updatedAt, locale)}
             </p>
           </div>
@@ -379,7 +389,7 @@ function ConversationThread({
             </Pill>
           </div>
         </div>
-        <dl className="grid gap-3 text-[13px] text-fg-2 sm:grid-cols-2">
+        <dl className="grid gap-3 text-sm text-fg-2 sm:grid-cols-2">
           <Fact label={copy.lead}>
             {actorRole === "admissions" ? (
               conversation.leadId
@@ -416,8 +426,8 @@ function ConversationThread({
       </div>
 
       <div>
-        <h3 className="text-[15px] font-semibold text-fg">{copy.transcript}</h3>
-        <p className="mt-1 text-[13px] leading-6 text-fg-3">
+        <h3 className="text-md font-semibold text-fg">{copy.transcript}</h3>
+        <p className="mt-1 text-sm leading-6 text-fg-3">
           {copy.transcriptDescription}
         </p>
       </div>
@@ -482,14 +492,14 @@ function ConversationThread({
                 data-message-id={message.messageId}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">
+                  <span className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">
                     {incoming ? copy.incoming : copy.outgoing}
                   </span>
-                  <span className="text-[11px] text-fg-3">
+                  <span className="text-xs text-fg-3">
                     {formatCanonicalTimestamp(message.occurredAt, locale)}
                   </span>
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-[13.5px] leading-6 text-fg">
+                <p className="mt-2 max-w-[60ch] whitespace-pre-wrap text-base leading-6 text-fg">
                   {message.body}
                 </p>
               </li>
@@ -536,7 +546,7 @@ function Fact({
 }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">
+      <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">
         {label}
       </dt>
       <dd className="mt-1 break-words text-fg">{children}</dd>
@@ -551,7 +561,7 @@ function Pill({
   return (
     <span
       className={cn(
-        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold leading-4 whitespace-nowrap",
+        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-xs font-semibold leading-4 whitespace-nowrap",
         tone === "info" ? "bg-info-weak text-info" : "bg-accent-weak text-accent",
       )}
     >

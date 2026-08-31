@@ -223,7 +223,7 @@ function useRefreshAfterAction(state: CanonicalAdmissionsOperationsActionState) 
 
 function ActionMessage({ state, copy }: Readonly<{ state: CanonicalAdmissionsOperationsActionState; copy: Copy }>) {
   if (state.status === "idle") return null;
-  return <p role="status" className={cn("text-[12px]", state.status === "saved" ? "text-ok" : "text-danger")}>{copy.states[state.status]}</p>;
+  return <p role="status" className={cn("text-xs", state.status === "saved" ? "text-ok" : "text-danger")}>{copy.states[state.status]}</p>;
 }
 
 function IsoDateTimeField({ name, label, initialValue }: Readonly<{ name: string; label: string; initialValue: string | null }>) {
@@ -248,7 +248,7 @@ function CreateApplicationForm({ studentCaseId, requestId, copy }: Readonly<{ st
   useRefreshAfterAction(state);
   return (
     <form action={action} className="border-y border-border bg-surface-2 px-4 py-4" data-testid="canonical-university-application-create-form">
-      <h3 className="text-[13px] font-semibold text-fg">{copy.createApplication}</h3>
+      <h3 className="text-sm font-semibold text-fg">{copy.createApplication}</h3>
       <input type="hidden" name="request_id" value={state.requestId} />
       <input type="hidden" name="student_case_id" value={studentCaseId} />
       <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -297,10 +297,10 @@ function ApplicationItem({ application, requestIds, copy, active }: Readonly<{ a
   return (
     <li className="py-5 first:pt-0 last:pb-0" data-testid="canonical-university-application" data-application-id={application.applicationId} data-status={application.status}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h3 className="text-[13.5px] font-semibold text-fg">{application.institutionName}</h3><p className="mt-1 text-[12.5px] text-fg-2">{application.programName} · {application.targetIntake}</p></div>
-        <span className="rounded-full bg-info-weak px-2 py-0.5 text-[10.5px] font-semibold text-info">{copy.appStatuses[application.status]}</span>
+        <div><h3 className="text-base font-semibold text-fg">{application.institutionName}</h3><p className="mt-1 text-sm text-fg-2">{application.programName} · {application.targetIntake}</p></div>
+        <span className="rounded-full bg-info-weak px-2 py-0.5 text-2xs font-semibold text-info">{copy.appStatuses[application.status]}</span>
       </div>
-      <p className="mt-2 text-[11.5px] text-fg-3">{copy.version}: {application.version}</p>
+      <p className="mt-2 text-xs text-fg-3">{copy.version}: {application.version}</p>
       {editable ? <ApplicationUpdateForm application={application} requestId={requestIds.update} copy={copy} /> : null}
       {editable ? (
         <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
@@ -334,8 +334,8 @@ function VisaTransitionForm({ milestone, toStatus, requestId, copy }: Readonly<{
 function VisaMilestoneItem({ milestone, requestIds, copy, active }: Readonly<{ milestone: CanonicalVisaMilestoneRow; requestIds: CanonicalAdmissionsOperationsRequestIds["visaMilestones"][string]; copy: Copy; active: boolean }>) {
   return (
     <li className="py-5 first:pt-0 last:pb-0" data-testid="canonical-visa-milestone" data-kind={milestone.milestoneKind} data-status={milestone.status}>
-      <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-[13.5px] font-semibold text-fg">{copy.visaKinds[milestone.milestoneKind]}</h3>{milestone.blockedReason ? <p className="mt-1 text-[12px] text-danger">{milestone.blockedReason}</p> : null}</div><span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10.5px] font-semibold text-fg-2">{copy.visaStatuses[milestone.status]}</span></div>
-      <p className="mt-2 text-[11.5px] text-fg-3">{copy.version}: {milestone.version}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-semibold text-fg">{copy.visaKinds[milestone.milestoneKind]}</h3>{milestone.blockedReason ? <p className="mt-1 text-xs text-danger">{milestone.blockedReason}</p> : null}</div><span className="rounded-full bg-surface-2 px-2 py-0.5 text-2xs font-semibold text-fg-2">{copy.visaStatuses[milestone.status]}</span></div>
+      <p className="mt-2 text-xs text-fg-3">{copy.version}: {milestone.version}</p>
       {active && milestone.status !== "completed" ? <div className="mt-4 grid gap-3 border-t border-border pt-4">
         {milestone.status === "pending" || milestone.status === "blocked" ? <VisaTransitionForm milestone={milestone} toStatus="in_progress" requestId={requestIds.in_progress} copy={copy} /> : null}
         {milestone.status === "in_progress" ? <VisaTransitionForm milestone={milestone} toStatus="completed" requestId={requestIds.completed} copy={copy} /> : null}
@@ -363,24 +363,24 @@ export function CanonicalAdmissionsOperationsPanel({ locale, actorRole, studentC
   const financeStopped = financeStop?.isStopped === true;
   return (
     <section className="space-y-8 border-t border-border pt-6" data-testid="canonical-admissions-operations">
-      <header><h2 className="text-[17px] font-semibold tracking-[-0.01em] text-fg">{copy.title}</h2><p className="mt-1 max-w-3xl text-[12.5px] leading-5 text-fg-3">{copy.description}</p></header>
-      {!active ? <p className="border-y border-border py-3 text-[12.5px] text-warn" role="status">{copy.inactive}</p> : null}
-      {financeStopped ? <p id="finance-stop-warning" className="border-y border-danger/30 bg-danger-weak px-4 py-3 text-[12.5px] text-danger" role="status">{copy.financeBlocksSubmission}</p> : null}
+      <header><h2 className="text-lg font-semibold tracking-[-0.01em] text-fg">{copy.title}</h2><p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">{copy.description}</p></header>
+      {!active ? <p className="border-y border-border py-3 text-sm text-warn" role="status">{copy.inactive}</p> : null}
+      {financeStopped ? <p id="finance-stop-warning" className="border-y border-danger/30 bg-danger-weak px-4 py-3 text-sm text-danger" role="status">{copy.financeBlocksSubmission}</p> : null}
 
-      <section id="applications" className="scroll-mt-24"><h3 className="text-[15px] font-semibold text-fg">{copy.applications}</h3><p className="mt-1 text-[12.5px] text-fg-3">{copy.applicationsDescription}</p>
+      <section id="applications" className="scroll-mt-24"><h3 className="text-md font-semibold text-fg">{copy.applications}</h3><p className="mt-1 text-sm text-fg-3">{copy.applicationsDescription}</p>
         {active ? <div className="mt-4"><CreateApplicationForm studentCaseId={studentCaseId} requestId={requestIds.createApplication} copy={copy} /></div> : null}
-        {applications.length === 0 ? <p className="mt-4 text-[12.5px] text-fg-3">{copy.noApplications}</p> : <Card className="mt-4"><ul className="divide-y divide-border">{applications.map((application) => { const ids = requestIds.applications[application.applicationId]; return ids ? <ApplicationItem key={application.applicationId} application={application} requestIds={ids} copy={copy} active={active} /> : null; })}</ul></Card>}
+        {applications.length === 0 ? <p className="mt-4 text-sm text-fg-3">{copy.noApplications}</p> : <Card className="mt-4"><ul className="divide-y divide-border">{applications.map((application) => { const ids = requestIds.applications[application.applicationId]; return ids ? <ApplicationItem key={application.applicationId} application={application} requestIds={ids} copy={copy} active={active} /> : null; })}</ul></Card>}
       </section>
 
-      <section id="visa" className="scroll-mt-24 border-t border-border pt-6"><h3 className="text-[15px] font-semibold text-fg">{copy.visa}</h3><p className="mt-1 text-[12.5px] text-fg-3">{copy.visaDescription}</p><Card className="mt-4"><ul className="divide-y divide-border">{visaMilestones.map((milestone) => { const ids = requestIds.visaMilestones[milestone.visaMilestoneId]; return ids ? <VisaMilestoneItem key={milestone.visaMilestoneId} milestone={milestone} requestIds={ids} copy={copy} active={active} /> : null; })}</ul></Card></section>
+      <section id="visa" className="scroll-mt-24 border-t border-border pt-6"><h3 className="text-md font-semibold text-fg">{copy.visa}</h3><p className="mt-1 text-sm text-fg-3">{copy.visaDescription}</p><Card className="mt-4"><ul className="divide-y divide-border">{visaMilestones.map((milestone) => { const ids = requestIds.visaMilestones[milestone.visaMilestoneId]; return ids ? <VisaMilestoneItem key={milestone.visaMilestoneId} milestone={milestone} requestIds={ids} copy={copy} active={active} /> : null; })}</ul></Card></section>
 
-      <section id="finance" className="scroll-mt-24 border-t border-border pt-6"><h3 className="text-[15px] font-semibold text-fg">{copy.finance}</h3><p className="mt-1 text-[12.5px] text-fg-3">{copy.financeDescription}</p>
+      <section id="finance" className="scroll-mt-24 border-t border-border pt-6"><h3 className="text-md font-semibold text-fg">{copy.finance}</h3><p className="mt-1 text-sm text-fg-3">{copy.financeDescription}</p>
         <div className="mt-4 border-y border-border py-4" data-testid="canonical-finance-stop" data-is-stopped={financeStopped ? "true" : "false"} data-version={financeStop?.version ?? 0}>
-          <div className="flex flex-wrap items-center gap-3"><span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", financeStopped ? "bg-danger-weak text-danger" : "bg-ok-weak text-ok")}>{financeStopped ? copy.stopActive : financeStop ? copy.stopReleased : copy.noStop}</span>{financeStop ? <span className="text-[11.5px] text-fg-3">{copy.changedBy}: {financeStop.changedByRole} · {copy.version}: {financeStop.version}</span> : null}</div>
-          {financeStop ? <p className="mt-2 whitespace-pre-wrap text-[12.5px] text-fg-2">{financeStop.reason}</p> : null}
+          <div className="flex flex-wrap items-center gap-3"><span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold", financeStopped ? "bg-danger-weak text-danger" : "bg-ok-weak text-ok")}>{financeStopped ? copy.stopActive : financeStop ? copy.stopReleased : copy.noStop}</span>{financeStop ? <span className="text-xs text-fg-3">{copy.changedBy}: {financeStop.changedByRole} · {copy.version}: {financeStop.version}</span> : null}</div>
+          {financeStop ? <p className="mt-2 max-w-[60ch] whitespace-pre-wrap text-sm text-fg-2">{financeStop.reason}</p> : null}
           {active && !financeStopped ? <AssertFinanceStopForm studentCaseId={studentCaseId} financeStop={financeStop} requestId={requestIds.finance.assert} copy={copy} /> : null}
           {active && financeStopped && financeStop && actorRole === "admin" ? <ReleaseFinanceStopForm financeStop={financeStop} requestId={requestIds.finance.release} copy={copy} /> : null}
-          {financeStopped && actorRole !== "admin" ? <p className="mt-3 text-[12px] text-fg-3">{copy.adminReleaseOnly}</p> : null}
+          {financeStopped && actorRole !== "admin" ? <p className="mt-3 text-xs text-fg-3">{copy.adminReleaseOnly}</p> : null}
         </div>
       </section>
     </section>

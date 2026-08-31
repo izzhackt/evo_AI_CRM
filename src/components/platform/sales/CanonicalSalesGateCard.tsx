@@ -155,11 +155,11 @@ function EvidenceSummary({
   copy: Copy;
 }>) {
   if (!evidence)
-    return <p className="text-[12.5px] text-fg-3">{copy.missing}</p>;
+    return <p className="text-sm text-fg-3">{copy.missing}</p>;
   return (
-    <dl className="grid gap-2 text-[12.5px] text-fg-2 sm:grid-cols-2">
+    <dl className="grid gap-2 text-sm text-fg-2 sm:grid-cols-2">
       <div>
-        <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-fg-3">
+        <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
           {copy.decision}
         </dt>
         <dd className="mt-1 font-medium text-fg">
@@ -167,22 +167,22 @@ function EvidenceSummary({
         </dd>
       </div>
       <div>
-        <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-fg-3">
+        <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
           {copy.occurredAt}
         </dt>
         <dd className="mt-1">{formatTimestamp(evidence.occurredAt, locale)}</dd>
       </div>
       <div className="sm:col-span-2">
-        <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-fg-3">
+        <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
           {copy.reference}
         </dt>
-        <dd className="mt-1 break-words font-mono text-[11.5px]">
+        <dd className="mt-1 break-words font-mono text-xs">
           {evidence.evidenceReference}
         </dd>
       </div>
       {evidence.amountMinor !== null && evidence.currency ? (
         <div>
-          <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-fg-3">
+          <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
             {copy.payment}
           </dt>
           <dd className="mt-1 font-mono">
@@ -192,7 +192,7 @@ function EvidenceSummary({
       ) : null}
       {evidence.reason ? (
         <div className="sm:col-span-2">
-          <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-fg-3">
+          <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
             {copy.reason}
           </dt>
           <dd className="mt-1 whitespace-pre-wrap">{evidence.reason}</dd>
@@ -336,7 +336,7 @@ function EvidenceForm({
         {message ? (
           <p
             className={cn(
-              "text-[12px]",
+              "text-xs",
               state.status === "saved" ? "text-ok" : "text-danger",
             )}
             role="status"
@@ -371,12 +371,12 @@ export function CanonicalSalesGateCard({
   return (
     <Card title={copy.title} bodyClassName="space-y-5" className="shadow-none">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-3xl text-[12.5px] leading-5 text-fg-3">
+        <p className="max-w-[60ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
         <span
           className={cn(
-            "rounded-full px-2.5 py-1 text-[11.5px] font-semibold",
+            "rounded-full px-2.5 py-1 text-xs font-semibold",
             tone,
           )}
         >
@@ -389,7 +389,7 @@ export function CanonicalSalesGateCard({
           className="space-y-3"
           data-testid="canonical-contract-evidence"
         >
-          <h3 className="text-[13px] font-semibold text-fg">{copy.contract}</h3>
+          <h3 className="text-sm font-semibold text-fg">{copy.contract}</h3>
           <EvidenceSummary
             evidence={gate.contractEvidence}
             locale={locale}
@@ -410,7 +410,7 @@ export function CanonicalSalesGateCard({
           className="space-y-3 lg:border-l lg:border-border lg:pl-5"
           data-testid="canonical-first-payment-evidence"
         >
-          <h3 className="text-[13px] font-semibold text-fg">{copy.payment}</h3>
+          <h3 className="text-sm font-semibold text-fg">{copy.payment}</h3>
           <EvidenceSummary
             evidence={gate.firstPaymentEvidence}
             locale={locale}

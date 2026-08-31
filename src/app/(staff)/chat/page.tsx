@@ -22,8 +22,8 @@ export default async function ChatIndexPage() {
             <Icon name="message-square" size={18} />
           </span>
           <div>
-            <h2 className="text-[14px] font-bold text-fg">{t("newChannel")}</h2>
-            <p className="mt-1 text-[12px] text-fg-3">{t("noMessages")}</p>
+            <h2 className="text-base font-bold text-fg">{t("newChannel")}</h2>
+            <p className="mt-1 text-xs text-fg-3">{t("noMessages")}</p>
           </div>
         </div>
         <form action={createChannelAction} className="grid gap-2">

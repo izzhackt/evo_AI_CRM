@@ -124,6 +124,39 @@ test("dark accent text keeps normal-text contrast without changing brand fills",
   assert.match(darkTheme, /--accent:\s*#d70217/);
 });
 
+test("scrollable inbox regions are reachable by keyboard", () => {
+  const whatsapp = source(
+    "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+  );
+
+  // Every element that owns its own scroll container must be focusable:
+  // WCAG 2.1.1 fails when a short viewport makes a region scroll while it
+  // holds no focusable child (an empty queue, or no selected conversation).
+  const scrollRegions = [...whatsapp.matchAll(/overflow-y-auto/g)];
+  assert.ok(scrollRegions.length >= 2, "expected the queue and thread panes");
+
+  assert.match(
+    whatsapp,
+    /className="max-h-\[320px\] overflow-y-auto lg:max-h-full"[\s\S]{0,400}?tabIndex=\{0\}/,
+    "the conversation queue scroll region must be focusable",
+  );
+  assert.match(
+    whatsapp,
+    /className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"[\s\S]{0,400}?tabIndex=\{0\}/,
+    "the conversation thread scroll region must be focusable",
+  );
+  assert.match(
+    whatsapp,
+    /data-testid="canonical-staff-whatsapp-thread-region"/,
+    "the thread scroll region must be addressable",
+  );
+  assert.match(
+    whatsapp,
+    /aria-label=\{thread \? thread\.conversation\.displayName : copy\.emptyThreadTitle\}/,
+    "the thread scroll region must carry an accessible name",
+  );
+});
+
 test("hand-written accent text uses the theme-aware accent token", () => {
   const styles = source("src/app/globals.css");
 

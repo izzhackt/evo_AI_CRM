@@ -218,6 +218,9 @@ export function CanonicalStaffWhatsAppWorkspace({
           <nav
             className="max-h-[320px] overflow-y-auto lg:max-h-full"
             aria-label={copy.queueTitle}
+            // Keyboard access for the scroll container itself: with an empty
+            // queue it has no focusable child to scroll it with.
+            tabIndex={0}
             data-testid="canonical-staff-whatsapp-queue"
           >
             {conversations.length === 0 ? (
@@ -270,7 +273,15 @@ export function CanonicalStaffWhatsAppWorkspace({
             )}
           </nav>
         </aside>
-        <section className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+        <section
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
+          // The pane scrolls whenever the viewport is short, and it can hold
+          // no focusable content at all while no conversation is selected.
+          // WCAG 2.1.1 needs the region itself reachable by keyboard.
+          tabIndex={0}
+          aria-label={thread ? thread.conversation.displayName : copy.emptyThreadTitle}
+          data-testid="canonical-staff-whatsapp-thread-region"
+        >
           {thread ? (
             <>
               <Link

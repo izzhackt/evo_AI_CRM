@@ -118,7 +118,7 @@ export default async function FinancePage({
                     <p className="mt-2 whitespace-pre-wrap text-[12.5px] leading-5 text-fg-2">{financeStop.reason}</p>
                     <p className="mt-2 text-[11.5px] text-fg-3">{copy.changedBy}: {financeStop.changedByRole}</p>
                   </div>
-                  <Link href={`/clients/${financeStop.studentCaseId}#finance`} className="shrink-0 text-[12px] font-semibold text-accent hover:underline">
+                  <Link href={`/clients/${financeStop.studentCaseId}#finance`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-[12px] font-semibold text-accent hover:underline">
                     {copy.open}
                   </Link>
                 </div>

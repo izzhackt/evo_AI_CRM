@@ -140,7 +140,7 @@ export default async function VisaPage({
                     <p className="mt-1 text-[12.5px] text-fg-2">{milestone.displayName}</p>
                     {milestone.nextAction ? <p className="mt-2 text-[11.5px] text-fg-3">{milestone.nextAction}</p> : null}
                   </div>
-                  <Link href={`/clients/${milestone.studentCaseId}#visa`} className="shrink-0 text-[12px] font-semibold text-accent hover:underline">
+                  <Link href={`/clients/${milestone.studentCaseId}#visa`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-[12px] font-semibold text-accent hover:underline">
                     {copy.open}
                   </Link>
                 </div>

@@ -467,10 +467,10 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     "src/lib/platform-admissions-actions.ts",
     "src/lib/platform-case-assignment.ts",
     "src/app/(staff)/layout.tsx",
-    "src/app/(staff)/sales/page.tsx",
+    "src/app/(staff)/sales/(queue)/page.tsx",
     "src/app/(staff)/sales/SalesPageContent.tsx",
     "src/components/platform/core/SalesQuickAdd.tsx",
-    "src/app/(staff)/clients/page.tsx",
+    "src/app/(staff)/clients/(queue)/page.tsx",
     "src/app/(staff)/clients/ClientsPageContent.tsx",
     "src/app/(staff)/clients/StudentQueue.tsx",
     "src/app/(staff)/clients/[id]/page.tsx",
@@ -517,14 +517,14 @@ test("normal staff routes keep one accepted renderer instead of parallel Platfor
   assert.doesNotMatch(layout, /import\(["']\.\/(?:Legacy|Platform)StaffLayout["']\)/);
 
   const salesRoute = readFileSync(
-    new URL("../src/app/(staff)/sales/page.tsx", import.meta.url),
+    new URL("../src/app/(staff)/sales/(queue)/page.tsx", import.meta.url),
     "utf8",
   );
   assert.match(salesRoute, /SalesPageContent/);
   assert.doesNotMatch(salesRoute, /(?:Legacy|Platform)SalesPage/);
 
   const clientsRoute = readFileSync(
-    new URL("../src/app/(staff)/clients/page.tsx", import.meta.url),
+    new URL("../src/app/(staff)/clients/(queue)/page.tsx", import.meta.url),
     "utf8",
   );
   const clientRoute = readFileSync(

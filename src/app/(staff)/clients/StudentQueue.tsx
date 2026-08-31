@@ -14,6 +14,10 @@ import {
   filterBarCls,
   inputCls,
 } from "@/components/ui";
+import {
+  fixedRoleCanAccessRoute,
+  type FixedRole,
+} from "@/lib/fixed-role-policy";
 import { getT, type Locale } from "@/lib/i18n";
 import { requirePlatformClientsActor } from "@/lib/platform-guards";
 import {
@@ -136,6 +140,7 @@ export async function StudentQueue({
   return (
     <CanonicalStudentCasesPresentation
       locale={locale}
+      actorRole={actor.platformRole}
       rows={page?.rows ?? []}
       params={normalized}
       hasNext={page?.hasNext ?? false}
@@ -211,18 +216,21 @@ function trimmed(value: string | undefined) {
 
 function CanonicalStudentCasesPresentation({
   locale,
+  actorRole,
   rows,
   params,
   hasNext,
   nextCursor,
 }: Readonly<{
   locale: Locale;
+  actorRole: FixedRole;
   rows: readonly CanonicalStudentCaseQueueRow[];
   params: NormalizedParams;
   hasNext: boolean;
   nextCursor: CanonicalReadCursor | null;
 }>) {
   const copy = COPY[locale];
+  const canOpenLead = fixedRoleCanAccessRoute(actorRole, "/sales");
   const activeCount = rows.filter((studentCase) => studentCase.status === "active").length;
   const pausedCount = rows.filter((studentCase) => studentCase.status === "paused").length;
   const closedCount = rows.filter((studentCase) => studentCase.status === "closed").length;
@@ -325,12 +333,17 @@ function CanonicalStudentCasesPresentation({
                       <CanonicalUuid value={studentCase.personId} />
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <Link
-                        href={`/sales/${studentCase.leadId}`}
-                        className="font-medium text-accent hover:underline"
-                      >
+                      {canOpenLead ? (
+                        <Link
+                          href={`/sales/${studentCase.leadId}`}
+                          aria-label={`${copy.lead} ${studentCase.leadId}: ${studentCase.displayName}`}
+                          className="font-medium text-accent hover:underline"
+                        >
+                          <CanonicalUuid value={studentCase.leadId} />
+                        </Link>
+                      ) : (
                         <CanonicalUuid value={studentCase.leadId} />
-                      </Link>
+                      )}
                     </td>
                     <td className="px-3 py-3 align-top">
                       <div className="space-y-1">

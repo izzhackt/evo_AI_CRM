@@ -14857,3 +14857,30 @@ authorized, but it must not deploy, call Gemini, send WhatsApp, write amoCRM,
 change provider settings or touch customer data. Missing provider credentials
 remain a truthful provider-proof blocker and never justify a mock, fixture,
 fallback or simulated success.
+
+## 2026-08-31 - Make long Student 360 work and critical confirmations keyboard-practical
+
+Date: 2026-08-31, workspace timezone (+04).
+Author: Codex under the owner's delegated persistent frontend long run.
+Change type: V2-11 responsive navigation and accessibility acceptance
+refinement; no backend, provider or production authority change.
+Affected plan section: V2-11B responsive shell and V2-11C core journey,
+keyboard, focus and target-size acceptance.
+
+The real tablet audit found that one populated Student 360 case reaches roughly
+5,900 CSS pixels while its required task, document, amoCRM and
+application/visa/finance modules remain a single uninterrupted page. The same
+audit measured a 13-by-13-pixel visible WhatsApp send-confirmation checkbox and
+small inline case links. Native controls and the global focus ring are present,
+but the operator still has unnecessary scrolling and unnecessarily small focus
+targets in the most consequential staff workflows.
+
+Keep the existing Student 360 page and accepted visual system. Add one localized
+in-page module navigation whose links are at least the existing 44-pixel control
+height, and add stable scroll targets to the existing overview, handoff, tasks,
+documents, amoCRM and admissions-operations sections. Enlarge the WhatsApp
+confirmation control and the sampled inline case links without changing their
+actions or provider authority. Focus remains visible, reduced-motion behavior
+is preserved, and no second page, tab state, repository, role or provider path
+is introduced. Validate the exact source contracts, production build and the
+real no-fixture browser at desktop, tablet and mobile before completion.

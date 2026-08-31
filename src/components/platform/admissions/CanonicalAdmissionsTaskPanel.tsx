@@ -528,7 +528,7 @@ function TaskItem({
             </p>
             <Link
               href={`/clients/${task.studentCaseId}`}
-              className="mt-2 inline-block font-medium text-accent underline-offset-2 hover:underline"
+              className="mt-2 inline-flex min-h-11 items-center rounded-ctl px-1 font-medium text-accent underline-offset-2 hover:underline"
             >
               {copy.openCase}
             </Link>

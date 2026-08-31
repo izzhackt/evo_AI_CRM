@@ -256,14 +256,14 @@ export function CanonicalWhatsAppOutboundComposer({
           data-testid="canonical-whatsapp-outbound-text"
         />
 
-        <label className="flex items-start gap-2 text-[13px] leading-5 text-fg-2">
+        <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-ctl px-2 py-2 text-[13px] leading-5 text-fg-2 hover:bg-surface-2">
           <input
             type="checkbox"
             name="confirm_send"
             value="1"
             checked={confirmed}
             onChange={(event) => setConfirmed(event.target.checked)}
-            className="mt-1"
+            className="mt-0.5 h-5 w-5 shrink-0"
             data-testid="canonical-whatsapp-outbound-confirm"
           />
           <span>{copy.confirm}</span>

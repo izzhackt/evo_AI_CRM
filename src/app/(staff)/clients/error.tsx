@@ -1,17 +1,15 @@
 "use client";
 
-import { btnGhostCls } from "@/components/ui";
+import { CanonicalQueueRouteError } from "@/components/platform/core/CanonicalQueueRouteError";
 
 export default function CanonicalClientsError({ reset }: { reset: () => void }) {
+  // The wrapper keeps the long-standing canonical-records-unavailable contract
+  // that the PostgreSQL browser suite asserts for the unavailable runtime,
+  // while the shared boundary supplies localized copy and a queue link the
+  // bespoke Russian-only screen never had.
   return (
-    <div className="space-y-4 border-y border-border py-8" data-testid="canonical-records-unavailable">
-      <h1 className="text-[19px] font-bold text-fg">Список дел студентов недоступен</h1>
-      <p className="max-w-2xl text-[13px] leading-6 text-fg-3">
-        Не удалось прочитать данные EVO V2. Старый источник не используется.
-      </p>
-      <button type="button" className={btnGhostCls} onClick={reset}>
-        Повторить чтение
-      </button>
+    <div data-testid="canonical-records-unavailable">
+      <CanonicalQueueRouteError route="clients" href="/clients" reset={reset} />
     </div>
   );
 }

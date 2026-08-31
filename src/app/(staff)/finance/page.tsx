@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Card, btnGhostCls, cn } from "@/components/ui";
 import { getT } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n-data";
 import { buildRouteMetadata } from "@/lib/route-metadata";
 import { requirePlatformCapability } from "@/lib/platform-guards";
 import {
@@ -29,6 +30,9 @@ const COPY = {
     open: "Открыть Student 360",
     first: "К началу",
     next: "Следующие состояния",
+    invalid:
+      "Фильтр отклонён. Очередь финансовых стопов не читалась, потому что параметры запроса не прошли строгую нормализацию.",
+    filterReset: "К финансовым стопам",
   },
   ky: {
     eyebrow: "Admissions · PostgreSQL",
@@ -41,6 +45,9 @@ const COPY = {
     open: "Student 360 ачуу",
     first: "Башына",
     next: "Кийинки абалдар",
+    invalid:
+      "Чыпка четке кагылды. Сурам параметрлери катуу нормалдаштыруудан өтпөгөндүктөн каржы кезеги окулган жок.",
+    filterReset: "Каржылык токтотууларга",
   },
   en: {
     eyebrow: "Admissions · PostgreSQL",
@@ -53,6 +60,9 @@ const COPY = {
     open: "Open Student 360",
     first: "First page",
     next: "Next states",
+    invalid:
+      "The filter was rejected. The finance stop queue was not read because the request parameters failed strict normalization.",
+    filterReset: "Back to finance stops",
   },
 } as const;
 
@@ -73,6 +83,12 @@ export default async function FinancePage({
     searchParams,
   ]);
   const cursor = queueCursor(params);
+  const copyForState = COPY[locale];
+  if (cursor === "invalid") {
+    return (
+      <QueueFilterRejected copy={copyForState} testId="canonical-finance-queue" />
+    );
+  }
   const page = await listCanonicalFinanceStops({
     actorRole: actor.platformRole,
     cursor: cursor ?? undefined,
@@ -82,11 +98,7 @@ export default async function FinancePage({
 
   return (
     <div className="space-y-5" data-testid="canonical-finance-stop-queue">
-      <header className="border-b border-border pb-5">
-        <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-accent">{copy.eyebrow}</p>
-        <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
-        <p className="mt-2 max-w-2xl text-[12.5px] leading-5 text-fg-3">{copy.description}</p>
-      </header>
+      <QueueHeader copy={copy} withDescription />
 
       {page.rows.length === 0 ? (
         <p className="border-y border-border py-8 text-[13px] text-fg-3">{copy.empty}</p>
@@ -106,7 +118,7 @@ export default async function FinancePage({
                     <p className="mt-2 whitespace-pre-wrap text-[12.5px] leading-5 text-fg-2">{financeStop.reason}</p>
                     <p className="mt-2 text-[11.5px] text-fg-3">{copy.changedBy}: {financeStop.changedByRole}</p>
                   </div>
-                  <Link href={`/clients/${financeStop.studentCaseId}#finance`} className="shrink-0 text-[12px] font-semibold text-accent hover:underline">
+                  <Link href={`/clients/${financeStop.studentCaseId}#finance`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-[12px] font-semibold text-accent hover:underline">
                     {copy.open}
                   </Link>
                 </div>
@@ -124,7 +136,23 @@ export default async function FinancePage({
   );
 }
 
-function queueCursor(params: SearchParams): CanonicalReadCursor | null {
+function queueCursor(
+  params: SearchParams,
+): CanonicalReadCursor | null | "invalid" {
+  try {
+    return parseQueueCursor(params);
+  } catch (error: unknown) {
+    if (
+      error instanceof CanonicalCrmRepositoryError &&
+      error.code === "invalid_input"
+    ) {
+      return "invalid";
+    }
+    throw error;
+  }
+}
+
+function parseQueueCursor(params: SearchParams): CanonicalReadCursor | null {
   if (Object.keys(params).some((key) => key !== "before_at" && key !== "before_id")) {
     throw new CanonicalCrmRepositoryError("invalid_input");
   }
@@ -144,4 +172,40 @@ function singleValue(value: string | string[] | undefined): string | undefined {
 function queueHref(path: string, cursor: CanonicalReadCursor): string {
   const query = new URLSearchParams({ before_at: cursor.updatedAt, before_id: cursor.id });
   return `${path}?${query.toString()}`;
+}
+
+function QueueFilterRejected({
+  copy,
+  testId,
+}: Readonly<{
+  copy: (typeof COPY)[Locale];
+  testId: string;
+}>) {
+  return (
+    <div className="space-y-5" data-testid={testId}>
+      <QueueHeader copy={copy} />
+      <div data-testid="canonical-queue-filter-rejected">
+        <p className="border-y border-border py-8 text-[13px] text-fg-3">{copy.invalid}</p>
+      </div>
+      <Link href="/finance" className={btnGhostCls}>{copy.filterReset}</Link>
+    </div>
+  );
+}
+
+function QueueHeader({
+  copy,
+  withDescription = false,
+}: Readonly<{
+  copy: (typeof COPY)[Locale];
+  withDescription?: boolean;
+}>) {
+  return (
+    <header className="border-b border-border pb-5">
+      <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-accent">{copy.eyebrow}</p>
+      <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
+      {withDescription ? (
+        <p className="mt-2 max-w-2xl text-[12.5px] leading-5 text-fg-3">{copy.description}</p>
+      ) : null}
+    </header>
+  );
 }

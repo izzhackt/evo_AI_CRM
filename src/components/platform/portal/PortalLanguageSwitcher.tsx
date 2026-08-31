@@ -1,4 +1,4 @@
-import { setLocaleAction } from "@/lib/actions";
+import { setLocaleAction } from "@/lib/locale-actions";
 import { LOCALES, type Locale } from "@/lib/i18n-data";
 
 import styles from "./portal.module.css";

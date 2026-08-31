@@ -1,4 +1,4 @@
-import { setLocaleAction } from "@/lib/actions";
+import { setLocaleAction } from "@/lib/locale-actions";
 import { LOCALES, type Locale, LOCALE_NAMES } from "@/lib/i18n-data";
 
 export function LangSwitcher({ current }: { current: Locale }) {

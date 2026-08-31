@@ -110,7 +110,7 @@ export function CanonicalSalesConversationList({
             <li key={conversation.conversationId} className="py-3">
               <Link
                 href={`/sales/${leadId}/conversations/${conversation.conversationId}`}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-sm px-2 py-1 transition-colors hover:bg-bg-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-sm px-2 py-1 transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 data-testid="canonical-sales-conversation-link"
                 data-conversation-id={conversation.conversationId}
               >

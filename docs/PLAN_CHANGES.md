@@ -14884,3 +14884,26 @@ actions or provider authority. Focus remains visible, reduced-motion behavior
 is preserved, and no second page, tab state, repository, role or provider path
 is introduced. Validate the exact source contracts, production build and the
 real no-fixture browser at desktop, tablet and mobile before completion.
+
+## 2026-08-31 - Separate dark-theme accent text from the brand fill token
+
+Date: 2026-08-31, workspace timezone (+04).
+Author: Codex under the owner's delegated persistent frontend long run.
+Change type: V2-11 accessibility correction inside the accepted visual system;
+no route, provider, backend or production authority change.
+Affected plan section: V2-11B light/dark contrast acceptance.
+
+The real no-fixture current-main browser audit at
+`83c6031cf1d0e6268350ff1082761df55e927f70` found that small accent text uses
+the same dark red token as filled brand controls. The fill remains appropriate
+with white text, but the `#d70217` text color measures only 3.62:1 on the dark
+Lead 360 surface, below the 4.5:1 threshold for 11-pixel text. Reusing one token
+for both purposes therefore makes the two valid contrast requirements compete.
+
+Keep the existing brand fill and accepted Claude Design direction unchanged.
+Add one theme-aware accent-text token and let the existing `text-accent`
+utility resolve to the brighter dark-theme value while `bg-accent`, borders and
+buttons keep the original brand red. The dark text value must measure at least
+4.5:1 on both the standard dark surface and the dark accent-weak surface. Cover
+the token relationship with a focused contrast test, then repeat light/dark
+browser checks on Sales, Lead 360, Student 360 and WhatsApp before completion.

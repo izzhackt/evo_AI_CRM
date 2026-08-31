@@ -1192,12 +1192,21 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
   );
   await handoffForm.locator('button[type="submit"]').click();
 
-  const caseLink = page.getByTestId("canonical-admissions-case-link");
-  await expect(caseLink).toBeVisible();
-  const caseHref = await caseLink.getAttribute("href");
-  expect(caseHref).toMatch(
-    /^\/clients\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  // Sales cannot open /clients, so the handoff card must state the resulting
+  // case rather than offer a link the server would deny.
+  await expect(
+    page.getByTestId("canonical-admissions-case-link"),
+  ).toHaveCount(0);
+  const caseReference = page.getByTestId(
+    "canonical-admissions-case-reference",
   );
+  await expect(caseReference).toBeVisible();
+  const referenceText = (await caseReference.innerText()).trim();
+  const referencedCaseId = referenceText.match(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
+  )?.[0];
+  expect(referencedCaseId).toBeTruthy();
+  const caseHref = `/clients/${referencedCaseId}`;
 
   await submitGate(page, "admissions");
   await page.goto(caseHref!);

@@ -10,11 +10,32 @@ import { requirePlatformCapability } from "@/lib/platform-guards";
 import { buildRouteMetadata } from "@/lib/route-metadata";
 import { listCanonicalAdmissionsTasks } from "@/lib/server/canonical-crm-repository";
 
+const COPY = {
+  ru: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Задачи команды",
+    description:
+      "Общая операционная очередь задач Admissions по всем переданным кейсам.",
+  },
+  ky: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Команданын тапшырмалары",
+    description:
+      "Бардык өткөрүлгөн кейстер боюнча Admissions тапшырмаларынын жалпы кезеги.",
+  },
+  en: {
+    eyebrow: "Admissions · PostgreSQL",
+    title: "Team tasks",
+    description:
+      "Shared Admissions operational task queue across every handed-off case.",
+  },
+} as const;
+
 export async function generateMetadata(): Promise<Metadata> {
   return buildRouteMetadata({
-    ru: "Задачи команды",
-    ky: "Команданын тапшырмалары",
-    en: "Team tasks",
+    ru: COPY.ru.title,
+    ky: COPY.ky.title,
+    en: COPY.en.title,
   });
 }
 
@@ -35,8 +56,21 @@ export default async function TasksPage() {
       ]),
     );
 
+  const copy = COPY[locale];
+
   return (
-    <div data-testid="canonical-admissions-task-queue">
+    <div className="space-y-5" data-testid="canonical-admissions-task-queue">
+      <header className="border-b border-border pb-5">
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-accent">
+          {copy.eyebrow}
+        </p>
+        <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-fg">
+          {copy.title}
+        </h1>
+        <p className="mt-2 max-w-2xl text-[12.5px] leading-5 text-fg-3">
+          {copy.description}
+        </p>
+      </header>
       <CanonicalAdmissionsTaskPanel
         locale={locale}
         tasks={tasksPage.rows}

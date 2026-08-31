@@ -3,12 +3,12 @@ import {
   LOCALE_NAMES,
   type Locale,
 } from "@/lib/i18n-data";
-import { setPlatformLocaleAction } from "@/lib/platform-admissions-actions";
+import { setLocaleAction } from "@/lib/locale-actions";
 
 export function PlatformLangSwitcher({ current }: { current: Locale }) {
   return (
     <form
-      action={setPlatformLocaleAction}
+      action={setLocaleAction}
       aria-label="Language"
       className="inline-flex rounded-ctl bg-surface-2 p-0.5"
     >

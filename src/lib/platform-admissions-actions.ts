@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
@@ -11,7 +10,6 @@ import {
   parsePlatformAdmissionsUuid,
   type PlatformApplicationStatus,
 } from "./platform-admissions";
-import { LOCALES, type Locale } from "./i18n-data";
 import {
   requirePlatformApplicationsActor,
   requirePlatformClientsActor,
@@ -88,20 +86,6 @@ function safeRedirect(
       anchor,
     ),
   );
-}
-
-export async function setPlatformLocaleAction(form: FormData): Promise<void> {
-  const locale = value(form, "locale") as Locale;
-  if (!(LOCALES as readonly string[]).includes(locale)) return;
-  const store = await cookies();
-  store.set("locale", locale, {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  });
-  revalidatePath("/", "layout");
 }
 
 export async function changePlatformStudentCaseStateAction(

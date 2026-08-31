@@ -35,6 +35,7 @@ const COPY = {
       "Запрос уже использован с другими данными. Повторите передачу.",
     unavailable: "PostgreSQL недоступен. Кейс не создан.",
     openCase: "Открыть кейс Admissions",
+    caseRecorded: "Кейс Admissions создан. Он открывается ролью Admissions.",
   },
   ky: {
     title: "Admissions бөлүмүнө өткөрүү",
@@ -57,6 +58,7 @@ const COPY = {
     requestConflict: "Сурам башка маалымат үчүн колдонулган. Кайра өткөрүңүз.",
     unavailable: "PostgreSQL жеткиликсиз. Кейс түзүлгөн жок.",
     openCase: "Admissions кейсин ачуу",
+    caseRecorded: "Admissions кейси түзүлдү. Аны Admissions ролу ачат.",
   },
   en: {
     title: "Handoff to Admissions",
@@ -80,6 +82,7 @@ const COPY = {
     requestConflict: "This request was used with different data. Submit again.",
     unavailable: "PostgreSQL is unavailable. No case was created.",
     openCase: "Open Admissions case",
+    caseRecorded: "The Admissions case was created. The Admissions role opens it.",
   },
 } as const;
 
@@ -103,10 +106,12 @@ export function CanonicalSalesHandoffCard({
   actorRole,
   expectedVersion,
   gate,
+  canOpenAdmissionsCase,
   locale,
   requestId,
 }: Readonly<{
   actorRole: FixedRole;
+  canOpenAdmissionsCase: boolean;
   expectedVersion: number;
   gate: CanonicalLeadGateSnapshot;
   locale: Locale;
@@ -146,13 +151,25 @@ export function CanonicalSalesHandoffCard({
         </p>
 
         {completedCaseId ? (
-          <Link
-            href={`/clients/${completedCaseId}`}
-            className={btnCls}
-            data-testid="canonical-admissions-case-link"
-          >
-            {copy.openCase}
-          </Link>
+          canOpenAdmissionsCase ? (
+            <Link
+              href={`/clients/${completedCaseId}`}
+              className={btnCls}
+              data-testid="canonical-admissions-case-link"
+            >
+              {copy.openCase}
+            </Link>
+          ) : (
+            <p
+              className="text-[12.5px] leading-5 text-fg-2"
+              data-testid="canonical-admissions-case-reference"
+            >
+              {copy.caseRecorded}{" "}
+              <span className="font-mono text-[11.5px] text-fg-3">
+                {completedCaseId}
+              </span>
+            </p>
+          )
         ) : canSubmitNormal || canSubmitOverride ? (
           <form
             action={action}

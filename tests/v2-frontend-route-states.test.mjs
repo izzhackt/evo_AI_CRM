@@ -149,9 +149,12 @@ test("denied and not-connected states carry their own document title", () => {
   const denied = source("src/app/(staff)/access-denied/page.tsx");
   const pending = source("src/app/platform-pending/page.tsx");
 
+  const entry = source("src/app/page.tsx");
+
   for (const [route, moduleSource] of [
     ["/access-denied", denied],
     ["/platform-pending", pending],
+    ["/", entry],
   ]) {
     assert.match(
       moduleSource,

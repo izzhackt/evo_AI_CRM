@@ -52,7 +52,9 @@
   --border-strong: #3b4048;
   --text: #f4f5f6;
   --text-2: #b4b8bf;
-  --text-3: #878c94;
+  /* Passes 4.5:1 on every dark surface, including the tinted *-weak
+     panels used by denied, blocked and status surfaces. */
+  --text-3: #979ca4;
   --accent: #d70217;
   --accent-text: #f24b58;
   --accent-2: #b00213;
@@ -806,7 +808,7 @@ html[lang="en"] .locale-copy--en {
 .staff-menu-sheet__group + .staff-menu-sheet__group {
   margin-top: 17px;
 }
-.staff-menu-sheet__group h3 {
+.staff-menu-sheet__group-label {
   margin: 0;
   padding: 0 6px 7px;
   color: var(--text-3);

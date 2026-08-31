@@ -52,6 +52,38 @@ test("shared queue error state is actionable and fails closed", () => {
   assert.doesNotMatch(copy, /Supabase|fixture|mock|provider connected/i);
 });
 
+test("a rejected query never claims the database failed", () => {
+  const routes = [
+    ["/clients", "src/app/(staff)/clients/StudentQueue.tsx"],
+    ["/applications", "src/app/(staff)/applications/page.tsx"],
+    ["/visa", "src/app/(staff)/visa/page.tsx"],
+    ["/finance", "src/app/(staff)/finance/page.tsx"],
+    ["/sales", "src/app/(staff)/sales/SalesWorkspace.tsx"],
+  ];
+
+  for (const [route, path] of routes) {
+    const moduleSource = source(path);
+    assert.match(
+      moduleSource,
+      /catch\b/,
+      `${route} must catch its own query normalization failure`,
+    );
+    assert.match(
+      moduleSource,
+      /invalid:\s*$/m,
+      `${route} must own a rejected-filter message`,
+    );
+  }
+
+  for (const [route, path] of routes.slice(0, 4)) {
+    assert.match(
+      source(path),
+      /canonical-queue-filter-rejected/,
+      `${route} must render the rejected filter in page, not through the error boundary`,
+    );
+  }
+});
+
 test("every core staff queue owns a nearest loading boundary", () => {
   const queues = [
     ["/sales", "src/app/(staff)/sales/(queue)/loading.tsx", "sales"],

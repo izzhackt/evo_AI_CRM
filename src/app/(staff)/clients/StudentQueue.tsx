@@ -243,12 +243,16 @@ function CanonicalStudentCasesPresentation({
         <p className="text-[12.5px] text-fg-2">{copy.authority}</p>
       </section>
 
-      <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-[12px] text-fg-3">
-        <Metric label={copy.found} value={rows.length} />
-        <Metric label={copy.active} value={activeCount} />
-        <Metric label={copy.paused} value={pausedCount} />
-        <Metric label={copy.closed} value={closedCount} />
-      </div>
+      {/* A rejected filter means the queue was never read, so there are no
+          counts to state. /sales keeps its metric row inside the same guard. */}
+      {params.listInvalid ? null : (
+        <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-[12px] text-fg-3">
+          <Metric label={copy.found} value={rows.length} />
+          <Metric label={copy.active} value={activeCount} />
+          <Metric label={copy.paused} value={pausedCount} />
+          <Metric label={copy.closed} value={closedCount} />
+        </div>
+      )}
 
       <form
         action="/clients"

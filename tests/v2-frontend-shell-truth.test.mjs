@@ -24,9 +24,9 @@ function staffSurfaceFiles() {
 
 const routeFiles = [
   "src/app/login/page.tsx",
-  "src/app/(staff)/sales/page.tsx",
+  "src/app/(staff)/sales/(queue)/page.tsx",
   "src/app/(staff)/sales/[id]/page.tsx",
-  "src/app/(staff)/clients/page.tsx",
+  "src/app/(staff)/clients/(queue)/page.tsx",
   "src/app/(staff)/clients/[id]/page.tsx",
   "src/app/(staff)/applications/page.tsx",
   "src/app/(staff)/documents/(queue)/page.tsx",

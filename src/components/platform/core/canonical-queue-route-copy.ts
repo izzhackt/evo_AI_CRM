@@ -1,6 +1,8 @@
 import type { Locale } from "@/lib/i18n-data";
 
 export type CanonicalQueueRoute =
+  | "sales"
+  | "clients"
   | "applications"
   | "visa"
   | "finance"
@@ -18,6 +20,64 @@ export type CanonicalQueueRouteCopy = Readonly<{
 export const CANONICAL_QUEUE_ROUTE_COPY: Readonly<
   Record<CanonicalQueueRoute, Readonly<Record<Locale, CanonicalQueueRouteCopy>>>
 > = {
+  sales: {
+    ru: {
+      loadingTitle: "Загружаем лиды EVO",
+      loadingHint: "Читаем актуальную очередь Sales из PostgreSQL V2.",
+      errorTitle: "Канонические лиды EVO недоступны",
+      errorDescription:
+        "Не удалось прочитать данные EVO V2. Старый источник или резервный экран не используется.",
+      retry: "Повторить чтение",
+      backToQueue: "К очереди лидов",
+    },
+    ky: {
+      loadingTitle: "EVO лиддери жүктөлүүдө",
+      loadingHint: "PostgreSQL V2 базасынан учурдагы Sales кезеги окулууда.",
+      errorTitle: "Канондук EVO лиддери жеткиликсиз",
+      errorDescription:
+        "PostgreSQL жооп берген жок. Эски булак же резервдик экран колдонулбайт.",
+      retry: "Кайра аракет кылуу",
+      backToQueue: "Лиддер кезегине",
+    },
+    en: {
+      loadingTitle: "Loading EVO leads",
+      loadingHint: "Reading the current Sales queue from PostgreSQL V2.",
+      errorTitle: "Canonical EVO leads are unavailable",
+      errorDescription:
+        "PostgreSQL did not respond. No legacy source or fallback screen is used.",
+      retry: "Try again",
+      backToQueue: "Back to leads",
+    },
+  },
+  clients: {
+    ru: {
+      loadingTitle: "Загружаем дела студентов",
+      loadingHint: "Читаем актуальную очередь Student 360 из PostgreSQL V2.",
+      errorTitle: "Список дел студентов недоступен",
+      errorDescription:
+        "Не удалось прочитать данные EVO V2. Старый источник или резервный экран не используется.",
+      retry: "Повторить чтение",
+      backToQueue: "К делам студентов",
+    },
+    ky: {
+      loadingTitle: "Студенттердин иштери жүктөлүүдө",
+      loadingHint: "PostgreSQL V2 базасынан учурдагы Student 360 кезеги окулууда.",
+      errorTitle: "Студенттердин иштеринин тизмеси жеткиликсиз",
+      errorDescription:
+        "PostgreSQL жооп берген жок. Эски булак же резервдик экран колдонулбайт.",
+      retry: "Кайра аракет кылуу",
+      backToQueue: "Студенттердин иштерине",
+    },
+    en: {
+      loadingTitle: "Loading student cases",
+      loadingHint: "Reading the current Student 360 queue from PostgreSQL V2.",
+      errorTitle: "Student cases are unavailable",
+      errorDescription:
+        "PostgreSQL did not respond. No legacy source or fallback screen is used.",
+      retry: "Try again",
+      backToQueue: "Back to student cases",
+    },
+  },
   applications: {
     ru: {
       loadingTitle: "Загружаем заявки в университеты",

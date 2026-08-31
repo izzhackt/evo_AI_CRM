@@ -50,9 +50,9 @@ export function StaffNav({
         const headingId = `staff-nav-group-${groupIndex}`;
         return (
           <section key={group.label} aria-labelledby={headingId} className="staff-nav-group">
-            <h2 id={headingId} className="staff-nav-group__label">
+            <p id={headingId} className="staff-nav-group__label">
               {group.label}
-            </h2>
+            </p>
             <ul role="list" className="staff-nav-list">
               {group.items.map((item) => {
                 const active = isCurrentPath(pathname, item.href);
@@ -191,7 +191,9 @@ export function MobileStaffNav({
               const headingId = `mobile-staff-nav-group-${groupIndex}`;
               return (
                 <section key={group.label} aria-labelledby={headingId} className="staff-menu-sheet__group">
-                  <h3 id={headingId}>{group.label}</h3>
+                  <h3 id={headingId} className="staff-menu-sheet__group-label">
+                    {group.label}
+                  </h3>
                   <ul role="list">
                     {group.items.map((item) => {
                       const active = isCurrentPath(pathname, item.href);

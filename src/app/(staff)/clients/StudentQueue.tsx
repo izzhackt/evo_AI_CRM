@@ -14,6 +14,10 @@ import {
   filterBarCls,
   inputCls,
 } from "@/components/ui";
+import {
+  fixedRoleCanAccessRoute,
+  type FixedRole,
+} from "@/lib/fixed-role-policy";
 import { getT, type Locale } from "@/lib/i18n";
 import { requirePlatformClientsActor } from "@/lib/platform-guards";
 import {
@@ -51,6 +55,8 @@ const COPY = {
     owner: "Роль",
     updated: "Обновлено",
     empty: "В доступном вам списке пока нет Student Cases.",
+    invalid:
+      "Фильтр отклонён. Очередь Student Cases не читалась, потому что параметры запроса не прошли строгую нормализацию.",
     first: "К началу",
     next: "Следующие записи",
     found: "На странице",
@@ -75,6 +81,8 @@ const COPY = {
     owner: "Роль",
     updated: "Жаңыртылды",
     empty: "Жеткиликтүү тизмеде азырынча Student Cases жок.",
+    invalid:
+      "Чыпка четке кагылды. Сурам параметрлери катуу нормалдаштыруудан өтпөгөндүктөн Student Cases кезеги окулган жок.",
     first: "Башына",
     next: "Кийинки жазуулар",
     found: "Бул бетте",
@@ -99,6 +107,8 @@ const COPY = {
     owner: "Owner role",
     updated: "Updated",
     empty: "There are no Student Cases in your accessible list yet.",
+    invalid:
+      "The filter was rejected. The Student Case queue was not read because the request parameters failed strict normalization.",
     first: "Back to first",
     next: "Next records",
     found: "On this page",
@@ -117,32 +127,50 @@ export async function StudentQueue({
     searchParams,
   ]);
   const normalized = normalizeSearchParams(params);
-  const page = await listCanonicalStudentCases({
-    actorRole: actor.platformRole,
-    cursor: normalized.cursor ?? undefined,
-    status: normalized.status,
-    pageSize: 50,
-    query: normalized.query,
-  });
+  const page = normalized.listInvalid
+    ? null
+    : await listCanonicalStudentCases({
+        actorRole: actor.platformRole,
+        cursor: normalized.cursor ?? undefined,
+        status: normalized.status,
+        pageSize: 50,
+        query: normalized.query,
+      });
 
   return (
     <CanonicalStudentCasesPresentation
       locale={locale}
-      rows={page.rows}
+      actorRole={actor.platformRole}
+      rows={page?.rows ?? []}
       params={normalized}
-      hasNext={page.hasNext}
-      nextCursor={page.nextCursor}
+      hasNext={page?.hasNext ?? false}
+      nextCursor={page?.nextCursor ?? null}
     />
   );
 }
 
 type NormalizedParams = Readonly<{
   cursor: CanonicalReadCursor | null;
+  listInvalid: boolean;
   status?: CanonicalStudentCaseStatus;
   query?: string;
 }>;
 
 function normalizeSearchParams(params: SearchParams): NormalizedParams {
+  try {
+    return parseSearchParams(params);
+  } catch (error: unknown) {
+    if (
+      error instanceof CanonicalCrmRepositoryError &&
+      error.code === "invalid_input"
+    ) {
+      return { cursor: null, listInvalid: true };
+    }
+    throw error;
+  }
+}
+
+function parseSearchParams(params: SearchParams): NormalizedParams {
   assertOnlySearchKeys(params, ["before_at", "before_id", "status", "q"]);
   const beforeAt = singleValue(params.before_at);
   const beforeId = singleValue(params.before_id);
@@ -161,6 +189,7 @@ function normalizeSearchParams(params: SearchParams): NormalizedParams {
       beforeAt && beforeId
         ? parseCanonicalReadCursor(beforeAt, beforeId)
         : null,
+    listInvalid: false,
     status: status as CanonicalStudentCaseStatus | undefined,
     query: trimmed(singleValue(params.q)),
   };
@@ -187,18 +216,21 @@ function trimmed(value: string | undefined) {
 
 function CanonicalStudentCasesPresentation({
   locale,
+  actorRole,
   rows,
   params,
   hasNext,
   nextCursor,
 }: Readonly<{
   locale: Locale;
+  actorRole: FixedRole;
   rows: readonly CanonicalStudentCaseQueueRow[];
   params: NormalizedParams;
   hasNext: boolean;
   nextCursor: CanonicalReadCursor | null;
 }>) {
   const copy = COPY[locale];
+  const canOpenLead = fixedRoleCanAccessRoute(actorRole, "/sales");
   const activeCount = rows.filter((studentCase) => studentCase.status === "active").length;
   const pausedCount = rows.filter((studentCase) => studentCase.status === "paused").length;
   const closedCount = rows.filter((studentCase) => studentCase.status === "closed").length;
@@ -255,7 +287,11 @@ function CanonicalStudentCasesPresentation({
       </form>
 
       <section aria-label={copy.title} data-testid="canonical-student-case-list">
-        {rows.length === 0 ? (
+        {params.listInvalid ? (
+          <div className="border-y border-border" data-testid="canonical-queue-filter-rejected">
+            <EmptyState text={copy.invalid} />
+          </div>
+        ) : rows.length === 0 ? (
           <div className="border-y border-border" data-testid="canonical-student-cases-empty">
             <EmptyState text={copy.empty} />
           </div>
@@ -297,12 +333,17 @@ function CanonicalStudentCasesPresentation({
                       <CanonicalUuid value={studentCase.personId} />
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <Link
-                        href={`/sales/${studentCase.leadId}`}
-                        className="font-medium text-accent hover:underline"
-                      >
+                      {canOpenLead ? (
+                        <Link
+                          href={`/sales/${studentCase.leadId}`}
+                          aria-label={`${copy.lead} ${studentCase.leadId}: ${studentCase.displayName}`}
+                          className="font-medium text-accent hover:underline"
+                        >
+                          <CanonicalUuid value={studentCase.leadId} />
+                        </Link>
+                      ) : (
                         <CanonicalUuid value={studentCase.leadId} />
-                      </Link>
+                      )}
                     </td>
                     <td className="px-3 py-3 align-top">
                       <div className="space-y-1">

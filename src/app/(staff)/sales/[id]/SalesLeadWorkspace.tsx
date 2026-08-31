@@ -8,6 +8,7 @@ import { CanonicalSalesConversationList } from "@/components/platform/sales/Cano
 import { CanonicalSalesGateCard } from "@/components/platform/sales/CanonicalSalesGateCard";
 import { CanonicalSalesHandoffCard } from "@/components/platform/sales/CanonicalSalesHandoffCard";
 import { CanonicalSalesWorkflowForm } from "@/components/platform/sales/CanonicalSalesWorkflowForm";
+import { fixedRoleCanAccessRoute } from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import { requirePlatformSalesActor } from "@/lib/platform-guards";
 import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
@@ -109,6 +110,10 @@ export async function SalesLeadWorkspace({ id }: Readonly<{ id: string }>) {
       />
       <CanonicalSalesHandoffCard
         actorRole={actor.platformRole}
+        canOpenAdmissionsCase={fixedRoleCanAccessRoute(
+          actor.platformRole,
+          "/clients",
+        )}
         expectedVersion={lead.version}
         gate={gate}
         locale={locale}

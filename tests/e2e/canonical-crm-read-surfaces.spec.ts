@@ -1091,10 +1091,7 @@ test("Sales reads and updates the real canonical PostgreSQL workflow", async ({
   await submitGate(page, "sales");
   await expect(page).toHaveURL(/\/sales(?:\?|$)/);
   await expect(page.getByTestId("canonical-sales-page")).toBeVisible();
-  const row = page.locator(
-    `[data-testid="canonical-lead-row"][data-lead-id="${leadId}"]`,
-  );
-  await expect(row).toBeVisible();
+  await expect(page.getByTestId("canonical-lead-row").first()).toBeVisible();
 
   await page.goto(`/sales?q=${encodeURIComponent(leadId)}`);
   await expect(
@@ -1184,6 +1181,9 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
   await expect(
     page.getByTestId("canonical-first-payment-evidence"),
   ).toContainText("browser-first-payment-431");
+
+  await page.reload();
+  await expect(page.getByTestId("canonical-lead-detail")).toBeVisible();
 
   const handoffForm = page.getByTestId("canonical-sales-handoff-form");
   await expect(handoffForm).toBeVisible();

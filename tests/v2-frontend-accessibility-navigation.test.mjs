@@ -101,8 +101,26 @@ test("dark accent text keeps normal-text contrast without changing brand fills",
     /\[data-theme\] \.text-accent\s*\{\s*color:\s*var\(--accent-text\)/,
   );
 
-  assert.ok(contrastRatio(token, "#15171b") >= 4.5);
-  assert.ok(contrastRatio(token, "#3b1117") >= 4.5);
+  const luminance = (hex) => {
+    const channels = hex
+      .slice(1)
+      .match(/.{2}/g)
+      .map((part) => Number.parseInt(part, 16) / 255)
+      .map((value) =>
+        value <= 0.04045
+          ? value / 12.92
+          : ((value + 0.055) / 1.055) ** 2.4,
+      );
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  };
+  const contrast = (foreground, background) => {
+    const lighter = Math.max(luminance(foreground), luminance(background));
+    const darker = Math.min(luminance(foreground), luminance(background));
+    return (lighter + 0.05) / (darker + 0.05);
+  };
+
+  assert.ok(contrast(token, "#15171b") >= 4.5);
+  assert.ok(contrast(token, "#3b1117") >= 4.5);
   assert.match(darkTheme, /--accent:\s*#d70217/);
 });
 
@@ -164,4 +182,47 @@ test("dark accent text is pinned to the surfaces it is used on", () => {
       `dark --accent-text on --${surface} is ${ratio.toFixed(2)}:1, below 4.5:1`,
     );
   }
+});
+
+test("every core staff route renders exactly one page-level h1", () => {
+  const routeHeadingSources = [
+    ["/sales", "src/app/(staff)/sales/SalesWorkspace.tsx"],
+    ["/sales/[id]", "src/components/platform/core/LeadHero.tsx"],
+    ["/clients", "src/app/(staff)/clients/StudentQueue.tsx"],
+    [
+      "/clients/[id]",
+      "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+    ],
+    ["/applications", "src/app/(staff)/applications/page.tsx"],
+    ["/documents", "src/app/(staff)/documents/(queue)/page.tsx"],
+    ["/visa", "src/app/(staff)/visa/page.tsx"],
+    ["/finance", "src/app/(staff)/finance/page.tsx"],
+    ["/tasks", "src/app/(staff)/tasks/page.tsx"],
+    [
+      "/whatsapp",
+      "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+    ],
+  ];
+
+  for (const [route, path] of routeHeadingSources) {
+    const moduleSource = source(path);
+    const literalHeadings = moduleSource.match(/<h1[\s>]/g) ?? [];
+    const sharedHeaders = moduleSource.match(/<PageHeader[\s>]/g) ?? [];
+    assert.equal(
+      literalHeadings.length + sharedHeaders.length,
+      1,
+      `${route} must own exactly one page-level h1 (${path})`,
+    );
+  }
+});
+
+test("the shared task panel heading stays subordinate to the page h1", () => {
+  const panel = source(
+    "src/components/platform/admissions/CanonicalAdmissionsTaskPanel.tsx",
+  );
+  const tasksRoute = source("src/app/(staff)/tasks/page.tsx");
+
+  assert.equal(panel.match(/<h1[\s>]/g), null);
+  assert.match(panel, /id="canonical-admissions-task-panel-title"/);
+  assert.match(tasksRoute, /<h1/);
 });

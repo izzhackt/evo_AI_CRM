@@ -113,7 +113,7 @@ export default async function ApplicationsPage({
                       {application.displayName} · {copy.nextAction}: {application.nextAction ?? copy.noNextAction}
                     </p>
                   </div>
-                  <Link href={`/clients/${application.studentCaseId}#applications`} className="shrink-0 text-[12px] font-semibold text-accent hover:underline">
+                  <Link href={`/clients/${application.studentCaseId}#applications`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-[12px] font-semibold text-accent hover:underline">
                     {copy.open}
                   </Link>
                 </div>

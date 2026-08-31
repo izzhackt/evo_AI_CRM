@@ -25,18 +25,18 @@ export function SalesSourceTruth({
           <div className="flex flex-wrap items-center gap-2">
             <h2
               id="sales-source-truth-title"
-              className="text-[14px] font-semibold text-fg"
+              className="text-base font-semibold text-fg"
             >
               {title}
             </h2>
-            <span className="inline-flex min-h-6 items-center rounded-full bg-surface px-2.5 text-[11px] font-semibold text-warn">
+            <span className="inline-flex min-h-6 items-center rounded-full bg-surface px-2.5 text-xs font-semibold text-warn">
               {syncLabel}
             </span>
           </div>
-          <p className="mt-1.5 max-w-4xl text-[12.5px] leading-5 text-fg-2">
+          <p className="mt-1.5 max-w-[60ch] text-sm leading-5 text-fg-2">
             {body}
           </p>
-          <p className="mt-1 text-[12px] leading-5 text-fg-3">
+          <p className="mt-1 text-xs leading-5 text-fg-3">
             {copy.stageSeparation}
           </p>
         </div>

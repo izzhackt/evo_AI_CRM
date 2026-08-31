@@ -1,26 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+
+import { MIN_ALL_SURFACES, allSurfaceFiles } from "./helpers/staff-surfaces.mjs";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-function staffSurfaceFiles() {
-  const roots = ["src/app", "src/components"];
-  const files = new Set();
-  for (const root of roots) {
-    const base = new URL(`../${root}/`, import.meta.url);
-    for (const entry of readdirSync(base, { recursive: true, withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".tsx")) continue;
-      const dir = entry.parentPath ?? entry.path;
-      files.add(`${root}/${relative(fileURLToPath(base), join(dir, entry.name))}`);
-    }
-  }
-  return [...files].sort();
-}
 
 const routeFiles = [
   "src/app/login/page.tsx",
@@ -148,8 +135,8 @@ test("staff surfaces only use utilities the theme actually defines", () => {
       .filter(Boolean);
   }
 
-  const surfaces = staffSurfaceFiles();
-  assert.ok(surfaces.length > 100, `expected the whole staff surface set, got ${surfaces.length}`);
+  const surfaces = allSurfaceFiles();
+  assert.ok(surfaces.length >= MIN_ALL_SURFACES, `expected the whole staff surface set, got ${surfaces.length}`);
 
   for (const surface of surfaces) {
     for (const token of classTokens(source(surface))) {
@@ -289,4 +276,33 @@ test("cross-role case links are only rendered for a role the server allows", () 
     3,
     "the handoff fallback copy must cover ru, ky and en",
   );
+});
+
+test("the frontend contract suite is wired into the CI entry point", () => {
+  // These four files guard route states, mobile access, shell truth and the
+  // type scale. They were added to `pretest:unit` in #529 and silently
+  // reverted by #527, which merged later from a branch cut before it -- so
+  // for a while every guard in them passed locally and ran nowhere. The npm
+  // wiring is therefore itself under test.
+  const manifest = JSON.parse(source("package.json"));
+  const scripts = manifest.scripts;
+
+  assert.ok(scripts["test:frontend"], "test:frontend must exist");
+  assert.ok(
+    scripts["pretest:unit"].includes("npm run test:frontend"),
+    "pretest:unit must run test:frontend, or CI never executes the frontend contracts",
+  );
+
+  // ...and it must actually cover these files, not just exist.
+  for (const file of [
+    "tests/v2-frontend-shell-truth.test.mjs",
+    "tests/v2-frontend-mobile-access.test.mjs",
+    "tests/v2-frontend-route-states.test.mjs",
+    "tests/v2-frontend-accessibility-navigation.test.mjs",
+  ]) {
+    assert.ok(
+      scripts["test:frontend"].includes(file),
+      `${file} is not covered by test:frontend`,
+    );
+  }
 });

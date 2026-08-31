@@ -14,7 +14,6 @@ import { buildRouteMetadata } from "@/lib/route-metadata";
 const COPY: Record<
   Locale,
   {
-    eyebrow: string;
     title: string;
     tabTitle: string;
     description: string;
@@ -22,7 +21,6 @@ const COPY: Record<
   }
 > = {
   ru: {
-    eyebrow: "Доступ подтверждён",
     title: "Раздел ещё не подключён",
     tabTitle: "Раздел не подключён",
     description:
@@ -30,7 +28,6 @@ const COPY: Record<
     openInbox: "Открыть сообщения",
   },
   ky: {
-    eyebrow: "Кирүү ырасталды",
     title: "Бөлүм азырынча туташкан эмес",
     tabTitle: "Бөлүм туташкан эмес",
     description:
@@ -38,7 +35,6 @@ const COPY: Record<
     openInbox: "Билдирүүлөрдү ачуу",
   },
   en: {
-    eyebrow: "Access verified",
     title: "This module is not connected yet",
     tabTitle: "Module not connected",
     description:
@@ -67,12 +63,12 @@ export default async function PlatformPendingPage() {
   return (
     <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">
       <div className="absolute left-5 top-5 flex items-center gap-2.5">
-        <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-accent text-[16px] font-bold text-on-accent">
+        <span className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-accent text-lg font-bold text-on-accent">
           E
         </span>
         <span className="leading-tight">
-          <span className="block text-[15px] font-bold text-fg">EVO</span>
-          <span className="block text-[11px] text-fg-3">Admissions CRM</span>
+          <span className="block text-md font-bold text-fg">EVO</span>
+          <span className="block text-xs text-fg-3">Admissions CRM</span>
         </span>
       </div>
       <div className="absolute right-5 top-5 flex items-center gap-2.5">
@@ -84,16 +80,13 @@ export default async function PlatformPendingPage() {
         className="page-in w-full max-w-[520px] rounded-[20px] border border-border bg-surface p-7 shadow-evo-lg"
         data-testid="platform-pending"
       >
-        <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">
-          {copy.eyebrow}
-        </div>
-        <h1 className="mt-2 text-[22px] font-bold leading-tight text-fg">
+        <h1 className="mt-2 text-2xl font-bold leading-tight text-fg">
           {copy.title}
         </h1>
-        <p className="mt-2 text-[13px] leading-6 text-fg-3">
+        <p className="mt-2 text-sm leading-6 text-fg-3">
           {copy.description}
         </p>
-        <dl className="mt-5 grid gap-2 rounded-ctl bg-surface-2 p-4 text-[13px]">
+        <dl className="mt-5 grid gap-2 rounded-ctl bg-surface-2 p-4 text-sm">
           <div className="flex items-center justify-between gap-4">
             <dt className="text-fg-3">{t("role")}</dt>
             <dd className="font-semibold text-fg">

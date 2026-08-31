@@ -54,8 +54,8 @@ export function CanonicalQueueRouteError({
       >
         <Icon name="alert" size={20} />
       </span>
-      <h1 className="mt-4 text-[19px] font-bold text-fg">{copy.errorTitle}</h1>
-      <p className="mt-2 text-[13px] leading-6 text-fg-2">
+      <h1 className="mt-4 text-xl font-bold text-fg">{copy.errorTitle}</h1>
+      <p className="mt-2 text-sm leading-6 text-fg-2">
         {copy.errorDescription}
       </p>
       <div className="mt-5 flex flex-col gap-2 sm:flex-row">

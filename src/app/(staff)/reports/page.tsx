@@ -52,7 +52,7 @@ export default async function ReportsPage({
                 href={`/reports?period=${item}`}
                 aria-current={period === item ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-9 items-center rounded-nav px-3 text-[11.5px] font-semibold",
+                  "inline-flex min-h-9 items-center rounded-nav px-3 text-xs font-semibold",
                   period === item
                     ? "bg-surface text-accent shadow-evo"
                     : "text-fg-3 hover:text-fg",
@@ -98,8 +98,8 @@ export default async function ReportsPage({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-[13px]">
-                <thead className="border-b border-border bg-surface-2 text-[11px] uppercase tracking-[0.04em] text-fg-3">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-border bg-surface-2 text-xs uppercase tracking-[0.04em] text-fg-3">
                   <tr>
                     <th className="px-5 py-3 font-semibold">{t("manager")}</th>
                     <th className="px-3 py-3 text-right font-semibold">{t("leadsCount")}</th>
@@ -150,8 +150,8 @@ export default async function ReportsPage({
                 const content = (
                   <>
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[13px] font-semibold text-fg-2">{source.source}</span>
-                      <span className="shrink-0 font-mono text-[11px] text-fg-3">
+                      <span className="truncate text-sm font-semibold text-fg-2">{source.source}</span>
+                      <span className="shrink-0 font-mono text-xs text-fg-3">
                         {source.c} · {source.won} {t("signed").toLowerCase()}
                       </span>
                     </div>
@@ -187,12 +187,12 @@ export default async function ReportsPage({
           <div className="grid h-56 grid-cols-6 items-end gap-2 sm:grid-cols-12" data-testid="report-month-chart">
             {byMonth.map((month) => (
               <div key={month.month} className="flex h-full min-w-0 flex-col justify-end gap-2">
-                <span className="text-center font-mono text-[10px] font-semibold text-fg-2">{month.c}</span>
+                <span className="text-center font-mono text-2xs font-semibold text-fg-2">{month.c}</span>
                 <div
                   className="min-h-2 rounded-t bg-accent"
                   style={{ height: `${Math.max(6, (month.c / maxMonth) * 100)}%` }}
                 />
-                <span className="truncate text-center font-mono text-[9px] text-fg-3">
+                <span className="truncate text-center font-mono text-2xs text-fg-3">
                   {month.month.slice(5)}
                 </span>
               </div>

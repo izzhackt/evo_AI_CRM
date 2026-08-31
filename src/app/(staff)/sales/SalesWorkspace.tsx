@@ -270,16 +270,16 @@ function CanonicalSalesPresentation({
 
         <section className="space-y-4" aria-labelledby="sales-workflow-title">
           <div className="space-y-1">
-            <h2 id="sales-workflow-title" className="text-[15px] font-semibold text-fg">
+            <h2 id="sales-workflow-title" className="text-md font-semibold text-fg">
               {copy.queueTitle}
             </h2>
-            <p className="max-w-4xl text-[12.5px] leading-5 text-fg-3">
+            <p className="max-w-[60ch] text-sm leading-5 text-fg-3">
               {copy.queueDescription}
             </p>
           </div>
 
           <form className={filterBarCls} method="get">
-            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs font-semibold text-fg-3">
               {copy.search}
               <input
                 type="search"
@@ -289,7 +289,7 @@ function CanonicalSalesPresentation({
               />
             </label>
 
-            <label className="flex min-w-[190px] flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+            <label className="flex min-w-[190px] flex-col gap-1 text-xs font-semibold text-fg-3">
               {copy.stage}
               <select name="stage" defaultValue={params.stage ?? ""} className={inputCls}>
                 <option value="">{copy.allStages}</option>
@@ -301,7 +301,7 @@ function CanonicalSalesPresentation({
               </select>
             </label>
 
-            <label className="flex min-w-[190px] flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+            <label className="flex min-w-[190px] flex-col gap-1 text-xs font-semibold text-fg-3">
               {copy.due}
               <select name="due" defaultValue={params.due} className={inputCls}>
                 <option value="all">{copy.allDue}</option>
@@ -328,7 +328,7 @@ function CanonicalSalesPresentation({
             </div>
           ) : page ? (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-[12px] text-fg-3">
+              <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-xs text-fg-3">
                 <Metric label={copy.found} value={rows.length} />
               </div>
 
@@ -340,7 +340,7 @@ function CanonicalSalesPresentation({
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-separate border-spacing-0">
                     <thead>
-                      <tr className="text-left text-[11px] uppercase tracking-[0.05em] text-fg-3">
+                      <tr className="text-left text-xs uppercase tracking-[0.05em] text-fg-3">
                         <th className="border-b border-border px-3 py-2">{copy.leadId}</th>
                         <th className="border-b border-border px-3 py-2">{copy.personId}</th>
                         <th className="border-b border-border px-3 py-2">{copy.stage}</th>
@@ -408,7 +408,7 @@ function SalesRow({
       data-lead-id={lead.leadId}
       data-record-version={lead.version}
     >
-      <td className="border-b border-border px-3 py-3 text-[12px] text-fg-2">
+      <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <div className="space-y-2">
           <CanonicalUuid value={lead.leadId} />
           <div className="font-medium text-fg">{lead.displayName}</div>
@@ -416,47 +416,47 @@ function SalesRow({
           <div>{copy.source}: {lead.source}</div>
         </div>
       </td>
-      <td className="border-b border-border px-3 py-3 text-[12px] text-fg-2">
+      <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <CanonicalUuid value={lead.personId} />
       </td>
-      <td className="border-b border-border px-3 py-3 text-[12px] text-fg-2">
+      <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <div className="space-y-2">
           <CanonicalKeyBadge value={lead.stage} />
           <div>{stageLabel(locale, lead.stage)}</div>
           {lead.qualificationSummary ? (
-            <p className="max-w-[260px] text-[11.5px] leading-4 text-fg-3">
+            <p className="max-w-[260px] text-xs leading-4 text-fg-3">
               {lead.qualificationSummary}
             </p>
           ) : null}
         </div>
       </td>
-      <td className="border-b border-border px-3 py-3 text-[12px] text-fg-2">
+      <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <CanonicalKeyBadge value={lead.ownerRole} />
       </td>
-      <td className="border-b border-border px-3 py-3 text-[12px] text-fg-2">
+      <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <div className="space-y-2">
           <div>{lead.nextAction ?? copy.noAction}</div>
-          <div className="text-[11.5px] text-fg-3">
+          <div className="text-xs text-fg-3">
             {lead.nextActionAt ? formatCanonicalTimestamp(lead.nextActionAt, locale) : copy.noDeadline}
           </div>
           {isOverdue ? (
-            <span className="inline-flex rounded-full bg-danger-weak px-2 py-1 text-[11px] font-semibold text-danger">
+            <span className="inline-flex rounded-full bg-danger-weak px-2 py-1 text-xs font-semibold text-danger">
               {copy.overdue}
             </span>
           ) : isDueToday ? (
-            <span className="inline-flex rounded-full bg-warn-weak px-2 py-1 text-[11px] font-semibold text-warn">
+            <span className="inline-flex rounded-full bg-warn-weak px-2 py-1 text-xs font-semibold text-warn">
               {copy.today}
             </span>
           ) : null}
         </div>
       </td>
-      <td className="border-b border-border px-3 py-3 text-[12px] text-fg-2">
+      <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <div className="space-y-2">
           <div>{formatCanonicalTimestamp(lead.updatedAt, locale)}</div>
           <div>{copy.version}: <span className="font-mono">{lead.version}</span></div>
         </div>
       </td>
-      <td className="border-b border-border px-3 py-3 text-[12px] text-fg-2">
+      <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <Link href={`/sales/${lead.leadId}`} className={btnGhostCls}>
           {copy.details}
         </Link>

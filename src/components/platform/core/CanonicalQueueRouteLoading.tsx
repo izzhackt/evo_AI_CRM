@@ -32,8 +32,8 @@ export function CanonicalQueueRouteLoading({
       className="space-y-5"
     >
       <div className="rounded-card border border-border bg-surface px-4 py-4 shadow-evo">
-        <h1 className="text-[15px] font-bold text-fg">{copy.loadingTitle}</h1>
-        <p className="mt-1 text-[12.5px] leading-5 text-fg-3">
+        <h1 className="text-md font-bold text-fg">{copy.loadingTitle}</h1>
+        <p className="mt-1 text-sm leading-5 text-fg-3">
           {copy.loadingHint}
         </p>
       </div>

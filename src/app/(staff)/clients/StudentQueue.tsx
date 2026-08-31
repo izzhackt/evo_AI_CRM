@@ -240,13 +240,13 @@ function CanonicalStudentCasesPresentation({
       <PageHeader title={copy.title} description={copy.description} />
 
       <section className="rounded-card border border-border bg-surface-2 px-5 py-4">
-        <p className="text-[12.5px] text-fg-2">{copy.authority}</p>
+        <p className="text-sm text-fg-2">{copy.authority}</p>
       </section>
 
       {/* A rejected filter means the queue was never read, so there are no
           counts to state. /sales keeps its metric row inside the same guard. */}
       {params.listInvalid ? null : (
-        <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-[12px] text-fg-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-xs text-fg-3">
           <Metric label={copy.found} value={rows.length} />
           <Metric label={copy.active} value={activeCount} />
           <Metric label={copy.paused} value={pausedCount} />
@@ -301,8 +301,8 @@ function CanonicalStudentCasesPresentation({
           </div>
         ) : (
           <div className="max-w-full overflow-x-auto border-y border-border">
-            <table className="w-full min-w-[820px] text-left text-[12.5px]">
-              <thead className="border-b border-border bg-surface-2 text-[10.5px] uppercase tracking-[0.04em] text-fg-3">
+            <table className="w-full min-w-[820px] text-left text-sm">
+              <thead className="border-b border-border bg-surface-2 text-2xs uppercase tracking-[0.04em] text-fg-3">
                 <tr>
                   <th className="px-4 py-3 font-semibold">{copy.studentCase}</th>
                   <th className="px-4 py-3 font-semibold">{copy.person}</th>
@@ -362,7 +362,7 @@ function CanonicalStudentCasesPresentation({
                       <CanonicalKeyBadge value={studentCase.assignedRole} />
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <span className="font-mono text-[11.5px] text-fg-3">
+                      <span className="font-mono text-xs text-fg-3">
                         {formatCanonicalTimestamp(studentCase.updatedAt, locale)}
                       </span>
                     </td>

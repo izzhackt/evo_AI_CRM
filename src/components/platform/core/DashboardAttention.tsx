@@ -67,20 +67,17 @@ export function DashboardAttention({
     >
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">
-            {copy.attentionEyebrow}
-          </p>
           <h2
             id="dashboard-attention-title"
-            className="mt-1 text-[17px] font-bold leading-tight text-fg"
+            className="mt-1 text-lg font-bold leading-tight text-fg"
           >
             {copy.attentionTitle}
           </h2>
-          <p className="mt-1 max-w-2xl text-[12.5px] leading-5 text-fg-3">
+          <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
             {copy.attentionHint}
           </p>
         </div>
-        <span className="inline-flex min-h-7 items-center rounded-full bg-surface-2 px-2.5 text-[11.5px] font-medium text-fg-3">
+        <span className="inline-flex min-h-7 items-center rounded-full bg-surface-2 px-2.5 text-xs font-medium text-fg-3">
           {copy.localDataLabel}
         </span>
       </header>
@@ -91,10 +88,10 @@ export function DashboardAttention({
             <Icon name="check" size={20} strokeWidth={2.2} />
           </span>
           <div>
-            <h3 className="text-[15px] font-bold text-fg">
+            <h3 className="text-md font-bold text-fg">
               {copy.allClearTitle}
             </h3>
-            <p className="mt-1 text-[12.5px] leading-5 text-fg-3">
+            <p className="mt-1 text-sm leading-5 text-fg-3">
               {copy.allClearHint}
             </p>
           </div>
@@ -135,7 +132,7 @@ export function DashboardAttention({
                     />
                     <span
                       className={cn(
-                        "truncate text-[13.5px]",
+                        "truncate text-base",
                         quiet ? "font-medium text-fg-3" : "font-semibold text-fg",
                       )}
                     >
@@ -145,7 +142,7 @@ export function DashboardAttention({
                 </span>
                 <span
                   className={cn(
-                    "inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 font-mono text-[12px] font-semibold",
+                    "inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 font-mono text-xs font-semibold",
                     quiet ? "bg-surface-2 text-fg-3" : tone.value,
                   )}
                 >

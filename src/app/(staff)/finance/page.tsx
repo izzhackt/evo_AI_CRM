@@ -20,7 +20,6 @@ type SearchParams = Readonly<{
 
 const COPY = {
   ru: {
-    eyebrow: "Admissions · PostgreSQL",
     title: "Финансовые стопы",
     description: "Минимальный контроль кейса, а не платёжный реестр. Изменения выполняются в Student 360.",
     empty: "Финансовых стоп-состояний пока нет.",
@@ -35,7 +34,6 @@ const COPY = {
     filterReset: "К финансовым стопам",
   },
   ky: {
-    eyebrow: "Admissions · PostgreSQL",
     title: "Каржылык стоптор",
     description: "Бул төлөм реестри эмес, кейстин минималдуу көзөмөлү. Өзгөртүүлөр Student 360 ичинде жасалат.",
     empty: "Азырынча каржылык стоп абалдары жок.",
@@ -50,7 +48,6 @@ const COPY = {
     filterReset: "Каржылык токтотууларга",
   },
   en: {
-    eyebrow: "Admissions · PostgreSQL",
     title: "Finance stops",
     description: "Minimal case control, not a payment ledger. All changes are made inside Student 360.",
     empty: "No finance-stop states yet.",
@@ -101,7 +98,7 @@ export default async function FinancePage({
       <QueueHeader copy={copy} withDescription />
 
       {page.rows.length === 0 ? (
-        <p className="border-y border-border py-8 text-[13px] text-fg-3">{copy.empty}</p>
+        <p className="border-y border-border py-8 text-sm text-fg-3">{copy.empty}</p>
       ) : (
         <Card>
           <ul className="divide-y divide-border">
@@ -110,15 +107,15 @@ export default async function FinancePage({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-[13.5px] font-semibold text-fg">{financeStop.displayName}</h2>
-                      <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", financeStop.isStopped ? "bg-danger-weak text-danger" : "bg-ok-weak text-ok")}>
+                      <h2 className="text-base font-semibold text-fg">{financeStop.displayName}</h2>
+                      <span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold", financeStop.isStopped ? "bg-danger-weak text-danger" : "bg-ok-weak text-ok")}>
                         {financeStop.isStopped ? copy.stopped : copy.released}
                       </span>
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-[12.5px] leading-5 text-fg-2">{financeStop.reason}</p>
-                    <p className="mt-2 text-[11.5px] text-fg-3">{copy.changedBy}: {financeStop.changedByRole}</p>
+                    <p className="mt-2 max-w-[60ch] whitespace-pre-wrap text-sm leading-5 text-fg-2">{financeStop.reason}</p>
+                    <p className="mt-2 text-xs text-fg-3">{copy.changedBy}: {financeStop.changedByRole}</p>
                   </div>
-                  <Link href={`/clients/${financeStop.studentCaseId}#finance`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-[12px] font-semibold text-accent hover:underline">
+                  <Link href={`/clients/${financeStop.studentCaseId}#finance`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline">
                     {copy.open}
                   </Link>
                 </div>
@@ -185,7 +182,7 @@ function QueueFilterRejected({
     <div className="space-y-5" data-testid={testId}>
       <QueueHeader copy={copy} />
       <div data-testid="canonical-queue-filter-rejected">
-        <p className="border-y border-border py-8 text-[13px] text-fg-3">{copy.invalid}</p>
+        <p className="border-y border-border py-8 text-sm text-fg-3">{copy.invalid}</p>
       </div>
       <Link href="/finance" className={btnGhostCls}>{copy.filterReset}</Link>
     </div>
@@ -201,10 +198,9 @@ function QueueHeader({
 }>) {
   return (
     <header className="border-b border-border pb-5">
-      <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-accent">{copy.eyebrow}</p>
-      <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
+      <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
       {withDescription ? (
-        <p className="mt-2 max-w-2xl text-[12.5px] leading-5 text-fg-3">{copy.description}</p>
+        <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">{copy.description}</p>
       ) : null}
     </header>
   );

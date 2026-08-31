@@ -65,7 +65,7 @@ export function Badge({ value, label, className }: { value: string; label: strin
   return (
     <span
       className={cn(
-        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold leading-4 whitespace-nowrap",
+        "inline-flex min-h-6 items-center rounded-full px-2.5 py-0.5 text-xs font-semibold leading-4 whitespace-nowrap",
         TONE_CLS[tone],
         className,
       )}
@@ -92,7 +92,7 @@ export function Card({
     <section className={cn("min-w-0 rounded-card border border-border bg-surface shadow-evo", className)}>
       {(title || action) && (
         <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
-          {title && <h2 className="text-[14.5px] font-semibold text-fg">{title}</h2>}
+          {title && <h2 className="text-base font-semibold text-fg">{title}</h2>}
           {action}
         </header>
       )}
@@ -131,9 +131,9 @@ export function StatCard({
       )}
     >
       <span className={cn("absolute inset-y-0 left-0 w-[3px]", stripe)} aria-hidden="true" />
-      <div className="font-mono text-[26px] font-semibold leading-none text-fg">{value}</div>
-      <div className="mt-2 text-[12px] font-medium text-fg-2">{label}</div>
-      {meta && <div className="mt-1.5 text-[12px] leading-4 text-fg-3">{meta}</div>}
+      <div className="font-mono text-3xl font-semibold leading-none text-fg">{value}</div>
+      <div className="mt-2 text-xs font-medium text-fg-2">{label}</div>
+      {meta && <div className="mt-1.5 text-xs leading-4 text-fg-3">{meta}</div>}
     </div>
   );
   return href ? (
@@ -148,20 +148,17 @@ export function StatCard({
 export function PageHeader({
   title,
   description,
-  eyebrow,
   action,
 }: {
   title: string;
   description?: string;
-  eyebrow?: string;
   action?: ReactNode;
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        {eyebrow && <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">{eyebrow}</div>}
-        <h1 className="text-[19px] font-bold leading-tight text-fg">{title}</h1>
-        {description && <p className="mt-1 max-w-3xl text-[13px] leading-6 text-fg-3">{description}</p>}
+        <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">{title}</h1>
+        {description && <p className="mt-1 max-w-[60ch] text-sm leading-6 text-fg-3">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -169,25 +166,25 @@ export function PageHeader({
 }
 
 export const inputCls =
-  "h-11 w-full min-w-0 rounded-ctl border border-border-strong bg-surface px-3 text-[13.5px] text-fg placeholder:text-fg-3 transition-[border-color,box-shadow,background-color] duration-150 ease-out hover:bg-surface-2 focus-visible:border-accent motion-reduce:transition-none";
+  "h-11 w-full min-w-0 rounded-ctl border border-border-strong bg-surface px-3 text-base text-fg placeholder:text-fg-3 transition-[border-color,box-shadow,background-color] duration-150 ease-out hover:bg-surface-2 focus-visible:border-accent motion-reduce:transition-none";
 
 export const btnCls =
-  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 text-[13.5px] font-semibold text-on-accent transition-[background-color,border-color,transform] duration-150 ease-out hover:border-accent-2 hover:bg-accent-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 text-base font-semibold text-on-accent transition-[background-color,border-color,transform] duration-150 ease-out hover:border-accent-2 hover:bg-accent-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const btnGhostCls =
-  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-[13px] font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:bg-surface-2 hover:text-fg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-sm font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:bg-surface-2 hover:text-fg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const btnDangerGhostCls =
-  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-[13px] font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-danger hover:bg-danger-weak hover:text-danger active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+  "inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-border-strong bg-surface px-3 text-sm font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-danger hover:bg-danger-weak hover:text-danger active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const compactActionCls =
-  "inline-flex min-h-10 items-center gap-1 rounded-nav px-2.5 py-1 text-[12px] font-semibold text-accent transition-[background-color,color] duration-150 ease-out hover:bg-accent-weak motion-reduce:transition-none";
+  "inline-flex min-h-10 items-center gap-1 rounded-nav px-2.5 py-1 text-xs font-semibold text-accent transition-[background-color,color] duration-150 ease-out hover:bg-accent-weak motion-reduce:transition-none";
 
 export const filterBarCls =
   "grid gap-2 rounded-card border border-border bg-surface p-3 shadow-evo";
 
-export const labelCls = "mb-1 block text-[12px] font-medium text-fg-2";
+export const labelCls = "mb-1 block text-xs font-medium text-fg-2";
 
 export function EmptyState({ text }: { text: string }) {
-  return <p className="py-6 text-center text-[13px] text-fg-3">{text}</p>;
+  return <p className="py-6 text-center text-sm text-fg-3">{text}</p>;
 }

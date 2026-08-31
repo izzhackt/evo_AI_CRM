@@ -20,11 +20,11 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
   const messages = channelMessages(channelId);
 
   return (
-    <div className="flex h-[calc(100vh-150px)] min-h-[420px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
+    <div className="flex h-[calc(100dvh-150px)] min-h-[420px] overflow-hidden rounded-card border border-border bg-surface shadow-evo">
       <AutoRefresh />
       {/* Channel list */}
       <aside className="hidden w-[260px] shrink-0 flex-col border-r border-border md:flex">
-        <div className="border-b border-border px-4 py-3 text-[14px] font-semibold text-fg">{t("channels")}</div>
+        <div className="border-b border-border px-4 py-3 text-base font-semibold text-fg">{t("channels")}</div>
         <nav className="min-h-0 flex-1 overflow-y-auto p-2">
           {channels.map((c) => (
             <Link
@@ -32,7 +32,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
               href={`/chat/${c.id}`}
               aria-current={c.id === channelId ? "page" : undefined}
               className={cn(
-                "block rounded-nav px-3 py-2 text-[13.5px] transition-[background-color,color]",
+                "block rounded-nav px-3 py-2 text-base transition-[background-color,color]",
                 c.id === channelId ? "bg-accent-weak font-semibold text-accent" : "text-fg-2 hover:bg-surface-2 hover:text-fg",
               )}
             >
@@ -41,7 +41,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
           ))}
         </nav>
         <details className="border-t border-border p-3">
-          <summary className="cursor-pointer text-[12px] font-semibold text-accent">+ {t("newChannel")}</summary>
+          <summary className="cursor-pointer text-xs font-semibold text-accent">+ {t("newChannel")}</summary>
           <form action={createChannelAction} className="mt-2 space-y-2">
             <label className={cn(labelCls, "mb-0")}>
               {t("channelName")}
@@ -59,7 +59,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
       {/* Messages */}
       <section className="flex min-w-0 flex-1 flex-col">
         <details className="border-b border-border md:hidden">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 py-2 text-[12px] font-semibold text-accent">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 py-2 text-xs font-semibold text-accent">
             <span>{t("channels")}</span>
             <Icon name="chevron-right" size={15} />
           </summary>
@@ -70,7 +70,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
                 href={`/chat/${item.id}`}
                 aria-current={item.id === channelId ? "page" : undefined}
                 className={cn(
-                  "rounded-nav px-3 py-2 text-[13px]",
+                  "rounded-nav px-3 py-2 text-sm",
                   item.id === channelId ? "bg-accent-weak font-semibold text-accent" : "text-fg-2",
                 )}
               >
@@ -91,8 +91,8 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
           </form>
         </details>
         <header className="border-b border-border px-5 py-3">
-          <div className="text-[14px] font-semibold text-fg"># {channel.name}</div>
-          {channel.description && <div className="text-[12px] text-fg-3">{channel.description}</div>}
+          <div className="text-base font-semibold text-fg"># {channel.name}</div>
+          {channel.description && <div className="text-xs text-fg-3">{channel.description}</div>}
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-5 py-3">
@@ -100,17 +100,17 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
             {messages.length === 0 && <EmptyState text={t("noMessages")} />}
             {messages.map((m) => (
               <div key={m.id} className="flex items-start gap-3">
-                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-weak text-[11px] font-semibold text-accent">
+                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-weak text-xs font-semibold text-accent">
                   {m.author_name.slice(0, 1)}
                 </span>
                 <div className="min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[13.5px] font-semibold text-fg">
+                    <span className="text-base font-semibold text-fg">
                       {m.author_name}{m.author_id === user?.id ? ` (${t("you")})` : ""}
                     </span>
-                    <span className="font-mono text-[11px] text-fg-3">{m.created_at}</span>
+                    <span className="font-mono text-xs text-fg-3">{m.created_at}</span>
                   </div>
-                  <p className="break-words text-[13.5px] text-fg-2">{m.text}</p>
+                  <p className="break-words text-base text-fg-2">{m.text}</p>
                 </div>
               </div>
             ))}

@@ -14,7 +14,6 @@ import {
 const COPY = {
   ru: {
     back: "К лидам",
-    eyebrow: "Канонический лид EVO",
     description:
       "Это основная карточка лида в V2. Здесь показаны текущие данные лида, по которым работает CRM.",
     leadId: "Lead UUID",
@@ -33,7 +32,6 @@ const COPY = {
   },
   ky: {
     back: "Лиддерге",
-    eyebrow: "EVO каноникалык лиди",
     description:
       "Бул V2деги лиддин негизги карточкасы. Бул жерде CRM иштеген учурдагы лид маалыматтары көрсөтүлөт.",
     leadId: "Lead UUID",
@@ -52,7 +50,6 @@ const COPY = {
   },
   en: {
     back: "Back to leads",
-    eyebrow: "Canonical EVO lead",
     description:
       "This is the primary lead card in V2. It shows the current lead data the CRM works from.",
     leadId: "Lead UUID",
@@ -87,13 +84,12 @@ export function CanonicalLeadDetail({
       </Link>
 
       <PageHeader
-        eyebrow={copy.eyebrow}
         title={lead.displayName}
         description={copy.description}
       />
 
       <section className="rounded-card border border-border bg-surface-2 px-5 py-4">
-        <p className="text-[12.5px] text-fg-2">
+        <p className="text-sm text-fg-2">
           {locale === "ru"
             ? "Источник данных: текущая база EVO V2."
             : locale === "ky"
@@ -124,7 +120,7 @@ export function CanonicalLeadDetail({
           <Fact label={copy.nextAction}>{lead.nextAction ?? "—"}</Fact>
           <Fact label={copy.nextActionAt}>
             {lead.nextActionAt ? (
-              <span className="font-mono text-[11.5px]">
+              <span className="font-mono text-xs">
                 {formatCanonicalTimestamp(lead.nextActionAt, locale)}
               </span>
             ) : (
@@ -135,15 +131,15 @@ export function CanonicalLeadDetail({
             <span className="font-medium text-fg">{lead.source}</span>
           </Fact>
           <Fact label={copy.version}>
-            <span className="font-mono text-[11.5px] text-fg">{lead.version}</span>
+            <span className="font-mono text-xs text-fg">{lead.version}</span>
           </Fact>
           <Fact label={copy.createdAt}>
-            <span className="font-mono text-[11.5px]">
+            <span className="font-mono text-xs">
               {formatCanonicalTimestamp(lead.createdAt, locale)}
             </span>
           </Fact>
           <Fact label={copy.updatedAt}>
-            <span className="font-mono text-[11.5px]">
+            <span className="font-mono text-xs">
               {formatCanonicalTimestamp(lead.updatedAt, locale)}
             </span>
           </Fact>
@@ -164,10 +160,10 @@ function Fact({
 }>) {
   return (
     <div className="min-w-0" data-testid={testId}>
-      <dt className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+      <dt className="text-2xs font-semibold uppercase tracking-[0.05em] text-fg-3">
         {label}
       </dt>
-      <dd className="mt-1.5 break-words text-[12.5px] text-fg-2">{children}</dd>
+      <dd className="mt-1.5 break-words text-sm text-fg-2">{children}</dd>
     </div>
   );
 }

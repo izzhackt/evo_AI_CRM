@@ -21,7 +21,7 @@ export function PlatformLangSwitcher({ current }: { current: Locale }) {
           title={LOCALE_NAMES[locale]}
           aria-label={LOCALE_NAMES[locale]}
           aria-pressed={locale === current}
-          className={`min-h-9 rounded-[8px] px-2.5 py-1.5 text-[12px] font-semibold uppercase transition-[background-color,color] duration-150 ease-out ${
+          className={`min-h-9 rounded-[8px] px-2.5 py-1.5 text-xs font-semibold uppercase transition-[background-color,color] duration-150 ease-out ${
             locale === current
               ? "bg-surface text-fg shadow-evo"
               : "text-fg-3 hover:text-fg-2"

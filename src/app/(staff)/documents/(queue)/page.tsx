@@ -10,7 +10,6 @@ import { listPrivateDocuments } from "@/lib/server/private-document-repository";
 
 const COPY = {
   ru: {
-    eyebrow: "Admissions · Документы",
     title: "Приватные документы",
     description:
       "Очередь показывает последние версии из PostgreSQL. Загрузка и повторная отправка доступны только в Student 360.",
@@ -24,7 +23,6 @@ const COPY = {
     open: "Открыть в Student 360",
   },
   ky: {
-    eyebrow: "Admissions · Документтер",
     title: "Жеке документтер",
     description:
       "Кезек PostgreSQL базасындагы акыркы версияларды көрсөтөт. Жүктөө жана кайра жөнөтүү Student 360 ичинде гана жеткиликтүү.",
@@ -38,7 +36,6 @@ const COPY = {
     open: "Student 360 ичинде ачуу",
   },
   en: {
-    eyebrow: "Admissions · Documents",
     title: "Private documents",
     description:
       "This queue shows the latest PostgreSQL versions. Upload and resubmission are available only in Student 360.",
@@ -89,20 +86,17 @@ export default async function DocumentsPage() {
   return (
     <div className="space-y-5" data-testid="canonical-private-document-queue">
       <header className="border-b border-border pb-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">
-          {copy.eyebrow}
-        </p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-fg">
           {copy.title}
         </h1>
-        <p className="mt-2 max-w-3xl text-[13px] leading-5 text-fg-3">
+        <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
       </header>
 
       {documents.length === 0 ? (
         <Card className="shadow-none">
-          <p className="text-[13px] text-fg-3">{copy.empty}</p>
+          <p className="text-sm text-fg-3">{copy.empty}</p>
         </Card>
       ) : (
         <Card bodyClassName="px-0 py-0" className="overflow-hidden shadow-none">
@@ -113,14 +107,14 @@ export default async function DocumentsPage() {
                 className="space-y-3 p-4"
               >
                 <div>
-                  <h2 className="text-[13px] font-semibold text-fg">
+                  <h2 className="text-sm font-semibold text-fg">
                     {document.displayName}
                   </h2>
-                  <p className="mt-1 break-words text-[12px] text-fg-2">
+                  <p className="mt-1 break-words text-xs text-fg-2">
                     {document.latestVersion.originalFilename}
                   </p>
                 </div>
-                <dl className="grid grid-cols-2 gap-3 text-[11.5px] text-fg-3">
+                <dl className="grid grid-cols-2 gap-3 text-xs text-fg-3">
                   <div>
                     <dt>{copy.version}</dt>
                     <dd className="mt-1 font-medium text-fg-2">
@@ -146,7 +140,7 @@ export default async function DocumentsPage() {
                 </dl>
                 <Link
                   href={`/clients/${document.caseId}#documents`}
-                  className="inline-flex min-h-10 items-center justify-center rounded-ctl border border-border bg-surface px-3 text-[12px] font-semibold text-fg hover:bg-surface-2"
+                  className="inline-flex min-h-10 items-center justify-center rounded-ctl border border-border bg-surface px-3 text-xs font-semibold text-fg hover:bg-surface-2"
                 >
                   {copy.open}
                 </Link>
@@ -155,9 +149,9 @@ export default async function DocumentsPage() {
           </div>
 
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[760px] text-left text-[12.5px]">
+            <table className="w-full min-w-[760px] text-left text-sm">
               <caption className="sr-only">{copy.title}</caption>
-              <thead className="border-b border-border bg-surface-2 text-[10.5px] uppercase tracking-[0.04em] text-fg-3">
+              <thead className="border-b border-border bg-surface-2 text-2xs uppercase tracking-[0.04em] text-fg-3">
                 <tr>
                   <th className="px-4 py-3 font-semibold">{copy.student}</th>
                   <th className="px-3 py-3 font-semibold">{copy.document}</th>
@@ -182,7 +176,7 @@ export default async function DocumentsPage() {
                       <p className="max-w-[320px] break-words font-medium">
                         {document.latestVersion.originalFilename}
                       </p>
-                      <p className="mt-1 text-[11px] text-fg-3">
+                      <p className="mt-1 text-xs text-fg-3">
                         {copy.version} {document.latestVersion.versionNumber} · {formatBytes(document.latestVersion.byteLength, locale)}
                       </p>
                     </td>
@@ -193,7 +187,7 @@ export default async function DocumentsPage() {
                     <td className="px-4 py-3 text-right">
                       <Link
                         href={`/clients/${document.caseId}#documents`}
-                        className="inline-flex min-h-10 items-center justify-center rounded-ctl border border-border bg-surface px-3 text-[12px] font-semibold text-fg hover:bg-surface-2"
+                        className="inline-flex min-h-10 items-center justify-center rounded-ctl border border-border bg-surface px-3 text-xs font-semibold text-fg hover:bg-surface-2"
                       >
                         {copy.open}
                       </Link>

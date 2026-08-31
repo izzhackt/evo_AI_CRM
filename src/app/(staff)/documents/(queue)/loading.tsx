@@ -36,8 +36,8 @@ export default async function DocumentsLoading() {
       className="space-y-5"
     >
       <div className="rounded-card border border-border bg-surface px-4 py-4 shadow-evo">
-        <h1 className="text-[15px] font-bold text-fg">{copy.loading}</h1>
-        <p className="mt-1 text-[12.5px] text-fg-3">{copy.loadingHint}</p>
+        <h1 className="text-md font-bold text-fg">{copy.loading}</h1>
+        <p className="mt-1 text-sm text-fg-3">{copy.loadingHint}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">

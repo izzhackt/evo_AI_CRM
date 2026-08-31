@@ -40,7 +40,7 @@ export function LoginForm({
           id="login-error"
           role="alert"
           aria-live="polite"
-          className="rounded-ctl bg-danger-weak px-3 py-2.5 text-[13px] font-medium text-danger"
+          className="rounded-ctl bg-danger-weak px-3 py-2.5 text-sm font-medium text-danger"
         >
           {labels[error]}
         </p>

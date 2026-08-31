@@ -36,8 +36,8 @@ export function ContextBanner({
           <Icon name={tone === "danger" || tone === "warning" ? "alert" : "file-check"} size={16} />
         </span>
         <div className="min-w-0">
-          <h2 className="text-[13px] font-bold text-current">{title}</h2>
-          <p className="mt-0.5 text-[12.5px] leading-5">{description}</p>
+          <h2 className="text-sm font-bold text-current">{title}</h2>
+          <p className="mt-0.5 text-sm leading-5">{description}</p>
         </div>
       </div>
       {action && <div className="shrink-0">{action}</div>}
@@ -65,10 +65,10 @@ export function QueueMetrics({
               (!item.tone || item.tone === "accent") && "bg-accent",
             )}
           />
-          <dt className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-fg-3">{item.label}</dt>
+          <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">{item.label}</dt>
           <dd className="mt-2 flex items-end gap-2">
-            <span className="font-mono text-[24px] font-bold leading-none text-fg">{item.value}</span>
-            {item.meta && <span className="text-[11px] text-fg-3">{item.meta}</span>}
+            <span className="font-mono text-3xl font-bold leading-none text-fg">{item.value}</span>
+            {item.meta && <span className="text-xs text-fg-3">{item.meta}</span>}
           </dd>
         </div>
       ))}
@@ -99,14 +99,14 @@ export function WorkflowStepper({
             key={step.value}
             aria-current={active ? "step" : undefined}
             className={cn(
-              "relative rounded-nav border px-3 py-2.5 text-[12px] font-semibold",
+              "relative rounded-nav border px-3 py-2.5 text-xs font-semibold",
               done && "border-ok/25 bg-ok-weak text-ok",
               active && !terminalDanger && "border-accent/30 bg-accent-weak text-accent",
               active && terminalDanger && "border-danger/30 bg-danger-weak text-danger",
               !done && !active && "border-border bg-surface-2 text-fg-3",
             )}
           >
-            <span className="mr-2 font-mono text-[10px] opacity-70">{String(index + 1).padStart(2, "0")}</span>
+            <span className="mr-2 font-mono text-2xs opacity-70">{String(index + 1).padStart(2, "0")}</span>
             {step.label}
           </li>
         );
@@ -119,7 +119,7 @@ export function DetailBackLink({ href, label }: { href: string; label: string })
   return (
     <Link
       href={href}
-      className="inline-flex min-h-10 items-center gap-2 rounded-nav px-2 text-[12.5px] font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg"
+      className="inline-flex min-h-10 items-center gap-2 rounded-nav px-2 text-sm font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg"
     >
       <Icon name="arrow-left" size={15} />
       {label}
@@ -136,8 +136,8 @@ export function KeyValueGrid({
     <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
       {items.map((item) => (
         <div key={item.label} className="min-w-0 border-b border-border pb-3">
-          <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">{item.label}</dt>
-          <dd className="mt-1 break-words text-[13.5px] font-medium text-fg">{item.value || "—"}</dd>
+          <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">{item.label}</dt>
+          <dd className="mt-1 break-words text-base font-medium text-fg">{item.value || "—"}</dd>
         </div>
       ))}
     </dl>

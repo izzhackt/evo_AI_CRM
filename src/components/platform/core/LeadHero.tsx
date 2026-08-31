@@ -39,16 +39,16 @@ export function LeadHero({
       <div className="border-b border-border px-4 py-4 sm:px-5 sm:py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 items-start gap-4">
-            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-accent-weak text-[19px] font-semibold text-accent sm:h-16 sm:w-16 sm:text-[22px]">
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-accent-weak text-xl font-semibold text-accent sm:h-16 sm:w-16 sm:text-2xl">
               {initials(name)}
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-[24px] font-bold leading-tight text-fg sm:text-[28px]">{name}</h1>
+                <h1 className="text-3xl font-bold leading-tight text-fg">{name}</h1>
                 <Badge value={status} label={statusLabel} />
               </div>
               {meta.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[12px] text-fg-3 sm:text-[12.5px]">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-fg-3 sm:text-sm">
                   {meta.map((item) => (
                     <span key={item}>{item}</span>
                   ))}
@@ -60,8 +60,8 @@ export function LeadHero({
           <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[280px] lg:items-end">
             {amount ? (
               <div className="rounded-ctl border border-border bg-surface-2 px-4 py-3 text-left lg:min-w-[200px] lg:text-right">
-                <div className="font-mono text-[22px] font-semibold leading-none text-fg">{amount.value}</div>
-                <div className="mt-1 text-[11.5px] text-fg-3">{amount.label}</div>
+                <div className="font-mono text-2xl font-semibold leading-none text-fg">{amount.value}</div>
+                <div className="mt-1 text-xs text-fg-3">{amount.label}</div>
               </div>
             ) : null}
             {actions ? <div className="flex flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
@@ -81,15 +81,15 @@ export function LeadHero({
                   : "border-border bg-surface-2",
               )}
             >
-              <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">{metric.label}</div>
-              <div className="mt-2 text-[15px] font-semibold leading-snug text-fg">{metric.value}</div>
-              {metric.meta ? <div className="mt-1 text-[12px] text-fg-3">{metric.meta}</div> : null}
+              <div className="text-xs font-semibold uppercase tracking-[0.05em] text-fg-3">{metric.label}</div>
+              <div className="mt-2 text-md font-semibold leading-snug text-fg">{metric.value}</div>
+              {metric.meta ? <div className="mt-1 text-xs text-fg-3">{metric.meta}</div> : null}
             </div>
           ))}
         </div>
 
         <div className="rounded-ctl border border-border bg-surface-2 px-3.5 py-3.5">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.05em] text-fg-3">
             <Icon name="funnel" size={14} />
             <span>{pipelineLabel}</span>
           </div>

@@ -27,8 +27,8 @@ export default function NotificationsError({
               lang={locale}
               className={`locale-copy locale-copy--${locale} min-w-0 flex-1`}
             >
-              <h2 className="text-[15px] font-bold">{dict.recoveryTitle}</h2>
-              <p className="mt-1 text-[13px] leading-5 opacity-80">{dict.recoveryHint}</p>
+              <h2 className="text-md font-bold">{dict.recoveryTitle}</h2>
+              <p className="mt-1 text-sm leading-5 opacity-80">{dict.recoveryHint}</p>
               <button type="button" onClick={reset} className={`${btnCls} mt-4`}>
                 <Icon name="refresh" size={16} />
                 {dict.retry}

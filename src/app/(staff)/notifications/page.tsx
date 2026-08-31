@@ -54,7 +54,6 @@ export default async function NotificationsPage() {
   return (
     <div className="space-y-5" data-testid="notifications-page">
       <PageHeader
-        eyebrow={t("attentionQueue")}
         title={t("notifications")}
         description={t("notificationsHint")}
       />
@@ -109,13 +108,13 @@ export default async function NotificationsPage() {
                 <div className="mb-2.5 flex items-center gap-2">
                   <h2
                     id={`notification-group-${group}`}
-                    className="text-[13px] font-bold uppercase tracking-[0.05em] text-fg-2"
+                    className="text-sm font-bold uppercase tracking-[0.05em] text-fg-2"
                   >
                     {heading}
                   </h2>
                   <span
                     className={cn(
-                      "grid min-w-6 place-items-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold",
+                      "grid min-w-6 place-items-center rounded-full px-1.5 py-0.5 font-mono text-2xs font-bold",
                       group === "urgent" && "bg-danger-weak text-danger",
                       group === "today" && "bg-warn-weak text-warn",
                       group === "upcoming" && "bg-info-weak text-info",
@@ -148,13 +147,13 @@ export default async function NotificationsPage() {
                           <Icon name={ICON_BY_KIND[item.kind]} size={18} />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-3">
+                          <div className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">
                             {t(`notif.${item.kind}`)}
                           </div>
-                          <h3 className="mt-1 break-words text-[14px] font-bold text-fg">
+                          <h3 className="mt-1 break-words text-base font-bold text-fg">
                             {item.title}
                           </h3>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-fg-3">
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-3">
                             {item.subject && (
                               <span>{item.subject}</span>
                             )}

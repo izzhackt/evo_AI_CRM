@@ -140,7 +140,7 @@ export function CanonicalSalesHandoffCard({
   return (
     <Card title={copy.title} className="shadow-none">
       <div className="space-y-4" data-testid="canonical-sales-handoff-card">
-        <p className="text-[12.5px] leading-5 text-fg-3">
+        <p className="text-sm leading-5 text-fg-3">
           {completedCaseId
             ? copy.completed
             : canSubmitNormal
@@ -161,11 +161,11 @@ export function CanonicalSalesHandoffCard({
             </Link>
           ) : (
             <p
-              className="text-[12.5px] leading-5 text-fg-2"
+              className="text-sm leading-5 text-fg-2"
               data-testid="canonical-admissions-case-reference"
             >
               {copy.caseRecorded}{" "}
-              <span className="font-mono text-[11.5px] text-fg-3">
+              <span className="font-mono text-xs text-fg-3">
                 {completedCaseId}
               </span>
             </p>
@@ -216,7 +216,7 @@ export function CanonicalSalesHandoffCard({
               {message ? (
                 <p
                   className={cn(
-                    "text-[12px]",
+                    "text-xs",
                     state.status === "saved" ? "text-ok" : "text-danger",
                   )}
                   role="status"

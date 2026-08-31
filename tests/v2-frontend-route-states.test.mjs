@@ -185,3 +185,23 @@ test("denied and not-connected states carry their own document title", () => {
     }
   }
 });
+
+test("a rejected query states no counts about a queue it never read", () => {
+  const queue = source("src/app/(staff)/clients/StudentQueue.tsx");
+
+  // The metric row must sit behind the same guard as the rejected message,
+  // or the page asserts "0 active / 0 paused / 0 closed" about a queue it has
+  // just told the operator it did not read.
+  assert.match(
+    queue,
+    /\{params\.listInvalid \? null : \(\s*<div[^>]*>\s*<Metric label=\{copy\.found\}/,
+    "the /clients metric row must not render for a rejected filter",
+  );
+
+  const sales = source("src/app/(staff)/sales/SalesWorkspace.tsx");
+  assert.match(
+    sales,
+    /listInvalid \? \(/,
+    "/sales keeps its counts inside the same guard",
+  );
+});

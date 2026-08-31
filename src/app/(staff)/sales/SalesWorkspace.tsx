@@ -233,7 +233,7 @@ async function readCanonicalSalesQueue(
       actorRole,
       cursor: params.cursor ?? undefined,
       due: params.due,
-      pageSize: 50,
+      pageSize: 15,
       query: params.query,
       stage: params.stage,
     });

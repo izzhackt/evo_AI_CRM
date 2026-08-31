@@ -39,6 +39,7 @@ const COPY = {
     email: "Email",
     newestQueue: "К новым диалогам",
     olderQueue: "Более старые диалоги",
+    backToQueue: "К списку диалогов",
     newestMessages: "К новым сообщениям",
     olderMessages: "Более старые сообщения",
     transcript: "Переписка WhatsApp",
@@ -78,6 +79,7 @@ const COPY = {
     email: "Email",
     newestQueue: "Жаңы диалогдорго",
     olderQueue: "Эски диалогдор",
+    backToQueue: "Диалогдор тизмесине",
     newestMessages: "Жаңы билдирүүлөргө",
     olderMessages: "Эски билдирүүлөр",
     transcript: "WhatsApp кат алышуусу",
@@ -117,6 +119,7 @@ const COPY = {
     email: "Email",
     newestQueue: "Newest conversations",
     olderQueue: "Older conversations",
+    backToQueue: "Back to conversations",
     newestMessages: "Newest messages",
     olderMessages: "Older messages",
     transcript: "WhatsApp transcript",
@@ -176,7 +179,12 @@ export function CanonicalStaffWhatsAppWorkspace({
     <div className="space-y-4" data-testid="canonical-staff-whatsapp-page">
       <PageHeader title={copy.title} description={copy.description} />
       <div className="flex h-[calc(100vh-220px)] min-h-[520px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
-        <aside className="w-full shrink-0 border-b border-border bg-surface-2 lg:w-[360px] lg:border-r lg:border-b-0">
+        <aside
+          className={cn(
+            "w-full shrink-0 border-b border-border bg-surface-2 lg:block lg:w-[360px] lg:border-r lg:border-b-0",
+            thread && "hidden",
+          )}
+        >
           <div className="border-b border-border px-4 py-4">
             <h2 className="text-[14px] font-semibold text-fg">{copy.queueTitle}</h2>
             <p className="mt-1 text-[12.5px] leading-5 text-fg-3">
@@ -263,21 +271,30 @@ export function CanonicalStaffWhatsAppWorkspace({
         </aside>
         <section className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
           {thread ? (
-            <ConversationThread
-              actorRole={actorRole}
-              locale={locale}
-              conversation={thread.conversation}
-              messages={thread.messages}
-              geminiAvailability={thread.geminiAvailability}
-              geminiProposal={thread.geminiProposal}
-              geminiReviewRequestId={thread.geminiReviewRequestId}
-              wahaAvailability={thread.wahaAvailability}
-              latestSendAttempt={thread.latestSendAttempt}
-              sendRequestId={thread.sendRequestId}
-              reconcileRequestId={thread.reconcileRequestId}
-              newestMessagesHref={thread.newestMessagesHref}
-              olderMessagesHref={thread.olderMessagesHref}
-            />
+            <>
+              <Link
+                href="/whatsapp"
+                className={cn(btnGhostCls, "mb-3 inline-flex lg:hidden")}
+                data-testid="canonical-staff-whatsapp-mobile-back"
+              >
+                ← {copy.backToQueue}
+              </Link>
+              <ConversationThread
+                actorRole={actorRole}
+                locale={locale}
+                conversation={thread.conversation}
+                messages={thread.messages}
+                geminiAvailability={thread.geminiAvailability}
+                geminiProposal={thread.geminiProposal}
+                geminiReviewRequestId={thread.geminiReviewRequestId}
+                wahaAvailability={thread.wahaAvailability}
+                latestSendAttempt={thread.latestSendAttempt}
+                sendRequestId={thread.sendRequestId}
+                reconcileRequestId={thread.reconcileRequestId}
+                newestMessagesHref={thread.newestMessagesHref}
+                olderMessagesHref={thread.olderMessagesHref}
+              />
+            </>
           ) : (
             <div
               className="flex h-full flex-col items-center justify-center px-6 text-center"

@@ -66,9 +66,16 @@ test("staff surfaces size to the dynamic viewport, not the static one", () => {
       new URL(`../${surface}`, import.meta.url),
       "utf8",
     );
-    assert.ok(
-      !/\b\d*\.?\d*vh\b/.test(moduleSource),
-      `${surface} sizes to vh; use dvh so mobile browser chrome is accounted for`,
+    // `h-screen` / `min-h-screen` / `max-h-screen` compile to 100vh in
+    // Tailwind v4, so naming the unit is not the only way to reach it.
+    const offenders = [
+      ...(moduleSource.match(/\b\d*\.?\d*(?:vh|svh|lvh)\b/g) ?? []),
+      ...(moduleSource.match(/\b(?:[a-z0-9-]+:)?(?:min-|max-)?h-screen\b/g) ?? []),
+    ];
+    assert.deepEqual(
+      offenders,
+      [],
+      `${surface} sizes to ${offenders[0]}; use dvh so mobile browser chrome is accounted for`,
     );
   }
 });

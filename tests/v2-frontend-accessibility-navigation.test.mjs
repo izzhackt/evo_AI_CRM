@@ -346,7 +346,11 @@ test("staff type sizes come from the scale, not ad-hoc pixel values", () => {
       );
     }
     // Ad-hoc text-[13.5px] is how twenty different sizes accumulated.
-    const literals = source(surface).match(/text-\[\d+(?:\.\d+)?px\]/g) ?? [];
+    // px is not the only way to write an ad-hoc size.
+    const literals =
+      source(surface).match(
+        /text-\[(?:length:)?\d+(?:\.\d+)?(?:px|rem|em|pt|%)\]|fontSize:\s*["'`]?\d/g,
+      ) ?? [];
     assert.deepEqual(
       literals,
       [],
@@ -356,8 +360,30 @@ test("staff type sizes come from the scale, not ad-hoc pixel values", () => {
 
   // The stylesheet's own rules were converted to the scale by hand; nothing
   // stopped one from being left as a raw pixel value.
-  const rules = theme.slice(0, themeStart) + themeBlock.slice(themeBlock.indexOf("}"));
-  const rawSizes = [...rules.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => m[0]);
+  // Comments are stripped first: prose about font sizes is not a font size,
+  // and the `scale-exempt:` marker is re-attached per declaration below.
+  const withComments = theme.slice(0, themeStart) + themeBlock.slice(themeBlock.indexOf("}"));
+  const rules = withComments.replace(
+    /\/\*[\s\S]*?\*\//g,
+    (comment) => (comment.includes("scale-exempt:") ? "/*scale-exempt:*/" : " "),
+  );
+  // A literal size is allowed only when the comment attached to that very
+  // declaration carries an explicit `scale-exempt:` marker -- e.g. the 16px
+  // iOS touch floor, which is a floor rather than a step. Anything else is
+  // drift. The marker must sit between the previous declaration and this one,
+  // so a marker elsewhere in the file cannot license it.
+  // Both `font-size: 13px` and the `font:` shorthand's size slot.
+  const rawSizes = [...rules.matchAll(/font-size:\s*\d+(?:\.\d+)?(?:px|rem|em|pt)|[^-\w]font:\s*[^;{}]*?\d+(?:\.\d+)?(?:px|rem|em|pt)/gi)]
+    .filter((match) => {
+      const preceding = rules.slice(0, match.index);
+      const boundary = Math.max(
+        preceding.lastIndexOf(";"),
+        preceding.lastIndexOf("{"),
+        preceding.lastIndexOf("}"),
+      );
+      return !preceding.slice(boundary + 1).includes("scale-exempt:");
+    })
+    .map((match) => match[0]);
   assert.deepEqual(
     rawSizes,
     [],
@@ -372,13 +398,19 @@ test("no staff surface reintroduces a kicker above its heading", () => {
   // order is arbitrary and an ordered regex is evaded by rearranging it.
   for (const surface of staffOperatingSurfaces()) {
     const moduleSource = source(surface);
-    for (const [, classes] of moduleSource.matchAll(/className="([^"]*)"/g)) {
+    // Every string literal in the module, not just a static className="...".
+    // cn(...) is this codebase's dominant idiom, and a kicker written through
+    // it, through a template literal, or through a hoisted constant would
+    // otherwise pass. Any tracking utility counts, and the accent can be
+    // named directly, via its text token, or as a bare CSS variable.
+    for (const [, classes] of moduleSource.matchAll(/["'`]([^"'`\n]*)["'`]/g)) {
+      if (!classes.includes("uppercase")) continue;
       const names = classes.split(/\s+/);
       const has = (test) => names.some((name) => test.test(name));
       const kicker =
-        has(/^(?:[a-z0-9]+:)?uppercase$/) &&
-        has(/^(?:[a-z0-9]+:)?tracking-(?:\[0\.\d+em\]|wider|widest)$/) &&
-        has(/^(?:[a-z0-9]+:)?text-accent$/);
+        has(/^(?:[a-z0-9-]+:)?uppercase$/) &&
+        has(/^(?:[a-z0-9-]+:)?tracking-(?:\[[^\]]+\]|wide|wider|widest)$/) &&
+        has(/^(?:[a-z0-9-]+:)?text-(?:accent(?:-text)?|\[var\(--accent[^)]*\)\])$/);
       assert.ok(!kicker, `${surface} reintroduces an accent kicker: "${classes}"`);
     }
     assert.ok(

@@ -277,3 +277,32 @@ test("cross-role case links are only rendered for a role the server allows", () 
     "the handoff fallback copy must cover ru, ky and en",
   );
 });
+
+test("the frontend contract suite is wired into the CI entry point", () => {
+  // These four files guard route states, mobile access, shell truth and the
+  // type scale. They were added to `pretest:unit` in #529 and silently
+  // reverted by #527, which merged later from a branch cut before it -- so
+  // for a while every guard in them passed locally and ran nowhere. The npm
+  // wiring is therefore itself under test.
+  const manifest = JSON.parse(source("package.json"));
+  const scripts = manifest.scripts;
+
+  assert.ok(scripts["test:frontend"], "test:frontend must exist");
+  assert.ok(
+    scripts["pretest:unit"].includes("npm run test:frontend"),
+    "pretest:unit must run test:frontend, or CI never executes the frontend contracts",
+  );
+
+  // ...and it must actually cover these files, not just exist.
+  for (const file of [
+    "tests/v2-frontend-shell-truth.test.mjs",
+    "tests/v2-frontend-mobile-access.test.mjs",
+    "tests/v2-frontend-route-states.test.mjs",
+    "tests/v2-frontend-accessibility-navigation.test.mjs",
+  ]) {
+    assert.ok(
+      scripts["test:frontend"].includes(file),
+      `${file} is not covered by test:frontend`,
+    );
+  }
+});

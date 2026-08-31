@@ -212,11 +212,30 @@ body {
   overflow-x: clip;
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
+/*
+ * Form controls deliberately carry NO unlayered font rule here.
+ *
+ * Tailwind's preflight already sets `font: inherit` on button/input/select/
+ * optgroup/textarea/::file-selector-button, and it does so inside `@layer
+ * base`. A copy of that rule outside any layer outranks `@layer utilities`
+ * no matter its specificity, which silently made every `text-*` utility inert
+ * on controls: a `text-xs` button computed 16px and a `text-base` select
+ * computed 12px from whatever wrapper it sat in.
+ *
+ * Controls take their size from the scale like everything else. iOS Safari
+ * zooms the viewport when a focused text field is under 16px, so text entry
+ * gets a 16px floor on coarse pointers below.
+ */
+
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    /* scale-exempt: iOS Safari zooms the viewport when a focused text field
+       renders below 16px. This is a floor for touch input, not a scale step,
+       so it is intentionally a literal and intentionally unlayered. */
+    font-size: 16px;
+  }
 }
 
 /* Tabular numerals for figures/money/dates */

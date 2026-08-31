@@ -44,7 +44,7 @@ export function LeadHero({
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-3xl font-bold leading-tight text-fg sm:text-3xl">{name}</h1>
+                <h1 className="text-3xl font-bold leading-tight text-fg">{name}</h1>
                 <Badge value={status} label={statusLabel} />
               </div>
               {meta.length > 0 && (

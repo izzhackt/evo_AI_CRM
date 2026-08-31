@@ -58,3 +58,6 @@ data/
 
 # Private company originals. Keep the tracked README and safe manifest only.
 /docs/company/private-source-documents/*.pdf
+
+# Claude Code local settings (machine-specific; never shared)
+.claude/settings.local.json

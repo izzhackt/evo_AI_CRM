@@ -174,6 +174,7 @@ export function CanonicalStaffWhatsAppWorkspace({
   thread = null,
 }: WorkspaceProps) {
   const copy = COPY[locale];
+  const mobileBackHref = queueHref(queueCursor);
 
   return (
     <div className="space-y-4" data-testid="canonical-staff-whatsapp-page">
@@ -273,7 +274,7 @@ export function CanonicalStaffWhatsAppWorkspace({
           {thread ? (
             <>
               <Link
-                href="/whatsapp"
+                href={mobileBackHref}
                 className={cn(btnGhostCls, "mb-3 inline-flex lg:hidden")}
                 data-testid="canonical-staff-whatsapp-mobile-back"
               >
@@ -577,10 +578,22 @@ function conversationHref(
   queueCursor: CanonicalReadCursor | null,
 ) {
   const path = `/whatsapp/${conversationId}`;
-  if (!queueCursor) return path;
+  const query = queueCursorSearchParams(queueCursor);
+  if (!query) return path;
+  return `${path}?${query.toString()}`;
+}
+
+function queueHref(queueCursor: CanonicalReadCursor | null) {
+  const query = queueCursorSearchParams(queueCursor);
+  if (!query) return "/whatsapp";
+  return `/whatsapp?${query.toString()}`;
+}
+
+function queueCursorSearchParams(queueCursor: CanonicalReadCursor | null) {
+  if (!queueCursor) return null;
   const query = new URLSearchParams({
     before_at: queueCursor.updatedAt,
     before_id: queueCursor.id,
   });
-  return `${path}?${query.toString()}`;
+  return query;
 }

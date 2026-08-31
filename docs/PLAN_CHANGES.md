@@ -25,6 +25,17 @@ Validation impact:
 Reviewer notes:
 ```
 
+## 2026-08-31 - Preserve WhatsApp queue cursor in mobile thread return
+
+Date: 2026-08-31, workspace timezone.
+Author: Codex.
+Change type: acceptance criteria and validation refinement.
+Affected plan section: V2-11 frontend completion validation and staff WhatsApp workflow behavior.
+Reason: the mobile practical-access repair hid the long WhatsApp queue while a thread is open, but the first implementation returned to `/whatsapp` without preserving the active `before_at` / `before_id` cursor. That silently drops the operator back to the newest queue page instead of the page they were reviewing.
+Decision: keep the current mobile single-pane thread behavior, but require the mobile back action to preserve the active queue cursor so returning from a selected conversation restores the same bounded queue page. Validate this with source-contract coverage in `tests/v2-frontend-mobile-access.test.mjs` in addition to the existing real browser/mobile checks.
+Validation impact: rerun the targeted mobile access source-contract tests, the affected Sales workspace contract tests, and exact-head CI before merge.
+Reviewer notes: pending independent code-reviewer review on the exact PR head.
+
 ## 2026-06-24 - Initial Launch Contract
 
 Date: 2026-06-24, workspace timezone.

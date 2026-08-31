@@ -629,7 +629,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   padding: 10px 15px;
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 12px;
   font-weight: 700;
 }
@@ -692,7 +692,7 @@ html[lang="en"] .locale-copy--en {
 }
 .provider-status--draft {
   background: var(--accent-weak);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* Urgent mobile navigation and full section sheet */
@@ -744,7 +744,7 @@ html[lang="en"] .locale-copy--en {
   color: var(--text);
 }
 .mobile-staff-nav__item--active {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .staff-menu-dialog {
   width: 100%;
@@ -846,7 +846,7 @@ html[lang="en"] .locale-copy--en {
 }
 .staff-menu-sheet__link--active {
   background: var(--accent-weak);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .staff-menu-sheet__footer {
   border-top: 1px solid var(--border);

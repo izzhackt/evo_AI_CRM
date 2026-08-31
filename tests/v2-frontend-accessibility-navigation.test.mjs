@@ -96,3 +96,19 @@ test("dark accent text keeps normal-text contrast without changing brand fills",
   assert.ok(contrast(token, "#3b1117") >= 4.5);
   assert.match(darkTheme, /--accent:\s*#d70217/);
 });
+
+test("hand-written accent text uses the theme-aware accent token", () => {
+  const styles = source("src/app/globals.css");
+
+  assert.equal(
+    styles.match(/color: var\(--accent\);/g),
+    null,
+    "raw --accent must never be used as a text colour; it fails 4.5:1 on dark surfaces",
+  );
+  assert.ok(
+    (styles.match(/color: var\(--accent-text\);/g) ?? []).length >= 5,
+    "themed accent text token must cover the shell, mobile nav and status rules",
+  );
+  assert.match(styles, /\.mobile-staff-nav__item--active \{\n  color: var\(--accent-text\);/);
+  assert.match(styles, /\.staff-menu-sheet__link--active \{\n  background: var\(--accent-weak\);\n  color: var\(--accent-text\);/);
+});

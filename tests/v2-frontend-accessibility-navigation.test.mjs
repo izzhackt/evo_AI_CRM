@@ -96,3 +96,46 @@ test("dark accent text keeps normal-text contrast without changing brand fills",
   assert.ok(contrast(token, "#3b1117") >= 4.5);
   assert.match(darkTheme, /--accent:\s*#d70217/);
 });
+
+test("every core staff route renders exactly one page-level h1", () => {
+  const routeHeadingSources = [
+    ["/sales", "src/app/(staff)/sales/SalesWorkspace.tsx"],
+    ["/sales/[id]", "src/components/platform/core/LeadHero.tsx"],
+    ["/clients", "src/app/(staff)/clients/StudentQueue.tsx"],
+    [
+      "/clients/[id]",
+      "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+    ],
+    ["/applications", "src/app/(staff)/applications/page.tsx"],
+    ["/documents", "src/app/(staff)/documents/(queue)/page.tsx"],
+    ["/visa", "src/app/(staff)/visa/page.tsx"],
+    ["/finance", "src/app/(staff)/finance/page.tsx"],
+    ["/tasks", "src/app/(staff)/tasks/page.tsx"],
+    [
+      "/whatsapp",
+      "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+    ],
+  ];
+
+  for (const [route, path] of routeHeadingSources) {
+    const moduleSource = source(path);
+    const literalHeadings = moduleSource.match(/<h1[\s>]/g) ?? [];
+    const sharedHeaders = moduleSource.match(/<PageHeader[\s>]/g) ?? [];
+    assert.equal(
+      literalHeadings.length + sharedHeaders.length,
+      1,
+      `${route} must own exactly one page-level h1 (${path})`,
+    );
+  }
+});
+
+test("the shared task panel heading stays subordinate to the page h1", () => {
+  const panel = source(
+    "src/components/platform/admissions/CanonicalAdmissionsTaskPanel.tsx",
+  );
+  const tasksRoute = source("src/app/(staff)/tasks/page.tsx");
+
+  assert.equal(panel.match(/<h1[\s>]/g), null);
+  assert.match(panel, /id="canonical-admissions-task-panel-title"/);
+  assert.match(tasksRoute, /<h1/);
+});

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LangSwitcher } from "@/components/LangSwitcher";
@@ -8,14 +9,22 @@ import { fixedRoleCan, isFixedRole } from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import { requirePlatformActor } from "@/lib/platform-guards";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 
 const COPY: Record<
   Locale,
-  { eyebrow: string; title: string; description: string; openInbox: string }
+  {
+    eyebrow: string;
+    title: string;
+    tabTitle: string;
+    description: string;
+    openInbox: string;
+  }
 > = {
   ru: {
     eyebrow: "Доступ подтверждён",
     title: "Раздел ещё не подключён",
+    tabTitle: "Раздел не подключён",
     description:
       "Ваша временная V2-сессия и тестовая роль проверены. Этот модуль ещё не заменён, поэтому старый runtime не запускался.",
     openInbox: "Открыть сообщения",
@@ -23,6 +32,7 @@ const COPY: Record<
   ky: {
     eyebrow: "Кирүү ырасталды",
     title: "Бөлүм азырынча туташкан эмес",
+    tabTitle: "Бөлүм туташкан эмес",
     description:
       "Убактылуу V2 сессияңыз жана тесттик ролуңуз текшерилди. Бул модуль али алмаштырыла элек, ошондуктан эски runtime иштетилген жок.",
     openInbox: "Билдирүүлөрдү ачуу",
@@ -30,11 +40,21 @@ const COPY: Record<
   en: {
     eyebrow: "Access verified",
     title: "This module is not connected yet",
+    tabTitle: "Module not connected",
     description:
       "Your temporary V2 session and test role were verified. This module has not been replaced yet, so its old runtime was not started.",
     openInbox: "Open messaging",
   },
 };
+
+export async function generateMetadata(): Promise<Metadata> {
+  // Short noun phrase for the tab; the h1 keeps the full sentence.
+  return buildRouteMetadata({
+    ru: COPY.ru.tabTitle,
+    ky: COPY.ky.tabTitle,
+    en: COPY.en.tabTitle,
+  });
+}
 
 export default async function PlatformPendingPage() {
   const actor = await requirePlatformActor();

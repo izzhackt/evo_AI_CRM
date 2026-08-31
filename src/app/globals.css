@@ -17,6 +17,7 @@
   --text-2: #5b6068;
   --text-3: #646a73;
   --accent: #d70217;
+  --accent-text: #d70217;
   --accent-2: #b00213;
   --accent-weak: #fce8ea;
   --on-accent: #ffffff;
@@ -53,6 +54,7 @@
   --text-2: #b4b8bf;
   --text-3: #878c94;
   --accent: #d70217;
+  --accent-text: #f24b58;
   --accent-2: #b00213;
   --accent-weak: #3b1117;
   --on-accent: #ffffff;
@@ -71,6 +73,12 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -10px rgb(0 0 0 / 0.5);
   --shadow-lg: 0 30px 70px -28px rgb(0 0 0 / 0.7);
   color-scheme: dark;
+}
+
+/* Brand fills retain the canonical EVO red. Small accent text uses a
+   theme-specific token so it remains readable on dark surfaces. */
+[data-theme] .text-accent {
+  color: var(--accent-text);
 }
 
 /* Back-compat aliases for components outside the staff redesign scope

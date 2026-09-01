@@ -68,6 +68,14 @@ async function expectDirectRouteDenied(
   );
 }
 
+async function expectDirectRouteAllowed(
+  page: Page,
+  path: "/sales" | "/clients" | "/settings",
+) {
+  await page.goto(path);
+  await expect(page).toHaveURL(new RegExp(`${path}$`));
+}
+
 function isSupabaseAuthCookie(name: string): boolean {
   return name.startsWith("sb-") && name.includes("-auth-token");
 }
@@ -185,13 +193,14 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
   await expect(page.getByTestId("preview-active")).toBeVisible();
-  await expectDirectRouteDenied(page, "/clients");
-  await expectDirectRouteDenied(page, "/settings");
+  await expectDirectRouteAllowed(page, "/clients");
+  await expectDirectRouteAllowed(page, "/settings");
+  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
 
   await page.goto("/");
   await page.getByTestId("preview-role-admissions").click();
   await expectActiveRole(page, "admissions", "admin");
-  await expectDirectRouteDenied(page, "/sales");
+  await expectDirectRouteAllowed(page, "/sales");
 
   await page.goto("/");
   await page.getByTestId("preview-role-admin").click();

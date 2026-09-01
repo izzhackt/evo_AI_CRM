@@ -33,7 +33,11 @@ export type PlatformActor<Role extends PlatformRole = FixedRole> = Readonly<{
   platformBundleVersion: number;
 }>;
 
-export type ActivePlatformActor = PlatformActor<FixedRole>;
+export type ActivePlatformActor = PlatformActor<FixedRole> &
+  Readonly<{
+    /** Admin-only presentation choice; never a server authorization source. */
+    presentationRole: FixedRole;
+  }>;
 
 /** Repository-only tail for the frozen student portal and unreplaced slices. */
 export type HistoricalRepositoryActor = PlatformActor<PlatformRole>;
@@ -100,7 +104,7 @@ export async function resolvePlatformActor(): Promise<PlatformActorResult> {
 
   const authority = authorityResult.authority;
   const authorityRole = databaseRoleToInterfaceRole(authority.databaseRole);
-  const platformRole = await adminPreviewRole(authorityRole);
+  const presentationRole = await adminPreviewRole(authorityRole);
   return {
     status: "authenticated",
     actor: {
@@ -110,8 +114,9 @@ export async function resolvePlatformActor(): Promise<PlatformActorResult> {
       organizationId: authority.organizationId,
       displayName: authority.displayName,
       email: authority.email,
-      platformRole,
+      platformRole: authorityRole,
       authorityRole,
+      presentationRole,
       platformAccessVersion: authority.platformAccessVersion,
       platformBundleId: authority.platformBundleId,
       platformBundleVersion: authority.platformBundleVersion,

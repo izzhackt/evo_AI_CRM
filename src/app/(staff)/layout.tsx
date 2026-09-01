@@ -101,7 +101,10 @@ async function loadShellProvider(): Promise<ShellProvider> {
     import("@/components/platform/PlatformLangSwitcher"),
   ]);
   const actor = await guards.requirePlatformStaffActor();
-  if (!isFixedRole(actor.platformRole) || !isStaffRole(actor.platformRole)) {
+  if (
+    !isFixedRole(actor.presentationRole) ||
+    !isStaffRole(actor.presentationRole)
+  ) {
     throw new Error("fixed_role_shell_received_unsupported_role");
   }
   const amoAvailability = readCanonicalAmoCrmProviderAvailability();
@@ -111,10 +114,10 @@ async function loadShellProvider(): Promise<ShellProvider> {
   return {
     user: {
       name: actor.displayName,
-      role: actor.platformRole,
+      role: actor.presentationRole,
       authorityRole: actor.authorityRole,
     },
-    homeHref: guards.platformHomeRoute(actor.platformRole),
+    homeHref: guards.platformHomeRoute(actor.presentationRole),
     availableRoutes: new Set(FIXED_ROLE_ROUTES),
     logout: logoutStaffAction,
     LanguageSwitcher: language.PlatformLangSwitcher,

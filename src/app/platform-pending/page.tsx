@@ -31,14 +31,14 @@ const COPY: Record<
     title: "Бөлүм азырынча туташкан эмес",
     tabTitle: "Бөлүм туташкан эмес",
     description:
-      "Убактылуу V2 сессияңыз жана тесттик ролуңуз текшерилди. Бул модуль али алмаштырыла элек, ошондуктан эски runtime иштетилген жок.",
+      "Supabase кызматкер сессияңыз жана активдүү ролуңуз текшерилди. Бул модуль али алмаштырыла элек, ошондуктан эски runtime иштетилген жок.",
     openInbox: "Билдирүүлөрдү ачуу",
   },
   en: {
     title: "This module is not connected yet",
     tabTitle: "Module not connected",
     description:
-      "Your temporary V2 session and test role were verified. This module has not been replaced yet, so its old runtime was not started.",
+      "Your Supabase staff session and active role were verified. This module has not been replaced yet, so its old runtime was not started.",
     openInbox: "Open messaging",
   },
 };
@@ -57,8 +57,8 @@ export default async function PlatformPendingPage() {
   const { t, locale } = await getT();
   const copy = COPY[locale];
   const canOpenInbox =
-    isFixedRole(actor.platformRole) &&
-    fixedRoleCan(actor.platformRole, "messaging.read");
+    isFixedRole(actor.presentationRole) &&
+    fixedRoleCan(actor.presentationRole, "messaging.read");
 
   return (
     <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">

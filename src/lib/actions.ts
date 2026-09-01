@@ -49,19 +49,24 @@ function validatedLocalSalesManagerId(managerId: number | null): number | null {
 
 async function requireStaff() {
   const user = await currentUser();
-  if (!user || !isStaff(user.role)) redirect("/login");
+  if (!user || !isStaff(user.authorityRole)) redirect("/login");
   return user;
 }
 
 async function requireAdminStaff() {
   const user = await requireStaff();
-  if (user.role !== "admin") redirect("/dashboard");
+  if (user.authorityRole !== "admin") redirect("/dashboard");
   return user;
 }
 
 async function requireSalesStaff() {
   const user = await requireStaff();
-  if (user.role !== "admin" && user.role !== "sales") redirect("/dashboard");
+  if (
+    user.authorityRole !== "admin" &&
+    user.authorityRole !== "sales"
+  ) {
+    redirect("/dashboard");
+  }
   return user;
 }
 
@@ -349,7 +354,7 @@ export async function addLeadAction(form: FormData) {
   const user = await requireSalesStaff();
   const name = str(form, "name");
   if (!name) return;
-  const managerId = user.role === "sales"
+  const managerId = user.authorityRole === "sales"
     ? user.id
     : validatedLocalSalesManagerId(optNum(form, "manager_id"));
   db()
@@ -394,8 +399,13 @@ export async function updateLeadAction(form: FormData) {
     .prepare("SELECT manager_id FROM leads WHERE id = ?")
     .get(id) as { manager_id: number | null } | undefined;
   if (!current) notFound();
-  if (user.role === "sales" && String(current.manager_id) !== user.id) notFound();
-  const managerId = user.role === "sales"
+  if (
+    user.authorityRole === "sales" &&
+    String(current.manager_id) !== user.id
+  ) {
+    notFound();
+  }
+  const managerId = user.authorityRole === "sales"
     ? current.manager_id
     : validatedLocalSalesManagerId(optNum(form, "manager_id"));
   d

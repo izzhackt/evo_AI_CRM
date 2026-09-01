@@ -52,7 +52,7 @@ export async function requireAdminApi(): Promise<AdminApiAuthorization> {
       ),
     };
   }
-  if (user.role !== "admin") {
+  if (user.authorityRole !== "admin") {
     return {
       response: NextResponse.json(
         { error: "forbidden" },

@@ -1027,12 +1027,11 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     page.locator(
       `[data-testid="canonical-staff-whatsapp-row"][data-conversation-id="${conversationId}"]`,
     ),
-  ).toHaveCount(0);
-  await page.goto(`/whatsapp/${conversationId}`);
-  await expect(
-    page.getByRole("heading", { name: "404", exact: true }),
   ).toBeVisible();
-  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toHaveCount(0);
+  await page.goto(`/whatsapp/${conversationId}`);
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
+    latestThreadPageText,
+  );
 
   await page.goto("/");
   await page.getByTestId("preview-role-sales").click();

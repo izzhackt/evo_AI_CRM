@@ -44,7 +44,7 @@ export default async function Home() {
     requirePlatformActor(),
     readDatabaseStatus(),
   ]);
-  const role = actor.platformRole;
+  const role = actor.presentationRole;
   if (role !== "admin" && role !== "sales" && role !== "admissions") {
     throw new Error("supabase_staff_authority_issued_unsupported_role");
   }
@@ -81,8 +81,8 @@ export default async function Home() {
             Вход в EVO V2 подтверждён
           </h1>
           <p className="mt-3 max-w-[56ch] text-sm leading-6 text-fg-3">
-            Это техническая роль для локальной проверки CRM, а не аккаунт
-            сотрудника и не production-аутентификация.
+            Сессия сотрудника подтверждена через Supabase Auth. Сервер проверяет
+            реальную роль и доступ при каждом защищённом запросе.
           </p>
 
           {/* Label and value, so a description list rather than two boxes.
@@ -126,8 +126,8 @@ export default async function Home() {
                 Admin · точный просмотр роли
               </p>
               <p className="mt-2 max-w-[56ch] text-sm leading-6 text-fg-3">
-                Интерфейс и серверные проверки используют выбранную роль. Подпись
-                сессии сохраняет Admin как единственного владельца переключателя.
+                Выбранная роль меняет только представление интерфейса. Серверные
+                проверки продолжают использовать полные полномочия Admin.
               </p>
               <form
                 action={selectStaffRolePreviewAction}
@@ -149,7 +149,8 @@ export default async function Home() {
               </form>
               {previewing ? (
                 <p data-testid="preview-active" className="mt-3 text-sm font-semibold text-accent">
-                  Admin сейчас ограничен точными правами {ROLE_LABELS[role]}.
+                  Admin просматривает интерфейс {ROLE_LABELS[role]}; полномочия
+                  Admin сохранены.
                 </p>
               ) : null}
             </section>

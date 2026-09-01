@@ -43,6 +43,7 @@ test("only authority Admin can set the presentation-only preview cookie", () => 
 test("the staff shell renders exact effective-role navigation and an Admin controller", () => {
   assert.match(layoutSource, /data-testid="staff-role-preview"/);
   assert.match(layoutSource, /provider\.user\.authorityRole === "admin"/);
+  assert.match(layoutSource, /role: actor\.presentationRole/);
   assert.match(layoutSource, /data-effective-role=\{provider\.user\.role\}/);
   assert.match(layoutSource, /selectStaffRolePreviewAction/);
   assert.doesNotMatch(

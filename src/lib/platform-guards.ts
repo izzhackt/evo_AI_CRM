@@ -30,7 +30,7 @@ export async function requirePlatformCapability(
   from: string,
 ): Promise<ActivePlatformActor> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.platformRole, capability)) {
+  if (!fixedRoleCan(actor.authorityRole, capability)) {
     redirect(`/access-denied?from=${encodeURIComponent(from)}`);
   }
   return actor;

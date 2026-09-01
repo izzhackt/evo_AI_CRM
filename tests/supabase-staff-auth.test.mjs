@@ -136,13 +136,29 @@ test("missing or malformed identity claims fail before a database authority is a
   }
 });
 
-test("the runtime uses Supabase SSR cookies and never trusts getSession for authorization", async () => {
-  const [server, browser, proxy, actions, envExample] = await Promise.all([
+test("the runtime uses Supabase SSR cookies and keeps Admin preview presentation-only", async () => {
+  const [
+    server,
+    browser,
+    proxy,
+    actions,
+    platformAuth,
+    guards,
+    auth,
+    envExample,
+    entry,
+    pending,
+  ] = await Promise.all([
     readFile(new URL("../src/lib/supabase/server.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/lib/supabase/browser.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/proxy.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/lib/staff-auth-actions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/lib/platform-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/lib/platform-guards.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/lib/auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/platform-pending/page.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(server, /createServerClient/);
@@ -153,5 +169,13 @@ test("the runtime uses Supabase SSR cookies and never trusts getSession for auth
   assert.doesNotMatch(proxy, /getSession\(/);
   assert.match(actions, /signInWithPassword/);
   assert.match(actions, /signOut\(\{ scope: "local" \}\)/);
+  assert.match(platformAuth, /platformRole: authorityRole/);
+  assert.match(platformAuth, /presentationRole/);
+  assert.match(guards, /fixedRoleCan\(actor\.authorityRole, capability\)/);
+  assert.doesNotMatch(guards, /fixedRoleCan\(actor\.platformRole, capability\)/);
+  assert.match(auth, /user\.authorityRole !== "admin"/);
   assert.doesNotMatch(envExample, /EVO_DEV_GATE_/);
+  assert.match(entry, /Сессия сотрудника подтверждена через Supabase Auth/);
+  assert.doesNotMatch(entry, /техническая роль|production-аутентификация/);
+  assert.doesNotMatch(pending, /temporary V2 session|тесттик рол/);
 });

@@ -145,8 +145,8 @@ test("private documents use one authorized PostgreSQL and filesystem path", asyn
     await api.get(
       `/api/v2/document-versions/${guessedVersionId}/download`,
     ),
-    403,
-    "forbidden",
+    404,
+    "document_not_found",
   );
 
   await page.getByTestId("preview-role-admissions").click();

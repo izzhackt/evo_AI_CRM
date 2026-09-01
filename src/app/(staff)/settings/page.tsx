@@ -46,7 +46,7 @@ export default async function SettingsPage() {
               name="role"
               value={role}
               data-testid={`settings-preview-${role}`}
-              aria-pressed={actor.platformRole === role}
+              aria-pressed={actor.presentationRole === role}
               className="min-h-36 rounded-card border border-control-edge bg-bg p-5 text-left transition-colors hover:border-accent aria-pressed:border-accent aria-pressed:bg-accent-weak"
             >
               <span className="block text-md font-bold text-fg">

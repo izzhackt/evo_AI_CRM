@@ -17,6 +17,12 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   // Полигон нового интерфейса: живёт рядом со старым, пока части не сойдутся.
   "/v3",
 ]);
+/**
+ * Каталог частей нового интерфейса. Каждая часть смотрится отдельно и ни во
+ * что не составляется: в продукт они пойдут в разные места.
+ */
+const V3_CATALOGUE_PATH = /^\/v3(?:\/[a-z0-9-]+)?$/;
+
 const PLATFORM_CONVERSATION_PATH =
   /^\/whatsapp\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_LEAD_PATH =
@@ -49,6 +55,7 @@ export function platformHomeRoute(role: FixedRole): "/sales" | "/clients" {
 export function isConnectedPlatformPage(path: string): boolean {
   return (
     PLATFORM_PAGE_ALLOWLIST.has(path) ||
+    V3_CATALOGUE_PATH.test(path) ||
     PLATFORM_CONVERSATION_PATH.test(path) ||
     PLATFORM_LEAD_PATH.test(path) ||
     PLATFORM_LEAD_CONVERSATION_PATH.test(path) ||

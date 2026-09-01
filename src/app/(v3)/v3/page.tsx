@@ -1,105 +1,60 @@
-import { Funnel } from "@/components/v3/Funnel";
-import {
-  WorkCalendar,
-  type CalendarDay,
-  type CalendarTask,
-} from "@/components/v3/WorkCalendar";
-import { readAdmissionsFunnel } from "@/lib/v3/funnel-source";
+import Link from "next/link";
 
-export const dynamic = "force-dynamic";
-export const metadata = { title: "V3 · Части интерфейса" };
+export const metadata = { title: "V3 · Каталог частей" };
 
 /**
- * Полигон: части нового интерфейса собираются здесь по одной, прежде чем
- * сойтись в одну главную страницу.
+ * Каталог, а не страница.
  *
- * Воронка уже читает настоящую PostgreSQL. Календарь пока получает образец
- * данных прямо отсюда — сотрудников и личных задач в системе ещё нет, а форма
- * нужна сейчас. Образец живёт в странице, а не в компоненте, чтобы подключение
- * к реальным данным было заменой этого блока, а не правкой вёрстки.
+ * Части нового интерфейса собираются по одной и смотрятся по одной: в продукт
+ * они пойдут в разные места, и любая их совместная раскладка здесь была бы
+ * случайной композицией, которую потом пришлось бы разбирать.
  */
-
-const SAMPLE_DAYS: CalendarDay[] = (() => {
-  const grid: CalendarDay[] = [];
-  const withWork = new Map([[3, 1], [4, 1], [5, 2], [6, 2], [7, 1], [8, 1], [15, 1], [22, 2]]);
-  grid.push({ date: 31, inMonth: false, today: false, count: 0 });
-  for (let date = 1; date <= 30; date += 1) {
-    grid.push({
-      date,
-      inMonth: true,
-      today: date === 2,
-      count: withWork.get(date) ?? 0,
-    });
-  }
-  for (let date = 1; date <= 4; date += 1) {
-    grid.push({ date, inMonth: false, today: false, count: 0 });
-  }
-  return grid;
-})();
-
-const SAMPLE_TASKS: readonly {
-  urgency: "week" | "month" | "unscheduled";
-  tasks: CalendarTask[];
-}[] = [
+const PARTS = [
   {
-    urgency: "week",
-    tasks: [
-      { id: "s1", title: "Проверить нострификацию аттестата", dueAt: "2026-09-03", assignedBy: "Директор", assignedTo: "Айгерим", ownerRole: "admissions", done: false, href: "#" },
-      { id: "s2", title: "Подтвердить IELTS и загрузить сертификат", dueAt: "2026-09-05", assignedBy: null, assignedTo: "Айгерим", ownerRole: "admissions", done: true, href: "#" },
-      { id: "s3", title: "Позвонить в приёмную комиссию вуза", dueAt: "2026-09-06", assignedBy: null, assignedTo: "Айгерим", ownerRole: "admissions", done: false, href: null },
-    ],
+    href: "/v3/funnel",
+    name: "Воронка поступления",
+    note: "Ступени и конверсия. Читает настоящую PostgreSQL.",
+    state: "на реальных данных",
   },
   {
-    urgency: "month",
-    tasks: [
-      { id: "s4", title: "Сводка по осеннему набору", dueAt: "2026-09-22", assignedBy: "Директор", assignedTo: "Айгерим", ownerRole: "admissions", done: false, href: null },
-    ],
+    href: "/v3/calendar",
+    name: "Календарь сотрудника",
+    note: "Месяц с точками и работа, сгруппированная по срочности.",
+    state: "форма готова, данные — образец",
   },
-  {
-    urgency: "unscheduled",
-    tasks: [
-      { id: "s5", title: "Проверить унаследованный контекст Sales", dueAt: null, assignedBy: null, assignedTo: null, ownerRole: "admissions", done: false, href: "#" },
-      { id: "s6", title: "Подготовить первичный план запроса документов", dueAt: null, assignedBy: null, assignedTo: null, ownerRole: "admissions", done: false, href: "#" },
-    ],
-  },
-];
+] as const;
 
-export default async function V3Page() {
-  const stages = await readAdmissionsFunnel();
-
+export default function V3Catalogue() {
   return (
-    <main className="mx-auto flex w-full max-w-[1100px] flex-col gap-8 px-4 py-8 sm:px-6">
-      <section>
-        <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
-          Воронка поступления
-        </h1>
-        <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">
-          Ступени и конверсия читаются из канонической PostgreSQL одним запросом.
-        </p>
-        <div className="mt-5 rounded-card bg-surface p-5">
-          <Funnel stages={stages} caption="Воронка поступления" />
-        </div>
-      </section>
+    <main className="mx-auto w-full max-w-[760px] px-4 py-10 sm:px-6">
+      <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
+        Части интерфейса
+      </h1>
+      <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">
+        Каждая смотрится отдельно. В продукт они пойдут в разные места, поэтому
+        здесь они не составляются в страницу.
+      </p>
 
-      <section>
-        <h2 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
-          Календарь сотрудника
-        </h2>
-        <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">
-          Форма готова; данные — образец, пока в системе нет сотрудников и личных
-          задач. Компонент принимает их через props, поэтому подключение будет
-          заменой источника, а не переделкой.
-        </p>
-        <div className="mt-5 rounded-card bg-surface p-5">
-          <WorkCalendar
-            monthLabel="Сентябрь"
-            year={2026}
-            days={SAMPLE_DAYS}
-            groups={SAMPLE_TASKS}
-            personName="Айгерим"
-          />
-        </div>
-      </section>
+      <ul className="mt-7 flex flex-col gap-px overflow-hidden rounded-card border border-border bg-border">
+        {PARTS.map((part) => (
+          <li key={part.href} className="bg-surface">
+            <Link
+              href={part.href}
+              className="flex min-h-16 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-4 hover:bg-surface-2"
+            >
+              <span className="min-w-0">
+                <span className="block text-md font-bold text-fg">{part.name}</span>
+                <span className="mt-0.5 block max-w-[56ch] text-sm leading-5 text-fg-3">
+                  {part.note}
+                </span>
+              </span>
+              <span className="shrink-0 font-mono text-2xs uppercase tracking-wide text-fg-3">
+                {part.state}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }

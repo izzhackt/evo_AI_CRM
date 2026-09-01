@@ -69,7 +69,7 @@ export default async function Home() {
             <button
               type="submit"
               data-testid="development-logout"
-              className="min-h-11 rounded-ctl border border-border px-4 text-sm font-semibold transition-colors hover:bg-surface-2"
+              className="min-h-11 rounded-ctl border border-control-edge px-4 text-sm font-semibold transition-colors hover:bg-surface-2"
             >
               Выйти
             </button>
@@ -80,7 +80,7 @@ export default async function Home() {
           <h1 className="mt-3 text-3xl font-bold tracking-tight">
             Вход в EVO V2 подтверждён
           </h1>
-          <p className="mt-3 max-w-[60ch] text-sm leading-6 text-fg-3">
+          <p className="mt-3 max-w-[56ch] text-sm leading-6 text-fg-3">
             Это техническая роль для локальной проверки CRM, а не аккаунт
             сотрудника и не production-аутентификация.
           </p>
@@ -125,7 +125,7 @@ export default async function Home() {
               <p className="text-xs font-semibold uppercase tracking-wide text-fg-3">
                 Admin · точный просмотр роли
               </p>
-              <p className="mt-2 max-w-[66ch] text-sm leading-6 text-fg-3">
+              <p className="mt-2 max-w-[56ch] text-sm leading-6 text-fg-3">
                 Интерфейс и серверные проверки используют выбранную роль. Подпись
                 сессии сохраняет Admin как единственного владельца переключателя.
               </p>
@@ -141,7 +141,7 @@ export default async function Home() {
                     value={targetRole}
                     data-testid={`preview-role-${targetRole}`}
                     aria-pressed={role === targetRole}
-                    className="min-h-11 rounded-ctl border border-border px-4 text-sm font-semibold transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
+                    className="min-h-11 rounded-ctl border border-control-edge px-4 text-sm font-semibold transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
                   >
                     {ROLE_LABELS[targetRole]}
                   </button>

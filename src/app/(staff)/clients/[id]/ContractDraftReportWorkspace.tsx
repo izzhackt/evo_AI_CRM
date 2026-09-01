@@ -579,7 +579,7 @@ export function ContractDraftReportWorkspace({
         <h2 id="contract-workflow-title" className="mt-1 text-lg font-black tracking-[-0.02em] text-fg">
           Договор и постдоговорный отчёт
         </h2>
-        <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
+        <p className="mt-1 max-w-[56ch] text-sm leading-5 text-fg-3">
           Версии создаются только из проверенного источника и разрешённых типизированных полей. Черновик не является подписанным юридическим договором или доказательством доставки.
         </p>
       </div>
@@ -765,7 +765,7 @@ export function ContractDraftReportWorkspace({
               </div>
               <dl className="grid gap-3 sm:grid-cols-3">
                 <div><dt className={labelCls}>Owner</dt><dd className="break-all font-mono text-xs text-fg-2">{item.ownerMembershipId ?? item.ownerRole}</dd></div>
-                <div><dt className={labelCls}>Следующее действие</dt><dd className="max-w-[60ch] whitespace-pre-wrap text-xs text-fg-2">{item.nextAction ?? "—"}</dd></div>
+                <div><dt className={labelCls}>Следующее действие</dt><dd className="max-w-[56ch] whitespace-pre-wrap text-xs text-fg-2">{item.nextAction ?? "—"}</dd></div>
                 <div><dt className={labelCls}>Evidence</dt><dd className="break-all text-xs text-fg-2">{item.evidenceRef ?? "—"}</dd></div>
               </dl>
               {workspace.canManagePostContract ? <PostContractItemForm workspace={workspace} item={item} action={actions.updateItem} requestIdFor={requestIdFor} /> : null}

@@ -55,7 +55,7 @@ export default async function ReportsPage({
                   "inline-flex min-h-9 items-center rounded-nav px-3 text-xs font-semibold",
                   period === item
                     ? "border border-control-edge bg-surface text-accent-text"
-                    : "text-fg-3 hover:text-fg",
+                    : "border border-transparent text-fg-3 hover:text-fg",
                 )}
               >
                 {t(`period${item === "30d" ? "30d" : item[0].toUpperCase() + item.slice(1)}`)}

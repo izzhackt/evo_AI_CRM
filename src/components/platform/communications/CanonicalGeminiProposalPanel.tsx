@@ -276,7 +276,7 @@ export function CanonicalGeminiProposalPanel({
     >
       <div>
         <h3 className="text-md font-semibold text-fg">{copy.title}</h3>
-        <p className="max-w-[66ch] mt-1 text-sm leading-6 text-fg-3">{copy.description}</p>
+        <p className="max-w-[56ch] mt-1 text-sm leading-6 text-fg-3">{copy.description}</p>
       </div>
 
       <div
@@ -346,7 +346,7 @@ export function CanonicalGeminiProposalPanel({
         >
           <div>
             <h4 className="text-base font-semibold text-fg">{copy.reviewTitle}</h4>
-            <p className="max-w-[66ch] mt-1 text-sm leading-5 text-fg-3">
+            <p className="max-w-[56ch] mt-1 text-sm leading-5 text-fg-3">
               {copy.reviewDescription}
             </p>
           </div>
@@ -396,7 +396,7 @@ export function CanonicalGeminiProposalPanel({
               required
               maxLength={3000}
               rows={5}
-              className="w-full rounded-ctl border border-border bg-surface px-3 py-2 text-base leading-6 text-fg"
+              className="w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-base leading-6 text-fg"
               data-testid="canonical-gemini-review-edited-text"
             />
             <button
@@ -435,7 +435,7 @@ export function CanonicalGeminiProposalPanel({
               maxLength={2000}
               rows={3}
               placeholder={copy.rejectPlaceholder}
-              className="w-full rounded-ctl border border-border bg-surface px-3 py-2 text-base leading-6 text-fg"
+              className="w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-base leading-6 text-fg"
               data-testid="canonical-gemini-review-reason"
             />
             <button

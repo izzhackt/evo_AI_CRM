@@ -143,7 +143,7 @@ function Fact({
 }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs font-semibold text-fg-3">
+      <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
         {label}
       </dt>
       <dd className="mt-1.5 break-words text-sm text-fg-2">{children}</dd>
@@ -258,7 +258,7 @@ export async function CanonicalStudentCaseWorkspace({
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-fg">
           {studentCase.displayName}
         </h1>
-        <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">
+        <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
       </header>
@@ -390,7 +390,7 @@ export async function CanonicalStudentCaseWorkspace({
                       {task.title}
                     </p>
                     {task.details ? (
-                      <p className="mt-1 max-w-[60ch] whitespace-pre-wrap text-sm leading-5 text-fg-3">
+                      <p className="mt-1 max-w-[56ch] whitespace-pre-wrap text-sm leading-5 text-fg-3">
                         {task.details}
                       </p>
                     ) : null}

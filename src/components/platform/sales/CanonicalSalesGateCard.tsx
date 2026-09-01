@@ -371,7 +371,7 @@ export function CanonicalSalesGateCard({
   return (
     <Card title={copy.title} bodyClassName="space-y-5" className="shadow-none">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-[60ch] text-sm leading-5 text-fg-3">
+        <p className="max-w-[56ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
         <span

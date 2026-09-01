@@ -179,7 +179,7 @@ export function CanonicalPrivateDocumentsPanel({
   return (
     <section id="documents" data-testid="canonical-private-documents" className="scroll-mt-24">
       <Card title={copy.title} className="shadow-none">
-        <p className="max-w-[66ch] text-sm leading-5 text-fg-3">{copy.description}</p>
+        <p className="max-w-[56ch] text-sm leading-5 text-fg-3">{copy.description}</p>
 
         {canWrite ? (
           <form

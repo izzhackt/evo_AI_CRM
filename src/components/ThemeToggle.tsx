@@ -16,7 +16,7 @@ export function ThemeToggle({ label }: { label: string }) {
       onClick={toggle}
       aria-label={label}
       title={label}
-      className="theme-toggle inline-flex h-[38px] w-[38px] items-center justify-center rounded-ctl border border-border bg-surface text-fg-2 transition-[background-color,color,border-color] duration-150 hover:border-border-strong hover:text-fg"
+      className="theme-toggle inline-flex h-[38px] w-[38px] items-center justify-center rounded-ctl border border-control-edge bg-surface text-fg-2 transition-[background-color,color,border-color] duration-150 hover:border-control-edge hover:text-fg"
     >
       <Icon name="sun" size={18} className="i-sun" />
       <Icon name="moon" size={18} className="i-moon" />

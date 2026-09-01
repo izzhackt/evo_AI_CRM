@@ -103,7 +103,7 @@ export default async function LoginPage({
         <h1 id="login-title" className="text-2xl font-bold leading-tight text-fg">
           {copy.title}
         </h1>
-        <p className="mt-1.5 max-w-[66ch] text-sm leading-6 text-fg-3">{copy.intro}</p>
+        <p className="mt-1.5 max-w-[56ch] text-sm leading-6 text-fg-3">{copy.intro}</p>
         <div className="mt-6">
           <LoginForm labels={copy} initialError={initialError} />
         </div>

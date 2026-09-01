@@ -22,7 +22,7 @@ export default async function SettingsLoading() {
     >
       <div className="rounded-card border border-border bg-surface px-4 py-4 shadow-evo">
         <h1 className="text-md font-bold text-fg">{t("settingsLoadingTitle")}</h1>
-        <p className="max-w-[66ch] mt-1 text-sm leading-5 text-fg-3">
+        <p className="max-w-[56ch] mt-1 text-sm leading-5 text-fg-3">
           {t("settingsLoadingHint")}
         </p>
       </div>

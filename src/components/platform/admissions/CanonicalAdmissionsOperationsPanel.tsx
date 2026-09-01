@@ -363,9 +363,9 @@ export function CanonicalAdmissionsOperationsPanel({ locale, actorRole, studentC
   const financeStopped = financeStop?.isStopped === true;
   return (
     <section className="space-y-8 border-t border-border pt-6" data-testid="canonical-admissions-operations">
-      <header><h2 className="text-lg font-semibold tracking-[-0.01em] text-fg">{copy.title}</h2><p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">{copy.description}</p></header>
+      <header><h2 className="text-lg font-semibold tracking-[-0.01em] text-fg">{copy.title}</h2><p className="mt-1 max-w-[56ch] text-sm leading-5 text-fg-3">{copy.description}</p></header>
       {!active ? <p className="border-y border-border py-3 text-sm text-warn" role="status">{copy.inactive}</p> : null}
-      {financeStopped ? <p id="finance-stop-warning" className="border-y border-danger/30 bg-danger-weak px-4 py-3 text-sm text-danger" role="status"><span className="block max-w-[66ch]">{copy.financeBlocksSubmission}</span></p> : null}
+      {financeStopped ? <p id="finance-stop-warning" className="border-y border-danger/30 bg-danger-weak px-4 py-3 text-sm text-danger" role="status"><span className="block max-w-[56ch]">{copy.financeBlocksSubmission}</span></p> : null}
 
       <section id="applications" className="scroll-mt-24"><h3 className="text-md font-semibold text-fg">{copy.applications}</h3><p className="mt-1 text-sm text-fg-3">{copy.applicationsDescription}</p>
         {active ? <div className="mt-4"><CreateApplicationForm studentCaseId={studentCaseId} requestId={requestIds.createApplication} copy={copy} /></div> : null}
@@ -377,7 +377,7 @@ export function CanonicalAdmissionsOperationsPanel({ locale, actorRole, studentC
       <section id="finance" className="scroll-mt-24 border-t border-border pt-6"><h3 className="text-md font-semibold text-fg">{copy.finance}</h3><p className="mt-1 text-sm text-fg-3">{copy.financeDescription}</p>
         <div className="mt-4 border-y border-border py-4" data-testid="canonical-finance-stop" data-is-stopped={financeStopped ? "true" : "false"} data-version={financeStop?.version ?? 0}>
           <div className="flex flex-wrap items-center gap-3"><span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold", financeStopped ? "bg-danger-weak text-danger" : "bg-ok-weak text-ok")}>{financeStopped ? copy.stopActive : financeStop ? copy.stopReleased : copy.noStop}</span>{financeStop ? <span className="text-xs text-fg-3">{copy.changedBy}: {financeStop.changedByRole} · {copy.version}: {financeStop.version}</span> : null}</div>
-          {financeStop ? <p className="mt-2 max-w-[60ch] whitespace-pre-wrap text-sm text-fg-2">{financeStop.reason}</p> : null}
+          {financeStop ? <p className="mt-2 max-w-[56ch] whitespace-pre-wrap text-sm text-fg-2">{financeStop.reason}</p> : null}
           {active && !financeStopped ? <AssertFinanceStopForm studentCaseId={studentCaseId} financeStop={financeStop} requestId={requestIds.finance.assert} copy={copy} /> : null}
           {active && financeStopped && financeStop && actorRole === "admin" ? <ReleaseFinanceStopForm financeStop={financeStop} requestId={requestIds.finance.release} copy={copy} /> : null}
           {financeStopped && actorRole !== "admin" ? <p className="mt-3 text-xs text-fg-3">{copy.adminReleaseOnly}</p> : null}

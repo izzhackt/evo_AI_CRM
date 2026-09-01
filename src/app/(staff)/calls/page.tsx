@@ -104,7 +104,7 @@ export default async function CallsPage({
       <section className="grid gap-3 rounded-card border border-border bg-surface p-4 shadow-evo lg:grid-cols-[1fr_auto] lg:items-center">
         <div>
           <h2 className="text-base font-bold text-fg">{t("taskMeetingJourney")}</h2>
-          <p className="max-w-[66ch] mt-1 text-sm leading-5 text-fg-3">
+          <p className="max-w-[56ch] mt-1 text-sm leading-5 text-fg-3">
             {t("meetingSupportUnavailable")} {t("taskMeetingJourneyHint")}
           </p>
         </div>

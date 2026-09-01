@@ -112,7 +112,7 @@ export default async function FinancePage({
                         {financeStop.isStopped ? copy.stopped : copy.released}
                       </span>
                     </div>
-                    <p className="mt-2 max-w-[60ch] whitespace-pre-wrap text-sm leading-5 text-fg-2">{financeStop.reason}</p>
+                    <p className="mt-2 max-w-[56ch] whitespace-pre-wrap text-sm leading-5 text-fg-2">{financeStop.reason}</p>
                     <p className="mt-2 text-xs text-fg-3">{copy.changedBy}: {financeStop.changedByRole}</p>
                   </div>
                   <Link href={`/clients/${financeStop.studentCaseId}#finance`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline">
@@ -200,7 +200,7 @@ function QueueHeader({
     <header className="border-b border-border pb-5">
       <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
       {withDescription ? (
-        <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">{copy.description}</p>
+        <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">{copy.description}</p>
       ) : null}
     </header>
   );

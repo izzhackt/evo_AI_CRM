@@ -303,7 +303,7 @@ function CreateTaskForm({
   return (
     <form
       action={action}
-      className="border-t border-border pt-4"
+      className="pt-4"
       data-testid="canonical-admissions-task-create-form"
     >
       <h3 className="text-sm font-semibold text-fg">{copy.createTitle}</h3>
@@ -481,7 +481,7 @@ function TaskItem({
               {task.title}
             </h3>
             {task.details ? (
-              <p className="mt-1 max-w-[60ch] whitespace-pre-wrap text-sm leading-5 text-fg-3">
+              <p className="mt-1 max-w-[56ch] whitespace-pre-wrap text-sm leading-5 text-fg-3">
                 {task.details}
               </p>
             ) : null}
@@ -579,13 +579,13 @@ export function CanonicalAdmissionsTaskPanel({
           >
             {showCase ? copy.queueTitle : copy.panelTitle}
           </h2>
-          <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
+          <p className="mt-1 max-w-[56ch] text-sm leading-5 text-fg-3">
             {showCase ? copy.queueDescription : copy.panelDescription}
           </p>
         </div>
 
         {create ? (
-          <div className="mt-4">
+          <div>
             <CreateTaskForm
               studentCaseId={create.studentCaseId}
               requestId={create.requestId}

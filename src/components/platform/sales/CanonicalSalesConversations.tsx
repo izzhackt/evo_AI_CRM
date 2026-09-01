@@ -95,7 +95,7 @@ export function CanonicalSalesConversationList({
     >
       <div>
         <h2 className="text-lg font-bold text-fg">{copy.conversations}</h2>
-        <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
+        <p className="mt-1 max-w-[56ch] text-sm leading-5 text-fg-3">
           {copy.conversationsDescription}
         </p>
       </div>
@@ -170,7 +170,7 @@ export function CanonicalSalesConversationTranscript({
         </Link>
         <div>
           <h2 className="text-md font-semibold text-fg">{copy.transcript}</h2>
-          <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">
+          <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">
             {copy.transcriptDescription}
           </p>
         </div>
@@ -259,7 +259,7 @@ export function CanonicalSalesTranscriptUnavailable({
       <Link href={`/sales/${leadId}`} className={btnGhostCls}>
         ← {copy.back}
       </Link>
-      <p className="max-w-[60ch] text-sm leading-6 text-fg-3">
+      <p className="max-w-[56ch] text-sm leading-6 text-fg-3">
         {copy.unavailable}
       </p>
     </div>

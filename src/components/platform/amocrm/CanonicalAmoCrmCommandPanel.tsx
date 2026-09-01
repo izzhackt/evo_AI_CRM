@@ -334,7 +334,7 @@ export function CanonicalAmoCrmCommandPanel({
         data-testid="canonical-amocrm-command-panel"
         data-scope={scope}
       >
-        <p className="max-w-[66ch] text-sm leading-5 text-fg-3">
+        <p className="max-w-[56ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
         <div
@@ -381,7 +381,7 @@ export function CanonicalAmoCrmCommandPanel({
               required
               disabled={!ready || syncing || flowBlocked}
               placeholder={copy.notePlaceholder}
-              className="mt-1.5 min-h-24 w-full resize-y rounded-ctl border border-border-strong bg-surface px-3 py-2.5 text-base text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-1.5 min-h-24 w-full resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-base text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="canonical-amocrm-note-text"
             />
             <span className="mt-1 block text-xs text-fg-3">

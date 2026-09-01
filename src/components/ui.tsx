@@ -158,7 +158,7 @@ export function PageHeader({
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">{title}</h1>
-        {description && <p className="mt-1 max-w-[60ch] text-sm leading-6 text-fg-3">{description}</p>}
+        {description && <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>

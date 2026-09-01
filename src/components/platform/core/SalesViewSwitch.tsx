@@ -29,7 +29,7 @@ export function SalesViewSwitch({
           linkClass,
           current === "board"
             ? "border border-control-edge bg-surface text-fg"
-            : "text-fg-3 hover:text-fg",
+            : "border border-transparent text-fg-3 hover:text-fg",
         )}
       >
         {copy.kanban}
@@ -41,7 +41,7 @@ export function SalesViewSwitch({
           linkClass,
           current === "list"
             ? "border border-control-edge bg-surface text-fg"
-            : "text-fg-3 hover:text-fg",
+            : "border border-transparent text-fg-3 hover:text-fg",
         )}
       >
         {copy.list}

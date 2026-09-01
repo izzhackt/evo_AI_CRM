@@ -184,6 +184,69 @@ test("the unauthenticated gate and the entry page meet the WCAG A/AA gate", asyn
   await expectContrastActuallyChecked(page, "entry");
 });
 
+test("the mobile page title is never truncated", async ({ page }, testInfo) => {
+  // The lockup and the title share one row on a phone. When the lockup won,
+  // "Воронка поступления" rendered as "Воронка поступл…" while the h1 below
+  // said something else, so the full label appeared nowhere on the screen.
+  test.skip(testInfo.project.name !== "mobile-chromium", "phone layout only");
+  await openDevelopmentGate(page, "admin");
+
+  for (const route of ROLE_ROUTES.admin) {
+    await page.goto(route);
+    const title = page.locator(".staff-topbar__mobile-title");
+    await expect(title).toBeVisible();
+    const cut = await title.evaluate((el) => ({
+      truncated: el.scrollWidth > el.clientWidth,
+      text: el.textContent,
+      needs: el.scrollWidth,
+      has: el.clientWidth,
+    }));
+    expect(
+      cut.truncated,
+      `${route}: "${cut.text}" needs ${cut.needs}px and has ${cut.has}px`,
+    ).toBe(false);
+  }
+});
+
+test("the conversation pane fits the fold for every role", async ({ page }, testInfo) => {
+  // It reserved a constant for the chrome above it, which is right for
+  // whichever role it was measured on and wrong for the rest: the admin role
+  // preview adds a band the other two never see, so 19rem left sales and
+  // admissions with 116px of dead viewport while admin had 34px. Checking
+  // only "does not overflow" would pass a pane that is far too short.
+  test.skip(testInfo.project.name !== "desktop-chromium", "two-column layout only");
+
+  for (const role of ["admin", "sales", "admissions"] as const) {
+    await openDevelopmentGate(page, role);
+    await page.goto("/whatsapp");
+    await expect(page.locator("main")).toBeVisible();
+
+    const pane = await page.evaluate(() => {
+      const el = [...document.querySelectorAll("div")].find((node) =>
+        node.className.toString().includes("100dvh-"),
+      );
+      if (!el) return { found: false, bottom: 0, viewport: window.innerHeight };
+      const box = el.getBoundingClientRect();
+      return {
+        found: true,
+        bottom: Math.round(box.bottom),
+        viewport: window.innerHeight,
+      };
+    });
+
+    expect(pane.found, `${role}: the conversation pane should be on this page`).toBe(true);
+    const unused = pane.viewport - pane.bottom;
+    expect(
+      unused,
+      `${role}: the pane ends at ${pane.bottom}px on a ${pane.viewport}px viewport`,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      unused,
+      `${role}: the pane leaves ${unused}px of the viewport unused below it`,
+    ).toBeLessThanOrEqual(64);
+  }
+});
+
 test("a deferred module fails closed without accessibility violations", async ({
   page,
 }) => {

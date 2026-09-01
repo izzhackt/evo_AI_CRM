@@ -33,7 +33,7 @@ export function SalesSourceTruth({
               {syncLabel}
             </span>
           </div>
-          <p className="mt-1.5 max-w-[60ch] text-sm leading-5 text-fg-2">
+          <p className="mt-1.5 max-w-[56ch] text-sm leading-5 text-fg-2">
             {body}
           </p>
           <p className="mt-1 text-xs leading-5 text-fg-3">

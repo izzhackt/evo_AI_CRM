@@ -1033,6 +1033,13 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     latestThreadPageText,
   );
 
+  await signInAs(page, "sales");
+  await page.goto(`/sales/${leadId}/conversations/${conversationId}`);
+  await expect(page.getByTestId("canonical-sales-transcript")).toContainText(
+    latestThreadPageText,
+  );
+
+  await signInAs(page, "admin");
   await page.goto("/");
   await page.getByTestId("preview-role-sales").click();
   await expect(page.getByTestId("active-role")).toHaveAttribute(

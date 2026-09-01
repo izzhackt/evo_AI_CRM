@@ -54,7 +54,7 @@ export default async function ReportsPage({
                 className={cn(
                   "inline-flex min-h-9 items-center rounded-nav px-3 text-xs font-semibold",
                   period === item
-                    ? "bg-surface text-accent shadow-evo"
+                    ? "border border-control-edge bg-surface text-accent-text"
                     : "text-fg-3 hover:text-fg",
                 )}
               >

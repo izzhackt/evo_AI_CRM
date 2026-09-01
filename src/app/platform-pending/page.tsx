@@ -77,7 +77,7 @@ export default async function PlatformPendingPage() {
       </div>
 
       <section
-        className="page-in w-full max-w-[520px] rounded-[20px] border border-border bg-surface p-7 shadow-evo-lg"
+        className="page-in w-full max-w-[520px] rounded-[20px] bg-surface p-7 shadow-evo-lg"
         data-testid="platform-pending"
       >
         <h1 className="mt-2 text-2xl font-bold leading-tight text-fg">

@@ -76,7 +76,7 @@ export default async function Home() {
           </form>
         </header>
 
-        <section className="rounded-[24px] border border-border bg-surface p-6 shadow-evo-lg sm:p-8">
+        <section className="rounded-[24px] bg-surface p-6 shadow-evo-lg sm:p-8">
           <h1 className="mt-3 text-3xl font-bold tracking-tight">
             Вход в EVO V2 подтверждён
           </h1>

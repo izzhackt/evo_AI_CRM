@@ -19,7 +19,7 @@ export function LangSwitcher({ current }: { current: Locale }) {
           aria-pressed={l === current}
           className={`min-h-9 rounded-[8px] px-2.5 py-1.5 text-xs font-semibold uppercase transition-[background-color,color] duration-150 ease-out ${
             l === current
-              ? "bg-surface text-fg shadow-evo"
+              ? "border border-control-edge bg-surface text-fg"
               : "text-fg-3 hover:text-fg-2"
           }`}
         >

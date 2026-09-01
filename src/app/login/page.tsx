@@ -99,7 +99,7 @@ export default async function LoginPage({
         <ThemeToggle label={t("toggleTheme")} />
       </div>
 
-      <div className="page-in w-full max-w-[392px] rounded-[20px] border border-border bg-surface p-7 shadow-evo-lg">
+      <div className="page-in w-full max-w-[392px] rounded-[20px] bg-surface p-7 shadow-evo-lg">
         <h1 id="login-title" className="text-2xl font-bold leading-tight text-fg">
           {copy.title}
         </h1>

@@ -31,7 +31,7 @@ export default async function MainPart() {
         ← Части интерфейса
       </Link>
 
-      {/* Приветствие, поиск и профиль — верхняя полоса из референса. */}
+      {/* Приветствие и профиль — верхняя полоса из референса, без поиска. */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-[-0.02em] text-fg">
@@ -42,23 +42,15 @@ export default async function MainPart() {
           </p>
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-          <label className="flex h-10 min-w-0 flex-1 max-w-[340px] items-center gap-2 rounded-full border border-control-edge bg-surface px-4">
-            <span className="sr-only">Поиск</span>
-            <input
-              type="search"
-              placeholder="Поиск по имени, телефону, UUID…"
-              className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-3"
-            />
-          </label>
-          <span className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3">
-            <span aria-hidden="true" className="block h-7 w-7 rounded-full bg-accent" />
-            <span className="text-xs">
-              <span className="block font-semibold text-fg">Айгерим Н.</span>
-              <span className="block text-2xs text-fg-3">Admissions</span>
-            </span>
+        {/* Поиска здесь нет: на главной ищут редко, а строка забирала
+            место у профиля и мешала карточкам стать шире. */}
+        <span className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3">
+          <span aria-hidden="true" className="block h-8 w-8 rounded-full bg-accent" />
+          <span className="text-xs">
+            <span className="block font-semibold text-fg">Айгерим Н.</span>
+            <span className="block text-2xs text-fg-3">Admissions</span>
           </span>
-        </div>
+        </span>
       </div>
 
       <div className="mt-5">
@@ -114,7 +106,7 @@ export default async function MainPart() {
             </span>
           </div>
           <div className="mt-3">
-            <Funnel stages={stages} caption="Воронка поступления" />
+            <Funnel stages={stages} caption="Воронка поступления" density="tight" />
           </div>
         </section>
       </div>

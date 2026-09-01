@@ -23,33 +23,50 @@ export type FunnelStage = Readonly<{
 const TOP = 34;
 const BAND = 52;
 const GAP = 5;
-const CENTRE = 392;
-const HALF_MAX = 146;
-/** Пол, чтобы узкий конец всё ещё держал своё число. */
-const HALF_MIN = 38;
-const LABEL_COLUMN = 200;
-const VIEW_WIDTH = 760;
 
-function halfWidth(value: number, top: number) {
-  if (top <= 0) return HALF_MIN;
-  return HALF_MIN + (HALF_MAX - HALF_MIN) * (value / top);
+/**
+ * Две раскладки одной фигуры.
+ *
+ * Просторная — как в референсе: подпись слева с указателем, конверсия справа
+ * на дуге. Ей нужно 760 единиц ширины.
+ *
+ * Плотная — для узкой колонки, где просторная не помещается и её подписи
+ * уезжают за край. Дуги справа убраны, конверсия встаёт короткой строкой у
+ * ступени. График, у которого не видно подписей, бесполезен, поэтому здесь
+ * лучше отказаться от украшения, чем от читаемости.
+ */
+const LAYOUT = {
+  roomy: { centre: 392, halfMax: 146, halfMin: 38, labelColumn: 200, width: 760, arcs: true, connectors: true },
+  // Самая длинная подпись кончается на 174 единицах (замерено в браузере),
+  // поэтому колонка 186 и никаких стрелок: на них осталось бы 6 единиц, а
+  // указатель длиной в шесть пикселей -- это не указатель.
+  tight: { centre: 314, halfMax: 118, halfMin: 34, labelColumn: 186, width: 490, arcs: false, connectors: false },
+} as const;
+
+function halfWidth(value: number, top: number, halfMin: number, halfMax: number) {
+  if (top <= 0) return halfMin;
+  return halfMin + (halfMax - halfMin) * (value / top);
 }
 
 export function Funnel({
   stages,
   caption,
+  density = "roomy",
 }: {
   stages: readonly FunnelStage[];
   caption: string;
+  /** «tight» — для колонки уже ~560px, где просторная раскладка обрезается. */
+  density?: keyof typeof LAYOUT;
 }) {
   if (stages.length === 0) return null;
 
+  const L = LAYOUT[density];
   const top = stages[0].value;
   const bands = stages.map((stage, index) => {
     const next = stages[index + 1]?.value ?? stage.value;
     const y0 = TOP + index * (BAND + GAP);
-    const halfTop = halfWidth(stage.value, top);
-    const halfBottom = halfWidth(next, top);
+    const halfTop = halfWidth(stage.value, top, L.halfMin, L.halfMax);
+    const halfBottom = halfWidth(next, top, L.halfMin, L.halfMax);
     const previous = stages[index - 1];
     return {
       ...stage,
@@ -87,8 +104,8 @@ export function Funnel({
       className="max-w-full overflow-x-auto rounded-ctl"
     >
       <svg
-        viewBox={`0 0 ${VIEW_WIDTH} ${height}`}
-        className="h-auto w-full min-w-[700px]"
+        viewBox={`0 0 ${L.width} ${height}`}
+        className={`h-auto w-full ${density === "roomy" ? "min-w-[700px]" : "min-w-[440px]"}`}
         role="img"
         aria-label={`${caption}: ${spoken}`}
       >
@@ -122,23 +139,25 @@ export function Funnel({
               <tspan fill="var(--text-3)">({band.value})</tspan>
             </text>
 
-            <line
-              x1={LABEL_COLUMN}
-              y1={band.middle}
-              x2={CENTRE - band.halfTop - 12}
-              y2={band.middle}
-              stroke="var(--control-edge)"
-              strokeWidth="1.4"
-              markerEnd="url(#evo-funnel-arrow)"
-            />
+            {L.connectors ? (
+              <line
+                x1={L.labelColumn}
+                y1={band.middle}
+                x2={L.centre - band.halfTop - 12}
+                y2={band.middle}
+                stroke="var(--control-edge)"
+                strokeWidth="1.4"
+                markerEnd="url(#evo-funnel-arrow)"
+              />
+            ) : null}
 
             <path
-              d={`M ${CENTRE - band.halfTop} ${band.y0} L ${CENTRE + band.halfTop} ${band.y0} L ${CENTRE + band.halfBottom} ${band.y1} L ${CENTRE - band.halfBottom} ${band.y1} Z`}
+              d={`M ${L.centre - band.halfTop} ${band.y0} L ${L.centre + band.halfTop} ${band.y0} L ${L.centre + band.halfBottom} ${band.y1} L ${L.centre - band.halfBottom} ${band.y1} Z`}
               fill="url(#evo-funnel-face)"
             />
 
             <text
-              x={CENTRE}
+              x={L.centre}
               y={band.middle + 7}
               textAnchor="middle"
               fontSize="19"
@@ -154,10 +173,29 @@ export function Funnel({
 
         {bands.map((band, index) => {
           if (band.conversion === null) return null;
+
+          if (!L.arcs) {
+            // Плотная раскладка: процент стоит у ступени, без дуги и пилюли.
+            return (
+              <text
+                key={`${band.name}-conversion`}
+                x={L.centre + band.halfTop + 10}
+                y={band.middle + 4}
+                fontSize="12"
+                fontWeight="600"
+                fill="var(--accent-text)"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+                fontFamily="var(--font-golos), system-ui, sans-serif"
+              >
+                {band.conversion}%
+              </text>
+            );
+          }
+
           const previous = bands[index - 1];
-          const startX = CENTRE + previous.halfBottom + 6;
+          const startX = L.centre + previous.halfBottom + 6;
           const startY = previous.middle + 16;
-          const endX = CENTRE + band.halfTop + 6;
+          const endX = L.centre + band.halfTop + 6;
           const endY = band.middle - 4;
           const pillX = Math.max(startX, endX) + 58;
           const pillY = (startY + endY) / 2;
@@ -193,6 +231,7 @@ export function Funnel({
             </g>
           );
         })}
+
       </svg>
     </div>
   );

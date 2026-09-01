@@ -14986,3 +14986,33 @@ external boundaries appropriate to its slice. A later child remains blocked by
 the previous child until exact-head review/CI, match-head merge and exact-main
 verification complete. Issue creation itself changed no application,
 Supabase, provider, VPS, DNS or production state.
+
+## 2026-09-02 - Accept the existing Supabase project conditionally after read-only proof
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: evidence-backed foundation decision; no runtime or external
+mutation.
+Affected plan section: #545 existing-state audit and the production gates for
+#546 through #552.
+
+Read-only Management API, SQL/catalog, PostgREST and `hermes-vps` inspection
+proved that project `iosckaqtovbbnssqcpde` is healthy, is already consumed by
+both deployed EVO apps, and is the correct managed foundation to retain. No
+second Supabase project will be created as a shortcut.
+
+The same audit proved that the successor is not yet a single production path.
+The managed migration ledger ends at `079` while root history ends at `092`;
+canonical CRM business tables are empty; CRM and lead-agent SQLite files are
+active; the development gate and local document repository remain executable;
+CRM and Inbox are separate app/WAHA contours; the target private buckets are
+absent; canonical DNS is unresolved; and seven provider backups are listed but
+a current pre-change artifact plus restore result have not been demonstrated.
+
+Therefore #546 may start against an isolated real Supabase environment, but P1
+does not authorize applying production migrations, copying customer data,
+changing Auth or Storage, switching traffic, retiring V1, sending WhatsApp or
+writing amoCRM. Each later slice must replace its capability in place, prove
+the new outcome, and remove the old executable path without dual read/write or
+fallback. Exact sanitized evidence and the keep/adapt/remove/rebuild matrix are
+in `docs/audits/evo-production-successor-existing-state-2026-09-02.md`.

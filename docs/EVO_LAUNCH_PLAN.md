@@ -7,6 +7,9 @@ Authority: owner direction, ADR 0024, this plan and the latest append-only
 through #553
 Verified starting baseline: GitHub `origin/main` at
 `4a2984f55b13bf4fe416a70d7989b9311daa8055`
+Latest verified shared main after the architecture reset:
+`a1ae2ef2624f1e4564f79300295f53c7ade5ae52`, with exact-main CI run
+`33561301420` green for Main CRM, EVO Inbox and EVO Lead Agent.
 
 ## Current authority: one Supabase-backed production EVO
 
@@ -87,6 +90,23 @@ new path is accepted; historical and rollback material remains preserved.
 | 7 | #551 | Staging and recovery acceptance | real staging, restore, migration rehearsal, browser, role, file and provider proof |
 | 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
 | 9 | #553 | Completion audit | exact-main proof of one UI, runtime, data, auth/session, file and provider authority |
+
+### P1 existing-state finding
+
+The sanitized read-only audit is recorded in
+`docs/audits/evo-production-successor-existing-state-2026-09-02.md`. It proves
+that the existing healthy managed Supabase project is the correct retained
+foundation, but production is still split across Supabase `public`, Supabase
+`platform`, CRM SQLite, lead-agent SQLite, separate CRM/Inbox apps and two WAHA
+contours. The live migration ledger ends at `079`; root `080`–`092` remain
+unapplied. The target private document and WhatsApp-media buckets are also
+absent. Seven provider backups are listed, but a current pre-change artifact
+and successful restore rehearsal are not proved.
+
+Accordingly, #546 may proceed with isolated real-Supabase implementation and
+proof, but no production migration, data write or traffic switch is authorized
+by P1. The recovery and rehearsal gates remain mandatory before production
+mutation.
 
 Issue bodies must repeat their destructive/external boundary and legacy
 eradication acceptance criteria. The sequence is strictly ordered unless the

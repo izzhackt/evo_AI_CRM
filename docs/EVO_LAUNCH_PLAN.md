@@ -119,13 +119,14 @@ under ADRs 0022 and 0023. Its words such as `active`, `current` and `must` are
 historical within this section and do not override ADR 0024 or the current
 Supabase-backed production-successor authority above.
 
-The active goal is to prove the main EVO CRM product and its real provider
-operations quickly in a private local contour. It is not to build production
-infrastructure or declare V2 ready to replace V1.
+The completed historical goal was to prove the main EVO CRM product and its
+real provider operations quickly in a private local contour. It was not a
+production-readiness or replacement contract.
 
-V2 keeps one staff interface and the core workflow across Sales, Student 360,
-Admissions, Documents, Applications, Visa, Finance, WhatsApp and advisory AI.
-It replaces the Supabase execution path with a direct self-hosted runtime:
+That completed V2 contour kept one staff interface and the core workflow
+across Sales, Student 360, Admissions, Documents, Applications, Visa, Finance,
+WhatsApp and advisory AI. It replaced the Supabase execution path with a
+direct self-hosted runtime:
 
 - a real private local PostgreSQL service;
 - Drizzle schema definitions and committed, reviewed SQL migrations;
@@ -139,12 +140,12 @@ It replaces the Supabase execution path with a direct self-hosted runtime:
 - a minimal append-only business event log sufficient to debug and verify
   consequential transitions.
 
-The completed V2 product path may not use Supabase SDK/Auth/Storage/Realtime,
-Supabase migrations or runtime environment variables. It may not dual-read,
-dual-write, write through, fall back to Supabase/SQLite or preserve a Supabase
-compatibility layer.
+The completed V2 product path did not use Supabase SDK/Auth/Storage/Realtime,
+Supabase migrations or runtime environment variables. It did not dual-read,
+dual-write, write through, fall back to Supabase/SQLite or preserve a
+Supabase compatibility layer.
 
-### Development access and fixed roles
+### Historical development access and fixed roles
 
 The access page has exactly two fields. The first identifier selects one of
 three technical profiles configured only through ignored local secrets; the
@@ -230,7 +231,7 @@ bundle or treat them as authority. Temporary coexistence requires explicit
 owner approval with named files, reason, expiry/exit criteria and a deletion
 issue. Phase 0 records this rule and deletes no V1 code.
 
-### Product paths that must work
+### Historical product paths that were proved
 
 1. Start real local PostgreSQL, apply the complete migration chain and query it
    from the application.
@@ -250,14 +251,16 @@ issue. Phase 0 records this rule and deletes no V1 code.
 11. Explain every consequential transition and provider attempt through the
     minimal event log and durable command receipts.
 
-Private documents need real local persistence, authorized upload/download and
-resubmission, metadata, byte length and checksum. Full backup/restore drills,
-off-host retention and production rollback evidence are not active scope.
+In that completed local contour, private documents needed real local
+persistence, authorized upload/download and resubmission, metadata, byte
+length and checksum. Full backup/restore drills, off-host retention and
+production rollback evidence were not active scope there.
 
-WhatsApp, Gemini and amoCRM must remain real product paths rather than mocks or
-fake success. The owner authorized #464-#467 on 2026-08-29 to use the existing
-connected providers from the private V2 contour without routine confirmation.
-Credentials stay in ignored server-only configuration. Gemini remains
+Within that completed contour, WhatsApp, Gemini and amoCRM had to remain real
+product paths rather than mocks or fake success. The owner authorized #464-#467
+on 2026-08-29 to use the existing connected providers from the private V2
+contour without routine confirmation. Credentials stay in ignored server-only
+configuration. Gemini remains
 advisory; only a staff role may send final reviewed text or invoke an explicit
 amoCRM command. No autonomous reply, broadcast, fallback provider, blind retry
 after an ambiguous result, V1 runtime change or production-readiness claim is

@@ -15016,3 +15016,22 @@ writing amoCRM. Each later slice must replace its capability in place, prove
 the new outcome, and remove the old executable path without dual read/write or
 fallback. Exact sanitized evidence and the keep/adapt/remove/rebuild matrix are
 in `docs/audits/evo-production-successor-existing-state-2026-09-02.md`.
+
+## 2026-09-02 - Mark the remaining self-hosted launch text as historical-only
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: plan-freshness clarification; no runtime or external mutation.
+Affected plan section: completed historical V2 product-validation contract in
+`docs/EVO_LAUNCH_PLAN.md`.
+
+Phase 0 replaced the active authority with ADR 0024 and the Supabase-backed
+successor sequence, but the preserved self-hosted V2 section still contained
+present-tense lines such as "active goal" and "must work." In context those
+lines were intended as history, yet they could still be misread by a later
+agent as active launch authority.
+
+Therefore the preserved self-hosted section is now explicitly historical in its
+headings and verb tense. No historical evidence was removed and no scope was
+reopened: the self-hosted contour remains completed V2 proof only, while the
+active contract stays the managed-Supabase production-successor sequence.

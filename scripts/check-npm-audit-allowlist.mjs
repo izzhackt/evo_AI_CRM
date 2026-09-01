@@ -31,6 +31,26 @@ function validatePolicy(policy) {
   if (typeof policy.reason !== "string" || policy.reason.trim() === "") {
     fail("allowlist reason must be a non-empty string");
   }
+  if (!Array.isArray(policy.allowedAdvisories)) {
+    fail("allowedAdvisories must be an array");
+  }
+
+  // An empty allowlist is the healthy state, not a broken one: no exception is
+  // being claimed, so there is nothing for a reviewer to revisit and no
+  // deadline to expire. The audit below must then come back completely clean.
+  //
+  // Requiring both a future reviewBy and a non-empty list made that state
+  // unexpressible, so once the advisory was actually fixed the only way to
+  // keep CI green was to keep claiming an exception nobody needed -- and when
+  // the date passed, every pull request and every push to main went red for a
+  // vulnerability that no longer exists.
+  if (policy.allowedAdvisories.length === 0) {
+    // Same shape as the populated path, so a finding that turns up anyway is
+    // reported as "not covered by the allowlist" rather than crashing on a
+    // missing map.
+    return { ...policy, advisoriesByUrl: new Map() };
+  }
+
   if (!/^\d{4}-\d{2}-\d{2}$/.test(policy.reviewBy ?? "")) {
     fail("allowlist reviewBy must use YYYY-MM-DD");
   }
@@ -44,9 +64,6 @@ function validatePolicy(policy) {
   }
   if (Date.now() > reviewDeadline.getTime()) {
     fail(`allowlist expired on ${policy.reviewBy}`);
-  }
-  if (!Array.isArray(policy.allowedAdvisories) || policy.allowedAdvisories.length === 0) {
-    fail("allowedAdvisories must be a non-empty array");
   }
 
   const advisoriesByUrl = new Map();

@@ -85,25 +85,27 @@ export default async function Home() {
             сотрудника и не production-аутентификация.
           </p>
 
-          <div className="mt-7 grid gap-4 sm:grid-cols-2">
-            <article className="rounded-[18px] border border-border bg-bg p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-fg-3">
+          {/* Label and value, so a description list rather than two boxes.
+              A card inside a card adds a frame and no information. */}
+          <dl className="mt-7 grid gap-x-8 gap-y-5 border-t border-border pt-5 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-fg-3">
                 Активная роль
-              </p>
-              <p
+              </dt>
+              <dd
                 data-testid="active-role"
                 data-role={role}
                 data-authority-role={actor.authorityRole}
                 className="mt-2 text-xl font-bold"
               >
                 {ROLE_LABELS[role]}
-              </p>
-            </article>
-            <article className="rounded-[18px] border border-border bg-bg p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-fg-3">
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-fg-3">
                 PostgreSQL
-              </p>
-              <p
+              </dt>
+              <dd
                 data-testid="database-status"
                 data-status={database.ok ? "ready" : "blocked"}
                 className="mt-2 text-xl font-bold"
@@ -111,14 +113,14 @@ export default async function Home() {
                 {database.ok
                   ? `Готов · contract v${database.contractVersion}`
                   : `Заблокировано · ${database.code}`}
-              </p>
-            </article>
-          </div>
+              </dd>
+            </div>
+          </dl>
 
           {actor.authorityRole === "admin" ? (
             <section
               data-testid="admin-role-preview"
-              className="mt-5 rounded-[18px] border border-border bg-bg p-5"
+              className="mt-6 border-t border-border pt-5"
             >
               <p className="text-xs font-semibold uppercase tracking-wide text-fg-3">
                 Admin · точный просмотр роли

@@ -270,7 +270,7 @@ export function CanonicalGeminiProposalPanel({
 
   return (
     <section
-      className="space-y-4 rounded-card border border-border bg-surface-2 p-4"
+      className="space-y-4 border-t border-border pt-4"
       data-testid="canonical-gemini-proposal-panel"
       data-hydrated={hydrated ? "true" : "false"}
     >
@@ -281,7 +281,7 @@ export function CanonicalGeminiProposalPanel({
 
       <div
         className={cn(
-          "rounded-ctl border px-3 py-2 text-sm",
+          "border-l px-3 py-2 text-sm",
           availability.status === "ready"
             ? "border-ok/30 bg-ok-weak text-ok"
             : "border-info/30 bg-info-weak text-info",

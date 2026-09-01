@@ -303,7 +303,7 @@ function CreateTaskForm({
   return (
     <form
       action={action}
-      className="rounded-ctl border border-border bg-surface-2 p-4"
+      className="border-t border-border pt-4"
       data-testid="canonical-admissions-task-create-form"
     >
       <h3 className="text-sm font-semibold text-fg">{copy.createTitle}</h3>

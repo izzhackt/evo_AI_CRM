@@ -186,7 +186,7 @@ export function CanonicalWhatsAppOutboundComposer({
 
   return (
     <section
-      className="space-y-4 rounded-card border border-border bg-surface-2 p-4"
+      className="space-y-4 border-t border-border pt-4"
       data-testid="canonical-whatsapp-outbound-composer"
     >
       <div>
@@ -196,7 +196,7 @@ export function CanonicalWhatsAppOutboundComposer({
 
       <div
         className={cn(
-          "rounded-ctl border px-3 py-2 text-sm",
+          "border-l px-3 py-2 text-sm",
           configured
             ? "border-ok/30 bg-ok-weak text-ok"
             : "border-warn/30 bg-warn-weak text-warn",

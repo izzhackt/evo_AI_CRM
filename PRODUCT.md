@@ -94,8 +94,22 @@ server-authorised integration rather than a second source of truth.
 - A working end-to-end staff journey against real records.
 - No production customer data is available for design work, and none may be
   fabricated to stand in for it.
-- No verified provider acceptance exists for AI, WhatsApp or CRM sync. Future
-  work must not present any of them as verified.
+- Provider acceptance was performed and passed. On 30 August 2026, against exact
+  main `f87bd37f`, one bounded end-to-end run proved the real path: Gemini produced
+  one proposal that stopped at a durable `review_required` checkpoint before any
+  outbound mutation; a person edited the draft and explicitly confirmed the send;
+  WAHA delivered exactly one message whose final observed ACK was `READ`; one
+  amoCRM sync completed as seven idempotent operations yielding one contact, one
+  lead and one note, each read back and correlated to its PostgreSQL binding; and
+  an exact replay produced zero duplicates. Recorded in issue #467; `f87bd37f` is
+  an ancestor of current main and the server-side Gemini, WAHA and amoCRM modules
+  have not changed since.
+- That acceptance is historical, not continuous. It proves the code path works
+  against real providers; it does not prove that credentials are present and
+  working in any given environment right now. Design and preview environments
+  routinely run with no provider configuration at all, and the interface is
+  expected to say "not configured" there. Read a live provider claim only from
+  the running environment's own state, never from this document.
 
 ## Product Principles
 

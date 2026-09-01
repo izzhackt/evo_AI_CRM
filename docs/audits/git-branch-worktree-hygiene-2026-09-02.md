@@ -25,11 +25,11 @@ heads. Its content remains recoverable from `main`, PR #554 and GitHub.
 | --- | ---: | ---: |
 | Open GitHub PRs | 0 | 0 |
 | Registered worktrees | 113 | 112 |
-| Clean worktrees | 103 | 102 |
-| Dirty worktrees | 10 | 10 |
+| Clean worktrees | 104 | 103 |
+| Dirty worktrees | 9 | 9 |
 
-The current #545 worktree is one of the ten dirty worktrees because it contains
-this audit PR's intentional uncommitted documentation. It is not stale work.
+The current #545 worktree is clean at the PR head and is not part of the dirty
+preserved set.
 
 ## Dirty work preserved
 

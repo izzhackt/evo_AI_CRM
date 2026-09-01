@@ -21,15 +21,17 @@ heads. Its content remains recoverable from `main`, PR #554 and GitHub.
 
 ## Inventory before and after
 
-| Check | Before this cleanup | After this cleanup |
+| Check | Measured immediately before removal | Clean PR head after cleanup |
 | --- | ---: | ---: |
 | Open GitHub PRs | 0 | 0 |
 | Registered worktrees | 113 | 112 |
-| Clean worktrees | 104 | 103 |
-| Dirty worktrees | 9 | 9 |
+| Clean worktrees | 103 | 103 |
+| Dirty worktrees | 10 | 9 |
 
-The current #545 worktree is clean at the PR head and is not part of the dirty
-preserved set.
+The #545 worktree contained four intentional documentation changes when the
+pre-removal count was measured, so it was then counted as dirty. It became
+clean when those changes were committed. The cleanup itself removed one clean
+worktree; it did not discard any dirty work.
 
 ## Dirty work preserved
 

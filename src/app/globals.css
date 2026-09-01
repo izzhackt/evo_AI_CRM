@@ -597,6 +597,20 @@ table th,
   flex: none;
   align-items: center;
 }
+
+/*
+ * On a phone the lockup and the page title compete for one row, and the
+ * lockup wins: "Воронка поступления" needs 188px and was given 177, so it
+ * rendered as "Воронка поступл…" while the h1 below says something else
+ * entirely -- leaving the full label nowhere on the screen.
+ *
+ * Inside the shell the reader already knows which product they are in, so
+ * the lettering is the redundant half. The mark carries the brand alone,
+ * which it can now that it is the real one, and the title gets the room.
+ */
+.staff-topbar__mobile-brand .evo-wordmark__lettering {
+  display: none;
+}
 .staff-topbar__context {
   min-width: 0;
   flex: 1;

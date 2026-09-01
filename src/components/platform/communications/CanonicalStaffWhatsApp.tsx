@@ -179,7 +179,7 @@ export function CanonicalStaffWhatsAppWorkspace({
   return (
     <div className="space-y-4" data-testid="canonical-staff-whatsapp-page">
       <PageHeader title={copy.title} description={copy.description} />
-      <div className="flex h-[calc(100dvh-220px)] min-h-[520px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
+      <div className="flex h-[calc(100dvh-19rem)] min-h-[320px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
         <aside
           className={cn(
             "w-full shrink-0 border-b border-border bg-surface-2 lg:block lg:w-[360px] lg:border-r lg:border-b-0",

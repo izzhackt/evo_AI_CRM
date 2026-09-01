@@ -14907,3 +14907,82 @@ buttons keep the original brand red. The dark text value must measure at least
 4.5:1 on both the standard dark surface and the dark accent-weak surface. Cover
 the token relationship with a focused contrast test, then repeat light/dark
 browser checks on Sales, Lead 360, Student 360 and WhatsApp before completion.
+
+## 2026-09-02 - Retain managed Supabase for the single EVO production successor
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's explicit direction to execute the transition
+and clean superseded paths.
+Change type: superseding production architecture and execution reset.
+Affected plan sections: current authority, data/auth/file authority,
+production readiness, migration, cutover and legacy retirement.
+
+The owner rejected rebuilding production database, identity, files and related
+managed capabilities outside Supabase. EVO will retain the ready-made managed
+Supabase foundation developed for V1 and carry the accepted V2 interface, CRM
+workflows and provider safety semantics onto it. The goal is one production EVO
+CRM, not permanent V1/V2 coexistence and not a separate third product.
+
+ADR 0024 supersedes ADR 0022 as current runtime/auth/file/production authority
+and supersedes the self-hosted-PostgreSQL parts of ADR 0023. ADR 0023 remains
+authoritative for human-reviewed Gemini, explicit staff WhatsApp action,
+ambiguous-result reconciliation, idempotent amoCRM commands and fail-closed
+provider behavior.
+
+The preferred target is the existing dedicated EVO managed Supabase project,
+subject to a read-only proof of exact project identity, applied migration
+history, schema/data state, Auth, RLS, private Storage, current consumers and
+recoverability. Root `supabase/` is the sole target migration authority. V2
+business gaps receive immutable forward migrations in `platform` or
+`platform_private`; Drizzle `evo_*`, SQLite and application-local document
+bytes may not become parallel production authorities.
+
+Reuse is capability-level. Retain valid managed Postgres, Auth, private
+Storage, RLS, Realtime, queues/audit, VPS/Caddy, private WAHA and release
+capabilities. Do not wholesale-reactivate legacy UI, SQLite, manual/autonomous
+messaging workers, old provider adapters, dual reads/writes, fallbacks or stale
+deployment dependencies. Each implementation slice deletes its superseded
+active path after real Supabase/application/browser proof and attaches a scoped
+inventory. Historical migrations, ADRs, runbooks, archived docs, evidence and
+rollback material remain preserved.
+
+Execution uses the ten ordered slices recorded in `docs/EVO_LAUNCH_PLAN.md`:
+architecture reset; existing-state audit; canonical Supabase model; real staff
+access; private files; CRM/provider persistence; single deployment and cleanup;
+staging/recovery acceptance; production cutover/retirement; completion audit.
+Small reviewed PRs, exact-head CI, match-head merges and exact-main verification
+remain mandatory.
+
+The owner has authorized repository execution, read-only inventory, isolated
+real Supabase validation, staging preparation and scoped cleanup without
+routine approval pauses. No command may guess an external target, reset the
+managed project, expose a secret, create paid infrastructure, mutate production
+data or switch traffic before the plan's exact-target, backup/restore,
+migration-rehearsal, real acceptance and rollback gates pass. Missing access or
+ambiguous state blocks that external step rather than triggering a mock,
+fallback or blind retry.
+
+Verified planning baseline: GitHub `origin/main`
+`4a2984f55b13bf4fe416a70d7989b9311daa8055`. The previous local worktree was
+34 commits behind and was not used as authority; the Phase 0 branch was created
+directly from this exact current baseline.
+
+## 2026-09-02 - Bind the Supabase successor to one ordered GitHub sequence
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: execution-control binding; no runtime or external mutation.
+Affected plan section: active production-successor sequence.
+
+Parent issue #543 owns the one-product outcome. Issues #544 through #553 are
+the strict child sequence: architecture reset; read-only existing-state audit;
+real staff and Sales tracer; Student 360/handoff tracer; Admissions/private
+files tracer; provider tracer; single deployment and legacy eradication; real
+staging/recovery rehearsal; production cutover/active V1 retirement; final
+one-authority audit.
+
+Each child body repeats real-service, no-fallback, cleanup and destructive or
+external boundaries appropriate to its slice. A later child remains blocked by
+the previous child until exact-head review/CI, match-head merge and exact-main
+verification complete. Issue creation itself changed no application,
+Supabase, provider, VPS, DNS or production state.

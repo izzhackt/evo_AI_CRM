@@ -1,28 +1,20 @@
 # EVO Admissions CRM
 
 EVO Admissions CRM coordinates admissions leads, student operations, and
-operator follow-up for EVO Admissions. This glossary pins down rollout and
-identity language used across the frozen V1 deployment contour and the active
-V2 self-hosted replacement line.
+operator follow-up for EVO Admissions. This glossary pins down the language for
+converging the historical V1 runtime and the proved V2 product work into one
+managed-Supabase production successor.
 
 The active contract is [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md)
 together with
-[`ADR 0023`](docs/adr/0023-activate-real-provider-operations-in-private-v2.md),
-[`ADR 0022`](docs/adr/0022-build-evo-v2-as-a-self-hosted-postgresql-monolith.md)
-for the completed foundation, parent issue `#463`, and the latest append-only
-entry in [`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-08-29, V1
-staging and production remain frozen deployment boundaries while V2 uses a
-private local PostgreSQL/Drizzle product contour, a two-field development gate,
-three fixed technical roles, server-enforced role behavior, private document
-persistence and a minimal business event log. Active #464-#467 now add real
-human-reviewed Gemini, staff-controlled WAHA outbound and
-PostgreSQL-authoritative amoCRM writes through the existing connected provider
-accounts. Production authentication, multi-organization tenancy, public
-deployment, readiness/recovery, pilot, broad migration and cutover work remain
-deferred. Any glossary entry below that names Supabase as the target canonical
-runtime or receive-only provider behavior should be read as historical V1 or
-completed pre-authorization evidence unless a newer contract explicitly
-reactivates it.
+[`ADR 0024`](docs/adr/0024-use-managed-supabase-for-the-evo-production-successor.md)
+parent issue `#543`, child sequence `#544` through `#553`, and the latest append-only entry in
+[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-09-02, the accepted
+V2 interface, CRM workflows and provider safety semantics move onto the
+ready-made managed Supabase foundation retained from V1. The target has one
+canonical Supabase Postgres model, real staff identity, private files and one
+active runtime; the former self-hosted V2 contour and the old V1 runtime are
+transition evidence and cleanup inputs, not parallel products.
 
 The completed U2 contract is
 recorded in
@@ -53,10 +45,29 @@ or a second source of truth.
 
 ## Language
 
+**Production EVO Successor**:
+The single EVO Admissions CRM that carries the accepted V2 staff experience
+and business workflows onto the managed Supabase foundation retained from V1.
+After cutover, V1 and V2 are historical release labels rather than active
+products.
+_Avoid_: parallel V1/V2, third CRM, compatibility product
+
+**Managed Supabase Foundation**:
+The dedicated EVO managed service that owns canonical operational data, staff
+identity, private files and the live update capabilities the product actually
+needs.
+_Avoid_: secondary database, self-hosted replacement, Supabase fallback
+
+**Controlled Runtime Retirement**:
+Removal of a superseded active runtime only after its successor has passed
+migration, recovery and real workflow proof. Historical migrations, decisions,
+evidence and rollback material remain preserved.
+_Avoid_: delete-first cleanup, permanent coexistence, silent fallback
+
 **V2 Product-First Local Contour**:
-The private non-production EVO environment used to prove the main CRM workflow
+The completed historical non-production environment used to prove the main CRM workflow
 on real local PostgreSQL, Drizzle migrations, private document bytes and the
-actual browser. It is not public and does not prove production readiness. It
+actual browser. It was not public and did not prove production readiness. It
 does not ingest or migrate a broad customer dataset; bounded provider
 acceptance may use only the minimum authorized context from one existing real
 conversation/case.
@@ -76,8 +87,8 @@ the model cannot invoke the send. PostgreSQL records the intent before WAHA;
 ambiguous results are reconciled instead of blindly resent.
 _Avoid_: AI reply, broadcast, retry-until-success
 
-**PostgreSQL-Authoritative amoCRM Integration**:
-The active V2 target in #466: PostgreSQL owns the business state and durable
+**Supabase-Authoritative amoCRM Integration**:
+The production-successor target: managed Supabase Postgres owns the business state and durable
 command identity while amoCRM receives explicit create/update/link,
 pipeline/status, responsible-user, note and tag operations. Provider IDs and
 read-back are bindings/evidence, not a second source of truth.

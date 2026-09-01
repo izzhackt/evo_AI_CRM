@@ -29,53 +29,48 @@
 
 ## Current Product Authority
 
-- For active V2 implementation work, the owner's product-first foundation
-  direction of 2026-08-28 plus the real-provider authorization of 2026-08-29,
-  parent issue #463, ADR 0023, `docs/EVO_LAUNCH_PLAN.md`, and the latest merged
-  `docs/PLAN_CHANGES.md` entry define the target and #464 through #467 order.
-  Parent #407 and issues #424 through #433 remain the completed foundation.
+- For active production-successor work, the owner's 2026-09-02 direction,
+  parent issue #543, ADR 0024, `docs/EVO_LAUNCH_PLAN.md`, and the latest merged
+  `docs/PLAN_CHANGES.md` entry define the target and #544 through #553 order.
+  ADR 0022 and the no-Supabase parts of ADR 0023 remain completed
+  local-validation history, not current runtime authority.
 - EVO remains one internal product with one access surface, one UI, one role
   model and one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks,
   Documents and AI are modules, not separate target products.
-- Active V2 is a private local CRM product-validation contour, not a
-  production-readiness program. Its runtime is the existing Next.js app, one
-  real private PostgreSQL database, Drizzle migrations, a two-field
-  server-side development gate, three fixed technical roles, server-enforced
-  role behavior, private local document persistence, and a minimal business
-  event log. Admin is the full functional superset and can preview the exact
-  Sales or Admissions interface.
-- Do not add Better Auth or another full account lifecycle, organizations,
-  memberships, multi-organization tenancy, cross-organization RLS,
-  fine-grained per-user grants, production health/audit/export, restore drills,
-  managed acceptance, pilot, migration or cutover work to active #424-#433.
-  Those controls are one deferred-before-real-use set, not active blockers.
-- Supabase runtime dependencies, dual-read, dual-write, fallback repositories
-  and compatibility layers are prohibited in the completed V2 product path.
-- V1 staging and production are frozen boundaries. Do not deploy V2 over V1,
-  delete V1, migrate historical customer data, create paid infrastructure, or
-  perform final cutover without separate explicit owner authorization. The
-  2026-08-29 authorization permits provider actions only through the active
-  private V2 canonical paths under #463-#467; it does not authorize running a
-  frozen V1 sender/writer or changing a V1 deployment.
-- WhatsApp, Gemini and amoCRM are permanent real V2 product paths, not mocks or
-  fake success. Use the existing connected providers and ignored server-only
-  secrets. Gemini remains advisory and human-reviewed; it never sends or
-  changes CRM state. WhatsApp outbound requires an explicit authorized staff
-  action over final reviewed text. amoCRM writes are explicit server-authorized
-  integrations while PostgreSQL remains the only V2 business authority. No
-  autonomous reply, broadcast, dual-write, fallback provider or blind retry
-  after an ambiguous external result is permitted.
-- The standing provider authorization removes routine approval pauses for the
-  #464-#467 sequence. Missing credentials, an unresolvable recipient/case,
-  provider rejection, or a requested side effect outside that sequence must
-  still fail clearly rather than be guessed or simulated.
-- Existing production sections below describe historical V1 boundaries and
-  safety inputs only; they do not override the active local V2 scope or
-  authorize a production change.
+- The target is the current V2 staff experience and proved CRM/provider
+  workflows running on the ready-made managed Supabase foundation retained
+  from V1. One dedicated EVO Supabase project supplies canonical Postgres,
+  Supabase Auth, private Storage, RLS and only the Realtime capabilities the
+  product actually uses. The existing project is preferred when the read-only
+  audit proves its identity, migration history, data and security state.
+- Root `supabase/` is the sole target migration authority. Do not ship Drizzle
+  `evo_*`, SQLite or another PostgreSQL schema as a second production business
+  authority. V2-only domain gaps move into `platform` or `platform_private`
+  through reviewed forward Supabase migrations.
+- Supabase Auth replaces the two-field development gate for real staff.
+  Supabase private Storage replaces application-local document bytes. Keep the
+  accepted Admin, Sales and Admissions product behavior, with Admin as the
+  functional superset and exact role-preview authority, while mapping it to
+  real staff identities and server-enforced RLS/authorization.
+- Keep the V2 human-reviewed Gemini, staff-controlled WhatsApp and explicit
+  amoCRM command semantics. Gemini never sends or changes CRM state; WhatsApp
+  has no autonomous/broadcast path or blind retry; amoCRM is an integration,
+  never a competing business authority.
+- The 2026-09-02 owner direction authorizes this repository transition,
+  read-only inventory, staging preparation and scoped cleanup without routine
+  approval pauses. Production data mutation, traffic cutover and destructive
+  retirement execute only after the plan's exact target, backup/restore,
+  migration-rehearsal and acceptance gates pass; missing access or ambiguous
+  external state fails clearly.
+- Historical V1/V2 code is not copied wholesale. Reuse managed Supabase,
+  deployment and security capabilities that remain correct; retire SQLite,
+  the development gate, local document storage, superseded workers/provider
+  paths, duplicate repositories/routes and stale dependencies after their one
+  replacement path has real proof.
 
-## V2 Replacement Discipline
+## Production Successor Replacement Discipline
 
-- V2 uses **replace, do not layer**. A completed slice has exactly one active
+- The successor uses **replace, do not layer**. A completed slice has exactly one active
   runtime path, data authority, auth/session path, private-file path and UI for
   every capability that slice replaces.
 - Do not retain `Legacy*`, `Connected*` or `Fixture*` parallel screens;

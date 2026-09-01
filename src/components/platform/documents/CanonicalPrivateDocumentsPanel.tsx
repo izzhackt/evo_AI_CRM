@@ -184,7 +184,7 @@ export function CanonicalPrivateDocumentsPanel({
         {canWrite ? (
           <form
             data-testid="canonical-private-document-upload-form"
-            className="mt-5 space-y-3 rounded-card border border-border bg-surface-2 p-4"
+            className="mt-5 space-y-3 border-t border-border pt-4"
             onSubmit={(event) => submit(event, "upload", "/api/v2/documents", true)}
           >
             <div>

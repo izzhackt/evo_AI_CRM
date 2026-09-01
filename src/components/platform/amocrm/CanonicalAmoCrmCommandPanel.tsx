@@ -339,7 +339,7 @@ export function CanonicalAmoCrmCommandPanel({
         </p>
         <div
           className={cn(
-            "rounded-ctl border px-3 py-2 text-xs font-medium",
+            "border-l px-3 py-2 text-xs font-medium",
             ready
               ? "border-ok/30 bg-ok-weak text-ok"
               : "border-warn/30 bg-warn-weak text-warn",

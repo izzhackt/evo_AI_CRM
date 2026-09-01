@@ -426,3 +426,114 @@ test("no staff surface reintroduces a kicker above its heading", () => {
     "the surface walk returned too few files to be a real guard",
   );
 });
+
+/**
+ * Read one palette block by selector, so a test can name the theme it means.
+ * Every contrast test in this file used to open the dark block only, which is
+ * why deepening the light ground could invert the surface ladder and blank out
+ * every loading skeleton with all suites green.
+ */
+function palette(selector) {
+  const styles = source("src/app/globals.css");
+  const block = styles.match(
+    new RegExp(`${selector}\\s*\\{([\\s\\S]*?)\\n\\}`),
+  )?.[1];
+  assert.ok(block, `${selector} palette block must be readable`);
+  return (name) => {
+    const match = block.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, "i"));
+    assert.ok(match, `${selector} --${name} must be a hex token`);
+    return match[1];
+  };
+}
+
+const PALETTES = [
+  ["light", ":root,\\n\\[data-theme=\"light\"\\]"],
+  ["dark", "\\[data-theme=\"dark\"\\]"],
+];
+
+test("the surface ladder keeps a visible step in both themes", () => {
+  // A skeleton block, a switch track and a badge are delimited by nothing but
+  // their fill against the ground. When --bg moved onto --surface-2 the step
+  // fell to 1.02:1 and the loading states went blank -- with axe, the frontend
+  // suite and the unit suite all still green, because none of them renders a
+  // loading.tsx or measures fill-against-fill.
+  for (const [name, selector] of PALETTES) {
+    const token = palette(selector);
+    const ground = token("bg");
+    const rungs = ["surface", "surface-2", "surface-3"];
+
+    for (const rung of rungs) {
+      const ratio = contrastRatio(token(rung), ground);
+      assert.ok(
+        ratio >= 1.04,
+        `${name}: --${rung} sits at ${ratio.toFixed(3)}:1 against --bg; a fill that is the only thing delimiting an element needs a visible step`,
+      );
+    }
+
+    // ...and the rungs stay ordered among themselves, or a fill designed as
+    // one step deeper starts reading as one step shallower. The ground itself
+    // legitimately sits between them: in light the white plane is raised above
+    // it while the muted fills are recessed below, and in dark both directions
+    // collapse upward because the ground is already near black.
+    const order = rungs.map((rung) => relativeLuminance(token(rung)));
+    const ascending = order.every(
+      (value, index) => index === 0 || value > order[index - 1],
+    );
+    const descending = order.every(
+      (value, index) => index === 0 || value < order[index - 1],
+    );
+    assert.ok(
+      ascending || descending,
+      `${name}: the surface ladder is not monotonic, so the fills no longer read as one system`,
+    );
+  }
+});
+
+test("muted text stays readable on every surface in both themes", () => {
+  for (const [name, selector] of PALETTES) {
+    const token = palette(selector);
+    for (const surface of ["bg", "surface", "surface-2", "surface-3"]) {
+      for (const ink of ["text-2", "text-3"]) {
+        const ratio = contrastRatio(token(ink), token(surface));
+        assert.ok(
+          ratio >= 4.5,
+          `${name}: --${ink} on --${surface} is ${ratio.toFixed(2)}:1, below the 4.5:1 floor`,
+        );
+      }
+    }
+    // Accent text has to clear the floor on every surface it can land on, not
+    // just the ground. Checking --bg alone is what let #d70217 ship at 4.44:1
+    // on the recessed fills.
+    for (const surface of ["bg", "surface", "surface-2", "surface-3", "accent-weak"]) {
+      const accent = contrastRatio(token("accent-text"), token(surface));
+      assert.ok(
+        accent >= 4.5,
+        `${name}: --accent-text on --${surface} is ${accent.toFixed(2)}:1, below the 4.5:1 floor`,
+      );
+    }
+  }
+});
+
+test("interactive controls carry a boundary that meets WCAG 1.4.11", () => {
+  // axe ships no automated rule for 1.4.11, so an input whose only boundary is
+  // a decorative hairline passes every gate while being hard to locate.
+  for (const [name, selector] of PALETTES) {
+    const token = palette(selector);
+    for (const surface of ["bg", "surface", "surface-2", "surface-3"]) {
+      const ratio = contrastRatio(token("control-edge"), token(surface));
+      assert.ok(
+        ratio >= 3,
+        `${name}: --control-edge on --${surface} is ${ratio.toFixed(2)}:1, below the 3:1 non-text floor`,
+      );
+    }
+  }
+
+  // And the controls must actually use it.
+  const ui = source("src/components/ui.tsx");
+  assert.match(ui, /inputCls[\s\S]*?border-control-edge/);
+  assert.doesNotMatch(
+    ui,
+    /border-border-strong/,
+    "control boundaries must not fall back to the decorative border token",
+  );
+});

@@ -9,15 +9,19 @@
 [data-theme="light"] {
   --bg: #eceff3;
   --surface: #ffffff;
-  --surface-2: #f0f1f4;
-  --surface-3: #eeeef2;
+  --surface-2: #e7eaee;
+  --surface-3: #e2e5e9;
   --border: #d9dde3;
   --border-strong: #bfc5ce;
+  --control-edge: #7b818a;
   --text: #14161a;
   --text-2: #5b6068;
-  --text-3: #646a73;
+  --text-3: #5d636c;
   --accent: #d70217;
-  --accent-text: #d70217;
+  /* The canonical red is 4.44:1 on the recessed fills, so accent *text*
+     takes a fractionally deeper red while every accent *fill* keeps the
+     exact logobook value. Dark has always done this. */
+  --accent-text: #cf0015;
   --accent-2: #b00213;
   --accent-weak: #fce8ea;
   /* Muted text ON --accent-weak. Neutral gray reads as unconsidered on a
@@ -46,18 +50,19 @@
 
 [data-theme="dark"] {
   --bg: #0c0d10;
-  --surface: #15171b;
-  --surface-2: #1d2025;
-  --surface-3: #25292f;
+  --surface: #1b1d21;
+  --surface-2: #1f2125;
+  --surface-3: #232529;
   --border: #333942;
   --border-strong: #464d57;
+  --control-edge: #686f79;
   --text: #f4f5f6;
   --text-2: #b4b8bf;
   /* Passes 4.5:1 on every dark surface, including the tinted *-weak
      panels used by denied, blocked and status surfaces. */
   --text-3: #979ca4;
   --accent: #d70217;
-  --accent-text: #f24b58;
+  --accent-text: #f4515e;
   --accent-2: #b00213;
   --accent-weak: #3b1117;
   --accent-weak-muted: #c9a3a9;
@@ -129,10 +134,12 @@
   --color-surface-3: var(--surface-3);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
+  --color-control-edge: var(--control-edge);
   --color-fg: var(--text);
   --color-fg-2: var(--text-2);
   --color-fg-3: var(--text-3);
   --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
   --color-accent-2: var(--accent-2);
   --color-accent-weak: var(--accent-weak);
   --color-accent-weak-muted: var(--accent-weak-muted);

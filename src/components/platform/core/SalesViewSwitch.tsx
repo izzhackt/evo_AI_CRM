@@ -28,7 +28,7 @@ export function SalesViewSwitch({
         className={cn(
           linkClass,
           current === "board"
-            ? "bg-surface text-fg shadow-evo"
+            ? "border border-control-edge bg-surface text-fg"
             : "text-fg-3 hover:text-fg",
         )}
       >
@@ -40,7 +40,7 @@ export function SalesViewSwitch({
         className={cn(
           linkClass,
           current === "list"
-            ? "bg-surface text-fg shadow-evo"
+            ? "border border-control-edge bg-surface text-fg"
             : "text-fg-3 hover:text-fg",
         )}
       >

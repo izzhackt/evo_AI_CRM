@@ -2,9 +2,11 @@
 
 ## Outcome
 
-The stale-pr concern from the 2026-08-23 snapshot is resolved: GitHub now has
-zero open pull requests. No old PR was merged blindly, and there was no open PR
-to close.
+The stale-pr concern from the 2026-08-23 snapshot is resolved: immediately
+before this audit PR was opened, GitHub had zero pre-existing open pull
+requests. No old PR was merged blindly, and there was no stale open PR to
+close. PR #558 is the later delivery vehicle for this evidence and is excluded
+from that cleanup snapshot.
 
 Cleanup removed only two targets with complete recoverability proof:
 
@@ -23,7 +25,7 @@ heads. Its content remains recoverable from `main`, PR #554 and GitHub.
 
 | Check | Measured immediately before removal | Clean PR head after cleanup |
 | --- | ---: | ---: |
-| Open GitHub PRs | 0 | 0 |
+| Pre-existing open GitHub PRs, excluding this audit PR | 0 | 0 |
 | Registered worktrees | 113 | 112 |
 | Clean worktrees | 103 | 103 |
 | Dirty worktrees | 10 | 9 |

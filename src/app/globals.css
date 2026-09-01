@@ -7,12 +7,12 @@
    ============================================================ */
 :root,
 [data-theme="light"] {
-  --bg: #f6f7f9;
+  --bg: #eceff3;
   --surface: #ffffff;
   --surface-2: #f0f1f4;
   --surface-3: #eeeef2;
-  --border: #e4e6ea;
-  --border-strong: #d6d9de;
+  --border: #d9dde3;
+  --border-strong: #bfc5ce;
   --text: #14161a;
   --text-2: #5b6068;
   --text-3: #646a73;
@@ -39,8 +39,8 @@
   --sidebar-text: rgb(255 255 255 / 0.74);
   --sidebar-muted: rgb(255 255 255 / 0.52);
   --sidebar-active: rgb(215 2 23 / 0.17);
-  --shadow: 0 1px 2px rgb(20 22 26 / 0.04), 0 7px 22px -14px rgb(20 22 26 / 0.18);
-  --shadow-lg: 0 20px 44px -24px rgb(20 22 26 / 0.28);
+  --shadow: 0 1px 2px rgb(20 22 26 / 0.05);
+  --shadow-lg: 0 8px 18px -10px rgb(20 22 26 / 0.24);
   color-scheme: light;
 }
 
@@ -49,8 +49,8 @@
   --surface: #15171b;
   --surface-2: #1d2025;
   --surface-3: #25292f;
-  --border: #2c3036;
-  --border-strong: #3b4048;
+  --border: #333942;
+  --border-strong: #464d57;
   --text: #f4f5f6;
   --text-2: #b4b8bf;
   /* Passes 4.5:1 on every dark surface, including the tinted *-weak
@@ -72,8 +72,8 @@
   --info-weak: #18344e;
   --focus-ring: #ff5263;
   --focus-halo: rgb(215 2 23 / 0.34);
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -10px rgb(0 0 0 / 0.5);
-  --shadow-lg: 0 30px 70px -28px rgb(0 0 0 / 0.7);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 10px 20px -10px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 
@@ -175,7 +175,7 @@
   --text-3xl: 26px;
   --text-3xl--line-height: 1.2;
 
-  --radius-card: 14px;
+  --radius-card: 10px;
   --radius-ctl: 9px;
   --radius-nav: 8px;
 

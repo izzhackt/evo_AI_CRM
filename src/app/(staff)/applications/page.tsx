@@ -118,7 +118,7 @@ export default async function ApplicationsPage({
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-fg-2">{application.programName} · {application.targetIntake}</p>
-                    <p className="mt-2 text-xs text-fg-3">
+                    <p className="mt-2 max-w-[66ch] text-xs text-fg-3">
                       {application.displayName} · {copy.nextAction}: {application.nextAction ?? copy.noNextAction}
                     </p>
                   </div>

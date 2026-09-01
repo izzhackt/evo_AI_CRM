@@ -276,7 +276,7 @@ export function CanonicalGeminiProposalPanel({
     >
       <div>
         <h3 className="text-md font-semibold text-fg">{copy.title}</h3>
-        <p className="mt-1 text-sm leading-6 text-fg-3">{copy.description}</p>
+        <p className="max-w-[66ch] mt-1 text-sm leading-6 text-fg-3">{copy.description}</p>
       </div>
 
       <div
@@ -346,7 +346,7 @@ export function CanonicalGeminiProposalPanel({
         >
           <div>
             <h4 className="text-base font-semibold text-fg">{copy.reviewTitle}</h4>
-            <p className="mt-1 text-sm leading-5 text-fg-3">
+            <p className="max-w-[66ch] mt-1 text-sm leading-5 text-fg-3">
               {copy.reviewDescription}
             </p>
           </div>

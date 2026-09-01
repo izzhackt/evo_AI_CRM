@@ -125,7 +125,7 @@ export default async function Home() {
               <p className="text-xs font-semibold uppercase tracking-wide text-fg-3">
                 Admin · точный просмотр роли
               </p>
-              <p className="mt-2 text-sm leading-6 text-fg-3">
+              <p className="mt-2 max-w-[66ch] text-sm leading-6 text-fg-3">
                 Интерфейс и серверные проверки используют выбранную роль. Подпись
                 сессии сохраняет Admin как единственного владельца переключателя.
               </p>

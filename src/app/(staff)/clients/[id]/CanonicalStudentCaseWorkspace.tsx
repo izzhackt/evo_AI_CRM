@@ -143,7 +143,7 @@ function Fact({
 }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
     <div className="min-w-0">
-      <dt className="text-2xs font-semibold uppercase tracking-[0.05em] text-fg-3">
+      <dt className="text-xs font-semibold text-fg-3">
         {label}
       </dt>
       <dd className="mt-1.5 break-words text-sm text-fg-2">{children}</dd>

@@ -365,7 +365,7 @@ export function CanonicalAdmissionsOperationsPanel({ locale, actorRole, studentC
     <section className="space-y-8 border-t border-border pt-6" data-testid="canonical-admissions-operations">
       <header><h2 className="text-lg font-semibold tracking-[-0.01em] text-fg">{copy.title}</h2><p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">{copy.description}</p></header>
       {!active ? <p className="border-y border-border py-3 text-sm text-warn" role="status">{copy.inactive}</p> : null}
-      {financeStopped ? <p id="finance-stop-warning" className="border-y border-danger/30 bg-danger-weak px-4 py-3 text-sm text-danger" role="status">{copy.financeBlocksSubmission}</p> : null}
+      {financeStopped ? <p id="finance-stop-warning" className="border-y border-danger/30 bg-danger-weak px-4 py-3 text-sm text-danger" role="status"><span className="block max-w-[66ch]">{copy.financeBlocksSubmission}</span></p> : null}
 
       <section id="applications" className="scroll-mt-24"><h3 className="text-md font-semibold text-fg">{copy.applications}</h3><p className="mt-1 text-sm text-fg-3">{copy.applicationsDescription}</p>
         {active ? <div className="mt-4"><CreateApplicationForm studentCaseId={studentCaseId} requestId={requestIds.createApplication} copy={copy} /></div> : null}

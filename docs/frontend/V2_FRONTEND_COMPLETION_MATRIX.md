@@ -19,7 +19,7 @@ visual intent only and are not runtime, provider or production proof.
 | --- | --- | --- |
 | Code | Complete for the V2-11 staff frontend slice. | The route, fixed-role policy, component and outcome contracts pass on the reviewed implementation. |
 | Local V2 runtime | Complete for the sampled end-to-end staff journey. | The root app rendered real local PostgreSQL records for Admin, Sales and Admissions without fixture, demo or fallback paths. |
-| Provider | Not proved in this run. | No Gemini request, WAHA send or amoCRM write was authorized or attempted. The UI fails closed and discloses the current server state. |
+| Provider | Not proved in this run, which is a statement about this run rather than the product. | No Gemini request, WAHA send or amoCRM write was authorized or attempted here. The UI fails closed and discloses the current server state. Provider acceptance itself passed separately on 30 August 2026 and is recorded in #467. |
 | Production | Not proved and not authorized. | No deploy, production provider action or real customer-data mutation occurred. |
 
 “Frontend complete” below means Code plus Local V2 runtime for the active
@@ -80,7 +80,7 @@ outside the active V2 staff core.
 | Error | With the same app pointed at a deliberately unreachable PostgreSQL URL, `/applications` rendered “PostgreSQL did not respond” plus retry and queue recovery, with no legacy source. | Real fail-closed runtime proof complete. |
 | Not found | Detail routes keep local not-found behavior and query/cursor parsing fails closed. | Complete for active routes. |
 | Access denied | Negative direct-route checks for Sales and Admissions land on the explicit denied surface. | Complete and server enforced. |
-| Blocked/not configured | Shell badges derive from server flags; conversation copy distinguishes absent authorization, invalid recipient and no current verification. | Truthful local disclosure complete; provider acceptance is not claimed. |
+| Blocked/not configured | Shell badges derive from server flags; conversation copy distinguishes absent authorization, invalid recipient and no current verification. | Truthful local disclosure complete; this audit claims no provider verification of its own (see #467 for the separate acceptance). |
 | Empty | Sales safely filtered with `no-such-evo-lead-20260831` and rendered the real zero-result state without changing the database. | Real runtime proof complete. |
 | Headings and titles | Core routes have descriptive metadata and one page-level `h1`; shell context is subordinate. | Complete by focused contracts and browser inspection. |
 | Reflow | No document-level horizontal overflow on sampled 1280, 834 or 390 px views. | Complete for the required viewports. |
@@ -210,8 +210,8 @@ guards that could not fail — which were fixed and re-reviewed before merge.
 | Level | Result |
 | --- | --- |
 | Code | Complete for the V2-11 staff slice, and now enforced: `test:frontend` runs in CI through `pretest:unit`. |
-| Local V2 runtime | 324 real-browser measurements on exact merged main across Admin/Sales/Admissions x 1280x720, 834x1194, 390x844 x light/dark: **0** axe WCAG 2.2 A/AA violations, **0** horizontal overflow, exactly one `h1` everywhere, **0** generic titles, **0** unlabelled controls. `npm run test:a11y` passes 8/8 including Pixel 5. |
-| Provider | Still not proved. Gemini, WAHA and amoCRM were unconfigured and unauthorized; no provider call, send or write was attempted. |
+| Local V2 runtime | 324 real-browser measurements on exact merged main across Admin/Sales/Admissions x 1280x720, 834x1194, 390x844 x light/dark: **0** axe WCAG 2.2 A/AA violations, **0** horizontal overflow, exactly one `h1` everywhere, **0** generic titles, **0** unlabelled controls. `npm run test:a11y` passes 10/10 including Pixel 5 and the two branded pages. |
+| Provider | **Not re-proved by this audit**, which is a statement about this audit and not about the product: Gemini, WAHA and amoCRM were unconfigured and unauthorized here, and no provider call, send or write was attempted. Provider acceptance itself passed separately on 30 August 2026 against exact main `f87bd37f` and is recorded in #467. |
 | Production | Still not proved and not authorized. No deploy, no production or customer-data change. |
 
 ### Known and deliberately not fixed

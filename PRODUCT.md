@@ -94,8 +94,31 @@ server-authorised integration rather than a second source of truth.
 - A working end-to-end staff journey against real records.
 - No production customer data is available for design work, and none may be
   fabricated to stand in for it.
-- No verified provider acceptance exists for AI, WhatsApp or CRM sync. Future
-  work must not present any of them as verified.
+- Provider acceptance was performed and passed. On 30 August 2026, one bounded
+  acceptance -- resumed across preserved state and completed on exact main
+  `f87bd37f` -- exercised the real path end to end: Gemini produced one proposal
+  that stopped at a durable `review_required` checkpoint before any outbound
+  mutation; a person edited the draft and explicitly confirmed the send; WAHA
+  delivered exactly one message, addressed to the WAHA session's own self
+  identity, whose final observed ACK was `READ`; one amoCRM sync completed as
+  seven idempotent operations yielding one validation contact with its lead and
+  note, each read back and correlated to its PostgreSQL binding; and an exact replay produced zero duplicates.
+- Read that paragraph literally. Nothing was sent to a customer and no real CRM
+  record was created: the target was the connected session's own number and the
+  entities were clearly marked validation objects. The run proves the path, not
+  a delivery to anyone.
+- Recorded in issue #467, whose closing comment is the evidence; the run's own
+  artefacts are deliberately stored outside Git and the disposable database was
+  destroyed afterwards, so the detail cannot be re-derived from this repository.
+  `f87bd37f` is an ancestor of current main, and the server-side Gemini, WAHA
+  and amoCRM modules, the schema, the migrations and the API routes have not
+  changed since -- the UI panels above them have.
+- That acceptance is historical, not continuous. It proves the code path works
+  against real providers; it does not prove that credentials are present and
+  working in any given environment right now. Design and preview environments
+  routinely run with no provider configuration at all, and the interface is
+  expected to say "not configured" there. Read a live provider claim only from
+  the running environment's own state, never from this document.
 
 ## Product Principles
 

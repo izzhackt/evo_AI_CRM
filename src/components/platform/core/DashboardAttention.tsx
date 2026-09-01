@@ -91,7 +91,7 @@ export function DashboardAttention({
             <h3 className="text-md font-bold text-fg">
               {copy.allClearTitle}
             </h3>
-            <p className="mt-1 text-sm leading-5 text-fg-3">
+            <p className="max-w-[66ch] mt-1 text-sm leading-5 text-fg-3">
               {copy.allClearHint}
             </p>
           </div>

@@ -188,7 +188,7 @@ export function CanonicalStaffWhatsAppWorkspace({
         >
           <div className="border-b border-border px-4 py-4">
             <h2 className="text-base font-semibold text-fg">{copy.queueTitle}</h2>
-            <p className="mt-1 text-sm leading-5 text-fg-3">
+            <p className="max-w-[66ch] mt-1 text-sm leading-5 text-fg-3">
               {copy.queueDescription}
             </p>
           </div>
@@ -427,7 +427,7 @@ function ConversationThread({
 
       <div>
         <h3 className="text-md font-semibold text-fg">{copy.transcript}</h3>
-        <p className="mt-1 text-sm leading-6 text-fg-3">
+        <p className="max-w-[66ch] mt-1 text-sm leading-6 text-fg-3">
           {copy.transcriptDescription}
         </p>
       </div>

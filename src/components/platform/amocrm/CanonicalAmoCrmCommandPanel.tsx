@@ -334,7 +334,7 @@ export function CanonicalAmoCrmCommandPanel({
         data-testid="canonical-amocrm-command-panel"
         data-scope={scope}
       >
-        <p className="text-sm leading-5 text-fg-3">
+        <p className="max-w-[66ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
         <div

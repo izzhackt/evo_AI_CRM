@@ -125,7 +125,7 @@ export function CanonicalAuthorityNotice({
           <h2 className="text-sm font-semibold text-fg">
             {copy.authorityTitle}
           </h2>
-          <span className="rounded-full bg-surface px-2 py-0.5 text-2xs font-semibold text-fg-3">
+          <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-fg-3">
             {copy.readOnly}
           </span>
         </div>

@@ -14,6 +14,8 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/tasks",
   "/whatsapp",
   "/settings",
+  // Полигон нового интерфейса: живёт рядом со старым, пока части не сойдутся.
+  "/v3",
 ]);
 const PLATFORM_CONVERSATION_PATH =
   /^\/whatsapp\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

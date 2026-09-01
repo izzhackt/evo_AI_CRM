@@ -7,9 +7,9 @@ Authority: owner direction, ADR 0024, this plan and the latest append-only
 through #553
 Verified starting baseline: GitHub `origin/main` at
 `4a2984f55b13bf4fe416a70d7989b9311daa8055`
-Latest verified shared main after the architecture reset:
-`a1ae2ef2624f1e4564f79300295f53c7ade5ae52`, with exact-main CI run
-`33561301420` green for Main CRM, EVO Inbox and EVO Lead Agent.
+Latest verified shared main after the existing-state audit:
+`1751fdf40a71e2282f4ab6456452623eb0859787`, with exact-main CI run
+`33564705033` green for Main CRM, EVO Inbox and EVO Lead Agent.
 
 ## Current authority: one Supabase-backed production EVO
 
@@ -107,6 +107,45 @@ Accordingly, #546 may proceed with isolated real-Supabase implementation and
 proof, but no production migration, data write or traffic switch is authorized
 by P1. The recovery and rehearsal gates remain mandatory before production
 mutation.
+
+### P2 delivery decomposition: real staff and Sales tracer
+
+Issue #546 is delivered as three small sequential replacement PRs so each
+authority change can be proved and cleaned before the next one begins:
+
+1. **P2A — real staff session and role shell.** Replace the root two-field
+   development gate with Supabase Auth SSR cookies, validate every protected
+   request against the live Supabase membership authority, keep Admin as the
+   full functional superset, and retain exact Sales/Admissions preview only as
+   an Admin-authorized presentation choice. Delete the development-gate
+   runtime, config and tests in this PR after real local Supabase and Chromium
+   proof.
+2. **P2B — canonical Sales reads.** Move the accepted Sales queue and lead
+   detail reads to migrations 084-085 and authenticated Supabase/RLS. Delete
+   the corresponding Drizzle read path after authorized and unauthorized
+   database, app and browser proof.
+3. **P2C — canonical Sales writes and slice cleanup.** Move qualification,
+   ownership and next-action mutation to migration 086 RPCs, prove business
+   outcomes and direct denial, then remove the replaced Drizzle Sales writes,
+   routes, tests and configuration. Close #546 only after the final scoped
+   legacy inventory is empty.
+
+The existing database enum value `curator` is the retained technical name for
+the human-facing **Admissions Manager** role. The server maps that one database
+role to the single accepted Admissions interface; it does not create a second
+role authority or compatibility runtime. A later forward migration may rename
+the stored value only if the full dependent SQL inventory proves that change
+is safer than the explicit mapping.
+
+P2A follows Supabase's official SSR contract: cookie-backed server clients,
+middleware/proxy token refresh, verified claims rather than a trusted
+`getSession()` snapshot, and the existing custom-access-token hook plus live
+membership/RLS checks. See the official
+[server client](https://supabase.com/docs/guides/auth/server-side/creating-a-client),
+[advanced SSR](https://supabase.com/docs/guides/auth/server-side/advanced-guide),
+[JWT](https://supabase.com/docs/guides/auth/jwts) and
+[custom-claims/RBAC](https://supabase.com/docs/guides/database/postgres/custom-claims-and-role-based-access-control-rbac)
+guidance.
 
 Issue bodies must repeat their destructive/external boundary and legacy
 eradication acceptance criteria. The sequence is strictly ordered unless the

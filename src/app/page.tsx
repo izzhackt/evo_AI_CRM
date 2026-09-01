@@ -5,9 +5,9 @@ import { EvoIsometricField } from "@/components/platform/brand/EvoIsometricField
 import { EvoMark } from "@/components/platform/brand/EvoMark";
 
 import {
-  logoutDevelopmentGateAction,
-  selectDevelopmentRolePreviewAction,
-} from "@/lib/development-gate-actions";
+  logoutStaffAction,
+  selectStaffRolePreviewAction,
+} from "@/lib/staff-auth-actions";
 import { fixedRoleHomeRoute } from "@/lib/fixed-role-policy";
 import { requirePlatformActor } from "@/lib/platform-guards";
 import { buildRouteMetadata } from "@/lib/route-metadata";
@@ -46,13 +46,13 @@ export default async function Home() {
   ]);
   const role = actor.platformRole;
   if (role !== "admin" && role !== "sales" && role !== "admissions") {
-    throw new Error("development_gate_issued_unsupported_role");
+    throw new Error("supabase_staff_authority_issued_unsupported_role");
   }
   const previewing = actor.authorityRole === "admin" && role !== "admin";
 
   return (
     <main
-      data-testid="development-workspace"
+      data-testid="staff-entry-workspace"
       className="relative min-h-dvh bg-bg px-4 py-8 text-fg sm:px-8"
     >
       <EvoIsometricField />
@@ -62,13 +62,13 @@ export default async function Home() {
             <EvoMark size={30} />
             <span>
               <span className="block text-md font-bold">EVO Admissions CRM</span>
-              <span className="block text-xs text-fg-3">Private local V2</span>
+              <span className="block text-xs text-fg-3">EVO staff workspace</span>
             </span>
           </div>
-          <form action={logoutDevelopmentGateAction}>
+          <form action={logoutStaffAction}>
             <button
               type="submit"
-              data-testid="development-logout"
+              data-testid="staff-logout"
               className="min-h-11 rounded-ctl border border-control-edge px-4 text-sm font-semibold transition-colors hover:bg-surface-2"
             >
               Выйти
@@ -130,7 +130,7 @@ export default async function Home() {
                 сессии сохраняет Admin как единственного владельца переключателя.
               </p>
               <form
-                action={selectDevelopmentRolePreviewAction}
+                action={selectStaffRolePreviewAction}
                 className="mt-4 flex flex-wrap gap-2"
               >
                 {(["admin", "sales", "admissions"] as const).map((targetRole) => (

@@ -6,9 +6,9 @@ import { MobileStaffNav, StaffNav, type MobileNavCopy, type NavGroup } from "@/c
 import { TopBar } from "@/components/TopBar";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
 import {
-  logoutDevelopmentGateAction,
-  selectDevelopmentRolePreviewAction,
-} from "@/lib/development-gate-actions";
+  logoutStaffAction,
+  selectStaffRolePreviewAction,
+} from "@/lib/staff-auth-actions";
 import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
 import {
   FIXED_ROLE_ROUTES,
@@ -116,7 +116,7 @@ async function loadShellProvider(): Promise<ShellProvider> {
     },
     homeHref: guards.platformHomeRoute(actor.platformRole),
     availableRoutes: new Set(FIXED_ROLE_ROUTES),
-    logout: logoutDevelopmentGateAction,
+    logout: logoutStaffAction,
     LanguageSwitcher: language.PlatformLangSwitcher,
     integrationStatus: {
       ai: providerDisplayStatus(geminiAvailability),
@@ -260,7 +260,7 @@ export default async function StaffLayout({
               <p className="text-sm font-semibold text-fg">
                 Admin preview: {provider.user.role}
               </p>
-              <form action={selectDevelopmentRolePreviewAction} className="flex flex-wrap gap-2">
+              <form action={selectStaffRolePreviewAction} className="flex flex-wrap gap-2">
                 {(["admin", "sales", "admissions"] as const).map((role) => (
                   <button
                     key={role}

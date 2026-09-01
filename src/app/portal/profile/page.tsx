@@ -1,4 +1,4 @@
-import { logoutDevelopmentGateAction } from "@/lib/development-gate-actions";
+import { logoutStaffAction } from "@/lib/staff-auth-actions";
 import {
   formatPortalDate,
   PortalMissingCase,
@@ -227,7 +227,7 @@ export default async function PortalProfilePage() {
             <PortalPlatformLanguageSwitcher current={locale} label={copy.language} />
           </PortalPanel>
 
-          <form action={logoutDevelopmentGateAction}>
+            <form action={logoutStaffAction}>
             <button type="submit" className={styles.logoutButton}>
               <PortalIcon name="log-out" size={17} />
               {copy.signOut}

@@ -394,7 +394,7 @@ export async function updateLeadAction(form: FormData) {
     .prepare("SELECT manager_id FROM leads WHERE id = ?")
     .get(id) as { manager_id: number | null } | undefined;
   if (!current) notFound();
-  if (user.role === "sales" && current.manager_id !== user.id) notFound();
+  if (user.role === "sales" && String(current.manager_id) !== user.id) notFound();
   const managerId = user.role === "sales"
     ? current.manager_id
     : validatedLocalSalesManagerId(optNum(form, "manager_id"));

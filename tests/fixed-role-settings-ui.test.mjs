@@ -7,7 +7,7 @@ const settingsSource = readFileSync(
   "utf8",
 );
 const actionSource = readFileSync(
-  new URL("../src/lib/development-gate-actions.ts", import.meta.url),
+  new URL("../src/lib/staff-auth-actions.ts", import.meta.url),
   "utf8",
 );
 const layoutSource = readFileSync(
@@ -32,19 +32,19 @@ test("settings is one Admin-only fixed-role preview UI", () => {
   );
 });
 
-test("only authority Admin can reissue the same signed session for preview", () => {
-  assert.match(actionSource, /currentUser\(\)/);
-  assert.match(actionSource, /user\.authorityRole/);
+test("only authority Admin can set the presentation-only preview cookie", () => {
+  assert.match(actionSource, /resolvePlatformActor\(\)/);
+  assert.match(actionSource, /result\.actor\.authorityRole/);
   assert.match(actionSource, /canAdminSelectEffectiveRole/);
-  assert.match(actionSource, /setSession\(user\.authorityRole, requestedRole\)/);
-  assert.doesNotMatch(actionSource, /membership|organization/i);
+  assert.match(actionSource, /ADMIN_ROLE_PREVIEW_COOKIE/);
+  assert.doesNotMatch(actionSource, /updateUser|change_pilot_staff_role/);
 });
 
 test("the staff shell renders exact effective-role navigation and an Admin controller", () => {
   assert.match(layoutSource, /data-testid="staff-role-preview"/);
   assert.match(layoutSource, /provider\.user\.authorityRole === "admin"/);
   assert.match(layoutSource, /data-effective-role=\{provider\.user\.role\}/);
-  assert.match(layoutSource, /selectDevelopmentRolePreviewAction/);
+  assert.match(layoutSource, /selectStaffRolePreviewAction/);
   assert.doesNotMatch(
     layoutSource,
     /loadFixtureShellProvider|Legacy|Connected|isUiContractFixtureMode|settings\?tab=staff/,

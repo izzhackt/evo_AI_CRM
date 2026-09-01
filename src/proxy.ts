@@ -1,10 +1,6 @@
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import {
-  DEVELOPMENT_SESSION_COOKIE,
-  readDevelopmentGateConfig,
-  verifyDevelopmentSessionToken,
-} from "@/lib/development-gate-core";
 import {
   isConnectedPlatformApi,
   isConnectedPlatformPrivateApi,
@@ -13,6 +9,10 @@ import {
   isDirectPlatformStaffAssistantApi,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
+import { readVerifiedPlatformAuthority } from "@/lib/supabase/platform-authority";
+
+type SessionState = "authenticated" | "invalid" | "missing" | "unavailable";
 
 function nextResponse(requestHeaders: Headers) {
   return NextResponse.next({ request: { headers: requestHeaders } });
@@ -22,6 +22,11 @@ function setResponseHeaders(response: NextResponse, id: string) {
   response.headers.set("x-request-id", id);
   response.headers.set("Cache-Control", "private, no-store");
   return response;
+}
+
+function copyResponseCookies(source: NextResponse, target: NextResponse) {
+  for (const cookie of source.cookies.getAll()) target.cookies.set(cookie);
+  return target;
 }
 
 function hiddenNotFound(id: string) {
@@ -52,16 +57,25 @@ function blockedPlatformRoute(request: NextRequest, id: string) {
 
 function accessDeniedResponse(
   request: NextRequest,
+  refreshedResponse: NextResponse,
   id: string,
-  reason: "gate_unavailable" | "session_invalid" | null,
+  reason: "auth_unavailable" | "session_invalid" | null,
 ) {
   if (request.nextUrl.pathname.startsWith("/api/")) {
-    return setResponseHeaders(
-      NextResponse.json(
-        { error: reason === "gate_unavailable" ? reason : "authentication_required" },
-        { status: reason === "gate_unavailable" ? 503 : 401 },
+    return copyResponseCookies(
+      refreshedResponse,
+      setResponseHeaders(
+        NextResponse.json(
+          {
+            error:
+              reason === "auth_unavailable"
+                ? reason
+                : "authentication_required",
+          },
+          { status: reason === "auth_unavailable" ? 503 : 401 },
+        ),
+        id,
       ),
-      id,
     );
   }
 
@@ -69,26 +83,71 @@ function accessDeniedResponse(
   target.pathname = "/login";
   target.search = "";
   if (reason) target.searchParams.set("error", reason);
-  const response = setResponseHeaders(NextResponse.redirect(target), id);
-  if (reason === "session_invalid") {
-    response.cookies.delete(DEVELOPMENT_SESSION_COOKIE);
-  }
-  return response;
+  return copyResponseCookies(
+    refreshedResponse,
+    setResponseHeaders(NextResponse.redirect(target), id),
+  );
 }
 
-function sessionState(request: NextRequest):
-  | "authenticated"
-  | "invalid"
-  | "missing"
-  | "unavailable" {
-  const token = request.cookies.get(DEVELOPMENT_SESSION_COOKIE)?.value;
-  if (!token) return "missing";
+function hasSupabaseSessionCookie(request: NextRequest): boolean {
+  return request.cookies
+    .getAll()
+    .some(
+      ({ name }) => name.startsWith("sb-") && name.includes("-auth-token"),
+    );
+}
+
+async function liveSessionState(
+  request: NextRequest,
+  requestHeaders: Headers,
+): Promise<Readonly<{ state: SessionState; response: NextResponse }>> {
+  let response = nextResponse(requestHeaders);
+
   try {
-    return verifyDevelopmentSessionToken(readDevelopmentGateConfig(), token)
-      ? "authenticated"
-      : "invalid";
+    const config = getSupabasePublicConfig();
+    const client = createServerClient(config.url, config.publishableKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(
+          cookiesToSet: Array<{
+            name: string;
+            value: string;
+            options: CookieOptions;
+          }>,
+        ) {
+          for (const { name, value } of cookiesToSet) {
+            request.cookies.set(name, value);
+          }
+          response = nextResponse(requestHeaders);
+          for (const { name, value, options } of cookiesToSet) {
+            response.cookies.set(name, value, options);
+          }
+        },
+      },
+    });
+
+    const { data, error } = await client.auth.getClaims();
+    if (error || !data?.claims) {
+      return {
+        state: hasSupabaseSessionCookie(request) ? "invalid" : "missing",
+        response,
+      };
+    }
+
+    const authority = await readVerifiedPlatformAuthority(client, data.claims);
+    return {
+      state:
+        authority.status === "authenticated"
+          ? "authenticated"
+          : authority.status === "unavailable"
+            ? "unavailable"
+            : "invalid",
+      response,
+    };
   } catch {
-    return "unavailable";
+    return { state: "unavailable", response };
   }
 }
 
@@ -101,13 +160,15 @@ export async function proxy(request: NextRequest) {
     path.startsWith("/api/readiness") || path.startsWith("/metrics");
 
   if (!observabilityPathCandidate) {
-    console.info(JSON.stringify({
-      event: "http_request",
-      request_id: id,
-      method: request.method,
-      path,
-      service: "evo-crm",
-    }));
+    console.info(
+      JSON.stringify({
+        event: "http_request",
+        request_id: id,
+        method: request.method,
+        path,
+        service: "evo-crm",
+      }),
+    );
   }
 
   if (
@@ -151,27 +212,40 @@ export async function proxy(request: NextRequest) {
     return blockedPlatformRoute(request, id);
   }
 
-  const state = sessionState(request);
+  const session = await liveSessionState(request, requestHeaders);
   if (path === "/login") {
-    if (state !== "authenticated") {
-      const response = setResponseHeaders(nextResponse(requestHeaders), id);
-      if (state === "invalid") response.cookies.delete(DEVELOPMENT_SESSION_COOKIE);
-      return response;
+    if (session.state !== "authenticated") {
+      return setResponseHeaders(session.response, id);
     }
     const target = request.nextUrl.clone();
     target.pathname = "/";
     target.search = "";
-    return setResponseHeaders(NextResponse.redirect(target), id);
+    return copyResponseCookies(
+      session.response,
+      setResponseHeaders(NextResponse.redirect(target), id),
+    );
   }
 
-  if (state === "missing") return accessDeniedResponse(request, id, null);
-  if (state === "invalid") {
-    return accessDeniedResponse(request, id, "session_invalid");
+  if (session.state === "missing") {
+    return accessDeniedResponse(request, session.response, id, null);
   }
-  if (state === "unavailable") {
-    return accessDeniedResponse(request, id, "gate_unavailable");
+  if (session.state === "invalid") {
+    return accessDeniedResponse(
+      request,
+      session.response,
+      id,
+      "session_invalid",
+    );
   }
-  return setResponseHeaders(nextResponse(requestHeaders), id);
+  if (session.state === "unavailable") {
+    return accessDeniedResponse(
+      request,
+      session.response,
+      id,
+      "auth_unavailable",
+    );
+  }
+  return setResponseHeaders(session.response, id);
 }
 
 export const config = {

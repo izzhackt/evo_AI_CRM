@@ -94,11 +94,19 @@ pipeline/status, responsible-user, note and tag operations. Provider IDs and
 read-back are bindings/evidence, not a second source of truth.
 _Avoid_: amoCRM master record, dual-write authority, legacy writer fallback
 
-**Development Access Profile**:
-One of the fixed Director/Admin, Sales Manager or Admissions Manager technical
-roles entered through the two-field server-side development gate. It exists to
-exercise real role behavior and is not a staff account or verified identity.
-_Avoid_: user account, employee identity, production authentication
+**Supabase Staff Identity**:
+A real Supabase Auth user linked to one active EVO staff profile, organization
+membership and published role bundle. The database value `curator` maps to the
+single human-facing Admissions Manager interface; Admin may preview Sales or
+Admissions presentation without changing the underlying identity or authority.
+_Avoid_: local role selector, client-only role, development-gate fallback
+
+**Historical Development Access Profile**:
+One of the three technical role selectors used by the completed local V2
+product-validation contour through its two-field server-side development gate.
+It was not a staff account or verified identity and is not an active successor
+runtime path.
+_Avoid_: current staff identity, production authentication, compatibility path
 
 **Historical First Live Rollout**:
 The first production proof that one controlled real inbound WhatsApp message can travel through the admissions lead path and become visible to staff. It is not a full automation launch.

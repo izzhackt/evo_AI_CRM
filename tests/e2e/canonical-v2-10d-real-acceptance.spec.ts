@@ -360,13 +360,13 @@ async function submitAdminGate(page: Page): Promise<void> {
   await page.context().clearCookies();
   await page.goto("/login");
   await page
-    .locator("#gate-identifier")
-    .fill(requireEnv("EVO_DEV_GATE_ADMIN_IDENTIFIER"));
+    .locator("#staff-email")
+    .fill(requireEnv("EVO_STAFF_AUTH_ADMIN_EMAIL"));
   await page
-    .locator("#gate-secret")
-    .fill(requireEnv("EVO_DEV_GATE_ADMIN_SECRET"));
-  await page.getByRole("button", { name: "Открыть CRM" }).click();
-  await expect(page.getByTestId("development-workspace")).toBeVisible();
+    .locator("#staff-password")
+    .fill(requireEnv("EVO_STAFF_AUTH_ADMIN_PASSWORD"));
+  await page.getByRole("button", { name: "Войти в CRM" }).click();
+  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
   await page.getByTestId("open-role-workspace").click();
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-authority-role",

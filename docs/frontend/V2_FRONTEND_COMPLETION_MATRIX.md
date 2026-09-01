@@ -45,7 +45,7 @@ the next implementation block.
 
 | Surface | Allowed roles | Active route | Current code and real-runtime result | Verdict |
 | --- | --- | --- | --- | --- |
-| Private gate | Admin, Sales, Admissions | `/login` | Two-field local development gate clearly says it is not production authentication. | Complete locally. |
+| Staff sign-in | Admin, Sales, Admissions | `/login` | Supabase Auth email/password sign-in issues the only active staff session path; Admin may preview Sales or Admissions presentation without changing the underlying authority. | Complete locally. |
 | Sales pipeline | Admin, Sales | `/sales` | Real PostgreSQL queue, 15-row bounded page, validated cursor/filter, empty filter state and practical mobile height. Admissions is denied. | Complete locally. |
 | Lead 360 and qualification | Admin, Sales | `/sales/[id]` | Real lead shows owner, stage, qualification, provider disclosure and contract/first-payment evidence. | Complete locally. |
 | Audited handoff | Admin, Sales action; Admissions receives | Lead 360 action and linked Student Case | A real handed-off record links gate evidence to Student 360. Audit was read-only; no handoff was triggered. | UI and read path complete; mutation deliberately not repeated. |

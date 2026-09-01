@@ -237,7 +237,7 @@ test("cross-role case links are only rendered for a role the server allows", () 
 
   // The role check must happen on the server: this card is a client component,
   // and a value import of the policy module pulls node:crypto into the browser
-  // graph through development-gate-core.
+  // graph through the Supabase staff authority.
   assert.match(handoff, /^"use client";/);
   assert.match(handoff, /import type \{ FixedRole \} from "@\/lib\/fixed-role-policy";/);
   assert.ok(

@@ -2,24 +2,24 @@ import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 if (!baseURL) {
-  throw new Error("PLAYWRIGHT_BASE_URL is required for development gate browser tests");
+  throw new Error("PLAYWRIGHT_BASE_URL is required for Supabase staff auth browser tests");
 }
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: "development-gate.spec.ts",
-  timeout: 30_000,
-  expect: { timeout: 10_000 },
+  testMatch: "supabase-staff-auth.spec.ts",
+  timeout: 45_000,
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
   reporter: [
     ["list"],
     [
       "html",
-      { outputFolder: "output/playwright-development-gate/report", open: "never" },
+      { outputFolder: "output/playwright-supabase-staff-auth/report", open: "never" },
     ],
   ],
-  outputDir: "output/playwright-development-gate/test-results",
+  outputDir: "output/playwright-supabase-staff-auth/test-results",
   use: {
     baseURL,
     locale: "ru-RU",

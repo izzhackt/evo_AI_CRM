@@ -45,9 +45,9 @@ const replacementBytes = Buffer.from(
 );
 
 function credentials(role: "admin" | "sales" | "admissions") {
-  const prefix = `EVO_DEV_GATE_${role.toUpperCase()}`;
-  const identifier = process.env[`${prefix}_IDENTIFIER`];
-  const secret = process.env[`${prefix}_SECRET`];
+  const prefix = `EVO_STAFF_AUTH_${role.toUpperCase()}`;
+  const identifier = process.env[`${prefix}_EMAIL`];
+  const secret = process.env[`${prefix}_PASSWORD`];
   if (!identifier || !secret) {
     throw new Error(`missing browser credential for ${role}`);
   }
@@ -57,10 +57,10 @@ function credentials(role: "admin" | "sales" | "admissions") {
 async function login(page: Page, role: "admin" | "sales" | "admissions") {
   const { identifier, secret } = credentials(role);
   await page.goto("/login");
-  await page.locator("#gate-identifier").fill(identifier);
-  await page.locator("#gate-secret").fill(secret);
-  await page.getByRole("button", { name: "Открыть CRM" }).click();
-  await expect(page.getByTestId("development-workspace")).toBeVisible();
+  await page.locator("#staff-email").fill(identifier);
+  await page.locator("#staff-password").fill(secret);
+  await page.getByRole("button", { name: "Войти в CRM" }).click();
+  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
 }
 
 function uploadMultipart(bytes: Buffer, filename = "acceptance.pdf") {

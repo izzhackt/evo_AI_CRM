@@ -89,23 +89,23 @@ function optionalUuid(name: string): string | null {
 }
 
 function credentials(role: TestRole) {
-  const prefix = `EVO_DEV_GATE_${role.toUpperCase()}`;
-  const identifier = process.env[`${prefix}_IDENTIFIER`];
-  const secret = process.env[`${prefix}_SECRET`];
+  const prefix = `EVO_STAFF_AUTH_${role.toUpperCase()}`;
+  const identifier = process.env[`${prefix}_EMAIL`];
+  const secret = process.env[`${prefix}_PASSWORD`];
   if (!identifier || !secret) {
     throw new Error(`missing browser credential for ${role}`);
   }
   return { identifier, secret };
 }
 
-async function submitGate(page: Page, role: TestRole) {
+async function signInAs(page: Page, role: TestRole) {
   const { identifier, secret } = credentials(role);
   await page.context().clearCookies();
   await page.goto("/login");
-  await page.locator("#gate-identifier").fill(identifier);
-  await page.locator("#gate-secret").fill(secret);
-  await page.getByRole("button", { name: "Открыть CRM" }).click();
-  await expect(page.getByTestId("development-workspace")).toBeVisible();
+  await page.locator("#staff-email").fill(identifier);
+  await page.locator("#staff-password").fill(secret);
+  await page.getByRole("button", { name: "Войти в CRM" }).click();
+  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
   await page.getByTestId("open-role-workspace").click();
 }
 
@@ -187,7 +187,7 @@ test("amoCRM commands stay visibly disabled when the selected server prerequisit
   page,
 }) => {
   const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
-  await submitGate(page, "sales");
+  await signInAs(page, "sales");
   await expectBlockedPanel(page, {
     route: `/sales/${leadId}`,
     scope: "sales",
@@ -207,7 +207,7 @@ test("Sales and Admin see the Sales command only at the canonical lead workspace
   const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
 
   for (const role of ["sales", "admin"] as const) {
-    await submitGate(page, role);
+    await signInAs(page, role);
     await expect(page.getByTestId("active-role")).toHaveAttribute(
       "data-authority-role",
       role,
@@ -234,7 +234,7 @@ test("Admissions and Admin see the Admissions command only at canonical Student 
   const studentCaseId = requireUuid("EVO_CANONICAL_STUDENT_CASE_ID");
 
   for (const role of ["admissions", "admin"] as const) {
-    await submitGate(page, role);
+    await signInAs(page, role);
     await expect(page.getByTestId("active-role")).toHaveAttribute(
       "data-authority-role",
       role,
@@ -261,7 +261,7 @@ test("wrong fixed roles are denied before either owning amoCRM panel renders", a
   const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
   const studentCaseId = requireUuid("EVO_CANONICAL_STUDENT_CASE_ID");
 
-  await submitGate(page, "admissions");
+  await signInAs(page, "admissions");
   await page.goto(`/sales/${leadId}`);
   await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales/u);
   await expect(page.getByTestId("canonical-sales-lead-workspace")).toHaveCount(
@@ -271,7 +271,7 @@ test("wrong fixed roles are denied before either owning amoCRM panel renders", a
     0,
   );
 
-  await submitGate(page, "sales");
+  await signInAs(page, "sales");
   await page.goto(`/clients/${studentCaseId}`);
   await expect(page).toHaveURL(/\/access-denied\?from=%2Fclients/u);
   await expect(
@@ -290,7 +290,7 @@ test("an active Sales PostgreSQL-stored unknown attempt survives reload with saf
     "no persisted Sales blocker requested for this matrix run",
   );
   const leadId = salesBlockingLeadId as string;
-  await submitGate(page, "sales");
+  await signInAs(page, "sales");
   const panel = await expectBlockedPanel(page, {
     route: `/sales/${leadId}`,
     scope: "sales",
@@ -316,7 +316,7 @@ test("a prior Sales unknown survives Admin override handoff into active Admissio
     "no persisted Admissions carry blocker requested for this matrix run",
   );
   const studentCaseId = admissionsBlockingCaseId as string;
-  await submitGate(page, "admissions");
+  await signInAs(page, "admissions");
   const panel = await expectBlockedPanel(page, {
     route: `/clients/${studentCaseId}`,
     scope: "admissions",

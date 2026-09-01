@@ -34,6 +34,12 @@ fail() {
   exit 1
 }
 
+require_env() {
+  local variable_name="$1"
+  [[ -n "${!variable_name:-}" ]] \
+    || fail "Required environment variable is missing: $variable_name"
+}
+
 free_port() {
   "$node_bin" --input-type=module <<'EOF'
 import { createServer } from "node:net";
@@ -97,6 +103,14 @@ fi
   || fail "Provide the private legacy provider env file via EVO_V2_AMOCRM_PROVIDER_ENV_FILE"
 [[ -n "$token_file" ]] \
   || fail "Provide the private token file via EVO_V2_AMOCRM_TOKEN_FILE"
+for variable_name in \
+  NEXT_PUBLIC_SUPABASE_URL \
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+  EVO_PLATFORM_SUPABASE_SECRET_KEY \
+  EVO_STAFF_AUTH_ADMIN_EMAIL \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD; do
+  require_env "$variable_name"
+done
 
 git fetch --quiet origin main
 head_sha="$(git rev-parse HEAD)"
@@ -122,13 +136,6 @@ postgres_user="evo_acceptance"
 postgres_database="evo_acceptance"
 postgres_password="$(openssl rand -hex 24)"
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
-gate_session_secret="$(openssl rand -hex 32)"
-gate_admin_identifier="admin"
-gate_admin_secret="$(openssl rand -hex 16)"
-gate_sales_identifier="sales"
-gate_sales_secret="$(openssl rand -hex 16)"
-gate_admissions_identifier="admissions"
-gate_admissions_secret="$(openssl rand -hex 16)"
 evidence_dir="$repo_root/output/provider-acceptance/amocrm/$expected_main_sha"
 
 compose_args=(
@@ -185,13 +192,9 @@ start_app() {
   : >"$app_log"
   DATABASE_URL="$database_url" \
     EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" \
-    EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
-    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
-    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
-    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
-    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+    EVO_PLATFORM_SUPABASE_SECRET_KEY="$EVO_PLATFORM_SUPABASE_SECRET_KEY" \
     "$node_bin" scripts/prepare-connected-amocrm-validation.mjs run-app \
       --runtime-file "$runtime_file" \
       --context-file "$context_file" \
@@ -275,8 +278,8 @@ PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   EVO_V2_AMOCRM_EVIDENCE_DIR="$evidence_dir" \
   EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE="$runtime_file" \
   EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
-  EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-  EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$EVO_STAFF_AUTH_ADMIN_EMAIL" \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD="$EVO_STAFF_AUTH_ADMIN_PASSWORD" \
   "$node_bin" node_modules/@playwright/test/cli.js test \
     tests/e2e/canonical-amocrm-connected-provider.spec.ts \
     --config=playwright.config.ts \
@@ -308,8 +311,8 @@ PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   EVO_V2_AMOCRM_EVIDENCE_DIR="$evidence_dir" \
   EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE="$runtime_file" \
   EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
-  EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-  EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$EVO_STAFF_AUTH_ADMIN_EMAIL" \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD="$EVO_STAFF_AUTH_ADMIN_PASSWORD" \
   "$node_bin" node_modules/@playwright/test/cli.js test \
     tests/e2e/canonical-amocrm-connected-provider.spec.ts \
     --config=playwright.config.ts \

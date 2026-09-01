@@ -33,6 +33,12 @@ fail() {
   exit 1
 }
 
+require_env() {
+  local variable_name="$1"
+  [[ -n "${!variable_name:-}" ]] \
+    || fail "Required environment variable is missing: $variable_name"
+}
+
 free_port() {
   "$node_bin" --input-type=module <<'EOF'
 import { createServer } from "node:net";
@@ -134,6 +140,14 @@ esac
   || fail "Set EVO_V2_REAL_WAHA_ACCEPTANCE=1 to authorize the single connected self-send"
 [[ "$expected_main_sha" =~ ^[0-9a-f]{40}$ ]] \
   || fail "Provide the exact 40-character main SHA as the argument or EVO_V2_EXPECTED_MAIN_SHA"
+for variable_name in \
+  NEXT_PUBLIC_SUPABASE_URL \
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+  EVO_PLATFORM_SUPABASE_SECRET_KEY \
+  EVO_STAFF_AUTH_SALES_EMAIL \
+  EVO_STAFF_AUTH_SALES_PASSWORD; do
+  require_env "$variable_name"
+done
 
 for command_name in git docker orb ssh curl openssl; do
   command -v "$command_name" >/dev/null 2>&1 \
@@ -191,13 +205,6 @@ postgres_user="evo_waha_acceptance"
 postgres_database="evo_waha_acceptance"
 postgres_password="$(openssl rand -hex 24)"
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
-gate_session_secret="$(openssl rand -hex 32)"
-gate_admin_identifier="director-waha-$RANDOM"
-gate_admin_secret="$(openssl rand -hex 32)"
-gate_sales_identifier="sales-waha-$RANDOM"
-gate_sales_secret="$(openssl rand -hex 32)"
-gate_admissions_identifier="admissions-waha-$RANDOM"
-gate_admissions_secret="$(openssl rand -hex 32)"
 inbound_secret="$(openssl rand -hex 32)"
 
 mkdir -p "$private_document_root"
@@ -403,13 +410,9 @@ DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs >/de
 assert_next_dev_lock_available
 DATABASE_URL="$database_url" \
 EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" \
-EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
-EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
-EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
-EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
-EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+EVO_PLATFORM_SUPABASE_SECRET_KEY="$EVO_PLATFORM_SUPABASE_SECRET_KEY" \
 EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
 EVO_V2_GEMINI_PROPOSALS_ENABLED=0 \
 EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
@@ -430,8 +433,8 @@ if ! PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   EVO_V2_ACCEPTANCE_MAIN_SHA="$head_sha" \
   EVO_V2_WAHA_EVIDENCE_DIR="$evidence_dir" \
   EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
-  EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-  EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
+  EVO_STAFF_AUTH_SALES_EMAIL="$EVO_STAFF_AUTH_SALES_EMAIL" \
+  EVO_STAFF_AUTH_SALES_PASSWORD="$EVO_STAFF_AUTH_SALES_PASSWORD" \
   EVO_V2_CONNECTED_WAHA_BASE_URL="http://127.0.0.1:${tunnel_port}" \
   EVO_V2_CONNECTED_WAHA_API_KEY="$waha_api_key" \
   EVO_V2_CONNECTED_WAHA_SESSION_NAME="$waha_session_name" \

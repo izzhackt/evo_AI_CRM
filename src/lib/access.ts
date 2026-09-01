@@ -1,7 +1,7 @@
 import type { StudentCaseState } from "./student-case-policy";
 
 export type AccessActor = {
-  id: number;
+  id: string | number;
   role: string;
 };
 

@@ -15,6 +15,12 @@ fail() {
   exit 1
 }
 
+require_env() {
+  local variable_name="$1"
+  [[ -n "${!variable_name:-}" ]] \
+    || fail "Required environment variable is missing: $variable_name"
+}
+
 case "$-" in
   *x*) fail "Shell xtrace must be disabled because this harness handles provider secrets" ;;
 esac
@@ -24,6 +30,14 @@ esac
   || fail "Set EVO_V2_REAL_END_TO_END_ACCEPTANCE=1 for the single V2-10D real acceptance run"
 [[ "$expected_main_sha" =~ ^[0-9a-f]{40}$ ]] \
   || fail "Provide the exact 40-character origin/main SHA as argv[1] or EVO_V2_EXPECTED_MAIN_SHA"
+for variable_name in \
+  NEXT_PUBLIC_SUPABASE_URL \
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+  EVO_PLATFORM_SUPABASE_SECRET_KEY \
+  EVO_STAFF_AUTH_ADMIN_EMAIL \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD; do
+  require_env "$variable_name"
+done
 
 for command_name in git docker orb ssh curl openssl stat; do
   command -v "$command_name" >/dev/null 2>&1 \
@@ -232,13 +246,9 @@ start_app() {
   assert_next_dev_lock_available
   DATABASE_URL="$database_url" \
     EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" \
-    EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
-    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
-    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
-    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
-    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+    EVO_PLATFORM_SUPABASE_SECRET_KEY="$EVO_PLATFORM_SUPABASE_SECRET_KEY" \
     EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
     EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
     EVO_V2_GEMINI_PROVIDER_AUTHORIZED="$provider_authorized" \
@@ -268,13 +278,6 @@ postgres_user="evo_v2_10d"
 postgres_database="evo_v2_10d"
 postgres_password="$(openssl rand -hex 24)"
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
-gate_session_secret="$(openssl rand -hex 32)"
-gate_admin_identifier="admin-v2-10d-$RANDOM"
-gate_admin_secret="$(openssl rand -hex 32)"
-gate_sales_identifier="sales-v2-10d-$RANDOM"
-gate_sales_secret="$(openssl rand -hex 32)"
-gate_admissions_identifier="admissions-v2-10d-$RANDOM"
-gate_admissions_secret="$(openssl rand -hex 32)"
 inbound_secret="$(openssl rand -hex 32)"
 
 mkdir -p "$private_document_root"
@@ -554,8 +557,8 @@ EVO_V2_10D_EVIDENCE_DIR="$evidence_dir" \
 EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE="$runtime_file" \
 EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
 EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
-EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+EVO_STAFF_AUTH_ADMIN_EMAIL="$EVO_STAFF_AUTH_ADMIN_EMAIL" \
+EVO_STAFF_AUTH_ADMIN_PASSWORD="$EVO_STAFF_AUTH_ADMIN_PASSWORD" \
 EVO_V2_REAL_END_TO_END_PROJECT=desktop-chromium \
 EVO_V2_CONNECTED_WAHA_BASE_URL="http://127.0.0.1:${tunnel_port}" \
 EVO_V2_CONNECTED_WAHA_API_KEY="$waha_api_key" \
@@ -602,8 +605,8 @@ EVO_V2_10D_EVIDENCE_DIR="$evidence_dir" \
 EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE="$runtime_file" \
 EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
 EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
-EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
+EVO_STAFF_AUTH_ADMIN_EMAIL="$EVO_STAFF_AUTH_ADMIN_EMAIL" \
+EVO_STAFF_AUTH_ADMIN_PASSWORD="$EVO_STAFF_AUTH_ADMIN_PASSWORD" \
 EVO_V2_REAL_END_TO_END_PROJECT=desktop-chromium \
 EVO_V2_CONNECTED_WAHA_BASE_URL="http://127.0.0.1:${tunnel_port}" \
 EVO_V2_CONNECTED_WAHA_API_KEY="$waha_api_key" \

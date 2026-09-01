@@ -4,7 +4,7 @@ import Link from "next/link";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { btnCls } from "@/components/ui";
-import { logoutDevelopmentGateAction } from "@/lib/development-gate-actions";
+import { logoutStaffAction } from "@/lib/staff-auth-actions";
 import { fixedRoleCan, isFixedRole } from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
@@ -24,7 +24,7 @@ const COPY: Record<
     title: "Раздел ещё не подключён",
     tabTitle: "Раздел не подключён",
     description:
-      "Ваша временная V2-сессия и тестовая роль проверены. Этот модуль ещё не заменён, поэтому старый runtime не запускался.",
+      "Ваша Supabase-сессия и активная роль сотрудника проверены. Этот модуль ещё не заменён, поэтому старый runtime не запускался.",
     openInbox: "Открыть сообщения",
   },
   ky: {
@@ -104,7 +104,7 @@ export default async function PlatformPendingPage() {
               {copy.openInbox}
             </Link>
           )}
-          <form action={logoutDevelopmentGateAction}>
+          <form action={logoutStaffAction}>
             <button type="submit" className={btnCls}>
               {t("logout")}
             </button>

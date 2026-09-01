@@ -1,47 +1,47 @@
-import { currentUser } from "./auth";
-import type { DevelopmentGateRole } from "./development-gate-core";
+import { cookies } from "next/headers";
 
-// Only DEVELOPMENT_PLATFORM_ROLES can be issued by the active V2 gate.
-export const DEVELOPMENT_PLATFORM_ROLES = [
-  "admin",
-  "sales",
-  "admissions",
-] as const satisfies readonly DevelopmentGateRole[];
+import {
+  FIXED_ROLES,
+  isFixedRole,
+  type FixedRole,
+} from "./fixed-role-policy.ts";
+import { createSupabaseServerClient } from "./supabase/server.ts";
+import {
+  databaseRoleToInterfaceRole,
+  readVerifiedPlatformAuthority,
+} from "./supabase/platform-authority.ts";
 
-export const HISTORICAL_PLATFORM_ROLES = [
-  "curator",
-  "finance",
-  "student",
-] as const;
+export const ACTIVE_PLATFORM_ROLES = FIXED_ROLES;
+export const ADMIN_ROLE_PREVIEW_COOKIE = "evo_admin_role_preview";
+
+export const HISTORICAL_PLATFORM_ROLES = ["finance", "student"] as const;
 
 export type HistoricalPlatformRole = (typeof HISTORICAL_PLATFORM_ROLES)[number];
-export type PlatformRole = DevelopmentGateRole | HistoricalPlatformRole;
+export type PlatformRole = FixedRole | HistoricalPlatformRole;
 
-export type PlatformActor<
-  Role extends PlatformRole = DevelopmentGateRole,
-> = Readonly<{
+export type PlatformActor<Role extends PlatformRole = FixedRole> = Readonly<{
   authUserId: string;
   profileId: string;
   membershipId: string;
   organizationId: string;
   displayName: string;
+  email: string;
   platformRole: Role;
-  authorityRole: DevelopmentGateRole;
+  authorityRole: FixedRole;
   platformAccessVersion: number;
   platformBundleId: string;
   platformBundleVersion: number;
 }>;
 
-/** The only actor shape the active V2 development gate can resolve. */
-export type ActivePlatformActor = PlatformActor<DevelopmentGateRole>;
+export type ActivePlatformActor = PlatformActor<FixedRole>;
 
-/**
- * Explicit repository-only tail for code that expires in #429 or the frozen
- * student portal. The active resolver never creates this broad actor shape.
- */
+/** Repository-only tail for the frozen student portal and unreplaced slices. */
 export type HistoricalRepositoryActor = PlatformActor<PlatformRole>;
 
-export type PlatformActorInvalidReason = "development_session_invalid";
+export type PlatformActorInvalidReason =
+  | "supabase_session_invalid"
+  | "staff_authority_invalid"
+  | "staff_authority_unavailable";
 
 export type PlatformActorResult =
   | Readonly<{ status: "anonymous"; actor: null }>
@@ -52,50 +52,69 @@ export type PlatformActorResult =
     }>
   | Readonly<{ status: "authenticated"; actor: ActivePlatformActor }>;
 
-const LOCAL_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
-const LOCAL_BUNDLE_ID = "00000000-0000-4000-8000-000000000002";
-
-const TECHNICAL_ACTOR_IDS = {
-  admin: {
-    authUserId: "00000000-0000-4000-8000-000000000101",
-    profileId: "00000000-0000-4000-8000-000000000201",
-    membershipId: "00000000-0000-4000-8000-000000000301",
-  },
-  sales: {
-    authUserId: "00000000-0000-4000-8000-000000000102",
-    profileId: "00000000-0000-4000-8000-000000000202",
-    membershipId: "00000000-0000-4000-8000-000000000302",
-  },
-  admissions: {
-    authUserId: "00000000-0000-4000-8000-000000000103",
-    profileId: "00000000-0000-4000-8000-000000000203",
-    membershipId: "00000000-0000-4000-8000-000000000303",
-  },
-} as const satisfies Record<
-  DevelopmentGateRole,
-  Readonly<{
-    authUserId: string;
-    profileId: string;
-    membershipId: string;
-  }>
->;
+async function adminPreviewRole(authorityRole: FixedRole): Promise<FixedRole> {
+  if (authorityRole !== "admin") return authorityRole;
+  const requestedRole = (await cookies()).get(ADMIN_ROLE_PREVIEW_COOKIE)?.value;
+  return isFixedRole(requestedRole) ? requestedRole : authorityRole;
+}
 
 export async function resolvePlatformActor(): Promise<PlatformActorResult> {
-  const user = await currentUser();
-  if (!user) return { status: "anonymous", actor: null };
+  let client;
+  try {
+    client = await createSupabaseServerClient();
+  } catch {
+    return {
+      status: "invalid",
+      actor: null,
+      reason: "staff_authority_unavailable",
+    };
+  }
 
-  const ids = TECHNICAL_ACTOR_IDS[user.role];
+  const { data: claimsData, error: claimsError } = await client.auth.getClaims();
+  if (claimsError) {
+    const missingSession = claimsError.name === "AuthSessionMissingError";
+    return missingSession
+      ? { status: "anonymous", actor: null }
+      : {
+          status: "invalid",
+          actor: null,
+          reason: "supabase_session_invalid",
+        };
+  }
+  if (!claimsData?.claims) return { status: "anonymous", actor: null };
+
+  const authorityResult = await readVerifiedPlatformAuthority(
+    client,
+    claimsData.claims,
+  );
+  if (authorityResult.status !== "authenticated") {
+    return {
+      status: "invalid",
+      actor: null,
+      reason:
+        authorityResult.status === "unavailable"
+          ? "staff_authority_unavailable"
+          : "staff_authority_invalid",
+    };
+  }
+
+  const authority = authorityResult.authority;
+  const authorityRole = databaseRoleToInterfaceRole(authority.databaseRole);
+  const platformRole = await adminPreviewRole(authorityRole);
   return {
     status: "authenticated",
     actor: {
-      ...ids,
-      organizationId: LOCAL_ORGANIZATION_ID,
-      displayName: user.name,
-      platformRole: user.role,
-      authorityRole: user.authorityRole,
-      platformAccessVersion: 1,
-      platformBundleId: LOCAL_BUNDLE_ID,
-      platformBundleVersion: 1,
+      authUserId: authority.authUserId,
+      profileId: authority.profileId,
+      membershipId: authority.membershipId,
+      organizationId: authority.organizationId,
+      displayName: authority.displayName,
+      email: authority.email,
+      platformRole,
+      authorityRole,
+      platformAccessVersion: authority.platformAccessVersion,
+      platformBundleId: authority.platformBundleId,
+      platformBundleVersion: authority.platformBundleVersion,
     },
   };
 }

@@ -3,16 +3,17 @@
 import { useActionState } from "react";
 
 import {
-  loginDevelopmentGateAction,
-  type DevelopmentGateActionState,
-} from "@/lib/development-gate-actions";
+  loginStaffAction,
+  type StaffLoginActionState,
+} from "@/lib/staff-auth-actions";
 import { btnCls, inputCls, labelCls } from "./ui";
 
-type DevelopmentGateLabels = Readonly<{
+type StaffLoginLabels = Readonly<{
   accessDenied: string;
-  gateUnavailable: string;
-  identifier: string;
-  secret: string;
+  authUnavailable: string;
+  staffAccessDenied: string;
+  email: string;
+  password: string;
   signIn: string;
 }>;
 
@@ -20,11 +21,11 @@ export function LoginForm({
   labels,
   initialError = null,
 }: Readonly<{
-  labels: DevelopmentGateLabels;
-  initialError?: DevelopmentGateActionState;
-}>) {
+    labels: StaffLoginLabels;
+    initialError?: StaffLoginActionState;
+  }>) {
   const [error, action, pending] = useActionState(
-    loginDevelopmentGateAction,
+    loginStaffAction,
     initialError,
   );
 
@@ -47,16 +48,16 @@ export function LoginForm({
       ) : null}
 
       <div>
-        <label htmlFor="gate-identifier" className={labelCls}>
-          {labels.identifier}
+        <label htmlFor="staff-email" className={labelCls}>
+          {labels.email}
         </label>
         <input
-          id="gate-identifier"
-          name="identifier"
-          type="text"
+          id="staff-email"
+          name="email"
+          type="email"
           autoComplete="username"
           required
-          maxLength={256}
+          maxLength={320}
           aria-describedby={error ? "login-error" : undefined}
           aria-invalid={error ? "true" : undefined}
           className={inputCls}
@@ -64,16 +65,16 @@ export function LoginForm({
       </div>
 
       <div>
-        <label htmlFor="gate-secret" className={labelCls}>
-          {labels.secret}
+        <label htmlFor="staff-password" className={labelCls}>
+          {labels.password}
         </label>
         <input
-          id="gate-secret"
-          name="secret"
+          id="staff-password"
+          name="password"
           type="password"
           autoComplete="current-password"
           required
-          maxLength={1024}
+          maxLength={4096}
           aria-describedby={error ? "login-error" : undefined}
           aria-invalid={error ? "true" : undefined}
           className={inputCls}

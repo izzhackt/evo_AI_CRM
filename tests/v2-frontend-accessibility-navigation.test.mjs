@@ -608,3 +608,32 @@ test("prose is capped by one measure, not several", () => {
     `prose should carry a single measure; found ${[...used].sort((a, b) => a - b).join(", ")}`,
   );
 });
+
+test("small metadata labels keep one convention", () => {
+  // Pass 3 dropped `uppercase` in three files while thirty kept it, which put
+  // two conventions on one page; the revert then survived only partially
+  // through a squash-merge, leaving the split on main anyway. Whichever
+  // convention wins, it has to win everywhere.
+  //
+  // Scoped to the small-caps metadata label -- a bold `dt` at the two smallest
+  // steps. Other `dt` styling is a different thing and is not in scope.
+  const capitalised = [];
+  const plain = [];
+  for (const surface of staffOperatingSurfaces()) {
+    for (const [, classes] of source(surface).matchAll(/<dt\s+className="([^"]*)"/g)) {
+      const isSmallLabel =
+        /\bfont-semibold\b/.test(classes) && /\btext-(?:2xs|xs)\b/.test(classes);
+      if (!isSmallLabel) continue;
+      (/\buppercase\b/.test(classes) ? capitalised : plain).push(`${surface}: ${classes}`);
+    }
+  }
+
+  assert.ok(
+    capitalised.length + plain.length > 0,
+    "the label pattern should still exist for this guard to mean anything",
+  );
+  assert.ok(
+    capitalised.length === 0 || plain.length === 0,
+    `small metadata labels use both conventions -- ${capitalised.length} capitalised, ${plain.length} plain:\n  ${plain.slice(0, 4).join("\n  ")}`,
+  );
+});

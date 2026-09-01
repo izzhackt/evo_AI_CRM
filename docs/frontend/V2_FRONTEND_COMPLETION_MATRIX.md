@@ -19,7 +19,7 @@ visual intent only and are not runtime, provider or production proof.
 | --- | --- | --- |
 | Code | Complete for the V2-11 staff frontend slice. | The route, fixed-role policy, component and outcome contracts pass on the reviewed implementation. |
 | Local V2 runtime | Complete for the sampled end-to-end staff journey. | The root app rendered real local PostgreSQL records for Admin, Sales and Admissions without fixture, demo or fallback paths. |
-| Provider | Not proved in this run. | No Gemini request, WAHA send or amoCRM write was authorized or attempted. The UI fails closed and discloses the current server state. |
+| Provider | Not proved in this run, which is a statement about this run rather than the product. | No Gemini request, WAHA send or amoCRM write was authorized or attempted here. The UI fails closed and discloses the current server state. Provider acceptance itself passed separately on 30 August 2026 and is recorded in #467. |
 | Production | Not proved and not authorized. | No deploy, production provider action or real customer-data mutation occurred. |
 
 “Frontend complete” below means Code plus Local V2 runtime for the active

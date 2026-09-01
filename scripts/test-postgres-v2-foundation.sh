@@ -184,6 +184,12 @@ if ! (
 fi
 if ! (
   cd "$repo_root"
+  npx --no-install supabase db reset --local --no-seed --yes
+) >>"$supabase_log" 2>&1; then
+  fail "The disposable local Supabase database did not reset to repository migrations"
+fi
+if ! (
+  cd "$repo_root"
   npx --no-install supabase status -o env
 ) >"$supabase_env_file" 2>>"$supabase_log"; then
   fail "The disposable local Supabase stack did not expose its local runtime configuration"

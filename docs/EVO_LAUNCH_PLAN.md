@@ -1,22 +1,132 @@
 # EVO Launch Plan
 
-Status: active product-first V2 local-development and real-provider contract
-Date: 2026-08-29 (Asia/Dubai)
-Authority: owner direction, parent issue #463, ADR 0023, ADR 0022 for the
-completed foundation, this plan and the latest append-only
-`docs/PLAN_CHANGES.md` entry
+Status: active managed-Supabase production-successor contract
+Date: 2026-09-02 (Asia/Dubai)
+Authority: owner direction, ADR 0024, this plan and the latest append-only
+`docs/PLAN_CHANGES.md` entry, parent issue #543 and ordered children #544
+through #553
 Verified starting baseline: GitHub `origin/main` at
-`afb2a3724b1e6730b21401938a088a987b2ace13`
+`4a2984f55b13bf4fe416a70d7989b9311daa8055`
+Latest verified shared main after the architecture reset:
+`a1ae2ef2624f1e4564f79300295f53c7ade5ae52`, with exact-main CI run
+`33561301420` green for Main CRM, EVO Inbox and EVO Lead Agent.
 
-## Current V2 authority: validate the CRM product first
+## Current authority: one Supabase-backed production EVO
 
-The active goal is to prove the main EVO CRM product and its real provider
-operations quickly in a private local contour. It is not to build production
-infrastructure or declare V2 ready to replace V1.
+The owner has ended the self-hosted/no-Supabase direction. The target is one
+EVO Admissions CRM: the accepted V2 interface, business workflows and provider
+safety behavior running on the ready-made managed Supabase foundation retained
+from V1. After controlled cutover, `V1` and `V2` are historical release labels,
+not active products or parallel runtime choices.
 
-V2 keeps one staff interface and the core workflow across Sales, Student 360,
-Admissions, Documents, Applications, Visa, Finance, WhatsApp and advisory AI.
-It replaces the Supabase execution path with a direct self-hosted runtime:
+The preferred foundation is the existing dedicated EVO managed Supabase
+project. A read-only audit must first prove its project identity, applied
+migration history, `platform`/`platform_private` schema state, staff/Auth state,
+private buckets, RLS, data population, backup capability and current consumers.
+If that proof fails, stop and record the exact discrepancy; do not silently
+create another paid project, reset the existing project or substitute a fake
+environment.
+
+The production successor uses:
+
+- root `supabase/` as the only target migration authority;
+- managed Supabase Postgres as the only business-data authority;
+- Supabase Auth plus server authorization/RLS for real staff identity;
+- private Supabase Storage for accepted documents and WhatsApp media;
+- Realtime only where a proved product interaction needs live updates;
+- the current V2 Sales, Student 360, Admissions, documents, applications, visa,
+  finance, WhatsApp and advisory-AI staff experience;
+- the V2 human-reviewed Gemini, explicit WhatsApp send, ambiguity recovery and
+  idempotent amoCRM command semantics;
+- the existing EVO-owned VPS, Caddy, CI/release and private WAHA capabilities
+  where the audit proves they are current and correctly isolated.
+
+The production successor does not keep Drizzle `evo_*`, SQLite, the two-field
+development gate, application-local private document bytes, old manual or
+autonomous messaging workers, superseded provider adapters, duplicate UI,
+dual reads/writes or a fallback repository as a second active path. V2-only
+business gaps move into `platform` or `platform_private` with immutable forward
+Supabase migrations. Cleanup happens in the same slice after real replacement
+proof; historical migrations, ADRs, runbooks, archived docs and evidence remain
+preserved.
+
+### Execution and production gates
+
+Work executes as small sequential launch-control PRs. Every PR requires an
+independent exact-head review, protected exact-head CI, match-head merge and
+exact-main verification. A slice includes a scoped import/runtime inventory
+showing that the superseded path is no longer active and a fail-closed proof
+showing that the app does not fall back.
+
+Repository changes, read-only provider/deployment inspection, isolated local
+Supabase work and staging preparation continue without routine approval pauses.
+Production data mutation or traffic cutover occurs only after all of these are
+true:
+
+1. the exact managed project and production runtime are identified;
+2. a recoverable pre-change backup exists and a restore has been proved;
+3. forward migrations and data reconciliation pass on an isolated copy or
+   staging project using real schema and representative authorized data;
+4. real Auth, RLS, Storage, CRM and provider browser workflows pass;
+5. the no-dual-write/no-fallback inventory passes;
+6. an exact rollback boundary and maintenance sequence are recorded.
+
+The final cutover performs one bounded authority switch. It does not operate
+V1 and the successor indefinitely. Active V1 code, SQLite data path, old
+workers, old routes/config and stale dependencies are retired only after the
+new path is accepted; historical and rollback material remains preserved.
+
+### Active production-successor sequence
+
+| Order | Issue | Slice | Outcome |
+| --- | --- | --- | --- |
+| 0 | #544 | Architecture and issue reset | ADR 0024, glossary, launch contract and exact GitHub sequence |
+| 1 | #545 | Existing-state audit | read-only managed Supabase, VPS, data, Auth, Storage, migrations and runtime inventory |
+| 2 | #546 | Real staff and Sales tracer | Supabase Auth/RBAC/RLS plus the accepted Sales lead workflow prove the first complete successor path |
+| 3 | #547 | Student 360 and handoff tracer | contract/payment gate and accountable handoff run on the canonical Supabase model |
+| 4 | #548 | Admissions and private files tracer | Admissions operations and Supabase Storage replace local files and remaining case paths |
+| 5 | #549 | Provider tracer | V2 Gemini, WhatsApp and amoCRM receipts/workflows persist through canonical Supabase |
+| 6 | #550 | Single deployment and cleanup | production image/Compose/env/release path drops SQLite, Drizzle authority, old workers and duplicate runtime dependencies |
+| 7 | #551 | Staging and recovery acceptance | real staging, restore, migration rehearsal, browser, role, file and provider proof |
+| 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
+| 9 | #553 | Completion audit | exact-main proof of one UI, runtime, data, auth/session, file and provider authority |
+
+### P1 existing-state finding
+
+The sanitized read-only audit is recorded in
+`docs/audits/evo-production-successor-existing-state-2026-09-02.md`. It proves
+that the existing healthy managed Supabase project is the correct retained
+foundation, but production is still split across Supabase `public`, Supabase
+`platform`, CRM SQLite, lead-agent SQLite, separate CRM/Inbox apps and two WAHA
+contours. The live migration ledger ends at `079`; root `080`–`092` remain
+unapplied. The target private document and WhatsApp-media buckets are also
+absent. Seven provider backups are listed, but a current pre-change artifact
+and successful restore rehearsal are not proved.
+
+Accordingly, #546 may proceed with isolated real-Supabase implementation and
+proof, but no production migration, data write or traffic switch is authorized
+by P1. The recovery and rehearsal gates remain mandatory before production
+mutation.
+
+Issue bodies must repeat their destructive/external boundary and legacy
+eradication acceptance criteria. The sequence is strictly ordered unless the
+plan records a justified dependency change before implementation.
+
+## Completed historical V2 product-validation contract
+
+This section preserves the product-validation contract and evidence completed
+under ADRs 0022 and 0023. Its words such as `active`, `current` and `must` are
+historical within this section and do not override ADR 0024 or the current
+Supabase-backed production-successor authority above.
+
+The completed historical goal was to prove the main EVO CRM product and its
+real provider operations quickly in a private local contour. It was not a
+production-readiness or replacement contract.
+
+That completed V2 contour kept one staff interface and the core workflow
+across Sales, Student 360, Admissions, Documents, Applications, Visa, Finance,
+WhatsApp and advisory AI. It replaced the Supabase execution path with a
+direct self-hosted runtime:
 
 - a real private local PostgreSQL service;
 - Drizzle schema definitions and committed, reviewed SQL migrations;
@@ -30,12 +140,12 @@ It replaces the Supabase execution path with a direct self-hosted runtime:
 - a minimal append-only business event log sufficient to debug and verify
   consequential transitions.
 
-The completed V2 product path may not use Supabase SDK/Auth/Storage/Realtime,
-Supabase migrations or runtime environment variables. It may not dual-read,
-dual-write, write through, fall back to Supabase/SQLite or preserve a Supabase
-compatibility layer.
+The completed V2 product path did not use Supabase SDK/Auth/Storage/Realtime,
+Supabase migrations or runtime environment variables. It did not dual-read,
+dual-write, write through, fall back to Supabase/SQLite or preserve a
+Supabase compatibility layer.
 
-### Development access and fixed roles
+### Historical development access and fixed roles
 
 The access page has exactly two fields. The first identifier selects one of
 three technical profiles configured only through ignored local secrets; the
@@ -121,7 +231,7 @@ bundle or treat them as authority. Temporary coexistence requires explicit
 owner approval with named files, reason, expiry/exit criteria and a deletion
 issue. Phase 0 records this rule and deletes no V1 code.
 
-### Product paths that must work
+### Historical product paths that were proved
 
 1. Start real local PostgreSQL, apply the complete migration chain and query it
    from the application.
@@ -141,14 +251,16 @@ issue. Phase 0 records this rule and deletes no V1 code.
 11. Explain every consequential transition and provider attempt through the
     minimal event log and durable command receipts.
 
-Private documents need real local persistence, authorized upload/download and
-resubmission, metadata, byte length and checksum. Full backup/restore drills,
-off-host retention and production rollback evidence are not active scope.
+In that completed local contour, private documents needed real local
+persistence, authorized upload/download and resubmission, metadata, byte
+length and checksum. Full backup/restore drills, off-host retention and
+production rollback evidence were not active scope there.
 
-WhatsApp, Gemini and amoCRM must remain real product paths rather than mocks or
-fake success. The owner authorized #464-#467 on 2026-08-29 to use the existing
-connected providers from the private V2 contour without routine confirmation.
-Credentials stay in ignored server-only configuration. Gemini remains
+Within that completed contour, WhatsApp, Gemini and amoCRM had to remain real
+product paths rather than mocks or fake success. The owner authorized #464-#467
+on 2026-08-29 to use the existing connected providers from the private V2
+contour without routine confirmation. Credentials stay in ignored server-only
+configuration. Gemini remains
 advisory; only a staff role may send final reviewed text or invoke an explicit
 amoCRM command. No autonomous reply, broadcast, fallback provider, blind retry
 after an ambiguous result, V1 runtime change or production-readiness claim is
@@ -172,7 +284,7 @@ authorized.
 #424 through #433 and parent #407 are completed foundation history. They are
 not reopened or used as permission to revive deleted provider writers.
 
-### Active real-provider issue contract
+### Completed real-provider issue contract
 
 | Order | Issue | Product outcome |
 | --- | --- | --- |
@@ -181,8 +293,8 @@ not reopened or used as permission to revive deleted provider writers.
 | V2-10C | #466 | permanent PostgreSQL-authoritative amoCRM writes and provider bindings |
 | V2-10D | #467 | bounded real provider, PostgreSQL, application and browser acceptance |
 
-Only #464 through #467 are active V2 long-run issues under parent #463. They
-execute in this exact order as small PRs. Each PR requires independent
+Only #464 through #467 were active V2 long-run issues under parent #463. They
+executed in this exact order as small PRs. Each PR required independent
 exact-head review, all protected exact-head CI checks,
 `gh pr merge --match-head-commit` and exact-main CI verification before the
 next slice starts.
@@ -552,11 +664,10 @@ The contracts follow the current official provider documentation:
 - Ordinary lint, typecheck, unit/integration, browser and build checks remain
   required in proportion to each slice.
 
-### Deferred before any real use
+### Historical deferred set before ADR 0024
 
-The following are preserved only as one deferred-before-broad-real-use note
-and are not active issues, dependencies or blockers for local product and
-bounded provider validation:
+The following were preserved as one deferred-before-broad-real-use note and
+were not active dependencies for local product and bounded provider validation:
 production-grade staff authentication/account lifecycle; multi-organization
 tenancy and cross-organization RLS; fine-grained per-user grants; public/VPS
 deployment, DNS/TLS/Caddy and paid infrastructure; production monitoring,
@@ -565,15 +676,15 @@ and production rollback proof; managed staff acceptance; a 10-day or five-case
 pilot; broad or historical customer migration; replacement, cutover and
 tagging.
 
-Before real staff identities, routine or bulk real-customer processing,
-public/managed exposure or any V1 replacement, the owner must create and
-authorize a new plan covering the applicable deferred controls. The bounded
-provider authority in #463-#467 grants no deployment, broad migration or
+ADR 0024, parent #543 and children #544-#553 are now the separately authorized
+plan covering the applicable controls. The historical bounded provider
+authority in #463-#467 by itself granted no deployment, broad migration or
 cutover authority.
 
 V1 staging and production, their code, data, images, runbooks and rollback
-artifacts remain unchanged. The V1 history below is retained as evidence and
-does not override the active V2 product-first contract.
+artifacts remained unchanged during that program. The V1 history below is
+retained as evidence and does not override the current ADR 0024 successor
+contract.
 
 ## Frozen unified V1 authority and execution evidence
 
@@ -5605,12 +5716,11 @@ later itemized, separately approved and recoverability-checked operation.
 - Docker Compose project-name isolation:
   <https://docs.docker.com/compose/how-tos/project-name/>.
 
-## V2-11 — Staff frontend truth and journey completion (2026-08-31)
+## Completed V2-11 — Staff frontend truth and journey completion (2026-08-31)
 
-V2-11 is the current frontend completion contract for the private local V2
-product contour. It supersedes older UI-only descriptions where they conflict,
-but it does not change the frozen V1 production boundary or authorize a
-deployment, provider mutation, customer-data mutation or cutover.
+V2-11 was the frontend completion contract for the private local V2 product
+contour. It remains accepted UI/product evidence, but ADR 0024 supersedes its
+local-runtime and frozen-production assumptions.
 
 ### Outcome and evidence baseline
 

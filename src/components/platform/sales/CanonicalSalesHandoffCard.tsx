@@ -140,7 +140,7 @@ export function CanonicalSalesHandoffCard({
   return (
     <Card title={copy.title} className="shadow-none">
       <div className="space-y-4" data-testid="canonical-sales-handoff-card">
-        <p className="max-w-[66ch] text-sm leading-5 text-fg-3">
+        <p className="max-w-[56ch] text-sm leading-5 text-fg-3">
           {completedCaseId
             ? copy.completed
             : canSubmitNormal

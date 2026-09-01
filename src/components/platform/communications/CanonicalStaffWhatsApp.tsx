@@ -179,7 +179,7 @@ export function CanonicalStaffWhatsAppWorkspace({
   return (
     <div className="space-y-4" data-testid="canonical-staff-whatsapp-page">
       <PageHeader title={copy.title} description={copy.description} />
-      <div className="flex h-[calc(100dvh-19rem)] min-h-[320px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
+      <div className="flex h-[calc(100dvh-var(--staff-chrome,304px))] min-h-[320px] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-evo lg:flex-row">
         <aside
           className={cn(
             "w-full shrink-0 border-b border-border bg-surface-2 lg:block lg:w-[360px] lg:border-r lg:border-b-0",
@@ -188,7 +188,7 @@ export function CanonicalStaffWhatsAppWorkspace({
         >
           <div className="border-b border-border px-4 py-4">
             <h2 className="text-base font-semibold text-fg">{copy.queueTitle}</h2>
-            <p className="max-w-[66ch] mt-1 text-sm leading-5 text-fg-3">
+            <p className="max-w-[56ch] mt-1 text-sm leading-5 text-fg-3">
               {copy.queueDescription}
             </p>
           </div>
@@ -325,7 +325,7 @@ export function CanonicalStaffWhatsAppWorkspace({
               <h2 className="text-lg font-semibold text-fg">
                 {copy.emptyThreadTitle}
               </h2>
-              <p className="mt-2 max-w-lg text-sm leading-6 text-fg-3">
+              <p className="mt-2 max-w-[56ch] text-sm leading-6 text-fg-3">
                 {copy.emptyThreadText}
               </p>
             </div>
@@ -427,7 +427,7 @@ function ConversationThread({
 
       <div>
         <h3 className="text-md font-semibold text-fg">{copy.transcript}</h3>
-        <p className="max-w-[66ch] mt-1 text-sm leading-6 text-fg-3">
+        <p className="max-w-[56ch] mt-1 text-sm leading-6 text-fg-3">
           {copy.transcriptDescription}
         </p>
       </div>
@@ -499,7 +499,7 @@ function ConversationThread({
                     {formatCanonicalTimestamp(message.occurredAt, locale)}
                   </span>
                 </div>
-                <p className="mt-2 max-w-[60ch] whitespace-pre-wrap text-base leading-6 text-fg">
+                <p className="mt-2 max-w-[56ch] whitespace-pre-wrap text-base leading-6 text-fg">
                   {message.body}
                 </p>
               </li>

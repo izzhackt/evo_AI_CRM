@@ -20,7 +20,7 @@ export function LangSwitcher({ current }: { current: Locale }) {
           className={`min-h-9 rounded-[8px] px-2.5 py-1.5 text-xs font-semibold uppercase transition-[background-color,color] duration-150 ease-out ${
             l === current
               ? "border border-control-edge bg-surface text-fg"
-              : "text-fg-3 hover:text-fg-2"
+              : "border border-transparent text-fg-3 hover:text-fg-2"
           }`}
         >
           {l.toUpperCase()}

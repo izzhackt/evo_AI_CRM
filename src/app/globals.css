@@ -51,18 +51,18 @@
 [data-theme="dark"] {
   --bg: #0c0d10;
   --surface: #1b1d21;
-  --surface-2: #1f2125;
-  --surface-3: #232529;
+  --surface-2: #232529;
+  --surface-3: #2b2d31;
   --border: #333942;
   --border-strong: #464d57;
-  --control-edge: #686f79;
+  --control-edge: #777e88;
   --text: #f4f5f6;
   --text-2: #b4b8bf;
   /* Passes 4.5:1 on every dark surface, including the tinted *-weak
      panels used by denied, blocked and status surfaces. */
   --text-3: #979ca4;
   --accent: #d70217;
-  --accent-text: #f4515e;
+  --accent-text: #fa6b78;
   --accent-2: #b00213;
   --accent-weak: #3b1117;
   --accent-weak-muted: #c9a3a9;

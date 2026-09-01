@@ -222,7 +222,7 @@ function QueueHeader({
     <header className="border-b border-border pb-5">
       <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
       {withDescription ? (
-        <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">{copy.description}</p>
+        <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">{copy.description}</p>
       ) : null}
     </header>
   );

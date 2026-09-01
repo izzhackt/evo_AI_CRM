@@ -89,7 +89,7 @@ export default async function DocumentsPage() {
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-fg">
           {copy.title}
         </h1>
-        <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">
+        <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
       </header>

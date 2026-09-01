@@ -32,5 +32,11 @@ export default defineConfig({
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile-chromium", use: { ...devices["Pixel 5"] } },
+    // Both themes. Every assertion here used to run in Playwright's default
+    // light scheme, so a dark-only regression could not fail the gate.
+    {
+      name: "desktop-chromium-dark",
+      use: { ...devices["Desktop Chrome"], colorScheme: "dark" },
+    },
   ],
 });

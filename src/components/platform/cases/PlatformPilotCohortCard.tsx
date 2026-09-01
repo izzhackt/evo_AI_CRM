@@ -141,7 +141,7 @@ export function PlatformPilotCohortCard({
           <h2 id="pilot-cohort-title" className="text-md font-bold text-fg">
             {labels.title}
           </h2>
-          <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
+          <p className="mt-1 max-w-[56ch] text-sm leading-5 text-fg-3">
             {labels.hint}
           </p>
         </div>

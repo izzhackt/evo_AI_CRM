@@ -73,7 +73,7 @@ export function DashboardAttention({
           >
             {copy.attentionTitle}
           </h2>
-          <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-3">
+          <p className="mt-1 max-w-[56ch] text-sm leading-5 text-fg-3">
             {copy.attentionHint}
           </p>
         </div>
@@ -91,7 +91,7 @@ export function DashboardAttention({
             <h3 className="text-md font-bold text-fg">
               {copy.allClearTitle}
             </h3>
-            <p className="max-w-[66ch] mt-1 text-sm leading-5 text-fg-3">
+            <p className="max-w-[56ch] mt-1 text-sm leading-5 text-fg-3">
               {copy.allClearHint}
             </p>
           </div>

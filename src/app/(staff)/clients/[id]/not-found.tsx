@@ -6,7 +6,7 @@ export default function CanonicalClientNotFound() {
   return (
     <div className="space-y-4 border-y border-border py-8" data-testid="canonical-client-not-found">
       <h1 className="text-xl font-bold text-fg">Клиент EVO не найден</h1>
-      <p className="max-w-[60ch] text-sm leading-6 text-fg-3">
+      <p className="max-w-[56ch] text-sm leading-6 text-fg-3">
         Запись не существует или недоступна в вашей организации. EVO не показывает
         данные другой организации и не подставляет Student Case или диалог вместо клиента.
       </p>

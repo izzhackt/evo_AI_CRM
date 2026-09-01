@@ -465,8 +465,25 @@ test("the surface ladder keeps a visible step in both themes", () => {
     for (const rung of rungs) {
       const ratio = contrastRatio(token(rung), ground);
       assert.ok(
-        ratio >= 1.04,
+        ratio >= 1.045,
         `${name}: --${rung} sits at ${ratio.toFixed(3)}:1 against --bg; a fill that is the only thing delimiting an element needs a visible step`,
+      );
+    }
+
+    // Against the ground is not enough. A hover row, a progress track and a
+    // switch track are all a surface-2 fill sitting on a surface card, so the
+    // step that matters is between neighbours. Checking only --bg let dark
+    // surface/surface-2 fall to 1.047:1 -- the same failure as the ground
+    // collapse, one rung over.
+    for (const [lower, upper] of [
+      ["bg", "surface"],
+      ["surface", "surface-2"],
+      ["surface-2", "surface-3"],
+    ]) {
+      const ratio = contrastRatio(token(lower), token(upper));
+      assert.ok(
+        ratio >= 1.045,
+        `${name}: --${lower} and --${upper} are ${ratio.toFixed(3)}:1 apart; adjacent fills must stay tellable from each other`,
       );
     }
 
@@ -519,7 +536,12 @@ test("interactive controls carry a boundary that meets WCAG 1.4.11", () => {
   // a decorative hairline passes every gate while being hard to locate.
   for (const [name, selector] of PALETTES) {
     const token = palette(selector);
-    for (const surface of ["bg", "surface", "surface-2", "surface-3"]) {
+    // Including the tinted panels: a control inside a warn or danger band is
+    // still a control, and its boundary was never checked there.
+    for (const surface of [
+      "bg", "surface", "surface-2", "surface-3",
+      "ok-weak", "warn-weak", "danger-weak", "info-weak", "accent-weak",
+    ]) {
       const ratio = contrastRatio(token("control-edge"), token(surface));
       assert.ok(
         ratio >= 3,
@@ -528,12 +550,61 @@ test("interactive controls carry a boundary that meets WCAG 1.4.11", () => {
     }
   }
 
-  // And the controls must actually use it.
-  const ui = source("src/components/ui.tsx");
-  assert.match(ui, /inputCls[\s\S]*?border-control-edge/);
-  assert.doesNotMatch(
-    ui,
-    /border-border-strong/,
-    "control boundaries must not fall back to the decorative border token",
+  // And every control must actually use it -- the previous version of this
+  // assertion grepped one file while its message claimed a global property,
+  // so eleven controls declared inline elsewhere kept a 1.4:1 hairline.
+  assert.match(source("src/components/ui.tsx"), /inputCls[\s\S]*?border-control-edge/);
+
+  // Scan each control's own opening tag, tracking brace depth so the scan
+  // stops at that tag rather than running into a sibling's classes.
+  function boundaryOffenders(moduleSource) {
+    const found = [];
+    const opener = /<(input|select|textarea|button)\b/g;
+    let match;
+    while ((match = opener.exec(moduleSource))) {
+      let depth = 0;
+      let index = match.index + match[0].length;
+      for (; index < moduleSource.length; index += 1) {
+        const character = moduleSource[index];
+        if (character === "{") depth += 1;
+        else if (character === "}") depth -= 1;
+        else if (character === ">" && depth === 0) break;
+      }
+      const tag = moduleSource.slice(match.index, index);
+      if (/\bborder-border(?:-strong)?\b/.test(tag)) {
+        found.push(`<${match[1]}> ${tag.replace(/\s+/g, " ").slice(0, 66)}`);
+      }
+    }
+    return found;
+  }
+
+  const offenders = [];
+  for (const surface of staffOperatingSurfaces()) {
+    for (const hit of boundaryOffenders(source(surface))) {
+      offenders.push(`${surface}: ${hit}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `an interactive control is bounded by the decorative border token:\n  ${offenders.join("\n  ")}`,
+  );
+});
+
+test("prose is capped by one measure, not several", () => {
+  // Two measures coexisted: 60ch on page descriptions and 66ch added later on
+  // in-card prose. Neither was in the 65-75 character band once the copy is
+  // English rather than Russian -- 60ch renders 79 characters in `en` -- and a
+  // system with two numbers has no measure at all.
+  const used = new Set();
+  for (const surface of staffOperatingSurfaces()) {
+    for (const [, value] of source(surface).matchAll(/max-w-\[(\d+)ch\]/g)) {
+      used.add(Number(value));
+    }
+  }
+  assert.deepEqual(
+    [...used].sort((a, b) => a - b),
+    [56],
+    `prose should carry a single measure; found ${[...used].sort((a, b) => a - b).join(", ")}`,
   );
 });

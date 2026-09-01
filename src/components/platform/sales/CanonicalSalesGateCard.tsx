@@ -159,7 +159,7 @@ function EvidenceSummary({
   return (
     <dl className="grid gap-2 text-sm text-fg-2 sm:grid-cols-2">
       <div>
-        <dt className="text-xs font-semibold text-fg-3">
+        <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
           {copy.decision}
         </dt>
         <dd className="mt-1 font-medium text-fg">
@@ -167,13 +167,13 @@ function EvidenceSummary({
         </dd>
       </div>
       <div>
-        <dt className="text-xs font-semibold text-fg-3">
+        <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
           {copy.occurredAt}
         </dt>
         <dd className="mt-1">{formatTimestamp(evidence.occurredAt, locale)}</dd>
       </div>
       <div className="sm:col-span-2">
-        <dt className="text-xs font-semibold text-fg-3">
+        <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
           {copy.reference}
         </dt>
         <dd className="mt-1 break-words font-mono text-xs">
@@ -182,7 +182,7 @@ function EvidenceSummary({
       </div>
       {evidence.amountMinor !== null && evidence.currency ? (
         <div>
-          <dt className="text-xs font-semibold text-fg-3">
+          <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
             {copy.payment}
           </dt>
           <dd className="mt-1 font-mono">
@@ -192,7 +192,7 @@ function EvidenceSummary({
       ) : null}
       {evidence.reason ? (
         <div className="sm:col-span-2">
-          <dt className="text-xs font-semibold text-fg-3">
+          <dt className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
             {copy.reason}
           </dt>
           <dd className="mt-1 whitespace-pre-wrap">{evidence.reason}</dd>
@@ -371,7 +371,7 @@ export function CanonicalSalesGateCard({
   return (
     <Card title={copy.title} bodyClassName="space-y-5" className="shadow-none">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-[60ch] text-sm leading-5 text-fg-3">
+        <p className="max-w-[56ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
         <span

@@ -273,7 +273,7 @@ function CanonicalSalesPresentation({
             <h2 id="sales-workflow-title" className="text-md font-semibold text-fg">
               {copy.queueTitle}
             </h2>
-            <p className="max-w-[60ch] text-sm leading-5 text-fg-3">
+            <p className="max-w-[56ch] text-sm leading-5 text-fg-3">
               {copy.queueDescription}
             </p>
           </div>

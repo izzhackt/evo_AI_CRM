@@ -118,7 +118,7 @@ export default async function ApplicationsPage({
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-fg-2">{application.programName} · {application.targetIntake}</p>
-                    <p className="mt-2 max-w-[66ch] text-xs text-fg-3">
+                    <p className="mt-2 max-w-[56ch] text-xs text-fg-3">
                       {application.displayName} · {copy.nextAction}: {application.nextAction ?? copy.noNextAction}
                     </p>
                   </div>
@@ -207,7 +207,7 @@ function QueueHeader({
     <header className="border-b border-border pb-5">
       <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
       {withDescription ? (
-        <p className="mt-2 max-w-[60ch] text-sm leading-5 text-fg-3">{copy.description}</p>
+        <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">{copy.description}</p>
       ) : null}
     </header>
   );

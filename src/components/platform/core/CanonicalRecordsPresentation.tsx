@@ -129,7 +129,7 @@ export function CanonicalAuthorityNotice({
             {copy.readOnly}
           </span>
         </div>
-        <p className="mt-1 max-w-[60ch] text-sm leading-5 text-fg-2">
+        <p className="mt-1 max-w-[56ch] text-sm leading-5 text-fg-2">
           {copy.authorityBody}
         </p>
       </div>

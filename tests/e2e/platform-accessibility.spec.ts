@@ -208,29 +208,43 @@ test("the mobile page title is never truncated", async ({ page }, testInfo) => {
   }
 });
 
-test("the conversation pane opens inside the fold", async ({ page }, testInfo) => {
-  // Its height reserved 220px for the chrome above it while the real offset
-  // is 271px, and a 520px floor forced the section past the bottom of a
-  // 720px screen -- so the fold fell between the two columns.
+test("the conversation pane fits the fold for every role", async ({ page }, testInfo) => {
+  // It reserved a constant for the chrome above it, which is right for
+  // whichever role it was measured on and wrong for the rest: the admin role
+  // preview adds a band the other two never see, so 19rem left sales and
+  // admissions with 116px of dead viewport while admin had 34px. Checking
+  // only "does not overflow" would pass a pane that is far too short.
   test.skip(testInfo.project.name !== "desktop-chromium", "two-column layout only");
-  await openDevelopmentGate(page, "admin");
-  await page.goto("/whatsapp");
-  await expect(page.locator("main")).toBeVisible();
 
-  const fits = await page.evaluate(() => {
-    const pane = [...document.querySelectorAll("div")].find((el) =>
-      el.className.toString().includes("100dvh-"),
-    );
-    if (!pane) return { found: false, bottom: 0, viewport: window.innerHeight };
-    const box = pane.getBoundingClientRect();
-    return { found: true, bottom: Math.round(box.bottom), viewport: window.innerHeight };
-  });
+  for (const role of ["admin", "sales", "admissions"] as const) {
+    await openDevelopmentGate(page, role);
+    await page.goto("/whatsapp");
+    await expect(page.locator("main")).toBeVisible();
 
-  expect(fits.found, "the conversation pane should be on this page").toBe(true);
-  expect(
-    fits.bottom,
-    `the pane ends at ${fits.bottom}px on a ${fits.viewport}px viewport`,
-  ).toBeLessThanOrEqual(fits.viewport);
+    const pane = await page.evaluate(() => {
+      const el = [...document.querySelectorAll("div")].find((node) =>
+        node.className.toString().includes("100dvh-"),
+      );
+      if (!el) return { found: false, bottom: 0, viewport: window.innerHeight };
+      const box = el.getBoundingClientRect();
+      return {
+        found: true,
+        bottom: Math.round(box.bottom),
+        viewport: window.innerHeight,
+      };
+    });
+
+    expect(pane.found, `${role}: the conversation pane should be on this page`).toBe(true);
+    const unused = pane.viewport - pane.bottom;
+    expect(
+      unused,
+      `${role}: the pane ends at ${pane.bottom}px on a ${pane.viewport}px viewport`,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      unused,
+      `${role}: the pane leaves ${unused}px of the viewport unused below it`,
+    ).toBeLessThanOrEqual(64);
+  }
 });
 
 test("a deferred module fails closed without accessibility violations", async ({

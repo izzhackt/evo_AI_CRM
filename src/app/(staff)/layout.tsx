@@ -268,7 +268,7 @@ export default async function StaffLayout({
                     name="role"
                     value={role}
                     aria-pressed={provider.user.role === role}
-                    className="min-h-10 rounded-ctl border border-border bg-surface px-3 text-xs font-semibold aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
+                    className="min-h-10 rounded-ctl border border-control-edge bg-surface px-3 text-xs font-semibold aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
                   >
                     {role}
                   </button>
@@ -279,6 +279,22 @@ export default async function StaffLayout({
           <main
             id="staff-main"
             tabIndex={-1}
+            /*
+             * The shell publishes how much vertical room it has already taken,
+             * because only the shell knows: the admin role preview above adds
+             * a band that the other two roles never see. A pane that reserves
+             * a constant is right for whichever role it was measured on and
+             * wrong for the rest -- 19rem left sales and admissions with 116px
+             * of dead viewport. Expressed in px because the chrome it
+             * offsets is px-fixed, so a rem value would grow with the
+             * browser root while the bar it accounts for did not.
+             */
+            style={
+              {
+                "--staff-chrome":
+                  provider.user.authorityRole === "admin" ? "304px" : "224px",
+              } as React.CSSProperties
+            }
             className="staff-main mx-auto w-full max-w-[1360px] px-4 py-5 pb-28 sm:px-6 md:px-6 md:py-7 md:pb-8"
           >
             <div className="page-in">{children}</div>

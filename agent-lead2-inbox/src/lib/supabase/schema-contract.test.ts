@@ -193,6 +193,10 @@ const platformExactManualSendClaimMigration = readFileSync(
   join(migrationsDir, '097_platform_exact_manual_send_claim.sql'),
   'utf8'
 );
+const platformExactManualSendQueueShapeMigration = readFileSync(
+  join(migrationsDir, '101_platform_exact_manual_send_queue_shape.sql'),
+  'utf8'
+);
 const platformOperationalSignalsAuthorizationTest = readFileSync(
   fileURLToPath(
     new URL(
@@ -430,7 +434,7 @@ function p7aAllowlist(functionName: string): Set<string> {
 describe('Unified EVO Supabase schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '097_platform_exact_manual_send_claim.sql'
+      '101_platform_exact_manual_send_queue_shape.sql'
     );
     expect(platformExactManualSendClaimMigration).toMatch(
       /CREATE FUNCTION platform\.claim_manual_whatsapp_send_item\s*\(/i
@@ -439,6 +443,15 @@ describe('Unified EVO Supabase schema contract', () => {
       /REVOKE ALL ON FUNCTION\s+platform_private\.claim_next_manual_whatsapp_send_internal[\s\S]*FROM PUBLIC, anon, authenticated, service_role/i
     );
     expect(platformExactManualSendClaimMigration).not.toMatch(
+      /GRANT EXECUTE ON FUNCTION\s+platform_private\.claim_next_manual_whatsapp_send_internal/i
+    );
+    expect(platformExactManualSendQueueShapeMigration).toMatch(
+      /CREATE OR REPLACE FUNCTION platform\.claim_manual_whatsapp_send_item\s*\(/i
+    );
+    expect(platformExactManualSendQueueShapeMigration).toMatch(
+      /REVOKE ALL ON FUNCTION\s+platform_private\.claim_next_manual_whatsapp_send_internal[\s\S]*FROM PUBLIC, anon, authenticated, service_role/i
+    );
+    expect(platformExactManualSendQueueShapeMigration).not.toMatch(
       /GRANT EXECUTE ON FUNCTION\s+platform_private\.claim_next_manual_whatsapp_send_internal/i
     );
     expect(platformWahaSessionAuthorityMigration).toMatch(

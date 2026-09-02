@@ -27,19 +27,19 @@ test("Sales queue uses bounded cursor pages for practical mobile access", () => 
 
 test("selected WhatsApp work opens independently of the long mobile queue", () => {
   const whatsapp = source(
-    "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
   );
 
   assert.match(whatsapp, /thread && "hidden"/);
   assert.match(whatsapp, /lg:block lg:w-\[360px\]/);
-  assert.match(whatsapp, /data-testid="canonical-staff-whatsapp-mobile-back"/);
+  assert.match(whatsapp, /data-testid="platform-staff-whatsapp-mobile-back"/);
   assert.match(whatsapp, /const mobileBackHref = queueHref\(queueCursor\);/);
   assert.match(whatsapp, /href=\{mobileBackHref\}/);
   assert.match(whatsapp, /lg:hidden/);
-  assert.match(whatsapp, /data-testid="canonical-staff-whatsapp-thread"/);
+  assert.match(whatsapp, /data-testid="platform-staff-whatsapp-thread"/);
   assert.match(
     whatsapp,
-    /function queueHref\(queueCursor: CanonicalReadCursor \| null\) \{[\s\S]*before_at:[\s\S]*before_id:/,
+    /function queueHref\(queueCursor: PlatformConversationCursor \| null\) \{[\s\S]*before_at:[\s\S]*before_id:/,
   );
 });
 

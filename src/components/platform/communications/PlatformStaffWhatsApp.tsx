@@ -162,7 +162,7 @@ export function PlatformStaffWhatsAppWorkspace({
   return (
     <div
       className="space-y-4"
-      data-testid="canonical-staff-whatsapp-page"
+      data-testid="platform-staff-whatsapp-page"
       data-source="supabase-platform"
     >
       <PageHeader title={copy.title} description={copy.description} />
@@ -184,7 +184,7 @@ export function PlatformStaffWhatsAppWorkspace({
               <Link
                 href={queueResetHref}
                 className={btnGhostCls}
-                data-testid="canonical-staff-whatsapp-queue-reset"
+                data-testid="platform-staff-whatsapp-queue-reset"
               >
                 ← {copy.newestQueue}
               </Link>
@@ -196,7 +196,7 @@ export function PlatformStaffWhatsAppWorkspace({
                 href={queueNextHref}
                 className={btnGhostCls}
                 rel="next"
-                data-testid="canonical-staff-whatsapp-queue-next"
+                data-testid="platform-staff-whatsapp-queue-next"
               >
                 {copy.olderQueue} →
               </Link>
@@ -206,7 +206,7 @@ export function PlatformStaffWhatsAppWorkspace({
             className="max-h-[320px] overflow-y-auto lg:max-h-full"
             aria-label={copy.queueTitle}
             tabIndex={0}
-            data-testid="canonical-staff-whatsapp-queue"
+            data-testid="platform-staff-whatsapp-queue"
           >
             {conversations.length === 0 ? (
               <EmptyState text={copy.emptyQueue} />
@@ -217,7 +217,7 @@ export function PlatformStaffWhatsAppWorkspace({
                   return (
                     <li
                       key={conversation.id}
-                      data-testid="canonical-staff-whatsapp-row"
+                      data-testid="platform-staff-whatsapp-row"
                       data-conversation-id={conversation.id}
                     >
                       <Link
@@ -263,14 +263,14 @@ export function PlatformStaffWhatsAppWorkspace({
           className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
           tabIndex={0}
           aria-label={thread ? thread.conversation.subject : copy.emptyThreadTitle}
-          data-testid="canonical-staff-whatsapp-thread-region"
+          data-testid="platform-staff-whatsapp-thread-region"
         >
           {thread ? (
             <>
               <Link
                 href={mobileBackHref}
                 className={cn(btnGhostCls, "mb-3 inline-flex lg:hidden")}
-                data-testid="canonical-staff-whatsapp-mobile-back"
+                data-testid="platform-staff-whatsapp-mobile-back"
               >
                 ← {copy.backToQueue}
               </Link>
@@ -288,7 +288,7 @@ export function PlatformStaffWhatsAppWorkspace({
           ) : (
             <div
               className="flex h-full flex-col items-center justify-center px-6 text-center"
-              data-testid="canonical-staff-whatsapp-empty"
+              data-testid="platform-staff-whatsapp-empty"
             >
               <h2 className="text-lg font-semibold text-fg">
                 {copy.emptyThreadTitle}
@@ -333,7 +333,7 @@ function ConversationThread({
   return (
     <div
       className="space-y-4"
-      data-testid="canonical-staff-whatsapp-thread"
+      data-testid="platform-staff-whatsapp-thread"
       data-conversation-id={conversation.id}
     >
       <div className="space-y-3 border-b border-border pb-4">
@@ -396,7 +396,7 @@ function ConversationThread({
       {messages.length === 0 ? (
         <EmptyState text={copy.emptyMessages} />
       ) : (
-        <ol className="space-y-3" data-testid="canonical-staff-whatsapp-messages">
+        <ol className="space-y-3" data-testid="platform-staff-whatsapp-messages">
           {messages.map((message) => {
             const incoming = message.direction === "inbound";
             return (
@@ -408,7 +408,7 @@ function ConversationThread({
                     ? "border-border bg-surface"
                     : "border-accent/20 bg-accent-weak/40",
                 )}
-                data-testid="canonical-staff-whatsapp-message"
+                data-testid="platform-staff-whatsapp-message"
                 data-message-id={message.id}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -437,7 +437,7 @@ function ConversationThread({
             <Link
               href={newestMessagesHref}
               className={btnGhostCls}
-              data-testid="canonical-staff-whatsapp-messages-reset"
+              data-testid="platform-staff-whatsapp-messages-reset"
             >
               ← {copy.newestMessages}
             </Link>
@@ -449,7 +449,7 @@ function ConversationThread({
               href={olderMessagesHref}
               className={btnGhostCls}
               rel="next"
-              data-testid="canonical-staff-whatsapp-messages-next"
+              data-testid="platform-staff-whatsapp-messages-next"
             >
               {copy.olderMessages} →
             </Link>

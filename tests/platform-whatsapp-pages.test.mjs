@@ -129,8 +129,8 @@ test("Platform WhatsApp workspace keeps queue, thread, pagination, locale, and w
     }),
   );
 
-  assert.match(markup, /data-testid="canonical-staff-whatsapp-page"/);
-  assert.match(markup, /data-testid="canonical-staff-whatsapp-thread"/);
+  assert.match(markup, /data-testid="platform-staff-whatsapp-page"/);
+  assert.match(markup, /data-testid="platform-staff-whatsapp-thread"/);
   assert.match(markup, /Amina Student/);
   assert.match(markup, /Can you help with my application\?/);
   assert.match(markup, /Review and send controls/);

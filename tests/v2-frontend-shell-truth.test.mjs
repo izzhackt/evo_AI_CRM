@@ -38,7 +38,7 @@ test("each active V2 staff route exposes descriptive metadata", () => {
 test("active shell copy names each current authority without stale delivery slices", () => {
   const salesCopy = source("src/app/(staff)/sales/SalesWorkspace.tsx");
   const notYetReplacedCopy = [
-    source("src/components/platform/communications/CanonicalStaffWhatsApp.tsx"),
+    source("src/components/platform/communications/PlatformStaffWhatsApp.tsx"),
     source("src/components/platform/core/CanonicalRecordsPresentation.tsx"),
   ].join("\n");
   const activeCopy = `${salesCopy}\n${notYetReplacedCopy}`;

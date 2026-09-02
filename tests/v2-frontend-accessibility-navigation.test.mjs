@@ -95,7 +95,7 @@ test("critical confirmation and inline case links use practical targets", () => 
     "src/components/platform/communications/CanonicalWhatsAppOutboundComposer.tsx",
   );
   const whatsapp = source(
-    "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
   );
   const tasks = source(
     "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
@@ -153,7 +153,7 @@ test("dark accent text keeps normal-text contrast without changing brand fills",
 
 test("scrollable inbox regions are reachable by keyboard", () => {
   const whatsapp = source(
-    "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
   );
 
   // Every element that owns its own scroll container must be focusable:
@@ -174,12 +174,12 @@ test("scrollable inbox regions are reachable by keyboard", () => {
   );
   assert.match(
     whatsapp,
-    /data-testid="canonical-staff-whatsapp-thread-region"/,
+    /data-testid="platform-staff-whatsapp-thread-region"/,
     "the thread scroll region must be addressable",
   );
   assert.match(
     whatsapp,
-    /aria-label=\{thread \? thread\.conversation\.displayName : copy\.emptyThreadTitle\}/,
+    /aria-label=\{thread \? thread\.conversation\.subject : copy\.emptyThreadTitle\}/,
     "the thread scroll region must carry an accessible name",
   );
 });
@@ -305,7 +305,7 @@ test("every core staff route renders exactly one page-level h1", () => {
     ["/tasks", "src/app/(staff)/tasks/page.tsx"],
     [
       "/whatsapp",
-      "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+      "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
     ],
   ];
 

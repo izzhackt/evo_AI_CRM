@@ -7,9 +7,9 @@ Authority: owner direction, ADR 0024, this plan and the latest append-only
 through #553
 Verified starting baseline: GitHub `origin/main` at
 `4a2984f55b13bf4fe416a70d7989b9311daa8055`
-Latest verified shared main after the completed Student 360/handoff tracer:
-`51124807b19e01c34fca44bb9e5ed6180bb3f9d9`, with exact-main CI run
-`33596853883` green for Main CRM, EVO Inbox and EVO Lead Agent.
+Latest verified shared main after the completed Admissions/files tracer:
+`cf108403c69a35ca3b134652de8f2aa26eb5a049`, with exact-main CI run
+`33611965188` green for Main CRM, EVO Inbox and EVO Lead Agent.
 
 ## Current authority: one Supabase-backed production EVO
 
@@ -85,7 +85,7 @@ new path is accepted; historical and rollback material remains preserved.
 | 2 | #546 | Real staff and Sales tracer | Supabase Auth/RBAC/RLS plus the accepted Sales lead workflow prove the first complete successor path |
 | 3 | #547 | Student 360 and handoff tracer | contract/payment gate and accountable handoff run on the canonical Supabase model |
 | 4 | #548 | Admissions and private files tracer | Admissions operations and Supabase Storage replace local files and remaining case paths |
-| 5 | #549 | Provider tracer | V2 Gemini, WhatsApp and amoCRM receipts/workflows persist through canonical Supabase |
+| 5 | #549, #565-#568 | Provider tracer | Gemini, WhatsApp and amoCRM replace local state in order, then pass one combined real-provider proof |
 | 6 | #550 | Single deployment and cleanup | production image/Compose/env/release path drops SQLite, Drizzle authority, old workers and duplicate runtime dependencies |
 | 7 | #551 | Staging and recovery acceptance | real staging, restore, migration rehearsal, browser, role, file and provider proof |
 | 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
@@ -308,6 +308,61 @@ standard-upload and signed-download contracts. See the official
 [Storage access control](https://supabase.com/docs/guides/storage/security/access-control),
 [standard uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads)
 and [signed URL reference](https://supabase.com/docs/reference/javascript/file-buckets-createsignedurl).
+
+### P5 delivery decomposition: canonical provider workflows
+
+Issue #549 is an ordered parent delivered through #565, #566, #567 and #568.
+The current provider UI is useful product work, but its durable state is still
+split: Gemini proposals/reviews, WhatsApp send attempts and amoCRM command
+receipts remain partly in the local Drizzle runtime while root Supabase already
+contains the accepted Gemini and WAHA foundations. The provider tracer must
+replace those local authorities rather than copy them into a second path.
+
+1. **#565 / P5A - Gemini proposal and review replacement.** Reuse migrations
+   066 and 091 and their existing claim, completion, staff-read and human-review
+   RPCs. The signed-in staff Supabase session remains the authorization
+   boundary; only the server contacts Gemini. A proposal is advisory until an
+   authorized staff member explicitly Accepts, Edits or Rejects it, and Gemini
+   cannot invoke WhatsApp or change CRM state. After real local Supabase,
+   application, Chromium and one bounded connected-provider proof, delete the
+   active local Drizzle proposal persistence and its superseded imports/tests.
+2. **#566 / P5B - human-reviewed WhatsApp replacement.** Reuse migrations 080
+   and 082 for the canonical send claim, WAHA binding, finish, session and ACK
+   path; add only the smallest forward read/reconciliation contract that the
+   accepted Inbox UI still lacks. One explicit authorized staff action over
+   final reviewed text may send. An unknown outcome blocks another send until
+   exact WAHA readback reconciles the same request, recipient and text. After
+   real local Supabase, application, Chromium and one bounded real WAHA proof,
+   delete active local Drizzle send attempts, superseded adapters/workers and
+   fallback imports.
+3. **#567 / P5C - Supabase-authoritative amoCRM commands.** Add the missing
+   forward-only private command-attempt, immutable receipt and provider-binding
+   model plus narrowly scoped staff/service RPCs. Explicit authorized commands
+   cover the approved contact, lead, link, pipeline/status, note, task and tag
+   operations, but Supabase remains business authority and amoCRM identifiers
+   remain provider evidence. Replays return the original receipt; an ambiguous
+   outcome must reconcile by provider readback before any retry. After real
+   local Supabase, application, Chromium and bounded real amoCRM proof, delete
+   the local command repository/state, temporary
+   `AmoCrmCaseCommandSection`, superseded provider UI/adapters/imports/tests and
+   every fallback path.
+4. **#568 / P5D - combined connected-provider acceptance.** On exact main, run
+   one minimized authorized chain through Gemini proposal, genuine human
+   review, explicit WhatsApp send, exact WAHA identity/readback and explicit
+   amoCRM command/readback. Supabase must hold the correlated canonical records,
+   and exact replay must create no duplicate provider message, entity,
+   operation, binding, receipt or business event. Store only sanitized evidence
+   with exact commit, environment identity, timestamps and outcomes.
+
+Each child is a separate launch-control PR with exact-head review/CI, match-head
+merge and exact-main verification. A completed child has one active state and
+execution path for the capability it replaces. Its scoped `rg` inventory must
+show that the old Drizzle repository, worker, route, component, test and config
+cannot be imported or called, and missing Supabase/provider configuration must
+fail clearly instead of falling back. The connected-provider authorization is
+bounded to the existing minimized validation target and these explicit staff
+actions. It does not authorize frozen V1 execution, production deployment,
+broad customer mutation, migration, public traffic or cutover.
 
 This follows Supabase's current guidance that exposed tables remain protected
 by RLS and authenticated RPCs carry the caller's authorization context, plus

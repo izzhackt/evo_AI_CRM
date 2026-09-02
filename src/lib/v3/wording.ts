@@ -80,34 +80,46 @@ const SOURCE: Record<string, string> = {
  * Собирается из двух половин, а не из полного списка: полных строк два
  * десятка, они множатся, и забытая строка утекла бы на экран сырым ключом.
  */
-const EVENT_OBJECT: Record<string, string> = {
-  lead: "Лид",
-  student_case: "Кейс",
-  application: "Заявка",
-  visa_milestone: "Визовая веха",
-  task: "Задача",
-  message: "Сообщение",
-  conversation: "Диалог",
-  finance_stop: "Финансовый стоп",
-  sales_admissions: "Передача в приёмную",
-  sales_lead: "Лид",
-  gate_evidence: "Основание передачи",
-  ai_proposal: "Предложение ИИ",
+type Gender = "m" | "f" | "n";
+
+const EVENT_OBJECT: Record<string, Readonly<{ word: string; gender: Gender }>> = {
+  lead: { word: "Лид", gender: "m" },
+  sales_lead: { word: "Лид", gender: "m" },
+  student_case: { word: "Кейс", gender: "m" },
+  application: { word: "Заявка", gender: "f" },
+  visa_milestone: { word: "Визовая веха", gender: "f" },
+  task: { word: "Задача", gender: "f" },
+  message: { word: "Сообщение", gender: "n" },
+  conversation: { word: "Диалог", gender: "m" },
+  finance_stop: { word: "Финансовый стоп", gender: "m" },
+  handoff: { word: "Передача в приёмную", gender: "f" },
+  sales_admissions: { word: "Передача в приёмную", gender: "f" },
+  gate_evidence: { word: "Основание передачи", gender: "n" },
+  ai_proposal: { word: "Предложение ИИ", gender: "n" },
 };
 
-const EVENT_VERB: Record<string, string> = {
-  created: "заведён",
-  activated: "активирован",
-  completed: "выполнена",
-  cancelled: "отменена",
-  received: "получено",
-  asserted: "поставлен",
-  released: "снят",
-  handed_off: "выполнена",
-  handoff_override: "выполнена в обход",
-  workflow_updated: "стадия изменена",
-  next_action_updated: "следующее действие изменено",
-  ownership_transferred: "передан другой роли",
+/**
+ * Глагол в трёх родах.
+ *
+ * Без этого получается «Задача заведён»: склейка объекта и глагола выглядит
+ * дешёвым приёмом ровно до первого женского рода. Полный список строк вида
+ * «объект.действие» держать нельзя — их два десятка и они множатся, а забытая
+ * строка утечёт на экран сырым ключом.
+ */
+const EVENT_VERB: Record<string, Readonly<{ m: string; f: string; n: string }> | string> = {
+  created: { m: "заведён", f: "заведена", n: "заведено" },
+  activated: { m: "активирован", f: "активирована", n: "активировано" },
+  completed: { m: "выполнен", f: "выполнена", n: "выполнено" },
+  cancelled: { m: "отменён", f: "отменена", n: "отменено" },
+  received: { m: "получен", f: "получена", n: "получено" },
+  asserted: { m: "поставлен", f: "поставлена", n: "поставлено" },
+  released: { m: "снят", f: "снята", n: "снято" },
+  handed_off: { m: "выполнен", f: "выполнена", n: "выполнено" },
+  handoff_override: { m: "выполнен в обход", f: "выполнена в обход", n: "выполнено в обход" },
+  ownership_transferred: { m: "передан другой роли", f: "передана другой роли", n: "передано другой роли" },
+  // Эти не согласуются с родом: подлежащее в них своё.
+  workflow_updated: "— стадия изменена",
+  next_action_updated: "— следующее действие изменено",
 };
 
 const lookup = (table: Record<string, string>, value: string | null | undefined) =>
@@ -127,18 +139,14 @@ export function eventLabel(transition: string | null | undefined): string | null
   const dot = transition.indexOf(".");
   if (dot < 0) return null;
   const object = EVENT_OBJECT[transition.slice(0, dot)];
-  const verb = EVENT_VERB[transition.slice(dot + 1)];
   if (!object) return null;
-  return verb ? `${object} ${verb}` : object;
+  const verb = EVENT_VERB[transition.slice(dot + 1)];
+  if (!verb) return object.word;
+  return typeof verb === "string"
+    ? `${object.word} ${verb}`
+    : `${object.word} ${verb[object.gender]}`;
 }
 
-/**
- * Одна строка состояния человека вместо россыпи пилюль.
- *
- * Раньше в шапке досье стояли четыре: статус кейса, стадия лида, роль-владелец
- * и источник. Три из них человека не описывают, а четвёртая — машинное слово.
- * Здесь остаётся одно предложение: кто он сейчас и что с ним происходит.
- */
 export function personState(input: {
   hasCase: boolean;
   caseStatus: string | null;

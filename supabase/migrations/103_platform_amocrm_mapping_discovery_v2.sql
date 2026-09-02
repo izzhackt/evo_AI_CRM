@@ -494,6 +494,16 @@ REVOKE ALL ON FUNCTION platform.persist_amocrm_mapping_discovery(
   UUID
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
+REVOKE ALL ON FUNCTION
+  platform_private.amocrm_mapping_lead_tags_are_valid(JSONB),
+  platform_private.amocrm_mapping_snapshot_is_valid(
+    JSONB,
+    BIGINT,
+    TEXT,
+    TEXT
+  )
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
 GRANT EXECUTE ON FUNCTION platform.persist_amocrm_mapping_discovery(
   UUID,
   BIGINT,

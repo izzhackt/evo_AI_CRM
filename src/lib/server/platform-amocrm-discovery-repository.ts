@@ -255,6 +255,13 @@ function exactTimestamp(value: unknown, expected: Date): Date {
   return parsed;
 }
 
+function timestamp(value: unknown): Date {
+  if (typeof value !== "string") return persistenceFailure();
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return persistenceFailure();
+  return parsed;
+}
+
 export function createPlatformAmoCrmDiscoveryRepository(
   options: RepositoryOptions,
 ): CanonicalAmoCrmDiscoveryRepository {
@@ -303,6 +310,22 @@ export function createPlatformAmoCrmDiscoveryRepository(
           return persistenceFailure();
         }
         const row = record(response.data[0]);
+        exactKeys(row, [
+          "discovery_version_id",
+          "organization_id",
+          "amocrm_account_id",
+          "account_domain",
+          "account_subdomain",
+          "version",
+          "snapshot_schema_version",
+          "sanitized_snapshot",
+          "snapshot_sha256",
+          "evidence_kind",
+          "evidence_ref",
+          "request_id",
+          "discovered_at",
+          "created_at",
+        ]);
         if (
           uuid(row.organization_id) !== organizationId ||
           providerId(String(row.amocrm_account_id)) !== providerAccountId ||
@@ -312,6 +335,9 @@ export function createPlatformAmoCrmDiscoveryRepository(
           uuid(row.request_id) !== requestId ||
           exactText(row.evidence_kind, 32) !== "provider_observed" ||
           exactText(row.evidence_ref, 512) !== evidenceRef ||
+          integer(row.version) < 1 ||
+          timestamp(row.created_at).getTime() <
+            input.snapshot.discoveredAt.getTime() ||
           !isDeepStrictEqual(row.sanitized_snapshot, snapshot)
         ) {
           return persistenceFailure();

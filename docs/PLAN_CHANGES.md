@@ -15213,12 +15213,16 @@ against local Supabase/PostgreSQL; and the old gate/handoff UI/actions plus the
 repository-backed Student 360 summary/handoff shell and #547 fixture callers
 are deleted before merge. Failure is explicit and never falls back.
 
-#548 still owns `CanonicalAdmissionsTaskPanel`,
+#547 will isolate the unreplaced #548 panels and their existing repository
+reads in
+`src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx`; #548 must
+replace and delete that container, `CanonicalAdmissionsTaskPanel`,
 `CanonicalPrivateDocumentsPanel`, `CanonicalAdmissionsOperationsPanel` and
-private Supabase Storage; #549 still owns `CanonicalAmoCrmCommandPanel` and
-provider commands. To avoid either a regression or a compatibility wrapper,
-those unreplaced capabilities may remain only as the current direct panels
-inside `/clients/[id]`. They cannot read or render an alternate Student 360
-summary, gate, handoff or contract path and expire in #548 and #549
-respectively. No migration is applied to the managed project and no V1,
-production-data, provider or traffic mutation is authorized by this change.
+their superseded local dependencies. It will isolate the unreplaced #549 panel
+and its existing command reads in
+`src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx`; #549 must replace
+and delete that container, `CanonicalAmoCrmCommandPanel` and its superseded
+provider-command dependencies. Neither container may read or render an
+alternate Student 360 summary, gate, handoff or contract path. No migration is
+applied to the managed project and no V1, production-data, provider or traffic
+mutation is authorized by this change.

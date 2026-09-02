@@ -2,7 +2,7 @@ import "server-only";
 
 import { getPostgresClient } from "@/lib/server/database";
 
-import type { PersonProfile, ProfilePick } from "@/components/v3/Profile";
+import type { PersonProfile, ProfilePick } from "@/components/v3/profile/types";
 
 /**
  * Профиль человека — один на всех, лид он или уже студент.

@@ -153,6 +153,8 @@ async function expectBlockedPanel(
   await expect(availability).toHaveAttribute("data-status", "blocked");
   await expect(availability).toContainText(BLOCKED_COPY[proofMode]);
   await expect(panel.getByTestId("canonical-amocrm-note-text")).toBeDisabled();
+  await expect(panel.getByTestId("canonical-amocrm-task-text")).toBeDisabled();
+  await expect(panel.getByTestId("canonical-amocrm-task-deadline")).toBeDisabled();
   await expect(panel.getByTestId("canonical-amocrm-sync")).toBeDisabled();
   if (input.blockingAttemptId) {
     await expectPersistedUnknownState(panel, input.blockingAttemptId);

@@ -61,6 +61,7 @@ test("V2-9C keeps only the current Platform provider env contract and active tes
     /tests\/platform-waha-projector-recovery\.test\.mjs/,
     /tests\/platform-provider-acceptance-harness\.test\.mjs/,
     /tests\/platform-communications-local-provisioner\.test\.mjs/,
+    /tests\/platform-amocrm-command-service\.test\.mjs/,
   ]) {
     assert.match(packageManifest, required);
     assert.match(activeHarness, required);
@@ -71,6 +72,7 @@ test("V2-9C keeps only the current Platform provider env contract and active tes
     /tests\/canonical-gemini-review-form\.test\.mjs/,
     /tests\/canonical-waha-provider\.test\.mjs/,
     /tests\/canonical-whatsapp-outbound-form\.test\.mjs/,
+    /tests\/canonical-amocrm-command-service\.test\.mjs/,
     /tests\/v2-10d-real-acceptance-harness\.test\.mjs/,
     /tests\/v2-10d-review-recovery-harness\.test\.mjs/,
   ]) {
@@ -78,14 +80,38 @@ test("V2-9C keeps only the current Platform provider env contract and active tes
   }
 });
 
-test("V2-9C leaves the temporary amoCRM proof independent of removed local communication state", () => {
-  const mutationCounts = source("scripts/canonical-amocrm-mutation-counts.mjs");
+test("V2-9C removes the Drizzle amoCRM command runtime and keeps one Supabase Platform section", () => {
+  for (const path of [
+    "src/lib/server/canonical-amocrm-command-repository.ts",
+    "src/lib/server/canonical-amocrm-command-service.ts",
+    "src/db/schema/canonical-amocrm.ts",
+    "src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
+    "src/app/(staff)/clients/[id]/CanonicalAmoCrmCommandSection.tsx",
+    "tests/canonical-amocrm-command-service.test.mjs",
+    "tests/canonical-amocrm-command-postgres.test.mjs",
+    "tests/canonical-amocrm-schema-postgres.test.mjs",
+    "scripts/canonical-amocrm-mutation-counts.mjs",
+    "scripts/seed-canonical-amocrm-browser-blocker.mjs",
+  ]) {
+    missing(path);
+  }
 
-  assert.match(mutationCounts, /evo_amocrm_operation_attempts/);
-  assert.doesNotMatch(
-    mutationCounts,
-    /evo_ai_proposals|evo_whatsapp_send_attempts|evo_messages/,
+  const studentWorkspace = source(
+    "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
+  const platformSection = source(
+    "src/app/(staff)/clients/[id]/PlatformAmoCrmCommandSection.tsx",
+  );
+  const schemaIndex = source("src/db/schema/index.ts");
+
+  assert.match(studentWorkspace, /<PlatformAmoCrmCommandSection/);
+  assert.match(platformSection, /createSupabaseServerClient/);
+  assert.match(platformSection, /readPlatformBlockingAmoCrmCommand/);
+  assert.doesNotMatch(
+    platformSection,
+    /canonical-amocrm-command-(?:repository|service)|@\/db\/schema/,
+  );
+  assert.doesNotMatch(schemaIndex, /canonical-amocrm/);
 });
 
 test("V2-9C points guardrails and readiness reads at the current Platform provider modules", () => {

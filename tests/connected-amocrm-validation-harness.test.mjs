@@ -39,14 +39,38 @@ test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async (
   assert.match(source, /\$\(orb status\).*Running/u);
   assert.match(source, /\$\(docker context show\).*orbstack/u);
   assert.match(source, /mktemp -d/u);
+  assert.match(source, /npx --no-install supabase status -o env/u);
+  assert.match(source, /read_supabase_env_value DB_URL/u);
+  assert.match(
+    source,
+    /application URL does not match the running local Supabase stack/u,
+  );
+  assert.match(
+    source,
+    /application publishable key does not match the running local Supabase stack/u,
+  );
+  assert.match(
+    source,
+    /application server key does not match the running local Supabase stack/u,
+  );
+  assert.match(
+    source,
+    /EVO_V2_SUPABASE_DATABASE_URL="\$supabase_database_url"/u,
+  );
   assert.match(source, /private legacy provider env file/u);
   assert.match(source, /private token file/u);
   assert.equal([...source.matchAll(/-o BatchMode=yes/gu)].length, 2);
   assert.equal([...source.matchAll(/-o ConnectTimeout=15/gu)].length, 2);
   const addressReadIndex = source.indexOf('container_ip="$(awk');
   const addressValidationIndex = source.indexOf("validate-private-ipv4");
-  const tunnelIndex = source.indexOf("ssh -o BatchMode=yes", addressValidationIndex);
-  const forwardIndex = source.indexOf('-L "127.0.0.1:${tunnel_port}:', tunnelIndex);
+  const tunnelIndex = source.indexOf(
+    "ssh -o BatchMode=yes",
+    addressValidationIndex,
+  );
+  const forwardIndex = source.indexOf(
+    '-L "127.0.0.1:${tunnel_port}:',
+    tunnelIndex,
+  );
   assert.ok(addressReadIndex >= 0 && addressValidationIndex > addressReadIndex);
   assert.ok(tunnelIndex > addressValidationIndex && forwardIndex > tunnelIndex);
   assert.match(source, /-L "127\.0\.0\.1:\$\{tunnel_port\}:/u);
@@ -66,17 +90,61 @@ test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async (
   assert.match(source, /success\.database\?\.replayAddedAttemptCount === 0/u);
   assert.match(source, /success\.database\?\.replayAddedReceiptCount === 0/u);
   assert.match(source, /success\.database\?\.replayAddedBindingCount === 0/u);
-  assert.match(source, /success\.database\?\.replayProviderEntitySetUnchanged === true/u);
+  assert.match(
+    source,
+    /success\.database\?\.replayProviderEntitySetUnchanged === true/u,
+  );
   assert.match(source, /success\.provider\?\.validationContactCount === 1/u);
   assert.match(source, /success\.provider\?\.validationLeadCount === 1/u);
   assert.match(source, /success\.provider\?\.validationNoteCount === 1/u);
-  assert.match(source, /success\.boundaries\?\.v1ApplicationPathExecuted === false/u);
-  assert.match(source, /success\.boundaries\?\.existingWahaSessionReadOnly === true/u);
+  assert.match(
+    source,
+    /success\.boundaries\?\.v1ApplicationPathExecuted === false/u,
+  );
+  assert.match(
+    source,
+    /success\.boundaries\?\.existingWahaSessionReadOnly === true/u,
+  );
+  assert.match(
+    source,
+    /success\.boundaries\?\.database === "local_supabase_postgresql"/u,
+  );
   assert.match(source, /forbiddenKey/u);
   assert.match(source, /canonical-amocrm-connected-provider\.spec\.ts/u);
   assert.doesNotMatch(source, /set -x/u);
   assert.doesNotMatch(source, /curl[^\n]*-X\s+(POST|PATCH|PUT|DELETE)/u);
   assert.doesNotMatch(source, /source\s+.*provider/u);
+  assert.doesNotMatch(source, /docker compose/u);
+  assert.doesNotMatch(source, /migrate-drizzle/u);
+  assert.doesNotMatch(source, /disposable PostgreSQL/u);
+});
+
+test("connected amoCRM acceptance has one local Supabase data authority", async () => {
+  const [shellSource, preparationSource, browserSource] = await Promise.all([
+    readFile(SHELL_PATH, "utf8"),
+    readFile(PREPARE_PATH, "utf8"),
+    readFile(E2E_PATH, "utf8"),
+  ]);
+
+  assert.match(preparationSource, /INSERT INTO platform\.clients/u);
+  assert.match(preparationSource, /INSERT INTO platform\.leads/u);
+  assert.match(preparationSource, /INSERT INTO platform\.subject_provenance/u);
+  assert.match(
+    preparationSource,
+    /createPlatformAmoCrmDiscoveryRepository\(\{\s*organizationId,/u,
+  );
+  assert.match(preparationSource, /delete environment\.DATABASE_URL/u);
+  assert.match(
+    preparationSource,
+    /delete environment\.EVO_V2_SUPABASE_DATABASE_URL/u,
+  );
+  assert.match(browserSource, /platform_private\.amocrm_command_attempts/u);
+  assert.match(browserSource, /platform_private\.amocrm_command_receipts/u);
+  assert.match(browserSource, /database: "local_supabase_postgresql"/u);
+  assert.doesNotMatch(preparationSource, /canonical-crm-repository/u);
+  assert.doesNotMatch(preparationSource, /src\/lib\/server\/database/u);
+  assert.doesNotMatch(browserSource, /\bevo_(?:leads|amocrm|business_events)/u);
+  assert.doesNotMatch(shellSource, /(?:^|\s)DATABASE_URL=/mu);
 });
 
 test("connected amoCRM harness canonicalizes a trailing-slash TMPDIR before creating private paths", async () => {
@@ -118,10 +186,7 @@ test("preparation helper maps only the explicit legacy provider keys into privat
   ]) {
     assert.match(source, new RegExp(legacyKey, "u"));
   }
-  for (const v2Key of [
-    "EVO_V2_AMOCRM_BASE_URL",
-    "EVO_V2_AMOCRM_TOKEN_FILE",
-  ]) {
+  for (const v2Key of ["EVO_V2_AMOCRM_BASE_URL", "EVO_V2_AMOCRM_TOKEN_FILE"]) {
     assert.match(source, new RegExp(v2Key, "u"));
   }
 
@@ -144,7 +209,9 @@ test("preparation helper maps only the explicit legacy provider keys into privat
   assert.match(source, /status\.id !== "142"/u);
   assert.match(source, /status\.id !== "143"/u);
   assert.doesNotMatch(source, /status\.type !== "?14[23]"?/u);
-  assert.match(source, /createCanonicalPersonLead/u);
+  assert.match(source, /INSERT INTO platform\.clients/u);
+  assert.match(source, /INSERT INTO platform\.leads/u);
+  assert.doesNotMatch(source, /createCanonicalPersonLead/u);
   assert.match(source, /discoverCanonicalAmoCrmCommandRouting/u);
   assert.match(source, /spawn/u);
   assert.doesNotMatch(source, /console\.log\([^)]*(token|secret|apiKey)/iu);
@@ -154,12 +221,7 @@ test("private tunnel address validation accepts only exact RFC1918 IPv4", () => 
   const invoke = (value) =>
     spawnSync(
       process.execPath,
-      [
-        fileURLToPath(PREPARE_PATH),
-        "validate-private-ipv4",
-        "--value",
-        value,
-      ],
+      [fileURLToPath(PREPARE_PATH), "validate-private-ipv4", "--value", value],
       {
         cwd: new URL("..", import.meta.url),
         encoding: "utf8",
@@ -167,7 +229,12 @@ test("private tunnel address validation accepts only exact RFC1918 IPv4", () => 
       },
     );
 
-  for (const value of ["10.0.0.1", "172.16.0.1", "172.31.255.254", "192.168.1.1"]) {
+  for (const value of [
+    "10.0.0.1",
+    "172.16.0.1",
+    "172.31.255.254",
+    "192.168.1.1",
+  ]) {
     const result = invoke(value);
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "");
@@ -189,8 +256,14 @@ test("private tunnel address validation accepts only exact RFC1918 IPv4", () => 
     const result = invoke(value);
     assert.notEqual(result.status, 0);
     assert.equal(result.stdout, "");
-    assert.match(result.stderr, /private_tunnel_address_invalid|arguments_invalid/u);
-    assert.doesNotMatch(result.stderr, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+    assert.match(
+      result.stderr,
+      /private_tunnel_address_invalid|arguments_invalid/u,
+    );
+    assert.doesNotMatch(
+      result.stderr,
+      new RegExp(value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"),
+    );
   }
 });
 
@@ -200,6 +273,7 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
   const tokenFile = join(directory, "token.json");
   const runtimeFile = join(directory, "runtime.json");
   const legacyRuntimeFile = join(directory, "legacy-runtime.json");
+  const wrongSessionRuntimeFile = join(directory, "wrong-session-runtime.json");
   const refusedRuntimeFile = join(directory, "refused-runtime.json");
   await chmod(directory, 0o700);
   try {
@@ -211,7 +285,7 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
         "EVO_AGENT_AMO_CLIENT_SECRET=technical-client-secret",
         "EVO_AGENT_AMO_REDIRECT_URI=http://127.0.0.1/oauth/amocrm",
         "EVO_AGENT_WAHA_API_KEY=technical-api-key",
-        "EVO_AGENT_WAHA_SESSION=technical-session",
+        "EVO_AGENT_WAHA_SESSION=crm_primary",
         "UNRELATED_VALUE=must-not-be-mapped",
         "",
       ].join("\n"),
@@ -256,9 +330,45 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
       "EVO_V2_AMOCRM_BASE_URL",
       "EVO_V2_AMOCRM_TOKEN_FILE",
     ]);
-    assert.equal(runtime.providerEnvironment.EVO_V2_AMOCRM_TOKEN_FILE, tokenFile);
-    assert.equal(Object.hasOwn(runtime.providerEnvironment, "UNRELATED_VALUE"), false);
+    assert.equal(
+      runtime.providerEnvironment.EVO_V2_AMOCRM_TOKEN_FILE,
+      tokenFile,
+    );
+    assert.equal(runtime.waha.sessionName, "crm_primary");
+    assert.equal(
+      Object.hasOwn(runtime.providerEnvironment, "UNRELATED_VALUE"),
+      false,
+    );
     assert.equal((await stat(runtimeFile)).mode & 0o077, 0);
+
+    await writeFile(
+      providerEnv,
+      [
+        "EVO_AGENT_AMO_BASE_URL=https://technical.amocrm.ru",
+        "EVO_AGENT_WAHA_API_KEY=technical-api-key",
+        "EVO_AGENT_WAHA_SESSION=evo-inbox",
+        "",
+      ].join("\n"),
+      { mode: 0o600 },
+    );
+    const wrongSession = invoke(wrongSessionRuntimeFile);
+    assert.notEqual(wrongSession.status, 0);
+    assert.equal(wrongSession.stdout, "");
+    assert.match(wrongSession.stderr, /legacy_waha_session_invalid/u);
+    await assert.rejects(() => stat(wrongSessionRuntimeFile), {
+      code: "ENOENT",
+    });
+
+    await writeFile(
+      providerEnv,
+      [
+        "EVO_AGENT_AMO_BASE_URL=https://technical.amocrm.ru",
+        "EVO_AGENT_WAHA_API_KEY=technical-api-key",
+        "EVO_AGENT_WAHA_SESSION=crm_primary",
+        "",
+      ].join("\n"),
+      { mode: 0o600 },
+    );
 
     await writeFile(
       tokenFile,
@@ -310,10 +420,16 @@ test("connected amoCRM browser acceptance is inert without its explicit flag", a
   assert.match(source, /replayAddedReceiptCount:\s*0/u);
   assert.match(source, /replayAddedBindingCount:\s*0/u);
   assert.match(source, /replayProviderEntitySetUnchanged:\s*true/u);
-  assert.match(source, /validationContactCount:\s*provider\.validationContactCount/u);
+  assert.match(
+    source,
+    /validationContactCount:\s*provider\.validationContactCount/u,
+  );
   assert.match(source, /validationLeadCount:\s*provider\.validationLeadCount/u);
   assert.match(source, /validationNoteCount:\s*provider\.validationNoteCount/u);
-  assert.match(source, /\/api\/v4\/contacts\?limit=250&filter%5Bname%5D%5B%5D=/u);
+  assert.match(
+    source,
+    /\/api\/v4\/contacts\?limit=250&filter%5Bname%5D%5B%5D=/u,
+  );
   assert.match(source, /\/api\/v4\/leads\?limit=250&filter%5Bname%5D%5B%5D=/u);
   assert.match(
     source,

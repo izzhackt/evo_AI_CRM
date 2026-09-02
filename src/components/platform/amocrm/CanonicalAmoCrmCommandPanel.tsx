@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { btnCls, btnGhostCls, Card, cn } from "@/components/ui";
@@ -8,6 +8,7 @@ import { resolveCanonicalAmoCrmCommandPanelState } from "@/lib/canonical-amocrm-
 import type { Locale } from "@/lib/i18n";
 import {
   reconcileCanonicalAmoCrmCommandAction,
+  releaseCanonicalAmoCrmPreparedCommandAction,
   syncCanonicalAmoCrmAdmissionsAction,
   syncCanonicalAmoCrmSalesAction,
   type CanonicalAmoCrmCommandActionState,
@@ -33,10 +34,21 @@ const COPY = {
     noteLabel: "Проверенная сотрудником заметка",
     notePlaceholder: "Кратко укажите, что именно проверено перед синхронизацией.",
     noteHint: "Обязательное поле, не более 1000 байт.",
+    taskLabel: "Задача для менеджера в amoCRM",
+    taskPlaceholder:
+      "Опишите следующее действие, которое менеджер должен выполнить.",
+    taskHint: "Обязательное поле, не более 1000 байт.",
+    taskDeadlineLabel: "Срок задачи",
+    taskDeadlineHint:
+      "Укажите точную дату и время. Без срока EVO не отправляет задачу в amoCRM.",
     submit: "Синхронизировать с amoCRM",
     submitting: "Синхронизация…",
     reconcile: "Проверить неизвестный результат",
     reconciling: "Проверка…",
+    releasePrepared: "Снять неотправленную команду",
+    releasingPrepared: "Снятие…",
+    releasedBeforeDispatch:
+      "Команда снята до отправки. amoCRM не вызывался; можно создать новую команду.",
     attempt: "ID последней попытки",
     steps: "Шаги команды",
     statuses: {
@@ -70,10 +82,21 @@ const COPY = {
     noteLabel: "Кызматкер текшерген эскертүү",
     notePlaceholder: "Шайкештөөдөн мурда эмнени текшергениңизди кыска жазыңыз.",
     noteHint: "Милдеттүү талаа, 1000 байттан ашпайт.",
+    taskLabel: "amoCRMдеги менеджердин тапшырмасы",
+    taskPlaceholder:
+      "Менеджер кийинки кайсы аракетти жасашы керек экенин жазыңыз.",
+    taskHint: "Милдеттүү талаа, 1000 байттан ашпайт.",
+    taskDeadlineLabel: "Тапшырманын мөөнөтү",
+    taskDeadlineHint:
+      "Так күндү жана убакытты көрсөтүңүз. Мөөнөтсүз EVO amoCRMге тапшырма жөнөтпөйт.",
     submit: "amoCRM менен шайкештөө",
     submitting: "Шайкештөө…",
     reconcile: "Белгисиз жыйынтыкты текшерүү",
     reconciling: "Текшерилүүдө…",
+    releasePrepared: "Жөнөтүлбөгөн команданы алып салуу",
+    releasingPrepared: "Алынып салынууда…",
+    releasedBeforeDispatch:
+      "Команда жөнөтүлгөнгө чейин алынды. amoCRM чакырылган жок; жаңы команда түзсө болот.",
     attempt: "Акыркы аракеттин ID'си",
     steps: "Команданын кадамдары",
     statuses: {
@@ -107,10 +130,20 @@ const COPY = {
     noteLabel: "Staff-reviewed note",
     notePlaceholder: "Briefly state what was verified before this sync.",
     noteHint: "Required; maximum 1000 bytes.",
+    taskLabel: "Manager task in amoCRM",
+    taskPlaceholder: "Describe the next action the manager must complete.",
+    taskHint: "Required; maximum 1000 bytes.",
+    taskDeadlineLabel: "Task deadline",
+    taskDeadlineHint:
+      "Enter an exact date and time. EVO does not send an amoCRM task without a deadline.",
     submit: "Sync with amoCRM",
     submitting: "Syncing…",
     reconcile: "Check unknown result",
     reconciling: "Checking…",
+    releasePrepared: "Release unsent command",
+    releasingPrepared: "Releasing…",
+    releasedBeforeDispatch:
+      "The command was released before dispatch. amoCRM was not called; a new command can now be created.",
     attempt: "Latest attempt ID",
     steps: "Command steps",
     statuses: {
@@ -143,6 +176,7 @@ const OPERATION_LABELS = {
   lead_pipeline_status_update: "Pipeline / status",
   lead_responsible_update: "Responsible user",
   lead_note_create: "Human note",
+  lead_task_create: "Manager task",
   lead_tag_update: "Exact tags",
 } as const;
 
@@ -159,6 +193,14 @@ const INITIAL_STATE: CanonicalAmoCrmCommandActionState = Object.freeze({
   attemptId: null,
   steps: Object.freeze([]),
 });
+
+function unixFromDateTimeLocal(value: string): string {
+  if (value.trim().length === 0) return "";
+  const parsed = new Date(value);
+  const unix = Math.floor(parsed.getTime() / 1_000);
+  if (!Number.isFinite(unix) || unix <= 0) return "";
+  return String(unix);
+}
 
 function stateTone(status: CanonicalAmoCrmCommandActionState["status"]): string {
   if (status === "accepted") return "border-ok/30 bg-ok-weak text-ok";
@@ -185,7 +227,9 @@ function ResultState({
       data-status={state.status}
     >
       <p className="text-sm font-medium">
-        {copy.statuses[state.status as TerminalStatus]}
+        {state.reason === "operator_released_before_dispatch"
+          ? copy.releasedBeforeDispatch
+          : copy.statuses[state.status as TerminalStatus]}
       </p>
       {state.steps.length > 0 ? (
         <div>
@@ -248,6 +292,7 @@ export function CanonicalAmoCrmCommandPanel({
 }>) {
   const copy = COPY[locale];
   const router = useRouter();
+  const [taskDeadlineLocal, setTaskDeadlineLocal] = useState("");
   const ready = availability.status === "ready";
   const syncAction =
     scope === "sales"
@@ -261,6 +306,15 @@ export function CanonicalAmoCrmCommandPanel({
     reconcileCanonicalAmoCrmCommandAction,
     INITIAL_STATE,
   );
+  const [releaseState, releaseAction, releasing] = useActionState(
+    releaseCanonicalAmoCrmPreparedCommandAction,
+    INITIAL_STATE,
+  );
+  const preparedBlockingAttempt =
+    blockingAttempt?.status === "prepared" &&
+    blockingAttempt.providerDispatchedAt === null
+      ? blockingAttempt
+      : null;
   const persistedBlockingState: CanonicalAmoCrmCommandActionState =
     blockingAttempt === null
       ? INITIAL_STATE
@@ -319,10 +373,14 @@ export function CanonicalAmoCrmCommandPanel({
   const flowBlocked = panelState.flowBlocked;
 
   useEffect(() => {
-    if (syncState.status !== "idle" || reconcileState.status !== "idle") {
+    if (
+      syncState.status !== "idle" ||
+      reconcileState.status !== "idle" ||
+      releaseState.status !== "idle"
+    ) {
       router.refresh();
     }
-  }, [reconcileState.status, router, syncState.status]);
+  }, [reconcileState.status, releaseState.status, router, syncState.status]);
 
   return (
     <Card
@@ -388,6 +446,46 @@ export function CanonicalAmoCrmCommandPanel({
               {copy.noteHint}
             </span>
           </label>
+          <label className="block">
+            <span className="text-xs font-medium text-fg-2">
+              {copy.taskLabel}
+            </span>
+            <textarea
+              name="task_text"
+              rows={3}
+              maxLength={1000}
+              required
+              disabled={!ready || syncing || flowBlocked}
+              placeholder={copy.taskPlaceholder}
+              className="mt-1.5 min-h-24 w-full resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-base text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="canonical-amocrm-task-text"
+            />
+            <span className="mt-1 block text-xs text-fg-3">
+              {copy.taskHint}
+            </span>
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-fg-2">
+              {copy.taskDeadlineLabel}
+            </span>
+            <input
+              type="datetime-local"
+              value={taskDeadlineLocal}
+              required
+              disabled={!ready || syncing || flowBlocked}
+              onChange={(event) => setTaskDeadlineLocal(event.currentTarget.value)}
+              className="mt-1.5 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-base text-fg focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="canonical-amocrm-task-deadline"
+            />
+            <input
+              type="hidden"
+              name="task_complete_till"
+              value={unixFromDateTimeLocal(taskDeadlineLocal)}
+            />
+            <span className="mt-1 block text-xs text-fg-3">
+              {copy.taskDeadlineHint}
+            </span>
+          </label>
           <button
             type="submit"
             className={btnCls}
@@ -399,6 +497,41 @@ export function CanonicalAmoCrmCommandPanel({
         </form>
 
         <ResultState state={displayedSyncState} locale={locale} />
+
+        {preparedBlockingAttempt ? (
+          <form action={releaseAction}>
+            <input
+              type="hidden"
+              name="workflow_scope"
+              value={
+                scope === "sales"
+                  ? "sales_pre_handoff"
+                  : "admissions_post_handoff"
+              }
+            />
+            <input type="hidden" name="lead_id" value={leadId} />
+            <input
+              type="hidden"
+              name="student_case_id"
+              value={scope === "admissions" ? studentCaseId ?? "" : ""}
+            />
+            <input
+              type="hidden"
+              name="attempt_id"
+              value={preparedBlockingAttempt.attemptId}
+            />
+            <button
+              type="submit"
+              className={btnGhostCls}
+              disabled={releasing}
+              data-testid="canonical-amocrm-release-prepared"
+            >
+              {releasing ? copy.releasingPrepared : copy.releasePrepared}
+            </button>
+          </form>
+        ) : null}
+
+        <ResultState state={releaseState} locale={locale} />
 
         {activeUnknownState?.attemptId ? (
           <form action={reconcileAction}>

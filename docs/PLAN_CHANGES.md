@@ -15499,3 +15499,39 @@ send, idempotency, reconciliation or fail-closed runtime contracts. It does not
 authorize a WhatsApp send, amoCRM write, webhook takeover, production deploy,
 customer migration, public traffic, V1 execution or cutover. ADR 0026 records
 the superseding acceptance decision.
+
+## 2026-09-03 - Sequence #567 real amoCRM proof from exact main
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex under the owner's standing provider authorization for #567.
+Change type: acceptance-order clarification during the #572 linearization.
+Affected plan sections: P5C Supabase-authoritative amoCRM commands and the P5D
+entry gate.
+
+PR #571 merged the WhatsApp/Gemini replacement at exact main
+`8bb96c35b401c81e625773cc5ec594c68f956f39`; exact-main CI run `33683881377`
+passed. Rebuilding stacked PR #572 on that squash commit exposed a required
+ordering clarification: the committed amoCRM acceptance harness deliberately
+fails unless the checkout is clean exact `origin/main`. It therefore cannot
+truthfully validate an unmerged PR head, and weakening that guard would turn a
+reviewed provider control into a branch-only bypass.
+
+Decision: #572 lands the inert Supabase-authoritative command runtime only after
+real disposable PostgreSQL, migrations, application and Chromium proof, normal
+exact-head CI and independent review. The same code slice removes the local
+Drizzle command/discovery authority, temporary Student 360 section, stale
+scripts, implementation tests and fallback imports. The PR must reference but
+must not auto-close #567.
+
+After the merge and green exact-main CI, run the guarded provider harness once
+against the already authorized, clearly marked validation entity. Require
+matching real amoCRM readback, immutable Supabase attempt/receipt/binding
+evidence, exact browser replay and sanitized evidence output before closing
+#567 or starting #568. Provider rejection, missing credentials, or an ambiguous
+result remains an honest #567 blocker for read-only reconciliation; it does not
+permit retry, a V1 writer, a compatibility repository or simulated success.
+
+This ordering creates no production deployment or temporary dual runtime. V1
+remains frozen; WhatsApp/Gemini provider execution remains removed from the
+active gate under ADR 0026; no arbitrary customer record, data migration,
+cutover or public traffic is authorized.

@@ -7,39 +7,27 @@ import {
   requirePlatformSalesActor,
 } from "@/lib/platform-guards";
 
-import { exactActionStringFields } from "./action-form-fields";
+import {
+  parsePlatformAmoCrmAdmissionsSyncForm,
+  parsePlatformAmoCrmReconcileForm,
+  parsePlatformAmoCrmSalesSyncForm,
+} from "../platform-amocrm-command-action-contract.ts";
 import {
   loadCanonicalAmoCrmCommandConfig,
 } from "./canonical-amocrm-command-config";
 import {
-  executeCanonicalAmoCrmAdmissionsSync,
-  executeCanonicalAmoCrmSalesSync,
-  reconcileCanonicalAmoCrmSyncAttempt,
-  type CanonicalAmoCrmSyncResult,
-} from "./canonical-amocrm-command-service";
+  executePlatformAmoCrmAdmissionsSync,
+  executePlatformAmoCrmSalesSync,
+  reconcilePlatformAmoCrmSyncAttempt,
+  releasePlatformAmoCrmPreparedAttempt,
+  type PlatformAmoCrmSyncResult as CanonicalAmoCrmSyncResult,
+} from "./platform-amocrm-command-service";
 import {
   loadCanonicalAmoCrmProviderConfig,
   readCanonicalAmoCrmProviderAvailability,
   type CanonicalAmoCrmBlockedReason,
 } from "./canonical-amocrm-provider-config";
 import { readCanonicalAmoCrmTokenFile } from "./canonical-amocrm-token-store";
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-const MAX_NOTE_BYTES = 1_000;
-
-const SALES_FIELDS = ["lead_id", "note_text", "request_id"] as const;
-const ADMISSIONS_FIELDS = [
-  "note_text",
-  "request_id",
-  "student_case_id",
-] as const;
-const RECONCILE_FIELDS = [
-  "attempt_id",
-  "lead_id",
-  "student_case_id",
-  "workflow_scope",
-] as const;
 
 export type CanonicalAmoCrmCommandActionState =
   | Readonly<{
@@ -67,19 +55,6 @@ function invalidState(): CanonicalAmoCrmSyncResult {
     attemptId: null,
     steps: Object.freeze([]),
   });
-}
-
-function normalizedUuid(value: string | undefined): string | null {
-  if (value === undefined || !UUID_PATTERN.test(value)) return null;
-  return value.toLowerCase();
-}
-
-function normalizedNote(value: string | undefined): string | null {
-  if (value === undefined) return null;
-  const noteText = value.trim();
-  const byteLength = new TextEncoder().encode(noteText).byteLength;
-  if (byteLength < 1 || byteLength > MAX_NOTE_BYTES) return null;
-  return noteText;
 }
 
 export async function readCanonicalAmoCrmCommandAvailability(): Promise<CanonicalAmoCrmCommandAvailability> {
@@ -120,23 +95,23 @@ export async function syncCanonicalAmoCrmSalesAction(
   _previous: CanonicalAmoCrmCommandActionState,
   form: FormData,
 ): Promise<CanonicalAmoCrmSyncResult> {
-  const fields = exactActionStringFields(form, SALES_FIELDS);
-  const leadId = normalizedUuid(fields?.get("lead_id"));
-  const baseRequestId = normalizedUuid(fields?.get("request_id"));
-  const noteText = normalizedNote(fields?.get("note_text"));
-  if (leadId === null || baseRequestId === null || noteText === null) {
-    return invalidState();
-  }
+  const parsed = parsePlatformAmoCrmSalesSyncForm(form);
+  if (parsed === null) return invalidState();
+  const { leadId, requestId: baseRequestId, noteText, taskText, taskCompleteTill } =
+    parsed;
 
   const actor = await requirePlatformSalesActor();
   if (actor.platformRole !== "admin" && actor.platformRole !== "sales") {
     return invalidState();
   }
-  const result = await executeCanonicalAmoCrmSalesSync({
+  const result = await executePlatformAmoCrmSalesSync({
+    actor,
     actorRole: actor.platformRole,
     leadId,
     baseRequestId,
     noteText,
+    taskText,
+    taskCompleteTill,
   });
   revalidatePath(`/sales/${leadId}`);
   return result;
@@ -146,23 +121,28 @@ export async function syncCanonicalAmoCrmAdmissionsAction(
   _previous: CanonicalAmoCrmCommandActionState,
   form: FormData,
 ): Promise<CanonicalAmoCrmSyncResult> {
-  const fields = exactActionStringFields(form, ADMISSIONS_FIELDS);
-  const studentCaseId = normalizedUuid(fields?.get("student_case_id"));
-  const baseRequestId = normalizedUuid(fields?.get("request_id"));
-  const noteText = normalizedNote(fields?.get("note_text"));
-  if (studentCaseId === null || baseRequestId === null || noteText === null) {
-    return invalidState();
-  }
+  const parsed = parsePlatformAmoCrmAdmissionsSyncForm(form);
+  if (parsed === null) return invalidState();
+  const {
+    studentCaseId,
+    requestId: baseRequestId,
+    noteText,
+    taskText,
+    taskCompleteTill,
+  } = parsed;
 
   const actor = await requirePlatformAdmissionsActor("/clients");
   if (actor.platformRole !== "admin" && actor.platformRole !== "admissions") {
     return invalidState();
   }
-  const result = await executeCanonicalAmoCrmAdmissionsSync({
+  const result = await executePlatformAmoCrmAdmissionsSync({
+    actor,
     actorRole: actor.platformRole,
     studentCaseId,
     baseRequestId,
     noteText,
+    taskText,
+    taskCompleteTill,
   });
   revalidatePath(`/clients/${studentCaseId}`);
   return result;
@@ -172,23 +152,9 @@ export async function reconcileCanonicalAmoCrmCommandAction(
   _previous: CanonicalAmoCrmCommandActionState,
   form: FormData,
 ): Promise<CanonicalAmoCrmSyncResult> {
-  const fields = exactActionStringFields(form, RECONCILE_FIELDS);
-  const workflowScope = fields?.get("workflow_scope");
-  const leadId = normalizedUuid(fields?.get("lead_id"));
-  const attemptId = normalizedUuid(fields?.get("attempt_id"));
-  const rawStudentCaseId = fields?.get("student_case_id");
-  const studentCaseId =
-    rawStudentCaseId === "" ? null : normalizedUuid(rawStudentCaseId);
-  if (
-    leadId === null ||
-    attemptId === null ||
-    (workflowScope !== "sales_pre_handoff" &&
-      workflowScope !== "admissions_post_handoff") ||
-    (workflowScope === "sales_pre_handoff" && studentCaseId !== null) ||
-    (workflowScope === "admissions_post_handoff" && studentCaseId === null)
-  ) {
-    return invalidState();
-  }
+  const parsed = parsePlatformAmoCrmReconcileForm(form);
+  if (parsed === null) return invalidState();
+  const { workflowScope, leadId, attemptId, studentCaseId } = parsed;
 
   const actor =
     workflowScope === "sales_pre_handoff"
@@ -202,7 +168,44 @@ export async function reconcileCanonicalAmoCrmCommandAction(
     return invalidState();
   }
 
-  const result = await reconcileCanonicalAmoCrmSyncAttempt({
+  const result = await reconcilePlatformAmoCrmSyncAttempt({
+    actor,
+    actorRole: actor.platformRole,
+    workflowScope,
+    leadId,
+    studentCaseId,
+    attemptId,
+  });
+  if (studentCaseId === null) {
+    revalidatePath(`/sales/${leadId}`);
+  } else {
+    revalidatePath(`/clients/${studentCaseId}`);
+  }
+  return result;
+}
+
+export async function releaseCanonicalAmoCrmPreparedCommandAction(
+  _previous: CanonicalAmoCrmCommandActionState,
+  form: FormData,
+): Promise<CanonicalAmoCrmSyncResult> {
+  const parsed = parsePlatformAmoCrmReconcileForm(form);
+  if (parsed === null) return invalidState();
+  const { workflowScope, leadId, attemptId, studentCaseId } = parsed;
+
+  const actor =
+    workflowScope === "sales_pre_handoff"
+      ? await requirePlatformSalesActor()
+      : await requirePlatformAdmissionsActor("/clients");
+  if (
+    actor.platformRole !== "admin" &&
+    actor.platformRole !==
+      (workflowScope === "sales_pre_handoff" ? "sales" : "admissions")
+  ) {
+    return invalidState();
+  }
+
+  const result = await releasePlatformAmoCrmPreparedAttempt({
+    actor,
     actorRole: actor.platformRole,
     workflowScope,
     leadId,

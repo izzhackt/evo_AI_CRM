@@ -32,6 +32,12 @@ globalThis.__canonicalAmoCrmCommandActionHarness = harness;
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === "server-only") {
+      return {
+        shortCircuit: true,
+        url: dataModule("export default {};"),
+      };
+    }
     if (!context.parentURL?.includes("/canonical-amocrm-command-actions.ts")) {
       return nextResolve(specifier, context);
     }
@@ -62,7 +68,7 @@ registerHooks({
         ).href,
       };
     }
-    if (specifier === "./canonical-amocrm-command-service") {
+    if (specifier === "./platform-amocrm-command-service") {
       return {
         shortCircuit: true,
         url: dataModule(`
@@ -71,14 +77,17 @@ registerHooks({
             harness.serviceCalls.push({ kind, input });
             return harness.result;
           }
-          export async function executeCanonicalAmoCrmSalesSync(input) {
+          export async function executePlatformAmoCrmSalesSync(input) {
             return execute("sales", input);
           }
-          export async function executeCanonicalAmoCrmAdmissionsSync(input) {
+          export async function executePlatformAmoCrmAdmissionsSync(input) {
             return execute("admissions", input);
           }
-          export async function reconcileCanonicalAmoCrmSyncAttempt(input) {
+          export async function reconcilePlatformAmoCrmSyncAttempt(input) {
             return execute("reconcile", input);
+          }
+          export async function releasePlatformAmoCrmPreparedAttempt(input) {
+            return execute("release", input);
           }
         `),
       };
@@ -138,6 +147,7 @@ registerHooks({
 const {
   readCanonicalAmoCrmCommandAvailability,
   reconcileCanonicalAmoCrmCommandAction,
+  releaseCanonicalAmoCrmPreparedCommandAction,
   syncCanonicalAmoCrmAdmissionsAction,
   syncCanonicalAmoCrmSalesAction,
 } = await import("../src/lib/server/canonical-amocrm-command-actions.ts");
@@ -196,6 +206,8 @@ test("Sales sync accepts only exact fields and passes a trimmed bounded human no
       lead_id: IDS.lead.toUpperCase(),
       request_id: IDS.request.toUpperCase(),
       note_text: "  Sales verified the current qualification.  ",
+      task_text: "  Call the applicant after syncing.  ",
+      task_complete_till: "1790000000",
     }),
   );
 
@@ -204,10 +216,13 @@ test("Sales sync accepts only exact fields and passes a trimmed bounded human no
     {
       kind: "sales",
       input: {
+        actor: { platformRole: "sales" },
         actorRole: "sales",
         leadId: IDS.lead,
         baseRequestId: IDS.request,
         noteText: "Sales verified the current qualification.",
+        taskText: "Call the applicant after syncing.",
+        taskCompleteTill: 1790000000,
       },
     },
   ]);
@@ -225,6 +240,8 @@ test("Admissions sync uses the Admissions guard and exact Student 360 path", asy
       student_case_id: IDS.studentCase,
       request_id: IDS.request,
       note_text: "Admissions accepted the handoff.",
+      task_text: "Prepare the next admissions action.",
+      task_complete_till: "1790003600",
     }),
   );
 
@@ -232,10 +249,13 @@ test("Admissions sync uses the Admissions guard and exact Student 360 path", asy
   assert.deepEqual(harness.serviceCalls[0], {
     kind: "admissions",
     input: {
+      actor: { platformRole: "admin" },
       actorRole: "admin",
       studentCaseId: IDS.studentCase,
       baseRequestId: IDS.request,
       noteText: "Admissions accepted the handoff.",
+      taskText: "Prepare the next admissions action.",
+      taskCompleteTill: 1790003600,
     },
   });
   assert.deepEqual(harness.revalidated, [`/clients/${IDS.studentCase}`]);
@@ -247,6 +267,8 @@ test("unknown fields, duplicate fields, bad UUIDs, and notes outside 1..1000 UTF
       lead_id: IDS.lead,
       request_id: IDS.request,
       note_text: "Valid note",
+      task_text: "Valid task",
+      task_complete_till: "1790000000",
       fallback: "legacy",
     }),
     (() => {
@@ -254,13 +276,47 @@ test("unknown fields, duplicate fields, bad UUIDs, and notes outside 1..1000 UTF
         lead_id: IDS.lead,
         request_id: IDS.request,
         note_text: "Valid note",
+        task_text: "Valid task",
+        task_complete_till: "1790000000",
       });
       value.append("note_text", "Duplicate");
       return value;
     })(),
-    form({ lead_id: "not-a-uuid", request_id: IDS.request, note_text: "Note" }),
-    form({ lead_id: IDS.lead, request_id: IDS.request, note_text: "   " }),
-    form({ lead_id: IDS.lead, request_id: IDS.request, note_text: "🙂".repeat(251) }),
+    form({
+      lead_id: "not-a-uuid",
+      request_id: IDS.request,
+      note_text: "Note",
+      task_text: "Task",
+      task_complete_till: "1790000000",
+    }),
+    form({
+      lead_id: IDS.lead,
+      request_id: IDS.request,
+      note_text: "   ",
+      task_text: "Task",
+      task_complete_till: "1790000000",
+    }),
+    form({
+      lead_id: IDS.lead,
+      request_id: IDS.request,
+      note_text: "🙂".repeat(251),
+      task_text: "Task",
+      task_complete_till: "1790000000",
+    }),
+    form({
+      lead_id: IDS.lead,
+      request_id: IDS.request,
+      note_text: "Note",
+      task_text: "",
+      task_complete_till: "1790000000",
+    }),
+    form({
+      lead_id: IDS.lead,
+      request_id: IDS.request,
+      note_text: "Note",
+      task_text: "Task",
+      task_complete_till: "not-a-unix-time",
+    }),
   ];
 
   for (const invalidForm of invalidForms) {
@@ -307,6 +363,8 @@ test("all honest service terminal states and their step evidence pass through wi
         lead_id: IDS.lead,
         request_id: IDS.request,
         note_text: "Human-approved note",
+        task_text: "Task",
+        task_complete_till: "1790000000",
       }),
     );
     assert.deepEqual(result, harness.result);
@@ -338,6 +396,7 @@ test("read-only reconciliation selects the workflow guard and exact path without
     {
       kind: "reconcile",
       input: {
+        actor: { platformRole: "admissions" },
         actorRole: "admissions",
         workflowScope: "admissions_post_handoff",
         leadId: IDS.lead,
@@ -347,6 +406,43 @@ test("read-only reconciliation selects the workflow guard and exact path without
     },
   ]);
   assert.deepEqual(harness.revalidated, [`/clients/${IDS.studentCase}`]);
+  assert.deepEqual(result, harness.result);
+});
+
+test("prepared-attempt release uses the workflow guard and never enters the provider reconciliation path", async () => {
+  resetHarness();
+  harness.result = {
+    status: "rejected",
+    reason: "operator_released_before_dispatch",
+    attemptId: IDS.attempt,
+    steps: [],
+  };
+
+  const result = await releaseCanonicalAmoCrmPreparedCommandAction(
+    INITIAL_STATE,
+    form({
+      workflow_scope: "sales_pre_handoff",
+      lead_id: IDS.lead,
+      student_case_id: "",
+      attempt_id: IDS.attempt,
+    }),
+  );
+
+  assert.deepEqual(harness.guardCalls, ["sales"]);
+  assert.deepEqual(harness.serviceCalls, [
+    {
+      kind: "release",
+      input: {
+        actor: { platformRole: "sales" },
+        actorRole: "sales",
+        workflowScope: "sales_pre_handoff",
+        leadId: IDS.lead,
+        studentCaseId: null,
+        attemptId: IDS.attempt,
+      },
+    },
+  ]);
+  assert.deepEqual(harness.revalidated, [`/sales/${IDS.lead}`]);
   assert.deepEqual(result, harness.result);
 });
 

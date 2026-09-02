@@ -175,6 +175,15 @@ export type CanonicalAmoCrmLeadNoteInput = Readonly<{
   text: string;
 }>;
 
+export type CanonicalAmoCrmLeadTaskInput = Readonly<{
+  requestId: string;
+  leadId: string | number;
+  text: string;
+  completeTill: number;
+  responsibleUserId?: string | number;
+  taskTypeId?: string | number;
+}>;
+
 export type CanonicalAmoCrmLeadTagsInput = Readonly<{
   requestId: string;
   leadId: string | number;
@@ -243,6 +252,12 @@ export type CanonicalAmoCrmWriteProvider = Readonly<{
   createLeadNote: (
     input: CanonicalAmoCrmLeadNoteInput,
   ) => Promise<CanonicalAmoCrmMutationResult>;
+  prepareCreateLeadTask: (
+    input: CanonicalAmoCrmLeadTaskInput,
+  ) => CanonicalAmoCrmPreparedMutation;
+  createLeadTask: (
+    input: CanonicalAmoCrmLeadTaskInput,
+  ) => Promise<CanonicalAmoCrmMutationResult>;
   prepareUpdateLeadTags: (
     input: CanonicalAmoCrmLeadTagsInput,
   ) => CanonicalAmoCrmPreparedMutation;
@@ -251,10 +266,17 @@ export type CanonicalAmoCrmWriteProvider = Readonly<{
   ) => Promise<CanonicalAmoCrmMutationResult>;
   getContactById: (contactId: string | number) => Promise<unknown>;
   getLeadById: (leadId: string | number) => Promise<unknown>;
-  getLeadLinks: (leadId: string | number) => Promise<unknown>;
+  getLeadContactLinks: (
+    leadId: string | number,
+    contactId: string | number,
+  ) => Promise<unknown>;
   getLeadNoteById: (
     leadId: string | number,
     noteId: string | number,
+  ) => Promise<unknown>;
+  getTaskById: (
+    leadId: string | number,
+    taskId: string | number,
   ) => Promise<unknown>;
 }>;
 
@@ -368,7 +390,7 @@ type ProviderResponse = Readonly<{
 function providerRequestId(response: Response): string | null {
   for (const header of ["x-request-id", "x-correlation-id"]) {
     const value = response.headers.get(header)?.trim();
-    if (value && value.length <= 255 && /^[A-Za-z0-9._:-]+$/u.test(value)) {
+    if (value && value.length <= 200 && /^[A-Za-z0-9._:-]+$/u.test(value)) {
       return value;
     }
   }
@@ -580,6 +602,18 @@ function boundedPrice(value: unknown): number {
     return invalidMutationRequest();
   }
   return Number(value);
+}
+
+function unixTimestampSeconds(value: unknown): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > 4_102_444_800
+  ) {
+    return invalidMutationRequest();
+  }
+  return value;
 }
 
 function customFields(
@@ -1013,6 +1047,7 @@ function tagList(
 // https://developers.kommo.com/reference/adding-leads
 // https://developers.kommo.com/reference/linking-entities
 // https://developers.kommo.com/reference/add-notes
+// https://www.amocrm.ru/developers/content/crm_platform/tasks-api
 // https://www.amocrm.ru/developers/content/crm_platform/tags-api
 // https://developers.kommo.com/changelog/updates-in-api-documentation
 export function createCanonicalAmoCrmWriteProvider(
@@ -1172,6 +1207,30 @@ export function createCanonicalAmoCrmWriteProvider(
           }),
       );
     },
+    prepareCreateLeadTask: (input) => {
+      const leadId = providerEntityId(input.leadId);
+      return prepare(
+        "POST",
+        "/api/v4/tasks",
+        input.requestId,
+        [
+          {
+            entity_id: leadId.json,
+            entity_type: "leads",
+            text: boundedMutationText(input.text, 10_000),
+            complete_till: unixTimestampSeconds(input.completeTill),
+            request_id: commandRequestId(input.requestId),
+            ...(input.responsibleUserId === undefined
+              ? {}
+              : { responsible_user_id: providerEntityId(input.responsibleUserId).json }),
+            ...(input.taskTypeId === undefined
+              ? {}
+              : { task_type_id: providerEntityId(input.taskTypeId).json }),
+          },
+        ],
+        (value) => providerCreatedEntityId(value, "tasks", input.requestId),
+      );
+    },
     prepareUpdateLeadTags: (input) => {
       const leadId = providerEntityId(input.leadId);
       const add = tagList(input.add, true);
@@ -1206,6 +1265,7 @@ export function createCanonicalAmoCrmWriteProvider(
     linkContactToLead: (input) =>
       provider.prepareLinkContactToLead(input).dispatch(),
     createLeadNote: (input) => provider.prepareCreateLeadNote(input).dispatch(),
+    createLeadTask: (input) => provider.prepareCreateLeadTask(input).dispatch(),
     updateLeadTags: (input) => provider.prepareUpdateLeadTags(input).dispatch(),
     getContactById: async (value) => {
       const contactId = providerEntityId(value);
@@ -1229,13 +1289,14 @@ export function createCanonicalAmoCrmWriteProvider(
         leadId.text,
       );
     },
-    getLeadLinks: async (value) => {
-      const leadId = providerEntityId(value);
+    getLeadContactLinks: async (leadValue, contactValue) => {
+      const leadId = providerEntityId(leadValue);
+      const contactId = providerEntityId(contactValue);
       return exactLinksReadback(
         await canonicalRead(
           config,
           dependencies,
-          `/api/v4/leads/${leadId.text}/links`,
+          `/api/v4/leads/${leadId.text}/links?filter[to_entity_id]=${contactId.text}&filter[to_entity_type]=contacts`,
         ),
       );
     },
@@ -1250,6 +1311,28 @@ export function createCanonicalAmoCrmWriteProvider(
         ),
         noteId.text,
       );
+      const entityId = providerEntityId(
+        (result as Record<string, unknown>).entity_id,
+      ).text;
+      if (entityId !== leadId.text) {
+        throw new CanonicalAmoCrmProviderError("invalid_response");
+      }
+      return result;
+    },
+    getTaskById: async (leadValue, taskValue) => {
+      const leadId = providerEntityId(leadValue);
+      const taskId = providerEntityId(taskValue);
+      const result = exactEntityReadback(
+        await canonicalRead(
+          config,
+          dependencies,
+          `/api/v4/tasks/${taskId.text}`,
+        ),
+        taskId.text,
+      );
+      if ((result as Record<string, unknown>).entity_type !== "leads") {
+        throw new CanonicalAmoCrmProviderError("invalid_response");
+      }
       const entityId = providerEntityId(
         (result as Record<string, unknown>).entity_id,
       ).text;

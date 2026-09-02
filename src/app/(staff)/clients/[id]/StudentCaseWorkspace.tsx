@@ -43,7 +43,7 @@ import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
 import { getPlatformCaseDocumentWorkspace } from "@/lib/platform-private-documents";
 import { getPlatformStudentCaseHandoffContext } from "@/lib/platform-student-handoff";
 import { getPlatformStudentProfile } from "@/lib/platform-student-profile";
-import { AmoCrmCaseCommandSection } from "./AmoCrmCaseCommandSection";
+import { PlatformAmoCrmCommandSection } from "./PlatformAmoCrmCommandSection";
 import {
   ContractDraftReportWorkspace,
   type ContractDraftReportActions,
@@ -633,7 +633,8 @@ export async function StudentCaseWorkspace({
         feedback={operationsFeedback}
       />
 
-      <AmoCrmCaseCommandSection
+      <PlatformAmoCrmCommandSection
+        organizationId={actor.organizationId}
         authorityRole={actor.authorityRole}
         locale={locale}
         studentCaseId={id}

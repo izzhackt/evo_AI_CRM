@@ -6,6 +6,8 @@ import { expect, test, type Page } from "@playwright/test";
 import postgres from "postgres";
 
 const NOTE_TEXT = "EVO V2 provider validation: reviewed by Admin.";
+const TASK_TEXT = "EVO V2 provider validation: manager follow-up.";
+const TASK_DEADLINE_LOCAL = "2099-09-15T12:00";
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const PROVIDER_ID = /^[1-9][0-9]{0,9}$/u;
@@ -18,6 +20,7 @@ const OPERATIONS = Object.freeze([
   "lead_pipeline_status_update",
   "lead_responsible_update",
   "lead_note_create",
+  "lead_task_create",
   "lead_tag_update",
 ]);
 
@@ -38,12 +41,36 @@ function requireEnv(name: string): string {
   return value;
 }
 
+function localSupabaseDatabaseUrl(): string {
+  const value = requireEnv("EVO_V2_SUPABASE_DATABASE_URL");
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("The acceptance database URL is invalid");
+  }
+  ensure(
+    (parsed.protocol === "postgres:" || parsed.protocol === "postgresql:") &&
+      (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") &&
+      parsed.username.length > 0 &&
+      parsed.password.length > 0 &&
+      parsed.pathname.length > 1 &&
+      parsed.search.length === 0 &&
+      parsed.hash.length === 0,
+    "The acceptance database must be the loopback-only local Supabase PostgreSQL",
+  );
+  return value;
+}
+
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
 function record(value: unknown, message: string): Record<string, unknown> {
-  ensure(value !== null && typeof value === "object" && !Array.isArray(value), message);
+  ensure(
+    value !== null && typeof value === "object" && !Array.isArray(value),
+    message,
+  );
   return value as Record<string, unknown>;
 }
 
@@ -67,9 +94,15 @@ async function privateJson(filePath: string, label: string) {
   const resolved = path.resolve(filePath);
   ensure(resolved === filePath, `${label} path is not absolute and normalized`);
   const status = await lstat(resolved);
-  ensure(status.isFile() && !status.isSymbolicLink(), `${label} is not a regular file`);
+  ensure(
+    status.isFile() && !status.isSymbolicLink(),
+    `${label} is not a regular file`,
+  );
   ensure((status.mode & 0o077) === 0, `${label} permissions are not private`);
-  ensure(status.size > 0 && status.size <= 256 * 1024, `${label} size is invalid`);
+  ensure(
+    status.size > 0 && status.size <= 256 * 1024,
+    `${label} size is invalid`,
+  );
   let value: unknown;
   try {
     value = JSON.parse(await readFile(resolved, "utf8"));
@@ -136,7 +169,9 @@ async function submitAdminGate(page: Page) {
   await page
     .locator("#staff-email")
     .fill(requireEnv("EVO_STAFF_AUTH_ADMIN_EMAIL"));
-  await page.locator("#staff-password").fill(requireEnv("EVO_STAFF_AUTH_ADMIN_PASSWORD"));
+  await page
+    .locator("#staff-password")
+    .fill(requireEnv("EVO_STAFF_AUTH_ADMIN_PASSWORD"));
   await page.getByRole("button", { name: "Войти в CRM" }).click();
   await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
   await page.getByTestId("open-role-workspace").click();
@@ -158,14 +193,19 @@ async function zeroMutationProof(connectionString: string, leadId: string) {
     >`
       select
         (select count(*)::integer
-          from evo_amocrm_operation_attempts
+          from platform_private.amocrm_command_attempts
+          where workflow_lead_id = ${leadId}
         ) as attempt_count,
         (select count(*)::integer
-          from evo_amocrm_lead_bindings
+          from platform_private.amocrm_lead_bindings
           where lead_id = ${leadId}) as lead_binding_count,
         (select count(*)::integer
-          from evo_amocrm_contact_bindings
-          where person_id = (select person_id from evo_leads where id = ${leadId}))
+          from platform_private.amocrm_contact_bindings
+          where person_id = (
+            select client_id
+            from platform.leads
+            where id = ${leadId}
+          ))
           as contact_binding_count
     `;
     ensure(rows.length === 1, "PostgreSQL zero-mutation proof was ambiguous");
@@ -178,15 +218,16 @@ async function zeroMutationProof(connectionString: string, leadId: string) {
 type AcceptedAttempt = Readonly<{
   operation_name: string;
   status: string;
-  correlation_id: string;
+  idempotency_key: string;
+  dispatch_request_id: string | null;
+  finish_request_id: string | null;
   provider_http_status: number | null;
   provider_dispatched_at: Date | null;
   provider_responded_at: Date | null;
   provider_readback: Record<string, unknown> | null;
   provider_readback_sha256: string | null;
-  receipt_status: string;
-  receipt_correlation_id: string;
   receipt_id: string;
+  receipt_idempotency_key: string;
 }>;
 
 async function acceptedDatabaseProof(
@@ -194,7 +235,8 @@ async function acceptedDatabaseProof(
   input: Readonly<{
     leadId: string;
     requestId: string;
-    seedCorrelationId: string;
+    seedSourceRef: string;
+    discoverySnapshotId: string;
     discoverySnapshotSha256: string;
   }>,
 ) {
@@ -204,22 +246,27 @@ async function acceptedDatabaseProof(
       select
         attempt.operation_name,
         attempt.status,
-        attempt.correlation_id,
+        attempt.idempotency_key,
+        attempt.dispatch_request_id,
+        attempt.finish_request_id,
         attempt.provider_http_status,
         attempt.provider_dispatched_at,
         attempt.provider_responded_at,
         attempt.provider_readback,
         attempt.provider_readback_sha256,
-        receipt.status as receipt_status,
-        receipt.correlation_id as receipt_correlation_id,
-        receipt.id as receipt_id
-      from evo_amocrm_operation_attempts attempt
-      inner join evo_command_receipts receipt
+        receipt.id as receipt_id,
+        receipt.idempotency_key as receipt_idempotency_key
+      from platform_private.amocrm_command_attempts attempt
+      inner join platform_private.amocrm_command_receipts receipt
         on receipt.id = attempt.command_receipt_id
-      where attempt.correlation_id = ${input.requestId}
+      where attempt.workflow_lead_id = ${input.leadId}
+        and attempt.idempotency_key like ${`${input.requestId}:%`}
       order by attempt.created_at, attempt.id
     `;
-    ensure(attempts.length === OPERATIONS.length, "The UI sync did not persist exactly seven provider attempts");
+    ensure(
+      attempts.length === OPERATIONS.length,
+      "The UI sync did not persist the exact provider attempt count",
+    );
     ensure(
       new Set(attempts.map((attempt) => attempt.operation_name)).size ===
         OPERATIONS.length &&
@@ -232,9 +279,11 @@ async function acceptedDatabaseProof(
       attempts.every(
         (attempt) =>
           attempt.status === "accepted" &&
-          attempt.receipt_status === "succeeded" &&
-          attempt.correlation_id === input.requestId &&
-          attempt.receipt_correlation_id === input.requestId &&
+          attempt.idempotency_key ===
+            `${input.requestId}:${attempt.operation_name}` &&
+          attempt.receipt_idempotency_key === attempt.idempotency_key &&
+          attempt.dispatch_request_id === input.requestId &&
+          attempt.finish_request_id === input.requestId &&
           attempt.provider_http_status !== null &&
           attempt.provider_http_status >= 200 &&
           attempt.provider_http_status < 300 &&
@@ -249,27 +298,30 @@ async function acceptedDatabaseProof(
     ensure(
       new Set(attempts.map((attempt) => attempt.receipt_id)).size ===
         OPERATIONS.length,
-      "The canonical provider attempts did not retain seven distinct receipts",
+      "The canonical provider attempts did not retain one distinct receipt per operation",
     );
 
     const bindingRows = await sql<
       Array<{
-        provider_contact_id: string;
+        contact_id: string;
         provider_lead_id: string;
       }>
     >`
-      select contact.provider_contact_id, lead.provider_lead_id
-      from evo_leads canonical_lead
-      inner join evo_amocrm_contact_bindings contact
-        on contact.person_id = canonical_lead.person_id
-      inner join evo_amocrm_lead_bindings lead
+      select contact.contact_id, lead.provider_lead_id
+      from platform.leads canonical_lead
+      inner join platform_private.amocrm_contact_bindings contact
+        on contact.person_id = canonical_lead.client_id
+      inner join platform_private.amocrm_lead_bindings lead
         on lead.lead_id = canonical_lead.id
-        and lead.account_id = contact.account_id
+        and lead.organization_id = contact.organization_id
       where canonical_lead.id = ${input.leadId}
     `;
-    ensure(bindingRows.length === 1, "PostgreSQL did not retain one exact contact/lead binding pair");
+    ensure(
+      bindingRows.length === 1,
+      "PostgreSQL did not retain one exact contact/lead binding pair",
+    );
     const providerContactId = providerId(
-      bindingRows[0].provider_contact_id,
+      bindingRows[0].contact_id,
       "The contact binding identity is invalid",
     );
     const providerLeadId = providerId(
@@ -280,38 +332,56 @@ async function acceptedDatabaseProof(
     const noteAttempt = attempts.find(
       (attempt) => attempt.operation_name === "lead_note_create",
     );
-    ensure(noteAttempt?.provider_readback, "The note attempt lacks readback evidence");
+    ensure(
+      noteAttempt?.provider_readback,
+      "The note attempt lacks readback evidence",
+    );
     const providerNoteId = providerId(
-      noteAttempt.provider_readback.entityId,
+      noteAttempt.provider_readback.entity_id,
       "The note readback identity is invalid",
+    );
+    const taskAttempt = attempts.find(
+      (attempt) => attempt.operation_name === "lead_task_create",
+    );
+    ensure(
+      taskAttempt?.provider_readback,
+      "The task attempt lacks readback evidence",
+    );
+    const providerTaskId = providerId(
+      taskAttempt.provider_readback.entity_id,
+      "The task readback identity is invalid",
     );
     const tagAttempt = attempts.find(
       (attempt) => attempt.operation_name === "lead_tag_update",
     );
-    ensure(tagAttempt?.provider_readback, "The tag attempt lacks readback evidence");
-    const providerManagedTagId = providerId(
-      tagAttempt.provider_readback.tagId,
-      "The managed tag readback identity is invalid",
+    ensure(
+      tagAttempt?.provider_readback,
+      "The tag attempt lacks readback evidence",
+    );
+    ensure(
+      tagAttempt.provider_readback.entity_id === providerLeadId &&
+        tagAttempt.provider_readback.tag_name === "EVO V2 Sales",
+      "The managed tag readback did not retain the exact Sales role state",
     );
 
-    const eventRows = await sql<
-      Array<{ correlation_id: string; transition: string }>
-    >`
-      select correlation_id, transition
-      from evo_business_events
-      where business_object_id = ${input.leadId}
-        and transition = 'lead.created'
+    const provenanceRows = await sql<Array<{ source_ref: string }>>`
+      select source_ref
+      from platform.subject_provenance
+      where lead_id = ${input.leadId}
+        and evidence_type = 'connected_provider_acceptance'
+        and source_ref = ${input.seedSourceRef}
     `;
     ensure(
-      eventRows.length === 1 &&
-        eventRows[0].correlation_id === input.seedCorrelationId,
-      "The validation lead event is not correlated to its exact seed command",
+      provenanceRows.length === 1 &&
+        provenanceRows[0].source_ref === input.seedSourceRef,
+      "The validation lead is missing its exact Supabase provenance",
     );
 
     const discoveryRows = await sql<Array<{ count: number }>>`
       select count(*)::integer as count
-      from evo_amocrm_discovery_snapshots
-      where snapshot_sha256 = ${input.discoverySnapshotSha256}
+      from platform_private.amocrm_mapping_discovery_versions
+      where id = ${input.discoverySnapshotId}
+        and snapshot_sha256 = ${input.discoverySnapshotSha256}
     `;
     ensure(
       discoveryRows.length === 1 && discoveryRows[0].count === 1,
@@ -323,12 +393,12 @@ async function acceptedDatabaseProof(
       receiptCount: new Set(attempts.map((attempt) => attempt.receipt_id)).size,
       contactBindingCount: 1,
       leadBindingCount: 1,
-      eventCount: eventRows.length,
+      provenanceCount: provenanceRows.length,
       discoverySnapshotCount: discoveryRows[0].count,
       providerContactId,
       providerLeadId,
       providerNoteId,
-      providerManagedTagId,
+      providerTaskId,
       readbackSetSha256: sha256(
         attempts
           .map((attempt) => attempt.provider_readback_sha256)
@@ -350,7 +420,10 @@ async function providerGet(
   try {
     response = await fetch(`${origin}${pathName}`, {
       method: "GET",
-      headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` },
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
       redirect: "error",
       signal: AbortSignal.timeout(10_000),
     });
@@ -359,7 +432,10 @@ async function providerGet(
   }
   ensure(response.ok, "The exact provider readback was rejected");
   const raw = await response.text();
-  ensure(Buffer.byteLength(raw, "utf8") <= 256 * 1024, "Provider readback exceeded the safe bound");
+  ensure(
+    Buffer.byteLength(raw, "utf8") <= 256 * 1024,
+    "Provider readback exceeded the safe bound",
+  );
   let value: unknown;
   try {
     value = JSON.parse(raw);
@@ -380,8 +456,14 @@ async function exactProviderReadback(
   );
   const baseUrl = providerEnvironment.EVO_V2_AMOCRM_BASE_URL;
   const tokenPath = providerEnvironment.EVO_V2_AMOCRM_TOKEN_FILE;
-  ensure(typeof baseUrl === "string", "The private provider base URL is invalid");
-  ensure(typeof tokenPath === "string", "The private provider token path is invalid");
+  ensure(
+    typeof baseUrl === "string",
+    "The private provider base URL is invalid",
+  );
+  ensure(
+    typeof tokenPath === "string",
+    "The private provider token path is invalid",
+  );
   const parsedBase = new URL(baseUrl);
   ensure(
     parsedBase.protocol === "https:" &&
@@ -389,15 +471,24 @@ async function exactProviderReadback(
       /\.(amocrm\.ru|kommo\.com)$/u.test(parsedBase.hostname),
     "The private provider origin is invalid",
   );
-  const token = await privateJson(path.resolve(tokenPath), "Private OAuth token");
+  const token = await privateJson(
+    path.resolve(tokenPath),
+    "Private OAuth token",
+  );
   const accessToken = token.access_token;
   ensure(
     typeof accessToken === "string" && accessToken.length >= 1,
     "The private OAuth access token is invalid",
   );
 
-  const routing = record(context.routing, "The private routing context is invalid");
-  const sales = record(routing.sales, "The private Sales routing context is invalid");
+  const routing = record(
+    context.routing,
+    "The private routing context is invalid",
+  );
+  const sales = record(
+    routing.sales,
+    "The private Sales routing context is invalid",
+  );
   const admissions = record(
     routing.admissions,
     "The private Admissions routing context is invalid",
@@ -408,7 +499,10 @@ async function exactProviderReadback(
   );
   const displayName = context.displayName;
   const expectedPhoneSha256 = context.selfPhoneSha256;
-  ensure(typeof displayName === "string", "The private validation name is invalid");
+  ensure(
+    typeof displayName === "string",
+    "The private validation name is invalid",
+  );
   ensure(
     typeof expectedPhoneSha256 === "string" && SHA256.test(expectedPhoneSha256),
     "The private validation phone digest is invalid",
@@ -428,19 +522,36 @@ async function exactProviderReadback(
     contact.custom_fields_values,
     "Provider contact custom fields were invalid",
   ).filter((fieldValue) => {
-    const field = record(fieldValue, "Provider contact custom field was invalid");
-    return providerId(field.field_id, "Provider contact field identity was invalid") ===
-      String(fields.phoneFieldId);
+    const field = record(
+      fieldValue,
+      "Provider contact custom field was invalid",
+    );
+    return (
+      providerId(
+        field.field_id,
+        "Provider contact field identity was invalid",
+      ) === String(fields.phoneFieldId)
+    );
   });
-  ensure(phoneFields.length === 1, "Provider contact phone field was not exact");
+  ensure(
+    phoneFields.length === 1,
+    "Provider contact phone field was not exact",
+  );
   const phoneValues = array(
     record(phoneFields[0], "Provider contact phone field was invalid").values,
     "Provider contact phone values were invalid",
   );
-  ensure(phoneValues.length === 1, "Provider contact phone value was not exact");
-  const phoneValue = record(phoneValues[0], "Provider contact phone value was invalid").value;
   ensure(
-    typeof phoneValue === "string" && sha256(phoneValue) === expectedPhoneSha256,
+    phoneValues.length === 1,
+    "Provider contact phone value was not exact",
+  );
+  const phoneValue = record(
+    phoneValues[0],
+    "Provider contact phone value was invalid",
+  ).value;
+  ensure(
+    typeof phoneValue === "string" &&
+      sha256(phoneValue) === expectedPhoneSha256,
     "Provider contact phone did not match the connected WAHA self identity",
   );
 
@@ -473,12 +584,9 @@ async function exactProviderReadback(
       name: tag.name,
     });
   });
-  const exactSalesTags = leadTags.filter(
-    (tag) => tag.name === "EVO V2 Sales",
-  );
+  const exactSalesTags = leadTags.filter((tag) => tag.name === "EVO V2 Sales");
   ensure(
     exactSalesTags.length === 1 &&
-      exactSalesTags[0].id === database.providerManagedTagId &&
       (sales.tagId === null || exactSalesTags[0].id === String(sales.tagId)) &&
       !leadTags.some((tag) => tag.name === "EVO V2 Admissions") &&
       (admissions.tagId === null ||
@@ -496,13 +604,20 @@ async function exactProviderReadback(
     "Provider link collection was invalid",
   ).filter((linkValue) => {
     const link = record(linkValue, "Provider link was invalid");
-    const metadata = record(link.metadata, "Provider link metadata was invalid");
+    const metadata = record(
+      link.metadata,
+      "Provider link metadata was invalid",
+    );
     return link.to_entity_type === "contacts" && metadata.main_contact === true;
   });
-  ensure(mainContacts.length === 1, "Provider lead did not retain exactly one main contact");
+  ensure(
+    mainContacts.length === 1,
+    "Provider lead did not retain exactly one main contact",
+  );
   ensure(
     providerId(
-      record(mainContacts[0], "Provider main contact link was invalid").to_entity_id,
+      record(mainContacts[0], "Provider main contact link was invalid")
+        .to_entity_id,
       "Provider main contact identity was invalid",
     ) === database.providerContactId,
     "Provider main contact link changed identity",
@@ -513,7 +628,10 @@ async function exactProviderReadback(
     `/api/v4/leads/notes/${database.providerNoteId}`,
     accessToken,
   );
-  const noteParams = record(note.params, "Provider note parameters were invalid");
+  const noteParams = record(
+    note.params,
+    "Provider note parameters were invalid",
+  );
   ensure(
     providerId(note.id, "Provider note identity changed") ===
       database.providerNoteId &&
@@ -521,6 +639,20 @@ async function exactProviderReadback(
         database.providerLeadId &&
       noteParams.text === NOTE_TEXT,
     "Provider note readback did not match the reviewed text",
+  );
+  const task = await providerGet(
+    parsedBase.origin,
+    `/api/v4/tasks/${database.providerTaskId}`,
+    accessToken,
+  );
+  ensure(
+    providerId(task.id, "Provider task identity changed") ===
+      database.providerTaskId &&
+      task.entity_type === "leads" &&
+      providerId(task.entity_id, "Provider task lead identity changed") ===
+        database.providerLeadId &&
+      task.text === TASK_TEXT,
+    "Provider task readback did not match the reviewed task",
   );
 
   // Provider-side scoped collections are the duplicate detector. Re-reading
@@ -538,7 +670,10 @@ async function exactProviderReadback(
     ).contacts,
     "Provider contact search collection was invalid",
   ).filter((candidate) => {
-    const scopedContact = record(candidate, "Provider contact search item was invalid");
+    const scopedContact = record(
+      candidate,
+      "Provider contact search item was invalid",
+    );
     return scopedContact.name === displayName;
   });
   ensure(
@@ -560,10 +695,14 @@ async function exactProviderReadback(
     accessToken,
   );
   const validationLeads = array(
-    record(leadSearch._embedded, "Provider lead search envelope was invalid").leads,
+    record(leadSearch._embedded, "Provider lead search envelope was invalid")
+      .leads,
     "Provider lead search collection was invalid",
   ).filter((candidate) => {
-    const scopedLead = record(candidate, "Provider lead search item was invalid");
+    const scopedLead = record(
+      candidate,
+      "Provider lead search item was invalid",
+    );
     return scopedLead.name === displayName;
   });
   ensure(
@@ -585,11 +724,18 @@ async function exactProviderReadback(
     accessToken,
   );
   const validationNotes = array(
-    record(noteSearch._embedded, "Provider note search envelope was invalid").notes,
+    record(noteSearch._embedded, "Provider note search envelope was invalid")
+      .notes,
     "Provider note search collection was invalid",
   ).filter((candidate) => {
-    const scopedNote = record(candidate, "Provider note search item was invalid");
-    const params = record(scopedNote.params, "Provider note search params were invalid");
+    const scopedNote = record(
+      candidate,
+      "Provider note search item was invalid",
+    );
+    const params = record(
+      scopedNote.params,
+      "Provider note search params were invalid",
+    );
     return scopedNote.note_type === "common" && params.text === NOTE_TEXT;
   });
   ensure(
@@ -604,6 +750,34 @@ async function exactProviderReadback(
     validationNoteId === database.providerNoteId,
     "Provider validation note changed identity",
   );
+  const taskSearch = await providerGet(
+    parsedBase.origin,
+    `/api/v4/tasks?limit=250&filter%5Bentity_type%5D=leads&filter%5Bentity_id%5D=${encodeURIComponent(database.providerLeadId)}`,
+    accessToken,
+  );
+  const validationTasks = array(
+    record(taskSearch._embedded, "Provider task search envelope was invalid")
+      .tasks,
+    "Provider task search collection was invalid",
+  ).filter((candidate) => {
+    const scopedTask = record(
+      candidate,
+      "Provider task search item was invalid",
+    );
+    return scopedTask.text === TASK_TEXT;
+  });
+  ensure(
+    validationTasks.length === 1,
+    "Provider validation scope contains a duplicate or changed task",
+  );
+  const validationTaskId = providerId(
+    record(validationTasks[0], "Provider validation task was invalid").id,
+    "Provider validation task identity was invalid",
+  );
+  ensure(
+    validationTaskId === database.providerTaskId,
+    "Provider validation task changed identity",
+  );
 
   return Object.freeze({
     exactReadback: true,
@@ -612,11 +786,13 @@ async function exactProviderReadback(
         `contact:${validationContactId}`,
         `lead:${validationLeadId}`,
         `note:${validationNoteId}`,
+        `task:${validationTaskId}`,
       ].join(":"),
     ),
     validationContactCount: validationContacts.length,
     validationLeadCount: validationLeads.length,
     validationNoteCount: validationNotes.length,
+    validationTaskCount: validationTasks.length,
     managedRoleTagCount: 1,
     mainContactCount: mainContacts.length,
   });
@@ -625,14 +801,24 @@ async function exactProviderReadback(
 test("disabled provider authority fails clearly in the real browser before any provider dispatch", async ({
   page,
 }) => {
-  test.skip(requiredMode() !== "blocked", "dispatch pass runs this exact spec separately");
+  test.skip(
+    requiredMode() !== "blocked",
+    "dispatch pass runs this exact spec separately",
+  );
   const { gitSha, evidenceDir, contextFile } = acceptanceInputs();
   await mkdir(evidenceDir, { recursive: true, mode: 0o700 });
   await chmod(evidenceDir, 0o700);
   const context = await privateJson(contextFile, "Private validation context");
+  ensure(
+    context.databaseAuthority === "local_supabase_postgresql",
+    "The validation context does not name local Supabase as its sole database authority",
+  );
   const leadId = context.leadId;
-  ensure(typeof leadId === "string" && UUID.test(leadId), "Validation lead identity is invalid");
-  const before = await zeroMutationProof(requireEnv("DATABASE_URL"), leadId);
+  ensure(
+    typeof leadId === "string" && UUID.test(leadId),
+    "Validation lead identity is invalid",
+  );
+  const before = await zeroMutationProof(localSupabaseDatabaseUrl(), leadId);
   ensure(
     before.attempt_count === 0 &&
       before.contact_binding_count === 0 &&
@@ -655,7 +841,7 @@ test("disabled provider authority fails clearly in the real browser before any p
   await expect(panel.getByTestId("canonical-amocrm-note-text")).toBeDisabled();
   await expect(panel.getByTestId("canonical-amocrm-sync")).toBeDisabled();
 
-  const after = await zeroMutationProof(requireEnv("DATABASE_URL"), leadId);
+  const after = await zeroMutationProof(localSupabaseDatabaseUrl(), leadId);
   ensure(
     after.attempt_count === 0 &&
       after.contact_binding_count === 0 &&
@@ -683,7 +869,10 @@ test("disabled provider authority fails clearly in the real browser before any p
 test("one explicit Admin browser sync persists and reads back the real amoCRM result", async ({
   page,
 }) => {
-  test.skip(requiredMode() !== "dispatch", "blocked-authority pass runs this exact spec separately");
+  test.skip(
+    requiredMode() !== "dispatch",
+    "blocked-authority pass runs this exact spec separately",
+  );
   test.setTimeout(180_000);
   const { gitSha, evidenceDir, runtimeFile, contextFile } = acceptanceInputs();
   const blockedMarker = await privateJson(
@@ -703,20 +892,35 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
   );
   const runtime = await privateJson(runtimeFile, "Private provider runtime");
   const context = await privateJson(contextFile, "Private validation context");
-  const leadId = context.leadId;
-  const seedCorrelationId = context.seedCorrelationId;
-  const discovery = record(context.discovery, "Private discovery context is missing");
-  ensure(typeof leadId === "string" && UUID.test(leadId), "Validation lead identity is invalid");
   ensure(
-    typeof seedCorrelationId === "string" && UUID.test(seedCorrelationId),
-    "Seed correlation identity is invalid",
+    context.databaseAuthority === "local_supabase_postgresql",
+    "The validation context does not name local Supabase as its sole database authority",
+  );
+  const leadId = context.leadId;
+  const seedSourceRef = context.seedSourceRef;
+  const discovery = record(
+    context.discovery,
+    "Private discovery context is missing",
+  );
+  ensure(
+    typeof leadId === "string" && UUID.test(leadId),
+    "Validation lead identity is invalid",
+  );
+  ensure(
+    typeof seedSourceRef === "string" &&
+      /^connected-amocrm-acceptance:[0-9a-f-]{36}$/u.test(seedSourceRef),
+    "Seed source reference is invalid",
+  );
+  ensure(
+    typeof discovery.snapshotId === "string" && UUID.test(discovery.snapshotId),
+    "Discovery snapshot identity is invalid",
   );
   ensure(
     typeof discovery.snapshotSha256 === "string" &&
       SHA256.test(discovery.snapshotSha256),
     "Discovery snapshot digest is invalid",
   );
-  const before = await zeroMutationProof(requireEnv("DATABASE_URL"), leadId);
+  const before = await zeroMutationProof(localSupabaseDatabaseUrl(), leadId);
   ensure(
     before.attempt_count === 0 &&
       before.contact_binding_count === 0 &&
@@ -735,7 +939,10 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     .getByTestId("canonical-amocrm-sync-form")
     .locator('input[name="request_id"]')
     .inputValue();
-  ensure(UUID.test(requestId), "The browser command request identity is invalid");
+  ensure(
+    UUID.test(requestId),
+    "The browser command request identity is invalid",
+  );
 
   await durableCreateJson(path.join(evidenceDir, "dispatch-attempt.json"), {
     schemaVersion: 1,
@@ -747,6 +954,10 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     reviewedNoteSha256: sha256(NOTE_TEXT),
   });
   await panel.getByTestId("canonical-amocrm-note-text").fill(NOTE_TEXT);
+  await panel.getByTestId("canonical-amocrm-task-text").fill(TASK_TEXT);
+  await panel
+    .getByTestId("canonical-amocrm-task-deadline")
+    .fill(TASK_DEADLINE_LOCAL);
   await panel.getByTestId("canonical-amocrm-sync").click();
   await expect(
     panel.getByTestId("canonical-amocrm-command-state"),
@@ -764,10 +975,11 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     await expect(steps.nth(index)).toHaveAttribute("data-status", "accepted");
   }
 
-  const database = await acceptedDatabaseProof(requireEnv("DATABASE_URL"), {
+  const database = await acceptedDatabaseProof(localSupabaseDatabaseUrl(), {
     leadId,
     requestId,
-    seedCorrelationId,
+    seedSourceRef,
+    discoverySnapshotId: discovery.snapshotId,
     discoverySnapshotSha256: discovery.snapshotSha256,
   });
   const provider = await exactProviderReadback(runtime, context, database);
@@ -780,10 +992,17 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
   const replayRequestInput = panel
     .getByTestId("canonical-amocrm-sync-form")
     .locator('input[name="request_id"]');
+  await panel.getByTestId("canonical-amocrm-note-text").fill(NOTE_TEXT);
+  await panel.getByTestId("canonical-amocrm-task-text").fill(TASK_TEXT);
+  await panel
+    .getByTestId("canonical-amocrm-task-deadline")
+    .fill(TASK_DEADLINE_LOCAL);
+  // The controlled deadline input rerenders the form. Restore the exact
+  // acceptance-only request identity after every user-controlled field so
+  // React cannot replace it with the freshly rendered request id.
   await replayRequestInput.evaluate((element, exactRequestId) => {
     (element as HTMLInputElement).value = exactRequestId;
   }, requestId);
-  await panel.getByTestId("canonical-amocrm-note-text").fill(NOTE_TEXT);
   const replayResponsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return (
@@ -798,11 +1017,12 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     panel.getByTestId("canonical-amocrm-command-state"),
   ).toHaveAttribute("data-status", "accepted");
   const replayDatabase = await acceptedDatabaseProof(
-    requireEnv("DATABASE_URL"),
+    localSupabaseDatabaseUrl(),
     {
       leadId,
       requestId,
-      seedCorrelationId,
+      seedSourceRef,
+      discoverySnapshotId: discovery.snapshotId,
       discoverySnapshotSha256: discovery.snapshotSha256,
     },
   );
@@ -814,7 +1034,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       replayDatabase.providerContactId === database.providerContactId &&
       replayDatabase.providerLeadId === database.providerLeadId &&
       replayDatabase.providerNoteId === database.providerNoteId &&
-      replayDatabase.providerManagedTagId === database.providerManagedTagId &&
+      replayDatabase.providerTaskId === database.providerTaskId &&
       replayDatabase.readbackSetSha256 === database.readbackSetSha256,
     "Exact UI replay created a new attempt, receipt, binding or provider entity",
   );
@@ -826,25 +1046,30 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
   ensure(
     replayProvider.exactReadback === true &&
       replayProvider.entitySetSha256 === provider.entitySetSha256 &&
-      replayProvider.validationContactCount === provider.validationContactCount &&
+      replayProvider.validationContactCount ===
+        provider.validationContactCount &&
       replayProvider.validationLeadCount === provider.validationLeadCount &&
       replayProvider.validationNoteCount === provider.validationNoteCount &&
+      replayProvider.validationTaskCount === provider.validationTaskCount &&
       replayProvider.managedRoleTagCount === provider.managedRoleTagCount &&
       replayProvider.mainContactCount === provider.mainContactCount,
     "Exact UI replay changed the provider entity set",
   );
 
   await page.reload();
-  await expect(page.getByTestId("canonical-sales-lead-workspace")).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-sales-lead-workspace"),
+  ).toBeVisible();
   await expect(
     page
       .getByTestId("canonical-amocrm-command-panel")
       .getByTestId("canonical-amocrm-provider-availability"),
   ).toHaveAttribute("data-status", "ready");
-  const afterReload = await acceptedDatabaseProof(requireEnv("DATABASE_URL"), {
+  const afterReload = await acceptedDatabaseProof(localSupabaseDatabaseUrl(), {
     leadId,
     requestId,
-    seedCorrelationId,
+    seedSourceRef,
+    discoverySnapshotId: discovery.snapshotId,
     discoverySnapshotSha256: discovery.snapshotSha256,
   });
   ensure(
@@ -882,7 +1107,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       receiptCount: database.receiptCount,
       contactBindingCount: database.contactBindingCount,
       leadBindingCount: database.leadBindingCount,
-      eventCount: database.eventCount,
+      provenanceCount: database.provenanceCount,
       discoverySnapshotCount: database.discoverySnapshotCount,
       readbackSetSha256: database.readbackSetSha256,
       exactUiReplay: true,
@@ -893,7 +1118,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       persistedAfterReload: true,
     },
     boundaries: {
-      database: "disposable_local_postgresql",
+      database: "local_supabase_postgresql",
       target: "connected_waha_session_self_validation_entity",
       v1ApplicationPathExecuted: false,
       existingWahaSessionReadOnly: true,

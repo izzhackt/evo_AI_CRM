@@ -243,13 +243,13 @@ export function FileManager({
                       aria-current={active ? "true" : undefined}
                       style={{ paddingInlineStart: `${0.55 + folder.depth * 0.9}rem` }}
                       className={`flex min-h-10 w-full items-center gap-2 rounded-nav pe-2.5 text-start text-sm ${
-                        active ? "bg-accent-weak font-semibold text-fg" : "text-fg-2 hover:bg-surface-2"
+                        active ? "bg-surface-2 font-semibold text-fg" : "text-fg-2 hover:bg-surface-2"
                       }`}
                     >
                       <Icon
                         name="folder"
                         size={15}
-                        className={`shrink-0 ${active ? "text-accent-text" : "text-fg-3"}`}
+                        className={`shrink-0 ${active ? "text-fg" : "text-fg-3"}`}
                       />
                       <span className="min-w-0 flex-1 truncate">{folder.name}</span>
                       <span className="shrink-0 font-mono text-2xs text-fg-3">{folder.count}</span>

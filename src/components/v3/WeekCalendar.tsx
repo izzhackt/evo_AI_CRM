@@ -56,7 +56,7 @@ const ROW = 76;
 
 const TONE: Record<WeekEvent["tone"], string> = {
   work: "border-s-info bg-info-weak",
-  deadline: "border-s-accent bg-accent-weak",
+  deadline: "border-s-danger bg-danger-weak",
   meeting: "border-s-ok bg-ok-weak",
 };
 
@@ -256,7 +256,7 @@ export function WeekCalendar({
                 >
                   <span
                     className={`font-mono text-lg font-semibold leading-none ${
-                      day.today ? "text-accent-text" : "text-fg"
+                      day.today ? "text-fg" : "text-fg-2"
                     }`}
                   >
                     {day.date}

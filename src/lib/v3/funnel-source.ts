@@ -72,9 +72,9 @@ export async function readDashboardMetrics(): Promise<readonly Metric[]> {
   const share = leads > 0 ? Math.round((handed / leads) * 100) : 0;
 
   return [
-    { label: "Всего лидов", value: leads, tone: "accent", delta: null, insteadOfDelta: "нет истории за месяц" },
-    { label: "Людей в базе", value: Number(row.people), tone: "info", delta: null, insteadOfDelta: "нет истории за месяц" },
-    { label: "В работе", value: Number(row.active), tone: "warn", delta: null, insteadOfDelta: "не переданы, не отказ" },
-    { label: "Передано в Admissions", value: handed, tone: "ok", delta: { direction: "up", text: `${share}% от всех лидов` }, insteadOfDelta: null },
+    { label: "Всего лидов", value: leads, delta: null, insteadOfDelta: "нет истории за месяц" },
+    { label: "Людей в базе", value: Number(row.people), delta: null, insteadOfDelta: "нет истории за месяц" },
+    { label: "В работе", value: Number(row.active), delta: null, insteadOfDelta: "не переданы, не отказ" },
+    { label: "Передано в Admissions", value: handed, delta: { direction: "up", text: `${share}% от всех лидов` }, insteadOfDelta: null },
   ];
 }

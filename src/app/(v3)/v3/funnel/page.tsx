@@ -11,7 +11,7 @@ export default async function FunnelPart() {
 
   return (
     <main className="mx-auto w-full max-w-[1000px] px-4 py-8 sm:px-6">
-      <Link href="/v3" className="-ms-1 inline-flex min-h-11 items-center px-1 font-mono text-xs text-accent-text hover:underline">
+      <Link href="/v3" className="-ms-1 inline-flex min-h-11 items-center px-1 font-mono text-xs text-fg-2 underline decoration-border-strong underline-offset-4 hover:decoration-fg-2">
         ← Части интерфейса
       </Link>
 

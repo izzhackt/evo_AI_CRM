@@ -5,21 +5,15 @@
  * «+12.5% this month», но такое сравнение существует только когда есть история.
  * Пустая карточка честнее выдуманного роста, поэтому вместо процента здесь
  * появляется причина, по которой его нет.
+ *
+ * Цветной метки у карточки нет намеренно. Она была, и тон назначался вручную —
+ * то есть цвет не значил ничего. В этом мире цвет означает состояние записи, и
+ * украшение, которое им притворяется, врёт.
  */
-
-export type MetricTone = "accent" | "info" | "warn" | "ok";
-
-const TONE_MARK: Record<MetricTone, string> = {
-  accent: "bg-accent-weak text-accent-text",
-  info: "bg-info-weak text-info",
-  warn: "bg-warn-weak text-warn",
-  ok: "bg-ok-weak text-ok",
-};
 
 export type Metric = Readonly<{
   label: string;
   value: number | string;
-  tone: MetricTone;
   /** Изменение за период. null — сравнивать не с чем. */
   delta: Readonly<{ direction: "up" | "down"; text: string }> | null;
   /** Почему сравнения нет. Показывается вместо delta. */
@@ -29,13 +23,6 @@ export type Metric = Readonly<{
 export function MetricCard({ metric }: { metric: Metric }) {
   return (
     <li className="flex flex-col gap-1 rounded-card border border-border bg-surface px-4 py-3.5">
-      <span
-        aria-hidden="true"
-        className={`mb-1 grid h-7 w-7 place-items-center rounded-nav text-xs ${TONE_MARK[metric.tone]}`}
-      >
-        ●
-      </span>
-
       <span className="text-xs text-fg-3">{metric.label}</span>
 
       <span className="font-mono text-2xl font-semibold leading-none tracking-[-0.02em] text-fg">

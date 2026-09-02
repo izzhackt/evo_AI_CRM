@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 
 import { Icon } from "@/components/icons";
+import { Pill } from "@/components/v3/Pill";
 
 /**
  * Воронка продаж: колонка на стадию, карточка на лида.
@@ -20,7 +21,9 @@ import { Icon } from "@/components/icons";
  *    ничего не называет; здесь метка говорит то, что решает: срок прошёл, срок
  *    сегодня, действие не назначено.
  * 3. `handoff_ready` — гейт, а не ещё одна колонка. Это единственное место, где
- *    sales передаёт работу admissions, и решение там принимает человек.
+ *    sales передаёт работу admissions, и решение там принимает человек. Он
+ *    отмечен пилюлей: в этом мире цвет означает статус записи, поэтому
+ *    подкрашивать саму колонку нельзя.
  *
  * Перенос сделан кнопкой, а не только перетаскиванием: перетаскивание без
  * клавиатурного пути — недоступный интерфейс (SC 2.1.1). Список стадий
@@ -179,20 +182,18 @@ export function Pipeline({
           return (
             <li
               key={stage.key}
-              className={`flex min-w-0 flex-col gap-2 rounded-card p-2.5 md:w-[280px] md:shrink-0 ${
-                stage.gate ? "bg-accent-weak" : "bg-surface-2"
-              }`}
+              className="flex min-w-0 flex-col gap-2 rounded-card bg-surface-2 p-2.5 md:w-[280px] md:shrink-0"
             >
-              <div className="flex items-baseline justify-between gap-2 px-1">
-                <h3 className="min-w-0 truncate text-sm font-semibold text-fg">{stage.title}</h3>
+              <div className="flex items-center justify-between gap-2 px-1 py-0.5">
+                <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-fg">
+                  <span className="truncate">{stage.title}</span>
+                  {/* Гейт отмечен пилюлей, а не подкрашенной колонкой: цвет в
+                      этом мире занят статусами, и подложка стадии его бы
+                      переопределила. */}
+                  {stage.gate ? <Pill tone="solid">гейт</Pill> : null}
+                </h3>
                 <span className="shrink-0 font-mono text-2xs text-fg-3">{inStage.length}</span>
               </div>
-
-              {stage.gate ? (
-                <p className="px-1 text-2xs leading-4 text-accent-text">
-                  Здесь решение принимает человек
-                </p>
-              ) : null}
 
               <ul className="flex flex-col gap-2">
                 {inStage.map((lead) => (

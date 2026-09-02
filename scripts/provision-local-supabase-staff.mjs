@@ -216,6 +216,41 @@ async function assertStaffDirectoryDenied(client, organizationId, code) {
   }
 }
 
+async function assertSensitivePermission(client, organizationId, permissionKey, code) {
+  const result = assertNoError(
+    await client.schema("platform").rpc("assert_sensitive_permission", {
+      p_organization_id: organizationId,
+      p_permission_key: permissionKey,
+    }),
+    `${code}_RPC_FAILED`,
+  );
+  if (
+    !result ||
+    result.organization_id !== organizationId ||
+    result.permission_key !== permissionKey ||
+    result.authorized !== true
+  ) {
+    fail(`${code}_MISMATCH`);
+  }
+}
+
+async function assertSensitivePermissionDenied(
+  client,
+  organizationId,
+  permissionKey,
+  code,
+) {
+  const { data, error } = await client
+    .schema("platform")
+    .rpc("assert_sensitive_permission", {
+      p_organization_id: organizationId,
+      p_permission_key: permissionKey,
+    });
+  if (!error || error.code !== "42501" || data !== null) {
+    fail(`${code}_NOT_DENIED`);
+  }
+}
+
 async function main() {
   const url = readLocalUrl();
   const publishableKey = readKey(
@@ -287,13 +322,13 @@ async function main() {
     "ORGANIZATION_ID_INVALID",
   );
 
-  const adminSession = await signIn(
+  let adminSession = await signIn(
     url,
     publishableKey,
     identities.admin,
     "ADMIN",
   );
-  await readAuthority(
+  const adminAuthority = await readAuthority(
     adminSession.client,
     { authUserId: adminUser.id, organizationId, role: "admin" },
     "ADMIN_AUTHORITY",
@@ -329,6 +364,90 @@ async function main() {
     "ADMISSIONS",
   );
 
+  async function grantPermission(targetMembershipId, permissionKey, code) {
+    const result = assertNoError(
+      await adminSession.client
+        .schema("platform")
+        .rpc("change_membership_permission", {
+          p_organization_id: organizationId,
+          p_membership_id: targetMembershipId,
+          p_permission_key: permissionKey,
+          p_granted: true,
+          p_reason: `Grant isolated local ${permissionKey} verification authority`,
+          p_request_id: randomUUID(),
+        }),
+      `${code}_GRANT_FAILED`,
+    );
+    if (
+      !result ||
+      result.organization_id !== organizationId ||
+      result.membership_id !== targetMembershipId ||
+      result.permission_key !== permissionKey ||
+      result.granted !== true
+    ) {
+      fail(`${code}_GRANT_MISMATCH`);
+    }
+
+    if (targetMembershipId === adminAuthority.membership_id) {
+      adminSession = await signIn(
+        url,
+        publishableKey,
+        identities.admin,
+        `${code}_ADMIN_REFRESH`,
+      );
+    }
+  }
+
+  await grantPermission(
+    salesMembershipId,
+    "contract.evidence.confirm",
+    "SALES_CONTRACT_PERMISSION",
+  );
+  await grantPermission(
+    salesMembershipId,
+    "finance.first.payment.confirm",
+    "SALES_PAYMENT_PERMISSION",
+  );
+  await grantPermission(
+    adminAuthority.membership_id,
+    "contract.evidence.confirm",
+    "ADMIN_CONTRACT_PERMISSION",
+  );
+  await grantPermission(
+    adminAuthority.membership_id,
+    "finance.first.payment.confirm",
+    "ADMIN_PAYMENT_PERMISSION",
+  );
+  await grantPermission(
+    adminAuthority.membership_id,
+    "admissions.handoff.gate.override",
+    "ADMIN_OVERRIDE_PERMISSION",
+  );
+
+  await readAuthority(
+    adminSession.client,
+    { authUserId: adminUser.id, organizationId, role: "admin" },
+    "ADMIN_REFRESHED_AUTHORITY",
+  );
+  await assertSensitivePermission(
+    adminSession.client,
+    organizationId,
+    "contract.evidence.confirm",
+    "ADMIN_CONTRACT_PERMISSION",
+  );
+  await assertSensitivePermission(
+    adminSession.client,
+    organizationId,
+    "finance.first.payment.confirm",
+    "ADMIN_PAYMENT_PERMISSION",
+  );
+  await assertSensitivePermission(
+    adminSession.client,
+    organizationId,
+    "admissions.handoff.gate.override",
+    "ADMIN_OVERRIDE_PERMISSION",
+  );
+
   const salesSession = await signIn(
     url,
     publishableKey,
@@ -351,6 +470,12 @@ async function main() {
     admissionsSession.client,
     { authUserId: admissionsUser.id, organizationId, role: "curator" },
     "ADMISSIONS_AUTHORITY",
+  );
+  await assertSensitivePermissionDenied(
+    admissionsSession.client,
+    organizationId,
+    "contract.evidence.confirm",
+    "ADMISSIONS_CONTRACT_PERMISSION",
   );
 
   await assertNoAuthority(
@@ -419,6 +544,18 @@ async function main() {
     refreshedSalesSession.client,
     { authUserId: salesUser.id, organizationId, role: "sales" },
     "SALES_REACTIVATED_AUTHORITY",
+  );
+  await assertSensitivePermission(
+    refreshedSalesSession.client,
+    organizationId,
+    "contract.evidence.confirm",
+    "SALES_CONTRACT_PERMISSION",
+  );
+  await assertSensitivePermission(
+    refreshedSalesSession.client,
+    organizationId,
+    "finance.first.payment.confirm",
+    "SALES_PAYMENT_PERMISSION",
   );
 
   process.stdout.write("LOCAL_SUPABASE_STAFF_PROVISIONED\n");

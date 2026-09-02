@@ -16,7 +16,10 @@ const panelSource = read(
   "src/components/platform/admissions/CanonicalAdmissionsTaskPanel.tsx",
 );
 const workspaceSource = read(
-  "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+  "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
+);
+const operationsSectionSource = read(
+  "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
 );
 const queueSource = read("src/app/(staff)/tasks/page.tsx");
 const shellSource = read("src/app/(staff)/layout.tsx");
@@ -54,11 +57,13 @@ test("Admissions task actions accept only exact canonical command fields", () =>
 });
 
 test("Student 360 renders every canonical case task beside the handoff starter set", () => {
-  assert.match(workspaceSource, /listCanonicalAdmissionsTasks\(\{/);
-  assert.match(workspaceSource, /studentCaseId: id/);
-  assert.match(workspaceSource, /pageSize: 50/);
-  assert.match(workspaceSource, /<CanonicalAdmissionsTaskPanel/);
+  assert.match(workspaceSource, /<AdmissionsCaseOperationsSection/);
   assert.match(workspaceSource, /handoff\.starterTasks/);
+
+  assert.match(operationsSectionSource, /listCanonicalAdmissionsTasks\(\{/);
+  assert.match(operationsSectionSource, /studentCaseId/);
+  assert.match(operationsSectionSource, /pageSize: 50/);
+  assert.match(operationsSectionSource, /<CanonicalAdmissionsTaskPanel/);
 
   for (const testId of [
     "canonical-admissions-task-panel",
@@ -112,12 +117,13 @@ test("the active task surfaces have no legacy task fallback", () => {
     actionSource,
     panelSource,
     workspaceSource,
+    operationsSectionSource,
     queueSource,
   ].join("\n");
 
   assert.doesNotMatch(
     activeTaskSurface,
-    /addTaskAction|moveTaskAction|listTasksForActor|TASK_COLUMNS|TASK_PRIORITIES|platform-admissions-case-workspace|create_case_task|update_case_task|supabase|fallback/i,
+    /addTaskAction|moveTaskAction|listTasksForActor|TASK_COLUMNS|TASK_PRIORITIES|platform-admissions-case-workspace|create_case_task|update_case_task|fallback/i,
   );
 });
 

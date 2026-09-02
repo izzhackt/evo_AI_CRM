@@ -11,24 +11,28 @@ function source(path) {
 }
 
 test("the active canonical amoCRM command panel remains on Admissions Student 360", () => {
+  const studentWorkspace = source(
+    "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
+  );
   const admissions = source(
-    "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+    "src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
   );
 
   assert.match(admissions, /CanonicalAmoCrmCommandPanel/);
+  assert.match(studentWorkspace, /<AmoCrmCaseCommandSection/);
   assert.ok(
-    admissions.indexOf("<CanonicalAmoCrmCommandPanel") <
-      admissions.indexOf("<CanonicalAdmissionsOperationsPanel"),
-    "Admissions command panel must precede operations",
+    studentWorkspace.indexOf("<AdmissionsCaseOperationsSection") <
+      studentWorkspace.indexOf("<AmoCrmCaseCommandSection"),
+    "Admissions operations must remain ahead of the isolated amoCRM command section",
   );
   assert.match(
     admissions,
-    /<CanonicalAmoCrmCommandPanel[\s\S]*scope="admissions"[\s\S]*leadId=\{studentCase\.leadId\}[\s\S]*studentCaseId=\{studentCase\.studentCaseId\}/,
+    /<CanonicalAmoCrmCommandPanel[\s\S]*scope="admissions"[\s\S]*leadId=\{leadId\}[\s\S]*studentCaseId=\{studentCaseId\}/,
   );
   assert.match(admissions, /readBlockingCanonicalAmoCrmCommand/);
   assert.match(
     admissions,
-    /studentCase\.status !== "active" \|\|[\s\S]*studentCase\.assignedRole !== "admissions"/,
+    /data-testid="amocrm-case-command-section"/,
   );
   assert.match(admissions, /blockingAttempt=/);
 });

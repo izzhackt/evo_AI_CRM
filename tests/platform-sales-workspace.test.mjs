@@ -22,12 +22,12 @@ const workflowActionSource = readFileSync(
   new URL("../src/lib/platform-sales-actions.ts", import.meta.url),
   "utf8",
 );
-const gateActionSource = readFileSync(
-  new URL("../src/lib/server/canonical-sales-gate-actions.ts", import.meta.url),
+const studentHandoffBoundarySource = readFileSync(
+  new URL("../src/lib/platform-student-handoff.ts", import.meta.url),
   "utf8",
 );
-const handoffActionSource = readFileSync(
-  new URL("../src/lib/server/canonical-sales-handoff-actions.ts", import.meta.url),
+const studentHandoffActionSource = readFileSync(
+  new URL("../src/lib/platform-student-handoff-actions.ts", import.meta.url),
   "utf8",
 );
 const workflowFormSource = readFileSync(
@@ -39,14 +39,14 @@ const workflowFormSource = readFileSync(
 );
 const gateCardSource = readFileSync(
   new URL(
-    "../src/components/platform/sales/CanonicalSalesGateCard.tsx",
+    "../src/components/platform/sales/PlatformSalesGateCard.tsx",
     import.meta.url,
   ),
   "utf8",
 );
 const handoffCardSource = readFileSync(
   new URL(
-    "../src/components/platform/sales/CanonicalSalesHandoffCard.tsx",
+    "../src/components/platform/sales/PlatformSalesHandoffCard.tsx",
     import.meta.url,
   ),
   "utf8",
@@ -81,7 +81,7 @@ const clientsDetailRouteSource = readFileSync(
   "utf8",
 );
 const clientsDetailWorkspaceSource = readFileSync(
-  new URL("../src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx", import.meta.url),
+  new URL("../src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx", import.meta.url),
   "utf8",
 );
 
@@ -93,6 +93,10 @@ const activeSalesReadSources = [
   leadDetailSource,
   workflowActionSource,
   workflowFormSource,
+  studentHandoffBoundarySource,
+  studentHandoffActionSource,
+  gateCardSource,
+  handoffCardSource,
   transcriptRouteSource,
   conversationsSource,
 ].join("\n");
@@ -140,6 +144,14 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
     leadWorkspaceSource,
     /getPlatformSalesLead\(actor, id\)/,
   );
+  assert.match(
+    leadWorkspaceSource,
+    /getPlatformLeadAdmissionsGate\(actor, id\)/,
+  );
+  assert.match(
+    leadWorkspaceSource,
+    /getPlatformLeadAdmissionsHandoff\(actor, id\)/,
+  );
   assert.doesNotMatch(
     leadWorkspaceSource,
     /canonical-crm-repository|getCanonicalLeadSnapshot|getCanonicalLeadGateSnapshot|listCanonicalLeadConversations/,
@@ -147,6 +159,8 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
   assert.match(leadWorkspaceSource, /data-testid="canonical-sales-lead-workspace"/);
   assert.match(leadWorkspaceSource, /listPlatformSalesOwnerOptions\(actor, \{ pageSize: 100 \}\)/);
   assert.match(leadWorkspaceSource, /<PlatformSalesWorkflowForm/);
+  assert.match(leadWorkspaceSource, /<PlatformSalesGateCard/);
+  assert.match(leadWorkspaceSource, /<PlatformSalesHandoffCard/);
   assert.match(leadWorkspaceSource, /requestId=\{randomUUID\(\)\}/);
   assert.match(leadWorkspaceSource, /CanonicalSalesConversationList/);
   assert.doesNotMatch(
@@ -273,57 +287,69 @@ test("Sales workflow UI exposes one localized, accessible outcome contract", () 
   );
 });
 
-test("sales gate and handoff write only through canonical PostgreSQL commands", () => {
-  assert.match(gateActionSource, /requirePlatformSalesActor\(\)/);
-  assert.match(gateActionSource, /recordCanonicalSalesGateEvidence\(/);
-  assert.match(gateActionSource, /revalidatePath\("\/sales"\)/);
-  assert.doesNotMatch(
-    `${gateActionSource}\n${gateCardSource}`,
-    /supabase|platform-admissions-gate|mutatePlatformAdmissionsGate|fallback/i,
+test("sales gate and handoff use one authenticated Supabase command path", () => {
+  assert.match(studentHandoffActionSource, /requirePlatformSalesActor\(\)/);
+  assert.match(
+    studentHandoffBoundarySource,
+    /staff_lead_admissions_gate/,
   );
-  assert.match(gateCardSource, /name="evidence_type"/);
-  assert.match(gateCardSource, /name="decision"/);
-  assert.match(gateCardSource, /name="occurred_at"/);
+  assert.match(
+    studentHandoffBoundarySource,
+    /mutate_lead_admissions_gate/,
+  );
+  assert.match(
+    studentHandoffBoundarySource,
+    /staff_lead_admissions_handoff/,
+  );
+  assert.match(
+    studentHandoffBoundarySource,
+    /handoff_lead_to_admissions/,
+  );
+  assert.doesNotMatch(
+    `${studentHandoffBoundarySource}\n${studentHandoffActionSource}\n${gateCardSource}\n${handoffCardSource}`,
+    /canonical-crm-repository|drizzle|service[_-]?role|fallback/i,
+  );
+  assert.match(gateCardSource, /data-testid="platform-sales-gate-card"/);
+  assert.match(gateCardSource, /platform-gate-contract-form/);
+  assert.match(gateCardSource, /platform-gate-payment-form/);
+  assert.match(gateCardSource, /name="expected_gate_version"/);
+  assert.match(gateCardSource, /name="action"/);
   assert.match(gateCardSource, /name="evidence_reference"/);
-  assert.match(gateCardSource, /name="amount_minor"/);
+  assert.match(gateCardSource, /name="amount"/);
   assert.match(gateCardSource, /name="currency"/);
+  assert.match(gateCardSource, /name="due_date"/);
+  assert.match(gateCardSource, /name="received_date"/);
   assert.match(gateCardSource, /router\.refresh\(\)/);
 
-  assert.match(handoffActionSource, /requirePlatformSalesActor\(\)/);
-  assert.match(handoffActionSource, /handoffCanonicalLeadToAdmissions\(/);
-  assert.match(handoffActionSource, /revalidatePath\("\/clients"\)/);
-  assert.doesNotMatch(
-    `${handoffActionSource}\n${handoffCardSource}`,
-    /supabase|platform-admissions-handoff|mutatePlatformAdmissionsHandoff|fallback/i,
-  );
-  assert.match(handoffCardSource, /name="expected_version"/);
+  assert.match(handoffCardSource, /data-testid="platform-sales-handoff-card"/);
+  assert.match(handoffCardSource, /data-testid="platform-handoff-form"/);
+  assert.match(handoffCardSource, /data-testid="platform-handoff-result"/);
+  assert.match(handoffCardSource, /name="expected_gate_version"/);
+  assert.match(handoffCardSource, /name="admissions_owner_membership_id"/);
+  assert.match(handoffCardSource, /name="handoff_mode"/);
+  assert.match(handoffCardSource, /name="reason"/);
   assert.doesNotMatch(handoffCardSource, /admissions_owner_role/);
-  assert.match(handoffCardSource, /name="is_override"/);
-  assert.match(handoffCardSource, /name="override_reason"/);
+  assert.doesNotMatch(
+    `${leadWorkspaceSource}\n${gateCardSource}\n${handoffCardSource}`,
+    /CanonicalSalesGateCard|CanonicalSalesHandoffCard|canonical-sales-(?:gate|handoff)-actions/,
+  );
 });
 
-test("clients detail is the minimal canonical post-handoff view", () => {
-  assert.match(clientsDetailRouteSource, /CanonicalStudentCaseWorkspace/);
+test("clients detail mounts the single Supabase Student 360 workspace", () => {
+  assert.match(clientsDetailRouteSource, /StudentCaseWorkspace/);
   assert.doesNotMatch(
     clientsDetailRouteSource,
-    /StudentWorkspace|ClientPageContent|await import/,
+    /CanonicalStudentCaseWorkspace|ClientPageContent|await import/,
   );
-  assert.match(
-    clientsDetailWorkspaceSource,
-    /getCanonicalStudentCaseSnapshot\(\{\s*actorRole: actor\.authorityRole,\s*studentCaseId: id,?\s*\}\)/,
-  );
-  assert.match(clientsDetailWorkspaceSource, /data-testid="canonical-student-case-workspace"/);
-  assert.match(clientsDetailWorkspaceSource, /data-testid="canonical-student-case-handoff"/);
-  assert.match(
-    clientsDetailWorkspaceSource,
-    /data-testid="canonical-handoff-override-reason"/,
-  );
-  assert.match(
-    clientsDetailWorkspaceSource,
-    /data-testid="canonical-admissions-starter-task"/,
-  );
+  assert.match(clientsDetailWorkspaceSource, /getPlatformStudentCaseView\(actor, id\)/);
+  assert.match(clientsDetailWorkspaceSource, /getPlatformStudentCaseHandoffContext\(actor, id\)/);
+  assert.match(clientsDetailWorkspaceSource, /getPlatformStudentProfile\(actor, id\)/);
+  assert.match(clientsDetailWorkspaceSource, /getPlatformCaseContractWorkspace\(actor, id\)/);
+  assert.match(clientsDetailWorkspaceSource, /data-testid="platform-student-case-workspace"/);
+  assert.match(clientsDetailWorkspaceSource, /data-testid="platform-student-handoff-context"/);
+  assert.match(clientsDetailWorkspaceSource, /data-testid="platform-student-profile"/);
   assert.doesNotMatch(
-    clientsDetailWorkspaceSource,
-    /getPlatformStudentCaseView|getPlatformAdmissionsCaseWorkspace|getPlatformStudentCaseAdmissionsHandoff|platform-admissions|platform-contract|platform-finance|platform-pilot/i,
+    `${clientsDetailRouteSource}\n${clientsDetailWorkspaceSource}`,
+    /canonical-crm-repository|private-document-repository/,
   );
 });

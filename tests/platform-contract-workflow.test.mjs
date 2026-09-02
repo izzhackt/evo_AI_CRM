@@ -258,10 +258,10 @@ test("rejects a report snapshot that mixes checklist template versions", () => {
   );
 });
 
-test("accepts a non-admin approved-template workspace without source-management rows", () => {
+test("maps the database curator role to the Admissions interface role", () => {
   const parsed = normalizePlatformCaseContractWorkspace(
     workspace({
-      actor_role: "admissions",
+      actor_role: "curator",
       can_manage_templates: false,
       can_manage_post_contract: false,
       can_review_report: false,
@@ -272,6 +272,10 @@ test("accepts a non-admin approved-template workspace without source-management 
   );
   assert.equal(parsed.actorRole, "admissions");
   assert.equal(parsed.templates[0].status, "approved");
+});
+
+test("rejects an interface role leaked through the database workspace payload", () => {
+  rejectsWorkspace(workspace({ actor_role: "admissions" }));
 });
 
 test("parses strict manifest, template and checklist line grammars", () => {

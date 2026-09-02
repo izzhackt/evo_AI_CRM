@@ -17,8 +17,11 @@ function source(path) {
 const privateDocumentsPanelSource = source(
   "src/components/platform/documents/CanonicalPrivateDocumentsPanel.tsx",
 );
-const canonicalStudent360Source = source(
-  "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+const student360Source = source(
+  "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
+);
+const admissionsOperationsSectionSource = source(
+  "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
 );
 const canonicalDocumentsQueueSource = source(
   "src/app/(staff)/documents/(queue)/page.tsx",
@@ -85,8 +88,15 @@ test("documents queue uses the fixed Admissions read boundary", () => {
 });
 
 test("Student 360 is the one canonical private-document write surface", () => {
-  assert.match(canonicalStudent360Source, /listPrivateDocumentsForCase\(\{/);
-  assert.match(canonicalStudent360Source, /<CanonicalPrivateDocumentsPanel/);
+  assert.match(student360Source, /<AdmissionsCaseOperationsSection/);
+  assert.match(
+    admissionsOperationsSectionSource,
+    /listPrivateDocumentsForCase\(\{/,
+  );
+  assert.match(
+    admissionsOperationsSectionSource,
+    /<CanonicalPrivateDocumentsPanel/,
+  );
   assert.match(privateDocumentsPanelSource, /id="documents"/);
   assert.match(
     privateDocumentsPanelSource,

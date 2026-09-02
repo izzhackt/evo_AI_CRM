@@ -32,6 +32,11 @@ export const PLATFORM_CONTRACT_ACTOR_ROLES = [
   "sales",
   "admissions",
 ] as const;
+const PLATFORM_CONTRACT_DATABASE_ACTOR_ROLES = [
+  "admin",
+  "sales",
+  "curator",
+] as const;
 export const PLATFORM_CONTRACT_TEMPLATE_STATUSES = [
   "draft",
   "approved",
@@ -1116,7 +1121,12 @@ export function normalizePlatformCaseContractWorkspace(
   ]);
   const organizationId = requiredUuid(value.organization_id);
   const studentCaseId = requiredUuid(value.student_case_id);
-  const actorRole = oneOf(value.actor_role, PLATFORM_CONTRACT_ACTOR_ROLES);
+  const databaseActorRole = oneOf(
+    value.actor_role,
+    PLATFORM_CONTRACT_DATABASE_ACTOR_ROLES,
+  );
+  const actorRole: PlatformContractActorRole =
+    databaseActorRole === "curator" ? "admissions" : databaseActorRole;
   if (
     (expected?.organizationId && organizationId !== expected.organizationId) ||
     (expected?.studentCaseId && studentCaseId !== expected.studentCaseId) ||

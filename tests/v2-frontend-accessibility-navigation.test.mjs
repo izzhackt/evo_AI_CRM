@@ -41,18 +41,36 @@ function contrastRatio(foreground, background) {
 
 test("Student 360 exposes localized links to every core workflow section", () => {
   const workspace = source(
-    "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+    "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
+  const admissionsIsolation = source(
+    "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
+  );
+  const amoCrmIsolation = source(
+    "src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
+  );
+  const admissionsOperations = source(
+    "src/components/platform/admissions/CanonicalAdmissionsOperationsPanel.tsx",
+  );
+  const contractWorkspace = source(
+    "src/app/(staff)/clients/[id]/ContractDraftReportWorkspace.tsx",
+  );
+  const renderedSections = `${workspace}\n${admissionsIsolation}\n${amoCrmIsolation}\n${admissionsOperations}\n${contractWorkspace}`;
 
   assert.match(workspace, /aria-label=\{copy\.sectionNavigation\}/);
-  assert.match(workspace, /canonical-student-case-section-navigation/);
+  assert.match(workspace, /platform-student-case-section-navigation/);
   const targets = [
-    ["case-summary", "summaryNavigation"],
-    ["case-handoff", "handoffNavigation"],
-    ["case-tasks", "tasksNavigation"],
-    ["case-documents", "documentsNavigation"],
-    ["case-amocrm", "amocrmNavigation"],
-    ["case-operations", "operationsNavigation"],
+    ["case-summary", "summary"],
+    ["case-profile", "profile"],
+    ["case-handoff", "handoff"],
+    ["contract-workflow", "contract"],
+    ["case-tasks", "tasks"],
+    ["case-documents", "documents"],
+    ["applications", "applications"],
+    ["visa", "visa"],
+    ["finance", "finance"],
+    ["case-amocrm", "amocrm"],
+    ["case-operations", "operations"],
   ];
   for (const [target, label] of targets) {
     assert.match(
@@ -60,7 +78,7 @@ test("Student 360 exposes localized links to every core workflow section", () =>
       new RegExp(`\\["${target}", copy\\.${label}\\]`),
       target,
     );
-    assert.match(workspace, new RegExp(`id="${target}"`));
+    assert.match(renderedSections, new RegExp(`id="${target}"`));
   }
   assert.match(workspace, /href=\{`#\$\{target\}`\}/);
   assert.equal(workspace.match(/sectionNavigation:/g)?.length, 3);
@@ -275,7 +293,7 @@ test("every core staff route renders exactly one page-level h1", () => {
     ["/clients", "src/app/(staff)/clients/StudentQueue.tsx"],
     [
       "/clients/[id]",
-      "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+      "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
     ],
     ["/applications", "src/app/(staff)/applications/page.tsx"],
     ["/documents", "src/app/(staff)/documents/(queue)/page.tsx"],

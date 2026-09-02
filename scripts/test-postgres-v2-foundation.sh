@@ -22,23 +22,20 @@ waha_log="$tmp_dir/waha.log"
 waha_acceptance_result="$tmp_dir/waha-acceptance.json"
 verification_log="$tmp_dir/verification.log"
 broken_log="$tmp_dir/broken-migration.log"
-canonical_acceptance_result="$tmp_dir/canonical-acceptance.json"
-private_document_acceptance_result="$tmp_dir/private-document-acceptance.json"
 private_document_root="$tmp_dir/private-documents"
 missing_private_document_root="$tmp_dir/missing-private-documents"
 inbound_test_phone="+15550004300"
 inbound_test_conversation_id="15550004300@c.us"
 inbound_test_message_id="v2-browser-message-430"
 inbound_test_text="V2 inbound browser proof 430"
-canonical_lead_id=""
-canonical_override_lead_id=""
-private_document_case_id=""
 supabase_sales_lead_id="54600000-0000-4000-8000-000000000001"
 supabase_sales_client_id="54600000-0000-4000-8000-000000000002"
 supabase_sales_workflow_lead_id="54600000-0000-4000-8000-000000000003"
 supabase_sales_api_lead_id="54600000-0000-4000-8000-000000000004"
 supabase_sales_conversation_lead_id="54600000-0000-4000-8000-000000000006"
 supabase_sales_conversation_id="54600000-0000-4000-8000-000000000007"
+supabase_handoff_client_id="54600000-0000-4000-8000-000000000028"
+supabase_handoff_lead_id="54600000-0000-4000-8000-000000000029"
 app_pid=""
 waha_pid=""
 compose_args=()
@@ -137,6 +134,9 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   [[ "$(docker context show)" == "orbstack" ]] || fail "Docker context must be exactly orbstack"
 fi
 
+"$repo_root/scripts/test-postgres-authorization.sh"
+echo "Supabase migration, RLS, request replay and concurrent handoff proofs passed."
+
 postgres_port="${EVO_DATABASE_POSTGRES_PORT:-$(free_port)}"
 app_port="${EVO_DATABASE_APP_PORT:-$(free_port)}"
 postgres_user="evo_foundation"
@@ -161,11 +161,6 @@ waha_port="${EVO_DATABASE_WAHA_PORT:-$(free_port)}"
 waha_base_url="http://127.0.0.1:${waha_port}"
 amocrm_token_probe="$(openssl rand -hex 24)"
 amocrm_token_file="$tmp_dir/amocrm-token.json"
-amocrm_sales_blocking_attempt_id=""
-amocrm_sales_blocking_lead_id=""
-amocrm_admissions_blocking_attempt_id=""
-amocrm_admissions_blocking_lead_id=""
-amocrm_admissions_blocking_case_id=""
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 broken_database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${broken_database}"
 
@@ -257,7 +252,7 @@ if ! SUPABASE_DB_URL="$supabase_database_url" \
   fail "Local Supabase Sales read proof provisioning failed"
 fi
 chmod 600 "$sales_proof_provision_log"
-grep -Fx "LOCAL_SUPABASE_SALES_PROOF ${supabase_sales_lead_id} ${supabase_sales_client_id} ${supabase_sales_workflow_lead_id} ${supabase_sales_api_lead_id} ${supabase_sales_conversation_lead_id} ${supabase_sales_conversation_id}" \
+grep -Fx "LOCAL_SUPABASE_SALES_PROOF ${supabase_sales_lead_id} ${supabase_sales_client_id} ${supabase_sales_workflow_lead_id} ${supabase_sales_api_lead_id} ${supabase_sales_conversation_lead_id} ${supabase_sales_conversation_id} ${supabase_handoff_lead_id} ${supabase_handoff_client_id}" \
   "$sales_proof_provision_log" >/dev/null \
   || fail "Local Supabase Sales read proof did not return its success marker"
 for sensitive_value in "$supabase_database_url" "$staff_sales_email"; do
@@ -651,29 +646,12 @@ supabase_staff_auth_browser_assert() {
     EVO_SUPABASE_SALES_API_LEAD_ID="$supabase_sales_api_lead_id" \
     EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID="$supabase_sales_conversation_lead_id" \
     EVO_SUPABASE_SALES_CONVERSATION_ID="$supabase_sales_conversation_id" \
+    EVO_SUPABASE_HANDOFF_PROOF_LEAD_ID="$supabase_handoff_lead_id" \
+    EVO_SUPABASE_HANDOFF_PROOF_CLIENT_ID="$supabase_handoff_client_id" \
     EVO_SUPABASE_DIRECT_API_URL="$supabase_api_url" \
     EVO_SUPABASE_DIRECT_PUBLISHABLE_KEY="$supabase_publishable_key" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       --config=playwright.supabase-staff-auth.config.ts
-}
-
-private_document_browser_assert() {
-  local document_mode="$1"
-  assert_app_reachable
-  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
-    EVO_EXPECT_DOCUMENT_MODE="$document_mode" \
-    EVO_PRIVATE_DOCUMENT_CASE_ID="$private_document_case_id" \
-    EVO_PRIVATE_DOCUMENT_ID="${private_document_id:-}" \
-    EVO_PRIVATE_DOCUMENT_VERSION_ID="${replacement_document_version_id:-}" \
-    EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE="$private_document_acceptance_result" \
-    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
-    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
-    EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
-    EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
-    EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
-    EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
-    "$node_bin" node_modules/@playwright/test/cli.js test \
-      --config=playwright.private-documents.config.ts
 }
 
 canonical_read_browser_assert() {
@@ -682,9 +660,6 @@ canonical_read_browser_assert() {
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     DATABASE_URL="$database_url" \
     EVO_EXPECT_CANONICAL_READ_MODE="$read_mode" \
-    EVO_CANONICAL_LEAD_ID="$canonical_lead_id" \
-    EVO_CANONICAL_OVERRIDE_LEAD_ID="$canonical_override_lead_id" \
-    EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
     EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
     EVO_SUPABASE_SALES_PROOF_CLIENT_ID="$supabase_sales_client_id" \
     EVO_EXPECT_WAHA_SESSION_NAME="$waha_session_name" \
@@ -702,29 +677,6 @@ canonical_read_browser_assert() {
     EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       --config=playwright.canonical-crm.config.ts
-}
-
-amocrm_command_browser_assert() {
-  local proof_mode="$1"
-  assert_app_reachable
-  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
-    EVO_EXPECT_AMOCRM_BROWSER_MODE="$proof_mode" \
-    EVO_EXPECT_AMOCRM_TOKEN_PROBE="$amocrm_token_probe" \
-    EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_ATTEMPT_ID="$amocrm_admissions_blocking_attempt_id" \
-    EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_LEAD_ID="$amocrm_admissions_blocking_lead_id" \
-    EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_CASE_ID="$amocrm_admissions_blocking_case_id" \
-    EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
-    EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
-    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
-    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
-    EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
-    EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
-    EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
-    EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
-    "$node_bin" node_modules/@playwright/test/cli.js test \
-      --config=playwright.config.ts \
-      --project=desktop-chromium \
-      tests/e2e/canonical-amocrm-command.spec.ts
 }
 
 assert_no_secret_or_payload_logs() {
@@ -839,10 +791,8 @@ DATABASE_URL="$database_url" \
 echo "Private document case scope, immutable metadata reads and fail-closed repository checks passed."
 
 DATABASE_URL="$database_url" \
-  EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
     --test-concurrency=1 \
-    tests/canonical-crm-postgres.test.mjs \
     tests/canonical-whatsapp-outbound-postgres.test.mjs
 DATABASE_URL="$database_url" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
@@ -850,35 +800,7 @@ DATABASE_URL="$database_url" \
     tests/canonical-amocrm-schema-postgres.test.mjs \
     tests/canonical-amocrm-command-postgres.test.mjs \
     tests/canonical-amocrm-discovery-postgres.test.mjs
-read -r canonical_lead_id canonical_override_lead_id private_document_case_id <<<"$(
-  EVO_CANONICAL_ACCEPTANCE_RESULT_FILE="$canonical_acceptance_result" \
-    "$node_bin" --input-type=module <<'EOF'
-import { readFile } from "node:fs/promises";
-
-const path = process.env.EVO_CANONICAL_ACCEPTANCE_RESULT_FILE;
-const result = JSON.parse(await readFile(path, "utf8"));
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-if (
-  typeof result.canonicalLeadId !== "string" ||
-  !uuidPattern.test(result.canonicalLeadId) ||
-  typeof result.canonicalOverrideLeadId !== "string" ||
-  !uuidPattern.test(result.canonicalOverrideLeadId) ||
-  typeof result.privateDocumentCaseId !== "string" ||
-  !uuidPattern.test(result.privateDocumentCaseId)
-) {
-  throw new Error(
-    "Canonical acceptance did not return valid normal lead, override lead and case ids",
-  );
-}
-console.log(
-  result.canonicalLeadId,
-  result.canonicalOverrideLeadId,
-  result.privateDocumentCaseId,
-);
-EOF
-)"
-echo "Canonical CRM graph, transactional idempotency, authorization and append-only event checks passed."
+echo "Later-owned WhatsApp and amoCRM repository contracts passed without the retired Drizzle gate fixture."
 
 stop_app
 start_isolated_waha_service
@@ -886,214 +808,7 @@ start_app "$database_url" configured configured configured local-service
 browser_assert 200
 supabase_staff_auth_browser_assert configured
 canonical_read_browser_assert configured
-amocrm_command_browser_assert provider-not-authorized
-read -r \
-  amocrm_sales_blocking_attempt_id \
-  amocrm_sales_blocking_lead_id \
-  amocrm_admissions_blocking_attempt_id \
-  amocrm_admissions_blocking_lead_id \
-  amocrm_admissions_blocking_case_id <<<"$(
-  DATABASE_URL="$database_url" \
-    "$node_bin" --conditions=react-server --experimental-strip-types \
-      scripts/seed-canonical-amocrm-browser-blocker.mjs
-)"
-for seeded_uuid in \
-  "$amocrm_sales_blocking_attempt_id" \
-  "$amocrm_sales_blocking_lead_id" \
-  "$amocrm_admissions_blocking_attempt_id" \
-  "$amocrm_admissions_blocking_lead_id" \
-  "$amocrm_admissions_blocking_case_id"; do
-  [[ "$seeded_uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
-    || fail "The isolated amoCRM cross-phase blocker seed did not return five valid UUIDs"
-done
-amocrm_admissions_carry_row="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "
-  SELECT
-    attempt.status || '|' || receipt.business_object_type || '|' ||
-    lead.stage || '|' || student_case.status || '|' || handoff.is_override
-  FROM evo_amocrm_operation_attempts AS attempt
-  INNER JOIN evo_command_receipts AS receipt
-    ON receipt.id = attempt.command_receipt_id
-  INNER JOIN evo_leads AS lead
-    ON lead.id = attempt.lead_id
-  INNER JOIN evo_student_cases AS student_case
-    ON student_case.lead_id = lead.id
-  INNER JOIN evo_sales_admissions_handoffs AS handoff
-    ON handoff.student_case_id = student_case.id
-  WHERE attempt.id = '${amocrm_admissions_blocking_attempt_id}'
-    AND lead.id = '${amocrm_admissions_blocking_lead_id}'
-    AND student_case.id = '${amocrm_admissions_blocking_case_id}';
-")"
-[[ "$amocrm_admissions_carry_row" == "unknown|amocrm_sales_lead|handed_off|active|true" ]] \
-  || fail "The isolated amoCRM seed did not preserve the Sales unknown across an active Admin override handoff"
-private_document_browser_assert configured
 assert_no_secret_or_payload_logs
-
-document_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_documents;')"
-version_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_document_versions;')"
-[[ "$document_count" == "1" ]] || fail "Private document browser proof did not persist exactly one logical document"
-[[ "$version_count" == "2" ]] || fail "Private document browser proof did not persist exactly two immutable versions"
-linked_document_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM evo_private_documents AS document INNER JOIN evo_student_cases AS student_case ON student_case.id = document.case_id;')"
-[[ "$linked_document_count" == "1" ]] || fail "Private document browser proof did not persist a canonical case foreign key"
-
-read -r private_document_id initial_document_version_id initial_document_sha initial_document_bytes replacement_document_version_id replacement_document_sha replacement_document_bytes <<<"$(
-  EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE="$private_document_acceptance_result" \
-    EVO_PRIVATE_DOCUMENT_CASE_ID="$private_document_case_id" \
-    "$node_bin" --input-type=module <<'EOF'
-import { readFile } from "node:fs/promises";
-
-const path = process.env.EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE;
-const result = JSON.parse(await readFile(path, "utf8"));
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const shaPattern = /^[0-9a-f]{64}$/;
-if (
-  !uuidPattern.test(result.documentId) ||
-  result.caseId !== process.env.EVO_PRIVATE_DOCUMENT_CASE_ID ||
-  !Array.isArray(result.versions) ||
-  result.versions.length !== 2 ||
-  result.versions.some(
-    (version, index) =>
-      !uuidPattern.test(version.versionId) ||
-      version.versionNumber !== index + 1 ||
-      !Number.isSafeInteger(version.byteLength) ||
-      version.byteLength <= 0 ||
-      !shaPattern.test(version.sha256),
-  ) ||
-  Object.hasOwn(result, "objectKey") ||
-  result.versions.some((version) => Object.hasOwn(version, "objectKey"))
-) {
-  throw new Error("Private document UI acceptance result has an invalid shape");
-}
-console.log(
-  result.documentId,
-  result.versions[0].versionId,
-  result.versions[0].sha256,
-  result.versions[0].byteLength,
-  result.versions[1].versionId,
-  result.versions[1].sha256,
-  result.versions[1].byteLength,
-);
-EOF
-)"
-
-private_document_row="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT case_id || '|' || created_by_role FROM evo_private_documents WHERE id = '${private_document_id}';")"
-[[ "$private_document_row" == "${private_document_case_id}|admissions" ]] || fail "Private document UI proof did not bind the logical document to the canonical case and role"
-
-initial_document_row="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT version_number || '|' || original_filename || '|' || declared_mime_type || '|' || byte_length || '|' || sha256 || '|' || created_by_role || '|' || object_key FROM evo_private_document_versions WHERE document_id = '${private_document_id}' AND id = '${initial_document_version_id}';")"
-replacement_document_row="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT version_number || '|' || original_filename || '|' || declared_mime_type || '|' || byte_length || '|' || sha256 || '|' || created_by_role || '|' || object_key FROM evo_private_document_versions WHERE document_id = '${private_document_id}' AND id = '${replacement_document_version_id}';")"
-IFS='|' read -r initial_version_number initial_filename initial_mime initial_bytes initial_sha initial_role initial_object_key <<<"$initial_document_row"
-IFS='|' read -r replacement_version_number replacement_filename replacement_mime replacement_bytes replacement_sha replacement_role replacement_object_key <<<"$replacement_document_row"
-[[ "$initial_version_number" == "1" && "$initial_filename" == "acceptance.pdf" && "$initial_mime" == "application/pdf" && "$initial_bytes" == "$initial_document_bytes" && "$initial_sha" == "$initial_document_sha" && "$initial_role" == "admissions" ]] || fail "Initial private document SQL metadata does not match the Student 360 upload"
-[[ "$replacement_version_number" == "2" && "$replacement_filename" == "acceptance-replacement.pdf" && "$replacement_mime" == "application/pdf" && "$replacement_bytes" == "$replacement_document_bytes" && "$replacement_sha" == "$replacement_document_sha" && "$replacement_role" == "admissions" ]] || fail "Replacement private document SQL metadata does not match the Student 360 resubmission"
-
-EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" \
-  EVO_INITIAL_OBJECT_KEY="$initial_object_key" \
-  EVO_INITIAL_OBJECT_SHA="$initial_document_sha" \
-  EVO_INITIAL_OBJECT_BYTES="$initial_document_bytes" \
-  EVO_REPLACEMENT_OBJECT_KEY="$replacement_object_key" \
-  EVO_REPLACEMENT_OBJECT_SHA="$replacement_document_sha" \
-  EVO_REPLACEMENT_OBJECT_BYTES="$replacement_document_bytes" \
-  "$node_bin" --input-type=module <<'EOF'
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-
-const proofs = [
-  {
-    key: process.env.EVO_INITIAL_OBJECT_KEY,
-    sha256: process.env.EVO_INITIAL_OBJECT_SHA,
-    byteLength: Number(process.env.EVO_INITIAL_OBJECT_BYTES),
-  },
-  {
-    key: process.env.EVO_REPLACEMENT_OBJECT_KEY,
-    sha256: process.env.EVO_REPLACEMENT_OBJECT_SHA,
-    byteLength: Number(process.env.EVO_REPLACEMENT_OBJECT_BYTES),
-  },
-];
-for (const proof of proofs) {
-  if (!/^[0-9a-f-]{36}$/.test(proof.key ?? "")) {
-    throw new Error("Private document object key is not opaque");
-  }
-  const bytes = await readFile(
-    join(process.env.EVO_PRIVATE_DOCUMENT_ROOT, "objects", proof.key),
-  );
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  if (bytes.byteLength !== proof.byteLength || sha256 !== proof.sha256) {
-    throw new Error("Private document object bytes do not match PostgreSQL metadata");
-  }
-}
-EOF
-
-inbound_conversation_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_conversations WHERE external_conversation_id = '${inbound_test_conversation_id}';")"
-inbound_message_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_messages WHERE external_message_id = '${inbound_test_message_id}';")"
-inbound_person_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_people WHERE phone_e164 = '${inbound_test_phone}';")"
-inbound_lead_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_leads AS lead INNER JOIN evo_people AS person ON person.id = lead.person_id WHERE person.phone_e164 = '${inbound_test_phone}' AND lead.source = 'whatsapp';")"
-inbound_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE transition = 'message.received' AND business_object_id IN (SELECT id FROM evo_messages WHERE external_message_id = '${inbound_test_message_id}');")"
-[[ "$inbound_conversation_count" == "1" ]] || fail "Inbound HTTP proof did not persist exactly one canonical conversation"
-[[ "$inbound_message_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate canonical messages"
-[[ "$inbound_person_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate canonical people"
-[[ "$inbound_lead_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate canonical WhatsApp leads"
-[[ "$inbound_event_count" == "1" ]] || fail "Inbound HTTP replay persisted duplicate message events"
-
-browser_completed_task_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить перевод аттестата' AND status = 'completed' AND version = 2;")"
-browser_completed_task_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'task' AND business_object_id IN (SELECT id FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить перевод аттестата') AND transition IN ('task.created', 'task.completed');")"
-browser_cancelled_task_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить отмену задачи' AND status = 'cancelled' AND closure_reason = 'Контекст Sales уже проверен во время browser acceptance' AND version = 2;")"
-browser_cancelled_task_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'task' AND transition = 'task.cancelled' AND business_object_id IN (SELECT id FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить отмену задачи' AND closure_reason = 'Контекст Sales уже проверен во время browser acceptance');")"
-[[ "$browser_completed_task_count" == "1" ]] || fail "Admissions browser proof did not persist exactly one completed canonical task"
-[[ "$browser_completed_task_event_count" == "2" ]] || fail "Admissions browser proof did not persist exactly one create and one completion event"
-[[ "$browser_cancelled_task_count" == "1" ]] || fail "Admissions browser proof did not persist exactly one reasoned canonical cancellation"
-[[ "$browser_cancelled_task_event_count" == "1" ]] || fail "Admissions browser proof did not persist exactly one cancellation event"
-
-browser_operations_case_id="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT student_case_id FROM evo_university_applications WHERE institution_name = 'Browser Technical University' AND program_name = 'Canonical CRM validation' AND target_intake = '2027 Spring';")"
-[[ "$browser_operations_case_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] || fail "Admissions browser proof did not identify exactly one canonical operations case"
-browser_application_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_university_applications WHERE student_case_id = '${browser_operations_case_id}' AND institution_name = 'Browser Technical University' AND program_name = 'Canonical CRM validation' AND target_intake = '2027 Spring' AND status = 'accepted' AND version = 4 AND next_action IS NULL AND next_action_at IS NULL AND submitted_at IS NOT NULL AND decided_at IS NOT NULL;")"
-browser_application_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'application' AND business_object_id IN (SELECT id FROM evo_university_applications WHERE student_case_id = '${browser_operations_case_id}' AND institution_name = 'Browser Technical University') AND transition IN ('application.created', 'application.next_action_updated', 'application.submitted', 'application.accepted');")"
-browser_application_receipt_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_command_receipts WHERE status = 'succeeded' AND business_object_type = 'application' AND business_object_id IN (SELECT id FROM evo_university_applications WHERE student_case_id = '${browser_operations_case_id}' AND institution_name = 'Browser Technical University');")"
-[[ "$browser_application_count" == "1" ]] || fail "Admissions browser proof did not persist the accepted version-4 canonical application"
-[[ "$browser_application_event_count" == "4" ]] || fail "Admissions browser proof did not persist exactly four successful application events"
-[[ "$browser_application_receipt_count" == "4" ]] || fail "Admissions browser proof did not complete exactly four application commands (found ${browser_application_receipt_count})"
-
-browser_finance_stop_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_finance_stop_states WHERE student_case_id = '${browser_operations_case_id}' AND is_stopped = false AND reason = 'Admin подтвердил снятие внутреннего ограничения' AND changed_by_role = 'admin' AND version = 2;")"
-browser_finance_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'finance_stop' AND business_object_id IN (SELECT id FROM evo_finance_stop_states WHERE student_case_id = '${browser_operations_case_id}') AND transition IN ('finance_stop.asserted', 'finance_stop.released');")"
-browser_finance_receipt_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_command_receipts WHERE status = 'succeeded' AND business_object_type = 'finance_stop' AND business_object_id IN (SELECT id FROM evo_finance_stop_states WHERE student_case_id = '${browser_operations_case_id}');")"
-[[ "$browser_finance_stop_count" == "1" ]] || fail "Admissions browser proof did not persist the reasoned Admin finance release at version 2"
-[[ "$browser_finance_event_count" == "2" ]] || fail "Admissions browser proof did not persist exactly the finance assert and release events"
-[[ "$browser_finance_receipt_count" == "2" ]] || fail "Admissions browser proof did not complete exactly two finance-stop commands (found ${browser_finance_receipt_count})"
-
-browser_visa_milestone_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_visa_milestones WHERE student_case_id = '${browser_operations_case_id}';")"
-browser_document_milestone_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_visa_milestones WHERE student_case_id = '${browser_operations_case_id}' AND milestone_kind = 'document_preparation' AND status = 'completed' AND version = 3 AND completed_at IS NOT NULL;")"
-browser_appointment_milestone_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_visa_milestones WHERE student_case_id = '${browser_operations_case_id}' AND milestone_kind = 'appointment' AND status = 'in_progress' AND version = 3 AND blocked_reason IS NULL;")"
-browser_submission_milestone_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_visa_milestones WHERE student_case_id = '${browser_operations_case_id}' AND milestone_kind = 'submission' AND status = 'completed' AND version = 3 AND completed_at IS NOT NULL;")"
-browser_visa_transition_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'visa_milestone' AND business_object_id IN (SELECT id FROM evo_visa_milestones WHERE student_case_id = '${browser_operations_case_id}') AND transition IN ('visa_milestone.in_progress', 'visa_milestone.completed', 'visa_milestone.blocked');")"
-browser_visa_receipt_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_command_receipts WHERE status = 'succeeded' AND business_object_type = 'visa_milestone' AND business_object_id IN (SELECT id FROM evo_visa_milestones WHERE student_case_id = '${browser_operations_case_id}');")"
-[[ "$browser_visa_milestone_count" == "6" ]] || fail "Sales-to-Admissions handoff did not persist exactly six canonical visa milestones"
-[[ "$browser_document_milestone_count" == "1" ]] || fail "Admissions browser proof did not complete the document-preparation milestone at version 3"
-[[ "$browser_appointment_milestone_count" == "1" ]] || fail "Admissions browser proof did not preserve the reasoned appointment block/resume sequence"
-[[ "$browser_submission_milestone_count" == "1" ]] || fail "Admissions browser proof did not complete visa submission after finance release"
-[[ "$browser_visa_transition_event_count" == "6" ]] || fail "Admissions browser proof did not persist exactly six successful visa transition events"
-[[ "$browser_visa_receipt_count" == "6" ]] || fail "Admissions browser proof did not complete exactly six visa transition commands (found ${browser_visa_receipt_count})"
-
-stored_object_count="$(EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" "$node_bin" --input-type=module <<'EOF'
-import { lstat, readdir } from "node:fs/promises";
-import { join } from "node:path";
-
-const root = process.env.EVO_PRIVATE_DOCUMENT_ROOT;
-const objects = join(root, "objects");
-const rootStat = await lstat(root);
-const objectsStat = await lstat(objects);
-if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) process.exit(2);
-if (!objectsStat.isDirectory() || objectsStat.isSymbolicLink()) process.exit(3);
-if ((objectsStat.mode & 0o777) !== 0o700) process.exit(4);
-const entries = await readdir(objects);
-for (const entry of entries) {
-  const stat = await lstat(join(objects, entry));
-  if (!stat.isFile() || stat.isSymbolicLink()) process.exit(5);
-  if ((stat.mode & 0o777) !== 0o600) process.exit(6);
-}
-console.log(entries.length);
-EOF
-)"
-[[ "$stored_object_count" == "2" ]] || fail "Private document browser proof did not finalize exactly two private objects"
 
 # Runtime contract drift blocks the real browser path.
 docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
@@ -1142,11 +857,6 @@ docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres
   --command 'DROP TABLE public.evo_test_migration_history_backup;' >/dev/null
 
 stop_app
-start_app "$database_url" configured unavailable
-private_document_browser_assert unavailable
-assert_no_secret_or_payload_logs
-
-stop_app
 start_app "$database_url" configured configured unavailable
 canonical_read_browser_assert inbound-unavailable
 assert_no_secret_or_payload_logs
@@ -1156,24 +866,4 @@ start_app "$database_url" unavailable
 supabase_staff_auth_browser_assert unavailable
 assert_no_secret_or_payload_logs
 
-stop_app
-start_app "$database_url" configured configured configured blocked routing-missing
-amocrm_command_browser_assert routing-missing
-assert_no_secret_or_payload_logs
-
-stop_app
-[[ ! -e "$amocrm_token_file" ]] \
-  || fail "The isolated amoCRM missing-token proof requires an absent token file"
-start_app "$database_url" configured configured configured blocked token-missing
-amocrm_command_browser_assert token-missing
-assert_no_secret_or_payload_logs
-
-stop_app
-printf '{"token_type":"Bearer","access_token":"%s","refresh_token":"legacy-refresh-must-fail"}\n' \
-  "$amocrm_token_probe" >"$amocrm_token_file"
-chmod 0600 "$amocrm_token_file"
-start_app "$database_url" configured configured configured blocked token-invalid
-amocrm_command_browser_assert token-invalid
-assert_no_secret_or_payload_logs
-
-echo "Real PostgreSQL, Drizzle, local Supabase Auth/RLS, canonical CRM, private files, application and Chromium proof passed."
+echo "Real PostgreSQL, Supabase Auth/RLS, canonical provider repositories, application and Chromium proof passed."

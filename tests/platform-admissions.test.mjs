@@ -474,7 +474,7 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     "src/app/(staff)/clients/ClientsPageContent.tsx",
     "src/app/(staff)/clients/StudentQueue.tsx",
     "src/app/(staff)/clients/[id]/page.tsx",
-    "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+    "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
     "src/components/platform/admissions/CanonicalAdmissionsOperationsPanel.tsx",
     "src/app/(staff)/applications/page.tsx",
     "src/app/(staff)/visa/page.tsx",
@@ -532,7 +532,7 @@ test("normal staff routes keep one accepted renderer instead of parallel Platfor
     "utf8",
   );
   assert.match(clientsRoute, /ClientsPageContent/);
-  assert.match(clientRoute, /CanonicalStudentCaseWorkspace/);
+  assert.match(clientRoute, /StudentCaseWorkspace/);
   assert.doesNotMatch(clientsRoute, /(?:Legacy|Platform)ClientsPage/);
   assert.doesNotMatch(clientRoute, /(?:Legacy|Platform)ClientPage/);
   assert.doesNotMatch(clientRoute, /ClientPageContent|StudentWorkspace/);
@@ -567,7 +567,7 @@ test("sales handoff summary keeps sales stage labels distinct from case state la
   );
 });
 
-test("clients use one canonical PostgreSQL Student 360 renderer", () => {
+test("clients use one Supabase Student 360 renderer with named legacy isolation", () => {
   const routeSource = readFileSync(
     new URL(
       "../src/app/(staff)/clients/[id]/page.tsx",
@@ -577,19 +577,73 @@ test("clients use one canonical PostgreSQL Student 360 renderer", () => {
   );
   const workspaceSource = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+      "../src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const admissionsIsolationSource = readFileSync(
+    new URL(
+      "../src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const amoCrmIsolationSource = readFileSync(
+    new URL(
+      "../src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
       import.meta.url,
     ),
     "utf8",
   );
 
-  assert.match(routeSource, /<CanonicalStudentCaseWorkspace id=\{id\}/);
+  assert.match(routeSource, /<StudentCaseWorkspace/);
+  for (const queryKey of [
+    "bw6_result",
+    "bw6_retry_request_id",
+    "bw6_retry_operation",
+    "bw6_subject_id",
+  ]) {
+    assert.match(routeSource, new RegExp(queryKey));
+  }
+  assert.match(routeSource, /PLATFORM_CONTRACT_MUTATION_OUTCOMES\.find/);
+  assert.match(routeSource, /PLATFORM_CONTRACT_RETRY_OPERATIONS\.find/);
+  assert.match(routeSource, /parsePlatformContractUuid/);
   assert.match(workspaceSource, /requirePlatformAdmissionsActor\("\/clients"\)/);
-  assert.match(workspaceSource, /getCanonicalStudentCaseSnapshot\(/);
-  assert.match(workspaceSource, /getCanonicalStudentCaseHandoffSnapshot\(/);
-  assert.match(workspaceSource, /data-testid="canonical-student-case-workspace"/);
+  assert.match(workspaceSource, /getPlatformStudentCaseView\(/);
+  assert.match(workspaceSource, /getPlatformStudentCaseHandoffContext\(/);
+  assert.match(workspaceSource, /getPlatformStudentProfile\(/);
+  assert.match(workspaceSource, /getPlatformCaseContractWorkspace\(/);
+  assert.match(workspaceSource, /data-testid="platform-student-case-workspace"/);
+  assert.match(workspaceSource, /data-testid="platform-student-handoff-context"/);
+  assert.match(workspaceSource, /data-testid="platform-student-profile"/);
+  assert.match(workspaceSource, /<ContractDraftReportWorkspace/);
   assert.doesNotMatch(
     `${routeSource}\n${workspaceSource}`,
-    /ClientPageContent|StudentWorkspace|ConnectedCanonicalClientDetail|FixtureClientPage|isUiContractFixtureMode|platform-admissions-handoff/,
+    /canonical-crm-repository|private-document-repository|getCanonicalStudentCaseSnapshot|getCanonicalStudentCaseHandoffSnapshot/,
+  );
+  assert.match(
+    admissionsIsolationSource,
+    /data-testid="admissions-case-operations-section"/,
+  );
+  assert.match(
+    admissionsIsolationSource,
+    /canonical-crm-repository|private-document-repository/,
+  );
+  assert.match(
+    amoCrmIsolationSource,
+    /data-testid="amocrm-case-command-section"/,
+  );
+  assert.match(amoCrmIsolationSource, /canonical-amocrm-command-repository/);
+  assert.match(admissionsIsolationSource, /data-status="unavailable"/);
+  assert.match(amoCrmIsolationSource, /data-status="unavailable"/);
+  assert.match(amoCrmIsolationSource, /error\.code === "forbidden"/);
+  assert.doesNotMatch(
+    `${admissionsIsolationSource}\n${amoCrmIsolationSource}`,
+    /\bnotFound\s*\(/,
+  );
+  assert.doesNotMatch(
+    `${routeSource}\n${workspaceSource}`,
+    /ClientPageContent|ConnectedCanonicalClientDetail|FixtureClientPage|isUiContractFixtureMode|CanonicalStudentCaseWorkspace/,
   );
 });

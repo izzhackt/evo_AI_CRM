@@ -119,7 +119,12 @@ async function directPlatformRpc(
     | "staff_sales_lead_page"
     | "staff_sales_lead_detail"
     | "staff_sales_owner_options"
-    | "mutate_sales_lead_workflow",
+    | "mutate_sales_lead_workflow"
+    | "staff_lead_admissions_gate"
+    | "mutate_lead_admissions_gate"
+    | "staff_lead_admissions_handoff"
+    | "handoff_lead_to_admissions"
+    | "staff_student_case_handoff_context",
   body: Readonly<Record<string, unknown>>,
   accessToken?: string,
 ): Promise<Readonly<{ status: number; payload: unknown }>> {
@@ -639,6 +644,165 @@ test("Sales and Admin persist the same canonical workflow through the real inter
   await expect(
     page.getByTestId("platform-sales-next-action-due-date"),
   ).toHaveValue("2099-09-09");
+});
+
+test("real contract, payment and handoff open one Supabase Student 360 with role-safe access", async ({
+  page,
+}) => {
+  test.skip(authMode !== "configured");
+  const leadId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_LEAD_ID");
+  const clientId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_CLIENT_ID");
+  const [salesToken, admissionsToken, adminToken] = await Promise.all([
+    localSupabaseAccessToken("sales"),
+    localSupabaseAccessToken("admissions"),
+    localSupabaseAccessToken("admin"),
+  ]);
+
+  assertDeniedRpc(
+    await directPlatformRpc("staff_lead_admissions_gate", { p_lead_id: leadId }),
+  );
+  assertDeniedRpc(
+    await directPlatformRpc("staff_lead_admissions_handoff", { p_lead_id: leadId }),
+  );
+
+  const admissionsGate = await directPlatformRpc(
+    "staff_lead_admissions_gate",
+    { p_lead_id: leadId },
+    admissionsToken,
+  );
+  expect(admissionsGate.status).toBe(200);
+  expect(admissionsGate.payload).toEqual([]);
+
+  assertDeniedRpc(
+    await directPlatformRpc(
+      "staff_lead_admissions_handoff",
+      { p_lead_id: leadId },
+      admissionsToken,
+    ),
+  );
+
+  const initialGate = await directPlatformRpc(
+    "staff_lead_admissions_gate",
+    { p_lead_id: leadId },
+    salesToken,
+  );
+  expect(initialGate.status).toBe(200);
+  expect(initialGate.payload).toHaveLength(1);
+  expect(expectObject((initialGate.payload as unknown[])[0])).toMatchObject({
+    lead_id: leadId,
+    contract_confirmed: false,
+    first_payment_received_date: null,
+    gate_state: "blocked",
+  });
+
+  await signIn(page, "sales");
+  await page.goto(`/sales/${leadId}`);
+  await expect(page.getByTestId("canonical-client-id").locator("dd")).toHaveText(
+    clientId,
+  );
+
+  const contractForm = page.getByTestId("platform-gate-contract-form");
+  await expect(contractForm).toBeVisible();
+  await contractForm.locator('input[name="amount"]').fill("1000.00");
+  await contractForm.locator('input[name="currency"]').fill("KGS");
+  await contractForm.locator('input[name="due_date"]').fill("2099-09-10");
+  await contractForm
+    .locator('input[name="evidence_reference"]')
+    .fill("local-browser-contract-547");
+  await contractForm.locator('button[type="submit"]').click();
+
+  const paymentForm = page.getByTestId("platform-gate-payment-form");
+  await expect(paymentForm).toBeVisible();
+  const receivedDate = new Date().toISOString().slice(0, 10);
+  await paymentForm.locator('input[name="received_date"]').fill(receivedDate);
+  await paymentForm
+    .locator('input[name="evidence_reference"]')
+    .fill("local-browser-first-payment-547");
+  await paymentForm.locator('button[type="submit"]').click();
+
+  const handoffForm = page.getByTestId("platform-handoff-form");
+  await expect(handoffForm).toBeVisible();
+  const ownerSelect = handoffForm.locator(
+    'select[name="admissions_owner_membership_id"]',
+  );
+  const admissionsOwnerId = await ownerSelect
+    .locator("option:not([disabled])")
+    .first()
+    .getAttribute("value");
+  expect(admissionsOwnerId).toBeTruthy();
+  await ownerSelect.selectOption(admissionsOwnerId!);
+  await handoffForm.locator('select[name="handoff_mode"]').selectOption("normal");
+  await handoffForm
+    .locator('textarea[name="reason"]')
+    .fill("Local browser proof of the reviewed Sales to Admissions handoff");
+  await handoffForm.locator('button[type="submit"]').click();
+
+  const result = page.getByTestId("platform-handoff-result");
+  await expect(result).toBeVisible();
+  await expect(result.locator('a[href^="/clients/"]')).toHaveCount(0);
+  const studentCaseId = requireUuidValue(
+    (await result.locator("dd").first().textContent())?.trim() ?? null,
+  );
+
+  assertDeniedRpc(
+    await directPlatformRpc(
+      "staff_student_case_handoff_context",
+      { p_student_case_id: studentCaseId },
+      salesToken,
+    ),
+  );
+  assertDeniedRpc(
+    await directPlatformRpc(
+      "staff_student_case_handoff_context",
+      { p_student_case_id: studentCaseId },
+      admissionsToken,
+    ),
+  );
+  assertDeniedRpc(
+    await directPlatformRpc(
+      "staff_student_case_handoff_context",
+      { p_student_case_id: studentCaseId },
+    ),
+  );
+  const refreshedAdmissionsToken = await localSupabaseAccessToken("admissions");
+  for (const accessToken of [refreshedAdmissionsToken, adminToken]) {
+    const context = await directPlatformRpc(
+      "staff_student_case_handoff_context",
+      { p_student_case_id: studentCaseId },
+      accessToken,
+    );
+    expect(context.status).toBe(200);
+    expect(context.payload).toHaveLength(1);
+    expect(expectObject((context.payload as unknown[])[0])).toMatchObject({
+      lead_id: leadId,
+      student_case_id: studentCaseId,
+      case_state: "active",
+      handoff_mode: "normal",
+      handoff_state: "completed",
+    });
+  }
+
+  await page.context().clearCookies();
+  await signIn(page, "admissions");
+  await page.goto(`/clients/${studentCaseId}`);
+  await expect(page.getByTestId("platform-student-case-workspace")).toBeVisible();
+  await expect(page.getByTestId("platform-student-handoff-context")).toBeVisible();
+  await expect(page.getByTestId("platform-student-profile")).toHaveAttribute(
+    "data-status",
+    "not-created",
+  );
+
+  await page.context().clearCookies();
+  await signIn(page, "admin");
+  await page.goto(`/sales/${leadId}`);
+  await expect(
+    page.getByTestId("platform-handoff-result").locator(`a[href="/clients/${studentCaseId}"]`),
+  ).toBeVisible();
+  await page.goto(`/clients/${studentCaseId}`);
+  await expect(page.getByTestId("platform-student-case-workspace")).toBeVisible();
+  await expect(page.getByTestId("platform-student-handoff-context")).toContainText(
+    studentCaseId,
+  );
 });
 
 test("Admin preview changes only the effective interface, not Supabase authority", async ({

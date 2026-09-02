@@ -1,4 +1,24 @@
 import type { PlatformActor } from "./platform-auth";
+import {
+  PLATFORM_OBLIGATION_CATEGORIES,
+  PLATFORM_OBLIGATION_STATUSES,
+  PLATFORM_VISA_STATUSES,
+  type PlatformCaseFinanceRow,
+  type PlatformCaseVisa,
+} from "./platform-case-operations-contract.ts";
+
+export {
+  PLATFORM_OBLIGATION_CATEGORIES,
+  PLATFORM_OBLIGATION_STATUSES,
+  PLATFORM_VISA_STATUSES,
+} from "./platform-case-operations-contract.ts";
+export type {
+  PlatformCaseFinanceRow,
+  PlatformCaseVisa,
+  PlatformObligationCategory,
+  PlatformObligationStatus,
+  PlatformVisaStatus,
+} from "./platform-case-operations-contract.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -9,57 +29,6 @@ const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform case operations data is unavailable.";
-
-export const PLATFORM_VISA_STATUSES = [
-  "not_required",
-  "not_started",
-  "docs",
-  "appointment",
-  "submitted",
-  "approved",
-  "rejected",
-  "closed",
-] as const;
-
-export const PLATFORM_OBLIGATION_CATEGORIES = [
-  "evo_service_fee",
-  "third_party_cost",
-] as const;
-
-export const PLATFORM_OBLIGATION_STATUSES = [
-  "pending",
-  "partially_paid",
-  "paid",
-  "overdue",
-] as const;
-
-export type PlatformVisaStatus = (typeof PLATFORM_VISA_STATUSES)[number];
-export type PlatformObligationCategory =
-  (typeof PLATFORM_OBLIGATION_CATEGORIES)[number];
-export type PlatformObligationStatus =
-  (typeof PLATFORM_OBLIGATION_STATUSES)[number];
-
-export type PlatformCaseVisa = Readonly<{
-  visaCaseId: string;
-  studentCaseId: string;
-  status: PlatformVisaStatus;
-  note: string | null;
-  updatedAt: string;
-}>;
-
-export type PlatformCaseFinanceRow = Readonly<{
-  studentCaseId: string;
-  paymentObligationId: string;
-  label: string;
-  category: PlatformObligationCategory;
-  amountMinor: number;
-  currency: string;
-  dueAt: string;
-  status: PlatformObligationStatus;
-  overdue: boolean;
-  outstandingMinor: number;
-  nextAction: string;
-}>;
 
 export class PlatformCaseOperationsRepositoryError extends Error {
   constructor() {

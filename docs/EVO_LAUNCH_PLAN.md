@@ -7,9 +7,9 @@ Authority: owner direction, ADR 0024, this plan and the latest append-only
 through #553
 Verified starting baseline: GitHub `origin/main` at
 `4a2984f55b13bf4fe416a70d7989b9311daa8055`
-Latest verified shared main after the completed real-staff/Sales tracer:
-`7f135d61e89fe1e9e60e054763f223aaa918f526`, with exact-main CI run
-`33586004921` green for Main CRM, EVO Inbox and EVO Lead Agent.
+Latest verified shared main after the completed Student 360/handoff tracer:
+`51124807b19e01c34fca44bb9e5ed6180bb3f9d9`, with exact-main CI run
+`33596853883` green for Main CRM, EVO Inbox and EVO Lead Agent.
 
 ## Current authority: one Supabase-backed production EVO
 
@@ -251,6 +251,63 @@ handoff and request-id replay cases. The app proof must use real Supabase Auth,
 RLS and Chromium. This scope is isolated/non-production: it does not apply the
 migrations to the managed project, mutate production data, send a provider
 message, write amoCRM or change V1 deployment/traffic.
+
+### P4 delivery decomposition: Admissions operations and private documents
+
+Issue #548 completes the post-handoff product path without rebuilding the
+ready-made Supabase foundation. Migrations 042, 043, 046, 055 and 089 remain
+the existing authority for tasks, applications, visa, finance controls,
+immutable document versions, the private `platform-documents` bucket and
+audited one-use download grants. One forward migration 095 may replace the
+missing staff queue/workspace functions and narrow finance-stop role behavior;
+it must not duplicate an existing Storage or case authority.
+
+1. **P4A - bounded database contract.** Add one role-scoped task queue, visa
+   queue, document queue and Student 360 document workspace over the existing
+   canonical tables. Admin sees the tenant union; the assigned Admissions
+   Manager sees only active or closed handed-off cases assigned to that live
+   membership; Sales is denied. Admissions and Admin may assert a finance stop,
+   while only Admin may release one. All writes retain exact request receipts,
+   transaction locks and fail-closed response validation.
+2. **P4B - one accepted Admissions interface.** Mount the typed Supabase task,
+   application, visa, finance and document adapters directly in Student 360 and
+   use the same adapters for `/tasks`, `/applications`, `/visa`, `/finance` and
+   `/documents`. Admin preview changes presentation only; authenticated role,
+   RLS and server authorization remain authoritative. An ambiguous mutation
+   returns the same request identifier to the exact matching form so a retry
+   replays rather than duplicates the business transition.
+3. **P4C - private Storage lifecycle.** Upload PDF, JPEG or PNG bytes only after
+   an authenticated reservation, through the actor's own Supabase session and
+   the private insert-only Storage policy. Finalization and one-use signing use
+   the server-only Supabase secret for their existing service-role-only RPCs;
+   the secret never reaches browser code. Resubmission creates a new immutable
+   object/version, and download uses a consumed grant plus a signed URL valid
+   for at most 60 seconds. Direct user list/read/update/delete and public-bucket
+   behavior remain denied.
+4. **P4D - proof and replacement cleanup.** Real local Supabase/PostgreSQL,
+   Storage API, application and Chromium checks must prove Admin and assigned
+   Admissions success, Sales/anonymous/other-membership denial, immutable
+   resubmission, audited short download and missing-primary failure. In the same
+   slice delete the old local-file/Drizzle document stack, Busboy parser, old
+   generic document routes, repository-backed Admissions actions/panels,
+   implementation tests and dead environment/config references. A scoped
+   inventory must show no active import or fallback remains.
+
+Local #548 validation may record checksum and file-signature evidence through
+the already documented `scanner_proof=false` contract; it must not be described
+as antivirus or malware-provider acceptance. A real malware scanner and its
+failure/recovery behavior remain mandatory in #551 before real staff,
+production upload, public exposure or cutover. The only named temporary
+coexistence after #548 is `AmoCrmCaseCommandSection` and the exact command-read
+dependencies owned by #549; they may not read or render an alternate
+Admissions, Student 360, document or finance path and expire in #549.
+
+This Storage implementation follows Supabase's current private-bucket/RLS,
+standard-upload and signed-download contracts. See the official
+[bucket fundamentals](https://supabase.com/docs/guides/storage/buckets/fundamentals),
+[Storage access control](https://supabase.com/docs/guides/storage/security/access-control),
+[standard uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads)
+and [signed URL reference](https://supabase.com/docs/reference/javascript/file-buckets-createsignedurl).
 
 This follows Supabase's current guidance that exposed tables remain protected
 by RLS and authenticated RPCs carry the caller's authorization context, plus

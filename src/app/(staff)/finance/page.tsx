@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card, btnGhostCls, cn } from "@/components/ui";
+import { Badge, btnGhostCls } from "@/components/ui";
 import { getT } from "@/lib/i18n";
-import type { Locale } from "@/lib/i18n-data";
-import { buildRouteMetadata } from "@/lib/route-metadata";
+import { listPlatformFinanceControlQueue } from "@/lib/platform-finance-control";
 import { requirePlatformCapability } from "@/lib/platform-guards";
-import {
-  CanonicalCrmRepositoryError,
-  listCanonicalFinanceStops,
-  parseCanonicalReadCursor,
-  type CanonicalReadCursor,
-} from "@/lib/server/canonical-crm-repository";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
@@ -20,46 +14,52 @@ type SearchParams = Readonly<{
 
 const COPY = {
   ru: {
-    title: "Финансовые стопы",
-    description: "Минимальный контроль кейса, а не платёжный реестр. Изменения выполняются в Student 360.",
-    empty: "Финансовых стоп-состояний пока нет.",
-    stopped: "Стоп активен",
-    released: "Стоп снят",
-    changedBy: "Изменила роль",
+    title: "Финансовый контроль",
+    description:
+      "Остатки, просрочки и активные стопы из Supabase. Изменения выполняются в Student 360.",
+    empty: "Кейсов с финансовым контролем пока нет.",
+    overdue: "Просрочено",
+    outstanding: "Не оплачено",
+    stops: "Активные стопы",
+    blocked: "Блокируется",
+    reason: "Причина",
+    nextAction: "Следующее действие",
     open: "Открыть Student 360",
-    first: "К началу",
-    next: "Следующие состояния",
     invalid:
-      "Фильтр отклонён. Очередь финансовых стопов не читалась, потому что параметры запроса не прошли строгую нормализацию.",
-    filterReset: "К финансовым стопам",
+      "Параметры очереди отклонены. Данные не читались.",
+    reset: "К финансовому контролю",
   },
   ky: {
-    title: "Каржылык стоптор",
-    description: "Бул төлөм реестри эмес, кейстин минималдуу көзөмөлү. Өзгөртүүлөр Student 360 ичинде жасалат.",
-    empty: "Азырынча каржылык стоп абалдары жок.",
-    stopped: "Стоп активдүү",
-    released: "Стоп алынды",
-    changedBy: "Өзгөрткөн роль",
+    title: "Каржылык көзөмөл",
+    description:
+      "Supabase ичиндеги калдыктар, кечиктирүүлөр жана активдүү стоптор. Өзгөртүүлөр Student 360 ичинде жасалат.",
+    empty: "Каржылык көзөмөлү бар кейстер азырынча жок.",
+    overdue: "Кечиккен",
+    outstanding: "Төлөнө элек",
+    stops: "Активдүү стоптор",
+    blocked: "Бөгөттөлөт",
+    reason: "Себеп",
+    nextAction: "Кийинки аракет",
     open: "Student 360 ачуу",
-    first: "Башына",
-    next: "Кийинки абалдар",
     invalid:
-      "Чыпка четке кагылды. Сурам параметрлери катуу нормалдаштыруудан өтпөгөндүктөн каржы кезеги окулган жок.",
-    filterReset: "Каржылык токтотууларга",
+      "Кезек параметрлери четке кагылды. Маалымат окулган жок.",
+    reset: "Каржылык көзөмөлгө",
   },
   en: {
-    title: "Finance stops",
-    description: "Minimal case control, not a payment ledger. All changes are made inside Student 360.",
-    empty: "No finance-stop states yet.",
-    stopped: "Stop active",
-    released: "Stop released",
-    changedBy: "Changed by role",
+    title: "Finance control",
+    description:
+      "Supabase outstanding balances, overdue obligations and active stops. Changes are made in Student 360.",
+    empty: "No cases currently require finance control.",
+    overdue: "Overdue",
+    outstanding: "Outstanding",
+    stops: "Active stops",
+    blocked: "Blocked",
+    reason: "Reason",
+    nextAction: "Next action",
     open: "Open Student 360",
-    first: "First page",
-    next: "Next states",
     invalid:
-      "The filter was rejected. The finance stop queue was not read because the request parameters failed strict normalization.",
-    filterReset: "Back to finance stops",
+      "Queue parameters were rejected. No data was read.",
+    reset: "Back to finance control",
   },
 } as const;
 
@@ -71,6 +71,35 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
+function hasRejectedQuery(params: SearchParams): boolean {
+  try {
+    return params.before_at !== undefined || params.before_id !== undefined;
+  } catch {
+    return true;
+  }
+}
+
+function QueueHeader({
+  copy,
+  withDescription = false,
+}: Readonly<{
+  copy: (typeof COPY)[keyof typeof COPY];
+  withDescription?: boolean;
+}>) {
+  return (
+    <header className="border-b border-border pb-5">
+      <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">
+        {copy.title}
+      </h1>
+      {withDescription ? (
+        <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">
+          {copy.description}
+        </p>
+      ) : null}
+    </header>
+  );
+}
+
 export default async function FinancePage({
   searchParams,
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
@@ -79,129 +108,56 @@ export default async function FinancePage({
     requirePlatformCapability("admissions.read", "/finance"),
     searchParams,
   ]);
-  const cursor = queueCursor(params);
-  const copyForState = COPY[locale];
-  if (cursor === "invalid") {
-    return (
-      <QueueFilterRejected copy={copyForState} testId="canonical-finance-queue" />
-    );
-  }
-  const page = await listCanonicalFinanceStops({
-    actorRole: actor.authorityRole,
-    cursor: cursor ?? undefined,
-    pageSize: 50,
-  });
   const copy = COPY[locale];
 
-  return (
-    <div className="space-y-5" data-testid="canonical-finance-stop-queue">
-      <QueueHeader copy={copy} withDescription />
+  if (hasRejectedQuery(params)) {
+    return (
+      <div className="space-y-5" data-testid="platform-finance-control-queue">
+        <QueueHeader copy={copy} />
+        <p data-testid="platform-queue-filter-rejected" role="alert" className="border-y border-warn/30 bg-warn-weak py-6 text-sm text-warn">{copy.invalid}</p>
+        <Link href="/finance" className={btnGhostCls}>{copy.reset}</Link>
+      </div>
+    );
+  }
 
-      {page.rows.length === 0 ? (
+  const queue = await listPlatformFinanceControlQueue(actor, { limit: 100 });
+
+  return (
+    <div className="space-y-5" data-testid="platform-finance-control-queue">
+      <QueueHeader copy={copy} withDescription />
+      {queue.length === 0 ? (
         <p className="border-y border-border py-8 text-sm text-fg-3">{copy.empty}</p>
       ) : (
-        <Card>
-          <ul className="divide-y divide-border">
-            {page.rows.map((financeStop) => (
-              <li key={financeStop.financeStopId} className="py-4 first:pt-0 last:pb-0">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-base font-semibold text-fg">{financeStop.displayName}</h2>
-                      <span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold", financeStop.isStopped ? "bg-danger-weak text-danger" : "bg-ok-weak text-ok")}>
-                        {financeStop.isStopped ? copy.stopped : copy.released}
-                      </span>
+        <ol className="divide-y divide-border border-y border-border">
+          {queue.map((row) => (
+            <li key={row.studentCaseId} className="py-5" data-student-case-id={row.studentCaseId}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="font-mono text-sm font-medium text-fg">{row.studentCaseId}</p>
+                  {row.stopReason ? (
+                    <div className="mt-3 border-l-2 border-danger pl-3 text-sm text-fg-2">
+                      <p>{copy.reason}: {row.stopReason}</p>
+                      {row.blockedAction ? <p className="mt-1">{copy.blocked}: {row.blockedAction}</p> : null}
+                      {row.stopNextAction ? <p className="mt-1">{copy.nextAction}: {row.stopNextAction}</p> : null}
                     </div>
-                    <p className="mt-2 max-w-[56ch] whitespace-pre-wrap text-sm leading-5 text-fg-2">{financeStop.reason}</p>
-                    <p className="mt-2 text-xs text-fg-3">{copy.changedBy}: {financeStop.changedByRole}</p>
-                  </div>
-                  <Link href={`/clients/${financeStop.studentCaseId}#finance`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline">
-                    {copy.open}
-                  </Link>
+                  ) : null}
                 </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
+                <div className="flex flex-wrap gap-2">
+                  <Badge value={row.overdueObligationCount > 0 ? "overdue" : "neutral"} label={`${copy.overdue}: ${row.overdueObligationCount}`} />
+                  <Badge value={row.outstandingObligationCount > 0 ? "pending" : "paid"} label={`${copy.outstanding}: ${row.outstandingObligationCount}`} />
+                  <Badge value={row.activeStopFactorCount > 0 ? "required" : "approved"} label={`${copy.stops}: ${row.activeStopFactorCount}`} />
+                </div>
+              </div>
+              <Link
+                href={`/clients/${row.studentCaseId}#finance`}
+                className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline"
+              >
+                {copy.open}
+              </Link>
+            </li>
+          ))}
+        </ol>
       )}
-
-      <nav className="flex items-center justify-between gap-3" aria-label={copy.title}>
-        {cursor ? <Link href="/finance" className={btnGhostCls}>← {copy.first}</Link> : <span />}
-        {page.hasNext && page.nextCursor ? <Link href={queueHref("/finance", page.nextCursor)} className={btnGhostCls} rel="next">{copy.next} →</Link> : null}
-      </nav>
     </div>
-  );
-}
-
-function queueCursor(
-  params: SearchParams,
-): CanonicalReadCursor | null | "invalid" {
-  try {
-    return parseQueueCursor(params);
-  } catch (error: unknown) {
-    if (
-      error instanceof CanonicalCrmRepositoryError &&
-      error.code === "invalid_input"
-    ) {
-      return "invalid";
-    }
-    throw error;
-  }
-}
-
-function parseQueueCursor(params: SearchParams): CanonicalReadCursor | null {
-  if (Object.keys(params).some((key) => key !== "before_at" && key !== "before_id")) {
-    throw new CanonicalCrmRepositoryError("invalid_input");
-  }
-  const beforeAt = singleValue(params.before_at);
-  const beforeId = singleValue(params.before_id);
-  if ((beforeAt && !beforeId) || (!beforeAt && beforeId)) {
-    throw new CanonicalCrmRepositoryError("invalid_input");
-  }
-  return beforeAt && beforeId ? parseCanonicalReadCursor(beforeAt, beforeId) : null;
-}
-
-function singleValue(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) throw new CanonicalCrmRepositoryError("invalid_input");
-  return value;
-}
-
-function queueHref(path: string, cursor: CanonicalReadCursor): string {
-  const query = new URLSearchParams({ before_at: cursor.updatedAt, before_id: cursor.id });
-  return `${path}?${query.toString()}`;
-}
-
-function QueueFilterRejected({
-  copy,
-  testId,
-}: Readonly<{
-  copy: (typeof COPY)[Locale];
-  testId: string;
-}>) {
-  return (
-    <div className="space-y-5" data-testid={testId}>
-      <QueueHeader copy={copy} />
-      <div data-testid="canonical-queue-filter-rejected">
-        <p className="border-y border-border py-8 text-sm text-fg-3">{copy.invalid}</p>
-      </div>
-      <Link href="/finance" className={btnGhostCls}>{copy.filterReset}</Link>
-    </div>
-  );
-}
-
-function QueueHeader({
-  copy,
-  withDescription = false,
-}: Readonly<{
-  copy: (typeof COPY)[Locale];
-  withDescription?: boolean;
-}>) {
-  return (
-    <header className="border-b border-border pb-5">
-      <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
-      {withDescription ? (
-        <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">{copy.description}</p>
-      ) : null}
-    </header>
   );
 }

@@ -30,11 +30,6 @@ const REQUIRED_RUNTIME_VALUES = Object.freeze([
   "EVO_DB_PATH",
   "EVO_BACKUP_DIR",
 ]);
-const V2_REQUIRED_RUNTIME_VALUES = Object.freeze([
-  "DATABASE_URL",
-  "EVO_PRIVATE_DOCUMENT_ROOT",
-]);
-
 export class AppEnvironmentContractError extends Error {
   constructor(code) {
     super(code);
@@ -187,28 +182,6 @@ function validateEnabledFeatureConfiguration(entries) {
   }
 }
 
-function validateV2RuntimeConfiguration(entries) {
-  const v2Configured = V2_REQUIRED_RUNTIME_VALUES.some(
-    (name) => (entries.get(name) ?? "") !== "",
-  );
-  if (!v2Configured) return;
-
-  requireNonEmpty(
-    entries,
-    V2_REQUIRED_RUNTIME_VALUES,
-    "v2_required_env_value_missing",
-  );
-  const documentRoot = entries.get("EVO_PRIVATE_DOCUMENT_ROOT");
-  const resolvedRoot = resolve(documentRoot);
-  if (
-    documentRoot !== documentRoot.trim() ||
-    !isAbsolute(documentRoot) ||
-    resolvedRoot === resolve(resolvedRoot, "..")
-  ) {
-    fail("v2_private_document_root_invalid");
-  }
-}
-
 export function validateAppEnvironmentContract({ exampleText, actualText }) {
   const exampleEntries = parseEnvironmentText(exampleText);
   const actualEntries = parseEnvironmentText(actualText);
@@ -232,7 +205,6 @@ export function validateAppEnvironmentContract({ exampleText, actualText }) {
   validatePublicSupabase(actualEntries);
   validateFeatureFlags(actualEntries);
   validateEnabledFeatureConfiguration(actualEntries);
-  validateV2RuntimeConfiguration(actualEntries);
   return Object.freeze({ ok: true, code: "valid" });
 }
 

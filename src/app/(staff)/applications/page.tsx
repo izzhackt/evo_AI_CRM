@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card, btnGhostCls, cn } from "@/components/ui";
+import { Badge, btnGhostCls } from "@/components/ui";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
-import { buildRouteMetadata } from "@/lib/route-metadata";
-import { requirePlatformCapability } from "@/lib/platform-guards";
 import {
-  CanonicalCrmRepositoryError,
-  listCanonicalUniversityApplications,
-  parseCanonicalReadCursor,
-  type CanonicalReadCursor,
-} from "@/lib/server/canonical-crm-repository";
+  listPlatformApplications,
+  parsePlatformAdmissionsCursor,
+  type PlatformAdmissionsCursor,
+} from "@/lib/platform-admissions";
+import { requirePlatformCapability } from "@/lib/platform-guards";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
@@ -21,44 +20,82 @@ type SearchParams = Readonly<{
 const COPY = {
   ru: {
     title: "Заявки в университеты",
-    description: "Очередь только для чтения. Изменения выполняются в Student 360.",
+    description:
+      "Единая очередь Supabase. Детали и изменения доступны в Student 360.",
     empty: "Заявок пока нет.",
     open: "Открыть Student 360",
-    nextAction: "Следующее действие",
-    noNextAction: "Не задано",
+    curator: "Admissions",
+    route: "Маршрут",
+    workload: "Открыто",
     first: "К началу",
     next: "Следующие заявки",
     invalid:
-      "Фильтр отклонён. Очередь заявок не читалась, потому что параметры запроса не прошли строгую нормализацию.",
-    filterReset: "К очереди заявок",
+      "Параметры очереди отклонены. Данные не читались.",
   },
   ky: {
     title: "Университет арыздары",
-    description: "Окуу үчүн гана кезек. Өзгөртүүлөр Student 360 ичинде жасалат.",
-    empty: "Азырынча арыздар жок.",
+    description:
+      "Бирдиктүү Supabase кезеги. Деталдар жана өзгөртүүлөр Student 360 ичинде жеткиликтүү.",
+    empty: "Азырынча арыз жок.",
     open: "Student 360 ачуу",
-    nextAction: "Кийинки аракет",
-    noNextAction: "Көрсөтүлгөн эмес",
+    curator: "Admissions",
+    route: "Маршрут",
+    workload: "Ачык",
     first: "Башына",
     next: "Кийинки арыздар",
     invalid:
-      "Чыпка четке кагылды. Сурам параметрлери катуу нормалдаштыруудан өтпөгөндүктөн арыздар кезеги окулган жок.",
-    filterReset: "Арыздар кезегине",
+      "Кезек параметрлери четке кагылды. Маалымат окулган жок.",
   },
   en: {
     title: "University applications",
-    description: "Read-only queue. All changes are made inside Student 360.",
+    description:
+      "One Supabase queue. Details and changes are available in Student 360.",
     empty: "No applications yet.",
     open: "Open Student 360",
-    nextAction: "Next action",
-    noNextAction: "Not set",
+    curator: "Admissions",
+    route: "Route",
+    workload: "Open",
     first: "First page",
     next: "Next applications",
     invalid:
-      "The filter was rejected. The application queue was not read because the request parameters failed strict normalization.",
-    filterReset: "Back to applications",
+      "Queue parameters were rejected. No data was read.",
   },
 } as const;
+
+const STATUS_LABELS: Record<string, Record<Locale, string>> = {
+  preparation: { ru: "Подготовка", ky: "Даярдоо", en: "Preparation" },
+  ready: { ru: "Готова", ky: "Даяр", en: "Ready" },
+  submitted: { ru: "Подана", ky: "Тапшырылды", en: "Submitted" },
+  under_review: { ru: "На рассмотрении", ky: "Каралууда", en: "Under review" },
+  offer: { ru: "Оффер", ky: "Оффер", en: "Offer" },
+  rejected: { ru: "Отказ", ky: "Баш тартылды", en: "Rejected" },
+  enrolled: { ru: "Зачислен", ky: "Кабыл алынды", en: "Enrolled" },
+  withdrawn: { ru: "Отозвана", ky: "Кайтарылды", en: "Withdrawn" },
+  closed: { ru: "Закрыта", ky: "Жабык", en: "Closed" },
+};
+
+function single(value: string | string[] | undefined): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function parseQueueCursor(params: SearchParams): PlatformAdmissionsCursor | null {
+  try {
+    return parsePlatformAdmissionsCursor(
+      single(params.before_at),
+      single(params.before_id),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function queueHref(cursor: PlatformAdmissionsCursor): string {
+  const query = new URLSearchParams({
+    before_at: cursor.sortAt,
+    before_id: cursor.id,
+  });
+  return `/applications?${query.toString()}`;
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildRouteMetadata({
@@ -68,14 +105,6 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-const STATUS_CLASS = {
-  draft: "bg-surface-2 text-fg-2",
-  submitted: "bg-info-weak text-info",
-  accepted: "bg-ok-weak text-ok",
-  rejected: "bg-danger-weak text-danger",
-  withdrawn: "bg-warn-weak text-warn",
-} as const;
-
 export default async function ApplicationsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
@@ -84,114 +113,62 @@ export default async function ApplicationsPage({
     requirePlatformCapability("admissions.read", "/applications"),
     searchParams,
   ]);
-  const cursor = queueCursor(params);
-  const copyForState = COPY[locale];
-  if (cursor === "invalid") {
-    return (
-      <QueueFilterRejected copy={copyForState} testId="canonical-application-queue" />
-    );
-  }
-  const page = await listCanonicalUniversityApplications({
-    actorRole: actor.authorityRole,
-    cursor: cursor ?? undefined,
-    pageSize: 50,
-  });
+  const hasCursorInput = params.before_at !== undefined || params.before_id !== undefined;
+  const cursor = parseQueueCursor(params);
   const copy = COPY[locale];
 
-  return (
-    <div className="space-y-5" data-testid="canonical-application-queue">
-      <QueueHeader copy={copy} withDescription />
+  if (hasCursorInput && cursor === null) {
+    return (
+      <div className="space-y-5" data-testid="platform-application-queue">
+        <QueueHeader copy={copy} />
+        <p data-testid="platform-queue-filter-rejected" role="alert" className="border-y border-warn/30 bg-warn-weak py-6 text-sm text-warn">
+          {copy.invalid}
+        </p>
+        <Link href="/applications" className={btnGhostCls}>{copy.first}</Link>
+      </div>
+    );
+  }
 
+  const page = await listPlatformApplications(actor, { cursor, pageSize: 50 });
+
+  return (
+    <div className="space-y-5" data-testid="platform-application-queue">
+      <QueueHeader copy={copy} withDescription />
       {page.rows.length === 0 ? (
         <p className="border-y border-border py-8 text-sm text-fg-3">{copy.empty}</p>
       ) : (
-        <Card>
-          <ul className="divide-y divide-border">
-            {page.rows.map((application) => (
-              <li key={application.applicationId} className="py-4 first:pt-0 last:pb-0">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-base font-semibold text-fg">{application.institutionName}</h2>
-                      <span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold", STATUS_CLASS[application.status])}>
-                        {application.status}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-fg-2">{application.programName} · {application.targetIntake}</p>
-                    <p className="mt-2 max-w-[56ch] text-xs text-fg-3">
-                      {application.displayName} · {copy.nextAction}: {application.nextAction ?? copy.noNextAction}
-                    </p>
-                  </div>
-                  <Link href={`/clients/${application.studentCaseId}#applications`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline">
-                    {copy.open}
-                  </Link>
+        <ol className="divide-y divide-border border-y border-border">
+          {page.rows.map((application) => (
+            <li key={application.universityApplicationId} className="py-5" data-application-id={application.universityApplicationId}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-semibold text-fg">{application.studentDisplayName}</p>
+                  <p className="mt-1 text-sm text-fg-2">{application.institutionName} · {application.programName}</p>
+                  <p className="mt-2 text-xs text-fg-3">
+                    {copy.route}: {[application.targetCountry, application.targetDegree, application.intake].filter(Boolean).join(" · ") || "—"}
+                  </p>
+                  <p className="mt-1 text-xs text-fg-3">
+                    {copy.curator}: {application.currentCuratorDisplayName ?? "—"} · {copy.workload}: {application.openTaskCount} / {application.openDocumentCount} / {application.outstandingPaymentObligationCount}
+                  </p>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
+                <Badge value={application.status} label={STATUS_LABELS[application.status]?.[locale] ?? application.status} />
+              </div>
+              <Link
+                href={`/clients/${application.studentCaseId}#applications`}
+                className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline"
+              >
+                {copy.open}
+              </Link>
+            </li>
+          ))}
+        </ol>
       )}
-
-      <nav className="flex items-center justify-between gap-3" aria-label={copy.title}>
-        {cursor ? <Link href="/applications" className={btnGhostCls}>← {copy.first}</Link> : <span />}
-        {page.hasNext && page.nextCursor ? <Link href={queueHref("/applications", page.nextCursor)} className={btnGhostCls} rel="next">{copy.next} →</Link> : null}
+      <nav className="flex flex-wrap gap-2" aria-label={copy.title}>
+        {cursor ? <Link href="/applications" className={btnGhostCls}>{copy.first}</Link> : null}
+        {page.hasNext && page.nextCursor ? (
+          <Link href={queueHref(page.nextCursor)} className={btnGhostCls}>{copy.next}</Link>
+        ) : null}
       </nav>
-    </div>
-  );
-}
-
-function queueCursor(
-  params: SearchParams,
-): CanonicalReadCursor | null | "invalid" {
-  try {
-    return parseQueueCursor(params);
-  } catch (error: unknown) {
-    if (
-      error instanceof CanonicalCrmRepositoryError &&
-      error.code === "invalid_input"
-    ) {
-      return "invalid";
-    }
-    throw error;
-  }
-}
-
-function parseQueueCursor(params: SearchParams): CanonicalReadCursor | null {
-  if (Object.keys(params).some((key) => key !== "before_at" && key !== "before_id")) {
-    throw new CanonicalCrmRepositoryError("invalid_input");
-  }
-  const beforeAt = singleValue(params.before_at);
-  const beforeId = singleValue(params.before_id);
-  if ((beforeAt && !beforeId) || (!beforeAt && beforeId)) {
-    throw new CanonicalCrmRepositoryError("invalid_input");
-  }
-  return beforeAt && beforeId ? parseCanonicalReadCursor(beforeAt, beforeId) : null;
-}
-
-function singleValue(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) throw new CanonicalCrmRepositoryError("invalid_input");
-  return value;
-}
-
-function queueHref(path: string, cursor: CanonicalReadCursor): string {
-  const query = new URLSearchParams({ before_at: cursor.updatedAt, before_id: cursor.id });
-  return `${path}?${query.toString()}`;
-}
-
-function QueueFilterRejected({
-  copy,
-  testId,
-}: Readonly<{
-  copy: (typeof COPY)[Locale];
-  testId: string;
-}>) {
-  return (
-    <div className="space-y-5" data-testid={testId}>
-      <QueueHeader copy={copy} />
-      <div data-testid="canonical-queue-filter-rejected">
-        <p className="border-y border-border py-8 text-sm text-fg-3">{copy.invalid}</p>
-      </div>
-      <Link href="/applications" className={btnGhostCls}>{copy.filterReset}</Link>
     </div>
   );
 }

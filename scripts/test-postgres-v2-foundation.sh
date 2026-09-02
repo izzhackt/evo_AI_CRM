@@ -20,10 +20,10 @@ staff_provision_log="$tmp_dir/staff-provision.log"
 sales_proof_provision_log="$tmp_dir/sales-proof-provision.log"
 waha_log="$tmp_dir/waha.log"
 waha_acceptance_result="$tmp_dir/waha-acceptance.json"
+p4_acceptance_result="$tmp_dir/p4-admissions-storage-acceptance.json"
+p4_verification_log="$tmp_dir/p4-admissions-storage-verification.log"
 verification_log="$tmp_dir/verification.log"
 broken_log="$tmp_dir/broken-migration.log"
-private_document_root="$tmp_dir/private-documents"
-missing_private_document_root="$tmp_dir/missing-private-documents"
 inbound_test_phone="+15550004300"
 inbound_test_conversation_id="15550004300@c.us"
 inbound_test_message_id="v2-browser-message-430"
@@ -456,11 +456,9 @@ EOF
 start_app() {
   local app_database_url="$1"
   local supabase_mode="${2:-configured}"
-  local document_mode="${3:-configured}"
-  local inbound_mode="${4:-configured}"
-  local waha_mode="${5:-blocked}"
-  local amocrm_mode="${6:-provider-not-authorized}"
-  local document_root="$private_document_root"
+  local inbound_mode="${3:-configured}"
+  local waha_mode="${4:-blocked}"
+  local amocrm_mode="${5:-provider-not-authorized}"
   local inbound_secret="$whatsapp_inbound_secret"
   local waha_provider_authorized=0
   local app_waha_base_url="http://evo-v2-waha:3000"
@@ -473,9 +471,6 @@ start_app() {
   local amocrm_admissions_status_id=""
   local amocrm_admissions_responsible_user_id=""
   local amocrm_admissions_tag_name=""
-  if [[ "$document_mode" == "unavailable" ]]; then
-    document_root="$missing_private_document_root"
-  fi
   if [[ "$inbound_mode" == "unavailable" ]]; then
     inbound_secret=""
   fi
@@ -504,7 +499,6 @@ start_app() {
   : >"$app_log"
   if [[ "$supabase_mode" == "configured" ]]; then
     DATABASE_URL="$app_database_url" \
-      EVO_PRIVATE_DOCUMENT_ROOT="$document_root" \
       NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
       EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
@@ -543,7 +537,6 @@ start_app() {
       -u EVO_PLATFORM_SUPABASE_SECRET_KEY \
       -u SUPABASE_SERVICE_ROLE_KEY \
       DATABASE_URL="$app_database_url" \
-      EVO_PRIVATE_DOCUMENT_ROOT="$document_root" \
       EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
       EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
       EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
@@ -650,8 +643,254 @@ supabase_staff_auth_browser_assert() {
     EVO_SUPABASE_HANDOFF_PROOF_CLIENT_ID="$supabase_handoff_client_id" \
     EVO_SUPABASE_DIRECT_API_URL="$supabase_api_url" \
     EVO_SUPABASE_DIRECT_PUBLISHABLE_KEY="$supabase_publishable_key" \
+    EVO_P4_ACCEPTANCE_RESULT_FILE="$p4_acceptance_result" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       --config=playwright.supabase-staff-auth.config.ts
+}
+
+verify_p4_admissions_storage_acceptance() {
+  [[ -s "$p4_acceptance_result" ]] \
+    || fail "The P4 browser proof did not produce its private acceptance result"
+
+  if ! SUPABASE_DB_URL="$supabase_database_url" \
+    EVO_P4_ACCEPTANCE_RESULT_FILE="$p4_acceptance_result" \
+    "$node_bin" --input-type=module >"$p4_verification_log" 2>&1 <<'EOF'
+import { readFileSync } from "node:fs";
+import postgres from "postgres";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const EXPECTED_KEYS = [
+  "caseTaskId",
+  "documentSlotId",
+  "firstDocumentVersionId",
+  "organizationId",
+  "paymentObligationId",
+  "secondDocumentVersionId",
+  "stopFactorId",
+  "studentCaseId",
+  "universityApplicationId",
+  "visaCaseId",
+].sort();
+
+function fail(code) {
+  throw new Error(`P4_ACCEPTANCE_ERROR:${code}`);
+}
+
+function exactProof(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("RESULT_SHAPE");
+  }
+  const keys = Object.keys(value).sort();
+  if (
+    keys.length !== EXPECTED_KEYS.length ||
+    !keys.every((key, index) => key === EXPECTED_KEYS[index])
+  ) {
+    fail("RESULT_KEYS");
+  }
+  for (const key of EXPECTED_KEYS) {
+    if (typeof value[key] !== "string" || !UUID_PATTERN.test(value[key])) {
+      fail("RESULT_UUID");
+    }
+  }
+  if (value.firstDocumentVersionId === value.secondDocumentVersionId) {
+    fail("DOCUMENT_VERSION_ID_REUSE");
+  }
+  return value;
+}
+
+function one(rows, code) {
+  if (!Array.isArray(rows) || rows.length !== 1) fail(code);
+  return rows[0];
+}
+
+const proof = exactProof(
+  JSON.parse(readFileSync(process.env.EVO_P4_ACCEPTANCE_RESULT_FILE, "utf8")),
+);
+const sql = postgres(process.env.SUPABASE_DB_URL, { max: 1 });
+
+try {
+  const task = one(await sql`
+    SELECT status::TEXT AS status
+    FROM platform.case_tasks
+    WHERE organization_id = ${proof.organizationId}
+      AND student_case_id = ${proof.studentCaseId}
+      AND id = ${proof.caseTaskId}
+  `, "TASK_MISSING");
+  if (task.status !== "done") fail("TASK_NOT_DONE");
+
+  const application = one(await sql`
+    SELECT status::TEXT AS status, latest_evidence_reference
+    FROM platform.university_applications
+    WHERE organization_id = ${proof.organizationId}
+      AND student_case_id = ${proof.studentCaseId}
+      AND id = ${proof.universityApplicationId}
+  `, "APPLICATION_MISSING");
+  if (
+    application.status !== "submitted" ||
+    application.latest_evidence_reference !== "p4://application-submitted"
+  ) {
+    fail("APPLICATION_STATE");
+  }
+
+  const visa = one(await sql`
+    SELECT status::TEXT AS status, latest_evidence_reference
+    FROM platform.visa_cases
+    WHERE organization_id = ${proof.organizationId}
+      AND student_case_id = ${proof.studentCaseId}
+      AND id = ${proof.visaCaseId}
+  `, "VISA_MISSING");
+  if (
+    visa.status !== "docs" ||
+    visa.latest_evidence_reference !== "p4://visa-documents"
+  ) {
+    fail("VISA_STATE");
+  }
+
+  const obligation = one(await sql`
+    SELECT amount_minor::TEXT AS amount_minor,
+      total_paid_minor::TEXT AS total_paid_minor,
+      total_refunded_minor::TEXT AS total_refunded_minor
+    FROM platform.payment_obligations
+    WHERE organization_id = ${proof.organizationId}
+      AND student_case_id = ${proof.studentCaseId}
+      AND id = ${proof.paymentObligationId}
+  `, "PAYMENT_OBLIGATION_MISSING");
+  if (
+    obligation.amount_minor !== "2500" ||
+    obligation.total_paid_minor !== obligation.amount_minor ||
+    obligation.total_refunded_minor !== "0"
+  ) {
+    fail("PAYMENT_NOT_SETTLED");
+  }
+
+  const stopFactor = one(await sql`
+    SELECT status::TEXT AS status,
+      resolution_kind::TEXT AS resolution_kind,
+      resolution_evidence_ref
+    FROM platform.stop_factors
+    WHERE organization_id = ${proof.organizationId}
+      AND student_case_id = ${proof.studentCaseId}
+      AND payment_obligation_id = ${proof.paymentObligationId}
+      AND id = ${proof.stopFactorId}
+  `, "STOP_FACTOR_MISSING");
+  if (
+    stopFactor.status !== "resolved" ||
+    stopFactor.resolution_kind !== "admin_override" ||
+    stopFactor.resolution_evidence_ref !== "p4://stop-released"
+  ) {
+    fail("STOP_FACTOR_NOT_RESOLVED");
+  }
+
+  const slot = one(await sql`
+    SELECT status::TEXT AS status,
+      current_version_id::TEXT AS current_version_id,
+      current_version_no::TEXT AS current_version_no
+    FROM platform.document_slots
+    WHERE organization_id = ${proof.organizationId}
+      AND student_case_id = ${proof.studentCaseId}
+      AND id = ${proof.documentSlotId}
+  `, "DOCUMENT_SLOT_MISSING");
+  if (
+    slot.status !== "approved" ||
+    slot.current_version_id !== proof.secondDocumentVersionId ||
+    slot.current_version_no !== "2"
+  ) {
+    fail("DOCUMENT_SLOT_STATE");
+  }
+
+  const versions = await sql`
+    SELECT id::TEXT AS id,
+      version_no::TEXT AS version_no,
+      original_filename,
+      integrity_status::TEXT AS integrity_status,
+      malware_status::TEXT AS malware_status,
+      sha256_hex
+    FROM platform.document_versions
+    WHERE organization_id = ${proof.organizationId}
+      AND student_case_id = ${proof.studentCaseId}
+      AND document_slot_id = ${proof.documentSlotId}
+    ORDER BY version_no
+  `;
+  if (
+    versions.length !== 2 ||
+    versions[0].id !== proof.firstDocumentVersionId ||
+    versions[0].version_no !== "1" ||
+    versions[0].original_filename !== "p4-isolated-proof-v1.pdf" ||
+    versions[1].id !== proof.secondDocumentVersionId ||
+    versions[1].version_no !== "2" ||
+    versions[1].original_filename !== "p4-isolated-proof-v2.pdf" ||
+    versions.some(
+      (version) =>
+        version.integrity_status !== "verified" ||
+        version.malware_status !== "clean" ||
+        !/^[0-9a-f]{64}$/.test(version.sha256_hex),
+    ) ||
+    versions[0].sha256_hex === versions[1].sha256_hex
+  ) {
+    fail("DOCUMENT_VERSIONS_NOT_IMMUTABLE");
+  }
+
+  const reviews = await sql`
+    SELECT document_version_id::TEXT AS document_version_id,
+      decision::TEXT AS decision,
+      reason
+    FROM platform.document_reviews
+    WHERE organization_id = ${proof.organizationId}
+      AND student_case_id = ${proof.studentCaseId}
+      AND document_slot_id = ${proof.documentSlotId}
+    ORDER BY created_at, id
+  `;
+  if (
+    reviews.length !== 2 ||
+    reviews[0].document_version_id !== proof.firstDocumentVersionId ||
+    reviews[0].decision !== "correction_required" ||
+    reviews[1].document_version_id !== proof.secondDocumentVersionId ||
+    reviews[1].decision !== "approved"
+  ) {
+    fail("DOCUMENT_REVIEW_HISTORY");
+  }
+
+  const storage = one(await sql`
+    SELECT count(*)::INTEGER AS object_count,
+      count(DISTINCT finalization.object_name)::INTEGER AS distinct_object_count,
+      count(DISTINCT finalization.document_version_id)::INTEGER AS finalized_version_count
+    FROM platform_private.document_upload_finalizations AS finalization
+    JOIN storage.objects AS object
+      ON object.bucket_id = finalization.bucket_id
+      AND object.name = finalization.object_name
+    WHERE finalization.organization_id = ${proof.organizationId}
+      AND finalization.student_case_id = ${proof.studentCaseId}
+      AND finalization.document_slot_id = ${proof.documentSlotId}
+  `, "STORAGE_PROOF_MISSING");
+  if (
+    storage.object_count !== 2 ||
+    storage.distinct_object_count !== 2 ||
+    storage.finalized_version_count !== 2
+  ) {
+    fail("STORAGE_OBJECT_STATE");
+  }
+
+  console.log("P4_ADMISSIONS_STORAGE_ACCEPTANCE_VERIFIED");
+} catch (error) {
+  const message = error instanceof Error && /^P4_ACCEPTANCE_ERROR:[A-Z_]+$/.test(error.message)
+    ? error.message
+    : "P4_ACCEPTANCE_ERROR:UNEXPECTED";
+  console.error(message);
+  process.exitCode = 1;
+} finally {
+  await sql.end({ timeout: 5 });
+}
+EOF
+  then
+    p4_failure="$(grep -m 1 -E '^P4_ACCEPTANCE_ERROR:[A-Z_]+$' "$p4_verification_log" || true)"
+    [[ -z "$p4_failure" ]] || echo "$p4_failure" >&2
+    fail "The P4 Admissions and private Storage database acceptance proof failed"
+  fi
+
+  grep -Fx "P4_ADMISSIONS_STORAGE_ACCEPTANCE_VERIFIED" "$p4_verification_log" >/dev/null \
+    || fail "The P4 Admissions and private Storage proof returned no success marker"
+  chmod 600 "$p4_acceptance_result" "$p4_verification_log"
 }
 
 canonical_read_browser_assert() {
@@ -716,8 +955,6 @@ expect_verify_failure() {
 }
 
 cd "$repo_root"
-mkdir -m 700 "$private_document_root"
-
 "$node_bin" --conditions=react-server --experimental-strip-types --test \
   tests/database-config.test.mjs \
   tests/database-status-route.test.mjs
@@ -787,11 +1024,6 @@ echo "Exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 -> 0005 migration, repeat migra
 
 DATABASE_URL="$database_url" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
-    tests/private-document-repository-postgres.test.mjs
-echo "Private document case scope, immutable metadata reads and fail-closed repository checks passed."
-
-DATABASE_URL="$database_url" \
-  "$node_bin" --conditions=react-server --experimental-strip-types --test \
     --test-concurrency=1 \
     tests/canonical-whatsapp-outbound-postgres.test.mjs
 DATABASE_URL="$database_url" \
@@ -804,9 +1036,11 @@ echo "Later-owned WhatsApp and amoCRM repository contracts passed without the re
 
 stop_app
 start_isolated_waha_service
-start_app "$database_url" configured configured configured local-service
+start_app "$database_url" configured configured local-service
 browser_assert 200
 supabase_staff_auth_browser_assert configured
+verify_p4_admissions_storage_acceptance
+echo "Admissions operations and two immutable private Supabase Storage versions passed browser and database proof."
 canonical_read_browser_assert configured
 assert_no_secret_or_payload_logs
 
@@ -857,7 +1091,7 @@ docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres
   --command 'DROP TABLE public.evo_test_migration_history_backup;' >/dev/null
 
 stop_app
-start_app "$database_url" configured configured unavailable
+start_app "$database_url" configured unavailable
 canonical_read_browser_assert inbound-unavailable
 assert_no_secret_or_payload_logs
 

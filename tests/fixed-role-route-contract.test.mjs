@@ -15,13 +15,10 @@ function source(path) {
 }
 
 const privateDocumentsPanelSource = source(
-  "src/components/platform/documents/CanonicalPrivateDocumentsPanel.tsx",
+  "src/components/platform/documents/PlatformPrivateDocumentsPanel.tsx",
 );
 const student360Source = source(
   "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-);
-const admissionsOperationsSectionSource = source(
-  "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
 );
 const canonicalDocumentsQueueSource = source(
   "src/app/(staff)/documents/(queue)/page.tsx",
@@ -88,71 +85,65 @@ test("documents queue uses the fixed Admissions read boundary", () => {
 });
 
 test("Student 360 is the one canonical private-document write surface", () => {
-  assert.match(student360Source, /<AdmissionsCaseOperationsSection/);
-  assert.match(
-    admissionsOperationsSectionSource,
-    /listPrivateDocumentsForCase\(\{/,
-  );
-  assert.match(
-    admissionsOperationsSectionSource,
-    /<CanonicalPrivateDocumentsPanel/,
-  );
-  assert.match(privateDocumentsPanelSource, /id="documents"/);
+  assert.match(student360Source, /getPlatformCaseDocumentWorkspace\(actor, id\)/);
+  assert.match(student360Source, /<PlatformPrivateDocumentsPanel/);
+  assert.match(privateDocumentsPanelSource, /id="case-documents"/);
   assert.match(
     privateDocumentsPanelSource,
-    /data-testid="canonical-private-documents"/,
+    /data-testid="platform-private-documents"/,
   );
   assert.match(
     privateDocumentsPanelSource,
-    /data-testid="canonical-private-document-upload-form"/,
+    /data-testid="platform-document-upload-form"/,
   );
   assert.match(
     privateDocumentsPanelSource,
-    /data-testid="canonical-private-document"/,
+    /data-testid="platform-document-slot"/,
   );
   assert.match(
     privateDocumentsPanelSource,
-    /data-testid="canonical-private-document-resubmit-form"/,
+    /data-testid="platform-document-version"/,
   );
   assert.match(
     privateDocumentsPanelSource,
-    /data-testid="canonical-private-document-download"/,
+    /data-testid="platform-document-download"/,
   );
   assert.match(
     privateDocumentsPanelSource,
-    /data-document-id=\{document\.documentId\}/,
+    /data-document-slot-id=\{slot\.documentSlotId\}/,
   );
   assert.match(
     privateDocumentsPanelSource,
-    /data-version-id=\{version\.versionId\}/,
+    /version\.documentVersionId/,
   );
   assert.match(
     privateDocumentsPanelSource,
     /data-version-number=\{version\.versionNumber\}/,
   );
-  assert.match(privateDocumentsPanelSource, /\/api\/v2\/documents/);
+  assert.match(privateDocumentsPanelSource, /\/api\/v2\/document-slots\//);
   assert.match(
     privateDocumentsPanelSource,
     /\/api\/v2\/document-versions\//,
   );
   assert.match(privateDocumentsPanelSource, /router\.refresh\(\)/);
-  assert.match(
-    privateDocumentsPanelSource,
-    /application\/pdf,image\/jpeg,image\/png/,
-  );
+  assert.match(privateDocumentsPanelSource, /const ACCEPTED_FILE_TYPES = \["application\/pdf", "image\/jpeg", "image\/png"\]/);
+  assert.match(privateDocumentsPanelSource, /accept=\{ACCEPTED_FILE_TYPES\.join\(","\)\}/);
   assert.match(privateDocumentsPanelSource, /25 MiB/);
-  assert.doesNotMatch(privateDocumentsPanelSource, /objectKey|supabase|sqlite/i);
+  assert.doesNotMatch(
+    privateDocumentsPanelSource,
+    /objectKey|private-document-repository|drizzle|sqlite|fallback/i,
+  );
 });
 
-test("the documents route is a read-only canonical queue linked to Student 360", () => {
+test("the documents route is a read-only Platform queue linked to Student 360", () => {
   assert.match(canonicalDocumentsQueueSource, /requirePlatformDocumentsActor\(\)/);
   assert.match(
     canonicalDocumentsQueueSource,
-    /listPrivateDocuments\(\{\s*actorRole: actor\.authorityRole/,
+    /listPlatformDocumentQueue\(actor\)/,
   );
   assert.match(
     canonicalDocumentsQueueSource,
-    /`\/clients\/\$\{document\.caseId\}#documents`/,
+    /`\/clients\/\$\{row\.studentCaseId\}#case-documents`/,
   );
   assert.doesNotMatch(
     canonicalDocumentsQueueSource,
@@ -215,12 +206,13 @@ test("the deferred audit export is not an active V2 browser API", () => {
 });
 
 test("only the exact private document APIs enter the active V2 route contract", () => {
-  const documentId = "10000000-0000-4000-8000-000000000001";
+  const documentSlotId = "10000000-0000-4000-8000-000000000001";
   const versionId = "20000000-0000-4000-8000-000000000002";
 
-  assert.equal(isConnectedPlatformApi("/api/v2/documents"), true);
   assert.equal(
-    isConnectedPlatformApi(`/api/v2/documents/${documentId}/resubmissions`),
+    isConnectedPlatformApi(
+      `/api/v2/document-slots/${documentSlotId}/versions`,
+    ),
     true,
   );
   assert.equal(
@@ -229,9 +221,10 @@ test("only the exact private document APIs enter the active V2 route contract", 
   );
 
   for (const path of [
-    "/api/v2/documents/",
-    "/api/v2/documents/not-a-uuid/resubmissions",
-    `/api/v2/documents/${documentId}/download`,
+    "/api/v2/documents",
+    "/api/v2/document-slots/",
+    "/api/v2/document-slots/not-a-uuid/versions",
+    `/api/v2/document-slots/${documentSlotId}/versions/`,
     `/api/v2/document-versions/${versionId}`,
     "/private-documents/anything",
   ]) {

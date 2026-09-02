@@ -43,19 +43,22 @@ test("Student 360 exposes localized links to every core workflow section", () =>
   const workspace = source(
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
-  const admissionsIsolation = source(
-    "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
+  const admissionsTasks = source(
+    "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
+  );
+  const privateDocuments = source(
+    "src/components/platform/documents/PlatformPrivateDocumentsPanel.tsx",
   );
   const amoCrmIsolation = source(
     "src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
   );
   const admissionsOperations = source(
-    "src/components/platform/admissions/CanonicalAdmissionsOperationsPanel.tsx",
+    "src/components/platform/admissions/PlatformAdmissionsOperationsPanel.tsx",
   );
   const contractWorkspace = source(
     "src/app/(staff)/clients/[id]/ContractDraftReportWorkspace.tsx",
   );
-  const renderedSections = `${workspace}\n${admissionsIsolation}\n${amoCrmIsolation}\n${admissionsOperations}\n${contractWorkspace}`;
+  const renderedSections = `${workspace}\n${admissionsTasks}\n${privateDocuments}\n${amoCrmIsolation}\n${admissionsOperations}\n${contractWorkspace}`;
 
   assert.match(workspace, /aria-label=\{copy\.sectionNavigation\}/);
   assert.match(workspace, /platform-student-case-section-navigation/);
@@ -95,7 +98,7 @@ test("critical confirmation and inline case links use practical targets", () => 
     "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
   );
   const tasks = source(
-    "src/components/platform/admissions/CanonicalAdmissionsTaskPanel.tsx",
+    "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
   );
 
   assert.match(composer, /min-h-11 cursor-pointer/);
@@ -320,12 +323,12 @@ test("every core staff route renders exactly one page-level h1", () => {
 
 test("the shared task panel heading stays subordinate to the page h1", () => {
   const panel = source(
-    "src/components/platform/admissions/CanonicalAdmissionsTaskPanel.tsx",
+    "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
   );
   const tasksRoute = source("src/app/(staff)/tasks/page.tsx");
 
   assert.equal(panel.match(/<h1[\s>]/g), null);
-  assert.match(panel, /id="canonical-admissions-task-panel-title"/);
+  assert.match(panel, /<h2 className=/);
   assert.match(tasksRoute, /<h1/);
 });
 

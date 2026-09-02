@@ -15,6 +15,10 @@ const VISA_ID = "22222222-2222-4222-8222-222222222222";
 const OBLIGATION_ID = "33333333-3333-4333-8333-333333333333";
 const AT = "2026-08-13T01:00:00+00:00";
 
+function source(relativePath) {
+  return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
+}
+
 function visaRow(overrides = {}) {
   return {
     visa_case_id: VISA_ID,
@@ -51,6 +55,27 @@ test("normalizes exact case-scoped visa rows", () => {
     note: "Checklist reviewed",
     updatedAt: AT,
   });
+});
+
+test("Admissions operations client imports only client-safe contracts", () => {
+  const panelSource = source(
+    "src/components/platform/admissions/PlatformAdmissionsOperationsPanel.tsx",
+  );
+  const applicationContract = source("src/lib/platform-application-contract.ts");
+  const caseOperationsContract = source(
+    "src/lib/platform-case-operations-contract.ts",
+  );
+
+  assert.match(panelSource, /@\/lib\/platform-application-contract/);
+  assert.match(panelSource, /@\/lib\/platform-case-operations-contract/);
+  assert.doesNotMatch(
+    panelSource,
+    /@\/lib\/platform-(?:admissions|case-operations)["']/,
+  );
+  assert.doesNotMatch(
+    `${applicationContract}\n${caseOperationsContract}`,
+    /next\/headers|supabase\/server|createSupabaseServerClient/,
+  );
 });
 
 test("form contracts accept only their fields plus Next Server Action metadata", () => {
@@ -171,7 +196,7 @@ test("P6D actions bind the exact case and never accept browser amount or time fo
   );
 });
 
-test("U8 stop-factor actions stay admin-only, case-bound, and provider-free", () => {
+test("P4 stop-factor assertions are Admissions/Admin case-bound while release stays Admin-only", () => {
   const actionSource = readFileSync(
     new URL("../src/lib/platform-case-operations-actions.ts", import.meta.url),
     "utf8",
@@ -184,12 +209,19 @@ test("U8 stop-factor actions stay admin-only, case-bound, and provider-free", ()
     actionSource.indexOf("export async function resolvePlatformFinanceStopFactorAction"),
   );
 
-  assert.match(createSource, /actor\.platformRole !== "admin"/);
+  assert.match(
+    createSource,
+    /actor\.platformRole !== "admin" && actor\.platformRole !== "admissions"/,
+  );
   assert.match(resolveSource, /actor\.platformRole !== "admin"/);
   assert.match(createSource, /listPlatformCaseFinance\(actor, studentCaseId\)/);
   assert.match(
     createSource,
-    /rpc\(\s*["']create_stop_factor["'][\s\S]*p_student_case_id:\s*studentCaseId/,
+    /rpc\(\s*["']assert_case_finance_stop_factor["'][\s\S]*p_student_case_id:\s*studentCaseId/,
+  );
+  assert.match(
+    createSource,
+    /actor\.platformRole === "admissions"[\s\S]*data\.owner_membership_id !== actor\.membershipId/,
   );
   assert.match(
     resolveSource,

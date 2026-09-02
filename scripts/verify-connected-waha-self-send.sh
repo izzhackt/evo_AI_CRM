@@ -16,7 +16,6 @@ tunnel_log="$tmp_dir/ssh-tunnel.log"
 app_log="$tmp_dir/app.log"
 playwright_log="$tmp_dir/playwright.log"
 session_response_file="$tmp_dir/session.json"
-private_document_root="$tmp_dir/private-documents"
 run_succeeded=0
 preserve_failure=0
 app_pid=""
@@ -207,8 +206,7 @@ postgres_password="$(openssl rand -hex 24)"
 database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 inbound_secret="$(openssl rand -hex 32)"
 
-mkdir -p "$private_document_root"
-chmod 700 "$tmp_dir" "$private_document_root"
+chmod 700 "$tmp_dir"
 printf 'POSTGRES_USER=%s\nPOSTGRES_PASSWORD=%s\nPOSTGRES_DB=%s\nPOSTGRES_PORT=%s\n' \
   "$postgres_user" "$postgres_password" "$postgres_database" "$postgres_port" \
   >"$compose_env_file"
@@ -409,7 +407,6 @@ DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs >/de
 
 assert_next_dev_lock_available
 DATABASE_URL="$database_url" \
-EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" \
 NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
 EVO_PLATFORM_SUPABASE_SECRET_KEY="$EVO_PLATFORM_SUPABASE_SECRET_KEY" \

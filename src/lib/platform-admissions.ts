@@ -1,4 +1,18 @@
 import type { PlatformActor } from "./platform-auth";
+import {
+  PLATFORM_APPLICATION_STATUSES,
+  type PlatformApplicationQueueRow,
+  type PlatformApplicationStatus,
+} from "./platform-application-contract.ts";
+
+export {
+  PLATFORM_APPLICATION_EVIDENCE_STATUSES,
+  PLATFORM_APPLICATION_STATUSES,
+} from "./platform-application-contract.ts";
+export type {
+  PlatformApplicationQueueRow,
+  PlatformApplicationStatus,
+} from "./platform-application-contract.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -10,24 +24,6 @@ const JSON_KEY_PATTERN = /^[a-z][a-z0-9_.-]{0,63}$/;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform admissions data is unavailable.";
 
-export const PLATFORM_APPLICATION_STATUSES = [
-  "preparation",
-  "ready",
-  "submitted",
-  "under_review",
-  "offer",
-  "rejected",
-  "enrolled",
-  "withdrawn",
-  "closed",
-] as const;
-
-export const PLATFORM_APPLICATION_EVIDENCE_STATUSES = new Set<
-  PlatformApplicationStatus
->(["submitted", "under_review", "offer", "rejected", "enrolled"]);
-
-export type PlatformApplicationStatus =
-  (typeof PLATFORM_APPLICATION_STATUSES)[number];
 export type PlatformStudentCaseState = "pending" | "active" | "closed";
 export type PlatformRouteApprovalStatus = "draft" | "approved" | "rework";
 
@@ -108,31 +104,6 @@ export type PlatformSalesHandoffSummary = Readonly<{
   state: "active" | "closed";
   assignedCuratorDisplayName: string;
   handoffAt: string;
-}>;
-
-export type PlatformApplicationQueueRow = Readonly<{
-  organizationId: string;
-  universityApplicationId: string;
-  studentCaseId: string;
-  studentDisplayName: string;
-  targetCountry: string | null;
-  targetDegree: string | null;
-  programDirection: string | null;
-  intake: string | null;
-  institutionName: string;
-  programName: string;
-  status: PlatformApplicationStatus;
-  latestEvidenceReference: string | null;
-  createdAt: string;
-  updatedAt: string;
-  responsibleSalesDisplayName: string;
-  currentCuratorDisplayName: string | null;
-  documentCount: number;
-  openDocumentCount: number;
-  taskCount: number;
-  openTaskCount: number;
-  paymentObligationCount: number;
-  outstandingPaymentObligationCount: number;
 }>;
 
 export type PlatformStudentCaseView =

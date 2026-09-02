@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-function source(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+function path(relativePath) {
+  return new URL(`../${relativePath}`, import.meta.url);
 }
 
-test("V2-8C removes the superseded Admissions document runtime files", () => {
-  for (const path of [
+function source(relativePath) {
+  return readFileSync(path(relativePath), "utf8");
+}
+
+test("the earlier V2-8C document screens remain retired", () => {
+  for (const relativePath of [
     "src/app/(staff)/clients/[id]/StudentWorkspace.tsx",
     "src/app/(staff)/clients/[id]/StudentWorkspacePresenter.tsx",
     "src/app/(staff)/documents/[id]/page.tsx",
@@ -20,128 +24,55 @@ test("V2-8C removes the superseded Admissions document runtime files", () => {
     "src/lib/platform-admissions-case-workspace-actions.ts",
     "src/lib/platform-document-review.ts",
     "src/lib/platform-document-review-actions.ts",
-    "src/lib/platform-student-profile-actions.ts",
     "tests/e2e/platform-documents-experience.spec.ts",
     "tests/platform-admissions-case-workspace.test.mjs",
   ]) {
     assert.equal(
-      existsSync(new URL(`../${path}`, import.meta.url)),
+      existsSync(path(relativePath)),
       false,
-      `${path} must be removed once the V2-8C replacement is proven`,
+      `${relativePath} must remain removed`,
     );
   }
 });
 
-test("V2-8C keeps one canonical private-document write path with no fallback imports", () => {
+test("Student 360 owns the single current Supabase document workspace", () => {
   const student360 = source(
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
-  const operationsSection = source(
-    "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
+  const panel = source(
+    "src/components/platform/documents/PlatformPrivateDocumentsPanel.tsx",
   );
-  const privateDocumentsPanel = source(
-    "src/components/platform/documents/CanonicalPrivateDocumentsPanel.tsx",
-  );
-  const documentsQueue = source("src/app/(staff)/documents/(queue)/page.tsx");
+  const queue = source("src/app/(staff)/documents/(queue)/page.tsx");
 
-  assert.match(student360, /<AdmissionsCaseOperationsSection/);
+  assert.match(student360, /getPlatformCaseDocumentWorkspace\(actor, id\)/);
+  assert.match(student360, /<PlatformPrivateDocumentsPanel/);
+  assert.match(panel, /\/api\/v2\/document-slots\/\$\{documentSlotId\}\/versions/);
+  assert.match(panel, /\/api\/v2\/document-versions\/\$\{version\.documentVersionId\}\/download/);
+  assert.match(queue, /listPlatformDocumentQueue\(actor\)/);
+  assert.match(queue, /`\/clients\/\$\{row\.studentCaseId\}#case-documents`/);
   assert.doesNotMatch(
-    student360,
-    /CanonicalStudentCaseWorkspace|StudentWorkspace|StudentWorkspacePresenter|platform-admissions-case-workspace|platform-document-review|@\/lib\/(?:actions|queries|db)|sqlite|fallback/i,
-  );
-
-  assert.match(operationsSection, /listPrivateDocumentsForCase\(\{/);
-  assert.match(operationsSection, /<CanonicalPrivateDocumentsPanel/);
-  assert.doesNotMatch(
-    operationsSection,
-    /CanonicalStudentCaseWorkspace|StudentWorkspace|StudentWorkspacePresenter|platform-admissions-case-workspace|platform-document-review|@\/lib\/(?:actions|queries|db)|sqlite|fallback/i,
-  );
-
-  assert.match(privateDocumentsPanel, /\/api\/v2\/documents/);
-  assert.match(privateDocumentsPanel, /\/api\/v2\/document-versions\//);
-  assert.doesNotMatch(
-    privateDocumentsPanel,
-    /objectKey|StudentWorkspace|platform-document-review|@\/lib\/(?:actions|queries|db)|supabase|sqlite|fallback/i,
-  );
-
-  assert.match(documentsQueue, /listPrivateDocuments\(\{/);
-  assert.match(documentsQueue, /`\/clients\/\$\{document\.caseId\}#documents`/);
-  assert.doesNotMatch(
-    documentsQueue,
-    /<form|\/documents\/\$\{|DocumentDecisionPanel|DocumentJourney|DocumentSubmitButton|document-copy|@\/lib\/(?:actions|queries|db)|supabase|sqlite|fallback/i,
+    `${student360}\n${panel}\n${queue}`,
+    /StudentWorkspace|from\s+["']@\/lib\/platform-document-review|private-document-repository|canonical-crm-repository|@\/lib\/(?:actions|queries|db)|drizzle|sqlite|fallback/i,
   );
 });
 
-test("V2-8C removes the superseded Student 360 route shell once the replacement is proven", () => {
-  assert.equal(
-    existsSync(
-      new URL(
-        "../src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
-        import.meta.url,
-      ),
-    ),
-    false,
-    "CanonicalStudentCaseWorkspace.tsx must be deleted after the Supabase Student 360 shell is live",
-  );
-});
-
-test("V2-8C removes stale document assertions from fixture browser suites", () => {
-  for (const path of [
-    "tests/e2e/production-smoke.spec.ts",
-    "tests/e2e/platform-operations.spec.ts",
-  ]) {
-    assert.doesNotMatch(
-      source(path),
-      /["']\/documents["']|Очередь документов|href\^=["']\/documents\//,
-      `${path} must not exercise the replaced fixture/SQLite document UI`,
-    );
-  }
-});
-
-test("V2-8C removes the legacy SQLite document authority from active runtime", () => {
+test("active frontend fixtures do not reintroduce SQLite document authority", () => {
   const legacyDocumentPattern =
-    /(?:CREATE TABLE IF NOT EXISTS|FROM|JOIN|INSERT INTO|UPDATE|DELETE FROM)\s+documents\b|clientDocuments(?:ForActor)?|documentsInReview|byDocumentStatus/i;
-
-  for (const path of [
-    "src/lib/db.ts",
-    "src/lib/queries.ts",
-    "src/app/(staff)/dashboard/page.tsx",
-    "tests/e2e/platform-navigation-dashboard-polish.spec.ts",
-    "tests/e2e/production-smoke.spec.ts",
+    /\b(?:listDocumentsForActor|getDocumentById|documents\.(?:filter|find)|SEED_DOCUMENTS)\b/;
+  for (const relativePath of [
+    "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
+    "src/app/(staff)/documents/(queue)/page.tsx",
+    "tests/e2e/role-preview.spec.ts",
+    "tests/e2e/real-user-journeys.spec.ts",
   ]) {
-    assert.doesNotMatch(
-      source(path),
-      legacyDocumentPattern,
-      `${path} must not retain a SQLite document read, seed, KPI, or fixture path`,
-    );
+    if (!existsSync(path(relativePath))) continue;
+    assert.doesNotMatch(source(relativePath), legacyDocumentPattern, relativePath);
   }
 });
 
-test("V2 real-service proof never terminates an existing development server", () => {
+test("real-service proof never terminates an existing development server", () => {
   const harness = source("scripts/test-postgres-v2-foundation.sh");
-
   assert.match(harness, /assert_next_dev_lock_available/);
   assert.match(harness, /No process was terminated/);
   assert.doesNotMatch(harness, /stop_stale_next_dev_server|kill\s+["']?\$stale_pid/);
-});
-
-test("V2 real-service proof waits for the exact database route before browser acceptance", () => {
-  const harness = source("scripts/test-postgres-v2-foundation.sh");
-
-  assert.match(harness, /database_status_code=/);
-  assert.match(harness, /\/api\/database\/status/);
-  assert.match(harness, /database_status_code" == "200".*database_status_code" == "503"/s);
-});
-
-test("V2 private document uploads stream to storage without whole-body parsing", () => {
-  const route = source("src/lib/server/private-document-route-handlers.ts");
-  const multipart = source("src/lib/server/private-document-multipart.ts");
-  const files = source("src/lib/server/private-document-files.ts");
-
-  assert.doesNotMatch(route, /readMultipartFormData|\.formData\(|\.arrayBuffer\(/);
-  assert.match(multipart, /Busboy/);
-  assert.match(multipart, /pipeline\(/);
-  assert.doesNotMatch(multipart, /Buffer\.concat|\.formData\(|\.arrayBuffer\(/);
-  assert.match(files, /for await \(const value of input\.chunks\)/);
-  assert.doesNotMatch(files, /PreparedPrivateDocumentFile|preparedStates/);
 });

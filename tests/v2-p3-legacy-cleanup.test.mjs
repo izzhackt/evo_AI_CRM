@@ -45,25 +45,31 @@ test("P3 active routes have one Supabase authority and no legacy fallback import
   );
 });
 
-test("P3 keeps only the two named later-owned repository wrappers", () => {
+test("P4 retires the Admissions wrapper and leaves only the later-owned amoCRM wrapper", () => {
   const studentWorkspace = source(
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-  );
-  const operationsWrapper = source(
-    "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
   );
   const amocrmWrapper = source(
     "src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
   );
 
-  assert.match(studentWorkspace, /<AdmissionsCaseOperationsSection/);
+  assert.equal(
+    existsSync(
+      new URL(
+        "../src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
+        import.meta.url,
+      ),
+    ),
+    false,
+  );
+  assert.match(studentWorkspace, /<PlatformAdmissionsTaskPanel/);
+  assert.match(studentWorkspace, /<PlatformAdmissionsOperationsPanel/);
+  assert.match(studentWorkspace, /<PlatformPrivateDocumentsPanel/);
   assert.match(studentWorkspace, /<AmoCrmCaseCommandSection/);
   assert.doesNotMatch(studentWorkspace, /canonical-crm-repository|private-document-repository/);
-  assert.match(operationsWrapper, /canonical-crm-repository/);
-  assert.match(operationsWrapper, /private-document-repository/);
   assert.match(amocrmWrapper, /canonical-amocrm-command/);
   assert.doesNotMatch(
-    `${operationsWrapper}\n${amocrmWrapper}`,
+    amocrmWrapper,
     /getCanonicalLeadGateSnapshot|recordCanonicalSalesGateEvidence|handoffCanonicalLeadToAdmissions|getCanonicalStudentCaseSnapshot/,
   );
 });

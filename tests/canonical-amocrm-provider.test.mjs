@@ -616,7 +616,7 @@ test("canonical amoCRM emits the reviewed contact, lead, link, note, stage, resp
     },
     {
       _embedded: {
-        tasks: [{ id: 404, entity_id: 202, request_id: "l-task" }],
+        tasks: [{ id: 404, request_id: "l-task" }],
       },
     },
     { _embedded: { leads: [{ id: 202 }] } },

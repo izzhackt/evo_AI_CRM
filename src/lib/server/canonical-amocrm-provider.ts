@@ -1225,11 +1225,7 @@ export function createCanonicalAmoCrmWriteProvider(
               : { task_type_id: providerEntityId(input.taskTypeId).json }),
           },
         ],
-        (value) =>
-          providerCreatedEntityId(value, "tasks", input.requestId, {
-            field: "entity_id",
-            id: leadId.text,
-          }),
+        (value) => providerCreatedEntityId(value, "tasks", input.requestId),
       );
     },
     prepareUpdateLeadTags: (input) => {

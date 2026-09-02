@@ -1,6 +1,7 @@
 "use client";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SupabasePublicConfig } from "./config";
 
 const browserClients = new Map<string, Map<string, SupabaseClient>>();
@@ -16,13 +17,7 @@ export function createSupabaseBrowserClient({
   const existingClient = clientsForUrl?.get(publishableKey);
   if (existingClient) return existingClient;
 
-  const browserClient = createClient(url, publishableKey, {
-    auth: {
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      persistSession: false,
-    },
-  });
+  const browserClient = createBrowserClient(url, publishableKey);
   if (clientsForUrl) {
     clientsForUrl.set(publishableKey, browserClient);
   } else {

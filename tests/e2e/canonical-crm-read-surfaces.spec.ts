@@ -51,23 +51,23 @@ function requireUuid(name: string): string {
 type TestRole = "admin" | "sales" | "admissions";
 
 function credentials(role: TestRole) {
-  const prefix = `EVO_DEV_GATE_${role.toUpperCase()}`;
-  const identifier = process.env[`${prefix}_IDENTIFIER`];
-  const secret = process.env[`${prefix}_SECRET`];
+  const prefix = `EVO_STAFF_AUTH_${role.toUpperCase()}`;
+  const identifier = process.env[`${prefix}_EMAIL`];
+  const secret = process.env[`${prefix}_PASSWORD`];
   if (!identifier || !secret) {
     throw new Error(`missing browser credential for ${role}`);
   }
   return { identifier, secret };
 }
 
-async function submitGate(page: Page, role: TestRole) {
+async function signInAs(page: Page, role: TestRole) {
   const { identifier, secret } = credentials(role);
   await page.context().clearCookies();
   await page.goto("/login");
-  await page.locator("#gate-identifier").fill(identifier);
-  await page.locator("#gate-secret").fill(secret);
-  await page.getByRole("button", { name: "Открыть CRM" }).click();
-  await expect(page.getByTestId("development-workspace")).toBeVisible();
+  await page.locator("#staff-email").fill(identifier);
+  await page.locator("#staff-password").fill(secret);
+  await page.getByRole("button", { name: "Войти в CRM" }).click();
+  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
   await page.getByTestId("open-role-workspace").click();
 }
 
@@ -466,12 +466,12 @@ test("missing PostgreSQL authority fails closed without a read fallback", async 
 }) => {
   test.skip(mode !== "unavailable", "only exercised in unavailable mode");
 
-  await submitGate(page, "admissions");
+  await signInAs(page, "admissions");
   await expect(page).toHaveURL(/\/clients(?:\?|$)/);
   await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
   await expect(page.getByTestId("canonical-student-cases-page")).toHaveCount(0);
 
-  await submitGate(page, "sales");
+  await signInAs(page, "sales");
   await expect(page).toHaveURL(/\/sales(?:\?|$)/);
   await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
   await expect(page.getByTestId("canonical-sales-page")).toBeVisible();
@@ -590,7 +590,7 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
   });
   expect((await postSignedInbound(request, changedRawBody)).status()).toBe(409);
 
-  await submitGate(page, "sales");
+  await signInAs(page, "sales");
   await page.goto(`/sales?q=${encodeURIComponent(inboundPhone)}`);
   await expect(
     page.locator(
@@ -988,7 +988,7 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     ).toHaveCount(0);
   }
 
-  await submitGate(page, "admissions");
+  await signInAs(page, "admissions");
   await page.goto("/whatsapp");
   await expect(page.getByTestId("canonical-staff-whatsapp-page")).toBeVisible();
   await expect(
@@ -1002,7 +1002,7 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
   ).toBeVisible();
   await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toHaveCount(0);
 
-  await submitGate(page, "admin");
+  await signInAs(page, "admin");
   await page.goto(`/whatsapp/${conversationId}`);
   await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
     latestThreadPageText,
@@ -1027,13 +1027,19 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     page.locator(
       `[data-testid="canonical-staff-whatsapp-row"][data-conversation-id="${conversationId}"]`,
     ),
-  ).toHaveCount(0);
-  await page.goto(`/whatsapp/${conversationId}`);
-  await expect(
-    page.getByRole("heading", { name: "404", exact: true }),
   ).toBeVisible();
-  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toHaveCount(0);
+  await page.goto(`/whatsapp/${conversationId}`);
+  await expect(page.getByTestId("canonical-staff-whatsapp-thread")).toContainText(
+    latestThreadPageText,
+  );
 
+  await signInAs(page, "sales");
+  await page.goto(`/sales/${leadId}/conversations/${conversationId}`);
+  await expect(page.getByTestId("canonical-sales-transcript")).toContainText(
+    latestThreadPageText,
+  );
+
+  await signInAs(page, "admin");
   await page.goto("/");
   await page.getByTestId("preview-role-sales").click();
   await expect(page.getByTestId("active-role")).toHaveAttribute(
@@ -1055,7 +1061,7 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     ),
   ).toBeVisible();
 
-  await submitGate(page, "admissions");
+  await signInAs(page, "admissions");
   await page.goto(`/sales/${leadId}/conversations/${conversationId}`);
   await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales/);
   await expect(page.getByTestId("canonical-sales-transcript")).toHaveCount(0);
@@ -1065,7 +1071,7 @@ test("Admissions reads the real canonical Student Case queue", async ({ page }) 
   test.skip(mode !== "configured", "only exercised in configured mode");
   const studentCaseId = requireUuid("EVO_CANONICAL_STUDENT_CASE_ID");
 
-  await submitGate(page, "admissions");
+  await signInAs(page, "admissions");
   await expect(page).toHaveURL(/\/clients(?:\?|$)/);
   await expect(page.getByTestId("canonical-student-cases-page")).toBeVisible();
   await expect(
@@ -1088,7 +1094,7 @@ test("Sales reads and updates the real canonical PostgreSQL workflow", async ({
   test.skip(mode !== "configured", "only exercised in configured mode");
   const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
 
-  await submitGate(page, "sales");
+  await signInAs(page, "sales");
   await expect(page).toHaveURL(/\/sales(?:\?|$)/);
   await expect(page.getByTestId("canonical-sales-page")).toBeVisible();
   await expect(page.getByTestId("canonical-lead-row").first()).toBeVisible();
@@ -1141,12 +1147,12 @@ test("Admin sees the Sales union while Admissions stays server-denied", async ({
   test.skip(mode !== "configured", "only exercised in configured mode");
   const leadId = requireUuid("EVO_CANONICAL_OVERRIDE_LEAD_ID");
 
-  await submitGate(page, "admin");
+  await signInAs(page, "admin");
   await page.goto(`/sales/${leadId}`);
   await expect(page.getByTestId("canonical-lead-detail")).toBeVisible();
   await expect(page.getByTestId("canonical-sales-workflow-form")).toBeVisible();
 
-  await submitGate(page, "admissions");
+  await signInAs(page, "admissions");
   await page.goto("/sales");
   await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales/);
   await expect(page.getByTestId("canonical-sales-page")).toHaveCount(0);
@@ -1158,7 +1164,7 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
   test.skip(mode !== "configured", "only exercised in configured mode");
   const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
 
-  await submitGate(page, "sales");
+  await signInAs(page, "sales");
   await page.goto(`/sales/${leadId}`);
   await expect(page.getByTestId("canonical-lead-detail")).toBeVisible();
 
@@ -1208,7 +1214,7 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
   expect(referencedCaseId).toBeTruthy();
   const caseHref = `/clients/${referencedCaseId}`;
 
-  await submitGate(page, "admissions");
+  await signInAs(page, "admissions");
   await page.goto(caseHref!);
   await expect(
     page.getByTestId("canonical-student-case-workspace"),
@@ -1392,13 +1398,13 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
     caseQueueTasks.filter({ hasText: cancelledTaskTitle }),
   ).toContainText(cancellationReason);
 
-  await submitGate(page, "sales");
+  await signInAs(page, "sales");
   for (const deniedRoute of ["/tasks", "/applications", "/visa", "/finance"]) {
     await page.goto(deniedRoute);
     await expect(page).toHaveURL(/\/access-denied\?from=/);
   }
 
-  await submitGate(page, "admin");
+  await signInAs(page, "admin");
   await page.goto(caseHref!);
   const releaseReason = "Admin подтвердил снятие внутреннего ограничения";
   const releaseStopForm = page.getByTestId("canonical-finance-stop-release-form");
@@ -1494,7 +1500,7 @@ test("Admin records a reasoned exception and opens the resulting case", async ({
   test.skip(mode !== "configured", "only exercised in configured mode");
   const leadId = requireUuid("EVO_CANONICAL_OVERRIDE_LEAD_ID");
 
-  await submitGate(page, "admin");
+  await signInAs(page, "admin");
   await page.goto(`/sales/${leadId}`);
   const overrideReason = "Browser-verified Admin exception for CRM validation";
   const handoffForm = page.getByTestId("canonical-sales-handoff-form");

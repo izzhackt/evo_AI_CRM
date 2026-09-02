@@ -6,9 +6,9 @@ import { MobileStaffNav, StaffNav, type MobileNavCopy, type NavGroup } from "@/c
 import { TopBar } from "@/components/TopBar";
 import { EvoWordmark } from "@/components/platform/EvoWordmark";
 import {
-  logoutDevelopmentGateAction,
-  selectDevelopmentRolePreviewAction,
-} from "@/lib/development-gate-actions";
+  logoutStaffAction,
+  selectStaffRolePreviewAction,
+} from "@/lib/staff-auth-actions";
 import { STAFF_NAV_ITEMS, isStaffRole } from "@/lib/domain";
 import {
   FIXED_ROLE_ROUTES,
@@ -101,7 +101,10 @@ async function loadShellProvider(): Promise<ShellProvider> {
     import("@/components/platform/PlatformLangSwitcher"),
   ]);
   const actor = await guards.requirePlatformStaffActor();
-  if (!isFixedRole(actor.platformRole) || !isStaffRole(actor.platformRole)) {
+  if (
+    !isFixedRole(actor.presentationRole) ||
+    !isStaffRole(actor.presentationRole)
+  ) {
     throw new Error("fixed_role_shell_received_unsupported_role");
   }
   const amoAvailability = readCanonicalAmoCrmProviderAvailability();
@@ -111,12 +114,12 @@ async function loadShellProvider(): Promise<ShellProvider> {
   return {
     user: {
       name: actor.displayName,
-      role: actor.platformRole,
+      role: actor.presentationRole,
       authorityRole: actor.authorityRole,
     },
-    homeHref: guards.platformHomeRoute(actor.platformRole),
+    homeHref: guards.platformHomeRoute(actor.presentationRole),
     availableRoutes: new Set(FIXED_ROLE_ROUTES),
-    logout: logoutDevelopmentGateAction,
+    logout: logoutStaffAction,
     LanguageSwitcher: language.PlatformLangSwitcher,
     integrationStatus: {
       ai: providerDisplayStatus(geminiAvailability),
@@ -260,7 +263,7 @@ export default async function StaffLayout({
               <p className="text-sm font-semibold text-fg">
                 Admin preview: {provider.user.role}
               </p>
-              <form action={selectDevelopmentRolePreviewAction} className="flex flex-wrap gap-2">
+              <form action={selectStaffRolePreviewAction} className="flex flex-wrap gap-2">
                 {(["admin", "sales", "admissions"] as const).map((role) => (
                   <button
                     key={role}

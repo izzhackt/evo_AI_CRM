@@ -15035,3 +15035,34 @@ Therefore the preserved self-hosted section is now explicitly historical in its
 headings and verb tense. No historical evidence was removed and no scope was
 reopened: the self-hosted contour remains completed V2 proof only, while the
 active contract stays the managed-Supabase production-successor sequence.
+
+## 2026-09-02 - Split the real staff and Sales tracer into three replacement PRs
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: active P2 execution decomposition; no production or provider
+mutation.
+Affected plan section: issue #546 real staff and Sales tracer.
+
+The P1 audit proved the retained managed Supabase foundation, while code and
+migration inspection showed that replacing staff identity and replacing the
+complete Sales repository in one review would mix three independently
+verifiable authority changes. Issue #546 therefore remains one end-to-end
+outcome but is delivered sequentially as P2A real Supabase staff session and
+role shell, P2B canonical Sales reads, and P2C canonical Sales writes plus
+legacy eradication. The issue closes only after all three are merged and the
+scoped runtime inventory is empty.
+
+The database's existing `curator` enum value is explicitly retained as the
+technical representation of the human-facing Admissions Manager role. The
+server performs one fail-closed mapping after live membership validation; this
+is naming adaptation inside the single authority, not a parallel role or
+compatibility path. Admin preview remains presentation-only and cannot change
+the authenticated Supabase authority.
+
+P2A uses Supabase's official cookie-backed SSR, verified-JWT, custom-claim and
+live RLS patterns. It removes the two-field development gate in the same PR
+after real local Supabase, direct authorization and Chromium proof. P2B and P2C
+then replace and delete the Drizzle Sales read and write paths respectively.
+None of these local/isolated PRs authorizes a production migration, Auth change,
+data copy, provider side effect or traffic switch.

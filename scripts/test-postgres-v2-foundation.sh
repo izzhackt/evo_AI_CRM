@@ -5,9 +5,18 @@ umask 077
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 node_bin="${EVO_NODE_BIN:-node}"
 project_name="evo-database-foundation-$RANDOM-$$"
+supabase_lock_dir="${TMPDIR:-/tmp}/evo-platform-local-supabase-foundation.lock"
+if ! mkdir "$supabase_lock_dir" 2>/dev/null; then
+  echo "Another EVO local Supabase foundation harness is already running: ${supabase_lock_dir}" >&2
+  exit 1
+fi
+supabase_lock_acquired=1
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/evo-database-foundation.XXXXXX")"
 env_file="$tmp_dir/postgres.env"
 app_log="$tmp_dir/app.log"
+supabase_log="$tmp_dir/supabase.log"
+supabase_env_file="$tmp_dir/supabase.env"
+staff_provision_log="$tmp_dir/staff-provision.log"
 waha_log="$tmp_dir/waha.log"
 waha_acceptance_result="$tmp_dir/waha-acceptance.json"
 verification_log="$tmp_dir/verification.log"
@@ -45,6 +54,38 @@ server.listen(0, "127.0.0.1", () => {
 EOF
 }
 
+read_supabase_env_value() {
+  local name="$1"
+  local line=""
+  local value=""
+
+  line="$(grep -m 1 -E "^${name}=" "$supabase_env_file" || true)"
+  [[ -n "$line" ]] || fail "Local Supabase status did not provide ${name}"
+  value="${line#*=}"
+  value="${value#\"}"
+  value="${value%\"}"
+  [[ -n "$value" ]] || fail "Local Supabase status provided an empty ${name}"
+  printf '%s' "$value"
+}
+
+wait_for_local_supabase_auth_admin() {
+  local api_url="$1"
+  local service_role_key="$2"
+
+  API_URL="$api_url" \
+    SERVICE_ROLE_KEY="$service_role_key" \
+    "$node_bin" --input-type=module <<'EOF'
+import { waitForLocalSupabaseAuthAdmin } from "./scripts/supabase-auth-readiness.mjs";
+
+await waitForLocalSupabaseAuthAdmin({
+  apiUrl: process.env.API_URL,
+  serviceRoleKey: process.env.SERVICE_ROLE_KEY,
+  maxAttempts: 1200,
+  readinessTimeoutMs: 300000,
+});
+EOF
+}
+
 cleanup() {
   if [[ -n "$app_pid" ]]; then
     kill "$app_pid" >/dev/null 2>&1 || true
@@ -59,6 +100,10 @@ cleanup() {
   fi
   if [[ -d "$tmp_dir" && "$tmp_dir" == "${TMPDIR:-/tmp}/evo-database-foundation."* ]]; then
     rm -R -- "$tmp_dir"
+  fi
+  if [[ "${supabase_lock_acquired:-0}" == "1" ]]; then
+    rmdir "$supabase_lock_dir" >/dev/null 2>&1 || true
+    supabase_lock_acquired=0
   fi
 }
 trap cleanup EXIT
@@ -91,13 +136,17 @@ postgres_user="evo_foundation"
 postgres_database="evo_foundation"
 broken_database="evo_foundation_broken"
 postgres_password="$(openssl rand -hex 24)"
-gate_session_secret="$(openssl rand -hex 32)"
-gate_admin_identifier="director-local-$RANDOM"
-gate_admin_secret="$(openssl rand -hex 32)"
-gate_sales_identifier="sales-local-$RANDOM"
-gate_sales_secret="$(openssl rand -hex 32)"
-gate_admissions_identifier="admissions-local-$RANDOM"
-gate_admissions_secret="$(openssl rand -hex 32)"
+staff_identity_suffix="${RANDOM}-$$-$(openssl rand -hex 4)"
+staff_admin_email="admin-${staff_identity_suffix}@evo.local.test"
+staff_admin_password="$(openssl rand -hex 24)"
+staff_sales_email="sales-${staff_identity_suffix}@evo.local.test"
+staff_sales_password="$(openssl rand -hex 24)"
+staff_admissions_email="admissions-${staff_identity_suffix}@evo.local.test"
+staff_admissions_password="$(openssl rand -hex 24)"
+supabase_api_url=""
+supabase_publishable_key=""
+supabase_service_role_key=""
+supabase_database_url=""
 whatsapp_inbound_secret="$(openssl rand -hex 32)"
 waha_api_key="technical-waha-provider-key"
 waha_session_name="evo-v2-technical"
@@ -126,6 +175,71 @@ POSTGRES_DB=$postgres_database
 POSTGRES_PORT=$postgres_port
 EOF
 chmod 600 "$env_file"
+
+if ! (
+  cd "$repo_root"
+  npx --no-install supabase start --yes
+) >"$supabase_log" 2>&1; then
+  fail "The disposable local Supabase stack did not start; inspect its private harness log"
+fi
+if ! (
+  cd "$repo_root"
+  npx --no-install supabase db reset --local --no-seed --yes
+) >>"$supabase_log" 2>&1; then
+  fail "The disposable local Supabase database did not reset to repository migrations"
+fi
+if ! (
+  cd "$repo_root"
+  npx --no-install supabase status -o env
+) >"$supabase_env_file" 2>>"$supabase_log"; then
+  fail "The disposable local Supabase stack did not expose its local runtime configuration"
+fi
+chmod 600 "$supabase_env_file" "$supabase_log"
+
+supabase_api_url="$(read_supabase_env_value API_URL)"
+supabase_publishable_key="$(read_supabase_env_value PUBLISHABLE_KEY)"
+supabase_service_role_key="$(read_supabase_env_value SERVICE_ROLE_KEY)"
+supabase_database_url="$(read_supabase_env_value DB_URL)"
+[[ "$supabase_api_url" == http://127.0.0.1:* || "$supabase_api_url" == http://localhost:* ]] \
+  || fail "The local Supabase API URL is not loopback-only"
+[[ "$supabase_database_url" == postgresql://*@127.0.0.1:*/* || "$supabase_database_url" == postgresql://*@localhost:*/* ]] \
+  || fail "The local Supabase database URL is not loopback-only"
+[[ ${#supabase_publishable_key} -ge 16 && ${#supabase_service_role_key} -ge 16 ]] \
+  || fail "The local Supabase stack returned malformed API keys"
+if ! wait_for_local_supabase_auth_admin "$supabase_api_url" "$supabase_service_role_key" \
+  >>"$supabase_log" 2>&1; then
+  fail "The local Supabase Auth Admin API did not become ready"
+fi
+
+if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+  SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+  EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+  EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+  EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+  EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
+  "$node_bin" scripts/provision-local-supabase-staff.mjs \
+    >"$staff_provision_log" 2>&1; then
+  provision_failure="$(grep -m 1 -E '^LOCAL_SUPABASE_STAFF_ERROR:[A-Z0-9_]+$' "$staff_provision_log" || true)"
+  [[ -z "$provision_failure" ]] || echo "$provision_failure" >&2
+  fail "Local Supabase staff identity and RLS provisioning failed"
+fi
+grep -Fx "LOCAL_SUPABASE_STAFF_PROVISIONED" "$staff_provision_log" >/dev/null \
+  || fail "Local Supabase staff provisioning did not return its success marker"
+for sensitive_value in \
+  "$supabase_service_role_key" \
+  "$staff_admin_email" \
+  "$staff_admin_password" \
+  "$staff_sales_email" \
+  "$staff_sales_password" \
+  "$staff_admissions_email" \
+  "$staff_admissions_password"; do
+  if grep -F "$sensitive_value" "$staff_provision_log" >/dev/null; then
+    fail "Local Supabase staff provisioning exposed a credential in its output"
+  fi
+done
 
 docker compose "${compose_args[@]}" up --detach postgres >/dev/null
 container_id="$(docker compose "${compose_args[@]}" ps --quiet postgres)"
@@ -321,7 +435,7 @@ EOF
 
 start_app() {
   local app_database_url="$1"
-  local gate_mode="${2:-configured}"
+  local supabase_mode="${2:-configured}"
   local document_mode="${3:-configured}"
   local inbound_mode="${4:-configured}"
   local waha_mode="${5:-blocked}"
@@ -368,16 +482,18 @@ start_app() {
   fi
   assert_next_dev_lock_available
   : >"$app_log"
-  if [[ "$gate_mode" == "configured" ]]; then
+  if [[ "$supabase_mode" == "configured" ]]; then
     DATABASE_URL="$app_database_url" \
       EVO_PRIVATE_DOCUMENT_ROOT="$document_root" \
-      EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
-      EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-      EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
-      EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-      EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
-      EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
-      EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+      NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+      EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
+      EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+      EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+      EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+      EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+      EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+      EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
       EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
       EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
       EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
@@ -402,15 +518,18 @@ start_app() {
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
   else
     env \
-      -u EVO_DEV_GATE_SESSION_SECRET \
-      -u EVO_DEV_GATE_ADMIN_IDENTIFIER \
-      -u EVO_DEV_GATE_ADMIN_SECRET \
-      -u EVO_DEV_GATE_SALES_IDENTIFIER \
-      -u EVO_DEV_GATE_SALES_SECRET \
-      -u EVO_DEV_GATE_ADMISSIONS_IDENTIFIER \
-      -u EVO_DEV_GATE_ADMISSIONS_SECRET \
+      -u NEXT_PUBLIC_SUPABASE_URL \
+      -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+      -u EVO_PLATFORM_SUPABASE_SECRET_KEY \
+      -u SUPABASE_SERVICE_ROLE_KEY \
       DATABASE_URL="$app_database_url" \
       EVO_PRIVATE_DOCUMENT_ROOT="$document_root" \
+      EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+      EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+      EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+      EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+      EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+      EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
       EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
       EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
       EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
@@ -490,20 +609,19 @@ browser_assert() {
       --config=playwright.database.config.ts
 }
 
-development_gate_browser_assert() {
-  local gate_mode="$1"
+supabase_staff_auth_browser_assert() {
+  local auth_mode="$1"
   assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
-    EVO_EXPECT_GATE_MODE="$gate_mode" \
-    EVO_DEV_GATE_SESSION_SECRET="$gate_session_secret" \
-    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
-    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
-    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
-    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    EVO_EXPECT_STAFF_AUTH_MODE="$auth_mode" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+    EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+    EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+    EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
-      --config=playwright.development-gate.config.ts
+      --config=playwright.supabase-staff-auth.config.ts
 }
 
 private_document_browser_assert() {
@@ -515,12 +633,12 @@ private_document_browser_assert() {
     EVO_PRIVATE_DOCUMENT_ID="${private_document_id:-}" \
     EVO_PRIVATE_DOCUMENT_VERSION_ID="${replacement_document_version_id:-}" \
     EVO_PRIVATE_DOCUMENT_ACCEPTANCE_RESULT_FILE="$private_document_acceptance_result" \
-    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
-    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
-    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
-    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+    EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+    EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+    EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       --config=playwright.private-documents.config.ts
 }
@@ -541,12 +659,12 @@ canonical_read_browser_assert() {
     EVO_V2_INBOUND_TEST_CONVERSATION_ID="$inbound_test_conversation_id" \
     EVO_V2_INBOUND_TEST_MESSAGE_ID="$inbound_test_message_id" \
     EVO_V2_INBOUND_TEST_TEXT="$inbound_test_text" \
-    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
-    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
-    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
-    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+    EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+    EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+    EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       --config=playwright.canonical-crm.config.ts
 }
@@ -564,12 +682,12 @@ amocrm_command_browser_assert() {
     EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_CASE_ID="$amocrm_admissions_blocking_case_id" \
     EVO_CANONICAL_LEAD_ID="${amocrm_sales_blocking_lead_id:-$canonical_lead_id}" \
     EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
-    EVO_DEV_GATE_ADMIN_IDENTIFIER="$gate_admin_identifier" \
-    EVO_DEV_GATE_ADMIN_SECRET="$gate_admin_secret" \
-    EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-    EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
-    EVO_DEV_GATE_ADMISSIONS_IDENTIFIER="$gate_admissions_identifier" \
-    EVO_DEV_GATE_ADMISSIONS_SECRET="$gate_admissions_secret" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+    EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+    EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+    EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       --config=playwright.config.ts \
       --project=desktop-chromium \
@@ -579,16 +697,16 @@ amocrm_command_browser_assert() {
 assert_no_secret_or_payload_logs() {
   local value
   for value in \
-    "gate-invalid-identifier-probe" \
-    "gate-invalid-secret-probe" \
-    "any-identifier" \
-    "any-secret" \
-    "$gate_admin_identifier" \
-    "$gate_admin_secret" \
-    "$gate_sales_identifier" \
-    "$gate_sales_secret" \
-    "$gate_admissions_identifier" \
-    "$gate_admissions_secret" \
+    "missing-staff@example.invalid" \
+    "invalid-password" \
+    "any@example.invalid" \
+    "any-password" \
+    "$staff_admin_email" \
+    "$staff_admin_password" \
+    "$staff_sales_email" \
+    "$staff_sales_password" \
+    "$staff_admissions_email" \
+    "$staff_admissions_password" \
     "$whatsapp_inbound_secret" \
     "$waha_api_key" \
     "$amocrm_token_probe" \
@@ -727,13 +845,13 @@ console.log(
 );
 EOF
 )"
-echo "Canonical CRM graph, transactional idempotency, gate and append-only event checks passed."
+echo "Canonical CRM graph, transactional idempotency, authorization and append-only event checks passed."
 
 stop_app
 start_isolated_waha_service
 start_app "$database_url" configured configured configured local-service
 browser_assert 200
-development_gate_browser_assert configured
+supabase_staff_auth_browser_assert configured
 canonical_read_browser_assert configured
 amocrm_command_browser_assert provider-not-authorized
 read -r \
@@ -1002,7 +1120,7 @@ assert_no_secret_or_payload_logs
 
 stop_app
 start_app "$database_url" unavailable
-development_gate_browser_assert unavailable
+supabase_staff_auth_browser_assert unavailable
 assert_no_secret_or_payload_logs
 
 stop_app
@@ -1025,4 +1143,4 @@ start_app "$database_url" configured configured configured blocked token-invalid
 amocrm_command_browser_assert token-invalid
 assert_no_secret_or_payload_logs
 
-echo "Real PostgreSQL, Drizzle, canonical CRM, development gate, private files, application and Chromium proof passed."
+echo "Real PostgreSQL, Drizzle, local Supabase Auth/RLS, canonical CRM, private files, application and Chromium proof passed."

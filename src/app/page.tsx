@@ -5,9 +5,9 @@ import { EvoIsometricField } from "@/components/platform/brand/EvoIsometricField
 import { EvoMark } from "@/components/platform/brand/EvoMark";
 
 import {
-  logoutDevelopmentGateAction,
-  selectDevelopmentRolePreviewAction,
-} from "@/lib/development-gate-actions";
+  logoutStaffAction,
+  selectStaffRolePreviewAction,
+} from "@/lib/staff-auth-actions";
 import { fixedRoleHomeRoute } from "@/lib/fixed-role-policy";
 import { requirePlatformActor } from "@/lib/platform-guards";
 import { buildRouteMetadata } from "@/lib/route-metadata";
@@ -44,15 +44,15 @@ export default async function Home() {
     requirePlatformActor(),
     readDatabaseStatus(),
   ]);
-  const role = actor.platformRole;
+  const role = actor.presentationRole;
   if (role !== "admin" && role !== "sales" && role !== "admissions") {
-    throw new Error("development_gate_issued_unsupported_role");
+    throw new Error("supabase_staff_authority_issued_unsupported_role");
   }
   const previewing = actor.authorityRole === "admin" && role !== "admin";
 
   return (
     <main
-      data-testid="development-workspace"
+      data-testid="staff-entry-workspace"
       className="relative min-h-dvh bg-bg px-4 py-8 text-fg sm:px-8"
     >
       <EvoIsometricField />
@@ -62,13 +62,13 @@ export default async function Home() {
             <EvoMark size={30} />
             <span>
               <span className="block text-md font-bold">EVO Admissions CRM</span>
-              <span className="block text-xs text-fg-3">Private local V2</span>
+              <span className="block text-xs text-fg-3">EVO staff workspace</span>
             </span>
           </div>
-          <form action={logoutDevelopmentGateAction}>
+          <form action={logoutStaffAction}>
             <button
               type="submit"
-              data-testid="development-logout"
+              data-testid="staff-logout"
               className="min-h-11 rounded-ctl border border-control-edge px-4 text-sm font-semibold transition-colors hover:bg-surface-2"
             >
               Выйти
@@ -81,8 +81,8 @@ export default async function Home() {
             Вход в EVO V2 подтверждён
           </h1>
           <p className="mt-3 max-w-[56ch] text-sm leading-6 text-fg-3">
-            Это техническая роль для локальной проверки CRM, а не аккаунт
-            сотрудника и не production-аутентификация.
+            Сессия сотрудника подтверждена через Supabase Auth. Сервер проверяет
+            реальную роль и доступ при каждом защищённом запросе.
           </p>
 
           {/* Label and value, so a description list rather than two boxes.
@@ -126,11 +126,11 @@ export default async function Home() {
                 Admin · точный просмотр роли
               </p>
               <p className="mt-2 max-w-[56ch] text-sm leading-6 text-fg-3">
-                Интерфейс и серверные проверки используют выбранную роль. Подпись
-                сессии сохраняет Admin как единственного владельца переключателя.
+                Выбранная роль меняет только представление интерфейса. Серверные
+                проверки продолжают использовать полные полномочия Admin.
               </p>
               <form
-                action={selectDevelopmentRolePreviewAction}
+                action={selectStaffRolePreviewAction}
                 className="mt-4 flex flex-wrap gap-2"
               >
                 {(["admin", "sales", "admissions"] as const).map((targetRole) => (
@@ -149,7 +149,8 @@ export default async function Home() {
               </form>
               {previewing ? (
                 <p data-testid="preview-active" className="mt-3 text-sm font-semibold text-accent">
-                  Admin сейчас ограничен точными правами {ROLE_LABELS[role]}.
+                  Admin просматривает интерфейс {ROLE_LABELS[role]}; полномочия
+                  Admin сохранены.
                 </p>
               ) : null}
             </section>

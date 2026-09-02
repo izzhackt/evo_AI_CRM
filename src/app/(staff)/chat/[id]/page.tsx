@@ -106,7 +106,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
                 <div className="min-w-0">
                   <div className="flex items-baseline gap-2">
                     <span className="text-base font-semibold text-fg">
-                      {m.author_name}{m.author_id === user?.id ? ` (${t("you")})` : ""}
+                      {m.author_name}{String(m.author_id) === user?.id ? ` (${t("you")})` : ""}
                     </span>
                     <span className="font-mono text-xs text-fg-3">{m.created_at}</span>
                   </div>

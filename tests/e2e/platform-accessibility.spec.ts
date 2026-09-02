@@ -52,29 +52,29 @@ const ROLE_DENIED_ROUTE: Readonly<Record<FixedRole, string | null>> = {
 };
 
 function credentials(role: FixedRole) {
-  const prefix = `EVO_DEV_GATE_${role.toUpperCase()}`;
-  const identifier = process.env[`${prefix}_IDENTIFIER`];
-  const secret = process.env[`${prefix}_SECRET`];
-  if (!identifier || !secret) {
-    throw new Error(`missing development gate credential for ${role}`);
+  const prefix = `EVO_STAFF_AUTH_${role.toUpperCase()}`;
+  const email = process.env[`${prefix}_EMAIL`];
+  const password = process.env[`${prefix}_PASSWORD`];
+  if (!email || !password) {
+    throw new Error(`missing Supabase staff credential for ${role}`);
   }
-  return { identifier, secret };
+  return { email, password };
 }
 
-async function openDevelopmentGate(
+async function signInAsStaff(
   page: Page,
   role: FixedRole,
   { stayOnEntry = false }: { stayOnEntry?: boolean } = {},
 ) {
-  const { identifier, secret } = credentials(role);
+  const { email, password } = credentials(role);
   await page.context().clearCookies();
   await page.goto("/login");
-  await page.locator("#gate-identifier").fill(identifier);
-  await page.locator("#gate-secret").fill(secret);
+  await page.locator("#staff-email").fill(email);
+  await page.locator("#staff-password").fill(password);
   await page
     .locator('form[aria-labelledby="login-title"] button[type="submit"]')
     .click();
-  await expect(page.getByTestId("development-workspace")).toBeVisible();
+  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
   // The entry page is a surface in its own right; callers auditing it stop here
   // rather than continuing into the staff shell.
   if (stayOnEntry) return;
@@ -140,7 +140,7 @@ for (const role of ["admin", "sales", "admissions"] as const) {
   test(`${role} staff routes meet the automated WCAG A/AA gate`, async ({
     page,
   }) => {
-    await openDevelopmentGate(page, role);
+    await signInAsStaff(page, role);
 
     for (const route of ROLE_ROUTES[role]) {
       await page.goto(route);
@@ -177,7 +177,7 @@ test("the unauthenticated gate and the entry page meet the WCAG A/AA gate", asyn
   await expectNoAutomatedWcagViolations(page, "login");
   await expectContrastActuallyChecked(page, "login");
 
-  await openDevelopmentGate(page, "admin", { stayOnEntry: true });
+  await signInAsStaff(page, "admin", { stayOnEntry: true });
   await expectExactlyOneMainHeading(page, "entry");
   await expectNoDocumentOverflow(page, "entry");
   await expectNoAutomatedWcagViolations(page, "entry");
@@ -189,7 +189,7 @@ test("the mobile page title is never truncated", async ({ page }, testInfo) => {
   // "Воронка поступления" rendered as "Воронка поступл…" while the h1 below
   // said something else, so the full label appeared nowhere on the screen.
   test.skip(testInfo.project.name !== "mobile-chromium", "phone layout only");
-  await openDevelopmentGate(page, "admin");
+  await signInAsStaff(page, "admin");
 
   for (const route of ROLE_ROUTES.admin) {
     await page.goto(route);
@@ -217,7 +217,7 @@ test("the conversation pane fits the fold for every role", async ({ page }, test
   test.skip(testInfo.project.name !== "desktop-chromium", "two-column layout only");
 
   for (const role of ["admin", "sales", "admissions"] as const) {
-    await openDevelopmentGate(page, role);
+    await signInAsStaff(page, role);
     await page.goto("/whatsapp");
     await expect(page.locator("main")).toBeVisible();
 
@@ -250,7 +250,7 @@ test("the conversation pane fits the fold for every role", async ({ page }, test
 test("a deferred module fails closed without accessibility violations", async ({
   page,
 }) => {
-  await openDevelopmentGate(page, "admin");
+  await signInAsStaff(page, "admin");
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/platform-pending/);
   await expectExactlyOneMainHeading(page, "platform-pending");

@@ -12,7 +12,7 @@ export type StudentCaseAuditEvent = (typeof STUDENT_CASE_AUDIT_EVENTS)[number];
 export const STUDENT_CASE_REASON_MAX_LENGTH = 1_000;
 
 type CaseActor = {
-  id: number;
+  id: string | number;
   role: string;
 };
 
@@ -45,7 +45,10 @@ export function canTransitionStudentCase(
   studentCase: AssignedCase,
 ): boolean {
   return actor.role === "admin"
-    || (actor.role === "curator" && studentCase.curatorId === actor.id);
+    || (
+      actor.role === "curator" &&
+      String(studentCase.curatorId) === String(actor.id)
+    );
 }
 
 export function nextCaseStateForAssignment(

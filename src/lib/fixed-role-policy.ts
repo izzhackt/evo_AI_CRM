@@ -1,7 +1,6 @@
-import {
-  DEVELOPMENT_GATE_ROLES,
-  type DevelopmentGateRole,
-} from "./development-gate-core.ts";
+import { STAFF_ROLES, type StaffRole } from "./roles.ts";
+
+export const FIXED_ROLES = STAFF_ROLES;
 
 export const FIXED_ROLE_CAPABILITIES = [
   "sales.read",
@@ -16,7 +15,7 @@ export const FIXED_ROLE_CAPABILITIES = [
 ] as const;
 
 export type FixedRoleCapability = (typeof FIXED_ROLE_CAPABILITIES)[number];
-export type FixedRole = DevelopmentGateRole;
+export type FixedRole = StaffRole;
 
 export const FIXED_ROLE_ROUTES = [
   "/sales",
@@ -65,7 +64,7 @@ const ROUTE_CAPABILITY = {
 export function isFixedRole(value: unknown): value is FixedRole {
   return (
     typeof value === "string" &&
-    (DEVELOPMENT_GATE_ROLES as readonly string[]).includes(value)
+    (FIXED_ROLES as readonly string[]).includes(value)
   );
 }
 

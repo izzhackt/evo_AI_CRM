@@ -4,7 +4,7 @@ import Link from "next/link";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { btnCls } from "@/components/ui";
-import { logoutDevelopmentGateAction } from "@/lib/development-gate-actions";
+import { logoutStaffAction } from "@/lib/staff-auth-actions";
 import { fixedRoleCan, isFixedRole } from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
@@ -24,21 +24,21 @@ const COPY: Record<
     title: "Раздел ещё не подключён",
     tabTitle: "Раздел не подключён",
     description:
-      "Ваша временная V2-сессия и тестовая роль проверены. Этот модуль ещё не заменён, поэтому старый runtime не запускался.",
+      "Ваша Supabase-сессия и активная роль сотрудника проверены. Этот модуль ещё не заменён, поэтому старый runtime не запускался.",
     openInbox: "Открыть сообщения",
   },
   ky: {
     title: "Бөлүм азырынча туташкан эмес",
     tabTitle: "Бөлүм туташкан эмес",
     description:
-      "Убактылуу V2 сессияңыз жана тесттик ролуңуз текшерилди. Бул модуль али алмаштырыла элек, ошондуктан эски runtime иштетилген жок.",
+      "Supabase кызматкер сессияңыз жана активдүү ролуңуз текшерилди. Бул модуль али алмаштырыла элек, ошондуктан эски runtime иштетилген жок.",
     openInbox: "Билдирүүлөрдү ачуу",
   },
   en: {
     title: "This module is not connected yet",
     tabTitle: "Module not connected",
     description:
-      "Your temporary V2 session and test role were verified. This module has not been replaced yet, so its old runtime was not started.",
+      "Your Supabase staff session and active role were verified. This module has not been replaced yet, so its old runtime was not started.",
     openInbox: "Open messaging",
   },
 };
@@ -57,8 +57,8 @@ export default async function PlatformPendingPage() {
   const { t, locale } = await getT();
   const copy = COPY[locale];
   const canOpenInbox =
-    isFixedRole(actor.platformRole) &&
-    fixedRoleCan(actor.platformRole, "messaging.read");
+    isFixedRole(actor.presentationRole) &&
+    fixedRoleCan(actor.presentationRole, "messaging.read");
 
   return (
     <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">
@@ -104,7 +104,7 @@ export default async function PlatformPendingPage() {
               {copy.openInbox}
             </Link>
           )}
-          <form action={logoutDevelopmentGateAction}>
+          <form action={logoutStaffAction}>
             <button type="submit" className={btnCls}>
               {t("logout")}
             </button>

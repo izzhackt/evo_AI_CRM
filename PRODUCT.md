@@ -67,10 +67,13 @@ server-authorised integration rather than a second source of truth.
 
 - One root Next.js application; App Router; three fixed roles enforced on the
   server, not in the client.
-- PostgreSQL is the only V2 business authority. No fixture, demo-seed, mock
-  provider, dual-read or fallback repository is permitted in the active path.
-- The login surface is a two-field local development gate that states plainly
-  that it is not production authentication.
+- Managed Supabase Postgres is the only production-successor business
+  authority. No fixture, demo-seed, mock provider, dual-read or fallback
+  repository is permitted in the active path.
+- Staff enter through Supabase Auth. Every protected request is checked against
+  the live staff profile, organization membership, role bundle and access
+  version before the server accepts it; there is no local development-gate
+  fallback.
 - Deferred modules (`/dashboard`, `/calls`, `/chat`, `/notifications`,
   `/reports`, `/portal`) fail closed rather than showing partial UI.
 - Business events are append-only; the database rejects mutation of the audit log.

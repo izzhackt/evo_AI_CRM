@@ -43,6 +43,12 @@ fail() {
   exit 1
 }
 
+require_env() {
+  local variable_name="$1"
+  [[ -n "${!variable_name:-}" ]] \
+    || fail "Required environment variable is missing: $variable_name"
+}
+
 free_port() {
   "$node_bin" --input-type=module <<'EOF'
 import { createServer } from "node:net";
@@ -149,6 +155,14 @@ esac
   || fail "EVO_V2_EXPECTED_PROVIDER_MESSAGE_ID_SHA256 must be the expected digest"
 [[ "$expected_provider_source" == "api" || "$expected_provider_source" == "app" ]] \
   || fail "EVO_V2_EXPECTED_PROVIDER_SOURCE must be exactly api or app"
+for variable_name in \
+  NEXT_PUBLIC_SUPABASE_URL \
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+  EVO_PLATFORM_SUPABASE_SECRET_KEY \
+  EVO_STAFF_AUTH_SALES_EMAIL \
+  EVO_STAFF_AUTH_SALES_PASSWORD; do
+  require_env "$variable_name"
+done
 if [[ "$finalize_only" == "1" ]]; then
   [[ "$recovery_occurred_sha" == "$fixed_recovery_occurred_sha" ]] \
     || fail "Finalization must identify the one exact main SHA where recovery occurred"
@@ -699,26 +713,15 @@ done
 [[ "$postgres_status" == "healthy" ]] \
   || fail "The preserved PostgreSQL container did not become healthy"
 
-gate_session_secret="$(openssl rand -hex 32)"
-gate_admin_identifier="director-waha-recovery-$RANDOM"
-gate_admin_secret="$(openssl rand -hex 32)"
-gate_sales_identifier="sales-waha-recovery-$RANDOM"
-gate_sales_secret="$(openssl rand -hex 32)"
-gate_admissions_identifier="admissions-waha-recovery-$RANDOM"
-gate_admissions_secret="$(openssl rand -hex 32)"
 inbound_secret="$(openssl rand -hex 32)"
 
 assert_next_dev_lock_available
 app_environment=(
   "DATABASE_URL=$database_url"
   "EVO_PRIVATE_DOCUMENT_ROOT=$private_document_root"
-  "EVO_DEV_GATE_SESSION_SECRET=$gate_session_secret"
-  "EVO_DEV_GATE_ADMIN_IDENTIFIER=$gate_admin_identifier"
-  "EVO_DEV_GATE_ADMIN_SECRET=$gate_admin_secret"
-  "EVO_DEV_GATE_SALES_IDENTIFIER=$gate_sales_identifier"
-  "EVO_DEV_GATE_SALES_SECRET=$gate_sales_secret"
-  "EVO_DEV_GATE_ADMISSIONS_IDENTIFIER=$gate_admissions_identifier"
-  "EVO_DEV_GATE_ADMISSIONS_SECRET=$gate_admissions_secret"
+  "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL"
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+  "EVO_PLATFORM_SUPABASE_SECRET_KEY=$EVO_PLATFORM_SUPABASE_SECRET_KEY"
   "EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET=$inbound_secret"
   "EVO_V2_GEMINI_PROPOSALS_ENABLED=0"
   "EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0"
@@ -765,8 +768,8 @@ if ! PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   EVO_V2_WAHA_EVIDENCE_DIR="$evidence_dir" \
   EVO_V2_EXPECTED_PROVIDER_MESSAGE_ID_SHA256="$expected_provider_id_sha256" \
   EVO_V2_EXPECTED_PROVIDER_SOURCE="$expected_provider_source" \
-  EVO_DEV_GATE_SALES_IDENTIFIER="$gate_sales_identifier" \
-  EVO_DEV_GATE_SALES_SECRET="$gate_sales_secret" \
+  EVO_STAFF_AUTH_SALES_EMAIL="$EVO_STAFF_AUTH_SALES_EMAIL" \
+  EVO_STAFF_AUTH_SALES_PASSWORD="$EVO_STAFF_AUTH_SALES_PASSWORD" \
   "$node_bin" node_modules/@playwright/test/cli.js test \
     tests/e2e/canonical-waha-connected-recovery.spec.ts \
     --config=playwright.config.ts \

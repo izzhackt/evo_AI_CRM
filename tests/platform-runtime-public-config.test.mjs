@@ -7,11 +7,11 @@ globalThis.__evoSupabaseBrowserClientCalls = [];
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === "@supabase/supabase-js") {
+    if (specifier === "@supabase/ssr") {
       return {
         shortCircuit: true,
         url: `data:text/javascript,${encodeURIComponent(`
-          export function createClient(url, publishableKey, options) {
+          export function createBrowserClient(url, publishableKey, options) {
             const client = Object.freeze({
               url,
               publishableKey,
@@ -81,11 +81,11 @@ test("browser clients are reused only for the exact runtime public configuration
     [staging, production, rotatedStagingKey],
   );
   for (const client of globalThis.__evoSupabaseBrowserClientCalls) {
-    assert.deepEqual(client.options.auth, {
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      persistSession: false,
-    });
+    assert.equal(
+      client.options,
+      undefined,
+      "the official SSR browser helper must retain authority over session cookies",
+    );
   }
 });
 

@@ -1,31 +1,43 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 
-import { getSupabasePublicConfig } from "./config";
+import { getSupabasePublicConfig } from "./config.ts";
 
 export type SupabaseServerContext = Readonly<{
   client: SupabaseClient;
 }>;
 
-function createAnonymousSupabaseClient(): SupabaseClient {
+export async function createSupabaseServerClient(): Promise<SupabaseClient> {
   const config = getSupabasePublicConfig();
-  return createClient(config.url, config.publishableKey, {
-    auth: {
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      persistSession: false,
+  const cookieStore = await cookies();
+
+  return createServerClient(config.url, config.publishableKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(
+        cookiesToSet: Array<{
+          name: string;
+          value: string;
+          options: CookieOptions;
+        }>,
+      ) {
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        } catch {
+          // Server Components cannot write cookies. The root proxy refreshes
+          // them before protected rendering; Actions and Route Handlers can
+          // write them normally.
+        }
+      },
     },
   });
 }
 
-/**
- * Temporary anonymous client for Supabase-backed business repositories that
- * expire in #429. It deliberately has no cookie/session storage and cannot be
- * used as a V2 access authority.
- */
 export async function createSupabaseServerContext(): Promise<SupabaseServerContext> {
-  return { client: createAnonymousSupabaseClient() };
-}
-
-export async function createSupabaseServerClient(): Promise<SupabaseClient> {
-  return createAnonymousSupabaseClient();
+  return { client: await createSupabaseServerClient() };
 }

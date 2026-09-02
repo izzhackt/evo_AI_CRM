@@ -13,43 +13,47 @@ const COPY: Record<
   Locale,
   Readonly<{
     accessDenied: string;
-    gateUnavailable: string;
-    identifier: string;
+    authUnavailable: string;
+    staffAccessDenied: string;
+    email: string;
     intro: string;
-    secret: string;
+    password: string;
     signIn: string;
     title: string;
   }>
 > = {
   ru: {
     accessDenied: "Не удалось войти. Проверьте оба значения.",
-    gateUnavailable: "Локальный доступ не настроен.",
-    identifier: "Идентификатор",
+    authUnavailable: "Сервис входа временно недоступен.",
+    staffAccessDenied: "Аккаунт не имеет активного доступа сотрудника EVO.",
+    email: "Рабочий email",
     intro:
-      "Закрытый локальный вход для проверки CRM. Это не аккаунт сотрудника и не production-аутентификация.",
-    secret: "Секрет",
-    signIn: "Открыть CRM",
-    title: "Доступ к EVO V2",
+      "Единый защищённый вход сотрудников EVO через Supabase Auth.",
+    password: "Пароль",
+    signIn: "Войти в CRM",
+    title: "Вход в EVO Admissions CRM",
   },
   ky: {
     accessDenied: "Кирүү ишке ашкан жок. Эки маанини тең текшериңиз.",
-    gateUnavailable: "Жергиликтүү кирүү жөндөлгөн эмес.",
-    identifier: "Идентификатор",
+    authUnavailable: "Кирүү кызматы убактылуу жеткиликсиз.",
+    staffAccessDenied: "Аккаунтта EVO кызматкеринин активдүү мүмкүнчүлүгү жок.",
+    email: "Жумуш email",
     intro:
-      "CRM текшерүү үчүн жабык жергиликтүү кирүү. Бул кызматкердин аккаунту же production-аутентификация эмес.",
-    secret: "Сыр",
-    signIn: "CRM ачуу",
-    title: "EVO V2 кирүү",
+      "EVO кызматкерлери үчүн Supabase Auth аркылуу бирдиктүү корголгон кирүү.",
+    password: "Сырсөз",
+    signIn: "CRMге кирүү",
+    title: "EVO Admissions CRMге кирүү",
   },
   en: {
     accessDenied: "Access was not granted. Check both values.",
-    gateUnavailable: "Local development access is not configured.",
-    identifier: "Identifier",
+    authUnavailable: "The sign-in service is temporarily unavailable.",
+    staffAccessDenied: "This account has no active EVO staff access.",
+    email: "Work email",
     intro:
-      "Private local access for CRM validation. This is not a staff account or production authentication.",
-    secret: "Secret",
-    signIn: "Open CRM",
-    title: "EVO V2 access",
+      "One protected EVO staff sign-in backed by Supabase Auth.",
+    password: "Password",
+    signIn: "Sign in to CRM",
+    title: "Sign in to EVO Admissions CRM",
   },
 };
 
@@ -80,8 +84,8 @@ export default async function LoginPage({
   const initialError =
     error === "session_invalid"
       ? "accessDenied"
-      : error === "gate_unavailable"
-        ? "gateUnavailable"
+      : error === "auth_unavailable"
+        ? "authUnavailable"
         : null;
 
   return (

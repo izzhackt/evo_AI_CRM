@@ -1119,7 +1119,17 @@ function providerFailureCode(error: unknown): string {
 
 function operationSequence(
   bindings: PlatformAmoCrmBindingsSnapshot,
+  workflowScope: PlatformAmoCrmWorkflowScope,
 ): readonly PlatformAmoCrmCommandOperationName[] {
+  if (workflowScope === "admissions_post_handoff") {
+    if (bindings.contactId === null) {
+      throw new Error("provider_contact_mapping_missing");
+    }
+    if (bindings.leadId === null) {
+      throw new Error("provider_lead_mapping_missing");
+    }
+  }
+
   return Object.freeze([
     bindings.contactId === null ? "contact_create" : "contact_update",
     bindings.leadId === null ? "lead_create" : "lead_update",
@@ -1174,7 +1184,10 @@ async function executeSequence(
     providerLeadId: input.bindings.leadId,
   });
 
-  for (const operationName of operationSequence(input.bindings)) {
+  for (const operationName of operationSequence(
+    input.bindings,
+    input.context.authorization.workflowScope,
+  )) {
     const prepared = await prepareStep(
       input.context,
       state,

@@ -16,6 +16,7 @@ registerHooks({
 });
 
 const {
+  executePlatformAmoCrmAdmissionsSync,
   executePlatformAmoCrmSalesSync,
   reconcilePlatformAmoCrmSyncAttempt,
 } = await import("../src/lib/server/platform-amocrm-command-service.ts");
@@ -701,6 +702,66 @@ test("sales sync rejects a non-future task deadline before any runtime call", as
   assert.equal(result.status, "error");
   assert.equal(result.reason, "invalid_task_complete_till");
   assert.equal(readCalled, true);
+});
+
+test("admissions sync fails closed instead of creating missing provider identities", async () => {
+  for (const scenario of [
+    {
+      bindings: { contactId: null, leadId: "900002" },
+      reason: "provider_contact_mapping_missing",
+    },
+    {
+      bindings: { contactId: "900001", leadId: null },
+      reason: "provider_lead_mapping_missing",
+    },
+    {
+      bindings: { contactId: null, leadId: null },
+      reason: "provider_contact_mapping_missing",
+    },
+  ]) {
+    const runState = {};
+    let prepareCalls = 0;
+    let claimCalls = 0;
+    const result = await executePlatformAmoCrmAdmissionsSync(
+      {
+        actor: actor(),
+        actorRole: "admissions",
+        studentCaseId: IDS.studentCase,
+        baseRequestId: IDS.request,
+        noteText: "Admissions reviewed note",
+        taskText: "Check the application tomorrow",
+        taskCompleteTill: 1790000000,
+      },
+      {
+        ...serviceDeps(runState),
+        getStudentCaseHandoffContext: async () => ({
+          organizationId: IDS.organization,
+          leadId: IDS.lead,
+          studentCaseId: IDS.studentCase,
+          clientContext: {
+            clientId: IDS.person,
+            displayName: "Amina Test",
+          },
+        }),
+        readBindings: async () => scenario.bindings,
+        prepareCommand: async () => {
+          prepareCalls += 1;
+          throw new Error("prepare_must_not_run");
+        },
+        claimCommand: async () => {
+          claimCalls += 1;
+          throw new Error("claim_must_not_run");
+        },
+      },
+    );
+
+    assert.equal(result.status, "blocked");
+    assert.equal(result.reason, scenario.reason);
+    assert.deepEqual(result.steps, []);
+    assert.equal(prepareCalls, 0);
+    assert.equal(claimCalls, 0);
+    assert.deepEqual(runState.runtime.dispatches, []);
+  }
 });
 
 test("transport ambiguity settles the step as unknown and stops further provider mutation", async () => {

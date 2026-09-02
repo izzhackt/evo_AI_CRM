@@ -392,10 +392,29 @@ ROLLBACK TO SAVEPOINT expect_p5c_wrong_person_target;
 \set ON_ERROR_STOP on
 RELEASE SAVEPOINT expect_p5c_wrong_person_target;
 
+SAVEPOINT expect_p5c_wrong_person_binding_read;
+\set ON_ERROR_STOP off
+SELECT platform.read_staff_amocrm_bindings(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  '92000000-0000-4000-8000-000000000121',
+  '92000000-0000-4000-8000-000000000102'
+);
+\set p5c_wrong_person_binding_read_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_wrong_person_binding_read;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_wrong_person_binding_read;
+
 SELECT pg_temp.assert_true(
   :'p5c_wrong_lead_target_state' = '42501'
-  AND :'p5c_wrong_person_target_state' = '42501',
-  'P5C command objects must belong to the exact authorized canonical workflow'
+  AND :'p5c_wrong_person_target_state' = '42501'
+  AND :'p5c_wrong_person_binding_read_state' = '42501',
+  'P5C command objects and binding reads must belong to the exact authorized canonical workflow'
 );
 
 SELECT pg_temp.assert_true(
@@ -585,13 +604,61 @@ SELECT platform.claim_amocrm_command(
 ) AS p5c_claim_blocked
 \gset
 
+RESET ROLE;
+SET ROLE authenticated;
+SET request.jwt.claims TO :'p5c_sales_claims';
+
+SELECT platform.read_staff_blocking_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  NULL,
+  '92000000-0000-4000-8000-000000000102'
+) AS p5c_claim_blocking_attempt
+\gset
+
+SAVEPOINT expect_p5c_claimed_target_blocked;
+\set ON_ERROR_STOP off
+SELECT platform.prepare_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  NULL,
+  '92000000-0000-4000-8000-000000000102',
+  'lead_create',
+  'p5c:lead-create:after-claim',
+  NULL,
+  NULL,
+  '{"name":"P5C Lead A duplicate"}'::JSONB
+);
+\set p5c_claimed_target_blocked_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_claimed_target_blocked;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_claimed_target_blocked;
+
+RESET ROLE;
+SET ROLE service_role;
+SET request.jwt.claims = '{"role":"service_role"}';
+
 SELECT pg_temp.assert_true(
   :'p5c_claimed'::JSONB ->> 'kind' = 'claimed'
+  AND :'p5c_claimed'::JSONB -> 'attempt' ->> 'status' = 'unknown'
   AND :'p5c_claimed'::JSONB -> 'attempt' ->> 'provider_dispatched_at' IS NOT NULL
   AND :'p5c_claim_replay'::JSONB ->> 'kind' = 'replay'
   AND :'p5c_claim_request_conflict_state' = '23505'
-  AND :'p5c_claim_blocked'::JSONB ->> 'kind' = 'blocked',
-  'P5C claim must be one-shot and only exact same-request replay is safe'
+  AND :'p5c_claim_blocked'::JSONB ->> 'kind' = 'blocked'
+  AND :'p5c_claim_blocking_attempt'::JSONB ->> 'attempt_id' = :'p5c_attempt_id'
+  AND :'p5c_claim_blocking_attempt'::JSONB ->> 'status' = 'unknown'
+  AND :'p5c_claimed_target_blocked_state' = '55000',
+  'P5C claim must atomically become blocking ambiguity and only exact same-request replay is safe'
 );
 
 SELECT pg_temp.assert_true(

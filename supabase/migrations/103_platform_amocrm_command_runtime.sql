@@ -240,6 +240,16 @@ CREATE TABLE platform_private.amocrm_command_attempts (
       AND dispatch_lease_expires_at > dispatch_claimed_at
     )
   ),
+  CONSTRAINT amocrm_command_attempts_dispatch_status_shape_check CHECK (
+    (
+      provider_dispatched_at IS NULL
+      AND status = 'prepared'
+    )
+    OR (
+      provider_dispatched_at IS NOT NULL
+      AND status <> 'prepared'
+    )
+  ),
   CONSTRAINT amocrm_command_attempts_finish_shape_check CHECK (
     (finish_request_id IS NULL AND finish_request_sha256 IS NULL)
     OR (finish_request_id IS NOT NULL AND finish_request_sha256 IS NOT NULL)
@@ -822,6 +832,19 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  IF p_person_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.leads AS workflow_lead
+      WHERE workflow_lead.organization_id = p_organization_id
+        AND workflow_lead.id = workflow_lead_id
+        AND workflow_lead.client_id = p_person_id
+    )
+  THEN
+    RAISE EXCEPTION 'amocrm_command_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
   SELECT binding.contact_id
   INTO contact_binding
   FROM platform_private.amocrm_contact_bindings AS binding
@@ -1062,6 +1085,7 @@ BEGIN
 
   UPDATE platform_private.amocrm_command_attempts
   SET
+    status = 'unknown',
     dispatch_request_id = p_request_id,
     dispatch_request_sha256 = request_sha256,
     dispatch_worker_ref = p_worker_ref,
@@ -1265,9 +1289,12 @@ BEGIN
     );
   END IF;
 
-  IF attempt_row.status <> 'prepared'
+  IF attempt_row.status <> 'unknown'
     OR attempt_row.dispatch_request_id IS NULL
     OR attempt_row.provider_dispatched_at IS NULL
+    OR attempt_row.finish_request_id IS NOT NULL
+    OR attempt_row.reconcile_request_id IS NOT NULL
+    OR attempt_row.settled_at IS NOT NULL
   THEN
     RAISE EXCEPTION 'amocrm command finish state conflict'
       USING ERRCODE = '55000';

@@ -7,26 +7,39 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { registerHooks } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import {
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "server-only") {
+      return {
+        shortCircuit: true,
+        url: "data:text/javascript,export default {};",
+      };
+    }
+    return nextResolve(specifier, context);
+  },
+});
+
+const {
   CANONICAL_AMOCRM_MAX_RESPONSE_BYTES,
   CANONICAL_AMOCRM_REQUEST_INTERVAL_MS,
   CanonicalAmoCrmConfigurationError,
   loadCanonicalAmoCrmProviderConfig,
-} from "../src/lib/server/canonical-amocrm-provider-config.ts";
-import {
+} = await import("../src/lib/server/canonical-amocrm-provider-config.ts");
+const {
   createCanonicalAmoCrmReadProvider,
   createCanonicalAmoCrmWriteProvider,
   CanonicalAmoCrmMutationError,
   CanonicalAmoCrmProviderError,
-} from "../src/lib/server/canonical-amocrm-provider.ts";
-import {
+} = await import("../src/lib/server/canonical-amocrm-provider.ts");
+const {
   CanonicalAmoCrmTokenFileError,
   readCanonicalAmoCrmTokenFile,
-} from "../src/lib/server/canonical-amocrm-token-store.ts";
+} = await import("../src/lib/server/canonical-amocrm-token-store.ts");
 
 const SECRET_ACCESS = "access-token-that-must-never-leak";
 async function makePrivateTokenFile(prefix = "evo-v2-amocrm-") {
@@ -498,6 +511,28 @@ test("canonical amoCRM creates one contact through the pinned origin and exposes
   assert.equal(JSON.stringify(result).includes(SECRET_ACCESS), false);
 });
 
+test("canonical amoCRM drops provider request ids longer than the database-safe limit", async () => {
+  const { tokenFilePath } = await makePrivateTokenFile();
+  const provider = createCanonicalAmoCrmWriteProvider(readyConfig(tokenFilePath), {
+    fetch: async () =>
+      jsonResponse(
+        {
+          _embedded: {
+            contacts: [{ id: 918274, request_id: "command-contact-2" }],
+          },
+        },
+        { headers: { "x-request-id": "r".repeat(201) } },
+      ),
+  });
+
+  const result = await provider.createContact({
+    requestId: "command-contact-2",
+    name: "Provider validation contact",
+  });
+
+  assert.equal(result.response.providerRequestId, null);
+});
+
 test("canonical amoCRM freezes and hashes the exact mutation before one-shot dispatch", async () => {
   const { tokenFilePath } = await makePrivateTokenFile();
   let callCount = 0;
@@ -601,6 +636,11 @@ test("canonical amoCRM emits the reviewed contact, lead, link, note, stage, resp
         notes: [{ id: 303, entity_id: 202, request_id: "l-note" }],
       },
     },
+    {
+      _embedded: {
+        tasks: [{ id: 404, request_id: "l-task" }],
+      },
+    },
     { _embedded: { leads: [{ id: 202 }] } },
   ];
   const provider = createCanonicalAmoCrmWriteProvider(readyConfig(tokenFilePath), {
@@ -654,6 +694,17 @@ test("canonical amoCRM emits the reviewed contact, lead, link, note, stage, resp
     })).entityId,
     "303",
   );
+  assert.equal(
+    (await provider.createLeadTask({
+      requestId: "l-task",
+      leadId: "202",
+      text: "Call applicant back",
+      completeTill: 1_788_307_200,
+      responsibleUserId: "23",
+      taskTypeId: "41",
+    })).entityId,
+    "404",
+  );
   await provider.updateLeadTags({
     requestId: "l-tags",
     leadId: "202",
@@ -672,6 +723,7 @@ test("canonical amoCRM emits the reviewed contact, lead, link, note, stage, resp
       { url: "https://evoadmissions.amocrm.ru/api/v4/leads/202", method: "PATCH" },
       { url: "https://evoadmissions.amocrm.ru/api/v4/leads/202/link", method: "POST" },
       { url: "https://evoadmissions.amocrm.ru/api/v4/leads/notes", method: "POST" },
+      { url: "https://evoadmissions.amocrm.ru/api/v4/tasks", method: "POST" },
       { url: "https://evoadmissions.amocrm.ru/api/v4/leads/202", method: "PATCH" },
     ],
   );
@@ -697,6 +749,17 @@ test("canonical amoCRM emits the reviewed contact, lead, link, note, stage, resp
       metadata: { is_main: true },
     },
   ]);
+  assert.deepEqual(calls[8].body, [
+    {
+      entity_id: 202,
+      entity_type: "leads",
+      text: "Call applicant back",
+      complete_till: 1788307200,
+      request_id: "l-task",
+      responsible_user_id: 23,
+      task_type_id: 41,
+    },
+  ]);
   assert.deepEqual(calls[7].body, [
     {
       entity_id: 202,
@@ -706,7 +769,7 @@ test("canonical amoCRM emits the reviewed contact, lead, link, note, stage, resp
       is_need_to_trigger_digital_pipeline: false,
     },
   ]);
-  assert.deepEqual(calls[8].body, {
+  assert.deepEqual(calls[9].body, {
     request_id: "l-tags",
     tags_to_add: [{ id: 31 }, { name: "EVO V2 Sales" }],
     tags_to_delete: [{ id: 32 }],
@@ -740,16 +803,29 @@ test("canonical amoCRM reads back only exact provider IDs through GET-safe beare
       if (path === "/api/v4/leads/notes/304") {
         return jsonResponse({ id: 304, entity_id: 999 });
       }
+      if (path === "/api/v4/tasks/404") {
+        return jsonResponse({ id: 404, entity_id: 202, entity_type: "leads" });
+      }
+      if (path === "/api/v4/tasks/405") {
+        return jsonResponse({ id: 405, entity_id: 999, entity_type: "leads" });
+      }
       throw new Error("unexpected readback path");
     },
   });
 
   assert.deepEqual(await provider.getContactById("101"), { id: 101 });
   assert.deepEqual(await provider.getLeadById("202"), { id: 202 });
-  assert.deepEqual(await provider.getLeadLinks("202"), { _embedded: { links: [] } });
+  assert.deepEqual(await provider.getLeadContactLinks("202", "101"), {
+    _embedded: { links: [] },
+  });
   assert.deepEqual(await provider.getLeadNoteById("202", "303"), {
     id: 303,
     entity_id: 202,
+  });
+  assert.deepEqual(await provider.getTaskById("202", "404"), {
+    id: 404,
+    entity_id: 202,
+    entity_type: "leads",
   });
   assert.equal(calls.every(({ method }) => method === "GET"), true);
   assert.deepEqual(
@@ -757,8 +833,9 @@ test("canonical amoCRM reads back only exact provider IDs through GET-safe beare
     [
       "https://evoadmissions.amocrm.ru/api/v4/contacts/101?with=leads",
       "https://evoadmissions.amocrm.ru/api/v4/leads/202?with=contacts",
-      "https://evoadmissions.amocrm.ru/api/v4/leads/202/links",
+      "https://evoadmissions.amocrm.ru/api/v4/leads/202/links?filter[to_entity_id]=101&filter[to_entity_type]=contacts",
       "https://evoadmissions.amocrm.ru/api/v4/leads/notes/303",
+      "https://evoadmissions.amocrm.ru/api/v4/tasks/404",
     ],
   );
 
@@ -767,12 +844,17 @@ test("canonical amoCRM reads back only exact provider IDs through GET-safe beare
     assert.equal(error.code, "invalid_response");
     return true;
   });
-  await assert.rejects(provider.getLeadLinks("204"), (error) => {
+  await assert.rejects(provider.getLeadContactLinks("204", "101"), (error) => {
     assert.ok(error instanceof CanonicalAmoCrmProviderError);
     assert.equal(error.code, "invalid_response");
     return true;
   });
   await assert.rejects(provider.getLeadNoteById("202", "304"), (error) => {
+    assert.ok(error instanceof CanonicalAmoCrmProviderError);
+    assert.equal(error.code, "invalid_response");
+    return true;
+  });
+  await assert.rejects(provider.getTaskById("202", "405"), (error) => {
     assert.ok(error instanceof CanonicalAmoCrmProviderError);
     assert.equal(error.code, "invalid_response");
     return true;
@@ -794,6 +876,13 @@ test("canonical amoCRM rejects unsafe IDs and payloads before any dispatch", asy
     () => provider.updateLead({ requestId: "not safe", leadId: "1", name: "Lead" }),
     () => provider.updateContact({ requestId: "ok", contactId: "1" }),
     () => provider.createLeadNote({ requestId: "ok", leadId: "1", text: "" }),
+    () =>
+      provider.createLeadTask({
+        requestId: "ok",
+        leadId: "1",
+        text: "Call applicant",
+        completeTill: 0,
+      }),
     () => provider.updateLeadTags({ requestId: "ok", leadId: "1" }),
     () =>
       provider.prepareUpdateLeadTags({
@@ -821,6 +910,13 @@ test("canonical amoCRM rejects unsafe IDs and payloads before any dispatch", asy
         requestId: "ok",
         leadId: "1",
         text: "x".repeat(10_001),
+      }),
+    () =>
+      provider.createLeadTask({
+        requestId: "ok",
+        leadId: "1",
+        text: "x".repeat(10_001),
+        completeTill: 1_788_307_200,
       }),
   ];
   for (const execute of invalidCommands) {

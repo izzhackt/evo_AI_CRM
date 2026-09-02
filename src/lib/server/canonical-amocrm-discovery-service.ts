@@ -5,10 +5,9 @@ import { createHash } from "node:crypto";
 import type { CanonicalAmoCrmCommandConfig } from "./canonical-amocrm-command-config.ts";
 import {
   CanonicalAmoCrmDiscoveryRepositoryError,
-  createCanonicalAmoCrmDiscoveryRepository,
   type CanonicalAmoCrmDiscoveryRepository,
   type CanonicalAmoCrmSanitizedCatalog,
-} from "./canonical-amocrm-discovery-repository.ts";
+} from "./canonical-amocrm-discovery-contract.ts";
 import type { CanonicalAmoCrmReadProvider } from "./canonical-amocrm-provider.ts";
 import type { CanonicalAmoCrmProviderConfig } from "./canonical-amocrm-provider-config.ts";
 
@@ -482,6 +481,10 @@ export async function discoverCanonicalAmoCrmCommandRouting(
   input: DiscoverCanonicalAmoCrmCommandRoutingInput,
 ): Promise<CanonicalAmoCrmCommandRoutingSnapshot> {
   const safeCorrelationId = correlationId(input.correlationId);
+  if (input.repository === undefined) {
+    throw new CanonicalAmoCrmDiscoveryError("persistence_failed");
+  }
+  const repository = input.repository;
   const discoveredAt = discoveryTime(input.now);
   const accountResponse = await input.provider.getAccount();
   const account = parseAccount(accountResponse, input.providerConfig);
@@ -533,8 +536,6 @@ export async function discoverCanonicalAmoCrmCommandRouting(
     contactCustomFieldCatalog,
   });
 
-  const repository =
-    input.repository ?? createCanonicalAmoCrmDiscoveryRepository();
   let persisted: Awaited<ReturnType<CanonicalAmoCrmDiscoveryRepository["persist"]>>;
   try {
     persisted = await repository.persist({
@@ -565,7 +566,7 @@ export async function discoverCanonicalAmoCrmCommandRouting(
     discoverySnapshotId: persisted.snapshotId,
     providerAccountId: account.providerAccountId,
     accountBaseUrl: account.accountBaseUrl,
-    snapshotSha256,
+    snapshotSha256: persisted.snapshotSha256,
     discoveredAt: persisted.discoveredAt.toISOString(),
     sales,
     admissions,

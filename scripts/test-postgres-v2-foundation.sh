@@ -1061,10 +1061,11 @@ DATABASE_URL="$database_url" \
     tests/platform-provider-acceptance-harness.test.mjs \
     tests/platform-whatsapp-pages.test.mjs \
     tests/platform-communications-local-provisioner.test.mjs \
-    tests/canonical-amocrm-schema-postgres.test.mjs \
-    tests/canonical-amocrm-command-postgres.test.mjs \
-    tests/canonical-amocrm-discovery-postgres.test.mjs
-echo "Platform provider workflow and later-owned amoCRM repository contracts passed without the retired Drizzle communication fixture."
+    tests/platform-amocrm-discovery-repository.test.mjs \
+    tests/platform-amocrm-runtime.test.mjs \
+    tests/platform-amocrm-command-service.test.mjs \
+    tests/platform-amocrm-command-rpc.test.mjs
+echo "Platform provider workflow and Supabase-authoritative amoCRM contracts passed without the retired Drizzle amoCRM runtime."
 
 stop_app
 start_isolated_waha_service

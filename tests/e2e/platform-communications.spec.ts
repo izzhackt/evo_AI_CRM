@@ -151,8 +151,8 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   await expect(page.getByTestId("platform-staff-whatsapp-page")).toBeVisible();
   await expect(page.getByTestId("platform-staff-whatsapp-thread")).toBeVisible();
   await expect(
-    page.locator(".provider-status--ready:visible", { hasText: "WhatsApp" }),
-  ).toBeVisible();
+    page.locator("dt", { hasText: "Канал WhatsApp" }).locator("xpath=following-sibling::dd[1]"),
+  ).toContainText("Подключён");
   await expect(
     page.getByRole("heading", {
       name: "WhatsApp exact Sales-intake proof",

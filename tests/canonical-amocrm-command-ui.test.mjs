@@ -10,26 +10,28 @@ function source(path) {
   return readFileSync(url, "utf8");
 }
 
-test("the active canonical amoCRM command panel remains on Admissions Student 360", () => {
+test("the active Platform amoCRM command panel remains on Admissions Student 360", () => {
   const studentWorkspace = source(
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
   const admissions = source(
-    "src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
+    "src/app/(staff)/clients/[id]/PlatformAmoCrmCommandSection.tsx",
   );
 
   assert.match(admissions, /CanonicalAmoCrmCommandPanel/);
-  assert.match(studentWorkspace, /<AmoCrmCaseCommandSection/);
+  assert.match(studentWorkspace, /<PlatformAmoCrmCommandSection/);
   assert.ok(
     studentWorkspace.indexOf("<PlatformAdmissionsOperationsPanel") <
-      studentWorkspace.indexOf("<AmoCrmCaseCommandSection"),
+      studentWorkspace.indexOf("<PlatformAmoCrmCommandSection"),
     "Supabase Admissions operations must remain ahead of the isolated #549 amoCRM command section",
   );
   assert.match(
     admissions,
-    /<CanonicalAmoCrmCommandPanel[\s\S]*scope="admissions"[\s\S]*leadId=\{leadId\}[\s\S]*studentCaseId=\{studentCaseId\}/,
+    /<CanonicalAmoCrmCommandPanel[\s\S]*providerDispatchedAt: blockingAttempt\.providerDispatchedAt[\s\S]*scope="admissions"[\s\S]*leadId=\{leadId\}[\s\S]*studentCaseId=\{studentCaseId\}/,
   );
-  assert.match(admissions, /readBlockingCanonicalAmoCrmCommand/);
+  assert.match(admissions, /readPlatformBlockingAmoCrmCommand/);
+  assert.match(admissions, /createSupabaseServerClient\(\)/);
+  assert.match(studentWorkspace, /organizationId=\{actor\.organizationId\}/);
   assert.match(
     admissions,
     /data-testid="amocrm-case-command-section"/,
@@ -58,6 +60,9 @@ test("the panel exposes exact inputs, honest states, per-step evidence, and expl
   assert.match(panel, /attemptId: blockingAttempt\.attemptId/);
   assert.match(panel, /const flowBlocked = panelState\.flowBlocked/);
   assert.match(panel, /name="note_text"/);
+  assert.match(panel, /name="task_text"/);
+  assert.match(panel, /name="task_complete_till"/);
+  assert.match(panel, /type="datetime-local"/);
   assert.match(panel, /maxLength=\{1000\}/);
   assert.match(panel, /required/);
   assert.match(panel, /disabled=\{!ready \|\| syncing \|\| flowBlocked\}/);
@@ -82,12 +87,14 @@ test("server actions use only canonical V2 seams and exact FormData extraction",
     "src/lib/server/canonical-amocrm-command-actions.ts",
   );
 
-  assert.match(actions, /exactActionStringFields/);
+  assert.match(actions, /parsePlatformAmoCrmSalesSyncForm/);
+  assert.match(actions, /parsePlatformAmoCrmAdmissionsSyncForm/);
+  assert.match(actions, /parsePlatformAmoCrmReconcileForm/);
   assert.match(actions, /requirePlatformSalesActor/);
   assert.match(actions, /requirePlatformAdmissionsActor/);
-  assert.match(actions, /executeCanonicalAmoCrmSalesSync/);
-  assert.match(actions, /executeCanonicalAmoCrmAdmissionsSync/);
-  assert.match(actions, /reconcileCanonicalAmoCrmSyncAttempt/);
+  assert.match(actions, /executePlatformAmoCrmSalesSync/);
+  assert.match(actions, /executePlatformAmoCrmAdmissionsSync/);
+  assert.match(actions, /reconcilePlatformAmoCrmSyncAttempt/);
   assert.match(actions, /revalidatePath\(`\/sales\/\$\{leadId\}`\)/);
   assert.match(
     actions,
@@ -95,6 +102,6 @@ test("server actions use only canonical V2 seams and exact FormData extraction",
   );
   assert.doesNotMatch(
     actions,
-    /supabase|sqlite|EVO_AGENT_|legacy|fallback|@\/lib\/amocrm/i,
+    /sqlite|EVO_AGENT_|legacy|fallback|@\/lib\/amocrm/i,
   );
 });

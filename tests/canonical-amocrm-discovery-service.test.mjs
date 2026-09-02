@@ -250,6 +250,7 @@ test("discovers, sanitizes, hashes and persists one immutable exact-account rout
       return Object.freeze({
         accountId: "11111111-1111-4111-8111-111111111111",
         snapshotId: "22222222-2222-4222-8222-222222222222",
+        snapshotSha256: "b".repeat(64),
         discoveredAt: new Date("2026-08-29T08:00:00.000Z"),
       });
     },
@@ -318,9 +319,26 @@ test("discovers, sanitizes, hashes and persists one immutable exact-account rout
   assert.equal(snapshot.providerAccountId, "1001");
   assert.equal(snapshot.accountBaseUrl, PROVIDER_CONFIG.accountOrigin);
   assert.equal(snapshot.discoverySnapshotId, "22222222-2222-4222-8222-222222222222");
+  assert.equal(snapshot.snapshotSha256, "b".repeat(64));
   assert.equal(Object.isFrozen(snapshot), true);
   assert.equal(Object.isFrozen(snapshot.sales), true);
   assert.equal(Object.isFrozen(snapshot.contactCustomFields), true);
+});
+
+test("missing persistence authority fails before any provider read instead of falling back", async () => {
+  const calls = [];
+  await assert.rejects(
+    discoverCanonicalAmoCrmCommandRouting({
+      providerConfig: PROVIDER_CONFIG,
+      commandConfig: loadCanonicalAmoCrmCommandConfig(ROUTING_ENV),
+      provider: fakeProvider(providerResponses(), calls),
+      correlationId: "22222222-2222-4222-8222-222222222222",
+    }),
+    (error) =>
+      error instanceof CanonicalAmoCrmDiscoveryError &&
+      error.code === "persistence_failed",
+  );
+  assert.deepEqual(calls, []);
 });
 
 test("exact lead tag IDs participate in the immutable discovery hash", async () => {
@@ -348,6 +366,7 @@ test("exact lead tag IDs participate in the immutable discovery hash", async () 
           return Object.freeze({
             accountId: "11111111-1111-4111-8111-111111111111",
             snapshotId: "22222222-2222-4222-8222-222222222222",
+            snapshotSha256: input.snapshot.snapshotSha256,
             discoveredAt: input.snapshot.discoveredAt,
           });
         },
@@ -374,6 +393,7 @@ test("missing managed tags remain bootstrap-ready while duplicate names fail clo
       return Object.freeze({
         accountId: "11111111-1111-4111-8111-111111111111",
         snapshotId: "22222222-2222-4222-8222-222222222222",
+        snapshotSha256: input.snapshot.snapshotSha256,
         discoveredAt: input.snapshot.discoveredAt,
       });
     },

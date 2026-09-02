@@ -6,6 +6,8 @@ import { expect, test, type Page } from "@playwright/test";
 import postgres from "postgres";
 
 const NOTE_TEXT = "EVO V2 provider validation: reviewed by Admin.";
+const TASK_TEXT = "EVO V2 provider validation: manager follow-up.";
+const TASK_DEADLINE_LOCAL = "2099-09-15T12:00";
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const PROVIDER_ID = /^[1-9][0-9]{0,9}$/u;
@@ -18,6 +20,7 @@ const OPERATIONS = Object.freeze([
   "lead_pipeline_status_update",
   "lead_responsible_update",
   "lead_note_create",
+  "lead_task_create",
   "lead_tag_update",
 ]);
 
@@ -219,7 +222,7 @@ async function acceptedDatabaseProof(
       where attempt.correlation_id = ${input.requestId}
       order by attempt.created_at, attempt.id
     `;
-    ensure(attempts.length === OPERATIONS.length, "The UI sync did not persist exactly seven provider attempts");
+    ensure(attempts.length === OPERATIONS.length, "The UI sync did not persist the exact provider attempt count");
     ensure(
       new Set(attempts.map((attempt) => attempt.operation_name)).size ===
         OPERATIONS.length &&
@@ -249,7 +252,7 @@ async function acceptedDatabaseProof(
     ensure(
       new Set(attempts.map((attempt) => attempt.receipt_id)).size ===
         OPERATIONS.length,
-      "The canonical provider attempts did not retain seven distinct receipts",
+      "The canonical provider attempts did not retain one distinct receipt per operation",
     );
 
     const bindingRows = await sql<
@@ -284,6 +287,14 @@ async function acceptedDatabaseProof(
     const providerNoteId = providerId(
       noteAttempt.provider_readback.entityId,
       "The note readback identity is invalid",
+    );
+    const taskAttempt = attempts.find(
+      (attempt) => attempt.operation_name === "lead_task_create",
+    );
+    ensure(taskAttempt?.provider_readback, "The task attempt lacks readback evidence");
+    const providerTaskId = providerId(
+      taskAttempt.provider_readback.entityId,
+      "The task readback identity is invalid",
     );
     const tagAttempt = attempts.find(
       (attempt) => attempt.operation_name === "lead_tag_update",
@@ -328,6 +339,7 @@ async function acceptedDatabaseProof(
       providerContactId,
       providerLeadId,
       providerNoteId,
+      providerTaskId,
       providerManagedTagId,
       readbackSetSha256: sha256(
         attempts
@@ -522,6 +534,20 @@ async function exactProviderReadback(
       noteParams.text === NOTE_TEXT,
     "Provider note readback did not match the reviewed text",
   );
+  const task = await providerGet(
+    parsedBase.origin,
+    `/api/v4/tasks/${database.providerTaskId}`,
+    accessToken,
+  );
+  ensure(
+    providerId(task.id, "Provider task identity changed") ===
+      database.providerTaskId &&
+      task.entity_type === "leads" &&
+      providerId(task.entity_id, "Provider task lead identity changed") ===
+        database.providerLeadId &&
+      task.text === TASK_TEXT,
+    "Provider task readback did not match the reviewed task",
+  );
 
   // Provider-side scoped collections are the duplicate detector. Re-reading
   // only the IDs persisted in PostgreSQL would miss an accidental extra
@@ -604,6 +630,30 @@ async function exactProviderReadback(
     validationNoteId === database.providerNoteId,
     "Provider validation note changed identity",
   );
+  const taskSearch = await providerGet(
+    parsedBase.origin,
+    `/api/v4/tasks?limit=250&filter%5Bentity_type%5D=leads&filter%5Bentity_id%5D=${encodeURIComponent(database.providerLeadId)}`,
+    accessToken,
+  );
+  const validationTasks = array(
+    record(taskSearch._embedded, "Provider task search envelope was invalid").tasks,
+    "Provider task search collection was invalid",
+  ).filter((candidate) => {
+    const scopedTask = record(candidate, "Provider task search item was invalid");
+    return scopedTask.text === TASK_TEXT;
+  });
+  ensure(
+    validationTasks.length === 1,
+    "Provider validation scope contains a duplicate or changed task",
+  );
+  const validationTaskId = providerId(
+    record(validationTasks[0], "Provider validation task was invalid").id,
+    "Provider validation task identity was invalid",
+  );
+  ensure(
+    validationTaskId === database.providerTaskId,
+    "Provider validation task changed identity",
+  );
 
   return Object.freeze({
     exactReadback: true,
@@ -612,11 +662,13 @@ async function exactProviderReadback(
         `contact:${validationContactId}`,
         `lead:${validationLeadId}`,
         `note:${validationNoteId}`,
+        `task:${validationTaskId}`,
       ].join(":"),
     ),
     validationContactCount: validationContacts.length,
     validationLeadCount: validationLeads.length,
     validationNoteCount: validationNotes.length,
+    validationTaskCount: validationTasks.length,
     managedRoleTagCount: 1,
     mainContactCount: mainContacts.length,
   });
@@ -747,6 +799,8 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     reviewedNoteSha256: sha256(NOTE_TEXT),
   });
   await panel.getByTestId("canonical-amocrm-note-text").fill(NOTE_TEXT);
+  await panel.getByTestId("canonical-amocrm-task-text").fill(TASK_TEXT);
+  await panel.getByTestId("canonical-amocrm-task-deadline").fill(TASK_DEADLINE_LOCAL);
   await panel.getByTestId("canonical-amocrm-sync").click();
   await expect(
     panel.getByTestId("canonical-amocrm-command-state"),
@@ -780,10 +834,15 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
   const replayRequestInput = panel
     .getByTestId("canonical-amocrm-sync-form")
     .locator('input[name="request_id"]');
+  await panel.getByTestId("canonical-amocrm-note-text").fill(NOTE_TEXT);
+  await panel.getByTestId("canonical-amocrm-task-text").fill(TASK_TEXT);
+  await panel.getByTestId("canonical-amocrm-task-deadline").fill(TASK_DEADLINE_LOCAL);
+  // The controlled deadline input rerenders the form. Restore the exact
+  // acceptance-only request identity after every user-controlled field so
+  // React cannot replace it with the freshly rendered request id.
   await replayRequestInput.evaluate((element, exactRequestId) => {
     (element as HTMLInputElement).value = exactRequestId;
   }, requestId);
-  await panel.getByTestId("canonical-amocrm-note-text").fill(NOTE_TEXT);
   const replayResponsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return (
@@ -814,6 +873,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       replayDatabase.providerContactId === database.providerContactId &&
       replayDatabase.providerLeadId === database.providerLeadId &&
       replayDatabase.providerNoteId === database.providerNoteId &&
+      replayDatabase.providerTaskId === database.providerTaskId &&
       replayDatabase.providerManagedTagId === database.providerManagedTagId &&
       replayDatabase.readbackSetSha256 === database.readbackSetSha256,
     "Exact UI replay created a new attempt, receipt, binding or provider entity",
@@ -829,6 +889,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
       replayProvider.validationContactCount === provider.validationContactCount &&
       replayProvider.validationLeadCount === provider.validationLeadCount &&
       replayProvider.validationNoteCount === provider.validationNoteCount &&
+      replayProvider.validationTaskCount === provider.validationTaskCount &&
       replayProvider.managedRoleTagCount === provider.managedRoleTagCount &&
       replayProvider.mainContactCount === provider.mainContactCount,
     "Exact UI replay changed the provider entity set",

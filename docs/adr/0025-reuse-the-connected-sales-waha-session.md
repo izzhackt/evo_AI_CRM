@@ -1,6 +1,8 @@
 # ADR 0025: Reuse the connected sales WAHA session for V2
 
 - Status: accepted
+- Acceptance scope partially superseded by ADR 0026; the `crm_primary`
+  selection remains current
 - Decision date: 2026-09-02 (Asia/Dubai)
 - Decision owner: EVO product owner
 - Execution slices: GitHub issues #566 and #568; webhook transfer remains part

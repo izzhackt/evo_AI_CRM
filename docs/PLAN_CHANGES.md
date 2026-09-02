@@ -15463,3 +15463,39 @@ Past immutable migrations and historical launch sections that selected
 reviewed provisioning. Missing, unhealthy or ambiguous `crm_primary` state
 fails closed; it does not trigger fallback, routine re-pairing, blind retry or
 webhook mutation. ADR 0025 records this superseding session decision.
+
+## 2026-09-03 - Remove controlled-inbound live provider acceptance from the active sequence
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex under the owner's explicit instruction to remove the unavailable
+controlled-chat test and continue.
+Change type: active acceptance-scope correction before #566 merge.
+Affected plan sections: current authority, #549 provider parent, #566 merge
+gate, #568 exit inventory and the production-successor completion checklist.
+
+The connected sales WAHA session `crm_primary` remains `WORKING`, but the owner
+does not currently have access to the controlled second WhatsApp account needed
+to create an actual `fromMe=false` source message. Forty bounded read-only polls
+found no eligible `EVO test` event. The owner directed the program to remove
+this test from the plan and continue.
+
+Decision: the selected-inbound Gemini proposal, human review, WhatsApp send and
+exact readback exercise is no longer an active #566, #568 or completion gate.
+It is not replaced with a self-send, outbound message, arbitrary customer chat,
+mock, fixture or inferred success. #566 instead requires real local
+Supabase/PostgreSQL, application and Chromium execution, server-boundary and
+idempotency/ambiguity tests, legacy-eradication inventory and read-only proof
+that only `crm_primary` is configured and healthy. #568 becomes an exact-main
+single-runtime/configuration/legacy inventory with no provider mutation.
+
+Existing guarded provider-acceptance tooling may remain as a non-gating future
+operator utility, but it is outside the active program and cannot be cited as
+successful evidence unless actually executed. Reports must say plainly that
+live Gemini/WhatsApp delivery was not exercised. A future live exercise needs a
+new owner request and authorized target; it is not a pre-created blocking issue.
+
+This decision does not change the Supabase authority, human-review, explicit
+send, idempotency, reconciliation or fail-closed runtime contracts. It does not
+authorize a WhatsApp send, amoCRM write, webhook takeover, production deploy,
+customer migration, public traffic, V1 execution or cutover. ADR 0026 records
+the superseding acceptance decision.

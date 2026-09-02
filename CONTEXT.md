@@ -372,10 +372,11 @@ remains the sole business authority, and frozen V1 senders, writers and webhook
 workers are not active V2 dependencies. The unpaired companion `evo-inbox`
 session is preserved as historical deployment evidence, never an alias,
 fallback or second current session, and #566/#568 do not require another QR
-scan. Local #566 acceptance may exercise `crm_primary` without changing the
-current production webhook owner. Production webhook transfer is a separate
-controlled cutover that first proves the old owner inactive and leaves exactly
-one V2 owner.
+scan. Under ADR 0026, active #566/#568 verification is read-only at the provider
+boundary: it does not require a selected inbound message, Gemini provider call
+or WhatsApp send and therefore does not claim real delivery. Production webhook
+transfer is a separate controlled cutover that first proves the old owner
+inactive and leaves exactly one V2 owner.
 _Avoid_: public WAHA port, multi-session production target, session alias
 
 **Manual-Send WAHA Runtime Binding**:

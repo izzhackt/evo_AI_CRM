@@ -15356,3 +15356,25 @@ EVO Inbox and EVO Lead Agent. Use fresh exact-head review and CI for the first
 Reviewer notes: pending independent review on the next #565 exact head; this
 entry corrects plan truth only and does not authorize provider, production,
 customer-data or cutover mutation.
+
+## 2026-09-02 - Start #565 from the merged provider reset
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: exact-main verification and implementation start for #565.
+Affected plan sections: launch-plan header and P5A provider database contract.
+Reason: PR #569 merged the reviewed provider issue sequence and professional
+cleanup inventory after two independent exact-head approvals and green CI.
+Decision: use merged main `37dbd64c045fda8287565c871c392d607fc7b594`
+(`docs(platform): sequence provider replacement and record cleanup (#569)`) as
+the only base for #565. The slice may add one forward Supabase migration and
+real SQL/RLS proof for staff-bound Gemini initiation plus the missing safe
+WhatsApp attempt/read/reconciliation contract. It must not import an
+application adapter, contact Gemini or WAHA, or activate a second runtime;
+#566 remains the atomic application/provider cutover and legacy-deletion owner.
+Validation impact: exact-main CI run `33615392787` passed Main CRM, EVO Inbox
+and EVO Lead Agent on that merge commit. The #565 branch starts at the same
+SHA and requires its own exact-head review/CI and exact-main verification.
+Reviewer notes: implementation review is pending on the future #565 exact
+head. No production, managed-project, provider or customer-data mutation is
+authorized by this entry.

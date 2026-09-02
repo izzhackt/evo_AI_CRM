@@ -7,9 +7,9 @@ Authority: owner direction, ADR 0024, this plan and the latest append-only
 through #553
 Verified starting baseline: GitHub `origin/main` at
 `4a2984f55b13bf4fe416a70d7989b9311daa8055`
-Latest verified shared main after the completed Admissions/files tracer:
-`cf108403c69a35ca3b134652de8f2aa26eb5a049`, with exact-main CI run
-`33611965188` green for Main CRM, EVO Inbox and EVO Lead Agent.
+Latest verified shared main after the provider sequence and cleanup reset:
+`37dbd64c045fda8287565c871c392d607fc7b594`, with exact-main CI run
+`33615392787` green for Main CRM, EVO Inbox and EVO Lead Agent.
 
 ## Current authority: one Supabase-backed production EVO
 

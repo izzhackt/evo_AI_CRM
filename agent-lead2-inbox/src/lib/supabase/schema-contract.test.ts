@@ -426,7 +426,7 @@ function p7aAllowlist(functionName: string): Set<string> {
 describe('Unified EVO Supabase schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '095_platform_admissions_storage_runtime.sql'
+      '096_platform_provider_workflow_contract.sql'
     );
     expect(platformWahaSessionAuthorityMigration).toMatch(
       /provider_account_ref <> 'waha:evo-inbox'/

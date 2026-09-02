@@ -31,7 +31,8 @@
 
 - For active production-successor work, the owner's 2026-09-02 direction,
   parent issue #543, ADR 0024, `docs/EVO_LAUNCH_PLAN.md`, and the latest merged
-  `docs/PLAN_CHANGES.md` entry define the target and #544 through #553 order.
+  `docs/PLAN_CHANGES.md` entry define the target and #544 through #553 order;
+  provider parent #549 executes sequentially through #565, #566, #567 and #568.
   ADR 0022 and the no-Supabase parts of ADR 0023 remain completed
   local-validation history, not current runtime authority.
 - EVO remains one internal product with one access surface, one UI, one role

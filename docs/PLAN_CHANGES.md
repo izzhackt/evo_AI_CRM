@@ -15277,3 +15277,82 @@ coexistence. They cannot supply Admissions, Student 360, document or finance
 data, and expire when #549 replaces the provider command path. No #548 work
 applies migrations to the managed project, mutates provider/customer data,
 changes V1 deployment or switches traffic.
+
+## 2026-09-02 - Split the Supabase provider tracer into four replacement slices
+
+Source: owner instruction to retain ready-made Supabase capabilities, continue
+the production-successor implementation and perform professional cleanup;
+completed #548 in PR #564; read-only #549 runtime inventory on exact
+`origin/main` `cf108403c69a35ca3b134652de8f2aa26eb5a049`.
+
+Block-ID: `EVO-SUPABASE-P5-PROVIDER-DECOMPOSITION-2026-09-02`.
+
+Change type: ordered implementation and legacy-eradication clarification. This
+does not apply a migration to the managed project, execute frozen V1 code,
+deploy production, migrate customer data or switch traffic.
+
+Affected plan sections: active production-successor sequence, #549 provider
+tracer, replacement discipline and #550 entry condition.
+
+Decision:
+
+- Keep #549 as the ordered provider parent and execute exactly four small child
+  slices: #565 bounded Supabase provider contract, #566 atomic WhatsApp/Gemini
+  runtime replacement, #567 Supabase-authoritative amoCRM commands, then #568
+  one combined real-provider acceptance. #550 remains blocked until all four
+  children and #549 are complete.
+- A code-path audit found that `/whatsapp` still reads local Drizzle
+  conversations. Switching only Gemini persistence would bind a Supabase
+  proposal to a potentially different local conversation/source-message
+  identity and create dual state. #565 therefore reuses migrations 066, 078,
+  080, 081, 082 and 091, adding only missing staff-safe initiation/audit and
+  latest attempt/read/reconciliation database shapes. It has SQL/RLS proof but
+  no application import, provider call or second active runtime.
+- #566 performs one regression-free communications cutover: queue/thread,
+  canonical inbound projection, Gemini proposal/review and explicit WhatsApp
+  send/reconciliation move together onto Supabase. It proves bounded real
+  Gemini and WAHA behavior, then deletes local conversation/proposal/send state,
+  the superseded inbound route, adapters/workers/tests/config and fallbacks.
+- #567 adds the missing forward Supabase model for amoCRM command attempts,
+  immutable receipts and provider bindings. It preserves the approved explicit
+  contact, lead, link, pipeline/status, note, task and tag operations, proves
+  bounded real writes/readback, then deletes the local Drizzle amoCRM command
+  repository/state, temporary `AmoCrmCaseCommandSection` and superseded UI.
+- #568 proves the exact connected chain on merged main: Gemini proposal,
+  genuine human review, explicit WAHA send and identity/readback, explicit
+  amoCRM command/readback, correlated Supabase records and replay without
+  duplicate provider or business effects. Evidence remains sanitized.
+- Every child is replace-not-layer: after its real Supabase, app and Chromium
+  proof, the same slice removes the old active runtime code, imports,
+  dependencies, tests, environment/config and routes. Missing primary state
+  fails clearly. No child may leave Drizzle and Supabase as concurrent provider
+  authorities or invoke a blind retry after an ambiguous result.
+- The standing provider authorization removes routine approval pauses only for
+  the minimized validation target and explicit staff actions in #565-#568. It
+  does not authorize frozen V1 execution, production deployment, broad customer
+  mutation, historical migration, public traffic or final cutover.
+
+## 2026-09-02 - Refresh the active shared baseline after merged #564
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: plan-freshness and merge-base correction before #565.
+Affected plan section: launch-plan header, active shared baseline, and the next
+provider replacement slice.
+Reason: `docs/EVO_LAUNCH_PLAN.md` still named the pre-#548 shared main
+`51124807b19e01c34fca44bb9e5ed6180bb3f9d9`, but PR #564 has already merged and
+advanced `origin/main` to `cf108403c69a35ca3b134652de8f2aa26eb5a049`.
+Decision: treat merged main `cf108403c69a35ca3b134652de8f2aa26eb5a049`
+(`feat(admissions): run operations and documents on Supabase (#564)`) as the
+current shared execution base for #565 and later slices. The next replacement
+work starts from this exact main with the bounded #565 database contract; #566
+then atomically replaces and deletes the superseded local communications,
+Gemini and WhatsApp runtime state.
+Validation impact: `origin/main` was re-fetched and the new P5 branch and its
+merge-base both started at `cf108403c69a35ca3b134652de8f2aa26eb5a049` before
+this docs-only commit. Exact-main CI run `33611965188` then passed Main CRM,
+EVO Inbox and EVO Lead Agent. Use fresh exact-head review and CI for the first
+#565 PR.
+Reviewer notes: pending independent review on the next #565 exact head; this
+entry corrects plan truth only and does not authorize provider, production,
+customer-data or cutover mutation.

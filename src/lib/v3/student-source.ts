@@ -113,7 +113,6 @@ export async function readStudentCase(caseId: string): Promise<StudentCase | nul
     ownerRole: head.owner_role,
     nextAction: head.next_action,
     nextActionAt: head.next_action_at,
-    leadHref: head.lead_id ? `/sales/${head.lead_id}` : null,
     source: head.source,
     stage: head.stage,
     applications: applications.map((a) => ({

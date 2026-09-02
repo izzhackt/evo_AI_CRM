@@ -44,7 +44,7 @@ export type PipelineLead = Readonly<{
   id: string;
   name: string;
   stageKey: string;
-  /** Откуда пришёл: whatsapp, website, referral. */
+  /** Есть в модели, намеренно не рисуется — см. LeadCard. */
   source: string;
   /** Что делать дальше. null — не назначено, и это само по себе сигнал. */
   nextAction: string | null;
@@ -96,10 +96,14 @@ function LeadCard({
           >
             {lead.name}
           </Link>
-          <span className="mt-0.5 block truncate text-2xs text-fg-3">
-            {lead.source}
-            {lead.nextActionAt ? ` · ${lead.nextActionAt}` : ""}
-          </span>
+          {/* Источник (`whatsapp` / `website` / `referral`) убран с карточки:
+              это ключ из базы, и на карточке просили только имя. Поле остаётся
+              в модели. См. docs/design/v3/frontend-rules.md. */}
+          {lead.nextActionAt ? (
+            <span className="mt-0.5 block truncate text-2xs text-fg-3">
+              {lead.nextActionAt}
+            </span>
+          ) : null}
         </p>
 
         {mark ? (

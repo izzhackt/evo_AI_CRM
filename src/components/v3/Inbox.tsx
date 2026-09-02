@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { Icon } from "@/components/icons";
@@ -32,7 +31,7 @@ export type InboxThread = Readonly<{
   channel: string;
   status: string;
   role: string;
-  /** Стадия лида, если диалог к нему привязан. */
+  /** Есть в модели, намеренно не рисуются — см. шапку переписки. */
   stage: string | null;
   leadHref: string | null;
   messages: readonly InboxMessage[];
@@ -84,13 +83,14 @@ export function Inbox({
                   <span className="line-clamp-2 text-2xs leading-4 text-fg-3">
                     {last?.body ?? "нет сообщений"}
                   </span>
-                  <span className="flex flex-wrap gap-1 pt-0.5">
-                    <Pill>{thread.channel}</Pill>
-                    <Pill>{thread.role}</Pill>
-                    {thread.messages.length > 1 ? (
+                  {/* Канал и роль убраны: `whatsapp` одинаков у всех диалогов,
+                      `sales` — ключ из базы. Счёт остаётся: он на человеческом
+                      языке и меняется. См. docs/design/v3/frontend-rules.md. */}
+                  {thread.messages.length > 1 ? (
+                    <span className="pt-0.5">
                       <Pill>{thread.messages.length} сообщения</Pill>
-                    ) : null}
-                  </span>
+                    </span>
+                  ) : null}
                 </button>
               </li>
             );
@@ -117,22 +117,10 @@ export function Inbox({
               <Icon name="arrow-left" size={16} />
             </button>
 
+            {/* Стадия (`new`) и статус (`open`) убраны: первое — ключ из базы,
+                второе одинаково у всех диалогов. Ссылка «Открыть профиль» вела
+                в старый V2 — дверь из нового мира в старый. */}
             <h3 className="min-w-0 flex-1 truncate text-md font-bold text-fg">{open.person}</h3>
-
-            <span className="flex shrink-0 flex-wrap items-center gap-1.5">
-              {open.stage ? <Pill tone="info">{open.stage}</Pill> : null}
-              <Pill tone={open.status === "open" ? "ok" : "neutral"}>{open.status}</Pill>
-            </span>
-
-            {open.leadHref ? (
-              <Link
-                href={open.leadHref}
-                prefetch={false}
-                className="inline-flex min-h-6 shrink-0 items-center text-xs text-fg-2 underline decoration-border-strong underline-offset-4 hover:decoration-fg-2"
-              >
-                Открыть профиль
-              </Link>
-            ) : null}
           </header>
 
           <div

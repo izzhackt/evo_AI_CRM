@@ -365,14 +365,17 @@ be terminally consumed.
 _Avoid_: autonomous-send worker, merged capability, provider proof
 
 **Unified WAHA Session**:
-The target single private production WAHA session `evo-inbox`, representing one
-WhatsApp account and one webhook owner. The existing sessions are not changed
-or retired until controlled cutover evidence exists. Forward runtime code,
-new signed Lead Agent evidence and current health may accept only `evo-inbox`;
-an old `crm_primary` value may survive only as unchanged historical provider
-provenance. It is never an alias, fallback or second current session. A real
-cutover must inspect per-session and global WAHA webhooks and prove
-`session.status=WORKING` for `evo-inbox` before transferring ownership.
+The target single private WAHA transport session for active V2 is the already
+connected sales session `crm_primary`, read-only verified `WORKING` with an
+identity on 2026-09-02. V2 reuses only its provider session/container; Supabase
+remains the sole business authority, and frozen V1 senders, writers and webhook
+workers are not active V2 dependencies. The unpaired companion `evo-inbox`
+session is preserved as historical deployment evidence, never an alias,
+fallback or second current session, and #566/#568 do not require another QR
+scan. Local #566 acceptance may exercise `crm_primary` without changing the
+current production webhook owner. Production webhook transfer is a separate
+controlled cutover that first proves the old owner inactive and leaves exactly
+one V2 owner.
 _Avoid_: public WAHA port, multi-session production target, session alias
 
 **Manual-Send WAHA Runtime Binding**:

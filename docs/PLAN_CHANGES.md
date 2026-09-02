@@ -15427,3 +15427,39 @@ V1 migrations, runbooks, deployments, archived docs and evidence remain
 preserved but inactive. No managed Supabase migration, production deployment,
 broad customer mutation, frozen V1 execution, traffic switch or final cutover
 is authorized by this entry.
+
+## 2026-09-02 - Reuse the connected sales WAHA session without reviving V1
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's explicit WAHA session decision.
+Change type: active provider-authority correction before #566 acceptance.
+Affected plan sections: current authority, #566 WhatsApp/Gemini replacement,
+#568 combined provider acceptance and the later webhook cutover.
+
+Read-only inspection proved that the private sales WAHA session `crm_primary`
+already has an identity and reports `WORKING`, while the separate companion
+session `evo-inbox` reports `SCAN_QR_CODE` without an identity. The owner
+directed the active V2 program to reuse the connected sales session instead of
+requiring another QR scan.
+
+Decision: `crm_primary` is the single active V2 WAHA transport session. This is
+provider session/container reuse only. Supabase remains the sole business
+authority, and the V2 runtime must not execute the frozen V1 sender, writer or
+webhook worker; create dual inbound processing, dual read/write, a compatibility
+or fallback path; or retain a parallel provider UI. The historical companion
+`evo-inbox` deployment, migrations, runbooks and evidence remain unchanged as
+history/rollback inputs, never as an active alias or fallback.
+
+Local #566 acceptance may query and exercise `crm_primary` through the new V2
+path without changing the current production webhook owner. #568 must prove
+the exact same session, sanitized identity/readback, correlated Supabase state
+and replay without duplicate provider or business effects. Production webhook
+ownership transfers only in a separate controlled cutover after an inventory
+of per-session/global hooks, shutdown of the superseded V1 sender/writer/hook
+worker and proof that exactly one V2 consumer remains.
+
+Past immutable migrations and historical launch sections that selected
+`evo-inbox` are preserved. Any current selector is corrected forward or through
+reviewed provisioning. Missing, unhealthy or ambiguous `crm_primary` state
+fails closed; it does not trigger fallback, routine re-pairing, blind retry or
+webhook mutation. ADR 0025 records this superseding session decision.

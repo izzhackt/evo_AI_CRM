@@ -57,6 +57,14 @@
   amoCRM command semantics. Gemini never sends or changes CRM state; WhatsApp
   has no autonomous/broadcast path or blind retry; amoCRM is an integration,
   never a competing business authority.
+- Active V2 reuses the already connected private sales WAHA transport session
+  `crm_primary`, verified `WORKING` on 2026-09-02. This is session/container
+  reuse only: Supabase remains the sole business authority, and V2 must not run
+  the frozen V1 sender, writer or webhook worker, create dual inbound
+  processing, or fall back to `evo-inbox`. Local #566 acceptance may exercise
+  `crm_primary` without changing the current production webhook owner; moving
+  webhook ownership to V2 is a separate controlled cutover with exactly one
+  active owner.
 - The 2026-09-02 owner direction authorizes this repository transition,
   read-only inventory, staging preparation and scoped cleanup without routine
   approval pauses. Production data mutation, traffic cutover and destructive
@@ -175,9 +183,12 @@ canonical store or new dependency.
 - Private WAHA service: `evo-inbox-waha`, reachable only on the companion
   Compose private network at `http://evo-inbox-waha:3000`.
 - First-launch WAHA session: `evo-inbox`.
-- Do not reuse `/opt/evo-crm`, `evo-crm-waha`, `crm_primary`, or the lead-agent
-  webhook path for the companion app. EVO Inbox owns its own WAHA webhook at
-  `/api/waha/webhook`, its own HMAC secret, and its own encrypted WAHA settings.
+- Frozen companion rule: the companion app does not reuse `/opt/evo-crm`,
+  `evo-crm-waha`, `crm_primary`, or the lead-agent webhook path. EVO Inbox owns
+  its companion WAHA webhook at `/api/waha/webhook`, its own HMAC secret, and
+  its own encrypted WAHA settings. This companion-only isolation record is not
+  current V2 session authority; ADR 0025 authorizes active V2 to reuse the
+  connected sales `crm_primary` transport under the single-runtime rules above.
 - Do not publish WAHA ports publicly. Operator access to WAHA QR/dashboard must
   use a private server-side path such as SSH tunnel or an authenticated internal
   admin surface.

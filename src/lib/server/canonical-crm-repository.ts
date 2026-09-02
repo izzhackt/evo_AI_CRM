@@ -7,8 +7,6 @@ import {
   desc,
   eq,
   ilike,
-  isNotNull,
-  isNull,
   lt,
   or,
   sql,
@@ -36,9 +34,7 @@ import {
   evoWhatsappSendAttempts,
 } from "../../db/schema/canonical-crm-operations.ts";
 import {
-  CANONICAL_SALES_DUE_FILTERS,
   CANONICAL_SALES_STAGES,
-  type CanonicalSalesDueFilter,
   type CanonicalSalesStage,
 } from "../canonical-sales-workflow-contract.ts";
 import { isFixedRole, type FixedRole } from "../fixed-role-policy.ts";
@@ -57,8 +53,8 @@ const TASK_DUE_TIMESTAMP_PATTERN =
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DIRECT_WAHA_CHAT_ID_PATTERN = /^[1-9][0-9]{4,31}@(c[.]us|lid)$/;
 
-export { CANONICAL_SALES_DUE_FILTERS, CANONICAL_SALES_STAGES };
-export type { CanonicalSalesDueFilter, CanonicalSalesStage };
+export { CANONICAL_SALES_STAGES };
+export type { CanonicalSalesStage };
 
 export const CANONICAL_STUDENT_CASE_STATUSES = [
   "active",
@@ -178,14 +174,6 @@ export type CanonicalLeadGateSnapshot = Readonly<{
   updatedAt: string;
 }>;
 
-export type CanonicalSalesLeadQueueRow = CanonicalLeadSnapshot;
-
-export type CanonicalSalesLeadQueuePage = Readonly<{
-  rows: readonly CanonicalSalesLeadQueueRow[];
-  hasNext: boolean;
-  nextCursor: CanonicalReadCursor | null;
-}>;
-
 export type CanonicalStaffConversationQueueRow = Readonly<{
   conversationId: string;
   leadId: string;
@@ -208,18 +196,6 @@ export type CanonicalStaffConversationQueuePage = Readonly<{
   rows: readonly CanonicalStaffConversationQueueRow[];
   hasNext: boolean;
   nextCursor: CanonicalReadCursor | null;
-}>;
-
-export type CanonicalLeadConversationSummary = Readonly<{
-  conversationId: string;
-  leadId: string;
-  channel: "whatsapp";
-  externalConversationId: string | null;
-  status: "open" | "closed";
-  owningRole: "sales" | "admissions";
-  version: number;
-  createdAt: string;
-  updatedAt: string;
 }>;
 
 export type CanonicalConversationMessage = Readonly<{
@@ -347,13 +323,6 @@ export type CanonicalWhatsAppSendAttemptSnapshot = Readonly<{
   updatedAt: string;
   settledAt: string | null;
   lastReconciledAt: string | null;
-}>;
-
-export type CanonicalLeadConversationThread = Readonly<{
-  conversation: CanonicalLeadConversationSummary;
-  messages: readonly CanonicalConversationMessage[];
-  hasNext: boolean;
-  nextCursor: CanonicalMessageCursor | null;
 }>;
 
 export type CanonicalStaffConversationThread = Readonly<{
@@ -671,14 +640,6 @@ function optionalCanonicalSalesStage(
   return value;
 }
 
-function canonicalSalesDueFilter(value: unknown): CanonicalSalesDueFilter {
-  if (value === undefined) return "all";
-  if (!CANONICAL_SALES_DUE_FILTERS.some((filter) => filter === value)) {
-    invalidInput();
-  }
-  return value as CanonicalSalesDueFilter;
-}
-
 function optionalCanonicalReadCursor(
   value: unknown,
 ): CanonicalReadCursor | undefined {
@@ -719,21 +680,6 @@ function canonicalReadQuery(value: unknown): string | undefined {
 
 function literalLikePattern(value: string): string {
   return `%${value.replace(/[\\%_]/g, "\\$&")}%`;
-}
-
-function canonicalSalesDueCondition(filter: CanonicalSalesDueFilter) {
-  switch (filter) {
-    case "all":
-      return undefined;
-    case "scheduled":
-      return isNotNull(evoLeads.nextActionAt);
-    case "unscheduled":
-      return isNull(evoLeads.nextActionAt);
-    case "due_today":
-      return sql<boolean>`(${evoLeads.nextActionAt} at time zone 'Asia/Bishkek')::date = (now() at time zone 'Asia/Bishkek')::date`;
-    case "overdue":
-      return sql<boolean>`(${evoLeads.nextActionAt} at time zone 'Asia/Bishkek')::date < (now() at time zone 'Asia/Bishkek')::date`;
-  }
 }
 
 export function parseCanonicalReadCursor(
@@ -1468,29 +1414,6 @@ function databaseMessageDirection(value: string): "inbound" | "outbound" {
     throw new CanonicalCrmRepositoryError("unavailable");
   }
   return value;
-}
-
-function canonicalLeadConversationSummaryRow(
-  row: Readonly<{
-    conversationId: string;
-    leadId: string;
-    channel: string;
-    externalConversationId: string | null;
-    status: string;
-    owningRole: string;
-    version: number;
-    createdAt: Date;
-    updatedAt: Date;
-  }>,
-): CanonicalLeadConversationSummary {
-  return {
-    ...row,
-    channel: databaseConversationChannel(row.channel),
-    status: databaseConversationStatus(row.status),
-    owningRole: databaseConversationOwningRole(row.owningRole),
-    createdAt: dateString(row.createdAt),
-    updatedAt: dateString(row.updatedAt),
-  };
 }
 
 function canonicalStaffConversationQueueRow(
@@ -4888,41 +4811,6 @@ export async function listCanonicalFinanceStops(
   });
 }
 
-export async function listCanonicalLeadConversations(
-  input: Readonly<{ actorRole: FixedRole; leadId: string }>,
-): Promise<readonly CanonicalLeadConversationSummary[]> {
-  actorRole(input.actorRole, ["admin", "sales"]);
-  const leadId = uuid(input.leadId);
-
-  return runTransaction(async (transaction) => {
-    const [lead] = await transaction
-      .select({ id: evoLeads.id })
-      .from(evoLeads)
-      .where(eq(evoLeads.id, leadId))
-      .limit(1);
-    if (!lead) throw new CanonicalCrmRepositoryError("not_found");
-
-    const rows = await transaction
-      .select({
-        conversationId: evoConversations.id,
-        leadId: evoConversations.leadId,
-        channel: evoConversations.channel,
-        externalConversationId: evoConversations.externalConversationId,
-        status: evoConversations.status,
-        owningRole: evoConversations.owningRole,
-        version: evoConversations.version,
-        createdAt: evoConversations.createdAt,
-        updatedAt: evoConversations.updatedAt,
-      })
-      .from(evoConversations)
-      .where(eq(evoConversations.leadId, leadId))
-      .orderBy(desc(evoConversations.updatedAt), desc(evoConversations.id))
-      .limit(50);
-
-    return rows.map(canonicalLeadConversationSummaryRow);
-  });
-}
-
 export async function listCanonicalStaffConversations(
   input: Readonly<{
     actorRole: FixedRole;
@@ -4984,92 +4872,6 @@ export async function listCanonicalStaffConversations(
       nextCursor:
         hasNext && lastRow
           ? { updatedAt: lastRow.updatedAt, id: lastRow.conversationId }
-          : null,
-    };
-  });
-}
-
-export async function getCanonicalLeadConversationThread(
-  input: Readonly<{
-    actorRole: FixedRole;
-    leadId: string;
-    conversationId: string;
-    cursor?: CanonicalMessageCursor | null;
-    pageSize?: number;
-  }>,
-): Promise<CanonicalLeadConversationThread> {
-  actorRole(input.actorRole, ["admin", "sales"]);
-  const leadId = uuid(input.leadId);
-  const conversationId = uuid(input.conversationId);
-  const cursor = optionalCanonicalMessageCursor(input.cursor);
-  const pageSize = canonicalReadPageSize(input.pageSize);
-
-  return runTransaction(async (transaction) => {
-    const [conversationRow] = await transaction
-      .select({
-        conversationId: evoConversations.id,
-        leadId: evoConversations.leadId,
-        channel: evoConversations.channel,
-        externalConversationId: evoConversations.externalConversationId,
-        status: evoConversations.status,
-        owningRole: evoConversations.owningRole,
-        version: evoConversations.version,
-        createdAt: evoConversations.createdAt,
-        updatedAt: evoConversations.updatedAt,
-      })
-      .from(evoConversations)
-      .where(
-        and(
-          eq(evoConversations.id, conversationId),
-          eq(evoConversations.leadId, leadId),
-        ),
-      )
-      .limit(1);
-    if (!conversationRow) {
-      throw new CanonicalCrmRepositoryError("not_found");
-    }
-
-    const cursorDate = cursor ? new Date(cursor.occurredAt) : undefined;
-    const result = await transaction
-      .select({
-        messageId: evoMessages.id,
-        conversationId: evoMessages.conversationId,
-        direction: evoMessages.direction,
-        externalMessageId: evoMessages.externalMessageId,
-        body: evoMessages.body,
-        authorRole: evoMessages.authorRole,
-        occurredAt: evoMessages.occurredAt,
-        createdAt: evoMessages.createdAt,
-      })
-      .from(evoMessages)
-      .where(
-        and(
-          eq(evoMessages.conversationId, conversationId),
-          cursorDate
-            ? or(
-                lt(evoMessages.occurredAt, cursorDate),
-                and(
-                  eq(evoMessages.occurredAt, cursorDate),
-                  lt(evoMessages.id, cursor!.id),
-                ),
-              )
-            : undefined,
-        ),
-      )
-      .orderBy(desc(evoMessages.occurredAt), desc(evoMessages.id))
-      .limit(pageSize + 1);
-
-    const hasNext = result.length > pageSize;
-    const messages = result.slice(0, pageSize).map(canonicalConversationMessageRow);
-    const lastMessage = messages.at(-1);
-
-    return {
-      conversation: canonicalLeadConversationSummaryRow(conversationRow),
-      messages,
-      hasNext,
-      nextCursor:
-        hasNext && lastMessage
-          ? { occurredAt: lastMessage.occurredAt, id: lastMessage.messageId }
           : null,
     };
   });
@@ -6566,93 +6368,6 @@ export async function listCanonicalStudentCases(
       nextCursor:
         hasNext && lastRow
           ? { updatedAt: lastRow.updatedAt, id: lastRow.studentCaseId }
-          : null,
-    };
-  });
-}
-
-export async function listCanonicalSalesLeads(
-  input: Readonly<{
-    actorRole: FixedRole;
-    cursor?: CanonicalReadCursor;
-    stage?: CanonicalSalesStage;
-    due?: CanonicalSalesDueFilter;
-    pageSize?: number;
-    query?: string;
-  }>,
-): Promise<CanonicalSalesLeadQueuePage> {
-  actorRole(input.actorRole, ["admin", "sales"]);
-  const cursor = optionalCanonicalReadCursor(input.cursor);
-  const stage = optionalCanonicalSalesStage(input.stage);
-  const due = canonicalSalesDueFilter(input.due);
-  const pageSize = canonicalReadPageSize(input.pageSize);
-  const query = canonicalReadQuery(input.query);
-
-  return runTransaction(async (transaction) => {
-    const cursorDate = cursor ? new Date(cursor.updatedAt) : undefined;
-    const searchPattern = query ? literalLikePattern(query) : undefined;
-    const result = await transaction
-      .select({
-        leadId: evoLeads.id,
-        personId: evoPeople.id,
-        displayName: evoPeople.fullName,
-        email: evoPeople.email,
-        phone: evoPeople.phoneE164,
-        source: evoLeads.source,
-        stage: evoLeads.stage,
-        ownerRole: evoLeads.ownerRole,
-        qualificationSummary: evoLeads.qualificationSummary,
-        nextAction: evoLeads.nextAction,
-        nextActionAt: evoLeads.nextActionAt,
-        version: evoLeads.version,
-        createdAt: evoLeads.createdAt,
-        updatedAt: evoLeads.updatedAt,
-      })
-      .from(evoLeads)
-      .innerJoin(evoPeople, eq(evoPeople.id, evoLeads.personId))
-      .where(
-        and(
-          stage ? eq(evoLeads.stage, stage) : undefined,
-          canonicalSalesDueCondition(due),
-          cursorDate
-            ? or(
-                lt(evoLeads.updatedAt, cursorDate),
-                and(
-                  eq(evoLeads.updatedAt, cursorDate),
-                  lt(evoLeads.id, cursor!.id),
-                ),
-              )
-            : undefined,
-          searchPattern
-            ? or(
-                ilike(evoPeople.fullName, searchPattern),
-                ilike(evoPeople.email, searchPattern),
-                ilike(evoPeople.phoneE164, searchPattern),
-                ilike(evoPeople.id, searchPattern),
-                ilike(evoLeads.id, searchPattern),
-              )
-            : undefined,
-        ),
-      )
-      .orderBy(desc(evoLeads.updatedAt), desc(evoLeads.id))
-      .limit(pageSize + 1);
-
-    const hasNext = result.length > pageSize;
-    const rows = result.slice(0, pageSize).map((row) => ({
-      ...row,
-      stage: databaseSalesStage(row.stage),
-      ownerRole: databaseSalesOwnerRole(row.ownerRole),
-      nextActionAt: optionalDateString(row.nextActionAt),
-      createdAt: dateString(row.createdAt),
-      updatedAt: dateString(row.updatedAt),
-    }));
-    const lastRow = rows.at(-1);
-    return {
-      rows,
-      hasNext,
-      nextCursor:
-        hasNext && lastRow
-          ? { updatedAt: lastRow.updatedAt, id: lastRow.leadId }
           : null,
     };
   });

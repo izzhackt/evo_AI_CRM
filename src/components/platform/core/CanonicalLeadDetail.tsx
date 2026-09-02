@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { PageHeader, btnGhostCls, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
-import type { CanonicalLeadSnapshot } from "@/lib/server/canonical-crm-repository";
+import type { PlatformSalesLeadDetail } from "@/lib/platform-sales";
 
 import {
   CanonicalKeyBadge,
@@ -15,54 +15,60 @@ const COPY = {
   ru: {
     back: "К лидам",
     description:
-      "Это основная карточка лида в V2. Здесь показаны текущие данные лида, по которым работает CRM.",
+      "Основная карточка лида из канонической модели Supabase Platform.",
     leadId: "Lead UUID",
-    personId: "Person UUID",
+    clientId: "Client UUID",
     email: "Эл. почта",
     phone: "Телефон",
     stage: "Текущий этап EVO",
-    owner: "Роль-владелец",
-    qualificationSummary: "Итог квалификации",
+    owner: "Текущий ответственный",
+    ownerMembershipId: "Membership UUID ответственного",
+    noOwner: "Не назначен",
+    lifecycle: "Состояние лида",
     nextAction: "Следующее действие",
-    nextActionAt: "Срок следующего действия",
-    source: "Источник лида",
-    version: "Версия записи",
+    nextActionDueDate: "Дата следующего действия",
+    source: "Ключ источника",
+    workflowVersion: "Версия Sales workflow",
     createdAt: "Создано",
     updatedAt: "Обновлено",
   },
   ky: {
     back: "Лиддерге",
     description:
-      "Бул V2деги лиддин негизги карточкасы. Бул жерде CRM иштеген учурдагы лид маалыматтары көрсөтүлөт.",
+      "Supabase Platform каноникалык моделиндеги лиддин негизги карточкасы.",
     leadId: "Lead UUID",
-    personId: "Person UUID",
+    clientId: "Client UUID",
     email: "Эл. почта",
     phone: "Телефон",
     stage: "EVO учурдагы этабы",
-    owner: "Ээ роль",
-    qualificationSummary: "Квалификация жыйынтыгы",
+    owner: "Учурдагы жооптуу",
+    ownerMembershipId: "Жооптуунун Membership UUID'си",
+    noOwner: "Дайындалган эмес",
+    lifecycle: "Лиддин абалы",
     nextAction: "Кийинки аракет",
-    nextActionAt: "Кийинки аракеттин мөөнөтү",
-    source: "Лид булагы",
-    version: "Жазуунун версиясы",
+    nextActionDueDate: "Кийинки аракеттин датасы",
+    source: "Булак ачкычы",
+    workflowVersion: "Sales workflow версиясы",
     createdAt: "Түзүлгөн",
     updatedAt: "Жаңыртылган",
   },
   en: {
     back: "Back to leads",
     description:
-      "This is the primary lead card in V2. It shows the current lead data the CRM works from.",
+      "The primary lead card from the canonical Supabase Platform model.",
     leadId: "Lead UUID",
-    personId: "Person UUID",
+    clientId: "Client UUID",
     email: "Email",
     phone: "Phone",
     stage: "Current EVO stage",
-    owner: "Owner role",
-    qualificationSummary: "Qualification summary",
+    owner: "Current owner",
+    ownerMembershipId: "Owner membership UUID",
+    noOwner: "Unassigned",
+    lifecycle: "Lead lifecycle",
     nextAction: "Next action",
-    nextActionAt: "Next-action deadline",
-    source: "Lead source",
-    version: "Record version",
+    nextActionDueDate: "Next-action date",
+    source: "Source key",
+    workflowVersion: "Sales workflow version",
     createdAt: "Created",
     updatedAt: "Updated",
   },
@@ -72,7 +78,7 @@ export function CanonicalLeadDetail({
   lead,
   locale,
 }: Readonly<{
-  lead: CanonicalLeadSnapshot;
+  lead: PlatformSalesLeadDetail;
   locale: Locale;
 }>) {
   const copy = COPY[locale];
@@ -84,17 +90,17 @@ export function CanonicalLeadDetail({
       </Link>
 
       <PageHeader
-        title={lead.displayName}
+        title={lead.clientDisplayName ?? lead.clientEmail ?? lead.clientPhone ?? lead.leadId}
         description={copy.description}
       />
 
       <section className="rounded-card border border-border bg-surface-2 px-5 py-4">
         <p className="text-sm text-fg-2">
           {locale === "ru"
-            ? "Источник данных: текущая база EVO V2."
+            ? "Источник данных: Supabase, каноническая схема Platform и права RLS текущего сотрудника."
             : locale === "ky"
-              ? "Маалымат булагы: EVO V2нин учурдагы базасы."
-              : "Data source: the current EVO V2 database."}
+              ? "Маалымат булагы: Supabase, каноникалык Platform схемасы жана учурдагы кызматкердин RLS укуктары."
+              : "Data source: Supabase, the canonical Platform schema, and the current staff member's RLS permissions."}
         </p>
       </section>
 
@@ -103,35 +109,44 @@ export function CanonicalLeadDetail({
           <Fact label={copy.leadId} testId="canonical-lead-id">
             <CanonicalUuid value={lead.leadId} />
           </Fact>
-          <Fact label={copy.personId} testId="canonical-person-id">
-            <CanonicalUuid value={lead.personId} />
+          <Fact label={copy.clientId} testId="canonical-client-id">
+            {lead.clientId ? <CanonicalUuid value={lead.clientId} /> : "—"}
           </Fact>
-          <Fact label={copy.email}>{lead.email ?? "—"}</Fact>
-          <Fact label={copy.phone}>{lead.phone ?? "—"}</Fact>
-          <Fact label={copy.stage}>
-            <CanonicalKeyBadge value={lead.stage} />
+          <Fact label={copy.email}>{lead.clientEmail ?? "—"}</Fact>
+          <Fact label={copy.phone} testId="canonical-lead-phone">
+            {lead.clientPhone ?? "—"}
+          </Fact>
+          <Fact label={copy.stage} testId="canonical-lead-stage">
+            <CanonicalKeyBadge value={lead.stageKey} />
           </Fact>
           <Fact label={copy.owner}>
-            <CanonicalKeyBadge value={lead.ownerRole} />
+            {lead.currentOwnerDisplayName ?? copy.noOwner}
           </Fact>
-          <Fact label={copy.qualificationSummary}>
-            {lead.qualificationSummary ?? "—"}
+          <Fact label={copy.ownerMembershipId}>
+            {lead.currentOwnerMembershipId ? (
+              <CanonicalUuid value={lead.currentOwnerMembershipId} />
+            ) : (
+              "—"
+            )}
           </Fact>
-          <Fact label={copy.nextAction}>{lead.nextAction ?? "—"}</Fact>
-          <Fact label={copy.nextActionAt}>
-            {lead.nextActionAt ? (
+          <Fact label={copy.lifecycle}>
+            <CanonicalKeyBadge value={lead.lifecycleState} />
+          </Fact>
+          <Fact label={copy.nextAction}>{lead.nextActionText ?? "—"}</Fact>
+          <Fact label={copy.nextActionDueDate}>
+            {lead.nextActionDueDate ? (
               <span className="font-mono text-xs">
-                {formatCanonicalTimestamp(lead.nextActionAt, locale)}
+                {formatCalendarDate(lead.nextActionDueDate, locale)}
               </span>
             ) : (
               "—"
             )}
           </Fact>
-          <Fact label={copy.source}>
-            <span className="font-medium text-fg">{lead.source}</span>
+          <Fact label={copy.source} testId="canonical-lead-source">
+            <CanonicalKeyBadge value={lead.sourceKey} />
           </Fact>
-          <Fact label={copy.version}>
-            <span className="font-mono text-xs text-fg">{lead.version}</span>
+          <Fact label={copy.workflowVersion} testId="canonical-lead-workflow-version">
+            <span className="font-mono text-xs text-fg">{lead.workflowVersion}</span>
           </Fact>
           <Fact label={copy.createdAt}>
             <span className="font-mono text-xs">
@@ -147,6 +162,14 @@ export function CanonicalLeadDetail({
       </section>
     </div>
   );
+}
+
+function formatCalendarDate(value: string, locale: Locale): string {
+  const localeTag = locale === "ru" ? "ru-RU" : locale === "ky" ? "ky-KG" : "en-US";
+  return new Intl.DateTimeFormat(localeTag, {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00Z`));
 }
 
 function Fact({

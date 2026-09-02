@@ -159,6 +159,33 @@ EXCEPTION
 END
 $$;
 
+CREATE OR REPLACE FUNCTION pg_temp.u4_attempt_detail(p_lead_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  row_count BIGINT;
+BEGIN
+  SELECT pg_catalog.count(*)
+  INTO row_count
+  FROM platform.staff_sales_lead_detail(p_lead_id);
+
+  RETURN pg_catalog.jsonb_build_object(
+    'ok', TRUE,
+    'row_count', row_count
+  );
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN pg_catalog.jsonb_build_object(
+      'ok', FALSE,
+      'sqlstate', SQLSTATE,
+      'message', SQLERRM
+    );
+END
+$$;
+
 CREATE OR REPLACE FUNCTION pg_temp.u4_traverse_filtered_leads(
   p_query TEXT
 )
@@ -479,6 +506,8 @@ $$;
 GRANT EXECUTE ON FUNCTION pg_temp.u4_assert(BOOLEAN, TEXT)
   TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION pg_temp.u4_attempt_page()
+  TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION pg_temp.u4_attempt_detail(UUID)
   TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION pg_temp.u4_traverse_filtered_leads(TEXT)
   TO authenticated;
@@ -2057,6 +2086,12 @@ SELECT pg_temp.u4_assert(
   (pg_temp.u4_attempt_page() ->> 'sqlstate') = '42501'
   AND (pg_temp.u4_attempt_page() ->> 'message') = 'sales_workflow_forbidden'
   AND (
+    pg_temp.u4_attempt_detail(:'u4_lead_new') ->> 'sqlstate'
+  ) = '42501'
+  AND (
+    pg_temp.u4_attempt_detail(:'u4_lead_new') ->> 'message'
+  ) = 'sales_workflow_forbidden'
+  AND (
     pg_temp.u4_attempt_mutation(
       :'u4_lead_new',
       3,
@@ -2078,6 +2113,9 @@ SET LOCAL ROLE anon;
 SELECT pg_temp.u4_assert(
   (pg_temp.u4_attempt_page() ->> 'sqlstate') = '42501'
   AND (
+    pg_temp.u4_attempt_detail(:'u4_lead_new') ->> 'sqlstate'
+  ) = '42501'
+  AND (
     pg_temp.u4_attempt_mutation(
       :'u4_lead_new',
       3,
@@ -2098,6 +2136,9 @@ SET LOCAL request.jwt.claims = '{"role":"service_role"}';
 SET LOCAL ROLE service_role;
 SELECT pg_temp.u4_assert(
   (pg_temp.u4_attempt_page() ->> 'sqlstate') = '42501'
+  AND (
+    pg_temp.u4_attempt_detail(:'u4_lead_new') ->> 'sqlstate'
+  ) = '42501'
   AND (
     pg_temp.u4_attempt_mutation(
       :'u4_lead_new',

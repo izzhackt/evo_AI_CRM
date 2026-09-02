@@ -21,14 +21,11 @@ import {
   getCanonicalAdmissionsOperationsSnapshot,
   getCanonicalGeminiProposalContext,
   getCanonicalStaffConversationThread,
-  getCanonicalLeadConversationThread,
   getCanonicalLeadGateSnapshot,
   getCanonicalStudentCaseHandoffSnapshot,
   handoffCanonicalLeadToAdmissions,
   listCanonicalAdmissionsTasks,
   listCanonicalFinanceStops,
-  listCanonicalLeadConversations,
-  listCanonicalSalesLeads,
   listCanonicalStaffConversations,
   listCanonicalStudentCases,
   listCanonicalUniversityApplications,
@@ -230,33 +227,17 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       proposalCountBeforeBlockedRequest,
     );
 
-    const conversations = await listCanonicalLeadConversations({
-      actorRole: "sales",
-      leadId: lead.leadId,
-    });
-    assert.deepEqual(
-      conversations.map((conversation) => ({
-        conversationId: conversation.conversationId,
-        leadId: conversation.leadId,
-        channel: conversation.channel,
-        status: conversation.status,
-      })),
-      [
-        {
-          conversationId: inbound.conversationId,
-          leadId: lead.leadId,
-          channel: "whatsapp",
-          status: "open",
-        },
-      ],
-    );
-
     const salesQueueBeforeHandoff = await listCanonicalStaffConversations({
       actorRole: "sales",
       pageSize: 10,
     });
     assert.equal(salesQueueBeforeHandoff.rows.length, 1);
-    assert.deepEqual(salesQueueBeforeHandoff.rows[0], {
+    const {
+      createdAt: salesQueueCreatedAt,
+      updatedAt: salesQueueUpdatedAt,
+      ...salesQueueRowBeforeHandoff
+    } = salesQueueBeforeHandoff.rows[0];
+    assert.deepEqual(salesQueueRowBeforeHandoff, {
       conversationId: inbound.conversationId,
       leadId: lead.leadId,
       studentCaseId: null,
@@ -270,9 +251,15 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       status: "open",
       owningRole: "sales",
       version: 1,
-      createdAt: conversations[0].createdAt,
-      updatedAt: conversations[0].updatedAt,
     });
+    assert.equal(
+      new Date(salesQueueCreatedAt).toISOString(),
+      salesQueueCreatedAt,
+    );
+    assert.equal(
+      new Date(salesQueueUpdatedAt).toISOString(),
+      salesQueueUpdatedAt,
+    );
     const admissionsQueueBeforeHandoff = await listCanonicalStaffConversations({
       actorRole: "admissions",
       pageSize: 10,
@@ -294,7 +281,16 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       leadInput.displayName,
     );
     assert.equal(directThreadBeforeHandoff.conversation.studentCaseId, null);
-    assert.equal(directThreadBeforeHandoff.messages[0].body, `technical-inbound-later-${runId}`);
+    assert.equal(directThreadBeforeHandoff.messages.length, 1);
+    assert.equal(
+      directThreadBeforeHandoff.messages[0].body,
+      `technical-inbound-later-${runId}`,
+    );
+    assert.equal(directThreadBeforeHandoff.hasNext, true);
+    assert.deepEqual(directThreadBeforeHandoff.nextCursor, {
+      occurredAt: "2026-08-28T12:01:00.000Z",
+      id: laterInbound.messageId,
+    });
     await assert.rejects(
       getCanonicalStaffConversationThread({
         actorRole: "admissions",
@@ -303,29 +299,10 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       repositoryError("not_found"),
     );
 
-    const firstMessagePage = await getCanonicalLeadConversationThread({
-      actorRole: "admin",
-      leadId: lead.leadId,
-      conversationId: inbound.conversationId,
-      pageSize: 1,
-    });
-    assert.equal(firstMessagePage.conversation.leadId, lead.leadId);
-    assert.equal(firstMessagePage.messages.length, 1);
-    assert.equal(
-      firstMessagePage.messages[0].body,
-      `technical-inbound-later-${runId}`,
-    );
-    assert.equal(firstMessagePage.hasNext, true);
-    assert.deepEqual(firstMessagePage.nextCursor, {
-      occurredAt: "2026-08-28T12:01:00.000Z",
-      id: laterInbound.messageId,
-    });
-
-    const secondMessagePage = await getCanonicalLeadConversationThread({
+    const secondMessagePage = await getCanonicalStaffConversationThread({
       actorRole: "sales",
-      leadId: lead.leadId,
       conversationId: inbound.conversationId,
-      cursor: firstMessagePage.nextCursor,
+      cursor: directThreadBeforeHandoff.nextCursor,
       pageSize: 1,
     });
     assert.equal(secondMessagePage.messages.length, 1);
@@ -476,40 +453,6 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       conversationUpdatedAt: laterAtomicOccurredAt.toISOString(),
     });
 
-    const orderedAtomicConversations = await listCanonicalLeadConversations({
-      actorRole: "sales",
-      leadId: atomicInbound.leadId,
-      pageSize: 10,
-    });
-    assert.deepEqual(
-      orderedAtomicConversations
-        .slice(0, 2)
-        .map((conversation) => conversation.conversationId),
-      [atomicInbound.conversationId, secondAtomicConversation.conversationId],
-      "the conversation touched by the later provider message must sort first",
-    );
-
-    const comparisonAtomicLead = await receiveCanonicalWhatsAppInbound({
-      ...technicalCommandContext(runId, "atomic-inbound-comparison-lead"),
-      displayName: `atomic-order-${runId}-secondary`,
-      phone: `+999${decimalRunId}`,
-      externalConversationId:
-        `technical-atomic-comparison-conversation-${runId}`,
-      externalMessageId: `technical-atomic-comparison-message-${runId}`,
-      body: `technical-atomic-comparison-body-${runId}`,
-      occurredAt: intermediateAtomicOccurredAt.toISOString(),
-    });
-    const orderedAtomicLeads = await listCanonicalSalesLeads({
-      actorRole: "sales",
-      query: `atomic-order-${runId}`,
-      pageSize: 10,
-    });
-    assert.deepEqual(
-      orderedAtomicLeads.rows.slice(0, 2).map((row) => row.leadId),
-      [atomicInbound.leadId, comparisonAtomicLead.leadId],
-      "the lead touched by the later provider message must sort first",
-    );
-
     const exactAtomicReplay =
       await receiveCanonicalWhatsAppInbound(atomicInboundInput);
     assert.deepEqual(exactAtomicReplay, atomicInbound);
@@ -546,21 +489,6 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       people: 1,
       whatsapp_leads: 1,
     });
-
-    const unrelatedLead = await createCanonicalPersonLead({
-      ...technicalCommandContext(runId, "unrelated-lead"),
-      displayName: `unrelated-technical-subject-${runId}`,
-      email: `unrelated-${runId}@acceptance.invalid`,
-      source: `technical-source-${runId}`,
-    });
-    await assert.rejects(
-      getCanonicalLeadConversationThread({
-        actorRole: "sales",
-        leadId: unrelatedLead.leadId,
-        conversationId: inbound.conversationId,
-      }),
-      repositoryError("not_found"),
-    );
 
     await assert.rejects(
       handoffCanonicalLeadToAdmissions({
@@ -2296,21 +2224,6 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
       `;
     }
 
-    const handedOffPage = await listCanonicalSalesLeads({
-      actorRole: "sales",
-      query: lead.leadId,
-      stage: "handed_off",
-    });
-    assert.equal(handedOffPage.rows.length, 1);
-    assert.equal(handedOffPage.rows[0].nextAction, null);
-    assert.equal(handedOffPage.rows[0].nextActionAt, null);
-    const handedOffScheduledPage = await listCanonicalSalesLeads({
-      actorRole: "admin",
-      query: lead.leadId,
-      due: "scheduled",
-    });
-    assert.deepEqual(handedOffScheduledPage.rows, []);
-
     const evidenceCountBeforeTerminalProbe = Number(
       (
         await sql`
@@ -3598,7 +3511,7 @@ test("canonical CRM commands and constraints hold on real PostgreSQL", async () 
   }
 });
 
-test("canonical Sales repository runs the technical queue and workflow on real PostgreSQL", async () => {
+test("canonical Sales repository runs the technical workflow on real PostgreSQL", async () => {
   const databaseUrl = requiredDatabaseUrl();
   const sql = postgres(databaseUrl, {
     idle_timeout: 5,
@@ -3639,12 +3552,6 @@ test("canonical Sales repository runs the technical queue and workflow on real P
       ...technicalCommandContext(runId, "future-lead"),
       displayName: `technical-sales-future-${runId}`,
       email: `sales-future-${runId}@technical.invalid`,
-      source: `technical-sales-source-${runId}`,
-    });
-    const unscheduledLead = await createCanonicalPersonLead({
-      ...technicalCommandContext(runId, "unscheduled-lead"),
-      displayName: `technical-sales-Xliteral-${runId}`,
-      email: `sales-unscheduled-${runId}@technical.invalid`,
       source: `technical-sales-source-${runId}`,
     });
     const disqualifiedLead = await createCanonicalPersonLead({
@@ -3911,157 +3818,6 @@ test("canonical Sales repository runs the technical queue and workflow on real P
       reason: "Technical disqualification reason",
     });
 
-    const newestAt = "2026-08-28T15:00:00.000Z";
-    const tiedAt = "2026-08-28T14:00:00.000Z";
-    const unscheduledAt = "2026-08-28T13:00:00.000Z";
-    const disqualifiedAt = "2026-08-28T12:00:00.000Z";
-    await sql`
-      update evo_leads
-      set updated_at = case id
-        when ${literalLead.leadId} then ${newestAt}::timestamptz
-        when ${overdueLead.leadId} then ${tiedAt}::timestamptz
-        when ${futureLead.leadId} then ${tiedAt}::timestamptz
-        when ${unscheduledLead.leadId} then ${unscheduledAt}::timestamptz
-        when ${disqualifiedLead.leadId} then ${disqualifiedAt}::timestamptz
-      end
-      where id in (
-        ${literalLead.leadId},
-        ${overdueLead.leadId},
-        ${futureLead.leadId},
-        ${unscheduledLead.leadId},
-        ${disqualifiedLead.leadId}
-      )
-    `;
-
-    await assert.rejects(
-      listCanonicalSalesLeads({ actorRole: "admissions", query: runId }),
-      repositoryError("forbidden"),
-    );
-    const tiedIds = [overdueLead.leadId, futureLead.leadId].sort((left, right) =>
-      left > right ? -1 : left < right ? 1 : 0,
-    );
-    const firstPage = await listCanonicalSalesLeads({
-      actorRole: "admin",
-      query: runId,
-      pageSize: 2,
-    });
-    assert.deepEqual(
-      firstPage.rows.map((row) => row.leadId),
-      [literalLead.leadId, tiedIds[0]],
-    );
-    assert.equal(firstPage.hasNext, true);
-    assert.deepEqual(firstPage.nextCursor, {
-      updatedAt: tiedAt,
-      id: tiedIds[0],
-    });
-    const secondPage = await listCanonicalSalesLeads({
-      actorRole: "sales",
-      query: runId,
-      pageSize: 2,
-      cursor: firstPage.nextCursor,
-    });
-    assert.deepEqual(secondPage.rows.map((row) => row.leadId), [
-      tiedIds[1],
-      unscheduledLead.leadId,
-    ]);
-    assert.equal(secondPage.hasNext, true);
-    const thirdPage = await listCanonicalSalesLeads({
-      actorRole: "admin",
-      query: runId,
-      pageSize: 2,
-      cursor: secondPage.nextCursor,
-    });
-    assert.deepEqual(thirdPage.rows.map((row) => row.leadId), [
-      disqualifiedLead.leadId,
-    ]);
-    assert.equal(thirdPage.hasNext, false);
-    assert.equal(thirdPage.nextCursor, null);
-    assert.equal(
-      new Set(
-        [...firstPage.rows, ...secondPage.rows, ...thirdPage.rows].map(
-          (row) => row.leadId,
-        ),
-      ).size,
-      5,
-    );
-
-    const qualifiedPage = await listCanonicalSalesLeads({
-      actorRole: "sales",
-      query: runId,
-      stage: "qualified",
-    });
-    assert.deepEqual(qualifiedPage.rows.map((row) => row.leadId), [
-      futureLead.leadId,
-    ]);
-    assert.equal(qualifiedPage.rows[0].qualificationSummary, "Technical qualification summary");
-    assert.equal(qualifiedPage.rows[0].ownerRole, "sales");
-
-    const scheduledPage = await listCanonicalSalesLeads({
-      actorRole: "admin",
-      query: runId,
-      due: "scheduled",
-    });
-    assert.deepEqual(
-      new Set(scheduledPage.rows.map((row) => row.leadId)),
-      new Set([literalLead.leadId, overdueLead.leadId, futureLead.leadId]),
-    );
-    const unscheduledPage = await listCanonicalSalesLeads({
-      actorRole: "sales",
-      query: runId,
-      due: "unscheduled",
-    });
-    assert.deepEqual(
-      new Set(unscheduledPage.rows.map((row) => row.leadId)),
-      new Set([unscheduledLead.leadId, disqualifiedLead.leadId]),
-    );
-    const dueTodayPage = await listCanonicalSalesLeads({
-      actorRole: "admin",
-      query: runId,
-      due: "due_today",
-    });
-    assert.deepEqual(dueTodayPage.rows.map((row) => row.leadId), [
-      literalLead.leadId,
-    ]);
-    const overduePage = await listCanonicalSalesLeads({
-      actorRole: "sales",
-      query: runId,
-      due: "overdue",
-    });
-    assert.deepEqual(overduePage.rows.map((row) => row.leadId), [
-      overdueLead.leadId,
-    ]);
-
-    for (const query of [
-      `100%_literal-${runId}`,
-      literalEmail,
-      literalPhone,
-      literalLead.personId,
-      literalLead.leadId,
-    ]) {
-      const searchPage = await listCanonicalSalesLeads({
-        actorRole: "admin",
-        query,
-      });
-      assert.deepEqual(
-        searchPage.rows.map((row) => row.leadId),
-        [literalLead.leadId],
-        `literal Sales queue search failed for ${query}`,
-      );
-    }
-
-    const originalDatabaseUrl = process.env.DATABASE_URL;
-    await closeDatabaseConnections();
-    process.env.DATABASE_URL =
-      "postgresql://technical:technical@127.0.0.1:1/technical";
-    try {
-      await assert.rejects(
-        listCanonicalSalesLeads({ actorRole: "admin", query: runId }),
-        repositoryError("unavailable"),
-      );
-    } finally {
-      process.env.DATABASE_URL = originalDatabaseUrl;
-      await closeDatabaseConnections();
-    }
   } finally {
     await closeDatabaseConnections();
     await sql.end({ timeout: 5 });

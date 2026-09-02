@@ -7,22 +7,23 @@ import {
 import { EmptyState, btnGhostCls, cn } from "@/components/ui";
 import type { Locale } from "@/lib/i18n";
 import type {
-  CanonicalConversationMessage,
-  CanonicalLeadConversationSummary,
-} from "@/lib/server/canonical-crm-repository";
+  PlatformConversationMessage,
+  PlatformConversationSummary,
+} from "@/lib/platform-communications";
+import type { PlatformSalesLinkedConversation } from "@/lib/platform-sales";
 
 const COPY = {
   ru: {
     conversations: "Диалоги WhatsApp",
     conversationsDescription:
-      "Входящие диалоги этого лида, сохранённые в локальной базе EVO.",
+      "Связанные диалоги этого лида читаются из канонической Supabase Platform через RLS.",
     emptyConversations: "У этого лида пока нет сохранённых диалогов.",
     openConversation: "Открыть переписку",
     updated: "Обновлено",
     back: "К лиду",
     transcript: "Переписка WhatsApp · только чтение",
     transcriptDescription:
-      "Сообщения показаны от новых к старым. Отправка, автоответы и AI-действия на этой странице отсутствуют.",
+      "Сообщения показаны по времени от старых к новым. Отправка, автоответы и AI-действия на этой странице отсутствуют.",
     emptyMessages: "В этой переписке пока нет сообщений.",
     unavailable:
       "Переписка недоступна. EVO не подставляет данные из старого или резервного источника.",
@@ -30,20 +31,18 @@ const COPY = {
     older: "Более старые сообщения",
     incoming: "Входящее",
     outgoing: "Исходящее · история",
-    providerBlocked:
-      "Реальный WAHA-провайдер не проверялся и не подключался: эта локальная страница доказывает только сохранение и чтение данных в EVO.",
   },
   ky: {
     conversations: "WhatsApp диалогдору",
     conversationsDescription:
-      "Бул лиддин EVO локалдык базасында сакталган кирүүчү диалогдору.",
+      "Бул лидге байланышкан диалогдор каноникалык Supabase Platform'дан RLS аркылуу окулат.",
     emptyConversations: "Бул лид үчүн сакталган диалогдор азырынча жок.",
     openConversation: "Кат алышууну ачуу",
     updated: "Жаңыртылды",
     back: "Лидге",
     transcript: "WhatsApp кат алышуусу · окуу гана",
     transcriptDescription:
-      "Билдирүүлөр жаңысынан эскисине көрсөтүлөт. Бул баракта жөнөтүү, авто-жооп жана AI аракеттери жок.",
+      "Билдирүүлөр убакыт боюнча эскисинен жаңысына көрсөтүлөт. Бул баракта жөнөтүү, авто-жооп жана AI аракеттери жок.",
     emptyMessages: "Бул кат алышууда билдирүүлөр азырынча жок.",
     unavailable:
       "Кат алышуу жеткиликсиз. EVO эски же резервдик булактан маалымат койбойт.",
@@ -51,20 +50,18 @@ const COPY = {
     older: "Мурунку билдирүүлөр",
     incoming: "Кирген",
     outgoing: "Чыккан · тарых",
-    providerBlocked:
-      "Чыныгы WAHA провайдери текшерилген же туташтырылган эмес: бул локалдык барак EVOдо маалыматтын сакталышын жана окулушун гана далилдейт.",
   },
   en: {
     conversations: "WhatsApp conversations",
     conversationsDescription:
-      "Inbound conversations for this lead persisted in EVO's local database.",
+      "Conversations linked to this lead are read from canonical Supabase Platform through RLS.",
     emptyConversations: "This lead has no persisted conversations yet.",
     openConversation: "Open transcript",
     updated: "Updated",
     back: "Back to lead",
     transcript: "WhatsApp transcript · read-only",
     transcriptDescription:
-      "Messages are shown newest first. Sending, automated replies, and AI actions are absent from this page.",
+      "Messages are shown oldest to newest. Sending, automated replies, and AI actions are absent from this page.",
     emptyMessages: "There are no messages in this transcript yet.",
     unavailable:
       "The transcript is unavailable. EVO does not substitute legacy or secondary data.",
@@ -72,8 +69,6 @@ const COPY = {
     older: "Older messages",
     incoming: "Incoming",
     outgoing: "Outgoing · history",
-    providerBlocked:
-      "A real WAHA provider was not tested or connected. This local page proves only persistence and reading inside EVO.",
   },
 } as const;
 
@@ -83,7 +78,7 @@ export function CanonicalSalesConversationList({
   locale,
 }: Readonly<{
   leadId: string;
-  conversations: readonly CanonicalLeadConversationSummary[];
+  conversations: readonly PlatformSalesLinkedConversation[];
   locale: Locale;
 }>) {
   const copy = COPY[locale];
@@ -99,8 +94,6 @@ export function CanonicalSalesConversationList({
           {copy.conversationsDescription}
         </p>
       </div>
-
-      <ProviderBlockedNotice locale={locale} />
 
       {conversations.length === 0 ? (
         <EmptyState text={copy.emptyConversations} />
@@ -123,7 +116,7 @@ export function CanonicalSalesConversationList({
                   </span>
                 </span>
                 <span className="flex flex-wrap items-center justify-end gap-2">
-                  <CanonicalKeyBadge value={conversation.channel} tone="accent" />
+                  <CanonicalKeyBadge value={conversation.queue} tone="accent" />
                   <CanonicalKeyBadge
                     value={conversation.status}
                     tone={conversation.status === "open" ? "ok" : "neutral"}
@@ -150,8 +143,8 @@ export function CanonicalSalesConversationTranscript({
   olderMessagesHref,
 }: Readonly<{
   leadId: string;
-  conversation: CanonicalLeadConversationSummary;
-  messages: readonly CanonicalConversationMessage[];
+  conversation: PlatformConversationSummary;
+  messages: readonly PlatformConversationMessage[];
   locale: Locale;
   newestMessagesHref: string | null;
   olderMessagesHref: string | null;
@@ -162,7 +155,6 @@ export function CanonicalSalesConversationTranscript({
     <div
       className="min-w-0 space-y-5"
       data-testid="canonical-sales-transcript"
-      data-provider-proof="not-proved"
     >
       <div className="space-y-3 border-b border-border pb-4">
         <Link href={`/sales/${leadId}`} className={btnGhostCls}>
@@ -175,15 +167,13 @@ export function CanonicalSalesConversationTranscript({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <CanonicalKeyBadge value={conversation.channel} tone="accent" />
+          <CanonicalKeyBadge value={conversation.queue} tone="accent" />
           <CanonicalKeyBadge
             value={conversation.status}
             tone={conversation.status === "open" ? "ok" : "neutral"}
           />
         </div>
       </div>
-
-      <ProviderBlockedNotice locale={locale} />
 
       {messages.length === 0 ? (
         <div className="border-y border-border">
@@ -195,10 +185,10 @@ export function CanonicalSalesConversationTranscript({
             const outgoing = message.direction === "outbound";
             return (
               <li
-                key={message.messageId}
+                key={message.id}
                 className="grid gap-2 py-4 sm:grid-cols-[130px_minmax(0,1fr)]"
                 data-testid="canonical-sales-message"
-                data-message-id={message.messageId}
+                data-message-id={message.id}
                 data-message-direction={message.direction}
               >
                 <div className="text-xs text-fg-3">
@@ -211,11 +201,11 @@ export function CanonicalSalesConversationTranscript({
                     {outgoing ? copy.outgoing : copy.incoming}
                   </div>
                   <time className="mt-1 block font-mono">
-                    {formatCanonicalTimestamp(message.occurredAt, locale)}
+                    {formatCanonicalTimestamp(message.createdAt, locale)}
                   </time>
                 </div>
                 <p className="min-w-0 whitespace-pre-wrap break-words text-sm leading-6 text-fg">
-                  {message.body}
+                  {message.bodyText}
                 </p>
               </li>
             );
@@ -263,16 +253,5 @@ export function CanonicalSalesTranscriptUnavailable({
         {copy.unavailable}
       </p>
     </div>
-  );
-}
-
-function ProviderBlockedNotice({ locale }: Readonly<{ locale: Locale }>) {
-  return (
-    <aside
-      className="border-l border-warn bg-warn-weak/40 px-4 py-3 text-xs leading-5 text-fg-2"
-      data-testid="canonical-whatsapp-provider-blocked"
-    >
-      {COPY[locale].providerBlocked}
-    </aside>
   );
 }

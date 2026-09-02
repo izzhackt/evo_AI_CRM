@@ -5,13 +5,18 @@ import {
   CanonicalSalesTranscriptUnavailable,
 } from "@/components/platform/sales/CanonicalSalesConversations";
 import { getT } from "@/lib/i18n";
+import {
+  getPlatformConversationThread,
+  parsePlatformConversationCursor,
+  PlatformCommunicationsRepositoryError,
+  type PlatformConversationCursor,
+} from "@/lib/platform-communications";
 import { requirePlatformSalesActor } from "@/lib/platform-guards";
 import {
-  CanonicalCrmRepositoryError,
-  getCanonicalLeadConversationThread,
-  parseCanonicalMessageCursor,
-  type CanonicalMessageCursor,
-} from "@/lib/server/canonical-crm-repository";
+  isPlatformLeadConversationLinked,
+  parsePlatformSalesUuid,
+  PlatformSalesRepositoryError,
+} from "@/lib/platform-sales";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
@@ -31,48 +36,70 @@ export default async function SalesConversationPage({
     getT(),
     requirePlatformSalesActor(),
   ]);
+  const leadId = parsePlatformSalesUuid(id);
+  const normalizedConversationId = parsePlatformSalesUuid(conversationId);
+  if (leadId === null || normalizedConversationId === null) notFound();
   const messageCursor = parseMessageCursor(query);
 
-  let thread: Awaited<ReturnType<typeof getCanonicalLeadConversationThread>>;
+  let isLinked = false;
+  let thread: Awaited<ReturnType<typeof getPlatformConversationThread>> = null;
+  let readUnavailable = false;
+
   try {
-    thread = await getCanonicalLeadConversationThread({
-      actorRole: actor.authorityRole,
-      leadId: id,
-      conversationId,
-      cursor: messageCursor,
-      pageSize: 50,
-    });
+    [isLinked, thread] = await Promise.all([
+      isPlatformLeadConversationLinked(
+        actor,
+        leadId,
+        normalizedConversationId,
+      ),
+      getPlatformConversationThread(actor, normalizedConversationId, {
+        cursor: messageCursor,
+        pageSize: 50,
+      }),
+    ]);
   } catch (error: unknown) {
-    if (error instanceof CanonicalCrmRepositoryError) {
-      if (error.code === "invalid_input" || error.code === "not_found") {
-        notFound();
-      }
-      if (error.code === "unavailable") {
-        return <CanonicalSalesTranscriptUnavailable leadId={id} locale={locale} />;
-      }
+    if (
+      error instanceof PlatformSalesRepositoryError ||
+      error instanceof PlatformCommunicationsRepositoryError
+    ) {
+      readUnavailable = true;
+    } else {
+      throw error;
     }
-    throw error;
+  }
+
+  if (readUnavailable) {
+    return <CanonicalSalesTranscriptUnavailable leadId={leadId} locale={locale} />;
+  }
+  if (!isLinked || thread === null) {
+    notFound();
   }
 
   return (
     <CanonicalSalesConversationTranscript
-      leadId={id}
+      leadId={leadId}
       conversation={thread.conversation}
       messages={thread.messages}
       locale={locale}
       newestMessagesHref={
-        messageCursor ? transcriptHref(id, conversationId) : null
+        messageCursor
+          ? transcriptHref(leadId, normalizedConversationId)
+          : null
       }
       olderMessagesHref={
-        thread.nextCursor
-          ? transcriptHref(id, conversationId, thread.nextCursor)
+        thread.nextMessageCursor
+          ? transcriptHref(
+              leadId,
+              normalizedConversationId,
+              thread.nextMessageCursor,
+            )
           : null
       }
     />
   );
 }
 
-function parseMessageCursor(params: SearchParams): CanonicalMessageCursor | null {
+function parseMessageCursor(params: SearchParams): PlatformConversationCursor | null {
   if (
     Object.keys(params).some(
       (key) => key !== "before_at" && key !== "before_id",
@@ -83,18 +110,11 @@ function parseMessageCursor(params: SearchParams): CanonicalMessageCursor | null
   const beforeAt = singleValue(params.before_at);
   const beforeId = singleValue(params.before_id);
   if (beforeAt === undefined && beforeId === undefined) return null;
+  if (beforeAt === undefined || beforeId === undefined) notFound();
 
-  try {
-    return parseCanonicalMessageCursor(beforeAt, beforeId);
-  } catch (error: unknown) {
-    if (
-      error instanceof CanonicalCrmRepositoryError &&
-      error.code === "invalid_input"
-    ) {
-      notFound();
-    }
-    throw error;
-  }
+  const cursor = parsePlatformConversationCursor(beforeAt, beforeId);
+  if (cursor === null) notFound();
+  return cursor;
 }
 
 function singleValue(value: string | string[] | undefined) {
@@ -105,12 +125,12 @@ function singleValue(value: string | string[] | undefined) {
 function transcriptHref(
   leadId: string,
   conversationId: string,
-  cursor?: CanonicalMessageCursor,
+  cursor?: PlatformConversationCursor,
 ) {
   const path = `/sales/${leadId}/conversations/${conversationId}`;
   if (!cursor) return path;
   const query = new URLSearchParams({
-    before_at: cursor.occurredAt,
+    before_at: cursor.sortAt,
     before_id: cursor.id,
   });
   return `${path}?${query.toString()}`;

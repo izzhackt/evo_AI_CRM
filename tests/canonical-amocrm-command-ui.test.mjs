@@ -10,30 +10,10 @@ function source(path) {
   return readFileSync(url, "utf8");
 }
 
-test("canonical amoCRM command panels are placed on the owning CRM workspaces", () => {
-  const sales = source(
-    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
-  );
+test("the active canonical amoCRM command panel remains on Admissions Student 360", () => {
   const admissions = source(
     "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
   );
-
-  assert.match(sales, /CanonicalAmoCrmCommandPanel/);
-  assert.ok(
-    sales.indexOf("<CanonicalLeadDetail") <
-      sales.indexOf("<CanonicalAmoCrmCommandPanel"),
-    "Sales command panel must follow CanonicalLeadDetail",
-  );
-  assert.match(
-    sales,
-    /<CanonicalAmoCrmCommandPanel[\s\S]*scope="sales"[\s\S]*leadId=\{lead\.leadId\}/,
-  );
-  assert.match(sales, /readBlockingCanonicalAmoCrmCommand/);
-  assert.match(
-    sales,
-    /lead\.stage === "handed_off" \|\| lead\.ownerRole !== "sales"/,
-  );
-  assert.match(sales, /blockingAttempt=/);
 
   assert.match(admissions, /CanonicalAmoCrmCommandPanel/);
   assert.ok(

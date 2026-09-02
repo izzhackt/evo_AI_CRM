@@ -17,6 +17,7 @@ app_log="$tmp_dir/app.log"
 supabase_log="$tmp_dir/supabase.log"
 supabase_env_file="$tmp_dir/supabase.env"
 staff_provision_log="$tmp_dir/staff-provision.log"
+sales_proof_provision_log="$tmp_dir/sales-proof-provision.log"
 waha_log="$tmp_dir/waha.log"
 waha_acceptance_result="$tmp_dir/waha-acceptance.json"
 verification_log="$tmp_dir/verification.log"
@@ -32,6 +33,8 @@ inbound_test_text="V2 inbound browser proof 430"
 canonical_lead_id=""
 canonical_override_lead_id=""
 private_document_case_id=""
+supabase_sales_lead_id="54600000-0000-4000-8000-000000000001"
+supabase_sales_client_id="54600000-0000-4000-8000-000000000002"
 app_pid=""
 waha_pid=""
 compose_args=()
@@ -238,6 +241,24 @@ for sensitive_value in \
   "$staff_admissions_password"; do
   if grep -F "$sensitive_value" "$staff_provision_log" >/dev/null; then
     fail "Local Supabase staff provisioning exposed a credential in its output"
+  fi
+done
+
+if ! SUPABASE_DB_URL="$supabase_database_url" \
+  EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+  "$node_bin" scripts/provision-local-supabase-sales-proof.mjs \
+    >"$sales_proof_provision_log" 2>&1; then
+  sales_proof_failure="$(grep -m 1 -E '^LOCAL_SUPABASE_SALES_PROOF_ERROR:[A-Z0-9_]+$' "$sales_proof_provision_log" || true)"
+  [[ -z "$sales_proof_failure" ]] || echo "$sales_proof_failure" >&2
+  fail "Local Supabase Sales read proof provisioning failed"
+fi
+chmod 600 "$sales_proof_provision_log"
+grep -Fx "LOCAL_SUPABASE_SALES_PROOF ${supabase_sales_lead_id} ${supabase_sales_client_id}" \
+  "$sales_proof_provision_log" >/dev/null \
+  || fail "Local Supabase Sales read proof did not return its success marker"
+for sensitive_value in "$supabase_database_url" "$staff_sales_email"; do
+  if grep -F "$sensitive_value" "$sales_proof_provision_log" >/dev/null; then
+    fail "Local Supabase Sales read proof exposed a credential in its output"
   fi
 done
 
@@ -620,6 +641,10 @@ supabase_staff_auth_browser_assert() {
     EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
     EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
     EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
+    EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
+    EVO_SUPABASE_SALES_PROOF_CLIENT_ID="$supabase_sales_client_id" \
+    EVO_SUPABASE_DIRECT_API_URL="$supabase_api_url" \
+    EVO_SUPABASE_DIRECT_PUBLISHABLE_KEY="$supabase_publishable_key" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       --config=playwright.supabase-staff-auth.config.ts
 }
@@ -652,6 +677,8 @@ canonical_read_browser_assert() {
     EVO_CANONICAL_LEAD_ID="$canonical_lead_id" \
     EVO_CANONICAL_OVERRIDE_LEAD_ID="$canonical_override_lead_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
+    EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
+    EVO_SUPABASE_SALES_PROOF_CLIENT_ID="$supabase_sales_client_id" \
     EVO_EXPECT_WAHA_SESSION_NAME="$waha_session_name" \
     EVO_V2_WAHA_ACCEPTANCE_RESULT_FILE="$waha_acceptance_result" \
     EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$whatsapp_inbound_secret" \
@@ -675,12 +702,10 @@ amocrm_command_browser_assert() {
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_AMOCRM_BROWSER_MODE="$proof_mode" \
     EVO_EXPECT_AMOCRM_TOKEN_PROBE="$amocrm_token_probe" \
-    EVO_EXPECT_AMOCRM_SALES_BLOCKING_ATTEMPT_ID="$amocrm_sales_blocking_attempt_id" \
-    EVO_EXPECT_AMOCRM_SALES_BLOCKING_LEAD_ID="$amocrm_sales_blocking_lead_id" \
     EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_ATTEMPT_ID="$amocrm_admissions_blocking_attempt_id" \
     EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_LEAD_ID="$amocrm_admissions_blocking_lead_id" \
     EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_CASE_ID="$amocrm_admissions_blocking_case_id" \
-    EVO_CANONICAL_LEAD_ID="${amocrm_sales_blocking_lead_id:-$canonical_lead_id}" \
+    EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$private_document_case_id" \
     EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
     EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
@@ -1004,8 +1029,8 @@ inbound_event_count="$(docker exec "$container_id" psql --username "$postgres_us
 
 browser_completed_task_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить перевод аттестата' AND status = 'completed' AND version = 2;")"
 browser_completed_task_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'task' AND business_object_id IN (SELECT id FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить перевод аттестата') AND transition IN ('task.created', 'task.completed');")"
-browser_cancelled_task_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_admissions_tasks WHERE title = 'Проверить унаследованный контекст Sales' AND status = 'cancelled' AND closure_reason = 'Контекст Sales уже проверен во время browser acceptance' AND version = 2;")"
-browser_cancelled_task_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'task' AND transition = 'task.cancelled' AND business_object_id IN (SELECT id FROM evo_admissions_tasks WHERE title = 'Проверить унаследованный контекст Sales' AND closure_reason = 'Контекст Sales уже проверен во время browser acceptance');")"
+browser_cancelled_task_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить отмену задачи' AND status = 'cancelled' AND closure_reason = 'Контекст Sales уже проверен во время browser acceptance' AND version = 2;")"
+browser_cancelled_task_event_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command "SELECT count(*) FROM evo_business_events WHERE business_object_type = 'task' AND transition = 'task.cancelled' AND business_object_id IN (SELECT id FROM evo_admissions_tasks WHERE title = 'Browser V2-8A: проверить отмену задачи' AND closure_reason = 'Контекст Sales уже проверен во время browser acceptance');")"
 [[ "$browser_completed_task_count" == "1" ]] || fail "Admissions browser proof did not persist exactly one completed canonical task"
 [[ "$browser_completed_task_event_count" == "2" ]] || fail "Admissions browser proof did not persist exactly one create and one completion event"
 [[ "$browser_cancelled_task_count" == "1" ]] || fail "Admissions browser proof did not persist exactly one reasoned canonical cancellation"

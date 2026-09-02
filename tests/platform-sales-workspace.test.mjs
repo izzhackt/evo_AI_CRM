@@ -58,9 +58,20 @@ const transcriptRouteSource = readFileSync(
   ),
   "utf8",
 );
+const platformSalesRepositorySource = readFileSync(
+  new URL("../src/lib/platform-sales.ts", import.meta.url),
+  "utf8",
+);
 const conversationsSource = readFileSync(
   new URL(
     "../src/components/platform/sales/CanonicalSalesConversations.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const leadDetailSource = readFileSync(
+  new URL(
+    "../src/components/platform/core/CanonicalLeadDetail.tsx",
     import.meta.url,
   ),
   "utf8",
@@ -74,16 +85,46 @@ const clientsDetailWorkspaceSource = readFileSync(
   "utf8",
 );
 
+const activeSalesReadSources = [
+  routeSource,
+  workspaceSource,
+  detailRouteSource,
+  leadWorkspaceSource,
+  leadDetailSource,
+  transcriptRouteSource,
+  conversationsSource,
+].join("\n");
+
+const activeDrizzleSalesReadImport =
+  /from\s+["'](?:@\/db(?:\/[^"']*)?|@\/lib\/(?:db|server\/(?:canonical-crm-repository|database))|better-sqlite3|drizzle-orm(?:\/[^"']*)?)["']/;
+const retiredSalesReadPanel =
+  /CanonicalAmoCrmCommandPanel|CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalSalesWorkflowForm|SalesLeadWorkflowForm|SalesOwnerSearchField|readBlockingCanonicalAmoCrmCommand/;
+
 test("sales has one direct workspace route with server authorization", () => {
   assert.match(routeSource, /import \{ SalesWorkspace \}/);
   assert.match(routeSource, /<SalesWorkspace searchParams=\{searchParams\}/);
   assert.match(workspaceSource, /requirePlatformSalesActor\(\)/);
-  assert.match(workspaceSource, /canonical-crm-repository/);
-  assert.match(workspaceSource, /parseCanonicalReadCursor/);
-  assert.match(workspaceSource, /listCanonicalSalesLeads/);
+  assert.match(workspaceSource, /@\/lib\/platform-sales/);
+  assert.match(workspaceSource, /parsePlatformSalesCursor/);
+  assert.match(workspaceSource, /listPlatformSalesLeads\(actor,/);
   assert.doesNotMatch(
     `${routeSource}\n${workspaceSource}`,
-    /FixtureSales|ConnectedCanonicalSales|isUiContractFixtureMode|better-sqlite3|listPlatformSalesIntake|listPlatformSalesLeads|listPlatformSalesOwnerOptions|SalesLeadWorkflowForm|SalesOwnerSearchField/,
+    /FixtureSales|ConnectedCanonicalSales|isUiContractFixtureMode|better-sqlite3|canonical-crm-repository|listCanonicalSalesLeads|SalesLeadWorkflowForm|SalesOwnerSearchField/,
+  );
+});
+
+test("active Sales read UI has no Drizzle imports or retired write panels", () => {
+  assert.match(leadDetailSource, /PlatformSalesLeadDetail/);
+  assert.match(conversationsSource, /PlatformSalesLinkedConversation/);
+  assert.doesNotMatch(activeSalesReadSources, activeDrizzleSalesReadImport);
+  assert.doesNotMatch(
+    activeSalesReadSources,
+    /getCanonicalLeadConversationThread|getCanonicalLeadGateSnapshot|getCanonicalLeadSnapshot|listCanonicalLeadConversations|listCanonicalSalesLeads|parseCanonicalMessageCursor|parseCanonicalReadCursor/,
+  );
+  assert.doesNotMatch(activeSalesReadSources, retiredSalesReadPanel);
+  assert.doesNotMatch(
+    activeSalesReadSources,
+    /actorRole:\s*actor\.(?:authorityRole|presentationRole)/,
   );
 });
 
@@ -95,25 +136,21 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
   );
   assert.match(
     leadWorkspaceSource,
-    /getCanonicalLeadSnapshot\(\{\s*actorRole: actor\.authorityRole,\s*leadId: id,?\s*\}\)/,
+    /getPlatformSalesLead\(actor, id\)/,
   );
   assert.doesNotMatch(
     leadWorkspaceSource,
-    /getPlatformCanonicalLead|PlatformCanonicalRecordsRepositoryError/,
+    /canonical-crm-repository|getCanonicalLeadSnapshot|getCanonicalLeadGateSnapshot|listCanonicalLeadConversations/,
   );
   assert.match(leadWorkspaceSource, /data-testid="canonical-sales-lead-workspace"/);
-  assert.match(leadWorkspaceSource, /CanonicalSalesWorkflowForm/);
-  assert.match(leadWorkspaceSource, /CanonicalSalesGateCard/);
-  assert.match(leadWorkspaceSource, /CanonicalSalesHandoffCard/);
-  assert.match(leadWorkspaceSource, /listCanonicalLeadConversations\(/);
   assert.match(leadWorkspaceSource, /CanonicalSalesConversationList/);
   assert.doesNotMatch(
     leadWorkspaceSource,
-    /getPlatformSalesLeadDetail|SalesLeadWorkflowDetail|SalesAdmissionsGateCard|SalesAdmissionsHandoffCard|platform-sales-intake|platform-communications|platform-admissions-gate|platform-admissions-handoff/,
+    /CanonicalSalesWorkflowForm|CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalAmoCrmCommandPanel|readBlockingCanonicalAmoCrmCommand/,
   );
 });
 
-test("sales lead detail links only its canonical PostgreSQL conversations", () => {
+test("sales lead detail links only its canonical Supabase conversations", () => {
   assert.match(conversationsSource, /data-testid="canonical-sales-conversations"/);
   assert.match(conversationsSource, /data-testid="canonical-sales-conversation-link"/);
   assert.match(conversationsSource, /data-conversation-id=\{conversation\.conversationId\}/);
@@ -121,26 +158,32 @@ test("sales lead detail links only its canonical PostgreSQL conversations", () =
     conversationsSource,
     /href=\{`\/sales\/\$\{leadId\}\/conversations\/\$\{conversation\.conversationId\}`\}/,
   );
-  assert.doesNotMatch(conversationsSource, /Supabase|amoCRM|manual-send|Gemini/i);
+  assert.match(conversationsSource, /Supabase Platform/);
+  assert.doesNotMatch(conversationsSource, /local database|amoCRM|manual-send|Gemini/i);
 });
 
 test("nested Sales transcript is canonical, bounded, and strictly read-only", () => {
   assert.match(transcriptRouteSource, /requirePlatformSalesActor\(\)/);
-  assert.match(transcriptRouteSource, /parseCanonicalMessageCursor\(/);
-  assert.match(transcriptRouteSource, /getCanonicalLeadConversationThread\(/);
+  assert.match(transcriptRouteSource, /parsePlatformConversationCursor\(/);
+  assert.match(
+    transcriptRouteSource,
+    /isPlatformLeadConversationLinked\(\s*actor,\s*leadId,\s*normalizedConversationId,?\s*\)/,
+  );
+  assert.match(transcriptRouteSource, /getPlatformConversationThread\(actor,/);
   assert.match(transcriptRouteSource, /pageSize:\s*50/);
   assert.match(transcriptRouteSource, /CanonicalSalesConversationTranscript/);
   assert.doesNotMatch(
     transcriptRouteSource,
-    /platform-sales-intake|platform-communications|getPlatformConversationThread|isPlatformLeadConversationLinked/,
+    /canonical-crm-repository|getCanonicalLeadConversationThread|parseCanonicalMessageCursor/,
+  );
+  assert.doesNotMatch(
+    transcriptRouteSource,
+    /getPlatformSalesLead|linkedConversations/,
+    "an older valid link outside the bounded lead-detail projection must remain reachable",
   );
   assert.match(conversationsSource, /data-testid="canonical-sales-transcript"/);
   assert.match(conversationsSource, /data-testid="canonical-sales-message"/);
-  assert.match(conversationsSource, /data-message-id=\{message\.messageId\}/);
-  assert.match(
-    conversationsSource,
-    /data-testid="canonical-whatsapp-provider-blocked"/,
-  );
+  assert.match(conversationsSource, /data-message-id=\{message\.id\}/);
   assert.match(
     conversationsSource,
     /data-testid="canonical-records-unavailable"/,
@@ -151,12 +194,28 @@ test("nested Sales transcript is canonical, bounded, and strictly read-only", ()
   );
 });
 
-test("sales workspace links canonical UUID records and owns workflow actions", () => {
+test("Sales exact-link authorization stays cookie-bound without an elevated fallback", () => {
+  assert.match(
+    platformSalesRepositorySource,
+    /await import\("\.\/supabase\/server"\)/,
+  );
+  assert.match(platformSalesRepositorySource, /createSupabaseServerClient\(\)/);
+  assert.match(
+    platformSalesRepositorySource,
+    /"staff_canonical_lead_conversation_link"/,
+  );
+  assert.doesNotMatch(
+    platformSalesRepositorySource,
+    /service[_-]?role|createSupabaseAdminClient|fallback/i,
+  );
+});
+
+test("sales workspace links canonical Supabase UUID records", () => {
   assert.match(workspaceSource, /href=\{`\/sales\/\$\{lead\.leadId\}`\}/);
   assert.match(workspaceSource, /data-testid="canonical-lead-row"/);
-  assert.match(workspaceSource, /data-record-version=\{lead\.version\}/);
-  assert.match(workspaceSource, /PostgreSQL V2/);
-  assert.doesNotMatch(workspaceSource, /sales-inbound-blocked|Этот PR|\bU2\b|supabase/i);
+  assert.match(workspaceSource, /data-workflow-version=\{lead\.workflowVersion\}/);
+  assert.match(workspaceSource, /Supabase Platform/);
+  assert.doesNotMatch(workspaceSource, /PostgreSQL V2|sales-inbound-blocked|Этот PR|\bU2\b/);
   assert.match(workspaceSource, /canonical-records-unavailable/);
 });
 

@@ -8,12 +8,6 @@ type ProofMode =
   | "token-invalid";
 
 const proofMode = requiredProofMode();
-const salesBlockingAttemptId = optionalUuid(
-  "EVO_EXPECT_AMOCRM_SALES_BLOCKING_ATTEMPT_ID",
-);
-const salesBlockingLeadId = optionalUuid(
-  "EVO_EXPECT_AMOCRM_SALES_BLOCKING_LEAD_ID",
-);
 const admissionsBlockingAttemptId = optionalUuid(
   "EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_ATTEMPT_ID",
 );
@@ -23,9 +17,6 @@ const admissionsBlockingLeadId = optionalUuid(
 const admissionsBlockingCaseId = optionalUuid(
   "EVO_EXPECT_AMOCRM_ADMISSIONS_BLOCKING_CASE_ID",
 );
-if ((salesBlockingAttemptId === null) !== (salesBlockingLeadId === null)) {
-  throw new Error("Sales blocking attempt and lead IDs must be supplied together");
-}
 if (
   new Set([
     admissionsBlockingAttemptId === null,
@@ -128,8 +119,8 @@ async function expectBlockedPanel(
   page: Page,
   input: Readonly<{
     route: string;
-    scope: "sales" | "admissions";
-    targetField: "lead_id" | "student_case_id";
+    scope: "admissions";
+    targetField: "student_case_id";
     targetId: string;
     blockingAttemptId?: string | null;
     expectedLeadId?: string;
@@ -183,28 +174,27 @@ async function expectBlockedPanel(
   return panel;
 }
 
-test("amoCRM commands stay visibly disabled when the selected server prerequisite is absent", async ({
+test("Admissions amoCRM commands stay visibly disabled when the selected server prerequisite is absent", async ({
   page,
 }) => {
-  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
-  await signInAs(page, "sales");
+  const studentCaseId = requireUuid("EVO_CANONICAL_STUDENT_CASE_ID");
+  await signInAs(page, "admissions");
   await expectBlockedPanel(page, {
-    route: `/sales/${leadId}`,
-    scope: "sales",
-    targetField: "lead_id",
-    targetId: leadId,
-    blockingAttemptId: salesBlockingAttemptId,
+    route: `/clients/${studentCaseId}`,
+    scope: "admissions",
+    targetField: "student_case_id",
+    targetId: studentCaseId,
   });
 });
 
-test("Sales and Admin see the Sales command only at the canonical lead workspace", async ({
+test("Sales and Admin see the canonical Sales detail without the retired amoCRM panel", async ({
   page,
 }) => {
   test.skip(
     proofMode !== "provider-not-authorized",
     "the complete role matrix runs once; other modes repeat only fail-closed availability",
   );
-  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
+  const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
 
   for (const role of ["sales", "admin"] as const) {
     await signInAs(page, role);
@@ -212,15 +202,14 @@ test("Sales and Admin see the Sales command only at the canonical lead workspace
       "data-authority-role",
       role,
     );
-    await expectBlockedPanel(page, {
-      route: `/sales/${leadId}`,
-      scope: "sales",
-      targetField: "lead_id",
-      targetId: leadId,
-    });
+    await page.goto(`/sales/${leadId}`);
+    await expect(page).toHaveURL(new RegExp(`/sales/${leadId}$`, "u"));
     await expect(
       page.getByTestId("canonical-sales-lead-workspace"),
     ).toBeVisible();
+    await expect(
+      page.getByTestId("canonical-amocrm-command-panel"),
+    ).toHaveCount(0);
   }
 });
 
@@ -251,14 +240,14 @@ test("Admissions and Admin see the Admissions command only at canonical Student 
   }
 });
 
-test("wrong fixed roles are denied before either owning amoCRM panel renders", async ({
+test("wrong fixed roles are denied before either owning workspace renders", async ({
   page,
 }) => {
   test.skip(
     proofMode !== "provider-not-authorized",
     "the complete role matrix runs once; other modes repeat only fail-closed availability",
   );
-  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
+  const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
   const studentCaseId = requireUuid("EVO_CANONICAL_STUDENT_CASE_ID");
 
   await signInAs(page, "admissions");
@@ -279,30 +268,6 @@ test("wrong fixed roles are denied before either owning amoCRM panel renders", a
   ).toHaveCount(0);
   await expect(page.getByTestId("canonical-amocrm-command-panel")).toHaveCount(
     0,
-  );
-});
-
-test("an active Sales PostgreSQL-stored unknown attempt survives reload with safe reconciliation visible", async ({
-  page,
-}) => {
-  test.skip(
-    salesBlockingAttemptId === null || salesBlockingLeadId === null,
-    "no persisted Sales blocker requested for this matrix run",
-  );
-  const leadId = salesBlockingLeadId as string;
-  await signInAs(page, "sales");
-  const panel = await expectBlockedPanel(page, {
-    route: `/sales/${leadId}`,
-    scope: "sales",
-    targetField: "lead_id",
-    targetId: leadId,
-    blockingAttemptId: salesBlockingAttemptId,
-  });
-
-  await page.reload();
-  await expectPersistedUnknownState(
-    panel,
-    salesBlockingAttemptId as string,
   );
 });
 

@@ -7,9 +7,9 @@ Authority: owner direction, ADR 0024, this plan and the latest append-only
 through #553
 Verified starting baseline: GitHub `origin/main` at
 `4a2984f55b13bf4fe416a70d7989b9311daa8055`
-Latest verified shared main after the provider sequence and cleanup reset:
-`37dbd64c045fda8287565c871c392d607fc7b594`, with exact-main CI run
-`33615392787` green for Main CRM, EVO Inbox and EVO Lead Agent.
+Latest verified shared main after the P5A provider contract:
+`b3f0f45b3632b8db4b2723ffe0ae77b382f60da8`, with exact-main CI run
+`33625536519` green for Main CRM, EVO Inbox and EVO Lead Agent.
 
 ## Current authority: one Supabase-backed production EVO
 
@@ -357,6 +357,16 @@ replace those local authorities rather than copy them into a second path.
    and exact replay must create no duplicate provider message, entity,
    operation, binding, receipt or business event. Store only sanitized evidence
    with exact commit, environment identity, timestamps and outcomes.
+
+Delivery status on 2026-09-02: #565 merged through PR #570 at exact main
+`b3f0f45b3632b8db4b2723ffe0ae77b382f60da8`; exact-main CI run `33625536519`
+passed. #566 now owns the atomic application cutover. The existing
+`src/lib/platform-communications.ts` authenticated Supabase reads and the
+service-only provider contracts from migrations 080, 082, 091 and 096 are the
+reuse boundary. The local Drizzle communication, proposal and send symbols,
+their synthetic inbound implementation and their tests/config are deletion
+targets after equivalent real PostgreSQL, application, Chromium and bounded
+provider proof exists in the same slice.
 
 Each child is a separate launch-control PR with exact-head review/CI, match-head
 merge and exact-main verification. A completed child has one active state and

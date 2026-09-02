@@ -22,6 +22,7 @@ const MANAGED_TAGS = Object.freeze({
   sales: "EVO V2 Sales",
   admissions: "EVO V2 Admissions",
 });
+const ACTIVE_WAHA_SESSION = "crm_primary";
 const LEGACY_KEYS = Object.freeze({
   baseUrl: "EVO_AGENT_AMO_BASE_URL",
   wahaApiKey: "EVO_AGENT_WAHA_API_KEY",
@@ -276,6 +277,9 @@ async function mapLegacyProvider(parsed) {
     ),
   });
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(waha.sessionName)) {
+    fail("legacy_waha_session_invalid");
+  }
+  if (waha.sessionName !== ACTIVE_WAHA_SESSION) {
     fail("legacy_waha_session_invalid");
   }
 

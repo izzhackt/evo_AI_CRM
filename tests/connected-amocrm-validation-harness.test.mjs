@@ -200,6 +200,7 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
   const tokenFile = join(directory, "token.json");
   const runtimeFile = join(directory, "runtime.json");
   const legacyRuntimeFile = join(directory, "legacy-runtime.json");
+  const wrongSessionRuntimeFile = join(directory, "wrong-session-runtime.json");
   const refusedRuntimeFile = join(directory, "refused-runtime.json");
   await chmod(directory, 0o700);
   try {
@@ -211,7 +212,7 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
         "EVO_AGENT_AMO_CLIENT_SECRET=technical-client-secret",
         "EVO_AGENT_AMO_REDIRECT_URI=http://127.0.0.1/oauth/amocrm",
         "EVO_AGENT_WAHA_API_KEY=technical-api-key",
-        "EVO_AGENT_WAHA_SESSION=technical-session",
+        "EVO_AGENT_WAHA_SESSION=crm_primary",
         "UNRELATED_VALUE=must-not-be-mapped",
         "",
       ].join("\n"),
@@ -257,8 +258,36 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
       "EVO_V2_AMOCRM_TOKEN_FILE",
     ]);
     assert.equal(runtime.providerEnvironment.EVO_V2_AMOCRM_TOKEN_FILE, tokenFile);
+    assert.equal(runtime.waha.sessionName, "crm_primary");
     assert.equal(Object.hasOwn(runtime.providerEnvironment, "UNRELATED_VALUE"), false);
     assert.equal((await stat(runtimeFile)).mode & 0o077, 0);
+
+    await writeFile(
+      providerEnv,
+      [
+        "EVO_AGENT_AMO_BASE_URL=https://technical.amocrm.ru",
+        "EVO_AGENT_WAHA_API_KEY=technical-api-key",
+        "EVO_AGENT_WAHA_SESSION=evo-inbox",
+        "",
+      ].join("\n"),
+      { mode: 0o600 },
+    );
+    const wrongSession = invoke(wrongSessionRuntimeFile);
+    assert.notEqual(wrongSession.status, 0);
+    assert.equal(wrongSession.stdout, "");
+    assert.match(wrongSession.stderr, /legacy_waha_session_invalid/u);
+    await assert.rejects(() => stat(wrongSessionRuntimeFile), { code: "ENOENT" });
+
+    await writeFile(
+      providerEnv,
+      [
+        "EVO_AGENT_AMO_BASE_URL=https://technical.amocrm.ru",
+        "EVO_AGENT_WAHA_API_KEY=technical-api-key",
+        "EVO_AGENT_WAHA_SESSION=crm_primary",
+        "",
+      ].join("\n"),
+      { mode: 0o600 },
+    );
 
     await writeFile(
       tokenFile,

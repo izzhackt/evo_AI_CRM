@@ -15201,9 +15201,10 @@ already provide the contract/first-payment gate, sensitive permissions,
 authenticated read RPCs, idempotent mutation receipts, transaction locks, one
 canonical case per lead, accountable Admissions ownership, immutable handoff
 evidence and starter tasks. The existing Platform modules also already provide
-Supabase Student Profile and contract-draft/report workspaces. #547 will reuse
-those capabilities through the accepted V2 interface instead of rebuilding
-them or keeping the Drizzle implementation beside them.
+the Supabase Student Profile data adapter, contract-workflow adapter/actions
+and an unmounted contract-draft/report presentation component. #547 will wire
+these reusable building blocks into the accepted V2 interface instead of
+rebuilding them or keeping the Drizzle implementation beside them.
 
 The replacement is one regression-free PR: Lead 360 receives typed Supabase
 gate/handoff reads and server actions; Student 360 receives the authenticated

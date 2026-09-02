@@ -15186,3 +15186,37 @@ behavior remain unchanged. SQL proof must cover exact intake plus client-only,
 non-intake and unverified/direct-link negatives. The release migration
 inventory and evidence text advance together to contiguous `001-094`; no
 wrapper, fallback, second read authority or applied-history edit is permitted.
+
+## 2026-09-02 - Reuse the ready-made Supabase Student 360 and handoff foundation
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: #547 execution-contract clarification before runtime changes; no
+managed-project, production, provider or customer-data mutation.
+Affected plan section: P3 Student 360, contract/payment and handoff tracer.
+
+The owner confirmed that Supabase and other useful ready-made V1 capabilities
+must remain. Repository inspection shows that immutable migrations 087-088
+already provide the contract/first-payment gate, sensitive permissions,
+authenticated read RPCs, idempotent mutation receipts, transaction locks, one
+canonical case per lead, accountable Admissions ownership, immutable handoff
+evidence and starter tasks. The existing Platform modules also already provide
+Supabase Student Profile and contract-draft/report workspaces. #547 will reuse
+those capabilities through the accepted V2 interface instead of rebuilding
+them or keeping the Drizzle implementation beside them.
+
+The replacement is one regression-free PR: Lead 360 receives typed Supabase
+gate/handoff reads and server actions; Student 360 receives the authenticated
+handoff/profile/contract path; real SQL, application and Chromium proof runs
+against local Supabase/PostgreSQL; and the old gate/handoff UI/actions plus the
+repository-backed Student 360 summary/handoff shell and #547 fixture callers
+are deleted before merge. Failure is explicit and never falls back.
+
+#548 still owns Admissions tasks/operations and private Supabase Storage;
+#549 still owns amoCRM/provider commands. To avoid either a regression or a
+compatibility wrapper, those unreplaced capabilities may remain only inside
+the named `AdmissionsCaseOperationsSection` and `AmoCrmCaseCommandSection`
+server components. They cannot read or render an alternate Student 360
+summary, gate, handoff or contract path and expire in #548 and #549
+respectively. No migration is applied to the managed project and no V1,
+production-data, provider or traffic mutation is authorized by this change.

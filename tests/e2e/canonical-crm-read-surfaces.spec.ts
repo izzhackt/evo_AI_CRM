@@ -11,7 +11,6 @@ import {
 import postgres from "postgres";
 
 const mode = process.env.EVO_EXPECT_CANONICAL_READ_MODE ?? "configured";
-const unavailableProbeLeadId = "00000000-0000-4000-8000-000000000429";
 const unavailableProbeConversationId =
   "00000000-0000-4000-8000-000000000430";
 const inboundPhone = process.env.EVO_V2_INBOUND_TEST_PHONE ?? "+15550004300";
@@ -461,10 +460,12 @@ async function postAcceptedInbound(
   return { conversationId, messageId };
 }
 
-test("missing PostgreSQL authority fails closed without a read fallback", async ({
+test("missing PostgreSQL authority fails closed while Supabase Sales stays available", async ({
   page,
 }) => {
   test.skip(mode !== "unavailable", "only exercised in unavailable mode");
+  const salesLeadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
+  const salesClientId = requireUuid("EVO_SUPABASE_SALES_PROOF_CLIENT_ID");
 
   await signInAs(page, "admissions");
   await expect(page).toHaveURL(/\/clients(?:\?|$)/);
@@ -473,17 +474,30 @@ test("missing PostgreSQL authority fails closed without a read fallback", async 
 
   await signInAs(page, "sales");
   await expect(page).toHaveURL(/\/sales(?:\?|$)/);
-  await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
-  await expect(page.getByTestId("canonical-sales-page")).toBeVisible();
-  await page.goto(`/sales/${unavailableProbeLeadId}`);
-  await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
-  await expect(page.getByTestId("canonical-lead-detail")).toHaveCount(0);
-
-  await page.goto(
-    `/sales/${unavailableProbeLeadId}/conversations/${unavailableProbeConversationId}`,
+  await page.goto(`/sales?q=${encodeURIComponent(salesLeadId)}`);
+  await expect(page.getByTestId("platform-sales-page")).toBeVisible();
+  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(0);
+  const salesRows = page.getByTestId("canonical-lead-row");
+  await expect(salesRows).toHaveCount(1);
+  const salesRow = page.locator(
+    `[data-testid="canonical-lead-row"][data-lead-id="${salesLeadId}"]`,
   );
-  await expect(page.getByTestId("canonical-records-unavailable")).toBeVisible();
-  await expect(page.getByTestId("canonical-sales-transcript")).toHaveCount(0);
+  await expect(salesRow).toBeVisible();
+  await expect(salesRow).toHaveAttribute("data-workflow-version", "7");
+  await expect(salesRow).toContainText(salesClientId);
+
+  await page.goto(`/sales/${salesLeadId}`);
+  await expect(page.getByTestId("canonical-sales-lead-workspace")).toBeVisible();
+  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(0);
+  await expect(page.getByTestId("canonical-lead-id").locator("dd")).toHaveText(
+    salesLeadId,
+  );
+  await expect(page.getByTestId("canonical-client-id").locator("dd")).toHaveText(
+    salesClientId,
+  );
+  await expect(
+    page.getByTestId("canonical-lead-workflow-version").locator("dd"),
+  ).toHaveText("7");
 
   await page.goto("/whatsapp");
   await expect(page.getByTestId("whatsapp-error")).toBeVisible();
@@ -518,7 +532,7 @@ test("missing inbound secret fails closed at the real HTTP boundary", async ({
   });
 });
 
-test("signed inbound HTTP persists once and is visible in the Sales transcript", async ({
+test("signed inbound HTTP persists once and is visible in staff WhatsApp", async ({
   page,
   request,
 }) => {
@@ -591,34 +605,6 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
   expect((await postSignedInbound(request, changedRawBody)).status()).toBe(409);
 
   await signInAs(page, "sales");
-  await page.goto(`/sales?q=${encodeURIComponent(inboundPhone)}`);
-  await expect(
-    page.locator(
-      `[data-testid="canonical-lead-row"][data-lead-id="${leadId}"]`,
-    ),
-  ).toBeVisible();
-
-  await page.goto(`/sales/${leadId}`);
-  const conversationLink = page.locator(
-    `[data-testid="canonical-sales-conversation-link"][data-conversation-id="${conversationId}"]`,
-  );
-  await expect(conversationLink).toBeVisible();
-  await conversationLink.click();
-  await expect(page).toHaveURL(
-    new RegExp(`/sales/${leadId}/conversations/${conversationId}$`),
-  );
-  await expect(page.getByTestId("canonical-sales-transcript")).toContainText(
-    inboundText,
-  );
-  await expect(
-    page.locator(
-      `[data-testid="canonical-sales-message"][data-message-id="${messageId}"]`,
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId("canonical-whatsapp-provider-blocked"),
-  ).toBeVisible();
-
   await page.goto("/whatsapp");
   await expect(page.getByTestId("canonical-staff-whatsapp-page")).toBeVisible();
   const staffQueueRow = page.locator(
@@ -1033,12 +1019,6 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     latestThreadPageText,
   );
 
-  await signInAs(page, "sales");
-  await page.goto(`/sales/${leadId}/conversations/${conversationId}`);
-  await expect(page.getByTestId("canonical-sales-transcript")).toContainText(
-    latestThreadPageText,
-  );
-
   await signInAs(page, "admin");
   await page.goto("/");
   await page.getByTestId("preview-role-sales").click();
@@ -1061,10 +1041,6 @@ test("signed inbound HTTP persists once and is visible in the Sales transcript",
     ),
   ).toBeVisible();
 
-  await signInAs(page, "admissions");
-  await page.goto(`/sales/${leadId}/conversations/${conversationId}`);
-  await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales/);
-  await expect(page.getByTestId("canonical-sales-transcript")).toHaveCount(0);
 });
 
 test("Admissions reads the real canonical Student Case queue", async ({ page }) => {
@@ -1088,134 +1064,15 @@ test("Admissions reads the real canonical Student Case queue", async ({ page }) 
   ).toBeVisible();
 });
 
-test("Sales reads and updates the real canonical PostgreSQL workflow", async ({
+test("Admissions operates canonical Student 360 and its linked modules", async ({
   page,
 }) => {
   test.skip(mode !== "configured", "only exercised in configured mode");
-  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
-
-  await signInAs(page, "sales");
-  await expect(page).toHaveURL(/\/sales(?:\?|$)/);
-  await expect(page.getByTestId("canonical-sales-page")).toBeVisible();
-  await expect(page.getByTestId("canonical-lead-row").first()).toBeVisible();
-
-  await page.goto(`/sales?q=${encodeURIComponent(leadId)}`);
-  await expect(
-    page.locator(
-      `[data-testid="canonical-lead-row"][data-lead-id="${leadId}"]`,
-    ),
-  ).toBeVisible();
-
-  await page.goto(`/sales/${leadId}`);
-  const detail = page.getByTestId("canonical-lead-detail");
-  await expect(detail).toBeVisible();
-  await expect(detail).toContainText(leadId);
-
-  const form = page.getByTestId("canonical-sales-workflow-form");
-  await expect(form).toBeVisible();
-  const reason = form.locator('textarea[name="reason"]');
-  await form.locator('select[name="stage"]').selectOption("disqualified");
-  await expect(reason).toBeEnabled();
-  await reason.fill("Browser reconsidered disqualification");
-  await form.locator('select[name="stage"]').selectOption("qualified");
-  await expect(reason).toBeDisabled();
-  await expect(reason).toHaveValue("");
-  await form
-    .locator('textarea[name="qualification_summary"]')
-    .fill("Browser-proven qualification summary");
-  await form
-    .locator('input[name="next_action"]')
-    .fill("Browser-proven follow-up call");
-  await form.locator('input[name="next_action_at"]').fill("2026-09-15");
-  await form.getByRole("button", { name: "Сохранить" }).click();
-  await expect(
-    page.getByTestId("canonical-sales-workflow-saved"),
-  ).toBeVisible();
-
-  await page.reload();
-  await expect(page.getByTestId("canonical-lead-detail")).toContainText(
-    "Browser-proven qualification summary",
-  );
-  await expect(
-    page.locator('input[name="next_action"]'),
-  ).toHaveValue("Browser-proven follow-up call");
-});
-
-test("Admin sees the Sales union while Admissions stays server-denied", async ({
-  page,
-}) => {
-  test.skip(mode !== "configured", "only exercised in configured mode");
-  const leadId = requireUuid("EVO_CANONICAL_OVERRIDE_LEAD_ID");
-
-  await signInAs(page, "admin");
-  await page.goto(`/sales/${leadId}`);
-  await expect(page.getByTestId("canonical-lead-detail")).toBeVisible();
-  await expect(page.getByTestId("canonical-sales-workflow-form")).toBeVisible();
+  const studentCaseId = requireUuid("EVO_CANONICAL_STUDENT_CASE_ID");
+  const caseHref = `/clients/${studentCaseId}`;
 
   await signInAs(page, "admissions");
-  await page.goto("/sales");
-  await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales/);
-  await expect(page.getByTestId("canonical-sales-page")).toHaveCount(0);
-});
-
-test("Sales hands off a case and Admissions operates canonical Student 360", async ({
-  page,
-}) => {
-  test.skip(mode !== "configured", "only exercised in configured mode");
-  const leadId = requireUuid("EVO_CANONICAL_LEAD_ID");
-
-  await signInAs(page, "sales");
-  await page.goto(`/sales/${leadId}`);
-  await expect(page.getByTestId("canonical-lead-detail")).toBeVisible();
-
-  const contractForm = page.getByTestId("canonical-contract-evidence-form");
-  await contractForm
-    .locator('input[name="evidence_reference"]')
-    .fill("browser-contract-431");
-  await contractForm.locator('button[type="submit"]').click();
-  await expect(page.getByTestId("canonical-contract-evidence")).toContainText(
-    "browser-contract-431",
-  );
-
-  const paymentForm = page.getByTestId("canonical-first_payment-evidence-form");
-  await paymentForm
-    .locator('input[name="evidence_reference"]')
-    .fill("browser-first-payment-431");
-  await paymentForm.locator('input[name="amount_minor"]').fill("125000");
-  await paymentForm.locator('input[name="currency"]').fill("KGS");
-  await paymentForm.locator('button[type="submit"]').click();
-  await expect(
-    page.getByTestId("canonical-first-payment-evidence"),
-  ).toContainText("browser-first-payment-431");
-
-  await page.reload();
-  await expect(page.getByTestId("canonical-lead-detail")).toBeVisible();
-
-  const handoffForm = page.getByTestId("canonical-sales-handoff-form");
-  await expect(handoffForm).toBeVisible();
-  await expect(handoffForm.locator('input[name="is_override"]')).toHaveValue(
-    "false",
-  );
-  await handoffForm.locator('button[type="submit"]').click();
-
-  // Sales cannot open /clients, so the handoff card must state the resulting
-  // case rather than offer a link the server would deny.
-  await expect(
-    page.getByTestId("canonical-admissions-case-link"),
-  ).toHaveCount(0);
-  const caseReference = page.getByTestId(
-    "canonical-admissions-case-reference",
-  );
-  await expect(caseReference).toBeVisible();
-  const referenceText = (await caseReference.innerText()).trim();
-  const referencedCaseId = referenceText.match(
-    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
-  )?.[0];
-  expect(referencedCaseId).toBeTruthy();
-  const caseHref = `/clients/${referencedCaseId}`;
-
-  await signInAs(page, "admissions");
-  await page.goto(caseHref!);
+  await page.goto(caseHref);
   await expect(
     page.getByTestId("canonical-student-case-workspace"),
   ).toBeVisible();
@@ -1233,7 +1090,8 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
   }
 
   const taskItems = page.getByTestId("canonical-admissions-task");
-  await expect(taskItems).toHaveCount(3);
+  const initialTaskCount = await taskItems.count();
+  expect(initialTaskCount).toBeGreaterThanOrEqual(3);
 
   const createdTaskTitle = "Browser V2-8A: проверить перевод аттестата";
   const createTaskForm = page.getByTestId(
@@ -1247,7 +1105,7 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
 
   const createdTask = taskItems.filter({ hasText: createdTaskTitle });
   await expect(createdTask).toHaveCount(1);
-  await expect(taskItems).toHaveCount(4);
+  await expect(taskItems).toHaveCount(initialTaskCount + 1);
 
   await createdTask
     .getByTestId("canonical-admissions-task-complete-form")
@@ -1255,10 +1113,18 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
     .click();
   await expect(createdTask).toContainText(/Завершена|Аяктады|Completed/);
 
-  const cancelledTaskTitle = "Проверить унаследованный контекст Sales";
-  const cancelledTask = taskItems.filter({ hasText: cancelledTaskTitle });
+  const cancelledTaskTitle = "Browser V2-8A: проверить отмену задачи";
   const cancellationReason =
     "Контекст Sales уже проверен во время browser acceptance";
+  await createTaskForm.locator('input[name="title"]').fill(cancelledTaskTitle);
+  await createTaskForm
+    .locator('textarea[name="details"]')
+    .fill("Создано реальным браузером для проверки reasoned cancellation");
+  await createTaskForm.locator('button[type="submit"]').click();
+
+  const cancelledTask = taskItems.filter({ hasText: cancelledTaskTitle });
+  await expect(cancelledTask).toHaveCount(1);
+  await expect(taskItems).toHaveCount(initialTaskCount + 2);
   const cancelTaskForm = cancelledTask.getByTestId(
     "canonical-admissions-task-cancel-form",
   );
@@ -1387,7 +1253,7 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
   const caseQueueTasks = page
     .getByTestId("canonical-admissions-task")
     .filter({ has: page.locator(`a[href="${caseHref}"]`) });
-  await expect(caseQueueTasks).toHaveCount(4);
+  await expect(caseQueueTasks).toHaveCount(initialTaskCount + 2);
   await expect(
     caseQueueTasks.filter({ hasText: createdTaskTitle }),
   ).toContainText(/Завершена|Аяктады|Completed/);
@@ -1405,7 +1271,7 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
   }
 
   await signInAs(page, "admin");
-  await page.goto(caseHref!);
+  await page.goto(caseHref);
   const releaseReason = "Admin подтвердил снятие внутреннего ограничения";
   const releaseStopForm = page.getByTestId("canonical-finance-stop-release-form");
   await releaseStopForm.locator('textarea[name="reason"]').fill(releaseReason);
@@ -1487,48 +1353,9 @@ test("Sales hands off a case and Admissions operates canonical Student 360", asy
     "data-effective-role",
     "admissions",
   );
-  await page.goto(caseHref!);
+  await page.goto(caseHref);
   await expect(page.getByTestId("canonical-admissions-operations")).toBeVisible();
   await expect(
     page.getByTestId("canonical-finance-stop-release-form"),
   ).toHaveCount(0);
-});
-
-test("Admin records a reasoned exception and opens the resulting case", async ({
-  page,
-}) => {
-  test.skip(mode !== "configured", "only exercised in configured mode");
-  const leadId = requireUuid("EVO_CANONICAL_OVERRIDE_LEAD_ID");
-
-  await signInAs(page, "admin");
-  await page.goto(`/sales/${leadId}`);
-  const overrideReason = "Browser-verified Admin exception for CRM validation";
-  const handoffForm = page.getByTestId("canonical-sales-handoff-form");
-  await expect(handoffForm).toBeVisible();
-  await expect(handoffForm.locator('input[name="is_override"]')).toHaveValue(
-    "true",
-  );
-  await handoffForm
-    .locator('textarea[name="override_reason"]')
-    .fill(overrideReason);
-  await handoffForm.locator('button[type="submit"]').click();
-
-  const caseLink = page.getByTestId("canonical-admissions-case-link");
-  await expect(caseLink).toBeVisible();
-  await caseLink.click();
-  await expect(page).toHaveURL(
-    /\/clients\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-  );
-  await expect(
-    page.getByTestId("canonical-student-case-workspace"),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId("canonical-student-case-handoff"),
-  ).toContainText(/Исключение Admin|Admin өзгөчө чечими|Admin exception/);
-  await expect(
-    page.getByTestId("canonical-handoff-override-reason"),
-  ).toHaveText(overrideReason);
-  await expect(
-    page.getByTestId("canonical-admissions-starter-task"),
-  ).toHaveCount(3);
 });

@@ -110,8 +110,12 @@ mutation.
 
 ### P2 delivery decomposition: real staff and Sales tracer
 
-Issue #546 is delivered as three small sequential replacement PRs so each
-authority change can be proved and cleaned before the next one begins:
+Issue #546 is delivered as P2A followed by one regression-free P2B/P2C
+replacement PR. Exact-head review proved that merging the Supabase Sales read
+switch while leaving its writes for a later PR would publish a read-only lead
+workspace and break the first complete tracer. The read and workflow-write
+authority therefore move together, while their tests and commits remain
+separately reviewable inside the same PR:
 
 1. **P2A — real staff session and role shell.** Replace the root two-field
    development gate with Supabase Auth SSR cookies, validate every protected
@@ -120,15 +124,51 @@ authority change can be proved and cleaned before the next one begins:
    an Admin-authorized presentation choice. Delete the development-gate
    runtime, config and tests in this PR after real local Supabase and Chromium
    proof.
-2. **P2B — canonical Sales reads.** Move the accepted Sales queue and lead
-   detail reads to migrations 084-085 and authenticated Supabase/RLS. Delete
-   the corresponding Drizzle read path after authorized and unauthorized
-   database, app and browser proof.
+2. **P2B — canonical Sales reads.** Treat migrations 084-085 as the canonical
+   lead and linked-conversation foundation, and wire the already-existing
+   `staff_sales_lead_page` and `staff_sales_lead_detail` read RPCs from
+   migration 086 as the exact bounded Sales read contract through authenticated
+   Supabase/RLS. Forward-only migration 093 corrects the existing detail RPC
+   so its displayed conversation list/count use the same exact Sales-intake
+   authorization predicate as the nested transcript RPC. Forward-only
+   migration 094 applies that same predicate to the existing page RPC's
+   `is_connected` and `linked_conversation_count` values. These migrations
+   replace the two existing functions in place; they do not add a wrapper or
+   second read contract. Delete the corresponding Drizzle read path after
+   authorized and unauthorized database, app and browser proof.
 3. **P2C — canonical Sales writes and slice cleanup.** Move qualification,
-   ownership and next-action mutation to migration 086 RPCs, prove business
-   outcomes and direct denial, then remove the replaced Drizzle Sales writes,
-   routes, tests and configuration. Close #546 only after the final scoped
-   legacy inventory is empty.
+   ownership and next-action mutation through only the mutation RPCs in
+   migration 086, prove business outcomes and direct denial, then remove the
+   replaced active Drizzle Sales workflow action, UI, route imports, tests and
+   configuration. The inactive `updateCanonicalSalesLeadWorkflow` fixture
+   helper and its old stage contract may remain reachable only from the named
+   local #547/#549 preparation scripts/tests until those downstream slices move
+   their gate, handoff and provider fixtures to Supabase; they have no active
+   route/action import and must be deleted in those issues, not revived as a
+   runtime path.
+   P2B and P2C must merge together so `/sales/[id]` never lands as a read-only
+   regression. Contract/payment gate and Sales-to-Admissions handoff remain
+   owned by #547; the Sales amoCRM command surface remains owned by #549. Their
+   old Drizzle controls and historical provider acceptance expectations must
+   not be reactivated as a compatibility path. Close #546 only after the final
+   scoped active-runtime legacy inventory is empty and the temporary fixture
+   inventory names its #547/#549 exit.
+
+Implementation inspection clarified the original migration boundary. P2B must
+not add a migration 093 wrapper around the migration 086 read RPCs, because
+duplicating an already bounded read contract would layer a second runtime path.
+The exact-head review subsequently found a narrower detail/transcript predicate
+mismatch inside that existing contract; migration 093 may therefore replace
+the existing detail function in place solely to make both surfaces enforce the
+same predicate.
+
+A later exact-head review found the same legacy broad predicate in the
+`staff_sales_lead_page` WhatsApp-derived queue values. Migration 094 must
+replace that existing page function in place so `is_connected` and
+`linked_conversation_count` accept only the exact verified Sales-intake link
+used by detail and transcript. Its database proof must include exact intake,
+client-only, non-intake and unverified/direct-link cases. No other queue
+behavior, signature, ACL or authority may change.
 
 The existing database enum value `curator` is the retained technical name for
 the human-facing **Admissions Manager** role. The server maps that one database

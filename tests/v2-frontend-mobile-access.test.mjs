@@ -11,10 +11,18 @@ function source(path) {
 test("Sales queue uses bounded cursor pages for practical mobile access", () => {
   const sales = source("src/app/(staff)/sales/SalesWorkspace.tsx");
 
-  assert.match(sales, /listCanonicalSalesLeads\(\{[\s\S]*pageSize: 15,/);
+  assert.match(sales, /requirePlatformSalesActor\(\)/);
+  assert.match(
+    sales,
+    /listPlatformSalesLeads\(actor,\s*\{[\s\S]*?pageSize:\s*15,/,
+  );
   assert.match(sales, /page\.hasNext && page\.nextCursor/);
   assert.match(sales, /rel="next"/);
-  assert.doesNotMatch(sales, /listCanonicalSalesLeads\(\{[\s\S]*pageSize: 50,/);
+  assert.doesNotMatch(sales, /listCanonicalSalesLeads/);
+  assert.doesNotMatch(
+    sales,
+    /listPlatformSalesLeads\(actor,\s*\{[\s\S]*?pageSize:\s*50,/,
+  );
 });
 
 test("selected WhatsApp work opens independently of the long mobile queue", () => {

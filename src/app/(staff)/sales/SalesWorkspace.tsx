@@ -1,26 +1,26 @@
 import Link from "next/link";
 
 import {
-  CanonicalAuthorityNotice,
   CanonicalKeyBadge,
   CanonicalUuid,
   formatCanonicalTimestamp,
 } from "@/components/platform/core/CanonicalRecordsPresentation";
 import { EmptyState, PageHeader, btnGhostCls, filterBarCls, inputCls } from "@/components/ui";
 import { getT, type Locale } from "@/lib/i18n";
+import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { requirePlatformSalesActor } from "@/lib/platform-guards";
 import {
-  CANONICAL_SALES_DUE_FILTERS,
-  CANONICAL_SALES_STAGES,
-  CanonicalCrmRepositoryError,
-  listCanonicalSalesLeads,
-  parseCanonicalReadCursor,
-  type CanonicalReadCursor,
-  type CanonicalSalesDueFilter,
-  type CanonicalSalesLeadQueuePage,
-  type CanonicalSalesLeadQueueRow,
-  type CanonicalSalesStage,
-} from "@/lib/server/canonical-crm-repository";
+  PLATFORM_SALES_DUE_FILTERS,
+  PLATFORM_SALES_STAGES,
+  PlatformSalesRepositoryError,
+  listPlatformSalesLeads,
+  parsePlatformSalesCursor,
+  type PlatformSalesCursor,
+  type PlatformSalesDueFilter,
+  type PlatformSalesLeadPage,
+  type PlatformSalesLeadRow,
+  type PlatformSalesStage,
+} from "@/lib/platform-sales";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
@@ -31,19 +31,19 @@ type SearchParams = Readonly<{
 }>;
 
 type NormalizedParams = Readonly<{
-  cursor: CanonicalReadCursor | null;
-  due: CanonicalSalesDueFilter;
+  cursor: PlatformSalesCursor | null;
+  due: PlatformSalesDueFilter;
   listInvalid: boolean;
   query?: string;
-  stage?: CanonicalSalesStage;
+  stage?: PlatformSalesStage;
 }>;
 
 const COPY = {
   ru: {
     title: "Лиды EVO",
     description:
-      "Рабочая очередь Sales читает лиды напрямую из единой локальной PostgreSQL V2 базы EVO.",
-    search: "Поиск по имени, email, телефону, Lead UUID или Person UUID",
+      "Рабочая очередь Sales читает канонические лиды из Supabase через права текущего сотрудника.",
+    search: "Поиск по имени, email, телефону, Lead UUID или Client UUID",
     stage: "Этап",
     due: "Срок следующего действия",
     allStages: "Все этапы",
@@ -54,12 +54,12 @@ const COPY = {
     overdueFilter: "Просрочено",
     queueTitle: "Каноническая очередь Sales",
     queueDescription:
-      "Показан один активный V2 путь: lead, этап, owner role и next action из canonical PostgreSQL.",
+      "Единственный активный путь: Supabase Platform, RLS, текущий ответственный и следующий шаг.",
     found: "Найдено на странице",
     noAction: "Не назначено",
     noDeadline: "Без срока",
     updated: "Обновлено",
-    version: "Версия",
+    workflowVersion: "Версия Sales workflow",
     details: "Открыть",
     first: "К новым",
     next: "Старее",
@@ -69,15 +69,16 @@ const COPY = {
     unavailable:
       "Очередь лидов недоступна из-за ошибки чтения. Это не означает, что лидов нет; попробуйте обновить страницу.",
     stage_new: "Новый",
-    stage_qualifying: "В квалификации",
+    stage_contacting: "Устанавливаем контакт",
     stage_qualified: "Квалифицирован",
-    stage_disqualified: "Дисквалифицирован",
-    stage_handoff_ready: "Готов к передаче",
-    stage_handed_off: "Передан в Admissions",
-    owner: "Owner role",
+    stage_meeting_scheduled: "Встреча назначена",
+    stage_meeting_completed: "Встреча проведена",
+    stage_potential: "Потенциальный клиент",
+    owner: "Текущий ответственный",
+    noOwner: "Не назначен",
     nextAction: "Следующее действие",
     leadId: "Lead UUID",
-    personId: "Person UUID",
+    clientId: "Client UUID",
     source: "Источник",
     today: "Сегодня",
     overdue: "Просрочено",
@@ -85,8 +86,8 @@ const COPY = {
   ky: {
     title: "EVO лиддери",
     description:
-      "Sales жумуш кезеги EVOнун бирдиктүү жергиликтүү PostgreSQL V2 базасынан түз окулат.",
-    search: "Аты, email, телефон, Lead UUID же Person UUID боюнча издөө",
+      "Sales жумуш кезеги каноникалык лиддерди кызматкердин укуктары менен Supabase'тен окуйт.",
+    search: "Аты, email, телефон, Lead UUID же Client UUID боюнча издөө",
     stage: "Этап",
     due: "Кийинки аракеттин мөөнөтү",
     allStages: "Бардык этаптар",
@@ -97,12 +98,12 @@ const COPY = {
     overdueFilter: "Мөөнөтү өткөн",
     queueTitle: "Sales'тин каноникалык кезеги",
     queueDescription:
-      "Бул жерде бир гана активдүү V2 жол көрсөтүлөт: canonical PostgreSQL'ден lead, этап, owner role жана next action.",
+      "Бир гана активдүү жол: Supabase Platform, RLS, учурдагы жооптуу жана кийинки аракет.",
     found: "Барактагы саны",
     noAction: "Дайындалган эмес",
     noDeadline: "Мөөнөтү жок",
     updated: "Жаңыртылды",
-    version: "Версия",
+    workflowVersion: "Sales workflow версиясы",
     details: "Ачуу",
     first: "Жаңыларына",
     next: "Эскирээк",
@@ -112,15 +113,16 @@ const COPY = {
     unavailable:
       "Лиддер кезеги окуу катасынан улам жеткиликсиз. Бул лиддер жок дегенди билдирбейт; баракты жаңыртып көрүңүз.",
     stage_new: "Жаңы",
-    stage_qualifying: "Квалификацияда",
+    stage_contacting: "Байланыш түзүлүүдө",
     stage_qualified: "Квалификациядан өттү",
-    stage_disqualified: "Дисквалификацияланды",
-    stage_handoff_ready: "Өткөрүүгө даяр",
-    stage_handed_off: "Admissions'ке өткөрүлдү",
-    owner: "Owner role",
+    stage_meeting_scheduled: "Жолугушуу дайындалды",
+    stage_meeting_completed: "Жолугушуу өттү",
+    stage_potential: "Потенциалдуу кардар",
+    owner: "Учурдагы жооптуу",
+    noOwner: "Дайындалган эмес",
     nextAction: "Кийинки аракет",
     leadId: "Lead UUID",
-    personId: "Person UUID",
+    clientId: "Client UUID",
     source: "Булак",
     today: "Бүгүн",
     overdue: "Мөөнөтү өткөн",
@@ -128,8 +130,8 @@ const COPY = {
   en: {
     title: "EVO leads",
     description:
-      "The Sales work queue reads leads directly from EVO's single local PostgreSQL V2 database.",
-    search: "Search by name, email, phone, Lead UUID, or Person UUID",
+      "The Sales work queue reads canonical leads from Supabase under the current staff member's permissions.",
+    search: "Search by name, email, phone, Lead UUID, or Client UUID",
     stage: "Stage",
     due: "Next-action due state",
     allStages: "All stages",
@@ -140,12 +142,12 @@ const COPY = {
     overdueFilter: "Overdue",
     queueTitle: "Canonical Sales queue",
     queueDescription:
-      "This page shows one active V2 path only: lead, stage, owner role, and next action from canonical PostgreSQL.",
+      "One active path only: Supabase Platform, RLS, current owner, and next action.",
     found: "Found on page",
     noAction: "Not scheduled",
     noDeadline: "No deadline",
     updated: "Updated",
-    version: "Version",
+    workflowVersion: "Sales workflow version",
     details: "Open",
     first: "Back to newest",
     next: "Older",
@@ -155,15 +157,16 @@ const COPY = {
     unavailable:
       "The lead queue is unavailable because the read failed. This does not mean there are no leads; try refreshing the page.",
     stage_new: "New",
-    stage_qualifying: "Qualifying",
+    stage_contacting: "Contacting",
     stage_qualified: "Qualified",
-    stage_disqualified: "Disqualified",
-    stage_handoff_ready: "Handoff ready",
-    stage_handed_off: "Handed off to Admissions",
-    owner: "Owner role",
+    stage_meeting_scheduled: "Meeting scheduled",
+    stage_meeting_completed: "Meeting completed",
+    stage_potential: "Potential",
+    owner: "Current owner",
+    noOwner: "Unassigned",
     nextAction: "Next action",
     leadId: "Lead UUID",
-    personId: "Person UUID",
+    clientId: "Client UUID",
     source: "Source",
     today: "Today",
     overdue: "Overdue",
@@ -172,7 +175,7 @@ const COPY = {
 
 const DUE_LABELS: Record<
   Locale,
-  Record<Exclude<CanonicalSalesDueFilter, "all">, string>
+  Record<Exclude<PlatformSalesDueFilter, "all">, string>
 > = {
   ru: {
     scheduled: COPY.ru.scheduled,
@@ -204,13 +207,12 @@ export async function SalesWorkspace({
   ]);
 
   const normalized = normalizeSearchParams(params);
-  const actorRole = actor.authorityRole === "admin" ? "admin" : "sales";
   const queueRead = normalized.listInvalid
     ? Promise.resolve<{ page: null; unavailable: false }>({
         page: null,
         unavailable: false,
       })
-    : readCanonicalSalesQueue(actorRole, normalized);
+    : readPlatformSalesQueue(actor, normalized);
   const queueResult = await queueRead;
 
   return (
@@ -224,22 +226,21 @@ export async function SalesWorkspace({
   );
 }
 
-async function readCanonicalSalesQueue(
-  actorRole: "admin" | "sales",
+async function readPlatformSalesQueue(
+  actor: ActivePlatformActor,
   params: NormalizedParams,
-): Promise<Readonly<{ page: CanonicalSalesLeadQueuePage | null; unavailable: boolean }>> {
+): Promise<Readonly<{ page: PlatformSalesLeadPage | null; unavailable: boolean }>> {
   try {
-    const page = await listCanonicalSalesLeads({
-      actorRole,
+    const page = await listPlatformSalesLeads(actor, {
       cursor: params.cursor ?? undefined,
-      due: params.due,
+      dueFilter: params.due,
       pageSize: 15,
       query: params.query,
-      stage: params.stage,
+      stageFilter: params.stage,
     });
     return { page, unavailable: false };
   } catch (error) {
-    if (error instanceof CanonicalCrmRepositoryError) {
+    if (error instanceof PlatformSalesRepositoryError) {
       return { page: null, unavailable: true };
     }
     return { page: null, unavailable: true };
@@ -254,7 +255,7 @@ function CanonicalSalesPresentation({
   listUnavailable,
 }: Readonly<{
   locale: Locale;
-  page: CanonicalSalesLeadQueuePage | null;
+  page: PlatformSalesLeadPage | null;
   params: NormalizedParams;
   listInvalid: boolean;
   listUnavailable: boolean;
@@ -266,7 +267,6 @@ function CanonicalSalesPresentation({
     <div className="min-w-0" data-testid="platform-sales-page">
       <div className="space-y-5" data-testid="canonical-sales-page">
         <PageHeader title={copy.title} description={copy.description} />
-        <CanonicalAuthorityNotice locale={locale} />
 
         <section className="space-y-4" aria-labelledby="sales-workflow-title">
           <div className="space-y-1">
@@ -293,7 +293,7 @@ function CanonicalSalesPresentation({
               {copy.stage}
               <select name="stage" defaultValue={params.stage ?? ""} className={inputCls}>
                 <option value="">{copy.allStages}</option>
-                {CANONICAL_SALES_STAGES.map((stage) => (
+                {PLATFORM_SALES_STAGES.map((stage) => (
                   <option key={stage} value={stage}>
                     {stageLabel(locale, stage)}
                   </option>
@@ -305,7 +305,7 @@ function CanonicalSalesPresentation({
               {copy.due}
               <select name="due" defaultValue={params.due} className={inputCls}>
                 <option value="all">{copy.allDue}</option>
-                {CANONICAL_SALES_DUE_FILTERS.filter((due) => due !== "all").map((due) => (
+                {PLATFORM_SALES_DUE_FILTERS.filter((due) => due !== "all").map((due) => (
                   <option key={due} value={due}>
                     {DUE_LABELS[locale][due]}
                   </option>
@@ -342,7 +342,7 @@ function CanonicalSalesPresentation({
                     <thead>
                       <tr className="text-left text-xs uppercase tracking-[0.05em] text-fg-3">
                         <th className="border-b border-border px-3 py-2">{copy.leadId}</th>
-                        <th className="border-b border-border px-3 py-2">{copy.personId}</th>
+                        <th className="border-b border-border px-3 py-2">{copy.clientId}</th>
                         <th className="border-b border-border px-3 py-2">{copy.stage}</th>
                         <th className="border-b border-border px-3 py-2">{copy.owner}</th>
                         <th className="border-b border-border px-3 py-2">{copy.nextAction}</th>
@@ -392,12 +392,12 @@ function SalesRow({
   lead,
   locale,
 }: Readonly<{
-  lead: CanonicalSalesLeadQueueRow;
+  lead: PlatformSalesLeadRow;
   locale: Locale;
 }>) {
   const copy = COPY[locale];
   const today = bishkekCalendarDate();
-  const dueDate = lead.nextActionAt ? bishkekCalendarDate(new Date(lead.nextActionAt)) : null;
+  const dueDate = lead.nextActionDueDate;
   const isOverdue = dueDate !== null && dueDate < today;
   const isDueToday = dueDate === today;
 
@@ -406,38 +406,42 @@ function SalesRow({
       className="align-top"
       data-testid="canonical-lead-row"
       data-lead-id={lead.leadId}
-      data-record-version={lead.version}
+      data-workflow-version={lead.workflowVersion}
     >
       <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <div className="space-y-2">
           <CanonicalUuid value={lead.leadId} />
-          <div className="font-medium text-fg">{lead.displayName}</div>
-          <div>{lead.email ?? lead.phone ?? copy.noAction}</div>
-          <div>{copy.source}: {lead.source}</div>
+          <div className="font-medium text-fg">
+            {lead.clientDisplayName ?? lead.clientEmail ?? lead.clientPhone ?? lead.leadId}
+          </div>
+          <div>{lead.clientEmail ?? lead.clientPhone ?? copy.noAction}</div>
+          <div>{copy.source}: {lead.sourceKey}</div>
         </div>
       </td>
       <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
-        <CanonicalUuid value={lead.personId} />
+        {lead.clientId ? <CanonicalUuid value={lead.clientId} /> : "—"}
       </td>
       <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <div className="space-y-2">
-          <CanonicalKeyBadge value={lead.stage} />
-          <div>{stageLabel(locale, lead.stage)}</div>
-          {lead.qualificationSummary ? (
-            <p className="max-w-[260px] text-xs leading-4 text-fg-3">
-              {lead.qualificationSummary}
-            </p>
+          <CanonicalKeyBadge value={lead.stageKey} />
+          <div>{stageLabel(locale, lead.stageKey)}</div>
+        </div>
+      </td>
+      <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
+        <div className="space-y-2">
+          <div className="font-medium text-fg">
+            {lead.currentOwnerDisplayName ?? copy.noOwner}
+          </div>
+          {lead.currentOwnerMembershipId ? (
+            <CanonicalUuid value={lead.currentOwnerMembershipId} />
           ) : null}
         </div>
       </td>
       <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
-        <CanonicalKeyBadge value={lead.ownerRole} />
-      </td>
-      <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <div className="space-y-2">
-          <div>{lead.nextAction ?? copy.noAction}</div>
+          <div>{lead.nextActionText ?? copy.noAction}</div>
           <div className="text-xs text-fg-3">
-            {lead.nextActionAt ? formatCanonicalTimestamp(lead.nextActionAt, locale) : copy.noDeadline}
+            {dueDate ? formatCalendarDate(dueDate, locale) : copy.noDeadline}
           </div>
           {isOverdue ? (
             <span className="inline-flex rounded-full bg-danger-weak px-2 py-1 text-xs font-semibold text-danger">
@@ -453,7 +457,7 @@ function SalesRow({
       <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
         <div className="space-y-2">
           <div>{formatCanonicalTimestamp(lead.updatedAt, locale)}</div>
-          <div>{copy.version}: <span className="font-mono">{lead.version}</span></div>
+          <div>{copy.workflowVersion}: <span className="font-mono">{lead.workflowVersion}</span></div>
         </div>
       </td>
       <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
@@ -474,7 +478,7 @@ function Metric({ label, value }: Readonly<{ label: string; value: number }>) {
   );
 }
 
-function stageLabel(locale: Locale, stage: CanonicalSalesStage) {
+function stageLabel(locale: Locale, stage: PlatformSalesStage) {
   return COPY[locale][`stage_${stage}`];
 }
 
@@ -491,9 +495,12 @@ function normalizeSearchParams(params: SearchParams): NormalizedParams {
     const cursor =
       beforeAt === undefined && beforeId === undefined
         ? null
-        : parseCanonicalReadCursor(beforeAt, beforeId);
+        : parsePlatformSalesCursor(beforeAt, beforeId);
 
-    if (query && query.length > 120) throw new CanonicalCrmRepositoryError("invalid_input");
+    if ((beforeAt !== undefined || beforeId !== undefined) && cursor === null) {
+      throw new Error("invalid_sales_filter");
+    }
+    if (query && query.length > 200) throw new Error("invalid_sales_filter");
 
     return {
       cursor,
@@ -517,7 +524,7 @@ function assertOnlySearchKeys(
 ) {
   for (const key of Object.keys(params)) {
     if (!allowedKeys.includes(key)) {
-      throw new CanonicalCrmRepositoryError("invalid_input");
+      throw new Error("invalid_sales_filter");
     }
   }
 }
@@ -525,7 +532,7 @@ function assertOnlySearchKeys(
 function singleValue(value: string | string[] | undefined) {
   if (value === undefined) return undefined;
   if (Array.isArray(value)) {
-    if (value.length !== 1) throw new CanonicalCrmRepositoryError("invalid_input");
+    if (value.length !== 1) throw new Error("invalid_sales_filter");
     return value[0];
   }
   return value;
@@ -536,23 +543,23 @@ function trimmed(value: string | undefined) {
   return normalized ? normalized : undefined;
 }
 
-function normalizeStage(value: string): CanonicalSalesStage {
-  if ((CANONICAL_SALES_STAGES as readonly string[]).includes(value)) {
-    return value as CanonicalSalesStage;
+function normalizeStage(value: string): PlatformSalesStage {
+  if ((PLATFORM_SALES_STAGES as readonly string[]).includes(value)) {
+    return value as PlatformSalesStage;
   }
-  throw new CanonicalCrmRepositoryError("invalid_input");
+  throw new Error("invalid_sales_filter");
 }
 
-function normalizeDue(value: string): CanonicalSalesDueFilter {
-  if ((CANONICAL_SALES_DUE_FILTERS as readonly string[]).includes(value)) {
-    return value as CanonicalSalesDueFilter;
+function normalizeDue(value: string): PlatformSalesDueFilter {
+  if ((PLATFORM_SALES_DUE_FILTERS as readonly string[]).includes(value)) {
+    return value as PlatformSalesDueFilter;
   }
-  throw new CanonicalCrmRepositoryError("invalid_input");
+  throw new Error("invalid_sales_filter");
 }
 
 function salesHref(
   params: NormalizedParams,
-  updates: Readonly<{ cursor: CanonicalReadCursor | null }>,
+  updates: Readonly<{ cursor: PlatformSalesCursor | null }>,
 ) {
   const query = new URLSearchParams();
   if (params.query) query.set("q", params.query);
@@ -564,6 +571,14 @@ function salesHref(
   }
   const suffix = query.toString();
   return suffix.length > 0 ? `/sales?${suffix}` : "/sales";
+}
+
+function formatCalendarDate(value: string, locale: Locale): string {
+  const localeTag = locale === "ru" ? "ru-RU" : locale === "ky" ? "ky-KG" : "en-US";
+  return new Intl.DateTimeFormat(localeTag, {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00Z`));
 }
 
 function bishkekCalendarDate(now = new Date()): string {

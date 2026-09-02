@@ -6,7 +6,6 @@ import {
   CANONICAL_UNIVERSITY_APPLICATION_STATUSES,
   CANONICAL_VISA_MILESTONE_KINDS,
   CANONICAL_VISA_MILESTONE_STATUSES,
-  CANONICAL_SALES_DUE_FILTERS,
   CANONICAL_SALES_STAGES,
   CANONICAL_STUDENT_CASE_STATUSES,
   CanonicalCrmRepositoryError,
@@ -16,15 +15,12 @@ import {
   createCanonicalPersonLead,
   getCanonicalAdmissionsOperationsSnapshot,
   getCanonicalStaffConversationThread,
-  getCanonicalLeadConversationThread,
   getCanonicalLeadGateSnapshot,
   getCanonicalLeadSnapshot,
   getCanonicalStudentCaseHandoffSnapshot,
   getCanonicalStudentCaseSnapshot,
   handoffCanonicalLeadToAdmissions,
   listCanonicalFinanceStops,
-  listCanonicalLeadConversations,
-  listCanonicalSalesLeads,
   listCanonicalStaffConversations,
   listCanonicalStudentCases,
   listCanonicalUniversityApplications,
@@ -74,13 +70,6 @@ test("canonical read cursor normalizes one real timestamp and non-nil UUID pair"
     "handoff_ready",
     "handed_off",
   ]);
-  assert.deepEqual(CANONICAL_SALES_DUE_FILTERS, [
-    "all",
-    "scheduled",
-    "unscheduled",
-    "due_today",
-    "overdue",
-  ]);
   assert.deepEqual(CANONICAL_STUDENT_CASE_STATUSES, [
     "active",
     "paused",
@@ -129,24 +118,6 @@ test("canonical message cursor normalizes one real timestamp and non-nil UUID pa
       rejectsWithCode("invalid_input"),
     );
   }
-});
-
-test("Sales conversation reads reject Admissions before database access", async () => {
-  await assert.rejects(
-    listCanonicalLeadConversations({
-      actorRole: "admissions",
-      leadId: UUID_A,
-    }),
-    rejectsWithCode("forbidden"),
-  );
-  await assert.rejects(
-    getCanonicalLeadConversationThread({
-      actorRole: "admissions",
-      leadId: UUID_A,
-      conversationId: UUID_B,
-    }),
-    rejectsWithCode("forbidden"),
-  );
 });
 
 test("canonical phone normalization rejects letters instead of deleting them", () => {
@@ -261,14 +232,6 @@ test("canonical staff WhatsApp reads validate role and cursor inputs before data
       cursor: { occurredAt: "2026-13-28T12:00:00.000Z", id: UUID_B },
     }),
     rejectsWithCode("invalid_input"),
-  );
-  await assert.rejects(
-    getCanonicalLeadConversationThread({
-      actorRole: "admissions",
-      leadId: UUID_A,
-      conversationId: UUID_B,
-    }),
-    rejectsWithCode("forbidden"),
   );
 });
 
@@ -394,43 +357,6 @@ test("student case queue enforces role and bounded read inputs before database a
       cursor: {
         updatedAt: "2026-08-28T12:30:00.000Z",
         id: UUID_B,
-        extra: "second-token",
-      },
-    }),
-    rejectsWithCode("invalid_input"),
-  );
-});
-
-test("Sales lead queue enforces role and bounded read inputs before database access", async () => {
-  await assert.rejects(
-    listCanonicalSalesLeads({ actorRole: "admissions" }),
-    rejectsWithCode("forbidden"),
-  );
-
-  for (const pageSize of [0, 51, 1.5, "25"]) {
-    await assert.rejects(
-      listCanonicalSalesLeads({ actorRole: "admin", pageSize }),
-      rejectsWithCode("invalid_input"),
-    );
-  }
-  await assert.rejects(
-    listCanonicalSalesLeads({ actorRole: "sales", stage: "prospect" }),
-    rejectsWithCode("invalid_input"),
-  );
-  await assert.rejects(
-    listCanonicalSalesLeads({ actorRole: "admin", due: "tomorrow" }),
-    rejectsWithCode("invalid_input"),
-  );
-  await assert.rejects(
-    listCanonicalSalesLeads({ actorRole: "sales", query: "x".repeat(121) }),
-    rejectsWithCode("invalid_input"),
-  );
-  await assert.rejects(
-    listCanonicalSalesLeads({
-      actorRole: "admin",
-      cursor: {
-        updatedAt: "2026-08-28T12:30:00.000Z",
-        id: UUID_A,
         extra: "second-token",
       },
     }),
@@ -621,7 +547,7 @@ test("canonical admissions queue cursors use one lossless millisecond bucket and
     const nextName = queueFunctions[index + 1];
     const end = nextName
       ? source.indexOf(`export async function ${nextName}`)
-      : source.indexOf("export async function listCanonicalLeadConversations");
+      : source.indexOf("export async function listCanonicalStaffConversations");
     const queueSource = source.slice(start, end);
     assert.match(queueSource, /date_trunc\('milliseconds'/);
     assert.match(queueSource, /\$\{cursorTimestamp\}, \$\{/);

@@ -11,6 +11,7 @@ import {
   collectMigrationInventory,
   collectRuntimeSettingInventory,
   parseJsonRejectingDuplicates,
+  P8B2_MIGRATION_RANGE,
   P8B2_TARGET_PLATFORM,
   RESULT_STATUSES,
   resolveEvidencePath,
@@ -30,9 +31,15 @@ const releaseControlCommit = "4".repeat(40);
 
 test("migration and runtime-setting inventories are deterministic and value-free", () => {
   const migrations = collectMigrationInventory(repoRoot);
-  assert.equal(migrations.length, 92);
-  assert.equal(migrations[0].name.slice(0, 3), "001");
-  assert.equal(migrations.at(-1).name.slice(0, 3), "092");
+  assert.deepEqual(P8B2_MIGRATION_RANGE, {
+    count: 94,
+    first: "001",
+    last: "094",
+    result: "001-094 hashed",
+  });
+  assert.equal(migrations.length, P8B2_MIGRATION_RANGE.count);
+  assert.equal(migrations[0].name.slice(0, 3), P8B2_MIGRATION_RANGE.first);
+  assert.equal(migrations.at(-1).name.slice(0, 3), P8B2_MIGRATION_RANGE.last);
   assert.equal(stableJson(migrations), stableJson(collectMigrationInventory(repoRoot)));
 
   const settings = collectRuntimeSettingInventory(repoRoot);

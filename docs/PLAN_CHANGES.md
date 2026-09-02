@@ -15066,3 +15066,123 @@ after real local Supabase, direct authorization and Chromium proof. P2B and P2C
 then replace and delete the Drizzle Sales read and write paths respectively.
 None of these local/isolated PRs authorizes a production migration, Auth change,
 data copy, provider side effect or traffic switch.
+
+## 2026-09-02 - Clarify the existing migration 086 Sales read boundary
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: implementation-inspection plan clarification; no new migration,
+scope expansion, production mutation or provider mutation.
+Affected plan section: issue #546 P2B canonical Sales reads and P2C canonical
+Sales writes.
+
+Implementation inspection confirmed that migrations 084-085 provide the
+canonical lead and linked-conversation foundation, while migration 086 already
+contains the bounded `staff_sales_lead_page` and `staff_sales_lead_detail` read
+RPCs required by P2B. P2B will wire those exact existing RPCs through the
+authenticated Supabase session and RLS, prove authorized and unauthorized
+database, application and browser outcomes, and then delete the replaced
+Drizzle Sales read path.
+
+P2B will not add a migration 093 wrapper or duplicate read RPC, because that
+would layer a second contract over an existing single read authority. P2C owns
+only the qualification, ownership and next-action mutation RPCs already in
+migration 086, followed by the corresponding Drizzle write-path cleanup. This
+clarifies the implementation boundary discovered during inspection; it does
+not change the accepted product outcome or authorize any production/provider
+side effect.
+
+## 2026-09-02 - Keep the Sales read and workflow-write replacement regression-free
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: exact-head review correction before merge; no managed-project,
+production, provider or customer-data mutation.
+Affected plan section: issue #546 P2B canonical Sales reads and P2C canonical
+Sales workflow writes.
+
+Independent review of exact head
+`a729a24c67b90aee52a7381a89a80d640bad48f8` correctly rejected two unsafe
+effects of treating P2B as a mergeable endpoint. First, the active Supabase
+lead detail would land read-only before stage, owner and next-action mutations
+moved to the same authority. P2B and P2C will therefore remain separate logical
+commits but merge in one regression-free PR. The combined slice uses only
+`staff_sales_lead_page`, `staff_sales_lead_detail`,
+`staff_sales_owner_options` and `mutate_sales_lead_workflow` through the
+authenticated cookie/JWT-bound Supabase client, then deletes the corresponding
+Drizzle Sales read and workflow-write paths.
+
+This combined slice does not pull later issue scope forward. Contract/payment
+gate and Sales-to-Admissions handoff remain #547. The Sales amoCRM command
+surface remains #549. Re-rendering their old Drizzle-backed controls merely to
+keep historical browser expectations green would violate replace-not-layer;
+those expectations must instead follow their authoritative issue and return
+only with a Supabase-backed implementation.
+
+Second, migration 086 currently delegates its `linked_conversations`
+projection to a broader canonical detail function, while the nested transcript
+RPC accepts only the exact verified Sales-intake relationship. That can render
+a link which is guaranteed to 404. Forward-only migration 093 will replace the
+existing `staff_sales_lead_detail(UUID)` function so both its conversation
+projection and count use the same exact predicate as
+`staff_canonical_lead_conversation_link(UUID, UUID, UUID)`. This is a corrective
+replacement of the existing function, not a wrapper, duplicate read contract,
+fallback or edit to applied migration history. SQL and Chromium proof must
+cover client-only, wrong-queue/non-intake and exact authorized conversations.
+
+## 2026-09-02 - Bound the remaining Drizzle Sales fixture to downstream deletion
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor and cleanup
+program.
+Change type: replace-not-layer cleanup boundary; no managed-project,
+production, provider or customer-data mutation.
+Affected plan section: issue #546 P2C cleanup with #547/#549 exit ownership.
+
+The combined P2B/P2C slice deletes the superseded active
+`CanonicalSalesWorkflowForm` and `canonical-sales-workflow-actions` modules and
+leaves no route, action or rendered Sales control using the Drizzle workflow.
+Inspection found one narrower temporary dependency: the inactive
+`updateCanonicalSalesLeadWorkflow` export in
+`src/lib/server/canonical-crm-repository.ts`, together with
+`src/lib/canonical-sales-workflow-contract.ts`, is still used only by local
+acceptance preparation in `tests/canonical-crm-postgres.test.mjs`,
+`tests/canonical-amocrm-command-postgres.test.mjs`,
+`tests/canonical-crm-repository.test.mjs` and
+`scripts/seed-canonical-amocrm-browser-blocker.mjs` for the not-yet-replaced
+contract/payment, handoff and amoCRM slices.
+
+This named fixture-only coexistence expires as follows: #547 must replace and
+delete the gate/handoff preparation callers; #549 must replace and delete the
+amoCRM preparation callers; the later of those two issues must delete the old
+repository export and stage contract after an `rg` inventory is empty. The
+files may not be imported by an active route/action, bundled as a fallback, or
+used to claim Supabase acceptance. This bounded exception prevents #546 from
+silently pulling #547/#549 implementation forward while keeping exactly one
+active Sales workflow path.
+
+## 2026-09-02 - Align Sales queue WhatsApp truth with the exact intake link
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: exact-head review correction before merge; no managed-project,
+production, provider or customer-data mutation.
+Affected plan section: issue #546 P2B canonical Sales reads.
+
+Exact-head review of the combined Sales replacement found that migration 093
+corrected detail and transcript alignment, but the existing
+`staff_sales_lead_page` function in migration 086 still derived
+`is_connected` and `linked_conversation_count` from a broader direct/client
+relationship. That could present non-intake or unverified WhatsApp activity as
+Sales queue truth even though the same conversation is not an accepted linked
+Sales transcript.
+
+Forward-only migration 094 therefore replaces the existing page function in
+place and makes both WhatsApp-derived queue values use the exact verified
+Sales-intake relationship predicate already enforced by
+`staff_canonical_lead_conversation_link`. The function signature, return
+contract, security-definer/search-path boundary, ACL and all non-WhatsApp page
+behavior remain unchanged. SQL proof must cover exact intake plus client-only,
+non-intake and unverified/direct-link negatives. The release migration
+inventory and evidence text advance together to contiguous `001-094`; no
+wrapper, fallback, second read authority or applied-history edit is permitted.

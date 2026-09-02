@@ -434,7 +434,7 @@ function p7aAllowlist(functionName: string): Set<string> {
 describe('Unified EVO Supabase schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '101_platform_exact_manual_send_queue_shape.sql'
+      '103_platform_amocrm_mapping_discovery_v2.sql'
     );
     expect(platformExactManualSendClaimMigration).toMatch(
       /CREATE FUNCTION platform\.claim_manual_whatsapp_send_item\s*\(/i

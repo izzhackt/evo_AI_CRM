@@ -112,6 +112,13 @@ export type ReadPlatformAmoCrmBindingsInput = Readonly<{
 export type ReadPlatformBlockingAmoCrmCommandInput =
   Readonly<ReadPlatformAmoCrmBindingsInput>;
 
+export type ReleasePreparedPlatformAmoCrmCommandInput = Readonly<
+  ReadPlatformAmoCrmBindingsInput & {
+    attemptId: string;
+    requestId: string;
+  }
+>;
+
 export type ClaimPlatformAmoCrmCommandInput = Readonly<{
   organizationId: string;
   attemptId: string;
@@ -356,6 +363,68 @@ export async function readPlatformBlockingAmoCrmCommand(
     p_lead_id: input.leadId === null ? null : normalizedUuid(input.leadId) ?? invalid(),
   });
   return data === null ? null : parseSnapshot(data);
+}
+
+function attemptTargetsMatchAuthorizedContext(
+  attempt: PlatformAmoCrmCommandSnapshot,
+  personId: string | null,
+  leadId: string | null,
+): boolean {
+  if (
+    attempt.operationName === "contact_create" ||
+    attempt.operationName === "contact_update"
+  ) {
+    return attempt.personId === personId && attempt.leadId === null;
+  }
+  if (attempt.operationName === "contact_lead_link") {
+    return attempt.personId === personId && attempt.leadId === leadId;
+  }
+  return attempt.personId === null && attempt.leadId === leadId;
+}
+
+export async function releasePreparedPlatformAmoCrmCommand(
+  client: PlatformAmoCrmRpcClient,
+  input: ReleasePreparedPlatformAmoCrmCommandInput,
+): Promise<
+  Readonly<{
+    kind: "released" | "replay";
+    attempt: PlatformAmoCrmCommandSnapshot;
+  }>
+> {
+  const organizationId = normalizedUuid(input.organizationId) ?? invalid();
+  const attemptId = normalizedUuid(input.attemptId) ?? invalid();
+  const authorization = workflowAuthorization(input.authorization);
+  const personId =
+    input.personId === null ? null : normalizedUuid(input.personId) ?? invalid();
+  const leadId =
+    input.leadId === null ? null : normalizedUuid(input.leadId) ?? invalid();
+  const row = record(
+    await rpc(client, "release_prepared_amocrm_command", {
+      p_organization_id: organizationId,
+      p_authorization: authorization,
+      p_person_id: personId,
+      p_lead_id: leadId,
+      p_attempt_id: attemptId,
+      p_request_id: normalizedUuid(input.requestId) ?? invalid(),
+    }),
+  ) ?? invalid();
+  const kind = row.kind;
+  if (kind !== "released" && kind !== "replay") invalid();
+  const attempt = parseSnapshot(row.attempt);
+  if (
+    attempt.organizationId !== organizationId ||
+    attempt.attemptId !== attemptId ||
+    attempt.workflowScope !== authorization.workflow_scope ||
+    attempt.workflowLeadId !== authorization.workflow_lead_id ||
+    attempt.studentCaseId !== authorization.student_case_id ||
+    !attemptTargetsMatchAuthorizedContext(attempt, personId, leadId) ||
+    attempt.status !== "rejected" ||
+    attempt.providerDispatchedAt !== null ||
+    attempt.failureCode !== "operator_released_before_dispatch"
+  ) {
+    invalid();
+  }
+  return Object.freeze({ kind, attempt });
 }
 
 export async function claimPlatformAmoCrmCommand(

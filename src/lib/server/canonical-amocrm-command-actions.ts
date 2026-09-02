@@ -19,6 +19,7 @@ import {
   executePlatformAmoCrmAdmissionsSync,
   executePlatformAmoCrmSalesSync,
   reconcilePlatformAmoCrmSyncAttempt,
+  releasePlatformAmoCrmPreparedAttempt,
   type PlatformAmoCrmSyncResult as CanonicalAmoCrmSyncResult,
 } from "./platform-amocrm-command-service";
 import {
@@ -168,6 +169,42 @@ export async function reconcileCanonicalAmoCrmCommandAction(
   }
 
   const result = await reconcilePlatformAmoCrmSyncAttempt({
+    actor,
+    actorRole: actor.platformRole,
+    workflowScope,
+    leadId,
+    studentCaseId,
+    attemptId,
+  });
+  if (studentCaseId === null) {
+    revalidatePath(`/sales/${leadId}`);
+  } else {
+    revalidatePath(`/clients/${studentCaseId}`);
+  }
+  return result;
+}
+
+export async function releaseCanonicalAmoCrmPreparedCommandAction(
+  _previous: CanonicalAmoCrmCommandActionState,
+  form: FormData,
+): Promise<CanonicalAmoCrmSyncResult> {
+  const parsed = parsePlatformAmoCrmReconcileForm(form);
+  if (parsed === null) return invalidState();
+  const { workflowScope, leadId, attemptId, studentCaseId } = parsed;
+
+  const actor =
+    workflowScope === "sales_pre_handoff"
+      ? await requirePlatformSalesActor()
+      : await requirePlatformAdmissionsActor("/clients");
+  if (
+    actor.platformRole !== "admin" &&
+    actor.platformRole !==
+      (workflowScope === "sales_pre_handoff" ? "sales" : "admissions")
+  ) {
+    return invalidState();
+  }
+
+  const result = await releasePlatformAmoCrmPreparedAttempt({
     actor,
     actorRole: actor.platformRole,
     workflowScope,

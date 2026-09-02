@@ -2,14 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import {
-  chmod,
-  lstat,
-  open,
-  readFile,
-  rename,
-  unlink,
-} from "node:fs/promises";
+import { chmod, lstat, open, readFile, rename, unlink } from "node:fs/promises";
 import { isIP } from "node:net";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { parseEnv } from "node:util";
@@ -18,6 +11,8 @@ const PRIVATE_FILE_MAX_BYTES = 256 * 1024;
 const PROVIDER_ID = /^[1-9][0-9]{0,9}$/u;
 const DIRECT_SELF_ID = /^[1-9][0-9]{4,31}@(c\.us|lid)$/u;
 const SHA40 = /^[0-9a-f]{40}$/u;
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const MANAGED_TAGS = Object.freeze({
   sales: "EVO V2 Sales",
   admissions: "EVO V2 Admissions",
@@ -67,6 +62,32 @@ function exactProviderId(value, code = "provider_response_invalid") {
         : "";
   if (!PROVIDER_ID.test(parsed) || Number(parsed) > 2_147_483_647) fail(code);
   return parsed;
+}
+
+function localSupabaseDatabaseUrl() {
+  const value = exactText(
+    process.env.EVO_V2_SUPABASE_DATABASE_URL,
+    "local_supabase_database_url_invalid",
+    4_096,
+  );
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail("local_supabase_database_url_invalid");
+  }
+  if (
+    !["postgres:", "postgresql:"].includes(parsed.protocol) ||
+    !["127.0.0.1", "localhost"].includes(parsed.hostname) ||
+    parsed.username.length === 0 ||
+    parsed.password.length === 0 ||
+    parsed.pathname.length <= 1 ||
+    parsed.search.length > 0 ||
+    parsed.hash.length > 0
+  ) {
+    fail("local_supabase_database_url_invalid");
+  }
+  return value;
 }
 
 function validatePrivateIpv4(parsed) {
@@ -300,8 +321,11 @@ async function mapLegacyProvider(parsed) {
   }
   exactText(tokenRecord.access_token, "token_file_invalid", 16_384);
   if (
-    exactText(tokenRecord.token_type, "token_file_invalid", 32).toLowerCase() !==
-    "bearer"
+    exactText(
+      tokenRecord.token_type,
+      "token_file_invalid",
+      32,
+    ).toLowerCase() !== "bearer"
   ) {
     fail("token_file_invalid");
   }
@@ -342,11 +366,7 @@ async function readWahaSelf(parsed) {
   );
   const waha = record(runtime.waha, "runtime_file_invalid");
   const apiKey = exactText(waha.apiKey, "runtime_file_invalid", 4_096);
-  const sessionName = exactText(
-    waha.sessionName,
-    "runtime_file_invalid",
-    128,
-  );
+  const sessionName = exactText(waha.sessionName, "runtime_file_invalid", 128);
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(sessionName)) {
     fail("runtime_file_invalid");
   }
@@ -382,7 +402,9 @@ async function readWahaSelf(parsed) {
   if (session.status !== "WORKING") fail("waha_session_not_working");
   const identities = [me.id, me.lid]
     .filter((candidate) => candidate !== undefined)
-    .map((candidate) => exactText(candidate, "waha_session_response_invalid", 64));
+    .map((candidate) =>
+      exactText(candidate, "waha_session_response_invalid", 64),
+    );
   if (
     identities.length < 1 ||
     identities.some((identity) => !DIRECT_SELF_ID.test(identity)) ||
@@ -390,7 +412,9 @@ async function readWahaSelf(parsed) {
   ) {
     fail("waha_session_response_invalid");
   }
-  const phoneIdentities = identities.filter((identity) => identity.endsWith("@c.us"));
+  const phoneIdentities = identities.filter((identity) =>
+    identity.endsWith("@c.us"),
+  );
   if (phoneIdentities.length !== 1) fail("waha_self_phone_unavailable");
   const digits = phoneIdentities[0].slice(0, -"@c.us".length);
   if (digits.length < 7 || digits.length > 15 || digits.startsWith("0")) {
@@ -418,43 +442,227 @@ async function seedValidationLead(parsed) {
   if (!/^[0-9a-f]{64}$/u.test(selfIdentitySha256)) fail("self_file_invalid");
 
   const seedCorrelationId = randomUUID();
-  const seedIdempotencyKey = randomUUID();
+  const clientId = randomUUID();
+  const leadId = randomUUID();
   const timestamp = new Date().toISOString().replace(/[:.]/gu, "-");
   const displayName = `EVO V2 Provider Validation ${timestamp}`;
-  const repository = await import(
-    "../src/lib/server/canonical-crm-repository.ts"
-  );
-  const database = await import("../src/lib/server/database.ts");
+  const sourceRef = `connected-amocrm-acceptance:${seedCorrelationId}`;
+  const adminEmail = exactText(
+    process.env.EVO_STAFF_AUTH_ADMIN_EMAIL,
+    "admin_identity_invalid",
+    320,
+  ).toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/u.test(adminEmail)) {
+    fail("admin_identity_invalid");
+  }
+  const postgres = (await import("postgres")).default;
+  const sql = postgres(localSupabaseDatabaseUrl(), {
+    max: 1,
+    onnotice: () => undefined,
+  });
   try {
-    const lead = await repository.createCanonicalPersonLead({
-      actorRole: "admin",
-      idempotencyKey: seedIdempotencyKey,
-      correlationId: seedCorrelationId,
-      displayName,
-      phone: phoneE164,
-      source: "whatsapp",
+    const seeded = await sql.begin(async (transaction) => {
+      const authorityRows = await transaction`
+        SELECT
+          membership.organization_id,
+          membership.id AS membership_id
+        FROM auth.users AS auth_user
+        JOIN platform.profiles AS profile
+          ON profile.auth_user_id = auth_user.id
+        JOIN platform.organization_memberships AS membership
+          ON membership.profile_id = profile.id
+        JOIN platform.organizations AS organization
+          ON organization.id = membership.organization_id
+        WHERE pg_catalog.lower(auth_user.email) = ${adminEmail}
+          AND profile.status = 'active'
+          AND membership.status = 'active'
+          AND membership.current_role = 'admin'
+          AND organization.status = 'active'
+      `;
+      if (
+        authorityRows.length !== 1 ||
+        !UUID.test(authorityRows[0].organization_id) ||
+        !UUID.test(authorityRows[0].membership_id)
+      ) {
+        fail("admin_supabase_authority_invalid");
+      }
+      const organizationId = authorityRows[0].organization_id;
+      const membershipId = authorityRows[0].membership_id;
+      const observedAt = new Date();
+
+      await transaction`
+        INSERT INTO platform.clients (
+          id,
+          organization_id,
+          display_name,
+          normalized_name,
+          phone,
+          normalized_phone,
+          lifecycle_state,
+          created_at,
+          updated_at
+        ) VALUES (
+          ${clientId},
+          ${organizationId},
+          ${displayName},
+          platform_private.normalize_person_name(${displayName}),
+          ${phoneE164},
+          platform_private.normalize_person_phone(${phoneE164}),
+          'active',
+          ${observedAt},
+          ${observedAt}
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.leads (
+          id,
+          organization_id,
+          client_id,
+          current_owner_membership_id,
+          stage_key,
+          source_key,
+          lifecycle_state,
+          workflow_version,
+          created_at,
+          updated_at
+        ) VALUES (
+          ${leadId},
+          ${organizationId},
+          ${clientId},
+          ${membershipId},
+          'new',
+          'provider_validation',
+          'open',
+          1,
+          ${observedAt},
+          ${observedAt}
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.external_identifiers (
+          organization_id,
+          source_system,
+          external_object_type,
+          external_identifier,
+          client_id,
+          observed_at,
+          imported_at,
+          source_ref
+        ) VALUES (
+          ${organizationId},
+          'provider_validation',
+          'waha_self_client',
+          ${seedCorrelationId},
+          ${clientId},
+          ${observedAt},
+          ${observedAt},
+          ${sourceRef}
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.external_identifiers (
+          organization_id,
+          source_system,
+          external_object_type,
+          external_identifier,
+          lead_id,
+          observed_at,
+          imported_at,
+          source_ref
+        ) VALUES (
+          ${organizationId},
+          'provider_validation',
+          'amocrm_validation_lead',
+          ${seedCorrelationId},
+          ${leadId},
+          ${observedAt},
+          ${observedAt},
+          ${sourceRef}
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.subject_provenance (
+          organization_id,
+          client_id,
+          source_system,
+          evidence_type,
+          observed_at,
+          imported_at,
+          source_ref
+        ) VALUES (
+          ${organizationId},
+          ${clientId},
+          'provider_validation',
+          'connected_provider_acceptance',
+          ${observedAt},
+          ${observedAt},
+          ${sourceRef}
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.subject_provenance (
+          organization_id,
+          lead_id,
+          source_system,
+          evidence_type,
+          observed_at,
+          imported_at,
+          source_ref
+        ) VALUES (
+          ${organizationId},
+          ${leadId},
+          'provider_validation',
+          'connected_provider_acceptance',
+          ${observedAt},
+          ${observedAt},
+          ${sourceRef}
+        )
+      `;
+      const proofRows = await transaction`
+        SELECT
+          (SELECT pg_catalog.count(*)::integer
+            FROM platform.clients AS client
+            WHERE client.organization_id = ${organizationId}
+              AND client.id = ${clientId}
+              AND client.phone = ${phoneE164}) AS client_count,
+          (SELECT pg_catalog.count(*)::integer
+            FROM platform.leads AS lead
+            WHERE lead.organization_id = ${organizationId}
+              AND lead.id = ${leadId}
+              AND lead.client_id = ${clientId}) AS lead_count,
+          (SELECT pg_catalog.count(*)::integer
+            FROM platform.subject_provenance AS provenance
+            WHERE provenance.organization_id = ${organizationId}
+              AND provenance.source_ref = ${sourceRef}) AS provenance_count
+      `;
+      if (
+        proofRows.length !== 1 ||
+        proofRows[0].client_count !== 1 ||
+        proofRows[0].lead_count !== 1 ||
+        proofRows[0].provenance_count !== 2
+      ) {
+        fail("validation_lead_count_invalid");
+      }
+      return Object.freeze({ organizationId });
     });
-    const countRows = await database.getPostgresClient()`
-      select count(*)::integer as count
-      from evo_leads
-    `;
-    if (countRows.length !== 1 || countRows[0].count !== 1) {
-      fail("validation_lead_count_invalid");
-    }
     await createPrivateJson(requiredOption(parsed, "context-file"), {
       schemaVersion: 1,
-      leadId: lead.leadId,
+      databaseAuthority: "local_supabase_postgresql",
+      organizationId: seeded.organizationId,
+      clientId,
+      leadId,
       displayName,
       selfPhoneSha256: sha256(phoneE164),
       selfIdentitySha256,
       seedCorrelationId,
-      seedIdempotencyKey,
+      seedSourceRef: sourceRef,
       seedLeadCount: 1,
+      seedProvenanceCount: 2,
       routing: null,
       discovery: null,
     });
   } finally {
-    await database.closeDatabaseConnections().catch(() => undefined);
+    await sql.end({ timeout: 5 }).catch(() => undefined);
   }
 }
 
@@ -501,7 +709,9 @@ function selectedProviderRouting(accountRaw, pipelinesRaw, usersRaw) {
   const currentUsers = embedded(usersRaw, "users").filter((candidate) => {
     const user = record(candidate, "provider_response_invalid");
     const rights = record(user.rights, "provider_response_invalid");
-    return exactProviderId(user.id) === currentUserId && rights.is_active === true;
+    return (
+      exactProviderId(user.id) === currentUserId && rights.is_active === true
+    );
   });
   if (currentUsers.length !== 1) fail("active_current_user_ambiguous");
 
@@ -543,88 +753,87 @@ async function discoverProviderRouting(parsed) {
     "runtime_file_invalid",
   );
 
-  const providerConfigModule = await import(
-    "../src/lib/server/canonical-amocrm-provider-config.ts"
+  const providerConfigModule =
+    await import("../src/lib/server/canonical-amocrm-provider-config.ts");
+  const providerModule =
+    await import("../src/lib/server/canonical-amocrm-provider.ts");
+  const commandConfigModule =
+    await import("../src/lib/server/canonical-amocrm-command-config.ts");
+  const discoveryRepositoryModule =
+    await import("../src/lib/server/platform-amocrm-discovery-repository.ts");
+  const discoveryModule =
+    await import("../src/lib/server/canonical-amocrm-discovery-service.ts");
+  const organizationId = exactText(
+    context.organizationId,
+    "context_file_invalid",
+    36,
   );
-  const providerModule = await import(
-    "../src/lib/server/canonical-amocrm-provider.ts"
-  );
-  const commandConfigModule = await import(
-    "../src/lib/server/canonical-amocrm-command-config.ts"
-  );
-  const discoveryModule = await import(
-    "../src/lib/server/canonical-amocrm-discovery-service.ts"
-  );
-  const database = await import("../src/lib/server/database.ts");
-
-  try {
-    const providerConfig = providerConfigModule.loadCanonicalAmoCrmProviderConfig({
+  if (!UUID.test(organizationId)) fail("context_file_invalid");
+  const providerConfig = providerConfigModule.loadCanonicalAmoCrmProviderConfig(
+    {
       ...providerEnvironment,
       EVO_V2_AMOCRM_WRITES_ENABLED: "1",
       EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "1",
-    });
-    if (providerConfig.status !== "ready") fail("provider_config_not_ready");
-    const readProvider = providerModule.createCanonicalAmoCrmReadProvider(
+    },
+  );
+  if (providerConfig.status !== "ready") fail("provider_config_not_ready");
+  const readProvider =
+    providerModule.createCanonicalAmoCrmReadProvider(providerConfig);
+
+  const accountRaw = await readProvider.getAccount();
+  const pipelinesRaw = await readProvider.getPipelines();
+  const usersRaw = await readProvider.getUsers();
+  const selection = selectedProviderRouting(accountRaw, pipelinesRaw, usersRaw);
+
+  const managed = exactManagedTags(await readProvider.getLeadTags());
+
+  const commandEnvironment = Object.freeze({
+    EVO_V2_AMOCRM_SALES_PIPELINE_ID: selection.pipelineId,
+    EVO_V2_AMOCRM_SALES_STATUS_ID: selection.salesStatusId,
+    EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID: selection.responsibleUserId,
+    EVO_V2_AMOCRM_SALES_TAG_NAME: MANAGED_TAGS.sales,
+    EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID: selection.pipelineId,
+    EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID: selection.admissionsStatusId,
+    EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID: selection.responsibleUserId,
+    EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME: MANAGED_TAGS.admissions,
+  });
+  const commandConfig =
+    commandConfigModule.loadCanonicalAmoCrmCommandConfig(commandEnvironment);
+  const discovery = await discoveryModule.discoverCanonicalAmoCrmCommandRouting(
+    {
       providerConfig,
-    );
+      commandConfig,
+      provider: readProvider,
+      repository:
+        discoveryRepositoryModule.createPlatformAmoCrmDiscoveryRepository({
+          organizationId,
+        }),
+      correlationId: randomUUID(),
+    },
+  );
 
-    const accountRaw = await readProvider.getAccount();
-    const pipelinesRaw = await readProvider.getPipelines();
-    const usersRaw = await readProvider.getUsers();
-    const selection = selectedProviderRouting(
-      accountRaw,
-      pipelinesRaw,
-      usersRaw,
-    );
-
-    const managed = exactManagedTags(await readProvider.getLeadTags());
-
-    const commandEnvironment = Object.freeze({
-      EVO_V2_AMOCRM_SALES_PIPELINE_ID: selection.pipelineId,
-      EVO_V2_AMOCRM_SALES_STATUS_ID: selection.salesStatusId,
-      EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID: selection.responsibleUserId,
-      EVO_V2_AMOCRM_SALES_TAG_NAME: MANAGED_TAGS.sales,
-      EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID: selection.pipelineId,
-      EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID: selection.admissionsStatusId,
-      EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID:
-        selection.responsibleUserId,
-      EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME: MANAGED_TAGS.admissions,
-    });
-    const commandConfig = commandConfigModule.loadCanonicalAmoCrmCommandConfig(
-      commandEnvironment,
-    );
-    const discovery =
-      await discoveryModule.discoverCanonicalAmoCrmCommandRouting({
-        providerConfig,
-        commandConfig,
-        provider: readProvider,
-        correlationId: randomUUID(),
-      });
-
-    const routing = Object.freeze({
-      sales: discovery.sales,
-      admissions: discovery.admissions,
-      contactCustomFields: discovery.contactCustomFields,
-    });
-    await replacePrivateJson(contextPath, {
-      ...context,
-      routing,
-      discovery: Object.freeze({
-        snapshotSha256: discovery.snapshotSha256,
-        routingSha256: sha256(JSON.stringify(routing)),
-        pipelineCount: selection.pipelineCount,
-        editableStatusCount: selection.editableStatusCount,
-        activeCurrentUserCount: selection.activeCurrentUserCount,
-        managedTagCountBeforeCommand: [
-          managed.result.sales,
-          managed.result.admissions,
-        ].filter((tag) => tag !== null).length,
-        leadTagCatalogCountBeforeCommand: managed.tags.length,
-      }),
-    });
-  } finally {
-    await database.closeDatabaseConnections().catch(() => undefined);
-  }
+  const routing = Object.freeze({
+    sales: discovery.sales,
+    admissions: discovery.admissions,
+    contactCustomFields: discovery.contactCustomFields,
+  });
+  await replacePrivateJson(contextPath, {
+    ...context,
+    routing,
+    discovery: Object.freeze({
+      snapshotId: discovery.discoverySnapshotId,
+      snapshotSha256: discovery.snapshotSha256,
+      routingSha256: sha256(JSON.stringify(routing)),
+      pipelineCount: selection.pipelineCount,
+      editableStatusCount: selection.editableStatusCount,
+      activeCurrentUserCount: selection.activeCurrentUserCount,
+      managedTagCountBeforeCommand: [
+        managed.result.sales,
+        managed.result.admissions,
+      ].filter((tag) => tag !== null).length,
+      leadTagCatalogCountBeforeCommand: managed.tags.length,
+    }),
+  });
 }
 
 async function createAttemptMarker(parsed) {
@@ -647,7 +856,12 @@ function appEnvironment(runtime, context, providerAuthorized) {
     runtime.providerEnvironment,
     "runtime_file_invalid",
   );
+  if (context.databaseAuthority !== "local_supabase_postgresql") {
+    fail("context_file_invalid");
+  }
   const environment = { ...process.env };
+  delete environment.DATABASE_URL;
+  delete environment.EVO_V2_SUPABASE_DATABASE_URL;
   for (const key of Object.keys(environment)) {
     if (
       key.startsWith("EVO_AGENT_AMO_") ||

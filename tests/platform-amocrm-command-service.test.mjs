@@ -19,6 +19,7 @@ const {
   executePlatformAmoCrmAdmissionsSync,
   executePlatformAmoCrmSalesSync,
   reconcilePlatformAmoCrmSyncAttempt,
+  releasePlatformAmoCrmPreparedAttempt,
 } = await import("../src/lib/server/platform-amocrm-command-service.ts");
 const {
   CanonicalAmoCrmMutationError,
@@ -261,6 +262,11 @@ function runtime() {
 }
 
 function sampleAttempt(operationName, overrides = {}) {
+  const contactScoped =
+    operationName === "contact_create" ||
+    operationName === "contact_update" ||
+    operationName === "contact_lead_link";
+  const leadScoped = operationName !== "contact_create" && operationName !== "contact_update";
   return {
     attemptId: `${operationName}-attempt`,
     commandReceiptId: `${operationName}-receipt`,
@@ -271,8 +277,8 @@ function sampleAttempt(operationName, overrides = {}) {
     workflowScope: "sales_pre_handoff",
     workflowLeadId: IDS.lead,
     studentCaseId: null,
-    personId: IDS.person,
-    leadId: IDS.lead,
+    personId: contactScoped ? IDS.person : null,
+    leadId: leadScoped ? IDS.lead : null,
     targetContactId:
       operationName === "contact_update" || operationName === "contact_lead_link"
         ? "900001"
@@ -1167,4 +1173,189 @@ test("reconcile reads back only the targeted contact link before accepting an un
     contact_id: "900001",
     main_contact: true,
   });
+});
+
+test("reconcile fails closed before provider access when the stored attempt is outside the authorized workflow context", async () => {
+  const attemptId = "78787878-7878-4787-8787-787878787878";
+  const mismatches = [
+    { workflowLeadId: "89898989-8989-4898-8989-898989898989" },
+    { studentCaseId: "90909090-9090-4909-8909-909090909090" },
+    { personId: "91919191-9191-4919-8919-919191919191" },
+  ];
+
+  for (const mismatch of mismatches) {
+    let runtimeCalls = 0;
+    let bindingCalls = 0;
+    let reconcileCalls = 0;
+    const result = await reconcilePlatformAmoCrmSyncAttempt(
+      {
+        actor: actor({ authorityRole: "sales", platformRole: "sales", presentationRole: "sales" }),
+        actorRole: "sales",
+        workflowScope: "sales_pre_handoff",
+        leadId: IDS.lead,
+        studentCaseId: null,
+        attemptId,
+      },
+      {
+        createStaffRpcClient: () => ({ kind: "staff" }),
+        createServiceRpcClient: () => ({ kind: "service" }),
+        getSalesLead: async () => salesLead(),
+        resolveRuntime: async () => {
+          runtimeCalls += 1;
+          return runtime();
+        },
+        readBindings: async () => {
+          bindingCalls += 1;
+          return { contactId: "900001", leadId: "900002" };
+        },
+        readAttemptForReconcile: async () => ({
+          attempt: sampleAttempt("lead_pipeline_status_update", {
+            attemptId,
+            status: "unknown",
+            targetLeadId: "900002",
+            providerDispatchedAt: "2026-09-02T10:00:05.000Z",
+            failureCode: "provider_timeout",
+            ...mismatch,
+          }),
+          payload: {
+            expected_readback: { pipeline_id: "2001", status_id: "2002" },
+          },
+        }),
+        reconcileUnknown: async () => {
+          reconcileCalls += 1;
+          throw new Error("must_not_reconcile");
+        },
+      },
+    );
+
+    assert.equal(result.status, "error");
+    assert.equal(result.reason, "amocrm_reconciliation_context_mismatch");
+    assert.equal(runtimeCalls, 0);
+    assert.equal(bindingCalls, 0);
+    assert.equal(reconcileCalls, 0);
+  }
+});
+
+test("reconcile replays the stored terminal result without new timestamps or provider reads", async () => {
+  const attemptId = "92929292-9292-4929-8929-929292929292";
+  const providerRuntime = runtime();
+  const reconcileInputs = [];
+  let runtimeCalls = 0;
+  let nowCalls = 0;
+  let storedAttempt = sampleAttempt("lead_pipeline_status_update", {
+    attemptId,
+    status: "unknown",
+    targetLeadId: "900002",
+    providerDispatchedAt: "2026-09-02T10:00:05.000Z",
+    failureCode: "provider_timeout",
+  });
+  const dependencies = {
+    now: () => {
+      const value = new Date(Date.parse("2026-09-02T10:01:00.000Z") + nowCalls * 1_000);
+      nowCalls += 1;
+      return value;
+    },
+    createStaffRpcClient: () => ({ kind: "staff" }),
+    createServiceRpcClient: () => ({ kind: "service" }),
+    getSalesLead: async () => salesLead(),
+    resolveRuntime: async () => {
+      runtimeCalls += 1;
+      return providerRuntime;
+    },
+    readBindings: async () => ({ contactId: "900001", leadId: "900002" }),
+    readAttemptForReconcile: async () => ({
+      attempt: storedAttempt,
+      payload: {
+        expected_readback: { pipeline_id: "2001", status_id: "2002" },
+      },
+    }),
+    reconcileUnknown: async (_client, input) => {
+      reconcileInputs.push(input);
+      storedAttempt = sampleAttempt("lead_pipeline_status_update", {
+        attemptId,
+        status: "accepted",
+        targetLeadId: "900002",
+        providerDispatchedAt: "2026-09-02T10:00:05.000Z",
+        resultLeadId: "900002",
+        failureCode: null,
+      });
+      return { kind: "reconciled", attempt: storedAttempt };
+    },
+  };
+  const input = {
+    actor: actor({ authorityRole: "sales", platformRole: "sales", presentationRole: "sales" }),
+    actorRole: "sales",
+    workflowScope: "sales_pre_handoff",
+    leadId: IDS.lead,
+    studentCaseId: null,
+    attemptId,
+  };
+
+  const first = await reconcilePlatformAmoCrmSyncAttempt(input, dependencies);
+  const replay = await reconcilePlatformAmoCrmSyncAttempt(input, dependencies);
+
+  assert.equal(first.status, "accepted");
+  assert.equal(first.reason, "accepted");
+  assert.equal(replay.status, "accepted");
+  assert.equal(replay.reason, "exact_replay");
+  assert.equal(reconcileInputs.length, 1);
+  assert.equal(
+    reconcileInputs[0].providerReadbackAt,
+    reconcileInputs[0].providerRespondedAt,
+  );
+  assert.equal(runtimeCalls, 1);
+  assert.deepEqual(providerRuntime.reads, [["lead", "900002"]]);
+});
+
+test("operator release terminalizes only the exact authorized prepared attempt without provider access", async () => {
+  const attemptId = "93939393-9393-4939-8939-939393939393";
+  const releaseCalls = [];
+  const result = await releasePlatformAmoCrmPreparedAttempt(
+    {
+      actor: actor({ authorityRole: "sales", platformRole: "sales", presentationRole: "sales" }),
+      actorRole: "sales",
+      workflowScope: "sales_pre_handoff",
+      leadId: IDS.lead,
+      studentCaseId: null,
+      attemptId,
+    },
+    {
+      createStaffRpcClient: () => ({ kind: "staff" }),
+      getSalesLead: async () => salesLead(),
+      resolveRuntime: async () => {
+        throw new Error("provider_must_not_be_resolved");
+      },
+      releasePrepared: async (_client, input) => {
+        releaseCalls.push(input);
+        return {
+          kind: "released",
+          attempt: sampleAttempt("lead_update", {
+            attemptId,
+            status: "rejected",
+            targetLeadId: "900002",
+            failureCode: "operator_released_before_dispatch",
+          }),
+        };
+      },
+    },
+  );
+
+  assert.equal(result.status, "rejected");
+  assert.equal(result.reason, "operator_released_before_dispatch");
+  assert.equal(result.attemptId, attemptId);
+  assert.deepEqual(releaseCalls, [
+    {
+      organizationId: IDS.organization,
+      authorization: {
+        actorRole: "sales",
+        workflowScope: "sales_pre_handoff",
+        workflowLeadId: IDS.lead,
+        studentCaseId: null,
+      },
+      personId: IDS.person,
+      leadId: IDS.lead,
+      attemptId,
+      requestId: attemptId,
+    },
+  ]);
 });

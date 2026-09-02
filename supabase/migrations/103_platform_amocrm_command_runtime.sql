@@ -243,11 +243,34 @@ CREATE TABLE platform_private.amocrm_command_attempts (
   CONSTRAINT amocrm_command_attempts_dispatch_status_shape_check CHECK (
     (
       provider_dispatched_at IS NULL
-      AND status = 'prepared'
+      AND (
+        (
+          status = 'prepared'
+          AND failure_code IS NULL
+          AND settled_at IS NULL
+        )
+        OR (
+          status = 'rejected'
+          AND failure_code = 'operator_released_before_dispatch'
+          AND finish_request_id IS NOT NULL
+          AND settled_at IS NOT NULL
+          AND provider_request_id IS NULL
+          AND provider_http_status IS NULL
+          AND provider_readback IS NULL
+          AND provider_readback_sha256 IS NULL
+          AND provider_readback_at IS NULL
+          AND provider_responded_at IS NULL
+          AND result_contact_id IS NULL
+          AND result_lead_id IS NULL
+          AND reconcile_request_id IS NULL
+          AND last_reconciled_at IS NULL
+        )
+      )
     )
     OR (
       provider_dispatched_at IS NOT NULL
       AND status <> 'prepared'
+      AND failure_code IS DISTINCT FROM 'operator_released_before_dispatch'
     )
   ),
   CONSTRAINT amocrm_command_attempts_finish_shape_check CHECK (
@@ -904,9 +927,11 @@ BEGIN
   FROM platform_private.amocrm_command_attempts AS attempt
   WHERE attempt.organization_id = p_organization_id
     AND attempt.workflow_lead_id = v_workflow_lead_id
-    AND attempt.person_id IS NOT DISTINCT FROM p_person_id
-    AND attempt.lead_id IS NOT DISTINCT FROM p_lead_id
-    AND attempt.status = 'unknown'
+    AND (
+      (p_person_id IS NOT NULL AND attempt.person_id = p_person_id)
+      OR (p_lead_id IS NOT NULL AND attempt.lead_id = p_lead_id)
+    )
+    AND attempt.status IN ('prepared', 'unknown')
   ORDER BY attempt.created_at DESC, attempt.id DESC
   LIMIT 1;
 
@@ -915,6 +940,188 @@ BEGIN
   END IF;
 
   RETURN platform_private.amocrm_command_snapshot(attempt_id);
+END
+$$;
+
+CREATE OR REPLACE FUNCTION platform.release_prepared_amocrm_command(
+  p_organization_id UUID,
+  p_authorization JSONB,
+  p_person_id UUID,
+  p_lead_id UUID,
+  p_attempt_id UUID,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_actor_role TEXT;
+  v_workflow_scope TEXT;
+  v_workflow_lead_id UUID;
+  v_student_case_id UUID;
+  attempt_row platform_private.amocrm_command_attempts%ROWTYPE;
+  request_sha256 TEXT;
+BEGIN
+  IF p_organization_id IS NULL
+    OR p_authorization IS NULL
+    OR jsonb_typeof(p_authorization) <> 'object'
+    OR p_lead_id IS NULL
+    OR p_attempt_id IS NULL
+    OR p_request_id IS NULL
+  THEN
+    RAISE EXCEPTION 'invalid prepared amocrm command release'
+      USING ERRCODE = '22023';
+  END IF;
+
+  v_actor_role := p_authorization ->> 'actor_role';
+  v_workflow_scope := p_authorization ->> 'workflow_scope';
+  v_workflow_lead_id := NULLIF(p_authorization ->> 'workflow_lead_id', '')::UUID;
+  v_student_case_id := NULLIF(p_authorization ->> 'student_case_id', '')::UUID;
+
+  PERFORM 1
+  FROM platform_private.amocrm_runtime_actor(
+    p_organization_id,
+    v_actor_role,
+    v_workflow_scope,
+    v_workflow_lead_id,
+    v_student_case_id
+  );
+
+  IF p_lead_id IS DISTINCT FROM v_workflow_lead_id
+    OR (
+      p_person_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM platform.leads AS workflow_lead
+        WHERE workflow_lead.organization_id = p_organization_id
+          AND workflow_lead.id = v_workflow_lead_id
+          AND workflow_lead.client_id = p_person_id
+      )
+    )
+  THEN
+    RAISE EXCEPTION 'amocrm_command_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT *
+  INTO attempt_row
+  FROM platform_private.amocrm_command_attempts AS attempt
+  WHERE attempt.organization_id = p_organization_id
+    AND attempt.id = p_attempt_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'amocrm command attempt not found'
+      USING ERRCODE = '02000';
+  END IF;
+
+  IF attempt_row.workflow_scope IS DISTINCT FROM v_workflow_scope
+    OR attempt_row.workflow_lead_id IS DISTINCT FROM v_workflow_lead_id
+    OR attempt_row.student_case_id IS DISTINCT FROM v_student_case_id
+    OR (
+      attempt_row.operation_name IN ('contact_create', 'contact_update')
+      AND (
+        attempt_row.person_id IS DISTINCT FROM p_person_id
+        OR attempt_row.lead_id IS NOT NULL
+      )
+    )
+    OR (
+      attempt_row.operation_name = 'contact_lead_link'
+      AND (
+        attempt_row.person_id IS DISTINCT FROM p_person_id
+        OR attempt_row.lead_id IS DISTINCT FROM p_lead_id
+      )
+    )
+    OR (
+      attempt_row.operation_name IN (
+        'lead_create',
+        'lead_update',
+        'lead_pipeline_status_update',
+        'lead_responsible_update',
+        'lead_note_create',
+        'lead_task_create',
+        'lead_tag_update'
+      )
+      AND (
+        attempt_row.person_id IS NOT NULL
+        OR attempt_row.lead_id IS DISTINCT FROM p_lead_id
+      )
+    )
+  THEN
+    RAISE EXCEPTION 'amocrm_command_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
+  request_sha256 := pg_catalog.encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to(
+        jsonb_build_object(
+          'operation', 'release_prepared_amocrm_command',
+          'organization_id', p_organization_id,
+          'attempt_id', p_attempt_id,
+          'request_id', p_request_id,
+          'actor_role', v_actor_role,
+          'workflow_scope', v_workflow_scope,
+          'workflow_lead_id', v_workflow_lead_id,
+          'student_case_id', v_student_case_id,
+          'person_id', p_person_id,
+          'lead_id', p_lead_id,
+          'outcome', 'rejected',
+          'failure_code', 'operator_released_before_dispatch'
+        )::TEXT,
+        'UTF8'
+      )
+    ),
+    'hex'
+  );
+
+  IF attempt_row.finish_request_id = p_request_id THEN
+    IF attempt_row.finish_request_sha256 IS DISTINCT FROM request_sha256
+      OR attempt_row.status IS DISTINCT FROM 'rejected'
+      OR attempt_row.provider_dispatched_at IS NOT NULL
+      OR attempt_row.failure_code IS DISTINCT FROM 'operator_released_before_dispatch'
+    THEN
+      RAISE EXCEPTION 'amocrm release request id was reused with different input'
+        USING ERRCODE = '23505';
+    END IF;
+
+    RETURN jsonb_build_object(
+      'kind', 'replay',
+      'attempt', platform_private.amocrm_command_snapshot(attempt_row.id)
+    );
+  END IF;
+
+  IF attempt_row.status IS DISTINCT FROM 'prepared'
+    OR attempt_row.provider_dispatched_at IS NOT NULL
+    OR attempt_row.dispatch_request_id IS NOT NULL
+    OR attempt_row.dispatch_request_sha256 IS NOT NULL
+    OR attempt_row.dispatch_worker_ref IS NOT NULL
+    OR attempt_row.dispatch_claimed_at IS NOT NULL
+    OR attempt_row.dispatch_lease_expires_at IS NOT NULL
+    OR attempt_row.finish_request_id IS NOT NULL
+    OR attempt_row.reconcile_request_id IS NOT NULL
+  THEN
+    RAISE EXCEPTION 'amocrm command release state conflict'
+      USING ERRCODE = '55000';
+  END IF;
+
+  UPDATE platform_private.amocrm_command_attempts
+  SET
+    status = 'rejected',
+    finish_request_id = p_request_id,
+    finish_request_sha256 = request_sha256,
+    failure_code = 'operator_released_before_dispatch',
+    settled_at = statement_timestamp(),
+    version = version + 1
+  WHERE organization_id = p_organization_id
+    AND id = p_attempt_id;
+
+  RETURN jsonb_build_object(
+    'kind', 'released',
+    'attempt', platform_private.amocrm_command_snapshot(attempt_row.id)
+  );
 END
 $$;
 
@@ -1514,8 +1721,6 @@ BEGIN
           'outcome', p_outcome,
           'provider_readback', p_provider_readback,
           'provider_readback_sha256', computed_readback_sha256,
-          'provider_readback_at', p_provider_readback_at,
-          'provider_responded_at', p_provider_responded_at,
           'result_contact_id', p_result_contact_id,
           'result_lead_id', p_result_lead_id,
           'failure_code', p_failure_code
@@ -1721,6 +1926,9 @@ REVOKE ALL ON FUNCTION platform.read_staff_amocrm_bindings(
 REVOKE ALL ON FUNCTION platform.read_staff_blocking_amocrm_command(
   UUID, JSONB, UUID, UUID
 ) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION platform.release_prepared_amocrm_command(
+  UUID, JSONB, UUID, UUID, UUID, UUID
+) FROM PUBLIC, anon, service_role;
 REVOKE ALL ON FUNCTION platform.read_amocrm_command_by_idempotency_key(
   UUID, TEXT
 ) FROM PUBLIC, anon, authenticated;
@@ -1745,6 +1953,9 @@ GRANT EXECUTE ON FUNCTION platform.read_staff_amocrm_bindings(
 ) TO authenticated;
 GRANT EXECUTE ON FUNCTION platform.read_staff_blocking_amocrm_command(
   UUID, JSONB, UUID, UUID
+) TO authenticated;
+GRANT EXECUTE ON FUNCTION platform.release_prepared_amocrm_command(
+  UUID, JSONB, UUID, UUID, UUID, UUID
 ) TO authenticated;
 GRANT EXECUTE ON FUNCTION platform.read_amocrm_command_by_idempotency_key(
   UUID, TEXT

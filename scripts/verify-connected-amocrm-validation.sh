@@ -10,10 +10,10 @@ provider_env_file="${EVO_V2_AMOCRM_PROVIDER_ENV_FILE:-}"
 token_file="${EVO_V2_AMOCRM_TOKEN_FILE:-}"
 ssh_host="hermes-vps"
 container_name="evo-crm-waha-1"
-project_name="evo-v2-real-amocrm-$RANDOM-$$"
 tmp_root="$(cd "${TMPDIR:-/tmp}" && pwd -P)"
 tmp_dir="$(mktemp -d "$tmp_root/evo-v2-real-amocrm.XXXXXX")"
-compose_env_file="$tmp_dir/postgres.env"
+supabase_env_file="$tmp_dir/supabase.env"
+supabase_log="$tmp_dir/supabase.log"
 ssh_probe_log="$tmp_dir/ssh-probe.log"
 tunnel_log="$tmp_dir/ssh-tunnel.log"
 app_log="$tmp_dir/app.log"
@@ -22,11 +22,9 @@ dispatch_log="$tmp_dir/playwright-dispatch.log"
 runtime_file="$tmp_dir/runtime.json"
 self_file="$tmp_dir/self.json"
 context_file="$tmp_dir/context.json"
-compose_started=0
 run_succeeded=0
 app_pid=""
 tunnel_pid=""
-compose_args=()
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -53,6 +51,26 @@ server.listen(0, "127.0.0.1", () => {
 EOF
 }
 
+read_supabase_env_value() {
+  local primary_name="$1"
+  local fallback_name="${2:-}"
+  local line=""
+  local value=""
+
+  line="$(rg -m 1 "^${primary_name}=" "$supabase_env_file" || true)"
+  if [[ -z "$line" && -n "$fallback_name" ]]; then
+    line="$(rg -m 1 "^${fallback_name}=" "$supabase_env_file" || true)"
+  fi
+  [[ -n "$line" ]] \
+    || fail "Local Supabase status did not provide ${primary_name}"
+  value="${line#*=}"
+  value="${value#\"}"
+  value="${value%\"}"
+  [[ -n "$value" ]] \
+    || fail "Local Supabase status provided an empty ${primary_name}"
+  printf '%s' "$value"
+}
+
 cleanup() {
   local exit_status=$?
 
@@ -63,11 +81,6 @@ cleanup() {
   if [[ -n "$tunnel_pid" ]]; then
     kill "$tunnel_pid" >/dev/null 2>&1 || true
     wait "$tunnel_pid" >/dev/null 2>&1 || true
-  fi
-
-  if (( compose_started == 1 )); then
-    docker compose "${compose_args[@]}" down --volumes --remove-orphans \
-      >/dev/null 2>&1 || true
   fi
 
   if (( run_succeeded == 1 )); then
@@ -128,47 +141,33 @@ git_status="$(git status --porcelain=v1 --untracked-files=all)"
 [[ "$(docker context show)" == "orbstack" ]] \
   || fail "docker context must be exactly orbstack before local connected acceptance"
 
-postgres_port="$(free_port)"
 app_port="$(free_port)"
 tunnel_port="$(free_port)"
-postgres_user="evo_acceptance"
-postgres_database="evo_acceptance"
-postgres_password="$(openssl rand -hex 24)"
-database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
 evidence_dir="$repo_root/output/provider-acceptance/amocrm/$expected_main_sha"
-
-compose_args=(
-  --project-name "$project_name"
-  --env-file "$compose_env_file"
-  --file "$repo_root/docker-compose.local.yml"
-)
-
-cat >"$compose_env_file" <<EOF
-POSTGRES_USER=$postgres_user
-POSTGRES_PASSWORD=$postgres_password
-POSTGRES_DB=$postgres_database
-POSTGRES_PORT=$postgres_port
-EOF
-chmod 600 "$compose_env_file"
 
 mkdir -p "$evidence_dir"
 chmod 700 "$evidence_dir"
 
-docker compose "${compose_args[@]}" up --detach postgres >/dev/null
-compose_started=1
-container_id="$(docker compose "${compose_args[@]}" ps --quiet postgres)"
-[[ -n "$container_id" ]] || fail "The disposable PostgreSQL container did not start"
+if ! npx --no-install supabase status -o env \
+  >"$supabase_env_file" 2>"$supabase_log"; then
+  fail "The running local Supabase stack did not expose its configuration"
+fi
+chmod 600 "$supabase_env_file" "$supabase_log"
 
-health_deadline=$((SECONDS + 120))
-status=""
-while (( SECONDS < health_deadline )); do
-  status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
-  [[ "$status" == "healthy" ]] && break
-  sleep 2
-done
-[[ "$status" == "healthy" ]] || fail "The disposable PostgreSQL container did not become healthy"
-
-DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs >/dev/null
+supabase_api_url="$(read_supabase_env_value API_URL)"
+supabase_publishable_key="$(read_supabase_env_value PUBLISHABLE_KEY ANON_KEY)"
+supabase_secret_key="$(read_supabase_env_value SECRET_KEY SERVICE_ROLE_KEY)"
+supabase_database_url="$(read_supabase_env_value DB_URL)"
+[[ "$supabase_api_url" == http://127.0.0.1:* || "$supabase_api_url" == http://localhost:* ]] \
+  || fail "The local Supabase API is not loopback-only"
+[[ "$supabase_database_url" == postgresql://*@127.0.0.1:*/* || "$supabase_database_url" == postgresql://*@localhost:*/* ]] \
+  || fail "The local Supabase database is not loopback-only"
+[[ "$supabase_api_url" == "$NEXT_PUBLIC_SUPABASE_URL" ]] \
+  || fail "The application URL does not match the running local Supabase stack"
+[[ "$supabase_publishable_key" == "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ]] \
+  || fail "The application publishable key does not match the running local Supabase stack"
+[[ "$supabase_secret_key" == "$EVO_PLATFORM_SUPABASE_SECRET_KEY" ]] \
+  || fail "The application server key does not match the running local Supabase stack"
 
 assert_app_reachable() {
   local deadline=$((SECONDS + 120))
@@ -189,8 +188,7 @@ assert_app_reachable() {
 start_app() {
   local provider_authorized="$1"
   : >"$app_log"
-  DATABASE_URL="$database_url" \
-    NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+  NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
     EVO_PLATFORM_SUPABASE_SECRET_KEY="$EVO_PLATFORM_SUPABASE_SECRET_KEY" \
     "$node_bin" scripts/prepare-connected-amocrm-validation.mjs run-app \
@@ -261,7 +259,7 @@ done
   --base-url "http://127.0.0.1:${tunnel_port}/" \
   --self-file "$self_file"
 
-DATABASE_URL="$database_url" \
+EVO_V2_SUPABASE_DATABASE_URL="$supabase_database_url" \
   "$node_bin" --conditions=react-server --experimental-strip-types \
     scripts/prepare-connected-amocrm-validation.mjs seed \
     --self-file "$self_file" \
@@ -269,7 +267,7 @@ DATABASE_URL="$database_url" \
 
 start_app 0
 PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
-  DATABASE_URL="$database_url" \
+  EVO_V2_SUPABASE_DATABASE_URL="$supabase_database_url" \
   EVO_V2_REAL_AMOCRM_ACCEPTANCE=1 \
   EVO_V2_CONNECTED_AMOCRM_MODE=blocked \
   EVO_V2_ACCEPTANCE_MAIN_SHA="$expected_main_sha" \
@@ -294,15 +292,14 @@ stop_app
   --git-sha "$expected_main_sha" \
   --output "$evidence_dir/provider-preparation-attempt.json"
 
-DATABASE_URL="$database_url" \
-  "$node_bin" --conditions=react-server --experimental-strip-types \
+"$node_bin" --conditions=react-server --experimental-strip-types \
     scripts/prepare-connected-amocrm-validation.mjs discover \
     --runtime-file "$runtime_file" \
     --context-file "$context_file"
 
 start_app 1
 PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
-  DATABASE_URL="$database_url" \
+  EVO_V2_SUPABASE_DATABASE_URL="$supabase_database_url" \
   EVO_V2_REAL_AMOCRM_ACCEPTANCE=1 \
   EVO_V2_CONNECTED_AMOCRM_MODE=dispatch \
   EVO_V2_ACCEPTANCE_MAIN_SHA="$expected_main_sha" \
@@ -374,7 +371,8 @@ assert(success.provider?.exactReadback === true);
 assert(success.provider?.validationContactCount === 1);
 assert(success.provider?.validationLeadCount === 1);
 assert(success.provider?.validationNoteCount === 1);
-assert(success.database?.attemptCount === 7 && success.database?.receiptCount === 7);
+assert(success.database?.attemptCount === 8 && success.database?.receiptCount === 8);
+assert(success.database?.provenanceCount === 1);
 assert(success.database?.exactUiReplay === true);
 assert(success.database?.replayAddedAttemptCount === 0);
 assert(success.database?.replayAddedReceiptCount === 0);
@@ -383,6 +381,7 @@ assert(success.database?.replayProviderEntitySetUnchanged === true);
 assert(success.database?.persistedAfterReload === true);
 assert(success.boundaries?.v1ApplicationPathExecuted === false);
 assert(success.boundaries?.existingWahaSessionReadOnly === true);
+assert(success.boundaries?.database === "local_supabase_postgresql");
 assert(success.boundaries?.deploymentMutated === false);
 assert(success.boundaries?.fallbackObserved === false);
 

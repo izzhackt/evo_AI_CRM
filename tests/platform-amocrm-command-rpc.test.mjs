@@ -23,6 +23,7 @@ const {
   readPlatformAmoCrmBindings,
   readPlatformBlockingAmoCrmCommand,
   reconcileUnknownPlatformAmoCrmCommand,
+  releasePreparedPlatformAmoCrmCommand,
 } = await import("../src/lib/server/platform-amocrm-command-rpc.ts");
 
 const IDS = Object.freeze({
@@ -188,6 +189,59 @@ test("staff reads stay on staff-safe RPCs and return only canonical bindings or 
     calls.map(({ functionName }) => functionName),
     ["read_staff_amocrm_bindings", "read_staff_blocking_amocrm_command"],
   );
+});
+
+test("staff release uses the exact authorized prepared-attempt RPC and validates its terminal result", async () => {
+  const calls = [];
+  const client = stubClient(async (functionName, args) => {
+    calls.push({ functionName, args });
+    return {
+      data: {
+        kind: "released",
+        attempt: sampleAttempt({
+          status: "rejected",
+          failure_code: "operator_released_before_dispatch",
+        }),
+      },
+      error: null,
+    };
+  });
+
+  const result = await releasePreparedPlatformAmoCrmCommand(client, {
+    organizationId: IDS.organization,
+    authorization: {
+      actorRole: "sales",
+      workflowScope: "sales_pre_handoff",
+      workflowLeadId: IDS.lead,
+      studentCaseId: null,
+    },
+    personId: IDS.person,
+    leadId: IDS.lead,
+    attemptId: IDS.attempt,
+    requestId: IDS.attempt,
+  });
+
+  assert.equal(result.kind, "released");
+  assert.equal(result.attempt.status, "rejected");
+  assert.equal(result.attempt.failureCode, "operator_released_before_dispatch");
+  assert.deepEqual(calls, [
+    {
+      functionName: "release_prepared_amocrm_command",
+      args: {
+        p_organization_id: IDS.organization,
+        p_authorization: {
+          actor_role: "sales",
+          workflow_scope: "sales_pre_handoff",
+          workflow_lead_id: IDS.lead,
+          student_case_id: null,
+        },
+        p_person_id: IDS.person,
+        p_lead_id: IDS.lead,
+        p_attempt_id: IDS.attempt,
+        p_request_id: IDS.attempt,
+      },
+    },
+  ]);
 });
 
 test("service claim, finish and reconcile use exact non-fallback RPC names", async () => {

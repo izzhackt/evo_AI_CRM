@@ -8,6 +8,7 @@ import { resolveCanonicalAmoCrmCommandPanelState } from "@/lib/canonical-amocrm-
 import type { Locale } from "@/lib/i18n";
 import {
   reconcileCanonicalAmoCrmCommandAction,
+  releaseCanonicalAmoCrmPreparedCommandAction,
   syncCanonicalAmoCrmAdmissionsAction,
   syncCanonicalAmoCrmSalesAction,
   type CanonicalAmoCrmCommandActionState,
@@ -44,6 +45,10 @@ const COPY = {
     submitting: "Синхронизация…",
     reconcile: "Проверить неизвестный результат",
     reconciling: "Проверка…",
+    releasePrepared: "Снять неотправленную команду",
+    releasingPrepared: "Снятие…",
+    releasedBeforeDispatch:
+      "Команда снята до отправки. amoCRM не вызывался; можно создать новую команду.",
     attempt: "ID последней попытки",
     steps: "Шаги команды",
     statuses: {
@@ -88,6 +93,10 @@ const COPY = {
     submitting: "Шайкештөө…",
     reconcile: "Белгисиз жыйынтыкты текшерүү",
     reconciling: "Текшерилүүдө…",
+    releasePrepared: "Жөнөтүлбөгөн команданы алып салуу",
+    releasingPrepared: "Алынып салынууда…",
+    releasedBeforeDispatch:
+      "Команда жөнөтүлгөнгө чейин алынды. amoCRM чакырылган жок; жаңы команда түзсө болот.",
     attempt: "Акыркы аракеттин ID'си",
     steps: "Команданын кадамдары",
     statuses: {
@@ -131,6 +140,10 @@ const COPY = {
     submitting: "Syncing…",
     reconcile: "Check unknown result",
     reconciling: "Checking…",
+    releasePrepared: "Release unsent command",
+    releasingPrepared: "Releasing…",
+    releasedBeforeDispatch:
+      "The command was released before dispatch. amoCRM was not called; a new command can now be created.",
     attempt: "Latest attempt ID",
     steps: "Command steps",
     statuses: {
@@ -214,7 +227,9 @@ function ResultState({
       data-status={state.status}
     >
       <p className="text-sm font-medium">
-        {copy.statuses[state.status as TerminalStatus]}
+        {state.reason === "operator_released_before_dispatch"
+          ? copy.releasedBeforeDispatch
+          : copy.statuses[state.status as TerminalStatus]}
       </p>
       {state.steps.length > 0 ? (
         <div>
@@ -291,6 +306,15 @@ export function CanonicalAmoCrmCommandPanel({
     reconcileCanonicalAmoCrmCommandAction,
     INITIAL_STATE,
   );
+  const [releaseState, releaseAction, releasing] = useActionState(
+    releaseCanonicalAmoCrmPreparedCommandAction,
+    INITIAL_STATE,
+  );
+  const preparedBlockingAttempt =
+    blockingAttempt?.status === "prepared" &&
+    blockingAttempt.providerDispatchedAt === null
+      ? blockingAttempt
+      : null;
   const persistedBlockingState: CanonicalAmoCrmCommandActionState =
     blockingAttempt === null
       ? INITIAL_STATE
@@ -349,10 +373,14 @@ export function CanonicalAmoCrmCommandPanel({
   const flowBlocked = panelState.flowBlocked;
 
   useEffect(() => {
-    if (syncState.status !== "idle" || reconcileState.status !== "idle") {
+    if (
+      syncState.status !== "idle" ||
+      reconcileState.status !== "idle" ||
+      releaseState.status !== "idle"
+    ) {
       router.refresh();
     }
-  }, [reconcileState.status, router, syncState.status]);
+  }, [reconcileState.status, releaseState.status, router, syncState.status]);
 
   return (
     <Card
@@ -469,6 +497,41 @@ export function CanonicalAmoCrmCommandPanel({
         </form>
 
         <ResultState state={displayedSyncState} locale={locale} />
+
+        {preparedBlockingAttempt ? (
+          <form action={releaseAction}>
+            <input
+              type="hidden"
+              name="workflow_scope"
+              value={
+                scope === "sales"
+                  ? "sales_pre_handoff"
+                  : "admissions_post_handoff"
+              }
+            />
+            <input type="hidden" name="lead_id" value={leadId} />
+            <input
+              type="hidden"
+              name="student_case_id"
+              value={scope === "admissions" ? studentCaseId ?? "" : ""}
+            />
+            <input
+              type="hidden"
+              name="attempt_id"
+              value={preparedBlockingAttempt.attemptId}
+            />
+            <button
+              type="submit"
+              className={btnGhostCls}
+              disabled={releasing}
+              data-testid="canonical-amocrm-release-prepared"
+            >
+              {releasing ? copy.releasingPrepared : copy.releasePrepared}
+            </button>
+          </form>
+        ) : null}
+
+        <ResultState state={releaseState} locale={locale} />
 
         {activeUnknownState?.attemptId ? (
           <form action={reconcileAction}>

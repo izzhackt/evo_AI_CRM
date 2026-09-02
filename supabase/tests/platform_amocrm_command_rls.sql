@@ -864,8 +864,8 @@ SELECT platform.reconcile_unknown_amocrm_command(
   '92000000-0000-4000-8000-000000000113',
   'accepted',
   '{"id":700001}'::JSONB,
-  :'p5c_provider_readback_at'::TIMESTAMPTZ,
-  :'p5c_provider_responded_at'::TIMESTAMPTZ,
+  :'p5c_provider_readback_at'::TIMESTAMPTZ + INTERVAL '1 second',
+  :'p5c_provider_responded_at'::TIMESTAMPTZ + INTERVAL '1 second',
   NULL,
   '700001',
   NULL
@@ -938,7 +938,7 @@ SELECT pg_temp.assert_true(
   :'p5c_reconcile_replay'::JSONB ->> 'kind' = 'replay'
   AND :'p5c_reconcile_request_conflict_state' = '23505'
   AND :'p5c_terminal_reconcile_blocked_state' = '55000',
-  'P5C reconciliation must replay exactly and never reopen a terminal attempt'
+  'P5C reconciliation must replay the same semantic result despite fresh observation timestamps and never reopen a terminal attempt'
 );
 
 SELECT pg_temp.assert_true(
@@ -1415,6 +1415,174 @@ SELECT pg_temp.assert_true(
     'p5c:contact-update:1'
   ) ->> 'status' = 'unknown',
   'P5C failed accepted reconciliation must leave the command attempt unknown'
+);
+
+RESET ROLE;
+SET ROLE authenticated;
+SET request.jwt.claims TO :'p5c_admin_claims';
+
+SAVEPOINT expect_p5c_dispatched_release_blocked;
+\set ON_ERROR_STOP off
+SELECT platform.release_prepared_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000122',
+    'student_case_id', NULL
+  ),
+  '92000000-0000-4000-8000-000000000121',
+  '92000000-0000-4000-8000-000000000122',
+  :'p5c_contact_update_attempt_id',
+  '92000000-0000-4000-8000-000000000149'
+);
+\set p5c_dispatched_release_blocked_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_dispatched_release_blocked;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_dispatched_release_blocked;
+
+SELECT platform.prepare_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  NULL,
+  '92000000-0000-4000-8000-000000000102',
+  'lead_update',
+  'p5c:prepared-release:1',
+  NULL,
+  '700001',
+  '{"name":"P5C prepared release"}'::JSONB
+) AS p5c_release_prepare
+\gset
+
+SELECT
+  (:'p5c_release_prepare'::JSONB -> 'attempt' ->> 'attempt_id')::UUID
+    AS p5c_release_attempt_id
+\gset
+
+SELECT platform.read_staff_blocking_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  '92000000-0000-4000-8000-000000000101',
+  '92000000-0000-4000-8000-000000000102'
+) AS p5c_prepared_blocking_attempt
+\gset
+
+SELECT platform.release_prepared_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  '92000000-0000-4000-8000-000000000101',
+  '92000000-0000-4000-8000-000000000102',
+  :'p5c_release_attempt_id',
+  '92000000-0000-4000-8000-000000000150'
+) AS p5c_prepared_released
+\gset
+
+SELECT platform.release_prepared_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  '92000000-0000-4000-8000-000000000101',
+  '92000000-0000-4000-8000-000000000102',
+  :'p5c_release_attempt_id',
+  '92000000-0000-4000-8000-000000000150'
+) AS p5c_prepared_release_replay
+\gset
+
+SAVEPOINT expect_p5c_prepared_release_terminal_conflict;
+\set ON_ERROR_STOP off
+SELECT platform.release_prepared_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  '92000000-0000-4000-8000-000000000101',
+  '92000000-0000-4000-8000-000000000102',
+  :'p5c_release_attempt_id',
+  '92000000-0000-4000-8000-000000000151'
+);
+\set p5c_prepared_release_terminal_conflict_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_prepared_release_terminal_conflict;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_prepared_release_terminal_conflict;
+
+SELECT
+  platform.read_staff_blocking_amocrm_command(
+    :'p5c_org_a',
+    jsonb_build_object(
+      'actor_role', 'sales',
+      'workflow_scope', 'sales_pre_handoff',
+      'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+      'student_case_id', NULL
+    ),
+    '92000000-0000-4000-8000-000000000101',
+    '92000000-0000-4000-8000-000000000102'
+  ) IS NULL AS p5c_prepared_release_cleared
+\gset
+
+SELECT platform.prepare_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  NULL,
+  '92000000-0000-4000-8000-000000000102',
+  'lead_update',
+  'p5c:prepared-release:followup',
+  NULL,
+  '700001',
+  '{"name":"P5C command after release"}'::JSONB
+) AS p5c_prepare_after_release
+\gset
+
+SELECT pg_temp.assert_true(
+  :'p5c_dispatched_release_blocked_state' = '55000'
+  AND :'p5c_prepared_blocking_attempt'::JSONB ->> 'status' = 'prepared'
+  AND :'p5c_prepared_blocking_attempt'::JSONB ->> 'provider_dispatched_at' IS NULL
+  AND :'p5c_prepared_released'::JSONB ->> 'kind' = 'released'
+  AND :'p5c_prepared_released'::JSONB -> 'attempt' ->> 'status' = 'rejected'
+  AND :'p5c_prepared_released'::JSONB -> 'attempt' ->> 'provider_dispatched_at' IS NULL
+  AND :'p5c_prepared_released'::JSONB -> 'attempt' ->> 'failure_code'
+    = 'operator_released_before_dispatch'
+  AND :'p5c_prepared_release_replay'::JSONB ->> 'kind' = 'replay'
+  AND :'p5c_prepared_release_terminal_conflict_state' = '55000'
+  AND :'p5c_prepared_release_cleared'::BOOLEAN
+  AND :'p5c_prepare_after_release'::JSONB ->> 'kind' = 'prepared'
+  AND has_function_privilege(
+    'authenticated',
+    'platform.release_prepared_amocrm_command(uuid,jsonb,uuid,uuid,uuid,uuid)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'service_role',
+    'platform.release_prepared_amocrm_command(uuid,jsonb,uuid,uuid,uuid,uuid)',
+    'EXECUTE'
+  ),
+  'P5C staff must see and exactly release only an unclaimed prepared blocker, never a dispatched attempt'
 );
 
 RESET ROLE;

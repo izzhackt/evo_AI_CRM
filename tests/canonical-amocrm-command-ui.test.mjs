@@ -54,11 +54,19 @@ test("the panel exposes exact inputs, honest states, per-step evidence, and expl
   assert.match(panel, /data-testid="canonical-amocrm-command-step"/);
   assert.match(panel, /data-testid="canonical-amocrm-terminal-attempt-id"/);
   assert.match(panel, /data-testid="canonical-amocrm-reconcile"/);
+  assert.match(panel, /data-testid="canonical-amocrm-release-prepared"/);
   assert.match(panel, /resolveCanonicalAmoCrmCommandPanelState/);
   assert.match(panel, /persistedBlockingState/);
   assert.match(panel, /activeUnknownState/);
   assert.match(panel, /attemptId: blockingAttempt\.attemptId/);
   assert.match(panel, /const flowBlocked = panelState\.flowBlocked/);
+  assert.match(
+    panel,
+    /blockingAttempt\?\.status === "prepared"[\s\S]*blockingAttempt\.providerDispatchedAt === null/,
+  );
+  assert.match(panel, /<form action=\{releaseAction\}>/);
+  assert.match(panel, /disabled=\{releasing\}/);
+  assert.match(panel, /operator_released_before_dispatch/);
   assert.match(panel, /name="note_text"/);
   assert.match(panel, /name="task_text"/);
   assert.match(panel, /name="task_complete_till"/);
@@ -95,6 +103,7 @@ test("server actions use only canonical V2 seams and exact FormData extraction",
   assert.match(actions, /executePlatformAmoCrmSalesSync/);
   assert.match(actions, /executePlatformAmoCrmAdmissionsSync/);
   assert.match(actions, /reconcilePlatformAmoCrmSyncAttempt/);
+  assert.match(actions, /releasePlatformAmoCrmPreparedAttempt/);
   assert.match(actions, /revalidatePath\(`\/sales\/\$\{leadId\}`\)/);
   assert.match(
     actions,

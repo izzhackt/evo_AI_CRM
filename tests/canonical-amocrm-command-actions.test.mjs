@@ -86,6 +86,9 @@ registerHooks({
           export async function reconcilePlatformAmoCrmSyncAttempt(input) {
             return execute("reconcile", input);
           }
+          export async function releasePlatformAmoCrmPreparedAttempt(input) {
+            return execute("release", input);
+          }
         `),
       };
     }
@@ -144,6 +147,7 @@ registerHooks({
 const {
   readCanonicalAmoCrmCommandAvailability,
   reconcileCanonicalAmoCrmCommandAction,
+  releaseCanonicalAmoCrmPreparedCommandAction,
   syncCanonicalAmoCrmAdmissionsAction,
   syncCanonicalAmoCrmSalesAction,
 } = await import("../src/lib/server/canonical-amocrm-command-actions.ts");
@@ -402,6 +406,43 @@ test("read-only reconciliation selects the workflow guard and exact path without
     },
   ]);
   assert.deepEqual(harness.revalidated, [`/clients/${IDS.studentCase}`]);
+  assert.deepEqual(result, harness.result);
+});
+
+test("prepared-attempt release uses the workflow guard and never enters the provider reconciliation path", async () => {
+  resetHarness();
+  harness.result = {
+    status: "rejected",
+    reason: "operator_released_before_dispatch",
+    attemptId: IDS.attempt,
+    steps: [],
+  };
+
+  const result = await releaseCanonicalAmoCrmPreparedCommandAction(
+    INITIAL_STATE,
+    form({
+      workflow_scope: "sales_pre_handoff",
+      lead_id: IDS.lead,
+      student_case_id: "",
+      attempt_id: IDS.attempt,
+    }),
+  );
+
+  assert.deepEqual(harness.guardCalls, ["sales"]);
+  assert.deepEqual(harness.serviceCalls, [
+    {
+      kind: "release",
+      input: {
+        actor: { platformRole: "sales" },
+        actorRole: "sales",
+        workflowScope: "sales_pre_handoff",
+        leadId: IDS.lead,
+        studentCaseId: null,
+        attemptId: IDS.attempt,
+      },
+    },
+  ]);
+  assert.deepEqual(harness.revalidated, [`/sales/${IDS.lead}`]);
   assert.deepEqual(result, harness.result);
 });
 

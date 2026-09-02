@@ -36,6 +36,7 @@ import {
   readPlatformAmoCrmCommandForReconciliation,
   readPlatformAmoCrmBindings,
   reconcileUnknownPlatformAmoCrmCommand,
+  releasePreparedPlatformAmoCrmCommand,
   type PlatformAmoCrmBindingsSnapshot,
   type PlatformAmoCrmCommandOperationName,
   type PlatformAmoCrmCommandSnapshot,
@@ -107,6 +108,9 @@ export type ReconcilePlatformAmoCrmSyncAttemptInput = Readonly<{
   attemptId: string;
 }>;
 
+export type ReleasePlatformAmoCrmPreparedAttemptInput =
+  ReconcilePlatformAmoCrmSyncAttemptInput;
+
 type PlatformAmoCrmProvider = Readonly<
   Pick<
     CanonicalAmoCrmWriteProvider,
@@ -148,6 +152,7 @@ export type PlatformAmoCrmCommandServiceDependencies = Readonly<{
   claimCommand?: typeof claimPlatformAmoCrmCommand;
   finishCommand?: typeof finishPlatformAmoCrmCommand;
   reconcileUnknown?: typeof reconcileUnknownPlatformAmoCrmCommand;
+  releasePrepared?: typeof releasePreparedPlatformAmoCrmCommand;
   readAttemptForReconcile?: (
     client: PlatformAmoCrmRpcClient,
     input: Readonly<{
@@ -182,6 +187,7 @@ type ResolvedDependencies = Readonly<{
   claimCommand: NonNullable<PlatformAmoCrmCommandServiceDependencies["claimCommand"]>;
   finishCommand: NonNullable<PlatformAmoCrmCommandServiceDependencies["finishCommand"]>;
   reconcileUnknown: NonNullable<PlatformAmoCrmCommandServiceDependencies["reconcileUnknown"]>;
+  releasePrepared: NonNullable<PlatformAmoCrmCommandServiceDependencies["releasePrepared"]>;
   readAttemptForReconcile: NonNullable<
     PlatformAmoCrmCommandServiceDependencies["readAttemptForReconcile"]
   >;
@@ -440,6 +446,8 @@ function resolveDependencies(
     claimCommand: overrides.claimCommand ?? claimPlatformAmoCrmCommand,
     finishCommand: overrides.finishCommand ?? finishPlatformAmoCrmCommand,
     reconcileUnknown: overrides.reconcileUnknown ?? reconcileUnknownPlatformAmoCrmCommand,
+    releasePrepared:
+      overrides.releasePrepared ?? releasePreparedPlatformAmoCrmCommand,
     readAttemptForReconcile:
       overrides.readAttemptForReconcile ??
       readPlatformAmoCrmCommandForReconciliation,
@@ -1143,7 +1151,7 @@ function operationSequence(
 }
 
 function canonicalTargetsForOperation(
-  context: OperationContext,
+  context: WorkflowContext,
   operationName: PlatformAmoCrmCommandOperationName,
 ): Readonly<{ personId: string | null; leadId: string | null }> {
   if (operationName === "contact_create" || operationName === "contact_update") {
@@ -1513,6 +1521,59 @@ async function reconcileVerifiedReadback(
   });
 }
 
+async function resolveAuthorizedAttemptWorkflowContext(
+  input: ReconcilePlatformAmoCrmSyncAttemptInput,
+  dependencies: ResolvedDependencies,
+): Promise<WorkflowContext> {
+  const leadId = requiredUuid(input.leadId);
+  const context =
+    input.workflowScope === "sales_pre_handoff"
+      ? await (async () => {
+          if (input.actorRole !== "admin" && input.actorRole !== "sales") {
+            throw new Error("forbidden_role");
+          }
+          const lead = await dependencies.getSalesLead(input.actor, leadId);
+          if (lead === null) throw new Error("sales_lead_unavailable");
+          return salesContext(input.actorRole, lead);
+        })()
+      : await (async () => {
+          if (input.actorRole !== "admin" && input.actorRole !== "admissions") {
+            throw new Error("forbidden_role");
+          }
+          const studentCaseId = requiredUuid(input.studentCaseId);
+          const handoff = await dependencies.getStudentCaseHandoffContext(
+            input.actor,
+            studentCaseId,
+          );
+          if (handoff === null) throw new Error("student_case_handoff_unavailable");
+          return admissionsContext(input.actorRole, handoff);
+        })();
+  if (context.workflowLeadId !== leadId) {
+    throw new Error("amocrm_reconciliation_context_mismatch");
+  }
+  return context;
+}
+
+function assertAttemptWorkflowContext(
+  attempt: PlatformAmoCrmCommandSnapshot,
+  context: WorkflowContext,
+): void {
+  const canonicalTargets = canonicalTargetsForOperation(
+    context,
+    attempt.operationName,
+  );
+  if (
+    attempt.organizationId !== context.organizationId ||
+    attempt.workflowScope !== context.authorization.workflowScope ||
+    attempt.workflowLeadId !== context.workflowLeadId ||
+    attempt.studentCaseId !== context.studentCaseId ||
+    attempt.personId !== canonicalTargets.personId ||
+    attempt.leadId !== canonicalTargets.leadId
+  ) {
+    throw new Error("amocrm_reconciliation_context_mismatch");
+  }
+}
+
 export async function reconcilePlatformAmoCrmSyncAttempt(
   input: ReconcilePlatformAmoCrmSyncAttemptInput,
   dependencyOverrides: PlatformAmoCrmCommandServiceDependencies = {},
@@ -1520,33 +1581,37 @@ export async function reconcilePlatformAmoCrmSyncAttempt(
   const dependencies = resolveDependencies(dependencyOverrides);
   try {
     const attemptId = requiredUuid(input.attemptId);
-    const leadId = requiredUuid(input.leadId);
-    const workflowContext =
-      input.workflowScope === "sales_pre_handoff"
-        ? (() => {
-            if (input.actorRole !== "admin" && input.actorRole !== "sales") {
-              throw new Error("forbidden_role");
-            }
-            const actorRole = input.actorRole;
-            return dependencies.getSalesLead(input.actor, leadId).then((lead) => {
-              if (lead === null) throw new Error("sales_lead_unavailable");
-              return salesContext(actorRole, lead);
-            });
-          })()
-        : (() => {
-            if (input.actorRole !== "admin" && input.actorRole !== "admissions") {
-              throw new Error("forbidden_role");
-            }
-            const actorRole = input.actorRole;
-            const studentCaseId = requiredUuid(input.studentCaseId);
-            return dependencies
-              .getStudentCaseHandoffContext(input.actor, studentCaseId)
-              .then((handoff) => {
-                if (handoff === null) throw new Error("student_case_handoff_unavailable");
-                return admissionsContext(actorRole, handoff);
-              });
-          })();
-    const baseContext = await workflowContext;
+    const baseContext = await resolveAuthorizedAttemptWorkflowContext(
+      input,
+      dependencies,
+    );
+    const serviceClient = await dependencies.createServiceRpcClient();
+    const { attempt, payload } = await dependencies.readAttemptForReconcile(
+      serviceClient,
+      {
+        organizationId: baseContext.organizationId,
+        attemptId,
+      },
+    );
+    assertAttemptWorkflowContext(attempt, baseContext);
+    if (attempt.status !== "unknown") {
+      return aggregate([replayStep(attempt)]);
+    }
+    if (!supportedAutomaticReconcile(attempt)) {
+      const settled = await dependencies.reconcileUnknown(serviceClient, {
+        organizationId: baseContext.organizationId,
+        attemptId,
+        requestId: attemptId,
+        outcome: "unchanged",
+        providerReadback: null,
+        providerReadbackAt: null,
+        providerRespondedAt: null,
+        resultContactId: null,
+        resultLeadId: null,
+        failureCode: "manual_reconciliation_required",
+      });
+      return aggregate([replayStep(settled.attempt)]);
+    }
     const runtime = await dependencies.resolveRuntime({
       organizationId: baseContext.organizationId,
       actorRole: input.actorRole,
@@ -1570,40 +1635,21 @@ export async function reconcilePlatformAmoCrmSyncAttempt(
       personId: context.personId,
       leadId: context.workflowLeadId,
     });
-    const serviceClient = await dependencies.createServiceRpcClient();
-    const { attempt, payload } = await dependencies.readAttemptForReconcile(serviceClient, {
-      organizationId: context.organizationId,
-      attemptId,
-    });
-    if (!supportedAutomaticReconcile(attempt)) {
-      const settled = await dependencies.reconcileUnknown(serviceClient, {
-        organizationId: context.organizationId,
-        attemptId,
-        requestId: attemptId,
-        outcome: "unchanged",
-        providerReadback: null,
-        providerReadbackAt: null,
-        providerRespondedAt: null,
-        resultContactId: null,
-        resultLeadId: null,
-        failureCode: "manual_reconciliation_required",
-      });
-      return aggregate([replayStep(settled.attempt)]);
-    }
     const expectedReadback = record(payload.expected_readback ?? {});
     const verified = await reconcileVerifiedReadback(
       attempt,
       expectedReadback,
       context,
     );
+    const reconciledAt = dependencies.now().toISOString();
     const reconciled = await dependencies.reconcileUnknown(serviceClient, {
       organizationId: context.organizationId,
       attemptId,
       requestId: attemptId,
       outcome: "accepted",
       providerReadback: verified.evidence,
-      providerReadbackAt: dependencies.now().toISOString(),
-      providerRespondedAt: dependencies.now().toISOString(),
+      providerReadbackAt: reconciledAt,
+      providerRespondedAt: reconciledAt,
       resultContactId: verified.resultContactId,
       resultLeadId: verified.resultLeadId,
       failureCode: null,
@@ -1618,5 +1664,34 @@ export async function reconcilePlatformAmoCrmSyncAttempt(
     ]);
   } catch (error) {
     return errorResult(error instanceof Error ? error.message : "amocrm_service_unavailable");
+  }
+}
+
+export async function releasePlatformAmoCrmPreparedAttempt(
+  input: ReleasePlatformAmoCrmPreparedAttemptInput,
+  dependencyOverrides: PlatformAmoCrmCommandServiceDependencies = {},
+): Promise<PlatformAmoCrmSyncResult> {
+  const dependencies = resolveDependencies(dependencyOverrides);
+  try {
+    const attemptId = requiredUuid(input.attemptId);
+    const context = await resolveAuthorizedAttemptWorkflowContext(
+      input,
+      dependencies,
+    );
+    const staffClient = await dependencies.createStaffRpcClient();
+    const released = await dependencies.releasePrepared(staffClient, {
+      organizationId: context.organizationId,
+      authorization: context.authorization,
+      personId: context.personId,
+      leadId: context.workflowLeadId,
+      attemptId,
+      requestId: attemptId,
+    });
+    assertAttemptWorkflowContext(released.attempt, context);
+    return aggregate([replayStep(released.attempt)]);
+  } catch (error) {
+    return errorResult(
+      error instanceof Error ? error.message : "amocrm_service_unavailable",
+    );
   }
 }

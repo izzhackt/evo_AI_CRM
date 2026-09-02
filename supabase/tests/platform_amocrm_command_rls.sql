@@ -214,15 +214,6 @@ SELECT
   ) AS p5c_lead_readback_sha256,
   pg_catalog.encode(
     pg_catalog.sha256(
-      pg_catalog.convert_to(
-        '{"id":700001,"changed":true}'::JSONB::TEXT,
-        'UTF8'
-      )
-    ),
-    'hex'
-  ) AS p5c_changed_lead_readback_sha256,
-  pg_catalog.encode(
-    pg_catalog.sha256(
       pg_catalog.convert_to('{"id":800001}'::JSONB::TEXT, 'UTF8')
     ),
     'hex'
@@ -465,6 +456,94 @@ SELECT
   )::UUID AS p5c_attempt_id
 \gset
 
+SELECT platform.read_amocrm_command_for_reconciliation(
+  :'p5c_org_a',
+  :'p5c_attempt_id'
+) AS p5c_reconciliation_preclaim
+\gset
+
+SAVEPOINT expect_p5c_reconciliation_wrong_org;
+\set ON_ERROR_STOP off
+SELECT platform.read_amocrm_command_for_reconciliation(
+  '92000000-0000-4000-8000-000000000999',
+  :'p5c_attempt_id'
+);
+\set p5c_reconciliation_wrong_org_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_reconciliation_wrong_org;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_reconciliation_wrong_org;
+
+SAVEPOINT expect_p5c_reconciliation_missing_attempt;
+\set ON_ERROR_STOP off
+SELECT platform.read_amocrm_command_for_reconciliation(
+  :'p5c_org_a',
+  '92000000-0000-4000-8000-000000000999'
+);
+\set p5c_reconciliation_missing_attempt_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_reconciliation_missing_attempt;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_reconciliation_missing_attempt;
+
+RESET ROLE;
+SET ROLE authenticated;
+SET request.jwt.claims TO :'p5c_sales_claims';
+SAVEPOINT expect_p5c_staff_reconciliation_read_denied;
+\set ON_ERROR_STOP off
+SELECT platform.read_amocrm_command_for_reconciliation(
+  :'p5c_org_a',
+  :'p5c_attempt_id'
+);
+\set p5c_staff_reconciliation_read_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_staff_reconciliation_read_denied;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_staff_reconciliation_read_denied;
+
+RESET ROLE;
+SET ROLE anon;
+SET request.jwt.claims = '{"role":"anon"}';
+SAVEPOINT expect_p5c_anon_reconciliation_read_denied;
+\set ON_ERROR_STOP off
+SELECT platform.read_amocrm_command_for_reconciliation(
+  :'p5c_org_a',
+  :'p5c_attempt_id'
+);
+\set p5c_anon_reconciliation_read_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_anon_reconciliation_read_denied;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_anon_reconciliation_read_denied;
+
+RESET ROLE;
+SELECT pg_temp.assert_true(
+  :'p5c_reconciliation_preclaim'::JSONB -> 'payload'
+    = '{"name":"P5C Lead A"}'::JSONB
+  AND :'p5c_reconciliation_preclaim'::JSONB ->> 'status' = 'prepared'
+  AND :'p5c_reconciliation_preclaim'::JSONB ? 'dispatch_request_id'
+  AND NOT (:'p5c_prepare_first'::JSONB -> 'attempt' ? 'payload')
+  AND :'p5c_reconciliation_wrong_org_state' = '02000'
+  AND :'p5c_reconciliation_missing_attempt_state' = '02000'
+  AND :'p5c_staff_reconciliation_read_state' = '42501'
+  AND :'p5c_anon_reconciliation_read_state' = '42501'
+  AND has_function_privilege(
+    'service_role',
+    'platform.read_amocrm_command_for_reconciliation(uuid,uuid)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'authenticated',
+    'platform.read_amocrm_command_for_reconciliation(uuid,uuid)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'anon',
+    'platform.read_amocrm_command_for_reconciliation(uuid,uuid)',
+    'EXECUTE'
+  ),
+  'P5C reconciliation input must be exact-organization, service-only, and preserve the original private payload'
+);
+
+SET ROLE service_role;
+SET request.jwt.claims = '{"role":"service_role"}';
+
 SELECT platform.claim_amocrm_command(
   :'p5c_org_a',
   :'p5c_attempt_id',
@@ -515,6 +594,19 @@ SELECT pg_temp.assert_true(
   'P5C claim must be one-shot and only exact same-request replay is safe'
 );
 
+SELECT pg_temp.assert_true(
+  platform.read_amocrm_command_for_reconciliation(
+    :'p5c_org_a',
+    :'p5c_attempt_id'
+  ) -> 'payload' = '{"name":"P5C Lead A"}'::JSONB
+  AND platform.read_amocrm_command_for_reconciliation(
+    :'p5c_org_a',
+    :'p5c_attempt_id'
+  ) ->> 'dispatch_request_id'
+    = '92000000-0000-4000-8000-000000000110',
+  'P5C reconciliation read must preserve the originally dispatched command and claim evidence'
+);
+
 RESET ROLE;
 UPDATE platform_private.amocrm_command_attempts
 SET
@@ -551,7 +643,6 @@ SELECT platform.finish_amocrm_command(
   NULL,
   NULL,
   NULL,
-  NULL,
   'provider_timeout'
 ) AS p5c_unknown_finish
 \gset
@@ -561,7 +652,6 @@ SELECT platform.finish_amocrm_command(
   :'p5c_attempt_id',
   '92000000-0000-4000-8000-000000000112',
   'unknown',
-  NULL,
   NULL,
   NULL,
   NULL,
@@ -585,7 +675,6 @@ SELECT platform.finish_amocrm_command(
   NULL,
   NULL,
   NULL,
-  NULL,
   'changed_failure'
 );
 \set p5c_finish_request_conflict_state :SQLSTATE
@@ -601,8 +690,7 @@ SELECT platform.finish_amocrm_command(
   '92000000-0000-4000-8000-000000000115',
   'rejected',
   'provider-request-1',
-  500,
-  NULL,
+  400,
   NULL,
   statement_timestamp(),
   NULL,
@@ -692,7 +780,6 @@ SELECT platform.reconcile_unknown_amocrm_command(
   '92000000-0000-4000-8000-000000000117',
   'accepted',
   '{"id":700001}'::JSONB,
-  :'p5c_lead_readback_sha256',
   :'p5c_provider_readback_at'::TIMESTAMPTZ,
   :'p5c_provider_responded_at'::TIMESTAMPTZ,
   '800001',
@@ -710,7 +797,6 @@ SELECT platform.reconcile_unknown_amocrm_command(
   '92000000-0000-4000-8000-000000000113',
   'accepted',
   '{"id":700001}'::JSONB,
-  :'p5c_lead_readback_sha256',
   :'p5c_provider_readback_at'::TIMESTAMPTZ,
   :'p5c_provider_responded_at'::TIMESTAMPTZ,
   NULL,
@@ -721,8 +807,12 @@ SELECT platform.reconcile_unknown_amocrm_command(
 
 SELECT pg_temp.assert_true(
   :'p5c_invalid_reconcile_result_state' = '22023'
-  AND :'p5c_reconciled'::JSONB -> 'attempt' ->> 'status' = 'accepted',
-  'P5C reconcile must validate result shape before resolving ambiguity'
+  AND :'p5c_reconciled'::JSONB -> 'attempt' ->> 'status' = 'accepted'
+  AND platform.read_amocrm_command_for_reconciliation(
+    :'p5c_org_a',
+    :'p5c_attempt_id'
+  ) ->> 'provider_readback_sha256' = :'p5c_lead_readback_sha256',
+  'P5C reconcile must validate result shape and derive its readback hash before resolving ambiguity'
 );
 
 SELECT platform.reconcile_unknown_amocrm_command(
@@ -731,7 +821,6 @@ SELECT platform.reconcile_unknown_amocrm_command(
   '92000000-0000-4000-8000-000000000113',
   'accepted',
   '{"id":700001}'::JSONB,
-  :'p5c_lead_readback_sha256',
   :'p5c_provider_readback_at'::TIMESTAMPTZ,
   :'p5c_provider_responded_at'::TIMESTAMPTZ,
   NULL,
@@ -748,7 +837,6 @@ SELECT platform.reconcile_unknown_amocrm_command(
   '92000000-0000-4000-8000-000000000113',
   'accepted',
   '{"id":700001,"changed":true}'::JSONB,
-  :'p5c_changed_lead_readback_sha256',
   :'p5c_provider_readback_at'::TIMESTAMPTZ,
   :'p5c_provider_responded_at'::TIMESTAMPTZ,
   NULL,
@@ -767,7 +855,6 @@ SELECT platform.reconcile_unknown_amocrm_command(
   :'p5c_attempt_id',
   '92000000-0000-4000-8000-000000000118',
   'unchanged',
-  NULL,
   NULL,
   NULL,
   NULL,
@@ -842,6 +929,139 @@ SELECT platform.prepare_amocrm_command(
   jsonb_build_object(
     'actor_role', 'sales',
     'workflow_scope', 'sales_pre_handoff',
+    'workflow_lead_id', '92000000-0000-4000-8000-000000000102',
+    'student_case_id', NULL
+  ),
+  NULL,
+  '92000000-0000-4000-8000-000000000102',
+  'lead_note_create',
+  'p5c:lead-note:local-rejection',
+  NULL,
+  '700001',
+  '{"note_text":"must not leave the server without a token"}'::JSONB
+) AS p5c_local_rejection_prepare
+\gset
+
+SELECT (
+  :'p5c_local_rejection_prepare'::JSONB -> 'attempt' ->> 'attempt_id'
+)::UUID AS p5c_local_rejection_attempt_id
+\gset
+
+RESET ROLE;
+SET ROLE service_role;
+SET request.jwt.claims = '{"role":"service_role"}';
+
+SELECT platform.claim_amocrm_command(
+  :'p5c_org_a',
+  :'p5c_local_rejection_attempt_id',
+  '92000000-0000-4000-8000-000000000130',
+  'p5c-local-rejection-worker',
+  120
+) AS p5c_local_rejection_claim
+\gset
+
+SAVEPOINT expect_p5c_http_5xx_rejected_invalid;
+\set ON_ERROR_STOP off
+SELECT platform.finish_amocrm_command(
+  :'p5c_org_a',
+  :'p5c_local_rejection_attempt_id',
+  '92000000-0000-4000-8000-000000000131',
+  'rejected',
+  'provider-request-5xx',
+  503,
+  NULL,
+  statement_timestamp(),
+  NULL,
+  NULL,
+  'provider_5xx'
+);
+\set p5c_http_5xx_rejected_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_http_5xx_rejected_invalid;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_http_5xx_rejected_invalid;
+
+SAVEPOINT expect_p5c_unsafe_local_rejection_invalid;
+\set ON_ERROR_STOP off
+SELECT platform.finish_amocrm_command(
+  :'p5c_org_a',
+  :'p5c_local_rejection_attempt_id',
+  '92000000-0000-4000-8000-000000000133',
+  'rejected',
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  'provider_unavailable'
+);
+\set p5c_unsafe_local_rejection_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p5c_unsafe_local_rejection_invalid;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p5c_unsafe_local_rejection_invalid;
+
+SELECT platform.finish_amocrm_command(
+  :'p5c_org_a',
+  :'p5c_local_rejection_attempt_id',
+  '92000000-0000-4000-8000-000000000132',
+  'rejected',
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  'token_unavailable'
+) AS p5c_local_rejection_finished
+\gset
+
+SELECT platform.finish_amocrm_command(
+  :'p5c_org_a',
+  :'p5c_local_rejection_attempt_id',
+  '92000000-0000-4000-8000-000000000132',
+  'rejected',
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  'token_unavailable'
+) AS p5c_local_rejection_replay
+\gset
+
+SELECT pg_temp.assert_true(
+  :'p5c_http_5xx_rejected_state' = '22023'
+  AND :'p5c_unsafe_local_rejection_state' = '22023'
+  AND :'p5c_local_rejection_claim'::JSONB ->> 'kind' = 'claimed'
+  AND :'p5c_local_rejection_finished'::JSONB -> 'attempt' ->> 'status'
+    = 'rejected'
+  AND :'p5c_local_rejection_replay'::JSONB ->> 'kind' = 'replay'
+  AND platform.read_amocrm_command_for_reconciliation(
+    :'p5c_org_a',
+    :'p5c_local_rejection_attempt_id'
+  ) @> '{
+    "status":"rejected",
+    "provider_request_id":null,
+    "provider_http_status":null,
+    "provider_readback":null,
+    "provider_responded_at":null,
+    "result_contact_id":null,
+    "result_lead_id":null,
+    "failure_code":"token_unavailable"
+  }'::JSONB,
+  'P5C local pre-transport rejection must settle deterministically while provider 5xx remains unknown-only'
+);
+
+RESET ROLE;
+SET ROLE authenticated;
+SET request.jwt.claims TO :'p5c_admin_claims';
+
+SELECT platform.prepare_amocrm_command(
+  :'p5c_org_a',
+  jsonb_build_object(
+    'actor_role', 'sales',
+    'workflow_scope', 'sales_pre_handoff',
     'workflow_lead_id', '92000000-0000-4000-8000-000000000122',
     'student_case_id', NULL
   ),
@@ -874,7 +1094,6 @@ SELECT platform.finish_amocrm_command(
   'provider-request-contact-create',
   200,
   '{"id":800001}'::JSONB,
-  :'p5c_contact_readback_sha256',
   statement_timestamp(),
   '800001',
   NULL,
@@ -892,7 +1111,6 @@ SELECT platform.reconcile_unknown_amocrm_command(
   :'p5c_contact_attempt_id',
   '92000000-0000-4000-8000-000000000124',
   'unchanged',
-  NULL,
   NULL,
   NULL,
   NULL,
@@ -925,7 +1143,6 @@ SELECT platform.finish_amocrm_command(
   'provider-request-contact-create',
   200,
   '{"id":800001}'::JSONB,
-  :'p5c_contact_readback_sha256',
   :'p5c_contact_responded_at'::TIMESTAMPTZ,
   '800001',
   NULL,
@@ -938,8 +1155,12 @@ SELECT pg_temp.assert_true(
   AND :'p5c_unclaimed_finish_blocked_state' = '55000'
   AND :'p5c_prepared_reconcile_blocked_state' = '55000'
   AND :'p5c_contact_claim'::JSONB ->> 'kind' = 'claimed'
-  AND :'p5c_contact_finished'::JSONB -> 'attempt' ->> 'status' = 'accepted',
-  'P5C create bindings and lifecycle transitions must fail closed'
+  AND :'p5c_contact_finished'::JSONB -> 'attempt' ->> 'status' = 'accepted'
+  AND platform.read_amocrm_command_for_reconciliation(
+    :'p5c_org_a',
+    :'p5c_contact_attempt_id'
+  ) ->> 'provider_readback_sha256' = :'p5c_contact_readback_sha256',
+  'P5C create bindings, lifecycle transitions, and database-derived readback hashes must fail closed'
 );
 
 RESET ROLE;
@@ -1061,7 +1282,6 @@ SELECT platform.reconcile_unknown_amocrm_command(
   NULL,
   NULL,
   NULL,
-  NULL,
   'dispatch_state_unknown'
 ) AS p5c_claimed_prepare_reconciled_unknown
 \gset
@@ -1082,7 +1302,6 @@ SELECT platform.reconcile_unknown_amocrm_command(
   '92000000-0000-4000-8000-000000000128',
   'accepted',
   '{"id":800001}'::JSONB,
-  :'p5c_contact_readback_sha256',
   statement_timestamp(),
   statement_timestamp(),
   '800001',

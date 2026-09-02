@@ -912,6 +912,67 @@ AS $$
   LIMIT 1
 $$;
 
+CREATE OR REPLACE FUNCTION platform.read_amocrm_command_for_reconciliation(
+  p_organization_id UUID,
+  p_attempt_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  attempt_row platform_private.amocrm_command_attempts%ROWTYPE;
+BEGIN
+  IF (SELECT auth.jwt() ->> 'role') IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'amocrm_command_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_organization_id IS NULL OR p_attempt_id IS NULL THEN
+    RAISE EXCEPTION 'invalid amocrm reconciliation lookup'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT *
+  INTO attempt_row
+  FROM platform_private.amocrm_command_attempts AS attempt
+  WHERE attempt.organization_id = p_organization_id
+    AND attempt.id = p_attempt_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'amocrm command attempt not found'
+      USING ERRCODE = '02000';
+  END IF;
+
+  RETURN platform_private.amocrm_command_snapshot(attempt_row.id)
+    || jsonb_build_object(
+      'payload', attempt_row.payload,
+      'dispatch_request_id', attempt_row.dispatch_request_id,
+      'dispatch_request_sha256', attempt_row.dispatch_request_sha256,
+      'dispatch_worker_ref', attempt_row.dispatch_worker_ref,
+      'dispatch_claimed_at', attempt_row.dispatch_claimed_at,
+      'dispatch_lease_expires_at', attempt_row.dispatch_lease_expires_at,
+      'finish_request_id', attempt_row.finish_request_id,
+      'finish_request_sha256', attempt_row.finish_request_sha256,
+      'reconcile_request_id', attempt_row.reconcile_request_id,
+      'reconcile_request_sha256', attempt_row.reconcile_request_sha256,
+      'provider_request_id', attempt_row.provider_request_id,
+      'provider_http_status', attempt_row.provider_http_status,
+      'provider_readback', attempt_row.provider_readback,
+      'provider_readback_sha256', attempt_row.provider_readback_sha256,
+      'provider_readback_at', attempt_row.provider_readback_at,
+      'provider_responded_at', attempt_row.provider_responded_at,
+      'settled_at', attempt_row.settled_at,
+      'last_reconciled_at', attempt_row.last_reconciled_at,
+      'created_at', attempt_row.created_at,
+      'updated_at', attempt_row.updated_at,
+      'version', attempt_row.version
+    );
+END
+$$;
+
 CREATE OR REPLACE FUNCTION platform.claim_amocrm_command(
   p_organization_id UUID,
   p_attempt_id UUID,
@@ -1035,7 +1096,6 @@ CREATE OR REPLACE FUNCTION platform.finish_amocrm_command(
   p_provider_request_id TEXT,
   p_provider_http_status INTEGER,
   p_provider_readback JSONB,
-  p_provider_readback_sha256 TEXT,
   p_provider_responded_at TIMESTAMPTZ,
   p_result_contact_id TEXT,
   p_result_lead_id TEXT,
@@ -1048,6 +1108,7 @@ SET search_path = ''
 AS $$
 DECLARE
   attempt_row platform_private.amocrm_command_attempts%ROWTYPE;
+  computed_readback_sha256 TEXT;
   request_sha256 TEXT;
 BEGIN
   IF (SELECT auth.jwt() ->> 'role') IS DISTINCT FROM 'service_role' THEN
@@ -1077,20 +1138,6 @@ BEGIN
       AND jsonb_typeof(p_provider_readback) <> 'object'
     )
     OR (
-      p_provider_readback_sha256 IS NOT NULL
-      AND p_provider_readback_sha256 !~ '^[0-9a-f]{64}$'
-    )
-    OR (p_provider_readback IS NULL) <> (p_provider_readback_sha256 IS NULL)
-    OR (
-      p_provider_readback IS NOT NULL
-      AND p_provider_readback_sha256 IS DISTINCT FROM pg_catalog.encode(
-        pg_catalog.sha256(
-          pg_catalog.convert_to(p_provider_readback::TEXT, 'UTF8')
-        ),
-        'hex'
-      )
-    )
-    OR (
       p_result_contact_id IS NOT NULL
       AND p_result_contact_id !~ '^[1-9][0-9]{0,19}$'
     )
@@ -1118,14 +1165,24 @@ BEGIN
     )
     OR (
       p_outcome = 'rejected'
-      AND (
-        p_provider_http_status IS NULL
-        OR p_provider_http_status NOT BETWEEN 300 AND 599
-        OR p_provider_responded_at IS NULL
-        OR p_result_contact_id IS NOT NULL
-        OR p_result_lead_id IS NOT NULL
-        OR p_failure_code IS NULL
-      )
+      AND NOT COALESCE((
+        (
+          p_provider_request_id IS NULL
+          AND p_provider_http_status IS NULL
+          AND p_provider_readback IS NULL
+          AND p_provider_responded_at IS NULL
+          AND p_result_contact_id IS NULL
+          AND p_result_lead_id IS NULL
+          AND p_failure_code = 'token_unavailable'
+        )
+        OR (
+          p_provider_http_status BETWEEN 300 AND 499
+          AND p_provider_responded_at IS NOT NULL
+          AND p_result_contact_id IS NULL
+          AND p_result_lead_id IS NULL
+          AND p_failure_code IS NOT NULL
+        )
+      ), FALSE)
     )
     OR (
       p_outcome = 'unknown'
@@ -1151,6 +1208,16 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  computed_readback_sha256 := CASE
+    WHEN p_provider_readback IS NULL THEN NULL
+    ELSE pg_catalog.encode(
+      pg_catalog.sha256(
+        pg_catalog.convert_to(p_provider_readback::TEXT, 'UTF8')
+      ),
+      'hex'
+    )
+  END;
+
   request_sha256 := pg_catalog.encode(
     pg_catalog.sha256(
       pg_catalog.convert_to(
@@ -1162,7 +1229,7 @@ BEGIN
           'provider_request_id', p_provider_request_id,
           'provider_http_status', p_provider_http_status,
           'provider_readback', p_provider_readback,
-          'provider_readback_sha256', p_provider_readback_sha256,
+          'provider_readback_sha256', computed_readback_sha256,
           'provider_responded_at', p_provider_responded_at,
           'result_contact_id', p_result_contact_id,
           'result_lead_id', p_result_lead_id,
@@ -1261,7 +1328,7 @@ BEGIN
     provider_request_id = p_provider_request_id,
     provider_http_status = p_provider_http_status,
     provider_readback = p_provider_readback,
-    provider_readback_sha256 = p_provider_readback_sha256,
+    provider_readback_sha256 = computed_readback_sha256,
     provider_readback_at = CASE
       WHEN p_provider_readback IS NULL THEN provider_readback_at
       ELSE statement_timestamp()
@@ -1333,7 +1400,6 @@ CREATE OR REPLACE FUNCTION platform.reconcile_unknown_amocrm_command(
   p_request_id UUID,
   p_outcome TEXT,
   p_provider_readback JSONB,
-  p_provider_readback_sha256 TEXT,
   p_provider_readback_at TIMESTAMPTZ,
   p_provider_responded_at TIMESTAMPTZ,
   p_result_contact_id TEXT,
@@ -1347,6 +1413,7 @@ SET search_path = ''
 AS $$
 DECLARE
   attempt_row platform_private.amocrm_command_attempts%ROWTYPE;
+  computed_readback_sha256 TEXT;
   request_sha256 TEXT;
 BEGIN
   IF (SELECT auth.jwt() ->> 'role') IS DISTINCT FROM 'service_role' THEN
@@ -1363,21 +1430,7 @@ BEGIN
       p_provider_readback IS NOT NULL
       AND jsonb_typeof(p_provider_readback) <> 'object'
     )
-    OR (
-      p_provider_readback_sha256 IS NOT NULL
-      AND p_provider_readback_sha256 !~ '^[0-9a-f]{64}$'
-    )
-    OR (p_provider_readback IS NULL) <> (p_provider_readback_sha256 IS NULL)
     OR (p_provider_readback IS NULL) <> (p_provider_readback_at IS NULL)
-    OR (
-      p_provider_readback IS NOT NULL
-      AND p_provider_readback_sha256 IS DISTINCT FROM pg_catalog.encode(
-        pg_catalog.sha256(
-          pg_catalog.convert_to(p_provider_readback::TEXT, 'UTF8')
-        ),
-        'hex'
-      )
-    )
     OR (
       p_result_contact_id IS NOT NULL
       AND p_result_contact_id !~ '^[1-9][0-9]{0,19}$'
@@ -1414,6 +1467,16 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  computed_readback_sha256 := CASE
+    WHEN p_provider_readback IS NULL THEN NULL
+    ELSE pg_catalog.encode(
+      pg_catalog.sha256(
+        pg_catalog.convert_to(p_provider_readback::TEXT, 'UTF8')
+      ),
+      'hex'
+    )
+  END;
+
   request_sha256 := pg_catalog.encode(
     pg_catalog.sha256(
       pg_catalog.convert_to(
@@ -1423,7 +1486,7 @@ BEGIN
           'request_id', p_request_id,
           'outcome', p_outcome,
           'provider_readback', p_provider_readback,
-          'provider_readback_sha256', p_provider_readback_sha256,
+          'provider_readback_sha256', computed_readback_sha256,
           'provider_readback_at', p_provider_readback_at,
           'provider_responded_at', p_provider_responded_at,
           'result_contact_id', p_result_contact_id,
@@ -1538,7 +1601,7 @@ BEGIN
       reconcile_request_id = p_request_id,
       reconcile_request_sha256 = request_sha256,
       provider_readback = p_provider_readback,
-      provider_readback_sha256 = p_provider_readback_sha256,
+      provider_readback_sha256 = computed_readback_sha256,
       provider_readback_at = COALESCE(p_provider_readback_at, statement_timestamp()),
       provider_responded_at = COALESCE(p_provider_responded_at, provider_responded_at),
       result_contact_id = p_result_contact_id,
@@ -1605,7 +1668,7 @@ BEGIN
     reconcile_request_sha256 = request_sha256,
     provider_readback = COALESCE(p_provider_readback, provider_readback),
     provider_readback_sha256 = COALESCE(
-      p_provider_readback_sha256,
+      computed_readback_sha256,
       provider_readback_sha256
     ),
     provider_readback_at = COALESCE(p_provider_readback_at, provider_readback_at),
@@ -1634,14 +1697,17 @@ REVOKE ALL ON FUNCTION platform.read_staff_blocking_amocrm_command(
 REVOKE ALL ON FUNCTION platform.read_amocrm_command_by_idempotency_key(
   UUID, TEXT
 ) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION platform.read_amocrm_command_for_reconciliation(
+  UUID, UUID
+) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION platform.claim_amocrm_command(
   UUID, UUID, UUID, TEXT, INTEGER
 ) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION platform.finish_amocrm_command(
-  UUID, UUID, UUID, TEXT, TEXT, INTEGER, JSONB, TEXT, TIMESTAMPTZ, TEXT, TEXT, TEXT
+  UUID, UUID, UUID, TEXT, TEXT, INTEGER, JSONB, TIMESTAMPTZ, TEXT, TEXT, TEXT
 ) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION platform.reconcile_unknown_amocrm_command(
-  UUID, UUID, UUID, TEXT, JSONB, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT
+  UUID, UUID, UUID, TEXT, JSONB, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT
 ) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION platform.prepare_amocrm_command(
@@ -1656,14 +1722,17 @@ GRANT EXECUTE ON FUNCTION platform.read_staff_blocking_amocrm_command(
 GRANT EXECUTE ON FUNCTION platform.read_amocrm_command_by_idempotency_key(
   UUID, TEXT
 ) TO service_role;
+GRANT EXECUTE ON FUNCTION platform.read_amocrm_command_for_reconciliation(
+  UUID, UUID
+) TO service_role;
 GRANT EXECUTE ON FUNCTION platform.claim_amocrm_command(
   UUID, UUID, UUID, TEXT, INTEGER
 ) TO service_role;
 GRANT EXECUTE ON FUNCTION platform.finish_amocrm_command(
-  UUID, UUID, UUID, TEXT, TEXT, INTEGER, JSONB, TEXT, TIMESTAMPTZ, TEXT, TEXT, TEXT
+  UUID, UUID, UUID, TEXT, TEXT, INTEGER, JSONB, TIMESTAMPTZ, TEXT, TEXT, TEXT
 ) TO service_role;
 GRANT EXECUTE ON FUNCTION platform.reconcile_unknown_amocrm_command(
-  UUID, UUID, UUID, TEXT, JSONB, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT
+  UUID, UUID, UUID, TEXT, JSONB, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT, TEXT
 ) TO service_role;
 
 COMMIT;

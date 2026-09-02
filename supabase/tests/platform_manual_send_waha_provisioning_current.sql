@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- Current-boundary acceptance for migration 081. All identifiers and secrets
+-- Current-boundary acceptance through migration 099. All identifiers and secrets
 -- are synthetic and transaction-local. No WAHA, amoCRM, AI, managed Supabase
 -- project or other provider is contacted.
 BEGIN;
@@ -284,7 +284,7 @@ SELECT pg_temp.assert_true(
     AND :'p8r5_created_ready'::BOOLEAN
     AND :'p8r5_created_reason_code' = 'ready'
     AND :'p8r5_created_waha_session_name' = 'evo-inbox'
-    AND :'p8r5_created_base_url' = 'http://evo-crm-waha:3000'
+    AND :'p8r5_created_base_url' = 'http://evo-inbox-waha:3000'
     AND :'p8r5_created_binding_version'::BIGINT = 1
     AND :'p8r5_created_api_key_sha256' =
       '8062f694489d86f9c3add53fcfbe46238ccfcfbb6a4d45755cbc6d74dbfbc923'
@@ -301,7 +301,7 @@ SELECT pg_temp.assert_true(
   :'p8r5_status_ready'::BOOLEAN
     AND :'p8r5_status_reason_code' = 'ready'
     AND :'p8r5_status_waha_session_name' = 'evo-inbox'
-    AND :'p8r5_status_base_url' = 'http://evo-crm-waha:3000'
+    AND :'p8r5_status_base_url' = 'http://evo-inbox-waha:3000'
     AND :'p8r5_status_binding_version'::BIGINT = 1
     AND :'p8r5_status_api_key_sha256' = :'p8r5_created_api_key_sha256'
     AND :'p8r5_status_updated_at'::TIMESTAMPTZ =
@@ -314,7 +314,7 @@ SELECT pg_temp.assert_true(
     SELECT pg_catalog.count(*) = 1
       AND pg_catalog.bool_and(runtime.waha_session_name = 'evo-inbox')
       AND pg_catalog.bool_and(
-        runtime.waha_base_url = 'http://evo-crm-waha:3000'
+        runtime.waha_base_url = 'http://evo-inbox-waha:3000'
       )
       AND pg_catalog.bool_and(
         runtime.waha_api_key = 'p8r5-synthetic-waha-key-alpha-0001'
@@ -437,7 +437,7 @@ SELECT pg_temp.assert_true(
   :'p8r5_rotated_ready'::BOOLEAN
     AND :'p8r5_rotated_reason_code' = 'ready'
     AND :'p8r5_rotated_waha_session_name' = 'evo-inbox'
-    AND :'p8r5_rotated_base_url' = 'http://evo-crm-waha:3000'
+    AND :'p8r5_rotated_base_url' = 'http://evo-inbox-waha:3000'
     AND :'p8r5_rotated_binding_version'::BIGINT = 2
     AND :'p8r5_rotated_api_key_sha256' =
       '63e5c7b3b4f93c5eb97d222620fd1715fdfa80e969cf709dbe7128f091dad251'
@@ -489,7 +489,7 @@ SELECT pg_temp.assert_true(
         '63e5c7b3b4f93c5eb97d222620fd1715fdfa80e969cf709dbe7128f091dad251'
       AND binding.enabled
       AND binding.waha_session_name = 'evo-inbox'
-      AND binding.waha_base_url = 'http://evo-crm-waha:3000'
+      AND binding.waha_base_url = 'http://evo-inbox-waha:3000'
     FROM platform_private.manual_send_waha_runtime_bindings AS binding
     WHERE binding.organization_id = :'p8r5_org_id'::UUID
   ),
@@ -571,7 +571,7 @@ SELECT pg_temp.assert_true(
       )
       AND pg_catalog.bool_and(configuration.waha_session_name = 'evo-inbox')
       AND pg_catalog.bool_and(
-        configuration.base_url = 'http://evo-crm-waha:3000'
+        configuration.base_url = 'http://evo-inbox-waha:3000'
       )
       AND pg_catalog.bool_and(configuration.binding_version = 2)
       AND pg_catalog.bool_and(

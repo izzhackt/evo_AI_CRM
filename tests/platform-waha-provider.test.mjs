@@ -8,7 +8,7 @@ import {
 
 const RUNTIME = Object.freeze({
   wahaSessionName: "evo-inbox",
-  wahaBaseUrl: "http://evo-crm-waha:3000",
+  wahaBaseUrl: "http://evo-inbox-waha:3000",
   wahaApiKey: "provider-api-key-value",
   bindingVersion: "3",
 });
@@ -59,7 +59,7 @@ test("manual send makes one authenticated WAHA call and returns only sanitized e
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "http://evo-crm-waha:3000/api/sendText");
+  assert.equal(calls[0].url, "http://evo-inbox-waha:3000/api/sendText");
   assert.equal(calls[0].init.method, "POST");
   assert.equal(calls[0].init.redirect, "error");
   assert.equal(calls[0].init.signal, signal);
@@ -102,7 +102,7 @@ test("exact reconciliation reads one provider message and never sends", async ()
   assert.equal(calls.length, 1);
   assert.equal(
     calls[0].url,
-    "http://evo-crm-waha:3000/api/evo-inbox/chats/996555000001%40c.us/messages/false_996555000001%40c.us_PROVIDER1?downloadMedia=false",
+    "http://evo-inbox-waha:3000/api/evo-inbox/chats/996555000001%40c.us/messages/false_996555000001%40c.us_PROVIDER1?downloadMedia=false",
   );
   assert.equal(calls[0].init.method, "GET");
   assert.equal(calls.some(({ init }) => init.method === "POST"), false);

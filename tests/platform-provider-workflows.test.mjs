@@ -5,6 +5,7 @@ import {
   PLATFORM_GEMINI_MODEL_REF,
   PLATFORM_GEMINI_PROMPT_POLICY_VERSION,
   PLATFORM_GEMINI_SCHEMA_VERSION,
+  PLATFORM_WAHA_BASE_URL,
   PlatformProviderWorkflowError,
   beginGeminiProposal,
   claimManualWhatsAppSendItem,
@@ -41,6 +42,10 @@ const REQUESTED_AT = "2026-09-02T12:00:00+00:00";
 const COMPLETED_AT = "2026-09-02T12:00:02+00:00";
 const REVIEWED_AT = "2026-09-02T12:01:00+00:00";
 const SHA256 = "a".repeat(64);
+
+test("the active provider workflow exposes only the EVO Inbox WAHA transport", () => {
+  assert.equal(PLATFORM_WAHA_BASE_URL, "http://evo-inbox-waha:3000");
+});
 
 function recordingClient(responseFor) {
   const calls = [];
@@ -595,7 +600,7 @@ test("resolveManualSendWahaRuntime accepts only the one private evo-inbox bindin
   const recorded = staticClient([
     {
       waha_session_name: "evo-inbox",
-      waha_base_url: "http://evo-crm-waha:3000",
+      waha_base_url: "http://evo-inbox-waha:3000",
       waha_api_key: "provider-api-key-value",
       binding_version: "3",
     },
@@ -614,7 +619,7 @@ test("resolveManualSendWahaRuntime accepts only the one private evo-inbox bindin
   });
   assert.deepEqual(result, {
     wahaSessionName: "evo-inbox",
-    wahaBaseUrl: "http://evo-crm-waha:3000",
+    wahaBaseUrl: "http://evo-inbox-waha:3000",
     wahaApiKey: "provider-api-key-value",
     bindingVersion: "3",
   });
@@ -844,13 +849,13 @@ test("manual WhatsApp adapters reject mismatched exact-item and malformed safety
       [
         {
           waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-crm-waha:3000",
+          waha_base_url: "http://evo-inbox-waha:3000",
           waha_api_key: "provider-api-key-value",
           binding_version: "3",
         },
         {
           waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-crm-waha:3000",
+          waha_base_url: "http://evo-inbox-waha:3000",
           waha_api_key: "another-provider-key",
           binding_version: "4",
         },
@@ -925,7 +930,7 @@ test("manual WhatsApp adapters reject a malformed SDK response envelope", async 
   const malformed = recordingClient(() => ({
     data: [{
       waha_session_name: "evo-inbox",
-      waha_base_url: "http://evo-crm-waha:3000",
+      waha_base_url: "http://evo-inbox-waha:3000",
       waha_api_key: "provider-api-key-value",
       binding_version: "3",
     }],

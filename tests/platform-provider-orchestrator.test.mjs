@@ -170,7 +170,7 @@ function claimedManualSendData() {
 function wahaRuntimeData() {
   return [{
     waha_session_name: "evo-inbox",
-    waha_base_url: "http://evo-crm-waha:3000",
+    waha_base_url: "http://evo-inbox-waha:3000",
     waha_api_key: "provider-api-key-value",
     binding_version: "3",
   }];
@@ -482,7 +482,7 @@ test("manual WhatsApp authorization claims its exact work item, resolves Vault r
       return {
         data: [{
           waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-crm-waha:3000",
+          waha_base_url: "http://evo-inbox-waha:3000",
           waha_api_key: "provider-api-key-value",
           binding_version: "3",
         }],
@@ -625,7 +625,7 @@ test("an unknown WhatsApp result is finished once and replay cannot send a secon
       return {
         data: [{
           waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-crm-waha:3000",
+          waha_base_url: "http://evo-inbox-waha:3000",
           waha_api_key: "provider-api-key-value",
           binding_version: "3",
         }],
@@ -810,7 +810,7 @@ test("manual WhatsApp reconciliation performs bounded readback only and finishes
       return {
         data: [{
           waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-crm-waha:3000",
+          waha_base_url: "http://evo-inbox-waha:3000",
           waha_api_key: "provider-api-key-value",
           binding_version: "3",
         }],

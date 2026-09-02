@@ -21,7 +21,7 @@ export const PLATFORM_GEMINI_SCHEMA_VERSION = 2 as const;
 export const PLATFORM_GEMINI_PROMPT_POLICY_VERSION =
   "u9-gemini-human-review-v1" as const;
 export const PLATFORM_WAHA_SESSION_NAME = "evo-inbox" as const;
-export const PLATFORM_WAHA_BASE_URL = "http://evo-crm-waha:3000" as const;
+export const PLATFORM_WAHA_BASE_URL = "http://evo-inbox-waha:3000" as const;
 
 type PlatformProviderRpcResponse = Readonly<{
   data: unknown;

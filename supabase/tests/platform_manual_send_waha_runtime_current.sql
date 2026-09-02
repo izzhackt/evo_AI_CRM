@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- Current-boundary acceptance through migration 097. Every identifier and secret
+-- Current-boundary acceptance through migration 099. Every identifier and secret
 -- is synthetic and transaction-local. No WAHA, amoCRM, AI or managed Supabase
 -- provider is contacted.
 BEGIN;
@@ -299,7 +299,7 @@ INSERT INTO platform_private.manual_send_waha_runtime_bindings (
 ) VALUES (
   :'p8r4_org_id',
   'evo-inbox',
-  'http://evo-crm-waha:3000',
+  'http://evo-inbox-waha:3000',
   :'p8r4_vault_secret_id',
   pg_catalog.encode(
     pg_catalog.sha256(
@@ -365,7 +365,7 @@ RESET ROLE;
 
 SELECT pg_temp.assert_true(
   :'p8r4_runtime_session' = 'evo-inbox'
-    AND :'p8r4_runtime_base_url' = 'http://evo-crm-waha:3000'
+    AND :'p8r4_runtime_base_url' = 'http://evo-inbox-waha:3000'
     AND :'p8r4_runtime_api_key' = 'synthetic-p8r4-private-waha-api-key'
     AND :'p8r4_runtime_version' = '1',
   'service_role did not resolve the exact Vault-backed runtime binding'

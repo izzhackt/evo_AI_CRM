@@ -567,7 +567,9 @@ test("POST replays the same signed provider event onto one durable work identity
   assert.equal(persistArgs.length, 2);
   assert.equal(enqueueArgs.length, 2);
   assert.equal(claimCount, 2);
-  assert.equal(claimRequestIds[0], claimRequestIds[1]);
+  // A later delivery must observe the current terminal state rather than
+  // replaying an older retry_wait attempt; scheduler retries own stable IDs.
+  assert.notEqual(claimRequestIds[0], claimRequestIds[1]);
   assert.equal(projectCount, 1);
   assert.equal(finishCount, 1);
   assert.equal(

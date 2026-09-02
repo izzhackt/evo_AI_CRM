@@ -276,7 +276,7 @@ INSERT INTO platform_private.manual_send_waha_runtime_bindings (
 ) VALUES (
   :'p5a_r_org_id',
   'evo-inbox',
-  'http://evo-crm-waha:3000',
+  'http://evo-inbox-waha:3000',
   :'p5a_r_vault_secret_id',
   platform_private.ai_memory_text_sha256(
     'synthetic-p5a-reconciliation-private-waha-key'

@@ -15345,8 +15345,9 @@ advanced `origin/main` to `cf108403c69a35ca3b134652de8f2aa26eb5a049`.
 Decision: treat merged main `cf108403c69a35ca3b134652de8f2aa26eb5a049`
 (`feat(admissions): run operations and documents on Supabase (#564)`) as the
 current shared execution base for #565 and later slices. The next replacement
-work starts from this exact main and deletes only superseded local Gemini state
-that still remains active on top of it.
+work starts from this exact main with the bounded #565 database contract; #566
+then atomically replaces and deletes the superseded local communications,
+Gemini and WhatsApp runtime state.
 Validation impact: `origin/main` was re-fetched and the new P5 branch and its
 merge-base both started at `cf108403c69a35ca3b134652de8f2aa26eb5a049` before
 this docs-only commit. Exact-main CI run `33611965188` then passed Main CRM,

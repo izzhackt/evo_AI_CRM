@@ -1660,6 +1660,15 @@ SQL
       -f /workspace/supabase/tests/platform_sales_workflow_rls.sql
   fi
 
+  # Migration 094 aligns both Sales queue connection fields and their filter
+  # with the exact verified intake predicate already used by migration 093.
+  if [[ "$(basename "$migration")" == 094_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v u4_post094=1 \
+      -f /workspace/supabase/tests/platform_sales_workflow_rls.sql
+  fi
+
   # Migration 087 adds the individual-permission contract/payment gate and its
   # explicit normal-versus-exceptional Admissions handoff assertion boundary.
   if [[ "$(basename "$migration")" == 087_* ]]; then

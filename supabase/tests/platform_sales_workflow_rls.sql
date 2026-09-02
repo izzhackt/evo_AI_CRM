@@ -603,6 +603,7 @@ SELECT pg_temp.u4_assert(
 \set u4_lead_archived '86000000-0000-4000-8000-000000000610'
 
 \set u4_conversation_exact '86000000-0000-4000-8000-000000000801'
+\set u4_conversation_client_only '86000000-0000-4000-8000-000000000802'
 \set u4_conversation_client_other_lead '86000000-0000-4000-8000-000000000803'
 \set u4_conversation_missing_evidence '86000000-0000-4000-8000-000000000804'
 \set u4_conversation_non_intake '86000000-0000-4000-8000-000000000805'
@@ -971,7 +972,7 @@ VALUES
     :'u4_lead_new'
   ),
   (
-    '86000000-0000-4000-8000-000000000802',
+    :'u4_conversation_client_only',
     :'u4_org_a',
     NULL,
     :'u4_sales_membership',
@@ -1348,7 +1349,7 @@ SELECT pg_temp.u4_assert(
   EXISTS (
     SELECT 1
     FROM platform.communication_conversations AS conversation
-    WHERE conversation.id = '86000000-0000-4000-8000-000000000802'
+    WHERE conversation.id = :'u4_conversation_client_only'
       AND conversation.canonical_client_id = :'u4_client_contacting'
       AND conversation.canonical_lead_id IS NULL
   ),
@@ -1404,8 +1405,8 @@ SELECT
   '00000000-0000-4000-8000-000000001302'::UUID
 FROM pg_catalog.generate_series(1, 51) AS series(value);
 
--- Sales sees only self-owned plus unowned rows. Connected means a direct lead
--- link; a conversation linked to the same client alone remains unconnected.
+-- Sales sees only self-owned plus unowned rows. Boundary-specific checks below
+-- prove the exact relation once the forward corrective migrations exist.
 SET LOCAL request.jwt.claims TO :'u4_sales_claims';
 SET LOCAL ROLE authenticated;
 
@@ -1481,6 +1482,170 @@ SET LOCAL ROLE authenticated;
 
 \endif
 
+\if :{?u4_post094}
+
+-- Migration 094 makes both queue connection fields agree with the exact
+-- verified Sales-intake relation. Move the two direct close negatives onto
+-- otherwise unconnected open leads inside a savepoint so a loose direct-lead
+-- EXISTS cannot hide behind the real positive fixture.
+RESET ROLE;
+SAVEPOINT u4_post094_queue_controls;
+
+UPDATE platform.communication_conversations AS conversation
+SET
+  canonical_client_id = :'u4_client_qualified',
+  canonical_lead_id = :'u4_lead_qualified'
+WHERE conversation.organization_id = :'u4_org_a'
+  AND conversation.id = :'u4_conversation_non_intake';
+
+UPDATE platform.communication_conversations AS conversation
+SET
+  canonical_client_id = :'u4_client_meeting_scheduled',
+  canonical_lead_id = :'u4_lead_meeting_scheduled'
+WHERE conversation.organization_id = :'u4_org_a'
+  AND conversation.id = :'u4_conversation_missing_evidence';
+
+SET LOCAL request.jwt.claims TO :'u4_admin_claims';
+SET LOCAL ROLE authenticated;
+
+SELECT pg_temp.u4_assert(
+  (
+    WITH controls(lead_id, conversation_id, expected_linked) AS (
+      VALUES
+        (
+          :'u4_lead_new'::UUID,
+          :'u4_conversation_exact'::UUID,
+          TRUE
+        ),
+        (
+          :'u4_lead_contacting'::UUID,
+          :'u4_conversation_client_only'::UUID,
+          FALSE
+        ),
+        (
+          :'u4_lead_new'::UUID,
+          :'u4_conversation_client_other_lead'::UUID,
+          FALSE
+        ),
+        (
+          :'u4_lead_meeting_scheduled'::UUID,
+          :'u4_conversation_missing_evidence'::UUID,
+          FALSE
+        ),
+        (
+          :'u4_lead_qualified'::UUID,
+          :'u4_conversation_non_intake'::UUID,
+          FALSE
+        )
+    ),
+    observed AS (
+      SELECT
+        control.lead_id,
+        control.conversation_id,
+        control.expected_linked,
+        relation.linked
+      FROM controls AS control
+      CROSS JOIN LATERAL platform.staff_canonical_lead_conversation_link(
+        :'u4_org_a',
+        control.lead_id,
+        control.conversation_id
+      ) AS relation
+    )
+    SELECT pg_catalog.count(*) = 5
+      AND pg_catalog.bool_and(
+        observed.linked IS NOT DISTINCT FROM observed.expected_linked
+      )
+    FROM observed
+  ),
+  'migration 094 controls do not match the exact 085 relation'
+);
+
+SELECT pg_temp.u4_assert(
+  (
+    WITH queue_page AS MATERIALIZED (
+      SELECT page.*
+      FROM platform.staff_sales_lead_page(
+        101, NULL, NULL, 'all', 'all', 'all', NULL, 'all', NULL
+      ) AS page
+    )
+    SELECT
+      EXISTS (
+        SELECT 1
+        FROM queue_page AS page
+        WHERE page.lead_id = :'u4_lead_new'
+          AND page.is_connected
+          AND page.linked_conversation_count = 1
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM queue_page AS page
+        WHERE page.lead_id = :'u4_lead_contacting'
+          AND NOT page.is_connected
+          AND page.linked_conversation_count = 0
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM queue_page AS page
+        WHERE page.lead_id = :'u4_lead_meeting_scheduled'
+          AND NOT page.is_connected
+          AND page.linked_conversation_count = 0
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM queue_page AS page
+        WHERE page.lead_id = :'u4_lead_qualified'
+          AND NOT page.is_connected
+          AND page.linked_conversation_count = 0
+      )
+  ),
+  'Sales queue admitted a client-only, non-intake, or unverified direct link'
+);
+
+SELECT pg_temp.u4_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform.staff_sales_lead_page(
+      101, NULL, NULL, 'connected', 'all', 'all', NULL, 'all', NULL
+    ) AS page
+    WHERE page.lead_id = :'u4_lead_new'
+      AND page.is_connected
+      AND page.linked_conversation_count = 1
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.staff_sales_lead_page(
+      101, NULL, NULL, 'connected', 'all', 'all', NULL, 'all', NULL
+    ) AS page
+    WHERE page.lead_id IN (
+      :'u4_lead_contacting'::UUID,
+      :'u4_lead_meeting_scheduled'::UUID,
+      :'u4_lead_qualified'::UUID
+    )
+  )
+  AND (
+    SELECT pg_catalog.count(*) = 3
+    FROM platform.staff_sales_lead_page(
+      101, NULL, NULL, 'unconnected', 'all', 'all', NULL, 'all', NULL
+    ) AS page
+    WHERE page.lead_id IN (
+      :'u4_lead_contacting'::UUID,
+      :'u4_lead_meeting_scheduled'::UUID,
+      :'u4_lead_qualified'::UUID
+    )
+      AND NOT page.is_connected
+      AND page.linked_conversation_count = 0
+  ),
+  'Sales queue connection filter disagreed with exact linked count truth'
+);
+
+RESET ROLE;
+ROLLBACK TO SAVEPOINT u4_post094_queue_controls;
+RELEASE SAVEPOINT u4_post094_queue_controls;
+SET LOCAL request.jwt.claims TO :'u4_sales_claims';
+SET LOCAL ROLE authenticated;
+
+\endif
+
 SELECT pg_temp.u4_assert(
   (
     SELECT pg_catalog.count(*) = 5
@@ -1497,6 +1662,45 @@ SELECT pg_temp.u4_assert(
   ),
   'Sales visibility widened beyond self-owned plus unowned leads'
 );
+
+\if :{?u4_post094}
+
+-- Admin proved the exact positive above. This Sales actor can see the unowned
+-- lead in the assignment queue, but cannot open its transcript until it owns
+-- the lead; the queue must therefore expose no transcript-derived connection.
+SELECT pg_temp.u4_assert(
+  NOT EXISTS (
+    SELECT 1
+    FROM platform.staff_sales_lead_page(
+      101, NULL, NULL, 'connected', 'all', 'all', NULL, 'all', NULL
+    ) AS lead
+    WHERE lead.lead_id IN (
+      :'u4_lead_new'::UUID,
+      :'u4_lead_contacting'::UUID
+    )
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.staff_sales_lead_page(
+      101, NULL, NULL, 'unconnected', 'all', 'all', NULL, 'all', NULL
+    ) AS lead
+    WHERE lead.lead_id = :'u4_lead_new'
+      AND NOT lead.is_connected
+      AND lead.linked_conversation_count = 0
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.staff_sales_lead_page(
+      101, NULL, NULL, 'unconnected', 'all', 'all', NULL, 'all', NULL
+    ) AS lead
+    WHERE lead.lead_id = :'u4_lead_contacting'
+      AND NOT lead.is_connected
+      AND lead.linked_conversation_count = 0
+  ),
+  'Sales queue exposed a transcript-derived connection outside exact lead authorization'
+);
+
+\else
 
 SELECT pg_temp.u4_assert(
   (
@@ -1517,6 +1721,8 @@ SELECT pg_temp.u4_assert(
   ),
   'connected truth was inferred from the client instead of direct lead link'
 );
+
+\endif
 
 SELECT pg_temp.u4_assert(
   (

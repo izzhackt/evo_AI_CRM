@@ -157,7 +157,7 @@ separately reviewable inside the same PR:
 Implementation inspection clarified the original migration boundary. P2B must
 not add a migration 093 wrapper around the migration 086 read RPCs, because
 duplicating an already bounded read contract would layer a second runtime path.
-The exact-head review subsequently found a narrower page/transcript predicate
+The exact-head review subsequently found a narrower detail/transcript predicate
 mismatch inside that existing contract; migration 093 may therefore replace
 the existing detail function in place solely to make both surfaces enforce the
 same predicate.

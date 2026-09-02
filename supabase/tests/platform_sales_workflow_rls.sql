@@ -602,6 +602,11 @@ SELECT pg_temp.u4_assert(
 \set u4_lead_disqualified '86000000-0000-4000-8000-000000000609'
 \set u4_lead_archived '86000000-0000-4000-8000-000000000610'
 
+\set u4_conversation_exact '86000000-0000-4000-8000-000000000801'
+\set u4_conversation_client_other_lead '86000000-0000-4000-8000-000000000803'
+\set u4_conversation_missing_evidence '86000000-0000-4000-8000-000000000804'
+\set u4_conversation_non_intake '86000000-0000-4000-8000-000000000805'
+
 INSERT INTO platform.organizations (id, name)
 VALUES
   (:'u4_org_a', 'U4 Organization A'),
@@ -786,8 +791,8 @@ INSERT INTO platform.leads (
 )
 VALUES
   (
-    :'u4_lead_new', :'u4_org_a', :'u4_client_new', NULL,
-    'new', 'manual', NULL, NULL
+    :'u4_lead_new', :'u4_org_a', :'u4_client_new',
+    :'u4_sales_membership', 'new', 'whatsapp', NULL, NULL
   ),
   (
     :'u4_lead_contacting', :'u4_org_a', :'u4_client_contacting',
@@ -824,7 +829,7 @@ VALUES
     'new', 'manual', NULL, NULL
   ),
   (
-    :'u4_lead_archived', :'u4_org_a', NULL, NULL,
+    :'u4_lead_archived', :'u4_org_a', :'u4_client_new', NULL,
     'new', 'manual', NULL, NULL
   );
 
@@ -875,7 +880,7 @@ VALUES
     'message.any',
     '2026-08-24 08:00:00+06'::TIMESTAMPTZ,
     'verified',
-    '{"event":"synthetic-u4-connected"}'::JSONB,
+    '{"event":"message.any","payload":{"from":"15551234001@c.us","fromMe":false,"source":"whatsapp"}}'::JSONB,
     '{"x-webhook-hmac":"synthetic"}'::JSONB,
     'synthetic:u4:connected',
     repeat('a', 64),
@@ -899,6 +904,25 @@ VALUES
     'synthetic:u4:same-client',
     repeat('b', 64),
     '86000000-0000-4000-8000-000000000712'
+  ),
+  (
+    '86000000-0000-4000-8000-000000000703',
+    :'u4_org_a',
+    'waha',
+    'synthetic:u4:waha',
+    NULL,
+    NULL,
+    'synthetic-u4-non-intake',
+    'u4-test-session',
+    'synthetic-u4-non-intake-payload',
+    'message.any',
+    '2026-08-24 08:02:00+06'::TIMESTAMPTZ,
+    'verified',
+    '{"event":"message.any","payload":{"from":"15551234003@c.us","fromMe":false,"source":"whatsapp"}}'::JSONB,
+    '{"x-webhook-hmac":"synthetic"}'::JSONB,
+    'synthetic:u4:non-intake',
+    repeat('c', 64),
+    '86000000-0000-4000-8000-000000000713'
   );
 
 INSERT INTO platform.communication_conversations (
@@ -906,6 +930,7 @@ INSERT INTO platform.communication_conversations (
   organization_id,
   student_case_id,
   responsible_sales_membership_id,
+  sales_authority_source,
   current_curator_membership_id,
   queue,
   status,
@@ -924,20 +949,21 @@ INSERT INTO platform.communication_conversations (
 )
 VALUES
   (
-    '86000000-0000-4000-8000-000000000801',
+    :'u4_conversation_exact',
     :'u4_org_a',
     NULL,
     :'u4_sales_membership',
+    'platform_intake',
     NULL,
     'sales',
     'open',
-    'U4 directly connected conversation',
+    'U4 exact verified Sales-intake conversation',
     'u4-test-session',
-    8601,
     NULL,
-    8611,
-    8621,
-    8631,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     :'u4_scope_a',
     1,
     '86000000-0000-4000-8000-000000000701',
@@ -949,6 +975,7 @@ VALUES
     :'u4_org_a',
     NULL,
     :'u4_sales_membership',
+    'provider_linked',
     NULL,
     'sales',
     'open',
@@ -964,7 +991,145 @@ VALUES
     '86000000-0000-4000-8000-000000000702',
     :'u4_client_contacting',
     NULL
+  ),
+  (
+    :'u4_conversation_client_other_lead',
+    :'u4_org_a',
+    NULL,
+    :'u4_sales_membership',
+    'platform_intake',
+    NULL,
+    'sales',
+    'open',
+    'U4 same client but different lead',
+    'u4-test-session',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    :'u4_scope_a',
+    1,
+    '86000000-0000-4000-8000-000000000702',
+    :'u4_client_new',
+    :'u4_lead_archived'
+  ),
+  (
+    :'u4_conversation_missing_evidence',
+    :'u4_org_a',
+    NULL,
+    :'u4_sales_membership',
+    'platform_intake',
+    NULL,
+    'sales',
+    'open',
+    'U4 direct lead without verified binding',
+    'u4-test-session',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    :'u4_scope_a',
+    1,
+    '86000000-0000-4000-8000-000000000701',
+    :'u4_client_new',
+    :'u4_lead_new'
+  ),
+  (
+    :'u4_conversation_non_intake',
+    :'u4_org_a',
+    NULL,
+    :'u4_sales_membership',
+    'provider_linked',
+    NULL,
+    'sales',
+    'open',
+    'U4 verified provider-linked non-intake conversation',
+    'u4-test-session',
+    8605,
+    NULL,
+    8615,
+    8625,
+    8635,
+    :'u4_scope_a',
+    1,
+    '86000000-0000-4000-8000-000000000703',
+    :'u4_client_new',
+    :'u4_lead_new'
   );
+
+-- Pre-bind the exact WAHA identity to the existing fixture subjects. The 085
+-- trigger then verifies that the conversation resolves to this same client
+-- and lead instead of manufacturing parallel canonical rows.
+INSERT INTO platform.external_identifiers (
+  id,
+  organization_id,
+  source_system,
+  external_object_type,
+  external_identifier,
+  client_id,
+  lead_id,
+  observed_at,
+  source_ref
+)
+VALUES
+  (
+    '86000000-0000-4000-8000-000000000821',
+    :'u4_org_a',
+    'waha',
+    'direct_chat',
+    'u4-test-session:15551234001@c.us',
+    :'u4_client_new',
+    NULL,
+    '2026-08-24 08:00:00+06'::TIMESTAMPTZ,
+    'synthetic:u4:exact-client'
+  ),
+  (
+    '86000000-0000-4000-8000-000000000822',
+    :'u4_org_a',
+    'waha',
+    'sales_intake',
+    'u4-test-session:15551234001@c.us',
+    NULL,
+    :'u4_lead_new',
+    '2026-08-24 08:00:00+06'::TIMESTAMPTZ,
+    'synthetic:u4:exact-lead'
+  );
+
+INSERT INTO platform_private.waha_direct_chat_bindings (
+  id,
+  organization_id,
+  waha_session_name,
+  normalized_chat_id,
+  conversation_id,
+  source_webhook_event_id
+)
+VALUES
+  (
+    '86000000-0000-4000-8000-000000000831',
+    :'u4_org_a',
+    'u4-test-session',
+    '15551234001@c.us',
+    :'u4_conversation_exact',
+    '86000000-0000-4000-8000-000000000701'
+  ),
+  (
+    '86000000-0000-4000-8000-000000000832',
+    :'u4_org_a',
+    'u4-test-session',
+    '15551234003@c.us',
+    :'u4_conversation_non_intake',
+    '86000000-0000-4000-8000-000000000703'
+  );
+
+-- Restore the original unowned U4 workflow fixture after the 085 binding
+-- trigger has proved and stored the canonical identity. The source remains
+-- the immutable WhatsApp source required by that verified intake.
+UPDATE platform.leads AS lead
+SET current_owner_membership_id = NULL
+WHERE lead.organization_id = :'u4_org_a'
+  AND lead.id = :'u4_lead_new';
 
 SELECT jsonb_build_object(
   'sub', :'u4_admin_user',
@@ -1243,6 +1408,78 @@ FROM pg_catalog.generate_series(1, 51) AS series(value);
 -- link; a conversation linked to the same client alone remains unconnected.
 SET LOCAL request.jwt.claims TO :'u4_sales_claims';
 SET LOCAL ROLE authenticated;
+
+\if :{?u4_post093}
+
+-- Migration 093 must make the detail projection agree with migration 085's
+-- exact verified Sales-intake relation. A shared client with another lead, a
+-- direct lead without a binding, and a verified provider-linked/non-intake
+-- conversation are deliberately close negative controls.
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'u4_admin_claims';
+SET LOCAL ROLE authenticated;
+
+SELECT pg_temp.u4_assert(
+  (
+    SELECT link.linked
+    FROM platform.staff_canonical_lead_conversation_link(
+      :'u4_org_a', :'u4_lead_new', :'u4_conversation_exact'
+    ) AS link
+  )
+  AND NOT (
+    SELECT link.linked
+    FROM platform.staff_canonical_lead_conversation_link(
+      :'u4_org_a',
+      :'u4_lead_new',
+      :'u4_conversation_client_other_lead'
+    ) AS link
+  )
+  AND NOT (
+    SELECT link.linked
+    FROM platform.staff_canonical_lead_conversation_link(
+      :'u4_org_a',
+      :'u4_lead_new',
+      :'u4_conversation_missing_evidence'
+    ) AS link
+  )
+  AND NOT (
+    SELECT link.linked
+    FROM platform.staff_canonical_lead_conversation_link(
+      :'u4_org_a', :'u4_lead_new', :'u4_conversation_non_intake'
+    ) AS link
+  ),
+  'migration 093 fixture does not match the exact 085 lead-conversation relation'
+);
+
+SELECT pg_temp.u4_assert(
+  (
+    SELECT
+      detail.linked_conversation_count = 1
+      AND detail.linked_conversation_count
+        = pg_catalog.jsonb_array_length(detail.linked_conversations)
+      AND detail.linked_conversations -> 0 ->> 'conversation_id'
+        = :'u4_conversation_exact'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.jsonb_array_elements(
+          detail.linked_conversations
+        ) AS projected(item)
+        WHERE projected.item ->> 'conversation_id' IN (
+          :'u4_conversation_client_other_lead',
+          :'u4_conversation_missing_evidence',
+          :'u4_conversation_non_intake'
+        )
+      )
+    FROM platform.staff_sales_lead_detail(:'u4_lead_new') AS detail
+  ),
+  'Sales detail count/list admitted a client-only, non-intake, or unverified conversation'
+);
+
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'u4_sales_claims';
+SET LOCAL ROLE authenticated;
+
+\endif
 
 SELECT pg_temp.u4_assert(
   (

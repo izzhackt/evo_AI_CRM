@@ -1650,6 +1650,16 @@ SQL
       -f /workspace/supabase/tests/platform_sales_workflow_rls.sql
   fi
 
+  # Migration 093 tightens the Sales detail conversation projection to the
+  # same exact verified intake predicate enforced by the nested transcript
+  # link RPC. Re-run only the forward-correction assertions at that boundary.
+  if [[ "$(basename "$migration")" == 093_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v u4_post093=1 \
+      -f /workspace/supabase/tests/platform_sales_workflow_rls.sql
+  fi
+
   # Migration 087 adds the individual-permission contract/payment gate and its
   # explicit normal-versus-exceptional Admissions handoff assertion boundary.
   if [[ "$(basename "$migration")" == 087_* ]]; then

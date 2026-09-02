@@ -32,6 +32,12 @@ globalThis.__canonicalAmoCrmCommandActionHarness = harness;
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === "server-only") {
+      return {
+        shortCircuit: true,
+        url: dataModule("export default {};"),
+      };
+    }
     if (!context.parentURL?.includes("/canonical-amocrm-command-actions.ts")) {
       return nextResolve(specifier, context);
     }

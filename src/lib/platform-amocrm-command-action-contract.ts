@@ -4,7 +4,7 @@ import { exactActionStringFields } from "./server/action-form-fields.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const NOTE_CONTROL_CHARACTER_PATTERN = /[\u0000-\u0009\u000b-\u001f\u007f]/;
+const TEXT_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const MAX_NOTE_BYTES = 1_000;
 const MAX_TASK_BYTES = 1_000;
 
@@ -56,6 +56,10 @@ export type PlatformAmoCrmReconcileForm = Readonly<{
   workflowScope: PlatformAmoCrmWorkflowScope;
 }>;
 
+export type PlatformAmoCrmFormParseOptions = Readonly<{
+  now?: number | Date;
+}>;
+
 function normalizedUuid(value: string | undefined): string | null {
   if (value === undefined || !UUID_PATTERN.test(value)) return null;
   return value.toLowerCase();
@@ -69,7 +73,7 @@ function normalizedNote(value: string | undefined): string | null {
     noteText.length < 1 ||
     byteLength < 1 ||
     byteLength > MAX_NOTE_BYTES ||
-    NOTE_CONTROL_CHARACTER_PATTERN.test(noteText)
+    TEXT_CONTROL_CHARACTER_PATTERN.test(noteText)
   ) {
     return null;
   }
@@ -84,23 +88,41 @@ function normalizedTaskText(value: string | undefined): string | null {
     taskText.length < 1 ||
     byteLength < 1 ||
     byteLength > MAX_TASK_BYTES ||
-    NOTE_CONTROL_CHARACTER_PATTERN.test(taskText)
+    TEXT_CONTROL_CHARACTER_PATTERN.test(taskText)
   ) {
     return null;
   }
   return taskText;
 }
 
-function normalizedFutureUnix(value: string | undefined): number | null {
+function parseNowSeconds(options: PlatformAmoCrmFormParseOptions | undefined): number {
+  const source = options?.now;
+  const milliseconds =
+    source === undefined
+      ? Date.now()
+      : typeof source === "number"
+        ? source
+        : source instanceof Date
+          ? source.getTime()
+          : Number.NaN;
+  return Number.isFinite(milliseconds) ? Math.floor(milliseconds / 1_000) : Number.NaN;
+}
+
+function normalizedFutureUnix(
+  value: string | undefined,
+  options: PlatformAmoCrmFormParseOptions | undefined,
+): number | null {
   if (value === undefined || !/^[1-9][0-9]{0,15}$/u.test(value)) return null;
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed)) return null;
-  const nowSeconds = Math.floor(Date.now() / 1_000);
+  const nowSeconds = parseNowSeconds(options);
+  if (!Number.isSafeInteger(nowSeconds)) return null;
   return parsed > nowSeconds ? parsed : null;
 }
 
 export function parsePlatformAmoCrmSalesSyncForm(
   form: FormData,
+  options?: PlatformAmoCrmFormParseOptions,
 ): PlatformAmoCrmSalesSyncForm | null {
   const fields = exactActionStringFields(form, SALES_FIELDS);
   if (fields === null) return null;
@@ -108,7 +130,10 @@ export function parsePlatformAmoCrmSalesSyncForm(
   const noteText = normalizedNote(fields.get("note_text"));
   const requestId = normalizedUuid(fields.get("request_id"));
   const taskText = normalizedTaskText(fields.get("task_text"));
-  const taskCompleteTill = normalizedFutureUnix(fields.get("task_complete_till"));
+  const taskCompleteTill = normalizedFutureUnix(
+    fields.get("task_complete_till"),
+    options,
+  );
   if (
     leadId === null ||
     noteText === null ||
@@ -129,6 +154,7 @@ export function parsePlatformAmoCrmSalesSyncForm(
 
 export function parsePlatformAmoCrmAdmissionsSyncForm(
   form: FormData,
+  options?: PlatformAmoCrmFormParseOptions,
 ): PlatformAmoCrmAdmissionsSyncForm | null {
   const fields = exactActionStringFields(form, ADMISSIONS_FIELDS);
   if (fields === null) return null;
@@ -136,7 +162,10 @@ export function parsePlatformAmoCrmAdmissionsSyncForm(
   const noteText = normalizedNote(fields.get("note_text"));
   const requestId = normalizedUuid(fields.get("request_id"));
   const taskText = normalizedTaskText(fields.get("task_text"));
-  const taskCompleteTill = normalizedFutureUnix(fields.get("task_complete_till"));
+  const taskCompleteTill = normalizedFutureUnix(
+    fields.get("task_complete_till"),
+    options,
+  );
   if (
     studentCaseId === null ||
     noteText === null ||

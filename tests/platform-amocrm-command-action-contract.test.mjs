@@ -19,9 +19,7 @@ const {
   parsePlatformAmoCrmReconcileForm,
   parsePlatformAmoCrmSalesSyncForm,
 } = await import("../src/lib/platform-amocrm-command-action-contract.ts");
-
-const REAL_DATE_NOW = Date.now;
-Date.now = () => Date.parse("2026-09-02T10:00:00.000Z");
+const FIXED_NOW = Date.parse("2026-09-02T10:00:00.000Z");
 
 const IDS = Object.freeze({
   lead: "11111111-1111-4111-8111-111111111111",
@@ -46,6 +44,7 @@ test("sales parser accepts exact fields and trims the note", () => {
         ["task_text", "  Call the applicant tomorrow  "],
         ["task_complete_till", "1790000000"],
       ]),
+      { now: FIXED_NOW },
     ),
     {
       leadId: IDS.lead,
@@ -67,6 +66,7 @@ test("admissions parser accepts only the exact case handoff fields", () => {
         ["task_text", "Request the first missing document"],
         ["task_complete_till", "1790000000"],
       ]),
+      { now: FIXED_NOW },
     ),
     {
       studentCaseId: IDS.studentCase,
@@ -118,7 +118,7 @@ test("duplicate, unknown and malformed action fields fail closed", () => {
     ["task_complete_till", "1790000000"],
     ["request_id", IDS.request],
   ]);
-  assert.equal(parsePlatformAmoCrmSalesSyncForm(duplicate), null);
+  assert.equal(parsePlatformAmoCrmSalesSyncForm(duplicate, { now: FIXED_NOW }), null);
 
   const unknown = form([
     ["lead_id", IDS.lead],
@@ -128,7 +128,7 @@ test("duplicate, unknown and malformed action fields fail closed", () => {
     ["task_complete_till", "1790000000"],
     ["fallback", "legacy"],
   ]);
-  assert.equal(parsePlatformAmoCrmSalesSyncForm(unknown), null);
+  assert.equal(parsePlatformAmoCrmSalesSyncForm(unknown, { now: FIXED_NOW }), null);
 
   const malformed = form([
     ["student_case_id", IDS.studentCase],
@@ -137,7 +137,10 @@ test("duplicate, unknown and malformed action fields fail closed", () => {
     ["task_text", "Task"],
     ["task_complete_till", "1790000000"],
   ]);
-  assert.equal(parsePlatformAmoCrmAdmissionsSyncForm(malformed), null);
+  assert.equal(
+    parsePlatformAmoCrmAdmissionsSyncForm(malformed, { now: FIXED_NOW }),
+    null,
+  );
 });
 
 test("React action-state envelopes retain the same exact contract", () => {
@@ -153,7 +156,7 @@ test("React action-state envelopes retain the same exact contract", () => {
     ["0", "previous-state"],
   ]);
   assert.equal(
-    parsePlatformAmoCrmSalesSyncForm(value)?.requestId,
+    parsePlatformAmoCrmSalesSyncForm(value, { now: FIXED_NOW })?.requestId,
     IDS.request,
   );
 });
@@ -168,6 +171,7 @@ test("task fields are required and task_complete_till must be a future unix seco
         ["task_text", "  "],
         ["task_complete_till", "1790000000"],
       ]),
+      { now: FIXED_NOW },
     ),
     null,
   );
@@ -180,6 +184,7 @@ test("task fields are required and task_complete_till must be a future unix seco
         ["task_text", "Valid task"],
         ["task_complete_till", "1"],
       ]),
+      { now: FIXED_NOW },
     ),
     null,
   );
@@ -192,11 +197,37 @@ test("task fields are required and task_complete_till must be a future unix seco
         ["task_text", "Request the first missing document"],
         ["task_complete_till", "not-a-number"],
       ]),
+      { now: FIXED_NOW },
     ),
     null,
   );
 });
 
-test.after(() => {
-  Date.now = REAL_DATE_NOW;
+test("note_text and task_text reject control characters under the shared fail-closed rule", () => {
+  assert.equal(
+    parsePlatformAmoCrmSalesSyncForm(
+      form([
+        ["lead_id", IDS.lead],
+        ["note_text", "Line one\nLine two"],
+        ["request_id", IDS.request],
+        ["task_text", "Valid task"],
+        ["task_complete_till", "1790000000"],
+      ]),
+      { now: FIXED_NOW },
+    ),
+    null,
+  );
+  assert.equal(
+    parsePlatformAmoCrmSalesSyncForm(
+      form([
+        ["lead_id", IDS.lead],
+        ["note_text", "Valid note"],
+        ["request_id", IDS.request],
+        ["task_text", "Line one\nLine two"],
+        ["task_complete_till", "1790000000"],
+      ]),
+      { now: FIXED_NOW },
+    ),
+    null,
+  );
 });

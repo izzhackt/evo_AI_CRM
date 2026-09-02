@@ -87,14 +87,14 @@ test("server actions use only canonical V2 seams and exact FormData extraction",
     "src/lib/server/canonical-amocrm-command-actions.ts",
   );
 
-  assert.match(actions, /exactActionStringFields/);
+  assert.match(actions, /parsePlatformAmoCrmSalesSyncForm/);
+  assert.match(actions, /parsePlatformAmoCrmAdmissionsSyncForm/);
+  assert.match(actions, /parsePlatformAmoCrmReconcileForm/);
   assert.match(actions, /requirePlatformSalesActor/);
   assert.match(actions, /requirePlatformAdmissionsActor/);
   assert.match(actions, /executePlatformAmoCrmSalesSync/);
   assert.match(actions, /executePlatformAmoCrmAdmissionsSync/);
   assert.match(actions, /reconcilePlatformAmoCrmSyncAttempt/);
-  assert.match(actions, /normalizedFutureUnix/);
-  assert.match(actions, /task_complete_till/);
   assert.match(actions, /revalidatePath\(`\/sales\/\$\{leadId\}`\)/);
   assert.match(
     actions,

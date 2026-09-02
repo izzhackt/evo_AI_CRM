@@ -281,6 +281,7 @@ function buildGeminiPrompt(context: PlatformGeminiProposalContext): string {
   return [
     "You prepare one advisory draft for an EVO staff member.",
     "You never send a message, change CRM state, call tools, or make a decision for staff.",
+    "You never promise admission, visas, scholarships, deadlines, discounts, payments, or outcomes.",
     "Use only the locked source message and approved knowledge below.",
     "Citations must be selected only from allowedCitations and every uncertain claim must be stated as a limitation.",
     "Return exactly one JSON object matching schema version 2, without Markdown or surrounding text.",

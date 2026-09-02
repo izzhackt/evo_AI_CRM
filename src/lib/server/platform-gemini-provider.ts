@@ -40,7 +40,8 @@ export type PlatformGeminiProviderFailureCode =
   | "empty_response"
   | "output_truncated"
   | "malformed_response"
-  | "invalid_proposal";
+  | "invalid_proposal"
+  | "unsafe_semantics";
 
 export class PlatformGeminiProviderError extends Error {
   readonly code: PlatformGeminiProviderFailureCode;
@@ -202,6 +203,14 @@ const QUALIFICATION_STATUSES = new Set([
   "not_a_fit",
 ]);
 const KNOWLEDGE_KEY_PATTERN = /^[a-z][a-z0-9_.-]*$/u;
+const UNSAFE_OUTCOME_PATTERNS = Object.freeze([
+  /\b100\s*%/iu,
+  /\bguarantee(?:d|s)?\b/iu,
+  /\bdefinitely\s+(?:admitted|approved|receive|win)\b/iu,
+  /гарант(?:ируем|ирован|ия|ировать)/iu,
+  /точно\s+(?:поступите|получите|одобрят)/iu,
+  /без\s+риска/iu,
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -246,6 +255,16 @@ function isOneOf<Value extends string>(
   values: ReadonlySet<Value>,
 ): value is Value {
   return typeof value === "string" && values.has(value as Value);
+}
+
+function containsUnsafeOutcomeSemantics(
+  values: readonly (string | null)[],
+): boolean {
+  return values.some(
+    (value) =>
+      value !== null &&
+      UNSAFE_OUTCOME_PATTERNS.some((pattern) => pattern.test(value)),
+  );
 }
 
 function parseUniqueStrings(
@@ -393,6 +412,22 @@ export function parsePlatformGeminiProposalV2(
     (!value.handoff_required && handoffReasons.length !== 0)
   ) {
     throw new PlatformGeminiProviderError("invalid_proposal");
+  }
+
+  if (
+    containsUnsafeOutcomeSemantics([
+      value.reply_text,
+      value.summary,
+      value.next_action,
+      value.draft_internal_note,
+      value.missing_document_suggestion,
+      value.deadline_warning,
+      qualification.notes,
+      ...limitations,
+      ...memoryChanges.map((change) => change.value),
+    ])
+  ) {
+    throw new PlatformGeminiProviderError("unsafe_semantics");
   }
 
   return Object.freeze({

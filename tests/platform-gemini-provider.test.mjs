@@ -154,6 +154,41 @@ test("Gemini provider rejects a structurally invalid schema-v2 proposal", async 
   );
 });
 
+test("Gemini provider rejects unsupported outcome promises in free-text fields", async () => {
+  const provider = createPlatformGeminiProvider("technical-test-key-not-a-secret", {
+    createClient() {
+      return {
+        models: {
+          async generateContent() {
+            return {
+              text: JSON.stringify({
+                ...validProposal,
+                reply_text: "Мы гарантируем поступление на выбранную программу.",
+              }),
+              responseId: "gemini-response-unsafe-promise",
+            };
+          },
+        },
+      };
+    },
+  });
+
+  await assert.rejects(
+    provider.generateStructuredProposal({
+      model: "gemini-3.7-flash",
+      prompt: "Private bounded proposal context",
+      responseJsonSchema: schemaV2,
+      timeoutMs: 15_000,
+      maxOutputTokens: 2_048,
+      temperature: 0.2,
+    }),
+    (error) =>
+      error instanceof PlatformGeminiProviderError &&
+      error.code === "unsafe_semantics" &&
+      error.providerInteractionRef === "gemini-response-unsafe-promise",
+  );
+});
+
 test("Gemini provider categorizes malformed JSON without leaking provider output", async () => {
   const provider = createPlatformGeminiProvider("technical-test-key-not-a-secret", {
     createClient() {

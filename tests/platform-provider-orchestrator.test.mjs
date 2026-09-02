@@ -270,6 +270,10 @@ test("Gemini execution begins one staff receipt, calls the structured provider o
   assert.equal(providerCalls[0].temperature, 0.2);
   assert.equal(providerCalls[0].responseJsonSchema.type, "object");
   assert.match(providerCalls[0].prompt, /You prepare one advisory draft/u);
+  assert.match(
+    providerCalls[0].prompt,
+    /never promise admission, visas, scholarships, deadlines, discounts, payments, or outcomes/iu,
+  );
   assert.match(providerCalls[0].prompt, /EVO helps applicants/u);
   assert.equal(Object.hasOwn(providerCalls[0], "tools"), false);
   assert.equal(service.calls[1].args.p_outcome, "proposal_ready");

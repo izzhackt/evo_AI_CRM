@@ -66,11 +66,25 @@ function timeLabel(minutes: number) {
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
-function EventCard({ event }: { event: WeekEvent }) {
+/**
+ * Сколько остаётся под аватары и кнопку после названия и времени.
+ * Название в две строки — 32px, время 14px, отступы и зазоры — 20px.
+ */
+const RESERVED = 66;
+const NEEDS_AVATARS = 24;
+const NEEDS_ACTION = 32;
+
+function EventCard({ event, height }: { event: WeekEvent; height: number }) {
   const span =
     event.startMinutes !== null && event.endMinutes !== null
       ? `${timeLabel(event.startMinutes)} – ${timeLabel(event.endMinutes)}`
       : "весь день";
+
+  // Место считается, а не отдаётся на волю обрезки: обрезанная наполовину
+  // кнопка читается как поломка, а не как «не поместилось».
+  const spare = height - RESERVED;
+  const showAvatars = event.people.length > 0 && spare >= NEEDS_AVATARS;
+  const showAction = Boolean(event.action) && spare >= NEEDS_ACTION + (showAvatars ? NEEDS_AVATARS : 0);
 
   // Заголовок и время не сжимаются: когда карточка короткая, уступают
   // аватары и кнопка, а не название. В первой версии было наоборот, и
@@ -82,11 +96,16 @@ function EventCard({ event }: { event: WeekEvent }) {
       <h4 className="line-clamp-2 shrink-0 text-xs font-semibold leading-4 text-fg">
         {event.title}
       </h4>
-      <p className="shrink-0 font-mono text-2xs text-fg-3">{span}</p>
+      <p className="shrink-0 font-mono text-2xs text-fg-3">
+        {span}
+        {event.people.length > 0 && !showAvatars ? (
+          <span className="sr-only">. Участники: {event.people.join(", ")}</span>
+        ) : null}
+      </p>
 
-      {event.people.length > 0 || event.action ? (
+      {showAvatars || showAction ? (
         <div className="flex min-h-0 flex-1 flex-col justify-end gap-1 overflow-hidden">
-          {event.people.length > 0 ? (
+          {showAvatars ? (
             <p className="flex items-center">
               {/* Кружки — украшение; состав читается вслух из строки ниже.
                   aria-label нельзя вешать на элемент без подходящей роли. */}
@@ -105,7 +124,7 @@ function EventCard({ event }: { event: WeekEvent }) {
             </p>
           ) : null}
 
-          {event.action ? (
+          {showAction ? (
             <button
               type="button"
               className="min-h-7 shrink-0 rounded-[6px] bg-accent px-2 text-2xs font-semibold text-on-accent"
@@ -309,7 +328,10 @@ export function WeekCalendar({
                             height: Math.max(((end - start) / 60) * ROW - 4, 44),
                           }}
                         >
-                          <EventCard event={event} />
+                          <EventCard
+                            event={event}
+                            height={Math.max(((end - start) / 60) * ROW - 4, 44)}
+                          />
                         </div>
                       );
                     })}

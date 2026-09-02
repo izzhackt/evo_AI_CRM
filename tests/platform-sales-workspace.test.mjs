@@ -19,7 +19,7 @@ const leadWorkspaceSource = readFileSync(
   "utf8",
 );
 const workflowActionSource = readFileSync(
-  new URL("../src/lib/server/canonical-sales-workflow-actions.ts", import.meta.url),
+  new URL("../src/lib/platform-sales-actions.ts", import.meta.url),
   "utf8",
 );
 const gateActionSource = readFileSync(
@@ -32,7 +32,7 @@ const handoffActionSource = readFileSync(
 );
 const workflowFormSource = readFileSync(
   new URL(
-    "../src/components/platform/sales/CanonicalSalesWorkflowForm.tsx",
+    "../src/components/platform/sales/PlatformSalesWorkflowForm.tsx",
     import.meta.url,
   ),
   "utf8",
@@ -91,6 +91,8 @@ const activeSalesReadSources = [
   detailRouteSource,
   leadWorkspaceSource,
   leadDetailSource,
+  workflowActionSource,
+  workflowFormSource,
   transcriptRouteSource,
   conversationsSource,
 ].join("\n");
@@ -113,7 +115,7 @@ test("sales has one direct workspace route with server authorization", () => {
   );
 });
 
-test("active Sales read UI has no Drizzle imports or retired write panels", () => {
+test("active Sales UI has no Drizzle imports or retired write panels", () => {
   assert.match(leadDetailSource, /PlatformSalesLeadDetail/);
   assert.match(conversationsSource, /PlatformSalesLinkedConversation/);
   assert.doesNotMatch(activeSalesReadSources, activeDrizzleSalesReadImport);
@@ -143,6 +145,9 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
     /canonical-crm-repository|getCanonicalLeadSnapshot|getCanonicalLeadGateSnapshot|listCanonicalLeadConversations/,
   );
   assert.match(leadWorkspaceSource, /data-testid="canonical-sales-lead-workspace"/);
+  assert.match(leadWorkspaceSource, /listPlatformSalesOwnerOptions\(actor, \{ pageSize: 100 \}\)/);
+  assert.match(leadWorkspaceSource, /<PlatformSalesWorkflowForm/);
+  assert.match(leadWorkspaceSource, /requestId=\{randomUUID\(\)\}/);
   assert.match(leadWorkspaceSource, /CanonicalSalesConversationList/);
   assert.doesNotMatch(
     leadWorkspaceSource,
@@ -219,19 +224,53 @@ test("sales workspace links canonical Supabase UUID records", () => {
   assert.match(workspaceSource, /canonical-records-unavailable/);
 });
 
-test("sales workflow writes only through the canonical PostgreSQL command", () => {
+test("sales workflow writes only through the authenticated Supabase command", () => {
   assert.match(workflowActionSource, /requirePlatformSalesActor\(\)/);
-  assert.match(workflowActionSource, /updateCanonicalSalesLeadWorkflow\(/);
+  assert.match(workflowActionSource, /mutatePlatformSalesLeadWorkflow\(actor, input\)/);
   assert.match(workflowActionSource, /revalidatePath\("\/sales"\)/);
   assert.doesNotMatch(
     `${workflowActionSource}\n${workflowFormSource}`,
-    /supabase|platform-sales-workflow|mutatePlatformSalesLeadWorkflow|fallback/i,
+    /canonical-sales-workflow|updateCanonicalSalesLeadWorkflow|drizzle|fallback/i,
   );
   assert.match(workflowFormSource, /name="expected_version"/);
-  assert.match(workflowFormSource, /name="qualification_summary"/);
-  assert.match(workflowFormSource, /name="next_action"/);
-  assert.match(workflowFormSource, /name="next_action_at"/);
-  assert.match(workflowFormSource, /candidate !== "handed_off"/);
+  assert.match(workflowFormSource, /name="stage_key"/);
+  assert.match(workflowFormSource, /name="current_owner_membership_id"/);
+  assert.match(workflowFormSource, /name="clear_next_action"/);
+  assert.match(workflowFormSource, /name=\{clearNextAction \? undefined : "next_action_text"\}/);
+  assert.match(workflowFormSource, /name=\{clearNextAction \? undefined : "next_action_due_date"\}/);
+  assert.match(workflowFormSource, /name="reason"/);
+  assert.match(workflowFormSource, /PLATFORM_SALES_STAGES\.map/);
+  assert.match(workflowFormSource, /lead\.workflowVersion/);
+  assert.match(workflowFormSource, /result\.requestId/);
+  assert.match(workflowFormSource, /router\.refresh\(\)/);
+});
+
+test("Sales workflow UI exposes one localized, accessible outcome contract", () => {
+  for (const testId of [
+    "platform-sales-workflow-form",
+    "platform-sales-stage",
+    "platform-sales-owner",
+    "platform-sales-next-action-text",
+    "platform-sales-next-action-due-date",
+    "platform-sales-clear-next-action",
+    "platform-sales-reason",
+    "platform-sales-submit",
+    "platform-sales-action-status",
+  ]) {
+    assert.match(workflowFormSource, new RegExp(`data-testid="${testId}"`));
+  }
+  assert.match(workflowFormSource, /aria-live="polite"/);
+  assert.match(workflowFormSource, /required=\{reasonRequired\}/);
+  assert.match(workflowFormSource, /ownerOptionsHaveMore/);
+  assert.equal(
+    workflowFormSource.match(/title: "/g)?.length,
+    3,
+    "the workflow form must provide RU, KY and EN copy",
+  );
+  assert.doesNotMatch(
+    workflowFormSource,
+    /CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalAmoCrmCommandPanel|qualification_summary|handoff_ready|handed_off/,
+  );
 });
 
 test("sales gate and handoff write only through canonical PostgreSQL commands", () => {

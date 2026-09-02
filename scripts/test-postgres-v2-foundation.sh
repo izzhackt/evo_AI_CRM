@@ -35,6 +35,10 @@ canonical_override_lead_id=""
 private_document_case_id=""
 supabase_sales_lead_id="54600000-0000-4000-8000-000000000001"
 supabase_sales_client_id="54600000-0000-4000-8000-000000000002"
+supabase_sales_workflow_lead_id="54600000-0000-4000-8000-000000000003"
+supabase_sales_api_lead_id="54600000-0000-4000-8000-000000000004"
+supabase_sales_conversation_lead_id="54600000-0000-4000-8000-000000000006"
+supabase_sales_conversation_id="54600000-0000-4000-8000-000000000007"
 app_pid=""
 waha_pid=""
 compose_args=()
@@ -253,7 +257,7 @@ if ! SUPABASE_DB_URL="$supabase_database_url" \
   fail "Local Supabase Sales read proof provisioning failed"
 fi
 chmod 600 "$sales_proof_provision_log"
-grep -Fx "LOCAL_SUPABASE_SALES_PROOF ${supabase_sales_lead_id} ${supabase_sales_client_id}" \
+grep -Fx "LOCAL_SUPABASE_SALES_PROOF ${supabase_sales_lead_id} ${supabase_sales_client_id} ${supabase_sales_workflow_lead_id} ${supabase_sales_api_lead_id} ${supabase_sales_conversation_lead_id} ${supabase_sales_conversation_id}" \
   "$sales_proof_provision_log" >/dev/null \
   || fail "Local Supabase Sales read proof did not return its success marker"
 for sensitive_value in "$supabase_database_url" "$staff_sales_email"; do
@@ -643,6 +647,10 @@ supabase_staff_auth_browser_assert() {
     EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
     EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
     EVO_SUPABASE_SALES_PROOF_CLIENT_ID="$supabase_sales_client_id" \
+    EVO_SUPABASE_SALES_WORKFLOW_LEAD_ID="$supabase_sales_workflow_lead_id" \
+    EVO_SUPABASE_SALES_API_LEAD_ID="$supabase_sales_api_lead_id" \
+    EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID="$supabase_sales_conversation_lead_id" \
+    EVO_SUPABASE_SALES_CONVERSATION_ID="$supabase_sales_conversation_id" \
     EVO_SUPABASE_DIRECT_API_URL="$supabase_api_url" \
     EVO_SUPABASE_DIRECT_PUBLISHABLE_KEY="$supabase_publishable_key" \
     "$node_bin" node_modules/@playwright/test/cli.js test \

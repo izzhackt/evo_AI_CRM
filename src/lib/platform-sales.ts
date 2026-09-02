@@ -1,4 +1,15 @@
 import type { PlatformActor } from "./platform-auth";
+import {
+  PLATFORM_SALES_STAGES,
+  type PlatformSalesOwnerOption,
+  type PlatformSalesStage,
+} from "./platform-sales-contract.ts";
+
+export {
+  PLATFORM_SALES_STAGES,
+  type PlatformSalesOwnerOption,
+  type PlatformSalesStage,
+} from "./platform-sales-contract.ts";
 
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform sales data is unavailable.";
@@ -15,15 +26,8 @@ const POSTGRES_BIGINT_MAX = "9223372036854775807";
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 const MAX_DETAIL_PROJECTION_ITEMS = 25;
-
-export const PLATFORM_SALES_STAGES = [
-  "new",
-  "contacting",
-  "qualified",
-  "meeting_scheduled",
-  "meeting_completed",
-  "potential",
-] as const;
+const REQUEST_UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const PLATFORM_SALES_DUE_FILTERS = [
   "all",
@@ -89,8 +93,34 @@ const LINKED_CONVERSATION_KEYS = [
 ] as const;
 
 const LEAD_CONVERSATION_LINK_KEYS = ["linked"] as const;
+const OWNER_OPTION_ROW_KEYS = [
+  "sort_label",
+  "membership_id",
+  "display_label",
+] as const;
+const WORKFLOW_MUTATION_RECEIPT_KEYS = [
+  "request_id",
+  "organization_id",
+  "lead_id",
+  "stage_key",
+  "current_owner_membership_id",
+  "next_action_text",
+  "next_action_due_date",
+  "workflow_version",
+  "changed_at",
+] as const;
+const WORKFLOW_MUTATION_INPUT_KEYS = [
+  "leadId",
+  "expectedWorkflowVersion",
+  "requestId",
+  "stageKey",
+  "ownerMembershipId",
+  "nextActionText",
+  "nextActionDueDate",
+  "clearNextAction",
+  "reason",
+] as const;
 
-export type PlatformSalesStage = (typeof PLATFORM_SALES_STAGES)[number];
 export type PlatformSalesDueFilter =
   (typeof PLATFORM_SALES_DUE_FILTERS)[number];
 export type PlatformSalesConnectionFilter =
@@ -160,6 +190,54 @@ export type PlatformSalesLeadPageOptions = Readonly<{
   query?: string;
 }>;
 
+export type PlatformSalesOwnerCursor = Readonly<{
+  sortLabel: string;
+  membershipId: string;
+}>;
+
+export type PlatformSalesOwnerOptionsPage = Readonly<{
+  rows: readonly PlatformSalesOwnerOption[];
+  nextCursor: PlatformSalesOwnerCursor | null;
+  hasNext: boolean;
+}>;
+
+export type PlatformSalesOwnerOptionsOptions = Readonly<{
+  cursor?: PlatformSalesOwnerCursor | null;
+  pageSize?: number;
+  query?: string;
+}>;
+
+export type PlatformSalesWorkflowMutationInput = Readonly<{
+  leadId: string;
+  expectedWorkflowVersion: string;
+  requestId: string;
+  stageKey: PlatformSalesStage;
+  ownerMembershipId: string | null;
+  nextActionText: string | null;
+  nextActionDueDate: string | null;
+  clearNextAction: boolean;
+  reason: string | null;
+}>;
+
+export type PlatformSalesWorkflowMutationReceipt = Readonly<{
+  requestId: string;
+  organizationId: string;
+  leadId: string;
+  stageKey: PlatformSalesStage;
+  currentOwnerMembershipId: string | null;
+  nextActionText: string | null;
+  nextActionDueDate: string | null;
+  workflowVersion: string;
+  changedAt: string;
+}>;
+
+export type PlatformSalesWorkflowMutationErrorReason =
+  | "invalid"
+  | "forbidden"
+  | "stale"
+  | "request_conflict"
+  | "unavailable";
+
 type RpcResponse = Readonly<{ data: unknown; error: unknown }>;
 
 export type PlatformSalesRpcClient = Readonly<{
@@ -185,6 +263,16 @@ export class PlatformSalesRepositoryError extends Error {
   }
 }
 
+export class PlatformSalesWorkflowMutationError extends Error {
+  readonly reason: PlatformSalesWorkflowMutationErrorReason;
+
+  constructor(reason: PlatformSalesWorkflowMutationErrorReason) {
+    super("Platform sales workflow update failed.");
+    this.name = "PlatformSalesWorkflowMutationError";
+    this.reason = reason;
+  }
+}
+
 function invalidShape(): never {
   throw new PlatformSalesRepositoryError();
 }
@@ -192,6 +280,12 @@ function invalidShape(): never {
 function failClosed(error: unknown): never {
   if (error instanceof PlatformSalesRepositoryError) throw error;
   return invalidShape();
+}
+
+function mutationFailure(
+  reason: PlatformSalesWorkflowMutationErrorReason,
+): never {
+  throw new PlatformSalesWorkflowMutationError(reason);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -384,6 +478,18 @@ function normalizeCursor(
     return invalidShape();
   }
   return parsePlatformSalesCursor(value.updatedAt, value.id) ?? invalidShape();
+}
+
+function normalizeOwnerCursor(
+  value: PlatformSalesOwnerCursor | null | undefined,
+): PlatformSalesOwnerCursor | null {
+  if (value === null || value === undefined) return null;
+  if (!isRecord(value) || !hasExactKeys(value, ["sortLabel", "membershipId"])) {
+    return invalidShape();
+  }
+  const sortLabel = requiredText(value.sortLabel, 500).toLowerCase();
+  const membershipId = requiredUuid(value.membershipId);
+  return Object.freeze({ sortLabel, membershipId });
 }
 
 function requireActorOrganization(actor: PlatformActor): string {
@@ -614,6 +720,69 @@ export async function listPlatformSalesLeads(
   }
 }
 
+export async function listPlatformSalesOwnerOptions(
+  actor: PlatformActor,
+  options: PlatformSalesOwnerOptionsOptions = {},
+  dependencies: PlatformSalesRepositoryDependencies = {},
+): Promise<PlatformSalesOwnerOptionsPage> {
+  try {
+    requireActorOrganization(actor);
+    const pageSize = normalizePageSize(options.pageSize);
+    const cursor = normalizeOwnerCursor(options.cursor);
+    const query = normalizeQuery(options.query);
+    const client = dependencies.client ?? await getPlatformClient();
+    const response = await client.schema("platform").rpc(
+      "staff_sales_owner_options",
+      {
+        p_limit: pageSize + 1,
+        ...(cursor
+          ? {
+              p_cursor_label: cursor.sortLabel,
+              p_cursor_id: cursor.membershipId,
+            }
+          : {}),
+        ...(query ? { p_query: query } : {}),
+      },
+      { get: true },
+    );
+    if (
+      response.error ||
+      !Array.isArray(response.data) ||
+      response.data.length > pageSize + 1
+    ) {
+      return invalidShape();
+    }
+
+    const seenMembershipIds = new Set<string>();
+    const normalized = response.data.map((value) => {
+      const raw = requireExactRecord(value, OWNER_OPTION_ROW_KEYS);
+      const membershipId = requiredUuid(raw.membership_id);
+      const displayLabel = requiredText(raw.display_label, 500);
+      const sortLabel = requiredText(raw.sort_label, 500);
+      if (
+        sortLabel !== displayLabel.toLowerCase() ||
+        seenMembershipIds.has(membershipId)
+      ) {
+        return invalidShape();
+      }
+      seenMembershipIds.add(membershipId);
+      return Object.freeze({
+        row: Object.freeze({ membershipId, displayLabel }),
+        cursor: Object.freeze({ sortLabel, membershipId }),
+      });
+    });
+    const hasNext = normalized.length > pageSize;
+    const page = normalized.slice(0, pageSize);
+    return Object.freeze({
+      rows: Object.freeze(page.map((entry) => entry.row)),
+      nextCursor: hasNext ? page.at(-1)?.cursor ?? null : null,
+      hasNext,
+    });
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
 export async function getPlatformSalesLead(
   actor: PlatformActor,
   leadId: string,
@@ -690,5 +859,184 @@ export async function isPlatformLeadConversationLinked(
     return requiredBoolean(row.linked);
   } catch (error) {
     return failClosed(error);
+  }
+}
+
+function normalizeMutationText(
+  value: unknown,
+  maximumLength: number,
+): string | null {
+  if (value === null) return null;
+  if (typeof value !== "string") return mutationFailure("invalid");
+  const normalized = value.trim();
+  if (
+    normalized.length < 1 ||
+    normalized.length > maximumLength ||
+    CONTROL_CHARACTER_PATTERN.test(normalized)
+  ) {
+    return mutationFailure("invalid");
+  }
+  return normalized;
+}
+
+function normalizeWorkflowMutationInput(
+  value: PlatformSalesWorkflowMutationInput,
+): PlatformSalesWorkflowMutationInput {
+  if (!isRecord(value) || !hasExactKeys(value, WORKFLOW_MUTATION_INPUT_KEYS)) {
+    return mutationFailure("invalid");
+  }
+  const leadId = parsePlatformSalesUuid(value.leadId) ?? mutationFailure("invalid");
+  const expectedWorkflowVersion = parsePostgresBigint(
+    value.expectedWorkflowVersion,
+    false,
+  ) ?? mutationFailure("invalid");
+  const requestId =
+    typeof value.requestId === "string" && REQUEST_UUID_PATTERN.test(value.requestId)
+      ? value.requestId.toLowerCase()
+      : mutationFailure("invalid");
+  const stageKey = parsePlatformSalesStage(value.stageKey) ??
+    mutationFailure("invalid");
+  const ownerMembershipId = value.ownerMembershipId === null
+    ? null
+    : parsePlatformSalesUuid(value.ownerMembershipId) ?? mutationFailure("invalid");
+  const nextActionText = normalizeMutationText(value.nextActionText, 500);
+  const nextActionDueDate = value.nextActionDueDate === null
+    ? null
+    : parseDate(value.nextActionDueDate) ?? mutationFailure("invalid");
+  if (typeof value.clearNextAction !== "boolean") {
+    return mutationFailure("invalid");
+  }
+  const reason = normalizeMutationText(value.reason, 500);
+  if (
+    (value.clearNextAction &&
+      (nextActionText !== null || nextActionDueDate !== null)) ||
+    (!value.clearNextAction &&
+      (nextActionText === null || nextActionDueDate === null))
+  ) {
+    return mutationFailure("invalid");
+  }
+  return Object.freeze({
+    leadId,
+    expectedWorkflowVersion,
+    requestId,
+    stageKey,
+    ownerMembershipId,
+    nextActionText,
+    nextActionDueDate,
+    clearNextAction: value.clearNextAction,
+    reason,
+  });
+}
+
+function mutationErrorFromRpc(
+  error: unknown,
+): PlatformSalesWorkflowMutationError {
+  if (!isRecord(error)) {
+    return new PlatformSalesWorkflowMutationError("unavailable");
+  }
+  const code = typeof error.code === "string" ? error.code : null;
+  const message = typeof error.message === "string" ? error.message.trim() : null;
+  const reason: PlatformSalesWorkflowMutationErrorReason =
+    code === "42501" && message === "workflow_not_found_or_forbidden"
+      ? "forbidden"
+      : code === "PT409" && message === "workflow_version_conflict"
+        ? "stale"
+        : code === "23505" && message === "request_id_conflict"
+          ? "request_conflict"
+          : (
+              (code === "22000" && message === "workflow_no_change") ||
+              (code === "22023" &&
+                [
+                  "workflow_invalid_stage",
+                  "workflow_invalid_next_action",
+                  "workflow_invalid_owner",
+                  "workflow_reason_required",
+                ].includes(message ?? ""))
+            )
+            ? "invalid"
+            : "unavailable";
+  return new PlatformSalesWorkflowMutationError(reason);
+}
+
+function normalizeWorkflowMutationReceipt(
+  value: unknown,
+  actorOrganizationId: string,
+  input: PlatformSalesWorkflowMutationInput,
+): PlatformSalesWorkflowMutationReceipt {
+  const raw = requireExactRecord(value, WORKFLOW_MUTATION_RECEIPT_KEYS);
+  const requestId = requiredUuid(raw.request_id);
+  const organizationId = requiredUuid(raw.organization_id);
+  const leadId = requiredUuid(raw.lead_id);
+  const stageKey = parsePlatformSalesStage(raw.stage_key) ?? invalidShape();
+  const currentOwnerMembershipId = optionalUuid(raw.current_owner_membership_id);
+  const nextActionText = optionalText(raw.next_action_text, 500);
+  const nextActionDueDate = optionalDate(raw.next_action_due_date);
+  const workflowVersion = positiveBigint(raw.workflow_version);
+  const changedAt = requiredTimestamp(raw.changed_at);
+  if (
+    requestId !== input.requestId ||
+    organizationId !== actorOrganizationId ||
+    leadId !== input.leadId ||
+    stageKey !== input.stageKey ||
+    currentOwnerMembershipId !== input.ownerMembershipId ||
+    nextActionText !== input.nextActionText ||
+    nextActionDueDate !== input.nextActionDueDate ||
+    BigInt(workflowVersion) !== BigInt(input.expectedWorkflowVersion) + BigInt(1)
+  ) {
+    return invalidShape();
+  }
+  return Object.freeze({
+    requestId,
+    organizationId,
+    leadId,
+    stageKey,
+    currentOwnerMembershipId,
+    nextActionText,
+    nextActionDueDate,
+    workflowVersion,
+    changedAt,
+  });
+}
+
+export async function mutatePlatformSalesLeadWorkflow(
+  actor: PlatformActor,
+  input: PlatformSalesWorkflowMutationInput,
+  dependencies: PlatformSalesRepositoryDependencies = {},
+): Promise<PlatformSalesWorkflowMutationReceipt> {
+  let normalizedInput: PlatformSalesWorkflowMutationInput;
+  let organizationId: string;
+  try {
+    organizationId = requireActorOrganization(actor);
+    normalizedInput = normalizeWorkflowMutationInput(input);
+  } catch (error) {
+    if (error instanceof PlatformSalesWorkflowMutationError) throw error;
+    throw new PlatformSalesWorkflowMutationError("unavailable");
+  }
+
+  try {
+    const client = dependencies.client ?? await getPlatformClient();
+    const response = await client.schema("platform").rpc(
+      "mutate_sales_lead_workflow",
+      {
+        p_lead_id: normalizedInput.leadId,
+        p_expected_workflow_version: normalizedInput.expectedWorkflowVersion,
+        p_request_id: normalizedInput.requestId,
+        p_stage_key: normalizedInput.stageKey,
+        p_owner_membership_id: normalizedInput.ownerMembershipId,
+        p_next_action_text: normalizedInput.nextActionText,
+        p_next_action_due_date: normalizedInput.nextActionDueDate,
+        p_clear_next_action: normalizedInput.clearNextAction,
+        p_reason: normalizedInput.reason,
+      },
+    );
+    if (response.error) throw mutationErrorFromRpc(response.error);
+    return normalizeWorkflowMutationReceipt(
+      response.data,
+      organizationId,
+      normalizedInput,
+    );
+  } catch (error) {
+    if (error instanceof PlatformSalesWorkflowMutationError) throw error;
+    throw new PlatformSalesWorkflowMutationError("unavailable");
   }
 }

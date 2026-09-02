@@ -5,9 +5,12 @@ import {
   PLATFORM_SALES_DUE_FILTERS,
   PLATFORM_SALES_STAGES,
   PlatformSalesRepositoryError,
+  PlatformSalesWorkflowMutationError,
   getPlatformSalesLead,
   isPlatformLeadConversationLinked,
+  listPlatformSalesOwnerOptions,
   listPlatformSalesLeads,
+  mutatePlatformSalesLeadWorkflow,
   parsePlatformSalesCursor,
   parsePlatformSalesDueFilter,
   parsePlatformSalesStage,
@@ -24,6 +27,8 @@ const SECOND_LEAD_ID = "20000000-0000-4000-8000-000000000002";
 const THIRD_LEAD_ID = "20000000-0000-4000-8000-000000000003";
 const CLIENT_ID = "30000000-0000-4000-8000-000000000001";
 const CONVERSATION_ID = "40000000-0000-4000-8000-000000000001";
+const SECOND_MEMBERSHIP_ID = "10000000-0000-4000-8000-000000000006";
+const REQUEST_ID = "50000000-0000-4000-8000-000000000001";
 const UPDATED_AT = "2026-09-02T12:34:56.123456+00:00";
 
 const actor = Object.freeze({
@@ -448,4 +453,236 @@ test("Sales read input validation stops before an RPC call", async () => {
     PlatformSalesRepositoryError,
   );
   assert.equal(recorded.calls.length, 0);
+});
+
+test("listPlatformSalesOwnerOptions uses the bounded cookie RPC and validates its cursor", async () => {
+  const recorded = staticClient([
+    {
+      sort_label: "sales user",
+      membership_id: MEMBERSHIP_ID,
+      display_label: "Sales User",
+    },
+    {
+      sort_label: "second sales",
+      membership_id: SECOND_MEMBERSHIP_ID,
+      display_label: "Second Sales",
+    },
+  ]);
+
+  const page = await listPlatformSalesOwnerOptions(
+    actor,
+    { pageSize: 1, query: "sales" },
+    { client: recorded.client },
+  );
+  assert.deepEqual(page, {
+    rows: [{ membershipId: MEMBERSHIP_ID, displayLabel: "Sales User" }],
+    nextCursor: { sortLabel: "sales user", membershipId: MEMBERSHIP_ID },
+    hasNext: true,
+  });
+  assert.deepEqual(recorded.calls, [
+    { kind: "schema", schema: "platform" },
+    {
+      kind: "rpc",
+      functionName: "staff_sales_owner_options",
+      args: { p_limit: 2, p_query: "sales" },
+      options: { get: true },
+    },
+  ]);
+
+  const cursorClient = staticClient([]);
+  await listPlatformSalesOwnerOptions(
+    actor,
+    {
+      cursor: { sortLabel: "Sales User", membershipId: MEMBERSHIP_ID },
+      pageSize: 100,
+    },
+    { client: cursorClient.client },
+  );
+  assert.deepEqual(cursorClient.calls[1].args, {
+    p_limit: 101,
+    p_cursor_label: "sales user",
+    p_cursor_id: MEMBERSHIP_ID,
+  });
+});
+
+test("owner-option validation rejects malformed or duplicate provider data", async () => {
+  const malformedResponses = [
+    [{ sort_label: "sales user", membership_id: MEMBERSHIP_ID }],
+    [{
+      sort_label: "wrong sort",
+      membership_id: MEMBERSHIP_ID,
+      display_label: "Sales User",
+    }],
+    [
+      {
+        sort_label: "sales user",
+        membership_id: MEMBERSHIP_ID,
+        display_label: "Sales User",
+      },
+      {
+        sort_label: "sales user",
+        membership_id: MEMBERSHIP_ID,
+        display_label: "Sales User",
+      },
+    ],
+  ];
+  for (const data of malformedResponses) {
+    await assert.rejects(
+      listPlatformSalesOwnerOptions(actor, {}, { client: staticClient(data).client }),
+      PlatformSalesRepositoryError,
+    );
+  }
+
+  const neverCalled = staticClient([]);
+  for (const options of [
+    { pageSize: 0 },
+    { pageSize: 101 },
+    { query: "x".repeat(201) },
+    { cursor: { sortLabel: " ", membershipId: MEMBERSHIP_ID } },
+    { cursor: { sortLabel: "sales user", membershipId: "not-a-uuid" } },
+  ]) {
+    await assert.rejects(
+      listPlatformSalesOwnerOptions(actor, options, { client: neverCalled.client }),
+      PlatformSalesRepositoryError,
+    );
+  }
+  assert.equal(neverCalled.calls.length, 0);
+});
+
+function validWorkflowMutation(overrides = {}) {
+  return {
+    leadId: LEAD_ID,
+    expectedWorkflowVersion: "7",
+    requestId: REQUEST_ID,
+    stageKey: "qualified",
+    ownerMembershipId: MEMBERSHIP_ID,
+    nextActionText: "Send contract checklist",
+    nextActionDueDate: "2026-09-04",
+    clearNextAction: false,
+    reason: null,
+    ...overrides,
+  };
+}
+
+function validWorkflowReceipt(overrides = {}) {
+  return {
+    request_id: REQUEST_ID,
+    organization_id: ORGANIZATION_ID,
+    lead_id: LEAD_ID,
+    stage_key: "qualified",
+    current_owner_membership_id: MEMBERSHIP_ID,
+    next_action_text: "Send contract checklist",
+    next_action_due_date: "2026-09-04",
+    workflow_version: "8",
+    changed_at: UPDATED_AT,
+    ...overrides,
+  };
+}
+
+test("mutatePlatformSalesLeadWorkflow sends one JWT-bound idempotent RPC and verifies its receipt", async () => {
+  const recorded = staticClient(validWorkflowReceipt());
+  const receipt = await mutatePlatformSalesLeadWorkflow(
+    actor,
+    validWorkflowMutation(),
+    { client: recorded.client },
+  );
+  assert.deepEqual(receipt, {
+    requestId: REQUEST_ID,
+    organizationId: ORGANIZATION_ID,
+    leadId: LEAD_ID,
+    stageKey: "qualified",
+    currentOwnerMembershipId: MEMBERSHIP_ID,
+    nextActionText: "Send contract checklist",
+    nextActionDueDate: "2026-09-04",
+    workflowVersion: "8",
+    changedAt: UPDATED_AT,
+  });
+  assert.deepEqual(recorded.calls, [
+    { kind: "schema", schema: "platform" },
+    {
+      kind: "rpc",
+      functionName: "mutate_sales_lead_workflow",
+      args: {
+        p_lead_id: LEAD_ID,
+        p_expected_workflow_version: "7",
+        p_request_id: REQUEST_ID,
+        p_stage_key: "qualified",
+        p_owner_membership_id: MEMBERSHIP_ID,
+        p_next_action_text: "Send contract checklist",
+        p_next_action_due_date: "2026-09-04",
+        p_clear_next_action: false,
+        p_reason: null,
+      },
+      options: undefined,
+    },
+  ]);
+});
+
+test("workflow mutation input validation fails before touching Supabase", async () => {
+  const recorded = staticClient(validWorkflowReceipt());
+  const invalidInputs = [
+    validWorkflowMutation({ leadId: "not-a-uuid" }),
+    validWorkflowMutation({ expectedWorkflowVersion: "0" }),
+    validWorkflowMutation({
+      requestId: "50000000-0000-1000-8000-000000000001",
+    }),
+    validWorkflowMutation({ stageKey: "handoff_ready" }),
+    validWorkflowMutation({ ownerMembershipId: "not-a-uuid" }),
+    validWorkflowMutation({ nextActionText: null }),
+    validWorkflowMutation({ nextActionDueDate: "2026-02-30" }),
+    validWorkflowMutation({ clearNextAction: true }),
+    validWorkflowMutation({ reason: "x".repeat(501) }),
+    validWorkflowMutation({ unexpected: true }),
+  ];
+  for (const input of invalidInputs) {
+    await assert.rejects(
+      mutatePlatformSalesLeadWorkflow(actor, input, { client: recorded.client }),
+      (error) =>
+        error instanceof PlatformSalesWorkflowMutationError &&
+        error.reason === "invalid",
+    );
+  }
+  assert.equal(recorded.calls.length, 0);
+});
+
+test("workflow mutation maps only reviewed SQL failures and fails closed otherwise", async () => {
+  const cases = [
+    ["42501", "workflow_not_found_or_forbidden", "forbidden"],
+    ["PT409", "workflow_version_conflict", "stale"],
+    ["23505", "request_id_conflict", "request_conflict"],
+    ["22000", "workflow_no_change", "invalid"],
+    ["22023", "workflow_invalid_owner", "invalid"],
+    ["42501", "some_other_denial", "unavailable"],
+    ["08006", "connection_failure", "unavailable"],
+  ];
+  for (const [code, message, reason] of cases) {
+    const client = staticClient(null, { code, message });
+    await assert.rejects(
+      mutatePlatformSalesLeadWorkflow(actor, validWorkflowMutation(), {
+        client: client.client,
+      }),
+      (error) =>
+        error instanceof PlatformSalesWorkflowMutationError &&
+        error.reason === reason,
+    );
+  }
+});
+
+test("workflow mutation rejects an unverified or mismatched receipt", async () => {
+  for (const receipt of [
+    validWorkflowReceipt({ workflow_version: "9" }),
+    validWorkflowReceipt({ organization_id: SECOND_LEAD_ID }),
+    validWorkflowReceipt({ request_id: "50000000-0000-4000-8000-000000000002" }),
+    validWorkflowReceipt({ next_action_text: "A different action" }),
+    { ...validWorkflowReceipt(), extra: true },
+  ]) {
+    await assert.rejects(
+      mutatePlatformSalesLeadWorkflow(actor, validWorkflowMutation(), {
+        client: staticClient(receipt).client,
+      }),
+      (error) =>
+        error instanceof PlatformSalesWorkflowMutationError &&
+        error.reason === "unavailable",
+    );
+  }
 });

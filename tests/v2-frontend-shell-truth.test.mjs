@@ -35,17 +35,20 @@ test("each active V2 staff route exposes descriptive metadata", () => {
   assert.match(rootLayout, /template: "%s \| EVO Admissions CRM"/);
 });
 
-test("active shell copy describes PostgreSQL V2 without stale delivery slices", () => {
-  const activeCopy = [
-    source("src/app/(staff)/sales/SalesWorkspace.tsx"),
+test("active shell copy names each current authority without stale delivery slices", () => {
+  const salesCopy = source("src/app/(staff)/sales/SalesWorkspace.tsx");
+  const notYetReplacedCopy = [
     source("src/components/platform/communications/CanonicalStaffWhatsApp.tsx"),
     source("src/components/platform/core/CanonicalRecordsPresentation.tsx"),
   ].join("\n");
+  const activeCopy = `${salesCopy}\n${notYetReplacedCopy}`;
 
-  assert.match(activeCopy, /PostgreSQL V2/);
+  assert.match(salesCopy, /Supabase Platform/);
+  assert.doesNotMatch(salesCopy, /PostgreSQL V2/);
+  assert.match(notYetReplacedCopy, /PostgreSQL V2/);
   assert.doesNotMatch(
     activeCopy,
-    /Supabase|\bU2\b|Этот PR|This PR|intake-композит|intake composite|fallback/i,
+    /\bU2\b|Этот PR|This PR|intake-композит|intake composite|fallback/i,
   );
 });
 
@@ -215,9 +218,6 @@ test("the locale switcher never drags a legacy action module into a live route",
 
 test("cross-role case links are only rendered for a role the server allows", () => {
   const queue = source("src/app/(staff)/clients/StudentQueue.tsx");
-  const handoff = source(
-    "src/components/platform/sales/CanonicalSalesHandoffCard.tsx",
-  );
 
   assert.match(queue, /import \{\s*fixedRoleCanAccessRoute,/);
   assert.match(queue, /const canOpenLead = fixedRoleCanAccessRoute\(actorRole, "\/sales"\)/);
@@ -234,47 +234,15 @@ test("cross-role case links are only rendered for a role the server allows", () 
     "the denied role must get plain text, not a link",
   );
   assert.match(queue, /actorRole=\{actor\.presentationRole\}/);
+});
 
-  // The role check must happen on the server: this card is a client component,
-  // and a value import of the policy module pulls node:crypto into the browser
-  // graph through the Supabase staff authority.
-  assert.match(handoff, /^"use client";/);
-  assert.match(handoff, /import type \{ FixedRole \} from "@\/lib\/fixed-role-policy";/);
-  assert.ok(
-    !/import \{[^}]*fixedRoleCanAccessRoute/.test(handoff),
-    "the client handoff card must not value-import the fixed-role policy",
-  );
-  assert.match(handoff, /canOpenAdmissionsCase: boolean;/);
-  // Bind the link to the TRUE branch: swapping the branches would hand the
-  // denied route to exactly the role that cannot open it, which is the bug.
-  assert.match(
-    handoff,
-    /canOpenAdmissionsCase \? \(\s*<Link\s+href=\{`\/clients\/\$\{completedCaseId\}`\}/,
-    "the Admissions case link must render only when the role may open /clients",
-  );
-  assert.match(
-    handoff,
-    /\) : \(\s*<p[\s\S]{0,200}?data-testid="canonical-admissions-case-reference"/,
-    "the denied role must get the plain case reference, not a link",
-  );
-
+test("the active Sales detail does not reactivate the deferred Drizzle controls", () => {
   const workspace = source("src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx");
-  assert.match(
-    workspace,
-    /canOpenAdmissionsCase=\{fixedRoleCanAccessRoute\(\s*actor\.presentationRole,\s*"\/clients",\s*\)\}/,
-    "the server component must compute the role check",
-  );
 
-  for (const locale of ["ru", "ky", "en"]) {
-    assert.ok(
-      handoff.includes("caseRecorded:"),
-      `${locale} handoff fallback copy must exist`,
-    );
-  }
-  assert.equal(
-    handoff.match(/caseRecorded:/g)?.length,
-    3,
-    "the handoff fallback copy must cover ru, ky and en",
+  assert.match(workspace, /PlatformSalesWorkflowForm/);
+  assert.doesNotMatch(
+    workspace,
+    /CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalAmoCrmCommandPanel|fixedRoleCanAccessRoute/,
   );
 });
 

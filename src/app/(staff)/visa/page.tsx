@@ -109,7 +109,7 @@ export default async function VisaPage({
     );
   }
   const page = await listCanonicalVisaMilestones({
-    actorRole: actor.platformRole,
+    actorRole: actor.authorityRole,
     cursor: cursor ?? undefined,
     pageSize: 50,
   });

@@ -22,7 +22,7 @@ function actorToSessionUser(actor: ActivePlatformActor): SessionUser {
     authUserId: actor.authUserId,
     email: actor.email,
     name: actor.displayName,
-    role: actor.platformRole,
+    role: actor.presentationRole,
     authorityRole: actor.authorityRole,
   };
 }

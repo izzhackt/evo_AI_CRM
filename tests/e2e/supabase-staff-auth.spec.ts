@@ -197,6 +197,18 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expectDirectRouteAllowed(page, "/settings");
   await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
 
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/platform-pending\?from=%2Fdashboard$/);
+  await expect(page.getByTestId("platform-pending")).toBeVisible();
+  await expect(page.getByTestId("pending-role")).toHaveAttribute(
+    "data-role",
+    "sales",
+  );
+  await expect(page.getByTestId("pending-role")).toHaveAttribute(
+    "data-authority-role",
+    "admin",
+  );
+
   await page.goto("/");
   await page.getByTestId("preview-role-admissions").click();
   await expectActiveRole(page, "admissions", "admin");

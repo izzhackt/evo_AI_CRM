@@ -95,7 +95,7 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
   );
   assert.match(
     leadWorkspaceSource,
-    /getCanonicalLeadSnapshot\(\{\s*actorRole: actor\.platformRole,\s*leadId: id,?\s*\}\)/,
+    /getCanonicalLeadSnapshot\(\{\s*actorRole: actor\.authorityRole,\s*leadId: id,?\s*\}\)/,
   );
   assert.doesNotMatch(
     leadWorkspaceSource,
@@ -212,7 +212,7 @@ test("clients detail is the minimal canonical post-handoff view", () => {
   );
   assert.match(
     clientsDetailWorkspaceSource,
-    /getCanonicalStudentCaseSnapshot\(\{\s*actorRole: actor\.platformRole,\s*studentCaseId: id,?\s*\}\)/,
+    /getCanonicalStudentCaseSnapshot\(\{\s*actorRole: actor\.authorityRole,\s*studentCaseId: id,?\s*\}\)/,
   );
   assert.match(clientsDetailWorkspaceSource, /data-testid="canonical-student-case-workspace"/);
   assert.match(clientsDetailWorkspaceSource, /data-testid="canonical-student-case-handoff"/);

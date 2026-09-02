@@ -79,7 +79,7 @@ export default async function DocumentsPage() {
     requirePlatformDocumentsActor(),
   ]);
   const documents = await listPrivateDocuments({
-    actorRole: actor.platformRole,
+    actorRole: actor.authorityRole,
   });
   const copy = COPY[locale];
 

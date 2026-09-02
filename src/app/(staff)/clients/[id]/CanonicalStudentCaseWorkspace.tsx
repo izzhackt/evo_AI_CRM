@@ -172,24 +172,24 @@ export async function CanonicalStudentCaseWorkspace({
   try {
     [studentCase, handoff, tasksPage, operations, documents] = await Promise.all([
       getCanonicalStudentCaseSnapshot({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         studentCaseId: id,
       }),
       getCanonicalStudentCaseHandoffSnapshot({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         studentCaseId: id,
       }),
       listCanonicalAdmissionsTasks({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         studentCaseId: id,
         pageSize: 50,
       }),
       getCanonicalAdmissionsOperationsSnapshot({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         studentCaseId: id,
       }),
       listPrivateDocumentsForCase({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         caseId: id,
       }),
     ]);
@@ -209,7 +209,7 @@ export async function CanonicalStudentCaseWorkspace({
       ? null
       : await readBlockingCanonicalAmoCrmCommand({
           authorization: {
-            actorRole: actor.platformRole,
+            actorRole: actor.authorityRole,
             workflowScope: "admissions_post_handoff",
             workflowLeadId: studentCase.leadId,
             studentCaseId: studentCase.studentCaseId,
@@ -448,7 +448,7 @@ export async function CanonicalStudentCaseWorkspace({
       <div id="case-operations" className="scroll-mt-24">
         <CanonicalAdmissionsOperationsPanel
           locale={locale}
-          actorRole={actor.platformRole}
+          actorRole={actor.presentationRole}
           studentCaseId={id}
           studentCaseStatus={operations.studentCase.status}
           applications={operations.applications}

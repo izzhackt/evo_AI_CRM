@@ -233,7 +233,7 @@ test("cross-role case links are only rendered for a role the server allows", () 
     /\) : \(\s*<CanonicalUuid value=\{studentCase\.leadId\} \/>\s*\)\}/,
     "the denied role must get plain text, not a link",
   );
-  assert.match(queue, /actorRole=\{actor\.platformRole\}/);
+  assert.match(queue, /actorRole=\{actor\.presentationRole\}/);
 
   // The role check must happen on the server: this card is a client component,
   // and a value import of the policy module pulls node:crypto into the browser
@@ -261,7 +261,7 @@ test("cross-role case links are only rendered for a role the server allows", () 
   const workspace = source("src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx");
   assert.match(
     workspace,
-    /canOpenAdmissionsCase=\{fixedRoleCanAccessRoute\(\s*actor\.platformRole,\s*"\/clients",\s*\)\}/,
+    /canOpenAdmissionsCase=\{fixedRoleCanAccessRoute\(\s*actor\.presentationRole,\s*"\/clients",\s*\)\}/,
     "the server component must compute the role check",
   );
 

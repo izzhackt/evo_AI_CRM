@@ -41,7 +41,7 @@ export default async function WhatsAppPage({
   let page;
   try {
     page = await listCanonicalStaffConversations({
-      actorRole: actor.platformRole,
+      actorRole: actor.authorityRole,
       cursor: cursor ?? undefined,
       pageSize: 50,
     });
@@ -58,7 +58,7 @@ export default async function WhatsAppPage({
   return (
     <CanonicalStaffWhatsAppWorkspace
       locale={locale}
-      actorRole={actor.platformRole}
+      actorRole={actor.presentationRole}
       conversations={page.rows}
       queueCursor={cursor}
       queueResetHref={cursor ? "/whatsapp" : null}

@@ -87,7 +87,7 @@ export default async function FinancePage({
     );
   }
   const page = await listCanonicalFinanceStops({
-    actorRole: actor.platformRole,
+    actorRole: actor.authorityRole,
     cursor: cursor ?? undefined,
     pageSize: 50,
   });

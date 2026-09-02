@@ -173,6 +173,9 @@ test("the runtime uses Supabase SSR cookies and keeps Admin preview presentation
   assert.match(platformAuth, /presentationRole/);
   assert.match(guards, /fixedRoleCan\(actor\.authorityRole, capability\)/);
   assert.doesNotMatch(guards, /fixedRoleCan\(actor\.platformRole, capability\)/);
+  assert.match(auth, /role: actor\.presentationRole/);
+  assert.match(auth, /authorityRole: actor\.authorityRole/);
+  assert.doesNotMatch(auth, /role: actor\.platformRole/);
   assert.match(auth, /user\.authorityRole !== "admin"/);
   assert.doesNotMatch(envExample, /EVO_DEV_GATE_/);
   assert.match(entry, /Сессия сотрудника подтверждена через Supabase Auth/);

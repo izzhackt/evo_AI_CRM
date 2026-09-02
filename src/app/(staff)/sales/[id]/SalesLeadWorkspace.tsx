@@ -33,15 +33,15 @@ export async function SalesLeadWorkspace({ id }: Readonly<{ id: string }>) {
   try {
     [lead, gate, conversations] = await Promise.all([
       getCanonicalLeadSnapshot({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         leadId: id,
       }),
       getCanonicalLeadGateSnapshot({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         leadId: id,
       }),
       listCanonicalLeadConversations({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         leadId: id,
       }),
     ]);
@@ -59,7 +59,7 @@ export async function SalesLeadWorkspace({ id }: Readonly<{ id: string }>) {
       ? null
       : await readBlockingCanonicalAmoCrmCommand({
           authorization: {
-            actorRole: actor.platformRole,
+            actorRole: actor.authorityRole,
             workflowScope: "sales_pre_handoff",
             workflowLeadId: lead.leadId,
             studentCaseId: null,
@@ -109,9 +109,9 @@ export async function SalesLeadWorkspace({ id }: Readonly<{ id: string }>) {
         }}
       />
       <CanonicalSalesHandoffCard
-        actorRole={actor.platformRole}
+        actorRole={actor.presentationRole}
         canOpenAdmissionsCase={fixedRoleCanAccessRoute(
-          actor.platformRole,
+          actor.presentationRole,
           "/clients",
         )}
         expectedVersion={lead.version}

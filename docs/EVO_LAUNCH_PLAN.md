@@ -177,8 +177,9 @@ already qualified Sales lead through contract and first-payment evidence to one
 accountable Sales-to-Admissions handoff. The active `/clients/[id]` route still
 renders `CanonicalStudentCaseWorkspace`, which reads the old repository-backed
 student case, handoff, task, operations, document and amoCRM surfaces. At the
-same time, the managed-Supabase foundation already contains the canonical
-gate, handoff, contract and profile RPCs required for the replacement:
+same time, root Supabase migration history already contains the canonical
+gate, handoff, contract and profile RPCs required for the local/rehearsal
+replacement:
 `platform.staff_student_profile_snapshot(UUID)`,
 `platform.staff_case_contract_workspace(UUID, UUID)`,
 `platform.staff_lead_admissions_gate(UUID)`,
@@ -222,17 +223,18 @@ runtime path:
    they may not fall back to the old repository path.
 
 #547 must not silently absorb later-owned surfaces. `#548` continues to own the
-Admissions operations/tasks panels and the replacement of application-local
-private document bytes with Supabase Storage. `#549` continues to own the live
-amoCRM command panel and the provider tracer. The temporary, named coexistence
-is limited to the still-unreplaced `AdmissionsCaseOperationsSection` and
-`AmoCrmCaseCommandSection` server components inside `/clients/[id]`. The former
-may call only the existing Admissions task/operations and local-document
-modules until #548 replaces and deletes it; the latter may call only the
-existing amoCRM command modules until #549 replaces and deletes it. They are
-section-isolated unreplaced capabilities, not alternate Student 360 summary,
-gate, handoff or contract paths. No other repository-backed wrapper or stub may
-remain on the route.
+existing `CanonicalAdmissionsTaskPanel`,
+`CanonicalPrivateDocumentsPanel` and `CanonicalAdmissionsOperationsPanel`
+surfaces plus the replacement of application-local private document bytes with
+Supabase Storage. `#549` continues to own the existing
+`CanonicalAmoCrmCommandPanel` surface and the provider tracer. The temporary,
+named coexistence is limited to those still-unreplaced direct panels inside
+`/clients/[id]`. The #548 panels may call only the existing Admissions
+task/operations and local-document modules until #548 replaces and deletes
+them; the #549 panel may call only the existing amoCRM command modules until
+#549 replaces and deletes it. They are section-isolated unreplaced
+capabilities, not alternate Student 360 summary, gate, handoff or contract
+paths. No other repository-backed wrapper or stub may remain on the route.
 
 The temporary fixture-only coexistence from #546 narrows here. #547 must remove
 all gate/handoff preparation callers that still depend on

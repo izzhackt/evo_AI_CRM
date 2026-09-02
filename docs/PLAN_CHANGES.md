@@ -15196,7 +15196,7 @@ managed-project, production, provider or customer-data mutation.
 Affected plan section: P3 Student 360, contract/payment and handoff tracer.
 
 The owner confirmed that Supabase and other useful ready-made V1 capabilities
-must remain. Repository inspection shows that immutable migrations 087-088
+must remain. Repository inspection shows that root immutable migrations 087-088
 already provide the contract/first-payment gate, sensitive permissions,
 authenticated read RPCs, idempotent mutation receipts, transaction locks, one
 canonical case per lead, accountable Admissions ownership, immutable handoff
@@ -15212,11 +15212,12 @@ against local Supabase/PostgreSQL; and the old gate/handoff UI/actions plus the
 repository-backed Student 360 summary/handoff shell and #547 fixture callers
 are deleted before merge. Failure is explicit and never falls back.
 
-#548 still owns Admissions tasks/operations and private Supabase Storage;
-#549 still owns amoCRM/provider commands. To avoid either a regression or a
-compatibility wrapper, those unreplaced capabilities may remain only inside
-the named `AdmissionsCaseOperationsSection` and `AmoCrmCaseCommandSection`
-server components. They cannot read or render an alternate Student 360
+#548 still owns `CanonicalAdmissionsTaskPanel`,
+`CanonicalPrivateDocumentsPanel`, `CanonicalAdmissionsOperationsPanel` and
+private Supabase Storage; #549 still owns `CanonicalAmoCrmCommandPanel` and
+provider commands. To avoid either a regression or a compatibility wrapper,
+those unreplaced capabilities may remain only as the current direct panels
+inside `/clients/[id]`. They cannot read or render an alternate Student 360
 summary, gate, handoff or contract path and expire in #548 and #549
 respectively. No migration is applied to the managed project and no V1,
 production-data, provider or traffic mutation is authorized by this change.

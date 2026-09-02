@@ -15160,3 +15160,29 @@ files may not be imported by an active route/action, bundled as a fallback, or
 used to claim Supabase acceptance. This bounded exception prevents #546 from
 silently pulling #547/#549 implementation forward while keeping exactly one
 active Sales workflow path.
+
+## 2026-09-02 - Align Sales queue WhatsApp truth with the exact intake link
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: exact-head review correction before merge; no managed-project,
+production, provider or customer-data mutation.
+Affected plan section: issue #546 P2B canonical Sales reads.
+
+Exact-head review of the combined Sales replacement found that migration 093
+corrected detail and transcript alignment, but the existing
+`staff_sales_lead_page` function in migration 086 still derived
+`is_connected` and `linked_conversation_count` from a broader direct/client
+relationship. That could present non-intake or unverified WhatsApp activity as
+Sales queue truth even though the same conversation is not an accepted linked
+Sales transcript.
+
+Forward-only migration 094 therefore replaces the existing page function in
+place and makes both WhatsApp-derived queue values use the exact verified
+Sales-intake relationship predicate already enforced by
+`staff_canonical_lead_conversation_link`. The function signature, return
+contract, security-definer/search-path boundary, ACL and all non-WhatsApp page
+behavior remain unchanged. SQL proof must cover exact intake plus client-only,
+non-intake and unverified/direct-link negatives. The release migration
+inventory and evidence text advance together to contiguous `001-094`; no
+wrapper, fallback, second read authority or applied-history edit is permitted.

@@ -128,11 +128,14 @@ separately reviewable inside the same PR:
    lead and linked-conversation foundation, and wire the already-existing
    `staff_sales_lead_page` and `staff_sales_lead_detail` read RPCs from
    migration 086 as the exact bounded Sales read contract through authenticated
-   Supabase/RLS. A forward-only migration 093 corrects the existing detail RPC
+   Supabase/RLS. Forward-only migration 093 corrects the existing detail RPC
    so its displayed conversation list/count use the same exact Sales-intake
-   authorization predicate as the nested transcript RPC; it does not add a
-   wrapper or second read contract. Delete the corresponding Drizzle read path
-   after authorized and unauthorized database, app and browser proof.
+   authorization predicate as the nested transcript RPC. Forward-only
+   migration 094 applies that same predicate to the existing page RPC's
+   `is_connected` and `linked_conversation_count` values. These migrations
+   replace the two existing functions in place; they do not add a wrapper or
+   second read contract. Delete the corresponding Drizzle read path after
+   authorized and unauthorized database, app and browser proof.
 3. **P2C — canonical Sales writes and slice cleanup.** Move qualification,
    ownership and next-action mutation through only the mutation RPCs in
    migration 086, prove business outcomes and direct denial, then remove the
@@ -158,6 +161,14 @@ The exact-head review subsequently found a narrower page/transcript predicate
 mismatch inside that existing contract; migration 093 may therefore replace
 the existing detail function in place solely to make both surfaces enforce the
 same predicate.
+
+A later exact-head review found the same legacy broad predicate in the
+`staff_sales_lead_page` WhatsApp-derived queue values. Migration 094 must
+replace that existing page function in place so `is_connected` and
+`linked_conversation_count` accept only the exact verified Sales-intake link
+used by detail and transcript. Its database proof must include exact intake,
+client-only, non-intake and unverified/direct-link cases. No other queue
+behavior, signature, ACL or authority may change.
 
 The existing database enum value `curator` is the retained technical name for
 the human-facing **Admissions Manager** role. The server maps that one database

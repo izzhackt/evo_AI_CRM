@@ -26,8 +26,8 @@ function walkFiles(relativeDir, extensions) {
 }
 
 const audit = read("docs/PROMISE_AUDIT.md");
-const aiService = read("src/lib/server/canonical-gemini-proposal-service.ts");
-const aiContract = read("src/lib/canonical-gemini-proposal-contract.ts");
+const aiOrchestrator = read("src/lib/server/platform-provider-orchestrator.ts");
+const aiProvider = read("src/lib/server/platform-gemini-provider.ts");
 const i18n = `${read("src/lib/i18n.ts")}\n${read("src/lib/i18n-data.ts")}`;
 const publicCopyChangeset = read("docs/PUBLIC_PROMISE_COPY_CHANGESET.md");
 const publicLiveAudit = read("docs/PUBLIC_PROMISE_LIVE_AUDIT.md");
@@ -95,19 +95,19 @@ assert(
 );
 
 for (const guardrail of [
-  "You never send messages or take actions.",
-  "do not promise admission, visas, scholarships, deadlines, discounts, payments, or outcomes",
-  "Return only JSON matching the supplied schema.",
+  "You prepare one advisory draft for an EVO staff member.",
+  "You never send a message, change CRM state, call tools, or make a decision for staff.",
+  "You never promise admission, visas, scholarships, deadlines, discounts, payments, or outcomes.",
 ]) {
   assert(
-    aiService.includes(guardrail),
-    `canonical Gemini prompt is missing guardrail: ${guardrail}`,
+    aiOrchestrator.includes(guardrail),
+    `platform Gemini prompt is missing guardrail: ${guardrail}`,
   );
 }
 assert(
-  aiContract.includes("UNSAFE_OUTCOME_PATTERNS") &&
-    aiContract.includes("unsafe_semantics"),
-  "canonical Gemini output contract is missing application-side promise guardrails",
+  aiProvider.includes("UNSAFE_OUTCOME_PATTERNS") &&
+    aiProvider.includes('"unsafe_semantics"'),
+  "platform Gemini provider is missing application-side promise guardrails",
 );
 
 const forbiddenPreparedAnswerPatterns = [

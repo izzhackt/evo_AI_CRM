@@ -91,8 +91,8 @@ test("Student 360 exposes localized links to every core workflow section", () =>
 });
 
 test("critical confirmation and inline case links use practical targets", () => {
-  const composer = source(
-    "src/components/platform/communications/CanonicalWhatsAppOutboundComposer.tsx",
+  const providerControls = source(
+    "src/components/platform/communications/PlatformProviderWorkflowControls.tsx",
   );
   const whatsapp = source(
     "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
@@ -101,8 +101,8 @@ test("critical confirmation and inline case links use practical targets", () => 
     "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
   );
 
-  assert.match(composer, /min-h-11 cursor-pointer/);
-  assert.match(composer, /h-5 w-5 shrink-0/);
+  assert.match(providerControls, /min-h-11 cursor-pointer/);
+  assert.match(providerControls, /h-5 w-5 shrink-0/);
   assert.match(whatsapp, /inline-flex min-h-11 items-center/);
   assert.match(tasks, /inline-flex min-h-11 items-center/);
 });

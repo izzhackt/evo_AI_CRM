@@ -16,6 +16,10 @@ import {
   type PlatformMessagingBackendConfig,
 } from "./platform-messaging-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import {
+  PlatformWahaProjectorError,
+  projectPlatformWahaWorkItem,
+} from "./platform-waha-projector.ts";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_IDENTIFIER_BYTES = 256;
@@ -40,7 +44,7 @@ const RESPONSE_HEADERS = {
   "content-type": "application/json; charset=utf-8",
 } as const;
 
-type RpcClient = Pick<SupabaseClient, "rpc">;
+type RpcClient = Pick<SupabaseClient, "schema">;
 
 export type PlatformWahaWebhookDependencies = Readonly<{
   createServiceClient(config: PlatformMessagingBackendConfig): RpcClient;
@@ -355,7 +359,7 @@ async function persistEvent(
 ): Promise<PersistedEvent> {
   let result;
   try {
-    result = await client.rpc("persist_provider_webhook_event", {
+    result = await client.schema("platform").rpc("persist_provider_webhook_event", {
       p_organization_id: config.organizationId,
       p_provider: "waha",
       p_provider_account_ref: "waha:evo-inbox",
@@ -393,10 +397,10 @@ async function enqueueEvent(
   config: PlatformMessagingBackendConfig,
   persisted: PersistedEvent,
   descriptor: WahaEventDescriptor,
-) {
+): Promise<string> {
   let result;
   try {
-    result = await client.rpc("enqueue_verified_webhook_work", {
+    result = await client.schema("platform").rpc("enqueue_verified_webhook_work", {
       p_organization_id: config.organizationId,
       p_source_webhook_event_id: persisted.id,
       p_business_key_sha256: descriptor.businessKeySha256,
@@ -407,9 +411,16 @@ async function enqueueEvent(
     return reject(503, "provider_queue_unavailable");
   }
   const { data, error } = result;
-  if (error || !isObject(data) || typeof data.work_item_id !== "string") {
+  if (
+    error ||
+    !isObject(data) ||
+    typeof data.work_item_id !== "string" ||
+    data.work_item_id !== data.work_item_id.trim() ||
+    !UUID_PATTERN.test(data.work_item_id)
+  ) {
     return reject(503, "provider_queue_unavailable");
   }
+  return data.work_item_id.toLowerCase();
 }
 
 async function synchronizeSession(
@@ -419,7 +430,7 @@ async function synchronizeSession(
 ) {
   let result;
   try {
-    result = await client.rpc("sync_lead_agent_session_status", {
+    result = await client.schema("platform").rpc("sync_lead_agent_session_status", {
       p_organization_id: config.organizationId,
       p_provider_webhook_event_id: persisted.id,
       p_request_id: randomUUID(),
@@ -491,12 +502,22 @@ export function createPlatformWahaWebhookHandler(
           deduplicated: persisted.deduplicated,
         });
       }
-      await enqueueEvent(client, config, persisted, descriptor);
-      return json(202, {
+      const workItemId = await enqueueEvent(
+        client,
+        config,
+        persisted,
+        descriptor,
+      );
+      const projection = await projectPlatformWahaWorkItem({
+        client,
+        organizationId: config.organizationId,
+        workItemId,
+      });
+      return json(200, {
         ok: true,
-        status: "queued",
+        status: "projected",
         eventType: descriptor.eventType,
-        deduplicated: persisted.deduplicated,
+        deduplicated: persisted.deduplicated || projection.deduplicated,
       });
     } catch (error) {
       if (error instanceof PlatformWahaWebhookRequestError) {
@@ -507,6 +528,9 @@ export function createPlatformWahaWebhookHandler(
       }
       if (error instanceof PlatformWahaWebhookConfigurationError) {
         return errorResponse(503, "waha_webhook_unavailable");
+      }
+      if (error instanceof PlatformWahaProjectorError) {
+        return errorResponse(error.status, error.code);
       }
       return errorResponse(500, "internal_error");
     }

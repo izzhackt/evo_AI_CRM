@@ -1810,6 +1810,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_provider_workflow_reconciliation.sql
   fi
+
+  # Migration 098 replaces the remaining generic WAHA claims with one exact
+  # item claim and rejects non-API evidence for matched reconciliation.
+  if [[ "$(basename "$migration")" == 098_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_exact_waha_projection_claim.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

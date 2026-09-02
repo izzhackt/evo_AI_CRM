@@ -7,6 +7,9 @@ import { createPlatformWahaWebhookHandler } from "../src/lib/server/platform-wah
 const ORGANIZATION_ID = "77100000-0000-4000-8000-000000000001";
 const WEBHOOK_SECRET = "waha-webhook-secret-material-123456";
 const PROVIDER_EVENT_ID = "77100000-0000-4000-8000-000000000101";
+const WORK_ITEM_ID = "77100000-0000-4000-8000-000000000201";
+const ATTEMPT_ID = "77100000-0000-4000-8000-000000000301";
+const SALES_MEMBERSHIP_ID = "77100000-0000-4000-8000-000000000401";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -16,6 +19,17 @@ function configureEnvironment() {
   process.env.EVO_PLATFORM_SUPABASE_SECRET_KEY =
     "sb_secret_platform_webhook_test_key";
   process.env.EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET = WEBHOOK_SECRET;
+  process.env.EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID =
+    SALES_MEMBERSHIP_ID;
+}
+
+function platformClient(rpc) {
+  return {
+    schema(name) {
+      assert.equal(name, "platform");
+      return { rpc };
+    },
+  };
 }
 
 function signedRequest(body, headers = {}) {
@@ -55,9 +69,55 @@ test("POST persists and enqueues one signed inbound evo-inbox message", async ()
     if (name === "enqueue_verified_webhook_work") {
       return {
         data: {
-          work_item_id: "77100000-0000-4000-8000-000000000201",
+          work_item_id: WORK_ITEM_ID,
           state: "pending",
           deduplicated: false,
+        },
+        error: null,
+      };
+    }
+    if (name === "claim_waha_webhook_work_item") {
+      return {
+        data: {
+          claimed: true,
+          completed: false,
+          requested_work_item_id: WORK_ITEM_ID,
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          source_webhook_event_id: PROVIDER_EVENT_ID,
+          kind: "provider_webhook_process",
+          event_type: "message.any",
+          queue: "platform_work_v1",
+          queue_message_id: 91,
+          attempt_number: 1,
+          max_attempts: 8,
+          lease_expires_at: "2026-09-02T10:00:00Z",
+        },
+        error: null,
+      };
+    }
+    if (name === "project_claimed_waha_event") {
+      return {
+        data: {
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          disposition: "succeeded",
+          evidence_ref: `waha-inbound-projected:${PROVIDER_EVENT_ID}`,
+          error_code: null,
+        },
+        error: null,
+      };
+    }
+    if (name === "finish_waha_webhook_work") {
+      return {
+        data: {
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          outcome: "succeeded",
+          state: "succeeded",
         },
         error: null,
       };
@@ -65,7 +125,7 @@ test("POST persists and enqueues one signed inbound evo-inbox message", async ()
     throw new Error(`Unexpected RPC: ${name}`);
   };
   const handler = createPlatformWahaWebhookHandler({
-    createServiceClient: () => ({ rpc }),
+    createServiceClient: () => platformClient(rpc),
   });
   const body = {
     id: "evt-message-1",
@@ -82,14 +142,14 @@ test("POST persists and enqueues one signed inbound evo-inbox message", async ()
 
   const response = await handler(signedRequest(body));
 
-  assert.equal(response.status, 202);
+  assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
     ok: true,
-    status: "queued",
+    status: "projected",
     eventType: "message.any",
     deduplicated: false,
   });
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 5);
   assert.equal(calls[0].name, "persist_provider_webhook_event");
   assert.deepEqual(
     {
@@ -139,6 +199,16 @@ test("POST persists and enqueues one signed inbound evo-inbox message", async ()
   assert.match(calls[1].args.p_business_key_sha256, /^[0-9a-f]{64}$/);
   assert.equal(calls[1].args.p_max_attempts, 8);
   assert.match(calls[1].args.p_request_id, UUID_PATTERN);
+  assert.deepEqual(
+    calls.slice(2).map((call) => call.name),
+    [
+      "claim_waha_webhook_work_item",
+      "project_claimed_waha_event",
+      "finish_waha_webhook_work",
+    ],
+  );
+  assert.equal(calls[2].args.p_work_item_id, WORK_ITEM_ID);
+  assert.equal(calls[3].args.p_intake_sales_membership_id, SALES_MEMBERSHIP_ID);
 });
 
 test("POST persists and enqueues one signed outbound acknowledgement", async () => {
@@ -158,7 +228,53 @@ test("POST persists and enqueues one signed outbound acknowledgement", async () 
     if (name === "enqueue_verified_webhook_work") {
       return {
         data: {
-          work_item_id: "77100000-0000-4000-8000-000000000202",
+          work_item_id: WORK_ITEM_ID,
+        },
+        error: null,
+      };
+    }
+    if (name === "claim_waha_webhook_work_item") {
+      return {
+        data: {
+          claimed: true,
+          completed: false,
+          requested_work_item_id: WORK_ITEM_ID,
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          source_webhook_event_id: PROVIDER_EVENT_ID,
+          kind: "provider_webhook_process",
+          event_type: "message.ack",
+          queue: "platform_work_v1",
+          queue_message_id: 92,
+          attempt_number: 1,
+          max_attempts: 8,
+          lease_expires_at: "2026-09-02T10:00:00Z",
+        },
+        error: null,
+      };
+    }
+    if (name === "project_claimed_waha_observation") {
+      return {
+        data: {
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          disposition: "succeeded",
+          evidence_ref: `waha-ack-projected:${PROVIDER_EVENT_ID}`,
+          error_code: null,
+        },
+        error: null,
+      };
+    }
+    if (name === "finish_waha_event_projection") {
+      return {
+        data: {
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          outcome: "succeeded",
+          state: "succeeded",
         },
         error: null,
       };
@@ -166,7 +282,7 @@ test("POST persists and enqueues one signed outbound acknowledgement", async () 
     throw new Error(`Unexpected RPC: ${name}`);
   };
   const handler = createPlatformWahaWebhookHandler({
-    createServiceClient: () => ({ rpc }),
+    createServiceClient: () => platformClient(rpc),
   });
   const body = {
     id: "evt-ack-1",
@@ -183,18 +299,26 @@ test("POST persists and enqueues one signed outbound acknowledgement", async () 
 
   const response = await handler(signedRequest(body));
 
-  assert.equal(response.status, 202);
+  assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
     ok: true,
-    status: "queued",
+    status: "projected",
     eventType: "message.ack",
     deduplicated: false,
   });
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 5);
   assert.equal(calls[0].args.p_provider_event_variant_ref, "read");
   assert.equal(calls[0].args.p_payload_id, body.payload.id);
   assert.equal(calls[0].args.p_provider_occurred_at, "2024-10-01T01:10:26.000Z");
   assert.equal(calls[1].name, "enqueue_verified_webhook_work");
+  assert.deepEqual(
+    calls.slice(2).map((call) => call.name),
+    [
+      "claim_waha_webhook_work_item",
+      "project_claimed_waha_observation",
+      "finish_waha_event_projection",
+    ],
+  );
 });
 
 test("POST persists and synchronizes one signed evo-inbox session status", async () => {
@@ -224,7 +348,7 @@ test("POST persists and synchronizes one signed evo-inbox session status", async
     throw new Error(`Unexpected RPC: ${name}`);
   };
   const handler = createPlatformWahaWebhookHandler({
-    createServiceClient: () => ({ rpc }),
+    createServiceClient: () => platformClient(rpc),
   });
   const body = {
     id: "evt-status-1",
@@ -263,11 +387,9 @@ test("POST rejects unsigned, wrong-session, and legacy-secret requests before Su
   const handler = createPlatformWahaWebhookHandler({
     createServiceClient: () => {
       clientCreations += 1;
-      return {
-        rpc: async () => {
+      return platformClient(async () => {
           throw new Error("Supabase must not be called");
-        },
-      };
+      });
     },
   });
   const validBody = {
@@ -325,6 +447,9 @@ test("POST replays the same signed provider event onto one durable work identity
   const persistArgs = [];
   const enqueueArgs = [];
   let persistCount = 0;
+  let claimCount = 0;
+  let projectCount = 0;
+  let finishCount = 0;
   const rpc = async (name, args) => {
     if (name === "persist_provider_webhook_event") {
       persistArgs.push(args);
@@ -341,8 +466,73 @@ test("POST replays the same signed provider event onto one durable work identity
       enqueueArgs.push(args);
       return {
         data: {
-          work_item_id: "77100000-0000-4000-8000-000000000203",
+          work_item_id: WORK_ITEM_ID,
           deduplicated: enqueueArgs.length > 1,
+        },
+        error: null,
+      };
+    }
+    if (name === "claim_waha_webhook_work_item") {
+      claimCount += 1;
+      if (claimCount > 1) {
+        return {
+          data: {
+            claimed: false,
+            completed: true,
+            requested_work_item_id: WORK_ITEM_ID,
+            organization_id: ORGANIZATION_ID,
+            work_item_id: WORK_ITEM_ID,
+            kind: "provider_webhook_process",
+            event_type: "message.any",
+            queue: "platform_work_v1",
+            state: "succeeded",
+          },
+          error: null,
+        };
+      }
+      return {
+        data: {
+          claimed: true,
+          completed: false,
+          requested_work_item_id: WORK_ITEM_ID,
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          source_webhook_event_id: PROVIDER_EVENT_ID,
+          kind: "provider_webhook_process",
+          event_type: "message.any",
+          queue: "platform_work_v1",
+          queue_message_id: 93,
+          attempt_number: 1,
+          max_attempts: 8,
+          lease_expires_at: "2026-09-02T10:00:00Z",
+        },
+        error: null,
+      };
+    }
+    if (name === "project_claimed_waha_event") {
+      projectCount += 1;
+      return {
+        data: {
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          disposition: "succeeded",
+          evidence_ref: `waha-inbound-projected:${PROVIDER_EVENT_ID}`,
+          error_code: null,
+        },
+        error: null,
+      };
+    }
+    if (name === "finish_waha_webhook_work") {
+      finishCount += 1;
+      return {
+        data: {
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          outcome: "succeeded",
+          state: "succeeded",
         },
         error: null,
       };
@@ -350,7 +540,7 @@ test("POST replays the same signed provider event onto one durable work identity
     throw new Error(`Unexpected RPC: ${name}`);
   };
   const handler = createPlatformWahaWebhookHandler({
-    createServiceClient: () => ({ rpc }),
+    createServiceClient: () => platformClient(rpc),
   });
   const body = {
     id: "evt-replay-1",
@@ -368,12 +558,15 @@ test("POST replays the same signed provider event onto one durable work identity
   const first = await handler(signedRequest(body));
   const second = await handler(signedRequest(body));
 
-  assert.equal(first.status, 202);
-  assert.equal(second.status, 202);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
   assert.equal((await first.json()).deduplicated, false);
   assert.equal((await second.json()).deduplicated, true);
   assert.equal(persistArgs.length, 2);
   assert.equal(enqueueArgs.length, 2);
+  assert.equal(claimCount, 2);
+  assert.equal(projectCount, 1);
+  assert.equal(finishCount, 1);
   assert.equal(
     persistArgs[0].p_provider_request_id,
     persistArgs[1].p_provider_request_id,
@@ -388,12 +581,87 @@ test("POST replays the same signed provider event onto one durable work identity
   );
 });
 
+test("POST fails clearly when the exact durable item cannot be projected", async () => {
+  configureEnvironment();
+  const calls = [];
+  const rpc = async (name, args) => {
+    calls.push({ name, args });
+    if (name === "persist_provider_webhook_event") {
+      return {
+        data: {
+          provider_webhook_event_id: PROVIDER_EVENT_ID,
+          deduplicated: false,
+        },
+        error: null,
+      };
+    }
+    if (name === "enqueue_verified_webhook_work") {
+      return { data: { work_item_id: WORK_ITEM_ID }, error: null };
+    }
+    if (name === "claim_waha_webhook_work_item") {
+      return {
+        data: {
+          claimed: true,
+          completed: false,
+          requested_work_item_id: WORK_ITEM_ID,
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          source_webhook_event_id: PROVIDER_EVENT_ID,
+          kind: "provider_webhook_process",
+          event_type: "message.any",
+          queue: "platform_work_v1",
+          queue_message_id: 94,
+          attempt_number: 1,
+          max_attempts: 8,
+          lease_expires_at: "2026-09-02T10:00:00Z",
+        },
+        error: null,
+      };
+    }
+    assert.equal(name, "project_claimed_waha_event");
+    return { data: null, error: { message: "projection unavailable" } };
+  };
+  const handler = createPlatformWahaWebhookHandler({
+    createServiceClient: () => platformClient(rpc),
+  });
+
+  const response = await handler(
+    signedRequest({
+      id: "evt-projection-failure",
+      event: "message.any",
+      session: "evo-inbox",
+      timestamp: 1_727_745_026,
+      payload: {
+        id: "false_996999111222@c.us_PROJECT_FAIL",
+        from: "996999111222@c.us",
+        fromMe: false,
+        body: "Persist me before failing visibly",
+      },
+    }),
+  );
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), {
+    ok: false,
+    error: "provider_projection_unavailable",
+  });
+  assert.deepEqual(
+    calls.map((call) => call.name),
+    [
+      "persist_provider_webhook_event",
+      "enqueue_verified_webhook_work",
+      "claim_waha_webhook_work_item",
+      "project_claimed_waha_event",
+    ],
+  );
+});
+
 test("POST fails closed without leaking provider evidence when Supabase persistence fails", async () => {
   configureEnvironment();
   const calls = [];
   const handler = createPlatformWahaWebhookHandler({
-    createServiceClient: () => ({
-      rpc: async (name, args) => {
+    createServiceClient: () => platformClient(async (name, args) => {
         calls.push({ name, args });
         return {
           data: null,
@@ -401,8 +669,7 @@ test("POST fails closed without leaking provider evidence when Supabase persiste
             message: `${WEBHOOK_SECRET}: private applicant text`,
           },
         };
-      },
-    }),
+      }),
   });
   const response = await handler(
     signedRequest({
@@ -435,8 +702,7 @@ test("POST persists an own message observation without re-enqueuing it as inboun
   configureEnvironment();
   const calls = [];
   const handler = createPlatformWahaWebhookHandler({
-    createServiceClient: () => ({
-      rpc: async (name, args) => {
+    createServiceClient: () => platformClient(async (name, args) => {
         calls.push({ name, args });
         if (name !== "persist_provider_webhook_event") {
           throw new Error(`Unexpected RPC: ${name}`);
@@ -448,8 +714,7 @@ test("POST persists an own message observation without re-enqueuing it as inboun
           },
           error: null,
         };
-      },
-    }),
+      }),
   });
   const response = await handler(
     signedRequest({
@@ -480,11 +745,9 @@ test("POST persists an own message observation without re-enqueuing it as inboun
 test("POST maps a thrown Supabase transport failure to the same safe unavailable result", async () => {
   configureEnvironment();
   const handler = createPlatformWahaWebhookHandler({
-    createServiceClient: () => ({
-      rpc: async () => {
+    createServiceClient: () => platformClient(async () => {
         throw new Error(`${WEBHOOK_SECRET}: private provider body`);
-      },
-    }),
+      }),
   });
   const response = await handler(
     signedRequest({

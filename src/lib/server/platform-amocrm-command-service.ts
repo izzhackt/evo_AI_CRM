@@ -14,10 +14,10 @@ import {
 import {
   CanonicalAmoCrmMutationError,
   CanonicalAmoCrmProviderError,
+  type CanonicalAmoCrmCreateLeadInput,
   type CanonicalAmoCrmCustomField,
   type CanonicalAmoCrmLeadTaskInput,
   type CanonicalAmoCrmPreparedMutation,
-  type CanonicalAmoCrmReadProvider,
   type CanonicalAmoCrmWriteProvider,
 } from "./canonical-amocrm-provider.ts";
 import {
@@ -118,11 +118,11 @@ type PlatformAmoCrmProvider = Readonly<
     | "prepareCreateLeadNote"
     | "prepareCreateLeadTask"
     | "prepareUpdateLeadTags"
-  > &
-    Pick<
-      CanonicalAmoCrmReadProvider,
-      "getContactById" | "getLeadById" | "getLeadNoteById" | "getTaskById"
-    >
+    | "getContactById"
+    | "getLeadById"
+    | "getLeadNoteById"
+    | "getTaskById"
+  >
 >;
 
 export type PlatformAmoCrmCommandServiceDependencies = Readonly<{
@@ -467,6 +467,9 @@ function salesContext(
   actorRole: "admin" | "sales",
   lead: PlatformSalesLeadDetail,
 ): WorkflowContext {
+  if (lead.clientId === null) {
+    throw new Error("sales_client_unbound");
+  }
   return Object.freeze({
     organizationId: lead.organizationId,
     personId: lead.clientId,
@@ -864,13 +867,20 @@ async function prepareStep(
   }
 
   if (operationName === "lead_create") {
-    const mutation = context.provider.prepareCreateLead({
+    const leadInput: CanonicalAmoCrmCreateLeadInput = {
       requestId,
       name: context.displayName,
-    });
+      pipelineId: context.route.pipelineId,
+      statusId: context.route.statusId,
+      responsibleUserId: context.route.responsibleUserId,
+    };
+    const mutation = context.provider.prepareCreateLead(leadInput);
     const expected = Object.freeze({
       lead_id: null,
       name: context.displayName,
+      pipeline_id: context.route.pipelineId,
+      status_id: context.route.statusId,
+      responsible_user_id: context.route.responsibleUserId,
     });
     return Object.freeze({
       operationName,
@@ -921,7 +931,6 @@ async function prepareStep(
       requestId,
       contactId,
       leadId,
-      isMain: true,
     });
     const expected = Object.freeze({
       lead_id: leadId,
@@ -1485,21 +1494,23 @@ export async function reconcilePlatformAmoCrmSyncAttempt(
             if (input.actorRole !== "admin" && input.actorRole !== "sales") {
               throw new Error("forbidden_role");
             }
+            const actorRole = input.actorRole;
             return dependencies.getSalesLead(input.actor, leadId).then((lead) => {
               if (lead === null) throw new Error("sales_lead_unavailable");
-              return salesContext(input.actorRole, lead);
+              return salesContext(actorRole, lead);
             });
           })()
         : (() => {
             if (input.actorRole !== "admin" && input.actorRole !== "admissions") {
               throw new Error("forbidden_role");
             }
+            const actorRole = input.actorRole;
             const studentCaseId = requiredUuid(input.studentCaseId);
             return dependencies
               .getStudentCaseHandoffContext(input.actor, studentCaseId)
               .then((handoff) => {
                 if (handoff === null) throw new Error("student_case_handoff_unavailable");
-                return admissionsContext(input.actorRole, handoff);
+                return admissionsContext(actorRole, handoff);
               });
           })();
     const baseContext = await workflowContext;

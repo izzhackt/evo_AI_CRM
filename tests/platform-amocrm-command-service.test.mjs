@@ -743,6 +743,74 @@ test("HTTP rejection preserves provider response metadata and rejects the step",
   assert.match(finishCalls.at(-1).providerRespondedAt, /^2026-09-02T10:00:00/);
 });
 
+test("pre-http rejected mutation keeps provider metadata null and uses a safe failure code", async () => {
+  const store = new Map();
+  const finishCalls = [];
+  const deps = {
+    ...serviceDeps({}),
+    readBindings: async () => ({ contactId: null, leadId: null }),
+    prepareCommand: async (_client, input) => {
+      const attempt = sampleAttempt(input.operationName);
+      store.set(input.idempotencyKey, attempt);
+      store.set(attempt.attemptId, attempt);
+      return { kind: "prepared", attempt };
+    },
+    claimCommand: async (_client, input) => ({
+      kind: "claimed",
+      reason: null,
+      attempt: store.get(input.attemptId),
+    }),
+    finishCommand: async (_client, input) => {
+      finishCalls.push(input);
+      return {
+        kind: "settled",
+        attempt: {
+          ...store.get(input.attemptId),
+          status: input.outcome,
+          providerDispatchedAt: "2026-09-02T10:00:05.000Z",
+          failureCode: input.failureCode,
+        },
+      };
+    },
+    resolveRuntime: async () => {
+      const value = runtime();
+      const original = value.provider.prepareCreateLeadNote;
+      value.provider.prepareCreateLeadNote = (input) => {
+        const prepared = original(input);
+        return {
+          ...prepared,
+          async dispatch() {
+            throw new CanonicalAmoCrmMutationError("token_unavailable", {
+              outcome: "rejected",
+              request: prepared.request,
+            });
+          },
+        };
+      };
+      return value;
+    },
+  };
+
+  const result = await executePlatformAmoCrmSalesSync(
+    {
+      actor: actor(),
+      actorRole: "sales",
+      leadId: IDS.lead,
+      baseRequestId: IDS.request,
+      noteText: "Reviewed note",
+      taskText: "Call the applicant tomorrow",
+      taskCompleteTill: 1790000000,
+    },
+    deps,
+  );
+
+  assert.equal(result.status, "rejected");
+  assert.equal(finishCalls.at(-1).providerRequestId, null);
+  assert.equal(finishCalls.at(-1).providerHttpStatus, null);
+  assert.equal(finishCalls.at(-1).providerRespondedAt, null);
+  assert.equal(finishCalls.at(-1).failureCode, "token_unavailable");
+});
+
 test("readback mismatch after a 2xx mutation settles unknown with preserved response metadata", async () => {
   const store = new Map();
   const finishCalls = [];

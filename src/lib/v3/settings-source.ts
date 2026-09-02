@@ -41,6 +41,11 @@ export function readCapabilityNames(): readonly string[] {
   return FIXED_ROLE_CAPABILITIES;
 }
 
+/** Полный список страниц — чтобы в матрице были и запрещённые, не только свои. */
+export function readRouteNames(): readonly string[] {
+  return FIXED_ROLE_ROUTES;
+}
+
 /**
  * Состояние интеграций читается по факту работы, а не по галочке «включено»:
  * галочка может стоять у того, что ни разу ничего не сделало.
@@ -81,11 +86,21 @@ export async function readIntegrations(): Promise<readonly Integration[]> {
       ok: n(row.proposals) > 0,
       detail: `предложений создано: ${n(row.proposals)}`,
     },
-    {
-      name: "База данных",
-      state: row.authority ?? "неизвестно",
-      ok: true,
-      detail: `версия контракта данных: ${row.contract ?? "—"}`,
-    },
   ];
+}
+
+/**
+ * Про саму платформу, а не про интеграции.
+ *
+ * Раньше база данных стояла в одном списке с amoCRM и WAHA, и её состояние
+ * читалось как «ещё одна интеграция, и она работает». База — это не то, что
+ * подключают; это то, на чём всё стоит.
+ */
+export async function readPlatformFact(): Promise<string> {
+  const sql = getPostgresClient();
+  const [row] = await sql<{ contract: string | null; authority: string | null }[]>`
+    select max(version)::text as contract, max(authority) as authority
+    from evo_database_contract
+  `;
+  return `${row?.authority ?? "неизвестно"} · версия контракта данных ${row?.contract ?? "—"}`;
 }

@@ -511,6 +511,28 @@ test("canonical amoCRM creates one contact through the pinned origin and exposes
   assert.equal(JSON.stringify(result).includes(SECRET_ACCESS), false);
 });
 
+test("canonical amoCRM drops provider request ids longer than the database-safe limit", async () => {
+  const { tokenFilePath } = await makePrivateTokenFile();
+  const provider = createCanonicalAmoCrmWriteProvider(readyConfig(tokenFilePath), {
+    fetch: async () =>
+      jsonResponse(
+        {
+          _embedded: {
+            contacts: [{ id: 918274, request_id: "command-contact-2" }],
+          },
+        },
+        { headers: { "x-request-id": "r".repeat(201) } },
+      ),
+  });
+
+  const result = await provider.createContact({
+    requestId: "command-contact-2",
+    name: "Provider validation contact",
+  });
+
+  assert.equal(result.response.providerRequestId, null);
+});
+
 test("canonical amoCRM freezes and hashes the exact mutation before one-shot dispatch", async () => {
   const { tokenFilePath } = await makePrivateTokenFile();
   let callCount = 0;

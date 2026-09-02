@@ -387,7 +387,7 @@ type ProviderResponse = Readonly<{
 function providerRequestId(response: Response): string | null {
   for (const header of ["x-request-id", "x-correlation-id"]) {
     const value = response.headers.get(header)?.trim();
-    if (value && value.length <= 255 && /^[A-Za-z0-9._:-]+$/u.test(value)) {
+    if (value && value.length <= 200 && /^[A-Za-z0-9._:-]+$/u.test(value)) {
       return value;
     }
   }

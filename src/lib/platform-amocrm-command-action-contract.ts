@@ -6,12 +6,21 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NOTE_CONTROL_CHARACTER_PATTERN = /[\u0000-\u0009\u000b-\u001f\u007f]/;
 const MAX_NOTE_BYTES = 1_000;
+const MAX_TASK_BYTES = 1_000;
 
-const SALES_FIELDS = ["lead_id", "note_text", "request_id"] as const;
+const SALES_FIELDS = [
+  "lead_id",
+  "note_text",
+  "request_id",
+  "task_text",
+  "task_complete_till",
+] as const;
 const ADMISSIONS_FIELDS = [
   "student_case_id",
   "note_text",
   "request_id",
+  "task_text",
+  "task_complete_till",
 ] as const;
 const RECONCILE_FIELDS = [
   "attempt_id",
@@ -28,12 +37,16 @@ export type PlatformAmoCrmSalesSyncForm = Readonly<{
   leadId: string;
   noteText: string;
   requestId: string;
+  taskText: string;
+  taskCompleteTill: number;
 }>;
 
 export type PlatformAmoCrmAdmissionsSyncForm = Readonly<{
   studentCaseId: string;
   noteText: string;
   requestId: string;
+  taskText: string;
+  taskCompleteTill: number;
 }>;
 
 export type PlatformAmoCrmReconcileForm = Readonly<{
@@ -63,6 +76,29 @@ function normalizedNote(value: string | undefined): string | null {
   return noteText;
 }
 
+function normalizedTaskText(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  const taskText = value.trim();
+  const byteLength = new TextEncoder().encode(taskText).byteLength;
+  if (
+    taskText.length < 1 ||
+    byteLength < 1 ||
+    byteLength > MAX_TASK_BYTES ||
+    NOTE_CONTROL_CHARACTER_PATTERN.test(taskText)
+  ) {
+    return null;
+  }
+  return taskText;
+}
+
+function normalizedFutureUnix(value: string | undefined): number | null {
+  if (value === undefined || !/^[1-9][0-9]{0,15}$/u.test(value)) return null;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) return null;
+  const nowSeconds = Math.floor(Date.now() / 1_000);
+  return parsed > nowSeconds ? parsed : null;
+}
+
 export function parsePlatformAmoCrmSalesSyncForm(
   form: FormData,
 ): PlatformAmoCrmSalesSyncForm | null {
@@ -71,8 +107,24 @@ export function parsePlatformAmoCrmSalesSyncForm(
   const leadId = normalizedUuid(fields.get("lead_id"));
   const noteText = normalizedNote(fields.get("note_text"));
   const requestId = normalizedUuid(fields.get("request_id"));
-  if (leadId === null || noteText === null || requestId === null) return null;
-  return Object.freeze({ leadId, noteText, requestId });
+  const taskText = normalizedTaskText(fields.get("task_text"));
+  const taskCompleteTill = normalizedFutureUnix(fields.get("task_complete_till"));
+  if (
+    leadId === null ||
+    noteText === null ||
+    requestId === null ||
+    taskText === null ||
+    taskCompleteTill === null
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    leadId,
+    noteText,
+    requestId,
+    taskText,
+    taskCompleteTill,
+  });
 }
 
 export function parsePlatformAmoCrmAdmissionsSyncForm(
@@ -83,14 +135,24 @@ export function parsePlatformAmoCrmAdmissionsSyncForm(
   const studentCaseId = normalizedUuid(fields.get("student_case_id"));
   const noteText = normalizedNote(fields.get("note_text"));
   const requestId = normalizedUuid(fields.get("request_id"));
+  const taskText = normalizedTaskText(fields.get("task_text"));
+  const taskCompleteTill = normalizedFutureUnix(fields.get("task_complete_till"));
   if (
     studentCaseId === null ||
     noteText === null ||
-    requestId === null
+    requestId === null ||
+    taskText === null ||
+    taskCompleteTill === null
   ) {
     return null;
   }
-  return Object.freeze({ studentCaseId, noteText, requestId });
+  return Object.freeze({
+    studentCaseId,
+    noteText,
+    requestId,
+    taskText,
+    taskCompleteTill,
+  });
 }
 
 export function parsePlatformAmoCrmReconcileForm(

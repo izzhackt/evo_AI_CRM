@@ -1361,6 +1361,53 @@ BEGIN
     ORDER BY result.created_at DESC, result.id DESC
     LIMIT 1
   ),
+  ack_candidates AS MATERIALIZED (
+    SELECT
+      pg_catalog.upper(result.ack_state::TEXT) AS ack_name,
+      result.ack_observed_at,
+      CASE result.ack_state
+        WHEN 'unknown' THEN -1
+        WHEN 'pending' THEN 0
+        WHEN 'error' THEN 1
+        WHEN 'server' THEN 2
+        WHEN 'device' THEN 3
+        WHEN 'read' THEN 4
+        WHEN 'played' THEN 5
+      END AS ack_rank
+    FROM latest_attempt AS attempt
+    JOIN platform_private.manual_whatsapp_reconciliation_results AS result
+      ON result.organization_id = p_organization_id
+     AND result.attempt_id = attempt.attempt_id
+    WHERE result.outcome IN ('message_confirmed', 'delivery_refreshed')
+
+    UNION ALL
+
+    SELECT
+      ack_current.waha_ack_name AS ack_name,
+      ack_current.waha_ack_observed_at AS ack_observed_at,
+      CASE ack_current.waha_ack_name
+        WHEN 'PENDING' THEN 0
+        WHEN 'ERROR' THEN 1
+        WHEN 'SERVER' THEN 2
+        WHEN 'DEVICE' THEN 3
+        WHEN 'READ' THEN 4
+        WHEN 'PLAYED' THEN 5
+      END AS ack_rank
+    FROM base_ack AS ack_current
+  ),
+  effective_ack AS MATERIALIZED (
+    -- A later manual readback is evidence, not permission to regress the
+    -- canonical delivery state. Prefer the strongest state observed across
+    -- every exact reconciliation result and the webhook projection; use the
+    -- newest observation only to break a same-state tie.
+    SELECT candidate.ack_name, candidate.ack_observed_at
+    FROM ack_candidates AS candidate
+    ORDER BY
+      candidate.ack_rank DESC,
+      candidate.ack_observed_at DESC,
+      candidate.ack_name
+    LIMIT 1
+  ),
   effective_state AS MATERIALIZED (
     SELECT
       attempt.attempt_id,
@@ -1371,7 +1418,7 @@ BEGIN
       authorization_row.authorized_by_membership_id,
       authorization_actor.display_name AS authorized_by_name,
       CASE
-        WHEN reconciliation.outcome = 'message_confirmed' THEN 'accepted'
+        WHEN binding.communication_message_id IS NOT NULL THEN 'accepted'
         WHEN attempt.outcome = 'succeeded' THEN 'accepted'
         WHEN attempt.outcome = 'unknown_result' THEN 'unknown'
         WHEN attempt.outcome IS NULL
@@ -1381,22 +1428,15 @@ BEGIN
       END AS status,
       (
         attempt.outcome = 'unknown_result'
-        AND COALESCE(reconciliation.outcome::TEXT, '') <> 'message_confirmed'
+        AND binding.communication_message_id IS NULL
       ) AS reconciliation_required,
       reconciliation.provider_source,
-      CASE
-        WHEN reconciliation.outcome IN ('message_confirmed', 'delivery_refreshed')
-          THEN pg_catalog.upper(reconciliation.ack_state::TEXT)
-        ELSE ack_current.waha_ack_name
-      END AS ack_name,
+      effective_ack.ack_name,
       COALESCE(
         reconciliation.provider_observed_at,
         binding.provider_observed_at
       ) AS provider_observed_at,
-      COALESCE(
-        reconciliation.ack_observed_at,
-        ack_current.waha_ack_observed_at
-      ) AS ack_observed_at,
+      effective_ack.ack_observed_at,
       attempt.error_code AS failure_code,
       attempt.attempt_number,
       authorization_row.authorized_at,
@@ -1410,8 +1450,8 @@ BEGIN
     JOIN authorization_row ON TRUE
     JOIN authorization_actor ON TRUE
     LEFT JOIN base_binding AS binding ON TRUE
-    LEFT JOIN base_ack AS ack_current ON TRUE
     LEFT JOIN latest_reconciliation AS reconciliation ON TRUE
+    LEFT JOIN effective_ack ON TRUE
   )
   SELECT *
   FROM effective_state;
@@ -1420,7 +1460,7 @@ $$;
 
 -- Authenticated staff request, service-only exact WAHA readback context,
 -- and idempotent service completion are the sole reconciliation entrypoints.
-CREATE FUNCTION platform.request_manual_whatsapp_reconciliation(
+CREATE OR REPLACE FUNCTION platform.request_manual_whatsapp_reconciliation(
   p_organization_id UUID,
   p_conversation_id UUID,
   p_attempt_id UUID,
@@ -1619,7 +1659,8 @@ BEGIN
     )
   );
 
-  INSERT INTO platform_private.manual_whatsapp_reconciliation_requests (
+  INSERT INTO platform_private.manual_whatsapp_reconciliation_requests
+    AS created_request (
     organization_id,
     conversation_id,
     source_message_id,
@@ -1659,7 +1700,7 @@ BEGIN
     safe_requested_by_name,
     exact_reason
   )
-  RETURNING id, reconciliation_kind::TEXT
+  RETURNING created_request.id, created_request.reconciliation_kind::TEXT
   INTO reconciliation_request_id, reconciliation_kind;
 
   replayed := FALSE;

@@ -247,6 +247,116 @@ WHERE profile.auth_user_id = '10000000-0000-4000-8000-000000000001'
 \gset
 
 SELECT
+  membership.organization_id AS p5a_sales_org,
+  membership.id AS p5a_sales_membership,
+  profile.auth_user_id AS p5a_sales_auth_user,
+  profile.access_version AS p5a_sales_access_version,
+  membership.current_bundle_id AS p5a_sales_bundle,
+  bundle.version AS p5a_sales_bundle_version,
+  conversation.id AS p5a_sales_conversation,
+  message.id AS p5a_sales_source
+FROM platform.communication_conversations AS conversation
+LEFT JOIN platform.student_cases AS student_case
+  ON student_case.organization_id = conversation.organization_id
+ AND student_case.id = conversation.student_case_id
+JOIN platform.organization_memberships AS membership
+  ON membership.organization_id = conversation.organization_id
+ AND membership.id = conversation.responsible_sales_membership_id
+JOIN platform.profiles AS profile
+  ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
+JOIN platform.communication_messages AS message
+  ON message.organization_id = conversation.organization_id
+ AND message.conversation_id = conversation.id
+ AND message.direction = 'inbound'
+WHERE conversation.queue = 'sales'
+  AND conversation.status = 'open'
+  AND membership.status = 'active'
+  AND membership.current_role = 'sales'
+  AND (
+    (
+      conversation.student_case_id IS NULL
+      AND platform_private.membership_has_active_scope(
+        conversation.organization_id,
+        membership.id,
+        'conversation',
+        conversation.id
+      )
+    )
+    OR (
+      conversation.student_case_id IS NOT NULL
+      AND student_case.state = 'pending'
+      AND student_case.responsible_sales_membership_id = membership.id
+      AND platform_private.membership_has_active_scope(
+        conversation.organization_id,
+        membership.id,
+        'student_case',
+        student_case.id
+      )
+    )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.communication_messages AS later_message
+    WHERE later_message.organization_id = message.organization_id
+      AND later_message.conversation_id = message.conversation_id
+      AND (later_message.created_at, later_message.id) >
+        (message.created_at, message.id)
+  )
+ORDER BY conversation.created_at, conversation.id, message.created_at DESC, message.id DESC
+LIMIT 1
+\gset
+
+SELECT
+  membership.organization_id AS p5a_curator_org,
+  membership.id AS p5a_curator_membership,
+  profile.auth_user_id AS p5a_curator_auth_user,
+  profile.access_version AS p5a_curator_access_version,
+  membership.current_bundle_id AS p5a_curator_bundle,
+  bundle.version AS p5a_curator_bundle_version,
+  conversation.id AS p5a_curator_conversation,
+  message.id AS p5a_curator_source
+FROM platform.communication_conversations AS conversation
+JOIN platform.student_cases AS student_case
+  ON student_case.organization_id = conversation.organization_id
+ AND student_case.id = conversation.student_case_id
+JOIN platform.organization_memberships AS membership
+  ON membership.organization_id = conversation.organization_id
+ AND membership.id = conversation.current_curator_membership_id
+JOIN platform.profiles AS profile
+  ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
+JOIN platform.communication_messages AS message
+  ON message.organization_id = conversation.organization_id
+ AND message.conversation_id = conversation.id
+ AND message.direction = 'inbound'
+WHERE conversation.queue = 'curator'
+  AND conversation.status = 'open'
+  AND membership.status = 'active'
+  AND membership.current_role = 'curator'
+  AND student_case.state IN ('active', 'closed')
+  AND student_case.current_curator_membership_id = membership.id
+  AND platform_private.membership_has_active_scope(
+    conversation.organization_id,
+    membership.id,
+    'student_case',
+    student_case.id
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.communication_messages AS later_message
+    WHERE later_message.organization_id = message.organization_id
+      AND later_message.conversation_id = message.conversation_id
+      AND (later_message.created_at, later_message.id) >
+        (message.created_at, message.id)
+  )
+ORDER BY conversation.created_at, conversation.id, message.created_at DESC, message.id DESC
+LIMIT 1
+\gset
+
+SELECT
   conversation.id AS p5a_conversation_b,
   latest_message.id AS p5a_source_b
 FROM platform.communication_conversations AS conversation
@@ -284,6 +394,28 @@ pg_catalog.jsonb_build_object(
   'platform_bundle_id', :'p5a_admin_a_bundle',
   'platform_bundle_version', :'p5a_admin_a_bundle_version'::BIGINT
 )::TEXT AS p5a_admin_a_claims
+\gset
+
+SELECT pg_catalog.jsonb_build_object(
+  'sub', :'p5a_sales_auth_user',
+  'role', 'authenticated',
+  'platform_role', 'sales',
+  'platform_access_version', :'p5a_sales_access_version'::BIGINT,
+  'platform_organization_id', :'p5a_sales_org',
+  'platform_membership_id', :'p5a_sales_membership',
+  'platform_bundle_id', :'p5a_sales_bundle',
+  'platform_bundle_version', :'p5a_sales_bundle_version'::BIGINT
+)::TEXT AS p5a_sales_claims,
+pg_catalog.jsonb_build_object(
+  'sub', :'p5a_curator_auth_user',
+  'role', 'authenticated',
+  'platform_role', 'curator',
+  'platform_access_version', :'p5a_curator_access_version'::BIGINT,
+  'platform_organization_id', :'p5a_curator_org',
+  'platform_membership_id', :'p5a_curator_membership',
+  'platform_bundle_id', :'p5a_curator_bundle',
+  'platform_bundle_version', :'p5a_curator_bundle_version'::BIGINT
+)::TEXT AS p5a_curator_claims
 \gset
 
 -- Authenticated staff initiation: exact replay, conflict, tenant denial and
@@ -332,8 +464,58 @@ SELECT pg_temp.assert_true(
   AND :'p5a_staff_request_proposal_request_receipt_id' =
     :'p5a_staff_replay_proposal_request_receipt_id'
   AND :'p5a_staff_conflict_state' = '22023'
-  AND :'p5a_cross_org_state' = '42501',
+  AND :'p5a_cross_org_state' = '42501'
+  AND EXISTS (
+    SELECT 1
+    FROM platform_private.gemini_proposal_request_receipts AS receipt
+    WHERE receipt.id =
+        :'p5a_staff_request_proposal_request_receipt_id'
+      AND receipt.requested_by_profile_id = :'p5a_admin_b_profile'
+      AND receipt.requested_by_membership_id = :'p5a_admin_b_membership'
+      AND receipt.requested_by_auth_user_id =
+        '10000000-0000-4000-8000-000000000008'
+  ),
   'Gemini staff initiation replay/conflict/tenant contract failed'
+);
+
+-- The fixed product roles exercise their real visibility rules. "curator" is
+-- the technical role name for the Admissions Manager interface.
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config('request.jwt.claims', :'p5a_sales_claims', true);
+SELECT * FROM platform.request_gemini_proposal(
+  :'p5a_sales_org', :'p5a_sales_conversation', :'p5a_sales_source',
+  '96500000-0000-4000-8000-000000000004',
+  'gemini-3.7-flash', 2, 'u9-gemini-human-review-v1',
+  'P5A Sales role acceptance'
+) \gset p5a_sales_request_
+
+SELECT pg_catalog.set_config('request.jwt.claims', :'p5a_curator_claims', true);
+SELECT * FROM platform.request_gemini_proposal(
+  :'p5a_curator_org', :'p5a_curator_conversation', :'p5a_curator_source',
+  '96500000-0000-4000-8000-000000000005',
+  'gemini-3.7-flash', 2, 'u9-gemini-human-review-v1',
+  'P5A Admissions role acceptance'
+) \gset p5a_curator_request_
+RESET ROLE;
+
+SET LOCAL ROLE anon;
+SELECT pg_catalog.set_config('request.jwt.claims', '{"role":"anon"}', true);
+\set ON_ERROR_STOP off
+SELECT * FROM platform.request_gemini_proposal(
+  :'p5a_org_b', :'p5a_conversation_b', :'p5a_source_b',
+  '96500000-0000-4000-8000-000000000006',
+  'gemini-3.7-flash', 2, 'u9-gemini-human-review-v1',
+  'Anonymous initiation must fail'
+);
+\set p5a_anon_request_state :SQLSTATE
+\set ON_ERROR_STOP on
+RESET ROLE;
+
+SELECT pg_temp.assert_true(
+  NOT :'p5a_sales_request_replayed'::BOOLEAN
+  AND NOT :'p5a_curator_request_replayed'::BOOLEAN
+  AND :'p5a_anon_request_state' = '42501',
+  'Admin, Sales, Admissions or anonymous role behavior drifted'
 );
 
 -- Service begin is impossible without the staff ledger, then exact begin

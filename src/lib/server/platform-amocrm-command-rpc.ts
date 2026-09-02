@@ -267,9 +267,9 @@ function parseSnapshot(value: unknown): PlatformAmoCrmCommandSnapshot {
     commandReceiptId: normalizedUuid(row.command_receipt_id) ?? invalid(),
     organizationId: normalizedUuid(row.organization_id) ?? invalid(),
     idempotencyKey: safeText(row.idempotency_key, 200) ?? invalid(),
-    operationName,
-    actorRole,
-    workflowScope,
+    operationName: operationName as PlatformAmoCrmCommandOperationName,
+    actorRole: actorRole as PlatformAmoCrmActorRole,
+    workflowScope: workflowScope as PlatformAmoCrmWorkflowScope,
     workflowLeadId: normalizedUuid(row.workflow_lead_id) ?? invalid(),
     studentCaseId:
       row.student_case_id === null ? null : normalizedUuid(row.student_case_id) ?? invalid(),
@@ -279,7 +279,7 @@ function parseSnapshot(value: unknown): PlatformAmoCrmCommandSnapshot {
       row.target_contact_id === null ? null : providerId(row.target_contact_id) ?? invalid(),
     targetLeadId:
       row.target_lead_id === null ? null : providerId(row.target_lead_id) ?? invalid(),
-    status,
+    status: status as PlatformAmoCrmCommandStatus,
     providerDispatchedAt:
       row.provider_dispatched_at === null
         ? null

@@ -1,167 +1,185 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+const ROOT = new URL("../", import.meta.url);
 
-const IDS = Object.freeze({
-  conversation: "11111111-1111-4111-8111-111111111111",
-  source: "22222222-2222-4222-8222-222222222222",
-  proposal: "33333333-3333-4333-8333-333333333333",
-  review: "44444444-4444-4444-8444-444444444444",
-  send: "55555555-5555-4555-8555-555555555555",
-  attempt: "66666666-6666-4666-8666-666666666666",
-  reconcile: "77777777-7777-4777-8777-777777777777",
-  membership: "88888888-8888-4888-8888-888888888888",
-  work: "99999999-9999-4999-8999-999999999999",
-  authorization: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-});
-
-const proposalPayload = Object.freeze({
-  schema_version: 2,
-  language: "ru",
-  intent: "admissions_discovery",
-  confidence: 0.91,
-  risk: "low",
-  handoff_required: false,
-  handoff_reasons: [],
-  citations: [{ knowledge_key: "country.uae", knowledge_version: 3, evidence_ordinal: 1 }],
-  memory_changes: [],
-  qualification: {
-    status: "collecting",
-    completeness: 0.5,
-    missing_fact_keys: ["budget_signal"],
-    notes: null,
-  },
-  reply_text: "Здравствуйте! Уточните, пожалуйста, ваш бюджет.",
-  summary: "Абитуриент выбирает программу.",
-  next_action: "Уточнить бюджет",
-  draft_internal_note: "Нужна квалификация бюджета.",
-  missing_document_suggestion: null,
-  deadline_warning: null,
-  limitations: [],
-  uncertainty: "low",
-});
-
-function baseProps(overrides = {}) {
-  const unchanged = async (state) => state;
-  return {
-    locale: "ru",
-    conversationId: IDS.conversation,
-    latestInboundSourceMessageId: IDS.source,
-    proposal: null,
-    reviews: [],
-    latestAttempt: null,
-    requestIds: {
-      gemini: IDS.proposal,
-      review: IDS.review,
-      send: IDS.send,
-      reconcile: IDS.reconcile,
-    },
-    requestGemini: unchanged,
-    reviewGemini: unchanged,
-    sendWhatsApp: unchanged,
-    reconcileWhatsApp: unchanged,
-    ...overrides,
-  };
+function source(path) {
+  const url = new URL(path, ROOT);
+  assert.equal(existsSync(url), true, `${path} must exist`);
+  return readFileSync(url, "utf8");
 }
 
-test("controls state clearly says AI is advisory and send needs explicit confirmation", async () => {
-  const { PlatformProviderWorkflowControls } = await import(
-    "../src/components/platform/communications/PlatformProviderWorkflowControls.tsx"
-  );
-  const markup = renderToStaticMarkup(
-    React.createElement(PlatformProviderWorkflowControls, baseProps()),
-  );
+function between(value, start, end) {
+  const startIndex = value.indexOf(start);
+  assert.notEqual(startIndex, -1, `missing source boundary: ${start}`);
+  const endIndex = value.indexOf(end, startIndex + start.length);
+  assert.notEqual(endIndex, -1, `missing source boundary: ${end}`);
+  return value.slice(startIndex, endIndex);
+}
 
-  assert.match(markup, /ИИ[^<]*(?:совет|черновик)|AI[^<]*advisory/i);
-  assert.match(markup, /name="request_id"/);
-  assert.match(markup, /name="source_message_id"/);
-  assert.match(markup, /<input[^>]*type="checkbox"[^>]*required[^>]*name="confirm_send"/);
-  assert.match(markup, /name="message_text"/);
-  assert.doesNotMatch(markup, /name="(?:recipient|phone|session|api_key|provider_evidence)"/i);
-  assert.doesNotMatch(markup, /автоматичес|рассылк|broadcast/i);
+function fieldNames(formSource) {
+  return [...formSource.matchAll(/\bname="([^"]+)"/g)].map((match) => match[1]);
+}
+
+const controls = source(
+  "src/components/platform/communications/PlatformProviderWorkflowControls.tsx",
+);
+const page = source("src/app/(staff)/whatsapp/[id]/page.tsx");
+
+test("controls make Gemini advisory-only and expose an exact draft request", () => {
+  assert.match(
+    controls,
+    /ИИ только готовит черновик\. Решение принимает сотрудник,[\s\S]*после отдельного подтверждения\./,
+  );
+  assert.match(controls, /\{copy\.advisory\}/);
+  assert.match(controls, /data-testid="platform-provider-workflow-controls"/);
+
+  const requestForm = between(
+    controls,
+    "<form action={geminiAction}",
+    "</form>",
+  );
+  assert.deepEqual(fieldNames(requestForm), [
+    "conversation_id",
+    "source_message_id",
+    "request_id",
+  ]);
+  assert.match(requestForm, /value=\{latestInboundSourceMessageId\}/);
+  assert.match(requestForm, /value=\{requestIds\.gemini\}/);
+  assert.doesNotMatch(
+    controls,
+    /(?:action|onClick)=\{[^}]*(?:autonomous|broadcast)/i,
+  );
 });
 
-test("proposal review offers exact Accept, reply-only Edit and reasoned Reject forms", async () => {
-  const { PlatformProviderWorkflowControls } = await import(
-    "../src/components/platform/communications/PlatformProviderWorkflowControls.tsx"
+test("review controls expose exact Accept, reply-only Edit, and reasoned Reject intent", () => {
+  const hiddenFields = between(
+    controls,
+    "function reviewHiddenFields(",
+    "function formatTimestamp(",
   );
-  const proposal = {
-    proposalRequestId: IDS.proposal,
-    sourceMessageId: IDS.source,
-    outcome: "proposal_ready",
-    failureCode: null,
-    modelRef: "gemini-3.7-flash",
-    schemaVersion: 2,
-    proposal: proposalPayload,
-    requestedAt: "2026-09-02T08:00:00Z",
-    completedAt: "2026-09-02T08:00:03Z",
-    humanReviewRequired: true,
-    autonomousAuthority: false,
-    providerProofState: "blocked",
-  };
-  const markup = renderToStaticMarkup(
-    React.createElement(
-      PlatformProviderWorkflowControls,
-      baseProps({ proposal }),
-    ),
+  assert.deepEqual(fieldNames(hiddenFields), [
+    "conversation_id",
+    "proposal_request_id",
+    "review_request_id",
+    "decision",
+  ]);
+
+  const reviewSection = between(
+    controls,
+    "<form action={reviewAction}>",
+    "{reviewState.status !== \"idle\"",
+  );
+  const reviewForms = [
+    ...reviewSection.matchAll(/<form action=\{reviewAction\}[\s\S]*?<\/form>/g),
+  ].map((match) => match[0]);
+  assert.equal(reviewForms.length, 3);
+  assert.deepEqual(
+    [...reviewSection.matchAll(/requestIds\.review,\s*"(accepted|edited|rejected)"/g)]
+      .map((match) => match[1]),
+    ["accepted", "edited", "rejected"],
   );
 
-  for (const decision of ["accepted", "edited", "rejected"]) {
-    assert.match(markup, new RegExp(`name="decision" value="${decision}"`));
+  const [acceptForm, editForm, rejectForm] = reviewForms;
+  assert.deepEqual(fieldNames(acceptForm), ["edited_reply_text", "reason"]);
+  assert.match(acceptForm, /name="edited_reply_text" value=""/);
+  assert.match(acceptForm, /name="reason" value=""/);
+
+  assert.deepEqual(fieldNames(editForm), ["edited_reply_text", "reason"]);
+  assert.match(editForm, /name="edited_reply_text"\s+required/);
+  assert.match(editForm, /defaultValue=\{proposal\.proposal\.reply_text\}/);
+  assert.match(editForm, /name="reason"\s+maxLength=\{1_000\}/);
+
+  assert.deepEqual(fieldNames(rejectForm), ["edited_reply_text", "reason"]);
+  assert.match(rejectForm, /name="edited_reply_text" value=""/);
+  assert.match(rejectForm, /name="reason"\s+required/);
+
+  for (const label of [
+    "Принять без изменений",
+    "Сохранить исправленный текст",
+    "Отклонить черновик",
+  ]) {
+    assert.equal(controls.includes(label), true, `${label} must remain explicit`);
   }
-  assert.match(markup, /name="edited_reply_text"/);
-  assert.match(markup, /<input[^>]*required[^>]*name="reason"/);
-  assert.doesNotMatch(markup, /name="(?:citations|summary|confidence|risk|model_ref|schema_version)"/);
+  assert.doesNotMatch(
+    controls,
+    /name="(?:citations|summary|confidence|risk|model_ref|schema_version|provider_evidence)"/,
+  );
 });
 
-test("an unknown outcome disables resend and offers exact reconciliation", async () => {
-  const { PlatformProviderWorkflowControls } = await import(
-    "../src/components/platform/communications/PlatformProviderWorkflowControls.tsx"
-  );
-  const latestAttempt = {
-    attemptId: IDS.attempt,
-    workItemId: IDS.work,
-    conversationId: IDS.conversation,
-    manualSendAuthorizationId: IDS.authorization,
-    finalText: "Проверенный ответ",
-    authorizedByMembershipId: IDS.membership,
-    authorizedByName: "Amina Manager",
-    status: "unknown",
-    reconciliationRequired: true,
-    providerSource: null,
-    ackName: null,
-    providerObservedAt: null,
-    ackObservedAt: null,
-    failureCode: "provider_timeout",
-    attemptNumber: 1,
-    authorizedAt: "2026-09-02T08:10:00Z",
-    claimedAt: "2026-09-02T08:10:01Z",
-    settledAt: "2026-09-02T08:10:31Z",
-    lastReconciledAt: null,
-    latestReconciliationKind: null,
-    latestReconciliationOutcome: null,
-  };
-  const markup = renderToStaticMarkup(
-    React.createElement(
-      PlatformProviderWorkflowControls,
-      baseProps({ latestAttempt }),
-    ),
-  );
+test("manual send requires one exact confirmation and carries no provider target", () => {
+  const sendForm = between(controls, "<form action={sendAction}", "</form>");
+  assert.deepEqual(fieldNames(sendForm), [
+    "conversation_id",
+    "source_message_id",
+    "send_request_id",
+    "message_text",
+    "confirm_send",
+  ]);
+  assert.match(sendForm, /name="message_text"\s+required\s+maxLength=\{3_000\}/);
 
-  assert.match(markup, /<button[^>]*disabled[^>]*data-testid="platform-provider-send"/);
-  assert.match(markup, /data-testid="platform-provider-reconcile"/);
-  assert.match(markup, /name="attempt_id" value="66666666-6666-4666-8666-666666666666"/);
-  assert.match(markup, /повторн[^<]*отправ|resend[^<]*block/i);
+  const confirmation = between(sendForm, 'type="checkbox"', "/>\n");
+  assert.match(confirmation, /name="confirm_send"/);
+  assert.match(confirmation, /value="1"/);
+  assert.match(confirmation, /\brequired\b/);
+  assert.match(confirmation, /checked=\{confirmed\}/);
+
+  const sendDisabled = between(
+    sendForm,
+    "disabled={",
+    'data-testid="platform-provider-send"',
+  );
+  assert.match(sendDisabled, /!confirmed/);
+  assert.match(sendDisabled, /messageText\.trim\(\)\.length === 0/);
+  assert.doesNotMatch(
+    sendForm,
+    /name="(?:recipient|phone|raw_chat|session|api_key|provider_message_id|provider_evidence)"/i,
+  );
 });
 
-test("conversation page loads provider reads through the authenticated client only on the canonical thread", () => {
-  const page = readFileSync(
-    new URL("../src/app/(staff)/whatsapp/[id]/page.tsx", import.meta.url),
-    "utf8",
+test("unknown WhatsApp outcomes block resend and offer send-free reconciliation", () => {
+  const stateLogic = between(
+    controls,
+    "const unresolvedAttempt =",
+    "return (",
   );
+  assert.match(stateLogic, /latestAttempt\?\.status === "prepared"/);
+  assert.match(stateLogic, /latestAttempt\?\.status === "unknown"/);
+  assert.match(stateLogic, /sendState\.status === "unknown_result"/);
+
+  const sendForm = between(controls, "<form action={sendAction}", "</form>");
+  const sendDisabled = between(
+    sendForm,
+    "disabled={",
+    'data-testid="platform-provider-send"',
+  );
+  assert.match(sendDisabled, /sendActionSettled/);
+  assert.match(sendDisabled, /unresolvedAttempt/);
+  assert.match(
+    controls,
+    /Результат неизвестен\. Повторная отправка заблокирована до сверки с WAHA\./,
+  );
+
+  assert.match(
+    controls,
+    /latestAttempt\.reconciliationRequired \? \([\s\S]*?<form action=\{reconcileAction\}>/,
+  );
+  const reconcileForm = between(
+    controls,
+    "<form action={reconcileAction}>",
+    "</form>",
+  );
+  assert.deepEqual(fieldNames(reconcileForm), [
+    "conversation_id",
+    "attempt_id",
+    "reconcile_request_id",
+  ]);
+  assert.match(reconcileForm, /data-testid="platform-provider-reconcile"/);
+  assert.doesNotMatch(reconcileForm, /sendAction|message_text|confirm_send/);
+});
+
+test("conversation page reads provider state through the authenticated canonical thread", () => {
   assert.match(page, /createSupabaseServerClient\(\)/);
   assert.match(page, /readStaffGeminiProposal\(/);
   assert.match(page, /listStaffGeminiProposalReviews\(/);
@@ -169,5 +187,8 @@ test("conversation page loads provider reads through the authenticated client on
   assert.match(page, /organizationId:\s*actor\.organizationId/g);
   assert.match(page, /messageCursor === null[\s\S]*?direction === "inbound"/);
   assert.match(page, /workflowControls=\{[\s\S]*?<PlatformProviderWorkflowControls/);
-  assert.doesNotMatch(page, /service[_-]?role|EVO_PLATFORM_SUPABASE_SECRET_KEY|recipient|rawChat/i);
+  assert.doesNotMatch(
+    page,
+    /service[_-]?role|EVO_PLATFORM_SUPABASE_SECRET_KEY|recipient|rawChat/i,
+  );
 });

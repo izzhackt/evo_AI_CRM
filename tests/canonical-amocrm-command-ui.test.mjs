@@ -15,14 +15,14 @@ test("the active canonical amoCRM command panel remains on Admissions Student 36
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
   const admissions = source(
-    "src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
+    "src/app/(staff)/clients/[id]/CanonicalAmoCrmCommandSection.tsx",
   );
 
   assert.match(admissions, /CanonicalAmoCrmCommandPanel/);
-  assert.match(studentWorkspace, /<AmoCrmCaseCommandSection/);
+  assert.match(studentWorkspace, /<CanonicalAmoCrmCommandSection/);
   assert.ok(
     studentWorkspace.indexOf("<PlatformAdmissionsOperationsPanel") <
-      studentWorkspace.indexOf("<AmoCrmCaseCommandSection"),
+      studentWorkspace.indexOf("<CanonicalAmoCrmCommandSection"),
     "Supabase Admissions operations must remain ahead of the isolated #549 amoCRM command section",
   );
   assert.match(

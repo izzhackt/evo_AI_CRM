@@ -50,7 +50,7 @@ test("Student 360 exposes localized links to every core workflow section", () =>
     "src/components/platform/documents/PlatformPrivateDocumentsPanel.tsx",
   );
   const amoCrmIsolation = source(
-    "src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
+    "src/app/(staff)/clients/[id]/CanonicalAmoCrmCommandSection.tsx",
   );
   const admissionsOperations = source(
     "src/components/platform/admissions/PlatformAdmissionsOperationsPanel.tsx",

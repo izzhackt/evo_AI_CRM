@@ -45,12 +45,12 @@ test("P3 active routes have one Supabase authority and no legacy fallback import
   );
 });
 
-test("P4 retires the Admissions wrapper and leaves only the later-owned amoCRM wrapper", () => {
+test("P4 retires the Admissions wrapper and leaves only the canonical later-owned amoCRM section", () => {
   const studentWorkspace = source(
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
   const amocrmWrapper = source(
-    "src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
+    "src/app/(staff)/clients/[id]/CanonicalAmoCrmCommandSection.tsx",
   );
 
   assert.equal(
@@ -65,7 +65,16 @@ test("P4 retires the Admissions wrapper and leaves only the later-owned amoCRM w
   assert.match(studentWorkspace, /<PlatformAdmissionsTaskPanel/);
   assert.match(studentWorkspace, /<PlatformAdmissionsOperationsPanel/);
   assert.match(studentWorkspace, /<PlatformPrivateDocumentsPanel/);
-  assert.match(studentWorkspace, /<AmoCrmCaseCommandSection/);
+  assert.equal(
+    existsSync(
+      new URL(
+        "../src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx",
+        import.meta.url,
+      ),
+    ),
+    false,
+  );
+  assert.match(studentWorkspace, /<CanonicalAmoCrmCommandSection/);
   assert.doesNotMatch(studentWorkspace, /canonical-crm-repository|private-document-repository/);
   assert.match(amocrmWrapper, /canonical-amocrm-command/);
   assert.doesNotMatch(

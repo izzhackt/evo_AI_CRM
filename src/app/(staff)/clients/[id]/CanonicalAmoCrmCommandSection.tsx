@@ -11,13 +11,13 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
- * Temporary #549 isolation boundary.
+ * Canonical Student 360 amoCRM command section.
  *
- * The canonical Supabase Student context supplies the identifiers. This panel
- * reads the active Supabase command/blocking path only; it must not become
- * another Student summary, handoff or contract path.
+ * The canonical Supabase Student context supplies the identifiers. This
+ * section reads the active Supabase command/blocking path only; it must not
+ * become another Student summary, handoff or contract path.
  */
-export async function AmoCrmCaseCommandSection({
+export async function CanonicalAmoCrmCommandSection({
   organizationId,
   authorityRole,
   locale,

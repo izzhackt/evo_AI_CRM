@@ -43,14 +43,59 @@ const KIND_TONE: Record<string, string> = {
   md: "bg-surface-3 text-fg-2",
 };
 
-function KindBadge({ kind, raised = false }: { kind: string; raised?: boolean }) {
+/** Заливка значка файла. Свои цвета, а не чужие фирменные марки. */
+const KIND_FILL: Record<string, string> = {
+  pdf: "var(--danger)",
+  docx: "var(--info)",
+  xlsx: "var(--ok)",
+  md: "var(--text-2)",
+};
+
+function KindBadge({ kind }: { kind: string }) {
   return (
     <span
       className={`inline-flex min-w-8 justify-center rounded-[4px] px-1 py-0.5 font-mono text-2xs font-semibold uppercase ${
         KIND_TONE[kind] ?? "bg-surface-3 text-fg-2"
-      } ${raised ? "border border-border" : ""}`}
+      }`}
     >
       {kind}
+    </span>
+  );
+}
+
+/**
+ * Значок типа файла: лист с загнутым углом, залитый цветом типа.
+ *
+ * В референсе на папке лежат разноцветные иконки приложений. Чужие фирменные
+ * марки сюда тащить нельзя, поэтому форма своя — но роль та же: по цвету и
+ * силуэту видно, из чего папка, не читая подписей.
+ */
+function KindGlyph({ kind, index }: { kind: string; index: number }) {
+  const letter = kind === "xlsx" ? "X" : kind === "docx" ? "W" : kind === "pdf" ? "P" : "M";
+  return (
+    <span
+      className="relative grid h-8 w-8 place-items-center rounded-[8px] border border-border bg-surface shadow-evo"
+      style={{ marginInlineStart: index === 0 ? 0 : -8, zIndex: 10 - index }}
+      title={kind.toUpperCase()}
+    >
+      <svg viewBox="0 0 20 20" className="h-5 w-5" aria-hidden="true">
+        <path
+          d="M4.5 1.6h6.4l4.6 4.6V17a1.4 1.4 0 0 1-1.4 1.4H4.5A1.4 1.4 0 0 1 3.1 17V3A1.4 1.4 0 0 1 4.5 1.6Z"
+          fill={KIND_FILL[kind] ?? "var(--text-2)"}
+        />
+        <path d="M10.9 1.6 15.5 6.2h-3.2a1.4 1.4 0 0 1-1.4-1.4V1.6Z" fill="#fff" fillOpacity="0.42" />
+        <text
+          x="9.3"
+          y="14.6"
+          textAnchor="middle"
+          fontSize="7.6"
+          fontWeight="700"
+          fill="#fff"
+          fontFamily="var(--font-golos), system-ui, sans-serif"
+        >
+          {letter}
+        </text>
+      </svg>
     </span>
   );
 }
@@ -72,35 +117,38 @@ function Avatar({ name }: { name: string }) {
   );
 }
 
-/** Фигура папки с типами файлов на ней — плитка из первого референса. */
+/**
+ * Плитка папки: залитая фигура со значками типов на ней — как в референсе.
+ *
+ * Плитка темнее самой папки: в референсе папка читается за счёт того, что она
+ * светлее подложки. Без этой разницы фигура превращается в серое пятно, что и
+ * случилось в первой попытке, когда обе стенки были почти одного тона.
+ */
 function FolderTile({ folder }: { folder: KnowledgeFolder }) {
   return (
     <button
       type="button"
       className="flex w-full flex-col gap-2.5 rounded-card border border-border bg-surface p-3 text-start hover:border-control-edge"
     >
-      <span className="relative block w-full overflow-hidden rounded-nav bg-surface-2 pb-[52%]">
-        <svg
-          viewBox="0 0 200 104"
-          className="absolute inset-0 h-full w-full"
-          aria-hidden="true"
-        >
+      <span className="relative block w-full overflow-hidden rounded-nav bg-surface-3 pb-[54%]">
+        <svg viewBox="0 0 200 108" className="absolute inset-0 h-full w-full" aria-hidden="true">
           <path
-            d="M22 26h44l10 12h102a8 8 0 0 1 8 8v46a8 8 0 0 1-8 8H22a8 8 0 0 1-8-8V34a8 8 0 0 1 8-8Z"
-            fill="var(--surface-3)"
+            d="M26 20h40a8 8 0 0 1 5.7 2.4l7.6 7.6H174a10 10 0 0 1 10 10v48a10 10 0 0 1-10 10H26a10 10 0 0 1-10-10V30a10 10 0 0 1 10-10Z"
+            fill="var(--surface-2)"
             stroke="var(--border-strong)"
             strokeWidth="1.5"
           />
           <path
-            d="M14 46h172v46a8 8 0 0 1-8 8H22a8 8 0 0 1-8-8V46Z"
+            d="M16 44h168v44a10 10 0 0 1-10 10H26a10 10 0 0 1-10-10V44Z"
             fill="var(--surface)"
             stroke="var(--border-strong)"
             strokeWidth="1.5"
           />
         </svg>
-        <span className="absolute bottom-2.5 left-2.5 flex gap-1">
-          {folder.kinds.map((kind) => (
-            <KindBadge key={kind} kind={kind} raised />
+
+        <span className="absolute bottom-3 left-3.5 flex items-end">
+          {folder.kinds.map((kind, index) => (
+            <KindGlyph key={kind} kind={kind} index={index} />
           ))}
         </span>
       </span>

@@ -1,79 +1,76 @@
 import Link from "next/link";
 
 import {
-  WorkCalendar,
-  type CalendarDay,
-  type CalendarTask,
-} from "@/components/v3/WorkCalendar";
+  WeekCalendar,
+  type DayColumn,
+  type TodoGroup,
+  type WeekEvent,
+} from "@/components/v3/WeekCalendar";
 
 export const metadata = { title: "V3 · Календарь" };
 
 /**
- * Образец данных живёт здесь, а не в компоненте: подключение к платформе
- * будет заменой этого блока, а не правкой вёрстки.
+ * Образец живёт здесь, а не в компоненте: подключение будет заменой этого
+ * блока. Задачи со сроком, но без времени приходят как startMinutes: null и
+ * встают в строку «весь день» — так схема EVO выглядит уже сегодня.
  */
-const SAMPLE_DAYS: CalendarDay[] = (() => {
-  const grid: CalendarDay[] = [{ date: 31, inMonth: false, today: false, count: 0 }];
-  const work = new Map([[3, 1], [4, 1], [5, 2], [6, 2], [7, 1], [8, 1], [15, 1], [22, 2]]);
-  for (let date = 1; date <= 30; date += 1) {
-    grid.push({ date, inMonth: true, today: date === 2, count: work.get(date) ?? 0 });
-  }
-  for (let date = 1; date <= 4; date += 1) {
-    grid.push({ date, inMonth: false, today: false, count: 0 });
-  }
-  return grid;
-})();
+const DAYS: DayColumn[] = [
+  { date: 31, weekday: "пн", today: false },
+  { date: 1, weekday: "вт", today: false },
+  { date: 2, weekday: "ср", today: true },
+  { date: 3, weekday: "чт", today: false },
+  { date: 4, weekday: "пт", today: false },
+];
 
-const SAMPLE_GROUPS: readonly {
-  urgency: "week" | "month" | "unscheduled";
-  tasks: CalendarTask[];
-}[] = [
+const EVENTS: WeekEvent[] = [
+  { id: "e1", title: "Проверить нострификацию аттестата", day: 3, startMinutes: null, endMinutes: null, tone: "deadline", people: [], action: null },
+  { id: "e2", title: "Подтвердить IELTS и загрузить сертификат", day: 4, startMinutes: null, endMinutes: null, tone: "deadline", people: [], action: null },
+  { id: "e3", title: "Разбор очереди Sales", day: 2, startMinutes: 9 * 60, endMinutes: 10 * 60 + 30, tone: "work", people: ["Айгерим", "Директор"], action: null },
+  { id: "e4", title: "Созвон с приёмной комиссией", day: 2, startMinutes: 11 * 60, endMinutes: 12 * 60, tone: "meeting", people: ["Айгерим", "Тимур", "Директор"], action: "Открыть встречу" },
+  { id: "e5", title: "Передача лида в Admissions", day: 1, startMinutes: 10 * 60, endMinutes: 11 * 60, tone: "work", people: ["Директор"], action: null },
+  { id: "e6", title: "Сверка дедлайнов осеннего набора", day: 4, startMinutes: 14 * 60, endMinutes: 15 * 60 + 30, tone: "work", people: ["Айгерим"], action: null },
+  { id: "e7", title: "Обед", day: 2, startMinutes: 13 * 60, endMinutes: 14 * 60, tone: "work", people: [], action: null },
+];
+
+const GROUPS: TodoGroup[] = [
   {
-    urgency: "week",
-    tasks: [
-      { id: "s1", title: "Проверить нострификацию аттестата", dueAt: "2026-09-03", assignedBy: "Директор", assignedTo: "Айгерим", ownerRole: "admissions", done: false, href: "#" },
-      { id: "s2", title: "Подтвердить IELTS и загрузить сертификат", dueAt: "2026-09-05", assignedBy: null, assignedTo: "Айгерим", ownerRole: "admissions", done: true, href: "#" },
-      { id: "s3", title: "Позвонить в приёмную комиссию вуза", dueAt: "2026-09-06", assignedBy: null, assignedTo: "Айгерим", ownerRole: "admissions", done: false, href: null },
+    title: "Эта неделя",
+    items: [
+      { id: "t1", title: "Проверить нострификацию аттестата", done: false },
+      { id: "t2", title: "Подтвердить IELTS", done: true },
+      { id: "t3", title: "Позвонить в приёмную комиссию", done: false },
     ],
   },
   {
-    urgency: "month",
-    tasks: [
-      { id: "s4", title: "Сводка по осеннему набору", dueAt: "2026-09-22", assignedBy: "Директор", assignedTo: "Айгерим", ownerRole: "admissions", done: false, href: null },
-    ],
+    title: "Этот месяц",
+    items: [{ id: "t4", title: "Сводка по осеннему набору", done: false }],
   },
   {
-    urgency: "unscheduled",
-    tasks: [
-      { id: "s5", title: "Проверить унаследованный контекст Sales", dueAt: null, assignedBy: null, assignedTo: null, ownerRole: "admissions", done: false, href: "#" },
-      { id: "s6", title: "Подготовить первичный план запроса документов", dueAt: null, assignedBy: null, assignedTo: null, ownerRole: "admissions", done: false, href: "#" },
+    title: "Без срока",
+    items: [
+      { id: "t5", title: "Проверить унаследованный контекст Sales", done: false },
+      { id: "t6", title: "План запроса документов", done: false },
     ],
   },
 ];
 
 export default function CalendarPart() {
   return (
-    <main className="mx-auto w-full max-w-[1000px] px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full max-w-[1300px] px-4 py-8 sm:px-6">
       <Link href="/v3" className="font-mono text-xs text-accent-text hover:underline">
         ← Части интерфейса
       </Link>
 
       <h1 className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-fg">
-        Календарь сотрудника
+        Календарь
       </h1>
-      <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">
-        Форма готова; данные — образец, пока в системе нет сотрудников и личных
-        задач. Компонент принимает их через props.
+      <p className="mt-1 max-w-[60ch] text-sm leading-6 text-fg-3">
+        Неделя с задачами внутри дат. Работа со сроком, но без времени встаёт в
+        строку «весь день» — так она остаётся видимой, а не пропадает из сетки.
       </p>
 
-      <div className="mt-6 rounded-card bg-surface p-5">
-        <WorkCalendar
-          monthLabel="Сентябрь"
-          year={2026}
-          days={SAMPLE_DAYS}
-          groups={SAMPLE_GROUPS}
-          personName="Айгерим"
-        />
+      <div className="mt-6">
+        <WeekCalendar days={DAYS} events={EVENTS} groups={GROUPS} monthLabel="Сентябрь 2026" />
       </div>
     </main>
   );

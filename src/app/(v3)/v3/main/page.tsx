@@ -27,7 +27,7 @@ export default async function MainPart() {
 
   return (
     <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
-      <Link href="/v3" className="font-mono text-xs text-accent-text hover:underline">
+      <Link href="/v3" className="-ms-1 inline-flex min-h-11 items-center px-1 font-mono text-xs text-accent-text hover:underline">
         ← Части интерфейса
       </Link>
 

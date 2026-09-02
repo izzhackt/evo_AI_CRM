@@ -86,7 +86,10 @@
     --border: #332e2c;
     --border-strong: #4a4340;
     --control-edge: #837b77;
-    --accent-weak: #2c1618;
+    /* #2c1618 давал 1.01:1 к --surface: подложка гейта и срочные события
+       календаря пропадали в тёмной теме. #4b1d21 — 1.22:1 к --surface и
+       1.12:1 к --surface-2, при этом accent-text держит 4.97:1. */
+    --accent-weak: #4b1d21;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -14px rgb(0 0 0 / 0.6);
     --shadow-lg: 0 2px 4px rgb(0 0 0 / 0.45), 0 22px 48px -20px rgb(0 0 0 / 0.7);
   }
@@ -103,7 +106,7 @@
   --border: #332e2c;
   --border-strong: #4a4340;
   --control-edge: #837b77;
-  --accent-weak: #2c1618;
+  --accent-weak: #4b1d21;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -14px rgb(0 0 0 / 0.6);
   --shadow-lg: 0 2px 4px rgb(0 0 0 / 0.45), 0 22px 48px -20px rgb(0 0 0 / 0.7);
 }

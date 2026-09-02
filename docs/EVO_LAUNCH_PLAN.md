@@ -318,23 +318,27 @@ receipts remain partly in the local Drizzle runtime while root Supabase already
 contains the accepted Gemini and WAHA foundations. The provider tracer must
 replace those local authorities rather than copy them into a second path.
 
-1. **#565 / P5A - Gemini proposal and review replacement.** Reuse migrations
-   066 and 091 and their existing claim, completion, staff-read and human-review
-   RPCs. The signed-in staff Supabase session remains the authorization
-   boundary; only the server contacts Gemini. A proposal is advisory until an
-   authorized staff member explicitly Accepts, Edits or Rejects it, and Gemini
-   cannot invoke WhatsApp or change CRM state. After real local Supabase,
-   application, Chromium and one bounded connected-provider proof, delete the
-   active local Drizzle proposal persistence and its superseded imports/tests.
-2. **#566 / P5B - human-reviewed WhatsApp replacement.** Reuse migrations 080
-   and 082 for the canonical send claim, WAHA binding, finish, session and ACK
-   path; add only the smallest forward read/reconciliation contract that the
-   accepted Inbox UI still lacks. One explicit authorized staff action over
-   final reviewed text may send. An unknown outcome blocks another send until
-   exact WAHA readback reconciles the same request, recipient and text. After
-   real local Supabase, application, Chromium and one bounded real WAHA proof,
-   delete active local Drizzle send attempts, superseded adapters/workers and
-   fallback imports.
+1. **#565 / P5A - bounded Supabase provider contract.** Inventory and reuse
+   migrations 066, 078, 080, 081, 082 and 091. Add one forward migration only
+   for the staff-safe initiation/audit and latest send-attempt/read/
+   reconciliation shapes that the accepted UI genuinely lacks. Every claim is
+   bound to one canonical organization, conversation, source message, staff
+   actor and request identity. Real local Supabase/PostgreSQL and SQL/RLS proof
+   must pass, but this contract-only slice does not import a new application
+   adapter, contact a provider or activate a second runtime path. It expires
+   into the atomic #566 cutover.
+2. **#566 / P5B - one WhatsApp and Gemini runtime.** Atomically switch the
+   accepted staff communications queue/thread, canonical inbound projection,
+   Gemini proposal/result/read/review and explicit WhatsApp send/reconciliation
+   path to Supabase. The signed-in staff session remains the authorization
+   boundary and only the server contacts Gemini or private WAHA. Gemini stays
+   advisory until explicit Accept/Edit/Reject review and can never invoke a
+   command. One explicit staff action over final reviewed text may send; an
+   unknown outcome blocks another send until exact WAHA readback reconciles the
+   same request, recipient and text. After real local Supabase, application,
+   Chromium and bounded connected Gemini/WAHA proof, delete the active local
+   Drizzle conversation/proposal/send state, superseded local inbound route,
+   adapters/workers/imports/tests/config and every fallback path.
 3. **#567 / P5C - Supabase-authoritative amoCRM commands.** Add the missing
    forward-only private command-attempt, immutable receipt and provider-binding
    model plus narrowly scoped staff/service RPCs. Explicit authorized commands

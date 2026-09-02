@@ -15297,18 +15297,22 @@ tracer, replacement discipline and #550 entry condition.
 Decision:
 
 - Keep #549 as the ordered provider parent and execute exactly four small child
-  slices: #565 Gemini proposal/review replacement, #566 staff-reviewed WhatsApp
-  send/reconciliation replacement, #567 Supabase-authoritative amoCRM commands,
-  then #568 one combined real-provider acceptance. #550 remains blocked until
-  all four children and #549 are complete.
-- #565 reuses existing migrations 066 and 091 rather than rebuilding Gemini
-  persistence. It moves the active request/result/read/review path to Supabase,
-  proves one bounded real Gemini request plus real local database/application/
-  browser behavior, then deletes the superseded local Drizzle proposal path.
-- #566 reuses existing migrations 080 and 082 rather than rebuilding WAHA
-  session/send authority. It adds only a genuinely missing read/reconciliation
-  contract, proves one explicit human-reviewed real send/readback, then deletes
-  active local send-attempt state, superseded adapters/workers and fallbacks.
+  slices: #565 bounded Supabase provider contract, #566 atomic WhatsApp/Gemini
+  runtime replacement, #567 Supabase-authoritative amoCRM commands, then #568
+  one combined real-provider acceptance. #550 remains blocked until all four
+  children and #549 are complete.
+- A code-path audit found that `/whatsapp` still reads local Drizzle
+  conversations. Switching only Gemini persistence would bind a Supabase
+  proposal to a potentially different local conversation/source-message
+  identity and create dual state. #565 therefore reuses migrations 066, 078,
+  080, 081, 082 and 091, adding only missing staff-safe initiation/audit and
+  latest attempt/read/reconciliation database shapes. It has SQL/RLS proof but
+  no application import, provider call or second active runtime.
+- #566 performs one regression-free communications cutover: queue/thread,
+  canonical inbound projection, Gemini proposal/review and explicit WhatsApp
+  send/reconciliation move together onto Supabase. It proves bounded real
+  Gemini and WAHA behavior, then deletes local conversation/proposal/send state,
+  the superseded inbound route, adapters/workers/tests/config and fallbacks.
 - #567 adds the missing forward Supabase model for amoCRM command attempts,
   immutable receipts and provider bindings. It preserves the approved explicit
   contact, lead, link, pipeline/status, note, task and tag operations, proves

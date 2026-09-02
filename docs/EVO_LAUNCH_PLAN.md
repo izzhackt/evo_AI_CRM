@@ -136,13 +136,20 @@ separately reviewable inside the same PR:
 3. **P2C — canonical Sales writes and slice cleanup.** Move qualification,
    ownership and next-action mutation through only the mutation RPCs in
    migration 086, prove business outcomes and direct denial, then remove the
-   replaced Drizzle Sales workflow writes, actions, UI, tests and configuration.
+   replaced active Drizzle Sales workflow action, UI, route imports, tests and
+   configuration. The inactive `updateCanonicalSalesLeadWorkflow` fixture
+   helper and its old stage contract may remain reachable only from the named
+   local #547/#549 preparation scripts/tests until those downstream slices move
+   their gate, handoff and provider fixtures to Supabase; they have no active
+   route/action import and must be deleted in those issues, not revived as a
+   runtime path.
    P2B and P2C must merge together so `/sales/[id]` never lands as a read-only
    regression. Contract/payment gate and Sales-to-Admissions handoff remain
    owned by #547; the Sales amoCRM command surface remains owned by #549. Their
    old Drizzle controls and historical provider acceptance expectations must
    not be reactivated as a compatibility path. Close #546 only after the final
-   scoped legacy inventory is empty.
+   scoped active-runtime legacy inventory is empty and the temporary fixture
+   inventory names its #547/#549 exit.
 
 Implementation inspection clarified the original migration boundary. P2B must
 not add a migration 093 wrapper around the migration 086 read RPCs, because

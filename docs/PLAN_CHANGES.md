@@ -15129,3 +15129,34 @@ projection and count use the same exact predicate as
 replacement of the existing function, not a wrapper, duplicate read contract,
 fallback or edit to applied migration history. SQL and Chromium proof must
 cover client-only, wrong-queue/non-intake and exact authorized conversations.
+
+## 2026-09-02 - Bound the remaining Drizzle Sales fixture to downstream deletion
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor and cleanup
+program.
+Change type: replace-not-layer cleanup boundary; no managed-project,
+production, provider or customer-data mutation.
+Affected plan section: issue #546 P2C cleanup with #547/#549 exit ownership.
+
+The combined P2B/P2C slice deletes the superseded active
+`CanonicalSalesWorkflowForm` and `canonical-sales-workflow-actions` modules and
+leaves no route, action or rendered Sales control using the Drizzle workflow.
+Inspection found one narrower temporary dependency: the inactive
+`updateCanonicalSalesLeadWorkflow` export in
+`src/lib/server/canonical-crm-repository.ts`, together with
+`src/lib/canonical-sales-workflow-contract.ts`, is still used only by local
+acceptance preparation in `tests/canonical-crm-postgres.test.mjs`,
+`tests/canonical-amocrm-command-postgres.test.mjs`,
+`tests/canonical-crm-repository.test.mjs` and
+`scripts/seed-canonical-amocrm-browser-blocker.mjs` for the not-yet-replaced
+contract/payment, handoff and amoCRM slices.
+
+This named fixture-only coexistence expires as follows: #547 must replace and
+delete the gate/handoff preparation callers; #549 must replace and delete the
+amoCRM preparation callers; the later of those two issues must delete the old
+repository export and stage contract after an `rg` inventory is empty. The
+files may not be imported by an active route/action, bundled as a fallback, or
+used to claim Supabase acceptance. This bounded exception prevents #546 from
+silently pulling #547/#549 implementation forward while keeping exactly one
+active Sales workflow path.

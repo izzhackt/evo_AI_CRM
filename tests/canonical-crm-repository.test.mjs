@@ -6,17 +6,13 @@ import {
   CANONICAL_SALES_STAGES,
   CANONICAL_STUDENT_CASE_STATUSES,
   CanonicalCrmRepositoryError,
-  appendCanonicalInboundMessage,
   createCanonicalPersonLead,
-  getCanonicalStaffConversationThread,
   getCanonicalLeadGateSnapshot,
   getCanonicalLeadSnapshot,
   getCanonicalStudentCaseHandoffSnapshot,
   handoffCanonicalLeadToAdmissions,
-  listCanonicalStaffConversations,
   listCanonicalStudentCases,
   normalizeCanonicalPersonIdentity,
-  parseCanonicalMessageCursor,
   parseCanonicalReadCursor,
   recordCanonicalSalesGateEvidence,
   updateCanonicalSalesLeadWorkflow,
@@ -82,29 +78,6 @@ test("canonical read cursor normalizes one real timestamp and non-nil UUID pair"
   }
 });
 
-test("canonical message cursor normalizes one real timestamp and non-nil UUID pair", () => {
-  assert.deepEqual(
-    parseCanonicalMessageCursor("2026-08-28T16:30:00+04:00", UUID_B),
-    {
-      occurredAt: "2026-08-28T12:30:00.000Z",
-      id: UUID_B,
-    },
-  );
-
-  for (const [occurredAt, id] of [
-    [undefined, UUID_B],
-    ["2026-08-28T12:30:00.000Z", undefined],
-    ["2026-02-30T12:30:00.000Z", UUID_B],
-    ["2026-08-28T25:30:00.000Z", UUID_B],
-    ["2026-08-28T12:30:00.000Z", "not-a-uuid"],
-  ]) {
-    assert.throws(
-      () => parseCanonicalMessageCursor(occurredAt, id),
-      rejectsWithCode("invalid_input"),
-    );
-  }
-});
-
 test("canonical phone normalization rejects letters instead of deleting them", () => {
   assert.throws(
     () =>
@@ -131,7 +104,7 @@ test("person and lead command rejects malformed identity before database access"
   );
 });
 
-test("admissions cannot mutate the Sales-owned canonical intake surface", async () => {
+test("admissions cannot create a Sales-owned canonical lead", async () => {
   await assert.rejects(
     createCanonicalPersonLead({
       actorRole: "admissions",
@@ -141,21 +114,6 @@ test("admissions cannot mutate the Sales-owned canonical intake surface", async 
       email: "subject@acceptance.invalid",
       phone: "+996555123456",
       source: "whatsapp",
-    }),
-    rejectsWithCode("forbidden"),
-  );
-
-  await assert.rejects(
-    appendCanonicalInboundMessage({
-      actorRole: "admissions",
-      idempotencyKey: "message:receive:1",
-      correlationId: "request:3",
-      leadId: UUID_A,
-      channel: "whatsapp",
-      externalConversationId: "chat-1",
-      externalMessageId: "message-1",
-      body: "Inbound text",
-      occurredAt: "2026-08-28T12:00:00.000Z",
     }),
     rejectsWithCode("forbidden"),
   );
@@ -184,37 +142,6 @@ test("all consequential commands require bounded idempotency and correlation key
       ...common,
       leadId: UUID_A,
       expectedVersion: 1,
-    }),
-    rejectsWithCode("invalid_input"),
-  );
-});
-
-test("canonical staff WhatsApp reads validate role and cursor inputs before database access", async () => {
-  await assert.rejects(
-    listCanonicalStaffConversations({
-      actorRole: "student",
-    }),
-    rejectsWithCode("invalid_input"),
-  );
-  await assert.rejects(
-    listCanonicalStaffConversations({
-      actorRole: "sales",
-      cursor: { updatedAt: "not-a-timestamp", id: UUID_A },
-    }),
-    rejectsWithCode("invalid_input"),
-  );
-  await assert.rejects(
-    getCanonicalStaffConversationThread({
-      actorRole: "admissions",
-      conversationId: "not-a-uuid",
-    }),
-    rejectsWithCode("invalid_input"),
-  );
-  await assert.rejects(
-    getCanonicalStaffConversationThread({
-      actorRole: "sales",
-      conversationId: UUID_A,
-      cursor: { occurredAt: "2026-13-28T12:00:00.000Z", id: UUID_B },
     }),
     rejectsWithCode("invalid_input"),
   );
@@ -425,40 +352,65 @@ test("disqualification requires a reason and optimistic version is positive", as
   );
 });
 
-test("canonical repository has no Supabase, SQLite, compatibility, or fallback authority", async () => {
-  const source = await readFile(
+test("canonical repository retains only non-communication Drizzle authority", async () => {
+  const repositorySource = await readFile(
     new URL("../src/lib/server/canonical-crm-repository.ts", import.meta.url),
     "utf8",
   );
-  assert.doesNotMatch(source, /supabase|sqlite|compatib(?:ility|le)|fallback/i);
-  assert.match(source, /getDatabase/);
-  assert.match(source, /\.transaction\(/);
+  const coreSchemaSource = await readFile(
+    new URL("../src/db/schema/canonical-crm-core.ts", import.meta.url),
+    "utf8",
+  );
+  const operationsSchemaSource = await readFile(
+    new URL("../src/db/schema/canonical-crm-operations.ts", import.meta.url),
+    "utf8",
+  );
+
   assert.doesNotMatch(
-    source,
+    repositorySource,
+    /supabase|sqlite|compatib(?:ility|le)|fallback/i,
+  );
+  assert.match(repositorySource, /getDatabase/);
+  assert.match(repositorySource, /\.transaction\(/);
+  assert.doesNotMatch(
+    repositorySource,
     /export\s+(?:async\s+)?function\s+createCanonicalStudentCase\b/,
   );
   assert.doesNotMatch(
-    source,
+    repositorySource,
     /export\s+(?:async\s+)?function\s+appendCanonicalBusinessEvent\b/,
   );
-  assert.match(source, /async function insertBusinessEvent\b/);
-  assert.match(source, /pg_advisory_xact_lock\(hashtextextended/);
+  assert.match(repositorySource, /async function insertBusinessEvent\b/);
+  assert.match(repositorySource, /pg_advisory_xact_lock\(hashtextextended/);
   assert.match(
-    source,
+    repositorySource,
     /eq\(evoCommandReceipts\.idempotencyKey, input\.context\.idempotencyKey\)/,
   );
   assert.match(
-    source,
+    repositorySource,
     /lead\.stage === "disqualified" \|\| lead\.stage === "handed_off"/,
   );
   assert.match(
-    source,
+    repositorySource,
     /lead\.stage !== "qualified" && lead\.stage !== "handoff_ready"/,
   );
-  assert.match(source, /transition: "student_case\.created"/);
-  assert.match(source, /transition: "student_case\.activated"/);
-  assert.match(source, /fromState: studentCaseActivatedFromStatus/);
-  assert.match(source, /let eventSequence = 1/);
-  assert.match(source, /eventSequence \+= 1/);
-  assert.match(source, /CANONICAL_ADMISSIONS_STARTER_TASKS\.map/);
+  assert.match(repositorySource, /transition: "student_case\.created"/);
+  assert.match(repositorySource, /transition: "student_case\.activated"/);
+  assert.match(repositorySource, /fromState: studentCaseActivatedFromStatus/);
+  assert.match(repositorySource, /let eventSequence = 1/);
+  assert.match(repositorySource, /eventSequence \+= 1/);
+  assert.match(repositorySource, /CANONICAL_ADMISSIONS_STARTER_TASKS\.map/);
+
+  assert.doesNotMatch(
+    repositorySource,
+    /CANONICAL_WAHA_ACK_NAMES|Canonical(?:MessageCursor|StaffConversation|ConversationMessage|Gemini|Waha|WhatsApp|InboundMessageResult)|receiveCanonicalWhatsAppInbound|appendCanonicalInboundMessage|listCanonicalStaffConversations|getCanonicalStaffConversationThread|executeCanonicalGeminiProposal|reviewCanonicalGeminiProposal|readLatestCanonicalGeminiProposal|executeCanonicalWhatsAppSend|reconcileCanonicalWhatsAppSendAttempt|readLatestCanonicalWhatsAppSendAttempt/,
+  );
+  assert.doesNotMatch(
+    coreSchemaSource,
+    /evoConversations|evoMessages|evo_conversations|evo_messages/,
+  );
+  assert.doesNotMatch(
+    operationsSchemaSource,
+    /evoAiProposals|evoWhatsappSendAttempts|evo_ai_proposals|evo_whatsapp_send_attempts/,
+  );
 });

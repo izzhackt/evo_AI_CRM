@@ -51,8 +51,11 @@ test("the staff shell renders exact effective-role navigation and an Admin contr
     /loadFixtureShellProvider|Legacy|Connected|isUiContractFixtureMode|settings\?tab=staff/,
   );
   assert.match(layoutSource, /readCanonicalAmoCrmProviderAvailability/);
-  assert.match(layoutSource, /readCanonicalWahaProviderAvailability/);
-  assert.match(layoutSource, /readCanonicalGeminiProposalAvailability/);
+  assert.match(layoutSource, /getPlatformWahaSessionHealth\(actor, "evo-inbox"\)/);
+  assert.match(layoutSource, /readPlatformGeminiProviderAvailability/);
+  assert.match(layoutSource, /platformWahaHealthDisplayStatus/);
+  assert.doesNotMatch(layoutSource, /readCanonicalWahaProviderAvailability/);
+  assert.doesNotMatch(layoutSource, /readCanonicalGeminiProposalAvailability/);
   assert.match(layoutSource, /providerDisplayStatus/);
   assert.doesNotMatch(topBarSource, /connectedRoutesOnly|notification-menu|ADD_ROUTES/);
   assert.match(topBarSource, /integrationStatus\.ai/);

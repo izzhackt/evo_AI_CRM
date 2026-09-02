@@ -1417,6 +1417,14 @@ SELECT pg_temp.assert_true(
   'P5C failed accepted reconciliation must leave the command attempt unknown'
 );
 
+SELECT (
+  platform.read_amocrm_command_by_idempotency_key(
+    :'p5c_org_a',
+    'p5c:contact-update:1'
+  ) ->> 'attempt_id'
+)::UUID AS p5c_dispatched_contact_update_attempt_id
+\gset
+
 RESET ROLE;
 SET ROLE authenticated;
 SET request.jwt.claims TO :'p5c_admin_claims';
@@ -1433,7 +1441,7 @@ SELECT platform.release_prepared_amocrm_command(
   ),
   '92000000-0000-4000-8000-000000000121',
   '92000000-0000-4000-8000-000000000122',
-  :'p5c_contact_update_attempt_id',
+  :'p5c_dispatched_contact_update_attempt_id',
   '92000000-0000-4000-8000-000000000149'
 );
 \set p5c_dispatched_release_blocked_state :SQLSTATE

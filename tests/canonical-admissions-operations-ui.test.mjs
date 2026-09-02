@@ -12,14 +12,18 @@ function source(path) {
 
 test("Student 360 is the only canonical admissions operations write surface", () => {
   const workspace = source(
-    "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+    "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
   );
   const panel = source(
     "src/components/platform/admissions/CanonicalAdmissionsOperationsPanel.tsx",
   );
 
   assert.match(workspace, /getCanonicalAdmissionsOperationsSnapshot/);
+  assert.match(workspace, /listCanonicalAdmissionsTasks\(\{/);
   assert.match(workspace, /CanonicalAdmissionsOperationsPanel/);
+  assert.match(workspace, /CanonicalAdmissionsTaskPanel/);
+  assert.match(workspace, /CanonicalPrivateDocumentsPanel/);
+  assert.match(workspace, /data-testid="admissions-case-operations-section"/);
   assert.match(panel, /data-testid="canonical-admissions-operations"/);
   assert.match(panel, /data-testid="canonical-university-application-create-form"/);
   assert.match(panel, /data-testid="canonical-university-application"/);

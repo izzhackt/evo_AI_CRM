@@ -41,6 +41,8 @@ const MISSING_EVIDENCE_SCOPE_REQUEST_ID =
   "54600000-0000-4000-8000-000000000026";
 const NON_INTAKE_SCOPE_REQUEST_ID =
   "54600000-0000-4000-8000-000000000027";
+const HANDOFF_CLIENT_ID = "54600000-0000-4000-8000-000000000028";
+const HANDOFF_LEAD_ID = "54600000-0000-4000-8000-000000000029";
 const CONVERSATION_CHAT_ID = "15550005461@c.us";
 const CONVERSATION_EXTERNAL_IDENTITY = `evo-inbox:${CONVERSATION_CHAT_ID}`;
 const UUID_PATTERN =
@@ -190,6 +192,66 @@ async function main() {
           7,
           '2026-09-02T08:00:00Z',
           '2026-09-02T08:05:00Z'
+        )
+      `;
+
+      await transaction`
+        INSERT INTO platform.clients (
+          id,
+          organization_id,
+          display_name,
+          normalized_name,
+          email,
+          normalized_email,
+          phone,
+          normalized_phone,
+          lifecycle_state,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ${HANDOFF_CLIENT_ID},
+          ${authority.organization_id},
+          'EVO P3 Contract Handoff Proof',
+          platform_private.normalize_person_name('EVO P3 Contract Handoff Proof'),
+          'p3-contract-handoff@example.invalid',
+          platform_private.normalize_person_email('p3-contract-handoff@example.invalid'),
+          '+15550005462',
+          platform_private.normalize_person_phone('+15550005462'),
+          'active',
+          '2026-09-02T08:20:00Z',
+          '2026-09-02T08:20:00Z'
+        )
+      `;
+
+      await transaction`
+        INSERT INTO platform.leads (
+          id,
+          organization_id,
+          client_id,
+          current_owner_membership_id,
+          stage_key,
+          source_key,
+          lifecycle_state,
+          next_action_text,
+          next_action_due_date,
+          workflow_version,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ${HANDOFF_LEAD_ID},
+          ${authority.organization_id},
+          ${HANDOFF_CLIENT_ID},
+          ${authority.membership_id},
+          'qualified',
+          'isolated_handoff_browser',
+          'open',
+          'Complete reviewed contract, payment and Admissions handoff',
+          '2099-09-03',
+          1,
+          '2026-09-02T08:20:00Z',
+          '2026-09-02T08:20:00Z'
         )
       `;
 
@@ -721,7 +783,7 @@ async function main() {
     });
 
     console.log(
-      `LOCAL_SUPABASE_SALES_PROOF ${LEAD_ID} ${CLIENT_ID} ${WORKFLOW_LEAD_ID} ${API_WORKFLOW_LEAD_ID} ${CONVERSATION_LEAD_ID} ${CONVERSATION_ID}`,
+      `LOCAL_SUPABASE_SALES_PROOF ${LEAD_ID} ${CLIENT_ID} ${WORKFLOW_LEAD_ID} ${API_WORKFLOW_LEAD_ID} ${CONVERSATION_LEAD_ID} ${CONVERSATION_ID} ${HANDOFF_LEAD_ID} ${HANDOFF_CLIENT_ID}`,
     );
   } finally {
     await sql.end({ timeout: 5 });

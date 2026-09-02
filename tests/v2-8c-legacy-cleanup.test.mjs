@@ -34,18 +34,27 @@ test("V2-8C removes the superseded Admissions document runtime files", () => {
 
 test("V2-8C keeps one canonical private-document write path with no fallback imports", () => {
   const student360 = source(
-    "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+    "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
+  );
+  const operationsSection = source(
+    "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
   );
   const privateDocumentsPanel = source(
     "src/components/platform/documents/CanonicalPrivateDocumentsPanel.tsx",
   );
   const documentsQueue = source("src/app/(staff)/documents/(queue)/page.tsx");
 
-  assert.match(student360, /listPrivateDocumentsForCase\(\{/);
-  assert.match(student360, /<CanonicalPrivateDocumentsPanel/);
+  assert.match(student360, /<AdmissionsCaseOperationsSection/);
   assert.doesNotMatch(
     student360,
-    /StudentWorkspace|StudentWorkspacePresenter|platform-admissions-case-workspace|platform-document-review|@\/lib\/(?:actions|queries|db)|supabase|sqlite|fallback/i,
+    /CanonicalStudentCaseWorkspace|StudentWorkspace|StudentWorkspacePresenter|platform-admissions-case-workspace|platform-document-review|@\/lib\/(?:actions|queries|db)|sqlite|fallback/i,
+  );
+
+  assert.match(operationsSection, /listPrivateDocumentsForCase\(\{/);
+  assert.match(operationsSection, /<CanonicalPrivateDocumentsPanel/);
+  assert.doesNotMatch(
+    operationsSection,
+    /CanonicalStudentCaseWorkspace|StudentWorkspace|StudentWorkspacePresenter|platform-admissions-case-workspace|platform-document-review|@\/lib\/(?:actions|queries|db)|sqlite|fallback/i,
   );
 
   assert.match(privateDocumentsPanel, /\/api\/v2\/documents/);
@@ -60,6 +69,19 @@ test("V2-8C keeps one canonical private-document write path with no fallback imp
   assert.doesNotMatch(
     documentsQueue,
     /<form|\/documents\/\$\{|DocumentDecisionPanel|DocumentJourney|DocumentSubmitButton|document-copy|@\/lib\/(?:actions|queries|db)|supabase|sqlite|fallback/i,
+  );
+});
+
+test("V2-8C removes the superseded Student 360 route shell once the replacement is proven", () => {
+  assert.equal(
+    existsSync(
+      new URL(
+        "../src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+        import.meta.url,
+      ),
+    ),
+    false,
+    "CanonicalStudentCaseWorkspace.tsx must be deleted after the Supabase Student 360 shell is live",
   );
 });
 

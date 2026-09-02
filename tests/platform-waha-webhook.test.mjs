@@ -49,7 +49,7 @@ function signedRequest(body, headers = {}) {
   });
 }
 
-test("POST persists and enqueues one signed inbound evo-inbox message", async () => {
+test("POST persists and enqueues one signed inbound crm_primary message", async () => {
   configureEnvironment();
   const calls = [];
   const rpc = async (name, args) => {
@@ -130,7 +130,7 @@ test("POST persists and enqueues one signed inbound evo-inbox message", async ()
   const body = {
     id: "evt-message-1",
     event: "message.any",
-    session: "evo-inbox",
+    session: "crm_primary",
     timestamp: 1_727_745_026,
     payload: {
       id: "false_996999111222@c.us_ABC123",
@@ -170,11 +170,11 @@ test("POST persists and enqueues one signed inbound evo-inbox message", async ()
     {
       organization: ORGANIZATION_ID,
       provider: "waha",
-      account: "waha:evo-inbox",
+      account: "waha:crm_primary",
       conversation: null,
       variant: null,
       providerRequest: "evt-message-1",
-      session: "evo-inbox",
+      session: "crm_primary",
       payloadId: "false_996999111222@c.us_ABC123",
       eventType: "message.any",
       occurredAt: "2024-10-01T01:10:26.000Z",
@@ -287,7 +287,7 @@ test("POST persists and enqueues one signed outbound acknowledgement", async () 
   const body = {
     id: "evt-ack-1",
     event: "message.ack",
-    session: "evo-inbox",
+    session: "crm_primary",
     timestamp: 1_727_745_026,
     payload: {
       id: "true_996999111222@c.us_ABC123",
@@ -321,7 +321,7 @@ test("POST persists and enqueues one signed outbound acknowledgement", async () 
   );
 });
 
-test("POST persists and synchronizes one signed evo-inbox session status", async () => {
+test("POST persists and synchronizes one signed crm_primary session status", async () => {
   configureEnvironment();
   const calls = [];
   const rpc = async (name, args) => {
@@ -338,7 +338,7 @@ test("POST persists and synchronizes one signed evo-inbox session status", async
     if (name === "sync_lead_agent_session_status") {
       return {
         data: {
-          waha_session_name: "evo-inbox",
+          waha_session_name: "crm_primary",
           status: "WORKING",
           deduplicated: true,
         },
@@ -353,9 +353,9 @@ test("POST persists and synchronizes one signed evo-inbox session status", async
   const body = {
     id: "evt-status-1",
     event: "session.status",
-    session: "evo-inbox",
+    session: "crm_primary",
     timestamp: 1_727_745_026,
-    payload: { name: "evo-inbox", status: "WORKING" },
+    payload: { name: "crm_primary", status: "WORKING" },
   };
 
   const response = await handler(signedRequest(body));
@@ -395,7 +395,7 @@ test("POST rejects unsigned, wrong-session, and legacy-secret requests before Su
   const validBody = {
     id: "evt-message-denied",
     event: "message.any",
-    session: "evo-inbox",
+    session: "crm_primary",
     timestamp: 1_727_745_026,
     payload: {
       id: "false_996999111222@c.us_DENIED",
@@ -547,7 +547,7 @@ test("POST replays the same signed provider event onto one durable work identity
   const body = {
     id: "evt-replay-1",
     event: "message.any",
-    session: "evo-inbox",
+    session: "crm_primary",
     timestamp: 1_727_745_026,
     payload: {
       id: "false_996999111222@c.us_REPLAY",
@@ -635,7 +635,7 @@ test("POST fails clearly when the exact durable item cannot be projected", async
     signedRequest({
       id: "evt-projection-failure",
       event: "message.any",
-      session: "evo-inbox",
+      session: "crm_primary",
       timestamp: 1_727_745_026,
       payload: {
         id: "false_996999111222@c.us_PROJECT_FAIL",
@@ -680,7 +680,7 @@ test("POST fails closed without leaking provider evidence when Supabase persiste
     signedRequest({
       id: "evt-provider-failure",
       event: "message.any",
-      session: "evo-inbox",
+      session: "crm_primary",
       timestamp: 1_727_745_026,
       payload: {
         id: "false_996999111222@c.us_FAILURE",
@@ -725,7 +725,7 @@ test("POST persists an own message observation without re-enqueuing it as inboun
     signedRequest({
       id: "evt-own-message",
       event: "message.any",
-      session: "evo-inbox",
+      session: "crm_primary",
       timestamp: 1_727_745_026,
       payload: {
         id: "true_996999111222@c.us_OUTBOUND",
@@ -758,7 +758,7 @@ test("POST maps a thrown Supabase transport failure to the same safe unavailable
     signedRequest({
       id: "evt-provider-throw",
       event: "message.any",
-      session: "evo-inbox",
+      session: "crm_primary",
       timestamp: 1_727_745_026,
       payload: {
         id: "false_996999111222@c.us_THROW",

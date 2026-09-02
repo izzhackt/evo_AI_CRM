@@ -14,8 +14,8 @@ test("local communications provisioning resolves one Admin organization, Sales i
   assert.match(source, /salesAuthority\.platform_role !== "sales"/);
   assert.match(source, /salesAuthority\.membership_id/);
   assert.match(source, /rpc\("provision_manual_send_waha_runtime"/);
-  assert.match(source, /waha_session_name !== "evo-inbox"/);
-  assert.match(source, /base_url !== "http:\/\/evo-inbox-waha:3000"/);
-  assert.doesNotMatch(source, /evo-crm-waha/);
+  assert.match(source, /waha_session_name !== "crm_primary"/);
+  assert.match(source, /base_url !== "http:\/\/evo-crm-waha:3000"/);
+  assert.doesNotMatch(source, /evo-inbox-waha/);
   assert.doesNotMatch(source, /console\.(?:log|error)|JSON\.stringify\(process\.env/);
 });

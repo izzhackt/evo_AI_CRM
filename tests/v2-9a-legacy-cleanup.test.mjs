@@ -47,7 +47,7 @@ test("V2-9A keeps one Platform WhatsApp read surface and one provider workflow c
   assert.match(threadPage, /PlatformStaffWhatsAppWorkspace/);
   assert.match(threadPage, /PlatformProviderWorkflowControls/);
   assert.match(threadPage, /getPlatformConversationThread\(actor,/);
-  assert.match(threadPage, /getPlatformWahaSessionHealth\(actor,\s*"evo-inbox"\)/);
+  assert.match(threadPage, /getPlatformWahaSessionHealth\(actor,\s*"crm_primary"\)/);
   assert.doesNotMatch(
     threadPage,
     /CanonicalStaffWhatsApp|CanonicalGeminiProposalPanel|CanonicalWhatsAppOutboundComposer|getCanonicalStaffConversationThread/,

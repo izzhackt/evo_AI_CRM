@@ -362,7 +362,7 @@ async function persistEvent(
     result = await client.schema("platform").rpc("persist_provider_webhook_event", {
       p_organization_id: config.organizationId,
       p_provider: "waha",
-      p_provider_account_ref: "waha:evo-inbox",
+      p_provider_account_ref: `waha:${PLATFORM_WAHA_SESSION_NAME}`,
       p_provider_conversation_ref: null,
       p_provider_event_variant_ref: descriptor.providerEventVariantRef,
       p_provider_request_id: descriptor.providerRequestId,

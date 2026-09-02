@@ -7,8 +7,8 @@ import {
 } from "../src/lib/server/platform-waha-provider.ts";
 
 const RUNTIME = Object.freeze({
-  wahaSessionName: "evo-inbox",
-  wahaBaseUrl: "http://evo-inbox-waha:3000",
+  wahaSessionName: "crm_primary",
+  wahaBaseUrl: "http://evo-crm-waha:3000",
   wahaApiKey: "provider-api-key-value",
   bindingVersion: "3",
 });
@@ -59,13 +59,13 @@ test("manual send makes one authenticated WAHA call and returns only sanitized e
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "http://evo-inbox-waha:3000/api/sendText");
+  assert.equal(calls[0].url, "http://evo-crm-waha:3000/api/sendText");
   assert.equal(calls[0].init.method, "POST");
   assert.equal(calls[0].init.redirect, "error");
   assert.equal(calls[0].init.signal, signal);
   assert.equal(calls[0].init.headers["X-Api-Key"], RUNTIME.wahaApiKey);
   assert.deepEqual(JSON.parse(calls[0].init.body), {
-    session: "evo-inbox",
+    session: "crm_primary",
     chatId: RECIPIENT,
     text: TEXT,
     reply_to: REPLY_TO,
@@ -102,7 +102,7 @@ test("exact reconciliation reads one provider message and never sends", async ()
   assert.equal(calls.length, 1);
   assert.equal(
     calls[0].url,
-    "http://evo-inbox-waha:3000/api/evo-inbox/chats/996555000001%40c.us/messages/false_996555000001%40c.us_PROVIDER1?downloadMedia=false",
+    "http://evo-crm-waha:3000/api/crm_primary/chats/996555000001%40c.us/messages/false_996555000001%40c.us_PROVIDER1?downloadMedia=false",
   );
   assert.equal(calls[0].init.method, "GET");
   assert.equal(calls.some(({ init }) => init.method === "POST"), false);
@@ -171,7 +171,7 @@ test("unknown-result reconciliation ignores an app-source collision and returns 
   const requestUrl = new URL(calls[0].url);
   assert.equal(
     requestUrl.pathname,
-    "/api/evo-inbox/chats/996555000001%40c.us/messages",
+    "/api/crm_primary/chats/996555000001%40c.us/messages",
   );
   assert.deepEqual(Object.fromEntries(requestUrl.searchParams), {
     limit: "100",

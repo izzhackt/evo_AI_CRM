@@ -49,20 +49,30 @@ test("Platform provider acceptance is exact-SHA, private, single-run and fail-cl
   assert.match(shell, /waha-dispatch-attempt\.json/u);
   assert.match(shell, /success\.json/u);
 
-  assert.match(shell, /\/opt\/evo-inbox\/agent-lead2-crmwhatsapp\/\.env\.production/u);
-  assert.match(
-    shell,
-    /\/opt\/evo-inbox\/agent-lead2-crmwhatsapp\/\.env\.gemini/u,
-  );
-  assert.match(shell, /evo-inbox-waha/u);
-  assert.match(shell, /evo_inbox_private/u);
-  assert.match(shell, /EVO_INBOX_WAHA_API_KEY/u);
-  assert.match(shell, /EVO_INBOX_GEMINI_API_KEY/u);
+  assert.match(shell, /\/opt\/evo-crm\/\.env\.lead-agent/u);
+  assert.match(shell, /evo-crm-waha-1/u);
+  assert.match(shell, /evo_crm_private/u);
+  assert.match(shell, /EVO_AGENT_WAHA_API_KEY/u);
+  assert.match(shell, /EVO_AGENT_WAHA_BASE_URL/u);
+  assert.match(shell, /EVO_AGENT_WAHA_SESSION/u);
+  assert.match(shell, /GEMINI_API_KEY/u);
+  assert.match(shell, /crm_primary/u);
+  assert.match(shell, /http:\/\/evo-crm-waha:3000/u);
   assert.match(shell, /EVO_PLATFORM_GEMINI_API_KEY/u);
   assert.match(shell, /EVO_TEST_WAHA_REWRITE_BASE_URL/u);
-  assert.doesNotMatch(shell, /\/opt\/evo-crm|evo-crm-waha/u);
+  assert.doesNotMatch(shell, /\/opt\/evo-inbox|evo-inbox-waha|evo_inbox_private/u);
+  assert.doesNotMatch(shell, /\.env\.gemini/u);
   assert.doesNotMatch(shell, /EVO_V2_(?:WAHA|GEMINI)/u);
   assert.doesNotMatch(shell, /set -x|curl[^\n]*--verbose/u);
+  const remoteProviderProbe = between(
+    shell,
+    'runtime_env="/opt/evo-crm/.env.lead-agent"',
+    "REMOTE\nthen",
+  );
+  assert.doesNotMatch(
+    remoteProviderProbe,
+    /\bcurl\b|\bwget\b|docker (?:exec|compose)|\/api\/|webhook/iu,
+  );
 
   assert.match(
     shell,

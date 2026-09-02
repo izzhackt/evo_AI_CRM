@@ -82,8 +82,8 @@ export default async function WhatsAppConversationPage({
 
   const staffClient = await createSupabaseServerClient();
   const [wahaSessionHealth, proposal, reviews, latestAttempt] = await Promise.all([
-    thread.conversation.wahaSessionName === "evo-inbox"
-      ? getPlatformWahaSessionHealth(actor, "evo-inbox")
+    thread.conversation.wahaSessionName === "crm_primary"
+      ? getPlatformWahaSessionHealth(actor, "crm_primary")
       : null,
     readStaffGeminiProposal(staffClient, {
       organizationId: actor.organizationId,

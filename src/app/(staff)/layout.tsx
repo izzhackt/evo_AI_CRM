@@ -112,7 +112,7 @@ async function loadShellProvider(): Promise<ShellProvider> {
   }
   const amoAvailability = readCanonicalAmoCrmProviderAvailability();
   const geminiAvailability = readPlatformGeminiProviderAvailability();
-  const wahaSessionHealth = await getPlatformWahaSessionHealth(actor, "evo-inbox");
+  const wahaSessionHealth = await getPlatformWahaSessionHealth(actor, "crm_primary");
 
   return {
     user: {

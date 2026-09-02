@@ -57,7 +57,7 @@ function signedInboundBody(
   return signedWebhookBody({
     id: `platform-browser-${messageId}`,
     event: "message.any",
-    session: "evo-inbox",
+    session: "crm_primary",
     timestamp: Date.now(),
     payload: {
       id: messageId,
@@ -74,9 +74,9 @@ function signedSessionStatusBody(eventId: string) {
   return signedWebhookBody({
     id: eventId,
     event: "session.status",
-    session: "evo-inbox",
+    session: "crm_primary",
     timestamp: Math.floor(Date.now() / 1000),
-    payload: { name: "evo-inbox", status: "WORKING" },
+    payload: { name: "crm_primary", status: "WORKING" },
   });
 }
 
@@ -185,7 +185,7 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   expect(providerEvidence.sendCount).toBe(1);
   expect(providerEvidence.requests).toHaveLength(1);
   expect(providerEvidence.requests[0]).toEqual({
-    session: "evo-inbox",
+    session: "crm_primary",
     chatId,
     text: finalText,
     reply_to: inboundMessageId,

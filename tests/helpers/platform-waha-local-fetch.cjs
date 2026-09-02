@@ -19,7 +19,7 @@ if (configuredBaseUrl) {
   globalThis.fetch = function platformLocalWahaFetch(input, init) {
     if (typeof input === "string" || input instanceof URL) {
       const requested = new URL(input);
-      if (requested.origin === "http://evo-inbox-waha:3000") {
+      if (requested.origin === "http://evo-crm-waha:3000") {
         requested.protocol = target.protocol;
         requested.hostname = target.hostname;
         requested.port = target.port;

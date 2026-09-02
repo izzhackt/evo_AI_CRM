@@ -125,8 +125,8 @@ async function main() {
     configuration.organization_id !== authority.organization_id ||
     configuration.ready !== true ||
     configuration.reason_code !== "ready" ||
-    configuration.waha_session_name !== "evo-inbox" ||
-    configuration.base_url !== "http://evo-inbox-waha:3000" ||
+    configuration.waha_session_name !== "crm_primary" ||
+    configuration.base_url !== "http://evo-crm-waha:3000" ||
     !/^[0-9a-f]{64}$/u.test(configuration.api_key_sha256)
   ) {
     throw new ProvisioningError("WAHA_RUNTIME_CONFIGURATION_INVALID");

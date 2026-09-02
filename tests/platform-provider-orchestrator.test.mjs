@@ -155,7 +155,7 @@ function claimedManualSendData() {
     manual_send_authorization_id: AUTHORIZATION_ID,
     conversation_id: CONVERSATION_ID,
     source_message_id: SOURCE_MESSAGE_ID,
-    waha_session_name: "evo-inbox",
+    waha_session_name: "crm_primary",
     raw_chat_id: RECIPIENT,
     raw_reply_to: REPLY_TO,
     final_text: FINAL_TEXT,
@@ -169,8 +169,8 @@ function claimedManualSendData() {
 
 function wahaRuntimeData() {
   return [{
-    waha_session_name: "evo-inbox",
-    waha_base_url: "http://evo-inbox-waha:3000",
+    waha_session_name: "crm_primary",
+    waha_base_url: "http://evo-crm-waha:3000",
     waha_api_key: "provider-api-key-value",
     binding_version: "3",
   }];
@@ -465,7 +465,7 @@ test("manual WhatsApp authorization claims its exact work item, resolves Vault r
           manual_send_authorization_id: AUTHORIZATION_ID,
           conversation_id: CONVERSATION_ID,
           source_message_id: SOURCE_MESSAGE_ID,
-          waha_session_name: "evo-inbox",
+          waha_session_name: "crm_primary",
           raw_chat_id: RECIPIENT,
           raw_reply_to: REPLY_TO,
           final_text: FINAL_TEXT,
@@ -481,8 +481,8 @@ test("manual WhatsApp authorization claims its exact work item, resolves Vault r
     if (functionName === "resolve_manual_send_waha_runtime") {
       return {
         data: [{
-          waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-inbox-waha:3000",
+          waha_session_name: "crm_primary",
+          waha_base_url: "http://evo-crm-waha:3000",
           waha_api_key: "provider-api-key-value",
           binding_version: "3",
         }],
@@ -559,7 +559,7 @@ test("manual WhatsApp authorization claims its exact work item, resolves Vault r
     manualSendAuthorization().workItemId,
   );
   assert.equal(createdRuntimes.length, 1);
-  assert.equal(createdRuntimes[0].wahaSessionName, "evo-inbox");
+  assert.equal(createdRuntimes[0].wahaSessionName, "crm_primary");
   assert.equal(sendInputs.length, 1);
   assert.deepEqual(sendInputs[0], {
     recipientId: RECIPIENT,
@@ -608,7 +608,7 @@ test("an unknown WhatsApp result is finished once and replay cannot send a secon
           manual_send_authorization_id: AUTHORIZATION_ID,
           conversation_id: CONVERSATION_ID,
           source_message_id: SOURCE_MESSAGE_ID,
-          waha_session_name: "evo-inbox",
+          waha_session_name: "crm_primary",
           raw_chat_id: RECIPIENT,
           raw_reply_to: REPLY_TO,
           final_text: FINAL_TEXT,
@@ -624,8 +624,8 @@ test("an unknown WhatsApp result is finished once and replay cannot send a secon
     if (functionName === "resolve_manual_send_waha_runtime") {
       return {
         data: [{
-          waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-inbox-waha:3000",
+          waha_session_name: "crm_primary",
+          waha_base_url: "http://evo-crm-waha:3000",
           waha_api_key: "provider-api-key-value",
           binding_version: "3",
         }],
@@ -794,7 +794,7 @@ test("manual WhatsApp reconciliation performs bounded readback only and finishes
           attempt_id: ATTEMPT_ID,
           manual_send_authorization_id: AUTHORIZATION_ID,
           reconciliation_kind: "unknown_recovery",
-          waha_session_name: "evo-inbox",
+          waha_session_name: "crm_primary",
           raw_chat_id: RECIPIENT,
           final_text: FINAL_TEXT,
           final_text_sha256: SHA256,
@@ -809,8 +809,8 @@ test("manual WhatsApp reconciliation performs bounded readback only and finishes
     if (functionName === "resolve_manual_send_waha_runtime") {
       return {
         data: [{
-          waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-inbox-waha:3000",
+          waha_session_name: "crm_primary",
+          waha_base_url: "http://evo-crm-waha:3000",
           waha_api_key: "provider-api-key-value",
           binding_version: "3",
         }],
@@ -930,7 +930,7 @@ test("ACK reconciliation reads only the exact provider message id and never sear
           attempt_id: ATTEMPT_ID,
           manual_send_authorization_id: AUTHORIZATION_ID,
           reconciliation_kind: "ack_refresh",
-          waha_session_name: "evo-inbox",
+          waha_session_name: "crm_primary",
           raw_chat_id: RECIPIENT,
           final_text: FINAL_TEXT,
           final_text_sha256: SHA256,

@@ -8,10 +8,10 @@ const source = readFileSync(
 );
 
 test("the browser harness rewrites only the exact private WAHA origin to loopback", () => {
-  assert.match(source, /requested\.origin === "http:\/\/evo-inbox-waha:3000"/);
+  assert.match(source, /requested\.origin === "http:\/\/evo-crm-waha:3000"/);
   assert.match(source, /target\.hostname !== "127\.0\.0\.1"/);
   assert.match(source, /target\.hostname !== "localhost"/);
   assert.match(source, /return originalFetch\(requested, init\)/);
   assert.match(source, /return originalFetch\(input, init\)/);
-  assert.doesNotMatch(source, /EVO_V2_WAHA|evo-crm-waha|fallback/i);
+  assert.doesNotMatch(source, /EVO_V2_WAHA|evo-inbox-waha|fallback/i);
 });

@@ -231,27 +231,25 @@ if ! ssh -T -o BatchMode=yes -o ConnectTimeout=15 "$ssh_host" 'bash -s' \
 set -euo pipefail
 umask 077
 
-runtime_env="/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.production"
-gemini_env="/opt/evo-inbox/agent-lead2-crmwhatsapp/.env.gemini"
-container_name="evo-inbox-waha"
-network_name="evo_inbox_private"
-[[ -r "$runtime_env" && -r "$gemini_env" ]]
+runtime_env="/opt/evo-crm/.env.lead-agent"
+container_name="evo-crm-waha-1"
+[[ -r "$runtime_env" ]]
 set -a
 # shellcheck disable=SC1090
 . "$runtime_env"
-# shellcheck disable=SC1090
-. "$gemini_env"
 set +a
-: "${EVO_INBOX_WAHA_API_KEY:?}"
-: "${EVO_INBOX_WAHA_BASE_URL:?}"
-: "${EVO_INBOX_GEMINI_API_KEY:?}"
-[[ "$EVO_INBOX_WAHA_BASE_URL" == "http://evo-inbox-waha:3000" ]]
+: "${EVO_AGENT_WAHA_API_KEY:?}"
+: "${EVO_AGENT_WAHA_BASE_URL:?}"
+: "${EVO_AGENT_WAHA_SESSION:?}"
+: "${GEMINI_API_KEY:?}"
+[[ "$EVO_AGENT_WAHA_SESSION" == "crm_primary" ]]
+[[ "$EVO_AGENT_WAHA_BASE_URL" == "http://evo-crm-waha:3000" ]]
 
 container_id="$(docker ps --filter "name=^/${container_name}$" --format '{{.ID}}')"
 [[ -n "$container_id" && "$container_id" != *$'\n'* ]]
 [[ "$(docker inspect --format '{{.State.Running}}' "$container_id")" == "true" ]]
 container_ip="$(docker inspect \
-  --format '{{(index .NetworkSettings.Networks "evo_inbox_private").IPAddress}}' \
+  --format '{{(index .NetworkSettings.Networks "evo_crm_private").IPAddress}}' \
   "$container_id")"
 [[ -n "$container_ip" ]]
 
@@ -260,12 +258,12 @@ encode_line() {
   printf '\n'
 }
 
-encode_line "$EVO_INBOX_WAHA_API_KEY"
-encode_line "$EVO_INBOX_GEMINI_API_KEY"
+encode_line "$EVO_AGENT_WAHA_API_KEY"
+encode_line "$GEMINI_API_KEY"
 encode_line "$container_ip"
 REMOTE
 then
-  fail "The active private EVO Inbox provider bundle could not be resolved"
+  fail "The connected private EVO sales provider bundle could not be resolved"
 fi
 chmod 600 "$provider_bundle_file"
 
@@ -355,7 +353,7 @@ async function boundedJson(url) {
   return JSON.parse(text);
 }
 
-const session = await boundedJson(new URL("/api/sessions/evo-inbox", baseUrl));
+const session = await boundedJson(new URL("/api/sessions/crm_primary", baseUrl));
 if (
   !session ||
   session.status !== "WORKING" ||
@@ -364,7 +362,7 @@ if (
 ) throw new Error("session_not_working");
 
 const sourceUrl = new URL(
-  `/api/evo-inbox/chats/${encodeURIComponent(target)}/messages/${encodeURIComponent(sourceMessageId)}`,
+  `/api/crm_primary/chats/${encodeURIComponent(target)}/messages/${encodeURIComponent(sourceMessageId)}`,
   baseUrl,
 );
 sourceUrl.searchParams.set("downloadMedia", "false");
@@ -537,7 +535,7 @@ if ! PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   EVO_PLATFORM_ACCEPTANCE_SOURCE_FILE="$provider_source_file" \
   EVO_PLATFORM_ACCEPTANCE_WAHA_BASE_URL="$waha_base_url" \
   EVO_PLATFORM_ACCEPTANCE_WAHA_API_KEY="$waha_api_key" \
-  EVO_PLATFORM_ACCEPTANCE_WAHA_SESSION_NAME="evo-inbox" \
+  EVO_PLATFORM_ACCEPTANCE_WAHA_SESSION_NAME="crm_primary" \
   EVO_PLATFORM_ORGANIZATION_ID="$platform_organization_id" \
   EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$webhook_secret" \
   EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \

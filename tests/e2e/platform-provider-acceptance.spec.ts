@@ -168,8 +168,8 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
   const wahaSessionName = requiredText(
     "EVO_PLATFORM_ACCEPTANCE_WAHA_SESSION_NAME",
   );
-  if (wahaSessionName !== "evo-inbox") {
-    throw new Error("The acceptance WAHA session must be evo-inbox");
+  if (wahaSessionName !== "crm_primary") {
+    throw new Error("The acceptance WAHA session must be crm_primary");
   }
   const providerHeaders = {
     Accept: "application/json",
@@ -193,7 +193,7 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
   }
   const session = asProviderMessage(await readBoundedJson(sessionResponse));
   if (session?.name !== wahaSessionName || session.status !== "WORKING") {
-    throw new Error("The exact evo-inbox WAHA session is not WORKING");
+    throw new Error("The exact crm_primary WAHA session is not WORKING");
   }
 
   const readinessObservedAt = Math.floor(Date.now() / 1_000);
@@ -232,7 +232,7 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
   const rawInboundBody = JSON.stringify({
     id: `platform-provider-acceptance:${gitSha}:${sourceMessage.id}`,
     event: "message.any",
-    session: "evo-inbox",
+    session: "crm_primary",
     timestamp: sourceMessage.timestamp,
     payload: {
       id: sourceMessage.id,
@@ -285,7 +285,7 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
              AND message_binding.waha_session_name = binding.waha_session_name
              AND message_binding.raw_message_id = ${sourceMessage.id}
             WHERE binding.organization_id = ${organizationId}
-              AND binding.waha_session_name = 'evo-inbox'
+              AND binding.waha_session_name = 'crm_primary'
               AND binding.normalized_chat_id = ${targetChatId}
             LIMIT 1
           `;
@@ -441,7 +441,7 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
           WHERE binding.organization_id = ${organizationId}
             AND authorization.conversation_id = ${conversationId}::UUID
             AND authorization.source_message_id = ${sourceMessageUuid}::UUID
-            AND binding.waha_session_name = 'evo-inbox'
+            AND binding.waha_session_name = 'crm_primary'
         ) AS "providerBindingCount"
     `;
     const proof = proofRows[0];

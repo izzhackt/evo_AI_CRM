@@ -43,8 +43,8 @@ const COMPLETED_AT = "2026-09-02T12:00:02+00:00";
 const REVIEWED_AT = "2026-09-02T12:01:00+00:00";
 const SHA256 = "a".repeat(64);
 
-test("the active provider workflow exposes only the EVO Inbox WAHA transport", () => {
-  assert.equal(PLATFORM_WAHA_BASE_URL, "http://evo-inbox-waha:3000");
+test("the active provider workflow exposes only the connected sales WAHA transport", () => {
+  assert.equal(PLATFORM_WAHA_BASE_URL, "http://evo-crm-waha:3000");
 });
 
 function recordingClient(responseFor) {
@@ -535,7 +535,7 @@ test("claimManualWhatsAppSendItem claims only the requested work item", async ()
     manual_send_authorization_id: AUTHORIZATION_ID,
     conversation_id: CONVERSATION_ID,
     source_message_id: SOURCE_MESSAGE_ID,
-    waha_session_name: "evo-inbox",
+    waha_session_name: "crm_primary",
     raw_chat_id: "996555000001@c.us",
     raw_reply_to: "false_996555000001@c.us_ABCD1234",
     final_text: "Здравствуйте! Готовы продолжить консультацию?",
@@ -569,7 +569,7 @@ test("claimManualWhatsAppSendItem claims only the requested work item", async ()
   assert.equal(result.claimed, true);
   assert.equal(result.workItemId, WORK_ITEM_ID);
   assert.equal(result.requestedWorkItemId, WORK_ITEM_ID);
-  assert.equal(result.wahaSessionName, "evo-inbox");
+  assert.equal(result.wahaSessionName, "crm_primary");
   assert.equal(result.queuePayloadIsPointerOnly, true);
 });
 
@@ -596,11 +596,11 @@ test("claimManualWhatsAppSendItem represents an unavailable exact item without f
   );
 });
 
-test("resolveManualSendWahaRuntime accepts only the one private evo-inbox binding", async () => {
+test("resolveManualSendWahaRuntime accepts only the one private crm_primary binding", async () => {
   const recorded = staticClient([
     {
-      waha_session_name: "evo-inbox",
-      waha_base_url: "http://evo-inbox-waha:3000",
+      waha_session_name: "crm_primary",
+      waha_base_url: "http://evo-crm-waha:3000",
       waha_api_key: "provider-api-key-value",
       binding_version: "3",
     },
@@ -618,8 +618,8 @@ test("resolveManualSendWahaRuntime accepts only the one private evo-inbox bindin
     options: undefined,
   });
   assert.deepEqual(result, {
-    wahaSessionName: "evo-inbox",
-    wahaBaseUrl: "http://evo-inbox-waha:3000",
+    wahaSessionName: "crm_primary",
+    wahaBaseUrl: "http://evo-crm-waha:3000",
     wahaApiKey: "provider-api-key-value",
     bindingVersion: "3",
   });
@@ -713,7 +713,7 @@ test("manual WhatsApp reconciliation uses authenticated request plus service-onl
     attempt_id: ATTEMPT_ID,
     manual_send_authorization_id: AUTHORIZATION_ID,
     reconciliation_kind: "unknown_recovery",
-    waha_session_name: "evo-inbox",
+    waha_session_name: "crm_primary",
     raw_chat_id: "996555000001@c.us",
     final_text: "Здравствуйте! Готовы продолжить консультацию?",
     final_text_sha256: SHA256,
@@ -765,7 +765,7 @@ test("manual WhatsApp reconciliation uses authenticated request plus service-onl
   );
   const finished = await finishManualWhatsAppReconciliation(recorded.client, {
     reconciliationRequestId: RECONCILIATION_REQUEST_ID,
-    wahaSessionName: "evo-inbox",
+    wahaSessionName: "crm_primary",
     rawChatId: "996555000001@c.us",
     finalTextSha256: SHA256,
     matchCount: 1,
@@ -800,7 +800,7 @@ test("manual WhatsApp reconciliation uses authenticated request plus service-onl
     functionName: "finish_manual_whatsapp_reconciliation",
     args: {
       p_reconciliation_request_id: RECONCILIATION_REQUEST_ID,
-      p_waha_session_name: "evo-inbox",
+      p_waha_session_name: "crm_primary",
       p_raw_chat_id: "996555000001@c.us",
       p_final_text_sha256: SHA256,
       p_match_count: 1,
@@ -848,14 +848,14 @@ test("manual WhatsApp adapters reject mismatched exact-item and malformed safety
       ORGANIZATION_ID,
       [
         {
-          waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-inbox-waha:3000",
+          waha_session_name: "crm_primary",
+          waha_base_url: "http://evo-crm-waha:3000",
           waha_api_key: "provider-api-key-value",
           binding_version: "3",
         },
         {
-          waha_session_name: "evo-inbox",
-          waha_base_url: "http://evo-inbox-waha:3000",
+          waha_session_name: "crm_primary",
+          waha_base_url: "http://evo-crm-waha:3000",
           waha_api_key: "another-provider-key",
           binding_version: "4",
         },
@@ -890,7 +890,7 @@ test("manual WhatsApp adapters reject mismatched exact-item and malformed safety
       finishManualWhatsAppReconciliation,
       {
         reconciliationRequestId: RECONCILIATION_REQUEST_ID,
-        wahaSessionName: "evo-inbox",
+        wahaSessionName: "crm_primary",
         rawChatId: "996555000001@c.us",
         finalTextSha256: SHA256,
         matchCount: 1,
@@ -929,8 +929,8 @@ test("manual WhatsApp adapters reject mismatched exact-item and malformed safety
 test("manual WhatsApp adapters reject a malformed SDK response envelope", async () => {
   const malformed = recordingClient(() => ({
     data: [{
-      waha_session_name: "evo-inbox",
-      waha_base_url: "http://evo-inbox-waha:3000",
+      waha_session_name: "crm_primary",
+      waha_base_url: "http://evo-crm-waha:3000",
       waha_api_key: "provider-api-key-value",
       binding_version: "3",
     }],

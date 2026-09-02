@@ -6,7 +6,7 @@ const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 const SUPABASE_SECRET_KEY_PATTERN = /^sb_secret_[A-Za-z0-9_-]{16,}$/;
 const MAX_SECRET_BYTES = 4096;
 
-export const PLATFORM_WAHA_SESSION_NAME = "evo-inbox" as const;
+export const PLATFORM_WAHA_SESSION_NAME = "crm_primary" as const;
 
 export type PlatformMessagingBackendConfig = Readonly<{
   organizationId: string;

@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { parsePlatformWahaSessionName } from "../src/lib/platform-communications.ts";
 import {
   platformWahaHealthDisplayStatus,
   readPlatformGeminiProviderAvailability,
 } from "../src/lib/server/platform-provider-readiness.ts";
+
+test("current WAHA paths accept crm_primary and reject the historical inbox session", () => {
+  assert.equal(parsePlatformWahaSessionName("crm_primary"), "crm_primary");
+  assert.equal(parsePlatformWahaSessionName("evo-inbox"), null);
+});
 
 test("Gemini readiness uses only the one server-side platform key", () => {
   assert.deepEqual(readPlatformGeminiProviderAvailability({}), {
@@ -31,7 +37,7 @@ test("WhatsApp readiness comes from the exact Supabase session health", () => {
   assert.equal(platformWahaHealthDisplayStatus(null), "not_configured");
   assert.equal(
     platformWahaHealthDisplayStatus({
-      sessionName: "evo-inbox",
+      sessionName: "crm_primary",
       status: "WORKING",
       observedAt: "2026-09-02T10:00:00Z",
     }, nowMs),
@@ -39,7 +45,7 @@ test("WhatsApp readiness comes from the exact Supabase session health", () => {
   );
   assert.equal(
     platformWahaHealthDisplayStatus({
-      sessionName: "evo-inbox",
+      sessionName: "crm_primary",
       status: "STOPPED",
       observedAt: "2026-09-02T10:00:00Z",
     }, nowMs),
@@ -47,7 +53,7 @@ test("WhatsApp readiness comes from the exact Supabase session health", () => {
   );
   assert.equal(
     platformWahaHealthDisplayStatus({
-      sessionName: "evo-inbox",
+      sessionName: "crm_primary",
       status: "WORKING",
       observedAt: "2026-09-02T09:54:59Z",
     }, nowMs),
@@ -55,7 +61,7 @@ test("WhatsApp readiness comes from the exact Supabase session health", () => {
   );
   assert.equal(
     platformWahaHealthDisplayStatus({
-      sessionName: "evo-inbox",
+      sessionName: "crm_primary",
       status: "WORKING",
       observedAt: "2026-09-02T10:01:01Z",
     }, nowMs),

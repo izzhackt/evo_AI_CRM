@@ -1,6 +1,9 @@
 import "server-only";
 
-import type { ProviderDisplayStatus } from "../provider-display-status";
+import {
+  isFreshWorkingWahaSession,
+  type ProviderDisplayStatus,
+} from "../provider-display-status.ts";
 import type { PlatformWahaSessionHealth } from "../platform-communications";
 
 const GEMINI_API_KEY_PATTERN = /^[A-Za-z0-9_-]{16,4096}$/u;
@@ -35,7 +38,8 @@ export function readPlatformGeminiProviderAvailability(
 
 export function platformWahaHealthDisplayStatus(
   health: PlatformWahaSessionHealth | null,
+  nowMs: number = Date.now(),
 ): ProviderDisplayStatus {
   if (health === null) return "not_configured";
-  return health.status === "WORKING" ? "configured_not_verified" : "blocked";
+  return isFreshWorkingWahaSession(health, nowMs) ? "ready" : "blocked";
 }

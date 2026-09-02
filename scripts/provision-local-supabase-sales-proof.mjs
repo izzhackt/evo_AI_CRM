@@ -12,6 +12,10 @@ const CONVERSATION_ID = "54600000-0000-4000-8000-000000000007";
 const CONVERSATION_SCOPE_ID = "54600000-0000-4000-8000-000000000008";
 const CONVERSATION_EVENT_ID = "54600000-0000-4000-8000-000000000009";
 const CONVERSATION_BINDING_ID = "54600000-0000-4000-8000-000000000010";
+const CONVERSATION_CUSTOMER_PARTICIPANT_ID =
+  "54600000-0000-4000-8000-000000000030";
+const CONVERSATION_SALES_PARTICIPANT_ID =
+  "54600000-0000-4000-8000-000000000031";
 const CONVERSATION_SCOPE_ASSIGNMENT_ID =
   "54600000-0000-4000-8000-000000000011";
 const CONVERSATION_EVENT_REQUEST_ID =
@@ -539,6 +543,37 @@ async function main() {
           '2026-09-02T08:10:01Z',
           '2026-09-02T08:10:01Z'
         )
+      `;
+
+      await transaction`
+        INSERT INTO platform.conversation_participants (
+          id,
+          organization_id,
+          conversation_id,
+          participant_kind,
+          membership_id,
+          external_subject_ref,
+          source_webhook_event_id
+        )
+        VALUES
+          (
+            ${CONVERSATION_CUSTOMER_PARTICIPANT_ID},
+            ${authority.organization_id},
+            ${CONVERSATION_ID},
+            'customer',
+            NULL,
+            ${`waha-participant:${CONVERSATION_CUSTOMER_PARTICIPANT_ID}`},
+            ${CONVERSATION_EVENT_ID}
+          ),
+          (
+            ${CONVERSATION_SALES_PARTICIPANT_ID},
+            ${authority.organization_id},
+            ${CONVERSATION_ID},
+            'sales',
+            ${authority.membership_id},
+            NULL,
+            ${CONVERSATION_EVENT_ID}
+          )
       `;
 
       await transaction`

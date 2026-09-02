@@ -171,9 +171,63 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
   if (wahaSessionName !== "evo-inbox") {
     throw new Error("The acceptance WAHA session must be evo-inbox");
   }
+  const providerHeaders = {
+    Accept: "application/json",
+    "X-Api-Key": wahaApiKey,
+  };
   const evidenceDir = requiredText("EVO_PLATFORM_ACCEPTANCE_EVIDENCE_DIR");
   const dispatchMarkerPath = `${evidenceDir}/waha-dispatch-attempt.json`;
   const successEvidencePath = `${evidenceDir}/success.json`;
+
+  const sessionUrl = new URL(
+    `/api/sessions/${encodeURIComponent(wahaSessionName)}`,
+    wahaBaseUrl,
+  );
+  const sessionResponse = await fetch(sessionUrl, {
+    headers: providerHeaders,
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!sessionResponse.ok) {
+    throw new Error("Exact WAHA session readiness read failed");
+  }
+  const session = asProviderMessage(await readBoundedJson(sessionResponse));
+  if (session?.name !== wahaSessionName || session.status !== "WORKING") {
+    throw new Error("The exact evo-inbox WAHA session is not WORKING");
+  }
+
+  const readinessObservedAt = Math.floor(Date.now() / 1_000);
+  const rawSessionStatusBody = JSON.stringify({
+    id: `platform-provider-readiness:${gitSha}:${readinessObservedAt}`,
+    event: "session.status",
+    session: wahaSessionName,
+    timestamp: readinessObservedAt,
+    payload: {
+      name: wahaSessionName,
+      status: session.status,
+    },
+  });
+  const sessionStatusSignature = createHmac("sha512", webhookSecret)
+    .update(rawSessionStatusBody)
+    .digest("hex");
+  const readinessIngress = await fetch(`${baseURL}/api/v2/whatsapp/inbound`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-webhook-hmac": sessionStatusSignature,
+      "x-webhook-hmac-algorithm": "sha512",
+    },
+    body: rawSessionStatusBody,
+    redirect: "error",
+    signal: AbortSignal.timeout(30_000),
+  });
+  const readinessPayload = await readBoundedJson(readinessIngress);
+  expect(readinessIngress.status).toBe(200);
+  expect(readinessPayload).toMatchObject({
+    ok: true,
+    status: "synchronized",
+    eventType: "session.status",
+  });
 
   const rawInboundBody = JSON.stringify({
     id: `platform-provider-acceptance:${gitSha}:${sourceMessage.id}`,
@@ -425,10 +479,6 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
       throw new Error("Supabase did not retain one bounded provider receipt");
     }
 
-    const providerHeaders = {
-      Accept: "application/json",
-      "X-Api-Key": wahaApiKey,
-    };
     const exactUrl = new URL(
       `/api/${encodeURIComponent(wahaSessionName)}/chats/${encodeURIComponent(targetChatId)}/messages/${encodeURIComponent(providerMessageId)}`,
       wahaBaseUrl,

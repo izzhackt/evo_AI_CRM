@@ -157,6 +157,7 @@ supabase_publishable_key=""
 supabase_service_role_key=""
 supabase_database_url=""
 platform_organization_id=""
+platform_intake_sales_membership_id=""
 whatsapp_inbound_secret="$(openssl rand -hex 32)"
 waha_api_key="technical-waha-provider-key"
 waha_session_name="evo-inbox"
@@ -251,6 +252,8 @@ if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
   EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
   EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+  EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+  EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
   EVO_TEST_WAHA_API_KEY="$waha_api_key" \
   "$node_bin" scripts/provision-local-platform-communications.mjs \
     >"$platform_communications_provision_log" 2>&1; then
@@ -258,17 +261,21 @@ if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   [[ -z "$communications_failure" ]] || echo "$communications_failure" >&2
   fail "Local Platform communications runtime provisioning failed"
 fi
-communications_marker="$(grep -m 1 -E '^LOCAL_PLATFORM_COMMUNICATIONS_PROVISIONED [0-9a-f-]{36}$' "$platform_communications_provision_log" || true)"
+communications_marker="$(grep -m 1 -E '^LOCAL_PLATFORM_COMMUNICATIONS_PROVISIONED [0-9a-f-]{36} [0-9a-f-]{36}$' "$platform_communications_provision_log" || true)"
 [[ -n "$communications_marker" ]] \
   || fail "Local Platform communications provisioning returned no success marker"
-platform_organization_id="${communications_marker##* }"
+read -r _ platform_organization_id platform_intake_sales_membership_id <<<"$communications_marker"
 [[ "$platform_organization_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
   || fail "Local Platform communications provisioning returned an invalid organization"
+[[ "$platform_intake_sales_membership_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
+  || fail "Local Platform communications provisioning returned an invalid Sales membership"
 chmod 600 "$platform_communications_provision_log"
 for sensitive_value in \
   "$supabase_service_role_key" \
   "$staff_admin_email" \
   "$staff_admin_password" \
+  "$staff_sales_email" \
+  "$staff_sales_password" \
   "$waha_api_key"; do
   if grep -F "$sensitive_value" "$platform_communications_provision_log" >/dev/null; then
     fail "Local Platform communications provisioning exposed a credential in its output"
@@ -459,6 +466,7 @@ const server = createServer(async (request, response) => {
   json(response, 404, { error: "not_found" });
 });
 
+writeResult();
 server.listen(port, "127.0.0.1");
 EOF
   waha_pid=$!
@@ -529,6 +537,7 @@ start_app() {
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
       EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
       EVO_PLATFORM_ORGANIZATION_ID="$platform_organization_id" \
+      EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID="$platform_intake_sales_membership_id" \
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
       EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
       NODE_OPTIONS="--require=$repo_root/tests/helpers/platform-waha-local-fetch.cjs" \
@@ -558,6 +567,7 @@ start_app() {
       -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
       -u EVO_PLATFORM_SUPABASE_SECRET_KEY \
       -u EVO_PLATFORM_ORGANIZATION_ID \
+      -u EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID \
       -u EVO_PLATFORM_GEMINI_API_KEY \
       -u SUPABASE_SERVICE_ROLE_KEY \
       DATABASE_URL="$app_database_url" \
@@ -1047,6 +1057,8 @@ DATABASE_URL="$database_url" \
     tests/platform-waha-provider.test.mjs \
     tests/platform-waha-webhook.test.mjs \
     tests/platform-waha-projector.test.mjs \
+    tests/platform-waha-projector-recovery.test.mjs \
+    tests/platform-provider-acceptance-harness.test.mjs \
     tests/platform-whatsapp-pages.test.mjs \
     tests/platform-communications-local-provisioner.test.mjs \
     tests/canonical-amocrm-schema-postgres.test.mjs \

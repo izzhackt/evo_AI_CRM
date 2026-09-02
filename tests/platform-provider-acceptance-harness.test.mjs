@@ -35,6 +35,11 @@ test("Platform provider acceptance is exact-SHA, private, single-run and fail-cl
   assert.match(shell, /docker context show/u);
   assert.match(shell, /orbstack/u);
   assert.match(shell, /supabase db reset --local --no-seed --yes/u);
+  assert.match(
+    shell,
+    /LOCAL_PLATFORM_COMMUNICATIONS_PROVISIONED \[0-9a-f-\]\{36\} \[0-9a-f-\]\{36\}/u,
+  );
+  assert.match(shell, /EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID/u);
 
   assert.match(shell, /EVO_PLATFORM_ACCEPTANCE_TARGET_CHAT_ID/u);
   assert.match(shell, /EVO_PLATFORM_ACCEPTANCE_SOURCE_MESSAGE_ID/u);
@@ -103,6 +108,11 @@ test("the one browser proof performs one reviewed Gemini call and one explicit W
   assert.match(spec, /chmod\(.*0o600/u);
   assert.match(spec, /SYNTHETIC_INBOUND_SEED/u);
   assert.match(spec, /inboundSeed: "synthetic_non_personal_setup"/u);
+  assert.match(spec, /\/api\/sessions\/\$\{encodeURIComponent\(wahaSessionName\)\}/u);
+  assert.match(spec, /session\?\.name !== wahaSessionName/u);
+  assert.match(spec, /session\.status !== "WORKING"/u);
+  assert.match(spec, /event: "session\.status"/u);
+  assert.match(spec, /status: "synchronized"/u);
   assert.doesNotMatch(spec, /sourceMessage\.body/u);
   assert.doesNotMatch(spec, /console\.(?:log|error)|page\.screenshot/u);
   const evidenceShape = between(

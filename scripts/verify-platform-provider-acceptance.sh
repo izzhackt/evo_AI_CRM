@@ -467,17 +467,21 @@ if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
   EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
   EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+  EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+  EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
   EVO_TEST_WAHA_API_KEY="$waha_api_key" \
   "$node_bin" scripts/provision-local-platform-communications.mjs \
   >"$communications_log" 2>&1; then
   fail "Local Platform communications runtime provisioning failed"
 fi
-communications_marker="$(grep -m 1 -E '^LOCAL_PLATFORM_COMMUNICATIONS_PROVISIONED [0-9a-f-]{36}$' "$communications_log" || true)"
+communications_marker="$(grep -m 1 -E '^LOCAL_PLATFORM_COMMUNICATIONS_PROVISIONED [0-9a-f-]{36} [0-9a-f-]{36}$' "$communications_log" || true)"
 [[ -n "$communications_marker" ]] \
   || fail "Local Platform communications provisioning returned no success marker"
-platform_organization_id="${communications_marker##* }"
+read -r _ platform_organization_id platform_intake_sales_membership_id <<<"$communications_marker"
 [[ "$platform_organization_id" =~ ^[0-9a-f-]{36}$ ]] \
   || fail "Local Platform communications provisioning returned an invalid organization"
+[[ "$platform_intake_sales_membership_id" =~ ^[0-9a-f-]{36}$ ]] \
+  || fail "Local Platform communications provisioning returned an invalid Sales membership"
 chmod 600 "$communications_log"
 
 assert_next_dev_lock_available
@@ -487,6 +491,7 @@ env \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
   EVO_PLATFORM_ORGANIZATION_ID="$platform_organization_id" \
+  EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID="$platform_intake_sales_membership_id" \
   EVO_PLATFORM_GEMINI_API_KEY="$gemini_api_key" \
   EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$webhook_secret" \
   EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_base_url" \

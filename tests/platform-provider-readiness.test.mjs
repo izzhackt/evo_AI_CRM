@@ -27,21 +27,38 @@ test("Gemini readiness uses only the one server-side platform key", () => {
 });
 
 test("WhatsApp readiness comes from the exact Supabase session health", () => {
+  const nowMs = Date.parse("2026-09-02T10:00:00Z");
   assert.equal(platformWahaHealthDisplayStatus(null), "not_configured");
   assert.equal(
     platformWahaHealthDisplayStatus({
       sessionName: "evo-inbox",
       status: "WORKING",
       observedAt: "2026-09-02T10:00:00Z",
-    }),
-    "configured_not_verified",
+    }, nowMs),
+    "ready",
   );
   assert.equal(
     platformWahaHealthDisplayStatus({
       sessionName: "evo-inbox",
       status: "STOPPED",
       observedAt: "2026-09-02T10:00:00Z",
-    }),
+    }, nowMs),
+    "blocked",
+  );
+  assert.equal(
+    platformWahaHealthDisplayStatus({
+      sessionName: "evo-inbox",
+      status: "WORKING",
+      observedAt: "2026-09-02T09:54:59Z",
+    }, nowMs),
+    "blocked",
+  );
+  assert.equal(
+    platformWahaHealthDisplayStatus({
+      sessionName: "evo-inbox",
+      status: "WORKING",
+      observedAt: "2026-09-02T10:01:01Z",
+    }, nowMs),
     "blocked",
   );
 });

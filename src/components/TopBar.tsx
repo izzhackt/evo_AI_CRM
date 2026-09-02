@@ -25,16 +25,19 @@ const STATUS_COPY: Record<
     ai: {
       not_configured: "Gemini: не настроено",
       configured_not_verified: "Gemini: настроено, не проверено",
+      ready: "Gemini: готово",
       blocked: "Gemini: заблокировано",
     },
     amo: {
       not_configured: "amoCRM: не настроено",
       configured_not_verified: "amoCRM: настроено, не проверено",
+      ready: "amoCRM: готово",
       blocked: "amoCRM: заблокировано",
     },
     whatsapp: {
       not_configured: "WhatsApp: не настроено",
       configured_not_verified: "WhatsApp: настроено, не проверено",
+      ready: "WhatsApp: готово",
       blocked: "WhatsApp: заблокировано",
     },
   },
@@ -43,16 +46,19 @@ const STATUS_COPY: Record<
     ai: {
       not_configured: "Gemini: жөндөлгөн эмес",
       configured_not_verified: "Gemini: жөндөлгөн, текшерилген жок",
+      ready: "Gemini: даяр",
       blocked: "Gemini: бөгөттөлгөн",
     },
     amo: {
       not_configured: "amoCRM: жөндөлгөн эмес",
       configured_not_verified: "amoCRM: жөндөлгөн, текшерилген жок",
+      ready: "amoCRM: даяр",
       blocked: "amoCRM: бөгөттөлгөн",
     },
     whatsapp: {
       not_configured: "WhatsApp: жөндөлгөн эмес",
       configured_not_verified: "WhatsApp: жөндөлгөн, текшерилген жок",
+      ready: "WhatsApp: даяр",
       blocked: "WhatsApp: бөгөттөлгөн",
     },
   },
@@ -61,16 +67,19 @@ const STATUS_COPY: Record<
     ai: {
       not_configured: "Gemini: not configured",
       configured_not_verified: "Gemini: configured, not verified",
+      ready: "Gemini: ready",
       blocked: "Gemini: blocked",
     },
     amo: {
       not_configured: "amoCRM: not configured",
       configured_not_verified: "amoCRM: configured, not verified",
+      ready: "amoCRM: ready",
       blocked: "amoCRM: blocked",
     },
     whatsapp: {
       not_configured: "WhatsApp: not configured",
       configured_not_verified: "WhatsApp: configured, not verified",
+      ready: "WhatsApp: ready",
       blocked: "WhatsApp: blocked",
     },
   },

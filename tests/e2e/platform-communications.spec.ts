@@ -54,7 +54,7 @@ function signedInboundBody(
   messageId = inboundMessageId,
   messageText = inboundText,
 ) {
-  const rawBody = JSON.stringify({
+  return signedWebhookBody({
     id: `platform-browser-${messageId}`,
     event: "message.any",
     session: "evo-inbox",
@@ -68,6 +68,20 @@ function signedInboundBody(
       body: messageText,
     },
   });
+}
+
+function signedSessionStatusBody(eventId: string) {
+  return signedWebhookBody({
+    id: eventId,
+    event: "session.status",
+    session: "evo-inbox",
+    timestamp: Math.floor(Date.now() / 1000),
+    payload: { name: "evo-inbox", status: "WORKING" },
+  });
+}
+
+function signedWebhookBody(body: object) {
+  const rawBody = JSON.stringify(body);
   const signature = createHmac("sha512", webhookSecret)
     .update(rawBody)
     .digest("hex");
@@ -104,6 +118,17 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   test.skip(mode !== "configured", "configured Platform communications proof only");
   if (!baseURL || !wahaResultFile) throw new Error("communications proof is not configured");
 
+  const sessionStatus = await postInbound(
+    baseURL,
+    signedSessionStatusBody("platform-browser-session-status-send"),
+  );
+  expect(sessionStatus.response.status).toBe(200);
+  expect(sessionStatus.payload).toMatchObject({
+    ok: true,
+    status: "synchronized",
+    eventType: "session.status",
+  });
+
   const signedBody = signedInboundBody();
   const firstIngress = await postInbound(baseURL, signedBody);
   expect(firstIngress.response.status).toBe(200);
@@ -125,7 +150,15 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   await page.goto(`/whatsapp/${conversationId}`);
   await expect(page.getByTestId("platform-staff-whatsapp-page")).toBeVisible();
   await expect(page.getByTestId("platform-staff-whatsapp-thread")).toBeVisible();
-  await expect(page.getByText("WhatsApp exact Sales-intake proof")).toBeVisible();
+  await expect(
+    page.locator(".provider-status--ready").filter({ hasText: "WhatsApp" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "WhatsApp exact Sales-intake proof",
+      exact: true,
+    }),
+  ).toBeVisible();
   await expect(page.getByText(inboundText, { exact: true })).toHaveCount(1);
   await expect(page.locator("body")).not.toContainText(chatId);
   await expect(page.locator("body")).not.toContainText(inboundMessageId);
@@ -140,7 +173,7 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   const finalText = "Подтверждённый ответ EVO из Supabase browser proof";
   await controls.locator('textarea[name="message_text"]').fill(finalText);
   await controls.locator('input[name="confirm_send"]').check();
-  await controls.getByTestId("platform-provider-send").click({ clickCount: 2 });
+  await controls.getByTestId("platform-provider-send").click();
   await expect(
     controls.getByText(
       "WhatsApp принял сообщение; результат сохранён.",
@@ -171,6 +204,17 @@ test("an ambiguous provider result blocks resend and exact WAHA readback resolve
   if (!baseURL || !wahaResultFile || !unknownResultText) {
     throw new Error("ambiguous-result communications proof is not configured");
   }
+
+  const sessionStatus = await postInbound(
+    baseURL,
+    signedSessionStatusBody("platform-browser-session-status-unknown"),
+  );
+  expect(sessionStatus.response.status).toBe(200);
+  expect(sessionStatus.payload).toMatchObject({
+    ok: true,
+    status: "synchronized",
+    eventType: "session.status",
+  });
 
   const beforeEvidence = JSON.parse(await readFile(wahaResultFile, "utf8"));
   const beforeSendCount = Number(beforeEvidence.sendCount);

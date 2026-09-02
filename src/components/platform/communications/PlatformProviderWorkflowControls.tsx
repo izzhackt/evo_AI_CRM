@@ -281,7 +281,7 @@ export function PlatformProviderWorkflowControls({
     >
       <div>
         <h3 className="text-md font-semibold text-fg">{copy.title}</h3>
-        <p className="mt-1 max-w-[64ch] border-l-2 border-accent pl-3 text-sm leading-6 text-fg-2">
+        <p className="mt-1 max-w-[56ch] border-l-2 border-accent pl-3 text-sm leading-6 text-fg-2">
           {copy.advisory}
         </p>
       </div>

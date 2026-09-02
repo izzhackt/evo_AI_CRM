@@ -10,6 +10,7 @@ import type {
   PlatformConversationSummary,
   PlatformWahaSessionHealth,
 } from "@/lib/platform-communications";
+import { isFreshWorkingWahaSession } from "@/lib/provider-display-status";
 
 const COPY = {
   ru: {
@@ -325,7 +326,7 @@ function ConversationThread({
 }>) {
   const copy = COPY[locale];
   const channelState = wahaSessionHealth
-    ? wahaSessionHealth.status === "WORKING"
+    ? isFreshWorkingWahaSession(wahaSessionHealth)
       ? copy.channelReady
       : copy.channelAttention
     : copy.channelUnknown;

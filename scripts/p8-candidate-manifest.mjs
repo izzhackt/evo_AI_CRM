@@ -356,10 +356,10 @@ export function collectMigrationInventory(repoRoot) {
     .filter((name) => /^\d{3}_.+\.sql$/.test(name))
     .sort()
     .map((name) => ({ name, sha256: sha256File(join(directory, name)) }));
-  if (migrations.length !== 92) fail("migration inventory must contain 92 files");
+  if (migrations.length !== 93) fail("migration inventory must contain 93 files");
   migrations.forEach((migration, index) => {
     if (migration.name.slice(0, 3) !== String(index + 1).padStart(3, "0")) {
-      fail("migration inventory must be contiguous 001-092");
+      fail("migration inventory must be contiguous 001-093");
     }
   });
   return migrations;

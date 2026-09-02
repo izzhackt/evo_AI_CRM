@@ -154,6 +154,10 @@ CREATE TABLE platform_private.amocrm_command_attempts (
   payload JSONB NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
   status platform.amocrm_command_status NOT NULL DEFAULT 'prepared',
   dispatch_request_id UUID,
+  dispatch_request_sha256 TEXT CHECK (
+    dispatch_request_sha256 IS NULL
+    OR dispatch_request_sha256 ~ '^[0-9a-f]{64}$'
+  ),
   dispatch_worker_ref TEXT CHECK (
     dispatch_worker_ref IS NULL
     OR (
@@ -164,8 +168,17 @@ CREATE TABLE platform_private.amocrm_command_attempts (
   ),
   dispatch_claimed_at TIMESTAMPTZ,
   dispatch_lease_expires_at TIMESTAMPTZ,
+  provider_dispatched_at TIMESTAMPTZ,
   finish_request_id UUID,
+  finish_request_sha256 TEXT CHECK (
+    finish_request_sha256 IS NULL
+    OR finish_request_sha256 ~ '^[0-9a-f]{64}$'
+  ),
   reconcile_request_id UUID,
+  reconcile_request_sha256 TEXT CHECK (
+    reconcile_request_sha256 IS NULL
+    OR reconcile_request_sha256 ~ '^[0-9a-f]{64}$'
+  ),
   provider_request_id TEXT CHECK (
     provider_request_id IS NULL
     OR (
@@ -207,6 +220,34 @@ CREATE TABLE platform_private.amocrm_command_attempts (
     UNIQUE (organization_id, id),
   CONSTRAINT amocrm_command_attempts_org_idempotency_key
     UNIQUE (organization_id, idempotency_key),
+  CONSTRAINT amocrm_command_attempts_dispatch_shape_check CHECK (
+    (
+      dispatch_request_id IS NULL
+      AND dispatch_request_sha256 IS NULL
+      AND dispatch_worker_ref IS NULL
+      AND dispatch_claimed_at IS NULL
+      AND dispatch_lease_expires_at IS NULL
+      AND provider_dispatched_at IS NULL
+    )
+    OR (
+      dispatch_request_id IS NOT NULL
+      AND dispatch_request_sha256 IS NOT NULL
+      AND dispatch_worker_ref IS NOT NULL
+      AND dispatch_claimed_at IS NOT NULL
+      AND dispatch_lease_expires_at IS NOT NULL
+      AND provider_dispatched_at IS NOT NULL
+      AND provider_dispatched_at = dispatch_claimed_at
+      AND dispatch_lease_expires_at > dispatch_claimed_at
+    )
+  ),
+  CONSTRAINT amocrm_command_attempts_finish_shape_check CHECK (
+    (finish_request_id IS NULL AND finish_request_sha256 IS NULL)
+    OR (finish_request_id IS NOT NULL AND finish_request_sha256 IS NOT NULL)
+  ),
+  CONSTRAINT amocrm_command_attempts_reconcile_shape_check CHECK (
+    (reconcile_request_id IS NULL AND reconcile_request_sha256 IS NULL)
+    OR (reconcile_request_id IS NOT NULL AND reconcile_request_sha256 IS NOT NULL)
+  ),
   CONSTRAINT amocrm_command_attempts_org_receipt_fkey
     FOREIGN KEY (organization_id, command_receipt_id)
     REFERENCES platform_private.amocrm_command_receipts(organization_id, id)
@@ -424,6 +465,7 @@ AS $$
     'target_contact_id', attempt.target_contact_id,
     'target_lead_id', attempt.target_lead_id,
     'status', attempt.status,
+    'provider_dispatched_at', attempt.provider_dispatched_at,
     'result_contact_id', attempt.result_contact_id,
     'result_lead_id', attempt.result_lead_id,
     'failure_code', attempt.failure_code
@@ -451,7 +493,8 @@ SET search_path = ''
 AS $$
 DECLARE
   actor RECORD;
-  existing_attempt UUID;
+  existing_attempt RECORD;
+  existing_provider_id TEXT;
   receipt_id UUID;
   attempt_id UUID;
   actor_role TEXT;
@@ -491,6 +534,43 @@ BEGIN
     student_case_id
   );
 
+  IF p_lead_id IS NOT NULL
+    AND p_lead_id IS DISTINCT FROM workflow_lead_id
+  THEN
+    RAISE EXCEPTION 'amocrm_command_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_person_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.leads AS workflow_lead
+      WHERE workflow_lead.organization_id = p_organization_id
+        AND workflow_lead.id = workflow_lead_id
+        AND workflow_lead.client_id = p_person_id
+    )
+  THEN
+    RAISE EXCEPTION 'amocrm_command_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF workflow_scope = 'admissions_post_handoff'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.student_cases AS student_case
+      WHERE student_case.organization_id = p_organization_id
+        AND student_case.id = student_case_id
+        AND student_case.canonical_lead_id = workflow_lead_id
+        AND (
+          p_person_id IS NULL
+          OR student_case.canonical_client_id = p_person_id
+        )
+    )
+  THEN
+    RAISE EXCEPTION 'amocrm_command_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
   IF p_operation_name IN ('contact_create', 'contact_update') AND (p_person_id IS NULL OR p_lead_id IS NOT NULL) THEN
     RAISE EXCEPTION 'invalid amocrm command request'
       USING ERRCODE = '22023';
@@ -516,18 +596,116 @@ BEGIN
     hashtextextended('amocrm-command:' || p_idempotency_key, 0)
   );
 
-  SELECT attempt.id
+  SELECT
+    attempt.*,
+    receipt.actor_profile_id AS receipt_actor_profile_id,
+    receipt.actor_membership_id AS receipt_actor_membership_id,
+    receipt.actor_auth_user_id AS receipt_actor_auth_user_id
   INTO existing_attempt
   FROM platform_private.amocrm_command_attempts AS attempt
+  JOIN platform_private.amocrm_command_receipts AS receipt
+    ON receipt.organization_id = attempt.organization_id
+   AND receipt.id = attempt.command_receipt_id
   WHERE attempt.organization_id = p_organization_id
     AND attempt.idempotency_key = p_idempotency_key
   LIMIT 1;
 
   IF FOUND THEN
+    IF existing_attempt.receipt_actor_profile_id IS DISTINCT FROM actor.actor_profile_id
+      OR existing_attempt.receipt_actor_membership_id IS DISTINCT FROM actor.actor_membership_id
+      OR existing_attempt.receipt_actor_auth_user_id IS DISTINCT FROM actor.actor_auth_user_id
+      OR existing_attempt.actor_role IS DISTINCT FROM actor.actor_role
+      OR existing_attempt.workflow_scope IS DISTINCT FROM workflow_scope
+      OR existing_attempt.workflow_lead_id IS DISTINCT FROM workflow_lead_id
+      OR existing_attempt.student_case_id IS DISTINCT FROM student_case_id
+      OR existing_attempt.person_id IS DISTINCT FROM p_person_id
+      OR existing_attempt.lead_id IS DISTINCT FROM p_lead_id
+      OR existing_attempt.operation_name IS DISTINCT FROM p_operation_name
+      OR existing_attempt.target_contact_id IS DISTINCT FROM p_target_contact_id
+      OR existing_attempt.target_lead_id IS DISTINCT FROM p_target_lead_id
+      OR existing_attempt.payload IS DISTINCT FROM p_payload
+    THEN
+      RAISE EXCEPTION 'amocrm command idempotency key was reused with different input'
+        USING ERRCODE = '23505';
+    END IF;
+
     RETURN jsonb_build_object(
       'kind', 'replay',
-      'attempt', platform_private.amocrm_command_snapshot(existing_attempt)
+      'attempt', platform_private.amocrm_command_snapshot(existing_attempt.id)
     );
+  END IF;
+
+  IF p_person_id IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(
+      hashtextextended(
+        'amocrm-object:' || p_organization_id::TEXT || ':person:' || p_person_id::TEXT,
+        0
+      )
+    );
+  END IF;
+  IF p_lead_id IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(
+      hashtextextended(
+        'amocrm-object:' || p_organization_id::TEXT || ':lead:' || p_lead_id::TEXT,
+        0
+      )
+    );
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM platform_private.amocrm_command_attempts AS unresolved
+    WHERE unresolved.organization_id = p_organization_id
+      AND unresolved.status IN ('prepared', 'unknown')
+      AND (
+        (p_person_id IS NOT NULL AND unresolved.person_id = p_person_id)
+        OR (p_lead_id IS NOT NULL AND unresolved.lead_id = p_lead_id)
+      )
+  ) THEN
+    RAISE EXCEPTION 'amocrm command target already has an unresolved attempt'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF p_person_id IS NOT NULL THEN
+    SELECT binding.contact_id
+    INTO existing_provider_id
+    FROM platform_private.amocrm_contact_bindings AS binding
+    WHERE binding.organization_id = p_organization_id
+      AND binding.person_id = p_person_id
+    FOR UPDATE;
+
+    IF p_operation_name = 'contact_create' THEN
+      IF FOUND THEN
+        RAISE EXCEPTION 'amocrm contact binding already exists'
+          USING ERRCODE = '23505';
+      END IF;
+    ELSIF NOT FOUND
+      OR existing_provider_id IS DISTINCT FROM p_target_contact_id
+    THEN
+      RAISE EXCEPTION 'amocrm contact binding does not match the command target'
+        USING ERRCODE = '23505';
+    END IF;
+  END IF;
+
+  IF p_lead_id IS NOT NULL THEN
+    SELECT binding.provider_lead_id
+    INTO existing_provider_id
+    FROM platform_private.amocrm_lead_bindings AS binding
+    WHERE binding.organization_id = p_organization_id
+      AND binding.lead_id = p_lead_id
+    FOR UPDATE;
+
+    IF p_operation_name = 'lead_create' THEN
+      IF FOUND THEN
+        RAISE EXCEPTION 'amocrm lead binding already exists'
+          USING ERRCODE = '23505';
+      END IF;
+    ELSIF NOT FOUND
+      OR existing_provider_id IS DISTINCT FROM p_target_lead_id
+    THEN
+      RAISE EXCEPTION 'amocrm lead binding does not match the command target'
+        USING ERRCODE = '23505';
+    END IF;
   END IF;
 
   INSERT INTO platform_private.amocrm_command_receipts (
@@ -748,11 +926,42 @@ SET search_path = ''
 AS $$
 DECLARE
   attempt_row platform_private.amocrm_command_attempts%ROWTYPE;
+  request_sha256 TEXT;
 BEGIN
   IF (SELECT auth.jwt() ->> 'role') IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'amocrm_command_forbidden'
       USING ERRCODE = '42501';
   END IF;
+
+  IF p_organization_id IS NULL
+    OR p_attempt_id IS NULL
+    OR p_request_id IS NULL
+    OR p_worker_ref IS NULL
+    OR p_worker_ref <> pg_catalog.btrim(p_worker_ref)
+    OR pg_catalog.char_length(p_worker_ref) NOT BETWEEN 1 AND 200
+    OR p_worker_ref ~ '[[:cntrl:]]'
+    OR p_visibility_timeout_seconds IS NULL
+    OR p_visibility_timeout_seconds NOT BETWEEN 1 AND 3600
+  THEN
+    RAISE EXCEPTION 'invalid amocrm command claim'
+      USING ERRCODE = '22023';
+  END IF;
+
+  request_sha256 := pg_catalog.encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to(
+        jsonb_build_object(
+          'organization_id', p_organization_id,
+          'attempt_id', p_attempt_id,
+          'request_id', p_request_id,
+          'worker_ref', p_worker_ref,
+          'visibility_timeout_seconds', p_visibility_timeout_seconds
+        )::TEXT,
+        'UTF8'
+      )
+    ),
+    'hex'
+  );
 
   SELECT *
   INTO attempt_row
@@ -767,6 +976,11 @@ BEGIN
   END IF;
 
   IF attempt_row.dispatch_request_id = p_request_id THEN
+    IF attempt_row.dispatch_request_sha256 IS DISTINCT FROM request_sha256 THEN
+      RAISE EXCEPTION 'amocrm claim request id was reused with different input'
+        USING ERRCODE = '23505';
+    END IF;
+
     RETURN jsonb_build_object(
       'kind', 'replay',
       'reason', NULL,
@@ -774,9 +988,9 @@ BEGIN
     );
   END IF;
 
-  IF attempt_row.dispatch_lease_expires_at IS NOT NULL
-    AND attempt_row.dispatch_lease_expires_at > statement_timestamp()
-    AND attempt_row.status = 'prepared'
+  IF attempt_row.status <> 'prepared'
+    OR attempt_row.dispatch_request_id IS NOT NULL
+    OR attempt_row.provider_dispatched_at IS NOT NULL
   THEN
     RETURN jsonb_build_object(
       'kind', 'blocked',
@@ -788,12 +1002,22 @@ BEGIN
   UPDATE platform_private.amocrm_command_attempts
   SET
     dispatch_request_id = p_request_id,
+    dispatch_request_sha256 = request_sha256,
     dispatch_worker_ref = p_worker_ref,
     dispatch_claimed_at = statement_timestamp(),
     dispatch_lease_expires_at = statement_timestamp()
       + make_interval(secs => p_visibility_timeout_seconds),
+    provider_dispatched_at = statement_timestamp(),
     version = version + 1
-  WHERE id = attempt_row.id;
+  WHERE id = attempt_row.id
+    AND status = 'prepared'
+    AND dispatch_request_id IS NULL
+    AND provider_dispatched_at IS NULL;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'amocrm command claim state conflict'
+      USING ERRCODE = '55000';
+  END IF;
 
   RETURN jsonb_build_object(
     'kind', 'claimed',
@@ -824,11 +1048,131 @@ SET search_path = ''
 AS $$
 DECLARE
   attempt_row platform_private.amocrm_command_attempts%ROWTYPE;
+  request_sha256 TEXT;
 BEGIN
   IF (SELECT auth.jwt() ->> 'role') IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'amocrm_command_forbidden'
       USING ERRCODE = '42501';
   END IF;
+
+  IF p_organization_id IS NULL
+    OR p_attempt_id IS NULL
+    OR p_request_id IS NULL
+    OR p_outcome IS NULL
+    OR p_outcome NOT IN ('accepted', 'unknown', 'rejected')
+    OR (
+      p_provider_request_id IS NOT NULL
+      AND (
+        p_provider_request_id <> pg_catalog.btrim(p_provider_request_id)
+        OR pg_catalog.char_length(p_provider_request_id) NOT BETWEEN 1 AND 200
+        OR p_provider_request_id ~ '[[:cntrl:]]'
+      )
+    )
+    OR (
+      p_provider_http_status IS NOT NULL
+      AND p_provider_http_status NOT BETWEEN 100 AND 599
+    )
+    OR (
+      p_provider_readback IS NOT NULL
+      AND jsonb_typeof(p_provider_readback) <> 'object'
+    )
+    OR (
+      p_provider_readback_sha256 IS NOT NULL
+      AND p_provider_readback_sha256 !~ '^[0-9a-f]{64}$'
+    )
+    OR (p_provider_readback IS NULL) <> (p_provider_readback_sha256 IS NULL)
+    OR (
+      p_provider_readback IS NOT NULL
+      AND p_provider_readback_sha256 IS DISTINCT FROM pg_catalog.encode(
+        pg_catalog.sha256(
+          pg_catalog.convert_to(p_provider_readback::TEXT, 'UTF8')
+        ),
+        'hex'
+      )
+    )
+    OR (
+      p_result_contact_id IS NOT NULL
+      AND p_result_contact_id !~ '^[1-9][0-9]{0,19}$'
+    )
+    OR (
+      p_result_lead_id IS NOT NULL
+      AND p_result_lead_id !~ '^[1-9][0-9]{0,19}$'
+    )
+    OR (
+      p_failure_code IS NOT NULL
+      AND (
+        p_failure_code <> pg_catalog.btrim(p_failure_code)
+        OR pg_catalog.char_length(p_failure_code) NOT BETWEEN 1 AND 64
+        OR p_failure_code !~ '^[a-z][a-z0-9_]{1,63}$'
+      )
+    )
+    OR (
+      p_outcome = 'accepted'
+      AND (
+        p_provider_http_status IS NULL
+        OR p_provider_http_status NOT BETWEEN 200 AND 299
+        OR p_provider_responded_at IS NULL
+        OR p_provider_readback IS NULL
+        OR p_failure_code IS NOT NULL
+      )
+    )
+    OR (
+      p_outcome = 'rejected'
+      AND (
+        p_provider_http_status IS NULL
+        OR p_provider_http_status NOT BETWEEN 300 AND 599
+        OR p_provider_responded_at IS NULL
+        OR p_result_contact_id IS NOT NULL
+        OR p_result_lead_id IS NOT NULL
+        OR p_failure_code IS NULL
+      )
+    )
+    OR (
+      p_outcome = 'unknown'
+      AND (
+        p_result_contact_id IS NOT NULL
+        OR p_result_lead_id IS NOT NULL
+        OR p_failure_code IS NULL
+        OR (
+          p_provider_responded_at IS NULL
+          AND (
+            p_provider_http_status IS NOT NULL
+            OR p_provider_request_id IS NOT NULL
+          )
+        )
+        OR (
+          p_provider_responded_at IS NOT NULL
+          AND p_provider_http_status IS NULL
+        )
+      )
+    )
+  THEN
+    RAISE EXCEPTION 'invalid amocrm command settlement'
+      USING ERRCODE = '22023';
+  END IF;
+
+  request_sha256 := pg_catalog.encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to(
+        jsonb_build_object(
+          'organization_id', p_organization_id,
+          'attempt_id', p_attempt_id,
+          'request_id', p_request_id,
+          'outcome', p_outcome,
+          'provider_request_id', p_provider_request_id,
+          'provider_http_status', p_provider_http_status,
+          'provider_readback', p_provider_readback,
+          'provider_readback_sha256', p_provider_readback_sha256,
+          'provider_responded_at', p_provider_responded_at,
+          'result_contact_id', p_result_contact_id,
+          'result_lead_id', p_result_lead_id,
+          'failure_code', p_failure_code
+        )::TEXT,
+        'UTF8'
+      )
+    ),
+    'hex'
+  );
 
   SELECT *
   INTO attempt_row
@@ -843,14 +1187,69 @@ BEGIN
   END IF;
 
   IF attempt_row.finish_request_id = p_request_id THEN
+    IF attempt_row.finish_request_sha256 IS DISTINCT FROM request_sha256 THEN
+      RAISE EXCEPTION 'amocrm finish request id was reused with different input'
+        USING ERRCODE = '23505';
+    END IF;
+
     RETURN jsonb_build_object(
       'kind', 'replay',
       'attempt', platform_private.amocrm_command_snapshot(attempt_row.id)
     );
   END IF;
 
-  IF p_outcome NOT IN ('accepted', 'unknown', 'rejected') THEN
-    RAISE EXCEPTION 'invalid amocrm command settlement'
+  IF attempt_row.status <> 'prepared'
+    OR attempt_row.dispatch_request_id IS NULL
+    OR attempt_row.provider_dispatched_at IS NULL
+  THEN
+    RAISE EXCEPTION 'amocrm command finish state conflict'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF p_provider_responded_at IS NOT NULL
+    AND p_provider_responded_at < attempt_row.provider_dispatched_at
+  THEN
+    RAISE EXCEPTION 'invalid amocrm command settlement chronology'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_outcome = 'accepted'
+    AND NOT (
+      (
+        attempt_row.operation_name = 'contact_create'
+        AND p_result_contact_id IS NOT NULL
+        AND p_result_lead_id IS NULL
+      )
+      OR (
+        attempt_row.operation_name = 'contact_update'
+        AND p_result_contact_id = attempt_row.target_contact_id
+        AND p_result_lead_id IS NULL
+      )
+      OR (
+        attempt_row.operation_name = 'lead_create'
+        AND p_result_contact_id IS NULL
+        AND p_result_lead_id IS NOT NULL
+      )
+      OR (
+        attempt_row.operation_name IN (
+          'lead_update',
+          'lead_pipeline_status_update',
+          'lead_responsible_update',
+          'lead_note_create',
+          'lead_task_create',
+          'lead_tag_update'
+        )
+        AND p_result_contact_id IS NULL
+        AND p_result_lead_id = attempt_row.target_lead_id
+      )
+      OR (
+        attempt_row.operation_name = 'contact_lead_link'
+        AND p_result_contact_id = attempt_row.target_contact_id
+        AND p_result_lead_id = attempt_row.target_lead_id
+      )
+    )
+  THEN
+    RAISE EXCEPTION 'accepted amoCRM result does not match the command operation'
       USING ERRCODE = '22023';
   END IF;
 
@@ -858,6 +1257,7 @@ BEGIN
   SET
     status = p_outcome::platform.amocrm_command_status,
     finish_request_id = p_request_id,
+    finish_request_sha256 = request_sha256,
     provider_request_id = p_provider_request_id,
     provider_http_status = p_provider_http_status,
     provider_readback = p_provider_readback,
@@ -876,7 +1276,7 @@ BEGIN
 
   IF p_outcome = 'accepted' THEN
     IF p_result_contact_id IS NOT NULL AND attempt_row.person_id IS NOT NULL THEN
-      INSERT INTO platform_private.amocrm_contact_bindings (
+      INSERT INTO platform_private.amocrm_contact_bindings AS binding (
         organization_id,
         person_id,
         contact_id,
@@ -888,13 +1288,17 @@ BEGIN
         attempt_row.id
       )
       ON CONFLICT (organization_id, person_id) DO UPDATE
-      SET
-        contact_id = EXCLUDED.contact_id,
-        latest_attempt_id = EXCLUDED.latest_attempt_id;
+      SET latest_attempt_id = EXCLUDED.latest_attempt_id
+      WHERE binding.contact_id = EXCLUDED.contact_id;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'accepted amoCRM contact binding conflicts with canonical identity'
+          USING ERRCODE = '23505';
+      END IF;
     END IF;
 
     IF p_result_lead_id IS NOT NULL AND attempt_row.lead_id IS NOT NULL THEN
-      INSERT INTO platform_private.amocrm_lead_bindings (
+      INSERT INTO platform_private.amocrm_lead_bindings AS binding (
         organization_id,
         lead_id,
         provider_lead_id,
@@ -906,9 +1310,13 @@ BEGIN
         attempt_row.id
       )
       ON CONFLICT (organization_id, lead_id) DO UPDATE
-      SET
-        provider_lead_id = EXCLUDED.provider_lead_id,
-        latest_attempt_id = EXCLUDED.latest_attempt_id;
+      SET latest_attempt_id = EXCLUDED.latest_attempt_id
+      WHERE binding.provider_lead_id = EXCLUDED.provider_lead_id;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'accepted amoCRM lead binding conflicts with canonical identity'
+          USING ERRCODE = '23505';
+      END IF;
     END IF;
   END IF;
 
@@ -939,11 +1347,94 @@ SET search_path = ''
 AS $$
 DECLARE
   attempt_row platform_private.amocrm_command_attempts%ROWTYPE;
+  request_sha256 TEXT;
 BEGIN
   IF (SELECT auth.jwt() ->> 'role') IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'amocrm_command_forbidden'
       USING ERRCODE = '42501';
   END IF;
+
+  IF p_organization_id IS NULL
+    OR p_attempt_id IS NULL
+    OR p_request_id IS NULL
+    OR p_outcome IS NULL
+    OR p_outcome NOT IN ('accepted', 'unchanged')
+    OR (
+      p_provider_readback IS NOT NULL
+      AND jsonb_typeof(p_provider_readback) <> 'object'
+    )
+    OR (
+      p_provider_readback_sha256 IS NOT NULL
+      AND p_provider_readback_sha256 !~ '^[0-9a-f]{64}$'
+    )
+    OR (p_provider_readback IS NULL) <> (p_provider_readback_sha256 IS NULL)
+    OR (p_provider_readback IS NULL) <> (p_provider_readback_at IS NULL)
+    OR (
+      p_provider_readback IS NOT NULL
+      AND p_provider_readback_sha256 IS DISTINCT FROM pg_catalog.encode(
+        pg_catalog.sha256(
+          pg_catalog.convert_to(p_provider_readback::TEXT, 'UTF8')
+        ),
+        'hex'
+      )
+    )
+    OR (
+      p_result_contact_id IS NOT NULL
+      AND p_result_contact_id !~ '^[1-9][0-9]{0,19}$'
+    )
+    OR (
+      p_result_lead_id IS NOT NULL
+      AND p_result_lead_id !~ '^[1-9][0-9]{0,19}$'
+    )
+    OR (
+      p_failure_code IS NOT NULL
+      AND (
+        p_failure_code <> pg_catalog.btrim(p_failure_code)
+        OR pg_catalog.char_length(p_failure_code) NOT BETWEEN 1 AND 64
+        OR p_failure_code !~ '^[a-z][a-z0-9_]{1,63}$'
+      )
+    )
+    OR (
+      p_outcome = 'accepted'
+      AND (
+        p_provider_readback IS NULL
+        OR p_failure_code IS NOT NULL
+      )
+    )
+    OR (
+      p_outcome = 'unchanged'
+      AND (
+        p_result_contact_id IS NOT NULL
+        OR p_result_lead_id IS NOT NULL
+        OR p_failure_code IS NULL
+      )
+    )
+  THEN
+    RAISE EXCEPTION 'invalid amocrm command reconciliation'
+      USING ERRCODE = '22023';
+  END IF;
+
+  request_sha256 := pg_catalog.encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to(
+        jsonb_build_object(
+          'organization_id', p_organization_id,
+          'attempt_id', p_attempt_id,
+          'request_id', p_request_id,
+          'outcome', p_outcome,
+          'provider_readback', p_provider_readback,
+          'provider_readback_sha256', p_provider_readback_sha256,
+          'provider_readback_at', p_provider_readback_at,
+          'provider_responded_at', p_provider_responded_at,
+          'result_contact_id', p_result_contact_id,
+          'result_lead_id', p_result_lead_id,
+          'failure_code', p_failure_code
+        )::TEXT,
+        'UTF8'
+      )
+    ),
+    'hex'
+  );
 
   SELECT *
   INTO attempt_row
@@ -958,17 +1449,86 @@ BEGIN
   END IF;
 
   IF attempt_row.reconcile_request_id = p_request_id THEN
+    IF attempt_row.reconcile_request_sha256 IS DISTINCT FROM request_sha256 THEN
+      RAISE EXCEPTION 'amocrm reconcile request id was reused with different input'
+        USING ERRCODE = '23505';
+    END IF;
+
     RETURN jsonb_build_object(
       'kind', 'replay',
       'attempt', platform_private.amocrm_command_snapshot(attempt_row.id)
     );
   END IF;
 
-  IF attempt_row.status <> 'unknown' THEN
-    RETURN jsonb_build_object(
-      'kind', 'replay',
-      'attempt', platform_private.amocrm_command_snapshot(attempt_row.id)
-    );
+  IF attempt_row.status NOT IN ('prepared', 'unknown')
+    OR (
+      attempt_row.status = 'prepared'
+      AND attempt_row.provider_dispatched_at IS NULL
+    )
+  THEN
+    RAISE EXCEPTION 'amocrm command reconcile state conflict'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF attempt_row.provider_dispatched_at IS NULL
+    OR (
+      p_provider_readback_at IS NOT NULL
+      AND p_provider_readback_at < attempt_row.provider_dispatched_at
+    )
+    OR (
+      p_provider_responded_at IS NOT NULL
+      AND p_provider_responded_at < attempt_row.provider_dispatched_at
+    )
+    OR (
+      p_outcome = 'accepted'
+      AND COALESCE(
+        p_provider_responded_at,
+        attempt_row.provider_responded_at
+      ) IS NULL
+    )
+  THEN
+    RAISE EXCEPTION 'invalid amocrm command reconciliation chronology'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_outcome = 'accepted'
+    AND NOT (
+      (
+        attempt_row.operation_name = 'contact_create'
+        AND p_result_contact_id IS NOT NULL
+        AND p_result_lead_id IS NULL
+      )
+      OR (
+        attempt_row.operation_name = 'contact_update'
+        AND p_result_contact_id = attempt_row.target_contact_id
+        AND p_result_lead_id IS NULL
+      )
+      OR (
+        attempt_row.operation_name = 'lead_create'
+        AND p_result_contact_id IS NULL
+        AND p_result_lead_id IS NOT NULL
+      )
+      OR (
+        attempt_row.operation_name IN (
+          'lead_update',
+          'lead_pipeline_status_update',
+          'lead_responsible_update',
+          'lead_note_create',
+          'lead_task_create',
+          'lead_tag_update'
+        )
+        AND p_result_contact_id IS NULL
+        AND p_result_lead_id = attempt_row.target_lead_id
+      )
+      OR (
+        attempt_row.operation_name = 'contact_lead_link'
+        AND p_result_contact_id = attempt_row.target_contact_id
+        AND p_result_lead_id = attempt_row.target_lead_id
+      )
+    )
+  THEN
+    RAISE EXCEPTION 'accepted amoCRM result does not match the command operation'
+      USING ERRCODE = '22023';
   END IF;
 
   IF p_outcome = 'accepted' THEN
@@ -976,6 +1536,7 @@ BEGIN
     SET
       status = 'accepted',
       reconcile_request_id = p_request_id,
+      reconcile_request_sha256 = request_sha256,
       provider_readback = p_provider_readback,
       provider_readback_sha256 = p_provider_readback_sha256,
       provider_readback_at = COALESCE(p_provider_readback_at, statement_timestamp()),
@@ -988,7 +1549,7 @@ BEGIN
     WHERE id = attempt_row.id;
 
     IF p_result_contact_id IS NOT NULL AND attempt_row.person_id IS NOT NULL THEN
-      INSERT INTO platform_private.amocrm_contact_bindings (
+      INSERT INTO platform_private.amocrm_contact_bindings AS binding (
         organization_id,
         person_id,
         contact_id,
@@ -1000,13 +1561,17 @@ BEGIN
         attempt_row.id
       )
       ON CONFLICT (organization_id, person_id) DO UPDATE
-      SET
-        contact_id = EXCLUDED.contact_id,
-        latest_attempt_id = EXCLUDED.latest_attempt_id;
+      SET latest_attempt_id = EXCLUDED.latest_attempt_id
+      WHERE binding.contact_id = EXCLUDED.contact_id;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'accepted amoCRM contact binding conflicts with canonical identity'
+          USING ERRCODE = '23505';
+      END IF;
     END IF;
 
     IF p_result_lead_id IS NOT NULL AND attempt_row.lead_id IS NOT NULL THEN
-      INSERT INTO platform_private.amocrm_lead_bindings (
+      INSERT INTO platform_private.amocrm_lead_bindings AS binding (
         organization_id,
         lead_id,
         provider_lead_id,
@@ -1018,9 +1583,13 @@ BEGIN
         attempt_row.id
       )
       ON CONFLICT (organization_id, lead_id) DO UPDATE
-      SET
-        provider_lead_id = EXCLUDED.provider_lead_id,
-        latest_attempt_id = EXCLUDED.latest_attempt_id;
+      SET latest_attempt_id = EXCLUDED.latest_attempt_id
+      WHERE binding.provider_lead_id = EXCLUDED.provider_lead_id;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'accepted amoCRM lead binding conflicts with canonical identity'
+          USING ERRCODE = '23505';
+      END IF;
     END IF;
 
     RETURN jsonb_build_object(
@@ -1031,7 +1600,9 @@ BEGIN
 
   UPDATE platform_private.amocrm_command_attempts
   SET
+    status = 'unknown',
     reconcile_request_id = p_request_id,
+    reconcile_request_sha256 = request_sha256,
     provider_readback = COALESCE(p_provider_readback, provider_readback),
     provider_readback_sha256 = COALESCE(
       p_provider_readback_sha256,

@@ -80,6 +80,7 @@ export type PlatformAmoCrmCommandSnapshot = Readonly<{
   targetContactId: string | null;
   targetLeadId: string | null;
   status: PlatformAmoCrmCommandStatus;
+  providerDispatchedAt: string | null;
   resultContactId: string | null;
   resultLeadId: string | null;
   failureCode: string | null;
@@ -279,6 +280,10 @@ function parseSnapshot(value: unknown): PlatformAmoCrmCommandSnapshot {
     targetLeadId:
       row.target_lead_id === null ? null : providerId(row.target_lead_id) ?? invalid(),
     status,
+    providerDispatchedAt:
+      row.provider_dispatched_at === null
+        ? null
+        : safeText(row.provider_dispatched_at, 64) ?? invalid(),
     resultContactId:
       row.result_contact_id === null ? null : providerId(row.result_contact_id) ?? invalid(),
     resultLeadId:

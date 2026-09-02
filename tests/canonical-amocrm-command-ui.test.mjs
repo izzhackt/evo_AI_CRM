@@ -27,7 +27,7 @@ test("the active canonical amoCRM command panel remains on Admissions Student 36
   );
   assert.match(
     admissions,
-    /<CanonicalAmoCrmCommandPanel[\s\S]*scope="admissions"[\s\S]*leadId=\{leadId\}[\s\S]*studentCaseId=\{studentCaseId\}/,
+    /<CanonicalAmoCrmCommandPanel[\s\S]*providerDispatchedAt: blockingAttempt\.providerDispatchedAt[\s\S]*scope="admissions"[\s\S]*leadId=\{leadId\}[\s\S]*studentCaseId=\{studentCaseId\}/,
   );
   assert.match(admissions, /readPlatformBlockingAmoCrmCommand/);
   assert.match(admissions, /createSupabaseServerClient\(\)/);

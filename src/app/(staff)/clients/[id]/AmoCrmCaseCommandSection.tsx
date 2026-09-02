@@ -87,13 +87,13 @@ export async function AmoCrmCaseCommandSection({
         availability={availability}
         blockingAttempt={
           blockingAttempt === null
-            ? null
-            : {
-                attemptId: blockingAttempt.attemptId,
-                operationName: blockingAttempt.operationName,
-                status: blockingAttempt.status as "prepared" | "unknown",
-                providerDispatchedAt: null,
-              }
+              ? null
+              : {
+                  attemptId: blockingAttempt.attemptId,
+                  operationName: blockingAttempt.operationName,
+                  status: blockingAttempt.status as "prepared" | "unknown",
+                  providerDispatchedAt: blockingAttempt.providerDispatchedAt,
+                }
         }
         scope="admissions"
         leadId={leadId}

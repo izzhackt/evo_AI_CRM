@@ -12,6 +12,10 @@ const CONVERSATION_ID = "54600000-0000-4000-8000-000000000007";
 const CONVERSATION_SCOPE_ID = "54600000-0000-4000-8000-000000000008";
 const CONVERSATION_EVENT_ID = "54600000-0000-4000-8000-000000000009";
 const CONVERSATION_BINDING_ID = "54600000-0000-4000-8000-000000000010";
+const CONVERSATION_CUSTOMER_PARTICIPANT_ID =
+  "54600000-0000-4000-8000-000000000030";
+const CONVERSATION_SALES_PARTICIPANT_ID =
+  "54600000-0000-4000-8000-000000000031";
 const CONVERSATION_SCOPE_ASSIGNMENT_ID =
   "54600000-0000-4000-8000-000000000011";
 const CONVERSATION_EVENT_REQUEST_ID =
@@ -44,7 +48,7 @@ const NON_INTAKE_SCOPE_REQUEST_ID =
 const HANDOFF_CLIENT_ID = "54600000-0000-4000-8000-000000000028";
 const HANDOFF_LEAD_ID = "54600000-0000-4000-8000-000000000029";
 const CONVERSATION_CHAT_ID = "15550005461@c.us";
-const CONVERSATION_EXTERNAL_IDENTITY = `evo-inbox:${CONVERSATION_CHAT_ID}`;
+const CONVERSATION_EXTERNAL_IDENTITY = `crm_primary:${CONVERSATION_CHAT_ID}`;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -444,16 +448,16 @@ async function main() {
           ${CONVERSATION_EVENT_ID},
           ${authority.organization_id},
           'waha',
-          'waha:evo-inbox',
+          'waha:crm_primary',
           'synthetic-local-sales-conversation-proof',
-          'evo-inbox',
+          'crm_primary',
           'synthetic-local-sales-conversation-proof',
           'message',
           '2026-09-02T08:10:00Z',
           'verified',
           jsonb_build_object(
             'event', 'message',
-            'session', 'evo-inbox',
+            'session', 'crm_primary',
             'payload', jsonb_build_object(
               'id', 'synthetic-local-sales-conversation-proof',
               'from', ${CONVERSATION_CHAT_ID}::TEXT,
@@ -525,7 +529,7 @@ async function main() {
           'sales',
           'open',
           'WhatsApp exact Sales-intake proof',
-          'evo-inbox',
+          'crm_primary',
           NULL,
           NULL,
           NULL,
@@ -539,6 +543,37 @@ async function main() {
           '2026-09-02T08:10:01Z',
           '2026-09-02T08:10:01Z'
         )
+      `;
+
+      await transaction`
+        INSERT INTO platform.conversation_participants (
+          id,
+          organization_id,
+          conversation_id,
+          participant_kind,
+          membership_id,
+          external_subject_ref,
+          source_webhook_event_id
+        )
+        VALUES
+          (
+            ${CONVERSATION_CUSTOMER_PARTICIPANT_ID},
+            ${authority.organization_id},
+            ${CONVERSATION_ID},
+            'customer',
+            NULL,
+            ${`waha-participant:${CONVERSATION_CUSTOMER_PARTICIPANT_ID}`},
+            ${CONVERSATION_EVENT_ID}
+          ),
+          (
+            ${CONVERSATION_SALES_PARTICIPANT_ID},
+            ${authority.organization_id},
+            ${CONVERSATION_ID},
+            'sales',
+            ${authority.membership_id},
+            NULL,
+            ${CONVERSATION_EVENT_ID}
+          )
       `;
 
       await transaction`
@@ -642,7 +677,7 @@ async function main() {
             'sales',
             'open',
             'Negative proof: same client without exact lead',
-            'evo-inbox',
+            'crm_primary',
             NULL,
             NULL,
             NULL,
@@ -666,7 +701,7 @@ async function main() {
             'sales',
             'open',
             'Negative proof: exact IDs without verified binding',
-            'evo-inbox',
+            'crm_primary',
             NULL,
             NULL,
             NULL,
@@ -690,7 +725,7 @@ async function main() {
             'sales',
             'open',
             'Negative proof: provider-linked non-intake',
-            'evo-inbox',
+            'crm_primary',
             546018,
             'negative-provider-linked',
             546018,
@@ -774,7 +809,7 @@ async function main() {
         VALUES (
           ${CONVERSATION_BINDING_ID},
           ${authority.organization_id},
-          'evo-inbox',
+          'crm_primary',
           ${CONVERSATION_CHAT_ID},
           ${CONVERSATION_ID},
           ${CONVERSATION_EVENT_ID}

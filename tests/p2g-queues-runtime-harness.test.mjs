@@ -92,5 +92,5 @@ test("runtime webhook fixtures remain explicitly inbound after P5A hardening", (
   assert.match(harness, /'fromMe', FALSE/);
   assert.match(harness, /'source', 'app'/);
   assert.match(harness, /'event', 'message'/);
-  assert.match(harness, /'session', 'evo-inbox'/);
+  assert.match(harness, /'session', 'crm_primary'/);
 });

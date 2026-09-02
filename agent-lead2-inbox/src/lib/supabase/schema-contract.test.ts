@@ -189,6 +189,18 @@ const platformWahaSessionAuthorityMigration = readFileSync(
   join(migrationsDir, '082_platform_waha_session_authority.sql'),
   'utf8'
 );
+const platformExactManualSendClaimMigration = readFileSync(
+  join(migrationsDir, '097_platform_exact_manual_send_claim.sql'),
+  'utf8'
+);
+const platformExactManualSendQueueShapeMigration = readFileSync(
+  join(migrationsDir, '101_platform_exact_manual_send_queue_shape.sql'),
+  'utf8'
+);
+const platformCrmPrimaryWahaAuthorityMigration = readFileSync(
+  join(migrationsDir, '102_platform_crm_primary_waha_authority.sql'),
+  'utf8'
+);
 const platformOperationalSignalsAuthorizationTest = readFileSync(
   fileURLToPath(
     new URL(
@@ -426,7 +438,37 @@ function p7aAllowlist(functionName: string): Set<string> {
 describe('Unified EVO Supabase schema contract', () => {
   it('preserves containment through the current platform migration boundary', () => {
     expect(migrationFiles.at(-1)).toBe(
-      '096_platform_provider_workflow_contract.sql'
+      '102_platform_crm_primary_waha_authority.sql'
+    );
+    expect(platformExactManualSendClaimMigration).toMatch(
+      /CREATE FUNCTION platform\.claim_manual_whatsapp_send_item\s*\(/i
+    );
+    expect(platformExactManualSendClaimMigration).toMatch(
+      /REVOKE ALL ON FUNCTION\s+platform_private\.claim_next_manual_whatsapp_send_internal[\s\S]*FROM PUBLIC, anon, authenticated, service_role/i
+    );
+    expect(platformExactManualSendClaimMigration).not.toMatch(
+      /GRANT EXECUTE ON FUNCTION\s+platform_private\.claim_next_manual_whatsapp_send_internal/i
+    );
+    expect(platformExactManualSendQueueShapeMigration).toMatch(
+      /CREATE OR REPLACE FUNCTION platform\.claim_manual_whatsapp_send_item\s*\(/i
+    );
+    expect(platformExactManualSendQueueShapeMigration).toMatch(
+      /REVOKE ALL ON FUNCTION\s+platform_private\.claim_next_manual_whatsapp_send_internal[\s\S]*FROM PUBLIC, anon, authenticated, service_role/i
+    );
+    expect(platformExactManualSendQueueShapeMigration).not.toMatch(
+      /GRANT EXECUTE ON FUNCTION\s+platform_private\.claim_next_manual_whatsapp_send_internal/i
+    );
+    expect(platformCrmPrimaryWahaAuthorityMigration).toMatch(
+      /Only crm_primary is active/
+    );
+    expect(platformCrmPrimaryWahaAuthorityMigration).toMatch(
+      /Only waha:crm_primary is active/
+    );
+    expect(platformCrmPrimaryWahaAuthorityMigration).toMatch(
+      /REVOKE ALL ON FUNCTION\s+platform\.claim_autonomous_reply/i
+    );
+    expect(platformCrmPrimaryWahaAuthorityMigration).toMatch(
+      /DROP TRIGGER IF EXISTS communication_messages_private_autonomous_binding/i
     );
     expect(platformWahaSessionAuthorityMigration).toMatch(
       /provider_account_ref <> 'waha:evo-inbox'/

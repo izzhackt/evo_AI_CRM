@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- Current-boundary acceptance for migration 080. Every identifier and secret
+-- Current-boundary acceptance through migration 099. Every identifier and secret
 -- is synthetic and transaction-local. No WAHA, amoCRM, AI or managed Supabase
 -- provider is contacted.
 BEGIN;
@@ -29,12 +29,21 @@ DECLARE
   resolve_routine CONSTANT REGPROCEDURE :=
     'platform.resolve_manual_send_waha_runtime(uuid)'::REGPROCEDURE;
   claim_routine CONSTANT REGPROCEDURE :=
-    'platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'::REGPROCEDURE;
+    'platform.claim_manual_whatsapp_send_item(uuid,uuid,integer,text,uuid)'::REGPROCEDURE;
+  internal_claim_routine CONSTANT REGPROCEDURE :=
+    'platform_private.claim_next_manual_whatsapp_send_internal(uuid,integer,text,uuid)'::REGPROCEDURE;
   finish_routine CONSTANT REGPROCEDURE :=
     'platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamptz,uuid)'::REGPROCEDURE;
   provider_session_check TEXT;
   forbidden_role TEXT;
 BEGIN
+  IF pg_catalog.to_regprocedure(
+      'platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'
+    ) IS NOT NULL
+  THEN
+    RAISE EXCEPTION 'Superseded generic manual-send claim remains callable';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1
     FROM pg_catalog.pg_extension AS extension
@@ -86,6 +95,22 @@ BEGIN
     RAISE EXCEPTION 'service_role lacks runtime resolver EXECUTE';
   END IF;
 
+  IF NOT pg_catalog.has_function_privilege(
+    'service_role',
+    claim_routine,
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'service_role lacks exact manual-send claim EXECUTE';
+  END IF;
+
+  IF pg_catalog.has_function_privilege(
+    'service_role',
+    internal_claim_routine,
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'service_role can bypass the exact manual-send claim';
+  END IF;
+
   FOREACH forbidden_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
     IF pg_catalog.has_function_privilege(
       forbidden_role,
@@ -93,6 +118,14 @@ BEGIN
       'EXECUTE'
     ) THEN
       RAISE EXCEPTION '% can execute the Vault runtime resolver', forbidden_role;
+    END IF;
+
+    IF pg_catalog.has_function_privilege(
+      forbidden_role,
+      claim_routine,
+      'EXECUTE'
+    ) THEN
+      RAISE EXCEPTION '% can execute the exact manual-send claim', forbidden_role;
     END IF;
   END LOOP;
 
@@ -128,6 +161,8 @@ BEGIN
   IF pg_catalog.pg_get_functiondef(claim_routine::OID) LIKE '%crm_primary%'
     OR pg_catalog.pg_get_functiondef(finish_routine::OID) LIKE '%crm_primary%'
     OR pg_catalog.pg_get_functiondef(claim_routine::OID)
+      NOT LIKE '%claim_next_manual_whatsapp_send_internal%'
+    OR pg_catalog.pg_get_functiondef(internal_claim_routine::OID)
       NOT LIKE '%ensure-manual-sender-participant%'
     OR pg_catalog.pg_get_functiondef(finish_routine::OID)
       NOT LIKE '%participant_kind IN (''admin'', ''sales'', ''curator'')%'
@@ -218,6 +253,19 @@ ORDER BY item.created_at, item.id
 LIMIT 1
 \gset
 
+\if :{?p8r4_canonical_pointer}
+SELECT pgmq.send(
+  'platform_work_v1',
+  jsonb_build_object(
+    'v', 1,
+    'organization_id', :'p8r4_org_id',
+    'work_item_id', :'p8r4_work_item_id',
+    'kind', 'manual_whatsapp_send'
+  ),
+  0
+)::TEXT AS p8r4_queue_message_id
+\gset
+\else
 SELECT pgmq.send(
   'platform_work_v1',
   jsonb_build_object(
@@ -228,6 +276,7 @@ SELECT pgmq.send(
   0
 )::TEXT AS p8r4_queue_message_id
 \gset
+\endif
 
 -- Earlier exact-boundary suites intentionally exercise and may consume their
 -- synthetic queue pointer. Rebind only this transaction-local fixture to a
@@ -258,13 +307,20 @@ INSERT INTO platform_private.manual_send_waha_runtime_bindings (
   waha_session_name,
   waha_base_url,
   api_key_secret_id,
+  api_key_sha256,
   enabled,
   binding_version
 ) VALUES (
   :'p8r4_org_id',
   'evo-inbox',
-  'http://evo-crm-waha:3000',
+  'http://evo-inbox-waha:3000',
   :'p8r4_vault_secret_id',
+  pg_catalog.encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to('synthetic-p8r4-private-waha-api-key', 'UTF8')
+    ),
+    'hex'
+  ),
   TRUE,
   1
 );
@@ -323,7 +379,7 @@ RESET ROLE;
 
 SELECT pg_temp.assert_true(
   :'p8r4_runtime_session' = 'evo-inbox'
-    AND :'p8r4_runtime_base_url' = 'http://evo-crm-waha:3000'
+    AND :'p8r4_runtime_base_url' = 'http://evo-inbox-waha:3000'
     AND :'p8r4_runtime_api_key' = 'synthetic-p8r4-private-waha-api-key'
     AND :'p8r4_runtime_version' = '1',
   'service_role did not resolve the exact Vault-backed runtime binding'
@@ -363,8 +419,9 @@ SELECT pg_catalog.set_config(
   true
 );
 SET LOCAL ROLE service_role;
-SELECT platform.claim_manual_whatsapp_send(
+SELECT platform.claim_manual_whatsapp_send_item(
   :'p8r4_org_id',
+  :'p8r4_work_item_id',
   60,
   'p8r4-disposable-worker',
   '80000000-0000-4000-8000-000000000001'
@@ -447,6 +504,61 @@ SELECT pg_temp.assert_true(
     ),
   'Manual-send finish did not persist exact private provider evidence'
 );
+
+\if :{?p8r4_canonical_pointer}
+-- The schema-tip exact claimant must not silently skip a malformed head and
+-- lease another message. Rebind the transaction-local fixture to the former
+-- three-field shape and prove that the public exact boundary stops with the
+-- documented object-state error instead of falling back.
+SELECT pgmq.send(
+  'platform_work_v1',
+  jsonb_build_object(
+    'v', 1,
+    'work_item_id', :'p8r4_work_item_id',
+    'kind', 'manual_whatsapp_send'
+  ),
+  0
+)::TEXT AS p8r4_malformed_queue_message_id
+\gset
+
+SET LOCAL session_replication_role = replica;
+UPDATE platform_private.durable_work_items
+SET queue_message_id = :'p8r4_malformed_queue_message_id',
+    state = 'queued',
+    attempt_count = 0,
+    max_attempts = 1,
+    available_at = pg_catalog.statement_timestamp(),
+    leased_until = NULL,
+    completed_at = NULL,
+    updated_at = pg_catalog.statement_timestamp()
+WHERE organization_id = :'p8r4_org_id'
+  AND id = :'p8r4_work_item_id';
+SET LOCAL session_replication_role = origin;
+
+SELECT pg_catalog.set_config(
+  'p8r4.work_item_id',
+  :'p8r4_work_item_id',
+  true
+);
+SET LOCAL ROLE service_role;
+DO $assert_malformed_pointer_fails_closed$
+BEGIN
+  PERFORM platform.claim_manual_whatsapp_send_item(
+    pg_catalog.current_setting('p8r4.organization_id')::UUID,
+    pg_catalog.current_setting('p8r4.work_item_id')::UUID,
+    60,
+    'p8r4-malformed-pointer-worker',
+    '80000000-0000-4000-8000-000000000003'
+  );
+  RAISE EXCEPTION
+    'Malformed three-field manual-send queue pointer was accepted';
+EXCEPTION
+  WHEN SQLSTATE '55000' THEN
+    NULL;
+END
+$assert_malformed_pointer_fails_closed$;
+RESET ROLE;
+\endif
 
 ROLLBACK;
 

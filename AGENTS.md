@@ -29,10 +29,11 @@
 
 ## Current Product Authority
 
-- For active production-successor work, the owner's 2026-09-02 direction,
-  parent issue #543, ADR 0024, `docs/EVO_LAUNCH_PLAN.md`, and the latest merged
-  `docs/PLAN_CHANGES.md` entry define the target and #544 through #553 order;
-  provider parent #549 executes sequentially through #565, #566, #567 and #568.
+- For active production-successor work, the owner's 2026-09-03 direction,
+  parent issue #543, ADRs 0024 and 0026, `docs/EVO_LAUNCH_PLAN.md`, and the
+  latest merged `docs/PLAN_CHANGES.md` entry define the target and #544 through
+  #553 order; provider parent #549 executes sequentially through #565, #566,
+  #567 and #568.
   ADR 0022 and the no-Supabase parts of ADR 0023 remain completed
   local-validation history, not current runtime authority.
 - EVO remains one internal product with one access surface, one UI, one role
@@ -57,6 +58,16 @@
   amoCRM command semantics. Gemini never sends or changes CRM state; WhatsApp
   has no autonomous/broadcast path or blind retry; amoCRM is an integration,
   never a competing business authority.
+- Active V2 reuses the already connected private sales WAHA transport session
+  `crm_primary`, verified `WORKING` on 2026-09-02. This is session/container
+  reuse only: Supabase remains the sole business authority, and V2 must not run
+  the frozen V1 sender, writer or webhook worker, create dual inbound
+  processing, or fall back to `evo-inbox`. Active #566/#568 verification may
+  confirm `crm_primary` readiness read-only, but it does not require a selected
+  inbound message, Gemini provider call or WhatsApp send. Therefore those
+  slices prove implementation and fail-closed readiness, not real message
+  delivery. Moving webhook ownership to V2 remains a separate controlled
+  cutover with exactly one active owner.
 - The 2026-09-02 owner direction authorizes this repository transition,
   read-only inventory, staging preparation and scoped cleanup without routine
   approval pauses. Production data mutation, traffic cutover and destructive
@@ -175,9 +186,12 @@ canonical store or new dependency.
 - Private WAHA service: `evo-inbox-waha`, reachable only on the companion
   Compose private network at `http://evo-inbox-waha:3000`.
 - First-launch WAHA session: `evo-inbox`.
-- Do not reuse `/opt/evo-crm`, `evo-crm-waha`, `crm_primary`, or the lead-agent
-  webhook path for the companion app. EVO Inbox owns its own WAHA webhook at
-  `/api/waha/webhook`, its own HMAC secret, and its own encrypted WAHA settings.
+- Frozen companion rule: the companion app does not reuse `/opt/evo-crm`,
+  `evo-crm-waha`, `crm_primary`, or the lead-agent webhook path. EVO Inbox owns
+  its companion WAHA webhook at `/api/waha/webhook`, its own HMAC secret, and
+  its own encrypted WAHA settings. This companion-only isolation record is not
+  current V2 session authority; ADR 0025 authorizes active V2 to reuse the
+  connected sales `crm_primary` transport under the single-runtime rules above.
 - Do not publish WAHA ports publicly. Operator access to WAHA QR/dashboard must
   use a private server-side path such as SSH tunnel or an authenticated internal
   admin surface.

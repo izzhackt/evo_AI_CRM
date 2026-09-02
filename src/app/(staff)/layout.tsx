@@ -23,9 +23,12 @@ import {
   providerDisplayStatus,
   type ProviderDisplayStatus,
 } from "@/lib/provider-display-status";
+import { getPlatformWahaSessionHealth } from "@/lib/platform-communications";
 import { readCanonicalAmoCrmProviderAvailability } from "@/lib/server/canonical-amocrm-provider-config";
-import { readCanonicalGeminiProposalAvailability } from "@/lib/server/canonical-gemini-proposal-config";
-import { readCanonicalWahaProviderAvailability } from "@/lib/server/canonical-waha-provider";
+import {
+  platformWahaHealthDisplayStatus,
+  readPlatformGeminiProviderAvailability,
+} from "@/lib/server/platform-provider-readiness";
 
 const NAV_GROUP_DEFS = [
   { key: "navOperations", hrefs: ["/dashboard", "/sales", "/clients", "/applications", "/documents", "/visa"] },
@@ -108,8 +111,8 @@ async function loadShellProvider(): Promise<ShellProvider> {
     throw new Error("fixed_role_shell_received_unsupported_role");
   }
   const amoAvailability = readCanonicalAmoCrmProviderAvailability();
-  const geminiAvailability = readCanonicalGeminiProposalAvailability();
-  const wahaAvailability = readCanonicalWahaProviderAvailability();
+  const geminiAvailability = readPlatformGeminiProviderAvailability();
+  const wahaSessionHealth = await getPlatformWahaSessionHealth(actor, "crm_primary");
 
   return {
     user: {
@@ -124,7 +127,7 @@ async function loadShellProvider(): Promise<ShellProvider> {
     integrationStatus: {
       ai: providerDisplayStatus(geminiAvailability),
       amo: providerDisplayStatus(amoAvailability),
-      whatsapp: providerDisplayStatus(wahaAvailability),
+      whatsapp: platformWahaHealthDisplayStatus(wahaSessionHealth),
     },
   };
 }

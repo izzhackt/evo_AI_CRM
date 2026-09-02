@@ -136,9 +136,12 @@ test("only the portal realtime surface reads public Supabase config at request r
     );
     assert.doesNotMatch(
       source,
-      /getSupabasePublicConfig|PlatformMessagingRealtime|supabaseConfig|platform-communications|LegacyWhatsApp|LegacyConversation/,
+      /getSupabasePublicConfig|PlatformMessagingRealtime|supabaseConfig|LegacyWhatsApp|LegacyConversation/,
     );
-    assert.match(source, /listCanonicalStaffConversations|getCanonicalStaffConversationThread/);
+    assert.match(
+      source,
+      /listPlatformConversations|getPlatformConversationThread/,
+    );
     assert.doesNotMatch(source, /SUPABASE_SERVICE_ROLE|serviceRole|service_role|SUPABASE_SECRET/);
   }
 

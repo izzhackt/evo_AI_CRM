@@ -53,7 +53,7 @@ test("fast release scope sends sensitive and unknown changes to controlled relea
     "docker-compose.prod.yml",
     "scripts/evo-fast-release.sh",
     "src/app/(staff)/settings/actions.ts",
-    "src/lib/server/canonical-gemini-proposal-service.ts",
+    "src/lib/server/platform-gemini-provider.ts",
     "src/lib/platform-auth.ts",
     "supabase/migrations/078_example.sql",
   ]) {

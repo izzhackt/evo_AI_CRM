@@ -91,18 +91,18 @@ test("Student 360 exposes localized links to every core workflow section", () =>
 });
 
 test("critical confirmation and inline case links use practical targets", () => {
-  const composer = source(
-    "src/components/platform/communications/CanonicalWhatsAppOutboundComposer.tsx",
+  const providerControls = source(
+    "src/components/platform/communications/PlatformProviderWorkflowControls.tsx",
   );
   const whatsapp = source(
-    "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
   );
   const tasks = source(
     "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
   );
 
-  assert.match(composer, /min-h-11 cursor-pointer/);
-  assert.match(composer, /h-5 w-5 shrink-0/);
+  assert.match(providerControls, /min-h-11 cursor-pointer/);
+  assert.match(providerControls, /h-5 w-5 shrink-0/);
   assert.match(whatsapp, /inline-flex min-h-11 items-center/);
   assert.match(tasks, /inline-flex min-h-11 items-center/);
 });
@@ -153,7 +153,7 @@ test("dark accent text keeps normal-text contrast without changing brand fills",
 
 test("scrollable inbox regions are reachable by keyboard", () => {
   const whatsapp = source(
-    "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
   );
 
   // Every element that owns its own scroll container must be focusable:
@@ -174,12 +174,12 @@ test("scrollable inbox regions are reachable by keyboard", () => {
   );
   assert.match(
     whatsapp,
-    /data-testid="canonical-staff-whatsapp-thread-region"/,
+    /data-testid="platform-staff-whatsapp-thread-region"/,
     "the thread scroll region must be addressable",
   );
   assert.match(
     whatsapp,
-    /aria-label=\{thread \? thread\.conversation\.displayName : copy\.emptyThreadTitle\}/,
+    /aria-label=\{thread \? thread\.conversation\.subject : copy\.emptyThreadTitle\}/,
     "the thread scroll region must carry an accessible name",
   );
 });
@@ -305,7 +305,7 @@ test("every core staff route renders exactly one page-level h1", () => {
     ["/tasks", "src/app/(staff)/tasks/page.tsx"],
     [
       "/whatsapp",
-      "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+      "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
     ],
   ];
 

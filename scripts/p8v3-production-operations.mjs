@@ -679,23 +679,23 @@ export function validateCandidateComposeForTest(run, source) {
 
 const MIGRATION_077_READINESS_SQL = String.raw`select
   (to_regclass('platform_private.manual_send_provider_bindings') is not null) as table_exists,
-  (to_regprocedure('platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)') is not null) as claim_exists,
+  (to_regprocedure('platform.claim_manual_whatsapp_send_item(uuid,uuid,integer,text,uuid)') is not null) as claim_exists,
   (to_regprocedure('platform.sync_lead_agent_whatsapp(uuid,uuid,uuid,bigint,bigint,bigint,uuid)') is not null) as sync_exists,
   (to_regprocedure('platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamp with time zone,uuid)') is not null) as finish_exists,
   coalesce(
-    has_function_privilege('service_role', to_regprocedure('platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'), 'execute')
+    has_function_privilege('service_role', to_regprocedure('platform.claim_manual_whatsapp_send_item(uuid,uuid,integer,text,uuid)'), 'execute')
     and has_function_privilege('service_role', to_regprocedure('platform.sync_lead_agent_whatsapp(uuid,uuid,uuid,bigint,bigint,bigint,uuid)'), 'execute')
     and has_function_privilege('service_role', to_regprocedure('platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamp with time zone,uuid)'), 'execute'),
     false
   ) as service_functions_execute,
   coalesce(
-    not has_function_privilege('anon', to_regprocedure('platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'), 'execute')
+    not has_function_privilege('anon', to_regprocedure('platform.claim_manual_whatsapp_send_item(uuid,uuid,integer,text,uuid)'), 'execute')
     and not has_function_privilege('anon', to_regprocedure('platform.sync_lead_agent_whatsapp(uuid,uuid,uuid,bigint,bigint,bigint,uuid)'), 'execute')
     and not has_function_privilege('anon', to_regprocedure('platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamp with time zone,uuid)'), 'execute'),
     false
   ) as anon_functions_denied,
   coalesce(
-    not has_function_privilege('authenticated', to_regprocedure('platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'), 'execute')
+    not has_function_privilege('authenticated', to_regprocedure('platform.claim_manual_whatsapp_send_item(uuid,uuid,integer,text,uuid)'), 'execute')
     and not has_function_privilege('authenticated', to_regprocedure('platform.sync_lead_agent_whatsapp(uuid,uuid,uuid,bigint,bigint,bigint,uuid)'), 'execute')
     and not has_function_privilege('authenticated', to_regprocedure('platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamp with time zone,uuid)'), 'execute'),
     false

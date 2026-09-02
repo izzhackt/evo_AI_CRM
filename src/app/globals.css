@@ -803,6 +803,10 @@ html[lang="en"] .locale-copy--en {
   background: var(--info-weak);
   color: var(--info);
 }
+.provider-status--ready {
+  background: var(--ok-weak);
+  color: var(--ok);
+}
 .provider-status--blocked {
   background: var(--danger-weak);
   color: var(--danger);

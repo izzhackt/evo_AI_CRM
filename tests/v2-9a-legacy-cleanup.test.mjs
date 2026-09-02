@@ -2,119 +2,93 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
+const ROOT = new URL("../", import.meta.url);
+
 function source(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  return readFileSync(new URL(path, ROOT), "utf8");
 }
 
-test("V2-9A removes the superseded staff WhatsApp read runtime and implementation tests", () => {
+function expectMissing(path) {
+  assert.equal(
+    existsSync(new URL(path, ROOT)),
+    false,
+    `${path} must be removed once the Platform communications replacement is proven`,
+  );
+}
+
+test("V2-9A removes the superseded staff WhatsApp UI and communication implementation tests", () => {
   for (const path of [
-    "src/app/(staff)/whatsapp/CommunicationsSourceDisclosure.tsx",
-    "src/app/api/ai/draft/route.ts",
-    "src/app/api/platform-messaging/media/[mediaId]/route.ts",
-    "src/components/WaList.tsx",
-    "src/components/WaReplyBox.tsx",
-    "src/components/platform/communications/PlatformAiMemoryCard.tsx",
-    "src/components/platform/communications/PlatformAmoCrmContextCard.tsx",
-    "src/components/platform/communications/PlatformAutonomousReplyCard.tsx",
-    "src/components/platform/communications/PlatformConversationView.tsx",
-    "src/components/platform/communications/PlatformDecisionBacklogCard.tsx",
-    "src/components/platform/communications/PlatformGeminiProposalCard.tsx",
-    "src/components/platform/communications/PlatformHandoffContextCard.tsx",
-    "src/components/platform/communications/PlatformMessageMedia.tsx",
-    "src/components/platform/communications/PlatformMessagingRealtime.tsx",
-    "src/components/platform/communications/PlatformMessagingWorkflowPanel.tsx",
-    "src/components/platform/communications/PlatformPromptEvidenceCard.tsx",
-    "src/components/platform/communications/PlatformWaList.tsx",
-    "src/components/platform/communications/whatsapp-state.ts",
-    "src/components/platform/core/SalesBoard.tsx",
-    "src/components/platform/core/SalesList.tsx",
-    "src/lib/whatsapp.ts",
-    "src/lib/whatsapp-policy.ts",
-    "tests/e2e/p1d-whatsapp-object-scope.spec.ts",
-    "tests/e2e/platform-communications-admin.spec.ts",
-    "tests/e2e/platform-whatsapp-polish.spec.ts",
-    "tests/p1d-whatsapp-policy.test.mjs",
-    "tests/p1d-whatsapp-query-scope.test.mjs",
-    "tests/platform-communications-media.test.mjs",
-    "tests/platform-communications.test.mjs",
-    "tests/platform-media-route.test.mjs",
-    "tests/platform-messaging-realtime.test.mjs",
+    "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+    "src/components/platform/communications/CanonicalGeminiProposalPanel.tsx",
+    "src/components/platform/communications/CanonicalWhatsAppOutboundComposer.tsx",
+    "tests/canonical-whatsapp-inbound.test.mjs",
+    "tests/canonical-whatsapp-outbound-form.test.mjs",
+    "tests/canonical-whatsapp-outbound-postgres.test.mjs",
+    "tests/canonical-gemini-proposal.test.mjs",
+    "tests/canonical-gemini-review-form.test.mjs",
+    "tests/canonical-waha-provider.test.mjs",
   ]) {
-    assert.equal(
-      existsSync(new URL(`../${path}`, import.meta.url)),
-      false,
-      `${path} must be removed once the V2-9A replacement is proven`,
-    );
+    expectMissing(path);
   }
 });
 
-test("V2-9A removes SQLite WhatsApp schema, seed, bootstrap, and read references", () => {
-  for (const path of [
-    "src/lib/db.ts",
-    "src/lib/domain.ts",
-    "src/lib/queries.ts",
-    "scripts/bootstrap-admin.mjs",
-  ]) {
-    assert.doesNotMatch(
-      source(path),
-      /wa_accounts|wa_conversations|wa_messages|WhatsAppConversation|WhatsAppMessage|whatsapp-policy/,
-      `${path} must not retain the superseded SQLite WhatsApp runtime`,
-    );
-  }
-});
-
-test("V2-9A keeps one canonical PostgreSQL staff WhatsApp read surface", () => {
+test("V2-9A keeps one Platform WhatsApp read surface and one provider workflow control surface", () => {
   const listPage = source("src/app/(staff)/whatsapp/page.tsx");
   const threadPage = source("src/app/(staff)/whatsapp/[id]/page.tsx");
-  const workspace = source(
-    "src/components/platform/communications/CanonicalStaffWhatsApp.tsx",
+  const workspace = source("src/components/platform/communications/PlatformStaffWhatsApp.tsx");
+  const controls = source(
+    "src/components/platform/communications/PlatformProviderWorkflowControls.tsx",
   );
-  const outboundComposer = source(
-    "src/components/platform/communications/CanonicalWhatsAppOutboundComposer.tsx",
-  );
-  const routeContract = source("src/lib/platform-route-contract.ts");
-  const sensitivePermissions = source("tests/e2e/sensitive-permissions.spec.ts");
 
-  assert.match(listPage, /listCanonicalStaffConversations/);
-  assert.match(threadPage, /getCanonicalStaffConversationThread/);
-  for (const runtimeSource of [listPage, threadPage, workspace]) {
-    assert.doesNotMatch(
-      runtimeSource,
-      /import\s+.*"@\/lib\/(?:platform-communications|queries|db)"/,
-    );
-    assert.doesNotMatch(runtimeSource, /PlatformMessagingRealtime|LegacyWhatsApp|LegacyConversation/);
-  }
-  assert.doesNotMatch(listPage, /getSupabasePublicConfig/);
-  assert.doesNotMatch(threadPage, /getSupabasePublicConfig/);
-  assert.doesNotMatch(workspace, /manual-send/i);
-  assert.match(workspace, /CanonicalGeminiProposalPanel/);
-  assert.match(workspace, /CanonicalWhatsAppOutboundComposer/);
-  assert.match(outboundComposer, /canonical-whatsapp-outbound-composer/);
-  assert.doesNotMatch(routeContract, /platform-messaging\/media/);
-  assert.doesNotMatch(sensitivePermissions, /\/api\/ai\/draft/);
-});
+  assert.match(listPage, /PlatformStaffWhatsAppWorkspace/);
+  assert.match(listPage, /listPlatformConversations\(actor,/);
+  assert.doesNotMatch(listPage, /CanonicalStaffWhatsApp|listCanonicalStaffConversations/);
 
-test("V2-9A keeps role filtering and unavailable-state proof at the canonical boundary", () => {
-  const repository = source("src/lib/server/canonical-crm-repository.ts");
-  const browserProof = source("tests/e2e/canonical-crm-read-surfaces.spec.ts");
-  const errorBoundary = source("src/app/(staff)/whatsapp/error.tsx");
-
-  assert.match(repository, /export async function listCanonicalStaffConversations/);
-  assert.match(repository, /export async function getCanonicalStaffConversationThread/);
-  assert.match(
-    repository,
-    /eq\(evoConversations\.owningRole, input\.actorRole\)/,
-  );
-  assert.match(repository, /conversation\.ownership_transferred/);
-  assert.match(browserProof, /missing PostgreSQL authority fails closed/);
-  assert.match(browserProof, /canonical-staff-whatsapp-thread/);
-  assert.match(errorBoundary, /data-testid="whatsapp-error"/);
-});
-
-test("active test commands no longer execute removed WhatsApp implementations", () => {
-  const packageJson = source("package.json");
+  assert.match(threadPage, /PlatformStaffWhatsAppWorkspace/);
+  assert.match(threadPage, /PlatformProviderWorkflowControls/);
+  assert.match(threadPage, /getPlatformConversationThread\(actor,/);
+  assert.match(threadPage, /getPlatformWahaSessionHealth\(actor,\s*"crm_primary"\)/);
   assert.doesNotMatch(
-    packageJson,
-    /platform-communications(?:-media)?\.test|platform-messaging-realtime\.test|platform-media-route\.test|p1d-whatsapp-(?:policy|query-scope)\.test/,
+    threadPage,
+    /CanonicalStaffWhatsApp|CanonicalGeminiProposalPanel|CanonicalWhatsAppOutboundComposer|getCanonicalStaffConversationThread/,
   );
+
+  assert.match(workspace, /data-testid="platform-staff-whatsapp-page"/);
+  assert.match(workspace, /data-testid="platform-staff-whatsapp-thread"/);
+  assert.doesNotMatch(workspace, /canonical-staff-whatsapp-/);
+
+  assert.match(controls, /data-testid="platform-provider-workflow-controls"/);
+  assert.match(controls, /data-testid="platform-provider-send"/);
+  assert.match(controls, /data-testid="platform-provider-reconcile"/);
+});
+
+test("V2-9A local proof runs Platform provider checks instead of the retired canonical communication fixture", () => {
+  const harness = source("scripts/test-postgres-v2-foundation.sh");
+  const packageManifest = source("package.json");
+
+  for (const removed of [
+    /tests\/canonical-whatsapp-inbound\.test\.mjs/,
+    /tests\/canonical-whatsapp-outbound-form\.test\.mjs/,
+    /tests\/canonical-whatsapp-outbound-postgres\.test\.mjs/,
+    /tests\/canonical-gemini-proposal\.test\.mjs/,
+    /tests\/canonical-gemini-review-form\.test\.mjs/,
+    /tests\/canonical-waha-provider\.test\.mjs/,
+  ]) {
+    assert.doesNotMatch(packageManifest, removed);
+  }
+  assert.doesNotMatch(harness, /tests\/canonical-whatsapp-outbound-postgres\.test\.mjs/);
+
+  for (const required of [
+    /tests\/platform-gemini-provider\.test\.mjs/,
+    /tests\/platform-provider-workflows\.test\.mjs/,
+    /tests\/platform-provider-actions\.test\.mjs/,
+    /tests\/platform-provider-controls\.test\.mjs/,
+    /tests\/platform-waha-webhook\.test\.mjs/,
+    /tests\/platform-waha-projector\.test\.mjs/,
+    /tests\/platform-whatsapp-pages\.test\.mjs/,
+    /tests\/platform-communications-local-provisioner\.test\.mjs/,
+  ]) {
+    assert.match(packageManifest, required);
+    assert.match(harness, required);
+  }
 });

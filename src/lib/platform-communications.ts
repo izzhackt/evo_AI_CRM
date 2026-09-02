@@ -14,12 +14,12 @@ const SAFE_REPOSITORY_ERROR_MESSAGE =
 
 export type PlatformConversationQueue = "sales" | "admissions";
 export type PlatformConversationStatus = "open" | "closed";
-export type PlatformWahaSessionName = "evo-inbox";
+export type PlatformWahaSessionName = "crm_primary";
 // Provider provenance is immutable: old conversations may still name the
 // retired session, but only PlatformWahaSessionName is a current runtime target.
 export type PlatformWahaEvidenceSessionName =
   | PlatformWahaSessionName
-  | "crm_primary";
+  | "evo-inbox";
 export type PlatformMessageDirection = "inbound" | "outbound";
 export type PlatformMessageLanguage = "ru" | "en" | "undetermined";
 export type PlatformMessageWahaAckName =
@@ -414,13 +414,15 @@ export function parsePlatformConversationCursor(
 export function parsePlatformWahaSessionName(
   value: unknown,
 ): PlatformWahaSessionName | null {
-  return value === "evo-inbox" ? value : null;
+  return value === "crm_primary" ? value : null;
 }
 
-function parsePlatformWahaEvidenceSessionName(
+// Historical session names are accepted only while normalizing immutable
+// provider evidence. Current health and outbound paths use the stricter parser.
+function parseHistoricalOrCurrentWahaEvidenceSessionName(
   value: unknown,
 ): PlatformWahaEvidenceSessionName | null {
-  return value === "evo-inbox" || value === "crm_primary" ? value : null;
+  return value === "crm_primary" || value === "evo-inbox" ? value : null;
 }
 
 /**
@@ -439,7 +441,7 @@ export function normalizePlatformConversationSummary(
       ? null
       : parsePlatformRouteUuid(value.student_case_id);
   const subject = parseRequiredText(value.subject);
-  const wahaSessionName = parsePlatformWahaEvidenceSessionName(
+  const wahaSessionName = parseHistoricalOrCurrentWahaEvidenceSessionName(
     value.waha_session_name,
   );
   const kommoAccountId = parseOptionalProviderInteger(value.kommo_account_id);

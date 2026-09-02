@@ -5,9 +5,9 @@ import test from "node:test";
 import postgres from "postgres";
 
 import {
-  readV2_10dMutationCounts,
-  sameV2_10dMutationCounts,
-} from "../scripts/v2-10d-mutation-counts.mjs";
+  readCanonicalAmoCrmMutationCounts,
+  sameCanonicalAmoCrmMutationCounts,
+} from "../scripts/canonical-amocrm-mutation-counts.mjs";
 import {
   CanonicalAmoCrmCommandRepositoryError,
   claimCanonicalAmoCrmCommandDispatch,
@@ -1067,13 +1067,11 @@ test("V2-10D amoCRM receipt proof ignores successful non-amo commands", async ()
   });
   const receiptId = randomUUID();
   const leadId = randomUUID();
-  const conversationId = randomUUID();
 
   try {
-    const before = await readV2_10dMutationCounts(
+    const before = await readCanonicalAmoCrmMutationCounts(
       requiredDatabaseUrl(),
       leadId,
-      conversationId,
     );
     const [beforeTotal] = await sql`
       select count(*)::integer as count from evo_command_receipts
@@ -1103,10 +1101,9 @@ test("V2-10D amoCRM receipt proof ignores successful non-amo commands", async ()
       )
     `;
 
-    const after = await readV2_10dMutationCounts(
+    const after = await readCanonicalAmoCrmMutationCounts(
       requiredDatabaseUrl(),
       leadId,
-      conversationId,
     );
     const [afterTotal] = await sql`
       select count(*)::integer as count from evo_command_receipts
@@ -1115,7 +1112,7 @@ test("V2-10D amoCRM receipt proof ignores successful non-amo commands", async ()
     assert.equal(Number(afterTotal.count), Number(beforeTotal.count) + 1);
     assert.equal(after.amocrmAttemptCount, before.amocrmAttemptCount);
     assert.equal(after.amocrmReceiptCount, before.amocrmReceiptCount);
-    assert.equal(sameV2_10dMutationCounts(before, after), true);
+    assert.equal(sameCanonicalAmoCrmMutationCounts(before, after), true);
   } finally {
     try {
       await sql`delete from evo_command_receipts where id = ${receiptId}`;

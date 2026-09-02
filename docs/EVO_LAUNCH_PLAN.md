@@ -2,14 +2,14 @@
 
 Status: active managed-Supabase production-successor contract
 Date: 2026-09-02 (Asia/Dubai)
-Authority: owner direction, ADR 0024, this plan and the latest append-only
-`docs/PLAN_CHANGES.md` entry, parent issue #543 and ordered children #544
-through #553
+Authority: owner direction, ADRs 0024 and 0025, this plan and the latest
+append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and ordered children
+#544 through #553
 Verified starting baseline: GitHub `origin/main` at
 `4a2984f55b13bf4fe416a70d7989b9311daa8055`
-Latest verified shared main after the provider sequence and cleanup reset:
-`37dbd64c045fda8287565c871c392d607fc7b594`, with exact-main CI run
-`33615392787` green for Main CRM, EVO Inbox and EVO Lead Agent.
+Latest verified shared main after the P5A provider contract:
+`b3f0f45b3632b8db4b2723ffe0ae77b382f60da8`, with exact-main CI run
+`33625536519` green for Main CRM, EVO Inbox and EVO Lead Agent.
 
 ## Current authority: one Supabase-backed production EVO
 
@@ -38,6 +38,9 @@ The production successor uses:
   finance, WhatsApp and advisory-AI staff experience;
 - the V2 human-reviewed Gemini, explicit WhatsApp send, ambiguity recovery and
   idempotent amoCRM command semantics;
+- the already connected private sales WAHA transport session `crm_primary`,
+  read-only verified `WORKING` with an identity on 2026-09-02, without another
+  QR scan or an `evo-inbox` fallback;
 - the existing EVO-owned VPS, Caddy, CI/release and private WAHA capabilities
   where the audit proves they are current and correctly isolated.
 
@@ -67,7 +70,9 @@ true:
 2. a recoverable pre-change backup exists and a restore has been proved;
 3. forward migrations and data reconciliation pass on an isolated copy or
    staging project using real schema and representative authorized data;
-4. real Auth, RLS, Storage, CRM and provider browser workflows pass;
+4. real Auth, RLS, Storage and CRM browser workflows plus provider
+   configuration and fail-closed readiness checks pass; live Gemini/WhatsApp
+   delivery is not an active gate and must not be claimed;
 5. the no-dual-write/no-fallback inventory passes;
 6. an exact rollback boundary and maintenance sequence are recorded.
 
@@ -85,9 +90,9 @@ new path is accepted; historical and rollback material remains preserved.
 | 2 | #546 | Real staff and Sales tracer | Supabase Auth/RBAC/RLS plus the accepted Sales lead workflow prove the first complete successor path |
 | 3 | #547 | Student 360 and handoff tracer | contract/payment gate and accountable handoff run on the canonical Supabase model |
 | 4 | #548 | Admissions and private files tracer | Admissions operations and Supabase Storage replace local files and remaining case paths |
-| 5 | #549, #565-#568 | Provider tracer | Gemini, WhatsApp and amoCRM replace local state in order, then pass one combined real-provider proof |
+| 5 | #549, #565-#568 | Provider tracer | Gemini, WhatsApp and amoCRM replace local state in order, then pass an exact-main single-runtime and fail-closed inventory without a live Gemini/WhatsApp exercise |
 | 6 | #550 | Single deployment and cleanup | production image/Compose/env/release path drops SQLite, Drizzle authority, old workers and duplicate runtime dependencies |
-| 7 | #551 | Staging and recovery acceptance | real staging, restore, migration rehearsal, browser, role, file and provider proof |
+| 7 | #551 | Staging and recovery acceptance | real staging, restore, migration rehearsal, browser, role, file and provider-configuration proof; no controlled-chat send test |
 | 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
 | 9 | #553 | Completion audit | exact-main proof of one UI, runtime, data, auth/session, file and provider authority |
 
@@ -331,12 +336,19 @@ replace those local authorities rather than copy them into a second path.
    accepted staff communications queue/thread, canonical inbound projection,
    Gemini proposal/result/read/review and explicit WhatsApp send/reconciliation
    path to Supabase. The signed-in staff session remains the authorization
-   boundary and only the server contacts Gemini or private WAHA. Gemini stays
+   boundary and only the server contacts Gemini or private WAHA. The provider
+   binding reuses the already connected sales session `crm_primary`; it does
+   not require a new `evo-inbox` QR scan. This is transport session/container
+   reuse only: the V2 command path must not execute the frozen V1 sender,
+   writer or webhook worker, and Supabase remains the sole business authority.
+   Active acceptance verifies the exact `crm_primary` binding and `WORKING`
+   state read-only without selecting an inbound message, calling Gemini or
+   sending through WhatsApp. Gemini stays
    advisory until explicit Accept/Edit/Reject review and can never invoke a
    command. One explicit staff action over final reviewed text may send; an
    unknown outcome blocks another send until exact WAHA readback reconciles the
    same request, recipient and text. After real local Supabase, application,
-   Chromium and bounded connected Gemini/WAHA proof, delete the active local
+   Chromium, server-boundary and read-only provider-readiness proof, delete the active local
    Drizzle conversation/proposal/send state, superseded local inbound route,
    adapters/workers/imports/tests/config and every fallback path.
 3. **#567 / P5C - Supabase-authoritative amoCRM commands.** Add the missing
@@ -350,23 +362,56 @@ replace those local authorities rather than copy them into a second path.
    the local command repository/state, temporary
    `AmoCrmCaseCommandSection`, superseded provider UI/adapters/imports/tests and
    every fallback path.
-4. **#568 / P5D - combined connected-provider acceptance.** On exact main, run
-   one minimized authorized chain through Gemini proposal, genuine human
-   review, explicit WhatsApp send, exact WAHA identity/readback and explicit
-   amoCRM command/readback. Supabase must hold the correlated canonical records,
-   and exact replay must create no duplicate provider message, entity,
-   operation, binding, receipt or business event. Store only sanitized evidence
-   with exact commit, environment identity, timestamps and outcomes.
+4. **#568 / P5D - exact-main provider runtime inventory.** On exact main, prove
+   that the Supabase-backed Gemini, WhatsApp and amoCRM modules have one active
+   state/runtime path, that `crm_primary` is the only configured WAHA session,
+   and that missing or ambiguous provider state fails closed. Use real database,
+   application and Chromium outcome tests plus read-only configuration/session
+   inspection. Do not require a selected inbound message, call Gemini, send a
+   WhatsApp message or write amoCRM. Record explicitly that live Gemini/WhatsApp
+   delivery was not exercised and is not being claimed.
+
+Delivery status on 2026-09-02: #565 merged through PR #570 at exact main
+`b3f0f45b3632b8db4b2723ffe0ae77b382f60da8`; exact-main CI run `33625536519`
+passed. #566 now owns the atomic application cutover. On 2026-09-03 the owner
+removed the controlled-inbound Gemini/WhatsApp send exercise from the active
+merge and completion gates because the controlled account is unavailable.
+ADR 0026 records that scope correction; no synthetic or customer-chat
+substitute is allowed. The existing
+`src/lib/platform-communications.ts` authenticated Supabase reads and the
+service-only provider contracts from migrations 080, 082, 091 and 096 are the
+reuse boundary for schema and workflow behavior. Their historical
+`evo-inbox` exact-session selection is superseded by ADR 0025; immutable past
+migrations remain unchanged, while current runtime/provisioned configuration
+must resolve only `crm_primary`. The local Drizzle communication, proposal and
+send symbols,
+their synthetic inbound implementation and their tests/config are deletion
+targets after equivalent real PostgreSQL, application, Chromium, server-boundary
+and read-only provider-readiness proof exists in the same slice.
+
+All lower historical launch sections that name `evo-inbox` as the exact
+forward session are preserved as V1/companion decision and rollback evidence,
+not as current #566/#568 authority. They must not be imported as a compatibility
+path. If a currently provisioned Supabase selector still names `evo-inbox`, use
+a reviewed forward correction or current provisioning step; never rewrite an
+immutable historical migration. A missing or unhealthy `crm_primary` stops
+clearly instead of selecting another session or asking for a routine QR scan.
+
+Production inbound ownership does not move during repository #566 acceptance. The
+later controlled cutover must inventory per-session and global WAHA webhooks,
+stop the superseded V1 sender/writer/webhook worker, transfer the one provider
+webhook to the V2 Supabase-backed runtime, and prove that exactly one active
+consumer can process an inbound event before traffic is accepted.
 
 Each child is a separate launch-control PR with exact-head review/CI, match-head
 merge and exact-main verification. A completed child has one active state and
 execution path for the capability it replaces. Its scoped `rg` inventory must
 show that the old Drizzle repository, worker, route, component, test and config
 cannot be imported or called, and missing Supabase/provider configuration must
-fail clearly instead of falling back. The connected-provider authorization is
-bounded to the existing minimized validation target and these explicit staff
-actions. It does not authorize frozen V1 execution, production deployment,
-broad customer mutation, migration, public traffic or cutover.
+fail clearly instead of falling back. No Gemini call, WhatsApp send, amoCRM
+write or selected customer/inbound message is part of active #566/#568
+verification. This does not authorize frozen V1 execution, production
+deployment, broad customer mutation, migration, public traffic or cutover.
 
 This follows Supabase's current guidance that exposed tables remain protected
 by RLS and authenticated RPCs carry the caller's authorization context, plus

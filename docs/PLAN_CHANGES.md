@@ -15378,3 +15378,124 @@ SHA and requires its own exact-head review/CI and exact-main verification.
 Reviewer notes: implementation review is pending on the future #565 exact
 head. No production, managed-project, provider or customer-data mutation is
 authorized by this entry.
+
+## 2026-09-02 - Start #566 from the merged P5A provider contract
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: exact-main verification, runtime-replacement inventory and
+implementation start for #566.
+Affected plan sections: P5B WhatsApp/Gemini runtime and replacement cleanup.
+
+PR #570 merged #565 at exact main
+`b3f0f45b3632b8db4b2723ffe0ae77b382f60da8`; exact-main CI run `33625536519`
+passed Main CRM, EVO Inbox and EVO Lead Agent. The #566 branch starts from that
+same clean SHA. It reuses the authenticated paged communication reads already
+implemented in `src/lib/platform-communications.ts`, the `evo-inbox` WAHA
+authority from migrations 080 and 082, the structured human-review contract
+from migration 091, and the staff-intent/reconciliation contract from migration
+096. It must not create another table set, compatibility repository or fallback
+sender.
+
+The verified active path still reads conversations, messages, Gemini proposals
+and WhatsApp attempts through Drizzle `evo_*` repository symbols. The synthetic
+`/api/v2/whatsapp/inbound` handler also writes that local authority instead of
+the verified Supabase webhook/projection contract. #566 therefore moves the
+queue, thread, inbound projection, Gemini request/result/review, explicit send
+and exact reconciliation together. Moving only one of them would mix local and
+Supabase conversation identities and is prohibited.
+
+The signed-in Supabase cookie client remains the staff/RLS boundary. A separate
+server-only secret client may only execute the existing provider completion,
+runtime-resolution and verified webhook/projection RPCs. Current Supabase SSR
+guidance requires sensitive server actions to validate the user before work and
+use the publishable user-scoped client for RLS-governed calls; the service key
+must remain a separate backend-only capability. Current Google Gen AI guidance
+supports `abortSignal`, structured JSON response schemas and provider response
+metadata; Gemini remains advisory and cannot invoke send or CRM state changes.
+Current WAHA guidance keeps `WORKING` as the ready session state and `sendText`
+as an explicit server call; an ambiguous result must use exact provider
+readback and may never trigger a blind resend. The retained official references
+are listed in the launch plan provider-contract section.
+
+After real local Supabase/PostgreSQL, application and Chromium proof plus the
+bounded connected Gemini/WAHA checks, the same slice deletes the active local
+communication/proposal/send repository symbols, their Drizzle schema exports,
+synthetic inbound implementation, superseded actions/services/imports/tests and
+dead environment/config. Shared non-communications repository code and frozen
+V1 migrations, runbooks, deployments, archived docs and evidence remain
+preserved but inactive. No managed Supabase migration, production deployment,
+broad customer mutation, frozen V1 execution, traffic switch or final cutover
+is authorized by this entry.
+
+## 2026-09-02 - Reuse the connected sales WAHA session without reviving V1
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's explicit WAHA session decision.
+Change type: active provider-authority correction before #566 acceptance.
+Affected plan sections: current authority, #566 WhatsApp/Gemini replacement,
+#568 combined provider acceptance and the later webhook cutover.
+
+Read-only inspection proved that the private sales WAHA session `crm_primary`
+already has an identity and reports `WORKING`, while the separate companion
+session `evo-inbox` reports `SCAN_QR_CODE` without an identity. The owner
+directed the active V2 program to reuse the connected sales session instead of
+requiring another QR scan.
+
+Decision: `crm_primary` is the single active V2 WAHA transport session. This is
+provider session/container reuse only. Supabase remains the sole business
+authority, and the V2 runtime must not execute the frozen V1 sender, writer or
+webhook worker; create dual inbound processing, dual read/write, a compatibility
+or fallback path; or retain a parallel provider UI. The historical companion
+`evo-inbox` deployment, migrations, runbooks and evidence remain unchanged as
+history/rollback inputs, never as an active alias or fallback.
+
+Local #566 acceptance may query and exercise `crm_primary` through the new V2
+path without changing the current production webhook owner. #568 must prove
+the exact same session, sanitized identity/readback, correlated Supabase state
+and replay without duplicate provider or business effects. Production webhook
+ownership transfers only in a separate controlled cutover after an inventory
+of per-session/global hooks, shutdown of the superseded V1 sender/writer/hook
+worker and proof that exactly one V2 consumer remains.
+
+Past immutable migrations and historical launch sections that selected
+`evo-inbox` are preserved. Any current selector is corrected forward or through
+reviewed provisioning. Missing, unhealthy or ambiguous `crm_primary` state
+fails closed; it does not trigger fallback, routine re-pairing, blind retry or
+webhook mutation. ADR 0025 records this superseding session decision.
+
+## 2026-09-03 - Remove controlled-inbound live provider acceptance from the active sequence
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex under the owner's explicit instruction to remove the unavailable
+controlled-chat test and continue.
+Change type: active acceptance-scope correction before #566 merge.
+Affected plan sections: current authority, #549 provider parent, #566 merge
+gate, #568 exit inventory and the production-successor completion checklist.
+
+The connected sales WAHA session `crm_primary` remains `WORKING`, but the owner
+does not currently have access to the controlled second WhatsApp account needed
+to create an actual `fromMe=false` source message. Forty bounded read-only polls
+found no eligible `EVO test` event. The owner directed the program to remove
+this test from the plan and continue.
+
+Decision: the selected-inbound Gemini proposal, human review, WhatsApp send and
+exact readback exercise is no longer an active #566, #568 or completion gate.
+It is not replaced with a self-send, outbound message, arbitrary customer chat,
+mock, fixture or inferred success. #566 instead requires real local
+Supabase/PostgreSQL, application and Chromium execution, server-boundary and
+idempotency/ambiguity tests, legacy-eradication inventory and read-only proof
+that only `crm_primary` is configured and healthy. #568 becomes an exact-main
+single-runtime/configuration/legacy inventory with no provider mutation.
+
+Existing guarded provider-acceptance tooling may remain as a non-gating future
+operator utility, but it is outside the active program and cannot be cited as
+successful evidence unless actually executed. Reports must say plainly that
+live Gemini/WhatsApp delivery was not exercised. A future live exercise needs a
+new owner request and authorized target; it is not a pre-created blocking issue.
+
+This decision does not change the Supabase authority, human-review, explicit
+send, idempotency, reconciliation or fail-closed runtime contracts. It does not
+authorize a WhatsApp send, amoCRM write, webhook takeover, production deploy,
+customer migration, public traffic, V1 execution or cutover. ADR 0026 records
+the superseding acceptance decision.

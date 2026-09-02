@@ -341,10 +341,13 @@ test("clients detail mounts the single Supabase Student 360 workspace", () => {
     clientsDetailRouteSource,
     /CanonicalStudentCaseWorkspace|ClientPageContent|await import/,
   );
-  assert.match(clientsDetailWorkspaceSource, /getPlatformStudentCaseView\(actor, id\)/);
   assert.match(clientsDetailWorkspaceSource, /getPlatformStudentCaseHandoffContext\(actor, id\)/);
   assert.match(clientsDetailWorkspaceSource, /getPlatformStudentProfile\(actor, id\)/);
   assert.match(clientsDetailWorkspaceSource, /getPlatformCaseContractWorkspace\(actor, id\)/);
+  assert.doesNotMatch(
+    clientsDetailWorkspaceSource,
+    /getPlatformStudentCaseView|staff_student_case_read_snapshot/,
+  );
   assert.match(clientsDetailWorkspaceSource, /data-testid="platform-student-case-workspace"/);
   assert.match(clientsDetailWorkspaceSource, /data-testid="platform-student-handoff-context"/);
   assert.match(clientsDetailWorkspaceSource, /data-testid="platform-student-profile"/);

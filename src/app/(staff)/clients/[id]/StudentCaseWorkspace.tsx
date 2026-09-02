@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
 import { Card, btnGhostCls, cn } from "@/components/ui";
 import { getT, type Locale } from "@/lib/i18n";
@@ -21,7 +20,6 @@ import {
   type PlatformContractMutationOutcome,
   type PlatformContractRetryOperation,
 } from "@/lib/platform-contract-workflow";
-import { getPlatformStudentCaseView } from "@/lib/platform-admissions";
 import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
 import { getPlatformStudentCaseHandoffContext } from "@/lib/platform-student-handoff";
 import { getPlatformStudentProfile } from "@/lib/platform-student-profile";
@@ -50,13 +48,9 @@ const COPY = {
     operations: "Заявки, виза и финансы",
     amocrm: "amoCRM",
     state: "Состояние кейса",
-    stage: "Операционный этап",
-    route: "Маршрут обучения",
-    intake: "Набор",
-    curator: "Куратор",
-    nextAction: "Следующее действие",
     caseId: "ID кейса",
     leadId: "ID лида",
+    clientId: "ID клиента",
     handedOffAt: "Передан в Admissions",
     handoffMode: "Режим передачи",
     handoffState: "Статус передачи",
@@ -99,13 +93,9 @@ const COPY = {
     operations: "Арыздар, виза жана каржы",
     amocrm: "amoCRM",
     state: "Кейстин абалы",
-    stage: "Операциялык этап",
-    route: "Окуу маршруту",
-    intake: "Кабыл алуу",
-    curator: "Куратор",
-    nextAction: "Кийинки аракет",
     caseId: "Кейс ID",
     leadId: "Лид ID",
+    clientId: "Кардар ID",
     handedOffAt: "Admissions бөлүмүнө өткөрүлдү",
     handoffMode: "Өткөрүү режими",
     handoffState: "Өткөрүү статусу",
@@ -148,13 +138,9 @@ const COPY = {
     operations: "Applications, visa and finance",
     amocrm: "amoCRM",
     state: "Case state",
-    stage: "Operational stage",
-    route: "Study route",
-    intake: "Intake",
-    curator: "Curator",
-    nextAction: "Next action",
     caseId: "Case ID",
     leadId: "Lead ID",
+    clientId: "Client ID",
     handedOffAt: "Handed off to Admissions",
     handoffMode: "Handoff mode",
     handoffState: "Handoff status",
@@ -259,31 +245,18 @@ export async function StudentCaseWorkspace({
     getT(),
     requirePlatformAdmissionsActor("/clients"),
   ]);
-  const [caseView, handoff, profile, contractWorkspace] = await Promise.all([
-    getPlatformStudentCaseView(actor, id),
+  const [handoff, profile, contractWorkspace] = await Promise.all([
     getPlatformStudentCaseHandoffContext(actor, id),
     getPlatformStudentProfile(actor, id),
     getPlatformCaseContractWorkspace(actor, id),
   ]);
 
-  if (!caseView) notFound();
-  if (caseView.access !== "full") {
-    throw new Error("Full Student 360 access is unavailable for this role.");
-  }
   if (!contractWorkspace) {
     throw new Error("The Supabase contract workspace is unavailable.");
   }
 
-  const studentCase = caseView.studentCase;
   const copy = COPY[locale];
   const requestIdFor = buildRequestIdFactory(contractRetry);
-  const routeLabel = [
-    studentCase.targetCountry,
-    studentCase.targetDegree,
-    studentCase.programDirection,
-  ]
-    .filter(Boolean)
-    .join(" · ");
   const navigation = [
     ["case-summary", copy.summary],
     ["case-profile", copy.profile],
@@ -328,24 +301,21 @@ export async function StudentCaseWorkspace({
       <section id="case-summary" className="scroll-mt-24">
         <Card title={copy.summary} className="shadow-none">
           <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Fact label={copy.state}>{studentCase.state}</Fact>
-            <Fact label={copy.stage}>{studentCase.operationalStage}</Fact>
-            <Fact label={copy.route}>{routeLabel || copy.absent}</Fact>
-            <Fact label={copy.intake}>{studentCase.intake ?? copy.absent}</Fact>
-            <Fact label={copy.curator}>
-              {studentCase.currentCuratorDisplayName ?? copy.absent}
-            </Fact>
-            <Fact label={copy.nextAction}>
-              {studentCase.nextAction ?? copy.absent}
-            </Fact>
+            <Fact label={copy.state}>{handoff.caseState}</Fact>
+            <Fact label={copy.owner}>{handoff.admissionsOwnerDisplayName}</Fact>
             <Fact label={copy.handedOffAt}>
-              {formatTimestamp(studentCase.handoffAt, locale, copy.absent)}
+              {formatTimestamp(handoff.handedOffAt, locale, copy.absent)}
             </Fact>
             <Fact label={copy.caseId}>
-              <span className="font-mono text-xs">{studentCase.studentCaseId}</span>
+              <span className="font-mono text-xs">{handoff.studentCaseId}</span>
             </Fact>
             <Fact label={copy.leadId}>
               <span className="font-mono text-xs">{handoff.leadId}</span>
+            </Fact>
+            <Fact label={copy.clientId}>
+              <span className="font-mono text-xs">
+                {handoff.clientContext.clientId}
+              </span>
             </Fact>
           </dl>
         </Card>

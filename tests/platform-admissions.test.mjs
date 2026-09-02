@@ -610,10 +610,13 @@ test("clients use one Supabase Student 360 renderer with named legacy isolation"
   assert.match(routeSource, /PLATFORM_CONTRACT_RETRY_OPERATIONS\.find/);
   assert.match(routeSource, /parsePlatformContractUuid/);
   assert.match(workspaceSource, /requirePlatformAdmissionsActor\("\/clients"\)/);
-  assert.match(workspaceSource, /getPlatformStudentCaseView\(/);
   assert.match(workspaceSource, /getPlatformStudentCaseHandoffContext\(/);
   assert.match(workspaceSource, /getPlatformStudentProfile\(/);
   assert.match(workspaceSource, /getPlatformCaseContractWorkspace\(/);
+  assert.doesNotMatch(
+    workspaceSource,
+    /getPlatformStudentCaseView|staff_student_case_read_snapshot/,
+  );
   assert.match(workspaceSource, /data-testid="platform-student-case-workspace"/);
   assert.match(workspaceSource, /data-testid="platform-student-handoff-context"/);
   assert.match(workspaceSource, /data-testid="platform-student-profile"/);

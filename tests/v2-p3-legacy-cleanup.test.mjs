@@ -41,7 +41,7 @@ test("P3 active routes have one Supabase authority and no legacy fallback import
   assert.match(activeSources, /staff_student_case_handoff_context/);
   assert.doesNotMatch(
     activeSources,
-    /CanonicalStudentCaseWorkspace|CanonicalSalesGateCard|CanonicalSalesHandoffCard|canonical-sales-(?:gate|handoff)-actions|canonical-crm-repository|drizzle|service[_-]?role|fallback/i,
+    /CanonicalStudentCaseWorkspace|CanonicalSalesGateCard|CanonicalSalesHandoffCard|canonical-sales-(?:gate|handoff)-actions|canonical-crm-repository|staff_student_case_read_snapshot|drizzle|service[_-]?role|fallback/i,
   );
 });
 

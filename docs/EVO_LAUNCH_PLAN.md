@@ -110,8 +110,12 @@ mutation.
 
 ### P2 delivery decomposition: real staff and Sales tracer
 
-Issue #546 is delivered as three small sequential replacement PRs so each
-authority change can be proved and cleaned before the next one begins:
+Issue #546 is delivered as P2A followed by one regression-free P2B/P2C
+replacement PR. Exact-head review proved that merging the Supabase Sales read
+switch while leaving its writes for a later PR would publish a read-only lead
+workspace and break the first complete tracer. The read and workflow-write
+authority therefore move together, while their tests and commits remain
+separately reviewable inside the same PR:
 
 1. **P2A — real staff session and role shell.** Replace the root two-field
    development gate with Supabase Auth SSR cookies, validate every protected
@@ -124,18 +128,29 @@ authority change can be proved and cleaned before the next one begins:
    lead and linked-conversation foundation, and wire the already-existing
    `staff_sales_lead_page` and `staff_sales_lead_detail` read RPCs from
    migration 086 as the exact bounded Sales read contract through authenticated
-   Supabase/RLS. Delete the corresponding Drizzle read path after authorized
-   and unauthorized database, app and browser proof.
+   Supabase/RLS. A forward-only migration 093 corrects the existing detail RPC
+   so its displayed conversation list/count use the same exact Sales-intake
+   authorization predicate as the nested transcript RPC; it does not add a
+   wrapper or second read contract. Delete the corresponding Drizzle read path
+   after authorized and unauthorized database, app and browser proof.
 3. **P2C — canonical Sales writes and slice cleanup.** Move qualification,
    ownership and next-action mutation through only the mutation RPCs in
    migration 086, prove business outcomes and direct denial, then remove the
-   replaced Drizzle Sales writes, routes, tests and configuration. Close #546
-   only after the final scoped legacy inventory is empty.
+   replaced Drizzle Sales workflow writes, actions, UI, tests and configuration.
+   P2B and P2C must merge together so `/sales/[id]` never lands as a read-only
+   regression. Contract/payment gate and Sales-to-Admissions handoff remain
+   owned by #547; the Sales amoCRM command surface remains owned by #549. Their
+   old Drizzle controls and historical provider acceptance expectations must
+   not be reactivated as a compatibility path. Close #546 only after the final
+   scoped legacy inventory is empty.
 
-Implementation inspection clarified this existing migration boundary; it is
-not a new migration or a scope expansion. P2B must not add a migration 093
-wrapper around the migration 086 read RPCs, because duplicating an already
-bounded read contract would layer a second runtime path.
+Implementation inspection clarified the original migration boundary. P2B must
+not add a migration 093 wrapper around the migration 086 read RPCs, because
+duplicating an already bounded read contract would layer a second runtime path.
+The exact-head review subsequently found a narrower page/transcript predicate
+mismatch inside that existing contract; migration 093 may therefore replace
+the existing detail function in place solely to make both surfaces enforce the
+same predicate.
 
 The existing database enum value `curator` is the retained technical name for
 the human-facing **Admissions Manager** role. The server maps that one database

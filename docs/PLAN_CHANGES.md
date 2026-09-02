@@ -15091,3 +15091,41 @@ migration 086, followed by the corresponding Drizzle write-path cleanup. This
 clarifies the implementation boundary discovered during inspection; it does
 not change the accepted product outcome or authorize any production/provider
 side effect.
+
+## 2026-09-02 - Keep the Sales read and workflow-write replacement regression-free
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: exact-head review correction before merge; no managed-project,
+production, provider or customer-data mutation.
+Affected plan section: issue #546 P2B canonical Sales reads and P2C canonical
+Sales workflow writes.
+
+Independent review of exact head
+`a729a24c67b90aee52a7381a89a80d640bad48f8` correctly rejected two unsafe
+effects of treating P2B as a mergeable endpoint. First, the active Supabase
+lead detail would land read-only before stage, owner and next-action mutations
+moved to the same authority. P2B and P2C will therefore remain separate logical
+commits but merge in one regression-free PR. The combined slice uses only
+`staff_sales_lead_page`, `staff_sales_lead_detail`,
+`staff_sales_owner_options` and `mutate_sales_lead_workflow` through the
+authenticated cookie/JWT-bound Supabase client, then deletes the corresponding
+Drizzle Sales read and workflow-write paths.
+
+This combined slice does not pull later issue scope forward. Contract/payment
+gate and Sales-to-Admissions handoff remain #547. The Sales amoCRM command
+surface remains #549. Re-rendering their old Drizzle-backed controls merely to
+keep historical browser expectations green would violate replace-not-layer;
+those expectations must instead follow their authoritative issue and return
+only with a Supabase-backed implementation.
+
+Second, migration 086 currently delegates its `linked_conversations`
+projection to a broader canonical detail function, while the nested transcript
+RPC accepts only the exact verified Sales-intake relationship. That can render
+a link which is guaranteed to 404. Forward-only migration 093 will replace the
+existing `staff_sales_lead_detail(UUID)` function so both its conversation
+projection and count use the same exact predicate as
+`staff_canonical_lead_conversation_link(UUID, UUID, UUID)`. This is a corrective
+replacement of the existing function, not a wrapper, duplicate read contract,
+fallback or edit to applied migration history. SQL and Chromium proof must
+cover client-only, wrong-queue/non-intake and exact authorized conversations.

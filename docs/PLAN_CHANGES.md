@@ -15066,3 +15066,28 @@ after real local Supabase, direct authorization and Chromium proof. P2B and P2C
 then replace and delete the Drizzle Sales read and write paths respectively.
 None of these local/isolated PRs authorizes a production migration, Auth change,
 data copy, provider side effect or traffic switch.
+
+## 2026-09-02 - Clarify the existing migration 086 Sales read boundary
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: implementation-inspection plan clarification; no new migration,
+scope expansion, production mutation or provider mutation.
+Affected plan section: issue #546 P2B canonical Sales reads and P2C canonical
+Sales writes.
+
+Implementation inspection confirmed that migrations 084-085 provide the
+canonical lead and linked-conversation foundation, while migration 086 already
+contains the bounded `staff_sales_lead_page` and `staff_sales_lead_detail` read
+RPCs required by P2B. P2B will wire those exact existing RPCs through the
+authenticated Supabase session and RLS, prove authorized and unauthorized
+database, application and browser outcomes, and then delete the replaced
+Drizzle Sales read path.
+
+P2B will not add a migration 093 wrapper or duplicate read RPC, because that
+would layer a second contract over an existing single read authority. P2C owns
+only the qualification, ownership and next-action mutation RPCs already in
+migration 086, followed by the corresponding Drizzle write-path cleanup. This
+clarifies the implementation boundary discovered during inspection; it does
+not change the accepted product outcome or authorize any production/provider
+side effect.

@@ -120,15 +120,22 @@ authority change can be proved and cleaned before the next one begins:
    an Admin-authorized presentation choice. Delete the development-gate
    runtime, config and tests in this PR after real local Supabase and Chromium
    proof.
-2. **P2B — canonical Sales reads.** Move the accepted Sales queue and lead
-   detail reads to migrations 084-085 and authenticated Supabase/RLS. Delete
-   the corresponding Drizzle read path after authorized and unauthorized
-   database, app and browser proof.
+2. **P2B — canonical Sales reads.** Treat migrations 084-085 as the canonical
+   lead and linked-conversation foundation, and wire the already-existing
+   `staff_sales_lead_page` and `staff_sales_lead_detail` read RPCs from
+   migration 086 as the exact bounded Sales read contract through authenticated
+   Supabase/RLS. Delete the corresponding Drizzle read path after authorized
+   and unauthorized database, app and browser proof.
 3. **P2C — canonical Sales writes and slice cleanup.** Move qualification,
-   ownership and next-action mutation to migration 086 RPCs, prove business
-   outcomes and direct denial, then remove the replaced Drizzle Sales writes,
-   routes, tests and configuration. Close #546 only after the final scoped
-   legacy inventory is empty.
+   ownership and next-action mutation through only the mutation RPCs in
+   migration 086, prove business outcomes and direct denial, then remove the
+   replaced Drizzle Sales writes, routes, tests and configuration. Close #546
+   only after the final scoped legacy inventory is empty.
+
+Implementation inspection clarified this existing migration boundary; it is
+not a new migration or a scope expansion. P2B must not add a migration 093
+wrapper around the migration 086 read RPCs, because duplicating an already
+bounded read contract would layer a second runtime path.
 
 The existing database enum value `curator` is the retained technical name for
 the human-facing **Admissions Manager** role. The server maps that one database

@@ -1,25 +1,18 @@
-import { randomUUID } from "node:crypto";
-
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { PlatformStaffWhatsAppWorkspace } from "@/components/platform/communications/PlatformStaffWhatsApp";
 import { buildRouteMetadata } from "@/lib/route-metadata";
-import { CanonicalStaffWhatsAppWorkspace } from "@/components/platform/communications/CanonicalStaffWhatsApp";
 import { getT } from "@/lib/i18n";
-import { requirePlatformMessagingActor } from "@/lib/platform-guards";
-import { readCanonicalGeminiProposalAvailability } from "@/lib/server/canonical-gemini-proposal-config";
-import { readCanonicalWahaProviderAvailability } from "@/lib/server/canonical-waha-provider";
 import {
-  CanonicalCrmRepositoryError,
-  getCanonicalStaffConversationThread,
-  listCanonicalStaffConversations,
-  parseCanonicalMessageCursor,
-  parseCanonicalReadCursor,
-  readLatestCanonicalGeminiProposal,
-  readLatestCanonicalWhatsAppSendAttempt,
-  type CanonicalMessageCursor,
-  type CanonicalReadCursor,
-} from "@/lib/server/canonical-crm-repository";
+  getPlatformConversationThread,
+  getPlatformWahaSessionHealth,
+  listPlatformConversations,
+  parsePlatformConversationCursor,
+  parsePlatformRouteUuid,
+  type PlatformConversationCursor,
+} from "@/lib/platform-communications";
+import { requirePlatformMessagingActor } from "@/lib/platform-guards";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
@@ -55,105 +48,74 @@ export default async function WhatsAppConversationPage({
     "messages_before_at",
     "messages_before_id",
   ]);
+  const conversationId = parsePlatformRouteUuid(id);
+  if (conversationId === null) notFound();
   const queueCursor = parseQueueCursor(query);
   const messageCursor = parseMessageCursor(query);
 
-  let queue;
-  let thread;
-  let geminiProposal;
-  let latestSendAttempt;
-  try {
-    [queue, thread, geminiProposal, latestSendAttempt] = await Promise.all([
-      listCanonicalStaffConversations({
-        actorRole: actor.authorityRole,
-        cursor: queueCursor ?? undefined,
-        pageSize: 50,
-      }),
-      getCanonicalStaffConversationThread({
-        actorRole: actor.authorityRole,
-        conversationId: id,
-        cursor: messageCursor ?? undefined,
-        pageSize: 50,
-      }),
-      readLatestCanonicalGeminiProposal({
-        actorRole: actor.authorityRole,
-        conversationId: id,
-      }),
-      readLatestCanonicalWhatsAppSendAttempt({
-        actorRole: actor.authorityRole,
-        conversationId: id,
-      }),
-    ]);
-  } catch (error: unknown) {
-    if (error instanceof CanonicalCrmRepositoryError) {
-      if (error.code === "invalid_input" || error.code === "not_found") {
-        notFound();
-      }
-    }
-    throw error;
-  }
+  const [queue, thread] = await Promise.all([
+    listPlatformConversations(actor, {
+      cursor: queueCursor,
+      pageSize: 50,
+    }),
+    getPlatformConversationThread(actor, conversationId, {
+      cursor: messageCursor,
+      pageSize: 50,
+    }),
+  ]);
+  if (thread === null) notFound();
+
+  const wahaSessionHealth =
+    thread.conversation.wahaSessionName === "evo-inbox"
+      ? await getPlatformWahaSessionHealth(actor, "evo-inbox")
+      : null;
 
   return (
-    <CanonicalStaffWhatsAppWorkspace
+    <PlatformStaffWhatsAppWorkspace
       locale={locale}
       actorRole={actor.presentationRole}
       conversations={queue.rows}
       queueCursor={queueCursor}
       queueResetHref={queueCursor ? "/whatsapp" : null}
       queueNextHref={queue.nextCursor ? queueHref(queue.nextCursor) : null}
-      selectedConversationId={id}
+      selectedConversationId={conversationId}
       thread={{
         conversation: thread.conversation,
         messages: thread.messages,
-        geminiAvailability: readCanonicalGeminiProposalAvailability(),
-        geminiProposal,
-        geminiReviewRequestId:
-          geminiProposal?.reviewDecision === "pending" ? randomUUID() : null,
-        wahaAvailability: readCanonicalWahaProviderAvailability(),
-        latestSendAttempt,
-        sendRequestId: randomUUID(),
-        reconcileRequestId: randomUUID(),
-        newestMessagesHref: messageCursor ? threadHref(id, queueCursor) : null,
-        olderMessagesHref: thread.nextCursor
-          ? threadHref(id, queueCursor, thread.nextCursor)
+        wahaSessionHealth,
+        newestMessagesHref: messageCursor
+          ? threadHref(conversationId, queueCursor)
+          : null,
+        olderMessagesHref: thread.nextMessageCursor
+          ? threadHref(conversationId, queueCursor, thread.nextMessageCursor)
           : null,
       }}
     />
   );
 }
 
-function parseQueueCursor(params: SearchParams): CanonicalReadCursor | null {
-  const beforeAt = singleValue(params.before_at);
-  const beforeId = singleValue(params.before_id);
-  if (beforeAt === undefined && beforeId === undefined) return null;
-  try {
-    return parseCanonicalReadCursor(beforeAt, beforeId);
-  } catch (error: unknown) {
-    if (
-      error instanceof CanonicalCrmRepositoryError &&
-      error.code === "invalid_input"
-    ) {
-      notFound();
-    }
-    throw error;
-  }
+function parseQueueCursor(params: SearchParams): PlatformConversationCursor | null {
+  return parseCursor(params.before_at, params.before_id);
 }
 
-function parseMessageCursor(params: SearchParams): CanonicalMessageCursor | null {
-  const beforeAt = singleValue(params.messages_before_at);
-  const beforeId = singleValue(params.messages_before_id);
-  if (beforeAt === undefined && beforeId === undefined) return null;
-  try {
-    return parseCanonicalMessageCursor(beforeAt, beforeId);
-  } catch (error: unknown) {
-    if (
-      error instanceof CanonicalCrmRepositoryError &&
-      error.code === "invalid_input"
-    ) {
-      notFound();
-    }
-    throw error;
-  }
+function parseMessageCursor(
+  params: SearchParams,
+): PlatformConversationCursor | null {
+  return parseCursor(params.messages_before_at, params.messages_before_id);
+}
+
+function parseCursor(
+  rawSortAt: string | string[] | undefined,
+  rawId: string | string[] | undefined,
+): PlatformConversationCursor | null {
+  const sortAt = singleValue(rawSortAt);
+  const id = singleValue(rawId);
+  if (sortAt === undefined && id === undefined) return null;
+  if (sortAt === undefined || id === undefined) notFound();
+
+  const cursor = parsePlatformConversationCursor(sortAt, id);
+  if (cursor === null) notFound();
+  return cursor;
 }
 
 function singleValue(value: string | string[] | undefined) {
@@ -170,9 +132,9 @@ function assertExpectedQueryKeys(
   }
 }
 
-function queueHref(cursor: CanonicalReadCursor) {
+function queueHref(cursor: PlatformConversationCursor) {
   const query = new URLSearchParams({
-    before_at: cursor.updatedAt,
+    before_at: cursor.sortAt,
     before_id: cursor.id,
   });
   return `/whatsapp?${query.toString()}`;
@@ -180,16 +142,16 @@ function queueHref(cursor: CanonicalReadCursor) {
 
 function threadHref(
   conversationId: string,
-  queueCursor: CanonicalReadCursor | null,
-  messageCursor?: CanonicalMessageCursor,
+  queueCursor: PlatformConversationCursor | null,
+  messageCursor?: PlatformConversationCursor,
 ) {
   const query = new URLSearchParams();
   if (queueCursor) {
-    query.set("before_at", queueCursor.updatedAt);
+    query.set("before_at", queueCursor.sortAt);
     query.set("before_id", queueCursor.id);
   }
   if (messageCursor) {
-    query.set("messages_before_at", messageCursor.occurredAt);
+    query.set("messages_before_at", messageCursor.sortAt);
     query.set("messages_before_id", messageCursor.id);
   }
   const serialized = query.toString();

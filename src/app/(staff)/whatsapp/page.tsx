@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { PlatformStaffWhatsAppWorkspace } from "@/components/platform/communications/PlatformStaffWhatsApp";
 import { buildRouteMetadata } from "@/lib/route-metadata";
-import { CanonicalStaffWhatsAppWorkspace } from "@/components/platform/communications/CanonicalStaffWhatsApp";
 import { getT } from "@/lib/i18n";
-import { requirePlatformMessagingActor } from "@/lib/platform-guards";
 import {
-  CanonicalCrmRepositoryError,
-  parseCanonicalReadCursor,
-  type CanonicalReadCursor,
-  listCanonicalStaffConversations,
-} from "@/lib/server/canonical-crm-repository";
+  listPlatformConversations,
+  parsePlatformConversationCursor,
+  type PlatformConversationCursor,
+} from "@/lib/platform-communications";
+import { requirePlatformMessagingActor } from "@/lib/platform-guards";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
@@ -37,26 +36,13 @@ export default async function WhatsAppPage({
   ]);
   assertExpectedQueryKeys(query, ["before_at", "before_id"]);
   const cursor = parseQueueCursor(query);
-
-  let page;
-  try {
-    page = await listCanonicalStaffConversations({
-      actorRole: actor.authorityRole,
-      cursor: cursor ?? undefined,
-      pageSize: 50,
-    });
-  } catch (error: unknown) {
-    if (
-      error instanceof CanonicalCrmRepositoryError &&
-      error.code === "invalid_input"
-    ) {
-      notFound();
-    }
-    throw error;
-  }
+  const page = await listPlatformConversations(actor, {
+    cursor,
+    pageSize: 50,
+  });
 
   return (
-    <CanonicalStaffWhatsAppWorkspace
+    <PlatformStaffWhatsAppWorkspace
       locale={locale}
       actorRole={actor.presentationRole}
       conversations={page.rows}
@@ -67,21 +53,15 @@ export default async function WhatsAppPage({
   );
 }
 
-function parseQueueCursor(params: SearchParams): CanonicalReadCursor | null {
+function parseQueueCursor(params: SearchParams): PlatformConversationCursor | null {
   const beforeAt = singleValue(params.before_at);
   const beforeId = singleValue(params.before_id);
   if (beforeAt === undefined && beforeId === undefined) return null;
-  try {
-    return parseCanonicalReadCursor(beforeAt, beforeId);
-  } catch (error: unknown) {
-    if (
-      error instanceof CanonicalCrmRepositoryError &&
-      error.code === "invalid_input"
-    ) {
-      notFound();
-    }
-    throw error;
-  }
+  if (beforeAt === undefined || beforeId === undefined) notFound();
+
+  const cursor = parsePlatformConversationCursor(beforeAt, beforeId);
+  if (cursor === null) notFound();
+  return cursor;
 }
 
 function singleValue(value: string | string[] | undefined) {
@@ -98,9 +78,9 @@ function assertExpectedQueryKeys(
   }
 }
 
-function queueHref(cursor: CanonicalReadCursor) {
+function queueHref(cursor: PlatformConversationCursor) {
   const query = new URLSearchParams({
-    before_at: cursor.updatedAt,
+    before_at: cursor.sortAt,
     before_id: cursor.id,
   });
   return `/whatsapp?${query.toString()}`;

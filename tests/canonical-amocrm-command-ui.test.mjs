@@ -29,7 +29,9 @@ test("the active canonical amoCRM command panel remains on Admissions Student 36
     admissions,
     /<CanonicalAmoCrmCommandPanel[\s\S]*scope="admissions"[\s\S]*leadId=\{leadId\}[\s\S]*studentCaseId=\{studentCaseId\}/,
   );
-  assert.match(admissions, /readBlockingCanonicalAmoCrmCommand/);
+  assert.match(admissions, /readPlatformBlockingAmoCrmCommand/);
+  assert.match(admissions, /createSupabaseServerClient\(\)/);
+  assert.match(studentWorkspace, /organizationId=\{actor\.organizationId\}/);
   assert.match(
     admissions,
     /data-testid="amocrm-case-command-section"/,

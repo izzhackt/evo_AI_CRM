@@ -5,18 +5,20 @@ import type { FixedRole } from "@/lib/fixed-role-policy";
 import type { Locale } from "@/lib/i18n";
 import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
 import {
-  CanonicalAmoCrmCommandRepositoryError,
-  readBlockingCanonicalAmoCrmCommand,
-} from "@/lib/server/canonical-amocrm-command-repository";
+  PlatformAmoCrmCommandRpcError,
+  readPlatformBlockingAmoCrmCommand,
+} from "@/lib/server/platform-amocrm-command-rpc";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
  * Temporary #549 isolation boundary.
  *
- * The canonical Supabase Student context supplies the identifiers. This
- * component owns only the superseded amoCRM readiness/blocking read and panel;
- * it must not become another Student summary, handoff or contract path.
+ * The canonical Supabase Student context supplies the identifiers. This panel
+ * reads the active Supabase command/blocking path only; it must not become
+ * another Student summary, handoff or contract path.
  */
 export async function AmoCrmCaseCommandSection({
+  organizationId,
   authorityRole,
   locale,
   studentCaseId,
@@ -24,6 +26,7 @@ export async function AmoCrmCaseCommandSection({
   clientId,
   caseState,
 }: Readonly<{
+  organizationId: string;
   authorityRole: FixedRole;
   locale: Locale;
   studentCaseId: string;
@@ -35,13 +38,15 @@ export async function AmoCrmCaseCommandSection({
     ReturnType<typeof readCanonicalAmoCrmCommandAvailability>
   >;
   let blockingAttempt: Awaited<
-    ReturnType<typeof readBlockingCanonicalAmoCrmCommand>
+    ReturnType<typeof readPlatformBlockingAmoCrmCommand>
   >;
   try {
+    const staffClient = caseState === "active" ? await createSupabaseServerClient() : null;
     [availability, blockingAttempt] = await Promise.all([
       readCanonicalAmoCrmCommandAvailability(),
       caseState === "active"
-        ? readBlockingCanonicalAmoCrmCommand({
+        ? readPlatformBlockingAmoCrmCommand(staffClient!, {
+            organizationId,
             authorization: {
               actorRole: authorityRole,
               workflowScope: "admissions_post_handoff",
@@ -54,12 +59,7 @@ export async function AmoCrmCaseCommandSection({
         : Promise.resolve(null),
     ]);
   } catch (error: unknown) {
-    if (
-      error instanceof CanonicalAmoCrmCommandRepositoryError &&
-      (error.code === "forbidden" ||
-        error.code === "not_found" ||
-        error.code === "unavailable")
-    ) {
+    if (error instanceof PlatformAmoCrmCommandRpcError) {
       return (
         <section
           id="case-amocrm"
@@ -92,7 +92,7 @@ export async function AmoCrmCaseCommandSection({
                 attemptId: blockingAttempt.attemptId,
                 operationName: blockingAttempt.operationName,
                 status: blockingAttempt.status as "prepared" | "unknown",
-                providerDispatchedAt: blockingAttempt.providerDispatchedAt,
+                providerDispatchedAt: null,
               }
         }
         scope="admissions"

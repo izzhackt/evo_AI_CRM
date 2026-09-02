@@ -714,9 +714,11 @@ test("clients use one Supabase Student 360 renderer with only the #549 amoCRM is
     amoCrmIsolationSource,
     /data-testid="amocrm-case-command-section"/,
   );
-  assert.match(amoCrmIsolationSource, /canonical-amocrm-command-repository/);
+  assert.match(amoCrmIsolationSource, /readPlatformBlockingAmoCrmCommand/);
+  assert.match(amoCrmIsolationSource, /createSupabaseServerClient\(\)/);
+  assert.match(amoCrmIsolationSource, /organizationId/);
   assert.match(amoCrmIsolationSource, /data-status="unavailable"/);
-  assert.match(amoCrmIsolationSource, /error\.code === "forbidden"/);
+  assert.match(amoCrmIsolationSource, /PlatformAmoCrmCommandRpcError/);
   assert.doesNotMatch(
     amoCrmIsolationSource,
     /\bnotFound\s*\(/,

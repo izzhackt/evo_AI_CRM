@@ -634,6 +634,7 @@ export async function StudentCaseWorkspace({
       />
 
       <AmoCrmCaseCommandSection
+        organizationId={actor.organizationId}
         authorityRole={actor.authorityRole}
         locale={locale}
         studentCaseId={id}

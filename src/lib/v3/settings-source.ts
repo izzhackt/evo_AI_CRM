@@ -83,7 +83,7 @@ export async function readIntegrations(): Promise<readonly Integration[]> {
 
   return [
     {
-      name: "WhatsApp · WAHA",
+      name: "WhatsApp",
       state: n(row.sends) > 0 ? "работает" : "не отправляла",
       ok: n(row.sends) > 0,
       detail: `входящих сообщений: ${n(row.messages)}, попыток отправки: ${n(row.sends)}`,
@@ -156,7 +156,7 @@ export async function readHealth(): Promise<readonly Health[]> {
 
   return [
     {
-      name: "WhatsApp · WAHA",
+      name: "WhatsApp",
       state: n(row.sends) > 0 ? "отправляла" : "нужна проверка",
       detail: `входящих ${n(row.messages)} · попыток отправки ${n(row.sends)}`,
       tone: n(row.sends) > 0 ? "ok" : "warn",

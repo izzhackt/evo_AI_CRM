@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { Funnel } from "@/components/v3/Funnel";
 import { MetricRow } from "@/components/v3/MetricCard";
 import { TrendChart } from "@/components/v3/TrendChart";
@@ -27,17 +25,13 @@ export default async function MainPart() {
 
   return (
     <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
-      <Link href="/v3" className="-ms-1 inline-flex min-h-11 items-center px-1 font-mono text-xs text-fg-2 underline decoration-border-strong underline-offset-4 hover:decoration-fg-2">
-        ← Части интерфейса
-      </Link>
-
       {/*
-        Приветствия по имени здесь нет, и аватара сотрудника тоже.
+        Приветствия по имени здесь пока нет.
         Раньше страница здоровалась «С возвращением, Айгерим» и рисовала чип
         «Айгерим Н. · Admissions». Айгерим Сериковна Нурланова — это ЛИД из
-        нашей же базы, а не сотрудник: интерфейс подсовывал клиента вместо
-        пользователя. Сущности сотрудника в EVO не существует вовсе — есть три
-        роли, — поэтому назвать здесь кого-то по имени сегодня нечем.
+        нашей же базы: интерфейс подставлял клиента вместо сотрудника. Ошибка
+        была не в самом приветствии, а в том, откуда взяли имя. Появится
+        сотрудник как сущность — вернётся и приветствие.
       */}
       <div className="mt-4 min-w-0">
         <h1 className="text-xl font-bold tracking-[-0.02em] text-fg">Приёмная кампания</h1>
@@ -48,7 +42,7 @@ export default async function MainPart() {
         <MetricRow metrics={metrics} />
       </div>
 
-      <div className="mt-3 grid gap-3 xl:grid-cols-[1.15fr_1fr]">
+      <div className="mt-3 grid gap-3 @5xl:grid-cols-[1.15fr_1fr]">
         <section className="min-w-0 rounded-card border border-border bg-surface px-4 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* Раньше здесь стояла плашка «1 авг — 2 сен», похожая на выбор
@@ -104,8 +98,8 @@ export default async function MainPart() {
       </div>
 
       <p className="mt-4 max-w-[66ch] text-xs leading-5 text-fg-3">
-        Карточки и воронка читают настоящую PostgreSQL. Ряд динамики — образец:
-        все записи созданы одним днём, истории по неделям пока нет.
+        Цифры и воронка настоящие. Ряд динамики — образец: все записи заведены
+        одним днём, истории по неделям пока нет.
       </p>
     </main>
   );

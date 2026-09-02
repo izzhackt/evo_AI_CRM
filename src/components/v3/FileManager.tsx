@@ -187,7 +187,7 @@ export function FileManager({
     shownFiles.length > 0 && shownFiles.every((f) => selected.includes(f.id));
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,272px)_minmax(0,1fr)]">
+    <div className="grid gap-5 @4xl:grid-cols-[minmax(0,272px)_minmax(0,1fr)]">
       <aside className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-md font-bold text-fg">База знаний</h2>
@@ -281,7 +281,7 @@ export function FileManager({
 
         <div>
           <h3 className="text-sm font-semibold text-fg-2">Папки</h3>
-          <ul className="mt-2.5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="mt-2.5 grid gap-3 @lg:grid-cols-2 @6xl:grid-cols-3">
             {shownFolders
               .filter((folder) => folder.depth === 0)
               .map((folder) => (

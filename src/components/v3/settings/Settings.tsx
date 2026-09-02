@@ -66,7 +66,7 @@ export function Settings({
   const current = visible.find((s) => s.key === section) ?? visible[0];
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,210px)_minmax(0,1fr)] lg:items-start">
+    <div className="grid gap-5 @4xl:grid-cols-[minmax(0,210px)_minmax(0,1fr)] lg:items-start">
       {/* На узком экране рельс становится полосой с прокруткой: шесть
           названий в столбик съели бы первый экран целиком. */}
       <nav
@@ -74,7 +74,7 @@ export function Settings({
         tabIndex={0}
         className="max-w-full overflow-x-auto lg:overflow-visible"
       >
-        <ul className="flex w-max gap-1 lg:w-auto lg:flex-col">
+        <ul className="flex w-max gap-1 @4xl:w-auto @4xl:flex-col">
           {visible.map((entry) => {
             const active = entry.key === current?.key;
             return (

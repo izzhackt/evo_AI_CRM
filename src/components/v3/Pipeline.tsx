@@ -180,13 +180,13 @@ export function Pipeline({
       tabIndex={0}
       className="max-w-full overflow-x-auto rounded-card"
     >
-      <ol className="flex flex-col gap-3 md:w-max md:flex-row md:items-start">
+      <ol className="flex flex-col gap-3 @2xl:w-max @2xl:flex-row md:items-start">
         {stages.map((stage) => {
           const inStage = leads.filter((lead) => stageOf(lead) === stage.key);
           return (
             <li
               key={stage.key}
-              className="flex min-w-0 flex-col gap-2 rounded-card bg-surface-2 p-2.5 md:w-[280px] md:shrink-0"
+              className="flex min-w-0 flex-col gap-2 rounded-card bg-surface-2 p-2.5 @2xl:w-[280px] md:shrink-0"
             >
               <div className="flex items-center justify-between gap-2 px-1 py-0.5">
                 <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-fg">

@@ -158,7 +158,7 @@ export function WeekCalendar({
   const timed = events.filter((event) => event.startMinutes !== null);
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
+    <div className="grid gap-4 @6xl:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
       {/* ---- Колонка дел, как «Today» в референсе ---- */}
       <aside className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
         <div className="flex items-center justify-between">

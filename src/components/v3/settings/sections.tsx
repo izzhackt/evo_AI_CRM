@@ -48,7 +48,7 @@ export function StateSection({ health }: { health: readonly Health[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="grid gap-3 @lg:grid-cols-2 @6xl:grid-cols-3">
         {health.map((item) => (
           <li
             key={item.name}
@@ -73,7 +73,7 @@ export function StateSection({ health }: { health: readonly Health[] }) {
           {blocked.map((item) => (
             <li
               key={item.name}
-              className="grid gap-x-4 gap-y-1 border-b border-border px-4 py-3 last:border-b-0 lg:grid-cols-[minmax(0,200px)_minmax(0,1fr)_minmax(0,240px)]"
+              className="grid gap-x-4 gap-y-1 border-b border-border px-4 py-3 last:border-b-0 @4xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)_minmax(0,240px)]"
             >
               <span className="text-sm font-semibold text-fg">{item.name}</span>
               <span className="text-2xs leading-4 text-fg-2">{item.blocker}</span>
@@ -333,7 +333,7 @@ export function AccessSection({
           <span className="text-fg-3">их ровно три, и они не настраиваются</span>
         }
       >
-        <div className="hidden sm:block">
+        <div className="hidden @lg:block">
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">
               Что доступно каждой из трёх ролей: возможности и страницы
@@ -391,7 +391,7 @@ export function AccessSection({
 
         {/* Телефон: читать столбец прочерков на 393px незачем — важно, что
             роль может, а не чего не может. */}
-        <ul className="sm:hidden">
+        <ul className="@lg:hidden">
           {roles.map((role) => (
             <li key={role.role} className="border-b border-border px-4 py-3 last:border-b-0">
               <p className="flex flex-wrap items-baseline gap-2">
@@ -489,7 +489,7 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
           Обойти гейт может только администратор и только с указанной причиной. Если доказательств
           по одному лиду несколько, побеждает последнее по времени.
         </p>
-        <ul className="grid gap-px bg-border sm:grid-cols-4">
+        <ul className="grid gap-px bg-border @lg:grid-cols-4">
           {[
             ["Передач", gates.handoffs],
             ["В обход гейта", gates.overrides],

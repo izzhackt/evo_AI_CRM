@@ -69,7 +69,7 @@ export function TrendChart({
     >
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="h-auto w-full min-w-[560px]"
+        className="h-auto w-full min-w-[480px]"
         role="img"
         aria-label={`${caption}. ${spoken}`}
       >

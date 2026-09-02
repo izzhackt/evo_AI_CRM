@@ -13,12 +13,12 @@ export default async function InboxPart() {
     <PartShell
       title="Входящие"
       count={threads.length}
-      lead={`${messages} сообщений в ${threads.length} диалогах, все входящие. Отвечать пока нечем: WAHA не подключена, и поле ответа выключено, а не притворяется работающим.`}
+      lead={`${messages} сообщений в ${threads.length} диалогах, все входящие. Отвечать пока нечем: канал WhatsApp не подключён, и поле ответа выключено, а не притворяется работающим.`}
     >
       <Inbox
         threads={threads}
         canSend={false}
-        cannotSendReason="WAHA не подключена: попыток отправки в базе нет ни одной. Когда канал подключат, включится и это поле."
+        cannotSendReason="Канал WhatsApp не подключён — отправлено пока ни одного сообщения. Когда канал подключат, поле включится."
       />
     </PartShell>
   );

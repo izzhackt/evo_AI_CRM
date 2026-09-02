@@ -46,7 +46,7 @@ export function MetricCard({ metric }: { metric: Metric }) {
 
 export function MetricRow({ metrics }: { metrics: readonly Metric[] }) {
   return (
-    <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <ul className="grid grid-cols-2 gap-3 @4xl:grid-cols-4">
       {metrics.map((metric) => (
         <MetricCard key={metric.label} metric={metric} />
       ))}

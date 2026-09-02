@@ -10,11 +10,12 @@ import { Pill } from "@/components/v3/Pill";
  *
  * Главное, что этот экран обязан показать честно: исходящих сообщений в базе
  * нет ни одного. Людям написали — им не ответили. Поэтому здесь нет «нашего»
- * пузыря справа и нет работающего поля ответа: WAHA не подключена, отправлять
+ * пузыря справа и нет работающего поля ответа: канал WhatsApp (WAHA) не
+ * подключён, отправлять
  * нечем, и кнопка «отправить», которая молча ничего не делает, была бы враньём.
  * Поле есть, оно выключено, и рядом написана причина.
  *
- * Когда WAHA подключат, меняется источник и `canSend`, а не раскладка.
+ * Когда канал подключат, меняется источник и `canSend`, а не раскладка.
  */
 
 export type InboxMessage = Readonly<{
@@ -50,14 +51,14 @@ export function Inbox({
   const open = threads.find((t) => t.id === openId) ?? null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+    <div className="grid gap-4 @4xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
       {/* ---- Список диалогов ---- */}
       <section
         aria-label="Диалоги"
         // На узком экране открытая переписка занимает всё: две колонки по
         // 190px — это не два списка, а два обрубка.
         className={`min-w-0 overflow-hidden rounded-card border border-border bg-surface ${
-          open ? "hidden lg:block" : ""
+          open ? "hidden @4xl:block" : ""
         }`}
       >
         <ul>
@@ -111,7 +112,7 @@ export function Inbox({
             <button
               type="button"
               onClick={() => setOpenId(null)}
-              className="-ms-1 grid h-8 w-8 shrink-0 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 lg:hidden"
+              className="-ms-1 grid h-8 w-8 shrink-0 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 @4xl:hidden"
             >
               <span className="sr-only">Назад к списку диалогов</span>
               <Icon name="arrow-left" size={16} />

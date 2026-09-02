@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 /**
  * Общая обёртка части V3.
  *
@@ -7,8 +5,9 @@ import Link from "next/link";
  * Счёт стоит в заголовке, а не отдельной плашкой-метрикой: это не показатель,
  * а размер того, на что смотришь.
  *
- * Шапка одна на все части, потому что в прототипе они идут подряд, и своя
- * вёрстка заголовка у каждой читалась бы как разные продукты.
+ * Шапка одна на все разделы: своя вёрстка заголовка у каждого читалась бы
+ * как разные продукты. Возврата «к списку частей» здесь нет — разделы стоят
+ * в навигации оболочки.
  */
 export function PartShell({
   title,
@@ -30,14 +29,7 @@ export function PartShell({
         width === "narrow" ? "max-w-[860px]" : "max-w-[1240px]"
       }`}
     >
-      <Link
-        href="/v3"
-        className="-ms-1 inline-flex min-h-11 items-center px-1 font-mono text-xs text-fg-2 underline decoration-border-strong underline-offset-4 hover:decoration-fg-2"
-      >
-        ← Части интерфейса
-      </Link>
-
-      <h1 className="mt-3 flex flex-wrap items-baseline gap-2.5 text-2xl font-semibold tracking-[-0.02em] text-fg">
+      <h1 className="flex flex-wrap items-baseline gap-2.5 text-2xl font-semibold tracking-[-0.02em] text-fg">
         {title}
         {typeof count === "number" ? (
           <span className="font-mono text-xl font-normal tabular-nums text-fg-3">{count}</span>

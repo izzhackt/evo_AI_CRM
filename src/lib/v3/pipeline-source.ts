@@ -75,7 +75,7 @@ export async function readPipelineLeads(): Promise<readonly PipelineLead[]> {
       nextAction: row.next_action,
       nextActionAt: row.next_action_at,
       due: days === null ? "none" : days < 0 ? "overdue" : days === 0 ? "today" : "later",
-      href: `/sales/${row.id}`,
+      href: `/v3/profile?lead=${row.id}`,
     } satisfies PipelineLead;
   });
 }

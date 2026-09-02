@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import {
   WeekCalendar,
   type DayColumn,
@@ -64,11 +62,7 @@ const GROUPS: TodoGroup[] = [
 export default function CalendarPart() {
   return (
     <main className="mx-auto w-full max-w-[1300px] px-4 py-8 sm:px-6">
-      <Link href="/v3" className="-ms-1 inline-flex min-h-11 items-center px-1 font-mono text-xs text-fg-2 underline decoration-border-strong underline-offset-4 hover:decoration-fg-2">
-        ← Части интерфейса
-      </Link>
-
-      <h1 className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-fg">
+      <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
         Календарь
       </h1>
       <p className="mt-1 max-w-[60ch] text-sm leading-6 text-fg-3">

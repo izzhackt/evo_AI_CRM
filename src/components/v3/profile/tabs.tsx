@@ -144,7 +144,7 @@ export function Overview({
         )}
       </Card>
 
-      <ul className="grid gap-3 sm:grid-cols-3">
+      <ul className="grid gap-3 @lg:grid-cols-3">
         {tiles.map((tile) => (
           <li key={tile.name}>
             <a
@@ -202,7 +202,7 @@ export function Overview({
 
 export function Anketa({ profile, draft }: { profile: PersonProfile; draft: ProfileDraft }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 @4xl:grid-cols-2">
       <Card title="Человек">
         {/* Телефон и почта — настоящие: они единственные, что модель знает про
             человека кроме имени. Поэтому без пунктира.
@@ -409,7 +409,7 @@ export function Money({ profile, draft }: { profile: PersonProfile; draft: Profi
 
 export function History({ profile }: { profile: PersonProfile }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 @4xl:grid-cols-2">
       <Card title="Что происходило">
         <div
           role="group"

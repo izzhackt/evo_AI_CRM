@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card, btnGhostCls, cn } from "@/components/ui";
+import { Badge, btnGhostCls } from "@/components/ui";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
-import { buildRouteMetadata } from "@/lib/route-metadata";
+import { listPlatformAdmissionsVisaQueue } from "@/lib/platform-admissions-workspace";
 import { requirePlatformCapability } from "@/lib/platform-guards";
-import {
-  CanonicalCrmRepositoryError,
-  listCanonicalVisaMilestones,
-  parseCanonicalReadCursor,
-  type CanonicalReadCursor,
-} from "@/lib/server/canonical-crm-repository";
+import { buildRouteMetadata } from "@/lib/route-metadata";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
@@ -20,63 +15,56 @@ type SearchParams = Readonly<{
 
 const COPY = {
   ru: {
-    title: "Визовые этапы",
-    description: "Шесть канонических этапов по каждому переданному кейсу. Изменения выполняются в Student 360.",
-    empty: "Визовых этапов пока нет.",
+    title: "Визовый контроль",
+    description:
+      "Одна актуальная визовая запись на кейс из Supabase. Изменения выполняются в Student 360.",
+    empty: "Визовых кейсов пока нет.",
     open: "Открыть Student 360",
-    first: "К началу",
-    next: "Следующие этапы",
-    kinds: {
-      document_preparation: "Подготовка документов",
-      appointment: "Запись",
-      submission: "Подача",
-      biometrics: "Биометрия",
-      interview: "Интервью",
-      decision: "Решение",
-    },
+    evidence: "Последнее подтверждение",
+    createdBy: "Создал(а)",
+    more: "Показаны первые 50 обновлённых визовых кейсов.",
     invalid:
-      "Фильтр отклонён. Визовая очередь не читалась, потому что параметры запроса не прошли строгую нормализацию.",
-    filterReset: "К визовому контролю",
+      "Параметры очереди отклонены. Данные не читались.",
+    reset: "К визовому контролю",
   },
   ky: {
-    title: "Виза этаптары",
-    description: "Ар бир өткөрүлгөн кейстеги алты каноникалык этап. Өзгөртүүлөр Student 360 ичинде жасалат.",
-    empty: "Азырынча виза этаптары жок.",
+    title: "Виза көзөмөлү",
+    description:
+      "Ар бир кейс үчүн Supabase ичиндеги бир актуалдуу виза жазуусу. Өзгөртүүлөр Student 360 ичинде жасалат.",
+    empty: "Азырынча виза кейстери жок.",
     open: "Student 360 ачуу",
-    first: "Башына",
-    next: "Кийинки этаптар",
-    kinds: {
-      document_preparation: "Документтерди даярдоо",
-      appointment: "Жазылуу",
-      submission: "Тапшыруу",
-      biometrics: "Биометрия",
-      interview: "Маек",
-      decision: "Чечим",
-    },
+    evidence: "Акыркы ырастоо",
+    createdBy: "Түзгөн",
+    more: "Акыркы жаңыртылган 50 виза кейси көрсөтүлдү.",
     invalid:
-      "Чыпка четке кагылды. Сурам параметрлери катуу нормалдаштыруудан өтпөгөндүктөн виза кезеги окулган жок.",
-    filterReset: "Виза көзөмөлүнө",
+      "Кезек параметрлери четке кагылды. Маалымат окулган жок.",
+    reset: "Виза көзөмөлүнө",
   },
   en: {
-    title: "Visa milestones",
-    description: "Six canonical milestones for every handed-off case. All changes are made inside Student 360.",
-    empty: "No visa milestones yet.",
+    title: "Visa control",
+    description:
+      "One current Supabase visa record per case. Changes are made in Student 360.",
+    empty: "No visa cases yet.",
     open: "Open Student 360",
-    first: "First page",
-    next: "Next milestones",
-    kinds: {
-      document_preparation: "Document preparation",
-      appointment: "Appointment",
-      submission: "Submission",
-      biometrics: "Biometrics",
-      interview: "Interview",
-      decision: "Decision",
-    },
+    evidence: "Latest evidence",
+    createdBy: "Created by",
+    more: "Showing the first 50 recently updated visa cases.",
     invalid:
-      "The filter was rejected. The visa queue was not read because the request parameters failed strict normalization.",
-    filterReset: "Back to visa control",
+      "Queue parameters were rejected. No data was read.",
+    reset: "Back to visa control",
   },
 } as const;
+
+const STATUS_LABELS: Record<string, Record<Locale, string>> = {
+  not_required: { ru: "Не требуется", ky: "Талап кылынбайт", en: "Not required" },
+  not_started: { ru: "Не начата", ky: "Баштала элек", en: "Not started" },
+  docs: { ru: "Документы", ky: "Документтер", en: "Documents" },
+  appointment: { ru: "Запись", ky: "Жазылуу", en: "Appointment" },
+  submitted: { ru: "Подана", ky: "Тапшырылды", en: "Submitted" },
+  approved: { ru: "Одобрена", ky: "Жактырылды", en: "Approved" },
+  rejected: { ru: "Отказ", ky: "Баш тартылды", en: "Rejected" },
+  closed: { ru: "Закрыта", ky: "Жабык", en: "Closed" },
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildRouteMetadata({
@@ -86,12 +74,34 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-const STATUS_CLASS = {
-  pending: "bg-surface-2 text-fg-2",
-  in_progress: "bg-info-weak text-info",
-  completed: "bg-ok-weak text-ok",
-  blocked: "bg-danger-weak text-danger",
-} as const;
+function hasRejectedQuery(params: SearchParams): boolean {
+  try {
+    return params.before_at !== undefined || params.before_id !== undefined;
+  } catch {
+    return true;
+  }
+}
+
+function QueueHeader({
+  copy,
+  withDescription = false,
+}: Readonly<{
+  copy: (typeof COPY)[keyof typeof COPY];
+  withDescription?: boolean;
+}>) {
+  return (
+    <header className="border-b border-border pb-5">
+      <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">
+        {copy.title}
+      </h1>
+      {withDescription ? (
+        <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">
+          {copy.description}
+        </p>
+      ) : null}
+    </header>
+  );
+}
 
 export default async function VisaPage({
   searchParams,
@@ -101,129 +111,52 @@ export default async function VisaPage({
     requirePlatformCapability("admissions.read", "/visa"),
     searchParams,
   ]);
-  const cursor = queueCursor(params);
-  const copyForState = COPY[locale];
-  if (cursor === "invalid") {
-    return (
-      <QueueFilterRejected copy={copyForState} testId="canonical-visa-queue" />
-    );
-  }
-  const page = await listCanonicalVisaMilestones({
-    actorRole: actor.authorityRole,
-    cursor: cursor ?? undefined,
-    pageSize: 50,
-  });
   const copy = COPY[locale];
 
-  return (
-    <div className="space-y-5" data-testid="canonical-visa-queue">
-      <QueueHeader copy={copy} withDescription />
+  if (hasRejectedQuery(params)) {
+    return (
+      <div className="space-y-5" data-testid="platform-visa-queue">
+        <QueueHeader copy={copy} />
+        <p data-testid="platform-queue-filter-rejected" role="alert" className="border-y border-warn/30 bg-warn-weak py-6 text-sm text-warn">{copy.invalid}</p>
+        <Link href="/visa" className={btnGhostCls}>{copy.reset}</Link>
+      </div>
+    );
+  }
 
-      {page.rows.length === 0 ? (
+  const queue = await listPlatformAdmissionsVisaQueue(actor, { pageSize: 50 });
+
+  return (
+    <div className="space-y-5" data-testid="platform-visa-queue">
+      <QueueHeader copy={copy} withDescription />
+      {queue.rows.length === 0 ? (
         <p className="border-y border-border py-8 text-sm text-fg-3">{copy.empty}</p>
       ) : (
-        <Card>
-          <ul className="divide-y divide-border">
-            {page.rows.map((milestone) => (
-              <li key={milestone.visaMilestoneId} className="py-4 first:pt-0 last:pb-0">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-base font-semibold text-fg">{copy.kinds[milestone.milestoneKind]}</h2>
-                      <span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold", STATUS_CLASS[milestone.status])}>
-                        {milestone.status}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-fg-2">{milestone.displayName}</p>
-                    {milestone.nextAction ? <p className="mt-2 text-xs text-fg-3">{milestone.nextAction}</p> : null}
-                  </div>
-                  <Link href={`/clients/${milestone.studentCaseId}#visa`} className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline">
-                    {copy.open}
-                  </Link>
+        <ol className="divide-y divide-border border-y border-border">
+          {queue.rows.map((visa) => (
+            <li key={visa.visaCaseId} className="py-5" data-visa-case-id={visa.visaCaseId}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-semibold text-fg">{visa.studentDisplayName}</p>
+                  <p className="mt-2 text-xs text-fg-3">{copy.createdBy}: {visa.createdByDisplayName}</p>
+                  {visa.latestEvidenceReference ? (
+                    <p className="mt-1 break-all text-xs text-fg-3">{copy.evidence}: {visa.latestEvidenceReference}</p>
+                  ) : null}
                 </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
+                <Badge value={visa.status} label={STATUS_LABELS[visa.status]?.[locale] ?? visa.status} />
+              </div>
+              <Link
+                href={`/clients/${visa.studentCaseId}#visa`}
+                className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline"
+              >
+                {copy.open}
+              </Link>
+            </li>
+          ))}
+        </ol>
       )}
-
-      <nav className="flex items-center justify-between gap-3" aria-label={copy.title}>
-        {cursor ? <Link href="/visa" className={btnGhostCls}>← {copy.first}</Link> : <span />}
-        {page.hasNext && page.nextCursor ? <Link href={queueHref("/visa", page.nextCursor)} className={btnGhostCls} rel="next">{copy.next} →</Link> : null}
-      </nav>
-    </div>
-  );
-}
-
-function queueCursor(
-  params: SearchParams,
-): CanonicalReadCursor | null | "invalid" {
-  try {
-    return parseQueueCursor(params);
-  } catch (error: unknown) {
-    if (
-      error instanceof CanonicalCrmRepositoryError &&
-      error.code === "invalid_input"
-    ) {
-      return "invalid";
-    }
-    throw error;
-  }
-}
-
-function parseQueueCursor(params: SearchParams): CanonicalReadCursor | null {
-  if (Object.keys(params).some((key) => key !== "before_at" && key !== "before_id")) {
-    throw new CanonicalCrmRepositoryError("invalid_input");
-  }
-  const beforeAt = singleValue(params.before_at);
-  const beforeId = singleValue(params.before_id);
-  if ((beforeAt && !beforeId) || (!beforeAt && beforeId)) {
-    throw new CanonicalCrmRepositoryError("invalid_input");
-  }
-  return beforeAt && beforeId ? parseCanonicalReadCursor(beforeAt, beforeId) : null;
-}
-
-function singleValue(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) throw new CanonicalCrmRepositoryError("invalid_input");
-  return value;
-}
-
-function queueHref(path: string, cursor: CanonicalReadCursor): string {
-  const query = new URLSearchParams({ before_at: cursor.updatedAt, before_id: cursor.id });
-  return `${path}?${query.toString()}`;
-}
-
-function QueueFilterRejected({
-  copy,
-  testId,
-}: Readonly<{
-  copy: (typeof COPY)[Locale];
-  testId: string;
-}>) {
-  return (
-    <div className="space-y-5" data-testid={testId}>
-      <QueueHeader copy={copy} />
-      <div data-testid="canonical-queue-filter-rejected">
-        <p className="border-y border-border py-8 text-sm text-fg-3">{copy.invalid}</p>
-      </div>
-      <Link href="/visa" className={btnGhostCls}>{copy.filterReset}</Link>
-    </div>
-  );
-}
-
-function QueueHeader({
-  copy,
-  withDescription = false,
-}: Readonly<{
-  copy: (typeof COPY)[Locale];
-  withDescription?: boolean;
-}>) {
-  return (
-    <header className="border-b border-border pb-5">
-      <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">{copy.title}</h1>
-      {withDescription ? (
-        <p className="mt-2 max-w-[56ch] text-sm leading-5 text-fg-3">{copy.description}</p>
+      {queue.hasNext ? (
+        <p className="text-xs text-fg-3" role="status">{copy.more}</p>
       ) : null}
-    </header>
+    </div>
   );
 }

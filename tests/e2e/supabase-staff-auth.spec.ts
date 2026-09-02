@@ -1,4 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { writeFileSync } from "node:fs";
+
+import { expect, test, type Download, type Page } from "@playwright/test";
 
 const authMode = process.env.EVO_EXPECT_STAFF_AUTH_MODE ?? "configured";
 
@@ -101,7 +104,9 @@ async function localSupabaseAccessToken(role: TestRole) {
     },
   );
   if (!response.ok) {
-    throw new Error(`local Supabase password grant failed with ${response.status}`);
+    throw new Error(
+      `local Supabase password grant failed with ${response.status}`,
+    );
   }
   const payload: unknown = await response.json();
   const accessToken =
@@ -124,25 +129,30 @@ async function directPlatformRpc(
     | "mutate_lead_admissions_gate"
     | "staff_lead_admissions_handoff"
     | "handoff_lead_to_admissions"
-    | "staff_student_case_handoff_context",
+    | "staff_student_case_handoff_context"
+    | "staff_case_task_queue"
+    | "staff_case_visa"
+    | "staff_visa_queue"
+    | "staff_document_queue"
+    | "staff_student_case_document_workspace"
+    | "set_student_case_route"
+    | "create_document_requirement"
+    | "create_document_slot",
   body: Readonly<Record<string, unknown>>,
   accessToken?: string,
 ): Promise<Readonly<{ status: number; payload: unknown }>> {
   const { apiOrigin, publishableKey } = localSupabaseApiConfig();
-  const response = await fetch(
-    `${apiOrigin}/rest/v1/rpc/${functionName}`,
-    {
-      method: "POST",
-      headers: {
-        apikey: publishableKey,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "Content-Profile": "platform",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify(body),
+  const response = await fetch(`${apiOrigin}/rest/v1/rpc/${functionName}`, {
+    method: "POST",
+    headers: {
+      apikey: publishableKey,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "Content-Profile": "platform",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
-  );
+    body: JSON.stringify(body),
+  });
   let payload: unknown = null;
   try {
     payload = await response.json();
@@ -152,15 +162,108 @@ async function directPlatformRpc(
   return { status: response.status, payload };
 }
 
-function assertDeniedRpc(result: Readonly<{ status: number; payload: unknown }>) {
+async function directStorageRequest(
+  path: string,
+  accessToken: string,
+  init: Readonly<{
+    method: "POST" | "PUT" | "DELETE";
+    contentType: string;
+    body: BodyInit;
+    upsert?: boolean;
+  }>,
+): Promise<Readonly<{ status: number; payload: unknown }>> {
+  const { apiOrigin, publishableKey } = localSupabaseApiConfig();
+  const response = await fetch(`${apiOrigin}/storage/v1/${path}`, {
+    method: init.method,
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": init.contentType,
+      ...(init.upsert ? { "x-upsert": "true" } : {}),
+    },
+    body: init.body,
+    redirect: "manual",
+  });
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    // Status remains authoritative for non-JSON Storage responses.
+  }
+  return { status: response.status, payload };
+}
+
+function expectStorageDenied(status: number) {
+  expect(status).toBeGreaterThanOrEqual(400);
+  expect(status).toBeLessThan(500);
+}
+
+async function readDownload(download: Download): Promise<Buffer> {
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+async function submitDocumentUpload(page: Page, documentSlotId: string) {
+  const status = await page
+    .getByTestId("platform-document-upload-form")
+    .evaluate(async (node, slotId) => {
+      if (!(node instanceof HTMLFormElement)) {
+        throw new Error("expected an HTML form for document upload");
+      }
+      const requestIdInput = node.querySelector('input[name="request_id"]');
+      const fileInput = node.querySelector('input[name="file"]');
+      if (
+        !(requestIdInput instanceof HTMLInputElement) ||
+        requestIdInput.value.length === 0
+      ) {
+        throw new Error("expected upload request id");
+      }
+      if (
+        !(fileInput instanceof HTMLInputElement) ||
+        !(fileInput.files instanceof FileList) ||
+        fileInput.files.length !== 1
+      ) {
+        throw new Error("expected exactly one selected upload file");
+      }
+      const formData = new FormData();
+      formData.set("request_id", requestIdInput.value);
+      formData.set("file", fileInput.files[0]);
+      const response = await fetch(`/api/v2/document-slots/${slotId}/versions`, {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+      });
+      return response.status;
+    }, documentSlotId);
+  expect(status).toBe(201);
+  await page.reload();
+}
+
+function writeP4AcceptanceResult(result: Readonly<Record<string, unknown>>) {
+  const resultPath = process.env.EVO_P4_ACCEPTANCE_RESULT_FILE;
+  if (!resultPath) {
+    throw new Error("EVO_P4_ACCEPTANCE_RESULT_FILE is required");
+  }
+  writeFileSync(resultPath, JSON.stringify(result), { mode: 0o600 });
+}
+
+function assertDeniedRpc(
+  result: Readonly<{ status: number; payload: unknown }>,
+) {
   expect([401, 403]).toContain(result.status);
-  expect(Array.isArray(result.payload) && result.payload.length > 0).toBe(false);
+  expect(Array.isArray(result.payload) && result.payload.length > 0).toBe(
+    false,
+  );
 }
 
 function expectObject(value: unknown): Record<string, unknown> {
-  expect(value !== null && typeof value === "object" && !Array.isArray(value)).toBe(
-    true,
-  );
+  expect(
+    value !== null && typeof value === "object" && !Array.isArray(value),
+  ).toBe(true);
   return value as Record<string, unknown>;
 }
 
@@ -190,7 +293,10 @@ async function expectActiveRole(
   role: TestRole,
   authorityRole: TestRole = role,
 ) {
-  await expect(page.getByTestId("active-role")).toHaveAttribute("data-role", role);
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-role",
+    role,
+  );
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-authority-role",
     authorityRole,
@@ -222,7 +328,9 @@ async function expectExactSupabaseSalesRead(
 ) {
   await page.goto(`/sales?q=${encodeURIComponent(leadId)}`);
   await expect(page.getByTestId("platform-sales-page")).toBeVisible();
-  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(0);
+  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(
+    0,
+  );
 
   const rows = page.getByTestId("canonical-lead-row");
   await expect(rows).toHaveCount(1);
@@ -235,13 +343,15 @@ async function expectExactSupabaseSalesRead(
 
   await exactRow.locator(`a[href="/sales/${leadId}"]`).click();
   await expect(page).toHaveURL(new RegExp(`/sales/${leadId}$`));
-  await expect(page.getByTestId("canonical-sales-lead-workspace")).toBeVisible();
+  await expect(
+    page.getByTestId("canonical-sales-lead-workspace"),
+  ).toBeVisible();
   await expect(page.getByTestId("canonical-lead-id").locator("dd")).toHaveText(
     leadId,
   );
-  await expect(page.getByTestId("canonical-client-id").locator("dd")).toHaveText(
-    clientId,
-  );
+  await expect(
+    page.getByTestId("canonical-client-id").locator("dd"),
+  ).toHaveText(clientId);
   await expect(
     page.getByTestId("canonical-lead-workflow-version").locator("dd"),
   ).toHaveText("7");
@@ -258,7 +368,9 @@ test("the staff login exposes only email/password and removed access routes stay
   expect(response?.status()).toBe(200);
   await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   await expect(
-    page.locator('form[aria-labelledby="login-title"] input:not([type="hidden"])'),
+    page.locator(
+      'form[aria-labelledby="login-title"] input:not([type="hidden"])',
+    ),
   ).toHaveCount(2);
   await expect(page.locator('input[name="email"]')).toHaveCount(1);
   await expect(page.locator('input[name="password"]')).toHaveCount(1);
@@ -394,7 +506,9 @@ test("Sales detail renders only the exact verified conversation and its link ope
     new RegExp(`/sales/${leadId}/conversations/${conversationId}$`),
   );
   await expect(page.getByTestId("canonical-sales-transcript")).toBeVisible();
-  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(0);
+  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(
+    0,
+  );
 });
 
 test("Sales RPCs deny anonymous and Admissions callers at the real API boundary", async () => {
@@ -443,7 +557,11 @@ test("Sales RPCs deny anonymous and Admissions callers at the real API boundary"
       await directPlatformRpc("staff_sales_lead_page", pageBody, accessToken),
     );
     assertDeniedRpc(
-      await directPlatformRpc("staff_sales_lead_detail", detailBody, accessToken),
+      await directPlatformRpc(
+        "staff_sales_lead_detail",
+        detailBody,
+        accessToken,
+      ),
     );
   }
 });
@@ -589,10 +707,9 @@ test("Sales and Admin persist the same canonical workflow through the real inter
     .getByTestId("platform-sales-next-action-due-date")
     .fill("2099-09-08");
   await page.getByTestId("platform-sales-submit").click();
-  await expect(page.getByTestId("platform-sales-action-status")).toHaveAttribute(
-    "data-status",
-    "saved",
-  );
+  await expect(
+    page.getByTestId("platform-sales-action-status"),
+  ).toHaveAttribute("data-status", "saved");
   await expect(
     page.getByTestId("canonical-lead-stage").locator("dd"),
   ).toHaveText(/meeting scheduled/i);
@@ -625,10 +742,9 @@ test("Sales and Admin persist the same canonical workflow through the real inter
     .getByTestId("platform-sales-next-action-due-date")
     .fill("2099-09-09");
   await page.getByTestId("platform-sales-submit").click();
-  await expect(page.getByTestId("platform-sales-action-status")).toHaveAttribute(
-    "data-status",
-    "saved",
-  );
+  await expect(
+    page.getByTestId("platform-sales-action-status"),
+  ).toHaveAttribute("data-status", "saved");
   await expect(
     page.getByTestId("canonical-lead-stage").locator("dd"),
   ).toHaveText(/qualified/i);
@@ -637,7 +753,9 @@ test("Sales and Admin persist the same canonical workflow through the real inter
   ).toHaveText("13");
 
   await page.reload();
-  await expect(page.getByTestId("platform-sales-stage")).toHaveValue("qualified");
+  await expect(page.getByTestId("platform-sales-stage")).toHaveValue(
+    "qualified",
+  );
   await expect(page.getByTestId("platform-sales-next-action-text")).toHaveValue(
     "Browser Admin qualification review",
   );
@@ -650,6 +768,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   page,
 }) => {
   test.skip(authMode !== "configured");
+  test.setTimeout(120_000);
   const leadId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_LEAD_ID");
   const clientId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_CLIENT_ID");
   const [salesToken, admissionsToken, adminToken] = await Promise.all([
@@ -659,10 +778,14 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   ]);
 
   assertDeniedRpc(
-    await directPlatformRpc("staff_lead_admissions_gate", { p_lead_id: leadId }),
+    await directPlatformRpc("staff_lead_admissions_gate", {
+      p_lead_id: leadId,
+    }),
   );
   assertDeniedRpc(
-    await directPlatformRpc("staff_lead_admissions_handoff", { p_lead_id: leadId }),
+    await directPlatformRpc("staff_lead_admissions_handoff", {
+      p_lead_id: leadId,
+    }),
   );
 
   const admissionsGate = await directPlatformRpc(
@@ -697,9 +820,9 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   await signIn(page, "sales");
   await page.goto(`/sales/${leadId}`);
-  await expect(page.getByTestId("canonical-client-id").locator("dd")).toHaveText(
-    clientId,
-  );
+  await expect(
+    page.getByTestId("canonical-client-id").locator("dd"),
+  ).toHaveText(clientId);
 
   const contractForm = page.getByTestId("platform-gate-contract-form");
   await expect(contractForm).toBeVisible();
@@ -731,7 +854,9 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .getAttribute("value");
   expect(admissionsOwnerId).toBeTruthy();
   await ownerSelect.selectOption(admissionsOwnerId!);
-  await handoffForm.locator('select[name="handoff_mode"]').selectOption("normal");
+  await handoffForm
+    .locator('select[name="handoff_mode"]')
+    .selectOption("normal");
   await handoffForm
     .locator('textarea[name="reason"]')
     .fill("Local browser proof of the reviewed Sales to Admissions handoff");
@@ -759,12 +884,12 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     ),
   );
   assertDeniedRpc(
-    await directPlatformRpc(
-      "staff_student_case_handoff_context",
-      { p_student_case_id: studentCaseId },
-    ),
+    await directPlatformRpc("staff_student_case_handoff_context", {
+      p_student_case_id: studentCaseId,
+    }),
   );
   const refreshedAdmissionsToken = await localSupabaseAccessToken("admissions");
+  let organizationId: string | null = null;
   for (const accessToken of [refreshedAdmissionsToken, adminToken]) {
     const context = await directPlatformRpc(
       "staff_student_case_handoff_context",
@@ -773,36 +898,594 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     );
     expect(context.status).toBe(200);
     expect(context.payload).toHaveLength(1);
-    expect(expectObject((context.payload as unknown[])[0])).toMatchObject({
+    const contextRow = expectObject((context.payload as unknown[])[0]);
+    expect(contextRow).toMatchObject({
       lead_id: leadId,
       student_case_id: studentCaseId,
       case_state: "active",
       handoff_mode: "normal",
       handoff_state: "completed",
     });
+    organizationId ??= requireUuidValue(contextRow.organization_id);
   }
+  expect(organizationId).not.toBeNull();
+
+  const p4Route = {
+    targetCountry: "Isolated technical country",
+    targetDegree: "Isolated technical degree",
+    programDirection: "EVO P4 browser verification",
+  } as const;
+  const routeResult = await directPlatformRpc(
+    "set_student_case_route",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: studentCaseId,
+      p_target_country: p4Route.targetCountry,
+      p_target_degree: p4Route.targetDegree,
+      p_program_direction: p4Route.programDirection,
+      p_intake: "2099 technical intake",
+      p_language_assumption: "English",
+      p_funding_assumption: "Isolated technical acceptance only",
+      p_route_approval_status: "draft",
+      p_operational_stage: "admissions_validation",
+      p_next_action: "Run isolated browser admissions proof",
+      p_reason: "Initialize the real case route for P4 browser acceptance",
+      p_request_id: randomUUID(),
+    },
+    refreshedAdmissionsToken,
+  );
+  expect(routeResult.status, JSON.stringify(routeResult.payload)).toBe(200);
+  expect(routeResult.payload).toMatchObject({
+    organization_id: organizationId,
+    student_case_id: studentCaseId,
+    target_country: p4Route.targetCountry,
+    target_degree: p4Route.targetDegree,
+    program_direction: p4Route.programDirection,
+    route_approval_status: "draft",
+  });
+
+  for (const [functionName, body] of [
+    ["staff_case_task_queue", { p_limit: 50 }],
+    ["staff_visa_queue", { p_limit: 50 }],
+    ["staff_document_queue", { p_limit: 50 }],
+    [
+      "staff_student_case_document_workspace",
+      { p_student_case_id: studentCaseId },
+    ],
+  ] as const) {
+    const admissionsRead = await directPlatformRpc(
+      functionName,
+      body,
+      refreshedAdmissionsToken,
+    );
+    const adminRead = await directPlatformRpc(functionName, body, adminToken);
+    expect(admissionsRead.status).toBe(200);
+    expect(adminRead.status).toBe(200);
+    assertDeniedRpc(await directPlatformRpc(functionName, body, salesToken));
+    assertDeniedRpc(await directPlatformRpc(functionName, body));
+  }
+
+  const requirementResult = await directPlatformRpc(
+    "create_document_requirement",
+    {
+      p_organization_id: organizationId,
+      p_target_country: p4Route.targetCountry,
+      p_target_degree: p4Route.targetDegree,
+      p_program_direction: p4Route.programDirection,
+      p_checklist_version: 548,
+      p_requirement_key: "p4.real-storage-proof",
+      p_label: "P4 real private Storage proof",
+      p_instructions:
+        "Upload the isolated technical PDF and verify immutable resubmission.",
+      p_request_id: randomUUID(),
+    },
+    adminToken,
+  );
+  expect(
+    requirementResult.status,
+    JSON.stringify(requirementResult.payload),
+  ).toBe(200);
+  const documentRequirementId = requireUuidValue(
+    expectObject(requirementResult.payload).document_requirement_id,
+  );
+
+  assertDeniedRpc(
+    await directPlatformRpc(
+      "create_document_slot",
+      {
+        p_organization_id: organizationId,
+        p_student_case_id: studentCaseId,
+        p_document_requirement_id: documentRequirementId,
+        p_deadline: "2099-09-12T12:00:00Z",
+        p_next_action: "Run isolated browser upload proof",
+        p_request_id: randomUUID(),
+      },
+      salesToken,
+    ),
+  );
+  const slotResult = await directPlatformRpc(
+    "create_document_slot",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: studentCaseId,
+      p_document_requirement_id: documentRequirementId,
+      p_deadline: "2099-09-12T12:00:00Z",
+      p_next_action: "Run isolated browser upload proof",
+      p_request_id: randomUUID(),
+    },
+    adminToken,
+  );
+  expect(slotResult.status, JSON.stringify(slotResult.payload)).toBe(200);
+  const documentSlotId = requireUuidValue(
+    expectObject(slotResult.payload).document_slot_id,
+  );
+
+  await page.context().clearCookies();
+  await signIn(page, "admin");
+  await page.goto(`/clients/${studentCaseId}`);
+  await expect(
+    page.getByTestId("platform-student-case-workspace"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("platform-admissions-task-panel"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("platform-admissions-operations"),
+  ).toBeVisible();
+  await expect(page.getByTestId("platform-private-documents")).toBeVisible();
+
+  const finance = page.getByTestId("platform-case-finance-control");
+  await finance
+    .locator("details")
+    .filter({ hasText: "Добавить обязательство" })
+    .locator("summary")
+    .click();
+  const createPayment = finance.locator('form:has(input[name="label"])');
+  await createPayment
+    .locator('input[name="label"]')
+    .fill("P4 isolated payment proof");
+  await createPayment.locator('input[name="amount"]').fill("25.00");
+  await createPayment.locator('select[name="currency"]').selectOption("USD");
+  await createPayment.locator('input[name="due_date"]').fill("2099-09-12");
+  await createPayment
+    .locator('input[name="next_action"]')
+    .fill("Verify Admissions stop and Admin release");
+  await createPayment
+    .locator('input[name="reason"]')
+    .fill("Isolated P4 finance transition proof");
+  await createPayment.locator('button[type="submit"]').click();
+
+  const obligation = page
+    .getByTestId("platform-case-finance-control")
+    .locator("article")
+    .filter({ hasText: "P4 isolated payment proof" });
+  await expect(obligation).toBeVisible();
+  const paymentObligationId = requireUuidValue(
+    await obligation.getAttribute("data-obligation-id"),
+  );
 
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await page.goto(`/clients/${studentCaseId}`);
-  await expect(page.getByTestId("platform-student-case-workspace")).toBeVisible();
-  await expect(page.getByTestId("platform-student-handoff-context")).toBeVisible();
+  await expect(
+    page.getByTestId("platform-student-case-workspace"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("platform-student-handoff-context"),
+  ).toBeVisible();
   await expect(page.getByTestId("platform-student-profile")).toHaveAttribute(
     "data-status",
     "not-created",
+  );
+
+  const taskPanel = page.getByTestId("platform-admissions-task-panel");
+  await taskPanel
+    .locator("details")
+    .filter({ hasText: "Создать задачу" })
+    .locator("summary")
+    .click();
+  const createTask = taskPanel.getByTestId(
+    "platform-admissions-task-create-form",
+  );
+  await createTask.locator('input[name="task_type"]').fill("p4_storage_review");
+  await createTask
+    .locator('input[name="title"]')
+    .fill("P4 isolated Admissions task proof");
+  await createTask.locator('select[name="priority"]').selectOption("high");
+  await createTask
+    .locator('select[name="student_visible"]')
+    .selectOption("false");
+  await createTask.locator('button[type="submit"]').click();
+
+  const createdTask = page
+    .getByTestId("platform-admissions-task")
+    .filter({ hasText: "P4 isolated Admissions task proof" });
+  await expect(createdTask).toHaveCount(1);
+  const caseTaskId = requireUuidValue(
+    await createdTask.getAttribute("data-task-id"),
+  );
+  await createdTask.locator("summary").click();
+  const changeTask = createdTask.getByTestId(
+    "platform-admissions-task-change-form",
+  );
+  await changeTask.locator('select[name="status"]').selectOption("done");
+  await changeTask.locator('button[type="submit"]').click();
+  await expect(
+    page.locator(
+      `[data-testid="platform-admissions-task"][data-task-id="${caseTaskId}"]`,
+    ),
+  ).toHaveAttribute("data-status", "done");
+
+  const applications = page.getByTestId("platform-university-applications");
+  await applications
+    .locator("details")
+    .filter({ hasText: "Добавить заявку" })
+    .locator("summary")
+    .click();
+  const createApplication = applications.locator(
+    'form:has(input[name="institution_name"])',
+  );
+  await createApplication
+    .locator('input[name="institution_name"]')
+    .fill("P4 isolated technical university");
+  await createApplication
+    .locator('input[name="program_name"]')
+    .fill("P4 isolated technical program");
+  await createApplication
+    .locator('input[name="evidence_reference"]')
+    .fill("p4://application-created");
+  await createApplication.locator('button[type="submit"]').click();
+
+  const application = page
+    .getByTestId("platform-university-applications")
+    .locator("article")
+    .filter({ hasText: "P4 isolated technical university" });
+  await expect(application).toHaveCount(1);
+  const universityApplicationId = requireUuidValue(
+    await application.getAttribute("data-application-id"),
+  );
+  await application.locator("summary").click();
+  const changeApplication = application.locator(
+    'form:has(input[name="application_id"])',
+  );
+  await changeApplication
+    .locator('select[name="status"]')
+    .selectOption("submitted");
+  await changeApplication
+    .locator('input[name="evidence_reference"]')
+    .fill("p4://application-submitted");
+  await changeApplication.locator('button[type="submit"]').click();
+  await expect(
+    page
+      .getByTestId("platform-university-applications")
+      .locator(`[data-application-id="${universityApplicationId}"]`),
+  ).toContainText("p4://application-submitted");
+
+  const visaSection = page.getByTestId("platform-case-visa");
+  const visaForm = visaSection.locator('form:has(select[name="status"])');
+  await visaForm.locator('select[name="status"]').selectOption("docs");
+  await visaForm
+    .locator('input[name="evidence_reference"]')
+    .fill("p4://visa-documents");
+  await visaForm
+    .locator('textarea[name="note"]')
+    .fill("Isolated P4 visa transition");
+  await visaForm.locator('button[type="submit"]').click();
+  const visaCaseIdInput = page
+    .getByTestId("platform-case-visa")
+    .locator('input[name="visa_case_id"]');
+  await expect(visaCaseIdInput).toHaveValue(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  const browserVisaCaseId = requireUuidValue(
+    await visaCaseIdInput.inputValue(),
+  );
+  const persistedVisaResult = await directPlatformRpc(
+    "staff_case_visa",
+    { p_student_case_id: studentCaseId },
+    refreshedAdmissionsToken,
+  );
+  expect(
+    persistedVisaResult.status,
+    JSON.stringify(persistedVisaResult.payload),
+  ).toBe(200);
+  expect(persistedVisaResult.payload).toHaveLength(1);
+  const persistedVisa = expectObject(
+    (persistedVisaResult.payload as unknown[])[0],
+  );
+  expect(persistedVisa).toMatchObject({
+    visa_case_id: browserVisaCaseId,
+    case_id: studentCaseId,
+    visa_status: "docs",
+    note: "Isolated P4 visa transition",
+  });
+  const visaCaseId = requireUuidValue(persistedVisa?.visa_case_id);
+
+  const admissionsObligation = page
+    .getByTestId("platform-case-finance-control")
+    .locator(`[data-obligation-id="${paymentObligationId}"]`);
+  await admissionsObligation
+    .locator("details")
+    .filter({ hasText: "Поставить финансовый стоп" })
+    .locator("summary")
+    .click();
+  const assertStop = admissionsObligation.locator(
+    'form:has(input[name="payment_obligation_id"])',
+  );
+  await assertStop
+    .locator('select[name="blocked_action"]')
+    .selectOption("case_progression");
+  await assertStop
+    .locator('input[name="reason"]')
+    .fill("P4 isolated finance stop");
+  await assertStop
+    .locator('input[name="next_action"]')
+    .fill("Admin verifies and releases the stop");
+  await assertStop
+    .locator('input[name="evidence_ref"]')
+    .fill("p4://stop-asserted");
+  await assertStop.locator('button[type="submit"]').click();
+  await expect(
+    page
+      .getByTestId("platform-case-finance-control")
+      .locator(`[data-obligation-id="${paymentObligationId}"]`),
+  ).toContainText("P4 isolated finance stop");
+
+  const firstPdf = Buffer.from(
+    "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n",
+    "utf8",
+  );
+  const secondPdf = Buffer.from(
+    "%PDF-1.4\n1 0 obj<</Type/Catalog/Version/1.7>>endobj\n%%EOF\n",
+    "utf8",
+  );
+  const unreservedObject = `unreserved/${randomUUID()}.pdf`;
+  expectStorageDenied(
+    (
+      await directStorageRequest(
+        `object/platform-documents/${unreservedObject}`,
+        refreshedAdmissionsToken,
+        {
+          method: "POST",
+          contentType: "application/pdf",
+          body: firstPdf,
+          upsert: true,
+        },
+      )
+    ).status,
+  );
+  const directBucketList = await directStorageRequest(
+    "object/list/platform-documents",
+    refreshedAdmissionsToken,
+    {
+      method: "POST",
+      contentType: "application/json",
+      body: JSON.stringify({ prefix: "", limit: 100, offset: 0 }),
+    },
+  );
+  expect(directBucketList.status).toBe(200);
+  expect(directBucketList.payload).toEqual([]);
+
+  const documentSlot = page.locator(
+    `[data-testid="platform-document-slot"][data-document-slot-id="${documentSlotId}"]`,
+  );
+  await expect(documentSlot).toHaveAttribute("data-slot-status", "required");
+  const firstUpload = documentSlot.getByTestId("platform-document-upload-form");
+  await firstUpload.locator('input[name="file"]').setInputFiles({
+    name: "p4-isolated-proof-v1.pdf",
+    mimeType: "application/pdf",
+    buffer: firstPdf,
+  });
+  await submitDocumentUpload(page, documentSlotId);
+  await expect(
+    documentSlot.getByTestId("platform-document-version"),
+  ).toHaveCount(1);
+  const firstVersion = documentSlot.locator(
+    '[data-testid="platform-document-version"][data-version-number="1"]',
+  );
+  await expect(firstVersion).toContainText("p4-isolated-proof-v1.pdf");
+  const firstVersionHref = await firstVersion
+    .getByTestId("platform-document-download")
+    .getAttribute("href");
+  const firstDocumentVersionId = requireUuidValue(
+    firstVersionHref?.split("/")[4],
+  );
+  const firstDownloadPromise = page.waitForEvent("download");
+  await firstVersion.getByTestId("platform-document-download").click();
+  expect(await readDownload(await firstDownloadPromise)).toEqual(firstPdf);
+
+  const firstReview = firstVersion.locator('form:has(select[name="decision"])');
+  await firstReview
+    .locator('select[name="decision"]')
+    .selectOption("correction_required");
+  await firstReview
+    .locator('input[name="reason"]')
+    .fill("P4 isolated resubmission requested");
+  await firstReview.locator('button[type="submit"]').click();
+  await expect(documentSlot).toHaveAttribute(
+    "data-slot-status",
+    "correction_required",
+  );
+
+  const secondUpload = documentSlot.getByTestId(
+    "platform-document-upload-form",
+  );
+  await secondUpload.locator('input[name="file"]').setInputFiles({
+    name: "p4-isolated-proof-v2.pdf",
+    mimeType: "application/pdf",
+    buffer: secondPdf,
+  });
+  await submitDocumentUpload(page, documentSlotId);
+  await expect(
+    documentSlot.getByTestId("platform-document-version"),
+  ).toHaveCount(2);
+  const secondVersion = documentSlot.locator(
+    '[data-testid="platform-document-version"][data-version-number="2"]',
+  );
+  await expect(secondVersion).toContainText("p4-isolated-proof-v2.pdf");
+  const secondVersionHref = await secondVersion
+    .getByTestId("platform-document-download")
+    .getAttribute("href");
+  const secondDocumentVersionId = requireUuidValue(
+    secondVersionHref?.split("/")[4],
+  );
+  expect(secondDocumentVersionId).not.toBe(firstDocumentVersionId);
+  const immutableFirstDownload = page.waitForEvent("download");
+  await documentSlot
+    .locator(
+      '[data-testid="platform-document-version"][data-version-number="1"]',
+    )
+    .getByTestId("platform-document-download")
+    .click();
+  expect(await readDownload(await immutableFirstDownload)).toEqual(firstPdf);
+
+  await page.goto("/tasks");
+  await expect(
+    page.locator(
+      `[data-testid="platform-admissions-task"][data-task-id="${caseTaskId}"]`,
+    ),
+  ).toHaveAttribute("data-status", "done");
+  await page.goto("/applications");
+  await expect(
+    page.locator(`[data-application-id="${universityApplicationId}"]`),
+  ).toContainText("Подана");
+  await page.goto("/visa");
+  await expect(page.getByTestId("platform-visa-queue")).toContainText(
+    "p4://visa-documents",
+  );
+  await page.goto("/documents");
+  await expect(
+    page.locator(`[data-document-slot-id="${documentSlotId}"]`),
+  ).toBeVisible();
+
+  await page.context().clearCookies();
+  await signIn(page, "sales");
+  await page.goto(`/clients/${studentCaseId}`);
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Fclients$/);
+  const deniedUpload = await page.request.post(
+    `/api/v2/document-slots/${documentSlotId}/versions`,
+    {
+      multipart: {
+        request_id: randomUUID(),
+        file: {
+          name: "p4-sales-denied.pdf",
+          mimeType: "application/pdf",
+          buffer: firstPdf,
+        },
+      },
+      maxRedirects: 0,
+    },
+  );
+  expect(deniedUpload.status()).toBe(403);
+  expectStorageDenied(
+    (
+      await directStorageRequest(
+        `object/platform-documents/sales-unreserved/${randomUUID()}.pdf`,
+        salesToken,
+        {
+          method: "POST",
+          contentType: "application/pdf",
+          body: firstPdf,
+          upsert: true,
+        },
+      )
+    ).status,
   );
 
   await page.context().clearCookies();
   await signIn(page, "admin");
   await page.goto(`/sales/${leadId}`);
   await expect(
-    page.getByTestId("platform-handoff-result").locator(`a[href="/clients/${studentCaseId}"]`),
+    page
+      .getByTestId("platform-handoff-result")
+      .locator(`a[href="/clients/${studentCaseId}"]`),
   ).toBeVisible();
   await page.goto(`/clients/${studentCaseId}`);
-  await expect(page.getByTestId("platform-student-case-workspace")).toBeVisible();
-  await expect(page.getByTestId("platform-student-handoff-context")).toContainText(
-    studentCaseId,
+  await expect(
+    page.getByTestId("platform-student-case-workspace"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("platform-student-handoff-context"),
+  ).toContainText(studentCaseId);
+
+  const adminDocumentSlot = page.locator(
+    `[data-testid="platform-document-slot"][data-document-slot-id="${documentSlotId}"]`,
   );
+  await expect(
+    adminDocumentSlot.getByTestId("platform-document-version"),
+  ).toHaveCount(2);
+  const approveSecond = adminDocumentSlot
+    .locator(
+      '[data-testid="platform-document-version"][data-version-number="2"]',
+    )
+    .locator('form:has(select[name="decision"])');
+  await approveSecond
+    .locator('select[name="decision"]')
+    .selectOption("approved");
+  await approveSecond.locator('button[type="submit"]').click();
+  await expect(adminDocumentSlot).toHaveAttribute(
+    "data-slot-status",
+    "approved",
+  );
+
+  const adminObligation = page
+    .getByTestId("platform-case-finance-control")
+    .locator(`[data-obligation-id="${paymentObligationId}"]`);
+  const resolveStop = adminObligation.locator(
+    'form:has(input[name="stop_factor_id"])',
+  );
+  await expect(resolveStop).toBeVisible();
+  const stopFactorId = requireUuidValue(
+    await resolveStop
+      .locator('input[name="stop_factor_id"]')
+      .getAttribute("value"),
+  );
+  await resolveStop
+    .locator('input[name="reason"]')
+    .fill("Admin completed isolated stop review");
+  await resolveStop
+    .locator('input[name="evidence_ref"]')
+    .fill("p4://stop-released");
+  await resolveStop.locator('button[type="submit"]').click();
+  await expect(
+    page
+      .getByTestId("platform-case-finance-control")
+      .locator(`[data-obligation-id="${paymentObligationId}"]`)
+      .locator('form:has(input[name="stop_factor_id"])'),
+  ).toHaveCount(0);
+
+  const settleDetails = page
+    .getByTestId("platform-case-finance-control")
+    .locator(`[data-obligation-id="${paymentObligationId}"]`)
+    .locator("details")
+    .filter({ hasText: "Подтвердить полную оплату" });
+  await settleDetails.locator("summary").click();
+  const settlePayment = settleDetails.locator("form");
+  await settlePayment
+    .locator('input[name="evidence_ref"]')
+    .fill("p4://payment-settled");
+  await settlePayment
+    .locator('input[name="reason"]')
+    .fill("Admin confirmed isolated full payment");
+  await settlePayment.locator('button[type="submit"]').click();
+  await expect(
+    page
+      .getByTestId("platform-case-finance-control")
+      .locator(`[data-obligation-id="${paymentObligationId}"]`),
+  ).toContainText("Оплачено");
+
+  writeP4AcceptanceResult({
+    organizationId,
+    studentCaseId,
+    caseTaskId,
+    universityApplicationId,
+    visaCaseId,
+    paymentObligationId,
+    stopFactorId,
+    documentSlotId,
+    firstDocumentVersionId,
+    secondDocumentVersionId,
+  });
 });
 
 test("Admin preview changes only the effective interface, not Supabase authority", async ({
@@ -876,4 +1559,23 @@ test("missing Supabase configuration stays unavailable instead of falling back",
       isSupabaseAuthCookie(name),
     ),
   ).toBe(false);
+
+  const documentResponse = await page.request.post(
+    "/api/v2/document-slots/54600000-0000-4000-8000-000000000099/versions",
+    {
+      multipart: {
+        request_id: randomUUID(),
+        file: {
+          name: "must-not-fall-back.pdf",
+          mimeType: "application/pdf",
+          buffer: Buffer.from("%PDF-1.4\n%%EOF\n", "utf8"),
+        },
+      },
+      maxRedirects: 0,
+    },
+  );
+  expect(documentResponse.status()).toBe(503);
+  expect(await documentResponse.json()).toEqual({
+    error: "auth_unavailable",
+  });
 });

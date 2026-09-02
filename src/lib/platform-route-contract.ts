@@ -23,9 +23,8 @@ const PLATFORM_LEAD_CONVERSATION_PATH =
   /^\/sales\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_CLIENT_PATH =
   /^\/clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PRIVATE_DOCUMENT_UPLOAD_PATH = "/api/v2/documents";
-const PRIVATE_DOCUMENT_RESUBMISSION_PATH =
-  /^\/api\/v2\/documents\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/resubmissions$/i;
+const PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH =
+  /^\/api\/v2\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
 const PRIVATE_DOCUMENT_DOWNLOAD_PATH =
   /^\/api\/v2\/document-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/download$/i;
 const PLATFORM_STAFF_ASSISTANT_PATH =
@@ -87,8 +86,7 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
  */
 export function isConnectedPlatformApi(path: string): boolean {
   return (
-    path === PRIVATE_DOCUMENT_UPLOAD_PATH ||
-    PRIVATE_DOCUMENT_RESUBMISSION_PATH.test(path) ||
+    PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH.test(path) ||
     PRIVATE_DOCUMENT_DOWNLOAD_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );

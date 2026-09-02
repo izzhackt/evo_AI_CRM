@@ -15226,3 +15226,54 @@ provider-command dependencies. Neither container may read or render an
 alternate Student 360 summary, gate, handoff or contract path. No migration is
 applied to the managed project and no V1, production-data, provider or traffic
 mutation is authorized by this change.
+
+## 2026-09-02 - Pin the #548 Admissions and private Storage replacement boundary
+
+Date: 2026-09-02, workspace timezone (+04).
+Author: Codex under the owner's approved production-successor program.
+Change type: #548 implementation-contract clarification before merge; no
+managed-project, production, provider or customer-data mutation.
+Affected plan section: P4 Admissions operations and private files tracer.
+
+Repository inspection confirmed that the useful Supabase foundation already
+contains the canonical task, application, visa, finance, immutable document
+version, private bucket, reservation/finalization and audited download-grant
+state machines. #548 therefore reuses migrations 042, 043, 046, 055 and 089
+and adds only forward migration 095 for the missing role-scoped staff queues,
+Student 360 document workspace and Admissions finance-stop assertion. It does
+not rebuild or wrap the existing Storage lifecycle.
+
+The accepted runtime has one authenticated Supabase session and RLS boundary,
+one set of typed Admissions adapters/panels, one private
+`platform-documents` byte store and one slot-based upload route. The actor's
+session reserves metadata and performs the insert-only upload; the backend-only
+Supabase secret is limited to the existing service-role finalization,
+validation-attestation, one-use grant consumption and exact-object signing
+steps. Signed downloads expire in at most 60 seconds. Direct authenticated
+bucket listing/read/update/delete, public objects, local files, Drizzle
+document metadata, dual paths and fallback repositories remain forbidden.
+
+Ambiguous task, application, visa, payment, finance-stop and document-review
+results must return the original request identifier and exact operation/subject
+so a human retry replays the receipt instead of creating a duplicate. Real
+local Supabase/PostgreSQL, Storage API and Chromium proof must cover Admin and
+assigned Admissions success, Sales/anonymous/other-membership denial, real
+upload/download, immutable resubmission and missing-primary fail-closed
+behavior.
+
+The local technical proof may use the foundation's explicit
+`scanner_proof=false` checksum/file-signature attestation. It is not antivirus
+or malware-provider acceptance, and #551 must add and prove a real scanner
+before real staff, production upload, public exposure or cutover. In #548 the
+superseded local-file/Drizzle stack, Busboy dependency, generic document routes,
+repository-backed Admissions panels/actions/tests and dead environment/config
+must be deleted after proof. Frozen V1 and historical migrations, ADRs,
+runbooks, archived docs, evidence and other decision/rollback documentation
+remain preserved and inactive.
+
+`src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx` plus only the exact
+repository reads required by its command service are the named temporary #549
+coexistence. They cannot supply Admissions, Student 360, document or finance
+data, and expire when #549 replaces the provider command path. No #548 work
+applies migrations to the managed project, mutates provider/customer data,
+changes V1 deployment or switches traffic.

@@ -34,7 +34,6 @@ const PRODUCTION_SECRET_KEY_SHA256 =
 
 const example = `
 DATABASE_URL=
-EVO_PRIVATE_DOCUMENT_ROOT=
 EVO_CRM_DOMAIN=crm.evoadmissions.com
 EVO_CADDY_NETWORK=evo_public_web
 NEXT_PUBLIC_SUPABASE_URL=https://replace-with-project.supabase.co
@@ -58,14 +57,13 @@ ANTHROPIC_API_KEY=
 // against the matching historical contract without making V2 runtime settings
 // part of that deployment boundary.
 const frozenV1Example = example.replace(
-  "DATABASE_URL=\nEVO_PRIVATE_DOCUMENT_ROOT=\n",
+  "DATABASE_URL=\n",
   "",
 );
 
 function valid(overrides = {}) {
   const values = {
     DATABASE_URL: "",
-    EVO_PRIVATE_DOCUMENT_ROOT: "",
     EVO_CRM_DOMAIN: "crm.evoadmissions.com",
     EVO_CADDY_NETWORK: "evo_public_web",
     NEXT_PUBLIC_SUPABASE_URL: "https://staging.supabase.co",
@@ -118,37 +116,6 @@ function controlledStaging(actualText) {
 test("accepts required runtime values while allowing disabled optional integrations to stay empty", () => {
   assert.deepEqual(
     validateAppEnvironmentContract({ exampleText: example, actualText: valid() }),
-    { ok: true, code: "valid" },
-  );
-});
-
-test("V2 PostgreSQL configuration requires one dedicated absolute private document root", () => {
-  const databaseUrl = "postgresql://evo:private@127.0.0.1:5432/evo";
-  expectInvalid(
-    valid({ DATABASE_URL: databaseUrl }),
-    "v2_required_env_value_missing",
-  );
-  expectInvalid(
-    valid({ EVO_PRIVATE_DOCUMENT_ROOT: "/var/lib/evo-v2/documents" }),
-    "v2_required_env_value_missing",
-  );
-  for (const documentRoot of ["relative/documents", "/"]) {
-    expectInvalid(
-      valid({
-        DATABASE_URL: databaseUrl,
-        EVO_PRIVATE_DOCUMENT_ROOT: documentRoot,
-      }),
-      "v2_private_document_root_invalid",
-    );
-  }
-  assert.deepEqual(
-    validateAppEnvironmentContract({
-      exampleText: example,
-      actualText: valid({
-        DATABASE_URL: databaseUrl,
-        EVO_PRIVATE_DOCUMENT_ROOT: "/var/lib/evo-v2/documents",
-      }),
-    }),
     { ok: true, code: "valid" },
   );
 });

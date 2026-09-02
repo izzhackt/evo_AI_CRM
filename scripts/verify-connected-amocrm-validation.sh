@@ -22,7 +22,6 @@ dispatch_log="$tmp_dir/playwright-dispatch.log"
 runtime_file="$tmp_dir/runtime.json"
 self_file="$tmp_dir/self.json"
 context_file="$tmp_dir/context.json"
-private_document_root="$tmp_dir/private-documents"
 compose_started=0
 run_succeeded=0
 app_pid=""
@@ -152,8 +151,8 @@ POSTGRES_PORT=$postgres_port
 EOF
 chmod 600 "$compose_env_file"
 
-mkdir -p "$private_document_root" "$evidence_dir"
-chmod 700 "$private_document_root" "$evidence_dir"
+mkdir -p "$evidence_dir"
+chmod 700 "$evidence_dir"
 
 docker compose "${compose_args[@]}" up --detach postgres >/dev/null
 compose_started=1
@@ -191,7 +190,6 @@ start_app() {
   local provider_authorized="$1"
   : >"$app_log"
   DATABASE_URL="$database_url" \
-    EVO_PRIVATE_DOCUMENT_ROOT="$private_document_root" \
     NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
     EVO_PLATFORM_SUPABASE_SECRET_KEY="$EVO_PLATFORM_SUPABASE_SECRET_KEY" \

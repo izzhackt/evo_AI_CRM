@@ -78,7 +78,7 @@ test("a rejected query never claims the database failed", () => {
   for (const [route, path] of routes.slice(0, 4)) {
     assert.match(
       source(path),
-      /canonical-queue-filter-rejected/,
+      /platform-queue-filter-rejected/,
       `${route} must render the rejected filter in page, not through the error boundary`,
     );
   }

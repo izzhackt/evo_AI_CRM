@@ -4,15 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import {
-  PLATFORM_OBLIGATION_CATEGORIES,
-  PLATFORM_VISA_STATUSES,
   getPlatformCaseVisa,
   hasExactPlatformCaseOperationFormKeys,
   listPlatformCaseFinance,
   resolvePlatformFinanceStopFactorWithReconciliation,
+} from "./platform-case-operations";
+import {
+  PLATFORM_OBLIGATION_CATEGORIES,
+  PLATFORM_VISA_STATUSES,
   type PlatformObligationCategory,
   type PlatformVisaStatus,
-} from "./platform-case-operations";
+} from "./platform-case-operations-contract.ts";
 import { requirePlatformClientsActor } from "./platform-guards";
 import { createSupabaseServerClient } from "./supabase/server";
 
@@ -578,7 +580,7 @@ export async function createPlatformFinanceStopFactorAction(
       "evidence_ref",
       "request_id",
     ])
-    || actor.platformRole !== "admin"
+    || (actor.platformRole !== "admin" && actor.platformRole !== "admissions")
     || !studentCaseId
     || !paymentObligationId
     || !blockedAction
@@ -613,16 +615,14 @@ export async function createPlatformFinanceStopFactorAction(
 
     const client = await createSupabaseServerClient();
     const response = await client.schema("platform").rpc(
-      "create_stop_factor",
+      "assert_case_finance_stop_factor",
       {
-        p_organization_id: actor.organizationId,
         p_student_case_id: studentCaseId,
         p_payment_obligation_id: paymentObligationId,
-        p_owner_membership_id: actor.membershipId,
         p_reason: reason,
         p_blocked_action: blockedAction,
         p_next_action: nextAction,
-        p_created_evidence_ref: evidenceRef,
+        p_evidence_ref: evidenceRef,
         p_request_id: requestId,
       },
     );
@@ -645,7 +645,9 @@ export async function createPlatformFinanceStopFactorAction(
       || data.organization_id !== actor.organizationId
       || data.student_case_id !== studentCaseId
       || data.payment_obligation_id !== paymentObligationId
-      || data.owner_membership_id !== actor.membershipId
+      || !uuid(String(data.owner_membership_id ?? ""))
+      || (actor.platformRole === "admissions"
+        && data.owner_membership_id !== actor.membershipId)
       || typeof data.stop_factor_id !== "string"
       || !uuid(data.stop_factor_id)
       || data.reason !== reason

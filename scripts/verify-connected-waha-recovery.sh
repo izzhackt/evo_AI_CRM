@@ -32,7 +32,6 @@ prior_playwright_log=""
 prior_playwright_result=""
 app_log=""
 playwright_log=""
-private_document_root=""
 compose_env_file=""
 compose_args=()
 waha_api_key=""
@@ -292,9 +291,6 @@ proxy_stats_file="$runtime_dir/get-only-proxy-stats.json"
 proxy_ready_file="$runtime_dir/get-only-proxy-ready.json"
 app_log="$runtime_dir/app.log"
 playwright_log="$runtime_dir/playwright.log"
-private_document_root="$runtime_dir/private-documents"
-mkdir -p "$private_document_root"
-chmod 700 "$private_document_root"
 
 postgres_bundle_file="$runtime_dir/postgres.bundle"
 if ! EVO_V2_POSTGRES_ENV_FILE="$compose_env_file" \
@@ -718,7 +714,6 @@ inbound_secret="$(openssl rand -hex 32)"
 assert_next_dev_lock_available
 app_environment=(
   "DATABASE_URL=$database_url"
-  "EVO_PRIVATE_DOCUMENT_ROOT=$private_document_root"
   "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL"
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
   "EVO_PLATFORM_SUPABASE_SECRET_KEY=$EVO_PLATFORM_SUPABASE_SECRET_KEY"

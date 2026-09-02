@@ -5,11 +5,13 @@ import { redirect } from "next/navigation";
 
 import {
   buildPlatformAdmissionsRedirectUrl,
+  parsePlatformAdmissionsUuid,
+} from "./platform-admissions";
+import {
   PLATFORM_APPLICATION_EVIDENCE_STATUSES,
   PLATFORM_APPLICATION_STATUSES,
-  parsePlatformAdmissionsUuid,
   type PlatformApplicationStatus,
-} from "./platform-admissions";
+} from "./platform-application-contract.ts";
 import {
   requirePlatformApplicationsActor,
   requirePlatformClientsActor,
@@ -86,6 +88,25 @@ function safeRedirect(
       anchor,
     ),
   );
+}
+
+function applicationRedirect(
+  path: string,
+  outcome: "saved" | "invalid" | "unavailable",
+  operation: "create" | "change",
+  retryRequestId?: string | null,
+  retrySubjectId?: string | null,
+  anchor?: "applications",
+): never {
+  const params = new URLSearchParams({ application_result: outcome });
+  if (outcome !== "saved" && retryRequestId) {
+    params.set("application_retry_request_id", retryRequestId);
+    params.set("application_retry_operation", operation);
+    if (retrySubjectId) {
+      params.set("application_retry_subject_id", retrySubjectId);
+    }
+  }
+  redirect(`${path}?${params.toString()}${anchor ? `#${anchor}` : ""}`);
 }
 
 export async function changePlatformStudentCaseStateAction(
@@ -326,7 +347,14 @@ export async function createPlatformUniversityApplicationAction(
     note === undefined ||
     (PLATFORM_APPLICATION_EVIDENCE_STATUSES.has(status) && !evidence)
   ) {
-    safeRedirect(targetPath, "invalid", requestId, targetAnchor);
+    applicationRedirect(
+      targetPath,
+      "invalid",
+      "create",
+      requestId,
+      null,
+      targetAnchor,
+    );
   }
 
   try {
@@ -373,15 +401,29 @@ export async function createPlatformUniversityApplicationAction(
           catalogInstitutionId) ||
       response.data.status !== status
     ) {
-      safeRedirect(targetPath, "unavailable", requestId, targetAnchor);
+      applicationRedirect(
+        targetPath,
+        "unavailable",
+        "create",
+        requestId,
+        null,
+        targetAnchor,
+      );
     }
   } catch {
-    safeRedirect(targetPath, "unavailable", requestId, targetAnchor);
+    applicationRedirect(
+      targetPath,
+      "unavailable",
+      "create",
+      requestId,
+      null,
+      targetAnchor,
+    );
   }
 
   revalidatePath("/applications");
   revalidatePath(`/clients/${studentCaseId}`);
-  safeRedirect(targetPath, "saved", null, targetAnchor);
+  applicationRedirect(targetPath, "saved", "create", null, null, targetAnchor);
 }
 
 export async function changePlatformUniversityApplicationAction(
@@ -415,7 +457,14 @@ export async function changePlatformUniversityApplicationAction(
     note === undefined ||
     (PLATFORM_APPLICATION_EVIDENCE_STATUSES.has(status) && !evidence)
   ) {
-    safeRedirect(targetPath, "invalid", requestId, targetAnchor);
+    applicationRedirect(
+      targetPath,
+      "invalid",
+      "change",
+      requestId,
+      applicationId,
+      targetAnchor,
+    );
   }
 
   try {
@@ -444,14 +493,28 @@ export async function changePlatformUniversityApplicationAction(
           studentCaseId) ||
       response.data.status !== status
     ) {
-      safeRedirect(targetPath, "unavailable", requestId, targetAnchor);
+      applicationRedirect(
+        targetPath,
+        "unavailable",
+        "change",
+        requestId,
+        applicationId,
+        targetAnchor,
+      );
     }
   } catch {
-    safeRedirect(targetPath, "unavailable", requestId, targetAnchor);
+    applicationRedirect(
+      targetPath,
+      "unavailable",
+      "change",
+      requestId,
+      applicationId,
+      targetAnchor,
+    );
   }
 
   revalidatePath("/applications");
   if (studentCaseId) revalidatePath(`/clients/${studentCaseId}`);
   revalidatePath(targetPath);
-  safeRedirect(targetPath, "saved", null, targetAnchor);
+  applicationRedirect(targetPath, "saved", "change", null, null, targetAnchor);
 }

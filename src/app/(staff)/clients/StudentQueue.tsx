@@ -292,7 +292,7 @@ function CanonicalStudentCasesPresentation({
 
       <section aria-label={copy.title} data-testid="canonical-student-case-list">
         {params.listInvalid ? (
-          <div className="border-y border-border" data-testid="canonical-queue-filter-rejected">
+          <div className="border-y border-border" data-testid="platform-queue-filter-rejected">
             <EmptyState text={copy.invalid} />
           </div>
         ) : rows.length === 0 ? (

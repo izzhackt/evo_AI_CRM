@@ -56,6 +56,81 @@ test("case lifecycle redirects preserve the originating Student 360 section", ()
   );
 });
 
+test("Student 360 retries reuse only the matching mutation request id", () => {
+  const actionsSource = readFileSync(
+    new URL("../src/lib/platform-admissions-actions.ts", import.meta.url),
+    "utf8",
+  );
+  const applicationRedirectSource = actionsSource.slice(
+    actionsSource.indexOf("function applicationRedirect("),
+    actionsSource.indexOf("export async function changePlatformStudentCaseStateAction"),
+  );
+  assert.match(
+    applicationRedirectSource,
+    /new URLSearchParams\(\{ application_result: outcome \}\)/,
+  );
+  for (const key of [
+    "application_retry_request_id",
+    "application_retry_operation",
+    "application_retry_subject_id",
+  ]) {
+    assert.match(applicationRedirectSource, new RegExp(key));
+  }
+  assert.doesNotMatch(
+    applicationRedirectSource,
+    /new URLSearchParams\(\{ result:/,
+  );
+
+  const routeSource = readFileSync(
+    new URL("../src/app/(staff)/clients/[id]/page.tsx", import.meta.url),
+    "utf8",
+  );
+  for (const key of [
+    "task_result",
+    "task_retry_request_id",
+    "task_retry_operation",
+    "task_subject_id",
+    "application_result",
+    "application_retry_request_id",
+    "application_retry_operation",
+    "application_retry_subject_id",
+    "p6d_result",
+    "p6d_retry_request_id",
+    "p6d_retry_operation",
+    "p6d_subject_id",
+    "u8_result",
+    "u8_retry_request_id",
+    "u8_retry_operation",
+    "u8_subject_id",
+    "document_result",
+    "document_retry_request_id",
+    "document_retry_subject_id",
+  ]) {
+    assert.match(routeSource, new RegExp(key), key);
+  }
+
+  const workspaceSource = readFileSync(
+    new URL(
+      "../src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  for (const retry of [
+    "taskRetry",
+    "applicationRetry",
+    "caseOperationRetry",
+    "financeStopRetry",
+    "documentRetry",
+  ]) {
+    assert.match(
+      workspaceSource,
+      new RegExp(`${retry}\\?\\.[\\s\\S]{0,220}${retry}\\.requestId`),
+      `${retry} must reuse its request id only after matching its operation or subject`,
+    );
+  }
+});
+
 test("Student 360 application summary preserves the partial-page signal and lower bound", () => {
   const summary = summarizePlatformStudentCaseApplicationPreview(
     [
@@ -475,7 +550,7 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     "src/app/(staff)/clients/StudentQueue.tsx",
     "src/app/(staff)/clients/[id]/page.tsx",
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-    "src/components/platform/admissions/CanonicalAdmissionsOperationsPanel.tsx",
+    "src/components/platform/admissions/PlatformAdmissionsOperationsPanel.tsx",
     "src/app/(staff)/applications/page.tsx",
     "src/app/(staff)/visa/page.tsx",
     "src/app/(staff)/finance/page.tsx",
@@ -541,11 +616,11 @@ test("normal staff routes keep one accepted renderer instead of parallel Platfor
     new URL("../src/app/(staff)/applications/page.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(applicationsRoute, /listCanonicalUniversityApplications/);
-  assert.match(applicationsRoute, /data-testid="canonical-application-queue"/);
+  assert.match(applicationsRoute, /listPlatformApplications\(actor/);
+  assert.match(applicationsRoute, /data-testid="platform-application-queue"/);
   assert.doesNotMatch(
     applicationsRoute,
-    /Applications(?:QueuePresenter|Workspace)|ApplicationDetailPresenter|better-sqlite3|platform-admissions/,
+    /Applications(?:QueuePresenter|Workspace)|ApplicationDetailPresenter|better-sqlite3|canonical-crm-repository|listCanonicalUniversityApplications/,
   );
 });
 
@@ -567,7 +642,7 @@ test("sales handoff summary keeps sales stage labels distinct from case state la
   );
 });
 
-test("clients use one Supabase Student 360 renderer with named legacy isolation", () => {
+test("clients use one Supabase Student 360 renderer with only the #549 amoCRM isolation", () => {
   const routeSource = readFileSync(
     new URL(
       "../src/app/(staff)/clients/[id]/page.tsx",
@@ -578,13 +653,6 @@ test("clients use one Supabase Student 360 renderer with named legacy isolation"
   const workspaceSource = readFileSync(
     new URL(
       "../src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const admissionsIsolationSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
       import.meta.url,
     ),
     "utf8",
@@ -613,6 +681,11 @@ test("clients use one Supabase Student 360 renderer with named legacy isolation"
   assert.match(workspaceSource, /getPlatformStudentCaseHandoffContext\(/);
   assert.match(workspaceSource, /getPlatformStudentProfile\(/);
   assert.match(workspaceSource, /getPlatformCaseContractWorkspace\(/);
+  assert.match(workspaceSource, /getPlatformAdmissionsTaskWorkspace\(actor, id\)/);
+  assert.match(workspaceSource, /listPlatformApplicationsForStudentCase\(actor, id/);
+  assert.match(workspaceSource, /getPlatformCaseVisa\(actor, id\)/);
+  assert.match(workspaceSource, /getPlatformCaseFinanceControl\(actor, id\)/);
+  assert.match(workspaceSource, /getPlatformCaseDocumentWorkspace\(actor, id\)/);
   assert.doesNotMatch(
     workspaceSource,
     /getPlatformStudentCaseView|staff_student_case_read_snapshot/,
@@ -625,24 +698,27 @@ test("clients use one Supabase Student 360 renderer with named legacy isolation"
     `${routeSource}\n${workspaceSource}`,
     /canonical-crm-repository|private-document-repository|getCanonicalStudentCaseSnapshot|getCanonicalStudentCaseHandoffSnapshot/,
   );
-  assert.match(
-    admissionsIsolationSource,
-    /data-testid="admissions-case-operations-section"/,
-  );
-  assert.match(
-    admissionsIsolationSource,
-    /canonical-crm-repository|private-document-repository/,
+  assert.match(workspaceSource, /<PlatformAdmissionsTaskPanel/);
+  assert.match(workspaceSource, /<PlatformPrivateDocumentsPanel/);
+  assert.match(workspaceSource, /<PlatformAdmissionsOperationsPanel/);
+  assert.equal(
+    existsSync(
+      new URL(
+        "../src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
+        import.meta.url,
+      ),
+    ),
+    false,
   );
   assert.match(
     amoCrmIsolationSource,
     /data-testid="amocrm-case-command-section"/,
   );
   assert.match(amoCrmIsolationSource, /canonical-amocrm-command-repository/);
-  assert.match(admissionsIsolationSource, /data-status="unavailable"/);
   assert.match(amoCrmIsolationSource, /data-status="unavailable"/);
   assert.match(amoCrmIsolationSource, /error\.code === "forbidden"/);
   assert.doesNotMatch(
-    `${admissionsIsolationSource}\n${amoCrmIsolationSource}`,
+    amoCrmIsolationSource,
     /\bnotFound\s*\(/,
   );
   assert.doesNotMatch(

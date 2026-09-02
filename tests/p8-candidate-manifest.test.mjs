@@ -32,10 +32,10 @@ const releaseControlCommit = "4".repeat(40);
 test("migration and runtime-setting inventories are deterministic and value-free", () => {
   const migrations = collectMigrationInventory(repoRoot);
   assert.deepEqual(P8B2_MIGRATION_RANGE, {
-    count: 94,
+    count: 95,
     first: "001",
-    last: "094",
-    result: "001-094 hashed",
+    last: "095",
+    result: "001-095 hashed",
   });
   assert.equal(migrations.length, P8B2_MIGRATION_RANGE.count);
   assert.equal(migrations[0].name.slice(0, 3), P8B2_MIGRATION_RANGE.first);

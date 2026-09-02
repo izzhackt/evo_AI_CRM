@@ -18,7 +18,10 @@ test("the superseded Supabase catalog runtime is absent from the V2 application 
     repoFile("src/app/(staff)/applications/page.tsx"),
     "utf8",
   );
-  assert.match(route, /listCanonicalUniversityApplications/);
-  assert.match(route, /data-testid="canonical-application-queue"/);
-  assert.doesNotMatch(route, /platform-catalog|CatalogImport|Supabase|SQLite/i);
+  assert.match(route, /listPlatformApplications/);
+  assert.match(route, /data-testid="platform-application-queue"/);
+  assert.doesNotMatch(
+    route,
+    /platform-catalog|CatalogImport|canonical-crm-repository|Drizzle|SQLite/i,
+  );
 });

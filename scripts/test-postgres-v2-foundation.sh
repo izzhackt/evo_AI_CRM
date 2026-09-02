@@ -17,6 +17,7 @@ app_log="$tmp_dir/app.log"
 supabase_log="$tmp_dir/supabase.log"
 supabase_env_file="$tmp_dir/supabase.env"
 staff_provision_log="$tmp_dir/staff-provision.log"
+platform_communications_provision_log="$tmp_dir/platform-communications-provision.log"
 sales_proof_provision_log="$tmp_dir/sales-proof-provision.log"
 waha_log="$tmp_dir/waha.log"
 waha_acceptance_result="$tmp_dir/waha-acceptance.json"
@@ -24,10 +25,11 @@ p4_acceptance_result="$tmp_dir/p4-admissions-storage-acceptance.json"
 p4_verification_log="$tmp_dir/p4-admissions-storage-verification.log"
 verification_log="$tmp_dir/verification.log"
 broken_log="$tmp_dir/broken-migration.log"
-inbound_test_phone="+15550004300"
-inbound_test_conversation_id="15550004300@c.us"
-inbound_test_message_id="v2-browser-message-430"
-inbound_test_text="V2 inbound browser proof 430"
+inbound_test_phone="+15550005461"
+inbound_test_conversation_id="15550005461@c.us"
+inbound_test_message_id="false_15550005461@c.us_PLATFORM_BROWSER_566"
+inbound_test_text="Platform Supabase inbound browser proof 566"
+unknown_result_text="Platform Supabase ambiguous-result reconciliation proof 566"
 supabase_sales_lead_id="54600000-0000-4000-8000-000000000001"
 supabase_sales_client_id="54600000-0000-4000-8000-000000000002"
 supabase_sales_workflow_lead_id="54600000-0000-4000-8000-000000000003"
@@ -154,9 +156,10 @@ supabase_api_url=""
 supabase_publishable_key=""
 supabase_service_role_key=""
 supabase_database_url=""
+platform_organization_id=""
 whatsapp_inbound_secret="$(openssl rand -hex 32)"
 waha_api_key="technical-waha-provider-key"
-waha_session_name="evo-v2-technical"
+waha_session_name="evo-inbox"
 waha_port="${EVO_DATABASE_WAHA_PORT:-$(free_port)}"
 waha_base_url="http://127.0.0.1:${waha_port}"
 amocrm_token_probe="$(openssl rand -hex 24)"
@@ -243,6 +246,35 @@ for sensitive_value in \
   fi
 done
 
+if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+  EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+  EVO_TEST_WAHA_API_KEY="$waha_api_key" \
+  "$node_bin" scripts/provision-local-platform-communications.mjs \
+    >"$platform_communications_provision_log" 2>&1; then
+  communications_failure="$(grep -m 1 -E '^LOCAL_PLATFORM_COMMUNICATIONS_ERROR:[A-Z0-9_]+$' "$platform_communications_provision_log" || true)"
+  [[ -z "$communications_failure" ]] || echo "$communications_failure" >&2
+  fail "Local Platform communications runtime provisioning failed"
+fi
+communications_marker="$(grep -m 1 -E '^LOCAL_PLATFORM_COMMUNICATIONS_PROVISIONED [0-9a-f-]{36}$' "$platform_communications_provision_log" || true)"
+[[ -n "$communications_marker" ]] \
+  || fail "Local Platform communications provisioning returned no success marker"
+platform_organization_id="${communications_marker##* }"
+[[ "$platform_organization_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
+  || fail "Local Platform communications provisioning returned an invalid organization"
+chmod 600 "$platform_communications_provision_log"
+for sensitive_value in \
+  "$supabase_service_role_key" \
+  "$staff_admin_email" \
+  "$staff_admin_password" \
+  "$waha_api_key"; do
+  if grep -F "$sensitive_value" "$platform_communications_provision_log" >/dev/null; then
+    fail "Local Platform communications provisioning exposed a credential in its output"
+  fi
+done
+
 if ! SUPABASE_DB_URL="$supabase_database_url" \
   EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
   "$node_bin" scripts/provision-local-supabase-sales-proof.mjs \
@@ -281,9 +313,10 @@ start_isolated_waha_service() {
   [[ -z "$waha_pid" ]] || fail "The isolated WAHA-shaped service is already running"
   : >"$waha_log"
   EVO_TEST_WAHA_PORT="$waha_port" \
-    EVO_TEST_WAHA_API_KEY="$waha_api_key" \
+  EVO_TEST_WAHA_API_KEY="$waha_api_key" \
     EVO_TEST_WAHA_SESSION="$waha_session_name" \
     EVO_TEST_WAHA_RESULT_FILE="$waha_acceptance_result" \
+    EVO_TEST_WAHA_UNKNOWN_TEXT="$unknown_result_text" \
     "$node_bin" --input-type=module >"$waha_log" 2>&1 <<'EOF' &
 import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -292,6 +325,7 @@ const port = Number(process.env.EVO_TEST_WAHA_PORT);
 const apiKey = process.env.EVO_TEST_WAHA_API_KEY;
 const session = process.env.EVO_TEST_WAHA_SESSION;
 const resultFile = process.env.EVO_TEST_WAHA_RESULT_FILE;
+const unknownResultText = process.env.EVO_TEST_WAHA_UNKNOWN_TEXT;
 const providerAccount = "971500000000@c.us";
 const providerAccountLid = "100000000000000@lid";
 let sendCount = 0;
@@ -345,26 +379,19 @@ const server = createServer(async (request, response) => {
     sendCount += 1;
     requests.push(body);
     writeResult();
-    if (sendCount > 2) {
-      json(response, 409, { error: "duplicate_send" });
-      return;
-    }
     const storedMessage = {
-      id:
-        sendCount === 1
-          ? "technical-provider-message-465"
-          : "technical-provider-recovered-message-465",
+      id: `technical-provider-message-${sendCount}`,
       timestamp: Math.floor(Date.now() / 1000),
       from: providerAccount,
-      to: sendCount === 2 ? providerAccountLid : body.chatId,
+      to: body.chatId,
       fromMe: true,
-      source: sendCount === 2 ? "app" : "api",
+      source: "api",
       body: body.text,
       ack: 1,
       ackName: "SERVER",
     };
     storedMessages.push(storedMessage);
-    if (sendCount === 2) {
+    if (body.text === unknownResultText) {
       json(response, 200, { ...storedMessage, body: `${body.text} malformed` });
       return;
     }
@@ -460,8 +487,7 @@ start_app() {
   local waha_mode="${4:-blocked}"
   local amocrm_mode="${5:-provider-not-authorized}"
   local inbound_secret="$whatsapp_inbound_secret"
-  local waha_provider_authorized=0
-  local app_waha_base_url="http://evo-v2-waha:3000"
+  local waha_rewrite_base_url=""
   local amocrm_provider_authorized=0
   local amocrm_sales_pipeline_id=""
   local amocrm_sales_status_id=""
@@ -475,8 +501,7 @@ start_app() {
     inbound_secret=""
   fi
   if [[ "$waha_mode" == "local-service" ]]; then
-    waha_provider_authorized=1
-    app_waha_base_url="$waha_base_url"
+    waha_rewrite_base_url="$waha_base_url"
   elif [[ "$waha_mode" != "blocked" ]]; then
     fail "Unknown isolated WAHA harness mode: $waha_mode"
   fi
@@ -498,24 +523,21 @@ start_app() {
   assert_next_dev_lock_available
   : >"$app_log"
   if [[ "$supabase_mode" == "configured" ]]; then
-    DATABASE_URL="$app_database_url" \
+    env -u EVO_PLATFORM_GEMINI_API_KEY \
+      DATABASE_URL="$app_database_url" \
       NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
       EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
+      EVO_PLATFORM_ORGANIZATION_ID="$platform_organization_id" \
+      EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
+      EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
+      NODE_OPTIONS="--require=$repo_root/tests/helpers/platform-waha-local-fetch.cjs" \
       EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
       EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
       EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
       EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
       EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
       EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
-      EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
-      EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
-      EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
-      EVO_V2_WAHA_ENABLED=1 \
-      EVO_V2_WAHA_PROVIDER_AUTHORIZED="$waha_provider_authorized" \
-      EVO_V2_WAHA_BASE_URL="$app_waha_base_url" \
-      EVO_V2_WAHA_API_KEY="$waha_api_key" \
-      EVO_V2_WAHA_SESSION_NAME="$waha_session_name" \
       EVO_V2_AMOCRM_WRITES_ENABLED=1 \
       EVO_V2_AMOCRM_PROVIDER_AUTHORIZED="$amocrm_provider_authorized" \
       EVO_V2_AMOCRM_BASE_URL="https://evo-v2-technical.amocrm.ru" \
@@ -535,22 +557,19 @@ start_app() {
       -u NEXT_PUBLIC_SUPABASE_URL \
       -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
       -u EVO_PLATFORM_SUPABASE_SECRET_KEY \
+      -u EVO_PLATFORM_ORGANIZATION_ID \
+      -u EVO_PLATFORM_GEMINI_API_KEY \
       -u SUPABASE_SERVICE_ROLE_KEY \
       DATABASE_URL="$app_database_url" \
+      EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
+      EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
+      NODE_OPTIONS="--require=$repo_root/tests/helpers/platform-waha-local-fetch.cjs" \
       EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
       EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
       EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
       EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
       EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
       EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
-      EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$inbound_secret" \
-      EVO_V2_GEMINI_PROPOSALS_ENABLED=1 \
-      EVO_V2_GEMINI_PROVIDER_AUTHORIZED=0 \
-      EVO_V2_WAHA_ENABLED=1 \
-      EVO_V2_WAHA_PROVIDER_AUTHORIZED="$waha_provider_authorized" \
-      EVO_V2_WAHA_BASE_URL="$app_waha_base_url" \
-      EVO_V2_WAHA_API_KEY="$waha_api_key" \
-      EVO_V2_WAHA_SESSION_NAME="$waha_session_name" \
       EVO_V2_AMOCRM_WRITES_ENABLED=1 \
       EVO_V2_AMOCRM_PROVIDER_AUTHORIZED="$amocrm_provider_authorized" \
       EVO_V2_AMOCRM_BASE_URL="https://evo-v2-technical.amocrm.ru" \
@@ -893,29 +912,22 @@ EOF
   chmod 600 "$p4_acceptance_result" "$p4_verification_log"
 }
 
-canonical_read_browser_assert() {
-  local read_mode="$1"
+platform_communications_browser_assert() {
+  local communications_mode="$1"
   assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
-    DATABASE_URL="$database_url" \
-    EVO_EXPECT_CANONICAL_READ_MODE="$read_mode" \
-    EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
-    EVO_SUPABASE_SALES_PROOF_CLIENT_ID="$supabase_sales_client_id" \
-    EVO_EXPECT_WAHA_SESSION_NAME="$waha_session_name" \
-    EVO_V2_WAHA_ACCEPTANCE_RESULT_FILE="$waha_acceptance_result" \
-    EVO_V2_WHATSAPP_INBOUND_HMAC_SECRET="$whatsapp_inbound_secret" \
-    EVO_V2_INBOUND_TEST_PHONE="$inbound_test_phone" \
-    EVO_V2_INBOUND_TEST_CONVERSATION_ID="$inbound_test_conversation_id" \
-    EVO_V2_INBOUND_TEST_MESSAGE_ID="$inbound_test_message_id" \
-    EVO_V2_INBOUND_TEST_TEXT="$inbound_test_text" \
-    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
-    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    EVO_EXPECT_PLATFORM_COMMUNICATIONS_MODE="$communications_mode" \
+    EVO_PLATFORM_COMMUNICATIONS_CONVERSATION_ID="$supabase_sales_conversation_id" \
+    EVO_PLATFORM_COMMUNICATIONS_CHAT_ID="$inbound_test_conversation_id" \
+    EVO_PLATFORM_COMMUNICATIONS_MESSAGE_ID="$inbound_test_message_id" \
+    EVO_PLATFORM_COMMUNICATIONS_MESSAGE_TEXT="$inbound_test_text" \
+    EVO_PLATFORM_COMMUNICATIONS_UNKNOWN_TEXT="$unknown_result_text" \
+    EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$whatsapp_inbound_secret" \
+    EVO_PLATFORM_WAHA_RESULT_FILE="$waha_acceptance_result" \
     EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
     EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
-    EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
-    EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
-      --config=playwright.canonical-crm.config.ts
+      --config=playwright.platform-communications.config.ts
 }
 
 assert_no_secret_or_payload_logs() {
@@ -966,7 +978,6 @@ EVO_DB_PATH="$tmp_dir/inert-local.db" \
   NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321" \
   start_app ""
 browser_assert 503 database_configuration_missing
-canonical_read_browser_assert unavailable
 stop_app
 
 # Malformed configuration must be distinguished from an absent value without
@@ -1025,14 +1036,23 @@ echo "Exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 -> 0005 migration, repeat migra
 DATABASE_URL="$database_url" \
   "$node_bin" --conditions=react-server --experimental-strip-types --test \
     --test-concurrency=1 \
-    tests/canonical-whatsapp-outbound-postgres.test.mjs
-DATABASE_URL="$database_url" \
-  "$node_bin" --conditions=react-server --experimental-strip-types --test \
-    --test-concurrency=1 \
+    tests/platform-gemini-provider.test.mjs \
+    tests/platform-provider-action-contract.test.mjs \
+    tests/platform-provider-orchestrator.test.mjs \
+    tests/platform-provider-readiness.test.mjs \
+    tests/platform-provider-workflows.test.mjs \
+    tests/platform-provider-actions.test.mjs \
+    tests/platform-provider-controls.test.mjs \
+    tests/platform-waha-local-fetch.test.mjs \
+    tests/platform-waha-provider.test.mjs \
+    tests/platform-waha-webhook.test.mjs \
+    tests/platform-waha-projector.test.mjs \
+    tests/platform-whatsapp-pages.test.mjs \
+    tests/platform-communications-local-provisioner.test.mjs \
     tests/canonical-amocrm-schema-postgres.test.mjs \
     tests/canonical-amocrm-command-postgres.test.mjs \
     tests/canonical-amocrm-discovery-postgres.test.mjs
-echo "Later-owned WhatsApp and amoCRM repository contracts passed without the retired Drizzle gate fixture."
+echo "Platform provider workflow and later-owned amoCRM repository contracts passed without the retired Drizzle communication fixture."
 
 stop_app
 start_isolated_waha_service
@@ -1041,7 +1061,7 @@ browser_assert 200
 supabase_staff_auth_browser_assert configured
 verify_p4_admissions_storage_acceptance
 echo "Admissions operations and two immutable private Supabase Storage versions passed browser and database proof."
-canonical_read_browser_assert configured
+platform_communications_browser_assert configured
 assert_no_secret_or_payload_logs
 
 # Runtime contract drift blocks the real browser path.
@@ -1092,7 +1112,7 @@ docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres
 
 stop_app
 start_app "$database_url" configured unavailable
-canonical_read_browser_assert inbound-unavailable
+platform_communications_browser_assert inbound-unavailable
 assert_no_secret_or_payload_logs
 
 stop_app
@@ -1100,4 +1120,4 @@ start_app "$database_url" unavailable
 supabase_staff_auth_browser_assert unavailable
 assert_no_secret_or_payload_logs
 
-echo "Real PostgreSQL, Supabase Auth/RLS, canonical provider repositories, application and Chromium proof passed."
+echo "Real PostgreSQL, Supabase Auth/RLS, Platform provider workflows, application and Chromium proof passed."

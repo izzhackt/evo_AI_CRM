@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- Current-boundary acceptance for migration 080. Every identifier and secret
+-- Current-boundary acceptance through migration 097. Every identifier and secret
 -- is synthetic and transaction-local. No WAHA, amoCRM, AI or managed Supabase
 -- provider is contacted.
 BEGIN;
@@ -29,12 +29,21 @@ DECLARE
   resolve_routine CONSTANT REGPROCEDURE :=
     'platform.resolve_manual_send_waha_runtime(uuid)'::REGPROCEDURE;
   claim_routine CONSTANT REGPROCEDURE :=
-    'platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'::REGPROCEDURE;
+    'platform.claim_manual_whatsapp_send_item(uuid,uuid,integer,text,uuid)'::REGPROCEDURE;
+  internal_claim_routine CONSTANT REGPROCEDURE :=
+    'platform_private.claim_next_manual_whatsapp_send_internal(uuid,integer,text,uuid)'::REGPROCEDURE;
   finish_routine CONSTANT REGPROCEDURE :=
     'platform.finish_manual_whatsapp_send(uuid,uuid,uuid,uuid,platform.durable_work_finish_outcome,text,text,timestamptz,uuid)'::REGPROCEDURE;
   provider_session_check TEXT;
   forbidden_role TEXT;
 BEGIN
+  IF pg_catalog.to_regprocedure(
+      'platform.claim_manual_whatsapp_send(uuid,integer,text,uuid)'
+    ) IS NOT NULL
+  THEN
+    RAISE EXCEPTION 'Superseded generic manual-send claim remains callable';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1
     FROM pg_catalog.pg_extension AS extension
@@ -86,6 +95,22 @@ BEGIN
     RAISE EXCEPTION 'service_role lacks runtime resolver EXECUTE';
   END IF;
 
+  IF NOT pg_catalog.has_function_privilege(
+    'service_role',
+    claim_routine,
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'service_role lacks exact manual-send claim EXECUTE';
+  END IF;
+
+  IF pg_catalog.has_function_privilege(
+    'service_role',
+    internal_claim_routine,
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'service_role can bypass the exact manual-send claim';
+  END IF;
+
   FOREACH forbidden_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
     IF pg_catalog.has_function_privilege(
       forbidden_role,
@@ -93,6 +118,14 @@ BEGIN
       'EXECUTE'
     ) THEN
       RAISE EXCEPTION '% can execute the Vault runtime resolver', forbidden_role;
+    END IF;
+
+    IF pg_catalog.has_function_privilege(
+      forbidden_role,
+      claim_routine,
+      'EXECUTE'
+    ) THEN
+      RAISE EXCEPTION '% can execute the exact manual-send claim', forbidden_role;
     END IF;
   END LOOP;
 
@@ -128,6 +161,8 @@ BEGIN
   IF pg_catalog.pg_get_functiondef(claim_routine::OID) LIKE '%crm_primary%'
     OR pg_catalog.pg_get_functiondef(finish_routine::OID) LIKE '%crm_primary%'
     OR pg_catalog.pg_get_functiondef(claim_routine::OID)
+      NOT LIKE '%claim_next_manual_whatsapp_send_internal%'
+    OR pg_catalog.pg_get_functiondef(internal_claim_routine::OID)
       NOT LIKE '%ensure-manual-sender-participant%'
     OR pg_catalog.pg_get_functiondef(finish_routine::OID)
       NOT LIKE '%participant_kind IN (''admin'', ''sales'', ''curator'')%'
@@ -258,6 +293,7 @@ INSERT INTO platform_private.manual_send_waha_runtime_bindings (
   waha_session_name,
   waha_base_url,
   api_key_secret_id,
+  api_key_sha256,
   enabled,
   binding_version
 ) VALUES (
@@ -265,6 +301,12 @@ INSERT INTO platform_private.manual_send_waha_runtime_bindings (
   'evo-inbox',
   'http://evo-crm-waha:3000',
   :'p8r4_vault_secret_id',
+  pg_catalog.encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to('synthetic-p8r4-private-waha-api-key', 'UTF8')
+    ),
+    'hex'
+  ),
   TRUE,
   1
 );
@@ -363,8 +405,9 @@ SELECT pg_catalog.set_config(
   true
 );
 SET LOCAL ROLE service_role;
-SELECT platform.claim_manual_whatsapp_send(
+SELECT platform.claim_manual_whatsapp_send_item(
   :'p8r4_org_id',
+  :'p8r4_work_item_id',
   60,
   'p8r4-disposable-worker',
   '80000000-0000-4000-8000-000000000001'

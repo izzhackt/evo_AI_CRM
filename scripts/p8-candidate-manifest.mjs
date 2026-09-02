@@ -21,10 +21,10 @@ export const P8B2_TARGET_PLATFORM = Object.freeze({
   variant: "",
 });
 export const P8B2_MIGRATION_RANGE = Object.freeze({
-  count: 96,
+  count: 97,
   first: "001",
-  last: "096",
-  result: "001-096 hashed",
+  last: "097",
+  result: "001-097 hashed",
 });
 const CONFIG_FILES = Object.freeze([
   ".env.example",

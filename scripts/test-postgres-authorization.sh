@@ -1492,15 +1492,6 @@ SQL
       -f /workspace/supabase/tests/platform_unified_lead_agent_sync_current.sql
   fi
 
-  # Migration 080 removes the live SQLite provider-config seam, resolves one
-  # exact evo-inbox binding through Vault and executes the synthetic SQL-only
-  # claim/finish path without contacting WAHA or any other provider.
-  if [[ "$(basename "$migration")" == 080_* ]]; then
-    docker exec "$container_name" \
-      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-      -f /workspace/supabase/tests/platform_manual_send_waha_runtime_current.sql
-  fi
-
   # Migration 081 adds the supported service-only Vault provisioning and
   # non-secret readiness boundary. Exercise it at the exact schema tip so a
   # later migration cannot mask RPC, replay, grant or redaction drift.
@@ -1800,11 +1791,21 @@ SQL
   fi
 
   # Migration 096 binds Gemini starts to authenticated staff intent and adds
-  # exact, send-free WAHA reconciliation for manual-send provider outcomes.
+  # the service-only reconciliation contract. The executable reconciliation
+  # proof runs at 097 after the exact-item claim replaces the generic claim.
   if [[ "$(basename "$migration")" == 096_* ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_provider_workflow_contract_rls.sql
+  fi
+
+  # Migration 097 makes the exact work item the only public manual-send claim.
+  # Prove the complete Vault/claim/finish and send-free reconciliation paths at
+  # the final replacement boundary, without contacting an external provider.
+  if [[ "$(basename "$migration")" == 097_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_manual_send_waha_runtime_current.sql
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_provider_workflow_reconciliation.sql

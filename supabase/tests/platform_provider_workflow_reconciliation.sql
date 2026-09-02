@@ -331,8 +331,9 @@ SELECT pg_catalog.set_config(
   true
 );
 SET LOCAL ROLE service_role;
-SELECT platform.claim_manual_whatsapp_send(
+SELECT platform.claim_manual_whatsapp_send_item(
   :'p5a_r_org_id',
+  :'p5a_r_work_item_id',
   60,
   'p5a-reconciliation-worker',
   '96600000-0000-4000-8000-000000000001'

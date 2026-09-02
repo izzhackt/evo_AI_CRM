@@ -115,13 +115,45 @@ test("exact reconciliation reads one provider message and never sends", async ()
   });
 });
 
-test("unknown-result reconciliation performs one bounded lookup and returns the unique exact match", async () => {
+test("exact reconciliation rejects an app-source record without sending", async () => {
+  const calls = [];
+  const provider = createPlatformWahaProvider(RUNTIME, {
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify(providerMessage({ source: "app" })), {
+        status: 200,
+      });
+    },
+    now: () => new Date(ACK_OBSERVED_AT),
+  });
+
+  await assert.rejects(
+    () => provider.getMessage({
+      recipientId: RECIPIENT,
+      providerMessageId: PROVIDER_MESSAGE_ID,
+      expectedText: TEXT,
+    }),
+    (error) =>
+      error instanceof PlatformWahaProviderError &&
+      error.code === "provider_malformed_response" &&
+      error.disposition === "unknown",
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].init.method, "GET");
+  assert.equal(calls.some(({ init }) => init.method === "POST"), false);
+});
+
+test("unknown-result reconciliation ignores an app-source collision and returns the unique API match", async () => {
   const calls = [];
   const provider = createPlatformWahaProvider(RUNTIME, {
     fetch: async (url, init) => {
       calls.push({ url, init });
       return new Response(JSON.stringify([
         providerMessage({ id: "other-message", body: "Другой текст" }),
+        providerMessage({
+          id: "false_996555000001@c.us_APP_COLLISION",
+          source: "app",
+        }),
         providerMessage({ ack: 2, ackName: "DEVICE" }),
       ]), { status: 200 });
     },
@@ -300,12 +332,16 @@ test("provider evidence with an observation timestamp before the message fails c
 });
 
 test("bounded lookup distinguishes zero matches from ambiguous matches", async (t) => {
-  await t.test("zero matches", async () => {
-    let calls = 0;
+  await t.test("app, missing, and unknown sources are zero API matches", async () => {
+    const methods = [];
     const provider = createPlatformWahaProvider(RUNTIME, {
-      fetch: async () => {
-        calls += 1;
-        return new Response("[]", { status: 200 });
+      fetch: async (_url, init) => {
+        methods.push(init.method);
+        return new Response(JSON.stringify([
+          providerMessage({ id: "app-source", source: "app" }),
+          providerMessage({ id: "missing-source", source: undefined }),
+          providerMessage({ id: "unknown-source", source: "web" }),
+        ]), { status: 200 });
       },
     });
     const result = await provider.findUniqueMessage({
@@ -315,7 +351,7 @@ test("bounded lookup distinguishes zero matches from ambiguous matches", async (
       windowEnd: "2026-09-02T12:00:10.000Z",
     });
     assert.equal(result, null);
-    assert.equal(calls, 1);
+    assert.deepEqual(methods, ["GET"]);
   });
 
   await t.test("multiple exact matches", async () => {

@@ -379,6 +379,7 @@ export function createPlatformWahaProvider(
         {
           recipientId: input.recipientId,
           text: input.expectedText,
+          source: "api",
           providerMessageId: input.providerMessageId,
         },
         now(),
@@ -444,6 +445,7 @@ export function createPlatformWahaProvider(
         }
         if (
           candidate.fromMe !== true ||
+          candidate.source !== "api" ||
           candidate.to !== input.recipientId ||
           candidate.body !== input.expectedText ||
           (candidate.timestamp as number) < windowStartTimestamp ||

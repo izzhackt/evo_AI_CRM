@@ -7,9 +7,9 @@ Authority: owner direction, ADR 0024, this plan and the latest append-only
 through #553
 Verified starting baseline: GitHub `origin/main` at
 `4a2984f55b13bf4fe416a70d7989b9311daa8055`
-Latest verified shared main after the existing-state audit:
-`1751fdf40a71e2282f4ab6456452623eb0859787`, with exact-main CI run
-`33564705033` green for Main CRM, EVO Inbox and EVO Lead Agent.
+Latest verified shared main after the completed real-staff/Sales tracer:
+`7f135d61e89fe1e9e60e054763f223aaa918f526`, with exact-main CI run
+`33586004921` green for Main CRM, EVO Inbox and EVO Lead Agent.
 
 ## Current authority: one Supabase-backed production EVO
 
@@ -169,6 +169,96 @@ replace that existing page function in place so `is_connected` and
 used by detail and transcript. Its database proof must include exact intake,
 client-only, non-intake and unverified/direct-link cases. No other queue
 behavior, signature, ACL or authority may change.
+
+### P3 delivery decomposition: Student 360, contract/payment and handoff
+
+Issue #547 must publish one complete Supabase-backed Student 360 tracer from an
+already qualified Sales lead through contract and first-payment evidence to one
+accountable Sales-to-Admissions handoff. The active `/clients/[id]` route still
+renders `CanonicalStudentCaseWorkspace`, which reads the old repository-backed
+student case, handoff, task, operations, document and amoCRM surfaces. At the
+same time, root Supabase migration history already contains the canonical
+gate, handoff, contract and profile RPCs required for the local/rehearsal
+replacement:
+`platform.staff_student_profile_snapshot(UUID)`,
+`platform.staff_case_contract_workspace(UUID, UUID)`,
+`platform.staff_lead_admissions_gate(UUID)`,
+`platform.mutate_lead_admissions_gate(...)`,
+`platform.staff_lead_admissions_handoff(UUID)`,
+`platform.staff_student_case_handoff_context(UUID)` and
+`platform.handoff_lead_to_admissions(...)`.
+
+Accordingly, #547 is a replace-not-layer slice with one active Student 360
+runtime path:
+
+1. **P3A - contract/payment gate and accountable handoff.** Add one typed
+   Supabase boundary for the four existing gate/handoff RPCs and one server
+   action module that uses the signed-in staff cookie client, never a service
+   role. Restore the accepted Sales controls on `/sales/[id]` so authorized
+   staff can confirm contract evidence, confirm first-payment evidence, select
+   the Admissions owner and perform one normal or explicit Admin-override
+   handoff. Database permissions, RLS, version checks, immutable request
+   receipts and transaction locks remain the authority; the UI must surface
+   invalid, forbidden, stale, request-conflict, gate-blocked and unavailable
+   outcomes without blind retry.
+2. **P3B - Student 360 Supabase path.** Replace the active `/clients/[id]`
+   summary and handoff reads with authenticated calls to a typed
+   `staff_student_case_handoff_context` adapter. Reuse
+   `getPlatformStudentProfile`, `getPlatformCaseContractWorkspace`,
+   `ContractDraftReportWorkspace` and the existing Supabase contract actions
+   rather than rebuilding those ready-made capabilities. Admissions and Admin
+   may open the full case only when the live database authority allows it;
+   Sales receives the committed handoff result on Lead 360 but does not inherit
+   full Admissions case access. Admin preview remains presentation-only and
+   never creates a second authority path.
+3. **P3C - real proof and bounded cleanup.** After authorized/unauthorized SQL,
+   application and real Chromium proof, delete the superseded modules
+   `src/components/platform/sales/CanonicalSalesGateCard.tsx`,
+   `src/components/platform/sales/CanonicalSalesHandoffCard.tsx`,
+   `src/lib/server/canonical-sales-gate-actions.ts` and
+   `src/lib/server/canonical-sales-handoff-actions.ts`, plus the replaced
+   repository-backed Student 360 summary/handoff shell and its implementation
+   tests. Remove the #547 gate/handoff fixture callers from the old repository.
+   The routes must fail clearly if Supabase is missing or rejects the request;
+   they may not fall back to the old repository path.
+
+#547 must not silently absorb later-owned surfaces. During #547, the only
+temporary repository-backed containers created on `/clients/[id]` are
+`src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx` and
+`src/app/(staff)/clients/[id]/AmoCrmCaseCommandSection.tsx`. The first may
+fetch props only for the existing `CanonicalAdmissionsTaskPanel`,
+`CanonicalPrivateDocumentsPanel` and `CanonicalAdmissionsOperationsPanel`
+through `canonical-crm-repository`, the two canonical Admissions action modules
+and `private-document-repository`; #548 must replace and delete that container,
+those panels and their superseded dependencies when Supabase Admissions and
+Storage land. The second may fetch props only for
+`CanonicalAmoCrmCommandPanel` through the canonical amoCRM command action and
+repository modules; #549 must replace and delete that container, panel and
+superseded dependencies when the provider tracer lands. These are
+section-isolated unreplaced capabilities, not alternate Student 360 summary,
+gate, handoff or contract paths. No other repository-backed wrapper or stub may
+remain on the route.
+
+The temporary fixture-only coexistence from #546 narrows here. #547 must remove
+all gate/handoff preparation callers that still depend on
+`updateCanonicalSalesLeadWorkflow` or the old stage contract. If the amoCRM
+preparation callers remain after #547, they stay named and local to #549 only.
+Before merge, attach a scoped `rg` inventory proving that no active route,
+action, rendered UI or browser test still imports the superseded gate/handoff
+runtime. Existing SQL proof for migrations 087-088 must run with all root
+migrations in real local Supabase/PostgreSQL, including concurrent duplicate
+handoff and request-id replay cases. The app proof must use real Supabase Auth,
+RLS and Chromium. This scope is isolated/non-production: it does not apply the
+migrations to the managed project, mutate production data, send a provider
+message, write amoCRM or change V1 deployment/traffic.
+
+This follows Supabase's current guidance that exposed tables remain protected
+by RLS and authenticated RPCs carry the caller's authorization context, plus
+PostgreSQL's transaction-level advisory-lock contract for short atomic
+business commands. See the official
+[RLS guide](https://supabase.com/docs/guides/database/postgres/row-level-security),
+[database-functions guide](https://supabase.com/docs/guides/database/functions)
+and [PostgreSQL explicit-locking reference](https://www.postgresql.org/docs/17/explicit-locking.html).
 
 The existing database enum value `curator` is the retained technical name for
 the human-facing **Admissions Manager** role. The server maps that one database

@@ -1,8 +1,8 @@
 # EVO local Git cleanup - 2026-09-02
 
-Status: completed to the safe non-destructive boundary  
+Status: completed to the safe non-destructive boundary
 Shared baseline: `origin/main`
-`cf108403c69a35ca3b134652de8f2aa26eb5a049`  
+`cf108403c69a35ca3b134652de8f2aa26eb5a049`
 Scope: stale GitHub pull requests, local branches and registered worktrees only
 
 ## Result

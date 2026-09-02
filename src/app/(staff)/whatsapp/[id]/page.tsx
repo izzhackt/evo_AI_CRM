@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
+
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { PlatformProviderWorkflowControls } from "@/components/platform/communications/PlatformProviderWorkflowControls";
 import { PlatformStaffWhatsAppWorkspace } from "@/components/platform/communications/PlatformStaffWhatsApp";
 import { buildRouteMetadata } from "@/lib/route-metadata";
 import { getT } from "@/lib/i18n";
@@ -13,6 +16,18 @@ import {
   type PlatformConversationCursor,
 } from "@/lib/platform-communications";
 import { requirePlatformMessagingActor } from "@/lib/platform-guards";
+import {
+  reconcilePlatformWhatsAppSendAction,
+  requestPlatformGeminiProposalAction,
+  reviewPlatformGeminiProposalAction,
+  sendPlatformWhatsAppMessageAction,
+} from "@/lib/platform-provider-actions";
+import {
+  listStaffGeminiProposalReviews,
+  readLatestManualWhatsAppSendAttempt,
+  readStaffGeminiProposal,
+} from "@/lib/platform-provider-workflows";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type SearchParams = Readonly<{
   before_at?: string | string[];
@@ -65,10 +80,29 @@ export default async function WhatsAppConversationPage({
   ]);
   if (thread === null) notFound();
 
-  const wahaSessionHealth =
+  const staffClient = await createSupabaseServerClient();
+  const [wahaSessionHealth, proposal, reviews, latestAttempt] = await Promise.all([
     thread.conversation.wahaSessionName === "evo-inbox"
-      ? await getPlatformWahaSessionHealth(actor, "evo-inbox")
-      : null;
+      ? getPlatformWahaSessionHealth(actor, "evo-inbox")
+      : null,
+    readStaffGeminiProposal(staffClient, {
+      organizationId: actor.organizationId,
+      conversationId,
+    }),
+    listStaffGeminiProposalReviews(staffClient, {
+      organizationId: actor.organizationId,
+      conversationId,
+      limit: 20,
+    }),
+    readLatestManualWhatsAppSendAttempt(staffClient, {
+      organizationId: actor.organizationId,
+      conversationId,
+    }),
+  ]);
+  const latestInboundSourceMessageId = latestInboundMessageId(
+    thread.messages,
+    messageCursor,
+  );
 
   return (
     <PlatformStaffWhatsAppWorkspace
@@ -79,6 +113,30 @@ export default async function WhatsAppConversationPage({
       queueResetHref={queueCursor ? "/whatsapp" : null}
       queueNextHref={queue.nextCursor ? queueHref(queue.nextCursor) : null}
       selectedConversationId={conversationId}
+      workflowControls={
+        <PlatformProviderWorkflowControls
+          key={`${proposal?.proposalRequestId ?? "no-proposal"}:${
+            reviews.find((review) => review.proposalRequestId === proposal?.proposalRequestId)
+              ?.reviewId ?? "unreviewed"
+          }`}
+          locale={locale}
+          conversationId={conversationId}
+          latestInboundSourceMessageId={latestInboundSourceMessageId}
+          proposal={proposal}
+          reviews={reviews}
+          latestAttempt={latestAttempt}
+          requestIds={{
+            gemini: randomUUID(),
+            review: randomUUID(),
+            send: randomUUID(),
+            reconcile: randomUUID(),
+          }}
+          requestGemini={requestPlatformGeminiProposalAction}
+          reviewGemini={reviewPlatformGeminiProposalAction}
+          sendWhatsApp={sendPlatformWhatsAppMessageAction}
+          reconcileWhatsApp={reconcilePlatformWhatsAppSendAction}
+        />
+      }
       thread={{
         conversation: thread.conversation,
         messages: thread.messages,
@@ -92,6 +150,18 @@ export default async function WhatsAppConversationPage({
       }}
     />
   );
+}
+
+function latestInboundMessageId(
+  messages: readonly Readonly<{ id: string; direction: string }>[],
+  messageCursor: PlatformConversationCursor | null,
+): string | null {
+  if (messageCursor === null) {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.direction === "inbound") return messages[index]?.id ?? null;
+    }
+  }
+  return null;
 }
 
 function parseQueueCursor(params: SearchParams): PlatformConversationCursor | null {

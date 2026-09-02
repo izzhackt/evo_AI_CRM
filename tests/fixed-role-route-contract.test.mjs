@@ -232,13 +232,17 @@ test("only the exact private document APIs enter the active V2 route contract", 
   }
 });
 
-test("only the canonical V2 WhatsApp inbound route enters the active contract", () => {
+test("only the canonical V2 WhatsApp inbound and private recovery routes enter the active contract", () => {
   assert.equal(isConnectedPlatformApi("/api/v2/whatsapp/inbound"), true);
+  assert.equal(
+    isConnectedPlatformApi("/api/internal/platform-messaging/waha/work"),
+    true,
+  );
 
   for (const path of [
     "/api/v2/whatsapp/inbound/",
     "/api/internal/platform-messaging/waha/events",
-    "/api/internal/platform-messaging/waha/work",
+    "/api/internal/platform-messaging/waha/work/",
     "/api/internal/platform-messaging/waha/history",
     "/api/internal/platform-messaging/waha/media",
     "/api/internal/lead-agent/whatsapp",

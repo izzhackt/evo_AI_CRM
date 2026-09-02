@@ -446,6 +446,7 @@ test("POST replays the same signed provider event onto one durable work identity
   configureEnvironment();
   const persistArgs = [];
   const enqueueArgs = [];
+  const claimRequestIds = [];
   let persistCount = 0;
   let claimCount = 0;
   let projectCount = 0;
@@ -473,6 +474,7 @@ test("POST replays the same signed provider event onto one durable work identity
       };
     }
     if (name === "claim_waha_webhook_work_item") {
+      claimRequestIds.push(args.p_request_id);
       claimCount += 1;
       if (claimCount > 1) {
         return {
@@ -565,6 +567,7 @@ test("POST replays the same signed provider event onto one durable work identity
   assert.equal(persistArgs.length, 2);
   assert.equal(enqueueArgs.length, 2);
   assert.equal(claimCount, 2);
+  assert.equal(claimRequestIds[0], claimRequestIds[1]);
   assert.equal(projectCount, 1);
   assert.equal(finishCount, 1);
   assert.equal(

@@ -11,8 +11,9 @@ const WORK_ITEM_ID = "77100000-0000-4000-8000-000000000201";
 const ATTEMPT_ID = "77100000-0000-4000-8000-000000000301";
 const SOURCE_EVENT_ID = "77100000-0000-4000-8000-000000000101";
 const SALES_MEMBERSHIP_ID = "77100000-0000-4000-8000-000000000401";
+const RUN_REQUEST_ID = "77100000-0000-4000-8000-000000000501";
 const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function serviceClient(responder, calls) {
   return {
@@ -472,5 +473,141 @@ test("leaves the leased durable item for recovery when projection transport fail
   assert.deepEqual(
     calls.map((call) => call.name),
     ["claim_waha_webhook_work_item", "project_claimed_waha_event"],
+  );
+});
+
+test("keeps exact operation request IDs stable when a dead-lettered run is replayed", async () => {
+  const calls = [];
+  const client = serviceClient((name) => {
+    if (name === "claim_waha_webhook_work_item") {
+      return {
+        data: {
+          claimed: true,
+          completed: false,
+          requested_work_item_id: WORK_ITEM_ID,
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          source_webhook_event_id: SOURCE_EVENT_ID,
+          kind: "provider_webhook_process",
+          event_type: "message.ack",
+          queue: "platform_work_v1",
+          queue_message_id: 97,
+          attempt_number: 2,
+          max_attempts: 2,
+          lease_expires_at: "2026-09-02T10:00:00Z",
+        },
+        error: null,
+      };
+    }
+    if (name === "project_claimed_waha_observation") {
+      return {
+        data: {
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          disposition: "retryable_error",
+          evidence_ref: `waha-observation:${SOURCE_EVENT_ID}:binding-pending`,
+          error_code: "waha_ack_binding_pending",
+        },
+        error: null,
+      };
+    }
+    if (name === "finish_waha_event_projection") {
+      return {
+        data: {
+          organization_id: ORGANIZATION_ID,
+          work_item_id: WORK_ITEM_ID,
+          attempt_id: ATTEMPT_ID,
+          outcome: "retryable_error",
+          state: "dead_lettered",
+        },
+        error: null,
+      };
+    }
+    throw new Error(`Unexpected RPC: ${name}`);
+  }, calls);
+
+  for (let replay = 0; replay < 2; replay += 1) {
+    await assert.rejects(
+      projectPlatformWahaWorkItem({
+        client,
+        organizationId: ORGANIZATION_ID,
+        workItemId: WORK_ITEM_ID,
+        requestId: RUN_REQUEST_ID,
+        environment: {
+          EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: SALES_MEMBERSHIP_ID,
+        },
+      }),
+      (error) => {
+        assert.ok(error instanceof PlatformWahaProjectorError);
+        assert.equal(error.code, "provider_projection_rejected");
+        assert.equal(error.status, 422);
+        return true;
+      },
+    );
+  }
+
+  assert.equal(calls.length, 6);
+  assert.equal(calls[0].args.p_request_id, calls[3].args.p_request_id);
+  assert.equal(calls[1].args.p_request_id, calls[4].args.p_request_id);
+  assert.equal(calls[2].args.p_request_id, calls[5].args.p_request_id);
+  assert.equal(
+    new Set([
+      calls[0].args.p_request_id,
+      calls[1].args.p_request_id,
+      calls[2].args.p_request_id,
+    ]).size,
+    3,
+  );
+  for (const call of calls) assert.match(call.args.p_request_id, UUID_PATTERN);
+});
+
+test("treats a dead-lettered exact claim as stable terminal work", async () => {
+  const calls = [];
+  const client = serviceClient((name) => {
+    assert.equal(name, "claim_waha_webhook_work_item");
+    return {
+      data: {
+        claimed: false,
+        completed: true,
+        terminal: true,
+        requested_work_item_id: WORK_ITEM_ID,
+        organization_id: ORGANIZATION_ID,
+        work_item_id: WORK_ITEM_ID,
+        attempt_id: ATTEMPT_ID,
+        kind: "provider_webhook_process",
+        event_type: "message.ack",
+        queue: "platform_work_v1",
+        state: "dead_lettered",
+        outcome: "retryable_error",
+        error_code: "waha_ack_binding_pending",
+        evidence_ref: `waha-observation:${SOURCE_EVENT_ID}:binding-pending`,
+        automatic_retry_allowed: false,
+      },
+      error: null,
+    };
+  }, calls);
+
+  await assert.rejects(
+    projectPlatformWahaWorkItem({
+      client,
+      organizationId: ORGANIZATION_ID,
+      workItemId: WORK_ITEM_ID,
+      requestId: RUN_REQUEST_ID,
+      environment: {
+        EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: SALES_MEMBERSHIP_ID,
+      },
+    }),
+    (error) => {
+      assert.ok(error instanceof PlatformWahaProjectorError);
+      assert.equal(error.code, "provider_projection_rejected");
+      assert.equal(error.status, 422);
+      return true;
+    },
+  );
+  assert.deepEqual(
+    calls.map((call) => call.name),
+    ["claim_waha_webhook_work_item"],
   );
 });

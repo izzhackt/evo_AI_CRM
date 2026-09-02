@@ -108,6 +108,30 @@ SELECT pg_temp.assert_true(
     'platform.claim_durable_work(integer,text,uuid)',
     'EXECUTE'
   )
+  AND to_regprocedure(
+    'platform.next_recoverable_waha_webhook_work_item(uuid)'
+  ) IS NOT NULL
+  AND has_function_privilege(
+    'service_role',
+    to_regprocedure(
+      'platform.next_recoverable_waha_webhook_work_item(uuid)'
+    ),
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'anon',
+    to_regprocedure(
+      'platform.next_recoverable_waha_webhook_work_item(uuid)'
+    ),
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'authenticated',
+    to_regprocedure(
+      'platform.next_recoverable_waha_webhook_work_item(uuid)'
+    ),
+    'EXECUTE'
+  )
   AND NOT has_function_privilege(
     'service_role',
     'platform_private.finish_manual_whatsapp_reconciliation_internal(uuid,text,text,text,integer,text,text,platform.waha_ack_state,timestamptz,timestamptz,uuid)',
@@ -195,7 +219,7 @@ SELECT platform.enqueue_verified_webhook_work(
   :'exact_org_id',
   '98000000-0000-4000-8000-000000000102',
   encode(sha256(convert_to('p98-ack', 'UTF8')), 'hex'),
-  8,
+  2,
   '98000000-0000-4000-8000-000000000302'
 )::TEXT AS exact_ack_enqueue
 \gset
@@ -209,22 +233,19 @@ WHERE queue_row.msg_id =
   (:'exact_inbound_enqueue'::JSONB ->> 'queue_message_id')::BIGINT
 \gset
 
--- The generic public claim may still exist for other work kinds, but selecting
--- provider_webhook_process through it must raise and roll the attempted lease
--- back atomically.
+-- With only exact V2 WAHA rows visible, the generic public claim reports no
+-- work and leaves those rows untouched.
 SET request.jwt.claims TO '{"role":"service_role"}';
 SET ROLE service_role;
-SAVEPOINT generic_provider_denied;
-\set ON_ERROR_STOP off
 SELECT platform.claim_durable_work(
   60,
   'p98-generic-provider-denied',
   '98000000-0000-4000-8000-000000000303'
-);
-\set exact_generic_provider_state :SQLSTATE
-ROLLBACK TO SAVEPOINT generic_provider_denied;
+)::TEXT AS exact_generic_provider_empty
+\gset
 
 SAVEPOINT wrong_exact_head;
+\set ON_ERROR_STOP off
 SELECT platform.claim_waha_webhook_work_item(
   :'exact_org_id',
   (:'exact_ack_enqueue'::JSONB ->> 'work_item_id')::UUID,
@@ -254,11 +275,11 @@ WHERE attempt.work_item_id IN (
 \gset
 
 SELECT pg_temp.assert_true(
-  :'exact_generic_provider_state' = '42501'
+  NOT (:'exact_generic_provider_empty'::JSONB ->> 'claimed')::BOOLEAN
   AND :'exact_wrong_head_state' = '55000'
   AND :'exact_provider_read_count_after' = :'exact_provider_read_count_before'
   AND :'exact_attempts_after_denials'::INTEGER = 0,
-  'generic provider or wrong-head exact claim did not fail without a lease'
+  'generic or wrong-head exact claim leased exact V2 WAHA work'
 );
 
 SET request.jwt.claims TO '{"role":"service_role"}';
@@ -272,6 +293,21 @@ SELECT platform.claim_waha_webhook_work_item(
   '98000000-0000-4000-8000-000000000305'
 )::TEXT AS exact_inbound_claim
 \gset
+
+SELECT platform.claim_waha_webhook_work_item(
+  :'exact_org_id',
+  (:'exact_inbound_enqueue'::JSONB ->> 'work_item_id')::UUID,
+  60,
+  'p98-exact-inbound',
+  '98000000-0000-4000-8000-000000000305'
+)::TEXT AS exact_inbound_leased_receipt_replay
+\gset
+
+SELECT pg_temp.assert_true(
+  :'exact_inbound_leased_receipt_replay'::JSONB =
+    :'exact_inbound_claim'::JSONB,
+  'same exact claim request did not replay its leased receipt'
+);
 
 SELECT platform.project_claimed_waha_event(
   :'exact_org_id',
@@ -293,6 +329,21 @@ SELECT platform.finish_waha_webhook_work(
   '98000000-0000-4000-8000-000000000307'
 )::TEXT AS exact_inbound_finish
 \gset
+
+SELECT platform.claim_waha_webhook_work_item(
+  :'exact_org_id',
+  (:'exact_inbound_enqueue'::JSONB ->> 'work_item_id')::UUID,
+  60,
+  'p98-exact-inbound',
+  '98000000-0000-4000-8000-000000000305'
+)::TEXT AS exact_inbound_succeeded_receipt_replay
+\gset
+
+SELECT pg_temp.assert_true(
+  :'exact_inbound_succeeded_receipt_replay'::JSONB =
+    :'exact_inbound_claim'::JSONB,
+  'same exact claim request did not replay its receipt after success'
+);
 
 RESET ROLE;
 RESET request.jwt.claims;
@@ -330,6 +381,15 @@ SELECT platform.claim_waha_webhook_work_item(
 )::TEXT AS exact_inbound_replay
 \gset
 
+SELECT platform.claim_waha_webhook_work_item(
+  :'exact_org_id',
+  (:'exact_inbound_enqueue'::JSONB ->> 'work_item_id')::UUID,
+  60,
+  'p98-exact-inbound-replay',
+  '98000000-0000-4000-8000-000000000308'
+)::TEXT AS exact_inbound_completed_receipt_replay
+\gset
+
 RESET ROLE;
 RESET request.jwt.claims;
 
@@ -353,6 +413,199 @@ WHERE event.organization_id = :'exact_org_id'
   AND event.work_item_id =
     (:'exact_inbound_enqueue'::JSONB ->> 'work_item_id')::UUID
 \gset
+
+SELECT message.id AS exact_source_message_id,
+  message.conversation_id AS exact_conversation_id
+FROM platform.communication_messages AS message
+WHERE message.organization_id = :'exact_org_id'
+  AND message.source_webhook_event_id =
+    '98000000-0000-4000-8000-000000000101'
+\gset
+
+-- Keep one visible exact WAHA ACK at the queue head, then prove each retained
+-- generic lane remains independently claimable behind it.
+INSERT INTO platform.ai_draft_requests (
+  id,
+  organization_id,
+  conversation_id,
+  student_case_id,
+  source_message_id,
+  requested_language,
+  requested_by_profile_id,
+  requested_by_membership_id,
+  reason,
+  request_id
+)
+VALUES (
+  '98000000-0000-4000-8000-000000000420',
+  :'exact_org_id',
+  :'exact_conversation_id',
+  NULL,
+  :'exact_source_message_id',
+  'ru',
+  :'exact_sales_profile_id',
+  :'exact_sales_membership_id',
+  'Synthetic generic lane behind exact WAHA head',
+  '98000000-0000-4000-8000-000000000421'
+);
+
+INSERT INTO platform.manual_send_authorizations (
+  id,
+  organization_id,
+  conversation_id,
+  ai_draft_id,
+  source_message_id,
+  final_text,
+  final_text_sha256,
+  authorized_by_profile_id,
+  authorized_by_membership_id,
+  reason,
+  request_id
+)
+VALUES (
+  '98000000-0000-4000-8000-000000000424',
+  :'exact_org_id',
+  :'exact_conversation_id',
+  NULL,
+  :'exact_source_message_id',
+  'Synthetic generic manual lane',
+  platform_private.ai_memory_text_sha256('Synthetic generic manual lane'),
+  :'exact_sales_profile_id',
+  :'exact_sales_membership_id',
+  'Prove generic manual work is not blocked by exact WAHA',
+  '98000000-0000-4000-8000-000000000425'
+);
+
+SELECT pgmq.send(
+  'platform_work_v1',
+  jsonb_build_object(
+    'v', 1,
+    'work_item_id', '98000000-0000-4000-8000-000000000426',
+    'kind', 'manual_whatsapp_send'
+  ),
+  0
+)::TEXT AS exact_generic_manual_queue_id
+\gset
+
+INSERT INTO platform_private.durable_work_items (
+  id,
+  organization_id,
+  kind,
+  state,
+  manual_send_authorization_id,
+  business_key_sha256,
+  queue_message_id,
+  attempt_count,
+  max_attempts,
+  available_at,
+  request_id
+)
+VALUES (
+  '98000000-0000-4000-8000-000000000426',
+  :'exact_org_id',
+  'manual_whatsapp_send',
+  'queued',
+  '98000000-0000-4000-8000-000000000424',
+  encode(sha256(convert_to('p98-generic-manual', 'UTF8')), 'hex'),
+  :'exact_generic_manual_queue_id'::BIGINT,
+  0,
+  1,
+  pg_catalog.statement_timestamp(),
+  '98000000-0000-4000-8000-000000000427'
+);
+
+INSERT INTO platform_private.provider_webhook_events (
+  id,
+  organization_id,
+  provider,
+  provider_account_ref,
+  provider_conversation_ref,
+  provider_event_variant_ref,
+  provider_request_id,
+  waha_session_name,
+  payload_id,
+  event_type,
+  provider_occurred_at,
+  verification_status,
+  raw_payload,
+  verification_headers,
+  verification_evidence_ref,
+  payload_sha256,
+  request_id
+)
+VALUES (
+  '98000000-0000-4000-8000-000000000429',
+  :'exact_org_id', 'amocrm', 'amocrm:p98', NULL, NULL,
+  'synthetic-p98-amocrm', NULL, 'p98-amocrm-lead', 'lead.updated',
+  '2026-09-02 10:02:00+04', 'verified',
+  '{"event":"lead.updated","lead_id":98098}',
+  '{"signature_verified":true}', 'synthetic:p98:amocrm', repeat('79', 32),
+  '98000000-0000-4000-8000-000000000430'
+);
+
+SET request.jwt.claims TO '{"role":"service_role"}';
+SET ROLE service_role;
+
+SELECT platform.enqueue_ai_draft_work(
+  :'exact_org_id',
+  '98000000-0000-4000-8000-000000000420',
+  encode(sha256(convert_to('p98-generic-ai-head', 'UTF8')), 'hex'),
+  4,
+  '98000000-0000-4000-8000-000000000422'
+)::TEXT AS exact_generic_ai_enqueue
+\gset
+
+SELECT platform.enqueue_verified_webhook_work(
+  :'exact_org_id',
+  '98000000-0000-4000-8000-000000000429',
+  encode(sha256(convert_to('p98-generic-amocrm', 'UTF8')), 'hex'),
+  4,
+  '98000000-0000-4000-8000-000000000431'
+)::TEXT AS exact_generic_provider_enqueue
+\gset
+
+SELECT platform.claim_durable_work(
+  60,
+  'p98-generic-ai-behind-waha',
+  '98000000-0000-4000-8000-000000000423'
+)::TEXT AS exact_generic_ai_claim
+\gset
+
+SELECT platform.claim_durable_work(
+  60,
+  'p98-generic-manual-behind-waha',
+  '98000000-0000-4000-8000-000000000428'
+)::TEXT AS exact_generic_manual_claim
+\gset
+
+SELECT platform.claim_durable_work(
+  60,
+  'p98-generic-provider-behind-waha',
+  '98000000-0000-4000-8000-000000000432'
+)::TEXT AS exact_generic_provider_claim
+\gset
+
+SELECT pg_temp.assert_true(
+  ARRAY[
+    :'exact_generic_ai_claim'::JSONB ->> 'work_item_id',
+    :'exact_generic_manual_claim'::JSONB ->> 'work_item_id'
+  ] @> ARRAY[
+    :'exact_generic_ai_enqueue'::JSONB ->> 'work_item_id',
+    '98000000-0000-4000-8000-000000000426'
+  ]
+  AND ARRAY[
+    :'exact_generic_ai_claim'::JSONB ->> 'kind',
+    :'exact_generic_manual_claim'::JSONB ->> 'kind'
+  ] @> ARRAY['ai_draft_generate', 'manual_whatsapp_send']
+  AND :'exact_generic_provider_claim'::JSONB ->> 'work_item_id' =
+    :'exact_generic_provider_enqueue'::JSONB ->> 'work_item_id'
+  AND :'exact_generic_provider_claim'::JSONB ->> 'kind' =
+    'provider_webhook_process',
+  'exact WAHA head blocked a retained generic work lane'
+);
+
+RESET ROLE;
+RESET request.jwt.claims;
 
 SET request.jwt.claims TO '{"role":"service_role"}';
 SET ROLE service_role;
@@ -390,57 +643,102 @@ SELECT platform.finish_waha_event_projection(
 RESET ROLE;
 RESET request.jwt.claims;
 
-SELECT message.id AS exact_source_message_id,
-  message.conversation_id AS exact_conversation_id
-FROM platform.communication_messages AS message
-WHERE message.organization_id = :'exact_org_id'
-  AND message.source_webhook_event_id =
-    '98000000-0000-4000-8000-000000000101'
-\gset
+-- The first ACK projection is retryable. Simulate the durable retry becoming
+-- due without delivering another webhook, then recover it through the exact
+-- selector and the same exact claim -> project -> finish sequence. Attempt two
+-- exhausts this fixture's budget and must remain a stable terminal result.
+UPDATE pgmq.q_platform_work_v1 AS queue_row
+SET vt = pg_catalog.clock_timestamp() - INTERVAL '1 second'
+WHERE queue_row.msg_id =
+  (:'exact_ack_enqueue'::JSONB ->> 'queue_message_id')::BIGINT;
 
-INSERT INTO platform.ai_draft_requests (
-  id,
-  organization_id,
-  conversation_id,
-  student_case_id,
-  source_message_id,
-  requested_language,
-  requested_by_profile_id,
-  requested_by_membership_id,
-  reason,
-  request_id
-)
-VALUES (
-  '98000000-0000-4000-8000-000000000401',
-  :'exact_org_id',
-  :'exact_conversation_id',
-  NULL,
-  :'exact_source_message_id',
-  'ru',
-  :'exact_sales_profile_id',
-  :'exact_sales_membership_id',
-  'Synthetic unrelated exact-claim proof',
-  '98000000-0000-4000-8000-000000000402'
-);
+UPDATE platform_private.durable_work_items AS item
+SET available_at = pg_catalog.clock_timestamp() - INTERVAL '1 second'
+WHERE item.organization_id = :'exact_org_id'
+  AND item.id = (:'exact_ack_enqueue'::JSONB ->> 'work_item_id')::UUID
+  AND item.state = 'retry_wait';
 
 SET request.jwt.claims TO '{"role":"service_role"}';
 SET ROLE service_role;
 
-SELECT platform.enqueue_ai_draft_work(
-  :'exact_org_id',
-  '98000000-0000-4000-8000-000000000401',
-  encode(sha256(convert_to('p98-unrelated-ai', 'UTF8')), 'hex'),
-  4,
-  '98000000-0000-4000-8000-000000000403'
-)::TEXT AS exact_ai_enqueue
+SELECT platform.next_recoverable_waha_webhook_work_item(
+  :'exact_org_id'
+)::TEXT AS exact_ack_due
 \gset
 
-SELECT platform.claim_durable_work(
+SELECT platform.claim_waha_webhook_work_item(
+  :'exact_org_id',
+  (:'exact_ack_due'::JSONB ->> 'work_item_id')::UUID,
   60,
-  'p98-generic-unrelated',
-  '98000000-0000-4000-8000-000000000404'
-)::TEXT AS exact_ai_claim
+  'p98-exact-ack-recovery',
+  '98000000-0000-4000-8000-000000000312'
+)::TEXT AS exact_ack_retry_claim
 \gset
+
+SELECT platform.project_claimed_waha_observation(
+  :'exact_org_id',
+  (:'exact_ack_retry_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'exact_ack_retry_claim'::JSONB ->> 'attempt_id')::UUID,
+  :'exact_sales_membership_id',
+  '98000000-0000-4000-8000-000000000313'
+)::TEXT AS exact_ack_retry_projection
+\gset
+
+SELECT platform.finish_waha_event_projection(
+  :'exact_org_id',
+  (:'exact_ack_retry_claim'::JSONB ->> 'work_item_id')::UUID,
+  (:'exact_ack_retry_claim'::JSONB ->> 'attempt_id')::UUID,
+  (:'exact_ack_retry_projection'::JSONB ->> 'disposition')::platform.durable_work_finish_outcome,
+  :'exact_ack_retry_projection'::JSONB ->> 'error_code',
+  :'exact_ack_retry_projection'::JSONB ->> 'evidence_ref',
+  30,
+  '98000000-0000-4000-8000-000000000314'
+)::TEXT AS exact_ack_dead_finish
+\gset
+
+SELECT platform.claim_waha_webhook_work_item(
+  :'exact_org_id',
+  (:'exact_ack_enqueue'::JSONB ->> 'work_item_id')::UUID,
+  60,
+  'p98-exact-ack-recovery',
+  '98000000-0000-4000-8000-000000000312'
+)::TEXT AS exact_ack_dead_receipt_replay
+\gset
+
+SELECT platform.claim_waha_webhook_work_item(
+  :'exact_org_id',
+  (:'exact_ack_enqueue'::JSONB ->> 'work_item_id')::UUID,
+  60,
+  'p98-exact-ack-terminal',
+  '98000000-0000-4000-8000-000000000315'
+)::TEXT AS exact_ack_terminal
+\gset
+
+SELECT platform.claim_waha_webhook_work_item(
+  :'exact_org_id',
+  (:'exact_ack_enqueue'::JSONB ->> 'work_item_id')::UUID,
+  60,
+  'p98-exact-ack-terminal',
+  '98000000-0000-4000-8000-000000000315'
+)::TEXT AS exact_ack_terminal_receipt_replay
+\gset
+
+SELECT platform.claim_waha_webhook_work_item(
+  :'exact_org_id',
+  (:'exact_ack_enqueue'::JSONB ->> 'work_item_id')::UUID,
+  60,
+  'p98-exact-ack-terminal-two',
+  '98000000-0000-4000-8000-000000000316'
+)::TEXT AS exact_ack_terminal_again
+\gset
+
+SELECT platform.next_recoverable_waha_webhook_work_item(
+  :'exact_org_id'
+)::TEXT AS exact_ack_not_due_after_dead
+\gset
+
+RESET ROLE;
+RESET request.jwt.claims;
 
 SELECT pg_temp.assert_true(
   (:'exact_inbound_claim'::JSONB ->> 'claimed')::BOOLEAN
@@ -451,6 +749,8 @@ SELECT pg_temp.assert_true(
   AND :'exact_inbound_finish'::JSONB ->> 'state' = 'succeeded'
   AND NOT (:'exact_inbound_replay'::JSONB ->> 'claimed')::BOOLEAN
   AND (:'exact_inbound_replay'::JSONB ->> 'completed')::BOOLEAN
+  AND :'exact_inbound_completed_receipt_replay'::JSONB =
+    :'exact_inbound_replay'::JSONB
   AND :'exact_message_count_before_replay'::INTEGER = 1
   AND :'exact_message_count_after_replay' =
     :'exact_message_count_before_replay'
@@ -464,12 +764,40 @@ SELECT pg_temp.assert_true(
   AND :'exact_ack_projection'::JSONB ->> 'disposition' = 'retryable_error'
   AND :'exact_ack_projection'::JSONB ->> 'error_code' =
     'waha_ack_binding_pending'
-  AND :'exact_ack_finish'::JSONB ->> 'state' = 'retry_wait'
-  AND (:'exact_ai_claim'::JSONB ->> 'claimed')::BOOLEAN
-  AND :'exact_ai_claim'::JSONB ->> 'kind' = 'ai_draft_generate'
-  AND :'exact_ai_claim'::JSONB ->> 'work_item_id' =
-    :'exact_ai_enqueue'::JSONB ->> 'work_item_id',
+  AND :'exact_ack_finish'::JSONB ->> 'state' = 'retry_wait',
   'exact inbound/ACK projection, replay, or unrelated generic claim drifted'
+);
+
+SELECT pg_temp.assert_true(
+  (:'exact_ack_due'::JSONB ->> 'found')::BOOLEAN
+  AND :'exact_ack_due'::JSONB ->> 'work_item_id' =
+    :'exact_ack_enqueue'::JSONB ->> 'work_item_id'
+  AND :'exact_ack_due'::JSONB ->> 'event_type' = 'message.ack'
+  AND :'exact_ack_due'::JSONB ->> 'state' = 'retry_wait'
+  AND (:'exact_ack_retry_claim'::JSONB ->> 'claimed')::BOOLEAN
+  AND (:'exact_ack_retry_claim'::JSONB ->> 'attempt_number')::INTEGER = 2
+  AND :'exact_ack_dead_finish'::JSONB ->> 'state' = 'dead_lettered'
+  AND :'exact_ack_dead_receipt_replay'::JSONB =
+    :'exact_ack_retry_claim'::JSONB
+  AND NOT (:'exact_ack_terminal'::JSONB ->> 'claimed')::BOOLEAN
+  AND (:'exact_ack_terminal'::JSONB ->> 'completed')::BOOLEAN
+  AND (:'exact_ack_terminal'::JSONB ->> 'terminal')::BOOLEAN
+  AND :'exact_ack_terminal'::JSONB ->> 'state' = 'dead_lettered'
+  AND :'exact_ack_terminal'::JSONB ->> 'outcome' = 'retryable_error'
+  AND :'exact_ack_terminal'::JSONB ->> 'error_code' =
+    'waha_ack_binding_pending'
+  AND :'exact_ack_terminal_receipt_replay'::JSONB =
+    :'exact_ack_terminal'::JSONB
+  AND :'exact_ack_terminal_again'::JSONB = :'exact_ack_terminal'::JSONB
+  AND NOT (:'exact_ack_not_due_after_dead'::JSONB ->> 'found')::BOOLEAN
+  AND (
+    SELECT count(*) = 2
+    FROM platform_private.durable_work_attempts AS attempt
+    WHERE attempt.organization_id = :'exact_org_id'
+      AND attempt.work_item_id =
+        (:'exact_ack_enqueue'::JSONB ->> 'work_item_id')::UUID
+  ),
+  'retry_wait recovery or stable dead-letter replay drifted'
 );
 
 RESET ROLE;

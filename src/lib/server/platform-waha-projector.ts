@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -31,11 +31,19 @@ type ClaimedWork = Readonly<{
 
 type CompletedWork = Readonly<{
   claimed: false;
+  terminal: false;
   eventType: "message" | "message.any" | "message.ack";
   workItemId: string;
 }>;
 
-type ExactClaim = ClaimedWork | CompletedWork;
+type TerminalWork = Readonly<{
+  claimed: false;
+  terminal: true;
+  eventType: "message" | "message.any" | "message.ack";
+  workItemId: string;
+}>;
+
+type ExactClaim = ClaimedWork | CompletedWork | TerminalWork;
 
 type ProjectionResult = Readonly<{
   disposition: ProjectionDisposition;
@@ -59,6 +67,7 @@ export type PlatformWahaProjectorInput = Readonly<{
   client: RpcClient;
   organizationId: string;
   workItemId: string;
+  requestId?: string;
   environment?: NodeJS.ProcessEnv;
 }>;
 
@@ -88,6 +97,20 @@ function uuid(value: unknown): string | null {
   return normalized === "00000000-0000-0000-0000-000000000000"
     ? null
     : normalized;
+}
+
+function operationRequestId(
+  runRequestId: string,
+  operation: "claim" | "project" | "finish",
+): string {
+  const bytes = createHash("sha256")
+    .update(`evo:p5b:waha-projector:${runRequestId}:${operation}`, "utf8")
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function intakeSalesMembershipId(environment: NodeJS.ProcessEnv): string {
@@ -142,7 +165,34 @@ function normalizeClaim(
     value.completed === true &&
     value.state === "succeeded"
   ) {
-    return Object.freeze({ claimed: false, eventType, workItemId });
+    return Object.freeze({
+      claimed: false,
+      terminal: false,
+      eventType,
+      workItemId,
+    });
+  }
+
+  if (
+    value.claimed === false &&
+    value.completed === true &&
+    value.terminal === true &&
+    value.state === "dead_lettered" &&
+    uuid(value.attempt_id) !== null &&
+    (value.outcome === "retryable_error" ||
+      value.outcome === "terminal_error") &&
+    typeof value.error_code === "string" &&
+    ERROR_CODE_PATTERN.test(value.error_code) &&
+    typeof value.evidence_ref === "string" &&
+    EVIDENCE_REF_PATTERN.test(value.evidence_ref) &&
+    value.automatic_retry_allowed === false
+  ) {
+    return Object.freeze({
+      claimed: false,
+      terminal: true,
+      eventType,
+      workItemId,
+    });
   }
 
   const attemptId = uuid(value.attempt_id);
@@ -228,11 +278,20 @@ export async function projectPlatformWahaWorkItem({
   client,
   organizationId: rawOrganizationId,
   workItemId: rawWorkItemId,
+  requestId: rawRequestId,
   environment = process.env,
 }: PlatformWahaProjectorInput): Promise<PlatformWahaProjectionResult> {
   const organizationId = uuid(rawOrganizationId);
   const workItemId = uuid(rawWorkItemId);
-  if (organizationId === null || workItemId === null) return unavailable();
+  const runRequestId =
+    rawRequestId === undefined ? randomUUID() : uuid(rawRequestId);
+  if (
+    organizationId === null ||
+    workItemId === null ||
+    runRequestId === null
+  ) {
+    return unavailable();
+  }
 
   const claim = normalizeClaim(
     await rpc(client, "claim_waha_webhook_work_item", {
@@ -240,13 +299,16 @@ export async function projectPlatformWahaWorkItem({
       p_work_item_id: workItemId,
       p_visibility_timeout_seconds: VISIBILITY_TIMEOUT_SECONDS,
       p_worker_ref: WORKER_REF,
-      p_request_id: randomUUID(),
+      p_request_id: operationRequestId(runRequestId, "claim"),
     }),
     organizationId,
     workItemId,
   );
 
   if (!claim.claimed) {
+    if (claim.terminal) {
+      throw new PlatformWahaProjectorError("provider_projection_rejected", 422);
+    }
     return Object.freeze({
       workItemId: claim.workItemId,
       eventType: claim.eventType,
@@ -273,7 +335,7 @@ export async function projectPlatformWahaWorkItem({
       p_work_item_id: claim.workItemId,
       p_attempt_id: claim.attemptId,
       p_intake_sales_membership_id: salesMembershipId,
-      p_request_id: randomUUID(),
+      p_request_id: operationRequestId(runRequestId, "project"),
     }),
     organizationId,
     claim,
@@ -291,7 +353,7 @@ export async function projectPlatformWahaWorkItem({
         projection.disposition === "retryable_error"
           ? RETRY_DELAY_SECONDS
           : null,
-      p_request_id: randomUUID(),
+      p_request_id: operationRequestId(runRequestId, "finish"),
     }),
     organizationId,
     claim,

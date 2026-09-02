@@ -512,6 +512,7 @@ export function createPlatformWahaWebhookHandler(
         client,
         organizationId: config.organizationId,
         workItemId,
+        requestId: persisted.id,
       });
       return json(200, {
         ok: true,

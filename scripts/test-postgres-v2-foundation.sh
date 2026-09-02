@@ -1061,6 +1061,7 @@ DATABASE_URL="$database_url" \
     tests/platform-provider-acceptance-harness.test.mjs \
     tests/platform-whatsapp-pages.test.mjs \
     tests/platform-communications-local-provisioner.test.mjs \
+    tests/platform-amocrm-command-service.test.mjs \
     tests/canonical-amocrm-schema-postgres.test.mjs \
     tests/canonical-amocrm-command-postgres.test.mjs \
     tests/canonical-amocrm-discovery-postgres.test.mjs

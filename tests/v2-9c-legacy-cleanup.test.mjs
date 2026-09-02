@@ -61,6 +61,7 @@ test("V2-9C keeps only the current Platform provider env contract and active tes
     /tests\/platform-waha-projector-recovery\.test\.mjs/,
     /tests\/platform-provider-acceptance-harness\.test\.mjs/,
     /tests\/platform-communications-local-provisioner\.test\.mjs/,
+    /tests\/platform-amocrm-command-service\.test\.mjs/,
   ]) {
     assert.match(packageManifest, required);
     assert.match(activeHarness, required);
@@ -71,6 +72,7 @@ test("V2-9C keeps only the current Platform provider env contract and active tes
     /tests\/canonical-gemini-review-form\.test\.mjs/,
     /tests\/canonical-waha-provider\.test\.mjs/,
     /tests\/canonical-whatsapp-outbound-form\.test\.mjs/,
+    /tests\/canonical-amocrm-command-service\.test\.mjs/,
     /tests\/v2-10d-real-acceptance-harness\.test\.mjs/,
     /tests\/v2-10d-review-recovery-harness\.test\.mjs/,
   ]) {

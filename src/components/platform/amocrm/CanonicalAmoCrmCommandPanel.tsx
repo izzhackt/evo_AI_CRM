@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { btnCls, btnGhostCls, Card, cn } from "@/components/ui";
@@ -33,6 +33,13 @@ const COPY = {
     noteLabel: "Проверенная сотрудником заметка",
     notePlaceholder: "Кратко укажите, что именно проверено перед синхронизацией.",
     noteHint: "Обязательное поле, не более 1000 байт.",
+    taskLabel: "Задача для менеджера в amoCRM",
+    taskPlaceholder:
+      "Опишите следующее действие, которое менеджер должен выполнить.",
+    taskHint: "Обязательное поле, не более 1000 байт.",
+    taskDeadlineLabel: "Срок задачи",
+    taskDeadlineHint:
+      "Укажите точную дату и время. Без срока EVO не отправляет задачу в amoCRM.",
     submit: "Синхронизировать с amoCRM",
     submitting: "Синхронизация…",
     reconcile: "Проверить неизвестный результат",
@@ -70,6 +77,13 @@ const COPY = {
     noteLabel: "Кызматкер текшерген эскертүү",
     notePlaceholder: "Шайкештөөдөн мурда эмнени текшергениңизди кыска жазыңыз.",
     noteHint: "Милдеттүү талаа, 1000 байттан ашпайт.",
+    taskLabel: "amoCRMдеги менеджердин тапшырмасы",
+    taskPlaceholder:
+      "Менеджер кийинки кайсы аракетти жасашы керек экенин жазыңыз.",
+    taskHint: "Милдеттүү талаа, 1000 байттан ашпайт.",
+    taskDeadlineLabel: "Тапшырманын мөөнөтү",
+    taskDeadlineHint:
+      "Так күндү жана убакытты көрсөтүңүз. Мөөнөтсүз EVO amoCRMге тапшырма жөнөтпөйт.",
     submit: "amoCRM менен шайкештөө",
     submitting: "Шайкештөө…",
     reconcile: "Белгисиз жыйынтыкты текшерүү",
@@ -107,6 +121,12 @@ const COPY = {
     noteLabel: "Staff-reviewed note",
     notePlaceholder: "Briefly state what was verified before this sync.",
     noteHint: "Required; maximum 1000 bytes.",
+    taskLabel: "Manager task in amoCRM",
+    taskPlaceholder: "Describe the next action the manager must complete.",
+    taskHint: "Required; maximum 1000 bytes.",
+    taskDeadlineLabel: "Task deadline",
+    taskDeadlineHint:
+      "Enter an exact date and time. EVO does not send an amoCRM task without a deadline.",
     submit: "Sync with amoCRM",
     submitting: "Syncing…",
     reconcile: "Check unknown result",
@@ -143,6 +163,7 @@ const OPERATION_LABELS = {
   lead_pipeline_status_update: "Pipeline / status",
   lead_responsible_update: "Responsible user",
   lead_note_create: "Human note",
+  lead_task_create: "Manager task",
   lead_tag_update: "Exact tags",
 } as const;
 
@@ -159,6 +180,14 @@ const INITIAL_STATE: CanonicalAmoCrmCommandActionState = Object.freeze({
   attemptId: null,
   steps: Object.freeze([]),
 });
+
+function unixFromDateTimeLocal(value: string): string {
+  if (value.trim().length === 0) return "";
+  const parsed = new Date(value);
+  const unix = Math.floor(parsed.getTime() / 1_000);
+  if (!Number.isFinite(unix) || unix <= 0) return "";
+  return String(unix);
+}
 
 function stateTone(status: CanonicalAmoCrmCommandActionState["status"]): string {
   if (status === "accepted") return "border-ok/30 bg-ok-weak text-ok";
@@ -248,6 +277,7 @@ export function CanonicalAmoCrmCommandPanel({
 }>) {
   const copy = COPY[locale];
   const router = useRouter();
+  const [taskDeadlineLocal, setTaskDeadlineLocal] = useState("");
   const ready = availability.status === "ready";
   const syncAction =
     scope === "sales"
@@ -386,6 +416,46 @@ export function CanonicalAmoCrmCommandPanel({
             />
             <span className="mt-1 block text-xs text-fg-3">
               {copy.noteHint}
+            </span>
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-fg-2">
+              {copy.taskLabel}
+            </span>
+            <textarea
+              name="task_text"
+              rows={3}
+              maxLength={1000}
+              required
+              disabled={!ready || syncing || flowBlocked}
+              placeholder={copy.taskPlaceholder}
+              className="mt-1.5 min-h-24 w-full resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-base text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="canonical-amocrm-task-text"
+            />
+            <span className="mt-1 block text-xs text-fg-3">
+              {copy.taskHint}
+            </span>
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-fg-2">
+              {copy.taskDeadlineLabel}
+            </span>
+            <input
+              type="datetime-local"
+              value={taskDeadlineLocal}
+              required
+              disabled={!ready || syncing || flowBlocked}
+              onChange={(event) => setTaskDeadlineLocal(event.currentTarget.value)}
+              className="mt-1.5 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-base text-fg focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="canonical-amocrm-task-deadline"
+            />
+            <input
+              type="hidden"
+              name="task_complete_till"
+              value={unixFromDateTimeLocal(taskDeadlineLocal)}
+            />
+            <span className="mt-1 block text-xs text-fg-3">
+              {copy.taskDeadlineHint}
             </span>
           </label>
           <button

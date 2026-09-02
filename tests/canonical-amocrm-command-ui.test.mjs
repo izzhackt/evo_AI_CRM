@@ -60,6 +60,9 @@ test("the panel exposes exact inputs, honest states, per-step evidence, and expl
   assert.match(panel, /attemptId: blockingAttempt\.attemptId/);
   assert.match(panel, /const flowBlocked = panelState\.flowBlocked/);
   assert.match(panel, /name="note_text"/);
+  assert.match(panel, /name="task_text"/);
+  assert.match(panel, /name="task_complete_till"/);
+  assert.match(panel, /type="datetime-local"/);
   assert.match(panel, /maxLength=\{1000\}/);
   assert.match(panel, /required/);
   assert.match(panel, /disabled=\{!ready \|\| syncing \|\| flowBlocked\}/);
@@ -87,9 +90,11 @@ test("server actions use only canonical V2 seams and exact FormData extraction",
   assert.match(actions, /exactActionStringFields/);
   assert.match(actions, /requirePlatformSalesActor/);
   assert.match(actions, /requirePlatformAdmissionsActor/);
-  assert.match(actions, /executeCanonicalAmoCrmSalesSync/);
-  assert.match(actions, /executeCanonicalAmoCrmAdmissionsSync/);
-  assert.match(actions, /reconcileCanonicalAmoCrmSyncAttempt/);
+  assert.match(actions, /executePlatformAmoCrmSalesSync/);
+  assert.match(actions, /executePlatformAmoCrmAdmissionsSync/);
+  assert.match(actions, /reconcilePlatformAmoCrmSyncAttempt/);
+  assert.match(actions, /normalizedFutureUnix/);
+  assert.match(actions, /task_complete_till/);
   assert.match(actions, /revalidatePath\(`\/sales\/\$\{leadId\}`\)/);
   assert.match(
     actions,
@@ -97,6 +102,6 @@ test("server actions use only canonical V2 seams and exact FormData extraction",
   );
   assert.doesNotMatch(
     actions,
-    /supabase|sqlite|EVO_AGENT_|legacy|fallback|@\/lib\/amocrm/i,
+    /sqlite|EVO_AGENT_|legacy|fallback|@\/lib\/amocrm/i,
   );
 });

@@ -49,8 +49,8 @@ test("Student 360 exposes localized links to every core workflow section", () =>
   const privateDocuments = source(
     "src/components/platform/documents/PlatformPrivateDocumentsPanel.tsx",
   );
-  const amoCrmIsolation = source(
-    "src/app/(staff)/clients/[id]/CanonicalAmoCrmCommandSection.tsx",
+  const amoCrmSection = source(
+    "src/app/(staff)/clients/[id]/PlatformAmoCrmCommandSection.tsx",
   );
   const admissionsOperations = source(
     "src/components/platform/admissions/PlatformAdmissionsOperationsPanel.tsx",
@@ -58,7 +58,7 @@ test("Student 360 exposes localized links to every core workflow section", () =>
   const contractWorkspace = source(
     "src/app/(staff)/clients/[id]/ContractDraftReportWorkspace.tsx",
   );
-  const renderedSections = `${workspace}\n${admissionsTasks}\n${privateDocuments}\n${amoCrmIsolation}\n${admissionsOperations}\n${contractWorkspace}`;
+  const renderedSections = `${workspace}\n${admissionsTasks}\n${privateDocuments}\n${amoCrmSection}\n${admissionsOperations}\n${contractWorkspace}`;
 
   assert.match(workspace, /aria-label=\{copy\.sectionNavigation\}/);
   assert.match(workspace, /platform-student-case-section-navigation/);

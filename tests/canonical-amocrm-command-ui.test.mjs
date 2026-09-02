@@ -10,19 +10,19 @@ function source(path) {
   return readFileSync(url, "utf8");
 }
 
-test("the active canonical amoCRM command panel remains on Admissions Student 360", () => {
+test("the active Platform amoCRM command panel remains on Admissions Student 360", () => {
   const studentWorkspace = source(
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
   const admissions = source(
-    "src/app/(staff)/clients/[id]/CanonicalAmoCrmCommandSection.tsx",
+    "src/app/(staff)/clients/[id]/PlatformAmoCrmCommandSection.tsx",
   );
 
   assert.match(admissions, /CanonicalAmoCrmCommandPanel/);
-  assert.match(studentWorkspace, /<CanonicalAmoCrmCommandSection/);
+  assert.match(studentWorkspace, /<PlatformAmoCrmCommandSection/);
   assert.ok(
     studentWorkspace.indexOf("<PlatformAdmissionsOperationsPanel") <
-      studentWorkspace.indexOf("<CanonicalAmoCrmCommandSection"),
+      studentWorkspace.indexOf("<PlatformAmoCrmCommandSection"),
     "Supabase Admissions operations must remain ahead of the isolated #549 amoCRM command section",
   );
   assert.match(

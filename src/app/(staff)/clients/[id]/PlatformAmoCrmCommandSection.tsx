@@ -11,13 +11,13 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
- * Canonical Student 360 amoCRM command section.
+ * Platform Student 360 amoCRM command section.
  *
  * The canonical Supabase Student context supplies the identifiers. This
  * section reads the active Supabase command/blocking path only; it must not
  * become another Student summary, handoff or contract path.
  */
-export async function CanonicalAmoCrmCommandSection({
+export async function PlatformAmoCrmCommandSection({
   organizationId,
   authorityRole,
   locale,
@@ -41,7 +41,8 @@ export async function CanonicalAmoCrmCommandSection({
     ReturnType<typeof readPlatformBlockingAmoCrmCommand>
   >;
   try {
-    const staffClient = caseState === "active" ? await createSupabaseServerClient() : null;
+    const staffClient =
+      caseState === "active" ? await createSupabaseServerClient() : null;
     [availability, blockingAttempt] = await Promise.all([
       readCanonicalAmoCrmCommandAvailability(),
       caseState === "active"

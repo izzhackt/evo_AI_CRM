@@ -659,7 +659,7 @@ test("clients use one Supabase Student 360 renderer with only the #549 amoCRM is
   );
   const amoCrmIsolationSource = readFileSync(
     new URL(
-      "../src/app/(staff)/clients/[id]/CanonicalAmoCrmCommandSection.tsx",
+      "../src/app/(staff)/clients/[id]/PlatformAmoCrmCommandSection.tsx",
       import.meta.url,
     ),
     "utf8",

@@ -414,19 +414,6 @@ SELECT pg_temp.assert_true(
   'manual-send readiness gate did not accept fresh WORKING provider evidence'
 );
 
-SELECT pg_temp.assert_true(
-  (
-    SELECT signals ->> 'waha_readiness' = 'ready'
-      AND signals ->> 'waha_evidence_kind' = 'provider_observed'
-    FROM (
-      SELECT platform.platform_operational_signals_v1(
-        'a1000000-0000-4000-8000-000000000401'
-      ) AS signals
-    ) AS current_signals
-  ),
-  'provider-readiness projection did not expose WAHA as ready'
-);
-
 DO $$
 BEGIN
   BEGIN

@@ -1492,16 +1492,6 @@ SQL
       -f /workspace/supabase/tests/platform_unified_lead_agent_sync_current.sql
   fi
 
-  # Migration 081 adds the supported service-only Vault provisioning and
-  # non-secret readiness boundary. Exercise it at the exact schema tip so a
-  # later migration cannot mask RPC, replay, grant or redaction drift.
-  if [[ "$(basename "$migration")" == 081_* ]]; then
-    docker exec "$container_name" \
-      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-      -f /workspace/supabase/tests/platform_manual_send_waha_provisioning_current.sql
-
-  fi
-
   # Migration 082 makes evo-inbox the only forward signed Lead-Agent and
   # current staff-health session while retaining old rows only as history.
   if [[ "$(basename "$migration")" == 082_* ]]; then
@@ -1799,10 +1789,25 @@ SQL
       -f /workspace/supabase/tests/platform_provider_workflow_contract_rls.sql
   fi
 
-  # Migration 097 makes the exact work item the only public manual-send claim.
-  # Prove the complete Vault/claim/finish and send-free reconciliation paths at
-  # the final replacement boundary, without contacting an external provider.
-  if [[ "$(basename "$migration")" == 097_* ]]; then
+  # Migration 098 replaces the remaining generic WAHA claims with one exact
+  # item claim and rejects non-API evidence for matched reconciliation.
+  if [[ "$(basename "$migration")" == 098_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_exact_waha_projection_claim.sql
+  fi
+
+  # Migration 099 is the current one-way WAHA transport cutover. Run every
+  # current manual-send/provisioning/reconciliation contract here: migrations
+  # 081 and 097 intentionally retain the frozen V1 alias as historical input,
+  # while the schema tip must expose only the EVO Inbox transport.
+  if [[ "$(basename "$migration")" == 099_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_waha_transport_alias.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_manual_send_waha_provisioning_current.sql
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_manual_send_waha_runtime_current.sql
@@ -1811,12 +1816,20 @@ SQL
       -f /workspace/supabase/tests/platform_provider_workflow_reconciliation.sql
   fi
 
-  # Migration 098 replaces the remaining generic WAHA claims with one exact
-  # item claim and rejects non-API evidence for matched reconciliation.
-  if [[ "$(basename "$migration")" == 098_* ]]; then
+  # Migration 100 makes the exact signed evo-inbox session.status projection
+  # the WAHA readiness authority used by both staff UI and the send guard.
+  if [[ "$(basename "$migration")" == 100_* ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-      -f /workspace/supabase/tests/platform_exact_waha_projection_claim.sql
+      -f /workspace/supabase/tests/platform_waha_session_readiness.sql
+  fi
+
+  # Migration 101 aligns the exact worker claim with the authenticated
+  # four-field queue pointer and rejects the superseded three-field shape.
+  if [[ "$(basename "$migration")" == 101_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_exact_manual_send_queue_shape.sql
   fi
 done < <(
   cd "$repo_root"

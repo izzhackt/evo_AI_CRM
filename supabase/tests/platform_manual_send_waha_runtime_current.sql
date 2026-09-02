@@ -253,6 +253,19 @@ ORDER BY item.created_at, item.id
 LIMIT 1
 \gset
 
+\if :{?p8r4_canonical_pointer}
+SELECT pgmq.send(
+  'platform_work_v1',
+  jsonb_build_object(
+    'v', 1,
+    'organization_id', :'p8r4_org_id',
+    'work_item_id', :'p8r4_work_item_id',
+    'kind', 'manual_whatsapp_send'
+  ),
+  0
+)::TEXT AS p8r4_queue_message_id
+\gset
+\else
 SELECT pgmq.send(
   'platform_work_v1',
   jsonb_build_object(
@@ -263,6 +276,7 @@ SELECT pgmq.send(
   0
 )::TEXT AS p8r4_queue_message_id
 \gset
+\endif
 
 -- Earlier exact-boundary suites intentionally exercise and may consume their
 -- synthetic queue pointer. Rebind only this transaction-local fixture to a
@@ -490,6 +504,61 @@ SELECT pg_temp.assert_true(
     ),
   'Manual-send finish did not persist exact private provider evidence'
 );
+
+\if :{?p8r4_canonical_pointer}
+-- The schema-tip exact claimant must not silently skip a malformed head and
+-- lease another message. Rebind the transaction-local fixture to the former
+-- three-field shape and prove that the public exact boundary stops with the
+-- documented object-state error instead of falling back.
+SELECT pgmq.send(
+  'platform_work_v1',
+  jsonb_build_object(
+    'v', 1,
+    'work_item_id', :'p8r4_work_item_id',
+    'kind', 'manual_whatsapp_send'
+  ),
+  0
+)::TEXT AS p8r4_malformed_queue_message_id
+\gset
+
+SET LOCAL session_replication_role = replica;
+UPDATE platform_private.durable_work_items
+SET queue_message_id = :'p8r4_malformed_queue_message_id',
+    state = 'queued',
+    attempt_count = 0,
+    max_attempts = 1,
+    available_at = pg_catalog.statement_timestamp(),
+    leased_until = NULL,
+    completed_at = NULL,
+    updated_at = pg_catalog.statement_timestamp()
+WHERE organization_id = :'p8r4_org_id'
+  AND id = :'p8r4_work_item_id';
+SET LOCAL session_replication_role = origin;
+
+SELECT pg_catalog.set_config(
+  'p8r4.work_item_id',
+  :'p8r4_work_item_id',
+  true
+);
+SET LOCAL ROLE service_role;
+DO $assert_malformed_pointer_fails_closed$
+BEGIN
+  PERFORM platform.claim_manual_whatsapp_send_item(
+    pg_catalog.current_setting('p8r4.organization_id')::UUID,
+    pg_catalog.current_setting('p8r4.work_item_id')::UUID,
+    60,
+    'p8r4-malformed-pointer-worker',
+    '80000000-0000-4000-8000-000000000003'
+  );
+  RAISE EXCEPTION
+    'Malformed three-field manual-send queue pointer was accepted';
+EXCEPTION
+  WHEN SQLSTATE '55000' THEN
+    NULL;
+END
+$assert_malformed_pointer_fails_closed$;
+RESET ROLE;
+\endif
 
 ROLLBACK;
 

@@ -31,26 +31,17 @@ export default async function MainPart() {
         ← Части интерфейса
       </Link>
 
-      {/* Приветствие и профиль — верхняя полоса из референса, без поиска. */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-[-0.02em] text-fg">
-            С возвращением, Айгерим
-          </h1>
-          <p className="mt-0.5 text-sm text-fg-3">
-            Вот что происходит в приёмной кампании сегодня
-          </p>
-        </div>
-
-        {/* Поиска здесь нет: на главной ищут редко, а строка забирала
-            место у профиля и мешала карточкам стать шире. */}
-        <span className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3">
-          <span aria-hidden="true" className="block h-8 w-8 rounded-full bg-accent" />
-          <span className="text-xs">
-            <span className="block font-semibold text-fg">Айгерим Н.</span>
-            <span className="block text-2xs text-fg-3">Admissions</span>
-          </span>
-        </span>
+      {/*
+        Приветствия по имени здесь нет, и аватара сотрудника тоже.
+        Раньше страница здоровалась «С возвращением, Айгерим» и рисовала чип
+        «Айгерим Н. · Admissions». Айгерим Сериковна Нурланова — это ЛИД из
+        нашей же базы, а не сотрудник: интерфейс подсовывал клиента вместо
+        пользователя. Сущности сотрудника в EVO не существует вовсе — есть три
+        роли, — поэтому назвать здесь кого-то по имени сегодня нечем.
+      */}
+      <div className="mt-4 min-w-0">
+        <h1 className="text-xl font-bold tracking-[-0.02em] text-fg">Приёмная кампания</h1>
+        <p className="mt-0.5 text-sm text-fg-3">Что происходит сегодня</p>
       </div>
 
       <div className="mt-5">
@@ -60,10 +51,11 @@ export default async function MainPart() {
       <div className="mt-3 grid gap-3 xl:grid-cols-[1.15fr_1fr]">
         <section className="min-w-0 rounded-card border border-border bg-surface px-4 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Раньше здесь стояла плашка «1 авг — 2 сен», похожая на выбор
+                периода. Она ничего не выбирала. Период теперь просто подписан
+                словами — это факт, а не притворяющийся элемент управления. */}
             <h2 className="text-md font-bold text-fg">Динамика</h2>
-            <span className="rounded-nav border border-border px-2 py-0.5 text-2xs text-fg-3">
-              1 авг — 2 сен
-            </span>
+            <span className="text-2xs text-fg-3">1 авг — 2 сен</span>
           </div>
 
           <p className="mt-2 flex gap-4 text-2xs text-fg-3">
@@ -100,10 +92,10 @@ export default async function MainPart() {
 
         <section className="min-w-0 rounded-card border border-border bg-surface p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Плашка «Все источники» выглядела фильтром и ничего не
+                фильтровала. Убрана: воронка и так по всем источникам, и
+                говорить об этом отдельно незачем. */}
             <h2 className="text-md font-bold text-fg">Воронка поступления</h2>
-            <span className="rounded-nav border border-border px-2 py-0.5 text-2xs text-fg-3">
-              Все источники
-            </span>
           </div>
           <div className="mt-3">
             <Funnel stages={stages} caption="Воронка поступления" density="tight" />

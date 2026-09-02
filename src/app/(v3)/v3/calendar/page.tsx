@@ -11,7 +11,14 @@ export const metadata = { title: "V3 · Календарь" };
 
 /**
  * Образец живёт здесь, а не в компоненте: подключение будет заменой этого
- * блока. Задачи со сроком, но без времени приходят как startMinutes: null и
+ * блока.
+ *
+ * УЧАСТНИКОВ У СОБЫТИЙ НЕТ, И ЭТО НЕ УПУЩЕНИЕ. Раньше здесь стояли аватары
+ * «Айгерим», «Тимур», «Директор». Первые двое — это ЛИДЫ из нашей же базы:
+ * интерфейс подставлял клиентов вместо сотрудников. А сущности сотрудника в
+ * EVO не существует вовсе — есть три роли, и роль это не человек. Компонент
+ * участников поддерживает (`people`), поэтому, когда сотрудники появятся,
+ * меняется этот массив, а не карточка события. Задачи со сроком, но без времени приходят как startMinutes: null и
  * встают в строку «весь день» — так схема EVO выглядит уже сегодня.
  */
 const DAYS: DayColumn[] = [
@@ -25,10 +32,10 @@ const DAYS: DayColumn[] = [
 const EVENTS: WeekEvent[] = [
   { id: "e1", title: "Проверить нострификацию аттестата", day: 3, startMinutes: null, endMinutes: null, tone: "deadline", people: [], action: null },
   { id: "e2", title: "Подтвердить IELTS и загрузить сертификат", day: 4, startMinutes: null, endMinutes: null, tone: "deadline", people: [], action: null },
-  { id: "e3", title: "Разбор очереди Sales", day: 2, startMinutes: 9 * 60, endMinutes: 10 * 60 + 30, tone: "work", people: ["Айгерим", "Директор"], action: null },
-  { id: "e4", title: "Созвон с приёмной комиссией", day: 2, startMinutes: 11 * 60, endMinutes: 12 * 60, tone: "meeting", people: ["Айгерим", "Тимур", "Директор"], action: "Открыть встречу" },
-  { id: "e5", title: "Передача лида в Admissions", day: 1, startMinutes: 10 * 60, endMinutes: 11 * 60, tone: "work", people: ["Директор"], action: null },
-  { id: "e6", title: "Сверка дедлайнов осеннего набора", day: 4, startMinutes: 14 * 60, endMinutes: 15 * 60 + 30, tone: "work", people: ["Айгерим"], action: null },
+  { id: "e3", title: "Разбор очереди продаж", day: 2, startMinutes: 9 * 60, endMinutes: 10 * 60 + 30, tone: "work", people: [], action: null },
+  { id: "e4", title: "Созвон с приёмной комиссией", day: 2, startMinutes: 11 * 60, endMinutes: 12 * 60, tone: "meeting", people: [], action: "Открыть встречу" },
+  { id: "e5", title: "Передача лида в приёмную", day: 1, startMinutes: 10 * 60, endMinutes: 11 * 60, tone: "work", people: [], action: null },
+  { id: "e6", title: "Сверка дедлайнов осеннего набора", day: 4, startMinutes: 14 * 60, endMinutes: 15 * 60 + 30, tone: "work", people: [], action: null },
   { id: "e7", title: "Обед", day: 2, startMinutes: 13 * 60, endMinutes: 14 * 60, tone: "work", people: [], action: null },
 ];
 
@@ -48,7 +55,7 @@ const GROUPS: TodoGroup[] = [
   {
     title: "Без срока",
     items: [
-      { id: "t5", title: "Проверить унаследованный контекст Sales", done: false },
+      { id: "t5", title: "Проверить контекст от продаж", done: false },
       { id: "t6", title: "План запроса документов", done: false },
     ],
   },

@@ -40,7 +40,7 @@ export async function readAdmissionsFunnel(): Promise<readonly FunnelStage[]> {
     { name: "Лиды", value: Number(row.leads) },
     { name: "Квалифицированы", value: Number(row.qualified) },
     { name: "Переданы", value: Number(row.handed_off) },
-    { name: "Student case", value: Number(row.cases) },
+    { name: "Кейсы студентов", value: Number(row.cases) },
     { name: "Заявки в вузы", value: Number(row.applications) },
   ];
 }
@@ -75,6 +75,14 @@ export async function readDashboardMetrics(): Promise<readonly Metric[]> {
     { label: "Всего лидов", value: leads, delta: null, insteadOfDelta: "нет истории за месяц" },
     { label: "Людей в базе", value: Number(row.people), delta: null, insteadOfDelta: "нет истории за месяц" },
     { label: "В работе", value: Number(row.active), delta: null, insteadOfDelta: "не переданы, не отказ" },
-    { label: "Передано в Admissions", value: handed, delta: { direction: "up", text: `${share}% от всех лидов` }, insteadOfDelta: null },
+    {
+      label: "Передано в приёмную",
+      value: handed,
+      // Доля — это не рост. Стрелка вверх и зелёный говорили «стало больше»,
+      // хотя сравнивать не с чем: 21% — это часть от всех лидов, а не
+      // изменение за период.
+      delta: null,
+      insteadOfDelta: `${share}% от всех лидов`,
+    },
   ];
 }

@@ -110,9 +110,17 @@ export function Funnel({
         aria-label={`${caption}: ${spoken}`}
       >
         <defs>
+          {/*
+            Ступени залиты светлым, а не почти чёрным.
+            В прежнем мире фигура была акцентной и держала страницу. В новом
+            акцент почти чёрный, и пять сплошных чёрных трапеций стали самым
+            громким пятном на экране, который весь построен на волосяных
+            рамках. Заливка светлая, числа тёмные (14.8:1), край — control-edge
+            (4.1:1 к земле, выше порога 3:1 для нетекстовой графики).
+          */}
           <linearGradient id="evo-funnel-face" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="var(--accent-2, var(--accent))" />
-            <stop offset="1" stopColor="var(--accent)" />
+            <stop offset="0" stopColor="var(--surface-2)" />
+            <stop offset="1" stopColor="var(--surface-3)" />
           </linearGradient>
           <marker
             id="evo-funnel-arrow"
@@ -151,9 +159,15 @@ export function Funnel({
               />
             ) : null}
 
+            {/* Светлой заливке нужен видимый край: сама фигура и есть
+                содержимое (сужение = конверсия), а нетекстовая графика,
+                которую надо понять, обязана держать 3:1 (SC 1.4.11).
+                control-edge даёт 4.1:1 к белой карточке. */}
             <path
               d={`M ${L.centre - band.halfTop} ${band.y0} L ${L.centre + band.halfTop} ${band.y0} L ${L.centre + band.halfBottom} ${band.y1} L ${L.centre - band.halfBottom} ${band.y1} Z`}
               fill="url(#evo-funnel-face)"
+              stroke="var(--control-edge)"
+              strokeWidth="1"
             />
 
             <text
@@ -162,7 +176,7 @@ export function Funnel({
               textAnchor="middle"
               fontSize="19"
               fontWeight="600"
-              fill="var(--on-accent)"
+              fill="var(--text)"
               style={{ fontVariantNumeric: "tabular-nums" }}
               fontFamily="var(--font-golos), system-ui, sans-serif"
             >

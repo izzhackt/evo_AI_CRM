@@ -26,12 +26,19 @@ const FOLDERS: KnowledgeFolder[] = [
   { id: "f7", name: "Договоры и оплата", count: 11, kinds: ["pdf", "xlsx"], depth: 0 },
 ];
 
+/*
+ * «Кто добавил» — это РОЛЬ, а не человек, и так в модели и есть:
+ * `evo_private_documents.created_by_role` хранит admin / admissions.
+ * Раньше здесь стояли «Директор» и «Айгерим Н.» — выдуманные сотрудники,
+ * причём второе имя принадлежит лиду из нашей же базы. Сущности сотрудника в
+ * EVO не существует.
+ */
 const FILES: KnowledgeFile[] = [
-  { id: "d1", name: "Требования к нострификации аттестата.pdf", kind: "pdf", addedBy: "Директор", addedAt: "12 авг", size: "1,4 МБ" },
-  { id: "d2", name: "Список аккредитованных вузов Турции.xlsx", kind: "xlsx", addedBy: "Айгерим Н.", addedAt: "9 авг", size: "240 КБ" },
-  { id: "d3", name: "Шаблон письма о недостающих документах.docx", kind: "docx", addedBy: "Айгерим Н.", addedAt: "2 авг", size: "38 КБ" },
-  { id: "d4", name: "Порядок подачи на студенческую визу.md", kind: "md", addedBy: "Директор", addedAt: "28 июл", size: "12 КБ" },
-  { id: "d5", name: "Дедлайны осеннего набора 2026.xlsx", kind: "xlsx", addedBy: "Директор", addedAt: "21 июл", size: "96 КБ" },
+  { id: "d1", name: "Требования к нострификации аттестата.pdf", kind: "pdf", addedBy: "администратор", addedAt: "12 авг", size: "1,4 МБ" },
+  { id: "d2", name: "Список аккредитованных вузов Турции.xlsx", kind: "xlsx", addedBy: "приёмная", addedAt: "9 авг", size: "240 КБ" },
+  { id: "d3", name: "Шаблон письма о недостающих документах.docx", kind: "docx", addedBy: "приёмная", addedAt: "2 авг", size: "38 КБ" },
+  { id: "d4", name: "Порядок подачи на студенческую визу.md", kind: "md", addedBy: "администратор", addedAt: "28 июл", size: "12 КБ" },
+  { id: "d5", name: "Дедлайны осеннего набора 2026.xlsx", kind: "xlsx", addedBy: "администратор", addedAt: "21 июл", size: "96 КБ" },
 ];
 
 export default function KnowledgePart() {

@@ -19,6 +19,7 @@ const {
   claimPlatformAmoCrmCommand,
   finishPlatformAmoCrmCommand,
   preparePlatformAmoCrmCommand,
+  readPlatformAmoCrmCommandForReconciliation,
   readPlatformAmoCrmBindings,
   readPlatformBlockingAmoCrmCommand,
   reconcileUnknownPlatformAmoCrmCommand,
@@ -238,7 +239,6 @@ test("service claim, finish and reconcile use exact non-fallback RPC names", asy
     providerRequestId: "request-1",
     providerHttpStatus: 200,
     providerReadback: { id: 900001 },
-    providerReadbackSha256: "a".repeat(64),
     providerRespondedAt: "2026-09-02T12:00:00Z",
     resultContactId: null,
     resultLeadId: "900001",
@@ -250,7 +250,6 @@ test("service claim, finish and reconcile use exact non-fallback RPC names", asy
     requestId: IDS.request,
     outcome: "reconciled" === "reconciled" ? "accepted" : "unchanged",
     providerReadback: { id: 900001 },
-    providerReadbackSha256: "b".repeat(64),
     providerReadbackAt: "2026-09-02T12:05:00Z",
     providerRespondedAt: "2026-09-02T12:00:00Z",
     resultContactId: null,
@@ -261,6 +260,8 @@ test("service claim, finish and reconcile use exact non-fallback RPC names", asy
   assert.equal(claimResult.kind, "claimed");
   assert.equal(finishResult.kind, "settled");
   assert.equal(reconcileResult.kind, "reconciled");
+  assert.equal("p_provider_readback_sha256" in calls[1].args, false);
+  assert.equal("p_provider_readback_sha256" in calls[2].args, false);
   assert.deepEqual(
     calls.map(({ functionName }) => functionName),
     [
@@ -268,6 +269,56 @@ test("service claim, finish and reconcile use exact non-fallback RPC names", asy
       "finish_amocrm_command",
       "reconcile_unknown_amocrm_command",
     ],
+  );
+});
+
+test("service reconciliation read validates the exact organization and attempt", async () => {
+  const payload = Object.freeze({
+    expected_readback: Object.freeze({ lead_id: "900001" }),
+  });
+  const calls = [];
+  const client = stubClient(async (functionName, args) => {
+    calls.push({ functionName, args });
+    return {
+      data: {
+        ...sampleAttempt(),
+        payload,
+        dispatch_request_id: IDS.request,
+      },
+      error: null,
+    };
+  });
+
+  const result = await readPlatformAmoCrmCommandForReconciliation(client, {
+    organizationId: IDS.organization,
+    attemptId: IDS.attempt,
+  });
+  assert.deepEqual(result.attempt, expectedAttempt());
+  assert.deepEqual(result.payload, payload);
+  assert.deepEqual(calls, [
+    {
+      functionName: "read_amocrm_command_for_reconciliation",
+      args: {
+        p_organization_id: IDS.organization,
+        p_attempt_id: IDS.attempt,
+      },
+    },
+  ]);
+
+  const drifted = stubClient(async () => ({
+    data: {
+      ...sampleAttempt(),
+      organization_id: "34343434-3434-4434-8434-343434343434",
+      payload,
+    },
+    error: null,
+  }));
+  await assert.rejects(
+    readPlatformAmoCrmCommandForReconciliation(drifted, {
+      organizationId: IDS.organization,
+      attemptId: IDS.attempt,
+    }),
+    PlatformAmoCrmCommandRpcError,
   );
 });
 

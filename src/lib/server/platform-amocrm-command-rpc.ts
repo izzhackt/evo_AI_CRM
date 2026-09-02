@@ -2,7 +2,6 @@ import "server-only";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const PROVIDER_ID_PATTERN = /^[1-9][0-9]{0,19}$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 
@@ -129,7 +128,6 @@ export type FinishPlatformAmoCrmCommandInput = Readonly<{
   providerRequestId: string | null;
   providerHttpStatus: number | null;
   providerReadback: Readonly<Record<string, unknown>> | null;
-  providerReadbackSha256: string | null;
   providerRespondedAt: string | null;
   resultContactId: string | null;
   resultLeadId: string | null;
@@ -142,7 +140,6 @@ export type ReconcileUnknownPlatformAmoCrmCommandInput = Readonly<{
   requestId: string;
   outcome: "accepted" | "unchanged";
   providerReadback: Readonly<Record<string, unknown>> | null;
-  providerReadbackSha256: string | null;
   providerReadbackAt: string | null;
   providerRespondedAt: string | null;
   resultContactId: string | null;
@@ -163,12 +160,6 @@ function providerId(value: unknown): string | null {
   if (value === null) return null;
   if (typeof value !== "string" || !PROVIDER_ID_PATTERN.test(value)) return null;
   return value;
-}
-
-function sha256(value: unknown): string | null {
-  if (value === null) return null;
-  if (typeof value !== "string" || !SHA256_PATTERN.test(value)) return null;
-  return value.toLowerCase();
 }
 
 function safeText(value: unknown, maximum: number): string | null {
@@ -414,8 +405,6 @@ export async function finishPlatformAmoCrmCommand(
         input.providerHttpStatus === null ? null : integer(input.providerHttpStatus, 100, 599) ?? invalid(),
       p_provider_readback:
         input.providerReadback === null ? null : payloadJson(input.providerReadback),
-      p_provider_readback_sha256:
-        input.providerReadbackSha256 === null ? null : sha256(input.providerReadbackSha256) ?? invalid(),
       p_provider_responded_at:
         input.providerRespondedAt === null ? null : safeText(input.providerRespondedAt, 64) ?? invalid(),
       p_result_contact_id:
@@ -448,8 +437,6 @@ export async function reconcileUnknownPlatformAmoCrmCommand(
       p_outcome: input.outcome,
       p_provider_readback:
         input.providerReadback === null ? null : payloadJson(input.providerReadback),
-      p_provider_readback_sha256:
-        input.providerReadbackSha256 === null ? null : sha256(input.providerReadbackSha256) ?? invalid(),
       p_provider_readback_at:
         input.providerReadbackAt === null ? null : safeText(input.providerReadbackAt, 64) ?? invalid(),
       p_provider_responded_at:
@@ -467,4 +454,32 @@ export async function reconcileUnknownPlatformAmoCrmCommand(
     invalid();
   }
   return Object.freeze({ kind, attempt: parseSnapshot(row.attempt) });
+}
+
+export async function readPlatformAmoCrmCommandForReconciliation(
+  client: PlatformAmoCrmRpcClient,
+  input: Readonly<{ organizationId: string; attemptId: string }>,
+): Promise<
+  Readonly<{
+    attempt: PlatformAmoCrmCommandSnapshot;
+    payload: Readonly<Record<string, unknown>>;
+  }>
+> {
+  const organizationId = normalizedUuid(input.organizationId) ?? invalid();
+  const attemptId = normalizedUuid(input.attemptId) ?? invalid();
+  const row = record(
+    await rpc(client, "read_amocrm_command_for_reconciliation", {
+      p_organization_id: organizationId,
+      p_attempt_id: attemptId,
+    }),
+  ) ?? invalid();
+  const attempt = parseSnapshot(row);
+  const payload = record(row.payload) ?? invalid();
+  if (
+    attempt.organizationId !== organizationId ||
+    attempt.attemptId !== attemptId
+  ) {
+    invalid();
+  }
+  return Object.freeze({ attempt, payload });
 }

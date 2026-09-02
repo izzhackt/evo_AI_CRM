@@ -1839,6 +1839,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_amocrm_command_rls.sql
   fi
+
+  # Migration 103 upgrades new amoCRM mapping evidence to schema v2 with the
+  # exact lead-tag catalog while retaining immutable schema-v1 history.
+  if [[ "$(basename "$migration")" == 103_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_amocrm_mapping_discovery_v2.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

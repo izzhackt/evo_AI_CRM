@@ -28,10 +28,12 @@ import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-co
 import {
   createPlatformSupabaseServiceClient,
 } from "./platform-supabase-service-client.ts";
+import { resolvePlatformAmoCrmRuntime } from "./platform-amocrm-runtime.ts";
 import {
   claimPlatformAmoCrmCommand,
   finishPlatformAmoCrmCommand,
   preparePlatformAmoCrmCommand,
+  readPlatformAmoCrmCommandForReconciliation,
   readPlatformAmoCrmBindings,
   reconcileUnknownPlatformAmoCrmCommand,
   type PlatformAmoCrmBindingsSnapshot,
@@ -128,6 +130,7 @@ type PlatformAmoCrmProvider = Readonly<
 export type PlatformAmoCrmCommandServiceDependencies = Readonly<{
   resolveRuntime?: (
     input: Readonly<{
+      organizationId: string;
       actorRole: PlatformAmoCrmActorRole;
       correlationId: string;
     }>,
@@ -149,7 +152,6 @@ export type PlatformAmoCrmCommandServiceDependencies = Readonly<{
     input: Readonly<{
       organizationId: string;
       attemptId: string;
-      requestId: string;
     }>,
   ) => Promise<
     Readonly<{
@@ -179,9 +181,9 @@ type ResolvedDependencies = Readonly<{
   claimCommand: NonNullable<PlatformAmoCrmCommandServiceDependencies["claimCommand"]>;
   finishCommand: NonNullable<PlatformAmoCrmCommandServiceDependencies["finishCommand"]>;
   reconcileUnknown: NonNullable<PlatformAmoCrmCommandServiceDependencies["reconcileUnknown"]>;
-  readAttemptForReconcile:
-    | NonNullable<PlatformAmoCrmCommandServiceDependencies["readAttemptForReconcile"]>
-    | null;
+  readAttemptForReconcile: NonNullable<
+    PlatformAmoCrmCommandServiceDependencies["readAttemptForReconcile"]
+  >;
   now: NonNullable<PlatformAmoCrmCommandServiceDependencies["now"]>;
   workerRef: NonNullable<PlatformAmoCrmCommandServiceDependencies["workerRef"]>;
   visibilityTimeoutSeconds: number;
@@ -407,11 +409,11 @@ function acceptedResultLeadId(attempt: PlatformAmoCrmCommandSnapshot): string | 
 }
 
 async function defaultResolveRuntime(input: Readonly<{
+  organizationId: string;
   actorRole: PlatformAmoCrmActorRole;
   correlationId: string;
 }>): Promise<Readonly<{ provider: PlatformAmoCrmProvider; routing: CanonicalAmoCrmCommandRoutingSnapshot }>> {
-  void input;
-  throw new Error("runtime_resolver_missing");
+  return resolvePlatformAmoCrmRuntime(input);
 }
 
 function resolveDependencies(
@@ -437,7 +439,9 @@ function resolveDependencies(
     claimCommand: overrides.claimCommand ?? claimPlatformAmoCrmCommand,
     finishCommand: overrides.finishCommand ?? finishPlatformAmoCrmCommand,
     reconcileUnknown: overrides.reconcileUnknown ?? reconcileUnknownPlatformAmoCrmCommand,
-    readAttemptForReconcile: overrides.readAttemptForReconcile ?? null,
+    readAttemptForReconcile:
+      overrides.readAttemptForReconcile ??
+      readPlatformAmoCrmCommandForReconciliation,
     now: overrides.now ?? (() => new Date()),
     workerRef:
       overrides.workerRef ??
@@ -512,10 +516,16 @@ function routeFor(
 }
 
 function exactPayload(
+  routing: CanonicalAmoCrmCommandRoutingSnapshot,
   mutation: CanonicalAmoCrmPreparedMutation,
   expectedReadback: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {
   return Object.freeze({
+    mapping_evidence: Object.freeze({
+      discovery_version_id: routing.discoverySnapshotId,
+      provider_account_id: routing.providerAccountId,
+      snapshot_sha256: routing.snapshotSha256,
+    }),
     request: mutation.request,
     request_sha256: mutation.requestSha256,
     body_json: mutation.bodyJson,
@@ -796,7 +806,7 @@ async function prepareStep(
     return Object.freeze({
       operationName,
       idempotencyKey: requestId,
-      payload: exactPayload(mutation, expected),
+      payload: exactPayload(context.routing, mutation, expected),
       mutation,
       targetContactId: null,
       targetLeadId: null,
@@ -834,7 +844,7 @@ async function prepareStep(
     return Object.freeze({
       operationName,
       idempotencyKey: requestId,
-      payload: exactPayload(mutation, expected),
+      payload: exactPayload(context.routing, mutation, expected),
       mutation,
       targetContactId: contactId,
       targetLeadId: null,
@@ -869,7 +879,7 @@ async function prepareStep(
     return Object.freeze({
       operationName,
       idempotencyKey: requestId,
-      payload: exactPayload(mutation, expected),
+      payload: exactPayload(context.routing, mutation, expected),
       mutation,
       targetContactId: null,
       targetLeadId: null,
@@ -895,7 +905,7 @@ async function prepareStep(
     return Object.freeze({
       operationName,
       idempotencyKey: requestId,
-      payload: exactPayload(mutation, expected),
+      payload: exactPayload(context.routing, mutation, expected),
       mutation,
       targetContactId: null,
       targetLeadId: leadId,
@@ -924,7 +934,7 @@ async function prepareStep(
     return Object.freeze({
       operationName,
       idempotencyKey: requestId,
-      payload: exactPayload(mutation, expected),
+      payload: exactPayload(context.routing, mutation, expected),
       mutation,
       targetContactId: contactId,
       targetLeadId: leadId,
@@ -950,7 +960,7 @@ async function prepareStep(
     return Object.freeze({
       operationName,
       idempotencyKey: requestId,
-      payload: exactPayload(mutation, expected),
+      payload: exactPayload(context.routing, mutation, expected),
       mutation,
       targetContactId: null,
       targetLeadId: leadId,
@@ -976,7 +986,7 @@ async function prepareStep(
     return Object.freeze({
       operationName,
       idempotencyKey: requestId,
-      payload: exactPayload(mutation, expected),
+      payload: exactPayload(context.routing, mutation, expected),
       mutation,
       targetContactId: null,
       targetLeadId: leadId,
@@ -1002,7 +1012,7 @@ async function prepareStep(
     return Object.freeze({
       operationName,
       idempotencyKey: requestId,
-      payload: exactPayload(mutation, expected),
+      payload: exactPayload(context.routing, mutation, expected),
       mutation,
       targetContactId: null,
       targetLeadId: leadId,
@@ -1033,7 +1043,7 @@ async function prepareStep(
     return Object.freeze({
       operationName,
       idempotencyKey: requestId,
-      payload: exactPayload(mutation, expected),
+      payload: exactPayload(context.routing, mutation, expected),
       mutation,
       targetContactId: null,
       targetLeadId: leadId,
@@ -1067,7 +1077,7 @@ async function prepareStep(
   return Object.freeze({
     operationName: "lead_tag_update",
     idempotencyKey: requestId,
-    payload: exactPayload(mutation, expected),
+    payload: exactPayload(context.routing, mutation, expected),
     mutation,
     targetContactId: null,
     targetLeadId: leadId,
@@ -1201,7 +1211,6 @@ async function executeSequence(
         providerRequestId: mutation.response.providerRequestId,
         providerHttpStatus: mutation.response.status,
         providerReadback: verified.evidence,
-        providerReadbackSha256: null,
         providerRespondedAt: dependencies.now().toISOString(),
         resultContactId: verified.resultContactId,
         resultLeadId: verified.resultLeadId,
@@ -1234,7 +1243,6 @@ async function executeSequence(
         providerHttpStatus:
           providerResponse?.status ?? mutationResponse?.status ?? null,
         providerReadback: null,
-        providerReadbackSha256: null,
         providerRespondedAt: respondedAt,
         resultContactId: null,
         resultLeadId: null,
@@ -1258,13 +1266,15 @@ async function resolveSalesContext(
   const noteText = requiredText(input.noteText, MAX_NOTE_BYTES, "invalid_note_text");
   const taskText = requiredText(input.taskText, MAX_TASK_BYTES, "invalid_task_text");
   const taskCompleteTill = requiredFutureUnix(input.taskCompleteTill, dependencies.now());
+  const baseContext = salesContext(input.actorRole, lead);
   const runtime = await dependencies.resolveRuntime({
+    organizationId: baseContext.organizationId,
     actorRole: input.actorRole,
     correlationId: input.baseRequestId,
   });
   const route = routeFor(runtime.routing, "sales_pre_handoff");
   return Object.freeze({
-    ...salesContext(input.actorRole, lead),
+    ...baseContext,
     provider: runtime.provider,
     routing: runtime.routing,
     route: route.route,
@@ -1288,13 +1298,15 @@ async function resolveAdmissionsContext(
   const noteText = requiredText(input.noteText, MAX_NOTE_BYTES, "invalid_note_text");
   const taskText = requiredText(input.taskText, MAX_TASK_BYTES, "invalid_task_text");
   const taskCompleteTill = requiredFutureUnix(input.taskCompleteTill, dependencies.now());
+  const baseContext = admissionsContext(input.actorRole, handoff);
   const runtime = await dependencies.resolveRuntime({
+    organizationId: baseContext.organizationId,
     actorRole: input.actorRole,
     correlationId: input.baseRequestId,
   });
   const route = routeFor(runtime.routing, "admissions_post_handoff");
   return Object.freeze({
-    ...admissionsContext(input.actorRole, handoff),
+    ...baseContext,
     provider: runtime.provider,
     routing: runtime.routing,
     route: route.route,
@@ -1467,11 +1479,6 @@ export async function reconcilePlatformAmoCrmSyncAttempt(
   try {
     const attemptId = requiredUuid(input.attemptId);
     const leadId = requiredUuid(input.leadId);
-    const runtime = await dependencies.resolveRuntime({
-      actorRole: input.actorRole,
-      correlationId: attemptId,
-    });
-    const route = routeFor(runtime.routing, input.workflowScope);
     const workflowContext =
       input.workflowScope === "sales_pre_handoff"
         ? (() => {
@@ -1498,6 +1505,12 @@ export async function reconcilePlatformAmoCrmSyncAttempt(
               });
           })();
     const baseContext = await workflowContext;
+    const runtime = await dependencies.resolveRuntime({
+      organizationId: baseContext.organizationId,
+      actorRole: input.actorRole,
+      correlationId: attemptId,
+    });
+    const route = routeFor(runtime.routing, input.workflowScope);
     const context = Object.freeze({
       ...baseContext,
       provider: runtime.provider,
@@ -1516,13 +1529,9 @@ export async function reconcilePlatformAmoCrmSyncAttempt(
       leadId: context.workflowLeadId,
     });
     const serviceClient = await dependencies.createServiceRpcClient();
-    if (dependencies.readAttemptForReconcile === null) {
-      throw new Error("reconcile_attempt_reader_missing");
-    }
     const { attempt, payload } = await dependencies.readAttemptForReconcile(serviceClient, {
       organizationId: context.organizationId,
       attemptId,
-      requestId: attemptId,
     });
     if (!supportedAutomaticReconcile(attempt)) {
       const settled = await dependencies.reconcileUnknown(serviceClient, {
@@ -1531,7 +1540,6 @@ export async function reconcilePlatformAmoCrmSyncAttempt(
         requestId: attemptId,
         outcome: "unchanged",
         providerReadback: null,
-        providerReadbackSha256: null,
         providerReadbackAt: null,
         providerRespondedAt: null,
         resultContactId: null,
@@ -1552,7 +1560,6 @@ export async function reconcilePlatformAmoCrmSyncAttempt(
       requestId: attemptId,
       outcome: "accepted",
       providerReadback: verified.evidence,
-      providerReadbackSha256: null,
       providerReadbackAt: dependencies.now().toISOString(),
       providerRespondedAt: dependencies.now().toISOString(),
       resultContactId: verified.resultContactId,

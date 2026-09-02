@@ -32,6 +32,14 @@ const serviceSource = readFileSync(
   new URL("../src/lib/server/platform-amocrm-command-service.ts", import.meta.url),
   "utf8",
 );
+const runtimeSource = readFileSync(
+  new URL("../src/lib/server/platform-amocrm-runtime.ts", import.meta.url),
+  "utf8",
+);
+const discoverySource = readFileSync(
+  new URL("../src/lib/server/canonical-amocrm-discovery-service.ts", import.meta.url),
+  "utf8",
+);
 
 const IDS = Object.freeze({
   actorUser: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -297,9 +305,52 @@ function serviceDeps(runState) {
 
 test("service keeps Drizzle discovery out of the new active path", () => {
   assert.doesNotMatch(
-    serviceSource,
-    /canonical-amocrm-discovery-repository|discoverCanonicalAmoCrmCommandRouting|\bdrizzle\b/i,
+    `${serviceSource}\n${runtimeSource}\n${discoverySource}`,
+    /canonical-amocrm-discovery-repository|\bdrizzle\b/i,
   );
+  assert.match(serviceSource, /resolvePlatformAmoCrmRuntime/u);
+  assert.match(runtimeSource, /createPlatformAmoCrmDiscoveryRepository/u);
+});
+
+test("resolves provider discovery only after canonical workflow context supplies the organization", async () => {
+  const events = [];
+  const providerRuntime = runtime();
+  const result = await executePlatformAmoCrmSalesSync(
+    {
+      actor: actor(),
+      actorRole: "sales",
+      leadId: IDS.lead,
+      baseRequestId: IDS.request,
+      noteText: "Reviewed note",
+      taskText: "Call the applicant tomorrow",
+      taskCompleteTill: 1790000000,
+    },
+    {
+      ...serviceDeps({}),
+      getSalesLead: async () => {
+        events.push("workflow-context");
+        return salesLead();
+      },
+      resolveRuntime: async (input) => {
+        events.push("provider-runtime");
+        assert.equal(input.organizationId, IDS.organization);
+        assert.equal(input.correlationId, IDS.request);
+        return providerRuntime;
+      },
+      readBindings: async () => {
+        events.push("staff-binding-check");
+        throw new Error("stop_after_runtime_order_proof");
+      },
+    },
+  );
+
+  assert.deepEqual(events, [
+    "workflow-context",
+    "provider-runtime",
+    "staff-binding-check",
+  ]);
+  assert.equal(result.status, "error");
+  assert.equal(result.reason, "stop_after_runtime_order_proof");
 });
 
 test("sales sync runs the Supabase command sequence including task create and replays without redispatch", async () => {
@@ -396,6 +447,14 @@ test("sales sync runs the Supabase command sequence including task create and re
     preparePayloads.find(({ operationName }) => operationName === "lead_task_create").payload
       .expected_readback.complete_till,
     1790000000,
+  );
+  assert.ok(
+    preparePayloads.every(
+      ({ payload }) =>
+        payload.mapping_evidence.discovery_version_id === "snap-1" &&
+        payload.mapping_evidence.provider_account_id === "amo-1" &&
+        payload.mapping_evidence.snapshot_sha256 === "a".repeat(64),
+    ),
   );
 
   const second = await executePlatformAmoCrmSalesSync(

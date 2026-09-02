@@ -204,7 +204,7 @@ export async function SalesWorkspace({
   ]);
 
   const normalized = normalizeSearchParams(params);
-  const actorRole = actor.platformRole === "admin" ? "admin" : "sales";
+  const actorRole = actor.authorityRole === "admin" ? "admin" : "sales";
   const queueRead = normalized.listInvalid
     ? Promise.resolve<{ page: null; unavailable: false }>({
         page: null,

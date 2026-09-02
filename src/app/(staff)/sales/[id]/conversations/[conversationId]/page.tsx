@@ -36,7 +36,7 @@ export default async function SalesConversationPage({
   let thread: Awaited<ReturnType<typeof getCanonicalLeadConversationThread>>;
   try {
     thread = await getCanonicalLeadConversationThread({
-      actorRole: actor.platformRole,
+      actorRole: actor.authorityRole,
       leadId: id,
       conversationId,
       cursor: messageCursor,

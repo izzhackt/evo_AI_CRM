@@ -89,8 +89,13 @@ export default async function PlatformPendingPage() {
         <dl className="mt-5 grid gap-2 rounded-ctl bg-surface-2 p-4 text-sm">
           <div className="flex items-center justify-between gap-4">
             <dt className="text-fg-3">{t("role")}</dt>
-            <dd className="font-semibold text-fg">
-              {t(`role.${actor.platformRole}`)}
+            <dd
+              className="font-semibold text-fg"
+              data-testid="pending-role"
+              data-role={actor.presentationRole}
+              data-authority-role={actor.authorityRole}
+            >
+              {t(`role.${actor.presentationRole}`)}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4">

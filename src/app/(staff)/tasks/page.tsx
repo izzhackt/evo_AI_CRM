@@ -42,7 +42,7 @@ export default async function TasksPage() {
     requirePlatformCapability("admissions.read", "/tasks"),
   ]);
   const tasksPage = await listCanonicalAdmissionsTasks({
-    actorRole: actor.platformRole,
+    actorRole: actor.authorityRole,
     pageSize: 50,
   });
   const transitionRequestIds: CanonicalAdmissionsTaskRequestIds =

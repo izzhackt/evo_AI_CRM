@@ -65,22 +65,22 @@ export default async function WhatsAppConversationPage({
   try {
     [queue, thread, geminiProposal, latestSendAttempt] = await Promise.all([
       listCanonicalStaffConversations({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         cursor: queueCursor ?? undefined,
         pageSize: 50,
       }),
       getCanonicalStaffConversationThread({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         conversationId: id,
         cursor: messageCursor ?? undefined,
         pageSize: 50,
       }),
       readLatestCanonicalGeminiProposal({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         conversationId: id,
       }),
       readLatestCanonicalWhatsAppSendAttempt({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         conversationId: id,
       }),
     ]);
@@ -96,7 +96,7 @@ export default async function WhatsAppConversationPage({
   return (
     <CanonicalStaffWhatsAppWorkspace
       locale={locale}
-      actorRole={actor.platformRole}
+      actorRole={actor.presentationRole}
       conversations={queue.rows}
       queueCursor={queueCursor}
       queueResetHref={queueCursor ? "/whatsapp" : null}

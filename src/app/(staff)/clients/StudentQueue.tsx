@@ -130,7 +130,7 @@ export async function StudentQueue({
   const page = normalized.listInvalid
     ? null
     : await listCanonicalStudentCases({
-        actorRole: actor.platformRole,
+        actorRole: actor.authorityRole,
         cursor: normalized.cursor ?? undefined,
         status: normalized.status,
         pageSize: 50,
@@ -140,7 +140,7 @@ export async function StudentQueue({
   return (
     <CanonicalStudentCasesPresentation
       locale={locale}
-      actorRole={actor.platformRole}
+      actorRole={actor.presentationRole}
       rows={page?.rows ?? []}
       params={normalized}
       hasNext={page?.hasNext ?? false}

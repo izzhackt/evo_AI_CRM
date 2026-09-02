@@ -92,7 +92,7 @@ export default async function ApplicationsPage({
     );
   }
   const page = await listCanonicalUniversityApplications({
-    actorRole: actor.platformRole,
+    actorRole: actor.authorityRole,
     cursor: cursor ?? undefined,
     pageSize: 50,
   });

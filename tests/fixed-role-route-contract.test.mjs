@@ -54,6 +54,30 @@ test("only the read-only admissions operations queues enter the page contract", 
   }
 });
 
+test("legacy owner-scoped pages stay outside V2 and stop before any old runtime", () => {
+  for (const path of [
+    "/dashboard",
+    "/reports",
+    "/notifications",
+    "/calls",
+    "/chat",
+    "/chat/1",
+  ]) {
+    assert.equal(isConnectedPlatformPage(path), false, path);
+  }
+
+  const proxy = source("src/proxy.ts");
+  const routeBlock = proxy.indexOf(
+    "if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path))",
+  );
+  const liveSession = proxy.indexOf(
+    "const session = await liveSessionState(request, requestHeaders)",
+  );
+  assert.notEqual(routeBlock, -1);
+  assert.notEqual(liveSession, -1);
+  assert.ok(routeBlock < liveSession);
+});
+
 test("documents queue uses the fixed Admissions read boundary", () => {
   assert.equal(fixedRoleCanAccessRoute("admissions", "/documents"), true);
   assert.equal(fixedRoleCanAccessRoute("admin", "/documents"), true);
@@ -114,7 +138,7 @@ test("the documents route is a read-only canonical queue linked to Student 360",
   assert.match(canonicalDocumentsQueueSource, /requirePlatformDocumentsActor\(\)/);
   assert.match(
     canonicalDocumentsQueueSource,
-    /listPrivateDocuments\(\{\s*actorRole: actor\.platformRole/,
+    /listPrivateDocuments\(\{\s*actorRole: actor\.authorityRole/,
   );
   assert.match(
     canonicalDocumentsQueueSource,

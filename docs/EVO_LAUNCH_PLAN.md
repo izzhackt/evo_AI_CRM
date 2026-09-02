@@ -380,8 +380,17 @@ replace those local authorities rather than copy them into a second path.
 Delivery status on 2026-09-03: #565 merged through PR #570, then #566 merged
 through PR #571 at exact main
 `8bb96c35b401c81e625773cc5ec594c68f956f39`; exact-main CI run `33683881377`
-passed. #567 now owns the Supabase-authoritative amoCRM command cutover and the
-subsequent exact-main bounded provider proof. The owner removed the
+passed. #567's command cutover merged through PR #572 at exact main
+`23360a9f3816f7de8d33c162d550fc56688b9c1d`; exact-main CI run `33695138189`
+passed. Its first guarded provider run stopped before any amoCRM dispatch
+because the Sales Lead 360 route did not mount the canonical command panel.
+#567 therefore remains open. A corrective slice must mount that same
+Supabase-backed panel on the Sales pre-handoff workspace, prove its exact
+workflow target and fail-closed state in application/browser tests, pass the
+normal exact-head and exact-main gates, and only then rerun the bounded
+acceptance once. This is an application-surface failure, not a provider
+rejection or ambiguous external result, and it does not authorize a fallback
+UI or another command repository. The owner removed the
 controlled-inbound Gemini/WhatsApp send exercise from the active merge and
 completion gates because the controlled account is unavailable.
 ADR 0026 records that scope correction; no synthetic or customer-chat

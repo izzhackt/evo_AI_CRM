@@ -1798,6 +1798,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_pilot_cohort_rls.sql
   fi
+
+  # Migration 096 binds Gemini starts to authenticated staff intent and adds
+  # exact, send-free WAHA reconciliation for manual-send provider outcomes.
+  if [[ "$(basename "$migration")" == 096_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_provider_workflow_contract_rls.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

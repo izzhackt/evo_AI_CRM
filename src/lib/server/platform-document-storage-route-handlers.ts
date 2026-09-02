@@ -505,6 +505,54 @@ function safeSignedUrl(value: unknown, supabaseOrigin: string): string | null {
   }
 }
 
+async function readBoundedMultipartForm(
+  request: Request,
+  contentType: string,
+): Promise<
+  | Readonly<{ status: "ok"; form: FormData }>
+  | Readonly<{ status: "invalid" }>
+  | Readonly<{ status: "too_large" }>
+> {
+  if (!request.body) return { status: "invalid" };
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      byteLength += value.byteLength;
+      if (byteLength > MAX_MULTIPART_BYTES) {
+        await reader.cancel("multipart_too_large").catch(() => undefined);
+        return { status: "too_large" };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { status: "invalid" };
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(byteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    const form = await new Response(body, {
+      headers: { "content-type": contentType },
+    }).formData();
+    return { status: "ok", form };
+  } catch {
+    return { status: "invalid" };
+  }
+}
+
 export function createPlatformDocumentUploadHandler(
   dependencies: PlatformDocumentStorageRouteDependencies = defaultDependencies,
 ) {
@@ -521,20 +569,22 @@ export function createPlatformDocumentUploadHandler(
     if (Number.isFinite(contentLength) && contentLength > MAX_MULTIPART_BYTES) {
       return errorResponse(413, "file_too_large");
     }
-    if (!request.headers.get("content-type")?.startsWith("multipart/form-data;")) {
+    const contentType = request.headers.get("content-type");
+    if (!contentType?.startsWith("multipart/form-data;")) {
       return errorResponse(415, "multipart_required");
     }
 
     const documentSlotId = uuid((await context.params).documentSlotId);
     if (!documentSlotId) return errorResponse(400, "invalid_document_slot");
 
-    let form: FormData;
-    try {
-      form = await request.formData();
-    } catch {
+    const multipart = await readBoundedMultipartForm(request, contentType);
+    if (multipart.status === "too_large") {
+      return errorResponse(413, "file_too_large");
+    }
+    if (multipart.status === "invalid") {
       return errorResponse(400, "invalid_multipart");
     }
-    const upload = exactUploadForm(form);
+    const upload = exactUploadForm(multipart.form);
     if (!upload) return errorResponse(400, "invalid_upload");
 
     const bytes = new Uint8Array(await upload.file.arrayBuffer());

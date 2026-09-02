@@ -303,6 +303,44 @@ test("forbidden, malformed and unexpected upload inputs stop before Supabase", a
   assert.equal(invalid.calls.length, 0);
 });
 
+test("upload aborts a streamed oversized body even when content-length lies", async () => {
+  const oversizedChunk = new Uint8Array(9 * 1024 * 1024);
+  let emittedChunks = 0;
+  let cancelled = false;
+  const body = new ReadableStream({
+    pull(controller) {
+      emittedChunks += 1;
+      controller.enqueue(oversizedChunk);
+      if (emittedChunks === 4) controller.close();
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  const request = new Request(
+    "http://app.test/api/v2/document-slots/x/versions",
+    {
+      method: "POST",
+      headers: {
+        "content-length": "1",
+        "content-type": "multipart/form-data; boundary=bounded-proof",
+      },
+      body,
+      duplex: "half",
+    },
+  );
+  const oversized = uploadDependencies();
+
+  const response = await createPlatformDocumentUploadHandler(
+    oversized.dependencies,
+  )(request, { params: Promise.resolve({ documentSlotId: SLOT_ID }) });
+
+  assert.equal(response.status, 413);
+  assert.deepEqual(await response.json(), { error: "file_too_large" });
+  assert.equal(cancelled, true);
+  assert.equal(oversized.calls.length, 0);
+});
+
 function downloadDependencies({
   authorization = { status: "authorized", actor: ACTOR },
   grantResult = grant(),

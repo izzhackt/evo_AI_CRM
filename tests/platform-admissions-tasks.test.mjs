@@ -57,7 +57,7 @@ test("Admissions task actions accept only exact canonical command fields", () =>
 });
 
 test("Student 360 renders every canonical case task beside the handoff starter set", () => {
-  assert.match(workspaceSource, /<AdmissionsCaseOperationsSection/);
+  assert.match(workspaceSource, /renderLegacyAdmissionsOperationsSection/);
   assert.match(workspaceSource, /handoff\.starterTasks/);
 
   assert.match(operationsSectionSource, /listCanonicalAdmissionsTasks\(\{/);
@@ -109,6 +109,25 @@ test("the active tasks route is one canonical Admissions queue", () => {
   assert.match(
     domainSource,
     /href: APP_ROUTES\.staff\.tasks,[\s\S]*?allowedRoles: \["admin", "admissions"\]/,
+  );
+});
+
+test("temporary legacy case sections fail locally instead of breaking the whole Student 360 route", () => {
+  assert.match(
+    workspaceSource,
+    /renderLegacyAdmissionsOperationsSection/,
+  );
+  assert.match(
+    workspaceSource,
+    /renderLegacyAmoCrmCaseCommandSection/,
+  );
+  assert.match(
+    workspaceSource,
+    /Admissions operations stay unavailable for this Supabase case until the[\s\S]*temporary legacy bridge is replaced/,
+  );
+  assert.match(
+    workspaceSource,
+    /amoCRM command status is temporarily unavailable for this Supabase case/,
   );
 });
 

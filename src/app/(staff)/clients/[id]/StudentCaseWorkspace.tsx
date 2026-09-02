@@ -246,6 +246,64 @@ function buildRequestIdFactory(
   };
 }
 
+async function renderLegacyAdmissionsOperationsSection(
+  props: Readonly<{
+    studentCaseId: string;
+    authorityRole: "admin" | "sales" | "admissions";
+    presentationRole: "admin" | "sales" | "admissions";
+    locale: Locale;
+  }>,
+) {
+  try {
+    return await AdmissionsCaseOperationsSection(props);
+  } catch {
+    return (
+      <section
+        data-testid="admissions-case-operations-section"
+        data-status="unavailable"
+        className="border-y border-warn/30 bg-warn-weak px-4 py-4 text-sm text-warn"
+        aria-label="Admissions case operations"
+        role="status"
+      >
+        <span id="case-tasks" className="block scroll-mt-24" />
+        <span id="case-documents" className="block scroll-mt-24" />
+        <span id="case-operations" className="block scroll-mt-24" />
+        Admissions operations stay unavailable for this Supabase case until the
+        temporary legacy bridge is replaced. EVO does not fall back to a second
+        runtime path.
+      </section>
+    );
+  }
+}
+
+async function renderLegacyAmoCrmCaseCommandSection(
+  props: Readonly<{
+    authorityRole: "admin" | "sales" | "admissions";
+    locale: Locale;
+    studentCaseId: string;
+    leadId: string;
+    clientId: string;
+    caseState: "pending" | "active" | "closed";
+  }>,
+) {
+  try {
+    return await AmoCrmCaseCommandSection(props);
+  } catch {
+    return (
+      <section
+        id="case-amocrm"
+        className="scroll-mt-24 border-y border-warn/30 bg-warn-weak px-4 py-4 text-sm text-warn"
+        data-testid="amocrm-case-command-section"
+        data-status="unavailable"
+        role="status"
+      >
+        amoCRM command status is temporarily unavailable for this Supabase case.
+        EVO does not execute the old or a secondary writer path.
+      </section>
+    );
+  }
+}
+
 export async function StudentCaseWorkspace({
   id,
   contractResult,
@@ -277,6 +335,23 @@ export async function StudentCaseWorkspace({
   const studentCase = caseView.studentCase;
   const copy = COPY[locale];
   const requestIdFor = buildRequestIdFactory(contractRetry);
+  const [legacyAdmissionsOperationsSection, legacyAmoCrmCommandSection] =
+    await Promise.all([
+      renderLegacyAdmissionsOperationsSection({
+        studentCaseId: id,
+        authorityRole: actor.authorityRole,
+        presentationRole: actor.presentationRole,
+        locale,
+      }),
+      renderLegacyAmoCrmCaseCommandSection({
+        authorityRole: actor.authorityRole,
+        locale,
+        studentCaseId: id,
+        leadId: handoff.leadId,
+        clientId: handoff.clientContext.clientId,
+        caseState: handoff.caseState,
+      }),
+    ]);
   const routeLabel = [
     studentCase.targetCountry,
     studentCase.targetDegree,
@@ -461,21 +536,9 @@ export async function StudentCaseWorkspace({
         retrySubjectId={contractRetry?.subjectId}
       />
 
-      <AdmissionsCaseOperationsSection
-        studentCaseId={id}
-        authorityRole={actor.authorityRole}
-        presentationRole={actor.presentationRole}
-        locale={locale}
-      />
+      {legacyAdmissionsOperationsSection}
 
-      <AmoCrmCaseCommandSection
-        authorityRole={actor.authorityRole}
-        locale={locale}
-        studentCaseId={id}
-        leadId={handoff.leadId}
-        clientId={handoff.clientContext.clientId}
-        caseState={handoff.caseState}
-      />
+      {legacyAmoCrmCommandSection}
     </div>
   );
 }

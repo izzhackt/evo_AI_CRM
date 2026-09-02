@@ -140,6 +140,8 @@ test("local browser proof resolves one ambiguous send only through exact WAHA re
   const foundation = source("scripts/test-postgres-v2-foundation.sh");
   const spec = source("tests/e2e/platform-communications.spec.ts");
 
+  assert.match(foundation, /waha_session_name="crm_primary"/u);
+  assert.doesNotMatch(foundation, /waha_session_name="evo-inbox"/u);
   assert.match(foundation, /EVO_TEST_WAHA_UNKNOWN_TEXT/u);
   assert.match(foundation, /body\.text === unknownResultText/u);
   assert.match(foundation, /source: "api"/u);

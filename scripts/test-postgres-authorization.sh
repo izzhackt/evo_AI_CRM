@@ -280,6 +280,15 @@ SQL
       -f /workspace/supabase/tests/platform_sales_workflow_rls.sql
   fi
 
+  # Seed one immutable evo-inbox status event/observation at the migration-101
+  # boundary. Migration 102 must preserve that evidence, remove it from current
+  # health and reject every attempt to reactivate it.
+  if [[ "$(basename "$migration")" == 102_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_crm_primary_waha_authority_pre102.sql
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -1830,6 +1839,14 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_exact_manual_send_queue_shape.sql
+  fi
+
+  # Migration 102 makes the already-connected sales session the only active
+  # WAHA identity and revokes the autonomous/frozen V1 sender surfaces.
+  if [[ "$(basename "$migration")" == 102_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_crm_primary_waha_authority.sql
   fi
 done < <(
   cd "$repo_root"

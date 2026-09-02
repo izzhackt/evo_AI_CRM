@@ -357,11 +357,17 @@ replace those local authorities rather than copy them into a second path.
    cover the approved contact, lead, link, pipeline/status, note, task and tag
    operations, but Supabase remains business authority and amoCRM identifiers
    remain provider evidence. Replays return the original receipt; an ambiguous
-   outcome must reconcile by provider readback before any retry. After real
-   local Supabase, application, Chromium and bounded real amoCRM proof, delete
-   the local command repository/state, temporary
+   outcome must reconcile by provider readback before any retry. The inert
+   replacement code lands only after real local Supabase, application and
+   Chromium proof, with the local command repository/state, temporary
    `AmoCrmCaseCommandSection`, superseded provider UI/adapters/imports/tests and
-   every fallback path.
+   every fallback path deleted in that same code slice. Keep #567 open after
+   the code merge. Its real-write acceptance then runs once from the reviewed,
+   CI-green exact `main`, because the guarded provider harness rejects branch
+   or dirty checkouts. #568 cannot start and #567 cannot close until that one
+   bounded validation entity has matching amoCRM readback and sanitized
+   PostgreSQL/application/browser evidence. A failed or ambiguous result stays
+   blocked for reconciliation and never revives the deleted runtime.
 4. **#568 / P5D - exact-main provider runtime inventory.** On exact main, prove
    that the Supabase-backed Gemini, WhatsApp and amoCRM modules have one active
    state/runtime path, that `crm_primary` is the only configured WAHA session,
@@ -371,11 +377,13 @@ replace those local authorities rather than copy them into a second path.
    WhatsApp message or write amoCRM. Record explicitly that live Gemini/WhatsApp
    delivery was not exercised and is not being claimed.
 
-Delivery status on 2026-09-02: #565 merged through PR #570 at exact main
-`b3f0f45b3632b8db4b2723ffe0ae77b382f60da8`; exact-main CI run `33625536519`
-passed. #566 now owns the atomic application cutover. On 2026-09-03 the owner
-removed the controlled-inbound Gemini/WhatsApp send exercise from the active
-merge and completion gates because the controlled account is unavailable.
+Delivery status on 2026-09-03: #565 merged through PR #570, then #566 merged
+through PR #571 at exact main
+`8bb96c35b401c81e625773cc5ec594c68f956f39`; exact-main CI run `33683881377`
+passed. #567 now owns the Supabase-authoritative amoCRM command cutover and the
+subsequent exact-main bounded provider proof. The owner removed the
+controlled-inbound Gemini/WhatsApp send exercise from the active merge and
+completion gates because the controlled account is unavailable.
 ADR 0026 records that scope correction; no synthetic or customer-chat
 substitute is allowed. The existing
 `src/lib/platform-communications.ts` authenticated Supabase reads and the

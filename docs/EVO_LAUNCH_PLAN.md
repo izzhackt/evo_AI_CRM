@@ -483,6 +483,20 @@ signal. Only then may #567 close and #568 start. The authorization still exclude
 WhatsApp sends, Gemini calls, frozen V1 execution, customer-data mutation,
 deployment, historical migration and cutover.
 
+That final acceptance has now completed. PR #581 merged the last harness
+correction at exact main `5e32bdc9391f46e73dcca1a433a52c823fae9e8a`; exact-head
+CI run `33761605343` and exact-main CI run `33762782675` both passed first.
+The guarded connected acceptance then emitted sanitized
+`output/provider-acceptance/amocrm/5e32bdc9391f46e73dcca1a433a52c823fae9e8a/success.json`
+with all eight operations accepted, exact provider readback, one contact
+binding, one lead binding, one provenance record, persistence after reload and
+an exact UI replay that added zero attempts, receipts, bindings or provider
+entities. Boundaries remained unchanged: local Supabase PostgreSQL stayed the
+only database authority, the existing `crm_primary` WAHA session was inspected
+read-only, no V1 application path executed, and no deployment or fallback path
+ran. Issue #567 is therefore complete and Issue #568 may now proceed from this
+exact merged main.
+
 ADR 0026 records that scope correction; no synthetic or customer-chat
 substitute is allowed. The existing
 `src/lib/platform-communications.ts` authenticated Supabase reads and the

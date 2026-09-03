@@ -117,13 +117,13 @@ new path is accepted; historical and rollback material remains preserved.
 | 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
 | 9 | #553 | Completion audit | exact-main proof of one UI, runtime, data, auth/session, file and provider authority |
 
-Orders 0 through 5 are complete. Under #550, #584 and #585 are complete: the
-successor candidate now has the managed-Supabase-backed standalone application
+Orders 0 through 5 are complete. Under #550, #584, #585 and #586 are complete.
+The successor candidate now has the managed-Supabase-backed standalone application
 plus the one retained private WAHA transport, with required key boundaries and
 no candidate SQLite volume, frozen lead-agent service, separate manual-send
-worker or active Drizzle/SQLite application path. The active cleanup slice is
-#586; #587 then proves the exact-main Supabase release candidate. Issue #551
-follows only after all four children and #550 are complete.
+worker, active Drizzle/SQLite application path or bundled obsolete database
+toolchain. The active cleanup/proof slice is #587. Issue #551 follows only
+after #587 and parent #550 are complete.
 
 #### Completed #585 Supabase application-runtime and UI replacement slice
 
@@ -178,9 +178,9 @@ Acceptance requires all of the following on the same candidate head:
 #585 makes no VPS, public-route, provider, customer-data or production-traffic
 change. Those actions remain controlled by the later #551/#552 gates.
 
-#### Active #586 obsolete executable database-tooling eradication slice
+#### Completed #586 obsolete executable database-tooling eradication slice
 
-#586 is active after the live application runtime was removed from the old
+#586 followed removal of the live application's old
 Drizzle/SQLite path. This slice deletes the superseded executable
 toolchain itself: candidate dependencies, scripts, schema code, env seams and
 tests that still assume local SQLite, Drizzle migration control or a backup
@@ -221,6 +221,72 @@ Acceptance requires all of the following on the same candidate head:
    historical ADRs, migrations, runbooks, archived docs, evidence and other
    decision/rollback material remain untouched and are never executed as
    successor authority.
+
+PR #592 completed #586 on exact main
+`69e529be4236e10aff21ae8f0fa7b1d8074566ac`. Its exact-head CI, independent
+reviews, deterministic `linux/amd64` image inventory and exact-main tree
+verification passed before #587 became active.
+
+#### Active #587 single Supabase release-candidate proof slice
+
+#587 replaces the remaining active release automation, CI entrypoints and
+operator runbooks that still describe or execute the frozen multi-application
+V1 topology. The successor release contract is exactly one EVO Next.js app,
+one private WAHA transport using the `crm_primary` session contract, and the
+retained Supabase Auth/Postgres/private-Storage authority. Companion Inbox,
+Lead Agent, manual-send worker, SQLite backup and historical P8 release
+programs are not candidate services, checks or fallbacks.
+
+The retained executable release authority is
+`.github/workflows/evo-fast-release.yml`, `scripts/evo-fast-release.sh`,
+`scripts/fast-release-ci-gate.mjs` and
+`scripts/evo-release-environment-profile.mjs`, updated to the single successor
+contract. All other release programs must either serve the current root
+successor or leave the active executable surface.
+
+This slice must preserve frozen V1 deployment and rollback history, but move or
+mark it as unmistakably historical and remove every active package, CI,
+release-controller, validation and runbook reference that could execute it as
+the successor. The active CI and release gate validate only the root EVO
+product. The production and staging Compose models must render exactly the
+accepted `app` and private `waha` services; an externally configurable list may
+not reintroduce legacy containers as release requirements.
+
+Acceptance requires all of the following on the same candidate head:
+
+1. one current release runbook, release controller and CI path describe and
+   validate only the root app plus private WAHA and managed-Supabase contract;
+   frozen `/opt/evo-inbox`, Lead Agent, manual-worker, five-container and
+   SQLite-backup instructions remain only in clearly labelled historical
+   rollback material and are not imported or executed;
+2. `.dockerignore`, the Dockerfile/build context and package entrypoints exclude
+   ignored `.env*` secrets, frozen application source, local evidence and
+   obsolete P8 release programs; the final image contains only the root
+   successor application and its production dependencies;
+3. production and staging Compose are rendered canonically and prove exactly
+   `app` plus `waha`, private WAHA networking, immutable WAHA digest input,
+   healthchecks, resource limits and bounded logs;
+4. a clean exact-SHA `linux/amd64` app image records the approved source,
+   revision and version labels, and a sanitized sorted inventory proves the
+   expected production dependency set without secret values, SQLite, Drizzle,
+   companion Inbox, Lead Agent or manual-worker artifacts;
+5. one isolated OrbStack candidate run uses real disposable Supabase
+   Auth/Postgres/Storage plus the root application and a private WAHA service,
+   then proves application health/readiness, browser access, exact runtime
+   services/networks, fail-closed missing Supabase/provider configuration and
+   owned cleanup without touching VPS, public traffic or provider state;
+6. a scoped repository/image/runtime inventory reports zero active legacy
+   service, package, env, script, route or fallback reference. Historical
+   material is reported separately and never counted as active authority;
+7. focused tests, lint, typecheck and production build pass locally, followed
+   by one independent exact-head review, one exact-head CI run, a
+   `--match-head-commit` merge and exact-main verification.
+
+#587 does not mutate `hermes-vps`, Caddy/DNS, the managed Supabase project,
+provider or customer state, webhook ownership, V1 deployments or public
+traffic. It does not edit `src/lib/v3/*`. Real staging, restore and migration
+rehearsal remain owned by #551; production cutover and V1 retirement remain
+owned by #552.
 
 ### P1 existing-state finding
 

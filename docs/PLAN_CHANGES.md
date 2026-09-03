@@ -16049,3 +16049,50 @@ Decision:
   bundle, execute or require them from the candidate runtime;
 - do not modify `src/lib/v3/*`, the unmerged V3 screens, VPS/V1 state, public
   traffic or customer data.
+
+## 2026-09-04 - Complete P6C and activate the single Supabase release candidate
+
+Block-ID: `EVO-P6D-SINGLE-SUPABASE-RELEASE-CANDIDATE-2026-09-04`
+
+Change type: active-slice contract update.
+Affected plan section: Order 6 / Issue #550 child #587.
+
+PR #592 completed #586 on exact main
+`69e529be4236e10aff21ae8f0fa7b1d8074566ac`. Exact-head CI, two independent
+reviews, the deterministic `linux/amd64` image inventory and exact-main tree
+verification passed. The successor application and image no longer contain the
+obsolete SQLite/Drizzle dependency or executable database toolchain.
+
+The remaining P6 gap is release authority, not product data access. Production
+and staging Compose already define the intended root `app` plus private `waha`,
+but active runbooks, CI jobs, package scripts and release validators still
+describe, execute or require the frozen companion Inbox, Lead Agent,
+manual-send worker, SQLite backup or historical P8 multi-application release
+programs. The existing OrbStack runtime-contract test also uses invented
+Supabase values and disabled readiness, so it cannot by itself prove #587.
+
+Decision:
+
+- make exactly one current successor release path authoritative: root Next.js
+  app, private WAHA with the `crm_primary` session contract, and Supabase
+  Auth/Postgres/private Storage;
+- remove legacy jobs, gates, package entrypoints and configurable container
+  requirements from active CI/release automation; validate the exact Compose
+  `app`/`waha` service set instead;
+- replace the active multi-application runbooks with one successor runbook and
+  retain V1 `/opt/evo-inbox`, Lead Agent, manual-worker, SQLite-backup and
+  five-container instructions only as clearly labelled historical rollback
+  material that the candidate never imports or executes;
+- harden the Docker build context against ignored `.env*` secrets, frozen
+  application source and local release evidence, and prove a deterministic
+  exact-SHA `linux/amd64` app image with sanitized labels and a sorted
+  production-dependency/artifact inventory;
+- add one final P6D candidate harness that renders production and staging
+  Compose canonically and runs one isolated OrbStack proof with real disposable
+  Supabase Auth/Postgres/Storage, the root application, private WAHA,
+  health/readiness, browser, resource/log/network, fail-closed and cleanup
+  assertions;
+- keep `src/lib/v3/*`, unmerged V3 screens, VPS/Caddy/DNS, the real managed
+  Supabase project, provider/customer state, webhook ownership, frozen V1
+  deployments and public traffic unchanged. #551 owns real staging/restore/
+  migration rehearsal; #552 owns production cutover and V1 retirement.

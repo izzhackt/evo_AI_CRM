@@ -15668,3 +15668,38 @@ The unmerged V3 frontend boundary is unchanged: backend work does not edit
 `src/lib/v3/*`, does not duplicate its document-checklist, visa or lead-owner
 screens, and does not introduce a third university-application status
 dictionary or an in-app WhatsApp connector.
+
+## 2026-09-03 - Record the fresh #567 run as reconciled but incomplete
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex under the owner's explicit authorization for one fresh #567
+amoCRM validation.
+Change type: real-provider acceptance outcome and fail-closed sequencing; no
+new provider authority.
+Affected plan sections: P5C amoCRM acceptance and the P5D entry gate.
+
+The validation ran from clean exact main
+`8444b4cbcd648a28a929ae604597cecfeb35d06c` after exact-main CI run
+`33704513203` passed. The disabled-provider browser check first proved zero
+attempts, bindings and fallback. The explicit Admin dispatch then persisted
+accepted HTTP-200 exact readback for contact create, lead create, contact/lead
+link, pipeline/status, responsible-user and note operations.
+
+Task creation returned HTTP 200, but the immediate exact readback ended
+`provider_unavailable`. The canonical command correctly stopped at `unknown`,
+the tag operation did not start and the harness emitted no `success.json`.
+A bounded read-only task-list reconciliation then found exactly one task on the
+fresh validation lead with the exact reviewed text and corrected near-future
+deadline. The existing service-only reconciliation RPC moved only that local
+attempt to `accepted`, stored hashed readback and cleared the failure. No task
+mutation was retried and reconciliation made no provider write.
+
+Decision: retain the sanitized incomplete evidence as seven accepted attempts,
+seven receipts, one contact binding, one lead binding, one provenance record,
+zero tag attempts and no exact replay proof. This is successful ambiguity
+reconciliation, not full provider acceptance. Keep #567 open and keep #568 not
+started. The owner's one-run authority has been consumed; a later first-time
+tag write or another validation run requires separate explicit continuation.
+Do not infer success, recreate the validation entity, run a V1 writer or use a
+fallback. WhatsApp, Gemini, V1, deployment, customer migration and cutover were
+not exercised.

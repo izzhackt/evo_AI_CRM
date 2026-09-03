@@ -85,7 +85,8 @@ test("P6D proof accepts only process-provided real local Supabase authority", as
   assert.match(harness, /linux\/amd64/u);
   assert.match(harness, /org\.opencontainers\.image\.revision/u);
   assert.match(harness, /NODE_EXTRA_CA_CERTS/u);
-  assert.match(harness, /https:\/\/localhost/u);
+  assert.match(harness, /evolocalp6d000000000\.supabase\.co/u);
+  assert.match(harness, /\.listen\(443,'127\.0\.0\.1'\)/u);
   assert.doesNotMatch(harness, /NODE_ENV: "development"/u);
   assert.match(harness, /evo_p6d_\$\{suffix\}_waha_sessions/u);
   assert.match(harness, /createNetwork\(privateNetwork, \{ internal: true \}\)/u);

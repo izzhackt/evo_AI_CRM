@@ -44,6 +44,27 @@ The production successor uses:
 - the existing EVO-owned VPS, Caddy, CI/release and private WAHA capabilities
   where the audit proves they are current and correctly isolated.
 
+### V3 frontend coordination boundary
+
+The unmerged `claude/v3-frontend` branch at
+`147421c3129b6e938a168cdf8788687cddc07318` is a design-track reference, not a
+release dependency or part of the exact-head candidate. Backend slices must not
+merge it, plan around its arrival or edit `src/lib/v3/*`. When a canonical data
+authority or response contract changes, record and communicate that contract
+first; the V3 track owns the small source-adapter rewrite and its seven screens.
+
+Do not rebuild schema or duplicate UI that already has a clear owner. Reuse the
+existing Supabase document checklist/review model from migrations 043, 046, 053
+and 055, visa cases and commands from migration 042, and lead ownership/stages
+from migration 086. Backend work may expose and verify those canonical
+contracts, while the V3 track owns the document-checklist, visa and lead-owner
+screens. Do not add a third university-application status dictionary or an
+in-app WhatsApp channel-connection flow. The genuine gaps recorded in the V3
+branch -- staff as a person, payment plans, the client questionnaire,
+application priority/deadline and document-to-application/visa links -- remain
+coordination inputs and do not enter the active sequence without their own
+prioritized slice.
+
 The production successor does not keep Drizzle `evo_*`, SQLite, the two-field
 development gate, application-local private document bytes, old manual or
 autonomous messaging workers, superseded provider adapters, duplicate UI,
@@ -382,15 +403,28 @@ through PR #571 at exact main
 `8bb96c35b401c81e625773cc5ec594c68f956f39`; exact-main CI run `33683881377`
 passed. #567's command cutover merged through PR #572 at exact main
 `23360a9f3816f7de8d33c162d550fc56688b9c1d`; exact-main CI run `33695138189`
-passed. Its first guarded provider run stopped before any amoCRM dispatch
-because the Sales Lead 360 route did not mount the canonical command panel.
-#567 therefore remains open. A corrective slice must mount that same
-Supabase-backed panel on the Sales pre-handoff workspace, prove its exact
-workflow target and fail-closed state in application/browser tests, pass the
-normal exact-head and exact-main gates, and only then rerun the bounded
-acceptance once. This is an application-surface failure, not a provider
-rejection or ambiguous external result, and it does not authorize a fallback
-UI or another command repository. The owner removed the
+passed. PR #574 added the missing canonical Sales surface and merged at exact
+main `a9da91a23c2c8c1f9c475ae72faf8c4a52e4789f`; exact-main CI run
+`33699454396` passed.
+
+The next guarded #567 run reached the real provider once. Contact creation,
+lead creation, contact/lead linking, pipeline/status, responsible user and note
+creation each returned HTTP 200, matched exact readback and persisted accepted
+Supabase attempts/receipts/bindings. amoCRM also created exactly one task on
+the exact validation lead with the expected text, but the deliberately distant
+`2099-09-15` deadline returned as a negative provider timestamp instead of the
+submitted Unix time. The command therefore stayed `unknown`, no tag operation
+ran, no success marker was emitted and #567 remains open. A bounded read-only
+task-list reconciliation proved the task exists uniquely; no provider write or
+retry followed the mismatch.
+
+The corrective slice must fail before dispatch for task deadlines above the
+provider-safe signed 32-bit Unix range, keep all service/provider validation on
+the same bound, and use a normal near-future deadline in connected acceptance.
+It must add unit/browser regression proof and pass the normal exact-head and
+exact-main gates. The already created validation entities and unknown attempt
+remain immutable evidence; this code correction does not authorize another
+provider run, cleanup mutation or acceptance claim. The owner removed the
 controlled-inbound Gemini/WhatsApp send exercise from the active merge and
 completion gates because the controlled account is unavailable.
 ADR 0026 records that scope correction; no synthetic or customer-chat

@@ -74,8 +74,8 @@ server-authorised integration rather than a second source of truth.
   the live staff profile, organization membership, role bundle and access
   version before the server accepts it; there is no local development-gate
   fallback.
-- Deferred modules (`/dashboard`, `/calls`, `/chat`, `/notifications`,
-  `/reports`, `/portal`) fail closed rather than showing partial UI.
+- Deferred modules (`/calls`, `/chat`, `/notifications`, `/reports`, `/portal`)
+  fail closed rather than showing partial UI.
 - Business events are append-only; the database rejects mutation of the audit log.
 - Terminology in the product is deliberately mixed-language: Russian labels with
   retained English domain terms (Student 360, Lead 360, Student Case, handoff,

@@ -438,6 +438,9 @@ test("connected amoCRM browser acceptance is inert without its explicit flag", a
   assert.match(source, /persistedAfterReload:\s*true/u);
   assert.match(source, /v1ApplicationPathExecuted:\s*false/u);
   assert.match(source, /existingWahaSessionReadOnly:\s*true/u);
+  assert.match(source, /nearFutureTaskDeadlineLocal/u);
+  assert.match(source, /Date\.now\(\) \+ 24 \* 60 \* 60 \* 1_000/u);
+  assert.doesNotMatch(source, /2099-09-15/u);
   assert.doesNotMatch(source, /v1RuntimeExecuted/u);
 
   const result = spawnSync(

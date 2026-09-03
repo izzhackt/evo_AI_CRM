@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AMOCRM_TASK_COMPLETE_TILL_MAX } from "./platform-amocrm-task-deadline.ts";
 import { exactActionStringFields } from "./server/action-form-fields.ts";
 
 const UUID_PATTERN =
@@ -117,7 +118,9 @@ function normalizedFutureUnix(
   if (!Number.isSafeInteger(parsed)) return null;
   const nowSeconds = parseNowSeconds(options);
   if (!Number.isSafeInteger(nowSeconds)) return null;
-  return parsed > nowSeconds ? parsed : null;
+  return parsed > nowSeconds && parsed <= AMOCRM_TASK_COMPLETE_TILL_MAX
+    ? parsed
+    : null;
 }
 
 export function parsePlatformAmoCrmSalesSyncForm(

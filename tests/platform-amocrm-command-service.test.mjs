@@ -710,6 +710,34 @@ test("sales sync rejects a non-future task deadline before any runtime call", as
   assert.equal(readCalled, true);
 });
 
+test("sales sync rejects a task deadline above the provider-safe range before runtime", async () => {
+  let runtimeCalled = false;
+  const result = await executePlatformAmoCrmSalesSync(
+    {
+      actor: actor(),
+      actorRole: "sales",
+      leadId: IDS.lead,
+      baseRequestId: IDS.request,
+      noteText: "Reviewed note",
+      taskText: "Call the applicant tomorrow",
+      taskCompleteTill: 2_147_483_648,
+    },
+    {
+      now: () => new Date("2026-09-02T10:00:00.000Z"),
+      createStaffRpcClient: () => ({ kind: "staff" }),
+      getSalesLead: async () => salesLead(),
+      resolveRuntime: async () => {
+        runtimeCalled = true;
+        throw new Error("runtime_must_not_be_called");
+      },
+    },
+  );
+
+  assert.equal(result.status, "error");
+  assert.equal(result.reason, "invalid_task_complete_till");
+  assert.equal(runtimeCalled, false);
+});
+
 test("admissions sync fails closed instead of creating missing provider identities", async () => {
   for (const scenario of [
     {

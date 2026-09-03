@@ -105,6 +105,8 @@ test("the panel exposes exact inputs, honest states, per-step evidence, and expl
   assert.match(panel, /name="task_text"/);
   assert.match(panel, /name="task_complete_till"/);
   assert.match(panel, /type="datetime-local"/);
+  assert.match(panel, /max=\{AMOCRM_TASK_DEADLINE_LOCAL_SAFE_MAX\}/);
+  assert.match(panel, /unix > AMOCRM_TASK_COMPLETE_TILL_MAX/);
   assert.match(panel, /maxLength=\{1000\}/);
   assert.match(panel, /required/);
   assert.match(panel, /disabled=\{!ready \|\| syncing \|\| flowBlocked\}/);

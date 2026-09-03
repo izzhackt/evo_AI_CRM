@@ -15,9 +15,11 @@ fail() {
 trap report_error ERR
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-node_bin="${EVO_NODE_BIN:-node}"
+node_bin="${EVO_NODE_BIN:-/opt/homebrew/opt/node@22/bin/node}"
 supabase_lock_dir="${TMPDIR:-/tmp}/evo-platform-local-supabase-foundation.lock"
 supabase_lock_pid_file="$supabase_lock_dir/pid"
+
+[[ -x "$node_bin" ]] || fail "Node 22 binary is required at ${node_bin}"
 
 foundation_harness_pid_active() {
   local pid="$1"
@@ -1116,5 +1118,17 @@ stop_app
 start_app unavailable
 supabase_staff_auth_browser_assert unavailable
 assert_no_secret_or_payload_logs
+
+stop_app
+if [[ "${EVO_P6D_CANDIDATE_PROOF:-0}" == "1" ]]; then
+  echo "Building and proving the exact-head linux/amd64 Supabase release candidate on OrbStack."
+  EVO_P6D_SUPABASE_API_URL="$supabase_api_url" \
+    EVO_P6D_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+    EVO_P6D_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
+    EVO_P6D_ORGANIZATION_ID="$platform_organization_id" \
+    EVO_P6D_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_P6D_ADMIN_PASSWORD="$staff_admin_password" \
+    "$node_bin" scripts/test-p6d-release-candidate-orbstack.mjs
+fi
 
 echo "Real PostgreSQL, Supabase Auth/RLS, Platform provider workflows, application and Chromium proof passed."

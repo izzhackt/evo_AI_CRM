@@ -1,9 +1,11 @@
 # Fast CRM app release
 
-This lane deploys presentation-only CRM changes after the controlled P8V3K
-first rollout and the one-time P8R1 activation are complete. It never imports
-knowledge, runs migrations, changes provider settings, restarts Inbox, WAHA or
-Lead Agent, or writes amoCRM/WhatsApp/customer data.
+This is the retained app-only update lane for the single EVO successor. It may
+be activated only after the separately authorized production cutover has
+established the root app plus private WAHA baseline. Issue #587 validates this
+control without deploying it. The lane never imports knowledge, runs
+migrations, changes provider settings, restarts WAHA, or writes
+amoCRM/WhatsApp/customer data.
 
 ## What the button does
 
@@ -13,18 +15,18 @@ and green CI, builds the linux/amd64 image, checks its OCI labels and seals the
 checksummed archive as a one-day workflow artifact. The protected GitHub
 `production` Environment then:
 
-1. rechecks that the approved commit still equals `origin/main`, still has green
-   `Main CRM`, `EVO Inbox` and `EVO Lead Agent` checks, and still matches the
-   sealed archive;
+1. rechecks that the approved commit still equals `origin/main`, still has the
+   green root `Main CRM` check, and still matches the sealed archive;
 2. asks the live CRM which exact commit is currently deployed and rejects every
    changed path outside the conservative presentation allowlist;
 3. checks the production Supabase migration ledger read-only against the exact
    repository migration set;
 4. transfers the already-sealed immutable archive over pinned SSH;
-5. runs the short server preflight, including a read-only proof that every
-   declared image layer is present and readable, then replaces only Compose
-   service `app` and checks exact image/labels/health/restarts plus the
-   configured external health URL;
+5. runs the short server preflight, including a read-only proof that the Compose
+   project contains exactly healthy `app` and `waha` services, the private WAHA
+   uses the configured immutable digest, and every declared app-image layer is
+   present and readable; it then replaces only `app` and checks exact
+   image/labels/health/restarts plus the configured external health URL;
 6. automatically restores the previous app image if any deployment or health
    assertion fails.
 
@@ -62,17 +64,16 @@ Variables:
 - `EVO_RELEASE_ROOT`, `EVO_RELEASE_PROJECT_NAME`, `EVO_RELEASE_STAGING_ROOT`,
   `EVO_RELEASE_EVIDENCE_ROOT`;
 - `EVO_RELEASE_EXTERNAL_HEALTH_URL`;
-- `EVO_REQUIRED_HEALTHY_CONTAINERS` — comma-separated exact current container
-  names checked before mutation;
 - `EVO_RELEASE_MIN_FREE_KB` — at least `1048576`;
 - `EVO_WAHA_IMAGE_DIGEST` — the already-reviewed immutable WAHA digest needed
-  only to validate the complete live Compose render;
+  to validate both the complete Compose render and current private WAHA
+  service;
 - `EVO_SUPABASE_PROJECT_REF`.
 
 The deploy key must be restricted to the intended Hermes account. Adding that
 key, installing `scripts/evo-fast-release.sh` at the configured release root,
 and establishing the first compatible deployed baseline are production
-mutations and require the separate P8R1 activation authorization.
+mutations and require the separate production-cutover authorization in #552.
 
 ## Normal use
 

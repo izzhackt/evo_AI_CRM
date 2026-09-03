@@ -10,8 +10,7 @@ evo-lead-agent
 coverage
 build
 *.tsbuildinfo
-.env
-.env.*
+.env*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -19,6 +18,11 @@ yarn-error.log*
 
 evo_website
 twenty-evo-admissions-app
+agent-lead2-inbox
+evo-lead-agent
+tests
+docs/archive
+docs/evidence
 
 docs/SCENARIO_EVALUATION.md
 docs/PUBLIC_PROMISE_LIVE_AUDIT.md

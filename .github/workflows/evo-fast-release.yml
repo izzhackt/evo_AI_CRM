@@ -67,7 +67,6 @@ jobs:
           EVO_RELEASE_PRIVATE_NETWORK: evo_crm_staging_private
           EVO_RELEASE_PUBLIC_NETWORK: evo_public_web
           EVO_RELEASE_VOLUME_NAMES: evo_crm_staging_output,evo_crm_staging_waha_sessions
-          EVO_RELEASE_FIXED_CONTAINER_NAMES: ""
           EVO_RELEASE_PUBLIC_HOSTNAME: staging.crm.evoadmissions.com
           EVO_RELEASE_APP_ENV_FILE: ${{ runner.temp }}/evo-staging-app.env
           EVO_RELEASE_ENV_EXAMPLE_FILE: ${{ github.workspace }}/deploy/env.staging.example
@@ -272,7 +271,6 @@ jobs:
           EVO_RELEASE_STAGING_ROOT: ${{ vars.EVO_RELEASE_STAGING_ROOT }}
           EVO_RELEASE_EVIDENCE_ROOT: ${{ vars.EVO_RELEASE_EVIDENCE_ROOT }}
           EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
-          EVO_REQUIRED_HEALTHY_CONTAINERS: ${{ vars.EVO_REQUIRED_HEALTHY_CONTAINERS }}
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
           EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
           EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
@@ -283,7 +281,6 @@ jobs:
           [[ "$EVO_RELEASE_STAGING_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
           [[ "$EVO_RELEASE_EVIDENCE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
           [[ "$EVO_RELEASE_EXTERNAL_HEALTH_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/api/health$ ]]
-          [[ "$EVO_REQUIRED_HEALTHY_CONTAINERS" =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]]
           [[ "$EVO_RELEASE_MIN_FREE_KB" =~ ^[0-9]+$ ]]
           (( EVO_RELEASE_MIN_FREE_KB >= 1048576 ))
           [[ "$EVO_WAHA_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
@@ -354,7 +351,6 @@ jobs:
           EVO_RELEASE_STAGING_ROOT: ${{ vars.EVO_RELEASE_STAGING_ROOT }}
           EVO_RELEASE_EVIDENCE_ROOT: ${{ vars.EVO_RELEASE_EVIDENCE_ROOT }}
           EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
-          EVO_REQUIRED_HEALTHY_CONTAINERS: ${{ vars.EVO_REQUIRED_HEALTHY_CONTAINERS }}
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
           EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
         run: |
@@ -374,7 +370,6 @@ jobs:
             "$EVO_RELEASE_STAGING_ROOT" \
             "$EVO_RELEASE_EVIDENCE_ROOT" \
             "$EVO_RELEASE_EXTERNAL_HEALTH_URL" \
-            "$EVO_REQUIRED_HEALTHY_CONTAINERS" \
             "$EVO_RELEASE_MIN_FREE_KB" \
             "$EVO_WAHA_IMAGE_DIGEST" \
             "$EVO_RELEASE_REVISION" \
@@ -394,17 +389,16 @@ jobs:
           export EVO_RELEASE_COMPOSE_FILE="$2/docker-compose.prod.yml"
           export EVO_RELEASE_APP_ENV_FILE="$2/.env.production"
           export EVO_RELEASE_EXTERNAL_HEALTH_URL=$6
-          export EVO_REQUIRED_HEALTHY_CONTAINERS=$7
-          export EVO_RELEASE_MIN_FREE_KB=$8
-          export EVO_WAHA_IMAGE_DIGEST=$9
+          export EVO_RELEASE_MIN_FREE_KB=$7
+          export EVO_WAHA_IMAGE_DIGEST=$8
           unset EVO_RELEASE_DOCKER_STORAGE_PATH
-          export EVO_RELEASE_REVISION=${10}
-          export EVO_RELEASE_VERSION=${11}
-          export EVO_RELEASE_RUN_ID=${12}
-          export EVO_RELEASE_ARCHIVE=${13}
-          export EVO_RELEASE_ARCHIVE_SHA256=${14}
-          export EVO_RELEASE_EXPECTED_IMAGE_ID=${15}
-          export EVO_RELEASE_EXPECTED_COMPOSE_SHA256=${16}
+          export EVO_RELEASE_REVISION=${9}
+          export EVO_RELEASE_VERSION=${10}
+          export EVO_RELEASE_RUN_ID=${11}
+          export EVO_RELEASE_ARCHIVE=${12}
+          export EVO_RELEASE_ARCHIVE_SHA256=${13}
+          export EVO_RELEASE_EXPECTED_IMAGE_ID=${14}
+          export EVO_RELEASE_EXPECTED_COMPOSE_SHA256=${15}
           exec "$1" deploy
           REMOTE
           release_status=$?

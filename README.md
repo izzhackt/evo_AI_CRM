@@ -1,55 +1,48 @@
-# EVO Admissions Platform
+# EVO Admissions CRM
 
-Приватный рабочий репозиторий EVO Admissions. Здесь собраны три связанные,
-но самостоятельные системы: основная CRM, WhatsApp-интерфейс EVO Inbox и
-сервис Lead Agent. Здесь же хранятся документация, бизнес-контекст, инструкции
-для команды и исходники презентаций.
+EVO is one private staff product for Sales, Student 360, Admissions, Finance,
+Tasks, Documents, WhatsApp and human-reviewed AI workflows. The active
+production-successor application lives at the repository root and uses one
+managed Supabase foundation for Postgres, staff Auth, private Storage, RLS and
+the limited Realtime capabilities the product needs.
 
-> GitHub-ветка `main` должна быть общей точкой правды для проверенного кода и
-> документов. Локальная папка — только рабочая копия. Текущие ограничения и
-> расхождения записаны в [статусе платформы](docs/platform/current-status.md).
+The active container topology is deliberately small:
 
-## Что находится в репозитории
+- `app`: the root Next.js application;
+- `waha`: the private WhatsApp transport, pinned by immutable image digest.
 
-| Часть | Папка | Для чего нужна |
-|---|---|---|
-| EVO Admissions CRM | корень репозитория | Работа сотрудников с лидами, студентами, заявками, документами, визами, платежами, задачами, звонками и WhatsApp-контекстом |
-| EVO Inbox | `agent-lead2-inbox/` | Отдельный WhatsApp-first inbox: диалоги, контакты, amoCRM-контекст, ручные ответы и AI-черновики |
-| EVO Lead Agent | `evo-lead-agent/` | Приватный Python-сервис между WAHA, amoCRM, Gemini и основной CRM |
-| Командные материалы | `docs/`, `presentations/` | Архитектура, правила работы с данными, сведения о компании, процесс поступления, руководство по продажам, onboarding и презентации |
-| Production-конфигурация | `docker-compose.prod.yml`, `deploy/` | Описание контейнеров и публичного edge-proxy для сервера `hermes-vps` |
+The repository-retained `agent-lead2-inbox/` and `evo-lead-agent/` trees are
+frozen V1 migration and rollback inputs. They are not separate target products,
+are excluded from the successor image, and must not be started, imported or
+used as release fallbacks. Historical deployment material is indexed under
+[`docs/archive/`](docs/archive/README.md).
 
-Одна папка не означает одну базу данных. Какая система отвечает за конкретный
-вид информации, описано в [карте владельцев данных](docs/platform/data-ownership.md).
+## Product authority
 
-## С чего начать
+Read these before medium or large changes:
 
-- [Карта всей документации](docs/README.md)
-- [Как устроены системы](docs/platform/system-overview.md)
-- [Текущий проверенный статус](docs/platform/current-status.md)
-- [Onboarding нового участника](docs/team/onboarding.md)
-- [Сведения о компании и исходные документы](docs/company/README.md)
-- [Admissions-процесс и работа с клиентом](docs/business/README.md)
-- [Презентация платформы и demo script](presentations/README.md)
+- [`AGENTS.md`](AGENTS.md) — repository boundaries and replacement discipline;
+- [`CONTEXT.md`](CONTEXT.md) — domain context;
+- [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md) — active implementation
+  contract;
+- [`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) — append-only decision ledger;
+- [`docs/adr/`](docs/adr/) — architecture decisions.
 
-## Локальный запуск
+GitHub `main` is the shared source of truth. Work through a GitHub Issue and a
+reviewed exact-head PR; do not turn a local or VPS checkout into private
+authority.
 
-### Что потребуется
+## Local development
 
-- Node.js 22 и npm для основной CRM. Версия закреплена в `.nvmrc`.
-- Node.js 20 или новее для EVO Inbox; Node.js 22 подходит для обеих программ.
-- Python 3.12 или новее и `uv` для Lead Agent.
-- Реальный Supabase-проект и его ключи для полноценного запуска EVO Inbox.
-- Реальные ключи и учётные данные внешних сервисов для проверки WAHA, amoCRM
-  и AI. Без них
-  можно запустить локальный интерфейс или health check, но нельзя утверждать,
-  что внешняя интеграция работает.
+Requirements:
 
-Не придумывайте значения ключей и не отправляйте `.env`-файлы в GitHub.
+- Node.js 22 (pinned by `.nvmrc`);
+- npm;
+- Supabase CLI;
+- OrbStack on macOS, with Docker context exactly `orbstack`;
+- Playwright Chromium for the real browser gate.
 
-### 1. EVO Admissions CRM
-
-Из корня репозитория:
+Install and run the application with real ignored local Supabase credentials:
 
 ```bash
 nvm use
@@ -57,101 +50,52 @@ npm ci
 npm run dev
 ```
 
-Откройте <http://localhost:3000>. CRM использует локальную SQLite-базу из
-`data/`; эта папка не коммитится. При первом открытии пустой базы приложение
-автоматически создаёт демонстрационных пользователей, слабые demo-пароли,
-клиентов, лиды и разговоры. Это учебные данные, а не чистая рабочая база и
-не реальные клиенты EVO.
+The application fails closed when Supabase URL, publishable key, server key or
+organization authority is missing. It never falls back to SQLite, Drizzle,
+fixtures or a companion application.
 
-Проверка кода:
+Routine validation:
 
 ```bash
-npm run lint
-npm run build
-```
-
-### 2. EVO Inbox
-
-EVO Inbox — отдельное Next.js-приложение. В новом терминале начните из корня
-репозитория. Для реального запуска заполните `.env.local` настоящими значениями
-управляемого Supabase-проекта:
-
-```bash
-cd agent-lead2-inbox
-cp .env.local.example .env.local
-npm ci --include=dev
-npm run dev -- --port 3001
-```
-
-Откройте <http://localhost:3001>. Обязательные переменные и правила хранения
-секретов объяснены в
-[`agent-lead2-inbox/.env.local.example`](agent-lead2-inbox/.env.local.example).
-Одних переменных недостаточно: в реальном Supabase должны быть применены
-миграции и создана первая разрешённая учётная запись. Используйте утверждённый
-[инструкцию по Supabase](agent-lead2-inbox/docs/supabase-managed-store.md); если
-доступа к проекту или первой учётной записи нет, запуск Inbox заблокирован.
-
-Проверка кода:
-
-```bash
+npm run test:security
 npm run lint
 npm run typecheck
-npm test
 npm run build
 ```
 
-### 3. EVO Lead Agent
-
-В новом терминале снова начните из корня репозитория:
+The real disposable Supabase/PostgreSQL/Auth/Storage and browser contract is:
 
 ```bash
-cd evo-lead-agent
-cp .env.example .env
-uv sync --extra dev
-uv run pytest
-uv run uvicorn evo_lead_agent.main:app --reload --port 8088
+npm run test:database:local
 ```
 
-Проверьте локальное состояние через <http://127.0.0.1:8088/health>.
-Переключатели `EVO_AGENT_AUTOREPLY_ENABLED` и
-`EVO_AGENT_OUTBOUND_ENABLED` должны оставаться `false`, пока реальный путь
-WAHA → amoCRM → CRM не проверен и отправка сообщений явно не одобрена.
-
-## Общие правила работы
-
-1. Начинайте изменение с GitHub Issue и завершайте его проверенным PR в
-   `main`.
-2. Не храните в репозитории клиентские персональные данные, токены, пароли,
-   WhatsApp-сессии, базы рабочего сервера или незашифрованные секреты.
-3. Не копируйте один и тот же изменяемый факт в несколько документов. Храните
-   его у назначенного владельца и ставьте ссылку из остальных страниц.
-4. Не называйте интеграцию или развёртывание (deployment) работающими, пока
-   реальный сервис не был проверен с действующими учётными данными.
-5. Slack сейчас не используется как источник информации. Решения и задачи
-   фиксируются в GitHub, а устойчивый контекст — в этом репозитории.
-
-## Проверка поиска в базах знаний
-
-Детерминированная локальная проверка подтверждает, что контрольные русские
-запросы находят ожидаемые заметки только в утверждённой внутренней и клиентской
-базах. Сырой архив и хранилище секретов не сканируются.
+The final isolated release-candidate proof additionally builds and boots the
+exact `linux/amd64` app image with private WAHA on OrbStack:
 
 ```bash
-python3 scripts/knowledge_ingestion/check_retrieval.py \
-  --internal-vault "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Утверждено для внутреннего ИИ" \
-  --client-vault "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Клиентская база знаний ЭВО" \
-  --cases scripts/knowledge_ingestion/retrieval_cases.json \
-  --report "/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания/Внутренняя база знаний ЭВО/Панель управления/Отчёт проверки поиска.json"
+npm run test:p6d:orbstack
 ```
 
-## Production-контур
+Do not put secrets, WhatsApp session data, customer personal data, Supabase
+server keys, provider tokens or production environment files in Git or command
+output.
 
-- Сервер: `hermes-vps`.
-- Основная CRM: `/opt/evo-crm`.
-- EVO Inbox: `/opt/evo-inbox`.
-- Публичный edge-proxy: `evo-edge-caddy` в сети `evo_public_web`.
-- Канонические адреса: `https://crm.evoadmissions.com` и
-  `https://inbox.evoadmissions.com`.
+## Release boundary
 
-Канонические DNS-записи пока отсутствуют. Проверенные временные адреса и
-точная дата проверки находятся в [текущем статусе](docs/platform/current-status.md).
+The current successor runbook is
+[`deploy/production-release.md`](deploy/production-release.md). It is a gated
+exact-SHA contract, not authorization to deploy. Production, managed-Supabase
+migration, public traffic, webhook ownership transfer, customer migration and
+V1 retirement require their later explicit acceptance/cutover gates.
+
+The intended production location remains `/opt/evo-crm` on `hermes-vps`, with
+the public CRM route owned by `evo-edge-caddy` on `evo_public_web`. WAHA remains
+private. The frozen `/opt/evo-inbox` contour must not be used as successor
+authority.
+
+## Knowledge workspace
+
+Human-facing EVO knowledge lives outside the repository at
+`/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания`. Follow the privacy,
+provenance and approval rules in `AGENTS.md`; never publish raw archives or
+credentials into an AI knowledge base.

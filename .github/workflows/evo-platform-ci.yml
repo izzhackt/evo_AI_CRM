@@ -4,11 +4,9 @@ on:
   pull_request:
     branches:
       - main
-      - izzhacktcodex/waha-integration
   push:
     branches:
       - main
-      - izzhacktcodex/waha-integration
 
 permissions:
   contents: read
@@ -65,20 +63,6 @@ jobs:
         timeout-minutes: 35
         run: npm run test:database:local
 
-      - name: Prepare P8B release provenance
-        run: |
-          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
-            git fetch --no-tags --unshallow origin
-          fi
-          git fetch --no-tags origin refs/pull/179/head
-          git cat-file -e '0505143657858e710acdd5029f1cc77c5524083e^{commit}'
-          git fetch --no-tags origin 6ee93bd308aa478357279dd71511c7dc479b1f69
-          git cat-file -e '6ee93bd308aa478357279dd71511c7dc479b1f69^{commit}'
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          git show --no-patch --format='%H %P' origin/main
-          git show --no-patch --format='%H %P' 6ee93bd308aa478357279dd71511c7dc479b1f69
-          git merge-base --is-ancestor 6ee93bd308aa478357279dd71511c7dc479b1f69 origin/main
-
       - name: Test frontend state contracts
         run: npm run test:unit
 
@@ -96,79 +80,3 @@ jobs:
 
       - name: Audit development dependencies against the temporary allowlist
         run: node scripts/check-npm-audit-allowlist.mjs
-
-  inbox:
-    name: EVO Inbox
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: agent-lead2-inbox
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: agent-lead2-inbox/package-lock.json
-
-      - name: Install locked dependencies
-        run: npm ci --include=dev
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Test
-        run: npm test
-
-      - name: Build
-        run: npm run build
-
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=moderate
-
-      - name: Audit development dependencies against the temporary allowlist
-        run: node ../scripts/check-npm-audit-allowlist.mjs
-
-  lead-agent:
-    name: EVO Lead Agent
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: evo-lead-agent
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up uv and Python
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          working-directory: evo-lead-agent
-          enable-cache: true
-          cache-dependency-glob: uv.lock
-
-      - name: Install locked dependencies
-        run: uv sync --locked --extra dev
-
-      - name: Lint
-        run: uv run ruff check .
-
-      - name: Test
-        run: uv run pytest
-
-      - name: Install the knowledge-ingestion PDF test dependency
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes poppler-utils
-
-      - name: Test the root knowledge-ingestion package
-        working-directory: ${{ github.workspace }}
-        env:
-          PYTHONDONTWRITEBYTECODE: "1"
-          PYTHONPATH: ${{ github.workspace }}
-        run: uv run --project evo-lead-agent pytest tests/knowledge_ingestion

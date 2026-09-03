@@ -1,200 +1,74 @@
-# EVO CRM Production Deployment
+# EVO production-successor deployment boundary
 
-Runtime health/readiness, private-route, resource-limit, correlation-log, and
-alert ownership rules are in [runtime-hardening.md](./runtime-hardening.md).
+Status: active V2 deployment contract. This document describes the release
+candidate; it does not authorize a production deployment, traffic cutover,
+provider mutation, customer-data change, or retirement of frozen V1.
 
-Target server: `hermes-vps`
+The successor has one runtime topology:
 
-Existing runtime/secrets path: `/opt/evo-crm`
+| Component | Authority | Deployment boundary |
+| --- | --- | --- |
+| EVO staff application | root Next.js application | Compose service `app` |
+| WhatsApp transport | existing private WAHA session `crm_primary` | Compose service `waha`, private network only |
+| Business data and authorization | one managed Supabase project | external Postgres, Auth, RLS, and private Storage |
 
-Clean release path: `/opt/evo-releases/<full-main-sha>/repo`
+There is no active SQLite or Drizzle business store, companion Inbox
+application, Lead Agent service, manual-send worker, local staff bootstrap, or
+second application UI. amoCRM and Gemini remain explicit integrations; neither
+is a second data authority.
 
-The app runs as Docker Compose project `evo-crm`. Its public app joins
-`evo_public_web` at `evo-crm-app:3000`; CRM WAHA and the lead-agent communicate
-only on `evo_crm_private`.
+Use [production-release.md](production-release.md) for the exact-SHA release
+flow and [runtime-hardening.md](runtime-hardening.md) for health, privacy,
+resource, and log rules. The managed-Supabase recovery boundary is in
+[`docs/DISASTER_RECOVERY.md`](../docs/DISASTER_RECOVERY.md). The superseded V1
+multi-runtime material is retained under
+[`docs/archive/v1`](../docs/archive/v1/README.md) and must not be executed.
 
-Use [production-release.md](production-release.md) for every production
-release. It pins one reviewed `main` SHA in a clean detached worktree, keeps
-server secrets outside release source, backs up local state, captures rollback
-images/configuration, and deploys one service boundary at a time.
+## Active inputs
 
-## Required Environment
+Keep real values outside every release checkout:
 
-Keep these existing server files outside the detached release worktree:
+- `/opt/evo-crm/.env.production`, matching `deploy/env.production.example`;
+- `/opt/evo-crm/.env.waha`, matching `deploy/env.waha.example`; and
+- the existing protected `evo_crm_waha_sessions` volume for `crm_primary`.
 
-- `/opt/evo-crm/.env.production`
-- `/opt/evo-crm/.env.waha`
-- `/opt/evo-crm/.env.lead-agent`
+The release controller also requires an exact 40-character
+`EVO_RELEASE_REVISION`, an immutable `EVO_RELEASE_VERSION`, and an immutable
+`EVO_WAHA_IMAGE_DIGEST`. Never use a moving app or WAHA tag as release proof.
 
-Create them from the matching safe examples when provisioning a new server.
-Generate secrets on the server:
+The application environment must contain the managed Supabase URL, publishable
+key, server-only secret key, and canonical organization identifier. Missing or
+invalid Supabase configuration must stop the application path clearly; it must
+never select SQLite, a local repository, fixtures, or a frozen worker instead.
 
-```bash
-openssl rand -base64 48
-openssl rand -base64 32
-```
+Supabase staff accounts and roles are managed through Supabase Auth and the
+canonical migrations in root `supabase/`. Do not run the removed V1 local-admin
+bootstrap or maintain a second credential store.
 
-Do not commit or print the real values.
+## Network and storage boundary
 
-## Bootstrap First Admin
+`docker-compose.prod.yml` declares exactly `app` and `waha`.
 
-Run once after the app container is healthy:
+- `app` joins `evo_crm_private` and the pre-existing EVO web network.
+- `waha` joins only `evo_crm_private`; it has no host-published port.
+- WAHA session bytes remain in `evo_crm_waha_sessions`.
+- Canonical documents live in private Supabase Storage, not the app output
+  volume. `evo_crm_output` is non-authoritative generated output only.
+- The Compose file does not create or operate Supabase, Caddy, Inbox, Lead
+  Agent, or any manual worker.
 
-```bash
-read -r -s -p 'Initial admin password: ' EVO_ADMIN_PASSWORD
-printf '\n'
-export EVO_ADMIN_PASSWORD
-docker compose -p evo-crm \
-  -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" exec \
-  -e EVO_ADMIN_EMAIL='admin@example.com' \
-  -e EVO_ADMIN_PASSWORD \
-  -e EVO_ADMIN_NAME='EVO Admin' \
-  app node scripts/bootstrap-admin.mjs
-unset EVO_ADMIN_PASSWORD
-```
+`docker-compose.staging.yml` declares the same two-service shape with the
+separate `evo-crm-staging` project, staging-only networks/volumes and
+`deploy/env.staging.example`. Staging must never mount the production WAHA
+session volume or use the production Supabase project.
 
-## Backup
+The release lane must not log environment values, Supabase keys, WAHA keys,
+session data, customer content, phone numbers, or provider payloads.
 
-The release runbook requires both the application SQLite logical backup and a
-consistent snapshot of CRM data, backups, output, WAHA sessions, lead-agent
-data, Inbox WAHA sessions, and Caddy state before deployment. The normal
-logical backup is written to the `evo_crm_backups` Docker volume.
+## Current authorization boundary
 
-## EVO Edge Caddy
-
-Public EVO traffic is owned by `evo-edge-caddy`, not by a Caddy container or
-network from another project. The canonical edge definitions are:
-
-- `agent-lead2-inbox/deploy/docker-compose.edge.yml`
-- `agent-lead2-inbox/deploy/Caddyfile.evo-edge`
-
-Both `evo-edge-caddy` and the CRM app must join the external
-`evo_public_web` network. Ensure `/opt/evo-crm/.env.production` contains this
-exact value before starting or recreating the CRM:
-
-```dotenv
-EVO_CADDY_NETWORK=evo_public_web
-```
-
-Create the shared network once if it does not exist:
-
-```bash
-docker network inspect evo_public_web >/dev/null 2>&1 \
-  || docker network create evo_public_web
-```
-
-CRM internal traffic uses a separate pre-provisioned bridge. It has no
-published host ports; declaring it `external` in Compose only keeps Compose from
-trying to recreate a bridge that live containers must join before rollout:
-
-```bash
-docker network inspect evo_crm_private >/dev/null 2>&1 \
-  || docker network create evo_crm_private
-```
-
-`deploy/Caddyfile.evo-crm` is a CRM-only reference snippet. The combined
-`Caddyfile.evo-edge` is the production source for both CRM and Inbox public
-routes, the existing Invite Bishkek and legacy Inbox fallback routes, and the
-Codex route. Follow the release runbook to validate the candidate before
-reconciling the edge and to perform a graceful Caddy reload. Do not attach EVO
-services to an `acadis_*` network and do not run a second public proxy for EVO.
-
-Verify fallback routes after the reload:
-
-```bash
-curl -fsS -o /dev/null -w '%{http_code}\n' \
-  https://evo-crm.72.62.119.112.sslip.io/login
-curl -fsS -o /dev/null -w '%{http_code}\n' \
-  https://evo-inbox.72.62.119.112.sslip.io/api/health
-```
-
-Check `crm.evoadmissions.com` and `inbox.evoadmissions.com` separately as DNS
-gates. Do not report either canonical URL as working until it resolves to the
-VPS and its HTTPS request succeeds.
-
-## WAHA
-
-WAHA runs in the same Compose project as a private service named `waha`. It does
-not publish a host port. The CRM reaches it on the Docker network at:
-
-```txt
-http://evo-crm-waha:3000
-```
-
-Create `/opt/evo-crm/.env.waha` from `deploy/env.waha.example`. Generate a
-plain API key and store only its SHA-512 hash there as
-`WAHA_API_KEY=sha512:<hash>`. The forward Platform manual-send adapter keeps the
-plain key only in its Supabase Vault runtime binding, provisioned through the
-current server-only operator command. Do not copy it into CRM Settings or the
-frozen Lead Agent environment.
-
-Create `/opt/evo-crm/.env.lead-agent` from `deploy/env.lead-agent.example`.
-This file now describes only the retained, frozen rollback service. It is not a
-future WAHA webhook owner and must not contain the Platform ingress HMAC secret.
-Keep these fail-closed values:
-
-```txt
-EVO_AGENT_WAHA_SESSION=evo-inbox
-EVO_AGENT_WAHA_WEBHOOK_SECRET=
-EVO_AGENT_WAHA_WEBHOOK_URL=
-EVO_AGENT_FROZEN=true
-EVO_AGENT_WORKER_ENABLED=false
-EVO_AGENT_AUTOREPLY_ENABLED=false
-EVO_AGENT_OUTBOUND_ENABLED=false
-```
-
-The target boundary is the server-managed EVO Platform route
-`/api/internal/platform-messaging/waha/events` with exact session `evo-inbox`.
-It uses the separate `EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET`; never copy or
-reuse that secret in `EVO_AGENT_WAHA_WEBHOOK_SECRET`. Keep Platform ingress
-disabled until a separately authorized cutover provisions and verifies the
-real provider configuration.
-
-The lead-agent source is tracked by the parent `izzhackt/evo_AI_CRM` repo under:
-
-```txt
-$EVO_RELEASE_REPO/evo-lead-agent
-```
-
-Do not clone `nik1t7n/kanttsp-lead-agent` into this path for EVO production.
-Build the parent repository's exact reviewed main SHA using the release
-runbook, which includes the EVO-specific lead-agent source.
-
-Do not configure WAHA from legacy CRM Settings or the Lead Agent CLI. The
-fixture page is read-only for WhatsApp, and `evo-lead-agent-waha-setup` exits
-with `lead_agent_waha_setup_retired` without calling WAHA. Keep the WAHA
-dashboard/API private; real QR/session work requires a separately authorized
-server-side cutover procedure.
-
-Official integration behavior checked for this rollout:
-
-- Google Gemini API docs require an API key and document
-  `gemini-3.5-flash` as a Gemini model usable from the Python SDK:
-  `https://ai.google.dev/gemini-api/docs/api-key` and
-  `https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5`.
-- WAHA docs receive inbound messages through webhook events such as `message`
-  and support session webhook configuration with HMAC signing:
-  `https://waha.devlike.pro/docs/how-to/receive-messages/` and
-  `https://waha.devlike.pro/docs/overview/changelog/`.
-
-Do not use Lead Agent env audit, preflight, or setup output as proof that the
-Platform webhook is ready. Those commands describe the retained contour; the
-setup command is intentionally retired. A future live proof must separately
-verify the enabled Platform ingress, its dedicated HMAC secret, canonical
-Supabase persistence, exact `evo-inbox` provider session and operator-visible
-projection. Repository configuration alone is not provider proof.
-
-## DNS
-
-Create this public DNS record before expecting HTTPS to validate:
-
-```txt
-crm.evoadmissions.com.  A  72.62.119.112
-```
-
-## Transcription Lab
-
-The CRM deploys the transcription UI, but local MLX transcription is disabled in
-production by default because the VPS is Ubuntu and the MLX worker is not
-provisioned there. Keep `EVO_ENABLE_LOCAL_TRANSCRIPTION=0` unless a real Linux
-worker path is added and verified.
+Repository validation and an isolated local candidate may run without routine
+approval. A real VPS change, public traffic cutover, webhook ownership change,
+Supabase migration or restore, WAHA session change, provider write, customer
+data operation, or V1 retirement requires the applicable current gate and
+explicit owner authorization.

@@ -8,8 +8,6 @@ const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 
 export const FAST_RELEASE_REQUIRED_CHECKS = Object.freeze([
   "Main CRM",
-  "EVO Inbox",
-  "EVO Lead Agent",
 ]);
 
 export function validateFastReleaseChecks(payload) {

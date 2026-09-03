@@ -15640,3 +15640,31 @@ staff as a person, payment plans, client questionnaire, application
 priority/deadline and document-to-application/visa links -- are coordination
 inputs only until individually prioritized. No file from the V3 branch is
 merged or copied by this decision.
+
+## 2026-09-03 - Record the merged amoCRM deadline guard without advancing provider acceptance
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex under launch-control exact-main verification.
+Change type: delivery-status reconciliation only; no provider or V3 scope
+change.
+Affected plan section: P5C amoCRM acceptance and P5D sequencing.
+
+PR #575 merged the shared signed-32-bit task-deadline guard at exact main
+`a572cd73f48c9d6020a2c532f0ec036e9b19c74a`. Exact-main CI run
+`33702536583` completed successfully for Main CRM, EVO Inbox and EVO Lead
+Agent. The reviewed and merged trees were identical. Neither the correction
+nor its CI called amoCRM, Gemini or WAHA.
+
+This closes the known code-path defect only. The earlier unknown amoCRM task
+attempt remains immutable evidence and was not retried, patched or deleted.
+Issue #567 stays open for one fresh, separately authorized, bounded exact-main
+amoCRM validation. Issue #568 remains not started and follows only after that
+validation passes. A transient GitHub auto-close of #567 caused by
+closing-keyword parsing in the merged PR description was corrected
+immediately: the closing phrase was removed and #567 was reopened, without
+changing product or provider state.
+
+The unmerged V3 frontend boundary is unchanged: backend work does not edit
+`src/lib/v3/*`, does not duplicate its document-checklist, visa or lead-owner
+screens, and does not introduce a third university-application status
+dictionary or an in-app WhatsApp connector.

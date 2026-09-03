@@ -18,6 +18,13 @@ const leadWorkspaceSource = readFileSync(
   new URL("../src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx", import.meta.url),
   "utf8",
 );
+const amoCrmCommandSectionSource = readFileSync(
+  new URL(
+    "../src/app/(staff)/sales/[id]/PlatformSalesAmoCrmCommandSection.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const workflowActionSource = readFileSync(
   new URL("../src/lib/platform-sales-actions.ts", import.meta.url),
   "utf8",
@@ -90,6 +97,7 @@ const activeSalesReadSources = [
   workspaceSource,
   detailRouteSource,
   leadWorkspaceSource,
+  amoCrmCommandSectionSource,
   leadDetailSource,
   workflowActionSource,
   workflowFormSource,
@@ -104,7 +112,7 @@ const activeSalesReadSources = [
 const activeDrizzleSalesReadImport =
   /from\s+["'](?:@\/db(?:\/[^"']*)?|@\/lib\/(?:db|server\/(?:canonical-crm-repository|database))|better-sqlite3|drizzle-orm(?:\/[^"']*)?)["']/;
 const retiredSalesReadPanel =
-  /CanonicalAmoCrmCommandPanel|CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalSalesWorkflowForm|SalesLeadWorkflowForm|SalesOwnerSearchField|readBlockingCanonicalAmoCrmCommand/;
+  /CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalSalesWorkflowForm|SalesLeadWorkflowForm|SalesOwnerSearchField|readBlockingCanonicalAmoCrmCommand/;
 
 test("sales has one direct workspace route with server authorization", () => {
   assert.match(routeSource, /import \{ SalesWorkspace \}/);
@@ -159,6 +167,11 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
   assert.match(leadWorkspaceSource, /data-testid="canonical-sales-lead-workspace"/);
   assert.match(leadWorkspaceSource, /listPlatformSalesOwnerOptions\(actor, \{ pageSize: 100 \}\)/);
   assert.match(leadWorkspaceSource, /<PlatformSalesWorkflowForm/);
+  assert.match(leadWorkspaceSource, /<PlatformSalesAmoCrmCommandSection/);
+  assert.match(leadWorkspaceSource, /organizationId=\{actor\.organizationId\}/);
+  assert.match(leadWorkspaceSource, /authorityRole=\{actor\.authorityRole\}/);
+  assert.match(leadWorkspaceSource, /leadId=\{lead\.leadId\}/);
+  assert.match(leadWorkspaceSource, /clientId=\{lead\.clientId\}/);
   assert.match(leadWorkspaceSource, /<PlatformSalesGateCard/);
   assert.match(leadWorkspaceSource, /<PlatformSalesHandoffCard/);
   assert.match(leadWorkspaceSource, /requestId=\{randomUUID\(\)\}/);
@@ -166,6 +179,16 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
   assert.doesNotMatch(
     leadWorkspaceSource,
     /CanonicalSalesWorkflowForm|CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalAmoCrmCommandPanel|readBlockingCanonicalAmoCrmCommand/,
+  );
+  assert.match(amoCrmCommandSectionSource, /CanonicalAmoCrmCommandPanel/);
+  assert.match(
+    amoCrmCommandSectionSource,
+    /workflowScope:\s*"sales_pre_handoff"/,
+  );
+  assert.match(amoCrmCommandSectionSource, /data-status="missing-client"/);
+  assert.doesNotMatch(
+    amoCrmCommandSectionSource,
+    /canonical-crm-repository|drizzle|service[_-]?role|fallback/i,
   );
 });
 

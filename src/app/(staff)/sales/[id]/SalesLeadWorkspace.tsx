@@ -18,6 +18,8 @@ import {
   getPlatformLeadAdmissionsHandoff,
 } from "@/lib/platform-student-handoff";
 
+import { PlatformSalesAmoCrmCommandSection } from "./PlatformSalesAmoCrmCommandSection";
+
 export async function SalesLeadWorkspace({ id }: Readonly<{ id: string }>) {
   const [{ locale }, actor] = await Promise.all([
     getT(),
@@ -41,6 +43,13 @@ export async function SalesLeadWorkspace({ id }: Readonly<{ id: string }>) {
   return (
     <div className="space-y-5" data-testid="canonical-sales-lead-workspace">
       <CanonicalLeadDetail lead={lead} locale={locale} />
+      <PlatformSalesAmoCrmCommandSection
+        organizationId={actor.organizationId}
+        authorityRole={actor.authorityRole}
+        locale={locale}
+        leadId={lead.leadId}
+        clientId={lead.clientId}
+      />
       <PlatformSalesWorkflowForm
         lead={lead}
         ownerOptions={ownerOptions.rows}

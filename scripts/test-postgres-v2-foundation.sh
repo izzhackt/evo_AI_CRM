@@ -922,6 +922,55 @@ EOF
   chmod 600 "$p4_acceptance_result" "$p4_verification_log"
 }
 
+canonical_amocrm_command_browser_assert() {
+  local student_case_id=""
+  [[ -s "$p4_acceptance_result" ]] \
+    || fail "The canonical amoCRM browser proof requires the P4 acceptance context"
+
+  if ! student_case_id="$(
+    EVO_P4_ACCEPTANCE_RESULT_FILE="$p4_acceptance_result" \
+      "$node_bin" --input-type=module <<'EOF'
+import { readFileSync } from "node:fs";
+
+const resultPath = process.env.EVO_P4_ACCEPTANCE_RESULT_FILE;
+if (!resultPath) process.exit(1);
+const result = JSON.parse(readFileSync(resultPath, "utf8"));
+const studentCaseId = result?.studentCaseId;
+if (
+  typeof studentCaseId !== "string" ||
+  !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    studentCaseId,
+  )
+) {
+  process.exit(1);
+}
+process.stdout.write(studentCaseId.toLowerCase());
+EOF
+  )"; then
+    fail "The P4 acceptance context did not provide a valid Student case id"
+  fi
+
+  [[ "$student_case_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
+    || fail "The canonical amoCRM browser proof received an invalid Student case id"
+
+  assert_app_reachable
+  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
+    EVO_EXPECT_AMOCRM_BROWSER_MODE="provider-not-authorized" \
+    EVO_EXPECT_AMOCRM_TOKEN_PROBE="$amocrm_token_probe" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+    EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+    EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+    EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
+    EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
+    EVO_CANONICAL_STUDENT_CASE_ID="$student_case_id" \
+    "$node_bin" node_modules/@playwright/test/cli.js test \
+      tests/e2e/canonical-amocrm-command.spec.ts \
+      --config=playwright.config.ts \
+      --project=desktop-chromium
+}
+
 platform_communications_browser_assert() {
   local communications_mode="$1"
   assert_app_reachable
@@ -1074,6 +1123,8 @@ browser_assert 200
 supabase_staff_auth_browser_assert configured
 verify_p4_admissions_storage_acceptance
 echo "Admissions operations and two immutable private Supabase Storage versions passed browser and database proof."
+canonical_amocrm_command_browser_assert
+echo "Canonical Sales and Admissions amoCRM command surfaces passed fail-closed Chromium proof."
 platform_communications_browser_assert configured
 assert_no_secret_or_payload_logs
 

@@ -39,6 +39,40 @@ test("the active Platform amoCRM command panel remains on Admissions Student 360
   assert.match(admissions, /blockingAttempt=/);
 });
 
+test("the canonical Sales detail mounts the same Supabase-backed amoCRM command path", () => {
+  const salesWorkspace = source(
+    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
+  );
+  const salesSection = source(
+    "src/app/(staff)/sales/[id]/PlatformSalesAmoCrmCommandSection.tsx",
+  );
+
+  assert.match(salesWorkspace, /<PlatformSalesAmoCrmCommandSection/);
+  assert.match(salesWorkspace, /organizationId=\{actor\.organizationId\}/);
+  assert.match(salesWorkspace, /authorityRole=\{actor\.authorityRole\}/);
+  assert.match(salesWorkspace, /leadId=\{lead\.leadId\}/);
+  assert.match(salesWorkspace, /clientId=\{lead\.clientId\}/);
+  assert.match(salesSection, /CanonicalAmoCrmCommandPanel/);
+  assert.match(salesSection, /readPlatformBlockingAmoCrmCommand/);
+  assert.match(salesSection, /createSupabaseServerClient\(\)/);
+  assert.match(
+    salesSection,
+    /workflowScope:\s*"sales_pre_handoff"[\s\S]*workflowLeadId:\s*leadId[\s\S]*studentCaseId:\s*null/,
+  );
+  assert.match(salesSection, /personId:\s*clientId/);
+  assert.match(salesSection, /leadId,/);
+  assert.match(
+    salesSection,
+    /<CanonicalAmoCrmCommandPanel[\s\S]*providerDispatchedAt: blockingAttempt\.providerDispatchedAt[\s\S]*scope="sales"[\s\S]*leadId=\{leadId\}/,
+  );
+  assert.match(salesSection, /data-testid="sales-amocrm-command-section"/);
+  assert.match(salesSection, /data-status="missing-client"/);
+  assert.match(
+    salesSection,
+    /EVO не\s*выполняет запись через старый или запасной путь/,
+  );
+});
+
 test("the panel exposes exact inputs, honest states, per-step evidence, and explicit unknown reconciliation", () => {
   const panel = source(
     "src/components/platform/amocrm/CanonicalAmoCrmCommandPanel.tsx",
@@ -112,5 +146,19 @@ test("server actions use only canonical V2 seams and exact FormData extraction",
   assert.doesNotMatch(
     actions,
     /sqlite|EVO_AGENT_|legacy|fallback|@\/lib\/amocrm/i,
+  );
+});
+
+test("the real local PostgreSQL harness proves the canonical amoCRM panel in Chromium", () => {
+  const harness = source("scripts/test-postgres-v2-foundation.sh");
+
+  assert.match(harness, /canonical_amocrm_command_browser_assert\(\)/);
+  assert.match(harness, /EVO_EXPECT_AMOCRM_BROWSER_MODE="provider-not-authorized"/);
+  assert.match(harness, /EVO_SUPABASE_SALES_PROOF_LEAD_ID="\$supabase_sales_lead_id"/);
+  assert.match(harness, /EVO_CANONICAL_STUDENT_CASE_ID="\$student_case_id"/);
+  assert.match(harness, /tests\/e2e\/canonical-amocrm-command\.spec\.ts/);
+  assert.match(
+    harness,
+    /verify_p4_admissions_storage_acceptance[\s\S]*canonical_amocrm_command_browser_assert/,
   );
 });

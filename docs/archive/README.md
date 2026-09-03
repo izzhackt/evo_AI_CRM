@@ -20,8 +20,15 @@ are not current instructions, task trackers, or deployment runbooks.
 | [`EVO_INBOX_REMOTE_LONG_RUNS.md`](../EVO_INBOX_REMOTE_LONG_RUNS.md)           | Earlier server workspace and Codex prompt sequence | `CONTRIBUTING.md`, `AGENTS.md`, and current GitHub Issues |
 | [`LONG_RUN_CODEX_LAUNCH_HANDOFF.md`](../LONG_RUN_CODEX_LAUNCH_HANDOFF.md)     | Snapshot of an earlier launch-control handoff      | The launch plan and append-only decision log              |
 
-The documents remain at their original paths so older commits and decision
-records keep working links. Each has a warning banner at the top.
+The three documents above remain at their original paths so older commits and
+decision records keep working links. Each has a warning banner at the top.
+
+## Frozen V1 deployment material
+
+The former multi-runtime deployment, runtime-hardening, recovery, and Lead
+Agent environment documents are retained under [`v1/`](v1/README.md). They are
+historical rollback/decision inputs only. Never execute, source, import, or
+bundle them as successor release inputs.
 
 ## Archive Rule
 

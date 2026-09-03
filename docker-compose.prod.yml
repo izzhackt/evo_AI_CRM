@@ -2,6 +2,7 @@ name: evo-crm
 
 services:
   app:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile
@@ -86,7 +87,7 @@ volumes:
 networks:
   private:
     external: true
-    name: evo_crm_private
+    name: ${EVO_CRM_PRIVATE_NETWORK:-evo_crm_private}
   web:
     external: true
     name: ${EVO_CADDY_NETWORK:-evo_public_web}

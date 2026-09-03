@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -94,7 +101,8 @@ test("fast release scope observes deleted and renamed source paths", () => {
   }
 });
 
-test("CI gate requires every exact check from GitHub Actions", async () => {
+test("CI gate requires only the exact root CRM check from GitHub Actions", async () => {
+  assert.deepEqual(FAST_RELEASE_REQUIRED_CHECKS, ["Main CRM"]);
   assert.equal(validateFastReleaseChecks(greenChecks()).ok, true);
   assert.throws(
     () => validateFastReleaseChecks({ check_runs: greenChecks().check_runs.slice(1) }),
@@ -188,10 +196,87 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
   assert.doesNotMatch(preflight, /docker image load/u);
   assert.match(deploy, /load_candidate_image/u);
   assert.match(controller, /archive_layers_invalid/u);
+  assert.match(controller, /compose config --services/u);
+  assert.match(controller, /services == \$'app\\nwaha'/u);
+  assert.match(controller, /runtime_service_contract_invalid/u);
+  assert.match(controller, /runtime_waha_image_drift/u);
+  assert.doesNotMatch(controller, /EVO_REQUIRED_HEALTHY_CONTAINERS/u);
+  assert.doesNotMatch(
+    controller,
+    /EVO_CRM_(?:LEAD_AGENT|MANUAL_SEND_WORKER)_ENV_FILE/u,
+  );
   assert.doesNotMatch(controller, /docker compose down/u);
   assert.doesNotMatch(controller, /docker system prune/u);
   assert.doesNotMatch(controller, /git pull/u);
   assert.doesNotMatch(controller, /rm -rf/u);
+});
+
+test("release status accepts exactly healthy app plus WAHA and rejects an extra runtime", () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-fast-runtime-"));
+  const bin = join(root, "bin");
+  const docker = join(bin, "docker");
+  mkdirSync(bin);
+  writeFileSync(
+    docker,
+    `#!/usr/bin/env bash
+set -Eeuo pipefail
+if [[ $1 == ps ]]; then
+  if [[ $* == *com.docker.compose.service=app* ]]; then
+    printf 'app-id\\n'
+  elif [[ $* == *com.docker.compose.service=waha* ]]; then
+    printf 'waha-id\\n'
+  else
+    printf 'app-id\\nwaha-id\\n'
+    if [[ \${FAKE_EXTRA_RUNTIME:-0} == 1 ]]; then
+      printf 'legacy-id\\n'
+    fi
+  fi
+elif [[ $1 == inspect ]]; then
+  format=$3
+  id=$4
+  case $format in
+    *com.docker.compose.service*)
+      [[ $id == app-id ]] && printf 'app\\n' || printf 'waha\\n'
+      ;;
+    *State.Health*) printf 'healthy\\n' ;;
+    *RestartCount*) printf '0\\n' ;;
+    *org.opencontainers.image.revision*) printf '${REVISION}\\n' ;;
+    *org.opencontainers.image.version*) printf 'p6d-test\\n' ;;
+    *Image*) printf 'sha256:${"1".repeat(64)}\\n' ;;
+    *) exit 64 ;;
+  esac
+else
+  exit 64
+fi
+`,
+  );
+  chmodSync(docker, 0o755);
+
+  const environment = {
+    ...process.env,
+    EVO_RELEASE_PROJECT_NAME: "evo-crm",
+    PATH: `${bin}:${process.env.PATH}`,
+  };
+  try {
+    const result = JSON.parse(execFileSync(
+      "bash",
+      ["scripts/evo-fast-release.sh", "status"],
+      { encoding: "utf8", env: environment },
+    ));
+    assert.deepEqual(
+      { ok: result.ok, health: result.health, revision: result.revision },
+      { ok: true, health: "healthy", revision: REVISION },
+    );
+    const blocked = spawnSync(
+      "bash",
+      ["scripts/evo-fast-release.sh", "status"],
+      { encoding: "utf8", env: { ...environment, FAKE_EXTRA_RUNTIME: "1" } },
+    );
+    assert.equal(blocked.status, 2);
+    assert.match(blocked.stderr, /runtime_service_contract_invalid/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("release controller exposes a validation-only controlled staging preflight", () => {
@@ -232,7 +317,10 @@ test("staging Compose owns only successor app and private WAHA identities", () =
     [...services.matchAll(/^  ([a-z][a-z0-9-]+):\s*$/gmu)].map((match) => match[1]),
     ["app", "waha"],
   );
-  assert.match(stagingCompose, /name: evo_crm_staging_private/u);
+  assert.match(
+    stagingCompose,
+    /name: \$\{EVO_CRM_PRIVATE_NETWORK:-evo_crm_staging_private\}/u,
+  );
   for (const volume of [
     "evo_crm_staging_output",
     "evo_crm_staging_waha_sessions",
@@ -314,10 +402,6 @@ test("workflow keeps controlled staging preflight protected and effect-free", ()
     stagingJob,
     /^          EVO_RELEASE_VOLUME_NAMES: evo_crm_staging_output,evo_crm_staging_waha_sessions$/mu,
   );
-  assert.match(
-    stagingJob,
-    /^          EVO_RELEASE_FIXED_CONTAINER_NAMES: ""$/mu,
-  );
   assert.doesNotMatch(
     stagingJob,
     /evo_crm_staging_(?:data|backups|lead_agent_data)|evo-crm-staging-manual-send-worker/u,
@@ -355,6 +439,16 @@ test("workflow binds one protected approval to exact main and runner-built artif
   assert.doesNotMatch(workflow, /ssh-keyscan/u);
   assert.doesNotMatch(workflow, /StrictHostKeyChecking no/u);
   assert.doesNotMatch(workflow, /git pull/u);
+  assert.doesNotMatch(workflow, /EVO_REQUIRED_HEALTHY_CONTAINERS/u);
+});
+
+test("active platform CI executes only the root successor product", () => {
+  const workflow = readFileSync(".github/workflows/evo-platform-ci.yml", "utf8");
+  assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
+  assert.doesNotMatch(workflow, /^  (?:inbox|lead-agent):/mu);
+  assert.doesNotMatch(workflow, /EVO Inbox|EVO Lead Agent/u);
+  assert.doesNotMatch(workflow, /Prepare P8|refs\/pull\/179|6ee93bd/u);
+  assert.doesNotMatch(workflow, /izzhacktcodex\/waha-integration/u);
 });
 
 test("version endpoint stays staff-authenticated while public health stays minimal", () => {

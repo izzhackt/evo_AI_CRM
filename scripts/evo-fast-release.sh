@@ -59,13 +59,19 @@ file_mode() {
   stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null
 }
 
-app_container_id() {
+service_container_id() {
+  local service=$1
+  require_match "$service" "$PROJECT_NAME_RE" "runtime_service_name_invalid"
   local ids
   ids=$(docker ps -aq \
     --filter "label=com.docker.compose.project=${EVO_RELEASE_PROJECT_NAME}" \
-    --filter 'label=com.docker.compose.service=app')
+    --filter "label=com.docker.compose.service=${service}")
   [[ $(printf '%s\n' "$ids" | count_nonempty_lines) -eq 1 ]] || return 1
   printf '%s\n' "$ids"
+}
+
+app_container_id() {
+  service_container_id app
 }
 
 container_health() {
@@ -81,6 +87,7 @@ safe_status() {
   require_command jq
   require_variable EVO_RELEASE_PROJECT_NAME
   require_match "$EVO_RELEASE_PROJECT_NAME" "$PROJECT_NAME_RE" "project_name_invalid"
+  verify_current_runtime
   local container image health restarts revision version
   container=$(app_container_id) || fail "app_container_unavailable"
   image=$(docker inspect --format '{{.Image}}' "$container")
@@ -109,7 +116,6 @@ load_configuration() {
     EVO_RELEASE_COMPOSE_FILE \
     EVO_RELEASE_APP_ENV_FILE \
     EVO_RELEASE_EXTERNAL_HEALTH_URL \
-    EVO_REQUIRED_HEALTHY_CONTAINERS \
     EVO_WAHA_IMAGE_DIGEST; do
     require_variable "$variable"
   done
@@ -124,9 +130,7 @@ load_configuration() {
   require_match "$EVO_WAHA_IMAGE_DIGEST" "$SHA256_RE" "waha_digest_invalid"
 
   export EVO_CRM_APP_ENV_FILE=$EVO_RELEASE_APP_ENV_FILE
-  export EVO_CRM_LEAD_AGENT_ENV_FILE=${EVO_CRM_LEAD_AGENT_ENV_FILE:-$EVO_RELEASE_ROOT/.env.lead-agent}
   export EVO_CRM_WAHA_ENV_FILE=${EVO_CRM_WAHA_ENV_FILE:-$EVO_RELEASE_ROOT/.env.waha}
-  export EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE=${EVO_CRM_MANUAL_SEND_WORKER_ENV_FILE:-$EVO_RELEASE_ROOT/.env.manual-send-worker}
 }
 
 load_candidate_configuration() {
@@ -216,38 +220,60 @@ verify_controlled_staging_env_contract() {
     >/dev/null || fail "controlled_staging_env_contract_invalid"
 }
 
-verify_current_containers() {
-  local name id health restarts
-  IFS=',' read -r -a names <<<"$EVO_REQUIRED_HEALTHY_CONTAINERS"
-  [[ ${#names[@]} -gt 0 ]] || fail "healthy_container_contract_invalid"
-  for name in "${names[@]}"; do
-    require_match "$name" "$SAFE_NAME_RE" "healthy_container_contract_invalid"
-    id=$(docker ps -aq --filter "name=^/${name}$")
-    [[ $(printf '%s\n' "$id" | count_nonempty_lines) -eq 1 ]] || fail "required_container_missing"
+verify_current_runtime() {
+  local ids id service services health restarts
+  ids=$(docker ps -aq \
+    --filter "label=com.docker.compose.project=${EVO_RELEASE_PROJECT_NAME}")
+  [[ $(printf '%s\n' "$ids" | count_nonempty_lines) -eq 2 ]] \
+    || fail "runtime_service_contract_invalid"
+  services=''
+  while IFS= read -r id; do
+    [[ -n $id ]] || continue
+    service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$id")
+    services+="${service}"$'\n'
+  done <<<"$ids"
+  services=$(printf '%s' "$services" | awk 'NF' | LC_ALL=C sort -u)
+  [[ $services == $'app\nwaha' ]] || fail "runtime_service_contract_invalid"
+
+  for service in app waha; do
+    id=$(service_container_id "$service") || fail "runtime_service_contract_invalid"
     health=$(container_health "$id")
     restarts=$(docker inspect --format '{{.RestartCount}}' "$id")
-    [[ $health == healthy && $restarts == 0 ]] || fail "required_container_unhealthy"
+    [[ $health == healthy && $restarts == 0 ]] || fail "runtime_service_unhealthy"
   done
 }
 
-verify_networks() {
-  local container networks expected_networks network
-  container=$(app_container_id) || fail "app_container_unavailable"
-  networks=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' "$container")
-  expected_networks=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+verify_runtime_waha_image() {
+  local id expected_image actual_image
+  id=$(service_container_id waha) || fail "runtime_service_contract_invalid"
+  expected_image=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
     EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
-    compose config --format json 2>/dev/null \
-    | jq -er '. as $root | ($root.services.app.networks // {}) | keys[] as $key | ($root.networks[$key].name // $key)' \
-    | LC_ALL=C sort -u) || fail "app_network_contract_invalid"
-  networks=$(printf '%s\n' "$networks" | awk 'NF' | LC_ALL=C sort -u)
-  [[ -n $networks && -n $expected_networks && $networks == "$expected_networks" ]] \
-    || fail "app_network_contract_invalid"
-  while IFS= read -r network; do
-    [[ -n $network ]] || continue
-    require_match "$network" "$SAFE_NAME_RE" "app_network_invalid"
-    [[ $network != acadis && $network != acadis_* ]] || fail "forbidden_app_network"
-    docker network inspect "$network" >/dev/null 2>&1 || fail "app_network_unavailable"
-  done <<<"$networks"
+    compose config --format json 2>/dev/null | jq -er '.services.waha.image') \
+    || fail "compose_waha_image_invalid"
+  actual_image=$(docker inspect --format '{{.Config.Image}}' "$id")
+  [[ $actual_image == "$expected_image" ]] || fail "runtime_waha_image_drift"
+}
+
+verify_networks() {
+  local service container networks expected_networks network
+  for service in app waha; do
+    container=$(service_container_id "$service") || fail "runtime_service_contract_invalid"
+    networks=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' "$container")
+    expected_networks=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+      EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+      compose config --format json 2>/dev/null \
+      | jq -er --arg service "$service" '. as $root | ($root.services[$service].networks // {}) | keys[] as $key | ($root.networks[$key].name // $key)' \
+      | LC_ALL=C sort -u) || fail "runtime_network_contract_invalid"
+    networks=$(printf '%s\n' "$networks" | awk 'NF' | LC_ALL=C sort -u)
+    [[ -n $networks && -n $expected_networks && $networks == "$expected_networks" ]] \
+      || fail "runtime_network_contract_invalid"
+    while IFS= read -r network; do
+      [[ -n $network ]] || continue
+      require_match "$network" "$SAFE_NAME_RE" "runtime_network_invalid"
+      [[ $network != acadis && $network != acadis_* ]] || fail "forbidden_runtime_network"
+      docker network inspect "$network" >/dev/null 2>&1 || fail "runtime_network_unavailable"
+    done <<<"$networks"
+  done
 }
 
 verify_capacity() {
@@ -265,12 +291,29 @@ verify_capacity() {
 
 verify_compose() {
   require_file "$EVO_RELEASE_COMPOSE_FILE" "compose_missing"
-  local actual_hash
+  local actual_hash services app_image waha_image
   actual_hash=$(sha256sum "$EVO_RELEASE_COMPOSE_FILE" | awk '{print $1}')
   [[ $actual_hash == "$EVO_RELEASE_EXPECTED_COMPOSE_SHA256" ]] || fail "compose_drift"
   EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
   EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
   compose config --quiet >/dev/null || fail "compose_invalid"
+  services=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+    EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+    compose config --services 2>/dev/null | awk 'NF' | LC_ALL=C sort -u) \
+    || fail "compose_service_contract_invalid"
+  [[ $services == $'app\nwaha' ]] || fail "compose_service_contract_invalid"
+  app_image=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+    EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+    compose config --format json 2>/dev/null | jq -er '.services.app.image') \
+    || fail "compose_service_contract_invalid"
+  waha_image=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+    EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+    compose config --format json 2>/dev/null | jq -er '.services.waha.image') \
+    || fail "compose_service_contract_invalid"
+  [[ $app_image == "evo-crm:${EVO_RELEASE_REVISION}" ]] \
+    || fail "compose_app_image_invalid"
+  [[ $waha_image == *@"${EVO_WAHA_IMAGE_DIGEST}" ]] \
+    || fail "compose_waha_image_invalid"
 }
 
 verify_archive() {
@@ -381,9 +424,10 @@ preflight() {
       fail "release_environment_invalid"
       ;;
   esac
-  verify_current_containers
   verify_capacity
   verify_compose
+  verify_current_runtime
+  verify_runtime_waha_image
   verify_networks
   verify_archive
   verify_external_health || fail "external_health_failed"

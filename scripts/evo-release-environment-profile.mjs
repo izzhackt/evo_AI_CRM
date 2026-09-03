@@ -19,24 +19,18 @@ const APPROVED_STAGING_PROFILE = Object.freeze({
     "evo_crm_staging_output",
     "evo_crm_staging_waha_sessions",
   ]),
-  fixedContainerNames: Object.freeze([]),
   publicHostname: "staging.crm.evoadmissions.com",
 });
 
-// This is the frozen V1 collision boundary, not the successor service list.
-// Staging must not reuse any existing production identity before cutover.
+// Staging must not reuse any current successor production identity before cutover.
 const PRODUCTION_BOUNDARY = Object.freeze({
-  protectedRoots: Object.freeze(["/opt/evo-crm", "/opt/evo-releases"]),
+  protectedRoots: Object.freeze(["/opt/evo-crm"]),
   composeProject: "evo-crm",
   privateNetwork: "evo_crm_private",
   volumeNames: Object.freeze([
-    "evo_crm_data",
     "evo_crm_output",
-    "evo_crm_backups",
     "evo_crm_waha_sessions",
-    "evo_crm_lead_agent_data",
   ]),
-  fixedContainerNames: Object.freeze(["evo-crm-manual-send-worker"]),
   publicHostname: "crm.evoadmissions.com",
 });
 
@@ -77,8 +71,8 @@ function requireExact(value, expected, code) {
   }
 }
 
-function requireStringArray(value, code, { allowEmpty = false } = {}) {
-  if (!Array.isArray(value) || (!allowEmpty && value.length === 0) || value.some((item) => (
+function requireStringArray(value, code) {
+  if (!Array.isArray(value) || value.length === 0 || value.some((item) => (
     typeof item !== "string" || !SAFE_IDENTITY_RE.test(item)
   ))) {
     fail(code);
@@ -147,20 +141,6 @@ export function validateControlledStagingProfile(profile) {
     "staging_profile_not_approved",
   );
 
-  const fixedContainerNames = requireStringArray(
-    profile.fixedContainerNames,
-    "staging_container_names_invalid",
-    { allowEmpty: true },
-  );
-  if (fixedContainerNames.some((name) => PRODUCTION_BOUNDARY.fixedContainerNames.includes(name))) {
-    fail("staging_container_name_collision");
-  }
-  requireExactSet(
-    fixedContainerNames,
-    APPROVED_STAGING_PROFILE.fixedContainerNames,
-    "staging_profile_not_approved",
-  );
-
   const publicHostname = typeof profile.publicHostname === "string"
     ? profile.publicHostname.toLowerCase()
     : "";
@@ -215,7 +195,6 @@ export function controlledStagingProfileFromEnvironment(environment) {
     privateNetwork: environment.EVO_RELEASE_PRIVATE_NETWORK,
     publicNetwork: environment.EVO_RELEASE_PUBLIC_NETWORK,
     volumeNames: splitClosedList(environment.EVO_RELEASE_VOLUME_NAMES),
-    fixedContainerNames: splitClosedList(environment.EVO_RELEASE_FIXED_CONTAINER_NAMES),
     publicHostname: environment.EVO_RELEASE_PUBLIC_HOSTNAME,
     supabaseProjectRef: environment.EVO_RELEASE_SUPABASE_PROJECT_REF,
     productionSupabaseProjectRef: environment.EVO_PRODUCTION_SUPABASE_PROJECT_REF,

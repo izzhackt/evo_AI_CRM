@@ -379,12 +379,12 @@ SQL
       "$test_database"
   fi
 
-  # P8V extends the durable queue fixture with the migration-077 canonical
-  # Lead-Agent ingress and no-authority manual-send replay proof. It must run
+  # The migration-077 outcome check extends the durable queue fixture with
+  # canonical provider ingress and no-authority manual-send replay proof. It runs
   # only after 077 exists; running it at the historical P2G boundary would
   # falsely require future functions from migration 045.
   if [[ "$(basename "$migration")" == 077_* ]]; then
-    bash "$repo_root/scripts/test-p8v-runtime.sh" \
+    bash "$repo_root/scripts/test-platform-migration-077-runtime.sh" \
       "$container_name" \
       "$test_database"
   fi

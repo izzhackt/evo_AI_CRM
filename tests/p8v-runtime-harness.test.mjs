@@ -6,7 +6,7 @@ const runtimeHarness = readFileSync(
   new URL("../scripts/test-p8v-runtime.sh", import.meta.url),
   "utf8",
 );
-const currentRuntimeHarnessUrl = new URL(
+const migration082RuntimeHarnessUrl = new URL(
   "../scripts/test-p8r6-runtime.sh",
   import.meta.url,
 );
@@ -48,7 +48,7 @@ test("P8V proof is transactional and exercises exact typed ingress and replay ca
   );
 });
 
-test("P8V keeps its migration-077 session evidence while P8R6 selects current authority", () => {
+test("P8V keeps its migration-077 fixture while P8R6 preserves the historical migration-082 boundary", () => {
   assert.match(runtimeHarness, /WAHA_SESSION_NAME="\$\{3:-crm_primary\}"/);
   assert.match(runtimeHarness, /'waha:' \|\| :'waha_session_name'/);
   assert.match(
@@ -57,8 +57,11 @@ test("P8V keeps its migration-077 session evidence while P8R6 selects current au
   );
   assert.doesNotMatch(runtimeHarness, /'waha:evo-inbox'/);
 
-  assert.equal(existsSync(currentRuntimeHarnessUrl), true);
-  const currentRuntimeHarness = readFileSync(currentRuntimeHarnessUrl, "utf8");
+  assert.equal(existsSync(migration082RuntimeHarnessUrl), true);
+  const currentRuntimeHarness = readFileSync(
+    migration082RuntimeHarnessUrl,
+    "utf8",
+  );
   assert.match(
     currentRuntimeHarness,
     /test-p8v-runtime\.sh[\s\S]*"evo-inbox"[\s\S]*"P8R6"/,

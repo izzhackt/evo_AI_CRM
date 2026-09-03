@@ -123,6 +123,11 @@ export type PlatformStudentCasePageItem =
       studentCase: PlatformSalesHandoffSummary;
     }>;
 
+export type PlatformStudentCaseLeadLink = Readonly<{
+  studentCaseId: string;
+  leadId: string;
+}>;
+
 export type PlatformAdmissionsCursor = Readonly<{
   sortAt: string;
   id: string;
@@ -523,6 +528,16 @@ export function normalizePlatformSalesHandoffSummary(
   };
 }
 
+export function normalizePlatformStudentCaseLeadLink(
+  value: unknown,
+): PlatformStudentCaseLeadLink {
+  if (!isRecord(value)) return invalidShape();
+  return {
+    studentCaseId: requiredUuid(value.student_case_id),
+    leadId: requiredUuid(value.lead_id),
+  };
+}
+
 export function normalizePlatformApplicationQueueRow(
   value: unknown,
   expectedOrganizationId?: string,
@@ -679,6 +694,49 @@ export async function listPlatformStudentCases(
       nextCursor,
       hasNext,
     };
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function listPlatformStudentCaseLeadLinks(
+  actor: PlatformActor,
+  studentCaseIds: readonly string[],
+): Promise<readonly PlatformStudentCaseLeadLink[]> {
+  try {
+    const organizationId = requireAdmissionsOrganization(actor);
+    if (studentCaseIds.length === 0) return [];
+    if (studentCaseIds.length > 100) return invalidShape();
+
+    const normalizedIds = studentCaseIds.map(requiredUuid);
+    if (new Set(normalizedIds).size !== normalizedIds.length) {
+      return invalidShape();
+    }
+
+    const client = await getPlatformClient();
+    const response = await client.schema("platform").rpc(
+      "staff_student_case_sales_links",
+      {
+        p_organization_id: organizationId,
+        p_student_case_ids: normalizedIds,
+      },
+      { get: true },
+    );
+    if (response.error || !Array.isArray(response.data)) return invalidShape();
+
+    const requestedIds = new Set(normalizedIds);
+    const seenIds = new Set<string>();
+    return response.data.map((raw) => {
+      const link = normalizePlatformStudentCaseLeadLink(raw);
+      if (
+        !requestedIds.has(link.studentCaseId) ||
+        seenIds.has(link.studentCaseId)
+      ) {
+        return invalidShape();
+      }
+      seenIds.add(link.studentCaseId);
+      return Object.freeze(link);
+    });
   } catch (error) {
     return failClosed(error);
   }

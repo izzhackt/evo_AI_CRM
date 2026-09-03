@@ -46,6 +46,23 @@ test("P6B leaves one Supabase-backed staff runtime and no legacy database fallba
   }
 });
 
+test("P6B browser proof covers every retired staff and API route", () => {
+  const browserProof = source("tests/e2e/supabase-staff-auth.spec.ts");
+
+  for (const path of [
+    "/calls",
+    "/chat",
+    "/notifications",
+    "/reports",
+    "/api/database/status",
+    "/api/webhooks/telephony",
+  ]) {
+    assert.match(browserProof, new RegExp(path.replaceAll("/", "\\/")), path);
+  }
+  assert.match(browserProof, /expect\(response\?\.status\(\), path\)\.toBe\(404\)/);
+  assert.match(browserProof, /expect\(response\.status\(\), path\)\.toBe\(404\)/);
+});
+
 test("P6B dashboard composes the canonical product queues instead of parallel screens", () => {
   const dashboardPage = source("src/app/(staff)/dashboard/page.tsx");
   const dashboardRuntime = source("src/lib/server/platform-dashboard.ts");

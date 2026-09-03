@@ -139,7 +139,9 @@ The retained product outcomes map as follows:
   360 cases, Admissions task queue, Finance control queue and WhatsApp
   conversations instead of reading local summary tables;
 - Student 360 reads the canonical Supabase student-case interface and preserves
-  the accepted Admin, Sales and Admissions visibility rules;
+  the accepted Admin, Sales and Admissions visibility rules; its existing
+  case-to-Sales-lead navigation is preserved through one bounded Supabase RPC
+  and is rendered only when the effective fixed role may open `/sales`;
 - old Calls follow-up is represented by Sales next actions and Admissions
   tasks, old Chat by the canonical WhatsApp workspace, old Notifications by the
   task/document/finance queues, and old Reports by the canonical dashboard;
@@ -160,7 +162,9 @@ Acceptance requires all of the following on the same candidate head:
    360 read and fixed-role behavior through Supabase-facing module interfaces;
 2. real local Supabase/PostgreSQL migrations and the retained application flows
    pass, followed by real browser validation of the dashboard, Student 360 and
-   mapped destination workspaces;
+   mapped destination workspaces; the same configured browser run proves that
+   `/calls`, `/chat`, `/notifications`, `/reports`, `/api/database/status` and
+   `/api/webhooks/telephony` all return `404`;
 3. the production build route inventory contains no removed staff or telephony
    route, and a scoped `rg` inventory finds no active import or runtime reference
    to the deleted SQLite/Drizzle repositories or fallback paths;

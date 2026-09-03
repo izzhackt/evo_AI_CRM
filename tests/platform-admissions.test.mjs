@@ -10,10 +10,12 @@ import {
   PlatformAdmissionsRepositoryError,
   getPlatformOpWorkflowContract,
   listPlatformApplications,
+  listPlatformStudentCaseLeadLinks,
   listPlatformStudentCases,
   normalizePlatformApplicationQueueRow,
   normalizePlatformOpWorkflowContract,
   normalizePlatformStudentCaseSnapshot,
+  normalizePlatformStudentCaseLeadLink,
   parsePlatformAdmissionsCursor,
   parsePlatformAdmissionsUuid,
   summarizePlatformStudentCaseApplicationPreview,
@@ -28,6 +30,7 @@ import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const CASE_ID = "22222222-2222-4222-8222-222222222222";
 const APPLICATION_ID = "33333333-3333-4333-8333-333333333333";
+const LEAD_ID = "33333333-3333-4333-8333-444444444444";
 const VERSION_ID = "44444444-4444-4444-8444-444444444444";
 const CONTRACT_ID = "55555555-5555-4555-8555-555555555555";
 const HANDOFF_ID = "66666666-6666-4666-8666-666666666666";
@@ -370,6 +373,32 @@ test("workflow, case and application DTOs accept the exact reviewed projection",
   );
   assert.equal(application.status, "submitted");
   assert.equal(application.universityApplicationId, APPLICATION_ID);
+});
+
+test("Student Case sales links accept only exact canonical UUID pairs", () => {
+  assert.deepEqual(
+    normalizePlatformStudentCaseLeadLink({
+      student_case_id: CASE_ID,
+      lead_id: LEAD_ID,
+    }),
+    { studentCaseId: CASE_ID, leadId: LEAD_ID },
+  );
+  assert.throws(
+    () =>
+      normalizePlatformStudentCaseLeadLink({
+        student_case_id: CASE_ID,
+        lead_id: null,
+      }),
+    PlatformAdmissionsRepositoryError,
+  );
+
+  const admissionsSource = readFileSync(
+    new URL("../src/lib/platform-admissions.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(admissionsSource, /staff_student_case_sales_links/);
+  assert.match(admissionsSource, /studentCaseIds\.length > 100/);
+  assert.equal(typeof listPlatformStudentCaseLeadLinks, "function");
 });
 
 test("existing unbound case keeps an explicit null handoff", () => {

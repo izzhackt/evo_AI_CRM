@@ -24,28 +24,28 @@ export const CANONICAL_QUEUE_ROUTE_COPY: Readonly<
   dashboard: {
     ru: {
       loadingTitle: "Загружаем командный центр",
-      loadingHint: "Читаем актуальные продуктовые очереди из Supabase.",
+      loadingHint: "Читаем актуальные продуктовые очереди из PostgreSQL V2.",
       errorTitle: "Командный центр временно недоступен",
       errorDescription:
-        "Не удалось прочитать одну из обязательных очередей Supabase. Старый источник или резервный экран не используется.",
+        "PostgreSQL V2 не вернул одну из обязательных очередей. Старый источник или резервный экран не используется.",
       retry: "Повторить чтение",
       backToQueue: "К командному центру",
     },
     ky: {
       loadingTitle: "Командалык борбор жүктөлүүдө",
-      loadingHint: "Supabase ичиндеги учурдагы продукт кезектери окулууда.",
+      loadingHint: "PostgreSQL V2 ичиндеги учурдагы продукт кезектери окулууда.",
       errorTitle: "Командалык борбор убактылуу жеткиликсиз",
       errorDescription:
-        "Supabase ичиндеги милдеттүү кезектердин бири окулган жок. Эски булак же резервдик экран колдонулбайт.",
+        "PostgreSQL V2 милдеттүү кезектердин бирин кайтарган жок. Эски булак же резервдик экран колдонулбайт.",
       retry: "Кайра аракет кылуу",
       backToQueue: "Командалык борборго",
     },
     en: {
       loadingTitle: "Loading the command center",
-      loadingHint: "Reading the current product queues from Supabase.",
+      loadingHint: "Reading the current product queues from PostgreSQL V2.",
       errorTitle: "The command center is temporarily unavailable",
       errorDescription:
-        "A required Supabase queue could not be read. No legacy source or fallback screen is used.",
+        "PostgreSQL V2 did not return a required queue. No legacy source or fallback screen is used.",
       retry: "Try again",
       backToQueue: "Back to the command center",
     },

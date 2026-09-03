@@ -7,6 +7,7 @@ import {
   isConnectedPlatformApi,
   isConnectedPlatformPage,
   isConnectedPlatformSettingsRequest,
+  isRetiredPlatformRoute,
   platformHomeRoute,
 } from "../src/lib/platform-route-contract.ts";
 
@@ -64,17 +65,32 @@ test("the Supabase dashboard is connected for every staff role", () => {
 test("removed parallel pages stay outside the successor and stop before runtime", () => {
   for (const path of ["/reports", "/notifications", "/calls", "/chat", "/chat/1"]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
+    assert.equal(isRetiredPlatformRoute(path), true, path);
   }
 
+  for (const path of [
+    "/api/database/status",
+    "/api/database/status/details",
+    "/api/webhooks/telephony",
+    "/api/webhooks/telephony/retry",
+  ]) {
+    assert.equal(isRetiredPlatformRoute(path), true, path);
+  }
+  assert.equal(isRetiredPlatformRoute("/portal"), false);
+  assert.equal(isRetiredPlatformRoute("/api/health"), false);
+
   const proxy = source("src/proxy.ts");
+  const tombstone = proxy.indexOf("isRetiredPlatformRoute(path)");
   const routeBlock = proxy.indexOf(
     "if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path))",
   );
   const liveSession = proxy.indexOf(
     "const session = await liveSessionState(request, requestHeaders)",
   );
+  assert.notEqual(tombstone, -1);
   assert.notEqual(routeBlock, -1);
   assert.notEqual(liveSession, -1);
+  assert.ok(tombstone < routeBlock);
   assert.ok(routeBlock < liveSession);
 });
 

@@ -7,6 +7,7 @@ import {
   isConnectedPlatformPage,
   isConnectedPlatformSettingsRequest,
   isDirectPlatformStaffAssistantApi,
+  isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
@@ -175,7 +176,8 @@ export async function proxy(request: NextRequest) {
     path === "/register" ||
     path.startsWith("/register/") ||
     path === "/auth/platform-session" ||
-    path.startsWith("/auth/platform-session/")
+    path.startsWith("/auth/platform-session/") ||
+    isRetiredPlatformRoute(path)
   ) {
     return hiddenNotFound(id);
   }

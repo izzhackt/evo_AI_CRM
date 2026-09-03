@@ -457,6 +457,28 @@ test("all three real identities persist, enforce role routes, and log out", asyn
   }
 });
 
+test("retired P6B staff and API routes are absent from the authenticated runtime", async ({
+  page,
+}) => {
+  test.skip(authMode !== "configured");
+
+  await signIn(page, "admin");
+  await expectActiveRole(page, "admin");
+
+  for (const path of ["/calls", "/chat", "/notifications", "/reports"] as const) {
+    const response = await page.goto(path);
+    expect(response?.status(), path).toBe(404);
+  }
+
+  for (const path of [
+    "/api/database/status",
+    "/api/webhooks/telephony",
+  ] as const) {
+    const response = await page.request.get(path, { failOnStatusCode: false });
+    expect(response.status(), path).toBe(404);
+  }
+});
+
 test("Sales and Admissions are denied outside their server-authorized interfaces", async ({
   page,
 }) => {
@@ -1426,6 +1448,14 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
       .getByTestId("platform-handoff-result")
       .locator(`a[href="/clients/${studentCaseId}"]`),
   ).toBeVisible();
+  await page.goto("/clients");
+  const exactStudentCaseRow = page.locator(
+    `[data-testid="platform-student-case-row"][data-student-case-id="${studentCaseId}"]`,
+  );
+  await expect(exactStudentCaseRow).toBeVisible();
+  await expect(
+    exactStudentCaseRow.getByTestId("student-case-sales-lead-link"),
+  ).toHaveAttribute("href", `/sales/${leadId}`);
   await page.goto(`/clients/${studentCaseId}`);
   await expect(
     page.getByTestId("platform-student-case-workspace"),

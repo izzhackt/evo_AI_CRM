@@ -16,12 +16,14 @@ import {
 } from "@/components/ui";
 import { getT, type Locale } from "@/lib/i18n";
 import {
+  listPlatformStudentCaseLeadLinks,
   listPlatformStudentCases,
   parsePlatformAdmissionsCursor,
   type PlatformAdmissionsCursor,
   type PlatformStudentCasePageItem,
   type PlatformStudentCaseState,
 } from "@/lib/platform-admissions";
+import { fixedRoleCanAccessRoute } from "@/lib/fixed-role-policy";
 import { requirePlatformClientsActor } from "@/lib/platform-guards";
 
 type SearchParams = Readonly<{
@@ -145,6 +147,20 @@ export async function StudentQueue({
         pageSize: 50,
         query: normalized.query,
       });
+  const canOpenLead = fixedRoleCanAccessRoute(
+    actor.presentationRole,
+    "/sales",
+  );
+  const leadLinks = new Map(
+    canOpenLead && page
+      ? (
+          await listPlatformStudentCaseLeadLinks(
+            actor,
+            page.rows.map(itemStudentCaseId),
+          )
+        ).map((link) => [link.studentCaseId, link.leadId] as const)
+      : [],
+  );
 
   return (
     <PlatformStudentCasesPresentation
@@ -153,6 +169,8 @@ export async function StudentQueue({
       params={normalized}
       hasNext={page?.hasNext ?? false}
       nextCursor={page?.nextCursor ?? null}
+      canOpenLead={canOpenLead}
+      leadLinks={leadLinks}
     />
   );
 }
@@ -230,12 +248,16 @@ function PlatformStudentCasesPresentation({
   params,
   hasNext,
   nextCursor,
+  canOpenLead,
+  leadLinks,
 }: Readonly<{
   locale: Locale;
   rows: readonly PlatformStudentCasePageItem[];
   params: NormalizedParams;
   hasNext: boolean;
   nextCursor: PlatformAdmissionsCursor | null;
+  canOpenLead: boolean;
+  leadLinks: ReadonlyMap<string, string>;
 }>) {
   const copy = COPY[locale];
   const activeCount = rows.filter((item) => itemState(item) === "active").length;
@@ -366,9 +388,11 @@ function PlatformStudentCasesPresentation({
                       <CanonicalKeyBadge value={itemState(item)} />
                     </td>
                     <td className="px-3 py-3 align-top">
-                      {item.access === "full"
-                        ? item.studentCase.responsibleSalesDisplayName
-                        : "—"}
+                      <SalesOwnerCell
+                        item={item}
+                        canOpenLead={canOpenLead}
+                        leadLinks={leadLinks}
+                      />
                     </td>
                     <td className="px-3 py-3 align-top">
                       {item.access === "full"
@@ -416,6 +440,36 @@ function PlatformStudentCasesPresentation({
           </Link>
         ) : null}
       </nav>
+    </div>
+  );
+}
+
+function SalesOwnerCell({
+  item,
+  canOpenLead,
+  leadLinks,
+}: Readonly<{
+  item: PlatformStudentCasePageItem;
+  canOpenLead: boolean;
+  leadLinks: ReadonlyMap<string, string>;
+}>) {
+  const leadId = leadLinks.get(itemStudentCaseId(item)) ?? null;
+  return (
+    <div className="space-y-1">
+      <div>
+        {item.access === "full"
+          ? item.studentCase.responsibleSalesDisplayName
+          : "—"}
+      </div>
+      {canOpenLead && leadId ? (
+        <Link
+          href={`/sales/${leadId}`}
+          className="inline-block font-medium text-accent hover:underline"
+          data-testid="student-case-sales-lead-link"
+        >
+          <CanonicalUuid value={leadId} />
+        </Link>
+      ) : null}
     </div>
   );
 }

@@ -82,6 +82,12 @@ test("P6C removes Drizzle and SQLite commands, packages, and lockfile graph", ()
     assert.equal(declaredPackages[packageName], undefined, packageName);
   }
 
+  assert.equal(
+    manifest.overrides?.["@esbuild-kit/core-utils"],
+    undefined,
+    "the obsolete Drizzle toolchain override must not remain",
+  );
+
   const obsoleteLockNodes = Object.keys(lockfile.packages ?? {}).filter((path) =>
     /(?:^|\/)node_modules\/(?:@types\/better-sqlite3|better-sqlite3|drizzle-kit|drizzle-orm)$/u.test(
       path,

@@ -117,15 +117,15 @@ new path is accepted; historical and rollback material remains preserved.
 | 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
 | 9 | #553 | Completion audit | exact-main proof of one UI, runtime, data, auth/session, file and provider authority |
 
-Orders 0 through 5 are complete. Under #550, #584 is complete: the successor
-candidate now has the managed-Supabase-backed standalone application plus the
-one retained private WAHA transport, with required key boundaries and no
-candidate SQLite volume, frozen lead-agent service or separate manual-send
-worker. The active cleanup slice is #585; #586 then removes the superseded
-executable toolchain, and #587 proves the exact-main Supabase release candidate.
-Issue #551 follows only after all four children and #550 are complete.
+Orders 0 through 5 are complete. Under #550, #584 and #585 are complete: the
+successor candidate now has the managed-Supabase-backed standalone application
+plus the one retained private WAHA transport, with required key boundaries and
+no candidate SQLite volume, frozen lead-agent service, separate manual-send
+worker or active Drizzle/SQLite application path. The active cleanup slice is
+#586; #587 then proves the exact-main Supabase release candidate. Issue #551
+follows only after all four children and #550 are complete.
 
-#### Active #585 Supabase application-runtime and UI replacement slice
+#### Completed #585 Supabase application-runtime and UI replacement slice
 
 #585 replaces the remaining live Drizzle/SQLite application reads, repositories,
 routes and duplicate staff screens with the existing canonical Supabase
@@ -180,8 +180,8 @@ change. Those actions remain controlled by the later #551/#552 gates.
 
 #### Active #586 obsolete executable database-tooling eradication slice
 
-#586 begins only after the live application runtime has been removed from the
-old Drizzle/SQLite path. This slice then deletes the superseded executable
+#586 is active after the live application runtime was removed from the old
+Drizzle/SQLite path. This slice deletes the superseded executable
 toolchain itself: candidate dependencies, scripts, schema code, env seams and
 tests that still assume local SQLite, Drizzle migration control or a backup
 directory. The result is one managed-Supabase-backed candidate build that no

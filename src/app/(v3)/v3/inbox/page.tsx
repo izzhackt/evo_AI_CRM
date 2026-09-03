@@ -7,7 +7,6 @@ export const metadata = { title: "V3 · Входящие" };
 
 export default async function InboxPart() {
   const threads = await readInbox();
-  const messages = threads.reduce((total, thread) => total + thread.messages.length, 0);
 
   return (
     <PartShell

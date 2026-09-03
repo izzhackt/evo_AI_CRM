@@ -15769,3 +15769,56 @@ Official amoCRM documentation rechecked on 2026-09-03:
 No WhatsApp send, Gemini request, frozen V1 writer, customer-data mutation,
 deployment, historical migration or cutover is authorized. The V3 frontend
 branch and `src/lib/v3/*` remain outside this slice.
+
+## 2026-09-03 - Record completed #567 exact-main amoCRM proof and unlock #568
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex under the owner's standing provider authorization for #567.
+Change type: completion record for the exact-main amoCRM acceptance gate.
+Affected plan section: P5C completion status and P5D start condition.
+
+PR #581 completed the last application-path correction by reusing the one
+active local validation Admin instead of resetting local state. It merged at
+exact main `5e32bdc9391f46e73dcca1a433a52c823fae9e8a` after independent
+exact-head approval, exact-head CI run `33761605343`, and exact-main CI run
+`33762782675`. The correction kept the service key server-only and used the
+official Supabase server-side `auth.admin.updateUserById` path to rotate only
+the local validation password for that existing Admin:
+<https://supabase.com/docs/reference/javascript/auth-admin-updateuserbyid>.
+
+The guarded connected acceptance then ran from that exact clean main and wrote
+the full sanitized evidence set under
+`output/provider-acceptance/amocrm/5e32bdc9391f46e73dcca1a433a52c823fae9e8a/`.
+Independent evidence review against the harness assertions confirms:
+
+- `authority-blocked.json` proves the pre-provider fail-closed authority gate
+  still blocks browser/provider activity when authorization is disabled, with
+  zero provider attempts, zero bindings and no fallback;
+- `provider-preparation-attempt.json` and `dispatch-attempt.json` show one
+  exact action, `one_explicit_admin_sync`, bound to the same exact commit and
+  reviewed note hash;
+- `success.json` records `status: passed`, exact provider readback, one
+  validation contact, one validation lead, one validation note, eight Supabase
+  attempts, eight receipts, one contact binding, one lead binding, one
+  provenance record, exact replay with zero added attempts/receipts/bindings,
+  unchanged provider entity set, and persistence after reload;
+- harness-side sanitization checks passed: the evidence contains no access
+  tokens, refresh tokens, client secrets, API keys, phone values, or raw
+  provider entity identifiers;
+- boundaries remained unchanged: `local_supabase_postgresql` as database
+  authority, read-only inspection of the existing `crm_primary` WAHA session,
+  no V1 execution, no deployment mutation, and no fallback path observed.
+
+Decision:
+
+- mark #567 complete: the amoCRM product path now has exact-main 8/8 provider
+  proof, exact readback and exact replay with zero duplicate side effects;
+- unlock #568 as the next active provider-runtime inventory slice on merged
+  main;
+- preserve the sanitized evidence as the authoritative proof artifact for this
+  gate; do not rerun the provider path merely to restate completion;
+- keep all previous blocked/incomplete runs as historical reconciliation
+  evidence, not as current blockers.
+
+No WhatsApp send, Gemini request, frozen V1 writer, customer-data mutation,
+deployment, historical migration or cutover occurred in this completion step.

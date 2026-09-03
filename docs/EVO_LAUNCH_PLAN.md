@@ -276,7 +276,10 @@ Acceptance requires all of the following on the same candidate head:
    audit ready but WAHA/AI not falsely marked ready without authorized provider
    evidence, browser access, exact runtime services/networks, fail-closed
    missing Supabase/provider configuration and owned cleanup without touching
-   VPS, public traffic or provider state;
+   VPS, public traffic or provider state. Before candidate boot, the disposable
+   organization receives append-only `configuration_check`/`unconfigured`
+   events matching the candidate's disabled WAHA/AI environment, so provider-
+   shaped evidence from earlier foundation checks cannot satisfy readiness;
 6. a scoped repository/image/runtime inventory reports zero active legacy
    service, package, env, script, route or fallback reference. Historical
    material is reported separately and never counted as active authority;

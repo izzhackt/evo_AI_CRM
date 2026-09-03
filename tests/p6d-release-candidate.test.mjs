@@ -36,7 +36,7 @@ test("obsolete P8 programs are absent from active script and test directories", 
   for (const directory of ["scripts", "tests"]) {
     const entries = await readdir(new URL(`${directory}/`, root), { recursive: true });
     assert.deepEqual(
-      entries.filter((entry) => /(?:^|\/)p8(?:u|v|d|b|c|-)/iu.test(entry)),
+      entries.filter((entry) => /(?:^|\/)(?:test-)?p8(?:u|v|d|b|c|-)/iu.test(entry)),
       [],
       `${directory} retains obsolete P8 executable programs`,
     );
@@ -101,6 +101,11 @@ test("P6D proof accepts only process-provided real local Supabase authority", as
   assert.match(harness, /response\.status,\s*503/u);
   assert.match(harness, /components\?\.supabase\?\.status/u);
   assert.match(harness, /components\?\.audit_append\?\.status/u);
+  assert.match(harness, /recordCandidateProviderBoundary\(revision\)/u);
+  assert.match(harness, /record_messaging_integration_health_event/u);
+  assert.match(harness, /p_readiness: "unconfigured"/u);
+  assert.match(harness, /p_evidence_kind: "configuration_check"/u);
+  assert.match(harness, /readiness\?\.signals\?\.\[`\$\{provider\}_evidence_kind`\]/u);
   assert.doesNotMatch(harness, /\[200, 503\]\.includes/u);
   assert.match(foundation, /EVO_P6D_CANDIDATE_PROOF/u);
 });

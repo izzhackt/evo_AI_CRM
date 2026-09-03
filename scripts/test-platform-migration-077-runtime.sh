@@ -7,19 +7,10 @@ umask 077
 
 readonly DATABASE_CONTAINER="${1:?database container name is required}"
 readonly DATABASE_NAME="${2:?database name is required}"
-readonly WAHA_SESSION_NAME="${3:-crm_primary}"
-readonly GATE_LABEL="${4:-P8V}"
+readonly WAHA_SESSION_NAME="crm_primary"
 
-case "${WAHA_SESSION_NAME}" in
-  crm_primary|evo-inbox) ;;
-  *)
-    printf 'Unsupported disposable WAHA session evidence: %s\n' \
-      "${WAHA_SESSION_NAME}" >&2
-    exit 2
-    ;;
-esac
-
-# P8V V1 extends the migration-045 queue fixture after migration 077 exists.
+# Migration 077 extends the migration-045 queue fixture with the canonical
+# provider-authority boundary used by the successor schema.
 # Exercise the real SQL functions transactionally so compilation alone cannot
 # hide an identity, deduplication, or replay defect. Every row is rolled back.
 docker exec -i "${DATABASE_CONTAINER}" \
@@ -47,7 +38,7 @@ INSERT INTO platform.membership_scope_assignments (
   '45993000-0000-4000-8000-000000000003',
   '45993000-0000-4000-8000-000000000004',
   1, 1, TRUE, 'system', NULL,
-  'P8V disposable Lead-Agent ingress proof',
+  'Migration 077 disposable provider ingress proof',
   '45997000-0000-4000-8000-000000000001'
 );
 
@@ -60,23 +51,23 @@ INSERT INTO platform_private.provider_webhook_events (
   '45997000-0000-4000-8000-000000000002',
   '45990000-0000-4000-8000-000000000001',
   'waha', 'waha:' || :'waha_session_name',
-  'p8v-signed-request', :'waha_session_name',
-  'p8v-message-1', 'message.any', '2026-08-18T00:00:00Z', 'verified',
+  'migration-077-signed-request', :'waha_session_name',
+  'migration-077-message-1', 'message.any', '2026-08-18T00:00:00Z', 'verified',
   jsonb_build_object(
     'event', 'message.any',
     'session', :'waha_session_name',
     'payload', jsonb_build_object(
-      'id', 'p8v-message-1',
+      'id', 'migration-077-message-1',
       'timestamp', 1787011200,
       'from', '14155550199@c.us',
       'chatId', '14155550199@c.us',
       'fromMe', FALSE,
       'source', 'app',
-      'body', 'Synthetic P8V inbound message'
+      'body', 'Synthetic migration 077 inbound message'
     ),
     'synthetic', TRUE
   ),
-  '{}'::JSONB, 'local:p8v:lead-agent-sync', repeat('7', 64),
+  '{}'::JSONB, 'local:migration-077:provider-ingress', repeat('7', 64),
   '45997000-0000-4000-8000-000000000003'
 );
 
@@ -88,7 +79,7 @@ SELECT platform.sync_lead_agent_whatsapp(
   '45993000-0000-4000-8000-000000000003'::UUID,
   990001::BIGINT, 990101::BIGINT, 990201::BIGINT,
   '45997000-0000-4000-8000-000000000004'::UUID
-) AS p8v_first
+) AS migration_077_first
 \gset
 SELECT platform.sync_lead_agent_whatsapp(
   '45990000-0000-4000-8000-000000000001'::UUID,
@@ -96,7 +87,7 @@ SELECT platform.sync_lead_agent_whatsapp(
   '45993000-0000-4000-8000-000000000003'::UUID,
   990001::BIGINT, 990101::BIGINT, 990201::BIGINT,
   '45997000-0000-4000-8000-000000000004'::UUID
-) AS p8v_same_request
+) AS migration_077_same_request
 \gset
 SELECT platform.sync_lead_agent_whatsapp(
   '45990000-0000-4000-8000-000000000001'::UUID,
@@ -104,19 +95,19 @@ SELECT platform.sync_lead_agent_whatsapp(
   '45993000-0000-4000-8000-000000000003'::UUID,
   990001::BIGINT, 990101::BIGINT, 990201::BIGINT,
   '45997000-0000-4000-8000-000000000005'::UUID
-) AS p8v_duplicate_event
+) AS migration_077_duplicate_event
 \gset
 RESET ROLE;
 
-CREATE TEMP TABLE p8v_sync_results (
+CREATE TEMP TABLE migration_077_sync_results (
   first_result JSONB NOT NULL,
   same_request_result JSONB NOT NULL,
   duplicate_event_result JSONB NOT NULL
 ) ON COMMIT DROP;
-INSERT INTO p8v_sync_results VALUES (
-  :'p8v_first'::JSONB,
-  :'p8v_same_request'::JSONB,
-  :'p8v_duplicate_event'::JSONB
+INSERT INTO migration_077_sync_results VALUES (
+  :'migration_077_first'::JSONB,
+  :'migration_077_same_request'::JSONB,
+  :'migration_077_duplicate_event'::JSONB
 );
 
 DO $assert$
@@ -128,7 +119,7 @@ BEGIN
   SELECT results.first_result, results.same_request_result,
     results.duplicate_event_result
   INTO first_result, same_request_result, duplicate_event_result
-  FROM pg_temp.p8v_sync_results AS results;
+  FROM pg_temp.migration_077_sync_results AS results;
   IF first_result ->> 'deduplicated' <> 'false'
     OR first_result ->> 'provider_identity_private' <> 'true'
     OR same_request_result IS DISTINCT FROM first_result
@@ -138,7 +129,7 @@ BEGIN
     OR duplicate_event_result ->> 'communication_message_id' IS DISTINCT FROM
       first_result ->> 'communication_message_id'
   THEN
-    RAISE EXCEPTION 'P8V Lead-Agent ingress did not preserve exact idempotency';
+    RAISE EXCEPTION 'Migration 077 provider ingress did not preserve exact idempotency';
   END IF;
 
   IF (SELECT count(*) FROM platform.communication_conversations
@@ -164,7 +155,7 @@ BEGIN
         AND before_state IS NULL
         AND NOT after_state ? 'body_text') <> 2
   THEN
-    RAISE EXCEPTION 'P8V Lead-Agent ingress evidence is incomplete';
+    RAISE EXCEPTION 'Migration 077 provider ingress evidence is incomplete';
   END IF;
 END
 $assert$;
@@ -180,7 +171,7 @@ INSERT INTO platform_private.durable_work_idempotency (
   encode(sha256(convert_to(jsonb_build_object(
     'organization_id', '45990000-0000-4000-8000-000000000001'::UUID,
     'visibility_timeout_seconds', 30,
-    'worker_ref', 'p8v-replay-proof',
+    'worker_ref', 'migration-077-replay-proof',
     'lane', 'manual_whatsapp_send'
   )::TEXT, 'UTF8')), 'hex'),
   jsonb_build_object(
@@ -195,22 +186,22 @@ SET ROLE service_role;
 SELECT platform.claim_manual_whatsapp_send(
   '45990000-0000-4000-8000-000000000001',
   30,
-  'p8v-replay-proof',
+  'migration-077-replay-proof',
   '45997000-0000-4000-8000-000000000006'
-) AS p8v_replay_claim
+) AS migration_077_replay_claim
 \gset
 RESET ROLE;
 
-CREATE TEMP TABLE p8v_claim_results (replay_claim JSONB NOT NULL)
+CREATE TEMP TABLE migration_077_claim_results (replay_claim JSONB NOT NULL)
 ON COMMIT DROP;
-INSERT INTO p8v_claim_results VALUES (:'p8v_replay_claim'::JSONB);
+INSERT INTO migration_077_claim_results VALUES (:'migration_077_replay_claim'::JSONB);
 
 DO $assert$
 BEGIN
-  IF (SELECT replay_claim FROM pg_temp.p8v_claim_results) IS DISTINCT FROM
+  IF (SELECT replay_claim FROM pg_temp.migration_077_claim_results) IS DISTINCT FROM
     '{"claimed":false,"queue":"platform_work_v1"}'::JSONB
   THEN
-    RAISE EXCEPTION 'P8V manual-send replay retained provider authority';
+    RAISE EXCEPTION 'Migration 077 manual-send replay retained provider authority';
   END IF;
 END
 $assert$;
@@ -219,5 +210,5 @@ SET CONSTRAINTS ALL IMMEDIATE;
 ROLLBACK;
 SQL
 
-printf 'Verified transactional %s Lead-Agent ingress, amoCRM identity, private provider binding, audit, deduplication and no-authority manual claim replay.\n' \
-  "${GATE_LABEL}"
+printf '%s\n' \
+  'Verified transactional migration 077 provider ingress, amoCRM identity, private binding, audit, deduplication and no-authority manual claim replay.'

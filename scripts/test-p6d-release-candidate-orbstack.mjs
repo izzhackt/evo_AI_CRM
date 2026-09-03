@@ -204,6 +204,47 @@ async function assertSupabaseServices() {
   assert.equal(storage.status, 200, "Supabase Storage health failed");
 }
 
+async function recordCandidateProviderBoundary(revision) {
+  const headers = {
+    apikey: supabaseSecretKey,
+    authorization: `Bearer ${supabaseSecretKey}`,
+    "content-type": "application/json",
+    "content-profile": "platform",
+    "accept-profile": "platform",
+  };
+  for (const target of ["waha", "ai"]) {
+    const response = await fetch(
+      new URL(
+        "/rest/v1/rpc/record_messaging_integration_health_event",
+        supabaseApiUrl,
+      ),
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          p_organization_id: organizationId,
+          p_target: target,
+          p_readiness: "unconfigured",
+          p_evidence_kind: "configuration_check",
+          p_reason: "P6D candidate runs without external provider configuration",
+          p_evidence_ref: `p6d-candidate:${revision}:${target}`,
+          p_request_id: randomUUID(),
+        }),
+        signal: AbortSignal.timeout(5_000),
+      },
+    );
+    assert.equal(
+      response.status,
+      200,
+      `Could not record the ${target} candidate configuration boundary`,
+    );
+    const event = await response.json();
+    assert.equal(event?.target, target);
+    assert.equal(event?.readiness, "unconfigured");
+    assert.equal(event?.evidence_kind, "configuration_check");
+  }
+}
+
 function assertComposeContract(config, file) {
   assert.deepEqual(sorted(Object.keys(config.services ?? {})), ["app", "waha"], `${file} service set drifted`);
   const { app, waha } = config.services;
@@ -370,6 +411,11 @@ async function proveBrowserAndReadiness(baseUrl, observabilitySecret) {
       "ready",
       `${provider} must not claim readiness without authorized provider evidence`,
     );
+    assert.equal(
+      readiness?.signals?.[`${provider}_evidence_kind`],
+      "configuration_check",
+      `${provider} readiness must come from the current candidate configuration boundary`,
+    );
   }
   return {
     httpStatus: response.status,
@@ -377,7 +423,9 @@ async function proveBrowserAndReadiness(baseUrl, observabilitySecret) {
     supabase: readiness.components.supabase.status,
     auditAppend: readiness.components.audit_append.status,
     waha: readiness.components.waha.status,
+    wahaEvidenceKind: readiness.signals.waha_evidence_kind,
     ai: readiness.components.ai.status,
+    aiEvidenceKind: readiness.signals.ai_evidence_kind,
   };
 }
 
@@ -400,6 +448,7 @@ async function main() {
   const appSupabaseUrl = `https://${appSupabaseHostname}`;
 
   await assertSupabaseServices();
+  await recordCandidateProviderBoundary(revision);
   createLocalTlsCertificate();
 
   const appEnvironment = [

@@ -16122,3 +16122,52 @@ Decision:
 - a later authorized provider/staging slice owns green provider readiness.
   This clarification authorizes no VPS, provider, customer-data or public-
   traffic action.
+
+## 2026-09-04 - Isolate P6D readiness from foundation provider evidence
+
+Block-ID: `EVO-P6D-READINESS-ISOLATION-2026-09-04`
+
+Change type: corrective clarification after real candidate proof.
+Affected plan section: Order 6 / Issue #550 child #587.
+
+The exact-head proof showed that the preceding disposable foundation workflow
+had already appended a `provider_observed` WAHA health event for its isolated
+WAHA-shaped service. Reusing that organization without a current configuration
+boundary made the P6D candidate report `waha=ready` even though its own app
+environment deliberately disables WAHA ingress and performs no external
+provider call.
+
+Decision:
+
+- immediately before candidate boot, append current `configuration_check` /
+  `unconfigured` health events for WAHA and AI in the disposable organization;
+- keep earlier append-only evidence intact as test history, but require the
+  authenticated candidate readiness response to resolve both integrations from
+  the new configuration boundary and remain HTTP `503`;
+- keep real Supabase Auth/Postgres/Storage, audit append, browser login, image,
+  Compose and cleanup proof unchanged;
+- this isolation mutates only the disposable local Supabase database. It does
+  not call a provider or mutate managed Supabase, VPS, customer or public state.
+
+## 2026-09-04 - Normalize the migration-077 outcome harness
+
+Block-ID: `EVO-P6D-MIGRATION-077-HARNESS-2026-09-04`
+
+Change type: legacy-eradication clarification during #587 inventory.
+Affected plan section: Order 6 / Issue #550 child #587.
+
+The active PostgreSQL authorization suite still invoked a transactional SQL
+regression harness through a `test-p8v-runtime.sh` filename, while an unused
+`test-p8r6-runtime.sh` wrapper retained the frozen companion `evo-inbox`
+fixture. The harness did not start a legacy service or alternate business
+authority, but its executable naming and unused wrapper contradicted the
+successor inventory contract.
+
+Decision:
+
+- retain the real migration-077 transactional outcome proof under the neutral
+  `test-platform-migration-077-runtime.sh` name;
+- bind that proof only to the current `crm_primary` schema fixture;
+- delete the unused P8R6 wrapper and strengthen the P6D inventory so
+  `test-p8*` executable names cannot return;
+- preserve immutable migration SQL and historical plan evidence unchanged.

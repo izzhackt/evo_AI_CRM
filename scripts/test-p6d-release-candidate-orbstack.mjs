@@ -346,9 +346,39 @@ async function proveBrowserAndReadiness(baseUrl, observabilitySecret) {
     },
     signal: AbortSignal.timeout(10_000),
   });
-  assert([200, 503].includes(response.status), `Authenticated readiness returned ${response.status}`);
-  assert.notEqual(response.status, 404, "Authenticated readiness stayed hidden");
-  return response.status;
+  assert.equal(
+    response.status,
+    503,
+    `Candidate without authorized provider evidence must fail readiness, received ${response.status}`,
+  );
+  const readiness = await response.json();
+  assert.equal(readiness?.ok, false, "Readiness must remain fail-closed");
+  assert.equal(readiness?.status, "not_ready");
+  assert.equal(
+    readiness?.components?.supabase?.status,
+    "ready",
+    "Authenticated readiness must prove the disposable Supabase authority",
+  );
+  assert.equal(
+    readiness?.components?.audit_append?.status,
+    "ready",
+    "Authenticated readiness must prove the audit append boundary",
+  );
+  for (const provider of ["waha", "ai"]) {
+    assert.notEqual(
+      readiness?.components?.[provider]?.status,
+      "ready",
+      `${provider} must not claim readiness without authorized provider evidence`,
+    );
+  }
+  return {
+    httpStatus: response.status,
+    applicationStatus: readiness.status,
+    supabase: readiness.components.supabase.status,
+    auditAppend: readiness.components.audit_append.status,
+    waha: readiness.components.waha.status,
+    ai: readiness.components.ai.status,
+  };
 }
 
 async function main() {

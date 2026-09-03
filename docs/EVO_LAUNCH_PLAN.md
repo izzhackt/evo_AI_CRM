@@ -272,9 +272,11 @@ Acceptance requires all of the following on the same candidate head:
    companion Inbox, Lead Agent or manual-worker artifacts;
 5. one isolated OrbStack candidate run uses real disposable Supabase
    Auth/Postgres/Storage plus the root application and a private WAHA service,
-   then proves application health/readiness, browser access, exact runtime
-   services/networks, fail-closed missing Supabase/provider configuration and
-   owned cleanup without touching VPS, public traffic or provider state;
+   then proves health `200`, authenticated readiness `503` with Supabase and
+   audit ready but WAHA/AI not falsely marked ready without authorized provider
+   evidence, browser access, exact runtime services/networks, fail-closed
+   missing Supabase/provider configuration and owned cleanup without touching
+   VPS, public traffic or provider state;
 6. a scoped repository/image/runtime inventory reports zero active legacy
    service, package, env, script, route or fallback reference. Historical
    material is reported separately and never counted as active authority;

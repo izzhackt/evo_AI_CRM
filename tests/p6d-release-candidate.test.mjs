@@ -98,6 +98,10 @@ test("P6D proof accepts only process-provided real local Supabase authority", as
   assert.match(harness, /createNetwork\(webNetwork, \{ internal: false \}\)/u);
   assert.match(harness, /Auth|Postgres|Storage/u);
   assert.match(harness, /chromium/u);
+  assert.match(harness, /response\.status,\s*503/u);
+  assert.match(harness, /components\?\.supabase\?\.status/u);
+  assert.match(harness, /components\?\.audit_append\?\.status/u);
+  assert.doesNotMatch(harness, /\[200, 503\]\.includes/u);
   assert.match(foundation, /EVO_P6D_CANDIDATE_PROOF/u);
 });
 

@@ -16096,3 +16096,29 @@ Decision:
   Supabase project, provider/customer state, webhook ownership, frozen V1
   deployments and public traffic unchanged. #551 owns real staging/restore/
   migration rehearsal; #552 owns production cutover and V1 retirement.
+
+## 2026-09-04 - Clarify P6D readiness proof without provider simulation
+
+Block-ID: `EVO-P6D-TRUTHFUL-READINESS-2026-09-04`
+
+Change type: acceptance-detail clarification after independent review.
+Affected plan section: Order 6 / Issue #550 child #587.
+
+The first exact-head review found that the candidate harness accepted either
+`200` or `503` from the authenticated readiness endpoint and then recorded
+either result as success. That assertion was too broad: it could not prove the
+expected state and made a `503` artifact ambiguous. Existing owner boundaries
+forbid a real Gemini request, WhatsApp delivery, provider-state mutation or
+invented provider evidence in this isolated release slice.
+
+Decision:
+
+- the isolated candidate must return health `200` and complete real Supabase
+  Auth/Postgres/private-Storage plus browser proof;
+- authenticated readiness must return `503` with `status=not_ready`, while its
+  body proves Supabase and audit append are ready and does not falsely mark
+  WAHA or AI ready without authorized provider evidence;
+- the sanitized success artifact records those component states explicitly;
+- a later authorized provider/staging slice owns green provider readiness.
+  This clarification authorizes no VPS, provider, customer-data or public-
+  traffic action.

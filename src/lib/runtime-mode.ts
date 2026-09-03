@@ -1,9 +1,9 @@
 const UI_CONTRACT_FIXTURE_FLAG = "EVO_UI_CONTRACT_FIXTURES";
 
 /**
- * Keeps the pre-Platform SQLite experience available only to the existing
- * visual-regression suite. The greenfield Platform runtime must never fall
- * back to this data plane.
+ * Keeps the retired UI-contract flag fail-closed while old deployment
+ * templates are preserved as rollback evidence. No fixture data source is
+ * available to the successor runtime.
  */
 export function isUiContractFixtureMode(): boolean {
   const enabled = process.env[UI_CONTRACT_FIXTURE_FLAG] === "1";

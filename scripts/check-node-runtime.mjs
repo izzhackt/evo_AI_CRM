@@ -9,7 +9,6 @@ if (major !== expectedMajor || moduleVersion !== expectedModuleVersion) {
     [
       `Unsupported Node runtime: ${process.version} (NODE_MODULE_VERSION ${moduleVersion}).`,
       `This project must run on Node ${expectedMajor}.x (NODE_MODULE_VERSION ${expectedModuleVersion}).`,
-      "better-sqlite3 is a native dependency; installing with a different Node version can produce a binary that crashes at login.",
       "Use the repo Node version first, then reinstall/rebuild dependencies: nvm use && npm ci",
     ].join("\n"),
   );

@@ -23,11 +23,13 @@ const {
 } = await import("../src/lib/server/platform-amocrm-command-service.ts");
 const {
   CanonicalAmoCrmMutationError,
+  CanonicalAmoCrmProviderError,
 } = await import("../src/lib/server/canonical-amocrm-provider.ts");
 const {
   claimPlatformAmoCrmCommand,
   finishPlatformAmoCrmCommand,
   preparePlatformAmoCrmCommand,
+  readPlatformAmoCrmCommandByIdempotencyKey,
   readPlatformAmoCrmBindings,
 } = await import("../src/lib/server/platform-amocrm-command-rpc.ts");
 const serviceSource = readFileSync(
@@ -312,9 +314,11 @@ function serviceDeps(runState) {
     now: () => new Date("2026-09-02T10:00:00.000Z"),
     workerRef: () => "test-worker",
     visibilityTimeoutSeconds: 90,
+    readbackRetryDelaysMs: [],
     createStaffRpcClient: () => staffClient,
     createServiceRpcClient: () => serviceClient,
     getSalesLead: async () => salesLead(),
+    readCommandByIdempotencyKey: async () => null,
     resolveRuntime: async () => {
       runState.runtime ??= runtime();
       return runState.runtime;
@@ -322,6 +326,58 @@ function serviceDeps(runState) {
     staffClient,
     serviceClient,
   };
+}
+
+function inMemorySequenceDeps(providerRuntime, overrides = {}) {
+  const runState = { runtime: providerRuntime };
+  const store = new Map();
+  const finishCalls = [];
+  const sleepCalls = [];
+  const deps = {
+    ...serviceDeps(runState),
+    readbackRetryDelaysMs: [1, 2, 3],
+    sleep: async (milliseconds) => {
+      sleepCalls.push(milliseconds);
+    },
+    readBindings: async () => ({ contactId: null, leadId: null }),
+    readCommandByIdempotencyKey: async (_client, input) =>
+      store.get(input.idempotencyKey) ?? null,
+    prepareCommand: async (_client, input) => {
+      const existing = store.get(input.idempotencyKey);
+      if (existing) return { kind: "replay", attempt: existing };
+      const attempt = sampleAttempt(input.operationName, {
+        idempotencyKey: input.idempotencyKey,
+        personId: input.personId,
+        leadId: input.leadId,
+        targetContactId: input.targetContactId,
+        targetLeadId: input.targetLeadId,
+      });
+      store.set(input.idempotencyKey, attempt);
+      store.set(attempt.attemptId, attempt);
+      return { kind: "prepared", attempt };
+    },
+    claimCommand: async (_client, input) => ({
+      kind: "claimed",
+      reason: null,
+      attempt: store.get(input.attemptId),
+    }),
+    finishCommand: async (_client, input) => {
+      finishCalls.push(input);
+      const attempt = {
+        ...store.get(input.attemptId),
+        status: input.outcome,
+        providerDispatchedAt: "2026-09-02T10:00:05.000Z",
+        resultContactId: input.resultContactId,
+        resultLeadId: input.resultLeadId,
+        failureCode: input.failureCode,
+      };
+      store.set(input.attemptId, attempt);
+      store.set(attempt.idempotencyKey, attempt);
+      return { kind: "settled", attempt };
+    },
+    ...overrides,
+  };
+  return { deps, finishCalls, sleepCalls, store };
 }
 
 test("service keeps Drizzle discovery out of the new active path", () => {
@@ -380,11 +436,19 @@ test("sales sync runs the Supabase command sequence including task create and re
   const preparePayloads = [];
   const baseDeps = serviceDeps(runState);
   const clientCalls = [];
+  let bindingsReadCount = 0;
   const deps = {
     ...baseDeps,
     readBindings: async (client) => {
       clientCalls.push({ kind: client.kind, method: "readBindings" });
-      return { contactId: null, leadId: null };
+      bindingsReadCount += 1;
+      return bindingsReadCount === 1
+        ? { contactId: null, leadId: null }
+        : { contactId: "900001", leadId: "900002" };
+    },
+    readCommandByIdempotencyKey: async (client, input) => {
+      clientCalls.push({ kind: client.kind, method: "readCommandByIdempotencyKey" });
+      return store.get(input.idempotencyKey) ?? null;
     },
     prepareCommand: async (client, input) => {
       clientCalls.push({ kind: client.kind, method: "prepareCommand" });
@@ -529,6 +593,158 @@ test("sales sync runs the Supabase command sequence including task create and re
   assert.equal(second.status, "accepted");
   assert.equal(runState.runtime.dispatches.length, 8);
   assert.ok(second.steps.every((step) => step.reason === "exact_replay"));
+  assert.ok(
+    clientCalls
+      .filter(({ method }) => method === "readCommandByIdempotencyKey")
+      .every(({ kind }) => kind === "service"),
+  );
+});
+
+test("exact replay fails closed when both create and update variants exist", async () => {
+  const providerRuntime = runtime();
+  const deps = {
+    ...serviceDeps({ runtime: providerRuntime }),
+    readBindings: async () => ({ contactId: "900001", leadId: "900002" }),
+    readCommandByIdempotencyKey: async (_client, input) => {
+      if (input.idempotencyKey.endsWith(":contact_create")) {
+        return sampleAttempt("contact_create");
+      }
+      if (input.idempotencyKey.endsWith(":contact_update")) {
+        return sampleAttempt("contact_update");
+      }
+      return null;
+    },
+    prepareCommand: async () => {
+      assert.fail("conflicting variants must stop before command preparation");
+    },
+  };
+
+  const result = await executePlatformAmoCrmSalesSync(
+    {
+      actor: actor(),
+      actorRole: "sales",
+      leadId: IDS.lead,
+      baseRequestId: IDS.request,
+      noteText: "Reviewed note",
+      taskText: "Call the applicant tomorrow",
+      taskCompleteTill: 1790000000,
+    },
+    deps,
+  );
+
+  assert.equal(result.status, "error");
+  assert.equal(result.reason, "amocrm_idempotency_variant_conflict");
+  assert.deepEqual(result.steps, []);
+  assert.deepEqual(providerRuntime.dispatches, []);
+});
+
+test("task readback retries safe GETs and continues through all eight accepted operations", async () => {
+  const providerRuntime = runtime();
+  const successfulTaskRead = providerRuntime.provider.getTaskById;
+  let taskReadCount = 0;
+  providerRuntime.provider.getTaskById = async (...args) => {
+    taskReadCount += 1;
+    if (taskReadCount === 1) {
+      return { ...(await successfulTaskRead(...args)), text: "not visible yet" };
+    }
+    if (taskReadCount === 2) {
+      throw new CanonicalAmoCrmProviderError("provider_unavailable", { status: 503 });
+    }
+    return successfulTaskRead(...args);
+  };
+  const { deps, sleepCalls } = inMemorySequenceDeps(providerRuntime);
+
+  const result = await executePlatformAmoCrmSalesSync(
+    {
+      actor: actor(),
+      actorRole: "sales",
+      leadId: IDS.lead,
+      baseRequestId: IDS.request,
+      noteText: "Reviewed note",
+      taskText: "Call the applicant tomorrow",
+      taskCompleteTill: 1790000000,
+    },
+    deps,
+  );
+
+  assert.equal(result.status, "accepted");
+  assert.equal(result.steps.length, 8);
+  assert.ok(result.steps.every((step) => step.status === "accepted"));
+  assert.equal(
+    providerRuntime.dispatches.filter((operation) => operation === "lead_task_create").length,
+    1,
+  );
+  assert.equal(providerRuntime.dispatches.at(-1), "lead_tag_update");
+  assert.equal(taskReadCount, 3);
+  assert.deepEqual(sleepCalls, [1, 2]);
+});
+
+test("exhausted task readback stays unknown without repeating the mutation or attempting tag", async () => {
+  const providerRuntime = runtime();
+  let taskReadCount = 0;
+  providerRuntime.provider.getTaskById = async () => {
+    taskReadCount += 1;
+    throw new CanonicalAmoCrmProviderError("request_timeout");
+  };
+  const { deps, finishCalls, sleepCalls } = inMemorySequenceDeps(providerRuntime);
+
+  const result = await executePlatformAmoCrmSalesSync(
+    {
+      actor: actor(),
+      actorRole: "sales",
+      leadId: IDS.lead,
+      baseRequestId: IDS.request,
+      noteText: "Reviewed note",
+      taskText: "Call the applicant tomorrow",
+      taskCompleteTill: 1790000000,
+    },
+    deps,
+  );
+
+  assert.equal(result.status, "unknown");
+  assert.equal(result.reason, "request_timeout");
+  assert.equal(
+    providerRuntime.dispatches.filter((operation) => operation === "lead_task_create").length,
+    1,
+  );
+  assert.equal(providerRuntime.dispatches.includes("lead_tag_update"), false);
+  assert.equal(taskReadCount, 4);
+  assert.deepEqual(sleepCalls, [1, 2, 3]);
+  assert.equal(finishCalls.at(-1).outcome, "unknown");
+  assert.equal(finishCalls.at(-1).failureCode, "request_timeout");
+});
+
+test("permanent task readback rejection fails immediately without GET retry", async () => {
+  const providerRuntime = runtime();
+  let taskReadCount = 0;
+  providerRuntime.provider.getTaskById = async () => {
+    taskReadCount += 1;
+    throw new CanonicalAmoCrmProviderError("provider_rejected", { status: 400 });
+  };
+  const { deps, sleepCalls } = inMemorySequenceDeps(providerRuntime);
+
+  const result = await executePlatformAmoCrmSalesSync(
+    {
+      actor: actor(),
+      actorRole: "sales",
+      leadId: IDS.lead,
+      baseRequestId: IDS.request,
+      noteText: "Reviewed note",
+      taskText: "Call the applicant tomorrow",
+      taskCompleteTill: 1790000000,
+    },
+    deps,
+  );
+
+  assert.equal(result.status, "unknown");
+  assert.equal(result.reason, "provider_rejected");
+  assert.equal(taskReadCount, 1);
+  assert.deepEqual(sleepCalls, []);
+  assert.equal(
+    providerRuntime.dispatches.filter((operation) => operation === "lead_task_create").length,
+    1,
+  );
+  assert.equal(providerRuntime.dispatches.includes("lead_tag_update"), false);
 });
 
 test("service sends staff reads and prepare through the staff client, but claim and finish through the service client with UUID request ids", async () => {
@@ -584,6 +800,9 @@ test("service sends staff reads and prepare through the staff client, but claim 
       return {
         async rpc(functionName, args) {
           calls.push({ client: "service", functionName, args });
+          if (functionName === "read_amocrm_command_by_idempotency_key") {
+            return { data: null, error: null };
+          }
           if (functionName === "claim_amocrm_command") {
             return {
               data: {
@@ -664,6 +883,7 @@ test("service sends staff reads and prepare through the staff client, but claim 
       getSalesLead: async () => salesLead(),
       resolveRuntime: async () => providerRuntime,
       readBindings: readPlatformAmoCrmBindings,
+      readCommandByIdempotencyKey: readPlatformAmoCrmCommandByIdempotencyKey,
       prepareCommand: preparePlatformAmoCrmCommand,
       claimCommand: claimPlatformAmoCrmCommand,
       finishCommand: finishPlatformAmoCrmCommand,
@@ -673,14 +893,23 @@ test("service sends staff reads and prepare through the staff client, but claim 
   assert.equal(result.status, "accepted");
   assert.equal(calls[0].client, "staff");
   assert.equal(calls[0].functionName, "read_staff_amocrm_bindings");
-  assert.equal(calls[1].client, "staff");
-  assert.equal(calls[1].functionName, "prepare_amocrm_command");
-  assert.equal(calls[2].client, "service");
-  assert.equal(calls[2].functionName, "claim_amocrm_command");
-  assert.equal(calls[2].args.p_request_id, IDS.request);
-  assert.equal(calls[3].client, "service");
-  assert.equal(calls[3].functionName, "finish_amocrm_command");
-  assert.equal(calls[3].args.p_request_id, IDS.request);
+  assert.ok(
+    calls
+      .slice(1, 5)
+      .every(
+        ({ client, functionName }) =>
+          client === "service" &&
+          functionName === "read_amocrm_command_by_idempotency_key",
+      ),
+  );
+  assert.equal(calls[5].client, "staff");
+  assert.equal(calls[5].functionName, "prepare_amocrm_command");
+  assert.equal(calls[6].client, "service");
+  assert.equal(calls[6].functionName, "claim_amocrm_command");
+  assert.equal(calls[6].args.p_request_id, IDS.request);
+  assert.equal(calls[7].client, "service");
+  assert.equal(calls[7].functionName, "finish_amocrm_command");
+  assert.equal(calls[7].args.p_request_id, IDS.request);
 });
 
 test("sales sync rejects a non-future task deadline before any runtime call", async () => {

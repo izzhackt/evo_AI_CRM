@@ -34,6 +34,7 @@ import {
   claimPlatformAmoCrmCommand,
   finishPlatformAmoCrmCommand,
   preparePlatformAmoCrmCommand,
+  readPlatformAmoCrmCommandByIdempotencyKey,
   readPlatformAmoCrmCommandForReconciliation,
   readPlatformAmoCrmBindings,
   reconcileUnknownPlatformAmoCrmCommand,
@@ -52,6 +53,7 @@ const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
 const MAX_NOTE_BYTES = 1_000;
 const MAX_TASK_BYTES = 1_000;
 const DEFAULT_VISIBILITY_TIMEOUT_SECONDS = 300;
+const DEFAULT_READBACK_RETRY_DELAYS_MS = Object.freeze([1_000, 2_000, 4_000]);
 
 type PlatformAmoCrmActorRole = "admin" | "sales" | "admissions";
 type PlatformAmoCrmWorkflowScope =
@@ -149,6 +151,7 @@ export type PlatformAmoCrmCommandServiceDependencies = Readonly<{
   getSalesLead?: typeof getPlatformSalesLead;
   getStudentCaseHandoffContext?: typeof getPlatformStudentCaseHandoffContext;
   readBindings?: typeof readPlatformAmoCrmBindings;
+  readCommandByIdempotencyKey?: typeof readPlatformAmoCrmCommandByIdempotencyKey;
   prepareCommand?: typeof preparePlatformAmoCrmCommand;
   claimCommand?: typeof claimPlatformAmoCrmCommand;
   finishCommand?: typeof finishPlatformAmoCrmCommand;
@@ -169,6 +172,8 @@ export type PlatformAmoCrmCommandServiceDependencies = Readonly<{
   now?: () => Date;
   workerRef?: () => string;
   visibilityTimeoutSeconds?: number;
+  sleep?: (milliseconds: number) => Promise<void>;
+  readbackRetryDelaysMs?: readonly number[];
 }>;
 
 type ResolvedDependencies = Readonly<{
@@ -184,6 +189,9 @@ type ResolvedDependencies = Readonly<{
     PlatformAmoCrmCommandServiceDependencies["getStudentCaseHandoffContext"]
   >;
   readBindings: NonNullable<PlatformAmoCrmCommandServiceDependencies["readBindings"]>;
+  readCommandByIdempotencyKey: NonNullable<
+    PlatformAmoCrmCommandServiceDependencies["readCommandByIdempotencyKey"]
+  >;
   prepareCommand: NonNullable<PlatformAmoCrmCommandServiceDependencies["prepareCommand"]>;
   claimCommand: NonNullable<PlatformAmoCrmCommandServiceDependencies["claimCommand"]>;
   finishCommand: NonNullable<PlatformAmoCrmCommandServiceDependencies["finishCommand"]>;
@@ -195,6 +203,8 @@ type ResolvedDependencies = Readonly<{
   now: NonNullable<PlatformAmoCrmCommandServiceDependencies["now"]>;
   workerRef: NonNullable<PlatformAmoCrmCommandServiceDependencies["workerRef"]>;
   visibilityTimeoutSeconds: number;
+  sleep: NonNullable<PlatformAmoCrmCommandServiceDependencies["sleep"]>;
+  readbackRetryDelaysMs: readonly number[];
 }>;
 
 type WorkflowContext = Readonly<{
@@ -444,6 +454,9 @@ function resolveDependencies(
     getStudentCaseHandoffContext:
       overrides.getStudentCaseHandoffContext ?? getPlatformStudentCaseHandoffContext,
     readBindings: overrides.readBindings ?? readPlatformAmoCrmBindings,
+    readCommandByIdempotencyKey:
+      overrides.readCommandByIdempotencyKey ??
+      readPlatformAmoCrmCommandByIdempotencyKey,
     prepareCommand: overrides.prepareCommand ?? preparePlatformAmoCrmCommand,
     claimCommand: overrides.claimCommand ?? claimPlatformAmoCrmCommand,
     finishCommand: overrides.finishCommand ?? finishPlatformAmoCrmCommand,
@@ -459,6 +472,15 @@ function resolveDependencies(
       (() => `platform-amocrm-command-service:${process.pid}:${randomUUID()}`),
     visibilityTimeoutSeconds:
       overrides.visibilityTimeoutSeconds ?? DEFAULT_VISIBILITY_TIMEOUT_SECONDS,
+    sleep:
+      overrides.sleep ??
+      ((milliseconds) =>
+        new Promise((resolve) => {
+          setTimeout(resolve, milliseconds);
+        })),
+    readbackRetryDelaysMs: Object.freeze([
+      ...(overrides.readbackRetryDelaysMs ?? DEFAULT_READBACK_RETRY_DELAYS_MS),
+    ]),
   });
 }
 
@@ -1109,10 +1131,33 @@ async function verifyPreparedStep(
   prepared: PreparedStep,
   provider: PlatformAmoCrmProvider,
   entityId: string,
+  dependencies: Pick<ResolvedDependencies, "readbackRetryDelaysMs" | "sleep">,
 ): Promise<VerifiedReadback> {
-  return await prepared.verify(provider, entityId);
+  for (let attemptIndex = 0; ; attemptIndex += 1) {
+    try {
+      return await prepared.verify(provider, entityId);
+    } catch (error) {
+      const retryDelay = dependencies.readbackRetryDelaysMs[attemptIndex];
+      if (retryDelay === undefined || !isRetryableReadbackError(error)) {
+        throw error;
+      }
+      await dependencies.sleep(retryDelay);
+    }
+  }
 }
 
+function isRetryableReadbackError(error: unknown): boolean {
+  if (error instanceof ReadbackMismatchError) return true;
+  if (!(error instanceof CanonicalAmoCrmProviderError)) return false;
+  if (error.code === "provider_unavailable" || error.code === "request_timeout") {
+    return true;
+  }
+  return (
+    error.code === "provider_rejected" &&
+    error.status !== null &&
+    (error.status === 404 || error.status === 429 || (error.status >= 500 && error.status < 600))
+  );
+}
 
 function mutationOutcome(error: unknown): "accepted" | "unknown" | "rejected" {
   if (error instanceof ReadbackMismatchError) return "unknown";
@@ -1127,10 +1172,35 @@ function providerFailureCode(error: unknown): string {
   return "internal_error";
 }
 
-function operationSequence(
+function selectedOperationVariant(
+  createAttempt: PlatformAmoCrmCommandSnapshot | null,
+  updateAttempt: PlatformAmoCrmCommandSnapshot | null,
+  createOperation: "contact_create" | "lead_create",
+  updateOperation: "contact_update" | "lead_update",
+  hasBinding: boolean,
+): PlatformAmoCrmCommandOperationName {
+  if (
+    (createAttempt !== null && createAttempt.operationName !== createOperation) ||
+    (updateAttempt !== null && updateAttempt.operationName !== updateOperation)
+  ) {
+    throw new Error("amocrm_idempotency_variant_mismatch");
+  }
+  if (createAttempt !== null && updateAttempt !== null) {
+    throw new Error("amocrm_idempotency_variant_conflict");
+  }
+  if (createAttempt !== null) return createOperation;
+  if (updateAttempt !== null) return updateOperation;
+  return hasBinding ? updateOperation : createOperation;
+}
+
+async function operationSequence(
   bindings: PlatformAmoCrmBindingsSnapshot,
   workflowScope: PlatformAmoCrmWorkflowScope,
-): readonly PlatformAmoCrmCommandOperationName[] {
+  organizationId: string,
+  baseRequestId: string,
+  serviceClient: PlatformAmoCrmRpcClient,
+  dependencies: Pick<ResolvedDependencies, "readCommandByIdempotencyKey">,
+): Promise<readonly PlatformAmoCrmCommandOperationName[]> {
   if (workflowScope === "admissions_post_handoff") {
     if (bindings.contactId === null) {
       throw new Error("provider_contact_mapping_missing");
@@ -1140,9 +1210,40 @@ function operationSequence(
     }
   }
 
+  const [contactCreate, contactUpdate, leadCreate, leadUpdate] = await Promise.all([
+    dependencies.readCommandByIdempotencyKey(serviceClient, {
+      organizationId,
+      idempotencyKey: stepId(baseRequestId, "contact_create"),
+    }),
+    dependencies.readCommandByIdempotencyKey(serviceClient, {
+      organizationId,
+      idempotencyKey: stepId(baseRequestId, "contact_update"),
+    }),
+    dependencies.readCommandByIdempotencyKey(serviceClient, {
+      organizationId,
+      idempotencyKey: stepId(baseRequestId, "lead_create"),
+    }),
+    dependencies.readCommandByIdempotencyKey(serviceClient, {
+      organizationId,
+      idempotencyKey: stepId(baseRequestId, "lead_update"),
+    }),
+  ]);
+
   return Object.freeze([
-    bindings.contactId === null ? "contact_create" : "contact_update",
-    bindings.leadId === null ? "lead_create" : "lead_update",
+    selectedOperationVariant(
+      contactCreate,
+      contactUpdate,
+      "contact_create",
+      "contact_update",
+      bindings.contactId !== null,
+    ),
+    selectedOperationVariant(
+      leadCreate,
+      leadUpdate,
+      "lead_create",
+      "lead_update",
+      bindings.leadId !== null,
+    ),
     "contact_lead_link",
     "lead_pipeline_status_update",
     "lead_responsible_update",
@@ -1194,9 +1295,13 @@ async function executeSequence(
     providerLeadId: input.bindings.leadId,
   });
 
-  for (const operationName of operationSequence(
+  for (const operationName of await operationSequence(
     input.bindings,
     input.context.authorization.workflowScope,
+    input.context.organizationId,
+    input.baseRequestId,
+    serviceClient,
+    dependencies,
   )) {
     const prepared = await prepareStep(
       input.context,
@@ -1250,6 +1355,7 @@ async function executeSequence(
         prepared,
         input.context.provider,
         mutation.entityId,
+        dependencies,
       );
       const settled = await dependencies.finishCommand(serviceClient, {
         organizationId: input.context.organizationId,

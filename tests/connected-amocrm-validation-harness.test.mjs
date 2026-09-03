@@ -147,10 +147,10 @@ test("connected amoCRM acceptance has one local Supabase data authority", async 
   assert.doesNotMatch(shellSource, /(?:^|\s)DATABASE_URL=/mu);
 });
 
-test("connected amoCRM acceptance provisions its exact local staff authority before seeding", async () => {
+test("connected amoCRM acceptance reuses one exact local Admin before seeding", async () => {
   const source = await readFile(SHELL_PATH, "utf8");
-  const provisionIndex = source.indexOf(
-    'scripts/provision-local-supabase-staff.mjs',
+  const prepareAdminIndex = source.indexOf(
+    'scripts/prepare-connected-amocrm-validation.mjs prepare-admin',
   );
   const seedIndex = source.indexOf(
     'scripts/prepare-connected-amocrm-validation.mjs seed',
@@ -160,23 +160,21 @@ test("connected amoCRM acceptance provisions its exact local staff authority bef
   const dispatchStart = source.indexOf("start_app 1");
   const dispatchEnd = source.indexOf("stop_app", dispatchStart);
 
-  assert.ok(provisionIndex >= 0);
-  assert.ok(seedIndex > provisionIndex);
+  assert.ok(prepareAdminIndex >= 0);
+  assert.ok(seedIndex > prepareAdminIndex);
   assert.ok(blockedStart > seedIndex && blockedEnd > blockedStart);
   assert.ok(dispatchStart > blockedEnd && dispatchEnd > dispatchStart);
-  assert.match(
-    source,
-    /staff_admin_email="admin-amocrm-\$\{staff_suffix\}@evo\.local\.test"/u,
-  );
   assert.match(source, /staff_admin_password="\$\(openssl rand -hex 24\)"/u);
+  assert.match(source, /staff_admin_email="\$\(/u);
+  assert.match(source, /EVO_V2_SUPABASE_DATABASE_URL="\$supabase_database_url"/u);
+  assert.match(source, /NEXT_PUBLIC_SUPABASE_URL="\$supabase_api_url"/u);
+  assert.match(source, /EVO_PLATFORM_SUPABASE_SECRET_KEY="\$supabase_secret_key"/u);
   assert.match(source, /EVO_STAFF_AUTH_ADMIN_EMAIL="\$staff_admin_email"/u);
   assert.match(source, /EVO_STAFF_AUTH_ADMIN_PASSWORD="\$staff_admin_password"/u);
-  assert.match(source, /EVO_STAFF_AUTH_SALES_EMAIL/u);
-  assert.match(source, /EVO_STAFF_AUTH_SALES_PASSWORD/u);
-  assert.match(source, /EVO_STAFF_AUTH_ADMISSIONS_EMAIL/u);
-  assert.match(source, /EVO_STAFF_AUTH_ADMISSIONS_PASSWORD/u);
-  assert.match(source, /LOCAL_SUPABASE_STAFF_PROVISIONED/u);
   assert.match(source, /chmod 600 "\$staff_log"/u);
+  assert.doesNotMatch(source, /scripts\/provision-local-supabase-staff\.mjs/u);
+  assert.doesNotMatch(source, /supabase db reset/u);
+  assert.doesNotMatch(source, /EVO_STAFF_AUTH_(?:SALES|ADMISSIONS)_/u);
 
   for (const browserPhase of [
     source.slice(blockedStart, blockedEnd),
@@ -195,6 +193,46 @@ test("connected amoCRM acceptance provisions its exact local staff authority bef
       /EVO_STAFF_AUTH_ADMIN_(?:EMAIL|PASSWORD)="\$EVO_STAFF_AUTH_ADMIN_/u,
     );
   }
+});
+
+test("Admin preparation is local-only, unambiguous and non-destructive", async () => {
+  const source = await readFile(PREPARE_PATH, "utf8");
+
+  assert.match(source, /command === "prepare-admin"/u);
+  assert.match(source, /auth\.admin\.updateUserById/u);
+  assert.match(source, /auth\.signInWithPassword/u);
+  assert.match(source, /rpc\("current_actor_authority"\)/u);
+  assert.match(source, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/u);
+  assert.match(source, /membership\.current_role = 'admin'/u);
+  assert.match(source, /profile\.status = 'active'/u);
+  assert.match(source, /membership\.status = 'active'/u);
+  assert.match(source, /organization\.status = 'active'/u);
+  assert.match(source, /authorityRows\.length !== 1/u);
+  assert.match(source, /\["127\.0\.0\.1", "localhost", "\[::1\]"\]/u);
+  assert.doesNotMatch(source, /INSERT INTO platform\.organization_memberships/u);
+  assert.doesNotMatch(source, /bootstrap_organization_admin/u);
+
+  const result = spawnSync(
+    process.execPath,
+    [fileURLToPath(PREPARE_PATH), "prepare-admin"],
+    {
+      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        EVO_V2_SUPABASE_DATABASE_URL:
+          "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+        NEXT_PUBLIC_SUPABASE_URL: "https://example.com",
+        EVO_PLATFORM_SUPABASE_SECRET_KEY: "server-only-test-key",
+        EVO_STAFF_AUTH_ADMIN_PASSWORD: "generated-local-password-123456",
+      },
+      timeout: 10_000,
+    },
+  );
+
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /local_supabase_api_url_invalid/u);
 });
 
 test("connected amoCRM harness canonicalizes a trailing-slash TMPDIR before creating private paths", async () => {

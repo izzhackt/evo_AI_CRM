@@ -6,6 +6,7 @@ import { chmod, lstat, open, readFile, rename, unlink } from "node:fs/promises";
 import { isIP } from "node:net";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { parseEnv } from "node:util";
+import { createClient } from "@supabase/supabase-js";
 
 const PRIVATE_FILE_MAX_BYTES = 256 * 1024;
 const PROVIDER_ID = /^[1-9][0-9]{0,9}$/u;
@@ -87,6 +88,58 @@ function localSupabaseDatabaseUrl() {
   ) {
     fail("local_supabase_database_url_invalid");
   }
+  return value;
+}
+
+function localSupabaseApiUrl() {
+  const value = exactText(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    "local_supabase_api_url_invalid",
+    4_096,
+  );
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail("local_supabase_api_url_invalid");
+  }
+  if (
+    !["http:", "https:"].includes(parsed.protocol) ||
+    !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) ||
+    parsed.username.length > 0 ||
+    parsed.password.length > 0 ||
+    parsed.pathname !== "/" ||
+    parsed.search.length > 0 ||
+    parsed.hash.length > 0
+  ) {
+    fail("local_supabase_api_url_invalid");
+  }
+  return parsed.origin;
+}
+
+function localSupabaseServerKey() {
+  return exactText(
+    process.env.EVO_PLATFORM_SUPABASE_SECRET_KEY,
+    "local_supabase_server_key_invalid",
+    8_192,
+  );
+}
+
+function localSupabasePublishableKey() {
+  return exactText(
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    "local_supabase_publishable_key_invalid",
+    8_192,
+  );
+}
+
+function localAdminPassword() {
+  const value = exactText(
+    process.env.EVO_STAFF_AUTH_ADMIN_PASSWORD,
+    "admin_password_invalid",
+    512,
+  );
+  if (value.length < 24) fail("admin_password_invalid");
   return value;
 }
 
@@ -666,6 +719,132 @@ async function seedValidationLead(parsed) {
   }
 }
 
+async function prepareExistingAdmin() {
+  const databaseUrl = localSupabaseDatabaseUrl();
+  const apiUrl = localSupabaseApiUrl();
+  const serverKey = localSupabaseServerKey();
+  const publishableKey = localSupabasePublishableKey();
+  const password = localAdminPassword();
+  const postgres = (await import("postgres")).default;
+  const sql = postgres(databaseUrl, {
+    max: 1,
+    onnotice: () => undefined,
+  });
+  let authorityRows;
+  try {
+    authorityRows = await sql`
+      SELECT
+        auth_user.id AS auth_user_id,
+        auth_user.email,
+        membership.organization_id,
+        membership.id AS membership_id
+      FROM auth.users AS auth_user
+      JOIN platform.profiles AS profile
+        ON profile.auth_user_id = auth_user.id
+      JOIN platform.organization_memberships AS membership
+        ON membership.profile_id = profile.id
+      JOIN platform.organizations AS organization
+        ON organization.id = membership.organization_id
+      WHERE auth_user.email IS NOT NULL
+        AND profile.status = 'active'
+        AND membership.status = 'active'
+        AND membership.current_role = 'admin'
+        AND organization.status = 'active'
+      ORDER BY auth_user.id
+    `;
+  } catch {
+    fail("admin_authority_query_failed");
+  } finally {
+    await sql.end({ timeout: 5 }).catch(() => undefined);
+  }
+
+  const authority = authorityRows?.[0];
+  if (
+    authorityRows?.length !== 1 ||
+    !UUID.test(authority?.auth_user_id) ||
+    !UUID.test(authority?.organization_id) ||
+    !UUID.test(authority?.membership_id)
+  ) {
+    fail("admin_supabase_authority_invalid");
+  }
+  const email = exactText(
+    authority.email,
+    "admin_supabase_authority_invalid",
+    320,
+  ).toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/u.test(email)) {
+    fail("admin_supabase_authority_invalid");
+  }
+
+  const adminClient = createClient(apiUrl, serverKey, {
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
+  });
+  let result;
+  try {
+    result = await adminClient.auth.admin.updateUserById(
+      authority.auth_user_id,
+      { password },
+    );
+  } catch {
+    fail("admin_password_update_failed");
+  }
+  if (
+    result?.error ||
+    result?.data?.user?.id !== authority.auth_user_id ||
+    result?.data?.user?.email?.toLowerCase() !== email
+  ) {
+    fail("admin_password_update_failed");
+  }
+
+  const authClient = createClient(apiUrl, publishableKey, {
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
+  });
+  let signIn;
+  try {
+    signIn = await authClient.auth.signInWithPassword({ email, password });
+  } catch {
+    fail("admin_sign_in_verification_failed");
+  }
+  if (
+    signIn?.error ||
+    !signIn?.data?.session?.access_token ||
+    signIn?.data?.user?.id !== authority.auth_user_id ||
+    signIn?.data?.user?.email?.toLowerCase() !== email
+  ) {
+    fail("admin_sign_in_verification_failed");
+  }
+
+  let authorityResult;
+  try {
+    authorityResult = await authClient
+      .schema("platform")
+      .rpc("current_actor_authority");
+  } catch {
+    fail("admin_authority_verification_failed");
+  }
+  const verifiedAuthority = authorityResult?.data?.[0];
+  if (
+    authorityResult?.error ||
+    authorityResult?.data?.length !== 1 ||
+    verifiedAuthority?.auth_user_id !== authority.auth_user_id ||
+    verifiedAuthority?.organization_id !== authority.organization_id ||
+    verifiedAuthority?.membership_id !== authority.membership_id ||
+    verifiedAuthority?.platform_role !== "admin"
+  ) {
+    fail("admin_authority_verification_failed");
+  }
+
+  process.stdout.write(`${email}\n`);
+}
+
 function selectedProviderRouting(accountRaw, pipelinesRaw, usersRaw) {
   const account = record(accountRaw, "provider_response_invalid");
   const currentUserId = exactProviderId(account.current_user_id);
@@ -967,6 +1146,10 @@ async function main() {
   if (command === "read-waha-self") {
     assertExactOptions(parsed, ["runtime-file", "base-url", "self-file"]);
     return readWahaSelf(parsed);
+  }
+  if (command === "prepare-admin") {
+    assertExactOptions(parsed, []);
+    return prepareExistingAdmin();
   }
   if (command === "seed") {
     assertExactOptions(parsed, ["self-file", "context-file"]);

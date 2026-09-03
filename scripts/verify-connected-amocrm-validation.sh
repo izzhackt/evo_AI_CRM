@@ -168,30 +168,22 @@ supabase_database_url="$(read_supabase_env_value DB_URL)"
 [[ "$supabase_secret_key" == "$EVO_PLATFORM_SUPABASE_SECRET_KEY" ]] \
   || fail "The application server key does not match the running local Supabase stack"
 
-staff_suffix="$(date -u +%Y%m%d%H%M%S)-$(openssl rand -hex 4)"
-staff_admin_email="admin-amocrm-${staff_suffix}@evo.local.test"
 staff_admin_password="$(openssl rand -hex 24)"
-staff_sales_email="sales-amocrm-${staff_suffix}@evo.local.test"
-staff_sales_password="$(openssl rand -hex 24)"
-staff_admissions_email="admissions-amocrm-${staff_suffix}@evo.local.test"
-staff_admissions_password="$(openssl rand -hex 24)"
-
-if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+if ! staff_admin_email="$(
+  EVO_V2_SUPABASE_DATABASE_URL="$supabase_database_url" \
+  NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_secret_key" \
-  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
   EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
-  EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
-  EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
-  EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
-  EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
-  "$node_bin" scripts/provision-local-supabase-staff.mjs \
-  >"$staff_log" 2>&1; then
-  fail "Local Supabase staff identity provisioning failed"
+  "$node_bin" scripts/prepare-connected-amocrm-validation.mjs prepare-admin \
+  2>"$staff_log"
+)"; then
+  chmod 600 "$staff_log"
+  fail "Existing local Supabase Admin preparation failed"
 fi
-grep -Fx "LOCAL_SUPABASE_STAFF_PROVISIONED" "$staff_log" >/dev/null \
-  || fail "Local Supabase staff provisioning returned no success marker"
 chmod 600 "$staff_log"
+[[ "$staff_admin_email" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] \
+  || fail "Existing local Supabase Admin preparation returned no exact email"
 
 assert_app_reachable() {
   local deadline=$((SECONDS + 120))

@@ -15703,3 +15703,69 @@ tag write or another validation run requires separate explicit continuation.
 Do not infer success, recreate the validation entity, run a V1 writer or use a
 fallback. WhatsApp, Gemini, V1, deployment, customer migration and cutover were
 not exercised.
+
+## 2026-09-03 - Authorize complete #567 product proof, not a tag-only patch
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: EVO product owner and Codex under launch-control.
+Change type: provider-continuation authority and acceptance-hardening contract.
+Affected plan section: P5C amoCRM exact-main completion gate.
+
+The owner first said `go do it`, then explicitly clarified that the executor
+must not stop at the minimum missing tag operation and must finish the task as a
+working product slice. This supersedes only the exhausted one-run execution
+limit recorded above. It does not weaken the eight-operation acceptance,
+Supabase authority, exact replay, reconciliation or external-system boundaries.
+
+Inspection of the failed run and current exact-main code exposed two product
+risks that must be corrected before another provider mutation:
+
+- immediate post-mutation readback is single-shot, so a transient safe GET
+  failure leaves a successful mutation `unknown` even when a bounded later GET
+  proves the exact entity exists;
+- exact replay currently derives its first two operations from current
+  bindings. After a successful create sequence those bindings can change the
+  same request from `contact_create` / `lead_create` to new update operations,
+  which violates the no-new-attempt replay contract.
+
+Decision:
+
+- preserve a request's original create-or-update operation sequence whenever
+  any canonical attempt for that request already exists;
+- allow only bounded, paced read-only verification retries after a successful
+  mutation response. Never retry the mutation itself. Exhausted verification
+  remains `unknown` and requires reconciliation;
+- add outcome tests with bindings changed between the first execution and the
+  exact replay, plus transient-readback recovery and exhausted-readback
+  fail-closed proof;
+- merge the correction through independent exact-head review, all required CI
+  checks and exact-main CI before the next live run;
+- then execute the complete guarded browser path. Reuse an exact retained
+  canonical checkpoint when available. The previous run's disposable local
+  database was deliberately removed, so do not guess or reconstruct its private
+  IDs; when exact continuation is impossible, use one new clearly named
+  validation entity and a fresh request;
+- completion requires eight accepted attempts and receipts, exact provider
+  readback, one contact and lead binding, exact UI replay with zero added
+  attempts/receipts/bindings/entities, persistence after reload and sanitized
+  `success.json`. Failed attempts remain evidence and do not count as success;
+- the owner authorizes the bounded fresh attempts genuinely required to finish
+  #567. Cache and reuse confirmed results, pace reads, and stop each individual
+  attempt on any unresolved provider write rather than retrying blindly.
+
+Official amoCRM documentation rechecked on 2026-09-03:
+
+- `POST /api/v4/tasks` returns the created task ID and
+  `GET /api/v4/tasks/{id}` is the exact read path; the task list also supports
+  `filter[entity_type]`, `filter[entity_id]` and `filter[id]` for reconciliation:
+  <https://www.amocrm.ru/developers/content/crm_platform/tasks-api>;
+- lead changes use `PATCH /api/v4/leads/{id}` and support `tags_to_add` /
+  `tags_to_delete`:
+  <https://www.amocrm.ru/developers/content/crm_platform/leads-api>;
+- amoCRM limits an integration to seven requests per second and returns HTTP
+  429 when exceeded, so verification must remain paced and bounded:
+  <https://www.amocrm.ru/developers/content/api/recommendations>.
+
+No WhatsApp send, Gemini request, frozen V1 writer, customer-data mutation,
+deployment, historical migration or cutover is authorized. The V3 frontend
+branch and `src/lib/v3/*` remain outside this slice.

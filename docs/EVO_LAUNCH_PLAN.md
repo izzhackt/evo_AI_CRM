@@ -427,6 +427,16 @@ remain immutable evidence; this code correction does not authorize another
 provider run, cleanup mutation or acceptance claim. The owner removed the
 controlled-inbound Gemini/WhatsApp send exercise from the active merge and
 completion gates because the controlled account is unavailable.
+
+PR #575 merged that fail-before-dispatch guard at exact main
+`a572cd73f48c9d6020a2c532f0ec036e9b19c74a`; exact-main CI run
+`33702536583` passed the CRM, Inbox and Lead Agent jobs. The corrective slice
+made no provider call and did not resolve the unknown task attempt. Issue #567
+therefore remains open at one fresh, separately authorized, bounded amoCRM
+validation from reviewed and CI-green exact main. Issue #568 has not started
+and remains sequenced after that validation. The V3 ownership and adapter
+boundaries above are unchanged.
+
 ADR 0026 records that scope correction; no synthetic or customer-chat
 substitute is allowed. The existing
 `src/lib/platform-communications.ts` authenticated Supabase reads and the

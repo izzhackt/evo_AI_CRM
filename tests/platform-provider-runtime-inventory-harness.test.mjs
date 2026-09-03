@@ -43,6 +43,7 @@ test("P5D remote WAHA inspection stays read-only and never copies a secret", () 
 
   assert.match(shell, /ssh[^\n]*hermes-vps/u);
   assert.match(shell, /\/opt\/evo-crm\/\.env\.lead-agent/u);
+  assert.match(shell, /read_runtime_env_value\(\)/u);
   assert.match(shell, /EVO_AGENT_WAHA_SESSION/u);
   assert.match(shell, /crm_primary/u);
   assert.match(shell, /http:\/\/evo-crm-waha:3000/u);
@@ -50,6 +51,8 @@ test("P5D remote WAHA inspection stays read-only and never copies a secret", () 
   assert.match(shell, /evo_crm_private/u);
   assert.match(shell, /\/api\/sessions\/crm_primary/u);
   assert.match(shell, /method[^\n]*GET|curl[^\n]*--request GET/iu);
+  assert.doesNotMatch(shell, /^\. "\$runtime_env"$/mu);
+  assert.doesNotMatch(shell, /^source "\$runtime_env"$/mu);
   assert.doesNotMatch(shell, /\bscp\b|provider\.bundle|ssh-tunnel|LocalForward/u);
   assert.doesNotMatch(shell, /\/api\/sendText|\/messages(?:\?|["'])|--request POST/iu);
   assert.doesNotMatch(shell, /\/opt\/evo-inbox|evo-inbox-waha/u);

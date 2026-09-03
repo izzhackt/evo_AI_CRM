@@ -71,14 +71,33 @@ expected_sha="$1"
 runtime_env="/opt/evo-crm/.env.lead-agent"
 [[ -r "$runtime_env" ]] || exit 20
 
-set -a
-# shellcheck disable=SC1090
-. "$runtime_env"
-set +a
+read_runtime_env_value() {
+  local name="$1"
+  local line=""
+  local value=""
 
-[[ "${EVO_AGENT_WAHA_SESSION:-}" == "crm_primary" ]] || exit 21
-[[ "${EVO_AGENT_WAHA_BASE_URL:-}" == "http://evo-crm-waha:3000" ]] || exit 22
-[[ -n "${EVO_AGENT_WAHA_API_KEY:-}" ]] || exit 23
+  line="$(grep -m 1 -E "^${name}=" "$runtime_env" || true)"
+  [[ -n "$line" ]] || return 1
+  value="${line#*=}"
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
+  printf '%s' "$value"
+}
+
+EVO_AGENT_WAHA_SESSION="$(read_runtime_env_value EVO_AGENT_WAHA_SESSION || true)"
+EVO_AGENT_WAHA_BASE_URL="$(read_runtime_env_value EVO_AGENT_WAHA_BASE_URL || true)"
+EVO_AGENT_WAHA_API_KEY="$(read_runtime_env_value EVO_AGENT_WAHA_API_KEY || true)"
+GEMINI_API_KEY="$(read_runtime_env_value GEMINI_API_KEY || true)"
+GOOGLE_API_KEY="$(read_runtime_env_value GOOGLE_API_KEY || true)"
+EVO_V2_AMOCRM_BASE_URL="$(read_runtime_env_value EVO_V2_AMOCRM_BASE_URL || true)"
+EVO_V2_AMOCRM_TOKEN_FILE="$(read_runtime_env_value EVO_V2_AMOCRM_TOKEN_FILE || true)"
+EVO_V2_AMOCRM_WRITES_ENABLED="$(read_runtime_env_value EVO_V2_AMOCRM_WRITES_ENABLED || true)"
+
+[[ "$EVO_AGENT_WAHA_SESSION" == "crm_primary" ]] || exit 21
+[[ "$EVO_AGENT_WAHA_BASE_URL" == "http://evo-crm-waha:3000" ]] || exit 22
+[[ -n "$EVO_AGENT_WAHA_API_KEY" ]] || exit 23
 [[ "$(docker inspect --format '{{.State.Running}}' evo-crm-waha-1)" == "true" ]] || exit 24
 
 waha_ip="$(docker inspect --format '{{with index .NetworkSettings.Networks "evo_crm_private"}}{{.IPAddress}}{{end}}' evo-crm-waha-1)"
@@ -86,7 +105,11 @@ waha_ip="$(docker inspect --format '{{with index .NetworkSettings.Networks "evo_
 export EVO_PROVIDER_RUNTIME_WAHA_IP="$waha_ip"
 export EVO_PROVIDER_RUNTIME_EXPECTED_SHA="$expected_sha"
 export EVO_PROVIDER_RUNTIME_GEMINI_CONFIGURED="false"
-[[ -n "${GEMINI_API_KEY:-}" ]] && export EVO_PROVIDER_RUNTIME_GEMINI_CONFIGURED="true"
+[[ -n "$GEMINI_API_KEY" || -n "$GOOGLE_API_KEY" ]] && export EVO_PROVIDER_RUNTIME_GEMINI_CONFIGURED="true"
+export EVO_PROVIDER_RUNTIME_AMOCRM_CONFIGURED="false"
+if [[ -n "$EVO_V2_AMOCRM_BASE_URL" && -n "$EVO_V2_AMOCRM_TOKEN_FILE" && "$EVO_V2_AMOCRM_WRITES_ENABLED" == "1" ]]; then
+  export EVO_PROVIDER_RUNTIME_AMOCRM_CONFIGURED="true"
+fi
 
 python3 <<'PY'
 import datetime
@@ -125,7 +148,7 @@ result = {
         "mutationAttempted": False,
     },
     "amocrm": {
-        "configured": False,
+        "configured": os.environ["EVO_PROVIDER_RUNTIME_AMOCRM_CONFIGURED"] == "true",
         "observedReadOnly": True,
         "mutationAttempted": False,
     },

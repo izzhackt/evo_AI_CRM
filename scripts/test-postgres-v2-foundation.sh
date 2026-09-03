@@ -38,6 +38,13 @@ supabase_sales_conversation_lead_id="54600000-0000-4000-8000-000000000006"
 supabase_sales_conversation_id="54600000-0000-4000-8000-000000000007"
 supabase_handoff_client_id="54600000-0000-4000-8000-000000000028"
 supabase_handoff_lead_id="54600000-0000-4000-8000-000000000029"
+runtime_inventory_cleanup=0
+runtime_inventory_sha=""
+runtime_inventory_evidence_dir=""
+runtime_inventory_expected_root=""
+runtime_inventory_browser_evidence=""
+runtime_inventory_database_evidence=""
+next_dev_cache_reset=0
 app_pid=""
 waha_pid=""
 compose_args=()
@@ -111,8 +118,28 @@ cleanup() {
     rmdir "$supabase_lock_dir" >/dev/null 2>&1 || true
     supabase_lock_acquired=0
   fi
+  if [[ "$runtime_inventory_cleanup" == "1" && -d "$runtime_inventory_evidence_dir" && "$runtime_inventory_evidence_dir" == "$runtime_inventory_expected_root/foundation-"* ]]; then
+    rm -R -- "$runtime_inventory_evidence_dir"
+  fi
 }
 trap cleanup EXIT
+
+runtime_inventory_sha="${EVO_PLATFORM_RUNTIME_INVENTORY_MAIN_SHA:-$(git -C "$repo_root" rev-parse HEAD)}"
+[[ "$runtime_inventory_sha" =~ ^[0-9a-f]{40}$ ]] \
+  || fail "The provider runtime inventory requires an exact 40-character Git SHA"
+runtime_inventory_expected_root="$repo_root/output/provider-runtime-inventory/$runtime_inventory_sha"
+if [[ -n "${EVO_PLATFORM_RUNTIME_INVENTORY_EVIDENCE_DIR:-}" ]]; then
+  runtime_inventory_evidence_dir="$EVO_PLATFORM_RUNTIME_INVENTORY_EVIDENCE_DIR"
+else
+  runtime_inventory_evidence_dir="$runtime_inventory_expected_root/foundation-$RANDOM-$$"
+  runtime_inventory_cleanup=1
+fi
+[[ "$runtime_inventory_evidence_dir" == "$runtime_inventory_expected_root" || "$runtime_inventory_evidence_dir" == "$runtime_inventory_expected_root/"* ]] \
+  || fail "The provider runtime inventory evidence directory escaped the exact-SHA output root"
+mkdir -p "$runtime_inventory_evidence_dir"
+chmod 700 "$runtime_inventory_expected_root" "$runtime_inventory_evidence_dir"
+runtime_inventory_browser_evidence="$runtime_inventory_evidence_dir/browser-database-readonly.json"
+runtime_inventory_database_evidence="$runtime_inventory_evidence_dir/database-readonly.json"
 
 assert_next_dev_lock_available() {
   local lock_path="$repo_root/.next/dev/lock"
@@ -125,6 +152,22 @@ assert_next_dev_lock_available() {
   holder_pids="$(lsof -t -- "$lock_path" 2>/dev/null | sort -u || true)"
   [[ -z "$holder_pids" ]] || fail \
     "Cannot start isolated V2 proof: an active process owns ${lock_path} (PID(s): $(echo "$holder_pids" | tr '\n' ' ')). Stop that development server explicitly and rerun. No process was terminated."
+}
+
+reset_next_dev_cache_once() {
+  [[ "$next_dev_cache_reset" == "0" ]] || return 0
+  assert_next_dev_lock_available
+
+  local cache_path="$repo_root/.next/dev"
+  if [[ -L "$cache_path" ]]; then
+    fail "Refusing to reset a symlinked Next development cache at ${cache_path}"
+  fi
+  if [[ -d "$cache_path" ]]; then
+    rm -R -- "$cache_path"
+  elif [[ -e "$cache_path" ]]; then
+    fail "The Next development cache path is not a directory: ${cache_path}"
+  fi
+  next_dev_cache_reset=1
 }
 
 if [[ "$($node_bin --version)" != v22.* ]]; then
@@ -529,6 +572,7 @@ start_app() {
     fail "Unknown isolated amoCRM harness mode: $amocrm_mode"
   fi
   assert_next_dev_lock_available
+  reset_next_dev_cache_once
   : >"$app_log"
   if [[ "$supabase_mode" == "configured" ]]; then
     env -u EVO_PLATFORM_GEMINI_API_KEY \
@@ -922,11 +966,11 @@ EOF
   chmod 600 "$p4_acceptance_result" "$p4_verification_log"
 }
 
-canonical_amocrm_command_browser_assert() {
-  local student_case_id=""
+read_p4_student_case_id() {
   [[ -s "$p4_acceptance_result" ]] \
-    || fail "The canonical amoCRM browser proof requires the P4 acceptance context"
+    || fail "The provider browser proof requires the P4 acceptance context"
 
+  local student_case_id=""
   if ! student_case_id="$(
     EVO_P4_ACCEPTANCE_RESULT_FILE="$p4_acceptance_result" \
       "$node_bin" --input-type=module <<'EOF'
@@ -951,7 +995,13 @@ EOF
   fi
 
   [[ "$student_case_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
-    || fail "The canonical amoCRM browser proof received an invalid Student case id"
+    || fail "The provider browser proof received an invalid Student case id"
+  printf '%s' "$student_case_id"
+}
+
+canonical_amocrm_command_browser_assert() {
+  local student_case_id=""
+  student_case_id="$(read_p4_student_case_id)"
 
   assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
@@ -969,6 +1019,40 @@ EOF
       tests/e2e/canonical-amocrm-command.spec.ts \
       --config=playwright.config.ts \
       --project=desktop-chromium
+}
+
+platform_provider_runtime_inventory_browser_assert() {
+  local student_case_id=""
+  student_case_id="$(read_p4_student_case_id)"
+
+  [[ ! -e "$runtime_inventory_browser_evidence" ]] \
+    || fail "The provider runtime browser evidence path already exists"
+  [[ ! -e "$runtime_inventory_database_evidence" ]] \
+    || fail "The provider runtime database evidence path already exists"
+
+  assert_app_reachable
+  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
+    SUPABASE_DB_URL="$supabase_database_url" \
+    EVO_PLATFORM_RUNTIME_INVENTORY_MAIN_SHA="$runtime_inventory_sha" \
+    EVO_PLATFORM_RUNTIME_INVENTORY_BROWSER_EVIDENCE_FILE="$runtime_inventory_browser_evidence" \
+    EVO_PLATFORM_RUNTIME_INVENTORY_DATABASE_EVIDENCE_FILE="$runtime_inventory_database_evidence" \
+    EVO_PLATFORM_ORGANIZATION_ID="$platform_organization_id" \
+    EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
+    EVO_SUPABASE_SALES_PROOF_CLIENT_ID="$supabase_sales_client_id" \
+    EVO_CANONICAL_STUDENT_CASE_ID="$student_case_id" \
+    EVO_PLATFORM_COMMUNICATIONS_CONVERSATION_ID="$supabase_sales_conversation_id" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+    EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+    "$node_bin" node_modules/@playwright/test/cli.js test \
+      --config=playwright.platform-provider-runtime-inventory.config.ts
+
+  [[ -s "$runtime_inventory_browser_evidence" ]] \
+    || fail "The provider runtime browser proof wrote no evidence"
+  [[ -s "$runtime_inventory_database_evidence" ]] \
+    || fail "The provider runtime database proof wrote no evidence"
+  chmod 600 "$runtime_inventory_browser_evidence" "$runtime_inventory_database_evidence"
 }
 
 platform_communications_browser_assert() {
@@ -1125,6 +1209,8 @@ verify_p4_admissions_storage_acceptance
 echo "Admissions operations and two immutable private Supabase Storage versions passed browser and database proof."
 canonical_amocrm_command_browser_assert
 echo "Canonical Sales and Admissions amoCRM command surfaces passed fail-closed Chromium proof."
+platform_provider_runtime_inventory_browser_assert
+echo "Provider runtime surfaces passed read-only Chromium and exact database no-mutation proof."
 platform_communications_browser_assert configured
 assert_no_secret_or_payload_logs
 

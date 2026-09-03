@@ -17,9 +17,6 @@ export type PlatformConversationStatus = "open" | "closed";
 export type PlatformWahaSessionName = "crm_primary";
 // Provider provenance is immutable: old conversations may still name the
 // retired session, but only PlatformWahaSessionName is a current runtime target.
-export type PlatformWahaEvidenceSessionName =
-  | PlatformWahaSessionName
-  | "evo-inbox";
 export type PlatformMessageDirection = "inbound" | "outbound";
 export type PlatformMessageLanguage = "ru" | "en" | "undetermined";
 export type PlatformMessageWahaAckName =
@@ -60,7 +57,7 @@ export type PlatformConversationSummary = Readonly<{
   queue: PlatformConversationQueue;
   status: PlatformConversationStatus;
   subject: string;
-  wahaSessionName: PlatformWahaEvidenceSessionName;
+  wahaSessionName: PlatformWahaSessionName;
   kommoAccountId: string | null;
   kommoConversationId: string | null;
   amocrmAccountId: string | null;
@@ -77,7 +74,7 @@ export type PlatformConversationMessage = Readonly<{
   bodyText: string;
   language: PlatformMessageLanguage;
   studentVisible: boolean;
-  wahaSessionName: string | null;
+  wahaSessionName: PlatformWahaSessionName | null;
   wahaMessageId: string | null;
   kommoAccountId: string | null;
   kommoConversationId: string | null;
@@ -417,14 +414,6 @@ export function parsePlatformWahaSessionName(
   return value === "crm_primary" ? value : null;
 }
 
-// Historical session names are accepted only while normalizing immutable
-// provider evidence. Current health and outbound paths use the stricter parser.
-function parseHistoricalOrCurrentWahaEvidenceSessionName(
-  value: unknown,
-): PlatformWahaEvidenceSessionName | null {
-  return value === "crm_primary" || value === "evo-inbox" ? value : null;
-}
-
 /**
  * Converts the unknown PostgREST row into the only shape accepted by the UI.
  * It is exported so the boundary contract can be unit-tested without a live
@@ -441,9 +430,7 @@ export function normalizePlatformConversationSummary(
       ? null
       : parsePlatformRouteUuid(value.student_case_id);
   const subject = parseRequiredText(value.subject);
-  const wahaSessionName = parseHistoricalOrCurrentWahaEvidenceSessionName(
-    value.waha_session_name,
-  );
+  const wahaSessionName = parsePlatformWahaSessionName(value.waha_session_name);
   const kommoAccountId = parseOptionalProviderInteger(value.kommo_account_id);
   const kommoConversationId = parseOptionalProviderText(
     value.kommo_conversation_id,
@@ -505,7 +492,10 @@ export function normalizePlatformConversationMessage(
   const id = parsePlatformRouteUuid(value.message_id);
   const conversationId = parsePlatformRouteUuid(value.conversation_id);
   const bodyText = parseRequiredText(value.body_text);
-  const wahaSessionName = parseOptionalProviderText(value.waha_session_name);
+  const wahaSessionName =
+    value.waha_session_name === null
+      ? null
+      : parsePlatformWahaSessionName(value.waha_session_name);
   const wahaMessageId = parseOptionalProviderText(value.waha_message_id);
   const kommoAccountId = parseOptionalProviderInteger(value.kommo_account_id);
   const kommoConversationId = parseOptionalProviderText(
@@ -536,7 +526,7 @@ export function normalizePlatformConversationMessage(
       value.language !== "en" &&
       value.language !== "undetermined") ||
     typeof value.student_visible !== "boolean" ||
-    wahaSessionName === undefined ||
+    (value.waha_session_name !== null && wahaSessionName === null) ||
     wahaMessageId === undefined ||
     kommoAccountId === undefined ||
     kommoConversationId === undefined ||

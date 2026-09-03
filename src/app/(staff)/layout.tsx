@@ -211,7 +211,12 @@ export default async function StaffLayout({
       <a href="#staff-main" className="skip-link">
         {shellCopy.skip}
       </a>
-      <div className="staff-shell">
+      <div
+        className="staff-shell"
+        data-testid="staff-shell"
+        data-authority-role={provider.user.authorityRole}
+        data-effective-role={provider.user.role}
+      >
         <aside className="staff-sidebar">
           <Link
             href={provider.homeHref}

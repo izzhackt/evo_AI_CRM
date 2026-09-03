@@ -15,6 +15,7 @@ const ACTIVE_PROVIDER_RUNTIME_PATHS = [
   "src/lib/server/platform-provider-readiness.ts",
   "src/lib/server/platform-waha-provider.ts",
   "src/lib/server/platform-amocrm-runtime.ts",
+  "src/lib/platform-communications.ts",
   "src/app/(staff)/layout.tsx",
   "src/app/(staff)/whatsapp/[id]/page.tsx",
   "src/app/api/internal/platform-messaging/waha/work/route.ts",
@@ -45,7 +46,7 @@ test("P5D active provider runtime keeps one current WAHA session path", () => {
 
   assert.doesNotMatch(
     activeSource,
-    /evo-inbox-waha|evo_inbox_private|EVO_V2_WAHA|waha:evo-inbox|\/opt\/evo-inbox|PLATFORM_WAHA_SESSION_NAME = "evo-inbox"|ACTIVE_WAHA_SESSION = "evo-inbox"|getPlatformWahaSessionHealth\(actor,\s*"evo-inbox"\)|thread\.conversation\.wahaSessionName === "evo-inbox"|waha_session_name="evo-inbox"/i,
+    /evo-inbox|evo_inbox_private|EVO_V2_WAHA|waha:evo-inbox|\/opt\/evo-inbox|PLATFORM_WAHA_SESSION_NAME = "evo-inbox"|ACTIVE_WAHA_SESSION = "evo-inbox"|getPlatformWahaSessionHealth\(actor,\s*"evo-inbox"\)|thread\.conversation\.wahaSessionName === "evo-inbox"|waha_session_name="evo-inbox"/i,
   );
 });
 

@@ -147,6 +147,32 @@ test("connected amoCRM acceptance has one local Supabase data authority", async 
   assert.doesNotMatch(shellSource, /(?:^|\s)DATABASE_URL=/mu);
 });
 
+test("connected amoCRM acceptance provisions its exact local staff authority before seeding", async () => {
+  const source = await readFile(SHELL_PATH, "utf8");
+  const provisionIndex = source.indexOf(
+    'scripts/provision-local-supabase-staff.mjs',
+  );
+  const seedIndex = source.indexOf(
+    'scripts/prepare-connected-amocrm-validation.mjs seed',
+  );
+
+  assert.ok(provisionIndex >= 0);
+  assert.ok(seedIndex > provisionIndex);
+  assert.match(
+    source,
+    /staff_admin_email="admin-amocrm-\$\{staff_suffix\}@evo\.local\.test"/u,
+  );
+  assert.match(source, /staff_admin_password="\$\(openssl rand -hex 24\)"/u);
+  assert.match(source, /EVO_STAFF_AUTH_ADMIN_EMAIL="\$staff_admin_email"/u);
+  assert.match(source, /EVO_STAFF_AUTH_ADMIN_PASSWORD="\$staff_admin_password"/u);
+  assert.match(source, /EVO_STAFF_AUTH_SALES_EMAIL/u);
+  assert.match(source, /EVO_STAFF_AUTH_SALES_PASSWORD/u);
+  assert.match(source, /EVO_STAFF_AUTH_ADMISSIONS_EMAIL/u);
+  assert.match(source, /EVO_STAFF_AUTH_ADMISSIONS_PASSWORD/u);
+  assert.match(source, /LOCAL_SUPABASE_STAFF_PROVISIONED/u);
+  assert.match(source, /chmod 600 "\$staff_log"/u);
+});
+
 test("connected amoCRM harness canonicalizes a trailing-slash TMPDIR before creating private paths", async () => {
   const directory = await mkdtemp(join(tmpdir(), "evo-amocrm-tmp-root."));
   try {

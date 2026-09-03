@@ -14,6 +14,7 @@ tmp_root="$(cd "${TMPDIR:-/tmp}" && pwd -P)"
 tmp_dir="$(mktemp -d "$tmp_root/evo-v2-real-amocrm.XXXXXX")"
 supabase_env_file="$tmp_dir/supabase.env"
 supabase_log="$tmp_dir/supabase.log"
+staff_log="$tmp_dir/staff.log"
 ssh_probe_log="$tmp_dir/ssh-probe.log"
 tunnel_log="$tmp_dir/ssh-tunnel.log"
 app_log="$tmp_dir/app.log"
@@ -118,9 +119,7 @@ fi
 for variable_name in \
   NEXT_PUBLIC_SUPABASE_URL \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
-  EVO_PLATFORM_SUPABASE_SECRET_KEY \
-  EVO_STAFF_AUTH_ADMIN_EMAIL \
-  EVO_STAFF_AUTH_ADMIN_PASSWORD; do
+  EVO_PLATFORM_SUPABASE_SECRET_KEY; do
   require_env "$variable_name"
 done
 
@@ -168,6 +167,31 @@ supabase_database_url="$(read_supabase_env_value DB_URL)"
   || fail "The application publishable key does not match the running local Supabase stack"
 [[ "$supabase_secret_key" == "$EVO_PLATFORM_SUPABASE_SECRET_KEY" ]] \
   || fail "The application server key does not match the running local Supabase stack"
+
+staff_suffix="$(date -u +%Y%m%d%H%M%S)-$(openssl rand -hex 4)"
+staff_admin_email="admin-amocrm-${staff_suffix}@evo.local.test"
+staff_admin_password="$(openssl rand -hex 24)"
+staff_sales_email="sales-amocrm-${staff_suffix}@evo.local.test"
+staff_sales_password="$(openssl rand -hex 24)"
+staff_admissions_email="admissions-amocrm-${staff_suffix}@evo.local.test"
+staff_admissions_password="$(openssl rand -hex 24)"
+
+if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+  EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_secret_key" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+  EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+  EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+  EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+  EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
+  "$node_bin" scripts/provision-local-supabase-staff.mjs \
+  >"$staff_log" 2>&1; then
+  fail "Local Supabase staff identity provisioning failed"
+fi
+grep -Fx "LOCAL_SUPABASE_STAFF_PROVISIONED" "$staff_log" >/dev/null \
+  || fail "Local Supabase staff provisioning returned no success marker"
+chmod 600 "$staff_log"
 
 assert_app_reachable() {
   local deadline=$((SECONDS + 120))
@@ -260,6 +284,7 @@ done
   --self-file "$self_file"
 
 EVO_V2_SUPABASE_DATABASE_URL="$supabase_database_url" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
   "$node_bin" --conditions=react-server --experimental-strip-types \
     scripts/prepare-connected-amocrm-validation.mjs seed \
     --self-file "$self_file" \
@@ -274,8 +299,8 @@ PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   EVO_V2_AMOCRM_EVIDENCE_DIR="$evidence_dir" \
   EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE="$runtime_file" \
   EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
-  EVO_STAFF_AUTH_ADMIN_EMAIL="$EVO_STAFF_AUTH_ADMIN_EMAIL" \
-  EVO_STAFF_AUTH_ADMIN_PASSWORD="$EVO_STAFF_AUTH_ADMIN_PASSWORD" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
   "$node_bin" node_modules/@playwright/test/cli.js test \
     tests/e2e/canonical-amocrm-connected-provider.spec.ts \
     --config=playwright.config.ts \
@@ -306,8 +331,8 @@ PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   EVO_V2_AMOCRM_EVIDENCE_DIR="$evidence_dir" \
   EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE="$runtime_file" \
   EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
-  EVO_STAFF_AUTH_ADMIN_EMAIL="$EVO_STAFF_AUTH_ADMIN_EMAIL" \
-  EVO_STAFF_AUTH_ADMIN_PASSWORD="$EVO_STAFF_AUTH_ADMIN_PASSWORD" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
   "$node_bin" node_modules/@playwright/test/cli.js test \
     tests/e2e/canonical-amocrm-connected-provider.spec.ts \
     --config=playwright.config.ts \

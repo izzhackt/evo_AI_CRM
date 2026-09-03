@@ -28,6 +28,8 @@ const wahaSessionVolume = `evo_p6d_${suffix}_waha_sessions`;
 const appEnvironmentFile = join(harnessRoot, ".env.production");
 const wahaEnvironmentFile = join(harnessRoot, ".env.waha");
 const composeOverrideFile = join(harnessRoot, "compose.override.json");
+const tlsCertificateFile = join(harnessRoot, "supabase-local.crt");
+const tlsKeyFile = join(harnessRoot, "supabase-local.key");
 const wahaDigest = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const wahaReference = `devlikeapro/waha@${wahaDigest}`;
 const createdNetworks = new Set();
@@ -150,6 +152,23 @@ function createNetwork(name, { internal }) {
   args.push(name);
   docker(args, { label: `Create isolated network ${name}` });
   createdNetworks.add(name);
+}
+
+function createLocalTlsCertificate() {
+  execute("openssl", [
+    "req", "-x509", "-newkey", "rsa:2048", "-sha256", "-nodes",
+    "-days", "1", "-subj", "/CN=localhost",
+    "-addext", "subjectAltName=DNS:localhost",
+    "-addext", "basicConstraints=critical,CA:TRUE",
+    "-addext", "keyUsage=critical,digitalSignature,keyCertSign,keyEncipherment",
+    "-addext", "extendedKeyUsage=serverAuth",
+    "-keyout", tlsKeyFile, "-out", tlsCertificateFile,
+  ], { cwd: harnessRoot, label: "Create disposable local TLS certificate" });
+  // The random parent directory remains 0700 on the host. Read permission is
+  // required only because the non-root container receives these two files as
+  // read-only bind mounts.
+  chmodSync(tlsCertificateFile, 0o644);
+  chmodSync(tlsKeyFile, 0o644);
 }
 
 function inspectContainer(id) {
@@ -343,13 +362,15 @@ async function main() {
   const appPort = await freePort();
   const missingConfigPort = await freePort();
   const observabilitySecret = randomBytes(40).toString("base64url");
+  const appSupabaseUrl = `https://localhost:${Number(supabaseUrl.port)}`;
 
   await assertSupabaseServices();
+  createLocalTlsCertificate();
 
   const appEnvironment = [
     `EVO_CRM_DOMAIN=127.0.0.1:${appPort}`,
     `EVO_CADDY_NETWORK=${webNetwork}`,
-    `NEXT_PUBLIC_SUPABASE_URL=${supabaseApiUrl}`,
+    `NEXT_PUBLIC_SUPABASE_URL=${appSupabaseUrl}`,
     `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabasePublishableKey}`,
     `EVO_PLATFORM_SUPABASE_SECRET_KEY=${supabaseSecretKey}`,
     `EVO_PLATFORM_ORGANIZATION_ID=${organizationId}`,
@@ -378,16 +399,20 @@ async function main() {
   writePrivate(appEnvironmentFile, appEnvironment);
   writePrivate(wahaEnvironmentFile, wahaEnvironment);
 
-  const proxySource = `const http=require('node:http');const target={host:'host.docker.internal',port:${Number(supabaseUrl.port)}};http.createServer((req,res)=>{const up=http.request({...target,path:req.url,method:req.method,headers:{...req.headers,host:'127.0.0.1:${Number(supabaseUrl.port)}'}},r=>{res.writeHead(r.statusCode??502,r.headers);r.pipe(res)});up.on('error',()=>{res.writeHead(502);res.end()});req.pipe(up)}).listen(${Number(supabaseUrl.port)},'127.0.0.1');`;
+  const proxySource = `const fs=require('node:fs'),http=require('node:http'),https=require('node:https');const target={host:'host.docker.internal',port:${Number(supabaseUrl.port)}};https.createServer({key:fs.readFileSync('/run/evo-p6d/supabase-local.key'),cert:fs.readFileSync('/run/evo-p6d/supabase-local.crt')},(req,res)=>{const up=http.request({...target,path:req.url,method:req.method,headers:{...req.headers,host:'127.0.0.1:${Number(supabaseUrl.port)}'}},r=>{res.writeHead(r.statusCode??502,r.headers);r.pipe(res)});up.on('error',()=>{res.writeHead(502);res.end()});req.pipe(up)}).listen(${Number(supabaseUrl.port)},'127.0.0.1');`;
   writePrivate(composeOverrideFile, `${JSON.stringify({
     services: {
       app: {
         ports: [`127.0.0.1:${appPort}:3000`],
         extra_hosts: ["host.docker.internal:host-gateway"],
         environment: {
-          NODE_ENV: "development",
+          NODE_EXTRA_CA_CERTS: "/run/evo-p6d/supabase-local.crt",
           EVO_P6D_LOCAL_SUPABASE_PROXY_B64: Buffer.from(proxySource).toString("base64"),
         },
+        volumes: [
+          `${tlsCertificateFile}:/run/evo-p6d/supabase-local.crt:ro`,
+          `${tlsKeyFile}:/run/evo-p6d/supabase-local.key:ro`,
+        ],
         command: ["sh", "-ec", "node -e \"eval(Buffer.from(process.env.EVO_P6D_LOCAL_SUPABASE_PROXY_B64,'base64').toString('utf8'))\" & exec node server.js"],
       },
     },
@@ -500,7 +525,7 @@ async function main() {
       pathInventory: paths,
     },
     compose: { services: ["app", "waha"], privateWaha: true, productionRendered: true, stagingRendered: true },
-    supabase: { auth: "passed", postgres: "passed", storage: "passed", authority: "disposable_local" },
+    supabase: { auth: "passed", postgres: "passed", storage: "passed", authority: "disposable_local_tls_proxy" },
     browser: { adminLogin: "passed" },
     health: 200,
     readiness: readinessStatus,

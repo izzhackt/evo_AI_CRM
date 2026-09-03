@@ -292,6 +292,13 @@ export type PeriodTrend = Readonly<{
  * того, что неделя ещё не кончилась. Остаток слева в ряд не попадает, поэтому
  * ряд подписывает себя сам: `label` называет дни, по которым он проведён.
  *
+ * РЯД НАКОПИТЕЛЬНЫЙ, а не поштучный. Лиды приходят пачками: в одни дни пятеро,
+ * в остальные никого. Поштучный ряд на таких данных — это отдельные пики среди
+ * нулей, и прочитать по нему «больше или меньше стало» невозможно. Каждая
+ * точка накопительного ряда — сколько набралось к этой дате, поэтому линия
+ * монотонная, а её конец равен числу на карточке за тот же период: два
+ * разных места на экране дают одно число.
+ *
  * `null` означает «рисовать нечего»: меньше двух корзин — это не динамика, и
  * ряд из одних нулей тоже.
  */
@@ -319,13 +326,20 @@ async function hourlyTrend(period: Period): Promise<PeriodTrend | null> {
       ) as bucket
     )
     select
-      to_char(bucket, 'HH24:MI')                                          as at,
-      (select count(*) from cohort c
-        where c.at >= bucket and c.at < bucket + interval '1 hour')       as leads,
-      (select count(*) from cohort c
-         join evo_sales_admissions_handoffs h on h.lead_id = c.id
-        where c.at >= bucket and c.at < bucket + interval '1 hour')       as handed
-    from buckets
+      at,
+      sum(came) over (order by bucket)   as leads,
+      sum(passed) over (order by bucket) as handed
+    from (
+      select
+        bucket,
+        to_char(bucket, 'HH24:MI')                                        as at,
+        (select count(*) from cohort c
+          where c.at >= bucket and c.at < bucket + interval '1 hour')     as came,
+        (select count(*) from cohort c
+           join evo_sales_admissions_handoffs h on h.lead_id = c.id
+          where c.at >= bucket and c.at < bucket + interval '1 hour')     as passed
+      from buckets
+    ) per_bucket
     order by bucket
   `;
 
@@ -361,13 +375,20 @@ async function dailyTrend(period: Period, days: number): Promise<PeriodTrend | n
       )::date as bucket
     )
     select
-      to_char(bucket, 'YYYY-MM-DD')                                       as at,
-      (select count(*) from cohort c
-        where c.day >= bucket and c.day < bucket + ${step}::int)          as leads,
-      (select count(*) from cohort c
-         join evo_sales_admissions_handoffs h on h.lead_id = c.id
-        where c.day >= bucket and c.day < bucket + ${step}::int)          as handed
-    from buckets
+      at,
+      sum(came) over (order by bucket)   as leads,
+      sum(passed) over (order by bucket) as handed
+    from (
+      select
+        bucket,
+        to_char(bucket, 'YYYY-MM-DD')                                     as at,
+        (select count(*) from cohort c
+          where c.day >= bucket and c.day < bucket + ${step}::int)        as came,
+        (select count(*) from cohort c
+           join evo_sales_admissions_handoffs h on h.lead_id = c.id
+          where c.day >= bucket and c.day < bucket + ${step}::int)        as passed
+      from buckets
+    ) per_bucket
     order by bucket
   `;
 

@@ -19,6 +19,7 @@ const {
   claimPlatformAmoCrmCommand,
   finishPlatformAmoCrmCommand,
   preparePlatformAmoCrmCommand,
+  readPlatformAmoCrmCommandByIdempotencyKey,
   readPlatformAmoCrmCommandForReconciliation,
   readPlatformAmoCrmBindings,
   readPlatformBlockingAmoCrmCommand,
@@ -83,6 +84,85 @@ function expectedAttempt(overrides = {}) {
     failureCode: row.failure_code,
   };
 }
+
+test("service idempotency lookup uses the exact RPC contract and parses its snapshot", async () => {
+  const calls = [];
+  const idempotencyKey = "amocrm:lead-note:1";
+  const client = stubClient(async (functionName, args) => {
+    calls.push({ functionName, args });
+    return { data: sampleAttempt({ idempotency_key: idempotencyKey }), error: null };
+  });
+
+  assert.deepEqual(
+    await readPlatformAmoCrmCommandByIdempotencyKey(client, {
+      organizationId: IDS.organization,
+      idempotencyKey,
+    }),
+    expectedAttempt({ idempotency_key: idempotencyKey }),
+  );
+  assert.deepEqual(calls, [
+    {
+      functionName: "read_amocrm_command_by_idempotency_key",
+      args: {
+        p_organization_id: IDS.organization,
+        p_idempotency_key: idempotencyKey,
+      },
+    },
+  ]);
+});
+
+test("service idempotency lookup returns null when no command exists", async () => {
+  const client = stubClient(async () => ({ data: null, error: null }));
+
+  assert.equal(
+    await readPlatformAmoCrmCommandByIdempotencyKey(client, {
+      organizationId: IDS.organization,
+      idempotencyKey: "amocrm:missing:1",
+    }),
+    null,
+  );
+});
+
+test("service idempotency lookup rejects invalid input before calling RPC", async () => {
+  let called = false;
+  const client = stubClient(async () => {
+    called = true;
+    return { data: null, error: null };
+  });
+
+  await assert.rejects(
+    readPlatformAmoCrmCommandByIdempotencyKey(client, {
+      organizationId: "not-a-uuid",
+      idempotencyKey: "amocrm:lead-note:1",
+    }),
+    PlatformAmoCrmCommandRpcError,
+  );
+  await assert.rejects(
+    readPlatformAmoCrmCommandByIdempotencyKey(client, {
+      organizationId: IDS.organization,
+      idempotencyKey: " amocrm:lead-note:1 ",
+    }),
+    PlatformAmoCrmCommandRpcError,
+  );
+  assert.equal(called, false);
+});
+
+test("service idempotency lookup rejects malformed or mismatched snapshots", async () => {
+  for (const data of [
+    { ...sampleAttempt(), operation_name: "legacy" },
+    sampleAttempt({ organization_id: IDS.studentCase }),
+    sampleAttempt({ idempotency_key: "amocrm:other:1" }),
+  ]) {
+    const client = stubClient(async () => ({ data, error: null }));
+    await assert.rejects(
+      readPlatformAmoCrmCommandByIdempotencyKey(client, {
+        organizationId: IDS.organization,
+        idempotencyKey: "amocrm:lead-note:1",
+      }),
+      PlatformAmoCrmCommandRpcError,
+    );
+  }
+});
 
 function stubClient(handler) {
   return {

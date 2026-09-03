@@ -365,6 +365,28 @@ export async function readPlatformBlockingAmoCrmCommand(
   return data === null ? null : parseSnapshot(data);
 }
 
+export async function readPlatformAmoCrmCommandByIdempotencyKey(
+  client: PlatformAmoCrmRpcClient,
+  input: Readonly<{ organizationId: string; idempotencyKey: string }>,
+): Promise<PlatformAmoCrmCommandSnapshot | null> {
+  const organizationId = normalizedUuid(input.organizationId) ?? invalid();
+  const idempotencyKey = safeText(input.idempotencyKey, 200) ?? invalid();
+  const data = await rpc(client, "read_amocrm_command_by_idempotency_key", {
+    p_organization_id: organizationId,
+    p_idempotency_key: idempotencyKey,
+  });
+  if (data === null) return null;
+
+  const attempt = parseSnapshot(data);
+  if (
+    attempt.organizationId !== organizationId ||
+    attempt.idempotencyKey !== idempotencyKey
+  ) {
+    invalid();
+  }
+  return attempt;
+}
+
 function attemptTargetsMatchAuthorizedContext(
   attempt: PlatformAmoCrmCommandSnapshot,
   personId: string | null,

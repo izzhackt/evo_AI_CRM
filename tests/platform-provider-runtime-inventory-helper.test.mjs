@@ -209,6 +209,37 @@ test("runtime scan separates historical evo-inbox references from active ones", 
   );
 });
 
+test("runtime scan remains deterministic when ripgrep is unavailable", () => {
+  const root = fixture();
+  writeFileSync(
+    join(root, "docs", "historical.md"),
+    "Frozen rollback evidence keeps evo-inbox as historical context.\n",
+    { mode: 0o600 },
+  );
+  writeFileSync(
+    join(root, "src", "bad.ts"),
+    "export const selectedSession = 'evo-inbox';\n",
+    { mode: 0o600 },
+  );
+
+  const unavailableRipgrep = () => ({
+    status: null,
+    stdout: undefined,
+    stderr: undefined,
+    error: Object.assign(new Error("spawnSync rg ENOENT"), { code: "ENOENT" }),
+  });
+  const scan = scanRuntimeReferences(root, undefined, unavailableRipgrep);
+
+  assert.deepEqual(
+    scan.historicalReferences.map(({ path }) => path),
+    ["docs/historical.md"],
+  );
+  assert.deepEqual(
+    scan.activeViolations.map(({ path }) => path),
+    ["src/bad.ts"],
+  );
+});
+
 test("inventory artifact is written privately and blocks active fallback references", () => {
   const root = fixture();
   writeFileSync(

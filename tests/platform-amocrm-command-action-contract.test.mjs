@@ -201,6 +201,32 @@ test("task fields are required and task_complete_till must be a future unix seco
     ),
     null,
   );
+  assert.equal(
+    parsePlatformAmoCrmSalesSyncForm(
+      form([
+        ["lead_id", IDS.lead],
+        ["note_text", "Valid note"],
+        ["request_id", IDS.request],
+        ["task_text", "Valid task"],
+        ["task_complete_till", "2147483647"],
+      ]),
+      { now: FIXED_NOW },
+    )?.taskCompleteTill,
+    2_147_483_647,
+  );
+  assert.equal(
+    parsePlatformAmoCrmSalesSyncForm(
+      form([
+        ["lead_id", IDS.lead],
+        ["note_text", "Valid note"],
+        ["request_id", IDS.request],
+        ["task_text", "Valid task"],
+        ["task_complete_till", "2147483648"],
+      ]),
+      { now: FIXED_NOW },
+    ),
+    null,
+  );
 });
 
 test("note_text and task_text reject control characters under the shared fail-closed rule", () => {

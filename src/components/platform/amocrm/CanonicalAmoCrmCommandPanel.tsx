@@ -7,6 +7,10 @@ import { btnCls, btnGhostCls, Card, cn } from "@/components/ui";
 import { resolveCanonicalAmoCrmCommandPanelState } from "@/lib/canonical-amocrm-command-panel-state";
 import type { Locale } from "@/lib/i18n";
 import {
+  AMOCRM_TASK_COMPLETE_TILL_MAX,
+  AMOCRM_TASK_DEADLINE_LOCAL_SAFE_MAX,
+} from "@/lib/platform-amocrm-task-deadline";
+import {
   reconcileCanonicalAmoCrmCommandAction,
   releaseCanonicalAmoCrmPreparedCommandAction,
   syncCanonicalAmoCrmAdmissionsAction,
@@ -198,7 +202,13 @@ function unixFromDateTimeLocal(value: string): string {
   if (value.trim().length === 0) return "";
   const parsed = new Date(value);
   const unix = Math.floor(parsed.getTime() / 1_000);
-  if (!Number.isFinite(unix) || unix <= 0) return "";
+  if (
+    !Number.isFinite(unix) ||
+    unix <= 0 ||
+    unix > AMOCRM_TASK_COMPLETE_TILL_MAX
+  ) {
+    return "";
+  }
   return String(unix);
 }
 
@@ -471,6 +481,7 @@ export function CanonicalAmoCrmCommandPanel({
             <input
               type="datetime-local"
               value={taskDeadlineLocal}
+              max={AMOCRM_TASK_DEADLINE_LOCAL_SAFE_MAX}
               required
               disabled={!ready || syncing || flowBlocked}
               onChange={(event) => setTaskDeadlineLocal(event.currentTarget.value)}

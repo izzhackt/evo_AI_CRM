@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 
+import { AMOCRM_TASK_COMPLETE_TILL_MAX } from "../platform-amocrm-task-deadline.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import {
   getPlatformSalesLead,
@@ -292,6 +293,7 @@ function requiredFutureUnix(value: unknown, now: Date): number {
   if (
     typeof value !== "number" ||
     !Number.isInteger(value) ||
+    value > AMOCRM_TASK_COMPLETE_TILL_MAX ||
     value <= Math.floor(now.getTime() / 1_000)
   ) {
     throw new Error("invalid_task_complete_till");

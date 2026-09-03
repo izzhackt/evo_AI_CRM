@@ -7,7 +7,7 @@ import postgres from "postgres";
 
 const NOTE_TEXT = "EVO V2 provider validation: reviewed by Admin.";
 const TASK_TEXT = "EVO V2 provider validation: manager follow-up.";
-const TASK_DEADLINE_LOCAL = "2099-09-15T12:00";
+const TASK_DEADLINE_LOCAL = nearFutureTaskDeadlineLocal();
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const PROVIDER_ID = /^[1-9][0-9]{0,9}$/u;
@@ -23,6 +23,13 @@ const OPERATIONS = Object.freeze([
   "lead_task_create",
   "lead_tag_update",
 ]);
+
+function nearFutureTaskDeadlineLocal(): string {
+  const deadline = new Date(Date.now() + 24 * 60 * 60 * 1_000);
+  const localMilliseconds =
+    deadline.getTime() - deadline.getTimezoneOffset() * 60 * 1_000;
+  return new Date(localMilliseconds).toISOString().slice(0, 16);
+}
 
 test.use({ trace: "off", screenshot: "off", video: "off" });
 test.describe.configure({ mode: "serial" });

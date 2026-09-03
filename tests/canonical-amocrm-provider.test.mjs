@@ -883,6 +883,13 @@ test("canonical amoCRM rejects unsafe IDs and payloads before any dispatch", asy
         text: "Call applicant",
         completeTill: 0,
       }),
+    () =>
+      provider.createLeadTask({
+        requestId: "ok",
+        leadId: "1",
+        text: "Call applicant",
+        completeTill: 2_147_483_648,
+      }),
     () => provider.updateLeadTags({ requestId: "ok", leadId: "1" }),
     () =>
       provider.prepareUpdateLeadTags({

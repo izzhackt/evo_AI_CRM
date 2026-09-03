@@ -15574,3 +15574,69 @@ checks, independent exact-head review, exact-head CI, controlled merge and
 exact-main CI. Only then may the bounded #567 harness be invoked again. This is
 not a blind provider retry because the failed run never entered its dispatch
 test; provider rejection or ambiguity would still stop without retry.
+
+## 2026-09-03 - Fail before amoCRM task deadlines that the provider cannot preserve
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex under the owner's standing #567 provider authorization.
+Change type: real-provider defect correction; #567 remains open.
+Affected plan section: P5C Supabase-authoritative amoCRM commands and exact-main
+provider acceptance.
+
+PR #574 merged the Sales command surface at exact main
+`a9da91a23c2c8c1f9c475ae72faf8c4a52e4789f`; exact-main CI run
+`33699454396` passed. The guarded acceptance then entered its real provider
+phase once. Contact, lead, link, pipeline/status, responsible-user and note
+operations returned HTTP 200, matched provider readback and persisted accepted
+Supabase state. The task create also returned HTTP 200 and created exactly one
+task on the exact validation lead with the exact reviewed text. Its submitted
+deadline was Unix `4093142400` (`2099-09-15`), while the subsequent real GET
+returned `-62170001904`. The service correctly recorded
+`provider_readback_mismatch`, left the attempt `unknown`, stopped before the tag
+operation and emitted no success evidence.
+
+A bounded read-only `GET /api/v4/tasks` filtered by the exact lead found one and
+only one matching task. No retry, patch, delete, cleanup or other provider
+mutation followed. The existing provider entities and local immutable attempt
+remain failure/reconciliation evidence. The current official amoCRM Tasks API
+documents `complete_till` as a Unix timestamp and supports task-list filtering
+by `entity_type` plus `entity_id`, but publishes no future-date maximum:
+<https://www.amocrm.ru/developers/content/crm_platform/tasks-api>. The real
+account result is therefore the governing compatibility evidence.
+
+Decision: accept only future task deadlines at or below signed 32-bit Unix
+`2147483647` at every form/service/provider boundary, so an unsupported date
+fails before dispatch. Connected acceptance must use a normal runtime-derived
+near-future deadline inside that bound instead of a distant calendar sentinel.
+Add unit and browser proof for the upper boundary and retain exact readback.
+This corrective PR performs no provider mutation and does not authorize a
+second connected acceptance run; #567 stays open until a separately authorized
+fresh validation can pass from reviewed, CI-green exact main.
+
+## 2026-09-03 - Coordinate successor backend work with the unmerged V3 frontend
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex from the V3 frontend-track handoff at
+`claude/v3-frontend` commit `147421c3129b6e938a168cdf8788687cddc07318`.
+Change type: cross-track ownership and reuse boundary; no V3 merge.
+Affected plan sections: current successor authority and later CRM vertical
+slices.
+
+The V3 branch remains an unmerged visual-design track and is not part of the
+current exact-head candidate, CI or release. Its seven screens are deliberately
+database-agnostic; data access is isolated in `src/lib/v3/*-source.ts` plus
+wording. Backend branches must not edit those adapters or plan around a V3
+merge. When authority or response shape changes, the backend track records and
+communicates the contract first and the V3 track rewrites its adapters.
+
+Decision: reuse existing Supabase capabilities before adding schema. The
+document checklist/review model already exists in migrations 043, 046, 053 and
+055; visa cases and commands in migration 042; lead ownership, stages and
+filters in migration 086. Backend work may expose and verify these contracts,
+but the V3 track owns document-checklist, visa and lead-owner screens. Do not
+create parallel screens, a third application-status dictionary or an in-app
+WhatsApp channel connector. Genuine schema gaps listed by the V3 handoff --
+staff as a person, payment plans, client questionnaire, application
+priority/deadline and document-to-application/visa links -- are coordination
+inputs only until individually prioritized. No file from the V3 branch is
+merged or copied by this decision.

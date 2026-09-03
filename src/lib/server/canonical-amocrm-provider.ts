@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import { AMOCRM_TASK_COMPLETE_TILL_MAX } from "../platform-amocrm-task-deadline.ts";
 import type { CanonicalAmoCrmProviderConfig } from "./canonical-amocrm-provider-config.ts";
 import {
   readCanonicalAmoCrmTokenFile,
@@ -609,7 +610,7 @@ function unixTimestampSeconds(value: unknown): number {
     typeof value !== "number" ||
     !Number.isInteger(value) ||
     value < 1 ||
-    value > 4_102_444_800
+    value > AMOCRM_TASK_COMPLETE_TILL_MAX
   ) {
     return invalidMutationRequest();
   }

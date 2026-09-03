@@ -69,7 +69,12 @@ test("CI and the exact-SHA gate require only the current root successor", async 
 test("P6D proof accepts only process-provided real local Supabase authority", async () => {
   const harness = await read("scripts/test-p6d-release-candidate-orbstack.mjs");
   const foundation = await read("scripts/test-postgres-v2-foundation.sh");
-  assert.match(foundation, /node_bin="\$\{EVO_NODE_BIN:-\/opt\/homebrew\/opt\/node@22\/bin\/node\}"/u);
+  assert.match(foundation, /node_bin="\$\{EVO_NODE_BIN:-\}"/u);
+  assert.match(foundation, /node_bin="\$\(command -v node \|\| true\)"/u);
+  assert.match(
+    foundation,
+    /Node 22 binary is required via EVO_NODE_BIN or PATH/u,
+  );
   for (const name of [
     "EVO_P6D_SUPABASE_API_URL",
     "EVO_P6D_SUPABASE_PUBLISHABLE_KEY",

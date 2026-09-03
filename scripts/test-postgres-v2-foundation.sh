@@ -15,11 +15,15 @@ fail() {
 trap report_error ERR
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-node_bin="${EVO_NODE_BIN:-/opt/homebrew/opt/node@22/bin/node}"
+node_bin="${EVO_NODE_BIN:-}"
+if [[ -z "$node_bin" ]]; then
+  node_bin="$(command -v node || true)"
+fi
 supabase_lock_dir="${TMPDIR:-/tmp}/evo-platform-local-supabase-foundation.lock"
 supabase_lock_pid_file="$supabase_lock_dir/pid"
 
-[[ -x "$node_bin" ]] || fail "Node 22 binary is required at ${node_bin}"
+[[ -n "$node_bin" && -x "$node_bin" ]] \
+  || fail "Node 22 binary is required via EVO_NODE_BIN or PATH"
 
 foundation_harness_pid_active() {
   local pid="$1"
@@ -195,7 +199,7 @@ reset_next_dev_cache_once() {
   next_dev_cache_reset=1
 }
 
-if [[ "$($node_bin --version)" != v22.* ]]; then
+if [[ "$("$node_bin" --version)" != v22.* ]]; then
   fail "The database foundation gate requires Node 22.x"
 fi
 

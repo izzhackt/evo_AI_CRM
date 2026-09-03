@@ -175,6 +175,7 @@ test("P6C foundation harness reports an unrecoverable stale lock without startin
       encoding: "utf8",
       env: {
         ...process.env,
+        EVO_NODE_BIN: process.execPath,
         TMPDIR: `${temporaryRoot}/`,
       },
     });

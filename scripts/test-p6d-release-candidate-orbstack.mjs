@@ -287,7 +287,28 @@ async function proveBrowserAndReadiness(baseUrl, observabilitySecret) {
   await page.locator("#staff-email").fill(adminEmail);
   await page.locator("#staff-password").fill(adminPassword);
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await page.getByTestId("staff-entry-workspace").waitFor({ state: "visible" });
+  const workspace = page.getByTestId("staff-entry-workspace");
+  const pending = page.getByTestId("platform-pending");
+  const loginError = page.locator("#login-error");
+  try {
+    await workspace.waitFor({ state: "visible", timeout: 30_000 });
+  } catch (error) {
+    const facts = [`url=${page.url()}`];
+    if (await loginError.isVisible().catch(() => false)) {
+      facts.push(`login_error=${JSON.stringify(await loginError.innerText())}`);
+    }
+    if (await pending.isVisible().catch(() => false)) {
+      facts.push("pending=true");
+      const pendingRole = await page.getByTestId("pending-role").getAttribute("data-role").catch(() => null);
+      if (pendingRole) facts.push(`pending_role=${pendingRole}`);
+    }
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    if (bodyText.trim()) facts.push(`body=${JSON.stringify(bodyText.trim().slice(0, 800))}`);
+    throw new Error(
+      `Standalone login did not reach the staff workspace: ${facts.join(" ")}`,
+      { cause: error },
+    );
+  }
   assert.equal(await page.getByTestId("active-role").getAttribute("data-authority-role"), "admin");
   await context.close();
 

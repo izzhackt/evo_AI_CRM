@@ -15946,3 +15946,73 @@ Decision:
 - render the staging Compose model and prove `/app/recovery-evidence` is a
   read-only bind before closing #584 again;
 - make no VPS, public-route, provider, customer-data or frozen-V1 change.
+
+## 2026-09-03 - Activate P6B Supabase application-runtime and UI replacement
+
+Block-ID: `EVO-P6B-SUPABASE-RUNTIME-UI-REPLACEMENT-2026-09-03`
+
+Change type: active-slice contract update.
+Affected plan section: Order 6 / Issue #550 child #585.
+
+Issue #584 and its staging recovery-evidence mount repair are complete. The
+next cleanup boundary is the application itself: the retained staff product
+must stop importing or presenting the local Drizzle/SQLite runtime before the
+executable dependency/tooling cleanup in #586 and the exact-main proof in #587.
+
+Decision:
+
+- make existing Supabase interfaces the only active application authority for
+  the dashboard and Student 360; the dashboard aggregates canonical Sales,
+  student-case, Admissions-task, Finance-control and WhatsApp outcomes;
+- map Calls follow-up to Sales next actions and Admissions tasks, Chat to the
+  canonical WhatsApp workspace, Notifications to task/document/finance queues,
+  and Reports to the canonical dashboard; remove the old parallel pages and
+  navigation instead of keeping duplicate interfaces;
+- remove the superseded telephony webhook because this slice retains no
+  canonical telephony outcome, and do not replace it with a worker, fallback or
+  shadow ingestion path;
+- remove the active local database-status route/helpers, SQLite helpers and
+  Drizzle-backed canonical repository after their retained Supabase outcomes
+  pass; an unavailable Supabase configuration, identity, organization
+  membership or RPC must fail clearly rather than select local or fixture data;
+- require focused outcome tests, real local Supabase/PostgreSQL migrations,
+  real browser proof of the retained product workspaces, a production build
+  route inventory and scoped `rg` proof that no deleted route, repository,
+  SQLite/Drizzle import or fallback remains active;
+- do not modify `src/lib/v3/*` or the unmerged V3 screens, and preserve frozen
+  V1 deployments plus historical ADRs, migrations, runbooks, archived docs,
+  evidence and other decision/rollback material as non-executable history;
+- make no VPS, public-route, provider, customer-data or production-traffic
+  change. Those actions remain behind #551/#552.
+
+## 2026-09-03 - Preserve authorized Student-to-Sales navigation and prove retired routes absent
+
+Block-ID: `EVO-P6B-REVIEW-CORRECTIONS-2026-09-03`
+
+Change type: active-slice review correction.
+Affected plan section: Order 6 / Issue #550 child #585.
+
+Independent review of the first #585 candidate found two incomplete outcome
+proofs: the Student 360 replacement had dropped the existing authorized link
+to its canonical Sales lead, and source deletion alone did not prove that the
+six retired staff/API routes were absent from the running application.
+
+Decision:
+
+- preserve the Student-case-to-Sales-lead relationship through one bounded
+  Supabase RPC that validates the requested organization, current actor,
+  student-case visibility and a maximum of 100 unique case UUIDs;
+- request the relationship only for an effective fixed role that may open
+  `/sales`; keep Admissions without the link, while Admin and its exact Sales
+  preview follow the same server-derived role policy;
+- validate the RPC response as an exact subset of the requested case IDs and
+  fail closed on malformed, duplicate or unauthorized data;
+- extend the real configured browser contour to open the canonical lead from
+  Student 360 and to prove that `/calls`, `/chat`, `/notifications`, `/reports`,
+  `/api/database/status` and `/api/webhooks/telephony` all return `404`;
+- keep only a route-contract tombstone for those retired path families so the
+  proxy returns the hidden `404` before authentication or the generic deferred
+  module redirect; the tombstone imports or executes no retired handler;
+- retain the production-build route inventory and scoped `rg` inventory as
+  separate exact-head evidence; do not touch `src/lib/v3/*`, V3 screens, VPS,
+  providers, customer data or frozen V1 deployment state.

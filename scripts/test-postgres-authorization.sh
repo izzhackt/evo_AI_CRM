@@ -1864,6 +1864,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_amocrm_mapping_discovery_v2.sql
   fi
+
+  # Migration 105 restores the authorized Student Case -> canonical Sales
+  # lead navigation used by the Supabase-backed Student 360 queue.
+  if [[ "$(basename "$migration")" == 105_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_case_sales_links_current.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

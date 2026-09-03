@@ -11,7 +11,6 @@ import {
 import { fixedRoleHomeRoute } from "@/lib/fixed-role-policy";
 import { requirePlatformActor } from "@/lib/platform-guards";
 import { buildRouteMetadata } from "@/lib/route-metadata";
-import { readDatabaseStatus } from "@/lib/server/database-status";
 
 const ROLE_LABELS = {
   admin: "Director/Admin",
@@ -40,10 +39,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  const [actor, database] = await Promise.all([
-    requirePlatformActor(),
-    readDatabaseStatus(),
-  ]);
+  const actor = await requirePlatformActor();
   const role = actor.presentationRole;
   if (role !== "admin" && role !== "sales" && role !== "admissions") {
     throw new Error("supabase_staff_authority_issued_unsupported_role");
@@ -103,16 +99,14 @@ export default async function Home() {
             </div>
             <div>
               <dt className="text-xs font-semibold uppercase tracking-wide text-fg-3">
-                PostgreSQL
+                Источник данных
               </dt>
               <dd
-                data-testid="database-status"
-                data-status={database.ok ? "ready" : "blocked"}
+                data-testid="supabase-authority-status"
+                data-status="ready"
                 className="mt-2 text-xl font-bold"
               >
-                {database.ok
-                  ? `Готов · contract v${database.contractVersion}`
-                  : `Заблокировано · ${database.code}`}
+                Supabase · доступ подтверждён
               </dd>
             </div>
           </dl>

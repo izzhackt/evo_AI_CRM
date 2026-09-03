@@ -321,6 +321,32 @@ async function expectDirectRouteAllowed(
   await expect(page).toHaveURL(new RegExp(`${path}$`));
 }
 
+async function expectDashboardQueues(
+  page: Page,
+  visible: readonly ("sales" | "clients" | "tasks" | "finance" | "whatsapp")[],
+) {
+  const allQueues = [
+    "sales",
+    "clients",
+    "tasks",
+    "finance",
+    "whatsapp",
+  ] as const;
+
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByTestId("dashboard-page")).toBeVisible();
+  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(
+    0,
+  );
+
+  for (const queue of allQueues) {
+    await expect(page.getByTestId(`dashboard-queue-link-${queue}`)).toHaveCount(
+      visible.includes(queue) ? 1 : 0,
+    );
+  }
+}
+
 async function expectExactSupabaseSalesRead(
   page: Page,
   leadId: string,
@@ -428,6 +454,28 @@ test("all three real identities persist, enforce role routes, and log out", asyn
         isSupabaseAuthCookie(name),
       ),
     ).toBe(false);
+  }
+});
+
+test("retired P6B staff and API routes are absent from the authenticated runtime", async ({
+  page,
+}) => {
+  test.skip(authMode !== "configured");
+
+  await signIn(page, "admin");
+  await expectActiveRole(page, "admin");
+
+  for (const path of ["/calls", "/chat", "/notifications", "/reports"] as const) {
+    const response = await page.goto(path);
+    expect(response?.status(), path).toBe(404);
+  }
+
+  for (const path of [
+    "/api/database/status",
+    "/api/webhooks/telephony",
+  ] as const) {
+    const response = await page.request.get(path, { failOnStatusCode: false });
+    expect(response.status(), path).toBe(404);
   }
 });
 
@@ -1400,6 +1448,14 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
       .getByTestId("platform-handoff-result")
       .locator(`a[href="/clients/${studentCaseId}"]`),
   ).toBeVisible();
+  await page.goto("/clients");
+  const exactStudentCaseRow = page.locator(
+    `[data-testid="platform-student-case-row"][data-student-case-id="${studentCaseId}"]`,
+  );
+  await expect(exactStudentCaseRow).toBeVisible();
+  await expect(
+    exactStudentCaseRow.getByTestId("student-case-sales-lead-link"),
+  ).toHaveAttribute("href", `/sales/${leadId}`);
   await page.goto(`/clients/${studentCaseId}`);
   await expect(
     page.getByTestId("platform-student-case-workspace"),
@@ -1510,26 +1566,29 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expectDirectRouteAllowed(page, "/settings");
   await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
 
-  await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/platform-pending\?from=%2Fdashboard$/);
-  await expect(page.getByTestId("platform-pending")).toBeVisible();
-  await expect(page.getByTestId("pending-role")).toHaveAttribute(
-    "data-role",
-    "sales",
-  );
-  await expect(page.getByTestId("pending-role")).toHaveAttribute(
-    "data-authority-role",
-    "admin",
-  );
+  await expectDashboardQueues(page, ["sales", "whatsapp"]);
 
   await page.goto("/");
   await page.getByTestId("preview-role-admissions").click();
   await expectActiveRole(page, "admissions", "admin");
   await expectExactSupabaseSalesRead(page, leadId, clientId);
+  await expectDashboardQueues(page, [
+    "clients",
+    "tasks",
+    "finance",
+    "whatsapp",
+  ]);
 
   await page.goto("/");
   await page.getByTestId("preview-role-admin").click();
   await expectActiveRole(page, "admin", "admin");
+  await expectDashboardQueues(page, [
+    "sales",
+    "clients",
+    "tasks",
+    "finance",
+    "whatsapp",
+  ]);
   await page.goto("/settings");
   await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
 });

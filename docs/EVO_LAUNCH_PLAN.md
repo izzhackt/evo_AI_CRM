@@ -117,43 +117,66 @@ new path is accepted; historical and rollback material remains preserved.
 | 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
 | 9 | #553 | Completion audit | exact-main proof of one UI, runtime, data, auth/session, file and provider authority |
 
-Orders 0 through 5 are complete. The active cleanup order is now #584, #585,
-#586 and #587 under #550: replace the candidate deployment contract, remove
-the last active Drizzle/SQLite application paths and duplicate UI, eradicate
-their executable dependencies/scripts, then prove one exact-main Supabase
-release candidate. Issue #551 follows only after all four children and #550
-are complete.
+Orders 0 through 5 are complete. Under #550, #584 is complete: the successor
+candidate now has the managed-Supabase-backed standalone application plus the
+one retained private WAHA transport, with required key boundaries and no
+candidate SQLite volume, frozen lead-agent service or separate manual-send
+worker. The active cleanup slice is #585; #586 then removes the superseded
+executable toolchain, and #587 proves the exact-main Supabase release candidate.
+Issue #551 follows only after all four children and #550 are complete.
 
-#### Active #584 deployment-contract slice
+#### Active #585 Supabase application-runtime and UI replacement slice
 
-The successor candidate starts exactly two services: the standalone Next.js
-application and the existing private WAHA service. The application runtime is
-managed-Supabase-backed and must not declare or mount a SQLite database, local
-database backup directory, frozen lead-agent service or separate manual-send
-worker. The retained WAHA service stays private under the `evo-crm-waha`
-network alias; application code resolves only the canonical `crm_primary`
-session from Supabase configuration and fails closed when that binding or the
-provider is unavailable.
+#585 replaces the remaining live Drizzle/SQLite application reads, repositories,
+routes and duplicate staff screens with the existing canonical Supabase
+interfaces. A completed slice has one managed Supabase Postgres business
+authority, one Supabase Auth/session and server authorization path, one staff UI
+for each retained outcome, and no local-database or compatibility fallback.
 
-The browser receives only `NEXT_PUBLIC_SUPABASE_URL` and
-`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. The server-only
-`EVO_PLATFORM_SUPABASE_SECRET_KEY` and canonical organization UUID are required
-runtime inputs, are validated before release and must never be exposed through
-a `NEXT_PUBLIC_*` name, image layer, log or committed file. Historical V1
-Compose, release and rollback documentation remains frozen evidence; it is not
-an executable successor path.
+The retained product outcomes map as follows:
 
-Current implementation basis:
+- the main dashboard aggregates the canonical Supabase Sales pipeline, Student
+  360 cases, Admissions task queue, Finance control queue and WhatsApp
+  conversations instead of reading local summary tables;
+- Student 360 reads the canonical Supabase student-case interface and preserves
+  the accepted Admin, Sales and Admissions visibility rules; its existing
+  case-to-Sales-lead navigation is preserved through one bounded Supabase RPC
+  and is rendered only when the effective fixed role may open `/sales`;
+- old Calls follow-up is represented by Sales next actions and Admissions
+  tasks, old Chat by the canonical WhatsApp workspace, old Notifications by the
+  task/document/finance queues, and old Reports by the canonical dashboard;
+- the superseded telephony webhook has no retained successor behavior in this
+  slice and is removed rather than routed to a second authority or shadow
+  worker.
 
-- Supabase documents publishable keys for shipped/browser code and secret keys
-  only for controlled backend components:
-  <https://supabase.com/docs/guides/getting-started/api-keys>;
-- Next.js standalone output is the self-hosted application artifact and copies
-  only traced runtime dependencies:
-  <https://nextjs.org/docs/app/api-reference/config/next-config-js/output>;
-- Compose service-name/alias discovery keeps WAHA private without publishing a
-  host port:
-  <https://docs.docker.com/compose/how-tos/networking/>.
+The old Calls, Chat, Notifications and Reports routes and navigation entries,
+the telephony webhook, local database-status surface, SQLite helpers and the
+Drizzle-backed canonical repository are deleted once the mapped Supabase
+outcomes pass. Missing Supabase configuration, identity, organization
+membership or RPC access must stop clearly; the application must never select
+SQLite, Drizzle, cached fixture data or an alternate repository.
+
+Acceptance requires all of the following on the same candidate head:
+
+1. focused outcome tests prove the canonical dashboard aggregation, Student
+   360 read and fixed-role behavior through Supabase-facing module interfaces;
+2. real local Supabase/PostgreSQL migrations and the retained application flows
+   pass, followed by real browser validation of the dashboard, Student 360 and
+   mapped destination workspaces; the same configured browser run proves that
+   `/calls`, `/chat`, `/notifications`, `/reports`, `/api/database/status` and
+   `/api/webhooks/telephony` all return `404`;
+3. the production build route inventory contains no removed staff or telephony
+   route, and a scoped `rg` inventory finds no active import or runtime reference
+   to the deleted SQLite/Drizzle repositories or fallback paths;
+4. fail-closed tests prove that unavailable primary Supabase configuration or
+   authority produces an explicit error rather than old local data;
+5. `src/lib/v3/*`, the unmerged V3 screens, frozen V1 deployments and all
+   historical ADRs, migrations, runbooks, archived docs, evidence and other
+   decision/rollback material remain untouched and are never executed as
+   successor authority.
+
+#585 makes no VPS, public-route, provider, customer-data or production-traffic
+change. Those actions remain controlled by the later #551/#552 gates.
 
 ### P1 existing-state finding
 

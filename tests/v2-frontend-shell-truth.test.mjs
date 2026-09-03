@@ -219,21 +219,18 @@ test("the locale switcher never drags a legacy action module into a live route",
 test("cross-role case links are only rendered for a role the server allows", () => {
   const queue = source("src/app/(staff)/clients/StudentQueue.tsx");
 
-  assert.match(queue, /import \{\s*fixedRoleCanAccessRoute,/);
-  assert.match(queue, /const canOpenLead = fixedRoleCanAccessRoute\(actorRole, "\/sales"\)/);
-  // The link must sit in the TRUE branch: an inverted ternary would offer the
-  // denied route to exactly the role that cannot open it.
+  assert.match(queue, /import \{ fixedRoleCanAccessRoute \}/);
   assert.match(
     queue,
-    /\{canOpenLead \? \(\s*<Link\s+href=\{`\/sales\/\$\{studentCase\.leadId\}`\}/,
-    "the lead link must render only when the role may open /sales",
+    /const canOpenLead = fixedRoleCanAccessRoute\(\s*actor\.presentationRole,\s*"\/sales",\s*\)/,
   );
+  assert.match(queue, /listPlatformStudentCaseLeadLinks\(\s*actor,/);
+  // The link must sit behind the server-derived presentation-role guard.
   assert.match(
     queue,
-    /\) : \(\s*<CanonicalUuid value=\{studentCase\.leadId\} \/>\s*\)\}/,
-    "the denied role must get plain text, not a link",
+    /\{canOpenLead && leadId \? \(\s*<Link\s+href=\{`\/sales\/\$\{leadId\}`\}/,
+    "the canonical lead link must render only when the effective role may open /sales",
   );
-  assert.match(queue, /actorRole=\{actor\.presentationRole\}/);
 });
 
 test("the active Sales detail does not reactivate the deferred Drizzle controls", () => {

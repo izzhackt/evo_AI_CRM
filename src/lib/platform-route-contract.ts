@@ -5,6 +5,7 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/login",
   "/access-denied",
   "/platform-pending",
+  "/dashboard",
   "/sales",
   "/clients",
   "/applications",
@@ -34,8 +35,27 @@ const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/internal/platform-messaging/waha/work",
   "/api/internal/platform-operations/portal-overdue",
 ]);
+const RETIRED_PLATFORM_ROUTE_ROOTS = [
+  "/calls",
+  "/chat",
+  "/notifications",
+  "/reports",
+  "/api/database/status",
+  "/api/webhooks/telephony",
+] as const;
+
 export function platformHomeRoute(role: FixedRole): "/sales" | "/clients" {
   return fixedRoleHomeRoute(role);
+}
+
+/**
+ * P6B tombstones return a hidden 404 before auth or the generic deferred-module
+ * redirect. They do not route to a handler and cannot reactivate old runtime.
+ */
+export function isRetiredPlatformRoute(path: string): boolean {
+  return RETIRED_PLATFORM_ROUTE_ROOTS.some(
+    (root) => path === root || path.startsWith(`${root}/`),
+  );
 }
 
 /**

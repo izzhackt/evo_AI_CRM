@@ -328,10 +328,8 @@ const ru: Dict = {
 
   sales: "Поступление",
   reports: "Отчёты",
-  chat: "Чат",
   whatsapp: "WhatsApp",
   calls: "Звонки",
-  notifications: "Уведомления",
   settings: "Настройки",
   navOperations: "Операции",
   navCommunications: "Коммуникации",
@@ -366,7 +364,6 @@ const ru: Dict = {
   "act.status": "Смена этапа",
   "act.wa": "WhatsApp",
 
-  salesReport: "Отчётность продаж",
   byManager: "По менеджерам",
   leadsCount: "Лидов",
   wonCount: "Сделок выиграно",
@@ -406,7 +403,6 @@ const ru: Dict = {
   draftReview: "Черновик на проверку",
   draftReviewNotSent: "не отправлено",
 
-  callLog: "Журнал звонков",
   direction: "Направление",
   "call.in": "Входящий",
   "call.out": "Исходящий",
@@ -416,7 +412,6 @@ const ru: Dict = {
   duration: "Длительность",
   recording: "Запись",
   logCall: "Записать звонок",
-  telephonyDemoNote: "Телефония not_configured: реальные звонки из АТС пока не импортируются. Добавьте провайдера и API-ключ в настройках перед использованием webhook.",
 
   integrationSettings: "Настройки интеграций",
   settingsSaved: "Сохранено",
@@ -434,7 +429,6 @@ const ru: Dict = {
   wahaWebhookSecret: "WAHA webhook HMAC secret",
   leadAgentSyncSecret: "Секрет синхронизации lead-agent",
   wahaStartSession: "Запустить / обновить WAHA session",
-  telSection: "IP-телефония (АТС)",
   telProvider: "Провайдер",
   telApiKey: "API-ключ провайдера",
   telWebhookHint: "Укажите этот адрес в настройках вашей АТС как webhook о звонках:",
@@ -976,8 +970,6 @@ const ru: Dict = {
 
   callsWorkflow: "Звонки и встречи",
   callsWorkflowHint: "Планируйте следующий контакт в задачах, а здесь фиксируйте состоявшийся звонок вручную.",
-  telephonyConfiguredNotVerified: "Реквизиты телефонии заполнены, но живой импорт звонков в этой сессии не проверен.",
-  telephonyUnavailable: "Телефония не настроена. Журнал работает как ручная запись фактов.",
   manualInteractionLog: "Зафиксировать контакт вручную",
   manualInteractionHint: "Запись не запускает звонок и не создаёт встречу у провайдера.",
   planNextContact: "Запланировать следующий контакт",
@@ -1440,10 +1432,8 @@ const ky: Dict = {
 
   sales: "Кабыл алуу",
   reports: "Отчёттор",
-  chat: "Чат",
   whatsapp: "WhatsApp",
   calls: "Чалуулар",
-  notifications: "Билдирмелер",
   settings: "Жөндөөлөр",
   navOperations: "Операциялар",
   navCommunications: "Байланыш",
@@ -1478,7 +1468,6 @@ const ky: Dict = {
   "act.status": "Этап өзгөрдү",
   "act.wa": "WhatsApp",
 
-  salesReport: "Сатуу отчёту",
   byManager: "Менеджер боюнча",
   leadsCount: "Лиддер",
   wonCount: "Ийгиликтүү келишимдер",
@@ -1518,7 +1507,6 @@ const ky: Dict = {
   draftReview: "Текшерүү үчүн долбоор",
   draftReviewNotSent: "жөнөтүлгөн жок",
 
-  callLog: "Чалуулар журналы",
   direction: "Багыты",
   "call.in": "Кирүүчү",
   "call.out": "Чыгуучу",
@@ -1528,7 +1516,6 @@ const ky: Dict = {
   duration: "Узактыгы",
   recording: "Жазуу",
   logCall: "Чалууну каттоо",
-  telephonyDemoNote: "Телефония not_configured: АТСтен келген чыныгы чалуулар азырынча импорттолбойт. Webhook колдонордон мурун жөндөөлөргө провайдерди жана API ачкычын кошуңуз.",
 
   integrationSettings: "Интеграция жөндөөлөрү",
   settingsSaved: "Сакталды",
@@ -1546,7 +1533,6 @@ const ky: Dict = {
   wahaWebhookSecret: "WAHA webhook HMAC secret",
   leadAgentSyncSecret: "lead-agent синхрондоо сыры",
   wahaStartSession: "WAHA session баштоо / жаңыртуу",
-  telSection: "IP-телефония (АТС)",
   telProvider: "Провайдер",
   telApiKey: "Провайдердин API-ачкычы",
   telWebhookHint: "Бул даректи АТСиңиздин жөндөөлөрүндө webhook катары көрсөтүңүз:",
@@ -2089,8 +2075,6 @@ const ky: Dict = {
 
   callsWorkflow: "Чалуулар жана жолугушуулар",
   callsWorkflowHint: "Кийинки байланышты тапшырмаларда пландап, болгон чалууну бул жерде кол менен белгилеңиз.",
-  telephonyConfiguredNotVerified: "Телефониянын реквизиттери толтурулган, бирок бул сессияда чыныгы чалуулар импорту текшерилген жок.",
-  telephonyUnavailable: "Телефония жөндөлгөн эмес. Журнал фактыларды кол менен жазуу режими менен иштейт.",
   manualInteractionLog: "Байланышты кол менен жазуу",
   manualInteractionHint: "Бул жазуу чалууну баштабайт жана провайдерде жолугушуу түзбөйт.",
   planNextContact: "Кийинки байланышты пландоо",
@@ -2553,10 +2537,8 @@ const en: Dict = {
 
   sales: "Admissions",
   reports: "Reports",
-  chat: "Chat",
   whatsapp: "WhatsApp",
   calls: "Calls",
-  notifications: "Notifications",
   settings: "Settings",
   navOperations: "Operations",
   navCommunications: "Communications",
@@ -2591,7 +2573,6 @@ const en: Dict = {
   "act.status": "Stage change",
   "act.wa": "WhatsApp",
 
-  salesReport: "Sales report",
   byManager: "By manager",
   leadsCount: "Leads",
   wonCount: "Deals won",
@@ -2631,7 +2612,6 @@ const en: Dict = {
   draftReview: "Draft review",
   draftReviewNotSent: "not sent",
 
-  callLog: "Call log",
   direction: "Direction",
   "call.in": "Incoming",
   "call.out": "Outgoing",
@@ -2641,7 +2621,6 @@ const en: Dict = {
   duration: "Duration",
   recording: "Recording",
   logCall: "Log a call",
-  telephonyDemoNote: "Telephony not_configured: live PBX calls are not imported yet. Add a provider and API key in settings before using the webhook.",
 
   integrationSettings: "Integration settings",
   settingsSaved: "Saved",
@@ -2659,7 +2638,6 @@ const en: Dict = {
   wahaWebhookSecret: "WAHA webhook HMAC secret",
   leadAgentSyncSecret: "lead-agent sync secret",
   wahaStartSession: "Start / refresh WAHA session",
-  telSection: "IP telephony (PBX)",
   telProvider: "Provider",
   telApiKey: "Provider API key",
   telWebhookHint: "Set this URL as the call webhook in your PBX settings:",
@@ -3201,8 +3179,6 @@ const en: Dict = {
 
   callsWorkflow: "Calls and meetings",
   callsWorkflowHint: "Plan the next contact in tasks, then record the completed call here manually.",
-  telephonyConfiguredNotVerified: "Telephony credentials are filled in, but live call import was not verified in this session.",
-  telephonyUnavailable: "Telephony is not configured. The journal works as a manual fact log.",
   manualInteractionLog: "Record a contact manually",
   manualInteractionHint: "This record does not start a call or create a meeting at a provider.",
   planNextContact: "Plan next contact",

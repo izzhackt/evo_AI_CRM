@@ -7,6 +7,7 @@ import {
   isConnectedPlatformPage,
   isConnectedPlatformSettingsRequest,
   isDirectPlatformStaffAssistantApi,
+  isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
@@ -175,7 +176,8 @@ export async function proxy(request: NextRequest) {
     path === "/register" ||
     path.startsWith("/register/") ||
     path === "/auth/platform-session" ||
-    path.startsWith("/auth/platform-session/")
+    path.startsWith("/auth/platform-session/") ||
+    isRetiredPlatformRoute(path)
   ) {
     return hiddenNotFound(id);
   }
@@ -186,11 +188,6 @@ export async function proxy(request: NextRequest) {
     return response;
   }
   if (observabilityPathCandidate) return hiddenNotFound(id);
-
-  if (path === "/api/database/status") {
-    return setResponseHeaders(nextResponse(requestHeaders), id);
-  }
-  if (path.startsWith("/api/database/status")) return hiddenNotFound(id);
 
   if (path === "/api/health" || path === "/api/version") {
     return setResponseHeaders(nextResponse(requestHeaders), id);

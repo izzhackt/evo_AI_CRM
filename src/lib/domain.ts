@@ -29,11 +29,7 @@ export const STAFF_ROUTE_VALUES = [
   "/documents",
   "/visa",
   "/whatsapp",
-  "/calls",
-  "/notifications",
   "/tasks",
-  "/chat",
-  "/reports",
   "/finance",
   "/settings",
 ] as const;
@@ -55,11 +51,7 @@ export const APP_ROUTES = {
     documents: "/documents",
     visa: "/visa",
     whatsapp: "/whatsapp",
-    calls: "/calls",
-    notifications: "/notifications",
     tasks: "/tasks",
-    chat: "/chat",
-    reports: "/reports",
     finance: "/finance",
     settings: "/settings",
   } satisfies Record<string, StaffRoute>,
@@ -115,29 +107,9 @@ export const STAFF_NAV_ITEMS = [
     allowedRoles: STAFF_ROLES,
   },
   {
-    href: APP_ROUTES.staff.calls,
-    labelKey: "calls",
-    allowedRoles: ["admin", "sales"],
-  },
-  {
-    href: APP_ROUTES.staff.notifications,
-    labelKey: "notifications",
-    allowedRoles: STAFF_ROLES,
-  },
-  {
     href: APP_ROUTES.staff.tasks,
     labelKey: "tasks",
     allowedRoles: ["admin", "admissions"],
-  },
-  {
-    href: APP_ROUTES.staff.chat,
-    labelKey: "chat",
-    allowedRoles: STAFF_ROLES,
-  },
-  {
-    href: APP_ROUTES.staff.reports,
-    labelKey: "reports",
-    allowedRoles: STAFF_ROLES,
   },
   {
     href: APP_ROUTES.staff.finance,
@@ -192,12 +164,6 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 export const TASK_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
-
-export const CALL_DIRECTIONS = ["in", "out"] as const;
-export type CallDirection = (typeof CALL_DIRECTIONS)[number];
-
-export const CALL_STATUSES = ["answered", "missed", "busy"] as const;
-export type CallStatus = (typeof CALL_STATUSES)[number];
 
 export type EntityId = number;
 export type CurrencyCode = "KGS" | "USD" | "EUR" | string;
@@ -306,18 +272,4 @@ export type Task = {
   readonly priority: TaskPriority;
   readonly createdBy: EntityId | null;
   readonly createdAt: DateTimeString;
-};
-
-export type CallLogEntry = {
-  readonly id: EntityId;
-  readonly direction: CallDirection;
-  readonly phone: string;
-  readonly managerId: EntityId | null;
-  readonly leadId: EntityId | null;
-  readonly clientId: EntityId | null;
-  readonly startedAt: DateTimeString;
-  readonly durationSec: number;
-  readonly status: CallStatus;
-  readonly recordingUrl: string | null;
-  readonly notes: string | null;
 };

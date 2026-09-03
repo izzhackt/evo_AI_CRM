@@ -569,10 +569,12 @@ export async function listPlatformFinanceControlQueue(
     const client = dependencies.client ?? await getPlatformClient();
     const response = await client.schema("platform").rpc(
       "staff_finance_control_queue",
-      {
-        p_limit: queueLimit,
-        p_student_case_ids: studentCaseIds,
-      },
+      studentCaseIds === null
+        ? { p_limit: queueLimit }
+        : {
+            p_limit: queueLimit,
+            p_student_case_ids: studentCaseIds,
+          },
       { get: true },
     );
     if (

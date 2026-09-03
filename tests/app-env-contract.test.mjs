@@ -33,52 +33,34 @@ const PRODUCTION_SECRET_KEY_SHA256 =
   "c41f89ee15ffcb680cc9280437549d3cea84c18a6abdfd7d934ebb9bc6735004";
 
 const example = `
-DATABASE_URL=
 EVO_CRM_DOMAIN=crm.evoadmissions.com
 EVO_CADDY_NETWORK=evo_public_web
 NEXT_PUBLIC_SUPABASE_URL=https://replace-with-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=replace-with-publishable-key
+EVO_PLATFORM_ORGANIZATION_ID=replace-with-organization-uuid
+EVO_PLATFORM_SUPABASE_SECRET_KEY=replace-with-server-secret-key
 EVO_UI_CONTRACT_FIXTURES=0
 EVO_PLATFORM_WAHA_INGRESS_ENABLED=0
-EVO_PLATFORM_ORGANIZATION_ID=
-EVO_PLATFORM_SUPABASE_SECRET_KEY=
 EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET=
 EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0
 EVO_PLATFORM_P7B_OBSERVABILITY_SECRET=
-AUTH_SECRET=replace-with-auth-secret
-EVO_SECRET_ENCRYPTION_KEY=replace-with-encryption-key
-EVO_DB_PATH=/app/data/edu-admin.db
-EVO_BACKUP_DIR=/app/backups
 EVO_ALLOW_DEMO_SEED=0
 ANTHROPIC_API_KEY=
 `;
 
-// The committed staging template is a frozen V1 deployment input. Validate it
-// against the matching historical contract without making V2 runtime settings
-// part of that deployment boundary.
-const frozenV1Example = example.replace(
-  "DATABASE_URL=\n",
-  "",
-);
-
 function valid(overrides = {}) {
   const values = {
-    DATABASE_URL: "",
     EVO_CRM_DOMAIN: "crm.evoadmissions.com",
     EVO_CADDY_NETWORK: "evo_public_web",
     NEXT_PUBLIC_SUPABASE_URL: "https://staging.supabase.co",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
+    EVO_PLATFORM_ORGANIZATION_ID: STAGING_ORGANIZATION_ID,
+    EVO_PLATFORM_SUPABASE_SECRET_KEY: STAGING_SECRET_KEY,
     EVO_UI_CONTRACT_FIXTURES: "0",
     EVO_PLATFORM_WAHA_INGRESS_ENABLED: "0",
-    EVO_PLATFORM_ORGANIZATION_ID: "",
-    EVO_PLATFORM_SUPABASE_SECRET_KEY: "",
     EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "",
     EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "0",
     EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "",
-    AUTH_SECRET: "a".repeat(48),
-    EVO_SECRET_ENCRYPTION_KEY: "b".repeat(43),
-    EVO_DB_PATH: "/app/data/edu-admin.db",
-    EVO_BACKUP_DIR: "/app/backups",
     EVO_ALLOW_DEMO_SEED: "0",
     ANTHROPIC_API_KEY: "",
     ...overrides,
@@ -113,7 +95,7 @@ function controlledStaging(actualText) {
   });
 }
 
-test("accepts required runtime values while allowing disabled optional integrations to stay empty", () => {
+test("accepts the Supabase successor runtime while allowing disabled optional integrations to stay empty", () => {
   assert.deepEqual(
     validateAppEnvironmentContract({ exampleText: example, actualText: valid() }),
     { ok: true, code: "valid" },
@@ -125,7 +107,7 @@ test("the committed staging template is intentionally non-deployable until secre
   assert.throws(
     () =>
       validateAppEnvironmentContract({
-        exampleText: frozenV1Example,
+        exampleText: example,
         actualText: template,
       }),
     (error) =>
@@ -181,18 +163,67 @@ test("controlled staging binds the concrete Compose app environment to the appro
   }
 });
 
-test("rejects missing names, duplicate names, empty critical values, and known placeholders", () => {
+test("rejects missing names, duplicate names, empty Supabase authority, and known placeholders", () => {
   expectInvalid(valid().replace(/^EVO_CRM_DOMAIN=.*\n/mu, ""), "required_env_name_missing");
-  expectInvalid(`${valid()}AUTH_SECRET=${"c".repeat(48)}\n`, "duplicate_env_name");
-  expectInvalid(valid({ AUTH_SECRET: "" }), "required_env_value_missing");
+  expectInvalid(`${valid()}EVO_CRM_DOMAIN=duplicate.example\n`, "duplicate_env_name");
   expectInvalid(
-    valid({ AUTH_SECRET: "replace-with-a-real-secret" }),
+    valid({ EVO_PLATFORM_ORGANIZATION_ID: "" }),
+    "required_env_value_missing",
+  );
+  expectInvalid(
+    valid({ EVO_PLATFORM_SUPABASE_SECRET_KEY: "" }),
+    "required_env_value_missing",
+  );
+  expectInvalid(
+    valid({ EVO_PLATFORM_SUPABASE_SECRET_KEY: "replace-with-a-real-secret" }),
     "placeholder_env_value_rejected",
   );
   expectInvalid(
     valid({ ANTHROPIC_API_KEY: "change-me-before-release" }),
     "placeholder_env_value_rejected",
   );
+});
+
+test("rejects malformed organization and server-only Supabase authority even when optional integrations are disabled", () => {
+  for (const EVO_PLATFORM_ORGANIZATION_ID of [
+    "not-a-uuid",
+    "00000000-0000-0000-0000-000000000000",
+  ]) {
+    expectInvalid(
+      valid({ EVO_PLATFORM_ORGANIZATION_ID }),
+      "required_env_value_invalid",
+    );
+  }
+  for (const EVO_PLATFORM_SUPABASE_SECRET_KEY of [
+    "server-only-key-material",
+    "sb_publishable_wrong-boundary",
+    jwt("anon"),
+  ]) {
+    expectInvalid(
+      valid({ EVO_PLATFORM_SUPABASE_SECRET_KEY }),
+      "required_env_value_invalid",
+    );
+  }
+});
+
+test("rejects superseded SQLite, development-auth, and worker environment names", () => {
+  for (const [name, value] of [
+    ["AUTH_SECRET", "a".repeat(48)],
+    ["EVO_SECRET_ENCRYPTION_KEY", "b".repeat(43)],
+    ["EVO_DB_PATH", "/app/data/edu-admin.db"],
+    ["EVO_BACKUP_DIR", "/app/backups"],
+    ["EVO_PLATFORM_MANUAL_SEND_WORKER_ENABLED", "0"],
+    ["EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET", "m".repeat(32)],
+    ["EVO_PLATFORM_LEAD_AGENT_SYNC_ENABLED", "0"],
+    ["EVO_LEAD_AGENT_SYNC_SECRET", "l".repeat(32)],
+    ["EVO_AGENT_WAHA_SESSION", "crm_primary"],
+    ["EVO_PLATFORM_WAHA_SESSION_NAME", "crm_primary"],
+  ]) {
+    expectInvalid(
+      valid({ [name]: value }),
+      "superseded_env_name_forbidden",
+    );
+  }
 });
 
 test("rejects unsafe production flags and malformed public Supabase configuration", () => {
@@ -234,8 +265,6 @@ test("enabled observability and WAHA ingress require complete server-only config
   );
 
   const platform = {
-    EVO_PLATFORM_ORGANIZATION_ID: "11111111-1111-4111-8111-111111111111",
-    EVO_PLATFORM_SUPABASE_SECRET_KEY: `sb_secret_${"s".repeat(16)}`,
     NEXT_PUBLIC_SUPABASE_URL: `https://${"a".repeat(20)}.supabase.co`,
   };
   assert.deepEqual(
@@ -251,22 +280,6 @@ test("enabled observability and WAHA ingress require complete server-only config
     }),
     { ok: true, code: "valid" },
   );
-
-  for (const unsafeServerKey of [
-    "server-only-key-material",
-    "sb_publishable_wrong-boundary",
-    jwt("anon"),
-  ]) {
-    expectInvalid(
-      valid({
-        ...platform,
-        EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",
-        EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "o".repeat(32),
-        EVO_PLATFORM_SUPABASE_SECRET_KEY: unsafeServerKey,
-      }),
-      "enabled_feature_configuration_missing",
-    );
-  }
 
   assert.deepEqual(
     validateAppEnvironmentContract({
@@ -302,7 +315,9 @@ test("closed CLI validates private files without printing their values", () => {
 
     writeFileSync(
       actualPath,
-      valid({ AUTH_SECRET: "never-print-this-value-change-me" }),
+      valid({
+        EVO_PLATFORM_SUPABASE_SECRET_KEY: "never-print-this-value-change-me",
+      }),
       { mode: 0o600 },
     );
     const rejected = spawnSync(

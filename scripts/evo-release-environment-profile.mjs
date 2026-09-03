@@ -16,16 +16,15 @@ const APPROVED_STAGING_PROFILE = Object.freeze({
   privateNetwork: "evo_crm_staging_private",
   publicNetwork: "evo_public_web",
   volumeNames: Object.freeze([
-    "evo_crm_staging_data",
     "evo_crm_staging_output",
-    "evo_crm_staging_backups",
     "evo_crm_staging_waha_sessions",
-    "evo_crm_staging_lead_agent_data",
   ]),
-  fixedContainerNames: Object.freeze(["evo-crm-staging-manual-send-worker"]),
+  fixedContainerNames: Object.freeze([]),
   publicHostname: "staging.crm.evoadmissions.com",
 });
 
+// This is the frozen V1 collision boundary, not the successor service list.
+// Staging must not reuse any existing production identity before cutover.
 const PRODUCTION_BOUNDARY = Object.freeze({
   protectedRoots: Object.freeze(["/opt/evo-crm", "/opt/evo-releases"]),
   composeProject: "evo-crm",
@@ -78,8 +77,8 @@ function requireExact(value, expected, code) {
   }
 }
 
-function requireStringArray(value, code) {
-  if (!Array.isArray(value) || value.length === 0 || value.some((item) => (
+function requireStringArray(value, code, { allowEmpty = false } = {}) {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0) || value.some((item) => (
     typeof item !== "string" || !SAFE_IDENTITY_RE.test(item)
   ))) {
     fail(code);
@@ -151,6 +150,7 @@ export function validateControlledStagingProfile(profile) {
   const fixedContainerNames = requireStringArray(
     profile.fixedContainerNames,
     "staging_container_names_invalid",
+    { allowEmpty: true },
   );
   if (fixedContainerNames.some((name) => PRODUCTION_BOUNDARY.fixedContainerNames.includes(name))) {
     fail("staging_container_name_collision");
@@ -190,7 +190,7 @@ export function validateControlledStagingProfile(profile) {
     ok: true,
     code: "controlled_staging_profile_valid",
     environment: "staging",
-    profile: "evo-crm-staging-v1",
+    profile: "evo-crm-staging-successor-v1",
     effectsAllowed: false,
     releaseStatus: "blocked",
     blocker: "managed_staging_inputs_required",

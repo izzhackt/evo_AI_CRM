@@ -15879,3 +15879,48 @@ P6 remains repository and isolated-candidate work. VPS mutation, public
 traffic, webhook ownership transfer, provider writes, customer migration and
 active V1 retirement remain outside #584-#587 and require their later explicit
 gates.
+
+## 2026-09-03 - Replace the active candidate deployment contract in #584
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: EVO product owner and Codex under launch-control.
+Change type: P6A executable-runtime replacement contract.
+Affected plan section: Order 6 / Issue #550 child #584.
+
+The owner directed the long run to finish a usable product rather than stop at
+a minimal patch. Issue #584 therefore begins immediately from merged main
+`e11137e16efd239734deffed3554f609c9be09d6`, after the provider tracer and its
+completion record were merged. The scope remains a small sequential PR, but it
+must leave a coherent executable candidate contract instead of merely deleting
+one visible legacy string.
+
+Decision:
+
+- the active production and staging candidate Compose files contain exactly
+  the standalone Next.js application and the private WAHA service;
+- remove active `EVO_DB_PATH`, `EVO_BACKUP_DIR`, SQLite/backup mounts, the
+  separate manual-send worker, the frozen lead-agent service and its
+  `evo-inbox` session setting from that contract;
+- retain the application output volume only for the separately bounded local
+  transcription feature; it is not CRM document authority. Private CRM
+  documents remain Supabase Storage objects;
+- keep the private WAHA service and alias `evo-crm-waha`. The application may
+  select only the Supabase-provisioned `crm_primary` binding and must fail
+  clearly instead of selecting `evo-inbox` or another fallback;
+- require the Supabase URL, publishable key, server-only secret key and
+  canonical organization UUID in release validation. Only the URL and
+  publishable key use `NEXT_PUBLIC_*`; the secret remains backend-only and no
+  value may be committed, printed or copied into an image layer;
+- remove the obsolete SQLite bootstrap/backup and manual-worker executables
+  from the candidate image. Their source and deeper application imports are
+  removed in the ordered #585/#586 slices, not retained as candidate runtime
+  paths;
+- prove both Compose renders, isolated OrbStack app/WAHA health, fail-closed
+  configuration and a scoped active-contract inventory before merge. Do not
+  mutate the VPS, public routes, provider state, customer data or frozen V1.
+
+This follows the current official Supabase key boundary, Next.js standalone
+output and Docker Compose private service-discovery contracts:
+<https://supabase.com/docs/guides/getting-started/api-keys>,
+<https://nextjs.org/docs/app/api-reference/config/next-config-js/output> and
+<https://docs.docker.com/compose/how-tos/networking/>.

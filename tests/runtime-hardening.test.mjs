@@ -7,10 +7,18 @@ const read = (path) => readFile(new URL(path, root), "utf8");
 
 function requireRootComposeHardening(value) {
   assert.equal((value.match(/EVO_WAHA_IMAGE_DIGEST/g) ?? []).length, 2);
-  assert.equal((value.match(/org\.opencontainers\.image\.revision:/g) ?? []).length, 2);
-  assert.equal((value.match(/mem_limit:/g) ?? []).length, 3);
-  assert.equal((value.match(/cpus:/g) ?? []).length, 3);
-  assert.equal((value.match(/pids_limit:/g) ?? []).length, 3);
+  assert.equal((value.match(/org\.opencontainers\.image\.revision:/g) ?? []).length, 1);
+  assert.equal((value.match(/mem_limit:/g) ?? []).length, 2);
+  assert.equal((value.match(/cpus:/g) ?? []).length, 2);
+  assert.equal((value.match(/pids_limit:/g) ?? []).length, 2);
+}
+
+function composeServiceNames(value) {
+  const services = value
+    .slice(value.indexOf("services:\n") + "services:\n".length)
+    .split(/\n(?:networks|volumes):\n/, 1)[0];
+  return [...services.matchAll(/^  ([a-z][a-z0-9-]+):\s*$/gm)]
+    .map((match) => match[1]);
 }
 
 function requireCaddyHardening(value) {
@@ -86,7 +94,7 @@ function requireInboxReadinessFailureStatus(value) {
 }
 
 test("production Compose pins third parties and identifies first-party releases", async () => {
-  for (const path of ["Dockerfile", "agent-lead2-inbox/Dockerfile", "evo-lead-agent/Dockerfile"]) {
+  for (const path of ["Dockerfile", "agent-lead2-inbox/Dockerfile"]) {
     const value = await read(path);
     for (const line of value.match(/^FROM .+$/gm) ?? []) {
       assert.match(line, /@sha256:[a-f0-9]{64}(?:\s|$)/, `${path}: ${line}`);
@@ -112,6 +120,33 @@ test("production Compose pins third parties and identifies first-party releases"
     assert.match(value, /org\.opencontainers\.image\.revision/);
     assert.match(value, /org\.opencontainers\.image\.version/);
   }
+});
+
+test("successor Compose files expose only the app and its private WAHA transport", async () => {
+  for (const path of ["docker-compose.prod.yml", "docker-compose.staging.yml"]) {
+    const value = await read(path);
+    assert.deepEqual(composeServiceNames(value), ["app", "waha"], path);
+    assert.match(serviceBlock(value, "app"), /^    read_only: true$/mu, path);
+    assert.match(serviceBlock(value, "app"), /- \/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777/u, path);
+    assert.match(serviceBlock(value, "app"), /- \/app\/\.next\/cache:rw,noexec,nosuid,nodev,size=128m,mode=0700,uid=1001,gid=1001/u, path);
+    assert.doesNotMatch(
+      value,
+      /manual-send-worker|lead-agent|evo-inbox|EVO_AGENT_|EVO_DB_PATH|EVO_BACKUP_DIR|evo_crm_(?:staging_)?(?:data|backups|lead_agent_data)/u,
+      path,
+    );
+    assert.match(serviceBlock(value, "waha"), /^    expose:\n      - "3000"$/mu);
+    assert.doesNotMatch(serviceBlock(value, "waha"), /^    ports:/mu);
+  }
+
+  requireRootComposeHardening(await read("docker-compose.prod.yml"));
+});
+
+test("successor app image does not bake superseded SQLite and worker paths", async () => {
+  const dockerfile = await read("Dockerfile");
+  assert.doesNotMatch(
+    dockerfile,
+    /EVO_DB_PATH|EVO_BACKUP_DIR|\/app\/(?:data|backups)|bootstrap-admin\.mjs|backup-sqlite\.mjs|manual-whatsapp-send-worker\.mjs/u,
+  );
 });
 
 test("every production service has effective resource and log rotation limits", async () => {

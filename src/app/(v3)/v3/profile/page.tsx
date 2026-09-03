@@ -16,15 +16,23 @@ export default async function ProfilePart({
   searchParams: Promise<{ id?: string; tab?: string }>;
 }) {
   const [params, picks] = await Promise.all([searchParams, readProfilePicks()]);
-  const chosen = picks.find((p) => p.id === params.id) ?? picks[0];
-  const profile = chosen ? await readProfile(chosen.id) : null;
+
+  // Открывается ЛЮБОЙ запрошенный человек, а не только тот, что попал в
+  // короткий список-леса. Раньше неизвестный id молча подменялся на picks[0]:
+  // сотрудник нажимал на «Ахмеда» и получал карточку «Айгерим» — её
+  // документы, её деньги, — и на экране не было ни одного признака подмены.
+  // Промолчать здесь хуже, чем показать «не нашли».
+  const requestedId = params.id ?? picks[0]?.id ?? null;
+  const profile = requestedId ? await readProfile(requestedId) : null;
+  const chosenId = profile ? requestedId : null;
+  const missing = Boolean(params.id) && !profile;
   const tab = isTabKey(params.tab) ? params.tab : "overview";
 
   // У того, кто ещё не дошёл до договора, платежей и половины анкеты нет.
   // Это не пустое состояние-заглушка, а нормальная стадия.
   const draft = profile?.student ? PROFILE_SAMPLE : PROFILE_SAMPLE_EARLY;
   const hrefFor = (next: string) =>
-    `/v3/profile?id=${chosen?.id ?? ""}&tab=${next}`;
+    `/v3/profile?id=${chosenId ?? ""}&tab=${next}`;
 
   return (
     <PartShell
@@ -41,7 +49,7 @@ export default async function ProfilePart({
         </p>
         <ul className="flex flex-wrap gap-1.5">
           {picks.map((pick) => {
-            const active = chosen?.id === pick.id;
+            const active = chosenId === pick.id;
             return (
               <li key={pick.id}>
                 <Link
@@ -76,7 +84,9 @@ export default async function ProfilePart({
         </>
       ) : (
         <p className="rounded-card border border-border bg-surface px-4 py-8 text-center text-sm text-fg-3">
-          В базе нет ни одного человека.
+          {missing
+            ? "Такого человека в базе нет. Показывать вместо него другого мы не будем."
+            : "В базе нет ни одного человека."}
         </p>
       )}
     </PartShell>

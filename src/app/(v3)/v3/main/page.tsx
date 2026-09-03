@@ -85,11 +85,6 @@ export default async function MainPart() {
           </div>
         </section>
       </div>
-
-      <p className="mt-4 max-w-[66ch] text-xs leading-5 text-fg-3">
-        Цифры и воронка настоящие. Ряд динамики — образец: все записи заведены
-        одним днём, истории по неделям пока нет.
-      </p>
     </main>
   );
 }

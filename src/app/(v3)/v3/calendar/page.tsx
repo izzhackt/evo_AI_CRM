@@ -65,10 +65,6 @@ export default function CalendarPart() {
       <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
         Календарь
       </h1>
-      <p className="mt-1 max-w-[60ch] text-sm leading-6 text-fg-3">
-        Неделя с задачами внутри дат. Работа со сроком, но без времени встаёт в
-        строку «весь день» — так она остаётся видимой, а не пропадает из сетки.
-      </p>
 
       <div className="mt-6">
         <WeekCalendar days={DAYS} events={EVENTS} groups={GROUPS} monthLabel="Сентябрь 2026" />

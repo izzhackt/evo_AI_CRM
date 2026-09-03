@@ -152,10 +152,7 @@ export function personState(input: {
   caseStatus: string | null;
   leadStage: string | null;
 }): string {
-  if (input.hasCase) {
-    const status = caseStatus(input.caseStatus);
-    return status && input.caseStatus !== "active" ? `Студент · ${status}` : "Студент";
-  }
-  const stage = leadStage(input.leadStage);
-  return stage ? `Лид · ${stage}` : "Лид";
+  // Два состояния человека и всё. Стадия живёт в воронке, где по ней
+  // работают; в шапке профиля она ничего не решает.
+  return input.hasCase ? "Студент" : "Лид";
 }

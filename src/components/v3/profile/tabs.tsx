@@ -32,22 +32,7 @@ export function Card({
   );
 }
 
-/**
- * Поле, которого в модели ещё нет, подчёркнуто пунктиром.
- *
- * Не пилюлей и не цветом: цвет в этом мире означает состояние записи, и
- * тратить его на «это пока картинка» значило бы сломать правило ради
- * временной пометки. Пунктир виден, но не спорит с содержимым.
- */
-function DraftMark({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="underline decoration-border-strong decoration-dotted underline-offset-4">
-      {children}
-    </span>
-  );
-}
-
-function FactList({ facts, draft }: { facts: readonly Fact[]; draft: boolean }) {
+function FactList({ facts }: { facts: readonly Fact[] }) {
   const shown = facts.filter((f) => f.value !== null);
   if (shown.length === 0) {
     return <p className="px-4 py-3 text-sm text-fg-3">Пока ничего не заполнено.</p>;
@@ -61,7 +46,7 @@ function FactList({ facts, draft }: { facts: readonly Fact[]; draft: boolean }) 
         >
           <dt className="w-40 shrink-0 text-2xs text-fg-3">{fact.label}</dt>
           <dd className="min-w-0 flex-1 text-sm text-fg">
-            {draft ? <DraftMark>{fact.value}</DraftMark> : fact.value}
+            {fact.value}
           </dd>
         </div>
       ))}
@@ -113,7 +98,6 @@ export function Overview({
       value: `${docs.have}`,
       unit: ` / ${docs.total}`,
       caption: docs.total - docs.have > 0 ? `не хватает ${docs.total - docs.have}` : "все собраны",
-      draft: true,
       blocked: false,
     },
     {
@@ -128,7 +112,6 @@ export function Overview({
         : draft.remaining
           ? `остаток ${draft.remaining}`
           : "плана платежей нет",
-      draft: draft.paidPercent !== null,
       blocked: profile.financeStop !== null,
     },
     {
@@ -140,7 +123,6 @@ export function Overview({
       unit: "",
       caption: application ? application.program : "ещё не заведена",
       word: true,
-      draft: false,
       blocked: false,
     },
   ];
@@ -175,17 +157,8 @@ export function Overview({
                   "word" in tile && tile.word ? "text-lg" : "text-2xl"
                 }`}
               >
-                {tile.draft ? (
-                  <DraftMark>
-                    {tile.value}
-                    <span className="text-sm font-normal text-fg-3">{tile.unit}</span>
-                  </DraftMark>
-                ) : (
-                  <>
-                    {tile.value}
-                    <span className="text-sm font-normal text-fg-3">{tile.unit}</span>
-                  </>
-                )}
+                {tile.value}
+                <span className="text-sm font-normal text-fg-3">{tile.unit}</span>
               </span>
               <span className="text-2xs text-fg-3">{tile.caption}</span>
             </a>
@@ -209,7 +182,6 @@ export function Overview({
 
       <Card title="Коротко">
         <FactList
-          draft
           facts={[
             { label: "Ответственный", value: draft.responsible },
             { label: "Поставщик услуг", value: draft.provider },
@@ -232,19 +204,18 @@ export function Anketa({ profile, draft }: { profile: PersonProfile; draft: Prof
             Обёртки <dl> здесь нет: FactList рисует свой, и вложенный список
             определений — невалидная разметка. */}
         <FactList
-          draft={false}
           facts={[
             { label: "Телефон", value: profile.phone },
             { label: "Почта", value: profile.email },
           ]}
         />
         <div className="border-t border-border">
-          <FactList draft facts={draft.person} />
+          <FactList facts={draft.person} />
         </div>
       </Card>
 
       <Card title="Учёба и планы">
-        <FactList draft facts={draft.study} />
+        <FactList facts={draft.study} />
       </Card>
 
       {profile.qualification ? (
@@ -293,7 +264,7 @@ export function Documents({ draft }: { draft: ProfileDraft }) {
                   }`}
                 />
                 <span className="min-w-0 flex-1 text-sm text-fg">
-                  <DraftMark>{item.name}</DraftMark>
+                  {item.name}
                 </span>
                 {item.present ? (
                   <>
@@ -323,7 +294,7 @@ export function Documents({ draft }: { draft: ProfileDraft }) {
               className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 last:border-b-0"
             >
               <span className="min-w-0 flex-1 truncate font-mono text-2xs text-fg">
-                <DraftMark>{file.name}</DraftMark>
+                {file.name}
               </span>
               <span className="shrink-0 text-2xs text-fg-3">{file.size}</span>
               <span className="shrink-0 font-mono text-2xs text-fg-3">{file.at}</span>
@@ -357,7 +328,7 @@ export function Money({ profile, draft }: { profile: PersonProfile; draft: Profi
           <div className="px-4 py-3">
             <p className="flex flex-wrap items-baseline gap-2">
               <span className="text-2xl font-bold tracking-[-0.02em] text-fg">
-                <DraftMark>{draft.budget}</DraftMark>
+                {draft.budget}
               </span>
               {draft.currency ? <span className="text-2xs text-fg-3">{draft.currency}</span> : null}
             </p>
@@ -394,7 +365,7 @@ export function Money({ profile, draft }: { profile: PersonProfile; draft: Profi
               className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 last:border-b-0"
             >
               <span className="min-w-0 flex-1 text-sm text-fg">
-                <DraftMark>{payment.name}</DraftMark>
+                {payment.name}
               </span>
               <span className="shrink-0 font-mono text-sm tabular-nums text-fg">
                 {payment.amount}
@@ -410,7 +381,6 @@ export function Money({ profile, draft }: { profile: PersonProfile; draft: Profi
 
       <Card title="Договор">
         <FactList
-          draft={false}
           facts={[
             {
               label: "Подписан",
@@ -468,7 +438,6 @@ export function History({ profile }: { profile: PersonProfile }) {
       <div className="flex flex-col gap-4">
         <Card title="Как он к нам пришёл">
           <FactList
-            draft={false}
             facts={[
               { label: "Откуда", value: sourceWord(profile.source) ?? "неизвестно" },
               { label: "Появился", value: profile.arrived },

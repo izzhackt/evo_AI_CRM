@@ -13,12 +13,11 @@ export default async function InboxPart() {
     <PartShell
       title="Входящие"
       count={threads.length}
-      lead={`${messages} сообщений в ${threads.length} диалогах, все входящие. Отвечать пока нечем: канал WhatsApp не подключён, и поле ответа выключено, а не притворяется работающим.`}
+      fill
     >
       <Inbox
         threads={threads}
         canSend={false}
-        cannotSendReason="Канал WhatsApp не подключён — отправлено пока ни одного сообщения. Когда канал подключат, поле включится."
       />
     </PartShell>
   );

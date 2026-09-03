@@ -41,23 +41,22 @@ export type InboxThread = Readonly<{
 export function Inbox({
   threads,
   canSend,
-  cannotSendReason,
 }: {
   threads: readonly InboxThread[];
   canSend: boolean;
-  cannotSendReason: string;
 }) {
   const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
   const open = threads.find((t) => t.id === openId) ?? null;
 
   return (
-    <div className="grid gap-4 @4xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+    <div className="grid min-h-0 flex-1 gap-4 @4xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
       {/* ---- Список диалогов ---- */}
       <section
         aria-label="Диалоги"
         // На узком экране открытая переписка занимает всё: две колонки по
         // 190px — это не два списка, а два обрубка.
-        className={`min-w-0 overflow-hidden rounded-card border border-border bg-surface ${
+        tabIndex={0}
+        className={`min-w-0 overflow-y-auto rounded-card border border-border bg-surface ${
           open ? "hidden @4xl:block" : ""
         }`}
       >
@@ -106,7 +105,7 @@ export function Inbox({
       {open ? (
         <section
           aria-label={`Переписка: ${open.person}`}
-          className="flex min-w-0 flex-col rounded-card border border-border bg-surface"
+          className="flex min-h-0 min-w-0 flex-col rounded-card border border-border bg-surface"
         >
           <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-4 py-3">
             <button
@@ -128,7 +127,7 @@ export function Inbox({
             role="group"
             aria-label="Сообщения"
             tabIndex={0}
-            className="flex max-h-[520px] min-h-[240px] flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4"
+            className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4"
           >
             {open.messages.map((message) => (
               <article
@@ -154,11 +153,6 @@ export function Inbox({
               </article>
             ))}
 
-            {open.messages.every((m) => m.inbound) ? (
-              <p className="mt-1 self-center px-2 text-center text-2xs leading-4 text-fg-3">
-                Ответов нет: все сообщения в этом диалоге — входящие.
-              </p>
-            ) : null}
           </div>
 
           <footer className="border-t border-border px-4 py-3">
@@ -181,9 +175,6 @@ export function Inbox({
                 <Icon name="send" size={16} />
               </button>
             </div>
-            {!canSend ? (
-              <p className="mt-2 text-2xs leading-4 text-fg-3">{cannotSendReason}</p>
-            ) : null}
           </footer>
         </section>
       ) : (

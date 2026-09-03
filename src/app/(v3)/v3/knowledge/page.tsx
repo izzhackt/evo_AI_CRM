@@ -45,10 +45,6 @@ export default function KnowledgePart() {
       <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
         База знаний
       </h1>
-      <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">
-        Файлы бизнеса: папки, поиск и выбор. Данные — образец; дерево при
-        подключении выведется из путей, с которыми уже работает поиск по базе.
-      </p>
 
       <div className="mt-6">
         <FileManager folders={FOLDERS} files={FILES} currentFolder="Университеты" />

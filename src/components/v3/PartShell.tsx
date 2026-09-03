@@ -12,22 +12,23 @@
 export function PartShell({
   title,
   count,
-  lead,
   width = "wide",
+  fill = false,
   children,
 }: {
   title: string;
   /** Размер того, что показано. null — считать нечего. */
   count?: number | null;
-  lead: string;
   width?: "wide" | "narrow";
+  /** Экран занимает высоту окна: список и лента прокручиваются внутри себя. */
+  fill?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <main
-      className={`mx-auto w-full px-4 py-8 sm:px-6 ${
+      className={`mx-auto w-full px-4 sm:px-6 ${
         width === "narrow" ? "max-w-[860px]" : "max-w-[1240px]"
-      }`}
+      } ${fill ? "flex h-dvh flex-col py-6" : "py-8"}`}
     >
       <h1 className="flex flex-wrap items-baseline gap-2.5 text-2xl font-semibold tracking-[-0.02em] text-fg">
         {title}
@@ -35,9 +36,8 @@ export function PartShell({
           <span className="font-mono text-xl font-normal tabular-nums text-fg-3">{count}</span>
         ) : null}
       </h1>
-      <p className="mt-1 max-w-[62ch] text-sm leading-6 text-fg-3">{lead}</p>
 
-      <div className="mt-6">{children}</div>
+      <div className={fill ? "mt-5 flex min-h-0 flex-1 flex-col" : "mt-6"}>{children}</div>
     </main>
   );
 }

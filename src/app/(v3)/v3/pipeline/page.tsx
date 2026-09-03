@@ -12,10 +12,6 @@ export default async function PipelinePart() {
       <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
         Воронка продаж
       </h1>
-      <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">
-        {leads.length} лидов по стадиям. Карточка несёт имя и ведёт в профиль
-        человека.
-      </p>
 
       <div className="mt-6">
         <Pipeline stages={stages} leads={leads} />

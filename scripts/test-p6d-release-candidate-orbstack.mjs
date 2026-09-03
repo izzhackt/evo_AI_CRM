@@ -23,12 +23,15 @@ const suffix = randomBytes(6).toString("hex");
 const projectName = `evo-p6d-${suffix}`;
 const privateNetwork = `evo_p6d_${suffix}_private`;
 const webNetwork = `evo_p6d_${suffix}_web`;
+const outputVolume = `evo_p6d_${suffix}_output`;
+const wahaSessionVolume = `evo_p6d_${suffix}_waha_sessions`;
 const appEnvironmentFile = join(harnessRoot, ".env.production");
 const wahaEnvironmentFile = join(harnessRoot, ".env.waha");
 const composeOverrideFile = join(harnessRoot, "compose.override.json");
 const wahaDigest = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const wahaReference = `devlikeapro/waha@${wahaDigest}`;
 const createdNetworks = new Set();
+const ownedVolumes = new Set([outputVolume, wahaSessionVolume]);
 const startedContainers = new Set();
 let composeStarted = false;
 let browser;
@@ -137,13 +140,15 @@ function validateInputs() {
   return url;
 }
 
-function createNetwork(name) {
-  docker([
-    "network", "create", "--driver", "bridge", "--internal",
+function createNetwork(name, { internal }) {
+  const args = [
+    "network", "create", "--driver", "bridge",
     "--label", "com.evo.harness=p6d-release-candidate",
     "--label", `com.evo.harness.run=${suffix}`,
-    name,
-  ], { label: `Create isolated network ${name}` });
+  ];
+  if (internal) args.push("--internal");
+  args.push(name);
+  docker(args, { label: `Create isolated network ${name}` });
   createdNetworks.add(name);
 }
 
@@ -365,6 +370,22 @@ async function main() {
         command: ["sh", "-ec", "node -e \"eval(Buffer.from(process.env.EVO_P6D_LOCAL_SUPABASE_PROXY_B64,'base64').toString('utf8'))\" & exec node server.js"],
       },
     },
+    volumes: {
+      evo_crm_output: {
+        name: outputVolume,
+        labels: {
+          "com.evo.harness": "p6d-release-candidate",
+          "com.evo.harness.run": suffix,
+        },
+      },
+      evo_crm_waha_sessions: {
+        name: wahaSessionVolume,
+        labels: {
+          "com.evo.harness": "p6d-release-candidate",
+          "com.evo.harness.run": suffix,
+        },
+      },
+    },
   }, null, 2)}\n`);
 
   const composeEnvironment = {
@@ -383,8 +404,8 @@ async function main() {
 
   canonicalCompose("docker-compose.prod.yml", composeEnvironment);
   canonicalCompose("docker-compose.staging.yml", composeEnvironment);
-  createNetwork(privateNetwork);
-  createNetwork(webNetwork);
+  createNetwork(privateNetwork, { internal: true });
+  createNetwork(webNetwork, { internal: false });
 
   docker([
     "build", "--platform", "linux/amd64", "--file", "Dockerfile", "--tag", image,
@@ -425,6 +446,8 @@ async function main() {
   assert.equal(waha.RestartCount, 0);
   assert.deepEqual(sorted(Object.keys(app.NetworkSettings?.Networks ?? {})), [privateNetwork, webNetwork]);
   assert.deepEqual(sorted(Object.keys(waha.NetworkSettings?.Networks ?? {})), [privateNetwork]);
+  assert.equal(parseJson(docker(["network", "inspect", privateNetwork]).stdout, "Private network")[0]?.Internal, true);
+  assert.equal(parseJson(docker(["network", "inspect", webNetwork]).stdout, "Web network")[0]?.Internal, false);
   assert.equal(Object.values(waha.HostConfig?.PortBindings ?? {}).flat().filter(Boolean).length, 0, "WAHA published a port");
   for (const [name, container] of Object.entries({ app, waha })) {
     assert(container.HostConfig?.NanoCpus > 0, `${name} has no CPU bound`);
@@ -502,6 +525,9 @@ try {
   }
   for (const network of [...createdNetworks].reverse()) {
     try { docker(["network", "rm", network], { accepted: [0, 1], label: "Owned network cleanup" }); } catch (error) { cleanupErrors.push(error); }
+  }
+  for (const volume of ownedVolumes) {
+    try { docker(["volume", "rm", volume], { accepted: [0, 1], label: "Owned volume cleanup" }); } catch (error) { cleanupErrors.push(error); }
   }
   try {
     const resolved = realpathSync(harnessRoot);

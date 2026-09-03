@@ -15535,3 +15535,42 @@ This ordering creates no production deployment or temporary dual runtime. V1
 remains frozen; WhatsApp/Gemini provider execution remains removed from the
 active gate under ADR 0026; no arbitrary customer record, data migration,
 cutover or public traffic is authorized.
+
+## 2026-09-03 - Correct the missing Sales amoCRM command surface before provider retry
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex under the owner's instruction to continue without the unavailable
+controlled WhatsApp test.
+Change type: acceptance-found application correction inside #567; no new
+provider authority.
+Affected plan section: P5C Supabase-authoritative amoCRM commands and its
+exact-main provider proof.
+
+PR #572 merged at exact main
+`23360a9f3816f7de8d33c162d550fc56688b9c1d`; its exact-main CI run
+`33695138189` passed. The first guarded #567 run provisioned a fresh local
+Supabase staff contour and reached the disabled-provider browser check, but
+`/sales/<lead-id>` contained no `canonical-amocrm-command-panel`. Playwright
+stopped before the dispatch test, the guarded harness emitted no acceptance
+evidence files, and no amoCRM command or other provider mutation ran.
+
+Root cause: the shared canonical panel already supports
+`sales_pre_handoff`, while the application mounts it only in the Admissions
+Student 360 workspace. The connected harness correctly targets the canonical
+Sales Lead 360 route, so weakening the test or redirecting it to Admissions
+would leave the approved Sales workflow unimplemented.
+
+Decision: add one Sales Lead 360 mount of the existing canonical panel backed
+by the same Supabase RPC/service path. Bind the server-side blocking read to
+the current organization, staff authority, lead and client with
+`sales_pre_handoff`; fail clearly when the lead has no canonical client or the
+RPC is unavailable. Add application and browser regression proof that the
+disabled-provider state renders but cannot dispatch. Do not add another panel
+implementation, repository, provider adapter, fallback route or compatibility
+state.
+
+The corrective slice must pass local real PostgreSQL/application/browser
+checks, independent exact-head review, exact-head CI, controlled merge and
+exact-main CI. Only then may the bounded #567 harness be invoked again. This is
+not a blind provider retry because the failed run never entered its dispatch
+test; provider rejection or ambiguity would still stop without retry.

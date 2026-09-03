@@ -45,6 +45,7 @@ test("P5D remote WAHA inspection stays read-only and never copies a secret", () 
   assert.match(shell, /\/opt\/evo-crm\/\.env\.lead-agent/u);
   assert.match(shell, /read_runtime_env_value\(\)/u);
   assert.match(shell, /EVO_AGENT_WAHA_SESSION/u);
+  assert.match(shell, /^export EVO_AGENT_WAHA_API_KEY$/mu);
   assert.match(shell, /crm_primary/u);
   assert.match(shell, /http:\/\/evo-crm-waha:3000/u);
   assert.match(shell, /evo-crm-waha-1/u);

@@ -98,6 +98,7 @@ EVO_V2_AMOCRM_WRITES_ENABLED="$(read_runtime_env_value EVO_V2_AMOCRM_WRITES_ENAB
 [[ "$EVO_AGENT_WAHA_SESSION" == "crm_primary" ]] || exit 21
 [[ "$EVO_AGENT_WAHA_BASE_URL" == "http://evo-crm-waha:3000" ]] || exit 22
 [[ -n "$EVO_AGENT_WAHA_API_KEY" ]] || exit 23
+export EVO_AGENT_WAHA_API_KEY
 [[ "$(docker inspect --format '{{.State.Running}}' evo-crm-waha-1)" == "true" ]] || exit 24
 
 waha_ip="$(docker inspect --format '{{with index .NetworkSettings.Networks "evo_crm_private"}}{{.IPAddress}}{{end}}' evo-crm-waha-1)"

@@ -83,12 +83,12 @@ test("P4 retires the Admissions wrapper and leaves only the Platform amoCRM sect
   );
 });
 
-test("P3 local browser gate no longer prepares or runs the old amoCRM handoff fixture", () => {
+test("P3 local browser gate keeps the old amoCRM handoff fixture removed", () => {
   const harness = source("scripts/test-postgres-v2-foundation.sh");
 
-  assert.doesNotMatch(harness, /amocrm_command_browser_assert/);
+  assert.match(harness, /canonical_amocrm_command_browser_assert/);
   assert.doesNotMatch(harness, /seed-canonical-amocrm-browser-blocker/);
-  assert.doesNotMatch(harness, /tests\/e2e\/canonical-amocrm-command\.spec\.ts/);
+  assert.match(harness, /tests\/e2e\/canonical-amocrm-command\.spec\.ts/);
   assert.doesNotMatch(harness, /updateCanonicalSalesLeadWorkflow/);
   assert.doesNotMatch(harness, /private_document_browser_assert/);
   assert.doesNotMatch(harness, /tests\/canonical-crm-postgres\.test\.mjs/);

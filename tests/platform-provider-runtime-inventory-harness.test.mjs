@@ -50,6 +50,13 @@ test("P5D remote WAHA inspection stays read-only and never copies a secret", () 
   assert.match(shell, /http:\/\/evo-crm-waha:3000/u);
   assert.match(shell, /evo-crm-waha-1/u);
   assert.match(shell, /evo_crm_private/u);
+  assert.match(shell, /com\.docker\.compose\.project/u);
+  assert.match(shell, /com\.docker\.compose\.service/u);
+  assert.match(shell, /containerIdentitySha256/u);
+  assert.match(shell, /imageIdentitySha256/u);
+  assert.match(shell, /"applicationDeploymentClaimed": False/u);
+  assert.match(shell, /"harnessGitSha"/u);
+  assert.doesNotMatch(shell, /"gitSha": os\.environ/u);
   assert.match(shell, /\/api\/sessions\/crm_primary/u);
   assert.match(shell, /method[^\n]*GET|curl[^\n]*--request GET/iu);
   assert.doesNotMatch(shell, /^\. "\$runtime_env"$/mu);

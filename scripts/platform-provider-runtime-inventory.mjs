@@ -13,7 +13,7 @@ import {
   renameSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, relative, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
 const SHA40 = /^[0-9a-f]{40}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -87,6 +87,12 @@ function assertSha40(value, label) {
   if (typeof value !== "string" || !SHA40.test(value)) fail(`${label} must be a git SHA`);
 }
 
+function assertSha256(value, label) {
+  if (typeof value !== "string" || !SHA256.test(value)) {
+    fail(`${label} must be a 64-character lowercase SHA-256`);
+  }
+}
+
 function assertNonNegativeInteger(value, label) {
   if (!Number.isInteger(value) || value < 0) fail(`${label} must be a non-negative integer`);
 }
@@ -119,6 +125,25 @@ function assertSafeString(value, label) {
   if (typeof value !== "string") fail(`${label} must be a string`);
   if (SAFE_PATH.test(value)) return;
   fail(`${label} contains unsafe characters`);
+}
+
+function resolveRepoPath(repoRoot, candidate, label, mustExist = false) {
+  const resolved = resolve(repoRoot, candidate);
+  if (resolved === repoRoot || !resolved.startsWith(`${repoRoot}${sep}`)) {
+    fail(`${label} must stay within the repo root`);
+  }
+  if (!mustExist) return resolved;
+
+  let real;
+  try {
+    real = realpathSync(resolved);
+  } catch {
+    fail(`${label} does not exist`);
+  }
+  if (real === repoRoot || !real.startsWith(`${repoRoot}${sep}`)) {
+    fail(`${label} must stay within the repo root`);
+  }
+  return real;
 }
 
 function assertNoSecretLikeData(value, label = "root") {
@@ -160,17 +185,69 @@ function assertReadOnlySection(value, label, options = {}) {
 export function validateRemoteEvidence(value, expectedSha) {
   exactKeys(
     value,
-    ["schemaVersion", "kind", "gitSha", "observedAt", "waha", "amocrm", "gemini"],
+    [
+      "schemaVersion",
+      "kind",
+      "harnessGitSha",
+      "observedAt",
+      "environment",
+      "waha",
+      "amocrm",
+      "gemini",
+    ],
     "remote evidence",
   );
-  if (value.schemaVersion !== 1) fail("remote evidence schemaVersion drifted");
+  if (value.schemaVersion !== 2) fail("remote evidence schemaVersion drifted");
   if (value.kind !== "platform-provider-runtime-remote-readiness") {
     fail("remote evidence kind drifted");
   }
-  assertSha40(value.gitSha, "remote evidence gitSha");
-  if (value.gitSha !== expectedSha) fail("remote evidence gitSha mismatch");
+  assertSha40(value.harnessGitSha, "remote evidence harnessGitSha");
+  if (value.harnessGitSha !== expectedSha) {
+    fail("remote evidence harnessGitSha mismatch");
+  }
   assertTimestamp(value.observedAt, "remote evidence observedAt");
   assertNoSecretLikeData(value, "remote evidence");
+
+  exactKeys(
+    value.environment,
+    [
+      "composeProject",
+      "composeService",
+      "containerName",
+      "privateNetwork",
+      "running",
+      "containerIdentitySha256",
+      "imageIdentitySha256",
+      "applicationDeploymentClaimed",
+    ],
+    "remote evidence environment",
+  );
+  if (value.environment.composeProject !== "evo-crm") {
+    fail("remote evidence compose project drifted");
+  }
+  if (value.environment.composeService !== "waha") {
+    fail("remote evidence compose service drifted");
+  }
+  if (value.environment.containerName !== "evo-crm-waha-1") {
+    fail("remote evidence container name drifted");
+  }
+  if (value.environment.privateNetwork !== "evo_crm_private") {
+    fail("remote evidence private network drifted");
+  }
+  if (value.environment.running !== true) {
+    fail("remote evidence container must be running");
+  }
+  assertSha256(
+    value.environment.containerIdentitySha256,
+    "remote evidence containerIdentitySha256",
+  );
+  assertSha256(
+    value.environment.imageIdentitySha256,
+    "remote evidence imageIdentitySha256",
+  );
+  if (value.environment.applicationDeploymentClaimed !== false) {
+    fail("remote evidence must not claim an application deployment");
+  }
 
   exactKeys(
     value.waha,
@@ -400,7 +477,15 @@ function defaultRun(command, args, cwd) {
   });
 }
 
-function classifyReference(repoPath) {
+function classifyReference(repoPath, rule, lineText) {
+  if (
+    repoPath === "src/lib/platform-communications.ts" &&
+    rule.id === "forbidden_waha_fallback_alias" &&
+    lineText.trim() ===
+      'const RETIRED_WAHA_EVIDENCE_SESSION = "evo-inbox" as const;'
+  ) {
+    return "guard";
+  }
   if (HISTORICAL_FILES.has(repoPath)) return "historical";
   if (HISTORICAL_ROOTS.some((prefix) => repoPath === prefix.slice(0, -1) || repoPath.startsWith(prefix))) {
     return "historical";
@@ -476,8 +561,8 @@ function scanRuleWithNode(repoReal, rule) {
             description: rule.description ?? "",
             path: repoPath,
             line: index + 1,
-            text: lines[index],
-            classification: classifyReference(repoPath),
+            lineSha256: sha256(Buffer.from(lines[index], "utf8")),
+            classification: classifyReference(repoPath, rule, lines[index]),
           }),
         );
       }
@@ -540,14 +625,14 @@ export function scanRuntimeReferences(
       const lineNumber = event.data.line_number;
       const lineText = event.data.lines.text.replace(/\r?\n$/u, "");
       const repoPath = relativePath(repoReal, absolutePath);
-      const classification = classifyReference(repoPath);
+      const classification = classifyReference(repoPath, rule, lineText);
       matches.push(
         Object.freeze({
           ruleId: rule.id,
           description: rule.description ?? "",
           path: repoPath,
           line: lineNumber,
-          text: lineText,
+          lineSha256: sha256(Buffer.from(lineText, "utf8")),
           classification,
         }),
       );
@@ -571,18 +656,31 @@ export function scanRuntimeReferences(
   });
 }
 
-function ensurePrivateParent(path) {
+function ensurePrivateParent(path, repoRoot) {
   const parent = dirname(path);
+  let existingAncestor = parent;
+  while (!existsSync(existingAncestor)) {
+    const next = dirname(existingAncestor);
+    if (next === existingAncestor) fail("output parent has no safe existing ancestor");
+    existingAncestor = next;
+  }
+  const ancestorStat = lstatSync(existingAncestor);
+  if (!ancestorStat.isDirectory() || ancestorStat.isSymbolicLink()) {
+    fail("output parent must stay within the repo root as real directories");
+  }
+  relativePath(repoRoot, existingAncestor);
+
   if (!existsSync(parent)) {
     mkdirSync(parent, { recursive: true, mode: 0o700 });
   }
   const stat = lstatSync(parent);
   if (!stat.isDirectory() || stat.isSymbolicLink()) fail("output parent must be a real directory");
+  relativePath(repoRoot, parent);
   chmodSync(parent, 0o700);
 }
 
-function writePrivateJson(path, value) {
-  ensurePrivateParent(path);
+function writePrivateJson(path, value, repoRoot) {
+  ensurePrivateParent(path, repoRoot);
   const temporary = `${path}.tmp`;
   const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
   if (existsSync(path) || existsSync(temporary)) fail(`artifact collision: ${basename(path)}`);
@@ -616,10 +714,29 @@ export function createPlatformProviderRuntimeInventory(input) {
   }
 
   const repoRoot = realpathSync(input.repoRoot);
-  const remotePath = join(repoRoot, input.remoteEvidencePath);
-  const browserPath = join(repoRoot, input.browserEvidencePath);
-  const databasePath = join(repoRoot, input.databaseEvidencePath);
-  const outputPath = join(repoRoot, input.outputPath);
+  const remotePath = resolveRepoPath(
+    repoRoot,
+    input.remoteEvidencePath,
+    "remote evidence",
+    true,
+  );
+  const browserPath = resolveRepoPath(
+    repoRoot,
+    input.browserEvidencePath,
+    "browser evidence",
+    true,
+  );
+  const databasePath = resolveRepoPath(
+    repoRoot,
+    input.databaseEvidencePath,
+    "database evidence",
+    true,
+  );
+  const outputPath = resolveRepoPath(
+    repoRoot,
+    input.outputPath,
+    "provider runtime inventory output",
+  );
 
   const remoteFile = readJsonFile(remotePath, "remote evidence");
   const browserFile = readJsonFile(browserPath, "browser evidence");
@@ -655,6 +772,9 @@ export function createPlatformProviderRuntimeInventory(input) {
         sha256: sha256(Buffer.from(databaseFile.body, "utf8")),
       }),
     }),
+    remoteRuntime: Object.freeze({
+      ...remoteEvidence.environment,
+    }),
     checks: Object.freeze({
       remoteReadOnly: true,
       browserReadOnly: true,
@@ -676,7 +796,7 @@ export function createPlatformProviderRuntimeInventory(input) {
     }),
   });
 
-  writePrivateJson(outputPath, report);
+  writePrivateJson(outputPath, report, repoRoot);
   return report;
 }
 

@@ -5,10 +5,11 @@ import {
   mkdirSync,
   readFileSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { mkdtempSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -38,10 +39,22 @@ function writeJson(path, value, mode = 0o600) {
 
 function validRemoteEvidence() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: "platform-provider-runtime-remote-readiness",
-    gitSha: SHA,
+    harnessGitSha: SHA,
     observedAt: OBSERVED_AT,
+    environment: {
+      composeProject: "evo-crm",
+      composeService: "waha",
+      containerName: "evo-crm-waha-1",
+      privateNetwork: "evo_crm_private",
+      running: true,
+      containerIdentitySha256:
+        "1111111111111111111111111111111111111111111111111111111111111111",
+      imageIdentitySha256:
+        "2222222222222222222222222222222222222222222222222222222222222222",
+      applicationDeploymentClaimed: false,
+    },
     waha: {
       selectedSession: "crm_primary",
       status: "WORKING",
@@ -177,13 +190,40 @@ function validDatabaseEvidence() {
 }
 
 test("validators accept the sanitized read-only provider evidence contract", () => {
-  assert.equal(validateRemoteEvidence(validRemoteEvidence(), SHA).gitSha, SHA);
+  assert.equal(
+    validateRemoteEvidence(validRemoteEvidence(), SHA).harnessGitSha,
+    SHA,
+  );
   assert.equal(validateBrowserEvidence(validBrowserEvidence(), SHA).gitSha, SHA);
   assert.equal(validateDatabaseEvidence(validDatabaseEvidence(), SHA).gitSha, SHA);
 });
 
+test("remote evidence identifies WAHA without claiming an app deployment", () => {
+  const wrongRuntime = validRemoteEvidence();
+  wrongRuntime.environment.composeProject = "evo-inbox";
+  assert.throws(
+    () => validateRemoteEvidence(wrongRuntime, SHA),
+    /compose project drifted/u,
+  );
+
+  const falseDeploymentClaim = validRemoteEvidence();
+  falseDeploymentClaim.environment.applicationDeploymentClaimed = true;
+  assert.throws(
+    () => validateRemoteEvidence(falseDeploymentClaim, SHA),
+    /must not claim an application deployment/u,
+  );
+
+  const invalidImageIdentity = validRemoteEvidence();
+  invalidImageIdentity.environment.imageIdentitySha256 = "not-a-sha";
+  assert.throws(
+    () => validateRemoteEvidence(invalidImageIdentity, SHA),
+    /imageIdentitySha256 must be a 64-character lowercase SHA-256/u,
+  );
+});
+
 test("runtime scan separates historical evo-inbox references from active ones", () => {
   const root = fixture();
+  mkdirSync(join(root, "src", "lib"), { mode: 0o700 });
   writeFileSync(
     join(root, "docs", "historical.md"),
     "This preserved historical rollback note keeps evo-inbox as frozen evidence.\n",
@@ -199,10 +239,19 @@ test("runtime scan separates historical evo-inbox references from active ones", 
     "// Historical compatibility must not exempt active source.\nexport const selectedSession = 'evo-inbox';\n",
     { mode: 0o600 },
   );
+  writeFileSync(
+    join(root, "src", "lib", "platform-communications.ts"),
+    'const RETIRED_WAHA_EVIDENCE_SESSION = "evo-inbox" as const;\n',
+    { mode: 0o600 },
+  );
 
   const scan = scanRuntimeReferences(root);
   assert.equal(scan.historicalReferences.length, 1);
   assert.equal(scan.historicalReferences[0].path, "docs/historical.md");
+  assert.deepEqual(
+    scan.guardReferences.map(({ path }) => path),
+    ["src/lib/platform-communications.ts"],
+  );
   assert.deepEqual(
     scan.activeViolations.map(({ path }) => path).sort(),
     ["src/bad.ts", "src/commented-bad.ts"],
@@ -267,6 +316,10 @@ test("inventory artifact is written privately and blocks active fallback referen
   });
 
   assert.equal(report.status, "passed");
+  assert.equal(report.gitSha, SHA);
+  assert.equal(report.remoteRuntime.composeProject, "evo-crm");
+  assert.equal(report.remoteRuntime.containerName, "evo-crm-waha-1");
+  assert.equal(report.remoteRuntime.applicationDeploymentClaimed, false);
   assert.equal(existsSync(join(root, outputPath)), true);
   assert.equal(statSync(join(root, outputPath)).mode & 0o777, 0o600);
   assert.equal(JSON.parse(readFileSync(join(root, outputPath), "utf8")).kind, "platform-provider-runtime-inventory");
@@ -332,4 +385,51 @@ test("inventory rejects wrong session, non-WORKING status, mutation, database dr
     [secretTokenKey]: "redacted-placeholder",
   };
   assert.throws(() => validateRemoteEvidence(secretValue, SHA), /secret-like/);
+});
+
+test("inventory rejects evidence and output paths outside the repository", () => {
+  const root = fixture();
+  const outside = mkdtempSync(join(tmpdir(), "platform-provider-runtime-outside-"));
+  const escapedOutput = join(outside, "success.json");
+  writeJson(join(root, "evidence", "remote.json"), validRemoteEvidence());
+  writeJson(join(root, "evidence", "browser.json"), validBrowserEvidence());
+  writeJson(join(root, "evidence", "database.json"), validDatabaseEvidence());
+
+  const input = {
+    repoRoot: root,
+    expectedSha: SHA,
+    remoteEvidencePath: "evidence/remote.json",
+    browserEvidencePath: "evidence/browser.json",
+    databaseEvidencePath: "evidence/database.json",
+    outputPath: relative(root, escapedOutput),
+  };
+
+  assert.throws(
+    () => createPlatformProviderRuntimeInventory(input),
+    /must stay within the repo root/u,
+  );
+  assert.equal(existsSync(escapedOutput), false);
+
+  writeJson(join(outside, "remote.json"), validRemoteEvidence());
+  assert.throws(
+    () =>
+      createPlatformProviderRuntimeInventory({
+        ...input,
+        remoteEvidencePath: relative(root, join(outside, "remote.json")),
+        outputPath: "evidence/runtime-inventory.json",
+      }),
+    /must stay within the repo root/u,
+  );
+
+  const symlinkEscape = join(root, "evidence", "escape");
+  symlinkSync(outside, symlinkEscape, "dir");
+  assert.throws(
+    () =>
+      createPlatformProviderRuntimeInventory({
+        ...input,
+        outputPath: "evidence/escape/nested/success.json",
+      }),
+    /must stay within the repo root/u,
+  );
+  assert.equal(existsSync(join(outside, "nested")), false);
 });

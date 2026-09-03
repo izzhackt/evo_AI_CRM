@@ -67,7 +67,7 @@ if ! ssh hermes-vps bash -s -- "$expected_sha" >"$remote_log" <<'REMOTE_PROBE'
 set -euo pipefail
 umask 077
 
-expected_sha="$1"
+harness_sha="$1"
 runtime_env="/opt/evo-crm/.env.lead-agent"
 [[ -r "$runtime_env" ]] || exit 20
 
@@ -101,10 +101,23 @@ EVO_V2_AMOCRM_WRITES_ENABLED="$(read_runtime_env_value EVO_V2_AMOCRM_WRITES_ENAB
 export EVO_AGENT_WAHA_API_KEY
 [[ "$(docker inspect --format '{{.State.Running}}' evo-crm-waha-1)" == "true" ]] || exit 24
 
+compose_project="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' evo-crm-waha-1)"
+compose_service="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.service" }}' evo-crm-waha-1)"
+container_identity="$(docker inspect --format '{{.Id}}' evo-crm-waha-1)"
+image_identity="$(docker inspect --format '{{.Image}}' evo-crm-waha-1)"
+[[ "$compose_project" == "evo-crm" ]] || exit 26
+[[ "$compose_service" == "waha" ]] || exit 27
+[[ "$container_identity" =~ ^[0-9a-f]{64}$ ]] || exit 28
+[[ -n "$image_identity" ]] || exit 29
+
 waha_ip="$(docker inspect --format '{{with index .NetworkSettings.Networks "evo_crm_private"}}{{.IPAddress}}{{end}}' evo-crm-waha-1)"
 [[ "$waha_ip" =~ ^[0-9a-fA-F:.]+$ ]] || exit 25
 export EVO_PROVIDER_RUNTIME_WAHA_IP="$waha_ip"
-export EVO_PROVIDER_RUNTIME_EXPECTED_SHA="$expected_sha"
+export EVO_PROVIDER_RUNTIME_HARNESS_SHA="$harness_sha"
+export EVO_PROVIDER_RUNTIME_COMPOSE_PROJECT="$compose_project"
+export EVO_PROVIDER_RUNTIME_COMPOSE_SERVICE="$compose_service"
+export EVO_PROVIDER_RUNTIME_CONTAINER_ID="$container_identity"
+export EVO_PROVIDER_RUNTIME_IMAGE_ID="$image_identity"
 export EVO_PROVIDER_RUNTIME_GEMINI_CONFIGURED="false"
 [[ -n "$GEMINI_API_KEY" || -n "$GOOGLE_API_KEY" ]] && export EVO_PROVIDER_RUNTIME_GEMINI_CONFIGURED="true"
 export EVO_PROVIDER_RUNTIME_AMOCRM_CONFIGURED="false"
@@ -114,6 +127,7 @@ fi
 
 python3 <<'PY'
 import datetime
+import hashlib
 import ipaddress
 import json
 import os
@@ -136,10 +150,25 @@ if payload.get("name") != "crm_primary" or payload.get("status") != "WORKING":
     raise RuntimeError("The connected crm_primary WAHA session is not WORKING")
 
 result = {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "kind": "platform-provider-runtime-remote-readiness",
-    "gitSha": os.environ["EVO_PROVIDER_RUNTIME_EXPECTED_SHA"],
+    # This identifies the exact-main harness, not the deployed V1 application.
+    "harnessGitSha": os.environ["EVO_PROVIDER_RUNTIME_HARNESS_SHA"],
     "observedAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+    "environment": {
+        "composeProject": os.environ["EVO_PROVIDER_RUNTIME_COMPOSE_PROJECT"],
+        "composeService": os.environ["EVO_PROVIDER_RUNTIME_COMPOSE_SERVICE"],
+        "containerName": "evo-crm-waha-1",
+        "privateNetwork": "evo_crm_private",
+        "running": True,
+        "containerIdentitySha256": hashlib.sha256(
+            os.environ["EVO_PROVIDER_RUNTIME_CONTAINER_ID"].encode()
+        ).hexdigest(),
+        "imageIdentitySha256": hashlib.sha256(
+            os.environ["EVO_PROVIDER_RUNTIME_IMAGE_ID"].encode()
+        ).hexdigest(),
+        "applicationDeploymentClaimed": False,
+    },
     "waha": {
         "selectedSession": "crm_primary",
         "status": "WORKING",

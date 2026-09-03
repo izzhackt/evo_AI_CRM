@@ -17,7 +17,7 @@ test("current WAHA paths accept crm_primary and reject the historical inbox sess
   assert.equal(parsePlatformWahaSessionName("evo-inbox"), null);
 });
 
-test("active conversation and message projections reject every non-current WAHA session", () => {
+test("projections preserve immutable session evidence while active selection remains crm_primary-only", () => {
   const conversation = {
     conversation_id: "54600000-0000-4000-8000-000000000007",
     student_case_id: null,
@@ -62,11 +62,25 @@ test("active conversation and message projections reject every non-current WAHA 
     normalizePlatformConversationMessage(message).wahaSessionName,
     "crm_primary",
   );
+  assert.equal(
+    normalizePlatformConversationSummary({
+      ...conversation,
+      waha_session_name: "evo-inbox",
+    }).wahaSessionName,
+    "evo-inbox",
+  );
+  assert.equal(
+    normalizePlatformConversationMessage({
+      ...message,
+      waha_session_name: "evo-inbox",
+    }).wahaSessionName,
+    "evo-inbox",
+  );
   assert.throws(
     () =>
       normalizePlatformConversationSummary({
         ...conversation,
-        waha_session_name: "evo-inbox",
+        waha_session_name: "unknown-session",
       }),
     PlatformCommunicationsRepositoryError,
   );
@@ -74,7 +88,7 @@ test("active conversation and message projections reject every non-current WAHA 
     () =>
       normalizePlatformConversationMessage({
         ...message,
-        waha_session_name: "evo-inbox",
+        waha_session_name: "unknown-session",
       }),
     PlatformCommunicationsRepositoryError,
   );

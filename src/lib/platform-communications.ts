@@ -15,8 +15,12 @@ const SAFE_REPOSITORY_ERROR_MESSAGE =
 export type PlatformConversationQueue = "sales" | "admissions";
 export type PlatformConversationStatus = "open" | "closed";
 export type PlatformWahaSessionName = "crm_primary";
+const RETIRED_WAHA_EVIDENCE_SESSION = "evo-inbox" as const;
 // Provider provenance is immutable: old conversations may still name the
 // retired session, but only PlatformWahaSessionName is a current runtime target.
+export type PlatformWahaEvidenceSessionName =
+  | PlatformWahaSessionName
+  | typeof RETIRED_WAHA_EVIDENCE_SESSION;
 export type PlatformMessageDirection = "inbound" | "outbound";
 export type PlatformMessageLanguage = "ru" | "en" | "undetermined";
 export type PlatformMessageWahaAckName =
@@ -57,7 +61,7 @@ export type PlatformConversationSummary = Readonly<{
   queue: PlatformConversationQueue;
   status: PlatformConversationStatus;
   subject: string;
-  wahaSessionName: PlatformWahaSessionName;
+  wahaSessionName: PlatformWahaEvidenceSessionName;
   kommoAccountId: string | null;
   kommoConversationId: string | null;
   amocrmAccountId: string | null;
@@ -74,7 +78,7 @@ export type PlatformConversationMessage = Readonly<{
   bodyText: string;
   language: PlatformMessageLanguage;
   studentVisible: boolean;
-  wahaSessionName: PlatformWahaSessionName | null;
+  wahaSessionName: PlatformWahaEvidenceSessionName | null;
   wahaMessageId: string | null;
   kommoAccountId: string | null;
   kommoConversationId: string | null;
@@ -414,6 +418,16 @@ export function parsePlatformWahaSessionName(
   return value === "crm_primary" ? value : null;
 }
 
+// This parser is read-only provenance handling. Provider health, reconciliation
+// and outbound commands continue to use parsePlatformWahaSessionName above.
+function parseHistoricalOrCurrentWahaEvidenceSessionName(
+  value: unknown,
+): PlatformWahaEvidenceSessionName | null {
+  return value === "crm_primary" || value === RETIRED_WAHA_EVIDENCE_SESSION
+    ? value
+    : null;
+}
+
 /**
  * Converts the unknown PostgREST row into the only shape accepted by the UI.
  * It is exported so the boundary contract can be unit-tested without a live
@@ -430,7 +444,9 @@ export function normalizePlatformConversationSummary(
       ? null
       : parsePlatformRouteUuid(value.student_case_id);
   const subject = parseRequiredText(value.subject);
-  const wahaSessionName = parsePlatformWahaSessionName(value.waha_session_name);
+  const wahaSessionName = parseHistoricalOrCurrentWahaEvidenceSessionName(
+    value.waha_session_name,
+  );
   const kommoAccountId = parseOptionalProviderInteger(value.kommo_account_id);
   const kommoConversationId = parseOptionalProviderText(
     value.kommo_conversation_id,
@@ -495,7 +511,9 @@ export function normalizePlatformConversationMessage(
   const wahaSessionName =
     value.waha_session_name === null
       ? null
-      : parsePlatformWahaSessionName(value.waha_session_name);
+      : parseHistoricalOrCurrentWahaEvidenceSessionName(
+          value.waha_session_name,
+        );
   const wahaMessageId = parseOptionalProviderText(value.waha_message_id);
   const kommoAccountId = parseOptionalProviderInteger(value.kommo_account_id);
   const kommoConversationId = parseOptionalProviderText(

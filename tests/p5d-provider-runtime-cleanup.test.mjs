@@ -36,6 +36,11 @@ test("P5D active provider runtime keeps one current WAHA session path", () => {
   const activeSource = ACTIVE_PROVIDER_RUNTIME_PATHS
     .map((relativePath) => source(relativePath))
     .join("\n");
+  const selectableRuntimeSource = ACTIVE_PROVIDER_RUNTIME_PATHS
+    .filter((relativePath) => relativePath !== "src/lib/platform-communications.ts")
+    .map((relativePath) => source(relativePath))
+    .join("\n");
+  const communicationsSource = source("src/lib/platform-communications.ts");
 
   assert.match(activeSource, /PLATFORM_WAHA_SESSION_NAME = "crm_primary"/);
   assert.match(activeSource, /PLATFORM_WAHA_BASE_URL = "http:\/\/evo-crm-waha:3000"/);
@@ -45,8 +50,17 @@ test("P5D active provider runtime keeps one current WAHA session path", () => {
   assert.match(activeSource, /waha_session_name="crm_primary"/);
 
   assert.doesNotMatch(
-    activeSource,
+    selectableRuntimeSource,
     /evo-inbox|evo_inbox_private|EVO_V2_WAHA|waha:evo-inbox|\/opt\/evo-inbox|PLATFORM_WAHA_SESSION_NAME = "evo-inbox"|ACTIVE_WAHA_SESSION = "evo-inbox"|getPlatformWahaSessionHealth\(actor,\s*"evo-inbox"\)|thread\.conversation\.wahaSessionName === "evo-inbox"|waha_session_name="evo-inbox"/i,
+  );
+  assert.equal(communicationsSource.match(/"evo-inbox"/gu)?.length, 1);
+  assert.match(
+    communicationsSource,
+    /const RETIRED_WAHA_EVIDENCE_SESSION = "evo-inbox" as const;/u,
+  );
+  assert.match(
+    communicationsSource,
+    /parseHistoricalOrCurrentWahaEvidenceSessionName/u,
   );
 });
 

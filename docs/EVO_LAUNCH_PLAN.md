@@ -437,6 +437,27 @@ validation from reviewed and CI-green exact main. Issue #568 has not started
 and remains sequenced after that validation. The V3 ownership and adapter
 boundaries above are unchanged.
 
+The owner-authorized fresh validation then ran from clean exact main
+`8444b4cbcd648a28a929ae604597cecfeb35d06c`; exact-main CI run
+`33704513203` had passed. Contact create, lead create, contact/lead link,
+pipeline/status, responsible-user and note operations each returned HTTP 200
+and persisted accepted exact readback. Task creation also returned HTTP 200,
+but its immediate exact readback ended `provider_unavailable`, so the harness
+failed closed at `unknown`; tag execution never started and no `success.json`
+was emitted.
+
+A bounded read-only task-list reconciliation found exactly one task on the
+fresh validation lead with the exact reviewed text and corrected near-future
+deadline. The existing service-only reconciliation RPC then changed only the
+local Supabase attempt from `unknown` to `accepted`, retained exact hashed
+readback and cleared the failure. It did not retry the task mutation or mutate
+amoCRM. Sanitized evidence records seven accepted attempts and seven receipts,
+one contact binding, one lead binding, one provenance record, zero tag attempts
+and no full replay proof. Therefore #567 remains open and #568 must not start.
+The completed one-run authority does not permit a later tag write or another
+provider run; either needs a separate explicit owner continuation. WhatsApp,
+Gemini, V1, deployment, customer migration and cutover remained untouched.
+
 ADR 0026 records that scope correction; no synthetic or customer-chat
 substitute is allowed. The existing
 `src/lib/platform-communications.ts` authenticated Supabase reads and the

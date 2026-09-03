@@ -67,21 +67,10 @@ export default async function MainPart() {
             <TrendChart series={SAMPLE_TREND} ticks={SAMPLE_TICKS} caption="Динамика за период" />
           </div>
 
-          {/* Сводка под графиком — из референса. */}
-          <dl className="-mx-4 mt-2 grid grid-cols-3 gap-px border-t border-border bg-border">
-            <div className="bg-surface px-4 py-2.5">
-              <dd className="font-mono text-md font-semibold text-fg">19</dd>
-              <dt className="text-2xs text-fg-3">лидов за период</dt>
-            </div>
-            <div className="bg-surface px-4 py-2.5">
-              <dd className="font-mono text-md font-semibold text-fg">4</dd>
-              <dt className="text-2xs text-fg-3">передано</dt>
-            </div>
-            <div className="bg-surface px-4 py-2.5">
-              <dd className="font-mono text-md font-semibold text-fg">21%</dd>
-              <dt className="text-2xs text-fg-3">доходимость</dt>
-            </div>
-          </dl>
+          {/* Сводка из референса убрана. Её три числа были зашиты текстом в
+              двухстах пикселях от тех же величин, посчитанных из базы, и с
+              двадцатым лидом на одном экране появились бы два разных ответа
+              на один вопрос. Вдобавок она повторяла карточки сверху. */}
         </section>
 
         <section className="min-w-0 rounded-card border border-border bg-surface p-4">

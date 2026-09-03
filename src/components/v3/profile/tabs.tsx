@@ -103,20 +103,33 @@ export function Overview({
 
   const tiles = [
     {
+      // Знаменателя не существует: у документа в модели нет типа, чеклиста
+      // требуемых документов нет тоже. Значит «5 / 15» — не факт, а образец,
+      // и он помечен пунктиром наравне с остальными нарисованными авансом
+      // полями. Красное ребро отсюда убрано: тревога, выведенная из
+      // выдуманного числа, — выдуманная тревога.
       key: "documents",
       name: "Документы",
       value: `${docs.have}`,
       unit: ` / ${docs.total}`,
       caption: docs.total - docs.have > 0 ? `не хватает ${docs.total - docs.have}` : "все собраны",
-      blocked: docs.total - docs.have > 0,
+      draft: true,
+      blocked: false,
     },
     {
+      // Процент оплаты — тоже образец: в модели есть только сумма первого
+      // взноса. А вот финансовый стоп настоящий, и ребро теперь означает его.
       key: "money",
       name: "Оплата",
       value: draft.paidPercent === null ? "—" : `${draft.paidPercent}`,
       unit: draft.paidPercent === null ? "" : "%",
-      caption: draft.remaining ? `остаток ${draft.remaining}` : "плана платежей нет",
-      blocked: false,
+      caption: profile.financeStop
+        ? `финансовый стоп: ${profile.financeStop}`
+        : draft.remaining
+          ? `остаток ${draft.remaining}`
+          : "плана платежей нет",
+      draft: draft.paidPercent !== null,
+      blocked: profile.financeStop !== null,
     },
     {
       // У заявки нет числа: «1» — это счёт строк, а не состояние. Плитка
@@ -127,6 +140,7 @@ export function Overview({
       unit: "",
       caption: application ? application.program : "ещё не заведена",
       word: true,
+      draft: false,
       blocked: false,
     },
   ];
@@ -161,8 +175,17 @@ export function Overview({
                   "word" in tile && tile.word ? "text-lg" : "text-2xl"
                 }`}
               >
-                {tile.value}
-                <span className="text-sm font-normal text-fg-3">{tile.unit}</span>
+                {tile.draft ? (
+                  <DraftMark>
+                    {tile.value}
+                    <span className="text-sm font-normal text-fg-3">{tile.unit}</span>
+                  </DraftMark>
+                ) : (
+                  <>
+                    {tile.value}
+                    <span className="text-sm font-normal text-fg-3">{tile.unit}</span>
+                  </>
+                )}
               </span>
               <span className="text-2xs text-fg-3">{tile.caption}</span>
             </a>

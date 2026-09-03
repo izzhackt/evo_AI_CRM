@@ -60,6 +60,20 @@ const CASE_STATUS: Record<string, string> = {
   closed: "закрыт",
 };
 
+/**
+ * Состояние задачи: `evo_admissions_tasks.status`.
+ *
+ * `overdue` в базе нет — это открытая задача, у которой срок уже прошёл.
+ * Слово всё равно живёт здесь: состояния одной и той же задачи, разъехавшиеся
+ * по двум местам, — это и есть второй словарь.
+ */
+const TASK_STATUS: Record<string, string> = {
+  open: "в работе",
+  completed: "выполнена",
+  cancelled: "отменена",
+  overdue: "просрочена",
+};
+
 /** Роль: три фиксированные роли EVO. */
 const ROLE: Record<string, string> = {
   admin: "администратор",
@@ -130,6 +144,7 @@ export const applicationStatus = (v: string | null | undefined) => lookup(APPLIC
 export const visaStatus = (v: string | null | undefined) => lookup(VISA_STATUS, v);
 export const visaKind = (v: string | null | undefined) => lookup(VISA_KIND, v);
 export const caseStatus = (v: string | null | undefined) => lookup(CASE_STATUS, v);
+export const taskStatus = (v: string | null | undefined) => lookup(TASK_STATUS, v);
 export const role = (v: string | null | undefined) => lookup(ROLE, v);
 export const source = (v: string | null | undefined) => lookup(SOURCE, v);
 
@@ -156,3 +171,24 @@ export function personState(input: {
   // работают; в шапке профиля она ничего не решает.
   return input.hasCase ? "Студент" : "Лид";
 }
+
+/**
+ * Ступени воронки поступления.
+ *
+ * Это не перевод ключа базы, а одно слово на одну величину. Оно живёт здесь по
+ * той же причине, что и остальные: на главной та же величина стоит в трёх
+ * местах — на карточке, внутри фигуры и в легенде графика, — и три раза была
+ * названа по-разному («Передано в приёмную», «Переданы», «Переданы»). Три
+ * слова читаются как три величины.
+ *
+ * Слова короткие намеренно: в узкой колонке подпись стоит слева от фигуры и
+ * длиннее ~170 единиц заезжает на саму ступень.
+ *
+ * «Дошли до заявки» считает людей, а не заявки: у одного кейса заявок бывает
+ * несколько, и счёт заявок вылез бы за верхнюю ступень воронки.
+ */
+export const FUNNEL_STEP = {
+  leads: "Лиды",
+  handed: "Переданы",
+  applied: "Дошли до заявки",
+} as const;

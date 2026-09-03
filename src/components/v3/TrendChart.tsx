@@ -154,7 +154,12 @@ export function TrendChart({
               key={`${tick}-${index}`}
               x={PAD_LEFT + (index * (WIDTH - PAD_LEFT - PAD_RIGHT)) / Math.max(ticks.length - 1, 1)}
               y={HEIGHT - 8}
-              textAnchor="middle"
+              // Крайние подписи прижимаются к своему краю, а не центрируются:
+              // при семи и менее делениях последняя стояла ровно на границе
+              // кадра и половина текста уходила за него.
+              textAnchor={
+                index === 0 ? "start" : index === ticks.length - 1 ? "end" : "middle"
+              }
               fontSize="10"
               fill="var(--text-3)"
               style={{ fontVariantNumeric: "tabular-nums" }}

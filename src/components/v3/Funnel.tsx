@@ -62,11 +62,24 @@ export function Funnel({
 
   const L = LAYOUT[density];
   const top = stages[0].value;
+
+  // Страховка формы: ширина ступени не может превышать ширину предыдущей.
+  // Числа рисуются как есть, а геометрия идёт по невозрастающему ряду.
+  // Расширившаяся книзу трапеция -- это не воронка: она закрашивает подпись
+  // слева и выталкивает процент за край кадра. Если ступень оказалась больше
+  // предыдущей, стенка встаёт прямой, а число остаётся видно: расхождение
+  // фигуры и числа заметно, подделанное число не было бы.
+  const shaped: number[] = [];
+  let ceiling = Number.POSITIVE_INFINITY;
+  for (const stage of stages) {
+    ceiling = Math.min(ceiling, stage.value);
+    shaped.push(ceiling);
+  }
+
   const bands = stages.map((stage, index) => {
-    const next = stages[index + 1]?.value ?? stage.value;
     const y0 = TOP + index * (BAND + GAP);
-    const halfTop = halfWidth(stage.value, top, L.halfMin, L.halfMax);
-    const halfBottom = halfWidth(next, top, L.halfMin, L.halfMax);
+    const halfTop = halfWidth(shaped[index], top, L.halfMin, L.halfMax);
+    const halfBottom = halfWidth(shaped[index + 1] ?? shaped[index], top, L.halfMin, L.halfMax);
     const previous = stages[index - 1];
     return {
       ...stage,
@@ -95,8 +108,10 @@ export function Funnel({
     // фокуса приходит из globals.css, где оно уже висит на любом [tabindex].
     //
     // Контраст внутри фигуры axe посчитать не может (текст в SVG), поэтому
-    // проверен арифметически по токенам: число #ffffff на #d70217 = 5.37:1,
-    // процент на поверхности 5.73:1 (светлая) и 5.98:1 (тёмная).
+    // считается по токенам светлого мира: подпись и число -- `--text` на
+    // светлой заливке ступени, процент -- `--accent-text` на поверхности
+    // карточки, край ступени -- `--control-edge` при пороге 3:1 для
+    // нетекстовой графики.
     <div
       role="group"
       aria-label={caption}

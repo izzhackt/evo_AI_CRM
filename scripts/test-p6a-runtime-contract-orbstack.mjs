@@ -197,12 +197,18 @@ async function waitForHealthy(service, timeoutMs = 180_000) {
 
 function assertComposeContract(config) {
   assertExact(Object.keys(config.services ?? {}), ["app", "waha"], "Configured services");
+  assert(config.services.app?.read_only === true, "App root filesystem must be read-only.");
   assertExact(Object.keys(config.services.app?.networks ?? {}), ["private", "web"], "App networks");
   assertExact(Object.keys(config.services.waha?.networks ?? {}), ["private"], "WAHA networks");
   const appTargets = (config.services.app?.volumes ?? []).map((mount) => mount.target);
   const wahaTargets = (config.services.waha?.volumes ?? []).map((mount) => mount.target);
   assertExact(appTargets, ["/app/output"], "App mounts");
   assertExact(wahaTargets, ["/app/.sessions"], "WAHA mounts");
+  assertExact(
+    (config.services.app?.tmpfs ?? []).map((entry) => entry.split(":", 1)[0]),
+    ["/tmp", "/app/.next/cache"],
+    "App tmpfs mounts",
+  );
   for (const service of Object.values(config.services ?? {})) {
     const names = new Set(Object.keys(service.environment ?? {}));
     const forbidden = [...names].filter((name) => (
@@ -298,10 +304,20 @@ async function run() {
   assertNoForbiddenEnvironment(waha, "WAHA");
   assertExact((app.Mounts ?? []).map((mount) => mount.Destination), ["/app/output"], "Runtime app mounts");
   assertExact((waha.Mounts ?? []).map((mount) => mount.Destination), ["/app/.sessions"], "Runtime WAHA mounts");
+  assert(app.HostConfig?.ReadonlyRootfs === true, "Runtime app root filesystem is writable.");
+  assertExact(Object.keys(app.HostConfig?.Tmpfs ?? {}), ["/tmp", "/app/.next/cache"], "Runtime app tmpfs mounts");
   assert(app.Config?.Labels?.["org.opencontainers.image.revision"] === revision, "App container revision label does not match HEAD.");
   const appImage = parseJson(docker(["image", "inspect", app.Image]).stdout, "App image")[0];
   assert(appImage?.Config?.Labels?.["org.opencontainers.image.revision"] === revision, "App image revision label does not match HEAD.");
   assert(waha.Image === wahaDigest, "WAHA runtime image does not match the approved cached digest.");
+
+  docker([
+    "exec",
+    app.Id,
+    "node",
+    "-e",
+    "const fs=require('node:fs');try{fs.mkdirSync('/app/data');process.exit(1)}catch(error){process.exit(error?.code==='EROFS'?0:2)}",
+  ], { label: "Legacy SQLite path fail-closed proof" });
 
   const healthStatus = docker([
     "exec",

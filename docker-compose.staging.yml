@@ -15,6 +15,7 @@ services:
       org.opencontainers.image.version: "${EVO_RELEASE_VERSION}"
     restart: unless-stopped
     init: true
+    read_only: true
     cpus: "1.50"
     mem_limit: 1536m
     pids_limit: 256
@@ -34,6 +35,9 @@ services:
       - "3000"
     volumes:
       - evo_crm_staging_output:/app/output
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+      - /app/.next/cache:rw,noexec,nosuid,nodev,size=128m,mode=0700,uid=1001,gid=1001
       - "${EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT:-/opt/evo-crm-staging/evidence}:/app/recovery-evidence:ro"
     networks:
       private:

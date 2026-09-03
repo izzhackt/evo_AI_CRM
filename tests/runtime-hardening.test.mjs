@@ -126,6 +126,9 @@ test("successor Compose files expose only the app and its private WAHA transport
   for (const path of ["docker-compose.prod.yml", "docker-compose.staging.yml"]) {
     const value = await read(path);
     assert.deepEqual(composeServiceNames(value), ["app", "waha"], path);
+    assert.match(serviceBlock(value, "app"), /^    read_only: true$/mu, path);
+    assert.match(serviceBlock(value, "app"), /- \/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777/u, path);
+    assert.match(serviceBlock(value, "app"), /- \/app\/\.next\/cache:rw,noexec,nosuid,nodev,size=128m,mode=0700,uid=1001,gid=1001/u, path);
     assert.doesNotMatch(
       value,
       /manual-send-worker|lead-agent|evo-inbox|EVO_AGENT_|EVO_DB_PATH|EVO_BACKUP_DIR|evo_crm_(?:staging_)?(?:data|backups|lead_agent_data)/u,

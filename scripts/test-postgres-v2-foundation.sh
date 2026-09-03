@@ -1,15 +1,45 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 umask 077
+
+report_error() {
+  local status="$?"
+  echo "EVO foundation harness stopped at line ${BASH_LINENO[0]} (exit ${status})." >&2
+}
+
+trap report_error ERR
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 node_bin="${EVO_NODE_BIN:-node}"
 project_name="evo-database-foundation-$RANDOM-$$"
 supabase_lock_dir="${TMPDIR:-/tmp}/evo-platform-local-supabase-foundation.lock"
+supabase_lock_pid_file="$supabase_lock_dir/pid"
+
+foundation_harness_pid_active() {
+  local pid="$1"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  local command=""
+  command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  [[ "$command" =~ (^|[[:space:]])bash[[:space:]]+([^[:space:]]*/)?scripts/test-postgres-v2-foundation\.sh([[:space:]]|$) ]]
+}
+
 if ! mkdir "$supabase_lock_dir" 2>/dev/null; then
-  echo "Another EVO local Supabase foundation harness is already running: ${supabase_lock_dir}" >&2
-  exit 1
+  existing_harness_pid=""
+  if [[ -f "$supabase_lock_pid_file" ]]; then
+    existing_harness_pid="$(tr -dc '0-9' < "$supabase_lock_pid_file")"
+  fi
+  if [[ -z "$existing_harness_pid" ]] || ! foundation_harness_pid_active "$existing_harness_pid"; then
+    rm -f -- "$supabase_lock_pid_file"
+    rmdir "$supabase_lock_dir" >/dev/null 2>&1 || true
+    mkdir "$supabase_lock_dir" 2>/dev/null \
+      || fail "Cannot recover the stale EVO local Supabase foundation lock at ${supabase_lock_dir}"
+  else
+    echo "Another EVO local Supabase foundation harness is already running: ${supabase_lock_dir}" >&2
+    exit 1
+  fi
 fi
+printf '%s\n' "$$" >"$supabase_lock_pid_file"
+chmod 600 "$supabase_lock_pid_file"
 supabase_lock_acquired=1
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/evo-database-foundation.XXXXXX")"
 env_file="$tmp_dir/postgres.env"
@@ -643,15 +673,13 @@ start_app() {
 
   local deadline=$((SECONDS + 120))
   local code=""
-  local database_status_code=""
   while (( SECONDS < deadline )); do
     if ! kill -0 "$app_pid" >/dev/null 2>&1; then
       sed -n '1,200p' "$app_log" >&2
       fail "The application exited before browser validation"
     fi
     code="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${app_port}/api/health" || true)"
-    database_status_code="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${app_port}/api/database/status" || true)"
-    if [[ "$code" == "200" && ( "$database_status_code" == "200" || "$database_status_code" == "503" ) ]]; then
+    if [[ "$code" == "200" ]]; then
       return
     fi
     sleep 2
@@ -682,17 +710,6 @@ assert_app_reachable() {
   done
   sed -n '1,200p' "$app_log" >&2
   fail "The application became unreachable before browser validation"
-}
-
-browser_assert() {
-  local expected_status="$1"
-  local expected_code="${2:-}"
-  assert_app_reachable
-  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
-    EVO_EXPECT_STATUS="$expected_status" \
-    EVO_EXPECT_DATABASE_CODE="$expected_code" \
-    "$node_bin" node_modules/@playwright/test/cli.js test \
-      --config=playwright.database.config.ts
 }
 
 supabase_staff_auth_browser_assert() {
@@ -1110,31 +1127,11 @@ expect_verify_failure() {
 }
 
 cd "$repo_root"
-"$node_bin" --conditions=react-server --experimental-strip-types --test \
-  tests/database-config.test.mjs \
-  tests/database-status-route.test.mjs
-echo "Missing and malformed DATABASE_URL fail closed without any alternate local database path."
-
-# Missing application configuration must block even if old environment values
-# are present. The exact browser route must not invoke those paths.
-EVO_DB_PATH="$tmp_dir/inert-local.db" \
-  NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321" \
-  start_app ""
-browser_assert 503 database_configuration_missing
-stop_app
-
-# Malformed configuration must be distinguished from an absent value without
-# exposing the rejected connection string.
-start_app "mysql://evo:private@127.0.0.1:3306/evo"
-browser_assert 503 database_configuration_invalid
-stop_app
-
-# A reachable but unmigrated real database is still blocked.
-start_app "$database_url"
-browser_assert 503 database_migration_required
-
+echo "Validating the transitional Drizzle migration journal before P6C removes the toolchain."
 DATABASE_URL="$database_url" "$node_bin" node_modules/drizzle-kit/bin.cjs check
+echo "Committed Drizzle migration files are internally consistent."
 expect_verify_failure "no applied migration journal"
+echo "An empty database correctly fails the applied-history check."
 
 # A syntactically broken migration must roll back rather than create a partial
 # technical contract in a second disposable database.
@@ -1164,6 +1161,7 @@ if grep -F "$postgres_password" "$broken_log" >/dev/null; then
 fi
 partial_contract="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$broken_database" --tuples-only --no-align --command "SELECT to_regclass('public.evo_database_contract');")"
 [[ -z "$partial_contract" ]] || fail "The broken migration left a partial database contract"
+echo "A broken migration rolled back without leaving a partial contract."
 
 # The real migration command must be idempotent and verify the stored journal
 # after each run, not merely trust a zero Drizzle CLI exit code.
@@ -1200,10 +1198,8 @@ DATABASE_URL="$database_url" \
     tests/platform-amocrm-command-rpc.test.mjs
 echo "Platform provider workflow and Supabase-authoritative amoCRM contracts passed without the retired Drizzle amoCRM runtime."
 
-stop_app
 start_isolated_waha_service
 start_app "$database_url" configured configured local-service
-browser_assert 200
 supabase_staff_auth_browser_assert configured
 verify_p4_admissions_storage_acceptance
 echo "Admissions operations and two immutable private Supabase Storage versions passed browser and database proof."
@@ -1213,14 +1209,6 @@ platform_provider_runtime_inventory_browser_assert
 echo "Provider runtime surfaces passed read-only Chromium and exact database no-mutation proof."
 platform_communications_browser_assert configured
 assert_no_secret_or_payload_logs
-
-# Runtime contract drift blocks the real browser path.
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE evo_database_contract SET version = 5 WHERE id = 1;" >/dev/null
-browser_assert 503 database_contract_mismatch
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE evo_database_contract SET version = 4 WHERE id = 1;" >/dev/null
-browser_assert 200
 
 # Applied-history proof covers missing, extra, reordered and tampered rows while
 # preserving every expected migration in the now multi-migration journal.

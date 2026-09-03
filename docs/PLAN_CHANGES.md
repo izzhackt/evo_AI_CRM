@@ -15946,3 +15946,41 @@ Decision:
 - render the staging Compose model and prove `/app/recovery-evidence` is a
   read-only bind before closing #584 again;
 - make no VPS, public-route, provider, customer-data or frozen-V1 change.
+
+## 2026-09-03 - Activate P6B Supabase application-runtime and UI replacement
+
+Block-ID: `EVO-P6B-SUPABASE-RUNTIME-UI-REPLACEMENT-2026-09-03`
+
+Change type: active-slice contract update.
+Affected plan section: Order 6 / Issue #550 child #585.
+
+Issue #584 and its staging recovery-evidence mount repair are complete. The
+next cleanup boundary is the application itself: the retained staff product
+must stop importing or presenting the local Drizzle/SQLite runtime before the
+executable dependency/tooling cleanup in #586 and the exact-main proof in #587.
+
+Decision:
+
+- make existing Supabase interfaces the only active application authority for
+  the dashboard and Student 360; the dashboard aggregates canonical Sales,
+  student-case, Admissions-task, Finance-control and WhatsApp outcomes;
+- map Calls follow-up to Sales next actions and Admissions tasks, Chat to the
+  canonical WhatsApp workspace, Notifications to task/document/finance queues,
+  and Reports to the canonical dashboard; remove the old parallel pages and
+  navigation instead of keeping duplicate interfaces;
+- remove the superseded telephony webhook because this slice retains no
+  canonical telephony outcome, and do not replace it with a worker, fallback or
+  shadow ingestion path;
+- remove the active local database-status route/helpers, SQLite helpers and
+  Drizzle-backed canonical repository after their retained Supabase outcomes
+  pass; an unavailable Supabase configuration, identity, organization
+  membership or RPC must fail clearly rather than select local or fixture data;
+- require focused outcome tests, real local Supabase/PostgreSQL migrations,
+  real browser proof of the retained product workspaces, a production build
+  route inventory and scoped `rg` proof that no deleted route, repository,
+  SQLite/Drizzle import or fallback remains active;
+- do not modify `src/lib/v3/*` or the unmerged V3 screens, and preserve frozen
+  V1 deployments plus historical ADRs, migrations, runbooks, archived docs,
+  evidence and other decision/rollback material as non-executable history;
+- make no VPS, public-route, provider, customer-data or production-traffic
+  change. Those actions remain behind #551/#552.

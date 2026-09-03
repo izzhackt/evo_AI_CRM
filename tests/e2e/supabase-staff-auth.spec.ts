@@ -321,6 +321,32 @@ async function expectDirectRouteAllowed(
   await expect(page).toHaveURL(new RegExp(`${path}$`));
 }
 
+async function expectDashboardQueues(
+  page: Page,
+  visible: readonly ("sales" | "clients" | "tasks" | "finance" | "whatsapp")[],
+) {
+  const allQueues = [
+    "sales",
+    "clients",
+    "tasks",
+    "finance",
+    "whatsapp",
+  ] as const;
+
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByTestId("dashboard-page")).toBeVisible();
+  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(
+    0,
+  );
+
+  for (const queue of allQueues) {
+    await expect(page.getByTestId(`dashboard-queue-link-${queue}`)).toHaveCount(
+      visible.includes(queue) ? 1 : 0,
+    );
+  }
+}
+
 async function expectExactSupabaseSalesRead(
   page: Page,
   leadId: string,
@@ -1510,26 +1536,29 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expectDirectRouteAllowed(page, "/settings");
   await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
 
-  await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/platform-pending\?from=%2Fdashboard$/);
-  await expect(page.getByTestId("platform-pending")).toBeVisible();
-  await expect(page.getByTestId("pending-role")).toHaveAttribute(
-    "data-role",
-    "sales",
-  );
-  await expect(page.getByTestId("pending-role")).toHaveAttribute(
-    "data-authority-role",
-    "admin",
-  );
+  await expectDashboardQueues(page, ["sales", "whatsapp"]);
 
   await page.goto("/");
   await page.getByTestId("preview-role-admissions").click();
   await expectActiveRole(page, "admissions", "admin");
   await expectExactSupabaseSalesRead(page, leadId, clientId);
+  await expectDashboardQueues(page, [
+    "clients",
+    "tasks",
+    "finance",
+    "whatsapp",
+  ]);
 
   await page.goto("/");
   await page.getByTestId("preview-role-admin").click();
   await expectActiveRole(page, "admin", "admin");
+  await expectDashboardQueues(page, [
+    "sales",
+    "clients",
+    "tasks",
+    "finance",
+    "whatsapp",
+  ]);
   await page.goto("/settings");
   await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
 });

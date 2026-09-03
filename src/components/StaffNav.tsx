@@ -14,11 +14,7 @@ const NAV_ICON: Record<string, IconName> = {
   "/documents": "folder",
   "/visa": "plane",
   "/whatsapp": "message-circle",
-  "/calls": "phone",
-  "/notifications": "bell",
-  "/chat": "message-square",
   "/tasks": "check-square",
-  "/reports": "bar-chart",
   "/finance": "wallet",
   "/settings": "settings",
 };

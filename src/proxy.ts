@@ -187,11 +187,6 @@ export async function proxy(request: NextRequest) {
   }
   if (observabilityPathCandidate) return hiddenNotFound(id);
 
-  if (path === "/api/database/status") {
-    return setResponseHeaders(nextResponse(requestHeaders), id);
-  }
-  if (path.startsWith("/api/database/status")) return hiddenNotFound(id);
-
   if (path === "/api/health" || path === "/api/version") {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }

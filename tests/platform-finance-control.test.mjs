@@ -259,8 +259,14 @@ test("U8 loaders call bounded read-only RPC contracts with actor organization ch
     { limit: 40, studentCaseIds: [STUDENT_CASE_ID] },
     { client },
   );
+  const unscopedQueue = await listPlatformFinanceControlQueue(
+    actor,
+    {},
+    { client },
+  );
   assert.equal(control.studentCaseId, STUDENT_CASE_ID);
   assert.equal(queue.length, 1);
+  assert.equal(unscopedQueue.length, 1);
   assert.deepEqual(calls, [
     {
       functionName: "staff_case_finance_control",
@@ -273,6 +279,11 @@ test("U8 loaders call bounded read-only RPC contracts with actor organization ch
         p_limit: 40,
         p_student_case_ids: [STUDENT_CASE_ID],
       },
+      options: { get: true },
+    },
+    {
+      functionName: "staff_finance_control_queue",
+      args: { p_limit: 100 },
       options: { get: true },
     },
   ]);

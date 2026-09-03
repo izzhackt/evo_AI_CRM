@@ -54,15 +54,15 @@ test("only the read-only admissions operations queues enter the page contract", 
   }
 });
 
-test("legacy owner-scoped pages stay outside V2 and stop before any old runtime", () => {
-  for (const path of [
-    "/dashboard",
-    "/reports",
-    "/notifications",
-    "/calls",
-    "/chat",
-    "/chat/1",
-  ]) {
+test("the Supabase dashboard is connected for every staff role", () => {
+  assert.equal(isConnectedPlatformPage("/dashboard"), true);
+  for (const role of ["admin", "sales", "admissions"]) {
+    assert.equal(fixedRoleCanAccessRoute(role, "/dashboard"), true, role);
+  }
+});
+
+test("removed parallel pages stay outside the successor and stop before runtime", () => {
+  for (const path of ["/reports", "/notifications", "/calls", "/chat", "/chat/1"]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
 

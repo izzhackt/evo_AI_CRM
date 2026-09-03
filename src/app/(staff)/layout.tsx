@@ -32,8 +32,8 @@ import {
 
 const NAV_GROUP_DEFS = [
   { key: "navOperations", hrefs: ["/dashboard", "/sales", "/clients", "/applications", "/documents", "/visa"] },
-  { key: "navCommunications", hrefs: ["/whatsapp", "/calls", "/chat", "/notifications"] },
-  { key: "navAnalytics", hrefs: ["/tasks", "/reports", "/finance"] },
+  { key: "navCommunications", hrefs: ["/whatsapp"] },
+  { key: "navAnalytics", hrefs: ["/tasks", "/finance"] },
   { key: "navSystem", hrefs: ["/settings"] },
 ] as const;
 
@@ -173,11 +173,7 @@ export default async function StaffLayout({
     "/documents": { title: t("documentQueue") },
     "/visa": { title: t("visaQueue") },
     "/whatsapp": { title: `${t("whatsapp")} · ${t("inbox")}` },
-    "/calls": { title: t("callLog") },
-    "/chat": { title: t("chat") },
-    "/notifications": { title: t("notifications") },
     "/tasks": { title: t("taskBoard") },
-    "/reports": { title: t("salesReport") },
     "/finance": { title: t("financeOverview") },
     "/settings": { title: t("settings") },
   };

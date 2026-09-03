@@ -1,6 +1,7 @@
 import type { Locale } from "@/lib/i18n-data";
 
 export type CanonicalQueueRoute =
+  | "dashboard"
   | "sales"
   | "clients"
   | "applications"
@@ -20,6 +21,35 @@ export type CanonicalQueueRouteCopy = Readonly<{
 export const CANONICAL_QUEUE_ROUTE_COPY: Readonly<
   Record<CanonicalQueueRoute, Readonly<Record<Locale, CanonicalQueueRouteCopy>>>
 > = {
+  dashboard: {
+    ru: {
+      loadingTitle: "Загружаем командный центр",
+      loadingHint: "Читаем актуальные продуктовые очереди из Supabase.",
+      errorTitle: "Командный центр временно недоступен",
+      errorDescription:
+        "Не удалось прочитать одну из обязательных очередей Supabase. Старый источник или резервный экран не используется.",
+      retry: "Повторить чтение",
+      backToQueue: "К командному центру",
+    },
+    ky: {
+      loadingTitle: "Командалык борбор жүктөлүүдө",
+      loadingHint: "Supabase ичиндеги учурдагы продукт кезектери окулууда.",
+      errorTitle: "Командалык борбор убактылуу жеткиликсиз",
+      errorDescription:
+        "Supabase ичиндеги милдеттүү кезектердин бири окулган жок. Эски булак же резервдик экран колдонулбайт.",
+      retry: "Кайра аракет кылуу",
+      backToQueue: "Командалык борборго",
+    },
+    en: {
+      loadingTitle: "Loading the command center",
+      loadingHint: "Reading the current product queues from Supabase.",
+      errorTitle: "The command center is temporarily unavailable",
+      errorDescription:
+        "A required Supabase queue could not be read. No legacy source or fallback screen is used.",
+      retry: "Try again",
+      backToQueue: "Back to the command center",
+    },
+  },
   sales: {
     ru: {
       loadingTitle: "Загружаем лиды EVO",

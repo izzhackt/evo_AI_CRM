@@ -5,6 +5,7 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/login",
   "/access-denied",
   "/platform-pending",
+  "/dashboard",
   "/sales",
   "/clients",
   "/applications",

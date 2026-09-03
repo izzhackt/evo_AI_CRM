@@ -3,6 +3,7 @@ import { STAFF_ROLES, type StaffRole } from "./roles.ts";
 export const FIXED_ROLES = STAFF_ROLES;
 
 export const FIXED_ROLE_CAPABILITIES = [
+  "dashboard.read",
   "sales.read",
   "sales.write",
   "admissions.read",
@@ -18,6 +19,7 @@ export type FixedRoleCapability = (typeof FIXED_ROLE_CAPABILITIES)[number];
 export type FixedRole = StaffRole;
 
 export const FIXED_ROLE_ROUTES = [
+  "/dashboard",
   "/sales",
   "/clients",
   "/applications",
@@ -34,12 +36,14 @@ export type FixedRoleRoute = (typeof FIXED_ROLE_ROUTES)[number];
 const ROLE_CAPABILITIES = {
   admin: new Set<FixedRoleCapability>(FIXED_ROLE_CAPABILITIES),
   sales: new Set<FixedRoleCapability>([
+    "dashboard.read",
     "sales.read",
     "sales.write",
     "messaging.read",
     "messaging.send",
   ]),
   admissions: new Set<FixedRoleCapability>([
+    "dashboard.read",
     "admissions.read",
     "admissions.write",
     "documents.read",
@@ -50,6 +54,7 @@ const ROLE_CAPABILITIES = {
 } as const satisfies Record<FixedRole, ReadonlySet<FixedRoleCapability>>;
 
 const ROUTE_CAPABILITY = {
+  "/dashboard": "dashboard.read",
   "/sales": "sales.read",
   "/clients": "admissions.read",
   "/applications": "admissions.read",

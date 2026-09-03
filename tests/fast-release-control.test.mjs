@@ -221,33 +221,33 @@ test("release controller exposes a validation-only controlled staging preflight"
   assert.doesNotMatch(stagingPreflight, /supabase (db|migration|link)/u);
 });
 
-test("staging Compose file owns every mutable identity and keeps outbound closed", () => {
+test("staging Compose owns only successor app and private WAHA identities", () => {
   const stagingCompose = readFileSync("docker-compose.staging.yml", "utf8");
+  const services = stagingCompose
+    .slice(stagingCompose.indexOf("services:\n") + "services:\n".length)
+    .split(/\n(?:networks|volumes):\n/, 1)[0];
   assert.match(stagingCompose, /^name: evo-crm-staging$/mu);
   assert.match(stagingCompose, /\$\{EVO_CRM_APP_ENV_FILE:-\.env\.staging\}/u);
-  assert.match(stagingCompose, /container_name: evo-crm-staging-manual-send-worker/u);
+  assert.deepEqual(
+    [...services.matchAll(/^  ([a-z][a-z0-9-]+):\s*$/gmu)].map((match) => match[1]),
+    ["app", "waha"],
+  );
   assert.match(stagingCompose, /name: evo_crm_staging_private/u);
   for (const volume of [
-    "evo_crm_staging_data",
     "evo_crm_staging_output",
-    "evo_crm_staging_backups",
     "evo_crm_staging_waha_sessions",
-    "evo_crm_staging_lead_agent_data",
   ]) {
     assert.match(stagingCompose, new RegExp(`name: ${volume}`, "u"), volume);
   }
   assert.match(stagingCompose, /name: \$\{EVO_CADDY_NETWORK:-evo_public_web\}/u);
-  assert.match(stagingCompose, /EVO_AGENT_ENV: staging/u);
-  assert.match(stagingCompose, /EVO_AGENT_WAHA_SESSION: evo-inbox-staging/u);
-  assert.match(stagingCompose, /EVO_AGENT_FROZEN: "true"/u);
-  assert.match(stagingCompose, /EVO_AGENT_WORKER_ENABLED: "false"/u);
-  assert.match(stagingCompose, /EVO_AGENT_AUTOREPLY_ENABLED: "false"/u);
-  assert.match(stagingCompose, /EVO_AGENT_OUTBOUND_ENABLED: "false"/u);
   assert.doesNotMatch(stagingCompose, /name: evo_crm_private$/mu);
-  assert.doesNotMatch(stagingCompose, /container_name: evo-crm-manual-send-worker/u);
+  assert.doesNotMatch(
+    stagingCompose,
+    /manual-send-worker|lead-agent|evo-inbox|crm_primary|EVO_AGENT_|EVO_DB_PATH|EVO_BACKUP_DIR|evo_crm_staging_(?:data|backups|lead_agent_data)/u,
+  );
 });
 
-test("staging app mounts only its private recovery evidence and has a safe env template", () => {
+test("staging app mounts only retained successor paths and has a safe env template", () => {
   const stagingCompose = readFileSync("docker-compose.staging.yml", "utf8");
   const stagingEnvironment = readFileSync("deploy/env.staging.example", "utf8");
 
@@ -256,10 +256,12 @@ test("staging app mounts only its private recovery evidence and has a safe env t
     /EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT:-\/opt\/evo-crm-staging\/evidence\}:\/app\/recovery-evidence:ro/u,
   );
   assert.match(stagingEnvironment, /^EVO_CRM_DOMAIN=staging\.crm\.evoadmissions\.com$/mu);
+  assert.match(stagingEnvironment, /^NEXT_PUBLIC_SUPABASE_URL=https:\/\//mu);
+  assert.match(stagingEnvironment, /^NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/mu);
+  assert.match(stagingEnvironment, /^EVO_PLATFORM_SUPABASE_SECRET_KEY=/mu);
+  assert.match(stagingEnvironment, /^EVO_PLATFORM_ORGANIZATION_ID=/mu);
   assert.match(stagingEnvironment, /^EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=1$/mu);
   assert.match(stagingEnvironment, /^EVO_PLATFORM_P7B_OBSERVABILITY_SECRET=$/mu);
-  assert.match(stagingEnvironment, /^AUTH_SECRET=$/mu);
-  assert.match(stagingEnvironment, /^EVO_SECRET_ENCRYPTION_KEY=$/mu);
   assert.match(
     stagingEnvironment,
     /^EVO_PLATFORM_U11_RECOVERY_EVIDENCE_ROOT=\/app\/recovery-evidence$/mu,
@@ -269,8 +271,11 @@ test("staging app mounts only its private recovery evidence and has a safe env t
     /^EVO_PLATFORM_U11_RECOVERY_EVIDENCE_PATH=\/app\/recovery-evidence\/u11-recovery-result\.json$/mu,
   );
   assert.doesNotMatch(stagingEnvironment, /iosckaqtovbbnssqcpde/u);
-  assert.doesNotMatch(stagingEnvironment, /evo-inbox(?!-staging)/u);
-  assert.doesNotMatch(stagingEnvironment, /replace-with-distinct-staging-(?:observability|auth|encryption)/u);
+  assert.doesNotMatch(
+    stagingEnvironment,
+    /AUTH_SECRET|EVO_SECRET_ENCRYPTION_KEY|EVO_DB_PATH|EVO_BACKUP_DIR|EVO_AGENT_WAHA_SESSION|EVO_PLATFORM_(?:MANUAL_SEND|LEAD_AGENT)|EVO_LEAD_AGENT_|crm_primary|evo-inbox/u,
+  );
+  assert.doesNotMatch(stagingEnvironment, /replace-with-distinct-staging-observability/u);
 });
 
 test("workflow keeps controlled staging preflight protected and effect-free", () => {
@@ -295,6 +300,18 @@ test("workflow keeps controlled staging preflight protected and effect-free", ()
   assert.match(stagingJob, /EVO_RELEASE_PLATFORM_ORGANIZATION_ID/u);
   assert.match(stagingJob, /EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256/u);
   assert.match(stagingJob, /EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256/u);
+  assert.match(
+    stagingJob,
+    /^          EVO_RELEASE_VOLUME_NAMES: evo_crm_staging_output,evo_crm_staging_waha_sessions$/mu,
+  );
+  assert.match(
+    stagingJob,
+    /^          EVO_RELEASE_FIXED_CONTAINER_NAMES: ""$/mu,
+  );
+  assert.doesNotMatch(
+    stagingJob,
+    /evo_crm_staging_(?:data|backups|lead_agent_data)|evo-crm-staging-manual-send-worker/u,
+  );
   assert.match(stagingJob, /install -m 600 \/dev\/null/u);
   assert.match(stagingJob, /trap .*rm -f/u);
   assert.match(stagingJob, /effectsAllowed/u);

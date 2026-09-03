@@ -20,13 +20,10 @@ function validStagingProfile() {
     privateNetwork: "evo_crm_staging_private",
     publicNetwork: "evo_public_web",
     volumeNames: [
-      "evo_crm_staging_data",
       "evo_crm_staging_output",
-      "evo_crm_staging_backups",
       "evo_crm_staging_waha_sessions",
-      "evo_crm_staging_lead_agent_data",
     ],
-    fixedContainerNames: ["evo-crm-staging-manual-send-worker"],
+    fixedContainerNames: [],
     publicHostname: "staging.crm.evoadmissions.com",
     supabaseProjectRef: STAGING_SUPABASE_PROJECT_REF,
     productionSupabaseProjectRef: PRODUCTION_SUPABASE_PROJECT_REF,
@@ -38,14 +35,14 @@ test("controlled staging preflight accepts the closed isolated staging identity"
     ok: true,
     code: "controlled_staging_profile_valid",
     environment: "staging",
-    profile: "evo-crm-staging-v1",
+    profile: "evo-crm-staging-successor-v1",
     effectsAllowed: false,
     releaseStatus: "blocked",
     blocker: "managed_staging_inputs_required",
   });
 });
 
-test("controlled staging preflight rejects every production identity collision", () => {
+test("controlled staging preflight rejects every frozen V1 production identity collision", () => {
   const collisions = [
     ["serverRoot", "/opt/evo-crm", "staging_server_root_collision"],
     ["immutableRoot", "/opt/evo-releases", "staging_immutable_root_collision"],
@@ -82,6 +79,20 @@ test("controlled staging preflight rejects every production identity collision",
       fixedContainerNames: ["evo-crm-manual-send-worker"],
     }),
     (error) => error instanceof Error && error.code === "staging_container_name_collision",
+  );
+  assert.throws(
+    () => validateControlledStagingProfile({
+      ...validStagingProfile(),
+      volumeNames: [...validStagingProfile().volumeNames, "evo_crm_staging_data"],
+    }),
+    (error) => error instanceof Error && error.code === "staging_profile_not_approved",
+  );
+  assert.throws(
+    () => validateControlledStagingProfile({
+      ...validStagingProfile(),
+      fixedContainerNames: ["evo-crm-staging-manual-send-worker"],
+    }),
+    (error) => error instanceof Error && error.code === "staging_profile_not_approved",
   );
 
   assert.throws(

@@ -166,3 +166,23 @@ test("only the portal realtime surface reads public Supabase config at request r
     /<PortalNotificationsRealtime[\s\S]*?organizationId=\{notificationsRealtimeScope\.organizationId\}[\s\S]*?membershipId=\{notificationsRealtimeScope\.membershipId\}[\s\S]*?supabaseConfig=\{supabaseConfig\}[\s\S]*?\/>/,
   );
 });
+
+test("successor env templates expose only publishable Supabase values to the browser", () => {
+  for (const path of ["deploy/env.production.example", "deploy/env.staging.example"]) {
+    const source = readFileSync(path, "utf8");
+    assert.match(source, /^NEXT_PUBLIC_SUPABASE_URL=/mu, path);
+    assert.match(source, /^NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/mu, path);
+    assert.match(source, /^EVO_PLATFORM_SUPABASE_SECRET_KEY=/mu, path);
+    assert.match(source, /^EVO_PLATFORM_ORGANIZATION_ID=/mu, path);
+    assert.doesNotMatch(
+      source,
+      /^NEXT_PUBLIC_.*(?:SECRET|SERVICE_ROLE)/mu,
+      `${path} exposes a server-only Supabase credential`,
+    );
+    assert.doesNotMatch(
+      source,
+      /AUTH_SECRET|EVO_SECRET_ENCRYPTION_KEY|EVO_DB_PATH|EVO_BACKUP_DIR|EVO_AGENT_WAHA_SESSION|EVO_PLATFORM_(?:MANUAL_SEND|LEAD_AGENT)|EVO_LEAD_AGENT_|crm_primary|evo-inbox/u,
+      `${path} retains a superseded authority or static WAHA session selection`,
+    );
+  }
+});

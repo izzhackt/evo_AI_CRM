@@ -25,10 +25,20 @@ const REQUIRED_RUNTIME_VALUES = Object.freeze([
   "EVO_CADDY_NETWORK",
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "EVO_PLATFORM_ORGANIZATION_ID",
+  "EVO_PLATFORM_SUPABASE_SECRET_KEY",
+]);
+const FORBIDDEN_SUCCESSOR_RUNTIME_VALUES = Object.freeze([
   "AUTH_SECRET",
   "EVO_SECRET_ENCRYPTION_KEY",
   "EVO_DB_PATH",
   "EVO_BACKUP_DIR",
+  "EVO_PLATFORM_MANUAL_SEND_WORKER_ENABLED",
+  "EVO_PLATFORM_MANUAL_SEND_TRIGGER_SECRET",
+  "EVO_PLATFORM_LEAD_AGENT_SYNC_ENABLED",
+  "EVO_LEAD_AGENT_SYNC_SECRET",
+  "EVO_AGENT_WAHA_SESSION",
+  "EVO_PLATFORM_WAHA_SESSION_NAME",
 ]);
 export class AppEnvironmentContractError extends Error {
   constructor(code) {
@@ -193,12 +203,15 @@ export function validateAppEnvironmentContract({ exampleText, actualText }) {
       fail("placeholder_env_value_rejected");
     }
   }
+  for (const name of actualEntries.keys()) {
+    if (FORBIDDEN_SUCCESSOR_RUNTIME_VALUES.includes(name) || name.startsWith("EVO_AGENT_")) {
+      fail("superseded_env_name_forbidden");
+    }
+  }
   requireNonEmpty(actualEntries, REQUIRED_RUNTIME_VALUES, "required_env_value_missing");
   if (
-    actualEntries.get("AUTH_SECRET").length < 32 ||
-    actualEntries.get("EVO_SECRET_ENCRYPTION_KEY").length < 32 ||
-    !actualEntries.get("EVO_DB_PATH").startsWith("/") ||
-    !actualEntries.get("EVO_BACKUP_DIR").startsWith("/")
+    !UUID.test(actualEntries.get("EVO_PLATFORM_ORGANIZATION_ID")) ||
+    !isSupabaseSecretKey(actualEntries.get("EVO_PLATFORM_SUPABASE_SECRET_KEY"))
   ) {
     fail("required_env_value_invalid");
   }

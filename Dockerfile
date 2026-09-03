@@ -37,21 +37,16 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV EVO_RELEASE_REVISION="${EVO_IMAGE_REVISION}"
 ENV EVO_RELEASE_VERSION="${EVO_IMAGE_VERSION}"
-ENV EVO_DB_PATH=/app/data/edu-admin.db
-ENV EVO_BACKUP_DIR=/app/backups
 
 RUN groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs --home-dir /app nextjs \
-  && mkdir -p /app/data /app/output /app/backups \
+  && mkdir -p /app/output \
   && chown -R nextjs:nodejs /app
 
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/scripts/bootstrap-admin.mjs ./scripts/bootstrap-admin.mjs
-COPY --from=builder --chown=nextjs:nodejs /app/scripts/backup-sqlite.mjs ./scripts/backup-sqlite.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/transcribe_mlx_chunks.py ./scripts/transcribe_mlx_chunks.py
-COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/scripts/manual-whatsapp-send-worker.mjs ./scripts/manual-whatsapp-send-worker.mjs
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/platform-knowledge-import.mjs ./scripts/import-platform-knowledge-bundle.mjs
 
 USER nextjs

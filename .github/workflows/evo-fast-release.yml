@@ -66,8 +66,8 @@ jobs:
           EVO_RELEASE_PROJECT_NAME: evo-crm-staging
           EVO_RELEASE_PRIVATE_NETWORK: evo_crm_staging_private
           EVO_RELEASE_PUBLIC_NETWORK: evo_public_web
-          EVO_RELEASE_VOLUME_NAMES: evo_crm_staging_data,evo_crm_staging_output,evo_crm_staging_backups,evo_crm_staging_waha_sessions,evo_crm_staging_lead_agent_data
-          EVO_RELEASE_FIXED_CONTAINER_NAMES: evo-crm-staging-manual-send-worker
+          EVO_RELEASE_VOLUME_NAMES: evo_crm_staging_output,evo_crm_staging_waha_sessions
+          EVO_RELEASE_FIXED_CONTAINER_NAMES: ""
           EVO_RELEASE_PUBLIC_HOSTNAME: staging.crm.evoadmissions.com
           EVO_RELEASE_APP_ENV_FILE: ${{ runner.temp }}/evo-staging-app.env
           EVO_RELEASE_ENV_EXAMPLE_FILE: ${{ github.workspace }}/deploy/env.staging.example

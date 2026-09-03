@@ -124,6 +124,37 @@ their executable dependencies/scripts, then prove one exact-main Supabase
 release candidate. Issue #551 follows only after all four children and #550
 are complete.
 
+#### Active #584 deployment-contract slice
+
+The successor candidate starts exactly two services: the standalone Next.js
+application and the existing private WAHA service. The application runtime is
+managed-Supabase-backed and must not declare or mount a SQLite database, local
+database backup directory, frozen lead-agent service or separate manual-send
+worker. The retained WAHA service stays private under the `evo-crm-waha`
+network alias; application code resolves only the canonical `crm_primary`
+session from Supabase configuration and fails closed when that binding or the
+provider is unavailable.
+
+The browser receives only `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. The server-only
+`EVO_PLATFORM_SUPABASE_SECRET_KEY` and canonical organization UUID are required
+runtime inputs, are validated before release and must never be exposed through
+a `NEXT_PUBLIC_*` name, image layer, log or committed file. Historical V1
+Compose, release and rollback documentation remains frozen evidence; it is not
+an executable successor path.
+
+Current implementation basis:
+
+- Supabase documents publishable keys for shipped/browser code and secret keys
+  only for controlled backend components:
+  <https://supabase.com/docs/guides/getting-started/api-keys>;
+- Next.js standalone output is the self-hosted application artifact and copies
+  only traced runtime dependencies:
+  <https://nextjs.org/docs/app/api-reference/config/next-config-js/output>;
+- Compose service-name/alias discovery keeps WAHA private without publishing a
+  host port:
+  <https://docs.docker.com/compose/how-tos/networking/>.
+
 ### P1 existing-state finding
 
 The sanitized read-only audit is recorded in

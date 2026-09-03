@@ -16016,3 +16016,36 @@ Decision:
 - retain the production-build route inventory and scoped `rg` inventory as
   separate exact-head evidence; do not touch `src/lib/v3/*`, V3 screens, VPS,
   providers, customer data or frozen V1 deployment state.
+
+## 2026-09-03 - Activate P6C obsolete executable database-tooling eradication
+
+Block-ID: `EVO-P6C-EXECUTABLE-DATABASE-TOOLING-ERADICATION-2026-09-03`
+
+Change type: active-slice contract update.
+Affected plan section: Order 6 / Issue #550 child #586.
+
+PR #591 merged the active application-runtime cleanup in #585. The next ordered
+slice is #586: remove the obsolete executable SQLite/Drizzle toolchain
+that the candidate no longer uses as business authority, while preserving
+frozen V1 history only as non-executable rollback documentation.
+
+Decision:
+
+- delete package scripts `db:generate`, `db:check`, `db:migrate`, `db:verify`,
+  `bootstrap:admin`, `backup:db` and `migrate:visa-role`, plus their
+  executable helpers and dead schema code under `src/db/schema/*`;
+- remove candidate dependencies `better-sqlite3`, `@types/better-sqlite3`,
+  `drizzle-orm` and `drizzle-kit`, and remove the standalone externalization in
+  `next.config.ts` that exists only for `better-sqlite3`;
+- remove active candidate env/runtime seams `EVO_DB_PATH` and
+  `EVO_BACKUP_DIR` from executable contracts, image/runtime inventories and the
+  local foundation harness;
+- replace the transitional Drizzle-history tail in
+  `scripts/test-postgres-v2-foundation.sh` with Supabase-only validation, and
+  fix the harness cleanup bug that leaves a stale `pid` file in the local
+  foundation lock directory after exit;
+- keep frozen historical ADRs, migrations, runbooks, archived docs, evidence
+  and other decision/rollback material in the repository, but do not import,
+  bundle, execute or require them from the candidate runtime;
+- do not modify `src/lib/v3/*`, the unmerged V3 screens, VPS/V1 state, public
+  traffic or customer data.

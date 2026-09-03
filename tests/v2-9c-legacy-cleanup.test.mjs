@@ -102,7 +102,7 @@ test("V2-9C removes the Drizzle amoCRM command runtime and keeps one Supabase Pl
   const platformSection = source(
     "src/app/(staff)/clients/[id]/PlatformAmoCrmCommandSection.tsx",
   );
-  const schemaIndex = source("src/db/schema/index.ts");
+  missing("src/db/schema/index.ts");
 
   assert.match(studentWorkspace, /<PlatformAmoCrmCommandSection/);
   assert.match(platformSection, /createSupabaseServerClient/);
@@ -111,7 +111,6 @@ test("V2-9C removes the Drizzle amoCRM command runtime and keeps one Supabase Pl
     platformSection,
     /canonical-amocrm-command-(?:repository|service)|@\/db\/schema/,
   );
-  assert.doesNotMatch(schemaIndex, /canonical-amocrm/);
 });
 
 test("V2-9C points guardrails and readiness reads at the current Platform provider modules", () => {

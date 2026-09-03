@@ -117,15 +117,15 @@ new path is accepted; historical and rollback material remains preserved.
 | 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
 | 9 | #553 | Completion audit | exact-main proof of one UI, runtime, data, auth/session, file and provider authority |
 
-Orders 0 through 5 are complete. Under #550, #584 is complete: the successor
-candidate now has the managed-Supabase-backed standalone application plus the
-one retained private WAHA transport, with required key boundaries and no
-candidate SQLite volume, frozen lead-agent service or separate manual-send
-worker. The active cleanup slice is #585; #586 then removes the superseded
-executable toolchain, and #587 proves the exact-main Supabase release candidate.
-Issue #551 follows only after all four children and #550 are complete.
+Orders 0 through 5 are complete. Under #550, #584 and #585 are complete: the
+successor candidate now has the managed-Supabase-backed standalone application
+plus the one retained private WAHA transport, with required key boundaries and
+no candidate SQLite volume, frozen lead-agent service, separate manual-send
+worker or active Drizzle/SQLite application path. The active cleanup slice is
+#586; #587 then proves the exact-main Supabase release candidate. Issue #551
+follows only after all four children and #550 are complete.
 
-#### Active #585 Supabase application-runtime and UI replacement slice
+#### Completed #585 Supabase application-runtime and UI replacement slice
 
 #585 replaces the remaining live Drizzle/SQLite application reads, repositories,
 routes and duplicate staff screens with the existing canonical Supabase
@@ -177,6 +177,50 @@ Acceptance requires all of the following on the same candidate head:
 
 #585 makes no VPS, public-route, provider, customer-data or production-traffic
 change. Those actions remain controlled by the later #551/#552 gates.
+
+#### Active #586 obsolete executable database-tooling eradication slice
+
+#586 is active after the live application runtime was removed from the old
+Drizzle/SQLite path. This slice deletes the superseded executable
+toolchain itself: candidate dependencies, scripts, schema code, env seams and
+tests that still assume local SQLite, Drizzle migration control or a backup
+directory. The result is one managed-Supabase-backed candidate build that no
+longer bundles or validates an inactive second database system.
+
+The slice removes all active candidate references to:
+
+- package scripts `db:generate`, `db:check`, `db:migrate`, `db:verify`,
+  `bootstrap:admin`, `backup:db` and the legacy visa-role migration helper;
+- package/runtime dependencies `better-sqlite3`, `@types/better-sqlite3`,
+  `drizzle-orm`, `drizzle-kit`, and any Next.js standalone externalization
+  retained only for those packages;
+- executable helpers such as SQLite backup/bootstrap, Drizzle migration/history
+  verification and dead schema code under `src/db/schema/*`;
+- active env/runtime contract keys such as `EVO_DB_PATH` and `EVO_BACKUP_DIR`
+  from the candidate runtime, image inventory and validation harnesses.
+
+Frozen V1 history remains preserved as history only: historical migrations,
+ADRs, runbooks, archived docs, evidence and other decision/rollback material
+stay in the repository but must not be imported, bundled, executed or required
+by the successor candidate.
+
+Acceptance requires all of the following on the same candidate head:
+
+1. package metadata, the lockfile, Next.js config and the candidate image
+   contain no active `better-sqlite3`, Drizzle or SQLite-tooling dependency;
+2. obsolete executable helpers, dead schema code and implementation tests are
+   deleted or replaced by current Supabase outcome checks at the retained module
+   boundaries;
+3. the local foundation harness no longer depends on the Drizzle migration
+   journal and cleans up its own lock state correctly after exit;
+4. lint, typecheck, production build, real local Supabase/PostgreSQL
+   validation and a scoped repository/image inventory pass without any active
+   `EVO_DB_PATH`, `EVO_BACKUP_DIR`, `better-sqlite3`, `drizzle-orm`,
+   `drizzle-kit` or legacy database-script requirement;
+5. `src/lib/v3/*`, the unmerged V3 screens, frozen V1 deployments and all
+   historical ADRs, migrations, runbooks, archived docs, evidence and other
+   decision/rollback material remain untouched and are never executed as
+   successor authority.
 
 ### P1 existing-state finding
 

@@ -484,7 +484,6 @@ chmod 600 "$communications_log"
 
 assert_next_dev_lock_available
 env \
-  DATABASE_URL="$supabase_database_url" \
   NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \

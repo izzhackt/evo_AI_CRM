@@ -7,11 +7,15 @@ report_error() {
   echo "EVO foundation harness stopped at line ${BASH_LINENO[0]} (exit ${status})." >&2
 }
 
+fail() {
+  echo "$1" >&2
+  exit 1
+}
+
 trap report_error ERR
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 node_bin="${EVO_NODE_BIN:-node}"
-project_name="evo-database-foundation-$RANDOM-$$"
 supabase_lock_dir="${TMPDIR:-/tmp}/evo-platform-local-supabase-foundation.lock"
 supabase_lock_pid_file="$supabase_lock_dir/pid"
 
@@ -42,7 +46,6 @@ printf '%s\n' "$$" >"$supabase_lock_pid_file"
 chmod 600 "$supabase_lock_pid_file"
 supabase_lock_acquired=1
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/evo-database-foundation.XXXXXX")"
-env_file="$tmp_dir/postgres.env"
 app_log="$tmp_dir/app.log"
 supabase_log="$tmp_dir/supabase.log"
 supabase_env_file="$tmp_dir/supabase.env"
@@ -53,8 +56,6 @@ waha_log="$tmp_dir/waha.log"
 waha_acceptance_result="$tmp_dir/waha-acceptance.json"
 p4_acceptance_result="$tmp_dir/p4-admissions-storage-acceptance.json"
 p4_verification_log="$tmp_dir/p4-admissions-storage-verification.log"
-verification_log="$tmp_dir/verification.log"
-broken_log="$tmp_dir/broken-migration.log"
 inbound_test_phone="+15550005461"
 inbound_test_conversation_id="15550005461@c.us"
 inbound_test_message_id="false_15550005461@c.us_PLATFORM_BROWSER_566"
@@ -77,12 +78,6 @@ runtime_inventory_database_evidence=""
 next_dev_cache_reset=0
 app_pid=""
 waha_pid=""
-compose_args=()
-
-fail() {
-  echo "$1" >&2
-  exit 1
-}
 
 free_port() {
   "$node_bin" --input-type=module <<'EOF'
@@ -138,13 +133,11 @@ cleanup() {
     kill "$waha_pid" >/dev/null 2>&1 || true
     wait "$waha_pid" >/dev/null 2>&1 || true
   fi
-  if (( ${#compose_args[@]} > 0 )); then
-    docker compose "${compose_args[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
-  fi
   if [[ -d "$tmp_dir" && "$tmp_dir" == "${TMPDIR:-/tmp}/evo-database-foundation."* ]]; then
     rm -R -- "$tmp_dir"
   fi
   if [[ "${supabase_lock_acquired:-0}" == "1" ]]; then
+    rm -f -- "$supabase_lock_pid_file"
     rmdir "$supabase_lock_dir" >/dev/null 2>&1 || true
     supabase_lock_acquired=0
   fi
@@ -212,12 +205,7 @@ fi
 "$repo_root/scripts/test-postgres-authorization.sh"
 echo "Supabase migration, RLS, request replay and concurrent handoff proofs passed."
 
-postgres_port="${EVO_DATABASE_POSTGRES_PORT:-$(free_port)}"
 app_port="${EVO_DATABASE_APP_PORT:-$(free_port)}"
-postgres_user="evo_foundation"
-postgres_database="evo_foundation"
-broken_database="evo_foundation_broken"
-postgres_password="$(openssl rand -hex 24)"
 staff_identity_suffix="${RANDOM}-$$-$(openssl rand -hex 4)"
 staff_admin_email="admin-${staff_identity_suffix}@evo.local.test"
 staff_admin_password="$(openssl rand -hex 24)"
@@ -238,22 +226,6 @@ waha_port="${EVO_DATABASE_WAHA_PORT:-$(free_port)}"
 waha_base_url="http://127.0.0.1:${waha_port}"
 amocrm_token_probe="$(openssl rand -hex 24)"
 amocrm_token_file="$tmp_dir/amocrm-token.json"
-database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${postgres_database}"
-broken_database_url="postgresql://${postgres_user}:${postgres_password}@127.0.0.1:${postgres_port}/${broken_database}"
-
-compose_args=(
-  --project-name "$project_name"
-  --env-file "$env_file"
-  --file "$repo_root/docker-compose.local.yml"
-)
-
-cat >"$env_file" <<EOF
-POSTGRES_USER=$postgres_user
-POSTGRES_PASSWORD=$postgres_password
-POSTGRES_DB=$postgres_database
-POSTGRES_PORT=$postgres_port
-EOF
-chmod 600 "$env_file"
 
 if ! (
   cd "$repo_root"
@@ -372,22 +344,6 @@ for sensitive_value in "$supabase_database_url" "$staff_sales_email"; do
     fail "Local Supabase Sales read proof exposed a credential in its output"
   fi
 done
-
-docker compose "${compose_args[@]}" up --detach postgres >/dev/null
-container_id="$(docker compose "${compose_args[@]}" ps --quiet postgres)"
-[[ -n "$container_id" ]] || fail "The private PostgreSQL container did not start"
-
-health_deadline=$((SECONDS + 120))
-status=""
-while (( SECONDS < health_deadline )); do
-  status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
-  [[ "$status" == "healthy" ]] && break
-  sleep 2
-done
-if [[ "$status" != "healthy" ]]; then
-  docker logs --tail 120 "$container_id" >&2 || true
-  fail "The private PostgreSQL container did not become healthy"
-fi
 
 start_isolated_waha_service() {
   [[ -z "$waha_pid" ]] || fail "The isolated WAHA-shaped service is already running"
@@ -562,11 +518,10 @@ EOF
 }
 
 start_app() {
-  local app_database_url="$1"
-  local supabase_mode="${2:-configured}"
-  local inbound_mode="${3:-configured}"
-  local waha_mode="${4:-blocked}"
-  local amocrm_mode="${5:-provider-not-authorized}"
+  local supabase_mode="${1:-configured}"
+  local inbound_mode="${2:-configured}"
+  local waha_mode="${3:-blocked}"
+  local amocrm_mode="${4:-provider-not-authorized}"
   local inbound_secret="$whatsapp_inbound_secret"
   local waha_rewrite_base_url=""
   local amocrm_provider_authorized=0
@@ -606,7 +561,6 @@ start_app() {
   : >"$app_log"
   if [[ "$supabase_mode" == "configured" ]]; then
     env -u EVO_PLATFORM_GEMINI_API_KEY \
-      DATABASE_URL="$app_database_url" \
       NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
       EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
@@ -644,7 +598,6 @@ start_app() {
       -u EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID \
       -u EVO_PLATFORM_GEMINI_API_KEY \
       -u SUPABASE_SERVICE_ROLE_KEY \
-      DATABASE_URL="$app_database_url" \
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
       EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
       NODE_OPTIONS="--require=$repo_root/tests/helpers/platform-waha-local-fetch.cjs" \
@@ -1116,66 +1069,10 @@ assert_no_secret_or_payload_logs() {
   done
 }
 
-expect_verify_failure() {
-  local label="$1"
-  if DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs >"$verification_log" 2>&1; then
-    fail "Database history verification unexpectedly passed: $label"
-  fi
-  if grep -F "$postgres_password" "$verification_log" >/dev/null; then
-    fail "Database history verification leaked the database secret: $label"
-  fi
-}
-
 cd "$repo_root"
-echo "Validating the transitional Drizzle migration journal before P6C removes the toolchain."
-DATABASE_URL="$database_url" "$node_bin" node_modules/drizzle-kit/bin.cjs check
-echo "Committed Drizzle migration files are internally consistent."
-expect_verify_failure "no applied migration journal"
-echo "An empty database correctly fails the applied-history check."
+echo "Validating the active Supabase-only foundation without the retired Drizzle toolchain."
 
-# A syntactically broken migration must roll back rather than create a partial
-# technical contract in a second disposable database.
-docker exec "$container_id" psql --username "$postgres_user" --dbname postgres \
-  --command "CREATE DATABASE ${broken_database};" >/dev/null
-broken_migrations="$tmp_dir/broken-drizzle"
-cp -R "$repo_root/drizzle" "$broken_migrations"
-printf '\nTHIS IS DELIBERATELY INVALID SQL;\n' >>"$broken_migrations/0000_database_foundation.sql"
-if BROKEN_DATABASE_URL="$broken_database_url" BROKEN_MIGRATIONS="$broken_migrations" \
-  "$node_bin" --input-type=module >"$broken_log" 2>&1 <<'EOF'
-import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-
-const client = postgres(process.env.BROKEN_DATABASE_URL, { max: 1 });
-try {
-  await migrate(drizzle(client), { migrationsFolder: process.env.BROKEN_MIGRATIONS });
-} finally {
-  await client.end({ timeout: 5 });
-}
-EOF
-then
-  fail "A deliberately broken migration unexpectedly succeeded"
-fi
-if grep -F "$postgres_password" "$broken_log" >/dev/null; then
-  fail "Broken migration output leaked the database secret"
-fi
-partial_contract="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$broken_database" --tuples-only --no-align --command "SELECT to_regclass('public.evo_database_contract');")"
-[[ -z "$partial_contract" ]] || fail "The broken migration left a partial database contract"
-echo "A broken migration rolled back without leaving a partial contract."
-
-# The real migration command must be idempotent and verify the stored journal
-# after each run, not merely trust a zero Drizzle CLI exit code.
-DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
-DATABASE_URL="$database_url" "$node_bin" scripts/migrate-drizzle.mjs
-DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
-migration_count="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT count(*) FROM drizzle.__drizzle_migrations;')"
-contract_version="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT version FROM evo_database_contract WHERE id = 1;')"
-[[ "$migration_count" == "6" ]] || fail "Expected exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 -> 0005 migration history"
-[[ "$contract_version" == "4" ]] || fail "Canonical CRM migration did not publish database contract version 4"
-echo "Exact 0000 -> 0001 -> 0002 -> 0003 -> 0004 -> 0005 migration, repeat migration and stored history passed."
-
-DATABASE_URL="$database_url" \
-  "$node_bin" --conditions=react-server --experimental-strip-types --test \
+"$node_bin" --conditions=react-server --experimental-strip-types --test \
     --test-concurrency=1 \
     tests/platform-gemini-provider.test.mjs \
     tests/platform-provider-action-contract.test.mjs \
@@ -1199,7 +1096,7 @@ DATABASE_URL="$database_url" \
 echo "Platform provider workflow and Supabase-authoritative amoCRM contracts passed without the retired Drizzle amoCRM runtime."
 
 start_isolated_waha_service
-start_app "$database_url" configured configured local-service
+start_app configured configured local-service
 supabase_staff_auth_browser_assert configured
 verify_p4_admissions_storage_acceptance
 echo "Admissions operations and two immutable private Supabase Storage versions passed browser and database proof."
@@ -1210,51 +1107,13 @@ echo "Provider runtime surfaces passed read-only Chromium and exact database no-
 platform_communications_browser_assert configured
 assert_no_secret_or_payload_logs
 
-# Applied-history proof covers missing, extra, reordered and tampered rows while
-# preserving every expected migration in the now multi-migration journal.
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command 'CREATE TABLE public.evo_test_migration_history_backup AS TABLE drizzle.__drizzle_migrations;' >/dev/null
-original_id="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT id FROM public.evo_test_migration_history_backup ORDER BY id LIMIT 1;')"
-original_hash="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT hash FROM public.evo_test_migration_history_backup ORDER BY id LIMIT 1;')"
-original_created_at="$(docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" --tuples-only --no-align --command 'SELECT created_at FROM public.evo_test_migration_history_backup ORDER BY id LIMIT 1;')"
-[[ "$original_id" =~ ^[0-9]+$ ]] || fail "Stored migration id has an unexpected shape"
-[[ "$original_hash" =~ ^[0-9a-f]{64}$ ]] || fail "Stored migration hash has an unexpected shape"
-[[ "$original_created_at" =~ ^[0-9]+$ ]] || fail "Stored migration timestamp has an unexpected shape"
-
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "DELETE FROM drizzle.__drizzle_migrations WHERE id = ${original_id};" >/dev/null
-expect_verify_failure "missing applied migration"
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) SELECT id, hash, created_at FROM public.evo_test_migration_history_backup WHERE id = ${original_id};" >/dev/null
-
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('${original_hash}', $((original_created_at + 999999)));" >/dev/null
-expect_verify_failure "extra applied migration"
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command 'DELETE FROM drizzle.__drizzle_migrations WHERE id NOT IN (SELECT id FROM public.evo_test_migration_history_backup);' >/dev/null
-
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE drizzle.__drizzle_migrations SET created_at = $((original_created_at + 1)) WHERE id = ${original_id};" >/dev/null
-expect_verify_failure "reordered migration timestamp"
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE drizzle.__drizzle_migrations SET created_at = ${original_created_at} WHERE id = ${original_id};" >/dev/null
-
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE drizzle.__drizzle_migrations SET hash = repeat('0', 64) WHERE id = ${original_id};" >/dev/null
-expect_verify_failure "tampered migration hash"
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command "UPDATE drizzle.__drizzle_migrations SET hash = '${original_hash}' WHERE id = ${original_id};" >/dev/null
-DATABASE_URL="$database_url" "$node_bin" scripts/verify-drizzle-history.mjs
-docker exec "$container_id" psql --username "$postgres_user" --dbname "$postgres_database" \
-  --command 'DROP TABLE public.evo_test_migration_history_backup;' >/dev/null
-
 stop_app
-start_app "$database_url" configured unavailable
+start_app configured unavailable
 platform_communications_browser_assert inbound-unavailable
 assert_no_secret_or_payload_logs
 
 stop_app
-start_app "$database_url" unavailable
+start_app unavailable
 supabase_staff_auth_browser_assert unavailable
 assert_no_secret_or_payload_logs
 

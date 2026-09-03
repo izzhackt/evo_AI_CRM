@@ -7,6 +7,11 @@ report_error() {
   echo "EVO foundation harness stopped at line ${BASH_LINENO[0]} (exit ${status})." >&2
 }
 
+fail() {
+  echo "$1" >&2
+  exit 1
+}
+
 trap report_error ERR
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -73,11 +78,6 @@ runtime_inventory_database_evidence=""
 next_dev_cache_reset=0
 app_pid=""
 waha_pid=""
-
-fail() {
-  echo "$1" >&2
-  exit 1
-}
 
 free_port() {
   "$node_bin" --input-type=module <<'EOF'

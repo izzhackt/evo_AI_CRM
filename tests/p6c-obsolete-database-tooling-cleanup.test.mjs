@@ -1,5 +1,17 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const repoRoot = new URL("../", import.meta.url);
@@ -144,6 +156,39 @@ test("P6C database and provider harnesses use only the canonical Supabase databa
 
   assert.match(nodeRuntimeCheck, /expectedMajor = 22/u);
   assert.doesNotMatch(nodeRuntimeCheck, /better-sqlite3|SQLite ABI/u);
+});
+
+test("P6C foundation harness reports an unrecoverable stale lock without starting Docker", () => {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "evo-p6c-stale-lock-"));
+  const lockDirectory = join(
+    temporaryRoot,
+    "evo-platform-local-supabase-foundation.lock",
+  );
+  const blockingEntry = join(lockDirectory, "blocking-entry");
+
+  try {
+    mkdirSync(lockDirectory);
+    writeFileSync(blockingEntry, "preserve the non-empty lock");
+
+    const result = spawnSync("bash", ["scripts/test-postgres-v2-foundation.sh"], {
+      cwd: fileURLToPath(repoRoot),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        TMPDIR: `${temporaryRoot}/`,
+      },
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(
+      result.stderr,
+      /Cannot recover the stale EVO local Supabase foundation lock/u,
+    );
+    assert.doesNotMatch(result.stderr, /fail: command not found/u);
+    assert.equal(existsSync(blockingEntry), true);
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
 });
 
 test("P6C preserves frozen Drizzle history and real successor outcome proof", () => {

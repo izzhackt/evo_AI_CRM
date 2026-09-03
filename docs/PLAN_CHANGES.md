@@ -15822,3 +15822,60 @@ Decision:
 
 No WhatsApp send, Gemini request, frozen V1 writer, customer-data mutation,
 deployment, historical migration or cutover occurred in this completion step.
+
+## 2026-09-03 - Complete the exact-main provider inventory and activate P6 cleanup
+
+Date: 2026-09-03, workspace timezone (+04).
+Author: Codex under the owner's standing repository-transition authorization.
+Change type: #568/#549 completion record and #550 child decomposition.
+Affected plan section: P5D exit, P5 parent exit and P6 implementation order.
+
+PR #583 merged the P5D runner and cleanup inventory at exact main
+`8da65163695d293769e60682d08fe8f6be51d138`. Two independent reviewers
+approved exact head `26af7701498a95b2f90635c683d168d8452acd9a`, and exact-head
+CI run `33777698346` passed all four protected jobs, including the real local
+Supabase/PostgreSQL migration and Chromium contract.
+
+The first exact-main harness invocation stopped before its database/browser
+stage because an earlier completed test had left the empty lock directory
+`evo-platform-local-supabase-foundation.lock`. Process and open-file inventory
+showed no active owner. Only that verified empty lock directory was removed;
+no repository, container, provider or business state was changed. The second
+invocation completed and wrote the private sanitized evidence set under
+`output/provider-runtime-inventory/8da65163695d293769e60682d08fe8f6be51d138/run-20260903T163116Z-85239/`.
+
+The resulting `success.json` proves:
+
+- real local Supabase/PostgreSQL, the application and Chromium all passed on
+  the exact merged main;
+- provider/business counts before and after the browser inventory are
+  identical, including proposal/review, WhatsApp attempt/binding,
+  reconciliation, amoCRM attempt/receipt/binding and business-event counts;
+- the remote read-only probe observed Compose project `evo-crm`, service
+  `waha`, container `evo-crm-waha-1`, private network `evo_crm_private` and
+  the existing `crm_primary` session in `WORKING` state;
+- container and image identities are recorded only as sanitized SHA-256
+  values, while `applicationDeploymentClaimed` is explicitly false;
+- no selectable `evo-inbox` alias/fallback reference survives; its remaining
+  occurrences are one guarded immutable-provenance constant, tests or
+  preserved historical evidence only;
+- no selected inbound replay, live Gemini call, WhatsApp send, amoCRM write,
+  V1 application execution, deployment mutation or cutover occurred.
+
+Decision:
+
+- mark #568 and parent #549 complete;
+- activate #550 and execute it only through the ordered small children
+  #584 (candidate deployment contract), #585 (active app/runtime legacy
+  removal), #586 (obsolete dependency/script eradication), and #587
+  (exact-main isolated release-candidate proof);
+- keep managed Supabase Auth/Postgres/Storage, the accepted CRM workflows and
+  the private `crm_primary` WAHA capability; remove only superseded active
+  runtime paths after their replacement proof;
+- preserve historical ADRs, migrations, runbooks, archived docs, evidence and
+  rollback material, and keep `src/lib/v3/*` outside this sequence.
+
+P6 remains repository and isolated-candidate work. VPS mutation, public
+traffic, webhook ownership transfer, provider writes, customer migration and
+active V1 retirement remain outside #584-#587 and require their later explicit
+gates.

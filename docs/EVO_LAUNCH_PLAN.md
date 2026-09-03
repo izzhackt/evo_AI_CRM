@@ -117,6 +117,13 @@ new path is accepted; historical and rollback material remains preserved.
 | 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
 | 9 | #553 | Completion audit | exact-main proof of one UI, runtime, data, auth/session, file and provider authority |
 
+Orders 0 through 5 are complete. The active cleanup order is now #584, #585,
+#586 and #587 under #550: replace the candidate deployment contract, remove
+the last active Drizzle/SQLite application paths and duplicate UI, eradicate
+their executable dependencies/scripts, then prove one exact-main Supabase
+release candidate. Issue #551 follows only after all four children and #550
+are complete.
+
 ### P1 existing-state finding
 
 The sanitized read-only audit is recorded in
@@ -496,6 +503,22 @@ only database authority, the existing `crm_primary` WAHA session was inspected
 read-only, no V1 application path executed, and no deployment or fallback path
 ran. Issue #567 is therefore complete and Issue #568 may now proceed from this
 exact merged main.
+
+The provider tracer is also complete. PR #583 merged the single-runtime
+inventory at exact main `8da65163695d293769e60682d08fe8f6be51d138`
+after two independent exact-head approvals and exact-head CI run `33777698346`.
+The exact-main harness then emitted the private sanitized artifact
+`output/provider-runtime-inventory/8da65163695d293769e60682d08fe8f6be51d138/run-20260903T163116Z-85239/success.json`.
+Real local Supabase/PostgreSQL, the Next.js application and Chromium passed;
+before/after provider and business-event counts were identical; the remote
+read-only probe observed the private `evo-crm` / `waha` /
+`evo-crm-waha-1` / `evo_crm_private` runtime with `crm_primary` in
+`WORKING` state; and the active fallback count was zero. The evidence keeps
+the exact-main harness identity separate from the observed WAHA container and
+image identities and explicitly makes no application-deployment claim. No
+selected inbound replay, live Gemini call, WhatsApp send, amoCRM write, V1
+execution or deployment change occurred. Issues #568 and #549 are therefore
+complete and #550 is active through #584-#587.
 
 ADR 0026 records that scope correction; no synthetic or customer-chat
 substitute is allowed. The existing

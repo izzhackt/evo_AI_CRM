@@ -155,9 +155,15 @@ test("connected amoCRM acceptance provisions its exact local staff authority bef
   const seedIndex = source.indexOf(
     'scripts/prepare-connected-amocrm-validation.mjs seed',
   );
+  const blockedStart = source.indexOf("start_app 0");
+  const blockedEnd = source.indexOf("stop_app", blockedStart);
+  const dispatchStart = source.indexOf("start_app 1");
+  const dispatchEnd = source.indexOf("stop_app", dispatchStart);
 
   assert.ok(provisionIndex >= 0);
   assert.ok(seedIndex > provisionIndex);
+  assert.ok(blockedStart > seedIndex && blockedEnd > blockedStart);
+  assert.ok(dispatchStart > blockedEnd && dispatchEnd > dispatchStart);
   assert.match(
     source,
     /staff_admin_email="admin-amocrm-\$\{staff_suffix\}@evo\.local\.test"/u,
@@ -171,6 +177,24 @@ test("connected amoCRM acceptance provisions its exact local staff authority bef
   assert.match(source, /EVO_STAFF_AUTH_ADMISSIONS_PASSWORD/u);
   assert.match(source, /LOCAL_SUPABASE_STAFF_PROVISIONED/u);
   assert.match(source, /chmod 600 "\$staff_log"/u);
+
+  for (const browserPhase of [
+    source.slice(blockedStart, blockedEnd),
+    source.slice(dispatchStart, dispatchEnd),
+  ]) {
+    assert.match(
+      browserPhase,
+      /EVO_STAFF_AUTH_ADMIN_EMAIL="\$staff_admin_email"/u,
+    );
+    assert.match(
+      browserPhase,
+      /EVO_STAFF_AUTH_ADMIN_PASSWORD="\$staff_admin_password"/u,
+    );
+    assert.doesNotMatch(
+      browserPhase,
+      /EVO_STAFF_AUTH_ADMIN_(?:EMAIL|PASSWORD)="\$EVO_STAFF_AUTH_ADMIN_/u,
+    );
+  }
 });
 
 test("connected amoCRM harness canonicalizes a trailing-slash TMPDIR before creating private paths", async () => {

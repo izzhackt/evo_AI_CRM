@@ -125,10 +125,11 @@ test("production Compose pins third parties and identifies first-party releases"
 test("successor Compose files expose only the app and its private WAHA transport", async () => {
   for (const path of ["docker-compose.prod.yml", "docker-compose.staging.yml"]) {
     const value = await read(path);
+    const app = serviceBlock(value, "app");
     assert.deepEqual(composeServiceNames(value), ["app", "waha"], path);
-    assert.match(serviceBlock(value, "app"), /^    read_only: true$/mu, path);
-    assert.match(serviceBlock(value, "app"), /- \/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777/u, path);
-    assert.match(serviceBlock(value, "app"), /- \/app\/\.next\/cache:rw,noexec,nosuid,nodev,size=128m,mode=0700,uid=1001,gid=1001/u, path);
+    assert.match(app, /^    read_only: true$/mu, path);
+    assert.match(app, /- \/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777/u, path);
+    assert.match(app, /- \/app\/\.next\/cache:rw,noexec,nosuid,nodev,size=128m,mode=0700,uid=1001,gid=1001/u, path);
     assert.doesNotMatch(
       value,
       /manual-send-worker|lead-agent|evo-inbox|EVO_AGENT_|EVO_DB_PATH|EVO_BACKUP_DIR|evo_crm_(?:staging_)?(?:data|backups|lead_agent_data)/u,
@@ -136,6 +137,15 @@ test("successor Compose files expose only the app and its private WAHA transport
     );
     assert.match(serviceBlock(value, "waha"), /^    expose:\n      - "3000"$/mu);
     assert.doesNotMatch(serviceBlock(value, "waha"), /^    ports:/mu);
+
+    if (path === "docker-compose.staging.yml") {
+      const volumeBlock = app.match(/^    volumes:\n(?:      - .+\n)+/mu)?.[0];
+      const tmpfsBlock = app.match(/^    tmpfs:\n(?:      - .+\n)+/mu)?.[0];
+      assert.ok(volumeBlock, "missing staging app volumes");
+      assert.ok(tmpfsBlock, "missing staging app tmpfs");
+      assert.match(volumeBlock, /:\/app\/recovery-evidence:ro/u);
+      assert.doesNotMatch(tmpfsBlock, /recovery-evidence/u);
+    }
   }
 
   requireRootComposeHardening(await read("docker-compose.prod.yml"));

@@ -458,6 +458,31 @@ The completed one-run authority does not permit a later tag write or another
 provider run; either needs a separate explicit owner continuation. WhatsApp,
 Gemini, V1, deployment, customer migration and cutover remained untouched.
 
+On 2026-09-03 the owner supplied that explicit continuation and clarified that
+the goal is not a one-step tag patch: finish #567 as a complete product slice.
+Before another live run, correct any product-path defect exposed by the failed
+acceptance, including single-shot post-mutation readback and exact replay that
+could re-derive `contact_update` / `lead_update` after newly created bindings.
+The completed implementation must keep the original request's operation
+sequence stable, retry only bounded read-only verification, and never repeat an
+unreconciled mutation. A provider rejection or ambiguous write is reconciled
+before any continuation; it is never converted into success or retried blindly.
+
+After the correction is independently reviewed, merged and green on exact
+main, run the complete guarded connected acceptance. Reuse valid checkpoints
+when their canonical database state still exists. Because the earlier
+disposable database was intentionally removed, do not reconstruct its private
+IDs or invent bindings; if it cannot be resumed exactly, create one new clearly
+marked validation entity and run the full canonical sequence. Completion
+requires all eight operations accepted with exact provider readback, an exact
+UI replay that adds no attempt, receipt, binding or provider entity, persistence
+after reload, and a sanitized `success.json`. The owner permits the bounded
+fresh attempts genuinely needed to reach that proof, but every attempt remains
+fail-closed and must reuse confirmed results rather than repeat work without new
+signal. Only then may #567 close and #568 start. The authorization still excludes
+WhatsApp sends, Gemini calls, frozen V1 execution, customer-data mutation,
+deployment, historical migration and cutover.
+
 ADR 0026 records that scope correction; no synthetic or customer-chat
 substitute is allowed. The existing
 `src/lib/platform-communications.ts` authenticated Supabase reads and the

@@ -8,6 +8,7 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   renameSync,
   writeFileSync,
@@ -37,6 +38,7 @@ const HISTORICAL_FILES = new Set([
   "docker-compose.staging.yml",
 ]);
 const GUARD_ROOTS = Object.freeze(["tests/"]);
+const SCAN_IGNORED_DIRECTORIES = new Set([".git", ".next", "node_modules", "output"]);
 const SECRET_LIKE_KEY = /(?:secret|token|api[_-]?key|cookie|password|session(?:_|-)?data|credential|raw(?:_|-)?payload|transcript|chat(?:_|-)?id|recipient|provider(?:_|-)?message(?:_|-)?id|source(?:_|-)?message(?:_|-)?id|phone|email)/iu;
 const SECRET_LIKE_VALUE = [
   /Bearer\s+[A-Za-z0-9._-]{12,}/u,
@@ -422,6 +424,70 @@ function classifyReference(repoPath) {
   return "active";
 }
 
+function scanRuleWithNode(repoReal, rule) {
+  let pattern;
+  try {
+    const smartCaseFlags = /[A-Z]/u.test(rule.pattern) ? "u" : "iu";
+    pattern = new RegExp(rule.pattern, smartCaseFlags);
+  } catch (error) {
+    fail(`invalid scan pattern for ${rule.id}: ${error instanceof Error ? error.message : "unknown error"}`);
+  }
+
+  const matches = [];
+  const visit = (directory) => {
+    let entries;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true }).sort((left, right) =>
+        left.name.localeCompare(right.name),
+      );
+    } catch (error) {
+      fail(
+        `node scan could not read ${relativePath(repoReal, directory)}: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+
+    for (const entry of entries) {
+      if (SCAN_IGNORED_DIRECTORIES.has(entry.name)) continue;
+      const absolutePath = join(directory, entry.name);
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        visit(absolutePath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+
+      let bytes;
+      try {
+        bytes = readFileSync(absolutePath);
+      } catch (error) {
+        fail(
+          `node scan could not read ${relativePath(repoReal, absolutePath)}: ${error instanceof Error ? error.message : "unknown error"}`,
+        );
+      }
+      if (bytes.includes(0)) continue;
+
+      const lines = bytes.toString("utf8").split(/\r?\n/u);
+      for (let index = 0; index < lines.length; index += 1) {
+        if (!pattern.test(lines[index])) continue;
+        const repoPath = relativePath(repoReal, absolutePath);
+        matches.push(
+          Object.freeze({
+            ruleId: rule.id,
+            description: rule.description ?? "",
+            path: repoPath,
+            line: index + 1,
+            text: lines[index],
+            classification: classifyReference(repoPath),
+          }),
+        );
+      }
+    }
+  };
+
+  visit(repoReal);
+  return matches;
+}
+
 export function scanRuntimeReferences(
   repoRoot,
   rules = DEFAULT_SCAN_RULES,
@@ -453,9 +519,16 @@ export function scanRuntimeReferences(
       ],
       repoReal,
     );
-    if (result.status !== 0 && result.status !== 1) {
-      fail(`rg failed for ${rule.id}: ${result.stderr.trim() || "unknown error"}`);
+    if (result?.error?.code === "ENOENT") {
+      matches.push(...scanRuleWithNode(repoReal, rule));
+      continue;
     }
+    if (result.status !== 0 && result.status !== 1) {
+      const stderr = typeof result?.stderr === "string" ? result.stderr.trim() : "";
+      const message = result?.error instanceof Error ? result.error.message : stderr;
+      fail(`rg failed for ${rule.id}: ${message || "unknown error"}`);
+    }
+    if (typeof result.stdout !== "string") fail(`rg output missing for ${rule.id}`);
     const lines = result.stdout
       .split(/\r?\n/u)
       .map((line) => line.trim())

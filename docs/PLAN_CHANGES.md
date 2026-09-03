@@ -15924,3 +15924,25 @@ output and Docker Compose private service-discovery contracts:
 <https://supabase.com/docs/guides/getting-started/api-keys>,
 <https://nextjs.org/docs/app/api-reference/config/next-config-js/output> and
 <https://docs.docker.com/compose/how-tos/networking/>.
+
+## 2026-09-03 - Correct the P6A staging recovery-evidence mount type
+
+Block-ID: `EVO-P6A-STAGING-RECOVERY-MOUNT-FIX-2026-09-03`
+
+Change type: post-merge correctness repair.
+Affected plan section: Order 6 / Issue #550 child #584.
+
+An independent exact-head review after PR #589 identified that the retained
+read-only U11 recovery-evidence bind was accidentally indented under `tmpfs`
+in `docker-compose.staging.yml`. Docker Compose accepted the document but did
+not mount the operator-owned host evidence directory into the staging app.
+
+Decision:
+
+- restore the recovery-evidence entry under the staging app `volumes` list and
+  keep only `/tmp` and `/app/.next/cache` under `tmpfs`;
+- add structural tests that distinguish a read-only bind mount from a tmpfs
+  entry instead of accepting the same text anywhere in the service block;
+- render the staging Compose model and prove `/app/recovery-evidence` is a
+  read-only bind before closing #584 again;
+- make no VPS, public-route, provider, customer-data or frozen-V1 change.

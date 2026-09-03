@@ -35,10 +35,10 @@ services:
       - "3000"
     volumes:
       - evo_crm_staging_output:/app/output
+      - "${EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT:-/opt/evo-crm-staging/evidence}:/app/recovery-evidence:ro"
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
       - /app/.next/cache:rw,noexec,nosuid,nodev,size=128m,mode=0700,uid=1001,gid=1001
-      - "${EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT:-/opt/evo-crm-staging/evidence}:/app/recovery-evidence:ro"
     networks:
       private:
         aliases:

@@ -250,11 +250,21 @@ test("staging Compose owns only successor app and private WAHA identities", () =
 test("staging app mounts only retained successor paths and has a safe env template", () => {
   const stagingCompose = readFileSync("docker-compose.staging.yml", "utf8");
   const stagingEnvironment = readFileSync("deploy/env.staging.example", "utf8");
+  const appBlock = stagingCompose.match(
+    /^  app:\n[\s\S]*?(?=^  [a-z][a-z0-9-]+:\n|^networks:\n|^volumes:\n)/mu,
+  )?.[0];
+
+  assert.ok(appBlock, "missing staging app service");
+  const volumeBlock = appBlock.match(/^    volumes:\n(?:      - .+\n)+/mu)?.[0];
+  const tmpfsBlock = appBlock.match(/^    tmpfs:\n(?:      - .+\n)+/mu)?.[0];
+  assert.ok(volumeBlock, "missing staging app volumes");
+  assert.ok(tmpfsBlock, "missing staging app tmpfs");
 
   assert.match(
-    stagingCompose,
+    volumeBlock,
     /EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT:-\/opt\/evo-crm-staging\/evidence\}:\/app\/recovery-evidence:ro/u,
   );
+  assert.doesNotMatch(tmpfsBlock, /recovery-evidence/u);
   assert.match(stagingEnvironment, /^EVO_CRM_DOMAIN=staging\.crm\.evoadmissions\.com$/mu);
   assert.match(stagingEnvironment, /^NEXT_PUBLIC_SUPABASE_URL=https:\/\//mu);
   assert.match(stagingEnvironment, /^NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/mu);

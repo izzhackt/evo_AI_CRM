@@ -119,8 +119,8 @@ async function expectBlockedPanel(
   page: Page,
   input: Readonly<{
     route: string;
-    scope: "admissions";
-    targetField: "student_case_id";
+    scope: "sales" | "admissions";
+    targetField: "lead_id" | "student_case_id";
     targetId: string;
     blockingAttemptId?: string | null;
     expectedLeadId?: string;
@@ -142,7 +142,7 @@ async function expectBlockedPanel(
   if (input.expectedLeadId) {
     await expect(
       page
-        .getByTestId("canonical-student-case-workspace")
+        .getByTestId("platform-student-case-workspace")
         .getByText(input.expectedLeadId, { exact: true }),
     ).toBeVisible();
   }
@@ -189,7 +189,7 @@ test("Admissions amoCRM commands stay visibly disabled when the selected server 
   });
 });
 
-test("Sales and Admin see the canonical Sales detail without the retired amoCRM panel", async ({
+test("Sales and Admin see the canonical Sales amoCRM command at lead detail", async ({
   page,
 }) => {
   test.skip(
@@ -204,14 +204,15 @@ test("Sales and Admin see the canonical Sales detail without the retired amoCRM 
       "data-authority-role",
       role,
     );
-    await page.goto(`/sales/${leadId}`);
-    await expect(page).toHaveURL(new RegExp(`/sales/${leadId}$`, "u"));
+    await expectBlockedPanel(page, {
+      route: `/sales/${leadId}`,
+      scope: "sales",
+      targetField: "lead_id",
+      targetId: leadId,
+    });
     await expect(
       page.getByTestId("canonical-sales-lead-workspace"),
     ).toBeVisible();
-    await expect(
-      page.getByTestId("canonical-amocrm-command-panel"),
-    ).toHaveCount(0);
   }
 });
 
@@ -237,7 +238,7 @@ test("Admissions and Admin see the Admissions command only at canonical Student 
       targetId: studentCaseId,
     });
     await expect(
-      page.getByTestId("canonical-student-case-workspace"),
+      page.getByTestId("platform-student-case-workspace"),
     ).toBeVisible();
   }
 });
@@ -266,7 +267,7 @@ test("wrong fixed roles are denied before either owning workspace renders", asyn
   await page.goto(`/clients/${studentCaseId}`);
   await expect(page).toHaveURL(/\/access-denied\?from=%2Fclients/u);
   await expect(
-    page.getByTestId("canonical-student-case-workspace"),
+    page.getByTestId("platform-student-case-workspace"),
   ).toHaveCount(0);
   await expect(page.getByTestId("canonical-amocrm-command-panel")).toHaveCount(
     0,
@@ -293,7 +294,7 @@ test("a prior Sales unknown survives Admin override handoff into active Admissio
     expectedLeadId: admissionsBlockingLeadId as string,
   });
   await expect(
-    page.getByTestId("canonical-student-case-workspace"),
+    page.getByTestId("platform-student-case-workspace"),
   ).toBeVisible();
   await expect(
     page.getByTestId("canonical-student-case-handoff"),
@@ -310,6 +311,6 @@ test("a prior Sales unknown survives Admin override handoff into active Admissio
     admissionsBlockingAttemptId as string,
   );
   await expect(
-    page.getByTestId("canonical-student-case-workspace"),
+    page.getByTestId("platform-student-case-workspace"),
   ).toBeVisible();
 });

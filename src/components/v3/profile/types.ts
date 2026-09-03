@@ -65,16 +65,14 @@ export type PersonProfile = Readonly<{
   timeline: readonly ProfileEvent[];
 }>;
 
-/** Один пункт чеклиста документов. */
-export type DocumentItem = Readonly<{
-  name: string;
-  /** Есть ли документ. */
-  present: boolean;
-  /** Приложенный файл, если он есть. */
-  file: string | null;
-  /** Когда приложили. */
-  at: string | null;
-}>;
+/**
+ * Пункт заготовки документов — только имя.
+ *
+ * Файла здесь нет намеренно: приложенный файл появляется в браузере и живёт
+ * в состоянии вкладки, пока хранилище не догонит. Имя файла без самого файла
+ * было бы нарисованной галочкой.
+ */
+export type DocumentItem = Readonly<{ id: string; name: string }>;
 
 export type DocumentGroup = Readonly<{ title: string; items: readonly DocumentItem[] }>;
 
@@ -95,7 +93,15 @@ export type ProfileDraft = Readonly<{
   provider: string | null;
   person: readonly Fact[];
   study: readonly Fact[];
+  /** Заготовка документов: то, что нужно всем. Дальше список ведёт сотрудник. */
   documents: readonly DocumentGroup[];
+  /**
+   * Есть в модели, намеренно не рисуется.
+   *
+   * Отдельной вкладки «Файлы» нет: файл живёт при своём пункте в документах,
+   * и второй список перечислял бы те же файлы во втором месте. К тому же имя
+   * файла, к которому не привязан сам файл, — нарисованная галочка.
+   */
   otherFiles: readonly Readonly<{ name: string; size: string; at: string }>[];
   budget: string | null;
   currency: string | null;
@@ -104,6 +110,14 @@ export type ProfileDraft = Readonly<{
   remaining: string | null;
   /** Доля оплаченного, 0–100. null — считать не из чего. */
   paidPercent: number | null;
+  /**
+   * Есть в модели, намеренно не рисуется.
+   *
+   * Дату договора во вкладке «Деньги» показывает карточка «Договор», и берёт
+   * она её из `profile.handoff` — то есть из настоящих данных. Придуманная
+   * дата рядом с настоящей была бы вторым источником правды об одном и том же
+   * событии.
+   */
   contractSignedAt: string | null;
 }>;
 
@@ -117,6 +131,21 @@ export const TABS = [
 
 export type TabKey = (typeof TABS)[number]["key"];
 
-export function isTabKey(value: unknown): value is TabKey {
-  return TABS.some((tab) => tab.key === value);
+/**
+ * Вкладки этого человека.
+ *
+ * Документы заводятся на дело студента. Пока человек лид, дела нет — и
+ * вкладки нет тоже: ни пустой, ни с объяснением, почему она пустая.
+ */
+export function tabsFor(student: boolean): readonly (typeof TABS)[number][] {
+  return student ? TABS : TABS.filter((tab) => tab.key !== "documents");
+}
+
+/**
+ * Вкладка из адреса. Чужая или недоступная этому человеку — открывается обзор:
+ * `?tab=documents` у лида не должен ронять страницу.
+ */
+export function resolveTab(value: unknown, student: boolean): TabKey {
+  const found = tabsFor(student).find((tab) => tab.key === value);
+  return found ? found.key : "overview";
 }

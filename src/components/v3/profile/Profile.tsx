@@ -3,8 +3,9 @@ import Link from "next/link";
 import { Pill } from "@/components/v3/Pill";
 import { personState } from "@/lib/v3/wording";
 
-import { Anketa, Documents, History, Money, Overview } from "./tabs";
-import { TABS, type PersonProfile, type ProfileDraft, type TabKey } from "./types";
+import { Documents } from "./Documents";
+import { Anketa, History, Money, Overview } from "./tabs";
+import { tabsFor, type PersonProfile, type ProfileDraft, type TabKey } from "./types";
 
 /**
  * Профиль человека — один на всех, лид он или уже студент.
@@ -23,6 +24,11 @@ import { TABS, type PersonProfile, type ProfileDraft, type TabKey } from "./type
  *
  * Обзор — маршрутизатор, а не сводка всего: он говорит, что с человеком
  * сейчас и куда идти, но не повторяет содержимое вкладок.
+ *
+ * НАБОР ВКЛАДОК ЗАВИСИТ ОТ ЧЕЛОВЕКА. Документы заводятся на дело студента,
+ * поэтому у лида вкладки «Документы» нет вовсе — ни пустой, ни с
+ * объяснением, почему она пустая. Список считает `tabsFor`, он же страхует:
+ * вкладка, которой у этого человека нет, показывает обзор.
  */
 export function Profile({
   profile,
@@ -36,6 +42,9 @@ export function Profile({
   tab: TabKey;
   hrefFor: (tab: string) => string;
 }) {
+  const tabs = tabsFor(profile.student);
+  const current = tabs.some((entry) => entry.key === tab) ? tab : "overview";
+
   const state = personState({
     hasCase: profile.student,
     caseStatus: profile.caseStatus,
@@ -62,8 +71,8 @@ export function Profile({
         className="max-w-full overflow-x-auto border-b border-border"
       >
         <ul className="flex w-max gap-1">
-          {TABS.map((entry) => {
-            const active = entry.key === tab;
+          {tabs.map((entry) => {
+            const active = entry.key === current;
             return (
               <li key={entry.key}>
                 <Link
@@ -83,13 +92,17 @@ export function Profile({
         </ul>
       </nav>
 
-      {tab === "overview" ? (
+      {current === "overview" ? (
         <Overview profile={profile} draft={draft} tabHref={hrefFor} />
       ) : null}
-      {tab === "anketa" ? <Anketa profile={profile} draft={draft} /> : null}
-      {tab === "documents" ? <Documents draft={draft} /> : null}
-      {tab === "money" ? <Money profile={profile} draft={draft} /> : null}
-      {tab === "history" ? <History profile={profile} /> : null}
+      {current === "anketa" ? <Anketa profile={profile} draft={draft} /> : null}
+      {/* Список документов живой и переживает уход на другую вкладку. Ключ —
+          человек: у второго студента список свой, и его нельзя унаследовать. */}
+      {current === "documents" ? (
+        <Documents key={profile.leadId} groups={draft.documents} personId={profile.leadId} />
+      ) : null}
+      {current === "money" ? <Money profile={profile} draft={draft} /> : null}
+      {current === "history" ? <History profile={profile} /> : null}
     </div>
   );
 }

@@ -1,8 +1,6 @@
-import Link from "next/link";
-
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
-import { isTabKey } from "@/components/v3/profile/types";
+import { resolveTab } from "@/components/v3/profile/types";
 import { readProfile, readProfilePicks } from "@/lib/v3/profile-source";
 
 import { PROFILE_SAMPLE, PROFILE_SAMPLE_EARLY } from "./sample";
@@ -26,7 +24,10 @@ export default async function ProfilePart({
   const profile = requestedId ? await readProfile(requestedId) : null;
   const chosenId = profile ? requestedId : null;
   const missing = Boolean(params.id) && !profile;
-  const tab = isTabKey(params.tab) ? params.tab : "overview";
+  // Вкладка приходит адресом, поэтому её нельзя брать на веру: чужое слово и
+  // вкладка, которой у этого человека нет (`?tab=documents` у лида), открывают
+  // обзор.
+  const tab = resolveTab(params.tab, Boolean(profile?.student));
 
   // У того, кто ещё не дошёл до договора, платежей и половины анкеты нет.
   // Это не пустое состояние-заглушка, а нормальная стадия.
@@ -35,14 +36,9 @@ export default async function ProfilePart({
     `/v3/profile?id=${chosenId ?? ""}&tab=${next}`;
 
   return (
-    <PartShell
-      title="Профиль"
-    >
-
+    <PartShell title="Профиль">
       {profile ? (
-        <>
-          <Profile profile={profile} draft={draft} tab={tab} hrefFor={hrefFor} />
-        </>
+        <Profile profile={profile} draft={draft} tab={tab} hrefFor={hrefFor} />
       ) : (
         <p className="rounded-card border border-border bg-surface px-4 py-8 text-center text-sm text-fg-3">
           {missing

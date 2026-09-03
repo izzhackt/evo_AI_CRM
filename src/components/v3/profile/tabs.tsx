@@ -8,29 +8,10 @@ import {
   visaStatus,
 } from "@/lib/v3/wording";
 
-import type { DocumentGroup, Fact, PersonProfile, ProfileDraft } from "./types";
+import { Card } from "./Card";
+import type { Fact, PersonProfile, ProfileDraft } from "./types";
 
 /* ------------------------------------------------------------------ общее */
-
-export function Card({
-  title,
-  aside,
-  children,
-}: {
-  title: string;
-  aside?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-card border border-border bg-surface">
-      <h3 className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 text-2xs font-semibold uppercase tracking-wide text-fg-2">
-        {title}
-        {aside ? <span className="font-normal normal-case tracking-normal">{aside}</span> : null}
-      </h3>
-      {children}
-    </section>
-  );
-}
 
 function FactList({ facts }: { facts: readonly Fact[] }) {
   const shown = facts.filter((f) => f.value !== null);
@@ -60,11 +41,6 @@ const STATUS_TONE: Record<string, PillTone> = {
 };
 const tone = (s: string): PillTone => STATUS_TONE[s] ?? "neutral";
 
-function countDocuments(groups: readonly DocumentGroup[]) {
-  const all = groups.flatMap((g) => g.items);
-  return { have: all.filter((i) => i.present).length, total: all.length };
-}
-
 /* ------------------------------------------------------------------ Обзор */
 
 /**
@@ -83,49 +59,21 @@ export function Overview({
   draft: ProfileDraft;
   tabHref: (tab: string) => string;
 }) {
-  const docs = countDocuments(draft.documents);
   const application = profile.applications[0] ?? null;
 
-  const tiles = [
-    {
-      // Знаменателя не существует: у документа в модели нет типа, чеклиста
-      // требуемых документов нет тоже. Значит «5 / 15» — не факт, а образец,
-      // и он помечен пунктиром наравне с остальными нарисованными авансом
-      // полями. Красное ребро отсюда убрано: тревога, выведенная из
-      // выдуманного числа, — выдуманная тревога.
-      key: "documents",
-      name: "Документы",
-      value: `${docs.have}`,
-      unit: ` / ${docs.total}`,
-      caption: docs.total - docs.have > 0 ? `не хватает ${docs.total - docs.have}` : "все собраны",
-      blocked: false,
-    },
-    {
-      // Процент оплаты — тоже образец: в модели есть только сумма первого
-      // взноса. А вот финансовый стоп настоящий, и ребро теперь означает его.
-      key: "money",
-      name: "Оплата",
-      value: draft.paidPercent === null ? "—" : `${draft.paidPercent}`,
-      unit: draft.paidPercent === null ? "" : "%",
-      caption: profile.financeStop
-        ? `финансовый стоп: ${profile.financeStop}`
-        : draft.remaining
-          ? `остаток ${draft.remaining}`
-          : "плана платежей нет",
-      blocked: profile.financeStop !== null,
-    },
-    {
-      // У заявки нет числа: «1» — это счёт строк, а не состояние. Плитка
-      // называет то, что решает, — на какой она стадии.
-      key: "overview",
-      name: "Заявка",
-      value: application ? (applicationStatus(application.status) ?? "—") : "нет",
-      unit: "",
-      caption: application ? application.program : "ещё не заведена",
-      word: true,
-      blocked: false,
-    },
-  ];
+  // Плитка здесь ровно одна, и это не оплошность.
+  //
+  // «Документы» плиткой не показываем: пока список ведут в самой вкладке и
+  // никуда не сохраняют, обзор мог бы показать только «0 из 9» — число,
+  // которое никогда не меняется. А у лида и вкладки-то нет.
+  //
+  // Плитка «Заявка» вела на `?tab=overview` — на вкладку, где человек уже
+  // стоит: нажатие не делало ничего. Карточка ниже говорит то же и больше,
+  // поэтому осталась только она.
+  //
+  // Процент оплаты — образец: в модели есть только сумма первого взноса.
+  // А вот финансовый стоп настоящий, и ребро означает его.
+  const blocked = profile.financeStop !== null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -140,45 +88,45 @@ export function Overview({
         )}
       </Card>
 
-      <ul className="grid gap-3 @lg:grid-cols-3">
-        {tiles.map((tile) => (
-          <li key={tile.name}>
-            <a
-              href={tabHref(tile.key)}
-              className={`flex h-full flex-col gap-0.5 rounded-card border bg-surface px-4 py-3 hover:border-control-edge ${
-                tile.blocked ? "border-border border-s-2 border-s-danger" : "border-border"
-              }`}
-            >
-              <span className="text-2xs font-semibold uppercase tracking-wide text-fg-3">
-                {tile.name}
-              </span>
-              <span
-                className={`font-bold leading-tight tracking-[-0.02em] text-fg ${
-                  "word" in tile && tile.word ? "text-lg" : "text-2xl"
-                }`}
-              >
-                {tile.value}
-                <span className="text-sm font-normal text-fg-3">{tile.unit}</span>
-              </span>
-              <span className="text-2xs text-fg-3">{tile.caption}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
+      <a
+        href={tabHref("money")}
+        className={`flex flex-col gap-0.5 rounded-card border bg-surface px-4 py-3 hover:border-control-edge ${
+          blocked ? "border-border border-s-2 border-s-danger" : "border-border"
+        }`}
+      >
+        <span className="text-2xs font-semibold uppercase tracking-wide text-fg-3">Оплата</span>
+        <span className="text-2xl font-bold leading-tight tracking-[-0.02em] text-fg">
+          {draft.paidPercent === null ? "—" : draft.paidPercent}
+          {draft.paidPercent === null ? null : (
+            <span className="text-sm font-normal text-fg-3">%</span>
+          )}
+        </span>
+        <span className="text-2xs text-fg-3">
+          {profile.financeStop
+            ? `финансовый стоп: ${profile.financeStop}`
+            : draft.remaining
+              ? `остаток ${draft.remaining}`
+              : "плана платежей нет"}
+        </span>
+      </a>
 
-      {application ? (
-        <Card title="Заявка">
-          <p className="flex flex-wrap items-center gap-2 px-4 pt-3 text-sm">
-            <span className="font-semibold text-fg">{application.program}</span>
-            <Pill tone={tone(application.status)}>
-              {applicationStatus(application.status) ?? "—"}
-            </Pill>
-          </p>
-          <p className="px-4 pb-3 pt-0.5 text-2xs text-fg-3">
-            {application.institution} · набор {application.intake}
-          </p>
-        </Card>
-      ) : null}
+      <Card title="Заявка">
+        {application ? (
+          <>
+            <p className="flex flex-wrap items-center gap-2 px-4 pt-3 text-sm">
+              <span className="font-semibold text-fg">{application.program}</span>
+              <Pill tone={tone(application.status)}>
+                {applicationStatus(application.status) ?? "—"}
+              </Pill>
+            </p>
+            <p className="px-4 pb-3 pt-0.5 text-2xs text-fg-3">
+              {application.institution} · набор {application.intake}
+            </p>
+          </>
+        ) : (
+          <p className="px-4 py-3 text-sm text-fg-3">Заявка ещё не заведена.</p>
+        )}
+      </Card>
 
       <Card title="Коротко">
         <FactList
@@ -225,86 +173,6 @@ export function Anketa({ profile, draft }: { profile: PersonProfile; draft: Prof
           </Card>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------- Документы */
-
-export function Documents({ draft }: { draft: ProfileDraft }) {
-  const { have, total } = countDocuments(draft.documents);
-  const missing = total - have;
-
-  return (
-    <div className="flex flex-col gap-4">
-      <Card
-        title="Собрано"
-        aside={missing > 0 ? <Pill tone="warn">не хватает {missing}</Pill> : <Pill tone="ok">всё</Pill>}
-      >
-        <p className="px-4 py-3">
-          <span className="text-2xl font-bold tracking-[-0.02em] text-fg">{have}</span>
-          <span className="text-sm text-fg-3"> из {total}</span>
-        </p>
-      </Card>
-
-      {draft.documents.map((group) => (
-        <Card key={group.title} title={group.title}>
-          <ul>
-            {group.items.map((item) => (
-              <li
-                key={item.name}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 last:border-b-0"
-              >
-                {/* Кружок — состояние пункта; текст рядом называет его словом,
-                    поэтому цвет не единственный признак (SC 1.4.1). */}
-                <span
-                  aria-hidden="true"
-                  className={`h-2 w-2 shrink-0 rounded-full ${
-                    item.present ? "bg-ok" : "border border-control-edge"
-                  }`}
-                />
-                <span className="min-w-0 flex-1 text-sm text-fg">
-                  {item.name}
-                </span>
-                {item.present ? (
-                  <>
-                    <span className="truncate font-mono text-2xs text-fg-3">{item.file}</span>
-                    {item.at ? <Pill tone="ok">{item.at}</Pill> : null}
-                  </>
-                ) : (
-                  <Pill>нет</Pill>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      ))}
-
-      {/*
-        Отдельной вкладки «Файлы» нет намеренно: она перечисляла бы те же
-        паспорт.pdf и аттестат.pdf второй раз. Файл живёт в своей строке
-        чеклиста, а сюда попадает только то, что ни к одному пункту не
-        относится.
-      */}
-      <Card title="Прочие файлы" aside={<Pill>{draft.otherFiles.length}</Pill>}>
-        <ul>
-          {draft.otherFiles.map((file) => (
-            <li
-              key={file.name}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 last:border-b-0"
-            >
-              <span className="min-w-0 flex-1 truncate font-mono text-2xs text-fg">
-                {file.name}
-              </span>
-              <span className="shrink-0 text-2xs text-fg-3">{file.size}</span>
-              <span className="shrink-0 font-mono text-2xs text-fg-3">{file.at}</span>
-            </li>
-          ))}
-          {draft.otherFiles.length === 0 ? (
-            <li className="px-4 py-3 text-sm text-fg-3">Файлов вне чеклиста нет.</li>
-          ) : null}
-        </ul>
-      </Card>
     </div>
   );
 }

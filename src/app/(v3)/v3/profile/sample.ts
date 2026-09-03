@@ -7,42 +7,29 @@ import type { ProfileDraft } from "@/components/v3/profile/types";
  * схема догонит, меняется этот файл и источник, а не вёрстка вкладок.
  *
  * Проверено по базе: `evo_people` знает про человека ровно имя, телефон и
- * почту. У документа нет типа — есть сам документ и его файл, но какой он
- * (паспорт, аттестат, HSK), модель не хранит, поэтому «5 из 15» ей сегодня
- * посчитать нечем. Плана платежей нет: есть только сумма первого платежа в
+ * почту. У документа нет ни имени отдельно от файла, ни группы, ни заготовки,
+ * поэтому список документов сотрудник ведёт здесь, в состоянии страницы, а не
+ * читает из базы. Плана платежей нет: есть только сумма первого платежа в
  * основании передачи. Сущности сотрудника нет вовсе — есть три роли, а роль
  * это не человек.
- *
- * Всё, что отсюда, на экране подчёркнуто пунктиром.
  */
 
-const DOCS = {
-  Личные: [
-    ["фото", "photo.jpg", "12.08"],
-    ["паспорт", "passport.pdf", "12.08"],
-    ["анкета", "anketa.pdf", "14.08"],
-  ],
-  "Об образовании": [
-    ["аттестат / транскрипт", "transcript.pdf", "15.08"],
-    ["справка с места учёбы", "study-cert.pdf", "15.08"],
-    ["CV europass", null, null],
-  ],
-  Языковые: [
-    ["HSK", null, null],
-    ["TOEFL / IELTS", null, null],
-    ["CENT S тест", null, null],
-  ],
-  Справки: [
-    ["справка о несудимости", null, null],
-    ["мед. справка", null, null],
-    ["справка из банка", null, null],
-  ],
-  "Для поступления": [
-    ["рекомендательные письма", null, null],
-    ["мотивационное письмо", null, null],
-    ["видео", null, null],
-  ],
-} as const;
+/**
+ * Заготовка документов — одна на всех.
+ *
+ * Не под страну и не под программу: набор там разный, и подстраивает его
+ * человек, добавляя и убирая пункты руками. Здесь стоит то, что спрашивают у
+ * каждого.
+ *
+ * Приложенных файлов в заготовке нет: файл появляется, когда его выбрали в
+ * браузере, а придуманное «passport.pdf», которое нельзя скачать, — это
+ * галочка, за которой ничего нет.
+ */
+const DOCS: Readonly<Record<string, readonly string[]>> = {
+  Личные: ["фото", "паспорт", "анкета"],
+  "Об образовании": ["аттестат / транскрипт", "справка с места учёбы", "CV europass"],
+  Языковые: ["HSK", "TOEFL / IELTS", "CENT S тест"],
+};
 
 export const PROFILE_SAMPLE: ProfileDraft = {
   responsible: "Мамашев Абдылда",
@@ -64,14 +51,9 @@ export const PROFILE_SAMPLE: ProfileDraft = {
     { label: "Основные критерии", value: "Стипендия, общежитие" },
   ],
 
-  documents: Object.entries(DOCS).map(([title, items]) => ({
+  documents: Object.entries(DOCS).map(([title, names], group) => ({
     title,
-    items: items.map(([name, file, at]) => ({
-      name,
-      present: file !== null,
-      file,
-      at,
-    })),
+    items: names.map((name, index) => ({ id: `base-${group}-${index}`, name })),
   })),
 
   otherFiles: [
@@ -105,10 +87,8 @@ export const PROFILE_SAMPLE_EARLY: ProfileDraft = {
   provider: null,
   person: PROFILE_SAMPLE.person.slice(0, 2),
   study: PROFILE_SAMPLE.study.slice(2, 4),
-  documents: PROFILE_SAMPLE.documents.map((group) => ({
-    ...group,
-    items: group.items.map((item) => ({ ...item, present: false, file: null, at: null })),
-  })),
+  // Документы у лида не спрашивают: вкладки «Документы» у него нет вовсе.
+  // Заготовка тем не менее та же — она появится в тот день, когда появится дело.
   otherFiles: [],
   budget: null,
   currency: null,

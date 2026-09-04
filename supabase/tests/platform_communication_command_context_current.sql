@@ -215,10 +215,10 @@ SET request.jwt.claims TO :'p6c_admin_claims';
 SET ROLE authenticated;
 SELECT
   count(*)::TEXT AS p6c_visible_count,
-  max(context.conversation_id)::TEXT AS p6c_visible_conversation,
-  max(context.canonical_lead_id)::TEXT AS p6c_visible_lead,
-  max(context.canonical_client_id)::TEXT AS p6c_visible_client,
-  max(context.student_case_id)::TEXT AS p6c_visible_case
+  max(context.conversation_id::TEXT) AS p6c_visible_conversation,
+  max(context.canonical_lead_id::TEXT) AS p6c_visible_lead,
+  max(context.canonical_client_id::TEXT) AS p6c_visible_client,
+  max(context.student_case_id::TEXT) AS p6c_visible_case
 FROM platform.staff_communication_command_context(
   :'p6c_org_a',
   :'p6c_conversation'

@@ -1,5 +1,15 @@
 import type { DocumentPresence } from "@/lib/v3/wording";
 
+export type DocumentCaseLinkTargetKind = "university_application" | "visa_case";
+
+export type DocumentCaseLinkTarget = Readonly<{
+  kind: DocumentCaseLinkTargetKind;
+  id: string;
+  label: string;
+  linked: boolean;
+  requestId: string | null;
+}>;
+
 type DocumentItemBase = Readonly<{
   /** Canonical platform.document_slots id; never shown to staff. */
   id: string;
@@ -12,6 +22,7 @@ type DocumentItemBase = Readonly<{
   groupLabel: string;
   intentKind: "baseline" | "custom";
   version: number;
+  caseLinkTargets: readonly DocumentCaseLinkTarget[];
 }>;
 
 export type AbsentDocumentItem = DocumentItemBase & Readonly<{

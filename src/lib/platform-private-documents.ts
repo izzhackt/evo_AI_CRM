@@ -19,6 +19,10 @@ export const PLATFORM_DOCUMENT_REVIEW_DECISIONS = [
   "rejected",
 ] as const;
 export const PLATFORM_DOCUMENT_SLOT_INTENTS = ["baseline", "custom"] as const;
+export const PLATFORM_DOCUMENT_SLOT_CASE_LINK_TARGETS = [
+  "university_application",
+  "visa_case",
+] as const;
 
 export type PlatformDocumentSlotStatus =
   (typeof PLATFORM_DOCUMENT_SLOT_STATUSES)[number];
@@ -26,6 +30,8 @@ export type PlatformDocumentReviewDecision =
   (typeof PLATFORM_DOCUMENT_REVIEW_DECISIONS)[number];
 export type PlatformDocumentSlotIntent =
   (typeof PLATFORM_DOCUMENT_SLOT_INTENTS)[number];
+export type PlatformDocumentSlotCaseLinkTargetKind =
+  (typeof PLATFORM_DOCUMENT_SLOT_CASE_LINK_TARGETS)[number];
 
 export type PlatformDocumentReview = Readonly<{
   decision: PlatformDocumentReviewDecision;
@@ -56,6 +62,15 @@ export type PlatformDocumentVersion = Readonly<{
   updatedAt: string;
 }>;
 
+export type PlatformDocumentSlotCaseLink = Readonly<{
+  documentSlotCaseLinkId: string;
+  targetKind: PlatformDocumentSlotCaseLinkTargetKind;
+  universityApplicationId: string | null;
+  visaCaseId: string | null;
+  createdByMembershipId: string;
+  createdAt: string;
+}>;
+
 export type PlatformDocumentSlot = Readonly<{
   documentSlotId: string;
   documentRequirementId: string | null;
@@ -73,6 +88,7 @@ export type PlatformDocumentSlot = Readonly<{
   currentVersionNumber: number | null;
   createdAt: string;
   updatedAt: string;
+  caseLinks: readonly PlatformDocumentSlotCaseLink[];
   versions: readonly PlatformDocumentVersion[];
 }>;
 
@@ -256,6 +272,43 @@ function normalizeReview(value: unknown): PlatformDocumentReview | null {
   });
 }
 
+function normalizePlatformDocumentSlotCaseLink(
+  value: unknown,
+): PlatformDocumentSlotCaseLink {
+  if (
+    !isRecord(value)
+    || !exact(value, [
+      "document_slot_case_link_id",
+      "target_kind",
+      "university_application_id",
+      "visa_case_id",
+      "created_by_membership_id",
+      "created_at",
+    ])
+  ) {
+    return invalidShape();
+  }
+  const targetKind = oneOf(value.target_kind, PLATFORM_DOCUMENT_SLOT_CASE_LINK_TARGETS);
+  const universityApplicationId = optionalUuid(value.university_application_id);
+  const visaCaseId = optionalUuid(value.visa_case_id);
+  if (
+    (targetKind === "university_application" &&
+      (!universityApplicationId || visaCaseId !== null)) ||
+    (targetKind === "visa_case" &&
+      (universityApplicationId !== null || !visaCaseId))
+  ) {
+    return invalidShape();
+  }
+  return Object.freeze({
+    documentSlotCaseLinkId: requiredUuid(value.document_slot_case_link_id),
+    targetKind,
+    universityApplicationId,
+    visaCaseId,
+    createdByMembershipId: requiredUuid(value.created_by_membership_id),
+    createdAt: requiredTimestamp(value.created_at),
+  });
+}
+
 export function normalizePlatformDocumentVersion(
   value: unknown,
 ): PlatformDocumentVersion {
@@ -352,17 +405,31 @@ export function normalizePlatformDocumentSlot(
       "current_version_no",
       "created_at",
       "updated_at",
+      "case_links",
       "versions",
     ])
     || !Array.isArray(value.versions)
     || value.versions.length > 100
+    || !Array.isArray(value.case_links)
+    || value.case_links.length > 100
   ) {
     return invalidShape();
   }
+  const caseLinks = Object.freeze(
+    value.case_links.map(normalizePlatformDocumentSlotCaseLink),
+  );
+  const linkTargets = caseLinks.map((link) =>
+    `${link.targetKind}:${
+      link.targetKind === "university_application"
+        ? link.universityApplicationId
+        : link.visaCaseId
+    }`
+  );
   const versions = Object.freeze(value.versions.map(normalizePlatformDocumentVersion));
   const versionIds = versions.map((version) => version.documentVersionId);
   const versionNumbers = versions.map((version) => version.versionNumber);
   if (
+    new Set(linkTargets).size !== linkTargets.length ||
     new Set(versionIds).size !== versionIds.length
     || new Set(versionNumbers).size !== versionNumbers.length
     || versions.some((version, index) =>
@@ -412,6 +479,7 @@ export function normalizePlatformDocumentSlot(
     currentVersionNumber,
     createdAt: requiredTimestamp(value.created_at),
     updatedAt: requiredTimestamp(value.updated_at),
+    caseLinks,
     versions,
   });
 }
@@ -438,6 +506,7 @@ export function normalizePlatformRemovedDocumentSlot(
       "current_version_no",
       "created_at",
       "updated_at",
+      "case_links",
       "versions",
       "removed_at",
       "removed_by_membership_id",

@@ -9,12 +9,15 @@ import {
   changePlatformDocumentSlotMetadataAction,
   createPlatformCustomDocumentSlotAction,
   removePlatformDocumentSlotAction,
+  setPlatformDocumentCaseLinkAction,
+  type PlatformDocumentCaseLinkActionState,
   type PlatformDocumentChecklistActionState,
 } from "@/lib/platform-document-checklist-actions";
 import { documentPresence } from "@/lib/v3/wording";
 
 import type {
   ActiveDocumentGroup,
+  DocumentCaseLinkTarget,
   DocumentItem,
   DocumentUploadAccess,
   RemovedDocumentGroup,
@@ -206,7 +209,7 @@ function checklistMessage(status: PlatformDocumentChecklistActionState["status"]
 
 function ChecklistFeedback({
   state,
-}: Readonly<{ state: PlatformDocumentChecklistActionState }>) {
+}: Readonly<{ state: Readonly<{ status: PlatformDocumentChecklistActionState["status"] }> }>) {
   const message = checklistMessage(state.status);
   if (!message) return null;
   return (
@@ -226,6 +229,97 @@ function useRefreshAfterSave(status: PlatformDocumentChecklistActionState["statu
   useEffect(() => {
     if (status === "saved") router.refresh();
   }, [router, status]);
+}
+
+function CaseLinkSummary({ item }: Readonly<{ item: DocumentItem }>) {
+  const linkedTargets = item.caseLinkTargets.filter((target) => target.linked);
+  if (linkedTargets.length === 0) return null;
+  return (
+    <div className="mt-3 border-t border-border pt-3" data-testid="v3-document-linked-targets">
+      <p className="text-xs font-semibold text-fg-2">Связано с</p>
+      <ul className="mt-1 space-y-1">
+        {linkedTargets.map((target) => (
+          <li key={`${target.kind}:${target.id}`} className="text-xs text-fg-3">
+            {target.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function CaseLinkTargetForm({
+  item,
+  studentCaseId,
+  target,
+}: Readonly<{
+  item: DocumentItem;
+  studentCaseId: string;
+  target: DocumentCaseLinkTarget;
+}>) {
+  const requestId = target.requestId ?? "";
+  const initialState: PlatformDocumentCaseLinkActionState = {
+    status: "idle",
+    requestId,
+    documentSlotId: item.id,
+    targetKind: target.kind,
+    targetId: target.id,
+    version: null,
+  };
+  const [state, action, pending] = useActionState(
+    setPlatformDocumentCaseLinkAction,
+    initialState,
+  );
+  useRefreshAfterSave(state.status);
+  const waitingForCanonicalRefresh = state.status === "saved"
+    && state.version !== String(item.version);
+  const locked = pending || waitingForCanonicalRefresh || requestId.length === 0;
+
+  return (
+    <form
+      action={action}
+      className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      aria-busy={pending}
+      data-testid="v3-document-case-link-form"
+      data-target-kind={target.kind}
+      data-linked={target.linked}
+    >
+      <input type="hidden" name="student_case_id" value={studentCaseId} />
+      <input type="hidden" name="document_slot_id" value={item.id} />
+      <input type="hidden" name="target_kind" value={target.kind} />
+      <input type="hidden" name="target_id" value={target.id} />
+      <input type="hidden" name="enabled" value={target.linked ? "false" : "true"} />
+      <input type="hidden" name="expected_version" value={item.version} />
+      <input type="hidden" name="request_id" value={state.requestId || requestId} />
+      <label className="flex min-w-0 items-center gap-2 text-sm text-fg">
+        <input
+          type="checkbox"
+          className="size-4 shrink-0 rounded border-control-edge accent-fg"
+          checked={target.linked}
+          readOnly
+          disabled={locked}
+        />
+        <span className="min-w-0 truncate">{target.label}</span>
+      </label>
+      <button type="submit" className={btnGhostCls} disabled={locked}>
+        {pending ? "Сохраняем…" : target.linked ? "Убрать связь" : "Связать"}
+      </button>
+      <label className="sm:col-span-2 grid gap-1 text-xs text-fg-3">
+        Причина изменения
+        <input
+          required
+          name="reason"
+          className={inputCls}
+          maxLength={1000}
+          placeholder="Например: документ нужен для подачи"
+          disabled={locked}
+        />
+      </label>
+      <div className="sm:col-span-2">
+        <ChecklistFeedback state={state} />
+      </div>
+    </form>
+  );
 }
 
 function CreateChecklistItem({
@@ -385,6 +479,23 @@ function ChecklistItemControls({
           <ChecklistFeedback state={metadataState} />
         </div>
       </form>
+
+      {item.caseLinkTargets.length > 0 ? (
+        <div
+          className="mt-3 space-y-2 border-t border-border pt-3"
+          data-testid="v3-document-case-links"
+        >
+          <p className="text-xs font-semibold text-fg-2">Связи</p>
+          {item.caseLinkTargets.map((target) => (
+            <CaseLinkTargetForm
+              key={`${target.kind}:${target.id}`}
+              item={item}
+              studentCaseId={studentCaseId}
+              target={target}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <form
         action={removalAction}
@@ -558,6 +669,8 @@ export function ProfileDocumentsClient({
                           Файл есть, но скачивание ещё не подтверждено хранилищем.
                         </p>
                       ) : null}
+
+                      <CaseLinkSummary item={item} />
 
                       {canUpload ? (
                         <form

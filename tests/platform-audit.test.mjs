@@ -42,6 +42,10 @@ const V3_F_APPLICATION_MIGRATION_SOURCE = readFileSync(
   new URL("../supabase/migrations/112_platform_university_application_details.sql", import.meta.url),
   "utf8",
 );
+const V3_F_DOCUMENT_LINKS_MIGRATION_SOURCE = readFileSync(
+  new URL("../supabase/migrations/113_platform_document_case_links.sql", import.meta.url),
+  "utf8",
+);
 
 const SAFE_ROW = {
   audit_event_id: EVENT_ID,
@@ -86,8 +90,20 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "document.slot.metadata.change",
     "document.slot.remove",
   ];
+  const v3FDocumentLinkActions = [
+    "document.slot.application.link",
+    "document.slot.application.unlink",
+    "document.slot.visa.link",
+    "document.slot.visa.unlink",
+  ];
   for (const action of v3FDocumentActions) {
     assert.match(V3_F_MIGRATION_SOURCE, new RegExp(`'${action.replaceAll(".", "\\.")}'`));
+  }
+  for (const action of v3FDocumentLinkActions) {
+    assert.match(
+      V3_F_DOCUMENT_LINKS_MIGRATION_SOURCE,
+      new RegExp(`'${action.replaceAll(".", "\\.")}'`),
+    );
   }
   assert.match(V3_F_APPLICATION_MIGRATION_SOURCE, /'application\.details\.update'/);
   assert.deepEqual(
@@ -96,6 +112,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
       ...sqlTextArray("p7a_safe_audit_actions"),
       "membership.permission.change",
       ...v3FDocumentActions,
+      ...v3FDocumentLinkActions,
       "application.details.update",
     ].sort(),
   );

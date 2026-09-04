@@ -17022,3 +17022,39 @@ authenticated role. References:
 https://supabase.com/docs/guides/database/postgres/row-level-security,
 https://supabase.com/docs/guides/storage/security/access-control, and
 https://supabase.com/docs/guides/database/functions.
+
+## 2026-09-04 - Define #599 all-day task deadline semantics
+
+Block-ID: `EVO-V3-F-ALL-DAY-TASK-DEADLINES-2026-09-04`
+
+Change type: implementation clarification.
+Affected plan section: Order 5 / Issue #599 / slice 3 of 6.
+
+The confirmed #599 gap requires a stored all-day task deadline, but the plan
+did not yet define how that date coexists with timed deadlines, unscheduled
+tasks, ordering or overdue processing. Leaving those decisions implicit would
+let the V3 calendar, student portal and overdue worker disagree at day
+boundaries.
+
+Decision:
+
+- evolve the one existing `platform.case_tasks` authority with nullable
+  `due_on DATE`; keep nullable `due_at TIMESTAMPTZ`, require that at most one is
+  present, and treat both null as the existing explicit "no deadline" state;
+- evaluate timed deadlines at their exact instant and evaluate an all-day
+  deadline as overdue only when the current `Asia/Bishkek` calendar date is
+  later than `due_on`; the selected day itself remains due today, not overdue;
+- sort dated work deterministically by its displayed local day/time, with an
+  all-day item at the start of its day and an unscheduled item after dated
+  work, without converting the stored `DATE` into a competing authority;
+- carry both fields through the canonical create/change commands, replay and
+  optimistic-version checks, audit/result payloads, staff projections, portal
+  projection and overdue processing so every consumer sees the same mutually
+  exclusive state;
+- keep one case-bound task table and one `/v3/calendar` product surface. Do
+  not add a global task table, compatibility adapter, fallback deadline, dual
+  write or browser-only task state;
+- keep managed Supabase, provider, VPS, production data and customer traffic
+  unchanged. Prove the clarification with a forward local migration, focused
+  allow/deny and boundary tests, one real local OrbStack application/browser
+  run and one exact-head CI pass before merge.

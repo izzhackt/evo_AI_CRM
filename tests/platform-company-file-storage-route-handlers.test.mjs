@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { deflateRawSync } from "node:zlib";
 
 import {
   createPlatformCompanyFileDownloadHandler,
@@ -24,6 +25,136 @@ const OBJECT_NAME = `ab/${"c".repeat(62)}`;
 const AT = "2026-09-04T10:00:00+00:00";
 const BYTES = new TextEncoder().encode("%PDF-1.7\ncompany file proof");
 const SHA256 = createHash("sha256").update(BYTES).digest("hex");
+
+const OOXML_FAMILIES = Object.freeze({
+  docx: Object.freeze({
+    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    mainPath: "word/document.xml",
+    contentType:
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+    root: "w:document",
+    namespace: "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+  }),
+  xlsx: Object.freeze({
+    mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    mainPath: "xl/workbook.xml",
+    contentType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+    root: "workbook",
+    namespace: "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+  }),
+  pptx: Object.freeze({
+    mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    mainPath: "ppt/presentation.xml",
+    contentType:
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+    root: "p:presentation",
+    namespace: "http://schemas.openxmlformats.org/presentationml/2006/main",
+  }),
+});
+
+function testCrc32(bytes) {
+  let value = 0xffffffff;
+  for (const byte of bytes) {
+    value ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = (value >>> 1) ^ ((value & 1) === 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (value ^ 0xffffffff) >>> 0;
+}
+
+function makeStandardZip(entries) {
+  const localRecords = [];
+  const centralRecords = [];
+  let localOffset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, "utf8");
+    const contents = Buffer.from(entry.contents, "utf8");
+    const method = entry.method ?? 8;
+    const flags = (entry.flags ?? 0x0800) | (entry.dataDescriptor ? 0x0008 : 0);
+    const compressed = method === 8 ? deflateRawSync(contents) : contents;
+    const checksum = testCrc32(contents);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(flags, 6);
+    local.writeUInt16LE(method, 8);
+    if (!entry.dataDescriptor) {
+      local.writeUInt32LE(checksum, 14);
+      local.writeUInt32LE(compressed.byteLength, 18);
+      local.writeUInt32LE(contents.byteLength, 22);
+    }
+    local.writeUInt16LE(name.byteLength, 26);
+    const descriptor = entry.dataDescriptor ? Buffer.alloc(16) : Buffer.alloc(0);
+    if (entry.dataDescriptor) {
+      descriptor.writeUInt32LE(0x08074b50, 0);
+      descriptor.writeUInt32LE(checksum, 4);
+      descriptor.writeUInt32LE(compressed.byteLength, 8);
+      descriptor.writeUInt32LE(contents.byteLength, 12);
+    }
+    localRecords.push(local, name, compressed, descriptor);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(flags, 8);
+    central.writeUInt16LE(method, 10);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(compressed.byteLength, 20);
+    central.writeUInt32LE(contents.byteLength, 24);
+    central.writeUInt16LE(name.byteLength, 28);
+    central.writeUInt32LE(localOffset, 42);
+    centralRecords.push(central, name);
+    localOffset += local.byteLength + name.byteLength + compressed.byteLength + descriptor.byteLength;
+  }
+
+  const centralOffset = localOffset;
+  const centralSize = centralRecords.reduce((sum, record) => sum + record.byteLength, 0);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralSize, 12);
+  eocd.writeUInt32LE(centralOffset, 16);
+  return new Uint8Array(Buffer.concat([...localRecords, ...centralRecords, eocd]));
+}
+
+function makeOoxml(familyName, extraEntries = [], { defaultMainContentType = false } = {}) {
+  const family = OOXML_FAMILIES[familyName];
+  const mainTypeDeclaration = defaultMainContentType
+    ? `<Default Extension="xml" ContentType="${family.contentType}"/>`
+    : `<Override ContentType="${family.contentType}" PartName="/${family.mainPath}"/>`;
+  return makeStandardZip([
+    {
+      name: "[Content_Types].xml",
+      contents:
+        `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default ContentType="application/vnd.openxmlformats-package.relationships+xml" Extension="rels"/>${mainTypeDeclaration}</Types>`,
+      method: 0,
+    },
+    {
+      name: "_rels/.rels",
+      contents:
+        `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="${family.mainPath}" Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"/></Relationships>`,
+      dataDescriptor: true,
+    },
+    {
+      name: family.mainPath,
+      contents: `<?xml version="1.0"?><${family.root} xmlns${family.root.includes(":") ? `:${family.root.split(":")[0]}` : ""}="${family.namespace}"></${family.root}>`,
+    },
+    ...extraEntries,
+  ]);
+}
+
+function officeReservation(familyName, bytes) {
+  return reservation({
+    declared_mime_type: OOXML_FAMILIES[familyName].mime,
+    byte_size: bytes.byteLength,
+    sha256_hex: createHash("sha256").update(bytes).digest("hex"),
+  });
+}
 
 const ACTOR = Object.freeze({
   authUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -204,31 +335,84 @@ test("company upload authorizes before parsing and rejects spoofed signatures", 
   assert.equal(result.calls.some(([kind]) => kind === "user-rpc"), false);
 });
 
-test("company upload supports bounded office formats and rejects extension mismatch", async () => {
-  const zipBytes = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3]);
-  let result = uploadDependencies({
-    reservationValue: reservation({
-      declared_mime_type:
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      byte_size: zipBytes.byteLength,
-      sha256_hex: createHash("sha256").update(zipBytes).digest("hex"),
-    }),
-  });
-  let response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
-    uploadRequest({
-      bytes: zipBytes,
-      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      name: "rules.docx",
-    }),
+test("company upload accepts bounded, structurally valid DOCX, XLSX and PPTX packages", async () => {
+  for (const familyName of Object.keys(OOXML_FAMILIES)) {
+    const bytes = makeOoxml(familyName);
+    const family = OOXML_FAMILIES[familyName];
+    const result = uploadDependencies({ reservationValue: officeReservation(familyName, bytes) });
+    const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+      uploadRequest({ bytes, type: family.mime, name: `rules.${familyName}` }),
+      { params: Promise.resolve({ companyFileId: FILE_ID }) },
+    );
+    assert.equal(response.status, 201, familyName);
+  }
+});
+
+test("company upload accepts the ECMA minimal Default declaration for a DOCX main part", async () => {
+  const bytes = makeOoxml("docx", [], { defaultMainContentType: true });
+  const result = uploadDependencies({ reservationValue: officeReservation("docx", bytes) });
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest({ bytes, type: OOXML_FAMILIES.docx.mime, name: "minimal.docx" }),
     { params: Promise.resolve({ companyFileId: FILE_ID }) },
   );
   assert.equal(response.status, 201);
+});
 
-  result = uploadDependencies();
-  response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+test("company upload rejects arbitrary, wrong-family, malformed and unsafe OOXML ZIPs", async () => {
+  const rejected = [
+    {
+      label: "arbitrary ZIP",
+      familyName: "docx",
+      bytes: makeStandardZip([{ name: "hello.txt", contents: "not OOXML" }]),
+    },
+    {
+      label: "wrong OOXML family",
+      familyName: "xlsx",
+      bytes: makeOoxml("docx"),
+    },
+    {
+      label: "truncated central directory",
+      familyName: "pptx",
+      bytes: makeOoxml("pptx").subarray(0, makeOoxml("pptx").byteLength - 1),
+    },
+    {
+      label: "traversal entry",
+      familyName: "docx",
+      bytes: makeOoxml("docx", [{ name: "../escape.xml", contents: "<escape/>" }]),
+    },
+    {
+      label: "encrypted entry",
+      familyName: "docx",
+      bytes: makeOoxml("docx", [{ name: "custom.xml", contents: "<x/>", flags: 0x0801 }]),
+    },
+  ];
+
+  for (const item of rejected) {
+    const family = OOXML_FAMILIES[item.familyName];
+    const result = uploadDependencies({
+      reservationValue: officeReservation(item.familyName, item.bytes),
+    });
+    const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+      uploadRequest({
+        bytes: item.bytes,
+        type: family.mime,
+        name: `unsafe.${item.familyName}`,
+      }),
+      { params: Promise.resolve({ companyFileId: FILE_ID }) },
+    );
+    assert.equal(response.status, 400, item.label);
+    assert.deepEqual(await response.json(), { error: "file_signature_mismatch" }, item.label);
+    assert.equal(result.calls.some(([kind]) => kind === "user-rpc"), false, item.label);
+  }
+});
+
+test("company upload rejects extension mismatch before reservation", async () => {
+  const result = uploadDependencies();
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
     uploadRequest({ name: "proof.txt" }),
     { params: Promise.resolve({ companyFileId: FILE_ID }) },
   );
+
   assert.equal(response.status, 400);
   assert.equal(result.calls.some(([kind]) => kind === "user-rpc"), false);
 });

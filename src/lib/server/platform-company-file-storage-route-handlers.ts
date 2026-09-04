@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
+import { inflateRawSync } from "node:zlib";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -28,6 +29,9 @@ const TIMESTAMPTZ_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/;
 const ACCEPTED_MIME_TYPES = new Set<string>(PLATFORM_COMPANY_FILE_MIME_TYPES);
+const MAX_ZIP_ENTRIES = 2_048;
+const MAX_ZIP_EXPANDED_BYTES = 100 * 1024 * 1024;
+const MAX_REQUIRED_XML_BYTES = 4 * 1024 * 1024;
 const MIME_EXTENSIONS: Readonly<Record<PlatformCompanyFileMimeType, readonly string[]>> = {
   "application/pdf": ["pdf"],
   "image/jpeg": ["jpg", "jpeg"],
@@ -175,6 +179,344 @@ function fileExtension(value: string): string | null {
   return value.slice(separator + 1).toLowerCase();
 }
 
+type ZipEntry = Readonly<{
+  name: string;
+  flags: number;
+  method: 0 | 8;
+  crc32: number;
+  compressedSize: number;
+  uncompressedSize: number;
+  dataOffset: number;
+}>;
+
+type OoxmlExpectation = Readonly<{
+  mainPath: string;
+  mainContentType: string;
+  mainRoot: string;
+  mainNamespace: string;
+}>;
+
+function uint16Le(bytes: Uint8Array, offset: number): number {
+  return new DataView(bytes.buffer, bytes.byteOffset + offset, 2).getUint16(0, true);
+}
+
+function uint32Le(bytes: Uint8Array, offset: number): number {
+  return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, true);
+}
+
+function unsafeZipExtra(bytes: Uint8Array, offset: number, length: number): boolean {
+  const end = offset + length;
+  while (offset < end) {
+    if (offset + 4 > end) return true;
+    const id = uint16Le(bytes, offset);
+    const size = uint16Le(bytes, offset + 2);
+    offset += 4;
+    if (offset + size > end || id === 0x0001) return true;
+    offset += size;
+  }
+  return offset !== end;
+}
+
+function safeZipEntryName(name: string): boolean {
+  if (
+    name.length < 1 || name.startsWith("/") || name.includes("\\") ||
+    CONTROL_CHARACTER_PATTERN.test(name)
+  ) {
+    return false;
+  }
+  const parts = name.split("/");
+  if (parts.at(-1) === "") parts.pop();
+  return parts.length > 0 && parts.every((part) =>
+    part.length > 0 && part !== "." && part !== ".." && !part.includes(":"));
+}
+
+function findEndOfCentralDirectory(bytes: Uint8Array): number | null {
+  if (bytes.length < 22) return null;
+  const firstCandidate = Math.max(0, bytes.length - 22 - 0xffff);
+  for (let offset = bytes.length - 22; offset >= firstCandidate; offset -= 1) {
+    if (uint32Le(bytes, offset) !== 0x06054b50) continue;
+    const commentLength = uint16Le(bytes, offset + 20);
+    if (offset + 22 + commentLength === bytes.length) return offset;
+  }
+  return null;
+}
+
+function parseStandardZip(bytes: Uint8Array): Map<string, ZipEntry> | null {
+  const eocdOffset = findEndOfCentralDirectory(bytes);
+  if (eocdOffset === null) return null;
+
+  const diskNumber = uint16Le(bytes, eocdOffset + 4);
+  const centralDisk = uint16Le(bytes, eocdOffset + 6);
+  const entriesOnDisk = uint16Le(bytes, eocdOffset + 8);
+  const entryCount = uint16Le(bytes, eocdOffset + 10);
+  const centralSize = uint32Le(bytes, eocdOffset + 12);
+  const centralOffset = uint32Le(bytes, eocdOffset + 16);
+  if (
+    diskNumber !== 0 || centralDisk !== 0 || entriesOnDisk !== entryCount ||
+    entryCount < 1 || entryCount > MAX_ZIP_ENTRIES || entryCount === 0xffff ||
+    centralSize === 0xffffffff || centralOffset === 0xffffffff ||
+    centralOffset + centralSize !== eocdOffset
+  ) {
+    return null;
+  }
+
+  const entries = new Map<string, ZipEntry>();
+  const occupiedRanges: Array<readonly [number, number]> = [];
+  let totalExpandedBytes = 0;
+  let offset = centralOffset;
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  for (let index = 0; index < entryCount; index += 1) {
+    if (offset + 46 > eocdOffset || uint32Le(bytes, offset) !== 0x02014b50) {
+      return null;
+    }
+    const flags = uint16Le(bytes, offset + 8);
+    const method = uint16Le(bytes, offset + 10);
+    const crc32 = uint32Le(bytes, offset + 16);
+    const compressedSize = uint32Le(bytes, offset + 20);
+    const uncompressedSize = uint32Le(bytes, offset + 24);
+    const nameLength = uint16Le(bytes, offset + 28);
+    const extraLength = uint16Le(bytes, offset + 30);
+    const commentLength = uint16Le(bytes, offset + 32);
+    const diskStart = uint16Le(bytes, offset + 34);
+    const localOffset = uint32Le(bytes, offset + 42);
+    const recordEnd = offset + 46 + nameLength + extraLength + commentLength;
+    if (
+      recordEnd > eocdOffset || diskStart !== 0 ||
+      (flags & (0x0001 | 0x0020 | 0x0040 | 0x2000)) !== 0 ||
+      (method !== 0 && method !== 8) || compressedSize === 0xffffffff ||
+      uncompressedSize === 0xffffffff || localOffset === 0xffffffff ||
+      (method === 0 && compressedSize !== uncompressedSize) ||
+      unsafeZipExtra(bytes, offset + 46 + nameLength, extraLength)
+    ) {
+      return null;
+    }
+
+    const nameBytes = bytes.subarray(offset + 46, offset + 46 + nameLength);
+    if ((flags & 0x0800) === 0 && nameBytes.some((byte) => byte > 0x7f)) return null;
+    let name: string;
+    try {
+      name = decoder.decode(nameBytes);
+    } catch {
+      return null;
+    }
+    if (!safeZipEntryName(name) || entries.has(name)) return null;
+
+    if (localOffset + 30 > centralOffset || uint32Le(bytes, localOffset) !== 0x04034b50) {
+      return null;
+    }
+    const localFlags = uint16Le(bytes, localOffset + 6);
+    const localMethod = uint16Le(bytes, localOffset + 8);
+    const localCrc32 = uint32Le(bytes, localOffset + 14);
+    const localCompressedSize = uint32Le(bytes, localOffset + 18);
+    const localUncompressedSize = uint32Le(bytes, localOffset + 22);
+    const localNameLength = uint16Le(bytes, localOffset + 26);
+    const localExtraLength = uint16Le(bytes, localOffset + 28);
+    const localHeaderEnd = localOffset + 30 + localNameLength + localExtraLength;
+    const dataEnd = localHeaderEnd + compressedSize;
+    if (
+      localFlags !== flags || localMethod !== method || localHeaderEnd > centralOffset ||
+      dataEnd > centralOffset || localNameLength !== nameLength ||
+      unsafeZipExtra(bytes, localOffset + 30 + localNameLength, localExtraLength) ||
+      !bytes.subarray(localOffset + 30, localOffset + 30 + localNameLength)
+        .every((byte, byteIndex) => byte === nameBytes[byteIndex]) ||
+      ((flags & 0x0008) === 0 &&
+        (localCrc32 !== crc32 || localCompressedSize !== compressedSize ||
+          localUncompressedSize !== uncompressedSize)) ||
+      ((flags & 0x0008) !== 0 &&
+        ((localCrc32 !== 0 && localCrc32 !== crc32) ||
+          (localCompressedSize !== 0 && localCompressedSize !== compressedSize) ||
+          (localUncompressedSize !== 0 && localUncompressedSize !== uncompressedSize)))
+    ) {
+      return null;
+    }
+
+    let occupiedEnd = dataEnd;
+    if ((flags & 0x0008) !== 0) {
+      const descriptorOffset = dataEnd +
+        (dataEnd + 4 <= centralOffset && uint32Le(bytes, dataEnd) === 0x08074b50 ? 4 : 0);
+      if (
+        descriptorOffset + 12 > centralOffset ||
+        uint32Le(bytes, descriptorOffset) !== crc32 ||
+        uint32Le(bytes, descriptorOffset + 4) !== compressedSize ||
+        uint32Le(bytes, descriptorOffset + 8) !== uncompressedSize
+      ) {
+        return null;
+      }
+      occupiedEnd = descriptorOffset + 12;
+    }
+
+    totalExpandedBytes += uncompressedSize;
+    if (totalExpandedBytes > MAX_ZIP_EXPANDED_BYTES) return null;
+    occupiedRanges.push([localOffset, occupiedEnd]);
+    entries.set(name, {
+      name,
+      flags,
+      method,
+      crc32,
+      compressedSize,
+      uncompressedSize,
+      dataOffset: localHeaderEnd,
+    });
+    offset = recordEnd;
+  }
+  if (offset !== eocdOffset) return null;
+
+  occupiedRanges.sort(([left], [right]) => left - right);
+  for (let index = 1; index < occupiedRanges.length; index += 1) {
+    if (occupiedRanges[index - 1][1] > occupiedRanges[index][0]) return null;
+  }
+  return entries;
+}
+
+function crc32(bytes: Uint8Array): number {
+  let value = 0xffffffff;
+  for (const byte of bytes) {
+    value ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = (value >>> 1) ^ ((value & 1) === 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (value ^ 0xffffffff) >>> 0;
+}
+
+function readRequiredZipXml(bytes: Uint8Array, entry: ZipEntry): string | null {
+  if (entry.uncompressedSize < 1 || entry.uncompressedSize > MAX_REQUIRED_XML_BYTES) {
+    return null;
+  }
+  const compressed = bytes.subarray(entry.dataOffset, entry.dataOffset + entry.compressedSize);
+  let expanded: Uint8Array;
+  try {
+    expanded = entry.method === 0
+      ? compressed
+      : inflateRawSync(compressed, { maxOutputLength: MAX_REQUIRED_XML_BYTES });
+  } catch {
+    return null;
+  }
+  if (
+    expanded.byteLength !== entry.uncompressedSize || crc32(expanded) !== entry.crc32 ||
+    expanded.includes(0)
+  ) {
+    return null;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(expanded);
+  } catch {
+    return null;
+  }
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function xmlWithoutComments(xml: string): string | null {
+  if (/<!DOCTYPE\b|<!ENTITY\b/i.test(xml)) return null;
+  const stripped = xml.replace(/<!--[\s\S]*?-->/g, "");
+  return stripped.includes("<!--") || stripped.includes("-->") ? null : stripped;
+}
+
+function rootHasNameAndNamespace(
+  xml: string,
+  localName: string,
+  namespace: string,
+): boolean {
+  const root = xml.match(
+    /<(?![!?])(?:([A-Za-z_][\w.-]*):)?([A-Za-z_][\w.-]*)\b[^>]*>/,
+  );
+  if (!root || root[2] !== localName) return false;
+  const namespaceAttribute = root[1] ? `xmlns:${root[1]}` : "xmlns";
+  return new RegExp(
+    `\\b${escapeRegex(namespaceAttribute)}\\s*=\\s*(["'])${escapeRegex(namespace)}\\1`,
+  ).test(root[0]);
+}
+
+function hasXmlElementWithAttributes(
+  xml: string,
+  localName: string,
+  expected: Readonly<Record<string, string>>,
+): boolean {
+  const elements = xml.match(
+    new RegExp(`<(?:[A-Za-z_][\\w.-]*:)?${escapeRegex(localName)}\\b[^>]*>`, "g"),
+  ) ?? [];
+  return elements.some((element) => Object.entries(expected).every(([name, value]) =>
+    new RegExp(`\\b${escapeRegex(name)}\\s*=\\s*(["'])${escapeRegex(value)}\\1`)
+      .test(element)));
+}
+
+function ooxmlExpectation(mimeType: PlatformCompanyFileMimeType): OoxmlExpectation | null {
+  if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+    return {
+      mainPath: "word/document.xml",
+      mainContentType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+      mainRoot: "document",
+      mainNamespace: "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    };
+  }
+  if (mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+    return {
+      mainPath: "xl/workbook.xml",
+      mainContentType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+      mainRoot: "workbook",
+      mainNamespace: "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    };
+  }
+  if (mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
+    return {
+      mainPath: "ppt/presentation.xml",
+      mainContentType:
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+      mainRoot: "presentation",
+      mainNamespace: "http://schemas.openxmlformats.org/presentationml/2006/main",
+    };
+  }
+  return null;
+}
+
+function matchesOoxmlPackage(
+  mimeType: PlatformCompanyFileMimeType,
+  bytes: Uint8Array,
+): boolean {
+  const expected = ooxmlExpectation(mimeType);
+  if (!expected) return false;
+  const entries = parseStandardZip(bytes);
+  if (!entries) return false;
+  const contentTypesEntry = entries.get("[Content_Types].xml");
+  const relationshipsEntry = entries.get("_rels/.rels");
+  const mainEntry = entries.get(expected.mainPath);
+  if (!contentTypesEntry || !relationshipsEntry || !mainEntry) return false;
+
+  const contentTypes = xmlWithoutComments(readRequiredZipXml(bytes, contentTypesEntry) ?? "");
+  const relationships = xmlWithoutComments(readRequiredZipXml(bytes, relationshipsEntry) ?? "");
+  const main = xmlWithoutComments(readRequiredZipXml(bytes, mainEntry) ?? "");
+  if (!contentTypes || !relationships || !main) return false;
+  const mainContentTypeDeclared = hasXmlElementWithAttributes(contentTypes, "Override", {
+    PartName: `/${expected.mainPath}`,
+    ContentType: expected.mainContentType,
+  }) || hasXmlElementWithAttributes(contentTypes, "Default", {
+    Extension: "xml",
+    ContentType: expected.mainContentType,
+  });
+  return rootHasNameAndNamespace(
+    contentTypes,
+    "Types",
+    "http://schemas.openxmlformats.org/package/2006/content-types",
+  ) && mainContentTypeDeclared &&
+    hasXmlElementWithAttributes(contentTypes, "Default", {
+      Extension: "rels",
+      ContentType: "application/vnd.openxmlformats-package.relationships+xml",
+    }) && rootHasNameAndNamespace(
+      relationships,
+      "Relationships",
+      "http://schemas.openxmlformats.org/package/2006/relationships",
+    ) &&
+    hasXmlElementWithAttributes(relationships, "Relationship", {
+      Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+      Target: expected.mainPath,
+    }) && rootHasNameAndNamespace(main, expected.mainRoot, expected.mainNamespace);
+}
+
 function matchesDeclaredFileSignature(
   mimeType: PlatformCompanyFileMimeType,
   filename: string,
@@ -214,8 +556,7 @@ function matchesDeclaredFileSignature(
       bytes[index] === byte
     );
   }
-  return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b &&
-    bytes[2] === 0x03 && bytes[3] === 0x04;
+  return matchesOoxmlPackage(mimeType, bytes);
 }
 
 function normalizeReservation(

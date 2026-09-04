@@ -513,6 +513,7 @@ SET ROLE service_role;
 SELECT platform.process_student_portal_overdue_notifications_v1(
   '59911000-0000-4000-8000-000000000301', 'p110:before-timed'
 );
+RESET ROLE;
 SELECT pg_temp.p110_assert(
   NOT EXISTS (
     SELECT 1
@@ -521,8 +522,6 @@ SELECT pg_temp.p110_assert(
   ),
   'neither deadline may be overdue before its boundary'
 );
-
-RESET ROLE;
 CREATE OR REPLACE FUNCTION platform_private.student_portal_overdue_clock()
 RETURNS TIMESTAMPTZ
 LANGUAGE SQL
@@ -535,6 +534,7 @@ SET ROLE service_role;
 SELECT platform.process_student_portal_overdue_notifications_v1(
   '59911000-0000-4000-8000-000000000302', 'p110:after-timed'
 );
+RESET ROLE;
 SELECT pg_temp.p110_assert(
   EXISTS (
     SELECT 1
@@ -553,8 +553,6 @@ SELECT pg_temp.p110_assert(
   ),
   'timed deadline must flip by instant while all-day remains open'
 );
-
-RESET ROLE;
 CREATE OR REPLACE FUNCTION platform_private.student_portal_overdue_clock()
 RETURNS TIMESTAMPTZ
 LANGUAGE SQL
@@ -567,6 +565,7 @@ SET ROLE service_role;
 SELECT platform.process_student_portal_overdue_notifications_v1(
   '59911000-0000-4000-8000-000000000303', 'p110:before-local-midnight'
 );
+RESET ROLE;
 SELECT pg_temp.p110_assert(
   NOT EXISTS (
     SELECT 1
@@ -577,8 +576,6 @@ SELECT pg_temp.p110_assert(
   ),
   'all-day deadline must not flip before Bishkek local day ends'
 );
-
-RESET ROLE;
 CREATE OR REPLACE FUNCTION platform_private.student_portal_overdue_clock()
 RETURNS TIMESTAMPTZ
 LANGUAGE SQL
@@ -596,7 +593,7 @@ SELECT platform.process_student_portal_overdue_notifications_v1(
   '59911000-0000-4000-8000-000000000304', 'p110:after-local-midnight'
 )::TEXT AS p110_boundary_replay
 \gset
-
+RESET ROLE;
 SELECT pg_temp.p110_assert(
   :'p110_boundary_run'::JSONB = :'p110_boundary_replay'::JSONB
     AND EXISTS (
@@ -618,8 +615,6 @@ SELECT pg_temp.p110_assert(
     ),
   'all-day overdue transition must use one replay-safe local end boundary'
 );
-
-RESET ROLE;
 SET request.jwt.claims TO :'p110_admin_claims';
 SET ROLE authenticated;
 SELECT student_case.overdue_task_count AS p110_overdue_before

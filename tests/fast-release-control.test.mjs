@@ -444,6 +444,7 @@ test("workflow binds one protected approval to exact main and runner-built artif
 
 test("active platform CI executes only the root successor product", () => {
   const workflow = readFileSync(".github/workflows/evo-platform-ci.yml", "utf8");
+  const auditAllowlist = readFileSync("scripts/check-npm-audit-allowlist.mjs", "utf8");
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
   assert.match(workflow, /^  crm_product:\n    name: Main CRM product$/mu);
   assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
@@ -454,16 +455,19 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(workflow, /test "\$AUDIT_RESULT" = "success"/u);
   assert.match(
     workflow,
-    /name: Install pinned npm audit CLI\n        timeout-minutes: 4\n        env:\n          npm_config_audit: "false"\n          npm_config_fetch_retries: "0"\n          npm_config_fetch_timeout: "30000"\n          npm_config_fund: "false"[\s\S]*for attempt in 1 2 3; do[\s\S]*timeout 60s npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund[\s\S]*test "\$\("\$audit_prefix\/node_modules\/\.bin\/npm" --version\)" = "11\.19\.0"[\s\S]*echo "\$audit_prefix\/node_modules\/\.bin" >> "\$GITHUB_PATH"/u,
+    /name: Install pinned npm audit CLI\n        timeout-minutes: 4\n        env:\n          npm_config_audit: "false"\n          npm_config_fetch_retries: "0"\n          npm_config_fetch_timeout: "30000"\n          npm_config_fund: "false"[\s\S]*for attempt in 1 2 3; do[\s\S]*timeout 60s npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund[\s\S]*test "\$\("\$audit_prefix\/node_modules\/\.bin\/npm" --version\)" = "11\.19\.0"[\s\S]*echo "\$audit_prefix\/node_modules\/\.bin" >> "\$GITHUB_PATH"[\s\S]*echo "EVO_NPM_BIN=\$audit_prefix\/node_modules\/\.bin\/npm" >> "\$GITHUB_ENV"/u,
   );
   assert.match(
     workflow,
-    /if npm audit --package-lock-only --omit=dev --audit-level=moderate; then/u,
+    /if ! test -x "\$EVO_NPM_BIN"; then[\s\S]*if "\$EVO_NPM_BIN" audit --package-lock-only --omit=dev --audit-level=moderate; then/u,
   );
   assert.match(
     workflow,
     /name: Audit development dependencies against the temporary allowlist[\s\S]*if node scripts\/check-npm-audit-allowlist\.mjs; then/u,
   );
+  assert.match(auditAllowlist, /const npmBin = process\.env\.EVO_NPM_BIN\?\.trim\(\) \|\| "npm";/u);
+  assert.match(auditAllowlist, /spawnSync\(\n    npmBin,/u);
+  assert.doesNotMatch(auditAllowlist, /hasMeaningfulAuditError|empty npm audit placeholder/u);
   assert.doesNotMatch(
     workflow,
     /npm exec --yes --package=npm@11\.19\.0/u,

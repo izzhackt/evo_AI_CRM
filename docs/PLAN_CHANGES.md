@@ -16425,33 +16425,6 @@ Decision:
 - re-run the focused release-control tests, then obtain one fresh exact-head CI
   result before merge.
 
-## 2026-09-04 - Ignore empty npm audit error placeholders while preserving fail-closed checks
-
-Block-ID: `EVO-V3-A-AUDIT-EMPTY-ERROR-PLACEHOLDER-2026-09-04`
-
-Change type: exact-head CI reliability correction.
-Affected plan section: Order 0 / Issue #594.
-
-Exact-head run `33836613473` on commit `c6f97ca5144f42e070b208e0a9a505bc5a38630c`
-proved the pinned npm CLI install and the production lockfile audit, but the
-development allowlist step failed three times with
-`npm audit reported an execution error: {"summary":"","detail":""}`. The same
-repository and pinned `npm 11.19.0` contract passed locally, so the remaining
-failure mode was the script treating an empty npm error placeholder as a fatal
-execution error before validating whether the returned audit report itself was
-coherent.
-
-Decision:
-
-- keep the pinned npm CLI, bounded retries and fail-closed development audit;
-- ignore only empty audit `error` payloads whose fields contain no meaningful
-  data, then continue validating `auditReportVersion`, vulnerability metadata
-  and exit-status consistency exactly as before;
-- keep non-empty audit errors fatal, and keep any malformed report or status
-  mismatch fatal;
-- cover the placeholder distinction with a focused unit test, then push a fresh
-  exact head for one more CI run.
-
 ## 2026-09-04 - Pin the dev allowlist audit's internal npm invocation
 
 Block-ID: `EVO-V3-A-AUDIT-ALLOWLIST-INNER-NPM-PIN-2026-09-04`
@@ -16534,3 +16507,37 @@ Decision:
 - focused local release-control tests assert this workflow structure; one fresh
   exact-head GitHub run provides the authoritative YAML parse and execution
   evidence before merge.
+
+## 2026-09-04 - Supersede ambient-PATH audit invocation with one exact binary
+
+Block-ID: `EVO-V3-A-AUDIT-EXACT-BINARY-2026-09-04`
+
+Change type: exact-head review correction and decision supersession.
+Affected plan section: Order 0 / Issue #594.
+
+Independent review of `b997b9d82029edd0354913170fe53248a32e01b3`
+found that the bounded bootstrap proved one exact npm binary but the
+development checker still spawned plain `npm` through ambient PATH. The review
+also found that the earlier
+`EVO-V3-A-AUDIT-ALLOWLIST-INNER-NPM-PIN-2026-09-04` entry described a nested
+`npm exec` option that was never retained in the final workflow. This entry
+supersedes that intermediate option and the ambient-PATH part of
+`EVO-V3-A-AUDIT-PATH-PIN-2026-09-04`; the historical entries remain unchanged
+because this log is append-only.
+
+Decision:
+
+- after the bounded bootstrap verifies exactly `npm 11.19.0`, write its absolute
+  executable path to `GITHUB_ENV` as `EVO_NPM_BIN`;
+- require that exact executable to exist in both audit steps, call the
+  production audit through it, and have the development checker spawn the same
+  path through `EVO_NPM_BIN`;
+- retain plain `npm` only as the checker's local command-line default when the
+  explicit CI variable is absent; this is not a CI fallback;
+- keep every npm audit `error` object fatal, including an empty placeholder;
+  do not weaken the security result parser to accommodate provider errors;
+- preserve the bounded bootstrap, three audit retries, four-minute limits and
+  mandatory fail-closed aggregate gate;
+- rerun focused release-control tests, obtain fresh independent exact-head
+  review, and accept only one green exact-head GitHub Actions run as YAML and
+  execution proof.

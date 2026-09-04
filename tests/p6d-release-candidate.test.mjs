@@ -60,6 +60,7 @@ test("the active package exposes one P6D proof and no P8 release entrypoint", as
 test("CI and the exact-SHA gate require only the current root successor", async () => {
   const workflow = await read(".github/workflows/evo-platform-ci.yml");
   const gate = await read("scripts/fast-release-ci-gate.mjs");
+  const auditAllowlist = await read("scripts/check-npm-audit-allowlist.mjs");
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
   assert.match(workflow, /^  crm_product:\n    name: Main CRM product$/mu);
   assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
@@ -72,9 +73,13 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(workflow, /for attempt in 1 2 3; do/u);
   assert.match(workflow, /timeout 60s npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund/u);
   assert.match(workflow, /test "\$\("\$audit_prefix\/node_modules\/\.bin\/npm" --version\)" = "11\.19\.0"/u);
+  assert.match(workflow, /echo "EVO_NPM_BIN=\$audit_prefix\/node_modules\/\.bin\/npm" >> "\$GITHUB_ENV"/u);
   assert.match(workflow, /npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund/u);
-  assert.match(workflow, /if npm audit --package-lock-only --omit=dev --audit-level=moderate; then/u);
+  assert.match(workflow, /if "\$EVO_NPM_BIN" audit --package-lock-only --omit=dev --audit-level=moderate; then/u);
   assert.match(workflow, /if node scripts\/check-npm-audit-allowlist\.mjs; then/u);
+  assert.match(auditAllowlist, /const npmBin = process\.env\.EVO_NPM_BIN\?\.trim\(\) \|\| "npm";/u);
+  assert.match(auditAllowlist, /spawnSync\(\n    npmBin,/u);
+  assert.doesNotMatch(auditAllowlist, /hasMeaningfulAuditError|empty npm audit placeholder/u);
   assert.doesNotMatch(workflow, /npm exec --yes --package=npm@11\.19\.0/u);
   assert.doesNotMatch(workflow, /name: EVO Inbox|name: EVO Lead Agent|working-directory: (?:agent-lead2-inbox|evo-lead-agent)|Prepare P8/u);
   assert.match(gate, /"Main CRM"/u);

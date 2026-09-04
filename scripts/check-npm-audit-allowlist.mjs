@@ -21,19 +21,6 @@ function readJson(path, label) {
   }
 }
 
-export function hasMeaningfulAuditError(error) {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  return Object.values(error).some((value) => {
-    if (typeof value === "string") {
-      return value.trim() !== "";
-    }
-    return value != null;
-  });
-}
-
 function validatePolicy(policy) {
   if (policy?.schemaVersion !== 1) {
     fail("allowlist schemaVersion must be exactly 1");
@@ -145,8 +132,9 @@ function validatePolicy(policy) {
 }
 
 function runAudit() {
+  const npmBin = process.env.EVO_NPM_BIN?.trim() || "npm";
   const result = spawnSync(
-    "npm",
+    npmBin,
     ["audit", "--package-lock-only", "--include=dev", "--json"],
     {
       cwd: process.cwd(),
@@ -169,10 +157,7 @@ function runAudit() {
     fail(`npm audit returned malformed JSON: ${error.message}`);
   }
 
-  // npm 11 can emit an empty {"summary":"","detail":""} error object while
-  // still returning a coherent audit report. Treat only non-empty error
-  // payloads as fatal and let the structural checks below validate the report.
-  if (hasMeaningfulAuditError(report?.error)) {
+  if (report?.error) {
     fail(`npm audit reported an execution error: ${JSON.stringify(report.error)}`);
   }
   if (report?.auditReportVersion !== 2) {
@@ -313,62 +298,56 @@ function verifyAllowedGraph(name, vulnerability, allowed) {
   }
 }
 
-function main() {
-  const policy = validatePolicy(readJson(policyPath, "allowlist"));
-  const lockfile = readJson(lockfilePath, "package lock");
-  if (!lockfile?.packages || typeof lockfile.packages !== "object") {
-    fail("package lock has no packages map");
-  }
-
-  const report = runAudit();
-  const vulnerabilityNames = Object.keys(report.vulnerabilities);
-  if (vulnerabilityNames.length === 0) {
-    console.log(`npm development audit passed with zero vulnerabilities in ${process.cwd()}`);
-    return;
-  }
-
-  const acceptedAdvisories = new Set();
-  for (const name of vulnerabilityNames) {
-    const vulnerability = report.vulnerabilities[name];
-    verifyDevOnlyNodes(name, vulnerability, lockfile);
-
-    const leafAdvisories = collectLeafAdvisories(name, report.vulnerabilities);
-    if (leafAdvisories.length === 0) {
-      fail(`vulnerability ${name} has no direct advisory leaf`);
-    }
-
-    for (const leaf of leafAdvisories) {
-      const allowed = policy.advisoriesByUrl.get(leaf.url);
-      if (!allowed) {
-        fail(`unapproved advisory ${leaf.url} reaches ${name}`);
-      }
-      if (leaf.name !== allowed.package || leaf.dependency !== allowed.package) {
-        fail(`advisory ${leaf.url} has unexpected package identity for ${name}`);
-      }
-      if (leaf.severity !== allowed.severity) {
-        fail(`advisory ${leaf.url} changed severity from ${allowed.severity} to ${leaf.severity}`);
-      }
-      if (leaf.range !== allowed.range) {
-        fail(`advisory ${leaf.url} changed range from ${allowed.range} to ${String(leaf.range)}`);
-      }
-      if (!allowed.affectedPackages.has(name)) {
-        fail(`advisory ${leaf.url} reaches unapproved package ${name}`);
-      }
-      verifyAllowedGraph(name, vulnerability, allowed);
-      acceptedAdvisories.add(leaf.url);
-    }
-  }
-
-  console.warn(
-    [
-      `npm development audit accepted ${vulnerabilityNames.length} known package findings`,
-      `in ${process.cwd()}.`,
-      `Allowed advisory: ${[...acceptedAdvisories].join(", ")}.`,
-      `Owner: ${policy.owner}. Review by: ${policy.reviewBy}.`,
-    ].join(" "),
-  );
+const policy = validatePolicy(readJson(policyPath, "allowlist"));
+const lockfile = readJson(lockfilePath, "package lock");
+if (!lockfile?.packages || typeof lockfile.packages !== "object") {
+  fail("package lock has no packages map");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main();
+const report = runAudit();
+const vulnerabilityNames = Object.keys(report.vulnerabilities);
+if (vulnerabilityNames.length === 0) {
+  console.log(`npm development audit passed with zero vulnerabilities in ${process.cwd()}`);
+  process.exit(0);
 }
+
+const acceptedAdvisories = new Set();
+for (const name of vulnerabilityNames) {
+  const vulnerability = report.vulnerabilities[name];
+  verifyDevOnlyNodes(name, vulnerability, lockfile);
+
+  const leafAdvisories = collectLeafAdvisories(name, report.vulnerabilities);
+  if (leafAdvisories.length === 0) {
+    fail(`vulnerability ${name} has no direct advisory leaf`);
+  }
+
+  for (const leaf of leafAdvisories) {
+    const allowed = policy.advisoriesByUrl.get(leaf.url);
+    if (!allowed) {
+      fail(`unapproved advisory ${leaf.url} reaches ${name}`);
+    }
+    if (leaf.name !== allowed.package || leaf.dependency !== allowed.package) {
+      fail(`advisory ${leaf.url} has unexpected package identity for ${name}`);
+    }
+    if (leaf.severity !== allowed.severity) {
+      fail(`advisory ${leaf.url} changed severity from ${allowed.severity} to ${leaf.severity}`);
+    }
+    if (leaf.range !== allowed.range) {
+      fail(`advisory ${leaf.url} changed range from ${allowed.range} to ${String(leaf.range)}`);
+    }
+    if (!allowed.affectedPackages.has(name)) {
+      fail(`advisory ${leaf.url} reaches unapproved package ${name}`);
+    }
+    verifyAllowedGraph(name, vulnerability, allowed);
+    acceptedAdvisories.add(leaf.url);
+  }
+}
+
+console.warn(
+  [
+    `npm development audit accepted ${vulnerabilityNames.length} known package findings`,
+    `in ${process.cwd()}.`,
+    `Allowed advisory: ${[...acceptedAdvisories].join(", ")}.`,
+    `Owner: ${policy.owner}. Review by: ${policy.reviewBy}.`,
+  ].join(" "),
+);

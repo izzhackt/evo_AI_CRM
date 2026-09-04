@@ -9,8 +9,10 @@ import { parsePlatformAdmissionsUuid } from "./platform-admissions";
 import type { PlatformAdmissionsActionStatus } from "./platform-admissions-task-actions";
 import { requirePlatformStaffActor } from "./platform-guards";
 import {
+  PLATFORM_DOCUMENT_SLOT_CASE_LINK_TARGETS,
   PLATFORM_DOCUMENT_SLOT_INTENTS,
   PLATFORM_DOCUMENT_SLOT_STATUSES,
+  type PlatformDocumentSlotCaseLinkTargetKind,
 } from "./platform-private-documents";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { createSupabaseServerClient } from "./supabase/server";
@@ -40,11 +42,30 @@ const REMOVE_SLOT_FIELDS = [
   "reason",
   "request_id",
 ] as const;
+const SET_SLOT_CASE_LINK_FIELDS = [
+  "student_case_id",
+  "document_slot_id",
+  "target_kind",
+  "target_id",
+  "enabled",
+  "expected_version",
+  "reason",
+  "request_id",
+] as const;
 
 export type PlatformDocumentChecklistActionState = Readonly<{
   status: PlatformAdmissionsActionStatus;
   requestId: string;
   documentSlotId: string | null;
+  version: string | null;
+}>;
+
+export type PlatformDocumentCaseLinkActionState = Readonly<{
+  status: PlatformAdmissionsActionStatus;
+  requestId: string;
+  documentSlotId: string | null;
+  targetKind: PlatformDocumentSlotCaseLinkTargetKind | null;
+  targetId: string | null;
   version: string | null;
 }>;
 
@@ -113,6 +134,20 @@ function isSlotStatus(value: unknown): boolean {
     (PLATFORM_DOCUMENT_SLOT_STATUSES as readonly string[]).includes(value);
 }
 
+function caseLinkTargetKind(
+  value: string,
+): PlatformDocumentSlotCaseLinkTargetKind | null {
+  return (PLATFORM_DOCUMENT_SLOT_CASE_LINK_TARGETS as readonly string[]).includes(value)
+    ? value as PlatformDocumentSlotCaseLinkTargetKind
+    : null;
+}
+
+function actionBoolean(value: string): boolean | null {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return null;
+}
+
 function isTimestamp(value: unknown): boolean {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
@@ -158,6 +193,27 @@ function failureState(
       ? randomUUID()
       : (requestId ?? randomUUID()),
     documentSlotId,
+    version: null,
+  });
+}
+
+function caseLinkFailureState(
+  form: FormData,
+  status: Exclude<PlatformAdmissionsActionStatus, "idle" | "saved">,
+  documentSlotId: string | null = null,
+  targetKind: PlatformDocumentSlotCaseLinkTargetKind | null = null,
+  targetId: string | null = null,
+  verifiedRequestId?: string | null,
+): PlatformDocumentCaseLinkActionState {
+  const requestId = verifiedRequestId ?? submittedRequestId(form);
+  return Object.freeze({
+    status,
+    requestId: status === "stale" || status === "request_conflict"
+      ? randomUUID()
+      : (requestId ?? randomUUID()),
+    documentSlotId,
+    targetKind,
+    targetId,
     version: null,
   });
 }
@@ -318,6 +374,128 @@ export async function changePlatformDocumentSlotMetadataAction(
     });
   } catch {
     return failureState(form, "unavailable", documentSlotId, requestId);
+  }
+}
+
+export async function setPlatformDocumentCaseLinkAction(
+  _previous: PlatformDocumentCaseLinkActionState,
+  form: FormData,
+): Promise<PlatformDocumentCaseLinkActionState> {
+  const actor = await requirePlatformStaffActor();
+  if (!fixedRoleCan(actor.authorityRole, "documents.write")) {
+    return caseLinkFailureState(form, "forbidden");
+  }
+  const fields = exactActionStringFields(form, SET_SLOT_CASE_LINK_FIELDS);
+  if (!fields) return caseLinkFailureState(form, "invalid");
+
+  const studentCaseId = uuid(field(fields, "student_case_id"));
+  const documentSlotId = uuid(field(fields, "document_slot_id"));
+  const targetKind = caseLinkTargetKind(field(fields, "target_kind"));
+  const targetId = uuid(field(fields, "target_id"));
+  const enabled = actionBoolean(field(fields, "enabled"));
+  const expectedVersion = version(field(fields, "expected_version"));
+  const reason = boundedText(field(fields, "reason"), 1000);
+  const requestId = uuid(field(fields, "request_id"));
+  if (!studentCaseId || !documentSlotId || !targetKind || !targetId ||
+    enabled === null || !expectedVersion || !reason || !requestId) {
+    return caseLinkFailureState(
+      form,
+      "invalid",
+      documentSlotId,
+      targetKind,
+      targetId,
+      requestId,
+    );
+  }
+
+  try {
+    const client = await createSupabaseServerClient();
+    const response = await client.schema("platform").rpc(
+      "set_document_slot_case_link",
+      {
+        p_organization_id: actor.organizationId,
+        p_student_case_id: studentCaseId,
+        p_document_slot_id: documentSlotId,
+        p_target_kind: targetKind,
+        p_target_id: targetId,
+        p_enabled: enabled,
+        p_expected_version: expectedVersion,
+        p_reason: reason,
+        p_request_id: requestId,
+      },
+    );
+    if (response.error) {
+      return caseLinkFailureState(
+        form,
+        errorStatus(response.error),
+        documentSlotId,
+        targetKind,
+        targetId,
+        requestId,
+      );
+    }
+
+    const data = response.data;
+    const documentSlotCaseLinkId = isRecord(data) &&
+      data.document_slot_case_link_id !== null &&
+      typeof data.document_slot_case_link_id === "string"
+      ? uuid(data.document_slot_case_link_id)
+      : null;
+    const targetMatches = isRecord(data) && (
+      targetKind === "university_application"
+        ? data.university_application_id === targetId && data.visa_case_id === null
+        : data.university_application_id === null && data.visa_case_id === targetId
+    );
+    if (
+      !isRecord(data) ||
+      !hasExactKeys(data, [
+        "organization_id", "student_case_id", "document_slot_id",
+        "target_kind", "target_id", "university_application_id",
+        "visa_case_id", "linked", "document_slot_case_link_id",
+        "expected_version", "version", "changed_at", "reason", "request_id",
+      ]) ||
+      data.organization_id !== actor.organizationId ||
+      data.student_case_id !== studentCaseId ||
+      data.document_slot_id !== documentSlotId ||
+      data.target_kind !== targetKind ||
+      data.target_id !== targetId ||
+      data.linked !== enabled ||
+      !targetMatches ||
+      (enabled ? !documentSlotCaseLinkId : data.document_slot_case_link_id !== null) ||
+      data.expected_version !== expectedVersion ||
+      typeof data.version !== "string" || version(data.version) !== data.version ||
+      BigInt(data.version) !== BigInt(expectedVersion) + BigInt(1) ||
+      !isTimestamp(data.changed_at) || data.reason !== reason ||
+      data.request_id !== requestId
+    ) {
+      return caseLinkFailureState(
+        form,
+        "unavailable",
+        documentSlotId,
+        targetKind,
+        targetId,
+        requestId,
+      );
+    }
+
+    revalidateChecklist(studentCaseId);
+    return Object.freeze({
+      status: "saved" as const,
+      requestId: randomUUID(),
+      documentSlotId,
+      targetKind,
+      targetId,
+      version: data.version,
+    });
+  } catch {
+    return caseLinkFailureState(
+      form,
+      "unavailable",
+      documentSlotId,
+      targetKind,
+      targetId,
+      requestId,
+    );
   }
 }
 

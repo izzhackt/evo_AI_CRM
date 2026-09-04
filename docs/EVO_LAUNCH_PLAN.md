@@ -135,6 +135,19 @@ new path is accepted; historical and rollback material remains preserved.
 | 8 | #552 | Production deployment and retirement | deploy the exact green V3 revision, verify it, and retire the superseded active runtime without a fallback path |
 | 9 | #553 | Completion audit and safe cleanup | certify one exact-main live product authority, then remove only inventoried stale branches/comments while preserving history |
 
+The final #599 slice extends the existing case-document authority rather than
+creating another document or visa model. It uses one typed link relation with
+separate application and visa foreign-key columns, a mutually exclusive target
+shape and organization-and-case-qualified foreign keys to both endpoints; it
+never stores an unqualified polymorphic target id. One authenticated
+Admin/Admissions command links or unlinks one exact target for an active slot,
+requires the slot's optimistic version plus a unique request id and reason,
+advances that same slot version exactly once, and writes the canonical audit
+result. The staff document-workspace projection returns sorted links through
+`src/lib/v3/*`; the existing V3 Documents tab is the sole editor. Direct table
+writes, a second status dictionary, student-portal mutation and
+provider/deployment changes are outside this slice.
+
 While #594 keeps V3 in the temporary `/v3` namespace, every screen is either a
 real canonical read or an honestly unavailable action. Browser-only stage,
 task, file or document mutations and success messages are prohibited. The

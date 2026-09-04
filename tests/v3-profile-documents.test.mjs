@@ -69,6 +69,7 @@ test("V3 profile mutates one canonical case checklist with versioned commands", 
   assert.match(client, /createPlatformCustomDocumentSlotAction/u);
   assert.match(client, /changePlatformDocumentSlotMetadataAction/u);
   assert.match(client, /removePlatformDocumentSlotAction/u);
+  assert.match(client, /setPlatformDocumentCaseLinkAction/u);
   assert.match(client, /name="student_case_id"/u);
   assert.match(client, /name="document_slot_id"/u);
   assert.match(client, /name="expected_version"/u);
@@ -82,6 +83,56 @@ test("V3 profile mutates one canonical case checklist with versioned commands", 
   assert.match(profileSource, /groups\.get\(slot\.groupLabel\)/u);
   assert.match(types, /intentKind: "baseline" \| "custom"/u);
   assert.match(types, /version: number/u);
+});
+
+test("V3 profile links documents to canonical applications or visa cases", () => {
+  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const profileSource = source("src/lib/v3/profile-source.ts");
+  const types = source("src/components/v3/profile/document-types.ts");
+
+  assert.match(types, /export type DocumentCaseLinkTarget/u);
+  assert.match(types, /kind: DocumentCaseLinkTargetKind/u);
+  assert.match(types, /linked: boolean/u);
+  assert.match(types, /requestId: string \| null/u);
+
+  assert.match(profileSource, /function profileDocumentCaseLinkTargets/u);
+  assert.match(profileSource, /caseLinkTargetKey\(target\.kind, target\.id\)/u);
+  assert.match(profileSource, /slot\.caseLinks\.entries\(\)/u);
+  assert.match(
+    profileSource,
+    /throw new Error\("V3 profile document link projection is inconsistent\."\)/u,
+  );
+  assert.match(
+    profileSource,
+    /profileDocuments\(\s*data\.documents,\s*canUpload,\s*data\.applications,\s*data\.visa,\s*\)/u,
+  );
+
+  assert.match(client, /data-testid="v3-document-case-links"/u);
+  assert.match(client, /data-testid="v3-document-case-link-form"/u);
+  assert.match(client, /name="target_kind"/u);
+  assert.match(client, /name="target_id"/u);
+  assert.match(client, /name="enabled"/u);
+  assert.match(client, /name="expected_version" value=\{item\.version\}/u);
+  assert.match(client, /name="reason"/u);
+  assert.match(client, /checked=\{target\.linked\}/u);
+  assert.match(client, /state\.version !== String\(item\.version\)/u);
+  assert.doesNotMatch(client, /state\.status === "saved" \|\| requestId/u);
+
+  const summaryCall = client.indexOf("<CaseLinkSummary item={item} />");
+  const writeControls = client.lastIndexOf('uploadAccess === "allowed" && studentCaseId');
+  assert.ok(summaryCall > 0 && summaryCall < writeControls);
+  assert.match(client, /data-testid="v3-document-linked-targets"/u);
+  assert.match(client, /item\.caseLinkTargets\.filter\(\(target\) => target\.linked\)/u);
+
+  for (const discriminator of [
+    "application.intake",
+    "application.status",
+    "application.isPrimary",
+    "application.universityDeadlineOn",
+    "application.universityApplicationId.slice(0, 8)",
+  ]) {
+    assert.ok(profileSource.includes(discriminator), `missing application label discriminator: ${discriminator}`);
+  }
 });
 
 test("V3 profile renders removed checklist history as a separate read-only projection", () => {

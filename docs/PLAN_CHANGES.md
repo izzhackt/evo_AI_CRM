@@ -17232,3 +17232,91 @@ update/replay/stale-version coverage, zero-or-one-primary and concurrent-switch
 proof, no-false-status-event proof, same-case and cross-organization allow/deny
 checks, fail-closed TypeScript normalization, V3 form/browser persistence and
 the already required single real OrbStack plus exact-head CI gates.
+
+## 2026-09-05 - Define #599 case-safe document link semantics
+
+Block-ID: `EVO-V3-F-DOCUMENT-TARGET-LINKS-2026-09-05`
+
+Change type: implementation clarification.
+Affected plan section: Order 5 / Issue #599 / slice 6 of 6.
+
+The final confirmed #599 gap is a many-to-many relationship between one
+case-bound document slot and the university applications or visa case that use
+that document. The existing application, visa and document authorities already
+carry organization-qualified case identity. A polymorphic target column or a
+browser-only list would weaken those guarantees and create a second source of
+truth.
+
+Decision:
+
+- add two explicit relations in the existing `platform` authority: one from a
+  document slot to a university application and one from a document slot to a
+  visa case. Every relation stores `organization_id` and `student_case_id` and
+  uses composite foreign keys to both endpoints, so a cross-organization or
+  cross-case link is impossible at the database boundary;
+- expose no direct browser write grant. Authenticated reads use the existing
+  full-document visibility rule; one `SECURITY DEFINER` command with an empty
+  `search_path` requires the canonical `document.manage` case permission and
+  replaces the complete bounded link set for one active slot atomically;
+- make the command fail closed on null, malformed, duplicate, oversized or
+  wrong-case target sets. Empty sets explicitly unlink all targets. A real
+  change requires the slot's optimistic version, advances that same aggregate
+  version once, records the exact sorted before/after identifiers in the
+  existing audit journal, and replays only an identical request id and shape;
+- enrich the one staff case-document workspace with sorted application and
+  visa identifiers. Normalize that exact shape in the canonical repository,
+  then carry it through `src/lib/v3/profile-source.ts` before rendering the
+  existing V3 Documents-tab editor. Reuse the application and visa data already
+  loaded for that same case; do not create a second query path, screen, status
+  dictionary or in-app provider setup;
+- keep removed document slots and their existing immutable evidence as
+  history. New link mutations require an active slot; removing a slot does not
+  delete historical target relations. Student-portal projections and mutation,
+  managed Supabase, providers, VPS, production data and customer traffic remain
+  unchanged;
+- validate grants/RLS, Admin and assigned-Admissions allow paths, Sales,
+  unassigned and cross-organization denies, composite-FK case safety,
+  replay/conflict/concurrency behavior, exact projection normalization and V3
+  browser persistence with focused tests, one real local OrbStack run and one
+  exact-head CI gate.
+
+This follows current Supabase guidance that grants and RLS are independent and
+must both be set and tested for exposed tables, and that any `SECURITY DEFINER`
+function must set its `search_path` and have execution explicitly restricted:
+https://supabase.com/docs/guides/database/postgres/row-level-security and
+https://supabase.com/docs/guides/database/functions.
+
+## 2026-09-05 - Clarify the #599 document-link command and table shape
+
+Block-ID: `EVO-V3-F-DOCUMENT-TARGET-LINKS-COMMAND-2026-09-05`
+
+Change type: implementation clarification.
+Affected plan section: Order 5 / Issue #599 / slice 6 of 6.
+
+The preceding entry required explicit case-safe application and visa
+relationships and described them as two relations with a whole-set replace
+command. The incoming implementation inventory showed that the same database
+guarantees can be expressed more simply without a generic polymorphic id or a
+browser-owned set: one typed relation carries separate nullable application
+and visa columns, a strict mutually exclusive target check and a composite
+foreign key for each concrete target.
+
+Decision:
+
+- use one `platform.document_slot_case_links` relation whose row contains
+  exactly one of `university_application_id` or `visa_case_id`; keep
+  `target_kind` constrained to that concrete column and enforce both target
+  relations with organization-and-case-qualified foreign keys. This supersedes
+  the two-physical-table wording but preserves its security and authority
+  intent; an unqualified `(target_kind, target_id)` store remains prohibited;
+- use one canonical link/unlink command for one exact target instead of sending
+  the browser's entire set back to the database. Each new mutation still
+  requires the active slot's optimistic version, a unique request id and a
+  bounded reason, locks the slot, rejects a new-request no-op, advances the
+  aggregate slot version once and writes the exact before/after state to the
+  existing audit journal. Identical request replay returns the original result;
+  changed-shape reuse and stale concurrent mutations fail closed;
+- keep the staff projection as one sorted typed list and keep V3 as the only
+  editor. The command-shape clarification does not change role access,
+  historical-link preservation, student-portal scope or the one-authority and
+  non-production validation gates in the preceding entry.

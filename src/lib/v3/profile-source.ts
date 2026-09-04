@@ -2,7 +2,10 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { DocumentGroup } from "@/components/v3/profile/document-types";
+import type {
+  DocumentCaseLinkTarget,
+  DocumentGroup,
+} from "@/components/v3/profile/document-types";
 import type {
   PersonProfile,
   ProfileAdmissionsWorkspace,
@@ -28,6 +31,7 @@ import {
 import {
   getPlatformCaseDocumentWorkspace,
   type PlatformCaseDocumentWorkspace,
+  type PlatformDocumentSlot,
 } from "@/lib/platform-private-documents";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { getPlatformSalesLead, listPlatformSalesLeads } from "@/lib/platform-sales";
@@ -161,9 +165,77 @@ function profileVisa(visa: PlatformCaseVisa | null): PersonProfile["visa"] {
     : [];
 }
 
+function caseLinkTargetKey(kind: DocumentCaseLinkTarget["kind"], id: string): string {
+  return `${kind}:${id}`;
+}
+
+function caseLinkTargetId(slot: PlatformDocumentSlot, index: number): string {
+  const link = slot.caseLinks[index];
+  if (!link) throw new Error("V3 profile document link projection is inconsistent.");
+  if (link.targetKind === "university_application" && link.universityApplicationId) {
+    return link.universityApplicationId;
+  }
+  if (link.targetKind === "visa_case" && link.visaCaseId) return link.visaCaseId;
+  throw new Error("V3 profile document link projection is inconsistent.");
+}
+
+function profileDocumentCaseLinkTargets(
+  slot: PlatformDocumentSlot,
+  allowWrite: boolean,
+  applications: readonly PlatformApplicationQueueRow[],
+  visa: PlatformCaseVisa | null,
+): readonly DocumentCaseLinkTarget[] {
+  const targets: DocumentCaseLinkTarget[] = applications.map((application) => {
+    const details = [
+      application.intake ?? "интейк не указан",
+      application.status,
+      application.isPrimary ? "основная" : null,
+      application.universityDeadlineOn
+        ? `дедлайн ${application.universityDeadlineOn}`
+        : null,
+      `#${application.universityApplicationId.slice(0, 8)}`,
+    ].filter((value): value is string => value !== null);
+    return {
+      kind: "university_application",
+      id: application.universityApplicationId,
+      label: `${application.institutionName}: ${application.programName} · ${details.join(" · ")}`,
+      linked: false,
+      requestId: allowWrite ? randomUUID() : null,
+    };
+  });
+  if (visa) {
+    targets.push({
+      kind: "visa_case",
+      id: visa.visaCaseId,
+      label: `Визовое дело · ${visa.status}`,
+      linked: false,
+      requestId: allowWrite ? randomUUID() : null,
+    });
+  }
+
+  const knownTargets = new Set(targets.map((target) =>
+    caseLinkTargetKey(target.kind, target.id)
+  ));
+  const linkedTargets = new Set<string>();
+  for (const [index, link] of slot.caseLinks.entries()) {
+    const key = caseLinkTargetKey(link.targetKind, caseLinkTargetId(slot, index));
+    if (!knownTargets.has(key)) {
+      throw new Error("V3 profile document link projection is inconsistent.");
+    }
+    linkedTargets.add(key);
+  }
+
+  return Object.freeze(targets.map((target) => Object.freeze({
+    ...target,
+    linked: linkedTargets.has(caseLinkTargetKey(target.kind, target.id)),
+  })));
+}
+
 function profileDocuments(
   workspace: PlatformCaseDocumentWorkspace,
   allowUpload: boolean,
+  applications: readonly PlatformApplicationQueueRow[],
+  visa: PlatformCaseVisa | null,
 ): readonly DocumentGroup[] {
   if (workspace.slots.length === 0 && workspace.removedSlots.length === 0) return [];
 
@@ -184,6 +256,12 @@ function profileDocuments(
       uploadRequestId,
       metadataRequestId,
       removalRequestId,
+      caseLinkTargets: profileDocumentCaseLinkTargets(
+        slot,
+        allowUpload,
+        applications,
+        visa,
+      ),
     } as const;
     let item: ActiveGroup["items"][number];
     if (slot.currentVersionId === null) {
@@ -370,7 +448,12 @@ function fullCaseDetails(
     responsible,
     provider: null,
     ...facts,
-    documents: profileDocuments(data.documents, canUpload),
+    documents: profileDocuments(
+      data.documents,
+      canUpload,
+      data.applications,
+      data.visa,
+    ),
     otherFiles: [],
     ...money,
     admissions: admissionsWorkspace(data),

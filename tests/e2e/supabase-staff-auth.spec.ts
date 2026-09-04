@@ -1627,7 +1627,78 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(renamedDocumentItem).toBeVisible();
   await expect(page.getByText("P4 renamed group", { exact: true })).toBeVisible();
 
-  await renamedDocumentItem.locator("summary").click();
+  const renamedDocumentControls = renamedDocumentItem.locator("details");
+  const openRenamedDocumentControls = async () => {
+    if (!await renamedDocumentControls.evaluate(
+      (element) => (element as HTMLDetailsElement).open,
+    )) {
+      await renamedDocumentControls.locator("summary").click();
+    }
+  };
+  await openRenamedDocumentControls();
+  const applicationCaseLinkForm = renamedDocumentItem
+    .getByTestId("v3-document-case-link-form")
+    .filter({ hasText: "P4 isolated alternative university" });
+  await applicationCaseLinkForm
+    .locator('input[name="reason"]')
+    .fill("P4 isolated document application link");
+  await applicationCaseLinkForm.locator('button[type="submit"]').click();
+  const linkedTargets = renamedDocumentItem.getByTestId("v3-document-linked-targets");
+  await expect(linkedTargets).toContainText("P4 isolated alternative university");
+
+  await openRenamedDocumentControls();
+  const visaCaseLinkForm = renamedDocumentItem
+    .getByTestId("v3-document-case-link-form")
+    .filter({ hasText: "Визовое дело" });
+  await visaCaseLinkForm
+    .locator('input[name="reason"]')
+    .fill("P4 isolated document visa link");
+  await visaCaseLinkForm.locator('button[type="submit"]').click();
+  await expect(linkedTargets).toContainText("P4 isolated alternative university");
+  await expect(linkedTargets).toContainText("Визовое дело");
+
+  await openRenamedDocumentControls();
+  const linkedApplicationForm = renamedDocumentItem
+    .getByTestId("v3-document-case-link-form")
+    .filter({ hasText: "P4 isolated alternative university" });
+  await expect(
+    linkedApplicationForm.getByRole("button", { name: "Убрать связь" }),
+  ).toBeVisible();
+  await linkedApplicationForm
+    .locator('input[name="reason"]')
+    .fill("P4 isolated document application unlink");
+  await linkedApplicationForm.getByRole("button", { name: "Убрать связь" }).click();
+  await expect(linkedTargets).not.toContainText("P4 isolated alternative university");
+  await expect(linkedTargets).toContainText("Визовое дело");
+
+  const documentWorkspace = await directPlatformRpc(
+    "staff_student_case_document_workspace",
+    { p_student_case_id: studentCaseId },
+    refreshedAdmissionsToken,
+  );
+  expect(
+    documentWorkspace.status,
+    JSON.stringify(documentWorkspace.payload),
+  ).toBe(200);
+  const workspacePayload = expectObject(documentWorkspace.payload);
+  const workspaceSlots = Array.isArray(workspacePayload.slots)
+    ? workspacePayload.slots.map((entry) => expectObject(entry))
+    : [];
+  const linkedCustomSlot = workspaceSlots.find(
+    (slot) => slot.requirement_label === "P4 renamed bank statement",
+  );
+  expect(linkedCustomSlot).toBeDefined();
+  const persistedCaseLinks = Array.isArray(linkedCustomSlot?.case_links)
+    ? linkedCustomSlot.case_links.map((entry) => expectObject(entry))
+    : [];
+  expect(persistedCaseLinks).toHaveLength(1);
+  expect(persistedCaseLinks[0]).toMatchObject({
+    target_kind: "visa_case",
+    visa_case_id: visaCaseId,
+    university_application_id: null,
+  });
+
+  await openRenamedDocumentControls();
   await renamedDocumentItem
     .getByTestId("v3-document-checklist-remove")
     .locator('button[type="submit"]')

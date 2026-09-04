@@ -18,6 +18,10 @@ const CURRENT_VERSION_ID = "55555555-5555-4555-8555-555555555555";
 const OLD_VERSION_ID = "66666666-6666-4666-8666-666666666666";
 const MEMBERSHIP_ID = "77777777-7777-4777-8777-777777777777";
 const REMOVED_SLOT_ID = "88888888-8888-4888-8888-888888888888";
+const APPLICATION_ID = "99999999-9999-4999-8999-999999999991";
+const VISA_ID = "99999999-9999-4999-8999-999999999992";
+const APPLICATION_LINK_ID = "99999999-9999-4999-8999-999999999993";
+const VISA_LINK_ID = "99999999-9999-4999-8999-999999999994";
 const AT = "2026-09-02T08:00:00+00:00";
 
 const ACTOR = Object.freeze({
@@ -85,6 +89,7 @@ function slot(overrides = {}) {
     current_version_no: "2",
     created_at: AT,
     updated_at: AT,
+    case_links: [],
     versions: [
       version(),
       version({ id: OLD_VERSION_ID, versionNumber: "1", current: false }),
@@ -119,6 +124,22 @@ function removedSlot(overrides = {}) {
     removed_by_membership_id: MEMBERSHIP_ID,
     removal_reason: "Пункт больше не нужен для выбранной программы",
     ...overrides,
+  };
+}
+
+function caseLink({
+  id = APPLICATION_LINK_ID,
+  targetKind = "university_application",
+  universityApplicationId = APPLICATION_ID,
+  visaCaseId = null,
+} = {}) {
+  return {
+    document_slot_case_link_id: id,
+    target_kind: targetKind,
+    university_application_id: universityApplicationId,
+    visa_case_id: visaCaseId,
+    created_by_membership_id: MEMBERSHIP_ID,
+    created_at: AT,
   };
 }
 
@@ -164,12 +185,81 @@ test("case document workspace keeps every immutable version grouped under one sl
   assert.equal(normalized.slots[0].groupLabel, "Основные документы");
   assert.equal(normalized.slots[0].intentKind, "baseline");
   assert.equal(normalized.slots[0].version, 1);
+  assert.deepEqual(normalized.slots[0].caseLinks, []);
   assert.deepEqual(
     normalized.slots[0].versions.map((item) => [item.versionNumber, item.isCurrent]),
     [[2, true], [1, false]],
   );
   assert.equal(normalized.slots[0].versions[1].latestReview.decision, "correction_required");
   assert.equal("objectName" in normalized.slots[0].versions[0], false);
+});
+
+test("workspace returns case-safe application and visa links per slot", () => {
+  const normalized = normalizePlatformCaseDocumentWorkspace(
+    workspace({
+      slots: [slot({
+        case_links: [
+          caseLink(),
+          caseLink({
+            id: VISA_LINK_ID,
+            targetKind: "visa_case",
+            universityApplicationId: null,
+            visaCaseId: VISA_ID,
+          }),
+        ],
+      })],
+    }),
+    ORGANIZATION_ID,
+    CASE_ID,
+  );
+
+  assert.deepEqual(
+    normalized.slots[0].caseLinks.map((link) => [
+      link.documentSlotCaseLinkId,
+      link.targetKind,
+      link.universityApplicationId,
+      link.visaCaseId,
+    ]),
+    [
+      [APPLICATION_LINK_ID, "university_application", APPLICATION_ID, null],
+      [VISA_LINK_ID, "visa_case", null, VISA_ID],
+    ],
+  );
+});
+
+test("workspace fails closed on malformed or duplicated case links", () => {
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      workspace({
+        slots: [slot({
+          case_links: [caseLink({
+            targetKind: "university_application",
+            universityApplicationId: null,
+            visaCaseId: VISA_ID,
+          })],
+        })],
+      }),
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
+
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      workspace({
+        slots: [slot({
+          case_links: [
+            caseLink(),
+            caseLink({ id: VISA_LINK_ID }),
+          ],
+        })],
+      }),
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
 });
 
 test("case document workspace accepts a case-local custom slot without a shared requirement", () => {

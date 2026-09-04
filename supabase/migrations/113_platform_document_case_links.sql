@@ -161,12 +161,11 @@ REVOKE ALL ON FUNCTION platform_private.p7a_safe_audit_actions_pre_v3f_document_
 REVOKE ALL ON FUNCTION platform_private.p7a_safe_audit_actions()
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
--- Migration 108 freezes every slot update that is not a status, metadata or
--- removal transition. A case-link command still owns the slot's optimistic
--- aggregate version, so admit exactly the otherwise-no-op row update issued
--- by the canonical command below. Authenticated callers retain no direct
--- UPDATE grant on document_slots; the transaction-local context only narrows
--- the existing SECURITY DEFINER path and is cleared immediately after use.
+-- Migration 108 admits only document status, metadata and removal changes.
+-- A case-link is part of the slot aggregate, so its canonical command must be
+-- able to advance the same optimistic version without changing slot data.
+-- The exact row comparison keeps every other unsupported transition closed;
+-- authenticated roles still have no direct UPDATE privilege on this table.
 CREATE OR REPLACE FUNCTION platform_private.guard_dynamic_document_slot_transition()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -176,7 +175,7 @@ AS $$
 DECLARE
   status_transition BOOLEAN;
   metadata_changed BOOLEAN;
-  case_link_transition BOOLEAN;
+  aggregate_version_only BOOLEAN;
 BEGIN
   IF OLD.removed_at IS NOT NULL THEN
     RAISE EXCEPTION 'Removed document slots are immutable'
@@ -213,16 +212,8 @@ BEGIN
       OLD.removed_by_membership_id
     OR NEW.removal_reason IS DISTINCT FROM OLD.removal_reason;
 
-  case_link_transition :=
-    pg_catalog.current_setting(
-      'platform_private.document_slot_case_link_context',
-      TRUE
-    ) IS NOT DISTINCT FROM
-      OLD.organization_id::TEXT || ':' ||
-      OLD.student_case_id::TEXT || ':' ||
-      OLD.id::TEXT || ':' ||
-      OLD.version::TEXT
-    AND NEW.version = OLD.version + 1
+  aggregate_version_only :=
+    NEW.version = OLD.version + 1
     AND (
       pg_catalog.to_jsonb(NEW) - ARRAY['version', 'updated_at']::TEXT[]
     ) IS NOT DISTINCT FROM (
@@ -237,9 +228,7 @@ BEGIN
       RAISE EXCEPTION 'Document slot metadata transition is not allowed'
         USING ERRCODE = '55000';
     END IF;
-  ELSIF case_link_transition THEN
-    NULL;
-  ELSIF NOT status_transition THEN
+  ELSIF NOT status_transition AND NOT aggregate_version_only THEN
     RAISE EXCEPTION 'Document slot transition is not allowed'
       USING ERRCODE = '55000';
   END IF;
@@ -470,15 +459,6 @@ BEGIN
     RETURNING * INTO changed_link;
   END IF;
 
-  PERFORM pg_catalog.set_config(
-    'platform_private.document_slot_case_link_context',
-    p_organization_id::TEXT || ':' ||
-      p_student_case_id::TEXT || ':' ||
-      p_document_slot_id::TEXT || ':' ||
-      p_expected_version::TEXT,
-    TRUE
-  );
-
   UPDATE platform.document_slots AS slot
   SET
     version = slot.version + 1,
@@ -493,12 +473,6 @@ BEGIN
     RAISE EXCEPTION 'document_slot_version_conflict'
       USING ERRCODE = 'PT409';
   END IF;
-
-  PERFORM pg_catalog.set_config(
-    'platform_private.document_slot_case_link_context',
-    '',
-    TRUE
-  );
 
   result := replay_shape || jsonb_build_object(
     'document_slot_case_link_id', CASE WHEN p_enabled THEN changed_link.id ELSE NULL END,

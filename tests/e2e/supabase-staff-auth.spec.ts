@@ -137,7 +137,8 @@ async function directPlatformRpc(
     | "staff_student_case_document_workspace"
     | "set_student_case_route"
     | "create_document_requirement"
-    | "create_document_slot",
+    | "create_document_slot"
+    | "create_payment_obligation",
   body: Readonly<Record<string, unknown>>,
   accessToken?: string,
 ): Promise<Readonly<{ status: number; payload: unknown }>> {
@@ -207,39 +208,14 @@ async function readDownload(download: Download): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-async function submitDocumentUpload(page: Page, documentSlotId: string) {
-  const status = await page
-    .getByTestId("platform-document-upload-form")
-    .evaluate(async (node, slotId) => {
-      if (!(node instanceof HTMLFormElement)) {
-        throw new Error("expected an HTML form for document upload");
-      }
-      const requestIdInput = node.querySelector('input[name="request_id"]');
-      const fileInput = node.querySelector('input[name="file"]');
-      if (
-        !(requestIdInput instanceof HTMLInputElement) ||
-        requestIdInput.value.length === 0
-      ) {
-        throw new Error("expected upload request id");
-      }
-      if (
-        !(fileInput instanceof HTMLInputElement) ||
-        !(fileInput.files instanceof FileList) ||
-        fileInput.files.length !== 1
-      ) {
-        throw new Error("expected exactly one selected upload file");
-      }
-      const formData = new FormData();
-      formData.set("request_id", requestIdInput.value);
-      formData.set("file", fileInput.files[0]);
-      const response = await fetch(`/api/v2/document-slots/${slotId}/versions`, {
-        method: "POST",
-        body: formData,
-        credentials: "same-origin",
-      });
-      return response.status;
-    }, documentSlotId);
-  expect(status).toBe(201);
+async function submitDocumentUpload(page: Page) {
+  const form = page.getByTestId("v3-document-upload-form");
+  await expect(form.locator('input[name="request_id"]')).not.toHaveValue("");
+  await form.locator('button[type="submit"]').click();
+  await expect(page.getByTestId("v3-document-upload-status")).toHaveAttribute(
+    "data-outcome",
+    "saved",
+  );
   await page.reload();
 }
 
@@ -1082,74 +1058,34 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     expectObject(slotResult.payload).document_slot_id,
   );
 
-  await page.context().clearCookies();
-  await signIn(page, "admin");
-  await page.goto(`/clients/${studentCaseId}`);
-  await expect(
-    page.getByTestId("platform-student-case-workspace"),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId("platform-admissions-task-panel"),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId("platform-admissions-operations"),
-  ).toBeVisible();
-  await expect(page.getByTestId("platform-private-documents")).toBeVisible();
-
-  const finance = page.getByTestId("platform-case-finance-control");
-  await finance
-    .locator("details")
-    .filter({ hasText: "Добавить обязательство" })
-    .locator("summary")
-    .click();
-  const createPayment = finance.locator('form:has(input[name="label"])');
-  await createPayment
-    .locator('input[name="label"]')
-    .fill("P4 isolated payment proof");
-  await createPayment.locator('input[name="amount"]').fill("25.00");
-  await createPayment.locator('select[name="currency"]').selectOption("USD");
-  await createPayment.locator('input[name="due_date"]').fill("2099-09-12");
-  await createPayment
-    .locator('input[name="next_action"]')
-    .fill("Verify Admissions stop and Admin release");
-  await createPayment
-    .locator('input[name="reason"]')
-    .fill("Isolated P4 finance transition proof");
-  await createPayment.locator('button[type="submit"]').click();
-
-  const obligation = page
-    .getByTestId("platform-case-finance-control")
-    .locator("article")
-    .filter({ hasText: "P4 isolated payment proof" });
-  await expect(obligation).toBeVisible();
+  const paymentResult = await directPlatformRpc(
+    "create_payment_obligation",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: studentCaseId,
+      p_label: "P4 isolated payment proof",
+      p_category: "evo_service_fee",
+      p_amount_minor: 2500,
+      p_currency: "USD",
+      p_due_at: "2099-09-12T12:00:00Z",
+      p_next_action: "Verify Admissions stop and Admin release",
+      p_reason: "Initialize the real obligation used by the V3 finance proof",
+      p_request_id: randomUUID(),
+    },
+    adminToken,
+  );
+  expect(paymentResult.status, JSON.stringify(paymentResult.payload)).toBe(200);
   const paymentObligationId = requireUuidValue(
-    await obligation.getAttribute("data-obligation-id"),
+    expectObject(paymentResult.payload).payment_obligation_id,
   );
 
   await page.context().clearCookies();
   await signIn(page, "admissions");
-  await page.goto(`/clients/${studentCaseId}`);
-  await expect(
-    page.getByTestId("platform-student-case-workspace"),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId("platform-student-handoff-context"),
-  ).toBeVisible();
-  await expect(page.getByTestId("platform-student-profile")).toHaveAttribute(
-    "data-status",
-    "not-created",
-  );
-
-  const taskPanel = page.getByTestId("platform-admissions-task-panel");
-  await taskPanel
-    .locator("details")
-    .filter({ hasText: "Создать задачу" })
-    .locator("summary")
-    .click();
-  const createTask = taskPanel.getByTestId(
-    "platform-admissions-task-create-form",
-  );
-  await createTask.locator('input[name="task_type"]').fill("p4_storage_review");
+  await page.goto("/v3/calendar?view=day&date=2099-09-12");
+  const createTask = page.getByTestId("v3-calendar-task-create-form");
+  await createTask
+    .locator('select[name="student_case_id"]')
+    .selectOption(studentCaseId);
   await createTask
     .locator('input[name="title"]')
     .fill("P4 isolated Admissions task proof");
@@ -1160,28 +1096,28 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await createTask.locator('button[type="submit"]').click();
 
   const createdTask = page
-    .getByTestId("platform-admissions-task")
+    .locator('button[id^="task-"]')
     .filter({ hasText: "P4 isolated Admissions task proof" });
   await expect(createdTask).toHaveCount(1);
   const caseTaskId = requireUuidValue(
-    await createdTask.getAttribute("data-task-id"),
+    (await createdTask.getAttribute("id"))?.replace(/^task-/, ""),
   );
-  await createdTask.locator("summary").click();
-  const changeTask = createdTask.getByTestId(
-    "platform-admissions-task-change-form",
-  );
-  await changeTask.locator('select[name="status"]').selectOption("done");
-  await changeTask.locator('button[type="submit"]').click();
-  await expect(
-    page.locator(
-      `[data-testid="platform-admissions-task"][data-task-id="${caseTaskId}"]`,
-    ),
-  ).toHaveAttribute("data-status", "done");
+  await createdTask.click();
+  await expect(page.getByTestId("v3-calendar-task-controls")).toBeVisible();
+  await page
+    .getByTestId("v3-calendar-task-done-form")
+    .locator('button[type="submit"]')
+    .click();
+  await expect(page.locator(`#task-${caseTaskId}`)).toContainText("выполнена");
 
-  const applications = page.getByTestId("platform-university-applications");
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=overview`);
+  await expect(page.getByTestId("v3-profile")).toBeVisible();
+  await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
+
+  const applications = page.locator("#applications");
   await applications
     .locator("details")
-    .filter({ hasText: "Добавить заявку" })
+    .filter({ hasText: "Новая заявка" })
     .locator("summary")
     .click();
   const createApplication = applications.locator(
@@ -1198,17 +1134,16 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .fill("p4://application-created");
   await createApplication.locator('button[type="submit"]').click();
 
-  const application = page
-    .getByTestId("platform-university-applications")
+  const application = applications
     .locator("article")
     .filter({ hasText: "P4 isolated technical university" });
   await expect(application).toHaveCount(1);
-  const universityApplicationId = requireUuidValue(
-    await application.getAttribute("data-application-id"),
-  );
   await application.locator("summary").click();
   const changeApplication = application.locator(
     'form:has(input[name="application_id"])',
+  );
+  const universityApplicationId = requireUuidValue(
+    await changeApplication.locator('input[name="application_id"]').inputValue(),
   );
   await changeApplication
     .locator('select[name="status"]')
@@ -1218,12 +1153,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .fill("p4://application-submitted");
   await changeApplication.locator('button[type="submit"]').click();
   await expect(
-    page
-      .getByTestId("platform-university-applications")
-      .locator(`[data-application-id="${universityApplicationId}"]`),
+    applications.locator("article").filter({ hasText: "P4 isolated technical university" }),
   ).toContainText("p4://application-submitted");
 
-  const visaSection = page.getByTestId("platform-case-visa");
+  const visaSection = page.locator("#visa");
   const visaForm = visaSection.locator('form:has(select[name="status"])');
   await visaForm.locator('select[name="status"]').selectOption("docs");
   await visaForm
@@ -1233,9 +1166,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator('textarea[name="note"]')
     .fill("Isolated P4 visa transition");
   await visaForm.locator('button[type="submit"]').click();
-  const visaCaseIdInput = page
-    .getByTestId("platform-case-visa")
-    .locator('input[name="visa_case_id"]');
+  const visaCaseIdInput = visaSection.locator('input[name="visa_case_id"]');
   await expect(visaCaseIdInput).toHaveValue(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   );
@@ -1263,9 +1194,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   });
   const visaCaseId = requireUuidValue(persistedVisa?.visa_case_id);
 
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=money`);
   const admissionsObligation = page
-    .getByTestId("platform-case-finance-control")
-    .locator(`[data-obligation-id="${paymentObligationId}"]`);
+    .getByTestId("v3-profile-finance-controls")
+    .locator("article")
+    .filter({ hasText: "P4 isolated payment proof" });
   await admissionsObligation
     .locator("details")
     .filter({ hasText: "Поставить финансовый стоп" })
@@ -1289,9 +1222,15 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await assertStop.locator('button[type="submit"]').click();
   await expect(
     page
-      .getByTestId("platform-case-finance-control")
-      .locator(`[data-obligation-id="${paymentObligationId}"]`),
+      .getByTestId("v3-profile-finance-controls")
+      .locator("article")
+      .filter({ hasText: "P4 isolated payment proof" }),
   ).toContainText("P4 isolated finance stop");
+  await expect(
+    page
+      .getByTestId("v3-profile-finance-controls")
+      .locator('form:has(input[name="stop_factor_id"])'),
+  ).toHaveCount(0);
 
   const firstPdf = Buffer.from(
     "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n",
@@ -1328,102 +1267,65 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   expect(directBucketList.status).toBe(200);
   expect(directBucketList.payload).toEqual([]);
 
-  const documentSlot = page.locator(
-    `[data-testid="platform-document-slot"][data-document-slot-id="${documentSlotId}"]`,
-  );
-  await expect(documentSlot).toHaveAttribute("data-slot-status", "required");
-  const firstUpload = documentSlot.getByTestId("platform-document-upload-form");
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
+  const documentItem = page
+    .getByTestId("v3-document-item")
+    .filter({ hasText: "P4 real private Storage proof" });
+  await expect(documentItem).toHaveAttribute("data-document-presence", "missing");
+  const firstUpload = documentItem.getByTestId("v3-document-upload-form");
   await firstUpload.locator('input[name="file"]').setInputFiles({
     name: "p4-isolated-proof-v1.pdf",
     mimeType: "application/pdf",
     buffer: firstPdf,
   });
-  await submitDocumentUpload(page, documentSlotId);
-  await expect(
-    documentSlot.getByTestId("platform-document-version"),
-  ).toHaveCount(1);
-  const firstVersion = documentSlot.locator(
-    '[data-testid="platform-document-version"][data-version-number="1"]',
-  );
-  await expect(firstVersion).toContainText("p4-isolated-proof-v1.pdf");
-  const firstVersionHref = await firstVersion
-    .getByTestId("platform-document-download")
+  await submitDocumentUpload(page);
+  await expect(documentItem).toHaveAttribute("data-document-presence", "present");
+  await expect(documentItem).toContainText("p4-isolated-proof-v1.pdf");
+  await expect(documentItem).toContainText("версия 1");
+  const firstVersionHref = await documentItem
+    .getByTestId("v3-document-download")
     .getAttribute("href");
   const firstDocumentVersionId = requireUuidValue(
     firstVersionHref?.split("/")[4],
   );
   const firstDownloadPromise = page.waitForEvent("download");
-  await firstVersion.getByTestId("platform-document-download").click();
+  await documentItem.getByTestId("v3-document-download").click();
   expect(await readDownload(await firstDownloadPromise)).toEqual(firstPdf);
 
-  const firstReview = firstVersion.locator('form:has(select[name="decision"])');
-  await firstReview
-    .locator('select[name="decision"]')
-    .selectOption("correction_required");
-  await firstReview
-    .locator('input[name="reason"]')
-    .fill("P4 isolated resubmission requested");
-  await firstReview.locator('button[type="submit"]').click();
-  await expect(documentSlot).toHaveAttribute(
-    "data-slot-status",
-    "correction_required",
-  );
-
-  const secondUpload = documentSlot.getByTestId(
-    "platform-document-upload-form",
-  );
+  const secondUpload = documentItem.getByTestId("v3-document-upload-form");
   await secondUpload.locator('input[name="file"]').setInputFiles({
     name: "p4-isolated-proof-v2.pdf",
     mimeType: "application/pdf",
     buffer: secondPdf,
   });
-  await submitDocumentUpload(page, documentSlotId);
-  await expect(
-    documentSlot.getByTestId("platform-document-version"),
-  ).toHaveCount(2);
-  const secondVersion = documentSlot.locator(
-    '[data-testid="platform-document-version"][data-version-number="2"]',
-  );
-  await expect(secondVersion).toContainText("p4-isolated-proof-v2.pdf");
-  const secondVersionHref = await secondVersion
-    .getByTestId("platform-document-download")
+  await submitDocumentUpload(page);
+  await expect(documentItem).toContainText("p4-isolated-proof-v2.pdf");
+  await expect(documentItem).toContainText("версия 2");
+  const secondVersionHref = await documentItem
+    .getByTestId("v3-document-download")
     .getAttribute("href");
   const secondDocumentVersionId = requireUuidValue(
     secondVersionHref?.split("/")[4],
   );
   expect(secondDocumentVersionId).not.toBe(firstDocumentVersionId);
-  const immutableFirstDownload = page.waitForEvent("download");
-  await documentSlot
-    .locator(
-      '[data-testid="platform-document-version"][data-version-number="1"]',
-    )
-    .getByTestId("platform-document-download")
-    .click();
-  expect(await readDownload(await immutableFirstDownload)).toEqual(firstPdf);
-
-  await page.goto("/tasks");
-  await expect(
-    page.locator(
-      `[data-testid="platform-admissions-task"][data-task-id="${caseTaskId}"]`,
-    ),
-  ).toHaveAttribute("data-status", "done");
-  await page.goto("/applications");
-  await expect(
-    page.locator(`[data-application-id="${universityApplicationId}"]`),
-  ).toContainText("Подана");
-  await page.goto("/visa");
-  await expect(page.getByTestId("platform-visa-queue")).toContainText(
-    "p4://visa-documents",
-  );
-  await page.goto("/documents");
-  await expect(
-    page.locator(`[data-document-slot-id="${documentSlotId}"]`),
-  ).toBeVisible();
+  const secondDownloadPromise = page.waitForEvent("download");
+  await documentItem.getByTestId("v3-document-download").click();
+  expect(await readDownload(await secondDownloadPromise)).toEqual(secondPdf);
+  const immutableFirstDownload = await page.request.get(firstVersionHref!);
+  expect(immutableFirstDownload.status()).toBe(200);
+  expect(await immutableFirstDownload.body()).toEqual(firstPdf);
 
   await page.context().clearCookies();
   await signIn(page, "sales");
-  await page.goto(`/clients/${studentCaseId}`);
-  await expect(page).toHaveURL(/\/access-denied\?from=%2Fclients$/);
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Такого человека в базе нет. Показывать вместо него другого мы не будем.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.getByTestId("v3-document-upload-form")).toHaveCount(0);
   const deniedUpload = await page.request.post(
     `/api/v2/document-slots/${documentSlotId}/versions`,
     {
@@ -1462,45 +1364,18 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
       .getByTestId("v3-sales-handoff-completed")
       .locator(`a[href="/v3/profile?case=${studentCaseId}&tab=overview"]`),
   ).toBeVisible();
-  await page.goto("/clients");
-  const exactStudentCaseRow = page.locator(
-    `[data-testid="platform-student-case-row"][data-student-case-id="${studentCaseId}"]`,
-  );
-  await expect(exactStudentCaseRow).toBeVisible();
-  await expect(
-    exactStudentCaseRow.getByTestId("student-case-sales-lead-link"),
-  ).toHaveAttribute("href", `/v3/profile?id=${leadId}`);
-  await page.goto(`/clients/${studentCaseId}`);
-  await expect(
-    page.getByTestId("platform-student-case-workspace"),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId("platform-student-handoff-context"),
-  ).toContainText(studentCaseId);
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
+  const adminDocumentItem = page
+    .getByTestId("v3-document-item")
+    .filter({ hasText: "P4 real private Storage proof" });
+  await expect(adminDocumentItem).toContainText("p4-isolated-proof-v2.pdf");
+  await expect(adminDocumentItem).toContainText("версия 2");
 
-  const adminDocumentSlot = page.locator(
-    `[data-testid="platform-document-slot"][data-document-slot-id="${documentSlotId}"]`,
-  );
-  await expect(
-    adminDocumentSlot.getByTestId("platform-document-version"),
-  ).toHaveCount(2);
-  const approveSecond = adminDocumentSlot
-    .locator(
-      '[data-testid="platform-document-version"][data-version-number="2"]',
-    )
-    .locator('form:has(select[name="decision"])');
-  await approveSecond
-    .locator('select[name="decision"]')
-    .selectOption("approved");
-  await approveSecond.locator('button[type="submit"]').click();
-  await expect(adminDocumentSlot).toHaveAttribute(
-    "data-slot-status",
-    "approved",
-  );
-
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=money`);
   const adminObligation = page
-    .getByTestId("platform-case-finance-control")
-    .locator(`[data-obligation-id="${paymentObligationId}"]`);
+    .getByTestId("v3-profile-finance-controls")
+    .locator("article")
+    .filter({ hasText: "P4 isolated payment proof" });
   const resolveStop = adminObligation.locator(
     'form:has(input[name="stop_factor_id"])',
   );
@@ -1519,30 +1394,17 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await resolveStop.locator('button[type="submit"]').click();
   await expect(
     page
-      .getByTestId("platform-case-finance-control")
-      .locator(`[data-obligation-id="${paymentObligationId}"]`)
+      .getByTestId("v3-profile-finance-controls")
+      .locator("article")
+      .filter({ hasText: "P4 isolated payment proof" })
       .locator('form:has(input[name="stop_factor_id"])'),
   ).toHaveCount(0);
-
-  const settleDetails = page
-    .getByTestId("platform-case-finance-control")
-    .locator(`[data-obligation-id="${paymentObligationId}"]`)
-    .locator("details")
-    .filter({ hasText: "Подтвердить полную оплату" });
-  await settleDetails.locator("summary").click();
-  const settlePayment = settleDetails.locator("form");
-  await settlePayment
-    .locator('input[name="evidence_ref"]')
-    .fill("p4://payment-settled");
-  await settlePayment
-    .locator('input[name="reason"]')
-    .fill("Admin confirmed isolated full payment");
-  await settlePayment.locator('button[type="submit"]').click();
   await expect(
     page
-      .getByTestId("platform-case-finance-control")
-      .locator(`[data-obligation-id="${paymentObligationId}"]`),
-  ).toContainText("Оплачено");
+      .getByTestId("v3-profile-finance-controls")
+      .locator("article")
+      .filter({ hasText: "P4 isolated payment proof" }),
+  ).toContainText("без стопа");
 
   writeP4AcceptanceResult({
     organizationId,

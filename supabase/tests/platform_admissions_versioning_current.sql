@@ -1,8 +1,8 @@
 \set ON_ERROR_STOP on
 
--- Current-boundary acceptance for migration 107. All mutations use the
--- durable synthetic identities created by earlier suites, add only isolated
--- rows inside this transaction, and roll back before returning to the runner.
+-- Current-boundary acceptance for migration 107. Build the complete synthetic
+-- organization, authority, case and approved-catalog provenance in this
+-- transaction so the proof is independent of every earlier SQL suite.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION pg_temp.p107_assert(
@@ -151,69 +151,298 @@ BEGIN
 END
 $catalog_contract$;
 
--- Select one active handed-off synthetic case whose tenant also has an
--- approved catalog institution. Admin is the exact product superset and the
--- only role allowed to exercise both assertion and release in one test.
+-- Build a fully isolated organization, role/scope authority and approved
+-- catalog institution so this acceptance does not depend on suite order.
 SELECT pg_temp.p107_assert(
-  EXISTS (
-    SELECT 1
-    FROM platform.student_cases AS student_case
-    JOIN platform.organization_memberships AS admin_membership
-      ON admin_membership.organization_id = student_case.organization_id
-      AND admin_membership."current_role" = 'admin'
-      AND admin_membership.status = 'active'
-    JOIN platform.profiles AS admin_profile
-      ON admin_profile.id = admin_membership.profile_id
-      AND admin_profile.status = 'active'
-    WHERE student_case.state = 'active'
-      AND student_case.handoff_at IS NOT NULL
-      AND student_case.current_curator_membership_id IS NOT NULL
-      AND EXISTS (
-        SELECT 1
-        FROM platform.catalog_institutions AS institution
-        WHERE institution.organization_id = student_case.organization_id
-      )
-  ),
-  'No active handed-off synthetic case with Admin and catalog data exists'
+  (
+    SELECT count(*)
+    FROM platform.role_bundle_versions AS bundle
+    WHERE bundle.role IN ('admin', 'sales', 'curator', 'student')
+      AND bundle.version = 13
+      AND bundle.status = 'published'
+  ) = 4,
+  'Published v13 Admin, Sales, Curator and Student bundles are required'
 );
 
 SELECT
-  student_case.organization_id AS p107_org_id,
-  student_case.id AS p107_case_id,
-  student_case.current_curator_membership_id AS p107_curator_membership_id,
-  admin_membership.id AS p107_admin_membership_id,
-  admin_profile.auth_user_id AS p107_admin_user_id,
-  admin_profile.access_version AS p107_admin_access_version,
-  institution.id AS p107_catalog_institution_id
-FROM platform.student_cases AS student_case
-JOIN platform.organization_memberships AS admin_membership
-  ON admin_membership.organization_id = student_case.organization_id
-  AND admin_membership."current_role" = 'admin'
-  AND admin_membership.status = 'active'
-JOIN platform.profiles AS admin_profile
-  ON admin_profile.id = admin_membership.profile_id
-  AND admin_profile.status = 'active'
-JOIN LATERAL (
-  SELECT catalog_institution.id
-  FROM platform.catalog_institutions AS catalog_institution
-  WHERE catalog_institution.organization_id = student_case.organization_id
-  ORDER BY catalog_institution.id
-  LIMIT 1
-) AS institution ON TRUE
-WHERE student_case.state = 'active'
-  AND student_case.handoff_at IS NOT NULL
-  AND student_case.current_curator_membership_id IS NOT NULL
-ORDER BY student_case.id
+  bundle.id AS p107_admin_bundle,
+  bundle.version AS p107_admin_bundle_version
+FROM platform.role_bundle_versions AS bundle
+WHERE bundle.role = 'admin'
+  AND bundle.version = 13
+  AND bundle.status = 'published'
 LIMIT 1
 \gset
+
+SELECT
+  bundle.id AS p107_sales_bundle
+FROM platform.role_bundle_versions AS bundle
+WHERE bundle.role = 'sales'
+  AND bundle.version = 13
+  AND bundle.status = 'published'
+LIMIT 1
+\gset
+
+SELECT
+  bundle.id AS p107_curator_bundle
+FROM platform.role_bundle_versions AS bundle
+WHERE bundle.role = 'curator'
+  AND bundle.version = 13
+  AND bundle.status = 'published'
+LIMIT 1
+\gset
+
+SELECT
+  bundle.id AS p107_student_bundle
+FROM platform.role_bundle_versions AS bundle
+WHERE bundle.role = 'student'
+  AND bundle.version = 13
+  AND bundle.status = 'published'
+LIMIT 1
+\gset
+
+\set p107_org_id 59700000-0000-4000-8000-000000000001
+\set p107_org_scope_id 59700000-0000-4000-8000-000000000002
+\set p107_admin_user_id 59700000-0000-4000-8000-000000000003
+\set p107_sales_user_id 59700000-0000-4000-8000-000000000004
+\set p107_curator_user_id 59700000-0000-4000-8000-000000000005
+\set p107_student_user_id 59700000-0000-4000-8000-000000000006
+\set p107_admin_profile_id 59700000-0000-4000-8000-000000000007
+\set p107_sales_profile_id 59700000-0000-4000-8000-000000000008
+\set p107_curator_profile_id 59700000-0000-4000-8000-000000000009
+\set p107_student_profile_id 59700000-0000-4000-8000-00000000000a
+\set p107_admin_membership_id 59700000-0000-4000-8000-00000000000b
+\set p107_sales_membership_id 59700000-0000-4000-8000-00000000000c
+\set p107_curator_membership_id 59700000-0000-4000-8000-00000000000d
+\set p107_student_membership_id 59700000-0000-4000-8000-00000000000e
+\set p107_case_scope_id 59700000-0000-4000-8000-000000000010
+\set p107_case_id 59700000-0000-4000-8000-000000000011
+\set p107_source_key src_59700000000040008000000000000011
+\set p107_source_record_key rec_59700000000040008000000000000011
+
+INSERT INTO platform.organizations (id, name)
+VALUES (:'p107_org_id', 'Migration 107 Organization');
+
+INSERT INTO platform.record_scopes (
+  id,
+  organization_id,
+  scope_kind,
+  scope_key,
+  scope_version
+) VALUES (
+  :'p107_org_scope_id',
+  :'p107_org_id',
+  'organization',
+  :'p107_org_id',
+  1
+);
+
+INSERT INTO auth.users (id, email, raw_user_meta_data)
+VALUES
+  (:'p107_admin_user_id', 'p107-admin@example.invalid', '{}'::jsonb),
+  (:'p107_sales_user_id', 'p107-sales@example.invalid', '{}'::jsonb),
+  (:'p107_curator_user_id', 'p107-curator@example.invalid', '{}'::jsonb),
+  (:'p107_student_user_id', 'p107-student@example.invalid', '{}'::jsonb);
+
+INSERT INTO platform.profiles (
+  id,
+  auth_user_id,
+  display_name,
+  status,
+  access_version
+) VALUES
+  (:'p107_admin_profile_id', :'p107_admin_user_id', 'Migration 107 Admin', 'active', 1),
+  (:'p107_sales_profile_id', :'p107_sales_user_id', 'Migration 107 Sales', 'active', 1),
+  (:'p107_curator_profile_id', :'p107_curator_user_id', 'Migration 107 Curator', 'active', 1),
+  (:'p107_student_profile_id', :'p107_student_user_id', 'Migration 107 Student', 'active', 1);
+
+INSERT INTO platform.organization_memberships (
+  id,
+  organization_id,
+  profile_id,
+  status,
+  "current_role",
+  current_bundle_id
+) VALUES
+  (:'p107_admin_membership_id', :'p107_org_id', :'p107_admin_profile_id', 'active', 'admin', :'p107_admin_bundle'),
+  (:'p107_sales_membership_id', :'p107_org_id', :'p107_sales_profile_id', 'active', 'sales', :'p107_sales_bundle'),
+  (:'p107_curator_membership_id', :'p107_org_id', :'p107_curator_profile_id', 'active', 'curator', :'p107_curator_bundle'),
+  (:'p107_student_membership_id', :'p107_org_id', :'p107_student_profile_id', 'active', 'student', :'p107_student_bundle');
+
+INSERT INTO platform.membership_scope_assignments (
+  id,
+  organization_id,
+  membership_id,
+  scope_id,
+  scope_version,
+  assignment_version,
+  granted,
+  actor_kind,
+  actor_profile_id,
+  reason,
+  request_id
+) VALUES
+  ('59700000-0000-4000-8000-000000000012', :'p107_org_id', :'p107_admin_membership_id', :'p107_org_scope_id', 1, 1, TRUE, 'system', NULL, 'Migration 107 org scope', '59700000-0000-4000-8000-000000000112'),
+  ('59700000-0000-4000-8000-000000000013', :'p107_org_id', :'p107_sales_membership_id', :'p107_org_scope_id', 1, 1, TRUE, 'system', NULL, 'Migration 107 org scope', '59700000-0000-4000-8000-000000000113'),
+  ('59700000-0000-4000-8000-000000000014', :'p107_org_id', :'p107_curator_membership_id', :'p107_org_scope_id', 1, 1, TRUE, 'system', NULL, 'Migration 107 org scope', '59700000-0000-4000-8000-000000000114'),
+  ('59700000-0000-4000-8000-000000000015', :'p107_org_id', :'p107_student_membership_id', :'p107_org_scope_id', 1, 1, TRUE, 'system', NULL, 'Migration 107 org scope', '59700000-0000-4000-8000-000000000115');
 
 SELECT pg_catalog.jsonb_build_object(
   'sub', :'p107_admin_user_id',
   'role', 'authenticated',
   'platform_role', 'admin',
-  'platform_access_version', :'p107_admin_access_version'::BIGINT
+  'platform_access_version', 1,
+  'platform_organization_id', :'p107_org_id',
+  'platform_membership_id', :'p107_admin_membership_id',
+  'platform_bundle_id', :'p107_admin_bundle',
+  'platform_bundle_version', :'p107_admin_bundle_version'::INTEGER
 )::TEXT AS p107_admin_claims
 \gset
+
+SET request.jwt.claims TO :'p107_admin_claims';
+SET ROLE authenticated;
+
+SELECT platform.register_workflow_source(
+  :'p107_org_id',
+  :'p107_source_key',
+  'google_spreadsheet',
+  'https://docs.google.com/spreadsheets/d/1P107CatalogSheetFixture000000001/edit',
+  'p107revisioncatalog1',
+  'Register migration 107 catalog source',
+  '59700000-0000-4000-8000-000000000116'
+)::TEXT AS p107_source_id
+\gset
+
+SELECT platform.review_workflow_source(
+  :'p107_org_id',
+  :'p107_source_id',
+  'reviewed',
+  'Review migration 107 catalog source',
+  '59700000-0000-4000-8000-000000000117'
+);
+
+SELECT platform.create_catalog_import_batch(
+  :'p107_org_id',
+  :'p107_source_id',
+  'university',
+  'Create migration 107 catalog batch',
+  '59700000-0000-4000-8000-000000000118'
+)::TEXT AS p107_catalog_batch
+\gset
+
+SELECT
+  (:'p107_catalog_batch'::JSONB ->> 'catalog_import_batch_id')::UUID
+    AS p107_catalog_import_batch_id
+\gset
+
+SELECT platform.stage_catalog_import_candidate(
+  :'p107_org_id',
+  :'p107_catalog_import_batch_id',
+  :'p107_source_record_key',
+  'Migration 107 University',
+  'GB',
+  'London',
+  'Stage migration 107 catalog institution',
+  '59700000-0000-4000-8000-000000000119'
+);
+
+SELECT platform.validate_catalog_import_batch(
+  :'p107_org_id',
+  :'p107_catalog_import_batch_id',
+  'Validate migration 107 catalog batch',
+  '59700000-0000-4000-8000-000000000120'
+);
+
+SELECT platform.review_catalog_import_batch(
+  :'p107_org_id',
+  :'p107_catalog_import_batch_id',
+  'approve',
+  'Approve migration 107 catalog batch',
+  '59700000-0000-4000-8000-000000000121'
+);
+
+RESET ROLE;
+
+SELECT pg_temp.p107_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform.catalog_institutions AS institution
+    WHERE institution.organization_id = :'p107_org_id'
+      AND institution.import_batch_id = :'p107_catalog_import_batch_id'
+  ),
+  'Migration 107 failed to create an approved catalog institution'
+);
+
+SELECT
+  institution.id AS p107_catalog_institution_id
+FROM platform.catalog_institutions AS institution
+WHERE institution.organization_id = :'p107_org_id'
+  AND institution.import_batch_id = :'p107_catalog_import_batch_id'
+ORDER BY institution.id
+LIMIT 1
+\gset
+
+INSERT INTO platform.record_scopes (
+  id,
+  organization_id,
+  scope_kind,
+  scope_key,
+  scope_version
+) VALUES (
+  :'p107_case_scope_id',
+  :'p107_org_id',
+  'student_case',
+  :'p107_case_id',
+  1
+);
+
+INSERT INTO platform.student_cases (
+  id,
+  organization_id,
+  student_membership_id,
+  responsible_sales_membership_id,
+  current_curator_membership_id,
+  source_key,
+  contract_confirmation_ref,
+  contract_confirmed_at,
+  student_display_name,
+  target_country,
+  target_degree,
+  program_direction,
+  intake,
+  route_approval_status,
+  operational_stage,
+  state,
+  handoff_at,
+  portal_activated_at,
+  closed_at,
+  next_action,
+  current_scope_id,
+  current_scope_version
+) VALUES (
+  :'p107_case_id',
+  :'p107_org_id',
+  :'p107_student_membership_id',
+  :'p107_sales_membership_id',
+  :'p107_curator_membership_id',
+  'synthetic:p107:case',
+  'contract:p107',
+  '2026-09-04T09:00:00Z',
+  'Migration 107 Student',
+  'United Kingdom',
+  'Bachelor',
+  'Business',
+  '2027',
+  'approved',
+  'admissions_active',
+  'active',
+  '2026-09-04T09:30:00Z',
+  '2026-09-04T09:31:00Z',
+  NULL,
+  'Verify migration 107 optimistic versions',
+  :'p107_case_scope_id',
+  1
+);
 
 INSERT INTO platform.payment_obligations (
   id,

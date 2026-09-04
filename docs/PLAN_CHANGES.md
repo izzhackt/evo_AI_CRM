@@ -16321,3 +16321,28 @@ Clarification: the complete local scan found and replaced two ad-hoc 10-pixel
 labels: the visa sequence marker and the Settings Admin badge. The singular
 wording above described the first CI finding, not the final corrected
 inventory.
+
+## 2026-09-04 - Let the declared dependency-audit retries finish
+
+Block-ID: `EVO-V3-A-AUDIT-RETRY-TIMEOUT-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+Two consecutive exact-head jobs completed the real Supabase, PostgreSQL, Auth,
+browser, frontend, lint, typecheck and production-build gates, then timed out
+while the npm registry did not answer the production dependency audit. The
+workflow declared three fail-closed audit attempts, but the three-minute step
+limit terminated the third attempt before its own network timeout. The
+development audit used the same inconsistent timing contract.
+
+Decision:
+
+- keep both production and development dependency audits mandatory and
+  fail-closed;
+- retain the existing three bounded registry attempts and retry delays;
+- raise only the two audit step limits from three to four minutes so the third
+  declared attempt can finish;
+- do not repeat local product validation for this workflow-only timing change;
+  obtain a fresh independent exact-head review and one complete exact-head CI
+  result before merge.

@@ -78,7 +78,7 @@ jobs:
       - name: Audit production dependencies
         # Lockfile-only avoids platform-specific installed-tree drift on the
         # runner: https://docs.npmjs.com/cli/v11/commands/npm-audit/#package-lock-only
-        timeout-minutes: 3
+        timeout-minutes: 4
         env:
           npm_config_fetch_retries: "0"
           npm_config_fetch_timeout: "30000"
@@ -94,7 +94,7 @@ jobs:
           done
 
       - name: Audit development dependencies against the temporary allowlist
-        timeout-minutes: 3
+        timeout-minutes: 4
         env:
           npm_config_fetch_retries: "0"
           npm_config_fetch_timeout: "30000"

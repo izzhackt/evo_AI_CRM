@@ -148,7 +148,7 @@ export default async function DocumentsPage() {
                     </a>
                   ) : null}
                   <Link
-                    href={`/clients/${row.studentCaseId}#case-documents`}
+                    href={`/v3/profile?case=${row.studentCaseId}&tab=documents`}
                     className="inline-flex min-h-10 items-center justify-center rounded-ctl border border-border bg-surface px-3 text-xs font-semibold text-fg hover:bg-surface-2"
                   >
                     {copy.open}
@@ -211,7 +211,7 @@ export default async function DocumentsPage() {
                           </a>
                         ) : null}
                         <Link
-                          href={`/clients/${row.studentCaseId}#case-documents`}
+                          href={`/v3/profile?case=${row.studentCaseId}&tab=documents`}
                           className="inline-flex min-h-10 items-center justify-center rounded-ctl border border-border bg-surface px-3 text-xs font-semibold text-fg hover:bg-surface-2"
                         >
                           {copy.open}

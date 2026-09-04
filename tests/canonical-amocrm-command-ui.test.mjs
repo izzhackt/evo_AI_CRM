@@ -20,10 +20,9 @@ test("the active Platform amoCRM command panel remains on Admissions Student 360
 
   assert.match(admissions, /CanonicalAmoCrmCommandPanel/);
   assert.match(studentWorkspace, /<PlatformAmoCrmCommandSection/);
-  assert.ok(
-    studentWorkspace.indexOf("<PlatformAdmissionsOperationsPanel") <
-      studentWorkspace.indexOf("<PlatformAmoCrmCommandSection"),
-    "Supabase Admissions operations must remain ahead of the isolated #549 amoCRM command section",
+  assert.doesNotMatch(
+    studentWorkspace,
+    /PlatformAdmissionsOperationsPanel|PlatformAdmissionsTaskPanel|PlatformPrivateDocumentsPanel/,
   );
   assert.match(
     admissions,

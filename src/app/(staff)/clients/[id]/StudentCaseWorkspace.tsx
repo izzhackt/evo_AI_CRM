@@ -2,26 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import Link from "next/link";
 
-import {
-  PlatformAdmissionsOperationsPanel,
-  type PlatformAdmissionsOperationsFeedback,
-  type PlatformAdmissionsOperationsRequestIds,
-} from "@/components/platform/admissions/PlatformAdmissionsOperationsPanel";
-import {
-  PlatformAdmissionsTaskPanel,
-  type PlatformAdmissionsTaskFeedback,
-  type PlatformAdmissionsTaskRequestIds,
-} from "@/components/platform/admissions/PlatformAdmissionsTaskPanel";
-import {
-  PlatformPrivateDocumentsPanel,
-  type PlatformDocumentReviewFeedback,
-  type PlatformDocumentRequestIds,
-} from "@/components/platform/documents/PlatformPrivateDocumentsPanel";
 import { Card, btnGhostCls, cn } from "@/components/ui";
 import { getT, type Locale } from "@/lib/i18n";
-import { listPlatformApplicationsForStudentCase } from "@/lib/platform-admissions";
-import { getPlatformAdmissionsTaskWorkspace } from "@/lib/platform-admissions-workspace";
-import { getPlatformCaseVisa } from "@/lib/platform-case-operations";
 import {
   approvePlatformContractTemplateVersionAction,
   createPlatformContractTemplateVersionAction,
@@ -38,9 +20,7 @@ import {
   type PlatformContractMutationOutcome,
   type PlatformContractRetryOperation,
 } from "@/lib/platform-contract-workflow";
-import { getPlatformCaseFinanceControl } from "@/lib/platform-finance-control";
 import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
-import { getPlatformCaseDocumentWorkspace } from "@/lib/platform-private-documents";
 import { getPlatformStudentCaseHandoffContext } from "@/lib/platform-student-handoff";
 import { getPlatformStudentProfile } from "@/lib/platform-student-profile";
 import { PlatformAmoCrmCommandSection } from "./PlatformAmoCrmCommandSection";
@@ -206,35 +186,6 @@ export type StudentCaseContractRetry = Readonly<{
   subjectId?: string;
 }>;
 
-export type StudentCaseTaskRetry = Readonly<{
-  requestId: string;
-  operation: "create" | "change";
-  subjectId?: string;
-}>;
-
-export type StudentCaseApplicationRetry = Readonly<{
-  requestId: string;
-  operation: "create" | "change";
-  subjectId?: string;
-}>;
-
-export type StudentCaseOperationRetry = Readonly<{
-  requestId: string;
-  operation: "visa" | "payment-create" | "payment-settle";
-  subjectId?: string;
-}>;
-
-export type StudentCaseFinanceStopRetry = Readonly<{
-  requestId: string;
-  operation: "stop-create" | "stop-resolve";
-  subjectId: string;
-}>;
-
-export type StudentCaseDocumentRetry = Readonly<{
-  requestId: string;
-  subjectId: string;
-}>;
-
 function formatTimestamp(value: string | null, locale: Locale, absent: string) {
   if (!value) return absent;
   return new Intl.DateTimeFormat(locale, {
@@ -284,156 +235,31 @@ export async function StudentCaseWorkspace({
   id,
   contractResult,
   contractRetry,
-  taskFeedback,
-  taskRetry,
-  operationsFeedback,
-  applicationRetry,
-  caseOperationRetry,
-  financeStopRetry,
-  documentFeedback,
-  documentRetry,
 }: Readonly<{
   id: string;
   contractResult?: PlatformContractMutationOutcome;
   contractRetry?: StudentCaseContractRetry;
-  taskFeedback?: PlatformAdmissionsTaskFeedback;
-  taskRetry?: StudentCaseTaskRetry;
-  operationsFeedback?: PlatformAdmissionsOperationsFeedback;
-  applicationRetry?: StudentCaseApplicationRetry;
-  caseOperationRetry?: StudentCaseOperationRetry;
-  financeStopRetry?: StudentCaseFinanceStopRetry;
-  documentFeedback?: PlatformDocumentReviewFeedback;
-  documentRetry?: StudentCaseDocumentRetry;
 }>) {
   const [{ locale }, actor] = await Promise.all([
     getT(),
     requirePlatformAdmissionsActor("/clients"),
   ]);
-  const [
-    handoff,
-    profile,
-    contractWorkspace,
-    taskWorkspace,
-    applicationPage,
-    visa,
-    finance,
-    documentWorkspace,
-  ] = await Promise.all([
+  const [handoff, profile, contractWorkspace] = await Promise.all([
     getPlatformStudentCaseHandoffContext(actor, id),
     getPlatformStudentProfile(actor, id),
     getPlatformCaseContractWorkspace(actor, id),
-    getPlatformAdmissionsTaskWorkspace(actor, id),
-    listPlatformApplicationsForStudentCase(actor, id, { pageSize: 100 }),
-    getPlatformCaseVisa(actor, id),
-    getPlatformCaseFinanceControl(actor, id),
-    getPlatformCaseDocumentWorkspace(actor, id),
   ]);
 
   if (!contractWorkspace) {
     throw new Error("The Supabase contract workspace is unavailable.");
   }
-  if (handoff.caseState !== documentWorkspace.caseState) {
-    throw new Error("The Supabase Admissions case state is inconsistent.");
-  }
-
   const copy = COPY[locale];
-  const admissionsCaseState = documentWorkspace.caseState;
   const requestIdFor = buildRequestIdFactory(contractRetry);
-  const taskRequestIds: PlatformAdmissionsTaskRequestIds = {
-    create:
-      taskRetry?.operation === "create" ? taskRetry.requestId : randomUUID(),
-    changes: Object.fromEntries(
-      taskWorkspace.tasks.map((task) => [
-        task.caseTaskId,
-        taskRetry?.operation === "change" &&
-        taskRetry.subjectId === task.caseTaskId
-          ? taskRetry.requestId
-          : randomUUID(),
-      ]),
-    ),
-  };
-  const operationsRequestIds: PlatformAdmissionsOperationsRequestIds = {
-    createApplication:
-      applicationRetry?.operation === "create"
-        ? applicationRetry.requestId
-        : randomUUID(),
-    applications: Object.fromEntries(
-      applicationPage.rows.map((application) => [
-        application.universityApplicationId,
-        applicationRetry?.operation === "change" &&
-        applicationRetry.subjectId === application.universityApplicationId
-          ? applicationRetry.requestId
-          : randomUUID(),
-      ]),
-    ),
-    visa:
-      caseOperationRetry?.operation === "visa" &&
-      (caseOperationRetry.subjectId ?? "") === (visa?.visaCaseId ?? "")
-        ? caseOperationRetry.requestId
-        : randomUUID(),
-    createPayment:
-      caseOperationRetry?.operation === "payment-create"
-        ? caseOperationRetry.requestId
-        : randomUUID(),
-    settlePayments: Object.fromEntries(
-      finance.obligations.map((obligation) => [
-        obligation.paymentObligationId,
-        caseOperationRetry?.operation === "payment-settle" &&
-        caseOperationRetry.subjectId === obligation.paymentObligationId
-          ? caseOperationRetry.requestId
-          : randomUUID(),
-      ]),
-    ),
-    createStops: Object.fromEntries(
-      finance.obligations.map((obligation) => [
-        obligation.paymentObligationId,
-        financeStopRetry?.operation === "stop-create" &&
-        financeStopRetry.subjectId === obligation.paymentObligationId
-          ? financeStopRetry.requestId
-          : randomUUID(),
-      ]),
-    ),
-    resolveStops: Object.fromEntries(
-      finance.obligations.flatMap((obligation) =>
-        obligation.activeStopFactors.map((stop) => [
-          stop.stopFactorId,
-          financeStopRetry?.operation === "stop-resolve" &&
-          financeStopRetry.subjectId === stop.stopFactorId
-            ? financeStopRetry.requestId
-            : randomUUID(),
-        ]),
-      ),
-    ),
-  };
-  const documentRequestIds: PlatformDocumentRequestIds = {
-    uploadBySlot: Object.fromEntries(
-      documentWorkspace.slots.map((slot) => [
-        slot.documentSlotId,
-        randomUUID(),
-      ]),
-    ),
-    reviewByVersion: Object.fromEntries(
-      documentWorkspace.slots.flatMap((slot) =>
-        slot.versions.map((version) => [
-          version.documentVersionId,
-          documentRetry?.subjectId === version.documentVersionId
-            ? documentRetry.requestId
-            : randomUUID(),
-        ]),
-      ),
-    ),
-  };
   const navigation = [
     ["case-summary", copy.summary],
     ["case-profile", copy.profile],
     ["case-handoff", copy.handoff],
     ["contract-workflow", copy.contract],
-    ["case-tasks", copy.tasks],
-    ["case-documents", copy.documents],
-    ["applications", copy.applications],
-    ["visa", copy.visa],
-    ["finance", copy.finance],
-    ["case-operations", copy.operations],
     ["case-amocrm", copy.amocrm],
   ] as const;
 
@@ -595,42 +421,6 @@ export async function StudentCaseWorkspace({
         requestIdFor={requestIdFor}
         result={contractResult}
         retrySubjectId={contractRetry?.subjectId}
-      />
-
-      <section id="case-tasks" className="scroll-mt-24">
-        <PlatformAdmissionsTaskPanel
-          locale={locale}
-          tasks={taskWorkspace.tasks}
-          assignees={taskWorkspace.assignees}
-          actorMembershipId={actor.membershipId}
-          authorityRole={actor.authorityRole}
-          presentationRole={actor.presentationRole}
-          requestIds={taskRequestIds}
-          createForCase={{ studentCaseId: id }}
-          caseState={admissionsCaseState}
-          feedback={taskFeedback}
-        />
-      </section>
-
-      <PlatformPrivateDocumentsPanel
-        locale={locale}
-        presentationRole={actor.presentationRole}
-        workspace={documentWorkspace}
-        requestIds={documentRequestIds}
-        reviewFeedback={documentFeedback}
-      />
-
-      <PlatformAdmissionsOperationsPanel
-        locale={locale}
-        studentCaseId={id}
-        studentCaseState={admissionsCaseState}
-        authorityRole={actor.authorityRole}
-        presentationRole={actor.presentationRole}
-        applications={applicationPage.rows}
-        visa={visa}
-        finance={finance}
-        requestIds={operationsRequestIds}
-        feedback={operationsFeedback}
       />
 
       <PlatformAmoCrmCommandSection

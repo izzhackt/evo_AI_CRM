@@ -517,8 +517,8 @@ test("Sales reads the exact Supabase RLS queue and detail while Admissions is de
   await signIn(page, "admissions");
   await expectActiveRole(page, "admissions");
   await page.goto(`/v3/profile?id=${leadId}`);
-  await expect(page).toHaveURL(/\/access-denied\?from=%2Fv3%2Fprofile(?:%3Fid%3D.*)?$/);
-  await expect(page.getByTestId("v3-pipeline-decision")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales$/);
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
 });
 
 test("Sales inbox renders the exact verified conversation with canonical amoCRM placement", async ({

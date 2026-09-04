@@ -429,25 +429,6 @@ BEGIN
     RETURN replayed;
   END IF;
 
-  SELECT * INTO actor
-  FROM platform_private.require_case_operator(
-    p_organization_id,
-    p_student_case_id,
-    'document.manage'
-  );
-
-  replayed := platform_private.replay_audit(
-    p_request_id,
-    'document.slot.custom.create',
-    'document_slot',
-    NULL,
-    fixed_reason,
-    replay_shape
-  );
-  IF replayed IS NOT NULL THEN
-    RETURN replayed;
-  END IF;
-
   INSERT INTO platform.document_slots (
     id,
     organization_id,

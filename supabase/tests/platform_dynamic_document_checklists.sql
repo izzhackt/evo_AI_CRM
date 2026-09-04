@@ -712,6 +712,12 @@ SELECT pg_temp.p108_capture_error(format(
   '59910000-0000-4000-8000-000000000702'
 ))::TEXT AS p108_sales_denied
 \gset
+SELECT pg_temp.p108_capture_error(format(
+  'SELECT platform.create_custom_document_slot(%L::uuid,%L::uuid,%L,%L,%L::uuid)',
+  :'p108_org_a', :'p108_case_a', 'Parent consent letter',
+  'Personal documents', '59910000-0000-4000-8000-000000000701'
+))::TEXT AS p108_sales_replay_denied
+\gset
 RESET ROLE;
 RESET request.jwt.claims;
 
@@ -722,6 +728,12 @@ SELECT pg_temp.p108_capture_error(format(
   '59910000-0000-4000-8000-000000000703'
 ))::TEXT AS p108_anon_denied
 \gset
+SELECT pg_temp.p108_capture_error(format(
+  'SELECT platform.create_custom_document_slot(%L::uuid,%L::uuid,%L,%L,%L::uuid)',
+  :'p108_org_a', :'p108_case_a', 'Parent consent letter',
+  'Personal documents', '59910000-0000-4000-8000-000000000701'
+))::TEXT AS p108_anon_replay_denied
+\gset
 RESET ROLE;
 
 SET request.jwt.claims TO :'p108_admin_b_claims';
@@ -731,6 +743,12 @@ SELECT pg_temp.p108_capture_error(format(
   :'p108_org_a', :'p108_case_a', 'Cross-org slot', 'Cross-org group',
   '59910000-0000-4000-8000-000000000704'
 ))::TEXT AS p108_cross_org_denied
+\gset
+SELECT pg_temp.p108_capture_error(format(
+  'SELECT platform.create_custom_document_slot(%L::uuid,%L::uuid,%L,%L,%L::uuid)',
+  :'p108_org_a', :'p108_case_a', 'Parent consent letter',
+  'Personal documents', '59910000-0000-4000-8000-000000000701'
+))::TEXT AS p108_cross_org_replay_denied
 \gset
 RESET ROLE;
 RESET request.jwt.claims;
@@ -767,11 +785,14 @@ RESET request.jwt.claims;
 
 SELECT pg_temp.p108_assert(
   :'p108_sales_denied'::JSONB ->> 'sqlstate' = '42501'
+    AND :'p108_sales_replay_denied'::JSONB ->> 'sqlstate' = '42501'
     AND :'p108_anon_denied'::JSONB ->> 'sqlstate' = '42501'
+    AND :'p108_anon_replay_denied'::JSONB ->> 'sqlstate' = '42501'
     AND :'p108_cross_org_denied'::JSONB ->> 'sqlstate' = '42501'
+    AND :'p108_cross_org_replay_denied'::JSONB ->> 'sqlstate' = '42501'
     AND :'p108_cross_case_denied'::JSONB ->> 'sqlstate' = '42501'
     AND :'p108_closed_case_denied'::JSONB ->> 'sqlstate' = '42501',
-  'sales/anon/cross-org/cross-case/closed-case denial failed'
+  'sales/anon/cross-org/replay/cross-case/closed-case denial failed'
 );
 
 SET request.jwt.claims TO :'p108_admin_a_claims';

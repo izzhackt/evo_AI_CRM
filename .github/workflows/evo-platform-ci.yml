@@ -34,8 +34,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: git diff --check "origin/main..$HEAD_SHA"
 
-  crm:
-    name: Main CRM
+  crm_product:
+    name: Main CRM product
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -75,6 +75,20 @@ jobs:
       - name: Build
         run: npm run build
 
+  dependency_audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
       - name: Audit production dependencies
         # Lockfile-only avoids platform-specific installed-tree drift on the
         # runner: https://docs.npmjs.com/cli/v11/commands/npm-audit/#package-lock-only
@@ -84,7 +98,7 @@ jobs:
           npm_config_fetch_timeout: "30000"
         run: |
           for attempt in 1 2 3; do
-            if npm audit --package-lock-only --omit=dev --audit-level=moderate; then
+            if npm exec --yes --package=npm@11.19.0 -- npm audit --package-lock-only --omit=dev --audit-level=moderate; then
               exit 0
             fi
             if [ "$attempt" -eq 3 ]; then
@@ -100,7 +114,7 @@ jobs:
           npm_config_fetch_timeout: "30000"
         run: |
           for attempt in 1 2 3; do
-            if node scripts/check-npm-audit-allowlist.mjs; then
+            if npm exec --yes --package=npm@11.19.0 -- node scripts/check-npm-audit-allowlist.mjs; then
               exit 0
             fi
             if [ "$attempt" -eq 3 ]; then
@@ -108,3 +122,19 @@ jobs:
             fi
             sleep $((attempt * 5))
           done
+
+  crm:
+    name: Main CRM
+    if: ${{ always() }}
+    needs:
+      - crm_product
+      - dependency_audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require product and dependency gates
+        env:
+          PRODUCT_RESULT: ${{ needs.crm_product.result }}
+          AUDIT_RESULT: ${{ needs.dependency_audit.result }}
+        run: |
+          test "$PRODUCT_RESULT" = "success"
+          test "$AUDIT_RESULT" = "success"

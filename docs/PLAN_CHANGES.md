@@ -16346,3 +16346,52 @@ Decision:
 - do not repeat local product validation for this workflow-only timing change;
   obtain a fresh independent exact-head review and one complete exact-head CI
   result before merge.
+
+## 2026-09-04 - Isolate the fail-closed dependency audit from product validation
+
+Block-ID: `EVO-V3-A-AUDIT-JOB-ISOLATION-2026-09-04`
+
+Change type: exact-head CI reliability and protected-check correction.
+Affected plan section: Order 0 / Issue #594.
+
+Exact-head run `33833776817` proved the Supabase, PostgreSQL, Auth, browser,
+frontend, lint, typecheck and production-build gates before the combined
+`Main CRM` job failed at the external npm security-audit service. The audit log
+showed a Bulk Advisory network timeout followed by the retired Quick endpoint
+returning `400 Invalid package tree`; repeating that combined job therefore
+repeated the expensive product proof without producing new product evidence.
+
+The official [`npm audit` documentation](https://docs.npmjs.com/cli/v11/commands/npm-audit/)
+confirms that the audit submits the dependency tree to the configured registry
+and that `--package-lock-only` can use the lockfile rather than the installed
+tree. npm 11 [removed fallback to the old audit endpoint](https://github.com/npm/cli/pull/7911),
+while the npm registry incident report documents that the retired Quick
+endpoint is not a valid downgrade fallback and that registry failures must
+remain visible ([npm/cli#9804](https://github.com/npm/cli/issues/9804)).
+[`npm exec`](https://docs.npmjs.com/cli/v11/commands/npm-exec/) permits the
+audit-only job to run an exact npm CLI version without changing the product
+dependency tree.
+
+Decision:
+
+- keep the real product suite in one `Main CRM product` job and move both
+  production and development dependency audits into a parallel, short
+  `Dependency audit` job;
+- run both audits through exactly `npm@11.19.0`, which is compatible with the
+  repository's Node 22 contract and fails closed on Bulk Advisory errors instead
+  of calling the retired Quick endpoint;
+- keep the existing bounded attempts, timeouts and temporary development
+  allowlist; a persistent registry failure or an unapproved advisory still
+  fails the workflow;
+- preserve the protected check name `Main CRM` as a final always-run aggregate
+  that succeeds only when both `Main CRM product` and `Dependency audit`
+  succeeded. `Changed range` remains independent and required;
+- on a transient registry-only failure, rerun only failed jobs. The successful
+  Supabase/browser product job must not be repeated merely to retry the external
+  advisory service.
+
+Validation impact: extend the release-control contract tests to assert the two
+source jobs and protected aggregate, parse the workflow as YAML, run the focused
+release-control tests and `git diff --check`, then obtain a fresh independent
+exact-head review and one exact-head CI result. This changes CI orchestration
+only; it does not weaken or replace any product or security gate.

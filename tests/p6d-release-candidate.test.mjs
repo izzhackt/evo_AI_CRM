@@ -60,7 +60,11 @@ test("the active package exposes one P6D proof and no P8 release entrypoint", as
 test("CI and the exact-SHA gate require only the current root successor", async () => {
   const workflow = await read(".github/workflows/evo-platform-ci.yml");
   const gate = await read("scripts/fast-release-ci-gate.mjs");
-  assert.match(workflow, /name: Main CRM/u);
+  assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
+  assert.match(workflow, /^  crm_product:\n    name: Main CRM product$/mu);
+  assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
+  assert.match(workflow, /needs:\n      - crm_product\n      - dependency_audit/u);
+  assert.match(workflow, /if: \$\{\{ always\(\) \}\}/u);
   assert.doesNotMatch(workflow, /name: EVO Inbox|name: EVO Lead Agent|working-directory: (?:agent-lead2-inbox|evo-lead-agent)|Prepare P8/u);
   assert.match(gate, /"Main CRM"/u);
   assert.doesNotMatch(gate, /"EVO Inbox"|"EVO Lead Agent"/u);

@@ -445,6 +445,11 @@ test("workflow binds one protected approval to exact main and runner-built artif
 test("active platform CI executes only the root successor product", () => {
   const workflow = readFileSync(".github/workflows/evo-platform-ci.yml", "utf8");
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
+  assert.match(workflow, /^  crm_product:\n    name: Main CRM product$/mu);
+  assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
+  assert.match(workflow, /needs:\n      - crm_product\n      - dependency_audit/u);
+  assert.match(workflow, /PRODUCT_RESULT: \$\{\{ needs\.crm_product\.result \}\}/u);
+  assert.match(workflow, /AUDIT_RESULT: \$\{\{ needs\.dependency_audit\.result \}\}/u);
   assert.doesNotMatch(workflow, /^  (?:inbox|lead-agent):/mu);
   assert.doesNotMatch(workflow, /EVO Inbox|EVO Lead Agent/u);
   assert.doesNotMatch(workflow, /Prepare P8|refs\/pull\/179|6ee93bd/u);

@@ -667,29 +667,37 @@ SELECT pg_temp.p108_assert(
       AND notification.requirement_label = 'Parent consent letter'
       AND notification.reason =
         'Please upload a signed parent consent letter.'
-  )
-    AND EXISTS (
-      SELECT 1
-      FROM platform.student_portal_notifications_v2() AS notification
-      WHERE notification.event_code = 'correction_required'
-        AND notification.subject_label = 'Parent consent letter'
-        AND notification.detail =
-          'Please upload a signed parent consent letter.'
-    )
-    AND EXISTS (
-      SELECT 1
-      FROM platform.student_portal_documents() AS document
-      WHERE document.document_slot_id = :'p108_custom_slot_a'
-        AND document.requirement_key IS NULL
-        AND document.requirement_label = 'Parent consent letter'
-        AND document.instructions IS NULL
-        AND document.document_version_id = :'p108_historical_version_two'
-        AND document.version_no = 2
-        AND document.review_decision = 'correction_required'
-        AND document.rework_reason =
-          'Please upload a signed parent consent letter.'
-    ),
-  'Student Portal v1/v2 notification or document projection omitted custom intent'
+  ),
+  'Student Portal v1 notification projection omitted custom intent'
+);
+
+SELECT pg_temp.p108_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform.student_portal_notifications_v2() AS notification
+    WHERE notification.event_code = 'correction_required'
+      AND notification.subject_label = 'Parent consent letter'
+      AND notification.detail =
+        'Please upload a signed parent consent letter.'
+  ),
+  'Student Portal v2 notification projection omitted custom intent'
+);
+
+SELECT pg_temp.p108_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform.student_portal_documents() AS document
+    WHERE document.document_slot_id = :'p108_custom_slot_a'
+      AND document.requirement_key IS NULL
+      AND document.requirement_label = 'Parent consent letter'
+      AND document.instructions IS NULL
+      AND document.document_version_id = :'p108_historical_version_two'
+      AND document.version_no = 2
+      AND document.review_decision = 'correction_required'
+      AND document.rework_reason =
+        'Please upload a signed parent consent letter.'
+  ),
+  'Student Portal document projection omitted custom intent'
 );
 
 RESET ROLE;
@@ -1006,7 +1014,7 @@ SELECT pg_temp.p108_assert(
         AND slot.removed_by_membership_id = :'p108_admin_a_membership'
         AND slot.removal_reason
           = 'The case no longer requires parental consent'
-        AND slot.version = 5
+        AND slot.version = 6
       FROM platform.document_slots AS slot
       WHERE slot.id = :'p108_custom_slot_a'
     ),

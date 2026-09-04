@@ -372,7 +372,7 @@ export function normalizePlatformStudentCaseDocument(
     documentSlotId: requiredUuid(value.document_slot_id),
     documentRequirementId,
     requirementKey,
-    requirementLabel: requiredText(value.requirement_label, 300),
+    requirementLabel: requiredText(value.requirement_label, 500),
     instructions: optionalText(value.instructions, 4000),
     checklistVersion,
     slotStatus: oneOf(value.slot_status, [

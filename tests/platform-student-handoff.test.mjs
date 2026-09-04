@@ -508,11 +508,15 @@ test("server actions enforce exact fields, staff guard and success-only revalida
   );
   assert.match(
     source,
-    /const receipt = await mutatePlatformLeadAdmissionsGate\(actor, input\);[\s\S]*revalidatePath\("\/sales"\);[\s\S]*revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,
+    /const receipt = await mutatePlatformLeadAdmissionsGate\(actor, input\);[\s\S]*revalidatePath\("\/sales"\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,
   );
   assert.match(
     source,
-    /const receipt = await handoffPlatformLeadToAdmissions\(actor, input\);[\s\S]*revalidatePath\("\/sales"\);[\s\S]*revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\);[\s\S]*revalidatePath\("\/clients"\);[\s\S]*revalidatePath\(`\/clients\/\$\{receipt\.caseId\}`\)/,
+    /const receipt = await handoffPlatformLeadToAdmissions\(actor, input\);[\s\S]*revalidatePath\("\/sales"\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\);[\s\S]*revalidatePath\("\/clients"\);[\s\S]*if \(receipt\.caseId\) revalidatePath\(`\/clients\/\$\{receipt\.caseId\}`\)/,
+  );
+  assert.doesNotMatch(
+    source,
+    /revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\)/,
   );
   assert.doesNotMatch(source, /revalidatePath\("\/v3\/profile"\)/);
   assert.match(

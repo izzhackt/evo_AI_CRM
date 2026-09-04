@@ -337,7 +337,7 @@ export function validateBrowserEvidence(value, expectedSha) {
   }
 
   for (const [key, route, scope] of [
-    ["adminSales", "/sales/:leadId", "sales"],
+    ["adminSales", "/v3/inbox?conversation=:conversationId", "sales"],
     ["adminAdmissions", "/clients/:studentCaseId", "admissions"],
   ]) {
     const page = value.routes[key];

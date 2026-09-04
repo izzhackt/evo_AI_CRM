@@ -97,7 +97,7 @@ function validBrowserEvidence() {
         statuses: { sendDisabled: "true" },
       },
       adminSales: {
-        route: "/sales/:leadId",
+        route: "/v3/inbox?conversation=:conversationId",
         authorityRole: "admin",
         checks: {
           workspaceVisible: true,

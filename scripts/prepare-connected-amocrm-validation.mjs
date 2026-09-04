@@ -497,8 +497,12 @@ async function seedValidationLead(parsed) {
   const seedCorrelationId = randomUUID();
   const clientId = randomUUID();
   const leadId = randomUUID();
+  const conversationId = randomUUID();
+  const conversationScopeId = randomUUID();
+  const conversationWebhookEventId = randomUUID();
+  const conversationWebhookRequestId = randomUUID();
   const timestamp = new Date().toISOString().replace(/[:.]/gu, "-");
-  const displayName = `EVO V2 Provider Validation ${timestamp}`;
+  const displayName = `EVO V3 Provider Validation ${timestamp}`;
   const sourceRef = `connected-amocrm-acceptance:${seedCorrelationId}`;
   const adminEmail = exactText(
     process.env.EVO_STAFF_AUTH_ADMIN_EMAIL,
@@ -587,6 +591,117 @@ async function seedValidationLead(parsed) {
           'provider_validation',
           'open',
           1,
+          ${observedAt},
+          ${observedAt}
+        )
+      `;
+      await transaction`
+        INSERT INTO platform_private.provider_webhook_events (
+          id,
+          organization_id,
+          provider,
+          provider_account_ref,
+          provider_request_id,
+          waha_session_name,
+          payload_id,
+          event_type,
+          provider_occurred_at,
+          verification_status,
+          raw_payload,
+          verification_headers,
+          verification_evidence_ref,
+          payload_sha256,
+          request_id,
+          received_at
+        ) VALUES (
+          ${conversationWebhookEventId},
+          ${organizationId},
+          'waha',
+          ${`waha:${ACTIVE_WAHA_SESSION}`},
+          ${`connected-amocrm-conversation:${seedCorrelationId}`},
+          ${ACTIVE_WAHA_SESSION},
+          ${`connected-amocrm-conversation:${seedCorrelationId}`},
+          'message',
+          ${observedAt},
+          'verified',
+          jsonb_build_object(
+            'event', 'message',
+            'session', ${ACTIVE_WAHA_SESSION}::TEXT,
+            'payload', jsonb_build_object(
+              'id', ${`connected-amocrm-conversation:${seedCorrelationId}`}::TEXT,
+              'fromMe', FALSE,
+              'body', 'Connected amoCRM local V3 Inbox validation context'
+            )
+          ),
+          '{"hmac_verified":true}'::JSONB,
+          ${sourceRef},
+          ${sha256(`${sourceRef}:conversation`)},
+          ${conversationWebhookRequestId},
+          ${observedAt}
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.record_scopes (
+          id,
+          organization_id,
+          scope_kind,
+          scope_key,
+          scope_version,
+          is_active
+        ) VALUES (
+          ${conversationScopeId},
+          ${organizationId},
+          'conversation',
+          ${conversationId},
+          1,
+          TRUE
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.communication_conversations (
+          id,
+          organization_id,
+          student_case_id,
+          responsible_sales_membership_id,
+          sales_authority_source,
+          current_curator_membership_id,
+          queue,
+          status,
+          subject,
+          waha_session_name,
+          kommo_account_id,
+          kommo_conversation_id,
+          amocrm_account_id,
+          amocrm_lead_id,
+          amocrm_contact_id,
+          current_scope_id,
+          current_scope_version,
+          created_from_webhook_event_id,
+          canonical_client_id,
+          canonical_lead_id,
+          created_at,
+          updated_at
+        ) VALUES (
+          ${conversationId},
+          ${organizationId},
+          NULL,
+          ${membershipId},
+          'platform_intake',
+          NULL,
+          'sales',
+          'open',
+          ${displayName},
+          ${ACTIVE_WAHA_SESSION},
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          NULL,
+          ${conversationScopeId},
+          1,
+          ${conversationWebhookEventId},
+          ${clientId},
+          ${leadId},
           ${observedAt},
           ${observedAt}
         )
@@ -684,6 +799,15 @@ async function seedValidationLead(parsed) {
               AND lead.id = ${leadId}
               AND lead.client_id = ${clientId}) AS lead_count,
           (SELECT pg_catalog.count(*)::integer
+            FROM platform.communication_conversations AS conversation
+            WHERE conversation.organization_id = ${organizationId}
+              AND conversation.id = ${conversationId}
+              AND conversation.canonical_client_id = ${clientId}
+              AND conversation.canonical_lead_id = ${leadId}
+              AND conversation.queue = 'sales'
+              AND conversation.sales_authority_source = 'platform_intake')
+            AS conversation_count,
+          (SELECT pg_catalog.count(*)::integer
             FROM platform.subject_provenance AS provenance
             WHERE provenance.organization_id = ${organizationId}
               AND provenance.source_ref = ${sourceRef}) AS provenance_count
@@ -692,11 +816,12 @@ async function seedValidationLead(parsed) {
         proofRows.length !== 1 ||
         proofRows[0].client_count !== 1 ||
         proofRows[0].lead_count !== 1 ||
+        proofRows[0].conversation_count !== 1 ||
         proofRows[0].provenance_count !== 2
       ) {
         fail("validation_lead_count_invalid");
       }
-      return Object.freeze({ organizationId });
+      return Object.freeze({ organizationId, conversationId });
     });
     await createPrivateJson(requiredOption(parsed, "context-file"), {
       schemaVersion: 1,
@@ -704,12 +829,14 @@ async function seedValidationLead(parsed) {
       organizationId: seeded.organizationId,
       clientId,
       leadId,
+      conversationId: seeded.conversationId,
       displayName,
       selfPhoneSha256: sha256(phoneE164),
       selfIdentitySha256,
       seedCorrelationId,
       seedSourceRef: sourceRef,
       seedLeadCount: 1,
+      seedConversationCount: 1,
       seedProvenanceCount: 2,
       routing: null,
       discovery: null,

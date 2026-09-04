@@ -611,7 +611,8 @@ async function captureAdminAmoCrmPage(
   workspaceTestId: string,
 ): Promise<PageProof> {
   await page.goto(route);
-  await expect(page).toHaveURL(new RegExp(`${route.replaceAll("/", "\\/")}$`, "u"));
+  const escapedRoute = route.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  await expect(page).toHaveURL(new RegExp(`${escapedRoute}$`, "u"));
   await expect(page.getByTestId(workspaceTestId)).toBeVisible();
   const panel = page.getByTestId("canonical-amocrm-command-panel");
   await expect(panel).toBeVisible();
@@ -633,7 +634,10 @@ async function captureAdminAmoCrmPage(
   );
 
   return Object.freeze({
-    route: scope === "sales" ? "/sales/:leadId" : "/clients/:studentCaseId",
+    route:
+      scope === "sales"
+        ? "/v3/inbox?conversation=:conversationId"
+        : "/clients/:studentCaseId",
     authorityRole,
     checks: Object.freeze({
       workspaceVisible: true,
@@ -686,9 +690,9 @@ test("read-only browser inventory preserves exact provider and event counts", as
   await signInAs(page, "admin");
   const salesAmoCrmPage = await captureAdminAmoCrmPage(
     page,
-    `/sales/${salesLeadId}`,
+    `/v3/inbox?conversation=${conversationId}`,
     "sales",
-    "canonical-sales-lead-workspace",
+    "v3-inbox",
   );
   const admissionsAmoCrmPage = await captureAdminAmoCrmPage(
     page,

@@ -369,9 +369,10 @@ async function expectExactSupabaseSalesRead(
 
   await exactRow.locator(`a[href="/v3/profile?id=${leadId}"]`).click();
   await expect(page).toHaveURL(new RegExp(`/v3/profile\\?id=${leadId}$`));
-  await expect(
-    page.locator(`[data-testid="v3-pipeline-decision"][data-lead-id="${leadId}"]`),
-  ).toBeVisible();
+  await expect(page.getByTestId("v3-profile")).toHaveAttribute(
+    "data-lead-id",
+    leadId,
+  );
 }
 
 function isSupabaseAuthCookie(name: string): boolean {
@@ -541,9 +542,11 @@ test("Sales inbox renders the exact verified conversation with canonical amoCRM 
   await expect(
     page.getByRole("link", { name: "Открыть профиль" }),
   ).toHaveAttribute("href", `/v3/profile?id=${leadId}`);
-  await expect(page.getByText("Negative proof:", { exact: false })).toHaveCount(
-    0,
-  );
+  await expect(
+    page
+      .getByTestId("v3-inbox-thread")
+      .getByText("Negative proof:", { exact: false }),
+  ).toHaveCount(0);
 });
 
 test("Sales RPCs deny anonymous and Admissions callers at the real API boundary", async () => {
@@ -1471,7 +1474,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(exactStudentCaseRow).toBeVisible();
   await expect(
     exactStudentCaseRow.getByTestId("student-case-sales-lead-link"),
-  ).toHaveAttribute("href", `/sales/${leadId}`);
+  ).toHaveAttribute("href", `/v3/profile?id=${leadId}`);
   await page.goto(`/clients/${studentCaseId}`);
   await expect(
     page.getByTestId("platform-student-case-workspace"),

@@ -331,7 +331,7 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
       .fill("Bounded exact-head provider acceptance");
     await editButton.click();
     await expect(
-      controls.getByText(reviewedText, { exact: true }),
+      controls.getByText("Решение сотрудника сохранено.", { exact: true }),
     ).toBeVisible();
 
     await controls.locator('textarea[name="message_text"]').fill(reviewedText);
@@ -345,9 +345,12 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
       createdAt: new Date().toISOString(),
     });
     await controls.getByTestId("v3-inbox-send").click();
-    await expect(controls.getByTestId("v3-inbox-latest-attempt")).toContainText(
-      "Принято WhatsApp",
-    );
+    await expect(
+      controls.getByText(
+        "WhatsApp принял одно сообщение; результат сохранён.",
+        { exact: true },
+      ),
+    ).toBeVisible();
 
     const proofRows = await sql<
       {

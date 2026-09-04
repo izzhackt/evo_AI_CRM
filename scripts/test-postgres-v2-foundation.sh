@@ -1002,6 +1002,7 @@ canonical_amocrm_command_browser_assert() {
     EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
     EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
     EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
+    EVO_PLATFORM_COMMUNICATIONS_CONVERSATION_ID="$supabase_sales_conversation_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$student_case_id" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       tests/e2e/canonical-amocrm-command.spec.ts \

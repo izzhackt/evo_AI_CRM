@@ -66,7 +66,11 @@ export function Profile({
   });
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className="flex flex-col gap-4"
+      data-lead-id={profile.leadId}
+      data-testid="v3-profile"
+    >
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="min-w-0 text-xl font-semibold tracking-[-0.02em] text-fg">
           {profile.person}

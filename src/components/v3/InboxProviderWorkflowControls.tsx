@@ -220,6 +220,7 @@ export function InboxProviderWorkflowControls({
       sendState.status === "succeeded" ||
       sendState.status === "unknown_result" ||
       sendState.status === "terminal_error" ||
+      sendState.status === "not_claimed" ||
       reconcileState.status === "reconciled" ||
       reconcileState.status === "already_completed"
     ) {

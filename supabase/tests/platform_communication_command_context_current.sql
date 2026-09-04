@@ -300,11 +300,27 @@ ROLLBACK TO SAVEPOINT expect_p6c_anon_denied;
 RELEASE SAVEPOINT expect_p6c_anon_denied;
 RESET ROLE;
 
+SET request.jwt.claims = '{"role":"service_role"}';
+SET ROLE service_role;
+SAVEPOINT expect_p6c_service_denied;
+\set ON_ERROR_STOP off
+SELECT count(*)
+FROM platform.staff_communication_command_context(
+  :'p6c_org_a',
+  :'p6c_conversation'
+);
+\set p6c_service_state :SQLSTATE
+ROLLBACK TO SAVEPOINT expect_p6c_service_denied;
+\set ON_ERROR_STOP on
+RELEASE SAVEPOINT expect_p6c_service_denied;
+RESET ROLE;
+
 SELECT pg_temp.p6c_assert(
   :'p6c_foreign_org_state' = '42501'
     AND :'p6c_missing_actor_state' = '42501'
-    AND :'p6c_anon_state' = '42501',
-  'foreign-organization, missing-actor, or anonymous command-context access did not fail closed'
+    AND :'p6c_anon_state' = '42501'
+    AND :'p6c_service_state' = '42501',
+  'foreign-organization, missing-actor, anonymous, or service command-context access did not fail closed'
 );
 
 RESET request.jwt.claims;

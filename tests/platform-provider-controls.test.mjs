@@ -77,6 +77,10 @@ test("unknown delivery exposes readback reconciliation without a resend path", (
     controls,
     /Проверить результат без новой отправки/,
   );
+  assert.match(
+    controls,
+    /useEffect\(\(\) => \{[\s\S]*sendState\.status === "not_claimed"[\s\S]*router\.refresh\(\)/u,
+  );
 });
 
 test("V3 page reads provider state through the authenticated canonical source", () => {

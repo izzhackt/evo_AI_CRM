@@ -1082,6 +1082,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await page.goto("/v3/calendar?view=day&date=2099-09-12");
+  await page
+    .locator("details")
+    .filter({ hasText: "Создать задачу" })
+    .locator("summary")
+    .click();
   const createTask = page.getByTestId("v3-calendar-task-create-form");
   await createTask
     .locator('select[name="student_case_id"]')

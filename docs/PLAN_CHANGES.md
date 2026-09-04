@@ -16395,3 +16395,32 @@ source jobs and protected aggregate, parse the workflow as YAML, run the focused
 release-control tests and `git diff --check`, then obtain a fresh independent
 exact-head review and one exact-head CI result. This changes CI orchestration
 only; it does not weaken or replace any product or security gate.
+
+## 2026-09-04 - Remove redundant npm package fetch from the dev allowlist audit
+
+Block-ID: `EVO-V3-A-AUDIT-ALLOWLIST-DIRECT-NODE-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+The split `Dependency audit` job on exact head `4ced2461aef24e8839fad1f18c281e2bbef8f8e1`
+proved that the production lockfile audit could complete through
+`npm exec --package=npm@11.19.0`, while the development allowlist step failed
+even though the same repository passed locally with
+`npm exec --package=npm@11.19.0 -- node scripts/check-npm-audit-allowlist.mjs`
+and the checker itself reported zero vulnerabilities. The remaining difference
+was the workflow's second package fetch wrapper around a plain Node script:
+that wrapper adds an extra registry-dependent failure mode without changing the
+script's audit semantics, because `scripts/check-npm-audit-allowlist.mjs`
+already executes `npm audit --include=dev --json` itself.
+
+Decision:
+
+- keep the production dependency audit pinned to `npm@11.19.0`;
+- run the development allowlist step directly with `node
+  scripts/check-npm-audit-allowlist.mjs` so the audit job no longer depends on
+  a second on-demand npm package bootstrap;
+- preserve the existing three bounded retries, four-minute limit and fail-closed
+  behavior for both dependency gates;
+- re-run the focused release-control tests, then obtain one fresh exact-head CI
+  result before merge.

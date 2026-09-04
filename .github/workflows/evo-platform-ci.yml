@@ -114,7 +114,7 @@ jobs:
           npm_config_fetch_timeout: "30000"
         run: |
           for attempt in 1 2 3; do
-            if npm exec --yes --package=npm@11.19.0 -- node scripts/check-npm-audit-allowlist.mjs; then
+            if node scripts/check-npm-audit-allowlist.mjs; then
               exit 0
             fi
             if [ "$attempt" -eq 3 ]; then

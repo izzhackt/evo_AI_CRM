@@ -458,6 +458,10 @@ test("active platform CI executes only the root successor product", () => {
   );
   assert.match(
     workflow,
+    /name: Audit development dependencies against the temporary allowlist[\s\S]*if node scripts\/check-npm-audit-allowlist\.mjs; then/u,
+  );
+  assert.doesNotMatch(
+    workflow,
     /npm exec --yes --package=npm@11\.19\.0 -- node scripts\/check-npm-audit-allowlist\.mjs/u,
   );
   assert.doesNotMatch(workflow, /^  (?:inbox|lead-agent):/mu);

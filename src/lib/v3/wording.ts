@@ -216,5 +216,6 @@ export function personState(input: {
  */
 export const FUNNEL_STEP = {
   leads: "Лиды",
+  qualified: "Квалифицированы",
   handed: "Переданы",
 } as const;

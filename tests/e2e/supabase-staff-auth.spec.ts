@@ -28,6 +28,28 @@ const PROFILES = [
 
 type TestRole = (typeof PROFILES)[number]["role"];
 
+const ORGANIZATION_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Bishkek",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function organizationDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Supabase RPC returned an invalid timestamp");
+  }
+  const parts = ORGANIZATION_DATE.formatToParts(parsed);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  if (!year || !month || !day) {
+    throw new Error("Unable to resolve the EVO organization date");
+  }
+  return `${year}-${month}-${day}`;
+}
+
 function requireUuid(name: string): string {
   const value = process.env[name];
   if (
@@ -123,6 +145,7 @@ async function directPlatformRpc(
   functionName:
     | "staff_sales_lead_page"
     | "staff_sales_lead_detail"
+    | "staff_sales_stage_entry_cohort"
     | "staff_sales_owner_options"
     | "mutate_sales_lead_workflow"
     | "staff_lead_admissions_gate"
@@ -612,6 +635,11 @@ test("Sales RPCs deny anonymous and Admissions callers at the real API boundary"
     p_query: leadId,
   };
   const detailBody = { p_lead_id: leadId };
+  const stageEntryBody = {
+    p_from_date: "2026-01-01",
+    p_to_date: "2026-12-31",
+    p_limit: 101,
+  };
 
   const salesPage = await directPlatformRpc(
     "staff_sales_lead_page",
@@ -623,8 +651,15 @@ test("Sales RPCs deny anonymous and Admissions callers at the real API boundary"
     detailBody,
     salesToken,
   );
+  const salesStageEntries = await directPlatformRpc(
+    "staff_sales_stage_entry_cohort",
+    stageEntryBody,
+    salesToken,
+  );
   expect(salesPage.status).toBe(200);
   expect(salesDetail.status).toBe(200);
+  expect(salesStageEntries.status).toBe(200);
+  expect(Array.isArray(salesStageEntries.payload)).toBe(true);
   expect(
     Array.isArray(salesPage.payload) &&
       salesPage.payload.length === 1 &&
@@ -647,10 +682,19 @@ test("Sales RPCs deny anonymous and Admissions callers at the real API boundary"
         accessToken,
       ),
     );
+    assertDeniedRpc(
+      await directPlatformRpc(
+        "staff_sales_stage_entry_cohort",
+        stageEntryBody,
+        accessToken,
+      ),
+    );
   }
 });
 
-test("Sales and Admin mutate one canonical workflow while anonymous and Admissions stay denied", async () => {
+test("Sales and Admin mutate one canonical workflow while anonymous and Admissions stay denied", async ({
+  page,
+}) => {
   test.skip(authMode !== "configured");
   const leadId = requireUuid("EVO_SUPABASE_SALES_API_LEAD_ID");
   const salesToken = await localSupabaseAccessToken("sales");
@@ -755,13 +799,39 @@ test("Sales and Admin mutate one canonical workflow while anonymous and Admissio
   expect(finalDetail.status).toBe(200);
   expect(Array.isArray(finalDetail.payload)).toBe(true);
   expect(finalDetail.payload).toHaveLength(1);
-  expect(expectObject((finalDetail.payload as unknown[])[0])).toMatchObject({
+  const finalDetailRow = expectObject((finalDetail.payload as unknown[])[0]);
+  expect(finalDetailRow).toMatchObject({
     lead_id: leadId,
     stage_key: "qualified",
     next_action_text: "Direct API Admin verification",
     next_action_due_date: "2099-09-06",
     workflow_version: 23,
   });
+
+  const cohortDate = organizationDate(String(finalDetailRow.created_at));
+  const stageEntries = await directPlatformRpc(
+    "staff_sales_stage_entry_cohort",
+    { p_from_date: cohortDate, p_to_date: cohortDate, p_limit: 101 },
+    adminToken,
+  );
+  expect(stageEntries.status).toBe(200);
+  expect(Array.isArray(stageEntries.payload)).toBe(true);
+  const qualifiedEntries = (stageEntries.payload as unknown[])
+    .map(expectObject)
+    .filter((entry) => entry.stage_key === "qualified");
+  expect(qualifiedEntries.some((entry) => entry.lead_id === leadId)).toBe(true);
+
+  await signIn(page, "admin");
+  await page.goto(
+    `/v3/main?period=custom&from=${cohortDate}&to=${cohortDate}`,
+  );
+  const qualifiedMetric = page.locator("li").filter({
+    has: page.getByText("Квалифицированы", { exact: true }),
+  });
+  await expect(qualifiedMetric).toHaveCount(1);
+  await expect(
+    qualifiedMetric.getByText(String(qualifiedEntries.length), { exact: true }),
+  ).toBeVisible();
 });
 
 test("Sales and Admin persist the same canonical workflow through the real interface", async ({

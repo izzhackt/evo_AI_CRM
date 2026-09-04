@@ -17058,3 +17058,83 @@ Decision:
   unchanged. Prove the clarification with a forward local migration, focused
   allow/deny and boundary tests, one real local OrbStack application/browser
   run and one exact-head CI pass before merge.
+
+## 2026-09-04 - Define #599 sales stage-entry cohort semantics
+
+Block-ID: `EVO-V3-F-SALES-STAGE-ENTRY-COHORTS-2026-09-04`
+
+Change type: implementation clarification.
+Affected plan section: Order 5 / Issue #599 / slice 4 of 6.
+
+The V3 main page already defines its selected period as the Bishkek-date
+creation cohort of open, currently visible leads. Its honest three-step funnel
+is `Лиды` -> `Квалифицированы` -> `Переданы`, and every number represents
+people rather than transition attempts. The existing workflow receipt alone
+cannot prove a stage change because owner-only and next-action-only mutations
+also create receipts.
+
+Decision:
+
+- preserve the current lead-creation cohort: the inclusive `DATE` bounds select
+  open leads by `platform.leads.created_at` in `Asia/Bishkek`; Admin sees the
+  organization cohort and Sales sees the same current own-or-unassigned scope
+  as the canonical Sales queue;
+- expose at most one first proven entry per lead and canonical stage. A real
+  transition requires the existing append-only workflow receipt and its exact
+  `platform.audit_events` row to agree on organization, request, lead, actor,
+  committed timestamp and resulting version, with different before/after
+  `stage_key` values and the after value equal to the receipt's desired stage;
+- count `Квалифицированы` from distinct cohort leads with a proven first entry
+  into canonical `qualified`. Collapse later re-entry for the product metric;
+  replay, no-op, owner-only and next-action-only commands must not change it;
+- continue to count `Лиды` from exact lead creation and `Переданы` from the
+  existing canonical case link for that same cohort. Do not fabricate missing
+  pre-receipt stage history, reinterpret `leads.updated_at`, add another event
+  table, or create a second status dictionary;
+- implement one authenticated, fail-closed, `SECURITY DEFINER` read projection
+  with an empty `search_path`, explicit execution grants and a maximum 366-day
+  range. Keep direct browser access to the private receipts denied;
+- keep managed Supabase, providers, VPS, production data and customer traffic
+  unchanged. Prove the slice with focused repository tests, SQL allow/deny,
+  replay/no-op/re-entry and Bishkek-boundary tests, one real local OrbStack
+  PostgreSQL/application/browser run and one exact-head CI pass before merge.
+
+Implementation hardening follows the current Supabase Database Functions and
+Row Level Security guidance:
+https://supabase.com/docs/guides/database/functions and
+https://supabase.com/docs/guides/database/postgres/row-level-security.
+
+## 2026-09-04 - Page the #599 stage-entry proof to avoid Supabase max-row truncation
+
+Block-ID: `EVO-V3-F-SALES-STAGE-ENTRY-PAGINATION-2026-09-04`
+
+Change type: implementation hardening.
+Affected plan section: Order 5 / Issue #599 / slice 4 of 6.
+
+The first #599 clarification defined the truth of the funnel counts, but its
+initial adapter shape still assumed the stage-entry proof could be returned in
+one unpaged RPC response. Supabase's PostgREST layer applies a bounded
+`max_rows` limit to table, view and function outputs, so an unpaged function
+can silently truncate a larger cohort even when the SQL itself is correct.
+
+Decision:
+
+- keep the same one-authority semantics for the stage-entry proof, but expose
+  it through an explicit bounded page contract with `p_limit` plus a stable
+  `(entered_at, request_id)` cursor instead of one unbounded response;
+- preserve chronological ordering and fail closed on invalid limit, incomplete
+  cursor, non-advancing cursor, shape drift or duplicate lead-stage facts
+  across pages;
+- keep the V3 funnel adapter responsible for reading every page before
+  computing cohort metrics so the screen contract stays person-based and does
+  not inherit transport pagination;
+- keep the SQL contract private, authenticated and read-only; this hardening
+  does not broaden actor access, mutate managed Supabase or create a second
+  event authority.
+
+This hardening follows the current Supabase and PostgREST documentation that
+the Data API is a PostgREST layer over database tables, views and functions,
+and that `db-max-rows` is a hard limit on rows fetched from a table, view or
+function, so larger results need an explicit bounded page contract:
+https://supabase.com/docs/guides/api
+https://docs.postgrest.org/en/v12/references/configuration.html#db-max-rows

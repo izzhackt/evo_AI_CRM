@@ -1,6 +1,6 @@
 # EVO production-successor deployment boundary
 
-Status: active V2 deployment contract. This document describes the release
+Status: active V3 deployment contract. This document describes the release
 candidate; it does not authorize a production deployment, traffic cutover,
 provider mutation, customer-data change, or retirement of frozen V1.
 

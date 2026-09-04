@@ -1634,6 +1634,7 @@ DECLARE
   actor RECORD;
   target_case platform.student_cases%ROWTYPE;
   slots_payload JSONB;
+  removed_slots_payload JSONB;
 BEGIN
   IF p_student_case_id IS NULL THEN
     RAISE EXCEPTION 'student_case_id is required'
@@ -1659,21 +1660,36 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  SELECT COALESCE(
-    jsonb_agg(
-      slot_row.payload
-      ORDER BY slot_row.sort_deadline NULLS LAST,
-        slot_row.sort_label,
-        slot_row.document_slot_id
+  SELECT
+    COALESCE(
+      jsonb_agg(
+        slot_row.payload
+        ORDER BY slot_row.sort_deadline NULLS LAST,
+          slot_row.sort_label,
+          slot_row.document_slot_id
+      ) FILTER (WHERE slot_row.removed_at IS NULL),
+      '[]'::JSONB
     ),
-    '[]'::JSONB
-  )
-  INTO slots_payload
+    COALESCE(
+      jsonb_agg(
+        slot_row.payload || jsonb_build_object(
+          'removed_at', slot_row.removed_at,
+          'removed_by_membership_id', slot_row.removed_by_membership_id,
+          'removal_reason', slot_row.removal_reason
+        )
+        ORDER BY slot_row.removed_at DESC, slot_row.document_slot_id
+      ) FILTER (WHERE slot_row.removed_at IS NOT NULL),
+      '[]'::JSONB
+    )
+  INTO slots_payload, removed_slots_payload
   FROM (
     SELECT
       slot.id AS document_slot_id,
       slot.deadline AS sort_deadline,
       lower(COALESCE(slot.display_label, requirement.label)) AS sort_label,
+      slot.removed_at,
+      slot.removed_by_membership_id,
+      slot.removal_reason,
       jsonb_build_object(
         'document_slot_id', slot.id,
         'document_requirement_id', requirement.id,
@@ -1774,14 +1790,14 @@ BEGIN
       AND requirement.id = slot.requirement_id
     WHERE slot.organization_id = target_case.organization_id
       AND slot.student_case_id = target_case.id
-      AND slot.removed_at IS NULL
   ) AS slot_row;
 
   RETURN jsonb_build_object(
     'organization_id', target_case.organization_id,
     'student_case_id', target_case.id,
     'case_state', target_case.state,
-    'slots', slots_payload
+    'slots', slots_payload,
+    'removed_slots', removed_slots_payload
   );
 END
 $$;

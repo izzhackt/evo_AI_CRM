@@ -14,9 +14,10 @@ import {
 import { documentPresence } from "@/lib/v3/wording";
 
 import type {
-  DocumentGroup,
+  ActiveDocumentGroup,
   DocumentItem,
   DocumentUploadAccess,
+  RemovedDocumentGroup,
 } from "./document-types";
 
 const ACCEPTED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
@@ -30,6 +31,12 @@ type UploadState = Readonly<{
 }>;
 
 const IDLE_UPLOAD: UploadState = Object.freeze({ outcome: "idle", message: null });
+
+const HISTORY_DATE = new Intl.DateTimeFormat("ru-RU", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Bishkek",
+});
 
 const ACCESS_MESSAGE: Record<Exclude<DocumentUploadAccess, "allowed">, string> = {
   forbidden: "В режиме этой роли документы доступны только для просмотра.",
@@ -79,6 +86,103 @@ function responseOutcome(status: number): Extract<UploadOutcome, "invalid" | "fo
 
 function statusTone(item: DocumentItem): "neutral" | "ok" {
   return item.presence === "present" ? "ok" : "neutral";
+}
+
+function historyDate(value: string): string {
+  return HISTORY_DATE.format(new Date(value));
+}
+
+function RemovedDocumentHistory({
+  groups,
+}: Readonly<{ groups: readonly RemovedDocumentGroup[] }>) {
+  if (groups.length === 0) return null;
+
+  return (
+    <section
+      className="border-t border-border"
+      aria-labelledby="removed-document-history-title"
+      data-testid="v3-removed-document-history"
+    >
+      <div className="bg-surface-2 px-4 py-3">
+        <h4 id="removed-document-history-title" className="text-sm font-semibold text-fg">
+          История удалённых пунктов
+        </h4>
+        <p className="mt-1 text-xs text-fg-3">
+          Удалённые пункты и их файлы сохранены только для просмотра.
+        </p>
+      </div>
+
+      <ul>
+        {groups.map((group) => (
+          <li key={group.title} className="border-t border-border first:border-t-0">
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <h5 className="text-sm font-semibold text-fg">{group.title}</h5>
+              <span className="font-mono text-2xs text-fg-3">{group.items.length}</span>
+            </div>
+            <ul>
+              {group.items.map((item) => (
+                <li
+                  key={item.id}
+                  className="border-t border-border px-4 py-3"
+                  data-testid="v3-removed-document-item"
+                  data-document-intent={item.intentKind}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-fg">{item.name}</p>
+                      <p className="mt-1 text-xs text-fg-3">
+                        Удалено {historyDate(item.removedAt)}
+                      </p>
+                      <p className="mt-1 text-xs text-fg-3">
+                        Причина: {item.removalReason}
+                      </p>
+                    </div>
+                    <Pill tone="neutral">только чтение</Pill>
+                  </div>
+
+                  {item.versions.length === 0 ? (
+                    <p className="mt-3 text-xs text-fg-3">Файлы к пункту не загружались.</p>
+                  ) : (
+                    <ul className="mt-3 divide-y divide-border border-t border-border">
+                      {item.versions.map((version) => (
+                        <li
+                          key={version.id}
+                          className="flex flex-wrap items-center justify-between gap-3 py-2"
+                          data-testid="v3-removed-document-version"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium text-fg">
+                              {version.filename} · версия {version.versionNumber}
+                            </p>
+                            <p className="mt-0.5 text-2xs text-fg-3">
+                              {version.submittedBy} · {historyDate(version.submittedAt)}
+                            </p>
+                          </div>
+                          {version.downloadReady ? (
+                            <a
+                              href={`/api/v2/document-versions/${version.id}/download`}
+                              className={btnGhostCls}
+                              data-testid="v3-removed-document-download"
+                            >
+                              Скачать
+                            </a>
+                          ) : (
+                            <span className="text-2xs text-fg-3">
+                              Скачивание недоступно
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function checklistMessage(status: PlatformDocumentChecklistActionState["status"]): string | null {
@@ -319,11 +423,13 @@ function ChecklistItemControls({
 
 export function ProfileDocumentsClient({
   groups,
+  historyGroups,
   uploadAccess,
   studentCaseId,
   createRequestId,
 }: Readonly<{
-  groups: readonly DocumentGroup[];
+  groups: readonly ActiveDocumentGroup[];
+  historyGroups: readonly RemovedDocumentGroup[];
   uploadAccess: DocumentUploadAccess;
   studentCaseId: string | null;
   createRequestId: string | null;
@@ -520,6 +626,7 @@ export function ProfileDocumentsClient({
           </li>
         ))}
       </ul>
+      <RemovedDocumentHistory groups={historyGroups} />
     </>
   );
 }

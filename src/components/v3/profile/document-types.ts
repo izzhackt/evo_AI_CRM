@@ -37,9 +37,43 @@ export type PresentDocumentItem = DocumentItemBase & Readonly<{
  */
 export type DocumentItem = AbsentDocumentItem | PresentDocumentItem;
 
-export type DocumentGroup = Readonly<{
+export type ActiveDocumentGroup = Readonly<{
+  kind: "active";
   title: string;
   items: readonly DocumentItem[];
 }>;
+
+export type RemovedDocumentVersion = Readonly<{
+  /** Canonical platform.document_versions id. */
+  id: string;
+  versionNumber: number;
+  filename: string;
+  submittedBy: string;
+  submittedAt: string;
+  /** True only after canonical private Storage confirms safe download. */
+  downloadReady: boolean;
+}>;
+
+/**
+ * Read-only projection of a removed case-local checklist item. It intentionally
+ * has no upload, metadata, removal or other command request identifiers.
+ */
+export type RemovedDocumentItem = Readonly<{
+  id: string;
+  name: string;
+  groupLabel: string;
+  intentKind: "baseline" | "custom";
+  removedAt: string;
+  removalReason: string;
+  versions: readonly RemovedDocumentVersion[];
+}>;
+
+export type RemovedDocumentGroup = Readonly<{
+  kind: "removed";
+  title: string;
+  items: readonly RemovedDocumentItem[];
+}>;
+
+export type DocumentGroup = ActiveDocumentGroup | RemovedDocumentGroup;
 
 export type DocumentUploadAccess = "allowed" | "forbidden" | "closed";

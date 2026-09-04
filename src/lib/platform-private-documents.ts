@@ -76,11 +76,23 @@ export type PlatformDocumentSlot = Readonly<{
   versions: readonly PlatformDocumentVersion[];
 }>;
 
+/**
+ * A removed checklist item is preserved as immutable case history. It is read
+ * through the same canonical workspace RPC, but is deliberately a distinct
+ * type so command-capable callers cannot mistake it for an active slot.
+ */
+export type PlatformRemovedDocumentSlot = PlatformDocumentSlot & Readonly<{
+  removedAt: string;
+  removedByMembershipId: string;
+  removalReason: string;
+}>;
+
 export type PlatformCaseDocumentWorkspace = Readonly<{
   organizationId: string;
   studentCaseId: string;
   caseState: "active" | "closed";
   slots: readonly PlatformDocumentSlot[];
+  removedSlots: readonly PlatformRemovedDocumentSlot[];
 }>;
 
 export type PlatformDocumentQueueRow = Readonly<{
@@ -404,6 +416,53 @@ export function normalizePlatformDocumentSlot(
   });
 }
 
+export function normalizePlatformRemovedDocumentSlot(
+  value: unknown,
+): PlatformRemovedDocumentSlot {
+  if (
+    !isRecord(value)
+    || !exact(value, [
+      "document_slot_id",
+      "document_requirement_id",
+      "requirement_key",
+      "requirement_label",
+      "group_label",
+      "intent_kind",
+      "slot_version",
+      "instructions",
+      "checklist_version",
+      "slot_status",
+      "deadline",
+      "next_action",
+      "current_version_id",
+      "current_version_no",
+      "created_at",
+      "updated_at",
+      "versions",
+      "removed_at",
+      "removed_by_membership_id",
+      "removal_reason",
+    ])
+  ) {
+    return invalidShape();
+  }
+
+  const {
+    removed_at: removedAt,
+    removed_by_membership_id: removedByMembershipId,
+    removal_reason: removalReason,
+    ...activeSlotPayload
+  } = value;
+  const slot = normalizePlatformDocumentSlot(activeSlotPayload);
+
+  return Object.freeze({
+    ...slot,
+    removedAt: requiredTimestamp(removedAt),
+    removedByMembershipId: requiredUuid(removedByMembershipId),
+    removalReason: requiredText(removalReason, 2000),
+  });
+}
+
 export function normalizePlatformCaseDocumentWorkspace(
   value: unknown,
   expectedOrganizationId: string,
@@ -411,22 +470,34 @@ export function normalizePlatformCaseDocumentWorkspace(
 ): PlatformCaseDocumentWorkspace {
   if (
     !isRecord(value)
-    || !exact(value, ["organization_id", "student_case_id", "case_state", "slots"])
+    || !exact(value, [
+      "organization_id",
+      "student_case_id",
+      "case_state",
+      "slots",
+      "removed_slots",
+    ])
     || value.organization_id !== expectedOrganizationId
     || value.student_case_id !== expectedStudentCaseId
     || !Array.isArray(value.slots)
     || value.slots.length > 200
+    || !Array.isArray(value.removed_slots)
+    || value.removed_slots.length > 200
   ) {
     return invalidShape();
   }
   const slots = Object.freeze(value.slots.map(normalizePlatformDocumentSlot));
-  const ids = slots.map((slot) => slot.documentSlotId);
+  const removedSlots = Object.freeze(
+    value.removed_slots.map(normalizePlatformRemovedDocumentSlot),
+  );
+  const ids = [...slots, ...removedSlots].map((slot) => slot.documentSlotId);
   if (new Set(ids).size !== ids.length) return invalidShape();
   return Object.freeze({
     organizationId: requiredUuid(value.organization_id),
     studentCaseId: requiredUuid(value.student_case_id),
     caseState: oneOf(value.case_state, ["active", "closed"] as const),
     slots,
+    removedSlots,
   });
 }
 

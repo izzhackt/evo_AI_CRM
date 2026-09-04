@@ -12,7 +12,8 @@ test("V3 profile documents use the canonical private Storage routes", () => {
   const types = source("src/components/v3/profile/document-types.ts");
 
   assert.match(wrapper, /<ProfileDocumentsClient/u);
-  assert.match(wrapper, /groups=\{groups\}/u);
+  assert.match(wrapper, /groups=\{activeGroups\}/u);
+  assert.match(wrapper, /historyGroups=\{historyGroups\}/u);
   assert.match(wrapper, /uploadAccess=\{uploadAccess\}/u);
   assert.match(wrapper, /studentCaseId=\{studentCaseId\}/u);
   assert.match(wrapper, /createRequestId=\{createRequestId\}/u);
@@ -39,14 +40,15 @@ test("V3 profile documents use the canonical private Storage routes", () => {
 
 test("V3 profile exposes only the two approved document presence labels", () => {
   const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const activeChecklist = client.slice(client.indexOf("export function ProfileDocumentsClient"));
   const wording = source("src/lib/v3/wording.ts");
 
   assert.match(wording, /export type DocumentPresence = "absent" \| "present"/u);
   assert.match(wording, /absent: "нет"/u);
   assert.match(wording, /present: "есть"/u);
   assert.match(client, /documentPresence\(item\.presence\)/u);
-  assert.doesNotMatch(client, /submittedBy|uploadedBy|createdAt|updatedAt|reviewedAt/u);
-  assert.doesNotMatch(client, /correction_required|rejected|approved/u);
+  assert.doesNotMatch(activeChecklist, /submittedBy|uploadedBy|createdAt|updatedAt|reviewedAt/u);
+  assert.doesNotMatch(activeChecklist, /correction_required|rejected|approved/u);
 });
 
 test("V3 profile document upload fails closed and explains every failure class", () => {
@@ -76,8 +78,40 @@ test("V3 profile mutates one canonical case checklist with versioned commands", 
   assert.match(client, /Файлы сохранятся в истории дела/u);
   assert.match(client, /router\.refresh\(\)/u);
 
-  assert.match(profileSource, /new Map<string, DocumentGroup\["items"\]\[number\]\[\]>/u);
+  assert.match(profileSource, /new Map<string, ActiveGroup\["items"\]\[number\]\[\]>/u);
   assert.match(profileSource, /groups\.get\(slot\.groupLabel\)/u);
   assert.match(types, /intentKind: "baseline" \| "custom"/u);
   assert.match(types, /version: number/u);
+});
+
+test("V3 profile renders removed checklist history as a separate read-only projection", () => {
+  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const profileSource = source("src/lib/v3/profile-source.ts");
+  const types = source("src/components/v3/profile/document-types.ts");
+  const historyComponent = client.slice(
+    client.indexOf("function RemovedDocumentHistory"),
+    client.indexOf("function checklistMessage"),
+  );
+  const historyItemType = types.slice(
+    types.indexOf("export type RemovedDocumentItem"),
+    types.indexOf("export type RemovedDocumentGroup"),
+  );
+
+  assert.match(profileSource, /workspace\.removedSlots/u);
+  assert.match(profileSource, /kind: "removed"/u);
+  assert.match(profileSource, /versions: Object\.freeze\(slot\.versions\.map/u);
+  assert.match(types, /export type RemovedDocumentItem/u);
+  assert.match(types, /export type RemovedDocumentVersion/u);
+  assert.doesNotMatch(historyItemType, /uploadRequestId|metadataRequestId|removalRequestId/u);
+
+  assert.match(historyComponent, /История удалённых пунктов/u);
+  assert.match(historyComponent, /item\.removedAt/u);
+  assert.match(historyComponent, /item\.removalReason/u);
+  assert.match(historyComponent, /item\.versions\.map/u);
+  assert.match(historyComponent, /version\.downloadReady \? \(/u);
+  assert.match(historyComponent, /document-versions\/\$\{version\.id\}\/download/u);
+  assert.doesNotMatch(
+    historyComponent,
+    /createPlatformCustomDocumentSlotAction|changePlatformDocumentSlotMetadataAction|removePlatformDocumentSlotAction|request_id|<form/u,
+  );
 });

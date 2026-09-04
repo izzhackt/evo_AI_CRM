@@ -17,6 +17,7 @@ const REQUIREMENT_ID = "44444444-4444-4444-8444-444444444444";
 const CURRENT_VERSION_ID = "55555555-5555-4555-8555-555555555555";
 const OLD_VERSION_ID = "66666666-6666-4666-8666-666666666666";
 const MEMBERSHIP_ID = "77777777-7777-4777-8777-777777777777";
+const REMOVED_SLOT_ID = "88888888-8888-4888-8888-888888888888";
 const AT = "2026-09-02T08:00:00+00:00";
 
 const ACTOR = Object.freeze({
@@ -98,6 +99,25 @@ function workspace(overrides = {}) {
     student_case_id: CASE_ID,
     case_state: "active",
     slots: [slot()],
+    removed_slots: [],
+    ...overrides,
+  };
+}
+
+function removedSlot(overrides = {}) {
+  return {
+    ...slot({
+      document_slot_id: REMOVED_SLOT_ID,
+      intent_kind: "custom",
+      document_requirement_id: null,
+      requirement_key: null,
+      checklist_version: null,
+      requirement_label: "Case-local bank statement",
+      group_label: "Дополнительные документы",
+    }),
+    removed_at: AT,
+    removed_by_membership_id: MEMBERSHIP_ID,
+    removal_reason: "Пункт больше не нужен для выбранной программы",
     ...overrides,
   };
 }
@@ -206,6 +226,51 @@ test("workspace rejects duplicate versions and mismatched current markers", () =
   assert.throws(
     () => normalizePlatformCaseDocumentWorkspace(
       workspace({ slots: [slot({ current_version_id: OLD_VERSION_ID })] }),
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
+});
+
+test("workspace returns removed slots as distinct immutable history", () => {
+  const result = normalizePlatformCaseDocumentWorkspace(
+    workspace({ removed_slots: [removedSlot()] }),
+    ORGANIZATION_ID,
+    CASE_ID,
+  );
+
+  assert.equal(result.slots.length, 1);
+  assert.equal(result.removedSlots.length, 1);
+  assert.equal(result.removedSlots[0].documentSlotId, REMOVED_SLOT_ID);
+  assert.equal(result.removedSlots[0].removalReason, "Пункт больше не нужен для выбранной программы");
+  assert.equal(result.removedSlots[0].versions.length, 2);
+  assert.equal("uploadRequestId" in result.removedSlots[0], false);
+  assert.equal("objectName" in result.removedSlots[0].versions[0], false);
+});
+
+test("workspace fails closed on malformed or overlapping removed history", () => {
+  const missingHistory = workspace();
+  delete missingHistory.removed_slots;
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      missingHistory,
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      workspace({ removed_slots: [removedSlot({ removed_at: null })] }),
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      workspace({ removed_slots: [removedSlot({ document_slot_id: SLOT_ID })] }),
       ORGANIZATION_ID,
       CASE_ID,
     ),

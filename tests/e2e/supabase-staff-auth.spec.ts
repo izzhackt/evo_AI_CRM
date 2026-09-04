@@ -1423,9 +1423,24 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator('button[type="submit"]')
     .click();
   await expect(renamedDocumentItem).toHaveCount(0);
-  const preservedCustomDownload = await page.request.get(customVersionHref!);
-  expect(preservedCustomDownload.status()).toBe(200);
-  expect(await preservedCustomDownload.body()).toEqual(firstPdf);
+  const removedHistory = page.getByTestId("v3-removed-document-history");
+  await expect(removedHistory).toBeVisible();
+  const removedDocumentItem = removedHistory
+    .getByTestId("v3-removed-document-item")
+    .filter({ hasText: "P4 renamed bank statement" });
+  await expect(removedDocumentItem).toContainText(
+    "Удаление пункта из активного чек-листа сотрудником",
+  );
+  await expect(removedDocumentItem.getByTestId("v3-document-upload-form")).toHaveCount(0);
+  await expect(removedDocumentItem.getByTestId("v3-document-checklist-edit")).toHaveCount(0);
+  await expect(removedDocumentItem.getByTestId("v3-document-checklist-remove")).toHaveCount(0);
+  const removedVersionDownload = removedDocumentItem.getByTestId(
+    "v3-removed-document-download",
+  );
+  await expect(removedVersionDownload).toHaveAttribute("href", customVersionHref!);
+  const removedDownloadPromise = page.waitForEvent("download");
+  await removedVersionDownload.click();
+  expect(await readDownload(await removedDownloadPromise)).toEqual(firstPdf);
 
   await page.context().clearCookies();
   await signIn(page, "sales");

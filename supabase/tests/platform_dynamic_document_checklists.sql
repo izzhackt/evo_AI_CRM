@@ -333,7 +333,8 @@ FROM (VALUES
   ('59910000-0000-4000-8000-000000000501'::UUID, :'p108_org_a'::UUID, :'p108_admin_a_membership'::UUID, :'p108_org_scope_a'::UUID, '59910000-0000-4000-8000-000000000601'::UUID),
   ('59910000-0000-4000-8000-000000000502'::UUID, :'p108_org_b'::UUID, :'p108_admin_b_membership'::UUID, :'p108_org_scope_b'::UUID, '59910000-0000-4000-8000-000000000602'::UUID),
   ('59910000-0000-4000-8000-000000000505'::UUID, :'p108_org_a'::UUID, :'p108_sales_a_membership'::UUID, :'p108_case_scope_a'::UUID, '59910000-0000-4000-8000-000000000605'::UUID),
-  ('59910000-0000-4000-8000-000000000506'::UUID, :'p108_org_a'::UUID, :'p108_student_a_membership'::UUID, :'p108_case_scope_a'::UUID, '59910000-0000-4000-8000-000000000606'::UUID)
+  ('59910000-0000-4000-8000-000000000506'::UUID, :'p108_org_a'::UUID, :'p108_student_a_membership'::UUID, :'p108_case_scope_a'::UUID, '59910000-0000-4000-8000-000000000606'::UUID),
+  ('59910000-0000-4000-8000-000000000508'::UUID, :'p108_org_a'::UUID, :'p108_student_a_membership'::UUID, :'p108_org_scope_a'::UUID, '59910000-0000-4000-8000-000000000608'::UUID)
 ) AS fixture(id, organization_id, membership_id, scope_id, request_id);
 
 INSERT INTO platform.student_cases (
@@ -828,6 +829,9 @@ SELECT pg_temp.p108_assert(
   jsonb_array_length(
     :'p108_workspace_before_remove'::JSONB -> 'slots'
   ) = 2
+    AND jsonb_array_length(
+      :'p108_workspace_before_remove'::JSONB -> 'removed_slots'
+    ) = 0
     AND EXISTS (
       SELECT 1
       FROM jsonb_array_elements(
@@ -968,8 +972,43 @@ SELECT pg_temp.p108_assert(
       SELECT 1
       FROM platform.staff_student_case_documents(:'p108_case_a') AS document
       WHERE document.document_slot_id = :'p108_custom_slot_a'
+    )
+    AND jsonb_array_length(
+      :'p108_workspace_after_remove'::JSONB -> 'removed_slots'
+    ) = 1
+    AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        :'p108_workspace_after_remove'::JSONB -> 'removed_slots'
+      ) AS removed_slot(payload)
+      WHERE removed_slot.payload ->> 'document_slot_id' = :'p108_custom_slot_a'
+        AND removed_slot.payload ->> 'requirement_label'
+          = 'Renamed parent consent letter'
+        AND removed_slot.payload ->> 'group_label' = 'Personal documents'
+        AND removed_slot.payload ->> 'intent_kind' = 'custom'
+        AND removed_slot.payload ->> 'slot_version' = '6'
+        AND removed_slot.payload ->> 'removed_by_membership_id'
+          = :'p108_admin_a_membership'
+        AND removed_slot.payload ->> 'removal_reason'
+          = 'The case no longer requires parental consent'
+        AND removed_slot.payload ->> 'removed_at' IS NOT NULL
+        AND jsonb_array_length(removed_slot.payload -> 'versions') = 2
+        AND EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(removed_slot.payload -> 'versions')
+            AS archived_version(payload)
+          WHERE archived_version.payload ->> 'document_version_id'
+            = :'p108_historical_version'
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(removed_slot.payload -> 'versions')
+            AS archived_version(payload)
+          WHERE archived_version.payload ->> 'document_version_id'
+            = :'p108_historical_version_two'
+        )
     ),
-  'soft removal replay or active-only staff projections failed'
+  'soft removal replay, active projections or staff history failed'
 );
 
 RESET ROLE;
@@ -1023,11 +1062,12 @@ SELECT pg_temp.p108_assert(
 
 SELECT pg_temp.p108_assert(
   (
-    SELECT count(*) = 3
+    SELECT count(*) = 4
     FROM platform.audit_events AS event
     WHERE event.request_id IN (
       '59910000-0000-4000-8000-000000000701',
       '59910000-0000-4000-8000-000000000706',
+      '59910000-0000-4000-8000-000000000712',
       '59910000-0000-4000-8000-000000000708'
     )
       AND event.action IN (

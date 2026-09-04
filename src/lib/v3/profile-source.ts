@@ -163,9 +163,12 @@ function profileDocuments(
   workspace: PlatformCaseDocumentWorkspace,
   allowUpload: boolean,
 ): readonly DocumentGroup[] {
-  if (workspace.slots.length === 0) return [];
+  if (workspace.slots.length === 0 && workspace.removedSlots.length === 0) return [];
 
-  const groups = new Map<string, DocumentGroup["items"][number][]>();
+  type ActiveGroup = Extract<DocumentGroup, { kind: "active" }>;
+  type RemovedGroup = Extract<DocumentGroup, { kind: "removed" }>;
+
+  const groups = new Map<string, ActiveGroup["items"][number][]>();
   for (const slot of workspace.slots) {
     const uploadRequestId = allowUpload ? randomUUID() : null;
     const metadataRequestId = allowUpload ? randomUUID() : null;
@@ -180,7 +183,7 @@ function profileDocuments(
       metadataRequestId,
       removalRequestId,
     } as const;
-    let item: DocumentGroup["items"][number];
+    let item: ActiveGroup["items"][number];
     if (slot.currentVersionId === null) {
       item = {
         ...base,
@@ -210,10 +213,44 @@ function profileDocuments(
     groups.set(slot.groupLabel, group);
   }
 
-  return [...groups.entries()].map(([title, items]) => ({
+  const activeGroups: ActiveGroup[] = [...groups.entries()].map(([title, items]) => ({
+    kind: "active",
     title,
     items: Object.freeze(items),
   }));
+
+  const removedGroups = new Map<string, RemovedGroup["items"][number][]>();
+  for (const slot of workspace.removedSlots) {
+    const item: RemovedGroup["items"][number] = Object.freeze({
+      id: slot.documentSlotId,
+      name: slot.requirementLabel,
+      groupLabel: slot.groupLabel,
+      intentKind: slot.intentKind,
+      removedAt: slot.removedAt,
+      removalReason: slot.removalReason,
+      versions: Object.freeze(slot.versions.map((version) => Object.freeze({
+        id: version.documentVersionId,
+        versionNumber: version.versionNumber,
+        filename: version.originalFilename,
+        submittedBy: version.submittedByDisplayName,
+        submittedAt: version.createdAt,
+        downloadReady: version.downloadReady,
+      }))),
+    });
+    const group = removedGroups.get(slot.groupLabel) ?? [];
+    group.push(item);
+    removedGroups.set(slot.groupLabel, group);
+  }
+
+  const historyGroups: RemovedGroup[] = [...removedGroups.entries()].map(
+    ([title, items]) => ({
+      kind: "removed",
+      title,
+      items: Object.freeze(items),
+    }),
+  );
+
+  return [...activeGroups, ...historyGroups];
 }
 
 function profileFacts(

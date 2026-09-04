@@ -16935,3 +16935,90 @@ Decision:
   of the per-case V3 document workspace; its authenticated-root transition
   remains #600 scope;
 - keep provider, managed-production, schema and deployment state unchanged.
+
+## 2026-09-04 - Confirm #599 against the current-main product gaps
+
+Block-ID: `EVO-V3-F-CONFIRMED-PRODUCT-GAPS-2026-09-04`
+
+Change type: current-main gap inventory.
+Affected plan section: Order 5 / Issue #599.
+
+A fresh inventory on exact `main` after merged #598 confirms that #599 still
+mixes genuine schema work with items that already exist, belong to V3 frontend
+only, or remain unapproved product expansion. The active slice must now target
+only the missing canonical data needed by the shipped V3 product surface.
+
+Current-main findings:
+
+- `src/app/(v3)/v3/knowledge/page.tsx` and `src/lib/v3/knowledge-source.ts`
+  currently synthesize a read-only file tree from Admissions cases plus the
+  canonical document queue. There is no canonical company folder, no server
+  authority for rename/move/delete/upload/download, and no dedicated V3 file
+  model behind `FileManager`.
+- `platform.case_tasks` and the V3 calendar already carry canonical task
+  priority, and the calendar already creates a case task without navigating to
+  the case. The case association therefore remains required; a second global
+  task authority is unnecessary. What is still missing is an explicit stored
+  distinction between an all-day due date and a timed deadline.
+- The canonical student profile already covers substantial questionnaire
+  fields. Rebuilding a broad second questionnaire model in #599 would duplicate
+  existing authority.
+- Supabase staff and membership identity are already the accepted authority.
+  Do not create a parallel staff entity in #599.
+- `platform.document_requirements` already supplies the baseline label and
+  instructions, while `platform.document_slots` supplies the live case list.
+  The owner-approved add/remove/rename behavior, explicit group metadata and
+  baseline-versus-custom intent are still absent from that single authority.
+- `platform.university_applications` still lacks the explicit product fields
+  for application priority and the university-owned deadline.
+- Canonical document slots and versions are still linked only to the case.
+  Product links from a document to a specific application or visa item remain
+  genuinely absent.
+- Existing payment obligations/events already provide the schedule, currency,
+  paid and outstanding amounts consumed by the V3 profile; the student profile
+  and case already provide the accepted questionnaire facts. Separate payment
+  plan or questionnaire tables would duplicate those authorities.
+- Append-only sales workflow receipts already retain the desired stage and
+  mutation time. The missing part is a guarded read projection that lets the
+  V3 funnel report exact stage-entry cohorts without treating generic
+  `leads.updated_at` as a stage timestamp or creating another event store.
+
+Decision:
+
+- complete #599 as small sequential replacement slices covering six confirmed
+  additions:
+  1. extend the existing requirement/slot authority with case-level
+     add/remove/rename, group and baseline metadata while keeping the product
+     status surface exactly `нет` / `есть`;
+  2. add one canonical private company knowledge folder/file/version authority
+     backed by Supabase Storage, while the existing case-document authority
+     remains the one student-file path shown in the same V3 workspace;
+  3. add an explicit all-day `DATE` deadline to the existing case-task
+     authority, mutually exclusive with its timed `TIMESTAMPTZ` deadline;
+  4. expose exact sales stage-entry facts from the existing append-only
+     workflow receipts instead of adding another stage event store;
+  5. add canonical application priority and university-owned deadline fields
+     to `platform.university_applications` and its V3 read/write contracts;
+  6. add case-safe many-to-many links from a document slot to a university
+     application or visa case, with composite organization/case foreign keys;
+- keep `src/lib/v3/*` as the adapter boundary and move repository/response
+  shape changes there before changing V3 screens;
+- do not add a second AI text-knowledge store, a parallel staff/person model,
+  a payment-plan subsystem, a questionnaire subsystem, or a second/global task
+  table. Company file storage is a private file workspace, not an AI approval
+  or embedding authority; case tasks remain case-bound and use one evolved
+  task table;
+- keep production, provider, and managed Supabase state unchanged in this
+  slice; prove the additions only through forward local migrations, canonical
+  repositories, V3 adapters, focused tests, one real local OrbStack Supabase/
+  PostgreSQL/application/browser run, and one exact-head CI pass before each
+  merge.
+
+Implementation security follows the current Supabase guidance: every exposed
+table gets explicit grants plus RLS allow/deny proofs; private Storage accepts
+objects only through reservation-scoped `storage.objects` policies; callable
+database functions revoke default public execution and grant only the required
+authenticated role. References:
+https://supabase.com/docs/guides/database/postgres/row-level-security,
+https://supabase.com/docs/guides/storage/security/access-control, and
+https://supabase.com/docs/guides/database/functions.

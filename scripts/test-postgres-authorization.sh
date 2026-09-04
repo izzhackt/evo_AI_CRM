@@ -35,6 +35,11 @@ u6c_concurrency_worker_a_log="$(mktemp -t evo-u6c-concurrency-a.XXXXXX)"
 u6c_concurrency_worker_b_log="$(mktemp -t evo-u6c-concurrency-b.XXXXXX)"
 u6c_concurrency_assert_log="$(mktemp -t evo-u6c-concurrency-assert.XXXXXX)"
 u6c_concurrency_worker_a_pid=""
+p113c_concurrency_setup_log="$(mktemp -t evo-p113c-concurrency-setup.XXXXXX)"
+p113c_concurrency_worker_a_log="$(mktemp -t evo-p113c-concurrency-a.XXXXXX)"
+p113c_concurrency_worker_b_log="$(mktemp -t evo-p113c-concurrency-b.XXXXXX)"
+p113c_concurrency_assert_log="$(mktemp -t evo-p113c-concurrency-assert.XXXXXX)"
+p113c_concurrency_worker_a_pid=""
 
 cleanup() {
   if [[ -n "$p6c_concurrency_worker_a_pid" ]]; then
@@ -52,6 +57,10 @@ cleanup() {
   if [[ -n "$u6c_concurrency_worker_a_pid" ]]; then
     kill "$u6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
     wait "$u6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$p113c_concurrency_worker_a_pid" ]]; then
+    kill "$p113c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+    wait "$p113c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
   fi
   node "$deadline_runner" 30000 docker rm -f "$container_name" \
     >/dev/null 2>&1 || true
@@ -75,7 +84,11 @@ cleanup() {
     "$u6c_concurrency_setup_log" \
     "$u6c_concurrency_worker_a_log" \
     "$u6c_concurrency_worker_b_log" \
-    "$u6c_concurrency_assert_log"
+    "$u6c_concurrency_assert_log" \
+    "$p113c_concurrency_setup_log" \
+    "$p113c_concurrency_worker_a_log" \
+    "$p113c_concurrency_worker_b_log" \
+    "$p113c_concurrency_assert_log"
 }
 trap cleanup EXIT
 
@@ -1956,6 +1969,82 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_document_case_links.sql
+
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_document_case_links_concurrency_setup.sql \
+      >"$p113c_concurrency_setup_log" 2>&1; then
+      echo "Migration 113 concurrency setup failed." >&2
+      cat "$p113c_concurrency_setup_log" >&2
+      exit 1
+    fi
+
+    node "$deadline_runner" 15000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v p113c_hold_lock=1 \
+      -v p113c_hold_seconds=3 \
+      -v p113c_target_id=59911399-0000-4000-8000-000000000501 \
+      -v p113c_request_id=59911399-0000-4000-8000-000000000801 \
+      -f /workspace/supabase/tests/platform_document_case_links_concurrency_worker.sql \
+      >"$p113c_concurrency_worker_a_log" 2>&1 &
+    p113c_concurrency_worker_a_pid=$!
+
+    p113c_concurrency_ready=0
+    for _ in {1..50}; do
+      if grep -Fq 'P113C_LOCK_HELD=1' \
+        "$p113c_concurrency_worker_a_log" 2>/dev/null; then
+        p113c_concurrency_ready=1
+        break
+      fi
+      sleep 0.1
+    done
+
+    if [[ "$p113c_concurrency_ready" != "1" ]]; then
+      echo "Migration 113 concurrency worker did not reach the overlap marker." >&2
+      cat "$p113c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! node "$deadline_runner" 12000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v p113c_hold_lock=0 \
+      -v p113c_hold_seconds=0 \
+      -v p113c_target_id=59911399-0000-4000-8000-000000000502 \
+      -v p113c_request_id=59911399-0000-4000-8000-000000000802 \
+      -f /workspace/supabase/tests/platform_document_case_links_concurrency_worker.sql \
+      >"$p113c_concurrency_worker_b_log" 2>&1; then
+      echo "Migration 113 overlapping document-link worker failed." >&2
+      cat "$p113c_concurrency_worker_b_log" >&2
+      cat "$p113c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! wait "$p113c_concurrency_worker_a_pid"; then
+      p113c_concurrency_worker_a_pid=""
+      echo "Migration 113 lock-owning document-link worker failed." >&2
+      cat "$p113c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+    p113c_concurrency_worker_a_pid=""
+
+    if ! grep -Fxq 'P113C_OUTCOME=ok' \
+      "$p113c_concurrency_worker_a_log" \
+      || ! grep -Fxq 'P113C_OUTCOME=PT409' \
+        "$p113c_concurrency_worker_b_log"; then
+      echo "Migration 113 same-version workers did not produce one success and one PT409." >&2
+      cat "$p113c_concurrency_worker_a_log" >&2
+      cat "$p113c_concurrency_worker_b_log" >&2
+      exit 1
+    fi
+
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_document_case_links_concurrency_assert.sql \
+      >"$p113c_concurrency_assert_log" 2>&1; then
+      echo "Migration 113 concurrent document-link durable-state assertion failed." >&2
+      cat "$p113c_concurrency_assert_log" >&2
+      exit 1
+    fi
   fi
 done < <(
   cd "$repo_root"

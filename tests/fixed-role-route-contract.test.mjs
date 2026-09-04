@@ -6,6 +6,7 @@ import { fixedRoleCanAccessRoute } from "../src/lib/fixed-role-policy.ts";
 import {
   isConnectedPlatformApi,
   isConnectedPlatformPage,
+  isConnectedPlatformPrivateApi,
   isConnectedPlatformSettingsRequest,
   isRetiredPlatformRoute,
   platformHomeRoute,
@@ -209,15 +210,22 @@ test("settings exposes only the V2 preview surface", () => {
   );
 });
 
-test("the deferred audit export is not an active V2 browser API", () => {
-  assert.equal(isConnectedPlatformApi("/api/platform-audit/export"), false);
+test("only the exact canonical audit export enters the active browser API contract", () => {
+  assert.equal(isConnectedPlatformApi("/api/platform-audit/export"), true);
+  assert.equal(isConnectedPlatformPrivateApi("/api/platform-audit/export"), false);
+  for (const path of [
+    "/api/platform-audit/export/",
+    "/api/platform-audit/export.csv",
+    "/api/platform-audit",
+  ]) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
 
   const proxy = readFileSync(
     new URL("../src/proxy.ts", import.meta.url),
     "utf8",
   );
   assert.doesNotMatch(proxy, /isPlatformP7AAuditEnabled/);
-  assert.doesNotMatch(proxy, /isConnectedPlatformAuditExportApi/);
 });
 
 test("only the exact private document APIs enter the active V2 route contract", () => {

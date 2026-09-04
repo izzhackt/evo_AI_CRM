@@ -567,6 +567,7 @@ start_app() {
   : >"$app_log"
   if [[ "$supabase_mode" == "configured" ]]; then
     env -u EVO_PLATFORM_GEMINI_API_KEY \
+      EVO_PLATFORM_P7A_AUDIT_ENABLED=1 \
       NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
       EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
@@ -603,6 +604,7 @@ start_app() {
       -u EVO_PLATFORM_ORGANIZATION_ID \
       -u EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID \
       -u EVO_PLATFORM_GEMINI_API_KEY \
+      -u EVO_PLATFORM_P7A_AUDIT_ENABLED \
       -u SUPABASE_SERVICE_ROLE_KEY \
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
       EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \

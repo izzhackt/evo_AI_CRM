@@ -30,6 +30,10 @@ const v3SettingsTypesSource = readFileSync(
   new URL("../src/components/v3/settings/types.ts", import.meta.url),
   "utf8",
 );
+const v3SettingsSource = readFileSync(
+  new URL("../src/lib/v3/settings-source.ts", import.meta.url),
+  "utf8",
+);
 const auditExportRouteSource = readFileSync(
   new URL("../src/app/api/platform-audit/export/route.ts", import.meta.url),
   "utf8",
@@ -88,6 +92,9 @@ test("V3 exposes the canonical audit export only on the Admin journal surface", 
     /\{ key: "journal", title: "Журнал действий", admin: true \}/,
   );
   assert.match(v3SettingsSectionsSource, /data-testid="v3-audit-export"/);
+  assert.match(v3SettingsPageSource, /auditExportEnabled=\{readAuditExportEnabled\(\)\}/);
+  assert.match(v3SettingsSectionsSource, /\{exportEnabled \? \(\s*<Card title="Экспорт журнала">/);
+  assert.match(v3SettingsSource, /return isPlatformP7AAuditEnabled\(environment\)/);
   assert.match(v3SettingsSectionsSource, /action="\/api\/platform-audit\/export"/);
   assert.match(auditExportRouteSource, /actor\.actor\.platformRole !== "admin"/);
   assert.match(auditExportRouteSource, /isPlatformP7AAuditEnabled\(dependencies\.env\)/);

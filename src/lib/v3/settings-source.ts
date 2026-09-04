@@ -15,6 +15,7 @@ import {
   PLATFORM_AUDIT_RESOURCE_TYPES,
   type PlatformAuditSafeRow,
 } from "@/lib/platform-audit";
+import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 import {
   PlatformAuditActionError,
   searchPlatformAudit,
@@ -49,6 +50,12 @@ export type Integration = Readonly<{
 const ROLES: readonly FixedRole[] = ["admin", "sales", "admissions"];
 const AUDIT_ACTOR_LABELS = ["Staff", "Service", "System"] as const;
 const AUDIT_PAGE_SIZE = 100;
+
+export function readAuditExportEnabled(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return isPlatformP7AAuditEnabled(environment);
+}
 
 function assertAdminAuthority(actor: ActivePlatformActor): void {
   if (actor.authorityRole !== "admin") {

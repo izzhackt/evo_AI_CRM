@@ -155,11 +155,13 @@ export function IntegrationsSection({
 
 export function JournalSection({
   entries,
+  exportEnabled,
   facets,
   active,
   hrefFor,
 }: {
   entries: readonly JournalEntry[];
+  exportEnabled: boolean;
   facets: Readonly<{
     objectTypes: readonly Readonly<{ key: string; count: number }>[];
     roles: readonly string[];
@@ -226,40 +228,42 @@ export function JournalSection({
         </ul>
       </nav>
 
-      <Card title="Экспорт журнала">
-        <form
-          action="/api/platform-audit/export"
-          method="post"
-          encType="application/x-www-form-urlencoded"
-          data-testid="v3-audit-export"
-          aria-describedby="v3-audit-export-scope"
-          className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-        >
-          <input type="hidden" name="request_id" value={randomUUID()} />
-          <input type="hidden" name="start_at" value={exportStartAt.toISOString()} />
-          <input type="hidden" name="end_at" value={exportEndAt.toISOString()} />
-          {active.objectType ? (
-            <input type="hidden" name="resource_types" value={active.objectType} />
-          ) : null}
-
-          <p id="v3-audit-export-scope" className="text-xs leading-5 text-fg-2">
-            Последние 30 дней · {active.objectType ?? "все объекты"} · все участники
-          </p>
-          <button
-            type="submit"
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-ctl bg-accent px-3 text-sm font-semibold text-on-accent hover:opacity-90"
+      {exportEnabled ? (
+        <Card title="Экспорт журнала">
+          <form
+            action="/api/platform-audit/export"
+            method="post"
+            encType="application/x-www-form-urlencoded"
+            data-testid="v3-audit-export"
+            aria-describedby="v3-audit-export-scope"
+            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
           >
-            <Icon name="download" size={16} />
-            Скачать CSV
-          </button>
-        </form>
-        {active.role ? (
-          <Note>
-            Фильтр «Кто» действует только на список на экране. CSV содержит действия всех
-            участников.
-          </Note>
-        ) : null}
-      </Card>
+            <input type="hidden" name="request_id" value={randomUUID()} />
+            <input type="hidden" name="start_at" value={exportStartAt.toISOString()} />
+            <input type="hidden" name="end_at" value={exportEndAt.toISOString()} />
+            {active.objectType ? (
+              <input type="hidden" name="resource_types" value={active.objectType} />
+            ) : null}
+
+            <p id="v3-audit-export-scope" className="text-xs leading-5 text-fg-2">
+              Последние 30 дней · {active.objectType ?? "все объекты"} · все участники
+            </p>
+            <button
+              type="submit"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-ctl bg-accent px-3 text-sm font-semibold text-on-accent hover:opacity-90"
+            >
+              <Icon name="download" size={16} />
+              Скачать CSV
+            </button>
+          </form>
+          {active.role ? (
+            <Note>
+              Фильтр «Кто» действует только на список на экране. CSV содержит действия всех
+              участников.
+            </Note>
+          ) : null}
+        </Card>
+      ) : null}
 
       <Card title="События" aside={<Pill>{entries.length}</Pill>}>
         <div

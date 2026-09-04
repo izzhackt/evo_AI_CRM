@@ -3,6 +3,7 @@ import { Settings } from "@/components/v3/settings/Settings";
 import { isSectionKey } from "@/components/v3/settings/types";
 import { requirePlatformCapability } from "@/lib/platform-guards";
 import {
+  readAuditExportEnabled,
   readCapabilityNames,
   readGateFacts,
   readHealth,
@@ -59,6 +60,7 @@ export default async function SettingsPart({
         health={health}
         integrations={integrations}
         journal={journal}
+        auditExportEnabled={readAuditExportEnabled()}
         journalFacets={journalFacets}
         journalFilters={journalFilters}
         journalHrefFor={(next) =>

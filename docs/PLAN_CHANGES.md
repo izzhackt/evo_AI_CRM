@@ -16632,3 +16632,31 @@ Decision:
   https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable;
 - rerun the focused release-control tests, obtain fresh independent exact-head
   review, and require one fresh exact-head CI run before merge.
+
+## 2026-09-04 - Raise the bounded audit registry window to 70 seconds
+
+Block-ID: `EVO-V3-A-AUDIT-REGISTRY-WINDOW-70S-2026-09-04`
+
+Change type: exact-head CI reliability correction and decision supersession.
+Affected plan section: Order 0 / Issue #594.
+
+Exact-head run `33837727659` on commit
+`71ed6e9c45cc95b6acaf8ab9aa8b9153a01b46ea` still failed the production audit
+after three consecutive `npm warn audit network timeout` results against
+`https://registry.npmjs.org/-/npm/v1/security/advisories/bulk` at the already
+bounded 60-second window. That proves the four-minute step budget is correct,
+but the current per-attempt registry window is still too short for GitHub's
+runner-to-registry path.
+
+Decision:
+
+- keep npm's internal fetch retries disabled for both audit read paths;
+- raise each of the three outer audit attempts from a 60-second to a
+  70-second fetch timeout; with the existing 5- and 10-second delays, the
+  maximum planned wait is about 225 seconds, still inside the four-minute step
+  limit;
+- keep the pinned `npm@11.19.0` binary, exact `EVO_NPM_BIN`, stricter bootstrap
+  install, mandatory aggregate gate, and nonzero exit after the third failed
+  attempt;
+- rerun the focused release-control tests, obtain fresh independent exact-head
+  review, and require one fresh exact-head CI run before merge.

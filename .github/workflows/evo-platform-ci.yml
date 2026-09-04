@@ -117,7 +117,7 @@ jobs:
         timeout-minutes: 4
         env:
           npm_config_fetch_retries: "0"
-          npm_config_fetch_timeout: "60000"
+          npm_config_fetch_timeout: "70000"
         run: |
           if ! test -x "$EVO_NPM_BIN"; then
             echo "Pinned npm audit CLI is unavailable: $EVO_NPM_BIN" >&2
@@ -137,7 +137,7 @@ jobs:
         timeout-minutes: 4
         env:
           npm_config_fetch_retries: "0"
-          npm_config_fetch_timeout: "60000"
+          npm_config_fetch_timeout: "70000"
         run: |
           if ! test -x "$EVO_NPM_BIN"; then
             echo "Pinned npm audit CLI is unavailable: $EVO_NPM_BIN" >&2

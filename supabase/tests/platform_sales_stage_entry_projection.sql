@@ -91,29 +91,21 @@ $catalog_contract$;
 
 SELECT bundle.id AS p111_admin_bundle, bundle.version AS p111_admin_version
 FROM platform.role_bundle_versions AS bundle
-JOIN platform.role_bundle_permissions AS permission
-  ON permission.bundle_id = bundle.id
- AND permission.bundle_role = bundle.role
- AND permission.permission_key = 'lead.sales.workflow.manage'
-WHERE bundle.role = 'admin' AND bundle.status = 'published'
-ORDER BY bundle.version DESC
-LIMIT 1
+WHERE bundle.role = 'admin'
+  AND bundle.version = 13
+  AND bundle.status = 'published'
 \gset
 SELECT bundle.id AS p111_sales_bundle, bundle.version AS p111_sales_version
 FROM platform.role_bundle_versions AS bundle
-JOIN platform.role_bundle_permissions AS permission
-  ON permission.bundle_id = bundle.id
- AND permission.bundle_role = bundle.role
- AND permission.permission_key = 'lead.sales.workflow.manage'
-WHERE bundle.role = 'sales' AND bundle.status = 'published'
-ORDER BY bundle.version DESC
-LIMIT 1
+WHERE bundle.role = 'sales'
+  AND bundle.version = 13
+  AND bundle.status = 'published'
 \gset
 SELECT bundle.id AS p111_curator_bundle, bundle.version AS p111_curator_version
 FROM platform.role_bundle_versions AS bundle
-WHERE bundle.role = 'curator' AND bundle.status = 'published'
-ORDER BY bundle.version DESC
-LIMIT 1
+WHERE bundle.role = 'curator'
+  AND bundle.version = 13
+  AND bundle.status = 'published'
 \gset
 
 \set p111_org_a 59911100-0000-4000-8000-000000000001
@@ -729,6 +721,17 @@ SELECT pg_temp.p111_assert(
 RESET ROLE;
 SET request.jwt.claims TO :'p111_sales_a_claims';
 SET ROLE authenticated;
+SELECT pg_temp.p111_assert(
+  (SELECT pg_catalog.count(*) FROM platform.current_actor_authority()) = 1,
+  'Sales fixture did not resolve one current actor authority'
+);
+SELECT pg_temp.p111_assert(
+  private.platform_has_permission(
+    :'p111_org_a',
+    'lead.sales.workflow.manage'
+  ),
+  'Sales fixture did not retain the workflow permission'
+);
 SELECT pg_temp.p111_assert(
   (SELECT pg_catalog.count(*)
    FROM platform.staff_sales_stage_entry_cohort('2026-09-04', '2026-09-04')) = 3,

@@ -11,6 +11,9 @@ Verified starting baseline: GitHub `origin/main` at
 `d6fc0f4720fcb6a1d012a4bfb4faa4ea1553f47b`
 Verified V3 merge target: GitHub `origin/claude/v3-frontend` at
 `c53c978e251754509948240fc7eef40d3a74da90`
+Verified #594 execution baseline: GitHub `origin/main` at
+`bcced0a6c58216479b1d873c08cc7293cbb1edaf` after PR #608 merged the V3
+authority reset.
 
 ## Current authority: V3 becomes the managed-Supabase product
 

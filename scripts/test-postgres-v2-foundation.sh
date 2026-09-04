@@ -697,6 +697,18 @@ supabase_staff_auth_browser_assert() {
       --config=playwright.supabase-staff-auth.config.ts
 }
 
+v3_browser_gate() {
+  local v3_scratch="$tmp_dir/v3-gate"
+  mkdir -p "$v3_scratch"
+  chmod 700 "$v3_scratch"
+  assert_app_reachable
+  EVO_AUDIT_APPPORT="$app_port" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    SCRATCH="$v3_scratch" \
+    "$node_bin" scripts/v3-gate/gate.mjs
+}
+
 verify_p4_admissions_storage_acceptance() {
   [[ -s "$p4_acceptance_result" ]] \
     || fail "The P4 browser proof did not produce its private acceptance result"
@@ -1104,6 +1116,8 @@ echo "Platform provider workflow and Supabase-authoritative amoCRM contracts pas
 start_isolated_waha_service
 start_app configured configured local-service
 supabase_staff_auth_browser_assert configured
+v3_browser_gate
+echo "V3 Supabase Auth, canonical-data and browser quality gate passed."
 verify_p4_admissions_storage_acceptance
 echo "Admissions operations and two immutable private Supabase Storage versions passed browser and database proof."
 canonical_amocrm_command_browser_assert

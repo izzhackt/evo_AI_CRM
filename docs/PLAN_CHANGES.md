@@ -16218,3 +16218,31 @@ Decision:
 - interpret that first step as a selective V3-surface integration onto current
   `main`, not a blind branch-wide merge that would reintroduce removed
   SQLite/Drizzle/runtime state or delete preserved history.
+
+## 2026-09-04 - Execute V3-A on the canonical Supabase foundation
+
+Block-ID: `EVO-V3-A-CANONICAL-INTEGRATION-2026-09-04`
+
+Change type: active-slice implementation clarification.
+Affected plan section: Order 0 / Issue #594.
+
+PR #608 merged the V3 authority reset on exact `main`
+`bcced0a6c58216479b1d873c08cc7293cbb1edaf`. Issue #594 therefore starts from
+that exact baseline and selectively imports the pinned V3 surface from
+`c53c978e251754509948240fc7eef40d3a74da90` without restoring any retired
+SQLite, Drizzle or multi-application runtime path.
+
+Decision:
+
+- use the existing canonical Supabase server interfaces for every V3 read;
+  remove the imported demo seed, sample profile and local `evo_*` adapter path;
+- require Supabase staff identity and the existing server-enforced fixed-role
+  guards for the V3 layout and pages;
+- keep `/v3` as the temporary integration namespace until #600 replaces the
+  authenticated root after all business-action slices have browser proof;
+- extend the ordinary local foundation run with one real V3 browser gate over
+  disposable Supabase Auth/Postgres/Storage, without a separate fixture-only
+  acceptance path;
+- keep VPS, public traffic, managed production data and provider state
+  unchanged in #594. Provider commands and production transition remain owned
+  by their ordered later slices.

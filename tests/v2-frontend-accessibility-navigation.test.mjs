@@ -39,26 +39,17 @@ function contrastRatio(foreground, background) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-test("Student 360 exposes localized links to every core workflow section", () => {
+test("the retained Student 360 context links only to its remaining workflow sections", () => {
   const workspace = source(
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-  );
-  const admissionsTasks = source(
-    "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
-  );
-  const privateDocuments = source(
-    "src/components/platform/documents/PlatformPrivateDocumentsPanel.tsx",
   );
   const amoCrmSection = source(
     "src/app/(staff)/clients/[id]/PlatformAmoCrmCommandSection.tsx",
   );
-  const admissionsOperations = source(
-    "src/components/platform/admissions/PlatformAdmissionsOperationsPanel.tsx",
-  );
   const contractWorkspace = source(
     "src/app/(staff)/clients/[id]/ContractDraftReportWorkspace.tsx",
   );
-  const renderedSections = `${workspace}\n${admissionsTasks}\n${privateDocuments}\n${amoCrmSection}\n${admissionsOperations}\n${contractWorkspace}`;
+  const renderedSections = `${workspace}\n${amoCrmSection}\n${contractWorkspace}`;
 
   assert.match(workspace, /aria-label=\{copy\.sectionNavigation\}/);
   assert.match(workspace, /platform-student-case-section-navigation/);
@@ -67,13 +58,7 @@ test("Student 360 exposes localized links to every core workflow section", () =>
     ["case-profile", "profile"],
     ["case-handoff", "handoff"],
     ["contract-workflow", "contract"],
-    ["case-tasks", "tasks"],
-    ["case-documents", "documents"],
-    ["applications", "applications"],
-    ["visa", "visa"],
-    ["finance", "finance"],
     ["case-amocrm", "amocrm"],
-    ["case-operations", "operations"],
   ];
   for (const [target, label] of targets) {
     assert.match(
@@ -88,6 +73,10 @@ test("Student 360 exposes localized links to every core workflow section", () =>
   assert.match(workspace, /scroll-mt-24/);
   assert.match(workspace, /btnGhostCls/);
   assert.match(workspace, /shrink-0 whitespace-nowrap/);
+  assert.doesNotMatch(
+    workspace,
+    /PlatformAdmissionsTaskPanel|PlatformAdmissionsOperationsPanel|PlatformPrivateDocumentsPanel/,
+  );
 });
 
 test("critical confirmation and inline case links use practical targets", () => {
@@ -95,9 +84,7 @@ test("critical confirmation and inline case links use practical targets", () => 
     "src/components/v3/InboxProviderWorkflowControls.tsx",
   );
   const inbox = source("src/components/v3/Inbox.tsx");
-  const tasks = source(
-    "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
-  );
+  const tasks = source("src/components/v3/calendar/TaskControls.tsx");
 
   assert.match(providerControls, /min-h-11 cursor-pointer/);
   assert.match(providerControls, /h-5 w-5 shrink-0/);
@@ -295,9 +282,9 @@ test("every core staff route renders exactly one page-level h1", () => {
     ["/documents", "src/app/(staff)/documents/(queue)/page.tsx"],
     ["/visa", "src/app/(staff)/visa/page.tsx"],
     ["/finance", "src/app/(staff)/finance/page.tsx"],
-    ["/tasks", "src/app/(staff)/tasks/page.tsx"],
     ["/v3/inbox", "src/components/v3/PartShell.tsx"],
     ["/v3/profile", "src/components/v3/PartShell.tsx"],
+    ["/v3/calendar", "src/components/v3/PartShell.tsx"],
   ];
 
   for (const [route, path] of routeHeadingSources) {
@@ -312,15 +299,15 @@ test("every core staff route renders exactly one page-level h1", () => {
   }
 });
 
-test("the shared task panel heading stays subordinate to the page h1", () => {
+test("the V3 task controls stay subordinate to the shared page h1", () => {
   const panel = source(
-    "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
+    "src/components/v3/calendar/TaskControls.tsx",
   );
   const tasksRoute = source("src/app/(staff)/tasks/page.tsx");
 
   assert.equal(panel.match(/<h1[\s>]/g), null);
-  assert.match(panel, /<h2 className=/);
-  assert.match(tasksRoute, /<h1/);
+  assert.match(panel, /data-testid="v3-calendar-task-/);
+  assert.match(tasksRoute, /redirect\("\/v3\/calendar"\)/);
 });
 
 test("staff type sizes come from the scale, not ad-hoc pixel values", () => {

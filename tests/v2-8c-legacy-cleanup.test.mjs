@@ -35,21 +35,20 @@ test("the earlier V2-8C document screens remain retired", () => {
   }
 });
 
-test("Student 360 owns the single current Supabase document workspace", () => {
+test("the V3 case profile owns the single current Supabase document workspace", () => {
   const student360 = source(
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
   const panel = source(
-    "src/components/platform/documents/PlatformPrivateDocumentsPanel.tsx",
+    "src/components/v3/profile/ProfileDocumentsClient.tsx",
   );
   const queue = source("src/app/(staff)/documents/(queue)/page.tsx");
 
-  assert.match(student360, /getPlatformCaseDocumentWorkspace\(actor, id\)/);
-  assert.match(student360, /<PlatformPrivateDocumentsPanel/);
-  assert.match(panel, /\/api\/v2\/document-slots\/\$\{documentSlotId\}\/versions/);
-  assert.match(panel, /\/api\/v2\/document-versions\/\$\{version\.documentVersionId\}\/download/);
+  assert.doesNotMatch(student360, /getPlatformCaseDocumentWorkspace|PlatformPrivateDocumentsPanel/);
+  assert.match(panel, /\/api\/v2\/document-slots\/\$\{item\.id\}\/versions/);
+  assert.match(panel, /\/api\/v2\/document-versions\/\$\{item\.currentVersionId\}\/download/);
   assert.match(queue, /listPlatformDocumentQueue\(actor\)/);
-  assert.match(queue, /`\/clients\/\$\{row\.studentCaseId\}#case-documents`/);
+  assert.match(queue, /`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=documents`/);
   assert.doesNotMatch(
     `${student360}\n${panel}\n${queue}`,
     /StudentWorkspace|from\s+["']@\/lib\/platform-document-review|private-document-repository|canonical-crm-repository|@\/lib\/(?:actions|queries|db)|drizzle|sqlite|fallback/i,

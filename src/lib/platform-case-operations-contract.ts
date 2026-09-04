@@ -29,6 +29,7 @@ export type PlatformObligationStatus =
 
 export type PlatformCaseVisa = Readonly<{
   visaCaseId: string;
+  version: string;
   studentCaseId: string;
   status: PlatformVisaStatus;
   note: string | null;

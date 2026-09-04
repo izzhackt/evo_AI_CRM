@@ -59,59 +59,24 @@ test("case lifecycle redirects preserve the originating Student 360 section", ()
   );
 });
 
-test("Student 360 retries reuse only the matching mutation request id", () => {
+test("V3 Admissions forms own versioned retry state without legacy query envelopes", () => {
   const actionsSource = readFileSync(
     new URL("../src/lib/platform-admissions-actions.ts", import.meta.url),
     "utf8",
   );
-  const applicationRedirectSource = actionsSource.slice(
-    actionsSource.indexOf("function applicationRedirect("),
-    actionsSource.indexOf("export async function changePlatformStudentCaseStateAction"),
+  const v3ApplicationActions = actionsSource.slice(
+    actionsSource.indexOf("export async function createPlatformUniversityApplicationAction"),
   );
-  assert.match(
-    applicationRedirectSource,
-    /new URLSearchParams\(\{ application_result: outcome \}\)/,
-  );
-  for (const key of [
-    "application_retry_request_id",
-    "application_retry_operation",
-    "application_retry_subject_id",
-  ]) {
-    assert.match(applicationRedirectSource, new RegExp(key));
-  }
-  assert.doesNotMatch(
-    applicationRedirectSource,
-    /new URLSearchParams\(\{ result:/,
-  );
+  assert.match(v3ApplicationActions, /exactActionStringFields\(form, CREATE_APPLICATION_FIELDS\)/);
+  assert.match(v3ApplicationActions, /exactActionStringFields\(form, CHANGE_APPLICATION_FIELDS\)/);
+  assert.match(v3ApplicationActions, /applicationFailureState\(/);
+  assert.match(actionsSource, /status === "stale" \|\| status === "request_conflict"/);
+  assert.doesNotMatch(v3ApplicationActions, /redirect\(|retry_request_id|URLSearchParams/);
 
   const routeSource = readFileSync(
     new URL("../src/app/(staff)/clients/[id]/page.tsx", import.meta.url),
     "utf8",
   );
-  for (const key of [
-    "task_result",
-    "task_retry_request_id",
-    "task_retry_operation",
-    "task_subject_id",
-    "application_result",
-    "application_retry_request_id",
-    "application_retry_operation",
-    "application_retry_subject_id",
-    "p6d_result",
-    "p6d_retry_request_id",
-    "p6d_retry_operation",
-    "p6d_subject_id",
-    "u8_result",
-    "u8_retry_request_id",
-    "u8_retry_operation",
-    "u8_subject_id",
-    "document_result",
-    "document_retry_request_id",
-    "document_retry_subject_id",
-  ]) {
-    assert.match(routeSource, new RegExp(key), key);
-  }
-
   const workspaceSource = readFileSync(
     new URL(
       "../src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
@@ -119,19 +84,10 @@ test("Student 360 retries reuse only the matching mutation request id", () => {
     ),
     "utf8",
   );
-  for (const retry of [
-    "taskRetry",
-    "applicationRetry",
-    "caseOperationRetry",
-    "financeStopRetry",
-    "documentRetry",
-  ]) {
-    assert.match(
-      workspaceSource,
-      new RegExp(`${retry}\\?\\.[\\s\\S]{0,220}${retry}\\.requestId`),
-      `${retry} must reuse its request id only after matching its operation or subject`,
-    );
-  }
+  assert.doesNotMatch(
+    `${routeSource}\n${workspaceSource}`,
+    /taskRetry|applicationRetry|caseOperationRetry|financeStopRetry|documentRetry|application_retry_request_id/,
+  );
 });
 
 test("Student 360 application summary preserves the partial-page signal and lower bound", () => {
@@ -283,6 +239,7 @@ function applicationRow(overrides = {}) {
   return {
     organization_id: ORGANIZATION_ID,
     university_application_id: APPLICATION_ID,
+    version: "1",
     student_case_id: CASE_ID,
     student_display_name: "Test Student",
     target_country: "Malaysia",
@@ -581,7 +538,10 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     "src/app/(staff)/clients/StudentQueue.tsx",
     "src/app/(staff)/clients/[id]/page.tsx",
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-    "src/components/platform/admissions/PlatformAdmissionsOperationsPanel.tsx",
+    "src/app/(v3)/v3/calendar/page.tsx",
+    "src/app/(v3)/v3/profile/page.tsx",
+    "src/components/v3/calendar/TaskControls.tsx",
+    "src/components/v3/profile/ProfileAdmissionsWorkspace.tsx",
     "src/app/(staff)/applications/page.tsx",
     "src/app/(staff)/visa/page.tsx",
     "src/app/(staff)/finance/page.tsx",
@@ -670,7 +630,7 @@ test("V3 profile keeps sales stage and Admissions case state as distinct fields"
   );
 });
 
-test("clients use one Supabase Student 360 renderer with only the #549 amoCRM isolation", () => {
+test("legacy case route keeps contract and amoCRM while V3 solely owns Admissions controls", () => {
   const routeSource = readFileSync(
     new URL(
       "../src/app/(staff)/clients/[id]/page.tsx",
@@ -692,6 +652,17 @@ test("clients use one Supabase Student 360 renderer with only the #549 amoCRM is
     ),
     "utf8",
   );
+  const v3ProfileSource = readFileSync(
+    new URL("../src/lib/v3/profile-source.ts", import.meta.url),
+    "utf8",
+  );
+  const v3AdmissionsSource = readFileSync(
+    new URL(
+      "../src/components/v3/profile/ProfileAdmissionsWorkspace.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
 
   assert.match(routeSource, /<StudentCaseWorkspace/);
   for (const queryKey of [
@@ -709,11 +680,10 @@ test("clients use one Supabase Student 360 renderer with only the #549 amoCRM is
   assert.match(workspaceSource, /getPlatformStudentCaseHandoffContext\(/);
   assert.match(workspaceSource, /getPlatformStudentProfile\(/);
   assert.match(workspaceSource, /getPlatformCaseContractWorkspace\(/);
-  assert.match(workspaceSource, /getPlatformAdmissionsTaskWorkspace\(actor, id\)/);
-  assert.match(workspaceSource, /listPlatformApplicationsForStudentCase\(actor, id/);
-  assert.match(workspaceSource, /getPlatformCaseVisa\(actor, id\)/);
-  assert.match(workspaceSource, /getPlatformCaseFinanceControl\(actor, id\)/);
-  assert.match(workspaceSource, /getPlatformCaseDocumentWorkspace\(actor, id\)/);
+  assert.doesNotMatch(
+    workspaceSource,
+    /getPlatformAdmissionsTaskWorkspace|listPlatformApplicationsForStudentCase|getPlatformCaseVisa|getPlatformCaseFinanceControl|getPlatformCaseDocumentWorkspace/,
+  );
   assert.doesNotMatch(
     workspaceSource,
     /getPlatformStudentCaseView|staff_student_case_read_snapshot/,
@@ -726,9 +696,14 @@ test("clients use one Supabase Student 360 renderer with only the #549 amoCRM is
     `${routeSource}\n${workspaceSource}`,
     /canonical-crm-repository|private-document-repository|getCanonicalStudentCaseSnapshot|getCanonicalStudentCaseHandoffSnapshot/,
   );
-  assert.match(workspaceSource, /<PlatformAdmissionsTaskPanel/);
-  assert.match(workspaceSource, /<PlatformPrivateDocumentsPanel/);
-  assert.match(workspaceSource, /<PlatformAdmissionsOperationsPanel/);
+  assert.doesNotMatch(
+    workspaceSource,
+    /PlatformAdmissionsTaskPanel|PlatformPrivateDocumentsPanel|PlatformAdmissionsOperationsPanel/,
+  );
+  assert.match(v3ProfileSource, /loadFullCase\(/);
+  assert.match(v3AdmissionsSource, /createPlatformUniversityApplicationAction/);
+  assert.match(v3AdmissionsSource, /upsertPlatformCaseVisaAction/);
+  assert.match(v3AdmissionsSource, /createPlatformFinanceStopFactorAction/);
   assert.equal(
     existsSync(
       new URL(

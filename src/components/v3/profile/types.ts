@@ -1,9 +1,18 @@
 import type { FixedRole } from "@/lib/fixed-role-policy";
+import type {
+  PlatformApplicationQueueRow,
+} from "@/lib/platform-admissions";
+import type {
+  PlatformCaseFinanceControl,
+} from "@/lib/platform-finance-control";
 import type { PlatformSalesWorkflowLead } from "@/lib/platform-sales-contract";
 import type {
   PlatformLeadAdmissionsGateSnapshot,
   PlatformLeadAdmissionsHandoffSnapshot,
 } from "@/lib/platform-student-handoff";
+import type { PlatformCaseVisa } from "@/lib/platform-case-operations-contract";
+
+import type { DocumentGroup } from "./document-types";
 
 /**
  * Типы профиля.
@@ -23,7 +32,15 @@ import type {
  * sample person, file, payment or employee.
  */
 
-export type ProfilePick = Readonly<{ id: string; name: string; student: boolean }>;
+export type ProfilePick = Readonly<{
+  target: ProfileRouteTarget;
+  name: string;
+  student: boolean;
+}>;
+
+export type ProfileRouteTarget =
+  | Readonly<{ leadId: string; studentCaseId: null }>
+  | Readonly<{ leadId: null; studentCaseId: string }>;
 
 export type ProfileApplication = Readonly<{
   id: string;
@@ -52,14 +69,14 @@ export type ProfileEvent = Readonly<{
 
 /** Настоящие данные. */
 export type PersonProfile = Readonly<{
-  leadId: string;
+  leadId: string | null;
   person: string;
   email: string | null;
   phone: string | null;
   student: boolean;
-  stage: string;
+  stage: string | null;
   caseStatus: string | null;
-  source: string;
+  source: string | null;
   qualification: string | null;
   arrived: string | null;
   nextAction: string | null;
@@ -71,6 +88,7 @@ export type PersonProfile = Readonly<{
   timeline: readonly ProfileEvent[];
 }>;
 
+export type ProfileActorRole = FixedRole;
 export type ProfileSalesActorRole = Extract<FixedRole, "admin" | "sales">;
 
 /** Canonical read model used by the profile's Sales-to-Admissions controls. */
@@ -80,6 +98,23 @@ export type ProfileSalesSnapshot = Readonly<{
   handoff: PlatformLeadAdmissionsHandoffSnapshot;
 }>;
 
+export type ProfileAdmissionsRequestIds = Readonly<{
+  createApplication: string;
+  applications: Readonly<Record<string, string>>;
+  visa: string;
+  createStops: Readonly<Record<string, string>>;
+  resolveStops: Readonly<Record<string, string>>;
+}>;
+
+export type ProfileAdmissionsWorkspace = Readonly<{
+  studentCaseId: string;
+  caseState: "pending" | "active" | "closed";
+  applications: readonly PlatformApplicationQueueRow[];
+  visa: PlatformCaseVisa | null;
+  finance: PlatformCaseFinanceControl;
+  requestIds: ProfileAdmissionsRequestIds;
+}>;
+
 /** One server-generated id per independently retryable command form. */
 export type ProfileSalesRequestIds = Readonly<{
   contract: string;
@@ -87,17 +122,6 @@ export type ProfileSalesRequestIds = Readonly<{
   override: string;
   handoff: string;
 }>;
-
-/**
- * Пункт заготовки документов — только имя.
- *
- * Файла здесь нет намеренно: приложенный файл появляется в браузере и живёт
- * в состоянии вкладки, пока хранилище не догонит. Имя файла без самого файла
- * было бы нарисованной галочкой.
- */
-export type DocumentItem = Readonly<{ id: string; name: string }>;
-
-export type DocumentGroup = Readonly<{ title: string; items: readonly DocumentItem[] }>;
 
 export type Payment = Readonly<{
   name: string;
@@ -111,6 +135,7 @@ export type Fact = Readonly<{ label: string; value: string | null }>;
 
 /** Дополнительные реальные проекции профиля; отсутствующие данные пусты. */
 export type ProfileDraft = Readonly<{
+  routeTarget: ProfileRouteTarget;
   /** Отображаемое имя ответственного сотрудника, если проекция его возвращает. */
   responsible: string | null;
   provider: string | null;
@@ -133,6 +158,7 @@ export type ProfileDraft = Readonly<{
   remaining: string | null;
   /** Доля оплаченного, 0–100. null — считать не из чего. */
   paidPercent: number | null;
+  admissions: ProfileAdmissionsWorkspace | null;
   /**
    * Есть в модели, намеренно не рисуется.
    *
@@ -154,21 +180,41 @@ export const TABS = [
 
 export type TabKey = (typeof TABS)[number]["key"];
 
+export function buildV3ProfileHref(
+  target: ProfileRouteTarget,
+  tab: string,
+): string {
+  const query = new URLSearchParams();
+  if (target.leadId) query.set("id", target.leadId);
+  if (target.studentCaseId) query.set("case", target.studentCaseId);
+  query.set("tab", tab);
+  return `/v3/profile?${query.toString()}`;
+}
+
 /**
  * Вкладки этого человека.
  *
  * Документы заводятся на дело студента. Пока человек лид, дела нет — и
  * вкладки нет тоже: ни пустой, ни с объяснением, почему она пустая.
  */
-export function tabsFor(student: boolean): readonly (typeof TABS)[number][] {
-  return student ? TABS : TABS.filter((tab) => tab.key !== "documents");
+export function tabsFor(
+  student: boolean,
+  actorRole: ProfileActorRole,
+): readonly (typeof TABS)[number][] {
+  return TABS.filter((tab) => (
+    tab.key !== "documents" || (student && actorRole !== "sales")
+  ));
 }
 
 /**
  * Вкладка из адреса. Чужая или недоступная этому человеку — открывается обзор:
  * `?tab=documents` у лида не должен ронять страницу.
  */
-export function resolveTab(value: unknown, student: boolean): TabKey {
-  const found = tabsFor(student).find((tab) => tab.key === value);
+export function resolveTab(
+  value: unknown,
+  student: boolean,
+  actorRole: ProfileActorRole,
+): TabKey {
+  const found = tabsFor(student, actorRole).find((tab) => tab.key === value);
   return found ? found.key : "overview";
 }

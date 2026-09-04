@@ -1,8 +1,11 @@
+import { randomUUID } from "node:crypto";
+import { redirect } from "next/navigation";
+
 import { PartShell } from "@/components/v3/PartShell";
 import { Calendar } from "@/components/v3/calendar/Calendar";
 import { gridDays, resolveDay, resolveView } from "@/components/v3/calendar/types";
 import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
-import { readCalendarTasks, readToday } from "@/lib/v3/calendar-source";
+import { readCalendarWorkspace, readToday } from "@/lib/v3/calendar-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Календарь" };
@@ -29,7 +32,27 @@ export default async function CalendarPart({
   const view = resolveView(params.view);
   const day = resolveDay(params.date, today);
   const days = gridDays(view, day);
-  const tasks = await readCalendarTasks(actor, days[0], days[days.length - 1]);
+  if (
+    actor.presentationRole !== "admin"
+    && actor.presentationRole !== "admissions"
+  ) {
+    redirect("/access-denied?from=%2Fv3%2Fcalendar");
+  }
+  const workspace = await readCalendarWorkspace(
+    actor,
+    days[0],
+    days[days.length - 1],
+  );
+  const taskRequestIds = Object.fromEntries(
+    workspace.tasks.map((task) => [
+      task.id,
+      {
+        change: randomUUID(),
+        complete: randomUUID(),
+        cancel: randomUUID(),
+      },
+    ]),
+  );
 
   return (
     <PartShell title="Календарь">
@@ -38,7 +61,15 @@ export default async function CalendarPart({
         day={day}
         today={today}
         days={days}
-        tasks={tasks}
+        tasks={workspace.tasks}
+        cases={workspace.cases}
+        casesHaveMore={workspace.casesHaveMore}
+        assignees={workspace.assignees}
+        actorMembershipId={actor.membershipId}
+        authorityRole={actor.authorityRole}
+        presentationRole={actor.presentationRole}
+        createRequestId={randomUUID()}
+        taskRequestIds={taskRequestIds}
         basePath="/v3/calendar"
       />
     </PartShell>

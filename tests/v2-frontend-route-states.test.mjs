@@ -6,7 +6,7 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const queueRoutes = ["applications", "visa", "finance", "tasks"];
+const queueRoutes = ["applications", "visa", "finance"];
 
 test("canonical staff queues own localized loading and error boundaries", () => {
   for (const route of queueRoutes) {

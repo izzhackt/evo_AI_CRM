@@ -28,9 +28,24 @@ export type Day = string;
  * `src/lib/v3/wording.ts`, и это единственный словарь. Свои слова здесь
  * заводить нельзя — второй словарь разойдётся с первым, и никто не заметит.
  *
- * `null` — значение, которого схема не знает: тогда не рисуется ничего.
+ * Канонические строки всегда сохраняют точный статус из Supabase.
  */
-export type TaskState = "open" | "completed" | "cancelled";
+export type TaskState =
+  | "open"
+  | "in_progress"
+  | "blocked"
+  | "done"
+  | "cancelled";
+
+export type CalendarCaseOption = Readonly<{
+  id: string;
+  name: string;
+}>;
+
+export type CalendarAssigneeOption = Readonly<{
+  membershipId: string;
+  displayName: string;
+}>;
 
 /**
  * Задача приёмной кампании.
@@ -40,29 +55,44 @@ export type TaskState = "open" | "completed" | "cancelled";
  * Нет и исполнителя: задача принадлежит роли приёмной, а роль — не человек,
  * рисовать её аватаром значило бы придумать сотрудника.
  *
- * Есть в модели, намеренно не рисуется: `assigned_role` (всегда «приёмная»,
- * одинаково во всех строках), `closed_at` и `closed_by_role` (кто и когда
- * закрыл — по решению заказчика такие подписи с экрана убраны), `version`,
- * `created_at`, `updated_at`, `student_case_id` (вместо ключа кейса на экране
- * имя человека).
+ * `student_case_id`, исполнитель, видимость и версия команды остаются в
+ * клиентском контракте, потому что они обязательны для точной серверной
+ * мутации. На экран UUID и машинные ключи не выводятся.
  */
 export type CalendarTask = Readonly<{
   id: string;
+  studentCaseId: string;
+  taskType: string;
   title: string;
   /** Описание. null — рисовать нечего. */
   details: string | null;
+  /** Exact canonical instant submitted unchanged by quick commands. */
+  dueAt: string | null;
   /** День срока. */
-  day: Day;
+  day: Day | null;
   /**
    * Минуты от полуночи. null — срок без времени: такая задача встаёт в строку
    * «весь день», а не в час.
    */
   minutes: number | null;
-  state: TaskState | null;
+  state: TaskState;
   /** Почему отменена. Бывает только у отменённой. */
   cancelReason: string | null;
   /** Чей это студент. null — не рисуется. */
   person: string | null;
+  priority: "low" | "normal" | "high" | "urgent";
+  studentVisible: boolean;
+  assigneeMembershipId: string;
+  assigneeDisplayName: string;
+  caseState: "active" | "closed";
+  /** Decimal BIGINT returned by Supabase without JavaScript precision loss. */
+  version: string;
+}>;
+
+export type CalendarTaskRequestIds = Readonly<{
+  change: string;
+  complete: string;
+  cancel: string;
 }>;
 
 /* ------------------------------------------------------------------ слова */

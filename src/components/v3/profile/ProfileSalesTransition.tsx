@@ -402,7 +402,10 @@ function HandoffCard({
             <p className="text-sm text-fg-2">Передача подтверждена. Обновляем дело.</p>
           )}
           {actorRole === "admin" ? (
-            <Link href={`/clients/${caseId}`} className={btnGhostCls}>
+            <Link
+              href={`/v3/profile?case=${caseId}&tab=overview`}
+              className={btnGhostCls}
+            >
               Открыть дело
             </Link>
           ) : (

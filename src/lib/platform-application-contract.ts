@@ -20,6 +20,7 @@ export const PLATFORM_APPLICATION_EVIDENCE_STATUSES = new Set<
 export type PlatformApplicationQueueRow = Readonly<{
   organizationId: string;
   universityApplicationId: string;
+  version: string;
   studentCaseId: string;
   studentDisplayName: string;
   targetCountry: string | null;

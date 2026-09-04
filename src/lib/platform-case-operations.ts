@@ -29,6 +29,7 @@ const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform case operations data is unavailable.";
+const POSTGRES_BIGINT_MAX = "9223372036854775807";
 
 export class PlatformCaseOperationsRepositoryError extends Error {
   constructor() {
@@ -149,6 +150,19 @@ function nonNegativeSafeInteger(value: unknown): number {
   return candidate;
 }
 
+function positiveBigint(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !/^[1-9]\d*$/.test(value) ||
+    value.length > POSTGRES_BIGINT_MAX.length ||
+    (value.length === POSTGRES_BIGINT_MAX.length &&
+      value > POSTGRES_BIGINT_MAX)
+  ) {
+    return invalidShape();
+  }
+  return value;
+}
+
 function requireStaffCaseActor(actor: PlatformActor): void {
   if (
     actor.platformRole !== "admin"
@@ -174,6 +188,7 @@ export function normalizePlatformCaseVisa(
     !isRecord(value)
     || !hasExactKeys(value, [
       "visa_case_id",
+      "version",
       "case_id",
       "visa_status",
       "note",
@@ -188,6 +203,7 @@ export function normalizePlatformCaseVisa(
   }
   return {
     visaCaseId: requiredUuid(value.visa_case_id),
+    version: positiveBigint(value.version),
     studentCaseId,
     status: oneOf(value.visa_status, PLATFORM_VISA_STATUSES),
     note: optionalText(value.note, 4000),

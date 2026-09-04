@@ -16792,3 +16792,60 @@ Decision:
 - add no schema, provider, production, navigation or visual-design change, and
   land this correction immediately after the concurrently merged #596 before
   beginning #597.
+## 2026-09-04 - Execute V3-D through versioned canonical Admissions commands
+
+Block-ID: `EVO-V3-D-ADMISSIONS-OPERATIONS-2026-09-04`
+
+Change type: active-slice implementation clarification.
+Affected plan section: Order 3 / Issue #597.
+
+PR #611 merged V3 Inbox/provider-command wiring on exact `main`
+`b8c4b2b628f6dc94533a1cd6119799399440c765`. Issue #597 now replaces the
+Admissions task, university-application, visa, finance-stop and private-file
+controls still mounted in V2 by connecting those existing canonical Supabase
+workflows to the accepted V3 profile and calendar. The current Admissions
+write functions are request-idempotent but tasks, applications, visa cases and
+stop factors do not expose a mutable row version, so the issue's
+`expected_version` acceptance cannot be met honestly by UI-only wiring.
+
+Decision:
+
+- add one forward Supabase migration `107` that gives the existing canonical
+  `platform.case_tasks`, `platform.university_applications`,
+  `platform.visa_cases` and `platform.stop_factors` rows explicit positive
+  `BIGINT` versions, exposes those versions in their existing staff read
+  projections, and replaces the existing mutation RPC signatures with one
+  optimistic compare-and-increment path; a stale version fails with a stable
+  conflict result before any business mutation or audit success is written;
+- keep create commands request-idempotent and represent the not-yet-created
+  row as `expected_version=0`; every mutable V3 form submits the exact version
+  rendered by its canonical Supabase snapshot together with a fresh request
+  UUID. Do not use timestamps as concurrency tokens or add another repository,
+  status dictionary, compatibility signature or fallback write path;
+- retain immutable document-version identity plus the existing reservation,
+  object-binding, finalization, download-grant and checklist-version contracts
+  as the concurrency boundary for private files. V3 uploads and downloads
+  through the existing private Storage routes; it does not add browser-local
+  files, a public bucket or a synthetic second document store. Document review
+  and the richer existing checklist surface remain #598 scope;
+- change `src/lib/v3/profile-source.ts` and
+  `src/lib/v3/calendar-source.ts` before their screens so Admissions and Admin
+  receive the exact case/task/application/visa/finance/document identifiers,
+  versions and allowed command choices. Sales retains its proved lead/gate/
+  handoff profile surface, while Admissions reads case-authorized snapshots;
+  the components never receive a Supabase client or infer hidden identifiers;
+- wire the accepted V3 profile and calendar with compact `useActionState`
+  controls that report saved, invalid, forbidden, stale, request-conflict and
+  unavailable outcomes honestly. A stale result refreshes canonical data and
+  asks the operator to review it; status labels continue to come only from
+  `src/lib/v3/wording.ts`;
+- after focused contract tests and one real local Supabase/PostgreSQL, private
+  Storage, application and browser proof, remove the superseded Admissions
+  mutation panels from V2 Student 360 and its editable task surface in the
+  same slice. Keep only still-required read queues until #600 moves the
+  authenticated root, and point their case/task destinations to V3 so no
+  active route offers a second mutation UI;
+- verify the replacement with a scoped import/route inventory, focused action
+  and SQL/RLS tests, the V3 quality gate and one exact-head CI run. Do not
+  deploy, apply schema to managed production, call providers, mutate provider
+  state or use real customer records in this slice.

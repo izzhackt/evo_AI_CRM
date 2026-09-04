@@ -149,7 +149,7 @@ export default async function FinancePage({
                 </div>
               </div>
               <Link
-                href={`/clients/${row.studentCaseId}#finance`}
+                href={`/v3/profile?case=${row.studentCaseId}&tab=money`}
                 className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline"
               >
                 {copy.open}

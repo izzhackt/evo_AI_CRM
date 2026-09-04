@@ -145,7 +145,7 @@ export default async function VisaPage({
                 <Badge value={visa.status} label={STATUS_LABELS[visa.status]?.[locale] ?? visa.status} />
               </div>
               <Link
-                href={`/clients/${visa.studentCaseId}#visa`}
+                href={`/v3/profile?case=${visa.studentCaseId}&tab=overview#visa`}
                 className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline"
               >
                 {copy.open}

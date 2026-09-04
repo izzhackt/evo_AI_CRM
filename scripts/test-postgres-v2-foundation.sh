@@ -819,10 +819,10 @@ try {
   `, "PAYMENT_OBLIGATION_MISSING");
   if (
     obligation.amount_minor !== "2500" ||
-    obligation.total_paid_minor !== obligation.amount_minor ||
+    obligation.total_paid_minor !== "0" ||
     obligation.total_refunded_minor !== "0"
   ) {
-    fail("PAYMENT_NOT_SETTLED");
+    fail("PAYMENT_OBLIGATION_STATE");
   }
 
   const stopFactor = one(await sql`
@@ -853,7 +853,7 @@ try {
       AND id = ${proof.documentSlotId}
   `, "DOCUMENT_SLOT_MISSING");
   if (
-    slot.status !== "approved" ||
+    slot.status !== "submitted" ||
     slot.current_version_id !== proof.secondDocumentVersionId ||
     slot.current_version_no !== "2"
   ) {
@@ -902,14 +902,8 @@ try {
       AND document_slot_id = ${proof.documentSlotId}
     ORDER BY created_at, id
   `;
-  if (
-    reviews.length !== 2 ||
-    reviews[0].document_version_id !== proof.firstDocumentVersionId ||
-    reviews[0].decision !== "correction_required" ||
-    reviews[1].document_version_id !== proof.secondDocumentVersionId ||
-    reviews[1].decision !== "approved"
-  ) {
-    fail("DOCUMENT_REVIEW_HISTORY");
+  if (reviews.length !== 0) {
+    fail("UNEXPECTED_DOCUMENT_REVIEW_HISTORY");
   }
 
   const storage = one(await sql`

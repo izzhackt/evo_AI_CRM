@@ -1,12 +1,21 @@
 import "server-only";
 
-import type { CalendarTask, Day, TaskState } from "@/components/v3/calendar/types";
-import { listPlatformAdmissionsTaskQueue } from "@/lib/platform-admissions-workspace";
-import type { PlatformCaseTaskStatus } from "@/lib/platform-admissions-task-contract";
+import type {
+  CalendarAssigneeOption,
+  CalendarCaseOption,
+  CalendarTask,
+  Day,
+} from "@/components/v3/calendar/types";
+import { listPlatformStudentCases } from "@/lib/platform-admissions";
+import {
+  getPlatformAdmissionsTaskWorkspace,
+  listPlatformAdmissionsTaskQueue,
+} from "@/lib/platform-admissions-workspace";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 
 const QUEUE_PAGE_SIZE = 100;
+const CASE_PAGE_SIZE = 100;
 
 const DAY_PARTS = new Intl.DateTimeFormat("en-CA", {
   timeZone: ORG_TIMEZONE,
@@ -21,16 +30,6 @@ const TIME_PARTS = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
   hourCycle: "h23",
 });
-
-const TASK_STATE: Readonly<Record<PlatformCaseTaskStatus, TaskState | null>> = {
-  open: "open",
-  in_progress: "open",
-  // V3 has no honest blocked state yet. Omitting the pill is safer than
-  // labelling a blocked task as open, completed, or cancelled.
-  blocked: null,
-  done: "completed",
-  cancelled: "cancelled",
-};
 
 function part(
   parts: readonly Intl.DateTimeFormatPart[],
@@ -75,27 +74,104 @@ export async function readCalendarTasks(
   }
 
   return queue.rows.flatMap((row) => {
-    if (row.dueAt === null) return [];
-
-    const dueAt = new Date(row.dueAt);
-    if (!Number.isFinite(dueAt.getTime())) {
+    const dueAt = row.dueAt === null ? null : new Date(row.dueAt);
+    if (dueAt && !Number.isFinite(dueAt.getTime())) {
       throw new Error("V3 calendar received an invalid canonical task deadline.");
     }
 
-    const day = dayInOrganizationTimezone(dueAt);
-    if (day < from || day > to) return [];
+    const day = dueAt ? dayInOrganizationTimezone(dueAt) : null;
+    if (day !== null && (day < from || day > to)) return [];
 
     return [{
       id: row.caseTaskId,
+      studentCaseId: row.studentCaseId,
+      taskType: row.taskType,
       title: row.title,
-      // These fields are not exposed by staff_case_task_queue. Null is the
-      // truthful value until the canonical read contract supplies them.
       details: null,
+      dueAt: row.dueAt,
       day,
-      minutes: minutesInOrganizationTimezone(dueAt),
-      state: TASK_STATE[row.status],
+      minutes: dueAt ? minutesInOrganizationTimezone(dueAt) : null,
+      state: row.status,
       cancelReason: null,
       person: row.studentDisplayName,
+      priority: row.priority,
+      studentVisible: row.studentVisible,
+      assigneeMembershipId: row.assigneeMembershipId,
+      assigneeDisplayName: row.assigneeDisplayName,
+      caseState: row.caseState,
+      version: row.version,
     } satisfies CalendarTask];
+  });
+}
+
+async function readActiveCases(
+  actor: ActivePlatformActor,
+): Promise<Readonly<{
+  rows: readonly CalendarCaseOption[];
+  hasNext: boolean;
+}>> {
+  const cases: CalendarCaseOption[] = [];
+  const caseIds = new Set<string>();
+  const page = await listPlatformStudentCases(actor, {
+    pageSize: CASE_PAGE_SIZE,
+    state: "active",
+  });
+
+  for (const entry of page.rows) {
+    if (entry.access !== "full" || entry.studentCase.state !== "active") {
+      throw new Error("V3 calendar received an unauthorized case projection.");
+    }
+    if (caseIds.has(entry.studentCase.studentCaseId)) {
+      throw new Error("V3 calendar received a duplicate canonical case.");
+    }
+    caseIds.add(entry.studentCase.studentCaseId);
+    cases.push({
+      id: entry.studentCase.studentCaseId,
+      name: entry.studentCase.studentDisplayName,
+    });
+  }
+
+  return Object.freeze({
+    rows: Object.freeze(cases),
+    hasNext: page.hasNext,
+  });
+}
+
+export type CalendarWorkspace = Readonly<{
+  tasks: readonly CalendarTask[];
+  cases: readonly CalendarCaseOption[];
+  casesHaveMore: boolean;
+  assignees: readonly CalendarAssigneeOption[];
+}>;
+
+/**
+ * One write-ready V3 calendar projection. Cases and assignees come from the
+ * same authorized Supabase repositories as the task commands; there is no
+ * browser-only picker data or an unbound task path.
+ */
+export async function readCalendarWorkspace(
+  actor: ActivePlatformActor,
+  from: Day,
+  to: Day,
+): Promise<CalendarWorkspace> {
+  const [tasks, cases] = await Promise.all([
+    readCalendarTasks(actor, from, to),
+    readActiveCases(actor),
+  ]);
+  const workspace = cases.rows[0]
+    ? await getPlatformAdmissionsTaskWorkspace(actor, cases.rows[0].id)
+    : null;
+  const assignees = workspace?.assignees
+    .filter((assignee) => assignee.role !== "sales")
+    .map((assignee) => ({
+      membershipId: assignee.membershipId,
+      displayName: assignee.displayName,
+    } satisfies CalendarAssigneeOption)) ?? [];
+
+  return Object.freeze({
+    tasks,
+    cases: cases.rows,
+    casesHaveMore: cases.hasNext,
+    assignees: Object.freeze(assignees),
   });
 }

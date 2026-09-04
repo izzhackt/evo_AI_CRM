@@ -15,8 +15,8 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const privateDocumentsPanelSource = source(
-  "src/components/platform/documents/PlatformPrivateDocumentsPanel.tsx",
+const v3DocumentsSource = source(
+  "src/components/v3/profile/ProfileDocumentsClient.tsx",
 );
 const student360Source = source(
   "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
@@ -130,58 +130,27 @@ test("documents queue uses the fixed Admissions read boundary", () => {
   assert.equal(fixedRoleCanAccessRoute("sales", "/documents"), false);
 });
 
-test("Student 360 is the one canonical private-document write surface", () => {
-  assert.match(student360Source, /getPlatformCaseDocumentWorkspace\(actor, id\)/);
-  assert.match(student360Source, /<PlatformPrivateDocumentsPanel/);
-  assert.match(privateDocumentsPanelSource, /id="case-documents"/);
-  assert.match(
-    privateDocumentsPanelSource,
-    /data-testid="platform-private-documents"/,
-  );
-  assert.match(
-    privateDocumentsPanelSource,
-    /data-testid="platform-document-upload-form"/,
-  );
-  assert.match(
-    privateDocumentsPanelSource,
-    /data-testid="platform-document-slot"/,
-  );
-  assert.match(
-    privateDocumentsPanelSource,
-    /data-testid="platform-document-version"/,
-  );
-  assert.match(
-    privateDocumentsPanelSource,
-    /data-testid="platform-document-download"/,
-  );
-  assert.match(
-    privateDocumentsPanelSource,
-    /data-document-slot-id=\{slot\.documentSlotId\}/,
-  );
-  assert.match(
-    privateDocumentsPanelSource,
-    /version\.documentVersionId/,
-  );
-  assert.match(
-    privateDocumentsPanelSource,
-    /data-version-number=\{version\.versionNumber\}/,
-  );
-  assert.match(privateDocumentsPanelSource, /\/api\/v2\/document-slots\//);
-  assert.match(
-    privateDocumentsPanelSource,
-    /\/api\/v2\/document-versions\//,
-  );
-  assert.match(privateDocumentsPanelSource, /router\.refresh\(\)/);
-  assert.match(privateDocumentsPanelSource, /const ACCEPTED_FILE_TYPES = \["application\/pdf", "image\/jpeg", "image\/png"\]/);
-  assert.match(privateDocumentsPanelSource, /accept=\{ACCEPTED_FILE_TYPES\.join\(","\)\}/);
-  assert.match(privateDocumentsPanelSource, /25 MiB/);
+test("the V3 case profile is the one canonical private-document write surface", () => {
   assert.doesNotMatch(
-    privateDocumentsPanelSource,
+    student360Source,
+    /getPlatformCaseDocumentWorkspace|PlatformPrivateDocumentsPanel/,
+  );
+  assert.match(v3DocumentsSource, /data-testid="v3-document-upload-form"/);
+  assert.match(v3DocumentsSource, /data-testid="v3-document-item"/);
+  assert.match(v3DocumentsSource, /data-testid="v3-document-download"/);
+  assert.match(v3DocumentsSource, /\/api\/v2\/document-slots\//);
+  assert.match(v3DocumentsSource, /\/api\/v2\/document-versions\//);
+  assert.match(v3DocumentsSource, /router\.refresh\(\)/);
+  assert.match(v3DocumentsSource, /const ACCEPTED_FILE_TYPES = \["application\/pdf", "image\/jpeg", "image\/png"\]/);
+  assert.match(v3DocumentsSource, /accept=\{ACCEPTED_FILE_TYPES\.join\(","\)\}/);
+  assert.match(v3DocumentsSource, /25 MiB/);
+  assert.doesNotMatch(
+    v3DocumentsSource,
     /objectKey|private-document-repository|drizzle|sqlite|fallback/i,
   );
 });
 
-test("the documents route is a read-only Platform queue linked to Student 360", () => {
+test("the documents route is a read-only Platform queue linked to the V3 case profile", () => {
   assert.match(canonicalDocumentsQueueSource, /requirePlatformDocumentsActor\(\)/);
   assert.match(
     canonicalDocumentsQueueSource,
@@ -189,7 +158,7 @@ test("the documents route is a read-only Platform queue linked to Student 360", 
   );
   assert.match(
     canonicalDocumentsQueueSource,
-    /`\/clients\/\$\{row\.studentCaseId\}#case-documents`/,
+    /`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=documents`/,
   );
   assert.doesNotMatch(
     canonicalDocumentsQueueSource,

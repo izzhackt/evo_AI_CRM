@@ -23,6 +23,7 @@ export type PlatformCaseTaskPriority =
 export type PlatformAdmissionsTask = Readonly<{
   organizationId: string;
   caseTaskId: string;
+  version: string;
   studentCaseId: string;
   taskType: string;
   title: string;
@@ -42,6 +43,7 @@ export type PlatformAdmissionsTaskQueueRow = Readonly<{
   sortAt: string;
   organizationId: string;
   caseTaskId: string;
+  version: string;
   studentCaseId: string;
   studentDisplayName: string;
   caseState: "active" | "closed";

@@ -1880,6 +1880,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_communication_command_context_current.sql
   fi
+
+  # Migration 107 adds optimistic row versions to the canonical Admissions
+  # task, application, visa and finance-stop command surfaces.
+  if [[ "$(basename "$migration")" == 107_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_admissions_versioning_current.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

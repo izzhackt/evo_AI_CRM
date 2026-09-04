@@ -23,6 +23,7 @@ const WORKFLOW_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 const JSON_KEY_PATTERN = /^[a-z][a-z0-9_.-]{0,63}$/;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform admissions data is unavailable.";
+const POSTGRES_BIGINT_MAX = "9223372036854775807";
 
 export type PlatformStudentCaseState = "pending" | "active" | "closed";
 export type PlatformRouteApprovalStatus = "draft" | "approved" | "rework";
@@ -298,6 +299,19 @@ function positiveInteger(value: unknown): number {
   return parsed > 0 ? parsed : invalidShape();
 }
 
+function positiveBigint(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !/^[1-9]\d*$/.test(value) ||
+    value.length > POSTGRES_BIGINT_MAX.length ||
+    (value.length === POSTGRES_BIGINT_MAX.length &&
+      value > POSTGRES_BIGINT_MAX)
+  ) {
+    return invalidShape();
+  }
+  return value;
+}
+
 function oneOf<const T extends readonly string[]>(
   value: unknown,
   allowed: T,
@@ -550,6 +564,7 @@ export function normalizePlatformApplicationQueueRow(
   return {
     organizationId,
     universityApplicationId: requiredUuid(value.university_application_id),
+    version: positiveBigint(value.version),
     studentCaseId: requiredUuid(value.student_case_id),
     studentDisplayName: requiredText(value.student_display_name, 200),
     targetCountry: optionalText(value.target_country, 200),

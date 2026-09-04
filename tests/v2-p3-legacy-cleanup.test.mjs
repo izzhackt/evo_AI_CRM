@@ -55,7 +55,7 @@ test("P3 active routes have one Supabase authority and no legacy fallback import
   );
 });
 
-test("P4 retires the Admissions wrapper and leaves only the Platform amoCRM section", () => {
+test("V3-D retires the V2 Admissions mutation panels and leaves only the scoped amoCRM section", () => {
   const studentWorkspace = source(
     "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
   );
@@ -72,9 +72,17 @@ test("P4 retires the Admissions wrapper and leaves only the Platform amoCRM sect
     ),
     false,
   );
-  assert.match(studentWorkspace, /<PlatformAdmissionsTaskPanel/);
-  assert.match(studentWorkspace, /<PlatformAdmissionsOperationsPanel/);
-  assert.match(studentWorkspace, /<PlatformPrivateDocumentsPanel/);
+  assert.doesNotMatch(
+    studentWorkspace,
+    /PlatformAdmissionsTaskPanel|PlatformAdmissionsOperationsPanel|PlatformPrivateDocumentsPanel/,
+  );
+  for (const retired of [
+    "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
+    "src/components/platform/admissions/PlatformAdmissionsOperationsPanel.tsx",
+    "src/components/platform/documents/PlatformPrivateDocumentsPanel.tsx",
+  ]) {
+    assert.equal(existsSync(new URL(`../${retired}`, import.meta.url)), false);
+  }
   assert.equal(
     existsSync(
       new URL(

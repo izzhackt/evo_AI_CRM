@@ -4,6 +4,10 @@
 -- exercise the real canonical workflow command where noted, and roll back.
 BEGIN;
 
+-- Build canonical receipts in one session timezone, then read them in another
+-- below. The projection must compare timestamp instants, not JSON rendering.
+SET LOCAL TIME ZONE 'UTC';
+
 CREATE OR REPLACE FUNCTION pg_temp.p111_assert(
   p_condition BOOLEAN,
   p_message TEXT
@@ -334,6 +338,7 @@ SELECT pg_temp.p111_assert(
 
 SET request.jwt.claims TO :'p111_admin_a_claims';
 SET ROLE authenticated;
+SET LOCAL TIME ZONE 'Asia/Bishkek';
 
 SELECT pg_temp.p111_assert(
   (SELECT pg_catalog.count(*)
@@ -403,23 +408,6 @@ ORDER BY page.entered_at ASC, page.request_id ASC
 OFFSET 1
 LIMIT 1
 \gset
-
-SELECT pg_catalog.jsonb_agg(
-  pg_catalog.jsonb_build_object(
-    'lead_id', page.lead_id,
-    'stage_key', page.stage_key,
-    'entered_at', page.entered_at,
-    'request_id', page.request_id
-  )
-  ORDER BY page.entered_at ASC, page.request_id ASC
-) AS p111_second_page_debug
-FROM platform.staff_sales_stage_entry_cohort(
-  '2026-09-04',
-  '2026-09-04',
-  2,
-  :'p111_page_cursor_entered_at'::TIMESTAMPTZ,
-  :'p111_page_cursor_request_id'::UUID
-) AS page;
 
 SELECT pg_temp.p111_assert(
   ARRAY(

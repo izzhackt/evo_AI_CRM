@@ -161,10 +161,16 @@ BEGIN
             receipt.desired_owner_membership_id,
           'next_action_text', receipt.desired_next_action_text,
           'next_action_due_date', receipt.desired_next_action_due_date,
-          'workflow_version', receipt.resulting_workflow_version,
-          'changed_at', receipt.created_at
+          'workflow_version', receipt.resulting_workflow_version
         )
       )
+      OR CASE
+        WHEN pg_catalog.jsonb_typeof(receipt.result -> 'changed_at')
+          IS DISTINCT FROM 'string'
+        THEN TRUE
+        ELSE (receipt.result ->> 'changed_at')::TIMESTAMPTZ
+          IS DISTINCT FROM receipt.created_at
+      END
   ),
   audit_without_receipts AS (
     SELECT audit_event.request_id

@@ -51,6 +51,9 @@ try {
 
       for (const route of routes) {
         await page.goto(`${base}${route}`, { waitUntil: "networkidle" });
+        if (route === "/v3/main") {
+          await page.getByText("Квалифицированы", { exact: true }).first().waitFor();
+        }
         const axe = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
           .analyze();

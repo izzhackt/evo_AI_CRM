@@ -155,6 +155,27 @@ test("V3 custom funnel ranges retain the leading partial bucket", () => {
   assert.doesNotMatch(funnel, /Math\.floor\(days \/ step\)/);
 });
 
+test("V3 funnel counts proven qualification for the same lead-creation cohort", () => {
+  const funnel = source("src/lib/v3/funnel-source.ts");
+  const wording = source("src/lib/v3/wording.ts");
+
+  assert.match(funnel, /async function readAllProvenStageEntries/);
+  assert.match(funnel, /pageSize: STAGE_ENTRY_PAGE_SIZE/);
+  assert.match(funnel, /cursor = page\.nextCursor/);
+  assert.match(funnel, /seenCursors\.has\(cursorKey\)/);
+  assert.match(funnel, /const cohort = creationCohort\(leadRows, period\)/);
+  assert.match(funnel, /!cohortLeadIds\.has\(entry\.leadId\)/);
+  assert.match(funnel, /seenLeadStages\.has\(identity\)/);
+  assert.match(funnel, /entry\.stageKey === "qualified"/);
+  assert.match(funnel, /qualified: qualifiedLeadIds\.has\(row\.leadId\)/);
+  assert.match(funnel, /FUNNEL_STEP\.qualified/);
+  assert.match(funnel, /qualified\[row\.hour\] \+= 1/);
+  assert.match(funnel, /qualified\[bucket\] \+= 1/);
+  assert.match(wording, /qualified: "Квалифицированы"/);
+  assert.doesNotMatch(funnel, /entry\.enteredAt|entry\.enteredOn/);
+  assert.doesNotMatch(funnel, /row\.updatedAt/);
+});
+
 test("V3 document dates use the organization timezone", () => {
   const knowledge = source("src/lib/v3/knowledge-source.ts");
 

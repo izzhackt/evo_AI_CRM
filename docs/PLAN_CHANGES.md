@@ -17103,3 +17103,38 @@ Implementation hardening follows the current Supabase Database Functions and
 Row Level Security guidance:
 https://supabase.com/docs/guides/database/functions and
 https://supabase.com/docs/guides/database/postgres/row-level-security.
+
+## 2026-09-04 - Page the #599 stage-entry proof to avoid Supabase max-row truncation
+
+Block-ID: `EVO-V3-F-SALES-STAGE-ENTRY-PAGINATION-2026-09-04`
+
+Change type: implementation hardening.
+Affected plan section: Order 5 / Issue #599 / slice 4 of 6.
+
+The first #599 clarification defined the truth of the funnel counts, but its
+initial adapter shape still assumed the stage-entry proof could be returned in
+one unpaged RPC response. Supabase's PostgREST layer applies a bounded
+`max_rows` limit to table, view and function outputs, so an unpaged function
+can silently truncate a larger cohort even when the SQL itself is correct.
+
+Decision:
+
+- keep the same one-authority semantics for the stage-entry proof, but expose
+  it through an explicit bounded page contract with `p_limit` plus a stable
+  `(entered_at, request_id)` cursor instead of one unbounded response;
+- preserve chronological ordering and fail closed on invalid limit, incomplete
+  cursor, non-advancing cursor, shape drift or duplicate lead-stage facts
+  across pages;
+- keep the V3 funnel adapter responsible for reading every page before
+  computing cohort metrics so the screen contract stays person-based and does
+  not inherit transport pagination;
+- keep the SQL contract private, authenticated and read-only; this hardening
+  does not broaden actor access, mutate managed Supabase or create a second
+  event authority.
+
+This hardening follows the current Supabase and PostgREST documentation that
+the Data API is a PostgREST layer over database tables, views and functions,
+and that `db-max-rows` is a hard limit on rows fetched from a table, view or
+function, so larger results need an explicit bounded page contract:
+https://supabase.com/docs/guides/api
+https://docs.postgrest.org/en/v12/references/configuration.html#db-max-rows

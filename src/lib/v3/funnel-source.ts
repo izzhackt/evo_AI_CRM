@@ -5,10 +5,17 @@ import type { Metric } from "@/components/v3/MetricCard";
 import type { TrendSeries } from "@/components/v3/TrendChart";
 import type { PlatformActor } from "@/lib/platform-auth";
 import type { PlatformSalesLeadRow } from "@/lib/platform-sales";
+import {
+  listPlatformSalesStageEntries,
+  PlatformSalesStageEntryError,
+  type PlatformSalesStageEntry,
+  type PlatformSalesStageEntryCursor,
+} from "@/lib/platform-sales-stage-entries";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { readAllCanonicalSalesLeads } from "@/lib/v3/pipeline-source";
 import { FUNNEL_STEP } from "@/lib/v3/wording";
 
+const STAGE_ENTRY_PAGE_SIZE = 100;
 export const PERIODS = [
   { key: "today", title: "Сегодня" },
   { key: "yesterday", title: "Вчера" },
@@ -160,6 +167,8 @@ export function resolvePeriod(
 export type PeriodCounts = Readonly<{
   /** Canonical sales leads created in the selected period. */
   leads: number;
+  /** Leads in the cohort with a proven first entry into qualified. */
+  qualified: number;
   /** Leads in the cohort that have a canonical linked student case. */
   handed: number;
 }>;
@@ -184,22 +193,88 @@ export type PeriodDashboard = Readonly<{
 type DatedLead = Readonly<{
   date: string;
   hour: number;
+  qualified: boolean;
   handed: boolean;
 }>;
 
-function datedLead(row: PlatformSalesLeadRow): DatedLead {
+function datedLead(
+  row: PlatformSalesLeadRow,
+  qualifiedLeadIds: ReadonlySet<string>,
+): DatedLead {
   const createdAt = timestamp(row.createdAt);
   return {
     date: organizationDate(createdAt),
     hour: organizationHour(createdAt),
+    qualified: qualifiedLeadIds.has(row.leadId),
     handed: row.linkedStudentCaseCount > 0,
   };
+}
+
+function creationCohort(
+  rows: readonly PlatformSalesLeadRow[],
+  period: Period,
+): readonly PlatformSalesLeadRow[] {
+  return rows.filter((row) => {
+    const createdOn = organizationDate(timestamp(row.createdAt));
+    return createdOn >= period.from && createdOn <= period.to;
+  });
+}
+
+function provenQualifiedLeadIds(
+  entries: readonly PlatformSalesStageEntry[],
+  cohortLeadIds: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const seenLeadStages = new Set<string>();
+  const qualifiedLeadIds = new Set<string>();
+  for (const entry of entries) {
+    const identity = `${entry.leadId}:${entry.stageKey}`;
+    if (!cohortLeadIds.has(entry.leadId) || seenLeadStages.has(identity)) {
+      throw new PlatformSalesStageEntryError();
+    }
+    seenLeadStages.add(identity);
+    if (entry.stageKey === "qualified") qualifiedLeadIds.add(entry.leadId);
+  }
+  return qualifiedLeadIds;
+}
+
+async function readAllProvenStageEntries(
+  actor: PlatformActor,
+  period: Period,
+): Promise<readonly PlatformSalesStageEntry[]> {
+  const rows: PlatformSalesStageEntry[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: PlatformSalesStageEntryCursor | null = null;
+
+  while (true) {
+    const page = await listPlatformSalesStageEntries(
+      actor,
+      {
+        from: period.from,
+        to: period.to,
+        pageSize: STAGE_ENTRY_PAGE_SIZE,
+        cursor,
+      },
+    );
+    rows.push(...page.rows);
+    if (!page.hasNext) return rows;
+    if (page.nextCursor === null) {
+      throw new PlatformSalesStageEntryError();
+    }
+
+    const cursorKey = `${page.nextCursor.enteredAt}:${page.nextCursor.requestId}`;
+    if (seenCursors.has(cursorKey)) {
+      throw new PlatformSalesStageEntryError();
+    }
+    seenCursors.add(cursorKey);
+    cursor = page.nextCursor;
+  }
 }
 
 function periodFigures(rows: readonly DatedLead[], period: Period): PeriodFigures {
   const cohort = rows.filter((row) => row.date >= period.from && row.date <= period.to);
   const counts: PeriodCounts = {
     leads: cohort.length,
+    qualified: cohort.filter((row) => row.qualified).length,
     handed: cohort.filter((row) => row.handed).length,
   };
 
@@ -207,10 +282,12 @@ function periodFigures(rows: readonly DatedLead[], period: Period): PeriodFigure
     counts,
     metrics: [
       { label: FUNNEL_STEP.leads, value: counts.leads, insteadOfDelta: null },
+      { label: FUNNEL_STEP.qualified, value: counts.qualified, insteadOfDelta: null },
       { label: FUNNEL_STEP.handed, value: counts.handed, insteadOfDelta: null },
     ],
     stages: [
       { name: FUNNEL_STEP.leads, value: counts.leads },
+      { name: FUNNEL_STEP.qualified, value: counts.qualified },
       { name: FUNNEL_STEP.handed, value: counts.handed },
     ],
   };
@@ -227,13 +304,15 @@ function cumulative(values: readonly number[]): number[] {
 function assemble(
   labels: readonly string[],
   leadValues: readonly number[],
+  qualifiedValues: readonly number[],
   handedValues: readonly number[],
   label: string,
 ): PeriodTrend | null {
   if (labels.length < 2) return null;
   const leads = cumulative(leadValues);
+  const qualified = cumulative(qualifiedValues);
   const handed = cumulative(handedValues);
-  if ([...leads, ...handed].every((value) => value === 0)) return null;
+  if ([...leads, ...qualified, ...handed].every((value) => value === 0)) return null;
 
   const every = Math.max(1, Math.ceil(labels.length / 7));
   const ticks = labels.map((one, index) => (index % every === 0 ? one : ""));
@@ -241,6 +320,7 @@ function assemble(
   return {
     series: [
       { label: FUNNEL_STEP.leads, values: leads, emphasis: "primary" },
+      { label: FUNNEL_STEP.qualified, values: qualified, emphasis: "secondary" },
       { label: FUNNEL_STEP.handed, values: handed, emphasis: "secondary" },
     ],
     ticks,
@@ -253,10 +333,12 @@ function hourlyTrend(
   period: Period,
 ): PeriodTrend | null {
   const leads = Array.from({ length: 24 }, () => 0);
+  const qualified = Array.from({ length: 24 }, () => 0);
   const handed = Array.from({ length: 24 }, () => 0);
   for (const row of rows) {
     if (row.date !== period.from) continue;
     leads[row.hour] += 1;
+    if (row.qualified) qualified[row.hour] += 1;
     if (row.handed) handed[row.hour] += 1;
   }
 
@@ -267,6 +349,7 @@ function hourlyTrend(
   return assemble(
     labels,
     leads,
+    qualified,
     handed,
     rangeLabel(period.from, period.from, period.today),
   );
@@ -283,6 +366,7 @@ function dailyTrend(
 
   const from = period.from;
   const leads = Array.from({ length: whole }, () => 0);
+  const qualified = Array.from({ length: whole }, () => 0);
   const handed = Array.from({ length: whole }, () => 0);
   for (const row of rows) {
     if (row.date < from || row.date > period.to) continue;
@@ -291,6 +375,7 @@ function dailyTrend(
       throw new Error("Canonical sales trend resolved outside its period.");
     }
     leads[bucket] += 1;
+    if (row.qualified) qualified[bucket] += 1;
     if (row.handed) handed[bucket] += 1;
   }
 
@@ -301,20 +386,33 @@ function dailyTrend(
     return dayLabel(date, fromYear !== nowYear && index === 0);
   });
 
-  return assemble(labels, leads, handed, rangeLabel(period.from, period.to, period.today));
+  return assemble(
+    labels,
+    leads,
+    qualified,
+    handed,
+    rangeLabel(period.from, period.to, period.today),
+  );
 }
 
 /**
- * Both dashboard figures and the trend come from one canonical Supabase queue
- * read. The queue does not expose university-application evidence, so V3 does
- * not claim an "applied" cohort here; that metric can return only when a
- * canonical read projection supplies the fact.
+ * The queue defines the exact lead-creation cohort and current handoff state;
+ * the guarded history projection adds only receipt-and-audit-proven stage
+ * entries. Both are Supabase views of the same canonical leads, with no
+ * browser synthesis from `updated_at` and no second event authority.
  */
 export async function readPeriodDashboard(
   actor: PlatformActor,
   period: Period,
 ): Promise<PeriodDashboard> {
-  const rows = (await readAllCanonicalSalesLeads(actor)).map(datedLead);
+  const [leadRows, stageEntries] = await Promise.all([
+    readAllCanonicalSalesLeads(actor),
+    readAllProvenStageEntries(actor, period),
+  ]);
+  const cohort = creationCohort(leadRows, period);
+  const cohortLeadIds = new Set(cohort.map((row) => row.leadId));
+  const qualifiedLeadIds = provenQualifiedLeadIds(stageEntries, cohortLeadIds);
+  const rows = cohort.map((row) => datedLead(row, qualifiedLeadIds));
   const days = span(period.from, period.to);
   return {
     figures: periodFigures(rows, period),

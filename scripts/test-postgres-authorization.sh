@@ -1933,6 +1933,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_task_all_day_deadlines.sql
   fi
+
+  # Migration 111 exposes exact first stage-entry facts only when the existing
+  # private workflow receipt and append-only audit event prove one transition.
+  if [[ "$(basename "$migration")" == 111_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_sales_stage_entry_projection.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

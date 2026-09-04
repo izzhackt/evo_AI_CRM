@@ -28,6 +28,7 @@ export const FIXED_ROLE_ROUTES = [
   "/finance",
   "/tasks",
   "/v3/inbox",
+  "/v3/knowledge",
   "/settings",
 ] as const;
 
@@ -63,8 +64,16 @@ const ROUTE_CAPABILITY = {
   "/finance": "admissions.read",
   "/tasks": "admissions.read",
   "/v3/inbox": "messaging.read",
+  "/v3/knowledge": "documents.read",
   "/settings": "admin.preview",
 } as const satisfies Record<FixedRoleRoute, FixedRoleCapability>;
+
+export function isFixedRoleRoute(value: unknown): value is FixedRoleRoute {
+  return (
+    typeof value === "string" &&
+    (FIXED_ROLE_ROUTES as readonly string[]).includes(value)
+  );
+}
 
 export function isFixedRole(value: unknown): value is FixedRole {
   return (

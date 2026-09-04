@@ -67,6 +67,13 @@ public = false
 file_size_limit = "25MiB"
 allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
 
+# V3-F canonical private company knowledge files. The browser can insert only
+# one exact reserved object; reads and signing remain trusted-server actions.
+[storage.buckets.platform-company-files]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = ["application/pdf", "image/jpeg", "image/png", "text/plain", "text/csv", "application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.openxmlformats-officedocument.presentationml.presentation"]
+
 # P5D fixed private archive for already-projected evo-inbox media. Browser
 # principals receive neither a Storage select policy nor bucket/object names;
 # a backend service signs only after consuming an audited one-time grant.

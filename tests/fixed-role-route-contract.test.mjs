@@ -29,6 +29,7 @@ const canonicalDocumentsLayoutSource = source(
   "src/app/(staff)/documents/layout.tsx",
 );
 const staffLayoutSource = source("src/app/(staff)/layout.tsx");
+const accessDeniedSource = source("src/app/(staff)/access-denied/page.tsx");
 
 test("visa and finance queues use the fixed Admissions read boundary", () => {
   for (const route of ["/visa", "/finance"]) {
@@ -79,6 +80,21 @@ test("the namespaced V3 product surface is connected without opening descendants
   for (const path of ["/v3/unknown", "/v3/unknown/child", "/v3//main", "/v3/Profile"]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
+});
+
+test("the exact V3 knowledge denial keeps its route provenance", () => {
+  assert.match(
+    accessDeniedSource,
+    /requestedKnowledge = requestedPath === "\/v3\/knowledge"/,
+  );
+  assert.match(accessDeniedSource, /isFixedRoleRoute\(requestedPath\)/);
+  assert.match(accessDeniedSource, /requestedKnowledge\s*\? copy\.knowledge/);
+});
+
+test("V3 knowledge uses the canonical documents role boundary", () => {
+  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/knowledge"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/knowledge"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/knowledge"), false);
 });
 
 test("removed parallel pages stay outside the successor and stop before runtime", () => {
@@ -250,6 +266,32 @@ test("only the exact private document APIs enter the active V2 route contract", 
     `/api/v2/document-slots/${documentSlotId}/versions/`,
     `/api/v2/document-versions/${versionId}`,
     "/private-documents/anything",
+  ]) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});
+
+test("only the exact private company-file APIs enter the active V3 route contract", () => {
+  const companyFileId = "30000000-0000-4000-8000-000000000003";
+  const versionId = "40000000-0000-4000-8000-000000000004";
+
+  assert.equal(
+    isConnectedPlatformApi(`/api/v3/company-files/${companyFileId}/versions`),
+    true,
+  );
+  assert.equal(
+    isConnectedPlatformApi(
+      `/api/v3/company-file-versions/${versionId}/download`,
+    ),
+    true,
+  );
+
+  for (const path of [
+    "/api/v3/company-files",
+    "/api/v3/company-files/not-a-uuid/versions",
+    `/api/v3/company-files/${companyFileId}/versions/`,
+    `/api/v3/company-file-versions/${versionId}`,
+    `/api/v3/company-file-versions/${versionId}/download/`,
   ]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
   }

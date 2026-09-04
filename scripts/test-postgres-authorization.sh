@@ -1896,6 +1896,35 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_dynamic_document_checklists.sql
   fi
+
+  # Migration 109 owns one canonical private company-knowledge tree plus a
+  # distinct 25 MiB Storage bucket. The plain PostgreSQL harness cannot apply
+  # config.toml, so prove that lifecycle contract statically and exercise the
+  # complete RPC/RLS/Storage-policy boundary in its rolled-back SQL suite.
+  if [[ "$(basename "$migration")" == 109_* ]]; then
+    p109_bucket_block="$(
+      awk '
+        /^\[storage\.buckets\.platform-company-files\]$/ { active = 1; next }
+        active && /^\[/ { exit }
+        active { print }
+      ' "$repo_root/supabase/config.toml"
+    )"
+
+    if ! grep -Eq '^public[[:space:]]*=[[:space:]]*false$' \
+      <<<"$p109_bucket_block" ||
+      ! grep -Eq '^file_size_limit[[:space:]]*=[[:space:]]*"25MiB"$' \
+        <<<"$p109_bucket_block" ||
+      ! grep -Fq '"application/pdf"' <<<"$p109_bucket_block" ||
+      ! grep -Fq '"application/vnd.openxmlformats-officedocument.wordprocessingml.document"' \
+        <<<"$p109_bucket_block"; then
+      echo "migration 109 private Storage bucket contract drifted" >&2
+      exit 1
+    fi
+
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_company_files.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

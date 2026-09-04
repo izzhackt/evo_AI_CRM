@@ -34,6 +34,10 @@ const PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/v2\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
 const PRIVATE_DOCUMENT_DOWNLOAD_PATH =
   /^\/api\/v2\/document-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/download$/i;
+const PRIVATE_COMPANY_FILE_VERSION_UPLOAD_PATH =
+  /^\/api\/v3\/company-files\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
+const PRIVATE_COMPANY_FILE_DOWNLOAD_PATH =
+  /^\/api\/v3\/company-file-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/download$/i;
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
@@ -118,6 +122,8 @@ export function isConnectedPlatformApi(path: string): boolean {
     path === PLATFORM_AUDIT_EXPORT_PATH ||
     PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH.test(path) ||
     PRIVATE_DOCUMENT_DOWNLOAD_PATH.test(path) ||
+    PRIVATE_COMPANY_FILE_VERSION_UPLOAD_PATH.test(path) ||
+    PRIVATE_COMPANY_FILE_DOWNLOAD_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

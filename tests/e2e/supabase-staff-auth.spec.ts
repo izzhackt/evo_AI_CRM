@@ -282,7 +282,13 @@ async function expectActiveRole(
 
 async function expectDirectRouteDenied(
   page: Page,
-  path: "/sales" | "/clients" | "/applications" | "/documents" | "/settings",
+  path:
+    | "/sales"
+    | "/clients"
+    | "/applications"
+    | "/documents"
+    | "/v3/knowledge"
+    | "/settings",
 ) {
   await page.goto(path);
   await expect(page).toHaveURL(
@@ -463,6 +469,7 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
     "/clients",
     "/applications",
     "/documents",
+    "/v3/knowledge",
     "/settings",
   ] as const) {
     await expectDirectRouteDenied(page, path);
@@ -1545,6 +1552,195 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     firstDocumentVersionId,
     secondDocumentVersionId,
   });
+});
+
+test("Admissions manages one real private company file through V3", async ({
+  page,
+}) => {
+  test.skip(authMode !== "configured");
+  const suffix = randomUUID().slice(0, 8);
+  const folderName = `E2E company ${suffix}`;
+  const destinationFolderName = `E2E destination ${suffix}`;
+  const fileName = `E2E proof ${suffix}`;
+  const renamedFileName = `${fileName} renamed`;
+  const fileBytes = Buffer.from(`EVO private company file ${suffix}\n`, "utf8");
+  const replacementBytes = Buffer.from(
+    `EVO private company file ${suffix} replacement\n`,
+    "utf8",
+  );
+
+  await signIn(page, "admissions");
+  await page.goto("/v3/knowledge");
+
+  const folderLinks = page.getByTestId("v3-knowledge-folder-link");
+  await folderLinks.filter({ hasText: "Компания" }).first().click();
+  await page.getByText("Новая папка", { exact: true }).click();
+  const createFolder = page.getByTestId("v3-company-create-folder-form");
+  await createFolder.getByTestId("v3-company-folder-name").fill(folderName);
+  await createFolder.locator('button[type="submit"]').click();
+
+  const createdFolderLink = folderLinks.filter({ hasText: folderName });
+  await expect(createdFolderLink).toBeVisible();
+  const refreshedCreateFolder = page.getByTestId("v3-company-create-folder-form");
+  await refreshedCreateFolder
+    .getByTestId("v3-company-folder-name")
+    .fill(destinationFolderName);
+  await refreshedCreateFolder.locator('button[type="submit"]').click();
+  const destinationFolderLink = folderLinks.filter({
+    hasText: destinationFolderName,
+  });
+  await expect(destinationFolderLink).toBeVisible();
+  await createdFolderLink.click();
+  await page.getByText("Новый файл", { exact: true }).click();
+  const createFile = page.getByTestId("v3-company-create-file-form");
+  await createFile.getByTestId("v3-company-file-name").fill(fileName);
+  await createFile.locator('button[type="submit"]').click();
+
+  let fileRow = page.getByTestId("v3-company-file-row").filter({ hasText: fileName });
+  await expect(fileRow).toBeVisible();
+  await fileRow.getByText("Действия", { exact: true }).click();
+  const upload = fileRow.getByTestId("v3-company-file-upload-form");
+  await upload.getByTestId("v3-company-file-input").setInputFiles({
+    name: `${fileName}.txt`,
+    mimeType: "text/plain",
+    buffer: fileBytes,
+  });
+  const firstUploadResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === "POST"
+    && new URL(response.url()).pathname.endsWith("/versions")
+    && response.status() === 201
+  );
+  await upload.getByRole("button", { name: "Сохранить", exact: true }).click();
+  const firstUploadResponse = await firstUploadResponsePromise;
+  const firstUploadPayload = await firstUploadResponse.json() as {
+    companyFile?: { companyFileVersionId?: unknown };
+  };
+  const firstCompanyFileVersionId = requireUuidValue(
+    firstUploadPayload.companyFile?.companyFileVersionId,
+  );
+
+  fileRow = page.getByTestId("v3-company-file-row").filter({ hasText: fileName });
+  const downloadLink = fileRow.getByRole("link", { name: fileName, exact: true });
+  await expect(downloadLink).toHaveAttribute(
+    "href",
+    `/api/v3/company-file-versions/${firstCompanyFileVersionId}/download`,
+  );
+  const downloadPromise = page.waitForEvent("download");
+  await downloadLink.click();
+  expect(await readDownload(await downloadPromise)).toEqual(fileBytes);
+
+  await fileRow.getByText("Действия", { exact: true }).click();
+  const replacementUpload = fileRow.getByTestId("v3-company-file-upload-form");
+  await replacementUpload.getByTestId("v3-company-file-input").setInputFiles({
+    name: `${fileName}-replacement.txt`,
+    mimeType: "text/plain",
+    buffer: replacementBytes,
+  });
+  const replacementUploadResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === "POST"
+    && new URL(response.url()).pathname.endsWith("/versions")
+    && response.status() === 201
+  );
+  await replacementUpload
+    .getByRole("button", { name: "Сохранить", exact: true })
+    .click();
+  const replacementUploadResponse = await replacementUploadResponsePromise;
+  const replacementUploadPayload = await replacementUploadResponse.json() as {
+    companyFile?: { companyFileVersionId?: unknown };
+  };
+  const replacementCompanyFileVersionId = requireUuidValue(
+    replacementUploadPayload.companyFile?.companyFileVersionId,
+  );
+
+  fileRow = page.getByTestId("v3-company-file-row").filter({ hasText: fileName });
+  const replacementDownloadLink = fileRow.getByRole("link", {
+    name: fileName,
+    exact: true,
+  });
+  await expect(replacementDownloadLink).toHaveAttribute(
+    "href",
+    `/api/v3/company-file-versions/${replacementCompanyFileVersionId}/download`,
+  );
+  const replacementDownload = page.waitForEvent("download");
+  await replacementDownloadLink.click();
+  expect(await readDownload(await replacementDownload)).toEqual(replacementBytes);
+
+  await fileRow.getByText("Действия", { exact: true }).click();
+  const renameForm = fileRow.locator('form:has(input[name="display_name"])');
+  await renameForm.locator('input[name="display_name"]').fill(renamedFileName);
+  await renameForm.getByRole("button", { name: "Переименовать", exact: true }).click();
+
+  const renamedRow = page
+    .getByTestId("v3-company-file-row")
+    .filter({ hasText: renamedFileName });
+  await expect(renamedRow).toBeVisible();
+  await renamedRow.getByText("Действия", { exact: true }).click();
+  const moveFileForm = renamedRow.locator('form:has(select[name="folder_id"])');
+  await moveFileForm
+    .locator('select[name="folder_id"]')
+    .selectOption({ label: destinationFolderName });
+  await moveFileForm
+    .getByRole("button", { name: "Переместить", exact: true })
+    .click();
+  await expect(renamedRow).toHaveCount(0);
+
+  await page.reload();
+  await folderLinks.filter({ hasText: destinationFolderName }).click();
+  const movedFileRow = page
+    .getByTestId("v3-company-file-row")
+    .filter({ hasText: renamedFileName });
+  await expect(movedFileRow).toBeVisible();
+  await expect(
+    movedFileRow.getByRole("link", { name: renamedFileName, exact: true }),
+  ).toHaveAttribute(
+    "href",
+    `/api/v3/company-file-versions/${replacementCompanyFileVersionId}/download`,
+  );
+  await movedFileRow.getByText("Действия", { exact: true }).click();
+  await movedFileRow
+    .getByRole("button", { name: "Удалить файл", exact: true })
+    .click();
+  await expect(movedFileRow).toHaveCount(0);
+
+  await folderLinks.filter({ hasText: folderName }).click();
+  let folderControls = page.getByTestId("v3-company-folder-controls");
+  await folderControls.getByText("Управление папкой", { exact: true }).click();
+  const moveFolderForm = folderControls.locator(
+    'form:has(select[name="new_parent_folder_id"])',
+  );
+  await moveFolderForm
+    .locator('select[name="new_parent_folder_id"]')
+    .selectOption({ label: destinationFolderName });
+  await moveFolderForm
+    .getByRole("button", { name: "Переместить", exact: true })
+    .click();
+  await expect(page.getByRole("navigation", { name: "Путь к папке" }))
+    .toContainText(destinationFolderName);
+
+  await page.reload();
+  await folderLinks.filter({ hasText: folderName }).click();
+  await expect(page.getByRole("navigation", { name: "Путь к папке" }))
+    .toContainText(destinationFolderName);
+
+  folderControls = page.getByTestId("v3-company-folder-controls");
+  await folderControls.getByText("Управление папкой", { exact: true }).click();
+  await folderControls
+    .getByRole("button", { name: "Удалить пустую папку", exact: true })
+    .click();
+  await expect(folderLinks.filter({ hasText: folderName })).toHaveCount(0);
+
+  await folderLinks.filter({ hasText: destinationFolderName }).click();
+  const destinationFolderControls = page.getByTestId(
+    "v3-company-folder-controls",
+  );
+  await destinationFolderControls
+    .getByText("Управление папкой", { exact: true })
+    .click();
+  await destinationFolderControls
+    .getByRole("button", { name: "Удалить пустую папку", exact: true })
+    .click();
+  await expect(folderLinks.filter({ hasText: destinationFolderName }))
+    .toHaveCount(0);
 });
 
 test("Admin preview changes only the effective interface, not Supabase authority", async ({

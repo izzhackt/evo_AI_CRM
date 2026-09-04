@@ -154,10 +154,14 @@ BEGIN
       AND routine.provolatile = 'v'
       AND routine.prokind = 'f'
       AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
+      AND pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(routine.oid),
+        'platform_private.document_slot_case_link_context'
+      ) > 0
     FROM pg_catalog.pg_proc AS routine
     WHERE routine.oid = slot_guard_oid
   ) THEN
-    RAISE EXCEPTION 'document slot transition guard hardening drifted';
+    RAISE EXCEPTION 'document slot case-link guard context drifted';
   END IF;
 
   FOREACH forbidden_role IN ARRAY ARRAY[
@@ -270,6 +274,7 @@ $catalog_contract$;
 \set p113_student_a_user '59911300-0000-4000-8000-000000000104'
 \set p113_admin_b_user '59911300-0000-4000-8000-000000000105'
 \set p113_student_b_user '59911300-0000-4000-8000-000000000106'
+\set p113_curator_unassigned_user '59911300-0000-4000-8000-000000000107'
 
 \set p113_admin_a_profile '59911300-0000-4000-8000-000000000201'
 \set p113_sales_a_profile '59911300-0000-4000-8000-000000000202'
@@ -277,6 +282,7 @@ $catalog_contract$;
 \set p113_student_a_profile '59911300-0000-4000-8000-000000000204'
 \set p113_admin_b_profile '59911300-0000-4000-8000-000000000205'
 \set p113_student_b_profile '59911300-0000-4000-8000-000000000206'
+\set p113_curator_unassigned_profile '59911300-0000-4000-8000-000000000207'
 
 \set p113_admin_a_membership '59911300-0000-4000-8000-000000000301'
 \set p113_sales_a_membership '59911300-0000-4000-8000-000000000302'
@@ -284,6 +290,7 @@ $catalog_contract$;
 \set p113_student_a_membership '59911300-0000-4000-8000-000000000304'
 \set p113_admin_b_membership '59911300-0000-4000-8000-000000000305'
 \set p113_student_b_membership '59911300-0000-4000-8000-000000000306'
+\set p113_curator_unassigned_membership '59911300-0000-4000-8000-000000000307'
 
 \set p113_requirement_a '59911300-0000-4000-8000-000000000401'
 \set p113_slot_a '59911300-0000-4000-8000-000000000402'
@@ -329,7 +336,12 @@ VALUES
   (:'p113_curator_a_user', 'p113-curator-a@example.invalid', '{}'),
   (:'p113_student_a_user', 'p113-student-a@example.invalid', '{}'),
   (:'p113_admin_b_user', 'p113-admin-b@example.invalid', '{}'),
-  (:'p113_student_b_user', 'p113-student-b@example.invalid', '{}');
+  (:'p113_student_b_user', 'p113-student-b@example.invalid', '{}'),
+  (
+    :'p113_curator_unassigned_user',
+    'p113-curator-unassigned@example.invalid',
+    '{}'
+  );
 
 INSERT INTO platform.profiles (
   id, auth_user_id, display_name, status, access_version
@@ -340,7 +352,11 @@ VALUES
   (:'p113_curator_a_profile', :'p113_curator_a_user', 'P113 Admissions A', 'active', 1),
   (:'p113_student_a_profile', :'p113_student_a_user', 'P113 Student A', 'active', 1),
   (:'p113_admin_b_profile', :'p113_admin_b_user', 'P113 Admin B', 'active', 1),
-  (:'p113_student_b_profile', :'p113_student_b_user', 'P113 Student B', 'active', 1);
+  (:'p113_student_b_profile', :'p113_student_b_user', 'P113 Student B', 'active', 1),
+  (
+    :'p113_curator_unassigned_profile', :'p113_curator_unassigned_user',
+    'P113 Unassigned Admissions', 'active', 1
+  );
 
 INSERT INTO platform.organization_memberships (
   id, organization_id, profile_id, status, "current_role", current_bundle_id
@@ -351,7 +367,12 @@ VALUES
   (:'p113_curator_a_membership', :'p113_org_a', :'p113_curator_a_profile', 'active', 'curator', :'p113_curator_bundle'),
   (:'p113_student_a_membership', :'p113_org_a', :'p113_student_a_profile', 'active', 'student', :'p113_student_bundle'),
   (:'p113_admin_b_membership', :'p113_org_b', :'p113_admin_b_profile', 'active', 'admin', :'p113_admin_bundle'),
-  (:'p113_student_b_membership', :'p113_org_b', :'p113_student_b_profile', 'active', 'student', :'p113_student_bundle');
+  (:'p113_student_b_membership', :'p113_org_b', :'p113_student_b_profile', 'active', 'student', :'p113_student_bundle'),
+  (
+    :'p113_curator_unassigned_membership', :'p113_org_a',
+    :'p113_curator_unassigned_profile', 'active', 'curator',
+    :'p113_curator_bundle'
+  );
 
 INSERT INTO platform.record_scopes (
   id, organization_id, scope_kind, scope_key, scope_version
@@ -403,6 +424,12 @@ VALUES
     :'p113_curator_a_membership', :'p113_org_scope_a', 1, 1, TRUE,
     'system', NULL, 'Migration 113 Admissions runtime scope',
     '59911300-0000-4000-8000-000000000808'
+  ),
+  (
+    '59911300-0000-4000-8000-000000000709', :'p113_org_a',
+    :'p113_curator_unassigned_membership', :'p113_org_scope_a', 1, 1, TRUE,
+    'system', NULL, 'Migration 113 unassigned Admissions runtime scope',
+    '59911300-0000-4000-8000-000000000809'
   );
 
 INSERT INTO platform.student_cases (
@@ -467,6 +494,12 @@ VALUES
     :'p113_curator_a_membership', :'p113_case_scope_a2_v2', 2, 1, TRUE,
     'system', NULL, 'Migration 113 active curator case scope',
     '59911300-0000-4000-8000-000000000807'
+  ),
+  (
+    '59911300-0000-4000-8000-000000000710', :'p113_org_a',
+    :'p113_curator_unassigned_membership', :'p113_case_scope_a_v2', 2, 1, TRUE,
+    'system', NULL, 'Migration 113 unassigned Admissions case scope',
+    '59911300-0000-4000-8000-000000000810'
   );
 
 UPDATE platform.student_cases AS student_case
@@ -600,6 +633,16 @@ SELECT
     'platform_bundle_version', :'p113_curator_bundle_version'::INTEGER
   )::TEXT AS p113_curator_a_claims,
   jsonb_build_object(
+    'sub', :'p113_curator_unassigned_user',
+    'role', 'authenticated',
+    'platform_role', 'curator',
+    'platform_access_version', 1,
+    'platform_organization_id', :'p113_org_a',
+    'platform_membership_id', :'p113_curator_unassigned_membership',
+    'platform_bundle_id', :'p113_curator_bundle',
+    'platform_bundle_version', :'p113_curator_bundle_version'::INTEGER
+  )::TEXT AS p113_curator_unassigned_claims,
+  jsonb_build_object(
     'sub', :'p113_sales_a_user',
     'role', 'authenticated',
     'platform_role', 'sales',
@@ -621,8 +664,23 @@ SELECT
   )::TEXT AS p113_admin_a_claims
 \gset
 
-SET request.jwt.claims TO :'p113_curator_a_claims';
+SET request.jwt.claims TO :'p113_curator_unassigned_claims';
 SET ROLE authenticated;
+
+SELECT pg_temp.p113_assert(
+  (
+    pg_temp.p113_capture_error(format(
+      'SELECT platform.set_document_slot_case_link(%L::uuid,%L::uuid,%L::uuid,%L::platform.document_slot_case_link_target_kind,%L::uuid,%L::boolean,%L::bigint,%L::text,%L::uuid)',
+      :'p113_org_a', :'p113_case_a', :'p113_slot_a',
+      'university_application', :'p113_application_a', 'true',
+      '1', 'Unassigned Admissions must fail closed',
+      '59911300-0000-4000-8000-000000000911'
+    ))->>'sqlstate'
+  ) = '42501',
+  'Admissions without the current case assignment must not mutate document links'
+);
+
+SET request.jwt.claims TO :'p113_curator_a_claims';
 
 SELECT platform.set_document_slot_case_link(
   :'p113_org_a', :'p113_case_a', :'p113_slot_a',

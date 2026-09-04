@@ -17190,3 +17190,45 @@ revoke default public execution and grant only the required authenticated
 role, while table grants and RLS remain separate controls:
 https://supabase.com/docs/guides/database/functions and
 https://supabase.com/docs/guides/database/postgres/row-level-security.
+
+## 2026-09-05 - Clarify the #599 application details command boundary
+
+Block-ID: `EVO-V3-F-APPLICATION-DETAILS-COMMAND-2026-09-05`
+
+Change type: implementation clarification.
+Affected plan section: Order 5 / Issue #599 / slice 5 of 6.
+
+The preceding entry used `university_deadline` as descriptive shorthand and
+said that the new facts would travel through the existing create/change
+commands. The current canonical `change_university_application` command is a
+status-transition command: it intentionally rejects an unchanged status and
+writes the append-only status-event stream. Reusing it for details-only edits
+would either fabricate a status transition or weaken an already proven
+contract.
+
+Decision:
+
+- name the stored field `university_deadline_on DATE` so its all-day date
+  meaning is explicit and consistent with the existing `due_on` convention;
+  the earlier `university_deadline` spelling is not an additional field or
+  compatibility alias;
+- extend both existing application-create commands with `is_primary` and
+  `university_deadline_on`, and add one canonical optimistic-versioned
+  `update_university_application_details` command for later changes;
+- keep `change_university_application` status-only and keep
+  `platform.university_application_events` status-only. A details update writes
+  its idempotent command receipt and canonical audit event without inventing a
+  status event;
+- treat zero or one primary application per organization-qualified student
+  case as valid. Selecting a new primary locks the case's application rows,
+  atomically demotes the previous primary and increments every actually changed
+  row version; clearing the current primary does not auto-select a replacement;
+- expose both fields through the existing staff page/snapshot, canonical
+  repository and `src/lib/v3/*` boundary. The frozen student-portal adapter and
+  unrelated provider/deployment paths remain outside this slice.
+
+Validation adds direct and catalog create/replay coverage, details
+update/replay/stale-version coverage, zero-or-one-primary and concurrent-switch
+proof, no-false-status-event proof, same-case and cross-organization allow/deny
+checks, fail-closed TypeScript normalization, V3 form/browser persistence and
+the already required single real OrbStack plus exact-head CI gates.

@@ -18,7 +18,7 @@ const routeFiles = [
   "src/app/(staff)/documents/(queue)/page.tsx",
   "src/app/(staff)/visa/page.tsx",
   "src/app/(staff)/finance/page.tsx",
-  "src/app/(staff)/tasks/page.tsx",
+  "src/app/(v3)/v3/calendar/page.tsx",
   "src/app/(staff)/settings/page.tsx",
   "src/app/(v3)/v3/inbox/page.tsx",
   "src/app/(v3)/v3/profile/page.tsx",

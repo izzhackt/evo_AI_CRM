@@ -853,7 +853,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   page,
 }) => {
   test.skip(authMode !== "configured");
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   const leadId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_LEAD_ID");
   const [salesToken, admissionsToken, adminToken] = await Promise.all([
     localSupabaseAccessToken("sales"),

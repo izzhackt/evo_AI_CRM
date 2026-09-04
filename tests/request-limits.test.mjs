@@ -35,6 +35,33 @@ test("small legacy multipart reader rejects a body after its byte ceiling", asyn
   assert.deepEqual(result, { error: "request_too_large" });
 });
 
+test("oversized multipart reader cancels intake without surfacing cancel rejection", async () => {
+  let cancelCalls = 0;
+  let cancelReason;
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array(9));
+    },
+    cancel(reason) {
+      cancelCalls += 1;
+      cancelReason = reason;
+      return Promise.reject(new Error("late stream close"));
+    },
+  });
+  const request = new Request("http://localhost/api/transcription/jobs", {
+    method: "POST",
+    headers: { "content-type": "multipart/form-data; boundary=test" },
+    body,
+    duplex: "half",
+  });
+
+  const result = await readMultipartFormData(request, 8);
+
+  assert.deepEqual(result, { error: "request_too_large" });
+  assert.equal(cancelCalls, 1);
+  assert.equal(cancelReason, "request_too_large");
+});
+
 test("small legacy multipart reader parses a body within its byte ceiling", async () => {
   const result = await readMultipartFormData(multipartRequest("ID3"), 4096);
   assert.ok("formData" in result);

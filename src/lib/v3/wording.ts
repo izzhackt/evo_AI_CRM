@@ -78,6 +78,26 @@ const TASK_STATUS: Record<string, string> = {
   overdue: "просрочена",
 };
 
+/** Product-level document state. The profile intentionally has only two. */
+export type DocumentPresence = "absent" | "present";
+
+const DOCUMENT_PRESENCE: Record<DocumentPresence, string> = {
+  absent: "нет",
+  present: "есть",
+};
+
+/** Canonical finance-stop target; labels are shared by input and read views. */
+const FINANCE_BLOCKED_ACTION = {
+  application_submission: "Подача заявки в университет",
+  document_processing: "Обработка документов",
+  visa_submission: "Подача на визу",
+  case_progression: "Дальнейшее движение дела",
+} as const;
+
+export const financeBlockedActionOptions = Object.entries(FINANCE_BLOCKED_ACTION).map(
+  ([value, label]) => ({ value, label }),
+);
+
 /** Роль: три фиксированные роли EVO. */
 const ROLE: Record<string, string> = {
   admin: "администратор",
@@ -149,6 +169,9 @@ export const visaStatus = (v: string | null | undefined) => lookup(VISA_STATUS, 
 export const visaKind = (v: string | null | undefined) => lookup(VISA_KIND, v);
 export const caseStatus = (v: string | null | undefined) => lookup(CASE_STATUS, v);
 export const taskStatus = (v: string | null | undefined) => lookup(TASK_STATUS, v);
+export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];
+export const financeBlockedAction = (v: string | null | undefined) =>
+  lookup(FINANCE_BLOCKED_ACTION, v);
 export const role = (v: string | null | undefined) => lookup(ROLE, v);
 export const source = (v: string | null | undefined) => lookup(SOURCE, v);
 

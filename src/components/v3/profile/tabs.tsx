@@ -10,12 +10,16 @@ import {
 } from "@/lib/v3/wording";
 
 import { Card } from "./Card";
+import {
+  ProfileAdmissionsWorkspacePanel,
+  ProfileFinanceControls,
+} from "./ProfileAdmissionsWorkspace";
 import { ProfileSalesTransition } from "./ProfileSalesTransition";
 import type {
   Fact,
   PersonProfile,
+  ProfileActorRole,
   ProfileDraft,
-  ProfileSalesActorRole,
   ProfileSalesRequestIds,
   ProfileSalesSnapshot,
 } from "./types";
@@ -69,13 +73,13 @@ export function Overview({
 }: {
   profile: PersonProfile;
   draft: ProfileDraft;
-  sales: ProfileSalesSnapshot;
-  actorRole: ProfileSalesActorRole;
+  sales: ProfileSalesSnapshot | null;
+  actorRole: ProfileActorRole;
   requestIds: ProfileSalesRequestIds;
   tabHref: (tab: string) => string;
 }) {
   const application = profile.applications[0] ?? null;
-  const stage = leadStage(sales.lead.stageKey);
+  const stage = sales ? leadStage(sales.lead.stageKey) : null;
 
   // Плитка здесь ровно одна, и это не оплошность.
   //
@@ -93,31 +97,35 @@ export function Overview({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card
-        title="Sales"
-        aside={stage ? <Pill tone="neutral">{stage}</Pill> : undefined}
-      >
-        <FactList
-          facts={[
-            {
-              label: "Ответственный",
-              value: sales.lead.currentOwnerDisplayName ?? "не назначен",
-            },
-            {
-              label: "Следующее действие",
-              value: sales.lead.nextActionText ?? "не назначено",
-            },
-            { label: "Срок", value: profile.nextActionAt },
-          ]}
-        />
-      </Card>
+      {sales && actorRole !== "admissions" ? (
+        <>
+          <Card
+            title="Sales"
+            aside={stage ? <Pill tone="neutral">{stage}</Pill> : undefined}
+          >
+            <FactList
+              facts={[
+                {
+                  label: "Ответственный",
+                  value: sales.lead.currentOwnerDisplayName ?? "не назначен",
+                },
+                {
+                  label: "Следующее действие",
+                  value: sales.lead.nextActionText ?? "не назначено",
+                },
+                { label: "Срок", value: profile.nextActionAt },
+              ]}
+            />
+          </Card>
 
-      <ProfileSalesTransition
-        actorRole={actorRole}
-        gate={sales.gate}
-        handoff={sales.handoff}
-        requestIds={requestIds}
-      />
+          <ProfileSalesTransition
+            actorRole={actorRole}
+            gate={sales.gate}
+            handoff={sales.handoff}
+            requestIds={requestIds}
+          />
+        </>
+      ) : null}
 
       <a
         href={tabHref("money")}
@@ -141,23 +149,27 @@ export function Overview({
         </span>
       </a>
 
-      <Card title="Заявка">
-        {application ? (
-          <>
-            <p className="flex flex-wrap items-center gap-2 px-4 pt-3 text-sm">
-              <span className="font-semibold text-fg">{application.program}</span>
-              <Pill tone={tone(application.status)}>
-                {applicationStatus(application.status) ?? "—"}
-              </Pill>
-            </p>
-            <p className="px-4 pb-3 pt-0.5 text-2xs text-fg-3">
-              {application.institution} · набор {application.intake}
-            </p>
-          </>
-        ) : (
-          <p className="px-4 py-3 text-sm text-fg-3">Заявка ещё не заведена.</p>
-        )}
-      </Card>
+      {draft.admissions ? (
+        <ProfileAdmissionsWorkspacePanel actorRole={actorRole} workspace={draft.admissions} />
+      ) : (
+        <Card title="Заявка">
+          {application ? (
+            <>
+              <p className="flex flex-wrap items-center gap-2 px-4 pt-3 text-sm">
+                <span className="font-semibold text-fg">{application.program}</span>
+                <Pill tone={tone(application.status)}>
+                  {applicationStatus(application.status) ?? "—"}
+                </Pill>
+              </p>
+              <p className="px-4 pb-3 pt-0.5 text-2xs text-fg-3">
+                {application.institution} · набор {application.intake}
+              </p>
+            </>
+          ) : (
+            <p className="px-4 py-3 text-sm text-fg-3">Заявка ещё не заведена.</p>
+          )}
+        </Card>
+      )}
 
       <Card title="Коротко">
         <FactList
@@ -212,7 +224,15 @@ export function Anketa({ profile, draft }: { profile: PersonProfile; draft: Prof
 
 const PAY_TONE: Record<string, PillTone> = { paid: "ok", due: "warn", overdue: "danger" };
 
-export function Money({ profile, draft }: { profile: PersonProfile; draft: ProfileDraft }) {
+export function Money({
+  profile,
+  draft,
+  actorRole,
+}: {
+  profile: PersonProfile;
+  draft: ProfileDraft;
+  actorRole: ProfileActorRole;
+}) {
   return (
     <div className="flex flex-col gap-4">
       {profile.financeStop ? (
@@ -277,6 +297,8 @@ export function Money({ profile, draft }: { profile: PersonProfile; draft: Profi
           ) : null}
         </ul>
       </Card>
+
+      <ProfileFinanceControls actorRole={actorRole} workspace={draft.admissions} />
 
       <Card title="Договор">
         <FactList

@@ -8,8 +8,8 @@ import { Anketa, History, Money, Overview } from "./tabs";
 import {
   tabsFor,
   type PersonProfile,
+  type ProfileActorRole,
   type ProfileDraft,
-  type ProfileSalesActorRole,
   type ProfileSalesRequestIds,
   type ProfileSalesSnapshot,
   type TabKey,
@@ -50,8 +50,8 @@ export function Profile({
   profile: PersonProfile;
   /** Canonical projections not represented directly in `PersonProfile`. */
   draft: ProfileDraft;
-  sales: ProfileSalesSnapshot;
-  actorRole: ProfileSalesActorRole;
+  sales: ProfileSalesSnapshot | null;
+  actorRole: ProfileActorRole;
   requestIds: ProfileSalesRequestIds;
   tab: TabKey;
   hrefFor: (tab: string) => string;
@@ -64,6 +64,11 @@ export function Profile({
     caseStatus: profile.caseStatus,
     leadStage: profile.stage,
   });
+  const uploadAccess = draft.admissions?.caseState !== "active"
+    ? "closed" as const
+    : actorRole === "admin" || actorRole === "admissions"
+      ? "allowed" as const
+      : "forbidden" as const;
 
   return (
     <div
@@ -122,9 +127,11 @@ export function Profile({
       ) : null}
       {current === "anketa" ? <Anketa profile={profile} draft={draft} /> : null}
       {current === "documents" ? (
-        <Documents groups={draft.documents} />
+        <Documents groups={draft.documents} uploadAccess={uploadAccess} />
       ) : null}
-      {current === "money" ? <Money profile={profile} draft={draft} /> : null}
+      {current === "money" ? (
+        <Money profile={profile} draft={draft} actorRole={actorRole} />
+      ) : null}
       {current === "history" ? <History profile={profile} /> : null}
     </div>
   );

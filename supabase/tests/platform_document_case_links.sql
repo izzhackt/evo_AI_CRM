@@ -88,6 +88,9 @@ DECLARE
   workspace_rpc_oid OID := (
     'platform.staff_student_case_document_workspace(uuid)'::REGPROCEDURE
   )::OID;
+  slot_guard_oid OID := (
+    'platform_private.guard_dynamic_document_slot_transition()'::REGPROCEDURE
+  )::OID;
   forbidden_role TEXT;
 BEGIN
   IF NOT (
@@ -144,6 +147,21 @@ BEGIN
     'p_organization_id uuid, p_student_case_id uuid, p_document_slot_id uuid, p_target_kind platform.document_slot_case_link_target_kind, p_target_id uuid, p_enabled boolean, p_expected_version bigint, p_reason text, p_request_id uuid'
   THEN
     RAISE EXCEPTION 'set_document_slot_case_link signature drifted';
+  END IF;
+
+  IF NOT (
+    SELECT routine.prosecdef
+      AND routine.provolatile = 'v'
+      AND routine.prokind = 'f'
+      AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
+      AND pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(routine.oid),
+        'platform_private.document_slot_case_link_context'
+      ) > 0
+    FROM pg_catalog.pg_proc AS routine
+    WHERE routine.oid = slot_guard_oid
+  ) THEN
+    RAISE EXCEPTION 'document slot case-link guard context drifted';
   END IF;
 
   IF NOT (
@@ -369,6 +387,12 @@ VALUES
     :'p113_curator_a_membership', :'p113_case_scope_a2', 1, 1, TRUE,
     'system', NULL, 'Migration 113 curator case scope',
     '59911300-0000-4000-8000-000000000805'
+  ),
+  (
+    '59911300-0000-4000-8000-000000000708', :'p113_org_a',
+    :'p113_curator_a_membership', :'p113_org_scope_a', 1, 1, TRUE,
+    'system', NULL, 'Migration 113 Admissions runtime scope',
+    '59911300-0000-4000-8000-000000000808'
   );
 
 INSERT INTO platform.student_cases (
@@ -763,6 +787,8 @@ SELECT pg_temp.p113_assert(
   'Admin must mutate the same canonical relation as Admissions'
 );
 
+RESET ROLE;
+
 SELECT pg_temp.p113_assert(
   (
     SELECT count(*)
@@ -778,8 +804,6 @@ SELECT pg_temp.p113_assert(
   ) = 4,
   'each real link or unlink must append exactly one audit event'
 );
-
-RESET ROLE;
 
 UPDATE platform.document_slots
 SET

@@ -161,6 +161,98 @@ REVOKE ALL ON FUNCTION platform_private.p7a_safe_audit_actions_pre_v3f_document_
 REVOKE ALL ON FUNCTION platform_private.p7a_safe_audit_actions()
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
+-- Migration 108 freezes every slot update that is not a status, metadata or
+-- removal transition. A case-link command still owns the slot's optimistic
+-- aggregate version, so admit exactly the otherwise-no-op row update issued
+-- by the canonical command below. Authenticated callers retain no direct
+-- UPDATE grant on document_slots; the transaction-local context only narrows
+-- the existing SECURITY DEFINER path and is cleared immediately after use.
+CREATE OR REPLACE FUNCTION platform_private.guard_dynamic_document_slot_transition()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  status_transition BOOLEAN;
+  metadata_changed BOOLEAN;
+  case_link_transition BOOLEAN;
+BEGIN
+  IF OLD.removed_at IS NOT NULL THEN
+    RAISE EXCEPTION 'Removed document slots are immutable'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF NEW.intent_kind IS DISTINCT FROM OLD.intent_kind THEN
+    RAISE EXCEPTION 'Document slot intent is immutable'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF OLD.version = 9223372036854775807 THEN
+    RAISE EXCEPTION 'document_slot_version_conflict'
+      USING ERRCODE = 'PT409';
+  END IF;
+
+  status_transition := (
+    (OLD.status = 'required' AND NEW.status = 'submitted')
+    OR (
+      OLD.status IN ('submitted', 'correction_required', 'rejected')
+      AND NEW.status = 'submitted'
+    )
+    OR (
+      OLD.status = 'submitted'
+      AND NEW.status IN ('approved', 'correction_required', 'rejected')
+    )
+  );
+
+  metadata_changed :=
+    NEW.display_label IS DISTINCT FROM OLD.display_label
+    OR NEW.group_label IS DISTINCT FROM OLD.group_label
+    OR NEW.removed_at IS DISTINCT FROM OLD.removed_at
+    OR NEW.removed_by_membership_id IS DISTINCT FROM
+      OLD.removed_by_membership_id
+    OR NEW.removal_reason IS DISTINCT FROM OLD.removal_reason;
+
+  case_link_transition :=
+    pg_catalog.current_setting(
+      'platform_private.document_slot_case_link_context',
+      TRUE
+    ) IS NOT DISTINCT FROM
+      OLD.organization_id::TEXT || ':' ||
+      OLD.student_case_id::TEXT || ':' ||
+      OLD.id::TEXT || ':' ||
+      OLD.version::TEXT
+    AND NEW.version = OLD.version + 1
+    AND (
+      pg_catalog.to_jsonb(NEW) - ARRAY['version', 'updated_at']::TEXT[]
+    ) IS NOT DISTINCT FROM (
+      pg_catalog.to_jsonb(OLD) - ARRAY['version', 'updated_at']::TEXT[]
+    );
+
+  IF metadata_changed THEN
+    IF NEW.status IS DISTINCT FROM OLD.status
+      OR NEW.current_version_id IS DISTINCT FROM OLD.current_version_id
+      OR NEW.current_version_no IS DISTINCT FROM OLD.current_version_no
+    THEN
+      RAISE EXCEPTION 'Document slot metadata transition is not allowed'
+        USING ERRCODE = '55000';
+    END IF;
+  ELSIF case_link_transition THEN
+    NULL;
+  ELSIF NOT status_transition THEN
+    RAISE EXCEPTION 'Document slot transition is not allowed'
+      USING ERRCODE = '55000';
+  END IF;
+
+  NEW.version := OLD.version + 1;
+  RETURN NEW;
+END
+$$;
+
+REVOKE ALL ON FUNCTION
+  platform_private.guard_dynamic_document_slot_transition()
+  FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
 CREATE FUNCTION platform.set_document_slot_case_link(
   p_organization_id UUID,
   p_student_case_id UUID,
@@ -378,6 +470,15 @@ BEGIN
     RETURNING * INTO changed_link;
   END IF;
 
+  PERFORM pg_catalog.set_config(
+    'platform_private.document_slot_case_link_context',
+    p_organization_id::TEXT || ':' ||
+      p_student_case_id::TEXT || ':' ||
+      p_document_slot_id::TEXT || ':' ||
+      p_expected_version::TEXT,
+    TRUE
+  );
+
   UPDATE platform.document_slots AS slot
   SET
     version = slot.version + 1,
@@ -392,6 +493,12 @@ BEGIN
     RAISE EXCEPTION 'document_slot_version_conflict'
       USING ERRCODE = 'PT409';
   END IF;
+
+  PERFORM pg_catalog.set_config(
+    'platform_private.document_slot_case_link_context',
+    '',
+    TRUE
+  );
 
   result := replay_shape || jsonb_build_object(
     'document_slot_case_link_id', CASE WHEN p_enabled THEN changed_link.id ELSE NULL END,
@@ -621,7 +728,7 @@ BEGIN
               review.reason,
               review.reviewer_membership_id,
               reviewer_profile.display_name AS reviewer_display_name,
-              review.reviewed_at
+              review.created_at AS reviewed_at
             FROM platform.document_reviews AS review
             JOIN platform.organization_memberships AS reviewer_membership
               ON reviewer_membership.organization_id = review.organization_id
@@ -630,7 +737,7 @@ BEGIN
               ON reviewer_profile.id = reviewer_membership.profile_id
             WHERE review.organization_id = version.organization_id
               AND review.document_version_id = version.id
-            ORDER BY review.reviewed_at DESC, review.id DESC
+            ORDER BY review.created_at DESC, review.id DESC
             LIMIT 1
           ) AS latest_review ON TRUE
           WHERE version.organization_id = slot.organization_id

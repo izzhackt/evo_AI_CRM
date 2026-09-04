@@ -16568,3 +16568,34 @@ Decision:
 - rerun focused release-control tests, obtain fresh independent exact-head
   review, and accept only one green exact-head GitHub Actions run as YAML and
   execution proof.
+
+## 2026-09-04 - Restore small bounded registry retries for both audit reads
+
+Block-ID: `EVO-V3-A-AUDIT-REGISTRY-RETRY-BOUND-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+Exact-head run `33837313113` on commit `194ef2193e441767e29844f492aad2efd3da28c8`
+proved the pinned `EVO_NPM_BIN` path and the bounded bootstrap, but the
+production dependency audit still failed before any vulnerability decision with
+repeated `npm warn audit network timeout` and `npm error audit endpoint
+returned an error` against
+`https://registry.npmjs.org/-/npm/v1/security/advisories/bulk`. The failing
+path was our own CI override forcing both audit read steps to use
+`npm_config_fetch_retries=0` and `npm_config_fetch_timeout=30000`, which made
+GitHub-runner registry latency look like a hard security result.
+
+Decision:
+
+- keep the pinned `npm@11.19.0` binary, outer three-attempt loop, four-minute
+  step limits, and fail-closed aggregate gate;
+- restore a small bounded amount of npm's internal registry retry behavior for
+  both audit read paths with `npm_config_fetch_retries=1`,
+  `npm_config_fetch_retry_mintimeout=5000`,
+  `npm_config_fetch_retry_maxtimeout=10000`, and
+  `npm_config_fetch_timeout=45000`;
+- keep the bootstrap install step stricter because it already proved stable
+  under the previous bounds;
+- rerun the focused release-control tests, then require one fresh exact-head CI
+  run before merge.

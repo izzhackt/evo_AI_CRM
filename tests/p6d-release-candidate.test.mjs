@@ -75,6 +75,8 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(workflow, /test "\$\("\$audit_prefix\/node_modules\/\.bin\/npm" --version\)" = "11\.19\.0"/u);
   assert.match(workflow, /echo "EVO_NPM_BIN=\$audit_prefix\/node_modules\/\.bin\/npm" >> "\$GITHUB_ENV"/u);
   assert.match(workflow, /npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund/u);
+  assert.match(workflow, /name: Audit production dependencies[\s\S]*npm_config_fetch_retries: "1"[\s\S]*npm_config_fetch_retry_maxtimeout: "10000"[\s\S]*npm_config_fetch_retry_mintimeout: "5000"[\s\S]*npm_config_fetch_timeout: "45000"/u);
+  assert.match(workflow, /name: Audit development dependencies against the temporary allowlist[\s\S]*npm_config_fetch_retries: "1"[\s\S]*npm_config_fetch_retry_maxtimeout: "10000"[\s\S]*npm_config_fetch_retry_mintimeout: "5000"[\s\S]*npm_config_fetch_timeout: "45000"/u);
   assert.match(workflow, /if "\$EVO_NPM_BIN" audit --package-lock-only --omit=dev --audit-level=moderate; then/u);
   assert.match(workflow, /if node scripts\/check-npm-audit-allowlist\.mjs; then/u);
   assert.match(auditAllowlist, /const npmBin = process\.env\.EVO_NPM_BIN\?\.trim\(\) \|\| "npm";/u);

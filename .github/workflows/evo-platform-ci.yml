@@ -116,8 +116,10 @@ jobs:
         # runner: https://docs.npmjs.com/cli/v11/commands/npm-audit/#package-lock-only
         timeout-minutes: 4
         env:
-          npm_config_fetch_retries: "0"
-          npm_config_fetch_timeout: "30000"
+          npm_config_fetch_retries: "1"
+          npm_config_fetch_retry_maxtimeout: "10000"
+          npm_config_fetch_retry_mintimeout: "5000"
+          npm_config_fetch_timeout: "45000"
         run: |
           if ! test -x "$EVO_NPM_BIN"; then
             echo "Pinned npm audit CLI is unavailable: $EVO_NPM_BIN" >&2
@@ -136,8 +138,10 @@ jobs:
       - name: Audit development dependencies against the temporary allowlist
         timeout-minutes: 4
         env:
-          npm_config_fetch_retries: "0"
-          npm_config_fetch_timeout: "30000"
+          npm_config_fetch_retries: "1"
+          npm_config_fetch_retry_maxtimeout: "10000"
+          npm_config_fetch_retry_mintimeout: "5000"
+          npm_config_fetch_timeout: "45000"
         run: |
           if ! test -x "$EVO_NPM_BIN"; then
             echo "Pinned npm audit CLI is unavailable: $EVO_NPM_BIN" >&2

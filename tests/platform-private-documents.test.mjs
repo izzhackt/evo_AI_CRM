@@ -17,6 +17,7 @@ const REQUIREMENT_ID = "44444444-4444-4444-8444-444444444444";
 const CURRENT_VERSION_ID = "55555555-5555-4555-8555-555555555555";
 const OLD_VERSION_ID = "66666666-6666-4666-8666-666666666666";
 const MEMBERSHIP_ID = "77777777-7777-4777-8777-777777777777";
+const REMOVED_SLOT_ID = "88888888-8888-4888-8888-888888888888";
 const AT = "2026-09-02T08:00:00+00:00";
 
 const ACTOR = Object.freeze({
@@ -72,6 +73,9 @@ function slot(overrides = {}) {
     document_requirement_id: REQUIREMENT_ID,
     requirement_key: "passport",
     requirement_label: "Passport",
+    group_label: "Основные документы",
+    intent_kind: "baseline",
+    slot_version: "1",
     instructions: "Upload every page",
     checklist_version: "1",
     slot_status: "submitted",
@@ -95,6 +99,25 @@ function workspace(overrides = {}) {
     student_case_id: CASE_ID,
     case_state: "active",
     slots: [slot()],
+    removed_slots: [],
+    ...overrides,
+  };
+}
+
+function removedSlot(overrides = {}) {
+  return {
+    ...slot({
+      document_slot_id: REMOVED_SLOT_ID,
+      intent_kind: "custom",
+      document_requirement_id: null,
+      requirement_key: null,
+      checklist_version: null,
+      requirement_label: "Case-local bank statement",
+      group_label: "Дополнительные документы",
+    }),
+    removed_at: AT,
+    removed_by_membership_id: MEMBERSHIP_ID,
+    removal_reason: "Пункт больше не нужен для выбранной программы",
     ...overrides,
   };
 }
@@ -138,12 +161,57 @@ test("case document workspace keeps every immutable version grouped under one sl
     CASE_ID,
   );
   assert.equal(normalized.slots.length, 1);
+  assert.equal(normalized.slots[0].groupLabel, "Основные документы");
+  assert.equal(normalized.slots[0].intentKind, "baseline");
+  assert.equal(normalized.slots[0].version, 1);
   assert.deepEqual(
     normalized.slots[0].versions.map((item) => [item.versionNumber, item.isCurrent]),
     [[2, true], [1, false]],
   );
   assert.equal(normalized.slots[0].versions[1].latestReview.decision, "correction_required");
   assert.equal("objectName" in normalized.slots[0].versions[0], false);
+});
+
+test("case document workspace accepts a case-local custom slot without a shared requirement", () => {
+  const normalized = normalizePlatformCaseDocumentWorkspace(
+    workspace({
+      slots: [slot({
+        document_requirement_id: null,
+        requirement_key: null,
+        requirement_label: "Справка из банка",
+        group_label: "Дополнительные документы",
+        intent_kind: "custom",
+        slot_version: "3",
+        checklist_version: null,
+      })],
+    }),
+    ORGANIZATION_ID,
+    CASE_ID,
+  );
+
+  assert.equal(normalized.slots[0].documentRequirementId, null);
+  assert.equal(normalized.slots[0].requirementKey, null);
+  assert.equal(normalized.slots[0].checklistVersion, null);
+  assert.equal(normalized.slots[0].intentKind, "custom");
+  assert.equal(normalized.slots[0].version, 3);
+});
+
+test("case document workspace rejects mixed baseline and custom authority fields", () => {
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      workspace({
+        slots: [slot({
+          intent_kind: "custom",
+          document_requirement_id: null,
+          requirement_key: "shared-key-must-not-leak",
+          checklist_version: null,
+        })],
+      }),
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
 });
 
 test("workspace rejects duplicate versions and mismatched current markers", () => {
@@ -165,6 +233,51 @@ test("workspace rejects duplicate versions and mismatched current markers", () =
   );
 });
 
+test("workspace returns removed slots as distinct immutable history", () => {
+  const result = normalizePlatformCaseDocumentWorkspace(
+    workspace({ removed_slots: [removedSlot()] }),
+    ORGANIZATION_ID,
+    CASE_ID,
+  );
+
+  assert.equal(result.slots.length, 1);
+  assert.equal(result.removedSlots.length, 1);
+  assert.equal(result.removedSlots[0].documentSlotId, REMOVED_SLOT_ID);
+  assert.equal(result.removedSlots[0].removalReason, "Пункт больше не нужен для выбранной программы");
+  assert.equal(result.removedSlots[0].versions.length, 2);
+  assert.equal("uploadRequestId" in result.removedSlots[0], false);
+  assert.equal("objectName" in result.removedSlots[0].versions[0], false);
+});
+
+test("workspace fails closed on malformed or overlapping removed history", () => {
+  const missingHistory = workspace();
+  delete missingHistory.removed_slots;
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      missingHistory,
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      workspace({ removed_slots: [removedSlot({ removed_at: null })] }),
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      workspace({ removed_slots: [removedSlot({ document_slot_id: SLOT_ID })] }),
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
+});
+
 test("document queue validates exact finalized metadata without exposing Storage paths", () => {
   const row = normalizePlatformDocumentQueueRow(queueRow(), ORGANIZATION_ID);
   assert.equal(row.currentVersionNumber, 2);
@@ -173,6 +286,28 @@ test("document queue validates exact finalized metadata without exposing Storage
   assert.throws(
     () => normalizePlatformDocumentQueueRow(
       queueRow({ download_ready: true, current_integrity_status: "pending" }),
+      ORGANIZATION_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
+});
+
+test("document queue accepts custom case slots without inventing a shared requirement", () => {
+  const row = normalizePlatformDocumentQueueRow(
+    queueRow({
+      document_requirement_id: null,
+      requirement_key: null,
+      requirement_label: "Case-local bank statement",
+    }),
+    ORGANIZATION_ID,
+  );
+  assert.equal(row.documentRequirementId, null);
+  assert.equal(row.requirementKey, null);
+  assert.equal(row.requirementLabel, "Case-local bank statement");
+
+  assert.throws(
+    () => normalizePlatformDocumentQueueRow(
+      queueRow({ document_requirement_id: null }),
       ORGANIZATION_ID,
     ),
     PlatformPrivateDocumentsRepositoryError,

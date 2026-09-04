@@ -163,23 +163,35 @@ function profileDocuments(
   workspace: PlatformCaseDocumentWorkspace,
   allowUpload: boolean,
 ): readonly DocumentGroup[] {
-  if (workspace.slots.length === 0) return [];
+  if (workspace.slots.length === 0 && workspace.removedSlots.length === 0) return [];
 
-  return [{
-    title: "Чеклист документов",
-    items: workspace.slots.map((slot) => {
-      const uploadRequestId = allowUpload ? randomUUID() : null;
-      if (slot.currentVersionId === null) {
-        return {
-          id: slot.documentSlotId,
-          name: slot.requirementLabel,
-          uploadRequestId,
-          presence: "absent" as const,
-          currentVersionId: null,
-          downloadReady: false as const,
-        };
-      }
+  type ActiveGroup = Extract<DocumentGroup, { kind: "active" }>;
+  type RemovedGroup = Extract<DocumentGroup, { kind: "removed" }>;
 
+  const groups = new Map<string, ActiveGroup["items"][number][]>();
+  for (const slot of workspace.slots) {
+    const uploadRequestId = allowUpload ? randomUUID() : null;
+    const metadataRequestId = allowUpload ? randomUUID() : null;
+    const removalRequestId = allowUpload ? randomUUID() : null;
+    const base = {
+      id: slot.documentSlotId,
+      name: slot.requirementLabel,
+      groupLabel: slot.groupLabel,
+      intentKind: slot.intentKind,
+      version: slot.version,
+      uploadRequestId,
+      metadataRequestId,
+      removalRequestId,
+    } as const;
+    let item: ActiveGroup["items"][number];
+    if (slot.currentVersionId === null) {
+      item = {
+        ...base,
+        presence: "absent" as const,
+        currentVersionId: null,
+        downloadReady: false as const,
+      };
+    } else {
       const currentVersion = slot.versions.find(
         (version) => version.isCurrent && version.documentVersionId === slot.currentVersionId,
       );
@@ -187,18 +199,58 @@ function profileDocuments(
         throw new Error("V3 profile document projection is inconsistent.");
       }
 
-      return {
-        id: slot.documentSlotId,
-        name: slot.requirementLabel,
-        uploadRequestId,
+      item = {
+        ...base,
         presence: "present" as const,
         currentVersionId: currentVersion.documentVersionId,
         currentVersionNumber: currentVersion.versionNumber,
         currentFilename: currentVersion.originalFilename,
         downloadReady: currentVersion.downloadReady,
       };
+    }
+    const group = groups.get(slot.groupLabel) ?? [];
+    group.push(item);
+    groups.set(slot.groupLabel, group);
+  }
+
+  const activeGroups: ActiveGroup[] = [...groups.entries()].map(([title, items]) => ({
+    kind: "active",
+    title,
+    items: Object.freeze(items),
+  }));
+
+  const removedGroups = new Map<string, RemovedGroup["items"][number][]>();
+  for (const slot of workspace.removedSlots) {
+    const item: RemovedGroup["items"][number] = Object.freeze({
+      id: slot.documentSlotId,
+      name: slot.requirementLabel,
+      groupLabel: slot.groupLabel,
+      intentKind: slot.intentKind,
+      removedAt: slot.removedAt,
+      removalReason: slot.removalReason,
+      versions: Object.freeze(slot.versions.map((version) => Object.freeze({
+        id: version.documentVersionId,
+        versionNumber: version.versionNumber,
+        filename: version.originalFilename,
+        submittedBy: version.submittedByDisplayName,
+        submittedAt: version.createdAt,
+        downloadReady: version.downloadReady,
+      }))),
+    });
+    const group = removedGroups.get(slot.groupLabel) ?? [];
+    group.push(item);
+    removedGroups.set(slot.groupLabel, group);
+  }
+
+  const historyGroups: RemovedGroup[] = [...removedGroups.entries()].map(
+    ([title, items]) => ({
+      kind: "removed",
+      title,
+      items: Object.freeze(items),
     }),
-  }];
+  );
+
+  return [...activeGroups, ...historyGroups];
 }
 
 function profileFacts(

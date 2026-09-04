@@ -18,11 +18,14 @@ export const PLATFORM_DOCUMENT_REVIEW_DECISIONS = [
   "correction_required",
   "rejected",
 ] as const;
+export const PLATFORM_DOCUMENT_SLOT_INTENTS = ["baseline", "custom"] as const;
 
 export type PlatformDocumentSlotStatus =
   (typeof PLATFORM_DOCUMENT_SLOT_STATUSES)[number];
 export type PlatformDocumentReviewDecision =
   (typeof PLATFORM_DOCUMENT_REVIEW_DECISIONS)[number];
+export type PlatformDocumentSlotIntent =
+  (typeof PLATFORM_DOCUMENT_SLOT_INTENTS)[number];
 
 export type PlatformDocumentReview = Readonly<{
   decision: PlatformDocumentReviewDecision;
@@ -55,11 +58,14 @@ export type PlatformDocumentVersion = Readonly<{
 
 export type PlatformDocumentSlot = Readonly<{
   documentSlotId: string;
-  documentRequirementId: string;
-  requirementKey: string;
+  documentRequirementId: string | null;
+  requirementKey: string | null;
   requirementLabel: string;
+  groupLabel: string;
+  intentKind: PlatformDocumentSlotIntent;
+  version: number;
   instructions: string | null;
-  checklistVersion: number;
+  checklistVersion: number | null;
   status: PlatformDocumentSlotStatus;
   deadline: string | null;
   nextAction: string | null;
@@ -70,11 +76,23 @@ export type PlatformDocumentSlot = Readonly<{
   versions: readonly PlatformDocumentVersion[];
 }>;
 
+/**
+ * A removed checklist item is preserved as immutable case history. It is read
+ * through the same canonical workspace RPC, but is deliberately a distinct
+ * type so command-capable callers cannot mistake it for an active slot.
+ */
+export type PlatformRemovedDocumentSlot = PlatformDocumentSlot & Readonly<{
+  removedAt: string;
+  removedByMembershipId: string;
+  removalReason: string;
+}>;
+
 export type PlatformCaseDocumentWorkspace = Readonly<{
   organizationId: string;
   studentCaseId: string;
   caseState: "active" | "closed";
   slots: readonly PlatformDocumentSlot[];
+  removedSlots: readonly PlatformRemovedDocumentSlot[];
 }>;
 
 export type PlatformDocumentQueueRow = Readonly<{
@@ -84,8 +102,8 @@ export type PlatformDocumentQueueRow = Readonly<{
   studentCaseId: string;
   studentDisplayName: string;
   caseState: "active" | "closed";
-  documentRequirementId: string;
-  requirementKey: string;
+  documentRequirementId: string | null;
+  requirementKey: string | null;
   requirementLabel: string;
   status: PlatformDocumentSlotStatus;
   deadline: string | null;
@@ -322,6 +340,9 @@ export function normalizePlatformDocumentSlot(
       "document_requirement_id",
       "requirement_key",
       "requirement_label",
+      "group_label",
+      "intent_kind",
+      "slot_version",
       "instructions",
       "checklist_version",
       "slot_status",
@@ -362,13 +383,28 @@ export function normalizePlatformDocumentSlot(
   ) {
     return invalidShape();
   }
+  const documentRequirementId = optionalUuid(value.document_requirement_id);
+  const requirementKey = optionalText(value.requirement_key, 200);
+  const checklistVersion = optionalInteger(value.checklist_version, 1);
+  const intentKind = oneOf(value.intent_kind, PLATFORM_DOCUMENT_SLOT_INTENTS);
+  if (
+    (intentKind === "baseline"
+      && (documentRequirementId === null || requirementKey === null || checklistVersion === null))
+    || (intentKind === "custom"
+      && (documentRequirementId !== null || requirementKey !== null || checklistVersion !== null))
+  ) {
+    return invalidShape();
+  }
   return Object.freeze({
     documentSlotId: requiredUuid(value.document_slot_id),
-    documentRequirementId: requiredUuid(value.document_requirement_id),
-    requirementKey: requiredText(value.requirement_key, 200),
+    documentRequirementId,
+    requirementKey,
     requirementLabel: requiredText(value.requirement_label, 500),
+    groupLabel: requiredText(value.group_label, 200),
+    intentKind,
+    version: integer(value.slot_version, 1),
     instructions: optionalText(value.instructions, 4000),
-    checklistVersion: integer(value.checklist_version, 1),
+    checklistVersion,
     status: oneOf(value.slot_status, PLATFORM_DOCUMENT_SLOT_STATUSES),
     deadline: optionalTimestamp(value.deadline),
     nextAction: optionalText(value.next_action, 2000),
@@ -380,6 +416,53 @@ export function normalizePlatformDocumentSlot(
   });
 }
 
+export function normalizePlatformRemovedDocumentSlot(
+  value: unknown,
+): PlatformRemovedDocumentSlot {
+  if (
+    !isRecord(value)
+    || !exact(value, [
+      "document_slot_id",
+      "document_requirement_id",
+      "requirement_key",
+      "requirement_label",
+      "group_label",
+      "intent_kind",
+      "slot_version",
+      "instructions",
+      "checklist_version",
+      "slot_status",
+      "deadline",
+      "next_action",
+      "current_version_id",
+      "current_version_no",
+      "created_at",
+      "updated_at",
+      "versions",
+      "removed_at",
+      "removed_by_membership_id",
+      "removal_reason",
+    ])
+  ) {
+    return invalidShape();
+  }
+
+  const {
+    removed_at: removedAt,
+    removed_by_membership_id: removedByMembershipId,
+    removal_reason: removalReason,
+    ...activeSlotPayload
+  } = value;
+  const slot = normalizePlatformDocumentSlot(activeSlotPayload);
+
+  return Object.freeze({
+    ...slot,
+    removedAt: requiredTimestamp(removedAt),
+    removedByMembershipId: requiredUuid(removedByMembershipId),
+    removalReason: requiredText(removalReason, 2000),
+  });
+}
+
 export function normalizePlatformCaseDocumentWorkspace(
   value: unknown,
   expectedOrganizationId: string,
@@ -387,22 +470,34 @@ export function normalizePlatformCaseDocumentWorkspace(
 ): PlatformCaseDocumentWorkspace {
   if (
     !isRecord(value)
-    || !exact(value, ["organization_id", "student_case_id", "case_state", "slots"])
+    || !exact(value, [
+      "organization_id",
+      "student_case_id",
+      "case_state",
+      "slots",
+      "removed_slots",
+    ])
     || value.organization_id !== expectedOrganizationId
     || value.student_case_id !== expectedStudentCaseId
     || !Array.isArray(value.slots)
     || value.slots.length > 200
+    || !Array.isArray(value.removed_slots)
+    || value.removed_slots.length > 200
   ) {
     return invalidShape();
   }
   const slots = Object.freeze(value.slots.map(normalizePlatformDocumentSlot));
-  const ids = slots.map((slot) => slot.documentSlotId);
+  const removedSlots = Object.freeze(
+    value.removed_slots.map(normalizePlatformRemovedDocumentSlot),
+  );
+  const ids = [...slots, ...removedSlots].map((slot) => slot.documentSlotId);
   if (new Set(ids).size !== ids.length) return invalidShape();
   return Object.freeze({
     organizationId: requiredUuid(value.organization_id),
     studentCaseId: requiredUuid(value.student_case_id),
     caseState: oneOf(value.case_state, ["active", "closed"] as const),
     slots,
+    removedSlots,
   });
 }
 
@@ -445,6 +540,11 @@ export function normalizePlatformDocumentQueueRow(
   ) {
     return invalidShape();
   }
+  const documentRequirementId = optionalUuid(value.document_requirement_id);
+  const requirementKey = optionalText(value.requirement_key, 200);
+  if ((documentRequirementId === null) !== (requirementKey === null)) {
+    return invalidShape();
+  }
   const currentVersionId = optionalUuid(value.current_version_id);
   const currentVersionNumber = optionalInteger(value.current_version_no, 1);
   const currentSha = optionalText(value.current_sha256_hex, 64);
@@ -474,8 +574,8 @@ export function normalizePlatformDocumentQueueRow(
     studentCaseId: requiredUuid(value.student_case_id),
     studentDisplayName: requiredText(value.student_display_name, 300),
     caseState: oneOf(value.case_state, ["active", "closed"] as const),
-    documentRequirementId: requiredUuid(value.document_requirement_id),
-    requirementKey: requiredText(value.requirement_key, 200),
+    documentRequirementId,
+    requirementKey,
     requirementLabel: requiredText(value.requirement_label, 500),
     status: oneOf(value.slot_status, PLATFORM_DOCUMENT_SLOT_STATUSES),
     deadline: optionalTimestamp(value.deadline),

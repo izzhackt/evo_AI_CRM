@@ -1888,6 +1888,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_admissions_versioning_current.sql
   fi
+
+  # Migration 108 extends the canonical document checklist with case-local
+  # custom slots, optimistic metadata updates and soft removal.
+  if [[ "$(basename "$migration")" == 108_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_dynamic_document_checklists.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

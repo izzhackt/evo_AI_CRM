@@ -198,6 +198,13 @@ function requiredSingleLineText(value: unknown, maxLength: number): string {
     : normalized;
 }
 
+function optionalSingleLineText(
+  value: unknown,
+  maxLength: number,
+): string | null {
+  return value === null ? null : requiredSingleLineText(value, maxLength);
+}
+
 function requiredTimestamp(value: unknown): string {
   if (
     typeof value !== "string" ||
@@ -583,8 +590,8 @@ function normalizePortalNotification(
       "correction_required",
       "rejected",
     ] as const),
-    requirementKey: requiredSingleLineText(value.requirement_key, 128),
-    requirementLabel: requiredSingleLineText(value.requirement_label, 300),
+    requirementKey: optionalSingleLineText(value.requirement_key, 128),
+    requirementLabel: requiredSingleLineText(value.requirement_label, 500),
     reason: requiredSingleLineText(value.reason, 2000),
     createdAt: requiredTimestamp(value.created_at),
     readAt,
@@ -610,7 +617,7 @@ function normalizePortalNotificationV2(
   const readAt = optionalTimestamp(value.read_at);
   const common = {
     id: requiredUuid(value.notification_id),
-    subjectLabel: requiredSingleLineText(value.subject_label, 300),
+    subjectLabel: requiredSingleLineText(value.subject_label, 500),
     detail: requiredSingleLineText(value.detail, 2000),
     createdAt: requiredTimestamp(value.created_at),
     readAt,

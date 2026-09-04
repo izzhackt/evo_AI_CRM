@@ -34,6 +34,10 @@ const U1_MIGRATION_SOURCE = readFileSync(
   new URL("../supabase/migrations/083_platform_unified_staff_access.sql", import.meta.url),
   "utf8",
 );
+const V3_F_MIGRATION_SOURCE = readFileSync(
+  new URL("../supabase/migrations/108_platform_dynamic_document_checklists.sql", import.meta.url),
+  "utf8",
+);
 
 const SAFE_ROW = {
   audit_event_id: EVENT_ID,
@@ -71,11 +75,23 @@ function sqlTextArray(functionName) {
   );
 }
 
-test("browser-safe allowlists match migration 071 plus the bounded U1 extension", () => {
+test("browser-safe allowlists match the SQL authority plus bounded extensions", () => {
   assert.match(U1_MIGRATION_SOURCE, /'membership\.permission\.change'/);
+  const v3FDocumentActions = [
+    "document.slot.custom.create",
+    "document.slot.metadata.change",
+    "document.slot.remove",
+  ];
+  for (const action of v3FDocumentActions) {
+    assert.match(V3_F_MIGRATION_SOURCE, new RegExp(`'${action.replaceAll(".", "\\.")}'`));
+  }
   assert.deepEqual(
     PLATFORM_AUDIT_ACTIONS,
-    [...sqlTextArray("p7a_safe_audit_actions"), "membership.permission.change"].sort(),
+    [
+      ...sqlTextArray("p7a_safe_audit_actions"),
+      "membership.permission.change",
+      ...v3FDocumentActions,
+    ].sort(),
   );
   assert.deepEqual(
     PLATFORM_AUDIT_RESOURCE_TYPES,

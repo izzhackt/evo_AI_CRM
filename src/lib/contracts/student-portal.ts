@@ -54,7 +54,7 @@ export type StudentPortalDocumentReviewNotification = {
   readonly id: string;
   readonly category: "document.review";
   readonly decision: "correction_required" | "rejected";
-  readonly requirementKey: string;
+  readonly requirementKey: string | null;
   readonly requirementLabel: string;
   readonly reason: string;
   readonly createdAt: DateTimeString;

@@ -17320,3 +17320,49 @@ Decision:
   editor. The command-shape clarification does not change role access,
   historical-link preservation, student-portal scope or the one-authority and
   non-production validation gates in the preceding entry.
+
+## 2026-09-05 - Define the #600 sole-V3 route and retirement boundary
+
+Block-ID: `EVO-V3-G-SOLE-UI-2026-09-05`
+
+Change type: implementation clarification.
+Affected plan section: Order 6 / Issue #600.
+
+The replacement inventory found two live outcomes behind routes that #600
+otherwise describes as legacy: the canonical-Supabase dashboard still reads
+real server projections, and `/clients/:id` still exposes contract draft/report
+commands. It also found provider-readiness browser proof coupled to that client
+route. Deleting those paths before outcome replacement would violate the
+replace-not-layer rule even though the V3 workflow slices themselves are
+complete.
+
+Decision:
+
+- keep the proved `/v3/*` module URLs. Make `/` the only authenticated entry
+  dispatcher: Admin and Sales enter `/v3/main`, Admissions enters
+  `/v3/calendar`, and `/v3` uses the same role-home helper. Do not create a
+  second prefixless copy of the V3 routes;
+- preserve logout and exact Admin role preview in the V3 shell. Distinguish the
+  real authority role from the selected presentation role: mutations continue
+  to authorize the real Supabase staff identity, while navigation and direct
+  page access fail closed against the exact previewed interface;
+- move every currently reachable contract-draft/report outcome and its existing
+  server actions into V3 Student 360 before deleting `/clients/:id`. Prove the
+  required dashboard outcomes in `/v3/main`, move provider-readiness browser
+  inventory to the V3 case surface, and retain the canonical dashboard and
+  contract server readers rather than rebuilding them;
+- after focused application/browser proof, delete the remaining V2 staff route
+  tree, frozen portal UI/facade and client-login routing, proven orphan UI/action
+  wrappers, obsolete V2 revalidation targets and their implementation tests.
+  Retired staff and portal URLs return the hidden not-found boundary; they do
+  not redirect to, import or fall back through the old UI;
+- retain `src/lib/server`, the canonical Supabase schema and migrations, event
+  bus, gate/handoff engines, and the private P6C operations API/server path.
+  Normalize CI/release inventories and labels to the sole retained app, but
+  leave deployment automation, schema apply, provider enablement, webhook
+  ownership and production mutation to their explicitly assigned later gates;
+- validate with focused route/role/action/inventory tests, one real local
+  OrbStack Supabase/PostgreSQL application-and-browser run, an independent
+  exact-head review and one exact-head CI pass. Missing canonical data or
+  services must stop clearly; no compatibility route or fixture business
+  acceptance is allowed.

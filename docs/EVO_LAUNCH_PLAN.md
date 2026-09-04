@@ -135,6 +135,17 @@ new path is accepted; historical and rollback material remains preserved.
 | 8 | #552 | Production deployment and retirement | deploy the exact green V3 revision, verify it, and retire the superseded active runtime without a fallback path |
 | 9 | #553 | Completion audit and safe cleanup | certify one exact-main live product authority, then remove only inventoried stale branches/comments while preserving history |
 
+#600 keeps the proved `/v3/*` module URLs and makes the authenticated root a
+role-aware dispatcher into them: Admin and Sales enter `/v3/main`, while
+Admissions enters `/v3/calendar`. The V3 shell retains logout and Admin's exact
+role-preview control, and route visibility follows the selected presentation
+role while every mutation continues to authorize the real Supabase staff
+identity. Existing contract-draft/report behavior moves into V3 Student 360 and
+provider-readiness browser proof moves to V3 before `/clients/:id` and the
+remaining V2 staff routes are removed. The canonical Supabase readers,
+`src/lib/server` engines and private P6C operations endpoint remain; #600 does
+not enable providers, transfer webhooks, deploy or apply schema.
+
 The final #599 slice extends the existing case-document authority rather than
 creating another document or visa model. It uses one typed link relation with
 separate application and visa foreign-key columns, a mutually exclusive target
@@ -148,11 +159,11 @@ result. The staff document-workspace projection returns sorted links through
 writes, a second status dictionary, student-portal mutation and
 provider/deployment changes are outside this slice.
 
-While #594 keeps V3 in the temporary `/v3` namespace, every screen is either a
-real canonical read or an honestly unavailable action. Browser-only stage,
-task, file or document mutations and success messages are prohibited. The
-corresponding controls enter V3 only with their canonical server actions and
-durable proof in #595 through #598.
+Every retained V3 screen is either a real canonical read or an honestly
+unavailable action. Browser-only stage, task, file or document mutations and
+success messages are prohibited. The corresponding controls entered V3 only
+with their canonical server actions and durable proof in #595 through #599;
+#600 retires the replaced routes instead of keeping redirect or UI fallbacks.
 
 The previous managed-Supabase successor sequence through #550 is complete and
 remains historical evidence below. Issues #551 through #553 now follow #600;

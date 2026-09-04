@@ -47,6 +47,8 @@ export type ProfileApplication = Readonly<{
   institution: string;
   program: string;
   intake: string;
+  isPrimary: boolean;
+  universityDeadlineOn: string | null;
   status: string;
   nextAction: string | null;
   nextActionAt: string | null;
@@ -101,6 +103,7 @@ export type ProfileSalesSnapshot = Readonly<{
 export type ProfileAdmissionsRequestIds = Readonly<{
   createApplication: string;
   applications: Readonly<Record<string, string>>;
+  applicationDetails: Readonly<Record<string, string>>;
   visa: string;
   createStops: Readonly<Record<string, string>>;
   resolveStops: Readonly<Record<string, string>>;

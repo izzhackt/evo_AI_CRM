@@ -1,5 +1,6 @@
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
+  allDayDate,
   applicationStatus,
   eventLabel,
   leadStage,
@@ -78,7 +79,7 @@ export function Overview({
   requestIds: ProfileSalesRequestIds;
   tabHref: (tab: string) => string;
 }) {
-  const application = profile.applications[0] ?? null;
+  const application = profile.applications.find((candidate) => candidate.isPrimary) ?? null;
   const stage = sales ? leadStage(sales.lead.stageKey) : null;
 
   // Плитка здесь ровно одна, и это не оплошность.
@@ -160,13 +161,21 @@ export function Overview({
                 <Pill tone={tone(application.status)}>
                   {applicationStatus(application.status) ?? "—"}
                 </Pill>
+                {application.isPrimary ? <Pill tone="info">Основной вариант</Pill> : null}
               </p>
               <p className="px-4 pb-3 pt-0.5 text-2xs text-fg-3">
                 {application.institution} · набор {application.intake}
+                {application.universityDeadlineOn
+                  ? ` · дедлайн ${allDayDate(application.universityDeadlineOn) ?? "не указан"}`
+                  : ""}
               </p>
             </>
           ) : (
-            <p className="px-4 py-3 text-sm text-fg-3">Заявка ещё не заведена.</p>
+            <p className="px-4 py-3 text-sm text-fg-3">
+              {profile.applications.length > 0
+                ? "Основной вариант ещё не выбран."
+                : "Заявка ещё не заведена."}
+            </p>
           )}
         </Card>
       )}

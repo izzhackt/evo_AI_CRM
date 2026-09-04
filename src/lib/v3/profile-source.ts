@@ -141,6 +141,8 @@ function profileApplications(
     institution: application.institutionName,
     program: application.programName,
     intake: application.intake ?? "не указано",
+    isPrimary: application.isPrimary,
+    universityDeadlineOn: application.universityDeadlineOn,
     status: application.status,
     nextAction: null,
     nextActionAt: null,
@@ -292,6 +294,12 @@ function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
     requestIds: {
       createApplication: randomUUID(),
       applications: Object.fromEntries(
+        data.applications.map((application) => [
+          application.universityApplicationId,
+          randomUUID(),
+        ]),
+      ),
+      applicationDetails: Object.fromEntries(
         data.applications.map((application) => [
           application.universityApplicationId,
           randomUUID(),

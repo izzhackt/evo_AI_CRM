@@ -9,6 +9,7 @@ import type { FixedRole } from "@/lib/fixed-role-policy";
 import {
   changePlatformUniversityApplicationAction,
   createPlatformUniversityApplicationAction,
+  updatePlatformUniversityApplicationDetailsAction,
   type PlatformUniversityApplicationActionState,
 } from "@/lib/platform-admissions-actions";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/lib/platform-case-operations-actions";
 import { PLATFORM_VISA_STATUSES } from "@/lib/platform-case-operations-contract";
 import {
+  allDayDate,
   applicationStatus,
   financeBlockedAction,
   financeBlockedActionOptions,
@@ -59,6 +61,27 @@ function useCanonicalRefresh(status: ActionStatus): void {
   useEffect(() => {
     if (status === "saved" || status === "stale") router.refresh();
   }, [router, status]);
+}
+
+function PrimaryApplicationField({
+  defaultChecked,
+}: Readonly<{ defaultChecked: boolean }>) {
+  return (
+    <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-ctl px-2 py-2 text-sm leading-5 text-fg-2 hover:bg-surface-2">
+      <input
+        type="checkbox"
+        name="is_primary"
+        defaultChecked={defaultChecked}
+        className="mt-0.5 size-5 shrink-0 accent-[var(--accent)]"
+      />
+      <span>
+        <span className="block font-medium text-fg">Основной вариант</span>
+        <span className="block text-xs text-fg-3">
+          В деле может быть только один; выбор заменит текущий основной вариант.
+        </span>
+      </span>
+    </label>
+  );
 }
 
 function StateBanner({ status }: Readonly<{ status: ActionStatus }>) {
@@ -117,6 +140,11 @@ function ApplicationCreateForm({ workspace }: Readonly<{ workspace: ProfileAdmis
             ))}
           </select>
         </label>
+        <PrimaryApplicationField defaultChecked={false} />
+        <label>
+          <span className={labelCls}>Дедлайн от университета</span>
+          <input name="university_deadline_on" type="date" className={inputCls} />
+        </label>
         <label>
           <span className={labelCls}>Ссылка на подтверждение</span>
           <input name="evidence_reference" maxLength={1000} className={inputCls} />
@@ -134,7 +162,7 @@ function ApplicationCreateForm({ workspace }: Readonly<{ workspace: ProfileAdmis
   );
 }
 
-function ApplicationEditForm({
+function ApplicationStatusForm({
   workspace,
   application,
 }: Readonly<{
@@ -184,6 +212,51 @@ function ApplicationEditForm({
         </label>
         <button type="submit" className={btnGhostCls} disabled={locked}>
           {pending ? "Сохраняем…" : "Сохранить статус"}
+        </button>
+      </fieldset>
+      <StateBanner status={state.status} />
+    </form>
+  );
+}
+
+function ApplicationDetailsForm({
+  workspace,
+  application,
+}: Readonly<{
+  workspace: ProfileAdmissionsWorkspace;
+  application: PlatformApplicationQueueRow;
+}>) {
+  const initialState: PlatformUniversityApplicationActionState = {
+    status: "idle",
+    requestId: workspace.requestIds.applicationDetails[application.universityApplicationId],
+    universityApplicationId: application.universityApplicationId,
+    version: application.version,
+  };
+  const [state, action, pending] = useActionState(
+    updatePlatformUniversityApplicationDetailsAction,
+    initialState,
+  );
+  useCanonicalRefresh(state.status);
+  const locked = pending || state.status === "saved" || state.status === "stale";
+
+  return (
+    <form action={action} className="mt-3 space-y-3" aria-busy={pending}>
+      <input type="hidden" name="application_id" value={application.universityApplicationId} />
+      <input type="hidden" name="request_id" value={state.requestId} />
+      <input type="hidden" name="expected_version" value={state.version ?? application.version} />
+      <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
+        <PrimaryApplicationField defaultChecked={application.isPrimary} />
+        <label>
+          <span className={labelCls}>Дедлайн от университета</span>
+          <input
+            name="university_deadline_on"
+            type="date"
+            defaultValue={application.universityDeadlineOn ?? ""}
+            className={inputCls}
+          />
+        </label>
+        <button type="submit" className={btnGhostCls} disabled={locked}>
+          {pending ? "Сохраняем…" : "Сохранить детали"}
         </button>
       </fieldset>
       <StateBanner status={state.status} />
@@ -370,16 +443,34 @@ export function ProfileAdmissionsWorkspacePanel({
         ) : (
           <div className="divide-y divide-border">
             {workspace.applications.map((application) => (
-              <article key={application.universityApplicationId} className="px-4 py-3">
+              <article
+                key={application.universityApplicationId}
+                className="px-4 py-3"
+                data-testid="v3-profile-application"
+                data-primary={application.isPrimary ? "true" : "false"}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-medium text-fg">{application.institutionName}</p>
                     <p className="mt-0.5 text-sm text-fg-3">{application.programName}</p>
                   </div>
-                  <Pill tone={statusTone(application.status)}>
-                    {applicationStatus(application.status) ?? "—"}
-                  </Pill>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill tone={application.isPrimary ? "info" : "neutral"}>
+                      {application.isPrimary ? "Основной вариант" : "Обычный вариант"}
+                    </Pill>
+                    <Pill tone={statusTone(application.status)}>
+                      {applicationStatus(application.status) ?? "—"}
+                    </Pill>
+                  </div>
                 </div>
+                <p className="mt-2 text-xs text-fg-3">
+                  Дедлайн от университета:{" "}
+                  {application.universityDeadlineOn ? (
+                    <time dateTime={application.universityDeadlineOn}>
+                      {allDayDate(application.universityDeadlineOn) ?? "не указан"}
+                    </time>
+                  ) : "не указан"}
+                </p>
                 {application.latestEvidenceReference ? (
                   <p className="mt-2 break-all text-xs text-fg-3">
                     {application.latestEvidenceReference}
@@ -390,7 +481,23 @@ export function ProfileAdmissionsWorkspacePanel({
                     <summary className="cursor-pointer text-sm font-medium text-accent">
                       Изменить статус
                     </summary>
-                    <ApplicationEditForm workspace={workspace} application={application} />
+                    <ApplicationStatusForm
+                      key={`status-${application.universityApplicationId}-${application.version}`}
+                      workspace={workspace}
+                      application={application}
+                    />
+                  </details>
+                ) : null}
+                {canWrite ? (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-sm font-medium text-accent">
+                      Изменить приоритет и дедлайн
+                    </summary>
+                    <ApplicationDetailsForm
+                      key={`details-${application.universityApplicationId}-${application.version}`}
+                      workspace={workspace}
+                      application={application}
+                    />
                   </details>
                 ) : null}
               </article>

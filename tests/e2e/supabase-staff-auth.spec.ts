@@ -154,6 +154,7 @@ async function directPlatformRpc(
     | "handoff_lead_to_admissions"
     | "staff_student_case_handoff_context"
     | "staff_case_task_queue"
+    | "staff_application_snapshot"
     | "staff_case_visa"
     | "staff_visa_queue"
     | "staff_document_queue"
@@ -1278,6 +1279,12 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator('input[name="program_name"]')
     .fill("P4 isolated technical program");
   await createApplication
+    .getByRole("checkbox", { name: /Основной вариант/ })
+    .check();
+  await createApplication
+    .locator('input[name="university_deadline_on"]')
+    .fill("2099-10-01");
+  await createApplication
     .locator('input[name="evidence_reference"]')
     .fill("p4://application-created");
   await createApplication.locator('button[type="submit"]').click();
@@ -1286,9 +1293,16 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator("article")
     .filter({ hasText: "P4 isolated technical university" });
   await expect(application).toHaveCount(1);
-  await application.locator("summary").click();
+  await expect(application).toHaveAttribute("data-primary", "true");
+  await expect(application).toContainText("Основной вариант");
+  await expect(application).toContainText("Дедлайн от университета: 01.10.2099");
+  await application
+    .locator("details")
+    .filter({ hasText: "Изменить статус" })
+    .locator("summary")
+    .click();
   const changeApplication = application.locator(
-    'form:has(input[name="application_id"])',
+    'form:has(select[name="status"])',
   );
   const universityApplicationId = requireUuidValue(
     await changeApplication.locator('input[name="application_id"]').inputValue(),
@@ -1303,6 +1317,122 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(
     applications.locator("article").filter({ hasText: "P4 isolated technical university" }),
   ).toContainText("p4://application-submitted");
+
+  await page.reload();
+  const refreshedApplications = page.locator("#applications");
+  const refreshedFirstApplication = refreshedApplications
+    .getByTestId("v3-profile-application")
+    .filter({ hasText: "P4 isolated technical university" });
+  await expect(refreshedFirstApplication).toHaveAttribute("data-primary", "true");
+  await expect(refreshedFirstApplication).toContainText(
+    "Дедлайн от университета: 01.10.2099",
+  );
+
+  await refreshedApplications
+    .locator("details")
+    .filter({ hasText: "Новая заявка" })
+    .locator("summary")
+    .click();
+  const createAlternativeApplication = refreshedApplications.locator(
+    'form:has(input[name="institution_name"])',
+  );
+  await createAlternativeApplication
+    .locator('input[name="institution_name"]')
+    .fill("P4 isolated alternative university");
+  await createAlternativeApplication
+    .locator('input[name="program_name"]')
+    .fill("P4 isolated alternative program");
+  await expect(
+    createAlternativeApplication.getByRole("checkbox", { name: /Основной вариант/ }),
+  ).not.toBeChecked();
+  await createAlternativeApplication
+    .locator('input[name="university_deadline_on"]')
+    .fill("2099-11-02");
+  await createAlternativeApplication
+    .locator('input[name="evidence_reference"]')
+    .fill("p4://alternative-application-created");
+  await createAlternativeApplication.locator('button[type="submit"]').click();
+
+  const alternativeApplication = refreshedApplications
+    .getByTestId("v3-profile-application")
+    .filter({ hasText: "P4 isolated alternative university" });
+  await expect(alternativeApplication).toHaveCount(1);
+  await expect(alternativeApplication).toHaveAttribute("data-primary", "false");
+  await expect(alternativeApplication).toContainText("Обычный вариант");
+  await expect(alternativeApplication).toContainText(
+    "Дедлайн от университета: 02.11.2099",
+  );
+  await alternativeApplication
+    .locator("details")
+    .filter({ hasText: "Изменить приоритет и дедлайн" })
+    .locator("summary")
+    .click();
+  const changeApplicationDetails = alternativeApplication.locator(
+    'form:has(input[name="university_deadline_on"])',
+  );
+  const alternativeUniversityApplicationId = requireUuidValue(
+    await changeApplicationDetails.locator('input[name="application_id"]').inputValue(),
+  );
+  await changeApplicationDetails
+    .getByRole("checkbox", { name: /Основной вариант/ })
+    .check();
+  await changeApplicationDetails
+    .locator('input[name="university_deadline_on"]')
+    .fill("2099-11-15");
+  await changeApplicationDetails.locator('button[type="submit"]').click();
+
+  await expect(alternativeApplication).toHaveAttribute("data-primary", "true");
+  await expect(alternativeApplication).toContainText("Основной вариант");
+  await expect(alternativeApplication).toContainText(
+    "Дедлайн от университета: 15.11.2099",
+  );
+  await expect(refreshedFirstApplication).toHaveAttribute("data-primary", "false");
+  await expect(refreshedFirstApplication).toContainText("Обычный вариант");
+
+  await page.reload();
+  const persistedApplications = page.locator("#applications");
+  const persistedFirstApplication = persistedApplications
+    .getByTestId("v3-profile-application")
+    .filter({ hasText: "P4 isolated technical university" });
+  const persistedAlternativeApplication = persistedApplications
+    .getByTestId("v3-profile-application")
+    .filter({ hasText: "P4 isolated alternative university" });
+  await expect(persistedFirstApplication).toHaveAttribute("data-primary", "false");
+  await expect(persistedAlternativeApplication).toHaveAttribute("data-primary", "true");
+  await expect(persistedAlternativeApplication).toContainText(
+    "Дедлайн от университета: 15.11.2099",
+  );
+
+  const [persistedFirstResult, persistedAlternativeResult] = await Promise.all([
+    directPlatformRpc(
+      "staff_application_snapshot",
+      { p_university_application_id: universityApplicationId },
+      refreshedAdmissionsToken,
+    ),
+    directPlatformRpc(
+      "staff_application_snapshot",
+      { p_university_application_id: alternativeUniversityApplicationId },
+      refreshedAdmissionsToken,
+    ),
+  ]);
+  expect(
+    persistedFirstResult.status,
+    JSON.stringify(persistedFirstResult.payload),
+  ).toBe(200);
+  expect(
+    persistedAlternativeResult.status,
+    JSON.stringify(persistedAlternativeResult.payload),
+  ).toBe(200);
+  expect(persistedFirstResult.payload).toHaveLength(1);
+  expect(persistedAlternativeResult.payload).toHaveLength(1);
+  expect(expectObject((persistedFirstResult.payload as unknown[])[0])).toMatchObject({
+    is_primary: false,
+    university_deadline_on: "2099-10-01",
+  });
+  expect(expectObject((persistedAlternativeResult.payload as unknown[])[0])).toMatchObject({
+    is_primary: true,
+    university_deadline_on: "2099-11-15",
+  });
 
   const visaSection = page.locator("#visa");
   const visaForm = visaSection.locator('form:has(select[name="status"])');
@@ -1618,6 +1748,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     studentCaseId,
     caseTaskId,
     universityApplicationId,
+    alternativeUniversityApplicationId,
     visaCaseId,
     paymentObligationId,
     stopFactorId,

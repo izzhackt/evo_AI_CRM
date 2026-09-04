@@ -21,6 +21,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "ai.qualification.record",
   "ai.retrieval.preview",
   "application.create",
+  "application.details.update",
   "application.status.change",
   "audit.export",
   "autonomous.reply.control.set",

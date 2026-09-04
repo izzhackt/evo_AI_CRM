@@ -38,6 +38,10 @@ const V3_F_MIGRATION_SOURCE = readFileSync(
   new URL("../supabase/migrations/108_platform_dynamic_document_checklists.sql", import.meta.url),
   "utf8",
 );
+const V3_F_APPLICATION_MIGRATION_SOURCE = readFileSync(
+  new URL("../supabase/migrations/112_platform_application_priority_deadlines.sql", import.meta.url),
+  "utf8",
+);
 
 const SAFE_ROW = {
   audit_event_id: EVENT_ID,
@@ -85,12 +89,14 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
   for (const action of v3FDocumentActions) {
     assert.match(V3_F_MIGRATION_SOURCE, new RegExp(`'${action.replaceAll(".", "\\.")}'`));
   }
+  assert.match(V3_F_APPLICATION_MIGRATION_SOURCE, /'application\.details\.update'/);
   assert.deepEqual(
     PLATFORM_AUDIT_ACTIONS,
     [
       ...sqlTextArray("p7a_safe_audit_actions"),
       "membership.permission.change",
       ...v3FDocumentActions,
+      "application.details.update",
     ].sort(),
   );
   assert.deepEqual(

@@ -87,11 +87,14 @@ test("the exact V3 knowledge denial keeps its route provenance", () => {
     accessDeniedSource,
     /requestedKnowledge = requestedPath === "\/v3\/knowledge"/,
   );
-  assert.match(
-    accessDeniedSource,
-    /requestedPath !== "\/transcription-lab" &&\s*!requestedKnowledge/,
-  );
+  assert.match(accessDeniedSource, /isFixedRoleRoute\(requestedPath\)/);
   assert.match(accessDeniedSource, /requestedKnowledge\s*\? copy\.knowledge/);
+});
+
+test("V3 knowledge uses the canonical documents role boundary", () => {
+  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/knowledge"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/knowledge"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/knowledge"), false);
 });
 
 test("removed parallel pages stay outside the successor and stop before runtime", () => {

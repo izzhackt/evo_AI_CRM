@@ -6,6 +6,10 @@ import { Icon } from "@/components/icons";
 import { Card, PageHeader, btnCls } from "@/components/ui";
 import { currentUser, isStaff } from "@/lib/auth";
 import { ROLE_HOME_ROUTE, STAFF_NAV_ITEMS, roleCanAccessStaffRoute } from "@/lib/domain";
+import {
+  fixedRoleCanAccessRoute,
+  isFixedRoleRoute,
+} from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import { buildRouteMetadata } from "@/lib/route-metadata";
@@ -104,6 +108,15 @@ export default async function AccessDeniedPage({
   const requestedPath = firstValue((await searchParams).from);
   const requestedItem = STAFF_NAV_ITEMS.find((item) => item.href === requestedPath);
   const requestedKnowledge = requestedPath === "/v3/knowledge";
+  const requestedFixedRoleRoute = isFixedRoleRoute(requestedPath)
+    ? requestedPath
+    : null;
+  if (
+    requestedFixedRoleRoute &&
+    fixedRoleCanAccessRoute(user.role, requestedFixedRoleRoute)
+  ) {
+    redirect(requestedFixedRoleRoute);
+  }
   if (requestedItem && roleCanAccessStaffRoute(user.role, requestedItem.href)) {
     redirect(requestedItem.href);
   }
@@ -112,8 +125,8 @@ export default async function AccessDeniedPage({
   }
   if (
     !requestedItem &&
-    requestedPath !== "/transcription-lab" &&
-    !requestedKnowledge
+    !requestedFixedRoleRoute &&
+    requestedPath !== "/transcription-lab"
   ) {
     redirect(ROLE_HOME_ROUTE[user.role]);
   }
@@ -122,9 +135,9 @@ export default async function AccessDeniedPage({
       ? t(requestedItem.labelKey)
       : requestedKnowledge
         ? copy.knowledge
-      : requestedPath === "/transcription-lab"
-        ? copy.transcription
-        : copy.unknown;
+        : requestedPath === "/transcription-lab"
+          ? copy.transcription
+          : copy.unknown;
   const home = ROLE_HOME_ROUTE[user.role];
 
   return (

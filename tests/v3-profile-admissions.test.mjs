@@ -49,6 +49,7 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   for (const action of [
     "createPlatformUniversityApplicationAction",
     "changePlatformUniversityApplicationAction",
+    "updatePlatformUniversityApplicationDetailsAction",
     "upsertPlatformCaseVisaAction",
     "createPlatformFinanceStopFactorAction",
     "resolvePlatformFinanceStopFactorAction",
@@ -63,6 +64,8 @@ test("V3 profile actions use canonical versioned server commands and honest outc
     "visa_case_id",
     "payment_obligation_id",
     "stop_factor_id",
+    "is_primary",
+    "university_deadline_on",
   ]) {
     assert.match(controls, new RegExp(`name="${field}"`));
   }
@@ -78,6 +81,13 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   }
 
   assert.match(controls, /status === "saved" \|\| status === "stale"/u);
+  assert.match(controls, /Основной вариант/u);
+  assert.match(controls, /Дедлайн от университета/u);
+  assert.match(controls, /application\.universityDeadlineOn/u);
+  assert.match(controls, /type="checkbox"[\s\S]*name="is_primary"/u);
+  assert.doesNotMatch(controls, /<select[^>]*name="is_primary"/u);
+  assert.match(controls, /data-primary=\{application\.isPrimary \? "true" : "false"\}/u);
+  assert.match(controls, /details-\$\{application\.universityApplicationId\}-\$\{application\.version\}/u);
   assert.match(controls, /router\.refresh\(\)/u);
   assert.match(controls, /PLATFORM_APPLICATION_STATUSES\.map/u);
   assert.match(controls, /PLATFORM_VISA_STATUSES\.map/u);
@@ -86,6 +96,31 @@ test("V3 profile actions use canonical versioned server commands and honest outc
     existsSync(new URL("../src/components/v3/profile/ProfileAdmissionsActions.ts", import.meta.url)),
     false,
   );
+
+  const detailsForm = controls.slice(
+    controls.indexOf("function ApplicationDetailsForm"),
+    controls.indexOf("function VisaForm"),
+  );
+  assert.match(detailsForm, /name="application_id"/u);
+  assert.doesNotMatch(detailsForm, /name="student_case_id"/u);
+
+  const tabs = source("src/components/v3/profile/tabs.tsx");
+  assert.match(tabs, /find\(\(candidate\) => candidate\.isPrimary\)/u);
+  assert.doesNotMatch(tabs, /profile\.applications\[0\]/u);
+  assert.match(tabs, /Основной вариант ещё не выбран/u);
+});
+
+test("V3 profile adapter carries application priority and all-day deadline without inference", () => {
+  const adapter = source("src/lib/v3/profile-source.ts");
+  const types = source("src/components/v3/profile/types.ts");
+
+  assert.match(types, /isPrimary: boolean/u);
+  assert.match(types, /universityDeadlineOn: string \| null/u);
+  assert.match(types, /applicationDetails: Readonly<Record<string, string>>/u);
+  assert.match(adapter, /isPrimary: application\.isPrimary/u);
+  assert.match(adapter, /universityDeadlineOn: application\.universityDeadlineOn/u);
+  assert.match(adapter, /applicationDetails: Object\.fromEntries/u);
+  assert.doesNotMatch(adapter, /universityDeadlineOn:[^\n]*(?:intake|createdAt|updatedAt)/u);
 });
 
 test("finance stop controls submit canonical keys and never render them raw", () => {

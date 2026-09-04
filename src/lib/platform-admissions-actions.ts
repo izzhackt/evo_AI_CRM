@@ -6,8 +6,12 @@ import { revalidatePath } from "next/cache";
 
 import { parsePlatformAdmissionsUuid } from "./platform-admissions";
 import {
+  parsePlatformApplicationDeadlineInput,
+  parsePlatformApplicationDetailsReceipt,
+  parsePlatformApplicationPrimaryCheckbox,
   PLATFORM_APPLICATION_EVIDENCE_STATUSES,
   PLATFORM_APPLICATION_STATUSES,
+  parsePlatformApplicationSwitchMetadata,
   type PlatformApplicationStatus,
 } from "./platform-application-contract.ts";
 import {
@@ -25,6 +29,8 @@ import {
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const POSTGRES_BIGINT_MAX = "9223372036854775807";
+const TIMESTAMPTZ_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 const CREATE_APPLICATION_FIELDS = [
   "student_case_id",
   "catalog_institution_id",
@@ -33,6 +39,15 @@ const CREATE_APPLICATION_FIELDS = [
   "status",
   "evidence_reference",
   "note",
+  "is_primary",
+  "university_deadline_on",
+  "request_id",
+  "expected_version",
+] as const;
+const UPDATE_APPLICATION_DETAILS_FIELDS = [
+  "application_id",
+  "is_primary",
+  "university_deadline_on",
   "request_id",
   "expected_version",
 ] as const;
@@ -72,6 +87,13 @@ function applicationField(
   return fields.get(key)?.trim() ?? "";
 }
 
+function rawApplicationField(
+  fields: ApplicationStringFields,
+  key: string,
+): string {
+  return fields.get(key) ?? "";
+}
+
 function applicationUuid(value: string): string | null {
   return parsePlatformAdmissionsUuid(value);
 }
@@ -98,6 +120,43 @@ function optionalApplicationText(
 ): string | null | undefined {
   if (!value.trim()) return null;
   return applicationText(value, 1, maximum) ?? undefined;
+}
+
+function exactApplicationFields(
+  form: FormData,
+  expectedFields: readonly string[],
+): ApplicationStringFields | null {
+  if (!expectedFields.includes("is_primary")) {
+    return exactActionStringFields(form, expectedFields);
+  }
+  const entries = [...form.entries()];
+  const usesActionStateEnvelope = entries.some(([key]) => key.startsWith("_1_"));
+  const checkboxKey = usesActionStateEnvelope ? "_1_is_primary" : "is_primary";
+  if (entries.some(([key]) => key === checkboxKey)) {
+    return exactActionStringFields(form, expectedFields);
+  }
+  const normalized = new FormData();
+  for (const [key, value] of entries) normalized.append(key, value);
+  normalized.append(checkboxKey, "");
+  return exactActionStringFields(normalized, expectedFields);
+}
+
+function validApplicationSwitchMetadata(
+  value: unknown,
+  targetApplicationId: string,
+  isPrimary: boolean,
+): boolean {
+  const metadata = parsePlatformApplicationSwitchMetadata(
+    value,
+    targetApplicationId,
+  );
+  return metadata !== undefined &&
+    (isPrimary || metadata.demotedPrimaryApplicationId === null);
+}
+
+function validApplicationChangedAt(value: unknown): boolean {
+  return typeof value === "string" && TIMESTAMPTZ_PATTERN.test(value) &&
+    Number.isFinite(Date.parse(value));
 }
 
 function applicationVersion(value: string, allowZero: boolean): string | null {
@@ -179,7 +238,7 @@ export async function createPlatformUniversityApplicationAction(
   if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
     return applicationFailureState(form, "forbidden");
   }
-  const fields = exactActionStringFields(form, CREATE_APPLICATION_FIELDS);
+  const fields = exactApplicationFields(form, CREATE_APPLICATION_FIELDS);
   if (!fields) return applicationFailureState(form, "invalid");
 
   const studentCaseId = applicationUuid(applicationField(fields, "student_case_id"));
@@ -207,11 +266,18 @@ export async function createPlatformUniversityApplicationAction(
     1_000,
   );
   const note = optionalApplicationText(applicationField(fields, "note"), 1_000);
+  const isPrimary = parsePlatformApplicationPrimaryCheckbox(
+    rawApplicationField(fields, "is_primary"),
+  );
+  const universityDeadlineOn = parsePlatformApplicationDeadlineInput(
+    rawApplicationField(fields, "university_deadline_on"),
+  );
   if (
     !studentCaseId || !requestId || expectedVersion !== "0" ||
     (catalogValue !== "" && !catalogInstitutionId) ||
     (!catalogInstitutionId && !institutionName) || !programName || !status ||
-    evidence === undefined || note === undefined ||
+    evidence === undefined || note === undefined || isPrimary === null ||
+    universityDeadlineOn === undefined ||
     (PLATFORM_APPLICATION_EVIDENCE_STATUSES.has(status) && !evidence) ||
     ((status === "rejected" || status === "withdrawn") && !note)
   ) {
@@ -231,6 +297,8 @@ export async function createPlatformUniversityApplicationAction(
             p_status: status,
             p_evidence_reference: evidence,
             p_note: note,
+            p_is_primary: isPrimary,
+            p_university_deadline_on: universityDeadlineOn,
             p_expected_version: expectedVersion,
             p_request_id: requestId,
           },
@@ -245,6 +313,8 @@ export async function createPlatformUniversityApplicationAction(
             p_status: status,
             p_evidence_reference: evidence,
             p_note: note,
+            p_is_primary: isPrimary,
+            p_university_deadline_on: universityDeadlineOn,
             p_expected_version: expectedVersion,
             p_request_id: requestId,
           },
@@ -268,10 +338,18 @@ export async function createPlatformUniversityApplicationAction(
       (catalogInstitutionId !== null &&
         applicationUuid(String(data.catalog_institution_id ?? "")) !==
           catalogInstitutionId) ||
+      (catalogInstitutionId === null &&
+        data.institution_name !== institutionName) ||
+      data.program_name !== programName ||
       data.status !== status ||
+      data.evidence_reference !== evidence || data.note !== note ||
+      data.is_primary !== isPrimary ||
+      data.university_deadline_on !== universityDeadlineOn ||
       data.request_id !== requestId || data.expected_version !== "0" ||
       typeof data.version !== "string" ||
-      applicationVersion(data.version, false) !== "1"
+      applicationVersion(data.version, false) !== "1" ||
+      !validApplicationChangedAt(data.changed_at) ||
+      !validApplicationSwitchMetadata(data, applicationId, isPrimary)
     ) {
       return applicationFailureState(form, "unavailable", null, requestId);
     }
@@ -284,6 +362,90 @@ export async function createPlatformUniversityApplicationAction(
     });
   } catch {
     return applicationFailureState(form, "unavailable", null, requestId);
+  }
+}
+
+export async function updatePlatformUniversityApplicationDetailsAction(
+  _previous: PlatformUniversityApplicationActionState,
+  form: FormData,
+): Promise<PlatformUniversityApplicationActionState> {
+  const actor = await requirePlatformStaffActor();
+  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+    return applicationFailureState(form, "forbidden");
+  }
+  const fields = exactApplicationFields(form, UPDATE_APPLICATION_DETAILS_FIELDS);
+  if (!fields) return applicationFailureState(form, "invalid");
+
+  const applicationId = applicationUuid(applicationField(fields, "application_id"));
+  const requestId = applicationUuid(applicationField(fields, "request_id"));
+  const expectedVersion = applicationVersion(
+    applicationField(fields, "expected_version"),
+    false,
+  );
+  const isPrimary = parsePlatformApplicationPrimaryCheckbox(
+    rawApplicationField(fields, "is_primary"),
+  );
+  const universityDeadlineOn = parsePlatformApplicationDeadlineInput(
+    rawApplicationField(fields, "university_deadline_on"),
+  );
+  if (
+    !applicationId || !requestId || !expectedVersion ||
+    isPrimary === null || universityDeadlineOn === undefined
+  ) {
+    return applicationFailureState(form, "invalid", applicationId, requestId);
+  }
+
+  try {
+    const client = await createSupabaseServerClient();
+    const response = await client.schema("platform").rpc(
+      "update_university_application_details",
+      {
+        p_organization_id: actor.organizationId,
+        p_university_application_id: applicationId,
+        p_is_primary: isPrimary,
+        p_university_deadline_on: universityDeadlineOn,
+        p_expected_version: expectedVersion,
+        p_request_id: requestId,
+      },
+    );
+    if (response.error) {
+      return applicationFailureState(
+        form,
+        applicationErrorStatus(response.error),
+        applicationId,
+        requestId,
+      );
+    }
+    const receipt = parsePlatformApplicationDetailsReceipt(response.data, {
+      organizationId: actor.organizationId,
+      universityApplicationId: applicationId,
+      isPrimary,
+      universityDeadlineOn,
+      requestId,
+      expectedVersion,
+    });
+    if (!receipt) {
+      return applicationFailureState(
+        form,
+        "unavailable",
+        applicationId,
+        requestId,
+      );
+    }
+    revalidateApplication(receipt.studentCaseId);
+    return Object.freeze({
+      status: "saved" as const,
+      requestId: randomUUID(),
+      universityApplicationId: applicationId,
+      version: receipt.version,
+    });
+  } catch {
+    return applicationFailureState(
+      form,
+      "unavailable",
+      applicationId,
+      requestId,
+    );
   }
 }
 

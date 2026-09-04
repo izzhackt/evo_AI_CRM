@@ -21,6 +21,13 @@ import {
   summarizePlatformStudentCaseApplicationPreview,
 } from "../src/lib/platform-admissions.ts";
 import {
+  isPlatformApplicationCalendarDate,
+  parsePlatformApplicationDetailsReceipt,
+  parsePlatformApplicationDeadlineInput,
+  parsePlatformApplicationPrimaryCheckbox,
+  parsePlatformApplicationSwitchMetadata,
+} from "../src/lib/platform-application-contract.ts";
+import {
   PlatformCaseAssignmentRepositoryError,
   normalizePlatformCuratorOptions,
   normalizePlatformStudentCaseAssignmentState,
@@ -30,6 +37,7 @@ import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const CASE_ID = "22222222-2222-4222-8222-222222222222";
 const APPLICATION_ID = "33333333-3333-4333-8333-333333333333";
+const DEMOTED_APPLICATION_ID = "33333333-3333-4333-8333-555555555555";
 const LEAD_ID = "33333333-3333-4333-8333-444444444444";
 const VERSION_ID = "44444444-4444-4444-8444-444444444444";
 const CONTRACT_ID = "55555555-5555-4555-8555-555555555555";
@@ -67,8 +75,59 @@ test("V3 Admissions forms own versioned retry state without legacy query envelop
   const v3ApplicationActions = actionsSource.slice(
     actionsSource.indexOf("export async function createPlatformUniversityApplicationAction"),
   );
-  assert.match(v3ApplicationActions, /exactActionStringFields\(form, CREATE_APPLICATION_FIELDS\)/);
+  assert.match(v3ApplicationActions, /exactApplicationFields\(form, CREATE_APPLICATION_FIELDS\)/);
+  assert.match(
+    v3ApplicationActions,
+    /exactApplicationFields\(form, UPDATE_APPLICATION_DETAILS_FIELDS\)/,
+  );
   assert.match(v3ApplicationActions, /exactActionStringFields\(form, CHANGE_APPLICATION_FIELDS\)/);
+  assert.match(v3ApplicationActions, /update_university_application_details/);
+  assert.match(
+    v3ApplicationActions,
+    /"update_university_application_details",[\s\S]*?p_university_application_id: applicationId/,
+  );
+  assert.match(v3ApplicationActions, /p_is_primary: isPrimary/);
+  assert.match(v3ApplicationActions, /p_university_deadline_on: universityDeadlineOn/);
+  assert.equal(v3ApplicationActions.match(/p_is_primary: isPrimary/g)?.length, 3);
+  assert.equal(
+    v3ApplicationActions.match(/p_university_deadline_on: universityDeadlineOn/g)?.length,
+    3,
+  );
+  assert.match(v3ApplicationActions, /data\.is_primary !== isPrimary/);
+  assert.match(v3ApplicationActions, /data\.university_deadline_on !== universityDeadlineOn/);
+  assert.match(
+    v3ApplicationActions,
+    /parsePlatformApplicationPrimaryCheckbox\(\s*rawApplicationField\(fields, "is_primary"\)/,
+  );
+  assert.match(
+    v3ApplicationActions,
+    /parsePlatformApplicationDeadlineInput\(\s*rawApplicationField\(fields, "university_deadline_on"\)/,
+  );
+  assert.match(v3ApplicationActions, /validApplicationSwitchMetadata/);
+  assert.match(v3ApplicationActions, /validApplicationChangedAt/);
+  assert.match(actionsSource, /normalized\.append\(checkboxKey, ""\)/);
+  assert.doesNotMatch(v3ApplicationActions, /demoted_applications/);
+  const detailsAction = v3ApplicationActions.slice(
+    v3ApplicationActions.indexOf(
+      "export async function updatePlatformUniversityApplicationDetailsAction",
+    ),
+    v3ApplicationActions.indexOf(
+      "export async function changePlatformUniversityApplicationAction",
+    ),
+  );
+  const detailsFields = actionsSource.slice(
+    actionsSource.indexOf("const UPDATE_APPLICATION_DETAILS_FIELDS"),
+    actionsSource.indexOf("const CHANGE_APPLICATION_FIELDS"),
+  );
+  assert.doesNotMatch(detailsFields, /"student_case_id"/);
+  assert.match(detailsAction, /p_university_application_id: applicationId/);
+  assert.doesNotMatch(detailsAction, /p_application_id: applicationId/);
+  assert.doesNotMatch(detailsAction, /applicationField\(fields, "student_case_id"\)/);
+  assert.match(detailsAction, /revalidateApplication\(receipt\.studentCaseId\)/);
+  const statusOnlyAction = v3ApplicationActions.slice(
+    v3ApplicationActions.indexOf("export async function changePlatformUniversityApplicationAction"),
+  );
+  assert.doesNotMatch(statusOnlyAction, /p_is_primary|p_university_deadline_on/);
   assert.match(v3ApplicationActions, /applicationFailureState\(/);
   assert.match(actionsSource, /status === "stale" \|\| status === "request_conflict"/);
   assert.doesNotMatch(v3ApplicationActions, /redirect\(|retry_request_id|URLSearchParams/);
@@ -248,6 +307,8 @@ function applicationRow(overrides = {}) {
     intake: "2027",
     institution_name: "Example University",
     program_name: "Computer Science",
+    is_primary: true,
+    university_deadline_on: "2027-02-15",
     status: "submitted",
     latest_evidence_reference: "evidence:submission-1",
     created_at: AT,
@@ -332,6 +393,201 @@ test("workflow, case and application DTOs accept the exact reviewed projection",
   );
   assert.equal(application.status, "submitted");
   assert.equal(application.universityApplicationId, APPLICATION_ID);
+  assert.equal(application.isPrimary, true);
+  assert.equal(application.universityDeadlineOn, "2027-02-15");
+});
+
+test("application calendar facts accept real leap dates and nullable deadlines", () => {
+  const nonPrimary = normalizePlatformApplicationQueueRow(
+    applicationRow({ is_primary: false, university_deadline_on: null }),
+    ORGANIZATION_ID,
+  );
+  assert.equal(nonPrimary.isPrimary, false);
+  assert.equal(nonPrimary.universityDeadlineOn, null);
+  assert.equal(
+    normalizePlatformApplicationQueueRow(
+      applicationRow({ university_deadline_on: "2028-02-29" }),
+      ORGANIZATION_ID,
+    ).universityDeadlineOn,
+    "2028-02-29",
+  );
+  assert.equal(
+    normalizePlatformApplicationQueueRow(
+      applicationRow({ university_deadline_on: null }),
+      ORGANIZATION_ID,
+    ).universityDeadlineOn,
+    null,
+  );
+  for (const universityDeadlineOn of [
+    "2027-02-29",
+    "2028-04-31",
+    "2028-13-01",
+    "2028-00-01",
+    "0000-01-01",
+    "2028-2-01",
+    "2028-02-01T00:00:00Z",
+    undefined,
+  ]) {
+    assert.throws(
+      () => normalizePlatformApplicationQueueRow(
+        applicationRow({ university_deadline_on: universityDeadlineOn }),
+        ORGANIZATION_ID,
+      ),
+      PlatformAdmissionsRepositoryError,
+    );
+  }
+});
+
+test("application detail form values use one strict checkbox and calendar-date contract", () => {
+  assert.equal(parsePlatformApplicationPrimaryCheckbox("on"), true);
+  assert.equal(parsePlatformApplicationPrimaryCheckbox(""), false);
+  for (const value of [
+    " ",
+    " on ",
+    "true",
+    "false",
+    "1",
+    "yes",
+    "off",
+    null,
+    undefined,
+  ]) {
+    assert.equal(parsePlatformApplicationPrimaryCheckbox(value), null);
+  }
+
+  assert.equal(parsePlatformApplicationDeadlineInput(""), null);
+  assert.equal(
+    parsePlatformApplicationDeadlineInput("2028-02-29"),
+    "2028-02-29",
+  );
+  assert.equal(isPlatformApplicationCalendarDate("2028-02-29"), true);
+  for (const value of [
+    "2027-02-29",
+    "2028-04-31",
+    "2028-13-01",
+    "2028-2-01",
+    "2028-02-01T00:00:00Z",
+    " 2028-02-29 ",
+    "  ",
+    "0000-01-01",
+    null,
+    undefined,
+  ]) {
+    assert.equal(isPlatformApplicationCalendarDate(value), false);
+    assert.equal(parsePlatformApplicationDeadlineInput(value), undefined);
+  }
+});
+
+test("application primary-switch receipt metadata is paired and target-safe", () => {
+  assert.deepEqual(
+    parsePlatformApplicationSwitchMetadata(
+      {
+        demoted_primary_application_id: null,
+        demoted_primary_application_version: null,
+      },
+      APPLICATION_ID,
+    ),
+    {
+      demotedPrimaryApplicationId: null,
+      demotedPrimaryApplicationVersion: null,
+    },
+  );
+  assert.deepEqual(
+    parsePlatformApplicationSwitchMetadata(
+      {
+        demoted_primary_application_id: DEMOTED_APPLICATION_ID.toUpperCase(),
+        demoted_primary_application_version: "0007",
+      },
+      APPLICATION_ID,
+    ),
+    {
+      demotedPrimaryApplicationId: DEMOTED_APPLICATION_ID,
+      demotedPrimaryApplicationVersion: "7",
+    },
+  );
+  for (const receipt of [
+    {},
+    {
+      demoted_primary_application_id: DEMOTED_APPLICATION_ID,
+      demoted_primary_application_version: null,
+    },
+    {
+      demoted_primary_application_id: null,
+      demoted_primary_application_version: "2",
+    },
+    {
+      demoted_primary_application_id: APPLICATION_ID,
+      demoted_primary_application_version: "2",
+    },
+    {
+      demoted_primary_application_id: DEMOTED_APPLICATION_ID,
+      demoted_primary_application_version: 2,
+    },
+    {
+      demoted_primary_application_id: DEMOTED_APPLICATION_ID,
+      demoted_primary_application_version: "0",
+    },
+  ]) {
+    assert.equal(
+      parsePlatformApplicationSwitchMetadata(receipt, APPLICATION_ID),
+      undefined,
+    );
+  }
+  for (const targetApplicationId of ["", "not-a-uuid", "00000000-0000-0000-0000-000000000000"]) {
+    assert.equal(
+      parsePlatformApplicationSwitchMetadata(
+        {
+          demoted_primary_application_id: null,
+          demoted_primary_application_version: null,
+        },
+        targetApplicationId,
+      ),
+      undefined,
+    );
+  }
+});
+
+test("application details receipt returns the authoritative case and rejects inconsistent echoes", () => {
+  const expectation = {
+    organizationId: ORGANIZATION_ID,
+    universityApplicationId: APPLICATION_ID,
+    isPrimary: true,
+    universityDeadlineOn: "2028-02-29",
+    requestId: HANDOFF_ID,
+    expectedVersion: "4",
+  };
+  const response = {
+    organization_id: ORGANIZATION_ID,
+    university_application_id: APPLICATION_ID,
+    student_case_id: CASE_ID,
+    is_primary: true,
+    university_deadline_on: "2028-02-29",
+    request_id: HANDOFF_ID,
+    expected_version: "4",
+    version: "5",
+    changed_at: AT,
+    demoted_primary_application_id: null,
+    demoted_primary_application_version: null,
+  };
+  assert.deepEqual(
+    parsePlatformApplicationDetailsReceipt(response, expectation),
+    { studentCaseId: CASE_ID, version: "5" },
+  );
+  for (const malformed of [
+    { ...response, organization_id: CASE_ID },
+    { ...response, student_case_id: "not-a-case" },
+    { ...response, is_primary: false },
+    { ...response, university_deadline_on: null },
+    { ...response, request_id: APPLICATION_ID },
+    { ...response, expected_version: "3" },
+    { ...response, version: "6" },
+    { ...response, changed_at: "not-a-timestamp" },
+  ]) {
+    assert.equal(
+      parsePlatformApplicationDetailsReceipt(malformed, expectation),
+      undefined,
+    );
+  }
 });
 
 test("Student Case sales links accept only exact canonical UUID pairs", () => {
@@ -431,6 +687,20 @@ test("malformed, cross-organization and partially-null projections fail closed",
   );
   assert.throws(
     () => normalizePlatformApplicationQueueRow(applicationRow({ document_count: -1 })),
+    PlatformAdmissionsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformApplicationQueueRow(applicationRow({ is_primary: "true" })),
+    PlatformAdmissionsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformApplicationQueueRow(applicationRow({ is_primary: null })),
+    PlatformAdmissionsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformApplicationQueueRow(
+      applicationRow({ university_deadline_on: "2027-02-29" }),
+    ),
     PlatformAdmissionsRepositoryError,
   );
 });

@@ -1,5 +1,6 @@
 import type { PlatformActor } from "./platform-auth";
 import {
+  isPlatformApplicationCalendarDate,
   PLATFORM_APPLICATION_STATUSES,
   type PlatformApplicationQueueRow,
   type PlatformApplicationStatus,
@@ -24,6 +25,16 @@ const JSON_KEY_PATTERN = /^[a-z][a-z0-9_.-]{0,63}$/;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform admissions data is unavailable.";
 const POSTGRES_BIGINT_MAX = "9223372036854775807";
+
+function requiredBoolean(value: unknown): boolean {
+  if (typeof value !== "boolean") return invalidShape();
+  return value;
+}
+
+function optionalDate(value: unknown): string | null {
+  if (value === null) return null;
+  return isPlatformApplicationCalendarDate(value) ? value : invalidShape();
+}
 
 export type PlatformStudentCaseState = "pending" | "active" | "closed";
 export type PlatformRouteApprovalStatus = "draft" | "approved" | "rework";
@@ -573,6 +584,8 @@ export function normalizePlatformApplicationQueueRow(
     intake: optionalText(value.intake, 200),
     institutionName: requiredText(value.institution_name, 300),
     programName: requiredText(value.program_name, 300),
+    isPrimary: requiredBoolean(value.is_primary),
+    universityDeadlineOn: optionalDate(value.university_deadline_on),
     status: oneOf(value.status, PLATFORM_APPLICATION_STATUSES),
     latestEvidenceReference: optionalText(
       value.latest_evidence_reference,

@@ -165,6 +165,11 @@ const lookup = (table: Record<string, string>, value: string | null | undefined)
 
 export const leadStage = (v: string | null | undefined) => lookup(LEAD_STAGE, v);
 export const applicationStatus = (v: string | null | undefined) => lookup(APPLICATION_STATUS, v);
+export function allDayDate(value: string | null | undefined): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
+  if (!match) return null;
+  return `${match[3]}.${match[2]}.${match[1]}`;
+}
 export const visaStatus = (v: string | null | undefined) => lookup(VISA_STATUS, v);
 export const visaKind = (v: string | null | undefined) => lookup(VISA_KIND, v);
 export const caseStatus = (v: string | null | undefined) => lookup(CASE_STATUS, v);

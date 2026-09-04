@@ -65,6 +65,11 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
   assert.match(workflow, /needs:\n      - crm_product\n      - dependency_audit/u);
   assert.match(workflow, /if: \$\{\{ always\(\) \}\}/u);
+  assert.match(workflow, /Install pinned npm audit CLI/u);
+  assert.match(workflow, /npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund/u);
+  assert.match(workflow, /if npm audit --package-lock-only --omit=dev --audit-level=moderate; then/u);
+  assert.match(workflow, /if node scripts\/check-npm-audit-allowlist\.mjs; then/u);
+  assert.doesNotMatch(workflow, /npm exec --yes --package=npm@11\.19\.0/u);
   assert.doesNotMatch(workflow, /name: EVO Inbox|name: EVO Lead Agent|working-directory: (?:agent-lead2-inbox|evo-lead-agent)|Prepare P8/u);
   assert.match(gate, /"Main CRM"/u);
   assert.doesNotMatch(gate, /"EVO Inbox"|"EVO Lead Agent"/u);

@@ -16424,3 +16424,58 @@ Decision:
   behavior for both dependency gates;
 - re-run the focused release-control tests, then obtain one fresh exact-head CI
   result before merge.
+
+## 2026-09-04 - Pin the dev allowlist audit's internal npm invocation
+
+Block-ID: `EVO-V3-A-AUDIT-ALLOWLIST-INNER-NPM-PIN-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+The next exact-head dependency-audit run on `4ced2461aef24e8839fad1f18c281e2bbef8f8e1`
+showed that the direct-Node correction was not sufficient by itself. The
+workflow no longer wrapped the checker in `npm exec`, but
+`scripts/check-npm-audit-allowlist.mjs` still shells out to `npm audit`
+internally, so GitHub Actions continued to use the runner's default `npm
+10.9.8` for the dev audit while the production lockfile audit succeeded through
+explicit `npm@11.19.0`.
+
+Decision:
+
+- keep the dev allowlist step itself as a direct `node` script;
+- add one explicit CI environment contract,
+  `EVO_NPM_AUDIT_VERSION=11.19.0`, and make the checker execute its internal
+  `npm audit --include=dev --json` through `npm exec --package=npm@11.19.0`
+  when that variable is present;
+- preserve the same three retries, four-minute limit and fail-closed behavior;
+- rerun the focused release-control tests, local audit commands and one fresh
+  exact-head CI result before merge.
+
+## 2026-09-04 - Pin the dependency-audit job PATH instead of nested npm exec
+
+Block-ID: `EVO-V3-A-AUDIT-PATH-PIN-2026-09-04`
+
+Change type: exact-head review correction.
+Affected plan section: Order 0 / Issue #594.
+
+The independent exact-head review of `b40b46d3` found that the previous fix was
+still too narrow. Even after moving the development allowlist check to direct
+`node`, the production audit and the nested checker pin both still depended on
+`npm exec` bootstrap through the runner's default `npm 10.9.8`, so the job
+could still surface retired Quick-endpoint behavior before reaching the
+intended pinned audit CLI.
+
+Decision:
+
+- install `npm@11.19.0` once into a temporary CI prefix with `--no-audit`,
+  `--no-fund` and `--ignore-scripts`, then prepend that bin directory to
+  `GITHUB_PATH`;
+- run both dependency gates through the resulting plain pinned `npm` binary;
+- remove the temporary inner-version pin from
+  `scripts/check-npm-audit-allowlist.mjs` and keep the checker as a direct
+  `node` script over the job-level PATH contract;
+- preserve the same retries, timeout and fail-closed behavior.
+
+Validation impact: rerun `npm run test:fast-release`, `npm run test:p6d`,
+local production and development audit commands, then obtain one fresh
+independent exact-head review and exact-head CI result before merge.

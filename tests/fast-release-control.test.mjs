@@ -454,7 +454,11 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(workflow, /test "\$AUDIT_RESULT" = "success"/u);
   assert.match(
     workflow,
-    /npm exec --yes --package=npm@11\.19\.0 -- npm audit --package-lock-only --omit=dev --audit-level=moderate/u,
+    /name: Install pinned npm audit CLI[\s\S]*npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund[\s\S]*echo "\$audit_prefix\/node_modules\/\.bin" >> "\$GITHUB_PATH"/u,
+  );
+  assert.match(
+    workflow,
+    /if npm audit --package-lock-only --omit=dev --audit-level=moderate; then/u,
   );
   assert.match(
     workflow,
@@ -462,7 +466,7 @@ test("active platform CI executes only the root successor product", () => {
   );
   assert.doesNotMatch(
     workflow,
-    /npm exec --yes --package=npm@11\.19\.0 -- node scripts\/check-npm-audit-allowlist\.mjs/u,
+    /npm exec --yes --package=npm@11\.19\.0/u,
   );
   assert.doesNotMatch(workflow, /^  (?:inbox|lead-agent):/mu);
   assert.doesNotMatch(workflow, /EVO Inbox|EVO Lead Agent/u);

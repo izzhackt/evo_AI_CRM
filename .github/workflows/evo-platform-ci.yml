@@ -89,6 +89,15 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install pinned npm audit CLI
+        env:
+          npm_config_audit: "false"
+          npm_config_fund: "false"
+        run: |
+          audit_prefix="$RUNNER_TEMP/npm-audit-cli"
+          npm install --prefix "$audit_prefix" npm@11.19.0 --ignore-scripts --no-audit --no-fund
+          echo "$audit_prefix/node_modules/.bin" >> "$GITHUB_PATH"
+
       - name: Audit production dependencies
         # Lockfile-only avoids platform-specific installed-tree drift on the
         # runner: https://docs.npmjs.com/cli/v11/commands/npm-audit/#package-lock-only
@@ -98,7 +107,7 @@ jobs:
           npm_config_fetch_timeout: "30000"
         run: |
           for attempt in 1 2 3; do
-            if npm exec --yes --package=npm@11.19.0 -- npm audit --package-lock-only --omit=dev --audit-level=moderate; then
+            if npm audit --package-lock-only --omit=dev --audit-level=moderate; then
               exit 0
             fi
             if [ "$attempt" -eq 3 ]; then

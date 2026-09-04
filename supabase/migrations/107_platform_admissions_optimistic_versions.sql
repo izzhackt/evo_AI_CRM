@@ -716,7 +716,7 @@ BEGIN
   PERFORM platform_private.lock_bw5_request(p_request_id);
 
   IF p_expected_version IS DISTINCT FROM 0 THEN
-    RAISE EXCEPTION 'case_task_version_conflict'
+    RAISE EXCEPTION 'admissions_version_conflict'
       USING ERRCODE = 'PT409';
   END IF;
 
@@ -897,7 +897,7 @@ BEGIN
   PERFORM platform_private.lock_p2d_request(p_request_id);
 
   IF p_expected_version IS NULL OR p_expected_version < 1 THEN
-    RAISE EXCEPTION 'case_task_version_conflict'
+    RAISE EXCEPTION 'admissions_version_conflict'
       USING ERRCODE = 'PT409';
   END IF;
   IF p_new_status IS NULL
@@ -1317,7 +1317,7 @@ BEGIN
   PERFORM platform_private.lock_p2d_request(p_request_id);
 
   IF p_expected_version IS DISTINCT FROM 0 THEN
-    RAISE EXCEPTION 'admissions_version_conflict'
+    RAISE EXCEPTION 'case_task_version_conflict'
       USING ERRCODE = 'PT409';
   END IF;
   IF p_task_type IS NULL
@@ -1466,7 +1466,7 @@ BEGIN
   PERFORM platform_private.lock_p2d_request(p_request_id);
 
   IF p_expected_version IS NULL OR p_expected_version < 1 THEN
-    RAISE EXCEPTION 'admissions_version_conflict'
+    RAISE EXCEPTION 'case_task_version_conflict'
       USING ERRCODE = 'PT409';
   END IF;
   IF p_new_status IS NULL

@@ -547,7 +547,19 @@ BEGIN
     AND stop.student_case_id = p_student_case_id
     AND stop.id = p_stop_factor_id
   FOR UPDATE;
-  IF NOT FOUND OR stop_row.status <> 'active' THEN
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Active stop factor is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF stop_row.version <> p_expected_version
+    OR stop_row.version = 9223372036854775807
+  THEN
+    RAISE EXCEPTION 'admissions_version_conflict'
+      USING ERRCODE = 'PT409';
+  END IF;
+
+  IF stop_row.status <> 'active' THEN
     RAISE EXCEPTION 'Active stop factor is unavailable'
       USING ERRCODE = '42501';
   END IF;
@@ -583,13 +595,6 @@ BEGIN
   );
   IF replayed IS NOT NULL THEN
     RETURN replayed;
-  END IF;
-
-  IF stop_row.version <> p_expected_version
-    OR stop_row.version = 9223372036854775807
-  THEN
-    RAISE EXCEPTION 'admissions_version_conflict'
-      USING ERRCODE = 'PT409';
   END IF;
 
   IF p_resolution_kind = 'payment_event' THEN

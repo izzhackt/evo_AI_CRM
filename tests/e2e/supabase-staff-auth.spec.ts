@@ -493,8 +493,13 @@ test("Sales reads the exact Supabase RLS queue and detail while Admissions is de
   await signIn(page, "admissions");
   await expectActiveRole(page, "admissions");
   await page.goto(`/v3/profile?id=${leadId}`);
-  await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales$/);
+  await expect(page).toHaveURL(new RegExp(`/v3/profile\\?id=${leadId}$`));
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Такого человека в базе нет. Показывать вместо него другого мы не будем.",
+    ),
+  ).toBeVisible();
 });
 
 test("Sales inbox renders the exact verified conversation with canonical amoCRM placement", async ({
@@ -1276,7 +1281,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const documentItem = page
     .getByTestId("v3-document-item")
     .filter({ hasText: "P4 real private Storage proof" });
-  await expect(documentItem).toHaveAttribute("data-document-presence", "missing");
+  await expect(documentItem).toHaveAttribute("data-document-presence", "absent");
   const firstUpload = documentItem.getByTestId("v3-document-upload-form");
   await firstUpload.locator('input[name="file"]').setInputFiles({
     name: "p4-isolated-proof-v1.pdf",
@@ -1452,7 +1457,15 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await page.goto("/");
   await page.getByTestId("preview-role-admissions").click();
   await expectActiveRole(page, "admissions", "admin");
-  await expectExactSupabaseSalesRead(page, leadId, clientId);
+  await expectDirectRouteAllowed(page, "/settings");
+  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
+  await page.goto(`/v3/profile?id=${leadId}`);
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Такого человека в базе нет. Показывать вместо него другого мы не будем.",
+    ),
+  ).toBeVisible();
   await expectDashboardQueues(page, [
     "clients",
     "tasks",

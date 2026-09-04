@@ -16425,31 +16425,27 @@ Decision:
 - re-run the focused release-control tests, then obtain one fresh exact-head CI
   result before merge.
 
-## 2026-09-04 - Pin the dev allowlist audit's internal npm invocation
+## 2026-09-04 - Review the dev allowlist audit's internal npm invocation
 
 Block-ID: `EVO-V3-A-AUDIT-ALLOWLIST-INNER-NPM-PIN-2026-09-04`
 
-Change type: exact-head CI reliability correction.
+Change type: rejected intermediate CI reliability design.
 Affected plan section: Order 0 / Issue #594.
 
-The next exact-head dependency-audit run on `4ced2461aef24e8839fad1f18c281e2bbef8f8e1`
-showed that the direct-Node correction was not sufficient by itself. The
-workflow no longer wrapped the checker in `npm exec`, but
-`scripts/check-npm-audit-allowlist.mjs` still shells out to `npm audit`
-internally, so GitHub Actions continued to use the runner's default `npm
-10.9.8` for the dev audit while the production lockfile audit succeeded through
-explicit `npm@11.19.0`.
+Review of `b40b46d3fd2aaff34efb71d01825136eca0670e0` found that moving the
+development checker to direct `node` also moved its internal `npm audit` back
+to the runner's default npm, contrary to the preceding decision that both audit
+paths use the same pinned npm 11 client. This was a contract inconsistency, not
+a failed audit claim: exact-head run `33836131501` passed both dependency-audit
+steps on `b40b46d3`. The earlier `4ced2461` run used the outer `npm exec`
+wrapper and must not be described as direct-Node evidence.
 
-Decision:
+Rejected intermediate option:
 
-- keep the dev allowlist step itself as a direct `node` script;
-- add one explicit CI environment contract,
-  `EVO_NPM_AUDIT_VERSION=11.19.0`, and make the checker execute its internal
-  `npm audit --include=dev --json` through `npm exec --package=npm@11.19.0`
-  when that variable is present;
-- preserve the same three retries, four-minute limit and fail-closed behavior;
-- rerun the focused release-control tests, local audit commands and one fresh
-  exact-head CI result before merge.
+- do not add an `EVO_NPM_AUDIT_VERSION` branch or nested `npm exec` command to
+  `scripts/check-npm-audit-allowlist.mjs`;
+- keep the checker implementation unchanged and resolve the CLI version once at
+  job level through the PATH decision recorded immediately below.
 
 ## 2026-09-04 - Pin the dependency-audit job PATH instead of nested npm exec
 
@@ -16470,6 +16466,9 @@ Decision:
 - install `npm@11.19.0` once into a temporary CI prefix with `--no-audit`,
   `--no-fund` and `--ignore-scripts`, then prepend that bin directory to
   `GITHUB_PATH`;
+- bound that registry bootstrap to four minutes with two npm fetch retries and
+  a 30-second per-request timeout, so an unavailable registry cannot leave the
+  supposedly short audit job open-ended;
 - run both dependency gates through the resulting plain pinned `npm` binary;
 - remove the temporary inner-version pin from
   `scripts/check-npm-audit-allowlist.mjs` and keep the checker as a direct

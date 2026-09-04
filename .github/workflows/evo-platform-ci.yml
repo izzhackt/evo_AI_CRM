@@ -90,8 +90,11 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install pinned npm audit CLI
+        timeout-minutes: 4
         env:
           npm_config_audit: "false"
+          npm_config_fetch_retries: "2"
+          npm_config_fetch_timeout: "30000"
           npm_config_fund: "false"
         run: |
           audit_prefix="$RUNNER_TEMP/npm-audit-cli"

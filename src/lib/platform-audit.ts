@@ -6,8 +6,8 @@ export const PLATFORM_AUDIT_MAX_FILTER_VALUES = 32;
 export const PLATFORM_AUDIT_MAX_EXPORT_ROWS = 5_000;
 export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 
-// These projection allowlists intentionally mirror migration 071. Expanding
-// either side is a reviewed contract change; unknown values fail closed.
+// These projection allowlists intentionally mirror the migration 071 base and
+// its reviewed forward extensions. Unknown values fail closed on both sides.
 export const PLATFORM_AUDIT_ACTIONS = [
   "ai.control.set",
   "ai.draft.generate",
@@ -48,6 +48,17 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "communication.waha.history.project",
   "communication.waha.project",
   "communication.waha.project.retry",
+  "company.file.download.consume",
+  "company.file.download.grant",
+  "company.file.move",
+  "company.file.remove",
+  "company.file.rename",
+  "company.file.upload.finalize",
+  "company.file.upload.reserve",
+  "company.folder.create",
+  "company.folder.move",
+  "company.folder.remove",
+  "company.folder.rename",
   "contract.draft.generate",
   "contract.draft.review",
   "contract.template.version.approve",
@@ -124,6 +135,8 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "catalog_import_candidate",
   "communication_conversation",
   "communication_message",
+  "company_knowledge_file",
+  "company_knowledge_folder",
   "contract_template_version",
   "conversation_ai_control",
   "conversation_ai_fact",

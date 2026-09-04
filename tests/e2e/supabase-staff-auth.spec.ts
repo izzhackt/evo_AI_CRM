@@ -1547,6 +1547,142 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   });
 });
 
+test("Admissions manages one real private company file while Sales stays denied", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  test.skip(authMode !== "configured");
+
+  const admissionsToken = await localSupabaseAccessToken("admissions");
+  const pdf = Buffer.from(
+    "%PDF-1.7\n1 0 obj<</Type/Catalog>>endobj\nEVO company knowledge proof\n%%EOF\n",
+    "utf8",
+  );
+  expectStorageDenied(
+    (
+      await directStorageRequest(
+        `object/platform-knowledge-files/unreserved/${randomUUID()}.pdf`,
+        admissionsToken,
+        {
+          method: "POST",
+          contentType: "application/pdf",
+          body: pdf,
+          upsert: true,
+        },
+      )
+    ).status,
+  );
+
+  await signIn(page, "admissions");
+  await page.goto("/v3/knowledge");
+  await expect(page).toHaveURL(/\/v3\/knowledge$/);
+  await expect(page.getByTestId("v3-knowledge-company-root")).toBeVisible();
+  await expect(page.getByText("Студенты", { exact: true }).first()).toBeVisible();
+  await page.getByTestId("v3-knowledge-company-root").click();
+
+  const folderOne = `Договоры ${randomUUID().slice(0, 8)}`;
+  const folderTwo = `Архив ${randomUUID().slice(0, 8)}`;
+  const createFolder = async (name: string) => {
+    await page.getByText("Новая папка", { exact: true }).click();
+    const form = page.getByTestId("v3-knowledge-create-folder-form");
+    await form.locator('input[name="name"]').fill(name);
+    await form.locator('button[type="submit"]').click();
+    await expect(
+      page.getByTestId("v3-knowledge-company-folder-row").filter({ hasText: name }),
+    ).toBeVisible();
+  };
+
+  await createFolder(folderOne);
+  await page.reload();
+  await page.getByTestId("v3-knowledge-company-root").click();
+  await createFolder(folderTwo);
+
+  const firstFolderRow = page
+    .getByTestId("v3-knowledge-company-folder-row")
+    .filter({ hasText: folderOne });
+  await firstFolderRow.locator("button").first().click();
+  await page.getByTestId("v3-knowledge-upload-toggle").click();
+  const uploadForm = page.getByTestId("v3-knowledge-upload-form");
+  const originalName = `evo-company-${randomUUID().slice(0, 8)}.pdf`;
+  await uploadForm.locator('input[type="file"]').setInputFiles({
+    name: originalName,
+    mimeType: "application/pdf",
+    buffer: pdf,
+  });
+  const uploadResponse = page.waitForResponse(
+    (response) => response.url().endsWith("/api/v3/knowledge/files")
+      && response.request().method() === "POST",
+  );
+  await uploadForm.locator('button[type="submit"]').click();
+  const completedUpload = await uploadResponse;
+  expect(completedUpload.status()).toBe(201);
+  await completedUpload.finished();
+
+  let fileRow = page
+    .getByTestId("v3-knowledge-company-file-row")
+    .filter({ hasText: originalName });
+  await expect(fileRow).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await fileRow.getByTestId("v3-knowledge-company-download").click();
+  expect(await readDownload(await downloadPromise)).toEqual(pdf);
+
+  await fileRow.getByTestId("v3-knowledge-company-file-actions").click();
+  const renamed = `evo-renamed-${randomUUID().slice(0, 8)}.pdf`;
+  const renameForm = page.getByTestId("v3-knowledge-file-rename");
+  await renameForm.locator('input[name="name"]').fill(renamed);
+  await renameForm.locator('button[type="submit"]').click();
+  fileRow = page
+    .getByTestId("v3-knowledge-company-file-row")
+    .filter({ hasText: renamed });
+  await expect(fileRow).toBeVisible();
+
+  await fileRow.getByTestId("v3-knowledge-company-file-actions").click();
+  const moveForm = page.getByTestId("v3-knowledge-file-move");
+  await moveForm.locator('select[name="folder_id"]').selectOption({ label: folderTwo });
+  await moveForm.locator('button[type="submit"]').click();
+
+  await page.getByTestId("v3-knowledge-company-root").click();
+  const secondFolderRow = page
+    .getByTestId("v3-knowledge-company-folder-row")
+    .filter({ hasText: folderTwo });
+  await secondFolderRow.locator("button").first().click();
+  fileRow = page
+    .getByTestId("v3-knowledge-company-file-row")
+    .filter({ hasText: renamed });
+  await expect(fileRow).toBeVisible();
+  await fileRow.getByTestId("v3-knowledge-company-file-actions").click();
+  const removeFileForm = page.getByTestId("v3-knowledge-file-delete");
+  await removeFileForm.locator('button[type="submit"]').click();
+  await expect(fileRow).toHaveCount(0);
+
+  await page.getByTestId("v3-knowledge-company-root").click();
+  for (const folderName of [folderOne, folderTwo]) {
+    const row = page
+      .getByTestId("v3-knowledge-company-folder-row")
+      .filter({ hasText: folderName });
+    await row.getByTestId("v3-knowledge-company-folder-actions").click();
+    const removeFolderForm = page.getByTestId("v3-knowledge-folder-delete");
+    await removeFolderForm.locator('button[type="submit"]').click();
+    await expect(row).toHaveCount(0);
+  }
+
+  await page.context().clearCookies();
+  await signIn(page, "sales");
+  await page.goto("/v3/knowledge");
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Fdocuments$/);
+  await expect(page.getByTestId("v3-knowledge-company-root")).toHaveCount(0);
+  const deniedUpload = await page.request.post("/api/v3/knowledge/files", {
+    multipart: {
+      request_id: randomUUID(),
+      folder_id: "",
+      file_id: "",
+      expected_version: "",
+      file: { name: "sales-denied.pdf", mimeType: "application/pdf", buffer: pdf },
+    },
+  });
+  expect(deniedUpload.status()).toBe(403);
+});
+
 test("Admin preview changes only the effective interface, not Supabase authority", async ({
   page,
 }) => {

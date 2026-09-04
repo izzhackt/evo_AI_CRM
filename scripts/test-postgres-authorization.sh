@@ -1896,6 +1896,15 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_dynamic_document_checklists.sql
   fi
+
+  # Migration 109 adds the sole private company folder/file/version authority.
+  # Browser Storage remains default-deny; service-role finalization and signing
+  # are exercised only against this disposable PostgreSQL fixture.
+  if [[ "$(basename "$migration")" == 109_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_company_knowledge_files.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

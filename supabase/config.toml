@@ -67,6 +67,14 @@ public = false
 file_size_limit = "25MiB"
 allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
 
+# V3-F canonical private company knowledge files. Browser principals never
+# receive storage.objects policies for this bucket; the authenticated server
+# reserves commands and the service role performs the exact upload/signing.
+[storage.buckets.platform-knowledge-files]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
+
 # P5D fixed private archive for already-projected evo-inbox media. Browser
 # principals receive neither a Storage select policy nor bucket/object names;
 # a backend service signs only after consuming an audited one-time grant.

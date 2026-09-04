@@ -20,6 +20,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
   assert.match(adapterSources, /listPlatformConversations/);
   assert.match(adapterSources, /listPlatformAdmissionsTaskQueue/);
   assert.match(adapterSources, /listPlatformDocumentQueue/);
+  assert.match(adapterSources, /listPlatformCompanyKnowledgeFolders/);
+  assert.match(adapterSources, /listPlatformCompanyKnowledgeFiles/);
 });
 
 test("V3 has Supabase staff auth and no sample business-data path", () => {
@@ -122,7 +124,7 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   }
 });
 
-test("V3 read surfaces cannot imitate durable business mutations in browser state", () => {
+test("V3 surfaces do not imitate durable business mutations in browser state", () => {
   const pipeline = source("src/components/v3/Pipeline.tsx");
   const calendar = source("src/components/v3/calendar/Calendar.tsx");
   const fileManager = source("src/components/v3/FileManager.tsx");
@@ -130,7 +132,9 @@ test("V3 read surfaces cannot imitate durable business mutations in browser stat
 
   assert.doesNotMatch(pipeline, /setMoved|\bmoved\b/);
   assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);
-  assert.doesNotMatch(fileManager, /type="file"|URL\.createObjectURL|setFolders|setDocs|bulk-delete/);
+  assert.match(fileManager, /type="file"/);
+  assert.match(fileManager, /fetch\("\/api\/v3\/knowledge\/files"/);
+  assert.doesNotMatch(fileManager, /URL\.createObjectURL|setFolders|setDocs|bulk-delete/);
   assert.doesNotMatch(documents, /type="file"|URL\.createObjectURL|useState|onRemove|onRename/);
 });
 

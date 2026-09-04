@@ -38,6 +38,10 @@ const V3_F_MIGRATION_SOURCE = readFileSync(
   new URL("../supabase/migrations/108_platform_dynamic_document_checklists.sql", import.meta.url),
   "utf8",
 );
+const V3_COMPANY_FILES_MIGRATION_SOURCE = readFileSync(
+  new URL("../supabase/migrations/109_platform_company_knowledge_files.sql", import.meta.url),
+  "utf8",
+);
 
 const SAFE_ROW = {
   audit_event_id: EVENT_ID,
@@ -85,17 +89,47 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
   for (const action of v3FDocumentActions) {
     assert.match(V3_F_MIGRATION_SOURCE, new RegExp(`'${action.replaceAll(".", "\\.")}'`));
   }
+  const v3CompanyFileActions = [
+    "company.file.download.consume",
+    "company.file.download.grant",
+    "company.file.move",
+    "company.file.remove",
+    "company.file.rename",
+    "company.file.upload.finalize",
+    "company.file.upload.reserve",
+    "company.folder.create",
+    "company.folder.move",
+    "company.folder.remove",
+    "company.folder.rename",
+  ];
+  const v3CompanyFileResourceTypes = [
+    "company_knowledge_file",
+    "company_knowledge_folder",
+  ];
+  for (const action of v3CompanyFileActions) {
+    assert.match(
+      V3_COMPANY_FILES_MIGRATION_SOURCE,
+      new RegExp(`'${action.replaceAll(".", "\\.")}'`),
+    );
+  }
+  for (const resourceType of v3CompanyFileResourceTypes) {
+    assert.match(V3_COMPANY_FILES_MIGRATION_SOURCE, new RegExp(`'${resourceType}'`));
+  }
   assert.deepEqual(
     PLATFORM_AUDIT_ACTIONS,
     [
       ...sqlTextArray("p7a_safe_audit_actions"),
       "membership.permission.change",
       ...v3FDocumentActions,
+      ...v3CompanyFileActions,
     ].sort(),
   );
   assert.deepEqual(
     PLATFORM_AUDIT_RESOURCE_TYPES,
-    sqlTextArray("p7a_safe_audit_resource_types"),
+    [
+      ...sqlTextArray("p7a_safe_audit_resource_types"),
+      ...v3CompanyFileResourceTypes,
+    ].sort(),
   );
 });
 

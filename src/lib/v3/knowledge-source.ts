@@ -5,6 +5,10 @@ import {
   type PlatformAdmissionsCursor,
 } from "@/lib/platform-admissions";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
+import {
+  listPlatformCompanyKnowledgeFiles,
+  listPlatformCompanyKnowledgeFolders,
+} from "@/lib/platform-company-knowledge";
 import { listPlatformDocumentQueue } from "@/lib/platform-private-documents";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 
@@ -14,12 +18,33 @@ export type KnowledgeStudent = Readonly<{
 }>;
 
 export type KnowledgeDocument = Readonly<{
-  id: string;
+  versionId: string;
   caseId: string;
   name: string;
   size: string;
   addedAt: string;
-  addedBy: string | null;
+}>;
+
+export type KnowledgeCompanyFolder = Readonly<{
+  id: string;
+  parentId: string | null;
+  name: string;
+  version: number;
+}>;
+
+export type KnowledgeCompanyFile = Readonly<{
+  id: string;
+  folderId: string | null;
+  name: string;
+  version: number;
+  currentVersionId: string;
+  size: string;
+  addedAt: string;
+}>;
+
+export type KnowledgeCompanyWorkspace = Readonly<{
+  folders: readonly KnowledgeCompanyFolder[];
+  files: readonly KnowledgeCompanyFile[];
 }>;
 
 const PAGE_SIZE = 100;
@@ -95,13 +120,69 @@ export async function readKnowledgeDocuments(
     }
 
     return [{
-      id: row.documentSlotId,
+      versionId: row.currentVersionId,
       caseId: row.studentCaseId,
       name: row.currentOriginalFilename,
       size: humanSize(row.currentByteSize),
       addedAt: DAY_MONTH.format(new Date(row.currentVersionFinalizedAt)),
-      // The queue does not expose a creator identity or role. Do not invent one.
-      addedBy: null,
     } satisfies KnowledgeDocument];
   });
+}
+
+/**
+ * Canonical company folders and immutable current file versions.
+ * Student case documents deliberately remain in their existing authority.
+ */
+export async function readCompanyKnowledge(
+  actor: ActivePlatformActor,
+): Promise<KnowledgeCompanyWorkspace> {
+  const [folders, files] = await Promise.all([
+    listPlatformCompanyKnowledgeFolders(actor),
+    listPlatformCompanyKnowledgeFiles(actor),
+  ]);
+  const folderIds = new Set(folders.map((folder) => folder.folderId));
+  const parentByFolderId = new Map(
+    folders.map((folder) => [folder.folderId, folder.parentFolderId] as const),
+  );
+
+  for (const folder of folders) {
+    if (
+      folder.parentFolderId !== null
+      && !folderIds.has(folder.parentFolderId)
+    ) {
+      throw new Error("V3 company knowledge received an orphan folder.");
+    }
+    const visited = new Set([folder.folderId]);
+    let parentId = folder.parentFolderId;
+    while (parentId !== null) {
+      if (visited.has(parentId)) {
+        throw new Error("V3 company knowledge received a folder cycle.");
+      }
+      visited.add(parentId);
+      parentId = parentByFolderId.get(parentId) ?? null;
+    }
+  }
+  for (const file of files) {
+    if (file.folderId !== null && !folderIds.has(file.folderId)) {
+      throw new Error("V3 company knowledge received an orphan file.");
+    }
+  }
+
+  return {
+    folders: folders.map((folder) => ({
+      id: folder.folderId,
+      parentId: folder.parentFolderId,
+      name: folder.name,
+      version: folder.version,
+    })),
+    files: files.map((file) => ({
+      id: file.fileId,
+      folderId: file.folderId,
+      name: file.name,
+      version: file.version,
+      currentVersionId: file.currentFileVersionId,
+      size: humanSize(file.byteSize),
+      addedAt: DAY_MONTH.format(new Date(file.currentVersionCreatedAt)),
+    })),
+  };
 }

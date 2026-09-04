@@ -2,7 +2,9 @@ import { PartShell } from "@/components/v3/PartShell";
 import { Settings } from "@/components/v3/settings/Settings";
 import { isSectionKey } from "@/components/v3/settings/types";
 import { requirePlatformCapability } from "@/lib/platform-guards";
+import { normalizeJournalFilters } from "@/lib/v3/settings-journal-contract";
 import {
+  readAuditExportEnabled,
   readCapabilityNames,
   readGateFacts,
   readHealth,
@@ -24,7 +26,10 @@ export default async function SettingsPart({
 }) {
   const params = await searchParams;
   const section = isSectionKey(params.section) ? params.section : "state";
-  const journalFilters = { objectType: params.object, role: params.role };
+  const journalFilters = normalizeJournalFilters({
+    objectType: params.object,
+    role: params.role,
+  });
   const actor = await requirePlatformCapability("admin.preview", "/v3/settings");
   const isAdmin = actor.authorityRole === "admin" && actor.presentationRole === "admin";
 
@@ -59,6 +64,7 @@ export default async function SettingsPart({
         health={health}
         integrations={integrations}
         journal={journal}
+        auditExportEnabled={readAuditExportEnabled()}
         journalFacets={journalFacets}
         journalFilters={journalFilters}
         journalHrefFor={(next) =>

@@ -36,6 +36,7 @@ const PRIVATE_DOCUMENT_DOWNLOAD_PATH =
   /^\/api\/v2\/document-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/download$/i;
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
+const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
   "/api/internal/platform-messaging/waha/work",
@@ -114,6 +115,7 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
  */
 export function isConnectedPlatformApi(path: string): boolean {
   return (
+    path === PLATFORM_AUDIT_EXPORT_PATH ||
     PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH.test(path) ||
     PRIVATE_DOCUMENT_DOWNLOAD_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)

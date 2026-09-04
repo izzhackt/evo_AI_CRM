@@ -478,6 +478,63 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
   await expectDirectRouteDenied(page, "/settings");
 });
 
+test("Admin downloads the canonical audit CSV while Sales is denied", async ({
+  page,
+}) => {
+  test.skip(authMode !== "configured");
+
+  await signIn(page, "admin");
+  await page.goto("/v3/settings?section=journal");
+  const exportForm = page.getByTestId("v3-audit-export");
+  await expect(exportForm).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await exportForm.getByRole("button", { name: "Скачать CSV" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("evo-platform-audit.csv");
+  expect((await readDownload(download)).toString("utf8")).toContain(
+    '"audit_event_id","created_at","action"',
+  );
+
+  await page.context().clearCookies();
+  await signIn(page, "sales");
+  const endAt = new Date();
+  const startAt = new Date(endAt.getTime() - 30 * 24 * 60 * 60 * 1_000);
+  const denial = await page.request.post("/api/platform-audit/export", {
+    form: {
+      request_id: randomUUID(),
+      start_at: startAt.toISOString(),
+      end_at: endAt.toISOString(),
+    },
+    headers: { origin: new URL(page.url()).origin },
+    maxRedirects: 0,
+  });
+  expect(denial.status()).toBe(403);
+});
+
+test("disabled canonical audit hides export and rejects the route", async ({
+  page,
+}) => {
+  test.skip(authMode !== "audit-disabled");
+
+  await signIn(page, "admin");
+  await page.goto("/v3/settings?section=journal");
+  await expect(page.getByTestId("v3-audit-export")).toHaveCount(0);
+
+  const endAt = new Date();
+  const startAt = new Date(endAt.getTime() - 30 * 24 * 60 * 60 * 1_000);
+  const denial = await page.request.post("/api/platform-audit/export", {
+    form: {
+      request_id: randomUUID(),
+      start_at: startAt.toISOString(),
+      end_at: endAt.toISOString(),
+    },
+    headers: { origin: new URL(page.url()).origin },
+    maxRedirects: 0,
+  });
+  expect(denial.status()).toBe(503);
+});
+
 test("Sales reads the exact Supabase RLS queue and detail while Admissions is denied", async ({
   page,
 }) => {

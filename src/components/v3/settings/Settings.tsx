@@ -35,6 +35,7 @@ export function Settings({
   health,
   integrations,
   journal,
+  auditExportEnabled,
   journalFacets,
   journalFilters,
   journalHrefFor,
@@ -50,6 +51,7 @@ export function Settings({
   health: readonly Health[];
   integrations: readonly Integration[];
   journal: readonly JournalEntry[];
+  auditExportEnabled: boolean;
   journalFacets: Readonly<{
     objectTypes: readonly Readonly<{ key: string; count: number }>[];
     roles: readonly string[];
@@ -118,6 +120,7 @@ export function Settings({
         {current?.key === "journal" ? (
           <JournalSection
             entries={journal}
+            exportEnabled={auditExportEnabled}
             facets={journalFacets}
             active={journalFilters}
             hrefFor={journalHrefFor}

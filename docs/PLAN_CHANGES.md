@@ -16849,3 +16849,89 @@ Decision:
   and SQL/RLS tests, the V3 quality gate and one exact-head CI run. Do not
   deploy, apply schema to managed production, call providers, mutate provider
   state or use real customer records in this slice.
+
+## 2026-09-04 - Narrow #598 to the remaining V3 reuse gaps
+
+Block-ID: `EVO-V3-E-REMAINING-REUSE-SCOPE-2026-09-04`
+
+Change type: active-slice scope clarification.
+Affected plan section: Order 4 / Issue #598.
+
+The original #598 wording still listed lead owner/stage and audit capabilities
+as pending V3 reuse. On current exact `main`, those paths are already connected:
+the V3 pipeline reads the canonical sales owner/stage workflow, and V3 settings
+already reads the canonical audit search projection. Repeating them as active
+scope would invite duplicate work and replacement noise.
+
+Decision:
+
+- narrow #598 to the remaining reuse work only: canonical document checklist
+  and review richness, the existing audit CSV export path in V3 settings, any
+  still-missing richer visa presentation over the canonical case snapshot, and
+  exact replacement cleanup for the superseded legacy document/audit surfaces;
+- add no new schema, RPC, status dictionary, compatibility adapter or fallback
+  path in this clarification;
+- keep `src/lib/v3/*` as the only adapter rewrite boundary and keep
+  `src/lib/v3/wording.ts` as the only human wording dictionary;
+- start from merged #597 contracts. Do not rework migration `107`, lead-owner/
+  stage behavior or the existing audit-search backend in #598.
+
+## 2026-09-04 - Keep document review state out of the V3 product UI
+
+Block-ID: `EVO-V3-E-TWO-STATE-DOCUMENT-UI-2026-09-04`
+
+Change type: owner-wording precedence correction.
+Affected plan section: Order 4 / Issue #598.
+
+The preceding #598 clarification used the phrase "document checklist and
+review richness." That phrase can be read as permission to expose canonical
+review decisions, reasons or reviewer metadata in V3. It conflicts with the
+more specific current product authority in `docs/design/v3/product.md`: the
+document UI has exactly two staff-facing states, `нет` and `есть`; staff check
+file suitability in WhatsApp before placing the accepted file in CRM.
+
+Decision:
+
+- reuse the canonical document requirements and slots to provide a real live
+  checklist, denominator, required-file labels and private-file presence;
+- treat the already-merged #597 slot projection, real denominator and private
+  upload/download path as the implementation of that two-state surface; #598
+  verifies it and does not rebuild or enrich it with hidden review workflow;
+- keep the V3 document presentation at exactly `нет` / `есть`; do not expose
+  `submitted`, `approved`, `correction_required`, `rejected`, review reason,
+  reviewer or review timestamp on the product screen;
+- retaining canonical review tables as unused managed-Supabase history is not
+  permission to add a second V3 review workflow or status dictionary;
+- keep the remaining #598 scope unchanged: existing Admin-only audit CSV
+  export, richer visa presentation only from the existing canonical snapshot,
+  focused replacement cleanup and real proof without provider or production
+  mutation.
+
+## 2026-09-04 - Close already-completed document and visa reuse in #598
+
+Block-ID: `EVO-V3-E-AUDIT-EXPORT-ONLY-2026-09-04`
+
+Change type: current-main completion inventory.
+Affected plan section: Order 4 / Issue #598.
+
+A fresh inventory of merged #597 shows that the V3 profile already reads the
+canonical document slots, derives its live denominator from those slots and
+uses the private Storage upload/download routes while presenting only `нет` /
+`есть`. The V3 Admissions workspace also already reads and mutates every field
+in the current canonical visa snapshot: status and note, with the required id,
+version and request identifiers. The only additional timestamp is
+`updated_at`; it is not a product deadline and must not be presented as one.
+
+Decision:
+
+- treat canonical document checklist reuse and the complete current visa
+  snapshot as completed by #597; #598 verifies their contracts but adds no
+  duplicate projection, status or invented date;
+- narrow #598 implementation to exposing the existing Admin-only audit CSV
+  route through the V3 journal and its active proxy contract, with real
+  browser/download proof and non-Admin denial;
+- delete no UI in this slice: there is no legacy audit UI, and the retained
+  `/documents` surface is a read-only cross-case queue rather than a duplicate
+  of the per-case V3 document workspace; its authenticated-root transition
+  remains #600 scope;
+- keep provider, managed-production, schema and deployment state unchanged.

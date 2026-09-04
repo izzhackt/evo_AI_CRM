@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import type { FixedRole } from "@/lib/fixed-role-policy";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/lib/platform-admissions-task-actions";
 import {
   PLATFORM_CASE_TASK_PRIORITIES,
+  type PlatformCaseTaskDeadlineKind,
   type PlatformCaseTaskPriority,
   type PlatformCaseTaskStatus,
 } from "@/lib/platform-admissions-task-contract";
@@ -23,6 +24,7 @@ import type {
   CalendarTaskRequestIds,
   Day,
 } from "./types";
+import { taskDeadlineInputDefaults } from "./types";
 
 const CONTROL =
   "mt-1 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
@@ -78,6 +80,80 @@ function Feedback({ state }: Readonly<{ state: PlatformAdmissionsTaskActionState
     >
       {RESULT_COPY[state.status]}
     </p>
+  );
+}
+
+function taskDeadlineKind(task: CalendarTask): PlatformCaseTaskDeadlineKind {
+  if (task.dueOn !== null) return "all_day";
+  if (task.dueAt !== null) return "timed";
+  return "none";
+}
+
+function DeadlineFields({
+  day,
+  task,
+}: Readonly<{
+  day: Day;
+  task?: CalendarTask;
+}>) {
+  const [kind, setKind] = useState<PlatformCaseTaskDeadlineKind>(
+    task ? taskDeadlineKind(task) : "all_day",
+  );
+  const defaults = taskDeadlineInputDefaults(task, day);
+  return (
+    <>
+      <label className="text-xs font-medium text-fg-2">
+        Тип срока
+        <select
+          name="deadline_kind"
+          value={kind}
+          onChange={(event) =>
+            setKind(event.target.value as PlatformCaseTaskDeadlineKind)}
+          className={CONTROL}
+        >
+          <option value="none">Без срока</option>
+          <option value="all_day">Весь день</option>
+          <option value="timed">Точное время</option>
+        </select>
+      </label>
+      {kind === "all_day" ? (
+        <>
+          <label className="text-xs font-medium text-fg-2">
+            Дата · Бишкек
+            <input
+              name="due_on"
+              type="date"
+              defaultValue={defaults.dueOn}
+              required
+              className={CONTROL}
+            />
+          </label>
+          <input type="hidden" name="due_at" value="" />
+        </>
+      ) : kind === "timed" ? (
+        <>
+          <input type="hidden" name="due_on" value="" />
+          <label className="text-xs font-medium text-fg-2">
+            Дата и время · Бишкек
+            <input
+              name="due_at"
+              type="datetime-local"
+              defaultValue={defaults.dueAt}
+              required
+              className={CONTROL}
+            />
+          </label>
+        </>
+      ) : (
+        <>
+          <input type="hidden" name="due_on" value="" />
+          <input type="hidden" name="due_at" value="" />
+          <p className="self-end pb-2.5 text-xs text-fg-3">
+            Задача останется в разделе «Без срока».
+          </p>
+        </>
+      )}
+    </>
   );
 }
 
@@ -184,16 +260,7 @@ export function CalendarCreateTaskForm({
             </select>
           </label>
 
-          <label className="text-xs font-medium text-fg-2">
-            Срок · Бишкек
-            <input
-              name="due_at"
-              type="datetime-local"
-              defaultValue={`${day}T09:00`}
-              required
-              className={CONTROL}
-            />
-          </label>
+          <DeadlineFields day={day} />
 
           <label className="text-xs font-medium text-fg-2">
             Приоритет
@@ -252,13 +319,6 @@ export function CalendarCreateTaskForm({
   );
 }
 
-function dueInputValue(task: CalendarTask): string {
-  if (task.day === null || task.minutes === null) return "";
-  const hour = String(Math.floor(task.minutes / 60)).padStart(2, "0");
-  const minute = String(task.minutes % 60).padStart(2, "0");
-  return `${task.day}T${hour}:${minute}`;
-}
-
 function CanonicalTaskFields({
   task,
   status,
@@ -279,6 +339,8 @@ function CanonicalTaskFields({
         value={task.assigneeMembershipId}
       />
       <input type="hidden" name="priority" value={task.priority} />
+      <input type="hidden" name="deadline_kind" value={taskDeadlineKind(task)} />
+      <input type="hidden" name="due_on" value={task.dueOn ?? ""} />
       <input type="hidden" name="due_at" value={task.dueAt ?? ""} />
       <input type="hidden" name="student_visible" value={String(task.studentVisible)} />
       <input type="hidden" name="expected_version" value={task.version} />
@@ -330,11 +392,13 @@ function CalendarTerminalTaskForm({
 
 function CalendarChangeTaskForm({
   task,
+  day,
   assignees,
   presentationRole,
   requestId,
 }: Readonly<{
   task: CalendarTask;
+  day: Day;
   assignees: readonly CalendarAssigneeOption[];
   presentationRole: FixedRole;
   requestId: string;
@@ -422,15 +486,7 @@ function CalendarChangeTaskForm({
                 ))}
               </select>
             </label>
-            <label className="text-xs font-medium text-fg-2">
-              Срок · Бишкек
-              <input
-                name="due_at"
-                type="datetime-local"
-                defaultValue={dueInputValue(task)}
-                className={CONTROL}
-              />
-            </label>
+            <DeadlineFields day={task.day ?? day} task={task} />
             <label className="text-xs font-medium text-fg-2">
               Видимость студенту
               <select
@@ -446,6 +502,12 @@ function CalendarChangeTaskForm({
         ) : (
           <>
             <input type="hidden" name="priority" value={task.priority} />
+            <input
+              type="hidden"
+              name="deadline_kind"
+              value={taskDeadlineKind(task)}
+            />
+            <input type="hidden" name="due_on" value={task.dueOn ?? ""} />
             <input type="hidden" name="due_at" value={task.dueAt ?? ""} />
             <input
               type="hidden"
@@ -470,11 +532,13 @@ function CalendarChangeTaskForm({
 
 export function CalendarTaskControls({
   task,
+  day,
   assignees,
   presentationRole,
   requestIds,
 }: Readonly<{
   task: CalendarTask;
+  day: Day;
   assignees: readonly CalendarAssigneeOption[];
   presentationRole: FixedRole;
   requestIds: CalendarTaskRequestIds;
@@ -495,6 +559,7 @@ export function CalendarTaskControls({
       </div>
       <CalendarChangeTaskForm
         task={task}
+        day={day}
         assignees={assignees}
         presentationRole={presentationRole}
         requestId={requestIds.change}

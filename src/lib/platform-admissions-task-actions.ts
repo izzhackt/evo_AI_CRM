@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache";
 import {
   PLATFORM_CASE_TASK_PRIORITIES,
   PLATFORM_CASE_TASK_STATUSES,
+  parsePlatformCaseTaskDeadline,
+  platformCaseTaskDeadlineMatchesRow,
   type PlatformCaseTaskPriority,
   type PlatformCaseTaskStatus,
 } from "./platform-admissions-task-contract.ts";
@@ -19,9 +21,6 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
-const TIMESTAMPTZ_PATTERN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
-const LOCAL_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const POSTGRES_BIGINT_MAX = "9223372036854775807";
 const CREATE_TASK_FIELDS = [
   "student_case_id",
@@ -29,6 +28,8 @@ const CREATE_TASK_FIELDS = [
   "title",
   "assignee_membership_id",
   "priority",
+  "deadline_kind",
+  "due_on",
   "due_at",
   "status",
   "student_visible",
@@ -41,6 +42,8 @@ const CHANGE_TASK_FIELDS = [
   "status",
   "assignee_membership_id",
   "priority",
+  "deadline_kind",
+  "due_on",
   "due_at",
   "student_visible",
   "request_id",
@@ -93,17 +96,6 @@ function oneOf<const T extends readonly string[]>(
   return allowed.includes(value) ? value as T[number] : null;
 }
 
-function timestamp(value: string): string | null | undefined {
-  if (!value) return null;
-  const candidate = TIMESTAMPTZ_PATTERN.test(value)
-    ? value
-    : LOCAL_DATETIME_PATTERN.test(value)
-      ? `${value}:00+06:00`
-      : null;
-  if (!candidate || !Number.isFinite(Date.parse(candidate))) return undefined;
-  return new Date(candidate).toISOString();
-}
-
 function booleanValue(value: string): boolean | null {
   if (value === "true") return true;
   if (value === "false") return false;
@@ -136,13 +128,6 @@ function hasExactKeys(
   const normalizedExpected = [...expected].sort();
   return actual.length === normalizedExpected.length &&
     actual.every((key, index) => key === normalizedExpected[index]);
-}
-
-function sameTimestamp(value: unknown, expected: string | null): boolean {
-  if (expected === null) return value === null;
-  return typeof value === "string" &&
-    Number.isFinite(Date.parse(value)) &&
-    Date.parse(value) === Date.parse(expected);
 }
 
 function submittedRequestId(form: FormData): string | null {
@@ -219,7 +204,11 @@ export async function createPlatformAdmissionsTaskAction(
     field(fields, "priority"),
     PLATFORM_CASE_TASK_PRIORITIES,
   ) as PlatformCaseTaskPriority | null;
-  const dueAt = timestamp(field(fields, "due_at"));
+  const deadline = parsePlatformCaseTaskDeadline(
+    field(fields, "deadline_kind"),
+    field(fields, "due_on"),
+    field(fields, "due_at"),
+  );
   const status = oneOf(
     field(fields, "status"),
     PLATFORM_CASE_TASK_STATUSES,
@@ -227,7 +216,7 @@ export async function createPlatformAdmissionsTaskAction(
   const studentVisible = booleanValue(field(fields, "student_visible"));
   if (
     !studentCaseId || !requestId || expectedVersion !== "0" || !taskType ||
-    !title || !assigneeMembershipId || !priority || dueAt === undefined ||
+    !title || !assigneeMembershipId || !priority || !deadline ||
     !status || status === "cancelled" || studentVisible === null
   ) {
     return failureState(form, "invalid", null, requestId);
@@ -242,7 +231,8 @@ export async function createPlatformAdmissionsTaskAction(
       p_title: title,
       p_assignee_membership_id: assigneeMembershipId,
       p_priority: priority,
-      p_due_at: dueAt,
+      p_due_on: deadline.dueOn,
+      p_due_at: deadline.dueAt,
       p_status: status,
       p_student_visible: studentVisible,
       p_request_id: requestId,
@@ -263,14 +253,15 @@ export async function createPlatformAdmissionsTaskAction(
       !isRecord(data) || !caseTaskId ||
       !hasExactKeys(data, [
         "organization_id", "case_task_id", "student_case_id", "task_type",
-        "title", "assignee_membership_id", "priority", "due_at", "status",
+        "title", "assignee_membership_id", "priority", "due_on", "due_at", "status",
         "student_visible", "expected_version", "version", "changed_at",
       ]) ||
       data.organization_id !== actor.organizationId ||
       data.student_case_id !== studentCaseId ||
       data.task_type !== taskType || data.title !== title ||
       data.assignee_membership_id !== assigneeMembershipId ||
-      data.priority !== priority || !sameTimestamp(data.due_at, dueAt) ||
+      data.priority !== priority ||
+      !platformCaseTaskDeadlineMatchesRow(data.due_on, data.due_at, deadline) ||
       data.status !== status || data.student_visible !== studentVisible ||
       data.expected_version !== "0" ||
       typeof data.version !== "string" ||
@@ -315,12 +306,16 @@ export async function changePlatformAdmissionsTaskAction(
     field(fields, "priority"),
     PLATFORM_CASE_TASK_PRIORITIES,
   ) as PlatformCaseTaskPriority | null;
-  const dueAt = timestamp(field(fields, "due_at"));
+  const deadline = parsePlatformCaseTaskDeadline(
+    field(fields, "deadline_kind"),
+    field(fields, "due_on"),
+    field(fields, "due_at"),
+  );
   const studentVisible = booleanValue(field(fields, "student_visible"));
   if (
     !studentCaseId || !caseTaskId || !requestId || !expectedVersion || !status ||
     !assigneeMembershipId || !priority ||
-    dueAt === undefined || studentVisible === null
+    !deadline || studentVisible === null
   ) {
     return failureState(form, "invalid", caseTaskId, requestId);
   }
@@ -333,7 +328,8 @@ export async function changePlatformAdmissionsTaskAction(
       p_new_status: status,
       p_new_assignee_membership_id: assigneeMembershipId,
       p_priority: priority,
-      p_due_at: dueAt,
+      p_due_on: deadline.dueOn,
+      p_due_at: deadline.dueAt,
       p_student_visible: studentVisible,
       p_expected_version: expectedVersion,
       p_request_id: requestId,
@@ -358,13 +354,14 @@ export async function changePlatformAdmissionsTaskAction(
       !isRecord(data) ||
       !hasExactKeys(data, [
         "organization_id", "case_task_id", "student_case_id", "status",
-        "assignee_membership_id", "priority", "due_at", "student_visible",
+        "assignee_membership_id", "priority", "due_on", "due_at", "student_visible",
         "expected_version", "version", "changed_at",
       ]) ||
       data.organization_id !== actor.organizationId ||
       data.case_task_id !== caseTaskId || data.student_case_id !== studentCaseId ||
       data.status !== status || data.assignee_membership_id !== assigneeMembershipId ||
-      data.priority !== priority || !sameTimestamp(data.due_at, dueAt) ||
+      data.priority !== priority ||
+      !platformCaseTaskDeadlineMatchesRow(data.due_on, data.due_at, deadline) ||
       data.student_visible !== studentVisible || !nextVersion || !changedAt ||
       data.expected_version !== expectedVersion ||
       BigInt(nextVersion) !== BigInt(expectedVersion) + BigInt(1)

@@ -12,43 +12,13 @@ import {
   listPlatformAdmissionsTaskQueue,
 } from "@/lib/platform-admissions-workspace";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { ORG_TIMEZONE } from "@/lib/v3/period";
+import {
+  dayInOrganizationTimezone,
+  projectPlatformTaskDeadline,
+} from "@/lib/platform-task-deadline";
 
 const QUEUE_PAGE_SIZE = 100;
 const CASE_PAGE_SIZE = 100;
-
-const DAY_PARTS = new Intl.DateTimeFormat("en-CA", {
-  timeZone: ORG_TIMEZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-const TIME_PARTS = new Intl.DateTimeFormat("en-GB", {
-  timeZone: ORG_TIMEZONE,
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-function part(
-  parts: readonly Intl.DateTimeFormatPart[],
-  type: Intl.DateTimeFormatPartTypes,
-): string {
-  const value = parts.find((candidate) => candidate.type === type)?.value;
-  if (!value) throw new Error("V3 calendar date formatting is unavailable.");
-  return value;
-}
-
-function dayInOrganizationTimezone(value: Date): Day {
-  const parts = DAY_PARTS.formatToParts(value);
-  return `${part(parts, "year")}-${part(parts, "month")}-${part(parts, "day")}`;
-}
-
-function minutesInOrganizationTimezone(value: Date): number {
-  const parts = TIME_PARTS.formatToParts(value);
-  return Number(part(parts, "hour")) * 60 + Number(part(parts, "minute"));
-}
 
 /** Today in the same Bishkek calendar used to place canonical task deadlines. */
 export async function readToday(): Promise<Day> {
@@ -73,13 +43,10 @@ export async function readCalendarTasks(
     throw new Error("V3 calendar task queue exceeds its canonical read window.");
   }
 
+  const now = new Date();
   return queue.rows.flatMap((row) => {
-    const dueAt = row.dueAt === null ? null : new Date(row.dueAt);
-    if (dueAt && !Number.isFinite(dueAt.getTime())) {
-      throw new Error("V3 calendar received an invalid canonical task deadline.");
-    }
-
-    const day = dueAt ? dayInOrganizationTimezone(dueAt) : null;
+    const deadline = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now);
+    const day = deadline.day;
     if (day !== null && (day < from || day > to)) return [];
 
     return [{
@@ -88,9 +55,11 @@ export async function readCalendarTasks(
       taskType: row.taskType,
       title: row.title,
       details: null,
+      dueOn: row.dueOn,
       dueAt: row.dueAt,
       day,
-      minutes: dueAt ? minutesInOrganizationTimezone(dueAt) : null,
+      minutes: deadline.minutes,
+      overdue: deadline.overdue,
       state: row.status,
       cancelReason: null,
       person: row.studentDisplayName,

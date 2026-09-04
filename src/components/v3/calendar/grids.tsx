@@ -54,10 +54,10 @@ const STATE_TONE: Record<string, PillTone> = {
  *
  * `overdue` в базе нет — это открытая задача, у которой срок уже прошёл.
  */
-export function taskStateKey(task: CalendarTask, today: Day): string | null {
+export function taskStateKey(task: CalendarTask): string | null {
   return (
       task.state === "open" || task.state === "in_progress"
-    ) && task.day !== null && task.day < today
+    ) && task.overdue
     ? "overdue"
     : task.state;
 }
@@ -80,15 +80,13 @@ export function statePill(
  */
 export function taskPill(
   task: CalendarTask,
-  today: Day,
 ): Readonly<{ tone: PillTone; word: string }> | null {
-  const key = taskStateKey(task, today);
+  const key = taskStateKey(task);
   return key === "open" || key === "in_progress" ? null : statePill(key);
 }
 
 export function TaskChip({
   task,
-  today,
   selected,
   panelId,
   onSelect,
@@ -100,7 +98,7 @@ export function TaskChip({
   panelId: string | null;
   onSelect: () => void;
 }) {
-  const pill = taskPill(task, today);
+  const pill = taskPill(task);
 
   return (
     <button
@@ -132,7 +130,11 @@ export function TaskChip({
         }`}
       >
         <span className="font-mono">
-          {task.minutes === null ? "весь день" : timeLabel(task.minutes)}
+          {task.day === null
+            ? "без срока"
+            : task.minutes === null
+              ? "весь день"
+              : timeLabel(task.minutes)}
         </span>
         {task.person ? <span className="max-w-full truncate">{task.person}</span> : null}
         {pill ? <Pill tone={pill.tone}>{pill.word}</Pill> : null}

@@ -11,5 +11,7 @@
  * (`src/lib/server/database.ts`) при этом не трогается: файл общий с V2.
  */
 
+import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
+
 /** Пояс организации. Заказчик его ещё не назвал — до тех пор Asia/Bishkek. */
-export const ORG_TIMEZONE = "Asia/Bishkek";
+export const ORG_TIMEZONE = PLATFORM_ORGANIZATION_TIMEZONE;

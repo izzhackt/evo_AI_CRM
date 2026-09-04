@@ -2,6 +2,7 @@ import {
   fixedRoleCan,
   type FixedRole,
 } from "../fixed-role-policy.ts";
+import { projectPlatformTaskDeadline } from "../platform-task-deadline.ts";
 
 type DashboardActor = Readonly<{
   presentationRole: FixedRole;
@@ -32,6 +33,7 @@ type DashboardStudentCaseItem =
 
 type DashboardAdmissionsTaskRow = Readonly<{
   status: string;
+  dueOn: string | null;
   dueAt: string | null;
 }>;
 
@@ -210,8 +212,9 @@ export async function readPlatformDashboardSnapshot<
   }
 
   if (taskQueue) {
-    const overdueCount = taskQueue.rows.filter(
-      (row) => row.status !== "done" && isPastDue(row.dueAt, now),
+    const overdueCount = taskQueue.rows.filter((row) =>
+      ["open", "in_progress", "blocked"].includes(row.status) &&
+      projectPlatformTaskDeadline(row.dueOn, row.dueAt, new Date(now)).overdue
     ).length;
     cards.push({
       key: "tasks",

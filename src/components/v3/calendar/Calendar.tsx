@@ -159,14 +159,18 @@ export function Calendar({
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-semibold text-fg">{open.title}</h2>
                 {(() => {
-                  const key = taskStateKey(open, today);
+                  const key = taskStateKey(open);
                   const display = key ? statePill(key) : null;
                   return display ? <Pill tone={display.tone}>{display.word}</Pill> : null;
                 })()}
               </div>
               <p className="mt-1 text-sm text-fg-2">
                 {open.day === null ? "Без срока" : dayLabel(open.day)}
-                {open.day !== null && open.minutes !== null ? ` · ${timeLabel(open.minutes)}` : ""}
+                {open.day !== null
+                  ? open.minutes === null
+                    ? " · весь день"
+                    : ` · ${timeLabel(open.minutes)}`
+                  : ""}
                 {open.person ? ` · ${open.person}` : ""}
               </p>
               <p className="mt-1 text-xs text-fg-3">
@@ -192,6 +196,7 @@ export function Calendar({
                 <CalendarTaskControls
                   key={`${open.id}:${open.version}`}
                   task={open}
+                  day={day}
                   assignees={assignees}
                   presentationRole={presentationRole}
                   requestIds={taskRequestIds[open.id]}

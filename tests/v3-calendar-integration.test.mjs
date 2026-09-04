@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
+import { taskDeadlineInputDefaults } from "../src/components/v3/calendar/types.ts";
+
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
@@ -12,6 +14,33 @@ const controls = source("src/components/v3/calendar/TaskControls.tsx");
 const grids = source("src/components/v3/calendar/grids.tsx");
 const types = source("src/components/v3/calendar/types.ts");
 const adapter = source("src/lib/v3/calendar-source.ts");
+
+test("deadline-kind conversion preserves the task day instead of the period anchor", () => {
+  assert.deepEqual(
+    taskDeadlineInputDefaults(
+      { day: "2026-09-04", minutes: 9 * 60 + 30 },
+      "2026-09-01",
+    ),
+    { dueOn: "2026-09-04", dueAt: "2026-09-04T09:30" },
+  );
+  assert.deepEqual(
+    taskDeadlineInputDefaults(
+      { day: "2026-09-04", minutes: null },
+      "2026-09-01",
+    ),
+    { dueOn: "2026-09-04", dueAt: "2026-09-04T09:00" },
+  );
+  assert.deepEqual(
+    taskDeadlineInputDefaults(
+      { day: null, minutes: null },
+      "2026-09-01",
+    ),
+    { dueOn: "2026-09-01", dueAt: "2026-09-01T09:00" },
+  );
+  assert.match(controls, /taskDeadlineInputDefaults\(task, day\)/);
+  assert.match(controls, /defaultValue=\{defaults\.dueOn\}/);
+  assert.match(controls, /defaultValue=\{defaults\.dueAt\}/);
+});
 
 test("V3 calendar reads one bounded canonical workspace without a second data path", () => {
   assert.match(page, /requirePlatformAdmissionsActor/);
@@ -47,6 +76,8 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
     "title",
     "assignee_membership_id",
     "priority",
+    "deadline_kind",
+    "due_on",
     "due_at",
     "status",
     "student_visible",
@@ -70,6 +101,10 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.match(controls, /data-testid=\{`v3-calendar-task-\$\{status\}-form`\}/);
   assert.match(controls, /<select name="priority"/);
   assert.match(controls, /<select name="student_visible"/);
+  assert.match(controls, /<select[\s\S]*name="deadline_kind"/);
+  assert.match(controls, /<option value="none">Без срока<\/option>/);
+  assert.match(controls, /<option value="all_day">Весь день<\/option>/);
+  assert.match(controls, /<option value="timed">Точное время<\/option>/);
   assert.match(types, /version: string/);
   assert.match(types, /change: string/);
   assert.match(types, /complete: string/);
@@ -106,11 +141,12 @@ test("V3 calendar writes are role-scoped and remain keyboard-operable", () => {
 });
 
 test("V3 calendar preserves canonical task states and undated tasks", () => {
-  assert.match(adapter, /const dueAt = row\.dueAt === null \? null/);
+  assert.match(adapter, /projectPlatformTaskDeadline\(row\.dueOn, row\.dueAt, now\)/);
   assert.match(adapter, /day !== null && \(day < from \|\| day > to\)/);
   assert.match(adapter, /state: row\.status/);
   assert.match(adapter, /version: row\.version/);
   assert.match(calendar, /tasks\.filter\(\(task\) => task\.day === null\)/);
+  assert.match(grids, /task\.day === null[\s\S]*?"без срока"/);
   assert.match(grids, /blocked: "warn"/);
   assert.match(grids, /done: "ok"/);
   assert.match(grids, /task\.state === "in_progress"/);

@@ -1925,6 +1925,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_company_files.sql
   fi
+
+  # Migration 110 evolves the one canonical case-task table and command/read
+  # surfaces with mutually exclusive timed, all-day and unscheduled deadlines.
+  if [[ "$(basename "$migration")" == 110_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_task_all_day_deadlines.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

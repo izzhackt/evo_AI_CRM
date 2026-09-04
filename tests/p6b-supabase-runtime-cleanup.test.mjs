@@ -223,8 +223,11 @@ test("P6B Admin Admissions preview aggregates overdue work and finance stops", a
         calls.push("tasks");
         return {
           rows: [
-            { status: "open", dueAt: "2026-09-02T12:00:00.000Z" },
-            { status: "done", dueAt: "2026-09-01T12:00:00.000Z" },
+            { status: "open", dueOn: null, dueAt: "2026-09-02T12:00:00.000Z" },
+            { status: "open", dueOn: "2026-09-02", dueAt: null },
+            { status: "open", dueOn: "2026-09-03", dueAt: null },
+            { status: "done", dueOn: null, dueAt: "2026-09-01T12:00:00.000Z" },
+            { status: "cancelled", dueOn: "2026-09-01", dueAt: null },
           ],
           nextCursor: null,
         };
@@ -245,7 +248,7 @@ test("P6B Admin Admissions preview aggregates overdue work and finance stops", a
     snapshot.cards.map((card) => [card.key, card]),
     [
       ["clients", { key: "clients", href: "/clients", totalOnPage: 2, attentionCount: 1 }],
-      ["tasks", { key: "tasks", href: "/tasks", totalOnPage: 2, overdueCount: 1 }],
+      ["tasks", { key: "tasks", href: "/tasks", totalOnPage: 5, overdueCount: 2 }],
       ["finance", { key: "finance", href: "/finance", totalOnPage: 2, blockedCount: 1 }],
       [
         "whatsapp",
@@ -262,7 +265,7 @@ test("P6B Admin Admissions preview aggregates overdue work and finance stops", a
   assert.deepEqual(
     snapshot.attentionItems.map(({ key, value }) => ({ key, value })),
     [
-      { key: "admissions_overdue", value: 1 },
+      { key: "admissions_overdue", value: 2 },
       { key: "finance_stops", value: 1 },
       { key: "student_attention", value: 1 },
     ],

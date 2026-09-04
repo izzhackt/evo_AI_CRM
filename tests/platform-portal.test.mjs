@@ -95,6 +95,7 @@ function taskRow(overrides = {}) {
     task_type: "student_action",
     title: "Confirm document details",
     priority: "normal",
+    due_on: null,
     due_at: null,
     task_status: "open",
     updated_at: AT,
@@ -317,6 +318,28 @@ test("normalization keeps UUIDs as strings and exposes only truthful portal data
   assert.equal(snapshot.updates[0].isRead, true);
 });
 
+test("portal tasks use the Bishkek workday and keep unscheduled work undated", () => {
+  const allDay = normalizePlatformStudentPortalSnapshot(snapshotInput({
+    tasks: [taskRow({ due_on: "2026-09-04" })],
+  }));
+  assert.equal(allDay.tasks[0].dueDate, "2026-09-04");
+
+  const timedAfterLocalMidnight = normalizePlatformStudentPortalSnapshot(snapshotInput({
+    tasks: [taskRow({ due_at: "2026-09-04T19:15:00Z" })],
+  }));
+  assert.equal(timedAfterLocalMidnight.tasks[0].dueDate, "2026-09-05");
+
+  const unscheduled = normalizePlatformStudentPortalSnapshot(snapshotInput());
+  assert.equal(unscheduled.tasks[0].dueDate, null);
+
+  assert.throws(
+    () => normalizePlatformStudentPortalSnapshot(snapshotInput({
+      tasks: [taskRow({ due_on: "2026-09-04", due_at: AT })],
+    })),
+    PlatformPortalRepositoryError,
+  );
+});
+
 test("portal profile rejects unsupported language and oversized participant lists", () => {
   assert.throws(
     () => normalizePlatformStudentPortalSnapshot(snapshotInput({
@@ -375,6 +398,8 @@ test("provider failure and duplicate profile rows fail closed", async () => {
           student_portal_profile: { data: null, error: { message: "down" } },
         }),
         generatedAt: AT,
+        notificationsEnabled: false,
+        notificationsVersion: "v1",
       }),
     PlatformPortalRepositoryError,
   );
@@ -389,6 +414,8 @@ test("provider failure and duplicate profile rows fail closed", async () => {
           },
         }),
         generatedAt: AT,
+        notificationsEnabled: false,
+        notificationsVersion: "v1",
       }),
     PlatformPortalRepositoryError,
   );
@@ -401,6 +428,8 @@ test("provider failure and duplicate profile rows fail closed", async () => {
           student_portal_applications: new Error("provider unavailable"),
         }),
         generatedAt: AT,
+        notificationsEnabled: false,
+        notificationsVersion: "v1",
       }),
     PlatformPortalRepositoryError,
   );
@@ -411,6 +440,8 @@ test("provider failure and duplicate profile rows fail closed", async () => {
         student_portal_profile: { data: [], error: null },
       }),
       generatedAt: AT,
+      notificationsEnabled: false,
+      notificationsVersion: "v1",
     }),
     null,
   );
@@ -428,6 +459,8 @@ test("repository calls only the seven read-only portal RPCs", async () => {
       student_portal_finance: { data: [], error: null },
     }),
     generatedAt: AT,
+    notificationsEnabled: false,
+    notificationsVersion: "v1",
   });
   assert.equal(snapshot.client.id, CASE_ID);
 
@@ -436,6 +469,8 @@ test("repository calls only the seven read-only portal RPCs", async () => {
       getPlatformStudentPortalSnapshot(actor("sales"), {
         client: rpcClient({}),
         generatedAt: AT,
+        notificationsEnabled: false,
+        notificationsVersion: "v1",
       }),
     PlatformPortalRepositoryError,
   );
@@ -467,6 +502,7 @@ test("repository adds the durable P6B notification RPC only when explicitly enab
     }),
     generatedAt: AT,
     notificationsEnabled: true,
+    notificationsVersion: "v1",
   });
 
   assert.equal(snapshot.notifications?.length, 1);

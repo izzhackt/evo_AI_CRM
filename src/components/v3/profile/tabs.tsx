@@ -117,7 +117,6 @@ export function Overview({
         gate={sales.gate}
         handoff={sales.handoff}
         requestIds={requestIds}
-        caseHref={tabHref("anketa")}
       />
 
       <a

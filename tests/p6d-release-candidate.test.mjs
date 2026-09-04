@@ -67,8 +67,11 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(workflow, /if: \$\{\{ always\(\) \}\}/u);
   assert.match(workflow, /Install pinned npm audit CLI/u);
   assert.match(workflow, /Install pinned npm audit CLI\n        timeout-minutes: 4/u);
-  assert.match(workflow, /npm_config_fetch_retries: "2"/u);
+  assert.match(workflow, /npm_config_fetch_retries: "0"/u);
   assert.match(workflow, /npm_config_fetch_timeout: "30000"/u);
+  assert.match(workflow, /for attempt in 1 2 3; do/u);
+  assert.match(workflow, /timeout 60s npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund/u);
+  assert.match(workflow, /test "\$\("\$audit_prefix\/node_modules\/\.bin\/npm" --version\)" = "11\.19\.0"/u);
   assert.match(workflow, /npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund/u);
   assert.match(workflow, /if npm audit --package-lock-only --omit=dev --audit-level=moderate; then/u);
   assert.match(workflow, /if node scripts\/check-npm-audit-allowlist\.mjs; then/u);

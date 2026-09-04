@@ -93,13 +93,22 @@ jobs:
         timeout-minutes: 4
         env:
           npm_config_audit: "false"
-          npm_config_fetch_retries: "2"
+          npm_config_fetch_retries: "0"
           npm_config_fetch_timeout: "30000"
           npm_config_fund: "false"
         run: |
-          audit_prefix="$RUNNER_TEMP/npm-audit-cli"
-          npm install --prefix "$audit_prefix" npm@11.19.0 --ignore-scripts --no-audit --no-fund
-          echo "$audit_prefix/node_modules/.bin" >> "$GITHUB_PATH"
+          for attempt in 1 2 3; do
+            audit_prefix="$RUNNER_TEMP/npm-audit-cli-$attempt"
+            if timeout 60s npm install --prefix "$audit_prefix" npm@11.19.0 --ignore-scripts --no-audit --no-fund \
+              && test "$("$audit_prefix/node_modules/.bin/npm" --version)" = "11.19.0"; then
+              echo "$audit_prefix/node_modules/.bin" >> "$GITHUB_PATH"
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
 
       - name: Audit production dependencies
         # Lockfile-only avoids platform-specific installed-tree drift on the

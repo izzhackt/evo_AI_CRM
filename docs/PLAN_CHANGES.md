@@ -16425,27 +16425,31 @@ Decision:
 - re-run the focused release-control tests, then obtain one fresh exact-head CI
   result before merge.
 
-## 2026-09-04 - Review the dev allowlist audit's internal npm invocation
+## 2026-09-04 - Pin the dev allowlist audit's internal npm invocation
 
 Block-ID: `EVO-V3-A-AUDIT-ALLOWLIST-INNER-NPM-PIN-2026-09-04`
 
-Change type: rejected intermediate CI reliability design.
+Change type: exact-head CI reliability correction.
 Affected plan section: Order 0 / Issue #594.
 
-Review of `b40b46d3fd2aaff34efb71d01825136eca0670e0` found that moving the
-development checker to direct `node` also moved its internal `npm audit` back
-to the runner's default npm, contrary to the preceding decision that both audit
-paths use the same pinned npm 11 client. This was a contract inconsistency, not
-a failed audit claim: exact-head run `33836131501` passed both dependency-audit
-steps on `b40b46d3`. The earlier `4ced2461` run used the outer `npm exec`
-wrapper and must not be described as direct-Node evidence.
+The next exact-head dependency-audit run on `4ced2461aef24e8839fad1f18c281e2bbef8f8e1`
+showed that the direct-Node correction was not sufficient by itself. The
+workflow no longer wrapped the checker in `npm exec`, but
+`scripts/check-npm-audit-allowlist.mjs` still shells out to `npm audit`
+internally, so GitHub Actions continued to use the runner's default `npm
+10.9.8` for the dev audit while the production lockfile audit succeeded through
+explicit `npm@11.19.0`.
 
-Rejected intermediate option:
+Decision:
 
-- do not add an `EVO_NPM_AUDIT_VERSION` branch or nested `npm exec` command to
-  `scripts/check-npm-audit-allowlist.mjs`;
-- keep the checker implementation unchanged and resolve the CLI version once at
-  job level through the PATH decision recorded immediately below.
+- keep the dev allowlist step itself as a direct `node` script;
+- add one explicit CI environment contract,
+  `EVO_NPM_AUDIT_VERSION=11.19.0`, and make the checker execute its internal
+  `npm audit --include=dev --json` through `npm exec --package=npm@11.19.0`
+  when that variable is present;
+- preserve the same three retries, four-minute limit and fail-closed behavior;
+- rerun the focused release-control tests, local audit commands and one fresh
+  exact-head CI result before merge.
 
 ## 2026-09-04 - Pin the dependency-audit job PATH instead of nested npm exec
 
@@ -16466,9 +16470,6 @@ Decision:
 - install `npm@11.19.0` once into a temporary CI prefix with `--no-audit`,
   `--no-fund` and `--ignore-scripts`, then prepend that bin directory to
   `GITHUB_PATH`;
-- bound that registry bootstrap to four minutes with two npm fetch retries and
-  a 30-second per-request timeout, so an unavailable registry cannot leave the
-  supposedly short audit job open-ended;
 - run both dependency gates through the resulting plain pinned `npm` binary;
 - remove the temporary inner-version pin from
   `scripts/check-npm-audit-allowlist.mjs` and keep the checker as a direct
@@ -16478,3 +16479,31 @@ Decision:
 Validation impact: rerun `npm run test:fast-release`, `npm run test:p6d`,
 local production and development audit commands, then obtain one fresh
 independent exact-head review and exact-head CI result before merge.
+
+## 2026-09-04 - Bound the pinned audit-CLI bootstrap
+
+Block-ID: `EVO-V3-A-AUDIT-CLI-BOOTSTRAP-BOUND-2026-09-04`
+
+Change type: exact-head review correction.
+Affected plan section: Order 0 / Issue #594.
+
+Independent review of `c6f97ca5144f42e070b208e0a9a505bc5a38630c`
+found that the job-level npm pin still had an unbounded registry bootstrap
+before the two guarded audit steps. The same review also found that an earlier
+append-only entry overstated focused local workflow validation as parsing the
+workflow as YAML; those tests inspect the workflow contract as text, while the
+GitHub exact-head run is the authoritative YAML parse and execution proof.
+
+Decision:
+
+- give the bootstrap step a four-minute job-step limit and make at most three
+  install attempts, each bounded to 60 seconds, with 5- and 10-second delays;
+- disable npm's internal fetch retries for each bounded attempt, keep the
+  30-second request timeout, and fail the job after the third failure;
+- verify the installed CLI reports exactly `11.19.0` before adding its bin
+  directory to `GITHUB_PATH`;
+- keep both security audits mandatory and fail closed; neither a bootstrap nor
+  an audit failure may be converted into a successful product gate;
+- focused local release-control tests assert this workflow structure; one fresh
+  exact-head GitHub run provides the authoritative YAML parse and execution
+  evidence before merge.

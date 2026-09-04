@@ -20,6 +20,7 @@ type Copy = {
   back: string;
   security: string;
   unknown: string;
+  knowledge: string;
   transcription: string;
   tabTitle: string;
 };
@@ -37,6 +38,7 @@ const COPY: Record<Locale, Copy> = {
     back: "Вернуться в мой раздел",
     security: "Доступ проверен на сервере",
     unknown: "Защищённый раздел",
+    knowledge: "База знаний",
     transcription: "Лаборатория транскрибации",
     tabTitle: "Нет доступа",
   },
@@ -52,6 +54,7 @@ const COPY: Record<Locale, Copy> = {
     back: "Менин бөлүмүмө кайтуу",
     security: "Кирүү укугу серверде текшерилди",
     unknown: "Корголгон бөлүм",
+    knowledge: "Билим базасы",
     transcription: "Транскрипция лабораториясы",
     tabTitle: "Кирүүгө укук жок",
   },
@@ -67,6 +70,7 @@ const COPY: Record<Locale, Copy> = {
     back: "Return to my workspace",
     security: "Access was checked on the server",
     unknown: "Protected section",
+    knowledge: "Knowledge base",
     transcription: "Transcription lab",
     tabTitle: "Access denied",
   },
@@ -99,18 +103,25 @@ export default async function AccessDeniedPage({
   const copy = COPY[locale];
   const requestedPath = firstValue((await searchParams).from);
   const requestedItem = STAFF_NAV_ITEMS.find((item) => item.href === requestedPath);
+  const requestedKnowledge = requestedPath === "/v3/knowledge";
   if (requestedItem && roleCanAccessStaffRoute(user.role, requestedItem.href)) {
     redirect(requestedItem.href);
   }
   if (requestedPath === "/transcription-lab" && user.role === "admin") {
     redirect("/transcription-lab");
   }
-  if (!requestedItem && requestedPath !== "/transcription-lab") {
+  if (
+    !requestedItem &&
+    requestedPath !== "/transcription-lab" &&
+    !requestedKnowledge
+  ) {
     redirect(ROLE_HOME_ROUTE[user.role]);
   }
   const requestedLabel =
     requestedItem
       ? t(requestedItem.labelKey)
+      : requestedKnowledge
+        ? copy.knowledge
       : requestedPath === "/transcription-lab"
         ? copy.transcription
         : copy.unknown;

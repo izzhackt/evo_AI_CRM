@@ -29,6 +29,7 @@ const canonicalDocumentsLayoutSource = source(
   "src/app/(staff)/documents/layout.tsx",
 );
 const staffLayoutSource = source("src/app/(staff)/layout.tsx");
+const accessDeniedSource = source("src/app/(staff)/access-denied/page.tsx");
 
 test("visa and finance queues use the fixed Admissions read boundary", () => {
   for (const route of ["/visa", "/finance"]) {
@@ -79,6 +80,18 @@ test("the namespaced V3 product surface is connected without opening descendants
   for (const path of ["/v3/unknown", "/v3/unknown/child", "/v3//main", "/v3/Profile"]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
+});
+
+test("the exact V3 knowledge denial keeps its route provenance", () => {
+  assert.match(
+    accessDeniedSource,
+    /requestedKnowledge = requestedPath === "\/v3\/knowledge"/,
+  );
+  assert.match(
+    accessDeniedSource,
+    /requestedPath !== "\/transcription-lab" &&\s*!requestedKnowledge/,
+  );
+  assert.match(accessDeniedSource, /requestedKnowledge\s*\? copy\.knowledge/);
 });
 
 test("removed parallel pages stay outside the successor and stop before runtime", () => {

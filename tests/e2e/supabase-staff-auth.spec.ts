@@ -1456,7 +1456,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(
     page
       .getByTestId("v3-sales-handoff-completed")
-      .locator(`a[href="/v3/profile?id=${leadId}&tab=anketa"]`),
+      .locator(`a[href="/clients/${studentCaseId}"]`),
   ).toBeVisible();
   await page.goto("/clients");
   const exactStudentCaseRow = page.locator(

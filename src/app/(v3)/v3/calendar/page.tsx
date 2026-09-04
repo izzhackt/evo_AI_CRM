@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { redirect } from "next/navigation";
 
 import { PartShell } from "@/components/v3/PartShell";
 import { Calendar } from "@/components/v3/calendar/Calendar";
@@ -35,7 +36,7 @@ export default async function CalendarPart({
     actor.presentationRole !== "admin"
     && actor.presentationRole !== "admissions"
   ) {
-    throw new Error("Admissions calendar resolved a non-Admissions staff role.");
+    redirect("/access-denied?from=%2Fv3%2Fcalendar");
   }
   const workspace = await readCalendarWorkspace(
     actor,

@@ -99,7 +99,11 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   assert.match(transition, /name="expected_gate_version"/);
   assert.match(transition, /data-testid="v3-sales-transition"/);
   assert.match(transition, /data-testid="v3-sales-handoff"/);
-  assert.match(transition, /href=\{`\/clients\/\$\{caseId\}`\}/);
+  assert.match(
+    transition,
+    /href=\{`\/v3\/profile\?case=\$\{caseId\}&tab=overview`\}/,
+  );
+  assert.doesNotMatch(transition, /href=\{`\/clients\/\$\{caseId\}`\}/);
 
   for (const path of [
     "src/app/(staff)/sales/[id]/page.tsx",

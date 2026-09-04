@@ -78,11 +78,18 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.doesNotMatch(controls, /return_to_case|name="reason"/);
 });
 
-test("V3 calendar writes are role-scoped and remain keyboard-operable", () => {
+test("V3 calendar denies a Sales preview before reading Admissions data", () => {
   assert.match(
     page,
-    /actor\.presentationRole !== "admin"[\s\S]*actor\.presentationRole !== "admissions"[\s\S]*readCalendarWorkspace/,
+    /actor\.presentationRole !== "admin"[\s\S]*actor\.presentationRole !== "admissions"[\s\S]*redirect\("\/access-denied\?from=%2Fv3%2Fcalendar"\)[\s\S]*readCalendarWorkspace/,
   );
+  assert.doesNotMatch(
+    page,
+    /throw new Error\("Admissions calendar resolved a non-Admissions staff role\."\)/,
+  );
+});
+
+test("V3 calendar writes are role-scoped and remain keyboard-operable", () => {
   assert.match(
     calendar,
     /presentationRole === "admin"[\s\S]*presentationRole === "admissions"/,

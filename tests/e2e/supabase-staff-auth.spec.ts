@@ -922,10 +922,14 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const adminHandoff = page.getByTestId("v3-sales-handoff-completed");
   await expect(adminHandoff).toBeVisible();
   const caseLink = adminHandoff.getByRole("link", { name: "Открыть дело" });
-  await expect(caseLink).toHaveAttribute("href", `/clients/${studentCaseId}`);
+  const caseHref = `/v3/profile?case=${studentCaseId}&tab=overview`;
+  await expect(caseLink).toHaveAttribute("href", caseHref);
   await caseLink.click();
-  await expect(page).toHaveURL(new RegExp(`/clients/${studentCaseId}$`));
-  await expect(page.getByText(studentCaseId, { exact: true }).first()).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(
+    `/v3/profile\\?case=${studentCaseId}&tab=overview$`,
+  ));
+  await expect(page.getByTestId("v3-profile")).toBeVisible();
+  await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 
   assertDeniedRpc(
     await directPlatformRpc(
@@ -1456,7 +1460,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(
     page
       .getByTestId("v3-sales-handoff-completed")
-      .locator(`a[href="/clients/${studentCaseId}"]`),
+      .locator(`a[href="/v3/profile?case=${studentCaseId}&tab=overview"]`),
   ).toBeVisible();
   await page.goto("/clients");
   const exactStudentCaseRow = page.locator(

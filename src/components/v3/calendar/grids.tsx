@@ -42,7 +42,9 @@ import {
  */
 const STATE_TONE: Record<string, PillTone> = {
   open: "neutral",
-  completed: "ok",
+  in_progress: "neutral",
+  blocked: "warn",
+  done: "ok",
   cancelled: "neutral",
   overdue: "danger",
 };
@@ -53,7 +55,11 @@ const STATE_TONE: Record<string, PillTone> = {
  * `overdue` в базе нет — это открытая задача, у которой срок уже прошёл.
  */
 export function taskStateKey(task: CalendarTask, today: Day): string | null {
-  return task.state === "open" && task.day < today ? "overdue" : task.state;
+  return (
+      task.state === "open" || task.state === "in_progress"
+    ) && task.day !== null && task.day < today
+    ? "overdue"
+    : task.state;
 }
 
 /** Пилюля по состоянию. null — состояния нет, рисовать нечего. */
@@ -77,7 +83,7 @@ export function taskPill(
   today: Day,
 ): Readonly<{ tone: PillTone; word: string }> | null {
   const key = taskStateKey(task, today);
-  return key === "open" ? null : statePill(key);
+  return key === "open" || key === "in_progress" ? null : statePill(key);
 }
 
 export function TaskChip({
@@ -112,7 +118,7 @@ export function TaskChip({
       <span
         className={`line-clamp-2 w-full break-words text-xs font-semibold ${
           selected ? "text-on-accent" : "text-fg"
-        } ${task.state === "completed" ? "line-through" : ""}`}
+        } ${task.state === "done" ? "line-through" : ""}`}
       >
         {task.title}
       </span>
@@ -220,7 +226,7 @@ export function TimeGrid({
   chip: ChipProps;
 }) {
   const columns = `56px repeat(${days.length}, minmax(0, 1fr))`;
-  const allDay = tasks.filter((task) => task.minutes === null);
+  const allDay = tasks.filter((task) => task.day !== null && task.minutes === null);
   const week = days.length > 1;
 
   const at = (day: Day, hour: number) =>

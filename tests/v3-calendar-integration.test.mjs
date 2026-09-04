@@ -1,0 +1,107 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import test from "node:test";
+
+function source(path) {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+const page = source("src/app/(v3)/v3/calendar/page.tsx");
+const calendar = source("src/components/v3/calendar/Calendar.tsx");
+const controls = source("src/components/v3/calendar/TaskControls.tsx");
+const grids = source("src/components/v3/calendar/grids.tsx");
+const types = source("src/components/v3/calendar/types.ts");
+const adapter = source("src/lib/v3/calendar-source.ts");
+
+test("V3 calendar reads one canonical workspace without a second data path", () => {
+  assert.match(page, /requirePlatformAdmissionsActor/);
+  assert.match(page, /readCalendarWorkspace/);
+  assert.match(adapter, /listPlatformAdmissionsTaskQueue/);
+  assert.match(adapter, /listPlatformStudentCases/);
+  assert.match(adapter, /getPlatformAdmissionsTaskWorkspace/);
+  assert.match(adapter, /const QUEUE_PAGE_SIZE = 100/);
+  assert.match(adapter, /const CASE_PAGE_SIZE = 100/);
+  assert.match(adapter, /if \(queue\.hasNext\)[\s\S]*throw new Error/);
+  assert.match(adapter, /casesHaveMore: casePage\.hasNext/);
+  assert.match(adapter, /assignee\.role !== "sales"/);
+  assert.equal(
+    [...adapter.matchAll(/await getPlatformAdmissionsTaskWorkspace\(/g)].length,
+    1,
+  );
+  assert.equal([...adapter.matchAll(/await listPlatformStudentCases\(/g)].length, 1);
+  assert.doesNotMatch(
+    adapter,
+    /better-sqlite3|drizzle|@\/lib\/server\/database|\bevo_[a-z0-9_]+\b/i,
+  );
+  assert.doesNotMatch(adapter, /PlatformAdmissionsCursor|for \(;;\)|TASK_STATE/);
+});
+
+test("V3 calendar create and complete use versioned server actions", () => {
+  assert.match(controls, /useActionState\(\s*createPlatformAdmissionsTaskAction/);
+  assert.match(controls, /useActionState\(\s*changePlatformAdmissionsTaskAction/);
+  for (const field of [
+    "student_case_id",
+    "task_type",
+    "title",
+    "assignee_membership_id",
+    "priority",
+    "due_at",
+    "status",
+    "student_visible",
+    "expected_version",
+    "request_id",
+  ]) {
+    assert.match(controls, new RegExp(`name="${field}"`));
+  }
+  assert.match(controls, /name="expected_version" value="0"/);
+  assert.match(controls, /name="status" value="done"/);
+  assert.match(controls, /value=\{state\.version \?\? task\.version\}/);
+  assert.match(controls, /data-testid="v3-calendar-task-complete-form"/);
+  assert.match(types, /version: string/);
+  assert.match(types, /complete: string/);
+  assert.doesNotMatch(types, /change: string|cancel: string/);
+  assert.ok([...page.matchAll(/randomUUID\(\)/g)].length >= 2);
+  assert.doesNotMatch(
+    controls,
+    /CalendarChangeTaskForm|CalendarTaskControls|status="cancelled"|name="reason"/,
+  );
+});
+
+test("V3 calendar writes are role-scoped and remain keyboard-operable", () => {
+  assert.match(
+    calendar,
+    /presentationRole === "admin"[\s\S]*presentationRole === "admissions"/,
+  );
+  assert.match(calendar, /open\.assigneeMembershipId === actorMembershipId/);
+  assert.match(calendar, /CalendarCompleteTaskForm/);
+  assert.match(controls, /presentationRole !== "admin" && presentationRole !== "admissions"/);
+  assert.match(controls, /assignee\.membershipId === actorMembershipId/);
+  assert.match(controls, /state\.status === "saved" \|\| state\.status === "stale"/);
+  assert.match(grids, /<button[\s\S]*id=\{`task-\$\{task\.id\}`\}/);
+  assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);
+  assert.match(calendar, /\/v3\/profile\?case=/);
+});
+
+test("V3 calendar preserves canonical task states and undated tasks", () => {
+  assert.match(adapter, /const dueAt = row\.dueAt === null \? null/);
+  assert.match(adapter, /day !== null && \(day < from \|\| day > to\)/);
+  assert.match(adapter, /state: row\.status/);
+  assert.match(adapter, /version: row\.version/);
+  assert.match(calendar, /tasks\.filter\(\(task\) => task\.day === null\)/);
+  assert.match(grids, /blocked: "warn"/);
+  assert.match(grids, /done: "ok"/);
+  assert.match(grids, /task\.state === "in_progress"/);
+});
+
+test("V3 calendar keeps exactly one active task-control component", () => {
+  assert.equal(
+    existsSync(
+      new URL(
+        "../src/components/v3/calendar/TaskActions.tsx",
+        import.meta.url,
+      ),
+    ),
+    false,
+  );
+  assert.match(calendar, /\.\/TaskControls/);
+});

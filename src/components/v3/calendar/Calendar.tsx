@@ -5,10 +5,18 @@ import { useId, useState } from "react";
 
 import { Icon } from "@/components/icons";
 import { Pill } from "@/components/v3/Pill";
+import type { FixedRole } from "@/lib/fixed-role-policy";
 
-import { MonthGrid, TimeGrid, statePill, taskStateKey } from "./grids";
+import { MonthGrid, TaskChip, TimeGrid, statePill, taskStateKey } from "./grids";
 import {
+  CalendarCompleteTaskForm,
+  CalendarCreateTaskForm,
+} from "./TaskControls";
+import {
+  type CalendarAssigneeOption,
+  type CalendarCaseOption,
   type CalendarTask,
+  type CalendarTaskRequestIds,
   type CalendarView,
   type Day,
   VIEW_TITLES,
@@ -20,11 +28,8 @@ import {
 } from "./types";
 
 /**
- * Read-only calendar over canonical Admissions tasks.
- *
- * Issue #597 owns create/close/cancel actions. Until those server actions are
- * connected, the calendar permits navigation and inspection only; it never
- * creates or hides business records in browser memory.
+ * Calendar over canonical Admissions tasks. Browser state controls only the
+ * open inspector; every business mutation crosses the server action boundary.
  */
 const GHOST =
   "inline-flex min-h-11 items-center justify-center rounded-ctl px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg";
@@ -35,6 +40,14 @@ export function Calendar({
   today,
   days,
   tasks,
+  cases,
+  casesHaveMore,
+  assignees,
+  actorMembershipId,
+  authorityRole,
+  presentationRole,
+  createRequestId,
+  taskRequestIds,
   basePath,
 }: {
   view: CalendarView;
@@ -42,6 +55,14 @@ export function Calendar({
   today: Day;
   days: readonly Day[];
   tasks: readonly CalendarTask[];
+  cases: readonly CalendarCaseOption[];
+  casesHaveMore: boolean;
+  assignees: readonly CalendarAssigneeOption[];
+  actorMembershipId: string;
+  authorityRole: FixedRole;
+  presentationRole: FixedRole;
+  createRequestId: string;
+  taskRequestIds: Readonly<Record<string, CalendarTaskRequestIds>>;
   basePath: string;
 }) {
   const panelId = useId();
@@ -65,9 +86,14 @@ export function Calendar({
     panelId: open ? panelId : null,
     onSelect: (id: string) => setSelected((current) => (current === id ? null : id)),
   };
+  const unscheduled = tasks.filter((task) => task.day === null);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className="flex flex-col gap-4"
+      data-authority-role={authorityRole}
+      data-presentation-role={presentationRole}
+    >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-border bg-surface p-2">
         <div className="flex shrink-0 items-center gap-1">
           <Link href={href(view, stepDay(view, day, -1))} className={`${GHOST} w-11 px-0`}>
@@ -111,6 +137,17 @@ export function Calendar({
         </nav>
       </div>
 
+      <CalendarCreateTaskForm
+        key={createRequestId}
+        cases={cases}
+        casesHaveMore={casesHaveMore}
+        assignees={assignees}
+        actorMembershipId={actorMembershipId}
+        presentationRole={presentationRole}
+        requestId={createRequestId}
+        day={day}
+      />
+
       {open ? (
         <aside
           id={panelId}
@@ -128,13 +165,35 @@ export function Calendar({
                 })()}
               </div>
               <p className="mt-1 text-sm text-fg-2">
-                {dayLabel(open.day)}
-                {open.minutes === null ? " · весь день" : ` · ${timeLabel(open.minutes)}`}
+                {open.day === null ? "Без срока" : dayLabel(open.day)}
+                {open.day !== null && open.minutes !== null ? ` · ${timeLabel(open.minutes)}` : ""}
                 {open.person ? ` · ${open.person}` : ""}
               </p>
+              <p className="mt-1 text-xs text-fg-3">
+                Ответственный: <span className="text-fg-2">{open.assigneeDisplayName}</span>
+              </p>
+              <Link
+                href={`/v3/profile?case=${encodeURIComponent(open.studentCaseId)}`}
+                className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent hover:underline"
+              >
+                Открыть Student 360
+              </Link>
               {open.details ? <p className="mt-3 text-sm leading-6 text-fg">{open.details}</p> : null}
               {open.cancelReason ? (
                 <p className="mt-2 text-sm text-fg-2">Причина: {open.cancelReason}</p>
+              ) : null}
+              {taskRequestIds[open.id] &&
+              open.caseState === "active" &&
+              open.state !== "done" &&
+              open.state !== "cancelled" &&
+              (presentationRole === "admin" ||
+                (presentationRole === "admissions" &&
+                  open.assigneeMembershipId === actorMembershipId)) ? (
+                <CalendarCompleteTaskForm
+                  key={`${open.id}:${open.version}`}
+                  task={open}
+                  requestId={taskRequestIds[open.id].complete}
+                />
               ) : null}
             </div>
             <button
@@ -155,6 +214,29 @@ export function Calendar({
 
       {tasks.length === 0 ? (
         <p className="px-1 text-sm text-fg-3">На этот период задач нет.</p>
+      ) : null}
+
+      {unscheduled.length > 0 ? (
+        <section
+          aria-label="Задачи без срока"
+          className="rounded-card border border-border bg-surface p-3"
+        >
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-3">
+            Без срока
+          </h2>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {unscheduled.map((task) => (
+              <TaskChip
+                key={task.id}
+                task={task}
+                today={today}
+                selected={task.id === chip.selectedId}
+                panelId={chip.panelId}
+                onSelect={() => chip.onSelect(task.id)}
+              />
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <section className="min-w-0 overflow-hidden rounded-card border border-border bg-surface">

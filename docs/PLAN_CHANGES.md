@@ -17138,3 +17138,55 @@ and that `db-max-rows` is a hard limit on rows fetched from a table, view or
 function, so larger results need an explicit bounded page contract:
 https://supabase.com/docs/guides/api
 https://docs.postgrest.org/en/v12/references/configuration.html#db-max-rows
+
+## 2026-09-05 - Define #599 university application priority and deadline semantics
+
+Block-ID: `EVO-V3-F-APPLICATION-PRIORITY-DEADLINE-2026-09-05`
+
+Change type: implementation clarification.
+Affected plan section: Order 5 / Issue #599 / slice 5 of 6.
+
+The confirmed V3 gap asks for a university application's `Основной вариант`
+and a deadline supplied by the university. It does not define an ordered rank,
+probability, time of day or automatic relationship between application status
+and the other applications in the case. Leaving those details implicit would
+let the database and V3 UI create competing meanings.
+
+Decision:
+
+- evolve the one existing `platform.university_applications` authority with
+  `is_primary BOOLEAN NOT NULL DEFAULT FALSE` and nullable
+  `university_deadline DATE`; do not add a rank scale, deadline timestamp,
+  second application table or browser-only selection state;
+- allow at most one primary application inside an organization-qualified
+  student case. Explicitly selecting a new primary atomically demotes the old
+  primary, advances every changed row version and records the switch in the
+  canonical command receipt/audit result so replay and concurrent edits remain
+  observable and fail closed;
+- keep primary selection independent from the application status. Submission,
+  offer, rejection, enrollment, withdrawal or closure never auto-selects,
+  auto-clears, closes or otherwise mutates a sibling application; an operator
+  may explicitly clear the primary selection without choosing a replacement;
+- treat `university_deadline` as the exact all-day calendar date communicated
+  by the university. Store no inferred timezone or midnight timestamp and do
+  not infer a missing deadline from intake, status, creation time or another
+  application;
+- carry both facts through the existing create/change commands, idempotent
+  replay payloads, optimistic versions, audit results, staff projections,
+  canonical repository and `src/lib/v3/*` adapter boundary before rendering
+  and editing them in the existing V3 Admissions workspace;
+- keep the append-only university status-event stream for real status changes
+  only. Fact-only priority/deadline changes are still durable business changes
+  and therefore require the canonical audit receipt, but must not fabricate a
+  status transition;
+- keep managed Supabase, providers, VPS, production data and customer traffic
+  unchanged. Prove the clarification with a forward local migration, focused
+  permission/invariant/replay/version/shape tests, one real local OrbStack
+  PostgreSQL/application/browser run and one exact-head CI pass before merge.
+
+Implementation hardening follows the current Supabase Database Functions and
+Row Level Security guidance: exposed commands use an empty `search_path`,
+revoke default public execution and grant only the required authenticated
+role, while table grants and RLS remain separate controls:
+https://supabase.com/docs/guides/database/functions and
+https://supabase.com/docs/guides/database/postgres/row-level-security.

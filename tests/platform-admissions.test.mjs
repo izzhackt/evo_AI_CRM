@@ -311,7 +311,7 @@ test("Platform route contract admits canonical queue pages and rejects removed d
   for (const path of ["/sales", "/clients", "/applications", "/visa", "/finance"]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
-  assert.equal(isConnectedPlatformPage(`/sales/${CASE_ID}`), true);
+  assert.equal(isConnectedPlatformPage(`/sales/${CASE_ID}`), false);
   assert.equal(isConnectedPlatformPage(`/clients/${CASE_ID}`), true);
 
   for (const path of [
@@ -324,6 +324,8 @@ test("Platform route contract admits canonical queue pages and rejects removed d
     `/applications/${APPLICATION_ID}/history`,
     `/visa/${APPLICATION_ID}`,
     `/finance/${APPLICATION_ID}`,
+    "/whatsapp",
+    `/whatsapp/${CASE_ID}`,
     `/whatsapp/${CASE_ID}/messages`,
   ]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
@@ -653,21 +655,18 @@ test("normal staff routes keep one accepted renderer instead of parallel Platfor
   );
 });
 
-test("sales handoff summary keeps sales stage labels distinct from case state labels", () => {
-  const leadDetailSource = readFileSync(
-    new URL(
-      "../src/components/platform/core/CanonicalLeadDetail.tsx",
-      import.meta.url,
-    ),
+test("V3 profile keeps sales stage and Admissions case state as distinct fields", () => {
+  const profileSource = readFileSync(
+    new URL("../src/lib/v3/profile-source.ts", import.meta.url),
     "utf8",
   );
   assert.match(
-    leadDetailSource,
-    /stage:\s*"Текущий этап EVO"/,
+    profileSource,
+    /stage:\s*lead\.stageKey/,
   );
-  assert.doesNotMatch(
-    leadDetailSource,
-    /caseState\./,
+  assert.match(
+    profileSource,
+    /caseStatus:\s*studentCase\?\.state\s*\?\?\s*salesCase\?\.state\s*\?\?\s*handoff\.caseState/,
   );
 });
 

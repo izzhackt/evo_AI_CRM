@@ -397,6 +397,8 @@ test("AI memory mutations stay server-authorized and repository reads remain exp
   ]);
 
   assert.match(actionsSource, /requirePlatformMessagingActor/);
+  assert.match(actionsSource, /revalidatePath\("\/v3\/inbox"\)/);
+  assert.doesNotMatch(actionsSource, /revalidatePath\([^\n]*\/whatsapp/);
   assert.equal(
     actionsSource.match(/field\(formData, "sourceMessageId"\)/g)?.length,
     3,

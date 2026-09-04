@@ -180,9 +180,11 @@ async function signInAs(page: Page, role: TestRole) {
 }
 
 async function activeRole(page: Page) {
-  const value = await page.getByTestId("staff-shell").getAttribute(
-    "data-authority-role",
-  );
+  const v3Shell = page.getByTestId("v3-shell");
+  const shell = (await v3Shell.count()) > 0
+    ? v3Shell
+    : page.getByTestId("staff-shell");
+  const value = await shell.getAttribute("data-authority-role");
   ensure(
     typeof value === "string" && AUTHORITY_ROLE_PATTERN.test(value),
     "The active role marker is invalid",
@@ -568,26 +570,28 @@ async function captureSalesWhatsAppPage(
   page: Page,
   conversationId: string,
 ): Promise<PageProof> {
-  await page.goto(`/whatsapp/${conversationId}`);
-  await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`, "u"));
-  await expect(page.getByTestId("platform-staff-whatsapp-page")).toBeVisible();
-  await expect(page.getByTestId("platform-staff-whatsapp-thread")).toBeVisible();
+  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/v3/inbox\\?conversation=${conversationId}$`, "u"),
+  );
+  await expect(page.getByTestId("v3-inbox")).toBeVisible();
+  await expect(page.getByTestId("v3-inbox-thread")).toBeVisible();
   await expect(
-    page.getByTestId("platform-provider-workflow-controls"),
+    page.getByTestId("v3-inbox-provider-workflow-controls"),
   ).toBeVisible();
-  await expect(page.getByTestId("platform-provider-send")).toBeVisible();
+  await expect(page.getByTestId("v3-inbox-send")).toBeVisible();
 
   const authorityRole = await activeRole(page);
   const sendDisabled = await page
-    .getByTestId("platform-provider-send")
+    .getByTestId("v3-inbox-send")
     .isDisabled();
   const reconcileVisible = await page
-    .getByTestId("platform-provider-reconcile")
+    .getByTestId("v3-inbox-reconcile")
     .count()
     .then((value) => value > 0);
 
   return Object.freeze({
-    route: "/whatsapp/:conversationId",
+    route: "/v3/inbox?conversation=:conversationId",
     authorityRole,
     checks: Object.freeze({
       pageVisible: true,
@@ -609,7 +613,8 @@ async function captureAdminAmoCrmPage(
   workspaceTestId: string,
 ): Promise<PageProof> {
   await page.goto(route);
-  await expect(page).toHaveURL(new RegExp(`${route.replaceAll("/", "\\/")}$`, "u"));
+  const escapedRoute = route.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  await expect(page).toHaveURL(new RegExp(`${escapedRoute}$`, "u"));
   await expect(page.getByTestId(workspaceTestId)).toBeVisible();
   const panel = page.getByTestId("canonical-amocrm-command-panel");
   await expect(panel).toBeVisible();
@@ -631,7 +636,10 @@ async function captureAdminAmoCrmPage(
   );
 
   return Object.freeze({
-    route: scope === "sales" ? "/sales/:leadId" : "/clients/:studentCaseId",
+    route:
+      scope === "sales"
+        ? "/v3/inbox?conversation=:conversationId"
+        : "/clients/:studentCaseId",
     authorityRole,
     checks: Object.freeze({
       workspaceVisible: true,
@@ -684,9 +692,9 @@ test("read-only browser inventory preserves exact provider and event counts", as
   await signInAs(page, "admin");
   const salesAmoCrmPage = await captureAdminAmoCrmPage(
     page,
-    `/sales/${salesLeadId}`,
+    `/v3/inbox?conversation=${conversationId}`,
     "sales",
-    "canonical-sales-lead-workspace",
+    "v3-inbox",
   );
   const admissionsAmoCrmPage = await captureAdminAmoCrmPage(
     page,

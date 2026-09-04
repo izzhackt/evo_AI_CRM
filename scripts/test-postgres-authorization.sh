@@ -1872,6 +1872,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_student_case_sales_links_current.sql
   fi
+
+  # Migration 106 exposes the exact canonical lead/client/Student Case
+  # bindings for one staff-visible conversation without provider-id inference.
+  if [[ "$(basename "$migration")" == 106_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_communication_command_context_current.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

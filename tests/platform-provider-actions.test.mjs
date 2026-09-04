@@ -74,9 +74,9 @@ test("manual send computes the migration-050 business key and exposes no provide
   assert.doesNotMatch(source, /rawChatId|recipient|WAHA_API_KEY|session_name|phone/i);
 });
 
-test("reconciliation is send-free and every durable result revalidates only the exact thread", () => {
+test("reconciliation is send-free and every durable result revalidates only the active V3 Inbox", () => {
   assert.match(source, /executePlatformManualWhatsAppReconciliation\(/);
   assert.doesNotMatch(source, /sendText|broadcast|autonomous/i);
-  assert.match(source, /revalidatePath\(`\/whatsapp\/\$\{conversationId\}`\)/);
-  assert.doesNotMatch(source, /revalidatePath\("\/whatsapp"\)|revalidatePath\("\/"/);
+  assert.match(source, /revalidatePath\("\/v3\/inbox"\)/);
+  assert.doesNotMatch(source, /revalidatePath\([^\n]*\/whatsapp|revalidatePath\("\/"/);
 });

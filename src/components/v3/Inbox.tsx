@@ -1,185 +1,270 @@
-"use client";
-
-import { useState } from "react";
+import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
-import { Pill } from "@/components/v3/Pill";
-
-/**
- * Входящие: список диалогов слева, переписка справа.
- *
- * Главное, что этот экран обязан показать честно: исходящих сообщений в базе
- * нет ни одного. Людям написали — им не ответили. Поэтому здесь нет «нашего»
- * пузыря справа и нет работающего поля ответа: канал WhatsApp (WAHA) не
- * подключён, отправлять
- * нечем, и кнопка «отправить», которая молча ничего не делает, была бы враньём.
- * Поле есть, оно выключено, и рядом написана причина.
- *
- * Когда канал подключат, меняется источник и `canSend`, а не раскладка.
- */
 
 export type InboxMessage = Readonly<{
   id: string;
   inbound: boolean;
   body: string;
-  /** «30.08 09:14». null — времени нет. */
+  /** `30.08 09:14`; null means the canonical timestamp is unavailable. */
   at: string | null;
 }>;
 
-export type InboxThread = Readonly<{
-  id: string;
-  person: string;
-  channel: string;
-  status: string;
-  role: string;
-  /** Есть в модели, намеренно не рисуются — см. шапку переписки. */
-  stage: string | null;
-  leadHref: string | null;
-  messages: readonly InboxMessage[];
+export type InboxCanonicalContext = Readonly<{
+  leadId: string | null;
+  clientId: string | null;
+  studentCaseId: string | null;
 }>;
 
+export type InboxConversation = Readonly<{
+  id: string;
+  person: string;
+  /** Kept for server command scope; intentionally not rendered as a raw role. */
+  queue: "sales" | "admissions";
+  /** Kept in the model; intentionally omitted while it adds no operator decision. */
+  status: "open" | "closed";
+  updatedAt: string;
+  href: string;
+}>;
+
+export type InboxSelectedConversation = InboxConversation &
+  Readonly<{
+    messages: readonly InboxMessage[];
+    latestInboundSourceMessageId: string | null;
+    newestMessagesHref: string | null;
+    olderMessagesHref: string | null;
+    channelState: "ready" | "attention" | "unknown";
+    channelObservedAt: string | null;
+    canonicalContext: InboxCanonicalContext;
+  }>;
+
+export type InboxView = Readonly<{
+  conversations: readonly InboxConversation[];
+  selected: InboxSelectedConversation | null;
+  queueCurrentHref: string;
+  queueNewestHref: string | null;
+  queueOlderHref: string | null;
+}>;
+
+function channelLabel(
+  state: InboxSelectedConversation["channelState"],
+): string {
+  if (state === "ready") return "WhatsApp подключён";
+  if (state === "attention") return "WhatsApp требует проверки";
+  return "Состояние WhatsApp не подтверждено";
+}
+
 export function Inbox({
-  threads,
-  canSend,
-}: {
-  threads: readonly InboxThread[];
-  canSend: boolean;
-}) {
-  const [openId, setOpenId] = useState<string | null>(threads[0]?.id ?? null);
-  const open = threads.find((t) => t.id === openId) ?? null;
+  view,
+  profileHref,
+  workflowControls,
+  amoCrmControls,
+}: Readonly<{
+  view: InboxView;
+  profileHref: string | null;
+  workflowControls?: ReactNode;
+  amoCrmControls?: ReactNode;
+}>) {
+  const open = view.selected;
 
   return (
-    <div className="grid min-h-0 flex-1 gap-4 @4xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
-      {/* ---- Список диалогов ---- */}
+    <div
+      className="grid min-h-0 flex-1 gap-4 @4xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+      data-testid="v3-inbox"
+      data-source="supabase-platform"
+    >
       <section
         aria-label="Диалоги"
-        // На узком экране открытая переписка занимает всё: две колонки по
-        // 190px — это не два списка, а два обрубка.
         tabIndex={0}
         className={`min-w-0 overflow-y-auto rounded-card border border-border bg-surface ${
           open ? "hidden @4xl:block" : ""
         }`}
       >
-        <ul>
-          {threads.map((thread) => {
-            const last = thread.messages[thread.messages.length - 1];
-            const active = thread.id === openId;
+        <nav
+          aria-label="Страницы диалогов"
+          className="flex min-h-12 items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs"
+        >
+          {view.queueNewestHref ? (
+            <Link
+              href={view.queueNewestHref}
+              className="inline-flex min-h-9 items-center rounded-ctl px-2 text-fg-2 hover:bg-surface-2"
+              data-testid="v3-inbox-queue-newest"
+            >
+              ← К новым
+            </Link>
+          ) : (
+            <span />
+          )}
+          {view.queueOlderHref ? (
+            <Link
+              href={view.queueOlderHref}
+              rel="next"
+              className="inline-flex min-h-9 items-center rounded-ctl px-2 text-fg-2 hover:bg-surface-2"
+              data-testid="v3-inbox-queue-older"
+            >
+              Ранее →
+            </Link>
+          ) : null}
+        </nav>
+
+        <ol>
+          {view.conversations.map((conversation) => {
+            const active = conversation.id === open?.id;
             return (
-              <li key={thread.id} className="border-b border-border last:border-b-0">
-                <button
-                  type="button"
-                  aria-current={active ? "true" : undefined}
-                  onClick={() => setOpenId(thread.id)}
-                  className={`flex w-full flex-col gap-1 px-4 py-3 text-start ${
+              <li
+                key={conversation.id}
+                className="border-b border-border last:border-b-0"
+                data-testid="v3-inbox-row"
+                data-conversation-id={conversation.id}
+              >
+                <Link
+                  href={conversation.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex min-h-20 w-full flex-col justify-center gap-1 px-4 py-3 text-start ${
                     active ? "bg-surface-2" : "hover:bg-surface-2"
                   }`}
                 >
                   <span className="flex w-full items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">
-                      {thread.person}
+                      {conversation.person}
                     </span>
-                    <span className="shrink-0 font-mono text-2xs text-fg-3">{last?.at ?? ""}</span>
-                  </span>
-                  <span className="line-clamp-2 text-2xs leading-4 text-fg-3">
-                    {last?.body ?? "нет сообщений"}
-                  </span>
-                  {/* Канал и роль убраны: `whatsapp` одинаков у всех диалогов,
-                      `sales` — ключ из базы. Счёт остаётся: он на человеческом
-                      языке и меняется. См. docs/design/v3/frontend-rules.md. */}
-                  {thread.messages.length > 1 ? (
-                    <span className="pt-0.5">
-                      <Pill>{thread.messages.length} сообщения</Pill>
+                    <span className="shrink-0 font-mono text-2xs text-fg-3">
+                      {conversation.updatedAt}
                     </span>
-                  ) : null}
-                </button>
+                  </span>
+                </Link>
               </li>
             );
           })}
-          {threads.length === 0 ? (
-            <li className="px-4 py-8 text-center text-sm text-fg-3">Диалогов нет.</li>
+          {view.conversations.length === 0 ? (
+            <li className="px-4 py-8 text-center text-sm text-fg-3">
+              Диалогов нет.
+            </li>
           ) : null}
-        </ul>
+        </ol>
       </section>
 
-      {/* ---- Переписка ---- */}
       {open ? (
         <section
           aria-label={`Переписка: ${open.person}`}
-          className="flex min-h-0 min-w-0 flex-col rounded-card border border-border bg-surface"
+          className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface"
+          data-testid="v3-inbox-thread"
+          data-conversation-id={open.id}
         >
-          <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-4 py-3">
-            <button
-              type="button"
-              onClick={() => setOpenId(null)}
+          <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-3">
+            <Link
+              href={view.queueCurrentHref}
               className="-ms-1 grid h-8 w-8 shrink-0 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 @4xl:hidden"
             >
               <span className="sr-only">Назад к списку диалогов</span>
               <Icon name="arrow-left" size={16} />
-            </button>
-
-            {/* Стадия (`new`) и статус (`open`) убраны: первое — ключ из базы,
-                второе одинаково у всех диалогов. Ссылка «Открыть профиль» вела
-                в старый V2 — дверь из нового мира в старый. */}
-            <h3 className="min-w-0 flex-1 truncate text-md font-bold text-fg">{open.person}</h3>
+            </Link>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-md font-bold text-fg">{open.person}</h2>
+              <p className="mt-0.5 text-2xs text-fg-3">
+                {channelLabel(open.channelState)}
+                {open.channelObservedAt
+                  ? ` · проверено ${open.channelObservedAt}`
+                  : ""}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {profileHref ? (
+                <Link
+                  href={profileHref}
+                  className="inline-flex min-h-9 items-center rounded-ctl px-2.5 text-xs font-semibold text-accent hover:bg-accent-weak"
+                >
+                  Открыть профиль
+                </Link>
+              ) : null}
+            </div>
           </header>
 
-          <div
-            role="group"
-            aria-label="Сообщения"
-            tabIndex={0}
-            className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4"
-          >
-            {open.messages.map((message) => (
-              <article
-                key={message.id}
-                className={`max-w-[min(560px,88%)] rounded-ctl px-3 py-2 ${
-                  message.inbound
-                    ? "self-start border border-border bg-surface-2"
-                    : "self-end bg-accent text-on-accent"
-                }`}
+          <div className="min-h-0 flex-1 overflow-y-auto" tabIndex={0}>
+            <div className="px-4 py-4">
+              <div className="mb-3 flex items-center justify-between gap-2 text-xs">
+                {open.newestMessagesHref ? (
+                  <Link
+                    href={open.newestMessagesHref}
+                    className="inline-flex min-h-9 items-center rounded-ctl px-2 text-fg-2 hover:bg-surface-2"
+                    data-testid="v3-inbox-messages-newest"
+                  >
+                    ← К новым сообщениям
+                  </Link>
+                ) : (
+                  <span />
+                )}
+                {open.olderMessagesHref ? (
+                  <Link
+                    href={open.olderMessagesHref}
+                    rel="next"
+                    className="inline-flex min-h-9 items-center rounded-ctl px-2 text-fg-2 hover:bg-surface-2"
+                    data-testid="v3-inbox-messages-older"
+                  >
+                    Ранее →
+                  </Link>
+                ) : null}
+              </div>
+
+              <ol
+                className="flex flex-col gap-2.5"
+                aria-label="Сообщения"
+                data-testid="v3-inbox-messages"
               >
-                <p className={`text-sm leading-5 ${message.inbound ? "text-fg" : "text-on-accent"}`}>
-                  {message.body}
-                </p>
-                {message.at ? (
-                  <p
-                    className={`mt-1 font-mono text-2xs ${
-                      message.inbound ? "text-fg-3" : "text-on-accent"
+                {open.messages.map((message) => (
+                  <li
+                    key={message.id}
+                    className={`max-w-[min(560px,88%)] rounded-ctl px-3 py-2 ${
+                      message.inbound
+                        ? "self-start border border-border bg-surface-2"
+                        : "self-end bg-accent text-on-accent"
                     }`}
                   >
-                    {message.at}
-                  </p>
+                    <p
+                      className={`whitespace-pre-wrap text-sm leading-5 ${
+                        message.inbound ? "text-fg" : "text-on-accent"
+                      }`}
+                    >
+                      {message.body}
+                    </p>
+                    {message.at ? (
+                      <p
+                        className={`mt-1 font-mono text-2xs ${
+                          message.inbound ? "text-fg-3" : "text-on-accent"
+                        }`}
+                      >
+                        {message.at}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+                {open.messages.length === 0 ? (
+                  <li className="py-8 text-center text-sm text-fg-3">
+                    В этой переписке пока нет сообщений.
+                  </li>
                 ) : null}
-              </article>
-            ))}
-
-          </div>
-
-          <footer className="border-t border-border px-4 py-3">
-            <div className="flex items-end gap-2">
-              <label className="min-w-0 flex-1">
-                <span className="sr-only">Ответ</span>
-                <textarea
-                  rows={2}
-                  disabled={!canSend}
-                  placeholder={canSend ? "Ответить" : "Отправка недоступна"}
-                  className="w-full resize-none rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-3 disabled:bg-surface-2"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={!canSend}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-ctl bg-accent text-on-accent disabled:bg-surface-3 disabled:text-fg-3"
-              >
-                <span className="sr-only">Отправить</span>
-                <Icon name="send" size={16} />
-              </button>
+              </ol>
             </div>
-          </footer>
+
+            {workflowControls ? (
+              <div className="border-t border-border px-4 py-5">
+                {workflowControls}
+              </div>
+            ) : null}
+            {amoCrmControls ? (
+              <div className="border-t border-border px-4 py-5">
+                {amoCrmControls}
+              </div>
+            ) : null}
+          </div>
         </section>
       ) : (
-        <section className="hidden place-items-center rounded-card border border-border bg-surface p-8 text-sm text-fg-3 lg:grid">
-          Выберите диалог слева.
+        <section className="hidden place-items-center rounded-card border border-border bg-surface p-8 text-center text-sm text-fg-3 @4xl:grid">
+          <div>
+            <p className="font-semibold text-fg-2">Выберите диалог</p>
+            <p className="mt-1">Откройте переписку из списка слева.</p>
+          </div>
         </section>
       )}
     </div>

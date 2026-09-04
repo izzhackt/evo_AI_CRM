@@ -116,12 +116,8 @@ test("portal realtime uses injected runtime config and never reads browser envir
 });
 
 test("only the portal realtime surface reads public Supabase config at request runtime", () => {
-  const listPage = readFileSync(
-    new URL("../src/app/(staff)/whatsapp/page.tsx", import.meta.url),
-    "utf8",
-  );
-  const threadPage = readFileSync(
-    new URL("../src/app/(staff)/whatsapp/[id]/page.tsx", import.meta.url),
+  const inboxPage = readFileSync(
+    new URL("../src/app/(v3)/v3/inbox/page.tsx", import.meta.url),
     "utf8",
   );
   const portalLayout = readFileSync(
@@ -129,7 +125,7 @@ test("only the portal realtime surface reads public Supabase config at request r
     "utf8",
   );
 
-  for (const source of [listPage, threadPage]) {
+  for (const source of [inboxPage]) {
     assert.doesNotMatch(
       source,
       /import\s*\{\s*getSupabasePublicConfig\s*\}\s*from\s*"@\/lib\/supabase\/config"/,
@@ -140,7 +136,7 @@ test("only the portal realtime surface reads public Supabase config at request r
     );
     assert.match(
       source,
-      /listPlatformConversations|getPlatformConversationThread/,
+      /readInbox\(actor/,
     );
     assert.doesNotMatch(source, /SUPABASE_SERVICE_ROLE|serviceRole|service_role|SUPABASE_SECRET/);
   }

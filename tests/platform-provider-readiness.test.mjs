@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  getPlatformConversationCommandContext,
+  listPlatformConversations,
+  normalizePlatformConversationCommandContext,
   normalizePlatformConversationMessage,
   normalizePlatformConversationSummary,
   parsePlatformWahaSessionName,
@@ -12,9 +16,175 @@ import {
   readPlatformGeminiProviderAvailability,
 } from "../src/lib/server/platform-provider-readiness.ts";
 
+const COMMAND_CONTEXT_IDS = Object.freeze({
+  organization: "54600000-0000-4000-8000-000000000001",
+  authUser: "54600000-0000-4000-8000-000000000002",
+  profile: "54600000-0000-4000-8000-000000000003",
+  membership: "54600000-0000-4000-8000-000000000004",
+  bundle: "54600000-0000-4000-8000-000000000005",
+  conversation: "54600000-0000-4000-8000-000000000006",
+  lead: "54600000-0000-4000-8000-000000000007",
+  client: "54600000-0000-4000-8000-000000000008",
+  studentCase: "54600000-0000-4000-8000-000000000009",
+});
+
+const commandContextActor = Object.freeze({
+  authUserId: COMMAND_CONTEXT_IDS.authUser,
+  profileId: COMMAND_CONTEXT_IDS.profile,
+  membershipId: COMMAND_CONTEXT_IDS.membership,
+  organizationId: COMMAND_CONTEXT_IDS.organization,
+  displayName: "Sales User",
+  email: "sales@example.test",
+  platformRole: "sales",
+  authorityRole: "sales",
+  presentationRole: "sales",
+  platformAccessVersion: 1,
+  platformBundleId: COMMAND_CONTEXT_IDS.bundle,
+  platformBundleVersion: 1,
+});
+
+function commandContextClient(data, error = null) {
+  const calls = [];
+  return {
+    calls,
+    client: {
+      schema(schema) {
+        calls.push({ kind: "schema", schema });
+        return {
+          rpc(functionName, args, options) {
+            calls.push({ kind: "rpc", functionName, args, options });
+            return Promise.resolve({ data, error });
+          },
+        };
+      },
+    },
+  };
+}
+
+function validCommandContextRow(overrides = {}) {
+  return {
+    conversation_id: COMMAND_CONTEXT_IDS.conversation,
+    canonical_lead_id: COMMAND_CONTEXT_IDS.lead,
+    canonical_client_id: COMMAND_CONTEXT_IDS.client,
+    student_case_id: COMMAND_CONTEXT_IDS.studentCase,
+    ...overrides,
+  };
+}
+
 test("current WAHA paths accept crm_primary and reject the historical inbox session", () => {
   assert.equal(parsePlatformWahaSessionName("crm_primary"), "crm_primary");
   assert.equal(parsePlatformWahaSessionName("evo-inbox"), null);
+});
+
+test("selected conversation command context exposes only exact stored canonical bindings", async () => {
+  const recorded = commandContextClient([validCommandContextRow()]);
+
+  const context = await getPlatformConversationCommandContext(
+    commandContextActor,
+    COMMAND_CONTEXT_IDS.conversation.toUpperCase(),
+    { client: recorded.client },
+  );
+
+  assert.deepEqual(recorded.calls, [
+    { kind: "schema", schema: "platform" },
+    {
+      kind: "rpc",
+      functionName: "staff_communication_command_context",
+      args: {
+        p_organization_id: COMMAND_CONTEXT_IDS.organization,
+        p_conversation_id: COMMAND_CONTEXT_IDS.conversation,
+      },
+      options: { get: true },
+    },
+  ]);
+  assert.deepEqual(context, {
+    conversationId: COMMAND_CONTEXT_IDS.conversation,
+    canonicalLeadId: COMMAND_CONTEXT_IDS.lead,
+    canonicalClientId: COMMAND_CONTEXT_IDS.client,
+    studentCaseId: COMMAND_CONTEXT_IDS.studentCase,
+  });
+  assert.equal(Object.isFrozen(context), true);
+});
+
+test("selected conversation command context keeps missing canonical scope explicit", async () => {
+  assert.deepEqual(
+    normalizePlatformConversationCommandContext(validCommandContextRow({
+      canonical_lead_id: null,
+      canonical_client_id: null,
+      student_case_id: null,
+    })),
+    {
+      conversationId: COMMAND_CONTEXT_IDS.conversation,
+      canonicalLeadId: null,
+      canonicalClientId: null,
+      studentCaseId: null,
+    },
+  );
+
+  const absent = commandContextClient([]);
+  assert.equal(
+    await getPlatformConversationCommandContext(
+      commandContextActor,
+      COMMAND_CONTEXT_IDS.conversation,
+      { client: absent.client },
+    ),
+    null,
+  );
+});
+
+test("selected conversation command context fails closed on malformed or mismatched rows", async () => {
+  for (const row of [
+    validCommandContextRow({ canonical_lead_id: "900001" }),
+    validCommandContextRow({ canonical_client_id: undefined }),
+    { ...validCommandContextRow(), unexpected_key: "drift" },
+    validCommandContextRow({ conversation_id: COMMAND_CONTEXT_IDS.lead }),
+  ]) {
+    const recorded = commandContextClient([row]);
+    await assert.rejects(
+      getPlatformConversationCommandContext(
+        commandContextActor,
+        COMMAND_CONTEXT_IDS.conversation,
+        { client: recorded.client },
+      ),
+      PlatformCommunicationsRepositoryError,
+    );
+  }
+
+  const providerFailure = commandContextClient(null, { message: "private" });
+  await assert.rejects(
+    getPlatformConversationCommandContext(
+      commandContextActor,
+      COMMAND_CONTEXT_IDS.conversation,
+      { client: providerFailure.client },
+    ),
+    PlatformCommunicationsRepositoryError,
+  );
+});
+
+test("communication command projection is authenticated, role-scoped and provider-id free", () => {
+  const migration = readFileSync(
+    new URL(
+      "../supabase/migrations/106_platform_communication_command_context.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(migration, /platform_private\.require_domain_actor_read\(/);
+  assert.match(migration, /platform\.current_actor_authority\(\)/);
+  assert.match(migration, /private\.platform_can_read_communication_full\(/);
+  assert.match(migration, /conversation\.canonical_lead_id/);
+  assert.match(migration, /conversation\.canonical_client_id/);
+  assert.match(migration, /conversation\.student_case_id/);
+  assert.match(
+    migration,
+    /REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/,
+  );
+  assert.match(
+    migration,
+    /GRANT EXECUTE[\s\S]*TO authenticated;/,
+  );
+  assert.doesNotMatch(migration, /conversation\.(?:amo|kommo|waha)_/);
 });
 
 test("projections preserve immutable session evidence while active selection remains crm_primary-only", () => {
@@ -59,6 +229,21 @@ test("projections preserve immutable session evidence while active selection rem
     "crm_primary",
   );
   assert.equal(
+    normalizePlatformConversationSummary({
+      ...conversation,
+      queue: "curator",
+    }).queue,
+    "admissions",
+  );
+  assert.throws(
+    () =>
+      normalizePlatformConversationSummary({
+        ...conversation,
+        queue: "admissions",
+      }),
+    PlatformCommunicationsRepositoryError,
+  );
+  assert.equal(
     normalizePlatformConversationMessage(message).wahaSessionName,
     "crm_primary",
   );
@@ -92,6 +277,54 @@ test("projections preserve immutable session evidence while active selection rem
       }),
     PlatformCommunicationsRepositoryError,
   );
+});
+
+test("Admissions queue filters use the exact curator database enum", async () => {
+  const conversation = {
+    conversation_id: COMMAND_CONTEXT_IDS.conversation,
+    student_case_id: COMMAND_CONTEXT_IDS.studentCase,
+    queue: "curator",
+    status: "open",
+    subject: "Admissions queue wire contract",
+    waha_session_name: "crm_primary",
+    kommo_account_id: null,
+    kommo_conversation_id: null,
+    amocrm_account_id: null,
+    amocrm_lead_id: null,
+    amocrm_contact_id: null,
+    created_at: "2026-09-03T12:00:00.000Z",
+    sort_at: "2026-09-03T12:00:00.000Z",
+  };
+  const recorded = commandContextClient([conversation]);
+
+  const page = await listPlatformConversations(
+    {
+      ...commandContextActor,
+      displayName: "Admissions User",
+      email: "admissions@example.test",
+      platformRole: "admissions",
+      authorityRole: "admissions",
+      presentationRole: "admissions",
+    },
+    { queue: "admissions", pageSize: 50 },
+    { client: recorded.client },
+  );
+
+  assert.deepEqual(recorded.calls, [
+    { kind: "schema", schema: "platform" },
+    {
+      kind: "rpc",
+      functionName: "staff_communication_page",
+      args: {
+        p_organization_id: COMMAND_CONTEXT_IDS.organization,
+        p_limit: 51,
+        p_queue: "curator",
+      },
+      options: { get: true },
+    },
+  ]);
+  assert.equal(page.rows.length, 1);
+  assert.equal(page.rows[0].queue, "admissions");
 });
 
 test("Gemini readiness uses only the one server-side platform key", () => {

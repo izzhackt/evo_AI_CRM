@@ -1,350 +1,68 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-const routeSource = readFileSync(
-  new URL("../src/app/(staff)/sales/SalesPageContent.tsx", import.meta.url),
-  "utf8",
-);
-const workspaceSource = readFileSync(
-  new URL("../src/app/(staff)/sales/SalesWorkspace.tsx", import.meta.url),
-  "utf8",
-);
-const detailRouteSource = readFileSync(
-  new URL("../src/app/(staff)/sales/[id]/page.tsx", import.meta.url),
-  "utf8",
-);
-const leadWorkspaceSource = readFileSync(
-  new URL("../src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx", import.meta.url),
-  "utf8",
-);
-const amoCrmCommandSectionSource = readFileSync(
-  new URL(
-    "../src/app/(staff)/sales/[id]/PlatformSalesAmoCrmCommandSection.tsx",
-    import.meta.url,
-  ),
-  "utf8",
-);
-const workflowActionSource = readFileSync(
-  new URL("../src/lib/platform-sales-actions.ts", import.meta.url),
-  "utf8",
-);
-const studentHandoffBoundarySource = readFileSync(
-  new URL("../src/lib/platform-student-handoff.ts", import.meta.url),
-  "utf8",
-);
-const studentHandoffActionSource = readFileSync(
-  new URL("../src/lib/platform-student-handoff-actions.ts", import.meta.url),
-  "utf8",
-);
-const pipelineDecisionSource = readFileSync(
-  new URL(
-    "../src/components/v3/PipelineDecisionForm.tsx",
-    import.meta.url,
-  ),
-  "utf8",
-);
-const profileSalesTransitionSource = readFileSync(
-  new URL(
-    "../src/components/v3/profile/ProfileSalesTransition.tsx",
-    import.meta.url,
-  ),
-  "utf8",
-);
-const transcriptRouteSource = readFileSync(
-  new URL(
-    "../src/app/(staff)/sales/[id]/conversations/[conversationId]/page.tsx",
-    import.meta.url,
-  ),
-  "utf8",
-);
-const platformSalesRepositorySource = readFileSync(
-  new URL("../src/lib/platform-sales.ts", import.meta.url),
-  "utf8",
-);
-const conversationsSource = readFileSync(
-  new URL(
-    "../src/components/platform/sales/CanonicalSalesConversations.tsx",
-    import.meta.url,
-  ),
-  "utf8",
-);
-const leadDetailSource = readFileSync(
-  new URL(
-    "../src/components/platform/core/CanonicalLeadDetail.tsx",
-    import.meta.url,
-  ),
-  "utf8",
-);
-const clientsDetailRouteSource = readFileSync(
-  new URL("../src/app/(staff)/clients/[id]/page.tsx", import.meta.url),
-  "utf8",
-);
-const clientsDetailWorkspaceSource = readFileSync(
-  new URL("../src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx", import.meta.url),
-  "utf8",
-);
+function source(path) {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
 
-const activeSalesReadSources = [
-  routeSource,
-  workspaceSource,
-  detailRouteSource,
-  leadWorkspaceSource,
-  amoCrmCommandSectionSource,
-  leadDetailSource,
-  workflowActionSource,
-  pipelineDecisionSource,
-  studentHandoffBoundarySource,
-  studentHandoffActionSource,
-  profileSalesTransitionSource,
-  transcriptRouteSource,
-  conversationsSource,
-].join("\n");
+const salesQueueSource = source("src/app/(staff)/sales/SalesWorkspace.tsx");
+const studentQueueSource = source("src/app/(staff)/clients/StudentQueue.tsx");
+const salesActionSource = source("src/lib/platform-sales-actions.ts");
+const handoffActionSource = source("src/lib/platform-student-handoff-actions.ts");
+const v3InboxRouteSource = source("src/app/(v3)/v3/inbox/page.tsx");
 
-const activeDrizzleSalesReadImport =
-  /from\s+["'](?:@\/db(?:\/[^"']*)?|@\/lib\/(?:db|server\/(?:canonical-crm-repository|database))|better-sqlite3|drizzle-orm(?:\/[^"']*)?)["']/;
-const retiredSalesReadPanel =
-  /CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalSalesWorkflowForm|SalesLeadWorkflowForm|SalesOwnerSearchField|readBlockingCanonicalAmoCrmCommand/;
+const removedSalesDetailRuntime = [
+  "src/app/(staff)/sales/[id]/page.tsx",
+  "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
+  "src/app/(staff)/sales/[id]/PlatformSalesAmoCrmCommandSection.tsx",
+  "src/app/(staff)/sales/[id]/conversations/[conversationId]/page.tsx",
+  "src/components/platform/sales/CanonicalSalesConversations.tsx",
+  "src/components/platform/core/CanonicalLeadDetail.tsx",
+];
 
-test("sales has one direct workspace route with server authorization", () => {
-  assert.match(routeSource, /import \{ SalesWorkspace \}/);
-  assert.match(routeSource, /<SalesWorkspace searchParams=\{searchParams\}/);
-  assert.match(workspaceSource, /requirePlatformSalesActor\(\)/);
-  assert.match(workspaceSource, /@\/lib\/platform-sales/);
-  assert.match(workspaceSource, /parsePlatformSalesCursor/);
-  assert.match(workspaceSource, /listPlatformSalesLeads\(actor,/);
-  assert.doesNotMatch(
-    `${routeSource}\n${workspaceSource}`,
-    /FixtureSales|ConnectedCanonicalSales|isUiContractFixtureMode|better-sqlite3|canonical-crm-repository|listCanonicalSalesLeads|SalesLeadWorkflowForm|SalesOwnerSearchField/,
-  );
-});
-
-test("active Sales UI has no Drizzle imports or retired write panels", () => {
-  assert.match(leadDetailSource, /PlatformSalesLeadDetail/);
-  assert.match(conversationsSource, /PlatformSalesLinkedConversation/);
-  assert.doesNotMatch(activeSalesReadSources, activeDrizzleSalesReadImport);
-  assert.doesNotMatch(
-    activeSalesReadSources,
-    /getCanonicalLeadConversationThread|getCanonicalLeadGateSnapshot|getCanonicalLeadSnapshot|listCanonicalLeadConversations|listCanonicalSalesLeads|parseCanonicalMessageCursor|parseCanonicalReadCursor/,
-  );
-  assert.doesNotMatch(activeSalesReadSources, retiredSalesReadPanel);
-  assert.doesNotMatch(
-    activeSalesReadSources,
-    /actorRole:\s*actor\.(?:authorityRole|presentationRole)/,
-  );
-});
-
-test("sales lead detail has no alternate fixture or legacy screen", () => {
-  assert.match(detailRouteSource, /SalesLeadWorkspace/);
-  assert.doesNotMatch(
-    detailRouteSource,
-    /FixtureLead|ConnectedCanonicalLead|isUiContractFixtureMode|await import/,
-  );
-  assert.match(
-    leadWorkspaceSource,
-    /getPlatformSalesLead\(actor, id\)/,
-  );
-  assert.doesNotMatch(
-    leadWorkspaceSource,
-    /canonical-crm-repository|getCanonicalLeadSnapshot|getCanonicalLeadGateSnapshot|listCanonicalLeadConversations|getPlatformLeadAdmissionsGate|getPlatformLeadAdmissionsHandoff|listPlatformSalesOwnerOptions/,
-  );
-  assert.match(leadWorkspaceSource, /data-testid="canonical-sales-lead-workspace"/);
-  assert.match(leadWorkspaceSource, /<PlatformSalesAmoCrmCommandSection/);
-  assert.match(leadWorkspaceSource, /organizationId=\{actor\.organizationId\}/);
-  assert.match(leadWorkspaceSource, /authorityRole=\{actor\.authorityRole\}/);
-  assert.match(leadWorkspaceSource, /leadId=\{lead\.leadId\}/);
-  assert.match(leadWorkspaceSource, /clientId=\{lead\.clientId\}/);
-  assert.match(leadWorkspaceSource, /CanonicalSalesConversationList/);
-  assert.doesNotMatch(
-    leadWorkspaceSource,
-    /SalesWorkflowForm|SalesGateCard|SalesHandoffCard|CanonicalAmoCrmCommandPanel|readBlockingCanonicalAmoCrmCommand/,
-  );
-  assert.match(amoCrmCommandSectionSource, /CanonicalAmoCrmCommandPanel/);
-  assert.match(
-    amoCrmCommandSectionSource,
-    /workflowScope:\s*"sales_pre_handoff"/,
-  );
-  assert.match(amoCrmCommandSectionSource, /data-status="missing-client"/);
-  assert.doesNotMatch(
-    amoCrmCommandSectionSource,
-    /canonical-crm-repository|drizzle|service[_-]?role|fallback/i,
-  );
-});
-
-test("sales lead detail links only its canonical Supabase conversations", () => {
-  assert.match(conversationsSource, /data-testid="canonical-sales-conversations"/);
-  assert.match(conversationsSource, /data-testid="canonical-sales-conversation-link"/);
-  assert.match(conversationsSource, /data-conversation-id=\{conversation\.conversationId\}/);
-  assert.match(
-    conversationsSource,
-    /href=\{`\/sales\/\$\{leadId\}\/conversations\/\$\{conversation\.conversationId\}`\}/,
-  );
-  assert.match(conversationsSource, /Supabase Platform/);
-  assert.doesNotMatch(conversationsSource, /local database|amoCRM|manual-send|Gemini/i);
-});
-
-test("nested Sales transcript is canonical, bounded, and strictly read-only", () => {
-  assert.match(transcriptRouteSource, /requirePlatformSalesActor\(\)/);
-  assert.match(transcriptRouteSource, /parsePlatformConversationCursor\(/);
-  assert.match(
-    transcriptRouteSource,
-    /isPlatformLeadConversationLinked\(\s*actor,\s*leadId,\s*normalizedConversationId,?\s*\)/,
-  );
-  assert.match(transcriptRouteSource, /getPlatformConversationThread\(actor,/);
-  assert.match(transcriptRouteSource, /pageSize:\s*50/);
-  assert.match(transcriptRouteSource, /CanonicalSalesConversationTranscript/);
-  assert.doesNotMatch(
-    transcriptRouteSource,
-    /canonical-crm-repository|getCanonicalLeadConversationThread|parseCanonicalMessageCursor/,
-  );
-  assert.doesNotMatch(
-    transcriptRouteSource,
-    /getPlatformSalesLead|linkedConversations/,
-    "an older valid link outside the bounded lead-detail projection must remain reachable",
-  );
-  assert.match(conversationsSource, /data-testid="canonical-sales-transcript"/);
-  assert.match(conversationsSource, /data-testid="canonical-sales-message"/);
-  assert.match(conversationsSource, /data-message-id=\{message\.id\}/);
-  assert.match(
-    conversationsSource,
-    /data-testid="canonical-records-unavailable"/,
-  );
-  assert.doesNotMatch(
-    conversationsSource,
-    /<form|<button|PlatformConversationView|PlatformGemini|PlatformAutonomous|PlatformAmoCrm|messaging-actions|amocrm|realtime/i,
-  );
-});
-
-test("Sales exact-link authorization stays cookie-bound without an elevated fallback", () => {
-  assert.match(
-    platformSalesRepositorySource,
-    /await import\("\.\/supabase\/server"\)/,
-  );
-  assert.match(platformSalesRepositorySource, /createSupabaseServerClient\(\)/);
-  assert.match(
-    platformSalesRepositorySource,
-    /"staff_canonical_lead_conversation_link"/,
-  );
-  assert.doesNotMatch(
-    platformSalesRepositorySource,
-    /service[_-]?role|createSupabaseAdminClient|fallback/i,
-  );
-});
-
-test("sales workspace links canonical Supabase UUID records", () => {
-  assert.match(workspaceSource, /href=\{`\/sales\/\$\{lead\.leadId\}`\}/);
-  assert.match(workspaceSource, /data-testid="canonical-lead-row"/);
-  assert.match(workspaceSource, /data-workflow-version=\{lead\.workflowVersion\}/);
-  assert.match(workspaceSource, /Supabase Platform/);
-  assert.doesNotMatch(workspaceSource, /PostgreSQL V2|sales-inbound-blocked|Этот PR|\bU2\b/);
-  assert.match(workspaceSource, /canonical-records-unavailable/);
-});
-
-test("sales workflow writes only through the authenticated Supabase command", () => {
-  assert.match(workflowActionSource, /requirePlatformSalesActor\(\)/);
-  assert.match(workflowActionSource, /mutatePlatformSalesLeadWorkflow\(actor, input\)/);
-  assert.match(workflowActionSource, /revalidatePath\("\/sales"\)/);
-  assert.doesNotMatch(
-    `${workflowActionSource}\n${pipelineDecisionSource}`,
-    /canonical-sales-workflow|updateCanonicalSalesLeadWorkflow|drizzle|fallback/i,
-  );
-  assert.match(pipelineDecisionSource, /name="expected_version"/);
-  assert.match(pipelineDecisionSource, /name="stage_key"/);
-  assert.match(pipelineDecisionSource, /name="current_owner_membership_id"/);
-  assert.match(pipelineDecisionSource, /name="clear_next_action"/);
-  assert.match(pipelineDecisionSource, /name="next_action_text"/);
-  assert.match(pipelineDecisionSource, /name="next_action_due_date"/);
-  assert.match(pipelineDecisionSource, /name="reason"/);
-  assert.match(pipelineDecisionSource, /stages\.map/);
-  assert.match(pipelineDecisionSource, /lead\.workflowVersion/);
-  assert.match(pipelineDecisionSource, /result\.requestId/);
-  assert.match(pipelineDecisionSource, /router\.refresh\(\)/);
-});
-
-test("V3 Sales workflow UI exposes one accessible outcome contract", () => {
-  for (const testId of [
-    "v3-pipeline-workflow-form",
-    "v3-pipeline-stage",
-    "v3-pipeline-next-action",
-    "v3-pipeline-next-action-date",
-    "v3-pipeline-reason",
-    "v3-pipeline-submit",
-    "v3-pipeline-workflow-status",
-  ]) {
-    assert.match(pipelineDecisionSource, new RegExp(`data-testid="${testId}"`));
+test("sales detail runtime is removed after V3 profile and inbox replacement proof", () => {
+  for (const path of removedSalesDetailRuntime) {
+    assert.equal(
+      existsSync(new URL(`../${path}`, import.meta.url)),
+      false,
+      `${path} must be deleted once /sales/:id is replaced`,
+    );
   }
-  assert.match(pipelineDecisionSource, /aria-live="polite"/);
-  assert.match(pipelineDecisionSource, /required=\{reasonRequired\}/);
-  assert.match(pipelineDecisionSource, /actorRole === "sales" \? actorMembershipId : ""/);
-  assert.doesNotMatch(
-    pipelineDecisionSource,
-    /CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalAmoCrmCommandPanel|qualification_summary|handoff_ready|handed_off/,
+});
+
+test("the old /sales/:id route is removed rather than kept as a compatibility path", () => {
+  assert.equal(
+    existsSync(
+      new URL("../src/app/(staff)/sales/[id]/page.tsx", import.meta.url),
+    ),
+    false,
   );
 });
 
-test("sales gate and handoff use one authenticated Supabase command path", () => {
-  assert.match(studentHandoffActionSource, /requirePlatformSalesActor\(\)/);
-  assert.match(
-    studentHandoffBoundarySource,
-    /staff_lead_admissions_gate/,
-  );
-  assert.match(
-    studentHandoffBoundarySource,
-    /mutate_lead_admissions_gate/,
-  );
-  assert.match(
-    studentHandoffBoundarySource,
-    /staff_lead_admissions_handoff/,
-  );
-  assert.match(
-    studentHandoffBoundarySource,
-    /handoff_lead_to_admissions/,
-  );
-  assert.doesNotMatch(
-    `${studentHandoffBoundarySource}\n${studentHandoffActionSource}\n${profileSalesTransitionSource}`,
-    /canonical-crm-repository|drizzle|service[_-]?role|fallback/i,
-  );
-  assert.match(profileSalesTransitionSource, /data-testid="v3-sales-gate"/);
-  assert.match(profileSalesTransitionSource, /v3-gate-.*-form/);
-  assert.match(profileSalesTransitionSource, /name="expected_gate_version"/);
-  assert.match(profileSalesTransitionSource, /name="action"/);
-  assert.match(profileSalesTransitionSource, /name="evidence_reference"/);
-  assert.match(profileSalesTransitionSource, /name="amount"/);
-  assert.match(profileSalesTransitionSource, /name="currency"/);
-  assert.match(profileSalesTransitionSource, /name="due_date"/);
-  assert.match(profileSalesTransitionSource, /name="received_date"/);
-  assert.match(profileSalesTransitionSource, /router\.refresh\(\)/);
+test("active sales and student links open only the V3 profile surface", () => {
+  assert.match(salesQueueSource, /href=\{`\/v3\/profile\?id=\$\{lead\.leadId\}`\}/);
+  assert.doesNotMatch(salesQueueSource, /href=\{`\/sales\/\$\{lead\.leadId\}`\}/);
 
-  assert.match(profileSalesTransitionSource, /data-testid="v3-sales-handoff"/);
-  assert.match(profileSalesTransitionSource, /data-testid="v3-sales-handoff-completed"/);
-  assert.match(profileSalesTransitionSource, /name="admissions_owner_membership_id"/);
-  assert.match(profileSalesTransitionSource, /name="handoff_mode"/);
-  assert.match(profileSalesTransitionSource, /name="reason"/);
-  assert.doesNotMatch(profileSalesTransitionSource, /admissions_owner_role/);
-  assert.doesNotMatch(
-    `${leadWorkspaceSource}\n${profileSalesTransitionSource}`,
-    /CanonicalSalesGateCard|CanonicalSalesHandoffCard|canonical-sales-(?:gate|handoff)-actions/,
-  );
+  assert.match(studentQueueSource, /href=\{`\/v3\/profile\?id=\$\{leadId\}`\}/);
+  assert.doesNotMatch(studentQueueSource, /href=\{`\/sales\/\$\{leadId\}`\}/);
 });
 
-test("clients detail mounts the single Supabase Student 360 workspace", () => {
-  assert.match(clientsDetailRouteSource, /StudentCaseWorkspace/);
-  assert.doesNotMatch(
-    clientsDetailRouteSource,
-    /CanonicalStudentCaseWorkspace|ClientPageContent|await import/,
-  );
-  assert.match(clientsDetailWorkspaceSource, /getPlatformStudentCaseHandoffContext\(actor, id\)/);
-  assert.match(clientsDetailWorkspaceSource, /getPlatformStudentProfile\(actor, id\)/);
-  assert.match(clientsDetailWorkspaceSource, /getPlatformCaseContractWorkspace\(actor, id\)/);
-  assert.doesNotMatch(
-    clientsDetailWorkspaceSource,
-    /getPlatformStudentCaseView|staff_student_case_read_snapshot/,
-  );
-  assert.match(clientsDetailWorkspaceSource, /data-testid="platform-student-case-workspace"/);
-  assert.match(clientsDetailWorkspaceSource, /data-testid="platform-student-handoff-context"/);
-  assert.match(clientsDetailWorkspaceSource, /data-testid="platform-student-profile"/);
-  assert.doesNotMatch(
-    `${clientsDetailRouteSource}\n${clientsDetailWorkspaceSource}`,
-    /canonical-crm-repository|private-document-repository/,
-  );
+test("sales workflow and handoff mutations keep queue/profile revalidation but drop deleted detail revalidation", () => {
+  assert.match(salesActionSource, /revalidatePath\(\"\/sales\"\)/);
+  assert.match(salesActionSource, /revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/);
+  assert.doesNotMatch(salesActionSource, /revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\)/);
+
+  assert.match(handoffActionSource, /revalidatePath\(\"\/sales\"\)/);
+  assert.match(handoffActionSource, /revalidatePath\(\"\/v3\/pipeline\"\)/);
+  assert.match(handoffActionSource, /revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/);
+  assert.doesNotMatch(handoffActionSource, /revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\)/);
+});
+
+test("V3 inbox is the surviving transcript and amoCRM command surface", () => {
+  assert.match(v3InboxRouteSource, /searchParams: Promise<SearchParams>/);
+  assert.match(v3InboxRouteSource, /query\.conversation/);
+  assert.match(v3InboxRouteSource, /CanonicalAmoCrmCommandPanel/);
+  assert.match(v3InboxRouteSource, /data-testid=\"v3-inbox-amocrm\"/);
+  assert.doesNotMatch(v3InboxRouteSource, /\/sales\/\$\{leadId\}\/conversations\//);
 });

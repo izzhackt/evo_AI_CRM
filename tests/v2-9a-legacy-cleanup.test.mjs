@@ -32,34 +32,28 @@ test("V2-9A removes the superseded staff WhatsApp UI and communication implement
   }
 });
 
-test("V2-9A keeps one Platform WhatsApp read surface and one provider workflow control surface", () => {
-  const listPage = source("src/app/(staff)/whatsapp/page.tsx");
-  const threadPage = source("src/app/(staff)/whatsapp/[id]/page.tsx");
-  const workspace = source("src/components/platform/communications/PlatformStaffWhatsApp.tsx");
-  const controls = source(
+test("V3 Inbox is the one Supabase WhatsApp read and provider-control surface", () => {
+  const page = source("src/app/(v3)/v3/inbox/page.tsx");
+  const adapter = source("src/lib/v3/inbox-source.ts");
+  const controls = source("src/components/v3/InboxProviderWorkflowControls.tsx");
+
+  assert.match(page, /readInbox\(actor,/);
+  assert.match(page, /InboxProviderWorkflowControls/);
+  assert.match(adapter, /listPlatformConversations\(actor,/);
+  assert.match(adapter, /getPlatformConversationThread\(actor,/);
+  assert.match(adapter, /getPlatformWahaSessionHealth\(actor,\s*"crm_primary"\)/);
+  assert.match(controls, /data-testid="v3-inbox-provider-workflow-controls"/);
+  assert.match(controls, /data-testid="v3-inbox-send"/);
+  assert.match(controls, /data-testid="v3-inbox-reconcile"/);
+
+  for (const retired of [
+    "src/app/(staff)/whatsapp/page.tsx",
+    "src/app/(staff)/whatsapp/[id]/page.tsx",
+    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
     "src/components/platform/communications/PlatformProviderWorkflowControls.tsx",
-  );
-
-  assert.match(listPage, /PlatformStaffWhatsAppWorkspace/);
-  assert.match(listPage, /listPlatformConversations\(actor,/);
-  assert.doesNotMatch(listPage, /CanonicalStaffWhatsApp|listCanonicalStaffConversations/);
-
-  assert.match(threadPage, /PlatformStaffWhatsAppWorkspace/);
-  assert.match(threadPage, /PlatformProviderWorkflowControls/);
-  assert.match(threadPage, /getPlatformConversationThread\(actor,/);
-  assert.match(threadPage, /getPlatformWahaSessionHealth\(actor,\s*"crm_primary"\)/);
-  assert.doesNotMatch(
-    threadPage,
-    /CanonicalStaffWhatsApp|CanonicalGeminiProposalPanel|CanonicalWhatsAppOutboundComposer|getCanonicalStaffConversationThread/,
-  );
-
-  assert.match(workspace, /data-testid="platform-staff-whatsapp-page"/);
-  assert.match(workspace, /data-testid="platform-staff-whatsapp-thread"/);
-  assert.doesNotMatch(workspace, /canonical-staff-whatsapp-/);
-
-  assert.match(controls, /data-testid="platform-provider-workflow-controls"/);
-  assert.match(controls, /data-testid="platform-provider-send"/);
-  assert.match(controls, /data-testid="platform-provider-reconcile"/);
+  ]) {
+    expectMissing(retired);
+  }
 });
 
 test("V2-9A local proof runs Platform provider checks instead of the retired canonical communication fixture", () => {
@@ -83,6 +77,8 @@ test("V2-9A local proof runs Platform provider checks instead of the retired can
     /tests\/platform-provider-workflows\.test\.mjs/,
     /tests\/platform-provider-actions\.test\.mjs/,
     /tests\/platform-provider-controls\.test\.mjs/,
+    /tests\/v3-inbox-integration\.test\.mjs/,
+    /tests\/v3-inbox-route-transition\.test\.mjs/,
     /tests\/platform-waha-webhook\.test\.mjs/,
     /tests\/platform-waha-projector\.test\.mjs/,
     /tests\/platform-whatsapp-pages\.test\.mjs/,

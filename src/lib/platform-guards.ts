@@ -42,11 +42,11 @@ export async function requirePlatformStudentPortalActor(): Promise<PlatformActor
 }
 
 export async function requirePlatformMessagingActor(): Promise<ActivePlatformActor> {
-  return requirePlatformCapability("messaging.read", "/whatsapp");
+  return requirePlatformCapability("messaging.read", "/v3/inbox");
 }
 
 export async function requirePlatformMessagingSendActor(): Promise<ActivePlatformActor> {
-  return requirePlatformCapability("messaging.send", "/whatsapp");
+  return requirePlatformCapability("messaging.send", "/v3/inbox");
 }
 
 export async function requirePlatformAdmissionsActor(

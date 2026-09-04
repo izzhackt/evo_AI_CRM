@@ -76,9 +76,9 @@ export type PlatformWhatsAppReconcileActionState = Readonly<{
     | "unavailable";
 }>;
 
-function revalidateConversationPath(conversationId: string): void {
+function revalidateInboxPath(): void {
   try {
-    revalidatePath(`/whatsapp/${conversationId}`);
+    revalidatePath("/v3/inbox");
   } catch {
     // The provider result is already durable. A cache failure must not make a
     // safely idempotent action look as though it can be repeated.
@@ -155,7 +155,7 @@ export async function requestPlatformGeminiProposalAction(
       { geminiProvider },
     );
 
-    revalidateConversationPath(input.conversationId);
+    revalidateInboxPath();
     if (execution.status === "in_progress") {
       return Object.freeze({ status: "in_progress", failureCode: null });
     }
@@ -227,7 +227,7 @@ export async function reviewPlatformGeminiProposalAction(
       reviewedPayload,
       reason: input.reason,
     });
-    revalidateConversationPath(input.conversationId);
+    revalidateInboxPath();
     return Object.freeze({ status: "reviewed", decision: input.decision });
   } catch {
     return Object.freeze({ status: "unavailable", decision: input.decision });
@@ -272,7 +272,7 @@ export async function sendPlatformWhatsAppMessageAction(
         completionRequestId: randomUUID(),
       },
     );
-    revalidateConversationPath(input.conversationId);
+    revalidateInboxPath();
     return Object.freeze({
       status: execution.status === "finished"
         ? execution.result.outcome
@@ -306,7 +306,7 @@ export async function reconcilePlatformWhatsAppSendAction(
         completionRequestId: randomUUID(),
       },
     );
-    revalidateConversationPath(input.conversationId);
+    revalidateInboxPath();
     if (execution.status === "already_completed") {
       return Object.freeze({ status: "already_completed" });
     }

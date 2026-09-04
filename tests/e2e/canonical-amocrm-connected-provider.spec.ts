@@ -5,8 +5,8 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import postgres from "postgres";
 
-const NOTE_TEXT = "EVO V2 provider validation: reviewed by Admin.";
-const TASK_TEXT = "EVO V2 provider validation: manager follow-up.";
+const NOTE_TEXT = "EVO V3 provider validation: reviewed by Admin.";
+const TASK_TEXT = "EVO V3 provider validation: manager follow-up.";
 const TASK_DEADLINE_LOCAL = nearFutureTaskDeadlineLocal();
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -45,6 +45,16 @@ function ensure(condition: unknown, message: string): asserts condition {
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required acceptance input: ${name}`);
+  return value;
+}
+
+function requireContextUuid(
+  context: Record<string, unknown>,
+  key: string,
+  label: string,
+): string {
+  const value = context[key];
+  ensure(typeof value === "string" && UUID.test(value), `${label} is invalid`);
   return value;
 }
 
@@ -820,10 +830,15 @@ test("disabled provider authority fails clearly in the real browser before any p
     context.databaseAuthority === "local_supabase_postgresql",
     "The validation context does not name local Supabase as its sole database authority",
   );
-  const leadId = context.leadId;
-  ensure(
-    typeof leadId === "string" && UUID.test(leadId),
-    "Validation lead identity is invalid",
+  const leadId = requireContextUuid(
+    context,
+    "leadId",
+    "Validation lead identity",
+  );
+  const conversationId = requireContextUuid(
+    context,
+    "conversationId",
+    "Validation conversation identity",
   );
   const before = await zeroMutationProof(localSupabaseDatabaseUrl(), leadId);
   ensure(
@@ -834,7 +849,8 @@ test("disabled provider authority fails clearly in the real browser before any p
   );
 
   await submitAdminGate(page);
-  await page.goto(`/sales/${leadId}`);
+  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await expect(page.getByTestId("v3-inbox")).toBeVisible();
   const panel = page.getByTestId("canonical-amocrm-command-panel");
   await expect(panel).toBeVisible();
   await expect(
@@ -903,15 +919,20 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     context.databaseAuthority === "local_supabase_postgresql",
     "The validation context does not name local Supabase as its sole database authority",
   );
-  const leadId = context.leadId;
+  const leadId = requireContextUuid(
+    context,
+    "leadId",
+    "Validation lead identity",
+  );
+  const conversationId = requireContextUuid(
+    context,
+    "conversationId",
+    "Validation conversation identity",
+  );
   const seedSourceRef = context.seedSourceRef;
   const discovery = record(
     context.discovery,
     "Private discovery context is missing",
-  );
-  ensure(
-    typeof leadId === "string" && UUID.test(leadId),
-    "Validation lead identity is invalid",
   );
   ensure(
     typeof seedSourceRef === "string" &&
@@ -936,7 +957,8 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
   );
 
   await submitAdminGate(page);
-  await page.goto(`/sales/${leadId}`);
+  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await expect(page.getByTestId("v3-inbox")).toBeVisible();
   const panel = page.getByTestId("canonical-amocrm-command-panel");
   await expect(panel).toBeVisible();
   await expect(
@@ -1014,7 +1036,8 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     const url = new URL(response.url());
     return (
       response.request().method() === "POST" &&
-      url.pathname === `/sales/${leadId}`
+      url.pathname === "/v3/inbox" &&
+      url.searchParams.get("conversation") === conversationId
     );
   });
   await panel.getByTestId("canonical-amocrm-sync").click();
@@ -1064,9 +1087,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
   );
 
   await page.reload();
-  await expect(
-    page.getByTestId("canonical-sales-lead-workspace"),
-  ).toBeVisible();
+  await expect(page.getByTestId("v3-inbox")).toBeVisible();
   await expect(
     page
       .getByTestId("canonical-amocrm-command-panel")

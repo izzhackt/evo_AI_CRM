@@ -33,8 +33,8 @@ const COPY = {
     },
     description:
       "PostgreSQL EVO остаётся источником истины. Команда явно обновляет связанную карточку amoCRM и сохраняет результат каждого шага.",
-    providerReady: "Канонический V2-провайдер готов",
-    providerBlocked: "Команда недоступна: V2-провайдер не готов",
+    providerReady: "Канонический провайдер amoCRM готов",
+    providerBlocked: "Команда недоступна: провайдер amoCRM не готов",
     noteLabel: "Проверенная сотрудником заметка",
     notePlaceholder: "Кратко укажите, что именно проверено перед синхронизацией.",
     noteHint: "Обязательное поле, не более 1000 байт.",
@@ -66,10 +66,10 @@ const COPY = {
         "Этот request ID уже использован с другими данными. Запись не повторена.",
     },
     blockedReasons: {
-      feature_disabled: "Функция отключена в приватном V2-контуре.",
+      feature_disabled: "Функция отключена в приватном контуре EVO.",
       provider_not_authorized: "Серверное разрешение провайдера не включено.",
-      configuration_missing: "Не заполнена обязательная V2-конфигурация.",
-      configuration_invalid: "V2-конфигурация некорректна.",
+      configuration_missing: "Не заполнена обязательная конфигурация amoCRM.",
+      configuration_invalid: "Конфигурация amoCRM некорректна.",
       routing_configuration_invalid: "Не настроен точный маршрут amoCRM.",
       token_unavailable: "Закрытый OAuth-токен недоступен серверу.",
     },
@@ -81,8 +81,8 @@ const COPY = {
     },
     description:
       "EVO PostgreSQL чындыктын жалгыз булагы бойдон калат. Команда байланышкан amoCRM карточкасын гана жаңыртып, ар бир кадамдын жыйынтыгын сактайт.",
-    providerReady: "Каноникалык V2 провайдери даяр",
-    providerBlocked: "Команда жеткиликсиз: V2 провайдери даяр эмес",
+    providerReady: "amoCRM каноникалык провайдери даяр",
+    providerBlocked: "Команда жеткиликсиз: amoCRM провайдери даяр эмес",
     noteLabel: "Кызматкер текшерген эскертүү",
     notePlaceholder: "Шайкештөөдөн мурда эмнени текшергениңизди кыска жазыңыз.",
     noteHint: "Милдеттүү талаа, 1000 байттан ашпайт.",
@@ -114,10 +114,10 @@ const COPY = {
         "Бул request ID башка маалымат менен колдонулган. Жазуу кайталанган жок.",
     },
     blockedReasons: {
-      feature_disabled: "Функция жеке V2 контурунда өчүрүлгөн.",
+      feature_disabled: "Функция EVOнун жеке контурунда өчүрүлгөн.",
       provider_not_authorized: "Провайдердин сервердик уруксаты күйгүзүлгөн эмес.",
-      configuration_missing: "Милдеттүү V2 конфигурациясы толтурулган эмес.",
-      configuration_invalid: "V2 конфигурациясы туура эмес.",
+      configuration_missing: "amoCRM үчүн милдеттүү конфигурация толтурулган эмес.",
+      configuration_invalid: "amoCRM конфигурациясы туура эмес.",
       routing_configuration_invalid: "Так amoCRM маршруту коюлган эмес.",
       token_unavailable: "Жабык OAuth токени серверге жеткиликсиз.",
     },
@@ -129,8 +129,8 @@ const COPY = {
     },
     description:
       "EVO PostgreSQL remains the sole source of truth. This command explicitly updates the bound amoCRM record and preserves every step result.",
-    providerReady: "Canonical V2 provider is ready",
-    providerBlocked: "Command unavailable: V2 provider is not ready",
+    providerReady: "Canonical amoCRM provider is ready",
+    providerBlocked: "Command unavailable: amoCRM provider is not ready",
     noteLabel: "Staff-reviewed note",
     notePlaceholder: "Briefly state what was verified before this sync.",
     noteHint: "Required; maximum 1000 bytes.",
@@ -161,10 +161,10 @@ const COPY = {
         "This request ID was already used with different data. Nothing was repeated.",
     },
     blockedReasons: {
-      feature_disabled: "The capability is disabled in the private V2 contour.",
+      feature_disabled: "The capability is disabled in the private EVO contour.",
       provider_not_authorized: "Server-side provider authorization is disabled.",
-      configuration_missing: "Required V2 configuration is missing.",
-      configuration_invalid: "The V2 configuration is invalid.",
+      configuration_missing: "Required amoCRM configuration is missing.",
+      configuration_invalid: "The amoCRM configuration is invalid.",
       routing_configuration_invalid: "Exact amoCRM routing is not configured.",
       token_unavailable: "The private OAuth token is unavailable to the server.",
     },
@@ -172,21 +172,74 @@ const COPY = {
 } as const;
 
 const OPERATION_LABELS = {
-  contact_create: "Contact · create",
-  contact_update: "Contact · update",
-  lead_create: "Lead · create",
-  lead_update: "Lead · update",
-  contact_lead_link: "Contact ↔ lead",
-  lead_pipeline_status_update: "Pipeline / status",
-  lead_responsible_update: "Responsible user",
-  lead_note_create: "Human note",
-  lead_task_create: "Manager task",
-  lead_tag_update: "Exact tags",
+  ru: {
+    contact_create: "Создание контакта",
+    contact_update: "Обновление контакта",
+    lead_create: "Создание сделки",
+    lead_update: "Обновление сделки",
+    contact_lead_link: "Связь контакта и сделки",
+    lead_pipeline_status_update: "Воронка и статус сделки",
+    lead_responsible_update: "Ответственный менеджер",
+    lead_note_create: "Проверенная заметка",
+    lead_task_create: "Задача менеджеру",
+    lead_tag_update: "Точные теги",
+  },
+  ky: {
+    contact_create: "Контакт түзүү",
+    contact_update: "Контактты жаңыртуу",
+    lead_create: "Бүтүм түзүү",
+    lead_update: "Бүтүмдү жаңыртуу",
+    contact_lead_link: "Контакт менен бүтүмдү байланыштыруу",
+    lead_pipeline_status_update: "Бүтүмдүн воронкасы жана статусу",
+    lead_responsible_update: "Жооптуу менеджер",
+    lead_note_create: "Текшерилген эскертме",
+    lead_task_create: "Менеджерге тапшырма",
+    lead_tag_update: "Так тегдер",
+  },
+  en: {
+    contact_create: "Create contact",
+    contact_update: "Update contact",
+    lead_create: "Create lead",
+    lead_update: "Update lead",
+    contact_lead_link: "Link contact and lead",
+    lead_pipeline_status_update: "Lead pipeline and status",
+    lead_responsible_update: "Responsible manager",
+    lead_note_create: "Reviewed note",
+    lead_task_create: "Manager task",
+    lead_tag_update: "Exact tags",
+  },
+} as const;
+
+const STEP_STATUS_LABELS = {
+  ru: {
+    accepted: "Подтверждено",
+    rejected: "Отклонено",
+    unknown: "Результат неизвестен",
+    blocked: "Заблокировано",
+    error: "Ошибка",
+    request_conflict: "Конфликт запроса",
+  },
+  ky: {
+    accepted: "Ырасталды",
+    rejected: "Четке кагылды",
+    unknown: "Жыйынтык белгисиз",
+    blocked: "Бөгөттөлдү",
+    error: "Ката",
+    request_conflict: "Суроо-талап кайчылыгы",
+  },
+  en: {
+    accepted: "Confirmed",
+    rejected: "Rejected",
+    unknown: "Result unknown",
+    blocked: "Blocked",
+    error: "Error",
+    request_conflict: "Request conflict",
+  },
 } as const;
 
 export type CanonicalAmoCrmBlockingAttempt = Readonly<{
   attemptId: string;
-  operationName: keyof typeof OPERATION_LABELS;
+  operationName: keyof (typeof OPERATION_LABELS)["en"];
   status: "prepared" | "unknown";
   providerDispatchedAt: string | null;
 }>;
@@ -256,11 +309,11 @@ function ResultState({
                 data-status={step.status}
               >
                 <span>
-                  {OPERATION_LABELS[
-                    step.operationName as keyof typeof OPERATION_LABELS
-                  ] ?? "amoCRM operation"}
+                  {OPERATION_LABELS[locale][step.operationName]}
                 </span>
-                <span className="font-semibold">{step.status}</span>
+                <span className="font-semibold">
+                  {STEP_STATUS_LABELS[locale][step.status]}
+                </span>
               </li>
             ))}
           </ol>

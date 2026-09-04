@@ -348,7 +348,6 @@ export async function mutatePlatformLeadAdmissionsGateAction(
   try {
     const receipt = await mutatePlatformLeadAdmissionsGate(actor, input);
     revalidatePath("/sales");
-    revalidatePath(`/sales/${receipt.leadId}`);
     revalidatePath("/v3/pipeline");
     revalidatePath(`/v3/profile?id=${receipt.leadId}`);
     return Object.freeze({
@@ -377,7 +376,6 @@ export async function handoffPlatformLeadToAdmissionsAction(
   try {
     const receipt = await handoffPlatformLeadToAdmissions(actor, input);
     revalidatePath("/sales");
-    revalidatePath(`/sales/${receipt.leadId}`);
     revalidatePath("/v3/pipeline");
     revalidatePath(`/v3/profile?id=${receipt.leadId}`);
     revalidatePath("/clients");

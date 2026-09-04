@@ -81,7 +81,17 @@ test("the namespaced V3 product surface is connected without opening descendants
 });
 
 test("removed parallel pages stay outside the successor and stop before runtime", () => {
-  for (const path of ["/reports", "/notifications", "/calls", "/chat", "/chat/1"]) {
+  for (const path of [
+    "/reports",
+    "/notifications",
+    "/calls",
+    "/chat",
+    "/chat/1",
+    "/whatsapp",
+    "/whatsapp/10000000-0000-4000-8000-000000000001",
+    "/sales/10000000-0000-4000-8000-000000000001",
+    "/sales/10000000-0000-4000-8000-000000000001/conversations/20000000-0000-4000-8000-000000000002",
+  ]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
     assert.equal(isRetiredPlatformRoute(path), true, path);
   }
@@ -96,6 +106,8 @@ test("removed parallel pages stay outside the successor and stop before runtime"
   }
   assert.equal(isRetiredPlatformRoute("/portal"), false);
   assert.equal(isRetiredPlatformRoute("/api/health"), false);
+  assert.equal(isRetiredPlatformRoute("/sales"), false);
+  assert.equal(isRetiredPlatformRoute("/sales/not-a-uuid"), false);
 
   const proxy = source("src/proxy.ts");
   const tombstone = proxy.indexOf("isRetiredPlatformRoute(path)");

@@ -461,7 +461,7 @@ function SalesRow({
         </div>
       </td>
       <td className="border-b border-border px-3 py-3 text-xs text-fg-2">
-        <Link href={`/sales/${lead.leadId}`} className={btnGhostCls}>
+        <Link href={`/v3/profile?id=${lead.leadId}`} className={btnGhostCls}>
           {copy.details}
         </Link>
       </td>

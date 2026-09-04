@@ -27,7 +27,7 @@ export const FIXED_ROLE_ROUTES = [
   "/visa",
   "/finance",
   "/tasks",
-  "/whatsapp",
+  "/v3/inbox",
   "/settings",
 ] as const;
 
@@ -62,7 +62,7 @@ const ROUTE_CAPABILITY = {
   "/visa": "admissions.read",
   "/finance": "admissions.read",
   "/tasks": "admissions.read",
-  "/whatsapp": "messaging.read",
+  "/v3/inbox": "messaging.read",
   "/settings": "admin.preview",
 } as const satisfies Record<FixedRoleRoute, FixedRoleCapability>;
 

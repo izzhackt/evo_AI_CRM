@@ -301,8 +301,8 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
     }
 
     await signIn(page);
-    await page.goto(`/whatsapp/${conversationId}`);
-    const controls = page.getByTestId("platform-provider-workflow-controls");
+    await page.goto(`/v3/inbox?conversation=${conversationId}`);
+    const controls = page.getByTestId("v3-inbox-provider-workflow-controls");
     await expect(controls).toBeVisible();
 
     await controls.getByRole("button", { name: "Подготовить черновик" }).click();
@@ -331,7 +331,7 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
       .fill("Bounded exact-head provider acceptance");
     await editButton.click();
     await expect(
-      controls.getByText("Решение сохранено", { exact: true }),
+      controls.getByText("Решение сотрудника сохранено.", { exact: true }),
     ).toBeVisible();
 
     await controls.locator('textarea[name="message_text"]').fill(reviewedText);
@@ -344,11 +344,11 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
       maximumDispatches: 1,
       createdAt: new Date().toISOString(),
     });
-    await controls.getByTestId("platform-provider-send").click();
+    await controls.getByTestId("v3-inbox-send").click();
     await expect(
-      controls.getByText("WhatsApp принял сообщение; результат сохранён.", {
-        exact: true,
-      }),
+      controls
+        .getByTestId("v3-inbox-latest-attempt")
+        .getByText("Принято WhatsApp", { exact: true }),
     ).toBeVisible();
 
     const proofRows = await sql<

@@ -720,8 +720,10 @@ test("BW4 repository and actions use only Platform auth/Supabase seams", () => {
   assert.match(actionSource, /requirePlatformMessagingActor/);
   assert.match(actionSource, /create_decision_backlog_entry/);
   assert.match(actionSource, /transition_decision_backlog_entry/);
-  assert.match(actionSource, /revalidatePath\(`\/whatsapp\/\$\{conversationId\}`\)/);
-  assert.doesNotMatch(actionSource, /revalidatePath\(["']\/whatsapp["']\)/);
+  assert.match(actionSource, /revalidatePath\("\/v3\/inbox"\)/);
+  assert.match(actionSource, /query\.set\("conversation", conversationId\)/);
+  assert.match(actionSource, /redirect\(`\$\{target\}#\$\{fragment\.toString\(\)\}`\)/);
+  assert.doesNotMatch(actionSource, /revalidatePath\([^\n]*\/whatsapp/);
   for (const source of [workflowSource, actionSource]) {
     assert.doesNotMatch(source, /from\s+["']\.\/db["']/);
     assert.doesNotMatch(source, /from\s+["']\.\/auth["']/);

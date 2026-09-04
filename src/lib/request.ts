@@ -37,7 +37,11 @@ export async function readMultipartFormData(
       if (done) break;
       totalBytes += value.byteLength;
       if (totalBytes > maxBytes) {
-        await reader.cancel();
+        // Stop accepting bytes at the helper boundary. NextRequest-owned
+        // multipart streams can emit a late close rejection after cancel().
+        // Keep the fail-closed size result while still asking the stream to
+        // stop producing bytes.
+        void reader.cancel("request_too_large").catch(() => undefined);
         return { error: "request_too_large" };
       }
       chunks.push(value);

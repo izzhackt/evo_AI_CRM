@@ -51,9 +51,6 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
     "src/components/v3/profile/ProfileSalesTransition.tsx",
   );
   const profileSource = source("src/lib/v3/profile-source.ts");
-  const oldWorkspace = source(
-    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
-  );
 
   assert.match(pipelinePage, /requirePlatformSalesActor/);
   assert.match(pipeline, /<PipelineDecisionForm/);
@@ -104,11 +101,11 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   assert.match(transition, /data-testid="v3-sales-handoff"/);
   assert.match(transition, /caseHref=\{caseHref\}/);
 
-  assert.doesNotMatch(
-    oldWorkspace,
-    /SalesWorkflowForm|SalesGateCard|SalesHandoffCard|getPlatformLeadAdmissionsGate|getPlatformLeadAdmissionsHandoff/,
-  );
   for (const path of [
+    "src/app/(staff)/sales/[id]/page.tsx",
+    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
+    "src/app/(staff)/sales/[id]/PlatformSalesAmoCrmCommandSection.tsx",
+    "src/app/(staff)/sales/[id]/conversations/[conversationId]/page.tsx",
     "src/components/platform/sales/PlatformSalesWorkflowForm.tsx",
     "src/components/platform/sales/PlatformSalesGateCard.tsx",
     "src/components/platform/sales/PlatformSalesHandoffCard.tsx",

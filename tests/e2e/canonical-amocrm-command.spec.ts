@@ -79,6 +79,13 @@ function optionalUuid(name: string): string | null {
   return value.toLowerCase();
 }
 
+function exactRoutePattern(route: string): RegExp {
+  return new RegExp(
+    `${route.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}$`,
+    "u",
+  );
+}
+
 function credentials(role: TestRole) {
   const prefix = `EVO_STAFF_AUTH_${role.toUpperCase()}`;
   const identifier = process.env[`${prefix}_EMAIL`];
@@ -127,9 +134,7 @@ async function expectBlockedPanel(
   }>,
 ) {
   await page.goto(input.route);
-  await expect(page).toHaveURL(
-    new RegExp(`${input.route.replaceAll("/", "\\/")}$`, "u"),
-  );
+  await expect(page).toHaveURL(exactRoutePattern(input.route));
 
   const panel = page.getByTestId("canonical-amocrm-command-panel");
   await expect(panel).toBeVisible();
@@ -189,14 +194,17 @@ test("Admissions amoCRM commands stay visibly disabled when the selected server 
   });
 });
 
-test("Sales and Admin see the canonical Sales amoCRM command at lead detail", async ({
+test("Sales and Admin see the canonical Sales amoCRM command in the selected V3 Inbox conversation", async ({
   page,
 }) => {
   test.skip(
     proofMode !== "provider-not-authorized",
     "the complete role matrix runs once; other modes repeat only fail-closed availability",
   );
-  const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
+  const leadId = requireUuid("EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID");
+  const conversationId = requireUuid(
+    "EVO_PLATFORM_COMMUNICATIONS_CONVERSATION_ID",
+  );
 
   for (const role of ["sales", "admin"] as const) {
     await signInAs(page, role);
@@ -205,14 +213,12 @@ test("Sales and Admin see the canonical Sales amoCRM command at lead detail", as
       role,
     );
     await expectBlockedPanel(page, {
-      route: `/sales/${leadId}`,
+      route: `/v3/inbox?conversation=${conversationId}`,
       scope: "sales",
       targetField: "lead_id",
       targetId: leadId,
     });
-    await expect(
-      page.getByTestId("canonical-sales-lead-workspace"),
-    ).toBeVisible();
+    await expect(page.getByTestId("v3-inbox")).toBeVisible();
   }
 });
 
@@ -243,22 +249,24 @@ test("Admissions and Admin see the Admissions command only at canonical Student 
   }
 });
 
-test("wrong fixed roles are denied before either owning workspace renders", async ({
+test("wrong fixed roles cannot render either owning command surface", async ({
   page,
 }) => {
   test.skip(
     proofMode !== "provider-not-authorized",
     "the complete role matrix runs once; other modes repeat only fail-closed availability",
   );
-  const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
+  const conversationId = requireUuid(
+    "EVO_PLATFORM_COMMUNICATIONS_CONVERSATION_ID",
+  );
   const studentCaseId = requireUuid("EVO_CANONICAL_STUDENT_CASE_ID");
 
   await signInAs(page, "admissions");
-  await page.goto(`/sales/${leadId}`);
-  await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales/u);
-  await expect(page.getByTestId("canonical-sales-lead-workspace")).toHaveCount(
-    0,
+  const response = await page.goto(
+    `/v3/inbox?conversation=${conversationId}`,
   );
+  expect(response?.status()).toBe(404);
+  await expect(page.getByTestId("v3-inbox")).toHaveCount(0);
   await expect(page.getByTestId("canonical-amocrm-command-panel")).toHaveCount(
     0,
   );

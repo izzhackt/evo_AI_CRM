@@ -16711,3 +16711,57 @@ Decision:
 - add no schema, repository, browser-only mutation, provider call, production
   change or fallback path in this slice, and require a scoped active-reference
   inventory before merge.
+
+## 2026-09-04 - Execute V3-C through the canonical provider workflows
+
+Block-ID: `EVO-V3-C-INBOX-PROVIDER-COMMANDS-2026-09-04`
+
+Change type: active-slice implementation clarification.
+Affected plan section: Order 2 / Issue #596.
+
+Issue #595 merged through PR #610 on exact `main`
+`9b8c8a1a77ccb44b9b43980096de87ec445061d7`. Issue #596 now makes the V3
+Inbox the single operator surface for the already-implemented human-reviewed
+Gemini proposal, explicit one-recipient WhatsApp send/reconciliation and
+explicit amoCRM command workflows. The provider workflows and Supabase command
+tables remain the business engine; the V3 slice must not create a second status
+dictionary, repository or provider path.
+
+Decision:
+
+- change `src/lib/v3/inbox-source.ts` before the screen so one URL-selected
+  conversation is composed from the canonical paged queue and transcript,
+  preserving exact cursor and newest-inbound-source semantics instead of
+  preloading or mutating browser-only transcript copies;
+- add one narrow forward Supabase read projection for the selected visible
+  conversation's existing `canonical_lead_id`, `canonical_client_id` and
+  `student_case_id`. The current communications page RPC deliberately omits
+  those already-stored links, while an amoCRM command must use exact canonical
+  EVO identity rather than infer it from external provider ids;
+- reuse `requestPlatformGeminiProposalAction`,
+  `reviewPlatformGeminiProposalAction`,
+  `sendPlatformWhatsAppMessageAction`,
+  `reconcilePlatformWhatsAppSendAction` and the canonical amoCRM command
+  actions. Preserve their staff-cookie authorization, RLS, request/correlation
+  identities, reviewed-text hashes, unknown-result blocking and reconcile-
+  without-resend behavior; revalidate the selected V3 Inbox projection after
+  verified outcomes;
+- move the existing provider-control outcome semantics into the V3 component
+  boundary rather than inventing new Gemini, WhatsApp or amoCRM states. Missing
+  Gemini, WAHA or amoCRM configuration remains an explicit fail-closed product
+  state and never enables an in-app channel connection, QR, autonomous reply,
+  broadcast, blind retry or provider fallback;
+- expose the existing Sales pre-handoff or Admissions post-handoff amoCRM
+  command only when the selected conversation resolves to the exact canonical
+  scope required by the server action. EVO/Supabase remains authority and
+  amoCRM remains an explicit integration command;
+- after focused outcome tests and one real local Supabase/PostgreSQL,
+  application and browser proof, remove the superseded V2 WhatsApp pages and
+  controls and update active links to the V3 Inbox. Remove the remaining V2
+  Sales detail workspace, amoCRM section and conversation-detail UI only after
+  V3 profile, Inbox and amoCRM placements prove those same outcomes; canonical
+  repositories and server actions remain;
+- do not call Gemini, send WhatsApp, write amoCRM, alter provider state, deploy
+  or mutate production in this slice. Provider-dependent browser acceptance
+  must exercise the real local application and Supabase state while proving
+  disabled/fail-closed behavior without an external provider effect.

@@ -463,7 +463,7 @@ function SalesOwnerCell({
       </div>
       {canOpenLead && leadId ? (
         <Link
-          href={`/sales/${leadId}`}
+          href={`/v3/profile?id=${leadId}`}
           className="inline-block font-medium text-accent hover:underline"
           data-testid="student-case-sales-lead-link"
         >

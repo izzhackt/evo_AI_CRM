@@ -113,7 +113,8 @@ export async function syncCanonicalAmoCrmSalesAction(
     taskText,
     taskCompleteTill,
   });
-  revalidatePath(`/sales/${leadId}`);
+  revalidatePath("/v3/profile");
+  revalidatePath("/v3/inbox");
   return result;
 }
 
@@ -145,6 +146,8 @@ export async function syncCanonicalAmoCrmAdmissionsAction(
     taskCompleteTill,
   });
   revalidatePath(`/clients/${studentCaseId}`);
+  revalidatePath("/v3/profile");
+  revalidatePath("/v3/inbox");
   return result;
 }
 
@@ -176,11 +179,11 @@ export async function reconcileCanonicalAmoCrmCommandAction(
     studentCaseId,
     attemptId,
   });
-  if (studentCaseId === null) {
-    revalidatePath(`/sales/${leadId}`);
-  } else {
+  if (studentCaseId !== null) {
     revalidatePath(`/clients/${studentCaseId}`);
   }
+  revalidatePath("/v3/profile");
+  revalidatePath("/v3/inbox");
   return result;
 }
 
@@ -212,10 +215,10 @@ export async function releaseCanonicalAmoCrmPreparedCommandAction(
     studentCaseId,
     attemptId,
   });
-  if (studentCaseId === null) {
-    revalidatePath(`/sales/${leadId}`);
-  } else {
+  if (studentCaseId !== null) {
     revalidatePath(`/clients/${studentCaseId}`);
   }
+  revalidatePath("/v3/profile");
+  revalidatePath("/v3/inbox");
   return result;
 }

@@ -13,7 +13,7 @@ const NAV_ICON: Record<string, IconName> = {
   "/applications": "file-check",
   "/documents": "folder",
   "/visa": "plane",
-  "/whatsapp": "message-circle",
+  "/v3/inbox": "message-circle",
   "/tasks": "check-square",
   "/finance": "wallet",
   "/settings": "settings",
@@ -89,7 +89,7 @@ export type MobileNavCopy = {
   closeLabel: string;
 };
 
-const URGENT_HREFS = ["/whatsapp", "/tasks", "/dashboard"] as const;
+const URGENT_HREFS = ["/v3/inbox", "/tasks", "/dashboard"] as const;
 
 export function MobileStaffNav({
   groups,

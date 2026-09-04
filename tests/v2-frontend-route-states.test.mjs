@@ -93,7 +93,6 @@ test("every core staff queue owns a nearest loading boundary", () => {
     ["/visa", "src/app/(staff)/visa/loading.tsx", "visa"],
     ["/finance", "src/app/(staff)/finance/loading.tsx", "finance"],
     ["/tasks", "src/app/(staff)/tasks/loading.tsx", "tasks"],
-    ["/whatsapp", "src/app/(staff)/whatsapp/loading.tsx", null],
   ];
 
   for (const [route, path, sharedRoute] of queues) {

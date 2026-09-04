@@ -17,7 +17,8 @@ const ACTIVE_PROVIDER_RUNTIME_PATHS = [
   "src/lib/server/platform-amocrm-runtime.ts",
   "src/lib/platform-communications.ts",
   "src/app/(staff)/layout.tsx",
-  "src/app/(staff)/whatsapp/[id]/page.tsx",
+  "src/app/(v3)/v3/inbox/page.tsx",
+  "src/components/v3/InboxProviderWorkflowControls.tsx",
   "src/app/api/internal/platform-messaging/waha/work/route.ts",
   "scripts/test-postgres-v2-foundation.sh",
   "scripts/prepare-connected-amocrm-validation.mjs",
@@ -45,7 +46,6 @@ test("P5D active provider runtime keeps one current WAHA session path", () => {
   assert.match(activeSource, /PLATFORM_WAHA_SESSION_NAME = "crm_primary"/);
   assert.match(activeSource, /PLATFORM_WAHA_BASE_URL = "http:\/\/evo-crm-waha:3000"/);
   assert.match(activeSource, /getPlatformWahaSessionHealth\(actor,\s*"crm_primary"\)/);
-  assert.match(activeSource, /thread\.conversation\.wahaSessionName === "crm_primary"/);
   assert.match(activeSource, /ACTIVE_WAHA_SESSION = "crm_primary"/);
   assert.match(activeSource, /waha_session_name="crm_primary"/);
 

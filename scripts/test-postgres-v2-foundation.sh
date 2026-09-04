@@ -1001,7 +1001,8 @@ canonical_amocrm_command_browser_assert() {
     EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
     EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
     EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
-    EVO_SUPABASE_SALES_PROOF_LEAD_ID="$supabase_sales_lead_id" \
+    EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID="$supabase_sales_conversation_lead_id" \
+    EVO_PLATFORM_COMMUNICATIONS_CONVERSATION_ID="$supabase_sales_conversation_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$student_case_id" \
     "$node_bin" node_modules/@playwright/test/cli.js test \
       tests/e2e/canonical-amocrm-command.spec.ts \
@@ -1099,6 +1100,8 @@ echo "Validating the active Supabase-only foundation without the retired Drizzle
     tests/platform-provider-workflows.test.mjs \
     tests/platform-provider-actions.test.mjs \
     tests/platform-provider-controls.test.mjs \
+    tests/v3-inbox-integration.test.mjs \
+    tests/v3-inbox-route-transition.test.mjs \
     tests/platform-waha-local-fetch.test.mjs \
     tests/platform-waha-provider.test.mjs \
     tests/platform-waha-webhook.test.mjs \

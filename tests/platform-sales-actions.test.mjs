@@ -32,7 +32,11 @@ test("platform Sales workflow action is staff-bound and revalidates only verifie
   assert.match(actionSource, /await requirePlatformSalesActor\(\)/);
   assert.match(
     actionSource,
-    /const receipt = await mutatePlatformSalesLeadWorkflow\(actor, input\);[\s\S]*revalidatePath\("\/sales"\);[\s\S]*revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,
+    /const receipt = await mutatePlatformSalesLeadWorkflow\(actor, input\);[\s\S]*revalidatePath\("\/sales"\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,
+  );
+  assert.doesNotMatch(
+    actionSource,
+    /revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\)/,
   );
   assert.doesNotMatch(actionSource, /revalidatePath\("\/v3\/profile"\)/);
   assert.match(actionSource, /error instanceof PlatformSalesWorkflowMutationError/);

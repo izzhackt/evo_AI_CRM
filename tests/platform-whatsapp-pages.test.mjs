@@ -1,78 +1,73 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
-function source(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+function path(relativePath) {
+  return new URL(`../${relativePath}`, import.meta.url);
 }
 
-test("WhatsApp list page uses canonical platform queue route contract", () => {
-  const page = source("src/app/(staff)/whatsapp/page.tsx");
+function source(relativePath) {
+  return readFileSync(path(relativePath), "utf8");
+}
 
-  assert.match(page, /listPlatformConversations/);
+test("V3 Inbox owns the canonical queue, selected transcript and command surface", () => {
+  const page = source("src/app/(v3)/v3/inbox/page.tsx");
+  const inboxSource = source("src/lib/v3/inbox-source.ts");
+  const inbox = source("src/components/v3/Inbox.tsx");
+
   assert.match(page, /requirePlatformMessagingActor/);
-  assert.match(page, /parsePlatformConversationCursor/);
-  assert.match(page, /assertExpectedQueryKeys\(query, \["before_at", "before_id"\]\)/);
-  assert.match(page, /queueResetHref=\{cursor \? "\/whatsapp" : null\}/);
-  assert.match(page, /queueNextHref=\{page\.nextCursor \? queueHref\(page\.nextCursor\) : null\}/);
-  assert.doesNotMatch(page, /canonical-whatsapp|Canonical/);
-});
-
-test("WhatsApp thread page uses platform workflow actions and keeps provider identifiers out of client components", () => {
-  const page = source("src/app/(staff)/whatsapp/[id]/page.tsx");
-  const controls = source(
-    "src/components/platform/communications/PlatformProviderWorkflowControls.tsx",
-  );
-
-  assert.match(page, /getPlatformConversationThread/);
-  assert.match(page, /listPlatformConversations/);
-  assert.match(page, /getPlatformWahaSessionHealth/);
-  assert.match(page, /requestPlatformGeminiProposalAction/);
-  assert.match(page, /reviewPlatformGeminiProposalAction/);
-  assert.match(page, /sendPlatformWhatsAppMessageAction/);
-  assert.match(page, /reconcilePlatformWhatsAppSendAction/);
+  assert.match(page, /readInbox\(actor/);
+  assert.match(page, /InboxProviderWorkflowControls/);
+  assert.match(page, /CanonicalAmoCrmCommandPanel/);
   assert.match(
     page,
-    /assertExpectedQueryKeys\(query, \[\s*"before_at",\s*"before_id",\s*"messages_before_at",\s*"messages_before_id",\s*\]\)/,
+    /"conversation"[\s\S]*"before_at"[\s\S]*"before_id"[\s\S]*"messages_before_at"[\s\S]*"messages_before_id"/,
   );
 
-  for (const forbidden of [
-    "wahaMessageId",
-    "kommoAccountId",
-    "kommoConversationId",
-    "amocrmAccountId",
-    "amocrmLeadId",
-    "amocrmContactId",
-  ]) {
-    assert.doesNotMatch(page, new RegExp(forbidden));
-    assert.doesNotMatch(controls, new RegExp(forbidden));
-  }
+  assert.match(inboxSource, /listPlatformConversations/);
+  assert.match(inboxSource, /getPlatformConversationThread/);
+  assert.match(inboxSource, /getPlatformConversationCommandContext/);
+  assert.match(inboxSource, /getPlatformWahaSessionHealth\(actor, "crm_primary"\)/);
+  assert.match(inboxSource, /readStaffGeminiProposal/);
+  assert.match(inboxSource, /listStaffGeminiProposalReviews/);
+  assert.match(inboxSource, /readLatestManualWhatsAppSendAttempt/);
+  assert.match(inbox, /data-testid="v3-inbox"/);
+  assert.match(inbox, /data-testid="v3-inbox-thread"/);
+  assert.match(inbox, /data-testid="v3-inbox-messages"/);
+  assert.doesNotMatch(
+    `${page}\n${inboxSource}\n${inbox}`,
+    /PlatformStaffWhatsApp|PlatformProviderWorkflowControls|service[_-]?role|drizzle|fallback/i,
+  );
 });
 
-test("PlatformStaffWhatsApp exposes queue and thread outcome hooks only", () => {
-  const workspace = source(
-    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
-  );
+test("V3 provider controls use the four reviewed server actions without provider targets", () => {
+  const controls = source("src/components/v3/InboxProviderWorkflowControls.tsx");
 
-  for (const required of [
-    'data-testid="platform-staff-whatsapp-page"',
-    'data-testid="platform-staff-whatsapp-thread"',
-    'data-testid="platform-staff-whatsapp-queue"',
-    'data-testid="platform-staff-whatsapp-messages"',
-    'data-testid="platform-staff-whatsapp-thread-region"',
-    "Newest conversations",
-    "Older conversations",
-    "Newest messages",
-    "Older messages",
-    "before_at",
-    "before_id",
-    "isFreshWorkingWahaSession",
+  assert.equal(controls.match(/useActionState\(/g)?.length, 4);
+  for (const action of [
+    "requestPlatformGeminiProposalAction",
+    "reviewPlatformGeminiProposalAction",
+    "sendPlatformWhatsAppMessageAction",
+    "reconcilePlatformWhatsAppSendAction",
   ]) {
-    assert.match(workspace, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(controls, new RegExp(action));
   }
-
+  for (const field of [
+    "conversation_id",
+    "source_message_id",
+    "request_id",
+    "proposal_request_id",
+    "review_request_id",
+    "decision",
+    "edited_reply_text",
+    "message_text",
+    "attempt_id",
+  ]) {
+    assert.match(controls, new RegExp(`name="${field}"`));
+  }
   for (const forbidden of [
-    "wahaSessionName",
+    "rawChatId",
+    "recipient",
     "wahaMessageId",
     "kommoAccountId",
     "kommoConversationId",
@@ -80,6 +75,23 @@ test("PlatformStaffWhatsApp exposes queue and thread outcome hooks only", () => 
     "amocrmLeadId",
     "amocrmContactId",
   ]) {
-    assert.doesNotMatch(workspace, new RegExp(forbidden));
+    assert.doesNotMatch(controls, new RegExp(forbidden));
+  }
+  assert.doesNotMatch(
+    controls,
+    /localStorage|sessionStorage|fetch\(|broadcast|autonomous/i,
+  );
+});
+
+test("the superseded V2 Inbox routes and controls are physically removed", () => {
+  for (const relativePath of [
+    "src/app/(staff)/whatsapp/page.tsx",
+    "src/app/(staff)/whatsapp/[id]/page.tsx",
+    "src/app/(staff)/whatsapp/error.tsx",
+    "src/app/(staff)/whatsapp/loading.tsx",
+    "src/components/platform/communications/PlatformProviderWorkflowControls.tsx",
+    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
+  ]) {
+    assert.equal(existsSync(path(relativePath)), false, relativePath);
   }
 });

@@ -320,7 +320,7 @@ export function validateBrowserEvidence(value, expectedSha) {
 
   assertPageProof(value.routes.salesWhatsApp, {
     label: "browser evidence sales WhatsApp",
-    route: "/whatsapp/:conversationId",
+    route: "/v3/inbox?conversation=:conversationId",
     role: "sales",
     checkKeys: [
       "pageVisible",
@@ -337,7 +337,7 @@ export function validateBrowserEvidence(value, expectedSha) {
   }
 
   for (const [key, route, scope] of [
-    ["adminSales", "/sales/:leadId", "sales"],
+    ["adminSales", "/v3/inbox?conversation=:conversationId", "sales"],
     ["adminAdmissions", "/clients/:studentCaseId", "admissions"],
   ]) {
     const page = value.routes[key];

@@ -13,7 +13,6 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/visa",
   "/finance",
   "/tasks",
-  "/whatsapp",
   "/settings",
   // V3 is the accepted successor surface. It remains namespaced until the
   // slice-by-slice replacement sequence retires the superseded UI routes.
@@ -27,14 +26,10 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/v3/calendar",
 ]);
 
-const PLATFORM_CONVERSATION_PATH =
-  /^\/whatsapp\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PLATFORM_LEAD_PATH =
-  /^\/sales\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PLATFORM_LEAD_CONVERSATION_PATH =
-  /^\/sales\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_CLIENT_PATH =
   /^\/clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const RETIRED_PLATFORM_SALES_DETAIL_PATH =
+  /^\/sales\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/.*)?$/i;
 const PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/v2\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
 const PRIVATE_DOCUMENT_DOWNLOAD_PATH =
@@ -49,6 +44,7 @@ const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
 const RETIRED_PLATFORM_ROUTE_ROOTS = [
   "/calls",
   "/chat",
+  "/whatsapp",
   "/notifications",
   "/reports",
   "/api/database/status",
@@ -64,8 +60,11 @@ export function platformHomeRoute(role: FixedRole): "/sales" | "/clients" {
  * redirect. They do not route to a handler and cannot reactivate old runtime.
  */
 export function isRetiredPlatformRoute(path: string): boolean {
-  return RETIRED_PLATFORM_ROUTE_ROOTS.some(
-    (root) => path === root || path.startsWith(`${root}/`),
+  return (
+    RETIRED_PLATFORM_SALES_DETAIL_PATH.test(path) ||
+    RETIRED_PLATFORM_ROUTE_ROOTS.some(
+      (root) => path === root || path.startsWith(`${root}/`),
+    )
   );
 }
 
@@ -78,9 +77,6 @@ export function isRetiredPlatformRoute(path: string): boolean {
 export function isConnectedPlatformPage(path: string): boolean {
   return (
     PLATFORM_PAGE_ALLOWLIST.has(path) ||
-    PLATFORM_CONVERSATION_PATH.test(path) ||
-    PLATFORM_LEAD_PATH.test(path) ||
-    PLATFORM_LEAD_CONVERSATION_PATH.test(path) ||
     PLATFORM_CLIENT_PATH.test(path)
   );
 }

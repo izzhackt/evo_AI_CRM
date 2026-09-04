@@ -75,7 +75,7 @@ test("P6B dashboard composes the canonical product queues instead of parallel sc
   assert.match(dashboardRuntime, /listPlatformFinanceControlQueue/);
   assert.match(dashboardRuntime, /listPlatformConversations/);
   assert.match(dashboardRuntime, /platform-dashboard-model\.ts/);
-  for (const href of ["/sales", "/clients", "/tasks", "/finance", "/whatsapp"]) {
+  for (const href of ["/sales", "/clients", "/tasks", "/finance", "/v3/inbox"]) {
     assert.match(dashboardModel, new RegExp(`href: ["']${href}["']`), href);
   }
 });
@@ -173,7 +173,7 @@ test("P6B Admin Sales preview reads only Sales and messaging outcomes", async ()
     },
     {
       key: "whatsapp",
-      href: "/whatsapp",
+      href: "/v3/inbox",
       totalOnPage: 2,
       salesCount: 1,
       admissionsCount: 1,
@@ -251,7 +251,7 @@ test("P6B Admin Admissions preview aggregates overdue work and finance stops", a
         "whatsapp",
         {
           key: "whatsapp",
-          href: "/whatsapp",
+          href: "/v3/inbox",
           totalOnPage: 0,
           salesCount: 0,
           admissionsCount: 0,

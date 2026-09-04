@@ -17010,8 +17010,9 @@ Decision:
   task table;
 - keep production, provider, and managed Supabase state unchanged in this
   slice; prove the additions only through forward local migrations, canonical
-  repositories, V3 adapters, focused tests, and one real local browser/app/
-  database run.
+  repositories, V3 adapters, focused tests, one real local OrbStack Supabase/
+  PostgreSQL/application/browser run, and one exact-head CI pass before each
+  merge.
 
 Implementation security follows the current Supabase guidance: every exposed
 table gets explicit grants plus RLS allow/deny proofs; private Storage accepts

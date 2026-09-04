@@ -401,7 +401,7 @@ export async function updatePlatformUniversityApplicationDetailsAction(
       "update_university_application_details",
       {
         p_organization_id: actor.organizationId,
-        p_application_id: applicationId,
+        p_university_application_id: applicationId,
         p_is_primary: isPrimary,
         p_university_deadline_on: universityDeadlineOn,
         p_expected_version: expectedVersion,

@@ -1748,7 +1748,6 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     studentCaseId,
     caseTaskId,
     universityApplicationId,
-    alternativeUniversityApplicationId,
     visaCaseId,
     paymentObligationId,
     stopFactorId,

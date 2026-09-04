@@ -84,7 +84,7 @@ test("V3 Admissions forms own versioned retry state without legacy query envelop
   assert.match(v3ApplicationActions, /update_university_application_details/);
   assert.match(
     v3ApplicationActions,
-    /"update_university_application_details",[\s\S]*?p_application_id: applicationId/,
+    /"update_university_application_details",[\s\S]*?p_university_application_id: applicationId/,
   );
   assert.match(v3ApplicationActions, /p_is_primary: isPrimary/);
   assert.match(v3ApplicationActions, /p_university_deadline_on: universityDeadlineOn/);
@@ -120,8 +120,8 @@ test("V3 Admissions forms own versioned retry state without legacy query envelop
     actionsSource.indexOf("const CHANGE_APPLICATION_FIELDS"),
   );
   assert.doesNotMatch(detailsFields, /"student_case_id"/);
-  assert.match(detailsAction, /p_application_id: applicationId/);
-  assert.doesNotMatch(detailsAction, /p_university_application_id: applicationId/);
+  assert.match(detailsAction, /p_university_application_id: applicationId/);
+  assert.doesNotMatch(detailsAction, /p_application_id: applicationId/);
   assert.doesNotMatch(detailsAction, /applicationField\(fields, "student_case_id"\)/);
   assert.match(detailsAction, /revalidateApplication\(receipt\.studentCaseId\)/);
   const statusOnlyAction = v3ApplicationActions.slice(

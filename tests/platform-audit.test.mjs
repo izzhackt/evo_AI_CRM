@@ -39,7 +39,7 @@ const V3_F_MIGRATION_SOURCE = readFileSync(
   "utf8",
 );
 const V3_F_APPLICATION_MIGRATION_SOURCE = readFileSync(
-  new URL("../supabase/migrations/112_platform_application_priority_deadlines.sql", import.meta.url),
+  new URL("../supabase/migrations/112_platform_university_application_details.sql", import.meta.url),
   "utf8",
 );
 

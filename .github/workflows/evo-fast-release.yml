@@ -1,115 +1,36 @@
 name: EVO fast app release
 
 on:
-  workflow_dispatch:
-    inputs:
-      release_revision:
-        description: Exact current main commit SHA
-        required: true
-        type: string
-      release_environment:
-        description: Production fast release or validation-only staging preflight
-        required: true
-        default: production
-        type: choice
-        options:
-          - production
-          - staging
+  workflow_run:
+    workflows:
+      - EVO platform CI
+    types:
+      - completed
+    branches:
+      - main
 
 permissions:
   contents: read
   checks: read
 
 concurrency:
-  group: evo-${{ inputs.release_environment }}-release
+  group: evo-production-release
   cancel-in-progress: false
 
+env:
+  EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
+
 jobs:
-  staging_profile_preflight:
-    name: Validate the closed staging identity without effects
-    if: inputs.release_environment == 'staging'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment: staging
-    steps:
-      - name: Check out the requested immutable commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ inputs.release_revision }}
-          fetch-depth: 0
-
-      - name: Set up the repository Node.js runtime
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-
-      - name: Require exact current main and exact-SHA green CI
-        env:
-          EVO_RELEASE_REVISION: ${{ inputs.release_revision }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -Eeuo pipefail
-          [[ "$EVO_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          [[ "$(git rev-parse HEAD)" == "$EVO_RELEASE_REVISION" ]]
-          [[ "$(git rev-parse origin/main)" == "$EVO_RELEASE_REVISION" ]]
-          node scripts/fast-release-ci-gate.mjs
-
-      - name: Validate the effect-free controlled staging profile
-        env:
-          EVO_RELEASE_ENVIRONMENT: staging
-          EVO_RELEASE_GITHUB_ENVIRONMENT: staging
-          EVO_RELEASE_ROOT: /opt/evo-crm-staging
-          EVO_RELEASE_IMMUTABLE_ROOT: /opt/evo-crm-staging/releases
-          EVO_RELEASE_STAGING_ROOT: /opt/evo-crm-staging/.release-staging
-          EVO_RELEASE_EVIDENCE_ROOT: /opt/evo-crm-staging/evidence
-          EVO_RELEASE_PROJECT_NAME: evo-crm-staging
-          EVO_RELEASE_PRIVATE_NETWORK: evo_crm_staging_private
-          EVO_RELEASE_PUBLIC_NETWORK: evo_public_web
-          EVO_RELEASE_VOLUME_NAMES: evo_crm_staging_output,evo_crm_staging_waha_sessions
-          EVO_RELEASE_PUBLIC_HOSTNAME: staging.crm.evoadmissions.com
-          EVO_RELEASE_APP_ENV_FILE: ${{ runner.temp }}/evo-staging-app.env
-          EVO_RELEASE_ENV_EXAMPLE_FILE: ${{ github.workspace }}/deploy/env.staging.example
-          EVO_RELEASE_STAGING_APP_ENV: ${{ secrets.EVO_RELEASE_STAGING_APP_ENV }}
-          EVO_RELEASE_SUPABASE_PROJECT_REF: ${{ vars.EVO_RELEASE_SUPABASE_PROJECT_REF }}
-          EVO_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.EVO_PRODUCTION_SUPABASE_PROJECT_REF }}
-          EVO_RELEASE_PLATFORM_ORGANIZATION_ID: ${{ vars.EVO_RELEASE_PLATFORM_ORGANIZATION_ID }}
-          EVO_RELEASE_SUPABASE_PUBLISHABLE_KEY_SHA256: ${{ vars.EVO_RELEASE_SUPABASE_PUBLISHABLE_KEY_SHA256 }}
-          EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256: ${{ vars.EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256 }}
-          EVO_PRODUCTION_SUPABASE_PUBLISHABLE_KEY_SHA256: ${{ vars.EVO_PRODUCTION_SUPABASE_PUBLISHABLE_KEY_SHA256 }}
-          EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256: ${{ vars.EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256 }}
-        run: |
-          set -Eeuo pipefail
-          trap 'rm -f -- "$EVO_RELEASE_APP_ENV_FILE"' EXIT
-          install -m 600 /dev/null "$EVO_RELEASE_APP_ENV_FILE"
-          printf '%s' "$EVO_RELEASE_STAGING_APP_ENV" > "$EVO_RELEASE_APP_ENV_FILE"
-          unset EVO_RELEASE_STAGING_APP_ENV
-          result_json=$(scripts/evo-fast-release.sh controlled-staging-preflight)
-          [[ "$(jq -er '.ok' <<<"$result_json")" == true ]]
-          [[ "$(jq -er '.effectsAllowed' <<<"$result_json")" == false ]]
-          [[ "$(jq -er '.environment' <<<"$result_json")" == staging ]]
-          [[ "$(jq -er '.releaseStatus' <<<"$result_json")" == blocked ]]
-          [[ "$(jq -er '.blocker' <<<"$result_json")" == managed_staging_inputs_required ]]
-          printf '%s\n' "$result_json" > /tmp/evo-controlled-staging-preflight.json
-
-      - name: Upload the redacted staging preflight result
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: evo-controlled-staging-preflight-${{ inputs.release_revision }}
-          if-no-files-found: error
-          retention-days: 30
-          path: /tmp/evo-controlled-staging-preflight.json
-
   prepare:
-    name: Validate and build immutable CRM image
-    if: inputs.release_environment == 'production'
+    name: Validate green main and build immutable CRM image
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Check out the requested immutable commit
+      - name: Check out the exact green main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.release_revision }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Set up the repository Node.js runtime
@@ -119,19 +40,20 @@ jobs:
 
       - name: Require exact current main and exact-SHA green CI
         env:
-          EVO_RELEASE_REVISION: ${{ inputs.release_revision }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EVO_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]
-          git fetch --no-tags origin main:refs/remotes/origin/main
           [[ "$(git rev-parse HEAD)" == "$EVO_RELEASE_REVISION" ]]
+          [[ "${{ github.event.workflow_run.conclusion }}" == success ]]
+          [[ "${{ github.event.workflow_run.event }}" == push ]]
+          [[ "${{ github.event.workflow_run.head_branch }}" == main ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main
           [[ "$(git rev-parse origin/main)" == "$EVO_RELEASE_REVISION" ]]
           node scripts/fast-release-ci-gate.mjs
 
       - name: Build the exact linux-amd64 CRM image and archive
         env:
-          EVO_RELEASE_REVISION: ${{ inputs.release_revision }}
           EVO_IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
         run: |
           set -Eeuo pipefail
@@ -166,10 +88,10 @@ jobs:
             '{revision:$revision,imageId:$imageId,archiveSha256:$archiveSha256,composeSha256:$composeSha256,version:$version,os:"linux",architecture:"amd64"}' \
             > /tmp/evo-fast-release-image.json
 
-      - name: Seal the candidate before production approval
+      - name: Seal the immutable candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: evo-fast-candidate-${{ inputs.release_revision }}-${{ github.run_attempt }}
+          name: evo-fast-candidate-${{ github.event.workflow_run.head_sha }}-${{ github.run_attempt }}
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
@@ -178,17 +100,16 @@ jobs:
             /tmp/evo-fast-release-image.json
 
   release:
-    name: Approve, deploy, and verify CRM app
-    if: inputs.release_environment == 'production'
+    name: Deploy and verify CRM app
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
     needs: prepare
     runs-on: ubuntu-latest
-    environment: production
     timeout-minutes: 30
     steps:
-      - name: Check out the requested immutable commit
+      - name: Check out the exact green main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.release_revision }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Set up the repository Node.js runtime
@@ -198,25 +119,25 @@ jobs:
 
       - name: Require exact current main and exact-SHA green CI
         env:
-          EVO_RELEASE_REVISION: ${{ inputs.release_revision }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EVO_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]
-          git fetch --no-tags origin main:refs/remotes/origin/main
           [[ "$(git rev-parse HEAD)" == "$EVO_RELEASE_REVISION" ]]
+          [[ "${{ github.event.workflow_run.conclusion }}" == success ]]
+          [[ "${{ github.event.workflow_run.event }}" == push ]]
+          [[ "${{ github.event.workflow_run.head_branch }}" == main ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main
           [[ "$(git rev-parse origin/main)" == "$EVO_RELEASE_REVISION" ]]
           node scripts/fast-release-ci-gate.mjs
 
-      - name: Download the sealed pre-approval candidate
+      - name: Download the sealed immutable candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: evo-fast-candidate-${{ inputs.release_revision }}-${{ github.run_attempt }}
+          name: evo-fast-candidate-${{ github.event.workflow_run.head_sha }}-${{ github.run_attempt }}
           path: /tmp/evo-fast-candidate
 
-      - name: Revalidate the sealed candidate after approval
-        env:
-          EVO_RELEASE_REVISION: ${{ inputs.release_revision }}
+      - name: Revalidate the sealed candidate
         run: |
           set -Eeuo pipefail
           metadata=/tmp/evo-fast-candidate/evo-fast-release-image.json
@@ -268,7 +189,7 @@ jobs:
         env:
           EVO_RELEASE_ROOT: ${{ vars.EVO_RELEASE_ROOT }}
           EVO_RELEASE_PROJECT_NAME: ${{ vars.EVO_RELEASE_PROJECT_NAME }}
-          EVO_RELEASE_STAGING_ROOT: ${{ vars.EVO_RELEASE_STAGING_ROOT }}
+          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
           EVO_RELEASE_EVIDENCE_ROOT: ${{ vars.EVO_RELEASE_EVIDENCE_ROOT }}
           EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
@@ -278,20 +199,19 @@ jobs:
           set -Eeuo pipefail
           [[ "$EVO_RELEASE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
           [[ "$EVO_RELEASE_PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]{0,99}$ ]]
-          [[ "$EVO_RELEASE_STAGING_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$EVO_RELEASE_TRANSFER_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
           [[ "$EVO_RELEASE_EVIDENCE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
           [[ "$EVO_RELEASE_EXTERNAL_HEALTH_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/api/health$ ]]
           [[ "$EVO_RELEASE_MIN_FREE_KB" =~ ^[0-9]+$ ]]
           (( EVO_RELEASE_MIN_FREE_KB >= 1048576 ))
           [[ "$EVO_WAHA_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
-          for path in "$EVO_RELEASE_ROOT" "$EVO_RELEASE_STAGING_ROOT" "$EVO_RELEASE_EVIDENCE_ROOT"; do
+          for path in "$EVO_RELEASE_ROOT" "$EVO_RELEASE_TRANSFER_ROOT" "$EVO_RELEASE_EVIDENCE_ROOT"; do
             [[ "$path" != / && "$path" != *//* && "$path" != */../* && "$path" != */.. && "$path" != */./* && "$path" != */. ]]
           done
 
       - name: Require the conservative app-only scope
         env:
-          EVO_RELEASE_REVISION: ${{ inputs.release_revision }}
           EVO_RELEASE_ROOT: ${{ vars.EVO_RELEASE_ROOT }}
           EVO_RELEASE_PROJECT_NAME: ${{ vars.EVO_RELEASE_PROJECT_NAME }}
         run: |
@@ -324,38 +244,36 @@ jobs:
           set -Eeuo pipefail
           node scripts/fast-release-ledger-gate.mjs > /tmp/evo-fast-release-ledger.json
 
-      - name: Stage the immutable archive on Hermes
+      - name: Transfer the immutable archive on Hermes
         env:
-          EVO_RELEASE_REVISION: ${{ inputs.release_revision }}
-          EVO_RELEASE_STAGING_ROOT: ${{ vars.EVO_RELEASE_STAGING_ROOT }}
+          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
         run: |
           set -Eeuo pipefail
-          [[ "$EVO_RELEASE_STAGING_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$EVO_RELEASE_TRANSFER_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
           run_id="gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          stage_dir="$EVO_RELEASE_STAGING_ROOT/${EVO_RELEASE_REVISION}-${run_id}"
-          ssh evo-production bash -s -- "$stage_dir" <<'REMOTE'
+          transfer_dir="$EVO_RELEASE_TRANSFER_ROOT/${EVO_RELEASE_REVISION}-${run_id}"
+          ssh evo-production bash -s -- "$transfer_dir" <<'REMOTE'
           set -Eeuo pipefail
-          stage_dir=$1
-          [[ "$stage_dir" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ ! -e "$stage_dir" ]]
-          install -d -m 700 "$stage_dir"
+          transfer_dir=$1
+          [[ "$transfer_dir" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ ! -e "$transfer_dir" ]]
+          install -d -m 700 "$transfer_dir"
           REMOTE
-          scp /tmp/evo-fast-candidate/evo-crm-image.tar.gz "evo-production:$stage_dir/evo-crm-image.tar.gz"
-          printf '%s\n' "$stage_dir" > /tmp/evo-fast-release-stage-dir
+          scp /tmp/evo-fast-candidate/evo-crm-image.tar.gz "evo-production:$transfer_dir/evo-crm-image.tar.gz"
+          printf '%s\n' "$transfer_dir" > /tmp/evo-fast-release-transfer-dir
 
       - name: Run one preflight, deploy app, verify, and auto-rollback on failure
         env:
-          EVO_RELEASE_REVISION: ${{ inputs.release_revision }}
           EVO_RELEASE_ROOT: ${{ vars.EVO_RELEASE_ROOT }}
           EVO_RELEASE_PROJECT_NAME: ${{ vars.EVO_RELEASE_PROJECT_NAME }}
-          EVO_RELEASE_STAGING_ROOT: ${{ vars.EVO_RELEASE_STAGING_ROOT }}
+          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
           EVO_RELEASE_EVIDENCE_ROOT: ${{ vars.EVO_RELEASE_EVIDENCE_ROOT }}
           EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
           EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
         run: |
           set -Eeuo pipefail
-          stage_dir=$(cat /tmp/evo-fast-release-stage-dir)
+          transfer_dir=$(cat /tmp/evo-fast-release-transfer-dir)
           image_id=$(jq -er '.imageId' /tmp/evo-fast-release-image.json)
           archive_sha256=$(jq -er '.archiveSha256' /tmp/evo-fast-release-image.json)
           compose_sha256=$(jq -er '.composeSha256' /tmp/evo-fast-release-image.json)
@@ -367,7 +285,7 @@ jobs:
             "$release_control" \
             "$EVO_RELEASE_ROOT" \
             "$EVO_RELEASE_PROJECT_NAME" \
-            "$EVO_RELEASE_STAGING_ROOT" \
+            "$EVO_RELEASE_TRANSFER_ROOT" \
             "$EVO_RELEASE_EVIDENCE_ROOT" \
             "$EVO_RELEASE_EXTERNAL_HEALTH_URL" \
             "$EVO_RELEASE_MIN_FREE_KB" \
@@ -375,7 +293,7 @@ jobs:
             "$EVO_RELEASE_REVISION" \
             "$release_version" \
             "$run_id" \
-            "$stage_dir/evo-crm-image.tar.gz" \
+            "$transfer_dir/evo-crm-image.tar.gz" \
             "$archive_sha256" \
             "$image_id" \
             "$compose_sha256" <<'REMOTE' \
@@ -384,7 +302,7 @@ jobs:
           set -Eeuo pipefail
           export EVO_RELEASE_ROOT=$2
           export EVO_RELEASE_PROJECT_NAME=$3
-          export EVO_RELEASE_STAGING_ROOT=$4
+          export EVO_RELEASE_TRANSFER_ROOT=$4
           export EVO_RELEASE_EVIDENCE_ROOT=$5
           export EVO_RELEASE_COMPOSE_FILE="$2/docker-compose.prod.yml"
           export EVO_RELEASE_APP_ENV_FILE="$2/.env.production"
@@ -434,34 +352,34 @@ jobs:
           fi
           exit "$release_status"
 
-      - name: Remove the staged image archive
+      - name: Remove the transferred image archive
         if: always()
         env:
-          EVO_RELEASE_STAGING_ROOT: ${{ vars.EVO_RELEASE_STAGING_ROOT }}
+          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
         run: |
           set -Eeuo pipefail
-          [[ -f /tmp/evo-fast-release-stage-dir ]] || exit 0
-          stage_dir=$(cat /tmp/evo-fast-release-stage-dir)
-          [[ "$EVO_RELEASE_STAGING_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$stage_dir" == "$EVO_RELEASE_STAGING_ROOT/"* ]]
-          ssh evo-production bash -s -- "$stage_dir" "$EVO_RELEASE_STAGING_ROOT" <<'REMOTE'
+          [[ -f /tmp/evo-fast-release-transfer-dir ]] || exit 0
+          transfer_dir=$(cat /tmp/evo-fast-release-transfer-dir)
+          [[ "$EVO_RELEASE_TRANSFER_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$transfer_dir" == "$EVO_RELEASE_TRANSFER_ROOT/"* ]]
+          ssh evo-production bash -s -- "$transfer_dir" "$EVO_RELEASE_TRANSFER_ROOT" <<'REMOTE'
           set -Eeuo pipefail
-          stage_dir=$1
-          staging_root=$2
-          [[ "$stage_dir" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$staging_root" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$stage_dir" == "$staging_root/"* ]]
-          archive="$stage_dir/evo-crm-image.tar.gz"
+          transfer_dir=$1
+          transfer_root=$2
+          [[ "$transfer_dir" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$transfer_root" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$transfer_dir" == "$transfer_root/"* ]]
+          archive="$transfer_dir/evo-crm-image.tar.gz"
           [[ ! -L "$archive" ]]
           rm -f -- "$archive"
-          rmdir -- "$stage_dir"
+          rmdir -- "$transfer_dir"
           REMOTE
 
       - name: Upload sanitized release evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: evo-fast-release-${{ inputs.release_revision }}-${{ github.run_attempt }}
+          name: evo-fast-release-${{ github.event.workflow_run.head_sha }}-${{ github.run_attempt }}
           if-no-files-found: warn
           retention-days: 30
           path: |

@@ -1,11 +1,15 @@
 # EVO production-successor recovery contract
 
-Status: active V2 recovery boundary for one managed Supabase authority, one
+Status: active V3-H recovery boundary for one managed Supabase authority, one
 Next.js application, and one private WAHA transport. This document does not
 authorize a production restore, provider mutation, customer-data change, WAHA
 logout/relink, or traffic cutover. The superseded SQLite/companion proposal is
 retained only at
 [`docs/archive/v1/disaster-recovery.md`](archive/v1/disaster-recovery.md).
+
+Issue #551 has no staging environment. Repository proof is local and isolated;
+managed-production backup identification, representative-data restore rehearsal
+and any real production action remain separate #552 runtime-access work.
 
 ## Safety contract
 
@@ -37,6 +41,12 @@ artifacts. A database-only restore must not be called a complete product
 restore. Auth, RLS, Storage privacy, signed URLs and role behavior all require
 isolated application/browser verification.
 
+Supabase's database overview states that database backups do not include
+Storage object bytes, and Supabase's S3 compatibility page states that Storage
+bucket versioning is not enabled and deleted objects cannot be restored from
+version history. Treat Storage object bytes as their own export, checksum,
+restore and verification stream.
+
 ## Isolated rehearsal sequence
 
 1. Record the exact repository commit, migration set, source backup identity,
@@ -57,6 +67,44 @@ isolated application/browser verification.
 8. Record sanitized pass/fail results and timings. Destroy the isolated
    destination only under its explicit cleanup plan.
 
+## #551 local release and recovery proof
+
+Run the local proof only after the macOS container preflight passes:
+
+```bash
+orb status
+docker context show
+npm run test:v3h:recovery:orbstack
+```
+
+`scripts/test-v3h-release-recovery-orbstack.sh` is intentionally disposable
+and provider-effect-free. It uses OrbStack, pinned Supabase Postgres, root
+`supabase/migrations`, a synthetic Supabase Auth row and synthetic Storage
+object bytes. It proves:
+
+- root migrations apply to an isolated database with the real schema;
+- a custom-format `pg_dump` archive is non-empty and listable;
+- `pg_restore` restores the archive into another isolated database;
+- the synthetic representative Auth row is present after restore;
+- Storage object bytes are restored and checksum-verified separately from the
+  database archive; and
+- a failing candidate app release through `scripts/evo-fast-release.sh deploy`
+  returns `status:"rolled_back"` and leaves the previous immutable app revision
+  healthy.
+
+The harness prints sanitized JSON only: no provider key, webhook owner,
+customer row, object name, phone number, session payload or production URL is
+evidence.
+
+## Managed-production backup identification
+
+Before #552 deploys or applies schema, identify the actual managed-production
+pre-change backup or approved logical backup, its timestamp, source project
+identity, restoration target, Storage export manifest and restore owner. This
+must be read-only until the approved #552 production window. A green local
+harness, green CI job or configured workflow is not managed-production backup
+proof.
+
 ## WAHA boundary
 
 Normal app rollback preserves `crm_primary`; it does not rescan a QR or move
@@ -76,9 +124,15 @@ not establish a production recovery objective.
 ## Official references
 
 - Supabase database backups: <https://supabase.com/docs/guides/platform/backups>
+- Supabase database overview: <https://supabase.com/docs/guides/database/overview>
 - Supabase backup and restore: <https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore>
 - Supabase Storage downloads: <https://supabase.com/docs/guides/storage/management/download-objects>
+- Supabase Storage S3 compatibility: <https://supabase.com/docs/guides/storage/s3/compatibility>
+- Supabase database migrations: <https://supabase.com/docs/guides/deployment/database-migrations>
 - PostgreSQL `pg_dump`: <https://www.postgresql.org/docs/current/app-pgdump.html>
 - PostgreSQL `pg_restore`: <https://www.postgresql.org/docs/current/app-pgrestore.html>
+- GitHub `workflow_run`: <https://docs.github.com/actions/using-workflows/events-that-trigger-workflows>
+- GitHub Actions concurrency: <https://docs.github.com/actions/using-jobs/using-concurrency>
+- Docker Compose `up`: <https://docs.docker.com/reference/cli/docker/compose/up/>
 - WAHA sessions: <https://waha.devlike.pro/docs/how-to/sessions/>
 - WAHA security: <https://waha.devlike.pro/docs/how-to/security/>

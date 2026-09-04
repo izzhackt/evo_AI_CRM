@@ -17232,3 +17232,62 @@ update/replay/stale-version coverage, zero-or-one-primary and concurrent-switch
 proof, no-false-status-event proof, same-case and cross-organization allow/deny
 checks, fail-closed TypeScript normalization, V3 form/browser persistence and
 the already required single real OrbStack plus exact-head CI gates.
+
+## 2026-09-05 - Define #551 no-staging exact-green-main release and isolated recovery proof
+
+Block-ID: `EVO-V3-H-EXACT-GREEN-MAIN-RECOVERY-2026-09-05`
+
+Change type: active release and recovery implementation contract.
+Affected plan section: Order 7 / Issue #551.
+
+Reason: #551 replaces the old manual/protected-environment fast release with
+an exact-green-main deployment path and recovery proof that does not create or
+depend on a staging environment.
+
+Decision:
+
+- trigger app release from the completed `EVO platform CI` workflow only when
+  the triggering run is a successful `push` on `main`, then re-check that the
+  checked-out SHA still equals current `origin/main`;
+- keep one production concurrency group, immutable CRM image archives,
+  existing preflight/health checks and release-controller rollback controls;
+- remove the active staging release profile, staging Compose/env templates and
+  `--controlled-staging` validation path from the production release contract;
+- keep Supabase schema apply outside the automatic app deployment path:
+  release automation may read the migration ledger but must not run
+  `supabase db push`, restore, branch, or provider-mutating commands;
+- prove recovery locally on OrbStack with disposable Postgres/Compose,
+  synthetic records and synthetic object bytes: root migrations must apply,
+  a custom-format `pg_dump` archive must be listable/restorable with
+  `pg_restore`, Storage bytes must be verified separately, and a failing
+  candidate app release must roll back to the previous immutable revision.
+
+Validation impact: add source-contract tests for the exact-main workflow and a
+local OrbStack recovery/rollback exercise. Managed-production backup
+identification and representative-data restore rehearsal remain a #552
+runtime-access task; this repository slice must not mutate provider keys,
+webhooks, customer data or production traffic.
+
+Official basis:
+
+- GitHub `workflow_run` triggers run after the named workflow completes and
+  must gate jobs on `github.event.workflow_run.conclusion`:
+  https://docs.github.com/actions/using-workflows/events-that-trigger-workflows
+- GitHub workflow syntax supports branch filters for `workflow_run`:
+  https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions#onworkflow_runbranchesbranches-ignore
+- GitHub concurrency groups serialize matching workflow/job runs:
+  https://docs.github.com/actions/using-jobs/using-concurrency
+- Supabase database backups do not include Storage object bytes:
+  https://supabase.com/docs/guides/database/overview
+- Supabase Storage S3 compatibility does not provide bucket versioning, so
+  deleted objects are permanent:
+  https://supabase.com/docs/guides/storage/s3/compatibility
+- Supabase migration docs keep local reset/proof separate from live `db push`:
+  https://supabase.com/docs/guides/deployment/database-migrations
+- PostgreSQL custom `pg_dump` archives are intended for `pg_restore`:
+  https://www.postgresql.org/docs/current/app-pgdump.html
+  https://www.postgresql.org/docs/current/app-pgrestore.html
+- Docker Compose `up --no-deps --wait` and `docker image load` are the
+  documented primitives used by the release controller:
+  https://docs.docker.com/reference/cli/docker/compose/up/
+  https://docs.docker.com/reference/cli/docker/image/load/

@@ -11,7 +11,7 @@ const activeReleaseFiles = [
   "package.json",
   "scripts/evo-fast-release.sh",
   "scripts/fast-release-ci-gate.mjs",
-  "scripts/evo-release-environment-profile.mjs",
+  "scripts/test-v3h-release-recovery-orbstack.sh",
   "scripts/validate-runtime-hardening.mjs",
   "deploy/README.md",
   "deploy/production-release.md",
@@ -111,6 +111,8 @@ test("P6D proof accepts only process-provided real local Supabase authority", as
   assert.doesNotMatch(harness, /abcdefghijklmnopqrst\.supabase\.co|sb_publishable_.*randomBytes|sb_secret_.*randomBytes/u);
   assert.match(harness, /linux\/amd64/u);
   assert.match(harness, /org\.opencontainers\.image\.revision/u);
+  assert.match(harness, /canonicalCompose\("docker-compose\.prod\.yml"/u);
+  assert.doesNotMatch(harness, /docker-compose\.staging\.yml|stagingRendered/u);
   assert.match(harness, /NODE_EXTRA_CA_CERTS/u);
   assert.match(harness, /evolocalp6d000000000\.supabase\.co/u);
   assert.match(harness, /\.listen\(443,'127\.0\.0\.1'\)/u);

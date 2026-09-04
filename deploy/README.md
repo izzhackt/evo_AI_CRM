@@ -1,6 +1,6 @@
 # EVO production-successor deployment boundary
 
-Status: active V2 deployment contract. This document describes the release
+Status: active V3-H deployment contract. This document describes the release
 candidate; it does not authorize a production deployment, traffic cutover,
 provider mutation, customer-data change, or retirement of frozen V1.
 
@@ -57,10 +57,9 @@ bootstrap or maintain a second credential store.
 - The Compose file does not create or operate Supabase, Caddy, Inbox, Lead
   Agent, or any manual worker.
 
-`docker-compose.staging.yml` declares the same two-service shape with the
-separate `evo-crm-staging` project, staging-only networks/volumes and
-`deploy/env.staging.example`. Staging must never mount the production WAHA
-session volume or use the production Supabase project.
+There is no active staging Compose model in the #551 release path. Historical
+V1 staging material is retained only under `docs/archive/` and must not be
+executed as the V3-H deployment contour.
 
 The release lane must not log environment values, Supabase keys, WAHA keys,
 session data, customer content, phone numbers, or provider payloads.

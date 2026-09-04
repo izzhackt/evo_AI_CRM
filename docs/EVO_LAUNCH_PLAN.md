@@ -272,18 +272,18 @@ programs are not candidate services, checks or fallbacks.
 
 The retained executable release authority is
 `.github/workflows/evo-fast-release.yml`, `scripts/evo-fast-release.sh`,
-`scripts/fast-release-ci-gate.mjs` and
-`scripts/evo-release-environment-profile.mjs`, updated to the single successor
-contract. All other release programs must either serve the current root
-successor or leave the active executable surface.
+`scripts/fast-release-ci-gate.mjs`, `scripts/fast-release-ledger-gate.mjs` and
+`scripts/test-v3h-release-recovery-orbstack.sh`, updated to the single
+successor contract. All other release programs must either serve the current
+root successor or leave the active executable surface.
 
 This slice must preserve frozen V1 deployment and rollback history, but move or
 mark it as unmistakably historical and remove every active package, CI,
 release-controller, validation and runbook reference that could execute it as
 the successor. The active CI and release gate validate only the root EVO
-product. The production and staging Compose models must render exactly the
-accepted `app` and private `waha` services; an externally configurable list may
-not reintroduce legacy containers as release requirements.
+product. The production Compose model must render exactly the accepted `app`
+and private `waha` services; an externally configurable list may not reintroduce
+legacy containers as release requirements.
 
 Acceptance requires all of the following on the same candidate head:
 
@@ -296,9 +296,9 @@ Acceptance requires all of the following on the same candidate head:
    ignored `.env*` secrets, frozen application source, local evidence and
    obsolete P8 release programs; the final image contains only the root
    successor application and its production dependencies;
-3. production and staging Compose are rendered canonically and prove exactly
-   `app` plus `waha`, private WAHA networking, immutable WAHA digest input,
-   healthchecks, resource limits and bounded logs;
+3. production Compose is rendered canonically and proves exactly `app` plus
+   `waha`, private WAHA networking, immutable WAHA digest input, healthchecks,
+   resource limits and bounded logs;
 4. a clean exact-SHA `linux/amd64` app image records the approved source,
    revision and version labels, and a sanitized sorted inventory proves the
    expected production dependency set without secret values, SQLite, Drizzle,
@@ -322,9 +322,10 @@ Acceptance requires all of the following on the same candidate head:
 
 #587 does not mutate `hermes-vps`, Caddy/DNS, the managed Supabase project,
 provider or customer state, webhook ownership, V1 deployments or public
-traffic. It does not edit `src/lib/v3/*`. Real staging, restore and migration
-rehearsal remain owned by #551; production cutover and V1 retirement remain
-owned by #552.
+traffic. It does not edit `src/lib/v3/*`. No staging environment is part of the
+#551 recovery path; managed-production backup identification, restore and
+migration rehearsal continue under #551/#552 gates, and production cutover plus
+V1 retirement remain owned by #552.
 
 ### P1 existing-state finding
 

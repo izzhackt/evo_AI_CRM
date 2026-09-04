@@ -1,13 +1,13 @@
 # EVO production-successor exact-SHA release runbook
 
-Status: active V2 release contract. It replaces the former five-container V1
+Status: active V3-H release contract. It replaces the former five-container V1
 runbook, retained only at
 [`docs/archive/v1/production-release.md`](../docs/archive/v1/production-release.md).
 Nothing here authorizes a VPS or provider mutation by itself.
 
 ## 1. Release invariant
 
-One release candidate contains:
+One release candidate contains one exact green `main` commit and:
 
 - one clean checkout at the exact current `origin/main` commit;
 - one linux/amd64 `evo-crm:<full-sha>` image built from that checkout;
@@ -19,6 +19,10 @@ One release candidate contains:
 The candidate must not start, require, inspect, or fall back to a companion
 Inbox, Lead Agent, manual-send worker, SQLite database, Drizzle repository, V1
 sender/webhook, or second UI.
+
+There is no staging environment in the #551 app-release path. Supabase schema
+apply is a separate manual #552 action after the release and recovery gates are
+reviewed.
 
 ## 2. Stop conditions
 
@@ -158,6 +162,19 @@ Provider writes require their own explicit acceptance step.
 Record the prior app image ID, prior Compose file hash, and current WAHA image
 digest before deployment. An application rollback may restore only that exact
 recorded app image and configuration. Do not rebuild a prior tag.
+
+The exact controller rollback command is:
+
+```bash
+export EVO_RELEASE_ROLLBACK_STATE='/opt/evo-crm/release-evidence/<release>/state.json'
+scripts/evo-fast-release.sh rollback
+```
+
+The surrounding `EVO_RELEASE_ROOT`, `EVO_RELEASE_PROJECT_NAME`,
+`EVO_RELEASE_EVIDENCE_ROOT`, `EVO_RELEASE_COMPOSE_FILE`,
+`EVO_RELEASE_APP_ENV_FILE`, `EVO_RELEASE_EXTERNAL_HEALTH_URL` and
+`EVO_WAHA_IMAGE_DIGEST` values must match the same release evidence. Use the
+private retained `state.json`; do not reconstruct it from memory.
 
 Never roll back a Supabase migration by restoring SQLite, starting a frozen
 worker, or dual-writing. Database/schema recovery is forward-only unless the

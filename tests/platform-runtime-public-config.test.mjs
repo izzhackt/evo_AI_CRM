@@ -163,8 +163,8 @@ test("only the portal realtime surface reads public Supabase config at request r
   );
 });
 
-test("successor env templates expose only publishable Supabase values to the browser", () => {
-  for (const path of ["deploy/env.production.example", "deploy/env.staging.example"]) {
+test("successor production env template exposes only publishable Supabase values to the browser", () => {
+  for (const path of ["deploy/env.production.example"]) {
     const source = readFileSync(path, "utf8");
     assert.match(source, /^NEXT_PUBLIC_SUPABASE_URL=/mu, path);
     assert.match(source, /^NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/mu, path);

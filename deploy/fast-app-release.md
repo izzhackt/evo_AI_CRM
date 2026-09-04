@@ -1,99 +1,123 @@
 # Fast CRM app release
 
-This is the retained app-only update lane for the single EVO successor. It may
-be activated only after the separately authorized production cutover has
-established the root app plus private WAHA baseline. Issue #587 validates this
-control without deploying it. The lane never imports knowledge, runs
-migrations, changes provider settings, restarts WAHA, or writes
-amoCRM/WhatsApp/customer data.
+This is the app-only release lane for the single EVO V3 successor. It deploys
+only after the `EVO platform CI` workflow completes successfully for a
+successful `push` to `main`, and then rechecks that the workflow SHA still
+equals current `origin/main` before building or deploying anything.
 
-## What the button does
+The lane never imports knowledge, applies schema, changes provider settings,
+restarts WAHA broadly, changes webhooks, or writes amoCRM, WhatsApp or customer
+data. Supabase schema apply remains a separate manual action for #552.
 
-The `EVO fast app release` workflow accepts one exact current `main` commit.
-Before requesting production approval, an unprivileged job validates exact-main
-and green CI, builds the linux/amd64 image, checks its OCI labels and seals the
-checksummed archive as a one-day workflow artifact. The protected GitHub
-`production` Environment then:
+## What the workflow does
 
-1. rechecks that the approved commit still equals `origin/main`, still has the
-   green root `Main CRM` check, and still matches the sealed archive;
-2. asks the live CRM which exact commit is currently deployed and rejects every
-   changed path outside the conservative presentation allowlist;
-3. checks the production Supabase migration ledger read-only against the exact
-   repository migration set;
-4. transfers the already-sealed immutable archive over pinned SSH;
-5. runs the short server preflight, including a read-only proof that the Compose
-   project contains exactly healthy `app` and `waha` services, the private WAHA
-   uses the configured immutable digest, and every declared app-image layer is
-   present and readable; it then replaces only `app` and checks exact
-   image/labels/health/restarts plus the configured external health URL;
-6. automatically restores the previous app image if any deployment or health
-   assertion fails.
+`EVO fast app release` is triggered by GitHub Actions `workflow_run`, not by a
+manual dispatch button. It has one production concurrency group,
+`evo-production-release`, with `cancel-in-progress: false`, so overlapping
+production deploys cannot run.
+
+The `prepare` job:
+
+1. checks out `github.event.workflow_run.head_sha`;
+2. requires the triggering run to be a successful push to `main`;
+3. fetches `origin/main` and requires it to equal the same SHA;
+4. calls `scripts/fast-release-ci-gate.mjs` for exact-SHA required-check proof;
+5. builds one linux/amd64 `evo-crm:<full-sha>` image;
+6. verifies image OS/architecture and OCI revision/version labels; and
+7. seals the image as a checksummed immutable archive artifact.
+
+The `release` job repeats the exact-main and exact-green checks, asks the live
+CRM which exact commit is currently deployed, rejects controlled-release scope,
+checks the managed Supabase migration ledger read-only, transfers the sealed
+archive to `EVO_RELEASE_TRANSFER_ROOT`, and runs
+`scripts/evo-fast-release.sh deploy` on Hermes.
+
+The release controller verifies the app env contract, disk capacity, Compose
+shape, current runtime, WAHA digest, archive hash, image layers, current
+external health and candidate health. It replaces only Compose service `app`
+with `--no-deps --no-build --pull never --wait`; `waha` is not recreated. If
+candidate deploy or health verification fails, the controller restores the
+recorded previous app image and emits `status:"rolled_back"`.
 
 Every early preflight, transfer or image-load stop is reduced to a closed safe
 code in `result.json`; raw controller stderr is never uploaded as evidence.
 
-No live `git pull`, VPS build, mutable image tag, broad Compose restart, runtime
-host-key discovery, database rollback or volume rollback is used.
+No live `git pull`, VPS build, mutable app tag, staging job, broad Compose
+restart, runtime host-key discovery, database rollback or volume rollback is
+used.
 
-The control matches the current vendor contracts: GitHub Environment secrets
-remain unavailable until required-reviewer approval, Docker Compose `--no-deps`
-does not start linked services and `--wait` waits for running/healthy state, and
-Supabase exposes applied migrations through the read-only Management API. See
-[GitHub deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
-[Docker Compose up](https://docs.docker.com/reference/cli/docker/compose/up/), and
-[Supabase list migration history](https://supabase.com/docs/reference/api/v1-list-migration-history).
+## GitHub Actions inputs
 
-## One-time GitHub Environment setup
-
-Create a protected GitHub Environment named `production` with the owner as a
-required reviewer. Store values only in the Environment, never in the repo.
+Store real values only in GitHub Actions secrets/variables or provider/server
+secret stores, never in the repository.
 
 Secrets:
 
-- `EVO_DEPLOY_SSH_PRIVATE_KEY` — dedicated deploy key;
-- `EVO_DEPLOY_KNOWN_HOSTS` — pre-verified Hermes host-key line;
-- `SUPABASE_ACCESS_TOKEN` — read-only migration-ledger lookup credential.
-
-Prefer a fine-grained Supabase token limited to `database_migrations_read`; the
-workflow makes one authenticated `GET` and never submits migration SQL.
+- `EVO_DEPLOY_SSH_PRIVATE_KEY` - dedicated deploy key;
+- `EVO_DEPLOY_KNOWN_HOSTS` - pre-verified Hermes host-key line;
+- `SUPABASE_ACCESS_TOKEN` - migration-ledger lookup credential.
 
 Variables:
 
 - `EVO_DEPLOY_HOST`, `EVO_DEPLOY_PORT`, `EVO_DEPLOY_USER`;
-- `EVO_RELEASE_ROOT`, `EVO_RELEASE_PROJECT_NAME`, `EVO_RELEASE_STAGING_ROOT`,
-  `EVO_RELEASE_EVIDENCE_ROOT`;
+- `EVO_RELEASE_ROOT`, `EVO_RELEASE_PROJECT_NAME`,
+  `EVO_RELEASE_TRANSFER_ROOT`, `EVO_RELEASE_EVIDENCE_ROOT`;
 - `EVO_RELEASE_EXTERNAL_HEALTH_URL`;
-- `EVO_RELEASE_MIN_FREE_KB` — at least `1048576`;
-- `EVO_WAHA_IMAGE_DIGEST` — the already-reviewed immutable WAHA digest needed
-  to validate both the complete Compose render and current private WAHA
-  service;
+- `EVO_RELEASE_MIN_FREE_KB` - at least `1048576`;
+- `EVO_WAHA_IMAGE_DIGEST` - the reviewed immutable WAHA digest;
 - `EVO_SUPABASE_PROJECT_REF`.
 
-The deploy key must be restricted to the intended Hermes account. Adding that
-key, installing `scripts/evo-fast-release.sh` at the configured release root,
-and establishing the first compatible deployed baseline are production
-mutations and require the separate production-cutover authorization in #552.
+Prefer a fine-grained Supabase token limited to migration-history reads. The
+workflow makes authenticated read calls for the ledger gate and never submits
+SQL. It must not run `supabase db push`, create Supabase branches, restore a
+project, or mutate Storage.
+
+Adding deploy keys, setting server secrets, installing the release controller
+on Hermes, and establishing the first compatible production baseline are
+production mutations and belong to the separately controlled #552 operation.
 
 ## Normal use
 
-1. Merge a presentation-only PR and wait for exact-main CI to finish green.
-2. Open Actions → `EVO fast app release` → Run workflow.
-3. Paste the full SHA shown on `main`.
-4. Approve the single protected `production` Environment gate.
-5. Wait for the `deployed` result and the four sanitized evidence files.
-6. Log in to CRM. The bottom of the staff navigation shows
-   `release-version · short-sha`; authenticated staff can also request
-   `/api/version`.
+1. Merge the reviewed PR to `main`.
+2. Wait for `EVO platform CI` to complete green for that exact commit.
+3. Let `EVO fast app release` run from the `workflow_run` event.
+4. Inspect the sanitized release evidence and the `deployed` or `rolled_back`
+   result.
+5. Log in to CRM. The staff navigation shows `release-version · short-sha`;
+   authenticated staff can also request `/api/version`.
 
 If the scope gate returns `controlled_release_required`, the change is not
-eligible for the fast lane. Use launch-control; do not broaden the allowlist to
+eligible for this lane. Use launch-control; do not broaden the allowlist to
 force it through.
 
 ## Rollback
 
-The deploy command creates a private state record and a tag pointing to the
-previous exact image before replacing `app`. A failed deployment invokes that
-rollback in the same approved job. Manual rollback later is possible with
-`scripts/evo-fast-release.sh rollback` and the retained `state.json`, but it is
-a new production action and needs a new protected approval.
+The deploy command creates a private state record and a rollback tag pointing
+to the previous exact app image before replacing `app`. A failed deployment
+invokes that rollback in the same job.
+
+Manual rollback later requires the retained private `state.json`:
+
+```bash
+export EVO_RELEASE_ROLLBACK_STATE='/opt/evo-crm/release-evidence/<release>/state.json'
+scripts/evo-fast-release.sh rollback
+```
+
+That rollback restores only the recorded app image/configuration. It does not
+change Supabase schema/data, Storage objects, WAHA session bytes, webhook
+ownership, provider settings or customer traffic.
+
+## Official references
+
+- GitHub `workflow_run` events and conclusion gating:
+  <https://docs.github.com/actions/using-workflows/events-that-trigger-workflows>
+- GitHub branch filters for `workflow_run`:
+  <https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions#onworkflow_runbranchesbranches-ignore>
+- GitHub concurrency groups:
+  <https://docs.github.com/actions/using-jobs/using-concurrency>
+- Docker Compose `up --no-deps --wait`:
+  <https://docs.docker.com/reference/cli/docker/compose/up/>
+- Docker image load:
+  <https://docs.docker.com/reference/cli/docker/image/load/>
+- Supabase migration history API:
+  <https://supabase.com/docs/reference/api/v1-list-migration-history>

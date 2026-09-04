@@ -536,7 +536,6 @@ async function main() {
   };
 
   canonicalCompose("docker-compose.prod.yml", composeEnvironment);
-  canonicalCompose("docker-compose.staging.yml", composeEnvironment);
   createNetwork(privateNetwork, { internal: true });
   createNetwork(webNetwork, { internal: false });
 
@@ -611,7 +610,7 @@ async function main() {
       dependencyInventory: dependencies,
       pathInventory: paths,
     },
-    compose: { services: ["app", "waha"], privateWaha: true, productionRendered: true, stagingRendered: true },
+    compose: { services: ["app", "waha"], privateWaha: true, productionRendered: true },
     supabase: { auth: "passed", postgres: "passed", storage: "passed", authority: "disposable_local_tls_proxy" },
     browser: { adminLogin: "passed" },
     health: 200,

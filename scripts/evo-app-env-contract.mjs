@@ -5,7 +5,6 @@ import {
   readFileSync,
   realpathSync,
 } from "node:fs";
-import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -16,10 +15,6 @@ const PLACEHOLDER = /(?:replace-with-|change-me|changeme|placeholder)/iu;
 const SUPABASE_PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]+$/u;
 const SUPABASE_SECRET_KEY = /^sb_secret_[A-Za-z0-9_-]{16,}$/u;
 const PRODUCTION_SUPABASE_ORIGIN = /^https:\/\/[a-z0-9]{20}\.supabase\.co\/?$/u;
-const SUPABASE_PROJECT_REF = /^[a-z0-9]{20}$/u;
-const SHA256 = /^[0-9a-f]{64}$/u;
-const HOSTNAME = /^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/u;
-const CURRENT_PRODUCTION_SUPABASE_PROJECT_REF = "iosckaqtovbbnssqcpde";
 const REQUIRED_RUNTIME_VALUES = Object.freeze([
   "EVO_CRM_DOMAIN",
   "EVO_CADDY_NETWORK",
@@ -221,98 +216,6 @@ export function validateAppEnvironmentContract({ exampleText, actualText }) {
   return Object.freeze({ ok: true, code: "valid" });
 }
 
-function sha256(value) {
-  return createHash("sha256").update(value, "utf8").digest("hex");
-}
-
-export function validateControlledStagingAppEnvironment({
-  exampleText,
-  actualText,
-  stagingProjectRef,
-  productionProjectRef,
-  stagingOrganizationId,
-  stagingPublishableKeySha256,
-  stagingSecretKeySha256,
-  productionPublishableKeySha256,
-  productionSecretKeySha256,
-  stagingHostname,
-}) {
-  validateAppEnvironmentContract({ exampleText, actualText });
-  const entries = parseEnvironmentText(actualText);
-
-  if (
-    !SUPABASE_PROJECT_REF.test(stagingProjectRef ?? "") ||
-    !SUPABASE_PROJECT_REF.test(productionProjectRef ?? "") ||
-    productionProjectRef !== CURRENT_PRODUCTION_SUPABASE_PROJECT_REF ||
-    stagingProjectRef === productionProjectRef
-  ) {
-    fail("staging_supabase_identity_invalid");
-  }
-  if (
-    !UUID.test(stagingOrganizationId ?? "") ||
-    stagingOrganizationId === "00000000-0000-0000-0000-000000000000" ||
-    !HOSTNAME.test(stagingHostname ?? "")
-  ) {
-    fail("staging_server_identity_invalid");
-  }
-  for (const fingerprint of [
-    stagingPublishableKeySha256,
-    stagingSecretKeySha256,
-    productionPublishableKeySha256,
-    productionSecretKeySha256,
-  ]) {
-    if (!SHA256.test(fingerprint ?? "")) fail("staging_key_fingerprint_invalid");
-  }
-  if (
-    stagingPublishableKeySha256 === productionPublishableKeySha256 ||
-    stagingSecretKeySha256 === productionSecretKeySha256
-  ) {
-    fail("staging_key_fingerprint_collision");
-  }
-
-  const actualUrl = new URL(entries.get("NEXT_PUBLIC_SUPABASE_URL"));
-  const actualProjectRef = actualUrl.hostname.endsWith(".supabase.co")
-    ? actualUrl.hostname.slice(0, -".supabase.co".length)
-    : "";
-  if (
-    actualProjectRef === CURRENT_PRODUCTION_SUPABASE_PROJECT_REF ||
-    actualProjectRef === productionProjectRef
-  ) {
-    fail("staging_supabase_url_collision");
-  }
-  if (actualUrl.origin !== `https://${stagingProjectRef}.supabase.co`) {
-    fail("staging_supabase_url_mismatch");
-  }
-  if (entries.get("EVO_CRM_DOMAIN") !== stagingHostname) {
-    fail("staging_hostname_identity_mismatch");
-  }
-  if (entries.get("EVO_PLATFORM_ORGANIZATION_ID") !== stagingOrganizationId) {
-    fail("staging_organization_identity_mismatch");
-  }
-
-  const publishableKey = entries.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
-  const secretKey = entries.get("EVO_PLATFORM_SUPABASE_SECRET_KEY");
-  const publishableFingerprint = sha256(publishableKey);
-  if (
-    publishableFingerprint === productionPublishableKeySha256 ||
-    publishableFingerprint !== stagingPublishableKeySha256
-  ) {
-    fail("staging_supabase_publishable_key_mismatch");
-  }
-  if (!isSupabaseSecretKey(secretKey)) {
-    fail("staging_supabase_secret_key_mismatch");
-  }
-  const secretFingerprint = sha256(secretKey);
-  if (
-    secretFingerprint === productionSecretKeySha256 ||
-    secretFingerprint !== stagingSecretKeySha256
-  ) {
-    fail("staging_supabase_secret_key_mismatch");
-  }
-
-  return Object.freeze({ ok: true, code: "controlled_staging_env_valid" });
-}
-
 function readClosedFile(path, { privateFile }) {
   if (typeof path !== "string" || !isAbsolute(path) || path.includes("\0")) {
     fail("env_path_invalid");
@@ -337,36 +240,14 @@ function parseCli(argv) {
   ) {
     return Object.freeze({ mode: "default", examplePath: argv[1], envPath: argv[3] });
   }
-  if (
-    argv.length === 5 &&
-    argv[0] === "--controlled-staging" &&
-    argv[1] === "--example" &&
-    argv[3] === "--env"
-  ) {
-    return Object.freeze({ mode: "controlled-staging", examplePath: argv[2], envPath: argv[4] });
-  }
   fail("invalid_arguments");
 }
 
-export function runAppEnvironmentContractCli(argv, environment = process.env) {
-  const { mode, examplePath, envPath } = parseCli(argv);
-  const files = {
+export function runAppEnvironmentContractCli(argv) {
+  const { examplePath, envPath } = parseCli(argv);
+  return validateAppEnvironmentContract({
     exampleText: readClosedFile(examplePath, { privateFile: false }),
     actualText: readClosedFile(envPath, { privateFile: true }),
-  };
-  if (mode === "default") return validateAppEnvironmentContract(files);
-  return validateControlledStagingAppEnvironment({
-    ...files,
-    stagingProjectRef: environment.EVO_RELEASE_SUPABASE_PROJECT_REF,
-    productionProjectRef: environment.EVO_PRODUCTION_SUPABASE_PROJECT_REF,
-    stagingOrganizationId: environment.EVO_RELEASE_PLATFORM_ORGANIZATION_ID,
-    stagingPublishableKeySha256:
-      environment.EVO_RELEASE_SUPABASE_PUBLISHABLE_KEY_SHA256,
-    stagingSecretKeySha256: environment.EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256,
-    productionPublishableKeySha256:
-      environment.EVO_PRODUCTION_SUPABASE_PUBLISHABLE_KEY_SHA256,
-    productionSecretKeySha256: environment.EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256,
-    stagingHostname: environment.EVO_RELEASE_PUBLIC_HOSTNAME,
   });
 }
 

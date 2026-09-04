@@ -1,5 +1,10 @@
 # U11 isolated V1 staging and recovery runbook
 
+> Archived 2026-09-05. This records the former U11 staging recovery contour for
+> history only. The active #551/#552 V3-H release path has no staging
+> environment; use `deploy/fast-app-release.md`, `deploy/production-release.md`
+> and `docs/DISASTER_RECOVERY.md` for current release and recovery authority.
+
 Status: isolated managed staging is partially executed. The data-less backend,
 first Admin, protected GitHub profile, app-only VPS runtime and operator
 read-only browser smoke are live; public owner-network acceptance and managed

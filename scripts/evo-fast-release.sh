@@ -111,7 +111,7 @@ load_configuration() {
   for variable in \
     EVO_RELEASE_ROOT \
     EVO_RELEASE_PROJECT_NAME \
-    EVO_RELEASE_STAGING_ROOT \
+    EVO_RELEASE_TRANSFER_ROOT \
     EVO_RELEASE_EVIDENCE_ROOT \
     EVO_RELEASE_COMPOSE_FILE \
     EVO_RELEASE_APP_ENV_FILE \
@@ -122,7 +122,7 @@ load_configuration() {
 
   require_absolute_path "$EVO_RELEASE_ROOT" "release_root_invalid"
   require_match "$EVO_RELEASE_PROJECT_NAME" "$PROJECT_NAME_RE" "project_name_invalid"
-  require_absolute_path "$EVO_RELEASE_STAGING_ROOT" "staging_root_invalid"
+  require_absolute_path "$EVO_RELEASE_TRANSFER_ROOT" "transfer_root_invalid"
   require_absolute_path "$EVO_RELEASE_EVIDENCE_ROOT" "evidence_root_invalid"
   require_absolute_path "$EVO_RELEASE_COMPOSE_FILE" "compose_path_invalid"
   require_absolute_path "$EVO_RELEASE_APP_ENV_FILE" "app_env_path_invalid"
@@ -154,11 +154,11 @@ load_candidate_configuration() {
   require_match "$EVO_RELEASE_EXPECTED_IMAGE_ID" "$SHA256_RE" "candidate_image_id_invalid"
   require_match "$EVO_RELEASE_EXPECTED_COMPOSE_SHA256" "$HASH64_RE" "compose_hash_invalid"
 
-  local archive_real staging_real
+  local archive_real transfer_real
   require_file "$EVO_RELEASE_ARCHIVE" "archive_missing"
   archive_real=$(canonical_path "$EVO_RELEASE_ARCHIVE")
-  staging_real=$(canonical_path "$EVO_RELEASE_STAGING_ROOT")
-  [[ $archive_real == "$staging_real/"* ]] || fail "archive_outside_staging"
+  transfer_real=$(canonical_path "$EVO_RELEASE_TRANSFER_ROOT")
+  [[ $archive_real == "$transfer_real/"* ]] || fail "archive_outside_transfer"
 }
 
 compose() {
@@ -185,39 +185,6 @@ verify_env_contract() {
     --example "$example_file" \
     --env "$EVO_RELEASE_APP_ENV_FILE" \
     >/dev/null || fail "app_env_contract_invalid"
-}
-
-verify_controlled_staging_env_contract() {
-  local variable
-  for variable in \
-    EVO_RELEASE_APP_ENV_FILE \
-    EVO_RELEASE_ENV_EXAMPLE_FILE \
-    EVO_RELEASE_SUPABASE_PROJECT_REF \
-    EVO_PRODUCTION_SUPABASE_PROJECT_REF \
-    EVO_RELEASE_PLATFORM_ORGANIZATION_ID \
-    EVO_RELEASE_SUPABASE_PUBLISHABLE_KEY_SHA256 \
-    EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256 \
-    EVO_PRODUCTION_SUPABASE_PUBLISHABLE_KEY_SHA256 \
-    EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256 \
-    EVO_RELEASE_PUBLIC_HOSTNAME; do
-    require_variable "$variable"
-  done
-  require_absolute_path "$EVO_RELEASE_APP_ENV_FILE" "app_env_path_invalid"
-  require_absolute_path "$EVO_RELEASE_ENV_EXAMPLE_FILE" "env_example_path_invalid"
-
-  local script_dir validator mode
-  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-  validator=$script_dir/evo-app-env-contract.mjs
-  require_file "$EVO_RELEASE_ENV_EXAMPLE_FILE" "env_example_missing"
-  require_file "$EVO_RELEASE_APP_ENV_FILE" "app_env_missing"
-  require_file "$validator" "app_env_validator_missing"
-  mode=$(file_mode "$EVO_RELEASE_APP_ENV_FILE")
-  [[ $mode == 600 || $mode == 640 ]] || fail "app_env_permissions_invalid"
-  node "$validator" \
-    --controlled-staging \
-    --example "$EVO_RELEASE_ENV_EXAMPLE_FILE" \
-    --env "$EVO_RELEASE_APP_ENV_FILE" \
-    >/dev/null || fail "controlled_staging_env_contract_invalid"
 }
 
 verify_current_runtime() {
@@ -393,14 +360,6 @@ verify_external_health() {
     "$EVO_RELEASE_EXTERNAL_HEALTH_URL" || return 1
 }
 
-controlled_staging_preflight() {
-  require_command node
-  local script_dir
-  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-  verify_controlled_staging_env_contract
-  node "$script_dir/evo-release-environment-profile.mjs" --from-env
-}
-
 preflight() {
   require_command curl
   require_command docker
@@ -412,18 +371,6 @@ preflight() {
   load_configuration
   load_candidate_configuration
   verify_env_contract
-  case ${EVO_RELEASE_ENVIRONMENT:-production} in
-    production)
-      ;;
-    staging)
-      verify_controlled_staging_env_contract
-      node "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/evo-release-environment-profile.mjs" \
-        --from-env >/dev/null
-      ;;
-    *)
-      fail "release_environment_invalid"
-      ;;
-  esac
   verify_capacity
   verify_compose
   verify_current_runtime
@@ -575,10 +522,6 @@ case "$command_name" in
   preflight)
     [[ $# -eq 1 ]] || fail "invalid_arguments"
     preflight
-    ;;
-  controlled-staging-preflight)
-    [[ $# -eq 1 ]] || fail "invalid_arguments"
-    controlled_staging_preflight
     ;;
   deploy)
     [[ $# -eq 1 ]] || fail "invalid_arguments"

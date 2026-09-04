@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   mkdtempSync,
-  readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -15,22 +14,10 @@ import test from "node:test";
 import {
   AppEnvironmentContractError,
   validateAppEnvironmentContract,
-  validateControlledStagingAppEnvironment,
 } from "../scripts/evo-app-env-contract.mjs";
 
-const STAGING_PROJECT_REF = "stageabcdefghijklmno";
-const PRODUCTION_PROJECT_REF = "iosckaqtovbbnssqcpde";
-const STAGING_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
-const STAGING_PUBLISHABLE_KEY = "sb_publishable_staging_runtime_safe";
-const STAGING_SECRET_KEY = "sb_secret_ssssssssssssssssssssssss";
-const STAGING_PUBLISHABLE_KEY_SHA256 =
-  "a60af6352f3db89b0417d63be712be8f25446094d92ad4e0800c039bad43912a";
-const STAGING_SECRET_KEY_SHA256 =
-  "35dfc49fa06de41c9b335c236455ece5fa7c48e674dfd5edf079000de7b144bf";
-const PRODUCTION_PUBLISHABLE_KEY_SHA256 =
-  "12c6ee77b503075e3c585d15ce3a9e5f58c4ae043d041edd781aff9a0fb186ec";
-const PRODUCTION_SECRET_KEY_SHA256 =
-  "c41f89ee15ffcb680cc9280437549d3cea84c18a6abdfd7d934ebb9bc6735004";
+const SYNTHETIC_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+const SYNTHETIC_SECRET_KEY = "sb_secret_ssssssssssssssssssssssss";
 
 const example = `
 EVO_CRM_DOMAIN=crm.evoadmissions.com
@@ -54,8 +41,8 @@ function valid(overrides = {}) {
     EVO_CADDY_NETWORK: "evo_public_web",
     NEXT_PUBLIC_SUPABASE_URL: "https://staging.supabase.co",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
-    EVO_PLATFORM_ORGANIZATION_ID: STAGING_ORGANIZATION_ID,
-    EVO_PLATFORM_SUPABASE_SECRET_KEY: STAGING_SECRET_KEY,
+    EVO_PLATFORM_ORGANIZATION_ID: SYNTHETIC_ORGANIZATION_ID,
+    EVO_PLATFORM_SUPABASE_SECRET_KEY: SYNTHETIC_SECRET_KEY,
     EVO_UI_CONTRACT_FIXTURES: "0",
     EVO_PLATFORM_WAHA_INGRESS_ENABLED: "0",
     EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "",
@@ -80,87 +67,11 @@ function expectInvalid(actual, code) {
   );
 }
 
-function controlledStaging(actualText) {
-  return validateControlledStagingAppEnvironment({
-    exampleText: example,
-    actualText,
-    stagingProjectRef: STAGING_PROJECT_REF,
-    productionProjectRef: PRODUCTION_PROJECT_REF,
-    stagingOrganizationId: STAGING_ORGANIZATION_ID,
-    stagingPublishableKeySha256: STAGING_PUBLISHABLE_KEY_SHA256,
-    stagingSecretKeySha256: STAGING_SECRET_KEY_SHA256,
-    productionPublishableKeySha256: PRODUCTION_PUBLISHABLE_KEY_SHA256,
-    productionSecretKeySha256: PRODUCTION_SECRET_KEY_SHA256,
-    stagingHostname: "staging.crm.evoadmissions.com",
-  });
-}
-
 test("accepts the Supabase successor runtime while allowing disabled optional integrations to stay empty", () => {
   assert.deepEqual(
     validateAppEnvironmentContract({ exampleText: example, actualText: valid() }),
     { ok: true, code: "valid" },
   );
-});
-
-test("the committed staging template is intentionally non-deployable until secrets are injected", () => {
-  const template = readFileSync("deploy/env.staging.example", "utf8");
-  assert.throws(
-    () =>
-      validateAppEnvironmentContract({
-        exampleText: example,
-        actualText: template,
-      }),
-    (error) =>
-      error instanceof AppEnvironmentContractError &&
-      error.code === "placeholder_env_value_rejected",
-  );
-});
-
-test("controlled staging binds the concrete Compose app environment to the approved non-production Supabase identity", () => {
-  const actual = valid({
-    EVO_CRM_DOMAIN: "staging.crm.evoadmissions.com",
-    NEXT_PUBLIC_SUPABASE_URL: `https://${STAGING_PROJECT_REF}.supabase.co`,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: STAGING_PUBLISHABLE_KEY,
-    EVO_PLATFORM_ORGANIZATION_ID: STAGING_ORGANIZATION_ID,
-    EVO_PLATFORM_SUPABASE_SECRET_KEY: STAGING_SECRET_KEY,
-    EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",
-    EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "o".repeat(32),
-  });
-
-  assert.deepEqual(controlledStaging(actual), {
-    ok: true,
-    code: "controlled_staging_env_valid",
-  });
-
-  for (const [overrides, code] of [
-    [
-      { NEXT_PUBLIC_SUPABASE_URL: `https://${PRODUCTION_PROJECT_REF}.supabase.co` },
-      "staging_supabase_url_collision",
-    ],
-    [
-      { EVO_PLATFORM_SUPABASE_SECRET_KEY: `sb_secret_${"x".repeat(24)}` },
-      "staging_supabase_secret_key_mismatch",
-    ],
-    [
-      { EVO_PLATFORM_ORGANIZATION_ID: "22222222-2222-4222-8222-222222222222" },
-      "staging_organization_identity_mismatch",
-    ],
-  ]) {
-    assert.throws(
-      () => controlledStaging(valid({
-        EVO_CRM_DOMAIN: "staging.crm.evoadmissions.com",
-        NEXT_PUBLIC_SUPABASE_URL: `https://${STAGING_PROJECT_REF}.supabase.co`,
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: STAGING_PUBLISHABLE_KEY,
-        EVO_PLATFORM_ORGANIZATION_ID: STAGING_ORGANIZATION_ID,
-        EVO_PLATFORM_SUPABASE_SECRET_KEY: STAGING_SECRET_KEY,
-        EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",
-        EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "o".repeat(32),
-        ...overrides,
-      })),
-      (error) => error instanceof AppEnvironmentContractError && error.code === code,
-      code,
-    );
-  }
 });
 
 test("rejects missing names, duplicate names, empty Supabase authority, and known placeholders", () => {
@@ -337,63 +248,16 @@ test("closed CLI validates private files without printing their values", () => {
   }
 });
 
-test("controlled staging CLI validates the private Compose env without printing identities or keys", () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-staging-env-contract-")));
+test("CLI rejects the removed controlled-staging mode without printing env values", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-app-env-mode-")));
   const examplePath = join(root, "env.example");
-  const actualPath = join(root, ".env.staging");
-  const identityEnvironment = {
-    ...process.env,
-    EVO_RELEASE_SUPABASE_PROJECT_REF: STAGING_PROJECT_REF,
-    EVO_PRODUCTION_SUPABASE_PROJECT_REF: PRODUCTION_PROJECT_REF,
-    EVO_RELEASE_PLATFORM_ORGANIZATION_ID: STAGING_ORGANIZATION_ID,
-    EVO_RELEASE_SUPABASE_PUBLISHABLE_KEY_SHA256: STAGING_PUBLISHABLE_KEY_SHA256,
-    EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256: STAGING_SECRET_KEY_SHA256,
-    EVO_PRODUCTION_SUPABASE_PUBLISHABLE_KEY_SHA256: PRODUCTION_PUBLISHABLE_KEY_SHA256,
-    EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256: PRODUCTION_SECRET_KEY_SHA256,
-    EVO_RELEASE_PUBLIC_HOSTNAME: "staging.crm.evoadmissions.com",
-  };
-  const actual = (supabaseUrl) => valid({
-    EVO_CRM_DOMAIN: "staging.crm.evoadmissions.com",
-    NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: STAGING_PUBLISHABLE_KEY,
-    EVO_PLATFORM_ORGANIZATION_ID: STAGING_ORGANIZATION_ID,
-    EVO_PLATFORM_SUPABASE_SECRET_KEY: STAGING_SECRET_KEY,
-    EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",
-    EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "o".repeat(32),
-  });
+  const actualPath = join(root, ".env.production");
   try {
     writeFileSync(examplePath, example, { mode: 0o600 });
-    writeFileSync(
-      actualPath,
-      actual(`https://${STAGING_PROJECT_REF}.supabase.co`),
-      { mode: 0o600 },
-    );
+    writeFileSync(actualPath, valid(), { mode: 0o600 });
     chmodSync(examplePath, 0o600);
     chmodSync(actualPath, 0o600);
 
-    const accepted = spawnSync(
-      process.execPath,
-      [
-        "scripts/evo-app-env-contract.mjs",
-        "--controlled-staging",
-        "--example",
-        examplePath,
-        "--env",
-        actualPath,
-      ],
-      { encoding: "utf8", env: identityEnvironment },
-    );
-    assert.equal(accepted.status, 0, accepted.stderr);
-    assert.equal(accepted.stdout, '{"ok":true,"code":"controlled_staging_env_valid"}\n');
-    assert.equal(accepted.stdout.includes(STAGING_ORGANIZATION_ID), false);
-    assert.equal(accepted.stdout.includes(STAGING_SECRET_KEY), false);
-    assert.equal(accepted.stderr, "");
-
-    writeFileSync(
-      actualPath,
-      actual(`https://${PRODUCTION_PROJECT_REF}.supabase.co`),
-      { mode: 0o600 },
-    );
     const rejected = spawnSync(
       process.execPath,
       [
@@ -404,12 +268,12 @@ test("controlled staging CLI validates the private Compose env without printing 
         "--env",
         actualPath,
       ],
-      { encoding: "utf8", env: identityEnvironment },
+      { encoding: "utf8" },
     );
     assert.equal(rejected.status, 1);
     assert.equal(rejected.stdout, "");
     assert.equal(rejected.stderr, '{"ok":false,"code":"app_env_contract_invalid"}\n');
-    assert.equal(rejected.stderr.includes(STAGING_SECRET_KEY), false);
+    assert.equal(rejected.stderr.includes(SYNTHETIC_SECRET_KEY), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

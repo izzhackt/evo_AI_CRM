@@ -37,7 +37,9 @@ export async function readMultipartFormData(
       if (done) break;
       totalBytes += value.byteLength;
       if (totalBytes > maxBytes) {
-        await reader.cancel();
+        // NextRequest-owned multipart streams can emit a late close rejection
+        // after explicit cancel(). Returning here keeps the helper fail-closed
+        // without leaving a dangling async error in test or route callers.
         return { error: "request_too_large" };
       }
       chunks.push(value);

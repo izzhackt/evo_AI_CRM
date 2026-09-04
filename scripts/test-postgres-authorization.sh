@@ -1963,9 +1963,9 @@ SQL
       -f /workspace/supabase/tests/platform_university_application_details.sql
   fi
 
-  # Migration 113 adds case-safe document-slot links to applications or visa
-  # cases without creating another document file authority.
-  if [[ "$(basename "$migration")" == 113_* ]]; then
+  # Migration 114 hardens the case-safe document-slot link command added by
+  # migration 113. Run the final contract only after both migrations apply.
+  if [[ "$(basename "$migration")" == 114_* ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_document_case_links.sql
@@ -1974,7 +1974,7 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_document_case_links_concurrency_setup.sql \
       >"$p113c_concurrency_setup_log" 2>&1; then
-      echo "Migration 113 concurrency setup failed." >&2
+      echo "Migration 114 concurrency setup failed." >&2
       cat "$p113c_concurrency_setup_log" >&2
       exit 1
     fi
@@ -2000,7 +2000,7 @@ SQL
     done
 
     if [[ "$p113c_concurrency_ready" != "1" ]]; then
-      echo "Migration 113 concurrency worker did not reach the overlap marker." >&2
+      echo "Migration 114 concurrency worker did not reach the overlap marker." >&2
       cat "$p113c_concurrency_worker_a_log" >&2
       exit 1
     fi
@@ -2013,7 +2013,7 @@ SQL
       -v p113c_request_id=59911399-0000-4000-8000-000000000802 \
       -f /workspace/supabase/tests/platform_document_case_links_concurrency_worker.sql \
       >"$p113c_concurrency_worker_b_log" 2>&1; then
-      echo "Migration 113 overlapping document-link worker failed." >&2
+      echo "Migration 114 overlapping document-link worker failed." >&2
       cat "$p113c_concurrency_worker_b_log" >&2
       cat "$p113c_concurrency_worker_a_log" >&2
       exit 1
@@ -2021,7 +2021,7 @@ SQL
 
     if ! wait "$p113c_concurrency_worker_a_pid"; then
       p113c_concurrency_worker_a_pid=""
-      echo "Migration 113 lock-owning document-link worker failed." >&2
+      echo "Migration 114 lock-owning document-link worker failed." >&2
       cat "$p113c_concurrency_worker_a_log" >&2
       exit 1
     fi
@@ -2031,7 +2031,7 @@ SQL
       "$p113c_concurrency_worker_a_log" \
       || ! grep -Fxq 'P113C_OUTCOME=PT409' \
         "$p113c_concurrency_worker_b_log"; then
-      echo "Migration 113 same-version workers did not produce one success and one PT409." >&2
+      echo "Migration 114 same-version workers did not produce one success and one PT409." >&2
       cat "$p113c_concurrency_worker_a_log" >&2
       cat "$p113c_concurrency_worker_b_log" >&2
       exit 1
@@ -2041,7 +2041,7 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_document_case_links_concurrency_assert.sql \
       >"$p113c_concurrency_assert_log" 2>&1; then
-      echo "Migration 113 concurrent document-link durable-state assertion failed." >&2
+      echo "Migration 114 concurrent document-link durable-state assertion failed." >&2
       cat "$p113c_concurrency_assert_log" >&2
       exit 1
     fi

@@ -13,7 +13,7 @@ const grids = source("src/components/v3/calendar/grids.tsx");
 const types = source("src/components/v3/calendar/types.ts");
 const adapter = source("src/lib/v3/calendar-source.ts");
 
-test("V3 calendar reads one canonical workspace without a second data path", () => {
+test("V3 calendar reads one bounded canonical workspace without a second data path", () => {
   assert.match(page, /requirePlatformAdmissionsActor/);
   assert.match(page, /readCalendarWorkspace/);
   assert.match(adapter, /listPlatformAdmissionsTaskQueue/);
@@ -22,8 +22,10 @@ test("V3 calendar reads one canonical workspace without a second data path", () 
   assert.match(adapter, /const QUEUE_PAGE_SIZE = 100/);
   assert.match(adapter, /const CASE_PAGE_SIZE = 100/);
   assert.match(adapter, /if \(queue\.hasNext\)[\s\S]*throw new Error/);
-  assert.match(adapter, /casesHaveMore: casePage\.hasNext/);
-  assert.match(adapter, /assignee\.role !== "sales"/);
+  assert.match(adapter, /hasNext: page\.hasNext/);
+  assert.match(adapter, /casesHaveMore:\s*cases\.hasNext/);
+  assert.match(page, /casesHaveMore=\{workspace\.casesHaveMore\}/);
+  assert.match(controls, /Показаны первые 100 активных Student 360/);
   assert.equal(
     [...adapter.matchAll(/await getPlatformAdmissionsTaskWorkspace\(/g)].length,
     1,
@@ -36,7 +38,7 @@ test("V3 calendar reads one canonical workspace without a second data path", () 
   assert.doesNotMatch(adapter, /PlatformAdmissionsCursor|for \(;;\)|TASK_STATE/);
 });
 
-test("V3 calendar create and complete use versioned server actions", () => {
+test("V3 calendar create, change, complete and cancel use versioned server actions", () => {
   assert.match(controls, /useActionState\(\s*createPlatformAdmissionsTaskAction/);
   assert.match(controls, /useActionState\(\s*changePlatformAdmissionsTaskAction/);
   for (const field of [
@@ -53,29 +55,43 @@ test("V3 calendar create and complete use versioned server actions", () => {
   ]) {
     assert.match(controls, new RegExp(`name="${field}"`));
   }
-  assert.match(controls, /name="expected_version" value="0"/);
-  assert.match(controls, /name="status" value="done"/);
-  assert.match(controls, /value=\{state\.version \?\? task\.version\}/);
-  assert.match(controls, /data-testid="v3-calendar-task-complete-form"/);
-  assert.match(types, /version: string/);
-  assert.match(types, /complete: string/);
-  assert.doesNotMatch(types, /change: string|cancel: string/);
-  assert.ok([...page.matchAll(/randomUUID\(\)/g)].length >= 2);
-  assert.doesNotMatch(
-    controls,
-    /CalendarChangeTaskForm|CalendarTaskControls|status="cancelled"|name="reason"/,
+  assert.equal(
+    [...controls.matchAll(/name="case_task_id"/g)].length,
+    2,
+    "only forms changing an existing task identify a task",
   );
+  assert.match(controls, /name="expected_version" value="0"/);
+  assert.doesNotMatch(controls, /state\.caseTaskId \?\? caseTaskId/);
+  assert.match(controls, /name="expected_version" value=\{task\.version\}/);
+  assert.match(controls, /status="done"/);
+  assert.match(controls, /status="cancelled"/);
+  assert.match(controls, /taskStatus\(status\)/);
+  assert.match(controls, /data-testid="v3-calendar-task-change-form"/);
+  assert.match(controls, /data-testid=\{`v3-calendar-task-\$\{status\}-form`\}/);
+  assert.match(controls, /<select name="priority"/);
+  assert.match(controls, /<select name="student_visible"/);
+  assert.match(types, /version: string/);
+  assert.match(types, /change: string/);
+  assert.match(types, /complete: string/);
+  assert.match(types, /cancel: string/);
+  assert.ok([...page.matchAll(/randomUUID\(\)/g)].length >= 4);
+  assert.doesNotMatch(controls, /return_to_case|name="reason"/);
 });
 
 test("V3 calendar writes are role-scoped and remain keyboard-operable", () => {
+  assert.match(
+    page,
+    /actor\.presentationRole !== "admin"[\s\S]*actor\.presentationRole !== "admissions"[\s\S]*readCalendarWorkspace/,
+  );
   assert.match(
     calendar,
     /presentationRole === "admin"[\s\S]*presentationRole === "admissions"/,
   );
   assert.match(calendar, /open\.assigneeMembershipId === actorMembershipId/);
-  assert.match(calendar, /CalendarCompleteTaskForm/);
+  assert.match(calendar, /CalendarTaskControls/);
   assert.match(controls, /presentationRole !== "admin" && presentationRole !== "admissions"/);
   assert.match(controls, /assignee\.membershipId === actorMembershipId/);
+  assert.match(adapter, /filter\(\(assignee\) => assignee\.role !== "sales"\)/);
   assert.match(controls, /state\.status === "saved" \|\| state\.status === "stale"/);
   assert.match(grids, /<button[\s\S]*id=\{`task-\$\{task\.id\}`\}/);
   assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);

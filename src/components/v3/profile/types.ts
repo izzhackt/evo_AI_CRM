@@ -69,7 +69,7 @@ export type ProfileEvent = Readonly<{
 
 /** Настоящие данные. */
 export type PersonProfile = Readonly<{
-  leadId: string;
+  leadId: string | null;
   person: string;
   email: string | null;
   phone: string | null;
@@ -197,15 +197,24 @@ export function buildV3ProfileHref(
  * Документы заводятся на дело студента. Пока человек лид, дела нет — и
  * вкладки нет тоже: ни пустой, ни с объяснением, почему она пустая.
  */
-export function tabsFor(student: boolean): readonly (typeof TABS)[number][] {
-  return student ? TABS : TABS.filter((tab) => tab.key !== "documents");
+export function tabsFor(
+  student: boolean,
+  actorRole: ProfileActorRole,
+): readonly (typeof TABS)[number][] {
+  return TABS.filter((tab) => (
+    tab.key !== "documents" || (student && actorRole !== "sales")
+  ));
 }
 
 /**
  * Вкладка из адреса. Чужая или недоступная этому человеку — открывается обзор:
  * `?tab=documents` у лида не должен ронять страницу.
  */
-export function resolveTab(value: unknown, student: boolean): TabKey {
-  const found = tabsFor(student).find((tab) => tab.key === value);
+export function resolveTab(
+  value: unknown,
+  student: boolean,
+  actorRole: ProfileActorRole,
+): TabKey {
+  const found = tabsFor(student, actorRole).find((tab) => tab.key === value);
   return found ? found.key : "overview";
 }

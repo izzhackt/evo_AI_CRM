@@ -90,7 +90,9 @@ export type CalendarTask = Readonly<{
 }>;
 
 export type CalendarTaskRequestIds = Readonly<{
+  change: string;
   complete: string;
+  cancel: string;
 }>;
 
 /* ------------------------------------------------------------------ слова */

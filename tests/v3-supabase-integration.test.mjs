@@ -88,7 +88,7 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   }
 
   assert.match(profilePage, /sales=\{view\.sales\}/);
-  assert.match(profilePage, /actorRole=\{actor\.authorityRole\}/);
+  assert.match(profilePage, /actorRole=\{actor\.presentationRole\}/);
   assert.match(profilePage, /requestIds=\{requestIds\}/);
   assert.match(profile, /<Overview[\s\S]*sales=\{sales\}/);
   assert.match(tabs, /<ProfileSalesTransition/);

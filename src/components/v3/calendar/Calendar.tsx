@@ -9,8 +9,8 @@ import type { FixedRole } from "@/lib/fixed-role-policy";
 
 import { MonthGrid, TaskChip, TimeGrid, statePill, taskStateKey } from "./grids";
 import {
-  CalendarCompleteTaskForm,
   CalendarCreateTaskForm,
+  CalendarTaskControls,
 } from "./TaskControls";
 import {
   type CalendarAssigneeOption,
@@ -189,10 +189,12 @@ export function Calendar({
               (presentationRole === "admin" ||
                 (presentationRole === "admissions" &&
                   open.assigneeMembershipId === actorMembershipId)) ? (
-                <CalendarCompleteTaskForm
+                <CalendarTaskControls
                   key={`${open.id}:${open.version}`}
                   task={open}
-                  requestId={taskRequestIds[open.id].complete}
+                  assignees={assignees}
+                  presentationRole={presentationRole}
+                  requestIds={taskRequestIds[open.id]}
                 />
               ) : null}
             </div>

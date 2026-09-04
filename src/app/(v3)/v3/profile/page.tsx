@@ -42,7 +42,11 @@ export default async function ProfilePart({
   // Вкладка приходит адресом, поэтому её нельзя брать на веру: чужое слово и
   // вкладка, которой у этого человека нет (`?tab=documents` у лида), открывают
   // обзор.
-  const tab = resolveTab(params.tab, Boolean(view?.profile.student));
+  const tab = resolveTab(
+    params.tab,
+    Boolean(view?.profile.student),
+    actor.presentationRole,
+  );
   const hrefFor = (next: string) => view
     ? buildV3ProfileHref(view.details.routeTarget, next)
     : "/v3/profile";

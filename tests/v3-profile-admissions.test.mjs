@@ -10,6 +10,7 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   const page = source("src/app/(v3)/v3/profile/page.tsx");
   const types = source("src/components/v3/profile/types.ts");
   const adapter = source("src/lib/v3/profile-source.ts");
+  const workspace = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
 
   assert.match(page, /requirePlatformStaffActor/u);
   assert.match(page, /case\?: string/u);
@@ -17,6 +18,8 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   assert.match(page, /actorRole=\{actor\.presentationRole\}/u);
   assert.match(types, /query\.set\("id", target\.leadId\)/u);
   assert.match(types, /query\.set\("case", target\.studentCaseId\)/u);
+  assert.match(types, /student && actorRole !== "sales"/u);
+  assert.match(page, /actor\.presentationRole,[\s\S]*\);/u);
   assert.doesNotMatch(page + types + adapter, /case_id/u);
 
   assert.match(adapter, /actor\.presentationRole === "admissions"/u);
@@ -26,6 +29,12 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   );
   assert.match(adapter, /if \(actor\.presentationRole === "admissions"\) return null/u);
   assert.match(adapter, /actor\.presentationRole === "admin" && studentCase/u);
+  assert.match(adapter, /links\.find\(\(item\) => item\.studentCaseId === canonicalCaseId\)/u);
+  assert.match(adapter, /if \(leadProfile\) return leadProfile/u);
+  assert.match(adapter, /leadId: link\?\.leadId \?\? null/u);
+  assert.doesNotMatch(adapter, /if \(!link[^\n]*\) return null/u);
+  assert.match(workspace, /<Card id="applications" title="Заявки">/u);
+  assert.match(workspace, /id="visa"[\s\S]*title="Виза"/u);
   assert.doesNotMatch(adapter, /actor\.authorityRole === "admin" && studentCase/u);
   assert.match(adapter, /listPlatformStudentCases/u);
   assert.match(adapter, /getPlatformStudentCaseView/u);

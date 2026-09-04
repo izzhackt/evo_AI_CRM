@@ -107,15 +107,15 @@ export async function readCalendarTasks(
 async function readActiveCases(
   actor: ActivePlatformActor,
 ): Promise<Readonly<{
-  cases: readonly CalendarCaseOption[];
+  rows: readonly CalendarCaseOption[];
   hasNext: boolean;
 }>> {
+  const cases: CalendarCaseOption[] = [];
+  const caseIds = new Set<string>();
   const page = await listPlatformStudentCases(actor, {
     pageSize: CASE_PAGE_SIZE,
     state: "active",
   });
-  const cases: CalendarCaseOption[] = [];
-  const caseIds = new Set<string>();
 
   for (const entry of page.rows) {
     if (entry.access !== "full" || entry.studentCase.state !== "active") {
@@ -132,7 +132,7 @@ async function readActiveCases(
   }
 
   return Object.freeze({
-    cases: Object.freeze(cases),
+    rows: Object.freeze(cases),
     hasNext: page.hasNext,
   });
 }
@@ -147,19 +147,19 @@ export type CalendarWorkspace = Readonly<{
 /**
  * One write-ready V3 calendar projection. Cases and assignees come from the
  * same authorized Supabase repositories as the task commands; there is no
- * browser-only picker data or unbound task fallback.
+ * browser-only picker data or an unbound task path.
  */
 export async function readCalendarWorkspace(
   actor: ActivePlatformActor,
   from: Day,
   to: Day,
 ): Promise<CalendarWorkspace> {
-  const [tasks, casePage] = await Promise.all([
+  const [tasks, cases] = await Promise.all([
     readCalendarTasks(actor, from, to),
     readActiveCases(actor),
   ]);
-  const workspace = casePage.cases[0]
-    ? await getPlatformAdmissionsTaskWorkspace(actor, casePage.cases[0].id)
+  const workspace = cases.rows[0]
+    ? await getPlatformAdmissionsTaskWorkspace(actor, cases.rows[0].id)
     : null;
   const assignees = workspace?.assignees
     .filter((assignee) => assignee.role !== "sales")
@@ -170,8 +170,8 @@ export async function readCalendarWorkspace(
 
   return Object.freeze({
     tasks,
-    cases: casePage.cases,
-    casesHaveMore: casePage.hasNext,
+    cases: cases.rows,
+    casesHaveMore: cases.hasNext,
     assignees: Object.freeze(assignees),
   });
 }

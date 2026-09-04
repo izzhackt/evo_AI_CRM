@@ -6,16 +6,18 @@
  * вкладка тянула бы в браузер весь остальной профиль ради одной рамки.
  */
 export function Card({
+  id,
   title,
   aside,
   children,
 }: {
+  id?: string;
   title: string;
   aside?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-card border border-border bg-surface">
+    <section id={id} className="scroll-mt-4 rounded-card border border-border bg-surface">
       <h3 className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 text-2xs font-semibold uppercase tracking-wide text-fg-2">
         {title}
         {aside ? <span className="font-normal normal-case tracking-normal">{aside}</span> : null}

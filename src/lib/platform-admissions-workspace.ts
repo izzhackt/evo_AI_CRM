@@ -29,11 +29,13 @@ const MAX_CASE_TASKS = 1_000;
 const MAX_ASSIGNEES = 100;
 const DEFAULT_QUEUE_PAGE_SIZE = 50;
 const MAX_QUEUE_PAGE_SIZE = 100;
+const POSTGRES_BIGINT_MAX = "9223372036854775807";
 
 export type PlatformAdmissionsVisaQueueRow = Readonly<{
   sortAt: string;
   organizationId: string;
   visaCaseId: string;
+  version: string;
   studentCaseId: string;
   studentDisplayName: string;
   caseState: "active" | "closed";
@@ -137,6 +139,19 @@ function optionalTimestamp(value: unknown): string | null {
   return value === null ? null : requiredTimestamp(value);
 }
 
+function positiveBigint(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !/^[1-9]\d*$/.test(value) ||
+    value.length > POSTGRES_BIGINT_MAX.length ||
+    (value.length === POSTGRES_BIGINT_MAX.length &&
+      value > POSTGRES_BIGINT_MAX)
+  ) {
+    return invalidShape();
+  }
+  return value;
+}
+
 function oneOf<const T extends readonly string[]>(
   value: unknown,
   allowed: T,
@@ -180,6 +195,7 @@ function normalizeTaskFields(
   row: Record<string, unknown>,
 ): Readonly<{
   caseTaskId: string;
+  version: string;
   taskType: string;
   title: string;
   status: PlatformCaseTaskStatus;
@@ -194,6 +210,7 @@ function normalizeTaskFields(
   if (typeof row.student_visible !== "boolean") return invalidShape();
   return Object.freeze({
     caseTaskId: requiredUuid(row.case_task_id),
+    version: positiveBigint(row.version),
     taskType: requiredText(row.task_type, 200),
     title: requiredText(row.title, 1_000),
     status: oneOf(row.status, PLATFORM_CASE_TASK_STATUSES),
@@ -215,6 +232,7 @@ export function normalizePlatformAdmissionsTaskQueueRow(
     "sort_at",
     "organization_id",
     "case_task_id",
+    "version",
     "student_case_id",
     "student_display_name",
     "case_state",
@@ -243,6 +261,7 @@ export function normalizePlatformAdmissionsTaskQueueRow(
     sortAt,
     organizationId,
     caseTaskId: task.caseTaskId,
+    version: task.version,
     studentCaseId: requiredUuid(row.student_case_id),
     studentDisplayName: requiredText(row.student_display_name, 200),
     caseState: oneOf(row.case_state, ["active", "closed"] as const),
@@ -266,6 +285,7 @@ function normalizeWorkspaceTask(
 ): PlatformAdmissionsTask {
   const row = exactRecord(value, [
     "case_task_id",
+    "version",
     "task_type",
     "title",
     "status",
@@ -283,6 +303,7 @@ function normalizeWorkspaceTask(
   return Object.freeze({
     organizationId,
     caseTaskId: task.caseTaskId,
+    version: task.version,
     studentCaseId,
     taskType: task.taskType,
     title: task.title,
@@ -363,6 +384,7 @@ export function normalizePlatformAdmissionsVisaQueueRow(
     "sort_at",
     "organization_id",
     "visa_case_id",
+    "version",
     "student_case_id",
     "student_display_name",
     "case_state",
@@ -386,6 +408,7 @@ export function normalizePlatformAdmissionsVisaQueueRow(
     sortAt,
     organizationId,
     visaCaseId: requiredUuid(row.visa_case_id),
+    version: positiveBigint(row.version),
     studentCaseId: requiredUuid(row.student_case_id),
     studentDisplayName: requiredText(row.student_display_name, 200),
     caseState: oneOf(row.case_state, ["active", "closed"] as const),

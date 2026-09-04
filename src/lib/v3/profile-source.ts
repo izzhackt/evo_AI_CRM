@@ -344,21 +344,21 @@ async function readCaseProfile(
 
   const canonicalCaseId = view.studentCase.studentCaseId;
   const links = await listPlatformStudentCaseLeadLinks(actor, [canonicalCaseId]);
-  const link = links[0] ?? null;
-  if (!link || link.studentCaseId !== canonicalCaseId) return null;
+  const link = links.find((item) => item.studentCaseId === canonicalCaseId) ?? null;
 
-  if (actor.presentationRole === "admin") {
-    return readLeadProfile(
+  if (actor.presentationRole === "admin" && link) {
+    const leadProfile = await readLeadProfile(
       actor,
       link.leadId,
       { leadId: null, studentCaseId: canonicalCaseId },
       canonicalCaseId,
     );
+    if (leadProfile) return leadProfile;
   }
 
   const data = await loadFullCase(actor, view.studentCase);
   const profile: PersonProfile = {
-    leadId: link.leadId,
+    leadId: link?.leadId ?? null,
     person: data.studentCase.studentDisplayName,
     email: null,
     phone: null,

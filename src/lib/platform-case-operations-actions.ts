@@ -1,85 +1,72 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 
-import {
-  getPlatformCaseVisa,
-  hasExactPlatformCaseOperationFormKeys,
-  listPlatformCaseFinance,
-  resolvePlatformFinanceStopFactorWithReconciliation,
-} from "./platform-case-operations";
-import {
-  PLATFORM_OBLIGATION_CATEGORIES,
-  PLATFORM_VISA_STATUSES,
-  type PlatformObligationCategory,
-  type PlatformVisaStatus,
-} from "./platform-case-operations-contract.ts";
-import { requirePlatformClientsActor } from "./platform-guards";
+import { revalidatePath } from "next/cache";
+import { PLATFORM_VISA_STATUSES } from "./platform-case-operations-contract.ts";
+import { fixedRoleCan } from "./fixed-role-policy";
+import { requirePlatformStaffActor } from "./platform-guards";
+import type { PlatformAdmissionsActionStatus } from "./platform-admissions-task-actions";
+import { exactActionStringFields } from "./server/action-form-fields";
 import { createSupabaseServerClient } from "./supabase/server";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const CURRENCY_PATTERN = /^[A-Z]{3}$/;
-const CURRENCY_VALUES = new Set(["KGS", "USD", "EUR"]);
-const MANUAL_PAYMENT_SOURCE_KEY = "manual_staff_confirmation";
+const POSTGRES_BIGINT_MAX = "9223372036854775807";
 const PLATFORM_FINANCE_BLOCKED_ACTIONS = [
   "application_submission",
   "document_processing",
   "visa_submission",
   "case_progression",
 ] as const;
+const VISA_FIELDS = [
+  "student_case_id",
+  "visa_case_id",
+  "status",
+  "evidence_reference",
+  "note",
+  "request_id",
+  "expected_version",
+] as const;
+const CREATE_STOP_FIELDS = [
+  "student_case_id",
+  "payment_obligation_id",
+  "blocked_action",
+  "reason",
+  "next_action",
+  "evidence_ref",
+  "request_id",
+  "expected_version",
+] as const;
+const RESOLVE_STOP_FIELDS = [
+  "student_case_id",
+  "stop_factor_id",
+  "reason",
+  "evidence_ref",
+  "request_id",
+  "expected_version",
+] as const;
 
-type P6dOperation =
-  | "visa"
-  | "payment-create"
-  | "payment-settle";
-type U8Operation = "stop-create" | "stop-resolve";
-type MutationOutcome = "saved" | "invalid" | "unavailable";
+export type PlatformCaseVisaActionState = Readonly<{
+  status: PlatformAdmissionsActionStatus;
+  requestId: string;
+  visaCaseId: string | null;
+  version: string | null;
+}>;
 
-function field(form: FormData, key: string): string {
-  const value = form.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
+export type PlatformFinanceStopFactorActionState = Readonly<{
+  status: PlatformAdmissionsActionStatus;
+  requestId: string;
+  stopFactorId: string | null;
+  version: string | null;
+}>;
+
+type OperationStringFields = ReadonlyMap<string, string>;
 
 function uuid(value: string): string | null {
   return UUID_PATTERN.test(value) ? value.toLowerCase() : null;
-}
-
-function text(
-  form: FormData,
-  key: string,
-  minimum: number,
-  maximum: number,
-): string | null {
-  const candidate = field(form, key);
-  if (
-    candidate.length < minimum
-    || candidate.length > maximum
-    || CONTROL_CHARACTER_PATTERN.test(candidate)
-  ) {
-    return null;
-  }
-  return candidate;
-}
-
-function optionalText(
-  form: FormData,
-  key: string,
-  maximum: number,
-): string | null | undefined {
-  const candidate = field(form, key);
-  if (!candidate) return null;
-  if (
-    candidate.length > maximum
-    || CONTROL_CHARACTER_PATTERN.test(candidate)
-  ) {
-    return undefined;
-  }
-  return candidate;
 }
 
 function oneOf<const T extends readonly string[]>(
@@ -87,25 +74,6 @@ function oneOf<const T extends readonly string[]>(
   allowed: T,
 ): T[number] | null {
   return allowed.includes(value) ? value as T[number] : null;
-}
-
-function amountMinor(value: string): number | null {
-  const match = /^(0|[1-9]\d{0,12})(?:\.(\d{1,2}))?$/.exec(value);
-  if (!match) return null;
-  const whole = Number(match[1]);
-  const fraction = Number((match[2] ?? "").padEnd(2, "0"));
-  const result = whole * 100 + fraction;
-  return Number.isSafeInteger(result) && result > 0 ? result : null;
-}
-
-function endOfUtcDay(value: string): string | null {
-  if (!DATE_PATTERN.test(value)) return null;
-  const timestamp = `${value}T23:59:59.999Z`;
-  const parsed = Date.parse(timestamp);
-  return Number.isFinite(parsed)
-    && new Date(parsed).toISOString().slice(0, 10) === value
-      ? timestamp
-      : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -122,148 +90,164 @@ function hasExactKeys(
     && actual.every((key, index) => key === sortedExpected[index]);
 }
 
-function sameTimestamp(value: unknown, expected: string): boolean {
-  return typeof value === "string"
-    && Number.isFinite(Date.parse(value))
-    && Date.parse(value) === Date.parse(expected);
-}
-
 function validTimestamp(value: unknown): value is string {
   return typeof value === "string"
     && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
     && Number.isFinite(Date.parse(value));
 }
 
-function sameMinor(value: unknown, expected: number): boolean {
-  return (typeof value === "number" || typeof value === "string")
-    && String(value) === String(expected);
+function operationField(fields: OperationStringFields, key: string): string {
+  return fields.get(key)?.trim() ?? "";
 }
 
-function safeMinor(value: unknown): number | null {
-  const candidate = typeof value === "string" && /^\d+$/.test(value)
-    ? Number(value)
-    : value;
-  return typeof candidate === "number"
-    && Number.isSafeInteger(candidate)
-    && candidate >= 0
-      ? candidate
-      : null;
-}
-
-function operationRedirect(
-  studentCaseId: string | null,
-  outcome: MutationOutcome,
-  operation: P6dOperation,
-  requestId?: string | null,
-  subjectId?: string | null,
-): never {
-  const path = studentCaseId ? `/clients/${studentCaseId}` : "/clients";
-  const params = new URLSearchParams({ p6d_result: outcome });
-  if (outcome !== "saved" && requestId) {
-    params.set("p6d_retry_request_id", requestId);
-    params.set("p6d_retry_operation", operation);
-    if (subjectId) params.set("p6d_subject_id", subjectId);
+function operationText(
+  fields: OperationStringFields,
+  key: string,
+  minimum: number,
+  maximum: number,
+): string | null {
+  const candidate = operationField(fields, key);
+  if (
+    candidate.length < minimum ||
+    candidate.length > maximum ||
+    CONTROL_CHARACTER_PATTERN.test(candidate)
+  ) {
+    return null;
   }
-  const anchor = operation === "visa" ? "visa" : "payments";
-  redirect(`${path}?${params.toString()}#${anchor}`);
+  return candidate;
 }
 
-function financeStopRedirect(
-  studentCaseId: string | null,
-  outcome: MutationOutcome,
-  operation: U8Operation,
-  requestId?: string | null,
-  subjectId?: string | null,
-): never {
-  if (!studentCaseId) {
-    redirect("/clients");
+function optionalOperationText(
+  fields: OperationStringFields,
+  key: string,
+  maximum: number,
+): string | null | undefined {
+  const candidate = operationField(fields, key);
+  if (!candidate) return null;
+  if (
+    candidate.length > maximum ||
+    CONTROL_CHARACTER_PATTERN.test(candidate)
+  ) {
+    return undefined;
   }
-  const path = `/clients/${studentCaseId}`;
-  const params = new URLSearchParams({ u8_result: outcome });
-  if (outcome !== "saved" && requestId) {
-    params.set("u8_retry_request_id", requestId);
-    params.set("u8_retry_operation", operation);
-    if (subjectId) params.set("u8_subject_id", subjectId);
-  }
-  redirect(`${path}?${params.toString()}#payments`);
+  return candidate;
 }
 
-function validVisaResult(
-  value: unknown,
-  expected: Readonly<{
-    organizationId: string;
-    studentCaseId: string;
-    visaCaseId?: string | null;
-    status: PlatformVisaStatus;
-    evidenceReference: string;
-    note: string | null;
-  }>,
-): boolean {
-  return isRecord(value)
-    && hasExactKeys(value, [
-      "organization_id",
-      "visa_case_id",
-      "student_case_id",
-      "status",
-      "evidence_reference",
-      "note",
-    ])
-    && value.organization_id === expected.organizationId
-    && value.student_case_id === expected.studentCaseId
-    && typeof value.visa_case_id === "string"
-    && uuid(value.visa_case_id) !== null
-    && (!expected.visaCaseId || value.visa_case_id === expected.visaCaseId)
-    && value.status === expected.status
-    && value.evidence_reference === expected.evidenceReference
-    && value.note === expected.note;
+function operationVersion(value: string, allowZero: boolean): string | null {
+  if (!/^\d+$/.test(value)) return null;
+  const normalized = value.replace(/^0+(?=\d)/, "");
+  if (
+    (!allowZero && normalized === "0") ||
+    normalized.length > POSTGRES_BIGINT_MAX.length ||
+    (normalized.length === POSTGRES_BIGINT_MAX.length &&
+      normalized > POSTGRES_BIGINT_MAX)
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
+function submittedOperationRequestId(form: FormData): string | null {
+  const direct = form.getAll("request_id");
+  const enveloped = form.getAll("_1_request_id");
+  const values = direct.length > 0 ? direct : enveloped;
+  const candidate = values.length === 1 ? values[0] : null;
+  return typeof candidate === "string" ? uuid(candidate.trim()) : null;
+}
+
+function operationErrorStatus(
+  error: unknown,
+  versionConflictMessage: string,
+): Exclude<PlatformAdmissionsActionStatus, "idle" | "saved"> {
+  if (!isRecord(error)) return "unavailable";
+  const code = typeof error.code === "string" ? error.code : "";
+  const message = typeof error.message === "string"
+    ? error.message.trim()
+    : "";
+  if (code === "42501") return "forbidden";
+  if (code === "PT409" && message === versionConflictMessage) return "stale";
+  if ((code === "22023" || code === "23505") && /request_id/i.test(message)) {
+    return "request_conflict";
+  }
+  if (code === "22023") return "invalid";
+  return "unavailable";
+}
+
+function visaFailureState(
+  form: FormData,
+  status: Exclude<PlatformAdmissionsActionStatus, "idle" | "saved">,
+  visaCaseId: string | null = null,
+  verifiedRequestId?: string | null,
+): PlatformCaseVisaActionState {
+  const requestId = verifiedRequestId ?? submittedOperationRequestId(form);
+  return Object.freeze({
+    status,
+    requestId: status === "stale" || status === "request_conflict"
+      ? randomUUID()
+      : (requestId ?? randomUUID()),
+    visaCaseId,
+    version: null,
+  });
+}
+
+function stopFailureState(
+  form: FormData,
+  status: Exclude<PlatformAdmissionsActionStatus, "idle" | "saved">,
+  stopFactorId: string | null = null,
+  verifiedRequestId?: string | null,
+): PlatformFinanceStopFactorActionState {
+  const requestId = verifiedRequestId ?? submittedOperationRequestId(form);
+  return Object.freeze({
+    status,
+    requestId: status === "stale" || status === "request_conflict"
+      ? randomUUID()
+      : (requestId ?? randomUUID()),
+    stopFactorId,
+    version: null,
+  });
+}
+
+function revalidateCaseOperations(studentCaseId: string): void {
+  revalidatePath(`/clients/${studentCaseId}`);
+  revalidatePath("/applications");
+  revalidatePath("/visa");
+  revalidatePath("/finance");
+  revalidatePath("/v3/calendar");
+  revalidatePath("/v3/profile");
 }
 
 export async function upsertPlatformCaseVisaAction(
+  _previous: PlatformCaseVisaActionState,
   form: FormData,
-): Promise<void> {
-  const actor = await requirePlatformClientsActor();
-  const studentCaseId = uuid(field(form, "student_case_id"));
-  const visaCaseIdValue = field(form, "visa_case_id");
+): Promise<PlatformCaseVisaActionState> {
+  const actor = await requirePlatformStaffActor();
+  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+    return visaFailureState(form, "forbidden");
+  }
+  const fields = exactActionStringFields(form, VISA_FIELDS);
+  if (!fields) return visaFailureState(form, "invalid");
+
+  const studentCaseId = uuid(operationField(fields, "student_case_id"));
+  const visaCaseIdValue = operationField(fields, "visa_case_id");
   const visaCaseId = visaCaseIdValue ? uuid(visaCaseIdValue) : null;
-  const status = oneOf(field(form, "status"), PLATFORM_VISA_STATUSES);
-  const evidenceReference = text(form, "evidence_reference", 1, 2000);
-  const note = optionalText(form, "note", 4000);
-  const requestId = uuid(field(form, "request_id"));
-  const subjectId = visaCaseId ?? studentCaseId;
+  const status = oneOf(operationField(fields, "status"), PLATFORM_VISA_STATUSES);
+  const evidenceReference = operationText(fields, "evidence_reference", 1, 2000);
+  const note = optionalOperationText(fields, "note", 4000);
+  const requestId = uuid(operationField(fields, "request_id"));
+  const expectedVersion = operationVersion(
+    operationField(fields, "expected_version"),
+    visaCaseId === null,
+  );
 
   if (
-    !hasExactPlatformCaseOperationFormKeys(form, [
-      "student_case_id",
-      "visa_case_id",
-      "status",
-      "evidence_reference",
-      "note",
-      "request_id",
-    ])
-    || (actor.platformRole !== "admin" && actor.platformRole !== "admissions")
-    || !studentCaseId
-    || (visaCaseIdValue !== "" && !visaCaseId)
-    || !status
-    || !evidenceReference
-    || note === undefined
-    || !requestId
+    !studentCaseId || (visaCaseIdValue !== "" && !visaCaseId) || !status ||
+    !evidenceReference || note === undefined || !requestId || !expectedVersion ||
+    (visaCaseId ? expectedVersion === "0" : expectedVersion !== "0")
   ) {
-    operationRedirect(studentCaseId, "invalid", "visa", requestId, subjectId);
+    return visaFailureState(form, "invalid", visaCaseId, requestId);
   }
 
   try {
-    if (visaCaseId) {
-      const currentVisa = await getPlatformCaseVisa(actor, studentCaseId);
-      if (!currentVisa || currentVisa.visaCaseId !== visaCaseId) {
-        operationRedirect(
-          studentCaseId,
-          "unavailable",
-          "visa",
-          requestId,
-          subjectId,
-        );
-      }
-    }
     const client = await createSupabaseServerClient();
     const response = visaCaseId
       ? await client.schema("platform").rpc("change_visa_case", {
@@ -272,6 +256,7 @@ export async function upsertPlatformCaseVisaAction(
           p_new_status: status,
           p_evidence_reference: evidenceReference,
           p_note: note,
+          p_expected_version: expectedVersion,
           p_request_id: requestId,
         })
       : await client.schema("platform").rpc("create_visa_case", {
@@ -280,339 +265,85 @@ export async function upsertPlatformCaseVisaAction(
           p_status: status,
           p_evidence_reference: evidenceReference,
           p_note: note,
+          p_expected_version: expectedVersion,
           p_request_id: requestId,
         });
-    if (
-      response.error
-      || !validVisaResult(response.data, {
-        organizationId: actor.organizationId,
-        studentCaseId,
+    if (response.error) {
+      return visaFailureState(
+        form,
+        operationErrorStatus(response.error, "admissions_version_conflict"),
         visaCaseId,
-        status,
-        evidenceReference,
-        note,
-      })
-    ) {
-      operationRedirect(
-        studentCaseId,
-        "unavailable",
-        "visa",
         requestId,
-        subjectId,
       );
     }
-  } catch {
-    operationRedirect(
-      studentCaseId,
-      "unavailable",
-      "visa",
-      requestId,
-      subjectId,
-    );
-  }
-
-  revalidatePath(`/clients/${studentCaseId}`);
-  revalidatePath("/portal", "layout");
-  operationRedirect(studentCaseId, "saved", "visa");
-}
-
-export async function createPlatformPaymentObligationAction(
-  form: FormData,
-): Promise<void> {
-  const actor = await requirePlatformClientsActor();
-  const studentCaseId = uuid(field(form, "student_case_id"));
-  const label = text(form, "label", 1, 500);
-  const category = oneOf(
-    field(form, "category"),
-    PLATFORM_OBLIGATION_CATEGORIES,
-  ) as PlatformObligationCategory | null;
-  const minor = amountMinor(field(form, "amount"));
-  const currency = field(form, "currency");
-  const dueAt = endOfUtcDay(field(form, "due_date"));
-  const nextAction = text(form, "next_action", 1, 1000);
-  const reason = text(form, "reason", 3, 1000);
-  const requestId = uuid(field(form, "request_id"));
-
-  if (
-    !hasExactPlatformCaseOperationFormKeys(form, [
-      "student_case_id",
-      "label",
-      "category",
-      "amount",
-      "currency",
-      "due_date",
-      "next_action",
-      "reason",
-      "request_id",
-    ])
-    || actor.platformRole !== "admin"
-    || !studentCaseId
-    || !label
-    || !category
-    || !minor
-    || !CURRENCY_VALUES.has(currency)
-    || !dueAt
-    || !nextAction
-    || !reason
-    || !requestId
-  ) {
-    operationRedirect(
-      studentCaseId,
-      "invalid",
-      "payment-create",
-      requestId,
-      studentCaseId,
-    );
-  }
-
-  try {
-    const client = await createSupabaseServerClient();
-    const response = await client.schema("platform").rpc(
-      "create_payment_obligation",
-      {
-        p_organization_id: actor.organizationId,
-        p_student_case_id: studentCaseId,
-        p_label: label,
-        p_category: category,
-        p_amount_minor: minor,
-        p_currency: currency,
-        p_due_at: dueAt,
-        p_next_action: nextAction,
-        p_reason: reason,
-        p_request_id: requestId,
-      },
-    );
     const data = response.data;
-    if (
-      response.error
-      || !isRecord(data)
-      || !hasExactKeys(data, [
-        "organization_id",
-        "payment_obligation_id",
-        "student_case_id",
-        "label",
-        "category",
-        "amount_minor",
-        "currency",
-        "due_at",
-        "next_action",
-        "total_paid_minor",
-        "total_refunded_minor",
-      ])
-      || data.organization_id !== actor.organizationId
-      || data.student_case_id !== studentCaseId
-      || typeof data.payment_obligation_id !== "string"
-      || !uuid(data.payment_obligation_id)
-      || data.label !== label
-      || data.category !== category
-      || !sameMinor(data.amount_minor, minor)
-      || data.currency !== currency
-      || !sameTimestamp(data.due_at, dueAt)
-      || data.next_action !== nextAction
-      || !sameMinor(data.total_paid_minor, 0)
-      || !sameMinor(data.total_refunded_minor, 0)
-    ) {
-      operationRedirect(
-        studentCaseId,
-        "unavailable",
-        "payment-create",
-        requestId,
-        studentCaseId,
-      );
-    }
-  } catch {
-    operationRedirect(
-      studentCaseId,
-      "unavailable",
-      "payment-create",
-      requestId,
-      studentCaseId,
-    );
-  }
-
-  revalidatePath(`/clients/${studentCaseId}`);
-  revalidatePath("/portal", "layout");
-  operationRedirect(studentCaseId, "saved", "payment-create");
-}
-
-export async function settlePlatformPaymentObligationAction(
-  form: FormData,
-): Promise<void> {
-  const actor = await requirePlatformClientsActor();
-  const studentCaseId = uuid(field(form, "student_case_id"));
-  const paymentObligationId = uuid(field(form, "payment_obligation_id"));
-  const evidenceRef = text(form, "evidence_ref", 1, 2000);
-  const reason = text(form, "reason", 3, 1000);
-  const requestId = uuid(field(form, "request_id"));
-
-  if (
-    !hasExactPlatformCaseOperationFormKeys(form, [
-      "student_case_id",
-      "payment_obligation_id",
-      "evidence_ref",
-      "reason",
-      "request_id",
-    ])
-    || actor.platformRole !== "admin"
-    || !studentCaseId
-    || !paymentObligationId
-    || !evidenceRef
-    || !reason
-    || !requestId
-  ) {
-    operationRedirect(
-      studentCaseId,
-      "invalid",
-      "payment-settle",
-      requestId,
-      paymentObligationId,
-    );
-  }
-
-  try {
-    const currentFinance = await listPlatformCaseFinance(actor, studentCaseId);
-    if (
-      !currentFinance.some(
-        (row) => row.paymentObligationId === paymentObligationId,
-      )
-    ) {
-      operationRedirect(
-        studentCaseId,
-        "unavailable",
-        "payment-settle",
-        requestId,
-        paymentObligationId,
-      );
-    }
-    const client = await createSupabaseServerClient();
-    const response = await client.schema("platform").rpc(
-      "settle_payment_obligation",
-      {
-        p_organization_id: actor.organizationId,
-        p_student_case_id: studentCaseId,
-        p_payment_obligation_id: paymentObligationId,
-        p_source_key: MANUAL_PAYMENT_SOURCE_KEY,
-        p_evidence_ref: evidenceRef,
-        p_reason: reason,
-        p_request_id: requestId,
-      },
-    );
-    const data = response.data;
-    const eventAmountMinor = isRecord(data) ? safeMinor(data.amount_minor) : null;
-    const totalPaidMinor = isRecord(data) ? safeMinor(data.total_paid_minor) : null;
-    const totalRefundedMinor = isRecord(data)
-      ? safeMinor(data.total_refunded_minor)
+    const nextVersion = isRecord(data) && typeof data.version === "string"
+      ? operationVersion(data.version, false)
       : null;
     if (
-      response.error
-      || !isRecord(data)
-      || !hasExactKeys(data, [
-        "organization_id",
-        "payment_event_id",
-        "payment_obligation_id",
-        "student_case_id",
-        "event_type",
-        "amount_minor",
-        "currency",
-        "total_paid_minor",
-        "total_refunded_minor",
-      ])
-      || data.organization_id !== actor.organizationId
-      || data.student_case_id !== studentCaseId
-      || data.payment_obligation_id !== paymentObligationId
-      || typeof data.payment_event_id !== "string"
-      || !uuid(data.payment_event_id)
-      || data.event_type !== "payment"
-      || (typeof data.currency !== "string" || !CURRENCY_PATTERN.test(data.currency))
-      || eventAmountMinor === null
-      || eventAmountMinor <= 0
-      || totalPaidMinor === null
-      || totalPaidMinor < eventAmountMinor
-      || totalRefundedMinor === null
-      || totalRefundedMinor >= totalPaidMinor
+      !isRecord(data) ||
+      !hasExactKeys(data, [
+        "organization_id", "visa_case_id", "student_case_id", "status",
+        "evidence_reference", "note", "request_id", "expected_version",
+        "version",
+      ]) ||
+      data.organization_id !== actor.organizationId ||
+      data.student_case_id !== studentCaseId ||
+      typeof data.visa_case_id !== "string" || !uuid(data.visa_case_id) ||
+      (visaCaseId !== null && data.visa_case_id !== visaCaseId) ||
+      data.status !== status || data.evidence_reference !== evidenceReference ||
+      data.note !== note || data.request_id !== requestId ||
+      data.expected_version !== expectedVersion || !nextVersion ||
+      BigInt(nextVersion) !== BigInt(expectedVersion) + BigInt(1)
     ) {
-      operationRedirect(
-        studentCaseId,
-        "unavailable",
-        "payment-settle",
-        requestId,
-        paymentObligationId,
-      );
+      return visaFailureState(form, "unavailable", visaCaseId, requestId);
     }
+    revalidateCaseOperations(studentCaseId);
+    return Object.freeze({
+      status: "saved" as const,
+      requestId: randomUUID(),
+      visaCaseId: data.visa_case_id,
+      version: nextVersion,
+    });
   } catch {
-    operationRedirect(
-      studentCaseId,
-      "unavailable",
-      "payment-settle",
-      requestId,
-      paymentObligationId,
-    );
+    return visaFailureState(form, "unavailable", visaCaseId, requestId);
   }
-
-  revalidatePath(`/clients/${studentCaseId}`);
-  revalidatePath("/portal", "layout");
-  revalidatePath("/portal/notifications");
-  operationRedirect(studentCaseId, "saved", "payment-settle");
 }
 
 export async function createPlatformFinanceStopFactorAction(
+  _previous: PlatformFinanceStopFactorActionState,
   form: FormData,
-): Promise<void> {
-  const actor = await requirePlatformClientsActor();
-  const studentCaseId = uuid(field(form, "student_case_id"));
-  const paymentObligationId = uuid(field(form, "payment_obligation_id"));
+): Promise<PlatformFinanceStopFactorActionState> {
+  const actor = await requirePlatformStaffActor();
+  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+    return stopFailureState(form, "forbidden");
+  }
+  const fields = exactActionStringFields(form, CREATE_STOP_FIELDS);
+  if (!fields) return stopFailureState(form, "invalid");
+
+  const studentCaseId = uuid(operationField(fields, "student_case_id"));
+  const paymentObligationId = uuid(operationField(fields, "payment_obligation_id"));
   const blockedAction = oneOf(
-    field(form, "blocked_action"),
+    operationField(fields, "blocked_action"),
     PLATFORM_FINANCE_BLOCKED_ACTIONS,
   );
-  const reason = text(form, "reason", 3, 1000);
-  const nextAction = text(form, "next_action", 3, 1000);
-  const evidenceRef = text(form, "evidence_ref", 1, 512);
-  const requestId = uuid(field(form, "request_id"));
+  const reason = operationText(fields, "reason", 3, 1000);
+  const nextAction = operationText(fields, "next_action", 3, 1000);
+  const evidenceRef = operationText(fields, "evidence_ref", 1, 512);
+  const requestId = uuid(operationField(fields, "request_id"));
+  const expectedVersion = operationVersion(
+    operationField(fields, "expected_version"),
+    true,
+  );
 
   if (
-    !hasExactPlatformCaseOperationFormKeys(form, [
-      "student_case_id",
-      "payment_obligation_id",
-      "blocked_action",
-      "reason",
-      "next_action",
-      "evidence_ref",
-      "request_id",
-    ])
-    || (actor.platformRole !== "admin" && actor.platformRole !== "admissions")
-    || !studentCaseId
-    || !paymentObligationId
-    || !blockedAction
-    || !reason
-    || !nextAction
-    || !evidenceRef
-    || !requestId
+    !studentCaseId || !paymentObligationId || !blockedAction || !reason ||
+    !nextAction || !evidenceRef || !requestId || expectedVersion !== "0"
   ) {
-    financeStopRedirect(
-      studentCaseId,
-      "invalid",
-      "stop-create",
-      requestId,
-      paymentObligationId,
-    );
+    return stopFailureState(form, "invalid", null, requestId);
   }
 
   try {
-    const finance = await listPlatformCaseFinance(actor, studentCaseId);
-    const obligation = finance.find(
-      (row) => row.paymentObligationId === paymentObligationId,
-    );
-    if (!obligation || obligation.status === "paid") {
-      financeStopRedirect(
-        studentCaseId,
-        "invalid",
-        "stop-create",
-        requestId,
-        paymentObligationId,
-      );
-    }
-
     const client = await createSupabaseServerClient();
     const response = await client.schema("platform").rpc(
       "assert_case_finance_stop_factor",
@@ -623,14 +354,25 @@ export async function createPlatformFinanceStopFactorAction(
         p_blocked_action: blockedAction,
         p_next_action: nextAction,
         p_evidence_ref: evidenceRef,
+        p_expected_version: expectedVersion,
         p_request_id: requestId,
       },
     );
+    if (response.error) {
+      return stopFailureState(
+        form,
+        operationErrorStatus(response.error, "admissions_version_conflict"),
+        null,
+        requestId,
+      );
+    }
     const data = response.data;
+    const stopFactorId = uuid(String(isRecord(data) ? data.stop_factor_id ?? "" : ""));
+    const nextVersion = isRecord(data) && typeof data.version === "string"
+      ? operationVersion(data.version, false)
+      : null;
     if (
-      response.error
-      || !isRecord(data)
-      || !hasExactKeys(data, [
+      !isRecord(data) || !hasExactKeys(data, [
         "organization_id",
         "stop_factor_id",
         "student_case_id",
@@ -641,81 +383,72 @@ export async function createPlatformFinanceStopFactorAction(
         "next_action",
         "created_evidence_ref",
         "status",
+        "request_id",
+        "expected_version",
+        "version",
       ])
       || data.organization_id !== actor.organizationId
       || data.student_case_id !== studentCaseId
       || data.payment_obligation_id !== paymentObligationId
       || !uuid(String(data.owner_membership_id ?? ""))
-      || (actor.platformRole === "admissions"
+      || (actor.authorityRole === "admissions"
         && data.owner_membership_id !== actor.membershipId)
-      || typeof data.stop_factor_id !== "string"
-      || !uuid(data.stop_factor_id)
-      || data.reason !== reason
+      || !stopFactorId || data.reason !== reason
       || data.blocked_action !== blockedAction
       || data.next_action !== nextAction
       || data.created_evidence_ref !== evidenceRef
       || data.status !== "active"
+      || data.request_id !== requestId
+      || data.expected_version !== "0"
+      || nextVersion !== "1"
     ) {
-      financeStopRedirect(
-        studentCaseId,
-        "unavailable",
-        "stop-create",
-        requestId,
-        paymentObligationId,
-      );
+      return stopFailureState(form, "unavailable", stopFactorId, requestId);
     }
+    revalidateCaseOperations(studentCaseId);
+    return Object.freeze({
+      status: "saved" as const,
+      requestId: randomUUID(),
+      stopFactorId,
+      version: nextVersion,
+    });
   } catch {
-    financeStopRedirect(
-      studentCaseId,
-      "unavailable",
-      "stop-create",
-      requestId,
-      paymentObligationId,
-    );
+    return stopFailureState(form, "unavailable", null, requestId);
   }
-
-  revalidatePath(`/clients/${studentCaseId}`);
-  revalidatePath("/applications");
-  financeStopRedirect(studentCaseId, "saved", "stop-create");
 }
 
 export async function resolvePlatformFinanceStopFactorAction(
+  _previous: PlatformFinanceStopFactorActionState,
   form: FormData,
-): Promise<void> {
-  const actor = await requirePlatformClientsActor();
-  const studentCaseId = uuid(field(form, "student_case_id"));
-  const stopFactorId = uuid(field(form, "stop_factor_id"));
-  const reason = text(form, "reason", 3, 1000);
-  const evidenceRef = text(form, "evidence_ref", 1, 512);
-  const requestId = uuid(field(form, "request_id"));
+): Promise<PlatformFinanceStopFactorActionState> {
+  const actor = await requirePlatformStaffActor();
+  if (actor.authorityRole !== "admin") {
+    return stopFailureState(form, "forbidden");
+  }
+  const fields = exactActionStringFields(form, RESOLVE_STOP_FIELDS);
+  if (!fields) return stopFailureState(form, "invalid");
+
+  const studentCaseId = uuid(operationField(fields, "student_case_id"));
+  const stopFactorId = uuid(operationField(fields, "stop_factor_id"));
+  const reason = operationText(fields, "reason", 3, 1000);
+  const evidenceRef = operationText(fields, "evidence_ref", 1, 512);
+  const requestId = uuid(operationField(fields, "request_id"));
+  const expectedVersion = operationVersion(
+    operationField(fields, "expected_version"),
+    false,
+  );
 
   if (
-    !hasExactPlatformCaseOperationFormKeys(form, [
-      "student_case_id",
-      "stop_factor_id",
-      "reason",
-      "evidence_ref",
-      "request_id",
-    ])
-    || actor.platformRole !== "admin"
-    || !studentCaseId
-    || !stopFactorId
-    || !reason
-    || !evidenceRef
-    || !requestId
+    !studentCaseId || !stopFactorId || !reason || !evidenceRef || !requestId ||
+    !expectedVersion
   ) {
-    financeStopRedirect(
-      studentCaseId,
-      "invalid",
-      "stop-resolve",
-      requestId,
-      stopFactorId,
-    );
+    return stopFailureState(form, "invalid", stopFactorId, requestId);
   }
 
   try {
     const client = await createSupabaseServerClient();
-    const rpcArguments = {
+    const response = await client.schema("platform").rpc(
+      "resolve_case_stop_factor",
+      {
         p_organization_id: actor.organizationId,
         p_student_case_id: studentCaseId,
         p_stop_factor_id: stopFactorId,
@@ -723,64 +456,60 @@ export async function resolvePlatformFinanceStopFactorAction(
         p_payment_event_id: null,
         p_reason: reason,
         p_evidence_ref: evidenceRef,
+        p_expected_version: expectedVersion,
         p_request_id: requestId,
-      };
-    const resolved = await resolvePlatformFinanceStopFactorWithReconciliation(
-      () => client.schema("platform").rpc(
-        "resolve_case_stop_factor",
-        rpcArguments,
-      ),
-      (response) => {
-        const data = response.data;
-        return (
-          !response.error
-          && isRecord(data)
-          && hasExactKeys(data, [
-            "organization_id",
-            "stop_factor_id",
-            "student_case_id",
-            "payment_obligation_id",
-            "resolution_kind",
-            "payment_event_id",
-            "reason",
-            "evidence_ref",
-            "status",
-            "resolved_at",
-          ])
-          && data.organization_id === actor.organizationId
-          && data.stop_factor_id === stopFactorId
-          && data.student_case_id === studentCaseId
-          && typeof data.payment_obligation_id === "string"
-          && uuid(data.payment_obligation_id) !== null
-          && data.resolution_kind === "admin_override"
-          && data.payment_event_id === null
-          && data.reason === reason
-          && data.evidence_ref === evidenceRef
-          && data.status === "resolved"
-          && validTimestamp(data.resolved_at)
-        );
       },
     );
-    if (!resolved) {
-      financeStopRedirect(
-        studentCaseId,
-        "unavailable",
-        "stop-resolve",
-        requestId,
+    if (response.error) {
+      return stopFailureState(
+        form,
+        operationErrorStatus(response.error, "admissions_version_conflict"),
         stopFactorId,
+        requestId,
       );
     }
-  } catch {
-    financeStopRedirect(
-      studentCaseId,
-      "unavailable",
-      "stop-resolve",
-      requestId,
+    const data = response.data;
+    const nextVersion = isRecord(data) && typeof data.version === "string"
+      ? operationVersion(data.version, false)
+      : null;
+    if (
+      !isRecord(data) || !hasExactKeys(data, [
+        "organization_id",
+        "stop_factor_id",
+        "student_case_id",
+        "payment_obligation_id",
+        "resolution_kind",
+        "payment_event_id",
+        "reason",
+        "evidence_ref",
+        "status",
+        "resolved_at",
+        "request_id",
+        "expected_version",
+        "version",
+      ]) ||
+      data.organization_id !== actor.organizationId ||
+      data.stop_factor_id !== stopFactorId ||
+      data.student_case_id !== studentCaseId ||
+      typeof data.payment_obligation_id !== "string" ||
+      uuid(data.payment_obligation_id) === null ||
+      data.resolution_kind !== "admin_override" ||
+      data.payment_event_id !== null || data.reason !== reason ||
+      data.evidence_ref !== evidenceRef || data.status !== "resolved" ||
+      !validTimestamp(data.resolved_at) || data.request_id !== requestId ||
+      data.expected_version !== expectedVersion || !nextVersion ||
+      BigInt(nextVersion) !== BigInt(expectedVersion) + BigInt(1)
+    ) {
+      return stopFailureState(form, "unavailable", stopFactorId, requestId);
+    }
+    revalidateCaseOperations(studentCaseId);
+    return Object.freeze({
+      status: "saved" as const,
+      requestId: randomUUID(),
       stopFactorId,
-    );
+      version: nextVersion,
+    });
+  } catch {
+    return stopFailureState(form, "unavailable", stopFactorId, requestId);
   }
-
-  revalidatePath(`/clients/${studentCaseId}`);
-  revalidatePath("/applications");
-  financeStopRedirect(studentCaseId, "saved", "stop-resolve");
 }

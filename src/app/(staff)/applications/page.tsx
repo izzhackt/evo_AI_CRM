@@ -154,7 +154,7 @@ export default async function ApplicationsPage({
                 <Badge value={application.status} label={STATUS_LABELS[application.status]?.[locale] ?? application.status} />
               </div>
               <Link
-                href={`/v3/profile?case=${application.studentCaseId}&tab=overview`}
+                href={`/v3/profile?case=${application.studentCaseId}&tab=overview#applications`}
                 className="inline-flex min-h-11 shrink-0 items-start pt-0.5 text-xs font-semibold text-accent hover:underline"
               >
                 {copy.open}

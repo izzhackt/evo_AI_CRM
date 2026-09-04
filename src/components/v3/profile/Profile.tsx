@@ -56,7 +56,7 @@ export function Profile({
   tab: TabKey;
   hrefFor: (tab: string) => string;
 }) {
-  const tabs = tabsFor(profile.student);
+  const tabs = tabsFor(profile.student, actorRole);
   const current = tabs.some((entry) => entry.key === tab) ? tab : "overview";
 
   const state = personState({

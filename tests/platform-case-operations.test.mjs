@@ -22,6 +22,7 @@ function source(relativePath) {
 function visaRow(overrides = {}) {
   return {
     visa_case_id: VISA_ID,
+    version: "1",
     case_id: CASE_ID,
     visa_status: "docs",
     note: "Checklist reviewed",
@@ -50,6 +51,7 @@ function financeRow(overrides = {}) {
 test("normalizes exact case-scoped visa rows", () => {
   assert.deepEqual(normalizePlatformCaseVisa(visaRow(), CASE_ID), {
     visaCaseId: VISA_ID,
+    version: "1",
     studentCaseId: CASE_ID,
     status: "docs",
     note: "Checklist reviewed",
@@ -57,9 +59,9 @@ test("normalizes exact case-scoped visa rows", () => {
   });
 });
 
-test("Admissions operations client imports only client-safe contracts", () => {
+test("V3 Admissions operations client imports only client-safe contracts", () => {
   const panelSource = source(
-    "src/components/platform/admissions/PlatformAdmissionsOperationsPanel.tsx",
+    "src/components/v3/profile/ProfileAdmissionsWorkspace.tsx",
   );
   const applicationContract = source("src/lib/platform-application-contract.ts");
   const caseOperationsContract = source(
@@ -170,30 +172,18 @@ test("finance summaries reject inconsistent status, unsafe integers and DTO drif
   }
 });
 
-test("P6D actions bind the exact case and never accept browser amount or time for settlement", () => {
+test("V3 finance actions expose only the canonical stop and release commands", () => {
   const actionSource = readFileSync(
     new URL("../src/lib/platform-case-operations-actions.ts", import.meta.url),
     "utf8",
   );
-  const settleSource = actionSource.slice(
-    actionSource.indexOf("export async function settlePlatformPaymentObligationAction"),
-  );
-  assert.match(
+  assert.match(actionSource, /export async function createPlatformFinanceStopFactorAction/);
+  assert.match(actionSource, /export async function resolvePlatformFinanceStopFactorAction/);
+  assert.doesNotMatch(
     actionSource,
-    /rpc\(\s*["']settle_payment_obligation["'][\s\S]*p_student_case_id:\s*studentCaseId/,
+    /(?:create|settle)PlatformPaymentObligationAction|rpc\(\s*["'](?:create|settle)_payment_obligation["']/,
   );
-  assert.doesNotMatch(settleSource, /p_occurred_at/);
-  assert.doesNotMatch(settleSource, /p_amount_minor/);
-  assert.match(actionSource, /hasExactPlatformCaseOperationFormKeys\(form,/);
-  assert.match(actionSource, /listPlatformCaseFinance\(actor, studentCaseId\)/);
-  assert.match(
-    actionSource,
-    /const anchor = operation === "visa" \? "visa" : "payments";/,
-  );
-  assert.match(
-    actionSource,
-    /redirect\(`\$\{path\}\?\$\{params\.toString\(\)\}#\$\{anchor\}`\);/,
-  );
+  assert.doesNotMatch(actionSource, /p_occurred_at|p_amount_minor/);
 });
 
 test("P4 stop-factor assertions are Admissions/Admin case-bound while release stays Admin-only", () => {
@@ -211,29 +201,25 @@ test("P4 stop-factor assertions are Admissions/Admin case-bound while release st
 
   assert.match(
     createSource,
-    /actor\.platformRole !== "admin" && actor\.platformRole !== "admissions"/,
+    /fixedRoleCan\(actor\.authorityRole, "admissions\.write"\)/,
   );
-  assert.match(resolveSource, /actor\.platformRole !== "admin"/);
-  assert.match(createSource, /listPlatformCaseFinance\(actor, studentCaseId\)/);
+  assert.match(resolveSource, /actor\.authorityRole !== "admin"/);
   assert.match(
     createSource,
     /rpc\(\s*["']assert_case_finance_stop_factor["'][\s\S]*p_student_case_id:\s*studentCaseId/,
   );
   assert.match(
     createSource,
-    /actor\.platformRole === "admissions"[\s\S]*data\.owner_membership_id !== actor\.membershipId/,
+    /actor\.authorityRole === "admissions"[\s\S]*data\.owner_membership_id !== actor\.membershipId/,
   );
   assert.match(
     resolveSource,
-    /const rpcArguments = \{[\s\S]*p_student_case_id:\s*studentCaseId[\s\S]*p_resolution_kind:\s*"admin_override"/,
-  );
-  assert.match(
-    resolveSource,
-    /resolvePlatformFinanceStopFactorWithReconciliation\([\s\S]*rpc\(\s*["']resolve_case_stop_factor["'],\s*rpcArguments/,
+    /rpc\(\s*["']resolve_case_stop_factor["'][\s\S]*p_student_case_id:\s*studentCaseId[\s\S]*p_resolution_kind:\s*"admin_override"/,
   );
   assert.doesNotMatch(resolveSource, /activeStopFactors\.some/);
-  assert.match(createSource, /revalidatePath\("\/applications"\)/);
-  assert.match(resolveSource, /revalidatePath\("\/applications"\)/);
-  assert.match(actionSource, /if \(!studentCaseId\) \{\s*redirect\("\/clients"\);\s*\}/);
+  assert.match(createSource, /revalidateCaseOperations\(studentCaseId\)/);
+  assert.match(resolveSource, /revalidateCaseOperations\(studentCaseId\)/);
+  assert.match(actionSource, /revalidatePath\("\/v3\/profile"\)/);
+  assert.doesNotMatch(createSource + resolveSource, /redirect\(/);
   assert.doesNotMatch(actionSource, /amoCRM|WhatsApp|WAHA/);
 });

@@ -31,7 +31,10 @@ export default async function CalendarPart({
   const view = resolveView(params.view);
   const day = resolveDay(params.date, today);
   const days = gridDays(view, day);
-  if (actor.authorityRole !== "admin" && actor.authorityRole !== "admissions") {
+  if (
+    actor.presentationRole !== "admin"
+    && actor.presentationRole !== "admissions"
+  ) {
     throw new Error("Admissions calendar resolved a non-Admissions staff role.");
   }
   const workspace = await readCalendarWorkspace(
@@ -40,7 +43,14 @@ export default async function CalendarPart({
     days[days.length - 1],
   );
   const taskRequestIds = Object.fromEntries(
-    workspace.tasks.map((task) => [task.id, { complete: randomUUID() }]),
+    workspace.tasks.map((task) => [
+      task.id,
+      {
+        change: randomUUID(),
+        complete: randomUUID(),
+        cancel: randomUUID(),
+      },
+    ]),
   );
 
   return (

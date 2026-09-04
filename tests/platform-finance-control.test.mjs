@@ -33,6 +33,7 @@ const actor = Object.freeze({
 function validStopFactor(overrides = {}) {
   return {
     stop_factor_id: STOP_FACTOR_ID,
+    version: "1",
     reason: "Первый взнос просрочен",
     blocked_action: "Подача заявления в университет",
     next_action: "Подтвердить оплату или согласовать исключение",

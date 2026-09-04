@@ -350,7 +350,7 @@ function PlatformStudentCasesPresentation({
                   >
                     <td className="px-4 py-3 align-top">
                       <Link
-                        href={`/clients/${itemStudentCaseId(item)}`}
+                        href={`/v3/profile?case=${itemStudentCaseId(item)}&tab=overview`}
                         className="font-semibold text-accent hover:underline"
                       >
                         <span className="block">{itemStudentDisplayName(item)}</span>

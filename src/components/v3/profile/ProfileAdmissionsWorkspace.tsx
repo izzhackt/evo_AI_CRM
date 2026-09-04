@@ -364,7 +364,7 @@ export function ProfileAdmissionsWorkspacePanel({
 
   return (
     <div className="flex flex-col gap-4" data-testid="v3-profile-admissions-workspace">
-      <Card title="Заявки">
+      <Card id="applications" title="Заявки">
         {workspace.applications.length === 0 ? (
           <p className="px-4 py-3 text-sm text-fg-3">Заявок пока нет.</p>
         ) : (
@@ -408,6 +408,7 @@ export function ProfileAdmissionsWorkspacePanel({
       </Card>
 
       <Card
+        id="visa"
         title="Виза"
         aside={workspace.visa ? (
           <Pill tone={statusTone(workspace.visa.status)}>

@@ -10,6 +10,7 @@ const TIMESTAMPTZ_PATTERN =
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+const POSTGRES_BIGINT_MAX = "9223372036854775807";
 
 const PLATFORM_FINANCE_CONTROL_ROLES = ["admin", "sales", "admissions"] as const;
 const PLATFORM_OBLIGATION_CATEGORIES = [
@@ -59,6 +60,7 @@ const OBLIGATION_KEYS = [
 ] as const;
 const ACTIVE_STOP_FACTOR_KEYS = [
   "stop_factor_id",
+  "version",
   "reason",
   "blocked_action",
   "next_action",
@@ -122,6 +124,7 @@ export type PlatformFinanceControlAuditResourceType =
 
 export type PlatformFinanceControlActiveStopFactor = Readonly<{
   stopFactorId: string;
+  version: string;
   reason: string;
   blockedAction: string;
   nextAction: string;
@@ -258,6 +261,19 @@ function nonNegativeSafeInteger(value: unknown): number {
   return numeric;
 }
 
+function positiveBigint(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !/^[1-9]\d*$/.test(value) ||
+    value.length > POSTGRES_BIGINT_MAX.length ||
+    (value.length === POSTGRES_BIGINT_MAX.length &&
+      value > POSTGRES_BIGINT_MAX)
+  ) {
+    return invalidShape();
+  }
+  return value;
+}
+
 function normalizedLimit(
   value: number | undefined,
   fallback: number,
@@ -313,6 +329,7 @@ function normalizeActiveStopFactor(
   }
   return Object.freeze({
     stopFactorId: requiredUuid(value.stop_factor_id),
+    version: positiveBigint(value.version),
     reason: requiredText(value.reason, 1_000),
     blockedAction: requiredText(value.blocked_action, 200),
     nextAction: requiredText(value.next_action, 1_000),

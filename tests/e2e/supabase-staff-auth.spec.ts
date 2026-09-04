@@ -1164,6 +1164,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await createTask
     .locator('input[name="title"]')
     .fill("P4 isolated Admissions task proof");
+  await createTask.locator('select[name="deadline_kind"]').selectOption("all_day");
+  await createTask.locator('input[name="due_on"]').fill("2099-09-12");
   await createTask.locator('select[name="priority"]').selectOption("high");
   await createTask
     .locator('select[name="student_visible"]')
@@ -1174,6 +1176,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator('button[id^="task-"]')
     .filter({ hasText: "P4 isolated Admissions task proof" });
   await expect(createdTask).toHaveCount(1);
+  await expect(createdTask).toContainText("весь день");
   const caseTaskId = requireUuidValue(
     (await createdTask.getAttribute("id"))?.replace(/^task-/, ""),
   );

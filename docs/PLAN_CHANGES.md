@@ -16765,3 +16765,30 @@ Decision:
   or mutate production in this slice. Provider-dependent browser acceptance
   must exercise the real local application and Supabase state while proving
   disabled/fail-closed behavior without an external provider effect.
+
+## 2026-09-04 - Restore the canonical Admissions case link after V3 handoff
+
+Block-ID: `EVO-V3-B-HANDOFF-CASE-LINK-CORRECTION-2026-09-04`
+
+Change type: merged replacement regression correction.
+Affected plan section: Order 1 / Issue #595; corrective Issue #612.
+
+Independent post-merge review found that the completed Admin handoff card linked
+back to the lead's V3 questionnaire tab. The atomic handoff creates and returns a
+different canonical `student_case_id`, and the accepted #595 plan explicitly
+retains `/clients/{student_case_id}` as the downstream Admissions interface until
+#597 replaces it. The changed browser assertion had therefore encoded the wrong
+destination and removed the only direct path from the completed handoff to the
+full case workspace.
+
+Decision:
+
+- build the completed Admin CTA from the committed `student_case_id` and open
+  `/clients/{student_case_id}` until #597 supplies the V3 Admissions replacement;
+- keep the Sales no-link authorization behavior and all handoff transaction,
+  stale-result and failure behavior unchanged;
+- replace the incorrect browser assertion with proof that the exact created case
+  id appears in both the destination URL and the canonical Student 360 workspace;
+- add no schema, provider, production, navigation or visual-design change, and
+  land this correction immediately after the concurrently merged #596 before
+  beginning #597.

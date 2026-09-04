@@ -606,7 +606,7 @@ test("V3 profile exposes gate and handoff through the reviewed server-action con
   assert.match(source, /"normal"/);
   assert.match(source, /"exceptional_override"/);
   assert.match(source, /data-testid="v3-sales-handoff-completed"/);
-  assert.match(source, /<Link href=\{caseHref\}/);
+  assert.match(source, /<Link href=\{`\/clients\/\$\{caseId\}`\}/);
   assert.doesNotMatch(
     source,
     /localStorage|sessionStorage|fetch\(|XMLHttpRequest|fallback/i,

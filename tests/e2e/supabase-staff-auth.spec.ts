@@ -922,19 +922,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const adminHandoff = page.getByTestId("v3-sales-handoff-completed");
   await expect(adminHandoff).toBeVisible();
   const caseLink = adminHandoff.getByRole("link", { name: "Открыть дело" });
-  await expect(caseLink).toHaveAttribute(
-    "href",
-    `/v3/profile?id=${leadId}&tab=anketa`,
-  );
+  await expect(caseLink).toHaveAttribute("href", `/clients/${studentCaseId}`);
   await caseLink.click();
-  await expect(page).toHaveURL(
-    new RegExp(`/v3/profile\\?id=${leadId}&tab=anketa$`),
-  );
-  await expect(page.getByText("Студент", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Анкета" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(page).toHaveURL(new RegExp(`/clients/${studentCaseId}$`));
+  await expect(page.getByText(studentCaseId, { exact: true }).first()).toBeVisible();
 
   assertDeniedRpc(
     await directPlatformRpc(

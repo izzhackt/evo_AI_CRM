@@ -349,12 +349,10 @@ function HandoffCard({
   actorRole,
   handoff,
   requestId,
-  caseHref,
 }: {
   actorRole: ProfileSalesActorRole;
   handoff: PlatformLeadAdmissionsHandoffSnapshot;
   requestId: string;
-  caseHref: string;
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(
@@ -404,7 +402,7 @@ function HandoffCard({
             <p className="text-sm text-fg-2">Передача подтверждена. Обновляем дело.</p>
           )}
           {actorRole === "admin" ? (
-            <Link href={caseHref} className={btnGhostCls}>
+            <Link href={`/clients/${caseId}`} className={btnGhostCls}>
               Открыть дело
             </Link>
           ) : (
@@ -536,13 +534,11 @@ export function ProfileSalesTransition({
   gate,
   handoff,
   requestIds,
-  caseHref,
 }: {
   actorRole: ProfileSalesActorRole;
   gate: PlatformLeadAdmissionsGateSnapshot;
   handoff: PlatformLeadAdmissionsHandoffSnapshot;
   requestIds: ProfileSalesRequestIds;
-  caseHref: string;
 }) {
   return (
     <div className="flex flex-col gap-4" data-testid="v3-sales-transition">
@@ -552,7 +548,6 @@ export function ProfileSalesTransition({
         actorRole={actorRole}
         handoff={handoff}
         requestId={requestIds.handoff}
-        caseHref={caseHref}
       />
     </div>
   );

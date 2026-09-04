@@ -147,6 +147,13 @@ BEGIN
     WHERE attribute.attrelid = 'platform.document_slots'::REGCLASS
       AND attribute.attname = 'requirement_id'
   )
+    OR (
+      SELECT attribute.attnotnull
+      FROM pg_catalog.pg_attribute AS attribute
+      WHERE attribute.attrelid =
+        'platform.student_portal_notification_projection_v1'::REGCLASS
+        AND attribute.attname = 'document_requirement_id'
+    )
     OR NOT (
       SELECT attribute.attnotnull
       FROM pg_catalog.pg_attribute AS attribute
@@ -263,6 +270,12 @@ VALUES
   (:'p108_org_a', 'Migration 108 Organization A'),
   (:'p108_org_b', 'Migration 108 Organization B');
 
+INSERT INTO platform_private.student_portal_notification_runtime_controls (
+  organization_id,
+  enabled
+)
+VALUES (:'p108_org_a', TRUE);
+
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 VALUES
   (:'p108_admin_a_user', 'p108-admin-a@example.invalid', '{}'),
@@ -377,6 +390,12 @@ VALUES
     :'p108_curator_a_membership', :'p108_case_scope_a2_v2', 2, 1, TRUE,
     'system', NULL, 'Migration 108 closed-case scope',
     '59910000-0000-4000-8000-000000000604'
+  ),
+  (
+    '59910000-0000-4000-8000-000000000507', :'p108_org_a',
+    :'p108_student_a_membership', :'p108_case_scope_a_v2', 2, 1, TRUE,
+    'system', NULL, 'Migration 108 Student Portal scope',
+    '59910000-0000-4000-8000-000000000607'
   );
 
 UPDATE platform.student_cases AS student_case
@@ -461,6 +480,16 @@ SELECT
     'platform_bundle_id', :'p108_curator_bundle',
     'platform_bundle_version', :'p108_curator_bundle_version'::INTEGER
   )::TEXT AS p108_curator_a_claims,
+  jsonb_build_object(
+    'sub', :'p108_student_a_user',
+    'role', 'authenticated',
+    'platform_role', 'student',
+    'platform_access_version', 1,
+    'platform_organization_id', :'p108_org_a',
+    'platform_membership_id', :'p108_student_a_membership',
+    'platform_bundle_id', :'p108_student_bundle',
+    'platform_bundle_version', :'p108_student_bundle_version'::INTEGER
+  )::TEXT AS p108_student_a_claims,
   jsonb_build_object(
     'sub', :'p108_admin_b_user',
     'role', 'authenticated',
@@ -561,6 +590,110 @@ SELECT pg_temp.p108_assert(
   ),
   'submitted-to-submitted second upload transition regressed'
 );
+
+SET request.jwt.claims TO :'p108_curator_a_claims';
+SET ROLE authenticated;
+
+SELECT pg_temp.p108_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform.staff_student_case_documents(:'p108_case_a') AS document
+    WHERE document.document_slot_id = :'p108_custom_slot_a'
+      AND document.document_requirement_id IS NULL
+      AND document.requirement_key IS NULL
+      AND document.requirement_label = 'Parent consent letter'
+      AND document.instructions IS NULL
+      AND document.checklist_version IS NULL
+      AND document.document_version_id = :'p108_historical_version_two'
+      AND document.version_no = 2
+  ),
+  'staff document projection omitted the custom slot'
+);
+
+SELECT platform.review_document_version_with_portal_notification_v1(
+  :'p108_org_a',
+  :'p108_historical_version_two',
+  'correction_required',
+  'Please upload a signed parent consent letter.',
+  '59910000-0000-4000-8000-000000000711'
+)::TEXT AS p108_custom_review
+\gset
+
+SELECT pg_temp.p108_assert(
+  :'p108_custom_review'::JSONB ->> 'document_slot_id'
+      = :'p108_custom_slot_a'
+    AND :'p108_custom_review'::JSONB ->> 'decision'
+      = 'correction_required'
+    AND :'p108_custom_review'::JSONB ->> 'slot_status'
+      = 'correction_required',
+  'custom slot review command failed'
+);
+
+RESET ROLE;
+RESET request.jwt.claims;
+
+SELECT pg_temp.p108_assert(
+  (
+    SELECT count(*) = 1
+    FROM platform.document_reviews AS review
+    JOIN platform.student_portal_notification_projection_v1 AS projection
+      ON projection.organization_id = review.organization_id
+      AND projection.source_record_id = review.id
+      AND projection.document_slot_id = review.document_slot_id
+      AND projection.document_version_id = review.document_version_id
+    JOIN platform.notifications AS notification
+      ON notification.organization_id = projection.organization_id
+      AND notification.id = projection.notification_id
+    WHERE review.request_id =
+      '59910000-0000-4000-8000-000000000711'
+      AND projection.document_requirement_id IS NULL
+      AND projection.requirement_label = 'Parent consent letter'
+      AND projection.review_decision = 'correction_required'
+      AND notification.body =
+        'Parent consent letter: Please upload a signed parent consent letter.'
+  ),
+  'custom slot review did not publish a nullable immutable Portal projection'
+);
+
+SET request.jwt.claims TO :'p108_student_a_claims';
+SET ROLE authenticated;
+
+SELECT pg_temp.p108_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform.student_portal_notifications_v1() AS notification
+    WHERE notification.review_decision = 'correction_required'
+      AND notification.requirement_key IS NULL
+      AND notification.requirement_label = 'Parent consent letter'
+      AND notification.reason =
+        'Please upload a signed parent consent letter.'
+  )
+    AND EXISTS (
+      SELECT 1
+      FROM platform.student_portal_notifications_v2() AS notification
+      WHERE notification.event_code = 'correction_required'
+        AND notification.subject_label = 'Parent consent letter'
+        AND notification.detail =
+          'Please upload a signed parent consent letter.'
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM platform.student_portal_documents() AS document
+      WHERE document.document_slot_id = :'p108_custom_slot_a'
+        AND document.requirement_key IS NULL
+        AND document.requirement_label = 'Parent consent letter'
+        AND document.instructions IS NULL
+        AND document.document_version_id = :'p108_historical_version_two'
+        AND document.version_no = 2
+        AND document.review_decision = 'correction_required'
+        AND document.rework_reason =
+          'Please upload a signed parent consent letter.'
+    ),
+  'Student Portal v1/v2 notification or document projection omitted custom intent'
+);
+
+RESET ROLE;
+RESET request.jwt.claims;
 
 SET request.jwt.claims TO :'p108_sales_a_claims';
 SET ROLE authenticated;
@@ -713,7 +846,7 @@ SELECT pg_temp.p108_assert(
         AND slot.payload ->> 'requirement_label' = 'Parent consent letter'
         AND slot.payload ->> 'group_label' = 'Personal documents'
         AND slot.payload ->> 'intent_kind' = 'custom'
-        AND slot.payload ->> 'slot_version' = '3'
+        AND slot.payload ->> 'slot_version' = '4'
         AND slot.payload ?& ARRAY[
           'instructions', 'slot_status', 'deadline', 'next_action',
           'current_version_id', 'current_version_no', 'created_at',
@@ -730,11 +863,56 @@ SELECT pg_temp.p108_assert(
   'workspace shape/custom nullability/resolved queue label failed'
 );
 
+SELECT platform.change_document_slot_metadata(
+  :'p108_org_a',
+  :'p108_case_a',
+  :'p108_custom_slot_a',
+  'Renamed parent consent letter',
+  'Personal documents',
+  4,
+  'Rename after the review was published',
+  '59910000-0000-4000-8000-000000000712'
+)::TEXT AS p108_custom_rename_after_review
+\gset
+
+RESET ROLE;
+RESET request.jwt.claims;
+SET request.jwt.claims TO :'p108_student_a_claims';
+SET ROLE authenticated;
+
+SELECT pg_temp.p108_assert(
+  :'p108_custom_rename_after_review'::JSONB ->> 'version' = '5'
+    AND EXISTS (
+      SELECT 1
+      FROM platform.student_portal_notifications_v1() AS notification
+      WHERE notification.review_decision = 'correction_required'
+        AND notification.requirement_key IS NULL
+        AND notification.requirement_label = 'Parent consent letter'
+        AND notification.reason =
+          'Please upload a signed parent consent letter.'
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM platform.student_portal_notifications_v2() AS notification
+      WHERE notification.category = 'document.review'
+        AND notification.event_code = 'correction_required'
+        AND notification.subject_label = 'Parent consent letter'
+        AND notification.detail =
+          'Please upload a signed parent consent letter.'
+    ),
+  'published Portal v1/v2 review evidence changed after the custom slot rename'
+);
+
+RESET ROLE;
+RESET request.jwt.claims;
+SET request.jwt.claims TO :'p108_admin_a_claims';
+SET ROLE authenticated;
+
 SELECT platform.remove_document_slot(
   :'p108_org_a',
   :'p108_case_a',
   :'p108_custom_slot_a',
-  3,
+  5,
   'The case no longer requires parental consent',
   '59910000-0000-4000-8000-000000000708'
 )::TEXT AS p108_custom_remove
@@ -744,7 +922,7 @@ SELECT platform.remove_document_slot(
   :'p108_org_a',
   :'p108_case_a',
   :'p108_custom_slot_a',
-  3,
+  5,
   'The case no longer requires parental consent',
   '59910000-0000-4000-8000-000000000708'
 )::TEXT AS p108_custom_remove_replay
@@ -758,7 +936,7 @@ SELECT pg_temp.p108_document_queue(101)::TEXT AS p108_queue_after_remove
 
 SELECT pg_temp.p108_assert(
   :'p108_custom_remove'::JSONB = :'p108_custom_remove_replay'::JSONB
-    AND :'p108_custom_remove'::JSONB ->> 'version' = '4'
+    AND :'p108_custom_remove'::JSONB ->> 'version' = '6'
     AND :'p108_custom_remove'::JSONB ->> 'intent_kind' = 'custom'
     AND :'p108_custom_remove'::JSONB ->> 'removal_reason'
       = 'The case no longer requires parental consent'
@@ -777,6 +955,11 @@ SELECT pg_temp.p108_assert(
       FROM jsonb_array_elements(:'p108_queue_after_remove'::JSONB)
         AS queue_row(payload)
       WHERE queue_row.payload ->> 'document_slot_id' = :'p108_custom_slot_a'
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.staff_student_case_documents(:'p108_case_a') AS document
+      WHERE document.document_slot_id = :'p108_custom_slot_a'
     ),
   'soft removal replay or active-only staff projections failed'
 );
@@ -823,7 +1006,7 @@ SELECT pg_temp.p108_assert(
         AND slot.removed_by_membership_id = :'p108_admin_a_membership'
         AND slot.removal_reason
           = 'The case no longer requires parental consent'
-        AND slot.version = 4
+        AND slot.version = 5
       FROM platform.document_slots AS slot
       WHERE slot.id = :'p108_custom_slot_a'
     ),

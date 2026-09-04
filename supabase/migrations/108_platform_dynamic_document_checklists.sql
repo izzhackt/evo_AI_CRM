@@ -78,6 +78,22 @@ ALTER TABLE platform.document_slots
     REFERENCES platform.organization_memberships(organization_id, id)
     ON DELETE RESTRICT;
 
+-- Portal notification projections are immutable review evidence. Baseline
+-- rows retain their requirement identity while custom slots deliberately
+-- publish NULL rather than inventing a shared requirement key. Existing rows
+-- predate case-local labels and can continue resolving their immutable shared
+-- requirement label; every new review snapshots the exact resolved label.
+ALTER TABLE platform.student_portal_notification_projection_v1
+  ALTER COLUMN document_requirement_id DROP NOT NULL,
+  ADD COLUMN requirement_label TEXT,
+  ADD CONSTRAINT student_portal_notification_projection_v1_label_check CHECK (
+    requirement_label IS NULL
+    OR (
+      char_length(btrim(requirement_label)) BETWEEN 1 AND 500
+      AND requirement_label !~ '[[:cntrl:]]'
+    )
+  );
+
 CREATE INDEX document_slots_active_case_group_idx
   ON platform.document_slots (
     organization_id,
@@ -887,6 +903,603 @@ BEGIN
 
   RETURN result;
 END
+$$;
+
+-- Migration 068 projected only requirement-backed slots. Carry that active
+-- contract forward so case-local custom intent remains visible without
+-- manufacturing a shared requirement identity.
+CREATE OR REPLACE FUNCTION platform.staff_student_case_documents(
+  p_student_case_id UUID
+)
+RETURNS TABLE (
+  case_id UUID,
+  document_slot_id UUID,
+  document_requirement_id UUID,
+  requirement_key TEXT,
+  requirement_label TEXT,
+  instructions TEXT,
+  checklist_version BIGINT,
+  slot_status platform.document_slot_status,
+  deadline TIMESTAMPTZ,
+  next_action TEXT,
+  document_version_id UUID,
+  version_no BIGINT,
+  original_filename TEXT,
+  declared_mime_type TEXT,
+  byte_size BIGINT,
+  submitted_at TIMESTAMPTZ,
+  review_decision platform.document_review_decision,
+  rework_reason TEXT,
+  reviewed_at TIMESTAMPTZ
+)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT
+    slot.student_case_id,
+    slot.id,
+    slot.requirement_id,
+    requirement.requirement_key,
+    COALESCE(slot.display_label, requirement.label),
+    requirement.instructions,
+    requirement.checklist_version,
+    slot.status,
+    slot.deadline,
+    slot.next_action,
+    document_version.id,
+    document_version.version_no,
+    document_version.original_filename,
+    document_version.declared_mime_type,
+    document_version.byte_size,
+    document_version.created_at,
+    review.decision,
+    CASE
+      WHEN review.decision IN ('correction_required', 'rejected')
+      THEN review.reason
+      ELSE NULL
+    END,
+    review.created_at
+  FROM platform.document_slots AS slot
+  LEFT JOIN platform.document_requirements AS requirement
+    ON requirement.organization_id = slot.organization_id
+    AND requirement.id = slot.requirement_id
+  LEFT JOIN platform.document_versions AS document_version
+    ON document_version.organization_id = slot.organization_id
+    AND document_version.id = slot.current_version_id
+    AND document_version.document_slot_id = slot.id
+    AND document_version.student_case_id = slot.student_case_id
+    AND document_version.version_no = slot.current_version_no
+  LEFT JOIN LATERAL (
+    SELECT
+      document_review.decision,
+      document_review.reason,
+      document_review.created_at
+    FROM platform.document_reviews AS document_review
+    WHERE document_review.organization_id = slot.organization_id
+      AND document_review.document_version_id = document_version.id
+    ORDER BY document_review.created_at DESC, document_review.id DESC
+    LIMIT 1
+  ) AS review ON TRUE
+  WHERE slot.student_case_id = p_student_case_id
+    AND slot.removed_at IS NULL
+    AND private.platform_has_permission(
+      slot.organization_id,
+      'profile.read.full'
+    )
+    AND private.platform_can_read_student_case(
+      slot.organization_id,
+      slot.student_case_id
+    )
+  ORDER BY slot.deadline NULLS LAST, slot.id
+$$;
+
+-- The P6B review trigger must preserve the nullable custom-slot identity in
+-- its immutable projection and resolve the browser-safe label from the slot.
+CREATE OR REPLACE FUNCTION platform_private.publish_document_review_portal_notification()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  recipient_membership_id UUID;
+  requirement_id UUID;
+  requirement_key TEXT;
+  requirement_label TEXT;
+  created_notification_id UUID := gen_random_uuid();
+  notification_title TEXT;
+  notification_body TEXT;
+  fixed_event_reason CONSTANT TEXT :=
+    'Negative document review published to Student Portal';
+BEGIN
+  IF current_setting(
+      'platform_private.p6b_portal_notification_context',
+      TRUE
+    ) IS DISTINCT FROM
+      NEW.organization_id::TEXT || ':' || NEW.request_id::TEXT
+  THEN
+    RETURN NEW;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM platform_private.student_portal_notification_runtime_controls AS control
+    WHERE control.organization_id = NEW.organization_id
+      AND control.enabled
+  ) THEN
+    RAISE EXCEPTION
+      'Student Portal notification publication is disabled'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF NEW.decision NOT IN ('correction_required', 'rejected') THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.reason IS NULL
+    OR char_length(btrim(NEW.reason)) NOT BETWEEN 1 AND 2000
+    OR NEW.reason ~ '[[:cntrl:]]'
+  THEN
+    RAISE EXCEPTION
+      'Student Portal review reason must be 1..2000 control-free characters'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT
+    student_case.student_membership_id,
+    slot.requirement_id,
+    requirement.requirement_key,
+    COALESCE(slot.display_label, requirement.label)
+  INTO
+    recipient_membership_id,
+    requirement_id,
+    requirement_key,
+    requirement_label
+  FROM platform.student_cases AS student_case
+  JOIN platform.organization_memberships AS membership
+    ON membership.organization_id = student_case.organization_id
+    AND membership.id = student_case.student_membership_id
+  JOIN platform.profiles AS profile
+    ON profile.id = membership.profile_id
+  JOIN platform.organizations AS organization
+    ON organization.id = membership.organization_id
+  JOIN platform.role_bundle_versions AS bundle
+    ON bundle.id = membership.current_bundle_id
+    AND bundle.role = membership."current_role"
+  JOIN platform.role_bundle_permissions AS portal_permission
+    ON portal_permission.bundle_id = bundle.id
+    AND portal_permission.bundle_role = bundle.role
+    AND portal_permission.permission_key = 'portal.read.self'
+  JOIN platform.role_bundle_permissions AS notification_permission
+    ON notification_permission.bundle_id = bundle.id
+    AND notification_permission.bundle_role = bundle.role
+    AND notification_permission.permission_key = 'notification.read.self'
+  JOIN platform.record_scopes AS student_case_scope
+    ON student_case_scope.organization_id = student_case.organization_id
+    AND student_case_scope.id = student_case.current_scope_id
+    AND student_case_scope.scope_version = student_case.current_scope_version
+    AND student_case_scope.scope_kind = 'student_case'
+    AND student_case_scope.scope_key = student_case.id
+    AND student_case_scope.is_active
+  JOIN platform.membership_scope_assignments AS scope_assignment
+    ON scope_assignment.organization_id = student_case_scope.organization_id
+    AND scope_assignment.membership_id = membership.id
+    AND scope_assignment.scope_id = student_case_scope.id
+    AND scope_assignment.scope_version = student_case_scope.scope_version
+  JOIN platform.document_slots AS slot
+    ON slot.organization_id = student_case.organization_id
+    AND slot.id = NEW.document_slot_id
+    AND slot.student_case_id = student_case.id
+    AND slot.current_version_id = NEW.document_version_id
+  JOIN platform.document_versions AS document_version
+    ON document_version.organization_id = slot.organization_id
+    AND document_version.id = slot.current_version_id
+    AND document_version.student_case_id = slot.student_case_id
+    AND document_version.document_slot_id = slot.id
+    AND document_version.version_no = slot.current_version_no
+  LEFT JOIN platform.document_requirements AS requirement
+    ON requirement.organization_id = slot.organization_id
+    AND requirement.id = slot.requirement_id
+  WHERE student_case.organization_id = NEW.organization_id
+    AND student_case.id = NEW.student_case_id
+    AND student_case.state IN ('active', 'closed')
+    AND student_case.portal_activated_at IS NOT NULL
+    AND membership.status = 'active'
+    AND membership."current_role" = 'student'
+    AND profile.status = 'active'
+    AND organization.status = 'active'
+    AND bundle.status = 'published'
+    AND scope_assignment.granted
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.membership_scope_assignments AS later_assignment
+      WHERE later_assignment.organization_id = scope_assignment.organization_id
+        AND later_assignment.membership_id = scope_assignment.membership_id
+        AND later_assignment.scope_id = scope_assignment.scope_id
+        AND later_assignment.assignment_version >
+          scope_assignment.assignment_version
+    );
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION
+      'Negative document review requires one live Student Portal recipient'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF requirement_key IS NOT NULL
+    AND (
+      char_length(btrim(requirement_key)) NOT BETWEEN 1 AND 128
+      OR requirement_key ~ '[[:cntrl:]]'
+    )
+  THEN
+    RAISE EXCEPTION
+      'Student Portal requirement key must be 1..128 control-free characters'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF char_length(btrim(requirement_label)) NOT BETWEEN 1 AND 500
+    OR requirement_label ~ '[[:cntrl:]]'
+  THEN
+    RAISE EXCEPTION
+      'Student Portal requirement label must be 1..500 control-free characters'
+      USING ERRCODE = '22023';
+  END IF;
+
+  notification_title := CASE NEW.decision
+    WHEN 'correction_required' THEN 'Document correction required'
+    ELSE 'Document rejected'
+  END;
+  notification_body := requirement_label || ': ' || btrim(NEW.reason);
+
+  INSERT INTO platform.notifications (
+    id,
+    organization_id,
+    student_case_id,
+    recipient_membership_id,
+    category,
+    title,
+    body,
+    dedupe_key,
+    created_by_membership_id,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    created_notification_id,
+    NEW.organization_id,
+    NEW.student_case_id,
+    recipient_membership_id,
+    'document.review',
+    notification_title,
+    notification_body,
+    'document_review:' || NEW.id::TEXT,
+    NEW.reviewer_membership_id,
+    NEW.created_at,
+    NEW.created_at
+  );
+
+  INSERT INTO platform.student_portal_notification_projection_v1 (
+    notification_id,
+    organization_id,
+    student_case_id,
+    recipient_membership_id,
+    source_record_id,
+    document_slot_id,
+    document_version_id,
+    document_requirement_id,
+    requirement_label,
+    review_decision,
+    created_at
+  )
+  VALUES (
+    created_notification_id,
+    NEW.organization_id,
+    NEW.student_case_id,
+    recipient_membership_id,
+    NEW.id,
+    NEW.document_slot_id,
+    NEW.document_version_id,
+    requirement_id,
+    requirement_label,
+    NEW.decision,
+    NEW.created_at
+  );
+
+  INSERT INTO platform.notification_events (
+    organization_id,
+    notification_id,
+    student_case_id,
+    recipient_membership_id,
+    event_type,
+    actor_membership_id,
+    reason,
+    request_id,
+    created_at
+  )
+  VALUES (
+    NEW.organization_id,
+    created_notification_id,
+    NEW.student_case_id,
+    recipient_membership_id,
+    'created',
+    NEW.reviewer_membership_id,
+    fixed_event_reason,
+    NEW.request_id,
+    NEW.created_at
+  );
+
+  RETURN NEW;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION platform.student_portal_notifications_v1()
+RETURNS TABLE (
+  notification_id UUID,
+  category TEXT,
+  review_decision platform.document_review_decision,
+  requirement_key TEXT,
+  requirement_label TEXT,
+  reason TEXT,
+  created_at TIMESTAMPTZ,
+  read_at TIMESTAMPTZ
+)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  WITH authority AS MATERIALIZED (
+    SELECT current_authority.*
+    FROM platform.current_actor_authority() AS current_authority
+    WHERE current_authority.platform_role = 'student'
+      AND private.platform_has_permission(
+        current_authority.organization_id,
+        'notification.read.self'
+      )
+  ),
+  readable_cases AS MATERIALIZED (
+    SELECT
+      student_case.organization_id,
+      student_case.id AS student_case_id
+    FROM authority
+    JOIN platform.student_cases AS student_case
+      ON student_case.organization_id = authority.organization_id
+      AND student_case.student_membership_id = authority.membership_id
+    WHERE private.platform_can_read_student_portal_case(
+      student_case.organization_id,
+      student_case.id
+    )
+  )
+  SELECT
+    notification.id,
+    notification.category,
+    projection.review_decision,
+    requirement.requirement_key,
+    COALESCE(projection.requirement_label, requirement.label),
+    document_review.reason,
+    notification.created_at,
+    notification.read_at
+  FROM authority
+  JOIN readable_cases AS readable_case
+    ON readable_case.organization_id = authority.organization_id
+  JOIN platform.student_portal_notification_projection_v1 AS projection
+    ON projection.organization_id = authority.organization_id
+    AND projection.recipient_membership_id = authority.membership_id
+    AND projection.student_case_id = readable_case.student_case_id
+  JOIN platform.notifications AS notification
+    ON notification.organization_id = projection.organization_id
+    AND notification.id = projection.notification_id
+    AND notification.student_case_id = projection.student_case_id
+    AND notification.recipient_membership_id =
+      projection.recipient_membership_id
+  JOIN platform.document_reviews AS document_review
+    ON document_review.organization_id = projection.organization_id
+    AND document_review.id = projection.source_record_id
+    AND document_review.student_case_id = projection.student_case_id
+    AND document_review.document_slot_id = projection.document_slot_id
+    AND document_review.document_version_id = projection.document_version_id
+  JOIN platform.document_slots AS slot
+    ON slot.organization_id = projection.organization_id
+    AND slot.id = projection.document_slot_id
+    AND slot.student_case_id = projection.student_case_id
+    AND slot.requirement_id IS NOT DISTINCT FROM
+      projection.document_requirement_id
+  LEFT JOIN platform.document_requirements AS requirement
+    ON requirement.organization_id = slot.organization_id
+    AND requirement.id = slot.requirement_id
+  ORDER BY notification.created_at DESC, notification.id DESC
+  LIMIT 500
+$$;
+
+CREATE OR REPLACE FUNCTION platform.student_portal_notifications_v2()
+RETURNS TABLE (
+  notification_id UUID,
+  category TEXT,
+  event_code TEXT,
+  subject_label TEXT,
+  detail TEXT,
+  due_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ,
+  read_at TIMESTAMPTZ
+)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  WITH authority AS MATERIALIZED (
+    SELECT current_authority.*
+    FROM platform.current_actor_authority() AS current_authority
+    WHERE current_authority.platform_role = 'student'
+      AND private.platform_has_permission(
+        current_authority.organization_id,
+        'notification.read.self'
+      )
+  ),
+  readable_cases AS MATERIALIZED (
+    SELECT student_case.organization_id, student_case.id AS student_case_id
+    FROM authority
+    JOIN platform.student_cases AS student_case
+      ON student_case.organization_id = authority.organization_id
+      AND student_case.student_membership_id = authority.membership_id
+    WHERE private.platform_can_read_student_portal_case(
+      student_case.organization_id,
+      student_case.id
+    )
+  ),
+  safe_rows AS (
+    SELECT
+      notification.id AS notification_id,
+      notification.category,
+      projection.review_decision::TEXT AS event_code,
+      COALESCE(
+        projection.requirement_label,
+        requirement.label
+      ) AS subject_label,
+      document_review.reason AS detail,
+      NULL::TIMESTAMPTZ AS due_at,
+      notification.created_at,
+      notification.read_at
+    FROM authority
+    JOIN readable_cases AS readable_case
+      ON readable_case.organization_id = authority.organization_id
+    JOIN platform.student_portal_notification_projection_v1 AS projection
+      ON projection.organization_id = authority.organization_id
+      AND projection.recipient_membership_id = authority.membership_id
+      AND projection.student_case_id = readable_case.student_case_id
+    JOIN platform.notifications AS notification
+      ON notification.organization_id = projection.organization_id
+      AND notification.id = projection.notification_id
+      AND notification.student_case_id = projection.student_case_id
+      AND notification.recipient_membership_id =
+        projection.recipient_membership_id
+    JOIN platform.document_reviews AS document_review
+      ON document_review.organization_id = projection.organization_id
+      AND document_review.id = projection.source_record_id
+      AND document_review.student_case_id = projection.student_case_id
+      AND document_review.document_slot_id = projection.document_slot_id
+      AND document_review.document_version_id = projection.document_version_id
+    JOIN platform.document_slots AS slot
+      ON slot.organization_id = projection.organization_id
+      AND slot.id = projection.document_slot_id
+      AND slot.student_case_id = projection.student_case_id
+      AND slot.requirement_id IS NOT DISTINCT FROM
+        projection.document_requirement_id
+    LEFT JOIN platform.document_requirements AS requirement
+      ON requirement.organization_id = slot.organization_id
+      AND requirement.id = slot.requirement_id
+
+    UNION ALL
+
+    SELECT
+      notification.id,
+      notification.category,
+      'overdue'::TEXT,
+      overdue_projection.subject_label,
+      overdue_projection.detail,
+      overdue_projection.due_at,
+      notification.created_at,
+      notification.read_at
+    FROM authority
+    JOIN readable_cases AS readable_case
+      ON readable_case.organization_id = authority.organization_id
+    JOIN platform.student_portal_overdue_notification_projection_v1
+      AS overdue_projection
+      ON overdue_projection.organization_id = authority.organization_id
+      AND overdue_projection.recipient_membership_id = authority.membership_id
+      AND overdue_projection.student_case_id = readable_case.student_case_id
+    JOIN platform.notifications AS notification
+      ON notification.organization_id = overdue_projection.organization_id
+      AND notification.id = overdue_projection.notification_id
+      AND notification.student_case_id = overdue_projection.student_case_id
+      AND notification.recipient_membership_id =
+        overdue_projection.recipient_membership_id
+  )
+  SELECT safe_rows.*
+  FROM safe_rows
+  ORDER BY safe_rows.created_at DESC, safe_rows.notification_id DESC
+  LIMIT 500
+$$;
+
+CREATE OR REPLACE FUNCTION platform.student_portal_documents()
+RETURNS TABLE (
+  case_id UUID,
+  document_slot_id UUID,
+  requirement_key TEXT,
+  requirement_label TEXT,
+  instructions TEXT,
+  slot_status platform.document_slot_status,
+  deadline TIMESTAMPTZ,
+  next_action TEXT,
+  document_version_id UUID,
+  version_no BIGINT,
+  original_filename TEXT,
+  declared_mime_type TEXT,
+  byte_size BIGINT,
+  submitted_at TIMESTAMPTZ,
+  review_decision platform.document_review_decision,
+  rework_reason TEXT,
+  reviewed_at TIMESTAMPTZ
+)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT
+    slot.student_case_id,
+    slot.id,
+    requirement.requirement_key,
+    COALESCE(slot.display_label, requirement.label),
+    requirement.instructions,
+    slot.status,
+    slot.deadline,
+    slot.next_action,
+    version.id,
+    version.version_no,
+    version.original_filename,
+    version.declared_mime_type,
+    version.byte_size,
+    version.created_at,
+    review.decision,
+    CASE
+      WHEN review.decision IN ('correction_required', 'rejected')
+      THEN review.reason
+      ELSE NULL
+    END,
+    review.created_at
+  FROM platform.document_slots AS slot
+  LEFT JOIN platform.document_requirements AS requirement
+    ON requirement.organization_id = slot.organization_id
+    AND requirement.id = slot.requirement_id
+  LEFT JOIN platform.document_versions AS version
+    ON version.organization_id = slot.organization_id
+    AND version.document_slot_id = slot.id
+    AND version.student_case_id = slot.student_case_id
+  LEFT JOIN LATERAL (
+    SELECT
+      document_review.decision,
+      document_review.reason,
+      document_review.created_at
+    FROM platform.document_reviews AS document_review
+    WHERE document_review.organization_id = slot.organization_id
+      AND document_review.document_version_id = version.id
+    ORDER BY document_review.created_at DESC, document_review.id DESC
+    LIMIT 1
+  ) AS review ON TRUE
+  WHERE slot.removed_at IS NULL
+    AND private.platform_can_read_student_portal_case(
+      slot.organization_id,
+      slot.student_case_id
+    )
+    AND private.platform_has_permission(
+      slot.organization_id,
+      'document.read.self'
+    )
+  ORDER BY slot.deadline NULLS LAST, slot.id, version.version_no
 $$;
 
 -- Queue row shape remains byte-for-byte compatible; only the resolved label

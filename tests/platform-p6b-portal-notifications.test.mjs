@@ -123,6 +123,29 @@ test("student reads only the safe durable document-review notification projectio
   assert.doesNotMatch(JSON.stringify(notifications), /waha|@c\.us|version|source/i);
 });
 
+test("custom document reviews keep their resolved label without inventing a requirement key", async () => {
+  const [notification] = await listPlatformStudentPortalNotifications(
+    studentActor(),
+    {
+      client: notificationRpcClient([
+        {
+          notification_id: NOTIFICATION_ID,
+          category: "document.review",
+          review_decision: "correction_required",
+          requirement_key: null,
+          requirement_label: "Parent consent",
+          reason: "Please upload the signed page.",
+          created_at: CREATED_AT,
+          read_at: null,
+        },
+      ]),
+    },
+  );
+
+  assert.equal(notification.requirementKey, null);
+  assert.equal(notification.requirementLabel, "Parent consent");
+});
+
 test("notification repository fails closed for wrong roles, duplicates, and malformed rows", async () => {
   await assert.rejects(
     () => listPlatformStudentPortalNotifications(

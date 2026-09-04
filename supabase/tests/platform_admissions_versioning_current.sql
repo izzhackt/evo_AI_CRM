@@ -424,7 +424,7 @@ INSERT INTO platform.student_cases (
   :'p107_org_id',
   :'p107_student_membership_id',
   :'p107_sales_membership_id',
-  :'p107_curator_membership_id',
+  NULL,
   'synthetic:p107:case',
   'contract:p107',
   '2026-09-04T09:00:00Z',
@@ -435,13 +435,41 @@ INSERT INTO platform.student_cases (
   '2027',
   'approved',
   'admissions_active',
-  'active',
-  '2026-09-04T09:30:00Z',
-  '2026-09-04T09:31:00Z',
+  'pending',
+  NULL,
+  NULL,
   NULL,
   'Verify migration 107 optimistic versions',
   :'p107_case_scope_id',
   1
+);
+
+SET request.jwt.claims TO :'p107_admin_claims';
+SET ROLE authenticated;
+
+SELECT platform.assign_student_case_curator(
+  :'p107_org_id',
+  :'p107_case_id',
+  :'p107_curator_membership_id',
+  'Activate the isolated migration 107 case through the real lifecycle',
+  '59700000-0000-4000-8000-000000000122'
+);
+
+RESET ROLE;
+
+SELECT pg_temp.p107_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform.student_cases AS student_case
+    WHERE student_case.organization_id = :'p107_org_id'
+      AND student_case.id = :'p107_case_id'
+      AND student_case.state = 'active'
+      AND student_case.current_curator_membership_id =
+        :'p107_curator_membership_id'
+      AND student_case.handoff_at IS NOT NULL
+      AND student_case.current_scope_version = 2
+  ),
+  'Migration 107 case did not complete the pending-to-active lifecycle'
 );
 
 INSERT INTO platform.payment_obligations (

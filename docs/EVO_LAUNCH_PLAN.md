@@ -57,6 +57,12 @@ blindly merge branch-wide deploy, workflow, archive, SQLite, Drizzle or
 runtime-contract changes that would regress completed `main` work or delete
 frozen history.
 
+Before any #594 change or merge, read the complete pinned-branch versions of
+`CLAUDE.md`, `docs/design/v3/product.md`, `docs/design/v3/frontend-rules.md`,
+`docs/design/v3/backend-gaps.md` and `docs/design/v3/handover-to-codex.md`.
+Those files are required integration inputs before they become ordinary
+`main` files through the merge.
+
 Do not rebuild business logic that already exists. The current server actions in
 `src/lib/server/` and the canonical CRM repository remain the product engine.
 V3 work connects forms and source adapters to that engine with real server
@@ -98,8 +104,8 @@ approval request, but only after all of these are true:
 
 1. the exact managed project and production runtime are identified;
 2. a recoverable pre-change backup exists and a restore has been proved;
-3. forward migrations and data reconciliation pass on an isolated copy or
-   staging project using real schema and representative authorized data;
+3. forward migrations and data reconciliation pass on an isolated copy using
+   real schema and representative authorized data;
 4. real Auth, RLS, Storage and CRM browser workflows plus provider
    configuration and fail-closed readiness checks pass; live Gemini/WhatsApp
    delivery is not an active gate and must not be claimed;

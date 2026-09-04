@@ -55,6 +55,11 @@
   V2 screens remain only until the same business action is wired into V3 and
   proved, then the superseded screen is deleted in that slice. The authenticated
   root moves to V3 only in #600 after those actions have replacement proof.
+  Before changing or merging #594, read that pinned branch's complete
+  `CLAUDE.md`, `docs/design/v3/product.md`, `docs/design/v3/frontend-rules.md`,
+  `docs/design/v3/backend-gaps.md` and `docs/design/v3/handover-to-codex.md`;
+  they are the pre-merge integration inputs even though the files do not yet
+  exist on `main`.
 - Root `supabase/` is the sole target migration authority. Do not ship Drizzle
   `evo_*`, SQLite or another PostgreSQL schema as a second production business
   authority. V2-only domain gaps move into `platform` or `platform_private`

@@ -25,6 +25,12 @@ The branch already isolates its UI under `src/app/(v3)/`, `src/components/v3/`
 and `src/lib/v3/`, so the safe next move is to merge it intentionally on top of
 the current `main`, then continue replacement slice by slice.
 
+The merge itself is governed by the pinned branch's complete `CLAUDE.md`,
+`docs/design/v3/product.md`, `docs/design/v3/frontend-rules.md`,
+`docs/design/v3/backend-gaps.md` and `docs/design/v3/handover-to-codex.md`.
+They must be read before #594 changes the tree, not only after they arrive on
+`main`.
+
 ## Decision
 
 EVO will continue as one managed-Supabase product with V3 as its active UI

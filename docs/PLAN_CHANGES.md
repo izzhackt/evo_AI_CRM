@@ -17285,3 +17285,38 @@ must both be set and tested for exposed tables, and that any `SECURITY DEFINER`
 function must set its `search_path` and have execution explicitly restricted:
 https://supabase.com/docs/guides/database/postgres/row-level-security and
 https://supabase.com/docs/guides/database/functions.
+
+## 2026-09-05 - Clarify the #599 document-link command and table shape
+
+Block-ID: `EVO-V3-F-DOCUMENT-TARGET-LINKS-COMMAND-2026-09-05`
+
+Change type: implementation clarification.
+Affected plan section: Order 5 / Issue #599 / slice 6 of 6.
+
+The preceding entry required explicit case-safe application and visa
+relationships and described them as two relations with a whole-set replace
+command. The incoming implementation inventory showed that the same database
+guarantees can be expressed more simply without a generic polymorphic id or a
+browser-owned set: one typed relation carries separate nullable application
+and visa columns, a strict mutually exclusive target check and a composite
+foreign key for each concrete target.
+
+Decision:
+
+- use one `platform.document_slot_case_links` relation whose row contains
+  exactly one of `university_application_id` or `visa_case_id`; keep
+  `target_kind` constrained to that concrete column and enforce both target
+  relations with organization-and-case-qualified foreign keys. This supersedes
+  the two-physical-table wording but preserves its security and authority
+  intent; an unqualified `(target_kind, target_id)` store remains prohibited;
+- use one canonical link/unlink command for one exact target instead of sending
+  the browser's entire set back to the database. Each new mutation still
+  requires the active slot's optimistic version, a unique request id and a
+  bounded reason, locks the slot, rejects a new-request no-op, advances the
+  aggregate slot version once and writes the exact before/after state to the
+  existing audit journal. Identical request replay returns the original result;
+  changed-shape reuse and stale concurrent mutations fail closed;
+- keep the staff projection as one sorted typed list and keep V3 as the only
+  editor. The command-shape clarification does not change role access,
+  historical-link preservation, student-portal scope or the one-authority and
+  non-production validation gates in the preceding entry.

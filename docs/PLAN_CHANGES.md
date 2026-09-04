@@ -16549,7 +16549,9 @@ also found that the earlier
 `EVO-V3-A-AUDIT-ALLOWLIST-INNER-NPM-PIN-2026-09-04` entry described a nested
 `npm exec` option that was never retained in the final workflow. This entry
 supersedes that intermediate option and the ambient-PATH part of
-`EVO-V3-A-AUDIT-PATH-PIN-2026-09-04`; the historical entries remain unchanged
+`EVO-V3-A-AUDIT-PATH-PIN-2026-09-04`. It also rejects and supersedes
+`EVO-V3-A-AUDIT-EMPTY-ERROR-PLACEHOLDER-2026-09-04`: that temporary proposal
+must not weaken the final parser. The historical entries remain unchanged
 because this log is append-only.
 
 Decision:
@@ -16569,7 +16571,7 @@ Decision:
   review, and accept only one green exact-head GitHub Actions run as YAML and
   execution proof.
 
-## 2026-09-04 - Restore small bounded registry retries for both audit reads
+## 2026-09-04 - Give each bounded audit read a 60-second registry window
 
 Block-ID: `EVO-V3-A-AUDIT-REGISTRY-RETRY-BOUND-2026-09-04`
 
@@ -16582,20 +16584,22 @@ production dependency audit still failed before any vulnerability decision with
 repeated `npm warn audit network timeout` and `npm error audit endpoint
 returned an error` against
 `https://registry.npmjs.org/-/npm/v1/security/advisories/bulk`. The failing
-path was our own CI override forcing both audit read steps to use
-`npm_config_fetch_retries=0` and `npm_config_fetch_timeout=30000`, which made
-GitHub-runner registry latency look like a hard security result.
+path was our own CI override forcing both audit read steps to use a 30-second
+fetch timeout, which was shorter than the already reviewed outer retry budget.
 
 Decision:
 
 - keep the pinned `npm@11.19.0` binary, outer three-attempt loop, four-minute
   step limits, and fail-closed aggregate gate;
-- restore a small bounded amount of npm's internal registry retry behavior for
-  both audit read paths with `npm_config_fetch_retries=1`,
-  `npm_config_fetch_retry_mintimeout=5000`,
-  `npm_config_fetch_retry_maxtimeout=10000`, and
-  `npm_config_fetch_timeout=45000`;
+- keep npm's internal fetch retries disabled and give each of the three outer
+  attempts a 60-second registry timeout; with the existing 5- and 10-second
+  delays the maximum planned wait is about 195 seconds, inside the four-minute
+  step limit;
 - keep the bootstrap install step stricter because it already proved stable
   under the previous bounds;
+- continue passing the verified binary through `GITHUB_ENV`, whose official
+  workflow-command contract makes custom values available to subsequent steps
+  in the same job:
+  https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable;
 - rerun the focused release-control tests, then require one fresh exact-head CI
   run before merge.

@@ -459,11 +459,11 @@ test("active platform CI executes only the root successor product", () => {
   );
   assert.match(
     workflow,
-    /name: Audit production dependencies[\s\S]*npm_config_fetch_retries: "1"\n          npm_config_fetch_retry_maxtimeout: "10000"\n          npm_config_fetch_retry_mintimeout: "5000"\n          npm_config_fetch_timeout: "45000"[\s\S]*if ! test -x "\$EVO_NPM_BIN"; then[\s\S]*if "\$EVO_NPM_BIN" audit --package-lock-only --omit=dev --audit-level=moderate; then/u,
+    /name: Audit production dependencies[\s\S]*npm_config_fetch_retries: "0"\n          npm_config_fetch_timeout: "60000"[\s\S]*if ! test -x "\$EVO_NPM_BIN"; then[\s\S]*if "\$EVO_NPM_BIN" audit --package-lock-only --omit=dev --audit-level=moderate; then/u,
   );
   assert.match(
     workflow,
-    /name: Audit development dependencies against the temporary allowlist[\s\S]*npm_config_fetch_retries: "1"\n          npm_config_fetch_retry_maxtimeout: "10000"\n          npm_config_fetch_retry_mintimeout: "5000"\n          npm_config_fetch_timeout: "45000"[\s\S]*if node scripts\/check-npm-audit-allowlist\.mjs; then/u,
+    /name: Audit development dependencies against the temporary allowlist[\s\S]*npm_config_fetch_retries: "0"\n          npm_config_fetch_timeout: "60000"[\s\S]*if node scripts\/check-npm-audit-allowlist\.mjs; then/u,
   );
   assert.match(auditAllowlist, /const npmBin = process\.env\.EVO_NPM_BIN\?\.trim\(\) \|\| "npm";/u);
   assert.match(auditAllowlist, /spawnSync\(\n    npmBin,/u);

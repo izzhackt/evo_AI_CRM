@@ -2,10 +2,11 @@
 
 Status: active V3-on-managed-Supabase production-successor contract
 Date: 2026-09-04 (Asia/Dubai)
-Authority: owner direction 2026-09-04, ADRs 0024, 0026 and 0027, root
-`CLAUDE.md`, `docs/design/v3/product.md`, this plan and the latest append-only
-`docs/PLAN_CHANGES.md` entry, parent issue #543 and ordered children #594
-through #600
+Authority: owner direction 2026-09-04, ADRs 0024, 0026 and 0027, this plan and
+the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
+ordered sequence #594 through #600, then #551 through #553. After #594 merges,
+root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
+those higher-level authorities.
 Verified starting baseline: GitHub `origin/main` at
 `d6fc0f4720fcb6a1d012a4bfb4faa4ea1553f47b`
 Verified V3 merge target: GitHub `origin/claude/v3-frontend` at
@@ -90,9 +91,10 @@ showing that the superseded path is no longer active and a fail-closed proof
 showing that the app does not fall back.
 
 Repository changes, read-only provider/deployment inspection, isolated local
-Supabase work and staging preparation continue without routine approval pauses.
-Production data mutation or traffic cutover occurs only after all of these are
-true:
+Supabase work and isolated recovery/migration rehearsal continue without
+routine approval pauses. The owner has authorized #552 to perform the bounded
+V3 production deployment and active-runtime retirement without another routine
+approval request, but only after all of these are true:
 
 1. the exact managed project and production runtime are identified;
 2. a recoverable pre-change backup exists and a restore has been proved;
@@ -113,28 +115,33 @@ new path is accepted; historical and rollback material remains preserved.
 
 | Order | Issue | Slice | Outcome |
 | --- | --- | --- | --- |
-| 0 | #594 | V3 import and authority reset | integrate the accepted V3 surface onto current `main`, preserve current Supabase/release removals, and make V3 the active product surface |
-| 1 | #595 | Wire Sales decisions to V3 | connect stage, next action, contract/first-payment gate and Admissions handoff to V3 with real browser proof |
-| 2 | #596 | Wire Inbox commands to V3 | connect WhatsApp review/send, Gemini proposal review and amoCRM commands to V3 without changing provider boundaries |
-| 3 | #597 | Wire Admissions operations to V3 | connect tasks, applications, visa, finance and private documents to V3 and remove replaced controls slice by slice |
-| 4 | #598 | Activate dormant Supabase capabilities | connect existing document checklist, visa-case, lead-owner/stage and audit capabilities already present in canonical Supabase |
-| 5 | #599 | Fill canonical schema gaps | add only the missing managed-Supabase model needed after the already-built capabilities are connected |
-| 6 | #600 | Release-path cleanup and final normalization | make V3 the sole active UI path, keep one CI-green release path, and remove stale branches/comments/dead product code after proof |
+| 0 | #594 | Merge V3 | merge `claude/v3-frontend` into current `main`, preserve #585-#587 cleanup, resolve the route contract and run the V3 quality gate |
+| 1 | #595 | Sales decisions and handoff | wire stage/next action, contract/first-payment evidence and the atomic Admissions handoff into V3, then remove only their superseded V2 controls |
+| 2 | #596 | Inbox and provider commands | wire human-reviewed Gemini proposals, explicit WhatsApp send and explicit amoCRM commands into V3 while production providers remain disabled |
+| 3 | #597 | Admissions operations | wire tasks, applications, visa, finance stop and private documents into the V3 profile/calendar, then remove their superseded V2 controls |
+| 4 | #598 | Existing Supabase capabilities | connect document checklist/review, visa-case, lead-owner/stage and audit capabilities already present in canonical migrations |
+| 5 | #599 | Confirmed schema gaps | add only genuinely missing V3 product fields through forward Supabase migrations after a fresh current-main inventory |
+| 6 | #600 | One V3 UI | move the authenticated root to V3 and remove the remaining superseded V1/V2 screens and dead runtime code after replacement proof |
+| 7 | #551 | Release and recovery without staging | automate exact-green-main deployment, keep schema apply manual, and prove backup/restore, isolated migration rehearsal and application rollback |
+| 8 | #552 | Production deployment and retirement | deploy the exact green V3 revision, verify it, and retire the superseded active runtime without a fallback path |
+| 9 | #553 | Completion audit and safe cleanup | certify one exact-main live product authority, then remove only inventoried stale branches/comments while preserving history |
 
 The previous managed-Supabase successor sequence through #550 is complete and
-remains historical evidence below. Open issues #551, #552 and #553 no longer
-describe the next implementation order; they move to a compact deferred note
-and must not block the V3 merge-first sequence.
+remains historical evidence below. Issues #551 through #553 now follow #600;
+their old staging-first text is superseded by the no-staging recovery, direct
+deployment and exact-main audit contracts above.
 
-### Deferred before managed-Supabase real use
+### Deferred provider and data changes
 
-- real staging, restore and migration-rehearsal proof on managed Supabase;
-- production traffic cutover and active V1 runtime retirement;
-- exact-main completion audit against the live managed environment;
 - live Gemini/WhatsApp delivery proof, provider enablement and webhook-ownership
   transfer;
-- historical-data migration, public DNS/TLS/deployment expansion and any other
-  real-customer or real-provider mutation.
+- broad historical-data migration or any provider/customer mutation not named
+  in #552.
+
+No staging environment is created. Supabase migrations are developed and
+proved against the real local stack and an isolated copy, then applied as a
+separate controlled schema step in #552. Application deployment follows only
+after exact-commit CI success and must retain immutable-image rollback.
 
 #### Completed #585 Supabase application-runtime and UI replacement slice
 

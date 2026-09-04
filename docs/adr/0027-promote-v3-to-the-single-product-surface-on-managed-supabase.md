@@ -4,7 +4,7 @@
 - Decision date: 2026-09-04 (Asia/Dubai)
 - Decision owner: EVO product owner
 - Execution parent: GitHub issue #543
-- Ordered children: GitHub issues #594 through #600
+- Ordered children: GitHub issues #594 through #600, then #551 through #553
 - Supersedes: the V3-design-reference-only boundary in `docs/EVO_LAUNCH_PLAN.md`
   and AGENTS guidance that treated `claude/v3-frontend` as out-of-band
 - Retains: ADR 0024 managed-Supabase authority, ADR 0026 provider-acceptance
@@ -61,6 +61,19 @@ not add a third status dictionary or an in-app WhatsApp session-connection UI.
   not regress, the retired-route contract, private API boundaries, Supabase
   Auth path, release contract and historical-archive protections already merged
   on `main`.
-- Production/provider mutation remains controlled. This ADR does not itself
-  authorize managed-Supabase schema pushes, customer-data mutation, webhook
-  ownership transfer, provider enablement or V1 runtime retirement.
+- Production/provider mutation remains controlled. This ADR does not authorize
+  provider enablement, live provider calls, webhook ownership transfer or broad
+  customer-data migration. The owner's 2026-09-04 execution direction does
+  authorize the separate #552 V3 schema/deployment and active-runtime retirement
+  only after #551 and every launch-plan prerequisite pass; failure or ambiguity
+  still stops the operation.
+
+## Official sources verified 2026-09-04
+
+- GitHub documents that push workflows may drive deployments, `needs` orders a
+  deployment after successful jobs, environment reviewer rules create manual
+  waits, and concurrency limits overlapping deployments:
+  <https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments>
+- Supabase documents forward migrations in `supabase/migrations`, local-stack
+  verification and `db push` as the explicit remote schema step:
+  <https://supabase.com/docs/guides/local-development/database-migrations>

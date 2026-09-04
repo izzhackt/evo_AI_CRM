@@ -32,10 +32,11 @@
 - For active production-successor work, the owner's 2026-09-04 direction,
   parent issue #543, ADRs 0024, 0026 and 0027, `docs/EVO_LAUNCH_PLAN.md`, and
   the latest merged `docs/PLAN_CHANGES.md` entry define the target and active
-  ordered sequence #594 through #600. Root `CLAUDE.md` and
-  `docs/design/v3/product.md` govern V3 product detail under those higher-level
-  authorities. ADR 0022 and the no-Supabase parts of ADR 0023 remain completed
-  local-validation history, not current runtime authority.
+  ordered sequence #594 through #600, then #551 through #553. Once #594 merges
+  the V3 branch, root `CLAUDE.md` and `docs/design/v3/product.md` govern V3
+  product detail under those higher-level authorities. ADR 0022 and the
+  no-Supabase parts of ADR 0023 remain completed local-validation history, not
+  current runtime authority.
 - EVO remains one internal product with one access surface, one UI, one role
   model and one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks,
   Documents and AI are modules, not separate target products.
@@ -82,15 +83,15 @@
   amoCRM command semantics. Gemini never sends or changes CRM state; WhatsApp
   has no autonomous/broadcast path or blind retry; amoCRM is an integration,
   never a competing business authority.
-- Active V2 reuses the already connected private sales WAHA transport session
+- Active V3 reuses the already connected private sales WAHA transport session
   `crm_primary`, verified `WORKING` on 2026-09-02. This is session/container
-  reuse only: Supabase remains the sole business authority, and V2 must not run
+  reuse only: Supabase remains the sole business authority, and V3 must not run
   the frozen V1 sender, writer or webhook worker, create dual inbound
-  processing, or fall back to `evo-inbox`. Active #566/#568 verification may
-  confirm `crm_primary` readiness read-only, but it does not require a selected
-  inbound message, Gemini provider call or WhatsApp send. Therefore those
-  slices prove implementation and fail-closed readiness, not real message
-  delivery. Moving webhook ownership to V2 remains a separate controlled
+  processing, or fall back to `evo-inbox`. Completed #566/#568 verification
+  confirmed `crm_primary` readiness read-only, but did not require a selected
+  inbound message, Gemini provider call or WhatsApp send. Those slices prove
+  implementation and fail-closed readiness, not real message delivery. Moving
+  webhook ownership to V3 remains a separate controlled
   cutover with exactly one active owner.
 - The 2026-09-04 owner direction authorizes this repository transition,
   V3 integration, isolated recovery/migration rehearsal and scoped cleanup

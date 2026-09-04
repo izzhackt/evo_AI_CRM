@@ -2,18 +2,19 @@
 
 EVO Admissions CRM coordinates admissions leads, student operations, and
 operator follow-up for EVO Admissions. This glossary pins down the language for
-converging the historical V1 runtime and the proved V2 product work into one
-managed-Supabase production successor.
+converging the historical V1 runtime, the proved V2 business engine and the V3
+product surface into one managed-Supabase production successor.
 
 The active contract is [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md)
 together with
-[`ADR 0024`](docs/adr/0024-use-managed-supabase-for-the-evo-production-successor.md)
-parent issue `#543`, child sequence `#544` through `#553`, and the latest append-only entry in
-[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-09-02, the accepted
-V2 interface, CRM workflows and provider safety semantics move onto the
-ready-made managed Supabase foundation retained from V1. The target has one
-canonical Supabase Postgres model, real staff identity, private files and one
-active runtime; the former self-hosted V2 contour and the old V1 runtime are
+[`ADR 0024`](docs/adr/0024-use-managed-supabase-for-the-evo-production-successor.md),
+[`ADR 0027`](docs/adr/0027-promote-v3-to-the-single-product-surface-on-managed-supabase.md),
+parent issue `#543`, active sequence `#594` through `#600` then `#551` through
+`#553`, and the latest append-only entry in
+[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-09-04, V3 becomes the
+product surface over the ready-made managed Supabase foundation and the proved
+server-side CRM workflows. The target has one canonical Supabase Postgres model,
+real staff identity, private files, one UI and one runtime; V1/V2 remain
 transition evidence and cleanup inputs, not parallel products.
 
 The completed U2 contract is
@@ -46,10 +47,10 @@ or a second source of truth.
 ## Language
 
 **Production EVO Successor**:
-The single EVO Admissions CRM that carries the accepted V2 staff experience
-and business workflows onto the managed Supabase foundation retained from V1.
+The single EVO Admissions CRM that carries the V3 staff experience and proved
+business workflows onto the managed Supabase foundation retained from V1.
 After cutover, V1 and V2 are historical release labels rather than active
-products.
+products, and the former V3 feature branch is ordinary repository history.
 _Avoid_: parallel V1/V2, third CRM, compatibility product
 
 **Managed Supabase Foundation**:

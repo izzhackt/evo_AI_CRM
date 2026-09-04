@@ -16201,14 +16201,20 @@ Decision:
   existing Supabase capabilities already present in migrations 042, 043, 046,
   053, 055 and 086 before building new schema;
 - replace the old active child order with #594 through #600 for V3 merge,
-  server-action wiring, slice-by-slice V2 removal, existing-capability wiring,
-  remaining schema gaps, one V3 release path and cleanup;
+  split Sales/Inbox/Admissions action wiring, slice-by-slice V2 removal,
+  existing-capability wiring, remaining schema gaps and one V3 UI;
 - preserve the completed #543-#550 sequence, frozen V1 deployments and all
   historical ADRs, migrations, runbooks, archived docs and evidence as history,
   not current V3 authority;
-- move real staging/restore, production traffic mutation, provider enablement,
-  webhook transfer, historical migration and final live-environment audit into
-  one compact deferred-before-real-use note until separately reactivated.
+- run #551 after #600 to replace staging with isolated backup/restore and
+  migration rehearsal, then automate an exact-green-main immutable release;
+- use the owner's explicit 2026-09-04 authorization for #552 to perform the
+  gated V3 deployment and active-runtime retirement without another routine
+  approval request, followed by #553 exact-main/live certification;
+- keep provider enablement, webhook transfer, live provider calls and broad
+  historical-data migration deferred unless separately authorized.
+- close the concurrently created duplicate draft issues #601 through #607 as
+  superseded; they contain no implementation and are not active authority.
 - interpret that first step as a selective V3-surface integration onto current
   `main`, not a blind branch-wide merge that would reintroduce removed
   SQLite/Drizzle/runtime state or delete preserved history.

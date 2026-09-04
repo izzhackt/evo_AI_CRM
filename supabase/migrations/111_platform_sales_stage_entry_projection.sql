@@ -168,6 +168,11 @@ BEGIN
         WHEN pg_catalog.jsonb_typeof(receipt.result -> 'changed_at')
           IS DISTINCT FROM 'string'
         THEN TRUE
+        WHEN NOT pg_catalog.pg_input_is_valid(
+          receipt.result ->> 'changed_at',
+          'timestamp with time zone'
+        )
+        THEN TRUE
         ELSE (receipt.result ->> 'changed_at')::TIMESTAMPTZ
           IS DISTINCT FROM receipt.created_at
       END

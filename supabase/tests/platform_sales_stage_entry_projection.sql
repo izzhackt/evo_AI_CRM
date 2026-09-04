@@ -586,12 +586,36 @@ SELECT pg_temp.p111_capture_error(
 )::TEXT AS p111_mismatched_result_error
 \gset
 RESET ROLE;
+
+-- Malformed timestamp evidence is the same contract violation, not a raw
+-- PostgreSQL parser error exposed to the application.
+SET LOCAL session_replication_role = replica;
+UPDATE platform_private.sales_lead_workflow_receipts
+SET result = result || pg_catalog.jsonb_build_object(
+  'stage_key', 'contacting',
+  'changed_at', 'not-a-timestamp'
+)
+WHERE request_id = '59911100-0000-4000-8000-000000000292';
+SET LOCAL session_replication_role = origin;
+SET request.jwt.claims TO :'p111_admin_a_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p111_capture_error(
+  'SELECT * FROM platform.staff_sales_stage_entry_cohort(DATE ''2026-09-04'', DATE ''2026-09-04'')'
+)::TEXT AS p111_malformed_changed_at_error
+\gset
+RESET ROLE;
 ROLLBACK TO SAVEPOINT p111_mismatched_receipt_result;
 SELECT pg_temp.p111_assert(
   :'p111_mismatched_result_error'::JSONB ->> 'sqlstate' = '23514'
     AND :'p111_mismatched_result_error'::JSONB ->> 'message'
       = 'sales_stage_entry_evidence_inconsistent',
   'a mismatched receipt result did not fail closed'
+);
+SELECT pg_temp.p111_assert(
+  :'p111_malformed_changed_at_error'::JSONB ->> 'sqlstate' = '23514'
+    AND :'p111_malformed_changed_at_error'::JSONB ->> 'message'
+      = 'sales_stage_entry_evidence_inconsistent',
+  'a malformed receipt changed_at did not use the controlled fail-closed error'
 );
 
 -- An exact workflow audit without its private receipt is equally incomplete.

@@ -127,11 +127,11 @@ export type PlatformCountryRequirementVersion = Readonly<{
 export type PlatformStudentCaseDocument = Readonly<{
   studentCaseId: string;
   documentSlotId: string;
-  documentRequirementId: string;
-  requirementKey: string;
+  documentRequirementId: string | null;
+  requirementKey: string | null;
   requirementLabel: string;
   instructions: string | null;
-  checklistVersion: number;
+  checklistVersion: number | null;
   slotStatus: "required" | "submitted" | "approved" | "correction_required" | "rejected";
   deadline: string | null;
   nextAction: string | null;
@@ -358,14 +358,23 @@ export function normalizePlatformStudentCaseDocument(
   if (!isRecord(value)) return invalidShape();
   const studentCaseId = requiredUuid(value.case_id);
   if (expectedStudentCaseId && studentCaseId !== expectedStudentCaseId) return invalidShape();
+  const documentRequirementId = optionalUuid(value.document_requirement_id);
+  const requirementKey = optionalText(value.requirement_key, 128);
+  const checklistVersion = optionalInteger(value.checklist_version, 1);
+  if (
+    (documentRequirementId === null) !== (requirementKey === null)
+    || (documentRequirementId === null) !== (checklistVersion === null)
+  ) {
+    return invalidShape();
+  }
   return {
     studentCaseId,
     documentSlotId: requiredUuid(value.document_slot_id),
-    documentRequirementId: requiredUuid(value.document_requirement_id),
-    requirementKey: requiredText(value.requirement_key, 128),
+    documentRequirementId,
+    requirementKey,
     requirementLabel: requiredText(value.requirement_label, 300),
     instructions: optionalText(value.instructions, 4000),
-    checklistVersion: integer(value.checklist_version, 1),
+    checklistVersion,
     slotStatus: oneOf(value.slot_status, [
       "required",
       "submitted",

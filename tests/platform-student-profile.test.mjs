@@ -230,6 +230,30 @@ test("document checklist rows preserve rework state without inventing upload cap
   );
 });
 
+test("custom case document rows keep resolved labels without inventing a shared requirement", () => {
+  const document = normalizePlatformStudentCaseDocument(documentRow({
+    document_requirement_id: null,
+    requirement_key: null,
+    requirement_label: "Parent consent",
+    instructions: null,
+    checklist_version: null,
+  }), CASE_ID);
+
+  assert.equal(document.documentRequirementId, null);
+  assert.equal(document.requirementKey, null);
+  assert.equal(document.requirementLabel, "Parent consent");
+  assert.equal(document.checklistVersion, null);
+
+  assert.throws(
+    () => normalizePlatformStudentCaseDocument(documentRow({
+      document_requirement_id: null,
+      requirement_key: "invented-key",
+      checklist_version: null,
+    })),
+    PlatformStudentProfileRepositoryError,
+  );
+});
+
 test("finance and student actors are denied before staff profile repositories", async () => {
   await assert.rejects(
     () => listPlatformStudentCaseDocuments(actor("finance"), CASE_ID),

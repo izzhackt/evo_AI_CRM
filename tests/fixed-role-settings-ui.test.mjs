@@ -96,6 +96,11 @@ test("V3 exposes the canonical audit export only on the Admin journal surface", 
     /\{ key: "journal", title: "Журнал действий", admin: true \}/,
   );
   assert.match(v3SettingsSectionsSource, /data-testid="v3-audit-export"/);
+  assert.match(v3SettingsPageSource, /normalizeJournalFilters\(\{/);
+  assert.doesNotMatch(
+    v3SettingsPageSource,
+    /const journalFilters = \{ objectType: params\.object, role: params\.role \}/,
+  );
   assert.match(v3SettingsPageSource, /auditExportEnabled=\{readAuditExportEnabled\(\)\}/);
   assert.match(v3SettingsSectionsSource, /\{exportEnabled \? \(\s*<Card title="Экспорт журнала">/);
   assert.match(v3SettingsSource, /return isPlatformP7AAuditEnabled\(environment\)/);

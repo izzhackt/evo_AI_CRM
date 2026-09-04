@@ -11,10 +11,7 @@ import {
   type FixedRole,
 } from "@/lib/fixed-role-policy";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import {
-  PLATFORM_AUDIT_RESOURCE_TYPES,
-  type PlatformAuditSafeRow,
-} from "@/lib/platform-audit";
+import type { PlatformAuditSafeRow } from "@/lib/platform-audit";
 import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 import {
   PlatformAuditActionError,
@@ -32,6 +29,12 @@ import {
   readPlatformGeminiProviderAvailability,
 } from "@/lib/server/platform-provider-readiness";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  normalizeJournalFilters,
+  type JournalFilters,
+} from "@/lib/v3/settings-journal-contract";
+
+export type { JournalFilters } from "@/lib/v3/settings-journal-contract";
 
 export type RoleRow = Readonly<{
   role: string;
@@ -48,7 +51,6 @@ export type Integration = Readonly<{
 }>;
 
 const ROLES: readonly FixedRole[] = ["admin", "sales", "admissions"];
-const AUDIT_ACTOR_LABELS = ["Staff", "Service", "System"] as const;
 const AUDIT_PAGE_SIZE = 100;
 
 export function readAuditExportEnabled(
@@ -251,29 +253,12 @@ export type JournalEntry = Readonly<{
   reason: string | null;
 }>;
 
-export type JournalFilters = Readonly<{ objectType?: string; role?: string }>;
-
-function isAuditResourceType(
-  value: string | undefined,
-): value is (typeof PLATFORM_AUDIT_RESOURCE_TYPES)[number] {
-  return value !== undefined && (PLATFORM_AUDIT_RESOURCE_TYPES as readonly string[]).includes(value);
-}
-
-function isAuditActorLabel(
-  value: string | undefined,
-): value is (typeof AUDIT_ACTOR_LABELS)[number] {
-  return value !== undefined && (AUDIT_ACTOR_LABELS as readonly string[]).includes(value);
-}
-
 async function loadAuditRows(
   actor: ActivePlatformActor,
   objectType: string | undefined,
   pageSize: number,
 ): Promise<Readonly<{ rows: readonly PlatformAuditSafeRow[]; hasMore: boolean }>> {
   assertAdminAuthority(actor);
-  if (objectType !== undefined && !isAuditResourceType(objectType)) {
-    return { rows: [], hasMore: false };
-  }
 
   try {
     const result = await searchPlatformAudit({
@@ -313,10 +298,14 @@ export async function readJournal(
   actor: ActivePlatformActor,
   filters: JournalFilters = {},
 ): Promise<readonly JournalEntry[]> {
-  if (filters.role !== undefined && !isAuditActorLabel(filters.role)) return [];
-  const result = await loadAuditRows(actor, filters.objectType, 60);
+  const normalizedFilters = normalizeJournalFilters(filters);
+  const result = await loadAuditRows(actor, normalizedFilters.objectType, 60);
   return result.rows
-    .filter((row) => filters.role === undefined || row.actorDisplayLabel === filters.role)
+    .filter(
+      (row) =>
+        normalizedFilters.role === undefined ||
+        row.actorDisplayLabel === normalizedFilters.role,
+    )
     .map((row) => ({
       id: row.auditEventId,
       transition: row.action,

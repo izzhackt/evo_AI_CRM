@@ -223,7 +223,10 @@ export function InboxProviderWorkflowControls({
       reconcileState.status === "reconciled" ||
       reconcileState.status === "already_completed"
     ) {
-      router.refresh();
+      const refreshTimer = window.setTimeout(() => {
+        router.refresh();
+      }, 600);
+      return () => window.clearTimeout(refreshTimer);
     }
   }, [geminiState.status, reconcileState.status, reviewState.status, router, sendState.status]);
 

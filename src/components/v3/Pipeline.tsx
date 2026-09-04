@@ -49,7 +49,7 @@ function LeadCard({
           <Link
             href={lead.href}
             prefetch={false}
-            className="block text-sm font-semibold leading-5 text-fg after:absolute after:inset-0 after:content-['']"
+            className="flex min-h-6 items-center text-sm font-semibold leading-5 text-fg after:absolute after:inset-0 after:content-['']"
           >
             {lead.name}
           </Link>

@@ -16272,3 +16272,24 @@ Decision:
   cannot return unnoticed;
 - add real durable mutations only in their ordered #595-#598 slices, together
   with `expected_version`, server authorization and database/browser proof.
+
+## 2026-09-04 - Close the V3-A browser quality findings
+
+Block-ID: `EVO-V3-A-BROWSER-QUALITY-CORRECTION-2026-09-04`
+
+Change type: exact-head CI correction.
+Affected plan section: Order 0 / Issue #594.
+
+The first exact-head CI run on `8084906d2cefb36881a724ba1f78c78abf2cf908`
+proved the Supabase/Auth/runtime path but rejected five 20-pixel pipeline link
+targets and a horizontally scrollable mobile document table without keyboard
+focus. No business-data, authorization or provider failure occurred.
+
+Decision:
+
+- give each pipeline lead link a real minimum interactive height in addition
+  to its full-card pointer overlay;
+- expose the document table scroll container as a named, keyboard-focusable
+  region;
+- pin both properties in the fast V3 source contract before the replacement
+  CI run.

@@ -217,7 +217,12 @@ export function FileManager({
             </ul>
           ) : null}
 
-          <div className="overflow-x-auto">
+          <div
+            role="region"
+            aria-label="Таблица документов"
+            tabIndex={0}
+            className="overflow-x-auto rounded-ctl"
+          >
             <table className="w-full min-w-[560px] border-separate border-spacing-0 text-start">
               <thead>
                 <tr className="text-start text-2xs uppercase tracking-wide text-fg-3">

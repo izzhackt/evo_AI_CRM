@@ -67,6 +67,15 @@ test("V3 document dates use the organization timezone", () => {
   assert.match(knowledge, /timeZone: ORG_TIMEZONE/);
 });
 
+test("V3 pipeline links and document table remain keyboard-operable", () => {
+  const pipeline = source("src/components/v3/Pipeline.tsx");
+  const fileManager = source("src/components/v3/FileManager.tsx");
+
+  assert.match(pipeline, /className="flex min-h-6 items-center/);
+  assert.match(fileManager, /aria-label="Таблица документов"/);
+  assert.match(fileManager, /tabIndex=\{0\}/);
+});
+
 test("ordinary real foundation proof runs the fail-closed V3 browser gate", () => {
   const gate = source("scripts/v3-gate/gate.mjs");
   const foundation = source("scripts/test-postgres-v2-foundation.sh");

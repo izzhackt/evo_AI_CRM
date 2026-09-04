@@ -34,8 +34,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: git diff --check "origin/main..$HEAD_SHA"
 
-  crm:
-    name: Main CRM
+  crm_product:
+    name: Main CRM product
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -75,16 +75,56 @@ jobs:
       - name: Build
         run: npm run build
 
+  dependency_audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install pinned npm audit CLI
+        timeout-minutes: 4
+        env:
+          npm_config_audit: "false"
+          npm_config_fetch_retries: "0"
+          npm_config_fetch_timeout: "30000"
+          npm_config_fund: "false"
+        run: |
+          for attempt in 1 2 3; do
+            audit_prefix="$RUNNER_TEMP/npm-audit-cli-$attempt"
+            if timeout 60s npm install --prefix "$audit_prefix" npm@11.19.0 --ignore-scripts --no-audit --no-fund \
+              && test "$("$audit_prefix/node_modules/.bin/npm" --version)" = "11.19.0"; then
+              echo "$audit_prefix/node_modules/.bin" >> "$GITHUB_PATH"
+              echo "EVO_NPM_BIN=$audit_prefix/node_modules/.bin/npm" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+
       - name: Audit production dependencies
         # Lockfile-only avoids platform-specific installed-tree drift on the
         # runner: https://docs.npmjs.com/cli/v11/commands/npm-audit/#package-lock-only
-        timeout-minutes: 3
+        timeout-minutes: 4
         env:
           npm_config_fetch_retries: "0"
-          npm_config_fetch_timeout: "30000"
+          npm_config_fetch_timeout: "70000"
         run: |
+          if ! test -x "$EVO_NPM_BIN"; then
+            echo "Pinned npm audit CLI is unavailable: $EVO_NPM_BIN" >&2
+            exit 1
+          fi
           for attempt in 1 2 3; do
-            if npm audit --package-lock-only --omit=dev --audit-level=moderate; then
+            if "$EVO_NPM_BIN" audit --package-lock-only --omit=dev --audit-level=moderate; then
               exit 0
             fi
             if [ "$attempt" -eq 3 ]; then
@@ -94,11 +134,15 @@ jobs:
           done
 
       - name: Audit development dependencies against the temporary allowlist
-        timeout-minutes: 3
+        timeout-minutes: 4
         env:
           npm_config_fetch_retries: "0"
-          npm_config_fetch_timeout: "30000"
+          npm_config_fetch_timeout: "70000"
         run: |
+          if ! test -x "$EVO_NPM_BIN"; then
+            echo "Pinned npm audit CLI is unavailable: $EVO_NPM_BIN" >&2
+            exit 1
+          fi
           for attempt in 1 2 3; do
             if node scripts/check-npm-audit-allowlist.mjs; then
               exit 0
@@ -108,3 +152,19 @@ jobs:
             fi
             sleep $((attempt * 5))
           done
+
+  crm:
+    name: Main CRM
+    if: ${{ always() }}
+    needs:
+      - crm_product
+      - dependency_audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require product and dependency gates
+        env:
+          PRODUCT_RESULT: ${{ needs.crm_product.result }}
+          AUDIT_RESULT: ${{ needs.dependency_audit.result }}
+        run: |
+          test "$PRODUCT_RESULT" = "success"
+          test "$AUDIT_RESULT" = "success"

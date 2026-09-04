@@ -132,8 +132,9 @@ function validatePolicy(policy) {
 }
 
 function runAudit() {
+  const npmBin = process.env.EVO_NPM_BIN?.trim() || "npm";
   const result = spawnSync(
-    "npm",
+    npmBin,
     ["audit", "--package-lock-only", "--include=dev", "--json"],
     {
       cwd: process.cwd(),

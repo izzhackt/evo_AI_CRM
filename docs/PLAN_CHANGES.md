@@ -16218,3 +16218,445 @@ Decision:
 - interpret that first step as a selective V3-surface integration onto current
   `main`, not a blind branch-wide merge that would reintroduce removed
   SQLite/Drizzle/runtime state or delete preserved history.
+
+## 2026-09-04 - Execute V3-A on the canonical Supabase foundation
+
+Block-ID: `EVO-V3-A-CANONICAL-INTEGRATION-2026-09-04`
+
+Change type: active-slice implementation clarification.
+Affected plan section: Order 0 / Issue #594.
+
+PR #608 merged the V3 authority reset on exact `main`
+`bcced0a6c58216479b1d873c08cc7293cbb1edaf`. Issue #594 therefore starts from
+that exact baseline and selectively imports the pinned V3 surface from
+`c53c978e251754509948240fc7eef40d3a74da90` without restoring any retired
+SQLite, Drizzle or multi-application runtime path.
+
+Decision:
+
+- use the existing canonical Supabase server interfaces for every V3 read;
+  remove the imported demo seed, sample profile and local `evo_*` adapter path;
+- require Supabase staff identity and the existing server-enforced fixed-role
+  guards for the V3 layout and pages;
+- keep `/v3` as the temporary integration namespace until #600 replaces the
+  authenticated root after all business-action slices have browser proof;
+- extend the ordinary local foundation run with one real V3 browser gate over
+  disposable Supabase Auth/Postgres/Storage, without a separate fixture-only
+  acceptance path;
+- keep VPS, public traffic, managed production data and provider state
+  unchanged in #594. Provider commands and production transition remain owned
+  by their ordered later slices.
+
+## 2026-09-04 - Make the V3-A integration truthfully read-only
+
+Block-ID: `EVO-V3-A-NO-BROWSER-PERSISTENCE-2026-09-04`
+
+Change type: exact-head review correction.
+Affected plan section: Order 0 / Issue #594.
+
+Independent review of the first #594 candidate found that several accepted V3
+components still performed stage, task and document changes only in React or
+module state while presenting them as successful work. Although `/v3` is a
+temporary integration namespace, those controls sat on real canonical records
+and could mislead staff before their server actions were connected.
+
+Decision:
+
+- remove browser-only stage movement, task create/delete and document/file
+  create/upload/rename/move/delete/download from #594;
+- retain navigation, filtering, selection and read-only inspection over real
+  canonical Supabase projections;
+- prohibit route-level access to unknown `/v3/*` siblings with an exact
+  allowlist;
+- add source-contract regression coverage so local-only business persistence
+  cannot return unnoticed;
+- add real durable mutations only in their ordered #595-#598 slices, together
+  with `expected_version`, server authorization and database/browser proof.
+
+## 2026-09-04 - Close the V3-A browser quality findings
+
+Block-ID: `EVO-V3-A-BROWSER-QUALITY-CORRECTION-2026-09-04`
+
+Change type: exact-head CI correction.
+Affected plan section: Order 0 / Issue #594.
+
+The first exact-head CI run on `8084906d2cefb36881a724ba1f78c78abf2cf908`
+proved the Supabase/Auth/runtime path but rejected five 20-pixel pipeline link
+targets and a horizontally scrollable mobile document table without keyboard
+focus. No business-data, authorization or provider failure occurred.
+
+Decision:
+
+- give each pipeline lead link a real minimum interactive height in addition
+  to its full-card pointer overlay;
+- expose the document table scroll container as a named, keyboard-focusable
+  region;
+- pin both properties in the fast V3 source contract before the replacement
+  CI run.
+
+## 2026-09-04 - Apply the complete V3 frontend contract to imported screens
+
+Block-ID: `EVO-V3-A-FRONTEND-CONTRACT-CORRECTION-2026-09-04`
+
+Change type: exact-head CI correction.
+Affected plan section: Order 0 / Issue #594.
+
+The replacement CI run proved the corrected V3 browser sweep and then reached
+the repository-wide frontend contract for the first time. It identified one
+ad-hoc 10-pixel label, three interactive controls using the decorative border
+token, and directional status-edge utilities that the EVO theme does not
+define.
+
+Decision:
+
+- use the declared `text-2xs` scale floor for the visa sequence marker;
+- use `control-edge` for actual form/button boundaries and reserve `border`
+  for decorative separation;
+- implement logical status edges as V3 token classes backed directly by
+  `--ok`, `--warn`, `--danger` and `--border-strong`;
+- run the complete fast frontend contract locally before the next exact-head
+  CI submission.
+
+Clarification: the complete local scan found and replaced two ad-hoc 10-pixel
+labels: the visa sequence marker and the Settings Admin badge. The singular
+wording above described the first CI finding, not the final corrected
+inventory.
+
+## 2026-09-04 - Let the declared dependency-audit retries finish
+
+Block-ID: `EVO-V3-A-AUDIT-RETRY-TIMEOUT-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+Two consecutive exact-head jobs completed the real Supabase, PostgreSQL, Auth,
+browser, frontend, lint, typecheck and production-build gates, then timed out
+while the npm registry did not answer the production dependency audit. The
+workflow declared three fail-closed audit attempts, but the three-minute step
+limit terminated the third attempt before its own network timeout. The
+development audit used the same inconsistent timing contract.
+
+Decision:
+
+- keep both production and development dependency audits mandatory and
+  fail-closed;
+- retain the existing three bounded registry attempts and retry delays;
+- raise only the two audit step limits from three to four minutes so the third
+  declared attempt can finish;
+- do not repeat local product validation for this workflow-only timing change;
+  obtain a fresh independent exact-head review and one complete exact-head CI
+  result before merge.
+
+## 2026-09-04 - Isolate the fail-closed dependency audit from product validation
+
+Block-ID: `EVO-V3-A-AUDIT-JOB-ISOLATION-2026-09-04`
+
+Change type: exact-head CI reliability and protected-check correction.
+Affected plan section: Order 0 / Issue #594.
+
+Exact-head run `33833776817` proved the Supabase, PostgreSQL, Auth, browser,
+frontend, lint, typecheck and production-build gates before the combined
+`Main CRM` job failed at the external npm security-audit service. The audit log
+showed a Bulk Advisory network timeout followed by the retired Quick endpoint
+returning `400 Invalid package tree`; repeating that combined job therefore
+repeated the expensive product proof without producing new product evidence.
+
+The official [`npm audit` documentation](https://docs.npmjs.com/cli/v11/commands/npm-audit/)
+confirms that the audit submits the dependency tree to the configured registry
+and that `--package-lock-only` can use the lockfile rather than the installed
+tree. npm 11 [removed fallback to the old audit endpoint](https://github.com/npm/cli/pull/7911),
+while the npm registry incident report documents that the retired Quick
+endpoint is not a valid downgrade fallback and that registry failures must
+remain visible ([npm/cli#9804](https://github.com/npm/cli/issues/9804)).
+[`npm exec`](https://docs.npmjs.com/cli/v11/commands/npm-exec/) permits the
+audit-only job to run an exact npm CLI version without changing the product
+dependency tree.
+
+Decision:
+
+- keep the real product suite in one `Main CRM product` job and move both
+  production and development dependency audits into a parallel, short
+  `Dependency audit` job;
+- run both audits through exactly `npm@11.19.0`, which is compatible with the
+  repository's Node 22 contract and fails closed on Bulk Advisory errors instead
+  of calling the retired Quick endpoint;
+- keep the existing bounded attempts, timeouts and temporary development
+  allowlist; a persistent registry failure or an unapproved advisory still
+  fails the workflow;
+- preserve the protected check name `Main CRM` as a final always-run aggregate
+  that succeeds only when both `Main CRM product` and `Dependency audit`
+  succeeded. `Changed range` remains independent and required;
+- on a transient registry-only failure, rerun only failed jobs. The successful
+  Supabase/browser product job must not be repeated merely to retry the external
+  advisory service.
+
+Validation impact: extend the release-control contract tests to assert the two
+source jobs and protected aggregate, parse the workflow as YAML, run the focused
+release-control tests and `git diff --check`, then obtain a fresh independent
+exact-head review and one exact-head CI result. This changes CI orchestration
+only; it does not weaken or replace any product or security gate.
+
+## 2026-09-04 - Remove redundant npm package fetch from the dev allowlist audit
+
+Block-ID: `EVO-V3-A-AUDIT-ALLOWLIST-DIRECT-NODE-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+The split `Dependency audit` job on exact head `4ced2461aef24e8839fad1f18c281e2bbef8f8e1`
+proved that the production lockfile audit could complete through
+`npm exec --package=npm@11.19.0`, while the development allowlist step failed
+even though the same repository passed locally with
+`npm exec --package=npm@11.19.0 -- node scripts/check-npm-audit-allowlist.mjs`
+and the checker itself reported zero vulnerabilities. The remaining difference
+was the workflow's second package fetch wrapper around a plain Node script:
+that wrapper adds an extra registry-dependent failure mode without changing the
+script's audit semantics, because `scripts/check-npm-audit-allowlist.mjs`
+already executes `npm audit --include=dev --json` itself.
+
+Decision:
+
+- keep the production dependency audit pinned to `npm@11.19.0`;
+- run the development allowlist step directly with `node
+  scripts/check-npm-audit-allowlist.mjs` so the audit job no longer depends on
+  a second on-demand npm package bootstrap;
+- preserve the existing three bounded retries, four-minute limit and fail-closed
+  behavior for both dependency gates;
+- re-run the focused release-control tests, then obtain one fresh exact-head CI
+  result before merge.
+
+## 2026-09-04 - Ignore empty npm audit error placeholders while preserving fail-closed checks
+
+Block-ID: `EVO-V3-A-AUDIT-EMPTY-ERROR-PLACEHOLDER-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+Exact-head run `33836613473` on commit `c6f97ca5144f42e070b208e0a9a505bc5a38630c`
+proved the pinned npm CLI install and the production lockfile audit, but the
+development allowlist step failed three times with
+`npm audit reported an execution error: {"summary":"","detail":""}`. The same
+repository and pinned `npm 11.19.0` contract passed locally, so the remaining
+failure mode was the script treating an empty npm error placeholder as a fatal
+execution error before validating whether the returned audit report itself was
+coherent.
+
+Decision:
+
+- keep the pinned npm CLI, bounded retries and fail-closed development audit;
+- ignore only empty audit `error` payloads whose fields contain no meaningful
+  data, then continue validating `auditReportVersion`, vulnerability metadata
+  and exit-status consistency exactly as before;
+- keep non-empty audit errors fatal, and keep any malformed report or status
+  mismatch fatal;
+- cover the placeholder distinction with a focused unit test, then push a fresh
+  exact head for one more CI run.
+
+## 2026-09-04 - Pin the dev allowlist audit's internal npm invocation
+
+Block-ID: `EVO-V3-A-AUDIT-ALLOWLIST-INNER-NPM-PIN-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+The next exact-head dependency-audit run on `4ced2461aef24e8839fad1f18c281e2bbef8f8e1`
+showed that the direct-Node correction was not sufficient by itself. The
+workflow no longer wrapped the checker in `npm exec`, but
+`scripts/check-npm-audit-allowlist.mjs` still shells out to `npm audit`
+internally, so GitHub Actions continued to use the runner's default `npm
+10.9.8` for the dev audit while the production lockfile audit succeeded through
+explicit `npm@11.19.0`.
+
+Decision:
+
+- keep the dev allowlist step itself as a direct `node` script;
+- add one explicit CI environment contract,
+  `EVO_NPM_AUDIT_VERSION=11.19.0`, and make the checker execute its internal
+  `npm audit --include=dev --json` through `npm exec --package=npm@11.19.0`
+  when that variable is present;
+- preserve the same three retries, four-minute limit and fail-closed behavior;
+- rerun the focused release-control tests, local audit commands and one fresh
+  exact-head CI result before merge.
+
+## 2026-09-04 - Pin the dependency-audit job PATH instead of nested npm exec
+
+Block-ID: `EVO-V3-A-AUDIT-PATH-PIN-2026-09-04`
+
+Change type: exact-head review correction.
+Affected plan section: Order 0 / Issue #594.
+
+The independent exact-head review of `b40b46d3` found that the previous fix was
+still too narrow. Even after moving the development allowlist check to direct
+`node`, the production audit and the nested checker pin both still depended on
+`npm exec` bootstrap through the runner's default `npm 10.9.8`, so the job
+could still surface retired Quick-endpoint behavior before reaching the
+intended pinned audit CLI.
+
+Decision:
+
+- install `npm@11.19.0` once into a temporary CI prefix with `--no-audit`,
+  `--no-fund` and `--ignore-scripts`, then prepend that bin directory to
+  `GITHUB_PATH`;
+- run both dependency gates through the resulting plain pinned `npm` binary;
+- remove the temporary inner-version pin from
+  `scripts/check-npm-audit-allowlist.mjs` and keep the checker as a direct
+  `node` script over the job-level PATH contract;
+- preserve the same retries, timeout and fail-closed behavior.
+
+Validation impact: rerun `npm run test:fast-release`, `npm run test:p6d`,
+local production and development audit commands, then obtain one fresh
+independent exact-head review and exact-head CI result before merge.
+
+## 2026-09-04 - Bound the pinned audit-CLI bootstrap
+
+Block-ID: `EVO-V3-A-AUDIT-CLI-BOOTSTRAP-BOUND-2026-09-04`
+
+Change type: exact-head review correction.
+Affected plan section: Order 0 / Issue #594.
+
+Independent review of `c6f97ca5144f42e070b208e0a9a505bc5a38630c`
+found that the job-level npm pin still had an unbounded registry bootstrap
+before the two guarded audit steps. The same review also found that an earlier
+append-only entry overstated focused local workflow validation as parsing the
+workflow as YAML; those tests inspect the workflow contract as text, while the
+GitHub exact-head run is the authoritative YAML parse and execution proof.
+
+Decision:
+
+- give the bootstrap step a four-minute job-step limit and make at most three
+  install attempts, each bounded to 60 seconds, with 5- and 10-second delays;
+- disable npm's internal fetch retries for each bounded attempt, keep the
+  30-second request timeout, and fail the job after the third failure;
+- verify the installed CLI reports exactly `11.19.0` before adding its bin
+  directory to `GITHUB_PATH`;
+- keep both security audits mandatory and fail closed; neither a bootstrap nor
+  an audit failure may be converted into a successful product gate;
+- focused local release-control tests assert this workflow structure; one fresh
+  exact-head GitHub run provides the authoritative YAML parse and execution
+  evidence before merge.
+
+## 2026-09-04 - Supersede ambient-PATH audit invocation with one exact binary
+
+Block-ID: `EVO-V3-A-AUDIT-EXACT-BINARY-2026-09-04`
+
+Change type: exact-head review correction and decision supersession.
+Affected plan section: Order 0 / Issue #594.
+
+Independent review of `b997b9d82029edd0354913170fe53248a32e01b3`
+found that the bounded bootstrap proved one exact npm binary but the
+development checker still spawned plain `npm` through ambient PATH. The review
+also found that the earlier
+`EVO-V3-A-AUDIT-ALLOWLIST-INNER-NPM-PIN-2026-09-04` entry described a nested
+`npm exec` option that was never retained in the final workflow. This entry
+supersedes that intermediate option and the ambient-PATH part of
+`EVO-V3-A-AUDIT-PATH-PIN-2026-09-04`; the historical entries remain unchanged
+because this log is append-only.
+
+Decision:
+
+- after the bounded bootstrap verifies exactly `npm 11.19.0`, write its absolute
+  executable path to `GITHUB_ENV` as `EVO_NPM_BIN`;
+- require that exact executable to exist in both audit steps, call the
+  production audit through it, and have the development checker spawn the same
+  path through `EVO_NPM_BIN`;
+- retain plain `npm` only as the checker's local command-line default when the
+  explicit CI variable is absent; this is not a CI fallback;
+- keep every npm audit `error` object fatal, including an empty placeholder;
+  do not weaken the security result parser to accommodate provider errors;
+- preserve the bounded bootstrap, three audit retries, four-minute limits and
+  mandatory fail-closed aggregate gate;
+- rerun focused release-control tests, obtain fresh independent exact-head
+  review, and accept only one green exact-head GitHub Actions run as YAML and
+  execution proof.
+
+## 2026-09-04 - Restore small bounded registry retries for both audit reads
+
+Block-ID: `EVO-V3-A-AUDIT-REGISTRY-RETRY-BOUND-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+Exact-head run `33837313113` on commit `194ef2193e441767e29844f492aad2efd3da28c8`
+proved the pinned `EVO_NPM_BIN` path and the bounded bootstrap, but the
+production dependency audit still failed before any vulnerability decision with
+repeated `npm warn audit network timeout` and `npm error audit endpoint
+returned an error` against
+`https://registry.npmjs.org/-/npm/v1/security/advisories/bulk`. The failing
+path was our own CI override forcing both audit read steps to use
+`npm_config_fetch_retries=0` and `npm_config_fetch_timeout=30000`, which made
+GitHub-runner registry latency look like a hard security result.
+
+Decision:
+
+- keep the pinned `npm@11.19.0` binary, outer three-attempt loop, four-minute
+  step limits, and fail-closed aggregate gate;
+- restore a small bounded amount of npm's internal registry retry behavior for
+  both audit read paths with `npm_config_fetch_retries=1`,
+  `npm_config_fetch_retry_mintimeout=5000`,
+  `npm_config_fetch_retry_maxtimeout=10000`, and
+  `npm_config_fetch_timeout=45000`;
+- keep the bootstrap install step stricter because it already proved stable
+  under the previous bounds;
+- rerun the focused release-control tests, then require one fresh exact-head CI
+  run before merge.
+
+## 2026-09-04 - Keep audit retries inside the four-minute step budget
+
+Block-ID: `EVO-V3-A-AUDIT-REGISTRY-WINDOW-BOUND-2026-09-04`
+
+Change type: exact-head review correction and decision supersession.
+Affected plan section: Order 0 / Issue #594.
+
+Review of the retry proposal on
+`13232e57f1cfa60978adfaa4b0bbcb3f2eb5cdb8` found that combining one
+npm-internal retry per request with the existing three outer attempts did not
+provide a simple worst-case bound inside the four-minute step limit. This entry
+supersedes only the retry settings in
+`EVO-V3-A-AUDIT-REGISTRY-RETRY-BOUND-2026-09-04`; all earlier entries remain
+unchanged. The exact-binary and fail-closed decision also supersedes
+`EVO-V3-A-AUDIT-EMPTY-ERROR-PLACEHOLDER-2026-09-04`: every npm audit `error`
+object remains fatal.
+
+Decision:
+
+- keep npm's internal fetch retries disabled for both audit read paths;
+- give each of the three outer attempts a 60-second registry timeout; with the
+  existing 5- and 10-second delays, the maximum planned wait is about 195
+  seconds, inside the four-minute step limit;
+- keep the pinned `npm@11.19.0` binary, exact `EVO_NPM_BIN`, stricter bootstrap
+  install, mandatory aggregate gate, and nonzero exit after the third failed
+  attempt;
+- continue passing the verified binary through `GITHUB_ENV`, whose official
+  workflow-command contract makes custom values available to subsequent steps
+  in the same job:
+  https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable;
+- rerun the focused release-control tests, obtain fresh independent exact-head
+  review, and require one fresh exact-head CI run before merge.
+
+## 2026-09-04 - Raise the bounded audit registry window to 70 seconds
+
+Block-ID: `EVO-V3-A-AUDIT-REGISTRY-WINDOW-70S-2026-09-04`
+
+Change type: exact-head CI reliability correction and decision supersession.
+Affected plan section: Order 0 / Issue #594.
+
+Exact-head run `33837727659` on commit
+`71ed6e9c45cc95b6acaf8ab9aa8b9153a01b46ea` still failed the production audit
+after three consecutive `npm warn audit network timeout` results against
+`https://registry.npmjs.org/-/npm/v1/security/advisories/bulk` at the already
+bounded 60-second window. That proves the four-minute step budget is correct,
+but the current per-attempt registry window is still too short for GitHub's
+runner-to-registry path.
+
+Decision:
+
+- keep npm's internal fetch retries disabled for both audit read paths;
+- raise each of the three outer audit attempts from a 60-second to a
+  70-second fetch timeout; with the existing 5- and 10-second delays, the
+  maximum planned wait is about 225 seconds, still inside the four-minute step
+  limit;
+- keep the pinned `npm@11.19.0` binary, exact `EVO_NPM_BIN`, stricter bootstrap
+  install, mandatory aggregate gate, and nonzero exit after the third failed
+  attempt;
+- rerun the focused release-control tests, obtain fresh independent exact-head
+  review, and require one fresh exact-head CI run before merge.

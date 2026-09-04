@@ -62,6 +62,24 @@ test("the Supabase dashboard is connected for every staff role", () => {
   }
 });
 
+test("the namespaced V3 product surface is connected without opening descendants", () => {
+  for (const path of [
+    "/v3",
+    "/v3/main",
+    "/v3/pipeline",
+    "/v3/inbox",
+    "/v3/profile",
+    "/v3/settings",
+    "/v3/knowledge",
+    "/v3/calendar",
+  ]) {
+    assert.equal(isConnectedPlatformPage(path), true, path);
+  }
+  for (const path of ["/v3/unknown", "/v3/unknown/child", "/v3//main", "/v3/Profile"]) {
+    assert.equal(isConnectedPlatformPage(path), false, path);
+  }
+});
+
 test("removed parallel pages stay outside the successor and stop before runtime", () => {
   for (const path of ["/reports", "/notifications", "/calls", "/chat", "/chat/1"]) {
     assert.equal(isConnectedPlatformPage(path), false, path);

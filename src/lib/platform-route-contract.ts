@@ -15,7 +15,18 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/tasks",
   "/whatsapp",
   "/settings",
+  // V3 is the accepted successor surface. It remains namespaced until the
+  // slice-by-slice replacement sequence retires the superseded UI routes.
+  "/v3",
+  "/v3/main",
+  "/v3/pipeline",
+  "/v3/inbox",
+  "/v3/profile",
+  "/v3/settings",
+  "/v3/knowledge",
+  "/v3/calendar",
 ]);
+
 const PLATFORM_CONVERSATION_PATH =
   /^\/whatsapp\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_LEAD_PATH =

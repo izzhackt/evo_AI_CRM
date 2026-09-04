@@ -1202,7 +1202,6 @@ DECLARE
     'platform.resolve_ai_draft_language(uuid,uuid,platform.ai_draft_language,boolean,text,uuid)',
     'platform.retire_approved_knowledge_version(uuid,uuid,text,uuid)',
     'platform.review_ai_draft(uuid,uuid,platform.ai_draft_review_decision,text,text,uuid)',
-    'platform.staff_communication_command_context(uuid,uuid)',
     'platform.staff_communication_queue(uuid)',
     'platform.staff_conversation_messages(uuid,uuid)',
     'platform.student_portal_messages(uuid)'

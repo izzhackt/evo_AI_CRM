@@ -11,7 +11,11 @@ test("V3 profile documents use the canonical private Storage routes", () => {
   const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
   const types = source("src/components/v3/profile/document-types.ts");
 
-  assert.match(wrapper, /<ProfileDocumentsClient groups=\{groups\} uploadAccess=\{uploadAccess\}/u);
+  assert.match(wrapper, /<ProfileDocumentsClient/u);
+  assert.match(wrapper, /groups=\{groups\}/u);
+  assert.match(wrapper, /uploadAccess=\{uploadAccess\}/u);
+  assert.match(wrapper, /studentCaseId=\{studentCaseId\}/u);
+  assert.match(wrapper, /createRequestId=\{createRequestId\}/u);
   assert.match(wrapper, /item\.presence === "present"/u);
   assert.match(client, /\/api\/v2\/document-slots\/\$\{item\.id\}\/versions/u);
   assert.match(client, /\/api\/v2\/document-versions\/\$\{item\.currentVersionId\}\/download/u);
@@ -53,4 +57,27 @@ test("V3 profile document upload fails closed and explains every failure class",
   assert.match(client, /!item\.uploadRequestId/u);
   assert.match(client, /сервер не выдал безопасный идентификатор команды/u);
   assert.match(client, /Файл не отмечен как сохранённый/u);
+});
+
+test("V3 profile mutates one canonical case checklist with versioned commands", () => {
+  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const profileSource = source("src/lib/v3/profile-source.ts");
+  const types = source("src/components/v3/profile/document-types.ts");
+
+  assert.match(client, /createPlatformCustomDocumentSlotAction/u);
+  assert.match(client, /changePlatformDocumentSlotMetadataAction/u);
+  assert.match(client, /removePlatformDocumentSlotAction/u);
+  assert.match(client, /name="student_case_id"/u);
+  assert.match(client, /name="document_slot_id"/u);
+  assert.match(client, /name="expected_version"/u);
+  assert.match(client, /name="group_label"/u);
+  assert.match(client, /name="reason"/u);
+  assert.match(client, /name="request_id"/u);
+  assert.match(client, /Файлы сохранятся в истории дела/u);
+  assert.match(client, /router\.refresh\(\)/u);
+
+  assert.match(profileSource, /new Map<string, DocumentGroup\["items"\]\[number\]\[\]>/u);
+  assert.match(profileSource, /groups\.get\(slot\.groupLabel\)/u);
+  assert.match(types, /intentKind: "baseline" \| "custom"/u);
+  assert.match(types, /version: number/u);
 });

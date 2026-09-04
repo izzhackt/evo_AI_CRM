@@ -72,6 +72,9 @@ function slot(overrides = {}) {
     document_requirement_id: REQUIREMENT_ID,
     requirement_key: "passport",
     requirement_label: "Passport",
+    group_label: "Основные документы",
+    intent_kind: "baseline",
+    slot_version: "1",
     instructions: "Upload every page",
     checklist_version: "1",
     slot_status: "submitted",
@@ -138,12 +141,57 @@ test("case document workspace keeps every immutable version grouped under one sl
     CASE_ID,
   );
   assert.equal(normalized.slots.length, 1);
+  assert.equal(normalized.slots[0].groupLabel, "Основные документы");
+  assert.equal(normalized.slots[0].intentKind, "baseline");
+  assert.equal(normalized.slots[0].version, 1);
   assert.deepEqual(
     normalized.slots[0].versions.map((item) => [item.versionNumber, item.isCurrent]),
     [[2, true], [1, false]],
   );
   assert.equal(normalized.slots[0].versions[1].latestReview.decision, "correction_required");
   assert.equal("objectName" in normalized.slots[0].versions[0], false);
+});
+
+test("case document workspace accepts a case-local custom slot without a shared requirement", () => {
+  const normalized = normalizePlatformCaseDocumentWorkspace(
+    workspace({
+      slots: [slot({
+        document_requirement_id: null,
+        requirement_key: null,
+        requirement_label: "Справка из банка",
+        group_label: "Дополнительные документы",
+        intent_kind: "custom",
+        slot_version: "3",
+        checklist_version: null,
+      })],
+    }),
+    ORGANIZATION_ID,
+    CASE_ID,
+  );
+
+  assert.equal(normalized.slots[0].documentRequirementId, null);
+  assert.equal(normalized.slots[0].requirementKey, null);
+  assert.equal(normalized.slots[0].checklistVersion, null);
+  assert.equal(normalized.slots[0].intentKind, "custom");
+  assert.equal(normalized.slots[0].version, 3);
+});
+
+test("case document workspace rejects mixed baseline and custom authority fields", () => {
+  assert.throws(
+    () => normalizePlatformCaseDocumentWorkspace(
+      workspace({
+        slots: [slot({
+          intent_kind: "custom",
+          document_requirement_id: null,
+          requirement_key: "shared-key-must-not-leak",
+          checklist_version: null,
+        })],
+      }),
+      ORGANIZATION_ID,
+      CASE_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
 });
 
 test("workspace rejects duplicate versions and mismatched current markers", () => {
@@ -173,6 +221,28 @@ test("document queue validates exact finalized metadata without exposing Storage
   assert.throws(
     () => normalizePlatformDocumentQueueRow(
       queueRow({ download_ready: true, current_integrity_status: "pending" }),
+      ORGANIZATION_ID,
+    ),
+    PlatformPrivateDocumentsRepositoryError,
+  );
+});
+
+test("document queue accepts custom case slots without inventing a shared requirement", () => {
+  const row = normalizePlatformDocumentQueueRow(
+    queueRow({
+      document_requirement_id: null,
+      requirement_key: null,
+      requirement_label: "Case-local bank statement",
+    }),
+    ORGANIZATION_ID,
+  );
+  assert.equal(row.documentRequirementId, null);
+  assert.equal(row.requirementKey, null);
+  assert.equal(row.requirementLabel, "Case-local bank statement");
+
+  assert.throws(
+    () => normalizePlatformDocumentQueueRow(
+      queueRow({ document_requirement_id: null }),
       ORGANIZATION_ID,
     ),
     PlatformPrivateDocumentsRepositoryError,

@@ -165,21 +165,30 @@ function profileDocuments(
 ): readonly DocumentGroup[] {
   if (workspace.slots.length === 0) return [];
 
-  return [{
-    title: "Чеклист документов",
-    items: workspace.slots.map((slot) => {
-      const uploadRequestId = allowUpload ? randomUUID() : null;
-      if (slot.currentVersionId === null) {
-        return {
-          id: slot.documentSlotId,
-          name: slot.requirementLabel,
-          uploadRequestId,
-          presence: "absent" as const,
-          currentVersionId: null,
-          downloadReady: false as const,
-        };
-      }
-
+  const groups = new Map<string, DocumentGroup["items"][number][]>();
+  for (const slot of workspace.slots) {
+    const uploadRequestId = allowUpload ? randomUUID() : null;
+    const metadataRequestId = allowUpload ? randomUUID() : null;
+    const removalRequestId = allowUpload ? randomUUID() : null;
+    const base = {
+      id: slot.documentSlotId,
+      name: slot.requirementLabel,
+      groupLabel: slot.groupLabel,
+      intentKind: slot.intentKind,
+      version: slot.version,
+      uploadRequestId,
+      metadataRequestId,
+      removalRequestId,
+    } as const;
+    let item: DocumentGroup["items"][number];
+    if (slot.currentVersionId === null) {
+      item = {
+        ...base,
+        presence: "absent" as const,
+        currentVersionId: null,
+        downloadReady: false as const,
+      };
+    } else {
       const currentVersion = slot.versions.find(
         (version) => version.isCurrent && version.documentVersionId === slot.currentVersionId,
       );
@@ -187,18 +196,24 @@ function profileDocuments(
         throw new Error("V3 profile document projection is inconsistent.");
       }
 
-      return {
-        id: slot.documentSlotId,
-        name: slot.requirementLabel,
-        uploadRequestId,
+      item = {
+        ...base,
         presence: "present" as const,
         currentVersionId: currentVersion.documentVersionId,
         currentVersionNumber: currentVersion.versionNumber,
         currentFilename: currentVersion.originalFilename,
         downloadReady: currentVersion.downloadReady,
       };
-    }),
-  }];
+    }
+    const group = groups.get(slot.groupLabel) ?? [];
+    group.push(item);
+    groups.set(slot.groupLabel, group);
+  }
+
+  return [...groups.entries()].map(([title, items]) => ({
+    title,
+    items: Object.freeze(items),
+  }));
 }
 
 function profileFacts(

@@ -18,11 +18,14 @@ export const PLATFORM_DOCUMENT_REVIEW_DECISIONS = [
   "correction_required",
   "rejected",
 ] as const;
+export const PLATFORM_DOCUMENT_SLOT_INTENTS = ["baseline", "custom"] as const;
 
 export type PlatformDocumentSlotStatus =
   (typeof PLATFORM_DOCUMENT_SLOT_STATUSES)[number];
 export type PlatformDocumentReviewDecision =
   (typeof PLATFORM_DOCUMENT_REVIEW_DECISIONS)[number];
+export type PlatformDocumentSlotIntent =
+  (typeof PLATFORM_DOCUMENT_SLOT_INTENTS)[number];
 
 export type PlatformDocumentReview = Readonly<{
   decision: PlatformDocumentReviewDecision;
@@ -55,11 +58,14 @@ export type PlatformDocumentVersion = Readonly<{
 
 export type PlatformDocumentSlot = Readonly<{
   documentSlotId: string;
-  documentRequirementId: string;
-  requirementKey: string;
+  documentRequirementId: string | null;
+  requirementKey: string | null;
   requirementLabel: string;
+  groupLabel: string;
+  intentKind: PlatformDocumentSlotIntent;
+  version: number;
   instructions: string | null;
-  checklistVersion: number;
+  checklistVersion: number | null;
   status: PlatformDocumentSlotStatus;
   deadline: string | null;
   nextAction: string | null;
@@ -84,8 +90,8 @@ export type PlatformDocumentQueueRow = Readonly<{
   studentCaseId: string;
   studentDisplayName: string;
   caseState: "active" | "closed";
-  documentRequirementId: string;
-  requirementKey: string;
+  documentRequirementId: string | null;
+  requirementKey: string | null;
   requirementLabel: string;
   status: PlatformDocumentSlotStatus;
   deadline: string | null;
@@ -322,6 +328,9 @@ export function normalizePlatformDocumentSlot(
       "document_requirement_id",
       "requirement_key",
       "requirement_label",
+      "group_label",
+      "intent_kind",
+      "slot_version",
       "instructions",
       "checklist_version",
       "slot_status",
@@ -362,13 +371,28 @@ export function normalizePlatformDocumentSlot(
   ) {
     return invalidShape();
   }
+  const documentRequirementId = optionalUuid(value.document_requirement_id);
+  const requirementKey = optionalText(value.requirement_key, 200);
+  const checklistVersion = optionalInteger(value.checklist_version, 1);
+  const intentKind = oneOf(value.intent_kind, PLATFORM_DOCUMENT_SLOT_INTENTS);
+  if (
+    (intentKind === "baseline"
+      && (documentRequirementId === null || requirementKey === null || checklistVersion === null))
+    || (intentKind === "custom"
+      && (documentRequirementId !== null || requirementKey !== null || checklistVersion !== null))
+  ) {
+    return invalidShape();
+  }
   return Object.freeze({
     documentSlotId: requiredUuid(value.document_slot_id),
-    documentRequirementId: requiredUuid(value.document_requirement_id),
-    requirementKey: requiredText(value.requirement_key, 200),
+    documentRequirementId,
+    requirementKey,
     requirementLabel: requiredText(value.requirement_label, 500),
+    groupLabel: requiredText(value.group_label, 200),
+    intentKind,
+    version: integer(value.slot_version, 1),
     instructions: optionalText(value.instructions, 4000),
-    checklistVersion: integer(value.checklist_version, 1),
+    checklistVersion,
     status: oneOf(value.slot_status, PLATFORM_DOCUMENT_SLOT_STATUSES),
     deadline: optionalTimestamp(value.deadline),
     nextAction: optionalText(value.next_action, 2000),
@@ -445,6 +469,11 @@ export function normalizePlatformDocumentQueueRow(
   ) {
     return invalidShape();
   }
+  const documentRequirementId = optionalUuid(value.document_requirement_id);
+  const requirementKey = optionalText(value.requirement_key, 200);
+  if ((documentRequirementId === null) !== (requirementKey === null)) {
+    return invalidShape();
+  }
   const currentVersionId = optionalUuid(value.current_version_id);
   const currentVersionNumber = optionalInteger(value.current_version_no, 1);
   const currentSha = optionalText(value.current_sha256_hex, 64);
@@ -474,8 +503,8 @@ export function normalizePlatformDocumentQueueRow(
     studentCaseId: requiredUuid(value.student_case_id),
     studentDisplayName: requiredText(value.student_display_name, 300),
     caseState: oneOf(value.case_state, ["active", "closed"] as const),
-    documentRequirementId: requiredUuid(value.document_requirement_id),
-    requirementKey: requiredText(value.requirement_key, 200),
+    documentRequirementId,
+    requirementKey,
     requirementLabel: requiredText(value.requirement_label, 500),
     status: oneOf(value.slot_status, PLATFORM_DOCUMENT_SLOT_STATUSES),
     deadline: optionalTimestamp(value.deadline),

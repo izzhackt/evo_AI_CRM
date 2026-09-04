@@ -127,7 +127,11 @@ export function Profile({
       ) : null}
       {current === "anketa" ? <Anketa profile={profile} draft={draft} /> : null}
       {current === "documents" ? (
-        <Documents groups={draft.documents} uploadAccess={uploadAccess} />
+        <Documents
+          groups={draft.documents}
+          uploadAccess={uploadAccess}
+          studentCaseId={draft.admissions?.studentCaseId ?? null}
+        />
       ) : null}
       {current === "money" ? (
         <Money profile={profile} draft={draft} actorRole={actorRole} />

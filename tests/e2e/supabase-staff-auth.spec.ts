@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 
-import { expect, test, type Download, type Page } from "@playwright/test";
+import { expect, test, type Download, type Locator, type Page } from "@playwright/test";
 
 const authMode = process.env.EVO_EXPECT_STAFF_AUTH_MODE ?? "configured";
 
@@ -208,11 +208,12 @@ async function readDownload(download: Download): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-async function submitDocumentUpload(page: Page) {
-  const form = page.getByTestId("v3-document-upload-form");
+async function submitDocumentUpload(page: Page, within?: Locator) {
+  const root = within ?? page;
+  const form = root.getByTestId("v3-document-upload-form");
   await expect(form.locator('input[name="request_id"]')).not.toHaveValue("");
   await form.locator('button[type="submit"]').click();
-  await expect(page.getByTestId("v3-document-upload-status")).toHaveAttribute(
+  await expect(root.getByTestId("v3-document-upload-status")).toHaveAttribute(
     "data-outcome",
     "saved",
   );
@@ -1381,6 +1382,50 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const immutableFirstDownload = await page.request.get(firstVersionHref!);
   expect(immutableFirstDownload.status()).toBe(200);
   expect(await immutableFirstDownload.body()).toEqual(firstPdf);
+
+  const createChecklistItem = page.getByTestId("v3-document-checklist-create");
+  await createChecklistItem.locator('input[name="label"]').fill("P4 custom bank statement");
+  await createChecklistItem.locator('input[name="group_label"]').fill("P4 finance documents");
+  await createChecklistItem.locator('button[type="submit"]').click();
+  const customDocumentItem = page
+    .getByTestId("v3-document-item")
+    .filter({ hasText: "P4 custom bank statement" });
+  await expect(customDocumentItem).toHaveAttribute("data-document-intent", "custom");
+  await expect(customDocumentItem).toHaveAttribute("data-document-presence", "absent");
+
+  const customUpload = customDocumentItem.getByTestId("v3-document-upload-form");
+  await customUpload.locator('input[name="file"]').setInputFiles({
+    name: "p4-custom-bank-statement.pdf",
+    mimeType: "application/pdf",
+    buffer: firstPdf,
+  });
+  await submitDocumentUpload(page, customDocumentItem);
+  await expect(customDocumentItem).toHaveAttribute("data-document-presence", "present");
+  const customVersionHref = await customDocumentItem
+    .getByTestId("v3-document-download")
+    .getAttribute("href");
+  requireUuidValue(customVersionHref?.split("/")[4]);
+
+  await customDocumentItem.locator("summary").click();
+  const editChecklistItem = customDocumentItem.getByTestId("v3-document-checklist-edit");
+  await editChecklistItem.locator('input[name="label"]').fill("P4 renamed bank statement");
+  await editChecklistItem.locator('input[name="group_label"]').fill("P4 renamed group");
+  await editChecklistItem.locator('button[type="submit"]').click();
+  const renamedDocumentItem = page
+    .getByTestId("v3-document-item")
+    .filter({ hasText: "P4 renamed bank statement" });
+  await expect(renamedDocumentItem).toBeVisible();
+  await expect(page.getByText("P4 renamed group", { exact: true })).toBeVisible();
+
+  await renamedDocumentItem.locator("summary").click();
+  await renamedDocumentItem
+    .getByTestId("v3-document-checklist-remove")
+    .locator('button[type="submit"]')
+    .click();
+  await expect(renamedDocumentItem).toHaveCount(0);
+  const preservedCustomDownload = await page.request.get(customVersionHref!);
+  expect(preservedCustomDownload.status()).toBe(200);
+  expect(await preservedCustomDownload.body()).toEqual(firstPdf);
 
   await page.context().clearCookies();
   await signIn(page, "sales");

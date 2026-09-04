@@ -6,6 +6,12 @@ type DocumentItemBase = Readonly<{
   name: string;
   /** Server-generated idempotency key. null means uploads must fail closed. */
   uploadRequestId: string | null;
+  /** Server-generated command ids; null means metadata writes must fail closed. */
+  metadataRequestId: string | null;
+  removalRequestId: string | null;
+  groupLabel: string;
+  intentKind: "baseline" | "custom";
+  version: number;
 }>;
 
 export type AbsentDocumentItem = DocumentItemBase & Readonly<{

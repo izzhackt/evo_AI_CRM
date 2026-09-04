@@ -66,15 +66,19 @@ export type CalendarTask = Readonly<{
   title: string;
   /** Описание. null — рисовать нечего. */
   details: string | null;
+  /** Exact canonical all-day date submitted unchanged by quick commands. */
+  dueOn: Day | null;
   /** Exact canonical instant submitted unchanged by quick commands. */
   dueAt: string | null;
   /** День срока. */
   day: Day | null;
   /**
-   * Минуты от полуночи. null — срок без времени: такая задача встаёт в строку
-   * «весь день», а не в час.
+   * Минуты от полуночи. null вместе с непустым `day` означает срок на весь
+   * день; null вместе с пустым `day` означает отсутствие срока.
    */
   minutes: number | null;
+  /** Server-derived against one request clock and the Bishkek calendar. */
+  overdue: boolean;
   state: TaskState;
   /** Почему отменена. Бывает только у отменённой. */
   cancelReason: string | null;

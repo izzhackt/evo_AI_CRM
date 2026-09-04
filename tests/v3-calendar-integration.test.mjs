@@ -47,6 +47,8 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
     "title",
     "assignee_membership_id",
     "priority",
+    "deadline_kind",
+    "due_on",
     "due_at",
     "status",
     "student_visible",
@@ -70,6 +72,10 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.match(controls, /data-testid=\{`v3-calendar-task-\$\{status\}-form`\}/);
   assert.match(controls, /<select name="priority"/);
   assert.match(controls, /<select name="student_visible"/);
+  assert.match(controls, /<select[\s\S]*name="deadline_kind"/);
+  assert.match(controls, /<option value="none">Без срока<\/option>/);
+  assert.match(controls, /<option value="all_day">Весь день<\/option>/);
+  assert.match(controls, /<option value="timed">Точное время<\/option>/);
   assert.match(types, /version: string/);
   assert.match(types, /change: string/);
   assert.match(types, /complete: string/);
@@ -106,11 +112,12 @@ test("V3 calendar writes are role-scoped and remain keyboard-operable", () => {
 });
 
 test("V3 calendar preserves canonical task states and undated tasks", () => {
-  assert.match(adapter, /const dueAt = row\.dueAt === null \? null/);
+  assert.match(adapter, /projectPlatformTaskDeadline\(row\.dueOn, row\.dueAt, now\)/);
   assert.match(adapter, /day !== null && \(day < from \|\| day > to\)/);
   assert.match(adapter, /state: row\.status/);
   assert.match(adapter, /version: row\.version/);
   assert.match(calendar, /tasks\.filter\(\(task\) => task\.day === null\)/);
+  assert.match(grids, /task\.day === null[\s\S]*?"без срока"/);
   assert.match(grids, /blocked: "warn"/);
   assert.match(grids, /done: "ok"/);
   assert.match(grids, /task\.state === "in_progress"/);

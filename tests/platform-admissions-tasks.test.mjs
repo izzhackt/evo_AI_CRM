@@ -3,7 +3,15 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import { fixedRoleCanAccessRoute } from "../src/lib/fixed-role-policy.ts";
+import {
+  parsePlatformCaseTaskDeadline,
+  platformCaseTaskDeadlineMatchesRow,
+} from "../src/lib/platform-admissions-task-contract.ts";
 import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
+import {
+  platformTaskDeadlineSortTime,
+  projectPlatformTaskDeadline,
+} from "../src/lib/platform-task-deadline.ts";
 
 function read(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
@@ -32,6 +40,8 @@ test("Admissions task commands are exact, versioned Supabase actions", () => {
     "title",
     "assignee_membership_id",
     "priority",
+    "deadline_kind",
+    "due_on",
     "due_at",
     "status",
     "student_visible",
@@ -44,6 +54,8 @@ test("Admissions task commands are exact, versioned Supabase actions", () => {
   assert.match(actionSource, /\.schema\("platform"\)\.rpc\("create_case_task"/);
   assert.match(actionSource, /\.schema\("platform"\)\.rpc\("change_case_task"/);
   assert.match(actionSource, /p_case_task_id:\s*caseTaskId/);
+  assert.match(actionSource, /p_due_on:\s*deadline\.dueOn/);
+  assert.match(actionSource, /p_due_at:\s*deadline\.dueAt/);
   assert.match(actionSource, /p_expected_version:\s*expectedVersion/);
   assert.match(actionSource, /p_request_id:\s*requestId/);
   assert.match(actionSource, /expectedVersion !== "0"/);
@@ -58,6 +70,71 @@ test("Admissions task commands are exact, versioned Supabase actions", () => {
   assert.doesNotMatch(
     actionSource,
     /canonical-admissions|canonical-crm-repository|@\/lib\/(?:actions|db|queries)|drizzle|sqlite|fallback/i,
+  );
+});
+
+test("task deadline form contract enforces exactly one canonical deadline", () => {
+  assert.deepEqual(parsePlatformCaseTaskDeadline("none", "", ""), {
+    kind: "none",
+    dueOn: null,
+    dueAt: null,
+  });
+  assert.deepEqual(parsePlatformCaseTaskDeadline("all_day", "2026-09-04", ""), {
+    kind: "all_day",
+    dueOn: "2026-09-04",
+    dueAt: null,
+  });
+  assert.deepEqual(
+    parsePlatformCaseTaskDeadline("timed", "", "2026-09-04T09:30"),
+    { kind: "timed", dueOn: null, dueAt: "2026-09-04T03:30:00.000Z" },
+  );
+  assert.equal(
+    parsePlatformCaseTaskDeadline("all_day", "2026-09-04", "2026-09-04T09:30"),
+    null,
+  );
+  assert.equal(parsePlatformCaseTaskDeadline("all_day", "2026-02-30", ""), null);
+  assert.equal(parsePlatformCaseTaskDeadline("none", "2026-09-04", ""), null);
+
+  const timed = parsePlatformCaseTaskDeadline("timed", "", "2026-09-04T09:30");
+  assert.ok(timed);
+  assert.equal(
+    platformCaseTaskDeadlineMatchesRow(null, "2026-09-04T03:30:00Z", timed),
+    true,
+  );
+  assert.equal(
+    platformCaseTaskDeadlineMatchesRow("2026-09-04", "2026-09-04T03:30:00Z", timed),
+    false,
+  );
+});
+
+test("calendar placement keeps all-day, timed and unscheduled distinct", () => {
+  assert.deepEqual(
+    projectPlatformTaskDeadline("2026-09-04", null, new Date("2026-09-04T12:00:00Z")),
+    { day: "2026-09-04", minutes: null, overdue: false },
+  );
+  assert.deepEqual(
+    projectPlatformTaskDeadline("2026-09-04", null, new Date("2026-09-04T18:00:00Z")),
+    { day: "2026-09-04", minutes: null, overdue: true },
+  );
+  assert.deepEqual(
+    projectPlatformTaskDeadline(null, "2026-09-03T18:15:00Z", new Date("2026-09-03T18:16:00Z")),
+    { day: "2026-09-04", minutes: 15, overdue: true },
+  );
+  assert.deepEqual(
+    projectPlatformTaskDeadline(null, null, new Date("2026-09-04T12:00:00Z")),
+    { day: null, minutes: null, overdue: false },
+  );
+  assert.equal(
+    platformTaskDeadlineSortTime("2026-09-04", null),
+    Date.parse("2026-09-03T18:00:00Z"),
+  );
+  assert.equal(
+    platformTaskDeadlineSortTime(null, "2026-09-03T18:15:00Z"),
+    Date.parse("2026-09-03T18:15:00Z"),
+  );
+  assert.equal(
+    platformTaskDeadlineSortTime(null, null),
+    Date.parse("9999-12-31T00:00:00Z"),
   );
 });
 
@@ -94,6 +171,10 @@ test("task reads expose exact versions and bounded case choices", () => {
   assert.match(repositorySource, /staff_student_case_task_workspace/);
   assert.match(repositorySource, /staff_case_task_queue/);
   assert.match(repositorySource, /version:\s*positiveBigint\(row\.version\)/);
+  assert.match(repositorySource, /dueOn:\s*task\.dueOn/);
+  assert.match(repositorySource, /if \(dueOn !== null && dueAt !== null\) return invalidShape\(\)/);
+  assert.match(repositorySource, /platformTaskDeadlineSortTime\(task\.dueOn, task\.dueAt\)/);
+  assert.doesNotMatch(repositorySource, /Date\.parse\(sortAt\) !== Date\.parse\(task\.updatedAt\)/);
   assert.match(taskContractSource, /version: string/);
   assert.match(adapterSource, /listPlatformAdmissionsTaskQueue/);
   assert.match(adapterSource, /listPlatformStudentCases/);

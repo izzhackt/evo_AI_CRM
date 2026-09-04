@@ -20,11 +20,13 @@ import {
   databaseRoleToInterfaceRole,
   type DatabaseStaffRole,
 } from "./supabase/platform-authority";
+import { platformTaskDeadlineSortTime } from "./platform-task-deadline.ts";
 
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform Admissions workspace data is unavailable.";
 const TIMESTAMPTZ_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_CASE_TASKS = 1_000;
 const MAX_ASSIGNEES = 100;
 const DEFAULT_QUEUE_PAGE_SIZE = 50;
@@ -139,6 +141,18 @@ function optionalTimestamp(value: unknown): string | null {
   return value === null ? null : requiredTimestamp(value);
 }
 
+function optionalDate(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) {
+    return invalidShape();
+  }
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    return invalidShape();
+  }
+  return value;
+}
+
 function positiveBigint(value: unknown): string {
   if (
     typeof value !== "string" ||
@@ -200,6 +214,7 @@ function normalizeTaskFields(
   title: string;
   status: PlatformCaseTaskStatus;
   priority: PlatformCaseTaskPriority;
+  dueOn: string | null;
   dueAt: string | null;
   studentVisible: boolean;
   assigneeMembershipId: string;
@@ -208,6 +223,9 @@ function normalizeTaskFields(
   updatedAt: string;
 }> {
   if (typeof row.student_visible !== "boolean") return invalidShape();
+  const dueOn = optionalDate(row.due_on);
+  const dueAt = optionalTimestamp(row.due_at);
+  if (dueOn !== null && dueAt !== null) return invalidShape();
   return Object.freeze({
     caseTaskId: requiredUuid(row.case_task_id),
     version: positiveBigint(row.version),
@@ -215,7 +233,8 @@ function normalizeTaskFields(
     title: requiredText(row.title, 1_000),
     status: oneOf(row.status, PLATFORM_CASE_TASK_STATUSES),
     priority: oneOf(row.priority, PLATFORM_CASE_TASK_PRIORITIES),
-    dueAt: optionalTimestamp(row.due_at),
+    dueOn,
+    dueAt,
     studentVisible: row.student_visible,
     assigneeMembershipId: requiredUuid(row.assignee_membership_id),
     assigneeDisplayName: requiredText(row.assignee_display_name, 200),
@@ -240,6 +259,7 @@ export function normalizePlatformAdmissionsTaskQueueRow(
     "title",
     "status",
     "priority",
+    "due_on",
     "due_at",
     "student_visible",
     "assignee_membership_id",
@@ -253,7 +273,7 @@ export function normalizePlatformAdmissionsTaskQueueRow(
   const sortAt = requiredTimestamp(row.sort_at);
   if (
     organizationId !== normalizedExpectedOrganizationId ||
-    Date.parse(sortAt) !== Date.parse(task.updatedAt)
+    Date.parse(sortAt) !== platformTaskDeadlineSortTime(task.dueOn, task.dueAt)
   ) {
     return invalidShape();
   }
@@ -269,6 +289,7 @@ export function normalizePlatformAdmissionsTaskQueueRow(
     title: task.title,
     status: task.status,
     priority: task.priority,
+    dueOn: task.dueOn,
     dueAt: task.dueAt,
     studentVisible: task.studentVisible,
     assigneeMembershipId: task.assigneeMembershipId,
@@ -290,6 +311,7 @@ function normalizeWorkspaceTask(
     "title",
     "status",
     "priority",
+    "due_on",
     "due_at",
     "student_visible",
     "assignee_membership_id",
@@ -309,6 +331,7 @@ function normalizeWorkspaceTask(
     title: task.title,
     status: task.status,
     priority: task.priority,
+    dueOn: task.dueOn,
     dueAt: task.dueAt,
     studentVisible: task.studentVisible,
     assigneeMembershipId: task.assigneeMembershipId,

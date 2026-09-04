@@ -1,5 +1,6 @@
 import type { PlatformActor } from "./platform-auth";
 import type { PlatformStudentProfileCommunicationLanguage } from "./platform-student-profile";
+import { dayInOrganizationTimezone } from "./platform-task-deadline.ts";
 
 const PORTAL_PROFILE_COMMUNICATION_LANGUAGES = ["ru", "en"] as const;
 const PORTAL_PROFILE_MAX_DECISION_PARTICIPANTS = 12;
@@ -26,8 +27,6 @@ import type {
   TaskStatus,
   VisaStatus,
 } from "./domain";
-import { isPlatformP6BPortalNotificationsEnabled } from "./server/platform-p6b-portal-notifications.ts";
-import { isPlatformP6COverdueNotificationsEnabled } from "./server/platform-p6c-overdue-config.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -89,6 +88,23 @@ export type PlatformPortalRepositoryOptions = Readonly<{
   notificationsEnabled?: boolean;
   notificationsVersion?: "v1" | "v2";
 }>;
+
+async function readPortalNotificationRuntime(): Promise<
+  Readonly<{ enabled: boolean; version: "v1" | "v2" }>
+> {
+  const [
+    { isPlatformP6BPortalNotificationsEnabled },
+    { isPlatformP6COverdueNotificationsEnabled },
+  ] = await Promise.all([
+    import("./server/platform-p6b-portal-notifications.ts"),
+    import("./server/platform-p6c-overdue-config.ts"),
+  ]);
+  const overdueEnabled = isPlatformP6COverdueNotificationsEnabled();
+  return Object.freeze({
+    enabled: isPlatformP6BPortalNotificationsEnabled() || overdueEnabled,
+    version: overdueEnabled ? "v2" : "v1",
+  });
+}
 
 type PortalProfile = Readonly<{
   caseId: string;
@@ -544,11 +560,16 @@ function normalizeTask(
   optionalText(value.task_type, 100);
   const status = mapPortalTaskStatus(value.task_status);
   if (status === null) return null;
+  const dueOn = optionalDate(value.due_on);
+  const dueAt = optionalTimestamp(value.due_at);
+  if (dueOn !== null && dueAt !== null) return invalidShape();
   return {
     id: requiredUuid(value.case_task_id),
     title: requiredText(value.title, 500),
     description: null,
-    dueDate: datePart(optionalTimestamp(value.due_at)),
+    dueDate: dueOn ?? (dueAt === null
+      ? null
+      : dayInOrganizationTimezone(new Date(dueAt))),
     status,
     priority: oneOf(value.priority, [
       "low",
@@ -1131,13 +1152,15 @@ export async function getPlatformStudentPortalSnapshot(
     if (profileRows.length === 0) return null;
     if (profileRows.length !== 1) return invalidShape();
 
+    const notificationRuntime =
+      options.notificationsEnabled === undefined ||
+        options.notificationsVersion === undefined
+        ? await readPortalNotificationRuntime()
+        : null;
     const notificationsEnabled =
-      options.notificationsEnabled
-      ?? (isPlatformP6BPortalNotificationsEnabled()
-        || isPlatformP6COverdueNotificationsEnabled());
+      options.notificationsEnabled ?? notificationRuntime?.enabled ?? false;
     const notificationsVersion =
-      options.notificationsVersion
-      ?? (isPlatformP6COverdueNotificationsEnabled() ? "v2" : "v1");
+      options.notificationsVersion ?? notificationRuntime?.version ?? "v1";
     const [
       applications,
       visaCases,

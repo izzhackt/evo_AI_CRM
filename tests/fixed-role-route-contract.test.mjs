@@ -255,6 +255,32 @@ test("only the exact private document APIs enter the active V2 route contract", 
   }
 });
 
+test("only the exact private company-file APIs enter the active V3 route contract", () => {
+  const companyFileId = "30000000-0000-4000-8000-000000000003";
+  const versionId = "40000000-0000-4000-8000-000000000004";
+
+  assert.equal(
+    isConnectedPlatformApi(`/api/v3/company-files/${companyFileId}/versions`),
+    true,
+  );
+  assert.equal(
+    isConnectedPlatformApi(
+      `/api/v3/company-file-versions/${versionId}/download`,
+    ),
+    true,
+  );
+
+  for (const path of [
+    "/api/v3/company-files",
+    "/api/v3/company-files/not-a-uuid/versions",
+    `/api/v3/company-files/${companyFileId}/versions/`,
+    `/api/v3/company-file-versions/${versionId}`,
+    `/api/v3/company-file-versions/${versionId}/download/`,
+  ]) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});
+
 test("only the canonical V2 WhatsApp inbound and private recovery routes enter the active contract", () => {
   assert.equal(isConnectedPlatformApi("/api/v2/whatsapp/inbound"), true);
   assert.equal(

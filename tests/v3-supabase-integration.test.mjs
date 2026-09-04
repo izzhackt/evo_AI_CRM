@@ -20,6 +20,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
   assert.match(adapterSources, /listPlatformConversations/);
   assert.match(adapterSources, /listPlatformAdmissionsTaskQueue/);
   assert.match(adapterSources, /listPlatformDocumentQueue/);
+  assert.match(adapterSources, /getPlatformCompanyFileWorkspace/);
 });
 
 test("V3 has Supabase staff auth and no sample business-data path", () => {
@@ -30,6 +31,8 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
   assert.match(layout, /requirePlatformStaffActor/);
   assert.doesNotMatch(profilePage, /PROFILE_SAMPLE|\.\/sample/);
   assert.doesNotMatch(knowledgePage, /COMPANY_FILES|Требования к нострификации/);
+  assert.match(knowledgePage, /v3-knowledge-student-documents-limited/);
+  assert.match(knowledgePage, /studentDocuments\.complete/);
   assert.equal(
     existsSync(new URL("../src/app/(v3)/v3/profile/sample.ts", import.meta.url)),
     false,
@@ -122,7 +125,7 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   }
 });
 
-test("V3 read surfaces cannot imitate durable business mutations in browser state", () => {
+test("V3 mutations use server-backed authorities rather than browser-only state", () => {
   const pipeline = source("src/components/v3/Pipeline.tsx");
   const calendar = source("src/components/v3/calendar/Calendar.tsx");
   const fileManager = source("src/components/v3/FileManager.tsx");
@@ -130,7 +133,13 @@ test("V3 read surfaces cannot imitate durable business mutations in browser stat
 
   assert.doesNotMatch(pipeline, /setMoved|\bmoved\b/);
   assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);
-  assert.doesNotMatch(fileManager, /type="file"|URL\.createObjectURL|setFolders|setDocs|bulk-delete/);
+  assert.match(fileManager, /createPlatformCompanyFileFolderAction/);
+  assert.match(fileManager, /createPlatformCompanyFileAction/);
+  assert.match(fileManager, /\/api\/v3\/company-files\//);
+  assert.match(fileManager, /status === "saved" \|\| status === "stale"/);
+  assert.match(fileManager, /key=\{createFolderRequestId\}/);
+  assert.match(fileManager, /key=\{`\$\{file\.id\}:\$\{file\.version/);
+  assert.doesNotMatch(fileManager, /URL\.createObjectURL|setFolders|setDocs|bulk-delete/);
   assert.doesNotMatch(documents, /type="file"|URL\.createObjectURL|useState|onRemove|onRename/);
 });
 

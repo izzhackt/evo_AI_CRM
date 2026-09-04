@@ -373,7 +373,7 @@ export function normalizePlatformStudentCaseDocument(
       "correction_required",
       "rejected",
     ] as const),
-    deadline: optionalDate(value.deadline),
+    deadline: optionalTimestamp(value.deadline),
     nextAction: optionalText(value.next_action, 2000),
     documentVersionId: optionalUuid(value.document_version_id),
     versionNumber: optionalInteger(value.version_no, 1),

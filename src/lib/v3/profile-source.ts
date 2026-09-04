@@ -4,6 +4,7 @@ import type {
   PersonProfile,
   ProfileDraft,
   ProfilePick,
+  ProfileSalesSnapshot,
 } from "@/components/v3/profile/types";
 import {
   getPlatformStudentCaseView,
@@ -37,6 +38,7 @@ const FULL_DAY = new Intl.DateTimeFormat("ru-RU", {
 export type V3ProfileView = Readonly<{
   profile: PersonProfile;
   details: ProfileDraft;
+  sales: ProfileSalesSnapshot;
 }>;
 
 function formatDate(value: string | null, full = false): string | null {
@@ -237,5 +239,13 @@ export async function readProfile(
       : null,
   };
 
-  return { profile, details };
+  return {
+    profile,
+    details,
+    sales: {
+      lead,
+      gate,
+      handoff,
+    },
+  };
 }

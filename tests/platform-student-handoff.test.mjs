@@ -502,14 +502,30 @@ test("server actions enforce exact fields, staff guard and success-only revalida
   );
   assert.match(source, /exactActionStringFields\(form, GATE_FORM_FIELDS\)/);
   assert.match(source, /exactActionStringFields\(form, HANDOFF_FORM_FIELDS\)/);
-  assert.match(source, /const actor = await requirePlatformSalesActor\(\)/g);
-  assert.match(
-    source,
-    /const receipt = await mutatePlatformLeadAdmissionsGate\(actor, input\);[\s\S]*revalidatePath\("\/sales"\);[\s\S]*revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\)/,
+  assert.equal(
+    source.match(/const actor = await requirePlatformSalesActor\(\);/g)?.length,
+    2,
   );
   assert.match(
     source,
-    /const receipt = await handoffPlatformLeadToAdmissions\(actor, input\);[\s\S]*revalidatePath\("\/clients"\);[\s\S]*revalidatePath\(`\/clients\/\$\{receipt\.caseId\}`\)/,
+    /const receipt = await mutatePlatformLeadAdmissionsGate\(actor, input\);[\s\S]*revalidatePath\("\/sales"\);[\s\S]*revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,
+  );
+  assert.match(
+    source,
+    /const receipt = await handoffPlatformLeadToAdmissions\(actor, input\);[\s\S]*revalidatePath\("\/sales"\);[\s\S]*revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\);[\s\S]*revalidatePath\("\/clients"\);[\s\S]*revalidatePath\(`\/clients\/\$\{receipt\.caseId\}`\)/,
+  );
+  assert.doesNotMatch(source, /revalidatePath\("\/v3\/profile"\)/);
+  assert.match(
+    source,
+    /return status === "request_conflict"[\s\S]*\? randomUUID\(\)[\s\S]*: verifiedRequestId \?\? randomUUID\(\);/,
+  );
+  assert.match(
+    source,
+    /error instanceof PlatformStudentHandoffRepositoryError[\s\S]*return gateFailureState\(form, error\.reason, input\);/,
+  );
+  assert.match(
+    source,
+    /error instanceof PlatformStudentHandoffRepositoryError[\s\S]*return handoffFailureState\(form, error\.reason, input\);/,
   );
   for (const status of [
     "idle",
@@ -526,5 +542,69 @@ test("server actions enforce exact fields, staff guard and success-only revalida
   assert.doesNotMatch(
     source,
     /DATABASE_URL|SUPABASE_SERVICE|service[_-]?role|Drizzle|canonical-crm-repository|fallback/i,
+  );
+});
+
+test("V3 profile exposes gate and handoff through the reviewed server-action contract", () => {
+  const source = readFileSync(
+    new URL(
+      "../src/components/v3/profile/ProfileSalesTransition.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.equal(source.match(/useActionState\(/g)?.length, 2);
+  assert.match(
+    source,
+    /useActionState\(\s*mutatePlatformLeadAdmissionsGateAction/,
+  );
+  assert.match(
+    source,
+    /useActionState\(\s*handoffPlatformLeadToAdmissionsAction/,
+  );
+  assert.equal(source.match(/name="expected_gate_version"/g)?.length, 2);
+  assert.equal(source.match(/<Version value=\{gateVersion\} \/>/g)?.length, 2);
+
+  for (const status of [
+    "saved",
+    "invalid",
+    "forbidden",
+    "gate_blocked",
+    "stale",
+    "request_conflict",
+    "unavailable",
+  ]) {
+    assert.match(source, new RegExp(`${status}:`));
+  }
+
+  for (const field of [
+    "lead_id",
+    "request_id",
+    "action",
+    "amount",
+    "currency",
+    "due_date",
+    "received_date",
+    "reason",
+    "evidence_reference",
+    "admissions_owner_membership_id",
+    "handoff_mode",
+  ]) {
+    assert.match(source, new RegExp(`name="${field}"`));
+  }
+
+  assert.match(source, /normalAvailable = handoff\.canSubmitNormal/);
+  assert.match(
+    source,
+    /actorRole === "admin" && handoff\.canSubmitExceptional/,
+  );
+  assert.match(source, /"normal"/);
+  assert.match(source, /"exceptional_override"/);
+  assert.match(source, /data-testid="v3-sales-handoff-completed"/);
+  assert.match(source, /<Link href=\{caseHref\}/);
+  assert.doesNotMatch(
+    source,
+    /localStorage|sessionStorage|fetch\(|XMLHttpRequest|fallback/i,
   );
 });

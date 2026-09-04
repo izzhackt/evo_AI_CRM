@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
 import { resolveTab } from "@/components/v3/profile/types";
@@ -13,6 +15,9 @@ export default async function ProfilePart({
   searchParams: Promise<{ id?: string; tab?: string }>;
 }) {
   const actor = await requirePlatformSalesActor();
+  if (actor.authorityRole !== "admin" && actor.authorityRole !== "sales") {
+    throw new Error("Sales profile resolved a non-Sales staff role.");
+  }
   const [params, picks] = await Promise.all([
     searchParams,
     readProfilePicks(actor),
@@ -33,6 +38,12 @@ export default async function ProfilePart({
   const tab = resolveTab(params.tab, Boolean(view?.profile.student));
   const hrefFor = (next: string) =>
     `/v3/profile?id=${chosenId ?? ""}&tab=${next}`;
+  const requestIds = {
+    contract: randomUUID(),
+    firstPayment: randomUUID(),
+    override: randomUUID(),
+    handoff: randomUUID(),
+  };
 
   return (
     <PartShell title="Профиль">
@@ -40,6 +51,9 @@ export default async function ProfilePart({
         <Profile
           profile={view.profile}
           draft={view.details}
+          sales={view.sales}
+          actorRole={actor.authorityRole}
+          requestIds={requestIds}
           tab={tab}
           hrefFor={hrefFor}
         />

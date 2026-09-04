@@ -1,15 +1,18 @@
 import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
+import { PipelineDecisionForm } from "@/components/v3/PipelineDecisionForm";
+import type { FixedRole } from "@/lib/fixed-role-policy";
+import type {
+  PlatformSalesOwnerOption,
+  PlatformSalesStage,
+  PlatformSalesWorkflowLead,
+} from "@/lib/platform-sales-contract";
 
-/**
- * Read-only V3 sales board over the canonical Supabase projection.
- *
- * Issue #595 owns the real atomic workflow form. Until that server action is
- * wired, this component must never imitate a stage change in browser state.
- */
+export type PipelineStageKey = PlatformSalesStage | "handed_off";
+
 export type PipelineStage = Readonly<{
-  key: string;
+  key: PipelineStageKey;
   title: string;
   gate: boolean;
   terminal: boolean;
@@ -18,12 +21,13 @@ export type PipelineStage = Readonly<{
 export type PipelineLead = Readonly<{
   id: string;
   name: string;
-  stageKey: string;
+  stageKey: PipelineStageKey;
   source: string;
   nextAction: string | null;
   nextActionAt: string | null;
   due: "overdue" | "today" | "later" | "none";
   href: string;
+  workflow: PlatformSalesWorkflowLead;
 }>;
 
 const DUE_MARK: Record<PipelineLead["due"], { tone: string; label: string } | null> = {
@@ -36,9 +40,24 @@ const DUE_MARK: Record<PipelineLead["due"], { tone: string; label: string } | nu
 function LeadCard({
   lead,
   terminal,
+  workflowStages,
+  ownerOptions,
+  ownerOptionsHaveMore,
+  actorRole,
+  actorMembershipId,
+  requestId,
 }: {
   lead: PipelineLead;
   terminal: boolean;
+  workflowStages: readonly Readonly<{
+    key: PlatformSalesStage;
+    title: string;
+  }>[];
+  ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHaveMore: boolean;
+  actorRole: Extract<FixedRole, "admin" | "sales">;
+  actorMembershipId: string;
+  requestId: string;
 }) {
   const mark = terminal && lead.due === "none" ? null : DUE_MARK[lead.due];
 
@@ -49,7 +68,7 @@ function LeadCard({
           <Link
             href={lead.href}
             prefetch={false}
-            className="flex min-h-6 items-center text-sm font-semibold leading-5 text-fg after:absolute after:inset-0 after:content-['']"
+            className="flex min-h-6 items-center text-sm font-semibold leading-5 text-fg underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             {lead.name}
           </Link>
@@ -75,6 +94,19 @@ function LeadCard({
           </>
         ) : null}
       </div>
+
+      {!terminal ? (
+        <PipelineDecisionForm
+          key={`${lead.workflow.leadId}:${lead.workflow.workflowVersion}`}
+          lead={lead.workflow}
+          stages={workflowStages}
+          ownerOptions={ownerOptions}
+          ownerOptionsHaveMore={ownerOptionsHaveMore}
+          actorRole={actorRole}
+          actorMembershipId={actorMembershipId}
+          requestId={requestId}
+        />
+      ) : null}
     </article>
   );
 }
@@ -82,10 +114,26 @@ function LeadCard({
 export function Pipeline({
   stages,
   leads,
+  ownerOptions,
+  ownerOptionsHaveMore,
+  actorRole,
+  actorMembershipId,
+  requestIds,
 }: {
   stages: readonly PipelineStage[];
   leads: readonly PipelineLead[];
+  ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHaveMore: boolean;
+  actorRole: Extract<FixedRole, "admin" | "sales">;
+  actorMembershipId: string;
+  requestIds: Readonly<Record<string, string>>;
 }) {
+  const workflowStages = stages.flatMap((stage) =>
+    stage.key === "handed_off"
+      ? []
+      : [{ key: stage.key, title: stage.title }],
+  );
+
   return (
     <div
       role="group"
@@ -112,11 +160,26 @@ export function Pipeline({
               </div>
 
               <ul className="flex flex-col gap-2">
-                {inStage.map((lead) => (
-                  <li key={lead.id}>
-                    <LeadCard lead={lead} terminal={stage.terminal} />
-                  </li>
-                ))}
+                {inStage.map((lead) => {
+                  const requestId = requestIds[lead.id];
+                  if (!requestId) {
+                    throw new Error("Pipeline decision request ID is missing.");
+                  }
+                  return (
+                    <li key={lead.id}>
+                      <LeadCard
+                        lead={lead}
+                        terminal={stage.terminal}
+                        workflowStages={workflowStages}
+                        ownerOptions={ownerOptions}
+                        ownerOptionsHaveMore={ownerOptionsHaveMore}
+                        actorRole={actorRole}
+                        actorMembershipId={actorMembershipId}
+                        requestId={requestId}
+                      />
+                    </li>
+                  );
+                })}
                 {inStage.length === 0 ? (
                   <li className="px-1 py-2 text-2xs text-fg-3">Пусто</li>
                 ) : null}

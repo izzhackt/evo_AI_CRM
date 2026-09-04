@@ -3,13 +3,25 @@ import "server-only";
 import type { PipelineLead, PipelineStage } from "@/components/v3/Pipeline";
 import type { PlatformActor } from "@/lib/platform-auth";
 import {
+  listPlatformSalesOwnerOptions,
   listPlatformSalesLeads,
   type PlatformSalesCursor,
   type PlatformSalesLeadRow,
+  type PlatformSalesOwnerOptionsPage,
 } from "@/lib/platform-sales";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
+import { FUNNEL_STEP, leadStage } from "@/lib/v3/wording";
 
 const PAGE_SIZE = 100;
+const OWNER_PAGE_SIZE = 100;
+
+function requiredStageTitle(key: string): string {
+  const title = leadStage(key);
+  if (title === null) {
+    throw new Error("Canonical sales workflow returned an unknown stage.");
+  }
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
 
 /**
  * The board follows the canonical Supabase workflow vocabulary. A completed
@@ -17,16 +29,16 @@ const PAGE_SIZE = 100;
  * the queue exposes it through `linkedStudentCaseCount`, not through a second
  * sales-stage dictionary. The gate marker belongs to `qualified`, the exact
  * stage required by the canonical handoff command; contract/payment evidence
- * remains a separate server-side decision in the next replacement slice.
+ * remains a separate server-side decision rendered on the V3 person profile.
  */
 const STAGES: readonly PipelineStage[] = [
-  { key: "new", title: "Новые", gate: false, terminal: false },
-  { key: "contacting", title: "Связались", gate: false, terminal: false },
-  { key: "qualified", title: "Квалифицированы", gate: true, terminal: false },
-  { key: "meeting_scheduled", title: "Встреча назначена", gate: false, terminal: false },
-  { key: "meeting_completed", title: "Встреча проведена", gate: false, terminal: false },
-  { key: "potential", title: "Потенциальные", gate: false, terminal: false },
-  { key: "handed_off", title: "Переданы", gate: false, terminal: true },
+  { key: "new", title: requiredStageTitle("new"), gate: false, terminal: false },
+  { key: "contacting", title: requiredStageTitle("contacting"), gate: false, terminal: false },
+  { key: "qualified", title: requiredStageTitle("qualified"), gate: true, terminal: false },
+  { key: "meeting_scheduled", title: requiredStageTitle("meeting_scheduled"), gate: false, terminal: false },
+  { key: "meeting_completed", title: requiredStageTitle("meeting_completed"), gate: false, terminal: false },
+  { key: "potential", title: requiredStageTitle("potential"), gate: false, terminal: false },
+  { key: "handed_off", title: FUNNEL_STEP.handed, gate: false, terminal: true },
 ];
 
 const DATE_PARTS = new Intl.DateTimeFormat("en-CA", {
@@ -38,6 +50,12 @@ const DATE_PARTS = new Intl.DateTimeFormat("en-CA", {
 
 export function readPipelineStages(): readonly PipelineStage[] {
   return STAGES;
+}
+
+export async function readPipelineOwnerOptions(
+  actor: PlatformActor,
+): Promise<PlatformSalesOwnerOptionsPage> {
+  return listPlatformSalesOwnerOptions(actor, { pageSize: OWNER_PAGE_SIZE });
 }
 
 function organizationDate(value: Date): string {
@@ -130,5 +148,14 @@ export async function readPipelineLeads(
     nextActionAt: formatDueDate(row.nextActionDueDate),
     due: dueState(row.nextActionDueDate, today),
     href: `/v3/profile?id=${row.leadId}`,
+    workflow: Object.freeze({
+      leadId: row.leadId,
+      currentOwnerMembershipId: row.currentOwnerMembershipId,
+      currentOwnerDisplayName: row.currentOwnerDisplayName,
+      stageKey: row.stageKey,
+      nextActionText: row.nextActionText,
+      nextActionDueDate: row.nextActionDueDate,
+      workflowVersion: row.workflowVersion,
+    }),
   } satisfies PipelineLead));
 }

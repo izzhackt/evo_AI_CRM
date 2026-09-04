@@ -16660,3 +16660,54 @@ Decision:
   attempt;
 - rerun the focused release-control tests, obtain fresh independent exact-head
   review, and require one fresh exact-head CI run before merge.
+
+## 2026-09-04 - Execute V3-B through the existing Supabase Sales engine
+
+Block-ID: `EVO-V3-B-SALES-GATE-HANDOFF-2026-09-04`
+
+Change type: active-slice implementation clarification.
+Affected plan section: Order 1 / Issue #595.
+
+PR #609 merged the accepted V3 surface on exact `main`
+`c664f9877f595f227ede57e30cfaa0af9bfd794a`. Issue #595 now replaces the
+stage/owner/next-action, contract/first-payment gate and Sales-to-Admissions
+handoff controls in V2 by connecting their existing canonical Supabase actions
+to the V3 pipeline and person profile. The historical V3 handoff names deleted
+`src/lib/server/canonical-*` modules; current `platform-*` action and repository
+modules are the already-proved business engine and must not be rebuilt.
+
+Decision:
+
+- expose the displayed Sales workflow, gate and handoff versions through the
+  `src/lib/v3/*` source boundary, and submit those exact versions from real
+  `useActionState` forms; preserve the existing Admin owner selector and
+  Sales self-claim behavior in the same versioned workflow command so deleting
+  the V2 form does not remove a working capability; #598 retains the broader
+  owner/filter visibility and acceptance scope;
+- reuse `updatePlatformSalesWorkflowAction`,
+  `mutatePlatformLeadAdmissionsGateAction` and
+  `handoffPlatformLeadToAdmissionsAction`, preserving their staff-cookie
+  authorization, validation, optimistic-conflict and atomic-transition
+  semantics;
+- revalidate `/v3/pipeline` and the affected `/v3/profile?id=...` projection
+  after successful commands, while surfacing invalid, forbidden, stale,
+  request-conflict, gate-blocked and unavailable outcomes honestly; retain
+  `/clients` revalidation only for the Admissions case created by the atomic
+  handoff until #597 replaces that downstream interface;
+- align the existing Student-profile document projection with the canonical
+  `TIMESTAMPTZ` deadline returned by `staff_student_case_documents`; reject a
+  malformed timestamp instead of crashing the post-handoff V3 profile or
+  weakening the repository boundary;
+- after real local Supabase/PostgreSQL, application and browser proof, remove
+  only `PlatformSalesWorkflowForm`, `PlatformSalesGateCard` and
+  `PlatformSalesHandoffCard` from the V2 Sales workspace and replace its
+  implementation-location tests with V3 outcome tests; retain their canonical
+  server actions and repositories as the single business engine, but delete the
+  three superseded V2 UI components because V3 owns the replacement controls;
+- temporarily retain the named
+  `src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx` file only for its amoCRM
+  command and conversation-detail responsibilities. It is not a parallel
+  Sales-decision path; #596 is the explicit deletion issue and exit criterion;
+- add no schema, repository, browser-only mutation, provider call, production
+  change or fallback path in this slice, and require a scoped active-reference
+  inventory before merge.

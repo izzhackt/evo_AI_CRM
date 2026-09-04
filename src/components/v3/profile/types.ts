@@ -1,3 +1,10 @@
+import type { FixedRole } from "@/lib/fixed-role-policy";
+import type { PlatformSalesWorkflowLead } from "@/lib/platform-sales-contract";
+import type {
+  PlatformLeadAdmissionsGateSnapshot,
+  PlatformLeadAdmissionsHandoffSnapshot,
+} from "@/lib/platform-student-handoff";
+
 /**
  * Типы профиля.
  *
@@ -62,6 +69,23 @@ export type PersonProfile = Readonly<{
   visa: readonly ProfileVisaMilestone[];
   financeStop: string | null;
   timeline: readonly ProfileEvent[];
+}>;
+
+export type ProfileSalesActorRole = Extract<FixedRole, "admin" | "sales">;
+
+/** Canonical read model used by the profile's Sales-to-Admissions controls. */
+export type ProfileSalesSnapshot = Readonly<{
+  lead: PlatformSalesWorkflowLead;
+  gate: PlatformLeadAdmissionsGateSnapshot;
+  handoff: PlatformLeadAdmissionsHandoffSnapshot;
+}>;
+
+/** One server-generated id per independently retryable command form. */
+export type ProfileSalesRequestIds = Readonly<{
+  contract: string;
+  firstPayment: string;
+  override: string;
+  handoff: string;
 }>;
 
 /**

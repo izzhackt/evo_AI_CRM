@@ -37,23 +37,16 @@ const studentHandoffActionSource = readFileSync(
   new URL("../src/lib/platform-student-handoff-actions.ts", import.meta.url),
   "utf8",
 );
-const workflowFormSource = readFileSync(
+const pipelineDecisionSource = readFileSync(
   new URL(
-    "../src/components/platform/sales/PlatformSalesWorkflowForm.tsx",
+    "../src/components/v3/PipelineDecisionForm.tsx",
     import.meta.url,
   ),
   "utf8",
 );
-const gateCardSource = readFileSync(
+const profileSalesTransitionSource = readFileSync(
   new URL(
-    "../src/components/platform/sales/PlatformSalesGateCard.tsx",
-    import.meta.url,
-  ),
-  "utf8",
-);
-const handoffCardSource = readFileSync(
-  new URL(
-    "../src/components/platform/sales/PlatformSalesHandoffCard.tsx",
+    "../src/components/v3/profile/ProfileSalesTransition.tsx",
     import.meta.url,
   ),
   "utf8",
@@ -100,11 +93,10 @@ const activeSalesReadSources = [
   amoCrmCommandSectionSource,
   leadDetailSource,
   workflowActionSource,
-  workflowFormSource,
+  pipelineDecisionSource,
   studentHandoffBoundarySource,
   studentHandoffActionSource,
-  gateCardSource,
-  handoffCardSource,
+  profileSalesTransitionSource,
   transcriptRouteSource,
   conversationsSource,
 ].join("\n");
@@ -152,33 +144,20 @@ test("sales lead detail has no alternate fixture or legacy screen", () => {
     leadWorkspaceSource,
     /getPlatformSalesLead\(actor, id\)/,
   );
-  assert.match(
-    leadWorkspaceSource,
-    /getPlatformLeadAdmissionsGate\(actor, id\)/,
-  );
-  assert.match(
-    leadWorkspaceSource,
-    /getPlatformLeadAdmissionsHandoff\(actor, id\)/,
-  );
   assert.doesNotMatch(
     leadWorkspaceSource,
-    /canonical-crm-repository|getCanonicalLeadSnapshot|getCanonicalLeadGateSnapshot|listCanonicalLeadConversations/,
+    /canonical-crm-repository|getCanonicalLeadSnapshot|getCanonicalLeadGateSnapshot|listCanonicalLeadConversations|getPlatformLeadAdmissionsGate|getPlatformLeadAdmissionsHandoff|listPlatformSalesOwnerOptions/,
   );
   assert.match(leadWorkspaceSource, /data-testid="canonical-sales-lead-workspace"/);
-  assert.match(leadWorkspaceSource, /listPlatformSalesOwnerOptions\(actor, \{ pageSize: 100 \}\)/);
-  assert.match(leadWorkspaceSource, /<PlatformSalesWorkflowForm/);
   assert.match(leadWorkspaceSource, /<PlatformSalesAmoCrmCommandSection/);
   assert.match(leadWorkspaceSource, /organizationId=\{actor\.organizationId\}/);
   assert.match(leadWorkspaceSource, /authorityRole=\{actor\.authorityRole\}/);
   assert.match(leadWorkspaceSource, /leadId=\{lead\.leadId\}/);
   assert.match(leadWorkspaceSource, /clientId=\{lead\.clientId\}/);
-  assert.match(leadWorkspaceSource, /<PlatformSalesGateCard/);
-  assert.match(leadWorkspaceSource, /<PlatformSalesHandoffCard/);
-  assert.match(leadWorkspaceSource, /requestId=\{randomUUID\(\)\}/);
   assert.match(leadWorkspaceSource, /CanonicalSalesConversationList/);
   assert.doesNotMatch(
     leadWorkspaceSource,
-    /CanonicalSalesWorkflowForm|CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalAmoCrmCommandPanel|readBlockingCanonicalAmoCrmCommand/,
+    /SalesWorkflowForm|SalesGateCard|SalesHandoffCard|CanonicalAmoCrmCommandPanel|readBlockingCanonicalAmoCrmCommand/,
   );
   assert.match(amoCrmCommandSectionSource, /CanonicalAmoCrmCommandPanel/);
   assert.match(
@@ -266,46 +245,39 @@ test("sales workflow writes only through the authenticated Supabase command", ()
   assert.match(workflowActionSource, /mutatePlatformSalesLeadWorkflow\(actor, input\)/);
   assert.match(workflowActionSource, /revalidatePath\("\/sales"\)/);
   assert.doesNotMatch(
-    `${workflowActionSource}\n${workflowFormSource}`,
+    `${workflowActionSource}\n${pipelineDecisionSource}`,
     /canonical-sales-workflow|updateCanonicalSalesLeadWorkflow|drizzle|fallback/i,
   );
-  assert.match(workflowFormSource, /name="expected_version"/);
-  assert.match(workflowFormSource, /name="stage_key"/);
-  assert.match(workflowFormSource, /name="current_owner_membership_id"/);
-  assert.match(workflowFormSource, /name="clear_next_action"/);
-  assert.match(workflowFormSource, /name=\{clearNextAction \? undefined : "next_action_text"\}/);
-  assert.match(workflowFormSource, /name=\{clearNextAction \? undefined : "next_action_due_date"\}/);
-  assert.match(workflowFormSource, /name="reason"/);
-  assert.match(workflowFormSource, /PLATFORM_SALES_STAGES\.map/);
-  assert.match(workflowFormSource, /lead\.workflowVersion/);
-  assert.match(workflowFormSource, /result\.requestId/);
-  assert.match(workflowFormSource, /router\.refresh\(\)/);
+  assert.match(pipelineDecisionSource, /name="expected_version"/);
+  assert.match(pipelineDecisionSource, /name="stage_key"/);
+  assert.match(pipelineDecisionSource, /name="current_owner_membership_id"/);
+  assert.match(pipelineDecisionSource, /name="clear_next_action"/);
+  assert.match(pipelineDecisionSource, /name="next_action_text"/);
+  assert.match(pipelineDecisionSource, /name="next_action_due_date"/);
+  assert.match(pipelineDecisionSource, /name="reason"/);
+  assert.match(pipelineDecisionSource, /stages\.map/);
+  assert.match(pipelineDecisionSource, /lead\.workflowVersion/);
+  assert.match(pipelineDecisionSource, /result\.requestId/);
+  assert.match(pipelineDecisionSource, /router\.refresh\(\)/);
 });
 
-test("Sales workflow UI exposes one localized, accessible outcome contract", () => {
+test("V3 Sales workflow UI exposes one accessible outcome contract", () => {
   for (const testId of [
-    "platform-sales-workflow-form",
-    "platform-sales-stage",
-    "platform-sales-owner",
-    "platform-sales-next-action-text",
-    "platform-sales-next-action-due-date",
-    "platform-sales-clear-next-action",
-    "platform-sales-reason",
-    "platform-sales-submit",
-    "platform-sales-action-status",
+    "v3-pipeline-workflow-form",
+    "v3-pipeline-stage",
+    "v3-pipeline-next-action",
+    "v3-pipeline-next-action-date",
+    "v3-pipeline-reason",
+    "v3-pipeline-submit",
+    "v3-pipeline-workflow-status",
   ]) {
-    assert.match(workflowFormSource, new RegExp(`data-testid="${testId}"`));
+    assert.match(pipelineDecisionSource, new RegExp(`data-testid="${testId}"`));
   }
-  assert.match(workflowFormSource, /aria-live="polite"/);
-  assert.match(workflowFormSource, /required=\{reasonRequired\}/);
-  assert.match(workflowFormSource, /ownerOptionsHaveMore/);
-  assert.equal(
-    workflowFormSource.match(/title: "/g)?.length,
-    3,
-    "the workflow form must provide RU, KY and EN copy",
-  );
+  assert.match(pipelineDecisionSource, /aria-live="polite"/);
+  assert.match(pipelineDecisionSource, /required=\{reasonRequired\}/);
+  assert.match(pipelineDecisionSource, /actorRole === "sales" \? actorMembershipId : ""/);
   assert.doesNotMatch(
-    workflowFormSource,
+    pipelineDecisionSource,
     /CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalAmoCrmCommandPanel|qualification_summary|handoff_ready|handed_off/,
   );
 });
@@ -329,31 +301,28 @@ test("sales gate and handoff use one authenticated Supabase command path", () =>
     /handoff_lead_to_admissions/,
   );
   assert.doesNotMatch(
-    `${studentHandoffBoundarySource}\n${studentHandoffActionSource}\n${gateCardSource}\n${handoffCardSource}`,
+    `${studentHandoffBoundarySource}\n${studentHandoffActionSource}\n${profileSalesTransitionSource}`,
     /canonical-crm-repository|drizzle|service[_-]?role|fallback/i,
   );
-  assert.match(gateCardSource, /data-testid="platform-sales-gate-card"/);
-  assert.match(gateCardSource, /platform-gate-contract-form/);
-  assert.match(gateCardSource, /platform-gate-payment-form/);
-  assert.match(gateCardSource, /name="expected_gate_version"/);
-  assert.match(gateCardSource, /name="action"/);
-  assert.match(gateCardSource, /name="evidence_reference"/);
-  assert.match(gateCardSource, /name="amount"/);
-  assert.match(gateCardSource, /name="currency"/);
-  assert.match(gateCardSource, /name="due_date"/);
-  assert.match(gateCardSource, /name="received_date"/);
-  assert.match(gateCardSource, /router\.refresh\(\)/);
+  assert.match(profileSalesTransitionSource, /data-testid="v3-sales-gate"/);
+  assert.match(profileSalesTransitionSource, /v3-gate-.*-form/);
+  assert.match(profileSalesTransitionSource, /name="expected_gate_version"/);
+  assert.match(profileSalesTransitionSource, /name="action"/);
+  assert.match(profileSalesTransitionSource, /name="evidence_reference"/);
+  assert.match(profileSalesTransitionSource, /name="amount"/);
+  assert.match(profileSalesTransitionSource, /name="currency"/);
+  assert.match(profileSalesTransitionSource, /name="due_date"/);
+  assert.match(profileSalesTransitionSource, /name="received_date"/);
+  assert.match(profileSalesTransitionSource, /router\.refresh\(\)/);
 
-  assert.match(handoffCardSource, /data-testid="platform-sales-handoff-card"/);
-  assert.match(handoffCardSource, /data-testid="platform-handoff-form"/);
-  assert.match(handoffCardSource, /data-testid="platform-handoff-result"/);
-  assert.match(handoffCardSource, /name="expected_gate_version"/);
-  assert.match(handoffCardSource, /name="admissions_owner_membership_id"/);
-  assert.match(handoffCardSource, /name="handoff_mode"/);
-  assert.match(handoffCardSource, /name="reason"/);
-  assert.doesNotMatch(handoffCardSource, /admissions_owner_role/);
+  assert.match(profileSalesTransitionSource, /data-testid="v3-sales-handoff"/);
+  assert.match(profileSalesTransitionSource, /data-testid="v3-sales-handoff-completed"/);
+  assert.match(profileSalesTransitionSource, /name="admissions_owner_membership_id"/);
+  assert.match(profileSalesTransitionSource, /name="handoff_mode"/);
+  assert.match(profileSalesTransitionSource, /name="reason"/);
+  assert.doesNotMatch(profileSalesTransitionSource, /admissions_owner_role/);
   assert.doesNotMatch(
-    `${leadWorkspaceSource}\n${gateCardSource}\n${handoffCardSource}`,
+    `${leadWorkspaceSource}\n${profileSalesTransitionSource}`,
     /CanonicalSalesGateCard|CanonicalSalesHandoffCard|canonical-sales-(?:gate|handoff)-actions/,
   );
 });

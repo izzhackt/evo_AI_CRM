@@ -5,7 +5,15 @@ import { personState } from "@/lib/v3/wording";
 
 import { Documents } from "./Documents";
 import { Anketa, History, Money, Overview } from "./tabs";
-import { tabsFor, type PersonProfile, type ProfileDraft, type TabKey } from "./types";
+import {
+  tabsFor,
+  type PersonProfile,
+  type ProfileDraft,
+  type ProfileSalesActorRole,
+  type ProfileSalesRequestIds,
+  type ProfileSalesSnapshot,
+  type TabKey,
+} from "./types";
 
 /**
  * Профиль человека — один на всех, лид он или уже студент.
@@ -33,12 +41,18 @@ import { tabsFor, type PersonProfile, type ProfileDraft, type TabKey } from "./t
 export function Profile({
   profile,
   draft,
+  sales,
+  actorRole,
+  requestIds,
   tab,
   hrefFor,
 }: {
   profile: PersonProfile;
-  /** Образец: этих полей в модели пока нет. */
+  /** Canonical projections not represented directly in `PersonProfile`. */
   draft: ProfileDraft;
+  sales: ProfileSalesSnapshot;
+  actorRole: ProfileSalesActorRole;
+  requestIds: ProfileSalesRequestIds;
   tab: TabKey;
   hrefFor: (tab: string) => string;
 }) {
@@ -93,7 +107,14 @@ export function Profile({
       </nav>
 
       {current === "overview" ? (
-        <Overview profile={profile} draft={draft} tabHref={hrefFor} />
+        <Overview
+          profile={profile}
+          draft={draft}
+          sales={sales}
+          actorRole={actorRole}
+          requestIds={requestIds}
+          tabHref={hrefFor}
+        />
       ) : null}
       {current === "anketa" ? <Anketa profile={profile} draft={draft} /> : null}
       {current === "documents" ? (

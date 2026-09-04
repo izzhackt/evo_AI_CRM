@@ -236,11 +236,12 @@ test("cross-role case links are only rendered for a role the server allows", () 
 test("the active Sales detail does not reactivate the deferred Drizzle controls", () => {
   const workspace = source("src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx");
 
-  assert.match(workspace, /PlatformSalesWorkflowForm/);
   assert.doesNotMatch(
     workspace,
-    /CanonicalSalesGateCard|CanonicalSalesHandoffCard|CanonicalAmoCrmCommandPanel|fixedRoleCanAccessRoute/,
+    /SalesWorkflowForm|SalesGateCard|SalesHandoffCard|CanonicalAmoCrmCommandPanel|fixedRoleCanAccessRoute/,
   );
+  assert.match(workspace, /PlatformSalesAmoCrmCommandSection/);
+  assert.match(workspace, /CanonicalSalesConversationList/);
 });
 
 test("the frontend contract suite is wired into the CI entry point", () => {

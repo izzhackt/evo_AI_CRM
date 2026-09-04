@@ -2,6 +2,7 @@ import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
   applicationStatus,
   eventLabel,
+  leadStage,
   role as roleWord,
   source as sourceWord,
   visaKind,
@@ -9,7 +10,15 @@ import {
 } from "@/lib/v3/wording";
 
 import { Card } from "./Card";
-import type { Fact, PersonProfile, ProfileDraft } from "./types";
+import { ProfileSalesTransition } from "./ProfileSalesTransition";
+import type {
+  Fact,
+  PersonProfile,
+  ProfileDraft,
+  ProfileSalesActorRole,
+  ProfileSalesRequestIds,
+  ProfileSalesSnapshot,
+} from "./types";
 
 /* ------------------------------------------------------------------ общее */
 
@@ -53,13 +62,20 @@ const tone = (s: string): PillTone => STATUS_TONE[s] ?? "neutral";
 export function Overview({
   profile,
   draft,
+  sales,
+  actorRole,
+  requestIds,
   tabHref,
 }: {
   profile: PersonProfile;
   draft: ProfileDraft;
+  sales: ProfileSalesSnapshot;
+  actorRole: ProfileSalesActorRole;
+  requestIds: ProfileSalesRequestIds;
   tabHref: (tab: string) => string;
 }) {
   const application = profile.applications[0] ?? null;
+  const stage = leadStage(sales.lead.stageKey);
 
   // Плитка здесь ровно одна, и это не оплошность.
   //
@@ -71,22 +87,38 @@ export function Overview({
   // стоит: нажатие не делало ничего. Карточка ниже говорит то же и больше,
   // поэтому осталась только она.
   //
-  // Процент оплаты — образец: в модели есть только сумма первого взноса.
-  // А вот финансовый стоп настоящий, и ребро означает его.
+  // Процент оплаты и финансовый стоп приходят из канонической finance-проекции;
+  // ребро показывает только подтверждённый стоп.
   const blocked = profile.financeStop !== null;
 
   return (
     <div className="flex flex-col gap-4">
-      <Card title="Что дальше">
-        {profile.nextAction ? (
-          <p className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm text-fg">
-            {profile.nextAction}
-            {profile.nextActionAt ? <Pill tone="warn">{profile.nextActionAt}</Pill> : null}
-          </p>
-        ) : (
-          <p className="px-4 py-3 text-sm text-fg-3">Следующее действие не назначено.</p>
-        )}
+      <Card
+        title="Sales"
+        aside={stage ? <Pill tone="neutral">{stage}</Pill> : undefined}
+      >
+        <FactList
+          facts={[
+            {
+              label: "Ответственный",
+              value: sales.lead.currentOwnerDisplayName ?? "не назначен",
+            },
+            {
+              label: "Следующее действие",
+              value: sales.lead.nextActionText ?? "не назначено",
+            },
+            { label: "Срок", value: profile.nextActionAt },
+          ]}
+        />
       </Card>
+
+      <ProfileSalesTransition
+        actorRole={actorRole}
+        gate={sales.gate}
+        handoff={sales.handoff}
+        requestIds={requestIds}
+        caseHref={tabHref("anketa")}
+      />
 
       <a
         href={tabHref("money")}

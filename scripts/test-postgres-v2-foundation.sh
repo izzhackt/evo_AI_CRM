@@ -528,6 +528,8 @@ start_app() {
   local inbound_mode="${2:-configured}"
   local waha_mode="${3:-blocked}"
   local amocrm_mode="${4:-provider-not-authorized}"
+  local audit_mode="${5:-enabled}"
+  local -a audit_environment=("EVO_PLATFORM_P7A_AUDIT_ENABLED=1")
   local inbound_secret="$whatsapp_inbound_secret"
   local waha_rewrite_base_url=""
   local amocrm_provider_authorized=0
@@ -539,6 +541,11 @@ start_app() {
   local amocrm_admissions_status_id=""
   local amocrm_admissions_responsible_user_id=""
   local amocrm_admissions_tag_name=""
+  if [[ "$audit_mode" == "disabled" ]]; then
+    audit_environment=(-u EVO_PLATFORM_P7A_AUDIT_ENABLED)
+  elif [[ "$audit_mode" != "enabled" ]]; then
+    fail "Unknown isolated audit harness mode: $audit_mode"
+  fi
   if [[ "$inbound_mode" == "unavailable" ]]; then
     inbound_secret=""
   fi
@@ -567,7 +574,7 @@ start_app() {
   : >"$app_log"
   if [[ "$supabase_mode" == "configured" ]]; then
     env -u EVO_PLATFORM_GEMINI_API_KEY \
-      EVO_PLATFORM_P7A_AUDIT_ENABLED=1 \
+      "${audit_environment[@]}" \
       NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
       EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
@@ -675,6 +682,14 @@ assert_app_reachable() {
 
 supabase_staff_auth_browser_assert() {
   local auth_mode="$1"
+  local test_grep="${2:-}"
+  local -a playwright_args=(
+    test
+    --config=playwright.supabase-staff-auth.config.ts
+  )
+  if [[ -n "$test_grep" ]]; then
+    playwright_args+=(--grep "$test_grep")
+  fi
   assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_STAFF_AUTH_MODE="$auth_mode" \
@@ -695,8 +710,7 @@ supabase_staff_auth_browser_assert() {
     EVO_SUPABASE_DIRECT_API_URL="$supabase_api_url" \
     EVO_SUPABASE_DIRECT_PUBLISHABLE_KEY="$supabase_publishable_key" \
     EVO_P4_ACCEPTANCE_RESULT_FILE="$p4_acceptance_result" \
-    "$node_bin" node_modules/@playwright/test/cli.js test \
-      --config=playwright.supabase-staff-auth.config.ts
+    "$node_bin" node_modules/@playwright/test/cli.js "${playwright_args[@]}"
 }
 
 v3_browser_gate() {
@@ -1127,7 +1141,8 @@ platform_communications_browser_assert configured
 assert_no_secret_or_payload_logs
 
 stop_app
-start_app configured unavailable
+start_app configured unavailable blocked provider-not-authorized disabled
+supabase_staff_auth_browser_assert audit-disabled "disabled canonical audit hides export"
 platform_communications_browser_assert inbound-unavailable
 assert_no_secret_or_payload_logs
 

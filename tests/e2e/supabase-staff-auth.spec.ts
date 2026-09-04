@@ -478,7 +478,7 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
   await expectDirectRouteDenied(page, "/settings");
 });
 
-test("Admin downloads the canonical audit CSV while Admissions is denied", async ({
+test("Admin downloads the canonical audit CSV while Sales is denied", async ({
   page,
 }) => {
   test.skip(authMode !== "configured");
@@ -497,7 +497,7 @@ test("Admin downloads the canonical audit CSV while Admissions is denied", async
   );
 
   await page.context().clearCookies();
-  await signIn(page, "admissions");
+  await signIn(page, "sales");
   const endAt = new Date();
   const startAt = new Date(endAt.getTime() - 30 * 24 * 60 * 60 * 1_000);
   const denial = await page.request.post("/api/platform-audit/export", {
@@ -510,6 +510,29 @@ test("Admin downloads the canonical audit CSV while Admissions is denied", async
     maxRedirects: 0,
   });
   expect(denial.status()).toBe(403);
+});
+
+test("disabled canonical audit hides export and rejects the route", async ({
+  page,
+}) => {
+  test.skip(authMode !== "audit-disabled");
+
+  await signIn(page, "admin");
+  await page.goto("/v3/settings?section=journal");
+  await expect(page.getByTestId("v3-audit-export")).toHaveCount(0);
+
+  const endAt = new Date();
+  const startAt = new Date(endAt.getTime() - 30 * 24 * 60 * 60 * 1_000);
+  const denial = await page.request.post("/api/platform-audit/export", {
+    form: {
+      request_id: randomUUID(),
+      start_at: startAt.toISOString(),
+      end_at: endAt.toISOString(),
+    },
+    headers: { origin: new URL(page.url()).origin },
+    maxRedirects: 0,
+  });
+  expect(denial.status()).toBe(503);
 });
 
 test("Sales reads the exact Supabase RLS queue and detail while Admissions is denied", async ({

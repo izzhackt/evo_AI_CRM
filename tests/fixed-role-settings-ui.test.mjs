@@ -38,6 +38,10 @@ const auditExportRouteSource = readFileSync(
   new URL("../src/app/api/platform-audit/export/route.ts", import.meta.url),
   "utf8",
 );
+const foundationHarnessSource = readFileSync(
+  new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url),
+  "utf8",
+);
 
 test("settings is one Admin-only fixed-role preview UI", () => {
   assert.match(
@@ -98,6 +102,14 @@ test("V3 exposes the canonical audit export only on the Admin journal surface", 
   assert.match(v3SettingsSectionsSource, /action="\/api\/platform-audit\/export"/);
   assert.match(auditExportRouteSource, /actor\.actor\.platformRole !== "admin"/);
   assert.match(auditExportRouteSource, /isPlatformP7AAuditEnabled\(dependencies\.env\)/);
+  assert.match(
+    foundationHarnessSource,
+    /start_app configured unavailable blocked provider-not-authorized disabled/,
+  );
+  assert.match(
+    foundationHarnessSource,
+    /supabase_staff_auth_browser_assert audit-disabled "disabled canonical audit hides export"/,
+  );
 });
 
 test("V3 posts the exact bounded export contract without inventing a role filter", () => {

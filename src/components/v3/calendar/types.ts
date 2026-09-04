@@ -93,6 +93,27 @@ export type CalendarTask = Readonly<{
   version: string;
 }>;
 
+export type CalendarTaskDeadlineInputDefaults = Readonly<{
+  dueOn: Day;
+  dueAt: string;
+}>;
+
+/**
+ * Preserve the task's own calendar day when the editor changes deadline kind.
+ * The visible period anchor is only a fallback for new or unscheduled tasks.
+ */
+export function taskDeadlineInputDefaults(
+  task: Pick<CalendarTask, "day" | "minutes"> | undefined,
+  fallbackDay: Day,
+): CalendarTaskDeadlineInputDefaults {
+  const deadlineDay = task?.day ?? fallbackDay;
+  const dueAt = task?.day !== null && task?.day !== undefined && task.minutes !== null
+    ? `${task.day}T${String(Math.floor(task.minutes / 60)).padStart(2, "0")}:${String(task.minutes % 60).padStart(2, "0")}`
+    : `${deadlineDay}T09:00`;
+
+  return Object.freeze({ dueOn: deadlineDay, dueAt });
+}
+
 export type CalendarTaskRequestIds = Readonly<{
   change: string;
   complete: string;

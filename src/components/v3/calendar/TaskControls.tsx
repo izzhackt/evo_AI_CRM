@@ -24,6 +24,7 @@ import type {
   CalendarTaskRequestIds,
   Day,
 } from "./types";
+import { taskDeadlineInputDefaults } from "./types";
 
 const CONTROL =
   "mt-1 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
@@ -98,6 +99,7 @@ function DeadlineFields({
   const [kind, setKind] = useState<PlatformCaseTaskDeadlineKind>(
     task ? taskDeadlineKind(task) : "all_day",
   );
+  const defaults = taskDeadlineInputDefaults(task, day);
   return (
     <>
       <label className="text-xs font-medium text-fg-2">
@@ -121,7 +123,7 @@ function DeadlineFields({
             <input
               name="due_on"
               type="date"
-              defaultValue={task?.dueOn ?? day}
+              defaultValue={defaults.dueOn}
               required
               className={CONTROL}
             />
@@ -136,7 +138,7 @@ function DeadlineFields({
             <input
               name="due_at"
               type="datetime-local"
-              defaultValue={task ? dueInputValue(task) || `${day}T09:00` : `${day}T09:00`}
+              defaultValue={defaults.dueAt}
               required
               className={CONTROL}
             />
@@ -315,13 +317,6 @@ export function CalendarCreateTaskForm({
       </form>
     </details>
   );
-}
-
-function dueInputValue(task: CalendarTask): string {
-  if (task.day === null || task.minutes === null) return "";
-  const hour = String(Math.floor(task.minutes / 60)).padStart(2, "0");
-  const minute = String(task.minutes % 60).padStart(2, "0");
-  return `${task.day}T${hour}:${minute}`;
 }
 
 function CanonicalTaskFields({

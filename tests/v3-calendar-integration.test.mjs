@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
+import { taskDeadlineInputDefaults } from "../src/components/v3/calendar/types.ts";
+
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
@@ -12,6 +14,33 @@ const controls = source("src/components/v3/calendar/TaskControls.tsx");
 const grids = source("src/components/v3/calendar/grids.tsx");
 const types = source("src/components/v3/calendar/types.ts");
 const adapter = source("src/lib/v3/calendar-source.ts");
+
+test("deadline-kind conversion preserves the task day instead of the period anchor", () => {
+  assert.deepEqual(
+    taskDeadlineInputDefaults(
+      { day: "2026-09-04", minutes: 9 * 60 + 30 },
+      "2026-09-01",
+    ),
+    { dueOn: "2026-09-04", dueAt: "2026-09-04T09:30" },
+  );
+  assert.deepEqual(
+    taskDeadlineInputDefaults(
+      { day: "2026-09-04", minutes: null },
+      "2026-09-01",
+    ),
+    { dueOn: "2026-09-04", dueAt: "2026-09-04T09:00" },
+  );
+  assert.deepEqual(
+    taskDeadlineInputDefaults(
+      { day: null, minutes: null },
+      "2026-09-01",
+    ),
+    { dueOn: "2026-09-01", dueAt: "2026-09-01T09:00" },
+  );
+  assert.match(controls, /taskDeadlineInputDefaults\(task, day\)/);
+  assert.match(controls, /defaultValue=\{defaults\.dueOn\}/);
+  assert.match(controls, /defaultValue=\{defaults\.dueAt\}/);
+});
 
 test("V3 calendar reads one bounded canonical workspace without a second data path", () => {
   assert.match(page, /requirePlatformAdmissionsActor/);

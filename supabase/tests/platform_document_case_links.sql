@@ -154,10 +154,14 @@ BEGIN
       AND routine.provolatile = 'v'
       AND routine.prokind = 'f'
       AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
+      AND pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(routine.oid),
+        'platform_private.document_slot_case_link_context'
+      ) > 0
     FROM pg_catalog.pg_proc AS routine
     WHERE routine.oid = slot_guard_oid
   ) THEN
-    RAISE EXCEPTION 'document slot transition guard hardening drifted';
+    RAISE EXCEPTION 'document slot case-link guard context drifted';
   END IF;
 
   FOREACH forbidden_role IN ARRAY ARRAY[

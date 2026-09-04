@@ -16875,3 +16875,34 @@ Decision:
   `src/lib/v3/wording.ts` as the only human wording dictionary;
 - start from merged #597 contracts. Do not rework migration `107`, lead-owner/
   stage behavior or the existing audit-search backend in #598.
+
+## 2026-09-04 - Keep document review state out of the V3 product UI
+
+Block-ID: `EVO-V3-E-TWO-STATE-DOCUMENT-UI-2026-09-04`
+
+Change type: owner-wording precedence correction.
+Affected plan section: Order 4 / Issue #598.
+
+The preceding #598 clarification used the phrase "document checklist and
+review richness." That phrase can be read as permission to expose canonical
+review decisions, reasons or reviewer metadata in V3. It conflicts with the
+more specific current product authority in `docs/design/v3/product.md`: the
+document UI has exactly two staff-facing states, `нет` and `есть`; staff check
+file suitability in WhatsApp before placing the accepted file in CRM.
+
+Decision:
+
+- reuse the canonical document requirements and slots to provide a real live
+  checklist, denominator, required-file labels and private-file presence;
+- treat the already-merged #597 slot projection, real denominator and private
+  upload/download path as the implementation of that two-state surface; #598
+  verifies it and does not rebuild or enrich it with hidden review workflow;
+- keep the V3 document presentation at exactly `нет` / `есть`; do not expose
+  `submitted`, `approved`, `correction_required`, `rejected`, review reason,
+  reviewer or review timestamp on the product screen;
+- retaining canonical review tables as unused managed-Supabase history is not
+  permission to add a second V3 review workflow or status dictionary;
+- keep the remaining #598 scope unchanged: existing Admin-only audit CSV
+  export, richer visa presentation only from the existing canonical snapshot,
+  focused replacement cleanup and real proof without provider or production
+  mutation.

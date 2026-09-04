@@ -88,6 +88,9 @@ DECLARE
   workspace_rpc_oid OID := (
     'platform.staff_student_case_document_workspace(uuid)'::REGPROCEDURE
   )::OID;
+  slot_guard_oid OID := (
+    'platform_private.guard_dynamic_document_slot_transition()'::REGPROCEDURE
+  )::OID;
   forbidden_role TEXT;
 BEGIN
   IF NOT (
@@ -145,6 +148,31 @@ BEGIN
   THEN
     RAISE EXCEPTION 'set_document_slot_case_link signature drifted';
   END IF;
+
+  IF NOT (
+    SELECT routine.prosecdef
+      AND routine.provolatile = 'v'
+      AND routine.prokind = 'f'
+      AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
+    FROM pg_catalog.pg_proc AS routine
+    WHERE routine.oid = slot_guard_oid
+  ) THEN
+    RAISE EXCEPTION 'document slot transition guard hardening drifted';
+  END IF;
+
+  FOREACH forbidden_role IN ARRAY ARRAY[
+    'anon',
+    'authenticated',
+    'service_role',
+    'supabase_auth_admin'
+  ]
+  LOOP
+    IF pg_catalog.has_function_privilege(forbidden_role, slot_guard_oid, 'EXECUTE')
+    THEN
+      RAISE EXCEPTION '% unexpectedly executes document slot transition guard',
+        forbidden_role;
+    END IF;
+  END LOOP;
 
   IF NOT (
     SELECT routine.prosecdef
@@ -369,6 +397,12 @@ VALUES
     :'p113_curator_a_membership', :'p113_case_scope_a2', 1, 1, TRUE,
     'system', NULL, 'Migration 113 curator case scope',
     '59911300-0000-4000-8000-000000000805'
+  ),
+  (
+    '59911300-0000-4000-8000-000000000708', :'p113_org_a',
+    :'p113_curator_a_membership', :'p113_org_scope_a', 1, 1, TRUE,
+    'system', NULL, 'Migration 113 Admissions runtime scope',
+    '59911300-0000-4000-8000-000000000808'
   );
 
 INSERT INTO platform.student_cases (
@@ -532,6 +566,26 @@ SELECT pg_temp.p113_assert(
     :'p113_curator_a_membership'
   ) = '23503',
   'cross-case visa link must fail inside PostgreSQL'
+);
+
+SELECT pg_temp.p113_assert(
+  (
+    pg_temp.p113_capture_error(format(
+      'UPDATE platform.document_slots SET version = version + 1, updated_at = statement_timestamp(), next_action = %L WHERE organization_id = %L::uuid AND student_case_id = %L::uuid AND id = %L::uuid',
+      'Unsupported aggregate mutation',
+      :'p113_org_a', :'p113_case_a', :'p113_slot_a'
+    ))->>'sqlstate'
+  ) = '55000'
+  AND EXISTS (
+    SELECT 1
+    FROM platform.document_slots AS slot
+    WHERE slot.organization_id = :'p113_org_a'
+      AND slot.student_case_id = :'p113_case_a'
+      AND slot.id = :'p113_slot_a'
+      AND slot.version = 1
+      AND slot.next_action IS NULL
+  ),
+  'aggregate version transition must reject any accompanying slot mutation'
 );
 
 SELECT
@@ -763,6 +817,8 @@ SELECT pg_temp.p113_assert(
   'Admin must mutate the same canonical relation as Admissions'
 );
 
+RESET ROLE;
+
 SELECT pg_temp.p113_assert(
   (
     SELECT count(*)
@@ -778,8 +834,6 @@ SELECT pg_temp.p113_assert(
   ) = 4,
   'each real link or unlink must append exactly one audit event'
 );
-
-RESET ROLE;
 
 UPDATE platform.document_slots
 SET

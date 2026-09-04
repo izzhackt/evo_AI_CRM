@@ -35,7 +35,7 @@ test("small legacy multipart reader rejects a body after its byte ceiling", asyn
   assert.deepEqual(result, { error: "request_too_large" });
 });
 
-test("oversized multipart reader cancels intake without surfacing cancel rejection", async () => {
+test("oversized multipart reader fails closed without touching cancel hooks", async () => {
   let cancelCalls = 0;
   let cancelReason;
   const body = new ReadableStream({
@@ -58,8 +58,8 @@ test("oversized multipart reader cancels intake without surfacing cancel rejecti
   const result = await readMultipartFormData(request, 8);
 
   assert.deepEqual(result, { error: "request_too_large" });
-  assert.equal(cancelCalls, 1);
-  assert.equal(cancelReason, "request_too_large");
+  assert.equal(cancelCalls, 0);
+  assert.equal(cancelReason, undefined);
 });
 
 test("small legacy multipart reader parses a body within its byte ceiling", async () => {

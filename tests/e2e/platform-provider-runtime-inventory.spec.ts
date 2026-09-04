@@ -568,26 +568,28 @@ async function captureSalesWhatsAppPage(
   page: Page,
   conversationId: string,
 ): Promise<PageProof> {
-  await page.goto(`/whatsapp/${conversationId}`);
-  await expect(page).toHaveURL(new RegExp(`/whatsapp/${conversationId}$`, "u"));
-  await expect(page.getByTestId("platform-staff-whatsapp-page")).toBeVisible();
-  await expect(page.getByTestId("platform-staff-whatsapp-thread")).toBeVisible();
+  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/v3/inbox\\?conversation=${conversationId}$`, "u"),
+  );
+  await expect(page.getByTestId("v3-inbox")).toBeVisible();
+  await expect(page.getByTestId("v3-inbox-thread")).toBeVisible();
   await expect(
-    page.getByTestId("platform-provider-workflow-controls"),
+    page.getByTestId("v3-inbox-provider-workflow-controls"),
   ).toBeVisible();
-  await expect(page.getByTestId("platform-provider-send")).toBeVisible();
+  await expect(page.getByTestId("v3-inbox-send")).toBeVisible();
 
   const authorityRole = await activeRole(page);
   const sendDisabled = await page
-    .getByTestId("platform-provider-send")
+    .getByTestId("v3-inbox-send")
     .isDisabled();
   const reconcileVisible = await page
-    .getByTestId("platform-provider-reconcile")
+    .getByTestId("v3-inbox-reconcile")
     .count()
     .then((value) => value > 0);
 
   return Object.freeze({
-    route: "/whatsapp/:conversationId",
+    route: "/v3/inbox?conversation=:conversationId",
     authorityRole,
     checks: Object.freeze({
       pageVisible: true,

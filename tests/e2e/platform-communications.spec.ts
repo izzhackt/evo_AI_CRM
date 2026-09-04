@@ -147,12 +147,14 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   });
 
   await signIn(page);
-  await page.goto(`/whatsapp/${conversationId}`);
-  await expect(page.getByTestId("platform-staff-whatsapp-page")).toBeVisible();
-  await expect(page.getByTestId("platform-staff-whatsapp-thread")).toBeVisible();
+  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await expect(page.getByTestId("v3-inbox")).toBeVisible();
+  await expect(page.getByTestId("v3-inbox-thread")).toBeVisible();
   await expect(
-    page.locator("dt", { hasText: "Канал WhatsApp" }).locator("xpath=following-sibling::dd[1]"),
-  ).toContainText("Подключён");
+    page
+      .getByTestId("v3-inbox-thread")
+      .getByText(/^WhatsApp подключён(?: · проверено .+)?$/u),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", {
       name: "WhatsApp exact Sales-intake proof",
@@ -163,7 +165,7 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   await expect(page.locator("body")).not.toContainText(chatId);
   await expect(page.locator("body")).not.toContainText(inboundMessageId);
 
-  const controls = page.getByTestId("platform-provider-workflow-controls");
+  const controls = page.getByTestId("v3-inbox-provider-workflow-controls");
   await expect(controls).toBeVisible();
   await controls.getByRole("button", { name: "Подготовить черновик" }).click();
   await expect(
@@ -173,10 +175,10 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   const finalText = "Подтверждённый ответ EVO из Supabase browser proof";
   await controls.locator('textarea[name="message_text"]').fill(finalText);
   await controls.locator('input[name="confirm_send"]').check();
-  await controls.getByTestId("platform-provider-send").click();
+  await controls.getByTestId("v3-inbox-send").click();
   await expect(
     controls.getByText(
-      "WhatsApp принял сообщение; результат сохранён.",
+      "WhatsApp принял одно сообщение; результат сохранён.",
       { exact: true },
     ),
   ).toBeVisible();
@@ -236,17 +238,17 @@ test("an ambiguous provider result blocks resend and exact WAHA readback resolve
   });
 
   await signIn(page);
-  await page.goto(`/whatsapp/${conversationId}`);
-  const controls = page.getByTestId("platform-provider-workflow-controls");
+  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  const controls = page.getByTestId("v3-inbox-provider-workflow-controls");
   await expect(controls).toBeVisible();
   await controls.locator('textarea[name="message_text"]').fill(unknownResultText);
   await controls.locator('input[name="confirm_send"]').check();
-  const sendButton = controls.getByTestId("platform-provider-send");
+  const sendButton = controls.getByTestId("v3-inbox-send");
   await sendButton.click();
 
   await expect(
     controls.getByText(
-      "Результат неизвестен. Повторная отправка заблокирована до сверки с WAHA.",
+      "Результат неизвестен. Повторная отправка заблокирована до безопасной проверки.",
       { exact: true },
     ).first(),
   ).toBeVisible();
@@ -260,10 +262,10 @@ test("an ambiguous provider result blocks resend and exact WAHA readback resolve
     ),
   ).toHaveLength(1);
 
-  await controls.getByTestId("platform-provider-reconcile").click();
+  await controls.getByTestId("v3-inbox-reconcile").click();
   await expect(
     controls.getByText(
-      "Сверка завершена; сохранено подтверждённое состояние.",
+      "Проверка завершена; подтверждённое состояние сохранено.",
       { exact: true },
     ),
   ).toBeVisible();

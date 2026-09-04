@@ -367,20 +367,11 @@ async function expectExactSupabaseSalesRead(
   await expect(exactRow).toHaveAttribute("data-workflow-version", "7");
   await expect(exactRow).toContainText(clientId);
 
-  await exactRow.locator(`a[href="/sales/${leadId}"]`).click();
-  await expect(page).toHaveURL(new RegExp(`/sales/${leadId}$`));
+  await exactRow.locator(`a[href="/v3/profile?id=${leadId}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`/v3/profile\\?id=${leadId}$`));
   await expect(
-    page.getByTestId("canonical-sales-lead-workspace"),
+    page.locator(`[data-testid="v3-pipeline-decision"][data-lead-id="${leadId}"]`),
   ).toBeVisible();
-  await expect(page.getByTestId("canonical-lead-id").locator("dd")).toHaveText(
-    leadId,
-  );
-  await expect(
-    page.getByTestId("canonical-client-id").locator("dd"),
-  ).toHaveText(clientId);
-  await expect(
-    page.getByTestId("canonical-lead-workflow-version").locator("dd"),
-  ).toHaveText("7");
 }
 
 function isSupabaseAuthCookie(name: string): boolean {
@@ -524,37 +515,33 @@ test("Sales reads the exact Supabase RLS queue and detail while Admissions is de
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await expectActiveRole(page, "admissions");
-  await page.goto(`/sales/${leadId}`);
-  await expect(page).toHaveURL(/\/access-denied\?from=%2Fsales$/);
-  await expect(page.getByTestId("canonical-lead-detail")).toHaveCount(0);
+  await page.goto(`/v3/profile?id=${leadId}`);
+  await expect(page).toHaveURL(/\/access-denied\?from=%2Fv3%2Fprofile(?:%3Fid%3D.*)?$/);
+  await expect(page.getByTestId("v3-pipeline-decision")).toHaveCount(0);
 });
 
-test("Sales detail renders only the exact verified conversation and its link opens", async ({
+test("Sales inbox renders the exact verified conversation with canonical amoCRM placement", async ({
   page,
 }) => {
   test.skip(authMode !== "configured");
-  const leadId = requireUuid("EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID");
   const conversationId = requireUuid("EVO_SUPABASE_SALES_CONVERSATION_ID");
+  const leadId = requireUuid("EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID");
 
   await signIn(page, "sales");
-  await page.goto(`/sales/${leadId}`);
-  await expect(page.getByTestId("canonical-sales-conversations")).toBeVisible();
-  const links = page.getByTestId("canonical-sales-conversation-link");
-  await expect(links).toHaveCount(1);
-  await expect(links).toHaveAttribute(
-    "href",
-    `/sales/${leadId}/conversations/${conversationId}`,
-  );
-  await expect(page.getByText("Negative proof:", { exact: false })).toHaveCount(
-    0,
-  );
-
-  await links.click();
+  await page.goto(`/v3/inbox?conversation=${conversationId}`);
   await expect(page).toHaveURL(
-    new RegExp(`/sales/${leadId}/conversations/${conversationId}$`),
+    new RegExp(`/v3/inbox\\?conversation=${conversationId}$`),
   );
-  await expect(page.getByTestId("canonical-sales-transcript")).toBeVisible();
-  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(
+  await expect(page.getByTestId("v3-inbox")).toBeVisible();
+  await expect(page.getByTestId("v3-inbox-thread")).toBeVisible();
+  await expect(page.getByTestId("v3-inbox-amocrm")).toHaveAttribute(
+    "data-status",
+    "available",
+  );
+  await expect(
+    page.getByRole("link", { name: "Открыть профиль" }),
+  ).toHaveAttribute("href", `/v3/profile?id=${leadId}`);
+  await expect(page.getByText("Negative proof:", { exact: false })).toHaveCount(
     0,
   );
 });

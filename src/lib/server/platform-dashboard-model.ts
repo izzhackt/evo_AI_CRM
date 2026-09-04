@@ -255,7 +255,7 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "whatsapp",
-      href: "/whatsapp",
+      href: "/v3/inbox",
       totalOnPage: conversations.rows.length,
       salesCount,
       admissionsCount: conversations.rows.length - salesCount,
@@ -263,7 +263,7 @@ export async function readPlatformDashboardSnapshot<
     if (conversations.rows.length > 0) {
       attentionItems.push({
         key: "whatsapp_open",
-        href: "/whatsapp",
+        href: "/v3/inbox",
         value: conversations.rows.length,
         tone: "info",
       });

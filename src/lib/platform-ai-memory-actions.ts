@@ -111,8 +111,8 @@ async function selectedInboundMessageId(
   return selected.id;
 }
 
-function refresh(id: string) {
-  revalidatePath(`/whatsapp/${id}`);
+function refreshInbox() {
+  revalidatePath("/v3/inbox");
 }
 
 export async function recordPlatformAiMemoryAction(
@@ -144,7 +144,7 @@ export async function recordPlatformAiMemoryAction(
         [id, current.memory.version, shortSummary, longSummary, sourceMessageId],
       ),
     });
-    refresh(id);
+    refreshInbox();
   } catch {
     return;
   }
@@ -196,7 +196,7 @@ export async function recordPlatformAiFactAction(
         [id, key, expectedVersion, rawStatus, value, sourceMessageId],
       ),
     });
-    refresh(id);
+    refreshInbox();
   } catch {
     return;
   }
@@ -267,7 +267,7 @@ export async function recordPlatformAiQualificationAction(
         ],
       ),
     });
-    refresh(id);
+    refreshInbox();
   } catch {
     return;
   }
@@ -308,7 +308,7 @@ export async function setPlatformAiControlAction(
         [id, current.control.version, state],
       ),
     });
-    refresh(id);
+    refreshInbox();
   } catch {
     return;
   }
@@ -338,7 +338,7 @@ export async function previewPlatformAiLexicalAction(
         [id, sourceMessageId, current.latestRetrieval?.requestId ?? "none"],
       ),
     });
-    refresh(id);
+    refreshInbox();
   } catch {
     return;
   }

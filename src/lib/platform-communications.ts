@@ -71,6 +71,13 @@ export type PlatformConversationSummary = Readonly<{
   sortAt: string;
 }>;
 
+export type PlatformConversationCommandContext = Readonly<{
+  conversationId: string;
+  canonicalLeadId: string | null;
+  canonicalClientId: string | null;
+  studentCaseId: string | null;
+}>;
+
 export type PlatformConversationMessage = Readonly<{
   id: string;
   conversationId: string;
@@ -161,6 +168,15 @@ export class PlatformCommunicationsRepositoryError extends Error {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
+  const keys = Object.keys(value);
+  return keys.length === expected.length &&
+    expected.every((key) => Object.hasOwn(value, key));
 }
 
 export function parsePlatformRouteUuid(value: unknown): string | null {
@@ -496,6 +512,59 @@ export function normalizePlatformConversationSummary(
   };
 }
 
+const PLATFORM_CONVERSATION_COMMAND_CONTEXT_KEYS = Object.freeze([
+  "conversation_id",
+  "canonical_lead_id",
+  "canonical_client_id",
+  "student_case_id",
+]);
+
+/**
+ * Parses the narrow command-routing projection for one selected conversation.
+ * Canonical ids may be absent, but they must never be synthesized from a
+ * provider id or accepted in a malformed shape.
+ */
+export function normalizePlatformConversationCommandContext(
+  value: unknown,
+): PlatformConversationCommandContext {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, PLATFORM_CONVERSATION_COMMAND_CONTEXT_KEYS)
+  ) {
+    return invalidShape();
+  }
+
+  const conversationId = parsePlatformRouteUuid(value.conversation_id);
+  const canonicalLeadId =
+    value.canonical_lead_id === null
+      ? null
+      : parsePlatformRouteUuid(value.canonical_lead_id);
+  const canonicalClientId =
+    value.canonical_client_id === null
+      ? null
+      : parsePlatformRouteUuid(value.canonical_client_id);
+  const studentCaseId =
+    value.student_case_id === null
+      ? null
+      : parsePlatformRouteUuid(value.student_case_id);
+
+  if (
+    conversationId === null ||
+    (value.canonical_lead_id !== null && canonicalLeadId === null) ||
+    (value.canonical_client_id !== null && canonicalClientId === null) ||
+    (value.student_case_id !== null && studentCaseId === null)
+  ) {
+    return invalidShape();
+  }
+
+  return Object.freeze({
+    conversationId,
+    canonicalLeadId,
+    canonicalClientId,
+    studentCaseId,
+  });
+}
+
 /**
  * Converts and validates one message projection returned by the authenticated
  * platform RPC.
@@ -785,6 +854,42 @@ export async function getPlatformConversationThread(
         : null,
       hasOlderMessages,
     };
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function getPlatformConversationCommandContext(
+  actor: PlatformActor,
+  id: string,
+  dependencies: PlatformCommunicationsDependencies = {},
+): Promise<PlatformConversationCommandContext | null> {
+  try {
+    const organizationId = requireMessagingOrganization(actor);
+    const conversationId = parsePlatformRouteUuid(id);
+    if (conversationId === null) return null;
+
+    const client = await getPlatformClient(dependencies.client);
+    const response = await client
+      .schema("platform")
+      .rpc("staff_communication_command_context", {
+        p_organization_id: organizationId,
+        p_conversation_id: conversationId,
+      }, { get: true });
+
+    if (
+      response.error ||
+      !Array.isArray(response.data) ||
+      response.data.length > 1
+    ) {
+      return invalidShape();
+    }
+
+    if (response.data.length === 0) return null;
+    const context = normalizePlatformConversationCommandContext(
+      response.data[0],
+    );
+    return context.conversationId === conversationId ? context : invalidShape();
   } catch (error) {
     return failClosed(error);
   }

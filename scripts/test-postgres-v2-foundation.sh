@@ -1099,6 +1099,8 @@ echo "Validating the active Supabase-only foundation without the retired Drizzle
     tests/platform-provider-workflows.test.mjs \
     tests/platform-provider-actions.test.mjs \
     tests/platform-provider-controls.test.mjs \
+    tests/v3-inbox-integration.test.mjs \
+    tests/v3-inbox-route-transition.test.mjs \
     tests/platform-waha-local-fetch.test.mjs \
     tests/platform-waha-provider.test.mjs \
     tests/platform-waha-webhook.test.mjs \

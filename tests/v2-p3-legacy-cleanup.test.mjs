@@ -8,8 +8,13 @@ function source(path) {
 
 const removedRuntimeFiles = [
   "src/app/(staff)/clients/[id]/CanonicalStudentCaseWorkspace.tsx",
+  "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
+  "src/app/(staff)/sales/[id]/PlatformSalesAmoCrmCommandSection.tsx",
+  "src/app/(staff)/sales/[id]/conversations/[conversationId]/page.tsx",
   "src/components/platform/sales/CanonicalSalesGateCard.tsx",
   "src/components/platform/sales/CanonicalSalesHandoffCard.tsx",
+  "src/components/platform/sales/CanonicalSalesConversations.tsx",
+  "src/components/platform/core/CanonicalLeadDetail.tsx",
   "src/components/platform/sales/PlatformSalesWorkflowForm.tsx",
   "src/components/platform/sales/PlatformSalesGateCard.tsx",
   "src/components/platform/sales/PlatformSalesHandoffCard.tsx",
@@ -30,10 +35,11 @@ test("P3 deletes the replaced Drizzle gate, handoff and Student 360 runtime", ()
 
 test("P3 active routes have one Supabase authority and no legacy fallback import", () => {
   const activeSources = [
-    source("src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx"),
+    source("src/app/(staff)/sales/SalesWorkspace.tsx"),
     source("src/app/(staff)/clients/[id]/page.tsx"),
     source("src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx"),
     source("src/components/v3/profile/ProfileSalesTransition.tsx"),
+    source("src/app/(v3)/v3/inbox/page.tsx"),
     source("src/lib/platform-student-handoff.ts"),
     source("src/lib/platform-student-handoff-actions.ts"),
   ].join("\n");
@@ -41,9 +47,11 @@ test("P3 active routes have one Supabase authority and no legacy fallback import
   assert.match(activeSources, /staff_lead_admissions_gate/);
   assert.match(activeSources, /handoff_lead_to_admissions/);
   assert.match(activeSources, /staff_student_case_handoff_context/);
+  assert.match(activeSources, /\/v3\/profile\?id=/);
+  assert.match(activeSources, /v3-inbox-amocrm/);
   assert.doesNotMatch(
     activeSources,
-    /CanonicalStudentCaseWorkspace|CanonicalSalesGateCard|CanonicalSalesHandoffCard|canonical-sales-(?:gate|handoff)-actions|canonical-crm-repository|staff_student_case_read_snapshot|drizzle|service[_-]?role|fallback/i,
+    /CanonicalStudentCaseWorkspace|CanonicalLeadDetail|CanonicalSalesConversation|CanonicalSalesGateCard|CanonicalSalesHandoffCard|canonical-sales-(?:gate|handoff)-actions|canonical-crm-repository|staff_student_case_read_snapshot|drizzle|service[_-]?role|fallback/i,
   );
 });
 

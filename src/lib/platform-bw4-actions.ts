@@ -42,14 +42,14 @@ function mutationRedirect(
   outcome: PlatformDecisionMutationOutcome,
   requestId?: string | null,
 ): never {
-  const target = conversationId
-    ? `/whatsapp/${conversationId}`
-    : "/whatsapp";
-  const params = new URLSearchParams({ result: outcome });
+  const query = new URLSearchParams();
+  if (conversationId) query.set("conversation", conversationId);
+  const target = query.size > 0 ? `/v3/inbox?${query.toString()}` : "/v3/inbox";
+  const fragment = new URLSearchParams({ result: outcome });
   if (requestId && outcome !== "saved") {
-    params.set("retry_request_id", requestId);
+    fragment.set("retry_request_id", requestId);
   }
-  redirect(`${target}?${params.toString()}`);
+  redirect(`${target}#${fragment.toString()}`);
 }
 
 function canApplySharedMutation(
@@ -75,11 +75,9 @@ async function refreshWorkspace(
   }
 }
 
-function revalidateConversationPath(conversationId: string): void {
+function revalidateInboxPath(): void {
   try {
-    // BW4 is rendered only on the existing conversation detail route. Avoid
-    // invalidating unrelated staff, list, portal, or provider-backed paths.
-    revalidatePath(`/whatsapp/${conversationId}`);
+    revalidatePath("/v3/inbox");
   } catch {
     // The mutation is already durable. Cache invalidation failure must not turn
     // a committed idempotent request into a reported database failure.
@@ -140,7 +138,7 @@ export async function createPlatformDecisionBacklogEntryAction(
     mutationRedirect(input.conversationId, "unavailable", input.requestId);
   }
 
-  revalidateConversationPath(input.conversationId);
+  revalidateInboxPath();
   mutationRedirect(input.conversationId, "saved");
 }
 
@@ -213,6 +211,6 @@ export async function transitionPlatformDecisionBacklogEntryAction(
     mutationRedirect(input.conversationId, "unavailable", input.requestId);
   }
 
-  revalidateConversationPath(input.conversationId);
+  revalidateInboxPath();
   mutationRedirect(input.conversationId, "saved");
 }

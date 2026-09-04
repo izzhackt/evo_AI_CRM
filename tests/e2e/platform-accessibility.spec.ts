@@ -2,9 +2,9 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * V2 staff accessibility gate.
+ * Successor staff accessibility gate.
  *
- * It runs against the root application on the real local PostgreSQL V2
+ * It runs against the active application on the real local Supabase/PostgreSQL
  * contract. It never uses EVO_UI_CONTRACT_FIXTURES, a demo seed, a mock
  * provider or a fallback repository, and it performs no provider side effect:
  * it only reads the surfaces the three fixed roles can already reach.
@@ -29,10 +29,10 @@ const ROLE_ROUTES: Readonly<Record<FixedRole, readonly string[]>> = {
     "/visa",
     "/finance",
     "/tasks",
-    "/whatsapp",
+    "/v3/inbox",
     "/settings",
   ],
-  sales: ["/sales", "/whatsapp"],
+  sales: ["/sales", "/v3/inbox"],
   admissions: [
     "/clients",
     "/applications",
@@ -40,7 +40,7 @@ const ROLE_ROUTES: Readonly<Record<FixedRole, readonly string[]>> = {
     "/visa",
     "/finance",
     "/tasks",
-    "/whatsapp",
+    "/v3/inbox",
   ],
 };
 
@@ -218,23 +218,17 @@ test("the conversation pane fits the fold for every role", async ({ page }, test
 
   for (const role of ["admin", "sales", "admissions"] as const) {
     await signInAsStaff(page, role);
-    await page.goto("/whatsapp");
+    await page.goto("/v3/inbox");
     await expect(page.locator("main")).toBeVisible();
 
-    const pane = await page.evaluate(() => {
-      const el = [...document.querySelectorAll("div")].find((node) =>
-        node.className.toString().includes("100dvh-"),
-      );
-      if (!el) return { found: false, bottom: 0, viewport: window.innerHeight };
+    const pane = await page.locator("main").evaluate((el) => {
       const box = el.getBoundingClientRect();
       return {
-        found: true,
         bottom: Math.round(box.bottom),
         viewport: window.innerHeight,
       };
     });
 
-    expect(pane.found, `${role}: the conversation pane should be on this page`).toBe(true);
     const unused = pane.viewport - pane.bottom;
     expect(
       unused,

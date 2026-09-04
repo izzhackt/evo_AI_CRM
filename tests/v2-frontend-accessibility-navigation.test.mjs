@@ -92,18 +92,19 @@ test("Student 360 exposes localized links to every core workflow section", () =>
 
 test("critical confirmation and inline case links use practical targets", () => {
   const providerControls = source(
-    "src/components/platform/communications/PlatformProviderWorkflowControls.tsx",
+    "src/components/v3/InboxProviderWorkflowControls.tsx",
   );
-  const whatsapp = source(
-    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
-  );
+  const inbox = source("src/components/v3/Inbox.tsx");
   const tasks = source(
     "src/components/platform/admissions/PlatformAdmissionsTaskPanel.tsx",
   );
 
   assert.match(providerControls, /min-h-11 cursor-pointer/);
   assert.match(providerControls, /h-5 w-5 shrink-0/);
-  assert.match(whatsapp, /inline-flex min-h-11 items-center/);
+  assert.match(
+    inbox,
+    /className={`flex min-h-20 w-full flex-col justify-center gap-1 px-4 py-3 text-start/,
+  );
   assert.match(tasks, /inline-flex min-h-11 items-center/);
 });
 
@@ -152,35 +153,28 @@ test("dark accent text keeps normal-text contrast without changing brand fills",
 });
 
 test("scrollable inbox regions are reachable by keyboard", () => {
-  const whatsapp = source(
-    "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
-  );
+  const inbox = source("src/components/v3/Inbox.tsx");
 
   // Every element that owns its own scroll container must be focusable:
   // WCAG 2.1.1 fails when a short viewport makes a region scroll while it
   // holds no focusable child (an empty queue, or no selected conversation).
-  const scrollRegions = [...whatsapp.matchAll(/overflow-y-auto/g)];
+  const scrollRegions = [...inbox.matchAll(/overflow-y-auto/g)];
   assert.ok(scrollRegions.length >= 2, "expected the queue and thread panes");
 
   assert.match(
-    whatsapp,
-    /className="max-h-\[320px\] overflow-y-auto lg:max-h-full"[\s\S]{0,400}?tabIndex=\{0\}/,
+    inbox,
+    /<section[\s\S]*tabIndex=\{0\}[\s\S]*className=\{`min-w-0 overflow-y-auto/,
     "the conversation queue scroll region must be focusable",
   );
   assert.match(
-    whatsapp,
-    /className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"[\s\S]{0,400}?tabIndex=\{0\}/,
+    inbox,
+    /className="min-h-0 flex-1 overflow-y-auto" tabIndex=\{0\}/,
     "the conversation thread scroll region must be focusable",
   );
   assert.match(
-    whatsapp,
-    /data-testid="platform-staff-whatsapp-thread-region"/,
-    "the thread scroll region must be addressable",
-  );
-  assert.match(
-    whatsapp,
-    /aria-label=\{thread \? thread\.conversation\.subject : copy\.emptyThreadTitle\}/,
-    "the thread scroll region must carry an accessible name",
+    inbox,
+    /aria-label="Диалоги"/,
+    "the queue scroll region must stay named",
   );
 });
 
@@ -292,7 +286,6 @@ test("dark accent text is pinned to the surfaces it is used on", () => {
 test("every core staff route renders exactly one page-level h1", () => {
   const routeHeadingSources = [
     ["/sales", "src/app/(staff)/sales/SalesWorkspace.tsx"],
-    ["/sales/[id]", "src/components/platform/core/LeadHero.tsx"],
     ["/clients", "src/app/(staff)/clients/StudentQueue.tsx"],
     [
       "/clients/[id]",
@@ -303,10 +296,8 @@ test("every core staff route renders exactly one page-level h1", () => {
     ["/visa", "src/app/(staff)/visa/page.tsx"],
     ["/finance", "src/app/(staff)/finance/page.tsx"],
     ["/tasks", "src/app/(staff)/tasks/page.tsx"],
-    [
-      "/whatsapp",
-      "src/components/platform/communications/PlatformStaffWhatsApp.tsx",
-    ],
+    ["/v3/inbox", "src/components/v3/PartShell.tsx"],
+    ["/v3/profile", "src/components/v3/PartShell.tsx"],
   ];
 
   for (const [route, path] of routeHeadingSources) {

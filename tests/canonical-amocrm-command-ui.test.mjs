@@ -39,38 +39,34 @@ test("the active Platform amoCRM command panel remains on Admissions Student 360
   assert.match(admissions, /blockingAttempt=/);
 });
 
-test("the canonical Sales detail mounts the same Supabase-backed amoCRM command path", () => {
-  const salesWorkspace = source(
-    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
-  );
-  const salesSection = source(
-    "src/app/(staff)/sales/[id]/PlatformSalesAmoCrmCommandSection.tsx",
-  );
+test("the V3 Inbox mounts the same Supabase-backed Sales amoCRM command path", () => {
+  const inboxPage = source("src/app/(v3)/v3/inbox/page.tsx");
+  const inboxSource = source("src/lib/v3/inbox-source.ts");
 
-  assert.match(salesWorkspace, /<PlatformSalesAmoCrmCommandSection/);
-  assert.match(salesWorkspace, /organizationId=\{actor\.organizationId\}/);
-  assert.match(salesWorkspace, /authorityRole=\{actor\.authorityRole\}/);
-  assert.match(salesWorkspace, /leadId=\{lead\.leadId\}/);
-  assert.match(salesWorkspace, /clientId=\{lead\.clientId\}/);
-  assert.match(salesSection, /CanonicalAmoCrmCommandPanel/);
-  assert.match(salesSection, /readPlatformBlockingAmoCrmCommand/);
-  assert.match(salesSection, /createSupabaseServerClient\(\)/);
+  assert.match(inboxPage, /CanonicalAmoCrmCommandPanel/);
+  assert.match(inboxSource, /readPlatformBlockingAmoCrmCommand/);
+  assert.match(inboxSource, /createSupabaseServerClient\(\)/);
+  assert.match(inboxSource, /getPlatformConversationCommandContext/);
+  assert.match(inboxSource, /\? "sales_pre_handoff"\s*:\s*"admissions_post_handoff"/);
+  assert.match(inboxSource, /workflowLeadId:\s*leadId/);
+  assert.match(inboxSource, /studentCaseId:\s*scope === "sales" \? null : studentCaseId/);
+  assert.match(inboxSource, /personId:\s*clientId/);
+  assert.match(inboxSource, /leadId,/);
+  assert.match(inboxPage, /<CanonicalAmoCrmCommandPanel/);
+  assert.match(inboxPage, /blockingAttempt=\{command\.blockingAttempt\}/);
+  assert.match(inboxPage, /scope=\{command\.scope\}/);
+  assert.match(inboxPage, /leadId=\{command\.leadId\}/);
+  assert.match(inboxPage, /data-testid="v3-inbox-amocrm"/);
   assert.match(
-    salesSection,
-    /workflowScope:\s*"sales_pre_handoff"[\s\S]*workflowLeadId:\s*leadId[\s\S]*studentCaseId:\s*null/,
+    inboxPage,
+    /Запись через другой путь не выполняется/,
   );
-  assert.match(salesSection, /personId:\s*clientId/);
-  assert.match(salesSection, /leadId,/);
-  assert.match(
-    salesSection,
-    /<CanonicalAmoCrmCommandPanel[\s\S]*providerDispatchedAt: blockingAttempt\.providerDispatchedAt[\s\S]*scope="sales"[\s\S]*leadId=\{leadId\}/,
-  );
-  assert.match(salesSection, /data-testid="sales-amocrm-command-section"/);
-  assert.match(salesSection, /data-status="missing-client"/);
-  assert.match(
-    salesSection,
-    /EVO не\s*выполняет запись через старый или запасной путь/,
-  );
+  for (const retired of [
+    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
+    "src/app/(staff)/sales/[id]/PlatformSalesAmoCrmCommandSection.tsx",
+  ]) {
+    assert.equal(existsSync(new URL(retired, root)), false, retired);
+  }
 });
 
 test("the panel exposes exact inputs, honest states, per-step evidence, and explicit unknown reconciliation", () => {
@@ -126,7 +122,7 @@ test("the panel exposes exact inputs, honest states, per-step evidence, and expl
   assert.doesNotMatch(panel, /providerRequest|providerResponse|rawBody|accessToken|refreshToken/);
 });
 
-test("server actions use only canonical V2 seams and exact FormData extraction", () => {
+test("server actions use only canonical seams and active V3 revalidation", () => {
   const actions = source(
     "src/lib/server/canonical-amocrm-command-actions.ts",
   );
@@ -140,11 +136,13 @@ test("server actions use only canonical V2 seams and exact FormData extraction",
   assert.match(actions, /executePlatformAmoCrmAdmissionsSync/);
   assert.match(actions, /reconcilePlatformAmoCrmSyncAttempt/);
   assert.match(actions, /releasePlatformAmoCrmPreparedAttempt/);
-  assert.match(actions, /revalidatePath\(`\/sales\/\$\{leadId\}`\)/);
+  assert.match(actions, /revalidatePath\("\/v3\/profile"\)/);
+  assert.match(actions, /revalidatePath\("\/v3\/inbox"\)/);
   assert.match(
     actions,
     /revalidatePath\(`\/clients\/\$\{studentCaseId\}`\)/,
   );
+  assert.doesNotMatch(actions, /revalidatePath\([^\n]*\/sales\//);
   assert.doesNotMatch(
     actions,
     /sqlite|EVO_AGENT_|legacy|fallback|@\/lib\/amocrm/i,

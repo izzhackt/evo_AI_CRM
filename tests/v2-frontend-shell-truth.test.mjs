@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import { MIN_ALL_SURFACES, allSurfaceFiles } from "./helpers/staff-surfaces.mjs";
@@ -12,7 +12,6 @@ function source(path) {
 const routeFiles = [
   "src/app/login/page.tsx",
   "src/app/(staff)/sales/(queue)/page.tsx",
-  "src/app/(staff)/sales/[id]/page.tsx",
   "src/app/(staff)/clients/(queue)/page.tsx",
   "src/app/(staff)/clients/[id]/page.tsx",
   "src/app/(staff)/applications/page.tsx",
@@ -20,14 +19,14 @@ const routeFiles = [
   "src/app/(staff)/visa/page.tsx",
   "src/app/(staff)/finance/page.tsx",
   "src/app/(staff)/tasks/page.tsx",
-  "src/app/(staff)/whatsapp/page.tsx",
-  "src/app/(staff)/whatsapp/[id]/page.tsx",
   "src/app/(staff)/settings/page.tsx",
+  "src/app/(v3)/v3/inbox/page.tsx",
+  "src/app/(v3)/v3/profile/page.tsx",
 ];
 
-test("each active V2 staff route exposes descriptive metadata", () => {
+test("each active staff route exposes descriptive metadata", () => {
   for (const path of routeFiles) {
-    assert.match(source(path), /generateMetadata/, path);
+    assert.match(source(path), /generateMetadata|export const metadata/, path);
   }
 
   const rootLayout = source("src/app/layout.tsx");
@@ -38,7 +37,7 @@ test("each active V2 staff route exposes descriptive metadata", () => {
 test("active shell copy names each current authority without stale delivery slices", () => {
   const salesCopy = source("src/app/(staff)/sales/SalesWorkspace.tsx");
   const notYetReplacedCopy = [
-    source("src/components/platform/communications/PlatformStaffWhatsApp.tsx"),
+    source("src/components/v3/Inbox.tsx"),
     source("src/components/platform/core/CanonicalRecordsPresentation.tsx"),
   ].join("\n");
   const activeCopy = `${salesCopy}\n${notYetReplacedCopy}`;
@@ -228,20 +227,22 @@ test("cross-role case links are only rendered for a role the server allows", () 
   // The link must sit behind the server-derived presentation-role guard.
   assert.match(
     queue,
-    /\{canOpenLead && leadId \? \(\s*<Link\s+href=\{`\/sales\/\$\{leadId\}`\}/,
-    "the canonical lead link must render only when the effective role may open /sales",
+    /\{canOpenLead && leadId \? \(\s*<Link\s+href=\{`\/v3\/profile\?id=\$\{leadId\}`\}/,
+    "the canonical lead link must render only when the effective role may open the V3 profile",
   );
 });
 
-test("the active Sales detail does not reactivate the deferred Drizzle controls", () => {
-  const workspace = source("src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx");
-
-  assert.doesNotMatch(
-    workspace,
-    /SalesWorkflowForm|SalesGateCard|SalesHandoffCard|CanonicalAmoCrmCommandPanel|fixedRoleCanAccessRoute/,
-  );
-  assert.match(workspace, /PlatformSalesAmoCrmCommandSection/);
-  assert.match(workspace, /CanonicalSalesConversationList/);
+test("the superseded Sales detail runtime is deleted rather than kept in parallel", () => {
+  for (const path of [
+    "src/app/(staff)/sales/[id]/page.tsx",
+    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
+  ]) {
+    assert.equal(
+      existsSync(new URL(`../${path}`, import.meta.url)),
+      false,
+      `${path} must be removed once V3 owns the detail workflow`,
+    );
+  }
 });
 
 test("the frontend contract suite is wired into the CI entry point", () => {

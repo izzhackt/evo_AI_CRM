@@ -101,7 +101,7 @@ test("the one browser proof performs one reviewed Gemini call and one explicit W
     1,
   );
   assert.equal(
-    (spec.match(/getByTestId\("platform-provider-send"\)\.click\(\)/gu) ?? []).length,
+    (spec.match(/getByTestId\("v3-inbox-send"\)\.click\(\)/gu) ?? []).length,
     1,
   );
   assert.match(spec, /Сохранить исправленный текст/u);
@@ -154,12 +154,12 @@ test("local browser proof resolves one ambiguous send only through exact WAHA re
     'test("missing primary webhook secret fails clearly',
   );
   assert.equal(
-    (scenario.match(/getByTestId\("platform-provider-send"\)\s*;/gu) ?? []).length,
+    (scenario.match(/getByTestId\("v3-inbox-send"\)\s*;/gu) ?? []).length,
     1,
   );
   assert.match(scenario, /await sendButton\.click\(\)/u);
   assert.match(scenario, /await expect\(sendButton\)\.toBeDisabled\(\)/u);
-  assert.match(scenario, /platform-provider-reconcile/u);
+  assert.match(scenario, /v3-inbox-reconcile/u);
   assert.match(scenario, /sendCount - beforeSendCount\)\.toBe\(1\)/u);
   assert.match(scenario, /requests\.filter/u);
   assert.match(scenario, /toHaveLength\(1\)/u);

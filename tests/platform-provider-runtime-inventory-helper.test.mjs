@@ -85,7 +85,7 @@ function validBrowserEvidence() {
     completedAt: OBSERVED_AT,
     routes: {
       salesWhatsApp: {
-        route: "/whatsapp/:conversationId",
+        route: "/v3/inbox?conversation=:conversationId",
         authorityRole: "sales",
         checks: {
           pageVisible: true,

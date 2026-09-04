@@ -226,7 +226,10 @@ test("Sales sync accepts only exact fields and passes a trimmed bounded human no
       },
     },
   ]);
-  assert.deepEqual(harness.revalidated, [`/sales/${IDS.lead}`]);
+  assert.deepEqual(harness.revalidated, [
+    "/v3/profile",
+    "/v3/inbox",
+  ]);
   assert.deepEqual(result, harness.result);
 });
 
@@ -258,7 +261,11 @@ test("Admissions sync uses the Admissions guard and exact Student 360 path", asy
       taskCompleteTill: 1790003600,
     },
   });
-  assert.deepEqual(harness.revalidated, [`/clients/${IDS.studentCase}`]);
+  assert.deepEqual(harness.revalidated, [
+    `/clients/${IDS.studentCase}`,
+    "/v3/profile",
+    "/v3/inbox",
+  ]);
 });
 
 test("unknown fields, duplicate fields, bad UUIDs, and notes outside 1..1000 UTF-8 bytes fail closed", async () => {
@@ -405,7 +412,11 @@ test("read-only reconciliation selects the workflow guard and exact path without
       },
     },
   ]);
-  assert.deepEqual(harness.revalidated, [`/clients/${IDS.studentCase}`]);
+  assert.deepEqual(harness.revalidated, [
+    `/clients/${IDS.studentCase}`,
+    "/v3/profile",
+    "/v3/inbox",
+  ]);
   assert.deepEqual(result, harness.result);
 });
 
@@ -442,7 +453,10 @@ test("prepared-attempt release uses the workflow guard and never enters the prov
       },
     },
   ]);
-  assert.deepEqual(harness.revalidated, [`/sales/${IDS.lead}`]);
+  assert.deepEqual(harness.revalidated, [
+    "/v3/profile",
+    "/v3/inbox",
+  ]);
   assert.deepEqual(result, harness.result);
 });
 

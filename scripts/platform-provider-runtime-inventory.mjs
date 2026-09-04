@@ -320,7 +320,7 @@ export function validateBrowserEvidence(value, expectedSha) {
 
   assertPageProof(value.routes.salesWhatsApp, {
     label: "browser evidence sales WhatsApp",
-    route: "/whatsapp/:conversationId",
+    route: "/v3/inbox?conversation=:conversationId",
     role: "sales",
     checkKeys: [
       "pageVisible",

@@ -16425,6 +16425,33 @@ Decision:
 - re-run the focused release-control tests, then obtain one fresh exact-head CI
   result before merge.
 
+## 2026-09-04 - Ignore empty npm audit error placeholders while preserving fail-closed checks
+
+Block-ID: `EVO-V3-A-AUDIT-EMPTY-ERROR-PLACEHOLDER-2026-09-04`
+
+Change type: exact-head CI reliability correction.
+Affected plan section: Order 0 / Issue #594.
+
+Exact-head run `33836613473` on commit `c6f97ca5144f42e070b208e0a9a505bc5a38630c`
+proved the pinned npm CLI install and the production lockfile audit, but the
+development allowlist step failed three times with
+`npm audit reported an execution error: {"summary":"","detail":""}`. The same
+repository and pinned `npm 11.19.0` contract passed locally, so the remaining
+failure mode was the script treating an empty npm error placeholder as a fatal
+execution error before validating whether the returned audit report itself was
+coherent.
+
+Decision:
+
+- keep the pinned npm CLI, bounded retries and fail-closed development audit;
+- ignore only empty audit `error` payloads whose fields contain no meaningful
+  data, then continue validating `auditReportVersion`, vulnerability metadata
+  and exit-status consistency exactly as before;
+- keep non-empty audit errors fatal, and keep any malformed report or status
+  mismatch fatal;
+- cover the placeholder distinction with a focused unit test, then push a fresh
+  exact head for one more CI run.
+
 ## 2026-09-04 - Pin the dev allowlist audit's internal npm invocation
 
 Block-ID: `EVO-V3-A-AUDIT-ALLOWLIST-INNER-NPM-PIN-2026-09-04`

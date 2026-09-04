@@ -819,10 +819,10 @@ try {
   `, "PAYMENT_OBLIGATION_MISSING");
   if (
     obligation.amount_minor !== "2500" ||
-    obligation.total_paid_minor !== obligation.amount_minor ||
+    obligation.total_paid_minor !== "0" ||
     obligation.total_refunded_minor !== "0"
   ) {
-    fail("PAYMENT_NOT_SETTLED");
+    fail("PAYMENT_OBLIGATION_STATE");
   }
 
   const stopFactor = one(await sql`

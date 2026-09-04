@@ -163,7 +163,7 @@ export function Inbox({
                   rows={2}
                   disabled={!canSend}
                   placeholder={canSend ? "Ответить" : "Отправка недоступна"}
-                  className="w-full resize-none rounded-ctl border border-border bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-3 disabled:bg-surface-2"
+                  className="w-full resize-none rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg placeholder:text-fg-3 disabled:bg-surface-2"
                 />
               </label>
               <button

@@ -91,7 +91,7 @@ export function Settings({
                   {entry.title}
                   {entry.admin ? (
                     <span
-                      className={`ms-auto rounded-[4px] px-1 font-mono text-[10px] ${
+                      className={`ms-auto rounded-[4px] px-1 font-mono text-2xs ${
                         active ? "bg-white/25 text-on-accent" : "bg-surface-2 text-fg-3"
                       }`}
                     >

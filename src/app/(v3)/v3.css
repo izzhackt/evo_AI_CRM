@@ -91,6 +91,21 @@
   border-radius: 6px;
 }
 
+/* Logical status edges stay explicit because Tailwind does not expose
+   theme-backed `border-s-*` colour utilities for these product tokens. */
+.v3-world .v3-edge-ok {
+  border-inline-start-color: var(--ok);
+}
+.v3-world .v3-edge-warn {
+  border-inline-start-color: var(--warn);
+}
+.v3-world .v3-edge-danger {
+  border-inline-start-color: var(--danger);
+}
+.v3-world .v3-edge-muted {
+  border-inline-start-color: var(--border-strong);
+}
+
 /*
  * В предыдущей пробе `.bg-surface` автоматически парил — тень была основным
  * приёмом. Здесь наоборот: поверхность лежит плоско, а границу держит рамка.

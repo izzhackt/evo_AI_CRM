@@ -36,9 +36,9 @@ function Note({ children }: { children: React.ReactNode }) {
 }
 
 const TONE_EDGE: Record<Health["tone"], string> = {
-  ok: "border-s-ok",
-  warn: "border-s-warn",
-  off: "border-s-border-strong",
+  ok: "v3-edge-ok",
+  warn: "v3-edge-warn",
+  off: "v3-edge-muted",
 };
 
 /* ---------------------------------------------------------- Состояние */

@@ -91,7 +91,7 @@ export function Overview({
       <a
         href={tabHref("money")}
         className={`flex flex-col gap-0.5 rounded-card border bg-surface px-4 py-3 hover:border-control-edge ${
-          blocked ? "border-border border-s-2 border-s-danger" : "border-border"
+          blocked ? "v3-edge-danger border-border border-s-2" : "border-border"
         }`}
       >
         <span className="text-2xs font-semibold uppercase tracking-wide text-fg-3">Оплата</span>
@@ -185,7 +185,7 @@ export function Money({ profile, draft }: { profile: PersonProfile; draft: Profi
   return (
     <div className="flex flex-col gap-4">
       {profile.financeStop ? (
-        <p className="flex flex-wrap items-start gap-2 rounded-card border border-border border-s-2 border-s-danger bg-surface px-4 py-3 text-sm leading-5 text-fg">
+        <p className="v3-edge-danger flex flex-wrap items-start gap-2 rounded-card border border-border border-s-2 bg-surface px-4 py-3 text-sm leading-5 text-fg">
           <Pill tone="danger">финансовый стоп</Pill>
           <span className="min-w-0 flex-1">{profile.financeStop}</span>
         </p>
@@ -331,7 +331,7 @@ export function History({ profile }: { profile: PersonProfile }) {
                 >
                   <span
                     aria-hidden="true"
-                    className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-border-strong font-mono text-[10px] text-fg-3"
+                    className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-border-strong font-mono text-2xs text-fg-3"
                   >
                     {index + 1}
                   </span>

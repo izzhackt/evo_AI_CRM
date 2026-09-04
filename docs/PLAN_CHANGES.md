@@ -16293,3 +16293,31 @@ Decision:
   region;
 - pin both properties in the fast V3 source contract before the replacement
   CI run.
+
+## 2026-09-04 - Apply the complete V3 frontend contract to imported screens
+
+Block-ID: `EVO-V3-A-FRONTEND-CONTRACT-CORRECTION-2026-09-04`
+
+Change type: exact-head CI correction.
+Affected plan section: Order 0 / Issue #594.
+
+The replacement CI run proved the corrected V3 browser sweep and then reached
+the repository-wide frontend contract for the first time. It identified one
+ad-hoc 10-pixel label, three interactive controls using the decorative border
+token, and directional status-edge utilities that the EVO theme does not
+define.
+
+Decision:
+
+- use the declared `text-2xs` scale floor for the visa sequence marker;
+- use `control-edge` for actual form/button boundaries and reserve `border`
+  for decorative separation;
+- implement logical status edges as V3 token classes backed directly by
+  `--ok`, `--warn`, `--danger` and `--border-strong`;
+- run the complete fast frontend contract locally before the next exact-head
+  CI submission.
+
+Clarification: the complete local scan found and replaced two ad-hoc 10-pixel
+labels: the visa sequence marker and the Settings Admin badge. The singular
+wording above described the first CI finding, not the final corrected
+inventory.

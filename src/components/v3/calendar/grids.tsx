@@ -106,7 +106,7 @@ export function TaskChip({
       className={`flex min-h-11 w-full flex-col items-start gap-0.5 rounded-nav border px-1.5 py-1 text-start ${
         selected
           ? "border-accent bg-accent text-on-accent"
-          : "border-border bg-surface-2 hover:border-border-strong"
+          : "border-control-edge bg-surface-2 hover:border-accent"
       }`}
     >
       <span

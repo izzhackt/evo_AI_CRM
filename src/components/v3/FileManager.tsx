@@ -200,7 +200,7 @@ export function FileManager({
                   <button
                     type="button"
                     onClick={() => openFolder(folder.id)}
-                    className="flex min-h-20 w-full items-center gap-3 rounded-card border border-border bg-surface-2 p-3 text-start hover:border-control-edge"
+                    className="flex min-h-20 w-full items-center gap-3 rounded-card border border-control-edge bg-surface-2 p-3 text-start hover:border-accent"
                   >
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ctl bg-surface-3 text-fg-2">
                       <Icon name="folder" size={19} />

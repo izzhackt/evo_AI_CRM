@@ -1,23 +1,26 @@
 # EVO Launch Plan
 
-Status: active managed-Supabase production-successor contract
-Date: 2026-09-02 (Asia/Dubai)
-Authority: owner direction, ADRs 0024 and 0025, this plan and the latest
-append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and ordered children
-#544 through #553
+Status: active V3-on-managed-Supabase production-successor contract
+Date: 2026-09-04 (Asia/Dubai)
+Authority: owner direction 2026-09-04, ADRs 0024, 0026 and 0027, this plan and
+the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
+ordered sequence #594 through #600, then #551 through #553. After #594 merges,
+root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
+those higher-level authorities.
 Verified starting baseline: GitHub `origin/main` at
-`4a2984f55b13bf4fe416a70d7989b9311daa8055`
-Latest verified shared main after the P5A provider contract:
-`b3f0f45b3632b8db4b2723ffe0ae77b382f60da8`, with exact-main CI run
-`33625536519` green for Main CRM, EVO Inbox and EVO Lead Agent.
+`d6fc0f4720fcb6a1d012a4bfb4faa4ea1553f47b`
+Verified V3 merge target: GitHub `origin/claude/v3-frontend` at
+`c53c978e251754509948240fc7eef40d3a74da90`
 
-## Current authority: one Supabase-backed production EVO
+## Current authority: V3 becomes the managed-Supabase product
 
-The owner has ended the self-hosted/no-Supabase direction. The target is one
-EVO Admissions CRM: the accepted V2 interface, business workflows and provider
-safety behavior running on the ready-made managed Supabase foundation retained
-from V1. After controlled cutover, `V1` and `V2` are historical release labels,
-not active products or parallel runtime choices.
+The owner has ended both the self-hosted/no-Supabase direction and the
+V3-as-side-branch direction. The target is one EVO Admissions CRM: V3 as the
+active product surface, backed by the ready-made managed Supabase foundation
+retained from V1 and by the already proved server-side business engine now used
+by the current staff UI. After controlled cutover and cleanup, `V1`, `V2` and
+the unmerged V3 branch are historical implementation labels, not active product
+choices.
 
 The preferred foundation is the existing dedicated EVO managed Supabase
 project. A read-only audit must first prove its project identity, applied
@@ -34,8 +37,8 @@ The production successor uses:
 - Supabase Auth plus server authorization/RLS for real staff identity;
 - private Supabase Storage for accepted documents and WhatsApp media;
 - Realtime only where a proved product interaction needs live updates;
-- the current V2 Sales, Student 360, Admissions, documents, applications, visa,
-  finance, WhatsApp and advisory-AI staff experience;
+- the V3 product surface for Sales, Student 360, Admissions, documents,
+  applications, visa, finance, WhatsApp and advisory-AI staff experience;
 - the V2 human-reviewed Gemini, explicit WhatsApp send, ambiguity recovery and
   idempotent amoCRM command semantics;
 - the already connected private sales WAHA transport session `crm_primary`,
@@ -44,26 +47,37 @@ The production successor uses:
 - the existing EVO-owned VPS, Caddy, CI/release and private WAHA capabilities
   where the audit proves they are current and correctly isolated.
 
-### V3 frontend coordination boundary
+### V3 integration boundary
 
-The unmerged `claude/v3-frontend` branch at
-`147421c3129b6e938a168cdf8788687cddc07318` is a design-track reference, not a
-release dependency or part of the exact-head candidate. Backend slices must not
-merge it, plan around its arrival or edit `src/lib/v3/*`. When a canonical data
-authority or response contract changes, record and communicate that contract
-first; the V3 track owns the small source-adapter rewrite and its seven screens.
+`claude/v3-frontend` at `c53c978e251754509948240fc7eef40d3a74da90` is the first
+active integration target. Bring its V3 surface onto current `main` before
+continuing the successor sequence, reconcile it with the current
+Supabase/runtime contract, and then continue on one branch of truth. Do not
+blindly merge branch-wide deploy, workflow, archive, SQLite, Drizzle or
+runtime-contract changes that would regress completed `main` work or delete
+frozen history.
+
+Before any #594 change or merge, read the complete pinned-branch versions of
+`CLAUDE.md`, `docs/design/v3/product.md`, `docs/design/v3/frontend-rules.md`,
+`docs/design/v3/backend-gaps.md` and `docs/design/v3/handover-to-codex.md`.
+Those files are required integration inputs before they become ordinary
+`main` files through the merge.
+
+Do not rebuild business logic that already exists. The current server actions in
+`src/lib/server/` and the canonical CRM repository remain the product engine.
+V3 work connects forms and source adapters to that engine with real server
+validation, `useActionState`, authorization checks and `expected_version`
+optimistic locking. When V3 gains a proved business action, delete the
+superseded V2 screen in the same replacement slice.
 
 Do not rebuild schema or duplicate UI that already has a clear owner. Reuse the
 existing Supabase document checklist/review model from migrations 043, 046, 053
-and 055, visa cases and commands from migration 042, and lead ownership/stages
-from migration 086. Backend work may expose and verify those canonical
-contracts, while the V3 track owns the document-checklist, visa and lead-owner
-screens. Do not add a third university-application status dictionary or an
-in-app WhatsApp channel-connection flow. The genuine gaps recorded in the V3
-branch -- staff as a person, payment plans, the client questionnaire,
-application priority/deadline and document-to-application/visa links -- remain
-coordination inputs and do not enter the active sequence without their own
-prioritized slice.
+and 055, visa cases and commands from migration 042, lead ownership and
+extended sales workflow from migration 086, and the platform audit slice behind
+`EVO_PLATFORM_P7A_AUDIT_ENABLED`. `src/lib/v3/*` is the V3 data-access rewrite
+boundary; prefer changing those source adapters before changing screens. Do not
+add a third university-application status dictionary or an in-app WhatsApp
+channel-connection flow.
 
 The production successor does not keep Drizzle `evo_*`, SQLite, the two-field
 development gate, application-local private document bytes, old manual or
@@ -83,14 +97,15 @@ showing that the superseded path is no longer active and a fail-closed proof
 showing that the app does not fall back.
 
 Repository changes, read-only provider/deployment inspection, isolated local
-Supabase work and staging preparation continue without routine approval pauses.
-Production data mutation or traffic cutover occurs only after all of these are
-true:
+Supabase work and isolated recovery/migration rehearsal continue without
+routine approval pauses. The owner has authorized #552 to perform the bounded
+V3 production deployment and active-runtime retirement without another routine
+approval request, but only after all of these are true:
 
 1. the exact managed project and production runtime are identified;
 2. a recoverable pre-change backup exists and a restore has been proved;
-3. forward migrations and data reconciliation pass on an isolated copy or
-   staging project using real schema and representative authorized data;
+3. forward migrations and data reconciliation pass on an isolated copy using
+   real schema and representative authorized data;
 4. real Auth, RLS, Storage and CRM browser workflows plus provider
    configuration and fail-closed readiness checks pass; live Gemini/WhatsApp
    delivery is not an active gate and must not be claimed;
@@ -106,24 +121,33 @@ new path is accepted; historical and rollback material remains preserved.
 
 | Order | Issue | Slice | Outcome |
 | --- | --- | --- | --- |
-| 0 | #544 | Architecture and issue reset | ADR 0024, glossary, launch contract and exact GitHub sequence |
-| 1 | #545 | Existing-state audit | read-only managed Supabase, VPS, data, Auth, Storage, migrations and runtime inventory |
-| 2 | #546 | Real staff and Sales tracer | Supabase Auth/RBAC/RLS plus the accepted Sales lead workflow prove the first complete successor path |
-| 3 | #547 | Student 360 and handoff tracer | contract/payment gate and accountable handoff run on the canonical Supabase model |
-| 4 | #548 | Admissions and private files tracer | Admissions operations and Supabase Storage replace local files and remaining case paths |
-| 5 | #549, #565-#568 | Provider tracer | Gemini, WhatsApp and amoCRM replace local state in order, then pass an exact-main single-runtime and fail-closed inventory without a live Gemini/WhatsApp exercise |
-| 6 | #550 | Single deployment and cleanup | production image/Compose/env/release path drops SQLite, Drizzle authority, old workers and duplicate runtime dependencies |
-| 7 | #551 | Staging and recovery acceptance | real staging, restore, migration rehearsal, browser, role, file and provider-configuration proof; no controlled-chat send test |
-| 8 | #552 | Production cutover and retirement | bounded data/traffic switch, verification, rollback window and active V1 removal |
-| 9 | #553 | Completion audit | exact-main proof of one UI, runtime, data, auth/session, file and provider authority |
+| 0 | #594 | Merge V3 | merge `claude/v3-frontend` into current `main`, preserve #585-#587 cleanup, resolve the route contract and run the V3 quality gate |
+| 1 | #595 | Sales decisions and handoff | wire stage/next action, contract/first-payment evidence and the atomic Admissions handoff into V3, then remove only their superseded V2 controls |
+| 2 | #596 | Inbox and provider commands | wire human-reviewed Gemini proposals, explicit WhatsApp send and explicit amoCRM commands into V3 while production providers remain disabled |
+| 3 | #597 | Admissions operations | wire tasks, applications, visa, finance stop and private documents into the V3 profile/calendar, then remove their superseded V2 controls |
+| 4 | #598 | Existing Supabase capabilities | connect document checklist/review, visa-case, lead-owner/stage and audit capabilities already present in canonical migrations |
+| 5 | #599 | Confirmed schema gaps | add only genuinely missing V3 product fields through forward Supabase migrations after a fresh current-main inventory |
+| 6 | #600 | One V3 UI | move the authenticated root to V3 and remove the remaining superseded V1/V2 screens and dead runtime code after replacement proof |
+| 7 | #551 | Release and recovery without staging | automate exact-green-main deployment, keep schema apply manual, and prove backup/restore, isolated migration rehearsal and application rollback |
+| 8 | #552 | Production deployment and retirement | deploy the exact green V3 revision, verify it, and retire the superseded active runtime without a fallback path |
+| 9 | #553 | Completion audit and safe cleanup | certify one exact-main live product authority, then remove only inventoried stale branches/comments while preserving history |
 
-Orders 0 through 5 are complete. Under #550, #584, #585 and #586 are complete.
-The successor candidate now has the managed-Supabase-backed standalone application
-plus the one retained private WAHA transport, with required key boundaries and
-no candidate SQLite volume, frozen lead-agent service, separate manual-send
-worker, active Drizzle/SQLite application path or bundled obsolete database
-toolchain. The active cleanup/proof slice is #587. Issue #551 follows only
-after #587 and parent #550 are complete.
+The previous managed-Supabase successor sequence through #550 is complete and
+remains historical evidence below. Issues #551 through #553 now follow #600;
+their old staging-first text is superseded by the no-staging recovery, direct
+deployment and exact-main audit contracts above.
+
+### Deferred provider and data changes
+
+- live Gemini/WhatsApp delivery proof, provider enablement and webhook-ownership
+  transfer;
+- broad historical-data migration or any provider/customer mutation not named
+  in #552.
+
+No staging environment is created. Supabase migrations are developed and
+proved against the real local stack and an isolated copy, then applied as a
+separate controlled schema step in #552. Application deployment follows only
+after exact-commit CI success and must retain immutable-image rollback.
 
 #### Completed #585 Supabase application-runtime and UI replacement slice
 

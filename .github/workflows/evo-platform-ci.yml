@@ -76,7 +76,35 @@ jobs:
         run: npm run build
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=moderate
+        # Lockfile-only avoids platform-specific installed-tree drift on the
+        # runner: https://docs.npmjs.com/cli/v11/commands/npm-audit/#package-lock-only
+        timeout-minutes: 3
+        env:
+          npm_config_fetch_retries: "0"
+          npm_config_fetch_timeout: "30000"
+        run: |
+          for attempt in 1 2 3; do
+            if npm audit --package-lock-only --omit=dev --audit-level=moderate; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
 
       - name: Audit development dependencies against the temporary allowlist
-        run: node scripts/check-npm-audit-allowlist.mjs
+        timeout-minutes: 3
+        env:
+          npm_config_fetch_retries: "0"
+          npm_config_fetch_timeout: "30000"
+        run: |
+          for attempt in 1 2 3; do
+            if node scripts/check-npm-audit-allowlist.mjs; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done

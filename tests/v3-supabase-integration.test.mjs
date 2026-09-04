@@ -31,6 +31,10 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
   assert.match(layout, /requirePlatformStaffActor/);
   assert.doesNotMatch(profilePage, /PROFILE_SAMPLE|\.\/sample/);
   assert.doesNotMatch(knowledgePage, /COMPANY_FILES|Требования к нострификации/);
+  assert.match(
+    knowledgePage,
+    /requirePlatformDocumentsActor\("\/v3\/knowledge"\)/,
+  );
   assert.match(knowledgePage, /v3-knowledge-student-documents-limited/);
   assert.match(knowledgePage, /studentDocuments\.complete/);
   assert.equal(

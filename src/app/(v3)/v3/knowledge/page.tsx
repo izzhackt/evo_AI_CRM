@@ -20,7 +20,7 @@ export const metadata = { title: "V3 · База знаний" };
 const STUDENTS_ROOT = "students";
 
 export default async function KnowledgePart() {
-  const actor = await requirePlatformDocumentsActor();
+  const actor = await requirePlatformDocumentsActor("/v3/knowledge");
   const [company, students, studentDocuments] = await Promise.all([
     readCompanyKnowledge(actor),
     readKnowledgeStudents(actor),

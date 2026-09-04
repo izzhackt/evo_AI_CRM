@@ -128,7 +128,7 @@ new path is accepted; historical and rollback material remains preserved.
 | 1 | #595 | Sales decisions and handoff | wire stage/next action, contract/first-payment evidence and the atomic Admissions handoff into V3, then remove only their superseded V2 controls |
 | 2 | #596 | Inbox and provider commands | wire human-reviewed Gemini proposals, explicit WhatsApp send and explicit amoCRM commands into V3 while production providers remain disabled |
 | 3 | #597 | Admissions operations | wire tasks, applications, visa, finance stop and private documents into the V3 profile/calendar, then remove their superseded V2 controls |
-| 4 | #598 | Remaining Supabase reuse | verify the canonical document checklist denominator remains the approved two-state file UI, expose the existing audit CSV export in V3, enrich visa presentation only from the existing canonical snapshot, and remove the exact superseded surfaces |
+| 4 | #598 | Remaining Supabase reuse | expose the existing Admin-only audit CSV export in V3 and verify that #597 already supplies the approved two-state canonical document checklist and complete canonical visa snapshot without duplicate work |
 | 5 | #599 | Confirmed schema gaps | add only genuinely missing V3 product fields through forward Supabase migrations after a fresh current-main inventory |
 | 6 | #600 | One V3 UI | move the authenticated root to V3 and remove the remaining superseded V1/V2 screens and dead runtime code after replacement proof |
 | 7 | #551 | Release and recovery without staging | automate exact-green-main deployment, keep schema apply manual, and prove backup/restore, isolated migration rehearsal and application rollback |

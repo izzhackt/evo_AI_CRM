@@ -16906,3 +16906,32 @@ Decision:
   export, richer visa presentation only from the existing canonical snapshot,
   focused replacement cleanup and real proof without provider or production
   mutation.
+
+## 2026-09-04 - Close already-completed document and visa reuse in #598
+
+Block-ID: `EVO-V3-E-AUDIT-EXPORT-ONLY-2026-09-04`
+
+Change type: current-main completion inventory.
+Affected plan section: Order 4 / Issue #598.
+
+A fresh inventory of merged #597 shows that the V3 profile already reads the
+canonical document slots, derives its live denominator from those slots and
+uses the private Storage upload/download routes while presenting only `нет` /
+`есть`. The V3 Admissions workspace also already reads and mutates every field
+in the current canonical visa snapshot: status and note, with the required id,
+version and request identifiers. The only additional timestamp is
+`updated_at`; it is not a product deadline and must not be presented as one.
+
+Decision:
+
+- treat canonical document checklist reuse and the complete current visa
+  snapshot as completed by #597; #598 verifies their contracts but adds no
+  duplicate projection, status or invented date;
+- narrow #598 implementation to exposing the existing Admin-only audit CSV
+  route through the V3 journal and its active proxy contract, with real
+  browser/download proof and non-Admin denial;
+- delete no UI in this slice: there is no legacy audit UI, and the retained
+  `/documents` surface is a read-only cross-case queue rather than a duplicate
+  of the per-case V3 document workspace; its authenticated-root transition
+  remains #600 scope;
+- keep provider, managed-production, schema and deployment state unchanged.

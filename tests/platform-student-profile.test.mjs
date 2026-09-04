@@ -90,7 +90,7 @@ function documentRow(overrides = {}) {
     instructions: "Synthetic instruction",
     checklist_version: "3",
     slot_status: "correction_required",
-    deadline: "2026-09-30",
+    deadline: AT,
     next_action: "Upload a clearer scan",
     document_version_id: DOCUMENT_VERSION_ID,
     version_no: "1",
@@ -214,7 +214,14 @@ test("document checklist rows preserve rework state without inventing upload cap
   const document = normalizePlatformStudentCaseDocument(documentRow(), CASE_ID);
   assert.equal(document.documentSlotId, SLOT_ID);
   assert.equal(document.slotStatus, "correction_required");
+  assert.equal(document.deadline, AT);
   assert.equal(document.reworkReason, "Synthetic image is unclear");
+  assert.throws(
+    () => normalizePlatformStudentCaseDocument(
+      documentRow({ deadline: "2026-09-30" }),
+    ),
+    PlatformStudentProfileRepositoryError,
+  );
   assert.throws(
     () => normalizePlatformStudentCaseDocument(
       documentRow({ declared_mime_type: "x".repeat(129) }),

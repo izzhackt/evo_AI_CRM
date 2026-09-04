@@ -733,82 +733,83 @@ test("Sales and Admin persist the same canonical workflow through the real inter
 }) => {
   test.skip(authMode !== "configured");
   const leadId = requireUuid("EVO_SUPABASE_SALES_WORKFLOW_LEAD_ID");
+  const workflowPanel = () =>
+    page.locator(
+      `[data-testid="v3-pipeline-decision"][data-lead-id="${leadId}"]`,
+    );
+  const workflowForm = () =>
+    workflowPanel().getByTestId("v3-pipeline-workflow-form");
+  const openWorkflow = async () => {
+    const panel = workflowPanel();
+    await expect(panel).toBeVisible();
+    if ((await panel.getAttribute("open")) === null) {
+      await panel.locator("summary").click();
+    }
+    return workflowForm();
+  };
 
   await signIn(page, "sales");
-  await page.goto(`/sales/${leadId}`);
-  await expect(page.getByTestId("platform-sales-workflow-form")).toBeVisible();
-  await expect(
-    page.getByTestId("canonical-lead-stage").locator("dd"),
-  ).toHaveText(/new/i);
-  await expect(
-    page.getByTestId("canonical-lead-workflow-version").locator("dd"),
-  ).toHaveText("11");
-  await expect(page.getByTestId("platform-sales-owner")).not.toHaveValue("");
+  await page.goto("/v3/pipeline");
+  let form = await openWorkflow();
+  await expect(form).toBeVisible();
+  await expect(form.getByTestId("v3-pipeline-stage")).toHaveValue("new");
+  await expect(form.locator('input[name="expected_version"]')).toHaveValue("11");
+  await expect(form.getByText("Версия 11", { exact: true })).toBeVisible();
+  await expect(form.getByTestId("v3-pipeline-owner")).not.toHaveValue("");
 
-  await page
-    .getByTestId("platform-sales-stage")
-    .selectOption("meeting_scheduled");
-  await page
-    .getByTestId("platform-sales-next-action-text")
+  await form.getByTestId("v3-pipeline-stage").selectOption("meeting_scheduled");
+  await form
+    .getByTestId("v3-pipeline-next-action")
     .fill("Browser Sales meeting follow-up");
-  await page
-    .getByTestId("platform-sales-next-action-due-date")
+  await form
+    .getByTestId("v3-pipeline-next-action-date")
     .fill("2099-09-08");
-  await page.getByTestId("platform-sales-submit").click();
-  await expect(
-    page.getByTestId("platform-sales-action-status"),
-  ).toHaveAttribute("data-status", "saved");
-  await expect(
-    page.getByTestId("canonical-lead-stage").locator("dd"),
-  ).toHaveText(/meeting scheduled/i);
-  await expect(
-    page.getByTestId("canonical-lead-workflow-version").locator("dd"),
-  ).toHaveText("12");
+  await form.getByTestId("v3-pipeline-submit").click();
+  await expect(workflowForm()).toHaveCount(0);
+  form = await openWorkflow();
+  await expect(form.locator('input[name="expected_version"]')).toHaveValue("12");
+  await expect(form.getByText("Версия 12", { exact: true })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByTestId("platform-sales-stage")).toHaveValue(
+  form = await openWorkflow();
+  await expect(form.getByTestId("v3-pipeline-stage")).toHaveValue(
     "meeting_scheduled",
   );
-  await expect(page.getByTestId("platform-sales-next-action-text")).toHaveValue(
+  await expect(form.getByTestId("v3-pipeline-next-action")).toHaveValue(
     "Browser Sales meeting follow-up",
   );
   await expect(
-    page.getByTestId("platform-sales-next-action-due-date"),
+    form.getByTestId("v3-pipeline-next-action-date"),
   ).toHaveValue("2099-09-08");
 
   await page.context().clearCookies();
   await signIn(page, "admin");
-  await page.goto(`/sales/${leadId}`);
-  await expect(
-    page.getByTestId("canonical-lead-workflow-version").locator("dd"),
-  ).toHaveText("12");
-  await page.getByTestId("platform-sales-stage").selectOption("qualified");
-  await page
-    .getByTestId("platform-sales-next-action-text")
+  await page.goto("/v3/pipeline");
+  form = await openWorkflow();
+  await expect(form.locator('input[name="expected_version"]')).toHaveValue("12");
+  await form.getByTestId("v3-pipeline-stage").selectOption("qualified");
+  await form
+    .getByTestId("v3-pipeline-next-action")
     .fill("Browser Admin qualification review");
-  await page
-    .getByTestId("platform-sales-next-action-due-date")
+  await form
+    .getByTestId("v3-pipeline-next-action-date")
     .fill("2099-09-09");
-  await page.getByTestId("platform-sales-submit").click();
-  await expect(
-    page.getByTestId("platform-sales-action-status"),
-  ).toHaveAttribute("data-status", "saved");
-  await expect(
-    page.getByTestId("canonical-lead-stage").locator("dd"),
-  ).toHaveText(/qualified/i);
-  await expect(
-    page.getByTestId("canonical-lead-workflow-version").locator("dd"),
-  ).toHaveText("13");
+  await form.getByTestId("v3-pipeline-submit").click();
+  await expect(workflowForm()).toHaveCount(0);
+  form = await openWorkflow();
+  await expect(form.locator('input[name="expected_version"]')).toHaveValue("13");
+  await expect(form.getByText("Версия 13", { exact: true })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByTestId("platform-sales-stage")).toHaveValue(
+  form = await openWorkflow();
+  await expect(form.getByTestId("v3-pipeline-stage")).toHaveValue(
     "qualified",
   );
-  await expect(page.getByTestId("platform-sales-next-action-text")).toHaveValue(
+  await expect(form.getByTestId("v3-pipeline-next-action")).toHaveValue(
     "Browser Admin qualification review",
   );
   await expect(
-    page.getByTestId("platform-sales-next-action-due-date"),
+    form.getByTestId("v3-pipeline-next-action-date"),
   ).toHaveValue("2099-09-09");
 });
 
@@ -818,7 +819,6 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   test.skip(authMode !== "configured");
   test.setTimeout(120_000);
   const leadId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_LEAD_ID");
-  const clientId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_CLIENT_ID");
   const [salesToken, admissionsToken, adminToken] = await Promise.all([
     localSupabaseAccessToken("sales"),
     localSupabaseAccessToken("admissions"),
@@ -867,12 +867,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   });
 
   await signIn(page, "sales");
-  await page.goto(`/sales/${leadId}`);
-  await expect(
-    page.getByTestId("canonical-client-id").locator("dd"),
-  ).toHaveText(clientId);
+  await page.goto(`/v3/profile?id=${leadId}&tab=overview`);
+  await expect(page.getByTestId("v3-sales-transition")).toBeVisible();
 
-  const contractForm = page.getByTestId("platform-gate-contract-form");
+  const contractForm = page.getByTestId("v3-gate-contract-form");
   await expect(contractForm).toBeVisible();
   await contractForm.locator('input[name="amount"]').fill("1000.00");
   await contractForm.locator('input[name="currency"]').fill("KGS");
@@ -882,7 +880,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .fill("local-browser-contract-547");
   await contractForm.locator('button[type="submit"]').click();
 
-  const paymentForm = page.getByTestId("platform-gate-payment-form");
+  const paymentForm = page.getByTestId("v3-gate-payment-form");
   await expect(paymentForm).toBeVisible();
   const receivedDate = new Date().toISOString().slice(0, 10);
   await paymentForm.locator('input[name="received_date"]').fill(receivedDate);
@@ -891,7 +889,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .fill("local-browser-first-payment-547");
   await paymentForm.locator('button[type="submit"]').click();
 
-  const handoffForm = page.getByTestId("platform-handoff-form");
+  const handoffForm = page.getByTestId("v3-sales-handoff-form");
   await expect(handoffForm).toBeVisible();
   const ownerSelect = handoffForm.locator(
     'select[name="admissions_owner_membership_id"]',
@@ -902,19 +900,50 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .getAttribute("value");
   expect(admissionsOwnerId).toBeTruthy();
   await ownerSelect.selectOption(admissionsOwnerId!);
-  await handoffForm
-    .locator('select[name="handoff_mode"]')
-    .selectOption("normal");
+  await expect(
+    handoffForm.locator('input[name="handoff_mode"]'),
+  ).toHaveValue("normal");
   await handoffForm
     .locator('textarea[name="reason"]')
     .fill("Local browser proof of the reviewed Sales to Admissions handoff");
   await handoffForm.locator('button[type="submit"]').click();
 
-  const result = page.getByTestId("platform-handoff-result");
+  const result = page.getByTestId("v3-sales-handoff-completed");
   await expect(result).toBeVisible();
-  await expect(result.locator('a[href^="/clients/"]')).toHaveCount(0);
+  await expect(
+    result.getByText("Полное дело доступно Admissions и Admin.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const handoffSnapshot = await directPlatformRpc(
+    "staff_lead_admissions_handoff",
+    { p_lead_id: leadId },
+    salesToken,
+  );
+  expect(handoffSnapshot.status).toBe(200);
+  expect(handoffSnapshot.payload).toHaveLength(1);
   const studentCaseId = requireUuidValue(
-    (await result.locator("dd").first().textContent())?.trim() ?? null,
+    expectObject((handoffSnapshot.payload as unknown[])[0]).case_id,
+  );
+
+  await page.context().clearCookies();
+  await signIn(page, "admin");
+  await page.goto(`/v3/profile?id=${leadId}&tab=overview`);
+  const adminHandoff = page.getByTestId("v3-sales-handoff-completed");
+  await expect(adminHandoff).toBeVisible();
+  const caseLink = adminHandoff.getByRole("link", { name: "Открыть дело" });
+  await expect(caseLink).toHaveAttribute(
+    "href",
+    `/v3/profile?id=${leadId}&tab=anketa`,
+  );
+  await caseLink.click();
+  await expect(page).toHaveURL(
+    new RegExp(`/v3/profile\\?id=${leadId}&tab=anketa$`),
+  );
+  await expect(page.getByText("Студент", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Анкета" })).toHaveAttribute(
+    "aria-current",
+    "page",
   );
 
   assertDeniedRpc(
@@ -1442,11 +1471,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   await page.context().clearCookies();
   await signIn(page, "admin");
-  await page.goto(`/sales/${leadId}`);
+  await page.goto(`/v3/profile?id=${leadId}&tab=overview`);
   await expect(
     page
-      .getByTestId("platform-handoff-result")
-      .locator(`a[href="/clients/${studentCaseId}"]`),
+      .getByTestId("v3-sales-handoff-completed")
+      .locator(`a[href="/v3/profile?id=${leadId}&tab=anketa"]`),
   ).toBeVisible();
   await page.goto("/clients");
   const exactStudentCaseRow = page.locator(

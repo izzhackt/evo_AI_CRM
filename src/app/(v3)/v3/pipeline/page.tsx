@@ -1,13 +1,29 @@
+import { randomUUID } from "node:crypto";
+
 import { Pipeline } from "@/components/v3/Pipeline";
 import { requirePlatformSalesActor } from "@/lib/platform-guards";
-import { readPipelineLeads, readPipelineStages } from "@/lib/v3/pipeline-source";
+import {
+  readPipelineLeads,
+  readPipelineOwnerOptions,
+  readPipelineStages,
+} from "@/lib/v3/pipeline-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Воронка продаж" };
 
 export default async function PipelinePart() {
   const actor = await requirePlatformSalesActor();
-  const [stages, leads] = [readPipelineStages(), await readPipelineLeads(actor)];
+  if (actor.authorityRole !== "admin" && actor.authorityRole !== "sales") {
+    throw new Error("Sales route resolved a non-Sales staff role.");
+  }
+  const stages = readPipelineStages();
+  const [leads, ownerOptions] = await Promise.all([
+    readPipelineLeads(actor),
+    readPipelineOwnerOptions(actor),
+  ]);
+  const requestIds = Object.fromEntries(
+    leads.map((lead) => [lead.id, randomUUID()]),
+  );
 
   return (
     <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
@@ -16,7 +32,15 @@ export default async function PipelinePart() {
       </h1>
 
       <div className="mt-6">
-        <Pipeline stages={stages} leads={leads} />
+        <Pipeline
+          stages={stages}
+          leads={leads}
+          ownerOptions={ownerOptions.rows}
+          ownerOptionsHaveMore={ownerOptions.hasNext}
+          actorRole={actor.authorityRole}
+          actorMembershipId={actor.membershipId}
+          requestIds={requestIds}
+        />
       </div>
     </main>
   );

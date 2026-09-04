@@ -14,7 +14,7 @@ export type PlatformSalesOwnerOption = Readonly<{
   displayLabel: string;
 }>;
 
-export type PlatformSalesWorkflowFormLead = Readonly<{
+export type PlatformSalesWorkflowLead = Readonly<{
   leadId: string;
   currentOwnerMembershipId: string | null;
   currentOwnerDisplayName: string | null;

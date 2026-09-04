@@ -40,6 +40,87 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
   );
 });
 
+test("V3 owns the only Sales decision, gate and handoff interface", () => {
+  const pipelinePage = source("src/app/(v3)/v3/pipeline/page.tsx");
+  const pipeline = source("src/components/v3/Pipeline.tsx");
+  const decision = source("src/components/v3/PipelineDecisionForm.tsx");
+  const profilePage = source("src/app/(v3)/v3/profile/page.tsx");
+  const profile = source("src/components/v3/profile/Profile.tsx");
+  const tabs = source("src/components/v3/profile/tabs.tsx");
+  const transition = source(
+    "src/components/v3/profile/ProfileSalesTransition.tsx",
+  );
+  const profileSource = source("src/lib/v3/profile-source.ts");
+  const oldWorkspace = source(
+    "src/app/(staff)/sales/[id]/SalesLeadWorkspace.tsx",
+  );
+
+  assert.match(pipelinePage, /requirePlatformSalesActor/);
+  assert.match(pipeline, /<PipelineDecisionForm/);
+  assert.match(
+    pipeline,
+    /key=\{`\$\{lead\.workflow\.leadId\}:\$\{lead\.workflow\.workflowVersion\}`\}/,
+  );
+  assert.match(pipelinePage, /readPipelineOwnerOptions\(actor\)/);
+  assert.match(pipelinePage, /ownerOptions=\{ownerOptions\.rows\}/);
+  assert.match(decision, /updatePlatformSalesWorkflowAction/);
+  for (const field of [
+    "lead_id",
+    "expected_version",
+    "request_id",
+    "stage_key",
+    "current_owner_membership_id",
+    "clear_next_action",
+    "next_action_text",
+    "next_action_due_date",
+    "reason",
+  ]) {
+    assert.match(decision, new RegExp(`name="${field}"`));
+  }
+  for (const testId of [
+    "v3-pipeline-workflow-form",
+    "v3-pipeline-decision",
+    "v3-pipeline-stage",
+    "v3-pipeline-next-action",
+    "v3-pipeline-next-action-date",
+    "v3-pipeline-reason",
+    "v3-pipeline-submit",
+    "v3-pipeline-workflow-status",
+  ]) {
+    assert.match(decision, new RegExp(`data-testid="${testId}"`));
+  }
+
+  assert.match(profilePage, /sales=\{view\.sales\}/);
+  assert.match(profilePage, /actorRole=\{actor\.authorityRole\}/);
+  assert.match(profilePage, /requestIds=\{requestIds\}/);
+  assert.match(profile, /<Overview[\s\S]*sales=\{sales\}/);
+  assert.match(tabs, /<ProfileSalesTransition/);
+  assert.match(profileSource, /getPlatformLeadAdmissionsGate/);
+  assert.match(profileSource, /getPlatformLeadAdmissionsHandoff/);
+  assert.match(transition, /mutatePlatformLeadAdmissionsGateAction/);
+  assert.match(transition, /handoffPlatformLeadToAdmissionsAction/);
+  assert.match(transition, /name="expected_gate_version"/);
+  assert.match(transition, /data-testid="v3-sales-transition"/);
+  assert.match(transition, /data-testid="v3-sales-handoff"/);
+  assert.match(transition, /caseHref=\{caseHref\}/);
+
+  assert.doesNotMatch(
+    oldWorkspace,
+    /SalesWorkflowForm|SalesGateCard|SalesHandoffCard|getPlatformLeadAdmissionsGate|getPlatformLeadAdmissionsHandoff/,
+  );
+  for (const path of [
+    "src/components/platform/sales/PlatformSalesWorkflowForm.tsx",
+    "src/components/platform/sales/PlatformSalesGateCard.tsx",
+    "src/components/platform/sales/PlatformSalesHandoffCard.tsx",
+  ]) {
+    assert.equal(
+      existsSync(new URL(`../${path}`, import.meta.url)),
+      false,
+      `${path} must be deleted after V3 replacement`,
+    );
+  }
+});
+
 test("V3 read surfaces cannot imitate durable business mutations in browser state", () => {
   const pipeline = source("src/components/v3/Pipeline.tsx");
   const calendar = source("src/components/v3/calendar/Calendar.tsx");

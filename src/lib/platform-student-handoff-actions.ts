@@ -349,6 +349,8 @@ export async function mutatePlatformLeadAdmissionsGateAction(
     const receipt = await mutatePlatformLeadAdmissionsGate(actor, input);
     revalidatePath("/sales");
     revalidatePath(`/sales/${receipt.leadId}`);
+    revalidatePath("/v3/pipeline");
+    revalidatePath(`/v3/profile?id=${receipt.leadId}`);
     return Object.freeze({
       status: "saved" as const,
       requestId: randomUUID(),
@@ -376,6 +378,8 @@ export async function handoffPlatformLeadToAdmissionsAction(
     const receipt = await handoffPlatformLeadToAdmissions(actor, input);
     revalidatePath("/sales");
     revalidatePath(`/sales/${receipt.leadId}`);
+    revalidatePath("/v3/pipeline");
+    revalidatePath(`/v3/profile?id=${receipt.leadId}`);
     revalidatePath("/clients");
     if (receipt.caseId) revalidatePath(`/clients/${receipt.caseId}`);
     return Object.freeze({

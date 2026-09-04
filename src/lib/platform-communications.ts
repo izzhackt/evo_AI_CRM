@@ -13,6 +13,7 @@ const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform communications are unavailable.";
 
 export type PlatformConversationQueue = "sales" | "admissions";
+type PlatformConversationQueueWire = "sales" | "curator";
 export type PlatformConversationStatus = "open" | "closed";
 export type PlatformWahaSessionName = "crm_primary";
 const RETIRED_WAHA_EVIDENCE_SESSION = "evo-inbox" as const;
@@ -476,11 +477,17 @@ export function normalizePlatformConversationSummary(
   );
   const createdAt = parseTimestamp(value.created_at);
   const sortAt = parseTimestamp(value.sort_at);
+  const queue: PlatformConversationQueue | null =
+    value.queue === "sales"
+      ? "sales"
+      : value.queue === "curator"
+        ? "admissions"
+        : null;
 
   if (
     id === null ||
     (value.student_case_id !== null && studentCaseId === null) ||
-    (value.queue !== "sales" && value.queue !== "admissions") ||
+    queue === null ||
     (value.status !== "open" && value.status !== "closed") ||
     subject === null ||
     wahaSessionName === null ||
@@ -498,7 +505,7 @@ export function normalizePlatformConversationSummary(
   return {
     id,
     studentCaseId,
-    queue: value.queue,
+    queue,
     status: value.status,
     subject,
     wahaSessionName,
@@ -510,6 +517,13 @@ export function normalizePlatformConversationSummary(
     createdAt,
     sortAt,
   };
+}
+
+function toPlatformConversationQueueWire(
+  queue: PlatformConversationQueue | undefined,
+): PlatformConversationQueueWire | null {
+  if (queue === undefined) return null;
+  return queue === "admissions" ? "curator" : queue;
 }
 
 const PLATFORM_CONVERSATION_COMMAND_CONTEXT_KEYS = Object.freeze([
@@ -752,7 +766,7 @@ export async function listPlatformConversations(
         p_limit: pageSize + 1,
         p_before_sort_at: cursor?.sortAt ?? null,
         p_before_conversation_id: cursor?.id ?? null,
-        p_queue: options?.queue ?? null,
+        p_queue: toPlatformConversationQueueWire(options?.queue),
         p_status: options?.status ?? null,
         p_conversation_id: null,
       }),

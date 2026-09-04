@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   getPlatformConversationCommandContext,
+  listPlatformConversations,
   normalizePlatformConversationCommandContext,
   normalizePlatformConversationMessage,
   normalizePlatformConversationSummary,
@@ -228,6 +229,21 @@ test("projections preserve immutable session evidence while active selection rem
     "crm_primary",
   );
   assert.equal(
+    normalizePlatformConversationSummary({
+      ...conversation,
+      queue: "curator",
+    }).queue,
+    "admissions",
+  );
+  assert.throws(
+    () =>
+      normalizePlatformConversationSummary({
+        ...conversation,
+        queue: "admissions",
+      }),
+    PlatformCommunicationsRepositoryError,
+  );
+  assert.equal(
     normalizePlatformConversationMessage(message).wahaSessionName,
     "crm_primary",
   );
@@ -261,6 +277,54 @@ test("projections preserve immutable session evidence while active selection rem
       }),
     PlatformCommunicationsRepositoryError,
   );
+});
+
+test("Admissions queue filters use the exact curator database enum", async () => {
+  const conversation = {
+    conversation_id: COMMAND_CONTEXT_IDS.conversation,
+    student_case_id: COMMAND_CONTEXT_IDS.studentCase,
+    queue: "curator",
+    status: "open",
+    subject: "Admissions queue wire contract",
+    waha_session_name: "crm_primary",
+    kommo_account_id: null,
+    kommo_conversation_id: null,
+    amocrm_account_id: null,
+    amocrm_lead_id: null,
+    amocrm_contact_id: null,
+    created_at: "2026-09-03T12:00:00.000Z",
+    sort_at: "2026-09-03T12:00:00.000Z",
+  };
+  const recorded = commandContextClient([conversation]);
+
+  const page = await listPlatformConversations(
+    {
+      ...commandContextActor,
+      displayName: "Admissions User",
+      email: "admissions@example.test",
+      platformRole: "admissions",
+      authorityRole: "admissions",
+      presentationRole: "admissions",
+    },
+    { queue: "admissions", pageSize: 50 },
+    { client: recorded.client },
+  );
+
+  assert.deepEqual(recorded.calls, [
+    { kind: "schema", schema: "platform" },
+    {
+      kind: "rpc",
+      functionName: "staff_communication_page",
+      args: {
+        p_organization_id: COMMAND_CONTEXT_IDS.organization,
+        p_limit: 51,
+        p_queue: "curator",
+      },
+      options: { get: true },
+    },
+  ]);
+  assert.equal(page.rows.length, 1);
+  assert.equal(page.rows[0].queue, "admissions");
 });
 
 test("Gemini readiness uses only the one server-side platform key", () => {

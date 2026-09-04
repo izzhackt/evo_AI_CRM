@@ -201,7 +201,7 @@ test("Sales and Admin see the canonical Sales amoCRM command in the selected V3 
     proofMode !== "provider-not-authorized",
     "the complete role matrix runs once; other modes repeat only fail-closed availability",
   );
-  const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
+  const leadId = requireUuid("EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID");
   const conversationId = requireUuid(
     "EVO_PLATFORM_COMMUNICATIONS_CONVERSATION_ID",
   );

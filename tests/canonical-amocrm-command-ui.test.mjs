@@ -154,7 +154,10 @@ test("the real local PostgreSQL harness proves the canonical amoCRM panel in Chr
 
   assert.match(harness, /canonical_amocrm_command_browser_assert\(\)/);
   assert.match(harness, /EVO_EXPECT_AMOCRM_BROWSER_MODE="provider-not-authorized"/);
-  assert.match(harness, /EVO_SUPABASE_SALES_PROOF_LEAD_ID="\$supabase_sales_lead_id"/);
+  assert.match(
+    harness,
+    /EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID="\$supabase_sales_conversation_lead_id"/,
+  );
   assert.match(harness, /EVO_CANONICAL_STUDENT_CASE_ID="\$student_case_id"/);
   assert.match(harness, /tests\/e2e\/canonical-amocrm-command\.spec\.ts/);
   assert.match(

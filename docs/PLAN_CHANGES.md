@@ -16171,3 +16171,44 @@ Decision:
 - delete the unused P8R6 wrapper and strengthen the P6D inventory so
   `test-p8*` executable names cannot return;
 - preserve immutable migration SQL and historical plan evidence unchanged.
+
+## 2026-09-04 - Promote V3 from side branch to active managed-Supabase product
+
+Block-ID: `EVO-V3-PRODUCT-RESET-2026-09-04`
+
+Change type: active-contract reset after the managed-Supabase release-candidate
+proof.
+Affected plan section: top-level authority and active issue sequence.
+
+The managed-Supabase runtime reset, provider bounds and single-release-path
+cleanup are complete on `main`, but the active launch contract still treated
+`claude/v3-frontend` as a separate design reference owned by another track.
+The owner's 2026-09-04 direction supersedes that split: V3 becomes the
+product surface, Codex owns the merge and follow-on work, and the next costly
+mistake would be continuing backend work while leaving the V3 branch out of
+`main`.
+
+Decision:
+
+- make `claude/v3-frontend` at
+  `c53c978e251754509948240fc7eef40d3a74da90` the first active merge target;
+- keep managed Supabase, Supabase Auth, private Storage, the `crm_primary`
+  session contract, the current server-side business engine and the
+  replace-do-not-layer rule unchanged;
+- treat `src/lib/server/` and the canonical CRM repository as the retained
+  business engine, to be wired into V3 rather than rewritten;
+- move the V3 data-access rewrite boundary to `src/lib/v3/*` and reuse
+  existing Supabase capabilities already present in migrations 042, 043, 046,
+  053, 055 and 086 before building new schema;
+- replace the old active child order with #594 through #600 for V3 merge,
+  server-action wiring, slice-by-slice V2 removal, existing-capability wiring,
+  remaining schema gaps, one V3 release path and cleanup;
+- preserve the completed #543-#550 sequence, frozen V1 deployments and all
+  historical ADRs, migrations, runbooks, archived docs and evidence as history,
+  not current V3 authority;
+- move real staging/restore, production traffic mutation, provider enablement,
+  webhook transfer, historical migration and final live-environment audit into
+  one compact deferred-before-real-use note until separately reactivated.
+- interpret that first step as a selective V3-surface integration onto current
+  `main`, not a blind branch-wide merge that would reintroduce removed
+  SQLite/Drizzle/runtime state or delete preserved history.

@@ -29,22 +29,31 @@
 
 ## Current Product Authority
 
-- For active production-successor work, the owner's 2026-09-03 direction,
-  parent issue #543, ADRs 0024 and 0026, `docs/EVO_LAUNCH_PLAN.md`, and the
-  latest merged `docs/PLAN_CHANGES.md` entry define the target and #544 through
-  #553 order; provider parent #549 executes sequentially through #565, #566,
-  #567 and #568.
-  ADR 0022 and the no-Supabase parts of ADR 0023 remain completed
+- For active production-successor work, the owner's 2026-09-04 direction,
+  parent issue #543, ADRs 0024, 0026 and 0027, `docs/EVO_LAUNCH_PLAN.md`, and
+  the latest merged `docs/PLAN_CHANGES.md` entry define the target and active
+  ordered sequence #594 through #600. Root `CLAUDE.md` and
+  `docs/design/v3/product.md` govern V3 product detail under those higher-level
+  authorities. ADR 0022 and the no-Supabase parts of ADR 0023 remain completed
   local-validation history, not current runtime authority.
 - EVO remains one internal product with one access surface, one UI, one role
   model and one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks,
   Documents and AI are modules, not separate target products.
-- The target is the current V2 staff experience and proved CRM/provider
-  workflows running on the ready-made managed Supabase foundation retained
-  from V1. One dedicated EVO Supabase project supplies canonical Postgres,
-  Supabase Auth, private Storage, RLS and only the Realtime capabilities the
-  product actually uses. The existing project is preferred when the read-only
-  audit proves its identity, migration history, data and security state.
+- The target is the V3 product surface running on the ready-made managed
+  Supabase foundation retained from V1. One dedicated EVO Supabase project
+  supplies canonical Postgres, Supabase Auth, private Storage, RLS and only
+  the Realtime capabilities the product actually uses. The existing project is
+  preferred when the read-only audit proves its identity, migration history,
+  data and security state.
+- `claude/v3-frontend` at `c53c978e251754509948240fc7eef40d3a74da90` is the
+  first active integration target, not a passive design reference. Bring its
+  V3 surface onto current `main` before continuing the successor sequence, but
+  do not blindly merge branch-wide deploy, workflow, archive, SQLite, Drizzle
+  or runtime-contract changes that would regress completed `main` work or
+  delete frozen history. After that integration, V3 is the product direction;
+  V2 screens remain only until the same business action is wired into V3 and
+  proved, then the superseded screen is deleted in that slice. The authenticated
+  root moves to V3 only in #600 after those actions have replacement proof.
 - Root `supabase/` is the sole target migration authority. Do not ship Drizzle
   `evo_*`, SQLite or another PostgreSQL schema as a second production business
   authority. V2-only domain gaps move into `platform` or `platform_private`
@@ -54,6 +63,21 @@
   accepted Admin, Sales and Admissions product behavior, with Admin as the
   functional superset and exact role-preview authority, while mapping it to
   real staff identities and server-enforced RLS/authorization.
+- Do not rebuild product logic that already exists. The existing server actions
+  in `src/lib/server/` and the canonical CRM repository are the current
+  business engine, not dead V2 UI code. Wire those actions into V3 with real
+  forms, `useActionState`, server validation and `expected_version`, then
+  remove the superseded V2 screen in the same replacement slice.
+- Reuse the existing managed-Supabase capabilities already present in root
+  migrations before building new schema. The current authoritative examples are
+  document requirements/reviews from migrations 043, 046, 053 and 055; visa
+  cases and commands from migration 042; lead ownership and extended sales
+  workflow from migration 086; and the platform audit feature behind
+  `EVO_PLATFORM_P7A_AUDIT_ENABLED`.
+- `src/lib/v3/*` is the V3 data-access boundary. When authority or response
+  shape changes, change the V3 source adapters before changing V3 screens, and
+  do not create a second status dictionary or an in-app WhatsApp channel
+  connection flow.
 - Keep the V2 human-reviewed Gemini, staff-controlled WhatsApp and explicit
   amoCRM command semantics. Gemini never sends or changes CRM state; WhatsApp
   has no autonomous/broadcast path or blind retry; amoCRM is an integration,
@@ -68,12 +92,14 @@
   slices prove implementation and fail-closed readiness, not real message
   delivery. Moving webhook ownership to V2 remains a separate controlled
   cutover with exactly one active owner.
-- The 2026-09-02 owner direction authorizes this repository transition,
-  read-only inventory, staging preparation and scoped cleanup without routine
-  approval pauses. Production data mutation, traffic cutover and destructive
-  retirement execute only after the plan's exact target, backup/restore,
-  migration-rehearsal and acceptance gates pass; missing access or ambiguous
-  external state fails clearly.
+- The 2026-09-04 owner direction authorizes this repository transition,
+  V3 integration, isolated recovery/migration rehearsal and scoped cleanup
+  without routine approval pauses. It also authorizes #552 to perform the one
+  V3 production deployment and active-runtime retirement after #551 and every
+  named prerequisite pass; do not request a second routine approval at that
+  point. Missing access, a failed prerequisite or ambiguous external state
+  still fails clearly. Provider enablement, webhook ownership transfer and live
+  provider calls remain outside that authorization.
 - Historical V1/V2 code is not copied wholesale. Reuse managed Supabase,
   deployment and security capabilities that remain correct; retire SQLite,
   the development gate, local document storage, superseded workers/provider
@@ -101,7 +127,7 @@
   archived docs, evidence and other historical decision/rollback documentation
   are the only exception. Preserve them as deployment/rollback inputs until a
   separately authorized cutover, but never import, execute, bundle or treat
-  them as V2 authority.
+  them as current V3 authority.
 - Temporary coexistence requires explicit owner approval naming every file,
   the reason, an expiry or exit criterion and a deletion issue. Open-ended
   compatibility is prohibited.

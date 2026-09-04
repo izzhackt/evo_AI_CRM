@@ -23,6 +23,7 @@ export default async function V3Layout({ children }: { children: ReactNode }) {
     <div className="v3-world">
       <AppShell
         displayName={actor.displayName}
+        authorityRole={actor.authorityRole}
         presentationRole={actor.presentationRole}
       >
         {children}

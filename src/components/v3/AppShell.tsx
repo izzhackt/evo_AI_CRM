@@ -35,10 +35,12 @@ const SECTIONS = [
 export function AppShell({
   children,
   displayName,
+  authorityRole,
   presentationRole,
 }: {
   children: React.ReactNode;
   displayName: string;
+  authorityRole: FixedRole;
   presentationRole: FixedRole;
 }) {
   const pathname = usePathname();
@@ -46,7 +48,12 @@ export function AppShell({
     fixedRoleCan(presentationRole, section.capability));
 
   return (
-    <div className="flex min-h-dvh flex-col md:flex-row">
+    <div
+      className="flex min-h-dvh flex-col md:flex-row"
+      data-testid="v3-shell"
+      data-authority-role={authorityRole}
+      data-presentation-role={presentationRole}
+    >
       <nav
         aria-label="Разделы"
         className="border-b border-border bg-surface md:sticky md:top-0 md:h-dvh md:w-[224px] md:shrink-0 md:border-b-0 md:border-e"

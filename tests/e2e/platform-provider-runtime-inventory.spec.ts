@@ -180,9 +180,11 @@ async function signInAs(page: Page, role: TestRole) {
 }
 
 async function activeRole(page: Page) {
-  const value = await page.getByTestId("staff-shell").getAttribute(
-    "data-authority-role",
-  );
+  const v3Shell = page.getByTestId("v3-shell");
+  const shell = (await v3Shell.count()) > 0
+    ? v3Shell
+    : page.getByTestId("staff-shell");
+  const value = await shell.getAttribute("data-authority-role");
   ensure(
     typeof value === "string" && AUTHORITY_ROLE_PATTERN.test(value),
     "The active role marker is invalid",

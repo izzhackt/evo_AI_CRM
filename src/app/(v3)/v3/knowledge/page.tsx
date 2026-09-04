@@ -40,11 +40,6 @@ export default async function KnowledgePart() {
     size: document.size,
   }));
 
-  const today = new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-  }).format(new Date());
-
   return (
     <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
       <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
@@ -52,7 +47,7 @@ export default async function KnowledgePart() {
       </h1>
 
       <div className="mt-6">
-        <FileManager folders={folders} files={files} today={today} />
+        <FileManager folders={folders} files={files} />
       </div>
     </main>
   );

@@ -96,10 +96,8 @@ export function Profile({
         <Overview profile={profile} draft={draft} tabHref={hrefFor} />
       ) : null}
       {current === "anketa" ? <Anketa profile={profile} draft={draft} /> : null}
-      {/* Список документов живой и переживает уход на другую вкладку. Ключ —
-          человек: у второго студента список свой, и его нельзя унаследовать. */}
       {current === "documents" ? (
-        <Documents key={profile.leadId} groups={draft.documents} personId={profile.leadId} />
+        <Documents groups={draft.documents} />
       ) : null}
       {current === "money" ? <Money profile={profile} draft={draft} /> : null}
       {current === "history" ? <History profile={profile} /> : null}

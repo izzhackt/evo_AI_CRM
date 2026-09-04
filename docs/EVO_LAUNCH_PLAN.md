@@ -135,6 +135,12 @@ new path is accepted; historical and rollback material remains preserved.
 | 8 | #552 | Production deployment and retirement | deploy the exact green V3 revision, verify it, and retire the superseded active runtime without a fallback path |
 | 9 | #553 | Completion audit and safe cleanup | certify one exact-main live product authority, then remove only inventoried stale branches/comments while preserving history |
 
+While #594 keeps V3 in the temporary `/v3` namespace, every screen is either a
+real canonical read or an honestly unavailable action. Browser-only stage,
+task, file or document mutations and success messages are prohibited. The
+corresponding controls enter V3 only with their canonical server actions and
+durable proof in #595 through #598.
+
 The previous managed-Supabase successor sequence through #550 is complete and
 remains historical evidence below. Issues #551 through #553 now follow #600;
 their old staging-first text is superseded by the no-staging recovery, direct

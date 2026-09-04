@@ -16246,3 +16246,29 @@ Decision:
 - keep VPS, public traffic, managed production data and provider state
   unchanged in #594. Provider commands and production transition remain owned
   by their ordered later slices.
+
+## 2026-09-04 - Make the V3-A integration truthfully read-only
+
+Block-ID: `EVO-V3-A-NO-BROWSER-PERSISTENCE-2026-09-04`
+
+Change type: exact-head review correction.
+Affected plan section: Order 0 / Issue #594.
+
+Independent review of the first #594 candidate found that several accepted V3
+components still performed stage, task and document changes only in React or
+module state while presenting them as successful work. Although `/v3` is a
+temporary integration namespace, those controls sat on real canonical records
+and could mislead staff before their server actions were connected.
+
+Decision:
+
+- remove browser-only stage movement, task create/delete and document/file
+  create/upload/rename/move/delete/download from #594;
+- retain navigation, filtering, selection and read-only inspection over real
+  canonical Supabase projections;
+- prohibit route-level access to unknown `/v3/*` siblings with an exact
+  allowlist;
+- add source-contract regression coverage so local-only business persistence
+  cannot return unnoticed;
+- add real durable mutations only in their ordered #595-#598 slices, together
+  with `expected_version`, server authorization and database/browser proof.

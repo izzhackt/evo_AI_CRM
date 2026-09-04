@@ -2,7 +2,7 @@ import { PartShell } from "@/components/v3/PartShell";
 import { Calendar } from "@/components/v3/calendar/Calendar";
 import { gridDays, resolveDay, resolveView } from "@/components/v3/calendar/types";
 import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
-import { readCalendarTasks, readCaseOptions, readToday } from "@/lib/v3/calendar-source";
+import { readCalendarTasks, readToday } from "@/lib/v3/calendar-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Календарь" };
@@ -29,10 +29,7 @@ export default async function CalendarPart({
   const view = resolveView(params.view);
   const day = resolveDay(params.date, today);
   const days = gridDays(view, day);
-  const [tasks, cases] = await Promise.all([
-    readCalendarTasks(actor, days[0], days[days.length - 1]),
-    readCaseOptions(actor),
-  ]);
+  const tasks = await readCalendarTasks(actor, days[0], days[days.length - 1]);
 
   return (
     <PartShell title="Календарь">
@@ -42,7 +39,6 @@ export default async function CalendarPart({
         today={today}
         days={days}
         tasks={tasks}
-        cases={cases}
         basePath="/v3/calendar"
       />
     </PartShell>

@@ -65,14 +65,6 @@ export type CalendarTask = Readonly<{
   person: string | null;
 }>;
 
-/**
- * Кому можно завести задачу: дело студента и имя человека.
- *
- * Задача принадлежит делу (`student_case_id` в схеме `NOT NULL`), а имя —
- * человеку этого дела. На экране выбирают человека, в модель уходит дело.
- */
-export type CaseOption = Readonly<{ id: string; person: string }>;
-
 /* ------------------------------------------------------------------ слова */
 
 const MONTH_NOMINATIVE = [

@@ -75,7 +75,7 @@ test("the namespaced V3 product surface is connected without opening descendants
   ]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
-  for (const path of ["/v3/unknown/child", "/v3//main", "/v3/Profile"]) {
+  for (const path of ["/v3/unknown", "/v3/unknown/child", "/v3//main", "/v3/Profile"]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
 });

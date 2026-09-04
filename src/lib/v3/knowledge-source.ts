@@ -6,6 +6,7 @@ import {
 } from "@/lib/platform-admissions";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { listPlatformDocumentQueue } from "@/lib/platform-private-documents";
+import { ORG_TIMEZONE } from "@/lib/v3/period";
 
 export type KnowledgeStudent = Readonly<{
   id: string;
@@ -23,6 +24,7 @@ export type KnowledgeDocument = Readonly<{
 
 const PAGE_SIZE = 100;
 const DAY_MONTH = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: ORG_TIMEZONE,
   day: "2-digit",
   month: "2-digit",
 });

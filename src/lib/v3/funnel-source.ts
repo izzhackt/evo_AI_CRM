@@ -278,10 +278,10 @@ function dailyTrend(
   days: number,
 ): PeriodTrend | null {
   const step = days <= 31 ? 1 : days <= 182 ? 7 : 30;
-  const whole = Math.floor(days / step);
+  const whole = Math.ceil(days / step);
   if (whole < 2) return null;
 
-  const from = shift(period.to, -(whole * step - 1));
+  const from = period.from;
   const leads = Array.from({ length: whole }, () => 0);
   const handed = Array.from({ length: whole }, () => 0);
   for (const row of rows) {
@@ -301,7 +301,7 @@ function dailyTrend(
     return dayLabel(date, fromYear !== nowYear && index === 0);
   });
 
-  return assemble(labels, leads, handed, rangeLabel(from, period.to, period.today));
+  return assemble(labels, leads, handed, rangeLabel(period.from, period.to, period.today));
 }
 
 /**

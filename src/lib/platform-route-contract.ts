@@ -18,8 +18,14 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   // V3 is the accepted successor surface. It remains namespaced until the
   // slice-by-slice replacement sequence retires the superseded UI routes.
   "/v3",
+  "/v3/main",
+  "/v3/pipeline",
+  "/v3/inbox",
+  "/v3/profile",
+  "/v3/settings",
+  "/v3/knowledge",
+  "/v3/calendar",
 ]);
-const V3_PRODUCT_PATH = /^\/v3(?:\/[a-z0-9-]+)?$/;
 
 const PLATFORM_CONVERSATION_PATH =
   /^\/whatsapp\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -72,7 +78,6 @@ export function isRetiredPlatformRoute(path: string): boolean {
 export function isConnectedPlatformPage(path: string): boolean {
   return (
     PLATFORM_PAGE_ALLOWLIST.has(path) ||
-    V3_PRODUCT_PATH.test(path) ||
     PLATFORM_CONVERSATION_PATH.test(path) ||
     PLATFORM_LEAD_PATH.test(path) ||
     PLATFORM_LEAD_CONVERSATION_PATH.test(path) ||

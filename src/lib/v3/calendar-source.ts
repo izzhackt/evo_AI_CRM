@@ -1,11 +1,7 @@
 import "server-only";
 
-import type { CalendarTask, CaseOption, Day, TaskState } from "@/components/v3/calendar/types";
+import type { CalendarTask, Day, TaskState } from "@/components/v3/calendar/types";
 import { listPlatformAdmissionsTaskQueue } from "@/lib/platform-admissions-workspace";
-import {
-  listPlatformStudentCases,
-  type PlatformAdmissionsCursor,
-} from "@/lib/platform-admissions";
 import type { PlatformCaseTaskStatus } from "@/lib/platform-admissions-task-contract";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
@@ -102,39 +98,4 @@ export async function readCalendarTasks(
       person: row.studentDisplayName,
     } satisfies CalendarTask];
   });
-}
-
-/** Active handed-off cases available to the current Admissions actor. */
-export async function readCaseOptions(
-  actor: ActivePlatformActor,
-): Promise<readonly CaseOption[]> {
-  const cases: CaseOption[] = [];
-  let cursor: PlatformAdmissionsCursor | null = null;
-
-  do {
-    const page = await listPlatformStudentCases(actor, {
-      cursor,
-      pageSize: QUEUE_PAGE_SIZE,
-      state: "active",
-    });
-
-    for (const item of page.rows) {
-      if (item.access !== "full") {
-        throw new Error("V3 calendar received a non-Admissions case projection.");
-      }
-      cases.push({
-        id: item.studentCase.studentCaseId,
-        person: item.studentCase.studentDisplayName,
-      });
-    }
-
-    if (!page.hasNext) break;
-    if (page.nextCursor === null) {
-      throw new Error("V3 calendar case pagination is unavailable.");
-    }
-    cursor = page.nextCursor;
-  } while (true);
-
-  return cases.toSorted((left, right) =>
-    left.person.localeCompare(right.person, "ru"));
 }

@@ -20,7 +20,7 @@ import {
  * человека — из воронки или из переписки, — а не выбирается из меню.
  */
 const SECTIONS = [
-  { href: "/v3/main", label: "Главная", capability: "dashboard.read" },
+  { href: "/v3/main", label: "Главная", capability: "sales.read" },
   { href: "/v3/pipeline", label: "Воронка", capability: "sales.read" },
   { href: "/v3/inbox", label: "Входящие", capability: "messaging.read" },
   { href: "/v3/calendar", label: "Календарь", capability: "admissions.read" },

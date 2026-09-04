@@ -40,6 +40,33 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
   );
 });
 
+test("V3 read surfaces cannot imitate durable business mutations in browser state", () => {
+  const pipeline = source("src/components/v3/Pipeline.tsx");
+  const calendar = source("src/components/v3/calendar/Calendar.tsx");
+  const fileManager = source("src/components/v3/FileManager.tsx");
+  const documents = source("src/components/v3/profile/Documents.tsx");
+
+  assert.doesNotMatch(pipeline, /setMoved|\bmoved\b/);
+  assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);
+  assert.doesNotMatch(fileManager, /type="file"|URL\.createObjectURL|setFolders|setDocs|bulk-delete/);
+  assert.doesNotMatch(documents, /type="file"|URL\.createObjectURL|useState|onRemove|onRename/);
+});
+
+test("V3 custom funnel ranges retain the leading partial bucket", () => {
+  const funnel = source("src/lib/v3/funnel-source.ts");
+
+  assert.match(funnel, /Math\.ceil\(days \/ step\)/);
+  assert.match(funnel, /const from = period\.from/);
+  assert.doesNotMatch(funnel, /Math\.floor\(days \/ step\)/);
+});
+
+test("V3 document dates use the organization timezone", () => {
+  const knowledge = source("src/lib/v3/knowledge-source.ts");
+
+  assert.match(knowledge, /import \{ ORG_TIMEZONE \} from "@\/lib\/v3\/period"/);
+  assert.match(knowledge, /timeZone: ORG_TIMEZONE/);
+});
+
 test("ordinary real foundation proof runs the fail-closed V3 browser gate", () => {
   const gate = source("scripts/v3-gate/gate.mjs");
   const foundation = source("scripts/test-postgres-v2-foundation.sh");

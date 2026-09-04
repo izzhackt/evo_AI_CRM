@@ -87,12 +87,12 @@ export type Fact = Readonly<{ label: string; value: string | null }>;
 
 /** Дополнительные реальные проекции профиля; отсутствующие данные пусты. */
 export type ProfileDraft = Readonly<{
-  /** Сотрудника в EVO не существует — есть только три роли. */
+  /** Отображаемое имя ответственного сотрудника, если проекция его возвращает. */
   responsible: string | null;
   provider: string | null;
   person: readonly Fact[];
   study: readonly Fact[];
-  /** Заготовка документов: то, что нужно всем. Дальше список ведёт сотрудник. */
+  /** Канонический чеклист документов этого дела. */
   documents: readonly DocumentGroup[];
   /**
    * Есть в модели, намеренно не рисуется.

@@ -91,12 +91,20 @@ $catalog_contract$;
 
 SELECT bundle.id AS p111_admin_bundle, bundle.version AS p111_admin_version
 FROM platform.role_bundle_versions AS bundle
+JOIN platform.role_bundle_permissions AS permission
+  ON permission.bundle_id = bundle.id
+ AND permission.bundle_role = bundle.role
+ AND permission.permission_key = 'lead.sales.workflow.manage'
 WHERE bundle.role = 'admin' AND bundle.status = 'published'
 ORDER BY bundle.version DESC
 LIMIT 1
 \gset
 SELECT bundle.id AS p111_sales_bundle, bundle.version AS p111_sales_version
 FROM platform.role_bundle_versions AS bundle
+JOIN platform.role_bundle_permissions AS permission
+  ON permission.bundle_id = bundle.id
+ AND permission.bundle_role = bundle.role
+ AND permission.permission_key = 'lead.sales.workflow.manage'
 WHERE bundle.role = 'sales' AND bundle.status = 'published'
 ORDER BY bundle.version DESC
 LIMIT 1

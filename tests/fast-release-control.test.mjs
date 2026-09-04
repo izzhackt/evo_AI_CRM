@@ -450,6 +450,16 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(workflow, /needs:\n      - crm_product\n      - dependency_audit/u);
   assert.match(workflow, /PRODUCT_RESULT: \$\{\{ needs\.crm_product\.result \}\}/u);
   assert.match(workflow, /AUDIT_RESULT: \$\{\{ needs\.dependency_audit\.result \}\}/u);
+  assert.match(workflow, /test "\$PRODUCT_RESULT" = "success"/u);
+  assert.match(workflow, /test "\$AUDIT_RESULT" = "success"/u);
+  assert.match(
+    workflow,
+    /npm exec --yes --package=npm@11\.19\.0 -- npm audit --package-lock-only --omit=dev --audit-level=moderate/u,
+  );
+  assert.match(
+    workflow,
+    /npm exec --yes --package=npm@11\.19\.0 -- node scripts\/check-npm-audit-allowlist\.mjs/u,
+  );
   assert.doesNotMatch(workflow, /^  (?:inbox|lead-agent):/mu);
   assert.doesNotMatch(workflow, /EVO Inbox|EVO Lead Agent/u);
   assert.doesNotMatch(workflow, /Prepare P8|refs\/pull\/179|6ee93bd/u);

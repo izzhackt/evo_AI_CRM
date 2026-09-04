@@ -346,10 +346,9 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
     });
     await controls.getByTestId("v3-inbox-send").click();
     await expect(
-      controls.getByText(
-        "WhatsApp принял одно сообщение; результат сохранён.",
-        { exact: true },
-      ),
+      controls
+        .getByTestId("v3-inbox-latest-attempt")
+        .getByText("Принято WhatsApp", { exact: true }),
     ).toBeVisible();
 
     const proofRows = await sql<

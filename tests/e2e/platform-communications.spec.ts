@@ -177,10 +177,9 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   await controls.locator('input[name="confirm_send"]').check();
   await controls.getByTestId("v3-inbox-send").click();
   await expect(
-    controls.getByText(
-      "WhatsApp принял одно сообщение; результат сохранён.",
-      { exact: true },
-    ),
+    controls
+      .getByTestId("v3-inbox-latest-attempt")
+      .getByText("Принято WhatsApp", { exact: true }),
   ).toBeVisible();
 
   const providerEvidence = JSON.parse(await readFile(wahaResultFile, "utf8"));
@@ -247,10 +246,9 @@ test("an ambiguous provider result blocks resend and exact WAHA readback resolve
   await sendButton.click();
 
   await expect(
-    controls.getByText(
-      "Результат неизвестен. Повторная отправка заблокирована до безопасной проверки.",
-      { exact: true },
-    ).first(),
+    controls
+      .getByTestId("v3-inbox-latest-attempt")
+      .getByText("Результат неизвестен", { exact: true }),
   ).toBeVisible();
   await expect(sendButton).toBeDisabled();
 

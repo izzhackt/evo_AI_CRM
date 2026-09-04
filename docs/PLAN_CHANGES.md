@@ -17058,3 +17058,48 @@ Decision:
   unchanged. Prove the clarification with a forward local migration, focused
   allow/deny and boundary tests, one real local OrbStack application/browser
   run and one exact-head CI pass before merge.
+
+## 2026-09-04 - Define #599 sales stage-entry cohort semantics
+
+Block-ID: `EVO-V3-F-SALES-STAGE-ENTRY-COHORTS-2026-09-04`
+
+Change type: implementation clarification.
+Affected plan section: Order 5 / Issue #599 / slice 4 of 6.
+
+The V3 main page already defines its selected period as the Bishkek-date
+creation cohort of open, currently visible leads. Its honest three-step funnel
+is `Лиды` -> `Квалифицированы` -> `Переданы`, and every number represents
+people rather than transition attempts. The existing workflow receipt alone
+cannot prove a stage change because owner-only and next-action-only mutations
+also create receipts.
+
+Decision:
+
+- preserve the current lead-creation cohort: the inclusive `DATE` bounds select
+  open leads by `platform.leads.created_at` in `Asia/Bishkek`; Admin sees the
+  organization cohort and Sales sees the same current own-or-unassigned scope
+  as the canonical Sales queue;
+- expose at most one first proven entry per lead and canonical stage. A real
+  transition requires the existing append-only workflow receipt and its exact
+  `platform.audit_events` row to agree on organization, request, lead, actor,
+  committed timestamp and resulting version, with different before/after
+  `stage_key` values and the after value equal to the receipt's desired stage;
+- count `Квалифицированы` from distinct cohort leads with a proven first entry
+  into canonical `qualified`. Collapse later re-entry for the product metric;
+  replay, no-op, owner-only and next-action-only commands must not change it;
+- continue to count `Лиды` from exact lead creation and `Переданы` from the
+  existing canonical case link for that same cohort. Do not fabricate missing
+  pre-receipt stage history, reinterpret `leads.updated_at`, add another event
+  table, or create a second status dictionary;
+- implement one authenticated, fail-closed, `SECURITY DEFINER` read projection
+  with an empty `search_path`, explicit execution grants and a maximum 366-day
+  range. Keep direct browser access to the private receipts denied;
+- keep managed Supabase, providers, VPS, production data and customer traffic
+  unchanged. Prove the slice with focused repository tests, SQL allow/deny,
+  replay/no-op/re-entry and Bishkek-boundary tests, one real local OrbStack
+  PostgreSQL/application/browser run and one exact-head CI pass before merge.
+
+Implementation hardening follows the current Supabase Database Functions and
+Row Level Security guidance:
+https://supabase.com/docs/guides/database/functions and
+https://supabase.com/docs/guides/database/postgres/row-level-security.

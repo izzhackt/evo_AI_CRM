@@ -16849,3 +16849,29 @@ Decision:
   and SQL/RLS tests, the V3 quality gate and one exact-head CI run. Do not
   deploy, apply schema to managed production, call providers, mutate provider
   state or use real customer records in this slice.
+
+## 2026-09-04 - Narrow #598 to the remaining V3 reuse gaps
+
+Block-ID: `EVO-V3-E-REMAINING-REUSE-SCOPE-2026-09-04`
+
+Change type: active-slice scope clarification.
+Affected plan section: Order 4 / Issue #598.
+
+The original #598 wording still listed lead owner/stage and audit capabilities
+as pending V3 reuse. On current exact `main`, those paths are already connected:
+the V3 pipeline reads the canonical sales owner/stage workflow, and V3 settings
+already reads the canonical audit search projection. Repeating them as active
+scope would invite duplicate work and replacement noise.
+
+Decision:
+
+- narrow #598 to the remaining reuse work only: canonical document checklist
+  and review richness, the existing audit CSV export path in V3 settings, any
+  still-missing richer visa presentation over the canonical case snapshot, and
+  exact replacement cleanup for the superseded legacy document/audit surfaces;
+- add no new schema, RPC, status dictionary, compatibility adapter or fallback
+  path in this clarification;
+- keep `src/lib/v3/*` as the only adapter rewrite boundary and keep
+  `src/lib/v3/wording.ts` as the only human wording dictionary;
+- start from merged #597 contracts. Do not rework migration `107`, lead-owner/
+  stage behavior or the existing audit-search backend in #598.

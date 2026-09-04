@@ -39,17 +39,6 @@ function optionalDate(value: unknown): string | null {
 export type PlatformStudentCaseState = "pending" | "active" | "closed";
 export type PlatformRouteApprovalStatus = "draft" | "approved" | "rework";
 
-export function buildPlatformAdmissionsRedirectUrl(
-  path: string,
-  outcome: "saved" | "invalid" | "unavailable",
-  retryRequestId?: string | null,
-  anchor?: "case-lifecycle" | "applications",
-): string {
-  const params = new URLSearchParams({ result: outcome });
-  if (retryRequestId) params.set("retry_request_id", retryRequestId);
-  return `${path}?${params.toString()}${anchor ? `#${anchor}` : ""}`;
-}
-
 export type PlatformOpWorkflowContract = Readonly<{
   organizationId: string;
   workflowContractId: string;
@@ -251,8 +240,7 @@ export function summarizePlatformStudentCaseApplicationPreview(
     preview: Object.freeze({
       visibleCount: applications.length,
       hasMore,
-      fullListHref:
-        `/applications?student_case_id=${normalizedStudentCaseId}`,
+      fullListHref: `/v3/profile?case=${normalizedStudentCaseId}`,
     }),
   });
 }

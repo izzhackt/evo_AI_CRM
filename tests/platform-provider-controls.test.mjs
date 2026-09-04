@@ -84,7 +84,7 @@ test("unknown delivery exposes readback reconciliation without a resend path", (
 });
 
 test("V3 page reads provider state through the authenticated canonical source", () => {
-  assert.match(page, /requirePlatformMessagingActor/);
+  assert.match(page, /requireV3PageActor\("\/v3\/inbox"\)/);
   assert.match(page, /readInbox\(actor/);
   assert.match(page, /<InboxProviderWorkflowControls/);
   assert.match(inboxSource, /readStaffGeminiProposal/);

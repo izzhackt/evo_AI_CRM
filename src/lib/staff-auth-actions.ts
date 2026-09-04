@@ -118,7 +118,7 @@ export async function selectStaffRolePreviewAction(
 
   const requestedRole = form.get("role");
   if (!canAdminSelectEffectiveRole(result.actor.authorityRole, requestedRole)) {
-    redirect("/access-denied?from=%2Fsettings");
+    redirect("/access-denied?from=%2Fv3%2Fsettings");
   }
 
   (await cookies()).set(ADMIN_ROLE_PREVIEW_COOKIE, requestedRole, {

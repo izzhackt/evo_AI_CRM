@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { requirePlatformClientsActor } from "./platform-guards";
+import { requirePlatformCapability } from "./platform-guards";
 import {
   PLATFORM_CONTRACT_REVIEW_DECISIONS,
   PLATFORM_CONTRACT_TEMPLATE_STATUSES,
@@ -33,6 +33,11 @@ type RetryMetadata = Readonly<{
   operation: PlatformContractRetryOperation;
   subjectId?: string;
 }>;
+
+/** Mutations authorize the immutable Supabase staff role, never a preview role. */
+function requirePlatformContractActor() {
+  return requirePlatformCapability("admissions.read", "/v3/profile");
+}
 
 function strictFormString(form: FormData, key: string): string | undefined {
   const values = form.getAll(key);
@@ -71,7 +76,7 @@ function mutationErrorOutcome(error: unknown): "invalid" | "unavailable" {
 }
 
 async function workspaceOrRedirect(
-  actor: Awaited<ReturnType<typeof requirePlatformClientsActor>>,
+  actor: Awaited<ReturnType<typeof requirePlatformContractActor>>,
   studentCaseId: string,
   retry: RetryMetadata,
 ): Promise<PlatformCaseContractWorkspace> {
@@ -190,7 +195,7 @@ function invalidFormRedirect(
 export async function createPlatformContractTemplateVersionAction(
   form: FormData,
 ): Promise<void> {
-  const actor = await requirePlatformClientsActor();
+  const actor = await requirePlatformContractActor();
   const generatedRequestId = randomUUID();
   const input = parsePlatformCreateContractTemplateForm(form, generatedRequestId);
   if (!input) invalidFormRedirect(form, generatedRequestId, "create_template");
@@ -226,7 +231,7 @@ export async function createPlatformContractTemplateVersionAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath(`/clients/${input.studentCaseId}`);
+  revalidatePath("/v3/profile");
   mutationRedirect(input.studentCaseId, "template_created");
 }
 
@@ -234,7 +239,7 @@ async function templateLifecycleAction(
   form: FormData,
   operation: "approve_template" | "retire_template",
 ): Promise<never> {
-  const actor = await requirePlatformClientsActor();
+  const actor = await requirePlatformContractActor();
   const generatedRequestId = randomUUID();
   const input = parsePlatformTemplateLifecycleForm(form, generatedRequestId);
   if (!input) {
@@ -287,7 +292,7 @@ async function templateLifecycleAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath(`/clients/${input.studentCaseId}`);
+  revalidatePath("/v3/profile");
   mutationRedirect(
     input.studentCaseId,
     operation === "approve_template" ? "template_approved" : "template_retired",
@@ -309,7 +314,7 @@ export async function retirePlatformContractTemplateVersionAction(
 export async function generatePlatformStudentCaseContractDraftAction(
   form: FormData,
 ): Promise<void> {
-  const actor = await requirePlatformClientsActor();
+  const actor = await requirePlatformContractActor();
   const generatedRequestId = randomUUID();
   const input = parsePlatformTemplateLifecycleForm(form, generatedRequestId);
   if (!input) {
@@ -382,14 +387,14 @@ export async function generatePlatformStudentCaseContractDraftAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath(`/clients/${input.studentCaseId}`);
+  revalidatePath("/v3/profile");
   mutationRedirect(input.studentCaseId, "draft_generated");
 }
 
 export async function reviewPlatformStudentCaseContractDraftAction(
   form: FormData,
 ): Promise<void> {
-  const actor = await requirePlatformClientsActor();
+  const actor = await requirePlatformContractActor();
   const generatedRequestId = randomUUID();
   const input = parsePlatformReviewContractDraftForm(form, generatedRequestId);
   if (!input) {
@@ -468,7 +473,7 @@ export async function reviewPlatformStudentCaseContractDraftAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath(`/clients/${input.studentCaseId}`);
+  revalidatePath("/v3/profile");
   mutationRedirect(
     input.studentCaseId,
     input.decision === "approved" ? "draft_approved" : "draft_rejected",
@@ -478,7 +483,7 @@ export async function reviewPlatformStudentCaseContractDraftAction(
 export async function seedPlatformPostContractItemsAction(
   form: FormData,
 ): Promise<void> {
-  const actor = await requirePlatformClientsActor();
+  const actor = await requirePlatformContractActor();
   const generatedRequestId = randomUUID();
   const input = parsePlatformTemplateLifecycleForm(form, generatedRequestId);
   if (!input) {
@@ -554,14 +559,14 @@ export async function seedPlatformPostContractItemsAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath(`/clients/${input.studentCaseId}`);
+  revalidatePath("/v3/profile");
   mutationRedirect(input.studentCaseId, "items_seeded");
 }
 
 export async function updatePlatformPostContractItemAction(
   form: FormData,
 ): Promise<void> {
-  const actor = await requirePlatformClientsActor();
+  const actor = await requirePlatformContractActor();
   const generatedRequestId = randomUUID();
   const input = parsePlatformUpdatePostContractItemForm(form, generatedRequestId);
   if (!input) {
@@ -648,7 +653,7 @@ export async function updatePlatformPostContractItemAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath(`/clients/${input.studentCaseId}`);
+  revalidatePath("/v3/profile");
   mutationRedirect(input.studentCaseId, "item_updated");
 }
 
@@ -726,7 +731,7 @@ function validateReportResponse(
 export async function generatePlatformPostContractReportAction(
   form: FormData,
 ): Promise<void> {
-  const actor = await requirePlatformClientsActor();
+  const actor = await requirePlatformContractActor();
   const generatedRequestId = randomUUID();
   const input = parsePlatformGeneratePostContractReportForm(form, generatedRequestId);
   if (!input) {
@@ -772,14 +777,14 @@ export async function generatePlatformPostContractReportAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath(`/clients/${input.studentCaseId}`);
+  revalidatePath("/v3/profile");
   mutationRedirect(input.studentCaseId, "report_generated");
 }
 
 export async function reviewPlatformPostContractReportAction(
   form: FormData,
 ): Promise<void> {
-  const actor = await requirePlatformClientsActor();
+  const actor = await requirePlatformContractActor();
   const generatedRequestId = randomUUID();
   const input = parsePlatformReviewPostContractReportForm(form, generatedRequestId);
   if (!input) {
@@ -829,7 +834,7 @@ export async function reviewPlatformPostContractReportAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath(`/clients/${input.studentCaseId}`);
+  revalidatePath("/v3/profile");
   mutationRedirect(
     input.studentCaseId,
     input.decision === "approved" ? "report_approved" : "report_rejected",

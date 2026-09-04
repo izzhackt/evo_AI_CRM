@@ -9,8 +9,13 @@ import type { PlatformSalesWorkflowLead } from "@/lib/platform-sales-contract";
 import type {
   PlatformLeadAdmissionsGateSnapshot,
   PlatformLeadAdmissionsHandoffSnapshot,
+  PlatformStudentCaseHandoffContext,
 } from "@/lib/platform-student-handoff";
 import type { PlatformCaseVisa } from "@/lib/platform-case-operations-contract";
+import type {
+  PlatformCaseContractWorkspace,
+  PlatformContractRetryOperation,
+} from "@/lib/platform-contract-workflow";
 
 import type { DocumentGroup } from "./document-types";
 
@@ -118,6 +123,19 @@ export type ProfileAdmissionsWorkspace = Readonly<{
   requestIds: ProfileAdmissionsRequestIds;
 }>;
 
+/** Canonical BW6 artifacts and the exact Sales-to-Admissions provenance. */
+export type ProfileContractSnapshot = Readonly<{
+  workspace: PlatformCaseContractWorkspace;
+  handoff: PlatformStudentCaseHandoffContext;
+}>;
+
+/** Bounded retry identity preserved across a fail-closed action redirect. */
+export type ProfileContractRetry = Readonly<{
+  requestId: string;
+  operation: PlatformContractRetryOperation;
+  subjectId?: string;
+}>;
+
 /** One server-generated id per independently retryable command form. */
 export type ProfileSalesRequestIds = Readonly<{
   contract: string;
@@ -162,6 +180,8 @@ export type ProfileDraft = Readonly<{
   /** Доля оплаченного, 0–100. null — считать не из чего. */
   paidPercent: number | null;
   admissions: ProfileAdmissionsWorkspace | null;
+  /** Full BW6 contract/report workspace; absent for leads and Sales views. */
+  contract: ProfileContractSnapshot | null;
   /**
    * Есть в модели, намеренно не рисуется.
    *
@@ -178,6 +198,7 @@ export const TABS = [
   { key: "anketa", title: "Анкета" },
   { key: "documents", title: "Документы" },
   { key: "money", title: "Деньги" },
+  { key: "contract", title: "Договор" },
   { key: "history", title: "История" },
 ] as const;
 
@@ -197,16 +218,19 @@ export function buildV3ProfileHref(
 /**
  * Вкладки этого человека.
  *
- * Документы заводятся на дело студента. Пока человек лид, дела нет — и
- * вкладки нет тоже: ни пустой, ни с объяснением, почему она пустая.
+ * Документы и договор заводятся на дело студента. Пока человек лид, дела нет —
+ * и этих вкладок нет тоже: ни пустых, ни с объяснением, почему они пустые.
  */
 export function tabsFor(
   student: boolean,
   actorRole: ProfileActorRole,
 ): readonly (typeof TABS)[number][] {
-  return TABS.filter((tab) => (
-    tab.key !== "documents" || (student && actorRole !== "sales")
-  ));
+  return TABS.filter((tab) => {
+    if (tab.key === "documents" || tab.key === "contract") {
+      return student && actorRole !== "sales";
+    }
+    return true;
+  });
 }
 
 /**

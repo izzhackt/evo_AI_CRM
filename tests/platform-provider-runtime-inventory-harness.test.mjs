@@ -68,7 +68,6 @@ test("P5D remote WAHA inspection stays read-only and never copies a secret", () 
 
 test("P5D local foundation mounts the dedicated read-only Chromium proof", () => {
   const foundation = source("scripts/test-postgres-v2-foundation.sh");
-  const staffLayout = source("src/app/(staff)/layout.tsx");
   const v3Layout = source("src/app/(v3)/layout.tsx");
   const v3AppShell = source("src/components/v3/AppShell.tsx");
   const packageManifest = source("package.json");
@@ -86,15 +85,12 @@ test("P5D local foundation mounts the dedicated read-only Chromium proof", () =>
   assert.match(foundation, /EVO_PLATFORM_RUNTIME_INVENTORY_MAIN_SHA/u);
   assert.match(foundation, /EVO_PLATFORM_RUNTIME_INVENTORY_BROWSER_EVIDENCE_FILE/u);
   assert.match(foundation, /EVO_PLATFORM_RUNTIME_INVENTORY_DATABASE_EVIDENCE_FILE/u);
-  assert.match(staffLayout, /data-testid="staff-shell"/u);
-  assert.match(staffLayout, /data-authority-role=\{provider\.user\.authorityRole\}/u);
-  assert.match(staffLayout, /data-effective-role=\{provider\.user\.role\}/u);
   assert.match(v3Layout, /authorityRole=\{actor\.authorityRole\}/u);
   assert.match(v3AppShell, /data-testid="v3-shell"/u);
   assert.match(v3AppShell, /data-authority-role=\{authorityRole\}/u);
   assert.match(v3AppShell, /data-presentation-role=\{presentationRole\}/u);
   assert.match(inventorySpec, /getByTestId\("v3-shell"\)/u);
-  assert.match(inventorySpec, /getByTestId\("staff-shell"\)/u);
+  assert.doesNotMatch(inventorySpec, /staff-shell/u);
   assert.match(packageManifest, /platform-provider-runtime-inventory-helper\.test\.mjs/u);
   assert.match(packageManifest, /platform-provider-runtime-inventory-harness\.test\.mjs/u);
 });

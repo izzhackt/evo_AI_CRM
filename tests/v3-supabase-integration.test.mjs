@@ -33,7 +33,7 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
   assert.doesNotMatch(knowledgePage, /COMPANY_FILES|Требования к нострификации/);
   assert.match(
     knowledgePage,
-    /requirePlatformDocumentsActor\("\/v3\/knowledge"\)/,
+    /requireV3PageActor\("\/v3\/knowledge"\)/,
   );
   assert.match(knowledgePage, /v3-knowledge-student-documents-limited/);
   assert.match(knowledgePage, /studentDocuments\.complete/);
@@ -59,7 +59,7 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   );
   const profileSource = source("src/lib/v3/profile-source.ts");
 
-  assert.match(pipelinePage, /requirePlatformSalesActor/);
+  assert.match(pipelinePage, /requireV3PageActor\("\/v3\/pipeline"\)/);
   assert.match(pipeline, /<PipelineDecisionForm/);
   assert.match(
     pipeline,

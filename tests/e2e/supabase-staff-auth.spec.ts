@@ -286,7 +286,7 @@ async function submitLogin(page: Page, email: string, password: string) {
 async function signIn(page: Page, role: TestRole) {
   const credentials = profile(role);
   await submitLogin(page, credentials.email, credentials.password);
-  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
+  await expect(page.getByTestId("v3-shell")).toBeVisible();
 }
 
 async function expectActiveRole(
@@ -307,12 +307,11 @@ async function expectActiveRole(
 async function expectDirectRouteDenied(
   page: Page,
   path:
-    | "/sales"
-    | "/clients"
-    | "/applications"
-    | "/documents"
+    | "/v3/main"
+    | "/v3/pipeline"
+    | "/v3/calendar"
     | "/v3/knowledge"
-    | "/settings",
+    | "/v3/settings",
 ) {
   await page.goto(path);
   await expect(page).toHaveURL(
@@ -322,36 +321,17 @@ async function expectDirectRouteDenied(
 
 async function expectDirectRouteAllowed(
   page: Page,
-  path: "/sales" | "/clients" | "/settings",
+  path:
+    | "/v3/main"
+    | "/v3/pipeline"
+    | "/v3/inbox"
+    | "/v3/profile"
+    | "/v3/calendar"
+    | "/v3/knowledge"
+    | "/v3/settings",
 ) {
   await page.goto(path);
   await expect(page).toHaveURL(new RegExp(`${path}$`));
-}
-
-async function expectDashboardQueues(
-  page: Page,
-  visible: readonly ("sales" | "clients" | "tasks" | "finance" | "whatsapp")[],
-) {
-  const allQueues = [
-    "sales",
-    "clients",
-    "tasks",
-    "finance",
-    "whatsapp",
-  ] as const;
-
-  await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByTestId("dashboard-page")).toBeVisible();
-  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(
-    0,
-  );
-
-  for (const queue of allQueues) {
-    await expect(page.getByTestId(`dashboard-queue-link-${queue}`)).toHaveCount(
-      visible.includes(queue) ? 1 : 0,
-    );
-  }
 }
 
 async function expectExactSupabaseSalesRead(
@@ -464,7 +444,22 @@ test("retired P6B staff and API routes are absent from the authenticated runtime
   await signIn(page, "admin");
   await expectActiveRole(page, "admin");
 
-  for (const path of ["/calls", "/chat", "/notifications", "/reports"] as const) {
+  for (const path of [
+    "/dashboard",
+    "/sales",
+    "/clients",
+    "/applications",
+    "/documents",
+    "/visa",
+    "/finance",
+    "/tasks",
+    "/settings",
+    "/portal",
+    "/calls",
+    "/chat",
+    "/notifications",
+    "/reports",
+  ] as const) {
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(404);
   }
@@ -485,29 +480,24 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
 
   await signIn(page, "sales");
   await expectActiveRole(page, "sales");
-  await expect(page.getByTestId("open-role-workspace")).toHaveAttribute(
-    "href",
-    "/sales",
-  );
-  for (const path of [
-    "/clients",
-    "/applications",
-    "/documents",
-    "/v3/knowledge",
-    "/settings",
-  ] as const) {
+  await expect(page).toHaveURL(/\/v3\/main$/);
+  for (const path of ["/v3/calendar", "/v3/knowledge", "/v3/settings"] as const) {
     await expectDirectRouteDenied(page, path);
+  }
+  for (const path of ["/v3/main", "/v3/pipeline", "/v3/inbox"] as const) {
+    await expectDirectRouteAllowed(page, path);
   }
 
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await expectActiveRole(page, "admissions");
-  await expect(page.getByTestId("open-role-workspace")).toHaveAttribute(
-    "href",
-    "/clients",
-  );
-  await expectDirectRouteDenied(page, "/sales");
-  await expectDirectRouteDenied(page, "/settings");
+  await expect(page).toHaveURL(/\/v3\/calendar$/);
+  await expectDirectRouteDenied(page, "/v3/main");
+  await expectDirectRouteDenied(page, "/v3/pipeline");
+  await expectDirectRouteDenied(page, "/v3/settings");
+  await expectDirectRouteAllowed(page, "/v3/calendar");
+  await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expectDirectRouteAllowed(page, "/v3/inbox");
 });
 
 test("Admin downloads the canonical audit CSV while Sales is denied", async ({
@@ -2027,25 +2017,26 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await signIn(page, "admin");
   await expectActiveRole(page, "admin");
   await expectExactSupabaseSalesRead(page, leadId, clientId);
-  await page.goto("/settings");
-  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
-  await page.goto("/");
+  await page.goto("/v3/settings");
+  await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
+  await expect(page).toHaveURL(/\/v3\/main$/);
   await expect(page.getByTestId("preview-active")).toBeVisible();
   await expectExactSupabaseSalesRead(page, leadId, clientId);
-  await expectDirectRouteAllowed(page, "/clients");
-  await expectDirectRouteAllowed(page, "/settings");
-  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
+  await expectDirectRouteAllowed(page, "/v3/pipeline");
+  await expectDirectRouteDenied(page, "/v3/calendar");
+  await expectDirectRouteDenied(page, "/v3/knowledge");
+  await expectDirectRouteDenied(page, "/v3/settings");
 
-  await expectDashboardQueues(page, ["sales", "whatsapp"]);
-
-  await page.goto("/");
   await page.getByTestId("preview-role-admissions").click();
   await expectActiveRole(page, "admissions", "admin");
-  await expectDirectRouteAllowed(page, "/settings");
-  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
+  await expect(page).toHaveURL(/\/v3\/calendar$/);
+  await expectDirectRouteDenied(page, "/v3/main");
+  await expectDirectRouteDenied(page, "/v3/pipeline");
+  await expectDirectRouteDenied(page, "/v3/settings");
+  await expectDirectRouteAllowed(page, "/v3/knowledge");
   await page.goto(`/v3/profile?id=${leadId}`);
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
@@ -2053,25 +2044,11 @@ test("Admin preview changes only the effective interface, not Supabase authority
       "Такого человека в базе нет. Показывать вместо него другого мы не будем.",
     ),
   ).toBeVisible();
-  await expectDashboardQueues(page, [
-    "clients",
-    "tasks",
-    "finance",
-    "whatsapp",
-  ]);
-
-  await page.goto("/");
   await page.getByTestId("preview-role-admin").click();
   await expectActiveRole(page, "admin", "admin");
-  await expectDashboardQueues(page, [
-    "sales",
-    "clients",
-    "tasks",
-    "finance",
-    "whatsapp",
-  ]);
-  await page.goto("/settings");
-  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
+  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expectDirectRouteAllowed(page, "/v3/settings");
+  await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 });
 
 test("an expired or removed browser session fails closed with no fallback", async ({
@@ -2081,9 +2058,9 @@ test("an expired or removed browser session fails closed with no fallback", asyn
   await signIn(page, "sales");
 
   await page.context().clearCookies();
-  await page.goto("/sales");
+  await page.goto("/v3/main");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByTestId("staff-entry-workspace")).toHaveCount(0);
+  await expect(page.getByTestId("v3-shell")).toHaveCount(0);
 });
 
 test("missing Supabase configuration stays unavailable instead of falling back", async ({

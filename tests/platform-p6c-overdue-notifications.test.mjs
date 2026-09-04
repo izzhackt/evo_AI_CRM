@@ -10,23 +10,10 @@ import {
   PLATFORM_P6C_OVERDUE_WORKER_ID,
 } from "../src/lib/server/platform-p6c-overdue-config.ts";
 import {
-  isPlatformP6BPortalNotificationsEnabled,
-} from "../src/lib/server/platform-p6b-portal-notifications.ts";
-import {
   createPlatformP6COverdueHandler,
   createPlatformP6COverdueRepository,
 } from "../src/lib/server/platform-p6c-overdue-processor.ts";
-import {
-  listPlatformStudentPortalNotificationsV2,
-  PlatformPortalRepositoryError,
-} from "../src/lib/platform-portal.ts";
-
 const REQUEST_ID = "c0000000-0000-4000-8000-000000000001";
-const AUTH_USER_ID = "c0000000-0000-4000-8000-000000000002";
-const PROFILE_ID = "c0000000-0000-4000-8000-000000000003";
-const MEMBERSHIP_ID = "c0000000-0000-4000-8000-000000000004";
-const ORGANIZATION_ID = "c0000000-0000-4000-8000-000000000005";
-const NOTIFICATION_ID = "c0000000-0000-4000-8000-000000000006";
 const NOW_MS = 1_786_522_500_000;
 const TRIGGER_SECRET = "p6c-local-trigger-secret-32-bytes-minimum";
 
@@ -70,20 +57,6 @@ function completedResult(overrides = {}) {
     paymentCandidates: 1,
     paymentPublished: 1,
     paymentResolved: 0,
-    ...overrides,
-  };
-}
-
-function studentActor(overrides = {}) {
-  return {
-    authUserId: AUTH_USER_ID,
-    profileId: PROFILE_ID,
-    membershipId: MEMBERSHIP_ID,
-    organizationId: ORGANIZATION_ID,
-    displayName: "Student",
-    platformRole: "student",
-    platformAccessVersion: 1,
-    role: "client",
     ...overrides,
   };
 }
@@ -220,160 +193,6 @@ test("service repository binds exact RPC arguments and rejects malformed results
     requestId: REQUEST_ID,
     workerId: PLATFORM_P6C_OVERDUE_WORKER_ID,
   }));
-});
-
-test("v2 feed maps only generalized safe document, task and payment DTOs", async () => {
-  const rows = [
-    {
-      notification_id: NOTIFICATION_ID,
-      category: "document.review",
-      event_code: "correction_required",
-      subject_label: "Passport copy",
-      detail: "Upload a readable copy.",
-      due_at: null,
-      created_at: "2026-08-12T10:15:00Z",
-      read_at: null,
-    },
-    {
-      notification_id: "c0000000-0000-4000-8000-000000000007",
-      category: "task.overdue",
-      event_code: "overdue",
-      subject_label: "Complete the questionnaire",
-      detail: "This task needs your attention.",
-      due_at: "2026-08-11T10:00:00Z",
-      created_at: "2026-08-12T10:16:00Z",
-      read_at: null,
-    },
-    {
-      notification_id: "c0000000-0000-4000-8000-000000000008",
-      category: "payment.overdue",
-      event_code: "overdue",
-      subject_label: "Service payment",
-      detail: "Please review the payment action.",
-      due_at: "2026-08-10T10:00:00Z",
-      created_at: "2026-08-12T10:17:00Z",
-      read_at: "2026-08-12T10:18:00Z",
-    },
-  ];
-  const client = {
-    schema(schema) {
-      assert.equal(schema, "platform");
-      return {
-        async rpc(functionName, args, options) {
-          assert.equal(functionName, "student_portal_notifications_v2");
-          assert.equal(args, undefined);
-          assert.deepEqual(options, { get: true });
-          return { data: rows, error: null };
-        },
-      };
-    },
-  };
-  const notifications = await listPlatformStudentPortalNotificationsV2(
-    studentActor(),
-    { client },
-  );
-  assert.equal(notifications.length, 3);
-  assert.deepEqual(notifications.map(({ category, eventCode, dueAt, isRead }) => ({
-    category,
-    eventCode,
-    dueAt,
-    isRead,
-  })), [
-    { category: "document.review", eventCode: "correction_required", dueAt: null, isRead: false },
-    { category: "task.overdue", eventCode: "overdue", dueAt: "2026-08-11T10:00:00Z", isRead: false },
-    { category: "payment.overdue", eventCode: "overdue", dueAt: "2026-08-10T10:00:00Z", isRead: true },
-  ]);
-  assert.doesNotMatch(
-    JSON.stringify(notifications),
-    /organization|membership|case_id|source|amount|provider|waha|amo/i,
-  );
-});
-
-test("v2 feed fails closed for wrong role, extra keys and invalid category invariants", async () => {
-  const rpcClient = (rows) => ({
-    schema() { return { async rpc() { return { data: rows, error: null }; } }; },
-  });
-  await assert.rejects(
-    () => listPlatformStudentPortalNotificationsV2(
-      studentActor({ platformRole: "sales" }),
-      { client: rpcClient([]) },
-    ),
-    PlatformPortalRepositoryError,
-  );
-  const valid = {
-    notification_id: NOTIFICATION_ID,
-    category: "task.overdue",
-    event_code: "overdue",
-    subject_label: "Task",
-    detail: "Needs attention.",
-    due_at: "2026-08-11T10:00:00Z",
-    created_at: "2026-08-12T10:15:00Z",
-    read_at: null,
-  };
-  await assert.rejects(
-    () => listPlatformStudentPortalNotificationsV2(studentActor(), {
-      client: rpcClient([{ ...valid, amount_minor: 5000 }]),
-    }),
-    PlatformPortalRepositoryError,
-  );
-  await assert.rejects(
-    () => listPlatformStudentPortalNotificationsV2(studentActor(), {
-      client: rpcClient([{ ...valid, due_at: null }]),
-    }),
-    PlatformPortalRepositoryError,
-  );
-});
-
-test("Portal v2 keeps hardcoded safe destinations, selectors, realtime and v2 ack", () => {
-  const list = readFileSync(
-    new URL("../src/components/platform/portal/PortalNotificationList.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.match(list, /data-notification-category=\{notification\.category\}/);
-  assert.match(list, /data-testid="portal-notification-subject"/);
-  assert.match(list, /data-testid="portal-notification-detail"/);
-  assert.match(list, /data-testid="portal-notification-due-at"/);
-  assert.match(list, /data-testid="portal-notification-destination"/);
-  assert.match(list, /\? "\/portal"/);
-  assert.doesNotMatch(list, /"\/portal\/tasks"/);
-  assert.match(list, /"\/portal\/payments"/);
-  assert.match(list, /"\/portal\/documents"/);
-  assert.doesNotMatch(list, /sourceId|caseId|organizationId|membershipId|amountMinor|providerId/);
-
-  const action = readFileSync(
-    new URL("../src/lib/platform-portal-notification-actions.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(action, /mark_own_student_portal_notification_read_v2/);
-  const layout = readFileSync(
-    new URL("../src/app/portal/layout.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.match(layout, /PortalNotificationsRealtime/);
-});
-
-test("P6C alone keeps the accepted private Portal Realtime subscription active", () => {
-  const p6cOnlyEnvironment = {
-    EVO_PLATFORM_P6B_PORTAL_NOTIFICATIONS_ENABLED: "0",
-    EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: "1",
-  };
-  assert.equal(
-    isPlatformP6BPortalNotificationsEnabled(p6cOnlyEnvironment),
-    false,
-  );
-  assert.equal(
-    isPlatformP6COverdueNotificationsEnabled(p6cOnlyEnvironment),
-    true,
-  );
-
-  const portalFacade = readFileSync(
-    new URL("../src/lib/portal.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(
-    portalFacade,
-    /notificationsRealtimeScope:\s*\(\s*isPlatformP6BPortalNotificationsEnabled\(\)\s*\|\|\s*isPlatformP6COverdueNotificationsEnabled\(\)\s*\)/,
-  );
 });
 
 test("proxy admits only the exact private P6C path", () => {

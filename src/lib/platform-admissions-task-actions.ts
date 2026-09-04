@@ -177,8 +177,7 @@ function failureState(
 }
 
 function revalidateAdmissions(studentCaseId: string): void {
-  revalidatePath("/tasks");
-  revalidatePath(`/clients/${studentCaseId}`);
+  void studentCaseId;
   revalidatePath("/v3/calendar");
   revalidatePath("/v3/profile");
 }

@@ -262,7 +262,6 @@ test("Admissions sync uses the Admissions guard and exact Student 360 path", asy
     },
   });
   assert.deepEqual(harness.revalidated, [
-    `/clients/${IDS.studentCase}`,
     "/v3/profile",
     "/v3/inbox",
   ]);
@@ -413,7 +412,6 @@ test("read-only reconciliation selects the workflow guard and exact path without
     },
   ]);
   assert.deepEqual(harness.revalidated, [
-    `/clients/${IDS.studentCase}`,
     "/v3/profile",
     "/v3/inbox",
   ]);

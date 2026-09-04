@@ -1,5 +1,5 @@
 export const STAFF_ROLES = ["admin", "sales", "admissions"] as const;
-export const ROLES = [...STAFF_ROLES, "client"] as const;
+export const ROLES = STAFF_ROLES;
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
 export type Role = (typeof ROLES)[number];

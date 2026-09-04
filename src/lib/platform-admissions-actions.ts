@@ -224,8 +224,7 @@ function applicationFailureState(
 }
 
 function revalidateApplication(studentCaseId: string): void {
-  revalidatePath("/applications");
-  revalidatePath(`/clients/${studentCaseId}`);
+  void studentCaseId;
   revalidatePath("/v3/calendar");
   revalidatePath("/v3/profile");
 }

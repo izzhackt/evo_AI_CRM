@@ -12,7 +12,7 @@ import {
   parsePlatformRouteUuid,
   type PlatformConversationCursor,
 } from "@/lib/platform-communications";
-import { requirePlatformMessagingActor } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   readInbox,
   type InboxAmoCrmCommand,
@@ -45,7 +45,7 @@ export default async function InboxPart({
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
   const [query, actor, locale] = await Promise.all([
     searchParams,
-    requirePlatformMessagingActor(),
+    requireV3PageActor("/v3/inbox"),
     getLocale(),
   ]);
   assertExpectedQueryKeys(query);

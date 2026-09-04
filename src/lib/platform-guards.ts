@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import {
   fixedRoleCan,
+  fixedRoleCanAccessRoute,
   type FixedRoleCapability,
+  type FixedRoleRoute,
 } from "./fixed-role-policy";
 import {
   resolvePlatformActor,
   type ActivePlatformActor,
-  type PlatformActor,
 } from "./platform-auth";
 import {
   platformHomeRoute,
@@ -36,9 +37,21 @@ export async function requirePlatformCapability(
   return actor;
 }
 
-export async function requirePlatformStudentPortalActor(): Promise<PlatformActor<"student">> {
-  await requirePlatformActor();
-  redirect("/platform-pending?from=%2Fportal");
+/**
+ * V3 page visibility follows the selected presentation role. This guard is
+ * deliberately separate from `requirePlatformCapability`: server actions and
+ * repositories continue to authorize with the actor's immutable authority
+ * role, while an Admin preview cannot open pages hidden from the role being
+ * previewed by typing their URL directly.
+ */
+export async function requireV3PageActor(
+  route: FixedRoleRoute,
+): Promise<ActivePlatformActor> {
+  const actor = await requirePlatformStaffActor();
+  if (!fixedRoleCanAccessRoute(actor.presentationRole, route)) {
+    redirect(`/access-denied?from=${encodeURIComponent(route)}`);
+  }
+  return actor;
 }
 
 export async function requirePlatformMessagingActor(): Promise<ActivePlatformActor> {
@@ -50,25 +63,11 @@ export async function requirePlatformMessagingSendActor(): Promise<ActivePlatfor
 }
 
 export async function requirePlatformAdmissionsActor(
-  route: "/clients" | "/applications" = "/clients",
+  route: "/v3/profile" = "/v3/profile",
 ): Promise<ActivePlatformActor> {
   return requirePlatformCapability("admissions.read", route);
 }
 
-export function requirePlatformClientsActor(): Promise<ActivePlatformActor> {
-  return requirePlatformAdmissionsActor("/clients");
-}
-
-export function requirePlatformApplicationsActor(): Promise<ActivePlatformActor> {
-  return requirePlatformAdmissionsActor("/applications");
-}
-
-export function requirePlatformDocumentsActor(
-  route: "/documents" | "/v3/knowledge" = "/documents",
-): Promise<ActivePlatformActor> {
-  return requirePlatformCapability("documents.read", route);
-}
-
 export async function requirePlatformSalesActor(): Promise<ActivePlatformActor> {
-  return requirePlatformCapability("sales.read", "/sales");
+  return requirePlatformCapability("sales.read", "/v3/pipeline");
 }

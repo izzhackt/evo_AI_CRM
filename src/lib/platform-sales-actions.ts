@@ -185,7 +185,6 @@ export async function updatePlatformSalesWorkflowAction(
 
   try {
     const receipt = await mutatePlatformSalesLeadWorkflow(actor, input);
-    revalidatePath("/sales");
     revalidatePath("/v3/pipeline");
     revalidatePath(`/v3/profile?id=${receipt.leadId}`);
     return Object.freeze({

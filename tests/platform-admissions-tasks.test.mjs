@@ -23,12 +23,6 @@ const taskContractSource = read("src/lib/platform-admissions-task-contract.ts");
 const calendarSource = read("src/components/v3/calendar/Calendar.tsx");
 const controlsSource = read("src/components/v3/calendar/TaskControls.tsx");
 const adapterSource = read("src/lib/v3/calendar-source.ts");
-const queueSource = read("src/app/(staff)/tasks/page.tsx");
-const workspaceSource = read(
-  "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-);
-const shellSource = read("src/app/(staff)/layout.tsx");
-const domainSource = read("src/lib/domain.ts");
 
 test("Admissions task commands are exact, versioned Supabase actions", () => {
   assert.match(actionSource, /exactActionStringFields\(form, CREATE_TASK_FIELDS\)/);
@@ -155,8 +149,6 @@ test("V3 calendar is the only active task mutation surface", () => {
     false,
   );
   assert.match(calendarSource, /\.\/TaskControls/);
-  assert.match(queueSource, /redirect\("\/v3\/calendar"\)/);
-  assert.doesNotMatch(workspaceSource, /PlatformAdmissionsTaskPanel/);
   assert.match(
     controlsSource,
     /useActionState\(\s*createPlatformAdmissionsTaskAction/,
@@ -201,14 +193,9 @@ test("task adapters fail closed on malformed database rows and RPC errors", () =
   assert.doesNotMatch(repositorySource, /return\s+(?:\[\]|null).*fallback/i);
 });
 
-test("Admissions and Admin can open tasks while Sales fails closed", () => {
-  assert.equal(isConnectedPlatformPage("/tasks"), true);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/tasks"), true);
-  assert.equal(fixedRoleCanAccessRoute("admin", "/tasks"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/tasks"), false);
-  assert.doesNotMatch(shellSource, /CONNECTED_STAFF_ROUTES/);
-  assert.match(
-    domainSource,
-    /href: APP_ROUTES\.staff\.tasks,[\s\S]*?allowedRoles: \["admin", "admissions"\]/,
-  );
+test("Admissions and Admin can open the V3 calendar while Sales fails closed", () => {
+  assert.equal(isConnectedPlatformPage("/v3/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/calendar"), false);
 });

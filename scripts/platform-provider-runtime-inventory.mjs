@@ -289,7 +289,7 @@ export function validateBrowserEvidence(value, expectedSha) {
     "browser evidence",
   );
   if (value.schemaVersion !== 1) fail("browser evidence schemaVersion drifted");
-  if (value.kind !== "evo-v2-provider-browser-readonly") {
+  if (value.kind !== "evo-v3-provider-browser-readonly") {
     fail("browser evidence kind drifted");
   }
   if (value.status !== "passed") fail("browser evidence status drifted");
@@ -338,7 +338,11 @@ export function validateBrowserEvidence(value, expectedSha) {
 
   for (const [key, route, scope] of [
     ["adminSales", "/v3/inbox?conversation=:conversationId", "sales"],
-    ["adminAdmissions", "/clients/:studentCaseId", "admissions"],
+    [
+      "adminAdmissions",
+      "/v3/profile?case=:studentCaseId&tab=contract",
+      "admissions",
+    ],
   ]) {
     const page = value.routes[key];
     assertPageProof(page, {
@@ -395,7 +399,7 @@ export function validateDatabaseEvidence(value, expectedSha) {
     "database evidence",
   );
   if (value.schemaVersion !== 1) fail("database evidence schemaVersion drifted");
-  if (value.kind !== "evo-v2-provider-database-readonly") {
+  if (value.kind !== "evo-v3-provider-database-readonly") {
     fail("database evidence kind drifted");
   }
   if (value.status !== "passed") fail("database evidence status drifted");

@@ -208,10 +208,7 @@ function stopFailureState(
 }
 
 function revalidateCaseOperations(studentCaseId: string): void {
-  revalidatePath(`/clients/${studentCaseId}`);
-  revalidatePath("/applications");
-  revalidatePath("/visa");
-  revalidatePath("/finance");
+  void studentCaseId;
   revalidatePath("/v3/calendar");
   revalidatePath("/v3/profile");
 }

@@ -557,7 +557,7 @@ test("keeps redirects and retry metadata bounded and replay-safe", () => {
   );
   assert.equal(
     retry,
-    `/clients/${STUDENT_CASE_ID}?bw6_result=unavailable&bw6_retry_request_id=${REQUEST_ID}&bw6_retry_operation=review_draft&bw6_subject_id=${DRAFT_ID}#contract-workflow`,
+    `/v3/profile?case=${STUDENT_CASE_ID}&tab=contract&bw6_result=unavailable&bw6_retry_request_id=${REQUEST_ID}&bw6_retry_operation=review_draft&bw6_subject_id=${DRAFT_ID}#contract-workflow`,
   );
 
   const badRequest = buildPlatformContractRedirectTarget(
@@ -605,9 +605,14 @@ test("actions use live guards and RPC-only persistence without legacy/provider i
   ]) {
     assert.match(actions, new RegExp(`export async function ${actionName}`));
   }
-  assert.match(actions, /requirePlatformClientsActor\(\)/);
+  assert.match(actions, /requirePlatformContractActor\(\)/);
+  assert.match(
+    actions,
+    /requirePlatformCapability\("admissions\.read", "\/v3\/profile"\)/,
+  );
   assert.match(actions, /getPlatformCaseContractWorkspace/);
-  assert.match(actions, /revalidatePath\(`\/clients\/\$\{input\.studentCaseId\}`\)/);
+  assert.match(actions, /revalidatePath\("\/v3\/profile"\)/);
+  assert.doesNotMatch(actions, /\/clients\//u);
   assert.doesNotMatch(actions, /\.from\s*\(/);
   assert.doesNotMatch(actions, /console\.(?:log|warn|error)/);
 

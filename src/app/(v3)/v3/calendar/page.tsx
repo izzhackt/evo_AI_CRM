@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { redirect } from "next/navigation";
 
 import { PartShell } from "@/components/v3/PartShell";
 import { Calendar } from "@/components/v3/calendar/Calendar";
 import { gridDays, resolveDay, resolveView } from "@/components/v3/calendar/types";
-import { requirePlatformAdmissionsActor } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import { readCalendarWorkspace, readToday } from "@/lib/v3/calendar-source";
 
 export const dynamic = "force-dynamic";
@@ -26,18 +25,12 @@ export default async function CalendarPart({
   const [params, today, actor] = await Promise.all([
     searchParams,
     readToday(),
-    requirePlatformAdmissionsActor(),
+    requireV3PageActor("/v3/calendar"),
   ]);
 
   const view = resolveView(params.view);
   const day = resolveDay(params.date, today);
   const days = gridDays(view, day);
-  if (
-    actor.presentationRole !== "admin"
-    && actor.presentationRole !== "admissions"
-  ) {
-    redirect("/access-denied?from=%2Fv3%2Fcalendar");
-  }
   const workspace = await readCalendarWorkspace(
     actor,
     days[0],

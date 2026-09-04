@@ -79,7 +79,7 @@ function validRemoteEvidence() {
 function validBrowserEvidence() {
   return {
     schemaVersion: 1,
-    kind: "evo-v2-provider-browser-readonly",
+    kind: "evo-v3-provider-browser-readonly",
     status: "passed",
     gitSha: SHA,
     completedAt: OBSERVED_AT,
@@ -112,7 +112,7 @@ function validBrowserEvidence() {
         },
       },
       adminAdmissions: {
-        route: "/clients/:studentCaseId",
+        route: "/v3/profile?case=:studentCaseId&tab=contract",
         authorityRole: "admin",
         checks: {
           workspaceVisible: true,
@@ -171,7 +171,7 @@ function validCounts() {
 function validDatabaseEvidence() {
   return {
     schemaVersion: 1,
-    kind: "evo-v2-provider-database-readonly",
+    kind: "evo-v3-provider-database-readonly",
     status: "passed",
     gitSha: SHA,
     completedAt: OBSERVED_AT,

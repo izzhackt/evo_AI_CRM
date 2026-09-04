@@ -2,7 +2,7 @@ import { Funnel } from "@/components/v3/Funnel";
 import { MainHeader, type PeriodChoice } from "@/components/v3/MainHeader";
 import { MetricCard } from "@/components/v3/MetricCard";
 import { TrendChart } from "@/components/v3/TrendChart";
-import { requirePlatformSalesActor } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   PERIODS,
   periodLabel,
@@ -18,7 +18,7 @@ export default async function MainPart({
 }: {
   searchParams: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
-  const actor = await requirePlatformSalesActor();
+  const actor = await requireV3PageActor("/v3/main");
   const period = resolvePeriod(await searchParams);
   const { figures, trend } = await readPeriodDashboard(actor, period);
   const { counts, metrics, stages } = figures;

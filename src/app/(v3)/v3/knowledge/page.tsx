@@ -7,7 +7,7 @@ import {
   type KnowledgeFolder,
 } from "@/components/v3/FileManager";
 import { fixedRoleCan } from "@/lib/fixed-role-policy";
-import { requirePlatformDocumentsActor } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   readCompanyKnowledge,
   readKnowledgeDocuments,
@@ -20,7 +20,7 @@ export const metadata = { title: "V3 · База знаний" };
 const STUDENTS_ROOT = "students";
 
 export default async function KnowledgePart() {
-  const actor = await requirePlatformDocumentsActor("/v3/knowledge");
+  const actor = await requireV3PageActor("/v3/knowledge");
   const [company, students, studentDocuments] = await Promise.all([
     readCompanyKnowledge(actor),
     readKnowledgeStudents(actor),

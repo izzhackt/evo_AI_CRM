@@ -16,7 +16,7 @@ const ACTIVE_PROVIDER_RUNTIME_PATHS = [
   "src/lib/server/platform-waha-provider.ts",
   "src/lib/server/platform-amocrm-runtime.ts",
   "src/lib/platform-communications.ts",
-  "src/app/(staff)/layout.tsx",
+  "src/components/v3/AppShell.tsx",
   "src/app/(v3)/v3/inbox/page.tsx",
   "src/components/v3/InboxProviderWorkflowControls.tsx",
   "src/app/api/internal/platform-messaging/waha/work/route.ts",

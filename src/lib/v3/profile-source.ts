@@ -9,6 +9,7 @@ import type {
 import type {
   PersonProfile,
   ProfileAdmissionsWorkspace,
+  ProfileContractSnapshot,
   ProfileDraft,
   ProfilePick,
   ProfileRouteTarget,
@@ -29,6 +30,10 @@ import {
   type PlatformCaseFinanceControl,
 } from "@/lib/platform-finance-control";
 import {
+  getPlatformCaseContractWorkspace,
+  type PlatformCaseContractWorkspace,
+} from "@/lib/platform-contract-workflow";
+import {
   getPlatformCaseDocumentWorkspace,
   type PlatformCaseDocumentWorkspace,
   type PlatformDocumentSlot,
@@ -38,6 +43,8 @@ import { getPlatformSalesLead, listPlatformSalesLeads } from "@/lib/platform-sal
 import {
   getPlatformLeadAdmissionsGate,
   getPlatformLeadAdmissionsHandoff,
+  getPlatformStudentCaseHandoffContext,
+  type PlatformStudentCaseHandoffContext,
 } from "@/lib/platform-student-handoff";
 import {
   getPlatformStudentProfile,
@@ -69,6 +76,8 @@ type FullCaseData = Readonly<{
   finance: PlatformCaseFinanceControl;
   studentProfile: PlatformStudentProfileSnapshot | null;
   documents: PlatformCaseDocumentWorkspace;
+  contract: PlatformCaseContractWorkspace;
+  handoff: PlatformStudentCaseHandoffContext;
 }>;
 
 type FinanceSummary = Pick<
@@ -404,18 +413,41 @@ async function loadFullCase(
   studentCase: PlatformStudentCaseSnapshot,
 ): Promise<FullCaseData> {
   const studentCaseId = studentCase.studentCaseId;
-  const [applicationsPage, visa, finance, studentProfile, documents] = await Promise.all([
+  const [
+    applicationsPage,
+    visa,
+    finance,
+    studentProfile,
+    documents,
+    contract,
+    handoff,
+  ] = await Promise.all([
     listPlatformApplicationsForStudentCase(actor, studentCaseId, { pageSize: 100 }),
     getPlatformCaseVisa(actor, studentCaseId),
     getPlatformCaseFinanceControl(actor, studentCaseId),
     getPlatformStudentProfile(actor, studentCaseId),
     getPlatformCaseDocumentWorkspace(actor, studentCaseId),
+    getPlatformCaseContractWorkspace(actor, studentCaseId),
+    getPlatformStudentCaseHandoffContext(actor, studentCaseId),
   ]);
   if (applicationsPage.hasNext) {
     throw new Error("V3 profile application list exceeds its canonical read window.");
   }
   if (documents.studentCaseId !== studentCaseId || documents.caseState !== studentCase.state) {
     throw new Error("V3 profile document workspace does not match the requested case.");
+  }
+  if (
+    !contract ||
+    contract.studentCaseId !== studentCaseId ||
+    contract.organizationId !== actor.organizationId
+  ) {
+    throw new Error("V3 profile contract workspace does not match the requested case.");
+  }
+  if (
+    handoff.studentCaseId !== studentCaseId ||
+    handoff.organizationId !== actor.organizationId
+  ) {
+    throw new Error("V3 profile handoff context does not match the requested case.");
   }
   return {
     studentCase,
@@ -424,6 +456,8 @@ async function loadFullCase(
     finance,
     studentProfile,
     documents,
+    contract,
+    handoff,
   };
 }
 
@@ -443,6 +477,17 @@ function fullCaseDetails(
   const money = financeSummary(data.finance);
   const canUpload = data.studentCase.state === "active"
     && (actor.presentationRole === "admin" || actor.presentationRole === "admissions");
+  const contractWorkspace = actor.presentationRole === "admissions" && data.contract.actorRole === "admin"
+    ? Object.freeze({
+        ...data.contract,
+        actorRole: "admissions" as const,
+        canManageTemplates: false,
+      })
+    : data.contract;
+  const contract: ProfileContractSnapshot = Object.freeze({
+    workspace: contractWorkspace,
+    handoff: data.handoff,
+  });
   return {
     routeTarget,
     responsible,
@@ -457,6 +502,7 @@ function fullCaseDetails(
     otherFiles: [],
     ...money,
     admissions: admissionsWorkspace(data),
+    contract,
     contractSignedAt,
   };
 }
@@ -500,6 +546,9 @@ async function readCaseProfile(
   }
 
   const data = await loadFullCase(actor, view.studentCase);
+  if (link && data.handoff.leadId !== link.leadId) {
+    throw new Error("V3 profile handoff lead does not match the canonical case link.");
+  }
   const profile: PersonProfile = {
     leadId: link?.leadId ?? null,
     person: data.studentCase.studentDisplayName,
@@ -556,6 +605,9 @@ async function readLeadProfile(
   const fullCase = actor.presentationRole === "admin" && studentCase
     ? await loadFullCase(actor, studentCase)
     : null;
+  if (fullCase && fullCase.handoff.leadId !== lead.leadId) {
+    throw new Error("V3 profile handoff lead does not match the requested lead.");
+  }
   const applications = fullCase?.applications ?? [];
   const visa = fullCase?.visa ?? null;
   const finance = fullCase?.finance ?? null;
@@ -605,6 +657,7 @@ async function readLeadProfile(
         otherFiles: [],
         ...money,
         admissions: null,
+        contract: null,
         contractSignedAt: gate.contractConfirmedAt
           ? formatDate(gate.contractConfirmedAt, true)
           : null,

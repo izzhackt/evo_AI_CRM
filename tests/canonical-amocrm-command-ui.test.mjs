@@ -12,28 +12,28 @@ function source(path) {
 
 test("the active Platform amoCRM command panel remains on Admissions Student 360", () => {
   const studentWorkspace = source(
-    "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
+    "src/components/v3/profile/ProfileContractWorkspace.tsx",
   );
   const admissions = source(
-    "src/app/(staff)/clients/[id]/PlatformAmoCrmCommandSection.tsx",
+    "src/components/v3/profile/ProfileAmoCrmCommandSection.tsx",
   );
 
   assert.match(admissions, /CanonicalAmoCrmCommandPanel/);
-  assert.match(studentWorkspace, /<PlatformAmoCrmCommandSection/);
+  assert.match(studentWorkspace, /<ProfileAmoCrmCommandSection/);
   assert.doesNotMatch(
     studentWorkspace,
     /PlatformAdmissionsOperationsPanel|PlatformAdmissionsTaskPanel|PlatformPrivateDocumentsPanel/,
   );
   assert.match(
     admissions,
-    /<CanonicalAmoCrmCommandPanel[\s\S]*providerDispatchedAt: blockingAttempt\.providerDispatchedAt[\s\S]*scope="admissions"[\s\S]*leadId=\{leadId\}[\s\S]*studentCaseId=\{studentCaseId\}/,
+    /<CanonicalAmoCrmCommandPanel[\s\S]*providerDispatchedAt: blockingAttempt\.providerDispatchedAt[\s\S]*scope="admissions"[\s\S]*leadId=\{handoff\.leadId\}[\s\S]*studentCaseId=\{handoff\.studentCaseId\}/,
   );
   assert.match(admissions, /readPlatformBlockingAmoCrmCommand/);
   assert.match(admissions, /createSupabaseServerClient\(\)/);
-  assert.match(studentWorkspace, /organizationId=\{actor\.organizationId\}/);
+  assert.match(studentWorkspace, /organizationId=\{organizationId\}/);
   assert.match(
     admissions,
-    /data-testid="amocrm-case-command-section"/,
+    /data-testid="v3-profile-amocrm-command-section"/,
   );
   assert.match(admissions, /blockingAttempt=/);
 });
@@ -137,10 +137,7 @@ test("server actions use only canonical seams and active V3 revalidation", () =>
   assert.match(actions, /releasePlatformAmoCrmPreparedAttempt/);
   assert.match(actions, /revalidatePath\("\/v3\/profile"\)/);
   assert.match(actions, /revalidatePath\("\/v3\/inbox"\)/);
-  assert.match(
-    actions,
-    /revalidatePath\(`\/clients\/\$\{studentCaseId\}`\)/,
-  );
+  assert.doesNotMatch(actions, /\/clients/u);
   assert.doesNotMatch(actions, /revalidatePath\([^\n]*\/sales\//);
   assert.doesNotMatch(
     actions,

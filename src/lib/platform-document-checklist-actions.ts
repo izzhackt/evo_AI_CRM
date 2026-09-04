@@ -219,8 +219,7 @@ function caseLinkFailureState(
 }
 
 function revalidateChecklist(studentCaseId: string): void {
-  revalidatePath("/documents");
-  revalidatePath(`/clients/${studentCaseId}`);
+  void studentCaseId;
   revalidatePath("/v3/profile");
   revalidatePath("/v3/knowledge");
 }

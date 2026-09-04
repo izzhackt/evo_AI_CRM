@@ -164,7 +164,7 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "sales",
-      href: "/sales",
+      href: "/v3/pipeline",
       totalOnPage: salesPage.rows.length,
       overdueCount,
       unassignedCount,
@@ -172,7 +172,7 @@ export async function readPlatformDashboardSnapshot<
     if (overdueCount > 0) {
       attentionItems.push({
         key: "sales_overdue",
-        href: "/sales?due=overdue",
+        href: "/v3/pipeline",
         value: overdueCount,
         tone: "danger",
       });
@@ -180,7 +180,7 @@ export async function readPlatformDashboardSnapshot<
     if (unassignedCount > 0) {
       attentionItems.push({
         key: "sales_unassigned",
-        href: "/sales",
+        href: "/v3/pipeline",
         value: unassignedCount,
         tone: "warn",
       });
@@ -197,14 +197,14 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "clients",
-      href: "/clients",
+      href: "/v3/profile",
       totalOnPage: casesPage.rows.length,
       attentionCount,
     });
     if (attentionCount > 0) {
       attentionItems.push({
         key: "student_attention",
-        href: "/clients",
+        href: "/v3/profile",
         value: attentionCount,
         tone: "warn",
       });
@@ -218,14 +218,14 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "tasks",
-      href: "/tasks",
+      href: "/v3/calendar",
       totalOnPage: taskQueue.rows.length,
       overdueCount,
     });
     if (overdueCount > 0) {
       attentionItems.push({
         key: "admissions_overdue",
-        href: "/tasks",
+        href: "/v3/calendar",
         value: overdueCount,
         tone: "danger",
       });
@@ -238,14 +238,14 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "finance",
-      href: "/finance",
+      href: "/v3/profile",
       totalOnPage: financeQueue.length,
       blockedCount,
     });
     if (blockedCount > 0) {
       attentionItems.push({
         key: "finance_stops",
-        href: "/finance",
+        href: "/v3/profile",
         value: blockedCount,
         tone: "warn",
       });

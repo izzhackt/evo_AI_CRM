@@ -2,60 +2,66 @@ import { randomUUID } from "node:crypto";
 
 import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
 import type { FixedRole } from "@/lib/fixed-role-policy";
-import type { Locale } from "@/lib/i18n";
+import { getT } from "@/lib/i18n";
 import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
 import {
   PlatformAmoCrmCommandRpcError,
   readPlatformBlockingAmoCrmCommand,
 } from "@/lib/server/platform-amocrm-command-rpc";
+import type { PlatformStudentCaseHandoffContext } from "@/lib/platform-student-handoff";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
- * Platform Student 360 amoCRM command section.
+ * The sole V3 Admissions amoCRM command surface.
  *
- * The canonical Supabase Student context supplies the identifiers. This
- * section reads the active Supabase command/blocking path only; it must not
- * become another Student summary, handoff or contract path.
+ * Canonical case/person/lead identities come from the verified handoff
+ * snapshot. Provider readiness and a persisted prepared/unknown attempt are
+ * read from the Supabase command path only; there is no legacy writer or
+ * fallback command repository.
  */
-export async function PlatformAmoCrmCommandSection({
+export async function ProfileAmoCrmCommandSection({
   organizationId,
   authorityRole,
-  locale,
-  studentCaseId,
-  leadId,
-  clientId,
-  caseState,
+  handoff,
 }: Readonly<{
   organizationId: string;
   authorityRole: FixedRole;
-  locale: Locale;
-  studentCaseId: string;
-  leadId: string;
-  clientId: string;
-  caseState: "pending" | "active" | "closed";
+  handoff: PlatformStudentCaseHandoffContext;
 }>) {
+  if (
+    handoff.organizationId !== organizationId ||
+    handoff.studentCaseId.length === 0 ||
+    handoff.leadId.length === 0 ||
+    handoff.clientContext.clientId.length === 0
+  ) {
+    throw new Error("V3 profile amoCRM context does not match the active organization.");
+  }
+
+  const { locale } = await getT();
   let availability: Awaited<
     ReturnType<typeof readCanonicalAmoCrmCommandAvailability>
   >;
   let blockingAttempt: Awaited<
     ReturnType<typeof readPlatformBlockingAmoCrmCommand>
   >;
+
   try {
-    const staffClient =
-      caseState === "active" ? await createSupabaseServerClient() : null;
+    const staffClient = handoff.caseState === "active"
+      ? await createSupabaseServerClient()
+      : null;
     [availability, blockingAttempt] = await Promise.all([
       readCanonicalAmoCrmCommandAvailability(),
-      caseState === "active"
+      handoff.caseState === "active"
         ? readPlatformBlockingAmoCrmCommand(staffClient!, {
             organizationId,
             authorization: {
               actorRole: authorityRole,
               workflowScope: "admissions_post_handoff",
-              workflowLeadId: leadId,
-              studentCaseId,
+              workflowLeadId: handoff.leadId,
+              studentCaseId: handoff.studentCaseId,
             },
-            personId: clientId,
-            leadId,
+            personId: handoff.clientContext.clientId,
+            leadId: handoff.leadId,
           })
         : Promise.resolve(null),
     ]);
@@ -63,9 +69,8 @@ export async function PlatformAmoCrmCommandSection({
     if (error instanceof PlatformAmoCrmCommandRpcError) {
       return (
         <section
-          id="case-amocrm"
-          className="scroll-mt-24 border-y border-warn/30 bg-warn-weak px-4 py-4 text-sm text-warn"
-          data-testid="amocrm-case-command-section"
+          className="v3-edge-danger rounded-card border border-border border-s-2 bg-surface px-4 py-4 text-sm text-fg"
+          data-testid="v3-profile-amocrm-command-section"
           data-status="unavailable"
           role="status"
         >
@@ -78,30 +83,29 @@ export async function PlatformAmoCrmCommandSection({
   }
 
   return (
-    <div
-      id="case-amocrm"
+    <section
       className="scroll-mt-24"
-      data-testid="amocrm-case-command-section"
+      data-testid="v3-profile-amocrm-command-section"
       data-status="available"
     >
       <CanonicalAmoCrmCommandPanel
         availability={availability}
         blockingAttempt={
           blockingAttempt === null
-              ? null
-              : {
-                  attemptId: blockingAttempt.attemptId,
-                  operationName: blockingAttempt.operationName,
-                  status: blockingAttempt.status as "prepared" | "unknown",
-                  providerDispatchedAt: blockingAttempt.providerDispatchedAt,
-                }
+            ? null
+            : {
+                attemptId: blockingAttempt.attemptId,
+                operationName: blockingAttempt.operationName,
+                status: blockingAttempt.status as "prepared" | "unknown",
+                providerDispatchedAt: blockingAttempt.providerDispatchedAt,
+              }
         }
         scope="admissions"
-        leadId={leadId}
-        studentCaseId={studentCaseId}
+        leadId={handoff.leadId}
+        studentCaseId={handoff.studentCaseId}
         locale={locale}
         requestId={randomUUID()}
       />
-    </div>
+    </section>
   );
 }

@@ -4,16 +4,19 @@ import { Pill } from "@/components/v3/Pill";
 import { personState } from "@/lib/v3/wording";
 
 import { Documents } from "./Documents";
+import { ProfileContractWorkspace } from "./ProfileContractWorkspace";
 import { Anketa, History, Money, Overview } from "./tabs";
 import {
   tabsFor,
   type PersonProfile,
   type ProfileActorRole,
   type ProfileDraft,
+  type ProfileContractRetry,
   type ProfileSalesRequestIds,
   type ProfileSalesSnapshot,
   type TabKey,
 } from "./types";
+import type { PlatformContractMutationOutcome } from "@/lib/platform-contract-workflow";
 
 /**
  * Профиль человека — один на всех, лид он или уже студент.
@@ -43,7 +46,11 @@ export function Profile({
   draft,
   sales,
   actorRole,
+  authorityRole,
+  organizationId,
   requestIds,
+  contractResult,
+  contractRetry,
   tab,
   hrefFor,
 }: {
@@ -52,12 +59,19 @@ export function Profile({
   draft: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
   actorRole: ProfileActorRole;
+  authorityRole: ProfileActorRole;
+  organizationId: string;
   requestIds: ProfileSalesRequestIds;
+  contractResult?: PlatformContractMutationOutcome;
+  contractRetry?: ProfileContractRetry;
   tab: TabKey;
   hrefFor: (tab: string) => string;
 }) {
   const tabs = tabsFor(profile.student, actorRole);
   const current = tabs.some((entry) => entry.key === tab) ? tab : "overview";
+  if (current === "contract" && draft.contract === null) {
+    throw new Error("V3 contract tab has no canonical contract workspace.");
+  }
 
   const state = personState({
     hasCase: profile.student,
@@ -86,7 +100,7 @@ export function Profile({
         ) : null}
       </header>
 
-      {/* Полоса вкладок прокручивается на узком экране: пять названий не
+      {/* Полоса вкладок прокручивается на узком экране: названия разделов не
           помещаются в 393px, а переносить их в две строки — терять шапку. */}
       <nav
         aria-label="Разделы профиля"
@@ -135,6 +149,16 @@ export function Profile({
       ) : null}
       {current === "money" ? (
         <Money profile={profile} draft={draft} actorRole={actorRole} />
+      ) : null}
+      {current === "contract" && draft.contract ? (
+        <ProfileContractWorkspace
+          snapshot={draft.contract}
+          presentationRole={actorRole}
+          authorityRole={authorityRole}
+          organizationId={organizationId}
+          result={contractResult}
+          retry={contractRetry}
+        />
       ) : null}
       {current === "history" ? <History profile={profile} /> : null}
     </div>

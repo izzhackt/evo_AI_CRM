@@ -12,8 +12,8 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   const adapter = source("src/lib/v3/profile-source.ts");
   const workspace = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
 
-  assert.match(page, /requirePlatformStaffActor/u);
-  assert.match(page, /case\?: string/u);
+  assert.match(page, /requireV3PageActor\("\/v3\/profile"\)/u);
+  assert.match(page, /ProfileSearchParams/u);
   assert.match(page, /readProfileTarget\(actor, target\)/u);
   assert.match(page, /actorRole=\{actor\.presentationRole\}/u);
   assert.match(types, /query\.set\("id", target\.leadId\)/u);

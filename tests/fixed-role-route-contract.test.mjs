@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { fixedRoleCanAccessRoute } from "../src/lib/fixed-role-policy.ts";
+import {
+  FIXED_ROLE_ROUTES,
+  fixedRoleCanAccessRoute,
+} from "../src/lib/fixed-role-policy.ts";
 import {
   isConnectedPlatformApi,
   isConnectedPlatformPage,
   isConnectedPlatformPrivateApi,
-  isConnectedPlatformSettingsRequest,
   isRetiredPlatformRoute,
   platformHomeRoute,
 } from "../src/lib/platform-route-contract.ts";
@@ -16,115 +18,124 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const v3DocumentsSource = source(
-  "src/components/v3/profile/ProfileDocumentsClient.tsx",
-);
-const student360Source = source(
-  "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-);
-const canonicalDocumentsQueueSource = source(
-  "src/app/(staff)/documents/(queue)/page.tsx",
-);
-const canonicalDocumentsLayoutSource = source(
-  "src/app/(staff)/documents/layout.tsx",
-);
-const staffLayoutSource = source("src/app/(staff)/layout.tsx");
-const accessDeniedSource = source("src/app/(staff)/access-denied/page.tsx");
-
-test("visa and finance queues use the fixed Admissions read boundary", () => {
-  for (const route of ["/visa", "/finance"]) {
-    assert.equal(fixedRoleCanAccessRoute("admissions", route), true, route);
-    assert.equal(fixedRoleCanAccessRoute("admin", route), true, route);
-    assert.equal(fixedRoleCanAccessRoute("sales", route), false, route);
-  }
-});
-
-test("only the read-only admissions operations queues enter the page contract", () => {
-  assert.equal(isConnectedPlatformPage("/applications"), true);
-  assert.equal(isConnectedPlatformPage("/documents"), true);
-  assert.equal(isConnectedPlatformPage("/visa"), true);
-  assert.equal(isConnectedPlatformPage("/finance"), true);
-
-  const id = "10000000-0000-4000-8000-000000000001";
+test("only the exact V3 pages enter the active staff page contract", () => {
   for (const path of [
-    `/applications/${id}`,
-    `/documents/${id}`,
-    "/documents/3",
-    `/visa/${id}`,
-    `/finance/${id}`,
-  ]) {
-    assert.equal(isConnectedPlatformPage(path), false, path);
-  }
-});
-
-test("the Supabase dashboard is connected for every staff role", () => {
-  assert.equal(isConnectedPlatformPage("/dashboard"), true);
-  for (const role of ["admin", "sales", "admissions"]) {
-    assert.equal(fixedRoleCanAccessRoute(role, "/dashboard"), true, role);
-  }
-});
-
-test("the namespaced V3 product surface is connected without opening descendants", () => {
-  for (const path of [
+    "/",
+    "/login",
+    "/access-denied",
+    "/platform-pending",
     "/v3",
-    "/v3/main",
-    "/v3/pipeline",
-    "/v3/inbox",
-    "/v3/profile",
-    "/v3/settings",
-    "/v3/knowledge",
-    "/v3/calendar",
+    ...FIXED_ROLE_ROUTES,
   ]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
-  for (const path of ["/v3/unknown", "/v3/unknown/child", "/v3//main", "/v3/Profile"]) {
+
+  for (const path of [
+    "/v3/unknown",
+    "/v3/main/child",
+    "/v3//main",
+    "/v3/Profile",
+  ]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
 });
 
-test("the exact V3 knowledge denial keeps its route provenance", () => {
+test("the active V3 route policy exposes each exact presentation interface", () => {
+  for (const role of ["admin", "sales", "admissions"]) {
+    assert.equal(fixedRoleCanAccessRoute(role, "/v3/inbox"), true, role);
+    assert.equal(fixedRoleCanAccessRoute(role, "/v3/profile"), true, role);
+  }
+
+  for (const route of ["/v3/main", "/v3/pipeline"]) {
+    assert.equal(fixedRoleCanAccessRoute("admin", route), true, route);
+    assert.equal(fixedRoleCanAccessRoute("sales", route), true, route);
+    assert.equal(fixedRoleCanAccessRoute("admissions", route), false, route);
+  }
+
+  for (const route of ["/v3/calendar", "/v3/knowledge"]) {
+    assert.equal(fixedRoleCanAccessRoute("admin", route), true, route);
+    assert.equal(fixedRoleCanAccessRoute("admissions", route), true, route);
+    assert.equal(fixedRoleCanAccessRoute("sales", route), false, route);
+  }
+
+  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/settings"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/settings"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/settings"), false);
+});
+
+test("root and V3 entry share the exact role-home policy", () => {
+  assert.equal(platformHomeRoute("admin"), "/v3/main");
+  assert.equal(platformHomeRoute("sales"), "/v3/main");
+  assert.equal(platformHomeRoute("admissions"), "/v3/calendar");
+
+  for (const path of ["src/app/page.tsx", "src/app/(v3)/v3/page.tsx"]) {
+    const entry = source(path);
+    assert.match(entry, /fixedRoleHomeRoute\(actor\.presentationRole\)/, path);
+    assert.doesNotMatch(entry, /\/sales|\/clients/, path);
+  }
+});
+
+test("V3 pages guard presentation access before loading their workspace", () => {
+  const pageRoutes = new Map([
+    ["main", "/v3/main"],
+    ["pipeline", "/v3/pipeline"],
+    ["inbox", "/v3/inbox"],
+    ["calendar", "/v3/calendar"],
+    ["knowledge", "/v3/knowledge"],
+    ["settings", "/v3/settings"],
+  ]);
+
+  for (const [page, route] of pageRoutes) {
+    const pageSource = source(`src/app/(v3)/v3/${page}/page.tsx`);
+    assert.match(
+      pageSource,
+      new RegExp(`requireV3PageActor\\(\"${route.replaceAll("/", "\\/")}\"\\)`),
+      route,
+    );
+  }
+
+  const pipeline = source("src/app/(v3)/v3/pipeline/page.tsx");
+  assert.match(pipeline, /actorRole=\{actor\.presentationRole\}/);
+  assert.doesNotMatch(pipeline, /actorRole=\{actor\.authorityRole\}/);
+
+  const guards = source("src/lib/platform-guards.ts");
   assert.match(
-    accessDeniedSource,
-    /requestedKnowledge = requestedPath === "\/v3\/knowledge"/,
+    guards,
+    /fixedRoleCanAccessRoute\(actor\.presentationRole, route\)/,
   );
-  assert.match(accessDeniedSource, /isFixedRoleRoute\(requestedPath\)/);
-  assert.match(accessDeniedSource, /requestedKnowledge\s*\? copy\.knowledge/);
+  assert.match(guards, /fixedRoleCan\(actor\.authorityRole, capability\)/);
 });
 
-test("V3 knowledge uses the canonical documents role boundary", () => {
-  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/knowledge"), true);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/knowledge"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/knowledge"), false);
+test("access denial is a V3 surface and recovers only through active routes", () => {
+  const denied = source("src/app/(v3)/access-denied/page.tsx");
+  assert.match(denied, /requirePlatformStaffActor\(\)/);
+  assert.match(denied, /fixedRoleCanAccessRoute\(actor\.presentationRole/);
+  assert.match(denied, /fixedRoleHomeRoute\(actor\.presentationRole\)/);
+  assert.doesNotMatch(denied, /@\/lib\/auth|@\/lib\/domain|ROLE_HOME_ROUTE/);
 });
 
-test("removed parallel pages stay outside the successor and stop before runtime", () => {
-  for (const path of [
-    "/reports",
-    "/notifications",
+test("retired staff and portal roots are hidden tombstones before auth", () => {
+  for (const root of [
+    "/dashboard",
+    "/sales",
+    "/clients",
+    "/applications",
+    "/documents",
+    "/visa",
+    "/finance",
+    "/tasks",
+    "/settings",
+    "/portal",
     "/calls",
     "/chat",
-    "/chat/1",
     "/whatsapp",
-    "/whatsapp/10000000-0000-4000-8000-000000000001",
-    "/sales/10000000-0000-4000-8000-000000000001",
-    "/sales/10000000-0000-4000-8000-000000000001/conversations/20000000-0000-4000-8000-000000000002",
+    "/notifications",
+    "/reports",
   ]) {
-    assert.equal(isConnectedPlatformPage(path), false, path);
-    assert.equal(isRetiredPlatformRoute(path), true, path);
+    assert.equal(isConnectedPlatformPage(root), false, root);
+    assert.equal(isRetiredPlatformRoute(root), true, root);
+    assert.equal(isRetiredPlatformRoute(`${root}/anything`), true, root);
   }
-
-  for (const path of [
-    "/api/database/status",
-    "/api/database/status/details",
-    "/api/webhooks/telephony",
-    "/api/webhooks/telephony/retry",
-  ]) {
-    assert.equal(isRetiredPlatformRoute(path), true, path);
-  }
-  assert.equal(isRetiredPlatformRoute("/portal"), false);
-  assert.equal(isRetiredPlatformRoute("/api/health"), false);
-  assert.equal(isRetiredPlatformRoute("/sales"), false);
-  assert.equal(isRetiredPlatformRoute("/sales/not-a-uuid"), false);
 
   const proxy = source("src/proxy.ts");
   const tombstone = proxy.indexOf("isRetiredPlatformRoute(path)");
@@ -134,99 +145,11 @@ test("removed parallel pages stay outside the successor and stop before runtime"
   const liveSession = proxy.indexOf(
     "const session = await liveSessionState(request, requestHeaders)",
   );
-  assert.notEqual(tombstone, -1);
-  assert.notEqual(routeBlock, -1);
-  assert.notEqual(liveSession, -1);
-  assert.ok(tombstone < routeBlock);
+  assert.ok(tombstone >= 0 && tombstone < routeBlock);
   assert.ok(routeBlock < liveSession);
 });
 
-test("documents queue uses the fixed Admissions read boundary", () => {
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/documents"), true);
-  assert.equal(fixedRoleCanAccessRoute("admin", "/documents"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/documents"), false);
-});
-
-test("the V3 case profile is the one canonical private-document write surface", () => {
-  assert.doesNotMatch(
-    student360Source,
-    /getPlatformCaseDocumentWorkspace|PlatformPrivateDocumentsPanel/,
-  );
-  assert.match(v3DocumentsSource, /data-testid="v3-document-upload-form"/);
-  assert.match(v3DocumentsSource, /data-testid="v3-document-item"/);
-  assert.match(v3DocumentsSource, /data-testid="v3-document-download"/);
-  assert.match(v3DocumentsSource, /\/api\/v2\/document-slots\//);
-  assert.match(v3DocumentsSource, /\/api\/v2\/document-versions\//);
-  assert.match(v3DocumentsSource, /router\.refresh\(\)/);
-  assert.match(v3DocumentsSource, /const ACCEPTED_FILE_TYPES = \["application\/pdf", "image\/jpeg", "image\/png"\]/);
-  assert.match(v3DocumentsSource, /accept=\{ACCEPTED_FILE_TYPES\.join\(","\)\}/);
-  assert.match(v3DocumentsSource, /25 MiB/);
-  assert.doesNotMatch(
-    v3DocumentsSource,
-    /objectKey|private-document-repository|drizzle|sqlite|fallback/i,
-  );
-});
-
-test("the documents route is a read-only Platform queue linked to the V3 case profile", () => {
-  assert.match(canonicalDocumentsQueueSource, /requirePlatformDocumentsActor\(\)/);
-  assert.match(
-    canonicalDocumentsQueueSource,
-    /listPlatformDocumentQueue\(actor\)/,
-  );
-  assert.match(
-    canonicalDocumentsQueueSource,
-    /`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=documents`/,
-  );
-  assert.doesNotMatch(
-    canonicalDocumentsQueueSource,
-    /<form|listDocumentsForActor|@\/lib\/queries|@\/lib\/db|\/documents\/\$\{/i,
-  );
-  assert.match(
-    canonicalDocumentsLayoutSource,
-    /requirePlatformDocumentsActor\(\)/,
-  );
-  assert.match(staffLayoutSource, /new Set\(FIXED_ROLE_ROUTES\)/);
-  assert.doesNotMatch(staffLayoutSource, /CONNECTED_STAFF_ROUTES/);
-});
-
-test("fixed roles resolve to their exact private workspaces", () => {
-  assert.equal(platformHomeRoute("admin"), "/sales");
-  assert.equal(platformHomeRoute("sales"), "/sales");
-  assert.equal(platformHomeRoute("admissions"), "/clients");
-  assert.equal(isConnectedPlatformPage("/portal"), false);
-  assert.equal(isConnectedPlatformPage("/portal/profile"), false);
-});
-
-test("settings exposes only the V2 preview surface", () => {
-  assert.equal(isConnectedPlatformPage("/settings"), true);
-  assert.equal(
-    isConnectedPlatformSettingsRequest("/settings", new URLSearchParams()),
-    true,
-  );
-
-  for (const query of [
-    "tab=staff",
-    "tab=operations",
-    "tab=audit",
-    "role=sales",
-    "tab=audit&tab=audit",
-  ]) {
-    assert.equal(
-      isConnectedPlatformSettingsRequest(
-        "/settings",
-        new URLSearchParams(query),
-      ),
-      false,
-      query,
-    );
-  }
-  assert.equal(
-    isConnectedPlatformSettingsRequest("/settings/", new URLSearchParams()),
-    false,
-  );
-});
-
-test("only the exact canonical audit export enters the active browser API contract", () => {
+test("only the exact canonical audit export enters the browser API contract", () => {
   assert.equal(isConnectedPlatformApi("/api/platform-audit/export"), true);
   assert.equal(isConnectedPlatformPrivateApi("/api/platform-audit/export"), false);
   for (const path of [
@@ -236,68 +159,36 @@ test("only the exact canonical audit export enters the active browser API contra
   ]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
   }
-
-  const proxy = readFileSync(
-    new URL("../src/proxy.ts", import.meta.url),
-    "utf8",
-  );
-  assert.doesNotMatch(proxy, /isPlatformP7AAuditEnabled/);
 });
 
-test("only the exact private document APIs enter the active V2 route contract", () => {
+test("only exact private document and company-file APIs are connected", () => {
   const documentSlotId = "10000000-0000-4000-8000-000000000001";
-  const versionId = "20000000-0000-4000-8000-000000000002";
+  const documentVersionId = "20000000-0000-4000-8000-000000000002";
+  const companyFileId = "30000000-0000-4000-8000-000000000003";
+  const companyVersionId = "40000000-0000-4000-8000-000000000004";
 
-  assert.equal(
-    isConnectedPlatformApi(
-      `/api/v2/document-slots/${documentSlotId}/versions`,
-    ),
-    true,
-  );
-  assert.equal(
-    isConnectedPlatformApi(`/api/v2/document-versions/${versionId}/download`),
-    true,
-  );
+  for (const path of [
+    `/api/v2/document-slots/${documentSlotId}/versions`,
+    `/api/v2/document-versions/${documentVersionId}/download`,
+    `/api/v3/company-files/${companyFileId}/versions`,
+    `/api/v3/company-file-versions/${companyVersionId}/download`,
+  ]) {
+    assert.equal(isConnectedPlatformApi(path), true, path);
+  }
 
   for (const path of [
     "/api/v2/documents",
-    "/api/v2/document-slots/",
     "/api/v2/document-slots/not-a-uuid/versions",
     `/api/v2/document-slots/${documentSlotId}/versions/`,
-    `/api/v2/document-versions/${versionId}`,
-    "/private-documents/anything",
-  ]) {
-    assert.equal(isConnectedPlatformApi(path), false, path);
-  }
-});
-
-test("only the exact private company-file APIs enter the active V3 route contract", () => {
-  const companyFileId = "30000000-0000-4000-8000-000000000003";
-  const versionId = "40000000-0000-4000-8000-000000000004";
-
-  assert.equal(
-    isConnectedPlatformApi(`/api/v3/company-files/${companyFileId}/versions`),
-    true,
-  );
-  assert.equal(
-    isConnectedPlatformApi(
-      `/api/v3/company-file-versions/${versionId}/download`,
-    ),
-    true,
-  );
-
-  for (const path of [
     "/api/v3/company-files",
     "/api/v3/company-files/not-a-uuid/versions",
-    `/api/v3/company-files/${companyFileId}/versions/`,
-    `/api/v3/company-file-versions/${versionId}`,
-    `/api/v3/company-file-versions/${versionId}/download/`,
+    `/api/v3/company-file-versions/${companyVersionId}/download/`,
   ]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
   }
 });
 
-test("only the canonical V2 WhatsApp inbound and private recovery routes enter the active contract", () => {
+test("only the canonical WhatsApp inbound and private recovery routes enter the contract", () => {
   assert.equal(isConnectedPlatformApi("/api/v2/whatsapp/inbound"), true);
   assert.equal(
     isConnectedPlatformApi("/api/internal/platform-messaging/waha/work"),
@@ -308,8 +199,6 @@ test("only the canonical V2 WhatsApp inbound and private recovery routes enter t
     "/api/v2/whatsapp/inbound/",
     "/api/internal/platform-messaging/waha/events",
     "/api/internal/platform-messaging/waha/work/",
-    "/api/internal/platform-messaging/waha/history",
-    "/api/internal/platform-messaging/waha/media",
     "/api/internal/lead-agent/whatsapp",
     "/api/webhooks/waha",
     "/api/webhooks/whatsapp",

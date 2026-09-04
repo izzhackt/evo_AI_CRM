@@ -5,20 +5,73 @@ import { Profile } from "@/components/v3/profile/Profile";
 import {
   buildV3ProfileHref,
   resolveTab,
+  type ProfileContractRetry,
   type ProfileRouteTarget,
 } from "@/components/v3/profile/types";
-import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import {
+  PLATFORM_CONTRACT_MUTATION_OUTCOMES,
+  PLATFORM_CONTRACT_RETRY_OPERATIONS,
+  parsePlatformContractUuid,
+  type PlatformContractMutationOutcome,
+} from "@/lib/platform-contract-workflow";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import { readProfilePicks, readProfileTarget } from "@/lib/v3/profile-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Профиль" };
 
+type ProfileSearchParams = Readonly<
+  Record<string, string | readonly string[] | undefined>
+>;
+
+function singleSearchParam(
+  value: string | readonly string[] | undefined,
+): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function parseContractResult(
+  searchParams: ProfileSearchParams,
+): PlatformContractMutationOutcome | undefined {
+  const candidate = singleSearchParam(searchParams.bw6_result);
+  return PLATFORM_CONTRACT_MUTATION_OUTCOMES.find(
+    (outcome) => outcome === candidate,
+  );
+}
+
+function parseContractRetry(
+  searchParams: ProfileSearchParams,
+  result: PlatformContractMutationOutcome | undefined,
+): ProfileContractRetry | undefined {
+  if (result !== "invalid" && result !== "unavailable") return undefined;
+  const requestId = parsePlatformContractUuid(
+    singleSearchParam(searchParams.bw6_retry_request_id),
+  );
+  const operationCandidate = singleSearchParam(
+    searchParams.bw6_retry_operation,
+  );
+  const operation = PLATFORM_CONTRACT_RETRY_OPERATIONS.find(
+    (value) => value === operationCandidate,
+  );
+  const subjectCandidate = singleSearchParam(searchParams.bw6_subject_id);
+  const subjectId = subjectCandidate
+    ? parsePlatformContractUuid(subjectCandidate)
+    : undefined;
+
+  if (!requestId || !operation || (subjectCandidate && !subjectId)) {
+    return undefined;
+  }
+  return subjectId
+    ? { requestId, operation, subjectId }
+    : { requestId, operation };
+}
+
 export default async function ProfilePart({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; case?: string; tab?: string }>;
+  searchParams: Promise<ProfileSearchParams>;
 }) {
-  const actor = await requirePlatformStaffActor();
+  const actor = await requireV3PageActor("/v3/profile");
   const [params, picks] = await Promise.all([
     searchParams,
     readProfilePicks(actor),
@@ -27,12 +80,14 @@ export default async function ProfilePart({
   // Lead and Student Case are different canonical identities. A requested
   // value is never substituted with the first picker row, and the two query
   // parameters are never interpreted as each other.
+  const leadParam = singleSearchParam(params.id);
+  const caseParam = singleSearchParam(params.case);
   const hasLeadParam = params.id !== undefined;
   const hasCaseParam = params.case !== undefined;
-  const explicitTarget: ProfileRouteTarget | null = params.id && !hasCaseParam
-    ? { leadId: params.id, studentCaseId: null }
-    : params.case && !hasLeadParam
-      ? { leadId: null, studentCaseId: params.case }
+  const explicitTarget: ProfileRouteTarget | null = leadParam && !hasCaseParam
+    ? { leadId: leadParam, studentCaseId: null }
+    : caseParam && !hasLeadParam
+      ? { leadId: null, studentCaseId: caseParam }
       : null;
   const hasExplicitTarget = hasLeadParam || hasCaseParam;
   const target = hasExplicitTarget ? explicitTarget : picks[0]?.target ?? null;
@@ -43,7 +98,7 @@ export default async function ProfilePart({
   // вкладка, которой у этого человека нет (`?tab=documents` у лида), открывают
   // обзор.
   const tab = resolveTab(
-    params.tab,
+    singleSearchParam(params.tab),
     Boolean(view?.profile.student),
     actor.presentationRole,
   );
@@ -56,6 +111,8 @@ export default async function ProfilePart({
     override: randomUUID(),
     handoff: randomUUID(),
   };
+  const contractResult = parseContractResult(params);
+  const contractRetry = parseContractRetry(params, contractResult);
 
   return (
     <PartShell title="Профиль">
@@ -65,7 +122,11 @@ export default async function ProfilePart({
           draft={view.details}
           sales={view.sales}
           actorRole={actor.presentationRole}
+          authorityRole={actor.authorityRole}
+          organizationId={actor.organizationId}
           requestIds={requestIds}
+          contractResult={contractResult}
+          contractRetry={contractRetry}
           tab={tab}
           hrefFor={hrefFor}
         />

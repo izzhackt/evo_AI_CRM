@@ -5,7 +5,6 @@ import {
   isConnectedPlatformApi,
   isConnectedPlatformPrivateApi,
   isConnectedPlatformPage,
-  isConnectedPlatformSettingsRequest,
   isDirectPlatformStaffAssistantApi,
   isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
@@ -199,12 +198,6 @@ export async function proxy(request: NextRequest) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
 
-  if (
-    path === "/settings" &&
-    !isConnectedPlatformSettingsRequest(path, request.nextUrl.searchParams)
-  ) {
-    return blockedPlatformRoute(request, id);
-  }
   if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path)) {
     return blockedPlatformRoute(request, id);
   }

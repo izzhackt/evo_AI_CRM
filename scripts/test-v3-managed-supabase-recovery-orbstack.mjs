@@ -875,7 +875,7 @@ async function validateRestrictedSqlFile(path, name) {
   return Object.freeze({ artifact: name, guardSha256: sha256(opening) });
 }
 
-export function verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete = false, requirePending = true } = {}) {
+export function verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete = false } = {}) {
   if (!isRecord(ledger) || !Array.isArray(ledger.entries) || ledger.entries.length === 0) {
     fail("migration_ledger_reconstruction_forbidden", "migration_rehearsal");
   }
@@ -899,7 +899,6 @@ export function verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete
     fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
   }
   if (requireComplete && root.entries.length !== prefix.length) fail("source_migration_ledger_not_complete", "migration_rehearsal");
-  if (requirePending && root.entries.length === prefix.length) fail("migration_pending_suffix_missing", "migration_rehearsal");
   return Object.freeze({
     source: Object.freeze(prefix),
     pending: Object.freeze(root.entries.slice(prefix.length)),
@@ -924,7 +923,6 @@ export function verifyMigrationTreePrefix(sourceRoot, targetRoot) {
     fail("repository_migration_prefix_mismatch", "migration_rehearsal");
   }
   const pending = targetRoot.entries.slice(prefix.length);
-  if (pending.length === 0) fail("repository_target_migration_suffix_missing", "migration_rehearsal");
   return Object.freeze({
     source: Object.freeze(sourceRoot.entries),
     pending: Object.freeze(pending),
@@ -1027,12 +1025,30 @@ function ownedRegularFile(path, { code, maximum, privateMode = false }) {
   return realpathSync(path);
 }
 
-function privateBackupDirectory(path) {
+export function privateBackupDirectory(path) {
   if (!isAbsolute(path)) fail("backup_directory_path_invalid", "preflight");
-  const sourceMetadata = lstatSync(path);
-  if (!sourceMetadata.isDirectory() || sourceMetadata.isSymbolicLink()) fail("backup_directory_not_private", "preflight");
-  const canonical = realpathSync(path);
-  const metadata = lstatSync(canonical);
+  let sourceMetadata;
+  try {
+    sourceMetadata = lstatSync(path);
+  } catch (error) {
+    if (error?.code === "ENOENT") fail("backup_directory_missing", "preflight");
+    fail("backup_directory_invalid", "preflight");
+  }
+  if (sourceMetadata.isSymbolicLink()) fail("backup_directory_not_private", "preflight");
+  if (!sourceMetadata.isDirectory()) fail("backup_directory_invalid", "preflight");
+  let canonical;
+  try {
+    canonical = realpathSync(path);
+  } catch {
+    fail("backup_directory_invalid", "preflight");
+  }
+  let metadata;
+  try {
+    metadata = lstatSync(canonical);
+  } catch (error) {
+    if (error?.code === "ENOENT") fail("backup_directory_missing", "preflight");
+    fail("backup_directory_invalid", "preflight");
+  }
   if (
     !metadata.isDirectory() ||
     (metadata.mode & 0o077) !== 0 ||
@@ -3152,16 +3168,40 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
   return Object.freeze({ sameOrganization: "passed", crossOrganization: "passed", canonicalRead: "passed", ...writes });
 }
 
+export function canonicalRecoveryPdfBytes() {
+  const header = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] /Resources << >> >>",
+  ];
+  const offsets = [0];
+  let document = header;
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(document, "latin1"));
+    document += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  const xrefOffset = Buffer.byteLength(document, "latin1");
+  document += `xref\n0 ${objects.length + 1}\n`;
+  document += "0000000000 65535 f \n";
+  document += offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
+  document += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(document, "latin1");
+}
+
 async function provePrivateDocument(status, actor, storage, interruptionGuard) {
   const bucket = storage.buckets.find((candidate) => candidate.id === "platform-documents" && candidate.public === false);
   if (!bucket) fail("private_document_bucket_missing", "document_proof");
-  const path = `recovery-proof/${randomUUID()}.txt`;
-  const bytes = Buffer.from(`EVO isolated recovery ${randomUUID()}\n`, "utf8");
+  if (!Array.isArray(bucket.allowed_mime_types) || !bucket.allowed_mime_types.includes("application/pdf")) {
+    fail("private_document_pdf_not_allowed", "document_proof");
+  }
+  const path = `recovery-proof/${randomUUID()}.pdf`;
+  const bytes = canonicalRecoveryPdfBytes();
   const url = objectUrl(status.apiUrl, bucket.id, path);
   try {
     const written = await apiRequest(url, {
       method: "POST",
-      headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}`, "content-type": "text/plain", "x-upsert": "false" },
+      headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}`, "content-type": "application/pdf", "x-upsert": "false" },
       body: bytes,
     }, [200], "private_document_write_failed", "document_proof", interruptionGuard);
     await interruptionGuard.run("document_proof", async () => await written.arrayBuffer());
@@ -3201,6 +3241,8 @@ async function provePrivateDocument(status, actor, storage, interruptionGuard) {
     authenticatedDirectRead: "denied",
     signedRoundTrip: "passed",
     canaryDeleted: true,
+    canaryMimeType: "application/pdf",
+    canarySha256: sha256(bytes),
     evidenceScope: "behavior_canary_only_not_source_recovery",
   });
 }
@@ -3626,12 +3668,28 @@ export function browserRequestAllowed(requestUrl, appOrigin) {
 }
 
 export function validateBrowserNetworkProof(value) {
-  exactKeys(value, ["allowedOriginSha256", "deniedExternalRequestCount", "serviceWorkers"], "browser_network_proof_invalid", "browser_proof");
+  exactKeys(value, [
+    "allowedOriginSha256",
+    "deniedExternalRequestCount",
+    "serviceWorkers",
+    "webSocketAttemptCount",
+    "webSockets",
+  ], "browser_network_proof_invalid", "browser_proof");
   string(value.allowedOriginSha256, SHA256, "browser_network_proof_invalid", "browser_proof", 64);
   integer(value.deniedExternalRequestCount, "browser_network_proof_invalid", "browser_proof");
+  integer(value.webSocketAttemptCount, "browser_network_proof_invalid", "browser_proof");
   if (value.serviceWorkers !== "blocked") fail("browser_service_workers_not_blocked", "browser_proof");
+  if (value.webSockets !== "blocked_all") fail("browser_websockets_not_blocked", "browser_proof");
   if (value.deniedExternalRequestCount !== 0) fail("browser_external_request_attempted", "browser_proof");
+  if (value.webSocketAttemptCount !== 0) fail("browser_websocket_attempted", "browser_proof");
   return Object.freeze({ ...value });
+}
+
+export async function installBrowserWebSocketBlocker(context, browserNetwork, browserStep = async (operation) => await operation()) {
+  await browserStep(async () => await context.routeWebSocket("**/*", async (webSocket) => {
+    browserNetwork.webSocketAttemptCount += 1;
+    await webSocket.close({ code: 1008, reason: "Blocked by recovery isolation" });
+  }));
 }
 
 async function proveBrowser(app, state, supervisor, interruptionGuard) {
@@ -3670,6 +3728,8 @@ async function proveBrowser(app, state, supervisor, interruptionGuard) {
       allowedOriginSha256: sha256(new URL(app.appUrl).origin),
       deniedExternalRequestCount: 0,
       serviceWorkers: "blocked",
+      webSocketAttemptCount: 0,
+      webSockets: "blocked_all",
     };
     const availableRoles = ["admin", "sales", "admissions"].filter((role) => isRecord(app.actors[role]));
     if (availableRoles.length === 0) fail("browser_representative_missing", "browser_proof");
@@ -3687,6 +3747,7 @@ async function proveBrowser(app, state, supervisor, interruptionGuard) {
         browserNetwork.deniedExternalRequestCount += 1;
         await route.abort("blockedbyclient");
       }));
+      await installBrowserWebSocketBlocker(context, browserNetwork, browserStep);
       const page = await browserStep(async () => await context.newPage());
       await browserStep(async () => await page.goto(`${app.appUrl}/login`, { waitUntil: "domcontentloaded" }));
       await browserStep(async () => await page.locator("#staff-email").fill(app.actors[role].email));

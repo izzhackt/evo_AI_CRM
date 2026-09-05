@@ -18609,3 +18609,29 @@ not contact or mutate managed Supabase, VPS, WAHA, amoCRM, Gemini, webhooks,
 production traffic or customer records, and it does not arm #552. The internal
 network contract follows Docker's documented `--internal` behavior:
 <https://docs.docker.com/reference/cli/docker/network/create/>.
+
+## 2026-09-05 - Close managed recovery exact-head review gaps
+
+Block-ID: `EVO-V3-H-RECOVERY-EXACT-HEAD-REVIEW-CORRECTIONS-2026-09-05`
+
+Change type: independent-review correctness and fail-closed correction.
+Affected plan section: Order 7 / Issue #551.
+
+Decision:
+
+- accept equality for either exact ordered migration-prefix relationship so a
+  later authentic fully migrated backup remains recoverable; retain exact
+  evidence for the current export's database suffix `080`-`116` and
+  source-code suffix `115`-`116`;
+- use a deterministic valid `application/pdf` object for the private-document
+  behavior canary, require the canonical bucket policy to allow PDF, and retain
+  only its content hash and outcome evidence;
+- install a Playwright `BrowserContext.routeWebSocket` blocker before page
+  creation, never connect the routed socket, and fail the proof if any
+  WebSocket attempt occurs; and
+- translate an absent backup directory into the named
+  `backup_directory_missing` preflight blocker.
+
+The focused recovery suite covers all four corrections. This change performs
+no Docker, managed Supabase, VPS, provider, webhook, production-traffic or
+customer mutation and does not activate a release.

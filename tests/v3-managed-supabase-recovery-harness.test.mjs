@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
@@ -14,6 +14,7 @@ import {
   assessRepresentativeCohort,
   apiRequest,
   browserRequestAllowed,
+  canonicalRecoveryPdfBytes,
   buildDurableEvidence,
   buildIsolationEvidence,
   canonicalJson,
@@ -25,9 +26,11 @@ import {
   extractExactMigrationLedger,
   evidenceDestination,
   gitBlobOid,
+  installBrowserWebSocketBlocker,
   latchInterruption,
   migrationStatementsDigest,
   parseHarnessOptions,
+  privateBackupDirectory,
   parseTargetTreeListing,
   orderedTargetEntries,
   runBrowserOperation,
@@ -212,7 +215,7 @@ function databaseManifest(overrides = {}) {
 
 function buckets() {
   return [
-    { id: "platform-documents", name: "platform-documents", public: false, file_size_limit: 1000, allowed_mime_types: ["text/plain"], created_at: null, updated_at: null },
+    { id: "platform-documents", name: "platform-documents", public: false, file_size_limit: 1000, allowed_mime_types: ["application/pdf", "image/jpeg", "image/png"], created_at: null, updated_at: null },
     { id: "avatars", name: "avatars", public: true, file_size_limit: null, allowed_mime_types: null, created_at: null, updated_at: null },
     { id: "attachments", name: "attachments", public: true, file_size_limit: null, allowed_mime_types: null, created_at: null, updated_at: null },
   ];
@@ -312,6 +315,28 @@ test("arguments separate immutable source and target bindings and reject the ret
     ], {}),
     "representative_user_ids_not_distinct",
   );
+});
+
+test("backup directory preflight names missing, invalid and non-private inputs", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "evo-recovery-backup-preflight-"));
+  const privateDirectory = join(root, "backup");
+  const file = join(root, "file");
+  const link = join(root, "link");
+  mkdirSync(privateDirectory, { mode: 0o700 });
+  writeFileSync(file, "not a directory", { mode: 0o600 });
+  symlinkSync(privateDirectory, link);
+  t.after(() => {
+    chmodSync(privateDirectory, 0o700);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  assert.equal(privateBackupDirectory(privateDirectory), realpathSync(privateDirectory));
+  expectCode(() => privateBackupDirectory(join(root, "missing")), "backup_directory_missing");
+  expectCode(() => privateBackupDirectory("relative/backup"), "backup_directory_path_invalid");
+  expectCode(() => privateBackupDirectory(file), "backup_directory_invalid");
+  expectCode(() => privateBackupDirectory(link), "backup_directory_not_private");
+  chmodSync(privateDirectory, 0o755);
+  expectCode(() => privateBackupDirectory(privateDirectory), "backup_directory_not_private");
 });
 
 test("repository binding proves squash-equivalent source trees before target ancestry", () => {
@@ -442,9 +467,10 @@ test("exact history parser binds ordered full COPY rows and rejects reconstructi
     rootEntry("003", "next", "next;"),
   ] };
   assert.deepEqual(verifyLedgerAgainstRoot(ledger, root, summary).pending.map((entry) => entry.version), ["003"]);
-  expectCode(() => verifyLedgerAgainstRoot(ledger, { entries: root.entries.slice(0, 2) }, summary), "migration_pending_suffix_missing");
-  assert.equal(verifyLedgerAgainstRoot(ledger, { entries: root.entries.slice(0, 2) }, summary, { requireComplete: true, requirePending: false }).pending.length, 0);
-  expectCode(() => verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete: true, requirePending: false }), "source_migration_ledger_not_complete");
+  const fullyMigratedRoot = { entries: root.entries.slice(0, 2) };
+  assert.equal(verifyLedgerAgainstRoot(ledger, fullyMigratedRoot, summary).pending.length, 0);
+  assert.equal(verifyLedgerAgainstRoot(ledger, fullyMigratedRoot, summary, { requireComplete: true }).pending.length, 0);
+  expectCode(() => verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete: true }), "source_migration_ledger_not_complete");
   expectCode(() => verifyLedgerAgainstRoot({ count: 2, min_version: "001", max_version: "002" }, root, summary), "migration_ledger_reconstruction_forbidden");
   expectCode(() => extractExactMigrationLedger(historySql([
     "002\t{second}\tadd_students", "001\t{first}\tinitial_schema",
@@ -489,6 +515,7 @@ test("database pending migrations and source-code target suffix are independentl
   assert.deepEqual(verifyLedgerAgainstRoot(ledger, sourceRoot, summary).pending.map(({ version }) => version), ["003"]);
   assert.deepEqual(verifyLedgerAgainstRoot(ledger, targetRoot, summary).pending.map(({ version }) => version), ["003", "004"]);
   assert.deepEqual(verifyMigrationTreePrefix(sourceRoot, targetRoot).pending.map(({ version }) => version), ["004"]);
+  assert.equal(verifyMigrationTreePrefix(sourceRoot, sourceRoot).pending.length, 0);
   expectCode(
     () => verifyMigrationTreePrefix(sourceRoot, { entries: [...sourceRoot.entries.slice(0, 2), entry("003", "changed")] }),
     "repository_migration_prefix_mismatch",
@@ -520,6 +547,21 @@ test("restored Storage inventory requires exact identity, version and streamed b
   const empty = storageSourceRecoveryReadiness({ objectCount: 0 });
   assert.deepEqual(empty, { status: "not_ready", blocker: "storage_source_object_missing", recoveredObjectCount: 0 });
   assert.match(source, /evidenceScope: "behavior_canary_only_not_source_recovery"/u);
+});
+
+test("private document behavior canary is a deterministic canonical PDF accepted by Storage policy", () => {
+  const first = canonicalRecoveryPdfBytes();
+  const second = canonicalRecoveryPdfBytes();
+  const document = first.toString("latin1");
+  assert.deepEqual(first, second);
+  assert.equal(first.subarray(0, 5).toString("ascii"), "%PDF-");
+  assert.match(document, /\nxref\n0 4\n/u);
+  assert.match(document, /trailer\n<< \/Size 4 \/Root 1 0 R >>\nstartxref\n([0-9]+)\n%%EOF\n$/u);
+  const xrefOffset = Number(document.match(/startxref\n([0-9]+)\n%%EOF\n$/u)?.[1]);
+  assert.equal(document.slice(xrefOffset, xrefOffset + 4), "xref");
+  assert.match(source, /`recovery-proof\/\$\{randomUUID\(\)\}\.pdf`/u);
+  assert.match(source, /"content-type": "application\/pdf"/u);
+  assert.doesNotMatch(source, /"content-type": "text\/plain"/u);
 });
 
 test("Storage restore streams bounded file chunks and aborts an in-flight upload", async (t) => {
@@ -926,11 +968,56 @@ test("browser network policy allows only the exact loopback app origin and fails
   assert.equal(browserRequestAllowed("http://127.0.0.1:54321/rest/v1/students", appOrigin), false);
   assert.equal(browserRequestAllowed("https://example.com/tracker", appOrigin), false);
   assert.equal(browserRequestAllowed("data:text/plain,ok", appOrigin), false);
-  const clean = { allowedOriginSha256: hash(appOrigin), deniedExternalRequestCount: 0, serviceWorkers: "blocked" };
+  const clean = {
+    allowedOriginSha256: hash(appOrigin),
+    deniedExternalRequestCount: 0,
+    serviceWorkers: "blocked",
+    webSocketAttemptCount: 0,
+    webSockets: "blocked_all",
+  };
   assert.deepEqual(validateBrowserNetworkProof(clean), clean);
   expectCode(() => validateBrowserNetworkProof({ ...clean, deniedExternalRequestCount: 1 }), "browser_external_request_attempted");
   expectCode(() => validateBrowserNetworkProof({ ...clean, serviceWorkers: "allow" }), "browser_service_workers_not_blocked");
-  assert.match(source, /newContext\(\{ locale: "ru-RU", serviceWorkers: "block" \}\)[\s\S]*context\.route\("\*\*\/\*"/u);
+  expectCode(() => validateBrowserNetworkProof({ ...clean, webSocketAttemptCount: 1 }), "browser_websocket_attempted");
+  expectCode(() => validateBrowserNetworkProof({ ...clean, webSockets: "same_origin" }), "browser_websockets_not_blocked");
+  const contextIndex = source.indexOf('newContext({ locale: "ru-RU", serviceWorkers: "block" })');
+  const httpRouteIndex = source.indexOf('context.route("**/*"', contextIndex);
+  const webSocketRouteIndex = source.indexOf("installBrowserWebSocketBlocker(context", httpRouteIndex);
+  const pageIndex = source.indexOf("context.newPage()", webSocketRouteIndex);
+  assert.ok(contextIndex >= 0 && httpRouteIndex > contextIndex && webSocketRouteIndex > httpRouteIndex && pageIndex > webSocketRouteIndex);
+  assert.doesNotMatch(source, /connectToServer/u);
+});
+
+test("WebSocket blocker rejects every socket without connecting to a server", async () => {
+  let pattern;
+  let handler;
+  let browserStepCount = 0;
+  const browserNetwork = { webSocketAttemptCount: 0 };
+  await installBrowserWebSocketBlocker(
+    {
+      async routeWebSocket(receivedPattern, receivedHandler) {
+        pattern = receivedPattern;
+        handler = receivedHandler;
+      },
+    },
+    browserNetwork,
+    async (operation) => {
+      browserStepCount += 1;
+      return await operation();
+    },
+  );
+  assert.equal(pattern, "**/*");
+  assert.equal(browserStepCount, 1);
+
+  let connected = false;
+  let closeOptions;
+  await handler({
+    async close(options) { closeOptions = options; },
+    connectToServer() { connected = true; },
+  });
+  assert.equal(browserNetwork.webSocketAttemptCount, 1);
+  assert.equal(connected, false);
+  assert.deepEqual(closeOptions, { code: 1008, reason: "Blocked by recovery isolation" });
 });
 
 test("durable isolation evidence is hash-only and rejects any source/destination identity collision", () => {

@@ -202,6 +202,9 @@ commit—not the pre-squash SHA—must be an ancestor of the target. The
 authenticated database history is independently required to be the exact
 ordered prefix of both source and target migration roots, while the complete
 source Git migration root must be the exact ordered prefix of the target root.
+Either ordered relationship may be equal when a later authentic backup is
+already fully migrated; the current signed export must still prove its real
+database suffix `080`-`116` and source-code suffix `115`-`116` exactly.
 The rehearsal applies every target migration after the restored database
 history and records the database-pending and target-only source-code suffixes
 separately.
@@ -210,8 +213,8 @@ The recovery target is bound to the exact clean target checkout, a verified
 private Git snapshot and a locally built `linux/amd64` production image that is
 run by inspected image ID. Locked dependency acquisition is the only build-time
 network use; the candidate runtime has only one owned internal Docker network,
-publishes the app solely to loopback and blocks every browser request outside
-that origin. The rehearsal reconciles aggregate counts rather than publishing
+publishes the app solely to loopback and blocks every browser HTTP request and
+every WebSocket before page creation. The rehearsal reconciles aggregate counts rather than publishing
 customer rows, proves the safe available Supabase Auth/RLS/private-Storage and
 V3 browser behaviors, then destroys the disposable contour and atomically
 retains only mode-`0600` redacted evidence outside the runtime directory.
@@ -219,9 +222,10 @@ Database and Storage proof are independently required because a Supabase
 database backup does not contain Storage object bytes. Missing real Sales or
 Admissions identities, or a signed source Storage inventory with zero objects,
 produces a non-zero `not_ready` diagnostic; Admin/canary behavior may still be
-proved but cannot satisfy either missing-role or real source-byte recovery.
-Missing source credentials or either real backup is also a named blocker, and
-synthetic identities, records or objects cannot satisfy this gate.
+proved with a canonical allowed PDF and exact hash round trip, but cannot
+satisfy either missing-role or real source-byte recovery. A missing backup
+directory, missing source credentials or either real backup is also a named
+blocker, and synthetic identities, records or objects cannot satisfy this gate.
 
 #600 keeps the proved `/v3/*` module URLs and makes the authenticated root a
 role-aware dispatcher into them: Admin and Sales enter `/v3/main`, while

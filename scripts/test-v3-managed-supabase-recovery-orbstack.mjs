@@ -2445,8 +2445,11 @@ export async function reconcileTargetStorageBuckets(
     else updatedBucketCount += 1;
   }
   const after = await listBuckets();
-  const expectedPostUpgradeCount = new Set([...before, ...expected].map((bucket) => bucket.id)).size;
-  if (after.length !== expectedPostUpgradeCount) {
+  const expectedPostUpgrade = new Map(before.map((bucket) => [bucket.id, bucket]));
+  for (const bucket of expected) expectedPostUpgrade.set(bucket.id, bucket);
+  const expectedAfter = [...expectedPostUpgrade.values()]
+    .sort((left, right) => left.id.localeCompare(right.id, "en"));
+  if (!sameJson(after, expectedAfter)) {
     fail("target_storage_bucket_inventory_mismatch", "target_storage_configuration");
   }
   const verified = validateTargetStorageBuckets(expected, after, restoredSource.length);
@@ -3895,6 +3898,36 @@ function objectUrl(apiUrl, bucket, path, prefix = "object") {
   return new URL(`/storage/v1/${prefix}/${encodeURIComponent(bucket)}/${encoded}`, apiUrl).toString();
 }
 
+export function resolveStorageSignedObjectUrl(apiUrl, bucket, path, signedPath) {
+  string(signedPath, null, "private_document_signed_url_invalid", "document_proof", 16_384);
+  let base;
+  let candidate;
+  let expectedPath;
+  try {
+    base = new URL(apiUrl);
+    expectedPath = new URL(objectUrl(apiUrl, bucket, path, "object/sign")).pathname;
+    candidate = signedPath.startsWith("/object/sign/")
+      ? new URL(`/storage/v1${signedPath}`, base)
+      : new URL(signedPath, base);
+  } catch {
+    fail("private_document_signed_url_invalid", "document_proof");
+  }
+  const queryKeys = [...candidate.searchParams.keys()];
+  if (
+    candidate.origin !== base.origin ||
+    candidate.username !== "" ||
+    candidate.password !== "" ||
+    candidate.hash !== "" ||
+    candidate.pathname !== expectedPath ||
+    queryKeys.length !== 1 ||
+    queryKeys[0] !== "token" ||
+    !candidate.searchParams.get("token")
+  ) {
+    fail("private_document_signed_url_invalid", "document_proof");
+  }
+  return candidate;
+}
+
 async function databaseStorageIdentities(supervisor, toolchain, status) {
   return await psqlJson(supervisor, toolchain, status, String.raw`
     SELECT coalesce(json_agg(json_build_object(
@@ -4846,7 +4879,14 @@ async function provePrivateDocument(status, actor, buckets, interruptionGuard) {
       signedPayload = null;
     }
     if (!isRecord(signedPayload) || typeof signedPayload.signedURL !== "string") fail("private_document_signed_url_invalid", "document_proof");
-    const download = await apiRequest(new URL(signedPayload.signedURL, status.apiUrl), {}, [200], "private_document_signed_read_failed", "document_proof", interruptionGuard);
+    const download = await apiRequest(
+      resolveStorageSignedObjectUrl(status.apiUrl, bucket.id, path, signedPayload.signedURL),
+      {},
+      [200],
+      "private_document_signed_read_failed",
+      "document_proof",
+      interruptionGuard,
+    );
     const actual = Buffer.from(await interruptionGuard.run("document_proof", async () => await download.arrayBuffer()));
     if (!actual.equals(bytes)) fail("private_document_roundtrip_mismatch", "document_proof");
   } finally {

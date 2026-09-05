@@ -19407,3 +19407,31 @@ and volume removal references document the stronger non-force behavior:
 This correction changes only the disposable local recovery consumer and its
 tests. It does not run Docker, contact or mutate managed Supabase, production,
 VPS, providers, webhooks or customer state. #552 remains unarmed.
+
+## 2026-09-05 - Preserve the full source bucket overlay and resolve signed paths
+
+Block-ID: `EVO-V3-H-RECOVERY-STORAGE-OVERLAY-SIGNED-PATH-2026-09-05`
+
+Change type: independent-review security correction plus real-runtime recovery
+correction. Affected plan section: Order 7 / Issue #551.
+
+Independent review found that validating the final bucket count plus only the
+target-config subset could miss a removed or mutated source-only bucket if a
+different extra bucket kept the count unchanged. The exact-head real rehearsal
+then passed source reconciliation and target bucket configuration but exposed a
+separate URL-shape error: the Storage API returns a raw `/object/sign/...`
+signed path, while the canary resolved it at the API origin root rather than
+beneath `/storage/v1`, producing a safe local `404`.
+
+Decision: build the expected final bucket inventory by overlaying exact target
+declarations on the complete normalized pre-upgrade source inventory, and
+require the complete post-upgrade API inventory to match it. Resolve the raw
+signed path only beneath `/storage/v1` on the exact local API origin and require
+the exact bucket/object path plus one non-empty `token` query; reject a different
+origin, path, credentials, fragment or query shape. Regression tests cover a
+mutated source-only bucket at unchanged count and the raw signed-path contract.
+
+The failed exact candidate retained only redacted mode-`0600` evidence and
+completed owned cleanup with disposition `remove`. No managed Supabase,
+production, VPS, provider, webhook or customer state was contacted or mutated;
+#552 remains unarmed.

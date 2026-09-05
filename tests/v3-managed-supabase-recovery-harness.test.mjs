@@ -40,6 +40,7 @@ import {
   orbStackEnvironment,
   runBrowserOperation,
   resolveSupabaseExecutableChain,
+  resolveStorageSignedObjectUrl,
   sanitizePsqlDiagnostic,
   sanitizeCommandDiagnostic,
   storageSourceRecoveryReadiness,
@@ -508,6 +509,33 @@ allowed_mime_types = ["application/pdf", "text/plain"]
   ]);
   assert.equal(runtime.find((bucket) => bucket.id === "legacy-private")?.public, false);
   assert.equal(runtime.find((bucket) => bucket.id === "platform-documents")?.public, false);
+  const originalRuntime = sourceBuckets.map((bucket) => ({
+    id: bucket.id,
+    name: bucket.name,
+    public: bucket.public,
+    file_size_limit: bucket.file_size_limit,
+    allowed_mime_types: bucket.allowed_mime_types,
+  }));
+  let negativeListCount = 0;
+  await expectCodeAsync(
+    () => reconcileTargetStorageBuckets(
+      { apiUrl: "http://127.0.0.1:54321", serviceRoleKey: "local-service-role" },
+      config,
+      sourceBuckets,
+      new RecoveryInterruptionGuard(),
+      {
+        fetchImpl: async (_url, init = {}) => {
+          if ((init.method ?? "GET") !== "GET") return Response.json({});
+          negativeListCount += 1;
+          if (negativeListCount === 1) return Response.json(originalRuntime);
+          return Response.json(runtime.map((bucket) => bucket.id === "legacy-private"
+            ? { ...bucket, name: "replaced-source-bucket" }
+            : bucket));
+        },
+      },
+    ),
+    "target_storage_bucket_inventory_mismatch",
+  );
   await expectCodeAsync(
     () => reconcileTargetStorageBuckets(
       { apiUrl: "http://127.0.0.1:54321", serviceRoleKey: "local-service-role" },
@@ -1009,6 +1037,28 @@ test("private document behavior canary is a deterministic canonical PDF accepted
   assert.match(source, /`recovery-proof\/\$\{randomUUID\(\)\}\.pdf`/u);
   assert.match(source, /"content-type": "application\/pdf"/u);
   assert.doesNotMatch(source, /"content-type": "text\/plain"/u);
+});
+
+test("raw Storage signed paths are resolved under the local Storage API and cannot redirect", () => {
+  const apiUrl = "http://127.0.0.1:54321";
+  const path = "recovery-proof/60000000-0000-4000-8000-000000000001.pdf";
+  const raw = `/object/sign/platform-documents/${path}?token=local-token`;
+  assert.equal(
+    resolveStorageSignedObjectUrl(apiUrl, "platform-documents", path, raw).toString(),
+    `${apiUrl}/storage/v1${raw}`,
+  );
+  expectCode(
+    () => resolveStorageSignedObjectUrl(apiUrl, "platform-documents", path, "https://example.com/object/sign/file?token=x"),
+    "private_document_signed_url_invalid",
+  );
+  expectCode(
+    () => resolveStorageSignedObjectUrl(apiUrl, "platform-documents", path, `${raw}&download=1`),
+    "private_document_signed_url_invalid",
+  );
+  expectCode(
+    () => resolveStorageSignedObjectUrl(apiUrl, "platform-documents", path, raw.replace("?token=local-token", "")),
+    "private_document_signed_url_invalid",
+  );
 });
 
 test("Storage restore streams bounded file chunks and aborts an in-flight upload", async (t) => {

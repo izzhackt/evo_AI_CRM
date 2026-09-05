@@ -324,14 +324,19 @@ consumer restores the exact target commit's `[storage.buckets.*]` declarations
 as its contract and reconciles them through the local Supabase Storage bucket
 API. It lists the API inventory before and after the change and requires every
 configured bucket's privacy, byte limit and MIME allowlist to match before any
-application canary starts. An `objects_path` is forbidden in this recovery gate
-so configuration cannot inject fixture bytes.
+application canary starts. The complete final inventory must equal the exact
+source inventory with target-config buckets overlaid, so a source-only bucket
+cannot disappear or change behind an equal count. An `objects_path` is
+forbidden in this recovery gate so configuration cannot inject fixture bytes.
 Target bucket creation is forward infrastructure rehearsal: it neither changes
 the signed source-recovery counts nor satisfies the independent requirement for
 at least one real recovered source object. Supabase documents bucket declarations
 in the [CLI config reference](https://supabase.com/docs/guides/local-development/cli/config)
 and the bucket lifecycle in
 [Creating Buckets](https://supabase.com/docs/guides/storage/buckets/creating-buckets).
+The private-document canary consumes the Storage API's raw `/object/sign/...`
+response only after resolving it beneath `/storage/v1` on the exact local API
+origin; a different origin, object path, fragment or query shape fails closed.
 Because the managed schema export intentionally excludes extension-owned
 `pgmq` objects while the signed data export retains queue rows, recovery must
 recreate only the two migration-045 queues before loading `data.sql`. It binds

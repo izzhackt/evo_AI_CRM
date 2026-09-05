@@ -21,6 +21,7 @@ import {
   mkdtempSync,
   openSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -41,6 +42,7 @@ const STORAGE_SCHEMA = "evo-v3-managed-supabase-storage-backup/v1";
 const RESULT_SCHEMA = "evo-v3-managed-supabase-recovery-result/v2";
 const SIGNATURE_NAMESPACE = "evo-v3-managed-supabase-recovery";
 const SIGNATURE_IDENTITY = "evo-v3-managed-supabase-export";
+const SNAPSHOT_MODE = "postgresql-exported-repeatable-read-read-only";
 const MARKER = ".evo-v3-managed-recovery-harness";
 const HARNESS_PREFIX = "evo-v3-managed-recovery-";
 const QUARANTINE_SUFFIX = ".quarantine";
@@ -192,7 +194,7 @@ function validateTools(value) {
   exactKeys(
     value,
     [
-      "supabase_cli", "pg_dump", "pg_dumpall", "age", "ssh", "orb", "docker_context",
+      "supabase_cli", "pg_dump", "pg_dumpall", "psql", "age", "ssh", "orb", "docker_context",
       "database_ca_sha256", "database_ca_fingerprint", "managed_dump_inputs_sha256",
     ],
     "export_tool_evidence_invalid",
@@ -203,7 +205,8 @@ function validateTools(value) {
   string(value.supabase_cli, VERSION, "export_tool_evidence_invalid");
   string(value.pg_dump, /^\d+\.\d+$/u, "export_tool_evidence_invalid");
   string(value.pg_dumpall, /^\d+\.\d+$/u, "export_tool_evidence_invalid");
-  if (value.pg_dump !== value.pg_dumpall) fail("export_postgres_tool_mismatch", "artifact_validation");
+  string(value.psql, /^\d+\.\d+$/u, "export_tool_evidence_invalid");
+  if (value.pg_dump !== value.pg_dumpall || value.pg_dump !== value.psql) fail("export_postgres_tool_mismatch", "artifact_validation");
   string(value.age, null, "export_tool_evidence_invalid", "artifact_validation", 256);
   string(value.database_ca_sha256, SHA256, "export_tool_evidence_invalid");
   string(value.managed_dump_inputs_sha256, SHA256, "export_tool_evidence_invalid");
@@ -222,6 +225,7 @@ function validateReceiptDatabase(value) {
       "migration_copy_rows_sha256",
       "data_copy_sections_sha256",
       "stability_proof_sha256",
+      "snapshot_mode",
       "table_count",
       "row_count",
       "auth_user_count",
@@ -236,6 +240,9 @@ function validateReceiptDatabase(value) {
     migration_copy_rows_sha256: string(value.migration_copy_rows_sha256, SHA256, "receipt_database_invalid"),
     data_copy_sections_sha256: string(value.data_copy_sections_sha256, SHA256, "receipt_database_invalid"),
     stability_proof_sha256: string(value.stability_proof_sha256, SHA256, "receipt_database_invalid"),
+    snapshot_mode: value.snapshot_mode === SNAPSHOT_MODE
+      ? value.snapshot_mode
+      : fail("receipt_database_snapshot_mode_invalid", "artifact_validation"),
     table_count: integer(value.table_count, "receipt_database_invalid"),
     row_count: integer(value.row_count, "receipt_database_invalid"),
     auth_user_count: integer(value.auth_user_count, "receipt_database_invalid"),
@@ -437,7 +444,8 @@ export function validateDatabaseManifest(manifest, expected) {
   );
   const ledger = validateLedgerSummary(manifest.migration_ledger);
   const aggregates = validateAggregate(manifest.aggregates);
-  exactKeys(manifest.stability, ["artifact_semantic_sha256", "proof_sha256"], "database_stability_invalid");
+  exactKeys(manifest.stability, ["snapshot_mode", "artifact_semantic_sha256", "proof_sha256"], "database_stability_invalid");
+  if (manifest.stability.snapshot_mode !== SNAPSHOT_MODE) fail("database_snapshot_mode_invalid", "artifact_validation");
   exactKeys(manifest.stability.artifact_semantic_sha256, SQL_ARTIFACTS, "database_stability_invalid");
   for (const hash of Object.values(manifest.stability.artifact_semantic_sha256)) {
     string(hash, SHA256, "database_stability_invalid");
@@ -456,6 +464,7 @@ export function validateDatabaseManifest(manifest, expected) {
     ledger.copy_rows_sha256 !== receiptDb.migration_copy_rows_sha256 ||
     dataCopy !== receiptDb.data_copy_sections_sha256 ||
     stabilityProof !== receiptDb.stability_proof_sha256 ||
+    manifest.stability.snapshot_mode !== receiptDb.snapshot_mode ||
     aggregates.table_count !== receiptDb.table_count ||
     aggregates.row_count !== receiptDb.row_count ||
     aggregates.auth_user_count !== receiptDb.auth_user_count
@@ -468,6 +477,9 @@ export function validateDatabaseManifest(manifest, expected) {
 function validateBucket(bucket) {
   exactKeys(bucket, ["id", "name", "public", "file_size_limit", "allowed_mime_types", "created_at", "updated_at"], "storage_bucket_invalid");
   string(bucket.id, null, "storage_bucket_invalid", "artifact_validation", 1_024);
+  if (bucket.id.includes("/") || bucket.id.includes("\\") || /[\u0000-\u001f\u007f]/u.test(bucket.id) || [".", ".."].includes(bucket.id)) {
+    fail("storage_bucket_invalid", "artifact_validation");
+  }
   string(bucket.name, null, "storage_bucket_invalid", "artifact_validation", 1_024);
   if (typeof bucket.public !== "boolean") fail("storage_bucket_invalid", "artifact_validation");
   if (bucket.file_size_limit !== null) integer(bucket.file_size_limit, "storage_bucket_invalid");
@@ -491,8 +503,8 @@ function validateStoredObject(object, bucketIds) {
   exactKeys(object, ["bucket_id", "path", "source_id", "source_version", "blob", "bytes", "sha256"], "storage_object_invalid");
   if (!bucketIds.has(object.bucket_id)) fail("storage_object_bucket_unknown", "artifact_validation");
   safeObjectPath(object.path, "storage_object_path_invalid");
-  string(object.source_id, null, "storage_object_invalid", "artifact_validation", 1_024);
-  if (object.source_version !== null) string(object.source_version, null, "storage_object_invalid", "artifact_validation", 1_024);
+  string(object.source_id, UUID, "storage_object_invalid");
+  if (object.source_version !== null) string(object.source_version, UUID, "storage_object_invalid");
   string(object.blob, /^[0-9a-f]{64}\.bin$/u, "storage_blob_name_invalid");
   return Object.freeze({
     ...object,
@@ -574,6 +586,152 @@ function decodeCopyField(field) {
   return result;
 }
 
+function parsePostgresTextArray(value) {
+  if (typeof value !== "string" || value[0] !== "{" || value.at(-1) !== "}") {
+    fail("migration_statements_array_invalid", "artifact_validation");
+  }
+  if (value === "{}") return Object.freeze([]);
+  const result = [];
+  let index = 1;
+  while (index < value.length - 1) {
+    let element = "";
+    if (value[index] === '"') {
+      index += 1;
+      let closed = false;
+      while (index < value.length - 1) {
+        if (value[index] === "\\") {
+          index += 1;
+          if (index >= value.length - 1) fail("migration_statements_array_invalid", "artifact_validation");
+          element += value[index];
+          index += 1;
+          continue;
+        }
+        if (value[index] === '"') {
+          index += 1;
+          closed = true;
+          break;
+        }
+        element += value[index];
+        index += 1;
+      }
+      if (!closed) fail("migration_statements_array_invalid", "artifact_validation");
+    } else {
+      while (index < value.length - 1 && value[index] !== ",") {
+        if (["{", "}", '"'].includes(value[index])) fail("migration_statements_array_invalid", "artifact_validation");
+        if (value[index] === "\\") {
+          index += 1;
+          if (index >= value.length - 1) fail("migration_statements_array_invalid", "artifact_validation");
+        }
+        element += value[index];
+        index += 1;
+      }
+      if (element === "NULL") fail("migration_statements_array_invalid", "artifact_validation");
+    }
+    result.push(element);
+    if (index === value.length - 1) break;
+    if (value[index] !== ",") fail("migration_statements_array_invalid", "artifact_validation");
+    index += 1;
+    if (index >= value.length - 1) fail("migration_statements_array_invalid", "artifact_validation");
+  }
+  return Object.freeze(result);
+}
+
+/**
+ * Match the Supabase CLI migration ledger representation: SQL is split on
+ * top-level semicolons, while quoted strings, dollar blocks, comments and
+ * parenthesized expressions remain intact; trailing semicolons and outer
+ * whitespace are removed before hashing the ordered statement array.
+ */
+export function migrationStatementsDigest(sql) {
+  if (typeof sql !== "string" || sql.length === 0) fail("root_migration_content_invalid", "migration_rehearsal");
+  const statements = [];
+  let start = 0;
+  let quote;
+  let dollar;
+  let lineComment = false;
+  let blockDepth = 0;
+  let parentheses = 0;
+  let atomic = false;
+  const emit = (end) => {
+    const statement = sql.slice(start, end).replace(/;+$/u, "").trim();
+    if (statement) statements.push(statement);
+    start = end;
+  };
+  for (let index = 0; index < sql.length; index += 1) {
+    const current = sql[index];
+    const next = sql[index + 1];
+    if (lineComment) {
+      if (current === "\n") lineComment = false;
+      continue;
+    }
+    if (blockDepth > 0) {
+      if (current === "/" && next === "*") {
+        blockDepth += 1;
+        index += 1;
+      } else if (current === "*" && next === "/") {
+        blockDepth -= 1;
+        index += 1;
+      }
+      continue;
+    }
+    if (dollar) {
+      if (sql.startsWith(dollar, index)) {
+        index += dollar.length - 1;
+        dollar = undefined;
+      }
+      continue;
+    }
+    if (quote) {
+      if (current === quote) {
+        if (next === quote) index += 1;
+        else quote = undefined;
+      }
+      continue;
+    }
+    if (current === "-" && next === "-") {
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+    if (current === "/" && next === "*") {
+      blockDepth = 1;
+      index += 1;
+      continue;
+    }
+    if (["'", '"'].includes(current)) {
+      quote = current;
+      continue;
+    }
+    if (current === "$") {
+      const match = /^\$[A-Za-z0-9_]*\$/u.exec(sql.slice(index));
+      if (match) {
+        dollar = match[0];
+        index += dollar.length - 1;
+        continue;
+      }
+    }
+    if (current === "\\") {
+      index += 1;
+      continue;
+    }
+    if (current === "(") parentheses += 1;
+    else if (current === ")" && parentheses > 0) parentheses -= 1;
+    if (!atomic && parentheses === 0 && /(?:^|[^A-Za-z0-9_$])BEGIN\s+ATOMIC$/iu.test(sql.slice(start, index + 1))) atomic = true;
+    if (current === ";" && parentheses === 0) {
+      if (atomic && !/\bEND\s*;$/iu.test(sql.slice(start, index + 1))) continue;
+      atomic = false;
+      emit(index + 1);
+    }
+  }
+  if (quote || dollar || blockDepth !== 0 || parentheses !== 0 || atomic) fail("root_migration_sql_unterminated", "migration_rehearsal");
+  emit(sql.length);
+  if (statements.length === 0) fail("root_migration_content_invalid", "migration_rehearsal");
+  return Object.freeze({
+    statementCount: statements.length,
+    statementsSha256: sha256(canonicalJson(statements)),
+  });
+}
+
 /** Parse the exact history COPY rows. Summary-only input is deliberately invalid. */
 export function extractExactMigrationLedger(historySql) {
   if (typeof historySql !== "string" || historySql.length === 0) {
@@ -604,11 +762,14 @@ export function extractExactMigrationLedger(historySql) {
       if (!MIGRATION_VERSION.test(version ?? "") || !MIGRATION_NAME.test(name ?? "") || statements === null) {
         fail("migration_history_row_invalid", "artifact_validation");
       }
+      const parsedStatements = parsePostgresTextArray(statements);
+      if (parsedStatements.length === 0) fail("migration_statements_array_invalid", "artifact_validation");
       rows.push(Object.freeze({
         version,
         name,
         row_sha256: sha256(`${lines[index]}\n`),
-        statements_sha256: sha256(statements),
+        statement_count: parsedStatements.length,
+        statements_sha256: sha256(canonicalJson(parsedStatements)),
       }));
     }
     if (index >= lines.length || lines[index] !== "\\." || rows.length === 0) {
@@ -690,7 +851,11 @@ export function verifyLedgerAgainstRoot(ledger, root, summary) {
   const prefix = root.entries.slice(0, ledger.entries.length);
   if (
     prefix.length !== ledger.entries.length ||
-    prefix.some((entry, index) => entry.version !== ledger.entries[index].version || entry.name !== ledger.entries[index].name)
+    prefix.some((entry, index) =>
+      entry.version !== ledger.entries[index].version ||
+      entry.name !== ledger.entries[index].name ||
+      entry.statementCount !== ledger.entries[index].statement_count ||
+      entry.statementsSha256 !== ledger.entries[index].statements_sha256)
   ) {
     fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
   }
@@ -1204,6 +1369,12 @@ async function prepareArtifacts(options, harnessRoot, supervisor, toolchain) {
     receipt,
     databaseCapturedAt: database.capturedAt,
   });
+  if (
+    database.aggregates.storage_bucket_row_count !== storage.aggregates.bucket_count ||
+    database.aggregates.storage_object_row_count !== storage.aggregates.object_count
+  ) {
+    fail("database_storage_inventory_mismatch", "artifact_validation");
+  }
   for (const name of SQL_ARTIFACTS) await validateRestrictedSqlFile(plaintext[name], name);
   if (statSync(plaintext["history-data.sql"]).size > 128 * 1_024 * 1_024) {
     fail("migration_history_dump_too_large", "artifact_validation");
@@ -1243,7 +1414,17 @@ async function rootMigrationEntries(supervisor, tools, commit, harnessRoot) {
     });
     const path = join(snapshotRoot, filename);
     writeFileSync(path, result.stdout, { mode: 0o600, flag: "wx" });
-    entries.push(Object.freeze({ version: match[1], name: match[2], filename, bytes: result.stdout.length, sha256: sha256(result.stdout), path }));
+    const statementDigest = migrationStatementsDigest(result.stdout.toString("utf8"));
+    entries.push(Object.freeze({
+      version: match[1],
+      name: match[2],
+      filename,
+      bytes: result.stdout.length,
+      sha256: sha256(result.stdout),
+      statementCount: statementDigest.statementCount,
+      statementsSha256: statementDigest.statementsSha256,
+      path,
+    }));
   }
   if (entries.length === 0) fail("root_migrations_missing", "migration_rehearsal");
   const historyResult = await supervisor.run(tools.git.real, ["show", `${commit}:supabase/migration-history.json`], { cwd: repositoryRoot, stage: "migration_rehearsal", code: "root_migration_history_read_failed" });
@@ -1346,8 +1527,8 @@ async function psql(supervisor, toolchain, status, args, options = {}) {
   });
 }
 
-async function psqlJson(supervisor, toolchain, status, sql, stage = "database_verification") {
-  const result = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", sql], { stage, timeoutMs: 5 * 60 * 1_000 });
+async function psqlJson(supervisor, toolchain, status, sql, stage = "database_verification", maxCaptureBytes = 2 * 1_024 * 1_024) {
+  const result = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", sql], { stage, timeoutMs: 5 * 60 * 1_000, maxCaptureBytes });
   try {
     return JSON.parse(result.stdout.toString("utf8").trim());
   } catch {
@@ -1396,20 +1577,36 @@ async function databaseLedger(supervisor, toolchain, status) {
     supervisor,
     toolchain,
     status,
-    "SELECT coalesce(json_agg(json_build_object('version', version, 'name', name) ORDER BY version), '[]'::json)::text FROM supabase_migrations.schema_migrations",
+    "SELECT coalesce(json_agg(json_build_object('version', version, 'name', name, 'statements', statements) ORDER BY version), '[]'::json)::text FROM supabase_migrations.schema_migrations",
     "migration_rehearsal",
+    64 * 1_024 * 1_024,
   );
-  if (!Array.isArray(rows) || rows.some((row) => !isRecord(row) || !MIGRATION_VERSION.test(row.version) || !MIGRATION_NAME.test(row.name))) {
+  if (!Array.isArray(rows) || rows.some((row) =>
+    !isRecord(row) ||
+    !MIGRATION_VERSION.test(row.version) ||
+    !MIGRATION_NAME.test(row.name) ||
+    !Array.isArray(row.statements) ||
+    row.statements.length === 0 ||
+    row.statements.some((statement) => typeof statement !== "string"))) {
     fail("restored_migration_ledger_invalid", "migration_rehearsal");
   }
-  return rows;
+  return rows.map((row) => Object.freeze({
+    version: row.version,
+    name: row.name,
+    statementCount: row.statements.length,
+    statementsSha256: sha256(canonicalJson(row.statements)),
+  }));
 }
 
 async function applyPendingMigrations(state, local, root, verified, supervisor, toolchain) {
   const restored = await databaseLedger(supervisor, toolchain, local.status);
   if (
     restored.length !== verified.source.length ||
-    restored.some((row, index) => row.version !== verified.source[index].version || row.name !== verified.source[index].name)
+    restored.some((row, index) =>
+      row.version !== verified.source[index].version ||
+      row.name !== verified.source[index].name ||
+      row.statementCount !== verified.source[index].statementCount ||
+      row.statementsSha256 !== verified.source[index].statementsSha256)
   ) {
     fail("restored_migration_ledger_mismatch", "migration_rehearsal");
   }
@@ -1427,7 +1624,11 @@ async function applyPendingMigrations(state, local, root, verified, supervisor, 
   const final = await databaseLedger(supervisor, toolchain, local.status);
   if (
     final.length !== root.entries.length ||
-    final.some((row, index) => row.version !== root.entries[index].version || row.name !== root.entries[index].name)
+    final.some((row, index) =>
+      row.version !== root.entries[index].version ||
+      row.name !== root.entries[index].name ||
+      row.statementCount !== root.entries[index].statementCount ||
+      row.statementsSha256 !== root.entries[index].statementsSha256)
   ) {
     fail("final_migration_ledger_mismatch", "migration_rehearsal");
   }
@@ -1465,6 +1666,88 @@ async function extractStorage(artifacts, state, supervisor, toolchain) {
   return target;
 }
 
+function storageInventoryKey(value) {
+  return `${value.bucket_id}\0${value.path}`;
+}
+
+function normalizedStorageIdentity(value) {
+  if (
+    !isRecord(value) ||
+    !UUID.test(value.source_id) ||
+    (value.source_version !== null && !UUID.test(value.source_version)) ||
+    typeof value.bucket_id !== "string" ||
+    typeof value.path !== "string"
+  ) {
+    fail("restored_storage_inventory_invalid", "storage_verification");
+  }
+  if (value.bucket_id.includes("/") || value.bucket_id.includes("\\") || /[\u0000-\u001f\u007f]/u.test(value.bucket_id) || [".", ".."].includes(value.bucket_id)) {
+    fail("restored_storage_inventory_invalid", "storage_verification");
+  }
+  safeObjectPath(value.path, "restored_storage_inventory_invalid");
+  return Object.freeze({
+    source_id: value.source_id,
+    source_version: value.source_version,
+    bucket_id: value.bucket_id,
+    path: value.path,
+  });
+}
+
+function verifyRestoredStorageIdentities(sourceObjects, restoredRows) {
+  if (!Array.isArray(sourceObjects) || !Array.isArray(restoredRows)) {
+    fail("restored_storage_inventory_invalid", "storage_verification");
+  }
+  const expected = sourceObjects.map(normalizedStorageIdentity).sort((left, right) => storageInventoryKey(left).localeCompare(storageInventoryKey(right), "en"));
+  const actual = restoredRows.map(normalizedStorageIdentity).sort((left, right) => storageInventoryKey(left).localeCompare(storageInventoryKey(right), "en"));
+  if (
+    new Set(expected.map(storageInventoryKey)).size !== expected.length ||
+    new Set(actual.map(storageInventoryKey)).size !== actual.length ||
+    !sameJson(actual, expected)
+  ) {
+    fail("restored_storage_identity_mismatch", "storage_verification");
+  }
+  return Object.freeze(actual);
+}
+
+export function verifyRestoredStorageInventory(sourceObjects, restoredRows, readbacks) {
+  const identities = verifyRestoredStorageIdentities(sourceObjects, restoredRows);
+  if (!Array.isArray(readbacks)) fail("restored_storage_readback_invalid", "storage_verification");
+  const readbackByKey = new Map();
+  for (const value of readbacks) {
+    if (
+      !isRecord(value) ||
+      typeof value.bucket_id !== "string" ||
+      typeof value.path !== "string" ||
+      !SHA256.test(value.sha256) ||
+      !Number.isSafeInteger(value.bytes) ||
+      value.bytes < 0
+    ) {
+      fail("restored_storage_readback_invalid", "storage_verification");
+    }
+    safeObjectPath(value.path, "restored_storage_readback_invalid");
+    const key = storageInventoryKey(value);
+    if (readbackByKey.has(key)) fail("restored_storage_readback_duplicate", "storage_verification");
+    readbackByKey.set(key, value);
+  }
+  const actual = identities.map((identity) => {
+    const readback = readbackByKey.get(storageInventoryKey(identity));
+    if (!readback) fail("restored_storage_readback_missing", "storage_verification");
+    return Object.freeze({ ...identity, sha256: readback.sha256, bytes: readback.bytes });
+  });
+  if (readbackByKey.size !== actual.length) fail("restored_storage_readback_extra", "storage_verification");
+  const expected = sourceObjects.map((object) => Object.freeze({
+    ...normalizedStorageIdentity(object),
+    sha256: string(object.sha256, SHA256, "restored_storage_inventory_invalid", "storage_verification"),
+    bytes: integer(object.bytes, "restored_storage_inventory_invalid", "storage_verification"),
+  })).sort((left, right) => storageInventoryKey(left).localeCompare(storageInventoryKey(right), "en"));
+  const sortedActual = actual.sort((left, right) => storageInventoryKey(left).localeCompare(storageInventoryKey(right), "en"));
+  if (!sameJson(sortedActual, expected)) fail("restored_storage_content_mismatch", "storage_verification");
+  return Object.freeze({
+    objectCount: sortedActual.length,
+    totalBytes: sortedActual.reduce((sum, object) => sum + object.bytes, 0),
+    restoredInventorySha256: sha256(canonicalJson(sortedActual)),
+  });
+}
+
 async function apiRequest(url, init, accepted, code, stage) {
   let response;
   try {
@@ -1484,22 +1767,204 @@ function objectUrl(apiUrl, bucket, path, prefix = "object") {
   return new URL(`/storage/v1/${prefix}/${encodeURIComponent(bucket)}/${encoded}`, apiUrl).toString();
 }
 
-async function restoreStorage(artifacts, extracted, status) {
+async function databaseStorageIdentities(supervisor, toolchain, status) {
+  return await psqlJson(supervisor, toolchain, status, String.raw`
+    SELECT coalesce(json_agg(json_build_object(
+      'source_id', object.id::text,
+      'source_version', object.version::text,
+      'bucket_id', object.bucket_id,
+      'path', object.name,
+      'mime_type', object.metadata->>'mimetype',
+      'cache_control', object.metadata->>'cacheControl'
+    ) ORDER BY object.bucket_id, object.name), '[]'::json)::text
+    FROM storage.objects AS object`, "storage_verification", 32 * 1_024 * 1_024);
+}
+
+function parseContainerEnvironment(entries) {
+  if (!Array.isArray(entries)) fail("storage_container_environment_invalid", "storage_restore");
+  const result = new Map();
+  for (const entry of entries) {
+    if (typeof entry !== "string" || !entry.includes("=")) fail("storage_container_environment_invalid", "storage_restore");
+    const split = entry.indexOf("=");
+    const key = entry.slice(0, split);
+    if (result.has(key)) fail("storage_container_environment_invalid", "storage_restore");
+    result.set(key, entry.slice(split + 1));
+  }
+  return result;
+}
+
+async function localStorageBackend(state, supervisor, toolchain) {
+  const containerName = `supabase_storage_${state.projectName}`;
+  const result = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", containerName], {
+    stage: "storage_restore",
+    code: "storage_container_inspection_failed",
+    timeoutMs: 30_000,
+    maxCaptureBytes: 4 * 1_024 * 1_024,
+  });
+  let containers;
+  try {
+    containers = JSON.parse(result.stdout.toString("utf8"));
+  } catch {
+    fail("storage_container_inspection_invalid", "storage_restore");
+  }
+  if (!Array.isArray(containers) || containers.length !== 1) fail("storage_container_inspection_invalid", "storage_restore");
+  const container = containers[0];
+  if (!isRecord(container) || container.Name !== `/${containerName}` || container.State?.Running !== true) {
+    fail("storage_container_identity_invalid", "storage_restore");
+  }
+  const environment = parseContainerEnvironment(container.Config?.Env);
+  const destination = environment.get("FILE_STORAGE_BACKEND_PATH") ?? environment.get("STORAGE_FILE_BACKEND_PATH");
+  const tenantId = environment.get("TENANT_ID");
+  const internalBucket = environment.get("GLOBAL_S3_BUCKET") ?? environment.get("STORAGE_S3_BUCKET");
+  if (environment.get("STORAGE_BACKEND") !== "file" || !["/var/lib/storage", "/mnt"].includes(destination) || tenantId !== "stub" || internalBucket !== "stub") {
+    fail("storage_container_backend_invalid", "storage_restore");
+  }
+  const mounts = Array.isArray(container.Mounts) ? container.Mounts.filter((mount) => mount?.Destination === destination) : [];
+  if (mounts.length !== 1 || typeof mounts[0].Source !== "string" || !isAbsolute(mounts[0].Source)) {
+    fail("storage_container_mount_invalid", "storage_restore");
+  }
+  const mountRoot = realpathSync(mounts[0].Source);
+  const relativeMount = relative(realpathSync(state.harnessRoot), mountRoot);
+  if (!relativeMount || relativeMount.startsWith("..") || isAbsolute(relativeMount)) fail("storage_container_mount_outside_harness", "storage_restore");
+  return Object.freeze({ mountRoot, tenantId, internalBucket });
+}
+
+function uploadedBlobCandidates(backend, object, generatedVersion) {
+  const base = join(backend.mountRoot, backend.internalBucket, backend.tenantId, object.bucket_id, ...object.path.split("/"));
+  return Object.freeze([
+    Object.freeze({ style: "directory", base, path: join(base, generatedVersion) }),
+    Object.freeze({ style: "suffix", base, path: `${base}-$v-${generatedVersion}` }),
+  ]);
+}
+
+async function relocateUploadedBlob(backend, object, generatedVersion) {
+  if (!UUID.test(generatedVersion)) fail("storage_generated_version_invalid", "storage_restore");
+  const candidates = uploadedBlobCandidates(backend, object, generatedVersion).filter((candidate) => existsSync(candidate.path));
+  if (candidates.length !== 1) fail("storage_uploaded_blob_location_invalid", "storage_restore");
+  const current = candidates[0];
+  const metadata = lstatSync(current.path);
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size !== object.bytes || (await sha256File(current.path)) !== object.sha256) {
+    fail("storage_uploaded_blob_integrity_failed", "storage_restore");
+  }
+  let target;
+  if (current.style === "suffix") target = object.source_version === null ? current.base : `${current.base}-$v-${object.source_version}`;
+  else target = object.source_version === null ? current.base : join(current.base, object.source_version);
+  if (target === current.path) return;
+  if (existsSync(target) && !(current.style === "directory" && object.source_version === null && target === current.base)) {
+    fail("storage_source_version_target_exists", "storage_restore");
+  }
+  if (current.style === "directory" && object.source_version === null) {
+    const siblings = readdirSync(current.base);
+    if (siblings.length !== 1 || siblings[0] !== generatedVersion) fail("storage_unversioned_target_unsafe", "storage_restore");
+    const temporary = join(dirname(current.base), `.evo-recovery-${randomUUID()}`);
+    renameSync(current.path, temporary);
+    rmSync(current.base);
+    renameSync(temporary, target);
+  } else {
+    mkdirSync(dirname(target), { recursive: true, mode: 0o700 });
+    renameSync(current.path, target);
+  }
+  const restored = lstatSync(target);
+  if (!restored.isFile() || restored.isSymbolicLink() || restored.size !== object.bytes || (await sha256File(target)) !== object.sha256) {
+    fail("storage_source_version_blob_invalid", "storage_restore");
+  }
+}
+
+async function readBackStorageObject(status, object) {
+  const response = await apiRequest(objectUrl(status.apiUrl, object.bucket_id, object.path, "object/authenticated"), {
+    headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}` },
+  }, [200], "storage_object_readback_failed", "storage_verification");
+  if (!response.body) fail("storage_object_readback_body_missing", "storage_verification");
+  const digest = createHash("sha256");
+  let bytes = 0;
+  for await (const chunk of response.body) {
+    const buffer = Buffer.from(chunk);
+    bytes += buffer.length;
+    if (bytes > object.bytes) fail("storage_object_readback_size_mismatch", "storage_verification");
+    digest.update(buffer);
+  }
+  return Object.freeze({ bucket_id: object.bucket_id, path: object.path, bytes, sha256: digest.digest("hex") });
+}
+
+async function restoreStorage(artifacts, extracted, status, state, supervisor, toolchain) {
+  const originalRows = await databaseStorageIdentities(supervisor, toolchain, status);
+  verifyRestoredStorageIdentities(artifacts.storage.objects, originalRows);
+  if (artifacts.storage.objects.length === 0) {
+    const verified = verifyRestoredStorageInventory([], originalRows, []);
+    return Object.freeze({ bucketCount: artifacts.storage.aggregates.bucket_count, ...verified });
+  }
+  const backend = await localStorageBackend(state, supervisor, toolchain);
+  const uploadMetadata = new Map(originalRows.map((row) => {
+    const mimeType = row.mime_type ?? "application/octet-stream";
+    const cacheControl = row.cache_control ?? "no-cache";
+    if (
+      typeof mimeType !== "string" ||
+      typeof cacheControl !== "string" ||
+      mimeType.length === 0 ||
+      mimeType.length > 256 ||
+      cacheControl.length === 0 ||
+      cacheControl.length > 256 ||
+      /[\r\n]/u.test(mimeType) ||
+      /[\r\n]/u.test(cacheControl)
+    ) {
+      fail("storage_upload_metadata_invalid", "storage_restore");
+    }
+    return [storageInventoryKey(row), Object.freeze({ mimeType, cacheControl })];
+  }));
+  await psql(supervisor, toolchain, status, ["--command", String.raw`
+    BEGIN;
+    CREATE SCHEMA evo_recovery_storage_metadata;
+    CREATE TABLE evo_recovery_storage_metadata.objects AS TABLE storage.objects;
+    UPDATE storage.objects SET version = gen_random_uuid()::text;
+    COMMIT;`], {
+    stage: "storage_restore",
+    code: "storage_metadata_snapshot_failed",
+  });
   for (const object of artifacts.storage.objects) {
     const body = readFileSync(join(extracted, "storage-blobs", object.blob));
+    const metadata = uploadMetadata.get(storageInventoryKey(object));
+    if (!metadata) fail("storage_upload_metadata_missing", "storage_restore");
     const response = await apiRequest(objectUrl(status.apiUrl, object.bucket_id, object.path), {
       method: "POST",
       headers: {
         apikey: status.serviceRoleKey,
         Authorization: `Bearer ${status.serviceRoleKey}`,
-        "content-type": "application/octet-stream",
+        "content-type": metadata.mimeType,
+        "cache-control": metadata.cacheControl,
         "x-upsert": "true",
       },
       body,
     }, [200], "storage_object_restore_failed", "storage_restore");
     await response.arrayBuffer();
+    const current = await psqlJson(supervisor, toolchain, status, String.raw`
+      SELECT coalesce(json_agg(json_build_object(
+        'source_id', candidate.id::text,
+        'source_version', candidate.version::text,
+        'bucket_id', candidate.bucket_id,
+        'path', candidate.name
+      )), '[]'::json)::text
+      FROM storage.objects AS candidate
+      WHERE candidate.bucket_id = ${sqlLiteral(object.bucket_id)}
+        AND candidate.name = ${sqlLiteral(object.path)}`, "storage_restore");
+    if (!Array.isArray(current) || current.length !== 1 || current[0].source_id !== object.source_id || !UUID.test(current[0].source_version)) {
+      fail("storage_uploaded_object_identity_invalid", "storage_restore");
+    }
+    await relocateUploadedBlob(backend, object, current[0].source_version);
   }
-  return Object.freeze({ bucketCount: artifacts.storage.aggregates.bucket_count, objectCount: artifacts.storage.aggregates.object_count, totalBytes: artifacts.storage.aggregates.total_bytes });
+  await psql(supervisor, toolchain, status, ["--command", String.raw`
+    BEGIN;
+    DELETE FROM storage.objects;
+    INSERT INTO storage.objects SELECT * FROM evo_recovery_storage_metadata.objects;
+    DROP SCHEMA evo_recovery_storage_metadata CASCADE;
+    COMMIT;`], {
+    stage: "storage_restore",
+    code: "storage_metadata_restore_failed",
+  });
+  const restoredRows = await databaseStorageIdentities(supervisor, toolchain, status);
+  const readbacks = [];
+  for (const object of artifacts.storage.objects) readbacks.push(await readBackStorageObject(status, object));
+  const verified = verifyRestoredStorageInventory(artifacts.storage.objects, restoredRows, readbacks);
+  return Object.freeze({ bucketCount: artifacts.storage.aggregates.bucket_count, ...verified });
 }
 
 export function validateRepresentativeCohort(rows, expected) {
@@ -1600,6 +2065,43 @@ async function platformGet(status, actor, resource, query = {}) {
   return payload;
 }
 
+async function expectDatabaseDenial(operation, expectedCode) {
+  try {
+    await operation();
+  } catch (error) {
+    if (error instanceof RecoveryFailure && error.code === expectedCode) return true;
+    throw error;
+  }
+  return false;
+}
+
+export function validateWriteBoundaryResults(value) {
+  exactKeys(value, [
+    "adminAuditCount",
+    "crossOrganizationWriteDenied",
+    "salesAdminWriteDenied",
+    "admissionsTaskAuditCount",
+    "admissionsAdminWriteDenied",
+  ], "authorization_write_boundary_invalid", "auth_rls_proof");
+  if (
+    value.adminAuditCount !== 1 ||
+    value.crossOrganizationWriteDenied !== true ||
+    value.salesAdminWriteDenied !== true ||
+    value.admissionsTaskAuditCount !== 1 ||
+    value.admissionsAdminWriteDenied !== true
+  ) {
+    fail("authorization_write_boundary_failed", "auth_rls_proof");
+  }
+  return Object.freeze({
+    canonicalWriteRollbackOnly: "passed",
+    auditRollbackOnly: "passed",
+    crossOrganizationWriteDenied: true,
+    salesAdminWriteDenied: true,
+    admissionsTaskWriteRollbackOnly: "passed",
+    admissionsAdminWriteDenied: true,
+  });
+}
+
 async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, toolchain) {
   const otherOrganizations = await psqlJson(supervisor, toolchain, status,
     `SELECT coalesce(json_agg(id ORDER BY id), '[]'::json)::text FROM platform.organizations WHERE id <> ${sqlLiteral(options.platformOrganizationId)}::uuid`,
@@ -1629,26 +2131,100 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
     SELECT count(*)::text FROM platform.audit_events WHERE request_id = ${sqlLiteral(requestId)}::uuid;
     ROLLBACK;`;
   const positive = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", writeProbe], { stage: "canonical_write_audit_proof", code: "canonical_write_audit_failed" });
-  if (!/\n1\s*(?:\n|$)/u.test(positive.stdout.toString("utf8"))) fail("canonical_audit_not_observed", "canonical_write_audit_proof");
-  const deniedClaims = JSON.stringify({ sub: actors.sales.userId, role: "authenticated" });
-  let denied = false;
-  try {
-    await psql(supervisor, toolchain, status, ["--command", String.raw`
+  const adminAuditCount = Number(positive.stdout.toString("utf8").trim().split(/\s+/u).at(-1));
+  const crossOrganizationWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
       BEGIN;
-      SELECT set_config('request.jwt.claims', ${sqlLiteral(deniedClaims)}, true);
+      SELECT set_config('request.jwt.claims', ${sqlLiteral(claims)}, true);
+      SET LOCAL ROLE authenticated;
+      SELECT platform.change_membership_permission(
+        ${sqlLiteral(crossOrganizationId)}::uuid,
+        ${sqlLiteral(actors.admin.membershipId)}::uuid,
+        'contract.evidence.confirm', true, 'must be denied across organizations', ${sqlLiteral(randomUUID())}::uuid
+      );
+      ROLLBACK;`], { stage: "cross_organization_write_negative_proof", code: "expected_cross_organization_write_denial" }), "expected_cross_organization_write_denial");
+  const salesClaims = JSON.stringify({ sub: actors.sales.userId, role: "authenticated" });
+  const salesAdminWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
+      BEGIN;
+      SELECT set_config('request.jwt.claims', ${sqlLiteral(salesClaims)}, true);
       SET LOCAL ROLE authenticated;
       SELECT platform.change_membership_permission(
         ${sqlLiteral(options.platformOrganizationId)}::uuid,
         ${sqlLiteral(actors.admin.membershipId)}::uuid,
         'contract.evidence.confirm', true, 'must be denied', ${sqlLiteral(randomUUID())}::uuid
       );
-      ROLLBACK;`], { stage: "canonical_write_negative_proof", code: "expected_sales_write_denial" });
-  } catch (error) {
-    if (error instanceof RecoveryFailure && error.code === "expected_sales_write_denial") denied = true;
-    else throw error;
+      ROLLBACK;`], { stage: "canonical_write_negative_proof", code: "expected_sales_write_denial" }), "expected_sales_write_denial");
+  const admissionsTasks = await psqlJson(supervisor, toolchain, status, String.raw`
+    SELECT coalesce(json_agg(row_to_json(candidate) ORDER BY candidate.id), '[]'::json)::text
+    FROM (
+      SELECT task.id::text AS id, task.status::text AS status,
+        task.assignee_membership_id::text AS "assigneeMembershipId",
+        task.priority::text AS priority, task.due_at::text AS "dueAt",
+        task.due_on::text AS "dueOn", task.student_visible AS "studentVisible",
+        task.version AS version
+      FROM platform.case_tasks AS task
+      JOIN platform.student_cases AS student_case
+        ON student_case.organization_id = task.organization_id
+        AND student_case.id = task.student_case_id
+      WHERE task.organization_id = ${sqlLiteral(options.platformOrganizationId)}::uuid
+        AND task.assignee_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
+        AND student_case.current_curator_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
+      ORDER BY task.id
+      LIMIT 1
+    ) AS candidate`, "admissions_write_proof");
+  const admissionsTask = Array.isArray(admissionsTasks) ? admissionsTasks[0] : undefined;
+  if (
+    !isRecord(admissionsTask) ||
+    !UUID.test(admissionsTask.id) ||
+    admissionsTask.assigneeMembershipId !== actors.admissions.membershipId ||
+    !["open", "in_progress", "blocked", "done", "cancelled"].includes(admissionsTask.status) ||
+    !["low", "normal", "high", "urgent"].includes(admissionsTask.priority) ||
+    (admissionsTask.dueAt !== null && typeof admissionsTask.dueAt !== "string") ||
+    (admissionsTask.dueOn !== null && typeof admissionsTask.dueOn !== "string") ||
+    typeof admissionsTask.studentVisible !== "boolean" ||
+    !Number.isSafeInteger(admissionsTask.version) ||
+    admissionsTask.version < 1
+  ) {
+    fail("authorized_admissions_task_missing", "admissions_write_proof");
   }
-  if (!denied) fail("sales_admin_write_not_denied", "canonical_write_negative_proof");
-  return Object.freeze({ sameOrganization: "passed", crossOrganization: "passed", canonicalRead: "passed", canonicalWriteRollbackOnly: "passed", auditRollbackOnly: "passed", salesAdminWriteDenied: true });
+  const admissionsClaims = JSON.stringify({ sub: actors.admissions.userId, role: "authenticated" });
+  const admissionsRequestId = randomUUID();
+  const admissionsPositive = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", String.raw`
+    BEGIN;
+    SELECT set_config('request.jwt.claims', ${sqlLiteral(admissionsClaims)}, true);
+    SET LOCAL ROLE authenticated;
+    SELECT platform.change_case_task(
+      ${sqlLiteral(options.platformOrganizationId)}::uuid,
+      ${sqlLiteral(admissionsTask.id)}::uuid,
+      ${sqlLiteral(admissionsTask.status)}::platform.case_task_status,
+      ${sqlLiteral(actors.admissions.membershipId)}::uuid,
+      ${sqlLiteral(admissionsTask.priority)}::platform.case_task_priority,
+      ${admissionsTask.dueAt === null ? "NULL" : sqlLiteral(admissionsTask.dueAt)}::timestamptz,
+      ${admissionsTask.dueOn === null ? "NULL" : sqlLiteral(admissionsTask.dueOn)}::date,
+      ${admissionsTask.studentVisible ? "true" : "false"},
+      ${admissionsTask.version},
+      ${sqlLiteral(admissionsRequestId)}::uuid
+    );
+    SELECT count(*)::text FROM platform.audit_events WHERE request_id = ${sqlLiteral(admissionsRequestId)}::uuid;
+    ROLLBACK;`], { stage: "admissions_write_proof", code: "admissions_task_write_failed" });
+  const admissionsTaskAuditCount = Number(admissionsPositive.stdout.toString("utf8").trim().split(/\s+/u).at(-1));
+  const admissionsAdminWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
+    BEGIN;
+    SELECT set_config('request.jwt.claims', ${sqlLiteral(admissionsClaims)}, true);
+    SET LOCAL ROLE authenticated;
+    SELECT platform.change_membership_permission(
+      ${sqlLiteral(options.platformOrganizationId)}::uuid,
+      ${sqlLiteral(actors.admin.membershipId)}::uuid,
+      'contract.evidence.confirm', true, 'Admissions must not administer staff', ${sqlLiteral(randomUUID())}::uuid
+    );
+    ROLLBACK;`], { stage: "admissions_admin_negative_proof", code: "expected_admissions_admin_write_denial" }), "expected_admissions_admin_write_denial");
+  const writes = validateWriteBoundaryResults({
+    adminAuditCount,
+    crossOrganizationWriteDenied,
+    salesAdminWriteDenied,
+    admissionsTaskAuditCount,
+    admissionsAdminWriteDenied,
+  });
+  return Object.freeze({ sameOrganization: "passed", crossOrganization: "passed", canonicalRead: "passed", ...writes });
 }
 
 async function provePrivateDocument(status, actor, storage) {
@@ -2024,6 +2600,12 @@ async function executeMode(mode, options) {
     toolchain = await timings.run("toolchain", () => trustedToolchain(supervisor));
     const repository = await timings.run("repository", () => repositorySnapshot(supervisor, toolchain.paths, options.repositoryCommit));
     const artifacts = await timings.run("signed_artifact_validation", () => prepareArtifacts(options, harnessRoot, supervisor, toolchain));
+    if (
+      artifacts.database.tools.supabase_cli !== toolchain.evidence.supabase_cli ||
+      artifacts.database.tools.psql !== toolchain.evidence.psql
+    ) {
+      fail("recovery_export_tool_version_mismatch", "toolchain");
+    }
     if (artifacts.receipt.git.migration_tree !== repository.migrationTree) {
       fail("receipt_migration_tree_mismatch", "repository");
     }
@@ -2060,7 +2642,7 @@ async function executeMode(mode, options) {
       const extracted = await timings.run("storage_archive_validation", () => extractStorage(artifacts, state, supervisor, toolchain));
       await timings.run("database_restore", () => restoreDatabase(artifacts, local.status, supervisor, toolchain));
       const migrations = await timings.run("pending_migration_rehearsal", () => applyPendingMigrations(state, local, root, verifiedLedger, supervisor, toolchain));
-      const storage = await timings.run("storage_restore", () => restoreStorage(artifacts, extracted, local.status));
+      const storage = await timings.run("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain));
       const actors = await timings.run("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain));
       const authorization = await timings.run("authorization_and_audit", () => proveRlsAndCanonicalWrite(options, local.status, actors, supervisor, toolchain));
       const document = await timings.run("private_document", () => provePrivateDocument(local.status, actors.sales, artifacts.storage));

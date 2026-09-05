@@ -12,6 +12,7 @@ import {
   canonicalJson,
   cleanupDisposition,
   extractExactMigrationLedger,
+  migrationStatementsDigest,
   parseHarnessOptions,
   sanitizeCommandDiagnostic,
   selectOwnedContainerIds,
@@ -23,8 +24,10 @@ import {
   validateRestrictedSqlEnvelope,
   validateSignedReceipt,
   validateStorageManifest,
+  validateWriteBoundaryResults,
   verifyLedgerAgainstRoot,
   verifyReceiptSignature,
+  verifyRestoredStorageInventory,
 } from "../scripts/test-v3-managed-supabase-recovery-orbstack.mjs";
 
 const script = new URL("../scripts/test-v3-managed-supabase-recovery-orbstack.mjs", import.meta.url);
@@ -57,6 +60,7 @@ function tools() {
     supabase_cli: "2.116.0",
     pg_dump: "18.6",
     pg_dumpall: "18.6",
+    psql: "18.6",
     age: "v1.3.1",
     ssh: "available",
     orb: "Running",
@@ -122,6 +126,7 @@ function receipt(overrides = {}) {
       migration_copy_rows_sha256: migrationCopyHash,
       data_copy_sections_sha256: dataCopyHash,
       stability_proof_sha256: stabilityProof,
+      snapshot_mode: "postgresql-exported-repeatable-read-read-only",
       table_count: 10,
       row_count: 20,
       auth_user_count: 3,
@@ -157,7 +162,7 @@ function databaseManifest(overrides = {}) {
     artifacts: artifactDescriptors,
     migration_ledger: { count: 2, min_version: "001", max_version: "002", copy_rows_sha256: migrationCopyHash },
     data_copy_sections_sha256: dataCopyHash,
-    stability: { artifact_semantic_sha256: semantic, proof_sha256: stabilityProof },
+    stability: { snapshot_mode: "postgresql-exported-repeatable-read-read-only", artifact_semantic_sha256: semantic, proof_sha256: stabilityProof },
     aggregates: { table_count: 10, row_count: 20, auth_user_count: 3, storage_bucket_row_count: 3, storage_object_row_count: 0, table_counts_sha256: "d".repeat(64) },
     ...overrides,
   };
@@ -242,6 +247,9 @@ test("receipt accepts only exact #636 schema and exact signing identity/fingerpr
   expectCode(() => validateSignedReceipt(receipt(), {
     repositoryCommit: commit, trustedFingerprint: "SHA256:different", now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
   }), "receipt_signature_metadata_invalid");
+  expectCode(() => validateSignedReceipt(receipt({ database: { ...receipt().database, snapshot_mode: "independent-dumps" } }), {
+    repositoryCommit: commit, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+  }), "receipt_database_snapshot_mode_invalid");
   const missingArtifact = receipt();
   delete missingArtifact.encrypted_artifacts["history-schema.sql.age"];
   expectCode(() => validateSignedReceipt(missingArtifact, {
@@ -261,12 +269,15 @@ test("database manifest cross-binds project, provider backup, git, tools and eve
   expectCode(() => validateDatabaseManifest(databaseManifest({ data_copy_sections_sha256: "0".repeat(64) }), {
     receipt: validatedReceipt(), projectRef, organizationId: supabaseOrganizationId,
   }), "database_manifest_receipt_mismatch");
+  expectCode(() => validateDatabaseManifest(databaseManifest({ stability: { snapshot_mode: "two-unrelated-snapshots", artifact_semantic_sha256: semantic, proof_sha256: stabilityProof } }), {
+    receipt: validatedReceipt(), projectRef, organizationId: supabaseOrganizationId,
+  }), "database_snapshot_mode_invalid");
 });
 
 test("Storage manifest is exact, source-bound, private-bucket aware, and traversal safe", () => {
   const valid = validateStorageManifest(storageManifest(), { receipt: validatedReceipt(), databaseCapturedAt: capturedAt });
   assert.equal(valid.aggregates.private_bucket_count, 1);
-  const object = { bucket_id: "platform-documents", path: "org/file.txt", source_id: "object-id", source_version: null, blob: `${"a".repeat(64)}.bin`, bytes: 4, sha256: "f".repeat(64) };
+  const object = { bucket_id: "platform-documents", path: "org/file.txt", source_id: "50000000-0000-4000-8000-000000000001", source_version: "60000000-0000-4000-8000-000000000001", blob: `${"a".repeat(64)}.bin`, bytes: 4, sha256: "f".repeat(64) };
   const baseReceipt = validatedReceipt();
   const objectReceipt = {
     ...baseReceipt,
@@ -294,17 +305,49 @@ test("exact history parser binds ordered full COPY rows and rejects reconstructi
     { version: "002", name: "add_students" },
   ]);
   const summary = { count: 2, min_version: "001", max_version: "002", copy_rows_sha256: ledger.copyRowsSha256 };
+  const rootEntry = (version, name, sql) => ({ version, name, ...migrationStatementsDigest(sql) });
   const root = { entries: [
-    { version: "001", name: "initial_schema" },
-    { version: "002", name: "add_students" },
-    { version: "003", name: "next" },
+    rootEntry("001", "initial_schema", "first;"),
+    rootEntry("002", "add_students", "second;"),
+    rootEntry("003", "next", "next;"),
   ] };
   assert.deepEqual(verifyLedgerAgainstRoot(ledger, root, summary).pending.map((entry) => entry.version), ["003"]);
   expectCode(() => verifyLedgerAgainstRoot({ count: 2, min_version: "001", max_version: "002" }, root, summary), "migration_ledger_reconstruction_forbidden");
   expectCode(() => extractExactMigrationLedger(historySql([
     "002\t{second}\tadd_students", "001\t{first}\tinitial_schema",
   ])), "migration_history_order_invalid");
-  expectCode(() => verifyLedgerAgainstRoot(ledger, { entries: [{ version: "001", name: "wrong" }] }, summary), "migration_ledger_root_prefix_mismatch");
+  expectCode(() => verifyLedgerAgainstRoot(ledger, { entries: [rootEntry("001", "wrong", "first;")] }, summary), "migration_ledger_root_prefix_mismatch");
+  const contentDrift = { entries: [
+    rootEntry("001", "initial_schema", "changed despite identical version and name;"),
+    rootEntry("002", "add_students", "second;"),
+  ] };
+  expectCode(() => verifyLedgerAgainstRoot(ledger, contentDrift, summary), "migration_ledger_root_prefix_mismatch");
+  assert.deepEqual(migrationStatementsDigest("select ';'; DO $$ BEGIN PERFORM 1; END $$; select (1 + 2);"), {
+    statementCount: 3,
+    statementsSha256: hash(canonicalJson(["select ';'", "DO $$ BEGIN PERFORM 1; END $$", "select (1 + 2)"])),
+  });
+});
+
+test("restored Storage inventory requires exact identity, version and streamed byte digest with no extras", () => {
+  const source = [{
+    bucket_id: "platform-documents",
+    path: "org/document.pdf",
+    source_id: "50000000-0000-4000-8000-000000000001",
+    source_version: "60000000-0000-4000-8000-000000000001",
+    sha256: "a".repeat(64),
+    bytes: 42,
+  }];
+  const identities = source.map(({ source_id, source_version, bucket_id, path }) => ({ source_id, source_version, bucket_id, path }));
+  const readbacks = source.map(({ bucket_id, path, sha256, bytes }) => ({ bucket_id, path, sha256, bytes }));
+  assert.deepEqual(verifyRestoredStorageInventory(source, identities, readbacks), {
+    objectCount: 1,
+    totalBytes: 42,
+    restoredInventorySha256: hash(canonicalJson(source)),
+  });
+  expectCode(() => verifyRestoredStorageInventory(source, [{ ...identities[0], source_version: "60000000-0000-4000-8000-000000000002" }], readbacks), "restored_storage_identity_mismatch");
+  expectCode(() => verifyRestoredStorageInventory(source, identities, [{ ...readbacks[0], sha256: "b".repeat(64) }]), "restored_storage_content_mismatch");
+  expectCode(() => verifyRestoredStorageInventory(source, identities, []), "restored_storage_readback_missing");
+  expectCode(() => verifyRestoredStorageInventory(source, identities, [...readbacks, { ...readbacks[0], path: "org/extra.pdf" }]), "restored_storage_readback_extra");
 });
 
 test("all five SQL payloads require one matching active restricted-mode guard", () => {
@@ -329,6 +372,21 @@ test("representatives must be explicit, pre-existing, same-org Admin Sales Admis
   const cross = cohortRows();
   cross[2] = { ...cross[2], organizationId: "10000000-0000-4000-8000-000000000002" };
   expectCode(() => validateRepresentativeCohort(cross, expected), "representative_cohort_organization_mismatch");
+});
+
+test("write proof requires Admin audit, cross-org denial, Sales denial and Admissions allowed/denied boundaries", () => {
+  const complete = {
+    adminAuditCount: 1,
+    crossOrganizationWriteDenied: true,
+    salesAdminWriteDenied: true,
+    admissionsTaskAuditCount: 1,
+    admissionsAdminWriteDenied: true,
+  };
+  assert.equal(validateWriteBoundaryResults(complete).admissionsTaskWriteRollbackOnly, "passed");
+  for (const field of Object.keys(complete)) {
+    const invalid = { ...complete, [field]: typeof complete[field] === "boolean" ? false : 0 };
+    expectCode(() => validateWriteBoundaryResults(invalid), "authorization_write_boundary_failed");
+  }
 });
 
 test("immutable image proof binds Docker id or RepoDigest and revision", () => {
@@ -468,4 +526,11 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.match(source, /--network", "host"/u);
   assert.match(source, /change_membership_permission/u);
   assert.match(source, /ROLLBACK/u);
+});
+
+test("focused recovery harness is registered exactly once in the CI-invoked u11 suite", () => {
+  const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const testName = "tests/v3-managed-supabase-recovery-harness.test.mjs";
+  assert.equal(packageJson.scripts["test:u11"].split(testName).length - 1, 1);
+  assert.equal(packageJson.scripts["test:fast-release"].includes(testName), false);
 });

@@ -716,6 +716,7 @@ test("restored contour runs migration 115 and the real scanner-backed upload pat
   assert.match(source, /base_migration_ledger_already_exists/u);
   assert.doesNotMatch(source, /initializeLocalMigrationLedger/u);
   assert.match(source, /\/rest\/v1\/rpc\/document_storage_backup_inventory/u);
+  assert.match(source, /"dev",\s*\n\s*"--webpack"/u);
   assert.match(source, /finalLedger\.includes\("115"\)/u);
   assert.match(source, /clamav\/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9/u);
   assert.match(source, /clamd-malware-scanner\.ts/u);

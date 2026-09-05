@@ -3324,7 +3324,15 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot, 
   const appUrl = `http://127.0.0.1:${appPort}`;
   const child = spawn(
     process.execPath,
-    [join(appRoot, "node_modules", "next", "dist", "bin", "next"), "dev", "--hostname", "127.0.0.1", "--port", String(appPort)],
+    [
+      join(appRoot, "node_modules", "next", "dist", "bin", "next"),
+      "dev",
+      "--webpack",
+      "--hostname",
+      "127.0.0.1",
+      "--port",
+      String(appPort),
+    ],
     {
       cwd: appRoot,
       env: minimalChildEnvironment({

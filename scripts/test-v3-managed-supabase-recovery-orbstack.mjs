@@ -106,6 +106,7 @@ const MIGRATION_NAME_PATTERN = /^[a-z0-9][a-z0-9_]{0,126}$/u;
 const BUCKET_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/u;
 const CONTENT_TYPE_PATTERN = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/iu;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+const RECOVERY_SUPABASE_HOSTNAME = "evov3recoverylocal00.supabase.co";
 const SQL_FILES = Object.freeze([
   "roles.sql",
   "schema.sql",
@@ -4218,7 +4219,7 @@ function createRecoveryTlsMaterial(state) {
   mkdirSync(directory, { mode: 0o700 });
   writeFileSync(
     configPath,
-    `[req]\nprompt = no\ndistinguished_name = dn\nx509_extensions = v3\n[dn]\nCN = 127.0.0.1\n[v3]\nsubjectAltName = IP:127.0.0.1,DNS:localhost\nbasicConstraints = critical,CA:TRUE\nkeyUsage = critical,digitalSignature,keyEncipherment,keyCertSign\n`,
+    `[req]\nprompt = no\ndistinguished_name = dn\nx509_extensions = v3\n[dn]\nCN = ${RECOVERY_SUPABASE_HOSTNAME}\n[v3]\nsubjectAltName = DNS:${RECOVERY_SUPABASE_HOSTNAME}\nbasicConstraints = critical,CA:TRUE\nkeyUsage = critical,digitalSignature,keyEncipherment,keyCertSign\n`,
     { mode: 0o600, flag: "wx" },
   );
   execute(executable("openssl"), [
@@ -4272,7 +4273,7 @@ function startRecoveryAppContainer(
   const proxyContainerName = `supabase_app_proxy_${state.projectName}`;
   const environmentPath = join(state.harnessRoot, "app.env");
   const tls = createRecoveryTlsMaterial(state);
-  const recoverySupabaseUrl = `https://127.0.0.1:${supabaseTlsPort}`;
+  const recoverySupabaseUrl = `https://${RECOVERY_SUPABASE_HOSTNAME}`;
   const observabilitySecret = randomBytes(40).toString("base64url");
   const environment = Object.freeze({
     NEXT_PUBLIC_SUPABASE_URL: recoverySupabaseUrl,
@@ -4310,8 +4311,9 @@ function startRecoveryAppContainer(
     "--label", "com.evo.runtime.role=recovery-app",
     "--platform", "linux/amd64",
     "--network", state.networkName,
+    "--add-host", `${RECOVERY_SUPABASE_HOSTNAME}:127.0.0.1`,
     "--publish", `127.0.0.1:${appPort}:3000`,
-    "--publish", `127.0.0.1:${supabaseTlsPort}:${supabaseTlsPort}`,
+    "--publish", `127.0.0.1:${supabaseTlsPort}:443`,
     "--read-only",
     "--init",
     "--cap-drop", "ALL",
@@ -4335,9 +4337,8 @@ function startRecoveryAppContainer(
 const fs = require("node:fs");
 const net = require("node:net");
 const tls = require("node:tls");
-const [targetHost, targetPortRaw, listenPortRaw] = process.argv.slice(1);
+const [targetHost, targetPortRaw] = process.argv.slice(1);
 const targetPort = Number(targetPortRaw);
-const listenPort = Number(listenPortRaw);
 const server = tls.createServer({
   cert: fs.readFileSync("/run/evo-recovery-cert.pem"),
   key: fs.readFileSync("/run/evo-recovery-key.pem"),
@@ -4348,7 +4349,7 @@ const server = tls.createServer({
   client.pipe(upstream);
   upstream.pipe(client);
 });
-server.listen(listenPort, "0.0.0.0");
+server.listen(443, "0.0.0.0");
 `;
   docker([
     "run", "--detach",
@@ -4369,7 +4370,6 @@ server.listen(listenPort, "0.0.0.0");
     "--eval", proxySource,
     `supabase_kong_${state.projectName}`,
     "8000",
-    String(supabaseTlsPort),
   ], {
     capture: false,
     code: "recovery_app_loopback_proxy_start_failed",
@@ -4570,7 +4570,13 @@ async function proveV3BrowserAndReadiness(
       },
       redirect: "manual",
     });
-    if (readiness.status !== 503) fail("readiness_fail_closed_status_invalid", "v3_browser_proof");
+    if (readiness.status !== 503) {
+      fail(
+        "readiness_fail_closed_status_invalid",
+        "v3_browser_proof",
+        sanitizeHttpResponseDiagnostic(readiness),
+      );
+    }
     const payload = await readiness.json().catch(() => null);
     if (
       !isRecord(payload) ||

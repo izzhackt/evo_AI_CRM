@@ -926,6 +926,45 @@ test("provider configuration evidence is loopback-only and precedes readiness pr
   );
 });
 
+test("production image uses a product-valid local TLS Supabase origin", () => {
+  const hostnameDeclaration = source.match(
+    /const ([A-Z0-9_]*SUPABASE[A-Z0-9_]*HOST[A-Z0-9_]*) = "([a-z0-9]{20}\.supabase\.co)"/u,
+  );
+  assert.ok(hostnameDeclaration);
+  const [, hostnameConstant, hostname] = hostnameDeclaration;
+  assert.match(hostname, /^[a-z0-9]{20}\.supabase\.co$/u);
+
+  const tlsStart = source.indexOf("function createRecoveryTlsMaterial");
+  const tlsEnd = source.indexOf("function startRecoveryAppContainer", tlsStart);
+  const tlsSource = source.slice(tlsStart, tlsEnd);
+  const appStart = source.indexOf("function startRecoveryAppContainer");
+  const appEnd = source.indexOf("async function proveV3BrowserAndReadiness", appStart);
+  const appSource = source.slice(appStart, appEnd);
+  const browserStart = source.indexOf("async function proveV3BrowserAndReadiness");
+  const browserEnd = source.indexOf("function docker", browserStart);
+  const browserSource = source.slice(browserStart, browserEnd);
+  assert.ok(tlsStart > 0 && tlsEnd > tlsStart);
+  assert.ok(appStart > 0 && appEnd > appStart);
+  assert.ok(browserStart > 0 && browserEnd > browserStart);
+
+  assert.match(tlsSource, /subjectAltName = DNS:\$\{[A-Za-z0-9_]+\}/u);
+  assert.match(tlsSource, new RegExp(hostnameConstant, "u"));
+  assert.doesNotMatch(tlsSource, /subjectAltName = IP:127\.0\.0\.1/u);
+  assert.match(
+    appSource,
+    /const recoverySupabaseUrl = `https:\/\/\$\{[A-Z0-9_]+\}`/u,
+  );
+  assert.match(appSource, /NEXT_PUBLIC_SUPABASE_URL:\s*recoverySupabaseUrl/u);
+  assert.doesNotMatch(appSource, /recoverySupabaseUrl = `https:[^`]*:\$\{/u);
+  assert.match(appSource, /"--add-host",\s*`\$\{[A-Z0-9_]+\}:127\.0\.0\.1`/u);
+  assert.match(appSource, /"--publish",\s*`127\.0\.0\.1:\$\{supabaseTlsPort\}:443`/u);
+  assert.match(appSource, /server\.listen\(443,\s*"0\.0\.0\.0"\)/u);
+  assert.match(
+    browserSource,
+    /fail\([\s\S]*?"readiness_fail_closed_status_invalid",[\s\S]*?sanitizeHttpResponseDiagnostic\(readiness\)[\s\S]*?\)/u,
+  );
+});
+
 test("browser proof runs the exact production image and never starts Next dev", () => {
   assert.match(source, /function buildRecoveryAppImage\(state, repositorySnapshotRoot, repository\)/u);
   assert.match(source, /"build",\s*\n\s*"--platform",\s*"linux\/amd64"/u);

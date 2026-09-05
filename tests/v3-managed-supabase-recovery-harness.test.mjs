@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   ProcessSupervisor,
@@ -29,8 +30,10 @@ import {
   selectOwnedNetworkNames,
   selectOwnedVolumeNames,
   validateBrowserRouteProof,
+  validateCandidateNetworkAttachment,
   validateDatabaseManifest,
   validateImmutableImageInspection,
+  validateLocalSupabaseNetwork,
   validateRepresentativeCohort,
   validateRestoredDatabaseAggregates,
   validateRestrictedSqlEnvelope,
@@ -338,6 +341,19 @@ test("exact history parser binds ordered full COPY rows and rejects reconstructi
     statementCount: 3,
     statementsSha256: hash(canonicalJson(["select ';'", "DO $$ BEGIN PERFORM 1; END $$", "select (1 + 2)"])),
   });
+  const escaped = String.raw`select E'first \'quoted\'; second'; select 2;`;
+  assert.deepEqual(migrationStatementsDigest(escaped), {
+    statementCount: 2,
+    statementsSha256: hash(canonicalJson([String.raw`select E'first \'quoted\'; second'`, "select 2"])),
+  });
+  const migration102 = readFileSync(
+    new URL("../supabase/migrations/102_platform_crm_primary_waha_authority.sql", import.meta.url),
+    "utf8",
+  );
+  assert.deepEqual(migrationStatementsDigest(migration102), {
+    statementCount: 37,
+    statementsSha256: "7c1afc344169fc5492dcf917d6b05279c3f60d3962993cc218c5f90a1711727d",
+  });
 });
 
 test("restored Storage inventory requires exact identity, version and streamed byte digest with no extras", () => {
@@ -500,6 +516,34 @@ test("durable evidence fails closed before write when cleanup quarantines", () =
   assert.deepEqual(failed.tools, { psql: "18.6" });
   assert.equal(JSON.stringify(failed).includes("/usr/bin/git"), false);
   assert.equal(JSON.stringify(failed).includes("discarded-value"), false);
+
+  const binaryDigest = "a".repeat(64);
+  const safeToolResult = buildDurableEvidence({
+    ...common,
+    cleanup: { descendantsDrained: true, targetsOwned: true, cleanupSucceeded: true, disposition: "remove" },
+    tools: {
+      git: "git version 2.50.1 (Apple Git-155)",
+      tar: "bsdtar 3.5.3",
+      orb: "Running",
+      orb_version: "OrbStack 2.4.1",
+      docker_context: "orbstack",
+      docker_client: "28.3.3",
+      docker_server: "28.3.3",
+      sshKeygen_binary_sha256: binaryDigest,
+      git_binary_sha256: binaryDigest,
+      tar_binary_sha256: binaryDigest,
+      orb_binary_sha256: binaryDigest,
+      docker_binary_sha256: binaryDigest,
+      chromium: "Chromium 140.0.7339.16",
+      chromium_binary_sha256: binaryDigest,
+      leaked_path: "/usr/local/bin/tool",
+    },
+  });
+  assert.equal(safeToolResult.tools.git, "git version 2.50.1 (Apple Git-155)");
+  assert.equal(safeToolResult.tools.sshKeygen_binary_sha256, binaryDigest);
+  assert.equal(safeToolResult.tools.chromium_binary_sha256, binaryDigest);
+  assert.equal(JSON.stringify(safeToolResult.tools).includes("/usr/"), false);
+  assert.equal(Object.hasOwn(safeToolResult.tools, "leaked_path"), false);
 });
 
 test("interruption latches once, ignores a second default exit, and blocks new non-cleanup work", async () => {
@@ -645,6 +689,7 @@ test("durable isolation evidence is hash-only and rejects any source/destination
       urls: ["http://127.0.0.1:43123", "postgresql://postgres:supersecret@127.0.0.1:43124/postgres"],
       networks: ["evov3recoveryabcdef123456_private"],
       volumes: ["supabase_db_evov3recoveryabcdef123456", "supabase_storage_evov3recoveryabcdef123456"],
+      appNetworkAttachment: null,
     },
   };
   const evidence = buildIsolationEvidence(identities, { requireComplete: true });
@@ -673,6 +718,191 @@ test("durable isolation evidence is hash-only and rejects any source/destination
   const foreignVolume = structuredClone(identities);
   foreignVolume.destination.volumes = ["unrelated_volume"];
   expectCode(() => buildIsolationEvidence(foreignVolume, { requireComplete: true }), "destination_identity_invalid");
+  expectCode(() => buildIsolationEvidence(identities, { requireComplete: true, requireAppNetwork: true }), "destination_app_network_missing");
+});
+
+function projectedContainer({ id, name, image = `sha256:${"e".repeat(64)}`, labels, networkMode, ports, networks }) {
+  return [id, `/${name}`, image, labels, networkMode, ports, networks].map((value) => JSON.stringify(value)).join("\t");
+}
+
+test("internal recovery network derives the Supabase API target and proves one loopback-only candidate attachment", () => {
+  const projectName = "evov3recoveryabcdef123456";
+  const networkName = `${projectName}_private`;
+  const networkId = "a".repeat(64);
+  const kongId = "b".repeat(64);
+  const authId = "c".repeat(64);
+  const appId = "d".repeat(64);
+  const appImageId = `sha256:${"e".repeat(64)}`;
+  const containerNetwork = (name, aliases = [name]) => ({
+    [networkName]: { NetworkID: networkId, Aliases: aliases },
+  });
+  const network = (containers) => [{
+    Id: networkId,
+    Name: networkName,
+    Driver: "bridge",
+    Scope: "local",
+    Internal: true,
+    Ingress: false,
+    Options: { "com.docker.network.bridge.host_binding_ipv4": "127.0.0.1" },
+    Labels: { "evo.recovery.owner": projectName },
+    Containers: containers,
+  }];
+  const supabaseMembers = {
+    [kongId]: { Name: `supabase_kong_${projectName}` },
+    [authId]: { Name: `supabase_auth_${projectName}` },
+  };
+  const baseProjection = [
+    projectedContainer({
+      id: kongId,
+      name: supabaseMembers[kongId].Name,
+      labels: { "com.supabase.cli.project": projectName },
+      networkMode: networkName,
+      ports: { "8000/tcp": [{ HostIp: "127.0.0.1", HostPort: "43121" }] },
+      networks: containerNetwork(supabaseMembers[kongId].Name, [supabaseMembers[kongId].Name, "kong"]),
+    }),
+    projectedContainer({
+      id: authId,
+      name: supabaseMembers[authId].Name,
+      labels: { "com.supabase.cli.project": projectName },
+      networkMode: networkName,
+      ports: { "9999/tcp": null },
+      networks: containerNetwork(supabaseMembers[authId].Name),
+    }),
+  ].join("\n");
+  const endpoint = validateLocalSupabaseNetwork(network(supabaseMembers), baseProjection, {
+    apiUrl: "http://127.0.0.1:43121",
+    networkName,
+    projectName,
+  });
+  assert.deepEqual(endpoint, {
+    networkId,
+    memberIds: [kongId, authId].sort(),
+    targetHost: supabaseMembers[kongId].Name,
+    targetPort: 8000,
+    apiLoopbackPort: 43121,
+  });
+
+  const appName = `supabase_app_${projectName}`;
+  const appProjection = projectedContainer({
+    id: appId,
+    name: appName,
+    image: appImageId,
+    labels: { "evo.recovery.owner": projectName },
+    networkMode: networkName,
+    ports: { "3000/tcp": null, "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }] },
+    networks: containerNetwork(appName),
+  });
+  const attachment = validateCandidateNetworkAttachment(
+    network({ ...supabaseMembers, [appId]: { Name: appName } }),
+    appProjection,
+    {
+      appContainerId: appId,
+      appContainerName: appName,
+      appImageId,
+      appPort: 43123,
+      networkName,
+      previousMemberIds: endpoint.memberIds,
+      projectName,
+    },
+  );
+  assert.deepEqual(attachment, {
+    schema: "evo-v3-recovery-app-network/v1",
+    appContainerIdSha256: hash(appId),
+    appImageIdSha256: hash(appImageId),
+    networkIdSha256: hash(networkId),
+    attachedNetworkCount: 1,
+    publishedPortCount: 1,
+    loopbackOnly: true,
+    externalEgress: "blocked_by_internal_network",
+  });
+
+  const publicNetwork = network(supabaseMembers);
+  publicNetwork[0].Internal = false;
+  expectCode(() => validateLocalSupabaseNetwork(publicNetwork, baseProjection, { apiUrl: "http://127.0.0.1:43121", networkName, projectName }), "local_supabase_network_invalid");
+  const wildcardProjection = baseProjection.replace('"127.0.0.1"', '"0.0.0.0"');
+  expectCode(() => validateLocalSupabaseNetwork(network(supabaseMembers), wildcardProjection, { apiUrl: "http://127.0.0.1:43121", networkName, projectName }), "local_supabase_container_inspection_invalid");
+  const duplicateApiProjection = baseProjection.replace(
+    '{"9999/tcp":null}',
+    '{"9999/tcp":[{"HostIp":"127.0.0.1","HostPort":"43121"}]}',
+  );
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(supabaseMembers), duplicateApiProjection, { apiUrl: "http://127.0.0.1:43121", networkName, projectName }),
+    "local_supabase_api_endpoint_ambiguous",
+  );
+  const wrongProjectProjection = baseProjection.replace(
+    `"com.supabase.cli.project":"${projectName}"`,
+    '"com.supabase.cli.project":"foreign-project"',
+  );
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(supabaseMembers), wrongProjectProjection, { apiUrl: "http://127.0.0.1:43121", networkName, projectName }),
+    "local_supabase_container_inspection_invalid",
+  );
+  const hostApp = appProjection.replace(JSON.stringify(networkName), JSON.stringify("host"));
+  expectCode(
+    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), hostApp, {
+      appContainerId: appId, appContainerName: appName, appImageId, appPort: 43123, networkName, previousMemberIds: endpoint.memberIds, projectName,
+    }),
+    "candidate_network_attachment_invalid",
+  );
+  const publicApp = appProjection.replace('"127.0.0.1"', '"0.0.0.0"');
+  expectCode(
+    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), publicApp, {
+      appContainerId: appId, appContainerName: appName, appImageId, appPort: 43123, networkName, previousMemberIds: endpoint.memberIds, projectName,
+    }),
+    "candidate_network_attachment_invalid",
+  );
+  const extraNetworkApp = projectedContainer({
+    id: appId,
+    name: appName,
+    image: appImageId,
+    labels: { "evo.recovery.owner": projectName },
+    networkMode: networkName,
+    ports: { "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }] },
+    networks: { ...containerNetwork(appName), bridge: { NetworkID: "f".repeat(64), Aliases: [appName] } },
+  });
+  expectCode(
+    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), extraNetworkApp, {
+      appContainerId: appId, appContainerName: appName, appImageId, appPort: 43123, networkName, previousMemberIds: endpoint.memberIds, projectName,
+    }),
+    "candidate_network_attachment_invalid",
+  );
+  const extraPublishedPortApp = projectedContainer({
+    id: appId,
+    name: appName,
+    image: appImageId,
+    labels: { "evo.recovery.owner": projectName },
+    networkMode: networkName,
+    ports: {
+      "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }],
+      "43124/tcp": [{ HostIp: "127.0.0.1", HostPort: "43124" }],
+    },
+    networks: containerNetwork(appName),
+  });
+  expectCode(
+    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), extraPublishedPortApp, {
+      appContainerId: appId, appContainerName: appName, appImageId, appPort: 43123, networkName, previousMemberIds: endpoint.memberIds, projectName,
+    }),
+    "candidate_network_attachment_invalid",
+  );
+
+  const verifiedIdentities = {
+    source: {
+      projectRef,
+      urls: [`https://${projectRef}.supabase.co`],
+      networks: [`managed-supabase:${projectRef}`],
+      volumes: ["managed-backup:backup-123"],
+    },
+    destination: {
+      projectRef: projectName,
+      urls: ["http://127.0.0.1:43121", "http://127.0.0.1:43123"],
+      networks: [networkName],
+      volumes: [`supabase_db_${projectName}`],
+      appNetworkAttachment: attachment,
+    },
+  };
+  const durable = buildIsolationEvidence(verifiedIdentities, { requireComplete: true, requireAppNetwork: true });
+  assert.deepEqual(durable.destination.appNetworkAttachment, attachment);
+  assert.equal(JSON.stringify(durable).includes(appName), false);
 });
 
 test("immutable image proof binds Docker id or RepoDigest and revision", () => {
@@ -692,10 +922,14 @@ test("detached SSH signature accepts exact namespace and rejects receipt tamper/
   const harness = join(root, "harness");
   const tamperedHarness = join(root, "tampered-harness");
   const spoofHarness = join(root, "spoof-harness");
+  const backupKeyHarness = join(root, "backup-key-harness");
+  const repositoryKeyHarness = join(root, "repository-key-harness");
   try {
     execFileSync("/usr/bin/ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", key], { stdio: "ignore" });
     chmodSync(`${key}.pub`, 0o600);
-    await import("node:fs").then(({ mkdirSync }) => { mkdirSync(backup, { mode: 0o700 }); mkdirSync(harness, { mode: 0o700 }); mkdirSync(tamperedHarness, { mode: 0o700 }); mkdirSync(spoofHarness, { mode: 0o700 }); });
+    for (const path of [backup, harness, tamperedHarness, spoofHarness, backupKeyHarness, repositoryKeyHarness]) {
+      mkdirSync(path, { mode: 0o700 });
+    }
     const receiptPath = join(backup, "receipt.json");
     writeFileSync(receiptPath, "signed receipt\n", { mode: 0o600 });
     execFileSync("/usr/bin/ssh-keygen", ["-Y", "sign", "-f", key, "-n", "evo-v3-managed-supabase-recovery", receiptPath], { stdio: "ignore" });
@@ -710,6 +944,18 @@ test("detached SSH signature accepts exact namespace and rejects receipt tamper/
     execFileSync("/usr/bin/ssh-keygen", ["-Y", "sign", "-f", key, "-n", "wrong-namespace", receiptPath], { stdio: "ignore" });
     chmodSync(`${receiptPath}.sig`, 0o600);
     await expectCodeAsync(() => verifyReceiptSignature({ backupDir: backup, trustedPublicKey: `${key}.pub` }, spoofHarness, new ProcessSupervisor(), toolchain), "receipt_signature_invalid");
+    const backupKey = join(backup, "trusted.pub");
+    writeFileSync(backupKey, readFileSync(`${key}.pub`), { mode: 0o600, flag: "wx" });
+    await expectCodeAsync(
+      () => verifyReceiptSignature({ backupDir: backup, trustedPublicKey: backupKey }, backupKeyHarness, new ProcessSupervisor(), toolchain),
+      "trusted_public_key_not_independent",
+    );
+    const repositoryLink = join(root, "repository-link");
+    symlinkSync(fileURLToPath(new URL("..", import.meta.url)), repositoryLink, "dir");
+    await expectCodeAsync(
+      () => verifyReceiptSignature({ backupDir: backup, trustedPublicKey: join(repositoryLink, "package.json") }, repositoryKeyHarness, new ProcessSupervisor(), toolchain),
+      "trusted_public_key_not_independent",
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -809,7 +1055,13 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.match(source, /history-schema\.sql\.age/u);
   assert.match(source, /history-data\.sql\.age/u);
   assert.match(source, /receipt\.json\.sig/u);
-  assert.match(source, /--network", "host"/u);
+  assert.doesNotMatch(source, /--network", "host"/u);
+  assert.match(source, /"network", "create", "--internal"/u);
+  assert.match(source, /"--network", state\.networkName/u);
+  assert.match(source, /"--publish", `127\.0\.0\.1:\$\{appPort\}:\$\{appPort\}`/u);
+  assert.match(source, /SAFE_CONTAINER_INSPECT_FORMAT/u);
+  assert.match(source, /target=\/opt\/evo-recovery-entry\.mjs,readonly/u);
+  assert.match(source, /await import\("\/app\/server\.js"\)/u);
   assert.match(source, /change_membership_permission/u);
   assert.match(source, /ROLLBACK/u);
   assert.match(source, /selectAdmissionsTaskMutation\(admissionsTask\)/u);
@@ -817,6 +1069,7 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.match(source, /classifyExpectedDatabaseDenial\(error\.diagnostic/u);
   assert.match(source, /response\?\.status\(\) \?\? 0/u);
   assert.match(source, /buildIsolationEvidence\(state\.isolationInput, \{ requireComplete: true \}\)/u);
+  assert.match(source, /requireAppNetwork: true/u);
   const evidenceBuild = source.lastIndexOf("const evidence = buildDurableEvidence");
   const evidenceWrite = source.lastIndexOf("writeEvidence(evidenceOut, evidence)");
   const listenerRemoval = source.lastIndexOf('process.removeListener("SIGINT", sigint)');

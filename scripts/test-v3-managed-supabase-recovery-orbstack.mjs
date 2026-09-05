@@ -69,6 +69,8 @@ const ADMIN_MEMBERSHIP_DENIAL = Object.freeze({
   sqlstate: "42501",
   domainSentinel: "admin_membership_permission_required",
 });
+// Deliberately excludes Config.Env so inspect output can never capture runtime secrets.
+const SAFE_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}\t{{json .HostConfig.NetworkMode}}\t{{json .NetworkSettings.Ports}}\t{{json .NetworkSettings.Networks}}";
 const DATABASE_DENIAL_SENTINELS = Object.freeze({
   "Active scoped Admin permission membership.role.change is required": ADMIN_MEMBERSHIP_DENIAL.domainSentinel,
 });
@@ -653,9 +655,8 @@ export function migrationStatementsDigest(sql) {
   if (typeof sql !== "string" || sql.length === 0) fail("root_migration_content_invalid", "migration_rehearsal");
   const statements = [];
   let start = 0;
-  let quote;
-  let dollar;
-  let lineComment = false;
+  let lexicalState = "normal";
+  let dollarTag;
   let blockDepth = 0;
   let parentheses = 0;
   let atomic = false;
@@ -667,53 +668,76 @@ export function migrationStatementsDigest(sql) {
   for (let index = 0; index < sql.length; index += 1) {
     const current = sql[index];
     const next = sql[index + 1];
-    if (lineComment) {
-      if (current === "\n") lineComment = false;
+    if (lexicalState === "line_comment") {
+      if (current === "\n") lexicalState = "normal";
       continue;
     }
-    if (blockDepth > 0) {
+    if (lexicalState === "block_comment") {
       if (current === "/" && next === "*") {
         blockDepth += 1;
         index += 1;
       } else if (current === "*" && next === "/") {
         blockDepth -= 1;
         index += 1;
+        if (blockDepth === 0) lexicalState = "normal";
       }
       continue;
     }
-    if (dollar) {
-      if (sql.startsWith(dollar, index)) {
-        index += dollar.length - 1;
-        dollar = undefined;
+    if (lexicalState === "dollar_quoted") {
+      if (sql.startsWith(dollarTag, index)) {
+        index += dollarTag.length - 1;
+        dollarTag = undefined;
+        lexicalState = "normal";
       }
       continue;
     }
-    if (quote) {
-      if (current === quote) {
-        if (next === quote) index += 1;
-        else quote = undefined;
+    if (lexicalState === "escape_string") {
+      if (current === "\\") {
+        if (next === undefined) fail("root_migration_sql_unterminated", "migration_rehearsal");
+        index += 1;
+      } else if (current === "'") {
+        if (next === "'") index += 1;
+        else lexicalState = "normal";
+      }
+      continue;
+    }
+    if (lexicalState === "single_quoted" || lexicalState === "double_quoted") {
+      const delimiter = lexicalState === "single_quoted" ? "'" : '"';
+      if (current === delimiter) {
+        if (next === delimiter) index += 1;
+        else lexicalState = "normal";
       }
       continue;
     }
     if (current === "-" && next === "-") {
-      lineComment = true;
+      lexicalState = "line_comment";
       index += 1;
       continue;
     }
     if (current === "/" && next === "*") {
+      lexicalState = "block_comment";
       blockDepth = 1;
       index += 1;
       continue;
     }
-    if (["'", '"'].includes(current)) {
-      quote = current;
+    if (current === "'") {
+      const prefix = sql[index - 1];
+      const beforePrefix = sql[index - 2];
+      lexicalState = /[eE]/u.test(prefix ?? "") && (beforePrefix === undefined || !/[A-Za-z0-9_$]/u.test(beforePrefix))
+        ? "escape_string"
+        : "single_quoted";
+      continue;
+    }
+    if (current === '"') {
+      lexicalState = "double_quoted";
       continue;
     }
     if (current === "$") {
       const match = /^\$[A-Za-z0-9_]*\$/u.exec(sql.slice(index));
       if (match) {
-        dollar = match[0];
-        index += dollar.length - 1;
+        dollarTag = match[0];
+        lexicalState = "dollar_quoted";
+        index += dollarTag.length - 1;
         continue;
       }
     }
@@ -730,7 +754,9 @@ export function migrationStatementsDigest(sql) {
       emit(index + 1);
     }
   }
-  if (quote || dollar || blockDepth !== 0 || parentheses !== 0 || atomic) fail("root_migration_sql_unterminated", "migration_rehearsal");
+  if (!new Set(["normal", "line_comment"]).has(lexicalState) || blockDepth !== 0 || parentheses !== 0 || atomic) {
+    fail("root_migration_sql_unterminated", "migration_rehearsal");
+  }
   emit(sql.length);
   if (statements.length === 0) fail("root_migration_content_invalid", "migration_rehearsal");
   return Object.freeze({
@@ -966,6 +992,11 @@ function privateBackupDirectory(path) {
     (typeof process.getuid === "function" && metadata.uid !== process.getuid())
   ) fail("backup_directory_not_private", "preflight");
   return canonical;
+}
+
+function pathAtOrBelow(candidate, root) {
+  const relation = relative(root, candidate);
+  return relation === "" || (relation !== ".." && !relation.startsWith(`..${sep}`) && !isAbsolute(relation));
 }
 
 function evidenceDestination(path) {
@@ -1259,6 +1290,27 @@ function patchedPsqlVersion(output) {
   return `${major}.${minor}`;
 }
 
+function sanitizedToolVersion(output, prefix, code) {
+  const lines = String(output).trim().split(/\r?\n/u).filter(Boolean);
+  if (lines.length === 0) fail(code, "toolchain");
+  const value = lines[0];
+  if (
+    value.length > 160 ||
+    !value.startsWith(prefix) ||
+    !/\d/u.test(value) ||
+    !/^[A-Za-z0-9][A-Za-z0-9 .()+:_-]*$/u.test(value)
+  ) {
+    fail(code, "toolchain");
+  }
+  return value;
+}
+
+function versionToken(output, label, code) {
+  const match = /(?:^|[^A-Za-z0-9])v?(\d+(?:\.\d+){1,3}(?:[-+][A-Za-z0-9.-]+)?)(?:$|[^A-Za-z0-9])/mu.exec(String(output));
+  if (!match) fail(code, "toolchain");
+  return `${label} ${match[1]}`;
+}
+
 async function trustedToolchain(supervisor, availableEvidence = {}) {
   const tools = Object.freeze({
     git: resolveExecutable(["/usr/bin/git"], ["/usr/bin/git"], "git_unavailable"),
@@ -1293,6 +1345,14 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
   Object.assign(availableEvidence, Object.fromEntries(
     Object.entries(tools).map(([name, executable]) => [`${name}_realpath_sha256`, sha256(executable.real)]),
   ));
+  for (const [name, executable] of Object.entries(tools)) {
+    availableEvidence[`${name}_binary_sha256`] = await sha256File(executable.real);
+  }
+  const gitVersion = await supervisor.run(tools.git.real, ["--version"], { stage: "toolchain", code: "git_version_failed", timeoutMs: 10_000 });
+  availableEvidence.git = sanitizedToolVersion(gitVersion.stdout.toString("utf8"), "git version ", "git_version_invalid");
+  const tarVersion = await supervisor.run(tools.tar.real, ["--version"], { stage: "toolchain", code: "tar_version_failed", timeoutMs: 10_000 });
+  const tarOutput = tarVersion.stdout.length > 0 ? tarVersion.stdout : tarVersion.stderr;
+  availableEvidence.tar = versionToken(tarOutput.toString("utf8"), "bsdtar", "tar_version_invalid");
   const psqlVersion = await supervisor.run(tools.psql.real, ["--version"], { stage: "toolchain", code: "psql_version_failed", timeoutMs: 10_000 });
   availableEvidence.psql = patchedPsqlVersion(psqlVersion.stdout.toString("utf8"));
   const cliVersion = await supervisor.run(tools.supabase.real, ["--version"], { stage: "toolchain", code: "supabase_version_failed", timeoutMs: 10_000 });
@@ -1301,12 +1361,23 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
   availableEvidence.supabase_cli = supabaseVersion;
   const ageVersion = await supervisor.run(tools.age.real, ["--version"], { stage: "toolchain", code: "age_version_failed", timeoutMs: 10_000 });
   availableEvidence.age = string(ageVersion.stdout.toString("utf8").trim(), /^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/u, "age_version_invalid", "toolchain", 64);
+  const orbVersion = await supervisor.run(tools.orb.real, ["version"], { stage: "toolchain", code: "orbstack_version_failed", timeoutMs: 10_000 });
+  const orbVersionOutput = orbVersion.stdout.length > 0 ? orbVersion.stdout : orbVersion.stderr;
+  availableEvidence.orb_version = versionToken(orbVersionOutput.toString("utf8"), "OrbStack", "orbstack_version_invalid");
   const orb = await supervisor.run(tools.orb.real, ["status"], { stage: "toolchain", code: "orbstack_unavailable", timeoutMs: 10_000 });
   if (orb.stdout.toString("utf8").trim() !== "Running") fail("orbstack_not_running", "toolchain");
   availableEvidence.orb = "Running";
   const context = await supervisor.run(tools.docker.real, ["--context", "orbstack", "context", "show"], { stage: "toolchain", code: "docker_context_invalid", timeoutMs: 10_000 });
   if (context.stdout.toString("utf8").trim() !== "orbstack") fail("docker_context_invalid", "toolchain");
   availableEvidence.docker_context = "orbstack";
+  for (const [field, template] of [["docker_client", "{{.Client.Version}}"], ["docker_server", "{{.Server.Version}}"]]) {
+    const version = await supervisor.run(tools.docker.real, ["--context", "orbstack", "version", "--format", template], {
+      stage: "toolchain",
+      code: `${field}_version_failed`,
+      timeoutMs: 10_000,
+    });
+    availableEvidence[field] = sanitizedToolVersion(version.stdout.toString("utf8"), "", `${field}_version_invalid`);
+  }
   return Object.freeze({
     paths: tools,
     evidence: Object.freeze({ ...availableEvidence }),
@@ -1361,6 +1432,10 @@ export async function verifyReceiptSignature(options, harnessRoot, supervisor, t
   const receiptSource = ownedRegularFile(join(backupRoot, "receipt.json"), { code: "receipt", maximum: MAX_JSON_BYTES, privateMode: true });
   const signatureSource = ownedRegularFile(join(backupRoot, "receipt.json.sig"), { code: "receipt_signature", maximum: MAX_JSON_BYTES, privateMode: true });
   const trustedSource = ownedRegularFile(options.trustedPublicKey, { code: "trusted_public_key", maximum: MAX_JSON_BYTES });
+  const canonicalRepositoryRoot = realpathSync(repositoryRoot);
+  if (pathAtOrBelow(trustedSource, backupRoot) || pathAtOrBelow(trustedSource, canonicalRepositoryRoot)) {
+    fail("trusted_public_key_not_independent", "signature_verification");
+  }
   const receipt = join(harnessRoot, "receipt.json");
   const signature = join(harnessRoot, "receipt.json.sig");
   const trustedKey = join(harnessRoot, "trusted-export-key.pub");
@@ -1626,7 +1701,7 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   mkdirSync(join(workdir, "supabase"), { recursive: true, mode: 0o700 });
   const configPath = join(workdir, "supabase", "config.toml");
   writeFileSync(configPath, isolatedConfig(root.config, state.projectName, ports), { mode: 0o600, flag: "wx" });
-  await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "create", "--opt", "com.docker.network.bridge.host_binding_ipv4=127.0.0.1", "--label", `evo.recovery.owner=${state.projectName}`, state.networkName], {
+  await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "create", "--internal", "--opt", "com.docker.network.bridge.host_binding_ipv4=127.0.0.1", "--label", `evo.recovery.owner=${state.projectName}`, state.networkName], {
     stage: "local_supabase_start",
     code: "isolated_network_create_failed",
     timeoutMs: 30_000,
@@ -1645,6 +1720,185 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
     timeoutMs: 60_000,
   });
   return Object.freeze({ status: parseStatus(status.stdout.toString("utf8")), configPath });
+}
+
+function parsedJson(value, code, stage) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    fail(code, stage);
+  }
+}
+
+function projectedContainers(output, code, stage) {
+  const lines = String(output).split(/\r?\n/u).filter(Boolean);
+  if (lines.length === 0) fail(code, stage);
+  const records = lines.map((line) => {
+    const fields = line.split("\t");
+    if (fields.length !== 7) fail(code, stage);
+    const [id, name, image, labels, networkMode, ports, networks] = fields.map((field) => parsedJson(field, code, stage));
+    if (
+      !SHA256.test(id) ||
+      typeof name !== "string" ||
+      !name.startsWith("/") ||
+      !/^sha256:[0-9a-f]{64}$/u.test(image) ||
+      !isRecord(labels) ||
+      typeof networkMode !== "string" ||
+      !isRecord(ports) ||
+      !isRecord(networks)
+    ) {
+      fail(code, stage);
+    }
+    return Object.freeze({ id, name: name.slice(1), image, labels, networkMode, ports, networks });
+  });
+  if (new Set(records.map(({ id }) => id)).size !== records.length) fail(code, stage);
+  return Object.freeze(records);
+}
+
+function recoveryNetwork(value, expected, code, stage) {
+  if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) fail(code, stage);
+  const network = value[0];
+  if (
+    !SHA256.test(network.Id ?? "") ||
+    network.Name !== expected.networkName ||
+    network.Driver !== "bridge" ||
+    network.Scope !== "local" ||
+    network.Internal !== true ||
+    network.Ingress !== false ||
+    network.Options?.["com.docker.network.bridge.host_binding_ipv4"] !== "127.0.0.1" ||
+    network.Labels?.["evo.recovery.owner"] !== expected.projectName ||
+    !isRecord(network.Containers) ||
+    Object.keys(network.Containers).length === 0
+  ) {
+    fail(code, stage);
+  }
+  for (const [id, member] of Object.entries(network.Containers)) {
+    if (!SHA256.test(id) || !isRecord(member) || typeof member.Name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(member.Name)) {
+      fail(code, stage);
+    }
+  }
+  return network;
+}
+
+function validateContainerNetwork(record, network, networkName, code, stage) {
+  if (record.networkMode !== networkName || Object.keys(record.networks).length !== 1 || !isRecord(record.networks[networkName])) {
+    fail(code, stage);
+  }
+  const attachment = record.networks[networkName];
+  if (attachment.NetworkID !== network.Id || !Array.isArray(attachment.Aliases) || attachment.Aliases.length === 0) fail(code, stage);
+  if (attachment.Aliases.some((alias) => typeof alias !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(alias))) fail(code, stage);
+}
+
+function loopbackPortBindings(ports, code, stage) {
+  const published = [];
+  for (const [portKey, bindings] of Object.entries(ports)) {
+    const portMatch = /^(\d+)\/(tcp|udp)$/u.exec(portKey);
+    if (!portMatch) fail(code, stage);
+    const containerPort = Number(portMatch[1]);
+    if (containerPort < 1 || containerPort > 65_535) fail(code, stage);
+    if (bindings === null) continue;
+    if (!Array.isArray(bindings) || bindings.length === 0) fail(code, stage);
+    for (const binding of bindings) {
+      if (!isRecord(binding) || binding.HostIp !== "127.0.0.1" || !/^\d{1,5}$/u.test(binding.HostPort ?? "")) fail(code, stage);
+      const hostPort = Number(binding.HostPort);
+      if (hostPort < 1 || hostPort > 65_535) fail(code, stage);
+      published.push(Object.freeze({ containerPort, hostPort, protocol: portMatch[2] }));
+    }
+  }
+  return Object.freeze(published);
+}
+
+export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, expected) {
+  exactKeys(expected, ["apiUrl", "networkName", "projectName"], "local_supabase_network_invalid", "local_supabase_start");
+  const network = recoveryNetwork(networkPayload, expected, "local_supabase_network_invalid", "local_supabase_start");
+  const records = projectedContainers(projectionOutput, "local_supabase_container_inspection_invalid", "local_supabase_start");
+  const memberIds = Object.keys(network.Containers).sort();
+  if (records.length !== memberIds.length) fail("local_supabase_container_inspection_invalid", "local_supabase_start");
+  let apiPort;
+  try {
+    const parsed = new URL(expected.apiUrl);
+    if (!new Set(["127.0.0.1", "localhost", "[::1]"]).has(parsed.hostname) || parsed.port === "") throw new Error("not loopback");
+    apiPort = Number(parsed.port);
+    if (!Number.isSafeInteger(apiPort) || apiPort < 1 || apiPort > 65_535) throw new Error("invalid port");
+  } catch {
+    fail("local_supabase_network_invalid", "local_supabase_start");
+  }
+  const matches = [];
+  for (const record of records) {
+    const member = network.Containers[record.id];
+    if (
+      !memberIds.includes(record.id) ||
+      member.Name !== record.name ||
+      !record.name.startsWith("supabase_") ||
+      !record.name.endsWith(`_${expected.projectName}`) ||
+      record.labels["com.supabase.cli.project"] !== expected.projectName
+    ) {
+      fail("local_supabase_container_inspection_invalid", "local_supabase_start");
+    }
+    validateContainerNetwork(record, network, expected.networkName, "local_supabase_container_inspection_invalid", "local_supabase_start");
+    for (const binding of loopbackPortBindings(record.ports, "local_supabase_container_inspection_invalid", "local_supabase_start")) {
+      if (binding.protocol === "tcp" && binding.hostPort === apiPort) matches.push(Object.freeze({ record, targetPort: binding.containerPort }));
+    }
+  }
+  if (matches.length !== 1) fail("local_supabase_api_endpoint_ambiguous", "local_supabase_start");
+  return Object.freeze({
+    networkId: network.Id,
+    memberIds: Object.freeze(memberIds),
+    targetHost: matches[0].record.name,
+    targetPort: matches[0].targetPort,
+    apiLoopbackPort: apiPort,
+  });
+}
+
+export function validateCandidateNetworkAttachment(networkPayload, projectionOutput, expected) {
+  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appPort", "networkName", "previousMemberIds", "projectName"], "candidate_network_attachment_invalid", "image_verification");
+  const network = recoveryNetwork(networkPayload, expected, "candidate_network_attachment_invalid", "image_verification");
+  const [record, ...extras] = projectedContainers(projectionOutput, "candidate_container_inspection_invalid", "image_verification");
+  if (
+    extras.length !== 0 ||
+    record.id !== expected.appContainerId ||
+    record.name !== expected.appContainerName ||
+    record.image !== expected.appImageId ||
+    record.labels["evo.recovery.owner"] !== expected.projectName ||
+    network.Containers[record.id]?.Name !== record.name
+  ) {
+    fail("candidate_container_inspection_invalid", "image_verification");
+  }
+  validateContainerNetwork(record, network, expected.networkName, "candidate_network_attachment_invalid", "image_verification");
+  const members = Object.keys(network.Containers).sort();
+  const previous = [...expected.previousMemberIds].sort();
+  if (members.length !== previous.length + 1 || !previous.every((id) => members.includes(id))) {
+    fail("candidate_network_membership_changed", "image_verification");
+  }
+  const published = loopbackPortBindings(record.ports, "candidate_network_attachment_invalid", "image_verification");
+  if (published.length !== 1 || published[0].protocol !== "tcp" || published[0].containerPort !== expected.appPort || published[0].hostPort !== expected.appPort) {
+    fail("candidate_network_attachment_invalid", "image_verification");
+  }
+  return Object.freeze({
+    schema: "evo-v3-recovery-app-network/v1",
+    appContainerIdSha256: sha256(record.id),
+    appImageIdSha256: sha256(record.image),
+    networkIdSha256: sha256(network.Id),
+    attachedNetworkCount: 1,
+    publishedPortCount: 1,
+    loopbackOnly: true,
+    externalEgress: "blocked_by_internal_network",
+  });
+}
+
+async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain) {
+  const networkResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "inspect", state.networkName], {
+    stage: "local_supabase_start", code: "local_supabase_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
+  });
+  const networkPayload = parsedJson(networkResult.stdout.toString("utf8"), "local_supabase_network_invalid", "local_supabase_start");
+  const memberIds = Object.keys(networkPayload?.[0]?.Containers ?? {});
+  if (memberIds.length === 0 || memberIds.some((id) => !SHA256.test(id))) fail("local_supabase_network_invalid", "local_supabase_start");
+  const containerResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...memberIds], {
+    stage: "local_supabase_start", code: "local_supabase_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
+  });
+  return validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
+    apiUrl: status.apiUrl, networkName: state.networkName, projectName: state.projectName,
+  });
 }
 
 async function restoreDatabase(artifacts, status, supervisor, toolchain) {
@@ -2592,13 +2846,73 @@ async function waitForHttp(url, expected, timeoutMs, code, stage, state, interru
   fail(code, stage);
 }
 
+// The host browser keeps using the CLI's loopback-only API publication. Inside
+// the isolated app namespace, the same URL lands on this fixed TCP forwarder,
+// whose upstream is derived from the inspected owned Supabase network.
+function writeCandidateEntrypoint(path) {
+  const source = `import { connect, createServer } from "node:net";
+
+const [targetHost, targetPortValue, listenPortValue] = process.argv.slice(2);
+const targetPort = Number(targetPortValue);
+const listenPort = Number(listenPortValue);
+if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(targetHost ?? "") ||
+    !Number.isSafeInteger(targetPort) || targetPort < 1 || targetPort > 65535 ||
+    !Number.isSafeInteger(listenPort) || listenPort < 1 || listenPort > 65535) {
+  throw new Error("invalid recovery proxy endpoint");
+}
+const proxy = createServer((downstream) => {
+  const upstream = connect({ host: targetHost, port: targetPort });
+  const close = () => { downstream.destroy(); upstream.destroy(); };
+  downstream.once("error", close);
+  upstream.once("error", close);
+  upstream.once("connect", () => {
+    downstream.pipe(upstream);
+    upstream.pipe(downstream);
+  });
+});
+await new Promise((resolve, reject) => {
+  proxy.once("error", reject);
+  proxy.listen(listenPort, "127.0.0.1", resolve);
+});
+await import("/app/server.js");
+`;
+  writeFileSync(path, source, { mode: 0o444, flag: "wx" });
+}
+
+async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain, image, appPort, appContainerId) {
+  const [networkResult, containerResult] = await Promise.all([
+    supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "inspect", state.networkName], {
+      stage: "image_verification", code: "candidate_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
+    }),
+    supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, appContainerId], {
+      stage: "image_verification", code: "candidate_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 64 * 1_024,
+    }),
+  ]);
+  return validateCandidateNetworkAttachment(
+    parsedJson(networkResult.stdout.toString("utf8"), "candidate_network_attachment_invalid", "image_verification"),
+    containerResult.stdout.toString("utf8"),
+    {
+      appContainerId,
+      appContainerName: state.appContainer,
+      appImageId: image.id,
+      appPort,
+      networkName: state.networkName,
+      previousMemberIds: endpoint.memberIds,
+      projectName: state.projectName,
+    },
+  );
+}
+
 async function startCandidateApp(options, status, actors, state, supervisor, toolchain, image, appPort, interruptionGuard) {
+  const endpoint = await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
   const envFile = join(state.harnessRoot, "candidate.env");
+  const entrypoint = join(state.harnessRoot, "candidate-entrypoint.mjs");
+  writeCandidateEntrypoint(entrypoint);
   const observabilitySecret = randomBytes(48).toString("base64url");
   const environment = {
     NODE_ENV: "development",
     PORT: String(appPort),
-    HOSTNAME: "127.0.0.1",
+    HOSTNAME: "0.0.0.0",
     NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.publishableKey,
     EVO_PLATFORM_SUPABASE_SECRET_KEY: status.serviceRoleKey,
@@ -2616,17 +2930,30 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
     EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: observabilitySecret,
   };
   writeFileSync(envFile, `${Object.entries(environment).map(([key, value]) => `${key}=${value}`).join("\n")}\n`, { mode: 0o600, flag: "wx" });
-  state.appContainer = `${state.projectName}-app`;
+  state.appContainer = `supabase_app_${state.projectName}`;
   const started = await supervisor.run(toolchain.paths.docker.real, [
     "--context", "orbstack", "run", "--detach", "--name", state.appContainer,
     "--label", `evo.recovery.owner=${state.projectName}`,
-    "--network", "host", "--env-file", envFile, options.appImage,
+    "--network", state.networkName,
+    "--publish", `127.0.0.1:${appPort}:${appPort}`,
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--env-file", envFile,
+    "--mount", `type=bind,source=${entrypoint},target=/opt/evo-recovery-entry.mjs,readonly`,
+    "--entrypoint", "node",
+    options.appImage,
+    "/opt/evo-recovery-entry.mjs", endpoint.targetHost, String(endpoint.targetPort), String(endpoint.apiLoopbackPort),
   ], { stage: "image_verification", code: "candidate_container_start_failed", timeoutMs: 2 * 60 * 1_000 });
   const containerId = started.stdout.toString("utf8").trim();
   if (!/^[0-9a-f]{64}$/u.test(containerId)) fail("candidate_container_id_invalid", "image_verification");
-  const inspected = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", "{{.Image}}", state.appContainer], { stage: "image_verification", code: "candidate_container_inspect_failed" });
-  if (inspected.stdout.toString("utf8").trim() !== image.id) fail("candidate_container_image_mismatch", "image_verification");
   const appUrl = `http://127.0.0.1:${appPort}`;
+  const appNetworkAttachment = await inspectCandidateAttachment(state, endpoint, supervisor, toolchain, image, appPort, containerId);
+  state.isolationInput.destination = {
+    ...state.isolationInput.destination,
+    urls: [...state.isolationInput.destination.urls, appUrl],
+    appNetworkAttachment,
+  };
+  state.isolationEvidence = buildIsolationEvidence(state.isolationInput, { requireComplete: true, requireAppNetwork: true });
   await waitForHttp(`${appUrl}/api/health`, [200], 3 * 60 * 1_000, "candidate_app_start_timeout", "image_verification", state, interruptionGuard);
   return Object.freeze({ appUrl, observabilitySecret, actors });
 }
@@ -2639,7 +2966,7 @@ async function browserExecutable(supervisor) {
   const version = await supervisor.run(canonical, ["--version"], { stage: "browser_proof", code: "browser_version_failed", timeoutMs: 10_000 });
   const value = version.stdout.toString("utf8").trim();
   if (!/^Chromium \d+(?:\.\d+){3}$/u.test(value)) fail("browser_version_invalid", "browser_proof");
-  return Object.freeze({ chromium, path: canonical, version: value });
+  return Object.freeze({ chromium, path: canonical, version: value, binarySha256: await sha256File(canonical) });
 }
 
 export function validateBrowserRouteProof(value) {
@@ -2673,6 +3000,7 @@ async function proveBrowser(app, state, supervisor, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
   const browserTool = await browserExecutable(supervisor);
   state.availableTools.chromium = browserTool.version;
+  state.availableTools.chromium_binary_sha256 = browserTool.binarySha256;
   const debugPort = await reservePort();
   const profile = join(state.harnessRoot, "chromium-profile");
   mkdirSync(profile, { mode: 0o700 });
@@ -2783,10 +3111,38 @@ function identityDigest(values) {
   return values.length > 0 ? sha256(canonicalJson(values)) : null;
 }
 
-export function buildIsolationEvidence(value, { requireComplete = false } = {}) {
+function sanitizedAppNetworkAttachment(value) {
+  if (value === null) return null;
+  exactKeys(value, [
+    "appContainerIdSha256",
+    "appImageIdSha256",
+    "attachedNetworkCount",
+    "externalEgress",
+    "loopbackOnly",
+    "networkIdSha256",
+    "publishedPortCount",
+    "schema",
+  ], "destination_app_network_invalid", "isolation_identity");
+  if (
+    value.schema !== "evo-v3-recovery-app-network/v1" ||
+    !SHA256.test(value.appContainerIdSha256) ||
+    !SHA256.test(value.appImageIdSha256) ||
+    !SHA256.test(value.networkIdSha256) ||
+    value.attachedNetworkCount !== 1 ||
+    value.publishedPortCount !== 1 ||
+    value.loopbackOnly !== true ||
+    value.externalEgress !== "blocked_by_internal_network"
+  ) {
+    fail("destination_app_network_invalid", "isolation_identity");
+  }
+  return Object.freeze({ ...value });
+}
+
+export function buildIsolationEvidence(value, { requireComplete = false, requireAppNetwork = false } = {}) {
   exactKeys(value, ["source", "destination"], "isolation_identity_invalid", "isolation_identity");
   exactKeys(value.source, ["projectRef", "urls", "networks", "volumes"], "source_identity_invalid", "isolation_identity");
-  exactKeys(value.destination, ["projectRef", "urls", "networks", "volumes"], "destination_identity_invalid", "isolation_identity");
+  exactKeys(value.destination, ["appNetworkAttachment", "projectRef", "urls", "networks", "volumes"], "destination_identity_invalid", "isolation_identity");
+  const appNetworkAttachment = sanitizedAppNetworkAttachment(value.destination.appNetworkAttachment);
   const sourceRef = value.source.projectRef;
   const destinationRef = value.destination.projectRef;
   if (sourceRef !== null) string(sourceRef, PROJECT_REF, "source_identity_invalid", "isolation_identity", 20);
@@ -2820,6 +3176,7 @@ export function buildIsolationEvidence(value, { requireComplete = false } = {}) 
     sourceVolumes.length > 0 && destinationVolumes.length > 0 &&
     Object.values(separation).every((result) => result === true);
   if (requireComplete && !complete) fail("source_destination_identity_incomplete", "isolation_identity");
+  if (requireAppNetwork && appNetworkAttachment === null) fail("destination_app_network_missing", "isolation_identity");
   return Object.freeze({
     status: complete ? "verified" : "partial",
     source: Object.freeze({
@@ -2840,6 +3197,7 @@ export function buildIsolationEvidence(value, { requireComplete = false } = {}) 
       networkCount: destinationNetworks.length,
       volumeCount: destinationVolumes.length,
       runtime: "local_orbstack",
+      appNetworkAttachment,
     }),
     separation,
   });
@@ -2982,10 +3340,15 @@ function safeFailure(error) {
 function durableToolEvidence(value) {
   const allowed = new Set([
     "age",
+    "git",
     "psql",
     "supabase_cli",
+    "tar",
     "orb",
+    "orb_version",
     "docker_context",
+    "docker_client",
+    "docker_server",
     "chromium",
     "git_realpath_sha256",
     "sshKeygen_realpath_sha256",
@@ -2995,11 +3358,44 @@ function durableToolEvidence(value) {
     "docker_realpath_sha256",
     "psql_realpath_sha256",
     "supabase_realpath_sha256",
+    "git_binary_sha256",
+    "sshKeygen_binary_sha256",
+    "tar_binary_sha256",
+    "age_binary_sha256",
+    "orb_binary_sha256",
+    "docker_binary_sha256",
+    "psql_binary_sha256",
+    "supabase_binary_sha256",
+    "chromium_binary_sha256",
   ]);
   if (!isRecord(value)) return Object.freeze({});
   const result = {};
   for (const [key, field] of Object.entries(value)) {
     if (!allowed.has(key) || typeof field !== "string" || field.length === 0 || field.length > 256) continue;
+    const valid = key.endsWith("_sha256")
+      ? SHA256.test(field)
+      : key === "git"
+        ? /^git version \d[A-Za-z0-9 .()+_-]*$/u.test(field)
+        : key === "tar"
+          ? /^(?:bsdtar|tar) \d[A-Za-z0-9.+_-]*$/u.test(field)
+          : key === "psql"
+            ? /^\d+\.\d+$/u.test(field)
+            : key === "supabase_cli"
+              ? VERSION.test(field)
+              : key === "age"
+                ? /^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/u.test(field)
+                : key === "orb"
+                  ? field === "Running"
+                  : key === "orb_version"
+                    ? /^OrbStack \d[A-Za-z0-9.+_-]*$/u.test(field)
+                    : key === "docker_context"
+                      ? field === "orbstack"
+                      : new Set(["docker_client", "docker_server"]).has(key)
+                        ? VERSION.test(field)
+                        : key === "chromium"
+                          ? /^Chromium \d+(?:\.\d+){3}$/u.test(field)
+                          : false;
+    if (!valid) continue;
     result[key] = field;
   }
   return Object.freeze(result);
@@ -3102,6 +3498,7 @@ async function executeMode(mode, options) {
         urls: [],
         networks: [`${projectName}_private`],
         volumes: [],
+        appNetworkAttachment: null,
       },
     },
   };
@@ -3188,6 +3585,7 @@ async function executeMode(mode, options) {
         urls: [local.status.apiUrl, local.status.dbUrl],
         networks: destinationInventory.networks,
         volumes: destinationInventory.volumes,
+        appNetworkAttachment: null,
       };
       state.isolationEvidence = buildIsolationEvidence(state.isolationInput, { requireComplete: true });
       const isolation = state.isolationEvidence;

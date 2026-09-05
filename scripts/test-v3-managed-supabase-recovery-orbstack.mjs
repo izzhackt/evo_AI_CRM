@@ -16,16 +16,20 @@ import {
   cpSync,
   createReadStream,
   existsSync,
+  fsyncSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   openSync,
   readFileSync,
+  readlinkSync,
   readdirSync,
   realpathSync,
   renameSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -71,6 +75,7 @@ const ADMIN_MEMBERSHIP_DENIAL = Object.freeze({
 });
 // Deliberately excludes Config.Env so inspect output can never capture runtime secrets.
 const SAFE_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}\t{{json .HostConfig.NetworkMode}}\t{{json .NetworkSettings.Ports}}\t{{json .NetworkSettings.Networks}}";
+const SAFE_IMAGE_INSPECT_FORMAT = "{{json .Id}}\t{{json .RepoDigests}}\t{{json .Config.Labels}}\t{{json .Os}}\t{{json .Architecture}}";
 const DATABASE_DENIAL_SENTINELS = Object.freeze({
   "Active scoped Admin permission membership.role.change is required": ADMIN_MEMBERSHIP_DENIAL.domainSentinel,
 });
@@ -309,7 +314,8 @@ export function validateSignedReceipt(receipt, expected) {
   }
   const capturedAt = iso(receipt.captured_at, "receipt_timestamp_invalid").toISOString();
   const git = validateGit(receipt.git, "receipt_git_invalid");
-  if (git.head !== expected.repositoryCommit) fail("receipt_commit_mismatch", "artifact_validation");
+  if (git.head !== expected.sourceRepositoryCommit) fail("receipt_source_commit_mismatch", "artifact_validation");
+  if (git.migration_tree !== expected.sourceMigrationTree) fail("receipt_source_migration_tree_mismatch", "artifact_validation");
   exactKeys(receipt.source, ["identity_sha256"], "receipt_source_invalid");
   const sourceIdentity = string(receipt.source.identity_sha256, SHA256, "receipt_source_invalid");
   exactKeys(receipt.provider_backup, ["id", "inserted_at", "status", "physical"], "receipt_backup_invalid");
@@ -869,7 +875,7 @@ async function validateRestrictedSqlFile(path, name) {
   return Object.freeze({ artifact: name, guardSha256: sha256(opening) });
 }
 
-export function verifyLedgerAgainstRoot(ledger, root, summary) {
+export function verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete = false, requirePending = true } = {}) {
   if (!isRecord(ledger) || !Array.isArray(ledger.entries) || ledger.entries.length === 0) {
     fail("migration_ledger_reconstruction_forbidden", "migration_rehearsal");
   }
@@ -892,10 +898,38 @@ export function verifyLedgerAgainstRoot(ledger, root, summary) {
   ) {
     fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
   }
+  if (requireComplete && root.entries.length !== prefix.length) fail("source_migration_ledger_not_complete", "migration_rehearsal");
+  if (requirePending && root.entries.length === prefix.length) fail("migration_pending_suffix_missing", "migration_rehearsal");
   return Object.freeze({
     source: Object.freeze(prefix),
     pending: Object.freeze(root.entries.slice(prefix.length)),
     orderedLedgerSha256: ledger.orderedLedgerSha256,
+  });
+}
+
+export function verifyMigrationTreePrefix(sourceRoot, targetRoot) {
+  if (!Array.isArray(sourceRoot?.entries) || !Array.isArray(targetRoot?.entries) || sourceRoot.entries.length === 0) {
+    fail("repository_migration_prefix_invalid", "migration_rehearsal");
+  }
+  const prefix = targetRoot.entries.slice(0, sourceRoot.entries.length);
+  const comparable = (entry) => ({
+    version: entry.version,
+    name: entry.name,
+    bytes: entry.bytes,
+    sha256: entry.sha256,
+    statementCount: entry.statementCount,
+    statementsSha256: entry.statementsSha256,
+  });
+  if (prefix.length !== sourceRoot.entries.length || prefix.some((entry, index) => !sameJson(comparable(entry), comparable(sourceRoot.entries[index])))) {
+    fail("repository_migration_prefix_mismatch", "migration_rehearsal");
+  }
+  const pending = targetRoot.entries.slice(prefix.length);
+  if (pending.length === 0) fail("repository_target_migration_suffix_missing", "migration_rehearsal");
+  return Object.freeze({
+    source: Object.freeze(sourceRoot.entries),
+    pending: Object.freeze(pending),
+    sourceLedgerSha256: sha256(canonicalJson(sourceRoot.entries.map(comparable))),
+    targetSuffixSha256: sha256(canonicalJson(pending.map(comparable))),
   });
 }
 
@@ -920,8 +954,11 @@ const OPTIONS = Object.freeze({
   projectRef: ["project-ref", "EVO_V3_RECOVERY_PROJECT_REF"],
   supabaseOrganizationId: ["supabase-organization-id", "EVO_V3_RECOVERY_SUPABASE_ORGANIZATION_ID"],
   platformOrganizationId: ["platform-organization-id", "EVO_V3_RECOVERY_PLATFORM_ORGANIZATION_ID"],
-  repositoryCommit: ["repository-commit", "EVO_V3_RECOVERY_REPOSITORY_COMMIT"],
-  appImage: ["app-image", "EVO_V3_RECOVERY_APP_IMAGE"],
+  sourceRepositoryCommit: ["source-repository-commit", "EVO_V3_RECOVERY_SOURCE_REPOSITORY_COMMIT"],
+  sourceMigrationTree: ["source-migration-tree", "EVO_V3_RECOVERY_SOURCE_MIGRATION_TREE"],
+  sourceMainEquivalentCommit: ["source-main-equivalent-commit", "EVO_V3_RECOVERY_SOURCE_MAIN_EQUIVALENT_COMMIT"],
+  targetRepositoryCommit: ["target-repository-commit", "EVO_V3_RECOVERY_TARGET_REPOSITORY_COMMIT"],
+  targetMigrationTree: ["target-migration-tree", "EVO_V3_RECOVERY_TARGET_MIGRATION_TREE"],
   adminUserId: ["admin-user-id", "EVO_V3_RECOVERY_ADMIN_USER_ID"],
   salesUserId: ["sales-user-id", "EVO_V3_RECOVERY_SALES_USER_ID"],
   admissionsUserId: ["admissions-user-id", "EVO_V3_RECOVERY_ADMISSIONS_USER_ID"],
@@ -940,21 +977,31 @@ export function parseHarnessOptions(argv, environment = process.env) {
     if (fromFlag !== undefined && typeof fromEnvironment === "string" && fromEnvironment.length > 0) {
       fail("argument_environment_conflict", "arguments");
     }
-    values[key] = fromFlag ?? fromEnvironment;
+    values[key] = fromFlag ?? (typeof fromEnvironment === "string" && fromEnvironment.length > 0
+      ? fromEnvironment
+      : undefined);
   }
-  const required = Object.keys(OPTIONS).filter((name) => name !== "maxAgeHours");
+  const optional = new Set(["maxAgeHours", "salesUserId", "admissionsUserId"]);
+  const required = Object.keys(OPTIONS).filter((name) => !optional.has(name));
   if (required.some((name) => typeof values[name] !== "string" || values[name].length === 0)) {
     fail("required_argument_missing", "arguments");
   }
   string(values.projectRef, PROJECT_REF, "project_ref_invalid", "arguments");
   string(values.supabaseOrganizationId, /^[A-Za-z0-9_-]{1,256}$/u, "supabase_organization_id_invalid", "arguments");
   string(values.platformOrganizationId, UUID, "platform_organization_id_invalid", "arguments");
-  string(values.repositoryCommit, GIT_OID, "repository_commit_invalid", "arguments");
-  string(values.appImage, IMAGE, "app_image_not_immutable", "arguments");
-  for (const role of ["admin", "sales", "admissions"]) {
-    string(values[`${role}UserId`], UUID, `${role}_user_id_invalid`, "arguments");
+  string(values.sourceRepositoryCommit, GIT_OID, "source_repository_commit_invalid", "arguments");
+  string(values.sourceMigrationTree, GIT_OID, "source_migration_tree_invalid", "arguments");
+  string(values.sourceMainEquivalentCommit, GIT_OID, "source_main_equivalent_commit_invalid", "arguments");
+  string(values.targetRepositoryCommit, GIT_OID, "target_repository_commit_invalid", "arguments");
+  string(values.targetMigrationTree, GIT_OID, "target_migration_tree_invalid", "arguments");
+  string(values.adminUserId, UUID, "admin_user_id_invalid", "arguments");
+  for (const role of ["sales", "admissions"]) {
+    const value = values[`${role}UserId`];
+    if (value !== undefined) string(value, UUID, `${role}_user_id_invalid`, "arguments");
   }
-  if (new Set([values.adminUserId, values.salesUserId, values.admissionsUserId]).size !== 3) {
+  const suppliedRepresentativeIds = [values.adminUserId, values.salesUserId, values.admissionsUserId]
+    .filter((value) => value !== undefined);
+  if (new Set(suppliedRepresentativeIds).size !== suppliedRepresentativeIds.length) {
     fail("representative_user_ids_not_distinct", "arguments");
   }
   const maxAgeHours = values.maxAgeHours === undefined ? 72 : Number(values.maxAgeHours);
@@ -999,13 +1046,30 @@ function pathAtOrBelow(candidate, root) {
   return relation === "" || (relation !== ".." && !relation.startsWith(`..${sep}`) && !isAbsolute(relation));
 }
 
-function evidenceDestination(path) {
+export function evidenceDestination(path) {
   if (!isAbsolute(path) || existsSync(path)) fail("evidence_destination_invalid", "preflight");
   const parent = realpathSync(dirname(path));
   const metadata = lstatSync(parent);
-  if (!metadata.isDirectory() || (metadata.mode & 0o077) !== 0) fail("evidence_parent_not_private", "preflight");
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    (metadata.mode & 0o077) !== 0 ||
+    (typeof process.getuid === "function" && metadata.uid !== process.getuid())
+  ) {
+    fail("evidence_parent_not_private", "preflight");
+  }
   const candidate = join(parent, basename(path));
   if (dirname(candidate) !== parent) fail("evidence_destination_invalid", "preflight");
+  if (pathAtOrBelow(candidate, realpathSync(repositoryRoot))) fail("evidence_destination_inside_repository", "preflight");
+  return candidate;
+}
+
+export function validateEvidenceRuntimeSeparation(path, harnessRoot) {
+  const candidate = resolve(path);
+  const runtime = realpathSync(harnessRoot);
+  if (pathAtOrBelow(candidate, runtime) || pathAtOrBelow(runtime, candidate)) {
+    fail("evidence_destination_inside_runtime", "preflight");
+  }
   return candidate;
 }
 
@@ -1017,6 +1081,11 @@ function safeEnvironment(extra = {}) {
     DOCKER_CONTEXT: "orbstack",
     ...extra,
   });
+}
+
+function pinnedSupabaseEnvironment(paths) {
+  if (!paths?.supabaseGo?.real) fail("supabase_go_binding_missing", "toolchain");
+  return safeEnvironment({ SUPABASE_GO_BINARY: paths.supabaseGo.real });
 }
 
 function delay(milliseconds) {
@@ -1280,6 +1349,73 @@ function resolveExecutable(candidates, allowed, code) {
   fail(code, "toolchain");
 }
 
+export function resolveSupabaseExecutableChain(root = repositoryRoot, platform = process.platform, architecture = process.arch) {
+  const suffixes = {
+    darwin: { arm64: ["darwin-arm64"], x64: ["darwin-x64"] },
+    linux: { arm64: ["linux-arm64", "linux-arm64-musl"], x64: ["linux-x64", "linux-x64-musl"] },
+    win32: { arm64: ["windows-arm64"], x64: ["windows-x64"] },
+  }[platform]?.[architecture];
+  if (!suffixes) fail("supabase_native_platform_unsupported", "toolchain");
+  const nodeModules = realpathSync(join(root, "node_modules"));
+  const binLink = join(root, "node_modules", ".bin", "supabase");
+  const launcher = resolveExecutable(
+    [binLink],
+    [nodeModules],
+    "supabase_cli_unavailable",
+  );
+  const expectedLauncher = realpathSync(join(root, "node_modules", "supabase", "dist", "supabase.js"));
+  const binLinkMetadata = lstatSync(binLink);
+  if (!binLinkMetadata.isSymbolicLink()) fail("supabase_bin_link_invalid", "toolchain");
+  const binLinkTarget = readlinkSync(binLink);
+  let launcherManifest;
+  try {
+    launcherManifest = JSON.parse(readFileSync(join(root, "node_modules", "supabase", "package.json"), "utf8"));
+  } catch {
+    fail("supabase_launcher_package_invalid", "toolchain");
+  }
+  if (launcher.real !== expectedLauncher || !VERSION.test(launcherManifest.version ?? "")) {
+    fail("supabase_launcher_invalid", "toolchain");
+  }
+  const extension = platform === "win32" ? ".exe" : "";
+  for (const suffix of suffixes) {
+    const packagePath = join(root, "node_modules", "@supabase", `cli-${suffix}`);
+    const manifestPath = join(packagePath, "package.json");
+    if (!existsSync(manifestPath)) continue;
+    const packageRoot = realpathSync(packagePath);
+    let manifest;
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    } catch {
+      fail("supabase_native_package_invalid", "toolchain");
+    }
+    if (
+      manifest.name !== `@supabase/cli-${suffix}` ||
+      !VERSION.test(manifest.version ?? "") ||
+      manifest.version !== launcherManifest.version
+    ) {
+      fail("supabase_native_package_invalid", "toolchain");
+    }
+    const native = resolveExecutable(
+      [join(packagePath, "bin", `supabase${extension}`)],
+      [packageRoot],
+      "supabase_native_binary_unavailable",
+    );
+    const go = resolveExecutable(
+      [join(packagePath, "bin", `supabase-go${extension}`)],
+      [packageRoot],
+      "supabase_go_binary_unavailable",
+    );
+    for (const executable of [launcher, native, go]) {
+      const metadata = statSync(executable.real);
+      if (!metadata.isFile() || (platform !== "win32" && (metadata.mode & 0o111) === 0)) {
+        fail("supabase_executable_invalid", "toolchain");
+      }
+    }
+    return Object.freeze({ launcher, native, go, packageVersion: manifest.version, binLinkSha256: sha256(binLinkTarget) });
+  }
+  fail("supabase_native_package_unavailable", "toolchain");
+}
+
 function patchedPsqlVersion(output) {
   const match = /^psql \(PostgreSQL\) (\d+)\.(\d+)(?:\.\d+)?$/u.exec(output.trim());
   if (!match) fail("psql_version_invalid", "toolchain");
@@ -1312,6 +1448,8 @@ function versionToken(output, label, code) {
 }
 
 async function trustedToolchain(supervisor, availableEvidence = {}) {
+  const supabaseChain = resolveSupabaseExecutableChain();
+  availableEvidence.supabase_bin_link_sha256 = supabaseChain.binLinkSha256;
   const tools = Object.freeze({
     git: resolveExecutable(["/usr/bin/git"], ["/usr/bin/git"], "git_unavailable"),
     sshKeygen: resolveExecutable(["/usr/bin/ssh-keygen"], ["/usr/bin/ssh-keygen"], "ssh_keygen_unavailable"),
@@ -1336,11 +1474,9 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
       ["/opt/homebrew/Cellar/libpq", "/usr/local/Cellar/libpq"],
       "psql_unavailable",
     ),
-    supabase: resolveExecutable(
-      [join(repositoryRoot, "node_modules", ".bin", "supabase")],
-      [join(repositoryRoot, "node_modules")],
-      "supabase_cli_unavailable",
-    ),
+    supabaseLauncher: supabaseChain.launcher,
+    supabaseNative: supabaseChain.native,
+    supabaseGo: supabaseChain.go,
   });
   Object.assign(availableEvidence, Object.fromEntries(
     Object.entries(tools).map(([name, executable]) => [`${name}_realpath_sha256`, sha256(executable.real)]),
@@ -1348,6 +1484,10 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
   for (const [name, executable] of Object.entries(tools)) {
     availableEvidence[`${name}_binary_sha256`] = await sha256File(executable.real);
   }
+  availableEvidence.supabase_execution_chain_sha256 = sha256(canonicalJson({
+    native: availableEvidence.supabaseNative_binary_sha256,
+    delegatedGo: availableEvidence.supabaseGo_binary_sha256,
+  }));
   const gitVersion = await supervisor.run(tools.git.real, ["--version"], { stage: "toolchain", code: "git_version_failed", timeoutMs: 10_000 });
   availableEvidence.git = sanitizedToolVersion(gitVersion.stdout.toString("utf8"), "git version ", "git_version_invalid");
   const tarVersion = await supervisor.run(tools.tar.real, ["--version"], { stage: "toolchain", code: "tar_version_failed", timeoutMs: 10_000 });
@@ -1355,10 +1495,24 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
   availableEvidence.tar = versionToken(tarOutput.toString("utf8"), "bsdtar", "tar_version_invalid");
   const psqlVersion = await supervisor.run(tools.psql.real, ["--version"], { stage: "toolchain", code: "psql_version_failed", timeoutMs: 10_000 });
   availableEvidence.psql = patchedPsqlVersion(psqlVersion.stdout.toString("utf8"));
-  const cliVersion = await supervisor.run(tools.supabase.real, ["--version"], { stage: "toolchain", code: "supabase_version_failed", timeoutMs: 10_000 });
+  const cliVersion = await supervisor.run(tools.supabaseNative.real, ["--version"], {
+    stage: "toolchain",
+    code: "supabase_version_failed",
+    timeoutMs: 10_000,
+    env: safeEnvironment({ SUPABASE_GO_BINARY: tools.supabaseGo.real }),
+  });
   const supabaseVersion = cliVersion.stdout.toString("utf8").trim();
   if (!VERSION.test(supabaseVersion)) fail("supabase_version_invalid", "toolchain");
+  if (supabaseVersion !== supabaseChain.packageVersion) fail("supabase_native_package_version_mismatch", "toolchain");
   availableEvidence.supabase_cli = supabaseVersion;
+  const goVersionResult = await supervisor.run(tools.supabaseGo.real, ["--version"], {
+    stage: "toolchain",
+    code: "supabase_go_version_failed",
+    timeoutMs: 10_000,
+  });
+  const goVersion = goVersionResult.stdout.toString("utf8").trim();
+  if (goVersion !== supabaseChain.packageVersion) fail("supabase_go_version_mismatch", "toolchain");
+  availableEvidence.supabase_go_cli = goVersion;
   const ageVersion = await supervisor.run(tools.age.real, ["--version"], { stage: "toolchain", code: "age_version_failed", timeoutMs: 10_000 });
   availableEvidence.age = string(ageVersion.stdout.toString("utf8").trim(), /^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/u, "age_version_invalid", "toolchain", 64);
   const orbVersion = await supervisor.run(tools.orb.real, ["version"], { stage: "toolchain", code: "orbstack_version_failed", timeoutMs: 10_000 });
@@ -1384,18 +1538,134 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
   });
 }
 
-async function repositorySnapshot(supervisor, tools, expectedCommit) {
-  const [headResult, statusResult, treeResult] = await Promise.all([
+export function validateRepositoryBindings(value, expected) {
+  exactKeys(
+    value,
+    [
+      "head",
+      "status",
+      "sourceCommit",
+      "sourceTree",
+      "sourceMigrationTree",
+      "sourceMainEquivalentCommit",
+      "sourceMainEquivalentTree",
+      "sourceMainEquivalentMigrationTree",
+      "targetCommit",
+      "targetTree",
+      "targetMigrationTree",
+      "objectFormat",
+      "equivalentIsAncestor",
+    ],
+    "repository_binding_invalid",
+    "repository",
+  );
+  exactKeys(
+    expected,
+    ["sourceRepositoryCommit", "sourceMigrationTree", "sourceMainEquivalentCommit", "targetRepositoryCommit", "targetMigrationTree"],
+    "repository_binding_invalid",
+    "repository",
+  );
+  for (const key of [
+    "head",
+    "sourceCommit",
+    "sourceTree",
+    "sourceMigrationTree",
+    "sourceMainEquivalentCommit",
+    "sourceMainEquivalentTree",
+    "sourceMainEquivalentMigrationTree",
+    "targetCommit",
+    "targetTree",
+    "targetMigrationTree",
+  ]) {
+    string(value[key], GIT_OID, "repository_binding_invalid", "repository");
+  }
+  if (value.status !== "") fail("repository_dirty", "repository");
+  if (value.head !== expected.targetRepositoryCommit || value.targetCommit !== expected.targetRepositoryCommit) {
+    fail("target_repository_commit_mismatch", "repository");
+  }
+  if (value.sourceCommit !== expected.sourceRepositoryCommit) fail("source_repository_commit_mismatch", "repository");
+  if (value.sourceMainEquivalentCommit !== expected.sourceMainEquivalentCommit) fail("source_main_equivalent_commit_mismatch", "repository");
+  if (value.sourceMigrationTree !== expected.sourceMigrationTree) fail("source_migration_tree_mismatch", "repository");
+  if (value.sourceTree !== value.sourceMainEquivalentTree) fail("source_main_equivalent_tree_mismatch", "repository");
+  if (value.sourceMigrationTree !== value.sourceMainEquivalentMigrationTree) fail("source_main_equivalent_migration_tree_mismatch", "repository");
+  if (value.targetMigrationTree !== expected.targetMigrationTree) fail("target_migration_tree_mismatch", "repository");
+  if (!new Set(["sha1", "sha256"]).has(value.objectFormat)) fail("repository_object_format_invalid", "repository");
+  if (value.equivalentIsAncestor !== true) fail("source_main_equivalent_not_ancestor", "repository");
+  return Object.freeze({
+    source: Object.freeze({
+      receiptCommit: value.sourceCommit,
+      tree: value.sourceTree,
+      migrationTree: value.sourceMigrationTree,
+      mainEquivalentCommit: value.sourceMainEquivalentCommit,
+      mainEquivalentTree: value.sourceMainEquivalentTree,
+      mainEquivalentMigrationTree: value.sourceMainEquivalentMigrationTree,
+    }),
+    target: Object.freeze({
+      commit: value.targetCommit,
+      tree: value.targetTree,
+      migrationTree: value.targetMigrationTree,
+      objectFormat: value.objectFormat,
+    }),
+    sourceTreeEqualsMainEquivalent: true,
+    sourceMainEquivalentIsAncestorOfTarget: true,
+  });
+}
+
+async function repositorySnapshot(supervisor, tools, options) {
+  const expected = {
+    sourceRepositoryCommit: options.sourceRepositoryCommit,
+    sourceMigrationTree: options.sourceMigrationTree,
+    sourceMainEquivalentCommit: options.sourceMainEquivalentCommit,
+    targetRepositoryCommit: options.targetRepositoryCommit,
+    targetMigrationTree: options.targetMigrationTree,
+  };
+  const [
+    headResult,
+    statusResult,
+    sourceCommitResult,
+    sourceFullTreeResult,
+    sourceTreeResult,
+    equivalentCommitResult,
+    equivalentFullTreeResult,
+    equivalentTreeResult,
+    targetCommitResult,
+    targetFullTreeResult,
+    targetTreeResult,
+    objectFormatResult,
+  ] = await Promise.all([
     supervisor.run(tools.git.real, ["rev-parse", "HEAD"], { cwd: repositoryRoot, stage: "repository", code: "repository_head_failed" }),
     supervisor.run(tools.git.real, ["status", "--porcelain=v1", "--untracked-files=all"], { cwd: repositoryRoot, stage: "repository", code: "repository_status_failed" }),
-    supervisor.run(tools.git.real, ["rev-parse", "HEAD:supabase/migrations"], { cwd: repositoryRoot, stage: "repository", code: "migration_tree_failed" }),
+    supervisor.run(tools.git.real, ["rev-parse", `${options.sourceRepositoryCommit}^{commit}`], { cwd: repositoryRoot, stage: "repository", code: "source_repository_commit_missing" }),
+    supervisor.run(tools.git.real, ["rev-parse", `${options.sourceRepositoryCommit}^{tree}`], { cwd: repositoryRoot, stage: "repository", code: "source_repository_tree_missing" }),
+    supervisor.run(tools.git.real, ["rev-parse", `${options.sourceRepositoryCommit}:supabase/migrations`], { cwd: repositoryRoot, stage: "repository", code: "source_migration_tree_failed" }),
+    supervisor.run(tools.git.real, ["rev-parse", `${options.sourceMainEquivalentCommit}^{commit}`], { cwd: repositoryRoot, stage: "repository", code: "source_main_equivalent_commit_missing" }),
+    supervisor.run(tools.git.real, ["rev-parse", `${options.sourceMainEquivalentCommit}^{tree}`], { cwd: repositoryRoot, stage: "repository", code: "source_main_equivalent_tree_missing" }),
+    supervisor.run(tools.git.real, ["rev-parse", `${options.sourceMainEquivalentCommit}:supabase/migrations`], { cwd: repositoryRoot, stage: "repository", code: "source_main_equivalent_migration_tree_failed" }),
+    supervisor.run(tools.git.real, ["rev-parse", `${options.targetRepositoryCommit}^{commit}`], { cwd: repositoryRoot, stage: "repository", code: "target_repository_commit_missing" }),
+    supervisor.run(tools.git.real, ["rev-parse", `${options.targetRepositoryCommit}^{tree}`], { cwd: repositoryRoot, stage: "repository", code: "target_repository_tree_missing" }),
+    supervisor.run(tools.git.real, ["rev-parse", `${options.targetRepositoryCommit}:supabase/migrations`], { cwd: repositoryRoot, stage: "repository", code: "target_migration_tree_failed" }),
+    supervisor.run(tools.git.real, ["rev-parse", "--show-object-format"], { cwd: repositoryRoot, stage: "repository", code: "repository_object_format_failed" }),
   ]);
-  const head = headResult.stdout.toString("utf8").trim();
-  const status = statusResult.stdout.toString("utf8");
-  const migrationTree = treeResult.stdout.toString("utf8").trim();
-  if (head !== expectedCommit) fail("repository_commit_mismatch", "repository");
-  if (status.trim() !== "") fail("repository_dirty", "repository");
-  return Object.freeze({ head, migrationTree });
+  await supervisor.run(
+    tools.git.real,
+    ["merge-base", "--is-ancestor", options.sourceMainEquivalentCommit, options.targetRepositoryCommit],
+    { cwd: repositoryRoot, stage: "repository", code: "source_main_equivalent_not_ancestor", timeoutMs: 30_000 },
+  );
+  return validateRepositoryBindings({
+    head: headResult.stdout.toString("utf8").trim(),
+    status: statusResult.stdout.toString("utf8").trim(),
+    sourceCommit: sourceCommitResult.stdout.toString("utf8").trim(),
+    sourceTree: sourceFullTreeResult.stdout.toString("utf8").trim(),
+    sourceMigrationTree: sourceTreeResult.stdout.toString("utf8").trim(),
+    sourceMainEquivalentCommit: equivalentCommitResult.stdout.toString("utf8").trim(),
+    sourceMainEquivalentTree: equivalentFullTreeResult.stdout.toString("utf8").trim(),
+    sourceMainEquivalentMigrationTree: equivalentTreeResult.stdout.toString("utf8").trim(),
+    targetCommit: targetCommitResult.stdout.toString("utf8").trim(),
+    targetTree: targetFullTreeResult.stdout.toString("utf8").trim(),
+    targetMigrationTree: targetTreeResult.stdout.toString("utf8").trim(),
+    objectFormat: objectFormatResult.stdout.toString("utf8").trim(),
+    equivalentIsAncestor: true,
+  }, expected);
 }
 
 function readPrivateJson(path, code) {
@@ -1488,7 +1758,8 @@ async function verifyPlaintext(path, expected, code) {
 async function prepareArtifacts(options, harnessRoot, supervisor, toolchain) {
   const signed = await verifyReceiptSignature(options, harnessRoot, supervisor, toolchain);
   const receipt = validateSignedReceipt(readPrivateJson(signed.receiptPath, "receipt_json_invalid"), {
-    repositoryCommit: options.repositoryCommit,
+    sourceRepositoryCommit: options.sourceRepositoryCommit,
+    sourceMigrationTree: options.sourceMigrationTree,
     trustedFingerprint: signed.fingerprint,
     now: new Date(),
     maxAgeHours: options.maxAgeHours,
@@ -1543,7 +1814,8 @@ async function prepareArtifacts(options, harnessRoot, supervisor, toolchain) {
   return Object.freeze({ signed, receipt, database, storage, ledger, plaintext: Object.freeze(plaintext), ciphertext: Object.freeze(ciphertext) });
 }
 
-async function rootMigrationEntries(supervisor, tools, commit, harnessRoot) {
+async function rootMigrationEntries(supervisor, tools, commit, harnessRoot, identity) {
+  if (!new Set(["source", "target"]).has(identity)) fail("migration_root_identity_invalid", "migration_rehearsal");
   const listing = await supervisor.run(tools.git.real, ["ls-tree", "-r", "--long", commit, "--", "supabase/migrations"], {
     cwd: repositoryRoot,
     stage: "migration_rehearsal",
@@ -1556,7 +1828,7 @@ async function rootMigrationEntries(supervisor, tools, commit, harnessRoot) {
     if (!match) fail("root_migration_tree_invalid", "migration_rehearsal");
     return match[1];
   }).filter((name) => name.endsWith(".sql")).sort((left, right) => left.localeCompare(right, "en"));
-  const snapshotRoot = join(harnessRoot, "trusted-root-migrations");
+  const snapshotRoot = join(harnessRoot, `trusted-${identity}-migrations`);
   mkdirSync(snapshotRoot, { mode: 0o700 });
   const entries = [];
   for (let index = 0; index < filenames.length; index += 1) {
@@ -1701,23 +1973,26 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   mkdirSync(join(workdir, "supabase"), { recursive: true, mode: 0o700 });
   const configPath = join(workdir, "supabase", "config.toml");
   writeFileSync(configPath, isolatedConfig(root.config, state.projectName, ports), { mode: 0o600, flag: "wx" });
+  state.containerMutationAttempted = true;
   await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "create", "--internal", "--opt", "com.docker.network.bridge.host_binding_ipv4=127.0.0.1", "--label", `evo.recovery.owner=${state.projectName}`, state.networkName], {
     stage: "local_supabase_start",
     code: "isolated_network_create_failed",
     timeoutMs: 30_000,
   });
   state.networkCreated = true;
-  await supervisor.run(toolchain.paths.supabase.real, ["start", "--workdir", workdir, "--network-id", state.networkName, "--exclude", EXCLUDED_SERVICES, "--ignore-health-check", "--debug", "--yes"], {
+  await supervisor.run(toolchain.paths.supabaseNative.real, ["start", "--workdir", workdir, "--network-id", state.networkName, "--exclude", EXCLUDED_SERVICES, "--ignore-health-check", "--debug", "--yes"], {
     stage: "local_supabase_start",
     code: "local_supabase_start_failed",
     timeoutMs: 10 * 60 * 1_000,
     maxCaptureBytes: 32 * 1_024 * 1_024,
+    env: pinnedSupabaseEnvironment(toolchain.paths),
   });
   state.stackStarted = true;
-  const status = await supervisor.run(toolchain.paths.supabase.real, ["status", "--workdir", workdir, "--output", "env"], {
+  const status = await supervisor.run(toolchain.paths.supabaseNative.real, ["status", "--workdir", workdir, "--output", "env"], {
     stage: "local_supabase_start",
     code: "local_supabase_status_failed",
     timeoutMs: 60_000,
+    env: pinnedSupabaseEnvironment(toolchain.paths),
   });
   return Object.freeze({ status: parseStatus(status.stdout.toString("utf8")), configPath });
 }
@@ -1808,12 +2083,43 @@ function loopbackPortBindings(ports, code, stage) {
   return Object.freeze(published);
 }
 
+export function validateContainerCensusIds(projectOutput, ownerOutput, { requireOwner = false } = {}) {
+  const parse = (output) => String(output).split(/\r?\n/u).filter(Boolean).map((id) =>
+    string(id, SHA256, "container_census_invalid", "isolation_identity", 64));
+  const projectIds = parse(projectOutput);
+  const ownerIds = parse(ownerOutput);
+  if (projectIds.length === 0 || (requireOwner && ownerIds.length !== 1)) {
+    fail("container_census_invalid", "isolation_identity");
+  }
+  if (new Set(projectIds).size !== projectIds.length || new Set(ownerIds).size !== ownerIds.length) {
+    fail("container_census_invalid", "isolation_identity");
+  }
+  return Object.freeze([...new Set([...projectIds, ...ownerIds])].sort());
+}
+
+async function containerCensus(supervisor, toolchain, projectName, { requireOwner = false, stage = "local_supabase_start" } = {}) {
+  const common = ["--context", "orbstack", "ps", "--all", "--no-trunc", "--format", "{{.ID}}"];
+  const [project, owner] = await Promise.all([
+    supervisor.run(toolchain.paths.docker.real, [...common, "--filter", `label=com.supabase.cli.project=${projectName}`], {
+      stage, code: "supabase_project_container_census_failed", timeoutMs: 30_000,
+    }),
+    supervisor.run(toolchain.paths.docker.real, [...common, "--filter", `label=evo.recovery.owner=${projectName}`], {
+      stage, code: "recovery_app_container_census_failed", timeoutMs: 30_000,
+    }),
+  ]);
+  return validateContainerCensusIds(project.stdout.toString("utf8"), owner.stdout.toString("utf8"), { requireOwner });
+}
+
 export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, expected) {
-  exactKeys(expected, ["apiUrl", "networkName", "projectName"], "local_supabase_network_invalid", "local_supabase_start");
+  exactKeys(expected, ["apiUrl", "censusIds", "networkName", "projectName"], "local_supabase_network_invalid", "local_supabase_start");
   const network = recoveryNetwork(networkPayload, expected, "local_supabase_network_invalid", "local_supabase_start");
   const records = projectedContainers(projectionOutput, "local_supabase_container_inspection_invalid", "local_supabase_start");
   const memberIds = Object.keys(network.Containers).sort();
-  if (records.length !== memberIds.length) fail("local_supabase_container_inspection_invalid", "local_supabase_start");
+  const censusIds = [...expected.censusIds].sort();
+  const recordIds = records.map((record) => record.id).sort();
+  if (!sameJson(censusIds, memberIds) || !sameJson(recordIds, censusIds)) {
+    fail("local_supabase_container_census_mismatch", "local_supabase_start");
+  }
   let apiPort;
   try {
     const parsed = new URL(expected.apiUrl);
@@ -1851,11 +2157,18 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
 }
 
 export function validateCandidateNetworkAttachment(networkPayload, projectionOutput, expected) {
-  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appPort", "networkName", "previousMemberIds", "projectName"], "candidate_network_attachment_invalid", "image_verification");
+  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appPort", "censusIds", "networkName", "previousMemberIds", "projectName"], "candidate_network_attachment_invalid", "image_verification");
   const network = recoveryNetwork(networkPayload, expected, "candidate_network_attachment_invalid", "image_verification");
-  const [record, ...extras] = projectedContainers(projectionOutput, "candidate_container_inspection_invalid", "image_verification");
+  const records = projectedContainers(projectionOutput, "candidate_container_inspection_invalid", "image_verification");
+  const record = records.find((candidate) => candidate.id === expected.appContainerId);
+  const censusIds = [...expected.censusIds].sort();
+  const members = Object.keys(network.Containers).sort();
+  const recordIds = records.map((candidate) => candidate.id).sort();
+  if (!sameJson(censusIds, members) || !sameJson(recordIds, censusIds)) {
+    fail("candidate_container_census_mismatch", "image_verification");
+  }
   if (
-    extras.length !== 0 ||
+    !record ||
     record.id !== expected.appContainerId ||
     record.name !== expected.appContainerName ||
     record.image !== expected.appImageId ||
@@ -1864,8 +2177,20 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
   ) {
     fail("candidate_container_inspection_invalid", "image_verification");
   }
-  validateContainerNetwork(record, network, expected.networkName, "candidate_network_attachment_invalid", "image_verification");
-  const members = Object.keys(network.Containers).sort();
+  for (const candidate of records) {
+    if (network.Containers[candidate.id]?.Name !== candidate.name) {
+      fail("candidate_container_inspection_invalid", "image_verification");
+    }
+    validateContainerNetwork(candidate, network, expected.networkName, "candidate_network_attachment_invalid", "image_verification");
+    loopbackPortBindings(candidate.ports, "candidate_network_attachment_invalid", "image_verification");
+    if (candidate.id !== record.id && (
+      !candidate.name.startsWith("supabase_") ||
+      !candidate.name.endsWith(`_${expected.projectName}`) ||
+      candidate.labels["com.supabase.cli.project"] !== expected.projectName
+    )) {
+      fail("candidate_container_inspection_invalid", "image_verification");
+    }
+  }
   const previous = [...expected.previousMemberIds].sort();
   if (members.length !== previous.length + 1 || !previous.every((id) => members.includes(id))) {
     fail("candidate_network_membership_changed", "image_verification");
@@ -1891,13 +2216,12 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
     stage: "local_supabase_start", code: "local_supabase_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   const networkPayload = parsedJson(networkResult.stdout.toString("utf8"), "local_supabase_network_invalid", "local_supabase_start");
-  const memberIds = Object.keys(networkPayload?.[0]?.Containers ?? {});
-  if (memberIds.length === 0 || memberIds.some((id) => !SHA256.test(id))) fail("local_supabase_network_invalid", "local_supabase_start");
-  const containerResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...memberIds], {
+  const censusIds = await containerCensus(supervisor, toolchain, state.projectName);
+  const containerResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
     stage: "local_supabase_start", code: "local_supabase_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   return validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
-    apiUrl: status.apiUrl, networkName: state.networkName, projectName: state.projectName,
+    apiUrl: status.apiUrl, censusIds, networkName: state.networkName, projectName: state.projectName,
   });
 }
 
@@ -2051,11 +2375,12 @@ async function applyPendingMigrations(state, local, root, verified, supervisor, 
   cpSync(root.snapshotRoot, migrationsTarget, { recursive: true, force: false, errorOnExist: true });
   enableMigrations(local.configPath);
   if (verified.pending.length > 0) {
-    await supervisor.run(toolchain.paths.supabase.real, ["migration", "up", "--local", "--workdir", state.supabaseRoot], {
+    await supervisor.run(toolchain.paths.supabaseNative.real, ["migration", "up", "--local", "--workdir", state.supabaseRoot], {
       stage: "migration_rehearsal",
       code: "pending_migration_apply_failed",
       timeoutMs: 30 * 60 * 1_000,
       maxCaptureBytes: 8 * 1_024 * 1_024,
+      env: pinnedSupabaseEnvironment(toolchain.paths),
     });
   }
   const final = await databaseLedger(supervisor, toolchain, local.status);
@@ -2185,6 +2510,15 @@ export function verifyRestoredStorageInventory(sourceObjects, restoredRows, read
   });
 }
 
+export function storageSourceRecoveryReadiness(verified) {
+  if (!isRecord(verified) || !Number.isSafeInteger(verified.objectCount) || verified.objectCount < 0) {
+    fail("storage_source_recovery_invalid", "storage_verification");
+  }
+  return Object.freeze(verified.objectCount === 0
+    ? { status: "not_ready", blocker: "storage_source_object_missing", recoveredObjectCount: 0 }
+    : { status: "ready", blocker: null, recoveredObjectCount: verified.objectCount });
+}
+
 export async function apiRequest(
   url,
   init,
@@ -2192,18 +2526,19 @@ export async function apiRequest(
   code,
   stage,
   interruptionGuard,
-  { fetchImpl = globalThis.fetch, allowAfterInterrupt = false } = {},
+  { fetchImpl = globalThis.fetch, allowAfterInterrupt = false, timeoutMs = 30_000 } = {},
 ) {
   if (!(interruptionGuard instanceof RecoveryInterruptionGuard) || typeof fetchImpl !== "function") {
     fail("interruption_guard_invalid", stage);
   }
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30 * 60 * 1_000) fail("http_timeout_invalid", stage);
   let response;
   try {
     response = await interruptionGuard.run(stage, async (signal) => await fetchImpl(url, {
       ...init,
       redirect: "manual",
       signal: AbortSignal.any([
-        AbortSignal.timeout(30_000),
+        AbortSignal.timeout(timeoutMs),
         ...(allowAfterInterrupt ? [] : [signal]),
       ]),
     }), { allowAfterInterrupt });
@@ -2221,6 +2556,47 @@ export async function apiRequest(
     fail(code, stage, { status: response.status, bodySha256: sha256(body), bytes: Buffer.byteLength(body) });
   }
   return response;
+}
+
+export async function uploadStorageObjectFromFile(
+  path,
+  { url, headers, expectedBytes },
+  interruptionGuard,
+  { fetchImpl = globalThis.fetch } = {},
+) {
+  interruptionGuard.assertActive("storage_restore");
+  let metadata;
+  try {
+    metadata = lstatSync(path);
+  } catch {
+    fail("storage_blob_missing", "storage_restore");
+  }
+  if (
+    !isAbsolute(path) ||
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.size !== expectedBytes ||
+    metadata.size > MAX_ARCHIVE_BYTES
+  ) {
+    fail("storage_blob_invalid", "storage_restore");
+  }
+  const body = createReadStream(path, { highWaterMark: 64 * 1_024 });
+  const abortStream = () => body.destroy();
+  interruptionGuard.signal.addEventListener("abort", abortStream, { once: true });
+  try {
+    return await apiRequest(url, {
+      method: "POST",
+      headers,
+      body,
+      duplex: "half",
+    }, [200], "storage_object_restore_failed", "storage_restore", interruptionGuard, {
+      fetchImpl,
+      timeoutMs: 30 * 60 * 1_000,
+    });
+  } finally {
+    interruptionGuard.signal.removeEventListener("abort", abortStream);
+    body.destroy();
+  }
 }
 
 function objectUrl(apiUrl, bucket, path, prefix = "object") {
@@ -2354,7 +2730,11 @@ async function restoreStorage(artifacts, extracted, status, state, supervisor, t
   verifyRestoredStorageIdentities(artifacts.storage.objects, originalRows);
   if (artifacts.storage.objects.length === 0) {
     const verified = verifyRestoredStorageInventory([], originalRows, []);
-    return Object.freeze({ bucketCount: artifacts.storage.aggregates.bucket_count, ...verified });
+    return Object.freeze({
+      bucketCount: artifacts.storage.aggregates.bucket_count,
+      ...verified,
+      readiness: storageSourceRecoveryReadiness(verified),
+    });
   }
   const backend = await localStorageBackend(state, supervisor, toolchain);
   const uploadMetadata = new Map(originalRows.map((row) => {
@@ -2384,20 +2764,23 @@ async function restoreStorage(artifacts, extracted, status, state, supervisor, t
     code: "storage_metadata_snapshot_failed",
   });
   for (const object of artifacts.storage.objects) {
-    const body = await interruptionGuard.run("storage_restore", async () => readFileSync(join(extracted, "storage-blobs", object.blob)));
     const metadata = uploadMetadata.get(storageInventoryKey(object));
     if (!metadata) fail("storage_upload_metadata_missing", "storage_restore");
-    const response = await apiRequest(objectUrl(status.apiUrl, object.bucket_id, object.path), {
-      method: "POST",
-      headers: {
+    const response = await uploadStorageObjectFromFile(
+      join(extracted, "storage-blobs", object.blob),
+      {
+        url: objectUrl(status.apiUrl, object.bucket_id, object.path),
+        expectedBytes: object.bytes,
+        headers: {
         apikey: status.serviceRoleKey,
         Authorization: `Bearer ${status.serviceRoleKey}`,
         "content-type": metadata.mimeType,
         "cache-control": metadata.cacheControl,
         "x-upsert": "true",
+        },
       },
-      body,
-    }, [200], "storage_object_restore_failed", "storage_restore", interruptionGuard);
+      interruptionGuard,
+    );
     await interruptionGuard.run("storage_restore", async () => await response.arrayBuffer());
     const current = await psqlJson(supervisor, toolchain, status, String.raw`
       SELECT coalesce(json_agg(json_build_object(
@@ -2427,10 +2810,14 @@ async function restoreStorage(artifacts, extracted, status, state, supervisor, t
   const readbacks = [];
   for (const object of artifacts.storage.objects) readbacks.push(await readBackStorageObject(status, object, interruptionGuard));
   const verified = verifyRestoredStorageInventory(artifacts.storage.objects, restoredRows, readbacks);
-  return Object.freeze({ bucketCount: artifacts.storage.aggregates.bucket_count, ...verified });
+  return Object.freeze({
+    bucketCount: artifacts.storage.aggregates.bucket_count,
+    ...verified,
+    readiness: storageSourceRecoveryReadiness(verified),
+  });
 }
 
-export function validateRepresentativeCohort(rows, expected) {
+export function assessRepresentativeCohort(rows, expected) {
   if (!Array.isArray(rows)) fail("representative_cohort_invalid", "auth_rls_proof");
   const roleMap = Object.freeze({ admin: "admin", sales: "sales", curator: "admissions" });
   const selected = {};
@@ -2453,24 +2840,43 @@ export function validateRepresentativeCohort(rows, expected) {
       selected[appRole] = Object.freeze({ ...row, appRole });
     }
   }
-  if (["admin", "sales", "admissions"].some((role) => !selected[role])) {
-    fail("authorized_representative_missing", "auth_rls_proof");
-  }
-  if (new Set(Object.values(selected).map((actor) => actor.organizationId)).size !== 1) {
+  if (new Set(Object.values(selected).map((actor) => actor.organizationId)).size > 1) {
     fail("representative_cohort_organization_mismatch", "auth_rls_proof");
   }
-  if (selected.admin.organizationId !== expected.platformOrganizationId) {
+  if (Object.values(selected).some((actor) => actor.organizationId !== expected.platformOrganizationId)) {
     fail("representative_cohort_expected_organization_mismatch", "auth_rls_proof");
   }
-  return Object.freeze(selected);
+  const blockers = ["admin", "sales", "admissions"]
+    .filter((role) => !selected[role])
+    .map((role) => `${role}_representative_missing`);
+  return Object.freeze({ actors: Object.freeze(selected), blockers: Object.freeze(blockers) });
+}
+
+export function validateRepresentativeCohort(rows, expected) {
+  const assessed = assessRepresentativeCohort(rows, expected);
+  if (assessed.blockers.length > 0) fail("authorized_representative_missing", "auth_rls_proof");
+  return assessed.actors;
 }
 
 function sqlLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
+export function suppliedRepresentativeUserIds(options) {
+  const ids = [options?.adminUserId, options?.salesUserId, options?.admissionsUserId]
+    .filter((value) => value !== undefined);
+  if (
+    ids.length < 1 ||
+    ids.some((value) => typeof value !== "string" || !UUID.test(value)) ||
+    new Set(ids).size !== ids.length
+  ) {
+    fail("representative_query_ids_invalid", "auth_rls_proof");
+  }
+  return Object.freeze(ids);
+}
+
 async function discoverActors(options, status, supervisor, toolchain) {
-  const ids = [options.adminUserId, options.salesUserId, options.admissionsUserId].map(sqlLiteral).join(",");
+  const ids = suppliedRepresentativeUserIds(options).map(sqlLiteral).join(",");
   const rows = await psqlJson(supervisor, toolchain, status, String.raw`
     SELECT coalesce(json_agg(row_to_json(actor) ORDER BY actor."databaseRole"), '[]'::json)::text
     FROM (
@@ -2483,7 +2889,7 @@ async function discoverActors(options, status, supervisor, toolchain) {
       WHERE auth_user.id IN (${ids})
         AND profile.status = 'active' AND membership.status = 'active'
     ) AS actor`, "auth_rls_proof");
-  return validateRepresentativeCohort(rows, options);
+  return assessRepresentativeCohort(rows, options);
 }
 
 async function localPasswordSession(actor, status, interruptionGuard) {
@@ -2516,9 +2922,9 @@ async function prepareActors(options, status, supervisor, toolchain, interruptio
   const restored = await discoverActors(options, status, supervisor, toolchain);
   const actors = {};
   for (const role of ["admin", "sales", "admissions"]) {
-    actors[role] = await localPasswordSession(restored[role], status, interruptionGuard);
+    if (restored.actors[role]) actors[role] = await localPasswordSession(restored.actors[role], status, interruptionGuard);
   }
-  return Object.freeze(actors);
+  return Object.freeze({ actors: Object.freeze(actors), blockers: restored.blockers });
 }
 
 async function platformGet(status, actor, resource, query, interruptionGuard) {
@@ -2789,39 +3195,249 @@ async function provePrivateDocument(status, actor, storage, interruptionGuard) {
     );
     await interruptionGuard.run("document_proof", async () => await deleted.arrayBuffer(), { allowAfterInterrupt: true });
   }
-  return Object.freeze({ privateBucket: bucket.id, anonymousDirectRead: "denied", authenticatedDirectRead: "denied", signedRoundTrip: "passed", canaryDeleted: true });
-}
-
-export function validateImmutableImageInspection(value, requested) {
-  if (!IMAGE.test(requested) || !Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) fail("app_image_inspection_invalid", "image_verification");
-  const image = value[0];
-  if (!/^sha256:[0-9a-f]{64}$/u.test(image.Id ?? "") || !Array.isArray(image.RepoDigests)) fail("app_image_inspection_invalid", "image_verification");
-  if (requested.startsWith("sha256:")) {
-    if (image.Id !== requested) fail("app_image_id_mismatch", "image_verification");
-  } else if (!image.RepoDigests.includes(requested)) {
-    fail("app_image_digest_mismatch", "image_verification");
-  }
-  const revision = image.Config?.Labels?.["org.opencontainers.image.revision"];
-  if (!GIT_OID.test(revision ?? "")) fail("app_image_revision_missing", "image_verification");
-  return Object.freeze({ id: image.Id, requested, repoDigest: requested.includes("@") ? requested : null, revision });
-}
-
-async function inspectImage(options, supervisor, toolchain) {
-  const result = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "image", "inspect", options.appImage], {
-    stage: "image_verification",
-    code: "app_image_inspect_failed",
-    timeoutMs: 60_000,
-    maxCaptureBytes: 4 * 1_024 * 1_024,
+  return Object.freeze({
+    privateBucket: bucket.id,
+    anonymousDirectRead: "denied",
+    authenticatedDirectRead: "denied",
+    signedRoundTrip: "passed",
+    canaryDeleted: true,
+    evidenceScope: "behavior_canary_only_not_source_recovery",
   });
-  let payload;
+}
+
+function safeTargetPath(value, code = "target_snapshot_path_invalid") {
+  const components = typeof value === "string" ? value.split("/") : [];
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > 8_192 ||
+    value.startsWith("/") ||
+    value.includes("\\") ||
+    /[\u0000-\u001f\u007f\ufffd]/u.test(value) ||
+    components.some((part) => ["", ".", ".."].includes(part)) ||
+    components.some((part) => part
+      .normalize("NFD")
+      .replace(/[\u200c-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/gu, "")
+      .toLocaleLowerCase("en-US") === ".git")
+  ) {
+    fail(code, "image_verification");
+  }
+  return value;
+}
+
+export async function gitBlobOid(path, objectFormat) {
+  if (!new Set(["sha1", "sha256"]).has(objectFormat)) fail("repository_object_format_invalid", "image_verification");
+  const metadata = lstatSync(path);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) fail("target_snapshot_blob_invalid", "image_verification");
+  const digest = createHash(objectFormat);
+  digest.update(`blob ${metadata.size}\0`);
+  for await (const chunk of createReadStream(path)) digest.update(chunk);
+  return digest.digest("hex");
+}
+
+export function parseTargetTreeListing(output) {
+  const records = Buffer.isBuffer(output) ? output.toString("utf8").split("\0") : String(output).split("\0");
+  const entries = records.filter(Boolean).map((record) => {
+    const match = /^(100644|100755) blob ([0-9a-f]{40}|[0-9a-f]{64})\t(.+)$/u.exec(record);
+    if (!match) fail("target_snapshot_git_entry_invalid", "image_verification");
+    return Object.freeze({ mode: match[1], oid: match[2], path: safeTargetPath(match[3]) });
+  });
+  if (entries.length === 0 || new Set(entries.map(({ path }) => path)).size !== entries.length) {
+    fail("target_snapshot_git_entry_invalid", "image_verification");
+  }
+  for (const required of [".dockerignore", "Dockerfile", "package.json", "package-lock.json", "scripts/check-node-runtime.mjs"]) {
+    if (!entries.some((entry) => entry.path === required)) fail("target_snapshot_build_input_missing", "image_verification");
+  }
+  return Object.freeze(entries);
+}
+
+export function orderedTargetEntries(entries, objectFormat) {
+  if (!Array.isArray(entries) || !new Set(["sha1", "sha256"]).has(objectFormat)) {
+    fail("repository_object_format_invalid", "image_verification");
+  }
+  const expectedOidLength = objectFormat === "sha256" ? 64 : 40;
+  if (entries.some(({ oid }) => typeof oid !== "string" || oid.length !== expectedOidLength)) {
+    fail("target_snapshot_object_format_mismatch", "image_verification");
+  }
+  return Object.freeze([...entries].sort((left, right) => left.path.localeCompare(right.path, "en")));
+}
+
+function snapshotFiles(root) {
+  const files = [];
+  const visit = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      const canonical = relative(root, path).split(sep).join("/");
+      safeTargetPath(canonical);
+      const metadata = lstatSync(path);
+      if (metadata.isSymbolicLink()) fail("target_snapshot_symlink_forbidden", "image_verification");
+      if (metadata.isDirectory()) visit(path);
+      else if (metadata.isFile()) files.push(canonical);
+      else fail("target_snapshot_special_file_forbidden", "image_verification");
+    }
+  };
+  visit(root);
+  return files.sort((left, right) => left.localeCompare(right, "en"));
+}
+
+async function materializeTargetSnapshot(repository, state, supervisor, toolchain) {
+  const listing = await supervisor.run(toolchain.paths.git.real, ["ls-tree", "-r", "-z", repository.target.commit], {
+    cwd: repositoryRoot,
+    stage: "image_verification",
+    code: "target_snapshot_tree_read_failed",
+    timeoutMs: 60_000,
+    maxCaptureBytes: 64 * 1_024 * 1_024,
+  });
+  const entries = parseTargetTreeListing(listing.stdout);
+  const orderedEntries = orderedTargetEntries(entries, repository.target.objectFormat);
+  const archive = join(state.harnessRoot, "target-source.tar");
+  await supervisor.run(toolchain.paths.git.real, ["archive", "--format=tar", "--output", archive, repository.target.commit], {
+    cwd: repositoryRoot,
+    stage: "image_verification",
+    code: "target_snapshot_archive_failed",
+    timeoutMs: 5 * 60 * 1_000,
+    maxCaptureBytes: 64 * 1_024,
+  });
+  chmodSync(archive, 0o600);
+  const archiveMetadata = lstatSync(archive);
+  if (!archiveMetadata.isFile() || archiveMetadata.isSymbolicLink() || archiveMetadata.size <= 0 || archiveMetadata.size > MAX_ARCHIVE_BYTES) {
+    fail("target_snapshot_archive_invalid", "image_verification");
+  }
+  const tarListing = await supervisor.run(toolchain.paths.tar.real, ["-tf", archive], {
+    stage: "image_verification",
+    code: "target_snapshot_archive_list_failed",
+    timeoutMs: 5 * 60 * 1_000,
+    maxCaptureBytes: 64 * 1_024 * 1_024,
+  });
+  const archiveFiles = tarListing.stdout.toString("utf8").split(/\r?\n/u).filter((name) => name && !name.endsWith("/")).map((name) => safeTargetPath(name));
+  const expectedFiles = orderedEntries.map(({ path }) => path);
+  if (new Set(archiveFiles).size !== archiveFiles.length || !sameJson([...archiveFiles].sort((left, right) => left.localeCompare(right, "en")), expectedFiles)) {
+    fail("target_snapshot_archive_inventory_mismatch", "image_verification");
+  }
+  const snapshotRoot = join(state.harnessRoot, "target-source");
+  mkdirSync(snapshotRoot, { mode: 0o700 });
+  await supervisor.run(toolchain.paths.tar.real, ["-xf", archive, "-C", snapshotRoot, "--no-same-owner", "--no-same-permissions"], {
+    stage: "image_verification",
+    code: "target_snapshot_extract_failed",
+    timeoutMs: 10 * 60 * 1_000,
+    maxCaptureBytes: 64 * 1_024,
+  });
+  const extractedFiles = snapshotFiles(snapshotRoot);
+  if (!sameJson(extractedFiles, expectedFiles)) fail("target_snapshot_extracted_inventory_mismatch", "image_verification");
+  for (const entry of orderedEntries) {
+    const executable = (lstatSync(join(snapshotRoot, entry.path)).mode & 0o111) !== 0;
+    if (executable !== (entry.mode === "100755")) fail("target_snapshot_mode_mismatch", "image_verification");
+  }
+  const actualOids = await Promise.all(orderedEntries.map(async ({ path }) => await gitBlobOid(
+    join(snapshotRoot, path),
+    repository.target.objectFormat,
+  )));
+  if (actualOids.length !== orderedEntries.length || orderedEntries.some((entry, index) => entry.oid !== actualOids[index])) {
+    fail("target_snapshot_blob_mismatch", "image_verification");
+  }
+  return Object.freeze({
+    root: snapshotRoot,
+    archiveSha256: await sha256File(archive),
+    fileCount: orderedEntries.length,
+    listingSha256: sha256(canonicalJson(orderedEntries)),
+    tree: repository.target.tree,
+  });
+}
+
+export function validateBuiltImageInspection(output, expected) {
+  exactKeys(expected, ["archiveSha256", "imageId", "projectName", "targetCommit", "targetTree"], "app_image_inspection_invalid", "image_verification");
+  const lines = String(output).trim().split(/\r?\n/u).filter(Boolean);
+  if (lines.length !== 1) fail("app_image_inspection_invalid", "image_verification");
+  const fields = lines[0].split("\t");
+  if (fields.length !== 5) fail("app_image_inspection_invalid", "image_verification");
+  let id;
+  let repoDigests;
+  let labels;
+  let operatingSystem;
+  let architecture;
   try {
-    payload = JSON.parse(result.stdout.toString("utf8"));
+    id = JSON.parse(fields[0]);
+    repoDigests = JSON.parse(fields[1]);
+    labels = JSON.parse(fields[2]);
+    operatingSystem = JSON.parse(fields[3]);
+    architecture = JSON.parse(fields[4]);
   } catch {
     fail("app_image_inspection_invalid", "image_verification");
   }
-  const image = validateImmutableImageInspection(payload, options.appImage);
-  if (image.revision !== options.repositoryCommit) fail("app_image_revision_mismatch", "image_verification");
-  return image;
+  if (
+    !IMAGE.test(id) ||
+    id !== expected.imageId ||
+    !Array.isArray(repoDigests) ||
+    !isRecord(labels) ||
+    labels["org.opencontainers.image.revision"] !== expected.targetCommit ||
+    labels["evo.recovery.owner"] !== expected.projectName ||
+    labels["evo.recovery.target-tree"] !== expected.targetTree ||
+    labels["evo.recovery.snapshot-archive-sha256"] !== expected.archiveSha256 ||
+    labels["evo.recovery.build-network"] !== "dependency-fetch-only" ||
+    operatingSystem !== "linux" ||
+    architecture !== "amd64"
+  ) {
+    fail("app_image_provenance_mismatch", "image_verification");
+  }
+  return Object.freeze({
+    id,
+    revision: expected.targetCommit,
+    repoDigests: Object.freeze(repoDigests),
+    operatingSystem,
+    architecture,
+    buildNetwork: "dependency_fetch_only_not_candidate_runtime",
+  });
+}
+
+async function buildCandidateImage(repository, state, supervisor, toolchain) {
+  const snapshot = await materializeTargetSnapshot(repository, state, supervisor, toolchain);
+  state.appImageTag = `evo-v3-recovery-${state.projectName}:candidate`;
+  const iidFile = join(state.harnessRoot, "candidate-image-id");
+  state.containerMutationAttempted = true;
+  await supervisor.run(toolchain.paths.docker.real, [
+    "--context", "orbstack", "build",
+    "--platform=linux/amd64",
+    "--pull=false",
+    "--network=default",
+    "--no-cache",
+    "--iidfile", iidFile,
+    "--tag", state.appImageTag,
+    "--build-arg", "EVO_IMAGE_SOURCE=local-exact-git-snapshot",
+    "--build-arg", `EVO_IMAGE_REVISION=${repository.target.commit}`,
+    "--build-arg", `EVO_IMAGE_VERSION=recovery-${repository.target.commit.slice(0, 12)}`,
+    "--label", `org.opencontainers.image.revision=${repository.target.commit}`,
+    "--label", `evo.recovery.owner=${state.projectName}`,
+    "--label", `evo.recovery.target-tree=${repository.target.tree}`,
+    "--label", `evo.recovery.snapshot-archive-sha256=${snapshot.archiveSha256}`,
+    "--label", "evo.recovery.build-network=dependency-fetch-only",
+    snapshot.root,
+  ], {
+    stage: "image_verification",
+    code: "target_snapshot_image_build_failed",
+    timeoutMs: 30 * 60 * 1_000,
+    maxCaptureBytes: 32 * 1_024 * 1_024,
+    env: safeEnvironment({ DOCKER_BUILDKIT: "1" }),
+  });
+  chmodSync(iidFile, 0o600);
+  const imageId = readFileSync(iidFile, "utf8").trim();
+  if (!IMAGE.test(imageId)) fail("app_image_id_invalid", "image_verification");
+  state.appImageId = imageId;
+  const inspected = await supervisor.run(toolchain.paths.docker.real, [
+    "--context", "orbstack", "image", "inspect", "--format", SAFE_IMAGE_INSPECT_FORMAT, imageId,
+  ], {
+    stage: "image_verification",
+    code: "app_image_inspect_failed",
+    timeoutMs: 60_000,
+    maxCaptureBytes: 64 * 1_024,
+  });
+  const image = validateBuiltImageInspection(inspected.stdout.toString("utf8"), {
+    archiveSha256: snapshot.archiveSha256,
+    imageId,
+    projectName: state.projectName,
+    targetCommit: repository.target.commit,
+    targetTree: repository.target.tree,
+  });
+  return Object.freeze({ ...image, snapshot });
 }
 
 async function waitForHttp(url, expected, timeoutMs, code, stage, state, interruptionGuard) {
@@ -2880,14 +3496,13 @@ await import("/app/server.js");
 }
 
 async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain, image, appPort, appContainerId) {
-  const [networkResult, containerResult] = await Promise.all([
-    supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "inspect", state.networkName], {
-      stage: "image_verification", code: "candidate_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
-    }),
-    supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, appContainerId], {
-      stage: "image_verification", code: "candidate_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 64 * 1_024,
-    }),
-  ]);
+  const networkResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "inspect", state.networkName], {
+    stage: "image_verification", code: "candidate_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
+  });
+  const censusIds = await containerCensus(supervisor, toolchain, state.projectName, { requireOwner: true, stage: "image_verification" });
+  const containerResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
+    stage: "image_verification", code: "candidate_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
+  });
   return validateCandidateNetworkAttachment(
     parsedJson(networkResult.stdout.toString("utf8"), "candidate_network_attachment_invalid", "image_verification"),
     containerResult.stdout.toString("utf8"),
@@ -2896,6 +3511,7 @@ async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain
       appContainerName: state.appContainer,
       appImageId: image.id,
       appPort,
+      censusIds,
       networkName: state.networkName,
       previousMemberIds: endpoint.memberIds,
       projectName: state.projectName,
@@ -2910,7 +3526,7 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
   writeCandidateEntrypoint(entrypoint);
   const observabilitySecret = randomBytes(48).toString("base64url");
   const environment = {
-    NODE_ENV: "development",
+    NODE_ENV: "production",
     PORT: String(appPort),
     HOSTNAME: "0.0.0.0",
     NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
@@ -2941,7 +3557,7 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
     "--env-file", envFile,
     "--mount", `type=bind,source=${entrypoint},target=/opt/evo-recovery-entry.mjs,readonly`,
     "--entrypoint", "node",
-    options.appImage,
+    image.id,
     "/opt/evo-recovery-entry.mjs", endpoint.targetHost, String(endpoint.targetPort), String(endpoint.apiLoopbackPort),
   ], { stage: "image_verification", code: "candidate_container_start_failed", timeoutMs: 2 * 60 * 1_000 });
   const containerId = started.stdout.toString("utf8").trim();
@@ -2996,6 +3612,28 @@ export function validateBrowserRouteProof(value) {
   return Object.freeze({ route: value.requestedRoute, moduleMarker: value.moduleMarker, responseStatus: value.responseStatus });
 }
 
+export function browserRequestAllowed(requestUrl, appOrigin) {
+  try {
+    const allowed = new URL(appOrigin);
+    const requested = new URL(requestUrl);
+    return allowed.protocol === "http:" &&
+      new Set(["127.0.0.1", "localhost", "[::1]"]).has(allowed.hostname) &&
+      allowed.port !== "" &&
+      requested.origin === allowed.origin;
+  } catch {
+    return false;
+  }
+}
+
+export function validateBrowserNetworkProof(value) {
+  exactKeys(value, ["allowedOriginSha256", "deniedExternalRequestCount", "serviceWorkers"], "browser_network_proof_invalid", "browser_proof");
+  string(value.allowedOriginSha256, SHA256, "browser_network_proof_invalid", "browser_proof", 64);
+  integer(value.deniedExternalRequestCount, "browser_network_proof_invalid", "browser_proof");
+  if (value.serviceWorkers !== "blocked") fail("browser_service_workers_not_blocked", "browser_proof");
+  if (value.deniedExternalRequestCount !== 0) fail("browser_external_request_attempted", "browser_proof");
+  return Object.freeze({ ...value });
+}
+
 async function proveBrowser(app, state, supervisor, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
   const browserTool = await browserExecutable(supervisor);
@@ -3028,8 +3666,27 @@ async function proveBrowser(app, state, supervisor, interruptionGuard) {
       admissions: Object.freeze({ path: "/v3/calendar", marker: "calendar_heading", heading: "Календарь" }),
     });
     const routeProofs = {};
-    for (const role of ["admin", "sales", "admissions"]) {
-      const context = await browserStep(async () => await browser.newContext({ locale: "ru-RU" }));
+    const browserNetwork = {
+      allowedOriginSha256: sha256(new URL(app.appUrl).origin),
+      deniedExternalRequestCount: 0,
+      serviceWorkers: "blocked",
+    };
+    const availableRoles = ["admin", "sales", "admissions"].filter((role) => isRecord(app.actors[role]));
+    if (availableRoles.length === 0) fail("browser_representative_missing", "browser_proof");
+    for (const role of availableRoles) {
+      const context = await browserStep(async () => await browser.newContext({ locale: "ru-RU", serviceWorkers: "block" }));
+      await browserStep(async () => await context.route("**/*", async (route) => {
+        if (interruptionGuard.interrupted) {
+          await route.abort("blockedbyclient");
+          return;
+        }
+        if (browserRequestAllowed(route.request().url(), app.appUrl)) {
+          await route.continue();
+          return;
+        }
+        browserNetwork.deniedExternalRequestCount += 1;
+        await route.abort("blockedbyclient");
+      }));
       const page = await browserStep(async () => await context.newPage());
       await browserStep(async () => await page.goto(`${app.appUrl}/login`, { waitUntil: "domcontentloaded" }));
       await browserStep(async () => await page.locator("#staff-email").fill(app.actors[role].email));
@@ -3066,8 +3723,20 @@ async function proveBrowser(app, state, supervisor, interruptionGuard) {
         markerVisible,
       }));
       await browserStep(async () => await context.close(), { allowAfterInterrupt: true });
+      validateBrowserNetworkProof(browserNetwork);
     }
-    return Object.freeze({ admin: "passed", sales: "passed", admissions: "passed", routes: Object.freeze(routeProofs), chromium: browserTool.version, exactCandidateImage: true });
+    return Object.freeze({
+      admin: availableRoles.includes("admin") ? "passed" : "not_run_missing_representative",
+      sales: availableRoles.includes("sales") ? "passed" : "not_run_missing_representative",
+      admissions: availableRoles.includes("admissions") ? "passed" : "not_run_missing_representative",
+      routes: Object.freeze(routeProofs),
+      network: validateBrowserNetworkProof(browserNetwork),
+      chromium: browserTool.version,
+      exactCandidateImage: true,
+      evidenceScope: availableRoles.length === 3
+        ? "complete_real_representative_browser_proof"
+        : "available_real_representatives_only",
+    });
   } finally {
     if (browser) {
       await browserStep(async () => await browser.close(), { allowAfterInterrupt: true }).catch(() => undefined);
@@ -3219,6 +3888,23 @@ export function cleanupDisposition({ descendantsDrained, targetsOwned, cleanupSu
   return descendantsDrained && targetsOwned && cleanupSucceeded ? "remove" : "quarantine";
 }
 
+export function cleanupContainerPolicy(state, toolchainAvailable) {
+  const mutationAttempted = state?.containerMutationAttempted === true;
+  const runtimeFlags =
+    state?.networkCreated === true ||
+    state?.stackStarted === true ||
+    typeof state?.appContainer === "string" ||
+    typeof state?.appImageTag === "string" ||
+    typeof state?.appImageId === "string";
+  const contradictory =
+    (runtimeFlags && !mutationAttempted) ||
+    (state?.stackStarted === true && state?.networkCreated !== true) ||
+    (typeof state?.appContainer === "string" && (state?.stackStarted !== true || state?.networkCreated !== true)) ||
+    ((mutationAttempted || runtimeFlags) && (state?.containerPreflightPassed !== true || toolchainAvailable !== true));
+  if (contradictory) return "quarantine";
+  return mutationAttempted ? "container_cleanup" : "local_only";
+}
+
 function assertCleanupProject(projectName) {
   if (!/^evov3recovery[0-9a-f]{12}$/u.test(projectName)) fail("cleanup_project_scope_invalid", "cleanup");
 }
@@ -3244,24 +3930,51 @@ export function selectOwnedNetworkNames(output, networkName) {
   return Object.freeze(String(output).split(/\r?\n/u).filter(Boolean).filter((name) => name === networkName));
 }
 
+export function selectOwnedImageIds(output, projectName) {
+  assertCleanupProject(projectName);
+  const ids = [];
+  for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
+    const fields = line.split("\t");
+    if (
+      fields.length !== 3 ||
+      !/^sha256:[0-9a-f]{64}$/u.test(fields[0]) ||
+      !fields[1] ||
+      fields[2] !== projectName
+    ) {
+      fail("cleanup_image_inventory_invalid", "cleanup");
+    }
+    ids.push(fields[0]);
+  }
+  if (new Set(ids).size !== ids.length) fail("cleanup_image_inventory_invalid", "cleanup");
+  return Object.freeze(ids);
+}
+
 async function cleanupInventory(state, supervisor, tools, { allowAfterInterrupt = false, stage = "cleanup" } = {}) {
-  const [containers, volumes, networks] = await Promise.all([
+  const [containers, volumes, networks, images] = await Promise.all([
     supervisor.run(tools.docker.real, ["--context", "orbstack", "ps", "--all", "--format", "{{.ID}}\t{{.Names}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt }),
     supervisor.run(tools.docker.real, ["--context", "orbstack", "volume", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_volume_inventory_failed", allowAfterInterrupt }),
     supervisor.run(tools.docker.real, ["--context", "orbstack", "network", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_network_inventory_failed", allowAfterInterrupt }),
+    supervisor.run(tools.docker.real, ["--context", "orbstack", "image", "ls", "--all", "--no-trunc", "--filter", `label=evo.recovery.owner=${state.projectName}`, "--format", "{{.ID}}\t{{.Repository}}:{{.Tag}}\t{{.Label \"evo.recovery.owner\"}}"], { stage, code: "cleanup_image_inventory_failed", allowAfterInterrupt }),
   ]);
   return Object.freeze({
     containers: selectOwnedContainerIds(containers.stdout.toString("utf8"), state.projectName),
     volumes: selectOwnedVolumeNames(volumes.stdout.toString("utf8"), state.projectName),
     networks: selectOwnedNetworkNames(networks.stdout.toString("utf8"), state.networkName),
+    images: selectOwnedImageIds(images.stdout.toString("utf8"), state.projectName),
   });
 }
 
-async function cleanupState(state, supervisor, toolchain) {
+export async function cleanupState(state, supervisor, toolchain) {
   const descendantsDrained = await supervisor.stopAll();
-  let targetsOwned = safeHarnessRoot(state.harnessRoot);
+  const targetsOwned = safeHarnessRoot(state.harnessRoot);
+  const containerPolicy = cleanupContainerPolicy(state, Boolean(
+    toolchain?.paths?.docker?.real &&
+    toolchain?.paths?.supabaseNative?.real &&
+    toolchain?.paths?.supabaseGo?.real,
+  ));
   let cleanupSucceeded = descendantsDrained && targetsOwned;
-  if (descendantsDrained && targetsOwned) {
+  if (containerPolicy === "quarantine") cleanupSucceeded = false;
+  if (descendantsDrained && targetsOwned && containerPolicy === "container_cleanup") {
     const run = async (args) => {
       try {
         await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", ...args], { stage: "cleanup", code: "cleanup_command_failed", timeoutMs: 2 * 60 * 1_000, allowAfterInterrupt: true });
@@ -3273,7 +3986,14 @@ async function cleanupState(state, supervisor, toolchain) {
     if (state.appContainer) cleanupSucceeded = (await run(["rm", "--force", state.appContainer])) && cleanupSucceeded;
     if (state.stackStarted && state.supabaseRoot) {
       try {
-        await supervisor.run(toolchain.paths.supabase.real, ["stop", "--workdir", state.supabaseRoot, "--no-backup"], { stage: "cleanup", code: "supabase_stop_failed", timeoutMs: 5 * 60 * 1_000, maxCaptureBytes: 8 * 1_024 * 1_024, allowAfterInterrupt: true });
+        await supervisor.run(toolchain.paths.supabaseNative.real, ["stop", "--workdir", state.supabaseRoot, "--no-backup"], {
+          stage: "cleanup",
+          code: "supabase_stop_failed",
+          timeoutMs: 5 * 60 * 1_000,
+          maxCaptureBytes: 8 * 1_024 * 1_024,
+          allowAfterInterrupt: true,
+          env: pinnedSupabaseEnvironment(toolchain.paths),
+        });
       } catch {
         cleanupSucceeded = false;
       }
@@ -3281,10 +4001,11 @@ async function cleanupState(state, supervisor, toolchain) {
     try {
       const owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
       if (owned.containers.length > 0) cleanupSucceeded = (await run(["rm", "--force", ...owned.containers])) && cleanupSucceeded;
+      if (owned.images.length > 0) cleanupSucceeded = (await run(["image", "rm", "--force", ...owned.images])) && cleanupSucceeded;
       if (owned.volumes.length > 0) cleanupSucceeded = (await run(["volume", "rm", "--force", ...owned.volumes])) && cleanupSucceeded;
       if (owned.networks.length > 0) cleanupSucceeded = (await run(["network", "rm", ...owned.networks])) && cleanupSucceeded;
       const remaining = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
-      if (remaining.containers.length || remaining.volumes.length || remaining.networks.length) cleanupSucceeded = false;
+      if (remaining.containers.length || remaining.volumes.length || remaining.networks.length || remaining.images.length) cleanupSucceeded = false;
     } catch {
       cleanupSucceeded = false;
     }
@@ -3300,7 +4021,7 @@ async function cleanupState(state, supervisor, toolchain) {
       // The private marked root remains in place if even quarantine cannot be proved.
     }
   }
-  return Object.freeze({ descendantsDrained, targetsOwned, cleanupSucceeded, disposition });
+  return Object.freeze({ descendantsDrained, targetsOwned, cleanupSucceeded, disposition, containerPolicy });
 }
 
 class StageTimings {
@@ -3321,12 +4042,34 @@ class StageTimings {
   }
 }
 
-function writeEvidence(path, evidence) {
-  const fd = openSync(path, "wx", 0o600);
+export function writeEvidence(path, evidence) {
+  const parent = dirname(path);
+  const temporary = join(parent, `.${basename(path)}.${randomUUID()}.tmp`);
+  let fd;
   try {
-    writeFileSync(fd, `${JSON.stringify(evidence, null, 2)}\n`);
-  } finally {
-    closeSync(fd);
+    try {
+      fd = openSync(temporary, "wx", 0o600);
+      chmodSync(temporary, 0o600);
+      writeFileSync(fd, `${JSON.stringify(evidence, null, 2)}\n`);
+      fsyncSync(fd);
+    } finally {
+      if (fd !== undefined) closeSync(fd);
+    }
+    linkSync(temporary, path);
+    unlinkSync(temporary);
+    const metadata = lstatSync(path);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || (metadata.mode & 0o777) !== 0o600) {
+      fail("evidence_file_invalid", "evidence");
+    }
+    const parentFd = openSync(parent, "r");
+    try {
+      fsyncSync(parentFd);
+    } finally {
+      closeSync(parentFd);
+    }
+  } catch (error) {
+    if (existsSync(temporary)) unlinkSync(temporary);
+    throw error;
   }
 }
 
@@ -3343,6 +4086,7 @@ function durableToolEvidence(value) {
     "git",
     "psql",
     "supabase_cli",
+    "supabase_go_cli",
     "tar",
     "orb",
     "orb_version",
@@ -3357,7 +4101,9 @@ function durableToolEvidence(value) {
     "orb_realpath_sha256",
     "docker_realpath_sha256",
     "psql_realpath_sha256",
-    "supabase_realpath_sha256",
+    "supabaseLauncher_realpath_sha256",
+    "supabaseNative_realpath_sha256",
+    "supabaseGo_realpath_sha256",
     "git_binary_sha256",
     "sshKeygen_binary_sha256",
     "tar_binary_sha256",
@@ -3365,7 +4111,11 @@ function durableToolEvidence(value) {
     "orb_binary_sha256",
     "docker_binary_sha256",
     "psql_binary_sha256",
-    "supabase_binary_sha256",
+    "supabaseLauncher_binary_sha256",
+    "supabaseNative_binary_sha256",
+    "supabaseGo_binary_sha256",
+    "supabase_bin_link_sha256",
+    "supabase_execution_chain_sha256",
     "chromium_binary_sha256",
   ]);
   if (!isRecord(value)) return Object.freeze({});
@@ -3380,7 +4130,7 @@ function durableToolEvidence(value) {
           ? /^(?:bsdtar|tar) \d[A-Za-z0-9.+_-]*$/u.test(field)
           : key === "psql"
             ? /^\d+\.\d+$/u.test(field)
-            : key === "supabase_cli"
+            : new Set(["supabase_cli", "supabase_go_cli"]).has(key)
               ? VERSION.test(field)
               : key === "age"
                 ? /^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/u.test(field)
@@ -3402,13 +4152,26 @@ function durableToolEvidence(value) {
 }
 
 export function buildDurableEvidence({ result, failure, interrupted, stages, cleanup, tools, isolation }) {
+  const notReady = isRecord(result) &&
+    result.schema === RESULT_SCHEMA &&
+    result.ok === false &&
+    result.status === "not_ready" &&
+    Array.isArray(result.blockers) &&
+    result.blockers.length > 0 &&
+    new Set(result.blockers).size === result.blockers.length &&
+    result.blockers.every((blocker) => new Set([
+      "admin_representative_missing",
+      "sales_representative_missing",
+      "admissions_representative_missing",
+      "storage_source_object_missing",
+    ]).has(blocker));
   let durableFailure = interrupted
     ? Object.freeze({ code: "recovery_interrupted", stage: "signal", diagnostic: Object.freeze({ signal: interrupted }) })
     : failure;
   if (!durableFailure && cleanup?.disposition !== "remove") {
     durableFailure = Object.freeze({ code: "cleanup_quarantined", stage: "cleanup", diagnostic: null });
   }
-  if (!durableFailure && (!isRecord(result) || result.ok !== true)) {
+  if (!durableFailure && !notReady && (!isRecord(result) || result.ok !== true)) {
     durableFailure = Object.freeze({ code: "recovery_result_missing", stage: "internal", diagnostic: null });
   }
   const safeTools = durableToolEvidence(tools);
@@ -3418,6 +4181,23 @@ export function buildDurableEvidence({ result, failure, interrupted, stages, cle
       ok: false,
       status: interrupted ? "interrupted" : "failed",
       failure: durableFailure,
+      tools: safeTools,
+      isolation,
+      stages,
+      cleanup,
+    });
+  }
+  if (notReady) {
+    return Object.freeze({
+      ...result,
+      failure: Object.freeze({
+        code: "recovery_not_ready",
+        stage: "acceptance",
+        diagnostic: Object.freeze({
+          blockerCount: result.blockers.length,
+          blockersSha256: sha256(canonicalJson(result.blockers)),
+        }),
+      }),
       tools: safeTools,
       isolation,
       stages,
@@ -3454,9 +4234,11 @@ function contract() {
     requiredBindings: Object.freeze([
       "independent trusted public key and fingerprint",
       "managed project ref and Supabase organization id",
-      "exact repository commit and migration tree",
-      "pre-existing Platform organization plus Admin Sales Admissions user ids",
-      "immutable candidate image digest or id",
+      "exact signed source commit and source migration tree",
+      "exact identical-tree source main-equivalent commit",
+      "exact target checkout commit and target migration tree",
+      "pre-existing Platform organization plus required Admin and optional explicit Sales Admissions user ids",
+      "locally built candidate image from the exact target Git tree",
       "private durable evidence destination",
     ]),
     safety: Object.freeze({
@@ -3477,12 +4259,15 @@ async function executeMode(mode, options) {
   const evidenceOut = evidenceDestination(options.evidenceOut);
   const harnessRoot = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), HARNESS_PREFIX)));
   chmodSync(harnessRoot, 0o700);
+  validateEvidenceRuntimeSeparation(evidenceOut, harnessRoot);
   const projectName = `evov3recovery${randomBytes(6).toString("hex")}`;
   const state = {
     harnessRoot,
     projectName,
     networkName: `${projectName}_private`,
     supabaseRoot: undefined,
+    containerPreflightPassed: false,
+    containerMutationAttempted: false,
     stackStarted: false,
     networkCreated: false,
     appContainer: undefined,
@@ -3522,8 +4307,10 @@ async function executeMode(mode, options) {
   process.on("SIGTERM", sigterm);
   try {
     toolchain = await runStage("toolchain", () => trustedToolchain(supervisor, state.availableTools));
-    const repository = await runStage("repository", () => repositorySnapshot(supervisor, toolchain.paths, options.repositoryCommit));
+    state.containerPreflightPassed = true;
+    const repository = await runStage("repository", () => repositorySnapshot(supervisor, toolchain.paths, options));
     const artifacts = await runStage("signed_artifact_validation", () => prepareArtifacts(options, harnessRoot, supervisor, toolchain));
+    const sourceStorageReadiness = storageSourceRecoveryReadiness({ objectCount: artifacts.storage.objects.length });
     const sourceProject = artifacts.database.source.project;
     state.isolationInput.source = {
       projectRef: sourceProject.ref,
@@ -3545,14 +4332,40 @@ async function executeMode(mode, options) {
     ) {
       fail("recovery_export_tool_version_mismatch", "toolchain");
     }
-    if (artifacts.receipt.git.migration_tree !== repository.migrationTree) {
-      fail("receipt_migration_tree_mismatch", "repository");
+    if (
+      artifacts.receipt.git.head !== repository.source.receiptCommit ||
+      artifacts.receipt.git.migration_tree !== repository.source.migrationTree
+    ) {
+      fail("receipt_source_repository_mismatch", "repository");
     }
-    const root = await runStage("migration_ledger_validation", () => rootMigrationEntries(supervisor, toolchain.paths, options.repositoryCommit, harnessRoot));
-    const verifiedLedger = verifyLedgerAgainstRoot(artifacts.ledger, root, artifacts.database.ledger);
-    const image = await runStage("immutable_image_validation", () => inspectImage(options, supervisor, toolchain));
+    const { sourceRoot, targetRoot } = await runStage("migration_ledger_validation", async () => Object.freeze({
+      sourceRoot: await rootMigrationEntries(supervisor, toolchain.paths, repository.source.receiptCommit, harnessRoot, "source"),
+      targetRoot: await rootMigrationEntries(supervisor, toolchain.paths, repository.target.commit, harnessRoot, "target"),
+    }));
+    const repositoryMigrationPrefix = verifyMigrationTreePrefix(sourceRoot, targetRoot);
+    const sourceDatabaseLedger = verifyLedgerAgainstRoot(artifacts.ledger, sourceRoot, artifacts.database.ledger);
+    const verifiedLedger = verifyLedgerAgainstRoot(artifacts.ledger, targetRoot, artifacts.database.ledger);
+    const image = await runStage("exact_target_image_build", () => buildCandidateImage(repository, state, supervisor, toolchain));
     const shared = {
-      repository: Object.freeze({ head: repository.head, migrationTree: repository.migrationTree }),
+      repository: Object.freeze({
+        sourceReceiptCommitSha256: sha256(repository.source.receiptCommit),
+        sourceFullTreeSha256: sha256(repository.source.tree),
+        sourceMigrationTreeSha256: sha256(repository.source.migrationTree),
+        sourceMainEquivalentCommitSha256: sha256(repository.source.mainEquivalentCommit),
+        sourceMainEquivalentFullTreeSha256: sha256(repository.source.mainEquivalentTree),
+        sourceMainEquivalentMigrationTreeSha256: sha256(repository.source.mainEquivalentMigrationTree),
+        targetCommitSha256: sha256(repository.target.commit),
+        targetFullTreeSha256: sha256(repository.target.tree),
+        targetMigrationTreeSha256: sha256(repository.target.migrationTree),
+        sourceTreeEqualsMainEquivalent: repository.sourceTreeEqualsMainEquivalent,
+        sourceMainEquivalentIsAncestorOfTarget: repository.sourceMainEquivalentIsAncestorOfTarget,
+        sourceCodeMigrationCount: repositoryMigrationPrefix.source.length,
+        sourceCodePendingAfterDatabaseCount: sourceDatabaseLedger.pending.length,
+        targetCodeMigrationCount: targetRoot.entries.length,
+        targetCodeMigrationSuffixCount: repositoryMigrationPrefix.pending.length,
+        sourceCodeMigrationLedgerSha256: repositoryMigrationPrefix.sourceLedgerSha256,
+        targetCodeMigrationSuffixSha256: repositoryMigrationPrefix.targetSuffixSha256,
+      }),
       source: Object.freeze({
         receiptSha256: sha256(readFileSync(artifacts.signed.receiptPath)),
         sourceIdentitySha256: artifacts.receipt.sourceIdentity,
@@ -3563,14 +4376,29 @@ async function executeMode(mode, options) {
         signatureFingerprint: artifacts.signed.fingerprint,
         trustedPublicKeySha256: artifacts.signed.trustedKeySha256,
         ciphertextSetSha256: sha256(canonicalJson(Object.fromEntries(ARTIFACTS.map((name) => [name, artifacts.ciphertext[name].sha256])))),
+        storageRecoveryReadiness: sourceStorageReadiness,
       }),
       ledger: Object.freeze({
-        sourceCount: verifiedLedger.source.length,
-        pendingCount: verifiedLedger.pending.length,
+        restoredDatabaseCount: verifiedLedger.source.length,
+        pendingDatabaseMigrationCount: verifiedLedger.pending.length,
         orderedLedgerSha256: verifiedLedger.orderedLedgerSha256,
-        recordedHistoryValidatedCount: root.recordedHistoryCount,
+        sourceRecordedHistoryValidatedCount: sourceRoot.recordedHistoryCount,
+        targetRecordedHistoryValidatedCount: targetRoot.recordedHistoryCount,
       }),
-      image,
+      image: Object.freeze({
+        idSha256: sha256(image.id),
+        repoDigestSetSha256: sha256(canonicalJson(image.repoDigests)),
+        revisionSha256: sha256(image.revision),
+        revisionMatchesTarget: image.revision === repository.target.commit,
+        provenance: "locally_built_from_exact_target_git_tree",
+        operatingSystem: image.operatingSystem,
+        architecture: image.architecture,
+        buildNetwork: image.buildNetwork,
+        targetSnapshotArchiveSha256: image.snapshot.archiveSha256,
+        targetSnapshotListingSha256: image.snapshot.listingSha256,
+        targetSnapshotFileCount: image.snapshot.fileCount,
+        targetSnapshotTreeSha256: sha256(image.snapshot.tree),
+      }),
       tools: toolchain.evidence,
       isolation: state.isolationEvidence,
     };
@@ -3578,7 +4406,7 @@ async function executeMode(mode, options) {
       result = { schema: RESULT_SCHEMA, ok: true, status: "preflight_passed", proof: "not_run", ...shared };
     } else {
       const ports = await runStage("port_reservation", reservePorts);
-      const local = await runStage("local_supabase_start", () => startLocalSupabase(state, root, ports, supervisor, toolchain));
+      const local = await runStage("local_supabase_start", () => startLocalSupabase(state, targetRoot, ports, supervisor, toolchain));
       const destinationInventory = await runStage("destination_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "destination_identity" }));
       state.isolationInput.destination = {
         projectRef: state.projectName,
@@ -3594,33 +4422,67 @@ async function executeMode(mode, options) {
         await restoreDatabase(artifacts, local.status, supervisor, toolchain);
         return await reconcileRestoredDatabase(artifacts, local.status, supervisor, toolchain);
       });
-      const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(state, local, root, verifiedLedger, supervisor, toolchain));
+      const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(state, local, targetRoot, verifiedLedger, supervisor, toolchain));
       const storage = await runStage("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain, state.interruptionGuard));
-      const actors = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));
-      const authorization = await runStage("authorization_and_audit", () => proveRlsAndCanonicalWrite(options, local.status, actors, supervisor, toolchain, state.interruptionGuard));
-      const document = await runStage("private_document", () => provePrivateDocument(local.status, actors.sales, artifacts.storage, state.interruptionGuard));
+      if (!sameJson(storage.readiness, sourceStorageReadiness)) fail("storage_source_readiness_mismatch", "storage_verification");
+      const actorReadiness = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));
+      const actors = actorReadiness.actors;
+      const completeRoleCohort = ["admin", "sales", "admissions"].every((role) => isRecord(actors[role]));
+      const authorization = await runStage("authorization_and_audit", async () => completeRoleCohort
+        ? await proveRlsAndCanonicalWrite(options, local.status, actors, supervisor, toolchain, state.interruptionGuard)
+        : Object.freeze({
+          status: "not_run_missing_representatives",
+          evidenceScope: "requires_distinct_real_admin_sales_admissions",
+        }));
+      const documentActor = actors.sales ?? actors.admin;
+      const document = await runStage("private_document", async () => documentActor
+        ? await provePrivateDocument(local.status, documentActor, artifacts.storage, state.interruptionGuard)
+        : Object.freeze({
+          status: "not_run_missing_representative",
+          evidenceScope: "behavior_canary_only_not_source_recovery",
+        }));
+      const storageReadiness = await runStage("storage_source_readiness", async () => sourceStorageReadiness);
       const app = await runStage("candidate_start", () => startCandidateApp(options, local.status, actors, state, supervisor, toolchain, image, ports.app, state.interruptionGuard));
-      const browser = await runStage("browser_proof", () => proveBrowser(app, state, supervisor, state.interruptionGuard));
-      result = {
+      const browser = await runStage("browser_proof", async () => Object.keys(actors).length > 0
+        ? await proveBrowser(app, state, supervisor, state.interruptionGuard)
+        : Object.freeze({ status: "not_run_missing_representative", evidenceScope: "no_real_representative_available" }));
+      const blockers = Object.freeze([
+        ...actorReadiness.blockers,
+        ...(storageReadiness.status === "ready" ? [] : [storageReadiness.blocker]),
+      ]);
+      const representatives = Object.freeze({
+        presentRoles: Object.freeze(["admin", "sales", "admissions"].filter((role) => isRecord(actors[role]))),
+        userIdSha256ByRole: Object.freeze(Object.fromEntries(
+          Object.entries(actors).map(([role, actor]) => [role, sha256(actor.userId)]),
+        )),
+        provenance: "preexisting_restored_snapshot",
+      });
+      const proof = {
         schema: RESULT_SCHEMA,
-        ok: true,
-        status: "passed",
-        proof: "isolated_orbstack_restore_and_exact_image_browser",
         ...shared,
         isolation,
         database,
         migrations,
         storage,
-        representatives: Object.freeze({
-          adminUserSha256: sha256(actors.admin.userId),
-          salesUserSha256: sha256(actors.sales.userId),
-          admissionsUserSha256: sha256(actors.admissions.userId),
-          provenance: "preexisting_restored_snapshot",
-        }),
+        representatives,
         authorization,
         document,
         browser,
       };
+      result = blockers.length > 0
+        ? Object.freeze({
+          ...proof,
+          ok: false,
+          status: "not_ready",
+          proof: "isolated_recovery_behavior_only_acceptance_blocked",
+          blockers,
+        })
+        : Object.freeze({
+          ...proof,
+          ok: true,
+          status: "passed",
+          proof: "isolated_orbstack_restore_and_exact_image_browser",
+        });
     }
   } catch (error) {
     failure = safeFailure(error);
@@ -3629,7 +4491,7 @@ async function executeMode(mode, options) {
     let cleanup;
     try {
       if (state.signalShutdown) await state.signalShutdown;
-      cleanup = await cleanupState(state, supervisor, toolchain ?? { paths: { docker: { real: "/Applications/OrbStack.app/Contents/MacOS/xbin/docker" }, supabase: { real: join(repositoryRoot, "node_modules", ".bin", "supabase") } } });
+      cleanup = await cleanupState(state, supervisor, toolchain);
     } catch {
       cleanup = Object.freeze({ descendantsDrained: false, targetsOwned: safeHarnessRoot(state.harnessRoot), cleanupSucceeded: false, disposition: "quarantine" });
     }

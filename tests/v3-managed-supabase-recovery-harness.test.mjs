@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -11,44 +11,70 @@ import {
   ProcessSupervisor,
   RecoveryInterruptionGuard,
   RecoveryFailure,
+  assessRepresentativeCohort,
   apiRequest,
+  browserRequestAllowed,
   buildDurableEvidence,
   buildIsolationEvidence,
   canonicalJson,
   classifyExpectedDatabaseDenial,
   cleanupDisposition,
+  cleanupContainerPolicy,
+  cleanupState,
   databaseAggregatesFromTableCounts,
   extractExactMigrationLedger,
+  evidenceDestination,
+  gitBlobOid,
   latchInterruption,
   migrationStatementsDigest,
   parseHarnessOptions,
+  parseTargetTreeListing,
+  orderedTargetEntries,
   runBrowserOperation,
+  resolveSupabaseExecutableChain,
   sanitizePsqlDiagnostic,
   sanitizeCommandDiagnostic,
+  storageSourceRecoveryReadiness,
+  suppliedRepresentativeUserIds,
   selectAdmissionsTaskMutation,
   selectOwnedContainerIds,
+  selectOwnedImageIds,
   selectOwnedNetworkNames,
   selectOwnedVolumeNames,
+  uploadStorageObjectFromFile,
+  validateEvidenceRuntimeSeparation,
   validateBrowserRouteProof,
+  validateBrowserNetworkProof,
   validateCandidateNetworkAttachment,
+  validateContainerCensusIds,
   validateDatabaseManifest,
-  validateImmutableImageInspection,
+  validateBuiltImageInspection,
   validateLocalSupabaseNetwork,
   validateRepresentativeCohort,
+  validateRepositoryBindings,
   validateRestoredDatabaseAggregates,
   validateRestrictedSqlEnvelope,
   validateSignedReceipt,
   validateStorageManifest,
   validateWriteBoundaryResults,
   verifyLedgerAgainstRoot,
+  verifyMigrationTreePrefix,
   verifyReceiptSignature,
   verifyRestoredStorageInventory,
+  writeEvidence,
 } from "../scripts/test-v3-managed-supabase-recovery-orbstack.mjs";
 
 const script = new URL("../scripts/test-v3-managed-supabase-recovery-orbstack.mjs", import.meta.url);
 const source = readFileSync(script, "utf8");
-const commit = "1".repeat(40);
-const migrationTree = "2".repeat(40);
+const sourceCommit = "1".repeat(40);
+const sourceMigrationTree = "2".repeat(40);
+const targetCommit = "3".repeat(40);
+const targetMigrationTree = "4".repeat(40);
+const sourceMainEquivalentCommit = "5".repeat(40);
+const sourceFullTree = "6".repeat(40);
+const targetFullTree = "7".repeat(40);
+const commit = sourceCommit;
+const migrationTree = sourceMigrationTree;
 const projectRef = "iosckaqtovbbnssqcpde";
 const supabaseOrganizationId = "provider-org";
 const platformOrganizationId = "10000000-0000-4000-8000-000000000001";
@@ -160,7 +186,8 @@ function receipt(overrides = {}) {
 
 function validatedReceipt() {
   return validateSignedReceipt(receipt(), {
-    repositoryCommit: commit,
+    sourceRepositoryCommit: sourceCommit,
+    sourceMigrationTree,
     trustedFingerprint: fingerprint,
     now: new Date("2026-09-05T01:00:00.000Z"),
     maxAgeHours: 72,
@@ -212,8 +239,11 @@ function optionsArgs() {
     "--project-ref", projectRef,
     "--supabase-organization-id", supabaseOrganizationId,
     "--platform-organization-id", platformOrganizationId,
-    "--repository-commit", commit,
-    "--app-image", `evo-crm@sha256:${"e".repeat(64)}`,
+    "--source-repository-commit", sourceCommit,
+    "--source-migration-tree", sourceMigrationTree,
+    "--source-main-equivalent-commit", sourceMainEquivalentCommit,
+    "--target-repository-commit", targetCommit,
+    "--target-migration-tree", targetMigrationTree,
     "--admin-user-id", adminUserId,
     "--sales-user-id", salesUserId,
     "--admissions-user-id", admissionsUserId,
@@ -235,18 +265,94 @@ test("contract advertises signed exporter artifacts and no remote/provider autho
   assert.equal(JSON.parse(noOptIn.stdout).code, "explicit_opt_in_required");
 });
 
-test("arguments require immutable image, both organization bindings, and three distinct restored actors", () => {
+test("arguments separate immutable source and target bindings and reject the retired compatibility flag", () => {
   const parsed = parseHarnessOptions(optionsArgs(), {});
   assert.equal(parsed.projectRef, projectRef);
   assert.equal(parsed.supabaseOrganizationId, supabaseOrganizationId);
   assert.equal(parsed.platformOrganizationId, platformOrganizationId);
-  expectCode(() => parseHarnessOptions(optionsArgs().filter((_, index) => ![10, 11].includes(index)), {}), "required_argument_missing");
-  const mutable = optionsArgs();
-  mutable[mutable.indexOf("--app-image") + 1] = "evo-crm:latest";
-  expectCode(() => parseHarnessOptions(mutable, {}), "app_image_not_immutable");
+  assert.equal(parsed.sourceRepositoryCommit, sourceCommit);
+  assert.equal(parsed.sourceMigrationTree, sourceMigrationTree);
+  assert.equal(parsed.sourceMainEquivalentCommit, sourceMainEquivalentCommit);
+  assert.equal(parsed.targetRepositoryCommit, targetCommit);
+  assert.equal(parsed.targetMigrationTree, targetMigrationTree);
+  const withoutFlag = (args, flag) => {
+    const index = args.indexOf(flag);
+    return args.filter((_, itemIndex) => ![index, index + 1].includes(itemIndex));
+  };
+  for (const flag of ["--source-repository-commit", "--source-migration-tree", "--source-main-equivalent-commit", "--target-repository-commit", "--target-migration-tree"]) {
+    const args = optionsArgs();
+    const index = args.indexOf(flag);
+    expectCode(() => parseHarnessOptions(args.filter((_, itemIndex) => ![index, index + 1].includes(itemIndex)), {}), "required_argument_missing");
+  }
+  expectCode(() => parseHarnessOptions([...optionsArgs(), "--repository-commit", sourceCommit], {}), "unknown_argument");
+  expectCode(() => parseHarnessOptions([...optionsArgs(), "--app-image", `sha256:${"e".repeat(64)}`], {}), "unknown_argument");
   const duplicate = optionsArgs();
   duplicate[duplicate.indexOf("--sales-user-id") + 1] = adminUserId;
   expectCode(() => parseHarnessOptions(duplicate, {}), "representative_user_ids_not_distinct");
+  const adminOnly = parseHarnessOptions(
+    withoutFlag(withoutFlag(optionsArgs(), "--sales-user-id"), "--admissions-user-id"),
+    {},
+  );
+  assert.equal(adminOnly.adminUserId, adminUserId);
+  assert.equal(adminOnly.salesUserId, undefined);
+  assert.equal(adminOnly.admissionsUserId, undefined);
+  assert.deepEqual(suppliedRepresentativeUserIds(adminOnly), [adminUserId]);
+  expectCode(() => parseHarnessOptions(withoutFlag(optionsArgs(), "--admin-user-id"), {}), "required_argument_missing");
+  expectCode(
+    () => parseHarnessOptions([
+      ...withoutFlag(withoutFlag(optionsArgs(), "--sales-user-id"), "--admissions-user-id"),
+      "--sales-user-id", "not-a-uuid",
+    ], {}),
+    "sales_user_id_invalid",
+  );
+  expectCode(
+    () => parseHarnessOptions([
+      ...withoutFlag(withoutFlag(optionsArgs(), "--sales-user-id"), "--admissions-user-id"),
+      "--admissions-user-id", adminUserId,
+    ], {}),
+    "representative_user_ids_not_distinct",
+  );
+});
+
+test("repository binding proves squash-equivalent source trees before target ancestry", () => {
+  const expected = { sourceRepositoryCommit: sourceCommit, sourceMigrationTree, sourceMainEquivalentCommit, targetRepositoryCommit: targetCommit, targetMigrationTree };
+  const value = {
+    head: targetCommit,
+    status: "",
+    sourceCommit,
+    sourceTree: sourceFullTree,
+    sourceMigrationTree,
+    sourceMainEquivalentCommit,
+    sourceMainEquivalentTree: sourceFullTree,
+    sourceMainEquivalentMigrationTree: sourceMigrationTree,
+    targetCommit,
+    targetTree: targetFullTree,
+    targetMigrationTree,
+    objectFormat: "sha1",
+    equivalentIsAncestor: true,
+  };
+  assert.deepEqual(validateRepositoryBindings(value, expected), {
+    source: {
+      receiptCommit: sourceCommit,
+      tree: sourceFullTree,
+      migrationTree: sourceMigrationTree,
+      mainEquivalentCommit: sourceMainEquivalentCommit,
+      mainEquivalentTree: sourceFullTree,
+      mainEquivalentMigrationTree: sourceMigrationTree,
+    },
+    target: { commit: targetCommit, tree: targetFullTree, migrationTree: targetMigrationTree, objectFormat: "sha1" },
+    sourceTreeEqualsMainEquivalent: true,
+    sourceMainEquivalentIsAncestorOfTarget: true,
+  });
+  expectCode(() => validateRepositoryBindings({ ...value, head: sourceCommit }, expected), "target_repository_commit_mismatch");
+  expectCode(() => validateRepositoryBindings({ ...value, sourceMigrationTree: targetMigrationTree }, expected), "source_migration_tree_mismatch");
+  expectCode(() => validateRepositoryBindings({ ...value, targetMigrationTree: sourceMigrationTree }, expected), "target_migration_tree_mismatch");
+  expectCode(() => validateRepositoryBindings({ ...value, sourceMainEquivalentTree: targetFullTree }, expected), "source_main_equivalent_tree_mismatch");
+  expectCode(() => validateRepositoryBindings({ ...value, sourceMainEquivalentMigrationTree: targetMigrationTree }, expected), "source_main_equivalent_migration_tree_mismatch");
+  expectCode(() => validateRepositoryBindings({ ...value, objectFormat: "md5" }, expected), "repository_object_format_invalid");
+  expectCode(() => validateRepositoryBindings({ ...value, equivalentIsAncestor: false }, expected), "source_main_equivalent_not_ancestor");
+  assert.match(source, /\["merge-base", "--is-ancestor", options\.sourceMainEquivalentCommit, options\.targetRepositoryCommit\]/u);
+  assert.doesNotMatch(source, /\["merge-base", "--is-ancestor", options\.sourceRepositoryCommit, options\.targetRepositoryCommit\]/u);
 });
 
 test("receipt accepts only exact #636 schema and exact signing identity/fingerprint", () => {
@@ -254,21 +360,24 @@ test("receipt accepts only exact #636 schema and exact signing identity/fingerpr
   assert.equal(result.sourceIdentity, sourceReceipt().sha256);
   assert.equal(result.encryptedArtifacts["history-data.sql.age"].bytes, 204);
   expectCode(() => validateSignedReceipt(receipt({ schema: "evo-managed-supabase-export/v1" }), {
-    repositoryCommit: commit, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
   }), "receipt_schema_invalid");
+  expectCode(() => validateSignedReceipt(receipt({ git: { head: sourceCommit, migration_tree: targetMigrationTree } }), {
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+  }), "receipt_source_migration_tree_mismatch");
   expectCode(() => validateSignedReceipt(receipt({ signature: { ...receipt().signature, namespace: "spoof" } }), {
-    repositoryCommit: commit, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
   }), "receipt_signature_metadata_invalid");
   expectCode(() => validateSignedReceipt(receipt(), {
-    repositoryCommit: commit, trustedFingerprint: "SHA256:different", now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: "SHA256:different", now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
   }), "receipt_signature_metadata_invalid");
   expectCode(() => validateSignedReceipt(receipt({ database: { ...receipt().database, snapshot_mode: "independent-dumps" } }), {
-    repositoryCommit: commit, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
   }), "receipt_database_snapshot_mode_invalid");
   const missingArtifact = receipt();
   delete missingArtifact.encrypted_artifacts["history-schema.sql.age"];
   expectCode(() => validateSignedReceipt(missingArtifact, {
-    repositoryCommit: commit, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
   }), "receipt_artifact_set_invalid");
 });
 
@@ -320,13 +429,22 @@ test("exact history parser binds ordered full COPY rows and rejects reconstructi
     { version: "002", name: "add_students" },
   ]);
   const summary = { count: 2, min_version: "001", max_version: "002", copy_rows_sha256: ledger.copyRowsSha256 };
-  const rootEntry = (version, name, sql) => ({ version, name, ...migrationStatementsDigest(sql) });
+  const rootEntry = (version, name, sql) => ({
+    version,
+    name,
+    bytes: Buffer.byteLength(sql),
+    sha256: hash(sql),
+    ...migrationStatementsDigest(sql),
+  });
   const root = { entries: [
     rootEntry("001", "initial_schema", "first;"),
     rootEntry("002", "add_students", "second;"),
     rootEntry("003", "next", "next;"),
   ] };
   assert.deepEqual(verifyLedgerAgainstRoot(ledger, root, summary).pending.map((entry) => entry.version), ["003"]);
+  expectCode(() => verifyLedgerAgainstRoot(ledger, { entries: root.entries.slice(0, 2) }, summary), "migration_pending_suffix_missing");
+  assert.equal(verifyLedgerAgainstRoot(ledger, { entries: root.entries.slice(0, 2) }, summary, { requireComplete: true, requirePending: false }).pending.length, 0);
+  expectCode(() => verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete: true, requirePending: false }), "source_migration_ledger_not_complete");
   expectCode(() => verifyLedgerAgainstRoot({ count: 2, min_version: "001", max_version: "002" }, root, summary), "migration_ledger_reconstruction_forbidden");
   expectCode(() => extractExactMigrationLedger(historySql([
     "002\t{second}\tadd_students", "001\t{first}\tinitial_schema",
@@ -356,8 +474,29 @@ test("exact history parser binds ordered full COPY rows and rejects reconstructi
   });
 });
 
+test("database pending migrations and source-code target suffix are independently bound", () => {
+  const entry = (version, name) => {
+    const sql = `select ${Number(version)};`;
+    return { version, name, bytes: Buffer.byteLength(sql), sha256: hash(sql), ...migrationStatementsDigest(sql) };
+  };
+  const ledger = extractExactMigrationLedger(historySql([
+    "001\t{select 1}\tone",
+    "002\t{select 2}\ttwo",
+  ]));
+  const summary = { count: 2, min_version: "001", max_version: "002", copy_rows_sha256: ledger.copyRowsSha256 };
+  const sourceRoot = { entries: [entry("001", "one"), entry("002", "two"), entry("003", "source_added")] };
+  const targetRoot = { entries: [...sourceRoot.entries, entry("004", "target_only")] };
+  assert.deepEqual(verifyLedgerAgainstRoot(ledger, sourceRoot, summary).pending.map(({ version }) => version), ["003"]);
+  assert.deepEqual(verifyLedgerAgainstRoot(ledger, targetRoot, summary).pending.map(({ version }) => version), ["003", "004"]);
+  assert.deepEqual(verifyMigrationTreePrefix(sourceRoot, targetRoot).pending.map(({ version }) => version), ["004"]);
+  expectCode(
+    () => verifyMigrationTreePrefix(sourceRoot, { entries: [...sourceRoot.entries.slice(0, 2), entry("003", "changed")] }),
+    "repository_migration_prefix_mismatch",
+  );
+});
+
 test("restored Storage inventory requires exact identity, version and streamed byte digest with no extras", () => {
-  const source = [{
+  const sourceObjects = [{
     bucket_id: "platform-documents",
     path: "org/document.pdf",
     source_id: "50000000-0000-4000-8000-000000000001",
@@ -365,17 +504,73 @@ test("restored Storage inventory requires exact identity, version and streamed b
     sha256: "a".repeat(64),
     bytes: 42,
   }];
-  const identities = source.map(({ source_id, source_version, bucket_id, path }) => ({ source_id, source_version, bucket_id, path }));
-  const readbacks = source.map(({ bucket_id, path, sha256, bytes }) => ({ bucket_id, path, sha256, bytes }));
-  assert.deepEqual(verifyRestoredStorageInventory(source, identities, readbacks), {
+  const identities = sourceObjects.map(({ source_id, source_version, bucket_id, path }) => ({ source_id, source_version, bucket_id, path }));
+  const readbacks = sourceObjects.map(({ bucket_id, path, sha256, bytes }) => ({ bucket_id, path, sha256, bytes }));
+  assert.deepEqual(verifyRestoredStorageInventory(sourceObjects, identities, readbacks), {
     objectCount: 1,
     totalBytes: 42,
-    restoredInventorySha256: hash(canonicalJson(source)),
+    restoredInventorySha256: hash(canonicalJson(sourceObjects)),
   });
-  expectCode(() => verifyRestoredStorageInventory(source, [{ ...identities[0], source_version: "60000000-0000-4000-8000-000000000002" }], readbacks), "restored_storage_identity_mismatch");
-  expectCode(() => verifyRestoredStorageInventory(source, identities, [{ ...readbacks[0], sha256: "b".repeat(64) }]), "restored_storage_content_mismatch");
-  expectCode(() => verifyRestoredStorageInventory(source, identities, []), "restored_storage_readback_missing");
-  expectCode(() => verifyRestoredStorageInventory(source, identities, [...readbacks, { ...readbacks[0], path: "org/extra.pdf" }]), "restored_storage_readback_extra");
+  expectCode(() => verifyRestoredStorageInventory(sourceObjects, [{ ...identities[0], source_version: "60000000-0000-4000-8000-000000000002" }], readbacks), "restored_storage_identity_mismatch");
+  expectCode(() => verifyRestoredStorageInventory(sourceObjects, identities, [{ ...readbacks[0], sha256: "b".repeat(64) }]), "restored_storage_content_mismatch");
+  expectCode(() => verifyRestoredStorageInventory(sourceObjects, identities, []), "restored_storage_readback_missing");
+  expectCode(() => verifyRestoredStorageInventory(sourceObjects, identities, [...readbacks, { ...readbacks[0], path: "org/extra.pdf" }]), "restored_storage_readback_extra");
+  const ready = storageSourceRecoveryReadiness({ objectCount: 1 });
+  assert.equal(ready.status, "ready");
+  const empty = storageSourceRecoveryReadiness({ objectCount: 0 });
+  assert.deepEqual(empty, { status: "not_ready", blocker: "storage_source_object_missing", recoveredObjectCount: 0 });
+  assert.match(source, /evidenceScope: "behavior_canary_only_not_source_recovery"/u);
+});
+
+test("Storage restore streams bounded file chunks and aborts an in-flight upload", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "evo-recovery-storage-stream-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const path = join(root, "large-object.bin");
+  const bytes = Buffer.alloc(512 * 1_024 + 17, 7);
+  writeFileSync(path, bytes, { mode: 0o600 });
+  const guard = new RecoveryInterruptionGuard();
+  let maximumChunk = 0;
+  let streamedBytes = 0;
+  let sawStream = false;
+  const response = await uploadStorageObjectFromFile(path, {
+    url: "http://127.0.0.1:54321/storage/v1/object/private/large-object.bin",
+    headers: { "content-type": "application/octet-stream" },
+    expectedBytes: bytes.length,
+  }, guard, {
+    fetchImpl: async (_url, init) => {
+      sawStream = typeof init.body?.pipe === "function" && !Buffer.isBuffer(init.body);
+      assert.equal(init.duplex, "half");
+      for await (const chunk of init.body) {
+        maximumChunk = Math.max(maximumChunk, chunk.length);
+        streamedBytes += chunk.length;
+      }
+      return new Response("", { status: 200 });
+    },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(sawStream, true);
+  assert.equal(streamedBytes, bytes.length);
+  assert.ok(maximumChunk <= 64 * 1_024);
+
+  const interrupted = new RecoveryInterruptionGuard();
+  let fetchInvoked = false;
+  const pending = uploadStorageObjectFromFile(path, {
+    url: "http://127.0.0.1:54321/storage/v1/object/private/large-object.bin",
+    headers: { "content-type": "application/octet-stream" },
+    expectedBytes: bytes.length,
+  }, interrupted, {
+    fetchImpl: async (_url, init) => {
+      fetchInvoked = true;
+      await new Promise((resolvePromise, rejectPromise) => {
+        init.signal.addEventListener("abort", () => rejectPromise(new DOMException("aborted", "AbortError")), { once: true });
+      });
+    },
+  });
+  await new Promise((resolvePromise) => setImmediate(resolvePromise));
+  interrupted.latch("SIGINT");
+  await expectCodeAsync(() => pending, "operation_interrupted");
+  assert.equal(fetchInvoked, true);
+  assert.doesNotMatch(source, /readFileSync\(join\(extracted, "storage-blobs"/u);
 });
 
 test("all five SQL payloads require one matching active restricted-mode guard", () => {
@@ -396,6 +591,15 @@ function cohortRows() {
 test("representatives must be explicit, pre-existing, same-org Admin Sales Admissions", () => {
   const expected = { adminUserId, salesUserId, admissionsUserId, platformOrganizationId };
   assert.equal(validateRepresentativeCohort(cohortRows(), expected).admissions.appRole, "admissions");
+  const incomplete = assessRepresentativeCohort(cohortRows().slice(0, 1), expected);
+  assert.deepEqual(Object.keys(incomplete.actors), ["admin"]);
+  assert.deepEqual(incomplete.blockers, ["sales_representative_missing", "admissions_representative_missing"]);
+  const adminOnlyExpected = { adminUserId, platformOrganizationId };
+  const adminOnly = assessRepresentativeCohort(cohortRows(), adminOnlyExpected);
+  assert.deepEqual(Object.keys(adminOnly.actors), ["admin"]);
+  assert.deepEqual(adminOnly.blockers, ["sales_representative_missing", "admissions_representative_missing"]);
+  assert.deepEqual(suppliedRepresentativeUserIds(adminOnlyExpected), [adminUserId]);
+  assert.match(source, /const ids = suppliedRepresentativeUserIds\(options\)\.map\(sqlLiteral\)\.join\(","\)/u);
   expectCode(() => validateRepresentativeCohort(cohortRows().slice(0, 2), expected), "authorized_representative_missing");
   const cross = cohortRows();
   cross[2] = { ...cross[2], organizationId: "10000000-0000-4000-8000-000000000002" };
@@ -544,6 +748,46 @@ test("durable evidence fails closed before write when cleanup quarantines", () =
   assert.equal(safeToolResult.tools.chromium_binary_sha256, binaryDigest);
   assert.equal(JSON.stringify(safeToolResult.tools).includes("/usr/"), false);
   assert.equal(Object.hasOwn(safeToolResult.tools, "leaked_path"), false);
+
+  const notReady = buildDurableEvidence({
+    ...common,
+    result: {
+      schema: "evo-v3-managed-supabase-recovery-result/v2",
+      ok: false,
+      status: "not_ready",
+      blockers: ["sales_representative_missing", "admissions_representative_missing", "storage_source_object_missing"],
+    },
+    cleanup: { descendantsDrained: true, targetsOwned: true, cleanupSucceeded: true, disposition: "remove" },
+  });
+  assert.equal(notReady.ok, false);
+  assert.equal(notReady.status, "not_ready");
+  assert.equal(notReady.failure.code, "recovery_not_ready");
+  assert.equal(notReady.failure.diagnostic.blockerCount, 3);
+  assert.deepEqual(notReady.blockers, ["sales_representative_missing", "admissions_representative_missing", "storage_source_object_missing"]);
+});
+
+test("durable evidence is atomically retained mode-0600 outside the runtime root", (t) => {
+  const parent = mkdtempSync(join(tmpdir(), "evo-recovery-evidence-"));
+  chmodSync(parent, 0o700);
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const harnessRoot = join(parent, "evo-v3-managed-recovery-runtime");
+  mkdirSync(harnessRoot, { mode: 0o700 });
+  const output = join(parent, "result.json");
+  const destination = evidenceDestination(output);
+  assert.equal(validateEvidenceRuntimeSeparation(destination, harnessRoot), destination);
+  writeEvidence(destination, { schema: "test", ok: false });
+  assert.deepEqual(JSON.parse(readFileSync(destination, "utf8")), { schema: "test", ok: false });
+  assert.equal(lstatSync(destination).mode & 0o777, 0o600);
+  assert.equal(readdirSync(parent).some((name) => name.includes(".tmp")), false);
+  assert.throws(() => writeEvidence(destination, { schema: "overwrite" }), /EEXIST/u);
+  const insideRuntime = join(harnessRoot, "result.json");
+  expectCode(
+    () => validateEvidenceRuntimeSeparation(evidenceDestination(insideRuntime), harnessRoot),
+    "evidence_destination_inside_runtime",
+  );
+  assert.match(source, /pathAtOrBelow\(candidate, realpathSync\(repositoryRoot\)\)/u);
+  assert.match(source, /linkSync\(temporary, path\)/u);
+  assert.match(source, /fsyncSync\(parentFd\)/u);
 });
 
 test("interruption latches once, ignores a second default exit, and blocks new non-cleanup work", async () => {
@@ -676,6 +920,19 @@ test("browser proof requires a 2xx response, exact final route and loaded module
   expectCode(() => validateBrowserRouteProof({ ...valid, markerVisible: false }), "browser_module_marker_missing");
 });
 
+test("browser network policy allows only the exact loopback app origin and fails on any denied attempt", () => {
+  const appOrigin = "http://127.0.0.1:43123";
+  assert.equal(browserRequestAllowed(`${appOrigin}/v3/main`, appOrigin), true);
+  assert.equal(browserRequestAllowed("http://127.0.0.1:54321/rest/v1/students", appOrigin), false);
+  assert.equal(browserRequestAllowed("https://example.com/tracker", appOrigin), false);
+  assert.equal(browserRequestAllowed("data:text/plain,ok", appOrigin), false);
+  const clean = { allowedOriginSha256: hash(appOrigin), deniedExternalRequestCount: 0, serviceWorkers: "blocked" };
+  assert.deepEqual(validateBrowserNetworkProof(clean), clean);
+  expectCode(() => validateBrowserNetworkProof({ ...clean, deniedExternalRequestCount: 1 }), "browser_external_request_attempted");
+  expectCode(() => validateBrowserNetworkProof({ ...clean, serviceWorkers: "allow" }), "browser_service_workers_not_blocked");
+  assert.match(source, /newContext\(\{ locale: "ru-RU", serviceWorkers: "block" \}\)[\s\S]*context\.route\("\*\*\/\*"/u);
+});
+
 test("durable isolation evidence is hash-only and rejects any source/destination identity collision", () => {
   const identities = {
     source: {
@@ -733,6 +990,9 @@ test("internal recovery network derives the Supabase API target and proves one l
   const authId = "c".repeat(64);
   const appId = "d".repeat(64);
   const appImageId = `sha256:${"e".repeat(64)}`;
+  assert.deepEqual(validateContainerCensusIds(`${kongId}\n${authId}\n`, ""), [kongId, authId].sort());
+  assert.deepEqual(validateContainerCensusIds(`${kongId}\n${authId}\n`, `${appId}\n`, { requireOwner: true }), [kongId, authId, appId].sort());
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", { requireOwner: true }), "container_census_invalid");
   const containerNetwork = (name, aliases = [name]) => ({
     [networkName]: { NetworkID: networkId, Aliases: aliases },
   });
@@ -771,6 +1031,7 @@ test("internal recovery network derives the Supabase API target and proves one l
   ].join("\n");
   const endpoint = validateLocalSupabaseNetwork(network(supabaseMembers), baseProjection, {
     apiUrl: "http://127.0.0.1:43121",
+    censusIds: [kongId, authId],
     networkName,
     projectName,
   });
@@ -792,18 +1053,21 @@ test("internal recovery network derives the Supabase API target and proves one l
     ports: { "3000/tcp": null, "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }] },
     networks: containerNetwork(appName),
   });
+  const candidateProjection = `${baseProjection}\n${appProjection}`;
+  const candidateExpected = {
+    appContainerId: appId,
+    appContainerName: appName,
+    appImageId,
+    appPort: 43123,
+    censusIds: [...endpoint.memberIds, appId],
+    networkName,
+    previousMemberIds: endpoint.memberIds,
+    projectName,
+  };
   const attachment = validateCandidateNetworkAttachment(
     network({ ...supabaseMembers, [appId]: { Name: appName } }),
-    appProjection,
-    {
-      appContainerId: appId,
-      appContainerName: appName,
-      appImageId,
-      appPort: 43123,
-      networkName,
-      previousMemberIds: endpoint.memberIds,
-      projectName,
-    },
+    candidateProjection,
+    candidateExpected,
   );
   assert.deepEqual(attachment, {
     schema: "evo-v3-recovery-app-network/v1",
@@ -818,15 +1082,15 @@ test("internal recovery network derives the Supabase API target and proves one l
 
   const publicNetwork = network(supabaseMembers);
   publicNetwork[0].Internal = false;
-  expectCode(() => validateLocalSupabaseNetwork(publicNetwork, baseProjection, { apiUrl: "http://127.0.0.1:43121", networkName, projectName }), "local_supabase_network_invalid");
+  expectCode(() => validateLocalSupabaseNetwork(publicNetwork, baseProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }), "local_supabase_network_invalid");
   const wildcardProjection = baseProjection.replace('"127.0.0.1"', '"0.0.0.0"');
-  expectCode(() => validateLocalSupabaseNetwork(network(supabaseMembers), wildcardProjection, { apiUrl: "http://127.0.0.1:43121", networkName, projectName }), "local_supabase_container_inspection_invalid");
+  expectCode(() => validateLocalSupabaseNetwork(network(supabaseMembers), wildcardProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }), "local_supabase_container_inspection_invalid");
   const duplicateApiProjection = baseProjection.replace(
     '{"9999/tcp":null}',
     '{"9999/tcp":[{"HostIp":"127.0.0.1","HostPort":"43121"}]}',
   );
   expectCode(
-    () => validateLocalSupabaseNetwork(network(supabaseMembers), duplicateApiProjection, { apiUrl: "http://127.0.0.1:43121", networkName, projectName }),
+    () => validateLocalSupabaseNetwork(network(supabaseMembers), duplicateApiProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }),
     "local_supabase_api_endpoint_ambiguous",
   );
   const wrongProjectProjection = baseProjection.replace(
@@ -834,21 +1098,17 @@ test("internal recovery network derives the Supabase API target and proves one l
     '"com.supabase.cli.project":"foreign-project"',
   );
   expectCode(
-    () => validateLocalSupabaseNetwork(network(supabaseMembers), wrongProjectProjection, { apiUrl: "http://127.0.0.1:43121", networkName, projectName }),
+    () => validateLocalSupabaseNetwork(network(supabaseMembers), wrongProjectProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }),
     "local_supabase_container_inspection_invalid",
   );
   const hostApp = appProjection.replace(JSON.stringify(networkName), JSON.stringify("host"));
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), hostApp, {
-      appContainerId: appId, appContainerName: appName, appImageId, appPort: 43123, networkName, previousMemberIds: endpoint.memberIds, projectName,
-    }),
+    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${hostApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   const publicApp = appProjection.replace('"127.0.0.1"', '"0.0.0.0"');
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), publicApp, {
-      appContainerId: appId, appContainerName: appName, appImageId, appPort: 43123, networkName, previousMemberIds: endpoint.memberIds, projectName,
-    }),
+    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${publicApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   const extraNetworkApp = projectedContainer({
@@ -861,9 +1121,7 @@ test("internal recovery network derives the Supabase API target and proves one l
     networks: { ...containerNetwork(appName), bridge: { NetworkID: "f".repeat(64), Aliases: [appName] } },
   });
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), extraNetworkApp, {
-      appContainerId: appId, appContainerName: appName, appImageId, appPort: 43123, networkName, previousMemberIds: endpoint.memberIds, projectName,
-    }),
+    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${extraNetworkApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   const extraPublishedPortApp = projectedContainer({
@@ -879,10 +1137,23 @@ test("internal recovery network derives the Supabase API target and proves one l
     networks: containerNetwork(appName),
   });
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), extraPublishedPortApp, {
-      appContainerId: appId, appContainerName: appName, appImageId, appPort: 43123, networkName, previousMemberIds: endpoint.memberIds, projectName,
-    }),
+    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${extraPublishedPortApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
+  );
+  expectCode(
+    () => validateCandidateNetworkAttachment(
+      network({ ...supabaseMembers, [appId]: { Name: appName } }),
+      candidateProjection,
+      { ...candidateExpected, censusIds: [kongId, appId] },
+    ),
+    "candidate_container_census_mismatch",
+  );
+  const orphanId = "9".repeat(64);
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(supabaseMembers), baseProjection, {
+      apiUrl: "http://127.0.0.1:43121", censusIds: [...endpoint.memberIds, orphanId], networkName, projectName,
+    }),
+    "local_supabase_container_census_mismatch",
   );
 
   const verifiedIdentities = {
@@ -905,12 +1176,68 @@ test("internal recovery network derives the Supabase API target and proves one l
   assert.equal(JSON.stringify(durable).includes(appName), false);
 });
 
-test("immutable image proof binds Docker id or RepoDigest and revision", () => {
-  const digest = `evo-crm@sha256:${"e".repeat(64)}`;
-  const image = [{ Id: `sha256:${"d".repeat(64)}`, RepoDigests: [digest], Config: { Labels: { "org.opencontainers.image.revision": commit } } }];
-  assert.equal(validateImmutableImageInspection(image, digest).revision, commit);
-  expectCode(() => validateImmutableImageInspection(image, `evo-crm@sha256:${"f".repeat(64)}`), "app_image_digest_mismatch");
-  expectCode(() => validateImmutableImageInspection([{ ...image[0], Config: { Labels: {} } }], digest), "app_image_revision_missing");
+test("candidate image is locally built from sorted exact target blobs for linux/amd64", async (t) => {
+  const required = [".dockerignore", "Dockerfile", "package.json", "package-lock.json", "scripts/check-node-runtime.mjs"];
+  const listing = Buffer.from(required.map((path, index) => `100644 blob ${String(index + 1).repeat(40)}\t${path}\0`).join(""), "utf8");
+  assert.deepEqual(parseTargetTreeListing(listing).map(({ path }) => path), required);
+  const reversed = parseTargetTreeListing(Buffer.from([...required].reverse().map((path, index) => `100644 blob ${String(index + 1).repeat(40)}\t${path}\0`).join(""), "utf8"));
+  const ordered = orderedTargetEntries(reversed, "sha1");
+  assert.deepEqual(ordered.map(({ path }) => path), [...required].sort((left, right) => left.localeCompare(right, "en")));
+  assert.equal(ordered.find(({ path }) => path === required.at(-1)).oid, "1".repeat(40));
+  expectCode(() => orderedTargetEntries(reversed, "sha256"), "target_snapshot_object_format_mismatch");
+  expectCode(() => parseTargetTreeListing(Buffer.from(`120000 blob ${"a".repeat(40)}\tDockerfile\0`, "utf8")), "target_snapshot_git_entry_invalid");
+  expectCode(() => parseTargetTreeListing(Buffer.from(`100644 blob ${"a".repeat(40)}\t.GiT/config\0`, "utf8")), "target_snapshot_path_invalid");
+  expectCode(() => parseTargetTreeListing(Buffer.from(`100644 blob ${"a".repeat(40)}\t.g\u200cit/config\0`, "utf8")), "target_snapshot_path_invalid");
+  const blobRoot = mkdtempSync(join(tmpdir(), "evo-recovery-blob-"));
+  t.after(() => rmSync(blobRoot, { recursive: true, force: true }));
+  const blob = join(blobRoot, "blob.txt");
+  writeFileSync(blob, "hello\n", { mode: 0o600 });
+  assert.equal(await gitBlobOid(blob, "sha1"), "ce013625030ba8dba906f756967f9e9ca394464a");
+  const sha256Blob = createHash("sha256").update("blob 6\0hello\n").digest("hex");
+  assert.equal(await gitBlobOid(blob, "sha256"), sha256Blob);
+  const imageId = `sha256:${"d".repeat(64)}`;
+  const projectName = "evov3recoveryabcdef123456";
+  const archiveSha256 = "e".repeat(64);
+  const labels = {
+    "org.opencontainers.image.revision": targetCommit,
+    "evo.recovery.owner": projectName,
+    "evo.recovery.target-tree": targetFullTree,
+    "evo.recovery.snapshot-archive-sha256": archiveSha256,
+    "evo.recovery.build-network": "dependency-fetch-only",
+  };
+  const projection = `${JSON.stringify(imageId)}\t[]\t${JSON.stringify(labels)}\t"linux"\t"amd64"\n`;
+  const image = validateBuiltImageInspection(projection, {
+    archiveSha256,
+    imageId,
+    projectName,
+    targetCommit,
+    targetTree: targetFullTree,
+  });
+  assert.equal(image.id, imageId);
+  assert.equal(image.operatingSystem, "linux");
+  assert.equal(image.architecture, "amd64");
+  expectCode(() => validateBuiltImageInspection(projection.replace('"amd64"', '"arm64"'), {
+    archiveSha256,
+    imageId,
+    projectName,
+    targetCommit,
+    targetTree: targetFullTree,
+  }), "app_image_provenance_mismatch");
+  expectCode(() => validateBuiltImageInspection(projection, {
+    archiveSha256,
+    imageId,
+    projectName,
+    targetCommit,
+    targetTree: sourceFullTree,
+  }), "app_image_provenance_mismatch");
+  assert.match(source, /\["archive", "--format=tar", "--output", archive, repository\.target\.commit\]/u);
+  assert.match(source, /"--network=default"/u);
+  assert.match(source, /"--platform=linux\/amd64"/u);
+  assert.doesNotMatch(source, /"--network=none"/u);
+  assert.doesNotMatch(source, /\["hash-object", "--stdin-paths"\]/u);
+  assert.match(source, /image\.id,/u);
+  assert.match(source, /NODE_ENV: "production"/u);
+  assert.doesNotMatch(source, /NODE_ENV: "development"/u);
 });
 
 test("detached SSH signature accepts exact namespace and rejects receipt tamper/spoof", async (t) => {
@@ -1042,7 +1369,79 @@ test("cleanup inventory selects only the exact isolated Supabase contour", () =>
   ].join("\n"), project), [`supabase_db_${project}`, `supabase_storage_${project}`]);
   const network = `${project}_private`;
   assert.deepEqual(selectOwnedNetworkNames(`${network}\nbridge\n`, network), [network]);
+  const imageId = `sha256:${"d".repeat(64)}`;
+  assert.deepEqual(selectOwnedImageIds([
+    `${imageId}\tevo-v3-recovery-${project}:candidate\t${project}`,
+    `sha256:${"e".repeat(64)}\t<none>:<none>\t${project}`,
+  ].join("\n"), project), [imageId, `sha256:${"e".repeat(64)}`]);
   expectCode(() => selectOwnedContainerIds("bad", project), "cleanup_container_inventory_invalid");
+  expectCode(() => selectOwnedImageIds("bad", project), "cleanup_image_inventory_invalid");
+  expectCode(() => selectOwnedImageIds(`${imageId}\tunrelated:latest\tother`, project), "cleanup_image_inventory_invalid");
+});
+
+test("cleanup is local-only before container preflight and quarantines contradictory mutation state", async (t) => {
+  const createRoot = () => {
+    const root = mkdtempSync(join(tmpdir(), "evo-v3-managed-recovery-"));
+    chmodSync(root, 0o700);
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), "owned\n", { mode: 0o600 });
+    return root;
+  };
+  let runtimeCalls = 0;
+  const supervisor = {
+    stopAll: async () => true,
+    run: async () => {
+      runtimeCalls += 1;
+      throw new Error("container runtime must not be called");
+    },
+  };
+  const localRoot = createRoot();
+  const local = await cleanupState({
+    harnessRoot: localRoot,
+    containerPreflightPassed: false,
+    containerMutationAttempted: false,
+    networkCreated: false,
+    stackStarted: false,
+  }, supervisor, undefined);
+  assert.equal(local.containerPolicy, "local_only");
+  assert.equal(local.disposition, "remove");
+  assert.equal(runtimeCalls, 0);
+
+  const contradictoryRoot = createRoot();
+  t.after(() => {
+    const prefix = `${basename(contradictoryRoot)}.quarantine-`;
+    for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(prefix))) {
+      rmSync(join(tmpdir(), name), { recursive: true, force: true });
+    }
+  });
+  assert.equal(cleanupContainerPolicy({
+    containerPreflightPassed: false,
+    containerMutationAttempted: false,
+    networkCreated: true,
+    stackStarted: false,
+  }, false), "quarantine");
+  const quarantined = await cleanupState({
+    harnessRoot: contradictoryRoot,
+    containerPreflightPassed: false,
+    containerMutationAttempted: false,
+    networkCreated: true,
+    stackStarted: false,
+  }, supervisor, undefined);
+  assert.equal(quarantined.containerPolicy, "quarantine");
+  assert.equal(quarantined.disposition, "quarantine");
+  assert.equal(runtimeCalls, 0);
+});
+
+test("Supabase launcher pins the platform-native executable children", () => {
+  const chain = resolveSupabaseExecutableChain();
+  assert.match(chain.launcher.real, /node_modules\/supabase\/dist\/supabase\.js$/u);
+  assert.match(chain.native.real, /node_modules\/@supabase\/cli-[^/]+\/bin\/supabase(?:\.exe)?$/u);
+  assert.match(chain.go.real, /node_modules\/@supabase\/cli-[^/]+\/bin\/supabase-go(?:\.exe)?$/u);
+  assert.notEqual(chain.launcher.real, chain.native.real);
+  assert.equal(chain.packageVersion, "2.116.0");
+  assert.match(chain.binLinkSha256, /^[0-9a-f]{64}$/u);
+  assert.match(source, /supervisor\.run\(toolchain\.paths\.supabaseNative\.real/u);
+  assert.doesNotMatch(source, /supervisor\.run\(toolchain\.paths\.supabase\.real/u);
+  assert.match(source, /SUPABASE_GO_BINARY: paths\.supabaseGo\.real/u);
 });
 
 test("diagnostics are hash-only and implementation has no sync executor or synthetic actor path", () => {

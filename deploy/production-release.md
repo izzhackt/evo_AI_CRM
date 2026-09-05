@@ -56,7 +56,8 @@ The controller must stop before replacing `app` unless all are true:
    match the same reviewed revision;
 3. pinned SSH identity and known-host material are present;
 4. `/opt/evo-crm/.env.production` and `.env.waha` are protected, and the
-   application env passes the checked-in Supabase runtime contract;
+   application env points exactly to the candidate-sealed Supabase project ref
+   and passes the checked-in runtime contract;
 5. the managed Supabase project identity and migration ledger match without
    applying schema;
 6. Compose contains exactly `app` and `waha`, WAHA uses the reviewed digest,

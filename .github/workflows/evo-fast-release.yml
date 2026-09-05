@@ -58,8 +58,10 @@ jobs:
           EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
           EVO_RELEASE_WORKFLOW_REVISION: ${{ github.workflow_sha }}
           EVO_IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
         run: |
           set -Eeuo pipefail
+          [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
           short_revision=${EVO_RELEASE_REVISION:0:8}
           EVO_RELEASE_VERSION="r${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}-${short_revision}"
           export EVO_RELEASE_VERSION
@@ -104,8 +106,9 @@ jobs:
             --arg controllerSha256 "$controller_sha256" \
             --arg validatorSha256 "$validator_sha256" \
             --arg envExampleSha256 "$env_example_sha256" \
+            --arg supabaseProjectRef "$EVO_SUPABASE_PROJECT_REF" \
             --arg version "$EVO_RELEASE_VERSION" \
-            '{revision:$revision,workflowRevision:$workflowRevision,imageId:$imageId,archiveSha256:$archiveSha256,composeSha256:$composeSha256,controllerSha256:$controllerSha256,validatorSha256:$validatorSha256,envExampleSha256:$envExampleSha256,version:$version,os:"linux",architecture:"amd64"}' \
+            '{revision:$revision,workflowRevision:$workflowRevision,imageId:$imageId,archiveSha256:$archiveSha256,composeSha256:$composeSha256,controllerSha256:$controllerSha256,validatorSha256:$validatorSha256,envExampleSha256:$envExampleSha256,supabaseProjectRef:$supabaseProjectRef,version:$version,os:"linux",architecture:"amd64"}' \
             > /tmp/evo-production-release-image.json
 
       - name: Seal the production candidate
@@ -169,6 +172,7 @@ jobs:
         env:
           EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
           EVO_RELEASE_WORKFLOW_REVISION: ${{ github.workflow_sha }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
         run: |
           set -Eeuo pipefail
           metadata=/tmp/evo-production-candidate/evo-production-release-image.json
@@ -183,6 +187,8 @@ jobs:
           [[ -f "$env_example" && ! -L "$env_example" ]]
           [[ "$(jq -er '.revision' "$metadata")" == "$EVO_RELEASE_REVISION" ]]
           [[ "$(jq -er '.workflowRevision' "$metadata")" == "$EVO_RELEASE_WORKFLOW_REVISION" ]]
+          [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
+          [[ "$(jq -er '.supabaseProjectRef' "$metadata")" == "$EVO_SUPABASE_PROJECT_REF" ]]
           [[ "$(jq -er '.imageId' "$metadata")" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$(jq -er '.version' "$metadata")" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]]
           [[ "$(jq -er '.os' "$metadata")" == linux ]]
@@ -317,6 +323,7 @@ jobs:
           EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
           EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
         run: |
           set -Eeuo pipefail
           transfer_dir=$(cat /tmp/evo-production-release-transfer-dir)
@@ -326,7 +333,9 @@ jobs:
           controller_sha256=$(jq -er '.controllerSha256' /tmp/evo-production-release-image.json)
           validator_sha256=$(jq -er '.validatorSha256' /tmp/evo-production-release-image.json)
           env_example_sha256=$(jq -er '.envExampleSha256' /tmp/evo-production-release-image.json)
+          supabase_project_ref=$(jq -er '.supabaseProjectRef' /tmp/evo-production-release-image.json)
           release_version=$(jq -er '.version' /tmp/evo-production-release-image.json)
+          [[ "$supabase_project_ref" == "$EVO_SUPABASE_PROJECT_REF" ]]
           run_id="gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           set +e
           ssh evo-production bash -s -- \
@@ -347,7 +356,8 @@ jobs:
             "$run_id" \
             "$archive_sha256" \
             "$image_id" \
-            "$compose_sha256" <<'REMOTE' \
+            "$compose_sha256" \
+            "$supabase_project_ref" <<'REMOTE' \
             > /tmp/evo-production-release-result-line.json \
             2> /tmp/evo-production-release-controller-error.log
           set -Eeuo pipefail
@@ -388,6 +398,7 @@ jobs:
           export EVO_RELEASE_ARCHIVE_SHA256=${16}
           export EVO_RELEASE_EXPECTED_IMAGE_ID=${17}
           export EVO_RELEASE_EXPECTED_COMPOSE_SHA256=${18}
+          export EVO_SUPABASE_PROJECT_REF=${19}
           exec "$controller" deploy
           REMOTE
           release_status=$?

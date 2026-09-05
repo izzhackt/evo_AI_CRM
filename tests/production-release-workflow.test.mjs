@@ -117,6 +117,7 @@ test("runner-built immutable image and sealed transfer remain intact", () => {
     "controllerSha256",
     "validatorSha256",
     "envExampleSha256",
+    "supabaseProjectRef",
   ]) {
     assert.match(prepare, new RegExp(metadataField, "u"));
     assert.match(release, new RegExp(metadataField, "u"));
@@ -136,6 +137,8 @@ test("privileged controller bundle is sealed to the reviewed workflow revision",
 
   assert.match(revalidate, /\.workflowRevision/u);
   assert.match(revalidate, /EVO_RELEASE_WORKFLOW_REVISION/u);
+  assert.match(revalidate, /\.supabaseProjectRef/u);
+  assert.match(revalidate, /EVO_SUPABASE_PROJECT_REF/u);
   assert.match(
     revalidate,
     /sha256sum scripts\/evo-fast-release\.sh[\s\S]*\.controllerSha256/u,
@@ -183,6 +186,12 @@ test("remote hash mismatch aborts before the transferred controller executes", (
   assert.ok(execIndex > 0, "transferred controller must execute");
   assert.doesNotMatch(deploy, /EVO_RELEASE_ROOT\/scripts\/evo-fast-release\.sh/u);
   assert.match(deploy, /EVO_RELEASE_ENV_EXAMPLE_FILE="\$env_example"/u);
+  assert.match(
+    deploy,
+    /EVO_SUPABASE_PROJECT_REF: \$\{\{ vars\.EVO_SUPABASE_PROJECT_REF \}\}/u,
+  );
+  assert.match(deploy, /supabase_project_ref=\$\(jq -er '\.supabaseProjectRef'/u);
+  assert.match(deploy, /export EVO_SUPABASE_PROJECT_REF=\$\{19\}/u);
   assert.match(
     deploy,
     /for bundle_file in "\$archive" "\$controller" "\$validator" "\$env_example"/u,

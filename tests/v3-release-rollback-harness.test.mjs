@@ -92,11 +92,13 @@ test("rollback proof verifies exact restored identity and controller evidence", 
 });
 
 test("rollback harness cannot call real Supabase or provider mutation paths", () => {
-  assert.match(source, /supabase\.invalid/u);
+  assert.match(source, /https:\/\/aaaaaaaaaaaaaaaaaaaa\.supabase\.co/u);
   assert.match(source, /EVO_PLATFORM_WAHA_INGRESS_ENABLED=0/u);
   assert.match(source, /EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0/u);
+  assert.match(source, /EVO_SUPABASE_PROJECT_REF: "aaaaaaaaaaaaaaaaaaaa"/u);
   assert.match(source, /providersCalled: false/u);
-  assert.doesNotMatch(source, /supabase\.co|crm\.evoadmissions\.com|72\.62\.119\.112/u);
+  assert.doesNotMatch(source, /iosckaqtovbbnssqcpde|crm\.evoadmissions\.com|72\.62\.119\.112/u);
+  assert.doesNotMatch(source, /SUPABASE_ACCESS_TOKEN|EVO_P6D_SUPABASE_SECRET_KEY/u);
   assert.doesNotMatch(source, /api\/sendText|api\/sessions|api\/webhook|amoCRM|Gemini/u);
   assert.doesNotMatch(source, /\bssh\b|\bscp\b|\brsync\b/u);
 });

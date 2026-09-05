@@ -10,6 +10,7 @@ readonly IMAGE_LAYER_PATH_RE='^(blobs/sha256/[0-9a-f]{64}|[0-9a-f]{64}/layer\.ta
 readonly VERSION_RE='^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$'
 readonly SAFE_NAME_RE='^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$'
 readonly PROJECT_NAME_RE='^[a-z0-9][a-z0-9_-]{0,99}$'
+readonly SUPABASE_PROJECT_REF_RE='^[a-z0-9]{20}$'
 readonly ABSOLUTE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 readonly HEALTH_URL_RE='^(https://[A-Za-z0-9.-]+(:[0-9]{1,5})?|http://127\.0\.0\.1:[0-9]{1,5})/api/health$'
 
@@ -135,6 +136,7 @@ load_configuration() {
     EVO_RELEASE_COMPOSE_FILE \
     EVO_RELEASE_APP_ENV_FILE \
     EVO_RELEASE_EXTERNAL_HEALTH_URL \
+    EVO_SUPABASE_PROJECT_REF \
     EVO_WAHA_IMAGE_DIGEST; do
     require_variable "$variable"
   done
@@ -146,6 +148,7 @@ load_configuration() {
   require_absolute_path "$EVO_RELEASE_COMPOSE_FILE" "compose_path_invalid"
   require_absolute_path "$EVO_RELEASE_APP_ENV_FILE" "app_env_path_invalid"
   require_match "$EVO_RELEASE_EXTERNAL_HEALTH_URL" "$HEALTH_URL_RE" "health_url_invalid"
+  require_match "$EVO_SUPABASE_PROJECT_REF" "$SUPABASE_PROJECT_REF_RE" "supabase_project_ref_invalid"
   require_match "$EVO_WAHA_IMAGE_DIGEST" "$SHA256_RE" "waha_digest_invalid"
 
   EVO_RELEASE_ACTIVE_COMPOSE_FILE=${EVO_RELEASE_ACTIVE_COMPOSE_FILE:-$EVO_RELEASE_COMPOSE_FILE}
@@ -210,6 +213,7 @@ verify_env_contract() {
   node "$validator" \
     --example "$example_file" \
     --env "$EVO_RELEASE_APP_ENV_FILE" \
+    --supabase-project-ref "$EVO_SUPABASE_PROJECT_REF" \
     >/dev/null || fail "app_env_contract_invalid"
 }
 

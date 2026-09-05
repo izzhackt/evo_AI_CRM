@@ -14,7 +14,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const PLACEHOLDER = /(?:replace-with-|change-me|changeme|placeholder)/iu;
 const SUPABASE_PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]+$/u;
 const SUPABASE_SECRET_KEY = /^sb_secret_[A-Za-z0-9_-]{16,}$/u;
-const PRODUCTION_SUPABASE_ORIGIN = /^https:\/\/[a-z0-9]{20}\.supabase\.co\/?$/u;
+const SUPABASE_PROJECT_REF = /^[a-z0-9]{20}$/u;
 const REQUIRED_RUNTIME_VALUES = Object.freeze([
   "EVO_CRM_DOMAIN",
   "EVO_CADDY_NETWORK",
@@ -104,20 +104,26 @@ function isSupabaseSecretKey(value) {
   return SUPABASE_SECRET_KEY.test(value) || jwtRole(value) === "service_role";
 }
 
-function validatePublicSupabase(entries) {
+function validatePublicSupabase(entries, expectedSupabaseProjectRef) {
+  if (!SUPABASE_PROJECT_REF.test(expectedSupabaseProjectRef)) {
+    fail("expected_supabase_project_invalid");
+  }
   const urlValue = entries.get("NEXT_PUBLIC_SUPABASE_URL");
   try {
     const url = new URL(urlValue);
+    const expectedOrigin = `https://${expectedSupabaseProjectRef}.supabase.co`;
     if (
       url.protocol !== "https:" ||
       url.username !== "" ||
       url.password !== "" ||
-      url.hostname === "" ||
       url.search !== "" ||
       url.hash !== "" ||
-      (url.pathname !== "" && url.pathname !== "/")
+      url.pathname !== "/"
     ) {
       fail("public_supabase_url_invalid");
+    }
+    if (urlValue !== expectedOrigin || url.origin !== expectedOrigin) {
+      fail("public_supabase_project_mismatch");
     }
   } catch (error) {
     if (error instanceof AppEnvironmentContractError) throw error;
@@ -173,15 +179,18 @@ function validateEnabledFeatureConfiguration(entries) {
     if (
       !UUID.test(organizationId) ||
       organizationId === "00000000-0000-0000-0000-000000000000" ||
-      !isSupabaseSecretKey(serverKey) ||
-      !PRODUCTION_SUPABASE_ORIGIN.test(entries.get("NEXT_PUBLIC_SUPABASE_URL"))
+      !isSupabaseSecretKey(serverKey)
     ) {
       fail("enabled_feature_configuration_missing");
     }
   }
 }
 
-export function validateAppEnvironmentContract({ exampleText, actualText }) {
+export function validateAppEnvironmentContract({
+  exampleText,
+  actualText,
+  expectedSupabaseProjectRef,
+}) {
   const exampleEntries = parseEnvironmentText(exampleText);
   const actualEntries = parseEnvironmentText(actualText);
   for (const name of exampleEntries.keys()) {
@@ -204,7 +213,7 @@ export function validateAppEnvironmentContract({ exampleText, actualText }) {
   ) {
     fail("required_env_value_invalid");
   }
-  validatePublicSupabase(actualEntries);
+  validatePublicSupabase(actualEntries, expectedSupabaseProjectRef);
   validateFeatureFlags(actualEntries);
   validateEnabledFeatureConfiguration(actualEntries);
   return Object.freeze({ ok: true, code: "valid" });
@@ -228,20 +237,26 @@ function readClosedFile(path, { privateFile }) {
 function parseCli(argv) {
   if (!Array.isArray(argv)) fail("invalid_arguments");
   if (
-    argv.length === 4 &&
+    argv.length === 6 &&
     argv[0] === "--example" &&
-    argv[2] === "--env"
+    argv[2] === "--env" &&
+    argv[4] === "--supabase-project-ref"
   ) {
-    return Object.freeze({ examplePath: argv[1], envPath: argv[3] });
+    return Object.freeze({
+      examplePath: argv[1],
+      envPath: argv[3],
+      expectedSupabaseProjectRef: argv[5],
+    });
   }
   fail("invalid_arguments");
 }
 
 export function runAppEnvironmentContractCli(argv) {
-  const { examplePath, envPath } = parseCli(argv);
+  const { examplePath, envPath, expectedSupabaseProjectRef } = parseCli(argv);
   const files = {
     exampleText: readClosedFile(examplePath, { privateFile: false }),
     actualText: readClosedFile(envPath, { privateFile: true }),
+    expectedSupabaseProjectRef,
   };
   return validateAppEnvironmentContract(files);
 }

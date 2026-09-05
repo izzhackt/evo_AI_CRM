@@ -79,6 +79,12 @@ Variables:
 - `EVO_WAHA_IMAGE_DIGEST` — reviewed immutable private-WAHA digest; and
 - `EVO_SUPABASE_PROJECT_REF` — the one production project reference.
 
+The workflow seals that project reference into the candidate metadata, uses it
+for the read-only migration-ledger gate, passes the same value to the remote
+controller, and requires `.env.production` to contain exactly
+`NEXT_PUBLIC_SUPABASE_URL=https://<EVO_SUPABASE_PROJECT_REF>.supabase.co`.
+A different project or an arbitrary HTTPS origin stops before the app changes.
+
 The deploy key, variables, protected application environment and initial seed
 are #552 prerequisites. The one-time seed command also uses the exact reviewed
 controller installed during #552 preparation; routine automatic releases use

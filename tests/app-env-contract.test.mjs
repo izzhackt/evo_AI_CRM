@@ -18,6 +18,7 @@ import {
 
 const TEST_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const TEST_SECRET_KEY = "sb_secret_ssssssssssssssssssssssss";
+const TEST_SUPABASE_PROJECT_REF = "aaaaaaaaaaaaaaaaaaaa";
 
 const example = `
 EVO_CRM_DOMAIN=crm.evoadmissions.com
@@ -37,7 +38,7 @@ function valid(overrides = {}) {
   const values = {
     EVO_CRM_DOMAIN: "crm.evoadmissions.com",
     EVO_CADDY_NETWORK: "evo_public_web",
-    NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+    NEXT_PUBLIC_SUPABASE_URL: `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
     EVO_PLATFORM_ORGANIZATION_ID: TEST_ORGANIZATION_ID,
     EVO_PLATFORM_SUPABASE_SECRET_KEY: TEST_SECRET_KEY,
@@ -58,14 +59,22 @@ function jwt(role) {
 
 function expectInvalid(actual, code) {
   assert.throws(
-    () => validateAppEnvironmentContract({ exampleText: example, actualText: actual }),
+    () => validateAppEnvironmentContract({
+      exampleText: example,
+      actualText: actual,
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+    }),
     (error) => error instanceof AppEnvironmentContractError && error.code === code,
   );
 }
 
 test("accepts the Supabase successor runtime while allowing disabled optional integrations to stay empty", () => {
   assert.deepEqual(
-    validateAppEnvironmentContract({ exampleText: example, actualText: valid() }),
+    validateAppEnvironmentContract({
+      exampleText: example,
+      actualText: valid(),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+    }),
     { ok: true, code: "valid" },
   );
 });
@@ -139,6 +148,14 @@ test("rejects unsafe production flags and malformed public Supabase configuratio
     "public_supabase_url_invalid",
   );
   expectInvalid(
+    valid({ NEXT_PUBLIC_SUPABASE_URL: `https://${"b".repeat(20)}.supabase.co` }),
+    "public_supabase_project_mismatch",
+  );
+  expectInvalid(
+    valid({ NEXT_PUBLIC_SUPABASE_URL: "https://unrelated.example.com" }),
+    "public_supabase_project_mismatch",
+  );
+  expectInvalid(
     valid({ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_secret_forbidden" }),
     "public_supabase_key_invalid",
   );
@@ -154,6 +171,7 @@ test("rejects unsafe production flags and malformed public Supabase configuratio
     validateAppEnvironmentContract({
       exampleText: example,
       actualText: valid({ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: jwt("anon") }),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
     }),
     { ok: true, code: "valid" },
   );
@@ -170,7 +188,7 @@ test("enabled observability and WAHA ingress require complete server-only config
   );
 
   const platform = {
-    NEXT_PUBLIC_SUPABASE_URL: `https://${"a".repeat(20)}.supabase.co`,
+    NEXT_PUBLIC_SUPABASE_URL: `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co`,
   };
   assert.deepEqual(
     validateAppEnvironmentContract({
@@ -182,6 +200,7 @@ test("enabled observability and WAHA ingress require complete server-only config
         EVO_PLATFORM_WAHA_INGRESS_ENABLED: "1",
         EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "w".repeat(32),
       }),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
     }),
     { ok: true, code: "valid" },
   );
@@ -195,6 +214,7 @@ test("enabled observability and WAHA ingress require complete server-only config
         EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "o".repeat(32),
         EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt("service_role"),
       }),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
     }),
     { ok: true, code: "valid" },
   );
@@ -211,7 +231,15 @@ test("closed CLI validates private files without printing their values", () => {
     chmodSync(actualPath, 0o600);
     const accepted = spawnSync(
       process.execPath,
-      ["scripts/evo-app-env-contract.mjs", "--example", examplePath, "--env", actualPath],
+      [
+        "scripts/evo-app-env-contract.mjs",
+        "--example",
+        examplePath,
+        "--env",
+        actualPath,
+        "--supabase-project-ref",
+        TEST_SUPABASE_PROJECT_REF,
+      ],
       { encoding: "utf8" },
     );
     assert.equal(accepted.status, 0, accepted.stderr);
@@ -227,7 +255,15 @@ test("closed CLI validates private files without printing their values", () => {
     );
     const rejected = spawnSync(
       process.execPath,
-      ["scripts/evo-app-env-contract.mjs", "--example", examplePath, "--env", actualPath],
+      [
+        "scripts/evo-app-env-contract.mjs",
+        "--example",
+        examplePath,
+        "--env",
+        actualPath,
+        "--supabase-project-ref",
+        TEST_SUPABASE_PROJECT_REF,
+      ],
       { encoding: "utf8" },
     );
     assert.equal(rejected.status, 1);

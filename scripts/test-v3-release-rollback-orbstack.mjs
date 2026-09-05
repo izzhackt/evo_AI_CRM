@@ -162,6 +162,7 @@ function controllerEnvironment(overrides = {}) {
     EVO_RELEASE_DOCKER_STORAGE_PATH: harnessRoot,
     EVO_RELEASE_MIN_FREE_KB: "1048576",
     EVO_RELEASE_ROLLBACK_SEED: rollbackSeed,
+    EVO_SUPABASE_PROJECT_REF: "aaaaaaaaaaaaaaaaaaaa",
     EVO_CRM_APP_ENV_FILE: appEnvironmentFile,
     EVO_CRM_WAHA_ENV_FILE: wahaEnvironmentFile,
     EVO_TEST_HOST_PORT: String(hostPort),
@@ -413,7 +414,7 @@ function writeHarnessFiles() {
 
   const environment = `EVO_CRM_DOMAIN=rollback-proof.invalid
 EVO_CADDY_NETWORK=${networkName}
-NEXT_PUBLIC_SUPABASE_URL=https://aaaaaaaaaaaaaaaaaaaa.supabase.invalid
+NEXT_PUBLIC_SUPABASE_URL=https://aaaaaaaaaaaaaaaaaaaa.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_rollback_proof
 EVO_PLATFORM_SUPABASE_SECRET_KEY=sb_secret_rollback_proof_only_1234567890
 EVO_PLATFORM_ORGANIZATION_ID=11111111-1111-4111-8111-111111111111

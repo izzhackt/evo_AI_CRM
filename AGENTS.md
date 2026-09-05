@@ -100,6 +100,14 @@
   point. Missing access, a failed prerequisite or ambiguous external state
   still fails clearly. Provider enablement, webhook ownership transfer and live
   provider calls remain outside that authorization.
+- The owner's 2026-09-05 CI correction supersedes the earlier automatic
+  full-gate cadence. Routine PRs use scoped real tests, independent exact-head
+  review and the short protected PR workflow only. They must not automatically
+  replay the full PostgreSQL migration/RLS, local Supabase and Chromium suite,
+  and merging to `main` must not start that suite again. Run `EVO platform CI`
+  manually only once on a frozen exact-current-`main` release candidate (and
+  again only after that candidate SHA changes). Production release may consume
+  only that successful manual full-proof run, never the short PR check.
 - Historical V1/V2 code is not copied wholesale. Reuse managed Supabase,
   deployment and security capabilities that remain correct; retire SQLite,
   the development gate, local document storage, superseded workers/provider

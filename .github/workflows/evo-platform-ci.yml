@@ -1,12 +1,7 @@
 name: EVO platform CI
 
 on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,26 +11,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changed-range:
-    if: github.event_name == 'pull_request'
-    name: Changed range
+  main_admission:
+    name: Current main admission
     runs-on: ubuntu-latest
     steps:
-      - name: Check out full history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Refresh the main release baseline
-        run: git fetch --no-tags origin main:refs/remotes/origin/main
-
-      - name: Reject whitespace errors in the complete release diff
+      - name: Admit only the exact current main revision
         env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: git diff --check "origin/main..$HEAD_SHA"
+          EVO_API_URL: ${{ github.api_url }}
+          EVO_EXPECTED_REPOSITORY: izzhackt/evo_AI_CRM
+          EVO_EVENT_NAME: ${{ github.event_name }}
+          EVO_REF: ${{ github.ref }}
+          EVO_REF_NAME: ${{ github.ref_name }}
+          EVO_REPOSITORY: ${{ github.repository }}
+          EVO_SHA: ${{ github.sha }}
+          EVO_WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          set -Eeuo pipefail
+          node <<'NODE'
+          const env = process.env;
+          const fail = () => {
+            process.stderr.write("::error::manual_platform_ci_admission_failed\n");
+            process.exit(2);
+          };
+          const exact = (name, value) => {
+            if (env[name] !== value) fail();
+          };
+          const main = async () => {
+            exact("EVO_EXPECTED_REPOSITORY", "izzhackt/evo_AI_CRM");
+            exact("EVO_EVENT_NAME", "workflow_dispatch");
+            exact("EVO_REF", "refs/heads/main");
+            exact("EVO_REF_NAME", "main");
+            exact("EVO_REPOSITORY", env.EVO_EXPECTED_REPOSITORY);
+            if (!/^[0-9a-f]{40}$/u.test(env.EVO_SHA ?? "")) fail();
+            exact("EVO_WORKFLOW_SHA", env.EVO_SHA);
+            const response = await fetch(
+              `${env.EVO_API_URL}/repos/${env.EVO_EXPECTED_REPOSITORY}/git/ref/heads/main`,
+              {
+                headers: {
+                  Accept: "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                },
+                redirect: "error",
+                signal: AbortSignal.timeout(15_000),
+              },
+            );
+            if (!response.ok) fail();
+            const payload = await response.json();
+            if (payload?.object?.type !== "commit" || payload?.object?.sha !== env.EVO_SHA) fail();
+            process.stdout.write('{"ok":true,"code":"manual_platform_ci_admitted"}\n');
+          };
+          main().catch(fail);
+          NODE
 
   crm_product:
     name: Main CRM product
+    needs: main_admission
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -77,6 +107,7 @@ jobs:
 
   dependency_audit:
     name: Dependency audit
+    needs: main_admission
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -157,14 +188,17 @@ jobs:
     name: Main CRM
     if: ${{ always() }}
     needs:
+      - main_admission
       - crm_product
       - dependency_audit
     runs-on: ubuntu-latest
     steps:
       - name: Require product and dependency gates
         env:
+          ADMISSION_RESULT: ${{ needs.main_admission.result }}
           PRODUCT_RESULT: ${{ needs.crm_product.result }}
           AUDIT_RESULT: ${{ needs.dependency_audit.result }}
         run: |
+          test "$ADMISSION_RESULT" = "success"
           test "$PRODUCT_RESULT" = "success"
           test "$AUDIT_RESULT" = "success"

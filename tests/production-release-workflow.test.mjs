@@ -39,21 +39,23 @@ function jobStepNames(releaseJob) {
 const build = job("build", "deploy");
 const deploy = job("deploy");
 
-test("the release stays coarse-unarmed and admits only successful exact-main CI", () => {
+test("the release stays coarse-unarmed and admits only successful manual exact-main CI", () => {
   assert.match(workflow, /^name: EVO fast app release$/mu);
   assert.match(workflow, /^  workflow_run:$/mu);
   assert.match(workflow, /^      - EVO platform CI$/mu);
   assert.match(workflow, /^      - completed$/mu);
   assert.match(workflow, /^      - main$/mu);
-  assert.doesNotMatch(workflow, /workflow_dispatch/u);
+  assert.doesNotMatch(workflow, /^  workflow_dispatch:/mu);
   assert.match(workflow, /^permissions: \{\}$/mu);
   assert.match(workflow, /^  cancel-in-progress: false$/mu);
 
   for (const releaseJob of [build, deploy]) {
-    assert.match(releaseJob, /github\.event\.workflow_run\.event == 'push'/u);
+    assert.match(releaseJob, /github\.event\.workflow_run\.event == 'workflow_dispatch'/u);
     assert.match(releaseJob, /github\.event\.workflow_run\.conclusion == 'success'/u);
     assert.match(releaseJob, /github\.event\.workflow_run\.head_branch == 'main'/u);
     assert.match(releaseJob, /vars\.EVO_PRODUCTION_RELEASE_ARMED == 'true'/u);
+    assert.match(releaseJob, /exact\("EVO_UPSTREAM_EVENT", "workflow_dispatch"\)/u);
+    assert.doesNotMatch(releaseJob, /workflow_run\.event == 'push'|exact\("EVO_UPSTREAM_EVENT", "push"\)/u);
   }
   assert.match(deploy, /^    needs: build$/mu);
   assert.match(deploy, /needs\.build\.result == 'success'/u);
@@ -219,6 +221,8 @@ test("control-token and Supabase guards are isolated and immediately precede mut
     assert.match(step, /actions\/variables\/\$\{name\}/u);
     assert.match(step, /check-runs\?filter=latest&per_page=100/u);
     assert.match(step, /run\?\.name === "Main CRM"/u);
+    assert.match(step, /ci\?\.event !== "workflow_dispatch"/u);
+    assert.doesNotMatch(step, /ci\?\.event !== "push"/u);
     assert.match(step, /run\?\.app\?\.slug === "github-actions"/u);
     assert.match(step, /EVO_RELEASE_RUN_ATTEMPT: \$\{\{ github\.run_attempt \}\}/u);
     assert.match(step, /evo-v3-production-\$\{env\.EVO_RELEASE_REVISION\}-\$\{env\.EVO_RELEASE_RUN_ID\}-\$\{env\.EVO_RELEASE_RUN_ATTEMPT\}/u);

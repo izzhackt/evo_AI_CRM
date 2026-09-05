@@ -1498,10 +1498,12 @@ test("release runbooks install the controller before sealing and provide complet
 test("workflow binds exact green main to one runner-built immutable release", () => {
   const workflow = readFileSync(".github/workflows/evo-fast-release.yml", "utf8");
   assert.match(workflow, /workflow_run:/u);
+  assert.match(workflow, /github\.event\.workflow_run\.event == 'workflow_dispatch'/u);
   assert.match(workflow, /EVO_PRODUCTION_RELEASE_ARMED/u);
   assert.match(workflow, /cancel-in-progress: false/u);
   assert.match(workflow, /git\/ref\/heads\/main/u);
   assert.match(workflow, /EVO_RELEASE_WORKFLOW_SHA", env\.EVO_UPSTREAM_HEAD_SHA/u);
+  assert.doesNotMatch(workflow, /github\.event\.workflow_run\.event == 'push'|EVO_UPSTREAM_EVENT", "push"|ci\?\.event !== "push"/u);
   assert.doesNotMatch(workflow, /fast-release-ci-gate\.mjs/u);
   assert.equal((workflow.match(/check-runs\?filter=latest&per_page=100/gu) ?? []).length, 2);
   assert.equal((workflow.match(/run\?\.name === "Main CRM"/gu) ?? []).length, 2);
@@ -1524,11 +1526,22 @@ test("workflow binds exact green main to one runner-built immutable release", ()
 
 test("active platform CI executes only the root successor product", () => {
   const workflow = readFileSync(".github/workflows/evo-platform-ci.yml", "utf8");
+  const fastPr = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
   const auditAllowlist = readFileSync("scripts/check-npm-audit-allowlist.mjs", "utf8");
+  assert.match(workflow, /^  workflow_dispatch:$/mu);
+  assert.doesNotMatch(workflow, /^  pull_request:|^  push:/mu);
+  assert.match(workflow, /^  main_admission:\n    name: Current main admission$/mu);
+  assert.match(workflow, /exact\("EVO_EVENT_NAME", "workflow_dispatch"\)/u);
+  assert.match(workflow, /exact\("EVO_REF", "refs\/heads\/main"\)/u);
+  assert.match(workflow, /exact\("EVO_WORKFLOW_SHA", env\.EVO_SHA\)/u);
+  assert.match(workflow, /git\/ref\/heads\/main/u);
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
   assert.match(workflow, /^  crm_product:\n    name: Main CRM product$/mu);
+  assert.match(workflow, /^    needs: main_admission$/mu);
   assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
-  assert.match(workflow, /needs:\n      - crm_product\n      - dependency_audit/u);
+  assert.match(workflow, /needs:\n      - main_admission\n      - crm_product\n      - dependency_audit/u);
+  assert.match(workflow, /ADMISSION_RESULT: \$\{\{ needs\.main_admission\.result \}\}/u);
+  assert.match(workflow, /test "\$ADMISSION_RESULT" = "success"/u);
   assert.match(workflow, /PRODUCT_RESULT: \$\{\{ needs\.crm_product\.result \}\}/u);
   assert.match(workflow, /AUDIT_RESULT: \$\{\{ needs\.dependency_audit\.result \}\}/u);
   assert.match(workflow, /test "\$PRODUCT_RESULT" = "success"/u);
@@ -1556,6 +1569,20 @@ test("active platform CI executes only the root successor product", () => {
   assert.doesNotMatch(workflow, /EVO Inbox|EVO Lead Agent/u);
   assert.doesNotMatch(workflow, /Prepare P8|refs\/pull\/179|6ee93bd/u);
   assert.doesNotMatch(workflow, /izzhacktcodex\/waha-integration/u);
+
+  assert.match(fastPr, /^name: EVO fast PR checks$/mu);
+  assert.match(fastPr, /^  pull_request:$/mu);
+  assert.doesNotMatch(fastPr, /^  push:|^  workflow_dispatch:/mu);
+  assert.match(fastPr, /^  changed-range:\n    name: Changed range$/mu);
+  assert.match(fastPr, /^  fast-checks:\n    name: Fast checks$/mu);
+  assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Changed range$/gmu) ?? []).length, 1);
+  assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Fast checks$/gmu) ?? []).length, 1);
+  assert.match(fastPr, /run: npm ci/u);
+  assert.match(fastPr, /run: npm run test:fast-release/u);
+  assert.match(fastPr, /run: npm run lint/u);
+  assert.match(fastPr, /run: npm run typecheck/u);
+  assert.match(fastPr, /run: npm run build/u);
+  assert.doesNotMatch(fastPr, /test:database:local|test:security|test:unit|playwright|supabase/iu);
 });
 
 test("version endpoint stays staff-authenticated while public health stays minimal", () => {

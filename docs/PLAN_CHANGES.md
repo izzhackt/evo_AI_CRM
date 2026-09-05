@@ -18562,3 +18562,31 @@ contour and then exited non-zero. #551 therefore remains open and #552 remains
 unarmed until real named Sales and Admissions identities exist in the managed
 authority and the same three-role recovery/browser assertions pass. This is a
 real staff-data prerequisite, not a request for routine repository approval.
+
+## 2026-09-05 - Re-run recovery after the migration 116 scanner correction
+
+Block-ID: `EVO-V3-H-MANAGED-RECOVERY-M116-RERUN-2026-09-05`
+
+Change type: exact-current-main recovery evidence correction.
+Affected plan section: Order 7 / Issue #551.
+
+While the recovery consumer was being validated, `main` advanced to
+`eb5b509ea3db7fa2e7bd71cc00e79c1bf7668e13` with the reviewed scanner
+transaction correction and forward migration 116. The earlier successful safe
+run remains accurate for its recorded commit, but it is not current-main proof
+for the changed scanner data path.
+
+The consumer was rebased onto that exact `main` and run again from exact clean
+commit `e149c5f8974f1906322cade6f6570fe5b02a2f2f`. The same signed export and
+independent trust inputs passed. Postgres/Auth restore, the separate Storage
+boundary, exact root ledger `001` through `116`, Admin RLS/browser behavior,
+private signed Storage access, migration 116 scanner transaction path, clean,
+EICAR, outage and recovery outcomes, provider blocking and exact disposable
+cleanup all passed. The new validated aggregate-only mode-`0600` result has
+SHA-256 `1cccebf22153b092109257c330f802aabc54f0b1a7e5c22c5977273f897427a5`.
+
+The overall result remains deliberately `not_ready` with the same sole
+acceptance blocker: the real authenticated source contains Admin but no real
+Sales or Admissions identities. No synthetic identity was created. #552 stays
+unarmed until those named staff identities exist and the same exact-current-main
+rehearsal proves both missing roles.

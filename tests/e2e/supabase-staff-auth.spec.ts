@@ -1066,7 +1066,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(caseLink).toHaveAttribute("href", caseHref);
 
   await page.goto(`/v3/profile?id=${leadId}&case_q=${studentCaseId}`);
-  await expect(page.getByTestId("v3-student-case-filter-rejected")).toBeVisible();
+  await expect(page.getByText(
+    "Профиль не открыт: адрес должен содержать только один точный идентификатор без параметров каталога.",
+  )).toBeVisible();
+  await expect(page.getByTestId("v3-student-case-directory")).toHaveCount(0);
   await expect(page.getByTestId("v3-student-case-row")).toHaveCount(0);
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
 

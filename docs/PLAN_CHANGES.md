@@ -19435,3 +19435,100 @@ The failed exact candidate retained only redacted mode-`0600` evidence and
 completed owned cleanup with disposition `remove`. No managed Supabase,
 production, VPS, provider, webhook or customer state was contacted or mutated;
 #552 remains unarmed.
+
+## 2026-09-05 - Enforce private scanner ports and actionable browser failures
+
+Block-ID: `EVO-V3-H-RECOVERY-SCANNER-PORT-BROWSER-DIAGNOSTIC-2026-09-05`
+
+Change type: independent-review isolation correction plus real-runtime
+diagnostic correction. Affected plan section: Order 7 / Issue #551.
+
+Independent exact-head review found that the candidate-network validator
+parsed the private ClamAV scanner's port bindings but did not require the
+published set to be empty. The next real rehearsal then passed signed restore,
+forward migrations, Storage, authorization, role outcomes, the private
+document path and candidate startup, but a raw Playwright error was collapsed
+to an unactionable `unexpected_failure` during browser proof.
+
+Decision: reject any published scanner binding even when it is loopback-only,
+while retaining the candidate app's one exact loopback binding. Convert every
+unexpected browser operation error into a phase-specific fail-closed code with
+only a bounded category, error class, message length and message SHA-256; raw
+browser text, URLs, credentials and customer data never enter evidence.
+Regression tests cover the forbidden scanner bind and sanitized browser
+diagnostic shape.
+
+The failed exact contour retained only redacted mode-`0600` evidence and
+completed owned cleanup with disposition `remove`. No managed Supabase,
+production, VPS, provider, webhook or customer state was contacted or mutated;
+#552 remains unarmed.
+
+## 2026-09-05 - Bind the isolated recovery runtime to reviewed binaries and bounded network proof
+
+Block-ID: `EVO-V3-H-RECOVERY-RUNTIME-TRUST-CORRECTION-2026-09-05`
+
+Change type: independent security-review correction. Affected plan section:
+Order 7 / Issue #551.
+
+Security review found that the earlier isolated contour attested some runtime
+properties too broadly: the Supabase service image set was inspected but not
+matched to a reviewed service-to-image allowlist; Chromium could be selected
+through ambient Playwright state and was not under an operating-system network
+policy; the CDP and restored-document redirect coordinates were not exact; and
+one database TCP denial probe did not describe the app and scanner contours.
+
+Decision: require exact pre-start tag and post-start container image IDs for the
+six local Supabase services. Bind Chromium to one reviewed macOS/arm64
+Playwright revision, canonical path, owner/mode, product version and SHA-256
+before it is executed, reject `PLAYWRIGHT_BROWSERS_PATH`, validate the exact
+loopback CDP endpoint, and run the browser through a `sandbox-exec` profile that
+permits loopback but denies other outbound IP traffic. Prove that profile with
+an allowed loopback control and an `EPERM` public TCP denial. Keep Playwright
+HTTP and WebSocket interception as a second application-layer assertion.
+
+The Docker claim is narrowed to what is measured: disabled bridge masquerading,
+exact one-network membership and aliases, unchanged Supabase container shapes,
+no scanner-published port, one exact loopback app port, and separate private-
+network positive controls plus bounded public IPv4 TCP/443 denial probes from
+the database, app and scanner containers. The restored document browser proof
+must bind its redirect to the exact immutable database bucket/object mapping
+before remapping the signed URL to the disposable local Storage endpoint.
+
+These changes affect only the isolated local recovery harness and its redacted
+evidence. No managed Supabase, production, VPS, provider, webhook or customer
+state is contacted or mutated; #552 remains unarmed until #551 produces a
+complete exact-main result.
+
+## 2026-09-05 - Bind the complete browser and Playwright execution closure
+
+Block-ID: `EVO-V3-H-RECOVERY-BROWSER-CLOSURE-2026-09-05`
+
+Change type: independent security-review correction. Affected plan section:
+Order 7 / Issue #551.
+
+Exact-head review found that the earlier browser attestation covered the small
+macOS Chromium launcher but not the loaded application framework/helpers or the
+Playwright JavaScript that controls CDP. It also executed `Chromium --version`
+directly before the operating-system sandbox control was proved.
+
+Decision: before dynamic import or browser execution, bind the exact lockfile
+version, registry URL and integrity for `@playwright/test`, `playwright`,
+`playwright-core` and the macOS optional runtime, then verify deterministic
+installed-tree manifests for all four packages. Bind the complete Chromium
+application bundle with a sorted manifest of every directory, file byte digest,
+mode and contained relative symlink, while requiring current-user ownership and
+rejecting group/world-writable files or directories. Resolve the package entry
+with Node's module-relative `import.meta.resolve()` and require it to remain
+inside the reviewed package root before import. Copy all verified package trees
+and the complete browser bundle without following symlinks into the unique
+private marked recovery root; require the source manifest to remain unchanged
+through the copy and the destination manifest to match exactly, then import and
+execute only that snapshot. Run both version inspection and the evidence browser
+only through the already verified `sandbox-exec` policy, after its positive and
+negative network controls pass.
+
+The package-resolution behavior follows Node's official ESM contract:
+<https://nodejs.org/download/release/latest-jod/docs/api/esm.html#importmetaresolvespecifier>.
+This correction changes only the isolated local recovery consumer, its tests
+and plan contract. It does not contact or mutate managed Supabase, production,
+VPS, providers, webhooks or customer state; #552 remains unarmed.

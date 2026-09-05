@@ -31,11 +31,13 @@ or build, its secretless admission step requires all of the following:
 4. the triggering head repository full name equals this repository exactly;
 5. the 40-character `workflow_run.head_sha` equals freshly fetched current
    `origin/main`;
-6. the raw value of `EVO_PRODUCTION_RELEASE_ARMED` is the exact lowercase
+6. the job-dispatch snapshot of the raw value of
+   `EVO_PRODUCTION_RELEASE_ARMED` is the exact lowercase
    literal `true`; and
-7. the original workflow actor's `github.actor_id` exactly equals the raw
-   GitHub repository variable `EVO_PRODUCTION_RELEASE_ACTOR_ID` configured in
-   #552. The variable and context value are compared as strings without
+7. the original workflow actor's `github.actor_id` exactly equals the
+   job-dispatch snapshot of the raw GitHub repository variable
+   `EVO_PRODUCTION_RELEASE_ACTOR_ID` configured in #552. The variable and
+   context value are compared as strings without
    trimming or numeric conversion. `github.triggering_actor`, including a
    different rerun initiator, cannot supply or elevate that authorization.
 
@@ -82,7 +84,7 @@ until all hashes and labels pass; after load, its actual identity must match the
 sealed manifest before transfer.
 
 Only after those secretless checks pass may later deploy steps reference the
-three named production secrets, each scoped to the minimum step that uses it.
+named production secrets, each scoped to the minimum step that uses it.
 The first secret-bearing operation is the least-privilege read-only Supabase
 migration-ledger query; it occurs before any SSH. No secret is placed in a
 job-level environment, artifact, output or evidence.
@@ -115,6 +117,20 @@ the server. The server preflight then verifies that the transferred manifest,
 image revision, digests and requested revision all equal that same release
 state before it may replace a container.
 
+GitHub interpolates `${{ vars.* }}` before a job is sent to its runner; those
+values therefore cannot prove that a repository variable is still unchanged at
+the later mutation boundary. The fresh pre-SSH guard and the separate
+pre-acceptance guard GET both variables through the GitHub Variables REST API
+using `EVO_GITHUB_VARIABLES_READ_TOKEN`. That credential is installed only on
+this repository with `Variables: read`, is not a production runtime/access
+credential, and is referenced only by those two exact steps. It is never
+available to `build`, initial deploy admission, candidate code, artifacts,
+checkout scripts, Supabase/VPS commands, the host controller or evidence. A
+non-200 response, unexpected JSON shape, missing value or unequal raw value is a
+sanitized hard stop. Prefer a dedicated GitHub App installation token; if #552
+uses a fine-grained PAT, it must be one-repository/read-only, expire, rotate and
+be revocable independently.
+
 GitHub documents that `workflow_run` may access secrets and write tokens even
 when the triggering workflow cannot, and warns that running untrusted code in
 that context can expose those privileges. GitHub documents that a rerun keeps
@@ -125,6 +141,9 @@ group limits a workflow to one running execution. See
 [reruns](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs),
 [workflow artifacts](https://docs.github.com/en/actions/tutorials/store-and-share-data#validating-artifacts),
 [artifact API identity](https://docs.github.com/en/rest/actions/artifacts#get-an-artifact),
+[configuration variables](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables),
+[Variables REST API](https://docs.github.com/en/rest/actions/variables),
+[GitHub token guidance](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token),
 and [concurrency](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency).
 
 ## Arming and configuration ownership
@@ -158,8 +177,15 @@ repository variables, logs or evidence.
 Required secrets when #552 configures the lane:
 
 - `EVO_DEPLOY_SSH_PRIVATE_KEY` — dedicated restricted deploy key;
-- `EVO_DEPLOY_KNOWN_HOSTS` — pre-verified Hermes host-key line; and
-- `SUPABASE_ACCESS_TOKEN` — least-privilege read-only migration-ledger lookup.
+- `EVO_DEPLOY_KNOWN_HOSTS` — pre-verified Hermes host-key line;
+- `SUPABASE_ACCESS_TOKEN` — least-privilege read-only migration-ledger lookup;
+- `EVO_GITHUB_VARIABLES_READ_TOKEN` — one-repository control-plane credential
+  limited to `Variables: read`, exposed only to the two fresh guards; and
+- `EVO_PRODUCTION_SMOKE_ADMIN_EMAIL` and
+  `EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD` — dedicated Admin smoke identity used
+  only to submit the Supabase Auth login form and then read `/v3/main` and
+  `/api/version`. It may not submit a business form, click a business mutation
+  control or exercise a provider.
 
 Required non-secret variables:
 
@@ -270,14 +296,19 @@ exact wrapper must restore its recorded rollback target before another release.
 Any app, accepted pointer or pending pointer with a missing, mutable, ambiguous,
 unrecognized or mutually inconsistent identity is a hard stop.
 
-Before replacing `app`, the controller atomically writes the mode-`0600`
-release state and protected `pending-current.json`. They bind the release ID,
-generation `v3`, source repository/SHA, workflow run ID/attempt, artifact ID and
-GitHub digest, image ID/config digest/archive SHA-256/OCI labels, intended
+Before replacing `app`, the controller create-once writes the immutable
+mode-`0600` release state and protected `pending-current.json`. They bind the
+release ID, generation `v3`, source repository/SHA, workflow run ID/attempt,
+artifact ID and GitHub digest, image ID/config digest/archive SHA-256/OCI
+labels, intended
 candidate identity, previous generation/release ID and every retained-file hash.
-Immediately after replacement and before health proof, the controller reopens
-the same state under the lock and records the observed candidate container ID;
-failure to do so triggers rollback and cannot proceed to acceptance. The
+Immediately after replacement and before health proof, the controller writes a
+separate create-once `candidate-runtime.json` bound to the immutable state hash,
+release/revision/image and observed candidate container ID. It never rewrites
+state or pending in a two-file pseudo-transaction. Missing runtime proof blocks
+acceptance, while an interruption before its creation can still roll back from
+the intact state/pending pair. A conflicting runtime receipt triggers rollback
+and cannot proceed to acceptance. The
 previous absent/V1/accepted-V3 state remains the authoritative rollback target
 while the candidate is pending. A failed or interrupted candidate never becomes
 accepted merely because its container is running; if automatic rollback cannot

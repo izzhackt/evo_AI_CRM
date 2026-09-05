@@ -283,8 +283,9 @@ in #552 after every prerequisite below passes.
    after its admission guard. It uploads once a run/SHA-qualified immutable
    image archive plus closed manifest and exposes the numeric artifact ID and
    GitHub SHA-256 digest. The separate `deploy` job receives no workspace/cache,
-   independently repeats every non-secret guard before production secret, SSH
-   or Supabase access, downloads only that same-run artifact ID, verifies the
+   independently repeats every non-secret guard from the job-dispatch variable
+   snapshot before production secret, SSH or Supabase access, downloads only
+   that same-run artifact ID, verifies the
    GitHub digest and manifest/archive/image/OCI identities, and never executes
    artifact-supplied scripts or Compose. Release code comes from its own second
    credentials-disabled exact-main checkout. Production secrets are scoped only
@@ -294,6 +295,14 @@ in #552 after every prerequisite below passes.
    variables, and repeats repository, event, branch, SHA, exact actor-ID,
    successful-CI, artifact ID/digests/manifest and migration-ledger gates. The
    server preflight independently binds that complete state to the candidate.
+   Because GitHub interpolates `${{ vars.* }}` before dispatching a job, the two
+   fresh variable re-reads use the Variables REST API and one repository-scoped
+   `EVO_GITHUB_VARIABLES_READ_TOKEN` limited to `Variables: read`. This narrow
+   control-plane exception is referenced only in the final pre-SSH and
+   pre-acceptance guards; it never reaches `build`, initial deploy admission,
+   candidate code, artifacts, checkout scripts, Supabase/VPS commands, the host
+   controller or evidence. Any API/schema/raw-value mismatch stops. #552 owns
+   its installation, rotation and revocation before arming.
 2. **Explicit fail-closed arm and actor binding.**
    `EVO_PRODUCTION_RELEASE_ARMED` is disabled when missing and permits release
    only when its raw value is the exact lowercase literal `true`.
@@ -302,8 +311,10 @@ in #552 after every prerequisite below passes.
    no whitespace, sign or leading zero. It is compared as a string with the
    original step-only `github.actor_id`; login, `github.triggering_actor`, write
    access alone and other config sources are not substitutes. Both variables
-   are checked before any secret-bearing, SSH, build or transfer step and again
-   immediately before production contact. #552 owns configuring the required
+   are checked from the secretless dispatch snapshot before any secret-bearing,
+   SSH, build or transfer step, then live through the narrowly scoped
+   Variables-read control credential immediately before production contact and
+   again before acceptance. #552 owns configuring the required
    secrets and both repository variables after its schema and pre-cutover gates
    pass; #551 only implements and tests the circuit breakers. One constant
    `evo-production-release` concurrency group with `cancel-in-progress: false`
@@ -332,7 +343,10 @@ in #552 after every prerequisite below passes.
    it writes exact release state and a protected pending pointer; the previous
    state remains authoritative and the sole rollback target while the candidate
    is pending. Failure/interruption never implies acceptance and an unresolved
-   pending candidate blocks another release.
+   pending candidate blocks another release. State and pending remain immutable;
+   after replacement a separate create-once `candidate-runtime.json` binds their
+   state hash to the observed container. Missing runtime proof blocks acceptance
+   but never prevents rollback from the intact state/pending pair.
 
    For first cutover and every later release, only the **Accept exact V3
    candidate** step in the fresh privileged deploy job, under the verified
@@ -407,6 +421,9 @@ warns against running untrusted code in that privileged workflow; its
 [reruns](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs),
 [workflow artifacts](https://docs.github.com/en/actions/tutorials/store-and-share-data#validating-artifacts),
 [artifact API identity](https://docs.github.com/en/rest/actions/artifacts#get-an-artifact),
+[configuration variables](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables),
+[Variables REST API](https://docs.github.com/en/rest/actions/variables),
+[GitHub token guidance](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token),
 and [concurrency](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency).
 
 #### Completed #585 Supabase application-runtime and UI replacement slice

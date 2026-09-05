@@ -17891,3 +17891,92 @@ Validation impact: rerun scoped Node 22 release-contract, link, append-only and
 whitespace checks and obtain fresh exact-head review. This append-only
 clarification does not retire staging, configure an arm, deploy, or mutate
 Supabase/production/provider state.
+
+## 2026-09-05 - Make #551 repository-variable freshness implementable
+
+Block-ID: `EVO-V3-H-LIVE-VARIABLE-GUARD-2026-09-05`
+
+Change type: implementation correction after official-platform verification.
+Affected plan section: Order 7 / Issue #551.
+
+GitHub evaluates `${{ vars.* }}` before a job is sent to its runner. The
+secretless admission checks defined above therefore bind the dispatch snapshot,
+but cannot truthfully constitute the fresh raw repository-variable re-read
+required immediately before production contact and acceptance. GitHub's
+workflow-token permission vocabulary also has no `variables: read` grant for
+the default `GITHUB_TOKEN`; the Variables REST API documents that repository
+variable reads require that permission.
+
+Decision:
+
+- retain both secretless admission checks before checkout, candidate code,
+  production credentials, Supabase and SSH. They compare the exact dispatch
+  snapshots of `EVO_PRODUCTION_RELEASE_ARMED` and
+  `EVO_PRODUCTION_RELEASE_ACTOR_ID` with no fallback or normalization;
+- perform the real fresh pre-SSH and pre-acceptance reads through the GitHub
+  Variables REST API using `EVO_GITHUB_VARIABLES_READ_TOKEN`, a credential
+  installed only on `izzhackt/evo_AI_CRM` with `Variables: read`. Prefer a
+  dedicated GitHub App installation token; a fine-grained PAT is acceptable
+  only when it is repository-scoped, read-only, expiring, rotated and separately
+  revocable;
+- treat that token as a narrow control-plane exception, not a production
+  runtime/access credential. It may be referenced only by the two final live
+  variable guards and must never reach `build`, initial deploy admission,
+  candidate code, artifacts, checkout scripts, Supabase/VPS commands, the host
+  controller, evidence or logs. Any HTTP, response-schema or raw-value mismatch
+  stops before mutation or acceptance;
+- #551 implements and tests this disabled boundary without creating the token,
+  variables or release arm. #552 owns installation, rotation/revocation and
+  exact live verification before setting the arm to `true`; and
+- #552 also provisions dedicated `EVO_PRODUCTION_SMOKE_ADMIN_EMAIL` and
+  `EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD` secrets for authenticated read-only V3
+  release proof. That identity may submit only the Supabase Auth login form,
+  then read `/v3/main` and `/api/version`; it must not submit business forms,
+  invoke provider paths or mutate business state.
+
+Validation impact: update the disabled workflow, release controller, focused
+contract tests and runbooks; run scoped Node 22 tests and a fresh independent
+exact-head review, then one exact-head CI. This correction does not configure a
+credential or variable, arm a release, contact the VPS, deploy, mutate Supabase,
+or exercise a provider.
+
+Official sources verified 2026-09-05:
+
+- GitHub configuration-variable evaluation:
+  <https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables>
+- GitHub Variables REST API and required fine-grained permission:
+  <https://docs.github.com/en/rest/actions/variables>
+- GitHub guidance for alternate GitHub App or PAT credentials when the default
+  workflow token lacks a required permission:
+  <https://docs.github.com/en/actions/tutorials/authenticate-with-github_token>
+
+## 2026-09-05 - Keep pending release state crash-consistent
+
+Block-ID: `EVO-V3-H-PENDING-RUNTIME-RECEIPT-2026-09-05`
+
+Change type: implementation correctness correction.
+Affected plan section: Order 7 / Issue #551.
+
+Recording the observed candidate container by rewriting `state.json` and then
+rewriting `pending-current.json` would create a crash window in which their
+hashes disagree and the same controller cannot prove or roll back its own
+pending release.
+
+Decision:
+
+- create-once write immutable `state.json` and `pending-current.json` before
+  application mutation and never update either as a two-file transaction;
+- after replacement, create-once write a separate mode-`0600`
+  `candidate-runtime.json` bound to the immutable state SHA-256, release ID,
+  revision, image ID and observed container ID;
+- acceptance requires the exact runtime receipt and binds it into the
+  deterministic acceptance record. An interruption before receipt creation
+  leaves rollback possible from the intact state/pending pair; a missing receipt
+  can never authorize acceptance; and
+- a retry accepts only a byte-identical state/runtime/browser tuple. Any
+  conflicting or superseding receipt, pending pointer or accepted pointer fails
+  closed.
+
+Validation impact: add deterministic interruption assertions around runtime
+receipt creation and pending/acceptance cleanup to the focused controller tests.
+This correction does not contact or mutate production, Supabase or providers.

@@ -243,6 +243,18 @@ The rehearsal applies every target migration after the restored database
 history and records the database-pending and target-only source-code suffixes
 separately.
 
+The signed 2026-09-05 source history contains exactly two legacy anomalies:
+`038 authorization_containment` and `039 private_inbox_media` have signed empty
+statement arrays even though their source Git migration files are non-empty.
+The consumer may accept only those exact version/name pairs as empty-history
+exceptions. It must bind each exact signed COPY-row hash and corresponding
+source-root Git file hash into durable evidence, while every other recorded row
+still requires exact statement-count and statement-digest identity. A different
+version, name, extra empty row, missing Git migration or reordered prefix fails
+closed. This is not permission to reconstruct or edit signed history: recovery
+still restores the signed schema/data artifacts and applies only the verified
+pending target suffix.
+
 The recovery target is bound to the exact clean target checkout, a verified
 private Git snapshot and a locally built `linux/amd64` production image that is
 run by inspected image ID. Locked dependency acquisition is the only build-time

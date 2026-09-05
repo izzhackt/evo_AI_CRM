@@ -655,6 +655,62 @@ test("exact history parser binds ordered full COPY rows and rejects reconstructi
   });
 });
 
+test("only the two signed empty-history anomalies are accepted and hash-bound", () => {
+  const ledger = extractExactMigrationLedger(historySql([
+    "038\t{}\tauthorization_containment",
+    "039\t{}\tprivate_inbox_media",
+  ]));
+  const summary = {
+    count: 2,
+    min_version: "038",
+    max_version: "039",
+    copy_rows_sha256: ledger.copyRowsSha256,
+  };
+  const rootEntry = (version, name, sql) => ({
+    version,
+    name,
+    bytes: Buffer.byteLength(sql),
+    sha256: hash(sql),
+    ...migrationStatementsDigest(sql),
+  });
+  const root = { entries: [
+    rootEntry("038", "authorization_containment", "select 38;"),
+    rootEntry("039", "private_inbox_media", "select 39;"),
+    rootEntry("040", "next", "select 40;"),
+  ] };
+  const verified = verifyLedgerAgainstRoot(ledger, root, summary);
+  assert.deepEqual(verified.pending.map(({ version }) => version), ["040"]);
+  assert.deepEqual(
+    verified.emptyStatementHistoryExceptions.map(({ version, name }) => ({ version, name })),
+    [
+      { version: "038", name: "authorization_containment" },
+      { version: "039", name: "private_inbox_media" },
+    ],
+  );
+  for (const exception of verified.emptyStatementHistoryExceptions) {
+    assert.match(exception.signedRowSha256, /^[a-f0-9]{64}$/u);
+    assert.match(exception.rootFileSha256, /^[a-f0-9]{64}$/u);
+  }
+  expectCode(() => extractExactMigrationLedger(historySql([
+    "038\t{}\twrong_name",
+  ])), "migration_statements_array_invalid");
+  expectCode(() => extractExactMigrationLedger(historySql([
+    "037\t{}\tauthorization_containment",
+  ])), "migration_statements_array_invalid");
+  expectCode(() => extractExactMigrationLedger(historySql([
+    "040\t{}\tnext",
+  ])), "migration_statements_array_invalid");
+  expectCode(
+    () => verifyLedgerAgainstRoot(ledger, {
+      entries: [
+        rootEntry("038", "authorization_containment", "select 38;"),
+        rootEntry("039", "wrong_name", "select 39;"),
+      ],
+    }, summary),
+    "migration_ledger_root_prefix_mismatch",
+  );
+});
+
 test("database pending migrations and source-code target suffix are independently bound", () => {
   const entry = (version, name) => {
     const sql = `select ${Number(version)};`;

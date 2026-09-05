@@ -78,6 +78,10 @@ const ADMIN_MEMBERSHIP_DENIAL = Object.freeze({
   sqlstate: "42501",
   domainSentinel: "admin_membership_permission_required",
 });
+const EMPTY_RECORDED_STATEMENT_EXCEPTIONS = Object.freeze({
+  "038": "authorization_containment",
+  "039": "private_inbox_media",
+});
 let activePrivateChildEnvironment;
 // Deliberately excludes Config.Env so inspect output can never capture runtime secrets.
 const SAFE_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}\t{{json .HostConfig.NetworkMode}}\t{{json .NetworkSettings.Ports}}\t{{json .NetworkSettings.Networks}}";
@@ -822,13 +826,21 @@ export function extractExactMigrationLedger(historySql) {
         fail("migration_history_row_invalid", "artifact_validation");
       }
       const parsedStatements = parsePostgresTextArray(statements);
-      if (parsedStatements.length === 0) fail("migration_statements_array_invalid", "artifact_validation");
+      if (
+        parsedStatements.length === 0 &&
+        EMPTY_RECORDED_STATEMENT_EXCEPTIONS[version] !== name
+      ) {
+        fail("migration_statements_array_invalid", "artifact_validation");
+      }
       rows.push(Object.freeze({
         version,
         name,
         row_sha256: sha256(`${lines[index]}\n`),
         statement_count: parsedStatements.length,
         statements_sha256: sha256(canonicalJson(parsedStatements)),
+        statement_evidence: parsedStatements.length === 0
+          ? "signed_empty_history_exception"
+          : "recorded_statements",
       }));
     }
     if (index >= lines.length || lines[index] !== "\\." || rows.length === 0) {
@@ -910,19 +922,35 @@ export function verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete
   const prefix = root.entries.slice(0, ledger.entries.length);
   if (
     prefix.length !== ledger.entries.length ||
-    prefix.some((entry, index) =>
-      entry.version !== ledger.entries[index].version ||
-      entry.name !== ledger.entries[index].name ||
-      entry.statementCount !== ledger.entries[index].statement_count ||
-      entry.statementsSha256 !== ledger.entries[index].statements_sha256)
+    prefix.some((entry, index) => {
+      const recorded = ledger.entries[index];
+      if (entry.version !== recorded.version || entry.name !== recorded.name) return true;
+      if (recorded.statement_count === 0) {
+        return recorded.statement_evidence !== "signed_empty_history_exception" ||
+          EMPTY_RECORDED_STATEMENT_EXCEPTIONS[recorded.version] !== recorded.name;
+      }
+      return recorded.statement_evidence !== "recorded_statements" ||
+        entry.statementCount !== recorded.statement_count ||
+        entry.statementsSha256 !== recorded.statements_sha256;
+    })
   ) {
     fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
   }
   if (requireComplete && root.entries.length !== prefix.length) fail("source_migration_ledger_not_complete", "migration_rehearsal");
+  const emptyStatementHistoryExceptions = ledger.entries.flatMap((recorded, index) =>
+    recorded.statement_count === 0
+      ? [Object.freeze({
+          version: recorded.version,
+          name: recorded.name,
+          signedRowSha256: recorded.row_sha256,
+          rootFileSha256: prefix[index].sha256,
+        })]
+      : []);
   return Object.freeze({
     source: Object.freeze(prefix),
     pending: Object.freeze(root.entries.slice(prefix.length)),
     orderedLedgerSha256: ledger.orderedLedgerSha256,
+    emptyStatementHistoryExceptions: Object.freeze(emptyStatementHistoryExceptions),
   });
 }
 
@@ -5418,6 +5446,8 @@ async function executeMode(mode, options) {
         restoredDatabaseCount: verifiedLedger.source.length,
         pendingDatabaseMigrationCount: verifiedLedger.pending.length,
         orderedLedgerSha256: verifiedLedger.orderedLedgerSha256,
+        emptyStatementHistoryExceptionCount: verifiedLedger.emptyStatementHistoryExceptions.length,
+        emptyStatementHistoryExceptionSha256: sha256(canonicalJson(verifiedLedger.emptyStatementHistoryExceptions)),
         sourceRecordedHistoryValidatedCount: sourceRoot.recordedHistoryCount,
         targetRecordedHistoryValidatedCount: targetRoot.recordedHistoryCount,
       }),

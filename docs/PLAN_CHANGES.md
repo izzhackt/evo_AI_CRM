@@ -18870,3 +18870,36 @@ This mapping does not weaken the two-route runtime contract, authorize a mock
 as provider evidence or add a second scanner path. It changes no managed
 Supabase, production, VPS, WAHA, amoCRM, Gemini, webhook, customer or provider
 state and does not arm #552.
+
+## 2026-09-05 - Bind the two signed empty migration-history anomalies
+
+Block-ID: `EVO-V3-H-SIGNED-EMPTY-MIGRATION-HISTORY-CORRECTION-2026-09-05`
+
+Change type: real-artifact recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The real signed managed-Supabase export proved that history rows
+`038 authorization_containment` and `039 private_inbox_media` contain exact
+empty statement arrays, while their migration files in the signed source Git
+tree are present and non-empty. Treating every empty array as corrupt therefore
+stopped the isolated rehearsal before restoration, but reconstructing arbitrary
+history from Git would weaken the signed-artifact boundary.
+
+Decision:
+
+- accept an empty signed history row only for those two exact version/name
+  pairs; a renamed, renumbered or additional empty row fails closed;
+- bind the exact signed COPY-row hash and corresponding source-root Git file
+  hash for each exception into the durable result, while all other history rows
+  retain exact statement-count and statement-digest comparison;
+- continue to require the signed history as an ordered prefix of both source
+  and target roots, the complete source root as an ordered prefix of the target,
+  and apply only the verified pending suffix after restoring the signed schema
+  and data; and
+- prohibit editing the backup, reconstructing a general ledger, inventing a
+  statement list or mutating managed Supabase to normalize the anomaly.
+
+This correction was derived from the immutable signed backup and affects only
+the disposable local OrbStack recovery consumer. It does not contact or mutate
+managed Supabase, production, VPS, WAHA, amoCRM, Gemini, webhooks, customer
+records or provider state, and it does not arm #552.

@@ -1,156 +1,412 @@
-# EVO V3 exact-main production release
+# EVO production-successor exact-SHA release runbook
 
-Status: active production-successor contract. The automatic controller details,
-settings and rollback command are in
-[fast-app-release.md](fast-app-release.md). The former five-container V1
-runbook remains historical-only at
+Status: #551 target V3 release contract. The checked-in automation remains
+unarmed and is not conformant until #551 implements and proves this contract;
+#552 owns production configuration and activation. This runbook replaces the
+former five-container V1 runbook, retained only at
 [`docs/archive/v1/production-release.md`](../docs/archive/v1/production-release.md).
+Nothing here authorizes a VPS or provider mutation by itself.
 
-## Release invariant
+## 1. Release invariant
 
-One candidate consists of:
+One release candidate contains:
 
-- the exact current `origin/main` SHA whose `EVO platform CI` push run passed;
-- one immutable linux/amd64 `evo-crm:<full-sha>` image with matching OCI
-  revision/version labels;
-- one reviewed immutable WAHA image digest and the existing private
-  `crm_primary` volume;
-- exactly the root `app` and private `waha` Compose services;
-- one managed Supabase project whose migration ledger exactly matches root
-  `supabase/`; and
-- a verified previous app image/Compose/env binding that can be restored
-  automatically.
+- one clean checkout at the exact current `origin/main` commit;
+- one linux/amd64 `evo-crm:<full-sha>` image built from that checkout;
+- one immutable WAHA image digest;
+- exactly two Compose services, `app` and private `waha`; and
+- one previously approved managed Supabase project whose migration ledger
+  matches root `supabase/`.
 
-The candidate never starts or falls back to the companion Inbox, Lead Agent,
-manual-send worker, SQLite, Drizzle, local staff gate, V1 sender/webhook,
-parallel UI, or another Supabase project.
+The candidate must not start, require, inspect, or fall back to a companion
+Inbox, Lead Agent, manual-send worker, SQLite database, Drizzle repository, V1
+sender/webhook, or second UI.
 
-## Authorization and activation
+The first V3 cutover may start from a genuinely absent `app` or from the one
+running frozen V1 app recorded by #552. A present app is eligible only when its
+exact image ID and OCI source/revision/version labels match either that approved
+V1 inventory or an accepted V3 release record; every unknown or ambiguous app
+stops the release. Private `waha`, `crm_primary` and all named volumes remain
+present and untouched. The candidate replaces the single app in place and never
+runs V1 and V3 concurrently. The exact V1 app remains a bounded rollback input
+only while the first V3 candidate remains pending; the named acceptance step
+during #552 makes that wrapper non-executable. V1 is never a permanent fallback.
 
-The owner’s 2026-09-04 direction authorizes #552 to perform the one V3
-production deployment and active-runtime retirement after #551 and every named
-prerequisite pass. Do not add a second routine approval or GitHub Environment
-reviewer. A missing prerequisite, ambiguous external state, failed recovery
-proof, or commit mismatch still stops the release.
+### Automatic entry and schema boundary
 
-The repository variable `EVO_AUTOMATED_PRODUCTION_RELEASE_ENABLED` must remain
-absent or not exactly `true` throughout #551. In #552, configure all release
-settings, use the reviewed controller once to seal the initial rollback source,
-install the reviewed Compose file, and then enable the variable immediately
-before the authorized exact-main cutover commit. Thereafter each successful
-push-main CI run enters the same serialized release lane automatically and
-executes only the controller bundle sealed from that exact main SHA.
+After #552 explicitly arms the fail-closed circuit breaker, a trusted successful
+same-repository push run of `EVO platform CI` for exact current `main` starts the
+app-only release automatically. There is no staging environment, manual
+workflow button or GitHub Environment reviewer pause. All runs use the constant
+`evo-production-release` concurrency group and never overlap.
 
-Provider calls, webhook ownership transfer, Supabase schema application,
-customer writes and WAHA session mutation remain separate actions. The release
-workflow does not perform them.
+The workflow has two fresh-runner trust domains. A secretless `build` job with
+explicit `contents: read` and no production Environment, secret, cache, SSH or
+Supabase access validates admission, performs a credentials-disabled exact-main
+checkout and builds the image. It uploads one immutable run/SHA-qualified
+artifact containing only the image archive and a closed manifest; the numeric
+artifact ID, GitHub SHA-256 digest, archive hash, image ID/config digest and OCI
+labels bind it to the workflow run, attempt and source SHA.
 
-## Stop conditions
+A separate fresh privileged `deploy` job receives no build workspace/cache. Its
+first secretless step independently validates success, `push`, `main`, exact
+repository/current-main SHA, arm and original actor ID before any production
+secret, SSH or Supabase access. It downloads only the exact same-run numeric
+artifact ID, requires the downloaded GitHub digest and every sealed manifest/
+archive/image field to match, and never executes an artifact-supplied script or
+Compose file. A second credentials-disabled checkout supplies the release code.
+Only after these checks may later steps receive individually scoped production
+secrets. Authorization requires byte-for-byte equality between the original
+`github.actor_id` and canonical repository variable
+`EVO_PRODUCTION_RELEASE_ACTOR_ID`; missing, empty, malformed or unequal values
+fail closed, and `github.triggering_actor` cannot elevate authorization. The
+complete guard, artifact and variable contract is in
+[`deploy/fast-app-release.md`](fast-app-release.md).
 
-The controller must stop before replacing `app` unless all are true:
+Immediately before the first SSH, transfer or production mutation, the deploy
+job freshly fetches `origin/main`, re-reads the raw arm and actor-ID variable,
+and repeats the exact actor comparison, repository/event/branch/SHA,
+successful-CI, artifact ID/GitHub digest/manifest and migration-ledger gates. A
+newer main commit, disabled arm, missing/malformed/mismatched actor ID, artifact
+drift or ledger drift stops before server contact. The server preflight
+independently binds the requested SHA, image labels, artifact digests and
+transferred manifest before container mutation.
 
-1. the triggering SHA is still exact current `origin/main` and its required
-   `Main CRM` check is green;
-2. the runner-built archive hash, image ID, linux/amd64 platform, OCI labels,
-   exact controller/validator/environment-contract hashes and workflow SHA all
-   match the same reviewed revision;
-3. pinned SSH identity and known-host material are present;
-4. `/opt/evo-crm/.env.production` and `.env.waha` are protected, and the
-   application env points exactly to the candidate-sealed Supabase project ref
-   and passes the checked-in runtime contract;
-5. the managed Supabase project identity and migration ledger match without
-   applying schema;
-6. Compose contains exactly `app` and `waha`, WAHA uses the reviewed digest,
-   and no forbidden network is attached;
-7. current runtime is either healthy `app+waha`, or healthy `waha` alone
-   plus the sealed initial rollback seed;
-8. the exact prior image exists and its recorded Compose and app-env hashes
-   still match;
-9. the single host release lock is available and any requested manual rollback
-   state names the exact currently deployed target revision; and
-10. capacity and health inputs pass.
+Supabase schema application remains a separate manual #552 action. The
+automatic workflow checks the migration ledger read-only and stops on mismatch;
+it never applies or rolls back schema. After a successful manual schema action,
+the operator uses **Re-run all jobs** on the stopped release workflow run for
+the same SHA. That rerun starts clean and repeats both trust gates, CI, arm,
+ledger, original-actor authorization, checkout and build; it never resumes or
+reuses the stopped run's artifacts or state. GitHub uses the privileges of the
+actor who originally triggered the workflow, not the rerun initiator. An
+original `github.actor_id` that does not exactly match the freshly read
+canonical `EVO_PRODUCTION_RELEASE_ACTOR_ID`, a SHA that is no longer current
+main, or any other guard failure cannot continue.
 
-Missing state is a hard failure. Do not substitute a mutable tag, fixture,
-SQLite, frozen service, second WAHA session, earlier checkout, or alternate
-host/project.
+## 2. Stop conditions
 
-## One-time #552 preparation
+Stop before any production command unless all of these are true:
 
-Before installing V3 over the active production paths:
+1. the owner-authorized #552 activation is in force and
+   `EVO_PRODUCTION_RELEASE_ARMED` is exactly `true`, and the original
+   `github.actor_id` exactly matches the configured canonical
+   `EVO_PRODUCTION_RELEASE_ACTOR_ID`;
+2. the commit is the current `origin/main` and its required exact-head CI is
+   green;
+3. the checkout is clean and contains no untracked release input;
+4. `/opt/evo-crm/.env.production` and `.env.waha` exist with protected
+   permissions; under the host lock, the app source is copied without symlink
+   following into one generation-owned mode-`0600` snapshot whose identity and
+   digest remain stable, and that snapshot passes the offline contract plus
+   bounded read-only key/project probes without printing values;
+5. the intended managed Supabase project identity and migration ledger were
+   verified read-only, and any required migration has its own approved gate;
+6. the existing `crm_primary` WAHA session and volume ownership are understood;
+7. separate recoverable pre-change database and private-Storage-byte artifacts
+   are identified and their isolated restore/migration rehearsal has passed;
+8. the real document scanner's clean/detected/unavailable/timeout/recovery gate
+   has passed; and
+9. the exact absent, approved-frozen-V1 or accepted-V3 pre-change app state and
+   literal rollback command are recorded; and
+10. #552's read-only staging inventory and exact retirement verification prove
+    no remote staging route, container, Compose project, network, volume,
+    executable root, GitHub `staging` Environment, exact managed Supabase
+    staging branch/project ref, active `docs/runbooks/u11-staging-recovery.md`
+    file or active link to it remains. Managed Supabase retirement requires the
+    exact organization/ref, non-production identity, data/Auth/Storage inventory
+    and recorded owner authorization; ambiguity keeps the arm disabled.
 
-1. resolve the retained old app by exact image ID and validate its OCI
-   revision/version labels;
-2. install the exact reviewed #551 controller required for the one-time seed
-   command while the previous Compose and `.env.production` remain unchanged;
-3. with the app absent and private WAHA healthy, execute
-   `seal-rollback-seed` exactly as documented in
-   [fast-app-release.md](fast-app-release.md);
-4. confirm the mode-0600 state and previous Compose hashes without displaying
-   `.env.production`;
-5. install the exact V3 Compose file; routine releases execute their own sealed
-   controller bundle rather than the host copy used for the one-time seed;
-6. configure repository secrets/variables with activation still false;
-7. prove DNS/TLS, recovery and schema prerequisites named by #552; and
-8. set activation true only for the authorized exact-main cutover.
+Missing Supabase, image, secret, network, volume, or provider state is a hard
+failure. Do not substitute fixtures, SQLite, a frozen service, a second WAHA
+session, a mutable tag, or an earlier checkout.
 
-Do not scan a new WhatsApp QR code. Preserve the existing `crm_primary` volume
-and do not call a provider in this preparation.
+### One-time #552 preparation
 
-## Verification
+Before the first successor release, install the exact reviewed #551 controller
+while the frozen previous Compose and `.env.production` remain unchanged. If
+the approved frozen-V1 rollback source requires the controller's
+`seal-rollback-seed` operation, invoke it only after that installation with the
+exact `EVO_SUPABASE_PROJECT_REF` and other documented non-secret values, then
+verify its mode-`0600` state and retained-file hashes without rendering the
+environment. Install the exact V3 Compose only after the seed succeeds. Routine
+releases use their own credentials-disabled exact-main checkout and transferred
+controller inputs, not this mutable host copy. Keep the release arm disabled
+through all preparation and do not call providers or rescan `crm_primary`.
 
-The automatic lane captures sanitized evidence for exact CI, migration ledger,
-candidate image/labels, result code, and rollback outcome. After the authorized
-cutover, verify:
+## 3. Pin and verify the candidate
+
+In Bash, set literal reviewed values; do not derive them from a dirty checkout:
 
 ```bash
-docker compose -p evo-crm -f /opt/evo-crm/docker-compose.prod.yml ps
+export EVO_RELEASE_REVISION='<full-40-character-main-sha>'
+export EVO_RELEASE_VERSION='<immutable-release-name>'
+export EVO_WAHA_IMAGE_DIGEST='sha256:<64-lowercase-hex>'
+export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'
+export EVO_CRM_APP_ENV_FILE='/opt/evo-crm/.env.production'
+export EVO_CRM_WAHA_ENV_FILE='/opt/evo-crm/.env.waha'
+[[ "$EVO_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+[[ "$EVO_WAHA_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+[[ "$EVO_RELEASE_VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]]
+export EVO_RELEASE_REPO="/opt/evo-releases/$EVO_RELEASE_REVISION/repo"
+```
+
+From the clean detached release checkout:
+
+```bash
+cd "$EVO_RELEASE_REPO"
+git fetch --prune origin main
+test "$(git rev-parse HEAD)" = "$EVO_RELEASE_REVISION"
+test "$(git rev-parse origin/main)" = "$EVO_RELEASE_REVISION"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
+```
+
+Do not print or upload a fully rendered Compose configuration because it may
+contain resolved secret values. Inventory only safe projections:
+
+```bash
+docker compose -p evo-crm -f docker-compose.prod.yml config --services
+docker compose -p evo-crm -f docker-compose.prod.yml config --images
+```
+
+The service output must be exactly `app` and `waha`. The image output must bind
+the app to the exact commit tag and WAHA to the reviewed digest.
+
+The host controller, not this operator shell, creates the protected
+generation-owned app-environment snapshot. Offline validation, the publishable
+key Auth-settings probe and the server-key Auth Admin read probe all target that
+same snapshot and exact Supabase origin. Every later Compose/rollback operation
+uses only that path/hash; replacement of the source `.env.production` after the
+copy cannot change the release input.
+
+## 4. Build and inspect once
+
+Build the first-party image from the exact checkout:
+
+```bash
+docker compose -p evo-crm -f docker-compose.prod.yml build app
+```
+
+Record the immutable image ID and verify both labels:
+
+```bash
+docker image inspect "evo-crm:$EVO_RELEASE_REVISION" \
+  --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "org.opencontainers.image.version"}}'
+```
+
+The revision must equal `EVO_RELEASE_REVISION` and the version must equal
+`EVO_RELEASE_VERSION`.
+
+Run the focused successor contract and inventory tests once on the final head:
+
+```bash
+npm run test:p6d
+```
+
+The result must include the sanitized dependency/path inventory and scoped
+legacy-reference inventory. It must not include environment values or secrets.
+
+Then run exactly one real disposable Supabase + app/private-WAHA candidate
+proof on OrbStack:
+
+```bash
+npm run test:p6d:orbstack
+```
+
+It must exercise the real Next.js image, real disposable Supabase/PostgreSQL
+stack and WAHA process; verify Auth/database/browser behavior, health, private
+network, resources and bounded logs; and confirm exactly two application
+Compose services. It must not reuse or alter the production WAHA volume or call
+a live provider.
+
+## 5. Authorized deployment
+
+Only after the stop conditions and #552 activation, transfer the already built
+exact image and immutable WAHA digest to the private transient directory on the
+target. Do not build from a live working tree or run a broad Compose project
+from another checkout.
+
+Before transfer, repeat the mutation guard above. Then inventory the live app
+without changing it and record exactly one state:
+
+- `previousAppPresent=false`, `previousAppGeneration=none`, with no app service
+  or conflicting container name;
+- `previousAppPresent=true`, `previousAppGeneration=v1`, matching #552's
+  approved frozen V1 image ID, OCI source/revision/version labels and retained
+  file hashes; or
+- `previousAppPresent=true`, `previousAppGeneration=v3`, matching a previously
+  accepted V3 release-evidence record.
+
+Any other present app stops before replacement. For a permitted present app,
+retain its exact image and hashed Compose/controller/protected configuration
+before mutation. The privileged deploy job must invoke only the exact
+transferred, checked-in controller's `deploy` operation. Under the host lock,
+that controller creates the protected pending/rollback state and the
+generation-owned mode-`0600` environment snapshot before it internally runs
+the single-app Compose replacement with `--no-deps --no-build --pull never`.
+There is no direct operator `docker compose up` entrypoint: every Compose and
+rollback operation must consume only the sealed snapshot and protected state.
+The replacement must not start a parallel V1 or V3 container.
+
+The controller must not recreate or restart `waha`, or operate the frozen
+`evo-inbox` project, Lead Agent, manual worker, Caddy, Supabase, or any V1
+container other than the single exact inventoried app being replaced. It must
+preserve the named WAHA session volume and keep WAHA off public networks.
+
+## 6. Verify the running boundary
+
+Capture only sanitized evidence:
+
+```bash
+docker compose -p evo-crm -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" ps
 docker inspect evo-crm-app-1 \
-  --format '{{.Image}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "org.opencontainers.image.version"}} {{.State.Health.Status}} {{.RestartCount}}'
+  --format '{{.Image}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{.State.Health.Status}} {{.RestartCount}}'
 docker inspect evo-crm-waha-1 \
   --format '{{.Image}} {{.State.Health.Status}} {{.RestartCount}}'
+docker exec evo-crm-app-1 node -e \
+  "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"
+docker exec evo-crm-waha-1 node -e \
+  "fetch('http://127.0.0.1:3000/ping').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"
 ```
 
-Then perform the named staff browser smoke against Supabase Auth, one canonical
-CRM read, same-organization access, cross-organization denial, and private
-Storage. A healthy container is not proof of WhatsApp delivery, amoCRM or
-Gemini; those remain separately controlled provider acceptance.
+Then perform the approved staff browser smoke against Supabase Auth and one
+read-only canonical CRM view. A healthy container alone is not proof of Auth,
+Postgres, Storage, WhatsApp delivery, amoCRM, Gemini, or customer workflow.
+Provider writes require their own explicit acceptance step.
 
-## Rollback
+Every V3 release remains a pending candidate until the exact step named
+**Accept exact V3 candidate** in the same privileged `deploy` job succeeds.
+That step runs only after the running image/config digest and OCI revision,
+container health/restart policy, internal health, public external health and
+authenticated read-only V3 browser smoke all bind to the candidate. Acting
+under the verified original `github.actor_id`, it invokes only the checked-in
+controller's `accept-candidate` operation. Under the release lock, the
+controller re-verifies the pending record, current candidate, proof hashes,
+current-main SHA and absence of a superseding release. It create-once writes
+and fsyncs the deterministic immutable `v3-acceptance-record.json`, explicitly
+marked as prepared evidence whose authority requires the protected current
+pointer to name its exact release/hash. It then compare-and-swap advances
+`current-v3-accepted.json` from the recorded prior authority and removes
+`pending-current.json`. The atomic pointer replacement is the sole acceptance
+commit point; the prior state is authoritative before it and the candidate
+after it.
 
-Before every app replacement the controller writes a state record containing
-the exact prior image, revision, version, previous Compose hash, current app-env
-hash and target revision. A failure, process exit or termination signal after
-mutation automatically restores that exact image using the recorded previous
-Compose file and `--no-deps` before the host lock is released.
+If interruption occurs after the prepared record is durable but before the
+pointer commit, a locked retry reruns every acceptance proof, requires that
+record to be byte-for-byte the deterministic expected payload, re-proves the
+same prior/current/pending/running identities, and resumes only the same pointer
+compare-and-swap without a second create-once write. If interruption occurs
+after the pointer commit but before pending removal, only locked verification
+of the exact pointer/record/pending triple and cleanup of that redundant pending
+pointer are allowed. Any mismatch or superseding release stops, and a standalone
+prepared record never grants or claims authority.
 
-For a later operator rollback:
+Failure, timeout or interruption before the current-pointer commit does not
+write acceptance. The exact previous absent/V1/accepted-V3 state remains
+authoritative and is the only rollback target; an unresolved protected pending
+record blocks another release so a running-but-unaccepted app is never mistaken
+for current accepted authority. Interruption after the pointer commit does not
+undo acceptance: that exact candidate is authoritative, and only the locked,
+byte-exact redundant-pending verification and cleanup described above may run.
+
+## 7. Rollback boundary
+
+Record whether the app existed, the current WAHA image digest, and the exact
+Compose, controller and protected-configuration paths and SHA-256 hashes before
+deployment.
+
+Before replacement, atomically create a mode-`0600` release state and
+`pending-current.json`. Bind release ID, generation, repository/source SHA,
+workflow run/attempt, artifact ID/GitHub digest, candidate image/config/archive
+digests and OCI labels, and the exact prior generation/release/image plus every
+retained Compose/controller/protected-config hash. After replacement and before
+health proof, add the observed candidate container ID under the same lock. A
+missing or conflicting pending pointer stops.
+
+For a genuinely absent installation, a still-pending candidate may roll back by
+removing only that candidate and restoring app absence. Once it is accepted, an
+absent-state wrapper must never remove it.
+
+For the first replacement of the approved frozen V1 app, the still-pending
+candidate may restore only the exact inventoried V1 inputs and may never run
+beside V3. Once the V3 candidate is accepted, that V1 wrapper refuses and the
+superseded runtime may be retired; the retained V1 record remains historical
+evidence only.
+
+For later releases, a pending candidate restores its exact prior accepted V3.
+An accepted current V3 may roll back only to its exact prior accepted V3 and
+must atomically move `current-v3-accepted.json` back after the restore succeeds.
+No mode rebuilds a prior tag or substitutes current files. No mode may stop or
+recreate WAHA, log out or relink `crm_primary`, or change/delete a named volume.
+
+Never roll back a Supabase migration by restoring SQLite, starting a frozen
+worker, or dual-writing. Database/schema recovery is forward-only unless the
+separately authorized
+[`docs/DISASTER_RECOVERY.md`](../docs/DISASTER_RECOVERY.md) plan says otherwise.
+Do not replace, copy, log out, or relink `crm_primary` as part of an app
+rollback.
+
+If the successor cannot operate safely after an allowed app rollback, stop
+traffic under the approved incident plan. After recorded V3 acceptance, never
+route to or reactivate the V1 runtime.
+
+Every release evidence directory contains a mode-`0600`
+`rollback-command.txt` with one complete literal, non-secret command and a
+mode-`0700` state-bound wrapper at the named path. Copy the generated line
+unchanged; its documented template is:
 
 ```bash
-export EVO_RELEASE_ROOT='/opt/evo-crm'
-export EVO_RELEASE_PROJECT_NAME='evo-crm'
-export EVO_RELEASE_TRANSFER_ROOT='/opt/evo-crm/releases'
-export EVO_RELEASE_EVIDENCE_ROOT='/opt/evo-crm/evidence'
-export EVO_RELEASE_COMPOSE_FILE='/opt/evo-crm/docker-compose.prod.yml'
-export EVO_RELEASE_ACTIVE_COMPOSE_FILE='/opt/evo-crm/docker-compose.prod.yml'
-export EVO_RELEASE_APP_ENV_FILE='/opt/evo-crm/.env.production'
-export EVO_RELEASE_EXTERNAL_HEALTH_URL='https://crm.evoadmissions.com/api/health'
-export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'
-export EVO_WAHA_IMAGE_DIGEST='sha256:<reviewed-64-hex-digest>'
-export EVO_RELEASE_ROLLBACK_STATE='/opt/evo-crm/evidence/<exact-release-directory>/state.json'
-/opt/evo-crm/scripts/evo-fast-release.sh rollback
+sudo -- /opt/evo-crm/release-evidence/<release-id>/rollback-command.sh
 ```
 
-The Supabase project reference remains required by the controller's common
-configuration contract. Manual rollback validates the sealed environment hash
-and does not call Supabase, so a Supabase outage cannot prevent restoration of
-the exact previous app image.
+The generated command contains the exact release directory, not the placeholder.
+Inside the protected wrapper, rather than in the operator's shell, the generator
+seals the project ref and invokes its release-owned controller with this shape:
 
-The command fails if state is outside the evidence root, hashes drift, the exact
-image is absent, another release holds the host lock, the recorded target is not
-the exact currently deployed revision, or the restored app is unhealthy. It
-never restarts WAHA, reverts Supabase schema, starts V1, or changes provider
-state.
+```bash
+export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'
+/opt/evo-crm/release-evidence/<release-id>/controller/evo-fast-release.sh rollback
+```
 
-Release evidence must never contain secret values, session bytes, phone
-numbers, customer rows, provider payloads, cookies, or a fully rendered
-environment.
+The generated wrapper replaces the placeholders and supplies fixed protected
+state/snapshot paths; this is not a second operator entrypoint.
+Under the release lock, every wrapper verifies its own checksum and binds the
+release/generation/source SHA, workflow run/attempt, artifact/GitHub/archive/
+image/config digests, OCI labels, installed candidate container and prior
+target. It refuses unless the currently running image ID and OCI revision are
+exactly the candidate installed by that release. It also refuses when protected
+accepted/pending pointers name a newer or superseding release, when the running
+app has changed, or when any record/hash is missing or inconsistent. An absent-
+state wrapper cannot remove accepted V3, a V1 wrapper cannot overwrite accepted
+V3, and an old wrapper cannot overwrite a newer release. Automatic rollback
+uses that same wrapper and state.
+
+The wrapper verifies the sealed generation-owned application-environment
+snapshot hash but does not call Supabase key endpoints, so a Supabase outage
+cannot block restoration of the exact prior app. It never falls back to or
+reopens the mutable source `.env.production` path.
+
+## 8. Evidence and completion
+
+Release evidence must bind to the exact commit and contain:
+
+- exact-head CI conclusion and commit;
+- safe Compose service/image inventory;
+- app image ID and OCI revision/version labels;
+- immutable WAHA digest;
+- sanitized dependency and legacy-reference inventories;
+- isolated runtime result;
+- pre/post container IDs, health and restart counts for an authorized deploy;
+- the pre-change app generation and, when present, its exact image labels plus
+  retained image/Compose/controller/config hashes;
+- the exact pending and current/per-release V3 acceptance-record states and
+  hashes, including the named acceptance step and verified original actor ID;
+- Supabase project identity/migration-ledger result without keys or row data;
+- separate database-backup and Storage-byte-export identities plus isolated
+  restore/migration/scanner outcomes without customer or object content;
+- browser-smoke result without customer content; and
+- explicit result code, operator, timestamps, sanitized literal rollback
+  command, and rollback outcome if used.
+
+No evidence bundle may contain secrets, session bytes, phone numbers, customer
+rows, provider payloads, cookies, or fully rendered runtime environments.

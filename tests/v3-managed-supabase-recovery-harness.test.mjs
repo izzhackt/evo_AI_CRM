@@ -1111,6 +1111,7 @@ test("Storage restore streams bounded file chunks and aborts an in-flight upload
 
   const interrupted = new RecoveryInterruptionGuard();
   let fetchInvoked = false;
+  let interruptedBody;
   const pending = uploadStorageObjectFromFile(path, {
     url: "http://127.0.0.1:54321/storage/v1/object/private/large-object.bin",
     headers: { "content-type": "application/octet-stream" },
@@ -1118,6 +1119,7 @@ test("Storage restore streams bounded file chunks and aborts an in-flight upload
   }, interrupted, {
     fetchImpl: async (_url, init) => {
       fetchInvoked = true;
+      interruptedBody = init.body;
       await new Promise((resolvePromise, rejectPromise) => {
         init.signal.addEventListener("abort", () => rejectPromise(new DOMException("aborted", "AbortError")), { once: true });
       });
@@ -1127,6 +1129,8 @@ test("Storage restore streams bounded file chunks and aborts an in-flight upload
   interrupted.latch("SIGINT");
   await expectCodeAsync(() => pending, "operation_interrupted");
   assert.equal(fetchInvoked, true);
+  assert.equal(interruptedBody?.destroyed, true);
+  assert.equal(interruptedBody?.closed, true);
   assert.doesNotMatch(source, /readFileSync\(join\(extracted, "storage-blobs"/u);
 });
 
@@ -2009,6 +2013,11 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
     () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${publicApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
+  const appWithoutNameAlias = appProjection.replace(JSON.stringify([appName]), JSON.stringify(["other-valid-alias"]));
+  expectCode(
+    () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${appWithoutNameAlias}`, candidateExpected),
+    "candidate_network_attachment_invalid",
+  );
   const extraNetworkApp = projectedContainer({
     id: appId,
     name: appName,
@@ -2147,6 +2156,7 @@ test("candidate image is locally built from sorted exact target blobs for linux/
   assert.match(source, /NODE_ENV: "production"/u);
   assert.doesNotMatch(source, /NODE_ENV: "development"/u);
   const candidateStart = source.slice(source.indexOf("async function startCandidateApp"), source.indexOf("async function browserExecutable"));
+  assert.match(candidateStart, /"--network", state\.networkName,\s+"--network-alias", state\.appContainer,/u);
   assert.match(candidateStart, /const started = await runDocker[\s\S]*?"--entrypoint", "node",\s+image\.id,/u);
   assert.match(candidateStart, /const proxyStarted = await runDocker[\s\S]*?"--entrypoint", "node",\s+image\.id,/u);
 });

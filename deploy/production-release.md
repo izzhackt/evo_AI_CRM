@@ -80,17 +80,18 @@ Before installing V3 over the active production paths:
 
 1. resolve the retained old app by exact image ID and validate its OCI
    revision/version labels;
-2. with the app absent and private WAHA healthy, execute
+2. install the exact reviewed #551 controller required for the one-time seed
+   command while the previous Compose and `.env.production` remain unchanged;
+3. with the app absent and private WAHA healthy, execute
    `seal-rollback-seed` exactly as documented in
    [fast-app-release.md](fast-app-release.md);
-3. confirm the mode-0600 state and previous Compose hashes without displaying
+4. confirm the mode-0600 state and previous Compose hashes without displaying
    `.env.production`;
-4. install the exact reviewed #551 controller for the one-time seed command and
-   the exact V3 Compose file; routine releases execute their own sealed
-   controller bundle rather than this mutable host copy;
-5. configure repository secrets/variables with activation still false;
-6. prove DNS/TLS, recovery and schema prerequisites named by #552; and
-7. set activation true only for the authorized exact-main cutover.
+5. install the exact V3 Compose file; routine releases execute their own sealed
+   controller bundle rather than the host copy used for the one-time seed;
+6. configure repository secrets/variables with activation still false;
+7. prove DNS/TLS, recovery and schema prerequisites named by #552; and
+8. set activation true only for the authorized exact-main cutover.
 
 Do not scan a new WhatsApp QR code. Preserve the existing `crm_primary` volume
 and do not call a provider in this preparation.
@@ -133,10 +134,16 @@ export EVO_RELEASE_COMPOSE_FILE='/opt/evo-crm/docker-compose.prod.yml'
 export EVO_RELEASE_ACTIVE_COMPOSE_FILE='/opt/evo-crm/docker-compose.prod.yml'
 export EVO_RELEASE_APP_ENV_FILE='/opt/evo-crm/.env.production'
 export EVO_RELEASE_EXTERNAL_HEALTH_URL='https://crm.evoadmissions.com/api/health'
+export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'
 export EVO_WAHA_IMAGE_DIGEST='sha256:<reviewed-64-hex-digest>'
 export EVO_RELEASE_ROLLBACK_STATE='/opt/evo-crm/evidence/<exact-release-directory>/state.json'
 /opt/evo-crm/scripts/evo-fast-release.sh rollback
 ```
+
+The Supabase project reference remains required by the controller's common
+configuration contract. Manual rollback validates the sealed environment hash
+and does not call Supabase, so a Supabase outage cannot prevent restoration of
+the exact previous app image.
 
 The command fails if state is outside the evidence root, hashes drift, the exact
 image is absent, another release holds the host lock, the recorded target is not

@@ -214,6 +214,7 @@ verify_env_contract() {
     --example "$example_file" \
     --env "$EVO_RELEASE_APP_ENV_FILE" \
     --supabase-project-ref "$EVO_SUPABASE_PROJECT_REF" \
+    --verify-supabase-keys \
     >/dev/null || fail "app_env_contract_invalid"
 }
 

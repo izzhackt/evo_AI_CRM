@@ -19216,3 +19216,27 @@ Official references:
 This changes only the disposable local recovery consumer and redacted evidence.
 It does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
 Gemini, webhooks, customer records or provider state. #552 remains unarmed.
+
+## 2026-09-05 - Correct PGMQ ACL object code and bind worker signatures
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-ACL-SIGNATURE-CORRECTION-2026-09-05`
+
+Change type: real-runtime recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The first exact-head run of the expanded PGMQ inspection stopped before signed
+data load with PostgreSQL SQLSTATE `22023`. The inspected ACL default used the
+`pg_class.relkind` sequence code `S` where PostgreSQL `acldefault` requires its
+own lowercase sequence object code `s`. Owned cleanup completed with disposition
+`remove`; no source, production or provider state was contacted or mutated.
+
+The same review also found that checking only `pgmq.create(text)` could accept
+an extension version that recreated table shape but lacked a worker operation
+required by migration 045. Correct the ACL object code and require all five
+canonical signatures — `create`, `read`, `send`, `set_vt` and `archive` — both
+before queue recreation and during every pre-data, post-data and post-migration
+inspection. Any missing signature fails closed.
+
+This changes only the disposable local recovery consumer and redacted evidence.
+It does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
+Gemini, webhooks, customer records or provider state. #552 remains unarmed.

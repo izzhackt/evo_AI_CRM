@@ -141,6 +141,13 @@ const SQL_ARTIFACTS = Object.freeze([
 const EXCLUDED_SERVICES =
   "imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
 const RECOVERY_PGMQ_QUEUES = Object.freeze(["platform_dead_letter_v1", "platform_work_v1"]);
+const RECOVERY_PGMQ_SIGNATURES = Object.freeze([
+  "pgmq.create(text)",
+  "pgmq.read(text,integer,integer,jsonb)",
+  "pgmq.send(text,jsonb,integer)",
+  "pgmq.set_vt(text,bigint,integer)",
+  "pgmq.archive(text,bigint)",
+]);
 const RECOVERY_PGMQ_RELATIONS = Object.freeze([
   "pgmq.a_platform_dead_letter_v1",
   "pgmq.a_platform_work_v1",
@@ -2740,7 +2747,7 @@ export function validatePgmqContainmentProof(verified, inventory, options = {}) 
   exactKeys(verified, [
     "queueMetadata", "queueMetadataTotalCount", "queueRelationCount",
     "requiredRelationCount", "loggedRelationCount", "identitySequenceCount",
-    "copyCompatibleColumnCount", "missingRoleCount", "directForbiddenGrantCount",
+    "copyCompatibleColumnCount", "requiredSignatureCount", "missingRoleCount", "directForbiddenGrantCount",
     "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
     "restoredRelationCounts",
   ], "pgmq_extension_relation_containment_failed", stage);
@@ -2767,6 +2774,7 @@ export function validatePgmqContainmentProof(verified, inventory, options = {}) 
     verified.loggedRelationCount !== RECOVERY_PGMQ_RELATIONS.length ||
     verified.identitySequenceCount !== RECOVERY_PGMQ_QUEUES.length ||
     verified.copyCompatibleColumnCount !== RECOVERY_PGMQ_COPY_COLUMN_COUNT ||
+    verified.requiredSignatureCount !== RECOVERY_PGMQ_SIGNATURES.length ||
     zeroFields.some((field) => verified[field] !== 0)
   ) {
     fail("pgmq_extension_relation_containment_failed", stage);
@@ -2795,6 +2803,7 @@ export function validatePgmqContainmentProof(verified, inventory, options = {}) 
     loggedRelationCount: verified.loggedRelationCount,
     identitySequenceCount: verified.identitySequenceCount,
     copyCompatibleColumnCount: verified.copyCompatibleColumnCount,
+    requiredSignatureCount: verified.requiredSignatureCount,
     missingRoleCount: verified.missingRoleCount,
     directForbiddenGrantCount: verified.directForbiddenGrantCount,
     effectiveForbiddenPrivilegeCount: verified.effectiveForbiddenPrivilegeCount,
@@ -2830,7 +2839,7 @@ async function inspectPgmqExtensionRelations(inventory, phase, status, superviso
       JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
       CROSS JOIN LATERAL aclexplode(coalesce(
         relation.relacl,
-        acldefault((CASE WHEN relation.relkind = 'S' THEN 'S' ELSE 'r' END)::"char", relation.relowner)
+        acldefault((CASE WHEN relation.relkind = 'S' THEN 's' ELSE 'r' END)::"char", relation.relowner)
       )) AS acl
       WHERE relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
         AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
@@ -3002,6 +3011,17 @@ async function inspectPgmqExtensionRelations(inventory, phase, status, superviso
           AND attribute.attnum > 0
           AND NOT attribute.attisdropped
       ),
+      'requiredSignatureCount', (
+        SELECT count(*)::integer
+        FROM unnest(ARRAY[
+          'pgmq.create(text)',
+          'pgmq.read(text,integer,integer,jsonb)',
+          'pgmq.send(text,jsonb,integer)',
+          'pgmq.set_vt(text,bigint,integer)',
+          'pgmq.archive(text,bigint)'
+        ]) AS signature(name)
+        WHERE to_regprocedure(signature.name) IS NOT NULL
+      ),
       'missingRoleCount', (
         SELECT (count(*) - (SELECT count(*) FROM named_roles))::integer
         FROM forbidden_role_names
@@ -3025,11 +3045,22 @@ async function restorePgmqExtensionRelations(dataPath, status, supervisor, toolc
   await psql(supervisor, toolchain, status, ["--command", String.raw`
     BEGIN;
     DO $$
+    DECLARE
+      required_signature TEXT;
     BEGIN
-      IF to_regprocedure('pgmq.create(text)') IS NULL THEN
-        RAISE EXCEPTION 'Required PGMQ create signature is unavailable'
-          USING ERRCODE = '0A000';
-      END IF;
+      FOREACH required_signature IN ARRAY ARRAY[
+        'pgmq.create(text)',
+        'pgmq.read(text,integer,integer,jsonb)',
+        'pgmq.send(text,jsonb,integer)',
+        'pgmq.set_vt(text,bigint,integer)',
+        'pgmq.archive(text,bigint)'
+      ]
+      LOOP
+        IF to_regprocedure(required_signature) IS NULL THEN
+          RAISE EXCEPTION 'Required PGMQ signature is unavailable'
+            USING ERRCODE = '0A000';
+        END IF;
+      END LOOP;
     END
     $$;
     SELECT pgmq.create('platform_work_v1');

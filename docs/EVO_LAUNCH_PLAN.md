@@ -316,11 +316,12 @@ Because the managed schema export intentionally excludes extension-owned
 recreate only the two migration-045 queues before loading `data.sql`. It binds
 the exact four `q_*`/`a_*` COPY sections and their column order, recreates two
 logged non-partitioned metadata entries and two identity sequences, reapplies
-the migration's deny ACLs, and then inspects direct, inherited, column,
-function and additive default grants for every browser/service role. The same
-inspection runs before data, after signed row-count reconciliation and again
-after pending migrations; the final inspection never repairs ACLs, so a bad
-target migration fails instead of being masked. PostgreSQL documents that a
+the migration's deny ACLs, requires its exact `create`, `read`, `send`,
+`set_vt` and `archive` worker signatures, and then inspects direct, inherited,
+column, function and additive default grants for every browser/service role.
+The same inspection runs before data, after signed row-count reconciliation
+and again after pending migrations; the final inspection never repairs ACLs,
+so a bad target migration fails instead of being masked. PostgreSQL documents that a
 per-schema default `REVOKE` cannot cancel a global or hard-wired default grant,
 including default `PUBLIC EXECUTE` on future functions. Therefore only explicit
 current-object revocation plus the repeated effective-privilege inspection is

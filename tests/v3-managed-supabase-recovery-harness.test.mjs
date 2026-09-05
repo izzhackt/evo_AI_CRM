@@ -1131,6 +1131,7 @@ test("PGMQ recovery binds the two canonical queue relation pairs and containment
     loggedRelationCount: 4,
     identitySequenceCount: 2,
     copyCompatibleColumnCount: 26,
+    requiredSignatureCount: 5,
     missingRoleCount: 0,
     directForbiddenGrantCount: 0,
     effectiveForbiddenPrivilegeCount: 0,
@@ -1142,11 +1143,12 @@ test("PGMQ recovery binds the two canonical queue relation pairs and containment
   assert.equal(proof.relationCountsMatch, true);
   assert.equal(proof.copyCompatibleColumnCount, 26);
   for (const field of [
+    "requiredSignatureCount",
     "missingRoleCount", "directForbiddenGrantCount",
     "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
   ]) {
     expectCode(
-      () => validatePgmqContainmentProof({ ...verified, [field]: 1 }, inventory, { phase: "post_data" }),
+      () => validatePgmqContainmentProof({ ...verified, [field]: field === "requiredSignatureCount" ? 4 : 1 }, inventory, { phase: "post_data" }),
       "pgmq_extension_relation_containment_failed",
     );
   }
@@ -1165,7 +1167,17 @@ test("PGMQ recovery binds the two canonical queue relation pairs and containment
   ).status, "created_and_contained");
   assert.match(source, /SELECT pgmq\.create\('platform_work_v1'\)/u);
   assert.match(source, /SELECT pgmq\.create\('platform_dead_letter_v1'\)/u);
+  for (const signature of [
+    "pgmq.create(text)",
+    "pgmq.read(text,integer,integer,jsonb)",
+    "pgmq.send(text,jsonb,integer)",
+    "pgmq.set_vt(text,bigint,integer)",
+    "pgmq.archive(text,bigint)",
+  ]) {
+    assert.ok(source.includes(`'${signature}'`));
+  }
   assert.match(source, /REVOKE ALL ON ALL TABLES IN SCHEMA pgmq/u);
+  assert.match(source, /relation\.relkind = 'S' THEN 's'/u);
   assert.match(source, /pg_has_role\(role\.oid, acl\.grantee, 'USAGE'\)/u);
   assert.match(source, /has_any_column_privilege/u);
   assert.match(source, /FROM pg_default_acl AS defaults/u);

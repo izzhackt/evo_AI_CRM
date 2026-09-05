@@ -57,6 +57,12 @@ const SNAPSHOT_MODE = "postgresql-exported-repeatable-read-read-only";
 const MARKER = ".evo-v3-managed-recovery-harness";
 const HARNESS_PREFIX = "evo-v3-managed-recovery-";
 const QUARANTINE_SUFFIX = ".quarantine";
+const CONTAINER_MUTATION_CAPTURE_STAGES = new Set([
+  "exact_target_image_build",
+  "local_supabase_start",
+  "malware_scanner_start",
+  "candidate_start",
+]);
 const COMMAND_GRACE_MS = 2_000;
 const MAX_CAPTURE_BYTES = 64 * 1024;
 const MAX_JSON_BYTES = 16 * 1024 * 1024;
@@ -2520,7 +2526,7 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   mkdirSync(join(workdir, "supabase"), { recursive: true, mode: 0o700 });
   const configPath = join(workdir, "supabase", "config.toml");
   writeFileSync(configPath, isolatedConfig(root.config, state.projectName, ports), { mode: 0o600, flag: "wx" });
-  state.containerMutationAttempted = true;
+  beginContainerMutationCapture(state, "local_supabase_start");
   const createdNetwork = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "network", "create",
     "--driver", "bridge",
@@ -5087,7 +5093,7 @@ async function buildCandidateImage(repository, state, supervisor, toolchain) {
   const snapshot = await materializeTargetSnapshot(repository, state, supervisor, toolchain);
   state.appImageTag = `evo-v3-recovery-${state.projectName}:candidate`;
   const iidFile = join(state.harnessRoot, "candidate-image-id");
-  state.containerMutationAttempted = true;
+  beginContainerMutationCapture(state, "exact_target_image_build");
   await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "build",
     "--platform=linux/amd64",
@@ -5141,6 +5147,7 @@ async function buildCandidateImage(repository, state, supervisor, toolchain) {
     targetCommit: repository.target.commit,
     targetTree: repository.target.tree,
   });
+  completeContainerMutationCapture(state, "exact_target_image_build");
   return Object.freeze({ ...image, snapshot });
 }
 
@@ -5214,6 +5221,9 @@ async function startRecoveryScanner(state, status, repositorySnapshotRoot, super
   const networkHost = `evo-recovery-clamav-${state.projectName.slice(-12)}`;
   if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/u.test(networkHost)) fail("malware_scanner_network_host_invalid", "malware_scanner_proof");
   const signatureVolume = `supabase_clamav_signatures_${state.projectName}`;
+  // The shared pinned ClamAV image is not harness-owned. Capture begins at the
+  // first owned mutation so a killed volume/container create stays quarantined.
+  beginContainerMutationCapture(state, "malware_scanner_start");
   state.scannerSignatureVolume = signatureVolume;
   await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "volume", "create",
@@ -5367,6 +5377,7 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
     NODE_EXTRA_CA_CERTS: "/run/evo-recovery-ca.pem",
   };
   writeFileSync(envFile, `${Object.entries(environment).map(([key, value]) => `${key}=${value}`).join("\n")}\n`, { mode: 0o600, flag: "wx" });
+  beginContainerMutationCapture(state, "candidate_start");
   state.appContainer = `supabase_app_${state.projectName}`;
   const started = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "run", "--detach", "--name", state.appContainer,
@@ -5434,6 +5445,7 @@ server.listen(443, "0.0.0.0");
   const proxyContainerId = proxyStarted.stdout.toString("utf8").trim();
   if (!SHA256.test(proxyContainerId)) fail("recovery_app_tls_proxy_id_invalid", "image_verification");
   state.appProxyContainerId = proxyContainerId;
+  completeContainerMutationCapture(state, "candidate_start");
   await waitForHttp(`${appUrl}/api/health`, [200], 3 * 60 * 1_000, "candidate_app_start_timeout", "image_verification", state, interruptionGuard);
   return Object.freeze({
     appUrl,
@@ -6128,6 +6140,39 @@ export function cleanupDisposition({ descendantsDrained, targetsOwned, cleanupSu
   return descendantsDrained && targetsOwned && cleanupSucceeded ? "remove" : "quarantine";
 }
 
+function beginContainerMutationCapture(state, stage) {
+  if (
+    !isRecord(state) ||
+    !CONTAINER_MUTATION_CAPTURE_STAGES.has(stage) ||
+    state.containerMutationCapture?.status === "pending"
+  ) {
+    fail("container_mutation_capture_invalid", stage);
+  }
+  state.containerMutationAttempted = true;
+  state.containerMutationCapture = Object.freeze({ stage, status: "pending" });
+}
+
+function completeContainerMutationCapture(state, stage) {
+  if (
+    !isRecord(state) ||
+    !CONTAINER_MUTATION_CAPTURE_STAGES.has(stage) ||
+    state.containerMutationCapture?.stage !== stage ||
+    state.containerMutationCapture?.status !== "pending"
+  ) {
+    fail("container_mutation_capture_invalid", stage);
+  }
+  state.containerMutationCapture = Object.freeze({ stage, status: "complete" });
+}
+
+function containerMutationCaptureComplete(state) {
+  return (
+    isRecord(state?.containerMutationCapture) &&
+    CONTAINER_MUTATION_CAPTURE_STAGES.has(state.containerMutationCapture.stage) &&
+    state.containerMutationCapture.status === "complete" &&
+    Object.keys(state.containerMutationCapture).length === 2
+  );
+}
+
 export function cleanupContainerPolicy(state, toolchainAvailable) {
   const mutationAttempted = state?.containerMutationAttempted === true;
   const runtimeFlags =
@@ -6148,6 +6193,7 @@ export function cleanupContainerPolicy(state, toolchainAvailable) {
     typeof state?.scannerSignatureVolume === "string";
   const contradictory =
     (runtimeFlags && !mutationAttempted) ||
+    (mutationAttempted && !containerMutationCaptureComplete(state)) ||
     (state?.stackStarted === true && state?.networkCreated !== true) ||
     (typeof state?.appContainer === "string" && (state?.stackStarted !== true || state?.networkCreated !== true)) ||
     ((mutationAttempted || runtimeFlags) && (state?.containerPreflightPassed !== true || toolchainAvailable !== true));
@@ -7025,6 +7071,7 @@ async function executeMode(mode, options) {
     supabaseRoot: undefined,
     containerPreflightPassed: false,
     containerMutationAttempted: false,
+    containerMutationCapture: Object.freeze({ stage: null, status: "not_started" }),
     stackStarted: false,
     networkCreated: false,
     networkId: undefined,
@@ -7182,6 +7229,11 @@ async function executeMode(mode, options) {
     } else {
       const ports = await runStage("port_reservation", reservePorts);
       const local = await runStage("local_supabase_start", () => startLocalSupabase(state, targetRoot, ports, supervisor, toolchain));
+      const localDestinationInventory = await runStage("local_supabase_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "local_supabase_identity" }));
+      state.ownedVolumeNames = localDestinationInventory.volumes;
+      state.ownedVolumeIdentities = localDestinationInventory.volumeIdentities;
+      assertCleanupInventoryIdentity(localDestinationInventory, cleanupCapturedIdentity(state));
+      completeContainerMutationCapture(state, "local_supabase_start");
       const scanner = await runStage("malware_scanner_start", () => startRecoveryScanner(
         state,
         local.status,
@@ -7194,6 +7246,7 @@ async function executeMode(mode, options) {
       state.ownedVolumeNames = destinationInventory.volumes;
       state.ownedVolumeIdentities = destinationInventory.volumeIdentities;
       assertCleanupInventoryIdentity(destinationInventory, cleanupCapturedIdentity(state));
+      completeContainerMutationCapture(state, "malware_scanner_start");
       state.isolationInput.destination = {
         projectRef: state.projectName,
         urls: [local.status.apiUrl, local.status.dbUrl],

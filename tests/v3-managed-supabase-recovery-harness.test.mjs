@@ -2498,6 +2498,124 @@ test("cleanup is local-only before container preflight and quarantines contradic
   assert.equal(runtimeCalls, 0);
 });
 
+test("cleanup quarantines a pending immutable capture even when Docker inventory would be empty", async (t) => {
+  const projectName = "evov3recoveryabcdef123456";
+  const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
+  chmodSync(root, 0o700);
+  writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
+  const quarantinePrefix = `${basename(root)}.quarantine-`;
+  t.after(() => {
+    for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix))) {
+      rmSync(join(tmpdir(), name), { recursive: true, force: true });
+    }
+  });
+  let runtimeCalls = 0;
+  const result = await cleanupState({
+    harnessRoot: root,
+    projectName,
+    networkName: `${projectName}_private`,
+    containerPreflightPassed: true,
+    containerMutationAttempted: true,
+    containerMutationCapture: Object.freeze({
+      stage: "local_supabase_start",
+      status: "pending",
+    }),
+    networkCreated: false,
+    stackStarted: false,
+  }, {
+    stopAll: async () => true,
+    run: async () => {
+      runtimeCalls += 1;
+      return { stdout: Buffer.from("") };
+    },
+  }, {
+    paths: {
+      docker: { real: "/verified/docker" },
+      supabaseNative: { real: "/verified/supabase" },
+      supabaseGo: { real: "/verified/supabase-go" },
+    },
+  });
+
+  assert.equal(result.containerPolicy, "quarantine");
+  assert.equal(result.disposition, "quarantine");
+  assert.equal(runtimeCalls, 0);
+  assert.equal(existsSync(root), false);
+  const quarantines = readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix));
+  assert.equal(quarantines.length, 1);
+  assert.equal(
+    readFileSync(join(tmpdir(), quarantines[0], ".evo-v3-managed-recovery-harness"), "utf8"),
+    `${projectName}\n`,
+  );
+});
+
+test("scanner cleanup quarantines killed owned volume and container capture", async (t) => {
+  const projectName = "evov3recoveryabcdef123456";
+  const signatureVolume = `supabase_clamav_signatures_${projectName}`;
+  const scannerContainer = "a".repeat(64);
+  const cases = [
+    {
+      name: "volume-create",
+      state: { scannerSignatureVolume: signatureVolume },
+    },
+    {
+      name: "container-create",
+      state: { scannerContainer, scannerSignatureVolume: signatureVolume },
+    },
+  ];
+
+  for (const scenario of cases) {
+    await t.test(scenario.name, async (subtest) => {
+      const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
+      chmodSync(root, 0o700);
+      writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
+      const quarantinePrefix = `${basename(root)}.quarantine-`;
+      subtest.after(() => {
+        for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix))) {
+          rmSync(join(tmpdir(), name), { recursive: true, force: true });
+        }
+      });
+      let runtimeCalls = 0;
+      const result = await cleanupState({
+        harnessRoot: root,
+        projectName,
+        networkName: `${projectName}_private`,
+        containerPreflightPassed: true,
+        containerMutationAttempted: true,
+        containerMutationCapture: Object.freeze({
+          stage: "malware_scanner_start",
+          status: "pending",
+        }),
+        networkCreated: true,
+        stackStarted: true,
+        ...scenario.state,
+      }, {
+        stopAll: async () => true,
+        run: async () => {
+          runtimeCalls += 1;
+          return { stdout: Buffer.from("") };
+        },
+      }, {
+        paths: {
+          docker: { real: "/verified/docker" },
+          supabaseNative: { real: "/verified/supabase" },
+          supabaseGo: { real: "/verified/supabase-go" },
+        },
+      });
+
+      assert.equal(result.containerPolicy, "quarantine");
+      assert.equal(result.disposition, "quarantine");
+      assert.equal(runtimeCalls, 0);
+      assert.equal(existsSync(root), false);
+      const quarantines = readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix));
+      assert.equal(quarantines.length, 1);
+      assert.equal(
+        readFileSync(join(tmpdir(), quarantines[0], ".evo-v3-managed-recovery-harness"), "utf8"),
+        `${projectName}\n`,
+      );
+    });
+  }
+});
+
 test("guarded recovery removal keeps the exact marker until final root removal", (t) => {
   const projectName = "evov3recoveryabcdef123456";
   const createRoot = () => {
@@ -2590,6 +2708,7 @@ test("container cleanup inspects labels and removes only immutable owned IDs", a
     networkId,
     containerPreflightPassed: true,
     containerMutationAttempted: true,
+    containerMutationCapture: Object.freeze({ stage: "candidate_start", status: "complete" }),
     networkCreated: true,
     stackStarted: true,
     appContainer: containerName,
@@ -2818,6 +2937,7 @@ test("image cleanup removes only the captured ID with exact tag and provenance",
       networkName: `${projectName}_private`,
       containerPreflightPassed: true,
       containerMutationAttempted: true,
+      containerMutationCapture: Object.freeze({ stage: "exact_target_image_build", status: "complete" }),
       networkCreated: false,
       stackStarted: false,
       supabaseContainerIds: [],

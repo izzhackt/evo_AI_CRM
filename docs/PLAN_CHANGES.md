@@ -19145,3 +19145,28 @@ quarantine. This correction remains local to the disposable recovery consumer;
 it does not run Docker, contact or mutate managed Supabase, production, VPS,
 WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
 not arm #552.
+
+## 2026-09-05 - Keep the recovery-consumer marker until plaintext removal completes
+
+Block-ID: `EVO-V3-H-RECOVERY-CONSUMER-CLEANUP-MARKER-2026-09-05`
+
+Change type: independent-review local plaintext-cleanup correction.
+Affected plan section: Order 7 / Issue #551.
+
+The recovery consumer used recursive root removal after checking only that a
+marker path existed. A partial filesystem failure could therefore remove the
+marker before leaving plaintext children behind, and a raced marker or root
+could be accepted without revalidating exact owner, private mode and content.
+
+Decision: validate the canonical generated root plus exact regular marker
+owner, private mode and project-bound content; remove every non-marker child
+first; unlink the marker only for the final empty-directory removal; and restore
+the same private marker atomically if that final removal loses a race or fails.
+Any validation, child removal, marker restoration or directory-removal failure
+keeps the root quarantined and is never converted into permission for recursive
+fallback deletion.
+
+This correction affects only the marked disposable local recovery directory.
+It does not run Docker, contact or mutate managed Supabase, production, VPS,
+WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
+not arm #552.

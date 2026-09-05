@@ -9,18 +9,27 @@ import test from "node:test";
 import {
   ProcessSupervisor,
   RecoveryFailure,
+  buildDurableEvidence,
+  buildIsolationEvidence,
   canonicalJson,
+  classifyExpectedDatabaseDenial,
   cleanupDisposition,
+  databaseAggregatesFromTableCounts,
   extractExactMigrationLedger,
+  latchInterruption,
   migrationStatementsDigest,
   parseHarnessOptions,
+  sanitizePsqlDiagnostic,
   sanitizeCommandDiagnostic,
+  selectAdmissionsTaskMutation,
   selectOwnedContainerIds,
   selectOwnedNetworkNames,
   selectOwnedVolumeNames,
+  validateBrowserRouteProof,
   validateDatabaseManifest,
   validateImmutableImageInspection,
   validateRepresentativeCohort,
+  validateRestoredDatabaseAggregates,
   validateRestrictedSqlEnvelope,
   validateSignedReceipt,
   validateStorageManifest,
@@ -389,6 +398,200 @@ test("write proof requires Admin audit, cross-org denial, Sales denial and Admis
   }
 });
 
+test("Admissions recovery proof selects a real status change and preserves every restricted field", () => {
+  const task = {
+    id: "30000000-0000-4000-8000-000000000001",
+    status: "open",
+    assigneeMembershipId: "40000000-0000-4000-8000-000000000001",
+    priority: "normal",
+    dueAt: null,
+    dueOn: "2026-09-05",
+    studentVisible: false,
+    version: 4,
+  };
+  const mutation = selectAdmissionsTaskMutation(task);
+  assert.equal(mutation.status, "in_progress");
+  assert.notEqual(mutation.status, task.status);
+  assert.equal(mutation.assigneeMembershipId, task.assigneeMembershipId);
+  assert.equal(mutation.priority, task.priority);
+  assert.equal(mutation.dueAt, task.dueAt);
+  assert.equal(mutation.dueOn, task.dueOn);
+  assert.equal(mutation.studentVisible, task.studentVisible);
+  assert.equal(mutation.version, task.version);
+  for (const status of ["open", "in_progress", "blocked", "done", "cancelled"]) {
+    assert.notEqual(selectAdmissionsTaskMutation({ ...task, status }).status, status);
+  }
+});
+
+test("restored database aggregate reconciliation fails on every signed aggregate mismatch", () => {
+  const counts = { "platform.zero_rows": 0, "auth.users": 3, "platform.leads": 5 };
+  const expected = databaseAggregatesFromTableCounts(counts);
+  assert.deepEqual(expected, databaseAggregatesFromTableCounts({ "platform.leads": 5, "platform.zero_rows": 0, "auth.users": 3 }));
+  assert.equal(expected.table_count, 3);
+  assert.equal(expected.row_count, 8);
+  assert.equal(expected.auth_user_count, 3);
+  assert.deepEqual(validateRestoredDatabaseAggregates(expected, expected), {
+    tableCount: 3,
+    rowCount: 8,
+    authUserCount: 3,
+    tableCountsSha256: expected.table_counts_sha256,
+  });
+  for (const [key, value] of [
+    ["table_count", 4],
+    ["row_count", 9],
+    ["auth_user_count", 2],
+    ["table_counts_sha256", "b".repeat(64)],
+  ]) {
+    expectCode(
+      () => validateRestoredDatabaseAggregates(expected, { ...expected, [key]: value }),
+      "restored_database_aggregate_mismatch",
+    );
+  }
+  const missingZeroRowTable = databaseAggregatesFromTableCounts({ "auth.users": 3, "platform.leads": 5 });
+  expectCode(() => validateRestoredDatabaseAggregates(expected, missingZeroRowTable), "restored_database_aggregate_mismatch");
+});
+
+test("expected database denial requires the exact SQLSTATE and domain sentinel", () => {
+  const expectedMessage = "Active scoped Admin permission membership.role.change is required";
+  const expected = { sqlstate: "42501", domainSentinel: "admin_membership_permission_required" };
+  const diagnostic = sanitizePsqlDiagnostic(`ERROR:  42501: ${expectedMessage}\nLOCATION:  exec_stmt_raise, pl_exec.c:3905\n`, 3);
+  assert.equal(classifyExpectedDatabaseDenial(diagnostic, expected), true);
+  assert.equal(JSON.stringify(diagnostic).includes(expectedMessage), false);
+  assert.equal(classifyExpectedDatabaseDenial({ ...diagnostic, postgres: { ...diagnostic.postgres, sqlstate: "42P01" } }, expected), false);
+  assert.equal(classifyExpectedDatabaseDenial({ ...diagnostic, postgres: { ...diagnostic.postgres, domainSentinel: null } }, expected), false);
+  assert.equal(classifyExpectedDatabaseDenial(sanitizePsqlDiagnostic("connection refused", 2), expected), false);
+  assert.equal(classifyExpectedDatabaseDenial(sanitizePsqlDiagnostic("ERROR:  42601: syntax error\n", 3), expected), false);
+});
+
+test("durable evidence fails closed before write when cleanup quarantines", () => {
+  const common = {
+    result: { schema: "evo-v3-managed-supabase-recovery-result/v2", ok: true, status: "passed" },
+    failure: undefined,
+    interrupted: undefined,
+    stages: [],
+    tools: { psql: "18.6" },
+    isolation: { status: "verified" },
+  };
+  const removed = buildDurableEvidence({
+    ...common,
+    cleanup: { descendantsDrained: true, targetsOwned: true, cleanupSucceeded: true, disposition: "remove" },
+  });
+  assert.equal(removed.ok, true);
+  const quarantined = buildDurableEvidence({
+    ...common,
+    cleanup: { descendantsDrained: true, targetsOwned: true, cleanupSucceeded: false, disposition: "quarantine" },
+  });
+  assert.equal(quarantined.ok, false);
+  assert.equal(quarantined.failure.code, "cleanup_quarantined");
+  assert.deepEqual(quarantined.tools, { psql: "18.6" });
+  assert.deepEqual(quarantined.isolation, { status: "verified" });
+  const failed = buildDurableEvidence({
+    ...common,
+    result: undefined,
+    failure: { code: "signed_input_failed", stage: "artifact_validation", diagnostic: null },
+    tools: { psql: "18.6", git: "/usr/bin/git", unknownField: "discarded-value" },
+    isolation: { status: "partial" },
+    cleanup: { descendantsDrained: true, targetsOwned: true, cleanupSucceeded: true, disposition: "remove" },
+  });
+  assert.equal(failed.ok, false);
+  assert.deepEqual(failed.tools, { psql: "18.6" });
+  assert.equal(JSON.stringify(failed).includes("/usr/bin/git"), false);
+  assert.equal(JSON.stringify(failed).includes("discarded-value"), false);
+});
+
+test("interruption latches once, ignores a second default exit, and blocks new non-cleanup work", async () => {
+  let stops = 0;
+  let latched = 0;
+  const supervisor = {
+    latchInterruption() { latched += 1; },
+    async stopAll() { stops += 1; return true; },
+  };
+  const state = {};
+  const first = latchInterruption(state, supervisor, "SIGINT");
+  const second = latchInterruption(state, supervisor, "SIGTERM");
+  assert.equal(first, second);
+  assert.equal(state.interrupted, "SIGINT");
+  assert.equal(state.signalCount, 2);
+  assert.equal(stops, 1);
+  assert.equal(latched, 2);
+  await first;
+
+  const realSupervisor = new ProcessSupervisor();
+  realSupervisor.latchInterruption();
+  await expectCodeAsync(
+    () => realSupervisor.run(process.execPath, ["--version"], { stage: "signal_test" }),
+    "command_started_after_interruption",
+  );
+  const cleanup = await realSupervisor.run(process.execPath, ["--version"], {
+    stage: "cleanup",
+    allowAfterInterrupt: true,
+  });
+  assert.match(cleanup.stdout.toString("utf8"), /^v\d+/u);
+});
+
+test("browser proof requires a 2xx response, exact final route and loaded module marker", () => {
+  const valid = {
+    appOrigin: "http://127.0.0.1:43123",
+    requestedRoute: "/v3/calendar",
+    responseStatus: 200,
+    finalUrl: "http://127.0.0.1:43123/v3/calendar",
+    moduleMarker: "calendar_heading",
+    markerVisible: true,
+  };
+  assert.deepEqual(validateBrowserRouteProof(valid), {
+    route: "/v3/calendar",
+    moduleMarker: "calendar_heading",
+    responseStatus: 200,
+  });
+  expectCode(() => validateBrowserRouteProof({ ...valid, responseStatus: 500 }), "browser_route_response_failed");
+  expectCode(() => validateBrowserRouteProof({ ...valid, finalUrl: "http://127.0.0.1:43123/login" }), "browser_final_route_mismatch");
+  expectCode(() => validateBrowserRouteProof({ ...valid, finalUrl: "http://127.0.0.1:43124/v3/calendar" }), "browser_final_route_mismatch");
+  expectCode(() => validateBrowserRouteProof({ ...valid, markerVisible: false }), "browser_module_marker_missing");
+});
+
+test("durable isolation evidence is hash-only and rejects any source/destination identity collision", () => {
+  const identities = {
+    source: {
+      projectRef: "iosckaqtovbbnssqcpde",
+      urls: ["https://iosckaqtovbbnssqcpde.supabase.co", "postgresql://db.iosckaqtovbbnssqcpde.supabase.co:5432/postgres"],
+      networks: ["managed-supabase:iosckaqtovbbnssqcpde"],
+      volumes: ["managed-backup:backup-123", `managed-storage:${"a".repeat(64)}`],
+    },
+    destination: {
+      projectRef: "evov3recoveryabcdef123456",
+      urls: ["http://127.0.0.1:43123", "postgresql://postgres:supersecret@127.0.0.1:43124/postgres"],
+      networks: ["evov3recoveryabcdef123456_private"],
+      volumes: ["supabase_db_evov3recoveryabcdef123456", "supabase_storage_evov3recoveryabcdef123456"],
+    },
+  };
+  const evidence = buildIsolationEvidence(identities, { requireComplete: true });
+  assert.equal(evidence.status, "verified");
+  assert.deepEqual(evidence.separation, {
+    projectRefsUnequal: true,
+    urlsDisjoint: true,
+    networksDisjoint: true,
+    volumesDisjoint: true,
+  });
+  assert.equal(JSON.stringify(evidence).includes(projectRef), false);
+  assert.equal(JSON.stringify(evidence).includes("127.0.0.1"), false);
+  assert.equal(JSON.stringify(evidence).includes("supersecret"), false);
+  for (const field of ["projectRef", "urls", "networks", "volumes"]) {
+    const collision = structuredClone(identities);
+    if (field === "projectRef") collision.destination.projectRef = collision.source.projectRef;
+    else collision.destination[field] = [collision.source[field][0]];
+    expectCode(() => buildIsolationEvidence(collision, { requireComplete: true }), "source_destination_not_isolated");
+  }
+  const publicDestination = structuredClone(identities);
+  publicDestination.destination.urls = ["https://example.com"];
+  expectCode(() => buildIsolationEvidence(publicDestination, { requireComplete: true }), "destination_endpoint_not_loopback");
+  const foreignNetwork = structuredClone(identities);
+  foreignNetwork.destination.networks = ["bridge"];
+  expectCode(() => buildIsolationEvidence(foreignNetwork, { requireComplete: true }), "destination_identity_invalid");
+  const foreignVolume = structuredClone(identities);
+  foreignVolume.destination.volumes = ["unrelated_volume"];
+  expectCode(() => buildIsolationEvidence(foreignVolume, { requireComplete: true }), "destination_identity_invalid");
+});
+
 test("immutable image proof binds Docker id or RepoDigest and revision", () => {
   const digest = `evo-crm@sha256:${"e".repeat(64)}`;
   const image = [{ Id: `sha256:${"d".repeat(64)}`, RepoDigests: [digest], Config: { Labels: { "org.opencontainers.image.revision": commit } } }];
@@ -526,6 +729,16 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.match(source, /--network", "host"/u);
   assert.match(source, /change_membership_permission/u);
   assert.match(source, /ROLLBACK/u);
+  assert.match(source, /selectAdmissionsTaskMutation\(admissionsTask\)/u);
+  assert.match(source, /return await reconcileRestoredDatabase\(/u);
+  assert.match(source, /classifyExpectedDatabaseDenial\(error\.diagnostic/u);
+  assert.match(source, /response\?\.status\(\) \?\? 0/u);
+  assert.match(source, /buildIsolationEvidence\(state\.isolationInput, \{ requireComplete: true \}\)/u);
+  const evidenceBuild = source.lastIndexOf("const evidence = buildDurableEvidence");
+  const evidenceWrite = source.lastIndexOf("writeEvidence(evidenceOut, evidence)");
+  const listenerRemoval = source.lastIndexOf('process.removeListener("SIGINT", sigint)');
+  assert.ok(evidenceBuild > 0 && evidenceBuild < evidenceWrite);
+  assert.ok(evidenceWrite < listenerRemoval);
 });
 
 test("focused recovery harness is registered exactly once in the CI-invoked u11 suite", () => {

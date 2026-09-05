@@ -65,6 +65,13 @@ const MIGRATION_NAME = /^[a-z0-9][a-z0-9_]{0,126}$/u;
 const IMAGE = /^(?:[a-z0-9][a-z0-9._/-]*@)?sha256:[0-9a-f]{64}$/u;
 const SSH_FINGERPRINT = /^SHA256:[A-Za-z0-9+/]+$/u;
 const GUARD = /^[A-Za-z0-9]{63}$/u;
+const ADMIN_MEMBERSHIP_DENIAL = Object.freeze({
+  sqlstate: "42501",
+  domainSentinel: "admin_membership_permission_required",
+});
+const DATABASE_DENIAL_SENTINELS = Object.freeze({
+  "Active scoped Admin permission membership.role.change is required": ADMIN_MEMBERSHIP_DENIAL.domainSentinel,
+});
 const ARTIFACTS = Object.freeze([
   "roles.sql.age",
   "schema.sql.age",
@@ -1023,6 +1030,11 @@ export class ProcessSupervisor {
     this.children = new Set();
     this.stopping = false;
     this.stopPromise = undefined;
+    this.interrupted = false;
+  }
+
+  latchInterruption() {
+    this.interrupted = true;
   }
 
   async stopOne(record) {
@@ -1053,6 +1065,9 @@ export class ProcessSupervisor {
   }
 
   start(command, args, options = {}) {
+    if (this.interrupted && options.allowAfterInterrupt !== true) {
+      fail("command_started_after_interruption", options.stage ?? "command");
+    }
     if (this.stopping) fail("command_started_during_shutdown", options.stage ?? "command");
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -1086,6 +1101,9 @@ export class ProcessSupervisor {
   }
 
   async run(command, args, options = {}) {
+    if (this.interrupted && options.allowAfterInterrupt !== true) {
+      fail("command_started_after_interruption", options.stage ?? "command");
+    }
     if (this.stopping) fail("command_started_during_shutdown", options.stage ?? "command");
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -1132,7 +1150,8 @@ export class ProcessSupervisor {
     }
     this.children.delete(record);
     if (outcome.code !== 0) {
-      fail(options.code ?? "command_failed", options.stage ?? "command", sanitizeCommandDiagnostic(record.stderr, outcome.code));
+      const diagnostic = (options.sanitizeDiagnostic ?? sanitizeCommandDiagnostic)(record.stderr, outcome.code);
+      fail(options.code ?? "command_failed", options.stage ?? "command", diagnostic);
     }
     return Object.freeze({ stdout: record.stdout, stderr: record.stderr, code: outcome.code });
   }
@@ -1150,6 +1169,26 @@ export function sanitizeCommandDiagnostic(output, status) {
           ? "conflict"
           : "command_failed";
   return Object.freeze({ category, status: Number.isInteger(status) ? status : null, outputSha256: sha256(text), bytes: Buffer.byteLength(text) });
+}
+
+export function sanitizePsqlDiagnostic(output, status) {
+  const text = Buffer.isBuffer(output) ? output.toString("utf8") : String(output ?? "");
+  const base = sanitizeCommandDiagnostic(text, status);
+  const match = /^ERROR:\s+([0-9A-Z]{5}):\s+([^\r\n]+)$/mu.exec(text);
+  const domainSentinel = match ? DATABASE_DENIAL_SENTINELS[match[2]] ?? null : null;
+  return Object.freeze({
+    ...base,
+    postgres: match
+      ? Object.freeze({ sqlstate: match[1], domainSentinel })
+      : null,
+  });
+}
+
+export function classifyExpectedDatabaseDenial(diagnostic, expected) {
+  return isRecord(diagnostic) &&
+    isRecord(diagnostic.postgres) &&
+    diagnostic.postgres.sqlstate === expected?.sqlstate &&
+    diagnostic.postgres.domainSentinel === expected?.domainSentinel;
 }
 
 function resolveExecutable(candidates, allowed, code) {
@@ -1173,7 +1212,7 @@ function patchedPsqlVersion(output) {
   return `${major}.${minor}`;
 }
 
-async function trustedToolchain(supervisor) {
+async function trustedToolchain(supervisor, availableEvidence = {}) {
   const tools = Object.freeze({
     git: resolveExecutable(["/usr/bin/git"], ["/usr/bin/git"], "git_unavailable"),
     sshKeygen: resolveExecutable(["/usr/bin/ssh-keygen"], ["/usr/bin/ssh-keygen"], "ssh_keygen_unavailable"),
@@ -1204,29 +1243,26 @@ async function trustedToolchain(supervisor) {
       "supabase_cli_unavailable",
     ),
   });
-  const [orb, context, psqlVersion, cliVersion, ageVersion] = await Promise.all([
-    supervisor.run(tools.orb.real, ["status"], { stage: "toolchain", code: "orbstack_unavailable", timeoutMs: 10_000 }),
-    supervisor.run(tools.docker.real, ["--context", "orbstack", "context", "show"], { stage: "toolchain", code: "docker_context_invalid", timeoutMs: 10_000 }),
-    supervisor.run(tools.psql.real, ["--version"], { stage: "toolchain", code: "psql_version_failed", timeoutMs: 10_000 }),
-    supervisor.run(tools.supabase.real, ["--version"], { stage: "toolchain", code: "supabase_version_failed", timeoutMs: 10_000 }),
-    supervisor.run(tools.age.real, ["--version"], { stage: "toolchain", code: "age_version_failed", timeoutMs: 10_000 }),
-  ]);
-  if (orb.stdout.toString("utf8").trim() !== "Running") fail("orbstack_not_running", "toolchain");
-  if (context.stdout.toString("utf8").trim() !== "orbstack") fail("docker_context_invalid", "toolchain");
+  Object.assign(availableEvidence, Object.fromEntries(
+    Object.entries(tools).map(([name, executable]) => [`${name}_realpath_sha256`, sha256(executable.real)]),
+  ));
+  const psqlVersion = await supervisor.run(tools.psql.real, ["--version"], { stage: "toolchain", code: "psql_version_failed", timeoutMs: 10_000 });
+  availableEvidence.psql = patchedPsqlVersion(psqlVersion.stdout.toString("utf8"));
+  const cliVersion = await supervisor.run(tools.supabase.real, ["--version"], { stage: "toolchain", code: "supabase_version_failed", timeoutMs: 10_000 });
   const supabaseVersion = cliVersion.stdout.toString("utf8").trim();
   if (!VERSION.test(supabaseVersion)) fail("supabase_version_invalid", "toolchain");
+  availableEvidence.supabase_cli = supabaseVersion;
+  const ageVersion = await supervisor.run(tools.age.real, ["--version"], { stage: "toolchain", code: "age_version_failed", timeoutMs: 10_000 });
+  availableEvidence.age = string(ageVersion.stdout.toString("utf8").trim(), /^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/u, "age_version_invalid", "toolchain", 64);
+  const orb = await supervisor.run(tools.orb.real, ["status"], { stage: "toolchain", code: "orbstack_unavailable", timeoutMs: 10_000 });
+  if (orb.stdout.toString("utf8").trim() !== "Running") fail("orbstack_not_running", "toolchain");
+  availableEvidence.orb = "Running";
+  const context = await supervisor.run(tools.docker.real, ["--context", "orbstack", "context", "show"], { stage: "toolchain", code: "docker_context_invalid", timeoutMs: 10_000 });
+  if (context.stdout.toString("utf8").trim() !== "orbstack") fail("docker_context_invalid", "toolchain");
+  availableEvidence.docker_context = "orbstack";
   return Object.freeze({
     paths: tools,
-    evidence: Object.freeze({
-      git: tools.git.real,
-      ssh_keygen: tools.sshKeygen.real,
-      tar: tools.tar.real,
-      age: ageVersion.stdout.toString("utf8").trim(),
-      psql: patchedPsqlVersion(psqlVersion.stdout.toString("utf8")),
-      supabase_cli: supabaseVersion,
-      orb: "Running",
-      docker_context: "orbstack",
-    }),
+    evidence: Object.freeze({ ...availableEvidence }),
   });
 }
 
@@ -1518,12 +1554,13 @@ function parseStatus(output) {
 }
 
 async function psql(supervisor, toolchain, status, args, options = {}) {
-  return await supervisor.run(toolchain.paths.psql.real, [status.dbUrl, "--no-psqlrc", "--set", "ON_ERROR_STOP=1", ...args], {
+  return await supervisor.run(toolchain.paths.psql.real, [status.dbUrl, "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--set", "VERBOSITY=verbose", ...args], {
     stage: options.stage ?? "database_restore",
     code: options.code ?? "psql_failed",
     timeoutMs: options.timeoutMs ?? 30 * 60 * 1_000,
     maxCaptureBytes: options.maxCaptureBytes ?? 2 * 1_024 * 1_024,
     env: safeEnvironment({ PGAPPNAME: "evo_v3_isolated_managed_recovery" }),
+    sanitizeDiagnostic: sanitizePsqlDiagnostic,
   });
 }
 
@@ -1570,6 +1607,105 @@ async function restoreDatabase(artifacts, status, supervisor, toolchain) {
   for (const name of ["history-schema.sql", "history-data.sql", "data.sql"]) {
     await psql(supervisor, toolchain, status, ["--file", artifacts.plaintext[name]], { stage: "database_restore", code: `${name.replaceAll(/[^a-z]/gu, "_")}_restore_failed` });
   }
+}
+
+export function databaseAggregatesFromTableCounts(counts, code = "restored_database_aggregate_invalid") {
+  if (!isRecord(counts)) fail(code, "database_restore");
+  const entries = Object.entries(counts).sort(([left], [right]) => left.localeCompare(right, "en"));
+  for (const [table, count] of entries) {
+    const parts = table.split(".");
+    if (parts.length !== 2 || parts.some((part) => !/^[a-z_][a-z0-9_]*$/u.test(part))) fail(code, "database_restore");
+    integer(count, code, "database_restore");
+  }
+  return Object.freeze({
+    table_count: entries.length,
+    row_count: entries.reduce((total, [, count]) => total + count, 0),
+    auth_user_count: counts["auth.users"] ?? 0,
+    table_counts_sha256: sha256(canonicalJson(Object.fromEntries(entries))),
+  });
+}
+
+export function validateRestoredDatabaseAggregates(expected, actual) {
+  const fields = ["table_count", "row_count", "auth_user_count", "table_counts_sha256"];
+  exactKeys(actual, fields, "restored_database_aggregate_invalid", "database_restore");
+  for (const field of fields.slice(0, 3)) {
+    integer(expected?.[field], "signed_database_aggregate_invalid", "database_restore");
+    integer(actual[field], "restored_database_aggregate_invalid", "database_restore");
+  }
+  string(expected?.table_counts_sha256, SHA256, "signed_database_aggregate_invalid", "database_restore", 64);
+  string(actual.table_counts_sha256, SHA256, "restored_database_aggregate_invalid", "database_restore", 64);
+  if (fields.some((field) => actual[field] !== expected[field])) {
+    fail("restored_database_aggregate_mismatch", "database_restore");
+  }
+  return Object.freeze({
+    tableCount: actual.table_count,
+    rowCount: actual.row_count,
+    authUserCount: actual.auth_user_count,
+    tableCountsSha256: actual.table_counts_sha256,
+  });
+}
+
+async function dataDumpTableCounts(path) {
+  const counts = {};
+  const input = createReadStream(path);
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  let current;
+  try {
+    for await (const line of lines) {
+      if (current) {
+        if (line === "\\.") {
+          counts[current.table] = current.rows;
+          current = undefined;
+        } else {
+          current.rows += 1;
+        }
+        continue;
+      }
+      if (!line.startsWith("COPY ")) continue;
+      const header = copyHeader(line);
+      if (!header || Object.hasOwn(counts, header.table)) fail("database_data_copy_invalid", "database_restore");
+      current = { table: header.table, rows: 0 };
+    }
+  } finally {
+    lines.close();
+    input.destroy();
+  }
+  if (current) fail("database_data_copy_invalid", "database_restore");
+  return Object.freeze(Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right, "en"))));
+}
+
+function quotedQualifiedTable(table) {
+  const parts = table.split(".");
+  if (parts.length !== 2 || parts.some((part) => !/^[a-z_][a-z0-9_]*$/u.test(part))) {
+    fail("database_table_identity_invalid", "database_restore");
+  }
+  return parts.map((part) => `"${part}"`).join(".");
+}
+
+async function restoredTableCounts(expectedCounts, supervisor, toolchain, status) {
+  const tables = Object.keys(expectedCounts);
+  if (tables.length === 0) return Object.freeze({});
+  const values = tables.map((table) => `(${sqlLiteral(table)}, (SELECT count(*)::bigint FROM ${quotedQualifiedTable(table)}))`).join(",\n");
+  const actual = await psqlJson(supervisor, toolchain, status, String.raw`
+    SELECT coalesce(jsonb_object_agg(table_name, row_count ORDER BY table_name), '{}'::jsonb)::text
+    FROM (VALUES ${values}) AS restored_counts(table_name, row_count)`, "database_restore", 16 * 1_024 * 1_024);
+  if (!isRecord(actual) || Object.keys(actual).length !== tables.length || tables.some((table) => !Object.hasOwn(actual, table))) {
+    fail("restored_database_table_inventory_mismatch", "database_restore");
+  }
+  return Object.freeze(actual);
+}
+
+async function reconcileRestoredDatabase(artifacts, status, supervisor, toolchain) {
+  const signed = Object.freeze({
+    table_count: artifacts.database.aggregates.table_count,
+    row_count: artifacts.database.aggregates.row_count,
+    auth_user_count: artifacts.database.aggregates.auth_user_count,
+    table_counts_sha256: artifacts.database.aggregates.table_counts_sha256,
+  });
+  const dumpCounts = await dataDumpTableCounts(artifacts.plaintext["data.sql"]);
+  validateRestoredDatabaseAggregates(signed, databaseAggregatesFromTableCounts(dumpCounts, "database_dump_aggregate_invalid"));
+  const actualCounts = await restoredTableCounts(dumpCounts, supervisor, toolchain, status);
+  return validateRestoredDatabaseAggregates(signed, databaseAggregatesFromTableCounts(actualCounts));
 }
 
 async function databaseLedger(supervisor, toolchain, status) {
@@ -2065,14 +2201,55 @@ async function platformGet(status, actor, resource, query = {}) {
   return payload;
 }
 
-async function expectDatabaseDenial(operation, expectedCode) {
+async function expectDatabaseDenial(operation, expectedCode, expected) {
   try {
     await operation();
   } catch (error) {
-    if (error instanceof RecoveryFailure && error.code === expectedCode) return true;
+    if (
+      error instanceof RecoveryFailure &&
+      error.code === expectedCode &&
+      classifyExpectedDatabaseDenial(error.diagnostic, expected)
+    ) return true;
     throw error;
   }
   return false;
+}
+
+const NEXT_ADMISSIONS_TASK_STATUS = Object.freeze({
+  open: "in_progress",
+  in_progress: "open",
+  blocked: "open",
+  done: "open",
+  cancelled: "open",
+});
+
+export function selectAdmissionsTaskMutation(task) {
+  exactKeys(task, [
+    "id",
+    "status",
+    "assigneeMembershipId",
+    "priority",
+    "dueAt",
+    "dueOn",
+    "studentVisible",
+    "version",
+  ], "authorized_admissions_task_invalid", "admissions_write_proof");
+  const status = NEXT_ADMISSIONS_TASK_STATUS[task.status];
+  if (
+    !UUID.test(task.id) ||
+    !UUID.test(task.assigneeMembershipId) ||
+    typeof status !== "string" ||
+    status === task.status ||
+    !["low", "normal", "high", "urgent"].includes(task.priority) ||
+    (task.dueAt !== null && typeof task.dueAt !== "string") ||
+    (task.dueOn !== null && typeof task.dueOn !== "string") ||
+    typeof task.studentVisible !== "boolean" ||
+    !Number.isSafeInteger(task.version) ||
+    task.version < 1
+  ) {
+    fail("authorized_admissions_task_invalid", "admissions_write_proof");
+  }
+  return Object.freeze({ ...task, status });
 }
 
 export function validateWriteBoundaryResults(value) {
@@ -2141,7 +2318,7 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
         ${sqlLiteral(actors.admin.membershipId)}::uuid,
         'contract.evidence.confirm', true, 'must be denied across organizations', ${sqlLiteral(randomUUID())}::uuid
       );
-      ROLLBACK;`], { stage: "cross_organization_write_negative_proof", code: "expected_cross_organization_write_denial" }), "expected_cross_organization_write_denial");
+      ROLLBACK;`], { stage: "cross_organization_write_negative_proof", code: "expected_cross_organization_write_denial" }), "expected_cross_organization_write_denial", ADMIN_MEMBERSHIP_DENIAL);
   const salesClaims = JSON.stringify({ sub: actors.sales.userId, role: "authenticated" });
   const salesAdminWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
       BEGIN;
@@ -2152,7 +2329,7 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
         ${sqlLiteral(actors.admin.membershipId)}::uuid,
         'contract.evidence.confirm', true, 'must be denied', ${sqlLiteral(randomUUID())}::uuid
       );
-      ROLLBACK;`], { stage: "canonical_write_negative_proof", code: "expected_sales_write_denial" }), "expected_sales_write_denial");
+      ROLLBACK;`], { stage: "canonical_write_negative_proof", code: "expected_sales_write_denial" }), "expected_sales_write_denial", ADMIN_MEMBERSHIP_DENIAL);
   const admissionsTasks = await psqlJson(supervisor, toolchain, status, String.raw`
     SELECT coalesce(json_agg(row_to_json(candidate) ORDER BY candidate.id), '[]'::json)::text
     FROM (
@@ -2186,6 +2363,7 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
   ) {
     fail("authorized_admissions_task_missing", "admissions_write_proof");
   }
+  const admissionsMutation = selectAdmissionsTaskMutation(admissionsTask);
   const admissionsClaims = JSON.stringify({ sub: actors.admissions.userId, role: "authenticated" });
   const admissionsRequestId = randomUUID();
   const admissionsPositive = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", String.raw`
@@ -2195,13 +2373,13 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
     SELECT platform.change_case_task(
       ${sqlLiteral(options.platformOrganizationId)}::uuid,
       ${sqlLiteral(admissionsTask.id)}::uuid,
-      ${sqlLiteral(admissionsTask.status)}::platform.case_task_status,
-      ${sqlLiteral(actors.admissions.membershipId)}::uuid,
-      ${sqlLiteral(admissionsTask.priority)}::platform.case_task_priority,
-      ${admissionsTask.dueAt === null ? "NULL" : sqlLiteral(admissionsTask.dueAt)}::timestamptz,
-      ${admissionsTask.dueOn === null ? "NULL" : sqlLiteral(admissionsTask.dueOn)}::date,
-      ${admissionsTask.studentVisible ? "true" : "false"},
-      ${admissionsTask.version},
+      ${sqlLiteral(admissionsMutation.status)}::platform.case_task_status,
+      ${sqlLiteral(admissionsMutation.assigneeMembershipId)}::uuid,
+      ${sqlLiteral(admissionsMutation.priority)}::platform.case_task_priority,
+      ${admissionsMutation.dueAt === null ? "NULL" : sqlLiteral(admissionsMutation.dueAt)}::timestamptz,
+      ${admissionsMutation.dueOn === null ? "NULL" : sqlLiteral(admissionsMutation.dueOn)}::date,
+      ${admissionsMutation.studentVisible ? "true" : "false"},
+      ${admissionsMutation.version},
       ${sqlLiteral(admissionsRequestId)}::uuid
     );
     SELECT count(*)::text FROM platform.audit_events WHERE request_id = ${sqlLiteral(admissionsRequestId)}::uuid;
@@ -2216,7 +2394,7 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
       ${sqlLiteral(actors.admin.membershipId)}::uuid,
       'contract.evidence.confirm', true, 'Admissions must not administer staff', ${sqlLiteral(randomUUID())}::uuid
     );
-    ROLLBACK;`], { stage: "admissions_admin_negative_proof", code: "expected_admissions_admin_write_denial" }), "expected_admissions_admin_write_denial");
+    ROLLBACK;`], { stage: "admissions_admin_negative_proof", code: "expected_admissions_admin_write_denial" }), "expected_admissions_admin_write_denial", ADMIN_MEMBERSHIP_DENIAL);
   const writes = validateWriteBoundaryResults({
     adminAuditCount,
     crossOrganizationWriteDenied,
@@ -2356,8 +2534,36 @@ async function browserExecutable(supervisor) {
   return Object.freeze({ chromium, path: canonical, version: value });
 }
 
+export function validateBrowserRouteProof(value) {
+  exactKeys(value, ["appOrigin", "requestedRoute", "responseStatus", "finalUrl", "moduleMarker", "markerVisible"], "browser_route_proof_invalid", "browser_proof");
+  if (!new Set(["/v3/main", "/v3/calendar"]).has(value.requestedRoute)) fail("browser_route_proof_invalid", "browser_proof");
+  if (!Number.isSafeInteger(value.responseStatus) || value.responseStatus < 200 || value.responseStatus >= 300) {
+    fail("browser_route_response_failed", "browser_proof");
+  }
+  let origin;
+  let final;
+  try {
+    origin = new URL(value.appOrigin);
+    final = new URL(value.finalUrl);
+  } catch {
+    fail("browser_final_route_mismatch", "browser_proof");
+  }
+  if (
+    final.origin !== origin.origin ||
+    final.pathname !== value.requestedRoute ||
+    final.search !== "" ||
+    final.hash !== ""
+  ) {
+    fail("browser_final_route_mismatch", "browser_proof");
+  }
+  string(value.moduleMarker, /^[a-z][a-z0-9_]{0,63}$/u, "browser_route_proof_invalid", "browser_proof", 64);
+  if (value.markerVisible !== true) fail("browser_module_marker_missing", "browser_proof");
+  return Object.freeze({ route: value.requestedRoute, moduleMarker: value.moduleMarker, responseStatus: value.responseStatus });
+}
+
 async function proveBrowser(app, state, supervisor) {
   const browserTool = await browserExecutable(supervisor);
+  state.availableTools.chromium = browserTool.version;
   const debugPort = await reservePort();
   const profile = join(state.harnessRoot, "chromium-profile");
   mkdirSync(profile, { mode: 0o700 });
@@ -2373,7 +2579,12 @@ async function proveBrowser(app, state, supervisor) {
     const versionPayload = await versionResponse.json().catch(() => null);
     if (!isRecord(versionPayload) || typeof versionPayload.webSocketDebuggerUrl !== "string") fail("browser_debug_endpoint_invalid", "browser_proof");
     browser = await browserTool.chromium.connectOverCDP(versionPayload.webSocketDebuggerUrl);
-    const routes = Object.freeze({ admin: "/v3/main", sales: "/v3/main", admissions: "/v3/calendar" });
+    const routes = Object.freeze({
+      admin: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
+      sales: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
+      admissions: Object.freeze({ path: "/v3/calendar", marker: "calendar_heading", heading: "Календарь" }),
+    });
+    const routeProofs = {};
     for (const role of ["admin", "sales", "admissions"]) {
       const context = await browser.newContext({ locale: "ru-RU" });
       const page = await context.newPage();
@@ -2384,17 +2595,129 @@ async function proveBrowser(app, state, supervisor) {
       const shell = page.getByTestId("v3-shell");
       await shell.waitFor({ state: "visible", timeout: 45_000 });
       if (await shell.getAttribute("data-authority-role") !== role) fail("browser_role_mismatch", "browser_proof", { role });
-      await page.goto(`${app.appUrl}${routes[role]}`, { waitUntil: "domcontentloaded" });
+      const route = routes[role];
+      const response = await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded" });
       await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 });
+      let markerVisible = false;
+      try {
+        await page.getByRole("heading", { name: route.heading, exact: true }).waitFor({ state: "visible", timeout: 45_000 });
+        await page.getByTestId("v3-operational-dashboard").waitFor({ state: "visible", timeout: 45_000 });
+        markerVisible = true;
+      } catch {
+        markerVisible = false;
+      }
+      routeProofs[role] = validateBrowserRouteProof({
+        appOrigin: app.appUrl,
+        requestedRoute: route.path,
+        responseStatus: response?.status() ?? 0,
+        finalUrl: page.url(),
+        moduleMarker: route.marker,
+        markerVisible,
+      });
       await context.close();
     }
-    return Object.freeze({ admin: "passed", sales: "passed", admissions: "passed", chromium: browserTool.version, exactCandidateImage: true });
+    return Object.freeze({ admin: "passed", sales: "passed", admissions: "passed", routes: Object.freeze(routeProofs), chromium: browserTool.version, exactCandidateImage: true });
   } finally {
     await browser?.close().catch(() => undefined);
     const drained = await supervisor.stopOne(browserRecord);
     state.browserRecord = undefined;
     if (!drained) fail("browser_descendants_not_drained", "browser_proof");
   }
+}
+
+function identityStrings(values, code) {
+  if (!Array.isArray(values) || values.some((value) => typeof value !== "string" || value.length === 0 || value.length > 8_192)) {
+    fail(code, "isolation_identity");
+  }
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right, "en"));
+}
+
+function normalizedEndpointIdentity(value, destination) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail("endpoint_identity_invalid", "isolation_identity");
+  }
+  if (!new Set(["http:", "https:", "postgres:", "postgresql:"]).has(parsed.protocol)) {
+    fail("endpoint_identity_invalid", "isolation_identity");
+  }
+  if (destination && !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)) {
+    fail("destination_endpoint_not_loopback", "isolation_identity");
+  }
+  const port = parsed.port ? `:${parsed.port}` : "";
+  return `${parsed.protocol}//${parsed.hostname}${port}${parsed.pathname}`;
+}
+
+function disjoint(left, right) {
+  const rightSet = new Set(right);
+  return left.every((value) => !rightSet.has(value));
+}
+
+function identityDigest(values) {
+  return values.length > 0 ? sha256(canonicalJson(values)) : null;
+}
+
+export function buildIsolationEvidence(value, { requireComplete = false } = {}) {
+  exactKeys(value, ["source", "destination"], "isolation_identity_invalid", "isolation_identity");
+  exactKeys(value.source, ["projectRef", "urls", "networks", "volumes"], "source_identity_invalid", "isolation_identity");
+  exactKeys(value.destination, ["projectRef", "urls", "networks", "volumes"], "destination_identity_invalid", "isolation_identity");
+  const sourceRef = value.source.projectRef;
+  const destinationRef = value.destination.projectRef;
+  if (sourceRef !== null) string(sourceRef, PROJECT_REF, "source_identity_invalid", "isolation_identity", 20);
+  string(destinationRef, null, "destination_identity_invalid", "isolation_identity", 128);
+  if (sourceRef !== null && sourceRef === destinationRef) fail("source_destination_not_isolated", "isolation_identity");
+  if (!/^evov3recovery[0-9a-f]{12}$/u.test(destinationRef)) fail("destination_identity_invalid", "isolation_identity");
+  const sourceUrls = identityStrings(value.source.urls, "source_identity_invalid").map((url) => normalizedEndpointIdentity(url, false));
+  const destinationUrlValues = identityStrings(value.destination.urls, "destination_identity_invalid");
+  const destinationUrls = destinationUrlValues.map((url) => normalizedEndpointIdentity(url, false));
+  const sourceNetworks = identityStrings(value.source.networks, "source_identity_invalid");
+  const destinationNetworks = identityStrings(value.destination.networks, "destination_identity_invalid");
+  const sourceVolumes = identityStrings(value.source.volumes, "source_identity_invalid");
+  const destinationVolumes = identityStrings(value.destination.volumes, "destination_identity_invalid");
+  const separation = Object.freeze({
+    projectRefsUnequal: sourceRef === null ? null : sourceRef !== destinationRef,
+    urlsDisjoint: sourceUrls.length === 0 || destinationUrls.length === 0 ? null : disjoint(sourceUrls, destinationUrls),
+    networksDisjoint: sourceNetworks.length === 0 || destinationNetworks.length === 0 ? null : disjoint(sourceNetworks, destinationNetworks),
+    volumesDisjoint: sourceVolumes.length === 0 || destinationVolumes.length === 0 ? null : disjoint(sourceVolumes, destinationVolumes),
+  });
+  if (Object.values(separation).some((result) => result === false)) fail("source_destination_not_isolated", "isolation_identity");
+  destinationUrlValues.forEach((url) => normalizedEndpointIdentity(url, true));
+  if (destinationNetworks.length > 0 && (destinationNetworks.length !== 1 || destinationNetworks[0] !== `${destinationRef}_private`)) {
+    fail("destination_identity_invalid", "isolation_identity");
+  }
+  if (destinationVolumes.some((volume) => !volume.startsWith("supabase_") || !volume.endsWith(`_${destinationRef}`))) {
+    fail("destination_identity_invalid", "isolation_identity");
+  }
+  const complete = sourceRef !== null &&
+    sourceUrls.length > 0 && destinationUrls.length > 0 &&
+    sourceNetworks.length > 0 && destinationNetworks.length > 0 &&
+    sourceVolumes.length > 0 && destinationVolumes.length > 0 &&
+    Object.values(separation).every((result) => result === true);
+  if (requireComplete && !complete) fail("source_destination_identity_incomplete", "isolation_identity");
+  return Object.freeze({
+    status: complete ? "verified" : "partial",
+    source: Object.freeze({
+      projectRefSha256: sourceRef === null ? null : sha256(sourceRef),
+      urlSetSha256: identityDigest(sourceUrls),
+      networkSetSha256: identityDigest(sourceNetworks),
+      volumeSetSha256: identityDigest(sourceVolumes),
+      urlCount: sourceUrls.length,
+      networkCount: sourceNetworks.length,
+      volumeCount: sourceVolumes.length,
+    }),
+    destination: Object.freeze({
+      projectRefSha256: sha256(destinationRef),
+      urlSetSha256: identityDigest(destinationUrls),
+      networkSetSha256: identityDigest(destinationNetworks),
+      volumeSetSha256: identityDigest(destinationVolumes),
+      urlCount: destinationUrls.length,
+      networkCount: destinationNetworks.length,
+      volumeCount: destinationVolumes.length,
+      runtime: "local_orbstack",
+    }),
+    separation,
+  });
 }
 
 function safeHarnessRoot(path) {
@@ -2438,11 +2761,11 @@ export function selectOwnedNetworkNames(output, networkName) {
   return Object.freeze(String(output).split(/\r?\n/u).filter(Boolean).filter((name) => name === networkName));
 }
 
-async function cleanupInventory(state, supervisor, tools) {
+async function cleanupInventory(state, supervisor, tools, { allowAfterInterrupt = false, stage = "cleanup" } = {}) {
   const [containers, volumes, networks] = await Promise.all([
-    supervisor.run(tools.docker.real, ["--context", "orbstack", "ps", "--all", "--format", "{{.ID}}\t{{.Names}}"], { stage: "cleanup", code: "cleanup_container_inventory_failed" }),
-    supervisor.run(tools.docker.real, ["--context", "orbstack", "volume", "ls", "--format", "{{.Name}}"], { stage: "cleanup", code: "cleanup_volume_inventory_failed" }),
-    supervisor.run(tools.docker.real, ["--context", "orbstack", "network", "ls", "--format", "{{.Name}}"], { stage: "cleanup", code: "cleanup_network_inventory_failed" }),
+    supervisor.run(tools.docker.real, ["--context", "orbstack", "ps", "--all", "--format", "{{.ID}}\t{{.Names}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt }),
+    supervisor.run(tools.docker.real, ["--context", "orbstack", "volume", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_volume_inventory_failed", allowAfterInterrupt }),
+    supervisor.run(tools.docker.real, ["--context", "orbstack", "network", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_network_inventory_failed", allowAfterInterrupt }),
   ]);
   return Object.freeze({
     containers: selectOwnedContainerIds(containers.stdout.toString("utf8"), state.projectName),
@@ -2458,7 +2781,7 @@ async function cleanupState(state, supervisor, toolchain) {
   if (descendantsDrained && targetsOwned) {
     const run = async (args) => {
       try {
-        await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", ...args], { stage: "cleanup", code: "cleanup_command_failed", timeoutMs: 2 * 60 * 1_000 });
+        await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", ...args], { stage: "cleanup", code: "cleanup_command_failed", timeoutMs: 2 * 60 * 1_000, allowAfterInterrupt: true });
         return true;
       } catch {
         return false;
@@ -2467,17 +2790,17 @@ async function cleanupState(state, supervisor, toolchain) {
     if (state.appContainer) cleanupSucceeded = (await run(["rm", "--force", state.appContainer])) && cleanupSucceeded;
     if (state.stackStarted && state.supabaseRoot) {
       try {
-        await supervisor.run(toolchain.paths.supabase.real, ["stop", "--workdir", state.supabaseRoot, "--no-backup"], { stage: "cleanup", code: "supabase_stop_failed", timeoutMs: 5 * 60 * 1_000, maxCaptureBytes: 8 * 1_024 * 1_024 });
+        await supervisor.run(toolchain.paths.supabase.real, ["stop", "--workdir", state.supabaseRoot, "--no-backup"], { stage: "cleanup", code: "supabase_stop_failed", timeoutMs: 5 * 60 * 1_000, maxCaptureBytes: 8 * 1_024 * 1_024, allowAfterInterrupt: true });
       } catch {
         cleanupSucceeded = false;
       }
     }
     try {
-      const owned = await cleanupInventory(state, supervisor, toolchain.paths);
+      const owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
       if (owned.containers.length > 0) cleanupSucceeded = (await run(["rm", "--force", ...owned.containers])) && cleanupSucceeded;
       if (owned.volumes.length > 0) cleanupSucceeded = (await run(["volume", "rm", "--force", ...owned.volumes])) && cleanupSucceeded;
       if (owned.networks.length > 0) cleanupSucceeded = (await run(["network", "rm", ...owned.networks])) && cleanupSucceeded;
-      const remaining = await cleanupInventory(state, supervisor, toolchain.paths);
+      const remaining = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
       if (remaining.containers.length || remaining.volumes.length || remaining.networks.length) cleanupSucceeded = false;
     } catch {
       cleanupSucceeded = false;
@@ -2531,6 +2854,67 @@ function safeFailure(error) {
   return Object.freeze({ code: "unexpected_failure", stage: "internal", diagnostic: null });
 }
 
+function durableToolEvidence(value) {
+  const allowed = new Set([
+    "age",
+    "psql",
+    "supabase_cli",
+    "orb",
+    "docker_context",
+    "chromium",
+    "git_realpath_sha256",
+    "sshKeygen_realpath_sha256",
+    "tar_realpath_sha256",
+    "age_realpath_sha256",
+    "orb_realpath_sha256",
+    "docker_realpath_sha256",
+    "psql_realpath_sha256",
+    "supabase_realpath_sha256",
+  ]);
+  if (!isRecord(value)) return Object.freeze({});
+  const result = {};
+  for (const [key, field] of Object.entries(value)) {
+    if (!allowed.has(key) || typeof field !== "string" || field.length === 0 || field.length > 256) continue;
+    result[key] = field;
+  }
+  return Object.freeze(result);
+}
+
+export function buildDurableEvidence({ result, failure, interrupted, stages, cleanup, tools, isolation }) {
+  let durableFailure = interrupted
+    ? Object.freeze({ code: "recovery_interrupted", stage: "signal", diagnostic: Object.freeze({ signal: interrupted }) })
+    : failure;
+  if (!durableFailure && cleanup?.disposition !== "remove") {
+    durableFailure = Object.freeze({ code: "cleanup_quarantined", stage: "cleanup", diagnostic: null });
+  }
+  if (!durableFailure && (!isRecord(result) || result.ok !== true)) {
+    durableFailure = Object.freeze({ code: "recovery_result_missing", stage: "internal", diagnostic: null });
+  }
+  const safeTools = durableToolEvidence(tools);
+  if (durableFailure) {
+    return Object.freeze({
+      schema: RESULT_SCHEMA,
+      ok: false,
+      status: interrupted ? "interrupted" : "failed",
+      failure: durableFailure,
+      tools: safeTools,
+      isolation,
+      stages,
+      cleanup,
+    });
+  }
+  return Object.freeze({ ...result, tools: safeTools, isolation, stages, cleanup });
+}
+
+export function latchInterruption(state, supervisor, signal) {
+  if (!isRecord(state) || !["SIGINT", "SIGTERM"].includes(signal)) fail("signal_invalid", "signal");
+  state.signalCount = (state.signalCount ?? 0) + 1;
+  state.interrupted ??= signal;
+  supervisor.latchInterruption();
+  state.signalShutdown ??= Promise.resolve(supervisor.stopAll());
+  return state.signalShutdown;
+}
+
 function contract() {
   return Object.freeze({
     ok: true,
@@ -2581,7 +2965,19 @@ async function executeMode(mode, options) {
     appContainer: undefined,
     browserRecord: undefined,
     interrupted: undefined,
+    signalCount: 0,
+    availableTools: {},
+    isolationInput: {
+      source: { projectRef: null, urls: [], networks: [], volumes: [] },
+      destination: {
+        projectRef: projectName,
+        urls: [],
+        networks: [`${projectName}_private`],
+        volumes: [],
+      },
+    },
   };
+  state.isolationEvidence = buildIsolationEvidence(state.isolationInput);
   writeFileSync(join(harnessRoot, MARKER), `${projectName}\n`, { mode: 0o600, flag: "wx" });
   const supervisor = new ProcessSupervisor();
   const timings = new StageTimings();
@@ -2589,17 +2985,31 @@ async function executeMode(mode, options) {
   let result;
   let failure;
   const onSignal = (signal) => {
-    if (!state.interrupted) state.interrupted = signal;
-    if (!state.signalShutdown) state.signalShutdown = supervisor.stopAll();
+    latchInterruption(state, supervisor, signal);
   };
   const sigint = () => onSignal("SIGINT");
   const sigterm = () => onSignal("SIGTERM");
   process.on("SIGINT", sigint);
   process.on("SIGTERM", sigterm);
   try {
-    toolchain = await timings.run("toolchain", () => trustedToolchain(supervisor));
+    toolchain = await timings.run("toolchain", () => trustedToolchain(supervisor, state.availableTools));
     const repository = await timings.run("repository", () => repositorySnapshot(supervisor, toolchain.paths, options.repositoryCommit));
     const artifacts = await timings.run("signed_artifact_validation", () => prepareArtifacts(options, harnessRoot, supervisor, toolchain));
+    const sourceProject = artifacts.database.source.project;
+    state.isolationInput.source = {
+      projectRef: sourceProject.ref,
+      urls: [
+        `https://${sourceProject.ref}.supabase.co`,
+        `postgresql://${sourceProject.database.host}:5432/postgres`,
+        `postgresql://${artifacts.database.source.pooler.host}:${artifacts.database.source.pooler.session_port}/postgres`,
+      ],
+      networks: [`managed-supabase:${sourceProject.organization_id}:${sourceProject.ref}`],
+      volumes: [
+        `managed-database-backup:${artifacts.database.source.backup.id}`,
+        `managed-storage-inventory:${artifacts.receipt.storage.inventory_sha256}`,
+      ],
+    };
+    state.isolationEvidence = buildIsolationEvidence(state.isolationInput);
     if (
       artifacts.database.tools.supabase_cli !== toolchain.evidence.supabase_cli ||
       artifacts.database.tools.psql !== toolchain.evidence.psql
@@ -2633,14 +3043,27 @@ async function executeMode(mode, options) {
       }),
       image,
       tools: toolchain.evidence,
+      isolation: state.isolationEvidence,
     };
     if (mode === "preflight") {
       result = { schema: RESULT_SCHEMA, ok: true, status: "preflight_passed", proof: "not_run", ...shared };
     } else {
       const ports = await timings.run("port_reservation", reservePorts);
       const local = await timings.run("local_supabase_start", () => startLocalSupabase(state, root, ports, supervisor, toolchain));
+      const destinationInventory = await timings.run("destination_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "destination_identity" }));
+      state.isolationInput.destination = {
+        projectRef: state.projectName,
+        urls: [local.status.apiUrl, local.status.dbUrl],
+        networks: destinationInventory.networks,
+        volumes: destinationInventory.volumes,
+      };
+      state.isolationEvidence = buildIsolationEvidence(state.isolationInput, { requireComplete: true });
+      const isolation = state.isolationEvidence;
       const extracted = await timings.run("storage_archive_validation", () => extractStorage(artifacts, state, supervisor, toolchain));
-      await timings.run("database_restore", () => restoreDatabase(artifacts, local.status, supervisor, toolchain));
+      const database = await timings.run("database_restore", async () => {
+        await restoreDatabase(artifacts, local.status, supervisor, toolchain);
+        return await reconcileRestoredDatabase(artifacts, local.status, supervisor, toolchain);
+      });
       const migrations = await timings.run("pending_migration_rehearsal", () => applyPendingMigrations(state, local, root, verifiedLedger, supervisor, toolchain));
       const storage = await timings.run("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain));
       const actors = await timings.run("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain));
@@ -2654,6 +3077,8 @@ async function executeMode(mode, options) {
         status: "passed",
         proof: "isolated_orbstack_restore_and_exact_image_browser",
         ...shared,
+        isolation,
+        database,
         migrations,
         storage,
         representatives: Object.freeze({
@@ -2669,31 +3094,31 @@ async function executeMode(mode, options) {
     }
   } catch (error) {
     failure = safeFailure(error);
+  }
+  try {
+    let cleanup;
+    try {
+      if (state.signalShutdown) await state.signalShutdown;
+      cleanup = await cleanupState(state, supervisor, toolchain ?? { paths: { docker: { real: "/Applications/OrbStack.app/Contents/MacOS/xbin/docker" }, supabase: { real: join(repositoryRoot, "node_modules", ".bin", "supabase") } } });
+    } catch {
+      cleanup = Object.freeze({ descendantsDrained: false, targetsOwned: safeHarnessRoot(state.harnessRoot), cleanupSucceeded: false, disposition: "quarantine" });
+    }
+    const evidence = buildDurableEvidence({
+      result,
+      failure,
+      interrupted: state.interrupted,
+      stages: timings.entries,
+      cleanup,
+      tools: state.availableTools,
+      isolation: state.isolationEvidence,
+    });
+    writeEvidence(evidenceOut, evidence);
+    if (!evidence.ok) fail(evidence.failure.code, evidence.failure.stage, evidence.failure.diagnostic);
+    return evidence;
   } finally {
     process.removeListener("SIGINT", sigint);
     process.removeListener("SIGTERM", sigterm);
   }
-  let cleanup;
-  try {
-    if (state.signalShutdown) await state.signalShutdown;
-    cleanup = await cleanupState(state, supervisor, toolchain ?? { paths: { docker: { real: "/Applications/OrbStack.app/Contents/MacOS/xbin/docker" }, supabase: { real: join(repositoryRoot, "node_modules", ".bin", "supabase") } } });
-  } catch {
-    cleanup = Object.freeze({ descendantsDrained: false, targetsOwned: safeHarnessRoot(state.harnessRoot), cleanupSucceeded: false, disposition: "quarantine" });
-  }
-  const evidence = failure || state.interrupted
-    ? {
-        schema: RESULT_SCHEMA,
-        ok: false,
-        status: state.interrupted ? "interrupted" : "failed",
-        failure: failure ?? { code: "recovery_interrupted", stage: "signal", diagnostic: { signal: state.interrupted } },
-        stages: timings.entries,
-        cleanup,
-      }
-    : { ...result, stages: timings.entries, cleanup };
-  writeEvidence(evidenceOut, evidence);
-  if (!evidence.ok) fail(evidence.failure.code, evidence.failure.stage, evidence.failure.diagnostic);
-  if (cleanup.disposition !== "remove") fail("cleanup_quarantined", "cleanup");
-  return Object.freeze(evidence);
 }
 
 async function main() {

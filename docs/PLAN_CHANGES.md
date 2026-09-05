@@ -19365,3 +19365,45 @@ when the canary passes.
 This changes only the disposable local recovery consumer, its tests and plan
 contract. It does not contact or mutate managed Supabase, production, VPS,
 providers, webhooks or customer state. #552 remains unarmed.
+
+## 2026-09-05 - Refuse foreign image references and recreated volumes during cleanup
+
+Block-ID: `EVO-V3-H-RECOVERY-CLEANUP-REFERENCE-CENSUS-2026-09-05`
+
+Change type: final independent-review cleanup identity correction.
+Affected plan section: Order 7 / Issue #551.
+
+Review of the captured-ID cleanup found two remaining gaps. A foreign stopped
+container could still reference the captured candidate image even though the
+image's own ID, labels, tag and provenance were exact, and `image rm --force`
+could remove all references. Volume cleanup retained only name plus ownership
+labels, so a same-name volume recreated after validation could pass. Both image
+and volume deletion still requested `--force`, weakening the runtime's own
+reference protections.
+
+Decision:
+
+- include the immutable image ID in the inspection of every container, and
+  require the complete candidate-image reference census to equal exactly the
+  still-present captured candidate-app and TLS-proxy IDs; a foreign, missing or
+  wrong-image reference quarantines before any deletion;
+- remove the candidate image without `--force` only after a fresh all-container
+  inspection proves zero remaining references, so a raced reference makes the
+  Docker command fail and quarantine;
+- capture every validated volume's exact `CreatedAt`, driver, scope and hashes
+  of its full labels/options together with its name, and require that frozen
+  identity census before each cleanup phase; a same-name recreation or metadata
+  drift quarantines; and
+- remove volumes without `--force`, preserving Docker's in-use protection and
+  treating any raced reference or removal failure as quarantine.
+
+Docker's volume-inspect reference documents `CreatedAt`, `Driver`, `Scope` and
+other inspected metadata:
+<https://docs.docker.com/reference/cli/docker/volume/inspect/>. Docker's image
+and volume removal references document the stronger non-force behavior:
+<https://docs.docker.com/reference/cli/docker/image/rm/> and
+<https://docs.docker.com/reference/cli/docker/volume/rm/>.
+
+This correction changes only the disposable local recovery consumer and its
+tests. It does not run Docker, contact or mutate managed Supabase, production,
+VPS, providers, webhooks or customer state. #552 remains unarmed.

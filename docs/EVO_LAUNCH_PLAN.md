@@ -299,6 +299,13 @@ exactly correct for the selected resource category. The private plaintext root
 keeps its exact owner/mode/content marker until all non-marker children are
 removed; final-directory failure atomically restores that marker and never
 falls back to recursive root deletion.
+Before image removal, the all-container inspection must prove that references
+to the captured candidate image are exactly the still-present captured app and
+TLS-proxy containers, then zero after their removal. Image deletion is
+non-force so a new foreign reference fails closed. Each volume identity binds
+its captured name, `CreatedAt`, driver, scope and full label/options hashes;
+same-name recreation or metadata drift quarantines. Volume removal is also
+non-force so an in-use or raced reference cannot bypass Docker's protection.
 The rehearsal reconciles aggregate counts rather than publishing
 customer rows, proves the safe available Supabase Auth/RLS/private-Storage and
 V3 browser behaviors, then destroys the disposable contour and atomically

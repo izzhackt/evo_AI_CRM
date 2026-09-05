@@ -321,51 +321,6 @@ table th,
   }
 }
 
-
-/* Shared EVO identity */
-.evo-wordmark {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  white-space: nowrap;
-  color: var(--text);
-  line-height: 1;
-}
-.evo-wordmark--inverted {
-  color: #ffffff;
-}
-.evo-wordmark__mark {
-  flex: none;
-}
-.evo-wordmark__lettering {
-  display: flex;
-  flex-direction: column;
-  /* The logobook stacks ADMISSIONS under EVO on a shared left edge. */
-  gap: 3px;
-}
-.evo-wordmark__name {
-  font-size: var(--text-xl);
-  font-weight: 800;
-  letter-spacing: -0.025em;
-}
-.evo-wordmark__admissions {
-  position: relative;
-  top: -1px;
-  font-size: var(--text-2xs);
-  font-weight: 600;
-  /* Wide tracking is the lockup's own proportion, not UI tracking. */
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  /* Solid, never an opacity: text whose colour depends on what happens to be
-     painted behind it cannot be contrast-checked, by a tool or by a person.
-     5.09:1 on the page ground. */
-  color: var(--text-3);
-}
-.evo-wordmark--inverted .evo-wordmark__admissions {
-  /* 10.55:1 on the sidebar ground. */
-  color: #c1c5cb;
-}
-
 /* Accessible skip link */
 .skip-link {
   position: fixed;

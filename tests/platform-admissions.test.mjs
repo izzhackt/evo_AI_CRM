@@ -815,7 +815,6 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     "src/app/(v3)/v3/profile/page.tsx",
     "src/components/v3/calendar/TaskControls.tsx",
     "src/components/v3/profile/ProfileAdmissionsWorkspace.tsx",
-    "src/components/platform/PlatformLangSwitcher.tsx",
   ];
   for (const file of files) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");

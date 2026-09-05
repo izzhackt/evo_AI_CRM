@@ -38,6 +38,7 @@ import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
+import { finished } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { parse as parseToml } from "smol-toml";
 
@@ -2903,6 +2904,9 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
       }
     }
   }
+  if (!record.networks[expected.networkName].Aliases.includes(record.name)) {
+    fail("candidate_network_attachment_invalid", "image_verification");
+  }
   const previous = [...expected.previousMemberIds].sort();
   if (members.length !== previous.length + 1 || !previous.every((id) => members.includes(id))) {
     fail("candidate_network_membership_changed", "image_verification");
@@ -3866,6 +3870,7 @@ export async function uploadStorageObjectFromFile(
     fail("storage_blob_invalid", "storage_restore");
   }
   const body = createReadStream(path, { highWaterMark: 64 * 1_024 });
+  const bodyFinished = finished(body, { cleanup: true }).catch(() => undefined);
   const abortStream = () => body.destroy();
   interruptionGuard.signal.addEventListener("abort", abortStream, { once: true });
   try {
@@ -3881,6 +3886,7 @@ export async function uploadStorageObjectFromFile(
   } finally {
     interruptionGuard.signal.removeEventListener("abort", abortStream);
     body.destroy();
+    await bodyFinished;
   }
 }
 
@@ -5385,6 +5391,7 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
     "--label", `evo.recovery.project=${state.projectName}`,
     "--label", "evo.recovery.type=candidate-app",
     "--network", state.networkName,
+    "--network-alias", state.appContainer,
     "--add-host", `${RECOVERY_SUPABASE_HOSTNAME}:127.0.0.1`,
     "--publish", `127.0.0.1:${appPort}:${appPort}`,
     "--cap-drop", "ALL",

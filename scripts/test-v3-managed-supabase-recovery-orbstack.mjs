@@ -1025,6 +1025,50 @@ async function waitGroupDrain(child, timeoutMs) {
   return !groupRunning(child);
 }
 
+export class RecoveryInterruptionGuard {
+  constructor() {
+    this.controller = new AbortController();
+    this.interrupted = undefined;
+  }
+
+  get signal() {
+    return this.controller.signal;
+  }
+
+  latch(signal) {
+    if (!this.interrupted) {
+      this.interrupted = signal;
+      this.controller.abort();
+    }
+    return this.interrupted;
+  }
+
+  assertActive(stage, { allowAfterInterrupt = false, afterOperation = false } = {}) {
+    if (this.interrupted && !allowAfterInterrupt) {
+      fail(afterOperation ? "operation_interrupted" : "operation_started_after_interruption", stage);
+    }
+  }
+
+  async run(stage, operation, { allowAfterInterrupt = false } = {}) {
+    this.assertActive(stage, { allowAfterInterrupt });
+    try {
+      const result = await operation(this.signal);
+      this.assertActive(stage, { allowAfterInterrupt, afterOperation: true });
+      return result;
+    } catch (error) {
+      this.assertActive(stage, { allowAfterInterrupt, afterOperation: true });
+      throw error;
+    }
+  }
+}
+
+export async function runBrowserOperation(interruptionGuard, operation, options) {
+  if (!(interruptionGuard instanceof RecoveryInterruptionGuard)) {
+    fail("interruption_guard_invalid", "browser_proof");
+  }
+  return await interruptionGuard.run("browser_proof", operation, options);
+}
+
 export class ProcessSupervisor {
   constructor() {
     this.children = new Set();
@@ -1149,6 +1193,9 @@ export class ProcessSupervisor {
       if (!drained) fail("command_descendants_not_drained", options.stage ?? "command");
     }
     this.children.delete(record);
+    if (this.interrupted && options.allowAfterInterrupt !== true) {
+      fail("command_interrupted", options.stage ?? "command");
+    }
     if (outcome.code !== 0) {
       const diagnostic = (options.sanitizeDiagnostic ?? sanitizeCommandDiagnostic)(record.stderr, outcome.code);
       fail(options.code ?? "command_failed", options.stage ?? "command", diagnostic);
@@ -1884,15 +1931,39 @@ export function verifyRestoredStorageInventory(sourceObjects, restoredRows, read
   });
 }
 
-async function apiRequest(url, init, accepted, code, stage) {
+export async function apiRequest(
+  url,
+  init,
+  accepted,
+  code,
+  stage,
+  interruptionGuard,
+  { fetchImpl = globalThis.fetch, allowAfterInterrupt = false } = {},
+) {
+  if (!(interruptionGuard instanceof RecoveryInterruptionGuard) || typeof fetchImpl !== "function") {
+    fail("interruption_guard_invalid", stage);
+  }
   let response;
   try {
-    response = await fetch(url, { ...init, redirect: "manual", signal: AbortSignal.timeout(30_000) });
-  } catch {
+    response = await interruptionGuard.run(stage, async (signal) => await fetchImpl(url, {
+      ...init,
+      redirect: "manual",
+      signal: AbortSignal.any([
+        AbortSignal.timeout(30_000),
+        ...(allowAfterInterrupt ? [] : [signal]),
+      ]),
+    }), { allowAfterInterrupt });
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
     fail(code, stage, { category: "network_failure" });
   }
   if (!accepted.includes(response.status)) {
-    const body = await response.text().catch(() => "");
+    let body = "";
+    try {
+      body = await interruptionGuard.run(stage, async () => await response.text(), { allowAfterInterrupt });
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
+    }
     fail(code, stage, { status: response.status, bodySha256: sha256(body), bytes: Buffer.byteLength(body) });
   }
   return response;
@@ -2006,23 +2077,25 @@ async function relocateUploadedBlob(backend, object, generatedVersion) {
   }
 }
 
-async function readBackStorageObject(status, object) {
+async function readBackStorageObject(status, object, interruptionGuard) {
   const response = await apiRequest(objectUrl(status.apiUrl, object.bucket_id, object.path, "object/authenticated"), {
     headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}` },
-  }, [200], "storage_object_readback_failed", "storage_verification");
+  }, [200], "storage_object_readback_failed", "storage_verification", interruptionGuard);
   if (!response.body) fail("storage_object_readback_body_missing", "storage_verification");
   const digest = createHash("sha256");
   let bytes = 0;
-  for await (const chunk of response.body) {
-    const buffer = Buffer.from(chunk);
-    bytes += buffer.length;
-    if (bytes > object.bytes) fail("storage_object_readback_size_mismatch", "storage_verification");
-    digest.update(buffer);
-  }
+  await interruptionGuard.run("storage_verification", async () => {
+    for await (const chunk of response.body) {
+      const buffer = Buffer.from(chunk);
+      bytes += buffer.length;
+      if (bytes > object.bytes) fail("storage_object_readback_size_mismatch", "storage_verification");
+      digest.update(buffer);
+    }
+  });
   return Object.freeze({ bucket_id: object.bucket_id, path: object.path, bytes, sha256: digest.digest("hex") });
 }
 
-async function restoreStorage(artifacts, extracted, status, state, supervisor, toolchain) {
+async function restoreStorage(artifacts, extracted, status, state, supervisor, toolchain, interruptionGuard) {
   const originalRows = await databaseStorageIdentities(supervisor, toolchain, status);
   verifyRestoredStorageIdentities(artifacts.storage.objects, originalRows);
   if (artifacts.storage.objects.length === 0) {
@@ -2057,7 +2130,7 @@ async function restoreStorage(artifacts, extracted, status, state, supervisor, t
     code: "storage_metadata_snapshot_failed",
   });
   for (const object of artifacts.storage.objects) {
-    const body = readFileSync(join(extracted, "storage-blobs", object.blob));
+    const body = await interruptionGuard.run("storage_restore", async () => readFileSync(join(extracted, "storage-blobs", object.blob)));
     const metadata = uploadMetadata.get(storageInventoryKey(object));
     if (!metadata) fail("storage_upload_metadata_missing", "storage_restore");
     const response = await apiRequest(objectUrl(status.apiUrl, object.bucket_id, object.path), {
@@ -2070,8 +2143,8 @@ async function restoreStorage(artifacts, extracted, status, state, supervisor, t
         "x-upsert": "true",
       },
       body,
-    }, [200], "storage_object_restore_failed", "storage_restore");
-    await response.arrayBuffer();
+    }, [200], "storage_object_restore_failed", "storage_restore", interruptionGuard);
+    await interruptionGuard.run("storage_restore", async () => await response.arrayBuffer());
     const current = await psqlJson(supervisor, toolchain, status, String.raw`
       SELECT coalesce(json_agg(json_build_object(
         'source_id', candidate.id::text,
@@ -2085,7 +2158,7 @@ async function restoreStorage(artifacts, extracted, status, state, supervisor, t
     if (!Array.isArray(current) || current.length !== 1 || current[0].source_id !== object.source_id || !UUID.test(current[0].source_version)) {
       fail("storage_uploaded_object_identity_invalid", "storage_restore");
     }
-    await relocateUploadedBlob(backend, object, current[0].source_version);
+    await interruptionGuard.run("storage_restore", async () => await relocateUploadedBlob(backend, object, current[0].source_version));
   }
   await psql(supervisor, toolchain, status, ["--command", String.raw`
     BEGIN;
@@ -2098,7 +2171,7 @@ async function restoreStorage(artifacts, extracted, status, state, supervisor, t
   });
   const restoredRows = await databaseStorageIdentities(supervisor, toolchain, status);
   const readbacks = [];
-  for (const object of artifacts.storage.objects) readbacks.push(await readBackStorageObject(status, object));
+  for (const object of artifacts.storage.objects) readbacks.push(await readBackStorageObject(status, object, interruptionGuard));
   const verified = verifyRestoredStorageInventory(artifacts.storage.objects, restoredRows, readbacks);
   return Object.freeze({ bucketCount: artifacts.storage.aggregates.bucket_count, ...verified });
 }
@@ -2159,34 +2232,42 @@ async function discoverActors(options, status, supervisor, toolchain) {
   return validateRepresentativeCohort(rows, options);
 }
 
-async function localPasswordSession(actor, status) {
+async function localPasswordSession(actor, status, interruptionGuard) {
   const password = `Recovery!${randomBytes(36).toString("base64url")}`;
   const reset = await apiRequest(new URL(`/auth/v1/admin/users/${actor.userId}`, status.apiUrl), {
     method: "PUT",
     headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}`, "content-type": "application/json" },
     body: JSON.stringify({ password }),
-  }, [200], "local_representative_password_reset_failed", "auth_rls_proof");
-  await reset.arrayBuffer();
+  }, [200], "local_representative_password_reset_failed", "auth_rls_proof", interruptionGuard);
+  await interruptionGuard.run("auth_rls_proof", async () => await reset.arrayBuffer());
   const login = await apiRequest(new URL("/auth/v1/token?grant_type=password", status.apiUrl), {
     method: "POST",
     headers: { apikey: status.publishableKey, "content-type": "application/json" },
     body: JSON.stringify({ email: actor.email, password }),
-  }, [200], "local_representative_login_failed", "auth_rls_proof");
-  const payload = await login.json().catch(() => null);
+  }, [200], "local_representative_login_failed", "auth_rls_proof", interruptionGuard);
+  let payload;
+  try {
+    payload = await interruptionGuard.run("auth_rls_proof", async () => await login.json());
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    payload = null;
+  }
   if (!isRecord(payload) || typeof payload.access_token !== "string" || payload.user?.id !== actor.userId) {
     fail("local_representative_session_invalid", "auth_rls_proof");
   }
   return Object.freeze({ ...actor, password, accessToken: payload.access_token });
 }
 
-async function prepareActors(options, status, supervisor, toolchain) {
+async function prepareActors(options, status, supervisor, toolchain, interruptionGuard) {
   const restored = await discoverActors(options, status, supervisor, toolchain);
   const actors = {};
-  for (const role of ["admin", "sales", "admissions"]) actors[role] = await localPasswordSession(restored[role], status);
+  for (const role of ["admin", "sales", "admissions"]) {
+    actors[role] = await localPasswordSession(restored[role], status, interruptionGuard);
+  }
   return Object.freeze(actors);
 }
 
-async function platformGet(status, actor, resource, query = {}) {
+async function platformGet(status, actor, resource, query, interruptionGuard) {
   const url = new URL(`/rest/v1/${resource}`, status.apiUrl);
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
   const response = await apiRequest(url, {
@@ -2195,8 +2276,14 @@ async function platformGet(status, actor, resource, query = {}) {
       Authorization: `Bearer ${actor.accessToken}`,
       "Accept-Profile": "platform",
     },
-  }, [200], "platform_read_failed", "auth_rls_proof");
-  const payload = await response.json().catch(() => null);
+  }, [200], "platform_read_failed", "auth_rls_proof", interruptionGuard);
+  let payload;
+  try {
+    payload = await interruptionGuard.run("auth_rls_proof", async () => await response.json());
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    payload = null;
+  }
   if (!Array.isArray(payload)) fail("platform_read_response_invalid", "auth_rls_proof");
   return payload;
 }
@@ -2279,7 +2366,7 @@ export function validateWriteBoundaryResults(value) {
   });
 }
 
-async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, toolchain) {
+async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, toolchain, interruptionGuard) {
   const otherOrganizations = await psqlJson(supervisor, toolchain, status,
     `SELECT coalesce(json_agg(id ORDER BY id), '[]'::json)::text FROM platform.organizations WHERE id <> ${sqlLiteral(options.platformOrganizationId)}::uuid`,
     "auth_rls_proof");
@@ -2288,8 +2375,8 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
   }
   const crossOrganizationId = otherOrganizations.find((value) => UUID.test(value));
   for (const role of ["admin", "sales", "admissions"]) {
-    const own = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${options.platformOrganizationId}` });
-    const cross = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${crossOrganizationId}` });
+    const own = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${options.platformOrganizationId}` }, interruptionGuard);
+    const cross = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${crossOrganizationId}` }, interruptionGuard);
     if (own.length !== 1 || cross.length !== 0) fail("organization_rls_boundary_failed", "auth_rls_proof", { role });
   }
   const requestId = randomUUID();
@@ -2405,32 +2492,48 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
   return Object.freeze({ sameOrganization: "passed", crossOrganization: "passed", canonicalRead: "passed", ...writes });
 }
 
-async function provePrivateDocument(status, actor, storage) {
+async function provePrivateDocument(status, actor, storage, interruptionGuard) {
   const bucket = storage.buckets.find((candidate) => candidate.id === "platform-documents" && candidate.public === false);
   if (!bucket) fail("private_document_bucket_missing", "document_proof");
   const path = `recovery-proof/${randomUUID()}.txt`;
   const bytes = Buffer.from(`EVO isolated recovery ${randomUUID()}\n`, "utf8");
   const url = objectUrl(status.apiUrl, bucket.id, path);
-  await (await apiRequest(url, {
-    method: "POST",
-    headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}`, "content-type": "text/plain", "x-upsert": "false" },
-    body: bytes,
-  }, [200], "private_document_write_failed", "document_proof")).arrayBuffer();
   try {
-    await apiRequest(url, { headers: { apikey: status.publishableKey } }, [400, 401, 403, 404], "private_document_publicly_readable", "document_proof");
-    await apiRequest(url, { headers: { apikey: status.publishableKey, Authorization: `Bearer ${actor.accessToken}` } }, [400, 401, 403, 404], "private_document_direct_readable", "document_proof");
+    const written = await apiRequest(url, {
+      method: "POST",
+      headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}`, "content-type": "text/plain", "x-upsert": "false" },
+      body: bytes,
+    }, [200], "private_document_write_failed", "document_proof", interruptionGuard);
+    await interruptionGuard.run("document_proof", async () => await written.arrayBuffer());
+    await apiRequest(url, { headers: { apikey: status.publishableKey } }, [400, 401, 403, 404], "private_document_publicly_readable", "document_proof", interruptionGuard);
+    await apiRequest(url, { headers: { apikey: status.publishableKey, Authorization: `Bearer ${actor.accessToken}` } }, [400, 401, 403, 404], "private_document_direct_readable", "document_proof", interruptionGuard);
     const signed = await apiRequest(objectUrl(status.apiUrl, bucket.id, path, "object/sign"), {
       method: "POST",
       headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}`, "content-type": "application/json" },
       body: JSON.stringify({ expiresIn: 60 }),
-    }, [200], "private_document_sign_failed", "document_proof");
-    const signedPayload = await signed.json().catch(() => null);
+    }, [200], "private_document_sign_failed", "document_proof", interruptionGuard);
+    let signedPayload;
+    try {
+      signedPayload = await interruptionGuard.run("document_proof", async () => await signed.json());
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
+      signedPayload = null;
+    }
     if (!isRecord(signedPayload) || typeof signedPayload.signedURL !== "string") fail("private_document_signed_url_invalid", "document_proof");
-    const download = await apiRequest(new URL(signedPayload.signedURL, status.apiUrl), {}, [200], "private_document_signed_read_failed", "document_proof");
-    const actual = Buffer.from(await download.arrayBuffer());
+    const download = await apiRequest(new URL(signedPayload.signedURL, status.apiUrl), {}, [200], "private_document_signed_read_failed", "document_proof", interruptionGuard);
+    const actual = Buffer.from(await interruptionGuard.run("document_proof", async () => await download.arrayBuffer()));
     if (!actual.equals(bytes)) fail("private_document_roundtrip_mismatch", "document_proof");
   } finally {
-    await (await apiRequest(url, { method: "DELETE", headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}` } }, [200, 204, 404], "private_document_cleanup_failed", "document_proof")).arrayBuffer();
+    const deleted = await apiRequest(
+      url,
+      { method: "DELETE", headers: { apikey: status.serviceRoleKey, Authorization: `Bearer ${status.serviceRoleKey}` } },
+      [200, 204, 404],
+      "private_document_cleanup_failed",
+      "document_proof",
+      interruptionGuard,
+      { allowAfterInterrupt: true },
+    );
+    await interruptionGuard.run("document_proof", async () => await deleted.arrayBuffer(), { allowAfterInterrupt: true });
   }
   return Object.freeze({ privateBucket: bucket.id, anonymousDirectRead: "denied", authenticatedDirectRead: "denied", signedRoundTrip: "passed", canaryDeleted: true });
 }
@@ -2467,24 +2570,29 @@ async function inspectImage(options, supervisor, toolchain) {
   return image;
 }
 
-async function waitForHttp(url, expected, timeoutMs, code, state) {
+async function waitForHttp(url, expected, timeoutMs, code, stage, state, interruptionGuard) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    interruptionGuard.assertActive(stage);
     if (state?.browserRecord?.spawnError) fail("browser_executable_start_failed", "browser_proof");
     if (state?.browserRecord && !childRunning(state.browserRecord.child)) fail("browser_exited_before_ready", "browser_proof");
     if (state?.browserRecord?.overflow) fail("browser_output_limit_exceeded", "browser_proof");
     try {
-      const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(2_000) });
+      const response = await interruptionGuard.run(stage, async (signal) => await fetch(url, {
+        redirect: "manual",
+        signal: AbortSignal.any([AbortSignal.timeout(2_000), signal]),
+      }));
       if (expected.includes(response.status)) return response;
-    } catch {
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
       // Bounded polling is the only emitted state.
     }
-    await delay(250);
+    await interruptionGuard.run(stage, async () => await delay(250));
   }
-  fail(code, "browser_proof");
+  fail(code, stage);
 }
 
-async function startCandidateApp(options, status, actors, state, supervisor, toolchain, image, appPort) {
+async function startCandidateApp(options, status, actors, state, supervisor, toolchain, image, appPort, interruptionGuard) {
   const envFile = join(state.harnessRoot, "candidate.env");
   const observabilitySecret = randomBytes(48).toString("base64url");
   const environment = {
@@ -2519,7 +2627,7 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
   const inspected = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", "{{.Image}}", state.appContainer], { stage: "image_verification", code: "candidate_container_inspect_failed" });
   if (inspected.stdout.toString("utf8").trim() !== image.id) fail("candidate_container_image_mismatch", "image_verification");
   const appUrl = `http://127.0.0.1:${appPort}`;
-  await waitForHttp(`${appUrl}/api/health`, [200], 3 * 60 * 1_000, "candidate_app_start_timeout", state);
+  await waitForHttp(`${appUrl}/api/health`, [200], 3 * 60 * 1_000, "candidate_app_start_timeout", "image_verification", state, interruptionGuard);
   return Object.freeze({ appUrl, observabilitySecret, actors });
 }
 
@@ -2561,7 +2669,8 @@ export function validateBrowserRouteProof(value) {
   return Object.freeze({ route: value.requestedRoute, moduleMarker: value.moduleMarker, responseStatus: value.responseStatus });
 }
 
-async function proveBrowser(app, state, supervisor) {
+async function proveBrowser(app, state, supervisor, interruptionGuard) {
+  const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
   const browserTool = await browserExecutable(supervisor);
   state.availableTools.chromium = browserTool.version;
   const debugPort = await reservePort();
@@ -2575,10 +2684,16 @@ async function proveBrowser(app, state, supervisor) {
   state.browserRecord = browserRecord;
   let browser;
   try {
-    const versionResponse = await waitForHttp(`http://127.0.0.1:${debugPort}/json/version`, [200], 45_000, "browser_start_timeout", state);
-    const versionPayload = await versionResponse.json().catch(() => null);
+    const versionResponse = await waitForHttp(`http://127.0.0.1:${debugPort}/json/version`, [200], 45_000, "browser_start_timeout", "browser_proof", state, interruptionGuard);
+    let versionPayload;
+    try {
+      versionPayload = await browserStep(async () => await versionResponse.json());
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
+      versionPayload = null;
+    }
     if (!isRecord(versionPayload) || typeof versionPayload.webSocketDebuggerUrl !== "string") fail("browser_debug_endpoint_invalid", "browser_proof");
-    browser = await browserTool.chromium.connectOverCDP(versionPayload.webSocketDebuggerUrl);
+    browser = await browserStep(async () => await browserTool.chromium.connectOverCDP(versionPayload.webSocketDebuggerUrl));
     const routes = Object.freeze({
       admin: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
       sales: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
@@ -2586,39 +2701,49 @@ async function proveBrowser(app, state, supervisor) {
     });
     const routeProofs = {};
     for (const role of ["admin", "sales", "admissions"]) {
-      const context = await browser.newContext({ locale: "ru-RU" });
-      const page = await context.newPage();
-      await page.goto(`${app.appUrl}/login`, { waitUntil: "domcontentloaded" });
-      await page.locator("#staff-email").fill(app.actors[role].email);
-      await page.locator("#staff-password").fill(app.actors[role].password);
-      await page.getByRole("button", { name: "Войти в CRM" }).click();
-      const shell = page.getByTestId("v3-shell");
-      await shell.waitFor({ state: "visible", timeout: 45_000 });
-      if (await shell.getAttribute("data-authority-role") !== role) fail("browser_role_mismatch", "browser_proof", { role });
+      const context = await browserStep(async () => await browser.newContext({ locale: "ru-RU" }));
+      const page = await browserStep(async () => await context.newPage());
+      await browserStep(async () => await page.goto(`${app.appUrl}/login`, { waitUntil: "domcontentloaded" }));
+      await browserStep(async () => await page.locator("#staff-email").fill(app.actors[role].email));
+      await browserStep(async () => await page.locator("#staff-password").fill(app.actors[role].password));
+      await browserStep(async () => await page.getByRole("button", { name: "Войти в CRM" }).click());
+      const shell = await browserStep(async () => page.getByTestId("v3-shell"));
+      await browserStep(async () => await shell.waitFor({ state: "visible", timeout: 45_000 }));
+      if (await browserStep(async () => await shell.getAttribute("data-authority-role")) !== role) {
+        fail("browser_role_mismatch", "browser_proof", { role });
+      }
       const route = routes[role];
-      const response = await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded" });
-      await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 });
+      const response = await browserStep(async () => await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded" }));
+      await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
       let markerVisible = false;
       try {
-        await page.getByRole("heading", { name: route.heading, exact: true }).waitFor({ state: "visible", timeout: 45_000 });
-        await page.getByTestId("v3-operational-dashboard").waitFor({ state: "visible", timeout: 45_000 });
+        await browserStep(async () => await page.getByRole("heading", { name: route.heading, exact: true }).waitFor({ state: "visible", timeout: 45_000 }));
+        await browserStep(async () => await page.getByTestId("v3-operational-dashboard").waitFor({ state: "visible", timeout: 45_000 }));
         markerVisible = true;
-      } catch {
+      } catch (error) {
+        interruptionGuard.assertActive("browser_proof", { afterOperation: true });
+        if (error instanceof RecoveryFailure) throw error;
         markerVisible = false;
       }
-      routeProofs[role] = validateBrowserRouteProof({
-        appOrigin: app.appUrl,
-        requestedRoute: route.path,
+      const navigation = await browserStep(async () => Object.freeze({
         responseStatus: response?.status() ?? 0,
         finalUrl: page.url(),
+      }));
+      routeProofs[role] = await browserStep(async () => validateBrowserRouteProof({
+        appOrigin: app.appUrl,
+        requestedRoute: route.path,
+        responseStatus: navigation.responseStatus,
+        finalUrl: navigation.finalUrl,
         moduleMarker: route.marker,
         markerVisible,
-      });
-      await context.close();
+      }));
+      await browserStep(async () => await context.close(), { allowAfterInterrupt: true });
     }
     return Object.freeze({ admin: "passed", sales: "passed", admissions: "passed", routes: Object.freeze(routeProofs), chromium: browserTool.version, exactCandidateImage: true });
   } finally {
-    await browser?.close().catch(() => undefined);
+    if (browser) {
+      await browserStep(async () => await browser.close(), { allowAfterInterrupt: true }).catch(() => undefined);
+    }
     const drained = await supervisor.stopOne(browserRecord);
     state.browserRecord = undefined;
     if (!drained) fail("browser_descendants_not_drained", "browser_proof");
@@ -2908,8 +3033,10 @@ export function buildDurableEvidence({ result, failure, interrupted, stages, cle
 
 export function latchInterruption(state, supervisor, signal) {
   if (!isRecord(state) || !["SIGINT", "SIGTERM"].includes(signal)) fail("signal_invalid", "signal");
+  if (!(state.interruptionGuard instanceof RecoveryInterruptionGuard)) fail("interruption_guard_invalid", "signal");
   state.signalCount = (state.signalCount ?? 0) + 1;
   state.interrupted ??= signal;
+  state.interruptionGuard.latch(signal);
   supervisor.latchInterruption();
   state.signalShutdown ??= Promise.resolve(supervisor.stopAll());
   return state.signalShutdown;
@@ -2966,6 +3093,7 @@ async function executeMode(mode, options) {
     browserRecord: undefined,
     interrupted: undefined,
     signalCount: 0,
+    interruptionGuard: new RecoveryInterruptionGuard(),
     availableTools: {},
     isolationInput: {
       source: { projectRef: null, urls: [], networks: [], volumes: [] },
@@ -2981,6 +3109,10 @@ async function executeMode(mode, options) {
   writeFileSync(join(harnessRoot, MARKER), `${projectName}\n`, { mode: 0o600, flag: "wx" });
   const supervisor = new ProcessSupervisor();
   const timings = new StageTimings();
+  const runStage = async (stage, operation) => await timings.run(
+    stage,
+    async () => await state.interruptionGuard.run(stage, operation),
+  );
   let toolchain;
   let result;
   let failure;
@@ -2992,9 +3124,9 @@ async function executeMode(mode, options) {
   process.on("SIGINT", sigint);
   process.on("SIGTERM", sigterm);
   try {
-    toolchain = await timings.run("toolchain", () => trustedToolchain(supervisor, state.availableTools));
-    const repository = await timings.run("repository", () => repositorySnapshot(supervisor, toolchain.paths, options.repositoryCommit));
-    const artifacts = await timings.run("signed_artifact_validation", () => prepareArtifacts(options, harnessRoot, supervisor, toolchain));
+    toolchain = await runStage("toolchain", () => trustedToolchain(supervisor, state.availableTools));
+    const repository = await runStage("repository", () => repositorySnapshot(supervisor, toolchain.paths, options.repositoryCommit));
+    const artifacts = await runStage("signed_artifact_validation", () => prepareArtifacts(options, harnessRoot, supervisor, toolchain));
     const sourceProject = artifacts.database.source.project;
     state.isolationInput.source = {
       projectRef: sourceProject.ref,
@@ -3019,9 +3151,9 @@ async function executeMode(mode, options) {
     if (artifacts.receipt.git.migration_tree !== repository.migrationTree) {
       fail("receipt_migration_tree_mismatch", "repository");
     }
-    const root = await timings.run("migration_ledger_validation", () => rootMigrationEntries(supervisor, toolchain.paths, options.repositoryCommit, harnessRoot));
+    const root = await runStage("migration_ledger_validation", () => rootMigrationEntries(supervisor, toolchain.paths, options.repositoryCommit, harnessRoot));
     const verifiedLedger = verifyLedgerAgainstRoot(artifacts.ledger, root, artifacts.database.ledger);
-    const image = await timings.run("immutable_image_validation", () => inspectImage(options, supervisor, toolchain));
+    const image = await runStage("immutable_image_validation", () => inspectImage(options, supervisor, toolchain));
     const shared = {
       repository: Object.freeze({ head: repository.head, migrationTree: repository.migrationTree }),
       source: Object.freeze({
@@ -3048,9 +3180,9 @@ async function executeMode(mode, options) {
     if (mode === "preflight") {
       result = { schema: RESULT_SCHEMA, ok: true, status: "preflight_passed", proof: "not_run", ...shared };
     } else {
-      const ports = await timings.run("port_reservation", reservePorts);
-      const local = await timings.run("local_supabase_start", () => startLocalSupabase(state, root, ports, supervisor, toolchain));
-      const destinationInventory = await timings.run("destination_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "destination_identity" }));
+      const ports = await runStage("port_reservation", reservePorts);
+      const local = await runStage("local_supabase_start", () => startLocalSupabase(state, root, ports, supervisor, toolchain));
+      const destinationInventory = await runStage("destination_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "destination_identity" }));
       state.isolationInput.destination = {
         projectRef: state.projectName,
         urls: [local.status.apiUrl, local.status.dbUrl],
@@ -3059,18 +3191,18 @@ async function executeMode(mode, options) {
       };
       state.isolationEvidence = buildIsolationEvidence(state.isolationInput, { requireComplete: true });
       const isolation = state.isolationEvidence;
-      const extracted = await timings.run("storage_archive_validation", () => extractStorage(artifacts, state, supervisor, toolchain));
-      const database = await timings.run("database_restore", async () => {
+      const extracted = await runStage("storage_archive_validation", () => extractStorage(artifacts, state, supervisor, toolchain));
+      const database = await runStage("database_restore", async () => {
         await restoreDatabase(artifacts, local.status, supervisor, toolchain);
         return await reconcileRestoredDatabase(artifacts, local.status, supervisor, toolchain);
       });
-      const migrations = await timings.run("pending_migration_rehearsal", () => applyPendingMigrations(state, local, root, verifiedLedger, supervisor, toolchain));
-      const storage = await timings.run("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain));
-      const actors = await timings.run("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain));
-      const authorization = await timings.run("authorization_and_audit", () => proveRlsAndCanonicalWrite(options, local.status, actors, supervisor, toolchain));
-      const document = await timings.run("private_document", () => provePrivateDocument(local.status, actors.sales, artifacts.storage));
-      const app = await timings.run("candidate_start", () => startCandidateApp(options, local.status, actors, state, supervisor, toolchain, image, ports.app));
-      const browser = await timings.run("browser_proof", () => proveBrowser(app, state, supervisor));
+      const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(state, local, root, verifiedLedger, supervisor, toolchain));
+      const storage = await runStage("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain, state.interruptionGuard));
+      const actors = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));
+      const authorization = await runStage("authorization_and_audit", () => proveRlsAndCanonicalWrite(options, local.status, actors, supervisor, toolchain, state.interruptionGuard));
+      const document = await runStage("private_document", () => provePrivateDocument(local.status, actors.sales, artifacts.storage, state.interruptionGuard));
+      const app = await runStage("candidate_start", () => startCandidateApp(options, local.status, actors, state, supervisor, toolchain, image, ports.app, state.interruptionGuard));
+      const browser = await runStage("browser_proof", () => proveBrowser(app, state, supervisor, state.interruptionGuard));
       result = {
         schema: RESULT_SCHEMA,
         ok: true,

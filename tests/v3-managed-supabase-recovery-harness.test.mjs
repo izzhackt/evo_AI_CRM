@@ -8,7 +8,9 @@ import test from "node:test";
 
 import {
   ProcessSupervisor,
+  RecoveryInterruptionGuard,
   RecoveryFailure,
+  apiRequest,
   buildDurableEvidence,
   buildIsolationEvidence,
   canonicalJson,
@@ -19,6 +21,7 @@ import {
   latchInterruption,
   migrationStatementsDigest,
   parseHarnessOptions,
+  runBrowserOperation,
   sanitizePsqlDiagnostic,
   sanitizeCommandDiagnostic,
   selectAdmissionsTaskMutation,
@@ -506,7 +509,10 @@ test("interruption latches once, ignores a second default exit, and blocks new n
     latchInterruption() { latched += 1; },
     async stopAll() { stops += 1; return true; },
   };
-  const state = {};
+  let directAborts = 0;
+  const interruptionGuard = new RecoveryInterruptionGuard();
+  interruptionGuard.signal.addEventListener("abort", () => { directAborts += 1; });
+  const state = { interruptionGuard };
   const first = latchInterruption(state, supervisor, "SIGINT");
   const second = latchInterruption(state, supervisor, "SIGTERM");
   assert.equal(first, second);
@@ -514,7 +520,22 @@ test("interruption latches once, ignores a second default exit, and blocks new n
   assert.equal(state.signalCount, 2);
   assert.equal(stops, 1);
   assert.equal(latched, 2);
+  assert.equal(directAborts, 1);
+  assert.equal(interruptionGuard.interrupted, "SIGINT");
   await first;
+
+  const interruptedEvidence = buildDurableEvidence({
+    result: { schema: "evo-v3-managed-supabase-recovery-result/v2", ok: true, status: "passed" },
+    failure: undefined,
+    interrupted: state.interrupted,
+    stages: [],
+    cleanup: { descendantsDrained: true, targetsOwned: true, cleanupSucceeded: true, disposition: "remove" },
+    tools: {},
+    isolation: { status: "partial" },
+  });
+  assert.equal(interruptedEvidence.ok, false);
+  assert.equal(interruptedEvidence.status, "interrupted");
+  assert.equal(interruptedEvidence.failure.code, "recovery_interrupted");
 
   const realSupervisor = new ProcessSupervisor();
   realSupervisor.latchInterruption();
@@ -527,6 +548,68 @@ test("interruption latches once, ignores a second default exit, and blocks new n
     allowAfterInterrupt: true,
   });
   assert.match(cleanup.stdout.toString("utf8"), /^v\d+/u);
+});
+
+test("interruption aborts pending HTTP and refuses later API or browser work while allowing cleanup", async () => {
+  const pendingGuard = new RecoveryInterruptionGuard();
+  let pendingFetchStarted = false;
+  let pendingFetchAborted = false;
+  const pending = apiRequest(
+    "http://127.0.0.1:43123/rest/v1/organizations",
+    {},
+    [200],
+    "pending_api_failed",
+    "auth_rls_proof",
+    pendingGuard,
+    {
+      fetchImpl: async (_url, { signal }) => {
+        pendingFetchStarted = true;
+        return await new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => {
+            pendingFetchAborted = true;
+            reject(new Error("aborted"));
+          }, { once: true });
+        });
+      },
+    },
+  );
+  assert.equal(pendingFetchStarted, true);
+  pendingGuard.latch("SIGINT");
+  await expectCodeAsync(() => pending, "operation_interrupted");
+  assert.equal(pendingFetchAborted, true);
+
+  const latchedGuard = new RecoveryInterruptionGuard();
+  latchedGuard.latch("SIGTERM");
+  let laterApiInvocations = 0;
+  await expectCodeAsync(
+    () => apiRequest(
+      "http://127.0.0.1:43123/rest/v1/organizations",
+      {},
+      [200],
+      "later_api_failed",
+      "auth_rls_proof",
+      latchedGuard,
+      {
+        fetchImpl: async () => {
+          laterApiInvocations += 1;
+          return new Response(null, { status: 200 });
+        },
+      },
+    ),
+    "operation_started_after_interruption",
+  );
+  assert.equal(laterApiInvocations, 0);
+
+  let laterBrowserInvocations = 0;
+  await expectCodeAsync(
+    () => runBrowserOperation(latchedGuard, async () => { laterBrowserInvocations += 1; }),
+    "operation_started_after_interruption",
+  );
+  assert.equal(laterBrowserInvocations, 0);
+
+  let cleanupInvocations = 0;
+  await latchedGuard.run("cleanup", async () => { cleanupInvocations += 1; }, { allowAfterInterrupt: true });
+  assert.equal(cleanupInvocations, 1);
 });
 
 test("browser proof requires a 2xx response, exact final route and loaded module marker", () => {

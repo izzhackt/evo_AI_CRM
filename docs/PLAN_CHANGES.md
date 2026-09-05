@@ -18555,3 +18555,57 @@ Decision:
 
 This correction changes no managed Supabase, VPS, provider, webhook,
 production-traffic or customer state and does not activate a release.
+
+## 2026-09-05 - Correct squash lineage, dual ledgers and recovery readiness
+
+Block-ID: `EVO-V3-H-RECOVERY-LINEAGE-AND-READINESS-CORRECTION-2026-09-05`
+
+Change type: real-export and current-main correctness correction.
+Affected plan section: Order 7 / Issue #551.
+
+The signed export was created at pre-merge commit
+`b54ccc6f274a7962ed2c6d93a6fd445086292191`. PR #637 was then squash-merged
+as `a0ba8b340e5d472a1a97ffd9005d3122ad2b279f`: the two commits have the exact
+same complete tree and migration tree, but the former is not a Git ancestor of
+current `main`. The export's authenticated database history contains migrations
+`001` through `079`, while its source Git tree contains `001` through `114` and
+the current target contains `001` through `116`. The signed source Storage
+inventory is valid but contains zero real objects, and the restored authority
+contains Admin but no active real Sales or Admissions identities.
+
+Decision:
+
+- keep the receipt bound to the exact pre-squash source SHA. Require one
+  explicit integrated-equivalent commit whose full tree and migration tree are
+  identical to that source, then require the equivalent commit to be an
+  ancestor of the exact target. This supersedes the earlier direct-source-
+  ancestry requirement without accepting a branch name or approximate tree;
+- prove two separate ordered relationships. The authenticated database ledger
+  `001`-`079` is an exact statement-level prefix of both Git roots and the
+  recovery applies its real pending suffix `080`-`116`. Independently, the
+  complete source Git root `001`-`114` is the exact target prefix and records
+  target-only source-code suffix `115`-`116`. Never call either relationship
+  the other or reconstruct one from filenames/counts;
+- materialize and verify a private snapshot of the exact clean target commit,
+  reject symlinks, gitlinks, special files and Git-discovery paths, build the
+  `linux/amd64` production target from that snapshot and run only the inspected
+  image ID. Dependency download is explicit build-time input; the application
+  runtime remains on exactly one owned internal network with loopback-only app
+  publication and browser service-worker/external-request blocking;
+- execute the verified native Supabase CLI and its verified delegated binary
+  directly, stream Storage upload/read-back, inventory every project/owner-
+  labelled container and image, and invoke no Docker cleanup before OrbStack
+  plus the exact `orbstack` context pass; and
+- accept optional explicit Sales and Admissions IDs only when real restored
+  identities exist. With the current source, continue the safe Admin and
+  destination-canary checks, but atomically retain mode-`0600` redacted
+  `not_ready` evidence after cleanup and exit non-zero with all three blockers:
+  missing Sales, missing Admissions and zero source Storage objects. Admin
+  behavior never substitutes for a role, and a destination canary never
+  substitutes for recovered source bytes.
+
+This diagnostic mutates only the disposable local recovery contour. It does
+not contact or mutate managed Supabase, VPS, WAHA, amoCRM, Gemini, webhooks,
+production traffic or customer records, and it does not arm #552. The internal
+network contract follows Docker's documented `--internal` behavior:
+<https://docs.docker.com/reference/cli/docker/network/create/>.

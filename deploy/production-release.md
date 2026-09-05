@@ -1,8 +1,8 @@
 # EVO production-successor exact-SHA release runbook
 
 Status: #551 target V3 release contract. The checked-in automation remains
-unarmed and is not conformant until #551 implements and proves this contract;
-#552 owns production configuration and activation. This runbook replaces the
+unarmed while #551 implements and proves this contract; #552 owns production
+configuration and activation. This runbook replaces the
 former five-container V1 runbook, retained only at
 [`docs/archive/v1/production-release.md`](../docs/archive/v1/production-release.md).
 Nothing here authorizes a VPS or provider mutation by itself.
@@ -50,8 +50,9 @@ labels bind it to the workflow run, attempt and source SHA.
 
 A separate fresh privileged `deploy` job receives no build workspace/cache. Its
 first secretless step independently validates success, `push`, `main`, exact
-repository/current-main SHA, arm and original actor ID before any production
-secret, SSH or Supabase access. It downloads only the exact same-run numeric
+repository/current-main SHA, the workflow-dispatch-time arm snapshot and
+original actor ID before any production secret, SSH or Supabase access. It
+downloads only the exact same-run numeric
 artifact ID, requires the downloaded GitHub digest and every sealed manifest/
 archive/image field to match, and never executes an artifact-supplied script or
 Compose file. A second credentials-disabled checkout supplies the release code.
@@ -71,6 +72,18 @@ newer main commit, disabled arm, missing/malformed/mismatched actor ID, artifact
 drift or ledger drift stops before server contact. The server preflight
 independently binds the requested SHA, image labels, artifact digests and
 transferred manifest before container mutation.
+
+GitHub evaluates `${{ vars.* }}` before sending a job to its runner, so that
+context is admission input, not a live pre-mutation re-read. The two fresh
+guards use the Variables REST API with
+`EVO_GITHUB_VARIABLES_READ_TOKEN`, a one-repository control-plane credential
+with only `Variables: read`. This narrow exception is not a VPS, Supabase or
+runtime secret: it is unavailable to `build`, initial deploy admission,
+candidate code, artifacts, the host controller, VPS and evidence, and may be
+referenced only by the final pre-SSH guard and the pre-acceptance recheck to GET
+the exact arm and actor-ID variables. Any HTTP, schema or byte-comparison
+failure stops. #552 owns installation, expiry/rotation and revocation of that
+credential before arming the lane.
 
 Supabase schema application remains a separate manual #552 action. The
 automatic workflow checks the migration ledger read-only and stops on mismatch;
@@ -315,13 +328,16 @@ Record whether the app existed, the current WAHA image digest, and the exact
 Compose, controller and protected-configuration paths and SHA-256 hashes before
 deployment.
 
-Before replacement, atomically create a mode-`0600` release state and
+Before replacement, create-once write an immutable mode-`0600` release state and
 `pending-current.json`. Bind release ID, generation, repository/source SHA,
 workflow run/attempt, artifact ID/GitHub digest, candidate image/config/archive
 digests and OCI labels, and the exact prior generation/release/image plus every
 retained Compose/controller/protected-config hash. After replacement and before
-health proof, add the observed candidate container ID under the same lock. A
-missing or conflicting pending pointer stops.
+health proof, create-once write a separate `candidate-runtime.json` that binds
+the immutable state hash and observed candidate container ID. Never rewrite
+state and pending sequentially. Missing runtime proof blocks acceptance but not
+rollback from the intact state/pending pair; any conflicting pointer or receipt
+stops.
 
 For a genuinely absent installation, a still-pending candidate may roll back by
 removing only that candidate and restoring app absence. Once it is accepted, an

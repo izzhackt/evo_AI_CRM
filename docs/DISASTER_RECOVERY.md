@@ -280,11 +280,21 @@ owned internal network and loopback-only app publication. It applies only the
 authenticated pending migration suffix, verifies exact source Storage bytes,
 runs the exact production image through local TLS, blocks browser HTTP and
 WebSocket egress, proves restored Auth/RLS/business outcomes, exercises the
-real Company Files scanner path and verifies fail-closed provider readiness
-without contacting a provider. Cleanup must drain every owned process and
-container before the private runtime directory is removed; uncertainty is
-quarantined rather than deleted. Only mode-`0600` redacted result-v2 evidence
-is retained outside the runtime directory.
+real Company Files scanner path for clean, EICAR, unavailable and recovered
+outcomes, and verifies fail-closed provider readiness without contacting a
+provider. This result is only one half of the #551 scanner gate. The same exact
+target commit must also pass `test:database:local`, which starts the pinned real
+ClamAV image and drives both active Student 360 `/api/v2/document-slots/*` and
+Company Files `/api/v3/company-files/*` ingress paths, plus `test:u7`, whose
+focused scanner/client/route contracts cover timeout, malformed, duplicate,
+missing, unknown and uncorrelated request IDs, scanner identity drift, and
+zero persistence/download on failure. Record the matching exact-head CI run
+with the result-v2 evidence; neither half alone closes #551.
+
+Cleanup must drain every owned process and container before the private
+runtime directory is removed; uncertainty is quarantined rather than deleted.
+Only mode-`0600` redacted result-v2 evidence is retained outside the runtime
+directory.
 
 `status=passed` requires all three real restored staff identities and at least
 one real source private-Storage object. Missing Sales/Admissions identities or

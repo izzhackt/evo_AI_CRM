@@ -18837,3 +18837,36 @@ redacted evidence remain preserved as implementation/review history. #551 is
 reopened, and #552 remains unarmed. This correction does not contact or mutate
 managed Supabase, production, VPS, WAHA, amoCRM, Gemini, webhooks, customer
 records or provider state.
+
+## 2026-09-05 - Bind both scanner ingress paths to exact-head acceptance
+
+Block-ID: `EVO-V3-H-RECOVERY-SCANNER-EVIDENCE-MAPPING-2026-09-05`
+
+Change type: independent-review acceptance correction.
+Affected plan section: Order 7 / Issue #551.
+
+The post-merge recovery correction drives the exact production candidate's
+Company Files route through the pinned real ClamAV service for clean, EICAR,
+scanner-unavailable and recovered outcomes. That proof is necessary but is not
+the complete scanner prerequisite: the active Student 360 document ingress
+and every protocol-negative outcome remain part of the authoritative #551
+contract.
+
+Decision:
+
+- require the same exact target commit to pass the recovery result-v2 run and
+  `test:database:local`, whose isolated Supabase/browser contour starts the
+  pinned real scanner and drives both Student 360 `/api/v2/document-slots/*`
+  and Company Files `/api/v3/company-files/*` ingress paths;
+- require that exact-head CI's `test:u7` scanner/client/route contracts to prove
+  timeout, malformed, duplicate, missing, unknown and uncorrelated request-ID
+  handling, engine/signature identity drift, and no finalization, persistence
+  or download on failure; and
+- bind the result-v2 evidence hash and exact-head CI run to the same immutable
+  target commit in the #551 completion record. The local recovery result or CI
+  alone cannot satisfy the scanner gate.
+
+This mapping does not weaken the two-route runtime contract, authorize a mock
+as provider evidence or add a second scanner path. It changes no managed
+Supabase, production, VPS, WAHA, amoCRM, Gemini, webhook, customer or provider
+state and does not arm #552.

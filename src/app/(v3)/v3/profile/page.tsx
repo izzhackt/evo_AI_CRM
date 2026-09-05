@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import Link from "next/link";
+
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
 import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
@@ -21,6 +23,10 @@ import {
   readProfileTarget,
   readV3ProfileCaseDirectory,
 } from "@/lib/v3/profile-source";
+import {
+  loadV3ProfileRoute,
+  type V3ProfileRouteLoadMode,
+} from "@/lib/v3/profile-route-load";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Профиль" };
@@ -92,26 +98,25 @@ export default async function ProfilePart({
     (hasLeadParam && !leadParam) ||
     (hasCaseParam && !caseParam) ||
     ((hasLeadParam || hasCaseParam) && directoryParams.active);
-  const effectiveDirectoryParams = invalidIdentityShape
-    ? Object.freeze({
-        active: true,
-        cursor: null,
-        invalid: true,
-      })
-    : directoryParams;
-  const directory = await readV3ProfileCaseDirectory(
-    actor,
-    effectiveDirectoryParams,
-  );
   const explicitTarget: ProfileRouteTarget | null = !invalidIdentityShape && leadParam
     ? { leadId: leadParam, studentCaseId: null }
     : !invalidIdentityShape && caseParam
       ? { leadId: null, studentCaseId: caseParam }
       : null;
   const hasExplicitTarget = hasLeadParam || hasCaseParam;
-  const view = explicitTarget
-    ? await readProfileTarget(actor, explicitTarget)
-    : null;
+  const routeMode: V3ProfileRouteLoadMode<
+    typeof directoryParams,
+    ProfileRouteTarget
+  > = invalidIdentityShape
+    ? { kind: "invalid" }
+    : explicitTarget
+      ? { kind: "target", target: explicitTarget }
+      : { kind: "directory", params: directoryParams };
+  const { directory, view } = await loadV3ProfileRoute(routeMode, {
+    readDirectory: (nextParams) =>
+      readV3ProfileCaseDirectory(actor, nextParams),
+    readTarget: (target) => readProfileTarget(actor, target),
+  });
   const missing = hasExplicitTarget && !view;
   // Вкладка приходит адресом, поэтому её нельзя брать на веру: чужое слово и
   // вкладка, которой у этого человека нет (`?tab=documents` у лида), открывают
@@ -136,32 +141,42 @@ export default async function ProfilePart({
   return (
     <PartShell title="Профиль">
       <div className="space-y-6">
-        <ProfileCaseDirectory
-          directory={directory}
-          initiallyOpen={effectiveDirectoryParams.active || !view}
-          params={effectiveDirectoryParams}
-        />
-        {view ? (
-          <Profile
-            profile={view.profile}
-            draft={view.details}
-            sales={view.sales}
-            actorRole={actor.presentationRole}
-            authorityRole={actor.authorityRole}
-            organizationId={actor.organizationId}
-            requestIds={requestIds}
-            contractResult={contractResult}
-            contractRetry={contractRetry}
-            tab={tab}
-            hrefFor={hrefFor}
+        {directory ? (
+          <ProfileCaseDirectory
+            directory={directory}
+            initiallyOpen={directoryParams.active || !view}
+            params={directoryParams}
           />
+        ) : null}
+        {view ? (
+          <>
+            <Link
+              className="inline-flex text-sm font-semibold text-accent hover:underline"
+              href="/v3/profile"
+            >
+              К каталогу Student 360
+            </Link>
+            <Profile
+              profile={view.profile}
+              draft={view.details}
+              sales={view.sales}
+              actorRole={actor.presentationRole}
+              authorityRole={actor.authorityRole}
+              organizationId={actor.organizationId}
+              requestIds={requestIds}
+              contractResult={contractResult}
+              contractRetry={contractRetry}
+              tab={tab}
+              hrefFor={hrefFor}
+            />
+          </>
         ) : (
           <p className="rounded-card border border-border bg-surface px-4 py-8 text-center text-sm text-fg-3">
             {invalidIdentityShape
               ? "Профиль не открыт: адрес должен содержать только один точный идентификатор без параметров каталога."
               : missing
                 ? "Такого человека в базе нет. Показывать вместо него другого мы не будем."
-                : directory.rows.length > 0 || directoryParams.active
+                : directory && (directory.rows.length > 0 || directoryParams.active)
                   ? "Выберите точное дело студента из результатов поиска."
                   : "В базе нет ни одного человека."}
           </p>

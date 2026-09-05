@@ -44,17 +44,14 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   );
 
   assert.match(page, /parseV3ProfileCaseDirectoryParams\(params\)/u);
-  assert.match(
-    page,
-    /readV3ProfileCaseDirectory\([\s\S]*actor,[\s\S]*effectiveDirectoryParams,[\s\S]*\)/u,
-  );
+  assert.match(page, /loadV3ProfileRoute\(routeMode/u);
+  assert.match(page, /kind: "target", target: explicitTarget/u);
+  assert.match(page, /kind: "directory", params: directoryParams/u);
+  assert.match(page, /К каталогу Student 360/u);
   assert.doesNotMatch(page, /readProfilePicks/u);
   assert.match(page, /invalidIdentityShape/u);
   assert.match(page, /\(hasLeadParam \|\| hasCaseParam\) && directoryParams\.active/u);
-  assert.match(
-    page,
-    /effectiveDirectoryParams = invalidIdentityShape[\s\S]*invalid: true/u,
-  );
+  assert.doesNotMatch(page, /effectiveDirectoryParams/u);
   assert.match(adapter, /listPlatformStudentCases\(actor, \{/u);
   assert.match(adapter, /cursor: params\.cursor/u);
   assert.match(adapter, /pageSize: 25/u);

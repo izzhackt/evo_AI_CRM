@@ -16,6 +16,12 @@ import {
 } from "../platform-company-files.ts";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import {
+  ClamdScanError,
+  isClamdMalwareScanProof,
+  scanBytesWithClamd,
+  type ClamdMalwareScanProof,
+} from "./clamd-malware-scanner.ts";
 
 const BUCKET_ID = "platform-company-files";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -65,6 +71,7 @@ export type PlatformCompanyFileStorageRouteDependencies = Readonly<{
   authorize(capability: DocumentCapability): Promise<CompanyFileAuthorization>;
   createUserClient(): Promise<SupabaseClient>;
   createServiceClient(): SupabaseClient;
+  scanFile(bytes: Uint8Array): Promise<ClamdMalwareScanProof>;
   supabaseOrigin(): string;
   requestId(): string;
 }>;
@@ -626,6 +633,7 @@ function normalizeFinalizedUpload(
   value: unknown,
   reservation: UploadReservation,
   expectedFileVersion: string,
+  scanProof: ClamdMalwareScanProof,
 ): FinalizedUpload | null {
   if (!isRecord(value) || !exactKeys(value, [
     "organization_id",
@@ -638,8 +646,16 @@ function normalizeFinalizedUpload(
     "finalized_at",
     "file_version",
     "current_version_id",
+    "malware_scan_attestation_id",
+    "scanner_engine",
+    "scanner_engine_version",
+    "scanner_signature_version",
+    "scanner_protocol",
+    "scanned_at",
+    "scanner_proof",
   ])) return null;
   const fileVersion = positiveBigint(value.file_version);
+  const scannedAt = timestamp(value.scanned_at);
   if (
     uuid(value.organization_id) !== reservation.organizationId ||
     uuid(value.company_file_id) !== reservation.companyFileId ||
@@ -649,7 +665,14 @@ function normalizeFinalizedUpload(
     value.object_name !== reservation.objectName || !timestamp(value.finalized_at) ||
     !fileVersion ||
     BigInt(fileVersion) !== BigInt(expectedFileVersion) + BigInt(1) ||
-    uuid(value.current_version_id) !== reservation.companyFileVersionId
+    uuid(value.current_version_id) !== reservation.companyFileVersionId ||
+    !uuid(value.malware_scan_attestation_id) ||
+    value.scanner_engine !== scanProof.engine ||
+    value.scanner_engine_version !== scanProof.engineVersion ||
+    value.scanner_signature_version !== scanProof.signatureVersion ||
+    value.scanner_protocol !== scanProof.protocol ||
+    !scannedAt || Date.parse(scannedAt) !== Date.parse(scanProof.scannedAt) ||
+    value.scanner_proof !== true
   ) return null;
   return Object.freeze({
     companyFileId: reservation.companyFileId,
@@ -734,6 +757,7 @@ const defaultDependencies: PlatformCompanyFileStorageRouteDependencies = {
   },
   createServiceClient: () =>
     createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig()),
+  scanFile: scanBytesWithClamd,
   supabaseOrigin: () => new URL(getPlatformSupabaseBackendConfig().supabaseUrl).origin,
   requestId: randomUUID,
 };
@@ -880,6 +904,19 @@ export function createPlatformCompanyFileUploadHandler(
       return errorResponse(503, "storage_unavailable");
     }
 
+    let scanProof: ClamdMalwareScanProof;
+    try {
+      scanProof = await dependencies.scanFile(bytes);
+    } catch (error) {
+      if (error instanceof ClamdScanError && error.code === "infected") {
+        return errorResponse(422, "malware_detected");
+      }
+      return errorResponse(503, "malware_scanner_unavailable");
+    }
+    if (!isClamdMalwareScanProof(scanProof, sha256Hex)) {
+      return errorResponse(503, "malware_scan_unconfirmed");
+    }
+
     try {
       const userClient = await dependencies.createUserClient();
       const reservationResponse = await userClient.schema("platform").rpc(
@@ -924,6 +961,12 @@ export function createPlatformCompanyFileUploadHandler(
         {
           p_organization_id: authorization.actor.organizationId,
           p_upload_reservation_id: reservation.uploadReservationId,
+          p_scanner_engine: scanProof.engine,
+          p_scanner_engine_version: scanProof.engineVersion,
+          p_scanner_signature_version: scanProof.signatureVersion,
+          p_scanner_protocol: scanProof.protocol,
+          p_scanned_sha256_hex: scanProof.sha256Hex,
+          p_scanned_at: scanProof.scannedAt,
           p_request_id: derivedRequestId(upload.requestId, "finalize"),
         },
       );
@@ -937,6 +980,7 @@ export function createPlatformCompanyFileUploadHandler(
         finalizationResponse.data,
         reservation,
         upload.expectedFileVersion,
+        scanProof,
       );
       if (!finalized) return errorResponse(503, "storage_unavailable");
 

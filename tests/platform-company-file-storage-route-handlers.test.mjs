@@ -8,12 +8,14 @@ import {
   createPlatformCompanyFileDownloadHandler,
   createPlatformCompanyFileUploadHandler,
 } from "../src/lib/server/platform-company-file-storage-route-handlers.ts";
+import { ClamdScanError } from "../src/lib/server/clamd-malware-scanner.ts";
 
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const FILE_ID = "22222222-2222-4222-8222-222222222222";
 const VERSION_ID = "33333333-3333-4333-8333-333333333333";
 const RESERVATION_ID = "44444444-4444-4444-8444-444444444444";
 const FINALIZATION_ID = "55555555-5555-4555-8555-555555555555";
+const SCAN_ATTESTATION_ID = "55555555-aaaa-4555-8555-555555555555";
 const GRANT_ID = "66666666-6666-4666-8666-666666666666";
 const CONSUMPTION_ID = "77777777-7777-4777-8777-777777777777";
 const REQUEST_IDS = [
@@ -25,6 +27,14 @@ const OBJECT_NAME = `ab/${"c".repeat(62)}`;
 const AT = "2026-09-04T10:00:00+00:00";
 const BYTES = new TextEncoder().encode("%PDF-1.7\ncompany file proof");
 const SHA256 = createHash("sha256").update(BYTES).digest("hex");
+const SCAN_PROOF = Object.freeze({
+  engine: "ClamAV",
+  engineVersion: "1.5.4",
+  signatureVersion: "27890",
+  protocol: "clamd-zinstream-v1",
+  scannedAt: "2026-09-04T10:00:00.000Z",
+  sha256Hex: SHA256,
+});
 
 const OOXML_FAMILIES = Object.freeze({
   docx: Object.freeze({
@@ -207,6 +217,13 @@ function finalization(overrides = {}) {
     finalized_at: AT,
     file_version: "2",
     current_version_id: VERSION_ID,
+    malware_scan_attestation_id: SCAN_ATTESTATION_ID,
+    scanner_engine: SCAN_PROOF.engine,
+    scanner_engine_version: SCAN_PROOF.engineVersion,
+    scanner_signature_version: SCAN_PROOF.signatureVersion,
+    scanner_protocol: SCAN_PROOF.protocol,
+    scanned_at: AT,
+    scanner_proof: true,
     ...overrides,
   };
 }
@@ -226,6 +243,8 @@ function uploadDependencies({
   reservationError = null,
   finalizationError = null,
   uploadError = null,
+  scanResult = null,
+  scanError = null,
 } = {}) {
   const calls = [];
   const userClient = {
@@ -270,6 +289,14 @@ function uploadDependencies({
       },
       async createUserClient() { return userClient; },
       createServiceClient() { return serviceClient; },
+      async scanFile(bytes) {
+        calls.push(["scan", bytes]);
+        if (scanError) throw scanError;
+        return scanResult ?? {
+          ...SCAN_PROOF,
+          sha256Hex: createHash("sha256").update(bytes).digest("hex"),
+        };
+      },
       supabaseOrigin() { return "http://127.0.0.1:54321"; },
       requestId: sequence(REQUEST_IDS),
     },
@@ -296,6 +323,7 @@ test("authorized company upload reserves, uploads without overwrite and finalize
     },
   });
   assert.deepEqual(calls[0], ["authorize", "documents.write"]);
+  assert.equal(calls[1][0], "scan");
   assert.deepEqual(calls.find(([kind]) => kind === "user-rpc").slice(1), [
     "reserve_company_file_upload",
     {
@@ -314,6 +342,49 @@ test("authorized company upload reserves, uploads without overwrite and finalize
     calls.find(([kind]) => kind === "service-rpc")[1],
     "finalize_company_file_upload",
   );
+  const finalizationArgs = calls.find(([kind]) => kind === "service-rpc")[2];
+  const { p_request_id: finalizationRequestId, ...scanBoundArgs } = finalizationArgs;
+  assert.match(finalizationRequestId, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(
+    scanBoundArgs,
+    {
+      p_organization_id: ORGANIZATION_ID,
+      p_upload_reservation_id: RESERVATION_ID,
+      p_scanner_engine: "ClamAV",
+      p_scanner_engine_version: "1.5.4",
+      p_scanner_signature_version: "27890",
+      p_scanner_protocol: "clamd-zinstream-v1",
+      p_scanned_sha256_hex: SHA256,
+      p_scanned_at: SCAN_PROOF.scannedAt,
+    },
+  );
+});
+
+test("company upload rejects malware and scanner failure before reservation", async () => {
+  for (const item of [
+    { error: new ClamdScanError("infected"), status: 422, code: "malware_detected" },
+    { error: new ClamdScanError("timeout"), status: 503, code: "malware_scanner_unavailable" },
+  ]) {
+    const result = uploadDependencies({ scanError: item.error });
+    const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+      uploadRequest(),
+      { params: Promise.resolve({ companyFileId: FILE_ID }) },
+    );
+    assert.equal(response.status, item.status);
+    assert.deepEqual(await response.json(), { error: item.code });
+    assert.equal(result.calls.some(([kind]) => kind === "user-rpc" || kind === "upload"), false);
+  }
+
+  const mismatch = uploadDependencies({
+    scanResult: { ...SCAN_PROOF, sha256Hex: "0".repeat(64) },
+  });
+  const response = await createPlatformCompanyFileUploadHandler(mismatch.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "malware_scan_unconfirmed" });
+  assert.equal(mismatch.calls.some(([kind]) => kind === "user-rpc"), false);
 });
 
 test("company upload authorizes before parsing and rejects spoofed signatures", async () => {

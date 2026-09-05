@@ -9,6 +9,12 @@ import {
   type FixedRoleCapability,
 } from "../fixed-role-policy.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
+import {
+  ClamdScanError,
+  isClamdMalwareScanProof,
+  scanBytesWithClamd,
+  type ClamdMalwareScanProof,
+} from "./clamd-malware-scanner.ts";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 
@@ -40,6 +46,7 @@ export type PlatformDocumentStorageRouteDependencies = Readonly<{
   authorize(capability: DocumentCapability): Promise<DocumentAuthorization>;
   createUserClient(): Promise<SupabaseClient>;
   createServiceClient(): SupabaseClient;
+  scanFile(bytes: Uint8Array): Promise<ClamdMalwareScanProof>;
   supabaseOrigin(): string;
   requestId(): string;
 }>;
@@ -294,6 +301,7 @@ function normalizeFinalizedUpload(
 function normalizeValidationAttestation(
   value: unknown,
   reservation: UploadReservation,
+  scanProof: ClamdMalwareScanProof,
 ): ValidationAttestation | null {
   if (
     !isRecord(value)
@@ -307,6 +315,12 @@ function normalizeValidationAttestation(
       "validation_source",
       "evidence_ref",
       "validation_updated_at",
+      "malware_scan_attestation_id",
+      "scanner_engine",
+      "scanner_engine_version",
+      "scanner_signature_version",
+      "scanner_protocol",
+      "scanned_at",
       "scanner_proof",
     ])
   ) {
@@ -319,10 +333,17 @@ function normalizeValidationAttestation(
     || value.student_case_id !== reservation.studentCaseId
     || value.integrity_status !== "verified"
     || value.malware_status !== "clean"
-    || value.validation_source !== "evo-v2-basic-file-validation-no-scanner"
+    || value.validation_source !== "clamav-clamd-zinstream"
     || value.evidence_ref !== `sha256:${reservation.sha256Hex}`
     || !timestamp(value.validation_updated_at)
-    || value.scanner_proof !== false
+    || !uuid(value.malware_scan_attestation_id)
+    || value.scanner_engine !== scanProof.engine
+    || value.scanner_engine_version !== scanProof.engineVersion
+    || value.scanner_signature_version !== scanProof.signatureVersion
+    || value.scanner_protocol !== scanProof.protocol
+    || !timestamp(value.scanned_at)
+    || Date.parse(value.scanned_at as string) !== Date.parse(scanProof.scannedAt)
+    || value.scanner_proof !== true
   ) {
     return null;
   }
@@ -434,6 +455,7 @@ const defaultDependencies: PlatformDocumentStorageRouteDependencies = {
   },
   createServiceClient: () =>
     createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig()),
+  scanFile: scanBytesWithClamd,
   supabaseOrigin: () =>
     new URL(getPlatformSupabaseBackendConfig().supabaseUrl).origin,
   requestId: randomUUID,
@@ -596,6 +618,19 @@ export function createPlatformDocumentUploadHandler(
       return errorResponse(503, "storage_unavailable");
     }
 
+    let scanProof: ClamdMalwareScanProof;
+    try {
+      scanProof = await dependencies.scanFile(bytes);
+    } catch (error) {
+      if (error instanceof ClamdScanError && error.code === "infected") {
+        return errorResponse(422, "malware_detected");
+      }
+      return errorResponse(503, "malware_scanner_unavailable");
+    }
+    if (!isClamdMalwareScanProof(scanProof, sha256Hex)) {
+      return errorResponse(503, "malware_scan_unconfirmed");
+    }
+
     try {
       const userClient = await dependencies.createUserClient();
       const reservationResponse = await userClient.schema("platform").rpc(
@@ -658,10 +693,12 @@ export function createPlatformDocumentUploadHandler(
         {
           p_organization_id: authorization.actor.organizationId,
           p_document_version_id: reservation.documentVersionId,
-          p_integrity_status: "verified",
-          p_malware_status: "clean",
-          p_validation_source: "evo-v2-basic-file-validation-no-scanner",
-          p_evidence_ref: `sha256:${sha256Hex}`,
+          p_scanner_engine: scanProof.engine,
+          p_scanner_engine_version: scanProof.engineVersion,
+          p_scanner_signature_version: scanProof.signatureVersion,
+          p_scanner_protocol: scanProof.protocol,
+          p_scanned_sha256_hex: scanProof.sha256Hex,
+          p_scanned_at: scanProof.scannedAt,
           p_request_id: derivedRequestId(upload.requestId, "attest"),
         },
       );
@@ -671,6 +708,7 @@ export function createPlatformDocumentUploadHandler(
       const attestation = normalizeValidationAttestation(
         attestationResponse.data,
         reservation,
+        scanProof,
       );
       if (!attestation) return errorResponse(503, "storage_unavailable");
 

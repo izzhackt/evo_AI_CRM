@@ -7,6 +7,7 @@ import {
   createPlatformDocumentDownloadHandler,
   createPlatformDocumentUploadHandler,
 } from "../src/lib/server/platform-document-storage-route-handlers.ts";
+import { ClamdScanError } from "../src/lib/server/clamd-malware-scanner.ts";
 
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const CASE_ID = "22222222-2222-4222-8222-222222222222";
@@ -16,6 +17,7 @@ const RESERVATION_ID = "55555555-5555-4555-8555-555555555555";
 const GRANT_ID = "66666666-6666-4666-8666-666666666666";
 const CONSUMPTION_ID = "77777777-7777-4777-8777-777777777777";
 const ACCESS_EVENT_ID = "88888888-8888-4888-8888-888888888888";
+const SCAN_ATTESTATION_ID = "aaaaaaaa-1111-4111-8111-111111111111";
 const REQUEST_IDS = [
   "99999999-9999-4999-8999-999999999991",
   "99999999-9999-4999-8999-999999999992",
@@ -25,6 +27,14 @@ const OBJECT_NAME = `ab/${"c".repeat(62)}`;
 const AT = "2026-09-02T08:00:00+00:00";
 const BYTES = new TextEncoder().encode("%PDF-1.7\nreal private storage proof");
 const SHA256 = createHash("sha256").update(BYTES).digest("hex");
+const SCAN_PROOF = Object.freeze({
+  engine: "ClamAV",
+  engineVersion: "1.5.4",
+  signatureVersion: "27890",
+  protocol: "clamd-zinstream-v1",
+  scannedAt: "2026-09-02T08:00:00.000Z",
+  sha256Hex: SHA256,
+});
 
 const ACTOR = Object.freeze({
   authUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -86,10 +96,16 @@ function attestation(overrides = {}) {
     student_case_id: CASE_ID,
     integrity_status: "verified",
     malware_status: "clean",
-    validation_source: "evo-v2-basic-file-validation-no-scanner",
+    validation_source: "clamav-clamd-zinstream",
     evidence_ref: `sha256:${SHA256}`,
     validation_updated_at: AT,
-    scanner_proof: false,
+    malware_scan_attestation_id: SCAN_ATTESTATION_ID,
+    scanner_engine: SCAN_PROOF.engine,
+    scanner_engine_version: SCAN_PROOF.engineVersion,
+    scanner_signature_version: SCAN_PROOF.signatureVersion,
+    scanner_protocol: SCAN_PROOF.protocol,
+    scanned_at: AT,
+    scanner_proof: true,
     ...overrides,
   };
 }
@@ -148,6 +164,8 @@ function uploadDependencies({
   finalizeError = null,
   attestationResult = attestation(),
   attestationError = null,
+  scanResult = SCAN_PROOF,
+  scanError = null,
 } = {}) {
   const calls = [];
   const userClient = {
@@ -199,6 +217,11 @@ function uploadDependencies({
         calls.push(["create-service-client"]);
         return serviceClient;
       },
+      async scanFile(bytes) {
+        calls.push(["scan", bytes]);
+        if (scanError) throw scanError;
+        return scanResult;
+      },
       supabaseOrigin() {
         return "http://127.0.0.1:54321";
       },
@@ -228,6 +251,7 @@ test("authenticated Admissions upload reserves through RLS, writes once, then fi
     },
   });
   assert.equal(calls.filter(([kind]) => kind === "upload").length, 1);
+  assert.equal(calls[0][0], "scan");
   assert.equal(calls.find(([kind]) => kind === "upload")[1], OBJECT_NAME);
   assert.equal(calls.find(([kind]) => kind === "upload")[3].upsert, false);
   assert.deepEqual(calls.find(([kind]) => kind === "user-rpc").slice(1), [
@@ -246,6 +270,49 @@ test("authenticated Admissions upload reserves through RLS, writes once, then fi
     calls.filter(([kind]) => kind === "service-rpc").map(([, name]) => name),
     ["finalize_document_upload", "attest_document_validation"],
   );
+  const attestationArgs = calls.find(([, name]) => name === "attest_document_validation")[2];
+  const { p_request_id: attestationRequestId, ...attestationFacts } = attestationArgs;
+  assert.match(attestationRequestId, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(
+    attestationFacts,
+    {
+      p_organization_id: ORGANIZATION_ID,
+      p_document_version_id: VERSION_ID,
+      p_scanner_engine: "ClamAV",
+      p_scanner_engine_version: "1.5.4",
+      p_scanner_signature_version: "27890",
+      p_scanner_protocol: "clamd-zinstream-v1",
+      p_scanned_sha256_hex: SHA256,
+      p_scanned_at: SCAN_PROOF.scannedAt,
+    },
+  );
+});
+
+test("malware and scanner failure stop before any reservation or Storage write", async () => {
+  for (const item of [
+    { error: new ClamdScanError("infected"), status: 422, code: "malware_detected" },
+    { error: new ClamdScanError("timeout"), status: 503, code: "malware_scanner_unavailable" },
+  ]) {
+    const { calls, dependencies } = uploadDependencies({ scanError: item.error });
+    const response = await createPlatformDocumentUploadHandler(dependencies)(
+      uploadRequest(),
+      { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+    );
+    assert.equal(response.status, item.status);
+    assert.deepEqual(await response.json(), { error: item.code });
+    assert.equal(calls.some(([kind]) => kind === "user-rpc" || kind === "upload"), false);
+  }
+
+  const mismatch = uploadDependencies({
+    scanResult: { ...SCAN_PROOF, sha256Hex: "0".repeat(64) },
+  });
+  const response = await createPlatformDocumentUploadHandler(mismatch.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+  );
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "malware_scan_unconfirmed" });
+  assert.equal(mismatch.calls.some(([kind]) => kind === "user-rpc"), false);
 });
 
 test("an ambiguous prior Storage write is finalized without overwrite", async () => {

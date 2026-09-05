@@ -118,6 +118,28 @@ test("candidate image uses a production-valid local Supabase TLS origin", () => 
   assert.match(source, /recovery_app_tls_proxy_start_failed/u);
 });
 
+test("candidate egress probes run only after immutable cleanup capture completes", () => {
+  const candidateStart = source.indexOf("async function startCandidateApp");
+  const candidateEnd = source.indexOf("export function isTrustedPlaywrightChromiumVersion", candidateStart);
+  const candidateSource = source.slice(candidateStart, candidateEnd);
+  const captureComplete = candidateSource.indexOf('completeContainerMutationCapture(state, "candidate_start")');
+  const egressProbe = candidateSource.indexOf("const runtimeInternetTcpEgress");
+  const healthWait = candidateSource.indexOf("candidate_app_start_timeout");
+  assert.ok(candidateStart > 0 && candidateEnd > candidateStart);
+  assert.ok(captureComplete > 0 && egressProbe > captureComplete && healthWait > egressProbe);
+  assert.equal(cleanupContainerPolicy({
+    containerPreflightPassed: true,
+    containerMutationAttempted: true,
+    containerMutationCapture: { stage: "candidate_start", status: "complete" },
+    networkCreated: true,
+    stackStarted: true,
+    appContainer: "supabase_app_evov3recoveryabcdef123456",
+    appContainerId: "a".repeat(64),
+    appProxyContainer: "supabase_app_proxy_evov3recoveryabcdef123456",
+    appProxyContainerId: "b".repeat(64),
+  }, true), "container_cleanup");
+});
+
 test("browser execution is bound to one reviewed binary and exact loopback CDP endpoint", () => {
   const digest = "a".repeat(64);
   const path = "/Users/operator/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing";

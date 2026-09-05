@@ -5648,24 +5648,6 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
   state.appContainerId = containerId;
   const appUrl = `http://127.0.0.1:${appPort}`;
   const appNetworkAttachment = await inspectCandidateAttachment(state, endpoint, supervisor, toolchain, image, appPort, containerId);
-  const runtimeInternetTcpEgress = Object.freeze({
-    app: await proveRecoveryContainerInternetTcpBlocked(
-      containerId,
-      endpoint.targetHost,
-      endpoint.targetPort,
-      supervisor,
-      toolchain,
-      "image_verification",
-    ),
-    scanner: await proveRecoveryContainerInternetTcpBlocked(
-      scanner.containerId,
-      endpoint.targetHost,
-      endpoint.targetPort,
-      supervisor,
-      toolchain,
-      "image_verification",
-    ),
-  });
   state.isolationInput.destination = {
     ...state.isolationInput.destination,
     urls: [...state.isolationInput.destination.urls, appUrl],
@@ -5711,6 +5693,24 @@ server.listen(443, "0.0.0.0");
   if (!SHA256.test(proxyContainerId)) fail("recovery_app_tls_proxy_id_invalid", "image_verification");
   state.appProxyContainerId = proxyContainerId;
   completeContainerMutationCapture(state, "candidate_start");
+  const runtimeInternetTcpEgress = Object.freeze({
+    app: await proveRecoveryContainerInternetTcpBlocked(
+      containerId,
+      endpoint.targetHost,
+      endpoint.targetPort,
+      supervisor,
+      toolchain,
+      "image_verification",
+    ),
+    scanner: await proveRecoveryContainerInternetTcpBlocked(
+      scanner.containerId,
+      endpoint.targetHost,
+      endpoint.targetPort,
+      supervisor,
+      toolchain,
+      "image_verification",
+    ),
+  });
   await waitForHttp(`${appUrl}/api/health`, [200], 3 * 60 * 1_000, "candidate_app_start_timeout", "image_verification", state, interruptionGuard);
   return Object.freeze({
     appUrl,

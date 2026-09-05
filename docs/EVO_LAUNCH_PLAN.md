@@ -280,6 +280,15 @@ recovery harness executes its resolved allowlisted binary with `argv[0]`
 explicitly fixed to `docker`. It must not invoke the resolved `docker-tools`
 basename, follow an unverified PATH fallback or bypass the exact `orbstack`
 context.
+The recovery scanner is a distinct runtime resource with its own exact type
+and project labels and exactly-one census; it must not share or weaken the
+exactly-one candidate-app owner identity. Every disposable container and
+volume is enumerated, inspected and matched to its exact project/type labels
+before removal. A same-name collision, missing or conflicting label, duplicate
+type, or incomplete inventory quarantines the private contour; cleanup never
+removes a container directly by a planned name. The streaming SQL-artifact
+validator must observe exactly one matching `\restrict` before its
+`\unrestrict`, not merely count equal guard tokens.
 The rehearsal reconciles aggregate counts rather than publishing
 customer rows, proves the safe available Supabase Auth/RLS/private-Storage and
 V3 browser behaviors, then destroys the disposable contour and atomically

@@ -19073,3 +19073,38 @@ The failed contour completed owned cleanup with disposition `remove`. This
 change affects only the disposable local recovery consumer and does not contact
 or mutate managed Supabase, production, VPS, providers, webhooks or customer
 records. #552 remains unarmed.
+
+## 2026-09-05 - Bind recovery resource identity before cleanup
+
+Block-ID: `EVO-V3-H-RECOVERY-RESOURCE-IDENTITY-CORRECTION-2026-09-05`
+
+Change type: independent-review runtime-safety correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent immutable-head review found three fail-closed gaps after the
+PGMQ correction: the ClamAV container joined the recovery bridge outside both
+existing container censuses; cleanup selected containers and volumes by names
+and could remove planned names before inspecting ownership; and the streaming
+SQL validator counted guard tokens without proving their order. Review also
+found stale evidence text that called the deliberately non-internal bridge
+internal.
+
+Decision:
+
+- give the recovery scanner its own exact project/type labels and exactly-one
+  census, separate from the candidate app's exactly-one owner label, and include
+  the scanner as a validated bridge member in later Supabase/app inspection;
+- enumerate and inspect every disposable container and volume, require exact
+  type-specific ownership labels before removal, remove containers only by
+  inspected immutable ID, and quarantine on collisions, missing/conflicting
+  labels, duplicate types or incomplete inventory;
+- require the streaming SQL validator used on decrypted artifacts to observe
+  exactly one matching `\restrict` before its `\unrestrict`, with a test that
+  exercises the real file-streaming path; and
+- describe the disposable topology consistently as one owned, egress-blocked,
+  non-internal bridge with loopback-only host publication.
+
+This correction does not weaken app ownership, delete a same-name foreign
+Docker resource, contact or mutate managed Supabase, production, VPS, WAHA,
+amoCRM, Gemini, webhooks, customer records or provider state, and it does not
+arm #552.

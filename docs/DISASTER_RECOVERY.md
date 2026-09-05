@@ -275,8 +275,9 @@ npm run recovery:v3:managed:run -- \
   --evidence-out '<absolute-private-run-evidence-path>'
 ```
 
-The full run restores only into a disposable OrbStack Supabase contour with an
-owned internal network and loopback-only app publication. It applies only the
+The full run restores only into a disposable OrbStack Supabase contour with one
+owned, egress-blocked, non-internal bridge and loopback-only app publication.
+It applies only the
 authenticated pending migration suffix, verifies exact source Storage bytes,
 runs the exact production image through local TLS, blocks browser HTTP and
 WebSocket egress, proves restored Auth/RLS/business outcomes, exercises the

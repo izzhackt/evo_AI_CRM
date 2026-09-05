@@ -19334,3 +19334,34 @@ algorithm exactly for every exporter-owned digest. Keep the recovery evidence's
 own canonicalization separate; never accept either digest convention as a
 fallback. A cross-order regression fixture binds the exporter ordering before
 the next single real rehearsal.
+
+## 2026-09-05 - Apply target Storage buckets after exact source recovery
+
+Block-ID: `EVO-V3-H-RECOVERY-TARGET-STORAGE-LIFECYCLE-2026-09-05`
+
+Change type: real-runtime recovery lifecycle correction.
+Affected plan section: Order 7 / Issue #551.
+
+The exact-head rehearsal passed signed database restore, pending migrations and
+source Storage reconciliation, then stopped before the document canary because
+the signed source legitimately contains only three legacy buckets and zero
+objects. The target V3 private buckets live in the exact target commit's
+`supabase/config.toml`; the recovery consumer had intentionally stripped those
+declarations before source reconciliation but never applied them afterward and
+incorrectly searched the source manifest for `platform-documents`.
+
+Decision: keep every target bucket declaration absent until the signed source
+bucket/object inventory has been restored and reconciled. Then restore the
+exact target config as the contract in the disposable contour, list the real
+local Storage API inventory, reconcile each configured bucket through that API,
+then require configured privacy, byte limits and MIME allowlists to match.
+Reject `objects_path` so the lifecycle cannot load fixture bytes. Feed the
+verified target inventory—not the signed source manifest—to the document
+behavior canary. Record source-recovery and target-upgrade evidence separately;
+creating target infrastructure never satisfies the independent real-source-
+object requirement, so the current zero-object backup remains `not_ready` even
+when the canary passes.
+
+This changes only the disposable local recovery consumer, its tests and plan
+contract. It does not contact or mutate managed Supabase, production, VPS,
+providers, webhooks or customer state. #552 remains unarmed.

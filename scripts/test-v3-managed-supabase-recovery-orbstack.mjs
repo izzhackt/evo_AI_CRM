@@ -2214,6 +2214,252 @@ async function reservePorts() {
   });
 }
 
+const STORAGE_SIZE_MULTIPLIERS = Object.freeze({
+  B: 1,
+  KB: 1_000,
+  MB: 1_000_000,
+  GB: 1_000_000_000,
+  KiB: 1_024,
+  MiB: 1_024 * 1_024,
+  GiB: 1_024 * 1_024 * 1_024,
+});
+
+function targetStorageSize(value) {
+  const match = /^"([1-9][0-9]{0,8})(B|KB|MB|GB|KiB|MiB|GiB)"$/u.exec(value);
+  if (!match) fail("target_storage_bucket_size_invalid", "target_storage_configuration");
+  const bytes = Number(match[1]) * STORAGE_SIZE_MULTIPLIERS[match[2]];
+  if (!Number.isSafeInteger(bytes)) fail("target_storage_bucket_size_invalid", "target_storage_configuration");
+  return bytes;
+}
+
+function targetStorageMimeTypes(value) {
+  let parsed;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    fail("target_storage_bucket_mime_types_invalid", "target_storage_configuration");
+  }
+  if (
+    !Array.isArray(parsed) ||
+    parsed.length === 0 ||
+    parsed.some((item) => typeof item !== "string" || item.length === 0 || item !== item.trim()) ||
+    new Set(parsed).size !== parsed.length
+  ) {
+    fail("target_storage_bucket_mime_types_invalid", "target_storage_configuration");
+  }
+  return Object.freeze([...parsed].sort((left, right) => left.localeCompare(right, "en")));
+}
+
+export function parseTargetStorageBucketConfig(source) {
+  if (typeof source !== "string" || source.length === 0) fail("target_storage_config_invalid", "target_storage_configuration");
+  const buckets = [];
+  const identities = new Set();
+  let current = null;
+  for (const line of source.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
+    if (trimmed.startsWith("[")) {
+      current = null;
+      const section = /^\[storage\.buckets\.([A-Za-z0-9_-]+)\]$/u.exec(trimmed);
+      if (!section) continue;
+      const id = section[1];
+      if (
+        id.length > 1_024 ||
+        id.includes("/") ||
+        id.includes("\\") ||
+        /[\u0000-\u001f\u007f]/u.test(id) ||
+        [".", ".."].includes(id) ||
+        identities.has(id)
+      ) {
+        fail("target_storage_bucket_identity_invalid", "target_storage_configuration");
+      }
+      identities.add(id);
+      current = { id, name: id, public: false, file_size_limit: null, allowed_mime_types: null, seen: new Set() };
+      buckets.push(current);
+      continue;
+    }
+    if (!current) continue;
+    const assignment = /^([a-z_]+)\s*=\s*(.+)$/u.exec(trimmed);
+    if (!assignment || current.seen.has(assignment[1])) fail("target_storage_bucket_config_invalid", "target_storage_configuration");
+    const [, key, value] = assignment;
+    current.seen.add(key);
+    if (key === "public") {
+      if (!new Set(["true", "false"]).has(value)) fail("target_storage_bucket_public_invalid", "target_storage_configuration");
+      current.public = value === "true";
+    } else if (key === "file_size_limit") {
+      current.file_size_limit = targetStorageSize(value);
+    } else if (key === "allowed_mime_types") {
+      current.allowed_mime_types = targetStorageMimeTypes(value);
+    } else if (key === "objects_path") {
+      fail("target_storage_bucket_objects_path_forbidden", "target_storage_configuration");
+    } else {
+      fail("target_storage_bucket_config_invalid", "target_storage_configuration");
+    }
+  }
+  if (buckets.length === 0) fail("target_storage_buckets_missing", "target_storage_configuration");
+  return Object.freeze(buckets
+    .map((bucket) => Object.freeze({
+      id: bucket.id,
+      name: bucket.name,
+      public: bucket.public,
+      file_size_limit: bucket.file_size_limit,
+      allowed_mime_types: bucket.allowed_mime_types,
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id, "en")));
+}
+
+function normalizeRuntimeStorageBucket(bucket) {
+  if (!isRecord(bucket)) fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+  const normalized = {
+    id: string(bucket.id, null, "target_storage_bucket_inventory_invalid", "target_storage_configuration", 1_024),
+    name: string(bucket.name, null, "target_storage_bucket_inventory_invalid", "target_storage_configuration", 1_024),
+    public: bucket.public,
+    file_size_limit: bucket.file_size_limit === null ? null : Number(bucket.file_size_limit),
+    allowed_mime_types: bucket.allowed_mime_types === null
+      ? null
+      : Array.isArray(bucket.allowed_mime_types)
+        ? [...bucket.allowed_mime_types].map((item) => String(item)).sort((left, right) => left.localeCompare(right, "en"))
+        : fail("target_storage_bucket_inventory_invalid", "target_storage_configuration"),
+  };
+  if (
+    typeof normalized.public !== "boolean" ||
+    (normalized.file_size_limit !== null && (!Number.isSafeInteger(normalized.file_size_limit) || normalized.file_size_limit < 0))
+  ) {
+    fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+  }
+  return Object.freeze(normalized);
+}
+
+export function validateTargetStorageBuckets(expected, actual, sourceBucketCount) {
+  if (!Array.isArray(expected) || expected.length === 0 || !Array.isArray(actual)) {
+    fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+  }
+  integer(sourceBucketCount, "target_storage_bucket_inventory_invalid", "target_storage_configuration");
+  const normalized = actual.map(normalizeRuntimeStorageBucket);
+  const byId = new Map();
+  for (const bucket of normalized) {
+    if (byId.has(bucket.id)) fail("target_storage_bucket_inventory_duplicate", "target_storage_configuration");
+    byId.set(bucket.id, bucket);
+  }
+  const configured = expected.map((bucket) => {
+    const candidate = byId.get(bucket.id);
+    if (!candidate || !sameJson(candidate, bucket)) fail("target_storage_bucket_mismatch", "target_storage_configuration");
+    return candidate;
+  });
+  return Object.freeze({
+    buckets: Object.freeze(configured),
+    evidence: Object.freeze({
+      lifecycle: "storage_api_reconcile_local",
+      sourceBucketCount,
+      configuredBucketCount: configured.length,
+      configuredPrivateBucketCount: configured.filter((bucket) => !bucket.public).length,
+      postUpgradeBucketCount: normalized.length,
+      configuredInventorySha256: sha256(canonicalJson(configured)),
+    }),
+  });
+}
+
+function targetStorageBucketProjection(bucket) {
+  return Object.freeze({
+    id: bucket.id,
+    name: bucket.name,
+    public: bucket.public,
+    file_size_limit: bucket.file_size_limit,
+    allowed_mime_types: bucket.allowed_mime_types === null
+      ? null
+      : Object.freeze([...bucket.allowed_mime_types].sort((left, right) => left.localeCompare(right, "en"))),
+  });
+}
+
+export async function reconcileTargetStorageBuckets(
+  status,
+  targetConfig,
+  sourceBuckets,
+  interruptionGuard,
+  { fetchImpl = globalThis.fetch } = {},
+) {
+  if (
+    !isRecord(status) ||
+    typeof status.apiUrl !== "string" ||
+    typeof status.serviceRoleKey !== "string" ||
+    !Array.isArray(sourceBuckets) ||
+    !(interruptionGuard instanceof RecoveryInterruptionGuard) ||
+    typeof fetchImpl !== "function"
+  ) {
+    fail("target_storage_configuration_input_invalid", "target_storage_configuration");
+  }
+  const expected = parseTargetStorageBucketConfig(targetConfig);
+  const headers = Object.freeze({
+    apikey: status.serviceRoleKey,
+    Authorization: `Bearer ${status.serviceRoleKey}`,
+    "content-type": "application/json",
+  });
+  const listBuckets = async () => {
+    const response = await apiRequest(
+      new URL("/storage/v1/bucket", status.apiUrl),
+      { headers },
+      [200],
+      "target_storage_bucket_list_failed",
+      "target_storage_configuration",
+      interruptionGuard,
+      { fetchImpl },
+    );
+    let payload;
+    try {
+      payload = await interruptionGuard.run("target_storage_configuration", async () => await response.json());
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
+      fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+    }
+    if (!Array.isArray(payload)) fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+    return payload.map(normalizeRuntimeStorageBucket).sort((left, right) => left.id.localeCompare(right.id, "en"));
+  };
+  const before = await listBuckets();
+  const restoredSource = sourceBuckets
+    .map((bucket) => targetStorageBucketProjection(validateBucket(bucket)))
+    .sort((left, right) => left.id.localeCompare(right.id, "en"));
+  if (!sameJson(before, restoredSource)) {
+    fail("source_storage_bucket_restore_mismatch", "target_storage_configuration");
+  }
+  const byId = new Map(before.map((bucket) => [bucket.id, bucket]));
+  let createdBucketCount = 0;
+  let updatedBucketCount = 0;
+  for (const bucket of expected) {
+    const current = byId.get(bucket.id);
+    if (current && sameJson(current, bucket)) continue;
+    const creating = !current;
+    const url = creating
+      ? new URL("/storage/v1/bucket", status.apiUrl)
+      : new URL(`/storage/v1/bucket/${encodeURIComponent(bucket.id)}`, status.apiUrl);
+    const response = await apiRequest(
+      url,
+      { method: creating ? "POST" : "PUT", headers, body: JSON.stringify(bucket) },
+      [200],
+      creating ? "target_storage_bucket_create_failed" : "target_storage_bucket_update_failed",
+      "target_storage_configuration",
+      interruptionGuard,
+      { fetchImpl },
+    );
+    await interruptionGuard.run("target_storage_configuration", async () => await response.arrayBuffer());
+    if (creating) createdBucketCount += 1;
+    else updatedBucketCount += 1;
+  }
+  const after = await listBuckets();
+  const expectedPostUpgradeCount = new Set([...before, ...expected].map((bucket) => bucket.id)).size;
+  if (after.length !== expectedPostUpgradeCount) {
+    fail("target_storage_bucket_inventory_mismatch", "target_storage_configuration");
+  }
+  const verified = validateTargetStorageBuckets(expected, after, restoredSource.length);
+  return Object.freeze({
+    buckets: verified.buckets,
+    evidence: Object.freeze({
+      ...verified.evidence,
+      createdBucketCount,
+      updatedBucketCount,
+    }),
+  });
+}
+
 function isolatedConfig(source, projectName, ports) {
   let content = source;
   content = content.replace(/^project_id\s*=.*$/mu, `project_id = "${projectName}"`);
@@ -4569,8 +4815,8 @@ export function canonicalRecoveryPdfBytes() {
   return Buffer.from(document, "latin1");
 }
 
-async function provePrivateDocument(status, actor, storage, interruptionGuard) {
-  const bucket = storage.buckets.find((candidate) => candidate.id === "platform-documents" && candidate.public === false);
+async function provePrivateDocument(status, actor, buckets, interruptionGuard) {
+  const bucket = buckets.find((candidate) => candidate.id === "platform-documents" && candidate.public === false);
   if (!bucket) fail("private_document_bucket_missing", "document_proof");
   if (!Array.isArray(bucket.allowed_mime_types) || !bucket.allowed_mime_types.includes("application/pdf")) {
     fail("private_document_pdf_not_allowed", "document_proof");
@@ -6840,6 +7086,12 @@ async function executeMode(mode, options) {
       ));
       const storage = await runStage("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain, state.interruptionGuard));
       if (!sameJson(storage.readiness, sourceStorageReadiness)) fail("storage_source_readiness_mismatch", "storage_verification");
+      const targetStorage = await runStage("target_storage_configuration", () => reconcileTargetStorageBuckets(
+        local.status,
+        targetRoot.config,
+        artifacts.storage.buckets,
+        state.interruptionGuard,
+      ));
       const actorReadiness = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));
       const actors = actorReadiness.actors;
       const completeRoleCohort = ["admin", "sales", "admissions"].every((role) => isRecord(actors[role]));
@@ -6862,7 +7114,7 @@ async function executeMode(mode, options) {
       ));
       const documentActor = actors.sales ?? actors.admin;
       const document = await runStage("private_document", async () => documentActor
-        ? await provePrivateDocument(local.status, documentActor, artifacts.storage, state.interruptionGuard)
+        ? await provePrivateDocument(local.status, documentActor, targetStorage.buckets, state.interruptionGuard)
         : Object.freeze({
           status: "not_run_missing_representative",
           evidenceScope: "behavior_canary_only_not_source_recovery",
@@ -6900,6 +7152,7 @@ async function executeMode(mode, options) {
         database,
         migrations,
         storage,
+        targetStorage: targetStorage.evidence,
         representatives,
         authorization: Object.freeze({
           ...authorizationProof.evidence,

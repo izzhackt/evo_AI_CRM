@@ -32,7 +32,9 @@ import {
   latchInterruption,
   migrationStatementsDigest,
   parseHarnessOptions,
+  parseTargetStorageBucketConfig,
   privateBackupDirectory,
+  reconcileTargetStorageBuckets,
   parseTargetTreeListing,
   orderedTargetEntries,
   orbStackEnvironment,
@@ -67,6 +69,7 @@ import {
   validateRestrictedSqlEnvelope,
   validateSignedReceipt,
   validateStorageManifest,
+  validateTargetStorageBuckets,
   validateWriteBoundaryResults,
   verifyLedgerAgainstRoot,
   verifyMigrationTreePrefix,
@@ -387,6 +390,146 @@ function optionsArgs() {
     "--evidence-out", "/private/tmp/evidence.json",
   ];
 }
+
+test("target Storage buckets are parsed from exact config and verified after source restore", () => {
+  const config = `
+[storage]
+enabled = true
+
+[storage.buckets.platform-documents]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
+
+[storage.buckets.platform-company-files]
+public = false
+file_size_limit = "50MB"
+allowed_mime_types = ["text/plain", "application/pdf"]
+
+[auth]
+enabled = true
+`;
+  const expected = parseTargetStorageBucketConfig(config);
+  assert.deepEqual(expected, [
+    {
+      id: "platform-company-files",
+      name: "platform-company-files",
+      public: false,
+      file_size_limit: 50_000_000,
+      allowed_mime_types: ["application/pdf", "text/plain"],
+    },
+    {
+      id: "platform-documents",
+      name: "platform-documents",
+      public: false,
+      file_size_limit: 25 * 1_024 * 1_024,
+      allowed_mime_types: ["application/pdf", "image/jpeg", "image/png"],
+    },
+  ]);
+  const actual = [
+    { id: "legacy-private", name: "legacy-private", public: false, file_size_limit: null, allowed_mime_types: null },
+    ...expected.map((bucket) => ({ ...bucket, created_at: "ignored", updated_at: "ignored" })),
+  ];
+  const validated = validateTargetStorageBuckets(expected, actual, 1);
+  assert.deepEqual(validated.buckets, expected);
+  assert.equal(validated.evidence.lifecycle, "storage_api_reconcile_local");
+  assert.equal(validated.evidence.sourceBucketCount, 1);
+  assert.equal(validated.evidence.configuredBucketCount, 2);
+  assert.equal(validated.evidence.configuredPrivateBucketCount, 2);
+  assert.equal(validated.evidence.postUpgradeBucketCount, 3);
+  assert.match(validated.evidence.configuredInventorySha256, /^[0-9a-f]{64}$/u);
+  expectCode(
+    () => validateTargetStorageBuckets(expected, actual.map((bucket) => bucket.id === "platform-documents" ? { ...bucket, public: true } : bucket), 1),
+    "target_storage_bucket_mismatch",
+  );
+  expectCode(
+    () => parseTargetStorageBucketConfig(`${config}\n[storage.buckets.fixture]\nobjects_path = "./fixtures"\n`),
+    "target_storage_bucket_objects_path_forbidden",
+  );
+});
+
+test("target Storage reconciliation preserves source buckets and applies only exact target config through the local API", async () => {
+  const config = `
+[storage.buckets.platform-documents]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
+
+[storage.buckets.platform-company-files]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = ["application/pdf", "text/plain"]
+`;
+  const sourceBuckets = [
+    { id: "legacy-private", name: "legacy-private", public: false, file_size_limit: null, allowed_mime_types: null, created_at: null, updated_at: null },
+    { id: "platform-documents", name: "platform-documents", public: true, file_size_limit: null, allowed_mime_types: null, created_at: null, updated_at: null },
+  ];
+  const runtime = sourceBuckets.map((bucket) => ({
+    id: bucket.id,
+    name: bucket.name,
+    public: bucket.public,
+    file_size_limit: bucket.file_size_limit,
+    allowed_mime_types: bucket.allowed_mime_types,
+  }));
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(url);
+    calls.push({ method: init.method ?? "GET", pathname: parsed.pathname });
+    if ((init.method ?? "GET") === "GET") {
+      return new Response(JSON.stringify(runtime), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    const bucket = JSON.parse(init.body);
+    const index = runtime.findIndex((candidate) => candidate.id === bucket.id);
+    if (init.method === "POST") runtime.push(bucket);
+    else if (init.method === "PUT" && index >= 0) runtime[index] = bucket;
+    else return new Response("{}", { status: 409 });
+    return new Response("{}", { status: 200 });
+  };
+  const reconciled = await reconcileTargetStorageBuckets(
+    { apiUrl: "http://127.0.0.1:54321", serviceRoleKey: "local-service-role" },
+    config,
+    sourceBuckets,
+    new RecoveryInterruptionGuard(),
+    { fetchImpl },
+  );
+  assert.equal(reconciled.evidence.lifecycle, "storage_api_reconcile_local");
+  assert.equal(reconciled.evidence.sourceBucketCount, 2);
+  assert.equal(reconciled.evidence.configuredBucketCount, 2);
+  assert.equal(reconciled.evidence.postUpgradeBucketCount, 3);
+  assert.equal(reconciled.evidence.createdBucketCount, 1);
+  assert.equal(reconciled.evidence.updatedBucketCount, 1);
+  assert.deepEqual(calls, [
+    { method: "GET", pathname: "/storage/v1/bucket" },
+    { method: "POST", pathname: "/storage/v1/bucket" },
+    { method: "PUT", pathname: "/storage/v1/bucket/platform-documents" },
+    { method: "GET", pathname: "/storage/v1/bucket" },
+  ]);
+  assert.equal(runtime.find((bucket) => bucket.id === "legacy-private")?.public, false);
+  assert.equal(runtime.find((bucket) => bucket.id === "platform-documents")?.public, false);
+  await expectCodeAsync(
+    () => reconcileTargetStorageBuckets(
+      { apiUrl: "http://127.0.0.1:54321", serviceRoleKey: "local-service-role" },
+      config,
+      sourceBuckets,
+      new RecoveryInterruptionGuard(),
+      { fetchImpl: async () => Response.json([]) },
+    ),
+    "source_storage_bucket_restore_mismatch",
+  );
+});
+
+test("target Storage lifecycle runs only after exact source reconciliation and feeds document proof", () => {
+  const storageRestore = source.indexOf('runStage("storage_restore"');
+  const targetConfiguration = source.indexOf('runStage("target_storage_configuration"');
+  const representativeAuth = source.indexOf('runStage("representative_auth"');
+  const privateDocument = source.indexOf('runStage("private_document"');
+  assert.ok(storageRestore > 0 && targetConfiguration > storageRestore);
+  assert.ok(representativeAuth > targetConfiguration && privateDocument > representativeAuth);
+  assert.match(source, /reconcileTargetStorageBuckets\(\s*local\.status,\s*targetRoot\.config,\s*artifacts\.storage\.buckets/u);
+  assert.match(source, /new URL\("\/storage\/v1\/bucket", status\.apiUrl\)/u);
+  assert.match(source, /provePrivateDocument\(local\.status, documentActor, targetStorage\.buckets/u);
+  assert.doesNotMatch(source, /provePrivateDocument\(local\.status, documentActor, artifacts\.storage/u);
+});
 
 test("contract advertises signed exporter artifacts and no remote/provider authority", () => {
   const output = JSON.parse(execFileSync(process.execPath, [script.pathname, "contract"], { encoding: "utf8" }));

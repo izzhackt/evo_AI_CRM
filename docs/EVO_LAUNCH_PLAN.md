@@ -311,6 +311,20 @@ proved with a canonical allowed PDF and exact hash round trip, but cannot
 satisfy either missing-role or real source-byte recovery. A missing backup
 directory, missing source credentials or either real backup is also a named
 blocker, and synthetic identities, records or objects cannot satisfy this gate.
+The signed source bucket rows and object bytes are reconciled before target
+Storage configuration is applied. Only after that exact source proof, the
+consumer restores the exact target commit's `[storage.buckets.*]` declarations
+as its contract and reconciles them through the local Supabase Storage bucket
+API. It lists the API inventory before and after the change and requires every
+configured bucket's privacy, byte limit and MIME allowlist to match before any
+application canary starts. An `objects_path` is forbidden in this recovery gate
+so configuration cannot inject fixture bytes.
+Target bucket creation is forward infrastructure rehearsal: it neither changes
+the signed source-recovery counts nor satisfies the independent requirement for
+at least one real recovered source object. Supabase documents bucket declarations
+in the [CLI config reference](https://supabase.com/docs/guides/local-development/cli/config)
+and the bucket lifecycle in
+[Creating Buckets](https://supabase.com/docs/guides/storage/buckets/creating-buckets).
 Because the managed schema export intentionally excludes extension-owned
 `pgmq` objects while the signed data export retains queue rows, recovery must
 recreate only the two migration-045 queues before loading `data.sql`. It binds
@@ -520,7 +534,11 @@ in #552 after every prerequisite below passes.
    run only in a loopback-bound OrbStack copy. The gate proves source and
    destination project refs, URLs, networks and volumes are unequal, limits
    application-level verification to a named minimum authorized cohort, and
-   never publishes row, object, credential or session data in evidence.
+   never publishes row, object, credential or session data in evidence. Exact
+   source bucket/object reconciliation completes before the target commit's
+   bucket declarations are reconciled and verified through the real local
+   Storage API; that target upgrade cannot replace or waive source-byte
+   recovery.
 6. **Scanner prerequisite.** Before the release may be armed, both active
    document-ingress paths are bound to the same real scanner implementation.
    Each upload first scans the ingress bytes before any reservation or Storage

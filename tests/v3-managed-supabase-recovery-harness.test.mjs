@@ -61,6 +61,7 @@ import {
   validateRepositoryBindings,
   validateRestoredDatabaseAggregates,
   validateRestoredTableCounts,
+  validateRestrictedSqlFile,
   validateRestrictedSqlEnvelope,
   validateSignedReceipt,
   validateStorageManifest,
@@ -915,6 +916,21 @@ test("all five SQL payloads require one matching active restricted-mode guard", 
   assert.match(validateRestrictedSqlEnvelope(sql, "history-data.sql").guardSha256, /^[0-9a-f]{64}$/u);
   expectCode(() => validateRestrictedSqlEnvelope(sql.replace("\\unrestrict", "-- \\unrestrict"), "history-data.sql"), "sql_restricted_guard_invalid");
   expectCode(() => validateRestrictedSqlEnvelope(sql.replace(`\\unrestrict ${"A".repeat(63)}`, `\\unrestrict ${"B".repeat(63)}`), "history-data.sql"), "sql_restricted_guard_invalid");
+});
+
+test("streaming SQL validation requires restrict before unrestrict", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "evo-recovery-streamed-sql-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const guard = "A".repeat(63);
+  const valid = join(root, "valid.sql");
+  const reversed = join(root, "reversed.sql");
+  writeFileSync(valid, `\\restrict ${guard}\nSELECT 1;\n\\unrestrict ${guard}\n`);
+  writeFileSync(reversed, `\\unrestrict ${guard}\nSELECT 1;\n\\restrict ${guard}\n`);
+  assert.match((await validateRestrictedSqlFile(valid, "valid.sql")).guardSha256, /^[0-9a-f]{64}$/u);
+  await expectCodeAsync(
+    () => validateRestrictedSqlFile(reversed, "reversed.sql"),
+    "sql_restricted_guard_invalid",
+  );
 });
 
 function cohortRows() {

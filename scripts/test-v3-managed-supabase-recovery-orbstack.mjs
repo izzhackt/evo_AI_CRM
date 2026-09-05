@@ -920,31 +920,44 @@ export function validateRestrictedSqlEnvelope(sql, name) {
   return Object.freeze({ artifact: name, guardSha256: sha256(openings[0][1]) });
 }
 
-async function validateRestrictedSqlFile(path, name) {
+export async function validateRestrictedSqlFile(path, name) {
   const input = createReadStream(path, { encoding: "utf8" });
   const lines = createInterface({ input, crlfDelay: Infinity });
   let opening;
   let closing;
+  let openingIndex = -1;
+  let closingIndex = -1;
   let openingCount = 0;
   let closingCount = 0;
+  let lineIndex = 0;
   try {
     for await (const line of lines) {
       const open = /^\\restrict ([A-Za-z0-9]{63})$/u.exec(line);
       if (open) {
         openingCount += 1;
         opening = open[1];
+        if (openingIndex === -1) openingIndex = lineIndex;
       }
       const close = /^\\unrestrict ([A-Za-z0-9]{63})$/u.exec(line);
       if (close) {
         closingCount += 1;
         closing = close[1];
+        if (closingIndex === -1) closingIndex = lineIndex;
       }
+      lineIndex += 1;
     }
   } finally {
     lines.close();
     input.destroy();
   }
-  if (openingCount !== 1 || closingCount !== 1 || opening !== closing || !GUARD.test(opening ?? "")) {
+  if (
+    openingCount !== 1 ||
+    closingCount !== 1 ||
+    opening !== closing ||
+    !GUARD.test(opening ?? "") ||
+    openingIndex < 0 ||
+    openingIndex >= closingIndex
+  ) {
     fail("sql_restricted_guard_invalid", "artifact_validation", { artifact: name });
   }
   return Object.freeze({ artifact: name, guardSha256: sha256(opening) });

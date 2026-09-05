@@ -457,6 +457,12 @@ enabled = true
     () => parseTargetStorageBucketConfig(`${config}\n["stor\\u0061ge"."buckets".fixture]\nobjects_path = "./fixtures"\n`),
     "target_storage_bucket_objects_path_forbidden",
   );
+  for (const scalar of ["1979-05-27", "07:32:00"]) {
+    expectCode(
+      () => parseTargetStorageBucketConfig(`[storage.buckets]\nfixture = ${scalar}\n`),
+      "target_storage_bucket_config_invalid",
+    );
+  }
   assert.equal(
     parseTargetStorageBucketConfig('[storage.buckets."quoted-bucket"] # exact target declaration\npublic = false\n')[0]?.id,
     "quoted-bucket",

@@ -184,6 +184,12 @@ function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isPlainTable(value) {
+  if (!isRecord(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function exactKeys(value, keys, code, stage = "artifact_validation") {
   if (!isRecord(value)) fail(code, stage);
   const actual = Object.keys(value).sort();
@@ -2261,14 +2267,14 @@ export function parseTargetStorageBucketConfig(source) {
     fail("target_storage_config_invalid", "target_storage_configuration");
   }
   const configured = parsed?.storage?.buckets;
-  if (!isRecord(configured) || Object.keys(configured).length === 0) {
+  if (!isPlainTable(configured) || Object.keys(configured).length === 0) {
     fail("target_storage_buckets_missing", "target_storage_configuration");
   }
   const buckets = [];
   const allowedKeys = new Set(["public", "file_size_limit", "allowed_mime_types", "objects_path"]);
   for (const [id, bucket] of Object.entries(configured)) {
     string(id, /^[A-Za-z0-9_-]+$/u, "target_storage_bucket_identity_invalid", "target_storage_configuration", 1_024);
-    if (!isRecord(bucket)) fail("target_storage_bucket_config_invalid", "target_storage_configuration");
+    if (!isPlainTable(bucket)) fail("target_storage_bucket_config_invalid", "target_storage_configuration");
     for (const key of Object.keys(bucket)) {
       if (!allowedKeys.has(key)) fail("target_storage_bucket_config_invalid", "target_storage_configuration");
       if (key === "objects_path") fail("target_storage_bucket_objects_path_forbidden", "target_storage_configuration");

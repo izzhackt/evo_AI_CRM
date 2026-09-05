@@ -33,7 +33,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -1099,6 +1099,26 @@ function safeEnvironment(extra = {}) {
   });
 }
 
+export function orbStackEnvironment(home = homedir()) {
+  if (typeof home !== "string" || !isAbsolute(home)) fail("orbstack_home_invalid", "toolchain");
+  let canonical;
+  let metadata;
+  try {
+    canonical = realpathSync(home);
+    metadata = lstatSync(canonical);
+  } catch {
+    fail("orbstack_home_invalid", "toolchain");
+  }
+  if (
+    !metadata.isDirectory() ||
+    (metadata.mode & 0o022) !== 0 ||
+    (typeof process.getuid === "function" && metadata.uid !== process.getuid())
+  ) {
+    fail("orbstack_home_invalid", "toolchain");
+  }
+  return safeEnvironment({ HOME: canonical });
+}
+
 function pinnedSupabaseEnvironment(paths) {
   if (!paths?.supabaseGo?.real) fail("supabase_go_binding_missing", "toolchain");
   return safeEnvironment({ SUPABASE_GO_BINARY: paths.supabaseGo.real });
@@ -1531,10 +1551,21 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
   availableEvidence.supabase_go_cli = goVersion;
   const ageVersion = await supervisor.run(tools.age.real, ["--version"], { stage: "toolchain", code: "age_version_failed", timeoutMs: 10_000 });
   availableEvidence.age = string(ageVersion.stdout.toString("utf8").trim(), /^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/u, "age_version_invalid", "toolchain", 64);
-  const orbVersion = await supervisor.run(tools.orb.real, ["version"], { stage: "toolchain", code: "orbstack_version_failed", timeoutMs: 10_000 });
+  const orbEnvironment = orbStackEnvironment();
+  const orbVersion = await supervisor.run(tools.orb.real, ["version"], {
+    stage: "toolchain",
+    code: "orbstack_version_failed",
+    timeoutMs: 10_000,
+    env: orbEnvironment,
+  });
   const orbVersionOutput = orbVersion.stdout.length > 0 ? orbVersion.stdout : orbVersion.stderr;
   availableEvidence.orb_version = versionToken(orbVersionOutput.toString("utf8"), "OrbStack", "orbstack_version_invalid");
-  const orb = await supervisor.run(tools.orb.real, ["status"], { stage: "toolchain", code: "orbstack_unavailable", timeoutMs: 10_000 });
+  const orb = await supervisor.run(tools.orb.real, ["status"], {
+    stage: "toolchain",
+    code: "orbstack_unavailable",
+    timeoutMs: 10_000,
+    env: orbEnvironment,
+  });
   if (orb.stdout.toString("utf8").trim() !== "Running") fail("orbstack_not_running", "toolchain");
   availableEvidence.orb = "Running";
   const context = await supervisor.run(tools.docker.real, ["--context", "orbstack", "context", "show"], { stage: "toolchain", code: "docker_context_invalid", timeoutMs: 10_000 });

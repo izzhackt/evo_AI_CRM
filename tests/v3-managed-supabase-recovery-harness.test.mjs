@@ -16,8 +16,11 @@ import {
   selectOwnedContainerIds,
   selectOwnedNetworkNames,
   selectOwnedVolumeNames,
+  validateMigrationLedgerAttestation,
+  validateRepositoryStateSnapshot,
   validateDatabaseManifest,
   validateStorageManifest,
+  verifiedAttestedPrefix,
 } from "../scripts/test-v3-managed-supabase-recovery-orbstack.mjs";
 
 const scriptUrl = new URL(
@@ -27,10 +30,31 @@ const scriptUrl = new URL(
 const source = readFileSync(scriptUrl, "utf8");
 const createdAt = "2026-09-05T00:00:00.000Z";
 const storageCreatedAt = "2026-09-05T00:07:00.000Z";
+const ledgerAttestedAt = "2026-09-05T03:00:00.000Z";
 const projectRef = "abcde12345fghij67890";
 const region = "ap-southeast-1";
 const sourceIdentitySha256 = deriveSourceIdentitySha256(projectRef, region);
 const projectRefSha256 = createHash("sha256").update(projectRef).digest("hex");
+const expectedRepositoryCommit = "a".repeat(40);
+
+function migrationLedgerDigest(entries) {
+  return createHash("sha256").update(JSON.stringify(entries)).digest("hex");
+}
+
+function ledgerAttestation(entries = [
+  { version: "001", name: "platform_foundation" },
+  { version: "002", name: "platform_identity" },
+], overrides = {}) {
+  return {
+    schema: "evo-managed-supabase-migration-ledger-attestation/v1",
+    createdAt: ledgerAttestedAt,
+    databaseCreatedAt: createdAt,
+    sourceIdentitySha256,
+    ledgerSha256: migrationLedgerDigest(entries),
+    source: entries,
+    ...overrides,
+  };
+}
 
 function logicalManifest(overrides = {}) {
   return {
@@ -145,6 +169,7 @@ test("contract and missing opt-in are side-effect-free machine-readable states",
 test("arguments require all encrypted artifacts, one private age identity, and explicit source binding", () => {
   const args = [
     "--database-manifest", "/private/database-manifest.json.age",
+    "--migration-ledger-attestation", "/private/migration-ledger-attestation.json.age",
     "--roles", "/private/roles.sql.age",
     "--schema", "/private/schema.sql.age",
     "--data", "/private/data.sql.age",
@@ -153,14 +178,17 @@ test("arguments require all encrypted artifacts, one private age identity, and e
     "--age-identity", "/private/identity.txt",
     "--backup-created-at", createdAt,
     "--source-identity-sha256", sourceIdentitySha256,
+    "--expected-repository-commit", expectedRepositoryCommit,
     "--max-age-hours", "96",
   ];
   const parsed = parseHarnessOptions(args, {});
   assert.equal(parsed.databaseManifest, "/private/database-manifest.json.age");
+  assert.equal(parsed.migrationLedgerAttestation, "/private/migration-ledger-attestation.json.age");
   assert.equal(parsed.storageArchive, "/private/storage-objects.tar.gz.age");
   assert.equal(parsed.ageIdentity, "/private/identity.txt");
   assert.equal(parsed.maxAgeHours, 96);
   assert.equal(parsed.sourceIdentitySha256, sourceIdentitySha256);
+  assert.equal(parsed.expectedRepositoryCommit, expectedRepositoryCommit);
 
   assert.equal(
     failureCode(() => parseHarnessOptions(args, {
@@ -172,6 +200,76 @@ test("arguments require all encrypted artifacts, one private age identity, and e
     failureCode(() => parseHarnessOptions(args.slice(0, -4), {})),
     "required_argument_missing",
   );
+});
+
+test("repository state is exact-commit bound and rejects tracked or untracked drift", () => {
+  const clean = validateRepositoryStateSnapshot({
+    commit: expectedRepositoryCommit,
+    tree: "b".repeat(40),
+    status: "",
+  }, expectedRepositoryCommit);
+  assert.deepEqual(clean, { commit: expectedRepositoryCommit, tree: "b".repeat(40) });
+
+  assert.equal(failureCode(() => validateRepositoryStateSnapshot({
+    commit: "c".repeat(40),
+    tree: "b".repeat(40),
+    status: "",
+  }, expectedRepositoryCommit)), "repository_commit_mismatch");
+  assert.equal(failureCode(() => validateRepositoryStateSnapshot({
+    commit: expectedRepositoryCommit,
+    tree: "b".repeat(40),
+    status: "?? src/untracked.ts\n M supabase/config.toml",
+  }, expectedRepositoryCommit)), "repository_worktree_not_clean");
+});
+
+test("encrypted ledger attestation binds exact ordered version/name rows and digest", () => {
+  const rows = [
+    { version: "001", name: "platform_foundation" },
+    { version: "002", name: "platform_identity" },
+  ];
+  const validated = validateMigrationLedgerAttestation(ledgerAttestation(rows), {
+    databaseCreatedAt: createdAt,
+    sourceIdentitySha256,
+  });
+  assert.deepEqual(validated.source, rows);
+  assert.equal(validated.ledgerSha256, migrationLedgerDigest(rows));
+
+  assert.equal(failureCode(() => validateMigrationLedgerAttestation(
+    ledgerAttestation(rows, { sourceIdentitySha256: "f".repeat(64) }),
+    { databaseCreatedAt: createdAt, sourceIdentitySha256 },
+  )), "migration_ledger_attestation_source_mismatch");
+  assert.equal(failureCode(() => validateMigrationLedgerAttestation(
+    ledgerAttestation(rows, { ledgerSha256: "f".repeat(64) }),
+    { databaseCreatedAt: createdAt, sourceIdentitySha256 },
+  )), "migration_ledger_attestation_digest_mismatch");
+  assert.equal(failureCode(() => validateMigrationLedgerAttestation(
+    ledgerAttestation(rows, { createdAt: "2026-09-04T23:59:59.999Z" }),
+    { databaseCreatedAt: createdAt, sourceIdentitySha256 },
+  )), "migration_ledger_attestation_precedes_database");
+  const reversed = [...rows].reverse();
+  assert.equal(failureCode(() => validateMigrationLedgerAttestation(
+    ledgerAttestation(reversed),
+    { databaseCreatedAt: createdAt, sourceIdentitySha256 },
+  )), "migration_ledger_attestation_sequence_invalid");
+
+  const root = {
+    entries: rows.map((entry) => ({ ...entry, filename: `${entry.version}_${entry.name}.sql` })),
+    recordedHistoryCount: 2,
+  };
+  assert.deepEqual(verifiedAttestedPrefix(root, {
+    count: 2,
+    minVersion: "001",
+    maxVersion: "002",
+  }, validated).map(({ version, name }) => ({ version, name })), rows);
+  const renamed = [{ ...rows[0] }, { version: "002", name: "wrong_name" }];
+  assert.equal(failureCode(() => verifiedAttestedPrefix(root, {
+    count: 2,
+    minVersion: "001",
+    maxVersion: "002",
+  }, validateMigrationLedgerAttestation(ledgerAttestation(renamed), {
+    databaseCreatedAt: createdAt,
+    sourceIdentitySha256,
+  }))), "migration_ledger_attestation_root_prefix_mismatch");
 });
 
 test("database manifest binds official roles/schema/data hashes, source, time, major, and ledger", () => {
@@ -485,9 +583,10 @@ test("executor is pinned to OrbStack and only targets one unique local contour",
   assert.doesNotMatch(source, /docker context use|orb start|system\s+prune|volume\s+prune|network\s+prune/u);
 
   const networkCreateBody = source.slice(
-    source.indexOf('docker([\n      "network",\n      "create"'),
     source.indexOf("state.networkCreated = true"),
+    source.indexOf("state.stackStarted = true"),
   );
+  assert.match(networkCreateBody, /docker\(\[\s*"network",\s*"create"/u);
   assert.doesNotMatch(networkCreateBody, /"--internal"/u);
 
   const cleanupBody = source.slice(
@@ -499,6 +598,10 @@ test("executor is pinned to OrbStack and only targets one unique local contour",
   assert.equal(cleanupBody.match(/ownedNetworkNames\(state\)/gu)?.length, 1);
   assert.ok(cleanupBody.indexOf('["network", "rm", state.networkName]') <
     cleanupBody.indexOf("ownedNetworkNames(state)"));
+  assert.match(source, /process\.once\("SIGINT", \(\) => terminationHandler\("SIGINT"\)\)/u);
+  assert.match(source, /process\.once\("SIGTERM", \(\) => terminationHandler\("SIGTERM"\)\)/u);
+  assert.match(source, /process\.once\("exit", exitCleanupHandler\)/u);
+  assert.match(source, /cleanupActiveState/u);
 });
 
 test("restore follows official logical order, applies only local pending root migrations, and never exports", () => {
@@ -519,6 +622,7 @@ test("restore follows official logical order, applies only local pending root mi
   assert.match(source, /SELECT pgmq\.create/u);
   assert.match(source, /pgmq_queue_row_count_mismatch/u);
   assert.match(source, /reconstructManifestLedger/u);
+  assert.match(source, /verifiedAttestedPrefix/u);
   assert.match(source, /CREATE SCHEMA IF NOT EXISTS supabase_migrations;/u);
   assert.match(source, /CREATE TABLE IF NOT EXISTS supabase_migrations\.schema_migrations/u);
   assert.match(source, /ADD COLUMN IF NOT EXISTS statements text\[\]/u);
@@ -526,7 +630,7 @@ test("restore follows official logical order, applies only local pending root mi
   assert.doesNotMatch(source, /ALTER (?:SCHEMA supabase_migrations|TABLE supabase_migrations\.schema_migrations) OWNER TO/u);
   assert.match(source, /migration_ledger_shape_invalid/u);
   assert.match(source, /root_migration_history_disk_mismatch/u);
-  assert.match(source, /manifest_ledger_not_root_prefix/u);
+  assert.match(source, /migration_ledger_attestation_root_prefix_mismatch/u);
   assert.ok(source.includes('if (/^\\[storage\\.buckets\\./u.test(line))'));
   assert.match(source, /ensureBuckets\(status, artifacts\.storage\.buckets, \{ allowUpdate: false \}\)/u);
   assert.match(source, /source_storage_metadata_state_invalid/u);
@@ -577,6 +681,17 @@ test("restore follows official logical order, applies only local pending root mi
     source.indexOf("async function runRecovery"),
     source.indexOf("async function main"),
   );
+  assert.ok(runBody.indexOf("assertRepositoryState(options.expectedRepositoryCommit)") <
+    runBody.indexOf("assertOrbStackPreflight()"));
+  assert.ok(runBody.indexOf("assertRepositoryState(options.expectedRepositoryCommit)") <
+    runBody.indexOf("prepareArtifacts(options, harnessRoot, true)"));
+  assert.ok(runBody.indexOf("verifiedAttestedPrefix(") <
+    runBody.indexOf("docker(["));
+  assert.ok(runBody.indexOf("verifiedAttestedPrefix(") <
+    runBody.indexOf("reconstructManifestLedger(status, sourceMigrationPrefix)"));
+  assert.ok(runBody.indexOf("state.networkCreated = true") < runBody.indexOf("docker(["));
+  assert.ok(runBody.indexOf("state.stackStarted = true") <
+    runBody.indexOf("execute(\n      supabaseCli,\n      [\n        \"start\""));
   assert.ok(runBody.indexOf("NOTIFY pgrst, 'reload schema'") <
     runBody.indexOf("await waitForPostgrestSchemaReadiness(status)"));
   assert.ok(runBody.indexOf("await waitForPostgrestSchemaReadiness(status)") <
@@ -606,6 +721,18 @@ test("decryption, logging, providers, and proof stay fail-closed", () => {
   assert.match(source, /aggregateCountsAfterMigrationsBeforeTestIdentitySetup/u);
   assert.match(source, /sourceAggregatesCapturedBeforeTestIdentitySetup: true/u);
   assert.match(source, /encryptedLogicalSetSha256/u);
+  assert.match(source, /migrationLedgerAttestationSha256/u);
+  assert.match(source, /const repository = assertRepositoryState/u);
+  assert.match(source, /status: "passed",\s*repository,/u);
+  const preflightBody = source.slice(
+    source.indexOf("async function runPreflight"),
+    source.indexOf("async function runRecovery"),
+  );
+  assert.ok(preflightBody.indexOf("assertRepositoryState(options.expectedRepositoryCommit)") <
+    preflightBody.indexOf("prepareArtifacts(options, harnessRoot, false)"));
+  assert.ok(preflightBody.indexOf("verifiedAttestedPrefix(") <
+    preflightBody.indexOf('status: "preflight_passed"'));
+  assert.match(preflightBody, /migrationLedgerRepositoryPrefix:\s*\{\s*status: "passed"/u);
   assert.match(source, /post_restore_behavior_only_source_inventory_empty/u);
   assert.match(source, /providersBlocked: true/u);
   assert.match(source, /managedSupabaseTouched: false/u);

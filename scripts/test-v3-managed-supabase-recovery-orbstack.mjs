@@ -58,6 +58,8 @@ const OPT_IN = "EVO_RUN_V3_MANAGED_SUPABASE_RECOVERY_ORBSTACK";
 const OPT_IN_VALUE = "1";
 const DATABASE_SCHEMA = "evo-managed-supabase-logical-backup/v1";
 const STORAGE_SCHEMA = "evo-managed-supabase-storage-backup/v1";
+const MIGRATION_LEDGER_ATTESTATION_SCHEMA =
+  "evo-managed-supabase-migration-ledger-attestation/v1";
 const RESULT_SCHEMA = "evo-v3-managed-supabase-recovery-result/v1";
 const HARNESS_PREFIX = "evo-v3-managed-recovery-";
 const MARKER = ".evo-v3-managed-recovery-harness";
@@ -80,9 +82,11 @@ const RECOVERY_EXCLUDED_SERVICES =
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
+const GIT_OID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const PROJECT_REF_PATTERN = /^[a-z0-9]{20}$/u;
 const REGION_PATTERN = /^[a-z][a-z0-9-]{1,62}$/u;
 const MIGRATION_VERSION_PATTERN = /^\d{3}$/u;
+const MIGRATION_NAME_PATTERN = /^[a-z0-9][a-z0-9_]{0,126}$/u;
 const BUCKET_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/u;
 const CONTENT_TYPE_PATTERN = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/iu;
 const SAFE_ARCHIVE_PATH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$/u;
@@ -133,6 +137,8 @@ const COPY_HEADER_PATTERN = new RegExp(
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const supabaseCli = join(repositoryRoot, "node_modules", ".bin", "supabase");
+let activeCleanupState;
+let activeCleanupRunning = false;
 
 class HarnessFailure extends Error {
   constructor(code, stage = "contract", diagnostic) {
@@ -247,6 +253,87 @@ function validateMigrationLedger(value) {
     fail("database_migration_ledger_invalid", "artifact_validation");
   }
   return Object.freeze({ count, minVersion, maxVersion });
+}
+
+function migrationLedgerDigest(entries) {
+  return sha256Text(JSON.stringify(entries.map(({ version, name }) => ({ version, name }))));
+}
+
+/** Validate the separately captured, encrypted managed migration ledger. */
+export function validateMigrationLedgerAttestation(attestation, expected) {
+  exactKeys(
+    attestation,
+    [
+      "schema",
+      "createdAt",
+      "databaseCreatedAt",
+      "sourceIdentitySha256",
+      "ledgerSha256",
+      "source",
+    ],
+    "migration_ledger_attestation_shape_invalid",
+  );
+  if (attestation.schema !== MIGRATION_LEDGER_ATTESTATION_SCHEMA) {
+    fail("migration_ledger_attestation_schema_invalid", "artifact_validation");
+  }
+  const createdAt = parseIsoTimestamp(
+    attestation.createdAt,
+    "migration_ledger_attestation_timestamp_invalid",
+  ).toISOString();
+  const databaseCreatedAt = parseIsoTimestamp(
+    attestation.databaseCreatedAt,
+    "migration_ledger_attestation_database_timestamp_invalid",
+  ).toISOString();
+  if (databaseCreatedAt !== expected.databaseCreatedAt) {
+    fail("migration_ledger_attestation_database_timestamp_mismatch", "artifact_validation");
+  }
+  if (new Date(createdAt).valueOf() < new Date(databaseCreatedAt).valueOf()) {
+    fail("migration_ledger_attestation_precedes_database", "artifact_validation");
+  }
+  const sourceIdentitySha256 = requiredString(
+    attestation.sourceIdentitySha256,
+    SHA256_PATTERN,
+    "migration_ledger_attestation_source_invalid",
+  );
+  if (sourceIdentitySha256 !== expected.sourceIdentitySha256) {
+    fail("migration_ledger_attestation_source_mismatch", "artifact_validation");
+  }
+  if (!Array.isArray(attestation.source) || attestation.source.length === 0) {
+    fail("migration_ledger_attestation_source_invalid", "artifact_validation");
+  }
+  const source = attestation.source.map((entry, index) => {
+    exactKeys(entry, ["version", "name"], "migration_ledger_attestation_entry_invalid");
+    const version = requiredString(
+      entry.version,
+      MIGRATION_VERSION_PATTERN,
+      "migration_ledger_attestation_entry_invalid",
+    );
+    const name = requiredString(
+      entry.name,
+      MIGRATION_NAME_PATTERN,
+      "migration_ledger_attestation_entry_invalid",
+    );
+    if (version !== String(index + 1).padStart(3, "0")) {
+      fail("migration_ledger_attestation_sequence_invalid", "artifact_validation");
+    }
+    return Object.freeze({ version, name });
+  });
+  const ledgerSha256 = requiredString(
+    attestation.ledgerSha256,
+    SHA256_PATTERN,
+    "migration_ledger_attestation_digest_invalid",
+  );
+  if (ledgerSha256 !== migrationLedgerDigest(source)) {
+    fail("migration_ledger_attestation_digest_mismatch", "artifact_validation");
+  }
+  return Object.freeze({
+    schema: MIGRATION_LEDGER_ATTESTATION_SCHEMA,
+    createdAt,
+    databaseCreatedAt,
+    sourceIdentitySha256,
+    ledgerSha256,
+    source: Object.freeze(source),
+  });
 }
 
 /** Validate the encrypted database manifest after age decryption. */
@@ -496,6 +583,10 @@ function parseRawFlags(args) {
 
 const OPTION_DEFINITIONS = Object.freeze({
   databaseManifest: ["database-manifest", "EVO_V3_RECOVERY_DATABASE_MANIFEST"],
+  migrationLedgerAttestation: [
+    "migration-ledger-attestation",
+    "EVO_V3_RECOVERY_MIGRATION_LEDGER_ATTESTATION",
+  ],
   roles: ["roles", "EVO_V3_RECOVERY_ROLES"],
   schema: ["schema", "EVO_V3_RECOVERY_SCHEMA"],
   data: ["data", "EVO_V3_RECOVERY_DATA"],
@@ -504,6 +595,10 @@ const OPTION_DEFINITIONS = Object.freeze({
   ageIdentity: ["age-identity", "EVO_V3_RECOVERY_AGE_IDENTITY"],
   createdAt: ["backup-created-at", "EVO_V3_RECOVERY_BACKUP_CREATED_AT"],
   sourceIdentitySha256: ["source-identity-sha256", "EVO_V3_RECOVERY_SOURCE_IDENTITY_SHA256"],
+  expectedRepositoryCommit: [
+    "expected-repository-commit",
+    "EVO_V3_RECOVERY_EXPECTED_REPOSITORY_COMMIT",
+  ],
   maxAgeHours: ["max-age-hours", "EVO_V3_RECOVERY_MAX_AGE_HOURS"],
   evidenceOut: ["evidence-out", "EVO_V3_RECOVERY_EVIDENCE_OUT"],
 });
@@ -525,6 +620,7 @@ export function parseHarnessOptions(args, environment = process.env) {
   }
   const required = [
     "databaseManifest",
+    "migrationLedgerAttestation",
     "roles",
     "schema",
     "data",
@@ -533,11 +629,18 @@ export function parseHarnessOptions(args, environment = process.env) {
     "ageIdentity",
     "createdAt",
     "sourceIdentitySha256",
+    "expectedRepositoryCommit",
   ];
   if (required.some((key) => typeof options[key] !== "string" || options[key].length === 0)) {
     fail("required_argument_missing", "arguments");
   }
   requiredString(options.sourceIdentitySha256, SHA256_PATTERN, "source_identity_sha256_invalid", "arguments");
+  requiredString(
+    options.expectedRepositoryCommit,
+    GIT_OID_PATTERN,
+    "expected_repository_commit_invalid",
+    "arguments",
+  );
   options.createdAt = parseIsoTimestamp(options.createdAt, "backup_created_at_invalid", "arguments").toISOString();
   const maxAgeHours = options.maxAgeHours === undefined
     ? 72
@@ -589,6 +692,60 @@ function minimalChildEnvironment(extra = {}) {
     NEXT_TELEMETRY_DISABLED: "1",
     ...extra,
   };
+}
+
+export function validateRepositoryStateSnapshot(snapshot, expectedCommit) {
+  exactKeys(snapshot, ["commit", "tree", "status"], "repository_state_invalid", "repository_preflight");
+  const expected = requiredString(
+    expectedCommit,
+    GIT_OID_PATTERN,
+    "expected_repository_commit_invalid",
+    "repository_preflight",
+  );
+  const commit = requiredString(
+    snapshot.commit,
+    GIT_OID_PATTERN,
+    "repository_commit_invalid",
+    "repository_preflight",
+  );
+  const tree = requiredString(
+    snapshot.tree,
+    GIT_OID_PATTERN,
+    "repository_tree_invalid",
+    "repository_preflight",
+  );
+  if (commit !== expected) fail("repository_commit_mismatch", "repository_preflight");
+  if (snapshot.status !== "") fail("repository_worktree_not_clean", "repository_preflight");
+  return Object.freeze({ commit, tree });
+}
+
+function assertRepositoryState(expectedCommit) {
+  const gitEnvironment = minimalChildEnvironment({ GIT_OPTIONAL_LOCKS: "0" });
+  const topLevel = execute("git", ["rev-parse", "--show-toplevel"], {
+    env: gitEnvironment,
+    code: "repository_root_query_failed",
+    stage: "repository_preflight",
+  });
+  if (realpathSync(topLevel) !== realpathSync(repositoryRoot)) {
+    fail("repository_root_mismatch", "repository_preflight");
+  }
+  return validateRepositoryStateSnapshot({
+    commit: execute("git", ["rev-parse", "--verify", "HEAD^{commit}"], {
+      env: gitEnvironment,
+      code: "repository_commit_query_failed",
+      stage: "repository_preflight",
+    }),
+    tree: execute("git", ["rev-parse", "--verify", "HEAD^{tree}"], {
+      env: gitEnvironment,
+      code: "repository_tree_query_failed",
+      stage: "repository_preflight",
+    }),
+    status: execute("git", ["status", "--porcelain=v1", "--untracked-files=all"], {
+      env: gitEnvironment,
+      code: "repository_status_query_failed",
+      stage: "repository_preflight",
+    }),
+  }, expectedCommit);
 }
 
 export function classifyLocalSupabaseStartFailure(output, processErrorCode) {
@@ -777,6 +934,10 @@ async function assertPlaintextFile(path, expected, code) {
 async function prepareArtifacts(options, harnessRoot, decryptPayloads) {
   const paths = Object.freeze({
     databaseManifest: assertPrivateRegularFile(options.databaseManifest, { maxBytes: MAX_MANIFEST_BYTES, code: "database_manifest" }),
+    migrationLedgerAttestation: assertPrivateRegularFile(options.migrationLedgerAttestation, {
+      maxBytes: MAX_MANIFEST_BYTES,
+      code: "migration_ledger_attestation",
+    }),
     roles: assertPrivateRegularFile(options.roles, { maxBytes: MAX_SQL_BYTES, code: "roles_artifact" }),
     schema: assertPrivateRegularFile(options.schema, { maxBytes: MAX_SQL_BYTES, code: "schema_artifact" }),
     data: assertPrivateRegularFile(options.data, { maxBytes: MAX_SQL_BYTES, code: "data_artifact" }),
@@ -792,14 +953,23 @@ async function prepareArtifacts(options, harnessRoot, decryptPayloads) {
   const decryptedRoot = join(harnessRoot, "decrypted");
   mkdirSync(decryptedRoot, { mode: 0o700 });
   const databaseManifestPath = join(decryptedRoot, "database-manifest.json");
+  const migrationLedgerAttestationPath = join(decryptedRoot, "migration-ledger-attestation.json");
   const storageManifestPath = join(decryptedRoot, "storage-manifest.json");
   decryptAge(paths.databaseManifest, databaseManifestPath, paths.ageIdentity);
+  decryptAge(paths.migrationLedgerAttestation, migrationLedgerAttestationPath, paths.ageIdentity);
   decryptAge(paths.storageManifest, storageManifestPath, paths.ageIdentity);
   const rawDatabaseManifest = readPrivateJson(databaseManifestPath, "database_manifest_json_invalid");
   const database = validateDatabaseManifest(rawDatabaseManifest, {
     createdAt: options.createdAt,
     sourceIdentitySha256: options.sourceIdentitySha256,
   });
+  const migrationLedgerAttestation = validateMigrationLedgerAttestation(
+    readPrivateJson(migrationLedgerAttestationPath, "migration_ledger_attestation_json_invalid"),
+    {
+      databaseCreatedAt: database.createdAt,
+      sourceIdentitySha256: options.sourceIdentitySha256,
+    },
+  );
   const storage = validateStorageManifest(
     readPrivateJson(storageManifestPath, "storage_manifest_json_invalid"),
     {
@@ -810,11 +980,24 @@ async function prepareArtifacts(options, harnessRoot, decryptPayloads) {
   const now = new Date();
   const ageHours = checkArtifactAge(database.createdAt, now, options.maxAgeHours);
   const storageAgeHours = checkArtifactAge(storage.createdAt, now, options.maxAgeHours);
+  const migrationLedgerAttestationAgeHours = checkArtifactAge(
+    migrationLedgerAttestation.createdAt,
+    now,
+    options.maxAgeHours,
+  );
   const captureSpanMinutes = Math.abs(
     new Date(storage.createdAt).valueOf() - new Date(database.createdAt).valueOf(),
   ) / 60_000;
   const ciphertextHashes = {};
-  for (const key of ["databaseManifest", "roles", "schema", "data", "storageManifest", "storageArchive"]) {
+  for (const key of [
+    "databaseManifest",
+    "migrationLedgerAttestation",
+    "roles",
+    "schema",
+    "data",
+    "storageManifest",
+    "storageArchive",
+  ]) {
     ciphertextHashes[key] = await sha256File(paths[key]);
   }
   const plaintext = {};
@@ -834,11 +1017,13 @@ async function prepareArtifacts(options, harnessRoot, decryptPayloads) {
   return Object.freeze({
     paths,
     database,
+    migrationLedgerAttestation,
     storage,
     plaintext: Object.freeze(plaintext),
     ciphertextHashes: Object.freeze(ciphertextHashes),
     ageHours,
     storageAgeHours,
+    migrationLedgerAttestationAgeHours,
     captureSpanMinutes,
   });
 }
@@ -1322,14 +1507,21 @@ function readAppliedMigrationVersions(status, stage = "migration_rehearsal") {
   return value;
 }
 
-function verifiedManifestPrefix(root, manifestLedger) {
-  const prefix = root.entries.slice(0, manifestLedger.count);
+export function verifiedAttestedPrefix(root, manifestLedger, attestation) {
   if (
-    prefix.length !== manifestLedger.count ||
-    prefix[0]?.version !== manifestLedger.minVersion ||
-    prefix.at(-1)?.version !== manifestLedger.maxVersion
+    attestation.source.length !== manifestLedger.count ||
+    attestation.source[0]?.version !== manifestLedger.minVersion ||
+    attestation.source.at(-1)?.version !== manifestLedger.maxVersion
   ) {
-    fail("manifest_ledger_not_root_prefix", "database_restore");
+    fail("migration_ledger_attestation_manifest_mismatch", "database_restore");
+  }
+  const prefix = root.entries.slice(0, attestation.source.length);
+  if (
+    prefix.length !== attestation.source.length ||
+    JSON.stringify(prefix.map(({ version, name }) => ({ version, name }))) !==
+      JSON.stringify(attestation.source)
+  ) {
+    fail("migration_ledger_attestation_root_prefix_mismatch", "database_restore");
   }
   return Object.freeze(prefix);
 }
@@ -2512,12 +2704,65 @@ function cleanupContour(state) {
   attempt(() => {
     if (ownedNetworkNames(state).length !== 0) fail("cleanup_owned_network_remains", "cleanup");
   });
-  if (safeHarnessRoot(state.harnessRoot) && readFileSync(join(state.harnessRoot, MARKER), "utf8") === state.projectName) {
-    attempt(() => rmSync(state.harnessRoot, { recursive: true, force: true }));
-  } else {
-    failures.push(1);
-  }
+  attempt(() => cleanupHarnessRoot(state));
   return failures.length === 0 ? "passed" : "incomplete";
+}
+
+function cleanupHarnessRoot(state) {
+  if (!existsSync(state.harnessRoot)) return;
+  const markerPath = join(state.harnessRoot, MARKER);
+  if (
+    !safeHarnessRoot(state.harnessRoot) ||
+    !existsSync(markerPath) ||
+    readFileSync(markerPath, "utf8") !== state.projectName
+  ) {
+    fail("cleanup_harness_root_scope_invalid", "cleanup");
+  }
+  rmSync(state.harnessRoot, { recursive: true, force: true });
+  if (existsSync(state.harnessRoot)) fail("cleanup_harness_root_remains", "cleanup");
+}
+
+function registerActiveCleanupState(state) {
+  if (activeCleanupState) fail("cleanup_state_already_registered", "cleanup");
+  activeCleanupState = state;
+}
+
+function cleanupActiveState(state = activeCleanupState) {
+  if (!state) return "passed";
+  if (activeCleanupRunning || state !== activeCleanupState) return "incomplete";
+  activeCleanupRunning = true;
+  let result = "incomplete";
+  try {
+    if (state.kind === "recovery") {
+      result = cleanupContour(state);
+    } else {
+      try {
+        cleanupHarnessRoot(state);
+        result = "passed";
+      } catch {
+        result = "incomplete";
+      }
+    }
+    if (result === "passed" && activeCleanupState === state) activeCleanupState = undefined;
+    return result;
+  } finally {
+    activeCleanupRunning = false;
+  }
+}
+
+function terminationHandler(signal) {
+  cleanupActiveState();
+  process.exit(signal === "SIGINT" ? 130 : 143);
+}
+
+function exitCleanupHandler() {
+  cleanupActiveState();
+}
+
+function installProcessCleanupHandlers() {
+  process.once("SIGINT", () => terminationHandler("SIGINT"));
+  process.once("SIGTERM", () => terminationHandler("SIGTERM"));
+  process.once("exit", exitCleanupHandler);
 }
 
 function writeSanitizedEvidence(path, evidence) {
@@ -2540,6 +2785,7 @@ function contractOutput() {
     exportStage: "separate_read_only_operator_process",
     requiredEncryptedInputs: [
       "database-manifest.json.age",
+      "migration-ledger-attestation.json.age",
       "roles.sql.age",
       "schema.sql.age",
       "data.sql.age",
@@ -2547,6 +2793,7 @@ function contractOutput() {
       "storage-objects.tar.gz.age",
       "age identity file",
     ],
+    requiredRepositoryBinding: "exact_full_commit_and_clean_worktree",
     sourceIdentityDerivation: "sha256(projectRef + newline + region)",
     safety: {
       destination: "unique_disposable_local_orbstack_only",
@@ -2561,25 +2808,47 @@ function contractOutput() {
 }
 
 async function runPreflight(options) {
+  const repository = assertRepositoryState(options.expectedRepositoryCommit);
   assertOrbStackPreflight();
   const temporaryRoot = realpathSync(tmpdir());
   const harnessRoot = realpathSync(mkdtempSync(join(temporaryRoot, HARNESS_PREFIX)));
   chmodSync(harnessRoot, 0o700);
   const projectName = `evov3recovery${randomBytes(6).toString("hex")}`;
   writeFileSync(join(harnessRoot, MARKER), projectName, { mode: 0o600 });
+  const state = { kind: "preflight", harnessRoot, projectName };
+  registerActiveCleanupState(state);
+  let cleanupStatus = "not_started";
+  let result;
   try {
     const artifacts = await prepareArtifacts(options, harnessRoot, false);
-    return Object.freeze({
+    const rootMigrations = rootMigrationEntries();
+    const sourceMigrationPrefix = verifiedAttestedPrefix(
+      rootMigrations,
+      artifacts.database.migrationLedger,
+      artifacts.migrationLedgerAttestation,
+    );
+    result = Object.freeze({
       ok: true,
       status: "preflight_passed",
       proof: "not_run",
+      repository,
       sourceIdentitySha256: options.sourceIdentitySha256,
       databaseCreatedAt: artifacts.database.createdAt,
       storageCreatedAt: artifacts.storage.createdAt,
       captureSpanMinutes: Number(artifacts.captureSpanMinutes.toFixed(3)),
       databaseAgeHours: Number(artifacts.ageHours.toFixed(3)),
       storageAgeHours: Number(artifacts.storageAgeHours.toFixed(3)),
+      migrationLedgerAttestationAgeHours: Number(
+        artifacts.migrationLedgerAttestationAgeHours.toFixed(3),
+      ),
       databaseManifestSha256: artifacts.ciphertextHashes.databaseManifest,
+      migrationLedgerAttestationSha256: artifacts.ciphertextHashes.migrationLedgerAttestation,
+      migrationLedgerSha256: artifacts.migrationLedgerAttestation.ledgerSha256,
+      migrationLedgerRepositoryPrefix: {
+        status: "passed",
+        count: sourceMigrationPrefix.length,
+        recordedHistoryValidatedCount: rootMigrations.recordedHistoryCount,
+      },
       storageManifestSha256: artifacts.ciphertextHashes.storageManifest,
       databaseLedger: artifacts.database.migrationLedger,
       storage: {
@@ -2592,13 +2861,14 @@ async function runPreflight(options) {
       localSupabaseStarted: false,
     });
   } finally {
-    if (safeHarnessRoot(harnessRoot) && readFileSync(join(harnessRoot, MARKER), "utf8") === projectName) {
-      rmSync(harnessRoot, { recursive: true, force: true });
-    }
+    cleanupStatus = cleanupActiveState(state);
   }
+  if (cleanupStatus !== "passed") fail("cleanup_incomplete", "cleanup");
+  return result;
 }
 
 async function runRecovery(options) {
+  const repository = assertRepositoryState(options.expectedRepositoryCommit);
   assertOrbStackPreflight();
   const temporaryRoot = realpathSync(tmpdir());
   const harnessRoot = realpathSync(mkdtempSync(join(temporaryRoot, HARNESS_PREFIX)));
@@ -2608,6 +2878,7 @@ async function runRecovery(options) {
   const networkName = `evo_v3_recovery_${suffix}_private`;
   writeFileSync(join(harnessRoot, MARKER), projectName, { mode: 0o600 });
   const state = {
+    kind: "recovery",
     harnessRoot,
     projectName,
     networkName,
@@ -2615,16 +2886,24 @@ async function runRecovery(options) {
     networkCreated: false,
     stackStarted: false,
   };
+  registerActiveCleanupState(state);
   let cleanupStatus = "not_started";
   let evidence;
   try {
     const artifacts = await prepareArtifacts(options, harnessRoot, true);
+    const rootMigrations = rootMigrationEntries();
+    const sourceMigrationPrefix = verifiedAttestedPrefix(
+      rootMigrations,
+      artifacts.database.migrationLedger,
+      artifacts.migrationLedgerAttestation,
+    );
     const portMap = await reservePortMap();
     const supabaseRoot = join(harnessRoot, "supabase-workdir");
     state.supabaseRoot = supabaseRoot;
     mkdirSync(join(supabaseRoot, "supabase"), { recursive: true, mode: 0o700 });
     const configPath = join(supabaseRoot, "supabase", "config.toml");
     writeFileSync(configPath, renderIsolatedSupabaseConfig(projectName, portMap), { mode: 0o600 });
+    state.networkCreated = true;
     docker([
       "network",
       "create",
@@ -2636,7 +2915,7 @@ async function runRecovery(options) {
       "com.docker.network.bridge.host_binding_ipv4=127.0.0.1",
       networkName,
     ], { capture: false, code: "isolated_network_create_failed", stage: "local_supabase_start" });
-    state.networkCreated = true;
+    state.stackStarted = true;
     execute(
       supabaseCli,
       [
@@ -2660,7 +2939,6 @@ async function runRecovery(options) {
         failureDiagnostic: sanitizeLocalSupabaseStartDiagnostic,
       },
     );
-    state.stackStarted = true;
     await waitForLocalSupabaseReadiness(state);
     const status = parseSupabaseStatus(execute(
       supabaseCli,
@@ -2668,11 +2946,6 @@ async function runRecovery(options) {
       { code: "local_supabase_status_failed", stage: "local_supabase_start" },
     ));
 
-    const rootMigrations = rootMigrationEntries();
-    const sourceMigrationPrefix = verifiedManifestPrefix(
-      rootMigrations,
-      artifacts.database.migrationLedger,
-    );
     const copyTargets = await scanCopyInventory(artifacts.plaintext.data);
     const localDatabaseMajor = assertLocalDatabaseMajor(status, artifacts.database.databaseMajor);
     const pgmqQueues = restoreLogicalDatabase(status, artifacts, copyTargets);
@@ -2721,6 +2994,7 @@ async function runRecovery(options) {
       schema: RESULT_SCHEMA,
       ok: true,
       status: "passed",
+      repository,
       source: {
         identitySha256: options.sourceIdentitySha256,
         databaseCreatedAt: artifacts.database.createdAt,
@@ -2729,6 +3003,10 @@ async function runRecovery(options) {
         databaseAgeHours: Number(artifacts.ageHours.toFixed(3)),
         storageAgeHours: Number(artifacts.storageAgeHours.toFixed(3)),
         databaseManifestSha256: artifacts.ciphertextHashes.databaseManifest,
+        migrationLedgerAttestationSha256:
+          artifacts.ciphertextHashes.migrationLedgerAttestation,
+        migrationLedgerAttestationCreatedAt: artifacts.migrationLedgerAttestation.createdAt,
+        migrationLedgerSha256: artifacts.migrationLedgerAttestation.ledgerSha256,
         storageManifestSha256: artifacts.ciphertextHashes.storageManifest,
         encryptedLogicalSetSha256: sha256Text([
           artifacts.ciphertextHashes.roles,
@@ -2777,7 +3055,7 @@ async function runRecovery(options) {
       cleanup: "pending",
     };
   } finally {
-    cleanupStatus = cleanupContour(state);
+    cleanupStatus = cleanupActiveState(state);
   }
   if (!evidence) fail("recovery_evidence_missing", "result");
   if (cleanupStatus !== "passed") fail("cleanup_incomplete", "cleanup");
@@ -2810,6 +3088,7 @@ const invokedDirectly = process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
+  installProcessCleanupHandlers();
   const previousUmask = process.umask(0o077);
   try {
     const result = await main();

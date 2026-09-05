@@ -19008,3 +19008,45 @@ The failed contour completed owned cleanup with disposition `remove`. This
 change does not contact or mutate managed Supabase, production, VPS, WAHA,
 amoCRM, Gemini, webhooks, customer records or provider state, and it does not
 arm #552.
+
+## 2026-09-05 - Recreate signed PGMQ extension relations before data restore
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-EXTENSION-RELATIONS-2026-09-05`
+
+Change type: real-runtime recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The safe PostgreSQL coordinates localized the restore failure to the first
+`COPY` for `pgmq.a_platform_dead_letter_v1`. The signed data export contains
+exactly the active/archive relations for `platform_work_v1` and
+`platform_dead_letter_v1`, while the managed schema export intentionally
+excludes extension-owned `pgmq`. All four signed sections currently contain
+zero rows, but an empty COPY still requires its relation. Migration 045 is the
+reviewed authority that originally created these two queues and revoked direct
+browser/service access.
+
+Decision:
+
+- require the signed data inventory to contain exactly the four canonical
+  `pgmq.q_*` / `pgmq.a_*` relations and no additional PGMQ table; preserve and
+  reconcile their signed row counts, including non-empty future backups;
+- after signed schema/history restore and before `data.sql`, require the pinned
+  `pgmq.create(text)` API and recreate only `platform_work_v1` and
+  `platform_dead_letter_v1`;
+- reapply migration 045's schema/table/sequence/function revocations and
+  default-privilege containment for `PUBLIC`, `anon`, `authenticated`,
+  `service_role` and `supabase_auth_admin`, including optional `pgmq_public`;
+- verify all four relations exist and that no forbidden ACL remains before
+  loading signed queue rows; retain only relation/count/ACL hashes and booleans
+  in evidence; and
+- fail closed on a renamed/missing/extra PGMQ relation, unavailable API,
+  privilege leak, shape mismatch or row-count mismatch.
+
+This follows Supabase's documented PGMQ model: `pgmq.create(text)` creates a
+queue, each queue owns paired `q_<name>` and `a_<name>` tables, and direct queue
+tables do not receive RLS by default:
+<https://supabase.com/docs/guides/queues/pgmq> and
+<https://supabase.com/docs/guides/queues/quickstart>. It changes only the
+disposable local recovery consumer and does not contact or mutate managed
+Supabase, production, VPS, WAHA, amoCRM, Gemini, webhooks, customer records or
+provider state. #552 remains unarmed.

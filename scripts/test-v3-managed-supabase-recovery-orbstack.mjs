@@ -136,6 +136,13 @@ const SQL_ARTIFACTS = Object.freeze([
 ]);
 const EXCLUDED_SERVICES =
   "imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
+const RECOVERY_PGMQ_QUEUES = Object.freeze(["platform_dead_letter_v1", "platform_work_v1"]);
+const RECOVERY_PGMQ_RELATIONS = Object.freeze([
+  "pgmq.a_platform_dead_letter_v1",
+  "pgmq.a_platform_work_v1",
+  "pgmq.q_platform_dead_letter_v1",
+  "pgmq.q_platform_work_v1",
+]);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export class RecoveryFailure extends Error {
@@ -2523,13 +2530,154 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
   });
 }
 
+export function validatePgmqRestoreInventory(counts) {
+  if (!isRecord(counts)) fail("pgmq_restore_inventory_invalid", "database_restore");
+  const entries = Object.entries(counts)
+    .filter(([table]) => table.startsWith("pgmq."))
+    .sort(([left], [right]) => left.localeCompare(right, "en"));
+  if (
+    entries.length !== RECOVERY_PGMQ_RELATIONS.length ||
+    entries.some(([table, count], index) => {
+      integer(count, "pgmq_restore_inventory_invalid", "database_restore");
+      return table !== RECOVERY_PGMQ_RELATIONS[index];
+    })
+  ) {
+    fail("pgmq_restore_inventory_invalid", "database_restore");
+  }
+  const relationCounts = Object.freeze(Object.fromEntries(entries));
+  return Object.freeze({
+    queueSetSha256: sha256(canonicalJson(RECOVERY_PGMQ_QUEUES)),
+    relationSetSha256: sha256(canonicalJson(RECOVERY_PGMQ_RELATIONS)),
+    relationCountsSha256: sha256(canonicalJson(relationCounts)),
+    signedRowCount: entries.reduce((total, [, count]) => total + count, 0),
+  });
+}
+
+async function restorePgmqExtensionRelations(dataPath, status, supervisor, toolchain) {
+  const inventory = validatePgmqRestoreInventory(await dataDumpTableCounts(dataPath));
+  await psql(supervisor, toolchain, status, ["--command", String.raw`
+    BEGIN;
+    DO $$
+    BEGIN
+      IF to_regprocedure('pgmq.create(text)') IS NULL THEN
+        RAISE EXCEPTION 'Required PGMQ create signature is unavailable'
+          USING ERRCODE = '0A000';
+      END IF;
+    END
+    $$;
+    SELECT pgmq.create('platform_work_v1');
+    SELECT pgmq.create('platform_dead_letter_v1');
+    REVOKE ALL ON SCHEMA pgmq
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    REVOKE ALL ON ALL TABLES IN SCHEMA pgmq
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    REVOKE ALL ON ALL SEQUENCES IN SCHEMA pgmq
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    REVOKE ALL ON ALL FUNCTIONS IN SCHEMA pgmq
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq
+      REVOKE ALL PRIVILEGES ON TABLES
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq
+      REVOKE ALL PRIVILEGES ON SEQUENCES
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq
+      REVOKE ALL PRIVILEGES ON FUNCTIONS
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    DO $$
+    BEGIN
+      IF to_regnamespace('pgmq_public') IS NOT NULL THEN
+        EXECUTE 'REVOKE ALL ON SCHEMA pgmq_public FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'REVOKE ALL ON ALL TABLES IN SCHEMA pgmq_public FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA pgmq_public FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA pgmq_public FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq_public REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq_public REVOKE ALL PRIVILEGES ON SEQUENCES FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq_public REVOKE ALL PRIVILEGES ON FUNCTIONS FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+      END IF;
+    END
+    $$;
+    COMMIT;`], {
+    stage: "database_restore",
+    code: "pgmq_extension_relation_restore_failed",
+  });
+  const verified = await psqlJson(supervisor, toolchain, status, String.raw`
+    WITH forbidden_roles AS (
+      SELECT oid FROM pg_roles
+      WHERE rolname IN ('anon', 'authenticated', 'service_role', 'supabase_auth_admin')
+      UNION ALL SELECT 0::oid
+    ), forbidden_acl AS (
+      SELECT 1
+      FROM pg_namespace AS namespace
+      CROSS JOIN LATERAL aclexplode(coalesce(namespace.nspacl, acldefault('n'::"char", namespace.nspowner))) AS acl
+      JOIN forbidden_roles AS forbidden ON forbidden.oid = acl.grantee
+      WHERE namespace.nspname IN ('pgmq', 'pgmq_public')
+      UNION ALL
+      SELECT 1
+      FROM pg_class AS relation
+      JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+      CROSS JOIN LATERAL aclexplode(coalesce(
+        relation.relacl,
+        acldefault((CASE WHEN relation.relkind = 'S' THEN 'S' ELSE 'r' END)::"char", relation.relowner)
+      )) AS acl
+      JOIN forbidden_roles AS forbidden ON forbidden.oid = acl.grantee
+      WHERE namespace.nspname IN ('pgmq', 'pgmq_public')
+        AND relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+      UNION ALL
+      SELECT 1
+      FROM pg_proc AS routine
+      JOIN pg_namespace AS namespace ON namespace.oid = routine.pronamespace
+      CROSS JOIN LATERAL aclexplode(coalesce(routine.proacl, acldefault('f'::"char", routine.proowner))) AS acl
+      JOIN forbidden_roles AS forbidden ON forbidden.oid = acl.grantee
+      WHERE namespace.nspname IN ('pgmq', 'pgmq_public')
+    )
+    SELECT json_build_object(
+      'requiredRelationCount', (
+        SELECT count(*)::integer
+        FROM pg_class AS relation
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'pgmq'
+          AND relation.relkind IN ('r', 'p')
+          AND relation.relname IN (
+            'a_platform_dead_letter_v1', 'a_platform_work_v1',
+            'q_platform_dead_letter_v1', 'q_platform_work_v1'
+          )
+      ),
+      'forbiddenAclCount', (SELECT count(*)::integer FROM forbidden_acl)
+    )::text`, "database_restore");
+  if (
+    !isRecord(verified) ||
+    verified.requiredRelationCount !== RECOVERY_PGMQ_RELATIONS.length ||
+    verified.forbiddenAclCount !== 0
+  ) {
+    fail("pgmq_extension_relation_containment_failed", "database_restore");
+  }
+  return Object.freeze({
+    status: "restored_and_contained",
+    ...inventory,
+    requiredRelationCount: verified.requiredRelationCount,
+    forbiddenAclCount: verified.forbiddenAclCount,
+  });
+}
+
 async function restoreDatabase(artifacts, status, supervisor, toolchain) {
   const order = ["roles.sql", "schema.sql"];
   for (const name of order) await psql(supervisor, toolchain, status, ["--file", artifacts.plaintext[name]], { stage: "database_restore", code: `${name.replaceAll(/[^a-z]/gu, "_")}_restore_failed` });
   await psql(supervisor, toolchain, status, ["--command", "DROP SCHEMA IF EXISTS supabase_migrations CASCADE"], { stage: "database_restore", code: "history_target_reset_failed" });
-  for (const name of ["history-schema.sql", "history-data.sql", "data.sql"]) {
+  for (const name of ["history-schema.sql", "history-data.sql"]) {
     await psql(supervisor, toolchain, status, ["--file", artifacts.plaintext[name]], { stage: "database_restore", code: `${name.replaceAll(/[^a-z]/gu, "_")}_restore_failed` });
   }
+  const extensionRelations = await restorePgmqExtensionRelations(
+    artifacts.plaintext["data.sql"],
+    status,
+    supervisor,
+    toolchain,
+  );
+  await psql(supervisor, toolchain, status, ["--file", artifacts.plaintext["data.sql"]], {
+    stage: "database_restore",
+    code: "data_sql_restore_failed",
+  });
+  return extensionRelations;
 }
 
 export function databaseAggregatesFromTableCounts(counts, code = "restored_database_aggregate_invalid") {
@@ -5642,8 +5790,11 @@ async function executeMode(mode, options) {
       const isolation = state.isolationEvidence;
       const extracted = await runStage("storage_archive_validation", () => extractStorage(artifacts, state, supervisor, toolchain));
       const database = await runStage("database_restore", async () => {
-        await restoreDatabase(artifacts, local.status, supervisor, toolchain);
-        return await reconcileRestoredDatabase(artifacts, local.status, supervisor, toolchain);
+        const extensionRelations = await restoreDatabase(artifacts, local.status, supervisor, toolchain);
+        return Object.freeze({
+          ...await reconcileRestoredDatabase(artifacts, local.status, supervisor, toolchain),
+          extensionRelations,
+        });
       });
       const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(state, local, targetRoot, verifiedLedger, supervisor, toolchain));
       const storage = await runStage("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain, state.interruptionGuard));

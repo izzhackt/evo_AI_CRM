@@ -56,6 +56,7 @@ import {
   validateDatabaseManifest,
   validateBuiltImageInspection,
   validateLocalSupabaseNetwork,
+  validatePgmqRestoreInventory,
   validateRepresentativeCohort,
   validateRepositoryBindings,
   validateRestoredDatabaseAggregates,
@@ -1039,6 +1040,32 @@ test("expected database denial requires the exact SQLSTATE and domain sentinel",
   assert.equal(classifyExpectedDatabaseDenial(sanitizePsqlDiagnostic("ERROR:  42601: syntax error\n", 3), expected), false);
 });
 
+test("PGMQ recovery binds the two canonical queue relation pairs and containment", () => {
+  const counts = {
+    "auth.users": 1,
+    "pgmq.a_platform_dead_letter_v1": 0,
+    "pgmq.a_platform_work_v1": 2,
+    "pgmq.q_platform_dead_letter_v1": 3,
+    "pgmq.q_platform_work_v1": 4,
+  };
+  const inventory = validatePgmqRestoreInventory(counts);
+  assert.equal(inventory.signedRowCount, 9);
+  assert.match(inventory.queueSetSha256, /^[0-9a-f]{64}$/u);
+  assert.match(inventory.relationSetSha256, /^[0-9a-f]{64}$/u);
+  assert.match(inventory.relationCountsSha256, /^[0-9a-f]{64}$/u);
+  expectCode(
+    () => validatePgmqRestoreInventory({ ...counts, "pgmq.q_unreviewed": 0 }),
+    "pgmq_restore_inventory_invalid",
+  );
+  const missing = { ...counts };
+  delete missing["pgmq.a_platform_work_v1"];
+  expectCode(() => validatePgmqRestoreInventory(missing), "pgmq_restore_inventory_invalid");
+  assert.match(source, /SELECT pgmq\.create\('platform_work_v1'\)/u);
+  assert.match(source, /SELECT pgmq\.create\('platform_dead_letter_v1'\)/u);
+  assert.match(source, /REVOKE ALL ON ALL TABLES IN SCHEMA pgmq/u);
+  assert.match(source, /forbiddenAclCount/u);
+});
+
 test("durable evidence fails closed before write when cleanup quarantines", () => {
   const common = {
     result: { schema: "evo-v3-managed-supabase-recovery-result/v2", ok: true, status: "passed" },
@@ -1925,7 +1952,7 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.match(source, /change_membership_permission/u);
   assert.match(source, /ROLLBACK/u);
   assert.match(source, /selectAdmissionsTaskMutation\(\{/u);
-  assert.match(source, /return await reconcileRestoredDatabase\(/u);
+  assert.match(source, /\.\.\.await reconcileRestoredDatabase\(/u);
   assert.match(source, /classifyExpectedDatabaseDenial\(error\.diagnostic/u);
   assert.match(source, /response\?\.status\(\) \?\? 0/u);
   assert.match(source, /buildIsolationEvidence\(state\.isolationInput, \{ requireComplete: true \}\)/u);

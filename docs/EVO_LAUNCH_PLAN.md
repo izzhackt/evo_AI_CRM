@@ -292,6 +292,17 @@ proved with a canonical allowed PDF and exact hash round trip, but cannot
 satisfy either missing-role or real source-byte recovery. A missing backup
 directory, missing source credentials or either real backup is also a named
 blocker, and synthetic identities, records or objects cannot satisfy this gate.
+Because the managed schema export intentionally excludes extension-owned
+`pgmq` objects while the signed data export retains queue rows, recovery must
+recreate only the two migration-045 queues before loading `data.sql`. It binds
+the exact four `q_*`/`a_*` COPY sections, reapplies the migration's deny ACLs
+for browser and service roles, verifies no forbidden schema/table/sequence/
+function grant remains, and then reconciles every signed row count. Supabase's
+PGMQ reference confirms that `pgmq.create(text)` creates a queue, while its
+Queues quickstart documents the paired `q_<name>` and `a_<name>` tables and
+warns that direct queue tables do not receive RLS by default:
+<https://supabase.com/docs/guides/queues/pgmq> and
+<https://supabase.com/docs/guides/queues/quickstart>.
 
 #600 keeps the proved `/v3/*` module URLs and makes the authenticated root a
 role-aware dispatcher into them: Admin and Sales enter `/v3/main`, while

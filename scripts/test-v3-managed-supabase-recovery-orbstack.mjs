@@ -3906,8 +3906,13 @@ export function classifyPostgrestSchemaCacheProbe(status, body) {
   fail("postgrest_schema_cache_probe_failed", "postgrest_schema_cache", diagnostic);
 }
 
-async function waitForPostgrestSchemaCache(status, interruptionGuard) {
+export async function waitForPostgrestSchemaCache(
+  status,
+  interruptionGuard,
+  { fetchImpl = globalThis.fetch } = {},
+) {
   const stage = "postgrest_schema_cache";
+  if (typeof fetchImpl !== "function") fail("postgrest_schema_cache_probe_invalid", stage);
   const deadline = Date.now() + 2 * 60 * 1_000;
   const url = new URL("/rest/v1/", status.apiUrl);
   const headers = {
@@ -3919,21 +3924,31 @@ async function waitForPostgrestSchemaCache(status, interruptionGuard) {
     interruptionGuard.assertActive(stage);
     let response;
     try {
-      response = await interruptionGuard.run(stage, async (signal) => await fetch(url, {
+      response = await interruptionGuard.run(stage, async (signal) => await fetchImpl(url, {
         headers,
         redirect: "manual",
         signal: AbortSignal.any([AbortSignal.timeout(3_000), signal]),
       }));
     } catch (error) {
       if (error instanceof RecoveryFailure) throw error;
-      await interruptionGuard.run(stage, async () => await delay(250));
-      continue;
+      fail("postgrest_schema_cache_probe_failed", stage, { category: "network_failure" });
     }
     if (response.status === 200) {
-      await interruptionGuard.run(stage, async () => await response.body?.cancel());
+      try {
+        await interruptionGuard.run(stage, async () => await response.body?.cancel());
+      } catch (error) {
+        if (error instanceof RecoveryFailure) throw error;
+        fail("postgrest_schema_cache_probe_failed", stage, { category: "body_cancel_failure" });
+      }
       return Object.freeze({ status: "ready", schema: "platform" });
     }
-    const body = await interruptionGuard.run(stage, async () => await response.text());
+    let body;
+    try {
+      body = await interruptionGuard.run(stage, async () => await response.text());
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
+      fail("postgrest_schema_cache_probe_failed", stage, { category: "body_read_failure" });
+    }
     if (classifyPostgrestSchemaCacheProbe(response.status, body) !== "retry") {
       fail("postgrest_schema_cache_probe_failed", stage);
     }

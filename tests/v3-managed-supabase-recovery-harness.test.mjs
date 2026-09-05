@@ -84,6 +84,7 @@ import {
   verifyMigrationTreePrefix,
   verifyReceiptSignature,
   verifyRestoredStorageInventory,
+  waitForPostgrestSchemaCache,
   writeEvidence,
 } from "../scripts/test-v3-managed-supabase-recovery-orbstack.mjs";
 
@@ -163,6 +164,38 @@ test("PostgREST schema cache waits only for the exact PGRST002 recovery state", 
   assert.ok(targetStorageCall > runStart && schemaCacheCall > targetStorageCall && representativeCall > schemaCacheCall);
   assert.match(source, /const deadline = Date\.now\(\) \+ 2 \* 60 \* 1_000/u);
   assert.match(source, /POSTGREST_SCHEMA_CACHE_RETRY/u);
+});
+
+test("PostgREST schema cache does not retry unexpected transport or body failures", async () => {
+  const status = { apiUrl: "http://127.0.0.1:54321", serviceRoleKey: "test-service-role" };
+  let transportAttempts = 0;
+  await expectCodeAsync(
+    () => waitForPostgrestSchemaCache(status, new RecoveryInterruptionGuard(), {
+      fetchImpl: async () => {
+        transportAttempts += 1;
+        throw new TypeError("synthetic transport failure");
+      },
+    }),
+    "postgrest_schema_cache_probe_failed",
+  );
+  assert.equal(transportAttempts, 1);
+
+  let bodyAttempts = 0;
+  await expectCodeAsync(
+    () => waitForPostgrestSchemaCache(status, new RecoveryInterruptionGuard(), {
+      fetchImpl: async () => {
+        bodyAttempts += 1;
+        return {
+          status: 503,
+          async text() {
+            throw new TypeError("synthetic body failure");
+          },
+        };
+      },
+    }),
+    "postgrest_schema_cache_probe_failed",
+  );
+  assert.equal(bodyAttempts, 1);
 });
 
 test("Admin passes only after complete server and exact-role browser outcomes", () => {

@@ -18473,3 +18473,50 @@ Decision:
 This correction does not contact or mutate managed Supabase, production, VPS,
 WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
 not arm #552.
+
+## 2026-09-05 - Consume only the signed managed-export contract during recovery
+
+Block-ID: `EVO-V3-H-SIGNED-MANAGED-RECOVERY-CONSUMER-2026-09-05`
+
+Change type: stale-worktree salvage and recovery trust correction.
+Affected plan section: Order 7 / Issue #551.
+
+Read-only inventory found that the old `izzhackt/v3-h-release-recovery`
+worktree predates the current release controller and the managed exporter. Its
+combined tree would roll back accepted exact-main controls, while its recovery
+harness trusts an obsolete unsigned manifest, reconstructs migration history
+from summary counts, permits synthetic role actors and cannot interrupt long
+synchronous restore children safely. The dirty worktree remains preserved and
+is not current authority.
+
+Decision:
+
+- rebuild recovery on the exact main commit containing the #636 exporter. Only
+  the old harness's isolation, private-file, hashing, Storage-integrity and
+  targeted-cleanup primitives may be used as implementation material;
+- before decryption or restore, verify `receipt.json.sig` against an
+  independently supplied trusted public key, exact namespace and identity,
+  then verify the receipt schema, source/project/backup bindings and every
+  ciphertext digest. A missing, altered or mismatched signature, receipt,
+  artifact or trusted-key fingerprint stops without restore;
+- restore the exported history schema and exact history COPY rows. Compare the
+  complete ordered signed ledger and its digest with root migrations, then
+  apply only the genuine pending suffix. Never synthesize migration rows from
+  a count, minimum, maximum or local filename;
+- require an explicitly authorized representative cohort already present in
+  the restored snapshot for Admin, Sales and Admissions. Do not provision
+  synthetic staff or fixture business records. Prove positive and negative
+  same- and cross-organization RLS, canonical reads/writes, private-document
+  behavior, audit behavior and role-visible V3 browser routes against the exact
+  immutable candidate image; and
+- run every external command in a tracked process group. On interruption,
+  perform bounded `TERM` then `KILL`, prove the complete descendant tree has
+  drained, and only then clean the owned loopback OrbStack contour. If drain or
+  targeted cleanup cannot be proved, fail and preserve the marked private root
+  for quarantine. Required sanitized success or failure evidence records
+  trusted executable versions, per-stage timings and cleanup outcome.
+
+This recovery consumer may decrypt and restore the read-only export only into
+an isolated loopback-bound local OrbStack contour. It does not mutate managed
+Supabase, Storage, VPS, provider/webhook state, production traffic or customer
+records and does not activate a release.

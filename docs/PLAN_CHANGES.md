@@ -19050,3 +19050,26 @@ tables do not receive RLS by default:
 disposable local recovery consumer and does not contact or mutate managed
 Supabase, production, VPS, WAHA, amoCRM, Gemini, webhooks, customer records or
 provider state. #552 remains unarmed.
+
+## 2026-09-05 - Localize restored table-count drift without row disclosure
+
+Block-ID: `EVO-V3-H-RECOVERY-TABLE-COUNT-DIAGNOSTIC-2026-09-05`
+
+Change type: real-runtime recovery diagnostics correction.
+Affected plan section: Order 7 / Issue #551.
+
+After the canonical PGMQ relations were recreated, the signed data loaded but
+aggregate reconciliation stopped with a count mismatch. Aggregate hashes alone
+cannot distinguish a restore side effect from a missing row or an
+extension-owned relation, while row output would violate the evidence boundary.
+
+Decision: compare the signed COPY row count with the restored count for every
+table before aggregate reconciliation. On mismatch retain only the first fixed
+schema/table name, expected/actual integer counts, mismatch count and a hash of
+the mismatch set. Never retain row values or identifiers. A missing, extra,
+non-integer or changed table count fails closed.
+
+The failed contour completed owned cleanup with disposition `remove`. This
+change affects only the disposable local recovery consumer and does not contact
+or mutate managed Supabase, production, VPS, providers, webhooks or customer
+records. #552 remains unarmed.

@@ -60,6 +60,7 @@ import {
   validateRepresentativeCohort,
   validateRepositoryBindings,
   validateRestoredDatabaseAggregates,
+  validateRestoredTableCounts,
   validateRestrictedSqlEnvelope,
   validateSignedReceipt,
   validateStorageManifest,
@@ -1008,6 +1009,30 @@ test("restored database aggregate reconciliation fails on every signed aggregate
   }
   const missingZeroRowTable = databaseAggregatesFromTableCounts({ "auth.users": 3, "platform.leads": 5 });
   expectCode(() => validateRestoredDatabaseAggregates(expected, missingZeroRowTable), "restored_database_aggregate_mismatch");
+});
+
+test("restored table-count drift reports only safe table coordinates and counts", () => {
+  const expected = { "auth.users": 1, "platform.audit_events": 1 };
+  assert.deepEqual(validateRestoredTableCounts(expected, { ...expected }), expected);
+  let failure;
+  try {
+    validateRestoredTableCounts(expected, { "auth.users": 1, "platform.audit_events": 2 });
+  } catch (error) {
+    failure = error;
+  }
+  assert.ok(failure instanceof RecoveryFailure);
+  assert.equal(failure.code, "restored_database_table_count_mismatch");
+  assert.deepEqual(failure.diagnostic, {
+    mismatchCount: 1,
+    mismatchSetSha256: hash(canonicalJson(["platform.audit_events"])),
+    firstTable: "platform.audit_events",
+    expectedCount: 1,
+    actualCount: 2,
+  });
+  expectCode(
+    () => validateRestoredTableCounts(expected, { ...expected, "public.extra": 0 }),
+    "restored_database_table_count_mismatch",
+  );
 });
 
 test("expected database denial requires the exact SQLSTATE and domain sentinel", () => {

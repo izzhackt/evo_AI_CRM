@@ -2716,6 +2716,31 @@ export function validateRestoredDatabaseAggregates(expected, actual) {
   });
 }
 
+export function validateRestoredTableCounts(expected, actual) {
+  if (!isRecord(expected) || !isRecord(actual)) {
+    fail("restored_database_table_inventory_mismatch", "database_restore");
+  }
+  const tables = [...new Set([...Object.keys(expected), ...Object.keys(actual)])]
+    .sort((left, right) => left.localeCompare(right, "en"));
+  for (const table of tables) {
+    quotedQualifiedTable(table);
+    if (Object.hasOwn(expected, table)) integer(expected[table], "database_dump_aggregate_invalid", "database_restore");
+    if (Object.hasOwn(actual, table)) integer(actual[table], "restored_database_aggregate_invalid", "database_restore");
+  }
+  const mismatches = tables.filter((table) => expected[table] !== actual[table]);
+  if (mismatches.length > 0) {
+    const firstTable = mismatches[0];
+    fail("restored_database_table_count_mismatch", "database_restore", Object.freeze({
+      mismatchCount: mismatches.length,
+      mismatchSetSha256: sha256(canonicalJson(mismatches)),
+      firstTable,
+      expectedCount: Object.hasOwn(expected, firstTable) ? expected[firstTable] : null,
+      actualCount: Object.hasOwn(actual, firstTable) ? actual[firstTable] : null,
+    }));
+  }
+  return Object.freeze(actual);
+}
+
 async function dataDumpTableCounts(path) {
   const counts = {};
   const input = createReadStream(path);
@@ -2776,6 +2801,7 @@ async function reconcileRestoredDatabase(artifacts, status, supervisor, toolchai
   const dumpCounts = await dataDumpTableCounts(artifacts.plaintext["data.sql"]);
   validateRestoredDatabaseAggregates(signed, databaseAggregatesFromTableCounts(dumpCounts, "database_dump_aggregate_invalid"));
   const actualCounts = await restoredTableCounts(dumpCounts, supervisor, toolchain, status);
+  validateRestoredTableCounts(dumpCounts, actualCounts);
   return validateRestoredDatabaseAggregates(signed, databaseAggregatesFromTableCounts(actualCounts));
 }
 

@@ -21,6 +21,7 @@ import {
   mkdirSync,
   mkdtempSync,
   openSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -941,12 +942,38 @@ function registerSignalCleanup(abortController, state) {
   };
 }
 
-function guardedRemove(path) {
+export function guardedRemove(path) {
   if (!path || !isAbsolute(path) || !existsSync(path)) return;
   const canonical = realpathSync(path);
   if (!basename(canonical).startsWith("evo-v3-managed-export-")) fail("cleanup_target_invalid");
+  const metadata = lstatSync(canonical);
+  if (
+    !metadata.isDirectory() ||
+    typeof process.getuid !== "function" ||
+    metadata.uid !== process.getuid() ||
+    (metadata.mode & 0o077) !== 0
+  ) {
+    fail("cleanup_target_invalid");
+  }
   const marker = join(canonical, RUN_MARKER);
-  if (!existsSync(marker) || !lstatSync(marker).isFile()) fail("cleanup_target_invalid");
+  if (
+    !existsSync(marker) ||
+    !lstatSync(marker).isFile() ||
+    !new Set(["managed-supabase-export\n", "managed-supabase-export-runtime\n"]).has(
+      readFileSync(marker, "utf8"),
+    )
+  ) {
+    fail("cleanup_target_invalid");
+  }
+  for (const entry of readdirSync(canonical)) {
+    if (entry === RUN_MARKER) continue;
+    rmSync(join(canonical, entry), {
+      recursive: true,
+      force: false,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+  }
   rmSync(canonical, { recursive: true, force: false });
 }
 

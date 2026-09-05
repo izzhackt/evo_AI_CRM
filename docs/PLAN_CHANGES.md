@@ -17997,3 +17997,28 @@ Decision:
 
 This correction changes only local preflight behavior. It does not create an
 export, mutate Supabase, touch the VPS/provider/webhook, or activate release.
+
+## 2026-09-05 - Keep the export cleanup marker until guarded removal completes
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-CLEANUP-MARKER-CORRECTION-2026-09-05`
+
+Change type: local plaintext-cleanup correctness correction.
+Affected plan section: Order 7 / Issue #551.
+
+The failed empty-`HOME` OrbStack probe exposed a cleanup-order flaw: recursive
+removal could delete the guarded marker before a later child-directory failure,
+leaving a markerless runtime directory that the retry correctly refused to
+touch. No database dump, Storage byte or customer datum had been created.
+
+Decision:
+
+- validate the exact generated directory name, owner, private mode and exact
+  marker content before cleanup;
+- remove every non-marker child first, keeping the marker as retry authority;
+  only after those removals succeed may cleanup remove the marker and directory;
+  and
+- treat a markerless survivor as a separate inventory-and-quarantine target,
+  never as permission for a broad recursive delete.
+
+This correction strengthens local cleanup only. It performs no managed-
+Supabase mutation, export, VPS/provider/webhook action or release activation.

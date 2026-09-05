@@ -19,6 +19,7 @@ import {
   dataRowAggregates,
   downloadStorageObjects,
   exactMigrationLedger,
+  guardedRemove,
   normalizeProjectReceipt,
   parseArgs,
   parseCopySections,
@@ -118,6 +119,31 @@ test("OrbStack operator home must be canonical, owned, and not writable by peers
     expectCode(() => validateOperatorHome(root), "operator_home_invalid");
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("guarded cleanup requires its marker and removes that marker last", () => {
+  const removable = realpathSync(
+    mkdtempSync(join(tmpdir(), "evo-v3-managed-export-cleanup-test-")),
+  );
+  const markerless = realpathSync(
+    mkdtempSync(join(tmpdir(), "evo-v3-managed-export-cleanup-test-")),
+  );
+  try {
+    chmodSync(removable, 0o700);
+    mkdirSync(join(removable, "nested"), { mode: 0o700 });
+    writeFileSync(join(removable, "nested", "artifact"), "ciphertext\n", { mode: 0o600 });
+    writeFileSync(
+      join(removable, ".evo-v3-managed-supabase-export"),
+      "managed-supabase-export-runtime\n",
+      { mode: 0o600 },
+    );
+    guardedRemove(removable);
+    assert.equal(existsSync(removable), false);
+    expectCode(() => guardedRemove(markerless), "cleanup_target_invalid");
+  } finally {
+    rmSync(removable, { recursive: true, force: true });
+    rmSync(markerless, { recursive: true, force: true });
   }
 });
 

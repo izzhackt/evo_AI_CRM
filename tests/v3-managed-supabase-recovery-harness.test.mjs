@@ -1006,20 +1006,34 @@ test("Admissions recovery proof selects a real status change and preserves every
 });
 
 test("restored database aggregate reconciliation fails on every signed aggregate mismatch", () => {
-  const counts = { "platform.zero_rows": 0, "auth.users": 3, "platform.leads": 5 };
+  const counts = {
+    "platform.zero_rows": 0,
+    "platform_private.provider_webhook_events": 0,
+    "auth.users": 3,
+    "platform.leads": 5,
+  };
   const expected = databaseAggregatesFromTableCounts(counts);
-  assert.deepEqual(expected, databaseAggregatesFromTableCounts({ "platform.leads": 5, "platform.zero_rows": 0, "auth.users": 3 }));
-  assert.equal(expected.table_count, 3);
+  assert.deepEqual(expected, databaseAggregatesFromTableCounts({
+    "platform.leads": 5,
+    "platform.zero_rows": 0,
+    "auth.users": 3,
+    "platform_private.provider_webhook_events": 0,
+  }));
+  const exportOrderedCounts = Object.fromEntries(
+    Object.entries(counts).sort(([left], [right]) => left.localeCompare(right, "en")),
+  );
+  assert.equal(expected.table_counts_sha256, hash(`${JSON.stringify(exportOrderedCounts)}\n`));
+  assert.equal(expected.table_count, 4);
   assert.equal(expected.row_count, 8);
   assert.equal(expected.auth_user_count, 3);
   assert.deepEqual(validateRestoredDatabaseAggregates(expected, expected), {
-    tableCount: 3,
+    tableCount: 4,
     rowCount: 8,
     authUserCount: 3,
     tableCountsSha256: expected.table_counts_sha256,
   });
   for (const [key, value] of [
-    ["table_count", 4],
+    ["table_count", 5],
     ["row_count", 9],
     ["auth_user_count", 2],
     ["table_counts_sha256", "b".repeat(64)],
@@ -1031,6 +1045,29 @@ test("restored database aggregate reconciliation fails on every signed aggregate
   }
   const missingZeroRowTable = databaseAggregatesFromTableCounts({ "auth.users": 3, "platform.leads": 5 });
   expectCode(() => validateRestoredDatabaseAggregates(expected, missingZeroRowTable), "restored_database_aggregate_mismatch");
+  let failure;
+  try {
+    validateRestoredDatabaseAggregates(
+      expected,
+      { ...expected, row_count: 9 },
+      { comparison: "restored_database" },
+    );
+  } catch (error) {
+    failure = error;
+  }
+  assert.ok(failure instanceof RecoveryFailure);
+  assert.deepEqual(failure.diagnostic, {
+    comparison: "restored_database",
+    mismatchCount: 1,
+    mismatchSetSha256: hash(canonicalJson(["row_count"])),
+    firstField: "row_count",
+    expectedValue: 8,
+    actualValue: 9,
+  });
+  expectCode(
+    () => validateRestoredDatabaseAggregates(expected, expected, { comparison: "unsafe" }),
+    "restored_database_aggregate_invalid",
+  );
 });
 
 test("restored table-count drift reports only safe table coordinates and counts", () => {
@@ -1134,6 +1171,7 @@ test("PGMQ recovery binds the two canonical queue relation pairs and containment
     requiredSignatureCount: 5,
     missingRoleCount: 0,
     directForbiddenGrantCount: 0,
+    forbiddenOwnerReachabilityCount: 0,
     effectiveForbiddenPrivilegeCount: 0,
     additiveDefaultGrantCount: 0,
     restoredRelationCounts: Object.fromEntries(Object.entries(counts).filter(([table]) => table.startsWith("pgmq."))),
@@ -1145,7 +1183,7 @@ test("PGMQ recovery binds the two canonical queue relation pairs and containment
   for (const field of [
     "requiredSignatureCount",
     "missingRoleCount", "directForbiddenGrantCount",
-    "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
+    "forbiddenOwnerReachabilityCount", "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
   ]) {
     expectCode(
       () => validatePgmqContainmentProof({ ...verified, [field]: field === "requiredSignatureCount" ? 4 : 1 }, inventory, { phase: "post_data" }),
@@ -1188,6 +1226,11 @@ test("PGMQ recovery binds the two canonical queue relation pairs and containment
   assert.match(source, /relation\.relkind = 'S' THEN 's'/u);
   assert.match(source, /pg_has_role\(role\.oid, acl\.grantee, 'USAGE'\)/u);
   assert.match(source, /pg_has_role\(role\.oid, acl\.grantee, 'SET'\)/u);
+  assert.match(source, /SELECT namespace\.oid, namespace\.nspname, namespace\.nspowner/u);
+  assert.match(source, /role\.oid = namespace\.nspowner/u);
+  assert.match(source, /pg_has_role\(role\.oid, relation\.relowner, 'SET'\)/u);
+  assert.match(source, /pg_has_role\(role\.oid, routine\.proowner, 'SET'\)/u);
+  assert.match(source, /pg_has_role\(role\.oid, defaults\.defaclrole, 'SET'\)/u);
   assert.match(source, /has_any_column_privilege/u);
   assert.match(source, /aclexplode\(attribute\.attacl\)/u);
   assert.doesNotMatch(source, /aclexplode\(coalesce\(attribute\.attacl/u);

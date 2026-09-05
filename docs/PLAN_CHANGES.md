@@ -19289,3 +19289,48 @@ This changes only the disposable local recovery consumer and its tests. The
 failed contour completed owned cleanup with disposition `remove`; no managed
 Supabase, production, VPS, provider, webhook or customer state was contacted or
 mutated. #552 remains unarmed.
+
+## 2026-09-05 - Bind implicit PGMQ ownership and aggregate diagnostics
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-OWNERSHIP-AGGREGATE-2026-09-05`
+
+Change type: independent-review security and real-runtime diagnostic
+correction. Affected plan section: Order 7 / Issue #551.
+
+Independent review found that ACL expansion can miss implicit object-owner
+authority: a forbidden runtime role able to `SET ROLE` to a schema, relation,
+function or default-ACL owner could regrant or mutate the object even when all
+explicit ACL counters are zero. The first full run after the column-ACL fix
+passed signed PGMQ reconstruction and then stopped at aggregate reconciliation,
+but the aggregate failure retained no safe coordinate to distinguish signed
+dump drift from restored-state drift.
+
+Decision:
+
+- add an independent zero-count proof for direct, inherited or `SET ROLE`
+  reachability to each target schema, relation, function and applicable
+  default-ACL owner;
+- keep that proof separate from direct ACL and effective privilege counts so
+  neither mechanism can mask the other; and
+- on aggregate mismatch retain only the named comparison phase, first aggregate
+  field, integer or SHA-256 expected/actual values, mismatch count and mismatch-
+  set hash. Never retain a row, identifier, email, filename or content.
+
+The failed exact candidate `2b4061c7` retained redacted mode-`0600` evidence at
+the authorized external evidence destination and completed owned cleanup with
+disposition `remove`. This changes only the disposable local recovery consumer
+and its tests; it does not contact or mutate managed Supabase, production, VPS,
+providers, webhooks or customer state. #552 remains unarmed.
+
+Safe offline comparison then proved that the signed manifest and `data.sql`
+both contain 208 tables, 1,453 rows and one Auth user. Only the table-count
+digest differed because the exporter canonicalizes object keys with
+`localeCompare("en")`, while the recovery consumer accidentally re-canonicalized
+that signed structure with JavaScript's default code-point `.sort()`. This is
+observable for names such as `platform_private.*` and `platform.*`.
+
+The recovery consumer must mirror the exporter's signed canonical-JSON
+algorithm exactly for every exporter-owned digest. Keep the recovery evidence's
+own canonicalization separate; never accept either digest convention as a
+fallback. A cross-order regression fixture binds the exporter ordering before
+the next single real rehearsal.

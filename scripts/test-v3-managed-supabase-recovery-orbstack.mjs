@@ -231,8 +231,20 @@ export function canonicalJson(value) {
   return JSON.stringify(canonicalValue(value));
 }
 
+function signedExportCanonicalValue(value) {
+  if (Array.isArray(value)) return value.map(signedExportCanonicalValue);
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right, "en"))
+        .map(([key, item]) => [key, signedExportCanonicalValue(item)]),
+    );
+  }
+  return value;
+}
+
 function signedExportCanonicalJson(value) {
-  return `${canonicalJson(value)}\n`;
+  return `${JSON.stringify(signedExportCanonicalValue(value))}\n`;
 }
 
 function sha256(value) {
@@ -2747,7 +2759,7 @@ export function validatePgmqContainmentProof(verified, inventory, options = {}) 
     "queueMetadata", "queueMetadataTotalCount", "queueRelationCount",
     "requiredRelationCount", "loggedRelationCount", "identitySequenceCount",
     "copyCompatibleColumnCount", "requiredSignatureCount", "missingRoleCount", "directForbiddenGrantCount",
-    "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
+    "forbiddenOwnerReachabilityCount", "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
     "restoredRelationCounts",
   ], "pgmq_extension_relation_containment_failed", stage);
   if (!new Set(["pre_data", "post_data", "post_migration"]).has(phase)) {
@@ -2764,7 +2776,7 @@ export function validatePgmqContainmentProof(verified, inventory, options = {}) 
   }));
   const zeroFields = [
     "missingRoleCount", "directForbiddenGrantCount",
-    "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
+    "forbiddenOwnerReachabilityCount", "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
   ];
   if (
     !isRecord(inventory) ||
@@ -2809,6 +2821,7 @@ export function validatePgmqContainmentProof(verified, inventory, options = {}) 
     requiredSignatureCount: verified.requiredSignatureCount,
     missingRoleCount: verified.missingRoleCount,
     directForbiddenGrantCount: verified.directForbiddenGrantCount,
+    forbiddenOwnerReachabilityCount: verified.forbiddenOwnerReachabilityCount,
     effectiveForbiddenPrivilegeCount: verified.effectiveForbiddenPrivilegeCount,
     additiveDefaultGrantCount: verified.additiveDefaultGrantCount,
   });
@@ -2824,7 +2837,7 @@ async function inspectPgmqExtensionRelations(inventory, phase, status, superviso
       FROM pg_roles AS roles
       JOIN forbidden_role_names AS forbidden ON forbidden.role_name = roles.rolname
     ), target_namespaces AS (
-      SELECT namespace.oid, namespace.nspname
+      SELECT namespace.oid, namespace.nspname, namespace.nspowner
       FROM pg_namespace AS namespace
       WHERE namespace.nspname IN ('pgmq', 'pgmq_public')
     ), forbidden_direct_acl AS (
@@ -2877,6 +2890,43 @@ async function inspectPgmqExtensionRelations(inventory, phase, status, superviso
            OR pg_has_role(role.oid, acl.grantee, 'USAGE')
            OR pg_has_role(role.oid, acl.grantee, 'SET')
       ) END
+    ), forbidden_owner_reachability AS (
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN target_namespaces AS namespace
+      WHERE role.oid = namespace.nspowner
+         OR pg_has_role(role.oid, namespace.nspowner, 'USAGE')
+         OR pg_has_role(role.oid, namespace.nspowner, 'SET')
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_class AS relation
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      WHERE relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+        AND (
+          role.oid = relation.relowner
+          OR pg_has_role(role.oid, relation.relowner, 'USAGE')
+          OR pg_has_role(role.oid, relation.relowner, 'SET')
+        )
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_proc AS routine
+      JOIN target_namespaces AS namespace ON namespace.oid = routine.pronamespace
+      WHERE role.oid = routine.proowner
+         OR pg_has_role(role.oid, routine.proowner, 'USAGE')
+         OR pg_has_role(role.oid, routine.proowner, 'SET')
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_default_acl AS defaults
+      LEFT JOIN pg_namespace AS namespace ON namespace.oid = defaults.defaclnamespace
+      WHERE (defaults.defaclnamespace = 0 OR namespace.nspname IN ('pgmq', 'pgmq_public'))
+        AND (
+          role.oid = defaults.defaclrole
+          OR pg_has_role(role.oid, defaults.defaclrole, 'USAGE')
+          OR pg_has_role(role.oid, defaults.defaclrole, 'SET')
+        )
     ), forbidden_effective_privilege AS (
       SELECT 1
       FROM named_roles AS role
@@ -3040,6 +3090,7 @@ async function inspectPgmqExtensionRelations(inventory, phase, status, superviso
         FROM forbidden_role_names
       ),
       'directForbiddenGrantCount', (SELECT count(*)::integer FROM forbidden_direct_acl),
+      'forbiddenOwnerReachabilityCount', (SELECT count(*)::integer FROM forbidden_owner_reachability),
       'effectiveForbiddenPrivilegeCount', (SELECT count(*)::integer FROM forbidden_effective_privilege),
       'additiveDefaultGrantCount', (SELECT count(*)::integer FROM forbidden_default_acl)
     )::text`, stage);
@@ -3169,7 +3220,11 @@ export function databaseAggregatesFromTableCounts(counts, code = "restored_datab
   });
 }
 
-export function validateRestoredDatabaseAggregates(expected, actual) {
+export function validateRestoredDatabaseAggregates(expected, actual, options = {}) {
+  const comparison = options.comparison ?? "unspecified";
+  if (!new Set(["unspecified", "signed_dump", "restored_database"]).has(comparison)) {
+    fail("restored_database_aggregate_invalid", "database_restore");
+  }
   const fields = ["table_count", "row_count", "auth_user_count", "table_counts_sha256"];
   exactKeys(actual, fields, "restored_database_aggregate_invalid", "database_restore");
   for (const field of fields.slice(0, 3)) {
@@ -3178,8 +3233,17 @@ export function validateRestoredDatabaseAggregates(expected, actual) {
   }
   string(expected?.table_counts_sha256, SHA256, "signed_database_aggregate_invalid", "database_restore", 64);
   string(actual.table_counts_sha256, SHA256, "restored_database_aggregate_invalid", "database_restore", 64);
-  if (fields.some((field) => actual[field] !== expected[field])) {
-    fail("restored_database_aggregate_mismatch", "database_restore");
+  const mismatches = fields.filter((field) => actual[field] !== expected[field]);
+  if (mismatches.length > 0) {
+    const firstField = mismatches[0];
+    fail("restored_database_aggregate_mismatch", "database_restore", Object.freeze({
+      comparison,
+      mismatchCount: mismatches.length,
+      mismatchSetSha256: sha256(canonicalJson(mismatches)),
+      firstField,
+      expectedValue: expected[firstField],
+      actualValue: actual[firstField],
+    }));
   }
   return Object.freeze({
     tableCount: actual.table_count,
@@ -3281,10 +3345,18 @@ async function reconcileRestoredDatabase(artifacts, status, supervisor, toolchai
     table_counts_sha256: artifacts.database.aggregates.table_counts_sha256,
   });
   const dumpCounts = await dataDumpTableCounts(artifacts.plaintext["data.sql"]);
-  validateRestoredDatabaseAggregates(signed, databaseAggregatesFromTableCounts(dumpCounts, "database_dump_aggregate_invalid"));
+  validateRestoredDatabaseAggregates(
+    signed,
+    databaseAggregatesFromTableCounts(dumpCounts, "database_dump_aggregate_invalid"),
+    { comparison: "signed_dump" },
+  );
   const actualCounts = await restoredTableCounts(dumpCounts, supervisor, toolchain, status);
   validateRestoredTableCounts(dumpCounts, actualCounts);
-  return validateRestoredDatabaseAggregates(signed, databaseAggregatesFromTableCounts(actualCounts));
+  return validateRestoredDatabaseAggregates(
+    signed,
+    databaseAggregatesFromTableCounts(actualCounts),
+    { comparison: "restored_database" },
+  );
 }
 
 async function databaseLedger(supervisor, toolchain, status) {

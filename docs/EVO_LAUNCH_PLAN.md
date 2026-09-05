@@ -318,8 +318,8 @@ the exact four `q_*`/`a_*` COPY sections and their column order, recreates two
 logged non-partitioned metadata entries and two identity sequences, reapplies
 the migration's deny ACLs, requires its exact `create`, `read`, `send`,
 `set_vt` and `archive` worker signatures, and then inspects direct, inherited
-and `SET ROLE`-reachable column, function and additive default grants for every
-browser/service role.
+and `SET ROLE`-reachable column, function and additive default grants plus
+schema/relation/function/default-ACL ownership for every browser/service role.
 The same inspection runs before data, after signed row-count reconciliation
 and again after pending migrations; the final inspection never repairs ACLs,
 so a bad target migration fails instead of being masked. PostgreSQL documents that a

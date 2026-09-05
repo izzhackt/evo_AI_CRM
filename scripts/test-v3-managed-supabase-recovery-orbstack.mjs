@@ -2967,10 +2967,50 @@ function prepareAppWorkspace(harnessRoot) {
   return appRoot;
 }
 
-async function waitForApp(child, appUrl) {
+export function sanitizeAppStartupDiagnostic(output, child = {}) {
+  const raw = String(output);
+  const lower = raw.toLowerCase();
+  const fingerprints = Object.entries({
+    port_conflict: /eaddrinuse|address already in use|port .* in use/u,
+    module_missing: /cannot find module|module not found/u,
+    next_root_invalid: /turbopack.*root|workspace root|next\.js package.*not found/u,
+    environment_invalid: /configurationerror|not configured|missing_[a-z0-9_]+|unsafe_[a-z0-9_]+/u,
+    permission_denied: /permission denied|operation not permitted/u,
+    path_missing: /no such file or directory|enoent/u,
+  }).filter(([, pattern]) => pattern.test(lower)).map(([name]) => name);
+  const sanitizedErrorTemplates = raw.split(/\r?\n/u)
+    .filter((line) => /error|fail|fatal|invalid|not found|missing|warn/u.test(line))
+    .filter((line) => !/(?:key|secret|token|password|jwt|cookie|email|phone|db_url|api_url)/iu.test(line))
+    .map((line) => line
+      .replace(/https?:\/\/\S+/giu, "[url]")
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/giu, "[email]")
+      .replace(/(?:\/Users|\/private|\/var\/folders|\/tmp)\/[^\s"',)]+/gu, "[path]")
+      .replace(/evov3recovery[0-9a-f]{12}/gu, "[project]")
+      .replace(/\b[0-9a-f]{24,}\b/giu, "[opaque]")
+      .replace(/\b[A-Za-z0-9_+./=-]{32,}\b/gu, "[opaque]")
+      .slice(0, 300))
+    .slice(0, 6);
+  return Object.freeze({
+    exitCode: Number.isInteger(child.exitCode) ? child.exitCode : null,
+    signal: typeof child.signalCode === "string" ? child.signalCode : null,
+    outputBytes: Buffer.byteLength(raw),
+    outputSha256: sha256Text(raw),
+    fingerprints: Object.freeze(fingerprints),
+    sanitizedErrorTemplates: Object.freeze(sanitizedErrorTemplates),
+  });
+}
+
+async function waitForApp(child, appUrl, appLog) {
   const deadline = Date.now() + 3 * 60 * 1000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) fail("v3_application_exited", "v3_browser_proof");
+    if (child.exitCode !== null) {
+      const output = existsSync(appLog) ? readFileSync(appLog, "utf8") : "";
+      fail(
+        "v3_application_exited",
+        "v3_browser_proof",
+        sanitizeAppStartupDiagnostic(output, child),
+      );
+    }
     try {
       const response = await fetch(new URL("/api/health", appUrl), { redirect: "manual" });
       if (response.status === 200) return;
@@ -3319,7 +3359,7 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot, 
   registerActiveBrowserProof(browserProof);
   let browser;
   try {
-    await waitForApp(child, appUrl);
+    await waitForApp(child, appUrl, appLog);
     const { chromium } = await import("@playwright/test");
     browserProof.browserServerPromise = chromium.launchServer({ headless: true, timeout: 45_000 });
     const browserServer = await browserProof.browserServerPromise;

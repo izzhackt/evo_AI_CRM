@@ -25,6 +25,7 @@ import {
   parseQualifiedCopyHeader,
   parseSupabaseStatus,
   safeHarnessRoot,
+  sanitizeAppStartupDiagnostic,
   sanitizeDatabaseCommandDiagnostic,
   sanitizeLocalSupabaseStartDiagnostic,
   selectOwnedContainerIds,
@@ -683,6 +684,19 @@ test("diagnostics and late role evidence stay aggregate-only", () => {
     status: "not_ready",
     email: "staff@example.com",
   }), "evidence_contains_sensitive_material");
+});
+
+test("app startup diagnostics expose only bounded redacted fingerprints", () => {
+  const diagnostic = sanitizeAppStartupDiagnostic(
+    "Error: Cannot find module /Users/person/project/missing.js\n" +
+      "warning token=never-print-this-value\n",
+    { exitCode: 1, signalCode: null },
+  );
+  assert.equal(diagnostic.exitCode, 1);
+  assert.deepEqual(diagnostic.fingerprints, ["module_missing"]);
+  assert.equal(JSON.stringify(diagnostic).includes("/Users/person"), false);
+  assert.equal(JSON.stringify(diagnostic).includes("never-print-this-value"), false);
+  assert.equal(diagnostic.sanitizedErrorTemplates.length, 1);
 });
 
 test("source contains no obsolete attestation or compatibility fallback", () => {

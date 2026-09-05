@@ -1431,6 +1431,23 @@ test("tracked commands preserve an explicit validated argv0 for multi-call tools
     () => supervisor.run(process.execPath, ["--version"], { argv0: "../docker", stage: "toolchain" }),
     "command_argv0_invalid",
   );
+
+  const record = supervisor.start(
+    process.execPath,
+    ["-e", "process.stdout.write(process.argv0)"],
+    { argv0: "docker", stage: "toolchain" },
+  );
+  const status = await new Promise((resolve, reject) => {
+    record.child.once("error", reject);
+    record.child.once("close", resolve);
+  });
+  assert.equal(status, 0);
+  assert.equal(record.stdout.toString("utf8"), "docker");
+  assert.equal(await supervisor.stopOne(record), true);
+  expectCode(
+    () => supervisor.start(process.execPath, ["--version"], { argv0: "../docker", stage: "toolchain" }),
+    "command_argv0_invalid",
+  );
 });
 
 test("tracked long-lived spawn failures are observed and remain drainable", async () => {

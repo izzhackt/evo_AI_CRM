@@ -17568,3 +17568,326 @@ Decision:
 The focused tests use injected local responses only. This correction performs
 no managed-Supabase, VPS, production, provider, webhook or customer-data
 mutation.
+## 2026-09-05 - Define the no-staging #551 release and recovery contract
+
+Block-ID: `EVO-V3-H-RELEASE-RECOVERY-CONTRACT-2026-09-05`
+
+Change type: implementation and acceptance clarification.
+Affected plan section: Order 7 / Issue #551.
+
+The existing fast-release workflow is manual, staging-aware and protected by a
+GitHub Environment approval, while the active issue requires automatic release
+after exact-main CI without staging. The current rollback controller also
+requires an already running prior app, even though the first V3 cutover begins
+from the intentionally app-absent state. Finally, the issue body did not repeat
+the launch plan's mandatory real-malware-scanner prerequisite, and the recovery
+docs did not make database and Storage-byte backups operationally distinct.
+
+Decision:
+
+- replace the manual/staging lane with a completed `EVO platform CI`
+  `workflow_run` for a successful same-repository `push` on `main`. Before any
+  privileged action, require exact repository identity, exact current-main
+  `head_sha`, and the raw `EVO_PRODUCTION_RELEASE_ARMED` value equal to the
+  exact lowercase literal `true`;
+  missing or different values fail closed;
+- never execute or download PR/fork artifacts, caches or untrusted checkouts in
+  the privileged release workflow. Check out and build the verified current
+  main commit afresh after the guard. Use the one constant
+  `evo-production-release` concurrency group with `cancel-in-progress: false`;
+- keep schema application separate and manual. The automatic path may compare
+  the migration ledger read-only but never applies or rolls back schema;
+- make rollback represent both valid pre-change states. First-cutover rollback
+  removes only the newly introduced app and returns to app absent without V1 or
+  WAHA/session/volume mutation. Later rollback requires the retained previous
+  exact image, Compose, controller and protected configuration and verifies all
+  recorded hashes before use;
+- make every release emit a sanitized literal copy-paste rollback command bound
+  to its private state file. Missing state, image, file or hash stops rather
+  than rebuilding, falling back or using current release inputs;
+- identify separate recoverable pre-change paths for managed Supabase database/
+  Auth metadata and private Storage object bytes. Restore and forward-migration
+  rehearsal run only in a loopback-bound OrbStack copy after proving every
+  source/destination identity differs, and application assertions use only the
+  named minimum authorized representative cohort;
+- retain the real malware-scanner gate in #551. Prove clean acceptance, safe
+  detection-sample rejection/quarantine, fail-closed unavailable, timeout and
+  malformed results, and successful recovery/rescan. `scanner_proof=false` or
+  invented provider evidence cannot pass this gate; and
+- this contract slice changes documentation only. #551 does not configure
+  GitHub/VPS secrets or the arm, deploy, apply production schema, create
+  credentials, or change production, provider, webhook, traffic or customer
+  state. #552 owns configuration and arming only after all named gates pass.
+
+Validation impact: run scoped documentation consistency/inventory checks and
+`git diff --check`. Implementation follows in separately reviewed #551 slices
+for workflow/controller and isolated recovery/scanner proof.
+
+Official sources verified 2026-09-05:
+
+- GitHub `workflow_run` privilege and untrusted-code warning:
+  <https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run>
+- GitHub workflow concurrency:
+  <https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency>
+- Supabase database backups, including the exclusion of Storage object bytes:
+  <https://supabase.com/docs/guides/platform/backups>
+- Supabase local downloaded-backup restore:
+  <https://supabase.com/docs/guides/local-development/restoring-downloaded-backup>
+- Supabase Storage object export options:
+  <https://supabase.com/docs/guides/storage/management/download-objects>
+
+## 2026-09-05 - Close the #551 freshness, schema-rerun and first-cutover gaps
+
+Block-ID: `EVO-V3-H-RELEASE-STATE-CORRECTION-2026-09-05`
+
+Change type: correctness correction after independent review.
+Affected plan section: Order 7 / Issue #551.
+
+The first #551 contract checked current main only before a potentially long
+build, provided no explicit continuation after a manual schema action, and
+treated the first cutover as app-absent even though production may still contain
+the frozen V1 app that #552 retires only after V3 acceptance. Those gaps could
+deploy a stale SHA, strand a schema-bearing release or misclassify the real
+pre-change app.
+
+Decision:
+
+- retain the initial unprivileged `workflow_run` admission guard, then repeat a
+  second mutation guard immediately before the first SSH, transfer or production
+  mutation. Freshly fetch `origin/main`, freshly read the raw arm, and repeat
+  repository/event/branch/SHA, successful-CI and migration-ledger checks. The
+  server preflight also binds the same SHA to the transferred manifest and image
+  labels. A newer main commit or changed gate stops before server contact;
+- when `schema_ledger_mismatch` stops a release, apply schema only through the
+  separate authorized manual #552 action. Continue only with **Re-run all jobs**
+  on that same completed release workflow run. The rerun keeps the original
+  triggering SHA but starts from the beginning and repeats both trust gates, CI,
+  arm, ledger, clean checkout, build and state creation. It never resumes the
+  stopped shell, reuses its artifacts/state, uses `workflow_dispatch`, or creates
+  a no-op commit;
+- inventory the live app before mutation and accept only three exact states:
+  genuinely absent; frozen V1 matching #552's approved image ID, OCI source/
+  revision/version labels and retained-file hashes; or a previously accepted V3
+  release matching its evidence. Any missing, mutable, ambiguous or unknown
+  identity stops before replacement;
+- replace the single accepted present app in place; never run V1 and V3
+  concurrently. Until #552 records exact-SHA V3 acceptance, failure may restore
+  only the exact inventoried V1 pre-change app. The acceptance record disables
+  that V1 wrapper and retires the superseded active runtime, after which rollback
+  may restore only an accepted V3 release. A genuinely absent installation
+  returns to absence; and
+- the database/private-Storage recovery, scanner, provider, WAHA/session,
+  customer-data and historical V1/V2 preservation boundaries are unchanged.
+
+Validation impact: rebase the documentation slice onto exact current main, run
+scoped consistency/link and whitespace checks, seek a fresh independent exact-
+head review, and implement these state transitions in later #551 code slices.
+
+Official source verified 2026-09-05:
+
+- GitHub workflow-run reruns retain the original triggering SHA/ref while using
+  current privileges:
+  <https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs>
+
+## 2026-09-05 - Correct the #551 workflow-rerun actor boundary
+
+Block-ID: `EVO-V3-H-RELEASE-RERUN-ACTOR-CORRECTION-2026-09-05`
+
+Change type: factual correctness correction after independent review.
+Affected plan section: Order 7 / Issue #551.
+
+The preceding entry's statement that a GitHub Actions rerun uses "current
+privileges" is incorrect. GitHub reruns use the privileges of the actor who
+originally triggered the workflow, not those of the actor who initiates the
+rerun, while retaining the original event SHA and ref.
+
+Decision:
+
+- both initial admission and the fresh pre-mutation guard must require the
+  original `github.actor` to be explicitly authorized by the owner-controlled
+  release-actor policy configured in #552; `github.triggering_actor` cannot
+  supply or elevate authorization;
+- a post-schema **Re-run all jobs** continuation is allowed only when that
+  original-actor authorization still passes and the fresh current-main,
+  successful exact-head CI, exact `EVO_PRODUCTION_RELEASE_ARMED=true`, and
+  migration-ledger guards all pass; and
+- this clarification corrects the append-only record without changing the
+  separate manual schema boundary or authorizing a production mutation.
+
+Official source verified 2026-09-05:
+
+- GitHub rerun actor privileges and retained SHA/ref:
+  <https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs>
+
+## 2026-09-05 - Bind #551 release authorization to one exact actor-ID variable
+
+Block-ID: `EVO-V3-H-RELEASE-ACTOR-ID-CONTRACT-2026-09-05`
+
+Change type: deterministic configuration clarification after independent review.
+Affected plan section: Order 7 / Issue #551.
+
+The preceding correction required an owner-controlled release-actor policy but
+did not define its source, format, comparison or invalid-state behavior. That
+made the #552 configuration inventory incomplete and left room for inconsistent
+login normalization or a permissive fallback.
+
+Decision:
+
+- `EVO_PRODUCTION_RELEASE_ACTOR_ID` is the sole release-actor authorization
+  source and is a GitHub Actions repository variable configured by #552;
+- its raw value must match `^[1-9][0-9]*$`: exactly one canonical positive
+  decimal GitHub account ID, with no whitespace, sign or leading zero;
+- each guard compares that value byte-for-byte, without trimming or numeric
+  conversion, to the original workflow actor's step-only `github.actor_id`;
+  `github.actor`, `github.triggering_actor`, repository write access, secrets,
+  Environment values, files and fallback defaults are not authorization
+  substitutes;
+- missing, empty, malformed or unequal values stop before secret/checkout use;
+  the raw variable and exact comparison are checked again before the first SSH,
+  transfer or production mutation; and
+- the schema-rerun continuation still also requires fresh current-main,
+  successful exact-head CI, exact raw `EVO_PRODUCTION_RELEASE_ARMED=true` and
+  migration-ledger guards. This documentation-only clarification does not
+  configure the variable, arm the lane or authorize production mutation.
+
+Official sources verified 2026-09-05:
+
+- GitHub `actor`, step-only `actor_id` and rerun `triggering_actor` semantics:
+  <https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context>
+- GitHub rerun actor privileges and retained SHA/ref:
+  <https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs>
+
+## 2026-09-05 - Isolate #551 release trust and close lifecycle/staging gaps
+
+Block-ID: `EVO-V3-H-RELEASE-TRUST-LIFECYCLE-STAGING-2026-09-05`
+
+Change type: correctness correction after independent exact-head review.
+Affected plan section: Order 7 / Issues #551 and #552.
+
+The preceding contract still allowed build execution and production privilege
+to share one trust domain, described acceptance primarily as a first-cutover
+event, let old rollback wrappers act without proving the current app was their
+candidate, and named staging obsolete without an exact deletion/remote
+retirement inventory.
+
+Decision:
+
+- split the automatic lane into a fresh secretless least-privilege `build` job
+  and a separate fresh privileged `deploy` job. `build` has explicit
+  `contents: read`, no production Environment/secrets, SSH, Supabase access or
+  cache; it rejects upstream artifacts, checks out exact current main with
+  credentials disabled, and produces one immutable same-run artifact containing
+  only an image archive and closed manifest;
+- bind the transfer to the numeric artifact ID plus GitHub artifact SHA-256,
+  run/attempt, repository/SHA/release ID, archive checksum/size, image/config
+  digests and OCI labels. `deploy` receives no prior workspace/cache, repeats
+  all non-secret trust guards before production-secret/SSH/Supabase access,
+  downloads only that exact artifact ID, treats digest warnings/mismatch as
+  failure, never executes artifact-supplied scripts or Compose, and uses its own
+  credentials-disabled exact-main checkout. Only later minimum steps receive
+  the named production secrets; the complete guard, artifact and ledger set is
+  repeated immediately before first SSH/mutation;
+- make every V3 deployment a pending candidate. Only the step named **Accept
+  exact V3 candidate** in the verified privileged deploy job may call the
+  checked-in controller's `accept-candidate` operation, after exact candidate
+  image/revision/digest, container, internal/public health and authenticated
+  read-only V3 browser proof. Under one lock it atomically writes the immutable
+  per-release acceptance record, then advances the protected current-accepted
+  pointer as the sole acceptance commit point and removes pending. Before that
+  pointer change the prior state remains authoritative; after it the candidate
+  does. Failure/interruption preserves a deterministic authority/rollback target;
+  unresolved or inconsistent pending state blocks another release;
+- bind every wrapper to its release/generation/source, workflow run/attempt,
+  artifact/GitHub/archive/image/config digests, OCI labels, installed candidate
+  and exact prior target. It must prove the current running image/revision is its
+  candidate and refuse a newer/superseding accepted/current/pending release.
+  Absent-state and V1 wrappers operate only while first V3 is pending and never
+  remove/overwrite accepted V3; an old V3 wrapper never overwrites newer V3;
+- in #551, delete `docker-compose.staging.yml`,
+  `deploy/env.staging.example`, `scripts/evo-release-environment-profile.mjs`
+  and `tests/release-environment-profile.test.mjs`; remove deploy-staging
+  branches/references from the exact active script/test/package list in
+  `deploy/runtime-hardening.md`; remove the staging Caddy route; update
+  `deploy/README.md` and root `CONTEXT.md`; and preserve the superseded runbook
+  as historical-only `docs/archive/v2/staging-release.md`; and
+- distinguish that deleted deployment contour from the transient artifact
+  transfer root renamed `EVO_RELEASE_TRANSFER_ROOT`, the neutral Supabase
+  distinct-config test outcome and canonical catalog-import staging rows.
+  Before arming, #552
+  must inventory, remove and re-inventory the exact remote staging route/root/
+  project/containers/networks/volumes and GitHub Environment/config. Any
+  ambiguity or survivor keeps the arm disabled; production, WAHA/session,
+  Supabase data and historical V1/V2 material are excluded from deletion.
+
+Validation impact: rebase onto exact `origin/main` at
+`dd11a3da62fe34ff915d88c41d4a53f671c64768`, run scoped link/append-only/
+whitespace checks and Node 22 release-contract tests, then obtain a fresh
+independent exact-head review. This documentation-only correction does not
+configure, delete, deploy, arm or mutate a provider/production contour.
+
+Official sources verified 2026-09-05:
+
+- GitHub immutable artifact/digest validation:
+  <https://docs.github.com/en/actions/tutorials/store-and-share-data#validating-artifacts>
+- GitHub artifact ID, digest and workflow-run identity:
+  <https://docs.github.com/en/rest/actions/artifacts#get-an-artifact>
+
+## 2026-09-05 - Complete #551 staging retirement and acceptance crash recovery
+
+Block-ID: `EVO-V3-H-STAGING-ACCEPTANCE-CRASH-CORRECTION-2026-09-05`
+
+Change type: correctness correction after fresh independent exact-head review.
+Affected plan section: Order 7 / Issues #551 and #552.
+
+The preceding entry did not inventory the already-created managed Supabase
+staging branch/project or the still-active U11 staging runbook. It also defined
+cleanup only for a crash after the acceptance pointer advanced, leaving the
+create-once-record-before-pointer window ambiguous. The independently reviewed
+runtime key binding introduced by the intervening merged correction validated a
+mutable `.env.production` path that Compose could reopen after validation,
+leaving a time-of-check/time-of-use release race.
+
+Decision:
+
+- before arming, inventory the exact Supabase organization and 20-character ref
+  for the staging-only `evo-v1-staging` branch/project, prove it differs from
+  production, reconcile database/Auth/Storage counts and retained backup
+  identity, and bind retirement to the owner's recorded exact-contour
+  authorization. A friendly name, unexpected content/ownership/billing shape or
+  ambiguous authority stops for a new exact decision;
+- #551 archives `docs/runbooks/u11-staging-recovery.md` as historical-only
+  `docs/archive/v2/u11-staging-recovery.md` and removes its active path/links.
+  #552 retires only the exactly verified managed staging ref and performs a
+  second independent Supabase/repository inventory proving both the resource
+  and executable runbook references are absent. Production Supabase and frozen
+  history are excluded from deletion;
+- replace the misleading standalone `v3-accepted.json` name with deterministic
+  immutable `v3-acceptance-record.json`, explicitly prepared and
+  non-authoritative unless the current pointer names its exact release/hash;
+- if a crash leaves that prepared record before pointer commit, a locked retry
+  reruns every proof, requires a byte-identical deterministic record, re-proves
+  unchanged prior/pending/running state, and resumes only the same pointer
+  compare-and-swap without another create-once write. After pointer commit,
+  only exact triple verification and redundant-pending cleanup are allowed.
+  Every mismatch or superseding release fails closed; and
+- after acquiring the host lock, capture `.env.production` once without symlink
+  following into a generation-owned private mode-`0600` snapshot, recheck source
+  identity while copying, and bind the snapshot hash into protected state.
+  Offline validation, bounded Supabase key probes, every Compose operation and
+  rollback use only that snapshot; the mutable source path is never reopened.
+  Symlink/swap, permission or digest mismatch stops before mutation, and manual
+  rollback verifies the snapshot offline without depending on Supabase uptime;
+- remove the direct operator `docker compose up` path: only the exact checked-in
+  controller's host-locked `deploy` operation may create pending/rollback state,
+  seal the environment snapshot and internally perform the single-app Compose
+  replacement; and
+- distinguish interruption around the acceptance commit precisely. Before the
+  protected current-pointer commit it cannot accept the candidate and leaves
+  prior authority plus blocking pending state; after the pointer commit the
+  exact candidate remains accepted and only byte-exact redundant-pending cleanup
+  is allowed.
+
+Validation impact: rerun scoped Node 22 release-contract, link, append-only and
+whitespace checks and obtain fresh exact-head review. This append-only
+clarification does not retire staging, configure an arm, deploy, or mutate
+Supabase/production/provider state.

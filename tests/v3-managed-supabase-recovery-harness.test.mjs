@@ -601,6 +601,11 @@ function historySql(rows = [
   return `\\restrict ${guard}\nCOPY supabase_migrations.schema_migrations (version, statements, name) FROM stdin;\n${rows.join("\n")}\n\\.\n\\unrestrict ${guard}\n`;
 }
 
+function signedHistorySql(rows) {
+  const guard = "B".repeat(63);
+  return `\\restrict ${guard}\nCOPY "supabase_migrations"."schema_migrations" ("version", "statements", "name", "created_by", "idempotency_key", "rollback") FROM stdin;\n${rows.join("\n")}\n\\.\n\\unrestrict ${guard}\n`;
+}
+
 test("exact history parser binds ordered full COPY rows and rejects reconstruction", () => {
   const sql = historySql();
   const ledger = extractExactMigrationLedger(sql);
@@ -656,9 +661,9 @@ test("exact history parser binds ordered full COPY rows and rejects reconstructi
 });
 
 test("only the two signed empty-history anomalies are accepted and hash-bound", () => {
-  const ledger = extractExactMigrationLedger(historySql([
-    "038\t{}\tauthorization_containment",
-    "039\t{}\tprivate_inbox_media",
+  const ledger = extractExactMigrationLedger(signedHistorySql([
+    "038\t{}\tauthorization_containment\t\\N\t\\N\t\\N",
+    "039\t{}\tprivate_inbox_media\t\\N\t\\N\t\\N",
   ]));
   const summary = {
     count: 2,
@@ -673,13 +678,25 @@ test("only the two signed empty-history anomalies are accepted and hash-bound", 
     sha256: hash(sql),
     ...migrationStatementsDigest(sql),
   });
+  const migration038 = readFileSync(
+    new URL("../supabase/migrations/038_authorization_containment.sql", import.meta.url),
+    "utf8",
+  );
+  const migration039 = readFileSync(
+    new URL("../supabase/migrations/039_private_inbox_media.sql", import.meta.url),
+    "utf8",
+  );
   const root = { entries: [
-    rootEntry("038", "authorization_containment", "select 38;"),
-    rootEntry("039", "private_inbox_media", "select 39;"),
+    rootEntry("038", "authorization_containment", migration038),
+    rootEntry("039", "private_inbox_media", migration039),
     rootEntry("040", "next", "select 40;"),
   ] };
   const verified = verifyLedgerAgainstRoot(ledger, root, summary);
   assert.deepEqual(verified.pending.map(({ version }) => version), ["040"]);
+  assert.deepEqual(verified.recordedSource.map(({ version, statementCount }) => ({ version, statementCount })), [
+    { version: "038", statementCount: 0 },
+    { version: "039", statementCount: 0 },
+  ]);
   assert.deepEqual(
     verified.emptyStatementHistoryExceptions.map(({ version, name }) => ({ version, name })),
     [
@@ -691,22 +708,86 @@ test("only the two signed empty-history anomalies are accepted and hash-bound", 
     assert.match(exception.signedRowSha256, /^[a-f0-9]{64}$/u);
     assert.match(exception.rootFileSha256, /^[a-f0-9]{64}$/u);
   }
-  expectCode(() => extractExactMigrationLedger(historySql([
-    "038\t{}\twrong_name",
+  expectCode(() => extractExactMigrationLedger(signedHistorySql([
+    "038\t{}\twrong_name\t\\N\t\\N\t\\N",
   ])), "migration_statements_array_invalid");
-  expectCode(() => extractExactMigrationLedger(historySql([
-    "037\t{}\tauthorization_containment",
+  expectCode(() => extractExactMigrationLedger(signedHistorySql([
+    "037\t{}\tauthorization_containment\t\\N\t\\N\t\\N",
   ])), "migration_statements_array_invalid");
-  expectCode(() => extractExactMigrationLedger(historySql([
-    "040\t{}\tnext",
+  expectCode(() => extractExactMigrationLedger(signedHistorySql([
+    "040\t{}\tnext\t\\N\t\\N\t\\N",
   ])), "migration_statements_array_invalid");
   expectCode(
     () => verifyLedgerAgainstRoot(ledger, {
       entries: [
-        rootEntry("038", "authorization_containment", "select 38;"),
-        rootEntry("039", "wrong_name", "select 39;"),
+        rootEntry("038", "authorization_containment", migration038),
+        rootEntry("039", "wrong_name", migration039),
       ],
     }, summary),
+    "migration_ledger_root_prefix_mismatch",
+  );
+  expectCode(
+    () => verifyLedgerAgainstRoot(ledger, {
+      entries: [
+        rootEntry("038", "authorization_containment", `${migration038}\n-- drift`),
+        rootEntry("039", "private_inbox_media", migration039),
+      ],
+    }, summary),
+    "migration_ledger_root_prefix_mismatch",
+  );
+});
+
+test("the one signed comment-only statement drift is accepted only by exact hashes", () => {
+  const migration030 = readFileSync(
+    new URL("../supabase/migrations/030_ai_knowledge.sql", import.meta.url),
+    "utf8",
+  );
+  const digest = migrationStatementsDigest(migration030);
+  const root = { entries: [{
+    version: "030",
+    name: "ai_knowledge",
+    bytes: Buffer.byteLength(migration030),
+    sha256: hash(migration030),
+    ...digest,
+  }] };
+  const entry = {
+    version: "030",
+    name: "ai_knowledge",
+    row_sha256: "391845ec8286a35d27d3be4bc1badb08a69587cd07f7cacec128727d2dc4db07",
+    statement_count: 36,
+    statements_sha256: "3d2c866a2c3a5eee959fa7e2fa6b08f961c74a1794a91ce3016ed5d2ad8c2efd",
+    statement_evidence: "recorded_statements",
+  };
+  const ledger = {
+    entries: [entry],
+    copyRowsSha256: "8".repeat(64),
+    orderedLedgerSha256: "9".repeat(64),
+  };
+  const summary = {
+    count: 1,
+    min_version: "030",
+    max_version: "030",
+    copy_rows_sha256: ledger.copyRowsSha256,
+  };
+  const verified = verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete: true });
+  assert.deepEqual(verified.recordedRootHistoryExceptions.map(({ version, name, kind }) => ({ version, name, kind })), [{
+    version: "030",
+    name: "ai_knowledge",
+    kind: "signed_comment_only_history_drift",
+  }]);
+  assert.deepEqual(verified.recordedSource, [{
+    version: "030",
+    name: "ai_knowledge",
+    statementCount: 36,
+    statementsSha256: entry.statements_sha256,
+  }]);
+  expectCode(
+    () => verifyLedgerAgainstRoot({ ...ledger, entries: [{ ...entry, row_sha256: "0".repeat(64) }] }, root, summary),
+    "migration_ledger_root_prefix_mismatch",
+  );
+  const changedRoot = { entries: [{ ...root.entries[0], sha256: "0".repeat(64) }] };
+  expectCode(
+    () => verifyLedgerAgainstRoot(ledger, changedRoot, summary),
     "migration_ledger_root_prefix_mismatch",
   );
 });

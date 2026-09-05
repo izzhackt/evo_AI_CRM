@@ -18903,3 +18903,36 @@ This correction was derived from the immutable signed backup and affects only
 the disposable local OrbStack recovery consumer. It does not contact or mutate
 managed Supabase, production, VPS, WAHA, amoCRM, Gemini, webhooks, customer
 records or provider state, and it does not arm #552.
+
+## 2026-09-05 - Bind the signed migration 030 comment-only drift
+
+Block-ID: `EVO-V3-H-SIGNED-MIGRATION-030-DRIFT-CORRECTION-2026-09-05`
+
+Change type: real-artifact recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+After the two empty-history rows were accepted, the same immutable signed
+artifact exposed one further historical mismatch. The database ledger row
+`030 ai_knowledge` and the signed source Git file both contain 36 statements;
+two statement strings differ only in their leading historical comments, while
+their executable SQL is unchanged. The previous exact string-digest rule
+therefore stopped before restoration even though both independently signed and
+Git-bound sources identify the same applied migration.
+
+Decision:
+
+- accept this drift only when version, name, exact signed COPY-row hash, signed
+  statement count/digest, exact source-root Git file hash and root statement
+  count/digest all match the one reviewed tuple embedded in the consumer;
+- record both sides and the exception kind in durable evidence; any changed
+  count, hash, filename, order or additional mismatch fails closed;
+- compare the restored historical prefix to the signed database ledger, not to
+  rewritten Git comments, and compare newly applied suffix rows to the exact
+  target Git migrations; and
+- preserve the signed backup and historical Git file unchanged. Do not rewrite
+  database history, reapply migration 030, generalize semantic reconstruction
+  or normalize managed Supabase.
+
+This correction changes only the disposable local OrbStack recovery proof. It
+does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
+Gemini, webhooks, customer records or provider state, and it does not arm #552.

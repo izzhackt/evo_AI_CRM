@@ -78,9 +78,37 @@ const ADMIN_MEMBERSHIP_DENIAL = Object.freeze({
   sqlstate: "42501",
   domainSentinel: "admin_membership_permission_required",
 });
-const EMPTY_RECORDED_STATEMENT_EXCEPTIONS = Object.freeze({
-  "038": "authorization_containment",
-  "039": "private_inbox_media",
+const RECORDED_ROOT_HISTORY_EXCEPTIONS = Object.freeze({
+  "030": Object.freeze({
+    name: "ai_knowledge",
+    kind: "signed_comment_only_history_drift",
+    signedRowSha256: "391845ec8286a35d27d3be4bc1badb08a69587cd07f7cacec128727d2dc4db07",
+    signedStatementCount: 36,
+    signedStatementsSha256: "3d2c866a2c3a5eee959fa7e2fa6b08f961c74a1794a91ce3016ed5d2ad8c2efd",
+    rootFileSha256: "173e1314a8c41014569ec431915bb578d7cd1626c56b6d7f1d59fa45b9dd8212",
+    rootStatementCount: 36,
+    rootStatementsSha256: "d41f32a95072a864107f222e5e92335212abac3bce7caa71448f3d5da313da98",
+  }),
+  "038": Object.freeze({
+    name: "authorization_containment",
+    kind: "signed_empty_history_exception",
+    signedRowSha256: "addaa73497b212b650722cc0c64eabc0f9edb3410db79a8b11d7ea675ea2a309",
+    signedStatementCount: 0,
+    signedStatementsSha256: "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    rootFileSha256: "64c7d648e3cebd890212e021cc7774e2f427756a70af0bda083e1ddbc977499c",
+    rootStatementCount: 49,
+    rootStatementsSha256: "c18f4d19ab95e77252bad3a1726f8e655e5aec84c16155a94a5c03d50b888dae",
+  }),
+  "039": Object.freeze({
+    name: "private_inbox_media",
+    kind: "signed_empty_history_exception",
+    signedRowSha256: "bf77eb6533399b4ffa738aeb75fcef8d67acf4f7c15b3f0c32421170d763332f",
+    signedStatementCount: 0,
+    signedStatementsSha256: "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    rootFileSha256: "a9297f27628a8ea7d2cd27e31b9cf396d9ea9a782aa668c4df330c6cfdc3c796",
+    rootStatementCount: 20,
+    rootStatementsSha256: "3a237b079808a3c9de431162dc564894645d3668d8d778bfbda35540239f48c1",
+  }),
 });
 let activePrivateChildEnvironment;
 // Deliberately excludes Config.Env so inspect output can never capture runtime secrets.
@@ -826,13 +854,14 @@ export function extractExactMigrationLedger(historySql) {
         fail("migration_history_row_invalid", "artifact_validation");
       }
       const parsedStatements = parsePostgresTextArray(statements);
+      const exception = RECORDED_ROOT_HISTORY_EXCEPTIONS[version];
       if (
         parsedStatements.length === 0 &&
-        EMPTY_RECORDED_STATEMENT_EXCEPTIONS[version] !== name
+        (exception?.name !== name || exception.signedStatementCount !== 0)
       ) {
         fail("migration_statements_array_invalid", "artifact_validation");
       }
-      rows.push(Object.freeze({
+      const row = Object.freeze({
         version,
         name,
         row_sha256: sha256(`${lines[index]}\n`),
@@ -841,7 +870,14 @@ export function extractExactMigrationLedger(historySql) {
         statement_evidence: parsedStatements.length === 0
           ? "signed_empty_history_exception"
           : "recorded_statements",
-      }));
+      });
+      if (parsedStatements.length === 0 && (
+        row.row_sha256 !== exception.signedRowSha256 ||
+        row.statements_sha256 !== exception.signedStatementsSha256
+      )) {
+        fail("migration_statements_array_invalid", "artifact_validation");
+      }
+      rows.push(row);
     }
     if (index >= lines.length || lines[index] !== "\\." || rows.length === 0) {
       fail("migration_history_copy_unterminated", "artifact_validation");
@@ -920,36 +956,60 @@ export function verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete
     fail("migration_ledger_summary_mismatch", "migration_rehearsal");
   }
   const prefix = root.entries.slice(0, ledger.entries.length);
-  if (
-    prefix.length !== ledger.entries.length ||
-    prefix.some((entry, index) => {
-      const recorded = ledger.entries[index];
-      if (entry.version !== recorded.version || entry.name !== recorded.name) return true;
-      if (recorded.statement_count === 0) {
-        return recorded.statement_evidence !== "signed_empty_history_exception" ||
-          EMPTY_RECORDED_STATEMENT_EXCEPTIONS[recorded.version] !== recorded.name;
-      }
-      return recorded.statement_evidence !== "recorded_statements" ||
-        entry.statementCount !== recorded.statement_count ||
-        entry.statementsSha256 !== recorded.statements_sha256;
-    })
-  ) {
-    fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
+  if (prefix.length !== ledger.entries.length) fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
+  const recordedRootHistoryExceptions = [];
+  for (let index = 0; index < prefix.length; index += 1) {
+    const entry = prefix[index];
+    const recorded = ledger.entries[index];
+    if (entry.version !== recorded.version || entry.name !== recorded.name) {
+      fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
+    }
+    const exactStatementMatch = recorded.statement_count > 0 &&
+      recorded.statement_evidence === "recorded_statements" &&
+      entry.statementCount === recorded.statement_count &&
+      entry.statementsSha256 === recorded.statements_sha256;
+    if (exactStatementMatch) continue;
+    const exception = RECORDED_ROOT_HISTORY_EXCEPTIONS[recorded.version];
+    const evidenceMatches = exception?.kind === recorded.statement_evidence ||
+      (exception?.kind === "signed_comment_only_history_drift" && recorded.statement_evidence === "recorded_statements");
+    if (
+      exception?.name !== recorded.name ||
+      !evidenceMatches ||
+      recorded.row_sha256 !== exception.signedRowSha256 ||
+      recorded.statement_count !== exception.signedStatementCount ||
+      recorded.statements_sha256 !== exception.signedStatementsSha256 ||
+      entry.sha256 !== exception.rootFileSha256 ||
+      entry.statementCount !== exception.rootStatementCount ||
+      entry.statementsSha256 !== exception.rootStatementsSha256
+    ) {
+      fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
+    }
+    recordedRootHistoryExceptions.push(Object.freeze({
+      version: recorded.version,
+      name: recorded.name,
+      kind: exception.kind,
+      signedRowSha256: recorded.row_sha256,
+      signedStatementsSha256: recorded.statements_sha256,
+      rootFileSha256: entry.sha256,
+      rootStatementsSha256: entry.statementsSha256,
+    }));
   }
   if (requireComplete && root.entries.length !== prefix.length) fail("source_migration_ledger_not_complete", "migration_rehearsal");
-  const emptyStatementHistoryExceptions = ledger.entries.flatMap((recorded, index) =>
-    recorded.statement_count === 0
-      ? [Object.freeze({
-          version: recorded.version,
-          name: recorded.name,
-          signedRowSha256: recorded.row_sha256,
-          rootFileSha256: prefix[index].sha256,
-        })]
-      : []);
+  const recordedSource = ledger.entries.map((recorded) => Object.freeze({
+    version: recorded.version,
+    name: recorded.name,
+    statementCount: recorded.statement_count,
+    statementsSha256: recorded.statements_sha256,
+  }));
+  const emptyStatementHistoryExceptions = recordedRootHistoryExceptions.filter(
+    ({ kind }) => kind === "signed_empty_history_exception",
+  );
   return Object.freeze({
     source: Object.freeze(prefix),
+    recordedSource: Object.freeze(recordedSource),
     pending: Object.freeze(root.entries.slice(prefix.length)),
     orderedLedgerSha256: ledger.orderedLedgerSha256,
+    recordedRootHistoryExceptions: Object.freeze(recordedRootHistoryExceptions),
     emptyStatementHistoryExceptions: Object.freeze(emptyStatementHistoryExceptions),
   });
 }
@@ -2533,7 +2593,10 @@ async function databaseLedger(supervisor, toolchain, status) {
     !MIGRATION_VERSION.test(row.version) ||
     !MIGRATION_NAME.test(row.name) ||
     !Array.isArray(row.statements) ||
-    row.statements.length === 0 ||
+    (row.statements.length === 0 && (
+      RECORDED_ROOT_HISTORY_EXCEPTIONS[row.version]?.name !== row.name ||
+      RECORDED_ROOT_HISTORY_EXCEPTIONS[row.version]?.signedStatementCount !== 0
+    )) ||
     row.statements.some((statement) => typeof statement !== "string"))) {
     fail("restored_migration_ledger_invalid", "migration_rehearsal");
   }
@@ -2548,12 +2611,12 @@ async function databaseLedger(supervisor, toolchain, status) {
 async function applyPendingMigrations(state, local, root, verified, supervisor, toolchain) {
   const restored = await databaseLedger(supervisor, toolchain, local.status);
   if (
-    restored.length !== verified.source.length ||
+    restored.length !== verified.recordedSource.length ||
     restored.some((row, index) =>
-      row.version !== verified.source[index].version ||
-      row.name !== verified.source[index].name ||
-      row.statementCount !== verified.source[index].statementCount ||
-      row.statementsSha256 !== verified.source[index].statementsSha256)
+      row.version !== verified.recordedSource[index].version ||
+      row.name !== verified.recordedSource[index].name ||
+      row.statementCount !== verified.recordedSource[index].statementCount ||
+      row.statementsSha256 !== verified.recordedSource[index].statementsSha256)
   ) {
     fail("restored_migration_ledger_mismatch", "migration_rehearsal");
   }
@@ -2570,13 +2633,15 @@ async function applyPendingMigrations(state, local, root, verified, supervisor, 
     });
   }
   const final = await databaseLedger(supervisor, toolchain, local.status);
+  const expectedFinal = [...verified.recordedSource, ...verified.pending];
   if (
-    final.length !== root.entries.length ||
+    expectedFinal.length !== root.entries.length ||
+    final.length !== expectedFinal.length ||
     final.some((row, index) =>
-      row.version !== root.entries[index].version ||
-      row.name !== root.entries[index].name ||
-      row.statementCount !== root.entries[index].statementCount ||
-      row.statementsSha256 !== root.entries[index].statementsSha256)
+      row.version !== expectedFinal[index].version ||
+      row.name !== expectedFinal[index].name ||
+      row.statementCount !== expectedFinal[index].statementCount ||
+      row.statementsSha256 !== expectedFinal[index].statementsSha256)
   ) {
     fail("final_migration_ledger_mismatch", "migration_rehearsal");
   }
@@ -5446,6 +5511,8 @@ async function executeMode(mode, options) {
         restoredDatabaseCount: verifiedLedger.source.length,
         pendingDatabaseMigrationCount: verifiedLedger.pending.length,
         orderedLedgerSha256: verifiedLedger.orderedLedgerSha256,
+        recordedRootHistoryExceptionCount: verifiedLedger.recordedRootHistoryExceptions.length,
+        recordedRootHistoryExceptionSha256: sha256(canonicalJson(verifiedLedger.recordedRootHistoryExceptions)),
         emptyStatementHistoryExceptionCount: verifiedLedger.emptyStatementHistoryExceptions.length,
         emptyStatementHistoryExceptionSha256: sha256(canonicalJson(verifiedLedger.emptyStatementHistoryExceptions)),
         sourceRecordedHistoryValidatedCount: sourceRoot.recordedHistoryCount,

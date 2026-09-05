@@ -1624,7 +1624,16 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
 
 test("focused recovery harness is registered exactly once in the CI-invoked u11 suite", () => {
   const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const fullWorkflow = readFileSync(new URL("../.github/workflows/evo-platform-ci.yml", import.meta.url), "utf8");
+  const fastPrWorkflow = readFileSync(new URL("../.github/workflows/evo-fast-pr-checks.yml", import.meta.url), "utf8");
   const testName = "tests/v3-managed-supabase-recovery-harness.test.mjs";
   assert.equal(packageJson.scripts["test:u11"].split(testName).length - 1, 1);
   assert.equal(packageJson.scripts["test:fast-release"].includes(testName), false);
+  assert.equal(fullWorkflow.includes(testName), false);
+  assert.doesNotMatch(fullWorkflow, /test:database:migration-boundaries/u);
+  assert.match(fastPrWorkflow, /run: npm run test:database:migration-boundaries/u);
+  assert.match(
+    fastPrWorkflow,
+    /if: \$\{\{ needs\.changed-range\.outputs\.migration_boundary == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u,
+  );
 });

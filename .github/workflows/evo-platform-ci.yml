@@ -2,6 +2,11 @@ name: EVO platform CI
 
 on:
   workflow_dispatch:
+    inputs:
+      proof_revision:
+        description: Exact current main commit SHA to prove.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -23,6 +28,7 @@ jobs:
           EVO_REF: ${{ github.ref }}
           EVO_REF_NAME: ${{ github.ref_name }}
           EVO_REPOSITORY: ${{ github.repository }}
+          EVO_PROOF_REVISION: ${{ inputs.proof_revision }}
           EVO_SHA: ${{ github.sha }}
           EVO_WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
@@ -43,6 +49,8 @@ jobs:
             exact("EVO_REF_NAME", "main");
             exact("EVO_REPOSITORY", env.EVO_EXPECTED_REPOSITORY);
             if (!/^[0-9a-f]{40}$/u.test(env.EVO_SHA ?? "")) fail();
+            if (!/^[0-9a-f]{40}$/u.test(env.EVO_PROOF_REVISION ?? "")) fail();
+            exact("EVO_PROOF_REVISION", env.EVO_SHA);
             exact("EVO_WORKFLOW_SHA", env.EVO_SHA);
             const response = await fetch(
               `${env.EVO_API_URL}/repos/${env.EVO_EXPECTED_REPOSITORY}/git/ref/heads/main`,
@@ -63,8 +71,8 @@ jobs:
           main().catch(fail);
           NODE
 
-  crm_product:
-    name: Main CRM product
+  crm_node_static:
+    name: Main CRM Node/static
     needs: main_admission
     runs-on: ubuntu-latest
     steps:
@@ -83,27 +91,41 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Test active V3 server-side boundaries
-        run: npm run test:security
-
-      - name: Install the locked Playwright Chromium runtime
-        run: node_modules/.bin/playwright install --with-deps chromium
-
-      - name: Test the V3 local PostgreSQL, migration, and browser contract
-        timeout-minutes: 35
-        run: npm run test:database:local
-
-      - name: Test frontend state contracts
-        run: npm run test:unit
+      - name: Test CI Node contracts
+        run: npm run test:ci:node
 
       - name: Lint
         run: npm run lint
 
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
+      - name: Build with TypeScript authority
         run: npm run build
+
+  crm_browser:
+    name: Main CRM database/browser proof
+    needs: main_admission
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install the locked Playwright Chromium shell runtime
+        run: node_modules/.bin/playwright install --with-deps --only-shell chromium
+
+      - name: Test the V3 local PostgreSQL, migration, and browser contract
+        timeout-minutes: 35
+        run: npm run test:database:local
 
   dependency_audit:
     name: Dependency audit
@@ -189,16 +211,19 @@ jobs:
     if: ${{ always() }}
     needs:
       - main_admission
-      - crm_product
+      - crm_node_static
+      - crm_browser
       - dependency_audit
     runs-on: ubuntu-latest
     steps:
       - name: Require product and dependency gates
         env:
           ADMISSION_RESULT: ${{ needs.main_admission.result }}
-          PRODUCT_RESULT: ${{ needs.crm_product.result }}
+          NODE_STATIC_RESULT: ${{ needs.crm_node_static.result }}
+          BROWSER_RESULT: ${{ needs.crm_browser.result }}
           AUDIT_RESULT: ${{ needs.dependency_audit.result }}
         run: |
           test "$ADMISSION_RESULT" = "success"
-          test "$PRODUCT_RESULT" = "success"
+          test "$NODE_STATIC_RESULT" = "success"
+          test "$BROWSER_RESULT" = "success"
           test "$AUDIT_RESULT" = "success"

@@ -108,6 +108,15 @@
   manually only once on a frozen exact-current-`main` release candidate (and
   again only after that candidate SHA changes). Production release may consume
   only that successful manual full-proof run, never the short PR check.
+- Validation must also avoid duplicate work inside a gate. The manual full
+  proof applies migrations once through local Supabase, executes each Node test
+  file once through the canonical CI manifest, installs only Chromium headless
+  shell in the browser job, and does not run standalone typecheck before a
+  production Next build. Keep the historical migration-boundary harness as a
+  separate path-triggered gate. Required PR contexts must always be emitted;
+  prose-only documentation skips product lint/typecheck/build, unknown or empty
+  ranges fail the classifier, and mixed known paths select the union of their
+  risk-matched checks.
 - Historical V1/V2 code is not copied wholesale. Reuse managed Supabase,
   deployment and security capabilities that remain correct; retire SQLite,
   the development gate, local document storage, superseded workers/provider

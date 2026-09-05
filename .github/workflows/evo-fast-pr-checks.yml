@@ -16,6 +16,15 @@ jobs:
   changed-range:
     name: Changed range
     runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.classify.outputs.has_changes }}
+      ordinary_docs: ${{ steps.classify.outputs.ordinary_docs }}
+      contracts: ${{ steps.classify.outputs.contracts }}
+      migration_boundary: ${{ steps.classify.outputs.migration_boundary }}
+      code: ${{ steps.classify.outputs.code }}
+      lint: ${{ steps.classify.outputs.lint }}
+      build: ${{ steps.classify.outputs.build }}
+      unknown: ${{ steps.classify.outputs.unknown }}
     steps:
       - name: Check out full history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -26,13 +35,43 @@ jobs:
         run: git fetch --no-tags origin main:refs/remotes/origin/main
 
       - name: Reject whitespace errors in the complete release diff
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: git diff --check "origin/main..$HEAD_SHA"
+        run: git diff --check origin/main...HEAD
 
-  fast-checks:
-    name: Fast checks
+      - name: Classify PR changes
+        id: classify
+        env:
+          BASE_SHA: origin/main
+          HEAD_SHA: HEAD
+        run: |
+          set -Eeuo pipefail
+          node scripts/classify-pr-changes.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --github-output "$GITHUB_OUTPUT"
+
+      - name: Validate classifier outputs
+        env:
+          HAS_CHANGES: ${{ steps.classify.outputs.has_changes }}
+          ORDINARY_DOCS: ${{ steps.classify.outputs.ordinary_docs }}
+          CONTRACTS: ${{ steps.classify.outputs.contracts }}
+          MIGRATION_BOUNDARY: ${{ steps.classify.outputs.migration_boundary }}
+          CODE: ${{ steps.classify.outputs.code }}
+          LINT: ${{ steps.classify.outputs.lint }}
+          BUILD: ${{ steps.classify.outputs.build }}
+          UNKNOWN: ${{ steps.classify.outputs.unknown }}
+        run: |
+          set -Eeuo pipefail
+          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$UNKNOWN"; do
+            case "$value" in
+              true|false) ;;
+              *)
+                echo "::error::PR classifier returned an invalid boolean output"
+                exit 1
+                ;;
+            esac
+          done
+
+  contracts:
+    name: Release contracts
     needs: changed-range
+    if: ${{ needs.changed-range.outputs.contracts == 'true' && needs.changed-range.outputs.unknown != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -51,11 +90,98 @@ jobs:
       - name: Test release contracts
         run: npm run test:fast-release
 
+  lint:
+    name: Lint
+    needs: changed-range
+    if: ${{ needs.changed-range.outputs.lint == 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
       - name: Lint
         run: npm run lint
 
-      - name: Typecheck
-        run: npm run typecheck
+  build:
+    name: Build
+    needs: changed-range
+    if: ${{ needs.changed-range.outputs.build == 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Build
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build with TypeScript authority
         run: npm run build
+
+  migration_boundary:
+    name: Migration boundary
+    needs: changed-range
+    if: ${{ needs.changed-range.outputs.migration_boundary == 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Test migration boundary
+        run: npm run test:database:migration-boundaries
+
+  fast-checks:
+    name: Fast checks
+    if: ${{ always() }}
+    needs:
+      - changed-range
+      - contracts
+      - lint
+      - build
+      - migration_boundary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require selected fast PR checks
+        env:
+          RANGE_RESULT: ${{ needs.changed-range.result }}
+          HAS_CHANGES: ${{ needs.changed-range.outputs.has_changes }}
+          UNKNOWN: ${{ needs.changed-range.outputs.unknown }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          MIGRATION_BOUNDARY_RESULT: ${{ needs.migration_boundary.result }}
+        run: |
+          set -Eeuo pipefail
+          test "$RANGE_RESULT" = "success"
+          test "$HAS_CHANGES" = "true"
+          test "$UNKNOWN" = "false"
+          for result in "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do
+            case "$result" in
+              success|skipped) ;;
+              *)
+                echo "::error::A selected fast PR check failed or was cancelled"
+                exit 1
+                ;;
+            esac
+          done

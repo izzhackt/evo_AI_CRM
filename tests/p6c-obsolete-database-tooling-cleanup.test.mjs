@@ -148,6 +148,22 @@ test("P6C database and provider harnesses use only the canonical Supabase databa
   assert.match(foundationHarness, /rm -f -- "\$supabase_lock_pid_file"/u);
   assert.doesNotMatch(
     foundationHarness,
+    /"\$repo_root\/scripts\/test-postgres-authorization\.sh"/u,
+  );
+  assert.match(
+    foundationHarness,
+    /start_app configured configured local-service[\s\S]*supabase_staff_auth_browser_assert configured[\s\S]*verify_p4_admissions_storage_acceptance[\s\S]*platform_communications_browser_assert configured/u,
+  );
+  assert.match(
+    foundationHarness,
+    /platform_communications_browser_assert inbound-unavailable "missing primary webhook secret fails clearly without projection"/u,
+  );
+  assert.match(
+    foundationHarness,
+    /supabase_staff_auth_browser_assert unavailable "missing Supabase configuration stays unavailable"/u,
+  );
+  assert.doesNotMatch(
+    foundationHarness,
     /\bDATABASE_URL\b|POSTGRES_(?:USER|PASSWORD|DB|PORT)|docker compose|verify-drizzle-history|migrate-drizzle|drizzle-kit|drizzle\.__drizzle_migrations|broken-drizzle|evo_foundation_broken/u,
   );
 

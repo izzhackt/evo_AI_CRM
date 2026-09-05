@@ -117,6 +117,23 @@ requires one new manual full run. A slice still includes a scoped import/runtime
 inventory showing that the superseded path is no longer active and a
 fail-closed proof showing that the app does not fall back.
 
+The validation pipeline itself is risk-routed and non-duplicating. The one
+manual release-candidate proof applies the forward migration chain once through
+`supabase db reset`, then exercises real local Auth, RLS, Storage, application
+and Chromium outcomes against that same Supabase state. The historical
+intermediate-migration boundary harness remains a separate named gate and runs
+only when migration or boundary-test inputs change; it is not replayed inside
+the final proof. Aggregate Node coverage resolves to one deterministic unique
+test manifest, so composed npm suites cannot execute the same test file twice.
+On fresh GitHub-hosted runners the browser install is limited to Chromium's
+headless shell and occurs only in a job that will actually run browser proof.
+For code requiring a production build, `next build` is the TypeScript/build
+authority and standalone `typecheck` is not repeated; ESLint remains a separate
+gate. Documentation-only changes keep the required `Changed range` and `Fast
+checks` contexts visible, but run only diff and applicable contract checks.
+Unknown or empty ranges fail the classification guard; mixed known paths select
+the union of their risk-matched gates.
+
 Repository changes, read-only provider/deployment inspection, isolated local
 Supabase work and isolated recovery/migration rehearsal continue without
 routine approval pauses. The owner has authorized #552 to perform the bounded
@@ -2112,7 +2129,10 @@ slice. The superseding rule is:
 - before merge, refresh `origin/main` and the PR base and confirm the reviewed
   head SHA and reviewed base/main still match the evidence;
 - the executor may merge only that exact reviewed head directly;
-- exact-main push CI must then be re-verified before the next block starts.
+- intermediate blocks stop after their selected short PR checks and exact-head
+  merge; do not repeat a full exact-main proof between them; and
+- run the one manual exact-current-main proof only after the release-candidate
+  SHA is frozen, before release or recovery acceptance.
 
 ## Historical goal slice before #376
 

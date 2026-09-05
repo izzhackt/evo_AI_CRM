@@ -406,6 +406,23 @@ verify_capacity() {
     available=$(df -Pk "$path" | awk 'NR == 2 { print $4 }')
     [[ $available =~ ^[0-9]+$ && $available -ge $minimum ]] || fail "insufficient_capacity"
   done
+  local minimum_memory=${EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB:-4194304}
+  [[ $minimum_memory =~ ^[0-9]+$ && $minimum_memory -ge 4194304 ]] \
+    || fail "memory_capacity_contract_invalid"
+  local available_memory docker_memory_bytes
+  if [[ -r /proc/meminfo ]]; then
+    available_memory=$(awk '$1 == "MemAvailable:" { print $2 }' /proc/meminfo)
+  elif [[ $(uname -s) == Darwin ]]; then
+    # The macOS proof runs against OrbStack's Linux VM. Docker's allocated
+    # memory is the relevant container capacity; scanner health is then proved.
+    docker_memory_bytes=$(docker info --format '{{.MemTotal}}' 2>/dev/null || true)
+    [[ $docker_memory_bytes =~ ^[0-9]+$ ]] || fail "memory_capacity_unavailable"
+    available_memory=$((docker_memory_bytes / 1024))
+  else
+    fail "memory_capacity_unavailable"
+  fi
+  [[ $available_memory =~ ^[0-9]+$ && $available_memory -ge $minimum_memory ]] \
+    || fail "insufficient_memory_capacity"
 }
 
 verify_compose() {

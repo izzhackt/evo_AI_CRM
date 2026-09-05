@@ -13,8 +13,10 @@ One release candidate contains:
 
 - one clean checkout at the exact current `origin/main` commit;
 - one linux/amd64 `evo-crm:<full-sha>` image built from that checkout;
+- one official linux/amd64 ClamAV image pinned to
+  `clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9`;
 - one immutable WAHA image digest;
-- exactly two Compose services, `app` and private `waha`; and
+- exactly three Compose services, `app`, private `clamav` and private `waha`;
 - one previously approved managed Supabase project whose migration ledger
   matches root `supabase/`.
 
@@ -133,6 +135,11 @@ Stop before any production command unless all of these are true:
 Missing Supabase, image, secret, network, volume, or provider state is a hard
 failure. Do not substitute fixtures, SQLite, a frozen service, a second WAHA
 session, a mutable tag, or an earlier checkout.
+
+The controller also stops before mutation unless at least 4,194,304 KiB of
+memory is available. A read-only Hermes observation on 2026-09-05 showed
+16,376,008 KiB total and 5,187,392 KiB available; this is not reserved capacity
+and must be rechecked immediately before #552 changes runtime state.
 
 ### One-time #552 preparation
 
@@ -261,7 +268,9 @@ There is no direct operator `docker compose up` entrypoint: every Compose and
 rollback operation must consume only the sealed snapshot and protected state.
 The replacement must not start a parallel V1 or V3 container.
 
-The controller must not recreate or restart `waha`, or operate the frozen
+The controller first provisions only the exact private digest-pinned `clamav`
+service and waits for its health, then replaces `app`. It must not recreate or
+restart `waha`, or operate the frozen
 `evo-inbox` project, Lead Agent, manual worker, Caddy, Supabase, or any V1
 container other than the single exact inventoried app being replaced. It must
 preserve the named WAHA session volume and keep WAHA off public networks.
@@ -274,6 +283,8 @@ Capture only sanitized evidence:
 docker compose -p evo-crm -f "$EVO_RELEASE_REPO/docker-compose.prod.yml" ps
 docker inspect evo-crm-app-1 \
   --format '{{.Image}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{.State.Health.Status}} {{.RestartCount}}'
+docker inspect evo-crm-clamav-1 \
+  --format '{{.Image}} {{.State.Health.Status}} {{.RestartCount}} {{json .HostConfig.PortBindings}}'
 docker inspect evo-crm-waha-1 \
   --format '{{.Image}} {{.State.Health.Status}} {{.RestartCount}}'
 docker exec evo-crm-app-1 node -e \
@@ -328,10 +339,11 @@ Record whether the app existed, the current WAHA image digest, and the exact
 Compose, controller and protected-configuration paths and SHA-256 hashes before
 deployment.
 
-Before replacement, create-once write an immutable mode-`0600` release state and
+Before scanner provisioning or app replacement, create-once write an immutable mode-`0600` release state and
 `pending-current.json`. Bind release ID, generation, repository/source SHA,
 workflow run/attempt, artifact ID/GitHub digest, candidate image/config/archive
-digests and OCI labels, and the exact prior generation/release/image plus every
+digests and OCI labels, and the exact prior generation/release/image, scanner
+presence/image plus every
 retained Compose/controller/protected-config hash. After replacement and before
 health proof, create-once write a separate `candidate-runtime.json` that binds
 the immutable state hash and observed candidate container ID. Never rewrite
@@ -352,8 +364,10 @@ evidence only.
 For later releases, a pending candidate restores its exact prior accepted V3.
 An accepted current V3 may roll back only to its exact prior accepted V3 and
 must atomically move `current-v3-accepted.json` back after the restore succeeds.
-No mode rebuilds a prior tag or substitutes current files. No mode may stop or
-recreate WAHA, log out or relink `crm_primary`, or change/delete a named volume.
+No mode rebuilds a prior tag or substitutes current files. Rollback restores
+only the sealed prior scanner-presence state, removing the candidate scanner
+when the baseline had none. No mode may stop or recreate WAHA, log out or relink
+`crm_primary`, or change/delete its session volume.
 
 Never roll back a Supabase migration by restoring SQLite, starting a frozen
 worker, or dual-writing. Database/schema recovery is forward-only unless the

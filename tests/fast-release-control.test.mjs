@@ -450,9 +450,20 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
   assert.match(deploy, /load_candidate_image/u);
   assert.match(controller, /archive_layers_invalid/u);
   assert.match(controller, /compose config --services/u);
-  assert.match(controller, /services == \$'app\\nwaha'/u);
+  assert.match(controller, /services == \$'app\\nclamav\\nwaha'/u);
   assert.match(controller, /runtime_service_contract_invalid/u);
   assert.match(controller, /runtime_waha_image_drift/u);
+  assert.match(controller, /runtime_clamav_image_drift/u);
+  assert.match(controller, /private_service_port_published/u);
+  assert.match(controller, /provision_scanner_runtime/u);
+  assert.match(controller, /--wait-timeout 600 clamav/u);
+  assert.match(controller, /EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB:-4194304/u);
+  assert.match(controller, /minimum_memory -ge 4194304/u);
+  assert.match(controller, /MemAvailable:/u);
+  assert.match(controller, /uname -s\) == Darwin/u);
+  assert.match(controller, /docker info --format '\{\{\.MemTotal\}\}'/u);
+  assert.match(controller, /memory_capacity_unavailable/u);
+  assert.match(controller, /insufficient_memory_capacity/u);
   assert.doesNotMatch(controller, /EVO_REQUIRED_HEALTHY_CONTAINERS/u);
   assert.doesNotMatch(
     controller,

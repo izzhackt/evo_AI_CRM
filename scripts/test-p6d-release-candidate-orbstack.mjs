@@ -24,6 +24,7 @@ const projectName = `evo-p6d-${suffix}`;
 const privateNetwork = `evo_p6d_${suffix}_private`;
 const webNetwork = `evo_p6d_${suffix}_web`;
 const outputVolume = `evo_p6d_${suffix}_output`;
+const scannerSignatureVolume = `evo_p6d_${suffix}_clamav_signatures`;
 const wahaSessionVolume = `evo_p6d_${suffix}_waha_sessions`;
 const appSupabaseHostname = "evolocalp6d000000000.supabase.co";
 const appEnvironmentFile = join(harnessRoot, ".env.production");
@@ -33,8 +34,9 @@ const tlsCertificateFile = join(harnessRoot, "supabase-local.crt");
 const tlsKeyFile = join(harnessRoot, "supabase-local.key");
 const wahaDigest = "sha256:dc134637dfa0bd65202010a65e4ff8176101791699176c75bb37d5aa9daf487c";
 const wahaReference = `devlikeapro/waha@${wahaDigest}`;
+const clamavReference = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
 const createdNetworks = new Set();
-const ownedVolumes = new Set([outputVolume, wahaSessionVolume]);
+const ownedVolumes = new Set([outputVolume, scannerSignatureVolume, wahaSessionVolume]);
 const startedContainers = new Set();
 let composeStarted = false;
 let browser;
@@ -246,20 +248,27 @@ async function recordCandidateProviderBoundary(revision) {
 }
 
 function assertComposeContract(config, file) {
-  assert.deepEqual(sorted(Object.keys(config.services ?? {})), ["app", "waha"], `${file} service set drifted`);
-  const { app, waha } = config.services;
+  assert.deepEqual(sorted(Object.keys(config.services ?? {})), ["app", "clamav", "waha"], `${file} service set drifted`);
+  const { app, clamav, waha } = config.services;
   assert.equal(app.platform, "linux/amd64", `${file} app platform drifted`);
   assert.equal(app.read_only, true, `${file} app root filesystem is writable`);
   assert.deepEqual(sorted(Object.keys(app.networks ?? {})), ["private", "web"]);
+  assert.deepEqual(sorted(Object.keys(clamav.networks ?? {})), ["private"]);
   assert.deepEqual(sorted(Object.keys(waha.networks ?? {})), ["private"]);
+  assert.equal(clamav.image, clamavReference, `${file} ClamAV digest drifted`);
   assert.equal(waha.image, wahaReference, `${file} WAHA digest drifted`);
-  for (const [name, service] of Object.entries({ app, waha })) {
+  assert.equal(app.environment?.EVO_CLAMD_HOST, "evo-crm-clamav");
+  assert.equal(String(app.environment?.EVO_CLAMD_PORT), "3310");
+  assert.equal(app.depends_on?.clamav?.condition, "service_healthy");
+  for (const [name, service] of Object.entries({ app, clamav, waha })) {
     assert(service.cpus && service.mem_limit && service.pids_limit, `${file} ${name} lacks resource bounds`);
     assert.equal(service.logging?.driver, "json-file");
     assert.equal(service.logging?.options?.["max-size"], "10m");
     assert.equal(service.logging?.options?.["max-file"], "5");
     assert(service.healthcheck, `${file} ${name} lacks healthcheck`);
   }
+  assert.deepEqual(clamav.ports ?? [], [], `${file} ClamAV published a port`);
+  assert.deepEqual(waha.ports ?? [], [], `${file} WAHA published a port`);
   const serialized = JSON.stringify(config);
   assert.doesNotMatch(serialized, /agent-lead2-inbox|evo-lead-agent|manual-send-worker|EVO_DB_PATH|EVO_BACKUP_DIR|sqlite|drizzle/iu);
 }
@@ -506,6 +515,13 @@ async function main() {
           "com.evo.harness.run": suffix,
         },
       },
+      evo_crm_clamav_signatures: {
+        name: scannerSignatureVolume,
+        labels: {
+          "com.evo.harness": "p6d-release-candidate",
+          "com.evo.harness.run": suffix,
+        },
+      },
       evo_crm_waha_sessions: {
         name: wahaSessionVolume,
         labels: {
@@ -552,31 +568,38 @@ async function main() {
 
   const cachedWaha = docker(["image", "inspect", wahaReference], { accepted: [0, 1], label: "WAHA image cache" });
   if (cachedWaha.status !== 0) docker(["pull", "--platform", "linux/amd64", wahaReference], { label: "Pull immutable WAHA image", timeout: 20 * 60 * 1_000 });
+  const cachedClamav = docker(["image", "inspect", clamavReference], { accepted: [0, 1], label: "ClamAV image cache" });
+  if (cachedClamav.status !== 0) docker(["pull", "--platform", "linux/amd64", clamavReference], { label: "Pull immutable ClamAV image", timeout: 20 * 60 * 1_000 });
 
   browser = await chromium.launch({ headless: true });
   await proveMissingConfiguration(image, missingConfigPort);
 
   composeStarted = true;
-  compose(["up", "--detach", "--no-build", "--pull", "never", "--wait", "--wait-timeout", "240", "app", "waha"], composeEnvironment, {
-    label: "Isolated app and private WAHA boot",
-    timeout: 8 * 60 * 1_000,
+  compose(["up", "--detach", "--no-build", "--pull", "never", "--wait", "--wait-timeout", "600", "app", "clamav", "waha"], composeEnvironment, {
+    label: "Isolated app, private ClamAV and private WAHA boot",
+    timeout: 12 * 60 * 1_000,
   });
-  const serviceIds = Object.fromEntries(["app", "waha"].map((service) => [
+  const serviceIds = Object.fromEntries(["app", "clamav", "waha"].map((service) => [
     service,
     compose(["ps", "--quiet", service], composeEnvironment, { label: `${service} id` }).stdout,
   ]));
   const app = inspectContainer(serviceIds.app);
+  const clamav = inspectContainer(serviceIds.clamav);
   const waha = inspectContainer(serviceIds.waha);
   assert.equal(app.State?.Health?.Status, "healthy");
+  assert.equal(clamav.State?.Health?.Status, "healthy");
   assert.equal(waha.State?.Health?.Status, "healthy");
   assert.equal(app.RestartCount, 0);
+  assert.equal(clamav.RestartCount, 0);
   assert.equal(waha.RestartCount, 0);
   assert.deepEqual(sorted(Object.keys(app.NetworkSettings?.Networks ?? {})), [privateNetwork, webNetwork]);
+  assert.deepEqual(sorted(Object.keys(clamav.NetworkSettings?.Networks ?? {})), [privateNetwork]);
   assert.deepEqual(sorted(Object.keys(waha.NetworkSettings?.Networks ?? {})), [privateNetwork]);
   assert.equal(parseJson(docker(["network", "inspect", privateNetwork]).stdout, "Private network")[0]?.Internal, true);
   assert.equal(parseJson(docker(["network", "inspect", webNetwork]).stdout, "Web network")[0]?.Internal, false);
+  assert.equal(Object.values(clamav.HostConfig?.PortBindings ?? {}).flat().filter(Boolean).length, 0, "ClamAV published a port");
   assert.equal(Object.values(waha.HostConfig?.PortBindings ?? {}).flat().filter(Boolean).length, 0, "WAHA published a port");
-  for (const [name, container] of Object.entries({ app, waha })) {
+  for (const [name, container] of Object.entries({ app, clamav, waha })) {
     assert(container.HostConfig?.NanoCpus > 0, `${name} has no CPU bound`);
     assert(container.HostConfig?.Memory > 0, `${name} has no memory bound`);
     assert(container.HostConfig?.PidsLimit > 0, `${name} has no PID bound`);
@@ -588,7 +611,7 @@ async function main() {
     "ps", "--all", "--filter", `label=com.docker.compose.project=${projectName}`,
     "--format", "{{.Label \"com.docker.compose.service\"}}",
   ], { label: "Runtime service inventory" }).stdout.split("\n").filter(Boolean);
-  assert.deepEqual(sorted(activeServices), ["app", "waha"]);
+  assert.deepEqual(sorted(activeServices), ["app", "clamav", "waha"]);
 
   const baseUrl = `http://127.0.0.1:${appPort}`;
   await waitForHttp(`${baseUrl}/api/health`, [200]);
@@ -605,7 +628,7 @@ async function main() {
       dependencyInventory: dependencies,
       pathInventory: paths,
     },
-    compose: { services: ["app", "waha"], privateWaha: true, productionRendered: true },
+    compose: { services: ["app", "clamav", "waha"], privateScanner: true, privateWaha: true, productionRendered: true },
     supabase: { auth: "passed", postgres: "passed", storage: "passed", authority: "disposable_local_tls_proxy" },
     browser: { adminLogin: "passed" },
     health: 200,

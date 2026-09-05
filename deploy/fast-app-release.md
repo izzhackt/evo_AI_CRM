@@ -200,6 +200,12 @@ Required non-secret variables:
 - `EVO_WAHA_IMAGE_DIGEST` — the reviewed immutable digest; and
 - `EVO_SUPABASE_PROJECT_REF`.
 
+The controller also enforces at least 4,194,304 KiB available memory by default
+before mutation so the pinned scanner can start safely. A deployment-specific
+`EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB` may only raise that threshold; values
+below 4,194,304 KiB are invalid. The observed Hermes capacity is not a
+reservation and must be read again during #552 preflight.
+
 `EVO_RELEASE_TRANSFER_ROOT` is a private transient archive-transfer directory,
 not a staging environment. The #551 implementation removes the obsolete
 `EVO_RELEASE_STAGING_ROOT` contract rather than preserving an alias.
@@ -234,13 +240,15 @@ For the one guarded exact current-main SHA, the workflow:
 4. under the host lock it creates and validates the generation-owned protected
    application-environment snapshot, then uses only that snapshot for every
    Compose operation;
-5. the server preflight captures the prior accepted state and creates the exact
-   pending-candidate/rollback state before mutation;
-6. it replaces only `app` with `--no-deps --no-build`, leaving private `waha`,
-   `crm_primary` and every named volume untouched;
-7. it records the installed candidate identity and verifies image/config digest,
-   OCI labels, health, restart count, external health and authenticated V3
-   browser proof;
+5. the server preflight captures the prior accepted state, including exact
+   scanner presence, and creates the exact pending-candidate/rollback state
+   before mutation;
+6. it provisions the official digest-pinned private `clamav` service and waits
+   for health, then replaces only `app` with `--no-deps --no-build`; private
+   `waha`, `crm_primary` and their named volumes remain untouched;
+7. it records the installed candidate identity and verifies scanner image,
+   privacy and health plus app image/config digest, OCI labels, health, restart
+   count, external health and authenticated V3 browser proof;
 8. only the named deploy-job acceptance step atomically promotes that exact
    candidate; and
 9. any deployment or proof failure before the current-pointer commit invokes
@@ -296,12 +304,13 @@ exact wrapper must restore its recorded rollback target before another release.
 Any app, accepted pointer or pending pointer with a missing, mutable, ambiguous,
 unrecognized or mutually inconsistent identity is a hard stop.
 
-Before replacing `app`, the controller create-once writes the immutable
+Before provisioning the scanner or replacing `app`, the controller create-once writes the immutable
 mode-`0600` release state and protected `pending-current.json`. They bind the
 release ID, generation `v3`, source repository/SHA, workflow run ID/attempt,
 artifact ID and GitHub digest, image ID/config digest/archive SHA-256/OCI
 labels, intended
-candidate identity, previous generation/release ID and every retained-file hash.
+candidate identity, previous generation/release ID, exact prior scanner
+presence/image and every retained-file hash.
 Immediately after replacement and before health proof, the controller writes a
 separate create-once `candidate-runtime.json` bound to the immutable state hash,
 release/revision/image and observed candidate container ID. It never rewrites
@@ -320,8 +329,9 @@ First cutover and every later V3 release use the same transition. Only the
 step named **Accept exact V3 candidate** in the fresh privileged `deploy` job,
 acting under the already verified original `github.actor_id`, may invoke the
 checked-in controller's `accept-candidate` operation. It runs after all of these
-proofs pass against the exact candidate: running image ID/config digest and OCI
-revision labels; container health and restart-count policy; internal health;
+proofs pass against the exact candidate: the digest-pinned private scanner is
+healthy; running app image ID/config digest and OCI revision labels; container
+health and restart-count policy; internal health;
 public external health; and an authenticated read-only V3 browser smoke that
 proves the V3 shell and canonical Supabase CRM view. Provider writes are not
 part of acceptance.
@@ -398,15 +408,19 @@ never remove an accepted V3. A V1-mode wrapper can restore V1 only while its
 first V3 candidate remains pending and can never overwrite an accepted V3.
 Thus an old wrapper cannot overwrite a newer release. Wrappers accept no moving
 tag, implicit current checkout, caller-supplied path or fallback. Automatic
-rollback inside the failed release uses the same wrapper and state. No rollback
-may stop/recreate WAHA, log out/relink `crm_primary`, or change/delete a volume.
+rollback inside the failed release uses the same wrapper and state. Rollback
+restores the sealed prior scanner-presence state: it removes the candidate
+scanner when none existed, or restores only the exact pinned prior scanner. No
+rollback may stop/recreate WAHA, log out/relink `crm_primary`, or change/delete
+the WAHA session volume.
 
 ## Evidence
 
 Reviewable evidence contains only the exact source SHA, triggering CI run and
 conclusion, build/deploy job separation, arm/actor results, artifact ID/GitHub
-digest/closed-manifest and archive/image/config/label checks, safe Compose
-inventory, Supabase project-ref and ledger result, pre-change app generation,
+digest/closed-manifest and archive/image/config/label checks, safe Compose and
+scanner image/privacy/health inventory, Supabase project-ref and ledger result,
+pre-change app generation,
 pending/current/per-release acceptance-record hashes, named acceptance-step and
 health/browser results, rollback outcome and the sanitized literal rollback
 command.

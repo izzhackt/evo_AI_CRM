@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  chmodSync,
   existsSync,
   mkdtempSync,
   mkdirSync,
@@ -28,6 +29,7 @@ import {
   storageClientHeaders,
   storageDownloadHeaders,
   storageInventoryDigest,
+  validateOperatorHome,
   validateOutputRoot,
 } from "../scripts/export-v3-managed-supabase-backup.mjs";
 
@@ -102,6 +104,18 @@ test("output root must be an existing private directory outside the repository",
     const openRoot = join(root, "open");
     mkdirSync(openRoot, { mode: 0o755 });
     expectCode(() => validateOutputRoot(openRoot, repoRoot), "output_root_invalid");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("OrbStack operator home must be canonical, owned, and not writable by peers", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-export-home-test-")));
+  try {
+    chmodSync(root, 0o700);
+    assert.equal(validateOperatorHome(root), root);
+    chmodSync(root, 0o722);
+    expectCode(() => validateOperatorHome(root), "operator_home_invalid");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

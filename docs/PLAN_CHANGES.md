@@ -17969,3 +17969,31 @@ Decision:
 
 This correction remains read-only against managed Supabase and changes no VPS,
 production runtime, provider, webhook, customer record or release activation.
+
+## 2026-09-05 - Bind OrbStack status to the validated local operator home
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-ORBSTACK-HOME-CORRECTION-2026-09-05`
+
+Change type: local preflight correctness correction.
+Affected plan section: Order 7 / Issue #551.
+
+The first authenticated read-only preflight proved that OrbStack's fixed
+`orb status` binary reports the running per-user engine through state resolved
+from the macOS operator home. Replacing `HOME` with the export's empty private
+runtime directory therefore reports `Stopped` even while the required OrbStack
+engine is running. Docker context resolution does not require this exception.
+
+Decision:
+
+- validate the canonical operator home as a real directory owned by the current
+  uid and not writable by group or world;
+- expose that path only as `HOME` to the fixed absolute OrbStack `status`
+  process. Keep the private runtime `HOME` for Docker, Supabase, Git, archive,
+  encryption and signing commands, and keep every child environment free of
+  unrelated inherited variables and provider secrets; and
+- retain the exact `Running` plus `orbstack` checks. Any invalid home, stopped
+  engine or wrong Docker context still fails closed before managed-Supabase
+  access.
+
+This correction changes only local preflight behavior. It does not create an
+export, mutate Supabase, touch the VPS/provider/webhook, or activate release.

@@ -180,6 +180,20 @@ export function validateOutputRoot(path, forbiddenRoot = process.cwd()) {
   return canonical;
 }
 
+export function validateOperatorHome(path) {
+  const canonical = canonicalExistingPath(path, "operator_home_invalid");
+  const metadata = statSync(canonical);
+  if (
+    !metadata.isDirectory() ||
+    typeof process.getuid !== "function" ||
+    metadata.uid !== process.getuid() ||
+    (metadata.mode & 0o022) !== 0
+  ) {
+    fail("operator_home_invalid");
+  }
+  return canonical;
+}
+
 function validateSigningKey(path, trustedPublicKeyPath, outputRoot, repositoryRoot) {
   const canonical = canonicalExistingPath(path, "signing_key_invalid");
   const metadata = statSync(canonical);
@@ -1262,7 +1276,14 @@ function safeCommandEnvironment(tools, runtimeDirectory, secrets = null) {
   return environment;
 }
 
-async function toolEvidence(root, signal, state, commandEnvironment, executables) {
+async function toolEvidence(
+  root,
+  signal,
+  state,
+  commandEnvironment,
+  orbEnvironment,
+  executables,
+) {
   const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const expectedSupabase = packageJson.devDependencies?.supabase;
   if (expectedSupabase !== "2.116.0") fail("supabase_cli_not_pinned");
@@ -1283,7 +1304,7 @@ async function toolEvidence(root, signal, state, commandEnvironment, executables
   const orbStatus = (
     await spawnCommand(executables.orb.real, ["status"], {
       cwd: root,
-      environment: commandEnvironment,
+      environment: orbEnvironment,
       signal,
       state,
       captureStdout: true,
@@ -1604,7 +1625,15 @@ function ensureInterrupted(signal) {
   if (signal.aborted) fail("export_interrupted");
 }
 
-async function collectPreflight({ args, root, runtimeDirectory, secrets, signal, state }) {
+async function collectPreflight({
+  args,
+  root,
+  runtimeDirectory,
+  operatorHome,
+  secrets,
+  signal,
+  state,
+}) {
   const outputRoot = validateOutputRoot(args.outputRoot, root);
   const signing = validateSigningKey(
     args.signingKey,
@@ -1617,8 +1646,9 @@ async function collectPreflight({ args, root, runtimeDirectory, secrets, signal,
   mkdirSync(join(runtimeDirectory, "tmp"), { mode: 0o700 });
   const commandEnvironment = safeCommandEnvironment(executables, runtimeDirectory);
   const supabaseEnvironment = safeCommandEnvironment(executables, runtimeDirectory, secrets);
+  const orbEnvironment = { ...commandEnvironment, HOME: operatorHome };
   const [tools, git, source] = await Promise.all([
-    toolEvidence(root, signal, state, commandEnvironment, executables),
+    toolEvidence(root, signal, state, commandEnvironment, orbEnvironment, executables),
     repositoryEvidence(root, signal, state, commandEnvironment, executables),
     managementReceipt(args.projectRef, secrets.SUPABASE_ACCESS_TOKEN, signal, Date.now()),
     verifySigningKeyPair(signing, root, signal, state, commandEnvironment, executables),
@@ -1895,6 +1925,7 @@ export async function runManagedSupabaseExport(argv, environment = process.env) 
   if (environment[OPT_IN] !== OPT_IN_VALUE) fail("explicit_opt_in_required");
   const args = parseArgs(argv);
   const secrets = requireSecrets(environment);
+  const operatorHome = validateOperatorHome(environment.HOME);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const abortController = new AbortController();
   const state = {
@@ -1920,6 +1951,7 @@ export async function runManagedSupabaseExport(argv, environment = process.env) 
       args,
       root,
       runtimeDirectory,
+      operatorHome,
       secrets,
       signal: abortController.signal,
       state,

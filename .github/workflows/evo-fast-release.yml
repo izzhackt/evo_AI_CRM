@@ -1,4 +1,4 @@
-name: EVO production release
+name: EVO fast app release
 
 on:
   workflow_run:
@@ -9,62 +9,182 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-  checks: read
+permissions: {}
 
 concurrency:
   group: evo-production-release
   cancel-in-progress: false
 
 jobs:
-  prepare:
-    name: Validate and build immutable CRM image
+  build:
+    name: Build immutable exact-main V3 image
     if: >-
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main' &&
-      vars.EVO_AUTOMATED_PRODUCTION_RELEASE_ENABLED == 'true'
+      vars.EVO_PRODUCTION_RELEASE_ARMED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload_candidate.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload_candidate.outputs.artifact-digest }}
+      artifact_name: ${{ steps.release_identity.outputs.artifact_name }}
+      release_id: ${{ steps.release_identity.outputs.release_id }}
+      release_version: ${{ steps.release_identity.outputs.release_version }}
     steps:
-      - name: Check out the CI-approved immutable commit
+      - name: Secretless build admission
+        env:
+          EVO_API_URL: ${{ github.api_url }}
+          EVO_EXPECTED_REPOSITORY: izzhackt/evo_AI_CRM
+          EVO_REPOSITORY: ${{ github.repository }}
+          EVO_REPOSITORY_ID: ${{ github.repository_id }}
+          EVO_RELEASE_WORKFLOW_NAME: ${{ github.workflow }}
+          EVO_RELEASE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          EVO_EVENT_ACTION: ${{ github.event.action }}
+          EVO_UPSTREAM_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          EVO_UPSTREAM_WORKFLOW_PATH: ${{ github.event.workflow_run.path }}
+          EVO_UPSTREAM_STATUS: ${{ github.event.workflow_run.status }}
+          EVO_UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
+          EVO_UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          EVO_UPSTREAM_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          EVO_UPSTREAM_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          EVO_UPSTREAM_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          EVO_UPSTREAM_HEAD_REPOSITORY_ID: ${{ github.event.workflow_run.head_repository.id }}
+          EVO_UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVO_UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EVO_ORIGINAL_ACTOR_ID: ${{ github.actor_id }}
+          EVO_UPSTREAM_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
+          EVO_ARM_SNAPSHOT: ${{ vars.EVO_PRODUCTION_RELEASE_ARMED }}
+          EVO_ACTOR_ID_SNAPSHOT: ${{ vars.EVO_PRODUCTION_RELEASE_ACTOR_ID }}
+          EVO_RELEASE_RUN_ID: ${{ github.run_id }}
+          EVO_RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -Eeuo pipefail
+          node <<'NODE'
+          const env = process.env;
+          const fail = () => {
+            process.stderr.write("::error::release_build_admission_failed\n");
+            process.exit(2);
+          };
+          const sha = /^[0-9a-f]{40}$/u;
+          const positive = /^[1-9][0-9]*$/u;
+          const exact = (name, value) => {
+            if (env[name] !== value) fail();
+          };
+          const main = async () => {
+            exact("EVO_EXPECTED_REPOSITORY", "izzhackt/evo_AI_CRM");
+            exact("EVO_REPOSITORY", env.EVO_EXPECTED_REPOSITORY);
+            exact("EVO_RELEASE_WORKFLOW_NAME", "EVO fast app release");
+            exact("EVO_EVENT_ACTION", "completed");
+            exact("EVO_UPSTREAM_WORKFLOW_NAME", "EVO platform CI");
+            exact("EVO_UPSTREAM_WORKFLOW_PATH", ".github/workflows/evo-platform-ci.yml");
+            exact("EVO_UPSTREAM_STATUS", "completed");
+            exact("EVO_UPSTREAM_EVENT", "push");
+            exact("EVO_UPSTREAM_CONCLUSION", "success");
+            exact("EVO_UPSTREAM_HEAD_BRANCH", "main");
+            exact("EVO_UPSTREAM_HEAD_REPOSITORY", env.EVO_EXPECTED_REPOSITORY);
+            exact("EVO_UPSTREAM_HEAD_REPOSITORY_ID", env.EVO_REPOSITORY_ID);
+            exact("EVO_ARM_SNAPSHOT", "true");
+            if (!sha.test(env.EVO_UPSTREAM_HEAD_SHA ?? "")) fail();
+            exact("EVO_RELEASE_WORKFLOW_SHA", env.EVO_UPSTREAM_HEAD_SHA);
+            for (const name of [
+              "EVO_REPOSITORY_ID",
+              "EVO_UPSTREAM_RUN_ID",
+              "EVO_UPSTREAM_RUN_ATTEMPT",
+              "EVO_ORIGINAL_ACTOR_ID",
+              "EVO_UPSTREAM_ACTOR_ID",
+              "EVO_RELEASE_RUN_ID",
+              "EVO_RELEASE_RUN_ATTEMPT",
+              "EVO_ACTOR_ID_SNAPSHOT",
+            ]) {
+              if (!positive.test(env[name] ?? "")) fail();
+            }
+            exact("EVO_UPSTREAM_ACTOR_ID", env.EVO_ORIGINAL_ACTOR_ID);
+            exact("EVO_ACTOR_ID_SNAPSHOT", env.EVO_ORIGINAL_ACTOR_ID);
+            const response = await fetch(
+              `${env.EVO_API_URL}/repos/${env.EVO_EXPECTED_REPOSITORY}/git/ref/heads/main`,
+              {
+                headers: {
+                  Accept: "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                },
+                redirect: "error",
+                signal: AbortSignal.timeout(15_000),
+              },
+            );
+            if (!response.ok) fail();
+            const payload = await response.json();
+            if (
+              payload?.object?.type !== "commit" ||
+              payload?.object?.sha !== env.EVO_UPSTREAM_HEAD_SHA
+            ) fail();
+            process.stdout.write('{"ok":true,"code":"release_build_admitted"}\n');
+          };
+          main().catch(fail);
+          NODE
+
+      - name: Check out exact CI-approved main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 0
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Set up the repository Node.js runtime
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-
-      - name: Require exact current main and exact-SHA green CI
+      - name: Require the exact checked-out tree
         env:
           EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
-          EVO_RELEASE_WORKFLOW_REVISION: ${{ github.workflow_sha }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EVO_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$EVO_RELEASE_WORKFLOW_REVISION" == "$EVO_RELEASE_REVISION" ]]
-          git fetch --no-tags origin main:refs/remotes/origin/main
           [[ "$(git rev-parse HEAD)" == "$EVO_RELEASE_REVISION" ]]
-          [[ "$(git rev-parse origin/main)" == "$EVO_RELEASE_REVISION" ]]
-          node scripts/fast-release-ci-gate.mjs
+          [[ -z "$(git status --short)" ]]
 
-      - name: Build the exact linux-amd64 CRM image and archive
+      - name: Define immutable release identity
+        id: release_identity
+        env:
+          EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$GITHUB_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+          [[ "$GITHUB_RUN_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          short_revision=${EVO_RELEASE_REVISION:0:8}
+          release_id="v3-r${GITHUB_RUN_ID}-a${GITHUB_RUN_ATTEMPT}-${short_revision}"
+          release_version="r${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}-${short_revision}"
+          artifact_name="evo-v3-production-${EVO_RELEASE_REVISION}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          [[ "$release_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$ ]]
+          [[ "$release_version" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]]
+          printf 'release_id=%s\n' "$release_id" >> "$GITHUB_OUTPUT"
+          printf 'release_version=%s\n' "$release_version" >> "$GITHUB_OUTPUT"
+          printf 'artifact_name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
+
+      - name: Build and inspect immutable linux-amd64 image
         env:
           EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
           EVO_RELEASE_WORKFLOW_REVISION: ${{ github.workflow_sha }}
+          EVO_RELEASE_ID: ${{ steps.release_identity.outputs.release_id }}
+          EVO_RELEASE_VERSION: ${{ steps.release_identity.outputs.release_version }}
+          EVO_ARTIFACT_NAME: ${{ steps.release_identity.outputs.artifact_name }}
           EVO_IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
           EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_UPSTREAM_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          EVO_UPSTREAM_WORKFLOW_PATH: ${{ github.event.workflow_run.path }}
+          EVO_UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVO_UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
           set -Eeuo pipefail
+          umask 077
+          [[ "$EVO_RELEASE_WORKFLOW_REVISION" == "$EVO_RELEASE_REVISION" ]]
           [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
-          short_revision=${EVO_RELEASE_REVISION:0:8}
-          EVO_RELEASE_VERSION="r${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}-${short_revision}"
-          export EVO_RELEASE_VERSION
+          [[ "$EVO_UPSTREAM_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$EVO_UPSTREAM_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+          candidate_dir=/tmp/evo-production-candidate
+          install -d -m 700 "$candidate_dir"
+          archive="$candidate_dir/evo-crm-image.tar.gz"
+          manifest="$candidate_dir/evo-production-release-image.json"
+
           docker build \
             --platform linux/amd64 \
             --build-arg "EVO_IMAGE_SOURCE=$EVO_IMAGE_SOURCE" \
@@ -75,147 +195,423 @@ jobs:
           image_id=$(docker image inspect --format '{{.Id}}' "evo-crm:$EVO_RELEASE_REVISION")
           image_os=$(docker image inspect --format '{{.Os}}' "evo-crm:$EVO_RELEASE_REVISION")
           image_arch=$(docker image inspect --format '{{.Architecture}}' "evo-crm:$EVO_RELEASE_REVISION")
+          image_source=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "evo-crm:$EVO_RELEASE_REVISION")
           image_revision=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "evo-crm:$EVO_RELEASE_REVISION")
           image_version=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "evo-crm:$EVO_RELEASE_REVISION")
+          image_config_digest=$image_id
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$image_config_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$image_os" == linux && "$image_arch" == amd64 ]]
+          [[ "$image_source" == "$EVO_IMAGE_SOURCE" ]]
           [[ "$image_revision" == "$EVO_RELEASE_REVISION" ]]
           [[ "$image_version" == "$EVO_RELEASE_VERSION" ]]
-          docker save "evo-crm:$EVO_RELEASE_REVISION" | gzip -1 > /tmp/evo-crm-image.tar.gz
-          archive_sha256=$(sha256sum /tmp/evo-crm-image.tar.gz | awk '{print $1}')
+
+          docker save "evo-crm:$EVO_RELEASE_REVISION" | gzip -1 > "$archive"
+          archive_sha256=$(sha256sum "$archive" | awk '{print $1}')
+          archive_bytes=$(wc -c < "$archive" | tr -d '[:space:]')
           compose_sha256=$(sha256sum docker-compose.prod.yml | awk '{print $1}')
-          [[ "$EVO_RELEASE_WORKFLOW_REVISION" == "$EVO_RELEASE_REVISION" ]]
-          for source_file in \
-            scripts/evo-fast-release.sh \
-            scripts/evo-app-env-contract.mjs \
-            deploy/env.production.example; do
-            [[ -f "$source_file" && ! -L "$source_file" ]]
-          done
-          install -m 700 scripts/evo-fast-release.sh /tmp/evo-fast-release.sh
-          install -m 600 scripts/evo-app-env-contract.mjs /tmp/evo-app-env-contract.mjs
-          install -m 600 deploy/env.production.example /tmp/env.production.example
-          controller_sha256=$(sha256sum /tmp/evo-fast-release.sh | awk '{print $1}')
-          validator_sha256=$(sha256sum /tmp/evo-app-env-contract.mjs | awk '{print $1}')
-          env_example_sha256=$(sha256sum /tmp/env.production.example | awk '{print $1}')
+          controller_sha256=$(sha256sum scripts/evo-fast-release.sh | awk '{print $1}')
+          validator_sha256=$(sha256sum scripts/evo-app-env-contract.mjs | awk '{print $1}')
+          env_example_sha256=$(sha256sum deploy/env.production.example | awk '{print $1}')
+          [[ "$archive_sha256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$archive_bytes" =~ ^[1-9][0-9]*$ ]]
+
           jq -cn \
+            --arg artifactName "$EVO_ARTIFACT_NAME" \
+            --arg repository "$GITHUB_REPOSITORY" \
             --arg revision "$EVO_RELEASE_REVISION" \
             --arg workflowRevision "$EVO_RELEASE_WORKFLOW_REVISION" \
+            --arg upstreamWorkflowName "$EVO_UPSTREAM_WORKFLOW_NAME" \
+            --arg upstreamWorkflowPath "$EVO_UPSTREAM_WORKFLOW_PATH" \
+            --argjson upstreamRunId "$EVO_UPSTREAM_RUN_ID" \
+            --argjson upstreamRunAttempt "$EVO_UPSTREAM_RUN_ATTEMPT" \
+            --argjson releaseWorkflowRunId "$GITHUB_RUN_ID" \
+            --argjson releaseWorkflowRunAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg releaseId "$EVO_RELEASE_ID" \
             --arg imageId "$image_id" \
+            --arg imageConfigDigest "$image_config_digest" \
+            --arg imageSource "$image_source" \
+            --arg imageRevision "$image_revision" \
+            --arg imageVersion "$image_version" \
+            --argjson archiveBytes "$archive_bytes" \
             --arg archiveSha256 "$archive_sha256" \
             --arg composeSha256 "$compose_sha256" \
             --arg controllerSha256 "$controller_sha256" \
             --arg validatorSha256 "$validator_sha256" \
             --arg envExampleSha256 "$env_example_sha256" \
             --arg supabaseProjectRef "$EVO_SUPABASE_PROJECT_REF" \
-            --arg version "$EVO_RELEASE_VERSION" \
-            '{revision:$revision,workflowRevision:$workflowRevision,imageId:$imageId,archiveSha256:$archiveSha256,composeSha256:$composeSha256,controllerSha256:$controllerSha256,validatorSha256:$validatorSha256,envExampleSha256:$envExampleSha256,supabaseProjectRef:$supabaseProjectRef,version:$version,os:"linux",architecture:"amd64"}' \
-            > /tmp/evo-production-release-image.json
+            '{schemaVersion:1,artifactName:$artifactName,repository:$repository,revision:$revision,workflowRevision:$workflowRevision,upstreamWorkflowName:$upstreamWorkflowName,upstreamWorkflowPath:$upstreamWorkflowPath,upstreamRunId:$upstreamRunId,upstreamRunAttempt:$upstreamRunAttempt,releaseWorkflowRunId:$releaseWorkflowRunId,releaseWorkflowRunAttempt:$releaseWorkflowRunAttempt,releaseId:$releaseId,imageId:$imageId,imageConfigDigest:$imageConfigDigest,imageSource:$imageSource,imageRevision:$imageRevision,imageVersion:$imageVersion,archiveBytes:$archiveBytes,archiveSha256:$archiveSha256,composeSha256:$composeSha256,controllerSha256:$controllerSha256,validatorSha256:$validatorSha256,envExampleSha256:$envExampleSha256,supabaseProjectRef:$supabaseProjectRef,os:"linux",architecture:"amd64"}' \
+            > "$manifest"
+          chmod 600 "$archive" "$manifest"
+          [[ "$(find "$candidate_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == $'evo-crm-image.tar.gz\nevo-production-release-image.json' ]]
+          [[ "$(find "$candidate_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d '[:space:]')" == 2 ]]
 
-      - name: Seal the production candidate
+      - name: Upload closed candidate artifact
+        id: upload_candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: evo-production-candidate-${{ github.event.workflow_run.head_sha }}-${{ github.run_attempt }}
+          name: ${{ steps.release_identity.outputs.artifact_name }}
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+          overwrite: false
+          include-hidden-files: false
           path: |
-            /tmp/evo-crm-image.tar.gz
-            /tmp/evo-production-release-image.json
-            /tmp/evo-fast-release.sh
-            /tmp/evo-app-env-contract.mjs
-            /tmp/env.production.example
+            /tmp/evo-production-candidate/evo-crm-image.tar.gz
+            /tmp/evo-production-candidate/evo-production-release-image.json
 
-  release:
-    name: Deploy and verify CRM app
+      - name: Validate immutable artifact outputs
+        env:
+          EVO_ARTIFACT_ID: ${{ steps.upload_candidate.outputs.artifact-id }}
+          EVO_ARTIFACT_DIGEST: ${{ steps.upload_candidate.outputs.artifact-digest }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVO_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$EVO_ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+
+  deploy:
+    name: Deploy pending V3 and accept exact proof
     if: >-
-      needs.prepare.result == 'success' &&
+      needs.build.result == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main' &&
-      vars.EVO_AUTOMATED_PRODUCTION_RELEASE_ENABLED == 'true'
-    needs: prepare
+      vars.EVO_PRODUCTION_RELEASE_ARMED == 'true'
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
     steps:
-      - name: Check out the CI-approved immutable commit
+      - name: Secretless deploy admission
+        env:
+          EVO_API_URL: ${{ github.api_url }}
+          EVO_EXPECTED_REPOSITORY: izzhackt/evo_AI_CRM
+          EVO_REPOSITORY: ${{ github.repository }}
+          EVO_REPOSITORY_ID: ${{ github.repository_id }}
+          EVO_RELEASE_WORKFLOW_NAME: ${{ github.workflow }}
+          EVO_RELEASE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          EVO_EVENT_ACTION: ${{ github.event.action }}
+          EVO_UPSTREAM_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          EVO_UPSTREAM_WORKFLOW_PATH: ${{ github.event.workflow_run.path }}
+          EVO_UPSTREAM_STATUS: ${{ github.event.workflow_run.status }}
+          EVO_UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
+          EVO_UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          EVO_UPSTREAM_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          EVO_UPSTREAM_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          EVO_UPSTREAM_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          EVO_UPSTREAM_HEAD_REPOSITORY_ID: ${{ github.event.workflow_run.head_repository.id }}
+          EVO_UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVO_UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EVO_ORIGINAL_ACTOR_ID: ${{ github.actor_id }}
+          EVO_UPSTREAM_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
+          EVO_ARM_SNAPSHOT: ${{ vars.EVO_PRODUCTION_RELEASE_ARMED }}
+          EVO_ACTOR_ID_SNAPSHOT: ${{ vars.EVO_PRODUCTION_RELEASE_ACTOR_ID }}
+          EVO_RELEASE_RUN_ID: ${{ github.run_id }}
+          EVO_RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVO_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          EVO_ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
+        run: |
+          set -Eeuo pipefail
+          node <<'NODE'
+          const env = process.env;
+          const fail = () => {
+            process.stderr.write("::error::release_deploy_admission_failed\n");
+            process.exit(2);
+          };
+          const sha = /^[0-9a-f]{40}$/u;
+          const positive = /^[1-9][0-9]*$/u;
+          const hex64 = /^[0-9a-f]{64}$/u;
+          const exact = (name, value) => {
+            if (env[name] !== value) fail();
+          };
+          const main = async () => {
+            exact("EVO_EXPECTED_REPOSITORY", "izzhackt/evo_AI_CRM");
+            exact("EVO_REPOSITORY", env.EVO_EXPECTED_REPOSITORY);
+            exact("EVO_RELEASE_WORKFLOW_NAME", "EVO fast app release");
+            exact("EVO_EVENT_ACTION", "completed");
+            exact("EVO_UPSTREAM_WORKFLOW_NAME", "EVO platform CI");
+            exact("EVO_UPSTREAM_WORKFLOW_PATH", ".github/workflows/evo-platform-ci.yml");
+            exact("EVO_UPSTREAM_STATUS", "completed");
+            exact("EVO_UPSTREAM_EVENT", "push");
+            exact("EVO_UPSTREAM_CONCLUSION", "success");
+            exact("EVO_UPSTREAM_HEAD_BRANCH", "main");
+            exact("EVO_UPSTREAM_HEAD_REPOSITORY", env.EVO_EXPECTED_REPOSITORY);
+            exact("EVO_UPSTREAM_HEAD_REPOSITORY_ID", env.EVO_REPOSITORY_ID);
+            exact("EVO_ARM_SNAPSHOT", "true");
+            if (!sha.test(env.EVO_UPSTREAM_HEAD_SHA ?? "")) fail();
+            exact("EVO_RELEASE_WORKFLOW_SHA", env.EVO_UPSTREAM_HEAD_SHA);
+            for (const name of [
+              "EVO_REPOSITORY_ID",
+              "EVO_UPSTREAM_RUN_ID",
+              "EVO_UPSTREAM_RUN_ATTEMPT",
+              "EVO_ORIGINAL_ACTOR_ID",
+              "EVO_UPSTREAM_ACTOR_ID",
+              "EVO_RELEASE_RUN_ID",
+              "EVO_RELEASE_RUN_ATTEMPT",
+              "EVO_ACTOR_ID_SNAPSHOT",
+              "EVO_ARTIFACT_ID",
+            ]) {
+              if (!positive.test(env[name] ?? "")) fail();
+            }
+            if (!hex64.test(env.EVO_ARTIFACT_DIGEST ?? "")) fail();
+            exact("EVO_UPSTREAM_ACTOR_ID", env.EVO_ORIGINAL_ACTOR_ID);
+            exact("EVO_ACTOR_ID_SNAPSHOT", env.EVO_ORIGINAL_ACTOR_ID);
+            const response = await fetch(
+              `${env.EVO_API_URL}/repos/${env.EVO_EXPECTED_REPOSITORY}/git/ref/heads/main`,
+              {
+                headers: {
+                  Accept: "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                },
+                redirect: "error",
+                signal: AbortSignal.timeout(15_000),
+              },
+            );
+            if (!response.ok) fail();
+            const payload = await response.json();
+            if (
+              payload?.object?.type !== "commit" ||
+              payload?.object?.sha !== env.EVO_UPSTREAM_HEAD_SHA
+            ) fail();
+            process.stdout.write('{"ok":true,"code":"release_deploy_admitted"}\n');
+          };
+          main().catch(fail);
+          NODE
+
+      - name: Check out exact release controller
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 0
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Set up the repository Node.js runtime
+      - name: Set up exact repository Node.js runtime
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
 
-      - name: Require exact current main and exact-SHA green CI
+      - name: Require exact clean release checkout
         env:
           EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
-          EVO_RELEASE_WORKFLOW_REVISION: ${{ github.workflow_sha }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EVO_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$EVO_RELEASE_WORKFLOW_REVISION" == "$EVO_RELEASE_REVISION" ]]
-          git fetch --no-tags origin main:refs/remotes/origin/main
           [[ "$(git rev-parse HEAD)" == "$EVO_RELEASE_REVISION" ]]
-          [[ "$(git rev-parse origin/main)" == "$EVO_RELEASE_REVISION" ]]
-          node scripts/fast-release-ci-gate.mjs
+          [[ -z "$(git status --short)" ]]
 
-      - name: Download the sealed production candidate
+      - name: Install exact browser proof runtime
+        env:
+          npm_config_cache: /tmp/evo-release-npm-cache
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Bind exact artifact record
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EVO_API_URL: ${{ github.api_url }}
+          EVO_REPOSITORY: ${{ github.repository }}
+          EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
+          EVO_RELEASE_RUN_ID: ${{ github.run_id }}
+          EVO_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          EVO_ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
+          EVO_ARTIFACT_NAME: ${{ needs.build.outputs.artifact_name }}
+        run: |
+          set -Eeuo pipefail
+          node <<'NODE'
+          const env = process.env;
+          const fail = () => {
+            process.stderr.write("::error::release_artifact_identity_failed\n");
+            process.exit(2);
+          };
+          const main = async () => {
+            if (!/^[1-9][0-9]*$/u.test(env.EVO_ARTIFACT_ID ?? "")) fail();
+            if (!/^[0-9a-f]{64}$/u.test(env.EVO_ARTIFACT_DIGEST ?? "")) fail();
+            const response = await fetch(
+              `${env.EVO_API_URL}/repos/${env.EVO_REPOSITORY}/actions/artifacts/${env.EVO_ARTIFACT_ID}`,
+              {
+                headers: {
+                  Accept: "application/vnd.github+json",
+                  Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+                  "X-GitHub-Api-Version": "2022-11-28",
+                },
+                redirect: "error",
+                signal: AbortSignal.timeout(15_000),
+              },
+            );
+            if (!response.ok) fail();
+            const artifact = await response.json();
+            if (
+              String(artifact?.id) !== env.EVO_ARTIFACT_ID ||
+              artifact?.name !== env.EVO_ARTIFACT_NAME ||
+              artifact?.expired !== false ||
+              artifact?.digest !== `sha256:${env.EVO_ARTIFACT_DIGEST}` ||
+              String(artifact?.workflow_run?.id) !== env.EVO_RELEASE_RUN_ID ||
+              artifact?.workflow_run?.head_sha !== env.EVO_RELEASE_REVISION ||
+              artifact?.workflow_run?.head_branch !== "main"
+            ) fail();
+            process.stdout.write('{"ok":true,"code":"release_artifact_bound"}\n');
+          };
+          main().catch(fail);
+          NODE
+
+      - name: Download exact candidate artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: evo-production-candidate-${{ github.event.workflow_run.head_sha }}-${{ github.run_attempt }}
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
           path: /tmp/evo-production-candidate
+          digest-mismatch: error
 
-      - name: Revalidate the sealed production candidate
+      - name: Validate closed candidate artifact
         env:
           EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
           EVO_RELEASE_WORKFLOW_REVISION: ${{ github.workflow_sha }}
+          EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
+          EVO_RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
+          EVO_ARTIFACT_NAME: ${{ needs.build.outputs.artifact_name }}
+          EVO_UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVO_UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EVO_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          EVO_ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
           EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
         run: |
           set -Eeuo pipefail
-          metadata=/tmp/evo-production-candidate/evo-production-release-image.json
-          archive=/tmp/evo-production-candidate/evo-crm-image.tar.gz
-          controller=/tmp/evo-production-candidate/evo-fast-release.sh
-          validator=/tmp/evo-production-candidate/evo-app-env-contract.mjs
-          env_example=/tmp/evo-production-candidate/env.production.example
-          [[ -f "$metadata" && ! -L "$metadata" ]]
+          umask 077
+          candidate_dir=/tmp/evo-production-candidate
+          archive="$candidate_dir/evo-crm-image.tar.gz"
+          manifest="$candidate_dir/evo-production-release-image.json"
+          [[ -d "$candidate_dir" && ! -L "$candidate_dir" ]]
+          [[ "$(find "$candidate_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == $'evo-crm-image.tar.gz\nevo-production-release-image.json' ]]
+          [[ "$(find "$candidate_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d '[:space:]')" == 2 ]]
           [[ -f "$archive" && ! -L "$archive" ]]
-          [[ -f "$controller" && ! -L "$controller" ]]
-          [[ -f "$validator" && ! -L "$validator" ]]
-          [[ -f "$env_example" && ! -L "$env_example" ]]
-          [[ "$(jq -er '.revision' "$metadata")" == "$EVO_RELEASE_REVISION" ]]
-          [[ "$(jq -er '.workflowRevision' "$metadata")" == "$EVO_RELEASE_WORKFLOW_REVISION" ]]
+          [[ -f "$manifest" && ! -L "$manifest" ]]
+          expected_keys='["architecture","archiveBytes","archiveSha256","artifactName","composeSha256","controllerSha256","envExampleSha256","imageConfigDigest","imageId","imageRevision","imageSource","imageVersion","os","releaseId","releaseWorkflowRunAttempt","releaseWorkflowRunId","repository","revision","schemaVersion","supabaseProjectRef","upstreamRunAttempt","upstreamRunId","upstreamWorkflowName","upstreamWorkflowPath","validatorSha256","workflowRevision"]'
+          jq -e --argjson expected "$expected_keys" 'keys == $expected' "$manifest" >/dev/null
+          jq -e '
+            .schemaVersion == 1 and
+            (.artifactName | type == "string") and
+            (.repository | type == "string") and
+            (.revision | type == "string" and test("^[0-9a-f]{40}$")) and
+            (.workflowRevision | type == "string" and test("^[0-9a-f]{40}$")) and
+            (.upstreamWorkflowName | type == "string") and
+            (.upstreamWorkflowPath | type == "string") and
+            (.upstreamRunId | type == "number" and . > 0 and floor == .) and
+            (.upstreamRunAttempt | type == "number" and . > 0 and floor == .) and
+            (.releaseWorkflowRunId | type == "number" and . > 0 and floor == .) and
+            (.releaseWorkflowRunAttempt | type == "number" and . > 0 and floor == .) and
+            (.releaseId | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")) and
+            (.imageId | type == "string" and test("^sha256:[0-9a-f]{64}$")) and
+            (.imageConfigDigest | type == "string" and test("^sha256:[0-9a-f]{64}$")) and
+            (.imageSource | type == "string") and
+            (.imageRevision | type == "string" and test("^[0-9a-f]{40}$")) and
+            (.imageVersion | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")) and
+            (.archiveBytes | type == "number" and . > 0 and floor == .) and
+            (.archiveSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+            (.composeSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+            (.controllerSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+            (.validatorSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+            (.envExampleSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+            (.supabaseProjectRef | type == "string" and test("^[a-z0-9]{20}$")) and
+            .os == "linux" and .architecture == "amd64"
+          ' "$manifest" >/dev/null
+          [[ "$(jq -r '.artifactName' "$manifest")" == "$EVO_ARTIFACT_NAME" ]]
+          [[ "$(jq -r '.repository' "$manifest")" == "$GITHUB_REPOSITORY" ]]
+          [[ "$(jq -r '.revision' "$manifest")" == "$EVO_RELEASE_REVISION" ]]
+          [[ "$(jq -r '.workflowRevision' "$manifest")" == "$EVO_RELEASE_WORKFLOW_REVISION" ]]
+          [[ "$(jq -r '.upstreamWorkflowName' "$manifest")" == "EVO platform CI" ]]
+          [[ "$(jq -r '.upstreamWorkflowPath' "$manifest")" == ".github/workflows/evo-platform-ci.yml" ]]
+          [[ "$(jq -r '.upstreamRunId' "$manifest")" == "$EVO_UPSTREAM_RUN_ID" ]]
+          [[ "$(jq -r '.upstreamRunAttempt' "$manifest")" == "$EVO_UPSTREAM_RUN_ATTEMPT" ]]
+          [[ "$(jq -r '.releaseWorkflowRunId' "$manifest")" == "$GITHUB_RUN_ID" ]]
+          [[ "$(jq -r '.releaseWorkflowRunAttempt' "$manifest")" == "$GITHUB_RUN_ATTEMPT" ]]
+          [[ "$(jq -r '.releaseId' "$manifest")" == "$EVO_RELEASE_ID" ]]
+          [[ "$(jq -r '.imageVersion' "$manifest")" == "$EVO_RELEASE_VERSION" ]]
+          [[ "$(jq -r '.supabaseProjectRef' "$manifest")" == "$EVO_SUPABASE_PROJECT_REF" ]]
+          [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$(jq -r '.archiveSha256' "$manifest")" ]]
+          [[ "$(wc -c < "$archive" | tr -d '[:space:]')" == "$(jq -r '.archiveBytes' "$manifest")" ]]
+          [[ "$(sha256sum docker-compose.prod.yml | awk '{print $1}')" == "$(jq -r '.composeSha256' "$manifest")" ]]
+          [[ "$(sha256sum scripts/evo-fast-release.sh | awk '{print $1}')" == "$(jq -r '.controllerSha256' "$manifest")" ]]
+          [[ "$(sha256sum scripts/evo-app-env-contract.mjs | awk '{print $1}')" == "$(jq -r '.validatorSha256' "$manifest")" ]]
+          [[ "$(sha256sum deploy/env.production.example | awk '{print $1}')" == "$(jq -r '.envExampleSha256' "$manifest")" ]]
+          [[ "$EVO_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$EVO_ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+
+      - name: Load and inspect candidate image
+        env:
+          EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          manifest=/tmp/evo-production-candidate/evo-production-release-image.json
+          archive=/tmp/evo-production-candidate/evo-crm-image.tar.gz
+          docker load --input "$archive" >/tmp/evo-production-docker-load.txt
+          expected_image_id=$(jq -r '.imageId' "$manifest")
+          expected_config_digest=$(jq -r '.imageConfigDigest' "$manifest")
+          [[ "$expected_image_id" == "$expected_config_digest" ]]
+          [[ "$(docker image inspect --format '{{.Id}}' "$expected_image_id")" == "$expected_image_id" ]]
+          [[ "$(docker image inspect --format '{{.Os}}' "$expected_image_id")" == linux ]]
+          [[ "$(docker image inspect --format '{{.Architecture}}' "$expected_image_id")" == amd64 ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$expected_image_id")" == "https://github.com/$GITHUB_REPOSITORY" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$expected_image_id")" == "$EVO_RELEASE_REVISION" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$expected_image_id")" == "$(jq -r '.imageVersion' "$manifest")" ]]
+
+      - name: Read exact Supabase migration ledger
+        env:
+          EVO_RELEASE_REPO: ${{ github.workspace }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-initial.json
+          jq -e '.ok == true' /tmp/evo-production-ledger-initial.json >/dev/null
+
+      - name: Validate non-secret production contract
+        env:
+          EVO_DEPLOY_HOST: ${{ vars.EVO_DEPLOY_HOST }}
+          EVO_DEPLOY_PORT: ${{ vars.EVO_DEPLOY_PORT }}
+          EVO_DEPLOY_USER: ${{ vars.EVO_DEPLOY_USER }}
+          EVO_RELEASE_ROOT: ${{ vars.EVO_RELEASE_ROOT }}
+          EVO_RELEASE_PROJECT_NAME: ${{ vars.EVO_RELEASE_PROJECT_NAME }}
+          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
+          EVO_RELEASE_EVIDENCE_ROOT: ${{ vars.EVO_RELEASE_EVIDENCE_ROOT }}
+          EVO_RELEASE_ROLLBACK_SEED: ${{ vars.EVO_RELEASE_ROLLBACK_SEED }}
+          EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
+          EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
+          EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVO_DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$EVO_DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]]
+          (( EVO_DEPLOY_PORT >= 1 && EVO_DEPLOY_PORT <= 65535 ))
+          [[ "$EVO_DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]{0,31}$ ]]
+          for path in \
+            "$EVO_RELEASE_ROOT" \
+            "$EVO_RELEASE_TRANSFER_ROOT" \
+            "$EVO_RELEASE_EVIDENCE_ROOT"; do
+            [[ "$path" =~ ^/[A-Za-z0-9._/-]+$ && "$path" != / && "$path" != *//* && "$path" != *'/../'* ]]
+          done
+          [[ "$EVO_RELEASE_PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]{0,99}$ ]]
+          [[ "$EVO_RELEASE_ROLLBACK_SEED" =~ ^/[A-Za-z0-9._/-]+/state\.json$ ]]
+          [[ "$EVO_RELEASE_EXTERNAL_HEALTH_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/api/health$ ]]
+          [[ "$EVO_RELEASE_MIN_FREE_KB" =~ ^[0-9]+$ ]]
+          (( EVO_RELEASE_MIN_FREE_KB >= 1048576 ))
+          [[ "$EVO_WAHA_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
-          [[ "$(jq -er '.supabaseProjectRef' "$metadata")" == "$EVO_SUPABASE_PROJECT_REF" ]]
-          [[ "$(jq -er '.imageId' "$metadata")" =~ ^sha256:[0-9a-f]{64}$ ]]
-          [[ "$(jq -er '.version' "$metadata")" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]]
-          [[ "$(jq -er '.os' "$metadata")" == linux ]]
-          [[ "$(jq -er '.architecture' "$metadata")" == amd64 ]]
-          [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$(jq -er '.archiveSha256' "$metadata")" ]]
-          [[ "$(sha256sum docker-compose.prod.yml | awk '{print $1}')" == "$(jq -er '.composeSha256' "$metadata")" ]]
-          [[ "$(sha256sum "$controller" | awk '{print $1}')" == "$(jq -er '.controllerSha256' "$metadata")" ]]
-          [[ "$(sha256sum "$validator" | awk '{print $1}')" == "$(jq -er '.validatorSha256' "$metadata")" ]]
-          [[ "$(sha256sum "$env_example" | awk '{print $1}')" == "$(jq -er '.envExampleSha256' "$metadata")" ]]
-          [[ "$(sha256sum scripts/evo-fast-release.sh | awk '{print $1}')" == "$(jq -er '.controllerSha256' "$metadata")" ]]
-          [[ "$(sha256sum scripts/evo-app-env-contract.mjs | awk '{print $1}')" == "$(jq -er '.validatorSha256' "$metadata")" ]]
-          [[ "$(sha256sum deploy/env.production.example | awk '{print $1}')" == "$(jq -er '.envExampleSha256' "$metadata")" ]]
-          chmod 700 "$controller"
-          install -m 600 "$metadata" /tmp/evo-production-release-image.json
 
       - name: Configure pinned SSH trust
+        id: configure_ssh
         env:
-          DEPLOY_HOST: ${{ vars.EVO_DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ vars.EVO_DEPLOY_PORT }}
-          DEPLOY_USER: ${{ vars.EVO_DEPLOY_USER }}
+          EVO_DEPLOY_HOST: ${{ vars.EVO_DEPLOY_HOST }}
+          EVO_DEPLOY_PORT: ${{ vars.EVO_DEPLOY_PORT }}
+          EVO_DEPLOY_USER: ${{ vars.EVO_DEPLOY_USER }}
           DEPLOY_PRIVATE_KEY: ${{ secrets.EVO_DEPLOY_SSH_PRIVATE_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.EVO_DEPLOY_KNOWN_HOSTS }}
         run: |
           set -Eeuo pipefail
-          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
-          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]]
-          [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]{0,31}$ ]]
+          umask 077
           [[ -n "$DEPLOY_PRIVATE_KEY" && -n "$DEPLOY_KNOWN_HOSTS" ]]
           install -d -m 700 "$HOME/.ssh"
           install -m 600 /dev/null "$HOME/.ssh/evo_deploy"
@@ -224,9 +620,9 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/evo_known_hosts"
           {
             printf 'Host evo-production\n'
-            printf '  HostName %s\n' "$DEPLOY_HOST"
-            printf '  Port %s\n' "$DEPLOY_PORT"
-            printf '  User %s\n' "$DEPLOY_USER"
+            printf '  HostName %s\n' "$EVO_DEPLOY_HOST"
+            printf '  Port %s\n' "$EVO_DEPLOY_PORT"
+            printf '  User %s\n' "$EVO_DEPLOY_USER"
             printf '  IdentityFile %s/.ssh/evo_deploy\n' "$HOME"
             printf '  UserKnownHostsFile %s/.ssh/evo_known_hosts\n' "$HOME"
             printf '  IdentitiesOnly yes\n'
@@ -234,9 +630,182 @@ jobs:
             printf '  BatchMode yes\n'
           } > "$HOME/.ssh/config"
           chmod 600 "$HOME/.ssh/config"
-          ssh evo-production true
 
-      - name: Validate the production release contract names
+      - name: Final live GitHub mutation guard
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EVO_GITHUB_VARIABLES_READ_TOKEN: ${{ secrets.EVO_GITHUB_VARIABLES_READ_TOKEN }}
+          EVO_API_URL: ${{ github.api_url }}
+          EVO_REPOSITORY: ${{ github.repository }}
+          EVO_REPOSITORY_ID: ${{ github.repository_id }}
+          EVO_RELEASE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
+          EVO_ORIGINAL_ACTOR_ID: ${{ github.actor_id }}
+          EVO_UPSTREAM_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
+          EVO_UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVO_UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EVO_RELEASE_RUN_ID: ${{ github.run_id }}
+          EVO_RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVO_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          EVO_ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
+          EVO_ARTIFACT_NAME: ${{ needs.build.outputs.artifact_name }}
+        run: |
+          set -Eeuo pipefail
+          node <<'NODE'
+          const env = process.env;
+          const fail = () => {
+            process.stderr.write("::error::release_live_mutation_guard_failed\n");
+            process.exit(2);
+          };
+          const get = async (path, token) => {
+            if (typeof token !== "string" || token.length < 1) fail();
+            const response = await fetch(`${env.EVO_API_URL}${path}`, {
+              headers: {
+                Accept: "application/vnd.github+json",
+                Authorization: `Bearer ${token}`,
+                "X-GitHub-Api-Version": "2022-11-28",
+              },
+              redirect: "error",
+              signal: AbortSignal.timeout(15_000),
+            });
+            if (!response.ok) fail();
+            return response.json();
+          };
+          const variable = async (name) => {
+            const payload = await get(
+              `/repos/${env.EVO_REPOSITORY}/actions/variables/${name}`,
+              env.EVO_GITHUB_VARIABLES_READ_TOKEN,
+            );
+            if (
+              payload === null || typeof payload !== "object" || Array.isArray(payload) ||
+              payload.name !== name || typeof payload.value !== "string" ||
+              typeof payload.created_at !== "string" || typeof payload.updated_at !== "string"
+            ) fail();
+            return payload.value;
+          };
+          const main = async () => {
+            if (env.EVO_REPOSITORY !== "izzhackt/evo_AI_CRM") fail();
+            if (!/^[0-9a-f]{40}$/u.test(env.EVO_RELEASE_REVISION ?? "")) fail();
+            if (env.EVO_RELEASE_WORKFLOW_SHA !== env.EVO_RELEASE_REVISION) fail();
+            for (const name of [
+              "EVO_REPOSITORY_ID",
+              "EVO_ORIGINAL_ACTOR_ID",
+              "EVO_UPSTREAM_RUN_ID",
+              "EVO_UPSTREAM_RUN_ATTEMPT",
+              "EVO_RELEASE_RUN_ID",
+              "EVO_RELEASE_RUN_ATTEMPT",
+              "EVO_ARTIFACT_ID",
+            ]) {
+              if (!/^[1-9][0-9]*$/u.test(env[name] ?? "")) fail();
+            }
+            if (env.EVO_UPSTREAM_ACTOR_ID !== env.EVO_ORIGINAL_ACTOR_ID) fail();
+            if (!/^[0-9a-f]{64}$/u.test(env.EVO_ARTIFACT_DIGEST ?? "")) fail();
+            if (
+              env.EVO_ARTIFACT_NAME !==
+              `evo-v3-production-${env.EVO_RELEASE_REVISION}-${env.EVO_RELEASE_RUN_ID}-${env.EVO_RELEASE_RUN_ATTEMPT}`
+            ) fail();
+            const [ref, ci, artifact, checks, liveArm, liveActor] = await Promise.all([
+              get(`/repos/${env.EVO_REPOSITORY}/git/ref/heads/main`, env.GITHUB_TOKEN),
+              get(`/repos/${env.EVO_REPOSITORY}/actions/runs/${env.EVO_UPSTREAM_RUN_ID}`, env.GITHUB_TOKEN),
+              get(`/repos/${env.EVO_REPOSITORY}/actions/artifacts/${env.EVO_ARTIFACT_ID}`, env.GITHUB_TOKEN),
+              get(`/repos/${env.EVO_REPOSITORY}/commits/${env.EVO_RELEASE_REVISION}/check-runs?filter=latest&per_page=100`, env.GITHUB_TOKEN),
+              variable("EVO_PRODUCTION_RELEASE_ARMED"),
+              variable("EVO_PRODUCTION_RELEASE_ACTOR_ID"),
+            ]);
+            if (ref?.object?.type !== "commit" || ref?.object?.sha !== env.EVO_RELEASE_REVISION) fail();
+            if (
+              ci?.name !== "EVO platform CI" ||
+              ci?.path !== ".github/workflows/evo-platform-ci.yml" ||
+              ci?.status !== "completed" || ci?.conclusion !== "success" ||
+              ci?.event !== "push" || ci?.head_branch !== "main" ||
+              ci?.head_sha !== env.EVO_RELEASE_REVISION ||
+              ci?.head_repository?.full_name !== env.EVO_REPOSITORY ||
+              String(ci?.head_repository?.id) !== env.EVO_REPOSITORY_ID ||
+              String(ci?.id) !== env.EVO_UPSTREAM_RUN_ID ||
+              String(ci?.run_attempt) !== env.EVO_UPSTREAM_RUN_ATTEMPT ||
+              String(ci?.actor?.id) !== env.EVO_ORIGINAL_ACTOR_ID
+            ) fail();
+            if (
+              String(artifact?.id) !== env.EVO_ARTIFACT_ID ||
+              artifact?.name !== env.EVO_ARTIFACT_NAME || artifact?.expired !== false ||
+              artifact?.digest !== `sha256:${env.EVO_ARTIFACT_DIGEST}` ||
+              String(artifact?.workflow_run?.id) !== env.EVO_RELEASE_RUN_ID ||
+              artifact?.workflow_run?.head_sha !== env.EVO_RELEASE_REVISION ||
+              artifact?.workflow_run?.head_branch !== "main"
+            ) fail();
+            const mainCrmChecks = Array.isArray(checks?.check_runs)
+              ? checks.check_runs.filter((run) => run?.name === "Main CRM")
+              : [];
+            if (
+              mainCrmChecks.length === 0 ||
+              !mainCrmChecks.every((run) =>
+                run?.status === "completed" && run?.conclusion === "success" &&
+                run?.app?.slug === "github-actions")
+            ) fail();
+            if (liveArm !== "true" || !/^[1-9][0-9]*$/u.test(liveActor) || liveActor !== env.EVO_ORIGINAL_ACTOR_ID) fail();
+            process.stdout.write('{"ok":true,"code":"release_live_mutation_guard_passed"}\n');
+          };
+          main().catch(fail);
+          NODE
+
+      - name: Final Supabase ledger mutation guard
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_RELEASE_REPO: ${{ github.workspace }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-live.json
+          jq -e '.ok == true' /tmp/evo-production-ledger-live.json >/dev/null
+
+      - name: Transfer exact release allowlist
+        id: transfer_release
+        env:
+          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
+          EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          transfer_dir="$EVO_RELEASE_TRANSFER_ROOT/$EVO_RELEASE_ID"
+          [[ "$transfer_dir" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          printf '%s\n' "$transfer_dir" > /tmp/evo-production-release-transfer-dir
+          ssh evo-production bash -s -- "$EVO_RELEASE_TRANSFER_ROOT" "$transfer_dir" <<'REMOTE'
+          set -Eeuo pipefail
+          transfer_root=$1
+          transfer_dir=$2
+          [[ "$transfer_root" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$transfer_dir" == "$transfer_root/"* ]]
+          [[ -d "$transfer_root" && ! -L "$transfer_root" ]]
+          mkdir --mode=700 -- "$transfer_dir"
+          [[ -d "$transfer_dir" && ! -L "$transfer_dir" ]]
+          REMOTE
+          install -m 600 /dev/null /tmp/evo-production-release-transfer-owned
+          scp /tmp/evo-production-candidate/evo-crm-image.tar.gz \
+            "evo-production:$transfer_dir/evo-crm-image.tar.gz"
+          scp /tmp/evo-production-candidate/evo-production-release-image.json \
+            "evo-production:$transfer_dir/evo-production-release-image.json"
+          scp docker-compose.prod.yml \
+            "evo-production:$transfer_dir/docker-compose.prod.yml"
+          scp scripts/evo-fast-release.sh \
+            "evo-production:$transfer_dir/evo-fast-release.sh"
+          scp scripts/evo-app-env-contract.mjs \
+            "evo-production:$transfer_dir/evo-app-env-contract.mjs"
+          scp deploy/env.production.example \
+            "evo-production:$transfer_dir/env.production.example"
+          ssh evo-production bash -s -- "$transfer_dir" <<'REMOTE'
+          set -Eeuo pipefail
+          transfer_dir=$1
+          expected=$'docker-compose.prod.yml\nenv.production.example\nevo-app-env-contract.mjs\nevo-crm-image.tar.gz\nevo-fast-release.sh\nevo-production-release-image.json'
+          [[ -d "$transfer_dir" && ! -L "$transfer_dir" ]]
+          [[ "$(find "$transfer_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == "$expected" ]]
+          [[ "$(find "$transfer_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d '[:space:]')" == 6 ]]
+          while IFS= read -r path; do
+            [[ -f "$path" && ! -L "$path" ]]
+          done < <(find "$transfer_dir" -mindepth 1 -maxdepth 1 -type f -print)
+          REMOTE
+
+      - name: Deploy exact candidate as pending
+        id: deploy_candidate
         env:
           EVO_RELEASE_ROOT: ${{ vars.EVO_RELEASE_ROOT }}
           EVO_RELEASE_PROJECT_NAME: ${{ vars.EVO_RELEASE_PROJECT_NAME }}
@@ -247,238 +816,570 @@ jobs:
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
           EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
           EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
-        run: |
-          set -Eeuo pipefail
-          [[ "$EVO_RELEASE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$EVO_RELEASE_PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]{0,99}$ ]]
-          [[ "$EVO_RELEASE_TRANSFER_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$EVO_RELEASE_EVIDENCE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$EVO_RELEASE_ROLLBACK_SEED" =~ ^/[A-Za-z0-9._/-]+/state\.json$ ]]
-          [[ "$EVO_RELEASE_EXTERNAL_HEALTH_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/api/health$ ]]
-          [[ "$EVO_RELEASE_MIN_FREE_KB" =~ ^[0-9]+$ ]]
-          (( EVO_RELEASE_MIN_FREE_KB >= 1048576 ))
-          [[ "$EVO_WAHA_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
-          [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
-          for path in "$EVO_RELEASE_ROOT" "$EVO_RELEASE_TRANSFER_ROOT" "$EVO_RELEASE_EVIDENCE_ROOT" "$EVO_RELEASE_ROLLBACK_SEED"; do
-            [[ "$path" != / && "$path" != *//* && "$path" != */../* && "$path" != */.. && "$path" != */./* && "$path" != */. ]]
-          done
-
-      - name: Verify the production migration ledger without mutation
-        env:
-          EVO_RELEASE_REPO: ${{ github.workspace }}
-          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          set -Eeuo pipefail
-          [[ -n "$SUPABASE_ACCESS_TOKEN" ]]
-          node scripts/fast-release-ledger-gate.mjs > /tmp/evo-production-release-ledger.json
-
-      - name: Transfer the immutable release bundle to Hermes
-        env:
+          EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
+          EVO_RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
           EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
-          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
+          EVO_RELEASE_REPOSITORY: ${{ github.repository }}
+          EVO_RELEASE_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVO_RELEASE_UPSTREAM_CI_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EVO_RELEASE_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          EVO_RELEASE_ARTIFACT_DIGEST: sha256:${{ needs.build.outputs.artifact_digest }}
         run: |
           set -Eeuo pipefail
-          [[ "$EVO_RELEASE_TRANSFER_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          run_id="gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          transfer_dir="$EVO_RELEASE_TRANSFER_ROOT/${EVO_RELEASE_REVISION}-${run_id}"
+          transfer_dir=$(< /tmp/evo-production-release-transfer-dir)
+          manifest=/tmp/evo-production-candidate/evo-production-release-image.json
+          manifest_sha256=$(sha256sum "$manifest" | awk '{print $1}')
+          archive_sha256=$(jq -r '.archiveSha256' "$manifest")
+          image_id=$(jq -r '.imageId' "$manifest")
+          image_config_digest=$(jq -r '.imageConfigDigest' "$manifest")
+          compose_sha256=$(jq -r '.composeSha256' "$manifest")
+          controller_sha256=$(jq -r '.controllerSha256' "$manifest")
+          validator_sha256=$(jq -r '.validatorSha256' "$manifest")
+          env_example_sha256=$(jq -r '.envExampleSha256' "$manifest")
+          release_run_id="release-${EVO_RELEASE_WORKFLOW_RUN_ID}-${EVO_RELEASE_WORKFLOW_RUN_ATTEMPT}"
+          if ! ssh evo-production bash -s -- \
+            "$transfer_dir" "$EVO_RELEASE_TRANSFER_ROOT" "$EVO_RELEASE_ROOT" \
+            "$EVO_RELEASE_PROJECT_NAME" "$EVO_RELEASE_EVIDENCE_ROOT" \
+            "$EVO_RELEASE_ROLLBACK_SEED" "$EVO_RELEASE_EXTERNAL_HEALTH_URL" \
+            "$EVO_RELEASE_MIN_FREE_KB" "$EVO_WAHA_IMAGE_DIGEST" \
+            "$EVO_SUPABASE_PROJECT_REF" "$EVO_RELEASE_ID" "$EVO_RELEASE_REPOSITORY" \
+            "$EVO_RELEASE_REVISION" "$EVO_RELEASE_VERSION" "$release_run_id" \
+            "$EVO_RELEASE_WORKFLOW_RUN_ID" "$EVO_RELEASE_WORKFLOW_RUN_ATTEMPT" \
+            "$EVO_RELEASE_UPSTREAM_CI_RUN_ID" "$EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT" \
+            "$EVO_RELEASE_ARTIFACT_ID" "$EVO_RELEASE_ARTIFACT_DIGEST" \
+            "$archive_sha256" "$image_id" "$image_config_digest" \
+            "$compose_sha256" "$controller_sha256" "$validator_sha256" \
+            "$env_example_sha256" "$manifest_sha256" <<'REMOTE' \
+            > /tmp/evo-production-deploy-result.json \
+            2> /tmp/evo-production-deploy-error.log; then
+          set -Eeuo pipefail
+          transfer_dir=$1
+          transfer_root=$2
+          release_root=$3
+          project_name=$4
+          evidence_root=$5
+          rollback_seed=$6
+          health_url=$7
+          min_free_kb=$8
+          waha_digest=$9
+          shift 9
+          supabase_ref=$1
+          release_id=$2
+          repository=$3
+          revision=$4
+          version=$5
+          release_run_id=$6
+          workflow_run_id=$7
+          workflow_run_attempt=$8
+          upstream_run_id=$9
+          shift 9
+          upstream_run_attempt=$1
+          artifact_id=$2
+          artifact_digest=$3
+          archive_sha256=$4
+          image_id=$5
+          image_config_digest=$6
+          compose_sha256=$7
+          controller_sha256=$8
+          validator_sha256=$9
+          shift 9
+          env_example_sha256=$1
+          manifest_sha256=$2
+          archive="$transfer_dir/evo-crm-image.tar.gz"
+          manifest="$transfer_dir/evo-production-release-image.json"
+          compose_file="$transfer_dir/docker-compose.prod.yml"
+          controller="$transfer_dir/evo-fast-release.sh"
+          validator="$transfer_dir/evo-app-env-contract.mjs"
+          env_example="$transfer_dir/env.production.example"
+          [[ "$transfer_dir" == "$transfer_root/"* ]]
+          expected_inventory=$'docker-compose.prod.yml\nenv.production.example\nevo-app-env-contract.mjs\nevo-crm-image.tar.gz\nevo-fast-release.sh\nevo-production-release-image.json'
+          [[ "$(find "$transfer_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort)" == "$expected_inventory" ]]
+          [[ "$(find "$transfer_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d '[:space:]')" == 6 ]]
+          for transfer_file in "$archive" "$manifest" "$compose_file" "$controller" "$validator" "$env_example"; do
+            [[ -f "$transfer_file" && ! -L "$transfer_file" ]]
+          done
+          [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$archive_sha256" ]]
+          [[ "$(sha256sum "$manifest" | awk '{print $1}')" == "$manifest_sha256" ]]
+          [[ "$(sha256sum "$compose_file" | awk '{print $1}')" == "$compose_sha256" ]]
+          [[ "$(sha256sum "$controller" | awk '{print $1}')" == "$controller_sha256" ]]
+          [[ "$(sha256sum "$validator" | awk '{print $1}')" == "$validator_sha256" ]]
+          [[ "$(sha256sum "$env_example" | awk '{print $1}')" == "$env_example_sha256" ]]
+          chmod 700 "$controller"
+          chmod 600 "$manifest" "$compose_file" "$validator" "$env_example"
+          export EVO_RELEASE_ROOT="$release_root"
+          export EVO_RELEASE_PROJECT_NAME="$project_name"
+          export EVO_RELEASE_TRANSFER_ROOT="$transfer_root"
+          export EVO_RELEASE_EVIDENCE_ROOT="$evidence_root"
+          export EVO_RELEASE_ROLLBACK_SEED="$rollback_seed"
+          export EVO_RELEASE_COMPOSE_FILE="$compose_file"
+          export EVO_RELEASE_ACTIVE_COMPOSE_FILE="$release_root/docker-compose.prod.yml"
+          export EVO_RELEASE_APP_ENV_FILE="$release_root/.env.production"
+          export EVO_RELEASE_ENV_EXAMPLE_FILE="$env_example"
+          export EVO_RELEASE_EXTERNAL_HEALTH_URL="$health_url"
+          export EVO_RELEASE_MIN_FREE_KB="$min_free_kb"
+          export EVO_WAHA_IMAGE_DIGEST="$waha_digest"
+          export EVO_SUPABASE_PROJECT_REF="$supabase_ref"
+          export EVO_RELEASE_ID="$release_id"
+          export EVO_RELEASE_REPOSITORY="$repository"
+          export EVO_RELEASE_REVISION="$revision"
+          export EVO_RELEASE_VERSION="$version"
+          export EVO_RELEASE_RUN_ID="$release_run_id"
+          export EVO_RELEASE_WORKFLOW_RUN_ID="$workflow_run_id"
+          export EVO_RELEASE_WORKFLOW_RUN_ATTEMPT="$workflow_run_attempt"
+          export EVO_RELEASE_UPSTREAM_CI_RUN_ID="$upstream_run_id"
+          export EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT="$upstream_run_attempt"
+          export EVO_RELEASE_ARTIFACT_ID="$artifact_id"
+          export EVO_RELEASE_ARTIFACT_DIGEST="$artifact_digest"
+          export EVO_RELEASE_ARCHIVE="$archive"
+          export EVO_RELEASE_ARCHIVE_SHA256="$archive_sha256"
+          export EVO_RELEASE_EXPECTED_IMAGE_ID="$image_id"
+          export EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST="$image_config_digest"
+          export EVO_RELEASE_EXPECTED_COMPOSE_SHA256="$compose_sha256"
+          exec "$controller" deploy
+          REMOTE
+            printf '%s\n' '::error::production_candidate_deploy_failed' >&2
+            exit 2
+          fi
+          jq -e --arg releaseId "$EVO_RELEASE_ID" --arg evidenceDir "$EVO_RELEASE_EVIDENCE_ROOT/$EVO_RELEASE_ID" '
+            keys == ["command","evidenceDir","ok","releaseId","status"] and
+            .ok == true and .command == "deploy" and .status == "pending" and
+            .releaseId == $releaseId and .evidenceDir == $evidenceDir
+          ' /tmp/evo-production-deploy-result.json >/dev/null
+          install -m 600 /dev/null /tmp/evo-production-release-evidence-dir
+          printf '%s\n' "$EVO_RELEASE_EVIDENCE_ROOT/$EVO_RELEASE_ID" > /tmp/evo-production-release-evidence-dir
+
+      - name: Authenticated read-only V3 browser smoke
+        id: browser_smoke
+        env:
+          EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
+          EVO_PRODUCTION_SMOKE_ADMIN_EMAIL: ${{ secrets.EVO_PRODUCTION_SMOKE_ADMIN_EMAIL }}
+          EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD: ${{ secrets.EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD }}
+          EVO_PRODUCTION_SMOKE_RECEIPT: /tmp/evo-v3-browser-receipt.json
+          EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
+          EVO_RELEASE_REPOSITORY: ${{ github.repository }}
+          EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
+          EVO_RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
+          EVO_RELEASE_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVO_RELEASE_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          EVO_RELEASE_ARTIFACT_DIGEST: sha256:${{ needs.build.outputs.artifact_digest }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/evo-production-browser-smoke.mjs
+          [[ -f /tmp/evo-v3-browser-receipt.json && ! -L /tmp/evo-v3-browser-receipt.json ]]
+          [[ "$(stat -c '%a' /tmp/evo-v3-browser-receipt.json)" == 600 ]]
+
+      - name: Rollback pending candidate after browser proof failure
+        id: browser_rollback
+        if: ${{ always() && steps.deploy_candidate.outcome == 'success' && steps.browser_smoke.outcome == 'failure' }}
+        env:
+          EVO_RELEASE_EVIDENCE_ROOT: ${{ vars.EVO_RELEASE_EVIDENCE_ROOT }}
+          EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
+        run: |
+          set -Eeuo pipefail
+          evidence_dir=$(< /tmp/evo-production-release-evidence-dir)
+          [[ "$evidence_dir" == "$EVO_RELEASE_EVIDENCE_ROOT/$EVO_RELEASE_ID" ]]
+          if ! ssh evo-production bash -s -- "$evidence_dir/rollback-command.sh" \
+            > /tmp/evo-production-browser-rollback.json \
+            2> /tmp/evo-production-browser-rollback-error.log <<'REMOTE'; then
+          set -Eeuo pipefail
+          rollback_wrapper=$1
+          [[ -f "$rollback_wrapper" && ! -L "$rollback_wrapper" && -x "$rollback_wrapper" ]]
+          exec "$rollback_wrapper" pending-only
+          REMOTE
+            printf '%s\n' '::error::production_browser_failure_pending_rollback_refused' >&2
+            exit 2
+          fi
+          jq -e --arg releaseId "$EVO_RELEASE_ID" '
+            keys == ["command","ok","releaseId","status"] and
+            .ok == true and .command == "rollback-pending" and
+            .status == "rolled_back" and .releaseId == $releaseId
+          ' /tmp/evo-production-browser-rollback.json >/dev/null
+
+      - name: Final live GitHub acceptance guard
+        id: acceptance_github_guard
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EVO_GITHUB_VARIABLES_READ_TOKEN: ${{ secrets.EVO_GITHUB_VARIABLES_READ_TOKEN }}
+          EVO_API_URL: ${{ github.api_url }}
+          EVO_REPOSITORY: ${{ github.repository }}
+          EVO_REPOSITORY_ID: ${{ github.repository_id }}
+          EVO_RELEASE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
+          EVO_ORIGINAL_ACTOR_ID: ${{ github.actor_id }}
+          EVO_UPSTREAM_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
+          EVO_UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVO_UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EVO_RELEASE_RUN_ID: ${{ github.run_id }}
+          EVO_RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVO_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          EVO_ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
+          EVO_ARTIFACT_NAME: ${{ needs.build.outputs.artifact_name }}
+        run: |
+          set -Eeuo pipefail
+          node <<'NODE'
+          const env = process.env;
+          const fail = () => {
+            process.stderr.write("::error::release_live_acceptance_guard_failed\n");
+            process.exit(2);
+          };
+          const get = async (path, token) => {
+            if (typeof token !== "string" || token.length < 1) fail();
+            const response = await fetch(`${env.EVO_API_URL}${path}`, {
+              headers: {
+                Accept: "application/vnd.github+json",
+                Authorization: `Bearer ${token}`,
+                "X-GitHub-Api-Version": "2022-11-28",
+              },
+              redirect: "error",
+              signal: AbortSignal.timeout(15_000),
+            });
+            if (!response.ok) fail();
+            return response.json();
+          };
+          const variable = async (name) => {
+            const payload = await get(
+              `/repos/${env.EVO_REPOSITORY}/actions/variables/${name}`,
+              env.EVO_GITHUB_VARIABLES_READ_TOKEN,
+            );
+            if (
+              payload === null || typeof payload !== "object" || Array.isArray(payload) ||
+              payload.name !== name || typeof payload.value !== "string" ||
+              typeof payload.created_at !== "string" || typeof payload.updated_at !== "string"
+            ) fail();
+            return payload.value;
+          };
+          const main = async () => {
+            if (env.EVO_REPOSITORY !== "izzhackt/evo_AI_CRM") fail();
+            if (!/^[0-9a-f]{40}$/u.test(env.EVO_RELEASE_REVISION ?? "")) fail();
+            if (env.EVO_RELEASE_WORKFLOW_SHA !== env.EVO_RELEASE_REVISION) fail();
+            for (const name of [
+              "EVO_REPOSITORY_ID",
+              "EVO_ORIGINAL_ACTOR_ID",
+              "EVO_UPSTREAM_RUN_ID",
+              "EVO_UPSTREAM_RUN_ATTEMPT",
+              "EVO_RELEASE_RUN_ID",
+              "EVO_RELEASE_RUN_ATTEMPT",
+              "EVO_ARTIFACT_ID",
+            ]) {
+              if (!/^[1-9][0-9]*$/u.test(env[name] ?? "")) fail();
+            }
+            if (env.EVO_UPSTREAM_ACTOR_ID !== env.EVO_ORIGINAL_ACTOR_ID) fail();
+            if (!/^[0-9a-f]{64}$/u.test(env.EVO_ARTIFACT_DIGEST ?? "")) fail();
+            if (
+              env.EVO_ARTIFACT_NAME !==
+              `evo-v3-production-${env.EVO_RELEASE_REVISION}-${env.EVO_RELEASE_RUN_ID}-${env.EVO_RELEASE_RUN_ATTEMPT}`
+            ) fail();
+            const [ref, ci, artifact, checks, liveArm, liveActor] = await Promise.all([
+              get(`/repos/${env.EVO_REPOSITORY}/git/ref/heads/main`, env.GITHUB_TOKEN),
+              get(`/repos/${env.EVO_REPOSITORY}/actions/runs/${env.EVO_UPSTREAM_RUN_ID}`, env.GITHUB_TOKEN),
+              get(`/repos/${env.EVO_REPOSITORY}/actions/artifacts/${env.EVO_ARTIFACT_ID}`, env.GITHUB_TOKEN),
+              get(`/repos/${env.EVO_REPOSITORY}/commits/${env.EVO_RELEASE_REVISION}/check-runs?filter=latest&per_page=100`, env.GITHUB_TOKEN),
+              variable("EVO_PRODUCTION_RELEASE_ARMED"),
+              variable("EVO_PRODUCTION_RELEASE_ACTOR_ID"),
+            ]);
+            if (ref?.object?.type !== "commit" || ref?.object?.sha !== env.EVO_RELEASE_REVISION) fail();
+            if (
+              ci?.name !== "EVO platform CI" ||
+              ci?.path !== ".github/workflows/evo-platform-ci.yml" ||
+              ci?.status !== "completed" || ci?.conclusion !== "success" ||
+              ci?.event !== "push" || ci?.head_branch !== "main" ||
+              ci?.head_sha !== env.EVO_RELEASE_REVISION ||
+              ci?.head_repository?.full_name !== env.EVO_REPOSITORY ||
+              String(ci?.head_repository?.id) !== env.EVO_REPOSITORY_ID ||
+              String(ci?.id) !== env.EVO_UPSTREAM_RUN_ID ||
+              String(ci?.run_attempt) !== env.EVO_UPSTREAM_RUN_ATTEMPT ||
+              String(ci?.actor?.id) !== env.EVO_ORIGINAL_ACTOR_ID
+            ) fail();
+            if (
+              String(artifact?.id) !== env.EVO_ARTIFACT_ID ||
+              artifact?.name !== env.EVO_ARTIFACT_NAME || artifact?.expired !== false ||
+              artifact?.digest !== `sha256:${env.EVO_ARTIFACT_DIGEST}` ||
+              String(artifact?.workflow_run?.id) !== env.EVO_RELEASE_RUN_ID ||
+              artifact?.workflow_run?.head_sha !== env.EVO_RELEASE_REVISION ||
+              artifact?.workflow_run?.head_branch !== "main"
+            ) fail();
+            const mainCrmChecks = Array.isArray(checks?.check_runs)
+              ? checks.check_runs.filter((run) => run?.name === "Main CRM")
+              : [];
+            if (
+              mainCrmChecks.length === 0 ||
+              !mainCrmChecks.every((run) =>
+                run?.status === "completed" && run?.conclusion === "success" &&
+                run?.app?.slug === "github-actions")
+            ) fail();
+            if (liveArm !== "true" || !/^[1-9][0-9]*$/u.test(liveActor) || liveActor !== env.EVO_ORIGINAL_ACTOR_ID) fail();
+            process.stdout.write('{"ok":true,"code":"release_live_acceptance_guard_passed"}\n');
+          };
+          main().catch(fail);
+          NODE
+
+      - name: Final Supabase ledger acceptance guard
+        id: acceptance_ledger_guard
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_RELEASE_REPO: ${{ github.workspace }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-accept.json
+          jq -e '.ok == true' /tmp/evo-production-ledger-accept.json >/dev/null
+
+      - name: Accept exact V3 candidate
+        id: accept_candidate
+        env:
+          EVO_RELEASE_ROOT: ${{ vars.EVO_RELEASE_ROOT }}
+          EVO_RELEASE_PROJECT_NAME: ${{ vars.EVO_RELEASE_PROJECT_NAME }}
+          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
+          EVO_RELEASE_EVIDENCE_ROOT: ${{ vars.EVO_RELEASE_EVIDENCE_ROOT }}
+          EVO_RELEASE_ROLLBACK_SEED: ${{ vars.EVO_RELEASE_ROLLBACK_SEED }}
+          EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
+          EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
+          EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
+          EVO_RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
+          EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
+          EVO_RELEASE_REPOSITORY: ${{ github.repository }}
+          EVO_RELEASE_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVO_RELEASE_UPSTREAM_CI_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EVO_RELEASE_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          EVO_RELEASE_ARTIFACT_DIGEST: sha256:${{ needs.build.outputs.artifact_digest }}
+          EVO_RELEASE_ACTOR_ID: ${{ github.actor_id }}
+          EVO_RELEASE_CURRENT_MAIN_REVISION: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          transfer_dir=$(< /tmp/evo-production-release-transfer-dir)
+          evidence_dir=$(< /tmp/evo-production-release-evidence-dir)
+          receipt=/tmp/evo-v3-browser-receipt.json
+          receipt_sha256=$(sha256sum "$receipt" | awk '{print $1}')
+          controller_sha256=$(jq -r '.controllerSha256' /tmp/evo-production-candidate/evo-production-release-image.json)
+          release_run_id="release-${EVO_RELEASE_WORKFLOW_RUN_ID}-${EVO_RELEASE_WORKFLOW_RUN_ATTEMPT}"
+          rollback_pending_atomically() {
+            if ! ssh evo-production bash -s -- "$evidence_dir/rollback-command.sh" \
+              > /tmp/evo-production-accept-rollback.json \
+              2> /tmp/evo-production-accept-rollback-error.log <<'REMOTE'; then
+            set -Eeuo pipefail
+            rollback_wrapper=$1
+            [[ -f "$rollback_wrapper" && ! -L "$rollback_wrapper" && -x "$rollback_wrapper" ]]
+            exec "$rollback_wrapper" pending-only
+          REMOTE
+              return 1
+            fi
+            jq -e --arg releaseId "$EVO_RELEASE_ID" '
+              keys == ["command","ok","releaseId","status"] and
+              .ok == true and .command == "rollback-pending" and
+              .status == "rolled_back" and .releaseId == $releaseId
+            ' /tmp/evo-production-accept-rollback.json >/dev/null
+          }
+          if ! scp "$receipt" "evo-production:$transfer_dir/browser-receipt.json"; then
+            if rollback_pending_atomically; then
+              printf '%s\n' '::error::production_browser_receipt_transfer_failed_and_rolled_back' >&2
+            else
+              printf '%s\n' '::error::production_browser_receipt_transfer_failed_pending_rollback_refused' >&2
+            fi
+            exit 2
+          fi
+          run_candidate_command() {
+            command_name=$1
+            output_file=$2
+            ssh evo-production bash -s -- \
+              "$command_name" "$transfer_dir" "$EVO_RELEASE_TRANSFER_ROOT" \
+              "$EVO_RELEASE_ROOT" "$EVO_RELEASE_PROJECT_NAME" "$EVO_RELEASE_EVIDENCE_ROOT" \
+              "$EVO_RELEASE_ROLLBACK_SEED" "$EVO_RELEASE_EXTERNAL_HEALTH_URL" \
+              "$EVO_RELEASE_MIN_FREE_KB" "$EVO_WAHA_IMAGE_DIGEST" \
+              "$EVO_SUPABASE_PROJECT_REF" "$EVO_RELEASE_ID" "$EVO_RELEASE_REPOSITORY" \
+              "$EVO_RELEASE_REVISION" "$EVO_RELEASE_VERSION" "$release_run_id" \
+              "$EVO_RELEASE_WORKFLOW_RUN_ID" "$EVO_RELEASE_WORKFLOW_RUN_ATTEMPT" \
+              "$EVO_RELEASE_UPSTREAM_CI_RUN_ID" "$EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT" \
+              "$EVO_RELEASE_ARTIFACT_ID" "$EVO_RELEASE_ARTIFACT_DIGEST" \
+              "$EVO_RELEASE_ACTOR_ID" "$EVO_RELEASE_CURRENT_MAIN_REVISION" \
+              "$receipt_sha256" "$controller_sha256" \
+              > "$output_file" 2>/tmp/evo-production-candidate-command-error.log <<'REMOTE'
+            set -Eeuo pipefail
+            command_name=$1
+            transfer_dir=$2
+            transfer_root=$3
+            release_root=$4
+            project_name=$5
+            evidence_root=$6
+            rollback_seed=$7
+            health_url=$8
+            min_free_kb=$9
+            shift 9
+            waha_digest=$1
+            supabase_ref=$2
+            release_id=$3
+            repository=$4
+            revision=$5
+            version=$6
+            release_run_id=$7
+            workflow_run_id=$8
+            workflow_run_attempt=$9
+            shift 9
+            upstream_run_id=$1
+            upstream_run_attempt=$2
+            artifact_id=$3
+            artifact_digest=$4
+            actor_id=$5
+            current_main_revision=$6
+            receipt_sha256=$7
+            controller_sha256=$8
+            controller="$transfer_dir/evo-fast-release.sh"
+            receipt_source="$transfer_dir/browser-receipt.json"
+            receipt_target="$evidence_root/$release_id/browser-receipt.json"
+            [[ "$command_name" == accept-candidate || "$command_name" == candidate-status ]]
+            [[ -f "$controller" && ! -L "$controller" ]]
+            [[ "$(sha256sum "$controller" | awk '{print $1}')" == "$controller_sha256" ]]
+            if [[ "$command_name" == accept-candidate ]]; then
+              [[ -f "$receipt_source" && ! -L "$receipt_source" ]]
+              [[ "$(sha256sum "$receipt_source" | awk '{print $1}')" == "$receipt_sha256" ]]
+              install -m 600 "$receipt_source" "$receipt_target"
+              [[ -f "$receipt_target" && ! -L "$receipt_target" ]]
+              [[ "$(sha256sum "$receipt_target" | awk '{print $1}')" == "$receipt_sha256" ]]
+            fi
+            chmod 700 "$controller"
+            export EVO_RELEASE_ROOT="$release_root"
+            export EVO_RELEASE_PROJECT_NAME="$project_name"
+            export EVO_RELEASE_TRANSFER_ROOT="$transfer_root"
+            export EVO_RELEASE_EVIDENCE_ROOT="$evidence_root"
+            export EVO_RELEASE_ROLLBACK_SEED="$rollback_seed"
+            export EVO_RELEASE_COMPOSE_FILE="$transfer_dir/docker-compose.prod.yml"
+            export EVO_RELEASE_ACTIVE_COMPOSE_FILE="$release_root/docker-compose.prod.yml"
+            export EVO_RELEASE_APP_ENV_FILE="$release_root/.env.production"
+            export EVO_RELEASE_ENV_EXAMPLE_FILE="$transfer_dir/env.production.example"
+            export EVO_RELEASE_EXTERNAL_HEALTH_URL="$health_url"
+            export EVO_RELEASE_MIN_FREE_KB="$min_free_kb"
+            export EVO_WAHA_IMAGE_DIGEST="$waha_digest"
+            export EVO_SUPABASE_PROJECT_REF="$supabase_ref"
+            export EVO_RELEASE_ID="$release_id"
+            export EVO_RELEASE_REPOSITORY="$repository"
+            export EVO_RELEASE_REVISION="$revision"
+            export EVO_RELEASE_VERSION="$version"
+            export EVO_RELEASE_RUN_ID="$release_run_id"
+            export EVO_RELEASE_WORKFLOW_RUN_ID="$workflow_run_id"
+            export EVO_RELEASE_WORKFLOW_RUN_ATTEMPT="$workflow_run_attempt"
+            export EVO_RELEASE_UPSTREAM_CI_RUN_ID="$upstream_run_id"
+            export EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT="$upstream_run_attempt"
+            export EVO_RELEASE_ARTIFACT_ID="$artifact_id"
+            export EVO_RELEASE_ARTIFACT_DIGEST="$artifact_digest"
+            export EVO_RELEASE_ARCHIVE="$transfer_dir/evo-crm-image.tar.gz"
+            export EVO_RELEASE_ARCHIVE_SHA256="$(jq -r '.archiveSha256' "$transfer_dir/evo-production-release-image.json")"
+            export EVO_RELEASE_EXPECTED_IMAGE_ID="$(jq -r '.imageId' "$transfer_dir/evo-production-release-image.json")"
+            export EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST="$(jq -r '.imageConfigDigest' "$transfer_dir/evo-production-release-image.json")"
+            export EVO_RELEASE_EXPECTED_COMPOSE_SHA256="$(jq -r '.composeSha256' "$transfer_dir/evo-production-release-image.json")"
+            if [[ "$command_name" == accept-candidate ]]; then
+              export EVO_RELEASE_ACTOR_ID="$actor_id"
+              export EVO_RELEASE_CURRENT_MAIN_REVISION="$current_main_revision"
+              export EVO_RELEASE_BROWSER_RECEIPT="$receipt_target"
+              export EVO_RELEASE_BROWSER_RECEIPT_SHA256="$receipt_sha256"
+            fi
+            exec "$controller" "$command_name"
+          REMOTE
+          }
+
+          validate_accept_result() {
+            jq -e --arg releaseId "$EVO_RELEASE_ID" --arg revision "$EVO_RELEASE_REVISION" '
+              .ok == true and .command == "accept-candidate" and .status == "accepted" and
+              .releaseId == $releaseId and .revision == $revision
+            ' "$1" >/dev/null 2>&1
+          }
+          if run_candidate_command accept-candidate /tmp/evo-production-accept-1.json &&
+             validate_accept_result /tmp/evo-production-accept-1.json; then
+            exit 0
+          elif run_candidate_command accept-candidate /tmp/evo-production-accept-2.json &&
+               validate_accept_result /tmp/evo-production-accept-2.json; then
+            exit 0
+          fi
+
+          if run_candidate_command candidate-status /tmp/evo-production-candidate-status.json &&
+             status=$(jq -er --arg releaseId "$EVO_RELEASE_ID" --arg revision "$EVO_RELEASE_REVISION" '
+              select(.ok == true and .command == "candidate-status" and
+                .releaseId == $releaseId and .revision == $revision and
+                (.status == "pending" or .status == "accepted")) | .status
+            ' /tmp/evo-production-candidate-status.json 2>/dev/null); then
+            if [[ "$status" == accepted ]]; then
+              exit 0
+            fi
+            if [[ "$status" == pending ]]; then
+              if rollback_pending_atomically; then
+                printf '%s\n' '::error::production_candidate_acceptance_failed_and_rolled_back' >&2
+              else
+                printf '%s\n' '::error::production_candidate_acceptance_failed_pending_rollback_refused' >&2
+              fi
+              exit 2
+            fi
+          fi
+          printf '%s\n' '::error::production_candidate_acceptance_state_unknown' >&2
+          exit 2
+
+      - name: Rollback pending candidate after acceptance guard failure
+        id: acceptance_guard_rollback
+        if: >-
+          always() &&
+          steps.browser_smoke.outcome == 'success' &&
+          (steps.acceptance_github_guard.outcome == 'failure' ||
+           steps.acceptance_ledger_guard.outcome == 'failure')
+        env:
+          EVO_RELEASE_EVIDENCE_ROOT: ${{ vars.EVO_RELEASE_EVIDENCE_ROOT }}
+          EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
+        run: |
+          set -Eeuo pipefail
+          evidence_dir=$(< /tmp/evo-production-release-evidence-dir)
+          [[ "$evidence_dir" == "$EVO_RELEASE_EVIDENCE_ROOT/$EVO_RELEASE_ID" ]]
+          if ! ssh evo-production bash -s -- "$evidence_dir/rollback-command.sh" \
+            > /tmp/evo-production-acceptance-guard-rollback.json \
+            2> /tmp/evo-production-acceptance-guard-rollback-error.log <<'REMOTE'; then
+          set -Eeuo pipefail
+          rollback_wrapper=$1
+          [[ -f "$rollback_wrapper" && ! -L "$rollback_wrapper" && -x "$rollback_wrapper" ]]
+          exec "$rollback_wrapper" pending-only
+          REMOTE
+            printf '%s\n' '::error::production_acceptance_guard_pending_rollback_refused' >&2
+            exit 2
+          fi
+          jq -e --arg releaseId "$EVO_RELEASE_ID" '
+            keys == ["command","ok","releaseId","status"] and
+            .ok == true and .command == "rollback-pending" and
+            .status == "rolled_back" and .releaseId == $releaseId
+          ' /tmp/evo-production-acceptance-guard-rollback.json >/dev/null
+
+      - name: Remove transient release transfer after terminal state
+        if: >-
+          always() &&
+          steps.configure_ssh.outcome == 'success' &&
+          steps.transfer_release.outcome != 'skipped' &&
+          (steps.transfer_release.outcome == 'failure' ||
+           steps.accept_candidate.outcome == 'success' ||
+           steps.browser_rollback.outcome == 'success' ||
+           steps.acceptance_guard_rollback.outcome == 'success')
+        run: |
+          set -Eeuo pipefail
+          [[ -f /tmp/evo-production-release-transfer-owned ]] || exit 0
+          [[ -f /tmp/evo-production-release-transfer-dir ]] || exit 0
+          transfer_dir=$(< /tmp/evo-production-release-transfer-dir)
           ssh evo-production bash -s -- "$transfer_dir" <<'REMOTE'
           set -Eeuo pipefail
           transfer_dir=$1
           [[ "$transfer_dir" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ ! -e "$transfer_dir" ]]
-          install -d -m 700 "$transfer_dir"
-          REMOTE
-          printf '%s\n' "$transfer_dir" > /tmp/evo-production-release-transfer-dir
-          chmod 600 /tmp/evo-production-release-transfer-dir
-          scp \
-            /tmp/evo-production-candidate/evo-crm-image.tar.gz \
-            /tmp/evo-production-candidate/evo-fast-release.sh \
-            /tmp/evo-production-candidate/evo-app-env-contract.mjs \
-            /tmp/evo-production-candidate/env.production.example \
-            "evo-production:$transfer_dir/"
-
-      - name: Reconfirm exact main and exact-SHA CI immediately before deployment
-        env:
-          EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
-          EVO_RELEASE_WORKFLOW_REVISION: ${{ github.workflow_sha }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -Eeuo pipefail
-          [[ "$EVO_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$EVO_RELEASE_WORKFLOW_REVISION" == "$EVO_RELEASE_REVISION" ]]
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          [[ "$(git rev-parse HEAD)" == "$EVO_RELEASE_REVISION" ]]
-          [[ "$(git rev-parse origin/main)" == "$EVO_RELEASE_REVISION" ]]
-          node scripts/fast-release-ci-gate.mjs
-
-      - name: Run one preflight, deploy app, verify, and auto-rollback on failure
-        env:
-          EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
-          EVO_RELEASE_ROOT: ${{ vars.EVO_RELEASE_ROOT }}
-          EVO_RELEASE_PROJECT_NAME: ${{ vars.EVO_RELEASE_PROJECT_NAME }}
-          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
-          EVO_RELEASE_EVIDENCE_ROOT: ${{ vars.EVO_RELEASE_EVIDENCE_ROOT }}
-          EVO_RELEASE_ROLLBACK_SEED: ${{ vars.EVO_RELEASE_ROLLBACK_SEED }}
-          EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
-          EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
-          EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
-          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
-        run: |
-          set -Eeuo pipefail
-          transfer_dir=$(cat /tmp/evo-production-release-transfer-dir)
-          image_id=$(jq -er '.imageId' /tmp/evo-production-release-image.json)
-          archive_sha256=$(jq -er '.archiveSha256' /tmp/evo-production-release-image.json)
-          compose_sha256=$(jq -er '.composeSha256' /tmp/evo-production-release-image.json)
-          controller_sha256=$(jq -er '.controllerSha256' /tmp/evo-production-release-image.json)
-          validator_sha256=$(jq -er '.validatorSha256' /tmp/evo-production-release-image.json)
-          env_example_sha256=$(jq -er '.envExampleSha256' /tmp/evo-production-release-image.json)
-          supabase_project_ref=$(jq -er '.supabaseProjectRef' /tmp/evo-production-release-image.json)
-          release_version=$(jq -er '.version' /tmp/evo-production-release-image.json)
-          [[ "$supabase_project_ref" == "$EVO_SUPABASE_PROJECT_REF" ]]
-          run_id="gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          set +e
-          ssh evo-production bash -s -- \
-            "$transfer_dir" \
-            "$EVO_RELEASE_TRANSFER_ROOT" \
-            "$controller_sha256" \
-            "$validator_sha256" \
-            "$env_example_sha256" \
-            "$EVO_RELEASE_ROOT" \
-            "$EVO_RELEASE_PROJECT_NAME" \
-            "$EVO_RELEASE_EVIDENCE_ROOT" \
-            "$EVO_RELEASE_ROLLBACK_SEED" \
-            "$EVO_RELEASE_EXTERNAL_HEALTH_URL" \
-            "$EVO_RELEASE_MIN_FREE_KB" \
-            "$EVO_WAHA_IMAGE_DIGEST" \
-            "$EVO_RELEASE_REVISION" \
-            "$release_version" \
-            "$run_id" \
-            "$archive_sha256" \
-            "$image_id" \
-            "$compose_sha256" \
-            "$supabase_project_ref" <<'REMOTE' \
-            > /tmp/evo-production-release-result-line.json \
-            2> /tmp/evo-production-release-controller-error.log
-          set -Eeuo pipefail
-          transfer_dir=$1
-          transfer_root=$2
-          controller="$transfer_dir/evo-fast-release.sh"
-          validator="$transfer_dir/evo-app-env-contract.mjs"
-          env_example="$transfer_dir/env.production.example"
-          archive="$transfer_dir/evo-crm-image.tar.gz"
-          [[ "$transfer_dir" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$transfer_root" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$transfer_dir" == "$transfer_root/"* ]]
-          for bundle_file in "$archive" "$controller" "$validator" "$env_example"; do
-            [[ -f "$bundle_file" && ! -L "$bundle_file" ]]
-          done
-          [[ "$(sha256sum "$archive" | awk '{print $1}')" == "${16}" ]]
-          [[ "$(sha256sum "$controller" | awk '{print $1}')" == "$3" ]]
-          [[ "$(sha256sum "$validator" | awk '{print $1}')" == "$4" ]]
-          [[ "$(sha256sum "$env_example" | awk '{print $1}')" == "$5" ]]
-          chmod 700 "$controller"
-          export EVO_RELEASE_ROOT=$6
-          export EVO_RELEASE_PROJECT_NAME=$7
-          export EVO_RELEASE_TRANSFER_ROOT=$2
-          export EVO_RELEASE_EVIDENCE_ROOT=$8
-          export EVO_RELEASE_ROLLBACK_SEED=$9
-          export EVO_RELEASE_COMPOSE_FILE="$6/docker-compose.prod.yml"
-          export EVO_RELEASE_ACTIVE_COMPOSE_FILE="$6/docker-compose.prod.yml"
-          export EVO_RELEASE_APP_ENV_FILE="$6/.env.production"
-          export EVO_RELEASE_ENV_EXAMPLE_FILE="$env_example"
-          export EVO_RELEASE_EXTERNAL_HEALTH_URL=${10}
-          export EVO_RELEASE_MIN_FREE_KB=${11}
-          export EVO_WAHA_IMAGE_DIGEST=${12}
-          unset EVO_RELEASE_DOCKER_STORAGE_PATH
-          export EVO_RELEASE_REVISION=${13}
-          export EVO_RELEASE_VERSION=${14}
-          export EVO_RELEASE_RUN_ID=${15}
-          export EVO_RELEASE_ARCHIVE="$archive"
-          export EVO_RELEASE_ARCHIVE_SHA256=${16}
-          export EVO_RELEASE_EXPECTED_IMAGE_ID=${17}
-          export EVO_RELEASE_EXPECTED_COMPOSE_SHA256=${18}
-          export EVO_SUPABASE_PROJECT_REF=${19}
-          exec "$controller" deploy
-          REMOTE
-          release_status=$?
-          set -e
-          cat /tmp/evo-production-release-result-line.json
-          evidence_dir=$(jq -er '.evidenceDir' /tmp/evo-production-release-result-line.json 2>/dev/null || true)
-          if [[ -n "$evidence_dir" ]]; then
-            [[ "$evidence_dir" == "$EVO_RELEASE_EVIDENCE_ROOT/"* ]]
-            scp "evo-production:$evidence_dir/result.json" /tmp/evo-production-release-result.json
-          else
-            failure_code=$(jq -Rr \
-              'fromjson? | select(.ok == false) | .code // empty' \
-              /tmp/evo-production-release-controller-error.log | tail -n 1)
-            if [[ ! "$failure_code" =~ ^[a-z0-9_]{1,64}$ ]]; then
-              if [[ $release_status == 255 ]]; then
-                failure_code=transport_failed
-              elif [[ $release_status == 0 || $release_status == 3 || $release_status == 4 ]]; then
-                failure_code=evidence_missing
-                release_status=2
-              else
-                failure_code=controller_failed
-              fi
-            fi
-            jq -cn \
-              --arg code "$failure_code" \
-              --arg revision "$EVO_RELEASE_REVISION" \
-              --arg version "$release_version" \
-              --arg image "$image_id" \
-              '{schema:"evo-fast-release/v1",status:"blocked",code:$code,phase:"preflight_or_load",revision:$revision,version:$version,image:$image,rolledBack:false}' \
-              > /tmp/evo-production-release-result.json
-            chmod 600 /tmp/evo-production-release-result.json
-            cat /tmp/evo-production-release-result.json
-          fi
-          exit "$release_status"
-
-      - name: Remove the transferred release bundle
-        if: always()
-        env:
-          EVO_RELEASE_TRANSFER_ROOT: ${{ vars.EVO_RELEASE_TRANSFER_ROOT }}
-        run: |
-          set -Eeuo pipefail
-          [[ -f /tmp/evo-production-release-transfer-dir ]] || exit 0
-          transfer_dir=$(cat /tmp/evo-production-release-transfer-dir)
-          [[ "$EVO_RELEASE_TRANSFER_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$transfer_dir" == "$EVO_RELEASE_TRANSFER_ROOT/"* ]]
-          ssh evo-production bash -s -- "$transfer_dir" "$EVO_RELEASE_TRANSFER_ROOT" <<'REMOTE'
-          set -Eeuo pipefail
-          transfer_dir=$1
-          transfer_root=$2
-          [[ "$transfer_dir" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$transfer_root" =~ ^/[A-Za-z0-9._/-]+$ ]]
-          [[ "$transfer_dir" == "$transfer_root/"* ]]
-          [[ -d "$transfer_dir" && ! -L "$transfer_dir" ]]
-          for file_name in \
+          [[ "$transfer_dir" != / ]]
+          [[ -d "$transfer_dir" && ! -L "$transfer_dir" ]] || exit 0
+          for name in \
+            docker-compose.prod.yml \
+            env.production.example \
+            evo-app-env-contract.mjs \
             evo-crm-image.tar.gz \
             evo-fast-release.sh \
-            evo-app-env-contract.mjs \
-            env.production.example; do
-            transferred_file="$transfer_dir/$file_name"
-            [[ "$transferred_file" == "$transfer_dir/"* ]]
-            if [[ -e "$transferred_file" || -L "$transferred_file" ]]; then
-              [[ ! -d "$transferred_file" || -L "$transferred_file" ]]
-              rm -f -- "$transferred_file"
-            fi
+            evo-production-release-image.json \
+            browser-receipt.json; do
+            path="$transfer_dir/$name"
+            [[ ! -e "$path" || -f "$path" && ! -L "$path" ]]
+            rm -f -- "$path"
           done
+          [[ "$(find "$transfer_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d '[:space:]')" == 0 ]]
           rmdir -- "$transfer_dir"
           REMOTE
-
-      - name: Upload sanitized release evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: evo-production-release-${{ github.event.workflow_run.head_sha }}-${{ github.run_attempt }}
-          if-no-files-found: warn
-          retention-days: 30
-          path: |
-            /tmp/evo-production-release-ledger.json
-            /tmp/evo-production-release-image.json
-            /tmp/evo-production-release-result.json
-
-      - name: Remove the ephemeral deploy key
-        if: always()
-        run: rm -f "$HOME/.ssh/evo_deploy" "$HOME/.ssh/evo_known_hosts" "$HOME/.ssh/config"

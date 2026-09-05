@@ -6,6 +6,9 @@ const workflow = readFileSync(
   new URL("../.github/workflows/evo-fast-release.yml", import.meta.url),
   "utf8",
 );
+const packageJson = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
 
 function job(name, nextName) {
   const start = workflow.indexOf(`  ${name}:`);
@@ -23,205 +26,290 @@ function namedStep(name) {
   return workflow.slice(start, end === -1 ? workflow.length : end);
 }
 
-const prepare = job("prepare", "release");
-const release = job("release");
+function stepIndex(name) {
+  const index = workflow.indexOf(`      - name: ${name}`);
+  assert.notEqual(index, -1, `${name} step must exist`);
+  return index;
+}
 
-test("release is chained only from successful push CI on main", () => {
-  assert.match(workflow, /^name: EVO production release$/mu);
+function jobStepNames(releaseJob) {
+  return [...releaseJob.matchAll(/^      - name: (.+)$/gmu)].map((match) => match[1]);
+}
+
+const build = job("build", "deploy");
+const deploy = job("deploy");
+
+test("the release stays coarse-unarmed and admits only successful exact-main CI", () => {
+  assert.match(workflow, /^name: EVO fast app release$/mu);
   assert.match(workflow, /^  workflow_run:$/mu);
   assert.match(workflow, /^      - EVO platform CI$/mu);
   assert.match(workflow, /^      - completed$/mu);
   assert.match(workflow, /^      - main$/mu);
   assert.doesNotMatch(workflow, /workflow_dispatch/u);
+  assert.match(workflow, /^permissions: \{\}$/mu);
+  assert.match(workflow, /^  cancel-in-progress: false$/mu);
 
-  for (const releaseJob of [prepare, release]) {
+  for (const releaseJob of [build, deploy]) {
     assert.match(releaseJob, /github\.event\.workflow_run\.event == 'push'/u);
     assert.match(releaseJob, /github\.event\.workflow_run\.conclusion == 'success'/u);
     assert.match(releaseJob, /github\.event\.workflow_run\.head_branch == 'main'/u);
-    assert.match(
-      releaseJob,
-      /vars\.EVO_AUTOMATED_PRODUCTION_RELEASE_ENABLED == 'true'/u,
-    );
+    assert.match(releaseJob, /vars\.EVO_PRODUCTION_RELEASE_ARMED == 'true'/u);
   }
-
-  assert.match(release, /^    needs: prepare$/mu);
-  assert.match(release, /needs\.prepare\.result == 'success'/u);
+  assert.match(deploy, /^    needs: build$/mu);
+  assert.match(deploy, /needs\.build\.result == 'success'/u);
 });
 
-test("both jobs bind the CI head to the current origin main", () => {
-  for (const releaseJob of [prepare, release]) {
-    assert.match(releaseJob, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/u);
-    assert.match(
-      releaseJob,
-      /EVO_RELEASE_REVISION: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/u,
+test("the fast-release suite includes workflow and browser proof contracts", () => {
+  const command = packageJson.scripts?.["test:fast-release"] ?? "";
+  assert.match(command, /tests\/production-release-workflow\.test\.mjs/u);
+  assert.match(command, /tests\/production-browser-smoke\.test\.mjs/u);
+});
+
+test("jobs use only their least required GitHub permissions", () => {
+  assert.match(build, /^    permissions:\n      contents: read$/mu);
+  assert.doesNotMatch(build, /actions: write|contents: write|deployments: write/u);
+  assert.match(deploy, /^    permissions:\n      actions: read\n      contents: read$/mu);
+  assert.doesNotMatch(deploy, /actions: write|contents: write|deployments: write/u);
+});
+
+test("each first step is inline and secretless before checkout or repository code", () => {
+  for (const [releaseJob, stepName] of [
+    [build, "Secretless build admission"],
+    [deploy, "Secretless deploy admission"],
+  ]) {
+    const firstStepOffset = releaseJob.indexOf("      - name:");
+    assert.equal(
+      releaseJob.slice(firstStepOffset).startsWith(`      - name: ${stepName}`),
+      true,
     );
-    assert.match(releaseJob, /git fetch --no-tags origin main:refs\/remotes\/origin\/main/u);
-    assert.match(releaseJob, /git rev-parse HEAD/u);
-    assert.match(releaseJob, /git rev-parse origin\/main/u);
-    assert.match(releaseJob, /scripts\/fast-release-ci-gate\.mjs/u);
-    assert.match(
-      releaseJob,
-      /EVO_RELEASE_WORKFLOW_REVISION: \$\{\{ github\.workflow_sha \}\}/u,
-    );
-    assert.match(
-      releaseJob,
-      /\[\[ "\$EVO_RELEASE_WORKFLOW_REVISION" == "\$EVO_RELEASE_REVISION" \]\]/u,
-    );
+    const step = namedStep(stepName);
+    assert.doesNotMatch(step, /\$\{\{\s*secrets\./u);
+    assert.doesNotMatch(step, /\$\{\{\s*github\.token\s*\}\}|GITHUB_TOKEN/u);
+    assert.doesNotMatch(step, /^\s*uses:/mu);
+    assert.doesNotMatch(step, /scripts\//u);
+    assert.match(step, /EVO_EXPECTED_REPOSITORY: izzhackt\/evo_AI_CRM/u);
+    assert.match(step, /EVO_RELEASE_WORKFLOW_SHA: \$\{\{ github\.workflow_sha \}\}/u);
+    assert.match(step, /EVO_UPSTREAM_WORKFLOW_PATH: \$\{\{ github\.event\.workflow_run\.path \}\}/u);
+    assert.match(step, /EVO_UPSTREAM_RUN_ATTEMPT: \$\{\{ github\.event\.workflow_run\.run_attempt \}\}/u);
+    assert.match(step, /EVO_ORIGINAL_ACTOR_ID: \$\{\{ github\.actor_id \}\}/u);
+    assert.doesNotMatch(step, /triggering_actor/u);
+    assert.match(step, /EVO_ARM_SNAPSHOT: \$\{\{ vars\.EVO_PRODUCTION_RELEASE_ARMED \}\}/u);
+    assert.match(step, /git\/ref\/heads\/main/u);
+    assert.match(step, /redirect: "error"/u);
+    assert.match(step, /::error::release_(?:build|deploy)_admission_failed/u);
   }
-
-  assert.doesNotMatch(workflow, /inputs\.release_revision|github\.sha/u);
 });
 
-test("release rechecks exact main and CI in the last step before the controller", () => {
-  const gateName = "      - name: Reconfirm exact main and exact-SHA CI immediately before deployment";
-  const controllerName = "      - name: Run one preflight, deploy app, verify, and auto-rollback on failure";
-  const gateIndex = release.indexOf(gateName);
-  const controllerIndex = release.indexOf(controllerName);
-  assert.notEqual(gateIndex, -1);
-  assert.notEqual(controllerIndex, -1);
-  assert.equal(
-    release.indexOf("      - name:", gateIndex + gateName.length),
-    controllerIndex,
-  );
-  const gate = release.slice(gateIndex, controllerIndex);
-  assert.match(gate, /git fetch --no-tags origin main:refs\/remotes\/origin\/main/u);
-  assert.match(gate, /git rev-parse HEAD/u);
-  assert.match(gate, /git rev-parse origin\/main/u);
-  assert.match(gate, /node scripts\/fast-release-ci-gate\.mjs/u);
+test("both exact checkouts are immutable and never persist credentials", () => {
+  const checkouts = workflow.match(/uses: actions\/checkout@[0-9a-f]{40}[\s\S]*?persist-credentials: false/gu) ?? [];
+  assert.equal(checkouts.length, 2);
+  for (const checkout of checkouts) {
+    assert.match(checkout, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/u);
+    assert.match(checkout, /fetch-depth: 1/u);
+  }
+  assert.match(workflow, /EVO_RELEASE_WORKFLOW_SHA[^\n]*\n[\s\S]*?== "\$EVO_RELEASE_REVISION"/u);
+  assert.doesNotMatch(workflow, /git checkout|git reset|git pull/u);
 });
 
-test("release serialization has no manual, environment, or staging gate", () => {
-  assert.match(workflow, /group: evo-production-release/u);
-  assert.match(workflow, /cancel-in-progress: false/u);
-  assert.doesNotMatch(workflow, /^\s*environment:/mu);
-  assert.doesNotMatch(workflow, /staging/iu);
-  assert.doesNotMatch(workflow, /fast-release-scope\.mjs/u);
-  assert.doesNotMatch(workflow, /exec "\$1" status/u);
-  assert.doesNotMatch(workflow, /EVO_RELEASE_STAGING_ROOT/u);
-  assert.match(workflow, /EVO_RELEASE_TRANSFER_ROOT/u);
-});
+test("build emits one closed immutable linux-amd64 candidate artifact", () => {
+  const image = namedStep("Build and inspect immutable linux-amd64 image");
+  const upload = namedStep("Upload closed candidate artifact");
+  const outputs = namedStep("Validate immutable artifact outputs");
 
-test("runner-built immutable image and sealed transfer remain intact", () => {
-  assert.match(prepare, /docker build[\s\S]*--platform linux\/amd64/u);
-  assert.match(prepare, /org\.opencontainers\.image\.revision/u);
-  assert.match(prepare, /org\.opencontainers\.image\.version/u);
-  assert.match(prepare, /docker save/u);
-  assert.match(prepare, /evo-production-candidate-/u);
-  assert.match(release, /evo-production-candidate-/u);
-  assert.match(release, /archiveSha256/u);
-  assert.match(release, /composeSha256/u);
-  assert.match(release, /EVO_RELEASE_EXPECTED_IMAGE_ID/u);
-  assert.match(release, /EVO_RELEASE_EXPECTED_COMPOSE_SHA256/u);
-  for (const metadataField of [
-    "workflowRevision",
+  assert.match(image, /docker build \\\n            --platform linux\/amd64/u);
+  for (const label of [
+    "org.opencontainers.image.source",
+    "org.opencontainers.image.revision",
+    "org.opencontainers.image.version",
+  ]) assert.match(image, new RegExp(label.replaceAll(".", "\\."), "u"));
+  assert.match(image, /image_id=.*docker image inspect/u);
+  assert.match(image, /image_config_digest=\$image_id/u);
+  assert.match(image, /archive_bytes/u);
+  for (const hash of [
+    "composeSha256",
     "controllerSha256",
     "validatorSha256",
     "envExampleSha256",
-    "supabaseProjectRef",
-  ]) {
-    assert.match(prepare, new RegExp(metadataField, "u"));
-    assert.match(release, new RegExp(metadataField, "u"));
-  }
-  for (const bundledFile of [
-    "evo-fast-release.sh",
-    "evo-app-env-contract.mjs",
-    "env.production.example",
-  ]) {
-    assert.match(prepare, new RegExp(bundledFile.replace(".", "\\."), "u"));
-    assert.match(release, new RegExp(bundledFile.replace(".", "\\."), "u"));
-  }
+  ]) assert.match(image, new RegExp(hash, "u"));
+  assert.match(image, /upstreamRunAttempt/u);
+  assert.match(image, /releaseWorkflowRunAttempt/u);
+  assert.match(image, /supabaseProjectRef/u);
+  assert.match(image, /os:"linux",architecture:"amd64"/u);
+
+  assert.match(upload, /uses: actions\/upload-artifact@[0-9a-f]{40}/u);
+  assert.match(upload, /overwrite: false/u);
+  assert.match(upload, /evo-crm-image\.tar\.gz/u);
+  assert.match(upload, /evo-production-release-image\.json/u);
+  assert.doesNotMatch(upload, /scripts\/|docker-compose|env\.production/u);
+  assert.match(outputs, /\^\[1-9\]\[0-9\]\*\$/u);
+  assert.match(outputs, /\^\[0-9a-f\]\{64\}\$/u);
+  assert.match(build, /artifact_id: \$\{\{ steps\.upload_candidate\.outputs\.artifact-id \}\}/u);
+  assert.match(build, /artifact_digest: \$\{\{ steps\.upload_candidate\.outputs\.artifact-digest \}\}/u);
 });
 
-test("privileged controller bundle is sealed to the reviewed workflow revision", () => {
-  const revalidate = namedStep("Revalidate the sealed production candidate");
+test("deploy binds REST artifact identity then downloads by numeric ID and hard digest", () => {
+  const bind = namedStep("Bind exact artifact record");
+  const download = namedStep("Download exact candidate artifact");
+  const validate = namedStep("Validate closed candidate artifact");
 
-  assert.match(revalidate, /\.workflowRevision/u);
-  assert.match(revalidate, /EVO_RELEASE_WORKFLOW_REVISION/u);
-  assert.match(revalidate, /\.supabaseProjectRef/u);
-  assert.match(revalidate, /EVO_SUPABASE_PROJECT_REF/u);
-  assert.match(
-    revalidate,
-    /sha256sum scripts\/evo-fast-release\.sh[\s\S]*\.controllerSha256/u,
-  );
-  assert.match(
-    revalidate,
-    /sha256sum scripts\/evo-app-env-contract\.mjs[\s\S]*\.validatorSha256/u,
-  );
-  assert.match(
-    revalidate,
-    /sha256sum deploy\/env\.production\.example[\s\S]*\.envExampleSha256/u,
-  );
+  assert.match(bind, /actions\/artifacts\/\$\{env\.EVO_ARTIFACT_ID\}/u);
+  assert.match(bind, /artifact\?\.digest !== `sha256:\$\{env\.EVO_ARTIFACT_DIGEST\}`/u);
+  assert.match(bind, /artifact\?\.workflow_run\?\.id/u);
+  assert.match(bind, /artifact\?\.workflow_run\?\.head_sha/u);
+  assert.match(download, /uses: actions\/download-artifact@[0-9a-f]{40}/u);
+  assert.match(download, /artifact-ids: \$\{\{ needs\.build\.outputs\.artifact_id \}\}/u);
+  assert.match(download, /digest-mismatch: error/u);
+  assert.doesNotMatch(download, /\n\s+name:/u);
+
+  assert.match(validate, /evo-crm-image\.tar\.gz\\nevo-production-release-image\.json/u);
+  assert.match(validate, /expected_keys/u);
+  assert.match(validate, /archiveSha256/u);
+  assert.match(validate, /archiveBytes/u);
+  assert.doesNotMatch(validate, /(?:^|\s)(?:bash|node)\s+[^\n]*evo-production-candidate/u);
 });
 
-test("partial transfer is cleanup-addressable before scp and removes the allowlist", () => {
-  const transfer = namedStep("Transfer the immutable release bundle to Hermes");
-  const cleanup = namedStep("Remove the transferred release bundle");
-  const markerIndex = transfer.indexOf(
-    "printf '%s\\n' \"$transfer_dir\" > /tmp/evo-production-release-transfer-dir",
-  );
-  const scpIndex = transfer.indexOf("          scp \\");
+test("checked-in controller inputs are hash-bound and remote transfer is allowlisted", () => {
+  const validate = namedStep("Validate closed candidate artifact");
+  const transfer = namedStep("Transfer exact release allowlist");
+  for (const path of [
+    "docker-compose.prod.yml",
+    "scripts/evo-fast-release.sh",
+    "scripts/evo-app-env-contract.mjs",
+    "deploy/env.production.example",
+  ]) assert.match(validate + transfer, new RegExp(path.replaceAll(".", "\\."), "u"));
+  for (const field of [
+    "composeSha256",
+    "controllerSha256",
+    "validatorSha256",
+    "envExampleSha256",
+  ]) assert.match(validate + transfer, new RegExp(field, "u"));
+  assert.match(transfer, /find "\$transfer_dir"[\s\S]*== 6/u);
+  assert.doesNotMatch(namedStep("Load and inspect candidate image"), /chmod \+x|evo-fast-release\.sh/u);
+});
 
-  assert.ok(markerIndex >= 0, "transfer cleanup marker must be written");
-  assert.ok(scpIndex > markerIndex, "cleanup marker must precede every scp attempt");
-  for (const bundledFile of [
-    "evo-crm-image.tar.gz",
-    "evo-fast-release.sh",
-    "evo-app-env-contract.mjs",
-    "env.production.example",
-  ]) {
-    assert.match(transfer, new RegExp(bundledFile.replace(".", "\\."), "u"));
-    assert.match(cleanup, new RegExp(bundledFile.replace(".", "\\."), "u"));
+test("control-token and Supabase guards are isolated and immediately precede mutation", () => {
+  const configure = stepIndex("Configure pinned SSH trust");
+  const githubMutation = stepIndex("Final live GitHub mutation guard");
+  const ledgerMutation = stepIndex("Final Supabase ledger mutation guard");
+  const transfer = stepIndex("Transfer exact release allowlist");
+  assert.ok(configure < githubMutation && githubMutation < ledgerMutation && ledgerMutation < transfer);
+  const names = jobStepNames(deploy);
+  const mutationGuardOffset = names.indexOf("Final live GitHub mutation guard");
+  assert.deepEqual(names.slice(mutationGuardOffset, mutationGuardOffset + 3), [
+    "Final live GitHub mutation guard",
+    "Final Supabase ledger mutation guard",
+    "Transfer exact release allowlist",
+  ]);
+
+  const githubAccept = stepIndex("Final live GitHub acceptance guard");
+  const ledgerAccept = stepIndex("Final Supabase ledger acceptance guard");
+  const accept = stepIndex("Accept exact V3 candidate");
+  assert.ok(githubAccept < ledgerAccept && ledgerAccept < accept);
+  const acceptanceGuardOffset = names.indexOf("Final live GitHub acceptance guard");
+  assert.deepEqual(names.slice(acceptanceGuardOffset, acceptanceGuardOffset + 3), [
+    "Final live GitHub acceptance guard",
+    "Final Supabase ledger acceptance guard",
+    "Accept exact V3 candidate",
+  ]);
+
+  for (const name of ["Final live GitHub mutation guard", "Final live GitHub acceptance guard"]) {
+    const step = namedStep(name);
+    assert.match(step, /EVO_GITHUB_VARIABLES_READ_TOKEN: \$\{\{ secrets\.EVO_GITHUB_VARIABLES_READ_TOKEN \}\}/u);
+    assert.doesNotMatch(step, /SUPABASE_ACCESS_TOKEN|scripts\/|\bssh\b|\bscp\b/u);
+    assert.match(step, /actions\/variables\/\$\{name\}/u);
+    assert.match(step, /check-runs\?filter=latest&per_page=100/u);
+    assert.match(step, /run\?\.name === "Main CRM"/u);
+    assert.match(step, /run\?\.app\?\.slug === "github-actions"/u);
+    assert.match(step, /EVO_RELEASE_RUN_ATTEMPT: \$\{\{ github\.run_attempt \}\}/u);
+    assert.match(step, /evo-v3-production-\$\{env\.EVO_RELEASE_REVISION\}-\$\{env\.EVO_RELEASE_RUN_ID\}-\$\{env\.EVO_RELEASE_RUN_ATTEMPT\}/u);
+    assert.match(step, /EVO_PRODUCTION_RELEASE_ARMED/u);
+    assert.match(step, /EVO_PRODUCTION_RELEASE_ACTOR_ID/u);
   }
-  assert.match(cleanup, /\[\[ -d "\$transfer_dir" && ! -L "\$transfer_dir" \]\]/u);
-  assert.match(cleanup, /rm -f -- "\$transferred_file"/u);
-  assert.match(cleanup, /rmdir -- "\$transfer_dir"/u);
-});
-
-test("remote hash mismatch aborts before the transferred controller executes", () => {
-  const deploy = namedStep(
-    "Run one preflight, deploy app, verify, and auto-rollback on failure",
-  );
-  const execIndex = deploy.indexOf('exec "$controller" deploy');
-
-  assert.ok(execIndex > 0, "transferred controller must execute");
-  assert.doesNotMatch(deploy, /EVO_RELEASE_ROOT\/scripts\/evo-fast-release\.sh/u);
-  assert.match(deploy, /EVO_RELEASE_ENV_EXAMPLE_FILE="\$env_example"/u);
-  assert.match(
-    deploy,
-    /EVO_SUPABASE_PROJECT_REF: \$\{\{ vars\.EVO_SUPABASE_PROJECT_REF \}\}/u,
-  );
-  assert.match(deploy, /supabase_project_ref=\$\(jq -er '\.supabaseProjectRef'/u);
-  assert.match(deploy, /export EVO_SUPABASE_PROJECT_REF=\$\{19\}/u);
-  assert.match(
-    deploy,
-    /for bundle_file in "\$archive" "\$controller" "\$validator" "\$env_example"/u,
-  );
-  assert.match(deploy, /set -Eeuo pipefail/u);
-  for (const [expectedHashCheck, equality] of [
-    ['sha256sum "$archive"', /sha256sum "\$archive"[^\n]*== "\$\{16\}"/u],
-    ['sha256sum "$controller"', /sha256sum "\$controller"[^\n]*== "\$3"/u],
-    ['sha256sum "$validator"', /sha256sum "\$validator"[^\n]*== "\$4"/u],
-    ['sha256sum "$env_example"', /sha256sum "\$env_example"[^\n]*== "\$5"/u],
-  ]) {
-    const checkIndex = deploy.indexOf(expectedHashCheck);
-    assert.ok(checkIndex >= 0, `${expectedHashCheck} must be checked remotely`);
-    assert.ok(checkIndex < execIndex, `${expectedHashCheck} must abort before execution`);
-    assert.match(deploy, equality);
+  for (const name of ["Final Supabase ledger mutation guard", "Final Supabase ledger acceptance guard"]) {
+    const step = namedStep(name);
+    assert.match(step, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/u);
+    assert.match(step, /fast-release-ledger-gate\.mjs/u);
+    assert.doesNotMatch(step, /EVO_GITHUB_VARIABLES_READ_TOKEN|\bssh\b|\bscp\b/u);
   }
+  assert.equal((workflow.match(/secrets\.EVO_GITHUB_VARIABLES_READ_TOKEN/gu) ?? []).length, 2);
+
+  const beforeTransfer = deploy.slice(0, deploy.indexOf("      - name: Transfer exact release allowlist"));
+  assert.doesNotMatch(beforeTransfer, /(?:^|\n)\s*(?:ssh|scp)\s/u);
 });
 
-test("production safety gates fail closed and do not apply schema", () => {
-  assert.match(release, /StrictHostKeyChecking yes/u);
-  assert.match(release, /BatchMode yes/u);
-  assert.match(release, /\[\[ -n "\$DEPLOY_PRIVATE_KEY" && -n "\$DEPLOY_KNOWN_HOSTS" \]\]/u);
-  assert.match(release, /\[\[ -n "\$SUPABASE_ACCESS_TOKEN" \]\]/u);
-  assert.match(release, /scripts\/fast-release-ledger-gate\.mjs/u);
-  assert.match(release, /EVO_RELEASE_ROLLBACK_SEED: \$\{\{ vars\.EVO_RELEASE_ROLLBACK_SEED \}\}/u);
-  assert.match(release, /export EVO_RELEASE_ROLLBACK_SEED=\$9/u);
-  assert.match(release, /Run one preflight, deploy app, verify, and auto-rollback on failure/u);
-  assert.match(release, /exec "\$controller" deploy/u);
-  assert.match(release, /evidenceDir/u);
-  assert.match(release, /rolledBack:false/u);
-  assert.doesNotMatch(workflow, /ssh-keyscan|StrictHostKeyChecking no/u);
-  assert.doesNotMatch(workflow, /supabase\s+(?:db|migration|link)|schema\s+apply/iu);
+test("candidate remains pending until authenticated read-only V3 proof and explicit acceptance", () => {
+  const deployPending = stepIndex("Deploy exact candidate as pending");
+  const browser = stepIndex("Authenticated read-only V3 browser smoke");
+  const acceptGuard = stepIndex("Final live GitHub acceptance guard");
+  const accept = stepIndex("Accept exact V3 candidate");
+  assert.ok(deployPending < browser && browser < acceptGuard && acceptGuard < accept);
+
+  const deployStep = namedStep("Deploy exact candidate as pending");
+  assert.match(deployStep, /\.command == "deploy" and \.status == "pending"/u);
+  assert.doesNotMatch(deployStep, /accept-candidate/u);
+
+  const browserStep = namedStep("Authenticated read-only V3 browser smoke");
+  assert.match(browserStep, /EVO_PRODUCTION_SMOKE_ADMIN_EMAIL: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_ADMIN_EMAIL \}\}/u);
+  assert.match(browserStep, /EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD \}\}/u);
+  assert.match(browserStep, /scripts\/evo-production-browser-smoke\.mjs/u);
+  assert.doesNotMatch(browserStep, /ssh|scp|WAHA|WHATSAPP|GEMINI|AMOCRM/u);
+  assert.equal((workflow.match(/secrets\.EVO_PRODUCTION_SMOKE_ADMIN_(?:EMAIL|PASSWORD)/gu) ?? []).length, 2);
+
+  const acceptStep = namedStep("Accept exact V3 candidate");
+  assert.match(acceptStep, /browser-receipt\.json/u);
+  assert.match(acceptStep, /EVO_RELEASE_BROWSER_RECEIPT_SHA256/u);
+  assert.match(acceptStep, /accept-candidate/u);
+  assert.match(acceptStep, /candidate-status/u);
+  assert.match(acceptStep, /\.status == "pending" or \.status == "accepted"/u);
+  assert.match(acceptStep, /production_candidate_acceptance_state_unknown/u);
+  assert.match(acceptStep, /rollback_pending_atomically/u);
+  const firstAttempt = acceptStep.indexOf("run_candidate_command accept-candidate");
+  const statusProbe = acceptStep.indexOf("run_candidate_command candidate-status");
+  assert.ok(firstAttempt !== -1 && firstAttempt < statusProbe);
+  assert.doesNotMatch(acceptStep.slice(firstAttempt, statusProbe), /rollback_pending_atomically/u);
+});
+
+test("all failure recovery uses the atomic pending-only controller contract", () => {
+  const browserRollback = namedStep("Rollback pending candidate after browser proof failure");
+  const guardRollback = namedStep("Rollback pending candidate after acceptance guard failure");
+  const acceptStep = namedStep("Accept exact V3 candidate");
+
+  for (const recoveryStep of [browserRollback, guardRollback, acceptStep]) {
+    assert.match(recoveryStep, /exec "\$rollback_wrapper" pending-only/u);
+    assert.match(recoveryStep, /\.command == "rollback-pending"/u);
+    assert.match(recoveryStep, /\.status == "rolled_back"/u);
+    assert.doesNotMatch(recoveryStep, /exec "\$rollback_wrapper"[ \t]*(?:\n|$)/u);
+  }
+  assert.equal(
+    (workflow.match(/exec "\$rollback_wrapper" pending-only/gu) ?? []).length,
+    3,
+  );
+  assert.doesNotMatch(workflow, /rollback_pending(?:_atomically)?\s*\|\|\s*true/u);
+  assert.match(
+    acceptStep,
+    /if rollback_pending_atomically; then[\s\S]*production_browser_receipt_transfer_failed_and_rolled_back[\s\S]*else[\s\S]*production_browser_receipt_transfer_failed_pending_rollback_refused/u,
+  );
+  assert.match(
+    acceptStep,
+    /if rollback_pending_atomically; then[\s\S]*production_candidate_acceptance_failed_and_rolled_back[\s\S]*else[\s\S]*production_candidate_acceptance_failed_pending_rollback_refused/u,
+  );
+});
+
+test("guard failures rollback pending state while unknown acceptance state is preserved", () => {
+  const browserRollback = namedStep("Rollback pending candidate after browser proof failure");
+  const guardRollback = namedStep("Rollback pending candidate after acceptance guard failure");
+  const cleanup = namedStep("Remove transient release transfer after terminal state");
+  assert.match(browserRollback, /steps\.deploy_candidate\.outcome == 'success'/u);
+  assert.match(browserRollback, /steps\.browser_smoke\.outcome == 'failure'/u);
+  assert.match(guardRollback, /steps\.acceptance_github_guard\.outcome == 'failure'/u);
+  assert.match(guardRollback, /steps\.acceptance_ledger_guard\.outcome == 'failure'/u);
+  assert.ok(
+    stepIndex("Accept exact V3 candidate") <
+      stepIndex("Rollback pending candidate after acceptance guard failure"),
+  );
+  assert.match(cleanup, /steps\.accept_candidate\.outcome == 'success'/u);
+  assert.match(cleanup, /steps\.browser_rollback\.outcome == 'success'/u);
+  assert.match(cleanup, /steps\.acceptance_guard_rollback\.outcome == 'success'/u);
+  assert.doesNotMatch(cleanup, /steps\.accept_candidate\.outcome == 'failure'/u);
+  assert.match(cleanup, /evo-production-release-transfer-owned/u);
 });

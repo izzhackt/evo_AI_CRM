@@ -2,17 +2,23 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  lstatSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import {
   AppEnvironmentContractError,
+  sealPrivateEnvironmentSnapshot,
   validateAppEnvironmentContract,
   verifySupabaseProjectCredentials,
 } from "../scripts/evo-app-env-contract.mjs";
@@ -345,4 +351,122 @@ test("closed CLI validates private files without printing their values", () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("seals exact private environment bytes once with mode 0600 and digest-only CLI output", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-env-snapshot-")));
+  const source = join(root, ".env.production");
+  const snapshot = join(root, "candidate-app.env");
+  const cliSnapshot = join(root, "cli-app.env");
+  const bytes = Buffer.from(valid(), "utf8");
+  try {
+    writeFileSync(source, bytes, { mode: 0o640 });
+    chmodSync(source, 0o640);
+    const sealed = sealPrivateEnvironmentSnapshot(source, snapshot);
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    assert.deepEqual(sealed, { ok: true, sha256: digest });
+    assert.deepEqual(readFileSync(snapshot), bytes);
+    assert.equal(Number(lstatSync(snapshot).mode & 0o777), 0o600);
+
+    const cli = spawnSync(
+      process.execPath,
+      [
+        "scripts/evo-app-env-contract.mjs",
+        "--seal-private-env",
+        source,
+        "--snapshot",
+        cliSnapshot,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(cli.status, 0, cli.stderr);
+    assert.equal(cli.stdout, `${JSON.stringify({ ok: true, sha256: digest })}\n`);
+    assert.equal(cli.stderr, "");
+    assert.equal(cli.stdout.includes("EVO_PLATFORM_SUPABASE_SECRET_KEY"), false);
+    assert.deepEqual(readFileSync(cliSnapshot), bytes);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("snapshot seal rejects symlinks and destination collisions without overwriting", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-env-snapshot-")));
+  const source = join(root, ".env.production");
+  const sourceLink = join(root, ".env.link");
+  const snapshot = join(root, "candidate-app.env");
+  try {
+    writeFileSync(source, valid(), { mode: 0o600 });
+    chmodSync(source, 0o600);
+    symlinkSync(source, sourceLink);
+    assert.throws(
+      () => sealPrivateEnvironmentSnapshot(sourceLink, snapshot),
+      (error) =>
+        error instanceof AppEnvironmentContractError &&
+        error.code === "snapshot_source_invalid",
+    );
+
+    writeFileSync(snapshot, "do-not-overwrite\n", { mode: 0o600 });
+    assert.throws(
+      () => sealPrivateEnvironmentSnapshot(source, snapshot),
+      (error) =>
+        error instanceof AppEnvironmentContractError &&
+        error.code === "snapshot_seal_failed",
+    );
+    assert.equal(readFileSync(snapshot, "utf8"), "do-not-overwrite\n");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("snapshot seal deterministically rejects in-place mutation and path replacement", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-env-snapshot-")));
+  const source = join(root, ".env.production");
+  const replacement = join(root, ".env.replacement");
+  const snapshot = join(root, "candidate-app.env");
+  try {
+    writeFileSync(source, valid(), { mode: 0o600 });
+    chmodSync(source, 0o600);
+    assert.throws(
+      () => sealPrivateEnvironmentSnapshot(source, snapshot, {
+        afterSourceRead() {
+          writeFileSync(source, `${valid()}# changed\n`, { mode: 0o600 });
+        },
+      }),
+      (error) =>
+        error instanceof AppEnvironmentContractError &&
+        error.code === "snapshot_source_changed",
+    );
+    assert.equal(lstatSync(snapshot, { throwIfNoEntry: false }), undefined);
+
+    writeFileSync(source, valid(), { mode: 0o600 });
+    writeFileSync(replacement, valid(), { mode: 0o600 });
+    chmodSync(source, 0o600);
+    chmodSync(replacement, 0o600);
+    assert.throws(
+      () => sealPrivateEnvironmentSnapshot(source, snapshot, {
+        afterSourceRead() {
+          renameSync(replacement, source);
+        },
+      }),
+      (error) =>
+        error instanceof AppEnvironmentContractError &&
+        error.code === "snapshot_source_changed",
+    );
+    assert.equal(lstatSync(snapshot, { throwIfNoEntry: false }), undefined);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("snapshot implementation opens the protected source descriptor exactly once", () => {
+  const implementation = readFileSync("scripts/evo-app-env-contract.mjs", "utf8");
+  const seal = implementation.slice(
+    implementation.indexOf("export function sealPrivateEnvironmentSnapshot"),
+    implementation.indexOf("function parseCli"),
+  );
+  assert.equal((seal.match(/sourceDescriptor = openSync\(/gu) ?? []).length, 1);
+  assert.match(seal, /O_NOFOLLOW/u);
+  assert.match(seal, /O_CLOEXEC/u);
+  assert.match(seal, /O_EXCL/u);
+  assert.match(seal, /fsyncSync\(snapshotDescriptor\)/u);
 });

@@ -15,7 +15,7 @@
     "prestart": "node scripts/check-node-runtime.mjs",
     "start": "next start",
     "lint": "eslint",
-    "test:fast-release": "node --conditions=react-server --experimental-strip-types --test tests/release-metadata.test.mjs tests/fast-release-control.test.mjs tests/production-release-workflow.test.mjs tests/app-env-contract.test.mjs tests/v3-release-rollback-harness.test.mjs",
+    "test:fast-release": "node --conditions=react-server --experimental-strip-types --test tests/release-metadata.test.mjs tests/fast-release-control.test.mjs tests/production-release-workflow.test.mjs tests/production-browser-smoke.test.mjs tests/app-env-contract.test.mjs tests/v3-release-rollback-harness.test.mjs",
     "test:p6d": "node --test tests/p6d-release-candidate.test.mjs tests/runtime-hardening.test.mjs",
     "test:p6d:orbstack": "EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node EVO_P6D_CANDIDATE_PROOF=1 bash scripts/test-postgres-v2-foundation.sh",
     "pretest:unit": "npm run test:frontend && npm run test:u1 && npm run test:u2 && npm run test:u4 && npm run test:u7 && npm run test:u8 && npm run test:u9 && npm run test:u10 && npm run test:u11 && node --conditions=react-server --experimental-strip-types --test tests/platform-staff-assistant.test.mjs tests/platform-knowledge-bundle.test.mjs tests/platform-knowledge-import-packaging.test.mjs",

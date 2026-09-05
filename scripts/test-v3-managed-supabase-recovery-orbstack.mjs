@@ -2049,6 +2049,33 @@ function safeStorageObjectUrl(apiUrl, bucketId, objectPath, prefix = "object") {
   return new URL(`/storage/v1/${prefix}/${encodeURIComponent(bucketId)}/${encoded}`, base).toString();
 }
 
+export function localSignedStorageUrl(apiUrl, bucketId, objectPath, signedPath) {
+  const base = assertLoopbackUrl(apiUrl, "storage_api_not_loopback");
+  if (typeof signedPath !== "string" || signedPath.length === 0) {
+    fail("private_storage_signed_url_missing", "storage_privacy_proof");
+  }
+  let candidate;
+  try {
+    candidate = new URL(signedPath, base);
+  } catch {
+    fail("private_storage_signed_url_invalid", "storage_privacy_proof");
+  }
+  if (
+    candidate.origin !== base.origin || candidate.username || candidate.password ||
+    candidate.hash
+  ) {
+    fail("private_storage_signed_url_invalid", "storage_privacy_proof");
+  }
+  const encodedPath = objectPath.split("/").map(encodeURIComponent).join("/");
+  const storagePath = `/object/sign/${encodeURIComponent(bucketId)}/${encodedPath}`;
+  if (candidate.pathname === storagePath) {
+    candidate.pathname = `/storage/v1${storagePath}`;
+  } else if (candidate.pathname !== `/storage/v1${storagePath}`) {
+    fail("private_storage_signed_url_invalid", "storage_privacy_proof");
+  }
+  return candidate.toString();
+}
+
 export function sanitizeHttpResponseDiagnostic(response) {
   const proxyStatus = response?.headers?.get?.("proxy-status") ?? "";
   const match = /(?:^|[;\s])error="?(PGRST[0-9A-Z]{3}|[0-9A-Z]{5})"?(?:[;\s]|$)/iu.exec(proxyStatus);
@@ -2891,10 +2918,7 @@ async function provePrivateStorage(status, v3Buckets, sourceObjectCount, authent
     );
     const signed = await signResponse.json().catch(() => null);
     const signedPath = isRecord(signed) ? signed.signedURL ?? signed.signedUrl : null;
-    if (typeof signedPath !== "string" || signedPath.length === 0) {
-      fail("private_storage_signed_url_missing", "storage_privacy_proof");
-    }
-    const signedUrl = new URL(signedPath, status.apiUrl).toString();
+    const signedUrl = localSignedStorageUrl(status.apiUrl, bucket.id, objectPath, signedPath);
     const signedDownload = await storageRequest(
       status,
       signedUrl,

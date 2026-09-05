@@ -19,6 +19,7 @@ import {
   assertExactExportBundle,
   buildRestoredRoleReadiness,
   installProcessCleanupHandlers,
+  localSignedStorageUrl,
   parseExportedMigrationHistory,
   parseHarnessOptions,
   parseQualifiedCopyHeader,
@@ -532,6 +533,42 @@ test("local status separates the server secret from the service-role bearer JWT"
     `SECRET_KEY=${serverSecretKey}`,
     `SERVICE_ROLE_KEY=${serverSecretKey}`,
   ].join("\n")), "supabase_status_service_role_key_invalid");
+});
+
+test("local signed Storage paths stay loopback-bound and gain the gateway prefix", () => {
+  const apiUrl = "http://127.0.0.1:54321";
+  const bucket = "platform-documents";
+  const objectPath = "recovery-canary/object.png";
+  assert.equal(
+    localSignedStorageUrl(
+      apiUrl,
+      bucket,
+      objectPath,
+      "/object/sign/platform-documents/recovery-canary/object.png?token=short-lived",
+    ),
+    `${apiUrl}/storage/v1/object/sign/platform-documents/recovery-canary/object.png?token=short-lived`,
+  );
+  assert.equal(
+    localSignedStorageUrl(
+      apiUrl,
+      bucket,
+      objectPath,
+      `${apiUrl}/storage/v1/object/sign/platform-documents/recovery-canary/object.png?token=short-lived`,
+    ),
+    `${apiUrl}/storage/v1/object/sign/platform-documents/recovery-canary/object.png?token=short-lived`,
+  );
+  expectCode(() => localSignedStorageUrl(
+    apiUrl,
+    bucket,
+    objectPath,
+    "https://example.invalid/object/sign/platform-documents/recovery-canary/object.png?token=x",
+  ), "private_storage_signed_url_invalid");
+  expectCode(() => localSignedStorageUrl(
+    apiUrl,
+    bucket,
+    objectPath,
+    "/object/sign/platform-documents/another-object.png?token=x",
+  ), "private_storage_signed_url_invalid");
 });
 
 test("COPY parser remains schema-qualified and fail closed", () => {

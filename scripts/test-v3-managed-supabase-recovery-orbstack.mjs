@@ -3880,6 +3880,68 @@ export async function apiRequest(
   return response;
 }
 
+const POSTGREST_SCHEMA_CACHE_RETRY = Object.freeze({
+  status: 503,
+  bodySha256: "107e1a89a72826b2133db156785c784b47f5b3e46882ed0b08b8fde6dab39ff8",
+  bytes: 119,
+});
+
+export function classifyPostgrestSchemaCacheProbe(status, body) {
+  if (status === 200) return "ready";
+  if (!Number.isSafeInteger(status) || typeof body !== "string") {
+    fail("postgrest_schema_cache_probe_invalid", "postgrest_schema_cache");
+  }
+  const diagnostic = Object.freeze({
+    status,
+    bodySha256: sha256(body),
+    bytes: Buffer.byteLength(body),
+  });
+  if (
+    diagnostic.status === POSTGREST_SCHEMA_CACHE_RETRY.status &&
+    diagnostic.bodySha256 === POSTGREST_SCHEMA_CACHE_RETRY.bodySha256 &&
+    diagnostic.bytes === POSTGREST_SCHEMA_CACHE_RETRY.bytes
+  ) {
+    return "retry";
+  }
+  fail("postgrest_schema_cache_probe_failed", "postgrest_schema_cache", diagnostic);
+}
+
+async function waitForPostgrestSchemaCache(status, interruptionGuard) {
+  const stage = "postgrest_schema_cache";
+  const deadline = Date.now() + 2 * 60 * 1_000;
+  const url = new URL("/rest/v1/", status.apiUrl);
+  const headers = {
+    apikey: status.serviceRoleKey,
+    Authorization: `Bearer ${status.serviceRoleKey}`,
+    "Accept-Profile": "platform",
+  };
+  while (Date.now() < deadline) {
+    interruptionGuard.assertActive(stage);
+    let response;
+    try {
+      response = await interruptionGuard.run(stage, async (signal) => await fetch(url, {
+        headers,
+        redirect: "manual",
+        signal: AbortSignal.any([AbortSignal.timeout(3_000), signal]),
+      }));
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
+      await interruptionGuard.run(stage, async () => await delay(250));
+      continue;
+    }
+    if (response.status === 200) {
+      await interruptionGuard.run(stage, async () => await response.body?.cancel());
+      return Object.freeze({ status: "ready", schema: "platform" });
+    }
+    const body = await interruptionGuard.run(stage, async () => await response.text());
+    if (classifyPostgrestSchemaCacheProbe(response.status, body) !== "retry") {
+      fail("postgrest_schema_cache_probe_failed", stage);
+    }
+    await interruptionGuard.run(stage, async () => await delay(250));
+  }
+  fail("postgrest_schema_cache_timeout", stage);
+}
+
 export async function uploadStorageObjectFromFile(
   path,
   { url, headers, expectedBytes },
@@ -7471,6 +7533,10 @@ async function executeMode(mode, options) {
         artifacts.storage.buckets,
         state.interruptionGuard,
       ));
+      const postgrestSchemaCache = await runStage("postgrest_schema_cache", () => waitForPostgrestSchemaCache(
+        local.status,
+        state.interruptionGuard,
+      ));
       const actorReadiness = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));
       const actors = actorReadiness.actors;
       const completeRoleCohort = ["admin", "sales", "admissions"].every((role) => isRecord(actors[role]));
@@ -7533,6 +7599,7 @@ async function executeMode(mode, options) {
         migrations,
         storage,
         targetStorage: targetStorage.evidence,
+        postgrestSchemaCache,
         representatives,
         authorization: Object.freeze({
           ...authorizationProof.evidence,

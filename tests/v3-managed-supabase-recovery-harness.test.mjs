@@ -22,6 +22,7 @@ import {
   buildIsolationEvidence,
   canonicalJson,
   classifyExpectedDatabaseDenial,
+  classifyPostgrestSchemaCacheProbe,
   cleanupDisposition,
   cleanupContainerPolicy,
   cleanupState,
@@ -141,6 +142,27 @@ test("provider configuration evidence is local-only and authenticated readiness 
   assert.match(source.slice(readinessStart, runStart), /ai_evidence_kind !== "configuration_check"/u);
   assert.match(source.slice(readinessCall, browserCall), /proveFailClosedReadiness\(app/u);
   assert.match(source.slice(browserCall), /Object\.freeze\(\{ status: "not_run_missing_representative", readiness,/u);
+});
+
+test("PostgREST schema cache waits only for the exact PGRST002 recovery state", () => {
+  const retryBody = '{"code":"PGRST002","details":null,"hint":null,"message":"Could not query the database for the schema cache. Retrying."}';
+  assert.equal(classifyPostgrestSchemaCacheProbe(200, ""), "ready");
+  assert.equal(classifyPostgrestSchemaCacheProbe(503, retryBody), "retry");
+  expectCode(
+    () => classifyPostgrestSchemaCacheProbe(503, '{"code":"different"}'),
+    "postgrest_schema_cache_probe_failed",
+  );
+  expectCode(
+    () => classifyPostgrestSchemaCacheProbe(401, "unauthorized"),
+    "postgrest_schema_cache_probe_failed",
+  );
+  const runStart = source.indexOf("async function executeMode");
+  const targetStorageCall = source.indexOf('runStage("target_storage_configuration"', runStart);
+  const schemaCacheCall = source.indexOf('runStage("postgrest_schema_cache"', runStart);
+  const representativeCall = source.indexOf('runStage("representative_auth"', runStart);
+  assert.ok(targetStorageCall > runStart && schemaCacheCall > targetStorageCall && representativeCall > schemaCacheCall);
+  assert.match(source, /const deadline = Date\.now\(\) \+ 2 \* 60 \* 1_000/u);
+  assert.match(source, /POSTGREST_SCHEMA_CACHE_RETRY/u);
 });
 
 test("Admin passes only after complete server and exact-role browser outcomes", () => {

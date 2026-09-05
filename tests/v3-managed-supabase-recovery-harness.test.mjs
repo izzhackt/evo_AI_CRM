@@ -57,6 +57,7 @@ import {
   validateDatabaseManifest,
   validateBuiltImageInspection,
   validateLocalSupabaseNetwork,
+  validatePgmqContainmentProof,
   validatePgmqRestoreInventory,
   validateRepresentativeCohort,
   validateRepositoryBindings,
@@ -1094,22 +1095,81 @@ test("PGMQ recovery binds the two canonical queue relation pairs and containment
     "pgmq.q_platform_dead_letter_v1": 3,
     "pgmq.q_platform_work_v1": 4,
   };
-  const inventory = validatePgmqRestoreInventory(counts);
+  const columns = {
+    "auth.users": ["id"],
+    "pgmq.a_platform_dead_letter_v1": ["msg_id", "read_ct", "enqueued_at", "archived_at", "vt", "message", "headers"],
+    "pgmq.a_platform_work_v1": ["msg_id", "read_ct", "enqueued_at", "archived_at", "vt", "message", "headers"],
+    "pgmq.q_platform_dead_letter_v1": ["msg_id", "read_ct", "enqueued_at", "vt", "message", "headers"],
+    "pgmq.q_platform_work_v1": ["msg_id", "read_ct", "enqueued_at", "vt", "message", "headers"],
+  };
+  const inventory = validatePgmqRestoreInventory(counts, columns);
   assert.equal(inventory.signedRowCount, 9);
   assert.match(inventory.queueSetSha256, /^[0-9a-f]{64}$/u);
   assert.match(inventory.relationSetSha256, /^[0-9a-f]{64}$/u);
   assert.match(inventory.relationCountsSha256, /^[0-9a-f]{64}$/u);
+  assert.match(inventory.copyColumnsSha256, /^[0-9a-f]{64}$/u);
   expectCode(
-    () => validatePgmqRestoreInventory({ ...counts, "pgmq.q_unreviewed": 0 }),
+    () => validatePgmqRestoreInventory({ ...counts, "pgmq.q_unreviewed": 0 }, columns),
     "pgmq_restore_inventory_invalid",
   );
   const missing = { ...counts };
   delete missing["pgmq.a_platform_work_v1"];
-  expectCode(() => validatePgmqRestoreInventory(missing), "pgmq_restore_inventory_invalid");
+  expectCode(() => validatePgmqRestoreInventory(missing, columns), "pgmq_restore_inventory_invalid");
+  expectCode(() => validatePgmqRestoreInventory(counts, {
+    ...columns,
+    "pgmq.q_platform_work_v1": ["msg_id", "message"],
+  }), "pgmq_restore_inventory_invalid");
+
+  const verified = {
+    queueMetadata: [
+      { queueName: "platform_dead_letter_v1", isPartitioned: false, isUnlogged: false },
+      { queueName: "platform_work_v1", isPartitioned: false, isUnlogged: false },
+    ],
+    queueMetadataTotalCount: 2,
+    queueRelationCount: 4,
+    requiredRelationCount: 4,
+    loggedRelationCount: 4,
+    identitySequenceCount: 2,
+    copyCompatibleColumnCount: 26,
+    missingRoleCount: 0,
+    directForbiddenGrantCount: 0,
+    effectiveForbiddenPrivilegeCount: 0,
+    additiveDefaultGrantCount: 0,
+    restoredRelationCounts: Object.fromEntries(Object.entries(counts).filter(([table]) => table.startsWith("pgmq."))),
+  };
+  const proof = validatePgmqContainmentProof(verified, inventory, { phase: "post_data" });
+  assert.equal(proof.status, "restored_and_contained");
+  assert.equal(proof.relationCountsMatch, true);
+  assert.equal(proof.copyCompatibleColumnCount, 26);
+  for (const field of [
+    "missingRoleCount", "directForbiddenGrantCount",
+    "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
+  ]) {
+    expectCode(
+      () => validatePgmqContainmentProof({ ...verified, [field]: 1 }, inventory, { phase: "post_data" }),
+      "pgmq_extension_relation_containment_failed",
+    );
+  }
+  const drifted = {
+    ...verified,
+    restoredRelationCounts: { ...verified.restoredRelationCounts, "pgmq.q_platform_work_v1": 5 },
+  };
+  expectCode(
+    () => validatePgmqContainmentProof(drifted, inventory, { phase: "post_data" }),
+    "pgmq_extension_relation_count_mismatch",
+  );
+  assert.equal(validatePgmqContainmentProof(
+    drifted,
+    inventory,
+    { phase: "pre_data", requireCountsMatch: false },
+  ).status, "created_and_contained");
   assert.match(source, /SELECT pgmq\.create\('platform_work_v1'\)/u);
   assert.match(source, /SELECT pgmq\.create\('platform_dead_letter_v1'\)/u);
   assert.match(source, /REVOKE ALL ON ALL TABLES IN SCHEMA pgmq/u);
-  assert.match(source, /forbiddenAclCount/u);
+  assert.match(source, /pg_has_role\(role\.oid, acl\.grantee, 'USAGE'\)/u);
+  assert.match(source, /has_any_column_privilege/u);
+  assert.match(source, /FROM pg_default_acl AS defaults/u);
+  assert.match(source, /"post_migration"/u);
 });
 
 test("durable evidence fails closed before write when cleanup quarantines", () => {

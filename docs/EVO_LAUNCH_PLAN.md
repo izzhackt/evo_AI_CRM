@@ -314,14 +314,27 @@ blocker, and synthetic identities, records or objects cannot satisfy this gate.
 Because the managed schema export intentionally excludes extension-owned
 `pgmq` objects while the signed data export retains queue rows, recovery must
 recreate only the two migration-045 queues before loading `data.sql`. It binds
-the exact four `q_*`/`a_*` COPY sections, reapplies the migration's deny ACLs
-for browser and service roles, verifies no forbidden schema/table/sequence/
-function grant remains, and then reconciles every signed row count. Supabase's
-PGMQ reference confirms that `pgmq.create(text)` creates a queue, while its
-Queues quickstart documents the paired `q_<name>` and `a_<name>` tables and
-warns that direct queue tables do not receive RLS by default:
+the exact four `q_*`/`a_*` COPY sections and their column order, recreates two
+logged non-partitioned metadata entries and two identity sequences, reapplies
+the migration's deny ACLs, and then inspects direct, inherited, column,
+function and additive default grants for every browser/service role. The same
+inspection runs before data, after signed row-count reconciliation and again
+after pending migrations; the final inspection never repairs ACLs, so a bad
+target migration fails instead of being masked. PostgreSQL documents that a
+per-schema default `REVOKE` cannot cancel a global or hard-wired default grant,
+including default `PUBLIC EXECUTE` on future functions. Therefore only explicit
+current-object revocation plus the repeated effective-privilege inspection is
+claimed here; the harness does not promise automatic containment of unknown
+future extension objects. Supabase's PGMQ reference confirms that
+`pgmq.create(text)` creates a queue, while its Queues quickstart documents the
+paired `q_<name>` and `a_<name>` tables and warns that direct queue tables do
+not receive RLS by default:
 <https://supabase.com/docs/guides/queues/pgmq> and
-<https://supabase.com/docs/guides/queues/quickstart>.
+<https://supabase.com/docs/guides/queues/quickstart>. PostgreSQL default-
+privilege behavior is authoritative at
+<https://www.postgresql.org/docs/current/sql-alterdefaultprivileges.html> and
+the inspected catalog is documented at
+<https://www.postgresql.org/docs/17/catalog-pg-default-acl.html>.
 
 #600 keeps the proved `/v3/*` module URLs and makes the authenticated root a
 role-aware dispatcher into them: Admin and Sales enter `/v3/main`, while

@@ -19170,3 +19170,49 @@ This correction affects only the marked disposable local recovery directory.
 It does not run Docker, contact or mutate managed Supabase, production, VPS,
 WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
 not arm #552.
+## 2026-09-05 - Bind PGMQ shape and effective privileges across recovery phases
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-EFFECTIVE-CONTAINMENT-2026-09-05`
+
+Change type: real-runtime recovery security correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review of the PGMQ reconstruction found that the first correction
+proved only the four relation names and direct catalog ACLs immediately after
+creation. That could miss inherited role access, column grants, a malformed
+queue metadata/identity shape, signed COPY-column drift, or a pending migration
+that reopened access. It also described per-schema default `REVOKE` too broadly:
+PostgreSQL states that per-schema defaults can add privileges but cannot cancel
+global or hard-wired defaults, including default `PUBLIC EXECUTE` for future
+functions.
+
+Decision:
+
+- bind the signed artifact to exactly the four reviewed PGMQ COPY headers and
+  their expected column order, and continue rejecting an extra or renamed
+  extension data section until a versioned consumer is reviewed;
+- require exactly two logged, non-partitioned queue metadata rows, four logged
+  queue/archive relations, two active-queue identity sequences and every
+  signed COPY column with its expected PostgreSQL type;
+- require all four forbidden runtime roles to exist, then prove zero direct,
+  inherited, column, schema, relation, sequence and function privilege as well
+  as zero additive global/per-schema default ACL entry for those roles or
+  `PUBLIC`;
+- compare the actual four-table row-count digest with the signed digest before
+  calling the data restored, and repeat the read-only containment inspection
+  after pending migrations; and
+- never re-run `REVOKE` after pending migrations, because doing so would hide a
+  security regression in the target migration set. The initial current-object
+  revocation remains necessary; the per-schema default statements are retained
+  only for migration-045 fidelity and do not claim protection for unknown
+  future functions.
+
+Official references:
+<https://www.postgresql.org/docs/current/sql-alterdefaultprivileges.html>,
+<https://www.postgresql.org/docs/17/catalog-pg-default-acl.html>,
+<https://supabase.com/docs/guides/queues/pgmq>, and
+<https://supabase.com/docs/guides/queues/quickstart>.
+
+This changes only the disposable local recovery consumer and redacted evidence.
+It does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
+Gemini, webhooks, customer records or provider state. #552 remains unarmed.

@@ -147,6 +147,14 @@ const RECOVERY_PGMQ_RELATIONS = Object.freeze([
   "pgmq.q_platform_dead_letter_v1",
   "pgmq.q_platform_work_v1",
 ]);
+const RECOVERY_PGMQ_COPY_COLUMNS = Object.freeze({
+  "pgmq.a_platform_dead_letter_v1": Object.freeze(["msg_id", "read_ct", "enqueued_at", "archived_at", "vt", "message", "headers"]),
+  "pgmq.a_platform_work_v1": Object.freeze(["msg_id", "read_ct", "enqueued_at", "archived_at", "vt", "message", "headers"]),
+  "pgmq.q_platform_dead_letter_v1": Object.freeze(["msg_id", "read_ct", "enqueued_at", "vt", "message", "headers"]),
+  "pgmq.q_platform_work_v1": Object.freeze(["msg_id", "read_ct", "enqueued_at", "vt", "message", "headers"]),
+});
+const RECOVERY_PGMQ_COPY_COLUMN_COUNT = Object.values(RECOVERY_PGMQ_COPY_COLUMNS)
+  .reduce((total, columns) => total + columns.length, 0);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export class RecoveryFailure extends Error {
@@ -2689,31 +2697,331 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
   return endpoint;
 }
 
-export function validatePgmqRestoreInventory(counts) {
-  if (!isRecord(counts)) fail("pgmq_restore_inventory_invalid", "database_restore");
+function pgmqRelationCounts(counts, code, stage) {
+  if (!isRecord(counts)) fail(code, stage);
   const entries = Object.entries(counts)
     .filter(([table]) => table.startsWith("pgmq."))
     .sort(([left], [right]) => left.localeCompare(right, "en"));
   if (
     entries.length !== RECOVERY_PGMQ_RELATIONS.length ||
     entries.some(([table, count], index) => {
-      integer(count, "pgmq_restore_inventory_invalid", "database_restore");
+      integer(count, code, stage);
       return table !== RECOVERY_PGMQ_RELATIONS[index];
     })
   ) {
+    fail(code, stage);
+  }
+  return Object.freeze(Object.fromEntries(entries));
+}
+
+export function validatePgmqRestoreInventory(counts, columns) {
+  const relationCounts = pgmqRelationCounts(counts, "pgmq_restore_inventory_invalid", "database_restore");
+  if (!isRecord(columns)) fail("pgmq_restore_inventory_invalid", "database_restore");
+  const pgmqColumns = Object.fromEntries(Object.entries(columns)
+    .filter(([table]) => table.startsWith("pgmq."))
+    .sort(([left], [right]) => left.localeCompare(right, "en")));
+  if (!sameJson(pgmqColumns, RECOVERY_PGMQ_COPY_COLUMNS)) {
     fail("pgmq_restore_inventory_invalid", "database_restore");
   }
-  const relationCounts = Object.freeze(Object.fromEntries(entries));
   return Object.freeze({
     queueSetSha256: sha256(canonicalJson(RECOVERY_PGMQ_QUEUES)),
     relationSetSha256: sha256(canonicalJson(RECOVERY_PGMQ_RELATIONS)),
     relationCountsSha256: sha256(canonicalJson(relationCounts)),
-    signedRowCount: entries.reduce((total, [, count]) => total + count, 0),
+    copyColumnsSha256: sha256(canonicalJson(pgmqColumns)),
+    signedRowCount: Object.values(relationCounts).reduce((total, count) => total + count, 0),
   });
 }
 
+export function validatePgmqContainmentProof(verified, inventory, options = {}) {
+  const stage = options.stage ?? "database_restore";
+  const phase = options.phase;
+  const requireCountsMatch = options.requireCountsMatch !== false;
+  const signedRelationCountsSha256 = inventory?.relationCountsSha256 ?? inventory?.signedRelationCountsSha256;
+  exactKeys(verified, [
+    "queueMetadata", "queueMetadataTotalCount", "queueRelationCount",
+    "requiredRelationCount", "loggedRelationCount", "identitySequenceCount",
+    "copyCompatibleColumnCount", "missingRoleCount", "directForbiddenGrantCount",
+    "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
+    "restoredRelationCounts",
+  ], "pgmq_extension_relation_containment_failed", stage);
+  if (!new Set(["pre_data", "post_data", "post_migration"]).has(phase)) {
+    fail("pgmq_extension_relation_containment_failed", stage);
+  }
+  const expectedMetadata = RECOVERY_PGMQ_QUEUES.map((queueName) => Object.freeze({
+    queueName,
+    isPartitioned: false,
+    isUnlogged: false,
+  }));
+  const zeroFields = [
+    "missingRoleCount", "directForbiddenGrantCount",
+    "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
+  ];
+  if (
+    !isRecord(inventory) ||
+    !SHA256.test(signedRelationCountsSha256 ?? "") ||
+    !SHA256.test(inventory.copyColumnsSha256 ?? "") ||
+    !sameJson(verified.queueMetadata, expectedMetadata) ||
+    verified.queueMetadataTotalCount !== RECOVERY_PGMQ_QUEUES.length ||
+    verified.queueRelationCount !== RECOVERY_PGMQ_RELATIONS.length ||
+    verified.requiredRelationCount !== RECOVERY_PGMQ_RELATIONS.length ||
+    verified.loggedRelationCount !== RECOVERY_PGMQ_RELATIONS.length ||
+    verified.identitySequenceCount !== RECOVERY_PGMQ_QUEUES.length ||
+    verified.copyCompatibleColumnCount !== RECOVERY_PGMQ_COPY_COLUMN_COUNT ||
+    zeroFields.some((field) => verified[field] !== 0)
+  ) {
+    fail("pgmq_extension_relation_containment_failed", stage);
+  }
+  const restoredCounts = pgmqRelationCounts(
+    verified.restoredRelationCounts,
+    "pgmq_extension_relation_containment_failed",
+    stage,
+  );
+  const restoredRelationCountsSha256 = sha256(canonicalJson(restoredCounts));
+  const relationCountsMatch = restoredRelationCountsSha256 === signedRelationCountsSha256;
+  if (requireCountsMatch && !relationCountsMatch) {
+    fail("pgmq_extension_relation_count_mismatch", stage);
+  }
+  return Object.freeze({
+    status: requireCountsMatch ? "restored_and_contained" : "created_and_contained",
+    phase,
+    signedRelationCountsSha256,
+    restoredRelationCountsSha256,
+    relationCountsMatch,
+    copyColumnsSha256: inventory.copyColumnsSha256,
+    queueMetadataSha256: sha256(canonicalJson(verified.queueMetadata)),
+    queueMetadataTotalCount: verified.queueMetadataTotalCount,
+    queueRelationCount: verified.queueRelationCount,
+    requiredRelationCount: verified.requiredRelationCount,
+    loggedRelationCount: verified.loggedRelationCount,
+    identitySequenceCount: verified.identitySequenceCount,
+    copyCompatibleColumnCount: verified.copyCompatibleColumnCount,
+    missingRoleCount: verified.missingRoleCount,
+    directForbiddenGrantCount: verified.directForbiddenGrantCount,
+    effectiveForbiddenPrivilegeCount: verified.effectiveForbiddenPrivilegeCount,
+    additiveDefaultGrantCount: verified.additiveDefaultGrantCount,
+  });
+}
+
+async function inspectPgmqExtensionRelations(inventory, phase, status, supervisor, toolchain, options = {}) {
+  const stage = options.stage ?? "database_restore";
+  const structure = await psqlJson(supervisor, toolchain, status, String.raw`
+    WITH forbidden_role_names(role_name) AS (
+      VALUES ('anon'), ('authenticated'), ('service_role'), ('supabase_auth_admin')
+    ), named_roles AS (
+      SELECT roles.oid, roles.rolname
+      FROM pg_roles AS roles
+      JOIN forbidden_role_names AS forbidden ON forbidden.role_name = roles.rolname
+    ), target_namespaces AS (
+      SELECT namespace.oid, namespace.nspname
+      FROM pg_namespace AS namespace
+      WHERE namespace.nspname IN ('pgmq', 'pgmq_public')
+    ), forbidden_direct_acl AS (
+      SELECT 1
+      FROM pg_namespace AS namespace
+      JOIN target_namespaces AS target ON target.oid = namespace.oid
+      CROSS JOIN LATERAL aclexplode(coalesce(namespace.nspacl, acldefault('n'::"char", namespace.nspowner))) AS acl
+      WHERE CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+        SELECT 1 FROM named_roles AS role
+        WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+      ) END
+      UNION ALL
+      SELECT 1
+      FROM pg_class AS relation
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      CROSS JOIN LATERAL aclexplode(coalesce(
+        relation.relacl,
+        acldefault((CASE WHEN relation.relkind = 'S' THEN 'S' ELSE 'r' END)::"char", relation.relowner)
+      )) AS acl
+      WHERE relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+        AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+          SELECT 1 FROM named_roles AS role
+          WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+        ) END
+      UNION ALL
+      SELECT 1
+      FROM pg_attribute AS attribute
+      JOIN pg_class AS relation ON relation.oid = attribute.attrelid
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      CROSS JOIN LATERAL aclexplode(coalesce(attribute.attacl, '{}'::aclitem[])) AS acl
+      WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+        AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+          SELECT 1 FROM named_roles AS role
+          WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+        ) END
+      UNION ALL
+      SELECT 1
+      FROM pg_proc AS routine
+      JOIN target_namespaces AS namespace ON namespace.oid = routine.pronamespace
+      CROSS JOIN LATERAL aclexplode(coalesce(routine.proacl, acldefault('f'::"char", routine.proowner))) AS acl
+      WHERE CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+        SELECT 1 FROM named_roles AS role
+        WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+      ) END
+    ), forbidden_effective_privilege AS (
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN target_namespaces AS namespace
+      WHERE has_schema_privilege(role.oid, namespace.oid, 'USAGE')
+         OR has_schema_privilege(role.oid, namespace.oid, 'CREATE')
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_class AS relation
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'f')
+        AND (
+          has_table_privilege(role.oid, relation.oid, 'SELECT')
+          OR has_table_privilege(role.oid, relation.oid, 'INSERT')
+          OR has_table_privilege(role.oid, relation.oid, 'UPDATE')
+          OR has_table_privilege(role.oid, relation.oid, 'DELETE')
+          OR has_table_privilege(role.oid, relation.oid, 'TRUNCATE')
+          OR has_table_privilege(role.oid, relation.oid, 'REFERENCES')
+          OR has_table_privilege(role.oid, relation.oid, 'TRIGGER')
+          OR has_any_column_privilege(role.oid, relation.oid, 'SELECT')
+          OR has_any_column_privilege(role.oid, relation.oid, 'INSERT')
+          OR has_any_column_privilege(role.oid, relation.oid, 'UPDATE')
+          OR has_any_column_privilege(role.oid, relation.oid, 'REFERENCES')
+        )
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_class AS relation
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      WHERE relation.relkind = 'S'
+        AND (
+          has_sequence_privilege(role.oid, relation.oid, 'USAGE')
+          OR has_sequence_privilege(role.oid, relation.oid, 'SELECT')
+          OR has_sequence_privilege(role.oid, relation.oid, 'UPDATE')
+        )
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_proc AS routine
+      JOIN target_namespaces AS namespace ON namespace.oid = routine.pronamespace
+      WHERE has_function_privilege(role.oid, routine.oid, 'EXECUTE')
+    ), forbidden_default_acl AS (
+      SELECT 1
+      FROM pg_default_acl AS defaults
+      LEFT JOIN pg_namespace AS namespace ON namespace.oid = defaults.defaclnamespace
+      CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl
+      WHERE (defaults.defaclnamespace = 0 OR namespace.nspname IN ('pgmq', 'pgmq_public'))
+        AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+          SELECT 1 FROM named_roles AS role
+          WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+        ) END
+    ), expected_columns(relation_name, column_name, type_oid) AS (
+      VALUES
+        ('a_platform_dead_letter_v1', 'msg_id', 'int8'::regtype),
+        ('a_platform_dead_letter_v1', 'read_ct', 'int4'::regtype),
+        ('a_platform_dead_letter_v1', 'enqueued_at', 'timestamptz'::regtype),
+        ('a_platform_dead_letter_v1', 'archived_at', 'timestamptz'::regtype),
+        ('a_platform_dead_letter_v1', 'vt', 'timestamptz'::regtype),
+        ('a_platform_dead_letter_v1', 'message', 'jsonb'::regtype),
+        ('a_platform_dead_letter_v1', 'headers', 'jsonb'::regtype),
+        ('a_platform_work_v1', 'msg_id', 'int8'::regtype),
+        ('a_platform_work_v1', 'read_ct', 'int4'::regtype),
+        ('a_platform_work_v1', 'enqueued_at', 'timestamptz'::regtype),
+        ('a_platform_work_v1', 'archived_at', 'timestamptz'::regtype),
+        ('a_platform_work_v1', 'vt', 'timestamptz'::regtype),
+        ('a_platform_work_v1', 'message', 'jsonb'::regtype),
+        ('a_platform_work_v1', 'headers', 'jsonb'::regtype),
+        ('q_platform_dead_letter_v1', 'msg_id', 'int8'::regtype),
+        ('q_platform_dead_letter_v1', 'read_ct', 'int4'::regtype),
+        ('q_platform_dead_letter_v1', 'enqueued_at', 'timestamptz'::regtype),
+        ('q_platform_dead_letter_v1', 'vt', 'timestamptz'::regtype),
+        ('q_platform_dead_letter_v1', 'message', 'jsonb'::regtype),
+        ('q_platform_dead_letter_v1', 'headers', 'jsonb'::regtype),
+        ('q_platform_work_v1', 'msg_id', 'int8'::regtype),
+        ('q_platform_work_v1', 'read_ct', 'int4'::regtype),
+        ('q_platform_work_v1', 'enqueued_at', 'timestamptz'::regtype),
+        ('q_platform_work_v1', 'vt', 'timestamptz'::regtype),
+        ('q_platform_work_v1', 'message', 'jsonb'::regtype),
+        ('q_platform_work_v1', 'headers', 'jsonb'::regtype)
+    )
+    SELECT json_build_object(
+      'queueMetadata', (
+        SELECT coalesce(json_agg(json_build_object(
+          'queueName', queue_name,
+          'isPartitioned', is_partitioned,
+          'isUnlogged', is_unlogged
+        ) ORDER BY queue_name), '[]'::json)
+        FROM pgmq.meta
+        WHERE queue_name IN ('platform_dead_letter_v1', 'platform_work_v1')
+      ),
+      'queueMetadataTotalCount', (SELECT count(*)::integer FROM pgmq.meta),
+      'queueRelationCount', (
+        SELECT count(*)::integer
+        FROM pg_class AS relation
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'pgmq'
+          AND relation.relkind IN ('r', 'p')
+          AND relation.relname ~ '^[aq]_'
+      ),
+      'requiredRelationCount', (
+        SELECT count(*)::integer
+        FROM pg_class AS relation
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'pgmq'
+          AND relation.relkind IN ('r', 'p')
+          AND relation.relname IN (
+            'a_platform_dead_letter_v1', 'a_platform_work_v1',
+            'q_platform_dead_letter_v1', 'q_platform_work_v1'
+          )
+      ),
+      'loggedRelationCount', (
+        SELECT count(*)::integer
+        FROM pg_class AS relation
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'pgmq'
+          AND relation.relkind = 'r'
+          AND relation.relpersistence = 'p'
+          AND relation.relname IN (
+            'a_platform_dead_letter_v1', 'a_platform_work_v1',
+            'q_platform_dead_letter_v1', 'q_platform_work_v1'
+          )
+      ),
+      'identitySequenceCount', (
+        SELECT count(*)::integer
+        FROM pg_attribute AS attribute
+        JOIN pg_class AS relation ON relation.oid = attribute.attrelid
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'pgmq'
+          AND relation.relname IN ('q_platform_dead_letter_v1', 'q_platform_work_v1')
+          AND attribute.attname = 'msg_id'
+          AND attribute.attidentity IN ('a', 'd')
+          AND pg_get_serial_sequence(format('%I.%I', namespace.nspname, relation.relname), attribute.attname) IS NOT NULL
+      ),
+      'copyCompatibleColumnCount', (
+        SELECT count(*)::integer
+        FROM expected_columns AS expected
+        JOIN pg_class AS relation ON relation.relname = expected.relation_name
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace AND namespace.nspname = 'pgmq'
+        JOIN pg_attribute AS attribute ON attribute.attrelid = relation.oid
+          AND attribute.attname = expected.column_name
+          AND attribute.atttypid = expected.type_oid
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped
+      ),
+      'missingRoleCount', (
+        SELECT (count(*) - (SELECT count(*) FROM named_roles))::integer
+        FROM forbidden_role_names
+      ),
+      'directForbiddenGrantCount', (SELECT count(*)::integer FROM forbidden_direct_acl),
+      'effectiveForbiddenPrivilegeCount', (SELECT count(*)::integer FROM forbidden_effective_privilege),
+      'additiveDefaultGrantCount', (SELECT count(*)::integer FROM forbidden_default_acl)
+    )::text`, stage);
+  const zeroCounts = Object.freeze(Object.fromEntries(RECOVERY_PGMQ_RELATIONS.map((relation) => [relation, 0])));
+  const restoredRelationCounts = await restoredTableCounts(zeroCounts, supervisor, toolchain, status, stage);
+  return validatePgmqContainmentProof(
+    { ...structure, restoredRelationCounts },
+    inventory,
+    { stage, phase, requireCountsMatch: options.requireCountsMatch },
+  );
+}
+
 async function restorePgmqExtensionRelations(dataPath, status, supervisor, toolchain) {
-  const inventory = validatePgmqRestoreInventory(await dataDumpTableCounts(dataPath));
+  const dump = await dataDumpTableInventory(dataPath);
+  const inventory = validatePgmqRestoreInventory(dump.counts, dump.columns);
   await psql(supervisor, toolchain, status, ["--command", String.raw`
     BEGIN;
     DO $$
@@ -2760,63 +3068,15 @@ async function restorePgmqExtensionRelations(dataPath, status, supervisor, toolc
     stage: "database_restore",
     code: "pgmq_extension_relation_restore_failed",
   });
-  const verified = await psqlJson(supervisor, toolchain, status, String.raw`
-    WITH forbidden_roles AS (
-      SELECT oid FROM pg_roles
-      WHERE rolname IN ('anon', 'authenticated', 'service_role', 'supabase_auth_admin')
-      UNION ALL SELECT 0::oid
-    ), forbidden_acl AS (
-      SELECT 1
-      FROM pg_namespace AS namespace
-      CROSS JOIN LATERAL aclexplode(coalesce(namespace.nspacl, acldefault('n'::"char", namespace.nspowner))) AS acl
-      JOIN forbidden_roles AS forbidden ON forbidden.oid = acl.grantee
-      WHERE namespace.nspname IN ('pgmq', 'pgmq_public')
-      UNION ALL
-      SELECT 1
-      FROM pg_class AS relation
-      JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
-      CROSS JOIN LATERAL aclexplode(coalesce(
-        relation.relacl,
-        acldefault((CASE WHEN relation.relkind = 'S' THEN 'S' ELSE 'r' END)::"char", relation.relowner)
-      )) AS acl
-      JOIN forbidden_roles AS forbidden ON forbidden.oid = acl.grantee
-      WHERE namespace.nspname IN ('pgmq', 'pgmq_public')
-        AND relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
-      UNION ALL
-      SELECT 1
-      FROM pg_proc AS routine
-      JOIN pg_namespace AS namespace ON namespace.oid = routine.pronamespace
-      CROSS JOIN LATERAL aclexplode(coalesce(routine.proacl, acldefault('f'::"char", routine.proowner))) AS acl
-      JOIN forbidden_roles AS forbidden ON forbidden.oid = acl.grantee
-      WHERE namespace.nspname IN ('pgmq', 'pgmq_public')
-    )
-    SELECT json_build_object(
-      'requiredRelationCount', (
-        SELECT count(*)::integer
-        FROM pg_class AS relation
-        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
-        WHERE namespace.nspname = 'pgmq'
-          AND relation.relkind IN ('r', 'p')
-          AND relation.relname IN (
-            'a_platform_dead_letter_v1', 'a_platform_work_v1',
-            'q_platform_dead_letter_v1', 'q_platform_work_v1'
-          )
-      ),
-      'forbiddenAclCount', (SELECT count(*)::integer FROM forbidden_acl)
-    )::text`, "database_restore");
-  if (
-    !isRecord(verified) ||
-    verified.requiredRelationCount !== RECOVERY_PGMQ_RELATIONS.length ||
-    verified.forbiddenAclCount !== 0
-  ) {
-    fail("pgmq_extension_relation_containment_failed", "database_restore");
-  }
-  return Object.freeze({
-    status: "restored_and_contained",
-    ...inventory,
-    requiredRelationCount: verified.requiredRelationCount,
-    forbiddenAclCount: verified.forbiddenAclCount,
-  });
+  const preData = await inspectPgmqExtensionRelations(
+    inventory,
+    "pre_data",
+    status,
+    supervisor,
+    toolchain,
+    { requireCountsMatch: false },
+  );
+  return Object.freeze({ inventory, preData });
 }
 
 async function restoreDatabase(artifacts, status, supervisor, toolchain) {
@@ -2826,7 +3086,7 @@ async function restoreDatabase(artifacts, status, supervisor, toolchain) {
   for (const name of ["history-schema.sql", "history-data.sql"]) {
     await psql(supervisor, toolchain, status, ["--file", artifacts.plaintext[name]], { stage: "database_restore", code: `${name.replaceAll(/[^a-z]/gu, "_")}_restore_failed` });
   }
-  const extensionRelations = await restorePgmqExtensionRelations(
+  const extensionBootstrap = await restorePgmqExtensionRelations(
     artifacts.plaintext["data.sql"],
     status,
     supervisor,
@@ -2836,7 +3096,17 @@ async function restoreDatabase(artifacts, status, supervisor, toolchain) {
     stage: "database_restore",
     code: "data_sql_restore_failed",
   });
-  return extensionRelations;
+  const postData = await inspectPgmqExtensionRelations(
+    extensionBootstrap.inventory,
+    "post_data",
+    status,
+    supervisor,
+    toolchain,
+  );
+  return Object.freeze({
+    ...postData,
+    preDataChecked: extensionBootstrap.preData.phase === "pre_data",
+  });
 }
 
 export function databaseAggregatesFromTableCounts(counts, code = "restored_database_aggregate_invalid") {
@@ -2900,8 +3170,9 @@ export function validateRestoredTableCounts(expected, actual) {
   return Object.freeze(actual);
 }
 
-async function dataDumpTableCounts(path) {
+async function dataDumpTableInventory(path) {
   const counts = {};
+  const columns = {};
   const input = createReadStream(path);
   const lines = createInterface({ input, crlfDelay: Infinity });
   let current;
@@ -2919,6 +3190,7 @@ async function dataDumpTableCounts(path) {
       if (!line.startsWith("COPY ")) continue;
       const header = copyHeader(line);
       if (!header || Object.hasOwn(counts, header.table)) fail("database_data_copy_invalid", "database_restore");
+      columns[header.table] = header.columns;
       current = { table: header.table, rows: 0 };
     }
   } finally {
@@ -2926,7 +3198,14 @@ async function dataDumpTableCounts(path) {
     input.destroy();
   }
   if (current) fail("database_data_copy_invalid", "database_restore");
-  return Object.freeze(Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right, "en"))));
+  return Object.freeze({
+    counts: Object.freeze(Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right, "en")))),
+    columns: Object.freeze(Object.fromEntries(Object.entries(columns).sort(([left], [right]) => left.localeCompare(right, "en")))),
+  });
+}
+
+async function dataDumpTableCounts(path) {
+  return (await dataDumpTableInventory(path)).counts;
 }
 
 function quotedQualifiedTable(table) {
@@ -2937,13 +3216,13 @@ function quotedQualifiedTable(table) {
   return parts.map((part) => `"${part}"`).join(".");
 }
 
-async function restoredTableCounts(expectedCounts, supervisor, toolchain, status) {
+async function restoredTableCounts(expectedCounts, supervisor, toolchain, status, stage = "database_restore") {
   const tables = Object.keys(expectedCounts);
   if (tables.length === 0) return Object.freeze({});
   const values = tables.map((table) => `(${sqlLiteral(table)}, (SELECT count(*)::bigint FROM ${quotedQualifiedTable(table)}))`).join(",\n");
   const actual = await psqlJson(supervisor, toolchain, status, String.raw`
     SELECT coalesce(jsonb_object_agg(table_name, row_count ORDER BY table_name), '{}'::jsonb)::text
-    FROM (VALUES ${values}) AS restored_counts(table_name, row_count)`, "database_restore", 16 * 1_024 * 1_024);
+    FROM (VALUES ${values}) AS restored_counts(table_name, row_count)`, stage, 16 * 1_024 * 1_024);
   if (!isRecord(actual) || Object.keys(actual).length !== tables.length || tables.some((table) => !Object.hasOwn(actual, table))) {
     fail("restored_database_table_inventory_mismatch", "database_restore");
   }
@@ -2993,7 +3272,7 @@ async function databaseLedger(supervisor, toolchain, status) {
   }));
 }
 
-async function applyPendingMigrations(state, local, root, verified, supervisor, toolchain) {
+async function applyPendingMigrations(state, local, root, verified, extensionInventory, supervisor, toolchain) {
   const restored = await databaseLedger(supervisor, toolchain, local.status);
   if (
     restored.length !== verified.recordedSource.length ||
@@ -3030,7 +3309,21 @@ async function applyPendingMigrations(state, local, root, verified, supervisor, 
   ) {
     fail("final_migration_ledger_mismatch", "migration_rehearsal");
   }
-  return Object.freeze({ sourceCount: verified.source.length, pendingApplied: verified.pending.length, finalCount: final.length, orderedSourceLedgerSha256: verified.orderedLedgerSha256 });
+  const extensionRelations = await inspectPgmqExtensionRelations(
+    extensionInventory,
+    "post_migration",
+    local.status,
+    supervisor,
+    toolchain,
+    { stage: "migration_rehearsal" },
+  );
+  return Object.freeze({
+    sourceCount: verified.source.length,
+    pendingApplied: verified.pending.length,
+    finalCount: final.length,
+    orderedSourceLedgerSha256: verified.orderedLedgerSha256,
+    extensionRelations,
+  });
 }
 
 function safeTarMember(name) {
@@ -6420,7 +6713,15 @@ async function executeMode(mode, options) {
           extensionRelations,
         });
       });
-      const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(state, local, targetRoot, verifiedLedger, supervisor, toolchain));
+      const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(
+        state,
+        local,
+        targetRoot,
+        verifiedLedger,
+        database.extensionRelations,
+        supervisor,
+        toolchain,
+      ));
       const storage = await runStage("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain, state.interruptionGuard));
       if (!sameJson(storage.readiness, sourceStorageReadiness)) fail("storage_source_readiness_mismatch", "storage_verification");
       const actorReadiness = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));

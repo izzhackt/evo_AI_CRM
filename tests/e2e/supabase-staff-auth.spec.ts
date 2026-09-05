@@ -165,6 +165,7 @@ async function directPlatformRpc(
     | "staff_lead_admissions_handoff"
     | "handoff_lead_to_admissions"
     | "staff_student_case_handoff_context"
+    | "create_case_task"
     | "staff_case_task_queue"
     | "staff_application_snapshot"
     | "staff_case_visa"
@@ -1400,11 +1401,108 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   );
   await createdTask.click();
   await expect(page.getByTestId("v3-calendar-task-controls")).toBeVisible();
+  const admissionsAssigneeMembershipId = requireUuidValue(
+    await page
+      .getByTestId("v3-calendar-task-done-form")
+      .locator('input[name="assignee_membership_id"]')
+      .inputValue(),
+  );
   await page
     .getByTestId("v3-calendar-task-done-form")
     .locator('button[type="submit"]')
     .click();
   await expect(page.locator(`#task-${caseTaskId}`)).toContainText("выполнена");
+
+  const exactTimedDueAt = "2099-09-12T12:45:30.123456Z";
+  const timedTaskResult = await directPlatformRpc(
+    "create_case_task",
+    {
+      p_organization_id: organizationId,
+      p_student_case_id: studentCaseId,
+      p_task_type: "follow_up",
+      p_title: "P4 exact timed deadline roundtrip",
+      p_assignee_membership_id: admissionsAssigneeMembershipId,
+      p_priority: "normal",
+      p_due_on: null,
+      p_due_at: exactTimedDueAt,
+      p_status: "open",
+      p_student_visible: false,
+      p_expected_version: 0,
+      p_request_id: randomUUID(),
+    },
+    adminToken,
+  );
+  expect(timedTaskResult.status, JSON.stringify(timedTaskResult.payload)).toBe(200);
+  const timedCaseTaskId = requireUuidValue(
+    expectObject(timedTaskResult.payload).case_task_id,
+  );
+
+  await page.context().clearCookies();
+  await signIn(page, "admin");
+  await page.goto("/v3/calendar?view=day&date=2099-09-12");
+  const timedTask = page.locator(`#task-${timedCaseTaskId}`);
+  await expect(timedTask).toContainText("18:45");
+  await timedTask.click();
+  const timedChangeForm = page.getByTestId("v3-calendar-task-change-form");
+  await page
+    .getByTestId("v3-calendar-task-controls")
+    .locator("details")
+    .filter({ hasText: "Изменить задачу" })
+    .locator("summary")
+    .click();
+  const timedDeadlineInput = timedChangeForm.getByTestId(
+    "v3-calendar-timed-deadline-input",
+  );
+  await expect(timedDeadlineInput).toHaveValue("2099-09-12T18:45");
+  await timedDeadlineInput.fill("2099-09-12T18:46");
+  await timedChangeForm.locator('select[name="deadline_kind"]').selectOption("none");
+  await timedChangeForm.locator('select[name="deadline_kind"]').selectOption("timed");
+  await expect(timedDeadlineInput).toHaveValue("2099-09-12T18:46");
+
+  // Reload discards the unsaved edit. The following unrelated priority change
+  // must submit the exact canonical timestamp, including seconds/microseconds.
+  await page.reload();
+  await timedTask.click();
+  await page
+    .getByTestId("v3-calendar-task-controls")
+    .locator("details")
+    .filter({ hasText: "Изменить задачу" })
+    .locator("summary")
+    .click();
+  await expect(timedDeadlineInput).toHaveValue("2099-09-12T18:45");
+  await timedChangeForm.locator('select[name="priority"]').selectOption("urgent");
+  await timedChangeForm.locator('button[type="submit"]').click();
+
+  await expect.poll(async () => {
+    const response = await directPlatformRpc(
+      "staff_case_task_queue",
+      { p_limit: 50 },
+      adminToken,
+    );
+    if (response.status !== 200 || !Array.isArray(response.payload)) return null;
+    return response.payload
+      .map(expectObject)
+      .find((row) => row.case_task_id === timedCaseTaskId)?.priority ?? null;
+  }).toBe("urgent");
+
+  const timedQueue = await directPlatformRpc(
+    "staff_case_task_queue",
+    { p_limit: 50 },
+    adminToken,
+  );
+  expect(timedQueue.status, JSON.stringify(timedQueue.payload)).toBe(200);
+  expect(Array.isArray(timedQueue.payload)).toBe(true);
+  const timedQueueRow = (timedQueue.payload as unknown[])
+    .map(expectObject)
+    .find((row) => row.case_task_id === timedCaseTaskId);
+  expect(timedQueueRow).toBeDefined();
+  expect(timedQueueRow?.priority).toBe("urgent");
+  expect(timedQueueRow?.due_at).toMatch(
+    /^2099-09-12T12:45:30\.123456(?:Z|\+00:00)$/,
+  );
+
+  await page.context().clearCookies();
+  await signIn(page, "admissions");
 
   await page.goto(`/v3/profile?case=${studentCaseId}&tab=overview`);
   await expect(page.getByTestId("v3-profile")).toBeVisible();

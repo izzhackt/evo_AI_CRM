@@ -82,6 +82,18 @@ test("task deadline form contract enforces exactly one canonical deadline", () =
     parsePlatformCaseTaskDeadline("timed", "", "2026-09-04T09:30"),
     { kind: "timed", dueOn: null, dueAt: "2026-09-04T03:30:00.000Z" },
   );
+  assert.deepEqual(
+    parsePlatformCaseTaskDeadline(
+      "timed",
+      "",
+      "2026-09-04T09:30:45.123456+06:00",
+    ),
+    {
+      kind: "timed",
+      dueOn: null,
+      dueAt: "2026-09-04T09:30:45.123456+06:00",
+    },
+  );
   assert.equal(
     parsePlatformCaseTaskDeadline("all_day", "2026-09-04", "2026-09-04T09:30"),
     null,
@@ -149,6 +161,16 @@ test("V3 calendar is the only active task mutation surface", () => {
     false,
   );
   assert.match(calendarSource, /\.\/TaskControls/);
+  assert.match(
+    controlsSource,
+    /task\?\.dueAt \?\? defaults\.dueAt/,
+    "unchanged timed edits must submit the exact canonical timestamp",
+  );
+  assert.match(
+    controlsSource,
+    /value=\{displayDueAt\}[\s\S]*?data-testid="v3-calendar-timed-deadline-input"[\s\S]*?setDisplayDueAt\(event\.target\.value\)[\s\S]*?setSubmittedDueAt\(event\.target\.value\)[\s\S]*?name="due_at" value=\{submittedDueAt\}/,
+    "only an explicit deadline edit may replace the canonical timestamp",
+  );
   assert.match(
     controlsSource,
     /useActionState\(\s*createPlatformAdmissionsTaskAction/,

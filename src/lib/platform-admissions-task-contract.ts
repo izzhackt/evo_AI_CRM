@@ -70,7 +70,8 @@ export function parsePlatformCaseTaskDeadline(
   }
   if (kind !== "timed" || dueOn !== "") return null;
 
-  const candidate = TIMESTAMPTZ_PATTERN.test(dueAt)
+  const canonicalTimestamp = TIMESTAMPTZ_PATTERN.test(dueAt);
+  const candidate = canonicalTimestamp
     ? dueAt
     : LOCAL_DATETIME_PATTERN.test(dueAt)
       ? `${dueAt}:00${PLATFORM_ORGANIZATION_UTC_OFFSET}`
@@ -79,7 +80,9 @@ export function parsePlatformCaseTaskDeadline(
   return Object.freeze({
     kind,
     dueOn: null,
-    dueAt: new Date(candidate).toISOString(),
+    // Keep an existing canonical database value byte-for-byte. Re-serializing
+    // through JavaScript Date would silently truncate PostgreSQL microseconds.
+    dueAt: canonicalTimestamp ? candidate : new Date(candidate).toISOString(),
   });
 }
 

@@ -1780,6 +1780,12 @@ test("company-file browser uploads fail closed on native and in-page transport e
       error.code === "malware_scanner_clean_browser_request_failed" &&
       error.diagnostic?.category === "fetch_failed",
   );
+  await assert.rejects(
+    () => browserCompanyFileUpload({ evaluate: async () => ({ transport: "timeout" }) }, ...input),
+    (error) => error instanceof RecoveryFailure &&
+      error.code === "malware_scanner_clean_browser_request_failed" &&
+      error.diagnostic?.category === "timeout",
+  );
 });
 
 test("browser proof requires a 2xx response, exact final route and loaded module marker", () => {

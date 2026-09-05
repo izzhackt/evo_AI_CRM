@@ -5634,7 +5634,7 @@ export async function browserCompanyFileUpload(page, appUrl, companyFile, bytes,
       });
       return Object.freeze({ transport: "response", status: response.status, payload: await response.json().catch(() => null) });
     } catch {
-      return Object.freeze({ transport: "failed" });
+      return Object.freeze({ transport: controller.signal.aborted ? "timeout" : "failed" });
     } finally {
       clearTimeout(timeout);
     }
@@ -5647,7 +5647,10 @@ export async function browserCompanyFileUpload(page, appUrl, companyFile, bytes,
     id: requestId,
   }), { operationCode });
   if (!isRecord(result) || result.transport !== "response") {
-    fail(operationCode, "browser_proof", sanitizeBrowserDiagnostic(new TypeError("Failed to fetch")));
+    const diagnostic = result?.transport === "timeout"
+      ? sanitizeBrowserDiagnostic(new Error("Browser request timeout"))
+      : sanitizeBrowserDiagnostic(new TypeError("Failed to fetch"));
+    fail(operationCode, "browser_proof", diagnostic);
   }
   return Object.freeze({ status: result.status, payload: result.payload });
 }

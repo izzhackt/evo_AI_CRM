@@ -218,6 +218,66 @@ existing application-facing recovery result remains `u11-recovery-result`; it
 may become ready only after a separate isolated restore proves database/Auth,
 role-specific RLS/browser behavior, Storage bytes and malware scanning.
 
+## Isolated managed-Supabase recovery consumer
+
+The recovery command consumes exactly one completed exporter directory. It
+does not accept loose dumps, an alternate manifest, a compatibility ledger or
+an unsigned replacement artifact. The detached SSH signature is verified with
+the independently retained public key before the receipt is trusted. The
+receipt then binds the encrypted artifact inventory, source identity, export
+commit and export migration tree; the recovery checkout is independently bound
+to one exact clean commit.
+
+First validate the signed bundle and local prerequisites without starting a
+database:
+
+```bash
+npm run recovery:v3:managed:preflight -- \
+  --bundle '<absolute-completed-export-directory>' \
+  --age-identity '<absolute-mode-0600-age-identity>' \
+  --trusted-public-key '<absolute-operator-held-public-key>' \
+  --trusted-public-key-fingerprint '<expected-SHA256-fingerprint>' \
+  --source-identity-sha256 '<expected-source-identity-sha256>' \
+  --expected-export-commit '<signed-export-commit>' \
+  --expected-export-migration-tree '<signed-export-migration-tree>' \
+  --expected-repository-commit '<exact-clean-recovery-commit>'
+```
+
+Run the one real isolated rehearsal with the same trust and repository inputs,
+plus an absolute evidence path outside the repository:
+
+```bash
+npm run recovery:v3:managed:run -- \
+  --bundle '<absolute-completed-export-directory>' \
+  --age-identity '<absolute-mode-0600-age-identity>' \
+  --trusted-public-key '<absolute-operator-held-public-key>' \
+  --trusted-public-key-fingerprint '<expected-SHA256-fingerprint>' \
+  --source-identity-sha256 '<expected-source-identity-sha256>' \
+  --expected-export-commit '<signed-export-commit>' \
+  --expected-export-migration-tree '<signed-export-migration-tree>' \
+  --expected-repository-commit '<exact-clean-recovery-commit>' \
+  --evidence-out '<absolute-private-redacted-result-path>'
+```
+
+The run decrypts only below a mode-`0700` temporary root, restores the signed
+Postgres/Auth snapshot and separate Storage archive into one loopback-only
+OrbStack contour, authenticates the exported migration history, applies only
+the current root forward migrations and starts the real application. It also
+starts the repository-pinned private ClamAV image and exercises the real V3
+Company Files upload path: a clean upload must persist with append-only scanner
+proof, EICAR and scanner outage must fail without persistence, and a later
+clean upload may persist only after scanner recovery. Providers remain disabled
+and neither managed Supabase nor the VPS is contacted by the consumer.
+
+The signed export is authoritative for representative staff availability. The
+consumer never creates synthetic Sales or Admissions identities. If either
+role is absent, it still completes every safe Admin, database, Storage,
+migration, scanner and browser assertion, destroys the owned local contour,
+writes an aggregate-only `not_ready` result and exits non-zero. That result is
+useful blocker evidence, but it is not a passed three-role recovery rehearsal.
+Any earlier failure also stops closed; it cannot fall back to SQLite, fixtures,
+another bundle, another migration history or a second runtime.
+
 ## WAHA boundary
 
 Normal app rollback preserves `crm_primary`; it does not rescan a QR or move
@@ -267,5 +327,11 @@ gate and stops; it does not fall back to fixtures or a historical runtime.
   <https://supabase.com/docs/guides/database/connecting-to-postgres>
 - Supabase PostgreSQL SSL verification and CA instructions:
   <https://supabase.com/docs/guides/platform/ssl-enforcement>
+- ClamAV scanning and exit-status contract:
+  <https://docs.clamav.net/manual/Usage/Scanning.html>
+- ClamAV `clamd` protocol:
+  <https://docs.clamav.net/manual/Usage/ClamdProtocol.html>
+- ClamAV official container images:
+  <https://docs.clamav.net/manual/Installing/Docker.html>
 - WAHA sessions: <https://waha.devlike.pro/docs/how-to/sessions/>
 - WAHA security: <https://waha.devlike.pro/docs/how-to/security/>

@@ -53,23 +53,31 @@ import {
 } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import {
+  assertRedactedReceipt as assertExporterReceipt,
+  canonicalJson,
+  sshPublicKeyFingerprint,
+} from "./export-v3-managed-supabase-backup.mjs";
 
 const OPT_IN = "EVO_RUN_V3_MANAGED_SUPABASE_RECOVERY_ORBSTACK";
 const OPT_IN_VALUE = "1";
-const DATABASE_SCHEMA = "evo-managed-supabase-logical-backup/v1";
-const STORAGE_SCHEMA = "evo-managed-supabase-storage-backup/v1";
-const MIGRATION_LEDGER_ATTESTATION_SCHEMA =
-  "evo-managed-supabase-migration-ledger-attestation/v1";
+const DATABASE_SCHEMA = "evo-v3-managed-supabase-logical-backup/v1";
+const STORAGE_SCHEMA = "evo-v3-managed-supabase-storage-backup/v1";
+const RECEIPT_SCHEMA = "evo-v3-managed-supabase-export-receipt/v1";
+const SIGNATURE_NAMESPACE = "evo-v3-managed-supabase-recovery";
+const SIGNATURE_IDENTITY = "evo-v3-managed-supabase-export";
 const RESULT_SCHEMA = "evo-v3-managed-supabase-recovery-result/v1";
 const HARNESS_PREFIX = "evo-v3-managed-recovery-";
 const MARKER = ".evo-v3-managed-recovery-harness";
+const EXPORT_MARKER = ".evo-v3-managed-supabase-export";
 const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
 const MAX_SQL_BYTES = 128 * 1024 * 1024 * 1024;
 const MAX_STORAGE_ARCHIVE_BYTES = 256 * 1024 * 1024 * 1024;
 const MAX_STORAGE_OBJECT_BYTES = 50 * 1024 * 1024;
 const MAX_BACKUP_AGE_HOURS = 24 * 31;
 const FUTURE_SKEW_MS = 5 * 60 * 1000;
-const MAX_CAPTURE_SPAN_MS = 60 * 60 * 1000;
+const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
+const EICAR = String.raw`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`;
 const REQUIRED_LOCAL_SERVICES = Object.freeze([
   ["database", "db"],
   ["postgrest", "rest"],
@@ -84,14 +92,30 @@ const UUID_PATTERN =
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 const GIT_OID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const PROJECT_REF_PATTERN = /^[a-z0-9]{20}$/u;
-const REGION_PATTERN = /^[a-z][a-z0-9-]{1,62}$/u;
 const MIGRATION_VERSION_PATTERN = /^\d{3}$/u;
 const MIGRATION_NAME_PATTERN = /^[a-z0-9][a-z0-9_]{0,126}$/u;
 const BUCKET_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/u;
 const CONTENT_TYPE_PATTERN = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/iu;
-const SAFE_ARCHIVE_PATH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$/u;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
-const SQL_FILES = Object.freeze(["roles.sql", "schema.sql", "data.sql"]);
+const SQL_FILES = Object.freeze([
+  "roles.sql",
+  "schema.sql",
+  "data.sql",
+  "history-schema.sql",
+  "history-data.sql",
+]);
+const ENCRYPTED_ARTIFACTS = Object.freeze([
+  ...SQL_FILES.map((name) => `${name}.age`),
+  "database-manifest.json.age",
+  "storage-manifest.json.age",
+  "storage-objects.tar.age",
+]);
+const EXPORT_BUNDLE_FILES = Object.freeze([
+  EXPORT_MARKER,
+  ...ENCRYPTED_ARTIFACTS,
+  "receipt.json",
+  "receipt.json.sig",
+]);
 const AGGREGATE_RELATIONS = Object.freeze({
   authUsers: "auth.users",
   organizations: "platform.organizations",
@@ -191,12 +215,6 @@ function sha256Text(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export function deriveSourceIdentitySha256(projectRef, region) {
-  requiredString(projectRef, PROJECT_REF_PATTERN, "source_project_ref_invalid");
-  requiredString(region, REGION_PATTERN, "source_region_invalid");
-  return sha256Text(`${projectRef}\n${region}`);
-}
-
 async function sha256File(path) {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -225,7 +243,7 @@ function checkArtifactAge(createdAt, now, maxAgeHours) {
 function validateFileDescriptor(value, code) {
   exactKeys(value, ["bytes", "sha256"], code);
   return Object.freeze({
-    bytes: nonNegativeInteger(value.bytes, code),
+    bytes: positiveInteger(value.bytes, code),
     sha256: requiredString(value.sha256, SHA256_PATTERN, code),
   });
 }
@@ -233,107 +251,176 @@ function validateFileDescriptor(value, code) {
 function validateMigrationLedger(value) {
   exactKeys(
     value,
-    ["count", "minVersion", "maxVersion"],
+    ["count", "min_version", "max_version", "copy_rows_sha256"],
     "database_migration_ledger_invalid",
   );
   const count = positiveInteger(value.count, "database_migration_ledger_invalid");
   const minVersion = requiredString(
-    value.minVersion,
-    MIGRATION_VERSION_PATTERN,
+    value.min_version,
+    /^\d+$/u,
     "database_migration_ledger_invalid",
   );
   const maxVersion = requiredString(
-    value.maxVersion,
-    MIGRATION_VERSION_PATTERN,
+    value.max_version,
+    /^\d+$/u,
     "database_migration_ledger_invalid",
   );
-  if (
-    Number(minVersion) > Number(maxVersion) ||
-    count !== Number(maxVersion) - Number(minVersion) + 1
-  ) {
+  if (minVersion.localeCompare(maxVersion, "en") > 0) {
     fail("database_migration_ledger_invalid", "artifact_validation");
   }
-  return Object.freeze({ count, minVersion, maxVersion });
+  return Object.freeze({
+    count,
+    minVersion,
+    maxVersion,
+    copyRowsSha256: requiredString(
+      value.copy_rows_sha256,
+      SHA256_PATTERN,
+      "database_migration_ledger_invalid",
+    ),
+  });
 }
 
-function migrationLedgerDigest(entries) {
-  return sha256Text(JSON.stringify(entries.map(({ version, name }) => ({ version, name }))));
+function sameCanonicalValue(left, right) {
+  return canonicalJson(left) === canonicalJson(right);
 }
 
-/** Validate the separately captured, encrypted managed migration ledger. */
-export function validateMigrationLedgerAttestation(attestation, expected) {
+/** Validate the signed plaintext receipt after its detached SSH signature passes. */
+export function validateExportReceipt(receipt, expected) {
+  try {
+    assertExporterReceipt(receipt);
+  } catch {
+    fail("receipt_shape_invalid", "receipt_verification");
+  }
+  exactKeys(receipt.git, ["head", "migration_tree"], "receipt_git_invalid", "receipt_verification");
+  exactKeys(receipt.source, ["identity_sha256"], "receipt_source_invalid", "receipt_verification");
   exactKeys(
-    attestation,
-    [
-      "schema",
-      "createdAt",
-      "databaseCreatedAt",
-      "sourceIdentitySha256",
-      "ledgerSha256",
-      "source",
-    ],
-    "migration_ledger_attestation_shape_invalid",
+    receipt.provider_backup,
+    ["id", "inserted_at", "status", "physical"],
+    "receipt_provider_backup_invalid",
+    "receipt_verification",
   );
-  if (attestation.schema !== MIGRATION_LEDGER_ATTESTATION_SCHEMA) {
-    fail("migration_ledger_attestation_schema_invalid", "artifact_validation");
+  requiredString(receipt.provider_backup.id, null, "receipt_provider_backup_invalid", "receipt_verification");
+  parseIsoTimestamp(receipt.provider_backup.inserted_at, "receipt_provider_backup_invalid", "receipt_verification");
+  if (receipt.provider_backup.status !== "COMPLETED" || typeof receipt.provider_backup.physical !== "boolean") {
+    fail("receipt_provider_backup_invalid", "receipt_verification");
   }
-  const createdAt = parseIsoTimestamp(
-    attestation.createdAt,
-    "migration_ledger_attestation_timestamp_invalid",
-  ).toISOString();
-  const databaseCreatedAt = parseIsoTimestamp(
-    attestation.databaseCreatedAt,
-    "migration_ledger_attestation_database_timestamp_invalid",
-  ).toISOString();
-  if (databaseCreatedAt !== expected.databaseCreatedAt) {
-    fail("migration_ledger_attestation_database_timestamp_mismatch", "artifact_validation");
-  }
-  if (new Date(createdAt).valueOf() < new Date(databaseCreatedAt).valueOf()) {
-    fail("migration_ledger_attestation_precedes_database", "artifact_validation");
+  const head = requiredString(receipt.git.head, GIT_OID_PATTERN, "receipt_git_invalid", "receipt_verification");
+  const migrationTree = requiredString(
+    receipt.git.migration_tree,
+    GIT_OID_PATTERN,
+    "receipt_git_invalid",
+    "receipt_verification",
+  );
+  if (head !== expected.exportCommit) fail("receipt_export_commit_mismatch", "receipt_verification");
+  if (migrationTree !== expected.exportMigrationTree) {
+    fail("receipt_export_migration_tree_mismatch", "receipt_verification");
   }
   const sourceIdentitySha256 = requiredString(
-    attestation.sourceIdentitySha256,
+    receipt.source.identity_sha256,
     SHA256_PATTERN,
-    "migration_ledger_attestation_source_invalid",
+    "receipt_source_invalid",
+    "receipt_verification",
   );
   if (sourceIdentitySha256 !== expected.sourceIdentitySha256) {
-    fail("migration_ledger_attestation_source_mismatch", "artifact_validation");
+    fail("receipt_source_identity_mismatch", "receipt_verification");
   }
-  if (!Array.isArray(attestation.source) || attestation.source.length === 0) {
-    fail("migration_ledger_attestation_source_invalid", "artifact_validation");
+  if (receipt.signature.public_key_fingerprint !== expected.trustedPublicKeyFingerprint) {
+    fail("receipt_signing_fingerprint_mismatch", "receipt_verification");
   }
-  const source = attestation.source.map((entry, index) => {
-    exactKeys(entry, ["version", "name"], "migration_ledger_attestation_entry_invalid");
-    const version = requiredString(
-      entry.version,
-      MIGRATION_VERSION_PATTERN,
-      "migration_ledger_attestation_entry_invalid",
-    );
-    const name = requiredString(
-      entry.name,
-      MIGRATION_NAME_PATTERN,
-      "migration_ledger_attestation_entry_invalid",
-    );
-    if (version !== String(index + 1).padStart(3, "0")) {
-      fail("migration_ledger_attestation_sequence_invalid", "artifact_validation");
-    }
-    return Object.freeze({ version, name });
-  });
-  const ledgerSha256 = requiredString(
-    attestation.ledgerSha256,
-    SHA256_PATTERN,
-    "migration_ledger_attestation_digest_invalid",
+  exactKeys(
+    receipt.encrypted_artifacts,
+    ENCRYPTED_ARTIFACTS,
+    "receipt_encrypted_artifacts_invalid",
+    "receipt_verification",
   );
-  if (ledgerSha256 !== migrationLedgerDigest(source)) {
-    fail("migration_ledger_attestation_digest_mismatch", "artifact_validation");
+  const encryptedArtifacts = Object.freeze(Object.fromEntries(
+    ENCRYPTED_ARTIFACTS.map((name) => [
+      name,
+      validateFileDescriptor(receipt.encrypted_artifacts[name], "receipt_encrypted_artifact_invalid"),
+    ]),
+  ));
+  exactKeys(
+    receipt.database,
+    [
+      "postgres_major",
+      "migration_count",
+      "migration_min_version",
+      "migration_max_version",
+      "migration_copy_rows_sha256",
+      "data_copy_sections_sha256",
+      "stability_proof_sha256",
+      "snapshot_mode",
+      "table_count",
+      "row_count",
+      "auth_user_count",
+    ],
+    "receipt_database_invalid",
+    "receipt_verification",
+  );
+  const database = Object.freeze({
+    postgresMajor: positiveInteger(receipt.database.postgres_major, "receipt_database_invalid", "receipt_verification"),
+    migrationLedger: validateMigrationLedger({
+      count: receipt.database.migration_count,
+      min_version: receipt.database.migration_min_version,
+      max_version: receipt.database.migration_max_version,
+      copy_rows_sha256: receipt.database.migration_copy_rows_sha256,
+    }),
+    dataCopySectionsSha256: requiredString(
+      receipt.database.data_copy_sections_sha256,
+      SHA256_PATTERN,
+      "receipt_database_invalid",
+      "receipt_verification",
+    ),
+    stabilityProofSha256: requiredString(
+      receipt.database.stability_proof_sha256,
+      SHA256_PATTERN,
+      "receipt_database_invalid",
+      "receipt_verification",
+    ),
+    snapshotMode: requiredString(
+      receipt.database.snapshot_mode,
+      null,
+      "receipt_database_invalid",
+      "receipt_verification",
+    ),
+    tableCount: nonNegativeInteger(receipt.database.table_count, "receipt_database_invalid", "receipt_verification"),
+    rowCount: nonNegativeInteger(receipt.database.row_count, "receipt_database_invalid", "receipt_verification"),
+    authUserCount: nonNegativeInteger(receipt.database.auth_user_count, "receipt_database_invalid", "receipt_verification"),
+  });
+  exactKeys(
+    receipt.storage,
+    [
+      "inventory_sha256",
+      "bucket_count",
+      "private_bucket_count",
+      "public_bucket_count",
+      "object_count",
+      "total_bytes",
+    ],
+    "receipt_storage_invalid",
+    "receipt_verification",
+  );
+  const storage = Object.freeze({
+    inventorySha256: requiredString(receipt.storage.inventory_sha256, SHA256_PATTERN, "receipt_storage_invalid", "receipt_verification"),
+    bucketCount: nonNegativeInteger(receipt.storage.bucket_count, "receipt_storage_invalid", "receipt_verification"),
+    privateBucketCount: nonNegativeInteger(receipt.storage.private_bucket_count, "receipt_storage_invalid", "receipt_verification"),
+    publicBucketCount: nonNegativeInteger(receipt.storage.public_bucket_count, "receipt_storage_invalid", "receipt_verification"),
+    objectCount: nonNegativeInteger(receipt.storage.object_count, "receipt_storage_invalid", "receipt_verification"),
+    totalBytes: nonNegativeInteger(receipt.storage.total_bytes, "receipt_storage_invalid", "receipt_verification"),
+  });
+  if (storage.privateBucketCount + storage.publicBucketCount !== storage.bucketCount) {
+    fail("receipt_storage_invalid", "receipt_verification");
   }
   return Object.freeze({
-    schema: MIGRATION_LEDGER_ATTESTATION_SCHEMA,
-    createdAt,
-    databaseCreatedAt,
+    schema: RECEIPT_SCHEMA,
+    capturedAt: parseIsoTimestamp(receipt.captured_at, "receipt_timestamp_invalid", "receipt_verification").toISOString(),
+    git: Object.freeze({ head, migrationTree }),
     sourceIdentitySha256,
-    ledgerSha256,
-    source: Object.freeze(source),
+    encryptedArtifacts,
+    database,
+    storage,
+    tools: receipt.tools,
+    raw: receipt,
   });
 }
 
@@ -343,12 +430,15 @@ export function validateDatabaseManifest(manifest, expected) {
     manifest,
     [
       "schema",
-      "createdAt",
-      "projectRef",
-      "region",
-      "databaseMajor",
-      "migrationLedger",
-      "files",
+      "captured_at",
+      "source_receipt",
+      "git",
+      "tools",
+      "artifacts",
+      "migration_ledger",
+      "data_copy_sections_sha256",
+      "stability",
+      "aggregates",
     ],
     "database_manifest_shape_invalid",
   );
@@ -356,49 +446,131 @@ export function validateDatabaseManifest(manifest, expected) {
     fail("database_manifest_schema_invalid", "artifact_validation");
   }
   const createdAt = parseIsoTimestamp(
-    manifest.createdAt,
+    manifest.captured_at,
     "database_manifest_timestamp_invalid",
   ).toISOString();
-  if (createdAt !== expected.createdAt) {
+  if (createdAt !== expected.receipt.capturedAt) {
     fail("database_manifest_timestamp_mismatch", "artifact_validation");
   }
-  const projectRef = requiredString(
-    manifest.projectRef,
+  exactKeys(
+    manifest.source_receipt,
+    ["project", "backup", "pooler", "sha256"],
+    "database_manifest_source_receipt_invalid",
+  );
+  if (!isRecord(manifest.source_receipt.project)) {
+    fail("database_manifest_source_receipt_invalid", "artifact_validation");
+  }
+  const sourceProjectRef = requiredString(
+    manifest.source_receipt.project.ref,
     PROJECT_REF_PATTERN,
-    "database_manifest_project_invalid",
+    "database_manifest_source_receipt_invalid",
   );
-  const region = requiredString(
-    manifest.region,
-    REGION_PATTERN,
-    "database_manifest_region_invalid",
+  const sourceIdentitySha256 = requiredString(
+    manifest.source_receipt.sha256,
+    SHA256_PATTERN,
+    "database_manifest_source_receipt_invalid",
   );
-  const sourceIdentitySha256 = deriveSourceIdentitySha256(projectRef, region);
-  if (sourceIdentitySha256 !== expected.sourceIdentitySha256) {
+  const computedSourceIdentity = sha256Text(canonicalJson({
+    project: manifest.source_receipt.project,
+    backup: manifest.source_receipt.backup,
+    pooler: manifest.source_receipt.pooler,
+  }));
+  if (
+    computedSourceIdentity !== sourceIdentitySha256 ||
+    sourceIdentitySha256 !== expected.receipt.sourceIdentitySha256
+  ) {
     fail("database_manifest_source_identity_mismatch", "artifact_validation");
   }
-  if (!Number.isSafeInteger(manifest.databaseMajor) || manifest.databaseMajor < 15 || manifest.databaseMajor > 17) {
-    fail("database_manifest_major_invalid", "artifact_validation");
+  if (
+    !sameCanonicalValue(manifest.git, expected.receipt.raw.git) ||
+    !sameCanonicalValue(manifest.tools, expected.receipt.tools)
+  ) {
+    fail("database_manifest_receipt_binding_mismatch", "artifact_validation");
   }
-  exactKeys(manifest.files, SQL_FILES, "database_manifest_files_invalid");
+  exactKeys(manifest.artifacts, SQL_FILES, "database_manifest_files_invalid");
   const files = Object.fromEntries(
     SQL_FILES.map((name) => [
       name,
-      validateFileDescriptor(manifest.files[name], "database_manifest_file_invalid"),
+      validateFileDescriptor(manifest.artifacts[name], "database_manifest_file_invalid"),
     ]),
   );
+  const migrationLedger = validateMigrationLedger(manifest.migration_ledger);
+  if (!sameCanonicalValue(migrationLedger, expected.receipt.database.migrationLedger)) {
+    fail("database_manifest_migration_ledger_mismatch", "artifact_validation");
+  }
+  const dataCopySectionsSha256 = requiredString(
+    manifest.data_copy_sections_sha256,
+    SHA256_PATTERN,
+    "database_manifest_data_digest_invalid",
+  );
+  if (dataCopySectionsSha256 !== expected.receipt.database.dataCopySectionsSha256) {
+    fail("database_manifest_data_digest_mismatch", "artifact_validation");
+  }
+  exactKeys(
+    manifest.stability,
+    ["snapshot_mode", "artifact_semantic_sha256", "proof_sha256"],
+    "database_manifest_stability_invalid",
+  );
+  exactKeys(
+    manifest.stability.artifact_semantic_sha256,
+    SQL_FILES,
+    "database_manifest_stability_invalid",
+  );
+  for (const value of Object.values(manifest.stability.artifact_semantic_sha256)) {
+    requiredString(value, SHA256_PATTERN, "database_manifest_stability_invalid");
+  }
+  if (
+    manifest.stability.snapshot_mode !== expected.receipt.database.snapshotMode ||
+    manifest.stability.proof_sha256 !== expected.receipt.database.stabilityProofSha256 ||
+    manifest.stability.proof_sha256 !==
+      sha256Text(canonicalJson(manifest.stability.artifact_semantic_sha256))
+  ) {
+    fail("database_manifest_stability_mismatch", "artifact_validation");
+  }
+  exactKeys(
+    manifest.aggregates,
+    [
+      "table_count",
+      "row_count",
+      "auth_user_count",
+      "storage_bucket_row_count",
+      "storage_object_row_count",
+      "table_counts_sha256",
+    ],
+    "database_manifest_aggregates_invalid",
+  );
+  const aggregates = Object.freeze({
+    tableCount: nonNegativeInteger(manifest.aggregates.table_count, "database_manifest_aggregates_invalid"),
+    rowCount: nonNegativeInteger(manifest.aggregates.row_count, "database_manifest_aggregates_invalid"),
+    authUserCount: nonNegativeInteger(manifest.aggregates.auth_user_count, "database_manifest_aggregates_invalid"),
+    storageBucketRowCount: nonNegativeInteger(manifest.aggregates.storage_bucket_row_count, "database_manifest_aggregates_invalid"),
+    storageObjectRowCount: nonNegativeInteger(manifest.aggregates.storage_object_row_count, "database_manifest_aggregates_invalid"),
+    tableCountsSha256: requiredString(manifest.aggregates.table_counts_sha256, SHA256_PATTERN, "database_manifest_aggregates_invalid"),
+  });
+  if (
+    aggregates.tableCount !== expected.receipt.database.tableCount ||
+    aggregates.rowCount !== expected.receipt.database.rowCount ||
+    aggregates.authUserCount !== expected.receipt.database.authUserCount ||
+    aggregates.storageBucketRowCount !== expected.receipt.storage.bucketCount ||
+    aggregates.storageObjectRowCount !== expected.receipt.storage.objectCount
+  ) {
+    fail("database_manifest_aggregates_mismatch", "artifact_validation");
+  }
   return Object.freeze({
     createdAt,
     sourceIdentitySha256,
-    databaseMajor: manifest.databaseMajor,
-    migrationLedger: validateMigrationLedger(manifest.migrationLedger),
+    sourceProjectRef,
+    databaseMajor: expected.receipt.database.postgresMajor,
+    migrationLedger,
     files: Object.freeze(files),
+    aggregates,
   });
 }
 
 function validateBucket(value) {
   exactKeys(
     value,
-    ["id", "name", "public", "fileSizeLimit", "allowedMimeTypes"],
+    ["id", "name", "public", "file_size_limit", "allowed_mime_types", "created_at", "updated_at"],
     "storage_bucket_invalid",
   );
   const id = requiredString(value.id, BUCKET_ID_PATTERN, "storage_bucket_invalid");
@@ -406,15 +578,15 @@ function validateBucket(value) {
   if (typeof value.public !== "boolean") {
     fail("storage_bucket_invalid", "artifact_validation");
   }
-  if (value.fileSizeLimit !== null) {
-    positiveInteger(value.fileSizeLimit, "storage_bucket_limit_invalid");
+  if (value.file_size_limit !== null) {
+    nonNegativeInteger(value.file_size_limit, "storage_bucket_limit_invalid");
   }
-  if (value.allowedMimeTypes !== null && !Array.isArray(value.allowedMimeTypes)) {
+  if (value.allowed_mime_types !== null && !Array.isArray(value.allowed_mime_types)) {
     fail("storage_bucket_mime_types_invalid", "artifact_validation");
   }
-  const allowedMimeTypes = value.allowedMimeTypes === null
+  const allowedMimeTypes = value.allowed_mime_types === null
     ? null
-    : value.allowedMimeTypes.map((candidate) =>
+    : value.allowed_mime_types.map((candidate) =>
       requiredString(candidate, CONTENT_TYPE_PATTERN, "storage_bucket_mime_types_invalid"));
   if (allowedMimeTypes !== null && new Set(allowedMimeTypes).size !== allowedMimeTypes.length) {
     fail("storage_bucket_mime_types_invalid", "artifact_validation");
@@ -423,32 +595,20 @@ function validateBucket(value) {
     id,
     name,
     public: value.public,
-    fileSizeLimit: value.fileSizeLimit,
+    fileSizeLimit: value.file_size_limit,
     allowedMimeTypes: allowedMimeTypes === null ? null : Object.freeze(allowedMimeTypes),
   });
 }
 
-function validateObjectEntry(value, buckets) {
+function validateObjectEntry(value, buckets, index) {
   exactKeys(
     value,
-    ["archivePath", "bucketId", "contentType", "objectPath", "bytes", "sha256"],
+    ["bucket_id", "path", "source_id", "source_version", "blob", "bytes", "sha256"],
     "storage_object_manifest_invalid",
   );
-  const archivePath = requiredString(
-    value.archivePath,
-    SAFE_ARCHIVE_PATH_PATTERN,
-    "storage_archive_path_invalid",
-  );
-  if (
-    archivePath.startsWith("/") ||
-    archivePath.includes("\\") ||
-    archivePath.split("/").some((part) => part === "" || part === "." || part === "..")
-  ) {
-    fail("storage_archive_path_invalid", "artifact_validation");
-  }
-  const bucketId = requiredString(value.bucketId, BUCKET_ID_PATTERN, "storage_object_bucket_invalid");
+  const bucketId = requiredString(value.bucket_id, BUCKET_ID_PATTERN, "storage_object_bucket_invalid");
   if (!buckets.has(bucketId)) fail("storage_object_bucket_unknown", "artifact_validation");
-  const objectPath = requiredString(value.objectPath, null, "storage_object_path_invalid");
+  const objectPath = requiredString(value.path, null, "storage_object_path_invalid");
   if (
     objectPath.length > 1024 ||
     objectPath.startsWith("/") ||
@@ -462,11 +622,18 @@ function validateObjectEntry(value, buckets) {
   if (bytes > MAX_STORAGE_OBJECT_BYTES) {
     fail("storage_object_exceeds_local_limit", "artifact_validation");
   }
+  const expectedBlob = `${String(index).padStart(8, "0")}.bin`;
+  const blob = requiredString(value.blob, /^\d{8}\.bin$/u, "storage_object_blob_invalid");
+  if (blob !== expectedBlob) fail("storage_object_blob_mapping_invalid", "artifact_validation");
   return Object.freeze({
-    archivePath,
+    archivePath: `storage-blobs/${blob}`,
+    blob,
     bucketId,
     objectPath,
-    contentType: requiredString(value.contentType, CONTENT_TYPE_PATTERN, "storage_object_content_type_invalid"),
+    sourceId: requiredString(value.source_id, UUID_PATTERN, "storage_object_source_id_invalid"),
+    sourceVersion: value.source_version === null
+      ? null
+      : requiredString(value.source_version, null, "storage_object_source_version_invalid"),
     bytes,
     sha256: requiredString(value.sha256, SHA256_PATTERN, "storage_object_sha256_invalid"),
   });
@@ -474,74 +641,69 @@ function validateObjectEntry(value, buckets) {
 
 /** Validate the Storage manifest after age decryption. */
 export function validateStorageManifest(manifest, expected) {
-  const required = [
-    "schema",
-    "createdAt",
-    "projectRef",
-    "bucketCount",
-    "publicBucketCount",
-    "objectCount",
-    "totalBytes",
-    "archive",
-    "buckets",
-  ];
-  const allowed = new Set([...required, "objects"]);
-  if (!isRecord(manifest)) fail("storage_manifest_shape_invalid", "artifact_validation");
-  const actualKeys = Object.keys(manifest);
-  if (required.some((key) => !actualKeys.includes(key)) || actualKeys.some((key) => !allowed.has(key))) {
-    fail("storage_manifest_shape_invalid", "artifact_validation");
-  }
+  exactKeys(
+    manifest,
+    [
+      "schema",
+      "captured_at",
+      "source_receipt_sha256",
+      "inventory_sha256",
+      "buckets",
+      "objects",
+      "aggregates",
+    ],
+    "storage_manifest_shape_invalid",
+  );
   if (manifest.schema !== STORAGE_SCHEMA) {
     fail("storage_manifest_schema_invalid", "artifact_validation");
   }
   const createdAt = parseIsoTimestamp(
-    manifest.createdAt,
+    manifest.captured_at,
     "storage_manifest_timestamp_invalid",
   ).toISOString();
-  const databaseCreatedAt = parseIsoTimestamp(
-    expected.databaseCreatedAt ?? expected.createdAt,
-    "database_manifest_timestamp_invalid",
-  );
-  if (Math.abs(new Date(createdAt).valueOf() - databaseCreatedAt.valueOf()) > MAX_CAPTURE_SPAN_MS) {
+  if (createdAt !== expected.receipt.capturedAt) {
     fail("backup_capture_window_exceeded", "artifact_validation");
   }
-  const projectRef = requiredString(
-    manifest.projectRef,
-    PROJECT_REF_PATTERN,
-    "storage_manifest_project_invalid",
-  );
-  if (sha256Text(projectRef) !== expected.projectRefSha256) {
+  if (
+    manifest.source_receipt_sha256 !== expected.receipt.sourceIdentitySha256 ||
+    manifest.inventory_sha256 !== expected.receipt.storage.inventorySha256
+  ) {
     fail("storage_manifest_source_identity_mismatch", "artifact_validation");
   }
-  const bucketCount = positiveInteger(manifest.bucketCount, "storage_bucket_count_invalid");
-  const publicBucketCount = nonNegativeInteger(
-    manifest.publicBucketCount,
-    "storage_public_bucket_count_invalid",
+  exactKeys(
+    manifest.aggregates,
+    ["bucket_count", "private_bucket_count", "public_bucket_count", "object_count", "total_bytes"],
+    "storage_aggregates_invalid",
   );
-  const objectCount = nonNegativeInteger(manifest.objectCount, "storage_object_count_invalid");
-  const totalBytes = nonNegativeInteger(manifest.totalBytes, "storage_total_bytes_invalid");
+  const bucketCount = nonNegativeInteger(manifest.aggregates.bucket_count, "storage_bucket_count_invalid");
+  const privateBucketCount = nonNegativeInteger(manifest.aggregates.private_bucket_count, "storage_private_bucket_count_invalid");
+  const publicBucketCount = nonNegativeInteger(manifest.aggregates.public_bucket_count, "storage_public_bucket_count_invalid");
+  const objectCount = nonNegativeInteger(manifest.aggregates.object_count, "storage_object_count_invalid");
+  const totalBytes = nonNegativeInteger(manifest.aggregates.total_bytes, "storage_total_bytes_invalid");
+  if (!sameCanonicalValue({
+    inventorySha256: manifest.inventory_sha256,
+    bucketCount,
+    privateBucketCount,
+    publicBucketCount,
+    objectCount,
+    totalBytes,
+  }, expected.receipt.storage)) {
+    fail("storage_manifest_receipt_mismatch", "artifact_validation");
+  }
   if (!Array.isArray(manifest.buckets) || manifest.buckets.length !== bucketCount) {
     fail("storage_bucket_count_mismatch", "artifact_validation");
   }
   const buckets = manifest.buckets.map(validateBucket);
   const bucketIds = new Set(buckets.map((bucket) => bucket.id));
   if (bucketIds.size !== buckets.length) fail("storage_bucket_duplicate", "artifact_validation");
+  if (buckets.some((bucket, index) => index > 0 && buckets[index - 1].id.localeCompare(bucket.id, "en") >= 0)) {
+    fail("storage_bucket_order_invalid", "artifact_validation");
+  }
   if (buckets.filter((bucket) => bucket.public).length !== publicBucketCount) {
     fail("storage_public_bucket_count_mismatch", "artifact_validation");
   }
-  exactKeys(manifest.archive, ["format", "bytes", "sha256"], "storage_archive_invalid");
-  if (manifest.archive.format !== "tar.gz") fail("storage_archive_format_invalid", "artifact_validation");
-  const archive = Object.freeze({
-    format: "tar.gz",
-    bytes: positiveInteger(manifest.archive.bytes, "storage_archive_invalid"),
-    sha256: requiredString(manifest.archive.sha256, SHA256_PATTERN, "storage_archive_invalid"),
-  });
-  const rawObjects = manifest.objects ?? [];
-  if (!Array.isArray(rawObjects)) fail("storage_object_manifest_invalid", "artifact_validation");
-  if (objectCount > 0 && !Object.hasOwn(manifest, "objects")) {
-    fail("storage_object_manifest_missing", "artifact_validation");
-  }
-  const objects = rawObjects.map((value) => validateObjectEntry(value, bucketIds));
+  if (!Array.isArray(manifest.objects)) fail("storage_object_manifest_invalid", "artifact_validation");
+  const objects = manifest.objects.map((value, index) => validateObjectEntry(value, bucketIds, index));
   if (objects.length !== objectCount) fail("storage_object_count_mismatch", "artifact_validation");
   if (new Set(objects.map((object) => object.archivePath)).size !== objects.length) {
     fail("storage_archive_path_duplicate", "artifact_validation");
@@ -554,12 +716,13 @@ export function validateStorageManifest(manifest, expected) {
   }
   return Object.freeze({
     createdAt,
-    projectRefSha256: sha256Text(projectRef),
+    sourceIdentitySha256: expected.receipt.sourceIdentitySha256,
+    inventorySha256: manifest.inventory_sha256,
     bucketCount,
+    privateBucketCount,
     publicBucketCount,
     objectCount,
     totalBytes,
-    archive,
     buckets: Object.freeze(buckets),
     objects: Object.freeze(objects),
   });
@@ -583,19 +746,19 @@ function parseRawFlags(args) {
 }
 
 const OPTION_DEFINITIONS = Object.freeze({
-  databaseManifest: ["database-manifest", "EVO_V3_RECOVERY_DATABASE_MANIFEST"],
-  migrationLedgerAttestation: [
-    "migration-ledger-attestation",
-    "EVO_V3_RECOVERY_MIGRATION_LEDGER_ATTESTATION",
-  ],
-  roles: ["roles", "EVO_V3_RECOVERY_ROLES"],
-  schema: ["schema", "EVO_V3_RECOVERY_SCHEMA"],
-  data: ["data", "EVO_V3_RECOVERY_DATA"],
-  storageManifest: ["storage-manifest", "EVO_V3_RECOVERY_STORAGE_MANIFEST"],
-  storageArchive: ["storage-archive", "EVO_V3_RECOVERY_STORAGE_ARCHIVE"],
+  bundle: ["bundle", "EVO_V3_RECOVERY_BUNDLE"],
   ageIdentity: ["age-identity", "EVO_V3_RECOVERY_AGE_IDENTITY"],
-  createdAt: ["backup-created-at", "EVO_V3_RECOVERY_BACKUP_CREATED_AT"],
+  trustedPublicKey: ["trusted-public-key", "EVO_V3_RECOVERY_TRUSTED_PUBLIC_KEY"],
+  trustedPublicKeyFingerprint: [
+    "trusted-public-key-fingerprint",
+    "EVO_V3_RECOVERY_TRUSTED_PUBLIC_KEY_FINGERPRINT",
+  ],
   sourceIdentitySha256: ["source-identity-sha256", "EVO_V3_RECOVERY_SOURCE_IDENTITY_SHA256"],
+  expectedExportCommit: ["expected-export-commit", "EVO_V3_RECOVERY_EXPECTED_EXPORT_COMMIT"],
+  expectedExportMigrationTree: [
+    "expected-export-migration-tree",
+    "EVO_V3_RECOVERY_EXPECTED_EXPORT_MIGRATION_TREE",
+  ],
   expectedRepositoryCommit: [
     "expected-repository-commit",
     "EVO_V3_RECOVERY_EXPECTED_REPOSITORY_COMMIT",
@@ -620,16 +783,13 @@ export function parseHarnessOptions(args, environment = process.env) {
     options[key] = fromFlag ?? fromEnvironment;
   }
   const required = [
-    "databaseManifest",
-    "migrationLedgerAttestation",
-    "roles",
-    "schema",
-    "data",
-    "storageManifest",
-    "storageArchive",
+    "bundle",
     "ageIdentity",
-    "createdAt",
+    "trustedPublicKey",
+    "trustedPublicKeyFingerprint",
     "sourceIdentitySha256",
+    "expectedExportCommit",
+    "expectedExportMigrationTree",
     "expectedRepositoryCommit",
   ];
   if (required.some((key) => typeof options[key] !== "string" || options[key].length === 0)) {
@@ -637,12 +797,24 @@ export function parseHarnessOptions(args, environment = process.env) {
   }
   requiredString(options.sourceIdentitySha256, SHA256_PATTERN, "source_identity_sha256_invalid", "arguments");
   requiredString(
+    options.trustedPublicKeyFingerprint,
+    /^SHA256:[A-Za-z0-9+/]+$/u,
+    "trusted_public_key_fingerprint_invalid",
+    "arguments",
+  );
+  requiredString(options.expectedExportCommit, GIT_OID_PATTERN, "expected_export_commit_invalid", "arguments");
+  requiredString(
+    options.expectedExportMigrationTree,
+    GIT_OID_PATTERN,
+    "expected_export_migration_tree_invalid",
+    "arguments",
+  );
+  requiredString(
     options.expectedRepositoryCommit,
     GIT_OID_PATTERN,
     "expected_repository_commit_invalid",
     "arguments",
   );
-  options.createdAt = parseIsoTimestamp(options.createdAt, "backup_created_at_invalid", "arguments").toISOString();
   const maxAgeHours = options.maxAgeHours === undefined
     ? 72
     : Number(options.maxAgeHours);
@@ -668,6 +840,57 @@ function assertPrivateRegularFile(path, { maxBytes, code }) {
   if ((metadata.mode & 0o077) !== 0) fail(`${code}_permissions_too_open`, "preflight");
   if (metadata.size <= 0 || metadata.size > maxBytes) fail(`${code}_size_invalid`, "preflight");
   return realpathSync(path);
+}
+
+function assertTrustedPublicKey(path) {
+  if (typeof path !== "string" || !isAbsolute(path)) {
+    fail("trusted_public_key_path_invalid", "preflight");
+  }
+  let metadata;
+  try {
+    metadata = lstatSync(path);
+  } catch {
+    fail("trusted_public_key_missing", "preflight");
+  }
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    fail("trusted_public_key_not_regular", "preflight");
+  }
+  if (typeof process.getuid === "function" && metadata.uid !== process.getuid()) {
+    fail("trusted_public_key_owner_invalid", "preflight");
+  }
+  if ((metadata.mode & 0o022) !== 0 || metadata.size <= 0 || metadata.size > 1024 * 1024) {
+    fail("trusted_public_key_permissions_or_size_invalid", "preflight");
+  }
+  return realpathSync(path);
+}
+
+export function assertExactExportBundle(path) {
+  if (typeof path !== "string" || !isAbsolute(path)) fail("export_bundle_path_invalid", "preflight");
+  let metadata;
+  try {
+    metadata = lstatSync(path);
+  } catch {
+    fail("export_bundle_missing", "preflight");
+  }
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) fail("export_bundle_not_directory", "preflight");
+  if (typeof process.getuid === "function" && metadata.uid !== process.getuid()) {
+    fail("export_bundle_owner_invalid", "preflight");
+  }
+  if ((metadata.mode & 0o077) !== 0) fail("export_bundle_permissions_too_open", "preflight");
+  const root = realpathSync(path);
+  const actual = readdirSync(root).sort();
+  const expected = [...EXPORT_BUNDLE_FILES].sort();
+  if (actual.length !== expected.length || actual.some((name, index) => name !== expected[index])) {
+    fail("export_bundle_inventory_invalid", "preflight");
+  }
+  const marker = assertPrivateRegularFile(join(root, EXPORT_MARKER), {
+    maxBytes: 1024,
+    code: "export_bundle_marker",
+  });
+  if (readFileSync(marker, "utf8") !== "managed-supabase-export\n") {
+    fail("export_bundle_marker_invalid", "preflight");
+  }
+  return root;
 }
 
 function assertEvidenceDestination(path) {
@@ -869,6 +1092,7 @@ function execute(command, args, options = {}) {
     stdio: options.capture === false ? "ignore" : "pipe",
     timeout: options.timeout ?? 60_000,
     maxBuffer: options.maxBuffer ?? 8 * 1024 * 1024,
+    input: options.input,
   });
   const accepted = options.accepted ?? [0];
   if (result.error || !accepted.includes(result.status)) {
@@ -885,6 +1109,59 @@ function execute(command, args, options = {}) {
     fail(code, options.stage ?? "execution", diagnostic);
   }
   return options.capture === false ? "" : String(result.stdout ?? "").trim();
+}
+
+export function verifyReceiptSignature({
+  receiptPath,
+  signaturePath,
+  trustedPublicKeyPath,
+  expectedFingerprint,
+  workingDirectory,
+}) {
+  let publicKey;
+  let fingerprint;
+  try {
+    publicKey = readFileSync(trustedPublicKeyPath, "utf8").trim();
+    fingerprint = sshPublicKeyFingerprint(publicKey);
+  } catch {
+    fail("trusted_public_key_invalid", "receipt_verification");
+  }
+  if (fingerprint !== expectedFingerprint) {
+    fail("trusted_public_key_fingerprint_mismatch", "receipt_verification");
+  }
+  const fields = publicKey.split(/\s+/u);
+  if (fields.length < 2) fail("trusted_public_key_invalid", "receipt_verification");
+  const allowedSigners = join(workingDirectory, "receipt-allowed-signers");
+  writeFileSync(allowedSigners, `${SIGNATURE_IDENTITY} ${fields[0]} ${fields[1]}\n`, {
+    mode: 0o600,
+    flag: "wx",
+  });
+  try {
+    execute(
+      "ssh-keygen",
+      [
+        "-Y",
+        "verify",
+        "-f",
+        allowedSigners,
+        "-I",
+        SIGNATURE_IDENTITY,
+        "-n",
+        SIGNATURE_NAMESPACE,
+        "-s",
+        signaturePath,
+      ],
+      {
+        cwd: dirname(receiptPath),
+        input: readFileSync(receiptPath),
+        code: "receipt_signature_verification_failed",
+        stage: "receipt_verification",
+      },
+    );
+  } finally {
+    rmSync(allowedSigners, { force: true });
+  }
+  return fingerprint;
 }
 
 function assertOrbStackPreflight() {
@@ -932,100 +1209,166 @@ async function assertPlaintextFile(path, expected, code) {
   if (await sha256File(path) !== expected.sha256) fail(`${code}_sha256_mismatch`, "artifact_validation");
 }
 
+export function parseExportedMigrationHistory(text, manifestLedger) {
+  if (typeof text !== "string" || text.includes("\0")) {
+    fail("exported_migration_history_invalid", "artifact_validation");
+  }
+  const lines = text.replace(/\r\n/gu, "\n").split("\n");
+  let section;
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!lines[index].startsWith("COPY")) continue;
+    const match = /^COPY\s+(?:"supabase_migrations"|supabase_migrations)\.(?:"schema_migrations"|schema_migrations)\s+\((.+)\)\s+FROM\s+stdin;$/u.exec(lines[index]);
+    if (!match || section) fail("exported_migration_history_target_invalid", "artifact_validation");
+    const header = lines[index];
+    const rows = [];
+    index += 1;
+    while (index < lines.length && lines[index] !== "\\.") {
+      rows.push(lines[index]);
+      index += 1;
+    }
+    if (index >= lines.length) fail("exported_migration_history_unterminated", "artifact_validation");
+    section = { header, columns: match[1], rows };
+  }
+  if (!section || section.rows.length === 0) {
+    fail("exported_migration_history_missing", "artifact_validation");
+  }
+  const columns = section.columns.split(",").map((column) => column.trim().replaceAll('"', ""));
+  const versionIndex = columns.indexOf("version");
+  const nameIndex = columns.indexOf("name");
+  const statementsIndex = columns.indexOf("statements");
+  if (versionIndex < 0 || nameIndex < 0 || statementsIndex < 0) {
+    fail("exported_migration_history_columns_invalid", "artifact_validation");
+  }
+  const entries = [];
+  for (const row of section.rows) {
+    const cells = row.split("\t");
+    const version = requiredString(cells[versionIndex], /^\d+$/u, "exported_migration_history_row_invalid");
+    const name = requiredString(cells[nameIndex], MIGRATION_NAME_PATTERN, "exported_migration_history_row_invalid");
+    if (cells[statementsIndex] === undefined) {
+      fail("exported_migration_history_row_invalid", "artifact_validation");
+    }
+    if (entries.length > 0 && entries.at(-1).version.localeCompare(version, "en") >= 0) {
+      fail("exported_migration_history_order_invalid", "artifact_validation");
+    }
+    entries.push(Object.freeze({ version, name }));
+  }
+  const copyRowsSha256 = sha256Text(`${section.header}\n${section.rows.join("\n")}\n\\.\n`);
+  if (
+    entries.length !== manifestLedger.count ||
+    entries[0].version !== manifestLedger.minVersion ||
+    entries.at(-1).version !== manifestLedger.maxVersion ||
+    copyRowsSha256 !== manifestLedger.copyRowsSha256
+  ) {
+    fail("exported_migration_history_manifest_mismatch", "artifact_validation");
+  }
+  return Object.freeze({ entries: Object.freeze(entries), copyRowsSha256 });
+}
+
 async function prepareArtifacts(options, harnessRoot, decryptPayloads) {
-  const paths = Object.freeze({
-    databaseManifest: assertPrivateRegularFile(options.databaseManifest, { maxBytes: MAX_MANIFEST_BYTES, code: "database_manifest" }),
-    migrationLedgerAttestation: assertPrivateRegularFile(options.migrationLedgerAttestation, {
-      maxBytes: MAX_MANIFEST_BYTES,
-      code: "migration_ledger_attestation",
-    }),
-    roles: assertPrivateRegularFile(options.roles, { maxBytes: MAX_SQL_BYTES, code: "roles_artifact" }),
-    schema: assertPrivateRegularFile(options.schema, { maxBytes: MAX_SQL_BYTES, code: "schema_artifact" }),
-    data: assertPrivateRegularFile(options.data, { maxBytes: MAX_SQL_BYTES, code: "data_artifact" }),
-    storageManifest: assertPrivateRegularFile(options.storageManifest, { maxBytes: MAX_MANIFEST_BYTES, code: "storage_manifest" }),
-    storageArchive: assertPrivateRegularFile(options.storageArchive, { maxBytes: MAX_STORAGE_ARCHIVE_BYTES, code: "storage_archive" }),
+  const bundle = assertExactExportBundle(options.bundle);
+  const paths = {
+    bundle,
+    receipt: assertPrivateRegularFile(join(bundle, "receipt.json"), { maxBytes: MAX_MANIFEST_BYTES, code: "receipt" }),
+    signature: assertPrivateRegularFile(join(bundle, "receipt.json.sig"), { maxBytes: 1024 * 1024, code: "receipt_signature" }),
     ageIdentity: assertPrivateRegularFile(options.ageIdentity, { maxBytes: 1024 * 1024, code: "age_identity" }),
+    trustedPublicKey: assertTrustedPublicKey(options.trustedPublicKey),
     evidenceOut: assertEvidenceDestination(options.evidenceOut),
-  });
-  if (new Set(Object.values(paths).filter(Boolean)).size !== Object.values(paths).filter(Boolean).length) {
+  };
+  for (const name of ENCRYPTED_ARTIFACTS) {
+    const maxBytes = name === "storage-objects.tar.age"
+      ? MAX_STORAGE_ARCHIVE_BYTES
+      : name.endsWith("-manifest.json.age")
+        ? MAX_MANIFEST_BYTES
+        : MAX_SQL_BYTES;
+    paths[name] = assertPrivateRegularFile(join(bundle, name), {
+      maxBytes,
+      code: "encrypted_artifact",
+    });
+  }
+  if (new Set([bundle, paths.ageIdentity, paths.trustedPublicKey, paths.evidenceOut].filter(Boolean)).size !==
+    [bundle, paths.ageIdentity, paths.trustedPublicKey, paths.evidenceOut].filter(Boolean).length) {
     fail("artifact_paths_must_be_distinct", "preflight");
   }
 
   const decryptedRoot = join(harnessRoot, "decrypted");
   mkdirSync(decryptedRoot, { mode: 0o700 });
-  const databaseManifestPath = join(decryptedRoot, "database-manifest.json");
-  const migrationLedgerAttestationPath = join(decryptedRoot, "migration-ledger-attestation.json");
-  const storageManifestPath = join(decryptedRoot, "storage-manifest.json");
-  decryptAge(paths.databaseManifest, databaseManifestPath, paths.ageIdentity);
-  decryptAge(paths.migrationLedgerAttestation, migrationLedgerAttestationPath, paths.ageIdentity);
-  decryptAge(paths.storageManifest, storageManifestPath, paths.ageIdentity);
-  const rawDatabaseManifest = readPrivateJson(databaseManifestPath, "database_manifest_json_invalid");
-  const database = validateDatabaseManifest(rawDatabaseManifest, {
-    createdAt: options.createdAt,
-    sourceIdentitySha256: options.sourceIdentitySha256,
+  verifyReceiptSignature({
+    receiptPath: paths.receipt,
+    signaturePath: paths.signature,
+    trustedPublicKeyPath: paths.trustedPublicKey,
+    expectedFingerprint: options.trustedPublicKeyFingerprint,
+    workingDirectory: decryptedRoot,
   });
-  const migrationLedgerAttestation = validateMigrationLedgerAttestation(
-    readPrivateJson(migrationLedgerAttestationPath, "migration_ledger_attestation_json_invalid"),
-    {
-      databaseCreatedAt: database.createdAt,
-      sourceIdentitySha256: options.sourceIdentitySha256,
-    },
-  );
+  let rawReceipt;
+  const receiptText = readFileSync(paths.receipt, "utf8");
+  try {
+    rawReceipt = JSON.parse(receiptText);
+  } catch {
+    fail("receipt_json_invalid", "receipt_verification");
+  }
+  if (receiptText !== canonicalJson(rawReceipt)) fail("receipt_not_canonical", "receipt_verification");
+  const receipt = validateExportReceipt(rawReceipt, {
+    sourceIdentitySha256: options.sourceIdentitySha256,
+    exportCommit: options.expectedExportCommit,
+    exportMigrationTree: options.expectedExportMigrationTree,
+    trustedPublicKeyFingerprint: options.trustedPublicKeyFingerprint,
+  });
+  const ciphertextHashes = {};
+  for (const name of ENCRYPTED_ARTIFACTS) {
+    const metadata = statSync(paths[name]);
+    const expected = receipt.encryptedArtifacts[name];
+    const digest = await sha256File(paths[name]);
+    if (metadata.size !== expected.bytes || digest !== expected.sha256) {
+      fail("encrypted_artifact_receipt_mismatch", "receipt_verification");
+    }
+    ciphertextHashes[name] = digest;
+  }
+  const databaseManifestPath = join(decryptedRoot, "database-manifest.json");
+  const storageManifestPath = join(decryptedRoot, "storage-manifest.json");
+  decryptAge(paths["database-manifest.json.age"], databaseManifestPath, paths.ageIdentity);
+  decryptAge(paths["storage-manifest.json.age"], storageManifestPath, paths.ageIdentity);
+  const rawDatabaseManifest = readPrivateJson(databaseManifestPath, "database_manifest_json_invalid");
+  const database = validateDatabaseManifest(rawDatabaseManifest, { receipt });
   const storage = validateStorageManifest(
     readPrivateJson(storageManifestPath, "storage_manifest_json_invalid"),
-    {
-      databaseCreatedAt: database.createdAt,
-      projectRefSha256: sha256Text(rawDatabaseManifest.projectRef),
-    },
+    { receipt },
   );
   const now = new Date();
-  const ageHours = checkArtifactAge(database.createdAt, now, options.maxAgeHours);
-  const storageAgeHours = checkArtifactAge(storage.createdAt, now, options.maxAgeHours);
-  const migrationLedgerAttestationAgeHours = checkArtifactAge(
-    migrationLedgerAttestation.createdAt,
-    now,
-    options.maxAgeHours,
+  const ageHours = checkArtifactAge(receipt.capturedAt, now, options.maxAgeHours);
+  const plaintext = { databaseManifest: databaseManifestPath, storageManifest: storageManifestPath };
+  const historyDataPath = join(decryptedRoot, "history-data.sql");
+  decryptAge(paths["history-data.sql.age"], historyDataPath, paths.ageIdentity);
+  await assertPlaintextFile(historyDataPath, database.files["history-data.sql"], "history_data");
+  plaintext.historyData = historyDataPath;
+  const exportedHistory = parseExportedMigrationHistory(
+    readFileSync(historyDataPath, "utf8"),
+    database.migrationLedger,
   );
-  const captureSpanMinutes = Math.abs(
-    new Date(storage.createdAt).valueOf() - new Date(database.createdAt).valueOf(),
-  ) / 60_000;
-  const ciphertextHashes = {};
-  for (const key of [
-    "databaseManifest",
-    "migrationLedgerAttestation",
-    "roles",
-    "schema",
-    "data",
-    "storageManifest",
-    "storageArchive",
-  ]) {
-    ciphertextHashes[key] = await sha256File(paths[key]);
-  }
-  const plaintext = {};
   if (decryptPayloads) {
-    for (const name of SQL_FILES) {
-      const key = name === "roles.sql" ? "roles" : name === "schema.sql" ? "schema" : "data";
+    for (const name of SQL_FILES.filter((name) => name !== "history-data.sql")) {
+      const key = name.replace(/-([a-z])/gu, (_match, letter) => letter.toUpperCase()).replace(".sql", "");
       const output = join(decryptedRoot, name);
-      decryptAge(paths[key], output, paths.ageIdentity);
+      decryptAge(paths[`${name}.age`], output, paths.ageIdentity);
       await assertPlaintextFile(output, database.files[name], name.replace(".sql", ""));
       plaintext[key] = output;
     }
-    const storageArchivePath = join(decryptedRoot, "storage-objects.tar.gz");
-    decryptAge(paths.storageArchive, storageArchivePath, paths.ageIdentity);
-    await assertPlaintextFile(storageArchivePath, storage.archive, "storage_archive");
+    const storageArchivePath = join(decryptedRoot, "storage-objects.tar");
+    decryptAge(paths["storage-objects.tar.age"], storageArchivePath, paths.ageIdentity);
+    const archiveMetadata = statSync(storageArchivePath);
+    if (!archiveMetadata.isFile() || archiveMetadata.size <= 0 || archiveMetadata.size > MAX_STORAGE_ARCHIVE_BYTES) {
+      fail("storage_archive_size_invalid", "artifact_validation");
+    }
     plaintext.storageArchive = storageArchivePath;
   }
   return Object.freeze({
-    paths,
+    paths: Object.freeze(paths),
+    receipt,
     database,
-    migrationLedgerAttestation,
+    exportedHistory,
     storage,
     plaintext: Object.freeze(plaintext),
     ciphertextHashes: Object.freeze(ciphertextHashes),
     ageHours,
-    storageAgeHours,
-    migrationLedgerAttestationAgeHours,
-    captureSpanMinutes,
   });
 }
 
@@ -1045,13 +1388,14 @@ async function reserveLoopbackPort() {
 async function reservePortMap() {
   const originals = [45420, 45421, 45422, 45423, 45424, 45425, 45426, 45427, 45428, 45429];
   const ports = [];
-  while (ports.length < originals.length + 1) {
+  while (ports.length < originals.length + 2) {
     const port = await reserveLoopbackPort();
     if (!ports.includes(port)) ports.push(port);
   }
   return Object.freeze({
     replacements: Object.freeze(Object.fromEntries(originals.map((value, index) => [value, ports[index]]))),
-    app: ports.at(-1),
+    app: ports.at(-2),
+    clamd: ports.at(-1),
   });
 }
 
@@ -1508,21 +1852,45 @@ function readAppliedMigrationVersions(status, stage = "migration_rehearsal") {
   return value;
 }
 
-export function verifiedAttestedPrefix(root, manifestLedger, attestation) {
-  if (
-    attestation.source.length !== manifestLedger.count ||
-    attestation.source[0]?.version !== manifestLedger.minVersion ||
-    attestation.source.at(-1)?.version !== manifestLedger.maxVersion
-  ) {
-    fail("migration_ledger_attestation_manifest_mismatch", "database_restore");
+function readAppliedMigrationEntries(status, stage = "database_restore") {
+  const value = psqlJson(
+    status,
+    `SELECT coalesce(
+       json_agg(json_build_object('version', version, 'name', name) ORDER BY version),
+       '[]'::json
+     )::text
+     FROM supabase_migrations.schema_migrations`,
+    stage,
+    true,
+    "migration_ledger_query_failed",
+    classifyMigrationLedgerQueryFailure,
+    sanitizeDatabaseCommandDiagnostic,
+  );
+  if (!Array.isArray(value) || value.some((entry) =>
+    !isRecord(entry) ||
+    !MIGRATION_VERSION_PATTERN.test(entry.version) ||
+    !MIGRATION_NAME_PATTERN.test(entry.name))) {
+    fail("restored_migration_ledger_invalid", stage);
   }
-  const prefix = root.entries.slice(0, attestation.source.length);
+  return Object.freeze(value.map(({ version, name }) => Object.freeze({ version, name })));
+}
+
+export function verifiedExportedHistoryPrefix(root, manifestLedger, exportedHistory) {
   if (
-    prefix.length !== attestation.source.length ||
-    JSON.stringify(prefix.map(({ version, name }) => ({ version, name }))) !==
-      JSON.stringify(attestation.source)
+    exportedHistory.entries.length !== manifestLedger.count ||
+    exportedHistory.entries[0]?.version !== manifestLedger.minVersion ||
+    exportedHistory.entries.at(-1)?.version !== manifestLedger.maxVersion ||
+    exportedHistory.copyRowsSha256 !== manifestLedger.copyRowsSha256
   ) {
-    fail("migration_ledger_attestation_root_prefix_mismatch", "database_restore");
+    fail("exported_migration_history_manifest_mismatch", "database_restore");
+  }
+  const prefix = root.entries.slice(0, exportedHistory.entries.length);
+  if (
+    prefix.length !== exportedHistory.entries.length ||
+    JSON.stringify(prefix.map(({ version, name }) => ({ version, name }))) !==
+      JSON.stringify(exportedHistory.entries)
+  ) {
+    fail("exported_migration_history_root_prefix_mismatch", "database_restore");
   }
   return Object.freeze(prefix);
 }
@@ -1600,25 +1968,36 @@ function initializeLocalMigrationLedger(status) {
   if (shapeIsExact !== "true") fail("migration_ledger_shape_invalid", "database_restore");
 }
 
-function reconstructManifestLedger(status, prefix) {
+function restoreExportedMigrationHistory(status, historyDataPath) {
   initializeLocalMigrationLedger(status);
   if (readAppliedMigrationVersions(status, "database_restore").length !== 0) {
     fail("base_migration_ledger_not_empty", "database_restore");
   }
-  const values = prefix.map((entry) =>
-    `(${sqlLiteral(entry.version)}, ARRAY[]::text[], ${sqlLiteral(entry.name)})`).join(",\n");
-  psqlScalar(
-    status,
-    `INSERT INTO supabase_migrations.schema_migrations (version, statements, name) VALUES ${values}; SELECT 'seeded'`,
-    "database_restore",
-    true,
+  execute(
+    "psql",
+    [
+      "--no-psqlrc",
+      "--single-transaction",
+      "--variable",
+      "ON_ERROR_STOP=1",
+      "--file",
+      historyDataPath,
+    ],
+    {
+      env: psqlEnvironment(status.dbUrl, "supabase_admin"),
+      capture: false,
+      timeout: 60 * 60 * 1000,
+      code: "exported_migration_history_restore_failed",
+      stage: "database_restore",
+    },
   );
 }
 
 function assertManifestLedger(applied, prefix) {
   if (
     applied.length !== prefix.length ||
-    applied.some((version, index) => version !== prefix[index].version)
+    applied.some((entry, index) =>
+      entry.version !== prefix[index].version || entry.name !== prefix[index].name)
   ) {
     fail("restored_migration_ledger_mismatch", "database_restore");
   }
@@ -1857,41 +2236,67 @@ async function establishV3PrivateStorage(status, sourceBuckets) {
   });
 }
 
+export function validateStorageArchiveEntries(entries, objects) {
+  if (!Array.isArray(entries) || !Array.isArray(objects)) {
+    fail("storage_archive_inventory_invalid", "storage_restore");
+  }
+  const files = [];
+  const directories = [];
+  for (const entry of entries) {
+    if (
+      typeof entry !== "string" ||
+      entry.length === 0 ||
+      entry.startsWith("/") ||
+      entry.includes("\\") ||
+      /[\u0000-\u001f\u007f]/u.test(entry) ||
+      entry.split("/").some((part, index, parts) =>
+        part === "." || part === ".." || (part === "" && index !== parts.length - 1))
+    ) {
+      fail("storage_archive_entry_unsafe", "storage_restore");
+    }
+    if (entry.endsWith("/")) directories.push(entry);
+    else files.push(entry);
+  }
+  if (directories.length !== 1 || directories[0] !== "storage-blobs/") {
+    fail("storage_archive_directory_inventory_mismatch", "storage_restore");
+  }
+  const expected = ["storage-manifest.json", ...objects.map((object) => object.archivePath)].sort();
+  const actual = [...files].sort();
+  if (actual.length !== expected.length || actual.some((entry, index) => entry !== expected[index])) {
+    fail("storage_archive_inventory_mismatch", "storage_restore");
+  }
+  return Object.freeze({ files: Object.freeze(actual), directories: Object.freeze(directories) });
+}
+
 function inspectTarArchive(archivePath, objects) {
-  const listed = execute("tar", ["-tzf", archivePath], {
+  const listed = execute("tar", ["-tf", archivePath], {
     code: "storage_archive_list_failed",
     stage: "storage_restore",
     timeout: 30 * 60 * 1000,
     maxBuffer: 64 * 1024 * 1024,
   }).split(/\r?\n/u).filter(Boolean);
-  const harmlessDirectories = listed.filter((entry) => entry === "." || entry === "./" || entry.endsWith("/"));
-  for (const entry of harmlessDirectories) {
-    if (entry.includes("..") || entry.startsWith("/")) fail("storage_archive_entry_unsafe", "storage_restore");
-  }
-  const files = listed.filter((entry) => !harmlessDirectories.includes(entry));
-  const expected = objects.map((object) => object.archivePath).sort();
-  const actual = [...files].sort();
-  if (actual.length !== expected.length || actual.some((entry, index) => entry !== expected[index])) {
-    fail("storage_archive_inventory_mismatch", "storage_restore");
-  }
-  if (objects.length > 0) {
-    const verbose = execute("tar", ["-tvzf", archivePath], {
-      code: "storage_archive_types_failed",
-      stage: "storage_restore",
-      timeout: 30 * 60 * 1000,
-      maxBuffer: 64 * 1024 * 1024,
-    }).split(/\r?\n/u).filter(Boolean);
-    const nonDirectories = verbose.filter((line) => !line.startsWith("d"));
-    if (nonDirectories.length !== objects.length || nonDirectories.some((line) => !line.startsWith("-"))) {
-      fail("storage_archive_non_regular_entry", "storage_restore");
-    }
+  validateStorageArchiveEntries(listed, objects);
+  const verbose = execute("tar", ["-tvf", archivePath], {
+    code: "storage_archive_types_failed",
+    stage: "storage_restore",
+    timeout: 30 * 60 * 1000,
+    maxBuffer: 64 * 1024 * 1024,
+  }).split(/\r?\n/u).filter(Boolean);
+  const regularCount = verbose.filter((line) => line.startsWith("-")).length;
+  const directoryCount = verbose.filter((line) => line.startsWith("d")).length;
+  if (
+    regularCount !== objects.length + 1 ||
+    directoryCount !== 1 ||
+    regularCount + directoryCount !== verbose.length
+  ) {
+    fail("storage_archive_non_regular_entry", "storage_restore");
   }
 }
 
-function extractOneTarObject(archivePath, object, destination) {
+function extractOneTarEntry(archivePath, archiveEntry, destination) {
   const fd = openSync(destination, "wx", 0o600);
   try {
-    const result = spawnSync("tar", ["-xOzf", archivePath, object.archivePath], {
+    const result = spawnSync("tar", ["-xOf", archivePath, archiveEntry], {
       cwd: repositoryRoot,
       env: minimalChildEnvironment(),
       stdio: ["ignore", fd, "ignore"],
@@ -1905,6 +2310,36 @@ function extractOneTarObject(archivePath, object, destination) {
 
 async function uploadAndVerifyObject(status, object, path) {
   await assertPlaintextFile(path, object, "storage_object");
+  const sourceMetadata = psqlJson(
+    status,
+    `SELECT coalesce((
+       SELECT json_build_object(
+         'id', id::text,
+         'version', version,
+         'bytes', coalesce((metadata ->> 'size')::bigint, 0),
+         'contentType', metadata ->> 'mimetype'
+       )
+       FROM storage.objects
+       WHERE bucket_id = ${sqlLiteral(object.bucketId)}
+         AND name = ${sqlLiteral(object.objectPath)}
+     ), 'null'::json)::text`,
+    "storage_restore",
+    true,
+  );
+  if (
+    !isRecord(sourceMetadata) ||
+    sourceMetadata.id !== object.sourceId ||
+    (sourceMetadata.version ?? null) !== object.sourceVersion ||
+    Number(sourceMetadata.bytes) !== object.bytes
+  ) {
+    fail("storage_object_manifest_database_mapping_mismatch", "storage_restore");
+  }
+  const contentType = requiredString(
+    sourceMetadata.contentType,
+    CONTENT_TYPE_PATTERN,
+    "storage_object_content_type_missing",
+    "storage_restore",
+  );
   const bytes = readFileSync(path);
   const url = safeStorageObjectUrl(status.apiUrl, object.bucketId, object.objectPath);
   await storageRequest(
@@ -1915,7 +2350,7 @@ async function uploadAndVerifyObject(status, object, path) {
       headers: {
         apikey: status.serviceRoleKey,
         Authorization: `Bearer ${status.serviceRoleKey}`,
-        "content-type": object.contentType,
+        "content-type": contentType,
         "x-upsert": "true",
       },
       body: bytes,
@@ -1947,25 +2382,30 @@ async function restoreStorageBytes(status, artifacts, workRoot) {
     "storage_restore",
     true,
   );
-  const metadataAbsent = isRecord(initialInventory) &&
-    Number(initialInventory.buckets) === 0 &&
-    Number(initialInventory.publicBuckets) === 0 &&
-    Number(initialInventory.objects) === 0;
   const metadataRestoredByLogicalDump = isRecord(initialInventory) &&
     Number(initialInventory.buckets) === artifacts.storage.bucketCount &&
     Number(initialInventory.publicBuckets) === artifacts.storage.publicBucketCount &&
     Number(initialInventory.objects) === artifacts.storage.objectCount;
-  if (!metadataAbsent && !metadataRestoredByLogicalDump) {
+  if (!metadataRestoredByLogicalDump) {
     fail("source_storage_metadata_state_invalid", "storage_restore");
   }
   await ensureBuckets(status, artifacts.storage.buckets, { allowUpdate: false });
   inspectTarArchive(artifacts.plaintext.storageArchive, artifacts.storage.objects);
   const objectRoot = join(workRoot, "storage-object");
   mkdirSync(objectRoot, { mode: 0o700 });
+  const embeddedManifest = join(objectRoot, "storage-manifest.json");
+  extractOneTarEntry(artifacts.plaintext.storageArchive, "storage-manifest.json", embeddedManifest);
+  if (
+    statSync(embeddedManifest).size !== statSync(artifacts.plaintext.storageManifest).size ||
+    await sha256File(embeddedManifest) !== await sha256File(artifacts.plaintext.storageManifest)
+  ) {
+    fail("storage_archive_manifest_mismatch", "storage_restore");
+  }
+  rmSync(embeddedManifest, { force: true });
   for (let index = 0; index < artifacts.storage.objects.length; index += 1) {
     const object = artifacts.storage.objects[index];
     const destination = join(objectRoot, `${String(index).padStart(8, "0")}.bin`);
-    extractOneTarObject(artifacts.plaintext.storageArchive, object, destination);
+    extractOneTarEntry(artifacts.plaintext.storageArchive, object.archivePath, destination);
     await uploadAndVerifyObject(status, object, destination);
     rmSync(destination, { force: true });
   }
@@ -1993,9 +2433,7 @@ async function restoreStorageBytes(status, artifacts, workRoot) {
     mode: artifacts.storage.objectCount === 0
       ? "exact_empty_inventory"
       : "restored_object_bytes",
-    metadataMode: metadataRestoredByLogicalDump
-      ? "logical_dump_cross_checked_against_storage_manifest"
-      : "storage_manifest_reconstructed_metadata",
+    metadataMode: "logical_dump_cross_checked_against_storage_manifest",
     bucketCount: artifacts.storage.bucketCount,
     publicBucketCount: artifacts.storage.publicBucketCount,
     objectCount: artifacts.storage.objectCount,
@@ -2098,130 +2536,207 @@ async function signInLocalActor(status, actor) {
   return Object.freeze({ ...actor, accessToken: payload.access_token });
 }
 
-async function createLocalRepresentativeAuthUser(status, specification) {
-  const password = `R9!${randomBytes(30).toString("base64url")}`;
-  const email = `evo-recovery-${specification.appRole}-${randomBytes(10).toString("hex")}@example.invalid`;
+async function platformRpc(status, actor, functionName, body, stage = "malware_scanner_proof") {
   const response = await storageRequest(
     status,
-    new URL("/auth/v1/admin/users", status.apiUrl).toString(),
-    {
-      method: "POST",
-      headers: {
-        apikey: status.serviceRoleKey,
-        Authorization: `Bearer ${status.serviceRoleKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { display_name: specification.displayName },
-      }),
-    },
-    [200, 201],
-    "local_representative_auth_create_failed",
-    "auth_rls_proof",
-  );
-  const payload = await response.json().catch(() => null);
-  const user = isRecord(payload?.user) ? payload.user : payload;
-  if (!isRecord(user) || !UUID_PATTERN.test(user.id)) {
-    fail("local_representative_auth_user_invalid", "auth_rls_proof");
-  }
-  return Object.freeze({
-    userId: user.id,
-    email,
-    password,
-    databaseRole: specification.databaseRole,
-    appRole: specification.appRole,
-    landing: specification.landing,
-    provenance: "isolated_local_test_identity",
-  });
-}
-
-async function provisionLocalRepresentative(status, adminActor, organizationId, specification) {
-  const actor = await createLocalRepresentativeAuthUser(status, specification);
-  const response = await storageRequest(
-    status,
-    new URL("/rest/v1/rpc/provision_pilot_staff_member", status.apiUrl).toString(),
+    new URL(`/rest/v1/rpc/${functionName}`, status.apiUrl).toString(),
     {
       method: "POST",
       headers: {
         apikey: status.publishableKey,
-        Authorization: `Bearer ${adminActor.accessToken}`,
-        "content-type": "application/json",
-        "Content-Profile": "platform",
+        Authorization: `Bearer ${actor.accessToken}`,
         "Accept-Profile": "platform",
+        "Content-Profile": "platform",
+        "content-type": "application/json",
       },
-      body: JSON.stringify({
-        p_organization_id: organizationId,
-        p_member_auth_user_id: actor.userId,
-        p_member_display_name: specification.displayName,
-        p_role: specification.databaseRole,
-        p_reason: `Provision isolated recovery ${specification.appRole} verification identity`,
-        p_request_id: randomUUID(),
-      }),
+      body: JSON.stringify(body),
     },
     [200],
-    "local_representative_membership_provision_failed",
-    "auth_rls_proof",
+    `${functionName}_failed`,
+    stage,
   );
-  await response.arrayBuffer();
-  const confirmed = psqlJson(
-    status,
-    `SELECT coalesce((SELECT row_to_json(candidate) FROM (
-      SELECT membership.organization_id AS "organizationId",
-             membership.current_role::text AS "databaseRole"
-      FROM platform.organization_memberships AS membership
-      JOIN platform.profiles AS profile ON profile.id = membership.profile_id
-      WHERE profile.auth_user_id = ${sqlLiteral(actor.userId)}
-        AND profile.status = 'active'
-        AND membership.status = 'active'
-    ) AS candidate), 'null'::json)::text`,
-    "auth_rls_proof",
-  );
-  if (
-    !isRecord(confirmed) ||
-    confirmed.organizationId !== organizationId ||
-    confirmed.databaseRole !== specification.databaseRole
-  ) {
-    fail("local_representative_authority_mismatch", "auth_rls_proof");
+  const payload = await response.json().catch(() => null);
+  if (payload === null) fail(`${functionName}_response_invalid`, stage);
+  return payload;
+}
+
+async function assertHistoricalScannerGate(status, adminActor, finalLedger) {
+  if (!finalLedger.includes("115")) {
+    fail("malware_scanner_migration_missing", "malware_scanner_proof");
   }
-  return Object.freeze({ ...actor, organizationId });
+  const facts = psqlJson(
+    status,
+    `SELECT json_build_object(
+      'unprovedCleanDocuments', (
+        SELECT count(*) FROM platform.document_versions AS version
+        WHERE version.malware_status = 'clean'
+          AND version.malware_scan_attestation_id IS NULL
+      ),
+      'invalidatedHistoricalDocuments', (
+        SELECT count(*) FROM platform.document_validation_events AS event
+        WHERE event.validation_source = 'migration:115_malware_scanner_enforcement'
+      ),
+      'unprovedCurrentCompanyFiles', (
+        SELECT count(*)
+        FROM platform.company_files AS company_file
+        JOIN platform.company_file_versions AS version
+          ON version.organization_id = company_file.organization_id
+          AND version.id = company_file.current_version_id
+          AND version.company_file_id = company_file.id
+        LEFT JOIN platform_private.company_file_malware_scan_attestations AS proof
+          ON proof.organization_id = version.organization_id
+          AND proof.company_file_version_id = version.id
+          AND proof.company_file_id = version.company_file_id
+          AND proof.scanned_sha256_hex = version.sha256_hex
+        WHERE company_file.organization_id = ${sqlLiteral(adminActor.organizationId)}
+          AND proof.id IS NULL
+      )
+    )::text`,
+    "malware_scanner_proof",
+    true,
+  );
+  if (!isRecord(facts) || Number(facts.unprovedCleanDocuments) !== 0) {
+    fail("historical_unproved_clean_document_visible", "malware_scanner_proof");
+  }
+  const workspace = await platformRpc(
+    status,
+    adminActor,
+    "staff_company_file_workspace",
+    { p_organization_id: adminActor.organizationId },
+  );
+  if (!Array.isArray(workspace)) {
+    fail("company_file_workspace_response_invalid", "malware_scanner_proof");
+  }
+  const unprovedIds = psqlJson(
+    status,
+    `SELECT coalesce(json_agg(company_file.id), '[]'::json)::text
+     FROM platform.company_files AS company_file
+     JOIN platform.company_file_versions AS version
+       ON version.organization_id = company_file.organization_id
+       AND version.id = company_file.current_version_id
+       AND version.company_file_id = company_file.id
+     LEFT JOIN platform_private.company_file_malware_scan_attestations AS proof
+       ON proof.organization_id = version.organization_id
+       AND proof.company_file_version_id = version.id
+       AND proof.company_file_id = version.company_file_id
+       AND proof.scanned_sha256_hex = version.sha256_hex
+     WHERE company_file.organization_id = ${sqlLiteral(adminActor.organizationId)}
+       AND proof.id IS NULL`,
+    "malware_scanner_proof",
+  );
+  if (!Array.isArray(unprovedIds)) {
+    fail("historical_company_file_inventory_invalid", "malware_scanner_proof");
+  }
+  const unprovedSet = new Set(unprovedIds);
+  if (workspace.some((row) =>
+    isRecord(row) && unprovedSet.has(row.item_id) && row.current_version_id !== null)) {
+    fail("historical_unproved_company_file_visible", "malware_scanner_proof");
+  }
+  return Object.freeze({
+    migration115: "applied",
+    unprovedCleanDocuments: 0,
+    invalidatedHistoricalDocuments: Number(facts.invalidatedHistoricalDocuments),
+    unprovedCurrentCompanyFiles: Number(facts.unprovedCurrentCompanyFiles),
+    unprovedCompanyFileBytesExposed: false,
+  });
+}
+
+function readScannerPersistenceState(status) {
+  const value = psqlJson(
+    status,
+    `SELECT json_build_object(
+      'reservations', (SELECT count(*) FROM platform_private.company_file_upload_reservations),
+      'finalizations', (SELECT count(*) FROM platform_private.company_file_upload_finalizations),
+      'versions', (SELECT count(*) FROM platform.company_file_versions),
+      'proofs', (SELECT count(*) FROM platform_private.company_file_malware_scan_attestations),
+      'storageObjects', (SELECT count(*) FROM storage.objects)
+    )::text`,
+    "malware_scanner_proof",
+    true,
+  );
+  if (!isRecord(value) || Object.values(value).some((count) =>
+    !Number.isSafeInteger(Number(count)) || Number(count) < 0)) {
+    fail("malware_persistence_inventory_invalid", "malware_scanner_proof");
+  }
+  return Object.freeze(Object.fromEntries(
+    Object.entries(value).map(([key, count]) => [key, Number(count)]),
+  ));
+}
+
+async function createScannerProofCompanyFile(status, adminActor) {
+  const value = await platformRpc(status, adminActor, "create_company_file", {
+    p_organization_id: adminActor.organizationId,
+    p_folder_id: null,
+    p_display_name: `Recovery scanner proof ${randomUUID()}`,
+    p_request_id: randomUUID(),
+  });
+  if (
+    !isRecord(value) || !UUID_PATTERN.test(value.company_file_id) ||
+    typeof value.version !== "string" || !/^\d+$/u.test(value.version)
+  ) {
+    fail("scanner_proof_company_file_invalid", "malware_scanner_proof");
+  }
+  return Object.freeze({ id: value.company_file_id, version: value.version });
 }
 
 async function prepareRepresentativeActors(status) {
   const restored = discoverRestoredRepresentativeActors(status);
   const admin = await signInLocalActor(status, await updateLocalPassword(status, restored.admin));
-  const specifications = Object.freeze({
-    sales: Object.freeze({
-      databaseRole: "sales",
-      appRole: "sales",
-      displayName: "EVO isolated recovery Sales verifier",
-      landing: "/v3/main",
-    }),
-    admissions: Object.freeze({
-      databaseRole: "curator",
-      appRole: "admissions",
-      displayName: "EVO isolated recovery Admissions verifier",
-      landing: "/v3/calendar",
-    }),
-  });
   const actors = { organizationId: restored.organizationId, admin };
   for (const role of ["sales", "admissions"]) {
-    const actor = restored[role]
-      ? await updateLocalPassword(status, restored[role])
-      : await provisionLocalRepresentative(status, admin, restored.organizationId, specifications[role]);
+    if (!restored[role]) continue;
+    const actor = await updateLocalPassword(status, restored[role]);
     actors[role] = await signInLocalActor(status, actor);
   }
+  actors.missingRoles = Object.freeze(
+    ["sales", "admissions"].filter((role) => !actors[role]),
+  );
   actors.evidence = Object.freeze({
     sourceRoleCountsBeforeTestIdentitySetup: restored.restoredRoleCounts,
+    restoredRoleStatus: Object.freeze({
+      admin: "available",
+      sales: actors.sales ? "available" : "missing",
+      admissions: actors.admissions ? "available" : "missing",
+    }),
     provenance: Object.freeze({
       admin: actors.admin.provenance,
-      sales: actors.sales.provenance,
-      admissions: actors.admissions.provenance,
+      sales: actors.sales?.provenance ?? "missing_from_authenticated_export",
+      admissions: actors.admissions?.provenance ?? "missing_from_authenticated_export",
     }),
   });
   return Object.freeze(actors);
+}
+
+export function buildRestoredRoleReadiness(availability) {
+  exactKeys(
+    availability,
+    ["admin", "sales", "admissions"],
+    "restored_role_availability_invalid",
+    "auth_rls_proof",
+  );
+  if (Object.values(availability).some((value) => typeof value !== "boolean")) {
+    fail("restored_role_availability_invalid", "auth_rls_proof");
+  }
+  const roleStatus = Object.freeze(Object.fromEntries(
+    Object.entries(availability).map(([role, available]) => [
+      role,
+      available ? "passed" : "missing_restored_identity",
+    ]),
+  ));
+  const missingRoles = Object.freeze(
+    ["admin", "sales", "admissions"].filter((role) => !availability[role]),
+  );
+  const complete = missingRoles.length === 0;
+  return Object.freeze({
+    complete,
+    missingRoles,
+    roleStatus,
+    blocker: complete ? undefined : Object.freeze({
+      code: "restored_representative_staff_roles_missing",
+      missingRoles,
+      roleStatus,
+    }),
+  });
 }
 
 async function proveSameAndCrossOrganizationRls(status, adminActor) {
@@ -2559,7 +3074,151 @@ async function stopBrowserProof(state = activeBrowserProof) {
   await state.shutdownPromise;
 }
 
-async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot) {
+async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filename, requestId) {
+  return await page.evaluate(async ({ baseUrl, fileId, expectedVersion, encoded, name, id }) => {
+    const form = new FormData();
+    form.set("expected_file_version", expectedVersion);
+    form.set("request_id", id);
+    const binary = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+    form.set("file", new File([binary], name, { type: "text/plain" }));
+    const response = await fetch(
+      `${baseUrl}/api/v3/company-files/${encodeURIComponent(fileId)}/versions`,
+      { method: "POST", body: form },
+    );
+    return {
+      status: response.status,
+      payload: await response.json().catch(() => null),
+    };
+  }, {
+    baseUrl: appUrl,
+    fileId: companyFile.id,
+    expectedVersion: companyFile.version,
+    encoded: Buffer.from(bytes).toString("base64"),
+    name: filename,
+    id: requestId,
+  });
+}
+
+async function proveScannerDataPath(status, adminActor, page, appUrl, scanner) {
+  const directClean = scanWithProductClient(
+    scanner,
+    Buffer.from("EVO restored-contour scanner clean proof\n", "utf8"),
+    "clean",
+  );
+  if (
+    !isRecord(directClean.proof) || directClean.proof.engine !== "ClamAV" ||
+    directClean.proof.protocol !== "clamd-zinstream-v1" ||
+    !SHA256_PATTERN.test(directClean.proof.sha256Hex)
+  ) {
+    fail("malware_scanner_clean_proof_invalid", "malware_scanner_proof");
+  }
+  assertPlaintextScannerProof(directClean.proof);
+  if (scanWithProductClient(scanner, Buffer.from(EICAR, "ascii"), "infected").outcome !== "infected") {
+    fail("malware_scanner_eicar_not_blocked", "malware_scanner_proof");
+  }
+
+  let companyFile = await createScannerProofCompanyFile(status, adminActor);
+  const cleanBytes = Buffer.from("EVO recovery clean company file\n", "utf8");
+  const clean = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    cleanBytes,
+    "recovery-clean.txt",
+    randomUUID(),
+  );
+  if (
+    clean.status !== 201 || !isRecord(clean.payload?.companyFile) ||
+    clean.payload.companyFile.companyFileId !== companyFile.id ||
+    typeof clean.payload.companyFile.fileVersion !== "string"
+  ) {
+    fail("malware_scanner_clean_data_path_failed", "malware_scanner_proof");
+  }
+  companyFile = Object.freeze({
+    ...companyFile,
+    version: clean.payload.companyFile.fileVersion,
+  });
+  const afterClean = readScannerPersistenceState(status);
+
+  const infected = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    Buffer.from(EICAR, "ascii"),
+    "recovery-eicar.txt",
+    randomUUID(),
+  );
+  if (infected.status !== 422 || infected.payload?.error !== "malware_detected") {
+    fail("malware_scanner_eicar_data_path_not_blocked", "malware_scanner_proof");
+  }
+  if (!sameCanonicalValue(readScannerPersistenceState(status), afterClean)) {
+    fail("malware_scanner_eicar_persisted_state", "malware_scanner_proof");
+  }
+
+  docker(["stop", "--time", "30", scanner.containerName], {
+    code: "malware_scanner_outage_stop_failed",
+    stage: "malware_scanner_proof",
+  });
+  const outage = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    Buffer.from("EVO recovery scanner outage proof\n", "utf8"),
+    "recovery-outage.txt",
+    randomUUID(),
+  );
+  if (outage.status !== 503 || outage.payload?.error !== "malware_scanner_unavailable") {
+    fail("malware_scanner_outage_not_fail_closed", "malware_scanner_proof");
+  }
+  if (!sameCanonicalValue(readScannerPersistenceState(status), afterClean)) {
+    fail("malware_scanner_outage_persisted_state", "malware_scanner_proof");
+  }
+
+  docker(["start", scanner.containerName], {
+    code: "malware_scanner_recovery_start_failed",
+    stage: "malware_scanner_proof",
+  });
+  await waitForRecoveryScanner(scanner.containerName);
+  const recovered = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    Buffer.from("EVO recovery scanner restored proof\n", "utf8"),
+    "recovery-restored.txt",
+    randomUUID(),
+  );
+  if (recovered.status !== 201 || !isRecord(recovered.payload?.companyFile)) {
+    fail("malware_scanner_recovered_data_path_failed", "malware_scanner_proof");
+  }
+  const afterRecovered = readScannerPersistenceState(status);
+  for (const key of ["reservations", "finalizations", "versions", "proofs", "storageObjects"]) {
+    if (afterRecovered[key] !== afterClean[key] + 1) {
+      fail("malware_scanner_recovered_persistence_invalid", "malware_scanner_proof");
+    }
+  }
+  return Object.freeze({
+    image: scanner.image,
+    network: scanner.network,
+    publish: scanner.publish,
+    clean: "passed_with_attestation",
+    eicar: "blocked_without_persistence",
+    outage: "blocked_without_persistence",
+    recovery: "passed_with_attestation",
+  });
+}
+
+function assertPlaintextScannerProof(proof) {
+  if (
+    typeof proof.engineVersion !== "string" ||
+    !/^[0-9][0-9A-Za-z.+~-]{0,63}$/u.test(proof.engineVersion) ||
+    typeof proof.signatureVersion !== "string" ||
+    !/^[1-9][0-9]{0,18}$/u.test(proof.signatureVersion)
+  ) {
+    fail("malware_scanner_identity_invalid", "malware_scanner_proof");
+  }
+}
+
+async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot, scanner) {
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   if (nodeMajor !== 22) fail("node_22_required", "v3_browser_proof");
   const appRoot = prepareAppWorkspace(harnessRoot);
@@ -2583,6 +3242,9 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot) 
         EVO_PLATFORM_AI_MEMORY_ENABLED: "0",
         EVO_PLATFORM_STAFF_ASSISTANT_ENABLED: "0",
         EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: "0",
+        EVO_CLAMD_HOST: scanner.host,
+        EVO_CLAMD_PORT: String(scanner.port),
+        EVO_CLAMD_TIMEOUT_MS: "10000",
         EVO_V2_AMOCRM_WRITES_ENABLED: "0",
         EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "0",
         EVO_ENABLE_EXTERNAL_TRANSCRIPT_IMPROVEMENT: "0",
@@ -2606,7 +3268,9 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot) 
     browserProof.browserServerPromise = chromium.launchServer({ headless: true, timeout: 45_000 });
     const browserServer = await browserProof.browserServerPromise;
     browser = await chromium.connect(browserServer.wsEndpoint());
-    for (const actor of [actors.admin, actors.sales, actors.admissions]) {
+    let scannerDataPath;
+    const availableActors = [actors.admin, actors.sales, actors.admissions].filter(Boolean);
+    for (const actor of availableActors) {
       const context = await browser.newContext({ locale: "ru-RU" });
       const page = await context.newPage();
       await page.goto(`${appUrl}/login`, { waitUntil: "domcontentloaded" });
@@ -2620,6 +3284,9 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot) 
       }
       await page.goto(`${appUrl}${actor.landing}`, { waitUntil: "domcontentloaded" });
       await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 });
+      if (actor.appRole === "admin") {
+        scannerDataPath = await proveScannerDataPath(status, actor, page, appUrl, scanner);
+      }
       await context.close();
     }
 
@@ -2651,12 +3318,13 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot) 
     }
     return Object.freeze({
       admin: "passed",
-      sales: "passed",
-      admissions: "passed",
+      sales: actors.sales ? "passed" : "not_run_missing_restored_identity",
+      admissions: actors.admissions ? "passed" : "not_run_missing_restored_identity",
       readinessStatus: "not_ready",
       supabase: "ready",
       auditAppend: "ready",
       providersBlocked: true,
+      malwareScanner: scannerDataPath,
     });
   } finally {
     await stopBrowserProof(browserProof);
@@ -2668,6 +3336,169 @@ function docker(args, options = {}) {
     ...options,
     stage: options.stage ?? "cleanup",
   });
+}
+
+function dockerStatus(args) {
+  const result = spawnSync("docker", ["--context", "orbstack", ...args], {
+    cwd: repositoryRoot,
+    env: minimalChildEnvironment(),
+    stdio: "ignore",
+    timeout: 60_000,
+  });
+  if (result.error || !Number.isInteger(result.status)) {
+    fail("docker_status_check_failed", "malware_scanner_proof");
+  }
+  return result.status;
+}
+
+async function waitForRecoveryScanner(containerName) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const health = docker([
+      "inspect",
+      "--format",
+      "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
+      containerName,
+    ], {
+      accepted: [0, 1],
+      code: "malware_scanner_inspect_failed",
+      stage: "malware_scanner_proof",
+    });
+    if (health === "healthy") return;
+    if (["dead", "exited", "removing"].includes(health)) {
+      fail("malware_scanner_exited", "malware_scanner_proof");
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 5_000));
+  }
+  fail("malware_scanner_health_timeout", "malware_scanner_proof");
+}
+
+async function startRecoveryScanner(state, port) {
+  const compose = readFileSync(join(repositoryRoot, "docker-compose.prod.yml"), "utf8");
+  if (!compose.includes(`image: "${CLAMAV_IMAGE}"`)) {
+    fail("malware_scanner_image_contract_mismatch", "malware_scanner_proof");
+  }
+  if (dockerStatus(["image", "inspect", CLAMAV_IMAGE]) !== 0) {
+    docker(["pull", "--platform", "linux/amd64", CLAMAV_IMAGE], {
+      capture: false,
+      timeout: 20 * 60 * 1000,
+      code: "malware_scanner_image_pull_failed",
+      stage: "malware_scanner_proof",
+    });
+  }
+  if (docker([
+    "image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", CLAMAV_IMAGE,
+  ], { code: "malware_scanner_image_inspect_failed", stage: "malware_scanner_proof" }) !== "linux/amd64") {
+    fail("malware_scanner_image_platform_invalid", "malware_scanner_proof");
+  }
+  const containerName = `supabase_clamav_${state.projectName}`;
+  const signatureVolume = `supabase_clamav_signatures_${state.projectName}`;
+  docker([
+    "volume", "create",
+    "--label", `com.docker.compose.project=${state.projectName}`,
+    signatureVolume,
+  ], { code: "malware_scanner_volume_create_failed", stage: "malware_scanner_proof" });
+  docker([
+    "run", "--detach",
+    "--platform", "linux/amd64",
+    "--name", containerName,
+    "--network", state.networkName,
+    "--init",
+    "--cpus", "2.00",
+    "--memory", "4096m",
+    "--pids-limit", "256",
+    "--log-driver", "json-file",
+    "--log-opt", "max-size=10m",
+    "--log-opt", "max-file=5",
+    "--label", `com.docker.compose.project=${state.projectName}`,
+    "--label", "com.evo.runtime.role=private-malware-scanner",
+    "--publish", `127.0.0.1:${port}:3310`,
+    "--volume", `${signatureVolume}:/var/lib/clamav`,
+    "--health-cmd", "/usr/local/bin/clamdcheck.sh",
+    "--health-interval", "5s",
+    "--health-timeout", "10s",
+    "--health-retries", "60",
+    "--health-start-period", "180s",
+    CLAMAV_IMAGE,
+  ], {
+    code: "malware_scanner_start_failed",
+    stage: "malware_scanner_proof",
+  });
+  state.scannerContainer = containerName;
+  state.scannerSignatureVolume = signatureVolume;
+  await waitForRecoveryScanner(containerName);
+  const bindings = JSON.parse(docker([
+    "inspect", "--format", "{{json .HostConfig.PortBindings}}", containerName,
+  ], { code: "malware_scanner_binding_inspect_failed", stage: "malware_scanner_proof" }));
+  const binding = bindings?.["3310/tcp"];
+  if (
+    !Array.isArray(binding) || binding.length !== 1 ||
+    binding[0]?.HostIp !== "127.0.0.1" || binding[0]?.HostPort !== String(port)
+  ) {
+    fail("malware_scanner_not_loopback_only", "malware_scanner_proof");
+  }
+  const networks = docker([
+    "inspect", "--format", "{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{\"\\n\"}}{{end}}", containerName,
+  ], { code: "malware_scanner_network_inspect_failed", stage: "malware_scanner_proof" })
+    .split(/\r?\n/u).filter(Boolean);
+  if (networks.length !== 1 || networks[0] !== state.networkName) {
+    fail("malware_scanner_network_invalid", "malware_scanner_proof");
+  }
+  return Object.freeze({
+    containerName,
+    host: "127.0.0.1",
+    port,
+    image: CLAMAV_IMAGE,
+    network: "unique_private_recovery_network",
+    publish: "loopback_only",
+  });
+}
+
+const scannerProbeSource = String.raw`
+import {
+  ClamdScanError,
+  scanBytesWithClamd,
+} from "${join(repositoryRoot, "src", "lib", "server", "clamd-malware-scanner.ts")}";
+
+const bytes = Buffer.from(process.argv[1], "base64");
+const host = process.argv[2];
+const port = Number(process.argv[3]);
+const expected = process.argv[4];
+try {
+  const proof = await scanBytesWithClamd(bytes, { host, port, timeoutMs: 10_000 });
+  if (expected !== "clean") throw new Error("unexpected_clean_result");
+  process.stdout.write(JSON.stringify({ outcome: "clean", proof }));
+} catch (error) {
+  if (!(error instanceof ClamdScanError) || error.code !== expected) throw error;
+  process.stdout.write(JSON.stringify({ outcome: error.code }));
+}
+`;
+
+function scanWithProductClient(scanner, bytes, expected) {
+  const output = execute(process.execPath, [
+    "--conditions=react-server",
+    "--experimental-strip-types",
+    "--input-type=module",
+    "--eval",
+    scannerProbeSource,
+    Buffer.from(bytes).toString("base64"),
+    scanner.host,
+    String(scanner.port),
+    expected,
+  ], {
+    timeout: 30_000,
+    code: "malware_scanner_product_client_failed",
+    stage: "malware_scanner_proof",
+  });
+  let parsed;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    fail("malware_scanner_product_client_output_invalid", "malware_scanner_proof");
+  }
+  if (!isRecord(parsed) || parsed.outcome !== expected) {
+    fail("malware_scanner_product_client_outcome_invalid", "malware_scanner_proof");
+  }
+  return parsed;
 }
 
 function inspectLocalContainerState(containerName) {
@@ -2735,7 +3566,7 @@ async function waitForLocalSupabaseReadiness(state, timeoutMs = 90_000) {
   fail("local_supabase_start_readiness_failed", "local_supabase_start");
 }
 
-function safeHarnessRoot(path) {
+export function safeHarnessRoot(path) {
   const temporaryRoot = realpathSync(tmpdir());
   const candidate = realpathSync(path);
   return dirname(candidate) === temporaryRoot && candidate.startsWith(`${temporaryRoot}${sep}`) &&
@@ -2944,7 +3775,21 @@ export function installProcessCleanupHandlers({
   process.once("exit", exitCleanupHandler);
 }
 
+export function validateSanitizedEvidence(evidence) {
+  if (!isRecord(evidence)) fail("evidence_shape_invalid", "result");
+  const serialized = JSON.stringify(evidence);
+  if (
+    /"(?:email|password|accessToken|userId|organizationId|customer|phone)"\s*:/iu.test(serialized) ||
+    /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/iu.test(serialized) ||
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu.test(serialized)
+  ) {
+    fail("evidence_contains_sensitive_material", "result");
+  }
+  return evidence;
+}
+
 function writeSanitizedEvidence(path, evidence) {
+  validateSanitizedEvidence(evidence);
   if (!path) return;
   const fd = openSync(path, "wx", 0o600);
   try {
@@ -2962,18 +3807,10 @@ function contractOutput() {
     optIn: OPT_IN,
     subcommands: ["contract", "preflight", "run"],
     exportStage: "separate_read_only_operator_process",
-    requiredEncryptedInputs: [
-      "database-manifest.json.age",
-      "migration-ledger-attestation.json.age",
-      "roles.sql.age",
-      "schema.sql.age",
-      "data.sql.age",
-      "storage-manifest.json.age",
-      "storage-objects.tar.gz.age",
-      "age identity file",
-    ],
-    requiredRepositoryBinding: "exact_full_commit_and_clean_worktree",
-    sourceIdentityDerivation: "sha256(projectRef + newline + region)",
+    requiredBundle: Object.freeze([...EXPORT_BUNDLE_FILES]),
+    requiredExternalTrust: ["age identity file", "trusted SSH public key", "trusted SSH public-key fingerprint"],
+    requiredRepositoryBinding: "signed_export_commit_and_tree_plus_exact_clean_recovery_commit",
+    sourceIdentityBinding: "signed_receipt_source_identity_sha256",
     safety: {
       destination: "unique_disposable_local_orbstack_only",
       managedSupabase: "never_contacted",
@@ -3000,35 +3837,33 @@ async function runPreflight(options) {
   let result;
   try {
     const artifacts = await prepareArtifacts(options, harnessRoot, false);
+    if (projectName === artifacts.database.sourceProjectRef) {
+      fail("recovery_destination_matches_managed_source", "preflight");
+    }
     const rootMigrations = rootMigrationEntries();
-    const sourceMigrationPrefix = verifiedAttestedPrefix(
+    const sourceMigrationPrefix = verifiedExportedHistoryPrefix(
       rootMigrations,
       artifacts.database.migrationLedger,
-      artifacts.migrationLedgerAttestation,
+      artifacts.exportedHistory,
     );
     result = Object.freeze({
       ok: true,
       status: "preflight_passed",
       proof: "not_run",
       repository,
-      sourceIdentitySha256: options.sourceIdentitySha256,
-      databaseCreatedAt: artifacts.database.createdAt,
-      storageCreatedAt: artifacts.storage.createdAt,
-      captureSpanMinutes: Number(artifacts.captureSpanMinutes.toFixed(3)),
-      databaseAgeHours: Number(artifacts.ageHours.toFixed(3)),
-      storageAgeHours: Number(artifacts.storageAgeHours.toFixed(3)),
-      migrationLedgerAttestationAgeHours: Number(
-        artifacts.migrationLedgerAttestationAgeHours.toFixed(3),
-      ),
-      databaseManifestSha256: artifacts.ciphertextHashes.databaseManifest,
-      migrationLedgerAttestationSha256: artifacts.ciphertextHashes.migrationLedgerAttestation,
-      migrationLedgerSha256: artifacts.migrationLedgerAttestation.ledgerSha256,
-      migrationLedgerRepositoryPrefix: {
+      sourceIdentitySha256: artifacts.receipt.sourceIdentitySha256,
+      receiptCapturedAt: artifacts.receipt.capturedAt,
+      receiptAgeHours: Number(artifacts.ageHours.toFixed(3)),
+      receiptSignature: "verified",
+      exportGit: artifacts.receipt.git,
+      databaseManifestSha256: artifacts.ciphertextHashes["database-manifest.json.age"],
+      migrationHistorySha256: artifacts.database.migrationLedger.copyRowsSha256,
+      migrationHistoryRepositoryPrefix: {
         status: "passed",
         count: sourceMigrationPrefix.length,
         recordedHistoryValidatedCount: rootMigrations.recordedHistoryCount,
       },
-      storageManifestSha256: artifacts.ciphertextHashes.storageManifest,
+      storageManifestSha256: artifacts.ciphertextHashes["storage-manifest.json.age"],
       databaseLedger: artifacts.database.migrationLedger,
       storage: {
         bucketCount: artifacts.storage.bucketCount,
@@ -3070,11 +3905,14 @@ async function runRecovery(options) {
   let evidence;
   try {
     const artifacts = await prepareArtifacts(options, harnessRoot, true);
+    if (projectName === artifacts.database.sourceProjectRef) {
+      fail("recovery_destination_matches_managed_source", "preflight");
+    }
     const rootMigrations = rootMigrationEntries();
-    const sourceMigrationPrefix = verifiedAttestedPrefix(
+    const sourceMigrationPrefix = verifiedExportedHistoryPrefix(
       rootMigrations,
       artifacts.database.migrationLedger,
-      artifacts.migrationLedgerAttestation,
+      artifacts.exportedHistory,
     );
     const portMap = await reservePortMap();
     const supabaseRoot = join(harnessRoot, "supabase-workdir");
@@ -3094,6 +3932,7 @@ async function runRecovery(options) {
       "com.docker.network.bridge.host_binding_ipv4=127.0.0.1",
       networkName,
     ], { capture: false, code: "isolated_network_create_failed", stage: "local_supabase_start" });
+    const scanner = await startRecoveryScanner(state, portMap.clamd);
     state.stackStarted = true;
     execute(
       supabaseCli,
@@ -3128,8 +3967,8 @@ async function runRecovery(options) {
     const copyTargets = await scanCopyInventory(artifacts.plaintext.data);
     const localDatabaseMajor = assertLocalDatabaseMajor(status, artifacts.database.databaseMajor);
     const pgmqQueues = restoreLogicalDatabase(status, artifacts, copyTargets);
-    reconstructManifestLedger(status, sourceMigrationPrefix);
-    const restoredLedger = readAppliedMigrationVersions(status, "database_restore");
+    restoreExportedMigrationHistory(status, artifacts.plaintext.historyData);
+    const restoredLedger = readAppliedMigrationEntries(status, "database_restore");
     assertManifestLedger(restoredLedger, sourceMigrationPrefix);
     const storageRestore = await restoreStorageBytes(status, artifacts, harnessRoot);
     const aggregatesBefore = readAggregates(status);
@@ -3153,54 +3992,66 @@ async function runRecovery(options) {
       "post_migration_schema_reload_failed",
     );
     await waitForPostgrestSchemaReadiness(status);
-    const finalLedger = assertExactRootLedger(readAppliedMigrationVersions(status), rootMigrations);
+    const appliedMigrationVersions = readAppliedMigrationVersions(status);
+    const finalLedger = assertExactRootLedger(appliedMigrationVersions, rootMigrations);
     verifyPgmqQueueRows(status, pgmqQueues);
     const aggregatesAfter = readAggregates(status, true);
     assertNonDecreasingAggregates(aggregatesBefore, aggregatesAfter);
 
     const v3Storage = await establishV3PrivateStorage(status, artifacts.storage.buckets);
     const actors = await prepareRepresentativeActors(status);
+    const historicalScannerGate = await assertHistoricalScannerGate(
+      status,
+      actors.admin,
+      appliedMigrationVersions,
+    );
     const rls = await proveSameAndCrossOrganizationRls(status, actors.admin);
     const storagePrivacy = await provePrivateStorage(
       status,
       v3Storage.buckets,
       artifacts.storage.objectCount,
-      actors.sales,
+      actors.sales ?? actors.admin,
     );
-    const browser = await proveV3BrowserAndReadiness(status, actors, portMap.app, harnessRoot);
+    const browser = await proveV3BrowserAndReadiness(
+      status,
+      actors,
+      portMap.app,
+      harnessRoot,
+      scanner,
+    );
+    const roleReadiness = buildRestoredRoleReadiness({
+      admin: true,
+      sales: Boolean(actors.sales),
+      admissions: Boolean(actors.admissions),
+    });
 
     evidence = {
       schema: RESULT_SCHEMA,
-      ok: true,
-      status: "passed",
+      ok: roleReadiness.complete,
+      status: roleReadiness.complete ? "passed" : "not_ready",
+      ...(roleReadiness.blocker ? { blocker: roleReadiness.blocker } : {}),
       repository,
       source: {
-        identitySha256: options.sourceIdentitySha256,
-        databaseCreatedAt: artifacts.database.createdAt,
-        storageCreatedAt: artifacts.storage.createdAt,
-        captureSpanMinutes: Number(artifacts.captureSpanMinutes.toFixed(3)),
-        databaseAgeHours: Number(artifacts.ageHours.toFixed(3)),
-        storageAgeHours: Number(artifacts.storageAgeHours.toFixed(3)),
-        databaseManifestSha256: artifacts.ciphertextHashes.databaseManifest,
-        migrationLedgerAttestationSha256:
-          artifacts.ciphertextHashes.migrationLedgerAttestation,
-        migrationLedgerAttestationCreatedAt: artifacts.migrationLedgerAttestation.createdAt,
-        migrationLedgerSha256: artifacts.migrationLedgerAttestation.ledgerSha256,
-        storageManifestSha256: artifacts.ciphertextHashes.storageManifest,
+        identitySha256: artifacts.receipt.sourceIdentitySha256,
+        receiptCapturedAt: artifacts.receipt.capturedAt,
+        receiptAgeHours: Number(artifacts.ageHours.toFixed(3)),
+        receiptSignature: "verified",
+        exportGit: artifacts.receipt.git,
+        databaseManifestSha256: artifacts.ciphertextHashes["database-manifest.json.age"],
+        migrationHistorySha256: artifacts.database.migrationLedger.copyRowsSha256,
+        storageManifestSha256: artifacts.ciphertextHashes["storage-manifest.json.age"],
         encryptedLogicalSetSha256: sha256Text([
-          artifacts.ciphertextHashes.roles,
-          artifacts.ciphertextHashes.schema,
-          artifacts.ciphertextHashes.data,
+          ...SQL_FILES.map((name) => artifacts.ciphertextHashes[`${name}.age`]),
         ].join("\n")),
-        encryptedStorageArchiveSha256: artifacts.ciphertextHashes.storageArchive,
+        encryptedStorageArchiveSha256: artifacts.ciphertextHashes["storage-objects.tar.age"],
       },
       database: {
         restore: "passed",
         localDatabaseMajor,
         sourceLedger: artifacts.database.migrationLedger,
         ledgerReconstruction: {
-          mode: "verified_exact_root_prefix",
-          seededCount: sourceMigrationPrefix.length,
+          mode: "authenticated_exported_history_then_exact_forward_migrations",
+          restoredCount: sourceMigrationPrefix.length,
           recordedHistoryValidatedCount: rootMigrations.recordedHistoryCount,
         },
         pgmqQueueRelationsReconciled: pgmqQueues.reduce(
@@ -3220,13 +4071,15 @@ async function runRecovery(options) {
         privacy: storagePrivacy,
       },
       authAndRls: {
-        admin: "passed",
-        sales: "passed",
-        admissions: "passed",
+        ...roleReadiness.roleStatus,
         actors: actors.evidence,
         ...rls,
       },
       application: browser,
+      malwareScanner: {
+        historicalGate: historicalScannerGate,
+        dataPath: browser.malwareScanner,
+      },
       managedSupabaseTouched: false,
       vpsTouched: false,
       providersCalled: false,
@@ -3240,6 +4093,9 @@ async function runRecovery(options) {
   if (cleanupStatus !== "passed") fail("cleanup_incomplete", "cleanup");
   evidence.cleanup = "passed";
   writeSanitizedEvidence(options.evidenceOut, evidence);
+  if (!evidence.ok) {
+    fail("restored_representative_staff_roles_missing", "auth_rls_proof", evidence.blocker);
+  }
   return Object.freeze(evidence);
 }
 

@@ -40,6 +40,7 @@ import {
   parseHarnessOptions,
   parseTargetStorageBucketConfig,
   privateBackupDirectory,
+  proveRecoveryNetworkEgressBlocked,
   reconcileTargetStorageBuckets,
   parseTargetTreeListing,
   orderedTargetEntries,
@@ -160,6 +161,31 @@ test("local Supabase egress proof calibrates the pinned timeout and runs after i
   assert.match(source, /\^egress-blocked:\(124\|143\)\$/u);
   assert.match(source, /timeoutExitStatus: Number\(probe\[1\]\)/u);
   assert.match(source, /bridgeFoundation:\s*bridgeEgress/u);
+});
+
+test("local Supabase egress failures retain the named egress stage", async () => {
+  const endpoint = {
+    databaseContainerId: "a".repeat(64),
+    targetHost: "supabase_db_evov3recovery000000000000",
+    targetPort: 5432,
+  };
+  const supervisor = {
+    run: async (_executable, _args, options) => {
+      throw new RecoveryFailure(options.code, options.stage);
+    },
+  };
+  await assert.rejects(
+    proveRecoveryNetworkEgressBlocked(
+      endpoint,
+      supervisor,
+      { paths: { docker: { real: "/verified/docker" } } },
+      "local_supabase_egress",
+    ),
+    (error) => error instanceof RecoveryFailure &&
+      error.code === "recovery_network_egress_not_blocked" &&
+      error.stage === "local_supabase_egress",
+  );
+  assert.match(source, /proveRecoveryNetworkEgressBlocked\([\s\S]*?"local_supabase_egress",\n\s*\)\);/u);
 });
 
 test("browser execution is bound to one reviewed binary and exact loopback CDP endpoint", () => {

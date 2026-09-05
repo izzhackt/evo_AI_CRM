@@ -3334,7 +3334,14 @@ printf 'egress-blocked:%s' "$timeout_result"`;
   });
 }
 
-async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain) {
+export async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain, stage) {
+  const operationStage = string(
+    stage,
+    /^[a-z][a-z0-9_]{0,95}$/u,
+    "recovery_network_egress_stage_invalid",
+    "local_supabase_egress",
+    96,
+  );
   return Object.freeze({
     ipMasquerade: false,
     ipv6: false,
@@ -3344,7 +3351,7 @@ async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain
       endpoint.targetPort,
       supervisor,
       toolchain,
-      "local_supabase_start",
+      operationStage,
     ),
   });
 }
@@ -8500,6 +8507,7 @@ async function executeMode(mode, options) {
         local.endpoint,
         supervisor,
         toolchain,
+        "local_supabase_egress",
       ));
       const scanner = await runStage("malware_scanner_start", () => startRecoveryScanner(
         state,

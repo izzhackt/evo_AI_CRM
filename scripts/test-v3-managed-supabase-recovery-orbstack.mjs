@@ -1514,12 +1514,28 @@ export function sanitizeCommandDiagnostic(output, status) {
 export function sanitizePsqlDiagnostic(output, status) {
   const text = Buffer.isBuffer(output) ? output.toString("utf8") : String(output ?? "");
   const base = sanitizeCommandDiagnostic(text, status);
-  const match = /^ERROR:\s+([0-9A-Z]{5}):\s+([^\r\n]+)$/mu.exec(text);
-  const domainSentinel = match ? DATABASE_DENIAL_SENTINELS[match[2]] ?? null : null;
+  const match = /^(?:psql:[^\r\n]+?:(\d+):\s+)?ERROR:\s+([0-9A-Z]{5}):\s+([^\r\n]+)$/mu.exec(text);
+  const errorClasses = Object.freeze({
+    "22P02": "invalid_text_representation",
+    "23502": "not_null_violation",
+    "23503": "foreign_key_violation",
+    "23505": "unique_violation",
+    "42501": "insufficient_privilege",
+    "42601": "syntax_error",
+    "42703": "undefined_column",
+    "42883": "undefined_function",
+    "42P01": "undefined_table",
+  });
+  const domainSentinel = match ? DATABASE_DENIAL_SENTINELS[match[3]] ?? null : null;
   return Object.freeze({
     ...base,
     postgres: match
-      ? Object.freeze({ sqlstate: match[1], domainSentinel })
+      ? Object.freeze({
+          sqlstate: match[2],
+          errorClass: errorClasses[match[2]] ?? "other",
+          inputLine: match[1] === undefined ? null : Number(match[1]),
+          domainSentinel,
+        })
       : null,
   });
 }

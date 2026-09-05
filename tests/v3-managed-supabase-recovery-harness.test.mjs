@@ -1014,7 +1014,25 @@ test("expected database denial requires the exact SQLSTATE and domain sentinel",
   const expected = { sqlstate: "42501", domainSentinel: "admin_membership_permission_required" };
   const diagnostic = sanitizePsqlDiagnostic(`ERROR:  42501: ${expectedMessage}\nLOCATION:  exec_stmt_raise, pl_exec.c:3905\n`, 3);
   assert.equal(classifyExpectedDatabaseDenial(diagnostic, expected), true);
+  assert.deepEqual(diagnostic.postgres, {
+    sqlstate: "42501",
+    errorClass: "insufficient_privilege",
+    inputLine: null,
+    domainSentinel: "admin_membership_permission_required",
+  });
   assert.equal(JSON.stringify(diagnostic).includes(expectedMessage), false);
+  const restoreDiagnostic = sanitizePsqlDiagnostic(
+    `psql:/private/redacted/data.sql:741: ERROR:  23503: row-specific text\nDETAIL:  redacted\n`,
+    3,
+  );
+  assert.deepEqual(restoreDiagnostic.postgres, {
+    sqlstate: "23503",
+    errorClass: "foreign_key_violation",
+    inputLine: 741,
+    domainSentinel: null,
+  });
+  assert.equal(JSON.stringify(restoreDiagnostic).includes("row-specific text"), false);
+  assert.equal(JSON.stringify(restoreDiagnostic).includes("/private/redacted"), false);
   assert.equal(classifyExpectedDatabaseDenial({ ...diagnostic, postgres: { ...diagnostic.postgres, sqlstate: "42P01" } }, expected), false);
   assert.equal(classifyExpectedDatabaseDenial({ ...diagnostic, postgres: { ...diagnostic.postgres, domainSentinel: null } }, expected), false);
   assert.equal(classifyExpectedDatabaseDenial(sanitizePsqlDiagnostic("connection refused", 2), expected), false);

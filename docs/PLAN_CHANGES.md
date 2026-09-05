@@ -18978,3 +18978,33 @@ and one empty owned network. No unrelated container, image, volume or network
 was removed. This correction does not contact or mutate managed Supabase,
 production, VPS, WAHA, amoCRM, Gemini, webhooks, customer records or provider
 state, and it does not arm #552.
+
+## 2026-09-05 - Preserve safe PostgreSQL failure coordinates
+
+Block-ID: `EVO-V3-H-RECOVERY-PSQL-DIAGNOSTIC-CORRECTION-2026-09-05`
+
+Change type: real-runtime recovery diagnostics correction.
+Affected plan section: Order 7 / Issue #551.
+
+The first exact-head rehearsal after the OrbStack network correction restored
+the signed schema and history but stopped safely while loading `data.sql`.
+The redacted diagnostic retained the command status and output hash, but its
+strict parser missed PostgreSQL's normal `psql:<file>:<line>:` prefix and
+therefore discarded the SQLSTATE and safe input line needed to locate the
+failing COPY statement.
+
+Decision:
+
+- accept only PostgreSQL's exact five-character SQLSTATE after an optional
+  `psql` file/line prefix;
+- retain only a fixed error-class label and numeric input line alongside the
+  existing output hash, byte count and allowlisted business-denial sentinel;
+- never retain the raw PostgreSQL message, DETAIL, row contents, file path,
+  identifiers or decrypted business data; and
+- use the added coordinates only to diagnose the failed disposable restore,
+  then rerun the same signed artifact after a reviewed correction.
+
+The failed contour completed owned cleanup with disposition `remove`. This
+change does not contact or mutate managed Supabase, production, VPS, WAHA,
+amoCRM, Gemini, webhooks, customer records or provider state, and it does not
+arm #552.

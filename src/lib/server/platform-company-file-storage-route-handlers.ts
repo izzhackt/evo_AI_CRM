@@ -60,6 +60,10 @@ const MIME_EXTENSIONS: Readonly<Record<PlatformCompanyFileMimeType, readonly str
   ],
 };
 
+function baseMediaType(value: string): string {
+  return value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+}
+
 type DocumentCapability = Extract<
   FixedRoleCapability,
   "documents.read" | "documents.write"
@@ -736,7 +740,7 @@ async function readExactStoredCompanyFile(
     downloaded.data.size !== reservation.byteSize
     || downloaded.data.size < 1
     || downloaded.data.size > MAX_FILE_BYTES
-    || downloaded.data.type.toLowerCase() !== reservation.declaredMimeType
+    || baseMediaType(downloaded.data.type) !== reservation.declaredMimeType
   ) {
     return { status: "mismatch" };
   }

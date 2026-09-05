@@ -2127,10 +2127,10 @@ test("Admissions manages one real private company file through V3", async ({
   const firstUploadResponsePromise = page.waitForResponse((response) =>
     response.request().method() === "POST"
     && new URL(response.url()).pathname.endsWith("/versions")
-    && response.status() === 201
   );
   await upload.getByRole("button", { name: "Сохранить", exact: true }).click();
   const firstUploadResponse = await firstUploadResponsePromise;
+  expect(firstUploadResponse.status()).toBe(201);
   const firstUploadPayload = await firstUploadResponse.json() as {
     companyFile?: { companyFileVersionId?: unknown };
   };
@@ -2158,12 +2158,12 @@ test("Admissions manages one real private company file through V3", async ({
   const replacementUploadResponsePromise = page.waitForResponse((response) =>
     response.request().method() === "POST"
     && new URL(response.url()).pathname.endsWith("/versions")
-    && response.status() === 201
   );
   await replacementUpload
     .getByRole("button", { name: "Сохранить", exact: true })
     .click();
   const replacementUploadResponse = await replacementUploadResponsePromise;
+  expect(replacementUploadResponse.status()).toBe(201);
   const replacementUploadPayload = await replacementUploadResponse.json() as {
     companyFile?: { companyFileVersionId?: unknown };
   };

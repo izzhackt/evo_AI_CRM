@@ -255,6 +255,7 @@ function uploadDependencies({
   downloadError = null,
   storedBytes = null,
   storedMimeType = null,
+  downloadedMimeType = null,
   scanResult = null,
   scanError = null,
 } = {}) {
@@ -308,7 +309,9 @@ function uploadDependencies({
               data: downloadError
                 ? null
                 : new Blob([persistedBytes ?? BYTES], {
-                  type: persistedMimeType ?? reservationValue.declared_mime_type,
+                  type: downloadedMimeType
+                    ?? persistedMimeType
+                    ?? reservationValue.declared_mime_type,
                 }),
               error: downloadError,
             };
@@ -412,6 +415,65 @@ test("authorized company upload service-writes, reads back and finalizes exact b
       p_scanned_at: SCAN_PROOF.scannedAt,
     },
   );
+});
+
+test("company upload compares the stored base media type while preserving exact bytes", async (t) => {
+  for (const accepted of [
+    {
+      declaredMimeType: "text/plain",
+      downloadedMimeType: "text/plain;charset=utf-8",
+      filename: "notes.txt",
+      bytes: new TextEncoder().encode("company notes\n"),
+    },
+    {
+      declaredMimeType: "text/csv",
+      downloadedMimeType: "Text/CSV ; charset=utf-8",
+      filename: "contacts.csv",
+      bytes: new TextEncoder().encode("name,email\nEVO,team@example.test\n"),
+    },
+  ]) {
+    await t.test(accepted.declaredMimeType, async () => {
+      const sha256Hex = createHash("sha256").update(accepted.bytes).digest("hex");
+      const result = uploadDependencies({
+        reservationValue: reservation({
+          declared_mime_type: accepted.declaredMimeType,
+          byte_size: accepted.bytes.byteLength,
+          sha256_hex: sha256Hex,
+        }),
+        downloadedMimeType: accepted.downloadedMimeType,
+      });
+      const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+        uploadRequest({
+          bytes: accepted.bytes,
+          type: accepted.declaredMimeType,
+          name: accepted.filename,
+        }),
+        { params: Promise.resolve({ companyFileId: FILE_ID }) },
+      );
+
+      assert.equal(response.status, 201);
+      assert.equal(result.calls.filter(([kind]) => kind === "scan").length, 2);
+      assert.equal(result.calls.filter(([kind]) => kind === "service-download").length, 1);
+    });
+  }
+
+  const bytes = new TextEncoder().encode("company notes\n");
+  const result = uploadDependencies({
+    reservationValue: reservation({
+      declared_mime_type: "text/plain",
+      byte_size: bytes.byteLength,
+      sha256_hex: createHash("sha256").update(bytes).digest("hex"),
+    }),
+    downloadedMimeType: "text/csv;charset=utf-8",
+  });
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest({ bytes, type: "text/plain", name: "notes.txt" }),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "storage_object_mismatch" });
+  assert.equal(result.calls.some(([kind]) => kind === "service-rpc"), false);
 });
 
 test("company upload rejects malware and scanner failure before reservation", async () => {

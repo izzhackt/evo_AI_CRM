@@ -177,10 +177,12 @@ function uploadDependencies({
   finalizeError = null,
   attestationResult = attestation(),
   attestationError = null,
+  scanOutcomes = null,
   scanResult = SCAN_PROOF,
   scanError = null,
 } = {}) {
   const calls = [];
+  let scanCallIndex = 0;
   let persistedBytes = storedBytes;
   let persistedMimeType = storedMimeType;
   const userClient = {
@@ -252,6 +254,11 @@ function uploadDependencies({
       },
       async scanFile(bytes) {
         calls.push(["scan", bytes]);
+        const outcome = scanOutcomes?.[scanCallIndex++];
+        if (outcome) {
+          if (outcome.error) throw outcome.error;
+          return outcome.result;
+        }
         if (scanError) throw scanError;
         return scanResult;
       },
@@ -370,6 +377,40 @@ test("malware and scanner failure stop before any reservation or Storage write",
     mismatch.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
     ["preflight_document_upload"],
   );
+});
+
+test("stored student bytes fail closed when the second malware scan is unsafe", async () => {
+  for (const item of [
+    { error: new ClamdScanError("infected"), status: 422, code: "malware_detected" },
+    { error: new ClamdScanError("timeout"), status: 503, code: "malware_scanner_unavailable" },
+  ]) {
+    const { calls, dependencies } = uploadDependencies({
+      scanOutcomes: [
+        { result: SCAN_PROOF },
+        { error: item.error },
+      ],
+    });
+    const response = await createPlatformDocumentUploadHandler(dependencies)(
+      uploadRequest(),
+      { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+    );
+
+    assert.equal(response.status, item.status);
+    assert.deepEqual(await response.json(), { error: item.code });
+    assert.deepEqual(
+      calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+      ["preflight_document_upload", "reserve_document_upload"],
+    );
+    assert.equal(calls.filter(([kind]) => kind === "service-upload").length, 1);
+    assert.equal(calls.filter(([kind]) => kind === "service-download").length, 1);
+    assert.equal(calls.filter(([kind]) => kind === "scan").length, 2);
+    assert.equal(
+      calls.some(([, name]) =>
+        name === "finalize_document_upload" || name === "attest_document_validation"
+      ),
+      false,
+    );
+  }
 });
 
 test("document upload rejects cross-tenant preflight before scanning or writes", async () => {

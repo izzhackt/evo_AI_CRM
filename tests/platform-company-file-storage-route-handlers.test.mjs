@@ -256,10 +256,12 @@ function uploadDependencies({
   storedBytes = null,
   storedMimeType = null,
   downloadedMimeType = null,
+  scanOutcomes = null,
   scanResult = null,
   scanError = null,
 } = {}) {
   const calls = [];
+  let scanCallIndex = 0;
   let persistedBytes = storedBytes;
   let persistedMimeType = storedMimeType;
   const userClient = {
@@ -331,6 +333,11 @@ function uploadDependencies({
       createServiceClient() { return serviceClient; },
       async scanFile(bytes) {
         calls.push(["scan", bytes]);
+        const outcome = scanOutcomes?.[scanCallIndex++];
+        if (outcome) {
+          if (outcome.error) throw outcome.error;
+          return outcome.result;
+        }
         if (scanError) throw scanError;
         return scanResult ?? {
           ...SCAN_PROOF,
@@ -509,6 +516,38 @@ test("company upload rejects malware and scanner failure before reservation", as
     mismatch.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
     ["preflight_company_file_upload"],
   );
+});
+
+test("stored company bytes fail closed when the second malware scan is unsafe", async () => {
+  for (const item of [
+    { error: new ClamdScanError("infected"), status: 422, code: "malware_detected" },
+    { error: new ClamdScanError("timeout"), status: 503, code: "malware_scanner_unavailable" },
+  ]) {
+    const result = uploadDependencies({
+      scanOutcomes: [
+        { result: SCAN_PROOF },
+        { error: item.error },
+      ],
+    });
+    const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+      uploadRequest(),
+      { params: Promise.resolve({ companyFileId: FILE_ID }) },
+    );
+
+    assert.equal(response.status, item.status);
+    assert.deepEqual(await response.json(), { error: item.code });
+    assert.deepEqual(
+      result.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+      ["preflight_company_file_upload", "reserve_company_file_upload"],
+    );
+    assert.equal(result.calls.filter(([kind]) => kind === "service-upload").length, 1);
+    assert.equal(result.calls.filter(([kind]) => kind === "service-download").length, 1);
+    assert.equal(result.calls.filter(([kind]) => kind === "scan").length, 2);
+    assert.equal(
+      result.calls.some(([, name]) => name === "finalize_company_file_upload"),
+      false,
+    );
+  }
 });
 
 test("company upload rejects cross-tenant preflight before scanning or writes", async () => {

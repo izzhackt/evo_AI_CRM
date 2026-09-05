@@ -449,6 +449,14 @@ enabled = true
     () => parseTargetStorageBucketConfig(`${config}\n[storage.buckets.fixture]\nobjects_path = "./fixtures"\n`),
     "target_storage_bucket_objects_path_forbidden",
   );
+  expectCode(
+    () => parseTargetStorageBucketConfig(`${config}\n[ "storage" . "buckets" . fixture ]\nobjects_path = "./fixtures"\n`),
+    "target_storage_bucket_header_invalid",
+  );
+  assert.equal(
+    parseTargetStorageBucketConfig('[storage.buckets."quoted-bucket"] # exact target declaration\npublic = false\n')[0]?.id,
+    "quoted-bucket",
+  );
 });
 
 test("target Storage reconciliation preserves source buckets and applies only exact target config through the local API", async () => {

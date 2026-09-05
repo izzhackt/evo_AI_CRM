@@ -2260,9 +2260,13 @@ export function parseTargetStorageBucketConfig(source) {
     if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
     if (trimmed.startsWith("[")) {
       current = null;
-      const section = /^\[storage\.buckets\.([A-Za-z0-9_-]+)\]$/u.exec(trimmed);
-      if (!section) continue;
-      const id = section[1];
+      const bucketSection = /^\[\s*(?:storage|"storage"|'storage')\s*\.\s*(?:buckets|"buckets"|'buckets')(?:\s*\.|\s*\])/u.test(trimmed);
+      const section = /^\[storage\.buckets\.(?:"([A-Za-z0-9_-]+)"|([A-Za-z0-9_-]+))\](?:\s*#.*)?$/u.exec(trimmed);
+      if (!section) {
+        if (bucketSection) fail("target_storage_bucket_header_invalid", "target_storage_configuration");
+        continue;
+      }
+      const id = section[1] ?? section[2];
       if (
         id.length > 1_024 ||
         id.includes("/") ||

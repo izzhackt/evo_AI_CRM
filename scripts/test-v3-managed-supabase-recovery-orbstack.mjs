@@ -5612,10 +5612,10 @@ async function proveFailClosedReadiness(app, interruptionGuard) {
       "x-evo-observability-hmac-algorithm": "sha256",
       "x-evo-observability-hmac": hmac,
     },
-  }, [503], "readiness_fail_closed_status_invalid", "browser_proof", interruptionGuard);
+  }, [503], "readiness_fail_closed_status_invalid", "candidate_readiness", interruptionGuard);
   let payload;
   try {
-    payload = await interruptionGuard.run("browser_proof", async () => await response.json());
+    payload = await interruptionGuard.run("candidate_readiness", async () => await response.json());
   } catch (error) {
     if (error instanceof RecoveryFailure) throw error;
     payload = null;
@@ -5629,7 +5629,7 @@ async function proveFailClosedReadiness(app, interruptionGuard) {
     payload.signals?.waha_evidence_kind !== "configuration_check" ||
     payload.signals?.ai_evidence_kind !== "configuration_check"
   ) {
-    fail("readiness_component_contract_failed", "browser_proof");
+    fail("readiness_component_contract_failed", "candidate_readiness");
   }
   return Object.freeze({
     status: "not_ready",
@@ -5907,9 +5907,8 @@ async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, rol
   }
 }
 
-async function proveBrowser(app, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
+async function proveBrowser(app, readiness, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
-  const readiness = await proveFailClosedReadiness(app, interruptionGuard);
   const browserTool = await browserExecutable(supervisor);
   state.availableTools.chromium = browserTool.version;
   state.availableTools.chromium_binary_sha256 = browserTool.binarySha256;
@@ -7507,9 +7506,10 @@ async function executeMode(mode, options) {
       ));
       const storageReadiness = await runStage("storage_source_readiness", async () => sourceStorageReadiness);
       const app = await runStage("candidate_start", () => startCandidateApp(options, local.status, actors, state, supervisor, toolchain, image, scanner, ports.app, state.interruptionGuard));
+      const readiness = await runStage("candidate_readiness", () => proveFailClosedReadiness(app, state.interruptionGuard));
       const browser = await runStage("browser_proof", async () => Object.keys(actors).length > 0
-        ? await proveBrowser(app, local.status, scanner, roleServerProof, state, supervisor, toolchain, state.interruptionGuard)
-        : Object.freeze({ status: "not_run_missing_representative", evidenceScope: "no_real_representative_available" }));
+        ? await proveBrowser(app, readiness, local.status, scanner, roleServerProof, state, supervisor, toolchain, state.interruptionGuard)
+        : Object.freeze({ status: "not_run_missing_representative", readiness, evidenceScope: "no_real_representative_available" }));
       const roleOutcomes = buildRestoredRoleOutcomeReadiness(actors, roleServerProof, browser);
       const blockers = Object.freeze([...new Set([
         ...actorReadiness.blockers,

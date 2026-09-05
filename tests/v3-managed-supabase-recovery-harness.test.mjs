@@ -124,14 +124,23 @@ test("provider configuration evidence is local-only and authenticated readiness 
   const runStart = source.indexOf("async function executeMode");
   const providerCall = source.indexOf('runStage("provider_boundary"', runStart);
   const appCall = source.indexOf('runStage("candidate_start"', runStart);
+  const readinessCall = source.indexOf('runStage("candidate_readiness"', runStart);
+  const browserCall = source.indexOf('runStage("browser_proof"', runStart);
   assert.ok(providerStart > 0 && readinessStart > providerStart);
-  assert.ok(providerCall > runStart && appCall > providerCall);
+  assert.ok(
+    providerCall > runStart &&
+    appCall > providerCall &&
+    readinessCall > appCall &&
+    browserCall > readinessCall,
+  );
   assert.match(source.slice(providerStart, readinessStart), /p_readiness:\s*"unconfigured"/u);
   assert.match(source.slice(providerStart, readinessStart), /p_evidence_kind:\s*"configuration_check"/u);
   assert.match(source.slice(readinessStart, runStart), /createHmac\("sha256"/u);
   assert.match(source.slice(readinessStart, runStart), /\[503\]/u);
   assert.match(source.slice(readinessStart, runStart), /waha_evidence_kind !== "configuration_check"/u);
   assert.match(source.slice(readinessStart, runStart), /ai_evidence_kind !== "configuration_check"/u);
+  assert.match(source.slice(readinessCall, browserCall), /proveFailClosedReadiness\(app/u);
+  assert.match(source.slice(browserCall), /Object\.freeze\(\{ status: "not_run_missing_representative", readiness,/u);
 });
 
 test("Admin passes only after complete server and exact-role browser outcomes", () => {

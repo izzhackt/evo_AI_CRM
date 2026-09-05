@@ -886,6 +886,46 @@ test("scanner cleanup identity is separate from its product-safe network hostnam
   assert.doesNotMatch(appSource, /EVO_CLAMD_HOST:\s*scanner\.containerName/u);
 });
 
+test("provider configuration evidence is loopback-only and precedes readiness proof", () => {
+  const boundaryStart = source.indexOf("async function recordRecoveryProviderBoundary");
+  const boundaryEnd = source.indexOf("async function assertPlatformRpcDenied", boundaryStart);
+  const boundarySource = source.slice(boundaryStart, boundaryEnd);
+  const browserStart = source.indexOf("async function proveV3BrowserAndReadiness");
+  const browserEnd = source.indexOf("function inspectLocalContainerState", browserStart);
+  const browserSource = source.slice(browserStart, browserEnd);
+  const recoveryStart = source.indexOf("async function runRecovery");
+  const recoveryEnd = source.indexOf("async function main", recoveryStart);
+  const recoverySource = source.slice(recoveryStart, recoveryEnd);
+  assert.ok(boundaryStart > 0 && boundaryEnd > boundaryStart);
+  assert.ok(browserStart > 0 && browserEnd > browserStart);
+  assert.ok(recoveryStart > 0 && recoveryEnd > recoveryStart);
+
+  assert.match(boundarySource, /for \(const target of \["waha", "ai"\]\)/u);
+  assert.match(
+    boundarySource,
+    /new URL\([\s\S]*?"\/rest\/v1\/rpc\/record_messaging_integration_health_event",[\s\S]*?status\.apiUrl/u,
+  );
+  assert.match(boundarySource, /apikey:\s*status\.serviceRoleKey/u);
+  assert.match(boundarySource, /Authorization:\s*`Bearer \$\{status\.serviceRoleKey\}`/u);
+  assert.match(boundarySource, /p_readiness:\s*"unconfigured"/u);
+  assert.match(boundarySource, /p_evidence_kind:\s*"configuration_check"/u);
+  assert.match(boundarySource, /event\.readiness !== "unconfigured"/u);
+  assert.match(boundarySource, /event\.evidence_kind !== "configuration_check"/u);
+
+  const boundaryCall = recoverySource.indexOf("recordRecoveryProviderBoundary(");
+  const browserCall = recoverySource.indexOf("proveV3BrowserAndReadiness(");
+  assert.ok(boundaryCall > 0 && browserCall > boundaryCall);
+  assert.match(recoverySource, /providerConfigurationBoundary,/u);
+  assert.match(
+    browserSource,
+    /payload\.signals\?\.waha_evidence_kind !== "configuration_check"/u,
+  );
+  assert.match(
+    browserSource,
+    /payload\.signals\?\.ai_evidence_kind !== "configuration_check"/u,
+  );
+});
+
 test("browser proof runs the exact production image and never starts Next dev", () => {
   assert.match(source, /function buildRecoveryAppImage\(state, repositorySnapshotRoot, repository\)/u);
   assert.match(source, /"build",\s*\n\s*"--platform",\s*"linux\/amd64"/u);

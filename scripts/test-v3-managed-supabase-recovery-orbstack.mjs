@@ -2919,6 +2919,52 @@ async function platformRpc(status, actor, functionName, body, stage = "malware_s
   return payload;
 }
 
+async function recordRecoveryProviderBoundary(status, organizationId, repositoryCommit) {
+  const evidence = {};
+  for (const target of ["waha", "ai"]) {
+    const response = await storageRequest(
+      status,
+      new URL(
+        "/rest/v1/rpc/record_messaging_integration_health_event",
+        status.apiUrl,
+      ).toString(),
+      {
+        method: "POST",
+        headers: {
+          apikey: status.serviceRoleKey,
+          Authorization: `Bearer ${status.serviceRoleKey}`,
+          "Accept-Profile": "platform",
+          "Content-Profile": "platform",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          p_organization_id: organizationId,
+          p_target: target,
+          p_readiness: "unconfigured",
+          p_evidence_kind: "configuration_check",
+          p_reason: "Managed recovery contour has no external provider configuration",
+          p_evidence_ref: `v3-recovery:${repositoryCommit.slice(0, 12)}:${target}`,
+          p_request_id: randomUUID(),
+        }),
+      },
+      [200],
+      `${target}_provider_configuration_boundary_append_failed`,
+      "v3_browser_proof",
+    );
+    const event = await response.json().catch(() => null);
+    if (
+      !isRecord(event) ||
+      event.target !== target ||
+      event.readiness !== "unconfigured" ||
+      event.evidence_kind !== "configuration_check"
+    ) {
+      fail(`${target}_provider_configuration_boundary_response_invalid`, "v3_browser_proof");
+    }
+    evidence[target] = "configuration_check_unconfigured";
+  }
+  return Object.freeze(evidence);
+}
+
 async function assertPlatformRpcDenied(
   status,
   actor,
@@ -4532,7 +4578,9 @@ async function proveV3BrowserAndReadiness(
       payload.components?.supabase?.status !== "ready" ||
       payload.components?.audit_append?.status !== "ready" ||
       payload.components?.waha?.status === "ready" ||
-      payload.components?.ai?.status === "ready"
+      payload.components?.ai?.status === "ready" ||
+      payload.signals?.waha_evidence_kind !== "configuration_check" ||
+      payload.signals?.ai_evidence_kind !== "configuration_check"
     ) {
       fail("readiness_component_contract_failed", "v3_browser_proof");
     }
@@ -5253,6 +5301,11 @@ async function runRecovery(options) {
       artifacts.storage.buckets,
     );
     const actors = await prepareRepresentativeActors(status);
+    const providerConfigurationBoundary = await recordRecoveryProviderBoundary(
+      status,
+      actors.organizationId,
+      repository.commit,
+    );
     const historicalScannerGate = await assertHistoricalScannerGate(
       status,
       actors.admin,
@@ -5336,7 +5389,10 @@ async function runRecovery(options) {
         ...rls,
         roleOutcomeProof: roleServerProof.evidence,
       },
-      application: browser,
+      application: {
+        ...browser,
+        providerConfigurationBoundary,
+      },
       malwareScanner: {
         historicalGate: historicalScannerGate,
         dataPath: browser.malwareScanner,

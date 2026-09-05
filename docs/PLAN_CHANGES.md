@@ -18433,3 +18433,43 @@ Official source verified 2026-09-05:
 
 - clamd command framing, `IDSESSION`, supported commands and numeric reply IDs:
   <https://docs.clamav.net/manual/Usage/ClamdProtocol.html>
+
+## 2026-09-05 - Close post-merge malware reservation, atomicity and session-order gaps
+
+Block-ID: `EVO-V3-H-MALWARE-POST-MERGE-CORRECTION-2026-09-05`
+
+Change type: independent-review correctness and security correction.
+Affected plan section: Order 7 / Issue #551.
+
+Exact-head review after the first real scanner slice merged found three gaps in
+the accepted implementation. Authenticated browser principals retained direct
+execute access to reservation RPCs, Student 360 document finalization committed
+before its durable scanner proof in a second RPC, and the clamd client sent its
+trailing `VERSION` before receiving the `INSTREAM` verdict. Those behaviors do
+not satisfy scan-before-mutation, atomic stored-byte proof or the intended
+engine-identity binding.
+
+Decision:
+
+- replace browser-callable reservations with service-only post-ingress-scan
+  commands that revalidate the authenticated actor, membership, request
+  identity, checksum and exact clean ingress evidence before creating any
+  reservation or version metadata;
+- revoke active application access to the superseded reservation and split
+  document-finalization commands. Commit Student 360 finalization and durable
+  stored-byte scanner proof through one service-only transaction; keep the
+  already atomic Company Files finalizer and correct only its reservation
+  boundary;
+- in one continuously drained clamd `IDSESSION`, await the correlated first
+  `VERSION` reply before sending `INSTREAM`, await the scan verdict before
+  sending the trailing `VERSION`, and await that final reply before `END`;
+- implement this as forward migration 116 and narrow handler/client changes.
+  Do not rewrite merged migration 115, layer a compatibility path or port the
+  alternate scanner branch wholesale; and
+- run focused Node/SQL validation, one disposable OrbStack database/Storage/
+  browser gate, independent exact-head review and one exact-head CI before
+  match-head merge and exact-main verification.
+
+This correction does not contact or mutate managed Supabase, production, VPS,
+WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
+not arm #552.

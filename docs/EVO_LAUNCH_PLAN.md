@@ -389,18 +389,25 @@ in #552 after every prerequisite below passes.
 6. **Scanner prerequisite.** Before the release may be armed, both active
    document-ingress paths are bound to the same real scanner implementation.
    Each upload first scans the ingress bytes before any reservation or Storage
-   write. After the private object is written, the server must download those
-   exact stored bytes, re-verify their size, MIME/signature and SHA-256, then
-   scan them again before it may write durable clean proof, finalize the version
-   or permit download. The scan and its engine/signature identity use one
-   request-ID-matched clamd `IDSESSION`; the `VERSION` facts before and after
-   `INSTREAM` must be identical. A clean pre-scan alone is never durable proof.
+   write. Only a server-held service credential may then create the reservation,
+   through one post-ingress-scan command that revalidates the authenticated
+   actor, membership and exact clean-scan evidence; browser principals cannot
+   execute either reservation command directly. After the private object is
+   written, the server must download those exact stored bytes, re-verify their
+   size, MIME/signature and SHA-256, then scan them again. Durable clean proof
+   and document finalization commit in one database transaction, so neither a
+   published version nor a downloadable company file can exist without its
+   exact stored-byte proof. The scan and its engine/signature identity use one
+   request-ID-matched clamd `IDSESSION`: send the first `VERSION` and await its
+   correlated reply, send `INSTREAM` and await its correlated verdict, then send
+   and await the final `VERSION` before `END`. The socket remains continuously
+   drained, and the two recognized engine/signature facts must be identical. A
+   clean pre-scan alone is never durable proof.
    The gate proves a clean file is accepted through both routes, a standard safe
    detection sample is rejected, and infected, unavailable, timeout, malformed,
    uncorrelated or identity-drift results deny finalization and download until a
-   successful rescan. Valid correlated replies may arrive out of order; missing,
-   duplicate or unknown request IDs fail closed. Missing scanner access is a
-   named #551 blocker, not
+   successful rescan. Missing, malformed, duplicate, unknown or premature
+   request IDs fail closed. Missing scanner access is a named #551 blocker, not
    permission to reuse `scanner_proof=false`; this proof does not imply
    WhatsApp, Gemini or amoCRM provider acceptance.
 7. **Sanitized evidence.** Evidence binds the exact source SHA, CI run, arm
@@ -794,11 +801,13 @@ it must not duplicate an existing Storage or case authority.
    RLS and server authorization remain authoritative. An ambiguous mutation
    returns the same request identifier to the exact matching form so a retry
    replays rather than duplicates the business transition.
-3. **P4C - private Storage lifecycle.** Upload PDF, JPEG or PNG bytes only after
-   an authenticated reservation, through the actor's own Supabase session and
-   the private insert-only Storage policy. Finalization and one-use signing use
-   the server-only Supabase secret for their existing service-role-only RPCs;
-   the secret never reaches browser code. Resubmission creates a new immutable
+3. **P4C - private Storage lifecycle.** Accept PDF, JPEG or PNG bytes only from
+   an authenticated actor, scan them first, then create the exact reservation
+   through a service-only command that revalidates that actor and the clean
+   ingress proof. Browser principals cannot reserve metadata or mutate scanner
+   evidence directly. Storage persistence, atomic stored-byte-proof
+   finalization and one-use signing use the server-only Supabase secret; the
+   secret never reaches browser code. Resubmission creates a new immutable
    object/version, and download uses a consumed grant plus a signed URL valid
    for at most 60 seconds. Direct user list/read/update/delete and public-bucket
    behavior remain denied.

@@ -667,8 +667,10 @@ load_candidate_image() {
   image_os=$(docker image inspect --format '{{.Os}}' "$candidate_tag" 2>/dev/null || true)
   image_arch=$(docker image inspect --format '{{.Architecture}}' "$candidate_tag" 2>/dev/null || true)
   [[ $image_id == "$candidate_expected_image_id" ]] || fail "candidate_image_id_mismatch"
-  [[ $image_id == "$EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST" ]] \
-    || fail "candidate_image_config_digest_mismatch"
+  # Docker engines may expose the verified OCI manifest digest as `.Id`
+  # while the archive carries a distinct config digest. `verify_archive`
+  # already binds both values to their exact bytes; the loaded tag must keep
+  # the separately attested engine-native image ID.
   [[ $image_source == "https://github.com/${EVO_RELEASE_REPOSITORY}" ]] \
     || fail "candidate_source_mismatch"
   [[ $image_revision == "$EVO_RELEASE_REVISION" ]] || fail "candidate_revision_mismatch"

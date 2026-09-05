@@ -849,6 +849,12 @@ test("release controller closes archive TOCTOU and verifies every runtime transi
   assert.ok(loadCandidate.includes('[[ $actual_hash == "$EVO_RELEASE_ARCHIVE_SHA256" ]]'));
   assert.match(candidateConfiguration, /readonly candidate_expected_image_id=/u);
   assert.ok(loadCandidate.includes('[[ $image_id == "$candidate_expected_image_id" ]]'));
+  assert.ok(
+    !loadCandidate.includes('[[ $image_id == "$EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST" ]]'),
+  );
+  assert.ok(
+    archiveVerification.includes('[[ $config_image_digest == "$EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST" ]]'),
+  );
   assert.match(archiveVerification, /\.manifests\[0\]\.digest/u);
   assert.ok(archiveVerification.includes('[[ "sha256:$descriptor_hash" == "$descriptor_digest" ]]'));
   assert.match(archiveVerification, /archive_platform_manifest_invalid/u);

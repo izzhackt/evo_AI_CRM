@@ -97,8 +97,22 @@ test("rollback harness exercises real images, Compose, and the real controller",
   assert.match(source, /healthStatus: 200/u);
   assert.match(source, /healthStatus: 503/u);
   assert.match(source, /compose\(\["up", "--detach", "--wait"/u);
-  assert.match(source, /compose\(\["rm", "--stop", "--force", "app"\]/u);
+  assert.doesNotMatch(source, /compose\(\["rm", "--stop", "--force", "app"\]/u);
   assert.match(source, /runController\("seal-rollback-seed"/u);
+  assert.ok(
+    source.indexOf('runController("seal-rollback-seed"') <
+      source.indexOf('label: "remove probe scanner before release rollback baseline"'),
+    "the rollback seed must be sealed from the healthy active app before scanner probes",
+  );
+  assert.match(source, /EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST/u);
+  assert.match(source, /savedImageConfigDigest\(candidateArchive, candidateTag\)/u);
+  assert.match(source, /saved image config path must match its bytes/u);
+  assert.match(source, /EVO_RELEASE_WORKFLOW_RUN_ID/u);
+  assert.match(source, /EVO_RELEASE_UPSTREAM_CI_RUN_ID/u);
+  assert.match(source, /EVO_RELEASE_ARTIFACT_DIGEST/u);
+  assert.match(source, /EVO_RELEASE_ROLLBACK_EXPECTED_RELEASE_ID/u);
+  assert.match(source, /org\.opencontainers\.image\.source/u);
+  assert.match(source, /EVO_IMAGE_SOURCE=https:\/\/github\.com\/\$\{releaseRepository\}/u);
   assert.match(source, /docker\(\["image", "save", "--output", candidateArchive/u);
   assert.match(source, /docker\(\["image", "rm", "--force", candidateTag\]/u);
   assert.match(source, /candidate image must be absent before the controller loads the archive/u);
@@ -107,7 +121,7 @@ test("rollback harness exercises real images, Compose, and the real controller",
   assert.match(source, /status, "rolled_back"/u);
   assert.match(source, /code, "deployment_failed"/u);
   assert.match(source, /runController\(\s*"rollback"/u);
-  assert.match(source, /rollback_runtime_mismatch/u);
+  assert.match(source, /idempotentRollback/u);
 });
 
 test("rollback harness keeps the mandatory Supabase key probe closed and test-local", () => {
@@ -138,15 +152,19 @@ test("one real proof covers ClamAV outcomes and candidate-scanner rollback", () 
   assert.match(source, /"unavailable"/u);
   assert.match(source, /docker\(\["stop", "--time", "30", scannerContainer\]/u);
   assert.match(source, /docker\(\["start", scannerContainer\]/u);
-  assert.match(source, /seed\.schema, "evo-release-rollback-seed\/v2"/u);
+  assert.match(source, /compose\(\["rm", "--stop", "--force", "clamav"\]/u);
+  assert.match(source, /seed\.schema, "evo-release-rollback-seed\/v3"/u);
   assert.match(source, /state\.schema, "evo-fast-release-state\/v3"/u);
-  assert.match(source, /previousScannerPresent, false/u);
-  assert.match(source, /previousScannerImage, ""/u);
+  assert.match(source, /state\.previous\.scannerPresent, false/u);
+  assert.match(source, /state\.previous\.scannerImage, ""/u);
+  assert.match(source, /result,[\s\S]*schema: "evo-fast-release\/v2"/u);
   assert.match(source, /serviceContainerIds\("clamav"\)/u);
   assert.match(source, /scannerRemovedByRollback: true/u);
-  assert.match(source, /laterState\.previousScannerPresent, true/u);
-  assert.match(source, /laterState\.previousScannerImage, CLAMAV_IMAGE/u);
+  assert.match(source, /laterState\.previous\.scannerPresent, true/u);
+  assert.match(source, /laterState\.previous\.scannerImage, CLAMAV_IMAGE/u);
   assert.match(source, /scannerRestoredByLaterRollback: true/u);
+  assert.match(source, /pending-current\.json/u);
+  assert.match(source, /current-v3-accepted\.json/u);
 });
 
 test("macOS rollback proof uses a test-local real fcntl lock without weakening production", () => {
@@ -163,12 +181,12 @@ test("macOS rollback proof uses a test-local real fcntl lock without weakening p
 });
 
 test("rollback proof verifies exact restored identity and controller evidence", () => {
-  assert.match(source, /state\.previousImage, baselineImageId/u);
-  assert.match(source, /state\.previousRevision, baselineRevision/u);
-  assert.match(source, /state\.previousVersion, baselineVersion/u);
-  assert.match(source, /state\.targetRevision, candidateRevision/u);
-  assert.match(source, /state\.targetImage, candidateImageId/u);
-  assert.match(source, /state\.targetVersion, candidateVersion/u);
+  assert.match(source, /state\.previous\.imageId, baselineImageId/u);
+  assert.match(source, /state\.previous\.revision, baselineRevision/u);
+  assert.match(source, /state\.previous\.version, baselineVersion/u);
+  assert.match(source, /state\.revision, candidateRevision/u);
+  assert.match(source, /state\.imageId, candidateImageId/u);
+  assert.match(source, /state\.version, candidateVersion/u);
   assert.match(source, /result\.rolledBack/u);
   assert.match(source, /inspectContainer\(restoredApp, "\{\{\.Image\}\}"\)/u);
   assert.match(source, /org\.opencontainers\.image\.revision/u);
@@ -177,8 +195,8 @@ test("rollback proof verifies exact restored identity and controller evidence", 
   assert.match(source, /serviceContainer\("waha"\), wahaContainer/u);
   assert.match(source, /rollback must remove the candidate scanner/u);
   assert.match(source, /candidate_failed_and_exact_baseline_rolled_back/u);
-  assert.match(source, /staleRollbackRefused: true/u);
-  assert.match(source, /laterRecovery/u);
+  assert.match(source, /rollbackRetryIdempotent: true/u);
+  assert.match(source, /laterState\.previous\.scannerPresent, true/u);
   assert.match(source, /waitForScannerHealth\(\)/u);
 });
 

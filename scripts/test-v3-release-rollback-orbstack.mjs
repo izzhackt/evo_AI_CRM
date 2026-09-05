@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -50,6 +51,9 @@ const candidateVersion = `rollback-candidate-${suffix}`;
 const laterCandidateVersion = `rollback-later-candidate-${suffix}`;
 const runId = `rollback-proof-${suffix}`;
 const laterRunId = `rollback-later-proof-${suffix}`;
+const candidateReleaseId = `${candidateVersion}-${candidateRevision.slice(0, 8)}-${runId}`;
+const laterCandidateReleaseId = `${laterCandidateVersion}-${laterCandidateRevision.slice(0, 8)}-${laterRunId}`;
+const releaseRepository = "izzhackt/evo_AI_CRM";
 const baselineTag = `evo-crm:${baselineRevision}`;
 const candidateTag = `evo-crm:${candidateRevision}`;
 const laterCandidateTag = `evo-crm:${laterCandidateRevision}`;
@@ -75,6 +79,8 @@ const rollbackSeed = join(evidenceRoot, "sealed-baseline", "state.json");
 let baselineImageId = "";
 let candidateImageId = "";
 let laterCandidateImageId = "";
+let candidateImageConfigDigest = "";
+let laterCandidateImageConfigDigest = "";
 let scannerProbeImage = "";
 let scannerCleanProof;
 let hostPort = 0;
@@ -88,6 +94,30 @@ let cleaned = false;
 
 function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+function savedImageConfigDigest(archivePath, expectedTag) {
+  const manifestResult = spawnSync("tar", ["-xOf", archivePath, "manifest.json"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  assert.equal(manifestResult.status, 0, "saved image manifest must be readable");
+  const manifest = JSON.parse(manifestResult.stdout);
+  assert.equal(manifest.length, 1);
+  assert.deepEqual(manifest[0].RepoTags, [expectedTag]);
+  const configPath = manifest[0].Config;
+  assert.match(configPath, /^(?:blobs\/sha256\/)?[0-9a-f]{64}(?:\.json)?$/u);
+  const configResult = spawnSync("tar", ["-xOf", archivePath, configPath], {
+    cwd: repositoryRoot,
+    encoding: null,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  assert.equal(configResult.status, 0, "saved image config must be readable");
+  const digest = `sha256:${createHash("sha256").update(configResult.stdout).digest("hex")}`;
+  const pathDigest = `sha256:${configPath.replace(/^blobs\/sha256\//u, "").replace(/\.json$/u, "")}`;
+  assert.equal(digest, pathDigest, "saved image config path must match its bytes");
+  return digest;
 }
 
 function safeOutput(value) {
@@ -591,10 +621,12 @@ EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0
     join(imageContext, "Dockerfile"),
     `ARG BASE_IMAGE
 FROM \${BASE_IMAGE}
+ARG EVO_IMAGE_SOURCE
 ARG EVO_IMAGE_REVISION
 ARG EVO_IMAGE_VERSION
 ARG EVO_TEST_HEALTH_STATUS
-LABEL org.opencontainers.image.revision="\${EVO_IMAGE_REVISION}" \\
+LABEL org.opencontainers.image.source="\${EVO_IMAGE_SOURCE}" \\
+      org.opencontainers.image.revision="\${EVO_IMAGE_REVISION}" \\
       org.opencontainers.image.version="\${EVO_IMAGE_VERSION}"
 ENV EVO_RELEASE_REVISION="\${EVO_IMAGE_REVISION}" \\
     EVO_RELEASE_VERSION="\${EVO_IMAGE_VERSION}" \\
@@ -710,6 +742,8 @@ function buildAppImage({ baseImage, revision, version, healthStatus, tag }) {
     "--build-arg",
     `BASE_IMAGE=${baseImage}`,
     "--build-arg",
+    `EVO_IMAGE_SOURCE=https://github.com/${releaseRepository}`,
+    "--build-arg",
     `EVO_IMAGE_REVISION=${revision}`,
     "--build-arg",
     `EVO_IMAGE_VERSION=${version}`,
@@ -722,6 +756,10 @@ function buildAppImage({ baseImage, revision, version, healthStatus, tag }) {
   const id = inspectImage(tag, "{{.Id}}");
   assert.match(id, SHA256_IMAGE);
   assert.equal(inspectImage(tag, "{{.Os}}/{{.Architecture}}"), "linux/amd64");
+  assert.equal(
+    inspectImage(tag, '{{index .Config.Labels "org.opencontainers.image.source"}}'),
+    `https://github.com/${releaseRepository}`,
+  );
   assert.equal(
     inspectImage(tag, '{{index .Config.Labels "org.opencontainers.image.revision"}}'),
     revision,
@@ -751,10 +789,19 @@ function candidateEnvironment(wahaRepository, wahaDigest) {
   return {
     EVO_RELEASE_REVISION: candidateRevision,
     EVO_RELEASE_VERSION: candidateVersion,
+    EVO_RELEASE_ID: candidateReleaseId,
+    EVO_RELEASE_REPOSITORY: releaseRepository,
     EVO_RELEASE_RUN_ID: runId,
+    EVO_RELEASE_WORKFLOW_RUN_ID: "101",
+    EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: "1",
+    EVO_RELEASE_UPSTREAM_CI_RUN_ID: "201",
+    EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: "1",
+    EVO_RELEASE_ARTIFACT_ID: "301",
+    EVO_RELEASE_ARTIFACT_DIGEST: candidateImageId,
     EVO_RELEASE_ARCHIVE: candidateArchive,
     EVO_RELEASE_ARCHIVE_SHA256: sha256File(candidateArchive),
     EVO_RELEASE_EXPECTED_IMAGE_ID: candidateImageId,
+    EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST: candidateImageConfigDigest,
     EVO_RELEASE_EXPECTED_COMPOSE_SHA256: sha256File(composeFile),
     EVO_RELEASE_SEED_IMAGE: baselineImageId,
     EVO_WAHA_IMAGE_REPOSITORY: wahaRepository,
@@ -766,10 +813,19 @@ function laterCandidateEnvironment(wahaRepository, wahaDigest) {
   return {
     EVO_RELEASE_REVISION: laterCandidateRevision,
     EVO_RELEASE_VERSION: laterCandidateVersion,
+    EVO_RELEASE_ID: laterCandidateReleaseId,
+    EVO_RELEASE_REPOSITORY: releaseRepository,
     EVO_RELEASE_RUN_ID: laterRunId,
+    EVO_RELEASE_WORKFLOW_RUN_ID: "102",
+    EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: "1",
+    EVO_RELEASE_UPSTREAM_CI_RUN_ID: "202",
+    EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: "1",
+    EVO_RELEASE_ARTIFACT_ID: "302",
+    EVO_RELEASE_ARTIFACT_DIGEST: laterCandidateImageId,
     EVO_RELEASE_ARCHIVE: laterCandidateArchive,
     EVO_RELEASE_ARCHIVE_SHA256: sha256File(laterCandidateArchive),
     EVO_RELEASE_EXPECTED_IMAGE_ID: laterCandidateImageId,
+    EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST: laterCandidateImageConfigDigest,
     EVO_RELEASE_EXPECTED_COMPOSE_SHA256: sha256File(composeFile),
     EVO_RELEASE_SEED_IMAGE: baselineImageId,
     EVO_WAHA_IMAGE_REPOSITORY: wahaRepository,
@@ -847,23 +903,6 @@ async function run() {
     "healthy",
   );
 
-  compose(["rm", "--stop", "--force", "app"], {
-    env: baselineComposeEnvironment,
-    label: "remove only disposable baseline app",
-  });
-  assert.equal(
-    docker([
-      "ps",
-      "-aq",
-      "--filter",
-      `label=com.docker.compose.project=${projectName}`,
-      "--filter",
-      "label=com.docker.compose.service=app",
-    ]).stdout,
-    "",
-  );
-  assert.equal(serviceContainer("waha"), wahaContainer);
-
   const seal = runController("seal-rollback-seed", {
     EVO_RELEASE_SEED_IMAGE: baselineImageId,
     EVO_WAHA_IMAGE_REPOSITORY: wahaRepository,
@@ -878,7 +917,7 @@ async function run() {
     version: baselineVersion,
   });
   const seed = parseJson(rollbackSeed);
-  assert.equal(seed.schema, "evo-release-rollback-seed/v2");
+  assert.equal(seed.schema, "evo-release-rollback-seed/v3");
   assert.equal(seed.previousImage, baselineImageId);
   assert.equal(seed.previousRevision, baselineRevision);
   assert.equal(seed.previousVersion, baselineVersion);
@@ -958,11 +997,20 @@ async function run() {
     scanWithProductClient(Buffer.from("scanner recovered", "utf8"), "clean").outcome,
     "clean",
   );
+  compose(["rm", "--stop", "--force", "clamav"], {
+    env: baselineComposeEnvironment,
+    label: "remove probe scanner before release rollback baseline",
+  });
+  assert.deepEqual(serviceContainerIds("clamav"), []);
+  assert.equal(inspectContainer(serviceContainer("app"), "{{.Image}}"), baselineImageId);
+  assert.equal(serviceContainer("waha"), wahaContainer);
+  await assertHealthyHttp(baselineRevision, baselineVersion);
 
   docker(["image", "save", "--output", candidateArchive, candidateTag], {
     timeout: 5 * 60 * 1_000,
     label: "save unhealthy candidate archive",
   });
+  candidateImageConfigDigest = savedImageConfigDigest(candidateArchive, candidateTag);
   docker(["image", "rm", "--force", candidateTag], {
     label: "remove candidate before archive load proof",
   });
@@ -984,27 +1032,30 @@ async function run() {
   assert.equal(typeof deployResult.evidenceDir, "string");
   assert.equal(dirname(deployResult.evidenceDir), evidenceRoot);
 
-  const expectedEvidence = join(
-    evidenceRoot,
-    `${candidateVersion}-${candidateRevision.slice(0, 8)}-${runId}`,
-  );
+  const expectedEvidence = join(evidenceRoot, candidateReleaseId);
   assert.equal(realpathSync(deployResult.evidenceDir), realpathSync(expectedEvidence));
+  assert.equal(existsSync(join(evidenceRoot, "pending-current.json")), false);
+  assert.equal(existsSync(join(evidenceRoot, "current-v3-accepted.json")), false);
   const state = parseJson(join(expectedEvidence, "state.json"));
   const result = parseJson(join(expectedEvidence, "result.json"));
   assert.equal(state.schema, "evo-fast-release-state/v3");
-  assert.equal(state.previousImage, baselineImageId);
-  assert.equal(state.previousRevision, baselineRevision);
-  assert.equal(state.previousScannerPresent, false);
-  assert.equal(state.previousScannerImage, "");
-  assert.equal(state.previousVersion, baselineVersion);
+  assert.equal(state.releaseId, candidateReleaseId);
+  assert.equal(state.repository, releaseRepository);
+  assert.equal(state.previous.appPresent, true);
+  assert.equal(state.previous.imageId, baselineImageId);
+  assert.equal(state.previous.revision, baselineRevision);
+  assert.equal(state.previous.scannerPresent, false);
+  assert.equal(state.previous.scannerImage, "");
+  assert.equal(state.previous.version, baselineVersion);
   assert.equal(state.rollbackTag, rollbackTag);
-  assert.equal(state.targetImage, candidateImageId);
-  assert.equal(state.targetRevision, candidateRevision);
-  assert.equal(state.targetVersion, candidateVersion);
+  assert.equal(state.imageId, candidateImageId);
+  assert.equal(state.imageConfigDigest, candidateImageConfigDigest);
+  assert.equal(state.revision, candidateRevision);
+  assert.equal(state.version, candidateVersion);
   assert.equal(state.composeSha256, seed.composeSha256);
   assert.equal(state.appEnvSha256, seed.appEnvSha256);
   assert.deepEqual(result, {
-    schema: "evo-fast-release/v1",
+    schema: "evo-fast-release/v2",
     status: "blocked",
     code: "deployment_failed",
     revision: candidateRevision,
@@ -1063,6 +1114,10 @@ async function run() {
     timeout: 5 * 60 * 1_000,
     label: "save later unhealthy candidate archive",
   });
+  laterCandidateImageConfigDigest = savedImageConfigDigest(
+    laterCandidateArchive,
+    laterCandidateTag,
+  );
   docker(["image", "rm", "--force", laterCandidateTag], {
     label: "remove later candidate before archive load proof",
   });
@@ -1079,20 +1134,23 @@ async function run() {
   const laterDeployResult = parseLastJsonLine(laterDeploy.stdout);
   assert.equal(laterDeployResult.status, "rolled_back");
   assert.equal(laterDeployResult.code, "deployment_failed");
-  const laterEvidence = join(
-    evidenceRoot,
-    `${laterCandidateVersion}-${laterCandidateRevision.slice(0, 8)}-${laterRunId}`,
-  );
+  assert.equal(existsSync(join(evidenceRoot, "pending-current.json")), false);
+  assert.equal(existsSync(join(evidenceRoot, "current-v3-accepted.json")), false);
+  const laterEvidence = join(evidenceRoot, laterCandidateReleaseId);
   const laterState = parseJson(join(laterEvidence, "state.json"));
   assert.equal(laterState.schema, "evo-fast-release-state/v3");
-  assert.equal(laterState.previousImage, baselineImageId);
-  assert.equal(laterState.previousRevision, baselineRevision);
-  assert.equal(laterState.previousVersion, baselineVersion);
-  assert.equal(laterState.previousScannerPresent, true);
-  assert.equal(laterState.previousScannerImage, CLAMAV_IMAGE);
-  assert.equal(laterState.targetImage, laterCandidateImageId);
-  assert.equal(laterState.targetRevision, laterCandidateRevision);
-  assert.equal(laterState.targetVersion, laterCandidateVersion);
+  assert.equal(laterState.releaseId, laterCandidateReleaseId);
+  assert.equal(laterState.repository, releaseRepository);
+  assert.equal(laterState.previous.appPresent, true);
+  assert.equal(laterState.previous.imageId, baselineImageId);
+  assert.equal(laterState.previous.revision, baselineRevision);
+  assert.equal(laterState.previous.version, baselineVersion);
+  assert.equal(laterState.previous.scannerPresent, true);
+  assert.equal(laterState.previous.scannerImage, CLAMAV_IMAGE);
+  assert.equal(laterState.imageId, laterCandidateImageId);
+  assert.equal(laterState.imageConfigDigest, laterCandidateImageConfigDigest);
+  assert.equal(laterState.revision, laterCandidateRevision);
+  assert.equal(laterState.version, laterCandidateVersion);
   assert.equal(laterState.rollbackTag, laterRollbackTag);
   const restoredPriorScanner = waitForScannerHealth();
   assert.equal(inspectContainer(restoredPriorScanner, "{{.Config.Image}}"), CLAMAV_IMAGE);
@@ -1107,46 +1165,19 @@ async function run() {
   assert.equal(inspectContainer(serviceContainer("app"), "{{.Image}}"), baselineImageId);
   await assertHealthyHttp(baselineRevision, baselineVersion);
 
-  compose([
-    "up",
-    "--detach",
-    "--no-deps",
-    "--no-build",
-    "--pull",
-    "never",
-    "--wait",
-    "--wait-timeout",
-    "30",
-    "app",
-  ], {
-    accepted: [0, 1],
-    env: controllerEnvironment(laterCandidateEnvironment(wahaRepository, wahaDigest)),
-    timeout: 2 * 60 * 1_000,
-    label: "install unrelated later candidate for stale rollback refusal",
-  });
-  assert.equal(inspectContainer(serviceContainer("app"), "{{.Image}}"), laterCandidateImageId);
-  const staleRollback = runController(
+  const idempotentRollback = runController(
     "rollback",
     {
-      ...candidateEnvironment(wahaRepository, wahaDigest),
-      EVO_RELEASE_ROLLBACK_STATE: join(expectedEvidence, "state.json"),
+      ...laterCandidateEnvironment(wahaRepository, wahaDigest),
+      EVO_RELEASE_ROLLBACK_STATE: join(laterEvidence, "state.json"),
+      EVO_RELEASE_ROLLBACK_EXPECTED_RELEASE_ID: laterCandidateReleaseId,
     },
-    [2],
   );
-  assert.deepEqual(parseLastJsonLine(staleRollback.stderr), {
-    ok: false,
-    code: "rollback_runtime_mismatch",
-  });
-  assert.equal(inspectContainer(serviceContainer("app"), "{{.Image}}"), laterCandidateImageId);
-
-  const laterRecovery = runController("rollback", {
-    ...laterCandidateEnvironment(wahaRepository, wahaDigest),
-    EVO_RELEASE_ROLLBACK_STATE: join(laterEvidence, "state.json"),
-  });
-  assert.deepEqual(parseLastJsonLine(laterRecovery.stdout), {
+  assert.deepEqual(parseLastJsonLine(idempotentRollback.stdout), {
     ok: true,
     command: "rollback",
     status: "rolled_back",
+    releaseId: laterCandidateReleaseId,
   });
   assert.equal(inspectContainer(serviceContainer("app"), "{{.Image}}"), baselineImageId);
   assert.equal(inspectContainer(waitForScannerHealth(), "{{.Config.Image}}"), CLAMAV_IMAGE);
@@ -1171,7 +1202,7 @@ async function run() {
       resultSchema: result.schema,
       stateSchema: state.schema,
       rolledBack: result.rolledBack,
-      staleRollbackRefused: true,
+      rollbackRetryIdempotent: true,
       releaseLockTool,
       releaseLockContentionProved,
       scannerImage: CLAMAV_IMAGE,

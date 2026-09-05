@@ -19519,9 +19519,13 @@ application bundle with a sorted manifest of every directory, file byte digest,
 mode and contained relative symlink, while requiring current-user ownership and
 rejecting group/world-writable files or directories. Resolve the package entry
 with Node's module-relative `import.meta.resolve()` and require it to remain
-inside the reviewed package root before import. Run both version inspection and
-the evidence browser only through the already verified `sandbox-exec` policy,
-after its positive and negative network controls pass.
+inside the reviewed package root before import. Copy all verified package trees
+and the complete browser bundle without following symlinks into the unique
+private marked recovery root; require the source manifest to remain unchanged
+through the copy and the destination manifest to match exactly, then import and
+execute only that snapshot. Run both version inspection and the evidence browser
+only through the already verified `sandbox-exec` policy, after its positive and
+negative network controls pass.
 
 The package-resolution behavior follows Node's official ESM contract:
 <https://nodejs.org/download/release/latest-jod/docs/api/esm.html#importmetaresolvespecifier>.

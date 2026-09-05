@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
@@ -56,6 +56,7 @@ import {
   selectOwnedNetworkIds,
   selectOwnedVolumeIdentities,
   selectOwnedVolumeNames,
+  snapshotTrustedRuntimeTree,
   uploadStorageObjectFromFile,
   validateEvidenceRuntimeSeparation,
   validateBrowserRouteProof,
@@ -148,6 +149,8 @@ test("browser execution is bound to one reviewed binary and exact loopback CDP e
   const bundleDigest = "b".repeat(64);
   const runtimeDigest = "c".repeat(64);
   const path = "/Users/operator/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing";
+  const snapshotBundleRoot = "/private/tmp/evo-recovery/browser-runtime/chromium/Google Chrome for Testing.app";
+  const executionPath = `${snapshotBundleRoot}/Contents/MacOS/Google Chrome for Testing`;
   const bundle = {
     treeSha256: bundleDigest,
     entryCount: 12,
@@ -163,6 +166,7 @@ test("browser execution is bound to one reviewed binary and exact loopback CDP e
     bundle,
     canonicalPath: path,
     currentUid: 501,
+    executionPath,
     expectedPath: path,
     isFile: true,
     isSymbolicLink: false,
@@ -171,12 +175,15 @@ test("browser execution is bound to one reviewed binary and exact loopback CDP e
     platform: "darwin",
     playwrightPath: path,
     playwrightRuntimeSha256: runtimeDigest,
+    snapshotBundleRoot,
     version: "Google Chrome for Testing 149.0.7827.55",
   };
   const bindings = {
     "darwin-arm64": {
       version: value.version,
       sha256: digest,
+      bundle: "Google Chrome for Testing.app",
+      executable: "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
       bundleTreeSha256: bundleDigest,
       bundleEntryCount: bundle.entryCount,
       bundleFileCount: bundle.fileCount,
@@ -229,8 +236,21 @@ test("browser execution is bound to one reviewed binary and exact loopback CDP e
   assert.match(source, /macos_sandbox_exec_deny_network_outbound_except_loopback/u);
   assert.match(source, /connectOverCDP\(debuggerUrl, \{ timeout: 10_000 \}\)/u);
   assert.doesNotMatch(source, /supervisor\.run\(canonicalPath, \["--version"\]/u);
-  assert.ok(source.indexOf("playwrightRuntime = await trustedPlaywrightRuntime()") < source.indexOf('await import("@playwright/test")'));
-  assert.ok(source.indexOf('browserPhase = "sandbox_validation"') < source.indexOf('browserPhase = "version_validation"'));
+  const importCall = source.indexOf("await import(pathToFileURL(playwrightRuntime.entryPath).href)");
+  assert.ok(source.indexOf("playwrightRuntime = await trustedPlaywrightRuntime(runtimeRoot)") < importCall);
+  assert.ok(source.indexOf("snapshotTrustedRuntimeTree(") < importCall);
+  assert.doesNotMatch(source, /await import\("@playwright\/test"\)/u);
+  const versionStart = source.indexOf("async function validateBrowserVersionInSandbox");
+  const versionEnd = source.indexOf("async function proveBrowserHostSandbox", versionStart);
+  const versionSource = source.slice(versionStart, versionEnd);
+  assert.match(
+    versionSource,
+    /supervisor\.run\(toolchain\.paths\.sandboxExec\.real, \[\s*"-p", BROWSER_SANDBOX_PROFILE,\s*browserTool\.path,\s*"--version",\s*\]/u,
+  );
+  const proofStart = source.indexOf("async function proveBrowser(app");
+  const proofEnd = source.indexOf("function identityStrings", proofStart);
+  const proofSource = source.slice(proofStart, proofEnd);
+  assert.ok(proofSource.indexOf("await proveBrowserHostSandbox") < proofSource.indexOf("await validateBrowserVersionInSandbox"));
 });
 
 test("trusted runtime trees bind paths, file bytes, modes and contained symlinks", async (t) => {
@@ -246,6 +266,35 @@ test("trusted runtime trees bind paths, file bytes, modes and contained symlinks
   assert.equal(identity.fileCount, 1);
   assert.equal(identity.executableFileCount, 1);
   assert.equal(identity.symlinkCount, 1);
+
+  const snapshotParent = join(realpathSync(parent), "snapshot");
+  mkdirSync(snapshotParent, { mode: 0o700 });
+  const snapshot = await snapshotTrustedRuntimeTree(root, join(snapshotParent, "runtime"), identity);
+  assert.deepEqual(snapshot.identity, identity);
+
+  chmodSync(join(root, "entry.mjs"), 0o700);
+  writeFileSync(join(root, "entry.mjs"), "export const value = 2;\n");
+  chmodSync(join(root, "entry.mjs"), 0o500);
+  const byteChanged = await inspectTrustedRuntimeTree(root);
+  expectCode(() => validateTrustedRuntimeTree(byteChanged, identity), "runtime_tree_untrusted");
+  assert.deepEqual(await inspectTrustedRuntimeTree(snapshot.root), identity);
+
+  chmodSync(join(root, "entry.mjs"), 0o700);
+  writeFileSync(join(root, "entry.mjs"), "export const value = 1;\n");
+  chmodSync(join(root, "entry.mjs"), 0o500);
+  rmSync(join(root, "current"));
+  renameSync(join(root, "entry.mjs"), join(root, "renamed.mjs"));
+  const pathChanged = await inspectTrustedRuntimeTree(root);
+  expectCode(() => validateTrustedRuntimeTree(pathChanged, identity), "runtime_tree_untrusted");
+
+  renameSync(join(root, "renamed.mjs"), join(root, "entry.mjs"));
+  writeFileSync(join(parent, "outside.mjs"), "export const outside = true;\n", { mode: 0o500 });
+  symlinkSync("../outside.mjs", join(root, "current"));
+  await assert.rejects(
+    inspectTrustedRuntimeTree(root),
+    (error) => error instanceof RecoveryFailure && error.code === "runtime_tree_untrusted",
+  );
+  rmSync(join(root, "current"));
   chmodSync(join(root, "entry.mjs"), 0o522);
   await assert.rejects(
     inspectTrustedRuntimeTree(root),

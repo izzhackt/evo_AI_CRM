@@ -283,10 +283,14 @@ integrity plus installed-tree manifests bind `@playwright/test`, `playwright`,
 `playwright-core` and the macOS optional runtime before dynamic import. Node's
 documented module-relative `import.meta.resolve()` result must remain inside that
 reviewed package root: <https://nodejs.org/download/release/latest-jod/docs/api/esm.html#importmetaresolvespecifier>.
-An ambient `PLAYWRIGHT_BROWSERS_PATH` is forbidden. Chromium version inspection
-and the browser itself run only under a macOS `sandbox-exec` policy that permits
-loopback and denies other outbound IP traffic, with both allowed-loopback and
-denied-public runtime controls. Its CDP endpoint must be the reserved
+The harness copies those exact trees into its unique private recovery root,
+rechecks the live source and copied manifests for identity, then imports and
+executes only the private snapshot so a concurrent install/cache replacement
+cannot change the attested runtime. An ambient `PLAYWRIGHT_BROWSERS_PATH` is
+forbidden. Chromium version inspection and the browser itself run only under a
+macOS `sandbox-exec` policy that permits loopback and denies other outbound IP
+traffic, with both allowed-loopback and denied-public runtime controls. Its CDP
+endpoint must be the reserved
 `ws://127.0.0.1` port and exact browser path. The harness
 also blocks every browser HTTP request and every WebSocket before page creation
 using Playwright's documented `BrowserContext.routeWebSocket` interception:

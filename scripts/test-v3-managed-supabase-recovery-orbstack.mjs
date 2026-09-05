@@ -39,7 +39,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { finished } from "node:stream/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parse as parseToml } from "smol-toml";
 
 const OPT_IN = "EVO_RUN_V3_MANAGED_SUPABASE_RECOVERY_ORBSTACK";
@@ -527,6 +527,80 @@ export function validateTrustedRuntimeTree(value, binding, code = "runtime_tree_
     trustedTreeFailure(code, stage);
   }
   return Object.freeze({ ...value });
+}
+
+export async function snapshotTrustedRuntimeTree(
+  sourceRoot,
+  destinationRoot,
+  binding,
+  code = "runtime_snapshot_untrusted",
+  stage = "browser_proof",
+) {
+  if (
+    typeof sourceRoot !== "string" ||
+    typeof destinationRoot !== "string" ||
+    !isAbsolute(sourceRoot) ||
+    !isAbsolute(destinationRoot) ||
+    sourceRoot === destinationRoot ||
+    existsSync(destinationRoot)
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+  const currentUid = typeof process.getuid === "function" ? process.getuid() : null;
+  let destinationParent;
+  let parentMetadata;
+  try {
+    destinationParent = realpathSync(dirname(destinationRoot));
+    parentMetadata = lstatSync(destinationParent);
+  } catch {
+    trustedTreeFailure(code, stage);
+  }
+  if (
+    destinationParent !== resolve(dirname(destinationRoot)) ||
+    !parentMetadata.isDirectory() ||
+    parentMetadata.isSymbolicLink()
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+  assertTrustedTreeMetadata(parentMetadata, currentUid, code, stage);
+  const sourceBefore = validateTrustedRuntimeTree(
+    await inspectTrustedRuntimeTree(sourceRoot, { code, stage, currentUid }),
+    binding,
+    code,
+    stage,
+  );
+  try {
+    cpSync(sourceRoot, destinationRoot, {
+      recursive: true,
+      dereference: false,
+      errorOnExist: true,
+      force: false,
+      preserveTimestamps: false,
+      verbatimSymlinks: true,
+    });
+    chmodSync(destinationRoot, trustedTreeMode(lstatSync(sourceRoot)));
+  } catch {
+    trustedTreeFailure(code, stage);
+  }
+  const sourceAfter = validateTrustedRuntimeTree(
+    await inspectTrustedRuntimeTree(sourceRoot, { code, stage, currentUid }),
+    binding,
+    code,
+    stage,
+  );
+  const snapshot = validateTrustedRuntimeTree(
+    await inspectTrustedRuntimeTree(destinationRoot, { code, stage, currentUid }),
+    binding,
+    code,
+    stage,
+  );
+  if (!sameJson(sourceBefore, sourceAfter) || !sameJson(sourceBefore, snapshot)) {
+    trustedTreeFailure(code, stage);
+  }
+  return Object.freeze({
+    root: realpathSync(destinationRoot),
+    identity: snapshot,
+  });
 }
 
 function descriptor(value, code) {
@@ -5976,7 +6050,7 @@ export function validatePlaywrightPackageLock(value, bindings = PLAYWRIGHT_PACKA
   return Object.freeze(locked);
 }
 
-async function trustedPlaywrightRuntime() {
+async function trustedPlaywrightRuntime(runtimeRoot) {
   let lock;
   try {
     lock = JSON.parse(readFileSync(join(repositoryRoot, "package-lock.json"), "utf8"));
@@ -5984,46 +6058,44 @@ async function trustedPlaywrightRuntime() {
     fail("playwright_runtime_untrusted", "browser_proof");
   }
   const locked = validatePlaywrightPackageLock(lock);
-  const currentUid = typeof process.getuid === "function" ? process.getuid() : null;
+  const nodeModulesRoot = join(runtimeRoot, "node_modules");
+  try {
+    mkdirSync(nodeModulesRoot, { mode: 0o700 });
+  } catch {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
   const identities = [];
   for (const name of Object.keys(PLAYWRIGHT_PACKAGE_BINDINGS).sort((left, right) => left.localeCompare(right, "en"))) {
     const binding = PLAYWRIGHT_PACKAGE_BINDINGS[name];
-    const root = join(repositoryRoot, "node_modules", ...name.split("/"));
-    let canonicalRoot;
-    let metadata;
+    const sourceRoot = join(repositoryRoot, "node_modules", ...name.split("/"));
+    const snapshotRoot = join(nodeModulesRoot, ...name.split("/"));
     let packageMetadata;
     try {
-      canonicalRoot = realpathSync(root);
-      metadata = lstatSync(root);
-      packageMetadata = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+      mkdirSync(dirname(snapshotRoot), { recursive: true, mode: 0o700 });
     } catch {
       fail("playwright_runtime_untrusted", "browser_proof");
     }
-    if (
-      canonicalRoot !== resolve(root) ||
-      !metadata.isDirectory() ||
-      metadata.isSymbolicLink() ||
-      packageMetadata?.version !== binding.version
-    ) {
-      fail("playwright_runtime_untrusted", "browser_proof");
-    }
-    const tree = validateTrustedRuntimeTree(
-      await inspectTrustedRuntimeTree(root, {
-        code: "playwright_runtime_untrusted",
-        stage: "browser_proof",
-        currentUid,
-      }),
+    const snapshot = await snapshotTrustedRuntimeTree(
+      sourceRoot,
+      snapshotRoot,
       binding,
       "playwright_runtime_untrusted",
       "browser_proof",
     );
+    try {
+      packageMetadata = JSON.parse(readFileSync(join(snapshot.root, "package.json"), "utf8"));
+    } catch {
+      fail("playwright_runtime_untrusted", "browser_proof");
+    }
+    if (packageMetadata?.version !== binding.version) fail("playwright_runtime_untrusted", "browser_proof");
     identities.push(Object.freeze({
       ...locked.find((item) => item.name === name),
-      ...tree,
+      ...snapshot.identity,
     }));
   }
   let resolvedEntry;
   let playwrightTestRoot;
+  let snapshotEntry;
   try {
     playwrightTestRoot = realpathSync(join(repositoryRoot, "node_modules", "@playwright", "test"));
     resolvedEntry = realpathSync(fileURLToPath(import.meta.resolve("@playwright/test")));
@@ -6036,9 +6108,33 @@ async function trustedPlaywrightRuntime() {
   ) {
     fail("playwright_runtime_untrusted", "browser_proof");
   }
+  const relativeEntry = relative(playwrightTestRoot, resolvedEntry);
+  if (relativeEntry.length === 0 || relativeEntry.startsWith(`..${sep}`) || isAbsolute(relativeEntry)) {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  const snapshotPackageRoot = realpathSync(join(nodeModulesRoot, "@playwright", "test"));
+  try {
+    snapshotEntry = realpathSync(join(snapshotPackageRoot, relativeEntry));
+  } catch {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  if (!snapshotEntry.startsWith(`${snapshotPackageRoot}${sep}`)) {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  let finalLock;
+  try {
+    finalLock = validatePlaywrightPackageLock(
+      JSON.parse(readFileSync(join(repositoryRoot, "package-lock.json"), "utf8")),
+    );
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  if (!sameJson(locked, finalLock)) fail("playwright_runtime_untrusted", "browser_proof");
   return Object.freeze({
     identities: Object.freeze(identities),
     packageSetSha256: sha256(`${canonicalJson(identities)}\n`),
+    entryPath: snapshotEntry,
   });
 }
 
@@ -6050,6 +6146,7 @@ export function validatePinnedPlaywrightBrowser(value, bindings = PLAYWRIGHT_BRO
     "bundle",
     "canonicalPath",
     "currentUid",
+    "executionPath",
     "expectedPath",
     "isFile",
     "isSymbolicLink",
@@ -6058,6 +6155,7 @@ export function validatePinnedPlaywrightBrowser(value, bindings = PLAYWRIGHT_BRO
     "platform",
     "playwrightPath",
     "playwrightRuntimeSha256",
+    "snapshotBundleRoot",
     "version",
   ], "browser_executable_untrusted", "browser_proof");
   if (value.ambientPathPresent !== false) fail("browser_ambient_path_forbidden", "browser_proof");
@@ -6078,9 +6176,17 @@ export function validatePinnedPlaywrightBrowser(value, bindings = PLAYWRIGHT_BRO
     symlinkCount: binding.bundleSymlinkCount,
     totalBytes: binding.bundleTotalBytes,
   }, "browser_executable_untrusted", "browser_proof");
+  const executablePrefix = `${binding.bundle}/`;
+  const executableRelative = typeof binding.executable === "string" && binding.executable.startsWith(executablePrefix)
+    ? binding.executable.slice(executablePrefix.length)
+    : null;
   if (
     value.expectedPath !== value.canonicalPath ||
     value.playwrightPath !== value.canonicalPath ||
+    !isAbsolute(value.snapshotBundleRoot ?? "") ||
+    !isAbsolute(value.executionPath ?? "") ||
+    executableRelative === null ||
+    relative(value.snapshotBundleRoot, value.executionPath) !== executableRelative ||
     value.isFile !== true ||
     value.isSymbolicLink !== false ||
     !Number.isSafeInteger(value.mode) ||
@@ -6109,6 +6215,7 @@ function pinnedBrowserValidationValue(browserTool, version) {
     bundle: browserTool.bundle,
     canonicalPath: browserTool.canonicalPath,
     currentUid: browserTool.currentUid,
+    executionPath: browserTool.path,
     expectedPath: browserTool.expectedPath,
     isFile: browserTool.isFile,
     isSymbolicLink: browserTool.isSymbolicLink,
@@ -6117,6 +6224,7 @@ function pinnedBrowserValidationValue(browserTool, version) {
     platform: browserTool.platform,
     playwrightPath: browserTool.playwrightPath,
     playwrightRuntimeSha256: browserTool.playwrightRuntimeSha256,
+    snapshotBundleRoot: browserTool.snapshotBundleRoot,
     version,
   });
 }
@@ -6147,12 +6255,12 @@ export function validateBrowserDebuggerUrl(value, debugPort) {
   return parsed.toString();
 }
 
-async function browserExecutable() {
+async function browserExecutable(harnessRoot) {
   const ambientPathPresent = Object.prototype.hasOwnProperty.call(process.env, "PLAYWRIGHT_BROWSERS_PATH");
   if (ambientPathPresent) fail("browser_ambient_path_forbidden", "browser_proof");
   const binding = PLAYWRIGHT_BROWSER_BINDINGS[`${process.platform}-${process.arch}`];
   if (!binding) fail("browser_platform_unsupported", "browser_proof");
-  const expectedPath = join(
+  const expectedSourcePath = join(
     realpathSync(homedir()),
     "Library",
     "Caches",
@@ -6161,7 +6269,7 @@ async function browserExecutable() {
     binding.directory,
     binding.executable,
   );
-  const bundleRoot = join(
+  const sourceBundleRoot = join(
     realpathSync(homedir()),
     "Library",
     "Caches",
@@ -6170,21 +6278,28 @@ async function browserExecutable() {
     binding.directory,
     binding.bundle,
   );
+  const runtimeRoot = join(harnessRoot, "browser-runtime");
+  const chromiumSnapshotParent = join(runtimeRoot, "chromium");
+  try {
+    mkdirSync(runtimeRoot, { mode: 0o700 });
+    mkdirSync(chromiumSnapshotParent, { mode: 0o700 });
+  } catch {
+    fail("browser_executable_untrusted", "browser_proof");
+  }
   let canonicalPath;
   let metadata;
   let binarySha256;
   let chromium;
   let bundle;
   let playwrightRuntime;
+  let snapshotBundleRoot;
+  let executionPath;
   try {
-    canonicalPath = realpathSync(expectedPath);
-    metadata = lstatSync(expectedPath);
-    binarySha256 = await sha256File(expectedPath);
-    bundle = validateTrustedRuntimeTree(
-      await inspectTrustedRuntimeTree(bundleRoot, {
-        code: "browser_executable_untrusted",
-        stage: "browser_proof",
-      }),
+    canonicalPath = realpathSync(expectedSourcePath);
+    metadata = lstatSync(expectedSourcePath);
+    const snapshot = await snapshotTrustedRuntimeTree(
+      sourceBundleRoot,
+      join(chromiumSnapshotParent, binding.bundle),
       {
         treeSha256: binding.bundleTreeSha256,
         entryCount: binding.bundleEntryCount,
@@ -6196,11 +6311,24 @@ async function browserExecutable() {
       "browser_executable_untrusted",
       "browser_proof",
     );
-    playwrightRuntime = await trustedPlaywrightRuntime();
+    bundle = snapshot.identity;
+    snapshotBundleRoot = snapshot.root;
+    const executableRelative = binding.executable.slice(`${binding.bundle}/`.length);
+    const snapshotExecutable = join(snapshotBundleRoot, executableRelative);
+    const canonicalSnapshotExecutable = realpathSync(snapshotExecutable);
+    if (
+      relative(snapshotBundleRoot, canonicalSnapshotExecutable) !== executableRelative ||
+      lstatSync(snapshotExecutable).isSymbolicLink()
+    ) {
+      fail("browser_executable_untrusted", "browser_proof");
+    }
+    binarySha256 = await sha256File(canonicalSnapshotExecutable);
+    playwrightRuntime = await trustedPlaywrightRuntime(runtimeRoot);
     if (playwrightRuntime.packageSetSha256 !== binding.playwrightRuntimeSha256) {
       fail("playwright_runtime_untrusted", "browser_proof");
     }
-    ({ chromium } = await import("@playwright/test"));
+    ({ chromium } = await import(pathToFileURL(playwrightRuntime.entryPath).href));
+    executionPath = canonicalSnapshotExecutable;
   } catch (error) {
     if (error instanceof RecoveryFailure) throw error;
     fail("browser_executable_untrusted", "browser_proof");
@@ -6214,14 +6342,14 @@ async function browserExecutable() {
   if (binarySha256 !== binding.sha256) fail("browser_executable_untrusted", "browser_proof");
   const browserTool = Object.freeze({
     chromium,
-    path: canonicalPath,
+    path: executionPath,
     ambientPathPresent,
     architecture: process.arch,
     binarySha256,
     bundle,
     canonicalPath,
     currentUid: typeof process.getuid === "function" ? process.getuid() : null,
-    expectedPath,
+    expectedPath: canonicalPath,
     isFile: metadata.isFile(),
     isSymbolicLink: metadata.isSymbolicLink(),
     mode: metadata.mode,
@@ -6229,6 +6357,7 @@ async function browserExecutable() {
     platform: process.platform,
     playwrightPath,
     playwrightRuntimeSha256: playwrightRuntime.packageSetSha256,
+    snapshotBundleRoot,
   });
   validatePinnedPlaywrightBrowser(pinnedBrowserValidationValue(browserTool, binding.version));
   return browserTool;
@@ -6637,7 +6766,7 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
   let browserRecord;
   let browser;
   try {
-    browserTool = await browserExecutable();
+    browserTool = await browserExecutable(state.harnessRoot);
     browserPhase = "sandbox_validation";
     browserSandbox = await proveBrowserHostSandbox(supervisor, toolchain);
     browserPhase = "version_validation";

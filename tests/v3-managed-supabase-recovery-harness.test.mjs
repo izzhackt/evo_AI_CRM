@@ -33,6 +33,7 @@ import {
   privateBackupDirectory,
   parseTargetTreeListing,
   orderedTargetEntries,
+  orbStackEnvironment,
   runBrowserOperation,
   resolveSupabaseExecutableChain,
   sanitizePsqlDiagnostic,
@@ -266,6 +267,24 @@ test("contract advertises signed exporter artifacts and no remote/provider autho
   const noOptIn = spawnSync(process.execPath, [script.pathname, "preflight", ...optionsArgs()], { encoding: "utf8", env: {} });
   assert.notEqual(noOptIn.status, 0);
   assert.equal(JSON.parse(noOptIn.stdout).code, "explicit_opt_in_required");
+});
+
+test("OrbStack receives only a validated HOME in the otherwise minimal child environment", (t) => {
+  const home = mkdtempSync(join(tmpdir(), "evo-recovery-orbstack-home-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+
+  const environment = orbStackEnvironment(home);
+  assert.equal(environment.HOME, realpathSync(home));
+  assert.deepEqual(Object.keys(environment).sort(), ["DOCKER_CONTEXT", "HOME", "LANG", "LC_ALL", "PATH"]);
+  const notDirectory = join(home, "not-a-directory");
+  writeFileSync(notDirectory, "not a home\n", { mode: 0o600 });
+  const peerWritable = join(home, "peer-writable");
+  mkdirSync(peerWritable, { mode: 0o700 });
+  chmodSync(peerWritable, 0o722);
+  expectCode(() => orbStackEnvironment("relative/home"), "orbstack_home_invalid");
+  expectCode(() => orbStackEnvironment(join(home, "missing")), "orbstack_home_invalid");
+  expectCode(() => orbStackEnvironment(notDirectory), "orbstack_home_invalid");
+  expectCode(() => orbStackEnvironment(peerWritable), "orbstack_home_invalid");
 });
 
 test("arguments separate immutable source and target bindings and reject the retired compatibility flag", () => {

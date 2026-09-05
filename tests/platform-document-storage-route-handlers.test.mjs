@@ -104,6 +104,7 @@ function attestation(overrides = {}) {
     scanner_engine_version: SCAN_PROOF.engineVersion,
     scanner_signature_version: SCAN_PROOF.signatureVersion,
     scanner_protocol: SCAN_PROOF.protocol,
+    scanned_sha256_hex: SHA256,
     scanned_at: AT,
     scanner_proof: true,
     ...overrides,
@@ -157,9 +158,21 @@ function uploadRequest({ mimeType = "application/pdf", extra = false } = {}) {
 
 function uploadDependencies({
   authorization = { status: "authorized", actor: ACTOR },
+  preflightResult = {
+    organization_id: ORGANIZATION_ID,
+    student_case_id: CASE_ID,
+    document_slot_id: SLOT_ID,
+    request_id: REQUEST_IDS[0],
+    upload_allowed: true,
+    reservation_replay: false,
+  },
+  preflightError = null,
   reserveResult = reservation(),
   reserveError = null,
   uploadError = null,
+  downloadError = null,
+  storedBytes = null,
+  storedMimeType = null,
   finalizeResult = finalization(),
   finalizeError = null,
   attestationResult = attestation(),
@@ -168,26 +181,20 @@ function uploadDependencies({
   scanError = null,
 } = {}) {
   const calls = [];
+  let persistedBytes = storedBytes;
+  let persistedMimeType = storedMimeType;
   const userClient = {
     schema(schema) {
       assert.equal(schema, "platform");
       return {
         async rpc(name, args) {
           calls.push(["user-rpc", name, args]);
+          if (name === "preflight_document_upload") {
+            return { data: preflightResult, error: preflightError };
+          }
           return { data: reserveResult, error: reserveError };
         },
       };
-    },
-    storage: {
-      from(bucket) {
-        assert.equal(bucket, "platform-documents");
-        return {
-          async upload(path, bytes, options) {
-            calls.push(["upload", path, bytes, options]);
-            return { data: uploadError ? null : { path }, error: uploadError };
-          },
-        };
-      },
     },
   };
   const serviceClient = {
@@ -201,6 +208,32 @@ function uploadDependencies({
             : { data: attestationResult, error: attestationError };
         },
       };
+    },
+    storage: {
+      from(bucket) {
+        assert.equal(bucket, "platform-documents");
+        return {
+          async upload(path, bytes, options) {
+            calls.push(["service-upload", path, bytes, options]);
+            if (!uploadError && persistedBytes === null) {
+              persistedBytes = new Uint8Array(bytes);
+              persistedMimeType = options.contentType;
+            }
+            return { data: uploadError ? null : { path }, error: uploadError };
+          },
+          async download(path) {
+            calls.push(["service-download", path]);
+            return {
+              data: downloadError
+                ? null
+                : new Blob([persistedBytes ?? BYTES], {
+                  type: persistedMimeType ?? "application/pdf",
+                }),
+              error: downloadError,
+            };
+          },
+        };
+      },
     },
   };
   return {
@@ -230,7 +263,7 @@ function uploadDependencies({
   };
 }
 
-test("authenticated Admissions upload reserves through RLS, writes once, then finalizes with the service client", async () => {
+test("authenticated Admissions upload reserves through RLS, service-writes, reads back and finalizes exact bytes", async () => {
   const { calls, dependencies } = uploadDependencies();
   const handler = createPlatformDocumentUploadHandler(dependencies);
   const response = await handler(uploadRequest(), {
@@ -250,11 +283,27 @@ test("authenticated Admissions upload reserves through RLS, writes once, then fi
       sha256Hex: SHA256,
     },
   });
-  assert.equal(calls.filter(([kind]) => kind === "upload").length, 1);
-  assert.equal(calls[0][0], "scan");
-  assert.equal(calls.find(([kind]) => kind === "upload")[1], OBJECT_NAME);
-  assert.equal(calls.find(([kind]) => kind === "upload")[3].upsert, false);
-  assert.deepEqual(calls.find(([kind]) => kind === "user-rpc").slice(1), [
+  assert.equal(calls.filter(([kind]) => kind === "service-upload").length, 1);
+  assert.equal(calls.filter(([kind]) => kind === "service-download").length, 1);
+  assert.equal(calls.filter(([kind]) => kind === "scan").length, 2);
+  const preflightCall = calls.find(([, name]) => name === "preflight_document_upload");
+  const reserveCall = calls.find(([, name]) => name === "reserve_document_upload");
+  assert.ok(calls.indexOf(preflightCall) < calls.findIndex(([kind]) => kind === "scan"));
+  assert.equal(calls.find(([kind]) => kind === "service-upload")[1], OBJECT_NAME);
+  assert.equal(calls.find(([kind]) => kind === "service-upload")[3].upsert, false);
+  assert.deepEqual(preflightCall.slice(1), [
+    "preflight_document_upload",
+    {
+      p_organization_id: ORGANIZATION_ID,
+      p_document_slot_id: SLOT_ID,
+      p_original_filename: "proof.pdf",
+      p_declared_mime_type: "application/pdf",
+      p_byte_size: BYTES.byteLength,
+      p_sha256_hex: SHA256,
+      p_request_id: REQUEST_IDS[0],
+    },
+  ]);
+  assert.deepEqual(reserveCall.slice(1), [
     "reserve_document_upload",
     {
       p_organization_id: ORGANIZATION_ID,
@@ -300,7 +349,12 @@ test("malware and scanner failure stop before any reservation or Storage write",
     );
     assert.equal(response.status, item.status);
     assert.deepEqual(await response.json(), { error: item.code });
-    assert.equal(calls.some(([kind]) => kind === "user-rpc" || kind === "upload"), false);
+    assert.deepEqual(
+      calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+      ["preflight_document_upload"],
+    );
+    assert.equal(calls.some(([, name]) => name === "reserve_document_upload"), false);
+    assert.equal(calls.some(([kind]) => kind === "service-upload"), false);
   }
 
   const mismatch = uploadDependencies({
@@ -312,7 +366,28 @@ test("malware and scanner failure stop before any reservation or Storage write",
   );
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: "malware_scan_unconfirmed" });
-  assert.equal(mismatch.calls.some(([kind]) => kind === "user-rpc"), false);
+  assert.deepEqual(
+    mismatch.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+    ["preflight_document_upload"],
+  );
+});
+
+test("document upload rejects cross-tenant preflight before scanning or writes", async () => {
+  const { calls, dependencies } = uploadDependencies({
+    preflightError: { code: "42501" },
+  });
+  const response = await createPlatformDocumentUploadHandler(dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+  );
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { error: "upload_not_authorized" });
+  assert.deepEqual(
+    calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+    ["preflight_document_upload"],
+  );
+  assert.equal(calls.some(([kind]) => kind === "scan" || kind === "service-upload"), false);
 });
 
 test("an ambiguous prior Storage write is finalized without overwrite", async () => {
@@ -324,11 +399,50 @@ test("an ambiguous prior Storage write is finalized without overwrite", async ()
     { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
   );
   assert.equal(response.status, 201);
-  assert.equal(calls.some(([kind]) => kind === "upload"), false);
+  assert.equal(calls.some(([kind]) => kind === "service-upload"), false);
+  assert.equal(calls.filter(([kind]) => kind === "service-download").length, 1);
+  assert.equal(calls.filter(([kind]) => kind === "scan").length, 2);
   assert.deepEqual(
     calls.filter(([kind]) => kind === "service-rpc").map(([, name]) => name),
     ["finalize_document_upload", "attest_document_validation"],
   );
+});
+
+test("same-size stored-object substitution fails before finalization or proof", async () => {
+  const substituted = new Uint8Array(BYTES);
+  substituted[substituted.byteLength - 1] ^= 1;
+  const { calls, dependencies } = uploadDependencies({
+    reserveResult: reservation({ storage_object_present: true }),
+    storedBytes: substituted,
+  });
+  const response = await createPlatformDocumentUploadHandler(dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+  );
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "storage_object_mismatch" });
+  assert.equal(calls.some(([kind]) => kind === "service-upload"), false);
+  assert.equal(calls.filter(([kind]) => kind === "scan").length, 1);
+  assert.equal(calls.some(([kind]) => kind === "service-rpc"), false);
+});
+
+test("lost-response replay accepts the durable original scan facts", async () => {
+  const { calls, dependencies } = uploadDependencies({
+    reserveResult: reservation({ storage_object_present: true }),
+    attestationResult: attestation({
+      scanner_engine_version: "1.5.3",
+      scanner_signature_version: "27889",
+      scanned_at: "2026-09-01T07:00:00+00:00",
+    }),
+  });
+  const response = await createPlatformDocumentUploadHandler(dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+  );
+
+  assert.equal(response.status, 201);
+  assert.equal(calls.filter(([kind]) => kind === "scan").length, 2);
 });
 
 test("upload fails clearly and never finalizes when Storage does not confirm the object", async () => {
@@ -355,6 +469,14 @@ test("forbidden, malformed and unexpected upload inputs stop before Supabase", a
   assert.equal(forbidden.calls.length, 0);
 
   const invalid = uploadDependencies();
+  response = await createPlatformDocumentUploadHandler(invalid.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ documentSlotId: "not-a-uuid" }) },
+  );
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "invalid_document_slot" });
+  assert.equal(invalid.calls.length, 0);
+
   response = await createPlatformDocumentUploadHandler(invalid.dependencies)(
     uploadRequest({ extra: true }),
     { params: Promise.resolve({ documentSlotId: SLOT_ID }) },

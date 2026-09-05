@@ -25,6 +25,8 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OBJECT_NAME_PATTERN = /^[0-9a-f]{2}\/[0-9a-f]{62}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+const SCANNER_ENGINE_VERSION_PATTERN = /^[0-9][0-9A-Za-z.+~-]{0,63}$/;
+const SCANNER_SIGNATURE_VERSION_PATTERN = /^[1-9][0-9]{0,18}$/;
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u001F\u007F]/;
 const ACCEPTED_MIME_TYPES = new Set([
@@ -65,6 +67,10 @@ type UploadReservation = Readonly<{
   sha256Hex: string;
   storageObjectPresent: boolean;
   documentSlotPublished: boolean;
+}>;
+
+type UploadPreflight = Readonly<{
+  studentCaseId: string;
 }>;
 
 type FinalizedUpload = Readonly<{
@@ -248,6 +254,41 @@ function normalizeReservation(
   });
 }
 
+function normalizeUploadPreflight(
+  value: unknown,
+  expected: Readonly<{
+    organizationId: string;
+    documentSlotId: string;
+    requestId: string;
+  }>,
+): UploadPreflight | null {
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, [
+      "organization_id",
+      "student_case_id",
+      "document_slot_id",
+      "request_id",
+      "upload_allowed",
+      "reservation_replay",
+    ])
+  ) {
+    return null;
+  }
+  const studentCaseId = uuid(value.student_case_id);
+  if (
+    value.organization_id !== expected.organizationId
+    || value.document_slot_id !== expected.documentSlotId
+    || value.request_id !== expected.requestId
+    || !studentCaseId
+    || value.upload_allowed !== true
+    || typeof value.reservation_replay !== "boolean"
+  ) {
+    return null;
+  }
+  return Object.freeze({ studentCaseId });
+}
+
 function normalizeFinalizedUpload(
   value: unknown,
   reservation: UploadReservation,
@@ -301,7 +342,6 @@ function normalizeFinalizedUpload(
 function normalizeValidationAttestation(
   value: unknown,
   reservation: UploadReservation,
-  scanProof: ClamdMalwareScanProof,
 ): ValidationAttestation | null {
   if (
     !isRecord(value)
@@ -320,6 +360,7 @@ function normalizeValidationAttestation(
       "scanner_engine_version",
       "scanner_signature_version",
       "scanner_protocol",
+      "scanned_sha256_hex",
       "scanned_at",
       "scanner_proof",
     ])
@@ -337,17 +378,56 @@ function normalizeValidationAttestation(
     || value.evidence_ref !== `sha256:${reservation.sha256Hex}`
     || !timestamp(value.validation_updated_at)
     || !uuid(value.malware_scan_attestation_id)
-    || value.scanner_engine !== scanProof.engine
-    || value.scanner_engine_version !== scanProof.engineVersion
-    || value.scanner_signature_version !== scanProof.signatureVersion
-    || value.scanner_protocol !== scanProof.protocol
+    || value.scanner_engine !== "ClamAV"
+    || typeof value.scanner_engine_version !== "string"
+    || !SCANNER_ENGINE_VERSION_PATTERN.test(value.scanner_engine_version)
+    || typeof value.scanner_signature_version !== "string"
+    || !SCANNER_SIGNATURE_VERSION_PATTERN.test(
+      value.scanner_signature_version,
+    )
+    || value.scanner_protocol !== "clamd-zinstream-v1"
+    || value.scanned_sha256_hex !== reservation.sha256Hex
     || !timestamp(value.scanned_at)
-    || Date.parse(value.scanned_at as string) !== Date.parse(scanProof.scannedAt)
     || value.scanner_proof !== true
   ) {
     return null;
   }
   return Object.freeze({ documentVersionId: reservation.documentVersionId });
+}
+
+async function readExactStoredDocument(
+  serviceClient: SupabaseClient,
+  reservation: UploadReservation,
+): Promise<
+  | Readonly<{ status: "ok"; bytes: Uint8Array }>
+  | Readonly<{ status: "unavailable" }>
+  | Readonly<{ status: "mismatch" }>
+> {
+  const downloaded = await serviceClient.storage
+    .from(BUCKET_ID)
+    .download(reservation.objectName);
+  if (downloaded.error || !downloaded.data) {
+    return { status: "unavailable" };
+  }
+  if (
+    downloaded.data.size !== reservation.byteSize
+    || downloaded.data.size < 1
+    || downloaded.data.size > MAX_FILE_BYTES
+    || downloaded.data.type.toLowerCase() !== reservation.declaredMimeType
+  ) {
+    return { status: "mismatch" };
+  }
+
+  const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
+  const sha256Hex = createHash("sha256").update(bytes).digest("hex");
+  if (
+    bytes.byteLength !== reservation.byteSize
+    || sha256Hex !== reservation.sha256Hex
+    || !matchesDeclaredFileSignature(reservation.declaredMimeType, bytes)
+  ) {
+    return { status: "mismatch" };
+  }
+  return { status: "ok", bytes };
 }
 
 function normalizeDownloadGrant(value: unknown): DownloadGrant | null {
@@ -463,6 +543,19 @@ const defaultDependencies: PlatformDocumentStorageRouteDependencies = {
 
 function errorResponse(status: number, code: string): Response {
   return Response.json({ error: code }, { status });
+}
+
+function rpcErrorCode(error: unknown): string {
+  return isRecord(error) && typeof error.code === "string" ? error.code : "";
+}
+
+function preflightErrorResponse(error: unknown): Response {
+  const code = rpcErrorCode(error);
+  if (code === "42501") return errorResponse(403, "upload_not_authorized");
+  if (code === "22023") return errorResponse(400, "invalid_upload");
+  if (code === "PT409") return errorResponse(409, "upload_in_progress");
+  if (code === "PT429") return errorResponse(429, "upload_rate_limited");
+  return errorResponse(503, "upload_preflight_unavailable");
 }
 
 function authorizationResponse(status: DocumentAuthorization["status"]): Response {
@@ -618,21 +711,49 @@ export function createPlatformDocumentUploadHandler(
       return errorResponse(503, "storage_unavailable");
     }
 
-    let scanProof: ClamdMalwareScanProof;
+    let userClient: SupabaseClient;
     try {
-      scanProof = await dependencies.scanFile(bytes);
+      userClient = await dependencies.createUserClient();
+      const preflightResponse = await userClient.schema("platform").rpc(
+        "preflight_document_upload",
+        {
+          p_organization_id: authorization.actor.organizationId,
+          p_document_slot_id: documentSlotId,
+          p_original_filename: upload.file.name,
+          p_declared_mime_type: upload.file.type,
+          p_byte_size: bytes.byteLength,
+          p_sha256_hex: sha256Hex,
+          p_request_id: upload.requestId,
+        },
+      );
+      if (preflightResponse.error) {
+        return preflightErrorResponse(preflightResponse.error);
+      }
+      if (!normalizeUploadPreflight(preflightResponse.data, {
+        organizationId: authorization.actor.organizationId,
+        documentSlotId,
+        requestId: upload.requestId,
+      })) {
+        return errorResponse(503, "upload_preflight_unconfirmed");
+      }
+    } catch {
+      return errorResponse(503, "upload_preflight_unavailable");
+    }
+
+    let requestScanProof: ClamdMalwareScanProof;
+    try {
+      requestScanProof = await dependencies.scanFile(bytes);
     } catch (error) {
       if (error instanceof ClamdScanError && error.code === "infected") {
         return errorResponse(422, "malware_detected");
       }
       return errorResponse(503, "malware_scanner_unavailable");
     }
-    if (!isClamdMalwareScanProof(scanProof, sha256Hex)) {
+    if (!isClamdMalwareScanProof(requestScanProof, sha256Hex)) {
       return errorResponse(503, "malware_scan_unconfirmed");
     }
 
     try {
-      const userClient = await dependencies.createUserClient();
       const reservationResponse = await userClient.schema("platform").rpc(
         "reserve_document_upload",
         {
@@ -657,8 +778,9 @@ export function createPlatformDocumentUploadHandler(
       });
       if (!reservation) return errorResponse(503, "storage_unavailable");
 
+      const serviceClient = dependencies.createServiceClient();
       if (!reservation.storageObjectPresent) {
-        const storageResponse = await userClient.storage
+        const storageResponse = await serviceClient.storage
           .from(BUCKET_ID)
           .upload(reservation.objectName, bytes, {
             contentType: upload.file.type,
@@ -670,7 +792,30 @@ export function createPlatformDocumentUploadHandler(
         }
       }
 
-      const serviceClient = dependencies.createServiceClient();
+      const storedObject = await readExactStoredDocument(
+        serviceClient,
+        reservation,
+      );
+      if (storedObject.status === "unavailable") {
+        return errorResponse(503, "storage_readback_unconfirmed");
+      }
+      if (storedObject.status === "mismatch") {
+        return errorResponse(503, "storage_object_mismatch");
+      }
+
+      let scanProof: ClamdMalwareScanProof;
+      try {
+        scanProof = await dependencies.scanFile(storedObject.bytes);
+      } catch (error) {
+        if (error instanceof ClamdScanError && error.code === "infected") {
+          return errorResponse(422, "malware_detected");
+        }
+        return errorResponse(503, "malware_scanner_unavailable");
+      }
+      if (!isClamdMalwareScanProof(scanProof, reservation.sha256Hex)) {
+        return errorResponse(503, "malware_scan_unconfirmed");
+      }
+
       const finalizationResponse = await serviceClient.schema("platform").rpc(
         "finalize_document_upload",
         {
@@ -708,7 +853,6 @@ export function createPlatformDocumentUploadHandler(
       const attestation = normalizeValidationAttestation(
         attestationResponse.data,
         reservation,
-        scanProof,
       );
       if (!attestation) return errorResponse(503, "storage_unavailable");
 

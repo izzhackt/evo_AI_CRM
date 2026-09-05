@@ -30,6 +30,8 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OBJECT_NAME_PATTERN = /^[0-9a-f]{2}\/[0-9a-f]{62}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+const SCANNER_ENGINE_VERSION_PATTERN = /^[0-9][0-9A-Za-z.+~-]{0,63}$/;
+const SCANNER_SIGNATURE_VERSION_PATTERN = /^[1-9][0-9]{0,18}$/;
 const POSITIVE_BIGINT_PATTERN = /^[1-9]\d*$/;
 const TIMESTAMPTZ_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -90,6 +92,10 @@ type UploadReservation = Readonly<{
   sha256Hex: string;
   storageObjectPresent: boolean;
   fileVersionPublished: boolean;
+}>;
+
+type UploadPreflight = Readonly<{
+  companyFileId: string;
 }>;
 
 type FinalizedUpload = Readonly<{
@@ -629,11 +635,36 @@ function normalizeReservation(
   });
 }
 
+function normalizeUploadPreflight(
+  value: unknown,
+  expected: Readonly<{
+    organizationId: string;
+    companyFileId: string;
+    requestId: string;
+  }>,
+): UploadPreflight | null {
+  if (!isRecord(value) || !exactKeys(value, [
+    "organization_id",
+    "company_file_id",
+    "request_id",
+    "upload_allowed",
+    "reservation_replay",
+  ])) return null;
+  const companyFileId = uuid(value.company_file_id);
+  if (
+    value.organization_id !== expected.organizationId ||
+    companyFileId !== expected.companyFileId ||
+    value.request_id !== expected.requestId ||
+    value.upload_allowed !== true ||
+    typeof value.reservation_replay !== "boolean"
+  ) return null;
+  return Object.freeze({ companyFileId });
+}
+
 function normalizeFinalizedUpload(
   value: unknown,
   reservation: UploadReservation,
   expectedFileVersion: string,
-  scanProof: ClamdMalwareScanProof,
 ): FinalizedUpload | null {
   if (!isRecord(value) || !exactKeys(value, [
     "organization_id",
@@ -651,6 +682,7 @@ function normalizeFinalizedUpload(
     "scanner_engine_version",
     "scanner_signature_version",
     "scanner_protocol",
+    "scanned_sha256_hex",
     "scanned_at",
     "scanner_proof",
   ])) return null;
@@ -667,11 +699,14 @@ function normalizeFinalizedUpload(
     BigInt(fileVersion) !== BigInt(expectedFileVersion) + BigInt(1) ||
     uuid(value.current_version_id) !== reservation.companyFileVersionId ||
     !uuid(value.malware_scan_attestation_id) ||
-    value.scanner_engine !== scanProof.engine ||
-    value.scanner_engine_version !== scanProof.engineVersion ||
-    value.scanner_signature_version !== scanProof.signatureVersion ||
-    value.scanner_protocol !== scanProof.protocol ||
-    !scannedAt || Date.parse(scannedAt) !== Date.parse(scanProof.scannedAt) ||
+    value.scanner_engine !== "ClamAV" ||
+    typeof value.scanner_engine_version !== "string" ||
+    !SCANNER_ENGINE_VERSION_PATTERN.test(value.scanner_engine_version) ||
+    typeof value.scanner_signature_version !== "string" ||
+    !SCANNER_SIGNATURE_VERSION_PATTERN.test(value.scanner_signature_version) ||
+    value.scanner_protocol !== "clamd-zinstream-v1" ||
+    value.scanned_sha256_hex !== reservation.sha256Hex ||
+    !scannedAt ||
     value.scanner_proof !== true
   ) return null;
   return Object.freeze({
@@ -680,6 +715,46 @@ function normalizeFinalizedUpload(
     versionNumber: reservation.versionNumber,
     fileVersion,
   });
+}
+
+async function readExactStoredCompanyFile(
+  serviceClient: SupabaseClient,
+  reservation: UploadReservation,
+  originalFilename: string,
+): Promise<
+  | Readonly<{ status: "ok"; bytes: Uint8Array }>
+  | Readonly<{ status: "unavailable" }>
+  | Readonly<{ status: "mismatch" }>
+> {
+  const downloaded = await serviceClient.storage
+    .from(BUCKET_ID)
+    .download(reservation.objectName);
+  if (downloaded.error || !downloaded.data) {
+    return { status: "unavailable" };
+  }
+  if (
+    downloaded.data.size !== reservation.byteSize
+    || downloaded.data.size < 1
+    || downloaded.data.size > MAX_FILE_BYTES
+    || downloaded.data.type.toLowerCase() !== reservation.declaredMimeType
+  ) {
+    return { status: "mismatch" };
+  }
+
+  const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
+  const sha256Hex = createHash("sha256").update(bytes).digest("hex");
+  if (
+    bytes.byteLength !== reservation.byteSize
+    || sha256Hex !== reservation.sha256Hex
+    || !matchesDeclaredFileSignature(
+      reservation.declaredMimeType,
+      originalFilename,
+      bytes,
+    )
+  ) {
+    return { status: "mismatch" };
+  }
+  return { status: "ok", bytes };
 }
 
 function normalizeDownloadGrant(value: unknown): DownloadGrant | null {
@@ -774,10 +849,22 @@ function reservationErrorResponse(error: unknown): Response {
   const code = rpcErrorCode(error);
   if (code === "40001") return errorResponse(409, "stale_company_file");
   if (code === "PT409") return errorResponse(409, "upload_in_progress");
+  if (code === "PT429") return errorResponse(429, "upload_rate_limited");
   if (code === "23505") return errorResponse(409, "request_conflict");
   if (code === "22023") return errorResponse(400, "invalid_upload");
   if (code === "42501") return errorResponse(403, "upload_not_authorized");
   return errorResponse(503, "storage_reservation_unconfirmed");
+}
+
+function preflightErrorResponse(error: unknown): Response {
+  const code = rpcErrorCode(error);
+  if (code === "40001") return errorResponse(409, "stale_company_file");
+  if (code === "PT409") return errorResponse(409, "upload_in_progress");
+  if (code === "PT429") return errorResponse(429, "upload_rate_limited");
+  if (code === "23505") return errorResponse(409, "request_conflict");
+  if (code === "22023") return errorResponse(400, "invalid_upload");
+  if (code === "42501") return errorResponse(403, "upload_not_authorized");
+  return errorResponse(503, "upload_preflight_unavailable");
 }
 
 function authorizationResponse(status: CompanyFileAuthorization["status"]): Response {
@@ -904,21 +991,49 @@ export function createPlatformCompanyFileUploadHandler(
       return errorResponse(503, "storage_unavailable");
     }
 
-    let scanProof: ClamdMalwareScanProof;
+    let userClient: SupabaseClient;
     try {
-      scanProof = await dependencies.scanFile(bytes);
+      userClient = await dependencies.createUserClient();
+      const preflightResponse = await userClient.schema("platform").rpc(
+        "preflight_company_file_upload",
+        {
+          p_organization_id: authorization.actor.organizationId,
+          p_company_file_id: companyFileId,
+          p_expected_file_version: upload.expectedFileVersion,
+          p_original_filename: upload.file.name,
+          p_declared_mime_type: mimeType,
+          p_byte_size: bytes.byteLength,
+          p_sha256_hex: sha256Hex,
+          p_request_id: upload.requestId,
+        },
+      );
+      if (preflightResponse.error) {
+        return preflightErrorResponse(preflightResponse.error);
+      }
+      const preflight = normalizeUploadPreflight(preflightResponse.data, {
+        organizationId: authorization.actor.organizationId,
+        companyFileId,
+        requestId: upload.requestId,
+      });
+      if (!preflight) return errorResponse(503, "upload_preflight_unavailable");
+    } catch {
+      return errorResponse(503, "upload_preflight_unavailable");
+    }
+
+    let requestScanProof: ClamdMalwareScanProof;
+    try {
+      requestScanProof = await dependencies.scanFile(bytes);
     } catch (error) {
       if (error instanceof ClamdScanError && error.code === "infected") {
         return errorResponse(422, "malware_detected");
       }
       return errorResponse(503, "malware_scanner_unavailable");
     }
-    if (!isClamdMalwareScanProof(scanProof, sha256Hex)) {
+    if (!isClamdMalwareScanProof(requestScanProof, sha256Hex)) {
       return errorResponse(503, "malware_scan_unconfirmed");
     }
 
     try {
-      const userClient = await dependencies.createUserClient();
       const reservationResponse = await userClient.schema("platform").rpc(
         "reserve_company_file_upload",
         {
@@ -944,8 +1059,9 @@ export function createPlatformCompanyFileUploadHandler(
       });
       if (!reservation) return errorResponse(503, "storage_unavailable");
 
+      const serviceClient = dependencies.createServiceClient();
       if (!reservation.storageObjectPresent) {
-        const storageResponse = await userClient.storage.from(BUCKET_ID).upload(
+        const storageResponse = await serviceClient.storage.from(BUCKET_ID).upload(
           reservation.objectName,
           bytes,
           { contentType: mimeType, cacheControl: "0", upsert: false },
@@ -955,7 +1071,31 @@ export function createPlatformCompanyFileUploadHandler(
         }
       }
 
-      const serviceClient = dependencies.createServiceClient();
+      const storedObject = await readExactStoredCompanyFile(
+        serviceClient,
+        reservation,
+        upload.file.name,
+      );
+      if (storedObject.status === "unavailable") {
+        return errorResponse(503, "storage_readback_unconfirmed");
+      }
+      if (storedObject.status === "mismatch") {
+        return errorResponse(503, "storage_object_mismatch");
+      }
+
+      let scanProof: ClamdMalwareScanProof;
+      try {
+        scanProof = await dependencies.scanFile(storedObject.bytes);
+      } catch (error) {
+        if (error instanceof ClamdScanError && error.code === "infected") {
+          return errorResponse(422, "malware_detected");
+        }
+        return errorResponse(503, "malware_scanner_unavailable");
+      }
+      if (!isClamdMalwareScanProof(scanProof, reservation.sha256Hex)) {
+        return errorResponse(503, "malware_scan_unconfirmed");
+      }
+
       const finalizationResponse = await serviceClient.schema("platform").rpc(
         "finalize_company_file_upload",
         {
@@ -980,7 +1120,6 @@ export function createPlatformCompanyFileUploadHandler(
         finalizationResponse.data,
         reservation,
         upload.expectedFileVersion,
-        scanProof,
       );
       if (!finalized) return errorResponse(503, "storage_unavailable");
 

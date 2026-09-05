@@ -222,6 +222,7 @@ function finalization(overrides = {}) {
     scanner_engine_version: SCAN_PROOF.engineVersion,
     scanner_signature_version: SCAN_PROOF.signatureVersion,
     scanner_protocol: SCAN_PROOF.protocol,
+    scanned_sha256_hex: SHA256,
     scanned_at: AT,
     scanner_proof: true,
     ...overrides,
@@ -238,35 +239,40 @@ function uploadRequest({ bytes = BYTES, type = "application/pdf", name = "proof.
 
 function uploadDependencies({
   authorization = { status: "authorized", actor: ACTOR },
+  preflightValue = {
+    organization_id: ORGANIZATION_ID,
+    company_file_id: FILE_ID,
+    request_id: REQUEST_IDS[0],
+    upload_allowed: true,
+    reservation_replay: false,
+  },
+  preflightError = null,
   reservationValue = reservation(),
-  finalizationValue = finalization(),
+  finalizationValue = null,
   reservationError = null,
   finalizationError = null,
   uploadError = null,
+  downloadError = null,
+  storedBytes = null,
+  storedMimeType = null,
   scanResult = null,
   scanError = null,
 } = {}) {
   const calls = [];
+  let persistedBytes = storedBytes;
+  let persistedMimeType = storedMimeType;
   const userClient = {
     schema(schema) {
       assert.equal(schema, "platform");
       return {
         async rpc(name, args) {
           calls.push(["user-rpc", name, args]);
+          if (name === "preflight_company_file_upload") {
+            return { data: preflightValue, error: preflightError };
+          }
           return { data: reservationValue, error: reservationError };
         },
       };
-    },
-    storage: {
-      from(bucket) {
-        assert.equal(bucket, "platform-company-files");
-        return {
-          async upload(objectName, bytes, options) {
-            calls.push(["upload", objectName, bytes, options]);
-            return { data: uploadError ? null : { path: objectName }, error: uploadError };
-          },
-        };
-      },
     },
   };
   const serviceClient = {
@@ -275,9 +281,40 @@ function uploadDependencies({
       return {
         async rpc(name, args) {
           calls.push(["service-rpc", name, args]);
-          return { data: finalizationValue, error: finalizationError };
+          return {
+            data: finalizationValue ?? finalization({
+              scanned_sha256_hex: reservationValue.sha256_hex,
+            }),
+            error: finalizationError,
+          };
         },
       };
+    },
+    storage: {
+      from(bucket) {
+        assert.equal(bucket, "platform-company-files");
+        return {
+          async upload(objectName, bytes, options) {
+            calls.push(["service-upload", objectName, bytes, options]);
+            if (!uploadError && persistedBytes === null) {
+              persistedBytes = new Uint8Array(bytes);
+              persistedMimeType = options.contentType;
+            }
+            return { data: uploadError ? null : { path: objectName }, error: uploadError };
+          },
+          async download(objectName) {
+            calls.push(["service-download", objectName]);
+            return {
+              data: downloadError
+                ? null
+                : new Blob([persistedBytes ?? BYTES], {
+                  type: persistedMimeType ?? reservationValue.declared_mime_type,
+                }),
+              error: downloadError,
+            };
+          },
+        };
+      },
     },
   };
   return {
@@ -303,7 +340,7 @@ function uploadDependencies({
   };
 }
 
-test("authorized company upload reserves, uploads without overwrite and finalizes", async () => {
+test("authorized company upload service-writes, reads back and finalizes exact bytes", async () => {
   const { calls, dependencies } = uploadDependencies();
   const response = await createPlatformCompanyFileUploadHandler(dependencies)(
     uploadRequest(),
@@ -323,8 +360,25 @@ test("authorized company upload reserves, uploads without overwrite and finalize
     },
   });
   assert.deepEqual(calls[0], ["authorize", "documents.write"]);
-  assert.equal(calls[1][0], "scan");
-  assert.deepEqual(calls.find(([kind]) => kind === "user-rpc").slice(1), [
+  const preflightCall = calls.find(([, name]) => name === "preflight_company_file_upload");
+  const reserveCall = calls.find(([, name]) => name === "reserve_company_file_upload");
+  assert.ok(calls.indexOf(preflightCall) < calls.findIndex(([kind]) => kind === "scan"));
+  assert.equal(calls.filter(([kind]) => kind === "scan").length, 2);
+  assert.equal(calls.filter(([kind]) => kind === "service-download").length, 1);
+  assert.deepEqual(preflightCall.slice(1), [
+    "preflight_company_file_upload",
+    {
+      p_organization_id: ORGANIZATION_ID,
+      p_company_file_id: FILE_ID,
+      p_expected_file_version: "1",
+      p_original_filename: "proof.pdf",
+      p_declared_mime_type: "application/pdf",
+      p_byte_size: BYTES.byteLength,
+      p_sha256_hex: SHA256,
+      p_request_id: REQUEST_IDS[0],
+    },
+  ]);
+  assert.deepEqual(reserveCall.slice(1), [
     "reserve_company_file_upload",
     {
       p_organization_id: ORGANIZATION_ID,
@@ -337,7 +391,7 @@ test("authorized company upload reserves, uploads without overwrite and finalize
       p_request_id: REQUEST_IDS[0],
     },
   ]);
-  assert.equal(calls.find(([kind]) => kind === "upload")[3].upsert, false);
+  assert.equal(calls.find(([kind]) => kind === "service-upload")[3].upsert, false);
   assert.equal(
     calls.find(([kind]) => kind === "service-rpc")[1],
     "finalize_company_file_upload",
@@ -372,7 +426,12 @@ test("company upload rejects malware and scanner failure before reservation", as
     );
     assert.equal(response.status, item.status);
     assert.deepEqual(await response.json(), { error: item.code });
-    assert.equal(result.calls.some(([kind]) => kind === "user-rpc" || kind === "upload"), false);
+    assert.deepEqual(
+      result.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+      ["preflight_company_file_upload"],
+    );
+    assert.equal(result.calls.some(([, name]) => name === "reserve_company_file_upload"), false);
+    assert.equal(result.calls.some(([kind]) => kind === "service-upload"), false);
   }
 
   const mismatch = uploadDependencies({
@@ -384,7 +443,66 @@ test("company upload rejects malware and scanner failure before reservation", as
   );
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: "malware_scan_unconfirmed" });
-  assert.equal(mismatch.calls.some(([kind]) => kind === "user-rpc"), false);
+  assert.deepEqual(
+    mismatch.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+    ["preflight_company_file_upload"],
+  );
+});
+
+test("company upload rejects cross-tenant preflight before scanning or writes", async () => {
+  const result = uploadDependencies({ preflightError: { code: "42501" } });
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { error: "upload_not_authorized" });
+  assert.deepEqual(
+    result.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+    ["preflight_company_file_upload"],
+  );
+  assert.equal(
+    result.calls.some(([kind]) => kind === "scan" || kind === "service-upload"),
+    false,
+  );
+});
+
+test("same-size company stored-object substitution fails before finalization or proof", async () => {
+  const substituted = new Uint8Array(BYTES);
+  substituted[substituted.byteLength - 1] ^= 1;
+  const result = uploadDependencies({
+    reservationValue: reservation({ storage_object_present: true }),
+    storedBytes: substituted,
+  });
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "storage_object_mismatch" });
+  assert.equal(result.calls.some(([kind]) => kind === "service-upload"), false);
+  assert.equal(result.calls.filter(([kind]) => kind === "scan").length, 1);
+  assert.equal(result.calls.some(([kind]) => kind === "service-rpc"), false);
+});
+
+test("company lost-response replay accepts the durable original scan facts", async () => {
+  const result = uploadDependencies({
+    reservationValue: reservation({ storage_object_present: true }),
+    finalizationValue: finalization({
+      scanner_engine_version: "1.5.3",
+      scanner_signature_version: "27889",
+      scanned_at: "2026-09-01T07:00:00+00:00",
+    }),
+  });
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+
+  assert.equal(response.status, 201);
+  assert.equal(result.calls.filter(([kind]) => kind === "scan").length, 2);
 });
 
 test("company upload authorizes before parsing and rejects spoofed signatures", async () => {
@@ -404,6 +522,15 @@ test("company upload authorizes before parsing and rejects spoofed signatures", 
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { error: "file_signature_mismatch" });
   assert.equal(result.calls.some(([kind]) => kind === "user-rpc"), false);
+
+  result = uploadDependencies();
+  response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: "not-a-uuid" }) },
+  );
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "invalid_company_file" });
+  assert.deepEqual(result.calls, [["authorize", "documents.write"]]);
 });
 
 test("company upload accepts bounded, structurally valid DOCX, XLSX and PPTX packages", async () => {
@@ -497,7 +624,7 @@ test("company upload fails closed when reservation or finalization is unverified
     { params: Promise.resolve({ companyFileId: FILE_ID }) },
   );
   assert.equal(response.status, 503);
-  assert.equal(result.calls.some(([kind]) => kind === "upload"), false);
+  assert.equal(result.calls.some(([kind]) => kind === "service-upload"), false);
 
   result = uploadDependencies({ finalizationError: { code: "XX000" } });
   response = await createPlatformCompanyFileUploadHandler(result.dependencies)(

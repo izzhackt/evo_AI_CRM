@@ -230,7 +230,12 @@ function tools() {
     docker_context: "orbstack",
     database_ca_sha256: "7".repeat(64),
     database_ca_fingerprint: "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA",
-    managed_dump_inputs_sha256: "8".repeat(64),
+    managed_dump_inputs_sha256: {
+      data: "8".repeat(64),
+      database_ca: "7".repeat(64),
+      roles: "9".repeat(64),
+      schema: "a".repeat(64),
+    },
   };
 }
 
@@ -536,6 +541,19 @@ test("receipt accepts only exact #636 schema and exact signing identity/fingerpr
   expectCode(() => validateSignedReceipt(receipt({ database: { ...receipt().database, snapshot_mode: "independent-dumps" } }), {
     sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
   }), "receipt_database_snapshot_mode_invalid");
+  expectCode(() => validateSignedReceipt(receipt({
+    tools: { ...tools(), managed_dump_inputs_sha256: "8".repeat(64) },
+  }), {
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+  }), "export_tool_evidence_invalid");
+  expectCode(() => validateSignedReceipt(receipt({
+    tools: {
+      ...tools(),
+      managed_dump_inputs_sha256: { ...tools().managed_dump_inputs_sha256, database_ca: "0".repeat(64) },
+    },
+  }), {
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+  }), "export_tool_evidence_invalid");
   const missingArtifact = receipt();
   delete missingArtifact.encrypted_artifacts["history-schema.sql.age"];
   expectCode(() => validateSignedReceipt(missingArtifact, {

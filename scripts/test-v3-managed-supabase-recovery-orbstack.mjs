@@ -229,7 +229,17 @@ function validateTools(value) {
   if (value.pg_dump !== value.pg_dumpall || value.pg_dump !== value.psql) fail("export_postgres_tool_mismatch", "artifact_validation");
   string(value.age, null, "export_tool_evidence_invalid", "artifact_validation", 256);
   string(value.database_ca_sha256, SHA256, "export_tool_evidence_invalid");
-  string(value.managed_dump_inputs_sha256, SHA256, "export_tool_evidence_invalid");
+  exactKeys(
+    value.managed_dump_inputs_sha256,
+    ["data", "database_ca", "roles", "schema"],
+    "export_tool_evidence_invalid",
+  );
+  for (const digest of Object.values(value.managed_dump_inputs_sha256)) {
+    string(digest, SHA256, "export_tool_evidence_invalid");
+  }
+  if (value.managed_dump_inputs_sha256.database_ca !== value.database_ca_sha256) {
+    fail("export_tool_evidence_invalid", "artifact_validation");
+  }
   string(value.database_ca_fingerprint, /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/u, "export_tool_evidence_invalid");
   return Object.freeze({ ...value });
 }

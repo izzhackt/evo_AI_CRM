@@ -1249,7 +1249,14 @@ export class ProcessSupervisor {
       fail("command_started_after_interruption", options.stage ?? "command");
     }
     if (this.stopping) fail("command_started_during_shutdown", options.stage ?? "command");
+    if (
+      options.argv0 !== undefined &&
+      (typeof options.argv0 !== "string" || !/^[A-Za-z0-9._-]{1,64}$/u.test(options.argv0))
+    ) {
+      fail("command_argv0_invalid", options.stage ?? "command");
+    }
     const child = spawn(command, args, {
+      argv0: options.argv0,
       cwd: options.cwd,
       env: options.env ?? safeEnvironment(),
       detached: process.platform !== "win32",
@@ -1285,7 +1292,14 @@ export class ProcessSupervisor {
       fail("command_started_after_interruption", options.stage ?? "command");
     }
     if (this.stopping) fail("command_started_during_shutdown", options.stage ?? "command");
+    if (
+      options.argv0 !== undefined &&
+      (typeof options.argv0 !== "string" || !/^[A-Za-z0-9._-]{1,64}$/u.test(options.argv0))
+    ) {
+      fail("command_argv0_invalid", options.stage ?? "command");
+    }
     const child = spawn(command, args, {
+      argv0: options.argv0,
       cwd: options.cwd,
       env: options.env ?? safeEnvironment(),
       detached: process.platform !== "win32",
@@ -1338,6 +1352,10 @@ export class ProcessSupervisor {
     }
     return Object.freeze({ stdout: record.stdout, stderr: record.stderr, code: outcome.code });
   }
+}
+
+function runDocker(supervisor, executable, args, options = {}) {
+  return supervisor.run(executable.real, args, { ...options, argv0: "docker" });
 }
 
 export function sanitizeCommandDiagnostic(output, status) {
@@ -1568,11 +1586,11 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
   });
   if (orb.stdout.toString("utf8").trim() !== "Running") fail("orbstack_not_running", "toolchain");
   availableEvidence.orb = "Running";
-  const context = await supervisor.run(tools.docker.real, ["--context", "orbstack", "context", "show"], { stage: "toolchain", code: "docker_context_invalid", timeoutMs: 10_000 });
+  const context = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "context", "show"], { stage: "toolchain", code: "docker_context_invalid", timeoutMs: 10_000 });
   if (context.stdout.toString("utf8").trim() !== "orbstack") fail("docker_context_invalid", "toolchain");
   availableEvidence.docker_context = "orbstack";
   for (const [field, template] of [["docker_client", "{{.Client.Version}}"], ["docker_server", "{{.Server.Version}}"]]) {
-    const version = await supervisor.run(tools.docker.real, ["--context", "orbstack", "version", "--format", template], {
+    const version = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "version", "--format", template], {
       stage: "toolchain",
       code: `${field}_version_failed`,
       timeoutMs: 10_000,
@@ -2021,7 +2039,7 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   const configPath = join(workdir, "supabase", "config.toml");
   writeFileSync(configPath, isolatedConfig(root.config, state.projectName, ports), { mode: 0o600, flag: "wx" });
   state.containerMutationAttempted = true;
-  await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "create", "--internal", "--opt", "com.docker.network.bridge.host_binding_ipv4=127.0.0.1", "--label", `evo.recovery.owner=${state.projectName}`, state.networkName], {
+  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "network", "create", "--internal", "--opt", "com.docker.network.bridge.host_binding_ipv4=127.0.0.1", "--label", `evo.recovery.owner=${state.projectName}`, state.networkName], {
     stage: "local_supabase_start",
     code: "isolated_network_create_failed",
     timeoutMs: 30_000,
@@ -2147,10 +2165,10 @@ export function validateContainerCensusIds(projectOutput, ownerOutput, { require
 async function containerCensus(supervisor, toolchain, projectName, { requireOwner = false, stage = "local_supabase_start" } = {}) {
   const common = ["--context", "orbstack", "ps", "--all", "--no-trunc", "--format", "{{.ID}}"];
   const [project, owner] = await Promise.all([
-    supervisor.run(toolchain.paths.docker.real, [...common, "--filter", `label=com.supabase.cli.project=${projectName}`], {
+    runDocker(supervisor, toolchain.paths.docker, [...common, "--filter", `label=com.supabase.cli.project=${projectName}`], {
       stage, code: "supabase_project_container_census_failed", timeoutMs: 30_000,
     }),
-    supervisor.run(toolchain.paths.docker.real, [...common, "--filter", `label=evo.recovery.owner=${projectName}`], {
+    runDocker(supervisor, toolchain.paths.docker, [...common, "--filter", `label=evo.recovery.owner=${projectName}`], {
       stage, code: "recovery_app_container_census_failed", timeoutMs: 30_000,
     }),
   ]);
@@ -2259,12 +2277,12 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
 }
 
 async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain) {
-  const networkResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "inspect", state.networkName], {
+  const networkResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "network", "inspect", state.networkName], {
     stage: "local_supabase_start", code: "local_supabase_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   const networkPayload = parsedJson(networkResult.stdout.toString("utf8"), "local_supabase_network_invalid", "local_supabase_start");
   const censusIds = await containerCensus(supervisor, toolchain, state.projectName);
-  const containerResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
+  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
     stage: "local_supabase_start", code: "local_supabase_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   return validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
@@ -2679,7 +2697,7 @@ function parseContainerEnvironment(entries) {
 
 async function localStorageBackend(state, supervisor, toolchain) {
   const containerName = `supabase_storage_${state.projectName}`;
-  const result = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", containerName], {
+  const result = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", containerName], {
     stage: "storage_restore",
     code: "storage_container_inspection_failed",
     timeoutMs: 30_000,
@@ -3467,7 +3485,7 @@ async function buildCandidateImage(repository, state, supervisor, toolchain) {
   state.appImageTag = `evo-v3-recovery-${state.projectName}:candidate`;
   const iidFile = join(state.harnessRoot, "candidate-image-id");
   state.containerMutationAttempted = true;
-  await supervisor.run(toolchain.paths.docker.real, [
+  await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "build",
     "--platform=linux/amd64",
     "--pull=false",
@@ -3495,7 +3513,7 @@ async function buildCandidateImage(repository, state, supervisor, toolchain) {
   const imageId = readFileSync(iidFile, "utf8").trim();
   if (!IMAGE.test(imageId)) fail("app_image_id_invalid", "image_verification");
   state.appImageId = imageId;
-  const inspected = await supervisor.run(toolchain.paths.docker.real, [
+  const inspected = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "image", "inspect", "--format", SAFE_IMAGE_INSPECT_FORMAT, imageId,
   ], {
     stage: "image_verification",
@@ -3569,11 +3587,11 @@ await import("/app/server.js");
 }
 
 async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain, image, appPort, appContainerId) {
-  const networkResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "network", "inspect", state.networkName], {
+  const networkResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "network", "inspect", state.networkName], {
     stage: "image_verification", code: "candidate_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   const censusIds = await containerCensus(supervisor, toolchain, state.projectName, { requireOwner: true, stage: "image_verification" });
-  const containerResult = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
+  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
     stage: "image_verification", code: "candidate_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   return validateCandidateNetworkAttachment(
@@ -3620,7 +3638,7 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
   };
   writeFileSync(envFile, `${Object.entries(environment).map(([key, value]) => `${key}=${value}`).join("\n")}\n`, { mode: 0o600, flag: "wx" });
   state.appContainer = `supabase_app_${state.projectName}`;
-  const started = await supervisor.run(toolchain.paths.docker.real, [
+  const started = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "run", "--detach", "--name", state.appContainer,
     "--label", `evo.recovery.owner=${state.projectName}`,
     "--network", state.networkName,
@@ -4043,10 +4061,10 @@ export function selectOwnedImageIds(output, projectName) {
 
 async function cleanupInventory(state, supervisor, tools, { allowAfterInterrupt = false, stage = "cleanup" } = {}) {
   const [containers, volumes, networks, images] = await Promise.all([
-    supervisor.run(tools.docker.real, ["--context", "orbstack", "ps", "--all", "--format", "{{.ID}}\t{{.Names}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt }),
-    supervisor.run(tools.docker.real, ["--context", "orbstack", "volume", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_volume_inventory_failed", allowAfterInterrupt }),
-    supervisor.run(tools.docker.real, ["--context", "orbstack", "network", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_network_inventory_failed", allowAfterInterrupt }),
-    supervisor.run(tools.docker.real, ["--context", "orbstack", "image", "ls", "--all", "--no-trunc", "--filter", `label=evo.recovery.owner=${state.projectName}`, "--format", "{{.ID}}\t{{.Repository}}:{{.Tag}}\t{{.Label \"evo.recovery.owner\"}}"], { stage, code: "cleanup_image_inventory_failed", allowAfterInterrupt }),
+    runDocker(supervisor, tools.docker, ["--context", "orbstack", "ps", "--all", "--format", "{{.ID}}\t{{.Names}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt }),
+    runDocker(supervisor, tools.docker, ["--context", "orbstack", "volume", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_volume_inventory_failed", allowAfterInterrupt }),
+    runDocker(supervisor, tools.docker, ["--context", "orbstack", "network", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_network_inventory_failed", allowAfterInterrupt }),
+    runDocker(supervisor, tools.docker, ["--context", "orbstack", "image", "ls", "--all", "--no-trunc", "--filter", `label=evo.recovery.owner=${state.projectName}`, "--format", "{{.ID}}\t{{.Repository}}:{{.Tag}}\t{{.Label \"evo.recovery.owner\"}}"], { stage, code: "cleanup_image_inventory_failed", allowAfterInterrupt }),
   ]);
   return Object.freeze({
     containers: selectOwnedContainerIds(containers.stdout.toString("utf8"), state.projectName),
@@ -4069,7 +4087,7 @@ export async function cleanupState(state, supervisor, toolchain) {
   if (descendantsDrained && targetsOwned && containerPolicy === "container_cleanup") {
     const run = async (args) => {
       try {
-        await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", ...args], { stage: "cleanup", code: "cleanup_command_failed", timeoutMs: 2 * 60 * 1_000, allowAfterInterrupt: true });
+        await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", ...args], { stage: "cleanup", code: "cleanup_command_failed", timeoutMs: 2 * 60 * 1_000, allowAfterInterrupt: true });
         return true;
       } catch {
         return false;

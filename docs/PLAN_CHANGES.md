@@ -18652,3 +18652,31 @@ is attempted. Official API reference:
 This clarification changes no runtime behavior and performs no Docker,
 managed Supabase, VPS, provider, webhook, production-traffic or customer
 mutation.
+
+## 2026-09-05 - Preserve the verified Docker frontend invocation name
+
+Block-ID: `EVO-V3-H-RECOVERY-DOCKER-ARGV0-2026-09-05`
+
+Change type: real recovery toolchain correctness correction.
+Affected plan section: Order 7 / Issue #551.
+
+The first exact-main recovery attempt after the OrbStack HOME correction
+stopped safely before container mutation. OrbStack's allowlisted `docker`
+frontend resolves to the multi-call `docker-tools` binary, which rejects direct
+execution when its process invocation name is `docker-tools`.
+
+Decision:
+
+- continue hashing and executing the resolved allowlisted OrbStack binary, but
+  set its process `argv[0]` to the exact literal `docker` for every Docker
+  command;
+- keep the explicit `--context orbstack` argument and the minimal child
+  environment; never substitute a PATH-resolved Docker binary or another
+  container context; and
+- cover the process-supervisor `argv[0]` contract and every centralized Docker
+  invocation with focused regression tests before another single real recovery
+  attempt.
+
+The failed attempt retained redacted mode-`0600` evidence and proved complete
+cleanup. This correction performs no managed Supabase, VPS, provider, webhook,
+production-traffic or customer mutation and does not activate a release.

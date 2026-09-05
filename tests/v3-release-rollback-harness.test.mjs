@@ -1,11 +1,56 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const source = readFileSync(
   new URL("../scripts/test-v3-release-rollback-orbstack.mjs", import.meta.url),
   "utf8",
 );
+
+test("preflight failure removes its owned temp contour and preserves the original error", () => {
+  const testRoot = mkdtempSync(join(tmpdir(), "evo-v3-rollback-preflight-test-"));
+  const binaryRoot = join(testRoot, "bin");
+  const harnessTemp = join(testRoot, "tmp");
+  mkdirSync(binaryRoot, { mode: 0o700 });
+  mkdirSync(harnessTemp, { mode: 0o700 });
+  const fakeOrb = join(binaryRoot, "orb");
+  writeFileSync(fakeOrb, "#!/bin/sh\nprintf 'Stopped\\n'\n", { mode: 0o700 });
+  chmodSync(fakeOrb, 0o700);
+  const environment = {
+    ...process.env,
+    EVO_RUN_V3_RELEASE_ROLLBACK_ORBSTACK: "1",
+    PATH: `${binaryRoot}:${process.env.PATH ?? ""}`,
+    TMPDIR: harnessTemp,
+  };
+  delete environment.DOCKER_HOST;
+  delete environment.DOCKER_CONTEXT;
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL("../scripts/test-v3-release-rollback-orbstack.mjs", import.meta.url))],
+      { encoding: "utf8", env: environment, timeout: 10_000 },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /OrbStack must report exactly Running/u);
+    assert.doesNotMatch(result.stderr, /ENOENT.*\.evo-v3-release-rollback-harness/u);
+    assert.deepEqual(readdirSync(harnessTemp), []);
+  } finally {
+    rmSync(testRoot, { recursive: true, force: true });
+  }
+});
 
 test("rollback harness is explicit opt-in and fails closed outside OrbStack", () => {
   assert.match(source, /EVO_RUN_V3_RELEASE_ROLLBACK_ORBSTACK/u);

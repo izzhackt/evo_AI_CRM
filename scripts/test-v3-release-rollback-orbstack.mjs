@@ -510,7 +510,6 @@ function writeHarnessFiles() {
   for (const directory of [releaseRoot, transferRoot, evidenceRoot, imageContext, toolRoot]) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
   }
-  writePrivateFile(markerPath, `${projectName}\n`);
 
   const environment = `EVO_CRM_DOMAIN=rollback-proof.invalid
 EVO_CADDY_NETWORK=${networkName}
@@ -701,6 +700,10 @@ function candidateEnvironment(wahaRepository, wahaDigest) {
 }
 
 async function run() {
+  // Establish deletion authority before any preflight can throw. Cleanup then
+  // preserves the original failure while still proving this exact temp root is
+  // owned by the current disposable run.
+  writePrivateFile(markerPath, `${projectName}\n`);
   assertOrbStackPreflight();
   assert.match(baselineRevision, SHA40);
   assert.match(candidateRevision, SHA40);

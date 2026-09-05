@@ -729,7 +729,7 @@ test("database TLS pins the reviewed Supabase CA bytes, fingerprint, and validit
     "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA",
   );
 
-  const root = mkdtempSync(join(tmpdir(), "evo-export-ca-test-"));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-export-ca-test-")));
   const changed = join(root, "changed.crt");
   try {
     writeFileSync(
@@ -862,7 +862,7 @@ function oneObjectInventory(size) {
   });
 }
 
-async function runDownloadCase({ size, body, idleTimeoutMs = 100 }) {
+async function runDownloadCase({ size, body, idleTimeoutMs = 100, declaredSize = size }) {
   const root = mkdtempSync(join(tmpdir(), "evo-export-download-test-"));
   try {
     return await downloadStorageObjects({
@@ -874,7 +874,7 @@ async function runDownloadCase({ size, body, idleTimeoutMs = 100 }) {
       idleTimeoutMs,
       fetchImpl: async () => new Response(body, {
         status: 200,
-        headers: { "content-length": String(size) },
+        headers: { "content-length": String(declaredSize) },
       }),
     });
   } finally {
@@ -920,6 +920,20 @@ test("Storage downloader fails closed on inactivity and oversized streams", asyn
     runDownloadCase({ size: 1, body: Uint8Array.of(1, 2) }),
     "storage_object_size_mismatch",
   );
+});
+
+test("Storage downloader cancels the body when Content-Length is invalid", async () => {
+  let cancelled = false;
+  const body = new ReadableStream({
+    cancel() {
+      cancelled = true;
+    },
+  });
+  await expectCodeAsync(
+    runDownloadCase({ size: 1, declaredSize: 2, body }),
+    "storage_object_size_invalid",
+  );
+  assert.equal(cancelled, true);
 });
 
 function receiptFixture() {

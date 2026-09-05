@@ -1420,6 +1420,12 @@ export async function downloadStorageObjects({
       declaredLength > MAX_STORAGE_OBJECT_BYTES ||
       (lengthHeader != null && declaredLength !== item.size)
     ) {
+      downloadController.abort(new ManagedSupabaseExportError("storage_object_size_invalid"));
+      try {
+        await response.body?.cancel();
+      } catch {
+        // The rejected response body is deliberately discarded.
+      }
       if (idleTimer) clearTimeout(idleTimer);
       fail("storage_object_size_invalid");
     }
@@ -2419,7 +2425,9 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       mode: 0o600,
       flag: "wx",
     });
-    temporaryDirectory = mkdtempSync(join(tmpdir(), "evo-v3-managed-export-"));
+    temporaryDirectory = realpathSync(
+      mkdtempSync(join(tmpdir(), "evo-v3-managed-export-")),
+    );
     chmodSync(temporaryDirectory, 0o700);
     writeFileSync(join(temporaryDirectory, RUN_MARKER), "managed-supabase-export\n", {
       mode: 0o600,
@@ -2629,7 +2637,9 @@ export async function runManagedSupabaseExport(argv, environment = process.env) 
   const removeSignalHandlers = registerSignalCleanup(abortController, state);
   let runtimeDirectory;
   try {
-    runtimeDirectory = mkdtempSync(join(tmpdir(), "evo-v3-managed-export-runtime-"));
+    runtimeDirectory = realpathSync(
+      mkdtempSync(join(tmpdir(), "evo-v3-managed-export-runtime-")),
+    );
     chmodSync(runtimeDirectory, 0o700);
     writeFileSync(join(runtimeDirectory, RUN_MARKER), "managed-supabase-export-runtime\n", {
       mode: 0o600,

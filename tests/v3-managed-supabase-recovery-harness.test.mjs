@@ -787,7 +787,6 @@ test("restored contour runs migration 115 and the real scanner-backed upload pat
   assert.match(source, /\/rest\/v1\/rpc\/document_storage_backup_inventory/u);
   assert.match(source, /finalLedger\.includes\("115"\)/u);
   assert.match(source, /clamav\/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9/u);
-  assert.match(source, /clamd-malware-scanner\.ts/u);
   assert.match(source, /EICAR-STANDARD-ANTIVIRUS-TEST-FILE/u);
   assert.match(source, /\/api\/v3\/company-files\/\$\{encodeURIComponent\(fileId\)\}\/versions/u);
   assert.match(source, /malware_scanner_eicar_persisted_state/u);
@@ -795,6 +794,70 @@ test("restored contour runs migration 115 and the real scanner-backed upload pat
   assert.match(source, /malware_scanner_recovered_persistence_invalid/u);
   assert.match(source, /unprovedCompanyFileBytesExposed: false/u);
   assert.match(source, /providersCalled: false/u);
+});
+
+test("scanner proof uses only exact app uploads and validates persisted attestations", () => {
+  const proofStart = source.indexOf("async function proveScannerDataPath");
+  const proofEnd = source.indexOf("function assertPlaintextScannerProof", proofStart);
+  const proofSource = source.slice(proofStart, proofEnd);
+  const attestationReadStart = source.indexOf("function readCompanyFileScannerAttestation");
+  const attestationReadEnd = source.indexOf(
+    "function createRecoveryTlsMaterial",
+    attestationReadStart,
+  );
+  const attestationReadSource = source.slice(attestationReadStart, attestationReadEnd);
+  const attestationValidationStart = source.indexOf("function assertPlaintextScannerProof", proofEnd);
+  const attestationValidationEnd = source.indexOf(
+    "function readCompanyFileScannerAttestation",
+    attestationValidationStart,
+  );
+  const attestationValidationSource = source.slice(
+    attestationValidationStart,
+    attestationValidationEnd,
+  );
+  assert.ok(proofStart > 0 && proofEnd > proofStart);
+  assert.ok(attestationReadStart > 0 && attestationReadEnd > attestationReadStart);
+  assert.ok(
+    attestationValidationStart > 0 && attestationValidationEnd > attestationValidationStart,
+  );
+
+  assert.equal(proofSource.match(/browserCompanyFileUpload\(/gu)?.length, 4);
+  assert.equal(proofSource.match(/readCompanyFileScannerAttestation\(/gu)?.length, 2);
+  assert.equal(proofSource.match(/assertScannerAttestation\(/gu)?.length, 2);
+  assert.doesNotMatch(source, /scannerProbeSource|scanWithProductClient/u);
+
+  assert.match(attestationReadSource, /psqlJson\(/u);
+  assert.match(
+    attestationReadSource,
+    /FROM platform_private\.company_file_malware_scan_attestations AS attestation/u,
+  );
+  assert.match(attestationReadSource, /attestation\.organization_id/u);
+  assert.match(attestationReadSource, /attestation\.company_file_id/u);
+  assert.match(attestationReadSource, /attestation\.company_file_version_id/u);
+  for (const column of [
+    "scanner_engine",
+    "scanner_engine_version",
+    "scanner_signature_version",
+    "scanner_protocol",
+    "scanned_at",
+    "scanned_sha256_hex",
+  ]) {
+    assert.match(attestationReadSource, new RegExp(`\\b${column}\\b`, "u"));
+  }
+  assert.match(proofSource, /clean\.payload\.companyFile\.sha256Hex !== sha256Text\(cleanBytes\)/u);
+  assert.match(
+    proofSource,
+    /recovered\.payload\.companyFile\.sha256Hex !== sha256Text\(recoveredBytes\)/u,
+  );
+  assert.match(attestationValidationSource, /proof\.engine !== "ClamAV"/u);
+  assert.match(attestationValidationSource, /proof\.protocol !== "clamd-zinstream-v1"/u);
+  assert.match(attestationValidationSource, /proof\.sha256Hex !== expectedSha256Hex/u);
+  assert.match(attestationValidationSource, /Date\.parse\(proof\.scannedAt/u);
+  assert.match(attestationValidationSource, /fail\(failureCode, "malware_scanner_proof"\)/u);
+  assert.match(proofSource, /malware_scanner_clean_attestation_invalid/u);
+  assert.match(proofSource, /malware_scanner_recovered_attestation_invalid/u);
+  assert.match(proofSource, /malware_scanner_eicar_persisted_state/u);
+  assert.match(proofSource, /malware_scanner_outage_persisted_state/u);
 });
 
 test("browser proof runs the exact production image and never starts Next dev", () => {

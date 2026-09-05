@@ -3988,33 +3988,7 @@ async function proveScannerDataPath(
   page,
   appUrl,
   scanner,
-  repositorySnapshotRoot,
 ) {
-  const directClean = scanWithProductClient(
-    scanner,
-    Buffer.from("EVO restored-contour scanner clean proof\n", "utf8"),
-    "clean",
-    repositorySnapshotRoot,
-  );
-  if (
-    !isRecord(directClean.proof) || directClean.proof.engine !== "ClamAV" ||
-    directClean.proof.protocol !== "clamd-zinstream-v1" ||
-    !SHA256_PATTERN.test(directClean.proof.sha256Hex)
-  ) {
-    fail("malware_scanner_clean_proof_invalid", "malware_scanner_proof");
-  }
-  assertPlaintextScannerProof(directClean.proof);
-  if (
-    scanWithProductClient(
-      scanner,
-      Buffer.from(EICAR, "ascii"),
-      "infected",
-      repositorySnapshotRoot,
-    ).outcome !== "infected"
-  ) {
-    fail("malware_scanner_eicar_not_blocked", "malware_scanner_proof");
-  }
-
   let companyFile = await createScannerProofCompanyFile(status, adminActor);
   const cleanBytes = Buffer.from("EVO recovery clean company file\n", "utf8");
   const clean = await browserCompanyFileUpload(
@@ -4028,10 +4002,23 @@ async function proveScannerDataPath(
   if (
     clean.status !== 201 || !isRecord(clean.payload?.companyFile) ||
     clean.payload.companyFile.companyFileId !== companyFile.id ||
-    typeof clean.payload.companyFile.fileVersion !== "string"
+    !UUID_PATTERN.test(clean.payload.companyFile.companyFileVersionId ?? "") ||
+    typeof clean.payload.companyFile.fileVersion !== "string" ||
+    clean.payload.companyFile.sha256Hex !== sha256Text(cleanBytes)
   ) {
     fail("malware_scanner_clean_data_path_failed", "malware_scanner_proof");
   }
+  const cleanProof = readCompanyFileScannerAttestation(
+    status,
+    adminActor.organizationId,
+    companyFile.id,
+    clean.payload.companyFile.companyFileVersionId,
+  );
+  assertScannerAttestation(
+    cleanProof,
+    sha256Text(cleanBytes),
+    "malware_scanner_clean_attestation_invalid",
+  );
   companyFile = Object.freeze({
     ...companyFile,
     version: clean.payload.companyFile.fileVersion,
@@ -4077,17 +4064,34 @@ async function proveScannerDataPath(
     stage: "malware_scanner_proof",
   });
   await waitForRecoveryScanner(scanner.containerName);
+  const recoveredBytes = Buffer.from("EVO recovery scanner restored proof\n", "utf8");
   const recovered = await browserCompanyFileUpload(
     page,
     appUrl,
     companyFile,
-    Buffer.from("EVO recovery scanner restored proof\n", "utf8"),
+    recoveredBytes,
     "recovery-restored.txt",
     randomUUID(),
   );
-  if (recovered.status !== 201 || !isRecord(recovered.payload?.companyFile)) {
+  if (
+    recovered.status !== 201 || !isRecord(recovered.payload?.companyFile) ||
+    recovered.payload.companyFile.companyFileId !== companyFile.id ||
+    !UUID_PATTERN.test(recovered.payload.companyFile.companyFileVersionId ?? "") ||
+    recovered.payload.companyFile.sha256Hex !== sha256Text(recoveredBytes)
+  ) {
     fail("malware_scanner_recovered_data_path_failed", "malware_scanner_proof");
   }
+  const recoveredProof = readCompanyFileScannerAttestation(
+    status,
+    adminActor.organizationId,
+    companyFile.id,
+    recovered.payload.companyFile.companyFileVersionId,
+  );
+  assertScannerAttestation(
+    recoveredProof,
+    sha256Text(recoveredBytes),
+    "malware_scanner_recovered_attestation_invalid",
+  );
   const afterRecovered = readScannerPersistenceState(status);
   for (const key of ["reservations", "finalizations", "versions", "proofs", "storageObjects"]) {
     if (afterRecovered[key] !== afterClean[key] + 1) {
@@ -4098,10 +4102,10 @@ async function proveScannerDataPath(
     image: scanner.image,
     network: scanner.network,
     publish: scanner.publish,
-    clean: "passed_with_attestation",
+    clean: "passed_with_persisted_attestation",
     eicar: "blocked_without_persistence",
     outage: "blocked_without_persistence",
-    recovery: "passed_with_attestation",
+    recovery: "passed_with_persisted_attestation",
   });
 }
 
@@ -4114,6 +4118,50 @@ function assertPlaintextScannerProof(proof) {
   ) {
     fail("malware_scanner_identity_invalid", "malware_scanner_proof");
   }
+}
+
+function assertScannerAttestation(proof, expectedSha256Hex, failureCode) {
+  if (
+    proof.engine !== "ClamAV" ||
+    proof.protocol !== "clamd-zinstream-v1" ||
+    proof.sha256Hex !== expectedSha256Hex ||
+    !Number.isFinite(Date.parse(proof.scannedAt ?? ""))
+  ) {
+    fail(failureCode, "malware_scanner_proof");
+  }
+  assertPlaintextScannerProof(proof);
+}
+
+function readCompanyFileScannerAttestation(
+  status,
+  organizationId,
+  companyFileId,
+  companyFileVersionId,
+) {
+  const proof = psqlJson(
+    status,
+    `SELECT coalesce((
+       SELECT json_build_object(
+         'engine', attestation.scanner_engine,
+         'engineVersion', attestation.scanner_engine_version,
+         'signatureVersion', attestation.scanner_signature_version,
+         'protocol', attestation.scanner_protocol,
+         'scannedAt', attestation.scanned_at,
+         'sha256Hex', attestation.scanned_sha256_hex
+       )
+       FROM platform_private.company_file_malware_scan_attestations AS attestation
+       WHERE attestation.organization_id = ${sqlLiteral(organizationId)}
+         AND attestation.company_file_id = ${sqlLiteral(companyFileId)}
+         AND attestation.company_file_version_id = ${sqlLiteral(companyFileVersionId)}
+     ), 'null'::json)::text`,
+    "malware_scanner_proof",
+    true,
+    "malware_scanner_attestation_query_failed",
+  );
+  if (!isRecord(proof)) {
+    fail("malware_scanner_attestation_missing", "malware_scanner_proof");
+  }
+  return Object.freeze(proof);
 }
 
 function createRecoveryTlsMaterial(state) {
@@ -4393,7 +4441,6 @@ async function proveV3BrowserAndReadiness(
           page,
           appUrl,
           scanner,
-          repositorySnapshotRoot,
         );
         if (roleServerProof.sales) {
           await page.goto(`${appUrl}/v3/pipeline`, { waitUntil: "domcontentloaded" });
@@ -4631,56 +4678,6 @@ async function startRecoveryScanner(state, port, repositorySnapshotRoot) {
     network: "unique_private_recovery_network",
     publish: "loopback_only",
   });
-}
-
-function scannerProbeSource(repositorySnapshotRoot) {
-  return String.raw`
-import {
-  ClamdScanError,
-  scanBytesWithClamd,
-} from "${join(repositorySnapshotRoot, "src", "lib", "server", "clamd-malware-scanner.ts")}";
-
-const bytes = Buffer.from(process.argv[1], "base64");
-const host = process.argv[2];
-const port = Number(process.argv[3]);
-const expected = process.argv[4];
-try {
-  const proof = await scanBytesWithClamd(bytes, { host, port, timeoutMs: 10_000 });
-  if (expected !== "clean") throw new Error("unexpected_clean_result");
-  process.stdout.write(JSON.stringify({ outcome: "clean", proof }));
-} catch (error) {
-  if (!(error instanceof ClamdScanError) || error.code !== expected) throw error;
-  process.stdout.write(JSON.stringify({ outcome: error.code }));
-}
-`;
-}
-
-function scanWithProductClient(scanner, bytes, expected, repositorySnapshotRoot) {
-  const output = execute(process.execPath, [
-    "--conditions=react-server",
-    "--experimental-strip-types",
-    "--input-type=module",
-    "--eval",
-    scannerProbeSource(repositorySnapshotRoot),
-    Buffer.from(bytes).toString("base64"),
-    scanner.host,
-    String(scanner.port),
-    expected,
-  ], {
-    timeout: 30_000,
-    code: "malware_scanner_product_client_failed",
-    stage: "malware_scanner_proof",
-  });
-  let parsed;
-  try {
-    parsed = JSON.parse(output);
-  } catch {
-    fail("malware_scanner_product_client_output_invalid", "malware_scanner_proof");
-  }
-  if (!isRecord(parsed) || parsed.outcome !== expected) {
-    fail("malware_scanner_product_client_outcome_invalid", "malware_scanner_proof");
-  }
-  return parsed;
 }
 
 function inspectLocalContainerState(containerName) {

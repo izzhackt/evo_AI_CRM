@@ -704,30 +704,17 @@ test("validates mutation response identity, optimistic version, and status", () 
   }
 });
 
-test("BW4 repository and actions use only Platform auth/Supabase seams", () => {
+test("BW4 repository uses only the Platform Supabase seam", () => {
   const workflowSource = readFileSync(
     new URL("../src/lib/platform-bw4-workflow.ts", import.meta.url),
-    "utf8",
-  );
-  const actionSource = readFileSync(
-    new URL("../src/lib/platform-bw4-actions.ts", import.meta.url),
     "utf8",
   );
 
   assert.match(workflowSource, /staff_conversation_bw4_workspace/);
   assert.match(workflowSource, /\.schema\("platform"\)/);
   assert.doesNotMatch(workflowSource, /\{ get: true \}/);
-  assert.match(actionSource, /requirePlatformMessagingActor/);
-  assert.match(actionSource, /create_decision_backlog_entry/);
-  assert.match(actionSource, /transition_decision_backlog_entry/);
-  assert.match(actionSource, /revalidatePath\("\/v3\/inbox"\)/);
-  assert.match(actionSource, /query\.set\("conversation", conversationId\)/);
-  assert.match(actionSource, /redirect\(`\$\{target\}#\$\{fragment\.toString\(\)\}`\)/);
-  assert.doesNotMatch(actionSource, /revalidatePath\([^\n]*\/whatsapp/);
-  for (const source of [workflowSource, actionSource]) {
-    assert.doesNotMatch(source, /from\s+["']\.\/db["']/);
-    assert.doesNotMatch(source, /from\s+["']\.\/auth["']/);
-    assert.doesNotMatch(source, /@\/lib\/db/);
-    assert.doesNotMatch(source, /getCurrentUser|requireAuth/);
-  }
+  assert.doesNotMatch(workflowSource, /from\s+["']\.\/db["']/);
+  assert.doesNotMatch(workflowSource, /from\s+["']\.\/auth["']/);
+  assert.doesNotMatch(workflowSource, /@\/lib\/db/);
+  assert.doesNotMatch(workflowSource, /getCurrentUser|requireAuth/);
 });

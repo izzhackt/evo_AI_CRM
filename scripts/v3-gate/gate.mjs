@@ -47,7 +47,7 @@ try {
       await page.locator("#staff-email").fill(adminEmail);
       await page.locator("#staff-password").fill(adminPassword);
       await page.locator('form[aria-labelledby="login-title"] button[type="submit"]').click();
-      await page.getByTestId("open-role-workspace").waitFor();
+      await page.getByTestId("v3-shell").waitFor();
 
       for (const route of routes) {
         await page.goto(`${base}${route}`, { waitUntil: "networkidle" });

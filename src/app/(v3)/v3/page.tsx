@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { fixedRoleHomeRoute } from "@/lib/fixed-role-policy";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
 
 /**
@@ -11,5 +12,5 @@ import { requirePlatformStaffActor } from "@/lib/platform-guards";
  */
 export default async function V3Root() {
   const actor = await requirePlatformStaffActor();
-  redirect(actor.presentationRole === "admissions" ? "/v3/calendar" : "/v3/main");
+  redirect(fixedRoleHomeRoute(actor.presentationRole));
 }

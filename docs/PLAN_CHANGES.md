@@ -17320,3 +17320,135 @@ Decision:
   editor. The command-shape clarification does not change role access,
   historical-link preservation, student-portal scope or the one-authority and
   non-production validation gates in the preceding entry.
+
+## 2026-09-05 - Define the #600 sole-V3 route and retirement boundary
+
+Block-ID: `EVO-V3-G-SOLE-UI-2026-09-05`
+
+Change type: implementation clarification.
+Affected plan section: Order 6 / Issue #600.
+
+The replacement inventory found two live outcomes behind routes that #600
+otherwise describes as legacy: the canonical-Supabase dashboard still reads
+real server projections, and `/clients/:id` still exposes contract draft/report
+commands. It also found provider-readiness browser proof coupled to that client
+route. Deleting those paths before outcome replacement would violate the
+replace-not-layer rule even though the V3 workflow slices themselves are
+complete.
+
+Decision:
+
+- keep the proved `/v3/*` module URLs. Make `/` the only authenticated entry
+  dispatcher: Admin and Sales enter `/v3/main`, Admissions enters
+  `/v3/calendar`, and `/v3` uses the same role-home helper. Do not create a
+  second prefixless copy of the V3 routes;
+- preserve logout and exact Admin role preview in the V3 shell. Distinguish the
+  real authority role from the selected presentation role: mutations continue
+  to authorize the real Supabase staff identity, while navigation and direct
+  page access fail closed against the exact previewed interface;
+- move every currently reachable contract-draft/report outcome and its existing
+  server actions into V3 Student 360 before deleting `/clients/:id`. Prove the
+  required dashboard outcomes in `/v3/main`, move provider-readiness browser
+  inventory to the V3 case surface, and retain the canonical dashboard and
+  contract server readers rather than rebuilding them;
+- after focused application/browser proof, delete the remaining V2 staff route
+  tree, frozen portal UI/facade and client-login routing, proven orphan UI/action
+  wrappers, obsolete V2 revalidation targets and their implementation tests.
+  Retired staff and portal URLs return the hidden not-found boundary; they do
+  not redirect to, import or fall back through the old UI;
+- retain `src/lib/server`, the canonical Supabase schema and migrations, event
+  bus, gate/handoff engines, and the private P6C operations API/server path.
+  Normalize CI/release inventories and labels to the sole retained app, but
+  leave deployment automation, schema apply, provider enablement, webhook
+  ownership and production mutation to their explicitly assigned later gates;
+- validate with focused route/role/action/inventory tests, one real local
+  OrbStack Supabase/PostgreSQL application-and-browser run, an independent
+  exact-head review and one exact-head CI pass. Missing canonical data or
+  services must stop clearly; no compatibility route or fixture business
+  acceptance is allowed.
+
+## 2026-09-05 - Preserve case discovery and operational attention in the sole V3 UI
+
+Block-ID: `EVO-V3-G-CASE-DISCOVERY-DASHBOARD-PARITY-2026-09-05`
+
+Change type: acceptance clarification.
+Affected plan section: Order 6 / Issue #600.
+
+The pre-deletion outcome inventory found two additional gaps in the proposed
+sole-V3 tree. The removed `/clients` list was the only interface that could
+search and page through arbitrary authorized Student Cases, including closed
+cases, while the current V3 profile picker reads only its first six records.
+The canonical Supabase dashboard reader also still produces role-scoped
+cross-module attention counts that the period funnel alone does not render.
+Deleting those outcomes would make the new interface smaller than the proved
+product even though the underlying authority remains correct.
+
+Decision:
+
+- add a V3-native Student 360 case directory using the existing canonical
+  `listPlatformStudentCases` boundary. Preserve strict name, route, country and
+  UUID search, the pending/active/closed filters, bounded keyset pagination and
+  direct links to exact authorized cases. Invalid or ambiguous query shapes
+  fail closed and never substitute the first visible record;
+- render the existing role-scoped `readPlatformDashboardSnapshot` on
+  `/v3/main` alongside its period funnel so Sales overdue/unassigned work,
+  Student 360 attention, Admissions overdue tasks, Finance stops and open
+  WhatsApp queues remain visible without recreating their business logic;
+- delete the old `/clients` and `/dashboard` screens only in the same candidate
+  that proves these V3 outcomes through focused tests and the real local
+  database/application/browser gate. This clarification creates no temporary
+  coexistence, alternate data authority, provider call, schema change or
+  production mutation.
+
+## 2026-09-05 - Render operational queues on each role home
+
+Block-ID: `EVO-V3-G-ROLE-HOME-OPERATIONS-2026-09-05`
+
+Change type: acceptance correction.
+Affected plan section: Order 6 / Issue #600.
+
+The first parity clarification named only `/v3/main`, but the fixed V3 route
+contract intentionally sends Admissions to `/v3/calendar` and denies that role
+the Sales-only main route. Leaving the projection only on `/v3/main` would make
+Admissions task, finance, case-attention and WhatsApp outcomes unreachable for
+the staff responsible for them.
+
+Decision:
+
+- render the same existing role-scoped canonical operational snapshot on both
+  V3 role homes: `/v3/main` for Admin/Sales and `/v3/calendar` for Admissions;
+- keep the Sales period funnel on `/v3/main` and do not widen its route
+  permission; Admin role preview therefore lands on and sees the exact selected
+  role home while all readers continue to authorize the real staff actor;
+- this corrects presentation only. It adds no repository, fallback, provider
+  call, schema change or production mutation.
+
+## 2026-09-05 - Make Student 360 landing and role preview exact
+
+Block-ID: `EVO-V3-G-STUDENT-360-LANDING-2026-09-05`
+
+Change type: acceptance correction.
+Affected plan section: Order 6 / Issue #600.
+
+The replacement review found that bare `/v3/profile` still selected the first
+of six records, UUID text was not connected to the RPC's exact case-id filter,
+and Admin preview could receive full Admin rows while presenting the Sales UI.
+Those behaviors made the new directory misleading and could expose fields or
+links absent from the selected role surface.
+
+Decision:
+
+- bare `/v3/profile` is the open Student 360 directory. Only one exact `id` or
+  `case` parameter opens a profile; identity plus directory parameters,
+  duplicate values and mixed identities fail closed without substituting a
+  record;
+- a syntactically valid UUID search binds only `p_student_case_id`; ordinary
+  text binds only `p_query`. The two filters are mutually exclusive and use the
+  existing RLS-protected RPC;
+- Admin preview is a role-surface preview, not staff impersonation. Readers keep
+  Admin authority scope, while V3 down-projects every row to the selected
+  role's fields, actions and valid links. Sales-shaped case rows expose only the
+  handoff summary and open the canonical related lead, never a case-only view;
+- preserve the exact role-specific RLS proof for real Sales and Admissions
+  identities in the real local database/browser gate. No schema, provider or
+  production state changes here.

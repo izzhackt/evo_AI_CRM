@@ -12,11 +12,12 @@ import {
   parsePlatformRouteUuid,
   type PlatformConversationCursor,
 } from "@/lib/platform-communications";
-import { requirePlatformMessagingActor } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   readInbox,
   type InboxAmoCrmCommand,
 } from "@/lib/v3/inbox-source";
+import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Входящие" };
@@ -45,7 +46,7 @@ export default async function InboxPart({
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
   const [query, actor, locale] = await Promise.all([
     searchParams,
-    requirePlatformMessagingActor(),
+    requireV3PageActor("/v3/inbox"),
     getLocale(),
   ]);
   assertExpectedQueryKeys(query);
@@ -96,13 +97,10 @@ export default async function InboxPart({
       />
     );
     amoCrmControls = renderAmoCrmControls(model.amoCrmCommand, locale);
-    if (
-      (actor.presentationRole === "admin" ||
-        actor.presentationRole === "sales") &&
-      selected.canonicalContext.leadId
-    ) {
-      profileHref = `/v3/profile?id=${selected.canonicalContext.leadId}`;
-    }
+    profileHref = v3InboxProfileHref(
+      actor.presentationRole,
+      selected.canonicalContext,
+    );
   }
 
   return (

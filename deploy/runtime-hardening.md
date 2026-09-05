@@ -1,6 +1,6 @@
 # EVO production-successor runtime hardening
 
-This is the active V2 runtime contract for root `docker-compose.prod.yml` and
+This is the active V3 runtime contract for root `docker-compose.prod.yml` and
 `docker-compose.staging.yml`. It does not authorize a deployment. The
 superseded V1/companion record is retained at
 [`docs/archive/v1/runtime-hardening.md`](../docs/archive/v1/runtime-hardening.md).

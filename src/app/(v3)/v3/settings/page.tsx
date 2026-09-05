@@ -1,7 +1,7 @@
 import { PartShell } from "@/components/v3/PartShell";
 import { Settings } from "@/components/v3/settings/Settings";
 import { isSectionKey } from "@/components/v3/settings/types";
-import { requirePlatformCapability } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import { normalizeJournalFilters } from "@/lib/v3/settings-journal-contract";
 import {
   readAuditExportEnabled,
@@ -30,8 +30,8 @@ export default async function SettingsPart({
     objectType: params.object,
     role: params.role,
   });
-  const actor = await requirePlatformCapability("admin.preview", "/v3/settings");
-  const isAdmin = actor.authorityRole === "admin" && actor.presentationRole === "admin";
+  const actor = await requireV3PageActor("/v3/settings");
+  const isAdmin = actor.presentationRole === "admin";
 
   const [health, integrations, journal, journalFacets, gates, platform] = await Promise.all([
     readHealth(actor),

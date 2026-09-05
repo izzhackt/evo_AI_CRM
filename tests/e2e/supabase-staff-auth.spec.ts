@@ -28,6 +28,12 @@ const PROFILES = [
 
 type TestRole = (typeof PROFILES)[number]["role"];
 
+const ROLE_DASHBOARD_CARD_KEYS = {
+  admin: ["sales", "clients", "tasks", "finance", "whatsapp"],
+  sales: ["sales", "whatsapp"],
+  admissions: ["clients", "tasks", "finance", "whatsapp"],
+} as const satisfies Readonly<Record<TestRole, readonly string[]>>;
+
 const ORGANIZATION_DATE = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Bishkek",
   year: "numeric",
@@ -286,7 +292,7 @@ async function submitLogin(page: Page, email: string, password: string) {
 async function signIn(page: Page, role: TestRole) {
   const credentials = profile(role);
   await submitLogin(page, credentials.email, credentials.password);
-  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
+  await expect(page.getByTestId("v3-shell")).toBeVisible();
 }
 
 async function expectActiveRole(
@@ -304,15 +310,27 @@ async function expectActiveRole(
   );
 }
 
+async function expectOperationalDashboardCards(page: Page, role: TestRole) {
+  const dashboard = page.getByTestId("v3-operational-dashboard");
+  await expect(dashboard).toBeVisible();
+  const cards = dashboard.locator("[data-dashboard-card]");
+  await expect(cards).toHaveCount(ROLE_DASHBOARD_CARD_KEYS[role].length);
+  const actualKeys = await cards.evaluateAll((elements) =>
+    elements
+      .map((element) => element.getAttribute("data-dashboard-card"))
+      .sort(),
+  );
+  expect(actualKeys).toEqual([...ROLE_DASHBOARD_CARD_KEYS[role]].sort());
+}
+
 async function expectDirectRouteDenied(
   page: Page,
   path:
-    | "/sales"
-    | "/clients"
-    | "/applications"
-    | "/documents"
+    | "/v3/main"
+    | "/v3/pipeline"
+    | "/v3/calendar"
     | "/v3/knowledge"
-    | "/settings",
+    | "/v3/settings",
 ) {
   await page.goto(path);
   await expect(page).toHaveURL(
@@ -322,64 +340,53 @@ async function expectDirectRouteDenied(
 
 async function expectDirectRouteAllowed(
   page: Page,
-  path: "/sales" | "/clients" | "/settings",
+  path:
+    | "/v3/main"
+    | "/v3/pipeline"
+    | "/v3/inbox"
+    | "/v3/profile"
+    | "/v3/calendar"
+    | "/v3/knowledge"
+    | "/v3/settings",
 ) {
   await page.goto(path);
   await expect(page).toHaveURL(new RegExp(`${path}$`));
 }
 
-async function expectDashboardQueues(
-  page: Page,
-  visible: readonly ("sales" | "clients" | "tasks" | "finance" | "whatsapp")[],
-) {
-  const allQueues = [
-    "sales",
-    "clients",
-    "tasks",
-    "finance",
-    "whatsapp",
-  ] as const;
-
-  await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByTestId("dashboard-page")).toBeVisible();
-  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(
-    0,
-  );
-
-  for (const queue of allQueues) {
-    await expect(page.getByTestId(`dashboard-queue-link-${queue}`)).toHaveCount(
-      visible.includes(queue) ? 1 : 0,
-    );
-  }
-}
-
 async function expectExactSupabaseSalesRead(
   page: Page,
   leadId: string,
-  clientId: string,
 ) {
-  await page.goto(`/sales?q=${encodeURIComponent(leadId)}`);
-  await expect(page.getByTestId("platform-sales-page")).toBeVisible();
-  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(
-    0,
-  );
+  await page.goto("/v3/pipeline");
+  await expect(
+    page.getByRole("heading", { name: "Воронка продаж", exact: true }),
+  ).toBeVisible();
 
-  const rows = page.getByTestId("canonical-lead-row");
-  await expect(rows).toHaveCount(1);
-  const exactRow = page.locator(
-    `[data-testid="canonical-lead-row"][data-lead-id="${leadId}"]`,
+  const workflowPanel = page.locator(
+    `[data-testid="v3-pipeline-decision"][data-lead-id="${leadId}"]`,
   );
-  await expect(exactRow).toBeVisible();
-  await expect(exactRow).toHaveAttribute("data-workflow-version", "7");
-  await expect(exactRow).toContainText(clientId);
+  await expect(workflowPanel).toBeVisible();
+  await workflowPanel.locator("summary").click();
+  await expect(
+    workflowPanel.locator('input[name="expected_version"]'),
+  ).toHaveValue("7");
 
-  await exactRow.locator(`a[href="/v3/profile?id=${leadId}"]`).click();
+  const exactLead = workflowPanel.locator("xpath=ancestor::article");
+  await expect(exactLead).toContainText(
+    "Verify authenticated Supabase Sales read path",
+  );
+  await exactLead.locator(`a[href="/v3/profile?id=${leadId}"]`).click();
   await expect(page).toHaveURL(new RegExp(`/v3/profile\\?id=${leadId}$`));
   await expect(page.getByTestId("v3-profile")).toHaveAttribute(
     "data-lead-id",
     leadId,
   );
+  await expect(
+    page.getByRole("heading", {
+      name: "EVO P2B Isolated Sales Proof",
+      exact: true,
+    }),
+  ).toBeVisible();
 }
 
 function isSupabaseAuthCookie(name: string): boolean {
@@ -437,6 +444,7 @@ test("all three real identities persist, enforce role routes, and log out", asyn
   for (const candidate of PROFILES) {
     await signIn(page, candidate.role);
     await expectActiveRole(page, candidate.role);
+    await expectOperationalDashboardCards(page, candidate.role);
     await expect(page.getByTestId("active-role")).toHaveText(candidate.label);
     await expect
       .poll(async () =>
@@ -456,7 +464,7 @@ test("all three real identities persist, enforce role routes, and log out", asyn
   }
 });
 
-test("retired P6B staff and API routes are absent from the authenticated runtime", async ({
+test("retired V2 staff and API routes are absent from the authenticated runtime", async ({
   page,
 }) => {
   test.skip(authMode !== "configured");
@@ -464,9 +472,29 @@ test("retired P6B staff and API routes are absent from the authenticated runtime
   await signIn(page, "admin");
   await expectActiveRole(page, "admin");
 
-  for (const path of ["/calls", "/chat", "/notifications", "/reports"] as const) {
+  for (const path of [
+    "/dashboard",
+    "/sales",
+    "/clients",
+    "/applications",
+    "/documents",
+    "/visa",
+    "/finance",
+    "/tasks",
+    "/settings",
+    "/portal",
+    "/calls",
+    "/chat",
+    "/whatsapp",
+    "/notifications",
+    "/reports",
+    "/sales/legacy",
+    "/portal/legacy",
+  ] as const) {
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(404);
+    expect(new URL(page.url()).pathname, path).toBe(path);
+    await expect(page.getByTestId("v3-shell")).toHaveCount(0);
   }
 
   for (const path of [
@@ -485,29 +513,24 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
 
   await signIn(page, "sales");
   await expectActiveRole(page, "sales");
-  await expect(page.getByTestId("open-role-workspace")).toHaveAttribute(
-    "href",
-    "/sales",
-  );
-  for (const path of [
-    "/clients",
-    "/applications",
-    "/documents",
-    "/v3/knowledge",
-    "/settings",
-  ] as const) {
+  await expect(page).toHaveURL(/\/v3\/main$/);
+  for (const path of ["/v3/calendar", "/v3/knowledge", "/v3/settings"] as const) {
     await expectDirectRouteDenied(page, path);
+  }
+  for (const path of ["/v3/main", "/v3/pipeline", "/v3/inbox"] as const) {
+    await expectDirectRouteAllowed(page, path);
   }
 
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await expectActiveRole(page, "admissions");
-  await expect(page.getByTestId("open-role-workspace")).toHaveAttribute(
-    "href",
-    "/clients",
-  );
-  await expectDirectRouteDenied(page, "/sales");
-  await expectDirectRouteDenied(page, "/settings");
+  await expect(page).toHaveURL(/\/v3\/calendar$/);
+  await expectDirectRouteDenied(page, "/v3/main");
+  await expectDirectRouteDenied(page, "/v3/pipeline");
+  await expectDirectRouteDenied(page, "/v3/settings");
+  await expectDirectRouteAllowed(page, "/v3/calendar");
+  await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expectDirectRouteAllowed(page, "/v3/inbox");
 });
 
 test("Admin downloads the canonical audit CSV while Sales is denied", async ({
@@ -572,11 +595,10 @@ test("Sales reads the exact Supabase RLS queue and detail while Admissions is de
 }) => {
   test.skip(authMode !== "configured");
   const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
-  const clientId = requireUuid("EVO_SUPABASE_SALES_PROOF_CLIENT_ID");
 
   await signIn(page, "sales");
   await expectActiveRole(page, "sales");
-  await expectExactSupabaseSalesRead(page, leadId, clientId);
+  await expectExactSupabaseSalesRead(page, leadId);
 
   await page.context().clearCookies();
   await signIn(page, "admissions");
@@ -926,6 +948,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   test.skip(authMode !== "configured");
   test.setTimeout(240_000);
   const leadId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_LEAD_ID");
+  const clientId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_CLIENT_ID");
   const [salesToken, admissionsToken, adminToken] = await Promise.all([
     localSupabaseAccessToken("sales"),
     localSupabaseAccessToken("admissions"),
@@ -1041,12 +1064,128 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const caseLink = adminHandoff.getByRole("link", { name: "Открыть дело" });
   const caseHref = `/v3/profile?case=${studentCaseId}&tab=overview`;
   await expect(caseLink).toHaveAttribute("href", caseHref);
-  await caseLink.click();
+
+  await page.goto(`/v3/profile?id=${leadId}&case_q=${studentCaseId}`);
+  await expect(page.getByText(
+    "Профиль не открыт: адрес должен содержать только один точный идентификатор без параметров каталога.",
+  )).toBeVisible();
+  await expect(page.getByTestId("v3-student-case-directory")).toHaveCount(0);
+  await expect(page.getByTestId("v3-student-case-row")).toHaveCount(0);
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+
+  await page.goto(`/v3/profile?case_q=${studentCaseId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/v3/profile\\?case_q=${studentCaseId}$`),
+  );
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+  const caseRows = page.getByTestId("v3-student-case-row");
+  await expect(caseRows).toHaveCount(1);
+  const exactCaseRow = page.locator(
+    `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
+  );
+  await expect(exactCaseRow).toBeVisible();
+  await expect(exactCaseRow).toHaveAttribute("data-access", "full");
+  const exactCaseLink = exactCaseRow.locator(`a[href="${caseHref}"]`);
+  await expect(exactCaseLink).toHaveCount(1);
+
+  await page.getByTestId("preview-role-sales").click();
+  await expectActiveRole(page, "sales", "admin");
+  await page.goto(`/v3/profile?case_q=${studentCaseId}`);
+  const salesPreviewCaseRow = page.locator(
+    `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
+  );
+  await expect(salesPreviewCaseRow).toHaveAttribute(
+    "data-access",
+    "sales_summary",
+  );
+  await expect(salesPreviewCaseRow.locator(`a[href="${caseHref}"]`)).toHaveCount(0);
+  await expect(
+    salesPreviewCaseRow.locator(`a[href="/v3/profile?id=${leadId}"]`),
+  ).toHaveCount(1);
+  await page.goto(caseHref);
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+
+  await page.getByTestId("preview-role-admin").click();
+  await expectActiveRole(page, "admin");
+  await page.goto(`/v3/profile?case_q=${studentCaseId}`);
+  const restoredCaseRow = page.locator(
+    `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
+  );
+  await expect(restoredCaseRow).toHaveAttribute("data-access", "full");
+  await restoredCaseRow.locator(`a[href="${caseHref}"]`).click();
   await expect(page).toHaveURL(new RegExp(
     `/v3/profile\\?case=${studentCaseId}&tab=overview$`,
   ));
   await expect(page.getByTestId("v3-profile")).toBeVisible();
   await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
+
+  const contractHref = `/v3/profile?case=${studentCaseId}&tab=contract`;
+  const contractTab = page.getByRole("link", { name: "Договор", exact: true });
+  await expect(contractTab).toHaveAttribute("href", contractHref);
+  await contractTab.click();
+  await expect(page).toHaveURL(new RegExp(
+    `/v3/profile\\?case=${studentCaseId}&tab=contract$`,
+  ));
+  expect(new URL(page.url()).pathname).toBe("/v3/profile");
+
+  const contractProfile = page.getByTestId("v3-profile-contract-workspace");
+  await expect(contractProfile).toBeVisible();
+  await expect(contractProfile).toHaveAttribute(
+    "data-student-case-id",
+    studentCaseId,
+  );
+  const canonicalHandoff = contractProfile.getByTestId(
+    "canonical-student-case-handoff",
+  );
+  await expect(canonicalHandoff).toContainText(studentCaseId);
+  await expect(canonicalHandoff).toContainText(leadId);
+  await expect(canonicalHandoff).toContainText(clientId);
+
+  const draftReportWorkspace = contractProfile.getByTestId(
+    "platform-contract-draft-report-workspace",
+  );
+  await expect(draftReportWorkspace).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByRole("heading", {
+      name: "Договор и постдоговорный отчёт",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByTestId("platform-contract-template-list"),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByTestId("platform-contract-draft-list"),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByTestId("platform-post-contract-item-list"),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByTestId("platform-post-contract-report-list"),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByText("Нет утверждённого реального шаблона", {
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  const templatePanel = draftReportWorkspace.getByTestId(
+    "platform-contract-template-create-panel",
+  );
+  await templatePanel.locator("summary").click();
+  const templateForm = templatePanel.getByTestId(
+    "platform-contract-template-create-form",
+  );
+  await expect(templateForm).toBeVisible();
+  await expect(
+    templateForm.locator('input[name="student_case_id"]'),
+  ).toHaveValue(studentCaseId);
+  await expect(
+    templateForm.getByRole("button", {
+      name: "Создать неизменяемую версию",
+      exact: true,
+    }),
+  ).toBeDisabled();
 
   assertDeniedRpc(
     await directPlatformRpc(
@@ -2022,30 +2161,30 @@ test("Admin preview changes only the effective interface, not Supabase authority
 }) => {
   test.skip(authMode !== "configured");
   const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
-  const clientId = requireUuid("EVO_SUPABASE_SALES_PROOF_CLIENT_ID");
 
   await signIn(page, "admin");
   await expectActiveRole(page, "admin");
-  await expectExactSupabaseSalesRead(page, leadId, clientId);
-  await page.goto("/settings");
-  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
-  await page.goto("/");
+  await expectExactSupabaseSalesRead(page, leadId);
+  await page.goto("/v3/settings");
+  await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
+  await expect(page).toHaveURL(/\/v3\/main$/);
   await expect(page.getByTestId("preview-active")).toBeVisible();
-  await expectExactSupabaseSalesRead(page, leadId, clientId);
-  await expectDirectRouteAllowed(page, "/clients");
-  await expectDirectRouteAllowed(page, "/settings");
-  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
+  await expectExactSupabaseSalesRead(page, leadId);
+  await expectDirectRouteAllowed(page, "/v3/pipeline");
+  await expectDirectRouteDenied(page, "/v3/calendar");
+  await expectDirectRouteDenied(page, "/v3/knowledge");
+  await expectDirectRouteDenied(page, "/v3/settings");
 
-  await expectDashboardQueues(page, ["sales", "whatsapp"]);
-
-  await page.goto("/");
   await page.getByTestId("preview-role-admissions").click();
   await expectActiveRole(page, "admissions", "admin");
-  await expectDirectRouteAllowed(page, "/settings");
-  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
+  await expect(page).toHaveURL(/\/v3\/calendar$/);
+  await expectDirectRouteDenied(page, "/v3/main");
+  await expectDirectRouteDenied(page, "/v3/pipeline");
+  await expectDirectRouteDenied(page, "/v3/settings");
+  await expectDirectRouteAllowed(page, "/v3/knowledge");
   await page.goto(`/v3/profile?id=${leadId}`);
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
@@ -2053,25 +2192,11 @@ test("Admin preview changes only the effective interface, not Supabase authority
       "Такого человека в базе нет. Показывать вместо него другого мы не будем.",
     ),
   ).toBeVisible();
-  await expectDashboardQueues(page, [
-    "clients",
-    "tasks",
-    "finance",
-    "whatsapp",
-  ]);
-
-  await page.goto("/");
   await page.getByTestId("preview-role-admin").click();
   await expectActiveRole(page, "admin", "admin");
-  await expectDashboardQueues(page, [
-    "sales",
-    "clients",
-    "tasks",
-    "finance",
-    "whatsapp",
-  ]);
-  await page.goto("/settings");
-  await expect(page.getByTestId("fixed-role-settings")).toBeVisible();
+  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expectDirectRouteAllowed(page, "/v3/settings");
+  await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 });
 
 test("an expired or removed browser session fails closed with no fallback", async ({
@@ -2081,9 +2206,9 @@ test("an expired or removed browser session fails closed with no fallback", asyn
   await signIn(page, "sales");
 
   await page.context().clearCookies();
-  await page.goto("/sales");
+  await page.goto("/v3/main");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByTestId("staff-entry-workspace")).toHaveCount(0);
+  await expect(page.getByTestId("v3-shell")).toHaveCount(0);
 });
 
 test("missing Supabase configuration stays unavailable instead of falling back", async ({

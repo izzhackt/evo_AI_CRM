@@ -22,34 +22,53 @@ type FixedRole = "admin" | "sales" | "admissions";
 
 const ROLE_ROUTES: Readonly<Record<FixedRole, readonly string[]>> = {
   admin: [
-    "/sales",
-    "/clients",
-    "/applications",
-    "/documents",
-    "/visa",
-    "/finance",
-    "/tasks",
+    "/v3/main",
+    "/v3/pipeline",
     "/v3/inbox",
-    "/settings",
+    "/v3/profile",
+    "/v3/calendar",
+    "/v3/knowledge",
+    "/v3/settings",
   ],
-  sales: ["/sales", "/v3/inbox"],
+  sales: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile"],
   admissions: [
-    "/clients",
-    "/applications",
-    "/documents",
-    "/visa",
-    "/finance",
-    "/tasks",
     "/v3/inbox",
+    "/v3/profile",
+    "/v3/calendar",
+    "/v3/knowledge",
   ],
 };
 
 /** A denied route for each role, so the access-denied surface is covered too. */
 const ROLE_DENIED_ROUTE: Readonly<Record<FixedRole, string | null>> = {
   admin: null,
-  sales: "/clients",
-  admissions: "/sales",
+  sales: "/v3/calendar",
+  admissions: "/v3/pipeline",
 };
+
+const ROLE_HOME: Readonly<Record<FixedRole, string>> = {
+  admin: "/v3/main",
+  sales: "/v3/main",
+  admissions: "/v3/calendar",
+};
+
+const RETIRED_UI_ROUTES = [
+  "/dashboard",
+  "/sales",
+  "/clients",
+  "/applications",
+  "/documents",
+  "/visa",
+  "/finance",
+  "/tasks",
+  "/settings",
+  "/portal",
+  "/calls",
+  "/chat",
+  "/whatsapp",
+  "/notifications",
+  "/reports",
+] as const;
 
 function credentials(role: FixedRole) {
   const prefix = `EVO_STAFF_AUTH_${role.toUpperCase()}`;
@@ -61,11 +80,7 @@ function credentials(role: FixedRole) {
   return { email, password };
 }
 
-async function signInAsStaff(
-  page: Page,
-  role: FixedRole,
-  { stayOnEntry = false }: { stayOnEntry?: boolean } = {},
-) {
+async function signInAsStaff(page: Page, role: FixedRole) {
   const { email, password } = credentials(role);
   await page.context().clearCookies();
   await page.goto("/login");
@@ -74,11 +89,12 @@ async function signInAsStaff(
   await page
     .locator('form[aria-labelledby="login-title"] button[type="submit"]')
     .click();
-  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
-  // The entry page is a surface in its own right; callers auditing it stop here
-  // rather than continuing into the staff shell.
-  if (stayOnEntry) return;
-  await page.getByTestId("open-role-workspace").click();
+  await expect(page).toHaveURL(new RegExp(`${ROLE_HOME[role]}$`));
+  await expect(page.getByTestId("v3-shell")).toBeVisible();
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-role",
+    role,
+  );
 }
 
 async function expectNoAutomatedWcagViolations(page: Page, context: string) {
@@ -163,43 +179,39 @@ for (const role of ["admin", "sales", "admissions"] as const) {
   });
 }
 
-test("the unauthenticated gate and the entry page meet the WCAG A/AA gate", async ({
+test("the unauthenticated gate and authenticated V3 root meet the WCAG A/AA gate", async ({
   page,
 }) => {
-  // These two carry the brand surfaces -- the isometric field and the large
-  // mark -- and neither was analysed before, so a decorative regression on
-  // either could not fail this gate. /login is also the only page a person
-  // sees before authenticating.
-  await page.goto("/login");
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   await expect(page.locator("main")).toBeVisible();
   await expectExactlyOneMainHeading(page, "login");
   await expectNoDocumentOverflow(page, "login");
   await expectNoAutomatedWcagViolations(page, "login");
   await expectContrastActuallyChecked(page, "login");
 
-  await signInAsStaff(page, "admin", { stayOnEntry: true });
-  await expectExactlyOneMainHeading(page, "entry");
-  await expectNoDocumentOverflow(page, "entry");
-  await expectNoAutomatedWcagViolations(page, "entry");
-  await expectContrastActuallyChecked(page, "entry");
+  await signInAsStaff(page, "admin");
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expectExactlyOneMainHeading(page, "authenticated V3 root");
+  await expectNoDocumentOverflow(page, "authenticated V3 root");
+  await expectNoAutomatedWcagViolations(page, "authenticated V3 root");
+  await expectContrastActuallyChecked(page, "authenticated V3 root");
 });
 
-test("the mobile page title is never truncated", async ({ page }, testInfo) => {
-  // The lockup and the title share one row on a phone. When the lockup won,
-  // "Воронка поступления" rendered as "Воронка поступл…" while the h1 below
-  // said something else, so the full label appeared nowhere on the screen.
+test("the mobile V3 page heading is never truncated", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "phone layout only");
   await signInAsStaff(page, "admin");
 
   for (const route of ROLE_ROUTES.admin) {
     await page.goto(route);
-    const title = page.locator(".staff-topbar__mobile-title");
-    await expect(title).toBeVisible();
-    const cut = await title.evaluate((el) => ({
-      truncated: el.scrollWidth > el.clientWidth,
-      text: el.textContent,
-      needs: el.scrollWidth,
-      has: el.clientWidth,
+    const heading = page.locator("main h1");
+    await expect(heading).toBeVisible();
+    const cut = await heading.evaluate((element) => ({
+      truncated: element.scrollWidth > element.clientWidth,
+      text: element.textContent,
+      needs: element.scrollWidth,
+      has: element.clientWidth,
     }));
     expect(
       cut.truncated,
@@ -241,11 +253,25 @@ test("the conversation pane fits the fold for every role", async ({ page }, test
   }
 });
 
-test("a deferred module fails closed without accessibility violations", async ({
+test("retired V2 staff routes remain hidden 404s without a V3 fallback", async ({
   page,
 }) => {
   await signInAsStaff(page, "admin");
-  await page.goto("/dashboard");
+
+  for (const route of RETIRED_UI_ROUTES) {
+    const response = await page.goto(route);
+    if (!response) throw new Error(`${route}: navigation returned no response`);
+    expect(response.status(), route).toBe(404);
+    expect(new URL(page.url()).pathname, route).toBe(route);
+    await expect(page.getByTestId("v3-shell")).toHaveCount(0);
+  }
+});
+
+test("an unknown module fails closed without accessibility violations", async ({
+  page,
+}) => {
+  await signInAsStaff(page, "admin");
+  await page.goto("/not-yet-connected");
   await expect(page).toHaveURL(/\/platform-pending/);
   await expectExactlyOneMainHeading(page, "platform-pending");
   await expectNoDocumentOverflow(page, "platform-pending");

@@ -39,17 +39,6 @@ function optionalDate(value: unknown): string | null {
 export type PlatformStudentCaseState = "pending" | "active" | "closed";
 export type PlatformRouteApprovalStatus = "draft" | "approved" | "rework";
 
-export function buildPlatformAdmissionsRedirectUrl(
-  path: string,
-  outcome: "saved" | "invalid" | "unavailable",
-  retryRequestId?: string | null,
-  anchor?: "case-lifecycle" | "applications",
-): string {
-  const params = new URLSearchParams({ result: outcome });
-  if (retryRequestId) params.set("retry_request_id", retryRequestId);
-  return `${path}?${params.toString()}${anchor ? `#${anchor}` : ""}`;
-}
-
 export type PlatformOpWorkflowContract = Readonly<{
   organizationId: string;
   workflowContractId: string;
@@ -156,6 +145,7 @@ export type PlatformStudentCasePageOptions = Readonly<{
   pageSize?: number;
   query?: string;
   state?: PlatformStudentCaseState;
+  studentCaseId?: string;
 }>;
 
 export type PlatformApplicationPageOptions = Readonly<{
@@ -213,6 +203,31 @@ export function compactPlatformAdmissionsGetRpcArguments(
   );
 }
 
+export function buildPlatformStudentCasePageRpcArguments(
+  options?: PlatformStudentCasePageOptions,
+): Record<string, unknown> {
+  const pageSize = normalizePageSize(options?.pageSize, 50);
+  const cursor = options?.cursor ?? null;
+  const query = options?.query?.trim() || null;
+  const studentCaseId = options?.studentCaseId === undefined
+    ? null
+    : requiredUuid(options.studentCaseId);
+  if (
+    studentCaseId !== null &&
+    (query !== null || cursor !== null)
+  ) {
+    return invalidShape();
+  }
+  return compactPlatformAdmissionsGetRpcArguments({
+    p_limit: pageSize + 1,
+    p_before_sort_at: cursor?.sortAt ?? null,
+    p_before_student_case_id: cursor?.id ?? null,
+    p_state: options?.state ?? null,
+    p_query: query,
+    p_student_case_id: studentCaseId,
+  });
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -251,8 +266,7 @@ export function summarizePlatformStudentCaseApplicationPreview(
     preview: Object.freeze({
       visibleCount: applications.length,
       hasMore,
-      fullListHref:
-        `/applications?student_case_id=${normalizedStudentCaseId}`,
+      fullListHref: `/v3/profile?case=${normalizedStudentCaseId}`,
     }),
   });
 }
@@ -662,17 +676,9 @@ export async function listPlatformStudentCases(
     const organizationId = requireAdmissionsOrganization(actor);
     const client = await getPlatformClient();
     const pageSize = normalizePageSize(options?.pageSize, 50);
-    const cursor = options?.cursor ?? null;
     const response = await client.schema("platform").rpc(
       "staff_student_case_page",
-      compactPlatformAdmissionsGetRpcArguments({
-        p_limit: pageSize + 1,
-        p_before_sort_at: cursor?.sortAt ?? null,
-        p_before_student_case_id: cursor?.id ?? null,
-        p_state: options?.state ?? null,
-        p_query: options?.query?.trim() || null,
-        p_student_case_id: null,
-      }),
+      buildPlatformStudentCasePageRpcArguments(options),
       { get: true },
     );
     if (response.error || !Array.isArray(response.data)) return invalidShape();

@@ -605,8 +605,6 @@ test("U10 parses only exact bounded include/exclude forms", () => {
 test("U10 TS/UI slice contains no provider, outbox, message-send, or legacy-write effect", () => {
   const paths = [
     "../src/lib/platform-pilot-cohort.ts",
-    "../src/lib/platform-pilot-cohort-actions.ts",
-    "../src/components/platform/cases/PlatformPilotCohortCard.tsx",
   ];
   const source = paths.map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
   assert.doesNotMatch(source, /fetch\s*\(/);

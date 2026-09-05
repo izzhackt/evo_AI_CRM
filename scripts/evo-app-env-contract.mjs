@@ -136,12 +136,6 @@ function validatePublicSupabase(entries) {
 }
 
 function validateFeatureFlags(entries) {
-  if (
-    entries.get("EVO_UI_CONTRACT_FIXTURES") !== "0" ||
-    entries.get("EVO_ALLOW_DEMO_SEED") !== "0"
-  ) {
-    fail("unsafe_runtime_flag");
-  }
   for (const name of [
     "EVO_PLATFORM_WAHA_INGRESS_ENABLED",
     "EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED",

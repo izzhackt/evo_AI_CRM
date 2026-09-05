@@ -1644,11 +1644,13 @@ export function buildPlatformContractRedirectTarget(
   }>,
 ): string {
   const parsedCaseId = parsePlatformContractUuid(studentCaseId);
-  const target = parsedCaseId ? `/clients/${parsedCaseId}` : "/clients";
   const safeOutcome = PLATFORM_CONTRACT_MUTATION_OUTCOMES.includes(outcome)
     ? outcome
     : "unavailable";
-  const params = new URLSearchParams({ bw6_result: safeOutcome });
+  const params = new URLSearchParams();
+  if (parsedCaseId) params.set("case", parsedCaseId);
+  params.set("tab", "contract");
+  params.set("bw6_result", safeOutcome);
   if (retry && (safeOutcome === "invalid" || safeOutcome === "unavailable")) {
     const requestId = parsePlatformContractUuid(retry.requestId);
     const operation = PLATFORM_CONTRACT_RETRY_OPERATIONS.includes(retry.operation)
@@ -1663,7 +1665,7 @@ export function buildPlatformContractRedirectTarget(
       if (subjectId) params.set("bw6_subject_id", subjectId);
     }
   }
-  return `${target}?${params.toString()}#contract-workflow`;
+  return `/v3/profile?${params.toString()}#contract-workflow`;
 }
 
 export type PlatformContractMutationResponse = Readonly<

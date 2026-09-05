@@ -103,8 +103,10 @@ async function signInAs(page: Page, role: TestRole) {
   await page.locator("#staff-email").fill(identifier);
   await page.locator("#staff-password").fill(secret);
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
-  await page.getByTestId("open-role-workspace").click();
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-authority-role",
+    role,
+  );
 }
 
 async function expectPersistedUnknownState(
@@ -147,7 +149,7 @@ async function expectBlockedPanel(
   if (input.expectedLeadId) {
     await expect(
       page
-        .getByTestId("platform-student-case-workspace")
+        .getByTestId("v3-profile-contract-workspace")
         .getByText(input.expectedLeadId, { exact: true }),
     ).toBeVisible();
   }
@@ -187,7 +189,7 @@ test("Admissions amoCRM commands stay visibly disabled when the selected server 
   const studentCaseId = requireUuid("EVO_CANONICAL_STUDENT_CASE_ID");
   await signInAs(page, "admissions");
   await expectBlockedPanel(page, {
-    route: `/clients/${studentCaseId}`,
+    route: `/v3/profile?case=${studentCaseId}&tab=contract`,
     scope: "admissions",
     targetField: "student_case_id",
     targetId: studentCaseId,
@@ -238,13 +240,13 @@ test("Admissions and Admin see the Admissions command only at canonical Student 
       role,
     );
     await expectBlockedPanel(page, {
-      route: `/clients/${studentCaseId}`,
+      route: `/v3/profile?case=${studentCaseId}&tab=contract`,
       scope: "admissions",
       targetField: "student_case_id",
       targetId: studentCaseId,
     });
     await expect(
-      page.getByTestId("platform-student-case-workspace"),
+      page.getByTestId("v3-profile"),
     ).toBeVisible();
   }
 });
@@ -272,10 +274,9 @@ test("wrong fixed roles cannot render either owning command surface", async ({
   );
 
   await signInAs(page, "sales");
-  await page.goto(`/clients/${studentCaseId}`);
-  await expect(page).toHaveURL(/\/access-denied\?from=%2Fclients/u);
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=contract`);
   await expect(
-    page.getByTestId("platform-student-case-workspace"),
+    page.getByTestId("v3-profile"),
   ).toHaveCount(0);
   await expect(page.getByTestId("canonical-amocrm-command-panel")).toHaveCount(
     0,
@@ -294,7 +295,7 @@ test("a prior Sales unknown survives Admin override handoff into active Admissio
   const studentCaseId = admissionsBlockingCaseId as string;
   await signInAs(page, "admissions");
   const panel = await expectBlockedPanel(page, {
-    route: `/clients/${studentCaseId}`,
+    route: `/v3/profile?case=${studentCaseId}&tab=contract`,
     scope: "admissions",
     targetField: "student_case_id",
     targetId: studentCaseId,
@@ -302,7 +303,7 @@ test("a prior Sales unknown survives Admin override handoff into active Admissio
     expectedLeadId: admissionsBlockingLeadId as string,
   });
   await expect(
-    page.getByTestId("platform-student-case-workspace"),
+    page.getByTestId("v3-profile"),
   ).toBeVisible();
   await expect(
     page.getByTestId("canonical-student-case-handoff"),
@@ -319,6 +320,6 @@ test("a prior Sales unknown survives Admin override handoff into active Admissio
     admissionsBlockingAttemptId as string,
   );
   await expect(
-    page.getByTestId("platform-student-case-workspace"),
+    page.getByTestId("v3-profile"),
   ).toBeVisible();
 });

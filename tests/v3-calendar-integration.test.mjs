@@ -43,7 +43,7 @@ test("deadline-kind conversion preserves the task day instead of the period anch
 });
 
 test("V3 calendar reads one bounded canonical workspace without a second data path", () => {
-  assert.match(page, /requirePlatformAdmissionsActor/);
+  assert.match(page, /requireV3PageActor\("\/v3\/calendar"\)/);
   assert.match(page, /readCalendarWorkspace/);
   assert.match(adapter, /listPlatformAdmissionsTaskQueue/);
   assert.match(adapter, /listPlatformStudentCases/);
@@ -113,10 +113,10 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.doesNotMatch(controls, /return_to_case|name="reason"/);
 });
 
-test("V3 calendar denies a Sales preview before reading Admissions data", () => {
+test("V3 calendar resolves the page actor before reading Admissions data", () => {
   assert.match(
     page,
-    /actor\.presentationRole !== "admin"[\s\S]*actor\.presentationRole !== "admissions"[\s\S]*redirect\("\/access-denied\?from=%2Fv3%2Fcalendar"\)[\s\S]*readCalendarWorkspace/,
+    /requireV3PageActor\("\/v3\/calendar"\)[\s\S]*readCalendarWorkspace/,
   );
   assert.doesNotMatch(
     page,

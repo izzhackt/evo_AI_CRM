@@ -387,27 +387,12 @@ test("repository scopes the safe memory read to the authenticated actor organiza
   ]);
 });
 
-test("AI memory mutations stay server-authorized and repository reads remain explicitly gated", async () => {
-  const [actionsSource, repositorySource] = await Promise.all([
-    readFile(new URL("../src/lib/platform-ai-memory-actions.ts", import.meta.url), "utf8"),
-    readFile(
-      new URL("../src/lib/server/platform-ai-memory-repository.ts", import.meta.url),
-      "utf8",
-    ),
-  ]);
+test("AI memory repository reads remain explicitly gated", async () => {
+  const repositorySource = await readFile(
+    new URL("../src/lib/server/platform-ai-memory-repository.ts", import.meta.url),
+    "utf8",
+  );
 
-  assert.match(actionsSource, /requirePlatformMessagingActor/);
-  assert.match(actionsSource, /revalidatePath\("\/v3\/inbox"\)/);
-  assert.doesNotMatch(actionsSource, /revalidatePath\([^\n]*\/whatsapp/);
-  assert.equal(
-    actionsSource.match(/field\(formData, "sourceMessageId"\)/g)?.length,
-    3,
-  );
-  assert.match(
-    actionsSource,
-    /message\.id === canonicalSelectedId && message\.direction === "inbound"/,
-  );
-  assert.doesNotMatch(actionsSource, /sourceMessageId:\s*field\(/);
   assert.match(repositorySource, /EVO_PLATFORM_AI_MEMORY_ENABLED/);
   assert.match(repositorySource, /===\s*["']1["']/);
 });

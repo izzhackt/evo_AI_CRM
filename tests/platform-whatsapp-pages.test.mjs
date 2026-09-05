@@ -15,7 +15,7 @@ test("V3 Inbox owns the canonical queue, selected transcript and command surface
   const inboxSource = source("src/lib/v3/inbox-source.ts");
   const inbox = source("src/components/v3/Inbox.tsx");
 
-  assert.match(page, /requirePlatformMessagingActor/);
+  assert.match(page, /requireV3PageActor\("\/v3\/inbox"\)/);
   assert.match(page, /readInbox\(actor/);
   assert.match(page, /InboxProviderWorkflowControls/);
   assert.match(page, /CanonicalAmoCrmCommandPanel/);

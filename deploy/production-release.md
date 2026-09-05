@@ -1,6 +1,6 @@
 # EVO production-successor exact-SHA release runbook
 
-Status: active V2 release contract. It replaces the former five-container V1
+Status: active V3 release contract. It replaces the former five-container V1
 runbook, retained only at
 [`docs/archive/v1/production-release.md`](../docs/archive/v1/production-release.md).
 Nothing here authorizes a VPS or provider mutation by itself.

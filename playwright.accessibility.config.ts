@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 if (!baseURL) {
   throw new Error(
-    "PLAYWRIGHT_BASE_URL is required for the V2 accessibility gate. It runs against the real local PostgreSQL runtime and never starts a fixture server.",
+    "PLAYWRIGHT_BASE_URL is required for the V3 accessibility gate. It runs against the real local PostgreSQL runtime and never starts a fixture server.",
   );
 }
 

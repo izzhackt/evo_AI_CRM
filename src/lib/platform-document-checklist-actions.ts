@@ -218,9 +218,7 @@ function caseLinkFailureState(
   });
 }
 
-function revalidateChecklist(studentCaseId: string): void {
-  revalidatePath("/documents");
-  revalidatePath(`/clients/${studentCaseId}`);
+function revalidateChecklist(): void {
   revalidatePath("/v3/profile");
   revalidatePath("/v3/knowledge");
 }
@@ -281,7 +279,7 @@ export async function createPlatformCustomDocumentSlotAction(
     ) {
       return failureState(form, "unavailable", documentSlotId, requestId);
     }
-    revalidateChecklist(studentCaseId);
+    revalidateChecklist();
     return Object.freeze({
       status: "saved" as const,
       requestId: randomUUID(),
@@ -365,7 +363,7 @@ export async function changePlatformDocumentSlotMetadataAction(
     ) {
       return failureState(form, "unavailable", documentSlotId, requestId);
     }
-    revalidateChecklist(studentCaseId);
+    revalidateChecklist();
     return Object.freeze({
       status: "saved" as const,
       requestId: randomUUID(),
@@ -478,7 +476,7 @@ export async function setPlatformDocumentCaseLinkAction(
       );
     }
 
-    revalidateChecklist(studentCaseId);
+    revalidateChecklist();
     return Object.freeze({
       status: "saved" as const,
       requestId: randomUUID(),
@@ -565,7 +563,7 @@ export async function removePlatformDocumentSlotAction(
     ) {
       return failureState(form, "unavailable", documentSlotId, requestId);
     }
-    revalidateChecklist(studentCaseId);
+    revalidateChecklist();
     return Object.freeze({
       status: "saved" as const,
       requestId: randomUUID(),

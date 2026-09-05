@@ -53,13 +53,13 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Test active V2 server-side boundaries
+      - name: Test active V3 server-side boundaries
         run: npm run test:security
 
       - name: Install the locked Playwright Chromium runtime
         run: node_modules/.bin/playwright install --with-deps chromium
 
-      - name: Test the V2 local PostgreSQL, migration, and browser contract
+      - name: Test the V3 local PostgreSQL, migration, and browser contract
         timeout-minutes: 35
         run: npm run test:database:local
 

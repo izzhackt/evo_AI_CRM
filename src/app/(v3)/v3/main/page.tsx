@@ -1,14 +1,16 @@
 import { Funnel } from "@/components/v3/Funnel";
 import { MainHeader, type PeriodChoice } from "@/components/v3/MainHeader";
 import { MetricCard } from "@/components/v3/MetricCard";
+import { OperationsOverview } from "@/components/v3/OperationsOverview";
 import { TrendChart } from "@/components/v3/TrendChart";
-import { requirePlatformSalesActor } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   PERIODS,
   periodLabel,
   readPeriodDashboard,
   resolvePeriod,
 } from "@/lib/v3/funnel-source";
+import { readV3OperationalDashboard } from "@/lib/v3/operations-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Главная" };
@@ -18,9 +20,12 @@ export default async function MainPart({
 }: {
   searchParams: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
-  const actor = await requirePlatformSalesActor();
+  const actor = await requireV3PageActor("/v3/main");
   const period = resolvePeriod(await searchParams);
-  const { figures, trend } = await readPeriodDashboard(actor, period);
+  const [{ figures, trend }, operations] = await Promise.all([
+    readPeriodDashboard(actor, period),
+    readV3OperationalDashboard(actor),
+  ]);
   const { counts, metrics, stages } = figures;
 
   // Нажатие на «Период», когда он уже выбран, не должно терять выбранные
@@ -151,6 +156,8 @@ export default async function MainPart({
           </div>
         </>
       )}
+
+      <OperationsOverview snapshot={operations} />
     </main>
   );
 }

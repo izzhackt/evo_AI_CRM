@@ -5,7 +5,6 @@ import {
   resolvePlatformActor,
   type ActivePlatformActor,
 } from "./platform-auth";
-import type { Role } from "./roles";
 
 export type SessionUser = Readonly<{
   id: string;
@@ -32,10 +31,6 @@ export async function currentUser(): Promise<SessionUser | null> {
   return result.status === "authenticated"
     ? actorToSessionUser(result.actor)
     : null;
-}
-
-export function isStaff(role: Role): boolean {
-  return role !== "client";
 }
 
 export type AdminApiAuthorization =

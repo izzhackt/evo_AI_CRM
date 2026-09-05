@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { Pipeline } from "@/components/v3/Pipeline";
-import { requirePlatformSalesActor } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   readPipelineLeads,
   readPipelineOwnerOptions,
@@ -12,8 +12,11 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Воронка продаж" };
 
 export default async function PipelinePart() {
-  const actor = await requirePlatformSalesActor();
-  if (actor.authorityRole !== "admin" && actor.authorityRole !== "sales") {
+  const actor = await requireV3PageActor("/v3/pipeline");
+  if (
+    actor.presentationRole !== "admin" &&
+    actor.presentationRole !== "sales"
+  ) {
     throw new Error("Sales route resolved a non-Sales staff role.");
   }
   const stages = readPipelineStages();
@@ -37,7 +40,7 @@ export default async function PipelinePart() {
           leads={leads}
           ownerOptions={ownerOptions.rows}
           ownerOptionsHaveMore={ownerOptions.hasNext}
-          actorRole={actor.authorityRole}
+          actorRole={actor.presentationRole}
           actorMembershipId={actor.membershipId}
           requestIds={requestIds}
         />

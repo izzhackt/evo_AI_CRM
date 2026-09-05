@@ -4,10 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
-  fixedRoleCan,
+  fixedRoleCanAccessRoute,
   type FixedRole,
-  type FixedRoleCapability,
+  type FixedRoleRoute,
 } from "@/lib/fixed-role-policy";
+import {
+  logoutStaffAction,
+  selectStaffRolePreviewAction,
+} from "@/lib/staff-auth-actions";
 
 /**
  * Оболочка продукта.
@@ -16,21 +20,27 @@ import {
  * собирались. Теперь это один интерфейс, поэтому вместо ссылки «назад к
  * каталогу» у каждой страницы одна и та же навигация.
  *
- * Профиля в списке разделов нет намеренно: в продукте он открывается с
- * человека — из воронки или из переписки, — а не выбирается из меню.
+ * Student 360 доступен и из рабочих карточек, и из меню: его собственный
+ * каталог нужен, чтобы найти любое разрешённое дело, включая закрытое.
  */
 const SECTIONS = [
-  { href: "/v3/main", label: "Главная", capability: "sales.read" },
-  { href: "/v3/pipeline", label: "Воронка", capability: "sales.read" },
-  { href: "/v3/inbox", label: "Входящие", capability: "messaging.read" },
-  { href: "/v3/calendar", label: "Календарь", capability: "admissions.read" },
-  { href: "/v3/knowledge", label: "База знаний", capability: "documents.read" },
-  { href: "/v3/settings", label: "Настройки", capability: "admin.preview" },
+  { href: "/v3/main", label: "Главная" },
+  { href: "/v3/pipeline", label: "Воронка" },
+  { href: "/v3/inbox", label: "Входящие" },
+  { href: "/v3/profile", label: "Student 360" },
+  { href: "/v3/calendar", label: "Календарь" },
+  { href: "/v3/knowledge", label: "База знаний" },
+  { href: "/v3/settings", label: "Настройки" },
 ] as const satisfies readonly Readonly<{
-  href: string;
+  href: FixedRoleRoute;
   label: string;
-  capability: FixedRoleCapability;
 }>[];
+
+const ROLE_LABELS = {
+  admin: "Director/Admin",
+  sales: "Sales Manager",
+  admissions: "Admissions Manager",
+} as const satisfies Record<FixedRole, string>;
 
 export function AppShell({
   children,
@@ -45,7 +55,8 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const sections = SECTIONS.filter((section) =>
-    fixedRoleCan(presentationRole, section.capability));
+    fixedRoleCanAccessRoute(presentationRole, section.href));
+  const previewing = authorityRole === "admin" && presentationRole !== "admin";
 
   return (
     <div
@@ -83,10 +94,65 @@ export function AppShell({
           })}
         </ul>
 
-        <p className="hidden border-t border-border px-4 py-4 text-xs text-fg-3 md:block">
+        <p className="border-t border-border px-4 py-3 text-xs text-fg-3 md:py-4">
           <span className="block truncate text-fg-2">{displayName}</span>
-          <span className="font-mono uppercase">{presentationRole}</span>
+          <span
+            className="font-mono uppercase"
+            data-testid="active-role"
+            data-role={presentationRole}
+            data-authority-role={authorityRole}
+          >
+            {ROLE_LABELS[presentationRole]}
+          </span>
         </p>
+
+        {authorityRole === "admin" ? (
+          <section
+            className="border-t border-border px-3 py-3"
+            data-testid="staff-role-preview"
+          >
+            <p className="px-1 text-2xs font-medium uppercase tracking-wide text-fg-3">
+              Предпросмотр роли
+            </p>
+            <form
+              action={selectStaffRolePreviewAction}
+              className="mt-2 grid grid-cols-3 gap-1 md:grid-cols-1"
+              data-testid="admin-role-preview"
+            >
+              {(Object.keys(ROLE_LABELS) as FixedRole[]).map((role) => (
+                <button
+                  key={role}
+                  type="submit"
+                  name="role"
+                  value={role}
+                  data-testid={`preview-role-${role}`}
+                  aria-pressed={presentationRole === role}
+                  className="min-h-10 rounded-nav border border-control-edge px-2 text-xs text-fg-2 transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
+                >
+                  {ROLE_LABELS[role]}
+                </button>
+              ))}
+            </form>
+            {previewing ? (
+              <p
+                className="mt-2 px-1 text-xs leading-5 text-accent"
+                data-testid="preview-active"
+              >
+                Admin показывает интерфейс роли {ROLE_LABELS[presentationRole]}.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
+        <form action={logoutStaffAction} className="border-t border-border p-3">
+          <button
+            type="submit"
+            data-testid="staff-logout"
+            className="min-h-11 w-full rounded-nav border border-control-edge px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2"
+          >
+            Выйти
+          </button>
+        </form>
       </nav>
 
       {/* Контейнер, а не окно: рельс забирает 224px, и раскладки внутри должны

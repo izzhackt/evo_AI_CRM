@@ -190,8 +190,7 @@ async function submitAdminGate(page: Page) {
     .locator("#staff-password")
     .fill(requireEnv("EVO_STAFF_AUTH_ADMIN_PASSWORD"));
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
-  await page.getByTestId("open-role-workspace").click();
+  await expect(page.getByTestId("v3-shell")).toBeVisible();
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-authority-role",
     "admin",

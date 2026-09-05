@@ -63,23 +63,6 @@ test("P6B browser proof covers every retired staff and API route", () => {
   assert.match(browserProof, /expect\(response\.status\(\), path\)\.toBe\(404\)/);
 });
 
-test("P6B dashboard composes the canonical product queues instead of parallel screens", () => {
-  const dashboardPage = source("src/app/(staff)/dashboard/page.tsx");
-  const dashboardRuntime = source("src/lib/server/platform-dashboard.ts");
-  const dashboardModel = source("src/lib/server/platform-dashboard-model.ts");
-
-  assert.match(dashboardPage, /readPlatformDashboardSnapshot\(actor\)/);
-  assert.match(dashboardRuntime, /listPlatformSalesLeads/);
-  assert.match(dashboardRuntime, /listPlatformStudentCases/);
-  assert.match(dashboardRuntime, /listPlatformAdmissionsTaskQueue/);
-  assert.match(dashboardRuntime, /listPlatformFinanceControlQueue/);
-  assert.match(dashboardRuntime, /listPlatformConversations/);
-  assert.match(dashboardRuntime, /platform-dashboard-model\.ts/);
-  for (const href of ["/sales", "/clients", "/tasks", "/finance", "/v3/inbox"]) {
-    assert.match(dashboardModel, new RegExp(`href: ["']${href}["']`), href);
-  }
-});
-
 test("P6B foundation harness clears only stale empty lock directories and never masks a live run", () => {
   const harness = source("scripts/test-postgres-v2-foundation.sh");
 
@@ -166,7 +149,7 @@ test("P6B Admin Sales preview reads only Sales and messaging outcomes", async ()
   assert.deepEqual(snapshot.cards, [
     {
       key: "sales",
-      href: "/sales",
+      href: "/v3/pipeline",
       totalOnPage: 2,
       overdueCount: 1,
       unassignedCount: 1,
@@ -247,9 +230,9 @@ test("P6B Admin Admissions preview aggregates overdue work and finance stops", a
   assert.deepEqual(
     snapshot.cards.map((card) => [card.key, card]),
     [
-      ["clients", { key: "clients", href: "/clients", totalOnPage: 2, attentionCount: 1 }],
-      ["tasks", { key: "tasks", href: "/tasks", totalOnPage: 5, overdueCount: 2 }],
-      ["finance", { key: "finance", href: "/finance", totalOnPage: 2, blockedCount: 1 }],
+      ["clients", { key: "clients", href: "/v3/profile", totalOnPage: 2, attentionCount: 1 }],
+      ["tasks", { key: "tasks", href: "/v3/calendar", totalOnPage: 5, overdueCount: 2 }],
+      ["finance", { key: "finance", href: "/v3/profile", totalOnPage: 2, blockedCount: 1 }],
       [
         "whatsapp",
         {

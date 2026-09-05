@@ -9,8 +9,8 @@ const SHA40 = /^[0-9a-f]{40}$/u;
 
 const SAFE_RUNTIME_PATHS = [
   /^public\//u,
-  /^src\/app\/\(staff\)\//u,
-  /^src\/app\/\(portal\)\//u,
+  /^src\/app\/\(v3\)\//u,
+  /^src\/app\/page\.tsx$/u,
   /^src\/components\//u,
   /^src\/app\/globals\.css$/u,
   /^src\/lib\/i18n(?:-data)?\.ts$/u,

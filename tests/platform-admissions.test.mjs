@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { createClient } from "@supabase/supabase-js";
 
 import {
-  buildPlatformAdmissionsRedirectUrl,
+  buildPlatformStudentCasePageRpcArguments,
   compactPlatformAdmissionsGetRpcArguments,
   PlatformAdmissionsRepositoryError,
   getPlatformOpWorkflowContract,
@@ -45,27 +45,6 @@ const HANDOFF_ID = "66666666-6666-4666-8666-666666666666";
 const CURATOR_MEMBERSHIP_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CURATOR_PROFILE_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const AT = "2026-08-01T05:00:00+00:00";
-
-test("case lifecycle redirects preserve the originating Student 360 section", () => {
-  assert.equal(
-    buildPlatformAdmissionsRedirectUrl(
-      `/clients/${CASE_ID}`,
-      "saved",
-      null,
-      "case-lifecycle",
-    ),
-    `/clients/${CASE_ID}?result=saved#case-lifecycle`,
-  );
-  assert.equal(
-    buildPlatformAdmissionsRedirectUrl(
-      `/clients/${CASE_ID}`,
-      "unavailable",
-      APPLICATION_ID,
-      "case-lifecycle",
-    ),
-    `/clients/${CASE_ID}?result=unavailable&retry_request_id=${APPLICATION_ID}#case-lifecycle`,
-  );
-});
 
 test("V3 Admissions forms own versioned retry state without legacy query envelopes", () => {
   const actionsSource = readFileSync(
@@ -132,21 +111,6 @@ test("V3 Admissions forms own versioned retry state without legacy query envelop
   assert.match(actionsSource, /status === "stale" \|\| status === "request_conflict"/);
   assert.doesNotMatch(v3ApplicationActions, /redirect\(|retry_request_id|URLSearchParams/);
 
-  const routeSource = readFileSync(
-    new URL("../src/app/(staff)/clients/[id]/page.tsx", import.meta.url),
-    "utf8",
-  );
-  const workspaceSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  assert.doesNotMatch(
-    `${routeSource}\n${workspaceSource}`,
-    /taskRetry|applicationRetry|caseOperationRetry|financeStopRetry|documentRetry|application_retry_request_id/,
-  );
 });
 
 test("Student 360 application summary preserves the partial-page signal and lower bound", () => {
@@ -167,7 +131,7 @@ test("Student 360 application summary preserves the partial-page signal and lowe
     preview: {
       visibleCount: 5,
       hasMore: true,
-      fullListHref: `/applications?student_case_id=${CASE_ID}`,
+      fullListHref: `/v3/profile?case=${CASE_ID}`,
     },
   });
   assert.throws(
@@ -188,6 +152,43 @@ test("accepts only complete deterministic admissions cursors", () => {
   });
   assert.equal(parsePlatformAdmissionsCursor(undefined, CASE_ID), null);
   assert.equal(parsePlatformAdmissionsCursor(AT, "not-a-uuid"), null);
+});
+
+test("builds mutually exclusive text and exact-id Student Case RPC filters", () => {
+  assert.deepEqual(
+    buildPlatformStudentCasePageRpcArguments({
+      pageSize: 25,
+      query: "  Malaysia  ",
+    }),
+    { p_limit: 26, p_query: "Malaysia" },
+  );
+  assert.deepEqual(
+    buildPlatformStudentCasePageRpcArguments({
+      pageSize: 25,
+      studentCaseId: CASE_ID.toUpperCase(),
+    }),
+    { p_limit: 26, p_student_case_id: CASE_ID },
+  );
+  assert.throws(
+    () =>
+      buildPlatformStudentCasePageRpcArguments({
+        query: "Malaysia",
+        studentCaseId: CASE_ID,
+      }),
+    PlatformAdmissionsRepositoryError,
+  );
+  assert.throws(
+    () => buildPlatformStudentCasePageRpcArguments({ studentCaseId: "wrong" }),
+    PlatformAdmissionsRepositoryError,
+  );
+  assert.throws(
+    () =>
+      buildPlatformStudentCasePageRpcArguments({
+        cursor: { sortAt: AT, id: CASE_ID },
+        studentCaseId: CASE_ID,
+      }),
+    PlatformAdmissionsRepositoryError,
+  );
 });
 
 test("GET pagination RPCs do not serialize absent filters as literal null", async () => {
@@ -325,22 +326,33 @@ function applicationRow(overrides = {}) {
   };
 }
 
-test("Platform route contract admits canonical queue pages and rejects removed detail routes", () => {
-  for (const path of ["/sales", "/clients", "/applications", "/visa", "/finance"]) {
+test("Platform route contract admits only the retained V3 product pages", () => {
+  for (const path of [
+    "/v3/main",
+    "/v3/pipeline",
+    "/v3/inbox",
+    "/v3/profile",
+    "/v3/calendar",
+    "/v3/knowledge",
+    "/v3/settings",
+  ]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
-  assert.equal(isConnectedPlatformPage(`/sales/${CASE_ID}`), false);
-  assert.equal(isConnectedPlatformPage(`/clients/${CASE_ID}`), true);
 
   for (const path of [
+    "/sales",
     "/sales/1",
     `/sales/${CASE_ID}/history`,
+    "/clients",
     "/clients/12",
     `/clients/${CASE_ID}/documents`,
+    "/applications",
     `/applications/${APPLICATION_ID}`,
     "/applications/not-a-uuid",
     `/applications/${APPLICATION_ID}/history`,
+    "/visa",
     `/visa/${APPLICATION_ID}`,
+    "/finance",
     `/finance/${APPLICATION_ID}`,
     "/whatsapp",
     `/whatsapp/${CASE_ID}`,
@@ -799,24 +811,10 @@ test("connected Platform runtime modules do not statically import SQLite or lega
     "src/lib/platform-admissions.ts",
     "src/lib/platform-admissions-actions.ts",
     "src/lib/platform-case-assignment.ts",
-    "src/app/(staff)/layout.tsx",
-    "src/app/(staff)/sales/(queue)/page.tsx",
-    "src/app/(staff)/sales/SalesPageContent.tsx",
-    "src/components/platform/core/SalesQuickAdd.tsx",
-    "src/app/(staff)/clients/(queue)/page.tsx",
-    "src/app/(staff)/clients/ClientsPageContent.tsx",
-    "src/app/(staff)/clients/StudentQueue.tsx",
-    "src/app/(staff)/clients/[id]/page.tsx",
-    "src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
     "src/app/(v3)/v3/calendar/page.tsx",
     "src/app/(v3)/v3/profile/page.tsx",
     "src/components/v3/calendar/TaskControls.tsx",
     "src/components/v3/profile/ProfileAdmissionsWorkspace.tsx",
-    "src/app/(staff)/applications/page.tsx",
-    "src/app/(staff)/visa/page.tsx",
-    "src/app/(staff)/finance/page.tsx",
-    "src/components/TopBar.tsx",
-    "src/components/platform/PlatformLangSwitcher.tsx",
   ];
   for (const file of files) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
@@ -828,61 +826,6 @@ test("connected Platform runtime modules do not statically import SQLite or lega
       /from\s+["']@\/components\/LangSwitcher["']/,
     );
   }
-});
-
-test("normal staff routes keep one accepted renderer instead of parallel Platform and Legacy UIs", () => {
-  for (const removedUi of [
-    "src/app/(staff)/LegacyStaffLayout.tsx",
-    "src/app/(staff)/PlatformStaffLayout.tsx",
-    "src/app/(staff)/sales/LegacySalesPage.tsx",
-    "src/app/(staff)/sales/PlatformSalesPage.tsx",
-    "src/app/(staff)/clients/LegacyClientsPage.tsx",
-    "src/app/(staff)/clients/[id]/LegacyClientPage.tsx",
-  ]) {
-    assert.equal(
-      existsSync(new URL(`../${removedUi}`, import.meta.url)),
-      false,
-      `${removedUi} must not remain as a parallel UI entry point`,
-    );
-  }
-
-  const layout = readFileSync(
-    new URL("../src/app/(staff)/layout.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.doesNotMatch(layout, /import\(["']\.\/(?:Legacy|Platform)StaffLayout["']\)/);
-
-  const salesRoute = readFileSync(
-    new URL("../src/app/(staff)/sales/(queue)/page.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.match(salesRoute, /SalesPageContent/);
-  assert.doesNotMatch(salesRoute, /(?:Legacy|Platform)SalesPage/);
-
-  const clientsRoute = readFileSync(
-    new URL("../src/app/(staff)/clients/(queue)/page.tsx", import.meta.url),
-    "utf8",
-  );
-  const clientRoute = readFileSync(
-    new URL("../src/app/(staff)/clients\/\[id\]\/page.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.match(clientsRoute, /ClientsPageContent/);
-  assert.match(clientRoute, /StudentCaseWorkspace/);
-  assert.doesNotMatch(clientsRoute, /(?:Legacy|Platform)ClientsPage/);
-  assert.doesNotMatch(clientRoute, /(?:Legacy|Platform)ClientPage/);
-  assert.doesNotMatch(clientRoute, /ClientPageContent|StudentWorkspace/);
-
-  const applicationsRoute = readFileSync(
-    new URL("../src/app/(staff)/applications/page.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.match(applicationsRoute, /listPlatformApplications\(actor/);
-  assert.match(applicationsRoute, /data-testid="platform-application-queue"/);
-  assert.doesNotMatch(
-    applicationsRoute,
-    /Applications(?:QueuePresenter|Workspace)|ApplicationDetailPresenter|better-sqlite3|canonical-crm-repository|listCanonicalUniversityApplications/,
-  );
 });
 
 test("V3 profile keeps sales stage and Admissions case state as distinct fields", () => {
@@ -897,107 +840,5 @@ test("V3 profile keeps sales stage and Admissions case state as distinct fields"
   assert.match(
     profileSource,
     /caseStatus:\s*studentCase\?\.state\s*\?\?\s*salesCase\?\.state\s*\?\?\s*handoff\.caseState/,
-  );
-});
-
-test("legacy case route keeps contract and amoCRM while V3 solely owns Admissions controls", () => {
-  const routeSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/clients/[id]/page.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const workspaceSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/clients/[id]/StudentCaseWorkspace.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const amoCrmIsolationSource = readFileSync(
-    new URL(
-      "../src/app/(staff)/clients/[id]/PlatformAmoCrmCommandSection.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const v3ProfileSource = readFileSync(
-    new URL("../src/lib/v3/profile-source.ts", import.meta.url),
-    "utf8",
-  );
-  const v3AdmissionsSource = readFileSync(
-    new URL(
-      "../src/components/v3/profile/ProfileAdmissionsWorkspace.tsx",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-
-  assert.match(routeSource, /<StudentCaseWorkspace/);
-  for (const queryKey of [
-    "bw6_result",
-    "bw6_retry_request_id",
-    "bw6_retry_operation",
-    "bw6_subject_id",
-  ]) {
-    assert.match(routeSource, new RegExp(queryKey));
-  }
-  assert.match(routeSource, /PLATFORM_CONTRACT_MUTATION_OUTCOMES\.find/);
-  assert.match(routeSource, /PLATFORM_CONTRACT_RETRY_OPERATIONS\.find/);
-  assert.match(routeSource, /parsePlatformContractUuid/);
-  assert.match(workspaceSource, /requirePlatformAdmissionsActor\("\/clients"\)/);
-  assert.match(workspaceSource, /getPlatformStudentCaseHandoffContext\(/);
-  assert.match(workspaceSource, /getPlatformStudentProfile\(/);
-  assert.match(workspaceSource, /getPlatformCaseContractWorkspace\(/);
-  assert.doesNotMatch(
-    workspaceSource,
-    /getPlatformAdmissionsTaskWorkspace|listPlatformApplicationsForStudentCase|getPlatformCaseVisa|getPlatformCaseFinanceControl|getPlatformCaseDocumentWorkspace/,
-  );
-  assert.doesNotMatch(
-    workspaceSource,
-    /getPlatformStudentCaseView|staff_student_case_read_snapshot/,
-  );
-  assert.match(workspaceSource, /data-testid="platform-student-case-workspace"/);
-  assert.match(workspaceSource, /data-testid="platform-student-handoff-context"/);
-  assert.match(workspaceSource, /data-testid="platform-student-profile"/);
-  assert.match(workspaceSource, /<ContractDraftReportWorkspace/);
-  assert.doesNotMatch(
-    `${routeSource}\n${workspaceSource}`,
-    /canonical-crm-repository|private-document-repository|getCanonicalStudentCaseSnapshot|getCanonicalStudentCaseHandoffSnapshot/,
-  );
-  assert.doesNotMatch(
-    workspaceSource,
-    /PlatformAdmissionsTaskPanel|PlatformPrivateDocumentsPanel|PlatformAdmissionsOperationsPanel/,
-  );
-  assert.match(v3ProfileSource, /loadFullCase\(/);
-  assert.match(v3AdmissionsSource, /createPlatformUniversityApplicationAction/);
-  assert.match(v3AdmissionsSource, /upsertPlatformCaseVisaAction/);
-  assert.match(v3AdmissionsSource, /createPlatformFinanceStopFactorAction/);
-  assert.equal(
-    existsSync(
-      new URL(
-        "../src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",
-        import.meta.url,
-      ),
-    ),
-    false,
-  );
-  assert.match(
-    amoCrmIsolationSource,
-    /data-testid="amocrm-case-command-section"/,
-  );
-  assert.match(amoCrmIsolationSource, /readPlatformBlockingAmoCrmCommand/);
-  assert.match(amoCrmIsolationSource, /createSupabaseServerClient\(\)/);
-  assert.match(amoCrmIsolationSource, /organizationId/);
-  assert.match(amoCrmIsolationSource, /data-status="unavailable"/);
-  assert.match(amoCrmIsolationSource, /PlatformAmoCrmCommandRpcError/);
-  assert.doesNotMatch(
-    amoCrmIsolationSource,
-    /\bnotFound\s*\(/,
-  );
-  assert.doesNotMatch(
-    `${routeSource}\n${workspaceSource}`,
-    /ClientPageContent|ConnectedCanonicalClientDetail|FixtureClientPage|isUiContractFixtureMode|CanonicalStudentCaseWorkspace/,
   );
 });

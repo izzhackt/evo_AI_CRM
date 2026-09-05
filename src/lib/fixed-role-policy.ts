@@ -19,17 +19,13 @@ export type FixedRoleCapability = (typeof FIXED_ROLE_CAPABILITIES)[number];
 export type FixedRole = StaffRole;
 
 export const FIXED_ROLE_ROUTES = [
-  "/dashboard",
-  "/sales",
-  "/clients",
-  "/applications",
-  "/documents",
-  "/visa",
-  "/finance",
-  "/tasks",
+  "/v3/main",
+  "/v3/pipeline",
   "/v3/inbox",
+  "/v3/profile",
+  "/v3/calendar",
   "/v3/knowledge",
-  "/settings",
+  "/v3/settings",
 ] as const;
 
 export type FixedRoleRoute = (typeof FIXED_ROLE_ROUTES)[number];
@@ -55,17 +51,13 @@ const ROLE_CAPABILITIES = {
 } as const satisfies Record<FixedRole, ReadonlySet<FixedRoleCapability>>;
 
 const ROUTE_CAPABILITY = {
-  "/dashboard": "dashboard.read",
-  "/sales": "sales.read",
-  "/clients": "admissions.read",
-  "/applications": "admissions.read",
-  "/documents": "documents.read",
-  "/visa": "admissions.read",
-  "/finance": "admissions.read",
-  "/tasks": "admissions.read",
+  "/v3/main": "sales.read",
+  "/v3/pipeline": "sales.read",
   "/v3/inbox": "messaging.read",
+  "/v3/profile": "dashboard.read",
+  "/v3/calendar": "admissions.read",
   "/v3/knowledge": "documents.read",
-  "/settings": "admin.preview",
+  "/v3/settings": "admin.preview",
 } as const satisfies Record<FixedRoleRoute, FixedRoleCapability>;
 
 export function isFixedRoleRoute(value: unknown): value is FixedRoleRoute {
@@ -96,8 +88,10 @@ export function fixedRoleCanAccessRoute(
   return fixedRoleCan(role, ROUTE_CAPABILITY[route]);
 }
 
-export function fixedRoleHomeRoute(role: FixedRole): "/sales" | "/clients" {
-  return role === "admissions" ? "/clients" : "/sales";
+export function fixedRoleHomeRoute(
+  role: FixedRole,
+): "/v3/main" | "/v3/calendar" {
+  return role === "admissions" ? "/v3/calendar" : "/v3/main";
 }
 
 export function canAdminSelectEffectiveRole(

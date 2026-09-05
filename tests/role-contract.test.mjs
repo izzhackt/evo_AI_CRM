@@ -4,9 +4,10 @@ import test from "node:test";
 import { DICTS, LOCALES } from "../src/lib/i18n-data.ts";
 import { ROLES, STAFF_ROLES, isRole } from "../src/lib/roles.ts";
 
-test("V2 role policy exposes only the three fixed staff roles", () => {
+test("the product role policy exposes only the three fixed staff roles", () => {
   assert.deepEqual(STAFF_ROLES, ["admin", "sales", "admissions"]);
-  assert.deepEqual(ROLES, ["admin", "sales", "admissions", "client"]);
+  assert.deepEqual(ROLES, ["admin", "sales", "admissions"]);
+  assert.equal(isRole("client"), false);
   assert.equal(isRole("visa"), false);
   assert.equal(isRole("admissions"), true);
   assert.equal(isRole("curator"), false);

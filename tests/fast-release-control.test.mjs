@@ -43,7 +43,8 @@ test("fast release scope allows presentation-only changes", () => {
   assert.deepEqual(
     classifyFastReleasePaths([
       "docs/STAFF_RELEASES.md",
-      "src/app/(staff)/dashboard/page.tsx",
+      "src/app/(v3)/v3/main/page.tsx",
+      "src/app/page.tsx",
       "src/app/globals.css",
       "src/components/ReleaseChip.tsx",
       "tests/release-chip.test.mjs",
@@ -59,7 +60,7 @@ test("fast release scope sends sensitive and unknown changes to controlled relea
     "agent-lead2-inbox/src/app/page.tsx",
     "docker-compose.prod.yml",
     "scripts/evo-fast-release.sh",
-    "src/app/(staff)/settings/actions.ts",
+    "src/app/(v3)/v3/settings/actions.ts",
     "src/lib/server/platform-gemini-provider.ts",
     "src/lib/platform-auth.ts",
     "supabase/migrations/078_example.sql",

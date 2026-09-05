@@ -171,8 +171,6 @@ async function signInAs(page: Page, role: TestRole) {
   await page.locator("#staff-email").fill(email);
   await page.locator("#staff-password").fill(password);
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
-  await page.getByTestId("open-role-workspace").click();
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-authority-role",
     role,
@@ -180,11 +178,9 @@ async function signInAs(page: Page, role: TestRole) {
 }
 
 async function activeRole(page: Page) {
-  const v3Shell = page.getByTestId("v3-shell");
-  const shell = (await v3Shell.count()) > 0
-    ? v3Shell
-    : page.getByTestId("staff-shell");
-  const value = await shell.getAttribute("data-authority-role");
+  const value = await page
+    .getByTestId("v3-shell")
+    .getAttribute("data-authority-role");
   ensure(
     typeof value === "string" && AUTHORITY_ROLE_PATTERN.test(value),
     "The active role marker is invalid",
@@ -639,7 +635,7 @@ async function captureAdminAmoCrmPage(
     route:
       scope === "sales"
         ? "/v3/inbox?conversation=:conversationId"
-        : "/clients/:studentCaseId",
+        : "/v3/profile?case=:studentCaseId&tab=contract",
     authorityRole,
     checks: Object.freeze({
       workspaceVisible: true,
@@ -698,9 +694,9 @@ test("read-only browser inventory preserves exact provider and event counts", as
   );
   const admissionsAmoCrmPage = await captureAdminAmoCrmPage(
     page,
-    `/clients/${studentCaseId}`,
+    `/v3/profile?case=${studentCaseId}&tab=contract`,
     "admissions",
-    "platform-student-case-workspace",
+    "v3-profile",
   );
 
   const after = await readSnapshot(databaseUrl, {
@@ -717,7 +713,7 @@ test("read-only browser inventory preserves exact provider and event counts", as
 
   await writePrivateJson(browserEvidencePath, {
     schemaVersion: 1,
-    kind: "evo-v2-provider-browser-readonly",
+    kind: "evo-v3-provider-browser-readonly",
     status: "passed",
     gitSha,
     completedAt: new Date().toISOString(),
@@ -737,7 +733,7 @@ test("read-only browser inventory preserves exact provider and event counts", as
 
   await writePrivateJson(databaseEvidencePath, {
     schemaVersion: 1,
-    kind: "evo-v2-provider-database-readonly",
+    kind: "evo-v3-provider-database-readonly",
     status: "passed",
     gitSha,
     completedAt: new Date().toISOString(),

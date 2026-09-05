@@ -47,7 +47,7 @@ async function signIn(page: Page) {
   await page.locator("#staff-email").fill(credentials.email);
   await page.locator("#staff-password").fill(credentials.password);
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
+  await expect(page.getByTestId("v3-shell")).toBeVisible();
 }
 
 function signedInboundBody(

@@ -132,7 +132,7 @@ export async function syncCanonicalAmoCrmAdmissionsAction(
     taskCompleteTill,
   } = parsed;
 
-  const actor = await requirePlatformAdmissionsActor("/clients");
+  const actor = await requirePlatformAdmissionsActor("/v3/profile");
   if (actor.platformRole !== "admin" && actor.platformRole !== "admissions") {
     return invalidState();
   }
@@ -145,7 +145,6 @@ export async function syncCanonicalAmoCrmAdmissionsAction(
     taskText,
     taskCompleteTill,
   });
-  revalidatePath(`/clients/${studentCaseId}`);
   revalidatePath("/v3/profile");
   revalidatePath("/v3/inbox");
   return result;
@@ -162,7 +161,7 @@ export async function reconcileCanonicalAmoCrmCommandAction(
   const actor =
     workflowScope === "sales_pre_handoff"
       ? await requirePlatformSalesActor()
-      : await requirePlatformAdmissionsActor("/clients");
+      : await requirePlatformAdmissionsActor("/v3/profile");
   if (
     actor.platformRole !== "admin" &&
     actor.platformRole !==
@@ -179,9 +178,6 @@ export async function reconcileCanonicalAmoCrmCommandAction(
     studentCaseId,
     attemptId,
   });
-  if (studentCaseId !== null) {
-    revalidatePath(`/clients/${studentCaseId}`);
-  }
   revalidatePath("/v3/profile");
   revalidatePath("/v3/inbox");
   return result;
@@ -198,7 +194,7 @@ export async function releaseCanonicalAmoCrmPreparedCommandAction(
   const actor =
     workflowScope === "sales_pre_handoff"
       ? await requirePlatformSalesActor()
-      : await requirePlatformAdmissionsActor("/clients");
+      : await requirePlatformAdmissionsActor("/v3/profile");
   if (
     actor.platformRole !== "admin" &&
     actor.platformRole !==
@@ -215,9 +211,6 @@ export async function releaseCanonicalAmoCrmPreparedCommandAction(
     studentCaseId,
     attemptId,
   });
-  if (studentCaseId !== null) {
-    revalidatePath(`/clients/${studentCaseId}`);
-  }
   revalidatePath("/v3/profile");
   revalidatePath("/v3/inbox");
   return result;

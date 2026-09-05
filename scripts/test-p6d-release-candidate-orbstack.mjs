@@ -348,8 +348,7 @@ async function proveBrowserAndReadiness(baseUrl, observabilitySecret) {
   await page.locator("#staff-email").fill(adminEmail);
   await page.locator("#staff-password").fill(adminPassword);
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  const workspace = page.getByTestId("staff-entry-workspace");
-  const pending = page.getByTestId("platform-pending");
+  const workspace = page.getByTestId("v3-shell");
   const loginError = page.locator("#login-error");
   try {
     await workspace.waitFor({ state: "visible", timeout: 30_000 });
@@ -358,15 +357,10 @@ async function proveBrowserAndReadiness(baseUrl, observabilitySecret) {
     if (await loginError.isVisible().catch(() => false)) {
       facts.push(`login_error=${JSON.stringify(await loginError.innerText())}`);
     }
-    if (await pending.isVisible().catch(() => false)) {
-      facts.push("pending=true");
-      const pendingRole = await page.getByTestId("pending-role").getAttribute("data-role").catch(() => null);
-      if (pendingRole) facts.push(`pending_role=${pendingRole}`);
-    }
     const bodyText = await page.locator("body").innerText().catch(() => "");
     if (bodyText.trim()) facts.push(`body=${JSON.stringify(bodyText.trim().slice(0, 800))}`);
     throw new Error(
-      `Standalone login did not reach the staff workspace: ${facts.join(" ")}`,
+      `Standalone login did not reach the V3 product shell: ${facts.join(" ")}`,
       { cause: error },
     );
   }
@@ -458,12 +452,10 @@ async function main() {
     `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabasePublishableKey}`,
     `EVO_PLATFORM_SUPABASE_SECRET_KEY=${supabaseSecretKey}`,
     `EVO_PLATFORM_ORGANIZATION_ID=${organizationId}`,
-    "EVO_UI_CONTRACT_FIXTURES=0",
     "EVO_PLATFORM_WAHA_INGRESS_ENABLED=0",
     "EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET=",
     "EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=1",
     `EVO_PLATFORM_P7B_OBSERVABILITY_SECRET=${observabilitySecret}`,
-    "EVO_ALLOW_DEMO_SEED=0",
     "EVO_ENABLE_LOCAL_TRANSCRIPTION=0",
     "ANTHROPIC_API_KEY=",
     "ZAI_API_KEY=",

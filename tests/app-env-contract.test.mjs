@@ -39,12 +39,10 @@ NEXT_PUBLIC_SUPABASE_URL=https://replace-with-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=replace-with-publishable-key
 EVO_PLATFORM_ORGANIZATION_ID=replace-with-organization-uuid
 EVO_PLATFORM_SUPABASE_SECRET_KEY=replace-with-server-secret-key
-EVO_UI_CONTRACT_FIXTURES=0
 EVO_PLATFORM_WAHA_INGRESS_ENABLED=0
 EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET=
 EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0
 EVO_PLATFORM_P7B_OBSERVABILITY_SECRET=
-EVO_ALLOW_DEMO_SEED=0
 ANTHROPIC_API_KEY=
 `;
 
@@ -56,12 +54,10 @@ function valid(overrides = {}) {
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
     EVO_PLATFORM_ORGANIZATION_ID: STAGING_ORGANIZATION_ID,
     EVO_PLATFORM_SUPABASE_SECRET_KEY: STAGING_SECRET_KEY,
-    EVO_UI_CONTRACT_FIXTURES: "0",
     EVO_PLATFORM_WAHA_INGRESS_ENABLED: "0",
     EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "",
     EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "0",
     EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "",
-    EVO_ALLOW_DEMO_SEED: "0",
     ANTHROPIC_API_KEY: "",
     ...overrides,
   };
@@ -227,8 +223,6 @@ test("rejects superseded SQLite, development-auth, and worker environment names"
 });
 
 test("rejects unsafe production flags and malformed public Supabase configuration", () => {
-  expectInvalid(valid({ EVO_UI_CONTRACT_FIXTURES: "1" }), "unsafe_runtime_flag");
-  expectInvalid(valid({ EVO_ALLOW_DEMO_SEED: "1" }), "unsafe_runtime_flag");
   expectInvalid(
     valid({ NEXT_PUBLIC_SUPABASE_URL: "http://staging.supabase.co" }),
     "public_supabase_url_invalid",

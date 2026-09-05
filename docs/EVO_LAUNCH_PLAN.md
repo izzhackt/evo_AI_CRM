@@ -312,9 +312,9 @@ release, deploy, apply production schema, change provider/webhook state, or
 touch production traffic or customer records. Those production actions remain
 in #552 after every prerequisite below passes.
 
-1. **Trusted automatic entry.** The release workflow is triggered only by a
+1. **Trusted manual-proof entry.** The release workflow is triggered only by a
    completed `EVO platform CI` `workflow_run` whose conclusion is `success`,
-   event is `push`, branch is `main`, head repository is exactly this
+   event is `workflow_dispatch`, branch is `main`, head repository is exactly this
    repository, `head_sha` still equals fetched current `origin/main`, and the
    original `github.actor_id` exactly equals the raw GitHub repository variable
    `EVO_PRODUCTION_RELEASE_ACTOR_ID` configured in #552. That variable is one

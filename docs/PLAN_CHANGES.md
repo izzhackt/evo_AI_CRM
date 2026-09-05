@@ -19108,3 +19108,40 @@ This correction does not weaken app ownership, delete a same-name foreign
 Docker resource, contact or mutate managed Supabase, production, VPS, WAHA,
 amoCRM, Gemini, webhooks, customer records or provider state, and it does not
 arm #552.
+
+## 2026-09-05 - Bind cleanup to captured immutable recovery identities
+
+Block-ID: `EVO-V3-H-RECOVERY-CLEANUP-IDENTITY-BINDING-2026-09-05`
+
+Change type: second independent-review runtime-safety correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review of the first resource-identity correction found that image
+cleanup still accepted every image inheriting the candidate project/type
+labels, ownership selectors did not reject a category-correct resource carrying
+an additional foreign reserved ownership label, and final deletion rediscovered
+resources without binding them to the immutable identities captured when the
+isolated contour created and validated them.
+
+Decision:
+
+- accept exactly the captured candidate image ID, exact sole candidate tag and
+  complete target revision/tree/archive/build-network provenance; quarantine on
+  an extra matching image, a foreign tag, inherited labels or any drift;
+- for each selected container, volume, network and image, require every
+  reserved ownership label to be absent or exactly correct for that one resource
+  category; any cross-category or foreign ownership label quarantines cleanup;
+- capture the network, Supabase census, scanner, candidate app and TLS proxy
+  immutable IDs as their creation and validation steps complete, capture the
+  validated volume-name census before product proof, and compare every cleanup
+  inventory with the still-expected captured identities before each removal;
+  and
+- after a successful type-specific removal, expect that exact captured set to
+  be absent while retaining identity checks for every remaining resource.
+
+Missing capture, replacement, duplication, extra owned resource, same-name
+collision or identity drift fails closed and leaves the marked private root in
+quarantine. This correction remains local to the disposable recovery consumer;
+it does not run Docker, contact or mutate managed Supabase, production, VPS,
+WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
+not arm #552.

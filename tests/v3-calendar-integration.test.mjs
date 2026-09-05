@@ -39,7 +39,7 @@ test("deadline-kind conversion preserves the task day instead of the period anch
   );
   assert.match(controls, /taskDeadlineInputDefaults\(task, day\)/);
   assert.match(controls, /defaultValue=\{defaults\.dueOn\}/);
-  assert.match(controls, /defaultValue=\{defaults\.dueAt\}/);
+  assert.match(controls, /value=\{displayDueAt\}/);
 });
 
 test("V3 calendar reads one bounded canonical workspace without a second data path", () => {

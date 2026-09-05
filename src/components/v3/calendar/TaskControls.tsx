@@ -100,6 +100,10 @@ function DeadlineFields({
     task ? taskDeadlineKind(task) : "all_day",
   );
   const defaults = taskDeadlineInputDefaults(task, day);
+  const [displayDueAt, setDisplayDueAt] = useState(defaults.dueAt);
+  const [submittedDueAt, setSubmittedDueAt] = useState(
+    task?.dueAt ?? defaults.dueAt,
+  );
   return (
     <>
       <label className="text-xs font-medium text-fg-2">
@@ -136,12 +140,17 @@ function DeadlineFields({
           <label className="text-xs font-medium text-fg-2">
             Дата и время · Бишкек
             <input
-              name="due_at"
               type="datetime-local"
-              defaultValue={defaults.dueAt}
+              value={displayDueAt}
+              data-testid="v3-calendar-timed-deadline-input"
+              onChange={(event) => {
+                setDisplayDueAt(event.target.value);
+                setSubmittedDueAt(event.target.value);
+              }}
               required
               className={CONTROL}
             />
+            <input type="hidden" name="due_at" value={submittedDueAt} />
           </label>
         </>
       ) : (

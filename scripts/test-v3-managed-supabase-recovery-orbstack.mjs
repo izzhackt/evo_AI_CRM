@@ -9,7 +9,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import {
   chmodSync,
   closeSync,
@@ -29,6 +29,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -44,6 +45,10 @@ const RECEIPT_SCHEMA = "evo-v3-managed-supabase-export-receipt/v1";
 const DATABASE_SCHEMA = "evo-v3-managed-supabase-logical-backup/v1";
 const STORAGE_SCHEMA = "evo-v3-managed-supabase-storage-backup/v1";
 const RESULT_SCHEMA = "evo-v3-managed-supabase-recovery-result/v2";
+const REQUIRED_NODE_VERSION = "22.23.1";
+const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
+const EICAR = String.raw`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`;
+const RECOVERY_SUPABASE_HOSTNAME = "evov3recoverylocal00.supabase.co";
 const SIGNATURE_NAMESPACE = "evo-v3-managed-supabase-recovery";
 const SIGNATURE_IDENTITY = "evo-v3-managed-supabase-export";
 const SNAPSHOT_MODE = "postgresql-exported-repeatable-read-read-only";
@@ -73,6 +78,7 @@ const ADMIN_MEMBERSHIP_DENIAL = Object.freeze({
   sqlstate: "42501",
   domainSentinel: "admin_membership_permission_required",
 });
+let activePrivateChildEnvironment;
 // Deliberately excludes Config.Env so inspect output can never capture runtime secrets.
 const SAFE_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}\t{{json .HostConfig.NetworkMode}}\t{{json .NetworkSettings.Ports}}\t{{json .NetworkSettings.Networks}}";
 const SAFE_IMAGE_INSPECT_FORMAT = "{{json .Id}}\t{{json .RepoDigests}}\t{{json .Config.Labels}}\t{{json .Os}}\t{{json .Architecture}}";
@@ -1092,6 +1098,7 @@ export function validateEvidenceRuntimeSeparation(path, harnessRoot) {
 function safeEnvironment(extra = {}) {
   return Object.freeze({
     PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    ...(activePrivateChildEnvironment ?? {}),
     LANG: "C.UTF-8",
     LC_ALL: "C",
     DOCKER_CONTEXT: "orbstack",
@@ -1117,6 +1124,36 @@ export function orbStackEnvironment(home = homedir()) {
     fail("orbstack_home_invalid", "toolchain");
   }
   return safeEnvironment({ HOME: canonical });
+}
+
+function activatePrivateChildEnvironment(harnessRoot, dockerHost, dockerBuildx) {
+  if (activePrivateChildEnvironment) fail("private_child_environment_already_active", "toolchain");
+  const home = join(harnessRoot, "child-home");
+  const temporary = join(harnessRoot, "child-tmp");
+  const dockerConfig = join(home, ".docker");
+  const pluginDirectory = join(dockerConfig, "cli-plugins");
+  for (const directory of [home, temporary, dockerConfig, pluginDirectory]) {
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    chmodSync(directory, 0o700);
+  }
+  symlinkSync(dockerBuildx.real, join(pluginDirectory, "docker-buildx"));
+  const contextRoot = join(dockerConfig, "contexts", "meta", sha256("orbstack"));
+  mkdirSync(contextRoot, { recursive: true, mode: 0o700 });
+  writeFileSync(join(contextRoot, "meta.json"), `${JSON.stringify({
+    Name: "orbstack",
+    Metadata: { Description: "OrbStack recovery contour" },
+    Endpoints: { docker: { Host: dockerHost, SkipTLSVerify: false } },
+  })}\n`, { mode: 0o600, flag: "wx" });
+  activePrivateChildEnvironment = Object.freeze({
+    HOME: home,
+    TMPDIR: temporary,
+    DOCKER_CONFIG: dockerConfig,
+  });
+  return Object.freeze({
+    homeMode: (lstatSync(home).mode & 0o777).toString(8),
+    dockerConfigMode: (lstatSync(dockerConfig).mode & 0o777).toString(8),
+    buildxRealpathSha256: sha256(realpathSync(join(pluginDirectory, "docker-buildx"))),
+  });
 }
 
 function pinnedSupabaseEnvironment(paths) {
@@ -1501,7 +1538,7 @@ function versionToken(output, label, code) {
   return `${label} ${match[1]}`;
 }
 
-async function trustedToolchain(supervisor, availableEvidence = {}) {
+async function trustedToolchain(supervisor, harnessRoot, availableEvidence = {}) {
   const supabaseChain = resolveSupabaseExecutableChain();
   availableEvidence.supabase_bin_link_sha256 = supabaseChain.binLinkSha256;
   const tools = Object.freeze({
@@ -1527,6 +1564,21 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
       ["/opt/homebrew/opt/libpq/bin/psql", "/usr/local/opt/libpq/bin/psql"],
       ["/opt/homebrew/Cellar/libpq", "/usr/local/Cellar/libpq"],
       "psql_unavailable",
+    ),
+    node: resolveExecutable(
+      ["/opt/homebrew/opt/node@22/bin/node", "/usr/local/opt/node@22/bin/node"],
+      ["/opt/homebrew/Cellar/node@22", "/usr/local/Cellar/node@22"],
+      "node_22_unavailable",
+    ),
+    openssl: resolveExecutable(
+      ["/usr/bin/openssl"],
+      ["/usr/bin/openssl"],
+      "openssl_unavailable",
+    ),
+    dockerBuildx: resolveExecutable(
+      ["/Applications/OrbStack.app/Contents/MacOS/xbin/docker-buildx"],
+      ["/Applications/OrbStack.app/Contents/MacOS/xbin/docker-tools"],
+      "docker_buildx_unavailable",
     ),
     supabaseLauncher: supabaseChain.launcher,
     supabaseNative: supabaseChain.native,
@@ -1589,6 +1641,32 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
   const context = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "context", "show"], { stage: "toolchain", code: "docker_context_invalid", timeoutMs: 10_000 });
   if (context.stdout.toString("utf8").trim() !== "orbstack") fail("docker_context_invalid", "toolchain");
   availableEvidence.docker_context = "orbstack";
+  const contextHost = await supervisor.run(tools.docker.real, ["--context", "orbstack", "context", "inspect", "orbstack", "--format", "{{.Endpoints.docker.Host}}"], {
+    stage: "toolchain",
+    code: "docker_context_endpoint_invalid",
+    timeoutMs: 10_000,
+  });
+  const dockerHost = contextHost.stdout.toString("utf8").trim();
+  if (!/^unix:\/\/[A-Za-z0-9_./-]+$/u.test(dockerHost)) fail("docker_context_endpoint_invalid", "toolchain");
+  const privateEnvironment = activatePrivateChildEnvironment(harnessRoot, dockerHost, tools.dockerBuildx);
+  const privateContext = await supervisor.run(tools.docker.real, ["--context", "orbstack", "context", "show"], {
+    stage: "toolchain",
+    code: "private_docker_context_unavailable",
+    timeoutMs: 10_000,
+  });
+  if (privateContext.stdout.toString("utf8").trim() !== "orbstack") fail("private_docker_context_not_orbstack", "toolchain");
+  const buildxVersion = await supervisor.run(tools.docker.real, ["--context", "orbstack", "buildx", "version"], {
+    stage: "toolchain",
+    code: "private_docker_buildx_unavailable",
+    timeoutMs: 10_000,
+  });
+  availableEvidence.docker_buildx = versionToken(buildxVersion.stdout.toString("utf8"), "buildx", "docker_buildx_version_invalid");
+  availableEvidence.private_home_mode = privateEnvironment.homeMode;
+  availableEvidence.private_docker_config_mode = privateEnvironment.dockerConfigMode;
+  availableEvidence.private_buildx_realpath_sha256 = privateEnvironment.buildxRealpathSha256;
+  const nodeVersion = await supervisor.run(tools.node.real, ["--version"], { stage: "toolchain", code: "node_22_version_failed", timeoutMs: 10_000 });
+  if (nodeVersion.stdout.toString("utf8").trim() !== `v${REQUIRED_NODE_VERSION}`) fail("node_22_version_invalid", "toolchain");
+  availableEvidence.node = REQUIRED_NODE_VERSION;
   for (const [field, template] of [["docker_client", "{{.Client.Version}}"], ["docker_server", "{{.Server.Version}}"]]) {
     const version = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "version", "--format", template], {
       stage: "toolchain",
@@ -1956,13 +2034,14 @@ async function reservePort() {
 async function reservePorts() {
   const originals = [45420, 45421, 45422, 45423, 45424, 45425, 45426, 45427, 45428, 45429, 3000];
   const values = [];
-  while (values.length < originals.length) {
+  while (values.length < originals.length + 1) {
     const candidate = await reservePort();
     if (!values.includes(candidate)) values.push(candidate);
   }
   return Object.freeze({
     replacements: Object.freeze(Object.fromEntries(originals.map((port, index) => [port, values[index]]))),
-    app: values.at(-1),
+    app: values.at(-2),
+    scanner: values.at(-1),
   });
 }
 
@@ -3013,6 +3092,149 @@ async function platformGet(status, actor, resource, query, interruptionGuard) {
   return payload;
 }
 
+async function platformRpc(status, actor, functionName, body, interruptionGuard, stage = "malware_scanner_proof") {
+  const response = await apiRequest(new URL(`/rest/v1/rpc/${functionName}`, status.apiUrl), {
+    method: "POST",
+    headers: {
+      apikey: status.publishableKey,
+      Authorization: `Bearer ${actor.accessToken}`,
+      "Accept-Profile": "platform",
+      "Content-Profile": "platform",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  }, [200], `${functionName}_failed`, stage, interruptionGuard);
+  let payload;
+  try {
+    payload = await interruptionGuard.run(stage, async () => await response.json());
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    payload = null;
+  }
+  if (payload === null) fail(`${functionName}_response_invalid`, stage);
+  return payload;
+}
+
+async function assertPlatformRpcDenied(status, actor, functionName, body, interruptionGuard) {
+  const stage = "role_outcome_proof";
+  const response = await apiRequest(new URL(`/rest/v1/rpc/${functionName}`, status.apiUrl), {
+    method: "POST",
+    headers: {
+      apikey: status.publishableKey,
+      Authorization: `Bearer ${actor.accessToken}`,
+      "Accept-Profile": "platform",
+      "Content-Profile": "platform",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  }, [400, 401, 403], `${functionName}_unexpectedly_authorized`, stage, interruptionGuard);
+  let payload;
+  try {
+    payload = await interruptionGuard.run(stage, async () => await response.json());
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    payload = null;
+  }
+  if (!isRecord(payload) || payload.code !== "42501") {
+    fail(`${functionName}_denial_contract_invalid`, stage, { status: response.status });
+  }
+}
+
+function requiredPositiveVersion(value, code) {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) fail(code, "role_outcome_proof");
+  return parsed;
+}
+
+function assertReplayResult(first, replayed, code) {
+  if (!sameJson(first, replayed)) fail(code, "role_outcome_proof");
+}
+
+async function assertRoleMutationAudit(supervisor, toolchain, status, {
+  action,
+  actor,
+  requestId,
+  receiptKind,
+}) {
+  const receiptCount = receiptKind === "sales"
+    ? `(SELECT count(*) FROM platform_private.sales_lead_workflow_receipts AS receipt
+        WHERE receipt.request_id = ${sqlLiteral(requestId)}::uuid
+          AND receipt.actor_membership_id = ${sqlLiteral(actor.membershipId)}::uuid)`
+    : receiptKind === "admissions"
+      ? `(SELECT count(*) FROM platform.case_task_events AS event
+          WHERE event.request_id = ${sqlLiteral(requestId)}::uuid
+            AND event.actor_membership_id = ${sqlLiteral(actor.membershipId)}::uuid)`
+      : null;
+  if (receiptCount === null) fail("role_mutation_receipt_kind_invalid", "role_outcome_proof");
+  const facts = await psqlJson(supervisor, toolchain, status, `SELECT json_build_object(
+    'auditCount', (
+      SELECT count(*) FROM platform.audit_events AS audit
+      WHERE audit.request_id = ${sqlLiteral(requestId)}::uuid
+        AND audit.action = ${sqlLiteral(action)}
+        AND audit.actor_profile_id = ${sqlLiteral(actor.profileId)}::uuid
+    ),
+    'receiptCount', ${receiptCount}
+  )::text`, "role_outcome_proof");
+  if (Number(facts?.auditCount) !== 1 || Number(facts?.receiptCount) !== 1) {
+    fail("role_mutation_audit_correlation_failed", "role_outcome_proof");
+  }
+  const appendOnly = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", String.raw`
+    DO $audit_append_only$
+    BEGIN
+      BEGIN
+        UPDATE platform.audit_events SET reason = reason || ' forbidden'
+        WHERE request_id = ${sqlLiteral(requestId)}::uuid;
+        RAISE EXCEPTION 'audit update unexpectedly succeeded';
+      EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+      END;
+      BEGIN
+        DELETE FROM platform.audit_events WHERE request_id = ${sqlLiteral(requestId)}::uuid;
+        RAISE EXCEPTION 'audit delete unexpectedly succeeded';
+      EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+      END;
+    END
+    $audit_append_only$;
+    SELECT count(*)::text FROM platform.audit_events
+    WHERE request_id = ${sqlLiteral(requestId)}::uuid;`], {
+    stage: "role_outcome_proof",
+    code: "audit_append_only_proof_failed",
+  });
+  if (appendOnly.stdout.toString("utf8").trim().split(/\s+/u).at(-1) !== "1") {
+    fail("audit_append_only_row_missing", "role_outcome_proof");
+  }
+}
+
+async function recordRecoveryProviderBoundary(status, organizationId, repositoryCommit, interruptionGuard) {
+  const evidence = {};
+  for (const target of ["waha", "ai"]) {
+    const response = await apiRequest(new URL("/rest/v1/rpc/record_messaging_integration_health_event", status.apiUrl), {
+      method: "POST",
+      headers: {
+        apikey: status.serviceRoleKey,
+        Authorization: `Bearer ${status.serviceRoleKey}`,
+        "Accept-Profile": "platform",
+        "Content-Profile": "platform",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        p_organization_id: organizationId,
+        p_target: target,
+        p_readiness: "unconfigured",
+        p_evidence_kind: "configuration_check",
+        p_reason: "Managed recovery contour has no external provider configuration",
+        p_evidence_ref: `v3-recovery:${repositoryCommit.slice(0, 12)}:${target}`,
+        p_request_id: randomUUID(),
+      }),
+    }, [200], `${target}_provider_configuration_boundary_append_failed`, "provider_boundary", interruptionGuard);
+    const event = await interruptionGuard.run("provider_boundary", async () => await response.json()).catch(() => null);
+    if (!isRecord(event) || event.target !== target || event.readiness !== "unconfigured" || event.evidence_kind !== "configuration_check") {
+      fail(`${target}_provider_configuration_boundary_response_invalid`, "provider_boundary");
+    }
+    evidence[target] = "configuration_check_unconfigured";
+  }
+  return Object.freeze(evidence);
+}
+
 async function expectDatabaseDenial(operation, expectedCode, expected) {
   try {
     await operation();
@@ -3095,14 +3317,18 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
   const otherOrganizations = await psqlJson(supervisor, toolchain, status,
     `SELECT coalesce(json_agg(id ORDER BY id), '[]'::json)::text FROM platform.organizations WHERE id <> ${sqlLiteral(options.platformOrganizationId)}::uuid`,
     "auth_rls_proof");
-  if (!Array.isArray(otherOrganizations) || !otherOrganizations.some((value) => UUID.test(value))) {
-    fail("preexisting_cross_organization_reference_missing", "auth_rls_proof");
-  }
-  const crossOrganizationId = otherOrganizations.find((value) => UUID.test(value));
+  const crossOrganizationId = Array.isArray(otherOrganizations)
+    ? otherOrganizations.find((value) => UUID.test(value))
+    : undefined;
+  const blockers = [];
+  if (!crossOrganizationId) blockers.push("preexisting_cross_organization_reference_missing");
   for (const role of ["admin", "sales", "admissions"]) {
     const own = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${options.platformOrganizationId}` }, interruptionGuard);
-    const cross = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${crossOrganizationId}` }, interruptionGuard);
-    if (own.length !== 1 || cross.length !== 0) fail("organization_rls_boundary_failed", "auth_rls_proof", { role });
+    if (own.length !== 1) fail("organization_rls_boundary_failed", "auth_rls_proof", { role });
+    if (crossOrganizationId) {
+      const cross = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${crossOrganizationId}` }, interruptionGuard);
+      if (cross.length !== 0) fail("organization_rls_boundary_failed", "auth_rls_proof", { role });
+    }
   }
   const requestId = randomUUID();
   const claims = JSON.stringify({ sub: actors.admin.userId, role: "authenticated" });
@@ -3121,16 +3347,18 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
     ROLLBACK;`;
   const positive = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", writeProbe], { stage: "canonical_write_audit_proof", code: "canonical_write_audit_failed" });
   const adminAuditCount = Number(positive.stdout.toString("utf8").trim().split(/\s+/u).at(-1));
-  const crossOrganizationWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
-      BEGIN;
-      SELECT set_config('request.jwt.claims', ${sqlLiteral(claims)}, true);
-      SET LOCAL ROLE authenticated;
-      SELECT platform.change_membership_permission(
-        ${sqlLiteral(crossOrganizationId)}::uuid,
-        ${sqlLiteral(actors.admin.membershipId)}::uuid,
-        'contract.evidence.confirm', true, 'must be denied across organizations', ${sqlLiteral(randomUUID())}::uuid
-      );
-      ROLLBACK;`], { stage: "cross_organization_write_negative_proof", code: "expected_cross_organization_write_denial" }), "expected_cross_organization_write_denial", ADMIN_MEMBERSHIP_DENIAL);
+  const crossOrganizationWriteDenied = crossOrganizationId
+    ? await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
+        BEGIN;
+        SELECT set_config('request.jwt.claims', ${sqlLiteral(claims)}, true);
+        SET LOCAL ROLE authenticated;
+        SELECT platform.change_membership_permission(
+          ${sqlLiteral(crossOrganizationId)}::uuid,
+          ${sqlLiteral(actors.admin.membershipId)}::uuid,
+          'contract.evidence.confirm', true, 'must be denied across organizations', ${sqlLiteral(randomUUID())}::uuid
+        );
+        ROLLBACK;`], { stage: "cross_organization_write_negative_proof", code: "expected_cross_organization_write_denial" }), "expected_cross_organization_write_denial", ADMIN_MEMBERSHIP_DENIAL)
+    : null;
   const salesClaims = JSON.stringify({ sub: actors.sales.userId, role: "authenticated" });
   const salesAdminWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
       BEGIN;
@@ -3142,61 +3370,7 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
         'contract.evidence.confirm', true, 'must be denied', ${sqlLiteral(randomUUID())}::uuid
       );
       ROLLBACK;`], { stage: "canonical_write_negative_proof", code: "expected_sales_write_denial" }), "expected_sales_write_denial", ADMIN_MEMBERSHIP_DENIAL);
-  const admissionsTasks = await psqlJson(supervisor, toolchain, status, String.raw`
-    SELECT coalesce(json_agg(row_to_json(candidate) ORDER BY candidate.id), '[]'::json)::text
-    FROM (
-      SELECT task.id::text AS id, task.status::text AS status,
-        task.assignee_membership_id::text AS "assigneeMembershipId",
-        task.priority::text AS priority, task.due_at::text AS "dueAt",
-        task.due_on::text AS "dueOn", task.student_visible AS "studentVisible",
-        task.version AS version
-      FROM platform.case_tasks AS task
-      JOIN platform.student_cases AS student_case
-        ON student_case.organization_id = task.organization_id
-        AND student_case.id = task.student_case_id
-      WHERE task.organization_id = ${sqlLiteral(options.platformOrganizationId)}::uuid
-        AND task.assignee_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
-        AND student_case.current_curator_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
-      ORDER BY task.id
-      LIMIT 1
-    ) AS candidate`, "admissions_write_proof");
-  const admissionsTask = Array.isArray(admissionsTasks) ? admissionsTasks[0] : undefined;
-  if (
-    !isRecord(admissionsTask) ||
-    !UUID.test(admissionsTask.id) ||
-    admissionsTask.assigneeMembershipId !== actors.admissions.membershipId ||
-    !["open", "in_progress", "blocked", "done", "cancelled"].includes(admissionsTask.status) ||
-    !["low", "normal", "high", "urgent"].includes(admissionsTask.priority) ||
-    (admissionsTask.dueAt !== null && typeof admissionsTask.dueAt !== "string") ||
-    (admissionsTask.dueOn !== null && typeof admissionsTask.dueOn !== "string") ||
-    typeof admissionsTask.studentVisible !== "boolean" ||
-    !Number.isSafeInteger(admissionsTask.version) ||
-    admissionsTask.version < 1
-  ) {
-    fail("authorized_admissions_task_missing", "admissions_write_proof");
-  }
-  const admissionsMutation = selectAdmissionsTaskMutation(admissionsTask);
   const admissionsClaims = JSON.stringify({ sub: actors.admissions.userId, role: "authenticated" });
-  const admissionsRequestId = randomUUID();
-  const admissionsPositive = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", String.raw`
-    BEGIN;
-    SELECT set_config('request.jwt.claims', ${sqlLiteral(admissionsClaims)}, true);
-    SET LOCAL ROLE authenticated;
-    SELECT platform.change_case_task(
-      ${sqlLiteral(options.platformOrganizationId)}::uuid,
-      ${sqlLiteral(admissionsTask.id)}::uuid,
-      ${sqlLiteral(admissionsMutation.status)}::platform.case_task_status,
-      ${sqlLiteral(admissionsMutation.assigneeMembershipId)}::uuid,
-      ${sqlLiteral(admissionsMutation.priority)}::platform.case_task_priority,
-      ${admissionsMutation.dueAt === null ? "NULL" : sqlLiteral(admissionsMutation.dueAt)}::timestamptz,
-      ${admissionsMutation.dueOn === null ? "NULL" : sqlLiteral(admissionsMutation.dueOn)}::date,
-      ${admissionsMutation.studentVisible ? "true" : "false"},
-      ${admissionsMutation.version},
-      ${sqlLiteral(admissionsRequestId)}::uuid
-    );
-    SELECT count(*)::text FROM platform.audit_events WHERE request_id = ${sqlLiteral(admissionsRequestId)}::uuid;
-    ROLLBACK;`], { stage: "admissions_write_proof", code: "admissions_task_write_failed" });
-  const admissionsTaskAuditCount = Number(admissionsPositive.stdout.toString("utf8").trim().split(/\s+/u).at(-1));
   const admissionsAdminWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
     BEGIN;
     SELECT set_config('request.jwt.claims', ${sqlLiteral(admissionsClaims)}, true);
@@ -3207,14 +3381,270 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
       'contract.evidence.confirm', true, 'Admissions must not administer staff', ${sqlLiteral(randomUUID())}::uuid
     );
     ROLLBACK;`], { stage: "admissions_admin_negative_proof", code: "expected_admissions_admin_write_denial" }), "expected_admissions_admin_write_denial", ADMIN_MEMBERSHIP_DENIAL);
-  const writes = validateWriteBoundaryResults({
-    adminAuditCount,
-    crossOrganizationWriteDenied,
-    salesAdminWriteDenied,
-    admissionsTaskAuditCount,
-    admissionsAdminWriteDenied,
+  if (
+    adminAuditCount !== 1 ||
+    salesAdminWriteDenied !== true ||
+    admissionsAdminWriteDenied !== true ||
+    (crossOrganizationId && crossOrganizationWriteDenied !== true)
+  ) fail("authorization_write_boundary_failed", "auth_rls_proof");
+  return Object.freeze({
+    evidence: Object.freeze({
+      sameOrganization: "passed",
+      crossOrganization: crossOrganizationId ? "passed" : "not_run_missing_restored_reference",
+      canonicalRead: "passed",
+      canonicalWriteRollbackOnly: "passed",
+      auditRollbackOnly: "passed",
+      crossOrganizationWriteDenied,
+      salesAdminWriteDenied: true,
+      admissionsAdminWriteDenied: true,
+      admissionsTaskWrite: "proved_by_restored_role_outcome_suite",
+    }),
+    blockers: Object.freeze(blockers),
   });
-  return Object.freeze({ sameOrganization: "passed", crossOrganization: "passed", canonicalRead: "passed", ...writes });
+}
+
+function admissionsTaskBrowserDay(task) {
+  if (typeof task.dueOn === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(task.dueOn)) return task.dueOn;
+  if (typeof task.dueAt !== "string" || !Number.isFinite(Date.parse(task.dueAt))) return null;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Bishkek",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(task.dueAt)).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+async function proveRestoredRoleServerOutcomes(options, status, actors, supervisor, toolchain, interruptionGuard) {
+  const outcomes = {
+    admin: "incomplete_role_outcome_suite",
+    sales: isRecord(actors.sales) ? "incomplete_role_outcome_suite" : "missing_restored_identity",
+    admissions: isRecord(actors.admissions) ? "incomplete_role_outcome_suite" : "missing_restored_identity",
+  };
+  const blockers = [];
+  let salesProof;
+  let admissionsProof;
+  let documentProof;
+  if (![actors.admin, actors.sales, actors.admissions].every(isRecord)) {
+    return Object.freeze({
+      outcomes: Object.freeze(outcomes),
+      blockers: Object.freeze(blockers),
+      evidence: Object.freeze({
+        salesMutationReplayAudit: "not_run_missing_restored_identity",
+        admissionsMutationReplayAudit: "not_run_missing_restored_identity",
+        privateDocument: "not_run_missing_restored_identity",
+      }),
+    });
+  }
+
+  const salesPageBody = Object.freeze({
+    p_limit: 101,
+    p_cursor_updated_at: null,
+    p_cursor_id: null,
+    p_connection_filter: "all",
+    p_stage_filter: "all",
+    p_assignment_filter: "all",
+    p_owner_membership_id: null,
+    p_due_filter: "all",
+    p_query: null,
+  });
+  await assertPlatformRpcDenied(status, actors.admissions, "staff_sales_lead_page", salesPageBody, interruptionGuard);
+  const salesCandidates = await psqlJson(supervisor, toolchain, status, String.raw`
+    SELECT coalesce(json_agg(row_to_json(candidate) ORDER BY candidate.lead_id), '[]'::json)::text
+    FROM (
+      SELECT lead.id::text AS lead_id
+      FROM platform.leads AS lead
+      WHERE lead.organization_id = ${sqlLiteral(options.platformOrganizationId)}::uuid
+        AND lead.lifecycle_state = 'open'
+        AND (lead.current_owner_membership_id IS NULL
+          OR lead.current_owner_membership_id = ${sqlLiteral(actors.sales.membershipId)}::uuid)
+      ORDER BY lead.id
+      LIMIT 1
+    ) AS candidate`, "role_outcome_proof");
+  const salesCandidate = Array.isArray(salesCandidates) ? salesCandidates[0] : undefined;
+  const salesRows = isRecord(salesCandidate) && UUID.test(salesCandidate.lead_id)
+    ? await platformRpc(status, actors.sales, "staff_sales_lead_page", {
+        ...salesPageBody,
+        p_query: salesCandidate.lead_id,
+      }, interruptionGuard, "role_outcome_proof")
+    : [];
+  const salesLead = Array.isArray(salesRows)
+    ? salesRows.find((row) => isRecord(row) && row.lead_id === salesCandidate?.lead_id &&
+      row.lifecycle_state === "open" && [null, actors.sales.membershipId].includes(row.current_owner_membership_id))
+    : undefined;
+  if (isRecord(salesCandidate) && UUID.test(salesCandidate.lead_id) && !salesLead) {
+    fail("restored_sales_lead_role_projection_failed", "role_outcome_proof");
+  }
+  if (!salesLead) {
+    outcomes.sales = "missing_restored_sales_lead";
+    blockers.push("restored_sales_lead_missing");
+  } else {
+    const workflowVersion = requiredPositiveVersion(salesLead.workflow_version, "restored_sales_workflow_version_invalid");
+    if (typeof salesLead.stage_key !== "string" || salesLead.stage_key.length === 0) {
+      fail("restored_sales_stage_invalid", "role_outcome_proof");
+    }
+    const requestId = randomUUID();
+    const marker = `Recovery Sales ${randomUUID()}`;
+    const mutationBody = Object.freeze({
+      p_lead_id: salesLead.lead_id,
+      p_expected_workflow_version: workflowVersion,
+      p_request_id: requestId,
+      p_stage_key: salesLead.stage_key,
+      p_owner_membership_id: actors.sales.membershipId,
+      p_next_action_text: marker,
+      p_next_action_due_date: "2099-12-31",
+      p_clear_next_action: false,
+      p_reason: null,
+    });
+    const result = await platformRpc(status, actors.sales, "mutate_sales_lead_workflow", mutationBody, interruptionGuard, "role_outcome_proof");
+    const replayed = await platformRpc(status, actors.sales, "mutate_sales_lead_workflow", mutationBody, interruptionGuard, "role_outcome_proof");
+    assertReplayResult(result, replayed, "sales_workflow_replay_mismatch");
+    if (!isRecord(result) || result.lead_id !== salesLead.lead_id || result.next_action_text !== marker ||
+      requiredPositiveVersion(result.workflow_version, "sales_workflow_result_version_invalid") !== workflowVersion + 1) {
+      fail("sales_workflow_result_invalid", "role_outcome_proof");
+    }
+    for (const actor of [actors.sales, actors.admin]) {
+      const rows = await platformRpc(status, actor, "staff_sales_lead_page", { ...salesPageBody, p_query: salesLead.lead_id }, interruptionGuard, "role_outcome_proof");
+      const readback = Array.isArray(rows) ? rows.find((row) => row?.lead_id === salesLead.lead_id) : undefined;
+      if (readback?.next_action_text !== marker || Number(readback?.workflow_version) !== workflowVersion + 1) {
+        fail("sales_workflow_role_readback_failed", "role_outcome_proof");
+      }
+    }
+    await assertRoleMutationAudit(supervisor, toolchain, status, {
+      action: "lead.sales.workflow.changed",
+      actor: actors.sales,
+      requestId,
+      receiptKind: "sales",
+    });
+    outcomes.sales = "passed";
+    salesProof = Object.freeze({ leadId: salesLead.lead_id, marker, workflowVersion: workflowVersion + 1 });
+  }
+
+  const admissionsTasks = await psqlJson(supervisor, toolchain, status, String.raw`
+    SELECT coalesce(json_agg(row_to_json(candidate) ORDER BY candidate.id), '[]'::json)::text
+    FROM (
+      SELECT task.id::text AS id, task.student_case_id::text AS "studentCaseId",
+        task.status::text AS status, task.assignee_membership_id::text AS "assigneeMembershipId",
+        task.priority::text AS priority, task.due_at::text AS "dueAt",
+        task.due_on::text AS "dueOn", task.student_visible AS "studentVisible",
+        task.version AS version
+      FROM platform.case_tasks AS task
+      JOIN platform.student_cases AS student_case
+        ON student_case.organization_id = task.organization_id
+        AND student_case.id = task.student_case_id
+      WHERE task.organization_id = ${sqlLiteral(options.platformOrganizationId)}::uuid
+        AND task.assignee_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
+        AND student_case.current_curator_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
+        AND student_case.state IN ('active', 'closed')
+        AND student_case.handoff_at IS NOT NULL
+        AND (task.due_at IS NOT NULL OR task.due_on IS NOT NULL)
+      ORDER BY task.id
+      LIMIT 1
+    ) AS candidate`, "role_outcome_proof");
+  const admissionsTask = Array.isArray(admissionsTasks) ? admissionsTasks[0] : undefined;
+  if (!isRecord(admissionsTask) || !UUID.test(admissionsTask.id) || !UUID.test(admissionsTask.studentCaseId)) {
+    outcomes.admissions = "missing_restored_admissions_task";
+    blockers.push("restored_admissions_task_missing");
+  } else {
+    const admissionsMutation = selectAdmissionsTaskMutation({
+      id: admissionsTask.id,
+      status: admissionsTask.status,
+      assigneeMembershipId: admissionsTask.assigneeMembershipId,
+      priority: admissionsTask.priority,
+      dueAt: admissionsTask.dueAt,
+      dueOn: admissionsTask.dueOn,
+      studentVisible: admissionsTask.studentVisible,
+      version: requiredPositiveVersion(admissionsTask.version, "restored_admissions_task_version_invalid"),
+    });
+    if (admissionsMutation.assigneeMembershipId !== actors.admissions.membershipId) {
+      fail("restored_admissions_task_assignee_invalid", "role_outcome_proof");
+    }
+    const browserDay = admissionsTaskBrowserDay(admissionsMutation);
+    if (browserDay === null) fail("restored_admissions_task_deadline_invalid", "role_outcome_proof");
+    const requestId = randomUUID();
+    const workspaceBody = Object.freeze({ p_student_case_id: admissionsTask.studentCaseId });
+    await assertPlatformRpcDenied(status, actors.sales, "staff_student_case_task_workspace", workspaceBody, interruptionGuard);
+    const mutationBody = Object.freeze({
+      p_organization_id: options.platformOrganizationId,
+      p_case_task_id: admissionsMutation.id,
+      p_new_status: admissionsMutation.status,
+      p_new_assignee_membership_id: admissionsMutation.assigneeMembershipId,
+      p_priority: admissionsMutation.priority,
+      p_due_at: admissionsMutation.dueAt,
+      p_due_on: admissionsMutation.dueOn,
+      p_student_visible: admissionsMutation.studentVisible,
+      p_expected_version: admissionsMutation.version,
+      p_request_id: requestId,
+    });
+    const result = await platformRpc(status, actors.admissions, "change_case_task", mutationBody, interruptionGuard, "role_outcome_proof");
+    const replayed = await platformRpc(status, actors.admissions, "change_case_task", mutationBody, interruptionGuard, "role_outcome_proof");
+    assertReplayResult(result, replayed, "admissions_task_replay_mismatch");
+    const resultVersion = requiredPositiveVersion(result?.version, "admissions_task_result_version_invalid");
+    if (!isRecord(result) || result.case_task_id !== admissionsTask.id || result.student_case_id !== admissionsTask.studentCaseId ||
+      result.status !== admissionsMutation.status || resultVersion !== admissionsMutation.version + 1) {
+      fail("admissions_task_result_invalid", "role_outcome_proof");
+    }
+    for (const actor of [actors.admissions, actors.admin]) {
+      const workspace = await platformRpc(status, actor, "staff_student_case_task_workspace", workspaceBody, interruptionGuard, "role_outcome_proof");
+      const readback = Array.isArray(workspace?.tasks)
+        ? workspace.tasks.find((task) => task?.case_task_id === admissionsTask.id)
+        : undefined;
+      if (readback?.status !== admissionsMutation.status || Number(readback?.version) !== resultVersion) {
+        fail("admissions_task_role_readback_failed", "role_outcome_proof");
+      }
+    }
+    await assertRoleMutationAudit(supervisor, toolchain, status, {
+      action: "task.change",
+      actor: actors.admissions,
+      requestId,
+      receiptKind: "admissions",
+    });
+    outcomes.admissions = "passed";
+    admissionsProof = Object.freeze({
+      taskId: admissionsTask.id,
+      studentCaseId: admissionsTask.studentCaseId,
+      status: admissionsMutation.status,
+      version: resultVersion,
+      browserDay,
+    });
+  }
+
+  const documentBody = Object.freeze({ p_limit: 101 });
+  const adminDocuments = await platformRpc(status, actors.admin, "staff_document_queue", documentBody, interruptionGuard, "role_outcome_proof");
+  const admissionsDocuments = await platformRpc(status, actors.admissions, "staff_document_queue", documentBody, interruptionGuard, "role_outcome_proof");
+  await assertPlatformRpcDenied(status, actors.sales, "staff_document_queue", documentBody, interruptionGuard);
+  const document = Array.isArray(admissionsDocuments)
+    ? admissionsDocuments.find((row) => isRecord(row) && row.download_ready === true &&
+      UUID.test(row.current_version_id) && SHA256.test(row.current_sha256_hex) &&
+      Number.isSafeInteger(Number(row.current_byte_size)) && Number(row.current_byte_size) >= 0)
+    : undefined;
+  const adminDocument = document && Array.isArray(adminDocuments)
+    ? adminDocuments.find((row) => row?.current_version_id === document.current_version_id && row.download_ready === true)
+    : undefined;
+  if (!document || !adminDocument) {
+    blockers.push("restored_downloadable_document_missing");
+    if (outcomes.sales === "passed") outcomes.sales = "missing_restored_downloadable_document";
+    if (outcomes.admissions === "passed") outcomes.admissions = "missing_restored_downloadable_document";
+  } else {
+    documentProof = Object.freeze({
+      versionId: document.current_version_id,
+      sha256Hex: document.current_sha256_hex,
+      byteSize: Number(document.current_byte_size),
+    });
+  }
+  if (outcomes.sales === "passed" && outcomes.admissions === "passed" && documentProof) outcomes.admin = "passed";
+  return Object.freeze({
+    outcomes: Object.freeze(outcomes),
+    blockers: Object.freeze(blockers),
+    sales: salesProof,
+    admissions: admissionsProof,
+    document: documentProof,
+    evidence: Object.freeze({
+      salesMutationReplayAudit: salesProof ? "passed" : "not_run_missing_restored_sales_lead",
+      admissionsMutationReplayAudit: admissionsProof ? "passed" : "not_run_missing_restored_admissions_task",
+      privateDocument: documentProof ? "passed_role_scoped_projection" : "not_run_missing_restored_downloadable_document",
+    }),
+  });
 }
 
 export function canonicalRecoveryPdfBytes() {
@@ -3553,36 +3983,110 @@ async function waitForHttp(url, expected, timeoutMs, code, stage, state, interru
   fail(code, stage);
 }
 
-// The host browser keeps using the CLI's loopback-only API publication. Inside
-// the isolated app namespace, the same URL lands on this fixed TCP forwarder,
-// whose upstream is derived from the inspected owned Supabase network.
-function writeCandidateEntrypoint(path) {
-  const source = `import { connect, createServer } from "node:net";
-
-const [targetHost, targetPortValue, listenPortValue] = process.argv.slice(2);
-const targetPort = Number(targetPortValue);
-const listenPort = Number(listenPortValue);
-if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(targetHost ?? "") ||
-    !Number.isSafeInteger(targetPort) || targetPort < 1 || targetPort > 65535 ||
-    !Number.isSafeInteger(listenPort) || listenPort < 1 || listenPort > 65535) {
-  throw new Error("invalid recovery proxy endpoint");
+async function waitForRecoveryScanner(containerName, supervisor, toolchain, interruptionGuard) {
+  const deadline = Date.now() + 10 * 60 * 1_000;
+  while (Date.now() < deadline) {
+    interruptionGuard.assertActive("malware_scanner_proof");
+    const state = await supervisor.run(toolchain.paths.docker.real, [
+      "--context", "orbstack", "inspect", "--format",
+      "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
+      containerName,
+    ], { stage: "malware_scanner_proof", code: "malware_scanner_inspect_failed", timeoutMs: 30_000 });
+    const health = state.stdout.toString("utf8").trim();
+    if (health === "healthy") return;
+    if (["dead", "exited", "removing"].includes(health)) fail("malware_scanner_exited", "malware_scanner_proof");
+    await interruptionGuard.run("malware_scanner_proof", async () => await delay(5_000));
+  }
+  fail("malware_scanner_health_timeout", "malware_scanner_proof");
 }
-const proxy = createServer((downstream) => {
-  const upstream = connect({ host: targetHost, port: targetPort });
-  const close = () => { downstream.destroy(); upstream.destroy(); };
-  downstream.once("error", close);
-  upstream.once("error", close);
-  upstream.once("connect", () => {
-    downstream.pipe(upstream);
-    upstream.pipe(downstream);
+
+async function startRecoveryScanner(state, repositorySnapshotRoot, supervisor, toolchain, interruptionGuard) {
+  const compose = readFileSync(join(repositorySnapshotRoot, "docker-compose.prod.yml"), "utf8");
+  if (!compose.includes(`image: "${CLAMAV_IMAGE}"`)) fail("malware_scanner_image_contract_mismatch", "malware_scanner_proof");
+  try {
+    await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "image", "inspect", CLAMAV_IMAGE], {
+      stage: "malware_scanner_proof", code: "malware_scanner_image_missing", timeoutMs: 60_000,
+    });
+  } catch (error) {
+    if (!(error instanceof RecoveryFailure) || error.code !== "malware_scanner_image_missing") throw error;
+    await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "pull", "--platform", "linux/amd64", CLAMAV_IMAGE], {
+      stage: "malware_scanner_proof", code: "malware_scanner_image_pull_failed", timeoutMs: 20 * 60 * 1_000,
+      maxCaptureBytes: 8 * 1_024 * 1_024,
+    });
+  }
+  const platform = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", CLAMAV_IMAGE], {
+    stage: "malware_scanner_proof", code: "malware_scanner_image_inspect_failed", timeoutMs: 60_000,
   });
-});
-await new Promise((resolve, reject) => {
-  proxy.once("error", reject);
-  proxy.listen(listenPort, "127.0.0.1", resolve);
-});
-await import("/app/server.js");
-`;
+  if (platform.stdout.toString("utf8").trim() !== "linux/amd64") fail("malware_scanner_image_platform_invalid", "malware_scanner_proof");
+  const containerName = `supabase_clamav_${state.projectName}`;
+  const networkHost = `evo-recovery-clamav-${state.projectName.slice(-12)}`;
+  if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/u.test(networkHost)) fail("malware_scanner_network_host_invalid", "malware_scanner_proof");
+  const signatureVolume = `supabase_clamav_signatures_${state.projectName}`;
+  await supervisor.run(toolchain.paths.docker.real, [
+    "--context", "orbstack", "volume", "create",
+    "--label", `com.docker.compose.project=${state.projectName}`,
+    signatureVolume,
+  ], { stage: "malware_scanner_proof", code: "malware_scanner_volume_create_failed", timeoutMs: 60_000 });
+  await supervisor.run(toolchain.paths.docker.real, [
+    "--context", "orbstack", "run", "--detach",
+    "--platform", "linux/amd64",
+    "--name", containerName,
+    "--network", state.networkName,
+    "--network-alias", networkHost,
+    "--init",
+    "--cpus", "2.0",
+    "--memory", "4096m",
+    "--pids-limit", "256",
+    "--label", `com.docker.compose.project=${state.projectName}`,
+    "--label", "com.evo.runtime.role=private-malware-scanner",
+    "--volume", `${signatureVolume}:/var/lib/clamav`,
+    "--health-cmd", "/usr/local/bin/clamdcheck.sh",
+    "--health-interval", "5s",
+    "--health-timeout", "10s",
+    "--health-retries", "60",
+    "--health-start-period", "180s",
+    CLAMAV_IMAGE,
+  ], { stage: "malware_scanner_proof", code: "malware_scanner_start_failed", timeoutMs: 2 * 60 * 1_000 });
+  await waitForRecoveryScanner(containerName, supervisor, toolchain, interruptionGuard);
+  state.scannerContainer = containerName;
+  state.scannerSignatureVolume = signatureVolume;
+  return Object.freeze({
+    containerName,
+    networkHost,
+    image: CLAMAV_IMAGE,
+    network: "unique_internal_recovery_network",
+    publish: "none",
+  });
+}
+
+async function createRecoveryTlsMaterial(state, supervisor, toolchain) {
+  const directory = join(state.harnessRoot, "app-tls");
+  const configPath = join(directory, "openssl.cnf");
+  const certificatePath = join(directory, "ca.pem");
+  const privateKeyPath = join(directory, "key.pem");
+  mkdirSync(directory, { mode: 0o700 });
+  writeFileSync(configPath, `[req]\nprompt = no\ndistinguished_name = dn\nx509_extensions = v3\n[dn]\nCN = ${RECOVERY_SUPABASE_HOSTNAME}\n[v3]\nsubjectAltName = DNS:${RECOVERY_SUPABASE_HOSTNAME}\nbasicConstraints = critical,CA:TRUE\nkeyUsage = critical,digitalSignature,keyEncipherment,keyCertSign\n`, { mode: 0o600, flag: "wx" });
+  await supervisor.run(toolchain.paths.openssl.real, [
+    "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+    "-keyout", privateKeyPath,
+    "-out", certificatePath,
+    "-days", "1",
+    "-config", configPath,
+  ], { stage: "image_verification", code: "recovery_tls_material_generation_failed", timeoutMs: 60_000 });
+  for (const path of [certificatePath, privateKeyPath]) {
+    const metadata = lstatSync(path);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size <= 0) fail("recovery_tls_material_invalid", "image_verification");
+    chmodSync(path, 0o444);
+  }
+  return Object.freeze({
+    certificatePath: realpathSync(certificatePath),
+    privateKeyPath: realpathSync(privateKeyPath),
+    certificateSha256: await sha256File(certificatePath),
+  });
+}
+
+function writeCandidateEntrypoint(path) {
+  const source = `await import("/app/server.js");\n`;
   writeFileSync(path, source, { mode: 0o444, flag: "wx" });
 }
 
@@ -3610,31 +4114,36 @@ async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain
   );
 }
 
-async function startCandidateApp(options, status, actors, state, supervisor, toolchain, image, appPort, interruptionGuard) {
+async function startCandidateApp(options, status, actors, state, supervisor, toolchain, image, scanner, appPort, interruptionGuard) {
   const endpoint = await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
   const envFile = join(state.harnessRoot, "candidate.env");
   const entrypoint = join(state.harnessRoot, "candidate-entrypoint.mjs");
   writeCandidateEntrypoint(entrypoint);
+  const tls = await createRecoveryTlsMaterial(state, supervisor, toolchain);
   const observabilitySecret = randomBytes(48).toString("base64url");
   const environment = {
     NODE_ENV: "production",
     PORT: String(appPort),
     HOSTNAME: "0.0.0.0",
-    NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
+    NEXT_PUBLIC_SUPABASE_URL: `https://${RECOVERY_SUPABASE_HOSTNAME}`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.publishableKey,
     EVO_PLATFORM_SUPABASE_SECRET_KEY: status.serviceRoleKey,
     EVO_PLATFORM_ORGANIZATION_ID: options.platformOrganizationId,
     EVO_PLATFORM_P7A_AUDIT_ENABLED: "1",
-    EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "0",
+    EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",
     EVO_PLATFORM_AI_MEMORY_ENABLED: "0",
     EVO_PLATFORM_STAFF_ASSISTANT_ENABLED: "0",
     EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: "0",
+    EVO_CLAMD_HOST: scanner.networkHost,
+    EVO_CLAMD_PORT: "3310",
+    EVO_CLAMD_TIMEOUT_MS: "10000",
     EVO_V2_AMOCRM_WRITES_ENABLED: "0",
     EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "0",
     EVO_ENABLE_EXTERNAL_TRANSCRIPT_IMPROVEMENT: "0",
     EVO_PLATFORM_GEMINI_API_KEY: "",
     EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "",
     EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: observabilitySecret,
+    NODE_EXTRA_CA_CERTS: "/run/evo-recovery-ca.pem",
   };
   writeFileSync(envFile, `${Object.entries(environment).map(([key, value]) => `${key}=${value}`).join("\n")}\n`, { mode: 0o600, flag: "wx" });
   state.appContainer = `supabase_app_${state.projectName}`;
@@ -3642,14 +4151,16 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
     "--context", "orbstack", "run", "--detach", "--name", state.appContainer,
     "--label", `evo.recovery.owner=${state.projectName}`,
     "--network", state.networkName,
+    "--add-host", `${RECOVERY_SUPABASE_HOSTNAME}:127.0.0.1`,
     "--publish", `127.0.0.1:${appPort}:${appPort}`,
     "--cap-drop", "ALL",
     "--security-opt", "no-new-privileges",
     "--env-file", envFile,
     "--mount", `type=bind,source=${entrypoint},target=/opt/evo-recovery-entry.mjs,readonly`,
+    "--mount", `type=bind,source=${tls.certificatePath},target=/run/evo-recovery-ca.pem,readonly`,
     "--entrypoint", "node",
     image.id,
-    "/opt/evo-recovery-entry.mjs", endpoint.targetHost, String(endpoint.targetPort), String(endpoint.apiLoopbackPort),
+    "/opt/evo-recovery-entry.mjs",
   ], { stage: "image_verification", code: "candidate_container_start_failed", timeoutMs: 2 * 60 * 1_000 });
   const containerId = started.stdout.toString("utf8").trim();
   if (!/^[0-9a-f]{64}$/u.test(containerId)) fail("candidate_container_id_invalid", "image_verification");
@@ -3661,8 +4172,49 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
     appNetworkAttachment,
   };
   state.isolationEvidence = buildIsolationEvidence(state.isolationInput, { requireComplete: true, requireAppNetwork: true });
+  state.appProxyContainer = `supabase_app_proxy_${state.projectName}`;
+  const proxySource = String.raw`
+const fs = require("node:fs");
+const net = require("node:net");
+const tls = require("node:tls");
+const [targetHost, targetPortRaw] = process.argv.slice(1);
+const targetPort = Number(targetPortRaw);
+const server = tls.createServer({
+  cert: fs.readFileSync("/run/evo-recovery-cert.pem"),
+  key: fs.readFileSync("/run/evo-recovery-key.pem"),
+}, (client) => {
+  const upstream = net.connect({ host: targetHost, port: targetPort });
+  client.on("error", () => upstream.destroy());
+  upstream.on("error", () => client.destroy());
+  client.pipe(upstream);
+  upstream.pipe(client);
+});
+server.listen(443, "0.0.0.0");
+`;
+  await supervisor.run(toolchain.paths.docker.real, [
+    "--context", "orbstack", "run", "--detach", "--name", state.appProxyContainer,
+    "--label", `evo.recovery.owner=${state.projectName}`,
+    "--network", `container:${state.appContainer}`,
+    "--read-only",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--mount", `type=bind,source=${tls.certificatePath},target=/run/evo-recovery-cert.pem,readonly`,
+    "--mount", `type=bind,source=${tls.privateKeyPath},target=/run/evo-recovery-key.pem,readonly`,
+    "--entrypoint", "node",
+    image.id,
+    "--eval", proxySource,
+    endpoint.targetHost, String(endpoint.targetPort),
+  ], { stage: "image_verification", code: "recovery_app_tls_proxy_start_failed", timeoutMs: 2 * 60 * 1_000 });
   await waitForHttp(`${appUrl}/api/health`, [200], 3 * 60 * 1_000, "candidate_app_start_timeout", "image_verification", state, interruptionGuard);
-  return Object.freeze({ appUrl, observabilitySecret, actors });
+  return Object.freeze({
+    appUrl,
+    observabilitySecret,
+    actors,
+    supabaseTls: Object.freeze({
+      origin: `https://${RECOVERY_SUPABASE_HOSTNAME}`,
+      certificateSha256: tls.certificateSha256,
+    }),
+  });
 }
 
 async function browserExecutable(supervisor) {
@@ -3741,7 +4293,247 @@ export async function installBrowserWebSocketBlocker(context, browserNetwork, br
   }));
 }
 
-async function proveBrowser(app, state, supervisor, interruptionGuard) {
+async function proveFailClosedReadiness(app, interruptionGuard) {
+  const requestId = randomUUID();
+  const timestamp = String(Date.now());
+  const hmac = createHmac("sha256", app.observabilitySecret)
+    .update(`GET\n/api/readiness\n${requestId}\n${timestamp}`)
+    .digest("hex");
+  const response = await apiRequest(new URL("/api/readiness", app.appUrl), {
+    headers: {
+      "x-evo-observability-request-id": requestId,
+      "x-evo-observability-timestamp": timestamp,
+      "x-evo-observability-hmac-algorithm": "sha256",
+      "x-evo-observability-hmac": hmac,
+    },
+  }, [503], "readiness_fail_closed_status_invalid", "browser_proof", interruptionGuard);
+  let payload;
+  try {
+    payload = await interruptionGuard.run("browser_proof", async () => await response.json());
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    payload = null;
+  }
+  if (
+    !isRecord(payload) || payload.status !== "not_ready" ||
+    payload.components?.supabase?.status !== "ready" ||
+    payload.components?.audit_append?.status !== "ready" ||
+    payload.components?.waha?.status === "ready" ||
+    payload.components?.ai?.status === "ready" ||
+    payload.signals?.waha_evidence_kind !== "configuration_check" ||
+    payload.signals?.ai_evidence_kind !== "configuration_check"
+  ) {
+    fail("readiness_component_contract_failed", "browser_proof");
+  }
+  return Object.freeze({
+    status: "not_ready",
+    supabase: "ready",
+    auditAppend: "ready",
+    providersBlocked: true,
+  });
+}
+
+async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filename, requestId) {
+  return await page.evaluate(async ({ baseUrl, fileId, expectedVersion, encoded, name, id }) => {
+    const form = new FormData();
+    form.set("expected_file_version", expectedVersion);
+    form.set("request_id", id);
+    const binary = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+    form.set("file", new File([binary], name, { type: "text/plain" }));
+    const response = await fetch(`${baseUrl}/api/v3/company-files/${encodeURIComponent(fileId)}/versions`, { method: "POST", body: form });
+    return Object.freeze({ status: response.status, payload: await response.json().catch(() => null) });
+  }, {
+    baseUrl: appUrl,
+    fileId: companyFile.id,
+    expectedVersion: companyFile.version,
+    encoded: Buffer.from(bytes).toString("base64"),
+    name: filename,
+    id: requestId,
+  });
+}
+
+async function readScannerPersistenceState(status, supervisor, toolchain) {
+  const value = await psqlJson(supervisor, toolchain, status, `SELECT json_build_object(
+    'reservations', (SELECT count(*) FROM platform_private.company_file_upload_reservations),
+    'finalizations', (SELECT count(*) FROM platform_private.company_file_upload_finalizations),
+    'versions', (SELECT count(*) FROM platform.company_file_versions),
+    'proofs', (SELECT count(*) FROM platform_private.company_file_malware_scan_attestations),
+    'storageObjects', (SELECT count(*) FROM storage.objects)
+  )::text`, "malware_scanner_proof");
+  if (!isRecord(value) || Object.values(value).some((count) => !Number.isSafeInteger(Number(count)) || Number(count) < 0)) {
+    fail("malware_persistence_inventory_invalid", "malware_scanner_proof");
+  }
+  return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, count]) => [key, Number(count)])));
+}
+
+async function readCompanyFileScannerAttestation(status, organizationId, companyFileId, companyFileVersionId, supervisor, toolchain) {
+  const value = await psqlJson(supervisor, toolchain, status, `SELECT coalesce((
+    SELECT json_build_object(
+      'engine', attestation.scanner_engine,
+      'engineVersion', attestation.scanner_engine_version,
+      'signatureVersion', attestation.scanner_signature_version,
+      'protocol', attestation.scanner_protocol,
+      'scannedAt', attestation.scanned_at,
+      'sha256Hex', attestation.scanned_sha256_hex
+    )
+    FROM platform_private.company_file_malware_scan_attestations AS attestation
+    WHERE attestation.organization_id = ${sqlLiteral(organizationId)}::uuid
+      AND attestation.company_file_id = ${sqlLiteral(companyFileId)}::uuid
+      AND attestation.company_file_version_id = ${sqlLiteral(companyFileVersionId)}::uuid
+  ), 'null'::json)::text`, "malware_scanner_proof");
+  if (!isRecord(value)) fail("malware_scanner_attestation_missing", "malware_scanner_proof");
+  return Object.freeze(value);
+}
+
+function assertScannerAttestation(proof, expectedSha256, code) {
+  if (
+    proof.engine !== "ClamAV" || proof.protocol !== "clamd-zinstream-v1" ||
+    proof.sha256Hex !== expectedSha256 || !Number.isFinite(Date.parse(proof.scannedAt ?? "")) ||
+    typeof proof.engineVersion !== "string" || !/^[0-9][0-9A-Za-z.+~-]{0,63}$/u.test(proof.engineVersion) ||
+    typeof proof.signatureVersion !== "string" || !/^[1-9][0-9]{0,18}$/u.test(proof.signatureVersion)
+  ) fail(code, "malware_scanner_proof");
+}
+
+async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, supervisor, toolchain, interruptionGuard) {
+  const created = await platformRpc(status, adminActor, "create_company_file", {
+    p_organization_id: adminActor.organizationId,
+    p_folder_id: null,
+    p_display_name: `Recovery scanner proof ${randomUUID()}`,
+    p_request_id: randomUUID(),
+  }, interruptionGuard);
+  if (!isRecord(created) || !UUID.test(created.company_file_id) || typeof created.version !== "string" || !/^\d+$/u.test(created.version)) {
+    fail("scanner_proof_company_file_invalid", "malware_scanner_proof");
+  }
+  let companyFile = Object.freeze({ id: created.company_file_id, version: created.version });
+  const cleanBytes = Buffer.from("EVO recovery clean company file\n", "utf8");
+  const clean = await browserCompanyFileUpload(page, appUrl, companyFile, cleanBytes, "recovery-clean.txt", randomUUID());
+  if (
+    clean.status !== 201 || !isRecord(clean.payload?.companyFile) ||
+    clean.payload.companyFile.companyFileId !== companyFile.id ||
+    !UUID.test(clean.payload.companyFile.companyFileVersionId ?? "") ||
+    typeof clean.payload.companyFile.fileVersion !== "string" ||
+    clean.payload.companyFile.sha256Hex !== sha256(cleanBytes)
+  ) fail("malware_scanner_clean_data_path_failed", "malware_scanner_proof");
+  const cleanAttestation = await readCompanyFileScannerAttestation(status, adminActor.organizationId, companyFile.id, clean.payload.companyFile.companyFileVersionId, supervisor, toolchain);
+  assertScannerAttestation(cleanAttestation, sha256(cleanBytes), "malware_scanner_clean_attestation_invalid");
+  companyFile = Object.freeze({ ...companyFile, version: clean.payload.companyFile.fileVersion });
+  const afterClean = await readScannerPersistenceState(status, supervisor, toolchain);
+
+  const infected = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from(EICAR, "ascii"), "recovery-eicar.txt", randomUUID());
+  if (infected.status !== 422 || infected.payload?.error !== "malware_detected") fail("malware_scanner_eicar_data_path_not_blocked", "malware_scanner_proof");
+  if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_eicar_persisted_state", "malware_scanner_proof");
+
+  await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "stop", "--time", "30", scanner.containerName], {
+    stage: "malware_scanner_proof", code: "malware_scanner_outage_stop_failed", timeoutMs: 60_000,
+  });
+  const outage = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from("EVO recovery scanner outage proof\n", "utf8"), "recovery-outage.txt", randomUUID());
+  if (outage.status !== 503 || outage.payload?.error !== "malware_scanner_unavailable") fail("malware_scanner_outage_not_fail_closed", "malware_scanner_proof");
+  if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_outage_persisted_state", "malware_scanner_proof");
+
+  await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "start", scanner.containerName], {
+    stage: "malware_scanner_proof", code: "malware_scanner_recovery_start_failed", timeoutMs: 60_000,
+  });
+  await waitForRecoveryScanner(scanner.containerName, supervisor, toolchain, interruptionGuard);
+  const recoveredBytes = Buffer.from("EVO recovery scanner restored proof\n", "utf8");
+  const recovered = await browserCompanyFileUpload(page, appUrl, companyFile, recoveredBytes, "recovery-restored.txt", randomUUID());
+  if (
+    recovered.status !== 201 || !isRecord(recovered.payload?.companyFile) ||
+    recovered.payload.companyFile.companyFileId !== companyFile.id ||
+    !UUID.test(recovered.payload.companyFile.companyFileVersionId ?? "") ||
+    recovered.payload.companyFile.sha256Hex !== sha256(recoveredBytes)
+  ) fail("malware_scanner_recovered_data_path_failed", "malware_scanner_proof");
+  const recoveredAttestation = await readCompanyFileScannerAttestation(status, adminActor.organizationId, companyFile.id, recovered.payload.companyFile.companyFileVersionId, supervisor, toolchain);
+  assertScannerAttestation(recoveredAttestation, sha256(recoveredBytes), "malware_scanner_recovered_attestation_invalid");
+  const afterRecovered = await readScannerPersistenceState(status, supervisor, toolchain);
+  for (const key of ["reservations", "finalizations", "versions", "proofs", "storageObjects"]) {
+    if (afterRecovered[key] !== afterClean[key] + 1) fail("malware_scanner_recovered_persistence_invalid", "malware_scanner_proof");
+  }
+  return Object.freeze({
+    image: scanner.image,
+    network: scanner.network,
+    publish: scanner.publish,
+    clean: "passed_with_persisted_attestation",
+    eicar: "blocked_without_persistence",
+    outage: "blocked_without_persistence",
+    recovery: "passed_with_persisted_attestation",
+  });
+}
+
+async function proveBrowserDocumentDownload(page, appUrl, status, document, allowed, role, browserStep) {
+  const response = await browserStep(async () => await page.request.get(
+    `${appUrl}/api/v2/document-versions/${document.versionId}/download`,
+    { failOnStatusCode: false, maxRedirects: 0 },
+  ));
+  if (!allowed) {
+    if (response.status() !== 403) fail(`browser_${role}_document_denial_failed`, "browser_proof");
+    return;
+  }
+  if (response.status() !== 307) fail(`browser_${role}_document_grant_failed`, "browser_proof");
+  const location = response.headers().location;
+  let signedUrl;
+  try {
+    signedUrl = new URL(location);
+  } catch {
+    fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
+  }
+  if (signedUrl.protocol !== "https:" || signedUrl.hostname !== RECOVERY_SUPABASE_HOSTNAME) {
+    fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
+  }
+  const localSignedUrl = new URL(`${signedUrl.pathname}${signedUrl.search}`, status.apiUrl);
+  const download = await browserStep(async () => await page.request.get(localSignedUrl.toString(), {
+    failOnStatusCode: false,
+    maxRedirects: 0,
+  }));
+  if (download.status() !== 200) fail(`browser_${role}_document_download_failed`, "browser_proof");
+  const bytes = Buffer.from(await browserStep(async () => await download.body()));
+  if (bytes.byteLength !== document.byteSize || sha256(bytes) !== document.sha256Hex) {
+    fail(`browser_${role}_document_bytes_mismatch`, "browser_proof");
+  }
+}
+
+async function proveBrowserSalesReadback(page, appUrl, salesProof, role, browserStep) {
+  await browserStep(async () => await page.goto(`${appUrl}/v3/pipeline`, { waitUntil: "domcontentloaded" }));
+  await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
+  const panel = await browserStep(async () => page.locator(
+    `[data-testid="v3-pipeline-decision"][data-lead-id="${salesProof.leadId}"]`,
+  ));
+  await browserStep(async () => await panel.waitFor({ state: "visible", timeout: 45_000 }));
+  if (await browserStep(async () => await panel.getAttribute("open")) === null) {
+    await browserStep(async () => await panel.locator("summary").click());
+  }
+  const form = await browserStep(async () => panel.getByTestId("v3-pipeline-workflow-form"));
+  await browserStep(async () => await form.waitFor({ state: "visible", timeout: 45_000 }));
+  const marker = await browserStep(async () => await form.getByTestId("v3-pipeline-next-action").inputValue());
+  const version = Number(await browserStep(async () => await form.locator('input[name="expected_version"]').inputValue()));
+  if (marker !== salesProof.marker || version !== salesProof.workflowVersion) {
+    fail(`browser_${role}_sales_readback_failed`, "browser_proof");
+  }
+}
+
+async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, role, browserStep) {
+  await browserStep(async () => await page.goto(
+    `${appUrl}/v3/calendar?view=day&date=${admissionsProof.browserDay}`,
+    { waitUntil: "domcontentloaded" },
+  ));
+  await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
+  const task = await browserStep(async () => page.locator(`#task-${admissionsProof.taskId}`));
+  await browserStep(async () => await task.waitFor({ state: "visible", timeout: 45_000 }));
+  await browserStep(async () => await task.click());
+  const controls = await browserStep(async () => page.getByTestId("v3-calendar-task-controls"));
+  await browserStep(async () => await controls.waitFor({ state: "visible", timeout: 45_000 }));
+  const form = await browserStep(async () => controls.getByTestId("v3-calendar-task-change-form"));
+  if (!(await browserStep(async () => await form.isVisible()))) {
+    await browserStep(async () => await controls.getByText("Изменить задачу", { exact: true }).click());
+  }
+  await browserStep(async () => await form.waitFor({ state: "visible", timeout: 45_000 }));
+  const statusValue = await browserStep(async () => await form.locator('select[name="status"]').inputValue());
+  const version = Number(await browserStep(async () => await form.locator('input[name="expected_version"]').inputValue()));
+  if (statusValue !== admissionsProof.status || version !== admissionsProof.version) {
+    fail(`browser_${role}_admissions_readback_failed`, "browser_proof");
+  }
+}
+
+async function proveBrowser(app, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
   const browserTool = await browserExecutable(supervisor);
   state.availableTools.chromium = browserTool.version;
@@ -3773,6 +4565,8 @@ async function proveBrowser(app, state, supervisor, interruptionGuard) {
       admissions: Object.freeze({ path: "/v3/calendar", marker: "calendar_heading", heading: "Календарь" }),
     });
     const routeProofs = {};
+    const roleReadbacks = {};
+    let scannerDataPath;
     const browserNetwork = {
       allowedOriginSha256: sha256(new URL(app.appUrl).origin),
       deniedExternalRequestCount: 0,
@@ -3832,17 +4626,72 @@ async function proveBrowser(app, state, supervisor, interruptionGuard) {
         moduleMarker: route.marker,
         markerVisible,
       }));
+      if (role === "admin") {
+        scannerDataPath = await proveScannerDataPath(
+          status,
+          app.actors.admin,
+          page,
+          app.appUrl,
+          scanner,
+          supervisor,
+          toolchain,
+          interruptionGuard,
+        );
+        if (roleServerProof?.sales) {
+          await proveBrowserSalesReadback(page, app.appUrl, roleServerProof.sales, role, browserStep);
+        }
+        if (roleServerProof?.admissions) {
+          await proveBrowserAdmissionsReadback(page, app.appUrl, roleServerProof.admissions, role, browserStep);
+        }
+        if (roleServerProof?.document) {
+          await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, true, role, browserStep);
+        }
+        roleReadbacks.admin = roleServerProof?.outcomes?.admin === "passed" &&
+          roleServerProof.sales && roleServerProof.admissions && roleServerProof.document
+          ? "passed"
+          : "not_run_incomplete_server_outcomes";
+      } else if (role === "sales") {
+        if (roleServerProof?.sales) {
+          await proveBrowserSalesReadback(page, app.appUrl, roleServerProof.sales, role, browserStep);
+        }
+        if (roleServerProof?.document) {
+          await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, false, role, browserStep);
+        }
+        roleReadbacks.sales = roleServerProof?.outcomes?.sales === "passed" &&
+          roleServerProof.sales && roleServerProof.document
+          ? "passed"
+          : "not_run_incomplete_server_outcomes";
+      } else if (role === "admissions") {
+        if (roleServerProof?.admissions) {
+          await proveBrowserAdmissionsReadback(page, app.appUrl, roleServerProof.admissions, role, browserStep);
+        }
+        if (roleServerProof?.document) {
+          await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, true, role, browserStep);
+        }
+        roleReadbacks.admissions = roleServerProof?.outcomes?.admissions === "passed" &&
+          roleServerProof.admissions && roleServerProof.document
+          ? "passed"
+          : "not_run_incomplete_server_outcomes";
+      }
       await browserStep(async () => await context.close(), { allowAfterInterrupt: true });
       validateBrowserNetworkProof(browserNetwork);
     }
+    for (const role of ["admin", "sales", "admissions"]) {
+      roleReadbacks[role] ??= "not_run_missing_representative";
+    }
+    const readiness = await proveFailClosedReadiness(app, interruptionGuard);
     return Object.freeze({
       admin: availableRoles.includes("admin") ? "passed" : "not_run_missing_representative",
       sales: availableRoles.includes("sales") ? "passed" : "not_run_missing_representative",
       admissions: availableRoles.includes("admissions") ? "passed" : "not_run_missing_representative",
       routes: Object.freeze(routeProofs),
+      roleOutcomes: Object.freeze(roleReadbacks),
       network: validateBrowserNetworkProof(browserNetwork),
       chromium: browserTool.version,
       exactCandidateImage: true,
+      readiness,
+      supabaseTls: app.supabaseTls,
+      malwareScanner: scannerDataPath,
       evidenceScope: availableRoles.length === 3
         ? "complete_real_representative_browser_proof"
         : "available_real_representatives_only",
@@ -4093,6 +4942,7 @@ export async function cleanupState(state, supervisor, toolchain) {
         return false;
       }
     };
+    if (state.appProxyContainer) cleanupSucceeded = (await run(["rm", "--force", state.appProxyContainer])) && cleanupSucceeded;
     if (state.appContainer) cleanupSucceeded = (await run(["rm", "--force", state.appContainer])) && cleanupSucceeded;
     if (state.stackStarted && state.supabaseRoot) {
       try {
@@ -4203,6 +5053,10 @@ function durableToolEvidence(value) {
     "docker_context",
     "docker_client",
     "docker_server",
+    "docker_buildx",
+    "node",
+    "private_home_mode",
+    "private_docker_config_mode",
     "chromium",
     "git_realpath_sha256",
     "sshKeygen_realpath_sha256",
@@ -4211,6 +5065,9 @@ function durableToolEvidence(value) {
     "orb_realpath_sha256",
     "docker_realpath_sha256",
     "psql_realpath_sha256",
+    "node_realpath_sha256",
+    "openssl_realpath_sha256",
+    "dockerBuildx_realpath_sha256",
     "supabaseLauncher_realpath_sha256",
     "supabaseNative_realpath_sha256",
     "supabaseGo_realpath_sha256",
@@ -4221,6 +5078,10 @@ function durableToolEvidence(value) {
     "orb_binary_sha256",
     "docker_binary_sha256",
     "psql_binary_sha256",
+    "node_binary_sha256",
+    "openssl_binary_sha256",
+    "dockerBuildx_binary_sha256",
+    "private_buildx_realpath_sha256",
     "supabaseLauncher_binary_sha256",
     "supabaseNative_binary_sha256",
     "supabaseGo_binary_sha256",
@@ -4250,6 +5111,12 @@ function durableToolEvidence(value) {
                     ? /^OrbStack \d[A-Za-z0-9.+_-]*$/u.test(field)
                     : key === "docker_context"
                       ? field === "orbstack"
+                      : key === "node"
+                        ? field === REQUIRED_NODE_VERSION
+                        : key === "docker_buildx"
+                          ? /^buildx \d[A-Za-z0-9.+_-]*$/u.test(field)
+                          : new Set(["private_home_mode", "private_docker_config_mode"]).has(key)
+                            ? field === "700"
                       : new Set(["docker_client", "docker_server"]).has(key)
                         ? VERSION.test(field)
                         : key === "chromium"
@@ -4274,6 +5141,11 @@ export function buildDurableEvidence({ result, failure, interrupted, stages, cle
       "sales_representative_missing",
       "admissions_representative_missing",
       "storage_source_object_missing",
+      "preexisting_cross_organization_reference_missing",
+      "restored_sales_lead_missing",
+      "restored_admissions_task_missing",
+      "restored_downloadable_document_missing",
+      "restored_role_outcome_proof_incomplete",
     ]).has(blocker));
   let durableFailure = interrupted
     ? Object.freeze({ code: "recovery_interrupted", stage: "signal", diagnostic: Object.freeze({ signal: interrupted }) })
@@ -4315,6 +5187,44 @@ export function buildDurableEvidence({ result, failure, interrupted, stages, cle
     });
   }
   return Object.freeze({ ...result, tools: safeTools, isolation, stages, cleanup });
+}
+
+export function buildRestoredRoleOutcomeReadiness(actors, serverProof = {}, browserProof = {}) {
+  const outcomes = {};
+  for (const role of ["admin", "sales", "admissions"]) {
+    if (!isRecord(actors?.[role])) {
+      outcomes[role] = "missing_restored_identity";
+    } else if (serverProof?.outcomes?.[role] !== "passed") {
+      outcomes[role] = typeof serverProof?.outcomes?.[role] === "string"
+        ? serverProof.outcomes[role]
+        : "incomplete_mutation_replay_audit_document_suite";
+    } else if (browserProof?.roleOutcomes?.[role] !== "passed") {
+      outcomes[role] = "incomplete_exact_role_browser_readback";
+    } else {
+      outcomes[role] = "passed";
+    }
+  }
+  const complete = Object.values(outcomes).every((outcome) => outcome === "passed");
+  const acceptedDataBlockers = new Set([
+    "restored_sales_lead_missing",
+    "restored_admissions_task_missing",
+    "restored_downloadable_document_missing",
+  ]);
+  const blockers = complete
+    ? []
+    : [
+        ...(Array.isArray(serverProof?.blockers)
+          ? serverProof.blockers.filter((blocker) => acceptedDataBlockers.has(blocker))
+          : []),
+        "restored_role_outcome_proof_incomplete",
+      ];
+  return Object.freeze({
+    complete,
+    blocker: complete ? null : "restored_role_outcome_proof_incomplete",
+    blockers: Object.freeze([...new Set(blockers)]),
+    outcomes: Object.freeze(outcomes),
+    required: "Sales and Admissions canonical mutation, idempotent replay, correlated append-only audit, private-document readback, and exact-role browser readback",
+  });
 }
 
 export function latchInterruption(state, supervisor, signal) {
@@ -4381,6 +5291,7 @@ async function executeMode(mode, options) {
     stackStarted: false,
     networkCreated: false,
     appContainer: undefined,
+    appProxyContainer: undefined,
     browserRecord: undefined,
     interrupted: undefined,
     signalCount: 0,
@@ -4416,7 +5327,8 @@ async function executeMode(mode, options) {
   process.on("SIGINT", sigint);
   process.on("SIGTERM", sigterm);
   try {
-    toolchain = await runStage("toolchain", () => trustedToolchain(supervisor, state.availableTools));
+    if (process.versions.node !== REQUIRED_NODE_VERSION) fail("node_22_required", "toolchain");
+    toolchain = await runStage("toolchain", () => trustedToolchain(supervisor, harnessRoot, state.availableTools));
     state.containerPreflightPassed = true;
     const repository = await runStage("repository", () => repositorySnapshot(supervisor, toolchain.paths, options));
     const artifacts = await runStage("signed_artifact_validation", () => prepareArtifacts(options, harnessRoot, supervisor, toolchain));
@@ -4517,6 +5429,13 @@ async function executeMode(mode, options) {
     } else {
       const ports = await runStage("port_reservation", reservePorts);
       const local = await runStage("local_supabase_start", () => startLocalSupabase(state, targetRoot, ports, supervisor, toolchain));
+      const scanner = await runStage("malware_scanner_start", () => startRecoveryScanner(
+        state,
+        image.snapshot.root,
+        supervisor,
+        toolchain,
+        state.interruptionGuard,
+      ));
       const destinationInventory = await runStage("destination_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "destination_identity" }));
       state.isolationInput.destination = {
         projectRef: state.projectName,
@@ -4538,12 +5457,23 @@ async function executeMode(mode, options) {
       const actorReadiness = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));
       const actors = actorReadiness.actors;
       const completeRoleCohort = ["admin", "sales", "admissions"].every((role) => isRecord(actors[role]));
-      const authorization = await runStage("authorization_and_audit", async () => completeRoleCohort
+      const authorizationProof = await runStage("authorization_and_audit", async () => completeRoleCohort
         ? await proveRlsAndCanonicalWrite(options, local.status, actors, supervisor, toolchain, state.interruptionGuard)
         : Object.freeze({
-          status: "not_run_missing_representatives",
-          evidenceScope: "requires_distinct_real_admin_sales_admissions",
+          evidence: Object.freeze({
+            status: "not_run_missing_representatives",
+            evidenceScope: "requires_distinct_real_admin_sales_admissions",
+          }),
+          blockers: Object.freeze([]),
         }));
+      const roleServerProof = await runStage("role_outcome_proof", () => proveRestoredRoleServerOutcomes(
+        options,
+        local.status,
+        actors,
+        supervisor,
+        toolchain,
+        state.interruptionGuard,
+      ));
       const documentActor = actors.sales ?? actors.admin;
       const document = await runStage("private_document", async () => documentActor
         ? await provePrivateDocument(local.status, documentActor, artifacts.storage, state.interruptionGuard)
@@ -4551,15 +5481,24 @@ async function executeMode(mode, options) {
           status: "not_run_missing_representative",
           evidenceScope: "behavior_canary_only_not_source_recovery",
         }));
+      const providerConfigurationBoundary = await runStage("provider_boundary", () => recordRecoveryProviderBoundary(
+        local.status,
+        options.platformOrganizationId,
+        repository.target.commit,
+        state.interruptionGuard,
+      ));
       const storageReadiness = await runStage("storage_source_readiness", async () => sourceStorageReadiness);
-      const app = await runStage("candidate_start", () => startCandidateApp(options, local.status, actors, state, supervisor, toolchain, image, ports.app, state.interruptionGuard));
+      const app = await runStage("candidate_start", () => startCandidateApp(options, local.status, actors, state, supervisor, toolchain, image, scanner, ports.app, state.interruptionGuard));
       const browser = await runStage("browser_proof", async () => Object.keys(actors).length > 0
-        ? await proveBrowser(app, state, supervisor, state.interruptionGuard)
+        ? await proveBrowser(app, local.status, scanner, roleServerProof, state, supervisor, toolchain, state.interruptionGuard)
         : Object.freeze({ status: "not_run_missing_representative", evidenceScope: "no_real_representative_available" }));
-      const blockers = Object.freeze([
+      const roleOutcomes = buildRestoredRoleOutcomeReadiness(actors, roleServerProof, browser);
+      const blockers = Object.freeze([...new Set([
         ...actorReadiness.blockers,
+        ...authorizationProof.blockers,
         ...(storageReadiness.status === "ready" ? [] : [storageReadiness.blocker]),
-      ]);
+        ...roleOutcomes.blockers,
+      ])]);
       const representatives = Object.freeze({
         presentRoles: Object.freeze(["admin", "sales", "admissions"].filter((role) => isRecord(actors[role]))),
         userIdSha256ByRole: Object.freeze(Object.fromEntries(
@@ -4575,9 +5514,20 @@ async function executeMode(mode, options) {
         migrations,
         storage,
         representatives,
-        authorization,
+        authorization: Object.freeze({
+          ...authorizationProof.evidence,
+          roleOutcomeProof: roleServerProof.evidence,
+        }),
         document,
+        providerConfigurationBoundary,
+        malwareScanner: browser.malwareScanner ?? Object.freeze({
+          status: "not_run_missing_admin_representative",
+          image: scanner.image,
+          network: scanner.network,
+          publish: scanner.publish,
+        }),
         browser,
+        roleOutcomes,
       };
       result = blockers.length > 0
         ? Object.freeze({

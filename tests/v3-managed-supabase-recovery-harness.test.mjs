@@ -14,6 +14,7 @@ import {
   assessRepresentativeCohort,
   apiRequest,
   browserRequestAllowed,
+  buildRestoredRoleOutcomeReadiness,
   canonicalRecoveryPdfBytes,
   buildDurableEvidence,
   buildIsolationEvidence,
@@ -79,6 +80,123 @@ const sourceFullTree = "6".repeat(40);
 const targetFullTree = "7".repeat(40);
 const commit = sourceCommit;
 const migrationTree = sourceMigrationTree;
+
+test("runtime preflight pins Node 22 and provisions private OrbStack buildx state", () => {
+  assert.match(source, /const REQUIRED_NODE_VERSION = "22\.23\.1"/u);
+  assert.match(source, /process\.versions\.node !== REQUIRED_NODE_VERSION/u);
+  assert.match(source, /function activatePrivateChildEnvironment/u);
+  assert.match(source, /DOCKER_CONFIG:\s*dockerConfig/u);
+  assert.match(source, /dockerConfig, "cli-plugins"/u);
+  assert.match(source, /"docker-buildx"/u);
+  assert.match(source, /private_docker_buildx_unavailable/u);
+});
+
+test("candidate image uses a production-valid local Supabase TLS origin", () => {
+  assert.match(source, /const RECOVERY_SUPABASE_HOSTNAME = "evov3recoverylocal00\.supabase\.co"/u);
+  assert.match(source, /function createRecoveryTlsMaterial/u);
+  assert.match(source, /subjectAltName = DNS:\$\{RECOVERY_SUPABASE_HOSTNAME\}/u);
+  assert.match(source, /NEXT_PUBLIC_SUPABASE_URL:\s*`https:\/\/\$\{RECOVERY_SUPABASE_HOSTNAME\}`/u);
+  assert.match(source, /NODE_EXTRA_CA_CERTS:\s*"\/run\/evo-recovery-ca\.pem"/u);
+  assert.match(source, /"--network", `container:\$\{state\.appContainer\}`/u);
+  assert.match(source, /recovery_app_tls_proxy_start_failed/u);
+});
+
+test("provider configuration evidence is local-only and authenticated readiness stays fail-closed", () => {
+  const providerStart = source.indexOf("async function recordRecoveryProviderBoundary");
+  const readinessStart = source.indexOf("async function proveFailClosedReadiness");
+  const runStart = source.indexOf("async function executeMode");
+  const providerCall = source.indexOf('runStage("provider_boundary"', runStart);
+  const appCall = source.indexOf('runStage("candidate_start"', runStart);
+  assert.ok(providerStart > 0 && readinessStart > providerStart);
+  assert.ok(providerCall > runStart && appCall > providerCall);
+  assert.match(source.slice(providerStart, readinessStart), /p_readiness:\s*"unconfigured"/u);
+  assert.match(source.slice(providerStart, readinessStart), /p_evidence_kind:\s*"configuration_check"/u);
+  assert.match(source.slice(readinessStart, runStart), /createHmac\("sha256"/u);
+  assert.match(source.slice(readinessStart, runStart), /\[503\]/u);
+  assert.match(source.slice(readinessStart, runStart), /waha_evidence_kind !== "configuration_check"/u);
+  assert.match(source.slice(readinessStart, runStart), /ai_evidence_kind !== "configuration_check"/u);
+});
+
+test("Admin passes only after complete server and exact-role browser outcomes", () => {
+  const missing = buildRestoredRoleOutcomeReadiness({ admin: { userId: "admin" } });
+  assert.equal(missing.complete, false);
+  assert.equal(missing.blocker, "restored_role_outcome_proof_incomplete");
+  assert.equal(missing.outcomes.admin, "incomplete_mutation_replay_audit_document_suite");
+  assert.equal(missing.outcomes.sales, "missing_restored_identity");
+  const actors = { admin: {}, sales: {}, admissions: {} };
+  const server = {
+    outcomes: { admin: "passed", sales: "passed", admissions: "passed" },
+    blockers: [],
+  };
+  const browserIncomplete = buildRestoredRoleOutcomeReadiness(actors, server, {
+    roleOutcomes: { admin: "passed", sales: "passed", admissions: "not_run_incomplete_server_outcomes" },
+  });
+  assert.equal(browserIncomplete.complete, false);
+  assert.equal(browserIncomplete.outcomes.admissions, "incomplete_exact_role_browser_readback");
+  const complete = buildRestoredRoleOutcomeReadiness(actors, server, {
+    roleOutcomes: { admin: "passed", sales: "passed", admissions: "passed" },
+  });
+  assert.equal(complete.complete, true);
+  assert.equal(complete.blocker, null);
+  assert.deepEqual(complete.blockers, []);
+  assert.deepEqual(complete.outcomes, { admin: "passed", sales: "passed", admissions: "passed" });
+  const missingData = buildRestoredRoleOutcomeReadiness(actors, {
+    outcomes: {
+      admin: "incomplete_role_outcome_suite",
+      sales: "missing_restored_sales_lead",
+      admissions: "missing_restored_admissions_task",
+    },
+    blockers: ["restored_sales_lead_missing", "restored_admissions_task_missing"],
+  });
+  assert.deepEqual(missingData.blockers, [
+    "restored_sales_lead_missing",
+    "restored_admissions_task_missing",
+    "restored_role_outcome_proof_incomplete",
+  ]);
+  assert.match(source, /restored_role_outcome_proof_incomplete/u);
+});
+
+test("private pinned ClamAV is exercised through the Company Files product route", () => {
+  const scannerStart = source.indexOf("async function startRecoveryScanner");
+  const dataPathStart = source.indexOf("async function proveScannerDataPath");
+  const browserStart = source.indexOf("async function proveBrowser", dataPathStart);
+  assert.ok(scannerStart > 0 && dataPathStart > scannerStart && browserStart > dataPathStart);
+  const scannerSource = source.slice(scannerStart, dataPathStart);
+  const dataPathSource = source.slice(dataPathStart, browserStart);
+  assert.match(source, /clamav\/clamav@sha256:[0-9a-f]{64}/u);
+  assert.match(scannerSource, /const networkHost = `evo-recovery-clamav-/u);
+  assert.match(scannerSource, /"--network-alias", networkHost/u);
+  assert.match(scannerSource, /publish:\s*"none"/u);
+  assert.match(source, /\/api\/v3\/company-files\/\$\{encodeURIComponent\(fileId\)\}\/versions/u);
+  assert.match(dataPathSource, /malware_scanner_clean_attestation_invalid/u);
+  assert.match(dataPathSource, /malware_scanner_eicar_persisted_state/u);
+  assert.match(dataPathSource, /malware_scanner_outage_persisted_state/u);
+  assert.match(dataPathSource, /malware_scanner_recovered_persistence_invalid/u);
+  assert.match(dataPathSource, /Buffer\.from\(EICAR, "ascii"\)/u);
+});
+
+test("restored role proof mutates existing records, replays, audits, and reads back in browser", () => {
+  const roleStart = source.indexOf("async function proveRestoredRoleServerOutcomes");
+  const storageStart = source.indexOf("export function canonicalRecoveryPdfBytes", roleStart);
+  const roleSource = source.slice(roleStart, storageStart);
+  assert.ok(roleStart > 0 && storageStart > roleStart);
+  assert.match(roleSource, /staff_sales_lead_page/u);
+  assert.match(roleSource, /mutate_sales_lead_workflow/u);
+  assert.match(roleSource, /change_case_task/u);
+  assert.match(roleSource, /staff_student_case_task_workspace/u);
+  assert.match(roleSource, /staff_document_queue/u);
+  assert.match(roleSource, /assertReplayResult/u);
+  assert.match(roleSource, /assertRoleMutationAudit/u);
+  assert.doesNotMatch(roleSource, /create_case_task/u);
+  assert.match(source, /proveBrowserSalesReadback/u);
+  assert.match(source, /proveBrowserAdmissionsReadback/u);
+  assert.match(source, /proveBrowserDocumentDownload/u);
+  assert.match(source, /restored_sales_lead_missing/u);
+  assert.match(source, /restored_admissions_task_missing/u);
+  assert.match(source, /restored_downloadable_document_missing/u);
+  assert.match(source, /roleOutcomeProof: roleServerProof\.evidence/u);
+  assert.doesNotMatch(source, /roleOutcomeEvidence:/u);
+});
 const projectRef = "iosckaqtovbbnssqcpde";
 const supabaseOrganizationId = "provider-org";
 const platformOrganizationId = "10000000-0000-4000-8000-000000000001";
@@ -1609,7 +1727,7 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.match(source, /await import\("\/app\/server\.js"\)/u);
   assert.match(source, /change_membership_permission/u);
   assert.match(source, /ROLLBACK/u);
-  assert.match(source, /selectAdmissionsTaskMutation\(admissionsTask\)/u);
+  assert.match(source, /selectAdmissionsTaskMutation\(\{/u);
   assert.match(source, /return await reconcileRestoredDatabase\(/u);
   assert.match(source, /classifyExpectedDatabaseDenial\(error\.diagnostic/u);
   assert.match(source, /response\?\.status\(\) \?\? 0/u);

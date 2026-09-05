@@ -14,8 +14,21 @@ test("the product role policy exposes only the three fixed staff roles", () => {
   assert.equal(isRole("finance"), false);
   assert.equal(isRole("unknown"), false);
 
+  const activeTranslationKeys = [
+    "logout",
+    "name",
+    "role",
+    "role.admin",
+    "role.sales",
+    "role.admissions",
+    "toggleTheme",
+  ].sort();
+
   for (const locale of LOCALES) {
+    assert.deepEqual(Object.keys(DICTS[locale]).sort(), activeTranslationKeys, locale);
     assert.equal(DICTS[locale]["role.visa"], undefined, locale);
+    assert.equal(DICTS[locale]["role.finance"], undefined, locale);
+    assert.equal(DICTS[locale]["role.client"], undefined, locale);
     assert.equal(typeof DICTS[locale]["role.admissions"], "string", locale);
   }
 });

@@ -14,33 +14,25 @@ import {
 export const ACTIVE_PLATFORM_ROLES = FIXED_ROLES;
 export const ADMIN_ROLE_PREVIEW_COOKIE = "evo_admin_role_preview";
 
-export const HISTORICAL_PLATFORM_ROLES = ["finance", "student"] as const;
-
-export type HistoricalPlatformRole = (typeof HISTORICAL_PLATFORM_ROLES)[number];
-export type PlatformRole = FixedRole | HistoricalPlatformRole;
-
-export type PlatformActor<Role extends PlatformRole = FixedRole> = Readonly<{
+export type PlatformActor = Readonly<{
   authUserId: string;
   profileId: string;
   membershipId: string;
   organizationId: string;
   displayName: string;
   email: string;
-  platformRole: Role;
+  platformRole: FixedRole;
   authorityRole: FixedRole;
   platformAccessVersion: number;
   platformBundleId: string;
   platformBundleVersion: number;
 }>;
 
-export type ActivePlatformActor = PlatformActor<FixedRole> &
+export type ActivePlatformActor = PlatformActor &
   Readonly<{
     /** Admin-only presentation choice; never a server authorization source. */
     presentationRole: FixedRole;
   }>;
-
-/** Repository-only tail for the frozen student portal and unreplaced slices. */
-export type HistoricalRepositoryActor = PlatformActor<PlatformRole>;
 
 export type PlatformActorInvalidReason =
   | "supabase_session_invalid"

@@ -28,7 +28,6 @@ function walkFiles(relativeDir, extensions) {
 const audit = read("docs/PROMISE_AUDIT.md");
 const aiOrchestrator = read("src/lib/server/platform-provider-orchestrator.ts");
 const aiProvider = read("src/lib/server/platform-gemini-provider.ts");
-const i18n = `${read("src/lib/i18n.ts")}\n${read("src/lib/i18n-data.ts")}`;
 const publicCopyChangeset = read("docs/PUBLIC_PROMISE_COPY_CHANGESET.md");
 const publicLiveAudit = read("docs/PUBLIC_PROMISE_LIVE_AUDIT.md");
 
@@ -79,20 +78,6 @@ for (const required of [
 ]) {
   assert(publicCopyChangeset.includes(required), `missing public-copy handoff requirement: ${required}`);
 }
-
-assert(
-  i18n.includes("Телефония not_configured") &&
-    i18n.includes("Телефония not_configured: АТСтен") &&
-    i18n.includes("Telephony not_configured"),
-  "telephony copy must use explicit not_configured wording in ru/ky/en",
-);
-
-assert(
-  !i18n.includes("Demo mode: connect your PBX") &&
-    !i18n.includes("Демо-режим: подключите вашу АТС") &&
-    !i18n.includes("Демо-режим: АТСти"),
-  "telephony copy still contains demo-mode wording",
-);
 
 for (const guardrail of [
   "You prepare one advisory draft for an EVO staff member.",

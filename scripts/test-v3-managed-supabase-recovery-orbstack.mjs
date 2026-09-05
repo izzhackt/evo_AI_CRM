@@ -71,6 +71,7 @@ const MAX_TARGET_CONFIG_BYTES = 1024 * 1024;
 const MAX_SQL_BYTES = 128 * 1024 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024 * 1024;
 const MAX_AGE_HOURS = 24 * 31;
+const BROWSER_COMPANY_FILE_REQUEST_TIMEOUT_MS = 45_000;
 const FUTURE_SKEW_MS = 5 * 60 * 1_000;
 const CAPTURE_WINDOW_MS = 60 * 60 * 1_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -5617,34 +5618,47 @@ async function proveFailClosedReadiness(app, interruptionGuard) {
   });
 }
 
-export async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filename, requestId, browserStep, operationCode) {
-  const result = await browserStep(async () => await page.evaluate(async ({ baseUrl, fileId, expectedVersion, encoded, name, id }) => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20_000);
+export async function evaluateBrowserCompanyFileUpload({ baseUrl, fileId, expectedVersion, encoded, name, id, requestTimeoutMs }) {
+  if (!Number.isSafeInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 60_000) {
+    return Object.freeze({ transport: "failed" });
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  try {
+    const form = new FormData();
+    form.set("expected_file_version", expectedVersion);
+    form.set("request_id", id);
+    const binary = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+    form.set("file", new File([binary], name, { type: "text/plain" }));
+    const response = await fetch(`${baseUrl}/api/v3/company-files/${encodeURIComponent(fileId)}/versions`, {
+      method: "POST",
+      body: form,
+      signal: controller.signal,
+    });
+    let payload = null;
     try {
-      const form = new FormData();
-      form.set("expected_file_version", expectedVersion);
-      form.set("request_id", id);
-      const binary = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
-      form.set("file", new File([binary], name, { type: "text/plain" }));
-      const response = await fetch(`${baseUrl}/api/v3/company-files/${encodeURIComponent(fileId)}/versions`, {
-        method: "POST",
-        body: form,
-        signal: controller.signal,
-      });
-      return Object.freeze({ transport: "response", status: response.status, payload: await response.json().catch(() => null) });
+      payload = await response.json();
     } catch {
-      return Object.freeze({ transport: controller.signal.aborted ? "timeout" : "failed" });
-    } finally {
-      clearTimeout(timeout);
+      // A malformed non-aborted body remains a semantic response with a null payload.
     }
-  }, {
+    if (controller.signal.aborted) return Object.freeze({ transport: "timeout" });
+    return Object.freeze({ transport: "response", status: response.status, payload });
+  } catch {
+    return Object.freeze({ transport: controller.signal.aborted ? "timeout" : "failed" });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filename, requestId, browserStep, operationCode) {
+  const result = await browserStep(async () => await page.evaluate(evaluateBrowserCompanyFileUpload, {
     baseUrl: appUrl,
     fileId: companyFile.id,
     expectedVersion: companyFile.version,
     encoded: Buffer.from(bytes).toString("base64"),
     name: filename,
     id: requestId,
+    requestTimeoutMs: BROWSER_COMPANY_FILE_REQUEST_TIMEOUT_MS,
   }), { operationCode });
   if (!isRecord(result) || result.transport !== "response") {
     const diagnostic = result?.transport === "timeout"

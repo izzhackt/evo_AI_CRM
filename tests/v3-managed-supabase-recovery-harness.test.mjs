@@ -25,6 +25,7 @@ import {
   cleanupContainerPolicy,
   cleanupState,
   databaseAggregatesFromTableCounts,
+  evaluateBrowserCompanyFileUpload,
   extractExactMigrationLedger,
   evidenceDestination,
   gitBlobOid,
@@ -1786,6 +1787,32 @@ test("company-file browser uploads fail closed on native and in-page transport e
       error.code === "malware_scanner_clean_browser_request_failed" &&
       error.diagnostic?.category === "timeout",
   );
+});
+
+test("company-file browser evaluator keeps an abort during response parsing classified as timeout", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    status: 201,
+    async json() {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return { ignored: true };
+    },
+  });
+  try {
+    const result = await evaluateBrowserCompanyFileUpload({
+      baseUrl: "http://127.0.0.1:43123",
+      fileId: "10000000-0000-4000-8000-000000000001",
+      expectedVersion: "1",
+      encoded: Buffer.from("clean", "utf8").toString("base64"),
+      name: "clean.txt",
+      id: "20000000-0000-4000-8000-000000000001",
+      requestTimeoutMs: 1,
+    });
+    assert.deepEqual(result, { transport: "timeout" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.match(source, /BROWSER_COMPANY_FILE_REQUEST_TIMEOUT_MS = 45_000/u);
 });
 
 test("browser proof requires a 2xx response, exact final route and loaded module marker", () => {

@@ -18331,3 +18331,59 @@ and [`pg_dump --snapshot`](https://www.postgresql.org/docs/18/app-pgdump.html).
 This correction performs authenticated read-only database access only. It
 does not mutate managed Supabase, Storage, VPS, providers, webhooks, production
 traffic or customer records and does not activate a release.
+
+## 2026-09-05 - Require one real private malware scanner for both V3 file paths
+
+Block-ID: `EVO-V3-H-REAL-MALWARE-SCANNER-2026-09-05`
+
+Change type: #551 implementation contract clarification.
+Affected plan section: Order 7 / Issue #551.
+
+The existing document-validation status was application-supplied and did not
+prove that a real malware engine inspected the exact bytes later persisted in
+private Storage. The same gap existed for Company Files. A green status without
+engine-bound evidence cannot authorize approval or download.
+
+Decision:
+
+- run one pinned official ClamAV `clamd` service on the private EVO Compose
+  network, with no published scanner port, persistent signature data, bounded
+  resources, health checks and an exact image digest;
+- both the Student 360 document route and Company Files route scan the exact
+  in-memory upload bytes through bounded `zINSTREAM` before creating a Supabase
+  reservation, Storage object or database mutation. `FOUND`, timeout,
+  unavailable, malformed and incomplete replies all stop without persistence;
+- persist only append-only proof facts: organization, immutable file-version
+  identity, SHA-256, exact Storage reservation/finalization binding, ClamAV
+  engine/signature versions, protocol and scan time. Never persist or log raw
+  scanner replies, user filenames or file bytes as scanner evidence;
+- remove the former caller-selected validation/finalization RPC signatures.
+  Database constraints and triggers require proof for clean state, approval,
+  download grants/consumption and Company Files finalization so a bypassing or
+  stale application cannot reopen the path;
+- invalidate historical `clean` rows that lack real proof. If such a row is the
+  current version of an approved slot, move only that slot to
+  `correction_required` with append-only evidence so the product remains closed
+  to download while staff can submit a replacement; preserve the historical
+  review itself;
+- extend the sole release controller to verify the pinned scanner image,
+  private networking, health and host capacity before app replacement and to
+  restore the exact previous scanner-presence state during rollback; and
+- prove clean-file acceptance, EICAR rejection, scanner outage, timeout,
+  malformed response and recovery once on OrbStack, alongside focused Node and
+  PostgreSQL authorization tests. No managed Supabase write, production
+  deployment, provider call, webhook transfer or customer-data mutation belongs
+  to this slice.
+
+Validation impact: run focused scanner/route tests, the full disposable
+PostgreSQL authorization ledger, runtime/release contract tests, one real
+OrbStack scanner exercise, lint, typecheck and build; then obtain independent
+SQL/security and runtime/release exact-head reviews before one PR CI and
+SHA-bound merge.
+
+Official sources verified 2026-09-05:
+
+- ClamAV official Docker images and persistent signature guidance:
+  <https://docs.clamav.net/manual/Installing/Docker.html>
+- `clamd` `zINSTREAM` protocol and bounded stream framing:
+  <https://docs.clamav.net/manual/Usage/ClamdProtocol.html>

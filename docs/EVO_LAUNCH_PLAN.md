@@ -22,6 +22,11 @@ Verified #551 implementation baseline: GitHub `origin/main` at
 unarmed release-controller and repository staging-retirement candidate. The
 stricter trust, lifecycle and recovery contract below remains the #551
 completion authority.
+Verified #551 contract baseline: GitHub `origin/main` at
+`0b3d72e40ee19d9fbf711bc2490c9683c677d2ef` after PR #634 merged the
+no-staging recovery/release contract; exact-main CI run `33944079179` passed
+and production-release run `33944667061` remained safely skipped while the
+release arm was absent.
 
 ## Current authority: V3 becomes the managed-Supabase product
 

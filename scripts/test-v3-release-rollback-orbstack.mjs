@@ -23,6 +23,8 @@ const HARNESS_PREFIX = "evo-v3-release-rollback-";
 const SHA256_IMAGE = /^sha256:[0-9a-f]{64}$/u;
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
 const SHA40 = /^[0-9a-f]{40}$/u;
+const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
+const EICAR = String.raw`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`;
 
 if (process.env[OPT_IN] !== REQUIRED_OPT_IN_VALUE) {
   process.stdout.write(
@@ -39,6 +41,7 @@ const markerPath = join(harnessRoot, ".evo-v3-release-rollback-harness");
 const suffix = randomBytes(6).toString("hex");
 const projectName = `evov3rollback${suffix}`;
 const networkName = `evo_v3_rollback_${suffix}_private`;
+const signatureVolumeName = `${projectName}_clamav_signatures`;
 const baselineRevision = createHash("sha1").update(`baseline-${suffix}`).digest("hex");
 const candidateRevision = createHash("sha1").update(`candidate-${suffix}`).digest("hex");
 const baselineVersion = `rollback-baseline-${suffix}`;
@@ -61,6 +64,8 @@ const rollbackSeed = join(evidenceRoot, "sealed-baseline", "state.json");
 
 let baselineImageId = "";
 let candidateImageId = "";
+let scannerProbeImage = "";
+let scannerCleanProof;
 let hostPort = 0;
 let composeWasStarted = false;
 let orbStackReady = false;
@@ -144,6 +149,90 @@ function serviceContainer(service) {
   return ids[0];
 }
 
+function serviceContainerIds(service) {
+  const output = docker([
+    "ps",
+    "-aq",
+    "--filter",
+    `label=com.docker.compose.project=${projectName}`,
+    "--filter",
+    `label=com.docker.compose.service=${service}`,
+  ]).stdout;
+  return output.split(/\r?\n/u).filter(Boolean);
+}
+
+function waitForScannerHealth() {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const containers = serviceContainerIds("clamav");
+    if (containers.length === 1) {
+      const health = docker([
+        "inspect",
+        "--format",
+        "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
+        containers[0],
+      ], { accepted: [0, 1] });
+      if (health.status === 0 && health.stdout === "healthy") return containers[0];
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5_000);
+  }
+  throw new Error("clamav_health_timeout");
+}
+
+const scannerProbeSource = String.raw`
+import assert from "node:assert/strict";
+import {
+  ClamdScanError,
+  scanBytesWithClamd,
+} from "/workspace/src/lib/server/clamd-malware-scanner.ts";
+
+const bytes = Buffer.from(process.argv[1], "base64");
+const expected = process.argv[2];
+try {
+  const proof = await scanBytesWithClamd(bytes, {
+    host: "evo-crm-clamav",
+    port: 3310,
+    timeoutMs: 10_000,
+  });
+  assert.equal(expected, "clean");
+  assert.equal(proof.engine, "ClamAV");
+  assert.match(proof.engineVersion, /^[0-9][0-9A-Za-z.+~-]{0,63}$/u);
+  assert.match(proof.signatureVersion, /^[1-9][0-9]{0,18}$/u);
+  assert.equal(proof.protocol, "clamd-zinstream-v1");
+  assert.match(proof.sha256Hex, /^[0-9a-f]{64}$/u);
+  console.log(JSON.stringify({ outcome: "clean", ...proof }));
+} catch (error) {
+  assert(error instanceof ClamdScanError);
+  assert.equal(error.code, expected);
+  console.log(JSON.stringify({ outcome: error.code }));
+}
+`;
+
+function scanWithProductClient(bytes, expected) {
+  assert.match(scannerProbeImage, /^node@sha256:[0-9a-f]{64}$/u);
+  const output = docker([
+    "run",
+    "--rm",
+    "--platform",
+    "linux/amd64",
+    "--network",
+    networkName,
+    "--mount",
+    `type=bind,source=${repositoryRoot},target=/workspace,readonly`,
+    "--workdir",
+    "/workspace",
+    scannerProbeImage,
+    "node",
+    "--conditions=react-server",
+    "--experimental-strip-types",
+    "--input-type=module",
+    "--eval",
+    scannerProbeSource,
+    Buffer.from(bytes).toString("base64"),
+    expected,
+  ], { label: `scan ${expected} with real product client` }).stdout;
+  return JSON.parse(output);
+}
+
 function controllerEnvironment(overrides = {}) {
   const environment = {
     ...process.env,
@@ -161,6 +250,7 @@ function controllerEnvironment(overrides = {}) {
     EVO_RELEASE_EXTERNAL_HEALTH_URL: `http://127.0.0.1:${hostPort}/api/health`,
     EVO_RELEASE_DOCKER_STORAGE_PATH: harnessRoot,
     EVO_RELEASE_MIN_FREE_KB: "1048576",
+    EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB: "4194304",
     EVO_RELEASE_ROLLBACK_SEED: rollbackSeed,
     EVO_SUPABASE_PROJECT_REF: "aaaaaaaaaaaaaaaaaaaa",
     EVO_CRM_APP_ENV_FILE: appEnvironmentFile,
@@ -371,6 +461,16 @@ function cleanup() {
       "disposable containers must not survive cleanup",
     );
 
+    const signatureVolumeExists = docker(["volume", "inspect", signatureVolumeName], {
+      accepted: [0, 1],
+    }).status === 0;
+    if (signatureVolumeExists) docker(["volume", "rm", signatureVolumeName]);
+    assert.equal(
+      docker(["volume", "inspect", signatureVolumeName], { accepted: [0, 1] }).status,
+      1,
+      "disposable scanner signatures must not survive cleanup",
+    );
+
     const networkExists = docker(["network", "inspect", networkName], {
       accepted: [0, 1],
     }).status === 0;
@@ -475,6 +575,10 @@ function writeComposeFile(wahaRepository, wahaDigest) {
       org.opencontainers.image.version: "\${EVO_RELEASE_VERSION}"
     env_file:
       - "\${EVO_CRM_APP_ENV_FILE}"
+    environment:
+      EVO_CLAMD_HOST: evo-crm-clamav
+      EVO_CLAMD_PORT: "3310"
+      EVO_CLAMD_TIMEOUT_MS: "10000"
     ports:
       - "127.0.0.1:\${EVO_TEST_HOST_PORT}:3000"
     networks:
@@ -485,6 +589,33 @@ function writeComposeFile(wahaRepository, wahaDigest) {
       timeout: 1s
       retries: 2
       start_period: 1s
+  clamav:
+    platform: linux/amd64
+    image: "${CLAMAV_IMAGE}"
+    restart: unless-stopped
+    init: true
+    cpus: "2.0"
+    mem_limit: 4096m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    expose:
+      - "3310"
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+    networks:
+      private:
+        aliases:
+          - evo-crm-clamav
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/local/bin/clamdcheck.sh"]
+      interval: 5s
+      timeout: 10s
+      retries: 60
+      start_period: 30s
   waha:
     platform: linux/amd64
     image: "\${EVO_WAHA_IMAGE_REPOSITORY}@\${EVO_WAHA_IMAGE_DIGEST}"
@@ -502,6 +633,8 @@ function writeComposeFile(wahaRepository, wahaDigest) {
 networks:
   private:
     name: "\${EVO_TEST_NETWORK}"
+volumes:
+  clamav_signatures:
 `,
   );
   assert.equal(`${wahaRepository}@${wahaDigest}`.includes("@sha256:"), true);
@@ -577,6 +710,7 @@ async function run() {
   verifyReleaseLockContention();
 
   const { pinned: wahaImage, repository: wahaRepository, digest: wahaDigest } = pinnedNodeImage();
+  scannerProbeImage = wahaImage;
   writeComposeFile(wahaRepository, wahaDigest);
 
   baselineImageId = buildAppImage({
@@ -653,14 +787,86 @@ async function run() {
     version: baselineVersion,
   });
   const seed = parseJson(rollbackSeed);
-  assert.equal(seed.schema, "evo-release-rollback-seed/v1");
+  assert.equal(seed.schema, "evo-release-rollback-seed/v2");
   assert.equal(seed.previousImage, baselineImageId);
   assert.equal(seed.previousRevision, baselineRevision);
   assert.equal(seed.previousVersion, baselineVersion);
+  assert.equal(seed.previousScannerPresent, false);
+  assert.equal(seed.previousScannerImage, "");
   assert.equal(seed.composeSha256, sha256File(composeFile));
   assert.equal(seed.appEnvSha256, sha256File(appEnvironmentFile));
   assert.match(seed.composeSha256, SHA256_HEX);
   assert.match(seed.appEnvSha256, SHA256_HEX);
+
+  compose(["pull", "--quiet", "clamav"], {
+    env: baselineComposeEnvironment,
+    timeout: 10 * 60 * 1_000,
+    label: "pull exact disposable ClamAV image",
+  });
+  compose([
+    "up",
+    "--detach",
+    "--no-deps",
+    "--no-build",
+    "--pull",
+    "never",
+    "--wait",
+    "--wait-timeout",
+    "600",
+    "clamav",
+  ], {
+    env: baselineComposeEnvironment,
+    timeout: 11 * 60 * 1_000,
+    label: "start exact disposable ClamAV runtime",
+  });
+  const scannerContainer = waitForScannerHealth();
+  assert.equal(inspectContainer(scannerContainer, "{{.Config.Image}}"), CLAMAV_IMAGE);
+  assert.equal(inspectImage(CLAMAV_IMAGE, "{{.Os}}/{{.Architecture}}"), "linux/amd64");
+  assert.equal(inspectContainer(scannerContainer, "{{json .HostConfig.PortBindings}}"), "{}");
+  assert.equal(inspectContainer(scannerContainer, "{{.HostConfig.Memory}}"), "4294967296");
+  assert.equal(inspectContainer(scannerContainer, "{{.HostConfig.NanoCpus}}"), "2000000000");
+  assert.equal(inspectContainer(scannerContainer, "{{.HostConfig.PidsLimit}}"), "256");
+  assert.equal(inspectContainer(scannerContainer, "{{.HostConfig.LogConfig.Type}}"), "json-file");
+  assert.equal(
+    inspectContainer(
+      scannerContainer,
+      "{{index .HostConfig.LogConfig.Config \"max-size\"}}",
+    ),
+    "10m",
+  );
+  assert.equal(
+    inspectContainer(
+      scannerContainer,
+      "{{range .Mounts}}{{if eq .Destination \"/var/lib/clamav\"}}{{.Name}}{{end}}{{end}}",
+    ),
+    signatureVolumeName,
+  );
+  assert.equal(
+    inspectContainer(
+      scannerContainer,
+      "{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}",
+    ),
+    networkName,
+  );
+
+  scannerCleanProof = scanWithProductClient(
+    Buffer.from("EVO ClamAV clean validation\n", "utf8"),
+    "clean",
+  );
+  assert.equal(scanWithProductClient(Buffer.from(EICAR, "ascii"), "infected").outcome, "infected");
+  docker(["stop", "--time", "30", scannerContainer], {
+    label: "stop disposable scanner for fail-closed proof",
+  });
+  assert.equal(
+    scanWithProductClient(Buffer.from("scanner outage", "utf8"), "unavailable").outcome,
+    "unavailable",
+  );
+  docker(["start", scannerContainer], { label: "restart disposable scanner" });
+  waitForScannerHealth();
+  assert.equal(
+    scanWithProductClient(Buffer.from("scanner recovered", "utf8"), "clean").outcome,
+    "clean",
+  );
 
   docker(["image", "save", "--output", candidateArchive, candidateTag], {
     timeout: 5 * 60 * 1_000,
@@ -694,9 +900,11 @@ async function run() {
   assert.equal(realpathSync(deployResult.evidenceDir), realpathSync(expectedEvidence));
   const state = parseJson(join(expectedEvidence, "state.json"));
   const result = parseJson(join(expectedEvidence, "result.json"));
-  assert.equal(state.schema, "evo-fast-release-state/v1");
+  assert.equal(state.schema, "evo-fast-release-state/v2");
   assert.equal(state.previousImage, baselineImageId);
   assert.equal(state.previousRevision, baselineRevision);
+  assert.equal(state.previousScannerPresent, false);
+  assert.equal(state.previousScannerImage, "");
   assert.equal(state.previousVersion, baselineVersion);
   assert.equal(state.rollbackTag, rollbackTag);
   assert.equal(state.targetRevision, candidateRevision);
@@ -732,6 +940,11 @@ async function run() {
   assert.equal(inspectContainer(restoredApp, "{{.RestartCount}}"), "0");
   await assertHealthyHttp(baselineRevision, baselineVersion);
   assert.equal(serviceContainer("waha"), wahaContainer);
+  assert.deepEqual(
+    serviceContainerIds("clamav"),
+    [],
+    "rollback must remove the candidate scanner when the sealed baseline had none",
+  );
 
   const staleRollback = runController(
     "rollback",
@@ -767,6 +980,15 @@ async function run() {
       staleRollbackRefused: true,
       releaseLockTool,
       releaseLockContentionProved,
+      scannerImage: CLAMAV_IMAGE,
+      scannerEngine: scannerCleanProof.engine,
+      scannerEngineVersion: scannerCleanProof.engineVersion,
+      scannerSignatureVersion: scannerCleanProof.signatureVersion,
+      scannerClean: "clean",
+      scannerEicar: "infected",
+      scannerOutage: "unavailable",
+      scannerRecovery: "clean",
+      scannerRemovedByRollback: true,
       providersCalled: false,
     })}\n`,
   );

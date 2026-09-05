@@ -34,6 +34,8 @@ test("rollback harness owns one unique disposable contour and targeted cleanup",
   assert.match(source, /docker\(\["rm", "--force", \.\.\.remainingContainers\]\)/u);
   assert.match(source, /docker\(\["network", "rm", networkName\]\)/u);
   assert.match(source, /disposable network must not survive cleanup/u);
+  assert.match(source, /docker\(\["volume", "rm", signatureVolumeName\]\)/u);
+  assert.match(source, /disposable scanner signatures must not survive cleanup/u);
   assert.match(source, /disposable image \$\{reference\} must not survive cleanup/u);
   assert.match(source, /baselineTag, candidateTag, rollbackTag/u);
   assert.match(source, /readFileSync\(markerPath/u);
@@ -63,6 +65,33 @@ test("rollback harness exercises real images, Compose, and the real controller",
   assert.match(source, /rollback_target_not_active/u);
 });
 
+test("one real proof covers ClamAV outcomes and candidate-scanner rollback", () => {
+  assert.match(
+    source,
+    /clamav\/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9/u,
+  );
+  assert.match(source, /EVO_CLAMD_HOST: evo-crm-clamav/u);
+  assert.match(source, /mem_limit: 4096m/u);
+  assert.match(source, /pids_limit: 256/u);
+  assert.match(source, /clamav_signatures:\/var\/lib\/clamav/u);
+  assert.match(source, /HostConfig\.LogConfig/u);
+  assert.match(source, /signatureVolumeName/u);
+  assert.match(source, /scanBytesWithClamd/u);
+  assert.match(source, /clamd-malware-scanner\.ts/u);
+  assert.match(source, /EICAR-STANDARD-ANTIVIRUS-TEST-FILE/u);
+  assert.match(source, /scanWithProductClient/u);
+  assert.match(source, /"infected"/u);
+  assert.match(source, /"unavailable"/u);
+  assert.match(source, /docker\(\["stop", "--time", "30", scannerContainer\]/u);
+  assert.match(source, /docker\(\["start", scannerContainer\]/u);
+  assert.match(source, /seed\.schema, "evo-release-rollback-seed\/v2"/u);
+  assert.match(source, /state\.schema, "evo-fast-release-state\/v2"/u);
+  assert.match(source, /previousScannerPresent, false/u);
+  assert.match(source, /previousScannerImage, ""/u);
+  assert.match(source, /serviceContainerIds\("clamav"\)/u);
+  assert.match(source, /scannerRemovedByRollback: true/u);
+});
+
 test("macOS rollback proof uses a test-local real fcntl lock without weakening production", () => {
   assert.match(source, /nativeProbe\.error\?\.code !== "ENOENT"/u);
   assert.match(source, /process\.platform,[\s\S]*"darwin"/u);
@@ -87,6 +116,7 @@ test("rollback proof verifies exact restored identity and controller evidence", 
   assert.match(source, /org\.opencontainers\.image\.version/u);
   assert.match(source, /assertHealthyHttp\(baselineRevision, baselineVersion\)/u);
   assert.match(source, /serviceContainer\("waha"\), wahaContainer/u);
+  assert.match(source, /rollback must remove the candidate scanner/u);
   assert.match(source, /candidate_failed_and_exact_baseline_rolled_back/u);
   assert.match(source, /staleRollbackRefused: true/u);
 });

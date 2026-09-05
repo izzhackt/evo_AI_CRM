@@ -21,23 +21,31 @@ function serviceBlock(value, name) {
 }
 
 for (const file of ["docker-compose.prod.yml"]) {
-  test(`${file} is exactly the hardened app and private-WAHA successor`, async () => {
+  test(`${file} is exactly the hardened app, private scanner and private-WAHA successor`, async () => {
     const value = await read(file);
-    assert.deepEqual(serviceNames(value), ["app", "waha"]);
+    assert.deepEqual(serviceNames(value), ["app", "clamav", "waha"]);
     assert.doesNotMatch(value, forbiddenRuntime);
     assert.doesNotMatch(value, /image:\s*["']?[^@\n"']+:latest/iu);
 
     const app = serviceBlock(value, "app");
+    const clamav = serviceBlock(value, "clamav");
     const waha = serviceBlock(value, "waha");
     assert.match(app, /platform: linux\/amd64/u);
     assert.match(app, /read_only: true/u);
     assert.match(app, /org\.opencontainers\.image\.revision/u);
     assert.match(app, /\/api\/health/u);
+    assert.match(app, /EVO_CLAMD_HOST: "evo-crm-clamav"/u);
+    assert.match(app, /clamav:[\s\S]*condition: service_healthy/u);
+    assert.match(clamav, /platform: linux\/amd64/u);
+    assert.match(clamav, /clamav\/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9/u);
+    assert.match(clamav, /evo_crm_clamav_signatures:\/var\/lib\/clamav/u);
+    assert.match(clamav, /clamdcheck\.sh/u);
+    assert.doesNotMatch(clamav, /^\s+ports:/mu);
     assert.match(waha, /@\$\{EVO_WAHA_IMAGE_DIGEST:/u);
     assert.match(waha, /127\.0\.0\.1:3000\/ping/u);
     assert.doesNotMatch(waha, /^\s+ports:/mu);
 
-    for (const block of [app, waha]) {
+    for (const block of [app, clamav, waha]) {
       assert.match(block, /cpus:/u);
       assert.match(block, /mem_limit:/u);
       assert.match(block, /pids_limit:/u);
@@ -79,7 +87,7 @@ test("runtime hardening validation checks only the root successor Compose models
   const validator = await read("scripts/validate-runtime-hardening.mjs");
   assert.match(validator, /docker-compose\.prod\.yml/u);
   assert.doesNotMatch(validator, /docker-compose\.staging\.yml/u);
-  assert.match(validator, /\["app", "waha"\]/u);
+  assert.match(validator, /\["app", "clamav", "waha"\]/u);
   assert.doesNotMatch(validator, /agent-lead2-inbox\/deploy|evo-lead-agent\/deploy/u);
 });
 

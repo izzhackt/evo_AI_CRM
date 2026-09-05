@@ -82,7 +82,7 @@ test("rollback harness owns one unique disposable contour and targeted cleanup",
   assert.match(source, /docker\(\["volume", "rm", signatureVolumeName\]\)/u);
   assert.match(source, /disposable scanner signatures must not survive cleanup/u);
   assert.match(source, /disposable image \$\{reference\} must not survive cleanup/u);
-  assert.match(source, /baselineTag, candidateTag, rollbackTag/u);
+  assert.match(source, /baselineTag,[\s\S]*candidateTag,[\s\S]*laterCandidateTag,[\s\S]*rollbackTag,[\s\S]*laterRollbackTag/u);
   assert.match(source, /readFileSync\(markerPath/u);
   assert.match(source, /basename\(harnessRoot\)\.startsWith\(HARNESS_PREFIX\)/u);
   assert.match(source, /dirname\(harnessRoot\), temporaryRoot/u);
@@ -107,7 +107,7 @@ test("rollback harness exercises real images, Compose, and the real controller",
   assert.match(source, /status, "rolled_back"/u);
   assert.match(source, /code, "deployment_failed"/u);
   assert.match(source, /runController\(\s*"rollback"/u);
-  assert.match(source, /rollback_target_not_active/u);
+  assert.match(source, /rollback_runtime_mismatch/u);
 });
 
 test("rollback harness keeps the mandatory Supabase key probe closed and test-local", () => {
@@ -139,11 +139,14 @@ test("one real proof covers ClamAV outcomes and candidate-scanner rollback", () 
   assert.match(source, /docker\(\["stop", "--time", "30", scannerContainer\]/u);
   assert.match(source, /docker\(\["start", scannerContainer\]/u);
   assert.match(source, /seed\.schema, "evo-release-rollback-seed\/v2"/u);
-  assert.match(source, /state\.schema, "evo-fast-release-state\/v2"/u);
+  assert.match(source, /state\.schema, "evo-fast-release-state\/v3"/u);
   assert.match(source, /previousScannerPresent, false/u);
   assert.match(source, /previousScannerImage, ""/u);
   assert.match(source, /serviceContainerIds\("clamav"\)/u);
   assert.match(source, /scannerRemovedByRollback: true/u);
+  assert.match(source, /laterState\.previousScannerPresent, true/u);
+  assert.match(source, /laterState\.previousScannerImage, CLAMAV_IMAGE/u);
+  assert.match(source, /scannerRestoredByLaterRollback: true/u);
 });
 
 test("macOS rollback proof uses a test-local real fcntl lock without weakening production", () => {
@@ -164,6 +167,8 @@ test("rollback proof verifies exact restored identity and controller evidence", 
   assert.match(source, /state\.previousRevision, baselineRevision/u);
   assert.match(source, /state\.previousVersion, baselineVersion/u);
   assert.match(source, /state\.targetRevision, candidateRevision/u);
+  assert.match(source, /state\.targetImage, candidateImageId/u);
+  assert.match(source, /state\.targetVersion, candidateVersion/u);
   assert.match(source, /result\.rolledBack/u);
   assert.match(source, /inspectContainer\(restoredApp, "\{\{\.Image\}\}"\)/u);
   assert.match(source, /org\.opencontainers\.image\.revision/u);
@@ -173,6 +178,8 @@ test("rollback proof verifies exact restored identity and controller evidence", 
   assert.match(source, /rollback must remove the candidate scanner/u);
   assert.match(source, /candidate_failed_and_exact_baseline_rolled_back/u);
   assert.match(source, /staleRollbackRefused: true/u);
+  assert.match(source, /laterRecovery/u);
+  assert.match(source, /waitForScannerHealth\(\)/u);
 });
 
 test("rollback harness cannot call real Supabase or provider mutation paths", () => {

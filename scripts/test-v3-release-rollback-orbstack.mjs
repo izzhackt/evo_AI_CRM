@@ -44,12 +44,17 @@ const networkName = `evo_v3_rollback_${suffix}_private`;
 const signatureVolumeName = `${projectName}_clamav_signatures`;
 const baselineRevision = createHash("sha1").update(`baseline-${suffix}`).digest("hex");
 const candidateRevision = createHash("sha1").update(`candidate-${suffix}`).digest("hex");
+const laterCandidateRevision = createHash("sha1").update(`later-candidate-${suffix}`).digest("hex");
 const baselineVersion = `rollback-baseline-${suffix}`;
 const candidateVersion = `rollback-candidate-${suffix}`;
+const laterCandidateVersion = `rollback-later-candidate-${suffix}`;
 const runId = `rollback-proof-${suffix}`;
+const laterRunId = `rollback-later-proof-${suffix}`;
 const baselineTag = `evo-crm:${baselineRevision}`;
 const candidateTag = `evo-crm:${candidateRevision}`;
+const laterCandidateTag = `evo-crm:${laterCandidateRevision}`;
 const rollbackTag = `evo-crm:rollback-${runId}`;
+const laterRollbackTag = `evo-crm:rollback-${laterRunId}`;
 const releaseRoot = join(harnessRoot, "release");
 const transferRoot = join(harnessRoot, "transfer");
 const evidenceRoot = join(harnessRoot, "evidence");
@@ -64,10 +69,12 @@ const appEnvironmentFile = join(releaseRoot, ".env.production");
 const wahaEnvironmentFile = join(releaseRoot, ".env.waha");
 const environmentExampleFile = join(releaseRoot, "env.production.example");
 const candidateArchive = join(transferRoot, `candidate-${candidateRevision}.tar`);
+const laterCandidateArchive = join(transferRoot, `candidate-${laterCandidateRevision}.tar`);
 const rollbackSeed = join(evidenceRoot, "sealed-baseline", "state.json");
 
 let baselineImageId = "";
 let candidateImageId = "";
+let laterCandidateImageId = "";
 let scannerProbeImage = "";
 let scannerCleanProof;
 let hostPort = 0;
@@ -531,11 +538,17 @@ function cleanup() {
       "disposable network must not survive cleanup",
     );
 
-    const ownedReferences = [baselineTag, candidateTag, rollbackTag].filter(Boolean);
+    const ownedReferences = [
+      baselineTag,
+      candidateTag,
+      laterCandidateTag,
+      rollbackTag,
+      laterRollbackTag,
+    ].filter(Boolean);
     if (ownedReferences.length > 0) {
       docker(["image", "rm", "--force", ...ownedReferences], { accepted: [0, 1] });
     }
-    const ownedImageIds = [baselineImageId, candidateImageId].filter((value) =>
+    const ownedImageIds = [baselineImageId, candidateImageId, laterCandidateImageId].filter((value) =>
       SHA256_IMAGE.test(value),
     );
     if (ownedImageIds.length > 0) {
@@ -749,6 +762,21 @@ function candidateEnvironment(wahaRepository, wahaDigest) {
   };
 }
 
+function laterCandidateEnvironment(wahaRepository, wahaDigest) {
+  return {
+    EVO_RELEASE_REVISION: laterCandidateRevision,
+    EVO_RELEASE_VERSION: laterCandidateVersion,
+    EVO_RELEASE_RUN_ID: laterRunId,
+    EVO_RELEASE_ARCHIVE: laterCandidateArchive,
+    EVO_RELEASE_ARCHIVE_SHA256: sha256File(laterCandidateArchive),
+    EVO_RELEASE_EXPECTED_IMAGE_ID: laterCandidateImageId,
+    EVO_RELEASE_EXPECTED_COMPOSE_SHA256: sha256File(composeFile),
+    EVO_RELEASE_SEED_IMAGE: baselineImageId,
+    EVO_WAHA_IMAGE_REPOSITORY: wahaRepository,
+    EVO_WAHA_IMAGE_DIGEST: wahaDigest,
+  };
+}
+
 async function run() {
   // Establish deletion authority before any preflight can throw. Cleanup then
   // preserves the original failure while still proving this exact temp root is
@@ -781,7 +809,16 @@ async function run() {
     healthStatus: 503,
     tag: candidateTag,
   });
+  laterCandidateImageId = buildAppImage({
+    baseImage: wahaImage,
+    revision: laterCandidateRevision,
+    version: laterCandidateVersion,
+    healthStatus: 503,
+    tag: laterCandidateTag,
+  });
   assert.notEqual(baselineImageId, candidateImageId);
+  assert.notEqual(baselineImageId, laterCandidateImageId);
+  assert.notEqual(candidateImageId, laterCandidateImageId);
 
   const baselineComposeEnvironment = controllerEnvironment({
     EVO_RELEASE_REVISION: baselineRevision,
@@ -954,14 +991,16 @@ async function run() {
   assert.equal(realpathSync(deployResult.evidenceDir), realpathSync(expectedEvidence));
   const state = parseJson(join(expectedEvidence, "state.json"));
   const result = parseJson(join(expectedEvidence, "result.json"));
-  assert.equal(state.schema, "evo-fast-release-state/v2");
+  assert.equal(state.schema, "evo-fast-release-state/v3");
   assert.equal(state.previousImage, baselineImageId);
   assert.equal(state.previousRevision, baselineRevision);
   assert.equal(state.previousScannerPresent, false);
   assert.equal(state.previousScannerImage, "");
   assert.equal(state.previousVersion, baselineVersion);
   assert.equal(state.rollbackTag, rollbackTag);
+  assert.equal(state.targetImage, candidateImageId);
   assert.equal(state.targetRevision, candidateRevision);
+  assert.equal(state.targetVersion, candidateVersion);
   assert.equal(state.composeSha256, seed.composeSha256);
   assert.equal(state.appEnvSha256, seed.appEnvSha256);
   assert.deepEqual(result, {
@@ -1000,6 +1039,92 @@ async function run() {
     "rollback must remove the candidate scanner when the sealed baseline had none",
   );
 
+  compose([
+    "up",
+    "--detach",
+    "--no-deps",
+    "--no-build",
+    "--pull",
+    "never",
+    "--wait",
+    "--wait-timeout",
+    "600",
+    "clamav",
+  ], {
+    env: baselineComposeEnvironment,
+    timeout: 11 * 60 * 1_000,
+    label: "establish exact prior scanner for later release",
+  });
+  const priorScanner = waitForScannerHealth();
+  assert.equal(inspectContainer(priorScanner, "{{.Config.Image}}"), CLAMAV_IMAGE);
+  assert.equal(inspectContainer(priorScanner, "{{json .HostConfig.PortBindings}}"), "{}");
+
+  docker(["image", "save", "--output", laterCandidateArchive, laterCandidateTag], {
+    timeout: 5 * 60 * 1_000,
+    label: "save later unhealthy candidate archive",
+  });
+  docker(["image", "rm", "--force", laterCandidateTag], {
+    label: "remove later candidate before archive load proof",
+  });
+  assert.equal(
+    docker(["image", "inspect", laterCandidateTag], { accepted: [0, 1] }).status,
+    1,
+    "later candidate image must be absent before the controller loads the archive",
+  );
+  const laterDeploy = runController(
+    "deploy",
+    laterCandidateEnvironment(wahaRepository, wahaDigest),
+    [3],
+  );
+  const laterDeployResult = parseLastJsonLine(laterDeploy.stdout);
+  assert.equal(laterDeployResult.status, "rolled_back");
+  assert.equal(laterDeployResult.code, "deployment_failed");
+  const laterEvidence = join(
+    evidenceRoot,
+    `${laterCandidateVersion}-${laterCandidateRevision.slice(0, 8)}-${laterRunId}`,
+  );
+  const laterState = parseJson(join(laterEvidence, "state.json"));
+  assert.equal(laterState.schema, "evo-fast-release-state/v3");
+  assert.equal(laterState.previousImage, baselineImageId);
+  assert.equal(laterState.previousRevision, baselineRevision);
+  assert.equal(laterState.previousVersion, baselineVersion);
+  assert.equal(laterState.previousScannerPresent, true);
+  assert.equal(laterState.previousScannerImage, CLAMAV_IMAGE);
+  assert.equal(laterState.targetImage, laterCandidateImageId);
+  assert.equal(laterState.targetRevision, laterCandidateRevision);
+  assert.equal(laterState.targetVersion, laterCandidateVersion);
+  assert.equal(laterState.rollbackTag, laterRollbackTag);
+  const restoredPriorScanner = waitForScannerHealth();
+  assert.equal(inspectContainer(restoredPriorScanner, "{{.Config.Image}}"), CLAMAV_IMAGE);
+  assert.equal(inspectContainer(restoredPriorScanner, "{{json .HostConfig.PortBindings}}"), "{}");
+  assert.equal(
+    inspectContainer(
+      restoredPriorScanner,
+      "{{range .Mounts}}{{if eq .Destination \"/var/lib/clamav\"}}{{.Name}}{{end}}{{end}}",
+    ),
+    signatureVolumeName,
+  );
+  assert.equal(inspectContainer(serviceContainer("app"), "{{.Image}}"), baselineImageId);
+  await assertHealthyHttp(baselineRevision, baselineVersion);
+
+  compose([
+    "up",
+    "--detach",
+    "--no-deps",
+    "--no-build",
+    "--pull",
+    "never",
+    "--wait",
+    "--wait-timeout",
+    "30",
+    "app",
+  ], {
+    accepted: [0, 1],
+    env: controllerEnvironment(laterCandidateEnvironment(wahaRepository, wahaDigest)),
+    timeout: 2 * 60 * 1_000,
+    label: "install unrelated later candidate for stale rollback refusal",
+  });
+  assert.equal(inspectContainer(serviceContainer("app"), "{{.Image}}"), laterCandidateImageId);
   const staleRollback = runController(
     "rollback",
     {
@@ -1010,9 +1135,21 @@ async function run() {
   );
   assert.deepEqual(parseLastJsonLine(staleRollback.stderr), {
     ok: false,
-    code: "rollback_target_not_active",
+    code: "rollback_runtime_mismatch",
+  });
+  assert.equal(inspectContainer(serviceContainer("app"), "{{.Image}}"), laterCandidateImageId);
+
+  const laterRecovery = runController("rollback", {
+    ...laterCandidateEnvironment(wahaRepository, wahaDigest),
+    EVO_RELEASE_ROLLBACK_STATE: join(laterEvidence, "state.json"),
+  });
+  assert.deepEqual(parseLastJsonLine(laterRecovery.stdout), {
+    ok: true,
+    command: "rollback",
+    status: "rolled_back",
   });
   assert.equal(inspectContainer(serviceContainer("app"), "{{.Image}}"), baselineImageId);
+  assert.equal(inspectContainer(waitForScannerHealth(), "{{.Config.Image}}"), CLAMAV_IMAGE);
   await assertHealthyHttp(baselineRevision, baselineVersion);
 
   process.stdout.write(
@@ -1027,6 +1164,9 @@ async function run() {
       candidateImage: candidateImageId,
       candidateRevision,
       candidateVersion,
+      laterCandidateImage: laterCandidateImageId,
+      laterCandidateRevision,
+      laterCandidateVersion,
       controllerExit: deploy.status,
       resultSchema: result.schema,
       stateSchema: state.schema,
@@ -1043,6 +1183,7 @@ async function run() {
       scannerOutage: "unavailable",
       scannerRecovery: "clean",
       scannerRemovedByRollback: true,
+      scannerRestoredByLaterRollback: true,
       supabaseKeyProbe: "closed_test_local_contract_not_acceptance",
       providersCalled: false,
     })}\n`,

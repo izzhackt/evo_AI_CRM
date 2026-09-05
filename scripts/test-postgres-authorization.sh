@@ -2063,6 +2063,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_malware_scanning.sql
   fi
+
+  # Migration 116 makes clean ingress proof part of reservation authority and
+  # makes document publication plus its durable scan proof one transaction.
+  if [[ "$(basename "$migration")" == 116_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_malware_scan_transaction_boundaries.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

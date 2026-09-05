@@ -598,6 +598,13 @@ function normalizeReservation(
     "declared_mime_type",
     "byte_size",
     "sha256_hex",
+    "ingress_scan_proof",
+    "ingress_scan_result",
+    "ingress_scanner_engine",
+    "ingress_scanner_engine_version",
+    "ingress_scanner_signature_version",
+    "ingress_scanner_protocol",
+    "ingress_scanned_at",
     "storage_object_present",
     "file_version_published",
   ])) return null;
@@ -608,6 +615,7 @@ function normalizeReservation(
   const versionNumber = positiveBigint(value.version_no);
   const uploadReservationId = uuid(value.upload_reservation_id);
   const expiresAt = timestamp(value.expires_at);
+  const ingressScannedAt = timestamp(value.ingress_scanned_at);
   const byteSize = positiveSafeInteger(value.byte_size);
   if (
     organizationId !== expected.organizationId ||
@@ -617,6 +625,17 @@ function normalizeReservation(
     !OBJECT_NAME_PATTERN.test(value.object_name) || !expiresAt ||
     value.declared_mime_type !== expected.mimeType ||
     byteSize !== expected.byteSize || value.sha256_hex !== expected.sha256Hex ||
+    value.ingress_scan_proof !== true ||
+    value.ingress_scan_result !== "clean" ||
+    value.ingress_scanner_engine !== "ClamAV" ||
+    typeof value.ingress_scanner_engine_version !== "string" ||
+    !SCANNER_ENGINE_VERSION_PATTERN.test(value.ingress_scanner_engine_version) ||
+    typeof value.ingress_scanner_signature_version !== "string" ||
+    !SCANNER_SIGNATURE_VERSION_PATTERN.test(
+      value.ingress_scanner_signature_version,
+    ) ||
+    value.ingress_scanner_protocol !== "clamd-zinstream-v1" ||
+    !ingressScannedAt ||
     typeof value.storage_object_present !== "boolean" ||
     typeof value.file_version_published !== "boolean" ||
     (value.file_version_published && !value.storage_object_present)
@@ -1038,16 +1057,24 @@ export function createPlatformCompanyFileUploadHandler(
     }
 
     try {
-      const reservationResponse = await userClient.schema("platform").rpc(
-        "reserve_company_file_upload",
+      const serviceClient = dependencies.createServiceClient();
+      const reservationResponse = await serviceClient.schema("platform").rpc(
+        "reserve_company_file_upload_after_ingress_scan",
         {
           p_organization_id: authorization.actor.organizationId,
+          p_actor_auth_user_id: authorization.actor.authUserId,
           p_company_file_id: companyFileId,
           p_expected_file_version: upload.expectedFileVersion,
           p_original_filename: upload.file.name,
           p_declared_mime_type: mimeType,
           p_byte_size: bytes.byteLength,
           p_sha256_hex: sha256Hex,
+          p_scan_result: "clean",
+          p_scanner_engine: requestScanProof.engine,
+          p_scanner_engine_version: requestScanProof.engineVersion,
+          p_scanner_signature_version: requestScanProof.signatureVersion,
+          p_scanner_protocol: requestScanProof.protocol,
+          p_scanned_at: requestScanProof.scannedAt,
           p_request_id: upload.requestId,
         },
       );
@@ -1063,7 +1090,6 @@ export function createPlatformCompanyFileUploadHandler(
       });
       if (!reservation) return errorResponse(503, "storage_unavailable");
 
-      const serviceClient = dependencies.createServiceClient();
       if (!reservation.storageObjectPresent) {
         const storageResponse = await serviceClient.storage.from(BUCKET_ID).upload(
           reservation.objectName,

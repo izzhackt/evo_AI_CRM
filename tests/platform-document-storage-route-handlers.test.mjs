@@ -14,6 +14,8 @@ const CASE_ID = "22222222-2222-4222-8222-222222222222";
 const SLOT_ID = "33333333-3333-4333-8333-333333333333";
 const VERSION_ID = "44444444-4444-4444-8444-444444444444";
 const RESERVATION_ID = "55555555-5555-4555-8555-555555555555";
+const FINALIZATION_ID = "55555555-5555-4555-8555-555555555556";
+const STORAGE_BINDING_ID = "55555555-5555-4555-8555-555555555557";
 const GRANT_ID = "66666666-6666-4666-8666-666666666666";
 const CONSUMPTION_ID = "77777777-7777-4777-8777-777777777777";
 const ACCESS_EVENT_ID = "88888888-8888-4888-8888-888888888888";
@@ -34,6 +36,12 @@ const SCAN_PROOF = Object.freeze({
   protocol: "clamd-zinstream-v1",
   scannedAt: "2026-09-02T08:00:00.000Z",
   sha256Hex: SHA256,
+});
+const STORED_SCAN_PROOF = Object.freeze({
+  ...SCAN_PROOF,
+  engineVersion: "1.5.5",
+  signatureVersion: "27891",
+  scannedAt: "2026-09-02T08:00:01.000Z",
 });
 
 const ACTOR = Object.freeze({
@@ -64,10 +72,23 @@ function reservation(overrides = {}) {
     declared_mime_type: "application/pdf",
     byte_size: BYTES.byteLength,
     sha256_hex: SHA256,
+    ingress_scan_proof: true,
+    ingress_scan_result: "clean",
+    ingress_scanner_engine: SCAN_PROOF.engine,
+    ingress_scanner_engine_version: SCAN_PROOF.engineVersion,
+    ingress_scanner_signature_version: SCAN_PROOF.signatureVersion,
+    ingress_scanner_protocol: SCAN_PROOF.protocol,
+    ingress_scanned_at: SCAN_PROOF.scannedAt,
     storage_object_present: false,
     document_slot_published: false,
     ...overrides,
   };
+}
+
+function withoutReservationField(field) {
+  const value = reservation();
+  delete value[field];
+  return value;
 }
 
 function finalization(overrides = {}) {
@@ -84,29 +105,23 @@ function finalization(overrides = {}) {
     published_slot_status: "submitted",
     published_version_no: 1,
     document_slot_published: true,
-    ...overrides,
-  };
-}
-
-function attestation(overrides = {}) {
-  return {
-    organization_id: ORGANIZATION_ID,
-    document_version_id: VERSION_ID,
-    document_slot_id: SLOT_ID,
-    student_case_id: CASE_ID,
     integrity_status: "verified",
     malware_status: "clean",
     validation_source: "clamav-clamd-zinstream",
     evidence_ref: `sha256:${SHA256}`,
     validation_updated_at: AT,
     malware_scan_attestation_id: SCAN_ATTESTATION_ID,
-    scanner_engine: SCAN_PROOF.engine,
-    scanner_engine_version: SCAN_PROOF.engineVersion,
-    scanner_signature_version: SCAN_PROOF.signatureVersion,
-    scanner_protocol: SCAN_PROOF.protocol,
+    storage_binding_id: STORAGE_BINDING_ID,
+    upload_finalization_id: FINALIZATION_ID,
+    scanner_engine: STORED_SCAN_PROOF.engine,
+    scanner_engine_version: STORED_SCAN_PROOF.engineVersion,
+    scanner_signature_version: STORED_SCAN_PROOF.signatureVersion,
+    scanner_protocol: STORED_SCAN_PROOF.protocol,
     scanned_sha256_hex: SHA256,
-    scanned_at: AT,
+    scanned_at: STORED_SCAN_PROOF.scannedAt,
     scanner_proof: true,
+    finalization_request_id: REQUEST_IDS[1],
+    scan_proof_request_id: REQUEST_IDS[2],
     ...overrides,
   };
 }
@@ -175,8 +190,6 @@ function uploadDependencies({
   storedMimeType = null,
   finalizeResult = finalization(),
   finalizeError = null,
-  attestationResult = attestation(),
-  attestationError = null,
   scanOutcomes = null,
   scanResult = SCAN_PROOF,
   scanError = null,
@@ -194,7 +207,7 @@ function uploadDependencies({
           if (name === "preflight_document_upload") {
             return { data: preflightResult, error: preflightError };
           }
-          return { data: reserveResult, error: reserveError };
+          throw new Error(`Unexpected user RPC: ${name}`);
         },
       };
     },
@@ -205,9 +218,13 @@ function uploadDependencies({
       return {
         async rpc(name, args) {
           calls.push(["service-rpc", name, args]);
-          return name === "finalize_document_upload"
-            ? { data: finalizeResult, error: finalizeError }
-            : { data: attestationResult, error: attestationError };
+          if (name === "reserve_document_upload_after_ingress_scan") {
+            return { data: reserveResult, error: reserveError };
+          }
+          if (name === "finalize_document_upload_with_scan") {
+            return { data: finalizeResult, error: finalizeError };
+          }
+          throw new Error(`Unexpected service RPC: ${name}`);
         },
       };
     },
@@ -271,7 +288,12 @@ function uploadDependencies({
 }
 
 test("authenticated Admissions upload reserves through RLS, service-writes, reads back and finalizes exact bytes", async () => {
-  const { calls, dependencies } = uploadDependencies();
+  const { calls, dependencies } = uploadDependencies({
+    scanOutcomes: [
+      { result: SCAN_PROOF },
+      { result: STORED_SCAN_PROOF },
+    ],
+  });
   const handler = createPlatformDocumentUploadHandler(dependencies);
   const response = await handler(uploadRequest(), {
     params: Promise.resolve({ documentSlotId: SLOT_ID }),
@@ -294,7 +316,9 @@ test("authenticated Admissions upload reserves through RLS, service-writes, read
   assert.equal(calls.filter(([kind]) => kind === "service-download").length, 1);
   assert.equal(calls.filter(([kind]) => kind === "scan").length, 2);
   const preflightCall = calls.find(([, name]) => name === "preflight_document_upload");
-  const reserveCall = calls.find(([, name]) => name === "reserve_document_upload");
+  const reserveCall = calls.find(([, name]) =>
+    name === "reserve_document_upload_after_ingress_scan"
+  );
   assert.ok(calls.indexOf(preflightCall) < calls.findIndex(([kind]) => kind === "scan"));
   assert.equal(calls.find(([kind]) => kind === "service-upload")[1], OBJECT_NAME);
   assert.equal(calls.find(([kind]) => kind === "service-upload")[3].upsert, false);
@@ -311,37 +335,79 @@ test("authenticated Admissions upload reserves through RLS, service-writes, read
     },
   ]);
   assert.deepEqual(reserveCall.slice(1), [
-    "reserve_document_upload",
+    "reserve_document_upload_after_ingress_scan",
     {
       p_organization_id: ORGANIZATION_ID,
+      p_actor_auth_user_id: ACTOR.authUserId,
       p_document_slot_id: SLOT_ID,
       p_original_filename: "proof.pdf",
       p_declared_mime_type: "application/pdf",
       p_byte_size: BYTES.byteLength,
       p_sha256_hex: SHA256,
+      p_scan_result: "clean",
+      p_scanner_engine: "ClamAV",
+      p_scanner_engine_version: SCAN_PROOF.engineVersion,
+      p_scanner_signature_version: SCAN_PROOF.signatureVersion,
+      p_scanner_protocol: "clamd-zinstream-v1",
+      p_scanned_at: SCAN_PROOF.scannedAt,
       p_request_id: REQUEST_IDS[0],
     },
   ]);
   assert.deepEqual(
     calls.filter(([kind]) => kind === "service-rpc").map(([, name]) => name),
-    ["finalize_document_upload", "attest_document_validation"],
+    [
+      "reserve_document_upload_after_ingress_scan",
+      "finalize_document_upload_with_scan",
+    ],
   );
-  const attestationArgs = calls.find(([, name]) => name === "attest_document_validation")[2];
-  const { p_request_id: attestationRequestId, ...attestationFacts } = attestationArgs;
-  assert.match(attestationRequestId, /^[0-9a-f-]{36}$/);
+  const finalizationArgs = calls.find(([, name]) =>
+    name === "finalize_document_upload_with_scan"
+  )[2];
+  const { p_request_id: finalizationRequestId, ...finalizationFacts } = finalizationArgs;
+  assert.match(finalizationRequestId, /^[0-9a-f-]{36}$/);
   assert.deepEqual(
-    attestationFacts,
+    finalizationFacts,
     {
       p_organization_id: ORGANIZATION_ID,
-      p_document_version_id: VERSION_ID,
+      p_upload_reservation_id: RESERVATION_ID,
       p_scanner_engine: "ClamAV",
-      p_scanner_engine_version: "1.5.4",
-      p_scanner_signature_version: "27890",
+      p_scanner_engine_version: STORED_SCAN_PROOF.engineVersion,
+      p_scanner_signature_version: STORED_SCAN_PROOF.signatureVersion,
       p_scanner_protocol: "clamd-zinstream-v1",
       p_scanned_sha256_hex: SHA256,
-      p_scanned_at: SCAN_PROOF.scannedAt,
+      p_scanned_at: STORED_SCAN_PROOF.scannedAt,
     },
   );
+});
+
+test("reservation response requires exact durable ingress-scan evidence", async () => {
+  const invalidReservations = [
+    withoutReservationField("ingress_scan_proof"),
+    reservation({ unexpected: true }),
+    reservation({ ingress_scan_proof: false }),
+    reservation({ ingress_scan_result: "infected" }),
+    reservation({ ingress_scanner_engine: "other" }),
+    reservation({ ingress_scanner_engine_version: "invalid version" }),
+    reservation({ ingress_scanner_signature_version: "0" }),
+    reservation({ ingress_scanner_protocol: "clamd-instream-v0" }),
+    reservation({ ingress_scanned_at: "not-a-timestamp" }),
+  ];
+
+  for (const reserveResult of invalidReservations) {
+    const { calls, dependencies } = uploadDependencies({ reserveResult });
+    const response = await createPlatformDocumentUploadHandler(dependencies)(
+      uploadRequest(),
+      { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+    );
+
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "storage_unavailable" });
+    assert.equal(calls.some(([kind]) => kind === "service-upload"), false);
+    assert.equal(
+      calls.some(([, name]) => name === "finalize_document_upload_with_scan"),
+      false,
+    );
+  }
 });
 
 test("malware and scanner failure stop before any reservation or Storage write", async () => {
@@ -360,7 +426,10 @@ test("malware and scanner failure stop before any reservation or Storage write",
       calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
       ["preflight_document_upload"],
     );
-    assert.equal(calls.some(([, name]) => name === "reserve_document_upload"), false);
+    assert.equal(
+      calls.some(([, name]) => name === "reserve_document_upload_after_ingress_scan"),
+      false,
+    );
     assert.equal(calls.some(([kind]) => kind === "service-upload"), false);
   }
 
@@ -399,15 +468,13 @@ test("stored student bytes fail closed when the second malware scan is unsafe", 
     assert.deepEqual(await response.json(), { error: item.code });
     assert.deepEqual(
       calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
-      ["preflight_document_upload", "reserve_document_upload"],
+      ["preflight_document_upload"],
     );
     assert.equal(calls.filter(([kind]) => kind === "service-upload").length, 1);
     assert.equal(calls.filter(([kind]) => kind === "service-download").length, 1);
     assert.equal(calls.filter(([kind]) => kind === "scan").length, 2);
     assert.equal(
-      calls.some(([, name]) =>
-        name === "finalize_document_upload" || name === "attest_document_validation"
-      ),
+      calls.some(([, name]) => name === "finalize_document_upload_with_scan"),
       false,
     );
   }
@@ -445,7 +512,10 @@ test("an ambiguous prior Storage write is finalized without overwrite", async ()
   assert.equal(calls.filter(([kind]) => kind === "scan").length, 2);
   assert.deepEqual(
     calls.filter(([kind]) => kind === "service-rpc").map(([, name]) => name),
-    ["finalize_document_upload", "attest_document_validation"],
+    [
+      "reserve_document_upload_after_ingress_scan",
+      "finalize_document_upload_with_scan",
+    ],
   );
 });
 
@@ -465,13 +535,16 @@ test("same-size stored-object substitution fails before finalization or proof", 
   assert.deepEqual(await response.json(), { error: "storage_object_mismatch" });
   assert.equal(calls.some(([kind]) => kind === "service-upload"), false);
   assert.equal(calls.filter(([kind]) => kind === "scan").length, 1);
-  assert.equal(calls.some(([kind]) => kind === "service-rpc"), false);
+  assert.equal(
+    calls.some(([, name]) => name === "finalize_document_upload_with_scan"),
+    false,
+  );
 });
 
 test("lost-response replay accepts the durable original scan facts", async () => {
   const { calls, dependencies } = uploadDependencies({
     reserveResult: reservation({ storage_object_present: true }),
-    attestationResult: attestation({
+    finalizeResult: finalization({
       scanner_engine_version: "1.5.3",
       scanner_signature_version: "27889",
       scanned_at: "2026-09-01T07:00:00+00:00",
@@ -496,7 +569,10 @@ test("upload fails clearly and never finalizes when Storage does not confirm the
   );
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: "storage_upload_unconfirmed" });
-  assert.equal(calls.some(([kind]) => kind === "service-rpc"), false);
+  assert.equal(
+    calls.some(([, name]) => name === "finalize_document_upload_with_scan"),
+    false,
+  );
 });
 
 test("forbidden, malformed and unexpected upload inputs stop before Supabase", async () => {

@@ -80,10 +80,6 @@ type FinalizedUpload = Readonly<{
   versionNumber: number;
 }>;
 
-type ValidationAttestation = Readonly<{
-  documentVersionId: string;
-}>;
-
 type DownloadGrant = Readonly<{
   id: string;
   expiresAt: string;
@@ -204,6 +200,13 @@ function normalizeReservation(
       "declared_mime_type",
       "byte_size",
       "sha256_hex",
+      "ingress_scan_proof",
+      "ingress_scan_result",
+      "ingress_scanner_engine",
+      "ingress_scanner_engine_version",
+      "ingress_scanner_signature_version",
+      "ingress_scanner_protocol",
+      "ingress_scanned_at",
       "storage_object_present",
       "document_slot_published",
     ])
@@ -217,6 +220,7 @@ function normalizeReservation(
   const documentVersionId = uuid(value.document_version_id);
   const uploadReservationId = uuid(value.upload_reservation_id);
   const expiresAt = timestamp(value.expires_at);
+  const ingressScannedAt = timestamp(value.ingress_scanned_at);
   const byteSize = positiveInteger(value.byte_size);
   if (
     organizationId !== expected.organizationId
@@ -231,6 +235,19 @@ function normalizeReservation(
     || value.declared_mime_type !== expected.mimeType
     || byteSize !== expected.byteSize
     || value.sha256_hex !== expected.sha256Hex
+    || value.ingress_scan_proof !== true
+    || value.ingress_scan_result !== "clean"
+    || value.ingress_scanner_engine !== "ClamAV"
+    || typeof value.ingress_scanner_engine_version !== "string"
+    || !SCANNER_ENGINE_VERSION_PATTERN.test(
+      value.ingress_scanner_engine_version,
+    )
+    || typeof value.ingress_scanner_signature_version !== "string"
+    || !SCANNER_SIGNATURE_VERSION_PATTERN.test(
+      value.ingress_scanner_signature_version,
+    )
+    || value.ingress_scanner_protocol !== "clamd-zinstream-v1"
+    || !ingressScannedAt
     || typeof value.storage_object_present !== "boolean"
     || typeof value.document_slot_published !== "boolean"
   ) {
@@ -308,6 +325,23 @@ function normalizeFinalizedUpload(
       "published_slot_status",
       "published_version_no",
       "document_slot_published",
+      "integrity_status",
+      "malware_status",
+      "validation_source",
+      "evidence_ref",
+      "validation_updated_at",
+      "malware_scan_attestation_id",
+      "storage_binding_id",
+      "upload_finalization_id",
+      "scanner_engine",
+      "scanner_engine_version",
+      "scanner_signature_version",
+      "scanner_protocol",
+      "scanned_sha256_hex",
+      "scanned_at",
+      "scanner_proof",
+      "finalization_request_id",
+      "scan_proof_request_id",
     ])
   ) {
     return null;
@@ -327,57 +361,14 @@ function normalizeFinalizedUpload(
     || value.published_slot_status !== "submitted"
     || !versionNumber
     || value.document_slot_published !== true
-  ) {
-    return null;
-  }
-
-  return Object.freeze({
-    documentVersionId: reservation.documentVersionId,
-    documentSlotId: reservation.documentSlotId,
-    studentCaseId: reservation.studentCaseId,
-    versionNumber,
-  });
-}
-
-function normalizeValidationAttestation(
-  value: unknown,
-  reservation: UploadReservation,
-): ValidationAttestation | null {
-  if (
-    !isRecord(value)
-    || !hasExactKeys(value, [
-      "organization_id",
-      "document_version_id",
-      "document_slot_id",
-      "student_case_id",
-      "integrity_status",
-      "malware_status",
-      "validation_source",
-      "evidence_ref",
-      "validation_updated_at",
-      "malware_scan_attestation_id",
-      "scanner_engine",
-      "scanner_engine_version",
-      "scanner_signature_version",
-      "scanner_protocol",
-      "scanned_sha256_hex",
-      "scanned_at",
-      "scanner_proof",
-    ])
-  ) {
-    return null;
-  }
-  if (
-    value.organization_id !== reservation.organizationId
-    || value.document_version_id !== reservation.documentVersionId
-    || value.document_slot_id !== reservation.documentSlotId
-    || value.student_case_id !== reservation.studentCaseId
     || value.integrity_status !== "verified"
     || value.malware_status !== "clean"
     || value.validation_source !== "clamav-clamd-zinstream"
     || value.evidence_ref !== `sha256:${reservation.sha256Hex}`
     || !timestamp(value.validation_updated_at)
     || !uuid(value.malware_scan_attestation_id)
+    || !uuid(value.storage_binding_id)
+    || !uuid(value.upload_finalization_id)
     || value.scanner_engine !== "ClamAV"
     || typeof value.scanner_engine_version !== "string"
     || !SCANNER_ENGINE_VERSION_PATTERN.test(value.scanner_engine_version)
@@ -389,10 +380,18 @@ function normalizeValidationAttestation(
     || value.scanned_sha256_hex !== reservation.sha256Hex
     || !timestamp(value.scanned_at)
     || value.scanner_proof !== true
+    || !uuid(value.finalization_request_id)
+    || !uuid(value.scan_proof_request_id)
   ) {
     return null;
   }
-  return Object.freeze({ documentVersionId: reservation.documentVersionId });
+
+  return Object.freeze({
+    documentVersionId: reservation.documentVersionId,
+    documentSlotId: reservation.documentSlotId,
+    studentCaseId: reservation.studentCaseId,
+    versionNumber,
+  });
 }
 
 async function readExactStoredDocument(
@@ -555,7 +554,18 @@ function preflightErrorResponse(error: unknown): Response {
   if (code === "22023") return errorResponse(400, "invalid_upload");
   if (code === "PT409") return errorResponse(409, "upload_in_progress");
   if (code === "PT429") return errorResponse(429, "upload_rate_limited");
+  if (code === "23505") return errorResponse(409, "request_conflict");
   return errorResponse(503, "upload_preflight_unavailable");
+}
+
+function reservationErrorResponse(error: unknown): Response {
+  const code = rpcErrorCode(error);
+  if (code === "42501") return errorResponse(403, "upload_not_authorized");
+  if (code === "22023") return errorResponse(400, "invalid_upload");
+  if (code === "PT409") return errorResponse(409, "upload_in_progress");
+  if (code === "PT429") return errorResponse(429, "upload_rate_limited");
+  if (code === "23505") return errorResponse(409, "request_conflict");
+  return errorResponse(503, "storage_reservation_unconfirmed");
 }
 
 function authorizationResponse(status: DocumentAuthorization["status"]): Response {
@@ -754,20 +764,28 @@ export function createPlatformDocumentUploadHandler(
     }
 
     try {
-      const reservationResponse = await userClient.schema("platform").rpc(
-        "reserve_document_upload",
+      const serviceClient = dependencies.createServiceClient();
+      const reservationResponse = await serviceClient.schema("platform").rpc(
+        "reserve_document_upload_after_ingress_scan",
         {
           p_organization_id: authorization.actor.organizationId,
+          p_actor_auth_user_id: authorization.actor.authUserId,
           p_document_slot_id: documentSlotId,
           p_original_filename: upload.file.name,
           p_declared_mime_type: upload.file.type,
           p_byte_size: bytes.byteLength,
           p_sha256_hex: sha256Hex,
+          p_scan_result: "clean",
+          p_scanner_engine: requestScanProof.engine,
+          p_scanner_engine_version: requestScanProof.engineVersion,
+          p_scanner_signature_version: requestScanProof.signatureVersion,
+          p_scanner_protocol: requestScanProof.protocol,
+          p_scanned_at: requestScanProof.scannedAt,
           p_request_id: upload.requestId,
         },
       );
       if (reservationResponse.error) {
-        return errorResponse(403, "upload_not_authorized");
+        return reservationErrorResponse(reservationResponse.error);
       }
       const reservation = normalizeReservation(reservationResponse.data, {
         organizationId: authorization.actor.organizationId,
@@ -778,7 +796,6 @@ export function createPlatformDocumentUploadHandler(
       });
       if (!reservation) return errorResponse(503, "storage_unavailable");
 
-      const serviceClient = dependencies.createServiceClient();
       if (!reservation.storageObjectPresent) {
         const storageResponse = await serviceClient.storage
           .from(BUCKET_ID)
@@ -817,10 +834,16 @@ export function createPlatformDocumentUploadHandler(
       }
 
       const finalizationResponse = await serviceClient.schema("platform").rpc(
-        "finalize_document_upload",
+        "finalize_document_upload_with_scan",
         {
           p_organization_id: authorization.actor.organizationId,
           p_upload_reservation_id: reservation.uploadReservationId,
+          p_scanner_engine: scanProof.engine,
+          p_scanner_engine_version: scanProof.engineVersion,
+          p_scanner_signature_version: scanProof.signatureVersion,
+          p_scanner_protocol: scanProof.protocol,
+          p_scanned_sha256_hex: scanProof.sha256Hex,
+          p_scanned_at: scanProof.scannedAt,
           p_request_id: derivedRequestId(upload.requestId, "finalize"),
         },
       );
@@ -832,29 +855,6 @@ export function createPlatformDocumentUploadHandler(
         reservation,
       );
       if (!finalized) return errorResponse(503, "storage_unavailable");
-
-      const attestationResponse = await serviceClient.schema("platform").rpc(
-        "attest_document_validation",
-        {
-          p_organization_id: authorization.actor.organizationId,
-          p_document_version_id: reservation.documentVersionId,
-          p_scanner_engine: scanProof.engine,
-          p_scanner_engine_version: scanProof.engineVersion,
-          p_scanner_signature_version: scanProof.signatureVersion,
-          p_scanner_protocol: scanProof.protocol,
-          p_scanned_sha256_hex: scanProof.sha256Hex,
-          p_scanned_at: scanProof.scannedAt,
-          p_request_id: derivedRequestId(upload.requestId, "attest"),
-        },
-      );
-      if (attestationResponse.error) {
-        return errorResponse(503, "storage_validation_unconfirmed");
-      }
-      const attestation = normalizeValidationAttestation(
-        attestationResponse.data,
-        reservation,
-      );
-      if (!attestation) return errorResponse(503, "storage_unavailable");
 
       return Response.json(
         {

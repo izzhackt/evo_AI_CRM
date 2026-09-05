@@ -2460,10 +2460,10 @@ async function waitForChildExit(child, timeoutMs) {
   return stopped || !childIsRunning(child);
 }
 
-async function settleWithin(promise, timeoutMs) {
+async function settleWithin(operation, timeoutMs) {
   let timer;
   const settled = await Promise.race([
-    Promise.resolve(promise).then(() => true, () => false),
+    Promise.resolve().then(operation).then(() => true, () => false),
     new Promise((resolveTimeout) => {
       timer = setTimeout(() => resolveTimeout(false), timeoutMs);
     }),
@@ -2473,26 +2473,49 @@ async function settleWithin(promise, timeoutMs) {
 }
 
 async function stopApp(child) {
-  if (!processGroupIsRunning(child)) return;
-  signalExactProcessGroup(child, "SIGTERM");
-  if (await waitForProcessGroupExit(child, 10_000)) {
+  try {
+    if (!processGroupIsRunning(child)) return true;
+    signalExactProcessGroup(child, "SIGTERM");
+    if (await waitForProcessGroupExit(child, 10_000)) {
+      await waitForChildExit(child, 1_000);
+      return true;
+    }
+    signalExactProcessGroup(child, "SIGKILL");
+    const groupStopped = await waitForProcessGroupExit(child, 5_000);
     await waitForChildExit(child, 1_000);
-    return;
+    return groupStopped;
+  } catch {
+    try {
+      if (childIsRunning(child)) child.kill("SIGKILL");
+    } catch {
+      // The caller still proceeds to the independently scoped contour cleanup.
+    }
+    await waitForChildExit(child, 1_000).catch(() => false);
+    return !childIsRunning(child);
   }
-  signalExactProcessGroup(child, "SIGKILL");
-  await waitForProcessGroupExit(child, 5_000);
-  await waitForChildExit(child, 1_000);
 }
 
 async function stopBrowserServer(browserServer) {
-  if (!browserServer) return;
-  const child = browserServer.process();
-  if (!childIsRunning(child)) return;
-  await settleWithin(browserServer.close(), 10_000);
-  if (!childIsRunning(child)) return;
-  await settleWithin(browserServer.kill(), 5_000);
-  if (childIsRunning(child)) child.kill("SIGKILL");
-  await waitForProcessGroupExit(child, 5_000);
+  if (!browserServer) return true;
+  let child;
+  try {
+    child = browserServer.process();
+  } catch {
+    return false;
+  }
+  if (!childIsRunning(child)) return true;
+  await settleWithin(() => browserServer.close(), 10_000);
+  if (!childIsRunning(child)) return true;
+  await settleWithin(() => browserServer.kill(), 5_000);
+  if (childIsRunning(child)) {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      return false;
+    }
+  }
+  await waitForChildExit(child, 5_000);
+  return !childIsRunning(child);
 }
 
 function registerActiveBrowserProof(state) {
@@ -2504,14 +2527,31 @@ async function stopBrowserProof(state = activeBrowserProof) {
   if (!state) return;
   if (!state.shutdownPromise) {
     state.shutdownPromise = (async () => {
-      const browserServer = state.browserServerPromise
-        ? await state.browserServerPromise.catch(() => undefined)
-        : undefined;
-      await stopBrowserServer(browserServer);
-      await stopApp(state.appChild);
+      let browserServer;
+      if (state.browserServerPromise) {
+        try {
+          browserServer = await state.browserServerPromise;
+        } catch {
+          // A failed launch has no BrowserServer handle; app teardown still runs.
+        }
+      }
+      try {
+        await stopBrowserServer(browserServer);
+      } catch {
+        // App and contour teardown remain independent of browser shutdown.
+      }
+      try {
+        await stopApp(state.appChild);
+      } catch {
+        // Contour teardown and the explicit signal exit must still run.
+      }
       if (!state.logClosed && Number.isInteger(state.logFd)) {
         state.logClosed = true;
-        closeSync(state.logFd);
+        try {
+          closeSync(state.logFd);
+        } catch {
+          // The descriptor is scoped to this proof and may already be closed.
+        }
       }
       if (activeBrowserProof === state) activeBrowserProof = undefined;
     })();
@@ -2864,28 +2904,32 @@ export function installProcessCleanupHandlers({
   exit = (code) => process.exit(code),
 } = {}) {
   let terminationPromise;
-  let terminationFailed = false;
+  let terminationStarted = false;
   function terminationHandler(signal) {
     if (terminationPromise) return terminationPromise;
     const exitCode = signal === "SIGINT" ? 130 : 143;
+    process.exitCode = exitCode;
+    terminationStarted = true;
+    const shutdownLifetime = setInterval(() => undefined, 1_000);
     terminationPromise = (async () => {
       try {
         await stopBrowserProof(getBrowserProof());
       } catch {
-        terminationFailed = true;
-        process.exitCode = exitCode;
-        return;
+        // Browser-proof teardown is best-effort; contour cleanup must still run.
       }
       try {
         cleanup();
+      } catch {
+        // The exact signal exit code remains authoritative even if cleanup fails.
       } finally {
+        clearInterval(shutdownLifetime);
         exit(exitCode);
       }
     })();
     return terminationPromise;
   }
   function exitCleanupHandler() {
-    if (!terminationFailed) cleanup();
+    if (!terminationStarted) cleanup();
   }
   process.once("SIGINT", () => terminationHandler("SIGINT"));
   process.once("SIGTERM", () => terminationHandler("SIGTERM"));

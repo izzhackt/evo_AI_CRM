@@ -757,6 +757,166 @@ test("SIGINT and SIGTERM stop the exact active browser-proof children before exi
   }
 });
 
+test("SIGTERM without an active browser proof still cleans up and exits 143", async () => {
+  const helperSource = `
+    import { installProcessCleanupHandlers } from ${JSON.stringify(scriptUrl.href)};
+    const preSignalLifetime = setInterval(() => undefined, 1_000);
+    installProcessCleanupHandlers({
+      getBrowserProof: () => undefined,
+      cleanup: () => {
+        clearInterval(preSignalLifetime);
+        process.stdout.write(JSON.stringify({ exitCodeDuringCleanup: process.exitCode }) + "\\n");
+      },
+    });
+    process.stdin.once("data", () => {
+      process.stdin.destroy();
+      process.kill(process.pid, "SIGTERM");
+    });
+    process.stdout.write("ready\\n");
+  `;
+  const probe = spawn(
+    process.execPath,
+    ["--input-type=module", "--eval", helperSource],
+    { stdio: ["pipe", "pipe", "pipe"] },
+  );
+  let stderr = "";
+  probe.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+  const exitPromise = once(probe, "exit");
+  const lines = createInterface({ input: probe.stdout });
+  try {
+    const [ready] = await withTimeout(
+      once(lines, "line"),
+      5_000,
+      `no-browser signal probe did not become ready: stderr=${stderr}`,
+    );
+    assert.equal(ready, "ready");
+    const cleanupLinePromise = once(lines, "line").then(([line]) => JSON.parse(line));
+    probe.stdin.end("signal\n");
+    const [cleanupObservation, [exitCode, exitSignal]] = await withTimeout(
+      Promise.all([cleanupLinePromise, exitPromise]),
+      5_000,
+      `no-browser signal probe did not finish: stderr=${stderr}`,
+    );
+    assert.deepEqual(cleanupObservation, { exitCodeDuringCleanup: 143 });
+    assert.equal(exitSignal, null);
+    assert.equal(exitCode, 143);
+  } finally {
+    lines.close();
+    if (probe.exitCode === null && probe.signalCode === null) probe.kill("SIGKILL");
+  }
+});
+
+test("signal teardown still kills browser and the full app group when browser stops fail", async () => {
+  const descendantSource = "setInterval(() => undefined, 1_000)";
+  const appSource = `
+    const { spawn } = require("node:child_process");
+    const descendant = spawn(process.execPath, ["--eval", ${JSON.stringify(descendantSource)}], {
+      stdio: "ignore",
+    });
+    process.stdout.write(String(descendant.pid) + "\\n");
+    setInterval(() => undefined, 1_000);
+  `;
+  const helperSource = `
+    import { spawn } from "node:child_process";
+    import { once } from "node:events";
+    import { createInterface } from "node:readline";
+    import { installProcessCleanupHandlers } from ${JSON.stringify(scriptUrl.href)};
+
+    const appChild = spawn(process.execPath, ["--eval", ${JSON.stringify(appSource)}], {
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const appLines = createInterface({ input: appChild.stdout });
+    const [descendantPidText] = await once(appLines, "line");
+    appLines.close();
+    const descendantPid = Number(descendantPidText);
+    const browserChild = spawn(
+      process.execPath,
+      ["--eval", "setInterval(() => undefined, 1_000)"],
+      { stdio: "ignore" },
+    );
+    const browserServer = {
+      process: () => browserChild,
+      close: () => { throw new Error("injected browser close failure"); },
+      kill: () => { throw new Error("injected browser kill failure"); },
+    };
+    const browserProof = {
+      appChild,
+      browserServerPromise: Promise.resolve(browserServer),
+    };
+    const processExists = (pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch (error) {
+        if (error?.code === "ESRCH") return false;
+        throw error;
+      }
+    };
+    installProcessCleanupHandlers({
+      getBrowserProof: () => browserProof,
+      cleanup: () => {
+        process.stdout.write(JSON.stringify({
+          appRunning: processExists(appChild.pid),
+          descendantRunning: processExists(descendantPid),
+          browserRunning: processExists(browserChild.pid),
+        }) + "\\n");
+        throw new Error("injected contour cleanup failure");
+      },
+    });
+    process.stdout.write(JSON.stringify({
+      appPid: appChild.pid,
+      descendantPid,
+      browserPid: browserChild.pid,
+    }) + "\\n");
+  `;
+  const probe = spawn(
+    process.execPath,
+    ["--input-type=module", "--eval", helperSource],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  let stderr = "";
+  let pids;
+  probe.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+  const exitPromise = once(probe, "exit");
+  const lines = createInterface({ input: probe.stdout });
+  try {
+    const [readyLine] = await withTimeout(
+      once(lines, "line"),
+      5_000,
+      `stop-failure signal probe did not become ready: stderr=${stderr}`,
+    );
+    pids = JSON.parse(readyLine);
+    assert.equal(processExists(pids.appPid), true);
+    assert.equal(processExists(pids.descendantPid), true);
+    assert.equal(processExists(pids.browserPid), true);
+    const cleanupLinePromise = once(lines, "line").then(([line]) => JSON.parse(line));
+    assert.equal(probe.kill("SIGTERM"), true);
+    const [cleanupObservation, [exitCode, exitSignal]] = await withTimeout(
+      Promise.all([cleanupLinePromise, exitPromise]),
+      5_000,
+      `stop-failure signal probe did not finish: stderr=${stderr}`,
+    );
+    assert.deepEqual(cleanupObservation, {
+      appRunning: false,
+      descendantRunning: false,
+      browserRunning: false,
+    }, `stderr=${stderr}`);
+    assert.equal(exitSignal, null);
+    assert.equal(exitCode, 143);
+  } finally {
+    lines.close();
+    if (probe.exitCode === null && probe.signalCode === null) probe.kill("SIGKILL");
+    forceStopProcess(pids?.appPid);
+    forceStopProcess(pids?.descendantPid);
+    forceStopProcess(pids?.browserPid);
+  }
+});
+
 test("restore follows official logical order, applies only local pending root migrations, and never exports", () => {
   assert.match(source, /"--single-transaction"/u);
   assert.match(source, /"ON_ERROR_STOP=1"/u);

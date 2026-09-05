@@ -129,6 +129,51 @@ set cannot substitute for the corresponding recoverable artifact.
    resources under the explicit cleanup plan; retain the protected pre-change
    artifacts according to their recovery retention policy.
 
+## Trusted managed-Supabase source export
+
+The #551 restore accepts only artifacts produced by the reviewed read-only
+export command. The command verifies the exact project through the Management
+API, requires a fresh completed provider backup, verifies both runtime API keys
+against that same project, and then captures database/Auth and Storage as two
+separate sources. It does not link or modify the project.
+
+Prerequisites:
+
+- OrbStack reports `Running` and `docker context show` is exactly `orbstack`;
+- the repository-pinned Supabase CLI is installed from the lockfile;
+- `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
+  `EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY` and
+  `EVO_PLATFORM_SUPABASE_SECRET_KEY` are injected into the child process, never
+  written to arguments, output or Git;
+- an existing absolute mode-`0700` output directory outside the repository;
+- an age recipient and an existing mode-`0600` SSH signing key with its `.pub`
+  file.
+
+Run from an exact clean reviewed commit:
+
+```bash
+npm run backup:v3:managed -- \
+  --project-ref '<exact-20-character-project-ref>' \
+  --output-root '<absolute-private-output-root>' \
+  --age-recipient '<age-recipient>' \
+  --signing-key '<absolute-private-ssh-key>'
+```
+
+The command produces individually age-encrypted roles, schema, data and exact
+`supabase_migrations` dumps, plus an encrypted Storage manifest/archive. It
+double-inventories Storage and hashes every downloaded payload. `receipt.json`
+contains only aggregate counts, timestamps, tool/repository bindings,
+ciphertext hashes and the authenticated provider-backup receipt; its detached
+SSH signature is verified before the partial directory is atomically renamed.
+Customer rows, staff email/phone values, Storage paths and keys remain only in
+encrypted artifacts. Any error or `SIGINT`/`SIGTERM` removes plaintext and the
+partial result.
+
+This export is a restore input, not recovery-readiness evidence by itself. The
+existing application-facing recovery result remains `u11-recovery-result`; it
+may become ready only after a separate isolated restore proves database/Auth,
+role-specific RLS/browser behavior, Storage bytes and malware scanning.
+
 ## WAHA boundary
 
 Normal app rollback preserves `crm_primary`; it does not rescan a QR or move
@@ -158,6 +203,7 @@ gate and stops; it does not fall back to fixtures or a historical runtime.
 
 - Supabase database backups: <https://supabase.com/docs/guides/platform/backups>
 - Supabase backup and restore: <https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore>
+- Supabase Management API projects: <https://supabase.com/docs/reference/api/v1-list-all-projects>
 - Supabase local downloaded-backup restore:
   <https://supabase.com/docs/guides/local-development/restoring-downloaded-backup>
 - Supabase Storage downloads: <https://supabase.com/docs/guides/storage/management/download-objects>

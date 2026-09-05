@@ -27,6 +27,14 @@ Verified #551 contract baseline: GitHub `origin/main` at
 no-staging recovery/release contract; exact-main CI run `33944079179` passed
 and production-release run `33944667061` remained safely skipped while the
 release arm was absent.
+Verified #551 signed-consumer baseline: GitHub `origin/main` at
+`72ce0a4b480ac63c12dca4a25b295ad04c7a7cf9` after PR #640 merged the
+result-v2 signed-artifact, lineage, isolation, exact-image and cleanup
+architecture. That merge is not #551 completion: it was not exercised with
+Docker and a post-merge audit found production-local TLS, real product-route
+malware-scanner, provider-readiness, private Node/buildx and complete role-
+outcome proof still missing. #551 remains open and #552 remains unarmed until
+one corrected exact-head rehearsal records the truthful result.
 
 ## Current authority: V3 becomes the managed-Supabase product
 

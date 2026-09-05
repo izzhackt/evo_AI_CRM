@@ -18792,3 +18792,48 @@ checks and exact-head merge. The full exact-current-main proof is manual and
 runs once only after the release-candidate SHA is frozen, before release or
 recovery acceptance. Older `push CI` statements inside the explicitly marked
 historical pre-#376 section remain unchanged as preserved decision evidence.
+## 2026-09-05 - Complete the merged recovery consumer with real runtime proof
+
+Block-ID: `EVO-V3-H-MERGED-RECOVERY-RUNTIME-CORRECTION-2026-09-05`
+
+Change type: post-merge real-runtime and evidence correction.
+Affected plan section: Order 7 / Issue #551.
+
+PR #640 merged the stronger result-v2 signed-artifact, lineage, exact Git
+snapshot/image, process supervision, internal-network and cleanup/quarantine
+architecture, but it was never executed with Docker. A post-merge exact-main
+audit found that the production candidate receives a loopback HTTP Supabase
+URL rejected by the product in `NODE_ENV=production`; the harness bypasses the
+active product upload/scanner path; provider fail-closed readiness is not
+proved; the private Node/buildx toolchain is not bound; and Admin browser
+evidence can read `passed` before the complete three-role outcome suite runs.
+Its closing reference therefore closed #551 prematurely.
+
+Decision:
+
+- retain PR #640 as the only recovery consumer and preserve its result-v2,
+  signed-source, source/main-equivalent/target lineage, exact-image,
+  interruption, internal-network, Storage-byte and cleanup contracts;
+- add a production-valid local HTTPS Supabase bridge and CA, plus a private
+  Node 22 and trusted OrbStack buildx execution contour;
+- start the pinned private ClamAV image on the owned internal network and prove
+  the real Company Files product route for clean, EICAR, scanner-unavailable
+  and recovered outcomes, including durable exact-byte attestation and zero
+  persistence on rejected/unavailable requests;
+- append only local `configuration_check` / `unconfigured` WAHA and AI health
+  events, then require authenticated `/api/readiness` to remain HTTP 503 while
+  Supabase and audit are ready. This is a no-provider-call boundary;
+- report Admin as `incomplete_role_outcome_suite` until restored Sales and
+  Admissions representatives complete their canonical mutation, replay,
+  audit, private-document and matching V3 browser readback outcomes; and
+- run focused tests and exactly one real signed-backup OrbStack rehearsal,
+  followed by independent exact-head review, one exact-head CI, match-head
+  merge and exact-main verification. A real source with missing Sales or
+  Admissions identities or zero private Storage objects remains truthfully
+  `not_ready`; no fixture may convert that diagnostic into acceptance.
+
+PR #641 is closed as superseded rather than merged wholesale. Its branch and
+redacted evidence remain preserved as implementation/review history. #551 is
+reopened, and #552 remains unarmed. This correction does not contact or mutate
+managed Supabase, production, VPS, WAHA, amoCRM, Gemini, webhooks, customer
+records or provider state.

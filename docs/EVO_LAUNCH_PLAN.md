@@ -140,19 +140,26 @@ new path is accepted; historical and rollback material remains preserved.
 
 #551 replaces the active manual fast/staging release workflow rather than
 adding another deploy lane. One downstream workflow listens only for a
-successful `EVO platform CI` run caused by a push to `main`, binds the candidate
-to that run's exact SHA and the current `origin/main`, and serializes production
-deployments in one non-cancelling concurrency group. It has no
+successful `EVO platform CI` run caused by a push to `main`, binds the candidate,
+workflow file, immutable image and release-controller bundle to that run's exact
+SHA and the current `origin/main`, and serializes production deployments in one
+non-cancelling concurrency group plus one host lock. It has no
 `workflow_dispatch`, staging job, GitHub Environment reviewer or schema-apply
-step. A repository activation variable is absent/false through #551 so this
-repository-only slice cannot deploy prematurely; #552 owns enabling the
-already-proved path immediately before its exact-main cutover commit.
+step. The active staging Compose/env/profile/CLI/test contour is deleted; frozen
+historical staging runbooks and evidence remain unchanged. A repository
+activation variable is absent/false through #551 so this repository-only slice
+cannot deploy prematurely; #552 owns enabling the already-proved path
+immediately before its exact-main cutover commit.
 
 The automated path retains the immutable linux/amd64 app image, pinned SSH
 trust, exact managed-Supabase migration-ledger gate, private-WAHA digest,
 preflight, health check, sanitized evidence and automatic application rollback.
-It accepts a previous healthy app or one explicitly sealed rollback seed for
-the currently stopped-app boundary. The seed binds the retained image,
+It transfers and revalidates the exact checked-in controller, environment
+validator and public environment contract beside the image instead of invoking
+mutable host code. A rollback trap owns every post-mutation failure/signal, and
+a later manual rollback must name the exact currently deployed target revision.
+The path accepts a previous healthy app or one explicitly sealed rollback seed
+for the currently stopped-app boundary. The seed binds the retained image,
 revision/version, Compose bytes and application-environment hash; absence or
 drift of both sources fails closed. Schema recovery stays forward-only and
 schema apply remains a separate #552 action.
@@ -331,7 +338,7 @@ PR #592 completed #586 on exact main
 reviews, deterministic `linux/amd64` image inventory and exact-main tree
 verification passed before #587 became active.
 
-#### Active #587 single Supabase release-candidate proof slice
+#### Completed #587 single Supabase release-candidate proof slice
 
 #587 replaces the remaining active release automation, CI entrypoints and
 operator runbooks that still describe or execute the frozen multi-application
@@ -341,12 +348,13 @@ retained Supabase Auth/Postgres/private-Storage authority. Companion Inbox,
 Lead Agent, manual-send worker, SQLite backup and historical P8 release
 programs are not candidate services, checks or fallbacks.
 
-The retained executable release authority is
+At #587 completion, the retained executable release authority was
 `.github/workflows/evo-fast-release.yml`, `scripts/evo-fast-release.sh`,
 `scripts/fast-release-ci-gate.mjs` and
 `scripts/evo-release-environment-profile.mjs`, updated to the single successor
-contract. All other release programs must either serve the current root
-successor or leave the active executable surface.
+contract. #551 now supersedes that staging-oriented profile and removes it from
+the active executable surface while retaining the exact-main CI gate and
+rewritten production controller.
 
 This slice must preserve frozen V1 deployment and rollback history, but move or
 mark it as unmistakably historical and remove every active package, CI,
@@ -367,7 +375,7 @@ Acceptance requires all of the following on the same candidate head:
    ignored `.env*` secrets, frozen application source, local evidence and
    obsolete P8 release programs; the final image contains only the root
    successor application and its production dependencies;
-3. production and staging Compose are rendered canonically and prove exactly
+3. production and staging Compose were rendered canonically and proved exactly
    `app` plus `waha`, private WAHA networking, immutable WAHA digest input,
    healthchecks, resource limits and bounded logs;
 4. a clean exact-SHA `linux/amd64` app image records the approved source,
@@ -393,9 +401,9 @@ Acceptance requires all of the following on the same candidate head:
 
 #587 does not mutate `hermes-vps`, Caddy/DNS, the managed Supabase project,
 provider or customer state, webhook ownership, V1 deployments or public
-traffic. It does not edit `src/lib/v3/*`. Real staging, restore and migration
-rehearsal remain owned by #551; production cutover and V1 retirement remain
-owned by #552.
+traffic. It does not edit `src/lib/v3/*`. #551 supersedes that active staging
+contour with a disposable local backup/restore and migration rehearsal;
+production cutover and active-runtime retirement remain owned by #552.
 
 ### P1 existing-state finding
 

@@ -17505,3 +17505,34 @@ Decision:
 This clarification changes no production app, schema, traffic, provider,
 webhook or customer record. It preserves frozen V1/V2 deployments and all
 historical migrations, ADRs, runbooks, archived docs and evidence unchanged.
+
+## 2026-09-05 - Bind the executable controller and retire the active staging contour
+
+Block-ID: `EVO-V3-H-CONTROLLER-BINDING-STAGING-RETIREMENT-2026-09-05`
+
+Change type: implementation correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review of the first repository/controller candidate found that the
+workflow still invoked mutable host controller code, concurrent host releases
+were not locked, interruption after app mutation could escape automatic
+rollback, a stale manual rollback could overwrite a newer target, and the
+superseded executable staging contour remained present.
+
+Decision:
+
+- seal the exact checked-in release controller, environment validator and
+  public environment contract beside the immutable image. Revalidate their
+  types and hashes before remote execution, use one host release lock, arm an
+  automatic rollback trap for every post-mutation failure or signal, and reject
+  a later manual rollback unless its target revision is the exact currently
+  deployed app;
+- delete the active staging Compose file, staging environment template,
+  staging-profile CLI mode and their executable tests in this replacement
+  slice. Preserve frozen V1/V2 staging runbooks, archived documentation and
+  evidence as historical rollback inputs only;
+- keep the production activation variable absent or false and keep #551 open.
+  This repository/controller correction does not satisfy the separately
+  required real database/Storage backup restore, Auth/RLS/Storage/V3 browser
+  proof or malware-scanner acceptance and authorizes no production or provider
+  effect.

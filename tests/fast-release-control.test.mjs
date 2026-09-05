@@ -21,11 +21,6 @@ import {
   expectedMigrationVersions,
   verifyProductionMigrationLedger,
 } from "../scripts/fast-release-ledger-gate.mjs";
-import {
-  classifyFastReleasePaths,
-  readFastReleaseDiff,
-} from "../scripts/fast-release-scope.mjs";
-
 const REVISION = "90ab8b1b0c1dd6a92c931e9793c052f984f19fc4";
 
 function greenChecks() {
@@ -38,69 +33,6 @@ function greenChecks() {
     })),
   };
 }
-
-test("fast release scope allows presentation-only changes", () => {
-  assert.deepEqual(
-    classifyFastReleasePaths([
-      "docs/STAFF_RELEASES.md",
-      "src/app/(v3)/v3/main/page.tsx",
-      "src/app/page.tsx",
-      "src/app/globals.css",
-      "src/components/ReleaseChip.tsx",
-      "tests/release-chip.test.mjs",
-    ]).allowed,
-    true,
-  );
-});
-
-test("fast release scope sends sensitive and unknown changes to controlled release", () => {
-  for (const path of [
-    ".github/workflows/evo-fast-release.yml",
-    "Dockerfile",
-    "agent-lead2-inbox/src/app/page.tsx",
-    "docker-compose.prod.yml",
-    "scripts/evo-fast-release.sh",
-    "src/app/(v3)/v3/settings/actions.ts",
-    "src/lib/server/platform-gemini-provider.ts",
-    "src/lib/platform-auth.ts",
-    "supabase/migrations/078_example.sql",
-  ]) {
-    const result = classifyFastReleasePaths([path]);
-    assert.equal(result.allowed, false, path);
-    assert.equal(result.reason, "controlled_release_required", path);
-  }
-});
-
-test("fast release scope observes deleted and renamed source paths", () => {
-  const repository = mkdtempSync(join(tmpdir(), "evo-fast-scope-"));
-  try {
-    execFileSync("git", ["init", "--quiet", repository]);
-    execFileSync("git", ["-C", repository, "config", "user.name", "Fast Release Test"]);
-    execFileSync("git", ["-C", repository, "config", "user.email", "fast-release@example.invalid"]);
-    mkdirSync(join(repository, "supabase", "migrations"), { recursive: true });
-    writeFileSync(join(repository, "supabase", "migrations", "078_sensitive.sql"), "select 1;\n");
-    execFileSync("git", ["-C", repository, "add", "."]);
-    execFileSync("git", ["-C", repository, "commit", "--quiet", "-m", "baseline"]);
-    const from = execFileSync("git", ["-C", repository, "rev-parse", "HEAD"], {
-      encoding: "utf8",
-    }).trim();
-
-    rmSync(join(repository, "supabase", "migrations", "078_sensitive.sql"));
-    mkdirSync(join(repository, "docs"), { recursive: true });
-    writeFileSync(join(repository, "docs", "renamed.md"), "select 1;\n");
-    execFileSync("git", ["-C", repository, "add", "-A"]);
-    execFileSync("git", ["-C", repository, "commit", "--quiet", "-m", "rename"]);
-    const to = execFileSync("git", ["-C", repository, "rev-parse", "HEAD"], {
-      encoding: "utf8",
-    }).trim();
-
-    const paths = readFastReleaseDiff({ repo: repository, from, to });
-    assert.deepEqual(paths.sort(), ["docs/renamed.md", "supabase/migrations/078_sensitive.sql"]);
-    assert.equal(classifyFastReleasePaths(paths).allowed, false);
-  } finally {
-    rmSync(repository, { recursive: true, force: true });
-  }
-});
 
 test("CI gate requires only the exact root CRM check from GitHub Actions", async () => {
   assert.deepEqual(FAST_RELEASE_REQUIRED_CHECKS, ["Main CRM"]);
@@ -212,6 +144,119 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
   assert.doesNotMatch(controller, /rm -rf/u);
 });
 
+test("release controller closes archive TOCTOU and verifies every runtime transition", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const candidateConfiguration = controller.slice(
+    controller.indexOf("load_candidate_configuration() {"),
+    controller.indexOf("compose() {"),
+  );
+  const archiveVerification = controller.slice(
+    controller.indexOf("verify_archive() {"),
+    controller.indexOf("load_candidate_image() {"),
+  );
+  const loadCandidate = controller.slice(
+    controller.indexOf("load_candidate_image() {"),
+    controller.indexOf("verify_external_health() {"),
+  );
+  const transitionCheck = controller.slice(
+    controller.indexOf("verify_transition_runtime() ("),
+    controller.indexOf("verify_capacity() {"),
+  );
+  const rollback = controller.slice(
+    controller.indexOf("rollback_from_state() {"),
+    controller.indexOf("deploy() {"),
+  );
+  const deploy = controller.slice(
+    controller.indexOf("deploy() {"),
+    controller.indexOf("manual_rollback() {"),
+  );
+  const manualRollback = controller.slice(
+    controller.indexOf("manual_rollback() {"),
+    controller.indexOf("case \"$command_name\" in"),
+  );
+
+  assert.ok(loadCandidate.includes('actual_hash=$(sha256sum "$EVO_RELEASE_ARCHIVE"'));
+  assert.ok(loadCandidate.includes('[[ $actual_hash == "$EVO_RELEASE_ARCHIVE_SHA256" ]]'));
+  assert.match(candidateConfiguration, /readonly candidate_expected_image_id=/u);
+  assert.ok(loadCandidate.includes('[[ $image_id == "$candidate_expected_image_id" ]]'));
+  assert.match(archiveVerification, /\.manifests\[0\]\.digest/u);
+  assert.ok(archiveVerification.includes('[[ "sha256:$descriptor_hash" == "$descriptor_digest" ]]'));
+  assert.match(archiveVerification, /archive_platform_manifest_invalid/u);
+  assert.match(archiveVerification, /\.platform\.os == "linux" and \.platform\.architecture == "amd64"/u);
+  assert.match(archiveVerification, /attestation-manifest/u);
+  assert.ok(archiveVerification.includes('[[ "sha256:$image_manifest_hash" == "$image_manifest_digest" ]]'));
+  assert.ok(archiveVerification.includes('.config.digest == $config_digest'));
+  assert.match(archiveVerification, /candidate_image_id_unbound/u);
+  assert.doesNotMatch(
+    archiveVerification,
+    /descriptor_path="blobs\/sha256\/\$\{EVO_RELEASE_EXPECTED_IMAGE_ID/u,
+  );
+
+  assert.match(
+    transitionCheck,
+    /verify_current_runtime[\s\S]*verify_runtime_waha_image[\s\S]*verify_networks/u,
+  );
+  assert.match(deploy, /verify_transition_runtime/u);
+  assert.ok(deploy.includes('"$candidate_expected_image_id"'));
+  assert.match(rollback, /verify_transition_runtime/u);
+  assert.match(rollback, />"\$override" \|\| return 1/u);
+  assert.match(rollback, /chmod 600 "\$override" \|\| return 1/u);
+
+  assert.match(manualRollback, /verify_rollback_state_contract/u);
+  assert.match(manualRollback, /verify_current_runtime/u);
+  assert.match(manualRollback, /manual_rollback_requires_active_app/u);
+  assert.ok(manualRollback.includes('[[ $current_revision == "$target_revision" ]]'));
+  assert.match(manualRollback, /verify_runtime_waha_image/u);
+  assert.match(manualRollback, /verify_networks/u);
+  assert.doesNotMatch(manualRollback, /verify_rollback_seed/u);
+});
+
+test("release mutations hold one host flock and rollback on interruption", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const lock = controller.slice(
+    controller.indexOf("acquire_release_lock() {"),
+    controller.indexOf("service_container_id() {"),
+  );
+  const trapHandler = controller.slice(
+    controller.indexOf("disarm_release_mutation_trap() {"),
+    controller.indexOf("deploy() {"),
+  );
+  const deploy = controller.slice(
+    controller.indexOf("deploy() {"),
+    controller.indexOf("manual_rollback() {"),
+  );
+  const manualRollback = controller.slice(
+    controller.indexOf("manual_rollback() {"),
+    controller.indexOf("case \"$command_name\" in"),
+  );
+
+  assert.match(lock, /require_command flock/u);
+  assert.match(lock, /\.evo-fast-release\.lock/u);
+  assert.match(lock, /flock --nonblock 9/u);
+  assert.match(deploy, /acquire_release_lock/u);
+  assert.match(manualRollback, /acquire_release_lock/u);
+
+  assert.match(trapHandler, /trap 'release_signal_exit HUP' HUP/u);
+  assert.match(trapHandler, /trap 'release_signal_exit INT' INT/u);
+  assert.match(trapHandler, /trap 'release_signal_exit TERM' TERM/u);
+  assert.match(trapHandler, /trap 'release_exit_rollback' EXIT/u);
+  assert.match(trapHandler, /rollback_from_state "\$release_mutation_state"/u);
+  assert.match(trapHandler, /deployment_interrupted/u);
+  assert.match(
+    trapHandler,
+    /status:"rolled_back",code:"deployment_interrupted",evidenceDir:\$evidenceDir/u,
+  );
+  assert.doesNotMatch(trapHandler, />&2 \|\| true/u);
+  assert.ok(
+    deploy.indexOf("arm_release_mutation_trap") <
+      deploy.indexOf("compose up --detach"),
+  );
+  assert.ok(
+    deploy.indexOf("verify_transition_runtime") <
+      deploy.indexOf("disarm_release_mutation_trap"),
+  );
+});
+
 test("release status accepts exactly healthy app plus WAHA and rejects an extra runtime", () => {
   const root = mkdtempSync(join(tmpdir(), "evo-fast-runtime-"));
   const bin = join(root, "bin");
@@ -280,158 +325,39 @@ fi
   }
 });
 
-test("release controller exposes a validation-only controlled staging preflight", () => {
+test("release controller requires one sealed rollback source and never stages a fallback path", () => {
   const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
-  const start = controller.indexOf("controlled_staging_preflight() {");
-  const end = controller.indexOf("\npreflight() {", start);
-  assert.notEqual(start, -1);
-  assert.ok(end > start);
-
-  const stagingPreflight = controller.slice(start, end);
-  assert.match(stagingPreflight, /evo-release-environment-profile\.mjs/u);
-  assert.match(stagingPreflight, /verify_controlled_staging_env_contract/u);
+  assert.match(controller, /verify_rollback_seed\(\)/u);
+  assert.match(controller, /seal_rollback_seed\(\)/u);
+  assert.match(controller, /evo-release-rollback-seed\/v1/u);
+  assert.match(controller, /EVO_RELEASE_ROLLBACK_SEED/u);
+  assert.match(controller, /rollback_seed_env_drift/u);
+  assert.match(controller, /docker-compose\.previous\.yml/u);
+  assert.match(controller, /appEnvSha256/u);
+  assert.match(controller, /current_app_container_id/u);
+  assert.match(controller, /services == waha \|\| \$services == \$'app\\nwaha'/u);
+  assert.match(controller, /if \[\[ -n \$current_app_container_id \]\]; then/u);
   assert.match(controller, /evo-app-env-contract\.mjs/u);
-  assert.match(controller, /--controlled-staging/u);
   assert.match(controller, /EVO_RELEASE_APP_ENV_FILE/u);
-  assert.match(controller, /EVO_RELEASE_ENV_EXAMPLE_FILE/u);
   assert.match(
     controller,
     /export EVO_CRM_APP_ENV_FILE=\$EVO_RELEASE_APP_ENV_FILE/u,
   );
-  assert.match(controller, /controlled-staging-preflight\)/u);
-  assert.doesNotMatch(stagingPreflight, /load_configuration/u);
-  assert.doesNotMatch(stagingPreflight, /load_candidate_configuration/u);
-  assert.doesNotMatch(stagingPreflight, /docker/u);
-  assert.doesNotMatch(stagingPreflight, /curl/u);
-  assert.doesNotMatch(stagingPreflight, /ssh/u);
-  assert.doesNotMatch(stagingPreflight, /supabase (db|migration|link)/u);
+  assert.doesNotMatch(controller, /controlled[_-]staging|EVO_RELEASE_STAGING_ROOT/u);
 });
 
-test("staging Compose owns only successor app and private WAHA identities", () => {
-  const stagingCompose = readFileSync("docker-compose.staging.yml", "utf8");
-  const services = stagingCompose
-    .slice(stagingCompose.indexOf("services:\n") + "services:\n".length)
-    .split(/\n(?:networks|volumes):\n/, 1)[0];
-  assert.match(stagingCompose, /^name: evo-crm-staging$/mu);
-  assert.match(stagingCompose, /\$\{EVO_CRM_APP_ENV_FILE:-\.env\.staging\}/u);
-  assert.deepEqual(
-    [...services.matchAll(/^  ([a-z][a-z0-9-]+):\s*$/gmu)].map((match) => match[1]),
-    ["app", "waha"],
-  );
-  assert.match(
-    stagingCompose,
-    /name: \$\{EVO_CRM_PRIVATE_NETWORK:-evo_crm_staging_private\}/u,
-  );
-  for (const volume of [
-    "evo_crm_staging_output",
-    "evo_crm_staging_waha_sessions",
-  ]) {
-    assert.match(stagingCompose, new RegExp(`name: ${volume}`, "u"), volume);
-  }
-  assert.match(stagingCompose, /name: \$\{EVO_CADDY_NETWORK:-evo_public_web\}/u);
-  assert.doesNotMatch(stagingCompose, /name: evo_crm_private$/mu);
-  assert.doesNotMatch(
-    stagingCompose,
-    /manual-send-worker|lead-agent|evo-inbox|crm_primary|EVO_AGENT_|EVO_DB_PATH|EVO_BACKUP_DIR|evo_crm_staging_(?:data|backups|lead_agent_data)/u,
-  );
-});
-
-test("staging app mounts only retained successor paths and has a safe env template", () => {
-  const stagingCompose = readFileSync("docker-compose.staging.yml", "utf8");
-  const stagingEnvironment = readFileSync("deploy/env.staging.example", "utf8");
-  const appBlock = stagingCompose.match(
-    /^  app:\n[\s\S]*?(?=^  [a-z][a-z0-9-]+:\n|^networks:\n|^volumes:\n)/mu,
-  )?.[0];
-
-  assert.ok(appBlock, "missing staging app service");
-  const volumeBlock = appBlock.match(/^    volumes:\n(?:      - .+\n)+/mu)?.[0];
-  const tmpfsBlock = appBlock.match(/^    tmpfs:\n(?:      - .+\n)+/mu)?.[0];
-  assert.ok(volumeBlock, "missing staging app volumes");
-  assert.ok(tmpfsBlock, "missing staging app tmpfs");
-
-  assert.match(
-    volumeBlock,
-    /EVO_PLATFORM_U11_RECOVERY_EVIDENCE_HOST_ROOT:-\/opt\/evo-crm-staging\/evidence\}:\/app\/recovery-evidence:ro/u,
-  );
-  assert.doesNotMatch(tmpfsBlock, /recovery-evidence/u);
-  assert.match(stagingEnvironment, /^EVO_CRM_DOMAIN=staging\.crm\.evoadmissions\.com$/mu);
-  assert.match(stagingEnvironment, /^NEXT_PUBLIC_SUPABASE_URL=https:\/\//mu);
-  assert.match(stagingEnvironment, /^NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/mu);
-  assert.match(stagingEnvironment, /^EVO_PLATFORM_SUPABASE_SECRET_KEY=/mu);
-  assert.match(stagingEnvironment, /^EVO_PLATFORM_ORGANIZATION_ID=/mu);
-  assert.match(stagingEnvironment, /^EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=1$/mu);
-  assert.match(stagingEnvironment, /^EVO_PLATFORM_P7B_OBSERVABILITY_SECRET=$/mu);
-  assert.match(
-    stagingEnvironment,
-    /^EVO_PLATFORM_U11_RECOVERY_EVIDENCE_ROOT=\/app\/recovery-evidence$/mu,
-  );
-  assert.match(
-    stagingEnvironment,
-    /^EVO_PLATFORM_U11_RECOVERY_EVIDENCE_PATH=\/app\/recovery-evidence\/u11-recovery-result\.json$/mu,
-  );
-  assert.doesNotMatch(stagingEnvironment, /iosckaqtovbbnssqcpde/u);
-  assert.doesNotMatch(
-    stagingEnvironment,
-    /AUTH_SECRET|EVO_SECRET_ENCRYPTION_KEY|EVO_DB_PATH|EVO_BACKUP_DIR|EVO_AGENT_WAHA_SESSION|EVO_PLATFORM_(?:MANUAL_SEND|LEAD_AGENT)|EVO_LEAD_AGENT_|crm_primary|evo-inbox/u,
-  );
-  assert.doesNotMatch(stagingEnvironment, /replace-with-distinct-staging-observability/u);
-});
-
-test("workflow keeps controlled staging preflight protected and effect-free", () => {
+test("workflow binds exact green main to one runner-built immutable release", () => {
   const workflow = readFileSync(".github/workflows/evo-fast-release.yml", "utf8");
-  const start = workflow.indexOf("  staging_profile_preflight:");
-  const end = workflow.indexOf("\n  prepare:", start);
-  assert.notEqual(start, -1);
-  assert.ok(end > start);
-
-  const stagingJob = workflow.slice(start, end);
-  assert.match(workflow, /release_environment:/u);
-  assert.match(workflow, /- staging/u);
-  assert.match(stagingJob, /if: inputs\.release_environment == 'staging'/u);
-  assert.match(stagingJob, /environment: staging/u);
-  assert.match(stagingJob, /git rev-parse origin\/main/u);
-  assert.match(stagingJob, /fast-release-ci-gate\.mjs/u);
-  assert.match(stagingJob, /controlled-staging-preflight/u);
-  assert.match(stagingJob, /secrets\.EVO_RELEASE_STAGING_APP_ENV/u);
-  assert.match(stagingJob, /EVO_RELEASE_APP_ENV_FILE/u);
-  assert.match(stagingJob, /EVO_RELEASE_ENV_EXAMPLE_FILE/u);
-  assert.match(stagingJob, /EVO_RELEASE_SUPABASE_PROJECT_REF/u);
-  assert.match(stagingJob, /EVO_RELEASE_PLATFORM_ORGANIZATION_ID/u);
-  assert.match(stagingJob, /EVO_RELEASE_SUPABASE_SECRET_KEY_SHA256/u);
-  assert.match(stagingJob, /EVO_PRODUCTION_SUPABASE_SECRET_KEY_SHA256/u);
-  assert.match(
-    stagingJob,
-    /^          EVO_RELEASE_VOLUME_NAMES: evo_crm_staging_output,evo_crm_staging_waha_sessions$/mu,
-  );
-  assert.doesNotMatch(
-    stagingJob,
-    /evo_crm_staging_(?:data|backups|lead_agent_data)|evo-crm-staging-manual-send-worker/u,
-  );
-  assert.match(stagingJob, /install -m 600 \/dev\/null/u);
-  assert.match(stagingJob, /trap .*rm -f/u);
-  assert.match(stagingJob, /effectsAllowed/u);
-  assert.match(stagingJob, /releaseStatus/u);
-  assert.doesNotMatch(stagingJob, /set -x/u);
-  assert.doesNotMatch(stagingJob, /echo .*STAGING_APP_ENV/u);
-  assert.doesNotMatch(stagingJob, /cat .*STAGING_APP_ENV/u);
-  assert.doesNotMatch(stagingJob, /\bssh\b/u);
-  assert.doesNotMatch(stagingJob, /\bscp\b/u);
-  assert.doesNotMatch(stagingJob, /docker (build|compose|save|load)/u);
-  assert.doesNotMatch(stagingJob, /supabase (db|migration|link)/u);
-});
-
-test("workflow binds one protected approval to exact main and runner-built artifact", () => {
-  const workflow = readFileSync(".github/workflows/evo-fast-release.yml", "utf8");
-  assert.match(workflow, /environment: production/u);
+  assert.match(workflow, /workflow_run:/u);
+  assert.match(workflow, /EVO_AUTOMATED_PRODUCTION_RELEASE_ENABLED/u);
   assert.match(workflow, /cancel-in-progress: false/u);
   assert.match(workflow, /git rev-parse origin\/main/u);
   assert.match(workflow, /fast-release-ci-gate\.mjs/u);
   assert.match(workflow, /fast-release-ledger-gate\.mjs/u);
   assert.match(workflow, /docker build/u);
   assert.match(workflow, /docker save/u);
-  assert.ok(workflow.indexOf("Build the exact linux-amd64") < workflow.indexOf("environment: production"));
   assert.match(workflow, /StrictHostKeyChecking yes/u);
-  assert.match(workflow, /evo-fast-release-controller-error\.log/u);
+  assert.match(workflow, /evo-production-release-controller-error\.log/u);
   assert.match(workflow, /phase:"preflight_or_load"/u);
   assert.doesNotMatch(
     workflow.slice(workflow.indexOf("Upload sanitized release evidence")),
@@ -441,6 +367,8 @@ test("workflow binds one protected approval to exact main and runner-built artif
   assert.doesNotMatch(workflow, /StrictHostKeyChecking no/u);
   assert.doesNotMatch(workflow, /git pull/u);
   assert.doesNotMatch(workflow, /EVO_REQUIRED_HEALTHY_CONTAINERS/u);
+  assert.doesNotMatch(workflow, /^\s*environment:/mu);
+  assert.doesNotMatch(workflow, /staging/iu);
 });
 
 test("active platform CI executes only the root successor product", () => {

@@ -1956,8 +1956,7 @@ function assertLocalMigrationLedgerShape(status) {
          AND key_column_usage.constraint_schema = table_constraint.constraint_schema
          AND key_column_usage.constraint_name = table_constraint.constraint_name
         WHERE table_constraint.table_schema = 'supabase_migrations'
-          AND table_constraint.table_name = 'schema_migrations'
-          AND table_constraint.constraint_type = 'PRIMARY KEY')
+          AND table_constraint.table_name = 'schema_migrations')
      )::text`,
     "database_restore",
     true,

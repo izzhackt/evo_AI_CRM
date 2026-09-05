@@ -18,7 +18,6 @@ import {
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   parseV3ProfileCaseDirectoryParams,
-  readProfilePicks,
   readProfileTarget,
   readV3ProfileCaseDirectory,
 } from "@/lib/v3/profile-source";
@@ -80,10 +79,6 @@ export default async function ProfilePart({
   const actor = await requireV3PageActor("/v3/profile");
   const params = await searchParams;
   const directoryParams = parseV3ProfileCaseDirectoryParams(params);
-  const [picks, directory] = await Promise.all([
-    readProfilePicks(actor),
-    readV3ProfileCaseDirectory(actor, directoryParams),
-  ]);
 
   // Lead and Student Case are different canonical identities. A requested
   // value is never substituted with the first picker row, and the two query
@@ -92,20 +87,32 @@ export default async function ProfilePart({
   const caseParam = singleSearchParam(params.case);
   const hasLeadParam = params.id !== undefined;
   const hasCaseParam = params.case !== undefined;
-  const explicitTarget: ProfileRouteTarget | null = leadParam && !hasCaseParam
+  const invalidIdentityShape =
+    (hasLeadParam && hasCaseParam) ||
+    (hasLeadParam && !leadParam) ||
+    (hasCaseParam && !caseParam) ||
+    ((hasLeadParam || hasCaseParam) && directoryParams.active);
+  const effectiveDirectoryParams = invalidIdentityShape
+    ? Object.freeze({
+        active: true,
+        cursor: null,
+        invalid: true,
+      })
+    : directoryParams;
+  const directory = await readV3ProfileCaseDirectory(
+    actor,
+    effectiveDirectoryParams,
+  );
+  const explicitTarget: ProfileRouteTarget | null = !invalidIdentityShape && leadParam
     ? { leadId: leadParam, studentCaseId: null }
-    : caseParam && !hasLeadParam
+    : !invalidIdentityShape && caseParam
       ? { leadId: null, studentCaseId: caseParam }
       : null;
   const hasExplicitTarget = hasLeadParam || hasCaseParam;
-  const target = hasExplicitTarget
-    ? explicitTarget
-    : directoryParams.active
-      ? null
-      : picks[0]?.target ?? null;
-  const view = target ? await readProfileTarget(actor, target) : null;
+  const view = explicitTarget
+    ? await readProfileTarget(actor, explicitTarget)
+    : null;
   const missing = hasExplicitTarget && !view;
-  const ambiguous = hasLeadParam && hasCaseParam;
   // Вкладка приходит адресом, поэтому её нельзя брать на веру: чужое слово и
   // вкладка, которой у этого человека нет (`?tab=documents` у лида), открывают
   // обзор.
@@ -131,8 +138,8 @@ export default async function ProfilePart({
       <div className="space-y-6">
         <ProfileCaseDirectory
           directory={directory}
-          initiallyOpen={directoryParams.active || !view}
-          params={directoryParams}
+          initiallyOpen={effectiveDirectoryParams.active || !view}
+          params={effectiveDirectoryParams}
         />
         {view ? (
           <Profile
@@ -150,11 +157,11 @@ export default async function ProfilePart({
           />
         ) : (
           <p className="rounded-card border border-border bg-surface px-4 py-8 text-center text-sm text-fg-3">
-            {ambiguous
-              ? "Профиль не открыт: укажите либо лид, либо дело студента."
+            {invalidIdentityShape
+              ? "Профиль не открыт: адрес должен содержать только один точный идентификатор без параметров каталога."
               : missing
                 ? "Такого человека в базе нет. Показывать вместо него другого мы не будем."
-                : directoryParams.active
+                : directory.rows.length > 0 || directoryParams.active
                   ? "Выберите точное дело студента из результатов поиска."
                   : "В базе нет ни одного человека."}
           </p>

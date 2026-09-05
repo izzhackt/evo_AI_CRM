@@ -14,7 +14,8 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
 
   assert.match(page, /requireV3PageActor\("\/v3\/profile"\)/u);
   assert.match(page, /ProfileSearchParams/u);
-  assert.match(page, /readProfileTarget\(actor, target\)/u);
+  assert.match(page, /readProfileTarget\(actor, explicitTarget\)/u);
+  assert.doesNotMatch(page, /readProfilePicks/u);
   assert.match(page, /actorRole=\{actor\.presentationRole\}/u);
   assert.match(types, /query\.set\("id", target\.leadId\)/u);
   assert.match(types, /query\.set\("case", target\.studentCaseId\)/u);

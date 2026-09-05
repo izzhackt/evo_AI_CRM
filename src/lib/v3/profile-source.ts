@@ -11,7 +11,6 @@ import type {
   ProfileAdmissionsWorkspace,
   ProfileContractSnapshot,
   ProfileDraft,
-  ProfilePick,
   ProfileRouteTarget,
   ProfileSalesSnapshot,
 } from "@/components/v3/profile/types";
@@ -21,6 +20,7 @@ import {
   listPlatformStudentCaseLeadLinks,
   listPlatformStudentCases,
   parsePlatformAdmissionsCursor,
+  parsePlatformAdmissionsUuid,
   type PlatformAdmissionsCursor,
   type PlatformApplicationQueueRow,
   type PlatformStudentCasePageItem,
@@ -44,7 +44,7 @@ import {
 } from "@/lib/platform-private-documents";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { fixedRoleCan } from "@/lib/fixed-role-policy";
-import { getPlatformSalesLead, listPlatformSalesLeads } from "@/lib/platform-sales";
+import { getPlatformSalesLead } from "@/lib/platform-sales";
 import {
   getPlatformLeadAdmissionsGate,
   getPlatformLeadAdmissionsHandoff,
@@ -96,7 +96,7 @@ export type V3ProfileCaseDirectoryRow = Readonly<{
   studentDisplayName: string;
   targetCountry: string | null;
   targetDegree: string | null;
-  updatedAt: string;
+  updatedAt: string | null;
 }>;
 
 export type V3ProfileCaseDirectory = Readonly<{
@@ -752,6 +752,9 @@ export function parseV3ProfileCaseDirectoryParams(
     if ((beforeAt && !beforeId) || (!beforeAt && beforeId)) {
       throw new Error("invalid_profile_case_directory_query");
     }
+    if (query && parsePlatformAdmissionsUuid(query) && (beforeAt || beforeId)) {
+      throw new Error("invalid_profile_case_directory_query");
+    }
     const cursor = beforeAt && beforeId
       ? parsePlatformAdmissionsCursor(beforeAt, beforeId)
       : null;
@@ -773,12 +776,32 @@ export function parseV3ProfileCaseDirectoryParams(
 function directoryRow(
   item: PlatformStudentCasePageItem,
   leadIds: ReadonlyMap<string, string>,
+  presentationRole: ActivePlatformActor["presentationRole"],
 ): V3ProfileCaseDirectoryRow {
   if (item.access === "sales_summary") {
     const studentCase = item.studentCase;
     return Object.freeze({
-      access: item.access,
+      access: "sales_summary",
       admissionsDisplayName: studentCase.assignedCuratorDisplayName,
+      leadId: leadIds.get(studentCase.studentCaseId) ?? null,
+      operationalStage: null,
+      overdueObligationCount: null,
+      overdueTaskCount: null,
+      rejectedDocumentCount: null,
+      responsibleSalesDisplayName: null,
+      state: studentCase.state,
+      studentCaseId: studentCase.studentCaseId,
+      studentDisplayName: studentCase.studentDisplayName,
+      targetCountry: studentCase.targetCountry,
+      targetDegree: studentCase.targetDegree,
+      updatedAt: studentCase.handoffAt,
+    });
+  }
+  if (presentationRole === "sales") {
+    const studentCase = item.studentCase;
+    return Object.freeze({
+      access: "sales_summary",
+      admissionsDisplayName: studentCase.currentCuratorDisplayName,
       leadId: leadIds.get(studentCase.studentCaseId) ?? null,
       operationalStage: null,
       overdueObligationCount: null,
@@ -819,11 +842,15 @@ export async function readV3ProfileCaseDirectory(
   if (params.invalid) {
     return Object.freeze({ hasNext: false, nextCursor: null, rows: [] });
   }
+  const exactStudentCaseId = params.query
+    ? parsePlatformAdmissionsUuid(params.query)
+    : null;
   const page = await listPlatformStudentCases(actor, {
     cursor: params.cursor,
     pageSize: 25,
-    query: params.query,
+    query: exactStudentCaseId ? undefined : params.query,
     state: params.state,
+    studentCaseId: exactStudentCaseId ?? undefined,
   });
   const canReadSales = fixedRoleCan(actor.presentationRole, "sales.read");
   const links = canReadSales && page.rows.length > 0
@@ -838,33 +865,11 @@ export async function readV3ProfileCaseDirectory(
   return Object.freeze({
     hasNext: page.hasNext,
     nextCursor: page.nextCursor,
-    rows: Object.freeze(page.rows.map((item) => directoryRow(item, leadIds))),
+    rows: Object.freeze(
+      page.rows.map((item) =>
+        directoryRow(item, leadIds, actor.presentationRole)),
+    ),
   });
-}
-
-export async function readProfilePicks(
-  actor: ActivePlatformActor,
-): Promise<readonly ProfilePick[]> {
-  if (actor.presentationRole === "admissions") {
-    const page = await listPlatformStudentCases(actor, { pageSize: 6 });
-    return page.rows.map((item) => {
-      if (item.access !== "full") {
-        throw new Error("V3 Admissions profile picker received a summary-only case.");
-      }
-      return {
-        target: { leadId: null, studentCaseId: item.studentCase.studentCaseId },
-        name: item.studentCase.studentDisplayName,
-        student: true,
-      };
-    });
-  }
-
-  const page = await listPlatformSalesLeads(actor, { pageSize: 6 });
-  return page.rows.map((lead) => ({
-    target: { leadId: lead.leadId, studentCaseId: null },
-    name: lead.clientDisplayName ?? "Лид без имени",
-    student: lead.linkedStudentCaseCount > 0,
-  }));
 }
 
 /**

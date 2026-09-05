@@ -17422,3 +17422,33 @@ Decision:
   role home while all readers continue to authorize the real staff actor;
 - this corrects presentation only. It adds no repository, fallback, provider
   call, schema change or production mutation.
+
+## 2026-09-05 - Make Student 360 landing and role preview exact
+
+Block-ID: `EVO-V3-G-STUDENT-360-LANDING-2026-09-05`
+
+Change type: acceptance correction.
+Affected plan section: Order 6 / Issue #600.
+
+The replacement review found that bare `/v3/profile` still selected the first
+of six records, UUID text was not connected to the RPC's exact case-id filter,
+and Admin preview could receive full Admin rows while presenting the Sales UI.
+Those behaviors made the new directory misleading and could expose fields or
+links absent from the selected role surface.
+
+Decision:
+
+- bare `/v3/profile` is the open Student 360 directory. Only one exact `id` or
+  `case` parameter opens a profile; identity plus directory parameters,
+  duplicate values and mixed identities fail closed without substituting a
+  record;
+- a syntactically valid UUID search binds only `p_student_case_id`; ordinary
+  text binds only `p_query`. The two filters are mutually exclusive and use the
+  existing RLS-protected RPC;
+- Admin preview is a role-surface preview, not staff impersonation. Readers keep
+  Admin authority scope, while V3 down-projects every row to the selected
+  role's fields, actions and valid links. Sales-shaped case rows expose only the
+  handoff summary and open the canonical related lead, never a case-only view;
+- preserve the exact role-specific RLS proof for real Sales and Admissions
+  identities in the real local database/browser gate. No schema, provider or
+  production state changes here.

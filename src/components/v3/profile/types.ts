@@ -37,12 +37,6 @@ import type { DocumentGroup } from "./document-types";
  * sample person, file, payment or employee.
  */
 
-export type ProfilePick = Readonly<{
-  target: ProfileRouteTarget;
-  name: string;
-  student: boolean;
-}>;
-
 export type ProfileRouteTarget =
   | Readonly<{ leadId: string; studentCaseId: null }>
   | Readonly<{ leadId: null; studentCaseId: string }>;

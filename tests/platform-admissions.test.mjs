@@ -5,6 +5,7 @@ import test from "node:test";
 import { createClient } from "@supabase/supabase-js";
 
 import {
+  buildPlatformStudentCasePageRpcArguments,
   compactPlatformAdmissionsGetRpcArguments,
   PlatformAdmissionsRepositoryError,
   getPlatformOpWorkflowContract,
@@ -151,6 +152,43 @@ test("accepts only complete deterministic admissions cursors", () => {
   });
   assert.equal(parsePlatformAdmissionsCursor(undefined, CASE_ID), null);
   assert.equal(parsePlatformAdmissionsCursor(AT, "not-a-uuid"), null);
+});
+
+test("builds mutually exclusive text and exact-id Student Case RPC filters", () => {
+  assert.deepEqual(
+    buildPlatformStudentCasePageRpcArguments({
+      pageSize: 25,
+      query: "  Malaysia  ",
+    }),
+    { p_limit: 26, p_query: "Malaysia" },
+  );
+  assert.deepEqual(
+    buildPlatformStudentCasePageRpcArguments({
+      pageSize: 25,
+      studentCaseId: CASE_ID.toUpperCase(),
+    }),
+    { p_limit: 26, p_student_case_id: CASE_ID },
+  );
+  assert.throws(
+    () =>
+      buildPlatformStudentCasePageRpcArguments({
+        query: "Malaysia",
+        studentCaseId: CASE_ID,
+      }),
+    PlatformAdmissionsRepositoryError,
+  );
+  assert.throws(
+    () => buildPlatformStudentCasePageRpcArguments({ studentCaseId: "wrong" }),
+    PlatformAdmissionsRepositoryError,
+  );
+  assert.throws(
+    () =>
+      buildPlatformStudentCasePageRpcArguments({
+        cursor: { sortAt: AT, id: CASE_ID },
+        studentCaseId: CASE_ID,
+      }),
+    PlatformAdmissionsRepositoryError,
+  );
 });
 
 test("GET pagination RPCs do not serialize absent filters as literal null", async () => {

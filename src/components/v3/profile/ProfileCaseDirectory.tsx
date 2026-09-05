@@ -156,6 +156,7 @@ export function ProfileCaseDirectory({
                   return (
                   <tr
                     className="align-top hover:bg-surface-2"
+                    data-access={row.access}
                     data-student-case-id={row.studentCaseId}
                     data-testid="v3-student-case-row"
                     key={row.studentCaseId}
@@ -209,7 +210,9 @@ export function ProfileCaseDirectory({
                       {attention(row)}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-fg-3">
-                      {UPDATED_AT.format(new Date(row.updatedAt))}
+                      {row.updatedAt
+                        ? UPDATED_AT.format(new Date(row.updatedAt))
+                        : "—"}
                     </td>
                   </tr>
                   );

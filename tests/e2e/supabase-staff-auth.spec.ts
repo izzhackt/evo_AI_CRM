@@ -1065,6 +1065,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const caseHref = `/v3/profile?case=${studentCaseId}&tab=overview`;
   await expect(caseLink).toHaveAttribute("href", caseHref);
 
+  await page.goto(`/v3/profile?id=${leadId}&case_q=${studentCaseId}`);
+  await expect(page.getByTestId("v3-student-case-filter-rejected")).toBeVisible();
+  await expect(page.getByTestId("v3-student-case-row")).toHaveCount(0);
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+
   await page.goto(`/v3/profile?case_q=${studentCaseId}`);
   await expect(page).toHaveURL(
     new RegExp(`/v3/profile\\?case_q=${studentCaseId}$`),
@@ -1076,9 +1081,35 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
   );
   await expect(exactCaseRow).toBeVisible();
+  await expect(exactCaseRow).toHaveAttribute("data-access", "full");
   const exactCaseLink = exactCaseRow.locator(`a[href="${caseHref}"]`);
   await expect(exactCaseLink).toHaveCount(1);
-  await exactCaseLink.click();
+
+  await page.getByTestId("preview-role-sales").click();
+  await expectActiveRole(page, "sales", "admin");
+  await page.goto(`/v3/profile?case_q=${studentCaseId}`);
+  const salesPreviewCaseRow = page.locator(
+    `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
+  );
+  await expect(salesPreviewCaseRow).toHaveAttribute(
+    "data-access",
+    "sales_summary",
+  );
+  await expect(salesPreviewCaseRow.locator(`a[href="${caseHref}"]`)).toHaveCount(0);
+  await expect(
+    salesPreviewCaseRow.locator(`a[href="/v3/profile?id=${leadId}"]`),
+  ).toHaveCount(1);
+  await page.goto(caseHref);
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+
+  await page.getByTestId("preview-role-admin").click();
+  await expectActiveRole(page, "admin");
+  await page.goto(`/v3/profile?case_q=${studentCaseId}`);
+  const restoredCaseRow = page.locator(
+    `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
+  );
+  await expect(restoredCaseRow).toHaveAttribute("data-access", "full");
+  await restoredCaseRow.locator(`a[href="${caseHref}"]`).click();
   await expect(page).toHaveURL(new RegExp(
     `/v3/profile\\?case=${studentCaseId}&tab=overview$`,
   ));

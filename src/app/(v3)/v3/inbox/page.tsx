@@ -17,6 +17,7 @@ import {
   readInbox,
   type InboxAmoCrmCommand,
 } from "@/lib/v3/inbox-source";
+import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Входящие" };
@@ -96,18 +97,10 @@ export default async function InboxPart({
       />
     );
     amoCrmControls = renderAmoCrmControls(model.amoCrmCommand, locale);
-    if (
-      (actor.presentationRole === "admin" ||
-        actor.presentationRole === "sales") &&
-      selected.canonicalContext.leadId
-    ) {
-      profileHref = `/v3/profile?id=${selected.canonicalContext.leadId}`;
-    } else if (
-      actor.presentationRole === "admissions" &&
-      selected.canonicalContext.studentCaseId
-    ) {
-      profileHref = `/v3/profile?case=${selected.canonicalContext.studentCaseId}`;
-    }
+    profileHref = v3InboxProfileHref(
+      actor.presentationRole,
+      selected.canonicalContext,
+    );
   }
 
   return (

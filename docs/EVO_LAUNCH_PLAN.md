@@ -145,7 +145,11 @@ provider-readiness browser proof moves to V3 before `/clients/:id` and the
 remaining V2 staff routes are removed. V3 Student 360 must also retain the
 canonical case directory outcome: strict name/route/country/UUID search,
 pending/active/closed filters, bounded keyset pagination and direct access to
-arbitrary authorized cases rather than only the first picker page. Each role
+arbitrary authorized cases rather than only the first picker page. Bare
+`/v3/profile` is the directory landing; only one exact `id` or `case` parameter
+opens a person, and UUID search uses the RPC's exact case-id filter. Admin role
+preview keeps Admin-authorized row scope but down-projects fields, actions and
+links to the selected role surface. Each role
 home must render the role-scoped canonical operational snapshot: `/v3/main`
 for Admin/Sales and `/v3/calendar` for Admissions. Together they retain Sales
 overdue and unassigned work, Student 360 attention, Admissions overdue tasks,

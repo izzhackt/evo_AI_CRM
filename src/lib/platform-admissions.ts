@@ -145,6 +145,7 @@ export type PlatformStudentCasePageOptions = Readonly<{
   pageSize?: number;
   query?: string;
   state?: PlatformStudentCaseState;
+  studentCaseId?: string;
 }>;
 
 export type PlatformApplicationPageOptions = Readonly<{
@@ -200,6 +201,31 @@ export function compactPlatformAdmissionsGetRpcArguments(
       ([, value]) => value !== null && value !== undefined,
     ),
   );
+}
+
+export function buildPlatformStudentCasePageRpcArguments(
+  options?: PlatformStudentCasePageOptions,
+): Record<string, unknown> {
+  const pageSize = normalizePageSize(options?.pageSize, 50);
+  const cursor = options?.cursor ?? null;
+  const query = options?.query?.trim() || null;
+  const studentCaseId = options?.studentCaseId === undefined
+    ? null
+    : requiredUuid(options.studentCaseId);
+  if (
+    studentCaseId !== null &&
+    (query !== null || cursor !== null)
+  ) {
+    return invalidShape();
+  }
+  return compactPlatformAdmissionsGetRpcArguments({
+    p_limit: pageSize + 1,
+    p_before_sort_at: cursor?.sortAt ?? null,
+    p_before_student_case_id: cursor?.id ?? null,
+    p_state: options?.state ?? null,
+    p_query: query,
+    p_student_case_id: studentCaseId,
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -650,17 +676,9 @@ export async function listPlatformStudentCases(
     const organizationId = requireAdmissionsOrganization(actor);
     const client = await getPlatformClient();
     const pageSize = normalizePageSize(options?.pageSize, 50);
-    const cursor = options?.cursor ?? null;
     const response = await client.schema("platform").rpc(
       "staff_student_case_page",
-      compactPlatformAdmissionsGetRpcArguments({
-        p_limit: pageSize + 1,
-        p_before_sort_at: cursor?.sortAt ?? null,
-        p_before_student_case_id: cursor?.id ?? null,
-        p_state: options?.state ?? null,
-        p_query: options?.query?.trim() || null,
-        p_student_case_id: null,
-      }),
+      buildPlatformStudentCasePageRpcArguments(options),
       { get: true },
     );
     if (response.error || !Array.isArray(response.data)) return invalidShape();

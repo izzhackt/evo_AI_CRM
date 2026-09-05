@@ -289,6 +289,16 @@ type, or incomplete inventory quarantines the private contour; cleanup never
 removes a container directly by a planned name. The streaming SQL-artifact
 validator must observe exactly one matching `\restrict` before its
 `\unrestrict`, not merely count equal guard tokens.
+Cleanup is also bound to the immutable network, Supabase-census, scanner,
+candidate-app and TLS-proxy IDs captured at creation/validation, plus the exact
+validated volume-name census. The candidate image must be the one captured
+image ID with its sole expected tag and complete revision/tree/archive/build
+provenance; an inherited-label image or any identity drift quarantines rather
+than expands the deletion set. Every reserved ownership label must be absent or
+exactly correct for the selected resource category. The private plaintext root
+keeps its exact owner/mode/content marker until all non-marker children are
+removed; final-directory failure atomically restores that marker and never
+falls back to recursive root deletion.
 The rehearsal reconciles aggregate counts rather than publishing
 customer rows, proves the safe available Supabase Auth/RLS/private-Storage and
 V3 browser behaviors, then destroys the disposable contour and atomically

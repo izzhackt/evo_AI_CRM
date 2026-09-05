@@ -5585,8 +5585,10 @@ export function browserLoginFailureCode(role, outcome) {
     fail(`browser_${role}_login_result_invalid`, "browser_proof");
   }
   if (outcome.status === "authenticated") return null;
+  if (typeof outcome.code !== "string" || !Object.hasOwn(BROWSER_LOGIN_ERROR_SUFFIXES, outcome.code)) {
+    fail(`browser_${role}_login_error_code_invalid`, "browser_proof");
+  }
   const suffix = BROWSER_LOGIN_ERROR_SUFFIXES[outcome.code];
-  if (!suffix) fail(`browser_${role}_login_error_code_invalid`, "browser_proof");
   return `browser_${role}_login_${suffix}`;
 }
 

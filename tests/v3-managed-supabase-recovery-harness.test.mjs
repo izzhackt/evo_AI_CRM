@@ -1760,6 +1760,12 @@ test("browser login outcomes expose only stable allowlisted failure codes", () =
     () => browserLoginFailureCode("admin", { status: "rejected", code: "localized-secret-text" }),
     "browser_admin_login_error_code_invalid",
   );
+  for (const inheritedName of ["constructor", "toString", "__proto__"]) {
+    expectCode(
+      () => browserLoginFailureCode("admin", { status: "rejected", code: inheritedName }),
+      "browser_admin_login_error_code_invalid",
+    );
+  }
   expectCode(() => browserLoginFailureCode("unknown", { status: "authenticated" }), "browser_login_role_invalid");
 });
 

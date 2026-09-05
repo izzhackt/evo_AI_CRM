@@ -18331,3 +18331,105 @@ and [`pg_dump --snapshot`](https://www.postgresql.org/docs/18/app-pgdump.html).
 This correction performs authenticated read-only database access only. It
 does not mutate managed Supabase, Storage, VPS, providers, webhooks, production
 traffic or customer records and does not activate a release.
+## 2026-09-05 - Require one real private malware scanner for both V3 file paths
+
+Block-ID: `EVO-V3-H-REAL-MALWARE-SCANNER-2026-09-05`
+
+Change type: #551 implementation contract clarification.
+Affected plan section: Order 7 / Issue #551.
+
+The existing document-validation status was application-supplied and did not
+prove that a real malware engine inspected the exact bytes later persisted in
+private Storage. The same gap existed for Company Files. A green status without
+engine-bound evidence cannot authorize approval or download.
+
+Decision:
+
+- run one pinned official ClamAV `clamd` service on the private EVO Compose
+  network, with no published scanner port, persistent signature data, bounded
+  resources, health checks and an exact image digest;
+- both the Student 360 document route and Company Files route scan the exact
+  in-memory upload bytes through bounded `zINSTREAM` before creating a Supabase
+  reservation, Storage object or database mutation. `FOUND`, timeout,
+  unavailable, malformed and incomplete replies all stop without persistence;
+- persist only append-only proof facts: organization, immutable file-version
+  identity, SHA-256, exact Storage reservation/finalization binding, ClamAV
+  engine/signature versions, protocol and scan time. Never persist or log raw
+  scanner replies, user filenames or file bytes as scanner evidence;
+- remove the former caller-selected validation/finalization RPC signatures.
+  Database constraints and triggers require proof for clean state, approval,
+  download grants/consumption and Company Files finalization so a bypassing or
+  stale application cannot reopen the path;
+- invalidate historical `clean` rows that lack real proof. If such a row is the
+  current version of an approved slot, move only that slot to
+  `correction_required` with append-only evidence so the product remains closed
+  to download while staff can submit a replacement; preserve the historical
+  review itself;
+- extend the sole release controller to verify the pinned scanner image,
+  private networking, health and host capacity before app replacement and to
+  restore the exact previous scanner-presence state during rollback; and
+- prove clean-file acceptance, EICAR rejection, scanner outage, timeout,
+  malformed response and recovery once on OrbStack, alongside focused Node and
+  PostgreSQL authorization tests. No managed Supabase write, production
+  deployment, provider call, webhook transfer or customer-data mutation belongs
+  to this slice.
+
+Validation impact: run focused scanner/route tests, the full disposable
+PostgreSQL authorization ledger, runtime/release contract tests, one real
+OrbStack scanner exercise, lint, typecheck and build; then obtain independent
+SQL/security and runtime/release exact-head reviews before one PR CI and
+SHA-bound merge.
+
+Official sources verified 2026-09-05:
+
+- ClamAV official Docker images and persistent signature guidance:
+  <https://docs.clamav.net/manual/Installing/Docker.html>
+- `clamd` `zINSTREAM` protocol and bounded stream framing:
+  <https://docs.clamav.net/manual/Usage/ClamdProtocol.html>
+
+## 2026-09-05 - Bind durable malware proof to exact stored bytes
+
+Block-ID: `EVO-V3-H-STORED-BYTE-SCANNER-PROOF-2026-09-05`
+
+Change type: implementation correctness refinement.
+Affected plan section: Order 7 / Issue #551.
+
+The earlier scanner contract required a real fail-closed scan but did not make
+the difference between an ingress pre-scan and durable stored-object proof
+explicit. Treating the clean result for caller-supplied bytes as proof for a
+later Storage object would leave a substitution or persistence-integrity gap.
+Reading `VERSION` and `INSTREAM` through separate clamd connections would also
+allow scanner/signature identity to change between attribution and scanning.
+
+Decision:
+
+- both Student 360 document uploads and V3 Company Files use one shared scanner
+  interface and first scan ingress bytes before any reservation or private
+  Storage write;
+- after upload, the server downloads the exact private object through its
+  trusted Storage path, requires stored size, MIME/signature and SHA-256 to
+  equal the accepted ingress object, and scans the downloaded bytes again;
+- each scan uses one clamd `IDSESSION` with numeric request-ID matching for the
+  two `VERSION` commands and `INSTREAM`, followed by `END`. Durable proof
+  requires identical recognized engine/signature facts before and after the
+  scan. Valid matched replies may arrive out of order; missing, malformed,
+  duplicate, unknown, premature, timed-out or drifting replies fail closed;
+- only that post-Storage clean result may create append-only scanner evidence,
+  finalize the version and make it downloadable. A clean pre-scan, historical
+  `scanner_proof=false` row or caller-supplied checksum cannot authorize those
+  outcomes; and
+- focused tests cover infected and unavailable second scans for both routes.
+  The real gate later proves clean, EICAR, outage and recovery plus the complete
+  app to private Storage to database round trip on OrbStack before #552 arms.
+
+Validation impact: port only the data/DB files from the historical scanner WIP,
+rehearse forward migration 115 against representative restored state, run
+focused Node/SQL tests, then obtain independent exact-head review. Runtime,
+Compose, controller and live OrbStack proof remain a separate following slice.
+This refinement does not contact or mutate production, Supabase, WAHA, amoCRM,
+Gemini or customer/provider state.
+
+Official source verified 2026-09-05:
+
+- clamd command framing, `IDSESSION`, supported commands and numeric reply IDs:
+  <https://docs.clamav.net/manual/Usage/ClamdProtocol.html>

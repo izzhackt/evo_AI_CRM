@@ -302,6 +302,15 @@ SQL
       -f /workspace/supabase/tests/platform_crm_primary_waha_authority_pre102.sql
   fi
 
+  # Seed one historical no-scanner clean document immediately before 115.
+  # Migration 115 must demote it to error and append an explicit event; it may
+  # never synthesize or infer a clean proof for legacy data.
+  if [[ "$(basename "$migration")" == 115_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_malware_scanning_pre115.sql
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -2045,6 +2054,14 @@ SQL
       cat "$p113c_concurrency_assert_log" >&2
       exit 1
     fi
+  fi
+
+  # Migration 115 removes caller-selected document-clean claims and requires
+  # one append-only ClamAV proof before approval or private download.
+  if [[ "$(basename "$migration")" == 115_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_malware_scanning.sql
   fi
 done < <(
   cd "$repo_root"

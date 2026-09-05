@@ -231,13 +231,17 @@ on the code invariant plus the named focused mutation or negative test.
 | `csf_3e786777aa4d68175467db68` (Low) | A broader Admin Storage SELECT policy could evade the inventory gate. | The inventory requires the exact name, command, roles, permissiveness and normalized expressions of all twelve legitimate policies. A deliberately broadened Admin policy must fail and rollback cleanly. |
 | `csf_e1e939bbe05aaf1cffbe58fb` (Low) | Private-ledger ACL checks omitted privileged writes. | The matrix checks five principals, seven privileges and five private tables. Independent `service_role` and `supabase_auth_admin` INSERT/UPDATE/DELETE/TRUNCATE mutations must each fail and rollback. |
 
-The focused proof lives in
+The original P2H focused proof lived in
 `supabase/tests/platform_document_storage_rls.sql`,
 `supabase/tests/platform_document_storage_inventory.sql`,
-`scripts/test-postgres-authorization.sh` and
-`scripts/test-p2h-storage-api.mjs`. It proves the local synthetic
-PostgreSQL/Auth/PostgREST/Storage boundary only. It does not prove managed
-Supabase, production traffic, malware scanning or backup/restore.
+`scripts/test-postgres-authorization.sh` and the now-retired standalone
+`scripts/test-p2h-storage-api.mjs`, which remains available in frozen Git
+history. The active real application/browser acceptance path is
+`scripts/test-postgres-v2-foundation.sh`; #551 extended that one path to the
+pinned private ClamAV scanner rather than retaining a second executable
+Storage client. P2H itself proved only the local synthetic
+PostgreSQL/Auth/PostgREST/Storage boundary, not managed Supabase, production
+traffic, scanner-provider acceptance or backup/restore.
 
 ## Backup and recovery boundary
 

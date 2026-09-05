@@ -8,12 +8,14 @@ import {
   createPlatformCompanyFileDownloadHandler,
   createPlatformCompanyFileUploadHandler,
 } from "../src/lib/server/platform-company-file-storage-route-handlers.ts";
+import { ClamdScanError } from "../src/lib/server/clamd-malware-scanner.ts";
 
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const FILE_ID = "22222222-2222-4222-8222-222222222222";
 const VERSION_ID = "33333333-3333-4333-8333-333333333333";
 const RESERVATION_ID = "44444444-4444-4444-8444-444444444444";
 const FINALIZATION_ID = "55555555-5555-4555-8555-555555555555";
+const SCAN_ATTESTATION_ID = "55555555-aaaa-4555-8555-555555555555";
 const GRANT_ID = "66666666-6666-4666-8666-666666666666";
 const CONSUMPTION_ID = "77777777-7777-4777-8777-777777777777";
 const REQUEST_IDS = [
@@ -25,6 +27,14 @@ const OBJECT_NAME = `ab/${"c".repeat(62)}`;
 const AT = "2026-09-04T10:00:00+00:00";
 const BYTES = new TextEncoder().encode("%PDF-1.7\ncompany file proof");
 const SHA256 = createHash("sha256").update(BYTES).digest("hex");
+const SCAN_PROOF = Object.freeze({
+  engine: "ClamAV",
+  engineVersion: "1.5.4",
+  signatureVersion: "27890",
+  protocol: "clamd-zinstream-v1",
+  scannedAt: "2026-09-04T10:00:00.000Z",
+  sha256Hex: SHA256,
+});
 
 const OOXML_FAMILIES = Object.freeze({
   docx: Object.freeze({
@@ -207,6 +217,14 @@ function finalization(overrides = {}) {
     finalized_at: AT,
     file_version: "2",
     current_version_id: VERSION_ID,
+    malware_scan_attestation_id: SCAN_ATTESTATION_ID,
+    scanner_engine: SCAN_PROOF.engine,
+    scanner_engine_version: SCAN_PROOF.engineVersion,
+    scanner_signature_version: SCAN_PROOF.signatureVersion,
+    scanner_protocol: SCAN_PROOF.protocol,
+    scanned_sha256_hex: SHA256,
+    scanned_at: AT,
+    scanner_proof: true,
     ...overrides,
   };
 }
@@ -221,33 +239,43 @@ function uploadRequest({ bytes = BYTES, type = "application/pdf", name = "proof.
 
 function uploadDependencies({
   authorization = { status: "authorized", actor: ACTOR },
+  preflightValue = {
+    organization_id: ORGANIZATION_ID,
+    company_file_id: FILE_ID,
+    request_id: REQUEST_IDS[0],
+    upload_allowed: true,
+    reservation_replay: false,
+  },
+  preflightError = null,
   reservationValue = reservation(),
-  finalizationValue = finalization(),
+  finalizationValue = null,
   reservationError = null,
   finalizationError = null,
   uploadError = null,
+  downloadError = null,
+  storedBytes = null,
+  storedMimeType = null,
+  downloadedMimeType = null,
+  scanOutcomes = null,
+  scanResult = null,
+  scanError = null,
 } = {}) {
   const calls = [];
+  let scanCallIndex = 0;
+  let persistedBytes = storedBytes;
+  let persistedMimeType = storedMimeType;
   const userClient = {
     schema(schema) {
       assert.equal(schema, "platform");
       return {
         async rpc(name, args) {
           calls.push(["user-rpc", name, args]);
+          if (name === "preflight_company_file_upload") {
+            return { data: preflightValue, error: preflightError };
+          }
           return { data: reservationValue, error: reservationError };
         },
       };
-    },
-    storage: {
-      from(bucket) {
-        assert.equal(bucket, "platform-company-files");
-        return {
-          async upload(objectName, bytes, options) {
-            calls.push(["upload", objectName, bytes, options]);
-            return { data: uploadError ? null : { path: objectName }, error: uploadError };
-          },
-        };
-      },
     },
   };
   const serviceClient = {
@@ -256,9 +284,42 @@ function uploadDependencies({
       return {
         async rpc(name, args) {
           calls.push(["service-rpc", name, args]);
-          return { data: finalizationValue, error: finalizationError };
+          return {
+            data: finalizationValue ?? finalization({
+              scanned_sha256_hex: reservationValue.sha256_hex,
+            }),
+            error: finalizationError,
+          };
         },
       };
+    },
+    storage: {
+      from(bucket) {
+        assert.equal(bucket, "platform-company-files");
+        return {
+          async upload(objectName, bytes, options) {
+            calls.push(["service-upload", objectName, bytes, options]);
+            if (!uploadError && persistedBytes === null) {
+              persistedBytes = new Uint8Array(bytes);
+              persistedMimeType = options.contentType;
+            }
+            return { data: uploadError ? null : { path: objectName }, error: uploadError };
+          },
+          async download(objectName) {
+            calls.push(["service-download", objectName]);
+            return {
+              data: downloadError
+                ? null
+                : new Blob([persistedBytes ?? BYTES], {
+                  type: downloadedMimeType
+                    ?? persistedMimeType
+                    ?? reservationValue.declared_mime_type,
+                }),
+              error: downloadError,
+            };
+          },
+        };
+      },
     },
   };
   return {
@@ -270,13 +331,26 @@ function uploadDependencies({
       },
       async createUserClient() { return userClient; },
       createServiceClient() { return serviceClient; },
+      async scanFile(bytes) {
+        calls.push(["scan", bytes]);
+        const outcome = scanOutcomes?.[scanCallIndex++];
+        if (outcome) {
+          if (outcome.error) throw outcome.error;
+          return outcome.result;
+        }
+        if (scanError) throw scanError;
+        return scanResult ?? {
+          ...SCAN_PROOF,
+          sha256Hex: createHash("sha256").update(bytes).digest("hex"),
+        };
+      },
       supabaseOrigin() { return "http://127.0.0.1:54321"; },
       requestId: sequence(REQUEST_IDS),
     },
   };
 }
 
-test("authorized company upload reserves, uploads without overwrite and finalizes", async () => {
+test("authorized company upload service-writes, reads back and finalizes exact bytes", async () => {
   const { calls, dependencies } = uploadDependencies();
   const response = await createPlatformCompanyFileUploadHandler(dependencies)(
     uploadRequest(),
@@ -296,7 +370,25 @@ test("authorized company upload reserves, uploads without overwrite and finalize
     },
   });
   assert.deepEqual(calls[0], ["authorize", "documents.write"]);
-  assert.deepEqual(calls.find(([kind]) => kind === "user-rpc").slice(1), [
+  const preflightCall = calls.find(([, name]) => name === "preflight_company_file_upload");
+  const reserveCall = calls.find(([, name]) => name === "reserve_company_file_upload");
+  assert.ok(calls.indexOf(preflightCall) < calls.findIndex(([kind]) => kind === "scan"));
+  assert.equal(calls.filter(([kind]) => kind === "scan").length, 2);
+  assert.equal(calls.filter(([kind]) => kind === "service-download").length, 1);
+  assert.deepEqual(preflightCall.slice(1), [
+    "preflight_company_file_upload",
+    {
+      p_organization_id: ORGANIZATION_ID,
+      p_company_file_id: FILE_ID,
+      p_expected_file_version: "1",
+      p_original_filename: "proof.pdf",
+      p_declared_mime_type: "application/pdf",
+      p_byte_size: BYTES.byteLength,
+      p_sha256_hex: SHA256,
+      p_request_id: REQUEST_IDS[0],
+    },
+  ]);
+  assert.deepEqual(reserveCall.slice(1), [
     "reserve_company_file_upload",
     {
       p_organization_id: ORGANIZATION_ID,
@@ -309,11 +401,209 @@ test("authorized company upload reserves, uploads without overwrite and finalize
       p_request_id: REQUEST_IDS[0],
     },
   ]);
-  assert.equal(calls.find(([kind]) => kind === "upload")[3].upsert, false);
+  assert.equal(calls.find(([kind]) => kind === "service-upload")[3].upsert, false);
   assert.equal(
     calls.find(([kind]) => kind === "service-rpc")[1],
     "finalize_company_file_upload",
   );
+  const finalizationArgs = calls.find(([kind]) => kind === "service-rpc")[2];
+  const { p_request_id: finalizationRequestId, ...scanBoundArgs } = finalizationArgs;
+  assert.match(finalizationRequestId, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(
+    scanBoundArgs,
+    {
+      p_organization_id: ORGANIZATION_ID,
+      p_upload_reservation_id: RESERVATION_ID,
+      p_scanner_engine: "ClamAV",
+      p_scanner_engine_version: "1.5.4",
+      p_scanner_signature_version: "27890",
+      p_scanner_protocol: "clamd-zinstream-v1",
+      p_scanned_sha256_hex: SHA256,
+      p_scanned_at: SCAN_PROOF.scannedAt,
+    },
+  );
+});
+
+test("company upload compares the stored base media type while preserving exact bytes", async (t) => {
+  for (const accepted of [
+    {
+      declaredMimeType: "text/plain",
+      downloadedMimeType: "text/plain;charset=utf-8",
+      filename: "notes.txt",
+      bytes: new TextEncoder().encode("company notes\n"),
+    },
+    {
+      declaredMimeType: "text/csv",
+      downloadedMimeType: "Text/CSV ; charset=utf-8",
+      filename: "contacts.csv",
+      bytes: new TextEncoder().encode("name,email\nEVO,team@example.test\n"),
+    },
+  ]) {
+    await t.test(accepted.declaredMimeType, async () => {
+      const sha256Hex = createHash("sha256").update(accepted.bytes).digest("hex");
+      const result = uploadDependencies({
+        reservationValue: reservation({
+          declared_mime_type: accepted.declaredMimeType,
+          byte_size: accepted.bytes.byteLength,
+          sha256_hex: sha256Hex,
+        }),
+        downloadedMimeType: accepted.downloadedMimeType,
+      });
+      const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+        uploadRequest({
+          bytes: accepted.bytes,
+          type: accepted.declaredMimeType,
+          name: accepted.filename,
+        }),
+        { params: Promise.resolve({ companyFileId: FILE_ID }) },
+      );
+
+      assert.equal(response.status, 201);
+      assert.equal(result.calls.filter(([kind]) => kind === "scan").length, 2);
+      assert.equal(result.calls.filter(([kind]) => kind === "service-download").length, 1);
+    });
+  }
+
+  const bytes = new TextEncoder().encode("company notes\n");
+  const result = uploadDependencies({
+    reservationValue: reservation({
+      declared_mime_type: "text/plain",
+      byte_size: bytes.byteLength,
+      sha256_hex: createHash("sha256").update(bytes).digest("hex"),
+    }),
+    downloadedMimeType: "text/csv;charset=utf-8",
+  });
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest({ bytes, type: "text/plain", name: "notes.txt" }),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "storage_object_mismatch" });
+  assert.equal(result.calls.some(([kind]) => kind === "service-rpc"), false);
+});
+
+test("company upload rejects malware and scanner failure before reservation", async () => {
+  for (const item of [
+    { error: new ClamdScanError("infected"), status: 422, code: "malware_detected" },
+    { error: new ClamdScanError("timeout"), status: 503, code: "malware_scanner_unavailable" },
+  ]) {
+    const result = uploadDependencies({ scanError: item.error });
+    const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+      uploadRequest(),
+      { params: Promise.resolve({ companyFileId: FILE_ID }) },
+    );
+    assert.equal(response.status, item.status);
+    assert.deepEqual(await response.json(), { error: item.code });
+    assert.deepEqual(
+      result.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+      ["preflight_company_file_upload"],
+    );
+    assert.equal(result.calls.some(([, name]) => name === "reserve_company_file_upload"), false);
+    assert.equal(result.calls.some(([kind]) => kind === "service-upload"), false);
+  }
+
+  const mismatch = uploadDependencies({
+    scanResult: { ...SCAN_PROOF, sha256Hex: "0".repeat(64) },
+  });
+  const response = await createPlatformCompanyFileUploadHandler(mismatch.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "malware_scan_unconfirmed" });
+  assert.deepEqual(
+    mismatch.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+    ["preflight_company_file_upload"],
+  );
+});
+
+test("stored company bytes fail closed when the second malware scan is unsafe", async () => {
+  for (const item of [
+    { error: new ClamdScanError("infected"), status: 422, code: "malware_detected" },
+    { error: new ClamdScanError("timeout"), status: 503, code: "malware_scanner_unavailable" },
+  ]) {
+    const result = uploadDependencies({
+      scanOutcomes: [
+        { result: SCAN_PROOF },
+        { error: item.error },
+      ],
+    });
+    const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+      uploadRequest(),
+      { params: Promise.resolve({ companyFileId: FILE_ID }) },
+    );
+
+    assert.equal(response.status, item.status);
+    assert.deepEqual(await response.json(), { error: item.code });
+    assert.deepEqual(
+      result.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+      ["preflight_company_file_upload", "reserve_company_file_upload"],
+    );
+    assert.equal(result.calls.filter(([kind]) => kind === "service-upload").length, 1);
+    assert.equal(result.calls.filter(([kind]) => kind === "service-download").length, 1);
+    assert.equal(result.calls.filter(([kind]) => kind === "scan").length, 2);
+    assert.equal(
+      result.calls.some(([, name]) => name === "finalize_company_file_upload"),
+      false,
+    );
+  }
+});
+
+test("company upload rejects cross-tenant preflight before scanning or writes", async () => {
+  const result = uploadDependencies({ preflightError: { code: "42501" } });
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { error: "upload_not_authorized" });
+  assert.deepEqual(
+    result.calls.filter(([kind]) => kind === "user-rpc").map(([, name]) => name),
+    ["preflight_company_file_upload"],
+  );
+  assert.equal(
+    result.calls.some(([kind]) => kind === "scan" || kind === "service-upload"),
+    false,
+  );
+});
+
+test("same-size company stored-object substitution fails before finalization or proof", async () => {
+  const substituted = new Uint8Array(BYTES);
+  substituted[substituted.byteLength - 1] ^= 1;
+  const result = uploadDependencies({
+    reservationValue: reservation({ storage_object_present: true }),
+    storedBytes: substituted,
+  });
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "storage_object_mismatch" });
+  assert.equal(result.calls.some(([kind]) => kind === "service-upload"), false);
+  assert.equal(result.calls.filter(([kind]) => kind === "scan").length, 1);
+  assert.equal(result.calls.some(([kind]) => kind === "service-rpc"), false);
+});
+
+test("company lost-response replay accepts the durable original scan facts", async () => {
+  const result = uploadDependencies({
+    reservationValue: reservation({ storage_object_present: true }),
+    finalizationValue: finalization({
+      scanner_engine_version: "1.5.3",
+      scanner_signature_version: "27889",
+      scanned_at: "2026-09-01T07:00:00+00:00",
+    }),
+  });
+  const response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: FILE_ID }) },
+  );
+
+  assert.equal(response.status, 201);
+  assert.equal(result.calls.filter(([kind]) => kind === "scan").length, 2);
 });
 
 test("company upload authorizes before parsing and rejects spoofed signatures", async () => {
@@ -333,6 +623,15 @@ test("company upload authorizes before parsing and rejects spoofed signatures", 
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { error: "file_signature_mismatch" });
   assert.equal(result.calls.some(([kind]) => kind === "user-rpc"), false);
+
+  result = uploadDependencies();
+  response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ companyFileId: "not-a-uuid" }) },
+  );
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "invalid_company_file" });
+  assert.deepEqual(result.calls, [["authorize", "documents.write"]]);
 });
 
 test("company upload accepts bounded, structurally valid DOCX, XLSX and PPTX packages", async () => {
@@ -426,7 +725,7 @@ test("company upload fails closed when reservation or finalization is unverified
     { params: Promise.resolve({ companyFileId: FILE_ID }) },
   );
   assert.equal(response.status, 503);
-  assert.equal(result.calls.some(([kind]) => kind === "upload"), false);
+  assert.equal(result.calls.some(([kind]) => kind === "service-upload"), false);
 
   result = uploadDependencies({ finalizationError: { code: "XX000" } });
   response = await createPlatformCompanyFileUploadHandler(result.dependencies)(

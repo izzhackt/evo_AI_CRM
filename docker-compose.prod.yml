@@ -32,6 +32,12 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
+      EVO_CLAMD_HOST: "evo-crm-clamav"
+      EVO_CLAMD_PORT: "3310"
+      EVO_CLAMD_TIMEOUT_MS: "10000"
+    depends_on:
+      clamav:
+        condition: service_healthy
     expose:
       - "3000"
     volumes:
@@ -52,6 +58,33 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  clamav:
+    platform: linux/amd64
+    image: "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9"
+    labels:
+      com.evo.image.provenance: "official-third-party-digest"
+      com.evo.runtime.role: "private-malware-scanner"
+    restart: unless-stopped
+    init: true
+    cpus: "2.00"
+    mem_limit: 4096m
+    pids_limit: 256
+    logging: *bounded-logging
+    expose:
+      - "3310"
+    volumes:
+      - evo_crm_clamav_signatures:/var/lib/clamav
+    networks:
+      private:
+        aliases:
+          - evo-crm-clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
 
   waha:
     image: "${EVO_WAHA_IMAGE_REPOSITORY:-devlikeapro/waha}@${EVO_WAHA_IMAGE_DIGEST:?set EVO_WAHA_IMAGE_DIGEST to an immutable sha256 digest}"
@@ -82,6 +115,7 @@ services:
 
 volumes:
   evo_crm_output:
+  evo_crm_clamav_signatures:
   evo_crm_waha_sessions:
 
 networks:

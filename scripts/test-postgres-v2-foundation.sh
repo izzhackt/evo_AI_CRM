@@ -15,6 +15,7 @@ fail() {
 trap report_error ERR
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly clamav_image="clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9"
 node_bin="${EVO_NODE_BIN:-}"
 if [[ -z "$node_bin" ]]; then
   node_bin="$(command -v node || true)"
@@ -62,6 +63,7 @@ waha_log="$tmp_dir/waha.log"
 waha_acceptance_result="$tmp_dir/waha-acceptance.json"
 p4_acceptance_result="$tmp_dir/p4-admissions-storage-acceptance.json"
 p4_verification_log="$tmp_dir/p4-admissions-storage-verification.log"
+clamav_log="$tmp_dir/clamav.log"
 inbound_test_phone="+15550005461"
 inbound_test_conversation_id="15550005461@c.us"
 inbound_test_message_id="false_15550005461@c.us_PLATFORM_BROWSER_566"
@@ -84,6 +86,11 @@ runtime_inventory_database_evidence=""
 next_dev_cache_reset=0
 app_pid=""
 waha_pid=""
+clamav_container_name=""
+clamav_signature_volume=""
+clamd_host="127.0.0.1"
+clamd_port=""
+clamd_timeout_ms="10000"
 
 free_port() {
   "$node_bin" --input-type=module <<'EOF'
@@ -96,6 +103,94 @@ server.listen(0, "127.0.0.1", () => {
   server.close();
 });
 EOF
+}
+
+start_clamav_scanner() {
+  [[ -z "$clamav_container_name" && -z "$clamav_signature_volume" ]] \
+    || fail "The isolated ClamAV scanner is already provisioned"
+
+  local scanner_suffix="${RANDOM}-$$-$(openssl rand -hex 4)"
+  clamav_container_name="evo-foundation-clamav-${scanner_suffix}"
+  clamav_signature_volume="evo_foundation_clamav_signatures_${scanner_suffix//-/_}"
+  clamd_port="${EVO_DATABASE_CLAMD_PORT:-$(free_port)}"
+  [[ "$clamd_port" =~ ^[0-9]+$ && "$clamd_port" -ge 1024 && "$clamd_port" -le 65535 ]] \
+    || fail "The isolated ClamAV port must be an unprivileged TCP port"
+
+  : >"$clamav_log"
+  chmod 600 "$clamav_log"
+
+  if ! docker image inspect "$clamav_image" >/dev/null 2>&1; then
+    docker pull --platform linux/amd64 "$clamav_image" >>"$clamav_log" 2>&1 \
+      || fail "The pinned ClamAV image could not be pulled on OrbStack"
+  fi
+  [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$clamav_image" 2>/dev/null || true)" == "linux/amd64" ]] \
+    || fail "The pinned ClamAV image is not linux/amd64"
+
+  docker volume create \
+    --label com.evo.runtime.role=private-malware-signatures \
+    "$clamav_signature_volume" >>"$clamav_log" 2>&1 \
+    || fail "The isolated ClamAV signature volume could not be created"
+
+  docker run --detach \
+    --platform linux/amd64 \
+    --name "$clamav_container_name" \
+    --init \
+    --cpus 2.00 \
+    --memory 4096m \
+    --pids-limit 256 \
+    --log-driver json-file \
+    --log-opt max-size=10m \
+    --log-opt max-file=5 \
+    --label com.evo.image.provenance=official-third-party-digest \
+    --label com.evo.runtime.role=private-malware-scanner \
+    --publish "127.0.0.1:${clamd_port}:3310" \
+    --volume "${clamav_signature_volume}:/var/lib/clamav" \
+    --health-cmd /usr/local/bin/clamdcheck.sh \
+    --health-interval 5s \
+    --health-timeout 10s \
+    --health-retries 60 \
+    --health-start-period 180s \
+    "$clamav_image" >>"$clamav_log" 2>&1 \
+    || fail "The isolated pinned ClamAV scanner could not be started"
+
+  local deadline=$((SECONDS + 600))
+  local container_state=""
+  local health_state=""
+  while (( SECONDS < deadline )); do
+    container_state="$(docker inspect --format '{{.State.Status}}' "$clamav_container_name" 2>/dev/null || true)"
+    health_state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$clamav_container_name" 2>/dev/null || true)"
+    [[ "$container_state" == "running" ]] \
+      || fail "The isolated ClamAV scanner exited before becoming healthy"
+    if [[ "$health_state" == "healthy" ]]; then
+      break
+    fi
+    sleep 2
+  done
+  [[ "$health_state" == "healthy" ]] \
+    || fail "The isolated ClamAV scanner did not become healthy"
+  [[ "$(docker port "$clamav_container_name" 3310/tcp 2>/dev/null || true)" == "127.0.0.1:${clamd_port}" ]] \
+    || fail "The isolated ClamAV scanner is not bound only to the selected loopback port"
+}
+
+stop_clamav_scanner() {
+  if [[ -n "$clamav_container_name" ]]; then
+    [[ "$clamav_container_name" =~ ^evo-foundation-clamav-[0-9]+-[0-9]+-[0-9a-f]{8}$ ]] \
+      || fail "Refusing to remove an unexpected ClamAV container name"
+    docker rm --force -- "$clamav_container_name" >/dev/null \
+      || fail "The isolated ClamAV scanner container could not be removed"
+    docker container inspect "$clamav_container_name" >/dev/null 2>&1 \
+      && fail "The isolated ClamAV scanner container remained after cleanup"
+    clamav_container_name=""
+  fi
+  if [[ -n "$clamav_signature_volume" ]]; then
+    [[ "$clamav_signature_volume" =~ ^evo_foundation_clamav_signatures_[0-9]+_[0-9]+_[0-9a-f]{8}$ ]] \
+      || fail "Refusing to remove an unexpected ClamAV signature volume"
+    docker volume rm -- "$clamav_signature_volume" >/dev/null \
+      || fail "The isolated ClamAV signature volume could not be removed"
+    docker volume inspect "$clamav_signature_volume" >/dev/null 2>&1 \
+      && fail "The isolated ClamAV signature volume remained after cleanup"
+    clamav_signature_volume=""
+  fi
 }
 
 read_supabase_env_value() {
@@ -138,6 +233,14 @@ cleanup() {
   if [[ -n "$waha_pid" ]]; then
     kill "$waha_pid" >/dev/null 2>&1 || true
     wait "$waha_pid" >/dev/null 2>&1 || true
+  fi
+  if [[ "$clamav_container_name" =~ ^evo-foundation-clamav-[0-9]+-[0-9]+-[0-9a-f]{8}$ ]]; then
+    docker rm --force -- "$clamav_container_name" >/dev/null 2>&1 || true
+    clamav_container_name=""
+  fi
+  if [[ "$clamav_signature_volume" =~ ^evo_foundation_clamav_signatures_[0-9]+_[0-9]+_[0-9a-f]{8}$ ]]; then
+    docker volume rm -- "$clamav_signature_volume" >/dev/null 2>&1 || true
+    clamav_signature_volume=""
   fi
   if [[ -d "$tmp_dir" && "$tmp_dir" == "${TMPDIR:-/tmp}/evo-database-foundation."* ]]; then
     rm -R -- "$tmp_dir"
@@ -582,6 +685,9 @@ start_app() {
       EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID="$platform_intake_sales_membership_id" \
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
       EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
+      EVO_CLAMD_HOST="$clamd_host" \
+      EVO_CLAMD_PORT="$clamd_port" \
+      EVO_CLAMD_TIMEOUT_MS="$clamd_timeout_ms" \
       NODE_OPTIONS="--require=$repo_root/tests/helpers/platform-waha-local-fetch.cjs" \
       EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
       EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
@@ -615,6 +721,9 @@ start_app() {
       -u SUPABASE_SERVICE_ROLE_KEY \
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
       EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
+      EVO_CLAMD_HOST="$clamd_host" \
+      EVO_CLAMD_PORT="$clamd_port" \
+      EVO_CLAMD_TIMEOUT_MS="$clamd_timeout_ms" \
       NODE_OPTIONS="--require=$repo_root/tests/helpers/platform-waha-local-fetch.cjs" \
       EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
       EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
@@ -882,7 +991,8 @@ try {
       original_filename,
       integrity_status::TEXT AS integrity_status,
       malware_status::TEXT AS malware_status,
-      sha256_hex
+      sha256_hex,
+      malware_scan_attestation_id::TEXT AS malware_scan_attestation_id
     FROM platform.document_versions
     WHERE organization_id = ${proof.organizationId}
       AND student_case_id = ${proof.studentCaseId}
@@ -901,11 +1011,66 @@ try {
       (version) =>
         version.integrity_status !== "verified" ||
         version.malware_status !== "clean" ||
-        !/^[0-9a-f]{64}$/.test(version.sha256_hex),
+        !/^[0-9a-f]{64}$/.test(version.sha256_hex) ||
+        !UUID_PATTERN.test(version.malware_scan_attestation_id),
     ) ||
     versions[0].sha256_hex === versions[1].sha256_hex
   ) {
     fail("DOCUMENT_VERSIONS_NOT_IMMUTABLE");
+  }
+
+  const documentScanProofs = await sql`
+    SELECT id::TEXT AS id,
+      document_version_id::TEXT AS document_version_id,
+      scanned_sha256_hex,
+      scanner_engine,
+      scanner_engine_version,
+      scanner_signature_version,
+      scanner_protocol
+    FROM platform_private.document_malware_scan_attestations
+    WHERE organization_id = ${proof.organizationId}
+      AND student_case_id = ${proof.studentCaseId}
+      AND document_slot_id = ${proof.documentSlotId}
+    ORDER BY document_version_id
+  `;
+  const expectedDocumentVersions = new Map(
+    versions.map((version) => [version.id, version]),
+  );
+  if (
+    documentScanProofs.length !== 2 ||
+    documentScanProofs.some((scanProof) => {
+      const version = expectedDocumentVersions.get(scanProof.document_version_id);
+      return !version ||
+        scanProof.id !== version.malware_scan_attestation_id ||
+        scanProof.scanned_sha256_hex !== version.sha256_hex ||
+        scanProof.scanner_engine !== "ClamAV" ||
+        !/^[0-9][0-9A-Za-z.+~-]{0,63}$/.test(scanProof.scanner_engine_version) ||
+        !/^[1-9][0-9]{0,18}$/.test(scanProof.scanner_signature_version) ||
+        scanProof.scanner_protocol !== "clamd-zinstream-v1";
+    })
+  ) {
+    fail("DOCUMENT_SCANNER_PROOF_MISSING");
+  }
+
+  const companyScanProof = one(await sql`
+    SELECT count(*)::INTEGER AS proof_count,
+      count(DISTINCT company_file_version_id)::INTEGER AS version_count,
+      bool_and(scanner_engine = 'ClamAV') AS engine_valid,
+      bool_and(scanner_engine_version ~ '^[0-9][0-9A-Za-z.+~-]{0,63}$') AS engine_version_valid,
+      bool_and(scanner_signature_version ~ '^[1-9][0-9]{0,18}$') AS signature_version_valid,
+      bool_and(scanner_protocol = 'clamd-zinstream-v1') AS protocol_valid
+    FROM platform_private.company_file_malware_scan_attestations
+    WHERE organization_id = ${proof.organizationId}
+  `, "COMPANY_SCANNER_PROOF_MISSING");
+  if (
+    companyScanProof.proof_count !== 2 ||
+    companyScanProof.version_count !== 2 ||
+    companyScanProof.engine_valid !== true ||
+    companyScanProof.engine_version_valid !== true ||
+    companyScanProof.signature_version_valid !== true ||
+    companyScanProof.protocol_valid !== true
+  ) {
+    fail("COMPANY_SCANNER_PROOF_INVALID");
   }
 
   const reviews = await sql`
@@ -1125,6 +1290,7 @@ echo "Validating the active Supabase-only foundation without the retired Drizzle
     tests/platform-amocrm-command-rpc.test.mjs
 echo "Platform provider workflow and Supabase-authoritative amoCRM contracts passed without the retired Drizzle amoCRM runtime."
 
+start_clamav_scanner
 start_isolated_waha_service
 start_app configured configured local-service
 supabase_staff_auth_browser_assert configured
@@ -1151,6 +1317,7 @@ supabase_staff_auth_browser_assert unavailable
 assert_no_secret_or_payload_logs
 
 stop_app
+stop_clamav_scanner
 if [[ "${EVO_P6D_CANDIDATE_PROOF:-0}" == "1" ]]; then
   echo "Building and proving the exact-head linux/amd64 Supabase release candidate on OrbStack."
   EVO_P6D_SUPABASE_API_URL="$supabase_api_url" \

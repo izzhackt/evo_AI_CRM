@@ -1,11 +1,56 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const source = readFileSync(
   new URL("../scripts/test-v3-release-rollback-orbstack.mjs", import.meta.url),
   "utf8",
 );
+
+test("preflight failure removes its owned temp contour and preserves the original error", () => {
+  const testRoot = mkdtempSync(join(tmpdir(), "evo-v3-rollback-preflight-test-"));
+  const binaryRoot = join(testRoot, "bin");
+  const harnessTemp = join(testRoot, "tmp");
+  mkdirSync(binaryRoot, { mode: 0o700 });
+  mkdirSync(harnessTemp, { mode: 0o700 });
+  const fakeOrb = join(binaryRoot, "orb");
+  writeFileSync(fakeOrb, "#!/bin/sh\nprintf 'Stopped\\n'\n", { mode: 0o700 });
+  chmodSync(fakeOrb, 0o700);
+  const environment = {
+    ...process.env,
+    EVO_RUN_V3_RELEASE_ROLLBACK_ORBSTACK: "1",
+    PATH: `${binaryRoot}:${process.env.PATH ?? ""}`,
+    TMPDIR: harnessTemp,
+  };
+  delete environment.DOCKER_HOST;
+  delete environment.DOCKER_CONTEXT;
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL("../scripts/test-v3-release-rollback-orbstack.mjs", import.meta.url))],
+      { encoding: "utf8", env: environment, timeout: 10_000 },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /OrbStack must report exactly Running/u);
+    assert.doesNotMatch(result.stderr, /ENOENT.*\.evo-v3-release-rollback-harness/u);
+    assert.deepEqual(readdirSync(harnessTemp), []);
+  } finally {
+    rmSync(testRoot, { recursive: true, force: true });
+  }
+});
 
 test("rollback harness is explicit opt-in and fails closed outside OrbStack", () => {
   assert.match(source, /EVO_RUN_V3_RELEASE_ROLLBACK_ORBSTACK/u);
@@ -34,8 +79,10 @@ test("rollback harness owns one unique disposable contour and targeted cleanup",
   assert.match(source, /docker\(\["rm", "--force", \.\.\.remainingContainers\]\)/u);
   assert.match(source, /docker\(\["network", "rm", networkName\]\)/u);
   assert.match(source, /disposable network must not survive cleanup/u);
+  assert.match(source, /docker\(\["volume", "rm", signatureVolumeName\]\)/u);
+  assert.match(source, /disposable scanner signatures must not survive cleanup/u);
   assert.match(source, /disposable image \$\{reference\} must not survive cleanup/u);
-  assert.match(source, /baselineTag, candidateTag, rollbackTag/u);
+  assert.match(source, /baselineTag,[\s\S]*candidateTag,[\s\S]*laterCandidateTag,[\s\S]*rollbackTag,[\s\S]*laterRollbackTag/u);
   assert.match(source, /readFileSync\(markerPath/u);
   assert.match(source, /basename\(harnessRoot\)\.startsWith\(HARNESS_PREFIX\)/u);
   assert.match(source, /dirname\(harnessRoot\), temporaryRoot/u);
@@ -50,8 +97,22 @@ test("rollback harness exercises real images, Compose, and the real controller",
   assert.match(source, /healthStatus: 200/u);
   assert.match(source, /healthStatus: 503/u);
   assert.match(source, /compose\(\["up", "--detach", "--wait"/u);
-  assert.match(source, /compose\(\["rm", "--stop", "--force", "app"\]/u);
+  assert.doesNotMatch(source, /compose\(\["rm", "--stop", "--force", "app"\]/u);
   assert.match(source, /runController\("seal-rollback-seed"/u);
+  assert.ok(
+    source.indexOf('runController("seal-rollback-seed"') <
+      source.indexOf('label: "remove probe scanner before release rollback baseline"'),
+    "the rollback seed must be sealed from the healthy active app before scanner probes",
+  );
+  assert.match(source, /EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST/u);
+  assert.match(source, /savedImageConfigDigest\(candidateArchive, candidateTag\)/u);
+  assert.match(source, /saved image config path must match its bytes/u);
+  assert.match(source, /EVO_RELEASE_WORKFLOW_RUN_ID/u);
+  assert.match(source, /EVO_RELEASE_UPSTREAM_CI_RUN_ID/u);
+  assert.match(source, /EVO_RELEASE_ARTIFACT_DIGEST/u);
+  assert.match(source, /EVO_RELEASE_ROLLBACK_EXPECTED_RELEASE_ID/u);
+  assert.match(source, /org\.opencontainers\.image\.source/u);
+  assert.match(source, /EVO_IMAGE_SOURCE=https:\/\/github\.com\/\$\{releaseRepository\}/u);
   assert.match(source, /docker\(\["image", "save", "--output", candidateArchive/u);
   assert.match(source, /docker\(\["image", "rm", "--force", candidateTag\]/u);
   assert.match(source, /candidate image must be absent before the controller loads the archive/u);
@@ -60,7 +121,50 @@ test("rollback harness exercises real images, Compose, and the real controller",
   assert.match(source, /status, "rolled_back"/u);
   assert.match(source, /code, "deployment_failed"/u);
   assert.match(source, /runController\(\s*"rollback"/u);
-  assert.match(source, /rollback_target_not_active/u);
+  assert.match(source, /idempotentRollback/u);
+});
+
+test("rollback harness keeps the mandatory Supabase key probe closed and test-local", () => {
+  assert.match(source, /prepareClosedSupabaseKeyProbe\(\)/u);
+  assert.match(source, /closed-supabase-key-probe\.mjs/u);
+  assert.match(source, /unexpected_key_probe_url/u);
+  assert.match(source, /unexpected_key_probe_contract/u);
+  assert.match(source, /supabaseKeyProbe: "closed_test_local_contract_not_acceptance"/u);
+  assert.doesNotMatch(source, /fetch\(`https:\/\/\$\{supabaseProjectRef\}/u);
+});
+
+test("one real proof covers ClamAV outcomes and candidate-scanner rollback", () => {
+  assert.match(
+    source,
+    /clamav\/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9/u,
+  );
+  assert.match(source, /EVO_CLAMD_HOST: evo-crm-clamav/u);
+  assert.match(source, /mem_limit: 4096m/u);
+  assert.match(source, /pids_limit: 256/u);
+  assert.match(source, /clamav_signatures:\/var\/lib\/clamav/u);
+  assert.match(source, /HostConfig\.LogConfig/u);
+  assert.match(source, /signatureVolumeName/u);
+  assert.match(source, /scanBytesWithClamd/u);
+  assert.match(source, /clamd-malware-scanner\.ts/u);
+  assert.match(source, /EICAR-STANDARD-ANTIVIRUS-TEST-FILE/u);
+  assert.match(source, /scanWithProductClient/u);
+  assert.match(source, /"infected"/u);
+  assert.match(source, /"unavailable"/u);
+  assert.match(source, /docker\(\["stop", "--time", "30", scannerContainer\]/u);
+  assert.match(source, /docker\(\["start", scannerContainer\]/u);
+  assert.match(source, /compose\(\["rm", "--stop", "--force", "clamav"\]/u);
+  assert.match(source, /seed\.schema, "evo-release-rollback-seed\/v3"/u);
+  assert.match(source, /state\.schema, "evo-fast-release-state\/v3"/u);
+  assert.match(source, /state\.previous\.scannerPresent, false/u);
+  assert.match(source, /state\.previous\.scannerImage, ""/u);
+  assert.match(source, /result,[\s\S]*schema: "evo-fast-release\/v2"/u);
+  assert.match(source, /serviceContainerIds\("clamav"\)/u);
+  assert.match(source, /scannerRemovedByRollback: true/u);
+  assert.match(source, /laterState\.previous\.scannerPresent, true/u);
+  assert.match(source, /laterState\.previous\.scannerImage, CLAMAV_IMAGE/u);
+  assert.match(source, /scannerRestoredByLaterRollback: true/u);
+  assert.match(source, /pending-current\.json/u);
+  assert.match(source, /current-v3-accepted\.json/u);
 });
 
 test("macOS rollback proof uses a test-local real fcntl lock without weakening production", () => {
@@ -77,25 +181,30 @@ test("macOS rollback proof uses a test-local real fcntl lock without weakening p
 });
 
 test("rollback proof verifies exact restored identity and controller evidence", () => {
-  assert.match(source, /state\.previousImage, baselineImageId/u);
-  assert.match(source, /state\.previousRevision, baselineRevision/u);
-  assert.match(source, /state\.previousVersion, baselineVersion/u);
-  assert.match(source, /state\.targetRevision, candidateRevision/u);
+  assert.match(source, /state\.previous\.imageId, baselineImageId/u);
+  assert.match(source, /state\.previous\.revision, baselineRevision/u);
+  assert.match(source, /state\.previous\.version, baselineVersion/u);
+  assert.match(source, /state\.revision, candidateRevision/u);
+  assert.match(source, /state\.imageId, candidateImageId/u);
+  assert.match(source, /state\.version, candidateVersion/u);
   assert.match(source, /result\.rolledBack/u);
   assert.match(source, /inspectContainer\(restoredApp, "\{\{\.Image\}\}"\)/u);
   assert.match(source, /org\.opencontainers\.image\.revision/u);
   assert.match(source, /org\.opencontainers\.image\.version/u);
   assert.match(source, /assertHealthyHttp\(baselineRevision, baselineVersion\)/u);
   assert.match(source, /serviceContainer\("waha"\), wahaContainer/u);
+  assert.match(source, /rollback must remove the candidate scanner/u);
   assert.match(source, /candidate_failed_and_exact_baseline_rolled_back/u);
-  assert.match(source, /staleRollbackRefused: true/u);
+  assert.match(source, /rollbackRetryIdempotent: true/u);
+  assert.match(source, /laterState\.previous\.scannerPresent, true/u);
+  assert.match(source, /waitForScannerHealth\(\)/u);
 });
 
 test("rollback harness cannot call real Supabase or provider mutation paths", () => {
-  assert.match(source, /https:\/\/aaaaaaaaaaaaaaaaaaaa\.supabase\.co/u);
+  assert.match(source, /const supabaseProjectRef = "aaaaaaaaaaaaaaaaaaaa"/u);
   assert.match(source, /EVO_PLATFORM_WAHA_INGRESS_ENABLED=0/u);
   assert.match(source, /EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0/u);
-  assert.match(source, /EVO_SUPABASE_PROJECT_REF: "aaaaaaaaaaaaaaaaaaaa"/u);
+  assert.match(source, /EVO_SUPABASE_PROJECT_REF: supabaseProjectRef/u);
   assert.match(source, /providersCalled: false/u);
   assert.doesNotMatch(source, /iosckaqtovbbnssqcpde|crm\.evoadmissions\.com|72\.62\.119\.112/u);
   assert.doesNotMatch(source, /SUPABASE_ACCESS_TOKEN|EVO_P6D_SUPABASE_SECRET_KEY/u);

@@ -115,6 +115,8 @@ test("P6D proof accepts only process-provided real local Supabase authority", as
   assert.match(harness, /\.listen\(443,'127\.0\.0\.1'\)/u);
   assert.doesNotMatch(harness, /NODE_ENV: "development"/u);
   assert.match(harness, /evo_p6d_\$\{suffix\}_waha_sessions/u);
+  assert.match(harness, /evo_p6d_\$\{suffix\}_clamav_signatures/u);
+  assert.match(harness, /\["app", "clamav", "waha"\]/u);
   assert.match(harness, /createNetwork\(privateNetwork, \{ internal: true \}\)/u);
   assert.match(harness, /createNetwork\(webNetwork, \{ internal: false \}\)/u);
   assert.match(harness, /Auth|Postgres|Storage/u);

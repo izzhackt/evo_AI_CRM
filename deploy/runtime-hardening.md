@@ -88,9 +88,17 @@ component keeps the arm disabled.
 
 ## Runtime and readiness
 
-- `app` and private `waha` are the only Compose services.
+- `app`, private `clamav` and private `waha` are the only Compose services.
 - `app` runs read-only with bounded CPU, memory, PIDs and JSON logs; only its
   generated-output volume and declared tmpfs paths are writable.
+- `clamav` is the official `linux/amd64` image pinned to
+  `clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9`.
+  It exposes `3310` only to `evo_crm_private`, publishes no host port, persists
+  only signatures in `evo_crm_clamav_signatures`, and is bounded to 2 CPUs,
+  4096 MiB, 256 PIDs and the shared rotated JSON-log policy. Its health check
+  allows a 180-second signature/start window and then requires `clamdcheck.sh`.
+- `app` reaches only the private alias `evo-crm-clamav:3310`, uses a bounded
+  10-second scan timeout, and cannot start until the scanner is healthy.
 - `waha` has bounded CPU, memory, PIDs and logs, stores session material only in
   `evo_crm_waha_sessions`, and joins only `evo_crm_private`.
 - Isolated candidate and recovery proofs bind only to loopback, use distinct
@@ -131,11 +139,13 @@ acceptance gates.
 
 At an exact candidate head, verify:
 
-1. Compose resolves exactly `app` and `waha` and no host port exists for WAHA;
+1. Compose resolves exactly `app`, `clamav` and `waha`, and neither private
+   dependency publishes a host port;
 2. the app image labels match the exact commit and immutable release version;
-3. WAHA resolves to its reviewed immutable digest;
-4. both healthchecks pass within the declared timeout;
-5. `app` is on private and web networks while `waha` is private-only;
+3. ClamAV and WAHA resolve to their reviewed immutable digests;
+4. all three healthchecks pass within the declared timeout;
+5. `app` is on private and web networks while `clamav` and `waha` are
+   private-only;
 6. read-only filesystems, resource ceilings, bounded logs, tmpfs paths and named
    volumes match the checked-in Compose contract;
 7. stopping or misconfiguring the primary Supabase path produces a clear error,
@@ -147,6 +157,13 @@ At an exact candidate head, verify:
    browser proof, while every rollback wrapper rejects a changed current image
    or a newer/superseding release.
 
+Before any host mutation the controller requires at least 4,194,304 KiB of
+available memory by default (and rejects any configured threshold below
+4,194,304 KiB), in addition to the disk-capacity gate. The read-only Hermes
+snapshot on 2026-09-05 observed 16,376,008 KiB total and 5,187,392 KiB
+available; this is evidence of feasibility, not reserved capacity, so #552 must
+recheck immediately before release.
+
 For a production release, the secretless build and fresh deploy jobs separately
 enforce current-main, CI, arm, actor and immutable-artifact identity. The deploy
 job repeats those checks plus the ledger immediately before first SSH. The
@@ -156,10 +173,11 @@ current-accepted record. A pending candidate blocks another release. Missing or
 unrecognized source/revision/version labels, image/artifact identity,
 accepted/pending state or retained-file hashes stop before replacement.
 
-Use `npm run test:p6d` for the focused contract/inventory checks and one
-`npm run test:p6d:orbstack` execution for the final real disposable Supabase +
-app/private-WAHA runtime proof. Never mount the production WAHA session volume
-or call a live provider from that test.
+Use `npm run test:p6d` for the focused contract/inventory checks,
+`npm run test:p6d:orbstack` once for the final real disposable Supabase +
+app/private-WAHA proof, and `npm run test:v3:release:orbstack` once for the
+private scanner plus first/later release rollback proof. Never mount the
+production WAHA session volume or call a live provider from either test.
 
 ## Operational response
 

@@ -14,6 +14,7 @@ import test from "node:test";
 import {
   AppEnvironmentContractError,
   validateAppEnvironmentContract,
+  verifySupabaseProjectCredentials,
 } from "../scripts/evo-app-env-contract.mjs";
 
 const TEST_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -76,6 +77,74 @@ test("accepts the Supabase successor runtime while allowing disabled optional in
       expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
     }),
     { ok: true, code: "valid" },
+  );
+});
+
+test("binds both runtime keys to the exact Supabase project without reading response bodies", async () => {
+  const requests = [];
+  const result = await verifySupabaseProjectCredentials({
+    actualText: valid(),
+    expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+    fetchImpl: async (url, init) => {
+      requests.push({ url: String(url), init });
+      return new Response("private-response-must-not-be-read", { status: 200 });
+    },
+  });
+
+  assert.deepEqual(result, { ok: true, code: "verified" });
+  assert.deepEqual(
+    requests.map(({ url }) => url),
+    [
+      `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co/auth/v1/settings`,
+      `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co/auth/v1/admin/users?page=1&per_page=1`,
+    ],
+  );
+  assert.equal(requests[0].init.headers.apikey, "sb_publishable_runtime_safe");
+  assert.equal("Authorization" in requests[0].init.headers, false);
+  assert.equal(requests[1].init.headers.apikey, TEST_SECRET_KEY);
+  assert.equal("Authorization" in requests[1].init.headers, false);
+  assert.equal(requests.every(({ init }) => init.redirect === "error"), true);
+  assert.equal(requests.every(({ init }) => init.method === "GET"), true);
+});
+
+test("fails closed when either key is rejected by the exact Supabase project", async () => {
+  await assert.rejects(
+    verifySupabaseProjectCredentials({
+      actualText: valid(),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      fetchImpl: async (url) => new Response("", {
+        status: String(url).endsWith("/auth/v1/settings") ? 401 : 200,
+      }),
+    }),
+    (error) => error instanceof AppEnvironmentContractError &&
+      error.code === "public_supabase_key_project_mismatch",
+  );
+
+  await assert.rejects(
+    verifySupabaseProjectCredentials({
+      actualText: valid(),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      fetchImpl: async (url) => new Response("", {
+        status: String(url).includes("/admin/users") ? 403 : 200,
+      }),
+    }),
+    (error) => error instanceof AppEnvironmentContractError &&
+      error.code === "secret_supabase_key_project_mismatch",
+  );
+});
+
+test("fails closed without leaking keys when Supabase verification is unavailable", async () => {
+  await assert.rejects(
+    verifySupabaseProjectCredentials({
+      actualText: valid(),
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      fetchImpl: async () => {
+        throw new Error("network down");
+      },
+    }),
+    (error) => error instanceof AppEnvironmentContractError &&
+      error.code === "supabase_key_verification_unavailable" &&
+      !error.message.includes(TEST_SECRET_KEY),
   );
 });
 

@@ -17536,3 +17536,35 @@ Decision:
   required real database/Storage backup restore, Auth/RLS/Storage/V3 browser
   proof or malware-scanner acceptance and authorizes no production or provider
   effect.
+
+## 2026-09-05 - Bind runtime keys and correct the executable rollback instructions
+
+Block-ID: `EVO-V3-H-SUPABASE-KEY-BINDING-ROLLBACK-DOCS-2026-09-05`
+
+Change type: post-merge release-integrity correction.
+Affected plan section: Order 7 / Issue #551.
+
+The independent spec-axis review of the merged controller slice found that its
+offline contract bound the Supabase URL to the audited project but could still
+accept well-formed publishable and server keys from another project. It also
+found that the copied seed/rollback commands omitted the newly required project
+reference and that the one-time preparation order tried to use the controller
+before installing it.
+
+Decision:
+
+- before image load or runtime mutation, use the exact candidate-sealed
+  Supabase origin for two bounded read-only credential probes. The publishable
+  key must be accepted by Auth settings, and the backend key must be accepted
+  by the Auth Admin read endpoint. Discard response bodies and fail closed on a
+  rejected key, redirect, timeout or unavailable verification;
+- keep manual rollback available during a Supabase outage: it still validates
+  the recorded application-environment hash but does not perform the online key
+  probes;
+- include `EVO_SUPABASE_PROJECT_REF` in every complete copied seed/rollback
+  command and install the exact reviewed controller before invoking the
+  one-time seed against the unchanged previous Compose and environment.
+
+The focused tests use injected local responses only. This correction performs
+no managed-Supabase, VPS, production, provider, webhook or customer-data
+mutation.

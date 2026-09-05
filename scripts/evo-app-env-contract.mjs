@@ -15,6 +15,7 @@ const PLACEHOLDER = /(?:replace-with-|change-me|changeme|placeholder)/iu;
 const SUPABASE_PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]+$/u;
 const SUPABASE_SECRET_KEY = /^sb_secret_[A-Za-z0-9_-]{16,}$/u;
 const SUPABASE_PROJECT_REF = /^[a-z0-9]{20}$/u;
+const SUPABASE_KEY_VERIFICATION_TIMEOUT_MS = 10_000;
 const REQUIRED_RUNTIME_VALUES = Object.freeze([
   "EVO_CRM_DOMAIN",
   "EVO_CADDY_NETWORK",
@@ -136,6 +137,79 @@ function validatePublicSupabase(entries, expectedSupabaseProjectRef) {
   }
 }
 
+async function closeResponseBody(response) {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // The status code is the only response material used by this verifier.
+  }
+}
+
+async function verifySupabaseKey({
+  endpoint,
+  key,
+  legacyBearer,
+  failureCode,
+  fetchImpl,
+}) {
+  let response;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: "GET",
+      headers: {
+        apikey: key,
+        ...(legacyBearer ? { Authorization: `Bearer ${key}` } : {}),
+      },
+      redirect: "error",
+      signal: AbortSignal.timeout(SUPABASE_KEY_VERIFICATION_TIMEOUT_MS),
+    });
+  } catch {
+    fail("supabase_key_verification_unavailable");
+  }
+  const accepted = response.status === 200;
+  await closeResponseBody(response);
+  if (!accepted) fail(failureCode);
+}
+
+export async function verifySupabaseProjectCredentials({
+  actualText,
+  expectedSupabaseProjectRef,
+  fetchImpl = globalThis.fetch,
+}) {
+  if (typeof fetchImpl !== "function") fail("supabase_key_verification_unavailable");
+  if (!SUPABASE_PROJECT_REF.test(expectedSupabaseProjectRef)) {
+    fail("expected_supabase_project_invalid");
+  }
+  const entries = parseEnvironmentText(actualText);
+  const publishableKey = entries.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+  const secretKey = entries.get("EVO_PLATFORM_SUPABASE_SECRET_KEY");
+  if (
+    typeof publishableKey !== "string" ||
+    !isSupabasePublishableKey(publishableKey) ||
+    typeof secretKey !== "string" ||
+    !isSupabaseSecretKey(secretKey)
+  ) {
+    fail("required_env_value_invalid");
+  }
+
+  const origin = `https://${expectedSupabaseProjectRef}.supabase.co`;
+  await verifySupabaseKey({
+    endpoint: `${origin}/auth/v1/settings`,
+    key: publishableKey,
+    legacyBearer: false,
+    failureCode: "public_supabase_key_project_mismatch",
+    fetchImpl,
+  });
+  await verifySupabaseKey({
+    endpoint: `${origin}/auth/v1/admin/users?page=1&per_page=1`,
+    key: secretKey,
+    legacyBearer: jwtRole(secretKey) === "service_role",
+    failureCode: "secret_supabase_key_project_mismatch",
+    fetchImpl,
+  });
+  return Object.freeze({ ok: true, code: "verified" });
+}
+
 function validateFeatureFlags(entries) {
   for (const name of [
     "EVO_PLATFORM_WAHA_INGRESS_ENABLED",
@@ -237,28 +311,42 @@ function readClosedFile(path, { privateFile }) {
 function parseCli(argv) {
   if (!Array.isArray(argv)) fail("invalid_arguments");
   if (
-    argv.length === 6 &&
+    (argv.length === 6 || argv.length === 7) &&
     argv[0] === "--example" &&
     argv[2] === "--env" &&
-    argv[4] === "--supabase-project-ref"
+    argv[4] === "--supabase-project-ref" &&
+    (argv.length === 6 || argv[6] === "--verify-supabase-keys")
   ) {
     return Object.freeze({
       examplePath: argv[1],
       envPath: argv[3],
       expectedSupabaseProjectRef: argv[5],
+      verifySupabaseKeys: argv.length === 7,
     });
   }
   fail("invalid_arguments");
 }
 
-export function runAppEnvironmentContractCli(argv) {
-  const { examplePath, envPath, expectedSupabaseProjectRef } = parseCli(argv);
+export async function runAppEnvironmentContractCli(argv) {
+  const {
+    examplePath,
+    envPath,
+    expectedSupabaseProjectRef,
+    verifySupabaseKeys,
+  } = parseCli(argv);
   const files = {
     exampleText: readClosedFile(examplePath, { privateFile: false }),
     actualText: readClosedFile(envPath, { privateFile: true }),
     expectedSupabaseProjectRef,
   };
-  return validateAppEnvironmentContract(files);
+  const result = validateAppEnvironmentContract(files);
+  if (verifySupabaseKeys) {
+    await verifySupabaseProjectCredentials({
+      actualText: files.actualText,
+      expectedSupabaseProjectRef,
+    });
+  }
+  return result;
 }
 
 const isMain =
@@ -267,7 +355,7 @@ const isMain =
 
 if (isMain) {
   try {
-    const result = runAppEnvironmentContractCli(process.argv.slice(2));
+    const result = await runAppEnvironmentContractCli(process.argv.slice(2));
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch {
     process.stderr.write('{"ok":false,"code":"app_env_contract_invalid"}\n');

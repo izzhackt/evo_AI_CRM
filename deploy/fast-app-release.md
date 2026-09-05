@@ -83,7 +83,11 @@ The workflow seals that project reference into the candidate metadata, uses it
 for the read-only migration-ledger gate, passes the same value to the remote
 controller, and requires `.env.production` to contain exactly
 `NEXT_PUBLIC_SUPABASE_URL=https://<EVO_SUPABASE_PROJECT_REF>.supabase.co`.
-A different project or an arbitrary HTTPS origin stops before the app changes.
+Before loading the image, the controller also makes bounded read-only requests
+to that exact origin: the publishable key must reach Auth settings and the
+server secret must be accepted by the Auth Admin read endpoint. Response bodies
+are discarded. A wrong key, different project, arbitrary HTTPS origin,
+redirect, timeout or unavailable verification stops before the app changes.
 
 The deploy key, variables, protected application environment and initial seed
 are #552 prerequisites. The one-time seed command also uses the exact reviewed
@@ -110,6 +114,7 @@ export EVO_RELEASE_COMPOSE_FILE='/opt/evo-crm/docker-compose.prod.yml'
 export EVO_RELEASE_ACTIVE_COMPOSE_FILE='/opt/evo-crm/docker-compose.prod.yml'
 export EVO_RELEASE_APP_ENV_FILE='/opt/evo-crm/.env.production'
 export EVO_RELEASE_EXTERNAL_HEALTH_URL='https://crm.evoadmissions.com/api/health'
+export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'
 export EVO_WAHA_IMAGE_DIGEST='sha256:<reviewed-64-hex-digest>'
 export EVO_RELEASE_SEED_IMAGE='sha256:<reviewed-retained-image-id>'
 /opt/evo-crm/scripts/evo-fast-release.sh seal-rollback-seed
@@ -144,6 +149,16 @@ Automatic rollback uses that state in the same release attempt. For a later
 operator rollback, set the same non-secret controller variables, then run:
 
 ```bash
+export EVO_RELEASE_ROOT='/opt/evo-crm'
+export EVO_RELEASE_PROJECT_NAME='evo-crm'
+export EVO_RELEASE_TRANSFER_ROOT='/opt/evo-crm/releases'
+export EVO_RELEASE_EVIDENCE_ROOT='/opt/evo-crm/evidence'
+export EVO_RELEASE_COMPOSE_FILE='/opt/evo-crm/docker-compose.prod.yml'
+export EVO_RELEASE_ACTIVE_COMPOSE_FILE='/opt/evo-crm/docker-compose.prod.yml'
+export EVO_RELEASE_APP_ENV_FILE='/opt/evo-crm/.env.production'
+export EVO_RELEASE_EXTERNAL_HEALTH_URL='https://crm.evoadmissions.com/api/health'
+export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'
+export EVO_WAHA_IMAGE_DIGEST='sha256:<reviewed-64-hex-digest>'
 export EVO_RELEASE_ROLLBACK_STATE='/opt/evo-crm/evidence/<exact-release-directory>/state.json'
 /opt/evo-crm/scripts/evo-fast-release.sh rollback
 ```
@@ -160,3 +175,5 @@ Official behavior references:
 - [GitHub workflow events and concurrency](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
 - [Docker Compose `up --no-deps --wait`](https://docs.docker.com/reference/cli/docker/compose/up/)
 - [Supabase migration history API](https://supabase.com/docs/reference/api/v1-list-migration-history)
+- [Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys)
+- [Supabase Auth Admin list-users](https://supabase.com/docs/reference/javascript/auth-admin-listusers)

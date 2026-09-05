@@ -125,6 +125,7 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
   assert.match(preflight, /verify_archive/u);
   assert.match(preflight, /verify_env_contract/u);
   assert.match(controller, /evo-app-env-contract\.mjs/u);
+  assert.match(controller, /--verify-supabase-keys/u);
   assert.match(controller, /app_env_contract_invalid/u);
   assert.doesNotMatch(preflight, /docker image load/u);
   assert.match(deploy, /load_candidate_image/u);
@@ -344,6 +345,24 @@ test("release controller requires one sealed rollback source and never stages a 
     /export EVO_CRM_APP_ENV_FILE=\$EVO_RELEASE_APP_ENV_FILE/u,
   );
   assert.doesNotMatch(controller, /controlled[_-]staging|EVO_RELEASE_STAGING_ROOT/u);
+});
+
+test("release runbooks install the controller before sealing and provide complete executable commands", () => {
+  const fastRelease = readFileSync("deploy/fast-app-release.md", "utf8");
+  const productionRelease = readFileSync("deploy/production-release.md", "utf8");
+  const preparation = productionRelease.slice(
+    productionRelease.indexOf("## One-time #552 preparation"),
+    productionRelease.indexOf("## Verification"),
+  );
+
+  assert.ok(
+    preparation.indexOf("install the exact reviewed #551 controller") <
+      preparation.indexOf("`seal-rollback-seed`"),
+  );
+  for (const runbook of [fastRelease, productionRelease]) {
+    assert.match(runbook, /export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'/u);
+    assert.match(runbook, /evo-fast-release\.sh rollback/u);
+  }
 });
 
 test("workflow binds exact green main to one runner-built immutable release", () => {

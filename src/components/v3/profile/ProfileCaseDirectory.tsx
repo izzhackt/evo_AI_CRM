@@ -199,7 +199,7 @@ export function ProfileCaseDirectory({
                       </span>
                       {row.leadId && row.access === "full" ? (
                         <Link
-                          className="block font-mono text-accent hover:underline"
+                          className="inline-flex min-h-11 items-center font-mono text-accent hover:underline"
                           href={`/v3/profile?id=${row.leadId}`}
                         >
                           Открыть связанный лид

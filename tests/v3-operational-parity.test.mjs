@@ -96,6 +96,10 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.match(directory, /return row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null/u);
   assert.match(directory, /data-access=\{row\.access\}/u);
   assert.match(directory, /row\.leadId && row\.access === "full"/u);
+  assert.match(
+    directory,
+    /inline-flex min-h-11 items-center[\s\S]*Открыть связанный лид/u,
+  );
   assert.doesNotMatch(directory, />\s*\{row\.studentCaseId\}\s*</u);
   assert.doesNotMatch(directory, /href=["']\/clients/u);
 });

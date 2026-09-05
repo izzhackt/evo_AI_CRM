@@ -5919,6 +5919,7 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
     const availableRoles = ["admin", "sales", "admissions"].filter((role) => isRecord(app.actors[role]));
     if (availableRoles.length === 0) fail("browser_representative_missing", "browser_proof");
     for (const role of availableRoles) {
+      const route = routes[role];
       const context = await browserStep(
         async () => await browser.newContext({ locale: "ru-RU", serviceWorkers: "block" }),
         { operationCode: `browser_${role}_context_create_failed` },
@@ -5956,7 +5957,10 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
         { operationCode: `browser_${role}_login_password_fill_failed` },
       );
       await browserStep(
-        async () => await page.getByRole("button", { name: "Войти в CRM" }).click({ timeout: 45_000 }),
+        async () => await Promise.all([
+          page.waitForURL(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
+          page.getByRole("button", { name: "Войти в CRM" }).click({ noWaitAfter: true, timeout: 45_000 }),
+        ]),
         { operationCode: `browser_${role}_login_submit_failed` },
       );
       const shell = await browserStep(async () => page.getByTestId("v3-shell"));
@@ -5967,7 +5971,6 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
       if (await browserStep(async () => await shell.getAttribute("data-authority-role")) !== role) {
         fail("browser_role_mismatch", "browser_proof", { role });
       }
-      const route = routes[role];
       const response = await browserStep(
         async () => await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
         { operationCode: `browser_${role}_module_navigation_failed` },

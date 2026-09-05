@@ -1733,6 +1733,8 @@ test("browser operations map native failures to a named step without leaking dia
     () => runBrowserOperation(guard, async () => undefined, { operationCode: "INVALID CODE" }),
     "browser_operation_code_invalid",
   );
+  assert.match(source, /page\.waitForURL\(`\$\{app\.appUrl\}\$\{route\.path\}`/u);
+  assert.match(source, /click\(\{ noWaitAfter: true, timeout: 45_000 \}\)/u);
 });
 
 test("browser diagnostic uses a bounded allowlist for native error types and categories", () => {

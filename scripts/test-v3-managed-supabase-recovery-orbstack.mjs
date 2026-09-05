@@ -39,7 +39,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { finished } from "node:stream/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parse as parseToml } from "smol-toml";
 
 const OPT_IN = "EVO_RUN_V3_MANAGED_SUPABASE_RECOVERY_ORBSTACK";
@@ -81,6 +81,70 @@ const PROJECT_REF = /^[a-z0-9]{20}$/u;
 const REGION = /^[a-z][a-z0-9-]{1,62}$/u;
 const PLAYWRIGHT_CHROMIUM_VERSION = /^(?:Chromium|Google Chrome for Testing) \d+(?:\.\d+){3}$/u;
 const VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u;
+const PLAYWRIGHT_BROWSER_BINDINGS = Object.freeze({
+  "darwin-arm64": Object.freeze({
+    revision: "1228",
+    directory: "chrome-mac-arm64",
+    bundle: "Google Chrome for Testing.app",
+    executable: "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+    version: "Google Chrome for Testing 149.0.7827.55",
+    sha256: "b1b9e2dd063115031f08eadc10ed381ca0fa05b2284baff8f721d87f5f0f61b7",
+    bundleTreeSha256: "6efa41ec8565fe1a75a283f65781524da299318e8b2745acf2a7937c2380a650",
+    bundleEntryCount: 640,
+    bundleFileCount: 325,
+    bundleExecutableFileCount: 13,
+    bundleSymlinkCount: 5,
+    bundleTotalBytes: 359_429_638,
+    playwrightRuntimeSha256: "6f4c7620ec7113735e0b68de2ca28ad875f144fd0fc53212558fe1f1fd757e2f",
+  }),
+});
+const PLAYWRIGHT_PACKAGE_BINDINGS = Object.freeze({
+  "@playwright/test": Object.freeze({
+    version: "1.61.1",
+    resolved: "https://registry.npmjs.org/@playwright/test/-/test-1.61.1.tgz",
+    integrity: "sha512-8nKv6+0RJSL9FE4jYOEGXnPeM/Hg12qZpmqzZjRh3qM0Y7c3z1mrOTfFLids72RDQYVh9WpLEfR5WdpNX4fkig==",
+    treeSha256: "425ef062964cf7c557023d34f4e6148a72cbf299ce854912e7bca6eddeaae8ad",
+    entryCount: 12,
+    fileCount: 11,
+    executableFileCount: 1,
+    symlinkCount: 0,
+    totalBytes: 28_544,
+  }),
+  playwright: Object.freeze({
+    version: "1.61.1",
+    resolved: "https://registry.npmjs.org/playwright/-/playwright-1.61.1.tgz",
+    integrity: "sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==",
+    treeSha256: "5af868a7a8da7f5b89bb7bef61615fa41a848160f11f4a496a2627c82dfb29ca",
+    entryCount: 75,
+    fileCount: 62,
+    executableFileCount: 1,
+    symlinkCount: 0,
+    totalBytes: 4_875_435,
+  }),
+  "playwright-core": Object.freeze({
+    version: "1.61.1",
+    resolved: "https://registry.npmjs.org/playwright-core/-/playwright-core-1.61.1.tgz",
+    integrity: "sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==",
+    treeSha256: "0f9a2db7be0e51929cd41ca785c90e801d939e09e4a18d6c376327f231a28ed3",
+    entryCount: 129,
+    fileCount: 106,
+    executableFileCount: 12,
+    symlinkCount: 0,
+    totalBytes: 12_701_224,
+  }),
+  fsevents: Object.freeze({
+    version: "2.3.2",
+    resolved: "https://registry.npmjs.org/fsevents/-/fsevents-2.3.2.tgz",
+    integrity: "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==",
+    treeSha256: "a9c24542cf14ddcdbf1baa192491a19441248650d542236538c1b244a0fc24d5",
+    entryCount: 7,
+    fileCount: 6,
+    executableFileCount: 1,
+    symlinkCount: 0,
+    totalBytes: 156_422,
+  }),
+});
+const BROWSER_SANDBOX_PROFILE = '(version 1) (allow default) (deny network-outbound (remote ip "*:*")) (allow network-outbound (remote ip "localhost:*"))';
 const MIGRATION_VERSION = /^\d{3}$/u;
 const MIGRATION_NAME = /^[a-z0-9][a-z0-9_]{0,126}$/u;
 const IMAGE = /^(?:[a-z0-9][a-z0-9._/-]*@)?sha256:[0-9a-f]{64}$/u;
@@ -129,6 +193,7 @@ const SAFE_IMAGE_INSPECT_FORMAT = "{{json .Id}}\t{{json .RepoDigests}}\t{{json .
 const SAFE_CLEANUP_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}";
 const SAFE_CLEANUP_VOLUME_INSPECT_FORMAT = "{{json .Name}}\t{{json .CreatedAt}}\t{{json .Driver}}\t{{json .Scope}}\t{{json .Labels}}\t{{json .Options}}";
 const SAFE_CLEANUP_NETWORK_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Labels}}";
+const SAFE_PINNED_IMAGE_INSPECT_FORMAT = "{{json .Id}}\t{{json .RepoDigests}}\t{{json .RepoTags}}\t{{json .Os}}\t{{json .Architecture}}";
 const DATABASE_DENIAL_SENTINELS = Object.freeze({
   "Active scoped Admin permission membership.role.change is required": ADMIN_MEMBERSHIP_DENIAL.domainSentinel,
 });
@@ -173,6 +238,32 @@ const RECOVERY_PGMQ_COPY_COLUMNS = Object.freeze({
 });
 const RECOVERY_PGMQ_COPY_COLUMN_COUNT = Object.values(RECOVERY_PGMQ_COPY_COLUMNS)
   .reduce((total, columns) => total + columns.length, 0);
+const PINNED_SUPABASE_SERVICE_IMAGES = Object.freeze({
+  auth: Object.freeze({
+    reference: "public.ecr.aws/supabase/gotrue:v2.196.0",
+    digest: "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+  }),
+  db: Object.freeze({
+    reference: "public.ecr.aws/supabase/postgres:17.6.1.165",
+    digest: "sha256:28f0e16a019e648089fc1a6d333549a55548f6019c15ae4bd7cd58b989027518",
+  }),
+  kong: Object.freeze({
+    reference: "public.ecr.aws/supabase/kong:2.8.1",
+    digest: "sha256:1b53405d8680a09d6f44494b7990bf7da2ea43f84a258c59717d4539abf09f6d",
+  }),
+  realtime: Object.freeze({
+    reference: "public.ecr.aws/supabase/realtime:v2.129.3",
+    digest: "sha256:3211f8ebd59edcd0aa772186f1c8249c82c6b1ae5565f40dedb7aa93e951fe37",
+  }),
+  rest: Object.freeze({
+    reference: "public.ecr.aws/supabase/postgrest:v16.1",
+    digest: "sha256:5922bde07147b82b1c9d8f749e48c1e5b99ebb233f3888bb7ab65f07cf4ac82d",
+  }),
+  storage: Object.freeze({
+    reference: "public.ecr.aws/supabase/storage-api:v1.70.3",
+    digest: "sha256:528ec49c3c32561908b07ee91bced7f8456f3b688164e341eaa422441767a0bd",
+  }),
+});
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export class RecoveryFailure extends Error {
@@ -272,6 +363,245 @@ async function sha256File(path) {
   const digest = createHash("sha256");
   for await (const chunk of createReadStream(path)) digest.update(chunk);
   return digest.digest("hex");
+}
+
+function trustedTreeFailure(code, stage) {
+  fail(code, stage);
+}
+
+function trustedTreeMode(metadata) {
+  return metadata.mode & 0o7777;
+}
+
+function assertTrustedTreeMetadata(metadata, currentUid, code, stage, allowSymlinkMode = false) {
+  if (
+    !metadata ||
+    (currentUid !== null && metadata.uid !== currentUid) ||
+    (!allowSymlinkMode && (trustedTreeMode(metadata) & 0o022) !== 0)
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+}
+
+export async function inspectTrustedRuntimeTree(root, {
+  code = "runtime_tree_untrusted",
+  stage = "browser_proof",
+  currentUid = typeof process.getuid === "function" ? process.getuid() : null,
+} = {}) {
+  if (typeof root !== "string" || root.length === 0 || root.length > 8_192 || !isAbsolute(root)) {
+    trustedTreeFailure(code, stage);
+  }
+  let canonicalRoot;
+  let rootMetadata;
+  try {
+    canonicalRoot = realpathSync(root);
+    rootMetadata = lstatSync(root);
+  } catch {
+    trustedTreeFailure(code, stage);
+  }
+  if (
+    canonicalRoot !== resolve(root) ||
+    !rootMetadata.isDirectory() ||
+    rootMetadata.isSymbolicLink()
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+  assertTrustedTreeMetadata(rootMetadata, currentUid, code, stage);
+  const entries = [{ path: ".", type: "directory", mode: trustedTreeMode(rootMetadata) }];
+  let fileCount = 0;
+  let executableFileCount = 0;
+  let symlinkCount = 0;
+  let totalBytes = 0;
+
+  async function walk(directory, prefix) {
+    let names;
+    try {
+      names = readdirSync(directory).sort((left, right) => left.localeCompare(right, "en"));
+    } catch {
+      trustedTreeFailure(code, stage);
+    }
+    for (const name of names) {
+      if (name.length === 0 || name.includes("\0") || name.includes("/") || name === "." || name === "..") {
+        trustedTreeFailure(code, stage);
+      }
+      const relativePath = prefix.length > 0 ? `${prefix}/${name}` : name;
+      const entryPath = join(directory, name);
+      let metadata;
+      try {
+        metadata = lstatSync(entryPath);
+      } catch {
+        trustedTreeFailure(code, stage);
+      }
+      if (metadata.isDirectory()) {
+        assertTrustedTreeMetadata(metadata, currentUid, code, stage);
+        entries.push({ path: relativePath, type: "directory", mode: trustedTreeMode(metadata) });
+        await walk(entryPath, relativePath);
+        continue;
+      }
+      if (metadata.isFile()) {
+        assertTrustedTreeMetadata(metadata, currentUid, code, stage);
+        const mode = trustedTreeMode(metadata);
+        const bytes = Number(metadata.size);
+        if (!Number.isSafeInteger(bytes) || bytes < 0) trustedTreeFailure(code, stage);
+        entries.push({
+          path: relativePath,
+          type: "file",
+          mode,
+          bytes,
+          sha256: await sha256File(entryPath),
+        });
+        fileCount += 1;
+        totalBytes += bytes;
+        if ((mode & 0o111) !== 0) executableFileCount += 1;
+        continue;
+      }
+      if (metadata.isSymbolicLink()) {
+        assertTrustedTreeMetadata(metadata, currentUid, code, stage, true);
+        let target;
+        let resolvedTarget;
+        try {
+          target = readlinkSync(entryPath);
+          resolvedTarget = realpathSync(entryPath);
+        } catch {
+          trustedTreeFailure(code, stage);
+        }
+        if (
+          typeof target !== "string" ||
+          target.length === 0 ||
+          target.length > 8_192 ||
+          target.includes("\0") ||
+          isAbsolute(target) ||
+          (resolvedTarget !== canonicalRoot && !resolvedTarget.startsWith(`${canonicalRoot}${sep}`))
+        ) {
+          trustedTreeFailure(code, stage);
+        }
+        entries.push({ path: relativePath, type: "symlink", target });
+        symlinkCount += 1;
+        continue;
+      }
+      trustedTreeFailure(code, stage);
+    }
+  }
+
+  await walk(canonicalRoot, "");
+  if (!Number.isSafeInteger(totalBytes)) trustedTreeFailure(code, stage);
+  return Object.freeze({
+    treeSha256: sha256(`${canonicalJson(entries)}\n`),
+    entryCount: entries.length,
+    fileCount,
+    executableFileCount,
+    symlinkCount,
+    totalBytes,
+  });
+}
+
+export function validateTrustedRuntimeTree(value, binding, code = "runtime_tree_untrusted", stage = "browser_proof") {
+  exactKeys(value, [
+    "entryCount",
+    "executableFileCount",
+    "fileCount",
+    "symlinkCount",
+    "totalBytes",
+    "treeSha256",
+  ], code, stage);
+  if (
+    !isRecord(binding) ||
+    !SHA256.test(binding.treeSha256 ?? "") ||
+    !SHA256.test(value.treeSha256 ?? "") ||
+    !Number.isSafeInteger(value.entryCount) ||
+    !Number.isSafeInteger(value.fileCount) ||
+    !Number.isSafeInteger(value.executableFileCount) ||
+    !Number.isSafeInteger(value.symlinkCount) ||
+    !Number.isSafeInteger(value.totalBytes) ||
+    value.entryCount < 1 ||
+    value.fileCount < 1 ||
+    value.executableFileCount < 0 ||
+    value.symlinkCount < 0 ||
+    value.totalBytes < 1 ||
+    value.treeSha256 !== binding.treeSha256 ||
+    value.entryCount !== binding.entryCount ||
+    value.fileCount !== binding.fileCount ||
+    value.executableFileCount !== binding.executableFileCount ||
+    value.symlinkCount !== binding.symlinkCount ||
+    value.totalBytes !== binding.totalBytes
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+  return Object.freeze({ ...value });
+}
+
+export async function snapshotTrustedRuntimeTree(
+  sourceRoot,
+  destinationRoot,
+  binding,
+  code = "runtime_snapshot_untrusted",
+  stage = "browser_proof",
+) {
+  if (
+    typeof sourceRoot !== "string" ||
+    typeof destinationRoot !== "string" ||
+    !isAbsolute(sourceRoot) ||
+    !isAbsolute(destinationRoot) ||
+    sourceRoot === destinationRoot ||
+    existsSync(destinationRoot)
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+  const currentUid = typeof process.getuid === "function" ? process.getuid() : null;
+  let destinationParent;
+  let parentMetadata;
+  try {
+    destinationParent = realpathSync(dirname(destinationRoot));
+    parentMetadata = lstatSync(destinationParent);
+  } catch {
+    trustedTreeFailure(code, stage);
+  }
+  if (
+    destinationParent !== resolve(dirname(destinationRoot)) ||
+    !parentMetadata.isDirectory() ||
+    parentMetadata.isSymbolicLink()
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+  assertTrustedTreeMetadata(parentMetadata, currentUid, code, stage);
+  const sourceBefore = validateTrustedRuntimeTree(
+    await inspectTrustedRuntimeTree(sourceRoot, { code, stage, currentUid }),
+    binding,
+    code,
+    stage,
+  );
+  try {
+    cpSync(sourceRoot, destinationRoot, {
+      recursive: true,
+      dereference: false,
+      errorOnExist: true,
+      force: false,
+      preserveTimestamps: false,
+      verbatimSymlinks: true,
+    });
+    chmodSync(destinationRoot, trustedTreeMode(lstatSync(sourceRoot)));
+  } catch {
+    trustedTreeFailure(code, stage);
+  }
+  const sourceAfter = validateTrustedRuntimeTree(
+    await inspectTrustedRuntimeTree(sourceRoot, { code, stage, currentUid }),
+    binding,
+    code,
+    stage,
+  );
+  const snapshot = validateTrustedRuntimeTree(
+    await inspectTrustedRuntimeTree(destinationRoot, { code, stage, currentUid }),
+    binding,
+    code,
+    stage,
+  );
+  if (!sameJson(sourceBefore, sourceAfter) || !sameJson(sourceBefore, snapshot)) {
+    trustedTreeFailure(code, stage);
+  }
+  return Object.freeze({
+    root: realpathSync(destinationRoot),
+    identity: snapshot,
+  });
 }
 
 function descriptor(value, code) {
@@ -1792,6 +2122,11 @@ async function trustedToolchain(supervisor, harnessRoot, availableEvidence = {})
       ["/usr/bin/openssl"],
       "openssl_unavailable",
     ),
+    sandboxExec: resolveExecutable(
+      ["/usr/bin/sandbox-exec"],
+      ["/usr/bin/sandbox-exec"],
+      "browser_sandbox_unavailable",
+    ),
     dockerBuildx: resolveExecutable(
       ["/Applications/OrbStack.app/Contents/MacOS/xbin/docker-buildx"],
       ["/Applications/OrbStack.app/Contents/MacOS/xbin/docker-tools"],
@@ -2560,6 +2895,7 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   mkdirSync(join(workdir, "supabase"), { recursive: true, mode: 0o700 });
   const configPath = join(workdir, "supabase", "config.toml");
   writeFileSync(configPath, isolatedConfig(root.config, state.projectName, ports), { mode: 0o600, flag: "wx" });
+  await verifyPinnedSupabaseImageTags(supervisor, toolchain);
   beginContainerMutationCapture(state, "local_supabase_start");
   const createdNetwork = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "network", "create",
@@ -2595,8 +2931,7 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   const endpoint = await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
   if (endpoint.networkId !== state.networkId) fail("isolated_network_identity_drift", "local_supabase_start");
   state.supabaseContainerIds = endpoint.memberIds;
-  const egress = await proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain);
-  return Object.freeze({ status, configPath, endpoint, egress });
+  return Object.freeze({ status, configPath, endpoint });
 }
 
 function parsedJson(value, code, stage) {
@@ -2630,6 +2965,74 @@ function projectedContainers(output, code, stage) {
   });
   if (new Set(records.map(({ id }) => id)).size !== records.length) fail(code, stage);
   return Object.freeze(records);
+}
+
+export function validatePinnedSupabaseServiceImages(records, projectName, expected = PINNED_SUPABASE_SERVICE_IMAGES) {
+  if (
+    !Array.isArray(records) ||
+    !isPlainTable(expected) ||
+    typeof projectName !== "string" ||
+    !/^evov3recovery[0-9a-f]{12}$/u.test(projectName)
+  ) {
+    fail("supabase_service_image_set_invalid", "local_supabase_start");
+  }
+  const expectedServices = Object.keys(expected).sort();
+  const actual = [];
+  for (const service of expectedServices) {
+    const binding = expected[service];
+    if (
+      !/^[a-z][a-z0-9-]{0,31}$/u.test(service) ||
+      !isPlainTable(binding) ||
+      !sameJson(Object.keys(binding).sort(), ["digest", "reference"]) ||
+      typeof binding.reference !== "string" ||
+      !binding.reference.startsWith("public.ecr.aws/supabase/") ||
+      !IMAGE.test(binding.digest)
+    ) {
+      fail("supabase_service_image_binding_invalid", "local_supabase_start");
+    }
+    const name = `supabase_${service}_${projectName}`;
+    const matches = records.filter((record) => record?.name === name);
+    if (matches.length !== 1 || matches[0].image !== binding.digest) {
+      fail("supabase_service_image_set_invalid", "local_supabase_start");
+    }
+    actual.push(Object.freeze({ service, digest: binding.digest }));
+  }
+  if (records.length !== expectedServices.length) fail("supabase_service_image_set_invalid", "local_supabase_start");
+  return Object.freeze({
+    serviceCount: actual.length,
+    imageSetSha256: sha256(canonicalJson(actual)),
+  });
+}
+
+async function verifyPinnedSupabaseImageTags(supervisor, toolchain) {
+  const expectedArchitecture = process.arch === "arm64" ? "arm64" : null;
+  if (process.platform !== "darwin" || expectedArchitecture === null) {
+    fail("supabase_service_image_platform_unsupported", "local_supabase_start");
+  }
+  for (const binding of Object.values(PINNED_SUPABASE_SERVICE_IMAGES)) {
+    const result = await runDocker(supervisor, toolchain.paths.docker, [
+      "--context", "orbstack", "image", "inspect", "--format", SAFE_PINNED_IMAGE_INSPECT_FORMAT, binding.reference,
+    ], {
+      stage: "local_supabase_start",
+      code: "supabase_service_image_missing",
+      timeoutMs: 60_000,
+    });
+    const fields = result.stdout.toString("utf8").trim().split("\t").map((field) => parsedJson(field, "supabase_service_image_inspection_invalid", "local_supabase_start"));
+    if (fields.length !== 5) fail("supabase_service_image_inspection_invalid", "local_supabase_start");
+    const [id, repoDigests, repoTags, operatingSystem, architecture] = fields;
+    const repository = binding.reference.slice(0, binding.reference.lastIndexOf(":"));
+    if (
+      id !== binding.digest ||
+      !Array.isArray(repoDigests) ||
+      !repoDigests.includes(`${repository}@${binding.digest}`) ||
+      !Array.isArray(repoTags) ||
+      !repoTags.includes(binding.reference) ||
+      operatingSystem !== "linux" ||
+      architecture !== expectedArchitecture
+    ) {
+      fail("supabase_service_image_inspection_invalid", "local_supabase_start");
+    }
+  }
 }
 
 function recoveryNetwork(value, expected, code, stage) {
@@ -2666,6 +3069,7 @@ function validateContainerNetwork(record, network, networkName, code, stage) {
   const attachment = record.networks[networkName];
   if (attachment.NetworkID !== network.Id || !Array.isArray(attachment.Aliases) || attachment.Aliases.length === 0) fail(code, stage);
   if (attachment.Aliases.some((alias) => typeof alias !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(alias))) fail(code, stage);
+  return attachment;
 }
 
 function loopbackPortBindings(ports, code, stage) {
@@ -2685,6 +3089,16 @@ function loopbackPortBindings(ports, code, stage) {
     }
   }
   return Object.freeze(published);
+}
+
+function containerRuntimeShapeSha256(record) {
+  return sha256(canonicalJson({
+    image: record.image,
+    labels: record.labels,
+    networkMode: record.networkMode,
+    ports: record.ports,
+    networks: record.networks,
+  }));
 }
 
 function validatedContainerCensus(value, code, stage) {
@@ -2789,7 +3203,7 @@ function validateScannerContainerRecord(record, network, expected, code, stage) 
   }
   validateContainerNetwork(record, network, network.Name, code, stage);
   const aliases = record.networks[network.Name].Aliases;
-  if (!aliases.includes(expected.networkHost) || loopbackPortBindings(record.ports, code, stage).length !== 0) fail(code, stage);
+  if (!sameJson(aliases, [expected.networkHost]) || loopbackPortBindings(record.ports, code, stage).length !== 0) fail(code, stage);
 }
 
 export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, expected) {
@@ -2858,6 +3272,9 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
   return Object.freeze({
     networkId: network.Id,
     memberIds: Object.freeze(memberIds),
+    memberShapeSha256ById: Object.freeze(Object.fromEntries(
+      records.map((record) => [record.id, containerRuntimeShapeSha256(record)]),
+    )),
     targetHost: matches[0].record.name,
     targetPort: matches[0].targetPort,
     apiLoopbackPort: apiPort,
@@ -2865,29 +3282,71 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
   });
 }
 
-async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain) {
-  const command = "command -v timeout >/dev/null 2>&1 || exit 96; if timeout 3 /bin/bash -c '</dev/tcp/1.1.1.1/443' >/dev/null 2>&1; then exit 97; fi; printf egress-blocked";
+async function proveRecoveryContainerInternetTcpBlocked(containerId, internalHost, internalPort, supervisor, toolchain, stage) {
+  if (
+    !SHA256.test(containerId) ||
+    typeof internalHost !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(internalHost) ||
+    !Number.isSafeInteger(internalPort) ||
+    internalPort < 1 ||
+    internalPort > 65_535
+  ) {
+    fail("recovery_network_egress_probe_input_invalid", stage);
+  }
+  const command = String.raw`command -v timeout >/dev/null 2>&1 || exit 96
+test -x /bin/bash || exit 96
+timeout 3 /bin/bash -c '</dev/tcp/$1/$2' _ "$1" "$2" >/dev/null 2>&1 || exit 95
+set +e
+timeout 3 /bin/bash -c '</dev/tcp/1.1.1.1/443' >/dev/null 2>&1
+result=$?
+set -e
+case "$result" in
+  0) exit 97 ;;
+  1|124|143) printf egress-blocked ;;
+  *) exit 94 ;;
+esac`;
   const result = await runDocker(supervisor, toolchain.paths.docker, [
-    "--context", "orbstack", "exec", endpoint.databaseContainerId, "/bin/bash", "-c", command,
+    "--context", "orbstack", "exec", containerId, "/bin/bash", "-c", command, "_", internalHost, String(internalPort),
   ], {
-    stage: "local_supabase_start",
+    stage,
     code: "recovery_network_egress_not_blocked",
     timeoutMs: 10_000,
   });
   if (result.stdout.toString("utf8") !== "egress-blocked") {
-    fail("recovery_network_egress_proof_invalid", "local_supabase_start");
+    fail("recovery_network_egress_proof_invalid", stage);
   }
   return Object.freeze({
-    status: "blocked",
-    mechanism: "bridge_ip_masquerade_disabled_plus_runtime_probe",
-    probeContainerIdSha256: sha256(endpoint.databaseContainerId),
+    status: "bounded_probe_blocked",
+    scope: "public_ipv4_tcp_443",
+    mechanism: "bridge_ip_masquerade_disabled_plus_exact_container_probe",
+    probeContainerIdSha256: sha256(containerId),
+    positiveControlTargetSha256: sha256(`${internalHost}:${internalPort}`),
+    positiveControl: "private_network_tcp_connected",
     probeTargetSha256: sha256("1.1.1.1:443"),
   });
 }
 
+async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain) {
+  return Object.freeze({
+    ipMasquerade: false,
+    ipv6: false,
+    database: await proveRecoveryContainerInternetTcpBlocked(
+      endpoint.databaseContainerId,
+      endpoint.targetHost,
+      endpoint.targetPort,
+      supervisor,
+      toolchain,
+      "local_supabase_start",
+    ),
+  });
+}
+
 export function validateCandidateNetworkAttachment(networkPayload, projectionOutput, expected) {
-  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appPort", "census", "networkName", "previousMemberIds", "projectName", "scanner"], "candidate_network_attachment_invalid", "image_verification");
+  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appNetworkAlias", "appPort", "census", "networkName", "previousMemberIds", "previousMemberShapeSha256ById", "projectName", "scanner"], "candidate_network_attachment_invalid", "image_verification");
   const census = validatedContainerCensus(expected.census, "candidate_container_census_mismatch", "image_verification");
+  if (typeof expected.appNetworkAlias !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(expected.appNetworkAlias)) {
+    fail("candidate_network_attachment_invalid", "image_verification");
+  }
   const network = recoveryNetwork(networkPayload, expected, "candidate_network_attachment_invalid", "image_verification");
   const records = projectedContainers(projectionOutput, "candidate_container_inspection_invalid", "image_verification");
   const record = records.find((candidate) => candidate.id === expected.appContainerId);
@@ -2896,6 +3355,20 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
   const recordIds = records.map((candidate) => candidate.id).sort();
   if (!sameJson(censusIds, members) || !sameJson(recordIds, censusIds)) {
     fail("candidate_container_census_mismatch", "image_verification");
+  }
+  if (!isPlainTable(expected.previousMemberShapeSha256ById)) {
+    fail("candidate_supabase_container_shape_changed", "image_verification");
+  }
+  const previousShapeEntries = Object.entries(expected.previousMemberShapeSha256ById);
+  if (
+    previousShapeEntries.length !== census.supabaseIds.length ||
+    previousShapeEntries.some(([id, digest]) => !census.supabaseIds.includes(id) || !SHA256.test(digest)) ||
+    census.supabaseIds.some((id) => {
+      const previousRecord = records.find((candidate) => candidate.id === id);
+      return !previousRecord || containerRuntimeShapeSha256(previousRecord) !== expected.previousMemberShapeSha256ById[id];
+    })
+  ) {
+    fail("candidate_supabase_container_shape_changed", "image_verification");
   }
   if (
     !record ||
@@ -2916,28 +3389,33 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     if (network.Containers[candidate.id]?.Name !== candidate.name) {
       fail("candidate_container_inspection_invalid", "image_verification");
     }
-    validateContainerNetwork(candidate, network, expected.networkName, "candidate_network_attachment_invalid", "image_verification");
+    const networkAttachment = validateContainerNetwork(candidate, network, expected.networkName, "candidate_network_attachment_invalid", "image_verification");
     loopbackPortBindings(candidate.ports, "candidate_network_attachment_invalid", "image_verification");
-    if (candidate.id !== record.id) {
-      if (census.scannerIds.includes(candidate.id)) {
-        validateScannerContainerRecord(
-          candidate,
-          network,
-          expected.scanner,
-          "candidate_container_inspection_invalid",
-          "image_verification",
-        );
-      } else if (
-        !census.supabaseIds.includes(candidate.id) ||
-        !candidate.name.startsWith("supabase_") ||
-        !candidate.name.endsWith(`_${expected.projectName}`) ||
-        candidate.labels["com.supabase.cli.project"] !== expected.projectName
-      ) {
-        fail("candidate_container_inspection_invalid", "image_verification");
+    if (candidate.id === record.id) {
+      if (!sameJson(networkAttachment.Aliases, [expected.appNetworkAlias])) {
+        fail("candidate_app_network_alias_invalid", "image_verification");
       }
+    } else if (census.scannerIds.includes(candidate.id)) {
+      if (loopbackPortBindings(candidate.ports, "candidate_network_attachment_invalid", "image_verification").length !== 0) {
+        fail("candidate_scanner_published_port_forbidden", "image_verification");
+      }
+      validateScannerContainerRecord(
+        candidate,
+        network,
+        expected.scanner,
+        "candidate_scanner_inspection_invalid",
+        "image_verification",
+      );
+    } else if (
+      !census.supabaseIds.includes(candidate.id) ||
+      !candidate.name.startsWith("supabase_") ||
+      !candidate.name.endsWith(`_${expected.projectName}`) ||
+      candidate.labels["com.supabase.cli.project"] !== expected.projectName
+    ) {
+      fail("candidate_container_inspection_invalid", "image_verification");
     }
   }
-  if (!record.networks[expected.networkName].Aliases.includes(record.name)) {
+  if (!sameJson(record.networks[expected.networkName].Aliases, [expected.appNetworkAlias])) {
     fail("candidate_network_attachment_invalid", "image_verification");
   }
   const previous = [...expected.previousMemberIds].sort();
@@ -2949,14 +3427,14 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     fail("candidate_network_attachment_invalid", "image_verification");
   }
   return Object.freeze({
-    schema: "evo-v3-recovery-app-network/v1",
+    schema: "evo-v3-recovery-app-network/v2",
     appContainerIdSha256: sha256(record.id),
     appImageIdSha256: sha256(record.image),
     networkIdSha256: sha256(network.Id),
     attachedNetworkCount: 1,
     publishedPortCount: 1,
     loopbackOnly: true,
-    externalEgress: "blocked_by_disabled_masquerade_and_runtime_probe",
+    ipMasquerade: false,
   });
 }
 
@@ -2971,7 +3449,8 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
   const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...census.ids], {
     stage: "local_supabase_start", code: "local_supabase_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
-  const endpoint = validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
+  const projection = containerResult.stdout.toString("utf8");
+  const endpoint = validateLocalSupabaseNetwork(networkPayload, projection, {
     apiUrl: status.apiUrl,
     census,
     networkName: state.networkName,
@@ -2990,7 +3469,12 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
       fail("local_supabase_container_identity_drift", "local_supabase_start");
     }
   }
-  return endpoint;
+  const serviceImages = validatePinnedSupabaseServiceImages(
+    projectedContainers(projection, "supabase_service_image_set_invalid", "local_supabase_start")
+      .filter((record) => census.supabaseIds.includes(record.id)),
+    state.projectName,
+  );
+  return Object.freeze({ ...endpoint, serviceImages });
 }
 
 function pgmqRelationCounts(counts, code, stage) {
@@ -4913,10 +5397,30 @@ async function proveRestoredRoleServerOutcomes(options, status, actors, supervis
     if (outcomes.sales === "passed") outcomes.sales = "missing_restored_downloadable_document";
     if (outcomes.admissions === "passed") outcomes.admissions = "missing_restored_downloadable_document";
   } else {
+    const storageBinding = await psqlJson(supervisor, toolchain, status, String.raw`
+      SELECT coalesce((
+        SELECT json_build_object(
+          'bucketId', binding.bucket_id,
+          'objectName', binding.object_name
+        )
+        FROM platform_private.document_storage_bindings AS binding
+        WHERE binding.organization_id = ${sqlLiteral(options.platformOrganizationId)}::uuid
+          AND binding.document_version_id = ${sqlLiteral(document.current_version_id)}::uuid
+      ), 'null'::json)::text`, "role_outcome_proof");
+    if (
+      !isRecord(storageBinding) ||
+      storageBinding.bucketId !== "platform-documents" ||
+      typeof storageBinding.objectName !== "string" ||
+      !/^[0-9a-f]{2}\/[0-9a-f]{62}$/u.test(storageBinding.objectName)
+    ) {
+      fail("restored_document_storage_binding_invalid", "role_outcome_proof");
+    }
     documentProof = Object.freeze({
       versionId: document.current_version_id,
       sha256Hex: document.current_sha256_hex,
       byteSize: Number(document.current_byte_size),
+      bucketId: storageBinding.bucketId,
+      objectName: storageBinding.objectName,
     });
   }
   if (outcomes.sales === "passed" && outcomes.admissions === "passed" && documentProof) outcomes.admin = "passed";
@@ -5450,10 +5954,14 @@ async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain
     {
       appContainerId,
       appContainerName: state.appContainer,
+      appNetworkAlias: state.appContainer,
       appImageId: image.id,
       appPort,
       census,
       networkName: state.networkName,
+      previousMemberShapeSha256ById: Object.freeze(Object.fromEntries(
+        state.supabaseContainerIds.map((id) => [id, endpoint.memberShapeSha256ById[id]]),
+      )),
       previousMemberIds: endpoint.memberIds,
       projectName: state.projectName,
       scanner: state.scannerIdentity,
@@ -5563,6 +6071,24 @@ server.listen(443, "0.0.0.0");
   if (!SHA256.test(proxyContainerId)) fail("recovery_app_tls_proxy_id_invalid", "image_verification");
   state.appProxyContainerId = proxyContainerId;
   completeContainerMutationCapture(state, "candidate_start");
+  const runtimeInternetTcpEgress = Object.freeze({
+    app: await proveRecoveryContainerInternetTcpBlocked(
+      containerId,
+      endpoint.targetHost,
+      endpoint.targetPort,
+      supervisor,
+      toolchain,
+      "image_verification",
+    ),
+    scanner: await proveRecoveryContainerInternetTcpBlocked(
+      scanner.containerId,
+      endpoint.targetHost,
+      endpoint.targetPort,
+      supervisor,
+      toolchain,
+      "image_verification",
+    ),
+  });
   await waitForHttp(`${appUrl}/api/health`, [200], 3 * 60 * 1_000, "candidate_app_start_timeout", "image_verification", state, interruptionGuard);
   return Object.freeze({
     appUrl,
@@ -5572,6 +6098,7 @@ server.listen(443, "0.0.0.0");
       origin: `https://${RECOVERY_SUPABASE_HOSTNAME}`,
       certificateSha256: tls.certificateSha256,
     }),
+    runtimeInternetTcpEgress,
   });
 }
 
@@ -5579,15 +6106,428 @@ export function isTrustedPlaywrightChromiumVersion(value) {
   return typeof value === "string" && PLAYWRIGHT_CHROMIUM_VERSION.test(value);
 }
 
-async function browserExecutable(supervisor) {
-  const { chromium } = await import("@playwright/test");
-  const path = chromium.executablePath();
-  const canonical = realpathSync(path);
-  if (!canonical.includes(`${sep}ms-playwright${sep}`)) fail("browser_executable_untrusted", "browser_proof");
-  const version = await supervisor.run(canonical, ["--version"], { stage: "browser_proof", code: "browser_version_failed", timeoutMs: 10_000 });
+export function validatePlaywrightPackageLock(value, bindings = PLAYWRIGHT_PACKAGE_BINDINGS) {
+  if (!isRecord(value) || !isRecord(value.packages) || !isRecord(bindings)) {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  const locked = [];
+  for (const name of Object.keys(bindings).sort((left, right) => left.localeCompare(right, "en"))) {
+    const binding = bindings[name];
+    const entry = value.packages[`node_modules/${name}`];
+    if (
+      !isRecord(binding) ||
+      !isRecord(entry) ||
+      entry.link === true ||
+      entry.version !== binding.version ||
+      entry.resolved !== binding.resolved ||
+      entry.integrity !== binding.integrity ||
+      !SHA256.test(binding.treeSha256 ?? "")
+    ) {
+      fail("playwright_runtime_untrusted", "browser_proof");
+    }
+    locked.push(Object.freeze({
+      name,
+      version: binding.version,
+      resolved: binding.resolved,
+      integrity: binding.integrity,
+    }));
+  }
+  return Object.freeze(locked);
+}
+
+async function trustedPlaywrightRuntime(runtimeRoot) {
+  let lock;
+  try {
+    lock = JSON.parse(readFileSync(join(repositoryRoot, "package-lock.json"), "utf8"));
+  } catch {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  const locked = validatePlaywrightPackageLock(lock);
+  const nodeModulesRoot = join(runtimeRoot, "node_modules");
+  try {
+    mkdirSync(nodeModulesRoot, { mode: 0o700 });
+  } catch {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  const identities = [];
+  for (const name of Object.keys(PLAYWRIGHT_PACKAGE_BINDINGS).sort((left, right) => left.localeCompare(right, "en"))) {
+    const binding = PLAYWRIGHT_PACKAGE_BINDINGS[name];
+    const sourceRoot = join(repositoryRoot, "node_modules", ...name.split("/"));
+    const snapshotRoot = join(nodeModulesRoot, ...name.split("/"));
+    let packageMetadata;
+    try {
+      mkdirSync(dirname(snapshotRoot), { recursive: true, mode: 0o700 });
+    } catch {
+      fail("playwright_runtime_untrusted", "browser_proof");
+    }
+    const snapshot = await snapshotTrustedRuntimeTree(
+      sourceRoot,
+      snapshotRoot,
+      binding,
+      "playwright_runtime_untrusted",
+      "browser_proof",
+    );
+    try {
+      packageMetadata = JSON.parse(readFileSync(join(snapshot.root, "package.json"), "utf8"));
+    } catch {
+      fail("playwright_runtime_untrusted", "browser_proof");
+    }
+    if (packageMetadata?.version !== binding.version) fail("playwright_runtime_untrusted", "browser_proof");
+    identities.push(Object.freeze({
+      ...locked.find((item) => item.name === name),
+      ...snapshot.identity,
+    }));
+  }
+  let resolvedEntry;
+  let playwrightTestRoot;
+  let snapshotEntry;
+  try {
+    playwrightTestRoot = realpathSync(join(repositoryRoot, "node_modules", "@playwright", "test"));
+    resolvedEntry = realpathSync(fileURLToPath(import.meta.resolve("@playwright/test")));
+  } catch {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  if (
+    resolvedEntry !== playwrightTestRoot &&
+    !resolvedEntry.startsWith(`${playwrightTestRoot}${sep}`)
+  ) {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  const relativeEntry = relative(playwrightTestRoot, resolvedEntry);
+  if (relativeEntry.length === 0 || relativeEntry.startsWith(`..${sep}`) || isAbsolute(relativeEntry)) {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  const snapshotPackageRoot = realpathSync(join(nodeModulesRoot, "@playwright", "test"));
+  try {
+    snapshotEntry = realpathSync(join(snapshotPackageRoot, relativeEntry));
+  } catch {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  if (!snapshotEntry.startsWith(`${snapshotPackageRoot}${sep}`)) {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  let finalLock;
+  try {
+    finalLock = validatePlaywrightPackageLock(
+      JSON.parse(readFileSync(join(repositoryRoot, "package-lock.json"), "utf8")),
+    );
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  if (!sameJson(locked, finalLock)) fail("playwright_runtime_untrusted", "browser_proof");
+  return Object.freeze({
+    identities: Object.freeze(identities),
+    packageSetSha256: sha256(`${canonicalJson(identities)}\n`),
+    entryPath: snapshotEntry,
+  });
+}
+
+export function validatePinnedPlaywrightBrowser(value, bindings = PLAYWRIGHT_BROWSER_BINDINGS) {
+  exactKeys(value, [
+    "ambientPathPresent",
+    "architecture",
+    "binarySha256",
+    "bundle",
+    "canonicalPath",
+    "currentUid",
+    "executionPath",
+    "expectedPath",
+    "isFile",
+    "isSymbolicLink",
+    "mode",
+    "ownerUid",
+    "platform",
+    "playwrightPath",
+    "playwrightRuntimeSha256",
+    "snapshotBundleRoot",
+    "version",
+  ], "browser_executable_untrusted", "browser_proof");
+  if (value.ambientPathPresent !== false) fail("browser_ambient_path_forbidden", "browser_proof");
+  const binding = bindings?.[`${value.platform}-${value.architecture}`];
+  if (
+    !isRecord(binding) ||
+    !SHA256.test(binding.sha256 ?? "") ||
+    !SHA256.test(binding.bundleTreeSha256 ?? "") ||
+    !SHA256.test(binding.playwrightRuntimeSha256 ?? "")
+  ) {
+    fail("browser_platform_unsupported", "browser_proof");
+  }
+  const bundle = validateTrustedRuntimeTree(value.bundle, {
+    treeSha256: binding.bundleTreeSha256,
+    entryCount: binding.bundleEntryCount,
+    fileCount: binding.bundleFileCount,
+    executableFileCount: binding.bundleExecutableFileCount,
+    symlinkCount: binding.bundleSymlinkCount,
+    totalBytes: binding.bundleTotalBytes,
+  }, "browser_executable_untrusted", "browser_proof");
+  const executablePrefix = `${binding.bundle}/`;
+  const executableRelative = typeof binding.executable === "string" && binding.executable.startsWith(executablePrefix)
+    ? binding.executable.slice(executablePrefix.length)
+    : null;
+  if (
+    value.expectedPath !== value.canonicalPath ||
+    value.playwrightPath !== value.canonicalPath ||
+    !isAbsolute(value.snapshotBundleRoot ?? "") ||
+    !isAbsolute(value.executionPath ?? "") ||
+    executableRelative === null ||
+    relative(value.snapshotBundleRoot, value.executionPath) !== executableRelative ||
+    value.isFile !== true ||
+    value.isSymbolicLink !== false ||
+    !Number.isSafeInteger(value.mode) ||
+    (value.mode & 0o111) === 0 ||
+    (value.mode & 0o022) !== 0 ||
+    (value.currentUid !== null && value.ownerUid !== value.currentUid) ||
+    value.binarySha256 !== binding.sha256 ||
+    value.playwrightRuntimeSha256 !== binding.playwrightRuntimeSha256 ||
+    value.version !== binding.version
+  ) {
+    fail("browser_executable_untrusted", "browser_proof");
+  }
+  return Object.freeze({
+    version: binding.version,
+    binarySha256: binding.sha256,
+    bundleTreeSha256: bundle.treeSha256,
+    playwrightRuntimeSha256: binding.playwrightRuntimeSha256,
+  });
+}
+
+function pinnedBrowserValidationValue(browserTool, version) {
+  return Object.freeze({
+    ambientPathPresent: browserTool.ambientPathPresent,
+    architecture: browserTool.architecture,
+    binarySha256: browserTool.binarySha256,
+    bundle: browserTool.bundle,
+    canonicalPath: browserTool.canonicalPath,
+    currentUid: browserTool.currentUid,
+    executionPath: browserTool.path,
+    expectedPath: browserTool.expectedPath,
+    isFile: browserTool.isFile,
+    isSymbolicLink: browserTool.isSymbolicLink,
+    mode: browserTool.mode,
+    ownerUid: browserTool.ownerUid,
+    platform: browserTool.platform,
+    playwrightPath: browserTool.playwrightPath,
+    playwrightRuntimeSha256: browserTool.playwrightRuntimeSha256,
+    snapshotBundleRoot: browserTool.snapshotBundleRoot,
+    version,
+  });
+}
+
+export function validateBrowserDebuggerUrl(value, debugPort) {
+  string(value, null, "browser_debug_endpoint_invalid", "browser_proof", 2_048);
+  if (!Number.isSafeInteger(debugPort) || debugPort < 1_024 || debugPort > 65_535) {
+    fail("browser_debug_endpoint_invalid", "browser_proof");
+  }
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail("browser_debug_endpoint_invalid", "browser_proof");
+  }
+  if (
+    parsed.protocol !== "ws:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.port !== String(debugPort) ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    !/^\/devtools\/browser\/[A-Za-z0-9-]{1,128}$/u.test(parsed.pathname)
+  ) {
+    fail("browser_debug_endpoint_invalid", "browser_proof");
+  }
+  return parsed.toString();
+}
+
+async function browserExecutable(harnessRoot) {
+  const ambientPathPresent = Object.prototype.hasOwnProperty.call(process.env, "PLAYWRIGHT_BROWSERS_PATH");
+  if (ambientPathPresent) fail("browser_ambient_path_forbidden", "browser_proof");
+  const binding = PLAYWRIGHT_BROWSER_BINDINGS[`${process.platform}-${process.arch}`];
+  if (!binding) fail("browser_platform_unsupported", "browser_proof");
+  const expectedSourcePath = join(
+    realpathSync(homedir()),
+    "Library",
+    "Caches",
+    "ms-playwright",
+    `chromium-${binding.revision}`,
+    binding.directory,
+    binding.executable,
+  );
+  const sourceBundleRoot = join(
+    realpathSync(homedir()),
+    "Library",
+    "Caches",
+    "ms-playwright",
+    `chromium-${binding.revision}`,
+    binding.directory,
+    binding.bundle,
+  );
+  const runtimeRoot = join(harnessRoot, "browser-runtime");
+  const chromiumSnapshotParent = join(runtimeRoot, "chromium");
+  try {
+    mkdirSync(runtimeRoot, { mode: 0o700 });
+    mkdirSync(chromiumSnapshotParent, { mode: 0o700 });
+  } catch {
+    fail("browser_executable_untrusted", "browser_proof");
+  }
+  let canonicalPath;
+  let metadata;
+  let binarySha256;
+  let chromium;
+  let bundle;
+  let playwrightRuntime;
+  let snapshotBundleRoot;
+  let executionPath;
+  try {
+    canonicalPath = realpathSync(expectedSourcePath);
+    metadata = lstatSync(expectedSourcePath);
+    const snapshot = await snapshotTrustedRuntimeTree(
+      sourceBundleRoot,
+      join(chromiumSnapshotParent, binding.bundle),
+      {
+        treeSha256: binding.bundleTreeSha256,
+        entryCount: binding.bundleEntryCount,
+        fileCount: binding.bundleFileCount,
+        executableFileCount: binding.bundleExecutableFileCount,
+        symlinkCount: binding.bundleSymlinkCount,
+        totalBytes: binding.bundleTotalBytes,
+      },
+      "browser_executable_untrusted",
+      "browser_proof",
+    );
+    bundle = snapshot.identity;
+    snapshotBundleRoot = snapshot.root;
+    const executableRelative = binding.executable.slice(`${binding.bundle}/`.length);
+    const snapshotExecutable = join(snapshotBundleRoot, executableRelative);
+    const canonicalSnapshotExecutable = realpathSync(snapshotExecutable);
+    if (
+      relative(snapshotBundleRoot, canonicalSnapshotExecutable) !== executableRelative ||
+      lstatSync(snapshotExecutable).isSymbolicLink()
+    ) {
+      fail("browser_executable_untrusted", "browser_proof");
+    }
+    binarySha256 = await sha256File(canonicalSnapshotExecutable);
+    playwrightRuntime = await trustedPlaywrightRuntime(runtimeRoot);
+    if (playwrightRuntime.packageSetSha256 !== binding.playwrightRuntimeSha256) {
+      fail("playwright_runtime_untrusted", "browser_proof");
+    }
+    ({ chromium } = await import(pathToFileURL(playwrightRuntime.entryPath).href));
+    executionPath = canonicalSnapshotExecutable;
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    fail("browser_executable_untrusted", "browser_proof");
+  }
+  let playwrightPath;
+  try {
+    playwrightPath = realpathSync(chromium.executablePath());
+  } catch {
+    fail("browser_executable_untrusted", "browser_proof");
+  }
+  if (binarySha256 !== binding.sha256) fail("browser_executable_untrusted", "browser_proof");
+  const browserTool = Object.freeze({
+    chromium,
+    path: executionPath,
+    ambientPathPresent,
+    architecture: process.arch,
+    binarySha256,
+    bundle,
+    canonicalPath,
+    currentUid: typeof process.getuid === "function" ? process.getuid() : null,
+    expectedPath: canonicalPath,
+    isFile: metadata.isFile(),
+    isSymbolicLink: metadata.isSymbolicLink(),
+    mode: metadata.mode,
+    ownerUid: metadata.uid,
+    platform: process.platform,
+    playwrightPath,
+    playwrightRuntimeSha256: playwrightRuntime.packageSetSha256,
+    snapshotBundleRoot,
+  });
+  validatePinnedPlaywrightBrowser(pinnedBrowserValidationValue(browserTool, binding.version));
+  return browserTool;
+}
+
+async function validateBrowserVersionInSandbox(browserTool, supervisor, toolchain) {
+  const version = await supervisor.run(toolchain.paths.sandboxExec.real, [
+    "-p", BROWSER_SANDBOX_PROFILE,
+    browserTool.path,
+    "--version",
+  ], {
+    argv0: "sandbox-exec",
+    stage: "browser_proof",
+    code: "browser_version_failed",
+    timeoutMs: 10_000,
+  });
   const value = version.stdout.toString("utf8").trim();
   if (!isTrustedPlaywrightChromiumVersion(value)) fail("browser_version_invalid", "browser_proof");
-  return Object.freeze({ chromium, path: canonical, version: value, binarySha256: await sha256File(canonical) });
+  validatePinnedPlaywrightBrowser(pinnedBrowserValidationValue(browserTool, value));
+  return Object.freeze({ ...browserTool, version: value });
+}
+
+async function proveBrowserHostSandbox(supervisor, toolchain) {
+  const listener = createServer((socket) => socket.end());
+  const listen = await new Promise((resolveListen, rejectListen) => {
+    listener.once("error", rejectListen);
+    listener.listen(0, "127.0.0.1", () => resolveListen(listener.address()));
+  }).catch(() => fail("browser_sandbox_loopback_listener_failed", "browser_proof"));
+  if (!isRecord(listen) || listen.address !== "127.0.0.1" || !Number.isSafeInteger(listen.port)) {
+    listener.close();
+    fail("browser_sandbox_loopback_listener_failed", "browser_proof");
+  }
+  try {
+    const loopbackScript = String.raw`import { connect } from "node:net";
+const socket = connect({ host: "127.0.0.1", port: Number(process.argv[1]) });
+socket.once("connect", () => { process.stdout.write("loopback-ok"); socket.end(); });
+socket.once("error", () => process.exit(97));
+setTimeout(() => process.exit(98), 3000).unref();`;
+    const loopback = await supervisor.run(toolchain.paths.sandboxExec.real, [
+      "-p", BROWSER_SANDBOX_PROFILE,
+      toolchain.paths.node.real,
+      "--input-type=module",
+      "--eval",
+      loopbackScript,
+      String(listen.port),
+    ], {
+      argv0: "sandbox-exec",
+      stage: "browser_proof",
+      code: "browser_sandbox_loopback_probe_failed",
+      timeoutMs: 10_000,
+    });
+    if (loopback.stdout.toString("utf8") !== "loopback-ok") {
+      fail("browser_sandbox_loopback_probe_failed", "browser_proof");
+    }
+  } finally {
+    await new Promise((resolveClose) => listener.close(resolveClose));
+  }
+  const blockedScript = String.raw`import { connect } from "node:net";
+const socket = connect({ host: "1.1.1.1", port: 443 });
+socket.once("connect", () => process.exit(97));
+socket.once("error", (error) => { if (error.code !== "EPERM") process.exit(96); process.stdout.write("sandbox-blocked"); });
+setTimeout(() => process.exit(98), 3000).unref();`;
+  const blocked = await supervisor.run(toolchain.paths.sandboxExec.real, [
+    "-p", BROWSER_SANDBOX_PROFILE,
+    toolchain.paths.node.real,
+    "--input-type=module",
+    "--eval",
+    blockedScript,
+  ], {
+    argv0: "sandbox-exec",
+    stage: "browser_proof",
+    code: "browser_sandbox_external_probe_not_blocked",
+    timeoutMs: 10_000,
+  });
+  if (blocked.stdout.toString("utf8") !== "sandbox-blocked") {
+    fail("browser_sandbox_external_probe_not_blocked", "browser_proof");
+  }
+  return Object.freeze({
+    status: "os_policy_enforced",
+    mechanism: "macos_sandbox_exec_deny_network_outbound_except_loopback",
+    profileSha256: sha256(BROWSER_SANDBOX_PROFILE),
+    loopbackProbe: "allowed",
+    publicIpv4Tcp443Probe: "blocked_with_eperm",
+    probeTargetSha256: sha256("1.1.1.1:443"),
+  });
 }
 
 export function validateBrowserRouteProof(value) {
@@ -5923,9 +6863,17 @@ async function proveBrowserDocumentDownload(page, appUrl, status, document, allo
   const location = response.headers().location;
   let signedUrl;
   try {
-    signedUrl = new URL(location);
-  } catch {
-    fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
+    signedUrl = resolveStorageSignedObjectUrl(
+      `https://${RECOVERY_SUPABASE_HOSTNAME}`,
+      document.bucketId,
+      document.objectName,
+      location,
+    );
+  } catch (error) {
+    if (error instanceof RecoveryFailure && error.code === "private_document_signed_url_invalid") {
+      fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
+    }
+    throw error;
   }
   if (signedUrl.protocol !== "https:" || signedUrl.hostname !== RECOVERY_SUPABASE_HOSTNAME) {
     fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
@@ -5986,20 +6934,35 @@ async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, rol
 
 async function proveBrowser(app, readiness, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
-  const browserTool = await browserExecutable(supervisor);
-  state.availableTools.chromium = browserTool.version;
-  state.availableTools.chromium_binary_sha256 = browserTool.binarySha256;
-  const debugPort = await reservePort();
-  const profile = join(state.harnessRoot, "chromium-profile");
-  mkdirSync(profile, { mode: 0o700 });
-  const browserRecord = supervisor.start(browserTool.path, [
-    "--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--disable-background-networking",
-    `--remote-debugging-address=127.0.0.1`, `--remote-debugging-port=${debugPort}`,
-    `--user-data-dir=${profile}`, "about:blank",
-  ], { stage: "browser_proof", maxCaptureBytes: 2 * 1_024 * 1_024 });
-  state.browserRecord = browserRecord;
+  let browserPhase = "tool_binding";
+  let browserTool;
+  let browserSandbox;
+  let browserRecord;
   let browser;
   try {
+    browserTool = await browserExecutable(state.harnessRoot);
+    browserPhase = "sandbox_validation";
+    browserSandbox = await proveBrowserHostSandbox(supervisor, toolchain);
+    browserPhase = "version_validation";
+    browserTool = await validateBrowserVersionInSandbox(browserTool, supervisor, toolchain);
+    state.availableTools.chromium = browserTool.version;
+    state.availableTools.chromium_binary_sha256 = browserTool.binarySha256;
+    state.availableTools.chromium_bundle_sha256 = browserTool.bundle.treeSha256;
+    state.availableTools.playwright_runtime_sha256 = browserTool.playwrightRuntimeSha256;
+    browserPhase = "debug_port_reservation";
+    const debugPort = await reservePort();
+    const profile = join(state.harnessRoot, "chromium-profile");
+    mkdirSync(profile, { mode: 0o700 });
+    browserPhase = "process_start";
+    browserRecord = supervisor.start(toolchain.paths.sandboxExec.real, [
+      "-p", BROWSER_SANDBOX_PROFILE,
+      browserTool.path,
+      "--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--disable-background-networking",
+      `--remote-debugging-address=127.0.0.1`, `--remote-debugging-port=${debugPort}`,
+      `--user-data-dir=${profile}`, "about:blank",
+    ], { argv0: "sandbox-exec", stage: "browser_proof", maxCaptureBytes: 2 * 1_024 * 1_024 });
+    state.browserRecord = browserRecord;
+    browserPhase = "startup";
     const versionResponse = await waitForHttp(`http://127.0.0.1:${debugPort}/json/version`, [200], 45_000, "browser_start_timeout", "browser_proof", state, interruptionGuard);
     let versionPayload;
     try {
@@ -6012,8 +6975,10 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
       versionPayload = null;
     }
     if (!isRecord(versionPayload) || typeof versionPayload.webSocketDebuggerUrl !== "string") fail("browser_debug_endpoint_invalid", "browser_proof");
+    const debuggerUrl = validateBrowserDebuggerUrl(versionPayload.webSocketDebuggerUrl, debugPort);
+    browserPhase = "connect";
     browser = await browserStep(
-      async () => await browserTool.chromium.connectOverCDP(versionPayload.webSocketDebuggerUrl),
+      async () => await browserTool.chromium.connectOverCDP(debuggerUrl, { timeout: 10_000 }),
       { operationCode: "browser_cdp_connect_failed" },
     );
     const routes = Object.freeze({
@@ -6035,6 +7000,7 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
     if (availableRoles.length === 0) fail("browser_representative_missing", "browser_proof");
     for (const role of availableRoles) {
       const route = routes[role];
+      browserPhase = `${role}_context`;
       const context = await browserStep(
         async () => await browser.newContext({ locale: "ru-RU", serviceWorkers: "block" }),
         { operationCode: `browser_${role}_context_create_failed` },
@@ -6052,6 +7018,7 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
         await route.abort("blockedbyclient");
       }), { operationCode: `browser_${role}_network_policy_failed` });
       await installBrowserWebSocketBlocker(context, browserNetwork, browserStep);
+      browserPhase = `${role}_login`;
       const page = await browserStep(
         async () => await context.newPage(),
         { operationCode: `browser_${role}_page_create_failed` },
@@ -6098,6 +7065,7 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
       if (await browserStep(async () => await shell.getAttribute("data-authority-role")) !== role) {
         fail("browser_role_mismatch", "browser_proof", { role });
       }
+      browserPhase = `${role}_route`;
       const response = await browserStep(
         async () => await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
         { operationCode: `browser_${role}_module_navigation_failed` },
@@ -6135,6 +7103,7 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
         markerVisible,
       }));
       if (role === "admin") {
+        browserPhase = "admin_scanner";
         scannerDataPath = await proveScannerDataPath(
           status,
           app.actors.admin,
@@ -6147,12 +7116,15 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
           browserStep,
         );
         if (roleServerProof?.sales) {
+          browserPhase = "admin_sales_readback";
           await proveBrowserSalesReadback(page, app.appUrl, roleServerProof.sales, role, browserStep);
         }
         if (roleServerProof?.admissions) {
+          browserPhase = "admin_admissions_readback";
           await proveBrowserAdmissionsReadback(page, app.appUrl, roleServerProof.admissions, role, browserStep);
         }
         if (roleServerProof?.document) {
+          browserPhase = "admin_document_readback";
           await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, true, role, browserStep);
         }
         roleReadbacks.admin = roleServerProof?.outcomes?.admin === "passed" &&
@@ -6161,9 +7133,11 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
           : "not_run_incomplete_server_outcomes";
       } else if (role === "sales") {
         if (roleServerProof?.sales) {
+          browserPhase = "sales_readback";
           await proveBrowserSalesReadback(page, app.appUrl, roleServerProof.sales, role, browserStep);
         }
         if (roleServerProof?.document) {
+          browserPhase = "sales_document_readback";
           await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, false, role, browserStep);
         }
         roleReadbacks.sales = roleServerProof?.outcomes?.sales === "passed" &&
@@ -6172,9 +7146,11 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
           : "not_run_incomplete_server_outcomes";
       } else if (role === "admissions") {
         if (roleServerProof?.admissions) {
+          browserPhase = "admissions_readback";
           await proveBrowserAdmissionsReadback(page, app.appUrl, roleServerProof.admissions, role, browserStep);
         }
         if (roleServerProof?.document) {
+          browserPhase = "admissions_document_readback";
           await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, true, role, browserStep);
         }
         roleReadbacks.admissions = roleServerProof?.outcomes?.admissions === "passed" &&
@@ -6182,6 +7158,7 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
           ? "passed"
           : "not_run_incomplete_server_outcomes";
       }
+      browserPhase = `${role}_context_close`;
       await browserStep(async () => await context.close(), { allowAfterInterrupt: true });
       validateBrowserNetworkProof(browserNetwork);
     }
@@ -6195,6 +7172,7 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
       routes: Object.freeze(routeProofs),
       roleOutcomes: Object.freeze(roleReadbacks),
       network: validateBrowserNetworkProof(browserNetwork),
+      sandbox: browserSandbox,
       chromium: browserTool.version,
       exactCandidateImage: true,
       readiness,
@@ -6204,13 +7182,18 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
         ? "complete_real_representative_browser_proof"
         : "available_real_representatives_only",
     });
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    fail(`browser_${browserPhase}_operation_failed`, "browser_proof", sanitizeBrowserDiagnostic(error));
   } finally {
     if (browser) {
       await browserStep(async () => await browser.close(), { allowAfterInterrupt: true }).catch(() => undefined);
     }
-    const drained = await supervisor.stopOne(browserRecord);
-    state.browserRecord = undefined;
-    if (!drained) fail("browser_descendants_not_drained", "browser_proof");
+    if (browserRecord) {
+      const drained = await supervisor.stopOne(browserRecord);
+      state.browserRecord = undefined;
+      if (!drained) fail("browser_descendants_not_drained", "browser_proof");
+    }
   }
 }
 
@@ -6253,21 +7236,21 @@ function sanitizedAppNetworkAttachment(value) {
     "appContainerIdSha256",
     "appImageIdSha256",
     "attachedNetworkCount",
-    "externalEgress",
+    "ipMasquerade",
     "loopbackOnly",
     "networkIdSha256",
     "publishedPortCount",
     "schema",
   ], "destination_app_network_invalid", "isolation_identity");
   if (
-    value.schema !== "evo-v3-recovery-app-network/v1" ||
+    value.schema !== "evo-v3-recovery-app-network/v2" ||
     !SHA256.test(value.appContainerIdSha256) ||
     !SHA256.test(value.appImageIdSha256) ||
     !SHA256.test(value.networkIdSha256) ||
     value.attachedNetworkCount !== 1 ||
     value.publishedPortCount !== 1 ||
     value.loopbackOnly !== true ||
-    value.externalEgress !== "blocked_by_disabled_masquerade_and_runtime_probe"
+    value.ipMasquerade !== false
   ) {
     fail("destination_app_network_invalid", "isolation_identity");
   }
@@ -7117,6 +8100,7 @@ function durableToolEvidence(value) {
     "psql_realpath_sha256",
     "node_realpath_sha256",
     "openssl_realpath_sha256",
+    "sandboxExec_realpath_sha256",
     "dockerBuildx_realpath_sha256",
     "supabaseLauncher_realpath_sha256",
     "supabaseNative_realpath_sha256",
@@ -7130,6 +8114,7 @@ function durableToolEvidence(value) {
     "psql_binary_sha256",
     "node_binary_sha256",
     "openssl_binary_sha256",
+    "sandboxExec_binary_sha256",
     "dockerBuildx_binary_sha256",
     "private_buildx_realpath_sha256",
     "supabaseLauncher_binary_sha256",
@@ -7138,6 +8123,8 @@ function durableToolEvidence(value) {
     "supabase_bin_link_sha256",
     "supabase_execution_chain_sha256",
     "chromium_binary_sha256",
+    "chromium_bundle_sha256",
+    "playwright_runtime_sha256",
   ]);
   if (!isRecord(value)) return Object.freeze({});
   const result = {};
@@ -7501,6 +8488,11 @@ async function executeMode(mode, options) {
       state.ownedVolumeIdentities = localDestinationInventory.volumeIdentities;
       assertCleanupInventoryIdentity(localDestinationInventory, cleanupCapturedIdentity(state));
       completeContainerMutationCapture(state, "local_supabase_start");
+      const bridgeEgress = await runStage("local_supabase_egress", () => proveRecoveryNetworkEgressBlocked(
+        local.endpoint,
+        supervisor,
+        toolchain,
+      ));
       const scanner = await runStage("malware_scanner_start", () => startRecoveryScanner(
         state,
         local.status,
@@ -7609,7 +8601,12 @@ async function executeMode(mode, options) {
         schema: RESULT_SCHEMA,
         ...shared,
         isolation,
-        networkEgress: local.egress,
+        networkEgress: Object.freeze({
+          bridgeFoundation: bridgeEgress,
+          supabaseServiceImages: local.endpoint.serviceImages,
+          candidateRuntime: app.runtimeInternetTcpEgress,
+          browserHost: browser.sandbox ?? Object.freeze({ status: "not_run_missing_representative" }),
+        }),
         database,
         migrations,
         storage,
@@ -7688,7 +8685,9 @@ async function main() {
   process.stdout.write(`${JSON.stringify({ ok: true, status: evidence.status, evidenceSha256: sha256(canonicalJson(evidence)) })}\n`);
 }
 
-const invokedDirectly = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+const invokedDirectly = process.argv[1] &&
+  existsSync(process.argv[1]) &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (invokedDirectly) {
   main().catch((error) => {
     const failure = safeFailure(error);

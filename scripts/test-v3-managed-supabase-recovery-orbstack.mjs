@@ -4239,7 +4239,7 @@ function startRecoveryAppContainer(
     EVO_PLATFORM_AI_MEMORY_ENABLED: "0",
     EVO_PLATFORM_STAFF_ASSISTANT_ENABLED: "0",
     EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: "0",
-    EVO_CLAMD_HOST: scanner.containerName,
+    EVO_CLAMD_HOST: scanner.networkHost,
     EVO_CLAMD_PORT: "3310",
     EVO_CLAMD_TIMEOUT_MS: "10000",
     EVO_V2_AMOCRM_WRITES_ENABLED: "0",
@@ -4618,6 +4618,10 @@ async function startRecoveryScanner(state, port, repositorySnapshotRoot) {
     fail("malware_scanner_image_platform_invalid", "malware_scanner_proof");
   }
   const containerName = `supabase_clamav_${state.projectName}`;
+  const networkHost = `evo-recovery-clamav-${state.projectName.slice(-12)}`;
+  if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/u.test(networkHost)) {
+    fail("malware_scanner_network_host_invalid", "malware_scanner_proof");
+  }
   const signatureVolume = `supabase_clamav_signatures_${state.projectName}`;
   docker([
     "volume", "create",
@@ -4629,6 +4633,7 @@ async function startRecoveryScanner(state, port, repositorySnapshotRoot) {
     "--platform", "linux/amd64",
     "--name", containerName,
     "--network", state.networkName,
+    "--network-alias", networkHost,
     "--init",
     "--cpus", "2.00",
     "--memory", "4096m",
@@ -4672,6 +4677,7 @@ async function startRecoveryScanner(state, port, repositorySnapshotRoot) {
   }
   return Object.freeze({
     containerName,
+    networkHost,
     host: "127.0.0.1",
     port,
     image: CLAMAV_IMAGE,

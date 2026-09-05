@@ -860,6 +860,32 @@ test("scanner proof uses only exact app uploads and validates persisted attestat
   assert.match(proofSource, /malware_scanner_outage_persisted_state/u);
 });
 
+test("scanner cleanup identity is separate from its product-safe network hostname", () => {
+  const scannerStart = source.indexOf("async function startRecoveryScanner");
+  const scannerEnd = source.indexOf("function inspectLocalContainerState", scannerStart);
+  const scannerSource = source.slice(scannerStart, scannerEnd);
+  const appStart = source.indexOf("function startRecoveryAppContainer");
+  const appEnd = source.indexOf("async function proveV3BrowserAndReadiness", appStart);
+  const appSource = source.slice(appStart, appEnd);
+  assert.ok(scannerStart > 0 && scannerEnd > scannerStart);
+  assert.ok(appStart > 0 && appEnd > appStart);
+
+  assert.match(scannerSource, /const containerName = `supabase_clamav_\$\{state\.projectName\}`/u);
+  const aliasDeclaration = scannerSource.match(
+    /const networkHost = `([a-z0-9.-]+)\$\{state\.projectName(?:\.slice\(-12\))?\}`/u,
+  );
+  assert.ok(aliasDeclaration);
+  assert.match(
+    `${aliasDeclaration[1]}evov3recoveryabcdef123456`,
+    /^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/iu,
+  );
+  assert.match(scannerSource, /malware_scanner_network_host_invalid/u);
+  assert.match(scannerSource, /"--network-alias",\s*networkHost/u);
+  assert.match(scannerSource, /return Object\.freeze\(\{[\s\S]*?containerName,[\s\S]*?networkHost,/u);
+  assert.match(appSource, /EVO_CLAMD_HOST:\s*scanner\.networkHost/u);
+  assert.doesNotMatch(appSource, /EVO_CLAMD_HOST:\s*scanner\.containerName/u);
+});
+
 test("browser proof runs the exact production image and never starts Next dev", () => {
   assert.match(source, /function buildRecoveryAppImage\(state, repositorySnapshotRoot, repository\)/u);
   assert.match(source, /"build",\s*\n\s*"--platform",\s*"linux\/amd64"/u);

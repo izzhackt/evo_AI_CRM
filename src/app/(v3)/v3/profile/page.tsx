@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
+import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
 import {
   buildV3ProfileHref,
   resolveTab,
@@ -15,7 +16,12 @@ import {
   type PlatformContractMutationOutcome,
 } from "@/lib/platform-contract-workflow";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { readProfilePicks, readProfileTarget } from "@/lib/v3/profile-source";
+import {
+  parseV3ProfileCaseDirectoryParams,
+  readProfilePicks,
+  readProfileTarget,
+  readV3ProfileCaseDirectory,
+} from "@/lib/v3/profile-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Профиль" };
@@ -72,9 +78,11 @@ export default async function ProfilePart({
   searchParams: Promise<ProfileSearchParams>;
 }) {
   const actor = await requireV3PageActor("/v3/profile");
-  const [params, picks] = await Promise.all([
-    searchParams,
+  const params = await searchParams;
+  const directoryParams = parseV3ProfileCaseDirectoryParams(params);
+  const [picks, directory] = await Promise.all([
     readProfilePicks(actor),
+    readV3ProfileCaseDirectory(actor, directoryParams),
   ]);
 
   // Lead and Student Case are different canonical identities. A requested
@@ -90,7 +98,11 @@ export default async function ProfilePart({
       ? { leadId: null, studentCaseId: caseParam }
       : null;
   const hasExplicitTarget = hasLeadParam || hasCaseParam;
-  const target = hasExplicitTarget ? explicitTarget : picks[0]?.target ?? null;
+  const target = hasExplicitTarget
+    ? explicitTarget
+    : directoryParams.active
+      ? null
+      : picks[0]?.target ?? null;
   const view = target ? await readProfileTarget(actor, target) : null;
   const missing = hasExplicitTarget && !view;
   const ambiguous = hasLeadParam && hasCaseParam;
@@ -116,29 +128,38 @@ export default async function ProfilePart({
 
   return (
     <PartShell title="Профиль">
-      {view ? (
-        <Profile
-          profile={view.profile}
-          draft={view.details}
-          sales={view.sales}
-          actorRole={actor.presentationRole}
-          authorityRole={actor.authorityRole}
-          organizationId={actor.organizationId}
-          requestIds={requestIds}
-          contractResult={contractResult}
-          contractRetry={contractRetry}
-          tab={tab}
-          hrefFor={hrefFor}
+      <div className="space-y-6">
+        <ProfileCaseDirectory
+          directory={directory}
+          initiallyOpen={directoryParams.active || !view}
+          params={directoryParams}
         />
-      ) : (
-        <p className="rounded-card border border-border bg-surface px-4 py-8 text-center text-sm text-fg-3">
-          {ambiguous
-            ? "Профиль не открыт: укажите либо лид, либо дело студента."
-            : missing
-              ? "Такого человека в базе нет. Показывать вместо него другого мы не будем."
-            : "В базе нет ни одного человека."}
-        </p>
-      )}
+        {view ? (
+          <Profile
+            profile={view.profile}
+            draft={view.details}
+            sales={view.sales}
+            actorRole={actor.presentationRole}
+            authorityRole={actor.authorityRole}
+            organizationId={actor.organizationId}
+            requestIds={requestIds}
+            contractResult={contractResult}
+            contractRetry={contractRetry}
+            tab={tab}
+            hrefFor={hrefFor}
+          />
+        ) : (
+          <p className="rounded-card border border-border bg-surface px-4 py-8 text-center text-sm text-fg-3">
+            {ambiguous
+              ? "Профиль не открыт: укажите либо лид, либо дело студента."
+              : missing
+                ? "Такого человека в базе нет. Показывать вместо него другого мы не будем."
+                : directoryParams.active
+                  ? "Выберите точное дело студента из результатов поиска."
+                  : "В базе нет ни одного человека."}
+          </p>
+        )}
+      </div>
     </PartShell>
   );
 }

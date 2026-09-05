@@ -3,8 +3,12 @@ import "server-only";
 import type { FunnelStage } from "@/components/v3/Funnel";
 import type { Metric } from "@/components/v3/MetricCard";
 import type { TrendSeries } from "@/components/v3/TrendChart";
-import type { PlatformActor } from "@/lib/platform-auth";
+import type { ActivePlatformActor, PlatformActor } from "@/lib/platform-auth";
 import type { PlatformSalesLeadRow } from "@/lib/platform-sales";
+import {
+  readPlatformDashboardSnapshot,
+  type PlatformDashboardSnapshot,
+} from "@/lib/server/platform-dashboard";
 import {
   listPlatformSalesStageEntries,
   PlatformSalesStageEntryError,
@@ -418,4 +422,15 @@ export async function readPeriodDashboard(
     figures: periodFigures(rows, period),
     trend: days === 1 ? hourlyTrend(rows, period) : dailyTrend(rows, period, days),
   };
+}
+
+/**
+ * Keep the role-scoped cross-module operational projection behind the same V3
+ * adapter boundary as the period funnel. The canonical reader remains the
+ * single place that decides which queues the presentation role may see.
+ */
+export function readV3OperationalDashboard(
+  actor: ActivePlatformActor,
+): Promise<PlatformDashboardSnapshot> {
+  return readPlatformDashboardSnapshot(actor);
 }

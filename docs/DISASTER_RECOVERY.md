@@ -143,11 +143,13 @@ Prerequisites:
 - the repository-pinned Supabase CLI is installed from the lockfile;
 - `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
   `EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY` and
-  `EVO_PLATFORM_SUPABASE_SECRET_KEY` are injected into the child process, never
-  written to arguments, output or Git;
+  `EVO_PLATFORM_SUPABASE_SECRET_KEY` are injected into the exporter process,
+  never written to arguments, output or Git. Only the pinned Supabase dump
+  subprocesses receive the access token and database password;
 - an existing absolute mode-`0700` output directory outside the repository;
-- an age recipient and an existing mode-`0600` SSH signing key with its `.pub`
-  file.
+- an age recipient, an existing mode-`0600` SSH signing key, and an
+  operator-held trusted public key stored outside both the repository and the
+  backup output.
 
 Run from an exact clean reviewed commit:
 
@@ -156,7 +158,8 @@ npm run backup:v3:managed -- \
   --project-ref '<exact-20-character-project-ref>' \
   --output-root '<absolute-private-output-root>' \
   --age-recipient '<age-recipient>' \
-  --signing-key '<absolute-private-ssh-key>'
+  --signing-key '<absolute-private-ssh-key>' \
+  --trusted-public-key '<absolute-operator-held-public-key>'
 ```
 
 The command produces individually age-encrypted roles, schema, data and exact
@@ -165,9 +168,13 @@ double-inventories Storage and hashes every downloaded payload. `receipt.json`
 contains only aggregate counts, timestamps, tool/repository bindings,
 ciphertext hashes and the authenticated provider-backup receipt; its detached
 SSH signature is verified before the partial directory is atomically renamed.
+The public key is not copied into the bundle; later verification must use the
+same independently retained trusted key and compare its fingerprint with the
+signed receipt.
 Customer rows, staff email/phone values, Storage paths and keys remain only in
 encrypted artifacts. Any error or `SIGINT`/`SIGTERM` removes plaintext and the
-partial result.
+partial result; non-exiting child tools are forcibly killed after a bounded
+grace period.
 
 This export is a restore input, not recovery-readiness evidence by itself. The
 existing application-facing recovery result remains `u11-recovery-result`; it

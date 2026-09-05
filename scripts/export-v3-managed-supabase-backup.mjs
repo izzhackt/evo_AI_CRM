@@ -30,7 +30,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { createInterface } from "node:readline";
 import { tmpdir } from "node:os";
 import {
@@ -55,6 +55,8 @@ const MAX_CAPTURE_BYTES = 16 * 1024;
 const MAX_PROVIDER_BACKUP_AGE_MS = 48 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 20_000;
 const COMMAND_TIMEOUT_MS = 30 * 60 * 1000;
+const COMMAND_KILL_GRACE_MS = 2_000;
+const STORAGE_DOWNLOAD_IDLE_TIMEOUT_MS = 60_000;
 const STORAGE_PAGE_SIZE = 100;
 const MAX_STORAGE_PAGES = 100_000;
 const MAX_STORAGE_OBJECTS = 1_000_000;
@@ -178,13 +180,28 @@ export function validateOutputRoot(path, forbiddenRoot = process.cwd()) {
   return canonical;
 }
 
-function validateSigningKey(path) {
+function validateSigningKey(path, trustedPublicKeyPath, outputRoot, repositoryRoot) {
   const canonical = canonicalExistingPath(path, "signing_key_invalid");
   const metadata = statSync(canonical);
   if (!metadata.isFile() || (metadata.mode & 0o077) !== 0) fail("signing_key_invalid");
-  const publicPath = `${canonical}.pub`;
-  const canonicalPublic = canonicalExistingPath(publicPath, "signing_public_key_invalid");
-  if (!statSync(canonicalPublic).isFile()) fail("signing_public_key_invalid");
+  const canonicalPublic = canonicalExistingPath(
+    trustedPublicKeyPath,
+    "signing_public_key_invalid",
+  );
+  const publicMetadata = statSync(canonicalPublic);
+  if (!publicMetadata.isFile() || (publicMetadata.mode & 0o022) !== 0) {
+    fail("signing_public_key_invalid");
+  }
+  for (const candidate of [canonical, canonicalPublic]) {
+    if (
+      candidate === outputRoot ||
+      candidate === repositoryRoot ||
+      isInside(outputRoot, candidate) ||
+      isInside(repositoryRoot, candidate)
+    ) {
+      fail("signing_trust_root_invalid");
+    }
+  }
   return Object.freeze({ privateKey: canonical, publicKey: canonicalPublic });
 }
 
@@ -198,6 +215,7 @@ export function parseArgs(argv) {
     "--output-root",
     "--age-recipient",
     "--signing-key",
+    "--trusted-public-key",
   ]);
   for (let index = 1; index < argv.length; index += 2) {
     const name = argv[index];
@@ -220,6 +238,7 @@ export function parseArgs(argv) {
     outputRoot: values.get("--output-root"),
     ageRecipient,
     signingKey: values.get("--signing-key"),
+    trustedPublicKey: values.get("--trusted-public-key"),
   });
 }
 
@@ -254,6 +273,29 @@ function isSupabasePublishableKey(value) {
 
 function isSupabaseSecretKey(value) {
   return /^sb_secret_[A-Za-z0-9_-]{16,}$/u.test(value) || jwtRole(value) === "service_role";
+}
+
+export function storageDownloadHeaders(secretKey) {
+  if (!isSupabaseSecretKey(secretKey)) fail("secret_key_invalid");
+  return Object.freeze({
+    "Accept-Encoding": "identity",
+    apikey: secretKey,
+    ...(jwtRole(secretKey) === "service_role"
+      ? { Authorization: `Bearer ${secretKey}` }
+      : {}),
+  });
+}
+
+export function storageClientHeaders(inputHeaders, secretKey) {
+  if (!isSupabaseSecretKey(secretKey)) fail("secret_key_invalid");
+  const headers = new Headers(inputHeaders);
+  headers.set("apikey", secretKey);
+  if (jwtRole(secretKey) === "service_role") {
+    headers.set("Authorization", `Bearer ${secretKey}`);
+  } else if (headers.get("Authorization") === `Bearer ${secretKey}`) {
+    headers.delete("Authorization");
+  }
+  return headers;
 }
 
 function isoTimestamp(value, code) {
@@ -456,7 +498,8 @@ function normalizedStorageObject(bucketId, path, item) {
   requiredString(path, "storage_inventory_invalid", 8_192);
   if (path.startsWith("/") || path.includes("\0")) fail("storage_inventory_invalid");
   const metadata = normalizedStorageMetadata(item.metadata);
-  const size = Number(metadata?.size ?? 0);
+  if (!metadata || !Object.hasOwn(metadata, "size")) fail("storage_object_size_invalid");
+  const size = Number(metadata.size);
   if (!Number.isSafeInteger(size) || size < 0 || size > MAX_STORAGE_OBJECT_BYTES) {
     fail("storage_object_size_invalid");
   }
@@ -518,9 +561,9 @@ export function storageInventoryDigest(inventory) {
   });
 }
 
-function artifactMetadata(path) {
+function artifactMetadata(path, { allowEmpty = false } = {}) {
   const metadata = statSync(path);
-  if (!metadata.isFile() || metadata.size <= 0) fail("artifact_invalid");
+  if (!metadata.isFile() || (!allowEmpty && metadata.size <= 0)) fail("artifact_invalid");
   const digest = createHash("sha256");
   const descriptor = openSync(path, "r");
   const buffer = Buffer.allocUnsafe(1024 * 1024);
@@ -633,6 +676,24 @@ async function analyzeCopyDumpFile(path, requireLedger = false) {
   });
 }
 
+export async function semanticSqlFileDigest(path) {
+  const digest = createHash("sha256");
+  const input = createReadStream(path, { encoding: "utf8" });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  try {
+    for await (const line of lines) {
+      // PostgreSQL 17 emits a fresh random psql guard token for every dump.
+      // It has no restore semantics beyond pairing these two meta-commands.
+      if (/^\\(?:un)?restrict\s+\S+$/u.test(line)) continue;
+      digest.update(`${line}\n`);
+    }
+  } finally {
+    lines.close();
+    input.destroy();
+  }
+  return digest.digest("hex");
+}
+
 function sanitizedText(value) {
   return JSON.stringify(value).toLowerCase();
 }
@@ -673,6 +734,19 @@ export function assertRedactedReceipt(receipt) {
     if (text.includes(forbidden)) fail("receipt_contains_sensitive_material");
   }
   if (receipt.schema !== RECEIPT_SCHEMA || receipt.result !== "export_verified") {
+    fail("receipt_shape_invalid");
+  }
+  requireExactKeys(
+    receipt.signature,
+    ["namespace", "identity", "public_key_fingerprint", "trust_root"],
+    "receipt_shape_invalid",
+  );
+  if (
+    receipt.signature.namespace !== SIGNATURE_NAMESPACE ||
+    receipt.signature.identity !== SIGNATURE_IDENTITY ||
+    receipt.signature.trust_root !== "operator-held-external-public-key" ||
+    !/^SHA256:[A-Za-z0-9+/]+$/u.test(receipt.signature.public_key_fingerprint)
+  ) {
     fail("receipt_shape_invalid");
   }
   if (!SHA256.test(receipt.source.identity_sha256)) fail("receipt_shape_invalid");
@@ -735,17 +809,23 @@ function limitedCollector(limit = MAX_CAPTURE_BYTES) {
   });
 }
 
-function spawnCommand(command, args, {
+export function spawnCommand(command, args, {
   cwd,
-  environment = process.env,
+  environment,
+  argv0,
   signal,
   input = null,
   captureStdout = false,
   code = "command_failed",
   timeoutMs = COMMAND_TIMEOUT_MS,
+  killGraceMs = COMMAND_KILL_GRACE_MS,
   state,
 } = {}) {
   return new Promise((accept, reject) => {
+    if (!environment || typeof environment !== "object") {
+      reject(new ManagedSupabaseExportError("command_environment_required"));
+      return;
+    }
     if (signal?.aborted) {
       reject(new ManagedSupabaseExportError("export_interrupted"));
       return;
@@ -754,39 +834,66 @@ function spawnCommand(command, args, {
     const child = spawn(command, args, {
       cwd,
       env: environment,
+      ...(argv0 ? { argv0 } : {}),
       stdio: [input == null ? "ignore" : "pipe", captureStdout ? "pipe" : "ignore", "ignore"],
     });
-    if (state) state.child = child;
     let finished = false;
-    const timeout = setTimeout(() => {
-      if (!finished) child.kill("SIGTERM");
-    }, timeoutMs);
-    const abort = () => child.kill("SIGTERM");
+    let terminationCode = null;
+    let killTimer = null;
+    const terminate = (reason, force = false) => {
+      if (finished) return;
+      terminationCode ??= reason;
+      if (force) {
+        if (killTimer) clearTimeout(killTimer);
+        killTimer = null;
+        child.kill("SIGKILL");
+        return;
+      }
+      child.kill("SIGTERM");
+      if (!killTimer) {
+        killTimer = setTimeout(() => {
+          if (!finished) child.kill("SIGKILL");
+        }, killGraceMs);
+        killTimer.unref?.();
+      }
+    };
+    state?.terminators.add(terminate);
+    const timeout = setTimeout(() => terminate(code), timeoutMs);
+    const abort = () => terminate("export_interrupted");
     signal?.addEventListener("abort", abort, { once: true });
     if (captureStdout) {
       child.stdout.on("data", (chunk) => {
         try {
           stdout.push(chunk);
-        } catch {
-          child.kill("SIGTERM");
+        } catch (error) {
+          terminate(
+            error instanceof ManagedSupabaseExportError
+              ? error.code
+              : "command_output_too_large",
+          );
         }
       });
     }
     if (input != null) child.stdin.end(input);
-    child.once("error", () => {
+    const finish = () => {
       finished = true;
       clearTimeout(timeout);
+      if (killTimer) clearTimeout(killTimer);
       signal?.removeEventListener("abort", abort);
-      if (state?.child === child) state.child = null;
-      reject(new ManagedSupabaseExportError(code));
+      state?.terminators.delete(terminate);
+    };
+    child.once("error", () => {
+      finish();
+      reject(new ManagedSupabaseExportError(terminationCode ?? code));
     });
     child.once("close", (status, childSignal) => {
-      finished = true;
-      clearTimeout(timeout);
-      signal?.removeEventListener("abort", abort);
-      if (state?.child === child) state.child = null;
-      if (signal?.aborted || childSignal) {
+      finish();
+      if (terminationCode) {
+        reject(new ManagedSupabaseExportError(terminationCode));
+      } else if (signal?.aborted) {
         reject(new ManagedSupabaseExportError("export_interrupted"));
+      } else if (childSignal) {
+        reject(new ManagedSupabaseExportError(code));
       } else if (status !== 0) {
         reject(new ManagedSupabaseExportError(code));
       } else {
@@ -801,11 +908,19 @@ function registerSignalCleanup(abortController, state) {
   for (const signal of ["SIGINT", "SIGTERM"]) {
     const handler = () => {
       state.signal = signal;
+      state.signalCount += 1;
       abortController.abort(new ManagedSupabaseExportError("export_interrupted"));
-      state.child?.kill("SIGTERM");
+      for (const terminate of state.terminators) {
+        terminate("export_interrupted", state.signalCount > 1);
+      }
+      try {
+        state.cleanup?.();
+      } catch {
+        // The normal finally path retries after every child has exited.
+      }
     };
     handlers.set(signal, handler);
-    process.once(signal, handler);
+    process.on(signal, handler);
   }
   return () => {
     for (const [signal, handler] of handlers) process.removeListener(signal, handler);
@@ -874,13 +989,18 @@ function encodedObjectPath(path) {
   return path.split("/").map((part) => encodeURIComponent(part)).join("/");
 }
 
-async function downloadStorageObjects({
+export async function downloadStorageObjects({
   inventory,
   origin,
   secretKey,
   outputDirectory,
   signal,
+  fetchImpl = fetch,
+  idleTimeoutMs = STORAGE_DOWNLOAD_IDLE_TIMEOUT_MS,
 }) {
+  if (!Number.isSafeInteger(idleTimeoutMs) || idleTimeoutMs <= 0) {
+    fail("storage_download_timeout_invalid");
+  }
   mkdirSync(outputDirectory, { mode: 0o700 });
   const downloaded = [];
   let totalBytes = 0;
@@ -890,43 +1010,88 @@ async function downloadStorageObjects({
     const output = join(outputDirectory, filename);
     const url = `${origin}/storage/v1/object/authenticated/${encodeURIComponent(item.bucket_id)}/${encodedObjectPath(item.path)}`;
     let response;
+    const downloadController = new AbortController();
+    const downloadSignal = AbortSignal.any([signal, downloadController.signal]);
+    let idleTimer = null;
+    const resetIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(
+        () => downloadController.abort(new ManagedSupabaseExportError("storage_object_download_timed_out")),
+        idleTimeoutMs,
+      );
+    };
+    resetIdleTimer();
     try {
-      response = await fetch(url, {
+      response = await fetchImpl(url, {
         method: "GET",
-        headers: {
-          apikey: secretKey,
-          Authorization: `Bearer ${secretKey}`,
-        },
+        headers: storageDownloadHeaders(secretKey),
         redirect: "error",
-        signal: combineSignals(signal, REQUEST_TIMEOUT_MS),
+        signal: downloadSignal,
       });
     } catch {
+      if (signal.aborted) fail("export_interrupted");
+      if (downloadController.signal.aborted) fail("storage_object_download_timed_out");
       fail("storage_object_download_failed");
     }
-    if (!response.ok || !response.body) {
+    resetIdleTimer();
+    if (!response.ok || (!response.body && item.size !== 0)) {
       try {
         await response.body?.cancel();
       } catch {
         // The body is deliberately discarded.
       }
+      if (idleTimer) clearTimeout(idleTimer);
       fail("storage_object_download_failed");
     }
-    const declaredLength = Number(response.headers.get("content-length") ?? item.size);
+    const lengthHeader = response.headers.get("content-length");
+    const declaredLength = Number(lengthHeader ?? item.size);
     if (
       !Number.isSafeInteger(declaredLength) ||
       declaredLength < 0 ||
-      declaredLength > MAX_STORAGE_OBJECT_BYTES
+      declaredLength > MAX_STORAGE_OBJECT_BYTES ||
+      (lengthHeader != null && declaredLength !== item.size)
     ) {
+      if (idleTimer) clearTimeout(idleTimer);
       fail("storage_object_size_invalid");
     }
     const writer = createWriteStream(output, { flags: "wx", mode: 0o600 });
+    const digest = createHash("sha256");
+    let downloadedBytes = 0;
+    const progress = new Transform({
+      transform(chunk, _encoding, callback) {
+        resetIdleTimer();
+        downloadedBytes += chunk.length;
+        if (downloadedBytes > item.size || downloadedBytes > MAX_STORAGE_OBJECT_BYTES) {
+          callback(new ManagedSupabaseExportError("storage_object_size_mismatch"));
+          return;
+        }
+        digest.update(chunk);
+        callback(null, chunk);
+      },
+    });
     try {
-      await pipeline(Readable.fromWeb(response.body), writer, { signal });
-    } catch {
+      const source = response.body ? Readable.fromWeb(response.body) : Readable.from([]);
+      await pipeline(source, progress, writer, { signal: downloadSignal });
+    } catch (error) {
+      if (idleTimer) clearTimeout(idleTimer);
+      if (signal.aborted) fail("export_interrupted");
+      if (downloadController.signal.aborted) fail("storage_object_download_timed_out");
+      if (error instanceof ManagedSupabaseExportError) throw error;
       fail("storage_object_download_failed");
     }
-    const metadata = artifactMetadata(output);
-    if (metadata.bytes !== item.size) fail("storage_object_size_mismatch");
+    if (idleTimer) clearTimeout(idleTimer);
+    const outputMetadata = statSync(output);
+    if (
+      !outputMetadata.isFile() ||
+      outputMetadata.size !== item.size ||
+      downloadedBytes !== item.size
+    ) {
+      fail("storage_object_size_mismatch");
+    }
+    const metadata = Object.freeze({
+      bytes: downloadedBytes,
+      sha256: digest.digest("hex"),
+    });
     totalBytes += metadata.bytes;
     if (totalBytes > MAX_STORAGE_TOTAL_BYTES) fail("storage_inventory_too_large");
     downloaded.push(Object.freeze({
@@ -1008,11 +1173,84 @@ async function verifyProjectKeys(projectRef, publishableKey, secretKey, signal) 
   }
 }
 
-function safeCommandEnvironment(secrets = null) {
+function resolveTrustedExecutable(candidates, allowedRealLocations, code, argv0 = null) {
+  for (const candidate of candidates) {
+    try {
+      if (!isAbsolute(candidate) || !existsSync(candidate)) continue;
+      const real = realpathSync(candidate);
+      const metadata = statSync(real);
+      const allowed = allowedRealLocations.some((location) =>
+        location.endsWith(sep) ? real.startsWith(location) : real === location,
+      );
+      if (
+        !allowed ||
+        !metadata.isFile() ||
+        (metadata.mode & 0o111) === 0 ||
+        (metadata.mode & 0o022) !== 0
+      ) {
+        continue;
+      }
+      return Object.freeze({ path: candidate, real, argv0 });
+    } catch {
+      // Try the next fixed, absolute installation location.
+    }
+  }
+  fail(code);
+}
+
+function trustedExecutables(root) {
+  const cliLink = join(root, "node_modules", ".bin", "supabase");
+  if (!existsSync(cliLink)) fail("supabase_cli_missing");
+  const cli = realpathSync(cliLink);
+  const nodeModulesRoot = realpathSync(join(root, "node_modules"));
+  if (!isInside(nodeModulesRoot, cli)) fail("supabase_cli_invalid");
+  const node = canonicalExistingPath(process.execPath, "node_runtime_invalid");
+  return Object.freeze({
+    node,
+    cli,
+    git: resolveTrustedExecutable(["/usr/bin/git"], ["/usr/bin/git"], "git_unavailable"),
+    ssh: resolveTrustedExecutable(["/usr/bin/ssh"], ["/usr/bin/ssh"], "ssh_unavailable"),
+    sshKeygen: resolveTrustedExecutable(
+      ["/usr/bin/ssh-keygen"],
+      ["/usr/bin/ssh-keygen"],
+      "ssh_keygen_unavailable",
+    ),
+    tar: resolveTrustedExecutable(
+      ["/usr/bin/tar"],
+      ["/usr/bin/tar", "/usr/bin/bsdtar"],
+      "tar_unavailable",
+    ),
+    age: resolveTrustedExecutable(
+      ["/opt/homebrew/bin/age", "/usr/local/bin/age"],
+      ["/opt/homebrew/Cellar/age/", "/usr/local/Cellar/age/"],
+      "age_unavailable",
+    ),
+    orb: resolveTrustedExecutable(
+      [
+        "/Applications/OrbStack.app/Contents/MacOS/scli.app/Contents/MacOS/scli",
+        "/usr/local/bin/orb",
+      ],
+      ["/Applications/OrbStack.app/Contents/MacOS/scli.app/Contents/MacOS/scli"],
+      "orbstack_unavailable",
+      "orb",
+    ),
+    docker: resolveTrustedExecutable(
+      [
+        "/Applications/OrbStack.app/Contents/MacOS/xbin/docker",
+        "/usr/local/bin/docker",
+      ],
+      ["/Applications/OrbStack.app/Contents/MacOS/xbin/docker-tools"],
+      "docker_unavailable",
+      "docker",
+    ),
+  });
+}
+
+function safeCommandEnvironment(tools, runtimeDirectory, secrets = null) {
   const environment = {
-    PATH: process.env.PATH ?? "/usr/bin:/bin",
-    HOME: process.env.HOME ?? tmpdir(),
-    TMPDIR: process.env.TMPDIR ?? tmpdir(),
+    PATH: `${dirname(tools.docker.real)}:/usr/bin:/bin:/usr/sbin:/sbin`,
+    HOME: join(runtimeDirectory, "home"),
+    TMPDIR: join(runtimeDirectory, "tmp"),
     LANG: "C.UTF-8",
     LC_ALL: "C",
     DOCKER_CONTEXT: "orbstack",
@@ -1024,17 +1262,12 @@ function safeCommandEnvironment(secrets = null) {
   return environment;
 }
 
-async function toolEvidence(root, signal, state, commandEnvironment) {
+async function toolEvidence(root, signal, state, commandEnvironment, executables) {
   const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const expectedSupabase = packageJson.devDependencies?.supabase;
   if (expectedSupabase !== "2.116.0") fail("supabase_cli_not_pinned");
-  const cliLink = join(root, "node_modules", ".bin", "supabase");
-  if (!existsSync(cliLink)) fail("supabase_cli_missing");
-  const cli = realpathSync(cliLink);
-  const nodeModulesRoot = realpathSync(join(root, "node_modules"));
-  if (!isInside(nodeModulesRoot, cli)) fail("supabase_cli_invalid");
   const supabaseVersion = (
-    await spawnCommand(cli, ["--version"], {
+    await spawnCommand(executables.node, [executables.cli, "--version"], {
       cwd: root,
       environment: commandEnvironment,
       signal,
@@ -1048,7 +1281,7 @@ async function toolEvidence(root, signal, state, commandEnvironment) {
     fail("supabase_cli_version_mismatch");
   }
   const orbStatus = (
-    await spawnCommand("orb", ["status"], {
+    await spawnCommand(executables.orb.real, ["status"], {
       cwd: root,
       environment: commandEnvironment,
       signal,
@@ -1056,11 +1289,12 @@ async function toolEvidence(root, signal, state, commandEnvironment) {
       captureStdout: true,
       code: "orbstack_unavailable",
       timeoutMs: 10_000,
+      argv0: executables.orb.argv0,
     })
   ).trim();
   if (orbStatus !== "Running") fail("orbstack_unavailable");
   const dockerContext = (
-    await spawnCommand("docker", ["context", "show"], {
+    await spawnCommand(executables.docker.real, ["context", "show"], {
       cwd: root,
       environment: commandEnvironment,
       signal,
@@ -1068,11 +1302,12 @@ async function toolEvidence(root, signal, state, commandEnvironment) {
       captureStdout: true,
       code: "docker_context_invalid",
       timeoutMs: 10_000,
+      argv0: executables.docker.argv0,
     })
   ).trim();
   if (dockerContext !== "orbstack") fail("docker_context_invalid");
   const ageVersion = (
-    await spawnCommand("age", ["--version"], {
+    await spawnCommand(executables.age.real, ["--version"], {
       cwd: root,
       environment: commandEnvironment,
       signal,
@@ -1083,7 +1318,7 @@ async function toolEvidence(root, signal, state, commandEnvironment) {
     })
   ).trim();
   const sshVersion = (
-    await spawnCommand("ssh", ["-V"], {
+    await spawnCommand(executables.ssh.real, ["-V"], {
       cwd: root,
       environment: commandEnvironment,
       signal,
@@ -1102,9 +1337,9 @@ async function toolEvidence(root, signal, state, commandEnvironment) {
   });
 }
 
-async function repositoryEvidence(root, signal, state, commandEnvironment) {
+async function repositoryEvidence(root, signal, state, commandEnvironment, executables) {
   const head = (
-    await spawnCommand("git", ["rev-parse", "HEAD"], {
+    await spawnCommand(executables.git.real, ["rev-parse", "HEAD"], {
       cwd: root,
       environment: commandEnvironment,
       signal,
@@ -1116,7 +1351,7 @@ async function repositoryEvidence(root, signal, state, commandEnvironment) {
   ).trim();
   if (!/^[0-9a-f]{40}$/u.test(head)) fail("git_head_invalid");
   const migrationTree = (
-    await spawnCommand("git", ["rev-parse", "HEAD:supabase/migrations"], {
+    await spawnCommand(executables.git.real, ["rev-parse", "HEAD:supabase/migrations"], {
       cwd: root,
       environment: commandEnvironment,
       signal,
@@ -1127,7 +1362,7 @@ async function repositoryEvidence(root, signal, state, commandEnvironment) {
     })
   ).trim();
   if (!/^[0-9a-f]{40}$/u.test(migrationTree)) fail("migration_tree_invalid");
-  const status = await spawnCommand("git", ["status", "--porcelain"], {
+  const status = await spawnCommand(executables.git.real, ["status", "--porcelain"], {
     cwd: root,
     environment: commandEnvironment,
     signal,
@@ -1140,7 +1375,16 @@ async function repositoryEvidence(root, signal, state, commandEnvironment) {
   return Object.freeze({ head, migration_tree: migrationTree });
 }
 
-async function dumpDatabase({ root, cli, projectRef, staging, signal, state, environment }) {
+async function dumpDatabase({
+  root,
+  executables,
+  projectRef,
+  staging,
+  signal,
+  state,
+  environment,
+  reverse = false,
+}) {
   const commands = Object.freeze([
     ["roles.sql", ["--role-only"]],
     ["schema.sql", []],
@@ -1148,11 +1392,13 @@ async function dumpDatabase({ root, cli, projectRef, staging, signal, state, env
     ["history-schema.sql", ["--schema", "supabase_migrations"]],
     ["history-data.sql", ["--schema", "supabase_migrations", "--data-only", "--use-copy"]],
   ]);
-  for (const [filename, extra] of commands) {
+  const orderedCommands = reverse ? [...commands].reverse() : commands;
+  for (const [filename, extra] of orderedCommands) {
     const output = join(staging, filename);
     await spawnCommand(
-      cli,
+      executables.node,
       [
+        executables.cli,
         "--log-level",
         "error",
         "db",
@@ -1178,7 +1424,7 @@ async function dumpDatabase({ root, cli, projectRef, staging, signal, state, env
 
 async function verifyDatabaseSnapshotStable({
   root,
-  cli,
+  executables,
   projectRef,
   staging,
   signal,
@@ -1187,49 +1433,44 @@ async function verifyDatabaseSnapshotStable({
 }) {
   const verification = join(staging, "database-stability");
   mkdirSync(verification, { mode: 0o700 });
-  const checks = Object.freeze([
-    ["data.sql", ["--data-only", "--use-copy", "--exclude", "storage.buckets_vectors", "--exclude", "storage.vector_indexes"]],
-    ["history-data.sql", ["--schema", "supabase_migrations", "--data-only", "--use-copy"]],
-  ]);
-  for (const [filename, extra] of checks) {
-    const output = join(verification, filename);
-    await spawnCommand(
-      cli,
-      [
-        "--log-level",
-        "error",
-        "db",
-        "dump",
-        "--project-ref",
-        projectRef,
-        "--file",
-        output,
-        ...extra,
-      ],
-      {
-        cwd: root,
-        environment,
-        signal,
-        state,
-        code: "database_stability_check_failed",
-      },
-    );
-    artifactMetadata(output);
-    const first = await analyzeCopyDumpFile(
-      join(staging, filename),
-      filename === "history-data.sql",
-    );
-    const second = await analyzeCopyDumpFile(output, filename === "history-data.sql");
-    if (first.copy_sections_sha256 !== second.copy_sections_sha256) {
-      fail("database_snapshot_drift");
-    }
+  await dumpDatabase({
+    root,
+    executables,
+    projectRef,
+    staging: verification,
+    signal,
+    state,
+    environment,
+    reverse: true,
+  });
+  const semanticArtifacts = {};
+  for (const filename of EXPECTED_ARTIFACTS) {
+    const [first, second] = await Promise.all([
+      semanticSqlFileDigest(join(staging, filename)),
+      semanticSqlFileDigest(join(verification, filename)),
+    ]);
+    if (first !== second) fail("database_snapshot_drift");
+    semanticArtifacts[filename] = first;
   }
   rmSync(verification, { recursive: true, force: false });
+  return Object.freeze({
+    artifact_semantic_sha256: Object.freeze(semanticArtifacts),
+    proof_sha256: sha256(canonicalJson(semanticArtifacts)),
+  });
 }
 
-async function encryptArtifact({ source, destination, recipient, cwd, signal, state, environment }) {
+async function encryptArtifact({
+  source,
+  destination,
+  recipient,
+  cwd,
+  signal,
+  state,
+  environment,
+  executables,
+}) {
   await spawnCommand(
-    "age",
+    executables.age.real,
     ["--encrypt", "--recipient", recipient, "--output", destination, source],
     {
       cwd,
@@ -1244,9 +1485,9 @@ async function encryptArtifact({ source, destination, recipient, cwd, signal, st
   return artifactMetadata(destination);
 }
 
-async function signingFingerprint(publicKey, cwd, signal, state, environment) {
+async function signingFingerprint(publicKey, cwd, signal, state, environment, executables) {
   const output = await spawnCommand(
-    "ssh-keygen",
+    executables.sshKeygen.real,
     ["-lf", publicKey, "-E", "sha256"],
     {
       cwd,
@@ -1263,6 +1504,38 @@ async function signingFingerprint(publicKey, cwd, signal, state, environment) {
   return match[1];
 }
 
+function normalizedSshPublicKey(value) {
+  const fields = requiredString(value.trim(), "signing_public_key_invalid", 16_384).split(/\s+/u);
+  if (
+    fields.length < 2 ||
+    !/^[A-Za-z0-9@._+-]+$/u.test(fields[0]) ||
+    !/^[A-Za-z0-9+/]+={0,3}$/u.test(fields[1])
+  ) {
+    fail("signing_public_key_invalid");
+  }
+  return `${fields[0]} ${fields[1]}`;
+}
+
+async function verifySigningKeyPair(signing, cwd, signal, state, environment, executables) {
+  const derived = await spawnCommand(
+    executables.sshKeygen.real,
+    ["-y", "-f", signing.privateKey],
+    {
+      cwd,
+      environment,
+      signal,
+      state,
+      captureStdout: true,
+      code: "signing_key_derivation_failed",
+      timeoutMs: 30_000,
+    },
+  );
+  const trusted = readFileSync(signing.publicKey, "utf8");
+  if (normalizedSshPublicKey(derived) !== normalizedSshPublicKey(trusted)) {
+    fail("signing_trust_root_mismatch");
+  }
+}
+
 async function signAndVerifyReceipt({
   receiptPath,
   signingKey,
@@ -1271,9 +1544,10 @@ async function signAndVerifyReceipt({
   signal,
   state,
   environment,
+  executables,
 }) {
   await spawnCommand(
-    "ssh-keygen",
+    executables.sshKeygen.real,
     ["-Y", "sign", "-f", signingKey, "-n", SIGNATURE_NAMESPACE, receiptPath],
     {
       cwd: dirname(receiptPath),
@@ -1286,17 +1560,14 @@ async function signAndVerifyReceipt({
   );
   const signaturePath = `${receiptPath}.sig`;
   chmodSync(signaturePath, 0o600);
-  const publicLine = readFileSync(publicKey, "utf8").trim();
-  if (!/^(?:ssh-ed25519|ecdsa-sha2-nistp256|sk-ssh-ed25519@openssh\.com)\s+[A-Za-z0-9+/=]+(?:\s+.*)?$/u.test(publicLine)) {
-    fail("signing_public_key_invalid");
-  }
+  const publicLine = normalizedSshPublicKey(readFileSync(publicKey, "utf8"));
   const allowedSigners = join(temporaryDirectory, "allowed_signers");
   writeFileSync(allowedSigners, `${SIGNATURE_IDENTITY} ${publicLine}\n`, {
     mode: 0o600,
     flag: "wx",
   });
   await spawnCommand(
-    "ssh-keygen",
+    executables.sshKeygen.real,
     [
       "-Y",
       "verify",
@@ -1319,11 +1590,8 @@ async function signAndVerifyReceipt({
       timeoutMs: 30_000,
     },
   );
-  const publishedPublicKey = join(dirname(receiptPath), "receipt-signing-key.pub");
-  writeFileSync(publishedPublicKey, `${publicLine}\n`, { mode: 0o600, flag: "wx" });
   return Object.freeze({
     signature: artifactMetadata(signaturePath),
-    public_key: artifactMetadata(publishedPublicKey),
   });
 }
 
@@ -1336,14 +1604,24 @@ function ensureInterrupted(signal) {
   if (signal.aborted) fail("export_interrupted");
 }
 
-async function collectPreflight({ args, root, secrets, signal, state }) {
-  const commandEnvironment = safeCommandEnvironment(secrets);
-  const signing = validateSigningKey(args.signingKey);
+async function collectPreflight({ args, root, runtimeDirectory, secrets, signal, state }) {
   const outputRoot = validateOutputRoot(args.outputRoot, root);
+  const signing = validateSigningKey(
+    args.signingKey,
+    args.trustedPublicKey,
+    outputRoot,
+    root,
+  );
+  const executables = trustedExecutables(root);
+  mkdirSync(join(runtimeDirectory, "home"), { mode: 0o700 });
+  mkdirSync(join(runtimeDirectory, "tmp"), { mode: 0o700 });
+  const commandEnvironment = safeCommandEnvironment(executables, runtimeDirectory);
+  const supabaseEnvironment = safeCommandEnvironment(executables, runtimeDirectory, secrets);
   const [tools, git, source] = await Promise.all([
-    toolEvidence(root, signal, state, commandEnvironment),
-    repositoryEvidence(root, signal, state, commandEnvironment),
+    toolEvidence(root, signal, state, commandEnvironment, executables),
+    repositoryEvidence(root, signal, state, commandEnvironment, executables),
     managementReceipt(args.projectRef, secrets.SUPABASE_ACCESS_TOKEN, signal, Date.now()),
+    verifySigningKeyPair(signing, root, signal, state, commandEnvironment, executables),
   ]);
   ensureInterrupted(signal);
   await verifyProjectKeys(
@@ -1356,7 +1634,16 @@ async function collectPreflight({ args, root, secrets, signal, state }) {
   const origin = `https://${args.projectRef}.supabase.co`;
   const storageClient = createClient(origin, secrets.EVO_PLATFORM_SUPABASE_SECRET_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { fetch: (url, options = {}) => fetch(url, { ...options, signal: combineSignals(signal, REQUEST_TIMEOUT_MS) }) },
+    global: {
+      fetch: (url, options = {}) => fetch(url, {
+        ...options,
+        headers: storageClientHeaders(
+          options.headers,
+          secrets.EVO_PLATFORM_SUPABASE_SECRET_KEY,
+        ),
+        signal: combineSignals(signal, REQUEST_TIMEOUT_MS),
+      }),
+    },
   }).storage;
   const storageBefore = await listStorageInventory(storageClient);
   return Object.freeze({
@@ -1369,7 +1656,8 @@ async function collectPreflight({ args, root, secrets, signal, state }) {
     storageClient,
     storageBefore,
     commandEnvironment,
-    cli: realpathSync(join(root, "node_modules", ".bin", "supabase")),
+    supabaseEnvironment,
+    executables,
   });
 }
 
@@ -1393,6 +1681,12 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
   let partialDirectory = join(preflight.outputRoot, `${runName}.partial`);
   const finalDirectory = join(preflight.outputRoot, runName);
   let temporaryDirectory;
+  const parentCleanup = state.cleanup;
+  const cleanup = () => {
+    if (temporaryDirectory && existsSync(temporaryDirectory)) guardedRemove(temporaryDirectory);
+    if (partialDirectory && existsSync(partialDirectory)) guardedRemove(partialDirectory);
+    parentCleanup?.();
+  };
   try {
     mkdirSync(partialDirectory, { mode: 0o700 });
     writeFileSync(join(partialDirectory, RUN_MARKER), "managed-supabase-export\n", {
@@ -1405,24 +1699,25 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       mode: 0o600,
       flag: "wx",
     });
+    state.cleanup = cleanup;
 
     await dumpDatabase({
       root,
-      cli: preflight.cli,
+      executables: preflight.executables,
       projectRef: args.projectRef,
       staging: temporaryDirectory,
       signal,
       state,
-      environment: preflight.commandEnvironment,
+      environment: preflight.supabaseEnvironment,
     });
-    await verifyDatabaseSnapshotStable({
+    const databaseStability = await verifyDatabaseSnapshotStable({
       root,
-      cli: preflight.cli,
+      executables: preflight.executables,
       projectRef: args.projectRef,
       staging: temporaryDirectory,
       signal,
       state,
-      environment: preflight.commandEnvironment,
+      environment: preflight.supabaseEnvironment,
     });
     ensureInterrupted(signal);
 
@@ -1451,6 +1746,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       artifacts: databaseArtifacts,
       migration_ledger: ledger,
       data_copy_sections_sha256: dataAnalysis.copy_sections_sha256,
+      stability: databaseStability,
       aggregates,
     });
     const databaseManifestPath = join(temporaryDirectory, "database-manifest.json");
@@ -1488,7 +1784,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
     writePrivateJson(storageManifestPath, storageManifest);
     const storageArchivePath = join(temporaryDirectory, "storage-objects.tar");
     await spawnCommand(
-      "tar",
+      preflight.executables.tar.real,
       ["-cf", storageArchivePath, "-C", temporaryDirectory, "storage-blobs", "storage-manifest.json"],
       {
         cwd: root,
@@ -1517,6 +1813,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
         signal,
         state,
         environment: preflight.commandEnvironment,
+        executables: preflight.executables,
       });
     }
 
@@ -1526,6 +1823,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       signal,
       state,
       preflight.commandEnvironment,
+      preflight.executables,
     );
     const receipt = assertRedactedReceipt(Object.freeze({
       schema: RECEIPT_SCHEMA,
@@ -1545,6 +1843,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
         migration_max_version: ledger.max_version,
         migration_copy_rows_sha256: ledger.copy_rows_sha256,
         data_copy_sections_sha256: dataAnalysis.copy_sections_sha256,
+        stability_proof_sha256: databaseStability.proof_sha256,
         table_count: aggregates.table_count,
         row_count: aggregates.row_count,
         auth_user_count: aggregates.auth_user_count,
@@ -1563,6 +1862,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
         namespace: SIGNATURE_NAMESPACE,
         identity: SIGNATURE_IDENTITY,
         public_key_fingerprint: fingerprint,
+        trust_root: "operator-held-external-public-key",
       }),
       result: "export_verified",
     }));
@@ -1576,6 +1876,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       signal,
       state,
       environment: preflight.commandEnvironment,
+      executables: preflight.executables,
     });
     ensureInterrupted(signal);
     renameSync(partialDirectory, finalDirectory);
@@ -1585,8 +1886,8 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       receipt_sha256: sha256(readFileSync(join(finalDirectory, "receipt.json"))),
     });
   } finally {
-    if (temporaryDirectory && existsSync(temporaryDirectory)) guardedRemove(temporaryDirectory);
-    if (partialDirectory && existsSync(partialDirectory)) guardedRemove(partialDirectory);
+    cleanup();
+    if (state.cleanup === cleanup) state.cleanup = parentCleanup;
   }
 }
 
@@ -1596,12 +1897,29 @@ export async function runManagedSupabaseExport(argv, environment = process.env) 
   const secrets = requireSecrets(environment);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const abortController = new AbortController();
-  const state = { child: null, signal: null };
+  const state = {
+    cleanup: null,
+    signal: null,
+    signalCount: 0,
+    terminators: new Set(),
+  };
   const removeSignalHandlers = registerSignalCleanup(abortController, state);
+  let runtimeDirectory;
   try {
+    runtimeDirectory = mkdtempSync(join(tmpdir(), "evo-v3-managed-export-runtime-"));
+    chmodSync(runtimeDirectory, 0o700);
+    writeFileSync(join(runtimeDirectory, RUN_MARKER), "managed-supabase-export-runtime\n", {
+      mode: 0o600,
+      flag: "wx",
+    });
+    const runtimeCleanup = () => {
+      if (runtimeDirectory && existsSync(runtimeDirectory)) guardedRemove(runtimeDirectory);
+    };
+    state.cleanup = runtimeCleanup;
     const preflight = await collectPreflight({
       args,
       root,
+      runtimeDirectory,
       secrets,
       signal: abortController.signal,
       state,
@@ -1616,6 +1934,8 @@ export async function runManagedSupabaseExport(argv, environment = process.env) 
       preflight,
     });
   } finally {
+    state.cleanup?.();
+    state.cleanup = null;
     removeSignalHandlers();
   }
 }

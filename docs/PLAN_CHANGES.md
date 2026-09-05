@@ -17933,3 +17933,40 @@ The exporter performs no Supabase mutation, schema apply, provider call, VPS
 change, customer write or production release. The production activation
 variable remains absent or false and #551 remains open until the separately
 reviewed restore, role-specific Auth/RLS/browser and malware-scanner proofs pass.
+
+## 2026-09-05 - Make the managed backup export independently trustworthy and fail closed
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-EXPORT-REVIEW-CORRECTION-2026-09-05`
+
+Change type: recovery integrity correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review of the first exporter candidate found that the bundle could
+self-assert its signing key, separate live database dumps could cross a schema
+change, opaque Supabase secret keys were sent as bearer JWTs during Storage
+downloads, slow or empty Storage objects could fail incorrectly, termination
+could leave plaintext behind, and production database credentials reached
+unrelated PATH-resolved child commands.
+
+Decision:
+
+- require an operator-held trusted public key outside both the repository and
+  backup output, verify the receipt against that external trust root, record
+  its fingerprint, and never package a replacement public key beside the
+  signed receipt;
+- run two complete ordered logical dump passes and compare the full semantic
+  SQL for roles, schema, data and exact migration history, ignoring only the
+  random PostgreSQL 17 psql guard token. Any schema, ledger, sequence or data
+  drift stops the export;
+- send opaque `sb_secret_...` keys only as `apikey`, retain bearer auth only for
+  legacy `service_role` JWTs, allow zero-byte objects, and use a bounded idle
+  timeout rather than a short whole-download deadline for streamed bytes;
+- keep signal handlers armed through cleanup, remove guarded plaintext and
+  partial output immediately, and escalate every child from `SIGTERM` to
+  `SIGKILL` after a fixed grace period;
+- execute only validated absolute tools. Give Supabase access/database secrets
+  solely to the pinned CLI dump subprocesses; repository, OrbStack, archive,
+  encryption and signing commands receive a secret-free minimal environment.
+
+This correction remains read-only against managed Supabase and changes no VPS,
+production runtime, provider, webhook, customer record or release activation.

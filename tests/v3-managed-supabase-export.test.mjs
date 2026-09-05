@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, realpathSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,12 +16,17 @@ import {
   assertRedactedReceipt,
   canonicalJson,
   dataRowAggregates,
+  downloadStorageObjects,
   exactMigrationLedger,
   normalizeProjectReceipt,
   parseArgs,
   parseCopySections,
   selectLatestCompletedBackup,
+  semanticSqlFileDigest,
   sha256,
+  spawnCommand,
+  storageClientHeaders,
+  storageDownloadHeaders,
   storageInventoryDigest,
   validateOutputRoot,
 } from "../scripts/export-v3-managed-supabase-backup.mjs";
@@ -28,6 +40,17 @@ function expectCode(action, code) {
   );
 }
 
+async function expectCodeAsync(action, code) {
+  await assert.rejects(
+    action,
+    (error) => error instanceof ManagedSupabaseExportError && error.code === code,
+  );
+}
+
+function jwtForRole(role) {
+  return `e30.${Buffer.from(JSON.stringify({ role })).toString("base64url")}.signature`;
+}
+
 test("argument contract accepts no secret values and rejects missing or duplicate fields", () => {
   const parsed = parseArgs([
     "run",
@@ -35,6 +58,7 @@ test("argument contract accepts no secret values and rejects missing or duplicat
     "--output-root", "/private/evo",
     "--age-recipient", `age1${"q".repeat(30)}`,
     "--signing-key", "/private/signing-key",
+    "--trusted-public-key", "/private/trusted-signing-key.pub",
   ]);
   assert.equal(parsed.projectRef, REF);
   assert.equal(parsed.command, "run");
@@ -49,6 +73,7 @@ test("argument contract accepts no secret values and rejects missing or duplicat
       "--project-ref", REF,
       "--age-recipient", `age1${"q".repeat(30)}`,
       "--signing-key", "/private/key",
+      "--trusted-public-key", "/private/trusted.pub",
     ]),
     "arguments_invalid",
   );
@@ -59,6 +84,7 @@ test("argument contract accepts no secret values and rejects missing or duplicat
       "--output-root", "/private/evo",
       "--age-recipient", `age1${"q".repeat(30)}`,
       "--signing-key", "/private/key",
+      "--trusted-public-key", "/private/trusted.pub",
     ]),
     "project_ref_invalid",
   );
@@ -79,6 +105,29 @@ test("output root must be an existing private directory outside the repository",
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("Storage headers never send opaque secret keys as bearer JWTs", () => {
+  const opaque = `sb_secret_${"a".repeat(24)}`;
+  const direct = storageDownloadHeaders(opaque);
+  assert.equal(direct.apikey, opaque);
+  assert.equal(direct.Authorization, undefined);
+  assert.equal(direct["Accept-Encoding"], "identity");
+
+  const sanitized = storageClientHeaders({ Authorization: `Bearer ${opaque}` }, opaque);
+  assert.equal(sanitized.get("apikey"), opaque);
+  assert.equal(sanitized.get("authorization"), null);
+
+  const userJwt = jwtForRole("authenticated");
+  const preserved = storageClientHeaders({ Authorization: `Bearer ${userJwt}` }, opaque);
+  assert.equal(preserved.get("authorization"), `Bearer ${userJwt}`);
+
+  const legacy = jwtForRole("service_role");
+  assert.equal(storageDownloadHeaders(legacy).Authorization, `Bearer ${legacy}`);
+  assert.equal(
+    storageClientHeaders({}, legacy).get("authorization"),
+    `Bearer ${legacy}`,
+  );
 });
 
 test("Management API receipt is allowlisted, exact-project bound, and healthy", () => {
@@ -219,6 +268,137 @@ test("Storage inventory is deterministic, duplicate-safe, and byte bounded", () 
     }),
     "storage_inventory_duplicate_object",
   );
+  const empty = storageInventoryDigest({
+    buckets: [{ id: "empty", name: "empty", public: false }],
+    objects: [{ bucket_id: "empty", path: "zero.bin", id: "0", metadata: { size: 0 } }],
+  });
+  assert.equal(empty.total_bytes, 0);
+  expectCode(
+    () => storageInventoryDigest({
+      buckets: [{ id: "bad", name: "bad", public: false }],
+      objects: [{ bucket_id: "bad", path: "missing.bin", id: "x", metadata: {} }],
+    }),
+    "storage_object_size_invalid",
+  );
+});
+
+test("semantic SQL digest ignores only PostgreSQL guard tokens and catches restore drift", async () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-export-sql-digest-test-"));
+  const first = join(root, "first.sql");
+  const equivalent = join(root, "equivalent.sql");
+  const drifted = join(root, "drifted.sql");
+  try {
+    writeFileSync(first, "\\restrict token_one\nCREATE TABLE x(id bigint);\nSELECT setval('x_id_seq', 7);\n\\unrestrict token_one\n");
+    writeFileSync(equivalent, "\\restrict token_two\nCREATE TABLE x(id bigint);\nSELECT setval('x_id_seq', 7);\n\\unrestrict token_two\n");
+    writeFileSync(drifted, "\\restrict token_three\nCREATE TABLE x(id bigint);\nSELECT setval('x_id_seq', 8);\n\\unrestrict token_three\n");
+    assert.equal(await semanticSqlFileDigest(first), await semanticSqlFileDigest(equivalent));
+    assert.notEqual(await semanticSqlFileDigest(first), await semanticSqlFileDigest(drifted));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("command timeout forcibly ends a child that ignores SIGTERM", async () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-export-command-timeout-test-"));
+  const marker = join(root, "sigterm-observed");
+  const startedAt = Date.now();
+  try {
+    await expectCodeAsync(
+      spawnCommand(
+        process.execPath,
+        [
+          "-e",
+          "require('node:fs').writeFileSync(process.argv[1] + '.ready', 'ready'); process.on('SIGTERM', () => require('node:fs').writeFileSync(process.argv[1], 'term')); setInterval(() => {}, 1000);",
+          marker,
+        ],
+        {
+          cwd: root,
+          environment: { PATH: "/usr/bin:/bin", HOME: root, TMPDIR: root },
+          code: "bounded_timeout",
+          timeoutMs: 300,
+          killGraceMs: 100,
+        },
+      ),
+      "bounded_timeout",
+    );
+    assert.equal(existsSync(`${marker}.ready`), true);
+    assert.equal(existsSync(marker), true);
+    assert.ok(Date.now() - startedAt < 2_000);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function oneObjectInventory(size) {
+  return storageInventoryDigest({
+    buckets: [{ id: "private", name: "private", public: false }],
+    objects: [{
+      bucket_id: "private",
+      path: "object.bin",
+      id: "object-id",
+      metadata: { size },
+    }],
+  });
+}
+
+async function runDownloadCase({ size, body, idleTimeoutMs = 100 }) {
+  const root = mkdtempSync(join(tmpdir(), "evo-export-download-test-"));
+  try {
+    return await downloadStorageObjects({
+      inventory: oneObjectInventory(size),
+      origin: "https://example.invalid",
+      secretKey: `sb_secret_${"a".repeat(24)}`,
+      outputDirectory: join(root, "bytes"),
+      signal: new AbortController().signal,
+      idleTimeoutMs,
+      fetchImpl: async () => new Response(body, {
+        status: 200,
+        headers: { "content-length": String(size) },
+      }),
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("Storage downloader accepts a real zero-byte response and hashes empty content", async () => {
+  const result = await runDownloadCase({ size: 0, body: null });
+  assert.equal(result.totalBytes, 0);
+  assert.equal(result.objects[0].sha256, sha256(Buffer.alloc(0)));
+});
+
+test("Storage downloader permits progressive streams longer than the idle window", async () => {
+  const body = new ReadableStream({
+    start(controller) {
+      let sent = 0;
+      const timer = setInterval(() => {
+        controller.enqueue(Uint8Array.of(sent));
+        sent += 1;
+        if (sent === 3) {
+          clearInterval(timer);
+          controller.close();
+        }
+      }, 40);
+    },
+  });
+  const result = await runDownloadCase({ size: 3, body, idleTimeoutMs: 100 });
+  assert.equal(result.totalBytes, 3);
+});
+
+test("Storage downloader fails closed on inactivity and oversized streams", async () => {
+  const stalled = new ReadableStream({
+    start(controller) {
+      controller.enqueue(Uint8Array.of(1));
+    },
+  });
+  await expectCodeAsync(
+    runDownloadCase({ size: 2, body: stalled, idleTimeoutMs: 50 }),
+    "storage_object_download_timed_out",
+  );
+  await expectCodeAsync(
+    runDownloadCase({ size: 1, body: Uint8Array.of(1, 2) }),
+    "storage_object_size_mismatch",
+  );
 });
 
 function receiptFixture() {
@@ -232,7 +412,7 @@ function receiptFixture() {
     storage: { inventory_sha256: "5".repeat(64), bucket_count: 3, private_bucket_count: 1, public_bucket_count: 2, object_count: 0, total_bytes: 0 },
     encrypted_artifacts: { "data.sql.age": { bytes: 100, sha256: "6".repeat(64) } },
     tools: { supabase_cli: "2.116.0", age: "v1.3.1", ssh: "available", orb: "Running", docker_context: "orbstack" },
-    signature: { namespace: "evo-v3-managed-supabase-recovery", identity: "evo-v3-managed-supabase-export", public_key_fingerprint: "SHA256:abc" },
+    signature: { namespace: "evo-v3-managed-supabase-recovery", identity: "evo-v3-managed-supabase-export", public_key_fingerprint: "SHA256:abc", trust_root: "operator-held-external-public-key" },
     result: "export_verified",
   };
 }

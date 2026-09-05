@@ -39,6 +39,7 @@ export function LoginForm({
       {error ? (
         <p
           id="login-error"
+          data-auth-error={error}
           role="alert"
           aria-live="polite"
           className="rounded-ctl bg-danger-weak px-3 py-2.5 text-sm font-medium text-danger"

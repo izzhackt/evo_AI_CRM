@@ -14,6 +14,7 @@ import {
   assessRepresentativeCohort,
   apiRequest,
   browserCompanyFileUpload,
+  browserLoginFailureCode,
   browserRequestAllowed,
   buildRestoredRoleOutcomeReadiness,
   canonicalRecoveryPdfBytes,
@@ -1734,8 +1735,32 @@ test("browser operations map native failures to a named step without leaking dia
     () => runBrowserOperation(guard, async () => undefined, { operationCode: "INVALID CODE" }),
     "browser_operation_code_invalid",
   );
-  assert.match(source, /page\.waitForURL\(`\$\{app\.appUrl\}\$\{route\.path\}`/u);
+  assert.match(source, /operationCode: `browser_\$\{role\}_login_click_failed`/u);
+  assert.match(source, /page\.waitForFunction\(\(\) => \{/u);
+  assert.match(source, /getAttribute\("data-auth-error"\)/u);
+  assert.match(source, /operationCode: `browser_\$\{role\}_login_result_wait_failed`/u);
   assert.match(source, /click\(\{ noWaitAfter: true, timeout: 45_000 \}\)/u);
+});
+
+test("browser login outcomes expose only stable allowlisted failure codes", () => {
+  assert.equal(browserLoginFailureCode("admin", { status: "authenticated" }), null);
+  assert.equal(
+    browserLoginFailureCode("sales", { status: "rejected", code: "accessDenied" }),
+    "browser_sales_login_access_denied",
+  );
+  assert.equal(
+    browserLoginFailureCode("admissions", { status: "rejected", code: "authUnavailable" }),
+    "browser_admissions_login_auth_unavailable",
+  );
+  assert.equal(
+    browserLoginFailureCode("admin", { status: "rejected", code: "staffAccessDenied" }),
+    "browser_admin_login_staff_access_denied",
+  );
+  expectCode(
+    () => browserLoginFailureCode("admin", { status: "rejected", code: "localized-secret-text" }),
+    "browser_admin_login_error_code_invalid",
+  );
+  expectCode(() => browserLoginFailureCode("unknown", { status: "authenticated" }), "browser_login_role_invalid");
 });
 
 test("browser diagnostic uses a bounded allowlist for native error types and categories", () => {

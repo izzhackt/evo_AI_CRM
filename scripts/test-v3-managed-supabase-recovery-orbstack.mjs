@@ -5571,6 +5571,25 @@ export function validateBrowserNetworkProof(value) {
   return Object.freeze({ ...value });
 }
 
+const BROWSER_LOGIN_ERROR_SUFFIXES = Object.freeze({
+  accessDenied: "access_denied",
+  authUnavailable: "auth_unavailable",
+  staffAccessDenied: "staff_access_denied",
+});
+
+export function browserLoginFailureCode(role, outcome) {
+  if (!new Set(["admin", "sales", "admissions"]).has(role)) {
+    fail("browser_login_role_invalid", "browser_proof");
+  }
+  if (!isRecord(outcome) || !new Set(["authenticated", "rejected"]).has(outcome.status)) {
+    fail(`browser_${role}_login_result_invalid`, "browser_proof");
+  }
+  if (outcome.status === "authenticated") return null;
+  const suffix = BROWSER_LOGIN_ERROR_SUFFIXES[outcome.code];
+  if (!suffix) fail(`browser_${role}_login_error_code_invalid`, "browser_proof");
+  return `browser_${role}_login_${suffix}`;
+}
+
 export async function installBrowserWebSocketBlocker(context, browserNetwork, browserStep = async (operation) => await operation()) {
   await browserStep(async () => await context.routeWebSocket("**/*", async (webSocket) => {
     browserNetwork.webSocketAttemptCount += 1;
@@ -5888,6 +5907,7 @@ async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, rol
 
 async function proveBrowser(app, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
+  const readiness = await proveFailClosedReadiness(app, interruptionGuard);
   const browserTool = await browserExecutable(supervisor);
   state.availableTools.chromium = browserTool.version;
   state.availableTools.chromium_binary_sha256 = browserTool.binarySha256;
@@ -5974,12 +5994,24 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
         { operationCode: `browser_${role}_login_password_fill_failed` },
       );
       await browserStep(
-        async () => await Promise.all([
-          page.waitForURL(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
-          page.getByRole("button", { name: "Войти в CRM" }).click({ noWaitAfter: true, timeout: 45_000 }),
-        ]),
-        { operationCode: `browser_${role}_login_submit_failed` },
+        async () => await page.getByRole("button", { name: "Войти в CRM" }).click({ noWaitAfter: true, timeout: 45_000 }),
+        { operationCode: `browser_${role}_login_click_failed` },
       );
+      const loginOutcome = await browserStep(
+        async () => await (await page.waitForFunction(() => {
+          if (document.querySelector('[data-testid="v3-shell"]')) {
+            return { status: "authenticated" };
+          }
+          const error = document.querySelector("#login-error")?.getAttribute("data-auth-error");
+          return error ? { status: "rejected", code: error } : false;
+        }, undefined, { timeout: 45_000 })).jsonValue(),
+        { operationCode: `browser_${role}_login_result_wait_failed` },
+      );
+      const loginFailureCode = browserLoginFailureCode(role, loginOutcome);
+      if (loginFailureCode) fail(loginFailureCode, "browser_proof");
+      if (page.url() !== `${app.appUrl}${route.path}`) {
+        fail(`browser_${role}_login_destination_mismatch`, "browser_proof");
+      }
       const shell = await browserStep(async () => page.getByTestId("v3-shell"));
       await browserStep(
         async () => await shell.waitFor({ state: "visible", timeout: 45_000 }),
@@ -6078,7 +6110,6 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
     for (const role of ["admin", "sales", "admissions"]) {
       roleReadbacks[role] ??= "not_run_missing_representative";
     }
-    const readiness = await proveFailClosedReadiness(app, interruptionGuard);
     return Object.freeze({
       admin: availableRoles.includes("admin") ? "passed" : "not_run_missing_representative",
       sales: availableRoles.includes("sales") ? "passed" : "not_run_missing_representative",

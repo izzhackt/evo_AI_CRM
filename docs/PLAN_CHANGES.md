@@ -18473,3 +18473,47 @@ Decision:
 This correction does not contact or mutate managed Supabase, production, VPS,
 WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
 not arm #552.
+## 2026-09-05 - Consume the one signed managed-backup contract during recovery
+
+Block-ID: `EVO-V3-H-MANAGED-RECOVERY-CONSUMER-CONTRACT-2026-09-05`
+
+Change type: #551 implementation contract clarification.
+Affected plan section: Order 7 / Issue #551.
+
+The historical isolated-recovery work in progress predated the reviewed
+managed-Supabase exporter and expected a second set of manifest field names, a
+separate migration-ledger attestation and a differently shaped compressed
+Storage archive. Porting that contract unchanged would layer a second backup
+authority over the synchronized, signed export already merged through #636 and
+#637.
+
+Decision:
+
+- the recovery consumer accepts only the exact completed export bundle and
+  schema emitted by `export-v3-managed-supabase-backup.mjs`; it verifies the
+  detached receipt signature against the independently retained trusted public
+  key and fingerprint before trusting any manifest or ciphertext;
+- bind the receipt's exact repository/source identity, synchronized-snapshot
+  proof, ciphertext hashes, database manifest, Storage manifest and downloaded
+  object archive into one recovery run. Do not synthesize or accept a parallel
+  migration attestation or compatibility manifest;
+- decrypt only inside a marked private mode-`0700` runtime directory, validate
+  every manifest/archive mapping and traversal boundary, restore the database
+  and private Storage bytes into one loopback-only OrbStack Supabase contour,
+  and prove the destination identity differs from the managed source;
+- reconstruct migration history only from the authenticated exported history,
+  apply the remaining reviewed root migrations, and prove aggregate database,
+  Auth, role-specific RLS, private Storage, stored-byte malware scanning and V3
+  browser outcomes without exposing customer rows or object names;
+- provider configuration stays absent and outbound provider operations remain
+  fail closed. The run never contacts WAHA, Gemini or amoCRM and never mutates
+  the managed source, VPS, production traffic or customer/provider state; and
+- cleanup owns only its generated containers, volumes, network and plaintext
+  directory. Signal/error cleanup must drain child process groups first and
+  retain a marked quarantine directory rather than perform an unsafe deletion
+  when safe cleanup cannot be proved.
+
+The real managed-source export plus isolated restore run remains required.
+Missing source artifacts, trusted signature material, representative staff
+identities or either database/Storage proof is reported as the exact blocker;
+fixtures or a newly invented bundle cannot satisfy #551.

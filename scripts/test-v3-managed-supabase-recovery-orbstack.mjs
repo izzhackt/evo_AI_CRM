@@ -2073,21 +2073,26 @@ async function storageRequest(status, url, init, accepted, code, stage = "storag
 }
 
 async function waitForPostgrestSchemaReadiness(status, timeoutMs = 60_000) {
-  const url = new URL("/rest/v1/organizations", status.apiUrl);
-  url.searchParams.set("select", "id");
-  url.searchParams.set("limit", "0");
+  // Direct table reads are deliberately not granted to `service_role` in the
+  // Platform schema. Probe the stable recovery-inventory RPC instead: it is a
+  // read-only SECURITY DEFINER function whose own auth.jwt() guard requires the
+  // service-role bearer and whose payload is never read or logged here.
+  const url = new URL("/rest/v1/rpc/document_storage_backup_inventory", status.apiUrl);
   const deadline = Date.now() + timeoutMs;
   let lastDiagnostic = Object.freeze({ httpStatus: null });
   while (Date.now() < deadline) {
     let response;
     try {
       response = await fetch(url, {
-        method: "HEAD",
+        method: "POST",
+        body: "{}",
         redirect: "manual",
         headers: {
           apikey: status.serviceRoleKey,
           Authorization: `Bearer ${status.serviceRoleKey}`,
           "Accept-Profile": "platform",
+          "Content-Profile": "platform",
+          "Content-Type": "application/json",
         },
       });
     } catch {
@@ -2096,7 +2101,7 @@ async function waitForPostgrestSchemaReadiness(status, timeoutMs = 60_000) {
     }
     lastDiagnostic = sanitizeHttpResponseDiagnostic(response);
     if (response.status === 200) return;
-    if (response.status !== 503) {
+    if (![404, 503].includes(response.status)) {
       fail("post_migration_postgrest_probe_failed", "migration_rehearsal", lastDiagnostic);
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));

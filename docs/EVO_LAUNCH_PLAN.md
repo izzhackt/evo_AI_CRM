@@ -195,7 +195,13 @@ closed. Schema recovery stays forward-only and schema apply remains a separate
 database export and a separate private-Storage object inventory/byte backup are
 restored only into a disposable local OrbStack Supabase contour with provider
 configuration absent and outbound provider actions blocked. The rehearsal
-applies pending forward migrations, reconciles aggregate counts rather than
+binds the signed export to its exact source Git commit and migration tree, then
+separately binds the recovery target to the exact clean target checkout and the
+immutable application-image revision. The source commit must be an ancestor of
+the target and its complete ordered migration ledger must be the exact target
+prefix; equality between source and target is not required because the genuine
+target-only suffix is the set under rehearsal. The rehearsal applies that
+pending forward suffix, reconciles aggregate counts rather than
 publishing customer rows, proves Supabase Auth/RLS/private Storage and the V3
 browser workflow, then destroys the disposable contour and retains only
 redacted checksums/results. Database and Storage proof are independently

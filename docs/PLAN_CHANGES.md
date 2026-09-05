@@ -18520,3 +18520,38 @@ This recovery consumer may decrypt and restore the read-only export only into
 an isolated loopback-bound local OrbStack contour. It does not mutate managed
 Supabase, Storage, VPS, provider/webhook state, production traffic or customer
 records and does not activate a release.
+
+## 2026-09-05 - Separate recovery source, target and image identities
+
+Block-ID: `EVO-V3-H-RECOVERY-SOURCE-TARGET-SEPARATION-2026-09-05`
+
+Change type: independent-review recovery correctness correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review found that one repository-commit input was incorrectly used
+for the signed export source, the current recovery checkout and the candidate
+image. That made a real older backup impossible to consume from a later target
+and made a genuine pending-migration suffix impossible to prove.
+
+Decision:
+
+- bind the signed receipt and source migration tree to one explicit export
+  source commit;
+- bind the clean recovery checkout, full target migration tree and immutable
+  application-image revision to a separate explicit target commit;
+- require the source commit to be an ancestor of the target, require the signed
+  complete source ledger to be the exact target-ledger prefix, and rehearse only
+  the resulting target-only forward suffix. Never require source and target to
+  be equal and never reconstruct either ledger from filenames or counts;
+- run the candidate with production runtime semantics on the exact owned
+  internal Docker network. Derive the local Supabase endpoint from a complete
+  inspected project-container census, publish only the application port to
+  `127.0.0.1`, and block every browser request outside that loopback origin;
+- stream restored Storage payloads rather than buffering whole objects, while
+  retaining byte/hash read-back verification and interruption cancellation; and
+- record sanitized versions or binary identities for every external tool used.
+  Before OrbStack and its exact Docker context pass, cleanup may remove only the
+  marked local temporary root and must not invoke the container runtime.
+
+This correction changes no managed Supabase, VPS, provider, webhook,
+production-traffic or customer state and does not activate a release.

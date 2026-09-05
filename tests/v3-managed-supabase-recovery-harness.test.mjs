@@ -13,6 +13,7 @@ import {
   RecoveryFailure,
   assessRepresentativeCohort,
   apiRequest,
+  browserCompanyFileUpload,
   browserRequestAllowed,
   buildRestoredRoleOutcomeReadiness,
   canonicalRecoveryPdfBytes,
@@ -44,6 +45,7 @@ import {
   resolveStorageSignedObjectUrl,
   sanitizePsqlDiagnostic,
   sanitizeCommandDiagnostic,
+  sanitizeBrowserDiagnostic,
   storageSourceRecoveryReadiness,
   suppliedRepresentativeUserIds,
   selectAdmissionsTaskMutation,
@@ -190,6 +192,9 @@ test("private pinned ClamAV is exercised through the Company Files product route
   assert.match(dataPathSource, /malware_scanner_outage_persisted_state/u);
   assert.match(dataPathSource, /malware_scanner_recovered_persistence_invalid/u);
   assert.match(dataPathSource, /Buffer\.from\(EICAR, "ascii"\)/u);
+  for (const phase of ["clean", "eicar", "outage", "recovered"]) {
+    assert.match(dataPathSource, new RegExp(`malware_scanner_${phase}_browser_request_failed`, "u"));
+  }
 });
 
 test("restored role proof mutates existing records, replays, audits, and reads back in browser", () => {
@@ -1701,6 +1706,78 @@ test("interruption aborts pending HTTP and refuses later API or browser work whi
   let cleanupInvocations = 0;
   await latchedGuard.run("cleanup", async () => { cleanupInvocations += 1; }, { allowAfterInterrupt: true });
   assert.equal(cleanupInvocations, 1);
+});
+
+test("browser operations map native failures to a named step without leaking diagnostics", async () => {
+  const guard = new RecoveryInterruptionGuard();
+  const sensitiveMarker = "sensitive-selector-and-credential";
+  await assert.rejects(
+    () => runBrowserOperation(
+      guard,
+      async () => { throw new Error(`page.evaluate: TypeError: Failed to fetch ${sensitiveMarker}`); },
+      { operationCode: "browser_admin_login_submit_failed" },
+    ),
+    (error) => {
+      assert.ok(error instanceof RecoveryFailure);
+      assert.equal(error.code, "browser_admin_login_submit_failed");
+      assert.equal(error.stage, "browser_proof");
+      assert.deepEqual(Object.keys(error.diagnostic).sort(), ["bytes", "category", "messageSha256", "name"]);
+      assert.equal(error.diagnostic.category, "fetch_failed");
+      assert.equal(error.diagnostic.name, "Error");
+      assert.match(error.diagnostic.messageSha256, /^[0-9a-f]{64}$/u);
+      assert.equal(JSON.stringify(error.diagnostic).includes(sensitiveMarker), false);
+      return true;
+    },
+  );
+  await expectCodeAsync(
+    () => runBrowserOperation(guard, async () => undefined, { operationCode: "INVALID CODE" }),
+    "browser_operation_code_invalid",
+  );
+});
+
+test("browser diagnostic uses a bounded allowlist for native error types and categories", () => {
+  assert.deepEqual(sanitizeBrowserDiagnostic(new TypeError("Failed to fetch")), {
+    category: "fetch_failed",
+    name: "TypeError",
+    messageSha256: hash("Failed to fetch"),
+    bytes: Buffer.byteLength("Failed to fetch"),
+  });
+  const custom = new Error("Target page, context or browser has been closed");
+  custom.name = "PrivateCredentialError";
+  const sanitized = sanitizeBrowserDiagnostic(custom);
+  assert.equal(sanitized.category, "target_closed");
+  assert.equal(sanitized.name, "Error");
+  assert.equal(JSON.stringify(sanitized).includes(custom.message), false);
+  const timeout = new Error("locator.click: Timeout 30000ms exceeded");
+  timeout.name = "TimeoutError";
+  assert.equal(sanitizeBrowserDiagnostic(timeout).category, "timeout");
+  assert.equal(sanitizeBrowserDiagnostic(timeout).name, "TimeoutError");
+});
+
+test("company-file browser uploads fail closed on native and in-page transport errors", async () => {
+  const guard = new RecoveryInterruptionGuard();
+  const browserStep = async (operation, options) => await runBrowserOperation(guard, operation, options);
+  const input = [
+    "http://127.0.0.1:43123",
+    { id: "10000000-0000-4000-8000-000000000001", version: "1" },
+    Buffer.from("clean", "utf8"),
+    "clean.txt",
+    "20000000-0000-4000-8000-000000000001",
+    browserStep,
+    "malware_scanner_clean_browser_request_failed",
+  ];
+  await assert.rejects(
+    () => browserCompanyFileUpload({ evaluate: async () => { throw new Error("Target page, context or browser has been closed"); } }, ...input),
+    (error) => error instanceof RecoveryFailure &&
+      error.code === "malware_scanner_clean_browser_request_failed" &&
+      error.diagnostic?.category === "target_closed",
+  );
+  await assert.rejects(
+    () => browserCompanyFileUpload({ evaluate: async () => ({ transport: "failed" }) }, ...input),
+    (error) => error instanceof RecoveryFailure &&
+      error.code === "malware_scanner_clean_browser_request_failed" &&
+      error.diagnostic?.category === "fetch_failed",
+  );
 });
 
 test("browser proof requires a 2xx response, exact final route and loaded module marker", () => {

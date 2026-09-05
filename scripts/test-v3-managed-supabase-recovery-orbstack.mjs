@@ -1404,11 +1404,42 @@ export class RecoveryInterruptionGuard {
   }
 }
 
-export async function runBrowserOperation(interruptionGuard, operation, options) {
+export function sanitizeBrowserDiagnostic(error) {
+  const message = error instanceof Error && typeof error.message === "string"
+    ? error.message
+    : String(error ?? "");
+  const rawName = error instanceof Error && typeof error.name === "string" ? error.name : "Error";
+  const name = new Set(["Error", "TimeoutError", "TypeError"]).has(rawName) ? rawName : "Error";
+  const category = /timed?\s*out|timeout/iu.test(message)
+    ? "timeout"
+    : /target page, context or browser has been closed|browser has been closed|connection closed|execution context was destroyed/iu.test(message)
+      ? "target_closed"
+      : /failed to fetch|net::err_|network/iu.test(message)
+        ? "fetch_failed"
+        : /protocol|cdp|session closed/iu.test(message)
+          ? "protocol"
+          : "unknown";
+  return Object.freeze({
+    category,
+    name,
+    messageSha256: sha256(message),
+    bytes: Buffer.byteLength(message),
+  });
+}
+
+export async function runBrowserOperation(interruptionGuard, operation, options = {}) {
   if (!(interruptionGuard instanceof RecoveryInterruptionGuard)) {
     fail("interruption_guard_invalid", "browser_proof");
   }
-  return await interruptionGuard.run("browser_proof", operation, options);
+  const operationCode = options.operationCode ?? "browser_operation_failed";
+  string(operationCode, /^[a-z][a-z0-9_]{0,95}$/u, "browser_operation_code_invalid", "browser_proof", 96);
+  const guardOptions = { allowAfterInterrupt: options.allowAfterInterrupt === true };
+  try {
+    return await interruptionGuard.run("browser_proof", operation, guardOptions);
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    fail(operationCode, "browser_proof", sanitizeBrowserDiagnostic(error));
+  }
 }
 
 export class ProcessSupervisor {
@@ -5586,15 +5617,27 @@ async function proveFailClosedReadiness(app, interruptionGuard) {
   });
 }
 
-async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filename, requestId) {
-  return await page.evaluate(async ({ baseUrl, fileId, expectedVersion, encoded, name, id }) => {
-    const form = new FormData();
-    form.set("expected_file_version", expectedVersion);
-    form.set("request_id", id);
-    const binary = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
-    form.set("file", new File([binary], name, { type: "text/plain" }));
-    const response = await fetch(`${baseUrl}/api/v3/company-files/${encodeURIComponent(fileId)}/versions`, { method: "POST", body: form });
-    return Object.freeze({ status: response.status, payload: await response.json().catch(() => null) });
+export async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filename, requestId, browserStep, operationCode) {
+  const result = await browserStep(async () => await page.evaluate(async ({ baseUrl, fileId, expectedVersion, encoded, name, id }) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
+    try {
+      const form = new FormData();
+      form.set("expected_file_version", expectedVersion);
+      form.set("request_id", id);
+      const binary = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+      form.set("file", new File([binary], name, { type: "text/plain" }));
+      const response = await fetch(`${baseUrl}/api/v3/company-files/${encodeURIComponent(fileId)}/versions`, {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+      return Object.freeze({ transport: "response", status: response.status, payload: await response.json().catch(() => null) });
+    } catch {
+      return Object.freeze({ transport: "failed" });
+    } finally {
+      clearTimeout(timeout);
+    }
   }, {
     baseUrl: appUrl,
     fileId: companyFile.id,
@@ -5602,7 +5645,11 @@ async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filena
     encoded: Buffer.from(bytes).toString("base64"),
     name: filename,
     id: requestId,
-  });
+  }), { operationCode });
+  if (!isRecord(result) || result.transport !== "response") {
+    fail(operationCode, "browser_proof", sanitizeBrowserDiagnostic(new TypeError("Failed to fetch")));
+  }
+  return Object.freeze({ status: result.status, payload: result.payload });
 }
 
 async function readScannerPersistenceState(status, supervisor, toolchain) {
@@ -5647,7 +5694,7 @@ function assertScannerAttestation(proof, expectedSha256, code) {
   ) fail(code, "malware_scanner_proof");
 }
 
-async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, supervisor, toolchain, interruptionGuard) {
+async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, supervisor, toolchain, interruptionGuard, browserStep) {
   const created = await platformRpc(status, adminActor, "create_company_file", {
     p_organization_id: adminActor.organizationId,
     p_folder_id: null,
@@ -5659,7 +5706,16 @@ async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, s
   }
   let companyFile = Object.freeze({ id: created.company_file_id, version: created.version });
   const cleanBytes = Buffer.from("EVO recovery clean company file\n", "utf8");
-  const clean = await browserCompanyFileUpload(page, appUrl, companyFile, cleanBytes, "recovery-clean.txt", randomUUID());
+  const clean = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    cleanBytes,
+    "recovery-clean.txt",
+    randomUUID(),
+    browserStep,
+    "malware_scanner_clean_browser_request_failed",
+  );
   if (
     clean.status !== 201 || !isRecord(clean.payload?.companyFile) ||
     clean.payload.companyFile.companyFileId !== companyFile.id ||
@@ -5672,14 +5728,32 @@ async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, s
   companyFile = Object.freeze({ ...companyFile, version: clean.payload.companyFile.fileVersion });
   const afterClean = await readScannerPersistenceState(status, supervisor, toolchain);
 
-  const infected = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from(EICAR, "ascii"), "recovery-eicar.txt", randomUUID());
+  const infected = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    Buffer.from(EICAR, "ascii"),
+    "recovery-eicar.txt",
+    randomUUID(),
+    browserStep,
+    "malware_scanner_eicar_browser_request_failed",
+  );
   if (infected.status !== 422 || infected.payload?.error !== "malware_detected") fail("malware_scanner_eicar_data_path_not_blocked", "malware_scanner_proof");
   if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_eicar_persisted_state", "malware_scanner_proof");
 
   await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "stop", "--time", "30", scanner.containerId], {
     stage: "malware_scanner_proof", code: "malware_scanner_outage_stop_failed", timeoutMs: 60_000,
   });
-  const outage = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from("EVO recovery scanner outage proof\n", "utf8"), "recovery-outage.txt", randomUUID());
+  const outage = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    Buffer.from("EVO recovery scanner outage proof\n", "utf8"),
+    "recovery-outage.txt",
+    randomUUID(),
+    browserStep,
+    "malware_scanner_outage_browser_request_failed",
+  );
   if (outage.status !== 503 || outage.payload?.error !== "malware_scanner_unavailable") fail("malware_scanner_outage_not_fail_closed", "malware_scanner_proof");
   if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_outage_persisted_state", "malware_scanner_proof");
 
@@ -5688,7 +5762,16 @@ async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, s
   });
   await waitForRecoveryScanner(scanner.containerId, supervisor, toolchain, interruptionGuard);
   const recoveredBytes = Buffer.from("EVO recovery scanner restored proof\n", "utf8");
-  const recovered = await browserCompanyFileUpload(page, appUrl, companyFile, recoveredBytes, "recovery-restored.txt", randomUUID());
+  const recovered = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    recoveredBytes,
+    "recovery-restored.txt",
+    randomUUID(),
+    browserStep,
+    "malware_scanner_recovered_browser_request_failed",
+  );
   if (
     recovered.status !== 201 || !isRecord(recovered.payload?.companyFile) ||
     recovered.payload.companyFile.companyFileId !== companyFile.id ||
@@ -5805,13 +5888,19 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
     const versionResponse = await waitForHttp(`http://127.0.0.1:${debugPort}/json/version`, [200], 45_000, "browser_start_timeout", "browser_proof", state, interruptionGuard);
     let versionPayload;
     try {
-      versionPayload = await browserStep(async () => await versionResponse.json());
+      versionPayload = await browserStep(
+        async () => await versionResponse.json(),
+        { operationCode: "browser_debug_version_read_failed" },
+      );
     } catch (error) {
       if (error instanceof RecoveryFailure) throw error;
       versionPayload = null;
     }
     if (!isRecord(versionPayload) || typeof versionPayload.webSocketDebuggerUrl !== "string") fail("browser_debug_endpoint_invalid", "browser_proof");
-    browser = await browserStep(async () => await browserTool.chromium.connectOverCDP(versionPayload.webSocketDebuggerUrl));
+    browser = await browserStep(
+      async () => await browserTool.chromium.connectOverCDP(versionPayload.webSocketDebuggerUrl),
+      { operationCode: "browser_cdp_connect_failed" },
+    );
     const routes = Object.freeze({
       admin: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
       sales: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
@@ -5830,7 +5919,10 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
     const availableRoles = ["admin", "sales", "admissions"].filter((role) => isRecord(app.actors[role]));
     if (availableRoles.length === 0) fail("browser_representative_missing", "browser_proof");
     for (const role of availableRoles) {
-      const context = await browserStep(async () => await browser.newContext({ locale: "ru-RU", serviceWorkers: "block" }));
+      const context = await browserStep(
+        async () => await browser.newContext({ locale: "ru-RU", serviceWorkers: "block" }),
+        { operationCode: `browser_${role}_context_create_failed` },
+      );
       await browserStep(async () => await context.route("**/*", async (route) => {
         if (interruptionGuard.interrupted) {
           await route.abort("blockedbyclient");
@@ -5842,25 +5934,58 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
         }
         browserNetwork.deniedExternalRequestCount += 1;
         await route.abort("blockedbyclient");
-      }));
+      }), { operationCode: `browser_${role}_network_policy_failed` });
       await installBrowserWebSocketBlocker(context, browserNetwork, browserStep);
-      const page = await browserStep(async () => await context.newPage());
-      await browserStep(async () => await page.goto(`${app.appUrl}/login`, { waitUntil: "domcontentloaded" }));
-      await browserStep(async () => await page.locator("#staff-email").fill(app.actors[role].email));
-      await browserStep(async () => await page.locator("#staff-password").fill(app.actors[role].password));
-      await browserStep(async () => await page.getByRole("button", { name: "Войти в CRM" }).click());
+      const page = await browserStep(
+        async () => await context.newPage(),
+        { operationCode: `browser_${role}_page_create_failed` },
+      );
+      const loginResponse = await browserStep(
+        async () => await page.goto(`${app.appUrl}/login`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
+        { operationCode: `browser_${role}_login_navigation_failed` },
+      );
+      if (!loginResponse || loginResponse.status() < 200 || loginResponse.status() >= 300 || page.url() !== `${app.appUrl}/login`) {
+        fail(`browser_${role}_login_response_invalid`, "browser_proof");
+      }
+      await browserStep(
+        async () => await page.locator("#staff-email").fill(app.actors[role].email),
+        { operationCode: `browser_${role}_login_email_fill_failed` },
+      );
+      await browserStep(
+        async () => await page.locator("#staff-password").fill(app.actors[role].password),
+        { operationCode: `browser_${role}_login_password_fill_failed` },
+      );
+      await browserStep(
+        async () => await page.getByRole("button", { name: "Войти в CRM" }).click({ timeout: 45_000 }),
+        { operationCode: `browser_${role}_login_submit_failed` },
+      );
       const shell = await browserStep(async () => page.getByTestId("v3-shell"));
-      await browserStep(async () => await shell.waitFor({ state: "visible", timeout: 45_000 }));
+      await browserStep(
+        async () => await shell.waitFor({ state: "visible", timeout: 45_000 }),
+        { operationCode: `browser_${role}_login_shell_failed` },
+      );
       if (await browserStep(async () => await shell.getAttribute("data-authority-role")) !== role) {
         fail("browser_role_mismatch", "browser_proof", { role });
       }
       const route = routes[role];
-      const response = await browserStep(async () => await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded" }));
-      await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
+      const response = await browserStep(
+        async () => await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
+        { operationCode: `browser_${role}_module_navigation_failed` },
+      );
+      await browserStep(
+        async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }),
+        { operationCode: `browser_${role}_module_shell_failed` },
+      );
       let markerVisible = false;
       try {
-        await browserStep(async () => await page.getByRole("heading", { name: route.heading, exact: true }).waitFor({ state: "visible", timeout: 45_000 }));
-        await browserStep(async () => await page.getByTestId("v3-operational-dashboard").waitFor({ state: "visible", timeout: 45_000 }));
+        await browserStep(
+          async () => await page.getByRole("heading", { name: route.heading, exact: true }).waitFor({ state: "visible", timeout: 45_000 }),
+          { operationCode: `browser_${role}_module_heading_failed` },
+        );
+        await browserStep(
+          async () => await page.getByTestId("v3-operational-dashboard").waitFor({ state: "visible", timeout: 45_000 }),
+          { operationCode: `browser_${role}_module_marker_failed` },
+        );
         markerVisible = true;
       } catch (error) {
         interruptionGuard.assertActive("browser_proof", { afterOperation: true });
@@ -5889,6 +6014,7 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
           supervisor,
           toolchain,
           interruptionGuard,
+          browserStep,
         );
         if (roleServerProof?.sales) {
           await proveBrowserSalesReadback(page, app.appUrl, roleServerProof.sales, role, browserStep);

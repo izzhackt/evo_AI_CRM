@@ -114,6 +114,9 @@ let activePrivateChildEnvironment;
 // Deliberately excludes Config.Env so inspect output can never capture runtime secrets.
 const SAFE_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}\t{{json .HostConfig.NetworkMode}}\t{{json .NetworkSettings.Ports}}\t{{json .NetworkSettings.Networks}}";
 const SAFE_IMAGE_INSPECT_FORMAT = "{{json .Id}}\t{{json .RepoDigests}}\t{{json .Config.Labels}}\t{{json .Os}}\t{{json .Architecture}}";
+const SAFE_CLEANUP_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Config.Labels}}";
+const SAFE_CLEANUP_VOLUME_INSPECT_FORMAT = "{{json .Name}}\t{{json .Labels}}";
+const SAFE_CLEANUP_NETWORK_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Labels}}";
 const DATABASE_DENIAL_SENTINELS = Object.freeze({
   "Active scoped Admin permission membership.role.change is required": ADMIN_MEMBERSHIP_DENIAL.domainSentinel,
 });
@@ -2377,41 +2380,125 @@ function loopbackPortBindings(ports, code, stage) {
   return Object.freeze(published);
 }
 
-export function validateContainerCensusIds(projectOutput, ownerOutput, { requireOwner = false } = {}) {
-  const parse = (output) => String(output).split(/\r?\n/u).filter(Boolean).map((id) =>
-    string(id, SHA256, "container_census_invalid", "isolation_identity", 64));
-  const projectIds = parse(projectOutput);
-  const ownerIds = parse(ownerOutput);
-  if (projectIds.length === 0 || (requireOwner && ownerIds.length !== 1)) {
-    fail("container_census_invalid", "isolation_identity");
+function validatedContainerCensus(value, code, stage) {
+  if (!isRecord(value)) fail(code, stage);
+  exactKeys(value, ["appOwnerIds", "ids", "scannerIds", "supabaseIds"], code, stage);
+  for (const field of ["appOwnerIds", "ids", "scannerIds", "supabaseIds"]) {
+    if (
+      !Array.isArray(value[field]) ||
+      value[field].some((id) => !SHA256.test(id)) ||
+      new Set(value[field]).size !== value[field].length ||
+      !sameJson(value[field], [...value[field]].sort())
+    ) {
+      fail(code, stage);
+    }
   }
-  if (new Set(projectIds).size !== projectIds.length || new Set(ownerIds).size !== ownerIds.length) {
-    fail("container_census_invalid", "isolation_identity");
-  }
-  return Object.freeze([...new Set([...projectIds, ...ownerIds])].sort());
+  const members = [...value.supabaseIds, ...value.appOwnerIds, ...value.scannerIds];
+  if (new Set(members).size !== members.length || !sameJson(value.ids, [...members].sort())) fail(code, stage);
+  return value;
 }
 
-async function containerCensus(supervisor, toolchain, projectName, { requireOwner = false, stage = "local_supabase_start" } = {}) {
+export function validateContainerCensusIds(
+  projectOutput,
+  ownerOutput,
+  scannerOutput = "",
+  { requireOwner = false, requireScanner = false } = {},
+) {
+  const parse = (output) => String(output).split(/\r?\n/u).filter(Boolean).map((id) =>
+    string(id, SHA256, "container_census_invalid", "isolation_identity", 64)).sort();
+  const supabaseIds = parse(projectOutput);
+  const appOwnerIds = parse(ownerOutput);
+  const scannerIds = parse(scannerOutput);
+  if (
+    supabaseIds.length === 0 ||
+    appOwnerIds.length > 1 ||
+    scannerIds.length > 1 ||
+    (requireOwner && appOwnerIds.length !== 1) ||
+    (requireScanner && scannerIds.length !== 1)
+  ) {
+    fail("container_census_invalid", "isolation_identity");
+  }
+  const ids = [...supabaseIds, ...appOwnerIds, ...scannerIds];
+  if (
+    new Set(supabaseIds).size !== supabaseIds.length ||
+    new Set(appOwnerIds).size !== appOwnerIds.length ||
+    new Set(scannerIds).size !== scannerIds.length ||
+    new Set(ids).size !== ids.length
+  ) {
+    fail("container_census_invalid", "isolation_identity");
+  }
+  return Object.freeze({
+    appOwnerIds: Object.freeze(appOwnerIds),
+    ids: Object.freeze(ids.sort()),
+    scannerIds: Object.freeze(scannerIds),
+    supabaseIds: Object.freeze(supabaseIds),
+  });
+}
+
+async function containerCensus(
+  supervisor,
+  toolchain,
+  projectName,
+  { requireOwner = false, requireScanner = false, stage = "local_supabase_start" } = {},
+) {
   const common = ["--context", "orbstack", "ps", "--all", "--no-trunc", "--format", "{{.ID}}"];
-  const [project, owner] = await Promise.all([
+  const [project, owner, scanner] = await Promise.all([
     runDocker(supervisor, toolchain.paths.docker, [...common, "--filter", `label=com.supabase.cli.project=${projectName}`], {
       stage, code: "supabase_project_container_census_failed", timeoutMs: 30_000,
     }),
     runDocker(supervisor, toolchain.paths.docker, [...common, "--filter", `label=evo.recovery.owner=${projectName}`], {
       stage, code: "recovery_app_container_census_failed", timeoutMs: 30_000,
     }),
+    runDocker(supervisor, toolchain.paths.docker, [...common, "--filter", `label=evo.recovery.scanner=${projectName}`], {
+      stage, code: "recovery_scanner_container_census_failed", timeoutMs: 30_000,
+    }),
   ]);
-  return validateContainerCensusIds(project.stdout.toString("utf8"), owner.stdout.toString("utf8"), { requireOwner });
+  return validateContainerCensusIds(
+    project.stdout.toString("utf8"),
+    owner.stdout.toString("utf8"),
+    scanner.stdout.toString("utf8"),
+    { requireOwner, requireScanner },
+  );
+}
+
+function validateScannerContainerRecord(record, network, expected, code, stage) {
+  if (!isRecord(expected)) fail(code, stage);
+  exactKeys(expected, ["containerId", "containerName", "imageId", "networkHost", "projectName"], code, stage);
+  if (
+    record.id !== expected.containerId ||
+    record.name !== expected.containerName ||
+    record.image !== expected.imageId
+  ) {
+    fail(code, stage);
+  }
+  if (
+    record.labels["com.docker.compose.project"] !== expected.projectName ||
+    record.labels["com.evo.runtime.role"] !== "private-malware-scanner" ||
+    record.labels["evo.recovery.project"] !== expected.projectName ||
+    record.labels["evo.recovery.scanner"] !== expected.projectName ||
+    record.labels["evo.recovery.type"] !== "malware-scanner"
+  ) {
+    fail(code, stage);
+  }
+  validateContainerNetwork(record, network, network.Name, code, stage);
+  const aliases = record.networks[network.Name].Aliases;
+  if (!aliases.includes(expected.networkHost) || loopbackPortBindings(record.ports, code, stage).length !== 0) fail(code, stage);
 }
 
 export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, expected) {
-  exactKeys(expected, ["apiUrl", "censusIds", "networkName", "projectName"], "local_supabase_network_invalid", "local_supabase_start");
+  exactKeys(expected, ["apiUrl", "census", "networkName", "projectName", "scanner"], "local_supabase_network_invalid", "local_supabase_start");
+  const census = validatedContainerCensus(expected.census, "local_supabase_container_census_mismatch", "local_supabase_start");
   const network = recoveryNetwork(networkPayload, expected, "local_supabase_network_invalid", "local_supabase_start");
   const records = projectedContainers(projectionOutput, "local_supabase_container_inspection_invalid", "local_supabase_start");
   const memberIds = Object.keys(network.Containers).sort();
-  const censusIds = [...expected.censusIds].sort();
+  const censusIds = [...census.ids];
   const recordIds = records.map((record) => record.id).sort();
-  if (!sameJson(censusIds, memberIds) || !sameJson(recordIds, censusIds)) {
+  if (
+    (expected.scanner === null && census.scannerIds.length !== 0) ||
+    (isRecord(expected.scanner) && census.scannerIds.length !== 1) ||
+    !sameJson(censusIds, memberIds) ||
+    !sameJson(recordIds, censusIds)
+  ) {
     fail("local_supabase_container_census_mismatch", "local_supabase_start");
   }
   let apiPort;
@@ -2427,9 +2514,26 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
   const databaseMatches = [];
   for (const record of records) {
     const member = network.Containers[record.id];
+    const isSupabase = census.supabaseIds.includes(record.id);
+    const isScanner = census.scannerIds.includes(record.id);
     if (
       !memberIds.includes(record.id) ||
       member.Name !== record.name ||
+      Number(isSupabase) + Number(isScanner) !== 1
+    ) {
+      fail("local_supabase_container_inspection_invalid", "local_supabase_start");
+    }
+    if (isScanner) {
+      validateScannerContainerRecord(
+        record,
+        network,
+        expected.scanner,
+        "local_supabase_container_inspection_invalid",
+        "local_supabase_start",
+      );
+      continue;
+    }
+    if (
       !record.name.startsWith("supabase_") ||
       !record.name.endsWith(`_${expected.projectName}`) ||
       record.labels["com.supabase.cli.project"] !== expected.projectName
@@ -2475,11 +2579,12 @@ async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain
 }
 
 export function validateCandidateNetworkAttachment(networkPayload, projectionOutput, expected) {
-  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appPort", "censusIds", "networkName", "previousMemberIds", "projectName"], "candidate_network_attachment_invalid", "image_verification");
+  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appPort", "census", "networkName", "previousMemberIds", "projectName", "scanner"], "candidate_network_attachment_invalid", "image_verification");
+  const census = validatedContainerCensus(expected.census, "candidate_container_census_mismatch", "image_verification");
   const network = recoveryNetwork(networkPayload, expected, "candidate_network_attachment_invalid", "image_verification");
   const records = projectedContainers(projectionOutput, "candidate_container_inspection_invalid", "image_verification");
   const record = records.find((candidate) => candidate.id === expected.appContainerId);
-  const censusIds = [...expected.censusIds].sort();
+  const censusIds = [...census.ids];
   const members = Object.keys(network.Containers).sort();
   const recordIds = records.map((candidate) => candidate.id).sort();
   if (!sameJson(censusIds, members) || !sameJson(recordIds, censusIds)) {
@@ -2491,6 +2596,11 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     record.name !== expected.appContainerName ||
     record.image !== expected.appImageId ||
     record.labels["evo.recovery.owner"] !== expected.projectName ||
+    record.labels["evo.recovery.project"] !== expected.projectName ||
+    record.labels["evo.recovery.type"] !== "candidate-app" ||
+    census.appOwnerIds.length !== 1 ||
+    census.appOwnerIds[0] !== record.id ||
+    census.scannerIds.length !== 1 ||
     network.Containers[record.id]?.Name !== record.name
   ) {
     fail("candidate_container_inspection_invalid", "image_verification");
@@ -2501,12 +2611,23 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     }
     validateContainerNetwork(candidate, network, expected.networkName, "candidate_network_attachment_invalid", "image_verification");
     loopbackPortBindings(candidate.ports, "candidate_network_attachment_invalid", "image_verification");
-    if (candidate.id !== record.id && (
-      !candidate.name.startsWith("supabase_") ||
-      !candidate.name.endsWith(`_${expected.projectName}`) ||
-      candidate.labels["com.supabase.cli.project"] !== expected.projectName
-    )) {
-      fail("candidate_container_inspection_invalid", "image_verification");
+    if (candidate.id !== record.id) {
+      if (census.scannerIds.includes(candidate.id)) {
+        validateScannerContainerRecord(
+          candidate,
+          network,
+          expected.scanner,
+          "candidate_container_inspection_invalid",
+          "image_verification",
+        );
+      } else if (
+        !census.supabaseIds.includes(candidate.id) ||
+        !candidate.name.startsWith("supabase_") ||
+        !candidate.name.endsWith(`_${expected.projectName}`) ||
+        candidate.labels["com.supabase.cli.project"] !== expected.projectName
+      ) {
+        fail("candidate_container_inspection_invalid", "image_verification");
+      }
     }
   }
   const previous = [...expected.previousMemberIds].sort();
@@ -2534,12 +2655,18 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
     stage: "local_supabase_start", code: "local_supabase_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   const networkPayload = parsedJson(networkResult.stdout.toString("utf8"), "local_supabase_network_invalid", "local_supabase_start");
-  const censusIds = await containerCensus(supervisor, toolchain, state.projectName);
-  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
+  const census = await containerCensus(supervisor, toolchain, state.projectName, {
+    requireScanner: isRecord(state.scannerIdentity),
+  });
+  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...census.ids], {
     stage: "local_supabase_start", code: "local_supabase_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   return validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
-    apiUrl: status.apiUrl, censusIds, networkName: state.networkName, projectName: state.projectName,
+    apiUrl: status.apiUrl,
+    census,
+    networkName: state.networkName,
+    projectName: state.projectName,
+    scanner: state.scannerIdentity ?? null,
   });
 }
 
@@ -4237,7 +4364,8 @@ export function validateBuiltImageInspection(output, expected) {
     !Array.isArray(repoDigests) ||
     !isRecord(labels) ||
     labels["org.opencontainers.image.revision"] !== expected.targetCommit ||
-    labels["evo.recovery.owner"] !== expected.projectName ||
+    labels["evo.recovery.project"] !== expected.projectName ||
+    labels["evo.recovery.type"] !== "candidate-image" ||
     labels["evo.recovery.target-tree"] !== expected.targetTree ||
     labels["evo.recovery.snapshot-archive-sha256"] !== expected.archiveSha256 ||
     labels["evo.recovery.build-network"] !== "dependency-fetch-only" ||
@@ -4273,7 +4401,8 @@ async function buildCandidateImage(repository, state, supervisor, toolchain) {
     "--build-arg", `EVO_IMAGE_REVISION=${repository.target.commit}`,
     "--build-arg", `EVO_IMAGE_VERSION=recovery-${repository.target.commit.slice(0, 12)}`,
     "--label", `org.opencontainers.image.revision=${repository.target.commit}`,
-    "--label", `evo.recovery.owner=${state.projectName}`,
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", "evo.recovery.type=candidate-image",
     "--label", `evo.recovery.target-tree=${repository.target.tree}`,
     "--label", `evo.recovery.snapshot-archive-sha256=${snapshot.archiveSha256}`,
     "--label", "evo.recovery.build-network=dependency-fetch-only",
@@ -4329,14 +4458,14 @@ async function waitForHttp(url, expected, timeoutMs, code, stage, state, interru
   fail(code, stage);
 }
 
-async function waitForRecoveryScanner(containerName, supervisor, toolchain, interruptionGuard) {
+async function waitForRecoveryScanner(containerId, supervisor, toolchain, interruptionGuard) {
   const deadline = Date.now() + 10 * 60 * 1_000;
   while (Date.now() < deadline) {
     interruptionGuard.assertActive("malware_scanner_proof");
     const state = await runDocker(supervisor, toolchain.paths.docker, [
       "--context", "orbstack", "inspect", "--format",
       "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
-      containerName,
+      containerId,
     ], { stage: "malware_scanner_proof", code: "malware_scanner_inspect_failed", timeoutMs: 30_000 });
     const health = state.stdout.toString("utf8").trim();
     if (health === "healthy") return;
@@ -4346,7 +4475,7 @@ async function waitForRecoveryScanner(containerName, supervisor, toolchain, inte
   fail("malware_scanner_health_timeout", "malware_scanner_proof");
 }
 
-async function startRecoveryScanner(state, repositorySnapshotRoot, supervisor, toolchain, interruptionGuard) {
+async function startRecoveryScanner(state, status, repositorySnapshotRoot, supervisor, toolchain, interruptionGuard) {
   const compose = readFileSync(join(repositorySnapshotRoot, "docker-compose.prod.yml"), "utf8");
   if (!compose.includes(`image: "${CLAMAV_IMAGE}"`)) fail("malware_scanner_image_contract_mismatch", "malware_scanner_proof");
   try {
@@ -4360,20 +4489,40 @@ async function startRecoveryScanner(state, repositorySnapshotRoot, supervisor, t
       maxCaptureBytes: 8 * 1_024 * 1_024,
     });
   }
-  const platform = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", CLAMAV_IMAGE], {
+  const platform = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "image", "inspect", "--format", "{{json .Id}}\t{{.Os}}/{{.Architecture}}", CLAMAV_IMAGE], {
     stage: "malware_scanner_proof", code: "malware_scanner_image_inspect_failed", timeoutMs: 60_000,
   });
-  if (platform.stdout.toString("utf8").trim() !== "linux/amd64") fail("malware_scanner_image_platform_invalid", "malware_scanner_proof");
+  const [imageIdJson, imagePlatform] = platform.stdout.toString("utf8").trim().split("\t");
+  let imageId;
+  try {
+    imageId = JSON.parse(imageIdJson);
+  } catch {
+    fail("malware_scanner_image_platform_invalid", "malware_scanner_proof");
+  }
+  if (!/^sha256:[0-9a-f]{64}$/u.test(imageId ?? "") || imagePlatform !== "linux/amd64") {
+    fail("malware_scanner_image_platform_invalid", "malware_scanner_proof");
+  }
   const containerName = `supabase_clamav_${state.projectName}`;
   const networkHost = `evo-recovery-clamav-${state.projectName.slice(-12)}`;
   if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/u.test(networkHost)) fail("malware_scanner_network_host_invalid", "malware_scanner_proof");
   const signatureVolume = `supabase_clamav_signatures_${state.projectName}`;
+  state.scannerSignatureVolume = signatureVolume;
   await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "volume", "create",
     "--label", `com.docker.compose.project=${state.projectName}`,
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", `evo.recovery.scanner=${state.projectName}`,
+    "--label", "evo.recovery.type=clamav-signatures",
     signatureVolume,
   ], { stage: "malware_scanner_proof", code: "malware_scanner_volume_create_failed", timeoutMs: 60_000 });
-  await runDocker(supervisor, toolchain.paths.docker, [
+  const inspectedVolume = await runDocker(supervisor, toolchain.paths.docker, [
+    "--context", "orbstack", "volume", "inspect", "--format", SAFE_CLEANUP_VOLUME_INSPECT_FORMAT,
+    signatureVolume,
+  ], { stage: "malware_scanner_proof", code: "malware_scanner_volume_inspect_failed", timeoutMs: 60_000 });
+  if (!sameJson(selectOwnedVolumeNames(inspectedVolume.stdout.toString("utf8"), state.projectName), [signatureVolume])) {
+    fail("malware_scanner_volume_ownership_invalid", "malware_scanner_proof");
+  }
+  const started = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "run", "--detach",
     "--platform", "linux/amd64",
     "--name", containerName,
@@ -4385,6 +4534,9 @@ async function startRecoveryScanner(state, repositorySnapshotRoot, supervisor, t
     "--pids-limit", "256",
     "--label", `com.docker.compose.project=${state.projectName}`,
     "--label", "com.evo.runtime.role=private-malware-scanner",
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", `evo.recovery.scanner=${state.projectName}`,
+    "--label", "evo.recovery.type=malware-scanner",
     "--volume", `${signatureVolume}:/var/lib/clamav`,
     "--health-cmd", "/usr/local/bin/clamdcheck.sh",
     "--health-interval", "5s",
@@ -4393,14 +4545,24 @@ async function startRecoveryScanner(state, repositorySnapshotRoot, supervisor, t
     "--health-start-period", "180s",
     CLAMAV_IMAGE,
   ], { stage: "malware_scanner_proof", code: "malware_scanner_start_failed", timeoutMs: 2 * 60 * 1_000 });
-  await waitForRecoveryScanner(containerName, supervisor, toolchain, interruptionGuard);
-  state.scannerContainer = containerName;
-  state.scannerSignatureVolume = signatureVolume;
+  const containerId = started.stdout.toString("utf8").trim();
+  if (!SHA256.test(containerId)) fail("malware_scanner_container_id_invalid", "malware_scanner_proof");
+  state.scannerContainer = containerId;
+  state.scannerIdentity = Object.freeze({
+    containerId,
+    containerName,
+    imageId,
+    networkHost,
+    projectName: state.projectName,
+  });
+  await waitForRecoveryScanner(containerId, supervisor, toolchain, interruptionGuard);
+  await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
   return Object.freeze({
+    containerId,
     containerName,
     networkHost,
     image: CLAMAV_IMAGE,
-    network: "unique_internal_recovery_network",
+    network: "owned_egress_blocked_non_internal_bridge",
     publish: "none",
   });
 }
@@ -4440,8 +4602,12 @@ async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain
   const networkResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "network", "inspect", state.networkName], {
     stage: "image_verification", code: "candidate_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
-  const censusIds = await containerCensus(supervisor, toolchain, state.projectName, { requireOwner: true, stage: "image_verification" });
-  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
+  const census = await containerCensus(supervisor, toolchain, state.projectName, {
+    requireOwner: true,
+    requireScanner: true,
+    stage: "image_verification",
+  });
+  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...census.ids], {
     stage: "image_verification", code: "candidate_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   return validateCandidateNetworkAttachment(
@@ -4452,10 +4618,11 @@ async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain
       appContainerName: state.appContainer,
       appImageId: image.id,
       appPort,
-      censusIds,
+      census,
       networkName: state.networkName,
       previousMemberIds: endpoint.memberIds,
       projectName: state.projectName,
+      scanner: state.scannerIdentity,
     },
   );
 }
@@ -4496,6 +4663,8 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
   const started = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "run", "--detach", "--name", state.appContainer,
     "--label", `evo.recovery.owner=${state.projectName}`,
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", "evo.recovery.type=candidate-app",
     "--network", state.networkName,
     "--add-host", `${RECOVERY_SUPABASE_HOSTNAME}:127.0.0.1`,
     "--publish", `127.0.0.1:${appPort}:${appPort}`,
@@ -4539,7 +4708,9 @@ server.listen(443, "0.0.0.0");
 `;
   await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "run", "--detach", "--name", state.appProxyContainer,
-    "--label", `evo.recovery.owner=${state.projectName}`,
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", `evo.recovery.proxy=${state.projectName}`,
+    "--label", "evo.recovery.type=app-tls-proxy",
     "--network", `container:${state.appContainer}`,
     "--read-only",
     "--cap-drop", "ALL",
@@ -4769,17 +4940,17 @@ async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, s
   if (infected.status !== 422 || infected.payload?.error !== "malware_detected") fail("malware_scanner_eicar_data_path_not_blocked", "malware_scanner_proof");
   if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_eicar_persisted_state", "malware_scanner_proof");
 
-  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "stop", "--time", "30", scanner.containerName], {
+  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "stop", "--time", "30", scanner.containerId], {
     stage: "malware_scanner_proof", code: "malware_scanner_outage_stop_failed", timeoutMs: 60_000,
   });
   const outage = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from("EVO recovery scanner outage proof\n", "utf8"), "recovery-outage.txt", randomUUID());
   if (outage.status !== 503 || outage.payload?.error !== "malware_scanner_unavailable") fail("malware_scanner_outage_not_fail_closed", "malware_scanner_proof");
   if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_outage_persisted_state", "malware_scanner_proof");
 
-  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "start", scanner.containerName], {
+  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "start", scanner.containerId], {
     stage: "malware_scanner_proof", code: "malware_scanner_recovery_start_failed", timeoutMs: 60_000,
   });
-  await waitForRecoveryScanner(scanner.containerName, supervisor, toolchain, interruptionGuard);
+  await waitForRecoveryScanner(scanner.containerId, supervisor, toolchain, interruptionGuard);
   const recoveredBytes = Buffer.from("EVO recovery scanner restored proof\n", "utf8");
   const recovered = await browserCompanyFileUpload(page, appUrl, companyFile, recoveredBytes, "recovery-restored.txt", randomUUID());
   if (
@@ -5199,8 +5370,11 @@ export function cleanupContainerPolicy(state, toolchainAvailable) {
     state?.networkCreated === true ||
     state?.stackStarted === true ||
     typeof state?.appContainer === "string" ||
+    typeof state?.appProxyContainer === "string" ||
     typeof state?.appImageTag === "string" ||
-    typeof state?.appImageId === "string";
+    typeof state?.appImageId === "string" ||
+    typeof state?.scannerContainer === "string" ||
+    typeof state?.scannerSignatureVolume === "string";
   const contradictory =
     (runtimeFlags && !mutationAttempted) ||
     (state?.stackStarted === true && state?.networkCreated !== true) ||
@@ -5217,22 +5391,141 @@ function assertCleanupProject(projectName) {
 export function selectOwnedContainerIds(output, projectName) {
   assertCleanupProject(projectName);
   const ids = [];
+  const typeCounts = { app: 0, proxy: 0, scanner: 0 };
   for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
     const fields = line.split("\t");
-    if (fields.length !== 2 || !/^[0-9a-f]{12,64}$/u.test(fields[0]) || !fields[1]) fail("cleanup_container_inventory_invalid", "cleanup");
-    if (fields[1].startsWith("supabase_") && fields[1].endsWith(`_${projectName}`)) ids.push(fields[0]);
+    let id;
+    let name;
+    let labels;
+    try {
+      [id, name, labels] = fields.map((field) => JSON.parse(field));
+    } catch {
+      fail("cleanup_container_inventory_invalid", "cleanup");
+    }
+    if (fields.length !== 3 || !SHA256.test(id ?? "") || typeof name !== "string" || !name.startsWith("/")) {
+      fail("cleanup_container_inventory_invalid", "cleanup");
+    }
+    const normalizedName = name.slice(1);
+    const namedForProject = normalizedName.startsWith("supabase_") && normalizedName.endsWith(`_${projectName}`);
+    const labeledForProject = isRecord(labels) && [
+      labels["com.supabase.cli.project"],
+      labels["evo.recovery.owner"],
+      labels["evo.recovery.project"],
+      labels["evo.recovery.proxy"],
+      labels["evo.recovery.scanner"],
+    ].includes(projectName);
+    if (!namedForProject && !labeledForProject) continue;
+    if (!isRecord(labels)) fail("cleanup_container_ownership_invalid", "cleanup");
+    const categories = {
+      app: labels["evo.recovery.owner"] === projectName,
+      proxy: labels["evo.recovery.proxy"] === projectName,
+      scanner: labels["evo.recovery.scanner"] === projectName,
+      supabase: labels["com.supabase.cli.project"] === projectName,
+    };
+    if (Object.values(categories).filter(Boolean).length !== 1) fail("cleanup_container_ownership_invalid", "cleanup");
+    if (categories.supabase) {
+      if (!namedForProject || labels["com.docker.compose.project"] !== projectName) {
+        fail("cleanup_container_ownership_invalid", "cleanup");
+      }
+    } else {
+      const expected = categories.app
+        ? { name: `supabase_app_${projectName}`, type: "candidate-app", count: "app" }
+        : categories.proxy
+          ? { name: `supabase_app_proxy_${projectName}`, type: "app-tls-proxy", count: "proxy" }
+          : { name: `supabase_clamav_${projectName}`, type: "malware-scanner", count: "scanner" };
+      if (
+        normalizedName !== expected.name ||
+        labels["evo.recovery.project"] !== projectName ||
+        labels["evo.recovery.type"] !== expected.type
+      ) {
+        fail("cleanup_container_ownership_invalid", "cleanup");
+      }
+      if (categories.scanner && (
+        labels["com.docker.compose.project"] !== projectName ||
+        labels["com.evo.runtime.role"] !== "private-malware-scanner"
+      )) {
+        fail("cleanup_container_ownership_invalid", "cleanup");
+      }
+      typeCounts[expected.count] += 1;
+    }
+    ids.push(id);
   }
-  return Object.freeze(ids);
+  if (Object.values(typeCounts).some((count) => count > 1) || new Set(ids).size !== ids.length) {
+    fail("cleanup_container_ownership_invalid", "cleanup");
+  }
+  return Object.freeze(ids.sort());
 }
 
 export function selectOwnedVolumeNames(output, projectName) {
   assertCleanupProject(projectName);
-  return Object.freeze(String(output).split(/\r?\n/u).filter(Boolean).filter((name) => name.startsWith("supabase_") && name.endsWith(`_${projectName}`)));
+  const names = [];
+  let scannerVolumeCount = 0;
+  for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
+    const fields = line.split("\t");
+    let name;
+    let labels;
+    try {
+      [name, labels] = fields.map((field) => JSON.parse(field));
+    } catch {
+      fail("cleanup_volume_inventory_invalid", "cleanup");
+    }
+    if (fields.length !== 2 || typeof name !== "string" || name.length === 0) {
+      fail("cleanup_volume_inventory_invalid", "cleanup");
+    }
+    const namedForProject = name.startsWith("supabase_") && name.endsWith(`_${projectName}`);
+    const labeledForProject = isRecord(labels) && [
+      labels["com.supabase.cli.project"],
+      labels["evo.recovery.project"],
+      labels["evo.recovery.scanner"],
+    ].includes(projectName);
+    if (!namedForProject && !labeledForProject) continue;
+    if (!isRecord(labels)) fail("cleanup_volume_ownership_invalid", "cleanup");
+    const supabaseOwned = labels["com.supabase.cli.project"] === projectName;
+    const scannerOwned = labels["evo.recovery.scanner"] === projectName;
+    if (Number(supabaseOwned) + Number(scannerOwned) !== 1) fail("cleanup_volume_ownership_invalid", "cleanup");
+    if (supabaseOwned && !namedForProject) fail("cleanup_volume_ownership_invalid", "cleanup");
+    if (scannerOwned) {
+      if (
+        name !== `supabase_clamav_signatures_${projectName}` ||
+        labels["com.docker.compose.project"] !== projectName ||
+        labels["evo.recovery.project"] !== projectName ||
+        labels["evo.recovery.type"] !== "clamav-signatures"
+      ) {
+        fail("cleanup_volume_ownership_invalid", "cleanup");
+      }
+      scannerVolumeCount += 1;
+    }
+    names.push(name);
+  }
+  if (scannerVolumeCount > 1 || new Set(names).size !== names.length) fail("cleanup_volume_ownership_invalid", "cleanup");
+  return Object.freeze(names.sort());
 }
 
-export function selectOwnedNetworkNames(output, networkName) {
+export function selectOwnedNetworkIds(output, networkName) {
   if (!/^evov3recovery[0-9a-f]{12}_private$/u.test(networkName)) fail("cleanup_network_scope_invalid", "cleanup");
-  return Object.freeze(String(output).split(/\r?\n/u).filter(Boolean).filter((name) => name === networkName));
+  const lines = String(output).split(/\r?\n/u).filter(Boolean);
+  if (lines.length === 0) return Object.freeze([]);
+  if (lines.length !== 1) fail("cleanup_network_inventory_invalid", "cleanup");
+  const fields = lines[0].split("\t");
+  let id;
+  let name;
+  let labels;
+  try {
+    [id, name, labels] = fields.map((field) => JSON.parse(field));
+  } catch {
+    fail("cleanup_network_inventory_invalid", "cleanup");
+  }
+  const projectName = networkName.slice(0, -"_private".length);
+  if (
+    fields.length !== 3 ||
+    !SHA256.test(id ?? "") ||
+    name !== networkName ||
+    !isRecord(labels) ||
+    labels["evo.recovery.owner"] !== projectName
+  ) {
+    fail("cleanup_network_ownership_invalid", "cleanup");
+  }
+  return Object.freeze([id]);
 }
 
 export function selectOwnedImageIds(output, projectName) {
@@ -5254,7 +5547,8 @@ export function selectOwnedImageIds(output, projectName) {
       !Array.isArray(tags) ||
       tags.some((tag) => typeof tag !== "string" || tag.length === 0) ||
       !isRecord(labels) ||
-      labels["evo.recovery.owner"] !== projectName
+      labels["evo.recovery.project"] !== projectName ||
+      labels["evo.recovery.type"] !== "candidate-image"
     ) {
       fail("cleanup_image_inventory_invalid", "cleanup");
     }
@@ -5273,11 +5567,47 @@ export function selectCandidateImageIds(output) {
 }
 
 async function cleanupInventory(state, supervisor, tools, { allowAfterInterrupt = false, stage = "cleanup" } = {}) {
-  const [containers, volumes, networks, imageList] = await Promise.all([
-    runDocker(supervisor, tools.docker, ["--context", "orbstack", "ps", "--all", "--format", "{{.ID}}\t{{.Names}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt }),
+  const [containerList, volumeList, networkList, imageList] = await Promise.all([
+    runDocker(supervisor, tools.docker, ["--context", "orbstack", "ps", "--all", "--no-trunc", "--format", "{{.ID}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt, maxCaptureBytes: 4 * 1_024 * 1_024 }),
     runDocker(supervisor, tools.docker, ["--context", "orbstack", "volume", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_volume_inventory_failed", allowAfterInterrupt }),
     runDocker(supervisor, tools.docker, ["--context", "orbstack", "network", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_network_inventory_failed", allowAfterInterrupt }),
-    runDocker(supervisor, tools.docker, ["--context", "orbstack", "image", "ls", "--all", "--no-trunc", "--filter", `label=evo.recovery.owner=${state.projectName}`, "--format", "{{.ID}}"], { stage, code: "cleanup_image_inventory_failed", allowAfterInterrupt }),
+    runDocker(supervisor, tools.docker, [
+      "--context", "orbstack", "image", "ls", "--all", "--no-trunc",
+      "--filter", `label=evo.recovery.project=${state.projectName}`,
+      "--filter", "label=evo.recovery.type=candidate-image",
+      "--format", "{{.ID}}",
+    ], { stage, code: "cleanup_image_inventory_failed", allowAfterInterrupt }),
+  ]);
+  const containerIds = containerList.stdout.toString("utf8").split(/\r?\n/u).filter(Boolean);
+  if (containerIds.some((id) => !SHA256.test(id)) || new Set(containerIds).size !== containerIds.length) {
+    fail("cleanup_container_inventory_invalid", "cleanup");
+  }
+  const volumeNames = volumeList.stdout.toString("utf8").split(/\r?\n/u).filter(Boolean);
+  if (
+    volumeNames.some((name) => !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/u.test(name)) ||
+    new Set(volumeNames).size !== volumeNames.length
+  ) {
+    fail("cleanup_volume_inventory_invalid", "cleanup");
+  }
+  const networkNames = networkList.stdout.toString("utf8").split(/\r?\n/u).filter(Boolean);
+  const candidateNetworkNames = networkNames.filter((name) => name === state.networkName);
+  if (candidateNetworkNames.length > 1) fail("cleanup_network_inventory_invalid", "cleanup");
+  const [containerInspection, volumeInspection, networkInspection] = await Promise.all([
+    containerIds.length === 0
+      ? Promise.resolve({ stdout: Buffer.from("") })
+      : runDocker(supervisor, tools.docker, [
+        "--context", "orbstack", "inspect", "--format", SAFE_CLEANUP_CONTAINER_INSPECT_FORMAT, ...containerIds,
+      ], { stage, code: "cleanup_container_inspection_failed", allowAfterInterrupt, maxCaptureBytes: 4 * 1_024 * 1_024 }),
+    volumeNames.length === 0
+      ? Promise.resolve({ stdout: Buffer.from("") })
+      : runDocker(supervisor, tools.docker, [
+        "--context", "orbstack", "volume", "inspect", "--format", SAFE_CLEANUP_VOLUME_INSPECT_FORMAT, ...volumeNames,
+      ], { stage, code: "cleanup_volume_inspection_failed", allowAfterInterrupt, maxCaptureBytes: 4 * 1_024 * 1_024 }),
+    candidateNetworkNames.length === 0
+      ? Promise.resolve({ stdout: Buffer.from("") })
+      : runDocker(supervisor, tools.docker, [
+        "--context", "orbstack", "network", "inspect", "--format", SAFE_CLEANUP_NETWORK_INSPECT_FORMAT, ...candidateNetworkNames,
+      ], { stage, code: "cleanup_network_inspection_failed", allowAfterInterrupt }),
   ]);
   const candidateImageIds = selectCandidateImageIds(imageList.stdout.toString("utf8"));
   let images = Object.freeze([]);
@@ -5292,10 +5622,12 @@ async function cleanupInventory(state, supervisor, tools, { allowAfterInterrupt 
       fail("cleanup_image_inventory_invalid", "cleanup");
     }
   }
+  const networkIds = selectOwnedNetworkIds(networkInspection.stdout.toString("utf8"), state.networkName);
   return Object.freeze({
-    containers: selectOwnedContainerIds(containers.stdout.toString("utf8"), state.projectName),
-    volumes: selectOwnedVolumeNames(volumes.stdout.toString("utf8"), state.projectName),
-    networks: selectOwnedNetworkNames(networks.stdout.toString("utf8"), state.networkName),
+    containers: selectOwnedContainerIds(containerInspection.stdout.toString("utf8"), state.projectName),
+    volumes: selectOwnedVolumeNames(volumeInspection.stdout.toString("utf8"), state.projectName),
+    networks: networkIds.length === 0 ? Object.freeze([]) : Object.freeze([state.networkName]),
+    networkIds,
     images,
   });
 }
@@ -5319,30 +5651,33 @@ export async function cleanupState(state, supervisor, toolchain) {
         return false;
       }
     };
-    if (state.appProxyContainer) cleanupSucceeded = (await run(["rm", "--force", state.appProxyContainer])) && cleanupSucceeded;
-    if (state.appContainer) cleanupSucceeded = (await run(["rm", "--force", state.appContainer])) && cleanupSucceeded;
-    if (state.stackStarted && state.supabaseRoot) {
-      try {
-        await supervisor.run(toolchain.paths.supabaseNative.real, ["stop", "--workdir", state.supabaseRoot, "--no-backup"], {
-          stage: "cleanup",
-          code: "supabase_stop_failed",
-          timeoutMs: 5 * 60 * 1_000,
-          maxCaptureBytes: 8 * 1_024 * 1_024,
-          allowAfterInterrupt: true,
-          env: pinnedSupabaseEnvironment(toolchain.paths),
-        });
-      } catch {
+    try {
+      let owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+      if (owned.containers.length > 0) {
+        cleanupSucceeded = (await run(["rm", "--force", ...owned.containers])) && cleanupSucceeded;
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+      }
+      if (owned.containers.length > 0) cleanupSucceeded = false;
+      if (cleanupSucceeded && owned.images.length > 0) {
+        cleanupSucceeded = (await run(["image", "rm", "--force", ...owned.images])) && cleanupSucceeded;
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+      }
+      if (cleanupSucceeded && owned.volumes.length > 0) {
+        cleanupSucceeded = (await run(["volume", "rm", "--force", ...owned.volumes])) && cleanupSucceeded;
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+      }
+      if (cleanupSucceeded && owned.networkIds.length > 0) {
+        cleanupSucceeded = (await run(["network", "rm", ...owned.networkIds])) && cleanupSucceeded;
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+      }
+      if (
+        owned.containers.length ||
+        owned.volumes.length ||
+        owned.networkIds.length ||
+        owned.images.length
+      ) {
         cleanupSucceeded = false;
       }
-    }
-    try {
-      const owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
-      if (owned.containers.length > 0) cleanupSucceeded = (await run(["rm", "--force", ...owned.containers])) && cleanupSucceeded;
-      if (owned.images.length > 0) cleanupSucceeded = (await run(["image", "rm", "--force", ...owned.images])) && cleanupSucceeded;
-      if (owned.volumes.length > 0) cleanupSucceeded = (await run(["volume", "rm", "--force", ...owned.volumes])) && cleanupSucceeded;
-      if (owned.networks.length > 0) cleanupSucceeded = (await run(["network", "rm", ...owned.networks])) && cleanupSucceeded;
-      const remaining = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
-      if (remaining.containers.length || remaining.volumes.length || remaining.networks.length || remaining.images.length) cleanupSucceeded = false;
     } catch {
       cleanupSucceeded = false;
     }
@@ -5669,6 +6004,9 @@ async function executeMode(mode, options) {
     networkCreated: false,
     appContainer: undefined,
     appProxyContainer: undefined,
+    scannerContainer: undefined,
+    scannerIdentity: undefined,
+    scannerSignatureVolume: undefined,
     browserRecord: undefined,
     interrupted: undefined,
     signalCount: 0,
@@ -5812,6 +6150,7 @@ async function executeMode(mode, options) {
       const local = await runStage("local_supabase_start", () => startLocalSupabase(state, targetRoot, ports, supervisor, toolchain));
       const scanner = await runStage("malware_scanner_start", () => startRecoveryScanner(
         state,
+        local.status,
         image.snapshot.root,
         supervisor,
         toolchain,

@@ -45,7 +45,7 @@ import {
   selectOwnedContainerIds,
   selectCandidateImageIds,
   selectOwnedImageIds,
-  selectOwnedNetworkNames,
+  selectOwnedNetworkIds,
   selectOwnedVolumeNames,
   uploadStorageObjectFromFile,
   validateEvidenceRuntimeSeparation,
@@ -170,6 +170,10 @@ test("private pinned ClamAV is exercised through the Company Files product route
   assert.match(source, /clamav\/clamav@sha256:[0-9a-f]{64}/u);
   assert.match(scannerSource, /const networkHost = `evo-recovery-clamav-/u);
   assert.match(scannerSource, /"--network-alias", networkHost/u);
+  assert.match(scannerSource, /`evo\.recovery\.scanner=\$\{state\.projectName\}`/u);
+  assert.match(scannerSource, /"evo\.recovery\.type=malware-scanner"/u);
+  assert.match(scannerSource, /network:\s*"owned_egress_blocked_non_internal_bridge"/u);
+  assert.doesNotMatch(scannerSource, /unique_internal_recovery_network/u);
   assert.match(scannerSource, /publish:\s*"none"/u);
   assert.match(source, /\/api\/v3\/company-files\/\$\{encodeURIComponent\(fileId\)\}\/versions/u);
   assert.match(dataPathSource, /malware_scanner_clean_attestation_invalid/u);
@@ -1456,10 +1460,21 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
   const authId = "c".repeat(64);
   const databaseId = "f".repeat(64);
   const appId = "d".repeat(64);
+  const scannerId = "8".repeat(64);
   const appImageId = `sha256:${"e".repeat(64)}`;
-  assert.deepEqual(validateContainerCensusIds(`${kongId}\n${authId}\n${databaseId}\n`, ""), [kongId, authId, databaseId].sort());
-  assert.deepEqual(validateContainerCensusIds(`${kongId}\n${authId}\n${databaseId}\n`, `${appId}\n`, { requireOwner: true }), [kongId, authId, databaseId, appId].sort());
-  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", { requireOwner: true }), "container_census_invalid");
+  const scannerImageId = `sha256:${"7".repeat(64)}`;
+  const supabaseOutput = `${kongId}\n${authId}\n${databaseId}\n`;
+  assert.deepEqual(validateContainerCensusIds(supabaseOutput, ""), {
+    appOwnerIds: [],
+    ids: [kongId, authId, databaseId].sort(),
+    scannerIds: [],
+    supabaseIds: [kongId, authId, databaseId].sort(),
+  });
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", "", { requireOwner: true }), "container_census_invalid");
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, `${appId}\n${"6".repeat(64)}\n`), "container_census_invalid");
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", "", { requireScanner: true }), "container_census_invalid");
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", `${scannerId}\n${"6".repeat(64)}\n`), "container_census_invalid");
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", `${kongId}\n`), "container_census_invalid");
   const containerNetwork = (name, aliases = [name]) => ({
     [networkName]: { NetworkID: networkId, Aliases: aliases },
   });
@@ -1509,15 +1524,43 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
       networks: containerNetwork(supabaseMembers[databaseId].Name),
     }),
   ].join("\n");
-  const endpoint = validateLocalSupabaseNetwork(network(supabaseMembers), baseProjection, {
+  const scannerName = `supabase_clamav_${projectName}`;
+  const scannerHost = "evo-recovery-clamav-abcdef123456";
+  const scannerIdentity = {
+    containerId: scannerId,
+    containerName: scannerName,
+    imageId: scannerImageId,
+    networkHost: scannerHost,
+    projectName,
+  };
+  const scannerProjection = projectedContainer({
+    id: scannerId,
+    name: scannerName,
+    image: scannerImageId,
+    labels: {
+      "com.docker.compose.project": projectName,
+      "com.evo.runtime.role": "private-malware-scanner",
+      "evo.recovery.project": projectName,
+      "evo.recovery.scanner": projectName,
+      "evo.recovery.type": "malware-scanner",
+    },
+    networkMode: networkName,
+    ports: { "3310/tcp": null },
+    networks: containerNetwork(scannerName, [scannerName, scannerHost]),
+  });
+  const scannerMembers = { ...supabaseMembers, [scannerId]: { Name: scannerName } };
+  const scannerCensus = validateContainerCensusIds(supabaseOutput, "", `${scannerId}\n`, { requireScanner: true });
+  const runtimeProjection = `${baseProjection}\n${scannerProjection}`;
+  const endpoint = validateLocalSupabaseNetwork(network(scannerMembers), runtimeProjection, {
     apiUrl: "http://127.0.0.1:43121",
-    censusIds: [kongId, authId, databaseId],
+    census: scannerCensus,
     networkName,
     projectName,
+    scanner: scannerIdentity,
   });
   assert.deepEqual(endpoint, {
     networkId,
-    memberIds: [kongId, authId, databaseId].sort(),
+    memberIds: [kongId, authId, databaseId, scannerId].sort(),
     targetHost: supabaseMembers[kongId].Name,
     targetPort: 8000,
     apiLoopbackPort: 43121,
@@ -1529,24 +1572,35 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
     id: appId,
     name: appName,
     image: appImageId,
-    labels: { "evo.recovery.owner": projectName },
+    labels: {
+      "evo.recovery.owner": projectName,
+      "evo.recovery.project": projectName,
+      "evo.recovery.type": "candidate-app",
+    },
     networkMode: networkName,
     ports: { "3000/tcp": null, "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }] },
     networks: containerNetwork(appName),
   });
-  const candidateProjection = `${baseProjection}\n${appProjection}`;
+  const candidateProjection = `${runtimeProjection}\n${appProjection}`;
+  const candidateCensus = validateContainerCensusIds(
+    supabaseOutput,
+    `${appId}\n`,
+    `${scannerId}\n`,
+    { requireOwner: true, requireScanner: true },
+  );
   const candidateExpected = {
     appContainerId: appId,
     appContainerName: appName,
     appImageId,
     appPort: 43123,
-    censusIds: [...endpoint.memberIds, appId],
+    census: candidateCensus,
     networkName,
     previousMemberIds: endpoint.memberIds,
     projectName,
+    scanner: scannerIdentity,
   };
   const attachment = validateCandidateNetworkAttachment(
-    network({ ...supabaseMembers, [appId]: { Name: appName } }),
+    network({ ...scannerMembers, [appId]: { Name: appName } }),
     candidateProjection,
     candidateExpected,
   );
@@ -1561,55 +1615,83 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
     externalEgress: "blocked_by_disabled_masquerade_and_runtime_probe",
   });
 
-  const masqueradedNetwork = network(supabaseMembers);
+  const localExpected = { apiUrl: "http://127.0.0.1:43121", census: scannerCensus, networkName, projectName, scanner: scannerIdentity };
+  const masqueradedNetwork = network(scannerMembers);
   masqueradedNetwork[0].Options["com.docker.network.bridge.enable_ip_masquerade"] = "true";
-  expectCode(() => validateLocalSupabaseNetwork(masqueradedNetwork, baseProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }), "local_supabase_network_invalid");
-  const wildcardProjection = baseProjection.replace('"127.0.0.1"', '"0.0.0.0"');
-  expectCode(() => validateLocalSupabaseNetwork(network(supabaseMembers), wildcardProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }), "local_supabase_container_inspection_invalid");
-  const duplicateApiProjection = baseProjection.replace(
+  expectCode(() => validateLocalSupabaseNetwork(masqueradedNetwork, runtimeProjection, localExpected), "local_supabase_network_invalid");
+  const wildcardProjection = runtimeProjection.replace('"127.0.0.1"', '"0.0.0.0"');
+  expectCode(() => validateLocalSupabaseNetwork(network(scannerMembers), wildcardProjection, localExpected), "local_supabase_container_inspection_invalid");
+  const duplicateApiProjection = runtimeProjection.replace(
     '{"9999/tcp":null}',
     '{"9999/tcp":[{"HostIp":"127.0.0.1","HostPort":"43121"}]}',
   );
   expectCode(
-    () => validateLocalSupabaseNetwork(network(supabaseMembers), duplicateApiProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }),
+    () => validateLocalSupabaseNetwork(network(scannerMembers), duplicateApiProjection, localExpected),
     "local_supabase_api_endpoint_ambiguous",
   );
-  const wrongProjectProjection = baseProjection.replace(
+  const wrongProjectProjection = runtimeProjection.replace(
     `"com.supabase.cli.project":"${projectName}"`,
     '"com.supabase.cli.project":"foreign-project"',
   );
   expectCode(
-    () => validateLocalSupabaseNetwork(network(supabaseMembers), wrongProjectProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }),
+    () => validateLocalSupabaseNetwork(network(scannerMembers), wrongProjectProjection, localExpected),
     "local_supabase_container_inspection_invalid",
+  );
+  const wrongScannerType = runtimeProjection.replace('"evo.recovery.type":"malware-scanner"', '"evo.recovery.type":"candidate-app"');
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(scannerMembers), wrongScannerType, localExpected),
+    "local_supabase_container_inspection_invalid",
+  );
+  const scannerWithoutAlias = runtimeProjection.replace(`,"${scannerHost}"`, "");
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(scannerMembers), scannerWithoutAlias, localExpected),
+    "local_supabase_container_inspection_invalid",
+  );
+  const publiclyBoundScanner = runtimeProjection.replace('{"3310/tcp":null}', '{"3310/tcp":[{"HostIp":"127.0.0.1","HostPort":"3310"}]}');
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(scannerMembers), publiclyBoundScanner, localExpected),
+    "local_supabase_container_inspection_invalid",
+  );
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(supabaseMembers), baseProjection, localExpected),
+    "local_supabase_container_census_mismatch",
   );
   const hostApp = appProjection.replace(JSON.stringify(networkName), JSON.stringify("host"));
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${hostApp}`, candidateExpected),
+    () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${hostApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   const publicApp = appProjection.replace('"127.0.0.1"', '"0.0.0.0"');
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${publicApp}`, candidateExpected),
+    () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${publicApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   const extraNetworkApp = projectedContainer({
     id: appId,
     name: appName,
     image: appImageId,
-    labels: { "evo.recovery.owner": projectName },
+    labels: {
+      "evo.recovery.owner": projectName,
+      "evo.recovery.project": projectName,
+      "evo.recovery.type": "candidate-app",
+    },
     networkMode: networkName,
     ports: { "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }] },
     networks: { ...containerNetwork(appName), bridge: { NetworkID: "f".repeat(64), Aliases: [appName] } },
   });
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${extraNetworkApp}`, candidateExpected),
+    () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${extraNetworkApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   const extraPublishedPortApp = projectedContainer({
     id: appId,
     name: appName,
     image: appImageId,
-    labels: { "evo.recovery.owner": projectName },
+    labels: {
+      "evo.recovery.owner": projectName,
+      "evo.recovery.project": projectName,
+      "evo.recovery.type": "candidate-app",
+    },
     networkMode: networkName,
     ports: {
       "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }],
@@ -1618,21 +1700,22 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
     networks: containerNetwork(appName),
   });
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${extraPublishedPortApp}`, candidateExpected),
+    () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${extraPublishedPortApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   expectCode(
     () => validateCandidateNetworkAttachment(
-      network({ ...supabaseMembers, [appId]: { Name: appName } }),
+      network({ ...scannerMembers, [appId]: { Name: appName } }),
       candidateProjection,
-      { ...candidateExpected, censusIds: [kongId, appId] },
+      { ...candidateExpected, census: { ...candidateCensus, ids: [kongId, appId].sort() } },
     ),
     "candidate_container_census_mismatch",
   );
   const orphanId = "9".repeat(64);
   expectCode(
-    () => validateLocalSupabaseNetwork(network(supabaseMembers), baseProjection, {
-      apiUrl: "http://127.0.0.1:43121", censusIds: [...endpoint.memberIds, orphanId], networkName, projectName,
+    () => validateLocalSupabaseNetwork(network(scannerMembers), runtimeProjection, {
+      ...localExpected,
+      census: { ...scannerCensus, ids: [...scannerCensus.ids, orphanId].sort() },
     }),
     "local_supabase_container_census_mismatch",
   );
@@ -1681,7 +1764,8 @@ test("candidate image is locally built from sorted exact target blobs for linux/
   const archiveSha256 = "e".repeat(64);
   const labels = {
     "org.opencontainers.image.revision": targetCommit,
-    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-image",
     "evo.recovery.target-tree": targetFullTree,
     "evo.recovery.snapshot-archive-sha256": archiveSha256,
     "evo.recovery.build-network": "dependency-fetch-only",
@@ -1869,30 +1953,84 @@ test("unsafe drain or ownership always quarantines cleanup", () => {
 
 test("cleanup inventory selects only the exact isolated Supabase contour", () => {
   const project = "evov3recoveryabcdef123456";
+  const containerId = "a".repeat(64);
+  const appId = "b".repeat(64);
+  const proxyId = "c".repeat(64);
+  const scannerId = "d".repeat(64);
+  const containerLine = (id, name, labels) => [id, `/${name}`, labels].map((value) => JSON.stringify(value)).join("\t");
   assert.deepEqual(selectOwnedContainerIds([
-    `aaaaaaaaaaaa\tsupabase_db_${project}`,
-    "bbbbbbbbbbbb\tsupabase_db_other",
-    `cccccccccccc\tnotsupabase_${project}`,
-  ].join("\n"), project), ["aaaaaaaaaaaa"]);
+    containerLine(containerId, `supabase_db_${project}`, {
+      "com.docker.compose.project": project,
+      "com.supabase.cli.project": project,
+    }),
+    containerLine(appId, `supabase_app_${project}`, {
+      "evo.recovery.owner": project,
+      "evo.recovery.project": project,
+      "evo.recovery.type": "candidate-app",
+    }),
+    containerLine(proxyId, `supabase_app_proxy_${project}`, {
+      "evo.recovery.project": project,
+      "evo.recovery.proxy": project,
+      "evo.recovery.type": "app-tls-proxy",
+    }),
+    containerLine(scannerId, `supabase_clamav_${project}`, {
+      "com.docker.compose.project": project,
+      "com.evo.runtime.role": "private-malware-scanner",
+      "evo.recovery.project": project,
+      "evo.recovery.scanner": project,
+      "evo.recovery.type": "malware-scanner",
+    }),
+    containerLine("e".repeat(64), "supabase_db_other", {
+      "com.docker.compose.project": "other",
+      "com.supabase.cli.project": "other",
+    }),
+  ].join("\n"), project), [containerId, appId, proxyId, scannerId].sort());
+  const volumeLine = (name, labels) => [name, labels].map((value) => JSON.stringify(value)).join("\t");
   assert.deepEqual(selectOwnedVolumeNames([
+    volumeLine(`supabase_db_${project}`, { "com.supabase.cli.project": project }),
+    volumeLine(`supabase_storage_${project}`, { "com.supabase.cli.project": project }),
+    volumeLine(`supabase_clamav_signatures_${project}`, {
+      "com.docker.compose.project": project,
+      "evo.recovery.project": project,
+      "evo.recovery.scanner": project,
+      "evo.recovery.type": "clamav-signatures",
+    }),
+    volumeLine("supabase_db_other", { "com.supabase.cli.project": "other" }),
+  ].join("\n"), project), [
+    `supabase_clamav_signatures_${project}`,
     `supabase_db_${project}`,
     `supabase_storage_${project}`,
-    "supabase_db_other",
-  ].join("\n"), project), [`supabase_db_${project}`, `supabase_storage_${project}`]);
+  ]);
   const network = `${project}_private`;
-  assert.deepEqual(selectOwnedNetworkNames(`${network}\nbridge\n`, network), [network]);
+  const networkId = "c".repeat(64);
+  assert.deepEqual(selectOwnedNetworkIds(
+    [networkId, network, { "evo.recovery.owner": project }].map((value) => JSON.stringify(value)).join("\t"),
+    network,
+  ), [networkId]);
   const imageId = `sha256:${"d".repeat(64)}`;
   const secondImageId = `sha256:${"e".repeat(64)}`;
   assert.deepEqual(selectCandidateImageIds(`${imageId}\n${secondImageId}\n${imageId}\n`), [imageId, secondImageId]);
   assert.deepEqual(selectOwnedImageIds([
-    `${JSON.stringify(imageId)}\t${JSON.stringify([`evo-v3-recovery-${project}:candidate`])}\t${JSON.stringify({ "evo.recovery.owner": project })}`,
-    `${JSON.stringify(secondImageId)}\t${JSON.stringify([])}\t${JSON.stringify({ "evo.recovery.owner": project })}`,
+    `${JSON.stringify(imageId)}\t${JSON.stringify([`evo-v3-recovery-${project}:candidate`])}\t${JSON.stringify({ "evo.recovery.project": project, "evo.recovery.type": "candidate-image" })}`,
+    `${JSON.stringify(secondImageId)}\t${JSON.stringify([])}\t${JSON.stringify({ "evo.recovery.project": project, "evo.recovery.type": "candidate-image" })}`,
   ].join("\n"), project), [imageId, secondImageId]);
+  expectCode(
+    () => selectOwnedContainerIds(containerLine("d".repeat(64), `supabase_app_${project}`, {}), project),
+    "cleanup_container_ownership_invalid",
+  );
+  expectCode(
+    () => selectOwnedVolumeNames(volumeLine(`supabase_db_${project}`, {}), project),
+    "cleanup_volume_ownership_invalid",
+  );
+  expectCode(() => selectOwnedNetworkIds(
+    [networkId, network, { "evo.recovery.owner": "other" }].map((value) => JSON.stringify(value)).join("\t"),
+    network,
+  ), "cleanup_network_ownership_invalid");
   expectCode(() => selectOwnedContainerIds("bad", project), "cleanup_container_inventory_invalid");
   expectCode(() => selectCandidateImageIds("bad"), "cleanup_image_list_invalid");
   expectCode(() => selectOwnedImageIds("bad", project), "cleanup_image_inventory_invalid");
   expectCode(() => selectOwnedImageIds(
-    `${JSON.stringify(imageId)}\t${JSON.stringify(["unrelated:latest"])}\t${JSON.stringify({ "evo.recovery.owner": "other" })}`,
+    `${JSON.stringify(imageId)}\t${JSON.stringify(["unrelated:latest"])}\t${JSON.stringify({ "evo.recovery.project": "other", "evo.recovery.type": "candidate-image" })}`,
     project,
   ), "cleanup_image_inventory_invalid");
 });
@@ -1947,6 +2085,87 @@ test("cleanup is local-only before container preflight and quarantines contradic
   assert.equal(quarantined.containerPolicy, "quarantine");
   assert.equal(quarantined.disposition, "quarantine");
   assert.equal(runtimeCalls, 0);
+});
+
+test("container cleanup inspects labels and removes only immutable owned IDs", async (t) => {
+  const cleanupSource = source.slice(source.indexOf("export async function cleanupState"), source.indexOf("class StageTimings"));
+  assert.doesNotMatch(cleanupSource, /\["rm", "--force", state\./u);
+  assert.doesNotMatch(cleanupSource, /supabaseNative\.real, \["stop"/u);
+  const projectName = "evov3recoveryabcdef123456";
+  const containerName = `supabase_app_${projectName}`;
+  const containerId = "a".repeat(64);
+  const createRoot = () => {
+    const root = mkdtempSync(join(tmpdir(), "evo-v3-managed-recovery-"));
+    chmodSync(root, 0o700);
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), "owned\n", { mode: 0o600 });
+    return root;
+  };
+  const toolchain = {
+    paths: {
+      docker: { real: "/verified/docker" },
+      supabaseNative: { real: "/verified/supabase" },
+      supabaseGo: { real: "/verified/supabase-go" },
+    },
+  };
+  const state = (harnessRoot) => ({
+    harnessRoot,
+    projectName,
+    networkName: `${projectName}_private`,
+    containerPreflightPassed: true,
+    containerMutationAttempted: true,
+    networkCreated: true,
+    stackStarted: true,
+    appContainer: containerName,
+  });
+  const runCleanup = async (labels) => {
+    let present = true;
+    const removalArgs = [];
+    const supervisor = {
+      stopAll: async () => true,
+      run: async (_executable, args) => {
+        if (args[2] === "ps") return { stdout: Buffer.from(present ? `${containerId}\n` : "") };
+        if (args[2] === "volume" && args[3] === "ls") return { stdout: Buffer.from("") };
+        if (args[2] === "network" && args[3] === "ls") return { stdout: Buffer.from("") };
+        if (args[2] === "image" && args[3] === "ls") return { stdout: Buffer.from("") };
+        if (args[2] === "inspect") {
+          return { stdout: Buffer.from([
+            containerId,
+            `/${containerName}`,
+            labels,
+          ].map((value) => JSON.stringify(value)).join("\t")) };
+        }
+        if (args[2] === "rm") {
+          removalArgs.push([...args]);
+          present = false;
+          return { stdout: Buffer.from(containerId) };
+        }
+        throw new Error(`unexpected command: ${args.join(" ")}`);
+      },
+    };
+    const root = createRoot();
+    const result = await cleanupState(state(root), supervisor, toolchain);
+    return { result, removalArgs, root };
+  };
+
+  const owned = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  });
+  assert.equal(owned.result.disposition, "remove");
+  assert.equal(owned.removalArgs.length, 1);
+  assert.equal(owned.removalArgs[0].includes(containerId), true);
+  assert.equal(owned.removalArgs[0].includes(containerName), false);
+
+  const foreign = await runCleanup({});
+  assert.equal(foreign.result.disposition, "quarantine");
+  assert.equal(foreign.removalArgs.length, 0);
+  const quarantinePrefix = `${basename(foreign.root)}.quarantine-`;
+  t.after(() => {
+    for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix))) {
+      rmSync(join(tmpdir(), name), { recursive: true, force: true });
+    }
+  });
 });
 
 test("Supabase launcher pins the platform-native executable children", () => {

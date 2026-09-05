@@ -6,13 +6,16 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-test("V3 main renders the canonical role-scoped operational dashboard", () => {
-  const page = source("src/app/(v3)/v3/main/page.tsx");
-  const adapter = source("src/lib/v3/funnel-source.ts");
+test("both V3 role homes render the canonical role-scoped operational dashboard", () => {
+  const main = source("src/app/(v3)/v3/main/page.tsx");
+  const calendar = source("src/app/(v3)/v3/calendar/page.tsx");
+  const adapter = source("src/lib/v3/operations-source.ts");
   const overview = source("src/components/v3/OperationsOverview.tsx");
 
-  assert.match(page, /readV3OperationalDashboard\(actor\)/u);
-  assert.match(page, /<OperationsOverview snapshot=\{operations\} \/>/u);
+  for (const page of [main, calendar]) {
+    assert.match(page, /readV3OperationalDashboard\(actor\)/u);
+    assert.match(page, /<OperationsOverview snapshot=\{operations\} \/>/u);
+  }
   assert.match(adapter, /readPlatformDashboardSnapshot\(actor\)/u);
   assert.match(adapter, /ActivePlatformActor/u);
   for (const key of ["sales", "clients", "tasks", "finance", "whatsapp"]) {
@@ -58,7 +61,20 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.match(directory, /case_before_id/u);
   assert.match(
     directory,
-    /href=\{`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=overview`\}/u,
+    /return `\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=overview`/u,
   );
+  assert.match(directory, /return row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null/u);
+  assert.doesNotMatch(directory, />\s*\{row\.studentCaseId\}\s*</u);
   assert.doesNotMatch(directory, /href=["']\/clients/u);
+});
+
+test("Student 360 stays discoverable from navigation and both inbox queues", () => {
+  const shell = source("src/components/v3/AppShell.tsx");
+  const inbox = source("src/app/(v3)/v3/inbox/page.tsx");
+
+  assert.match(shell, /\{ href: "\/v3\/profile", label: "Student 360" \}/u);
+  assert.match(
+    inbox,
+    /presentationRole === "admissions"[\s\S]*canonicalContext\.studentCaseId[\s\S]*`\/v3\/profile\?case=\$\{selected\.canonicalContext\.studentCaseId\}`/u,
+  );
 });

@@ -65,7 +65,7 @@ export function OperationsOverview({
             Операционная работа
           </h2>
           <p className="mt-1 text-sm text-fg-3">
-            Канонические очереди Supabase, доступные выбранной роли сейчас.
+            Рабочие очереди, доступные выбранной роли прямо сейчас.
           </p>
         </div>
       </div>

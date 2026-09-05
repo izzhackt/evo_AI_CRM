@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import { PartShell } from "@/components/v3/PartShell";
+import { OperationsOverview } from "@/components/v3/OperationsOverview";
 import { Calendar } from "@/components/v3/calendar/Calendar";
 import { gridDays, resolveDay, resolveView } from "@/components/v3/calendar/types";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { readCalendarWorkspace, readToday } from "@/lib/v3/calendar-source";
+import { readV3OperationalDashboard } from "@/lib/v3/operations-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Календарь" };
@@ -31,11 +33,10 @@ export default async function CalendarPart({
   const view = resolveView(params.view);
   const day = resolveDay(params.date, today);
   const days = gridDays(view, day);
-  const workspace = await readCalendarWorkspace(
-    actor,
-    days[0],
-    days[days.length - 1],
-  );
+  const [workspace, operations] = await Promise.all([
+    readCalendarWorkspace(actor, days[0], days[days.length - 1]),
+    readV3OperationalDashboard(actor),
+  ]);
   const taskRequestIds = Object.fromEntries(
     workspace.tasks.map((task) => [
       task.id,
@@ -49,22 +50,25 @@ export default async function CalendarPart({
 
   return (
     <PartShell title="Календарь">
-      <Calendar
-        view={view}
-        day={day}
-        today={today}
-        days={days}
-        tasks={workspace.tasks}
-        cases={workspace.cases}
-        casesHaveMore={workspace.casesHaveMore}
-        assignees={workspace.assignees}
-        actorMembershipId={actor.membershipId}
-        authorityRole={actor.authorityRole}
-        presentationRole={actor.presentationRole}
-        createRequestId={randomUUID()}
-        taskRequestIds={taskRequestIds}
-        basePath="/v3/calendar"
-      />
+      <div className="space-y-8">
+        <Calendar
+          view={view}
+          day={day}
+          today={today}
+          days={days}
+          tasks={workspace.tasks}
+          cases={workspace.cases}
+          casesHaveMore={workspace.casesHaveMore}
+          assignees={workspace.assignees}
+          actorMembershipId={actor.membershipId}
+          authorityRole={actor.authorityRole}
+          presentationRole={actor.presentationRole}
+          createRequestId={randomUUID()}
+          taskRequestIds={taskRequestIds}
+          basePath="/v3/calendar"
+        />
+        <OperationsOverview snapshot={operations} />
+      </div>
     </PartShell>
   );
 }

@@ -102,7 +102,7 @@ async function signIn(page: Page): Promise<void> {
     .locator("#staff-password")
     .fill(requiredText("EVO_STAFF_AUTH_SALES_PASSWORD"));
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page.getByTestId("staff-entry-workspace")).toBeVisible();
+  await expect(page.getByTestId("v3-shell")).toBeVisible();
 }
 
 async function writePrivateJson(

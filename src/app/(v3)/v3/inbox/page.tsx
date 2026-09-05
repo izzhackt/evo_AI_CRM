@@ -102,6 +102,11 @@ export default async function InboxPart({
       selected.canonicalContext.leadId
     ) {
       profileHref = `/v3/profile?id=${selected.canonicalContext.leadId}`;
+    } else if (
+      actor.presentationRole === "admissions" &&
+      selected.canonicalContext.studentCaseId
+    ) {
+      profileHref = `/v3/profile?case=${selected.canonicalContext.studentCaseId}`;
     }
   }
 

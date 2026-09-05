@@ -447,7 +447,7 @@ test("active platform CI executes only the root successor product", () => {
   const workflow = readFileSync(".github/workflows/evo-platform-ci.yml", "utf8");
   const auditAllowlist = readFileSync("scripts/check-npm-audit-allowlist.mjs", "utf8");
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
-  assert.match(workflow, /^  crm_product:\n    name: V3 CRM product$/mu);
+  assert.match(workflow, /^  crm_product:\n    name: Main CRM product$/mu);
   assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
   assert.match(workflow, /needs:\n      - crm_product\n      - dependency_audit/u);
   assert.match(workflow, /PRODUCT_RESULT: \$\{\{ needs\.crm_product\.result \}\}/u);

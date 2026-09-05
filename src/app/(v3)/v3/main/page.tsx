@@ -8,9 +8,9 @@ import {
   PERIODS,
   periodLabel,
   readPeriodDashboard,
-  readV3OperationalDashboard,
   resolvePeriod,
 } from "@/lib/v3/funnel-source";
+import { readV3OperationalDashboard } from "@/lib/v3/operations-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Главная" };

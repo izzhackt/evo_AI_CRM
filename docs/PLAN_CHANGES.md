@@ -17399,3 +17399,26 @@ Decision:
   database/application/browser gate. This clarification creates no temporary
   coexistence, alternate data authority, provider call, schema change or
   production mutation.
+
+## 2026-09-05 - Render operational queues on each role home
+
+Block-ID: `EVO-V3-G-ROLE-HOME-OPERATIONS-2026-09-05`
+
+Change type: acceptance correction.
+Affected plan section: Order 6 / Issue #600.
+
+The first parity clarification named only `/v3/main`, but the fixed V3 route
+contract intentionally sends Admissions to `/v3/calendar` and denies that role
+the Sales-only main route. Leaving the projection only on `/v3/main` would make
+Admissions task, finance, case-attention and WhatsApp outcomes unreachable for
+the staff responsible for them.
+
+Decision:
+
+- render the same existing role-scoped canonical operational snapshot on both
+  V3 role homes: `/v3/main` for Admin/Sales and `/v3/calendar` for Admissions;
+- keep the Sales period funnel on `/v3/main` and do not widen its route
+  permission; Admin role preview therefore lands on and sees the exact selected
+  role home while all readers continue to authorize the real staff actor;
+- this corrects presentation only. It adds no repository, fallback, provider
+  call, schema change or production mutation.

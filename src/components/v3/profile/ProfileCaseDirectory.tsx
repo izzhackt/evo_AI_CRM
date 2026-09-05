@@ -52,6 +52,13 @@ function attention(row: V3ProfileCaseDirectoryRow): string {
   ].join(" · ");
 }
 
+function profileHref(row: V3ProfileCaseDirectoryRow): string | null {
+  if (row.access === "full") {
+    return `/v3/profile?case=${row.studentCaseId}&tab=overview`;
+  }
+  return row.leadId ? `/v3/profile?id=${row.leadId}` : null;
+}
+
 export function ProfileCaseDirectory({
   directory,
   initiallyOpen,
@@ -144,7 +151,9 @@ export function ProfileCaseDirectory({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {directory.rows.map((row) => (
+                {directory.rows.map((row) => {
+                  const href = profileHref(row);
+                  return (
                   <tr
                     className="align-top hover:bg-surface-2"
                     data-student-case-id={row.studentCaseId}
@@ -152,15 +161,18 @@ export function ProfileCaseDirectory({
                     key={row.studentCaseId}
                   >
                     <td className="px-4 py-3">
-                      <Link
-                        className="font-semibold text-fg hover:text-accent hover:underline"
-                        href={`/v3/profile?case=${row.studentCaseId}&tab=overview`}
-                      >
-                        {row.studentDisplayName}
-                      </Link>
-                      <span className="mt-1 block font-mono text-xs text-fg-3">
-                        {row.studentCaseId}
-                      </span>
+                      {href ? (
+                        <Link
+                          className="font-semibold text-fg hover:text-accent hover:underline"
+                          href={href}
+                        >
+                          {row.studentDisplayName}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-fg">
+                          {row.studentDisplayName}
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-3">
                       <span className="block text-fg">
@@ -200,7 +212,8 @@ export function ProfileCaseDirectory({
                       {UPDATED_AT.format(new Date(row.updatedAt))}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

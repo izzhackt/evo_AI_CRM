@@ -337,29 +337,37 @@ async function expectDirectRouteAllowed(
 async function expectExactSupabaseSalesRead(
   page: Page,
   leadId: string,
-  clientId: string,
 ) {
-  await page.goto(`/sales?q=${encodeURIComponent(leadId)}`);
-  await expect(page.getByTestId("platform-sales-page")).toBeVisible();
-  await expect(page.getByTestId("canonical-records-unavailable")).toHaveCount(
-    0,
-  );
+  await page.goto("/v3/pipeline");
+  await expect(
+    page.getByRole("heading", { name: "Воронка продаж", exact: true }),
+  ).toBeVisible();
 
-  const rows = page.getByTestId("canonical-lead-row");
-  await expect(rows).toHaveCount(1);
-  const exactRow = page.locator(
-    `[data-testid="canonical-lead-row"][data-lead-id="${leadId}"]`,
+  const workflowPanel = page.locator(
+    `[data-testid="v3-pipeline-decision"][data-lead-id="${leadId}"]`,
   );
-  await expect(exactRow).toBeVisible();
-  await expect(exactRow).toHaveAttribute("data-workflow-version", "7");
-  await expect(exactRow).toContainText(clientId);
+  await expect(workflowPanel).toBeVisible();
+  await workflowPanel.locator("summary").click();
+  await expect(
+    workflowPanel.locator('input[name="expected_version"]'),
+  ).toHaveValue("7");
 
-  await exactRow.locator(`a[href="/v3/profile?id=${leadId}"]`).click();
+  const exactLead = workflowPanel.locator("xpath=ancestor::article");
+  await expect(exactLead).toContainText(
+    "Verify authenticated Supabase Sales read path",
+  );
+  await exactLead.locator(`a[href="/v3/profile?id=${leadId}"]`).click();
   await expect(page).toHaveURL(new RegExp(`/v3/profile\\?id=${leadId}$`));
   await expect(page.getByTestId("v3-profile")).toHaveAttribute(
     "data-lead-id",
     leadId,
   );
+  await expect(
+    page.getByRole("heading", {
+      name: "EVO P2B Isolated Sales Proof",
+      exact: true,
+    }),
+  ).toBeVisible();
 }
 
 function isSupabaseAuthCookie(name: string): boolean {
@@ -436,7 +444,7 @@ test("all three real identities persist, enforce role routes, and log out", asyn
   }
 });
 
-test("retired P6B staff and API routes are absent from the authenticated runtime", async ({
+test("retired V2 staff and API routes are absent from the authenticated runtime", async ({
   page,
 }) => {
   test.skip(authMode !== "configured");
@@ -457,11 +465,16 @@ test("retired P6B staff and API routes are absent from the authenticated runtime
     "/portal",
     "/calls",
     "/chat",
+    "/whatsapp",
     "/notifications",
     "/reports",
+    "/sales/legacy",
+    "/portal/legacy",
   ] as const) {
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(404);
+    expect(new URL(page.url()).pathname, path).toBe(path);
+    await expect(page.getByTestId("v3-shell")).toHaveCount(0);
   }
 
   for (const path of [
@@ -562,11 +575,10 @@ test("Sales reads the exact Supabase RLS queue and detail while Admissions is de
 }) => {
   test.skip(authMode !== "configured");
   const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
-  const clientId = requireUuid("EVO_SUPABASE_SALES_PROOF_CLIENT_ID");
 
   await signIn(page, "sales");
   await expectActiveRole(page, "sales");
-  await expectExactSupabaseSalesRead(page, leadId, clientId);
+  await expectExactSupabaseSalesRead(page, leadId);
 
   await page.context().clearCookies();
   await signIn(page, "admissions");
@@ -916,6 +928,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   test.skip(authMode !== "configured");
   test.setTimeout(240_000);
   const leadId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_LEAD_ID");
+  const clientId = requireUuid("EVO_SUPABASE_HANDOFF_PROOF_CLIENT_ID");
   const [salesToken, admissionsToken, adminToken] = await Promise.all([
     localSupabaseAccessToken("sales"),
     localSupabaseAccessToken("admissions"),
@@ -1037,6 +1050,74 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   ));
   await expect(page.getByTestId("v3-profile")).toBeVisible();
   await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
+
+  const contractHref = `/v3/profile?case=${studentCaseId}&tab=contract`;
+  const contractTab = page.getByRole("link", { name: "Договор", exact: true });
+  await expect(contractTab).toHaveAttribute("href", contractHref);
+  await contractTab.click();
+  await expect(page).toHaveURL(new RegExp(
+    `/v3/profile\\?case=${studentCaseId}&tab=contract$`,
+  ));
+  expect(new URL(page.url()).pathname).toBe("/v3/profile");
+
+  const contractProfile = page.getByTestId("v3-profile-contract-workspace");
+  await expect(contractProfile).toBeVisible();
+  await expect(contractProfile).toHaveAttribute(
+    "data-student-case-id",
+    studentCaseId,
+  );
+  const canonicalHandoff = contractProfile.getByTestId(
+    "canonical-student-case-handoff",
+  );
+  await expect(canonicalHandoff).toContainText(studentCaseId);
+  await expect(canonicalHandoff).toContainText(leadId);
+  await expect(canonicalHandoff).toContainText(clientId);
+
+  const draftReportWorkspace = contractProfile.getByTestId(
+    "platform-contract-draft-report-workspace",
+  );
+  await expect(draftReportWorkspace).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByRole("heading", {
+      name: "Договор и постдоговорный отчёт",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByTestId("platform-contract-template-list"),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByTestId("platform-contract-draft-list"),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByTestId("platform-post-contract-item-list"),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByTestId("platform-post-contract-report-list"),
+  ).toBeVisible();
+  await expect(
+    draftReportWorkspace.getByText("Нет утверждённого реального шаблона", {
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  const templatePanel = draftReportWorkspace.getByTestId(
+    "platform-contract-template-create-panel",
+  );
+  await templatePanel.locator("summary").click();
+  const templateForm = templatePanel.getByTestId(
+    "platform-contract-template-create-form",
+  );
+  await expect(templateForm).toBeVisible();
+  await expect(
+    templateForm.locator('input[name="student_case_id"]'),
+  ).toHaveValue(studentCaseId);
+  await expect(
+    templateForm.getByRole("button", {
+      name: "Создать неизменяемую версию",
+      exact: true,
+    }),
+  ).toBeDisabled();
 
   assertDeniedRpc(
     await directPlatformRpc(
@@ -2012,11 +2093,10 @@ test("Admin preview changes only the effective interface, not Supabase authority
 }) => {
   test.skip(authMode !== "configured");
   const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
-  const clientId = requireUuid("EVO_SUPABASE_SALES_PROOF_CLIENT_ID");
 
   await signIn(page, "admin");
   await expectActiveRole(page, "admin");
-  await expectExactSupabaseSalesRead(page, leadId, clientId);
+  await expectExactSupabaseSalesRead(page, leadId);
   await page.goto("/v3/settings");
   await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 
@@ -2024,7 +2104,7 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expectActiveRole(page, "sales", "admin");
   await expect(page).toHaveURL(/\/v3\/main$/);
   await expect(page.getByTestId("preview-active")).toBeVisible();
-  await expectExactSupabaseSalesRead(page, leadId, clientId);
+  await expectExactSupabaseSalesRead(page, leadId);
   await expectDirectRouteAllowed(page, "/v3/pipeline");
   await expectDirectRouteDenied(page, "/v3/calendar");
   await expectDirectRouteDenied(page, "/v3/knowledge");

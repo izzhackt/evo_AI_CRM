@@ -18792,3 +18792,646 @@ checks and exact-head merge. The full exact-current-main proof is manual and
 runs once only after the release-candidate SHA is frozen, before release or
 recovery acceptance. Older `push CI` statements inside the explicitly marked
 historical pre-#376 section remain unchanged as preserved decision evidence.
+## 2026-09-05 - Complete the merged recovery consumer with real runtime proof
+
+Block-ID: `EVO-V3-H-MERGED-RECOVERY-RUNTIME-CORRECTION-2026-09-05`
+
+Change type: post-merge real-runtime and evidence correction.
+Affected plan section: Order 7 / Issue #551.
+
+PR #640 merged the stronger result-v2 signed-artifact, lineage, exact Git
+snapshot/image, process supervision, internal-network and cleanup/quarantine
+architecture, but it was never executed with Docker. A post-merge exact-main
+audit found that the production candidate receives a loopback HTTP Supabase
+URL rejected by the product in `NODE_ENV=production`; the harness bypasses the
+active product upload/scanner path; provider fail-closed readiness is not
+proved; the private Node/buildx toolchain is not bound; and Admin browser
+evidence can read `passed` before the complete three-role outcome suite runs.
+Its closing reference therefore closed #551 prematurely.
+
+Decision:
+
+- retain PR #640 as the only recovery consumer and preserve its result-v2,
+  signed-source, source/main-equivalent/target lineage, exact-image,
+  interruption, internal-network, Storage-byte and cleanup contracts;
+- add a production-valid local HTTPS Supabase bridge and CA, plus a private
+  Node 22 and trusted OrbStack buildx execution contour;
+- start the pinned private ClamAV image on the owned internal network and prove
+  the real Company Files product route for clean, EICAR, scanner-unavailable
+  and recovered outcomes, including durable exact-byte attestation and zero
+  persistence on rejected/unavailable requests;
+- append only local `configuration_check` / `unconfigured` WAHA and AI health
+  events, then require authenticated `/api/readiness` to remain HTTP 503 while
+  Supabase and audit are ready. This is a no-provider-call boundary;
+- report Admin as `incomplete_role_outcome_suite` until restored Sales and
+  Admissions representatives complete their canonical mutation, replay,
+  audit, private-document and matching V3 browser readback outcomes; and
+- run focused tests and exactly one real signed-backup OrbStack rehearsal,
+  followed by independent exact-head review, one exact-head CI, match-head
+  merge and exact-main verification. A real source with missing Sales or
+  Admissions identities or zero private Storage objects remains truthfully
+  `not_ready`; no fixture may convert that diagnostic into acceptance.
+
+PR #641 is closed as superseded rather than merged wholesale. Its branch and
+redacted evidence remain preserved as implementation/review history. #551 is
+reopened, and #552 remains unarmed. This correction does not contact or mutate
+managed Supabase, production, VPS, WAHA, amoCRM, Gemini, webhooks, customer
+records or provider state.
+
+## 2026-09-05 - Bind both scanner ingress paths to exact-head acceptance
+
+Block-ID: `EVO-V3-H-RECOVERY-SCANNER-EVIDENCE-MAPPING-2026-09-05`
+
+Change type: independent-review acceptance correction.
+Affected plan section: Order 7 / Issue #551.
+
+The post-merge recovery correction drives the exact production candidate's
+Company Files route through the pinned real ClamAV service for clean, EICAR,
+scanner-unavailable and recovered outcomes. That proof is necessary but is not
+the complete scanner prerequisite: the active Student 360 document ingress
+and every protocol-negative outcome remain part of the authoritative #551
+contract.
+
+Decision:
+
+- require the same exact target commit to pass the recovery result-v2 run and
+  `test:database:local`, whose isolated Supabase/browser contour starts the
+  pinned real scanner and drives both Student 360 `/api/v2/document-slots/*`
+  and Company Files `/api/v3/company-files/*` ingress paths;
+- require that exact-head CI's `test:u7` scanner/client/route contracts to prove
+  timeout, malformed, duplicate, missing, unknown and uncorrelated request-ID
+  handling, engine/signature identity drift, and no finalization, persistence
+  or download on failure; and
+- bind the result-v2 evidence hash and exact-head CI run to the same immutable
+  target commit in the #551 completion record. The local recovery result or CI
+  alone cannot satisfy the scanner gate.
+
+This mapping does not weaken the two-route runtime contract, authorize a mock
+as provider evidence or add a second scanner path. It changes no managed
+Supabase, production, VPS, WAHA, amoCRM, Gemini, webhook, customer or provider
+state and does not arm #552.
+
+## 2026-09-05 - Bind the two signed empty migration-history anomalies
+
+Block-ID: `EVO-V3-H-SIGNED-EMPTY-MIGRATION-HISTORY-CORRECTION-2026-09-05`
+
+Change type: real-artifact recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The real signed managed-Supabase export proved that history rows
+`038 authorization_containment` and `039 private_inbox_media` contain exact
+empty statement arrays, while their migration files in the signed source Git
+tree are present and non-empty. Treating every empty array as corrupt therefore
+stopped the isolated rehearsal before restoration, but reconstructing arbitrary
+history from Git would weaken the signed-artifact boundary.
+
+Decision:
+
+- accept an empty signed history row only for those two exact version/name
+  pairs; a renamed, renumbered or additional empty row fails closed;
+- bind the exact signed COPY-row hash and corresponding source-root Git file
+  hash for each exception into the durable result, while all other history rows
+  retain exact statement-count and statement-digest comparison;
+- continue to require the signed history as an ordered prefix of both source
+  and target roots, the complete source root as an ordered prefix of the target,
+  and apply only the verified pending suffix after restoring the signed schema
+  and data; and
+- prohibit editing the backup, reconstructing a general ledger, inventing a
+  statement list or mutating managed Supabase to normalize the anomaly.
+
+This correction was derived from the immutable signed backup and affects only
+the disposable local OrbStack recovery consumer. It does not contact or mutate
+managed Supabase, production, VPS, WAHA, amoCRM, Gemini, webhooks, customer
+records or provider state, and it does not arm #552.
+
+## 2026-09-05 - Bind the signed migration 030 comment-only drift
+
+Block-ID: `EVO-V3-H-SIGNED-MIGRATION-030-DRIFT-CORRECTION-2026-09-05`
+
+Change type: real-artifact recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+After the two empty-history rows were accepted, the same immutable signed
+artifact exposed one further historical mismatch. The database ledger row
+`030 ai_knowledge` and the signed source Git file both contain 36 statements;
+two statement strings differ only in their leading historical comments, while
+their executable SQL is unchanged. The previous exact string-digest rule
+therefore stopped before restoration even though both independently signed and
+Git-bound sources identify the same applied migration.
+
+Decision:
+
+- accept this drift only when version, name, exact signed COPY-row hash, signed
+  statement count/digest, exact source-root Git file hash and root statement
+  count/digest all match the one reviewed tuple embedded in the consumer;
+- record both sides and the exception kind in durable evidence; any changed
+  count, hash, filename, order or additional mismatch fails closed;
+- compare the restored historical prefix to the signed database ledger, not to
+  rewritten Git comments, and compare newly applied suffix rows to the exact
+  target Git migrations; and
+- preserve the signed backup and historical Git file unchanged. Do not rewrite
+  database history, reapply migration 030, generalize semantic reconstruction
+  or normalize managed Supabase.
+
+This correction changes only the disposable local OrbStack recovery proof. It
+does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
+Gemini, webhooks, customer records or provider state, and it does not arm #552.
+
+## 2026-09-05 - Preserve OrbStack loopback while blocking recovery egress
+
+Block-ID: `EVO-V3-H-ORBSTACK-LOOPBACK-EGRESS-CORRECTION-2026-09-05`
+
+Change type: real-runtime recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The exact rehearsal proved that OrbStack accepts a Docker `--internal` network
+and Supabase's requested host-port bindings, but reports every effective
+`NetworkSettings.Ports` binding as null. The Supabase database becomes healthy
+inside the container while the CLI's required loopback PostgreSQL connection is
+refused, so that topology cannot run the recovery proof. A disposable runtime
+probe then proved the supported bridge alternative: disabling
+`com.docker.network.bridge.enable_ip_masquerade` blocks container egress while
+`com.docker.network.bridge.host_binding_ipv4=127.0.0.1` preserves an effective
+loopback publish. Docker's official bridge documentation identifies
+masquerading as the default source of external container access and documents
+both options: <https://docs.docker.com/engine/network/drivers/bridge/#options>.
+
+Decision:
+
+- use one owned user-defined bridge with IPv6 disabled, IP masquerading exactly
+  `false`, and the default host binding exactly `127.0.0.1`; do not attach the
+  disposable stack or candidate to a second/default network;
+- after Supabase starts, execute a bounded external TCP probe from its exact
+  PostgreSQL container and require failure. Enabled masquerading, reachable
+  egress, a missing probe tool, a wildcard publish or changed network ownership
+  fails closed;
+- store only the probe target hash, container-ID hash, mechanism and blocked
+  result in durable evidence; and
+- repair cleanup image discovery by listing candidate image IDs and validating
+  their exact owner label through `docker image inspect`. The prior Docker image
+  list template used an unsupported `.Label` field, which quarantined an
+  otherwise precisely owned failed contour instead of removing it.
+
+The diagnosed quarantine was inventoried by exact owner labels and securely
+removed, including its private decrypted temporary files, one candidate image
+and one empty owned network. No unrelated container, image, volume or network
+was removed. This correction does not contact or mutate managed Supabase,
+production, VPS, WAHA, amoCRM, Gemini, webhooks, customer records or provider
+state, and it does not arm #552.
+
+## 2026-09-05 - Preserve safe PostgreSQL failure coordinates
+
+Block-ID: `EVO-V3-H-RECOVERY-PSQL-DIAGNOSTIC-CORRECTION-2026-09-05`
+
+Change type: real-runtime recovery diagnostics correction.
+Affected plan section: Order 7 / Issue #551.
+
+The first exact-head rehearsal after the OrbStack network correction restored
+the signed schema and history but stopped safely while loading `data.sql`.
+The redacted diagnostic retained the command status and output hash, but its
+strict parser missed PostgreSQL's normal `psql:<file>:<line>:` prefix and
+therefore discarded the SQLSTATE and safe input line needed to locate the
+failing COPY statement.
+
+Decision:
+
+- accept only PostgreSQL's exact five-character SQLSTATE after an optional
+  `psql` file/line prefix;
+- retain only a fixed error-class label and numeric input line alongside the
+  existing output hash, byte count and allowlisted business-denial sentinel;
+- never retain the raw PostgreSQL message, DETAIL, row contents, file path,
+  identifiers or decrypted business data; and
+- use the added coordinates only to diagnose the failed disposable restore,
+  then rerun the same signed artifact after a reviewed correction.
+
+The failed contour completed owned cleanup with disposition `remove`. This
+change does not contact or mutate managed Supabase, production, VPS, WAHA,
+amoCRM, Gemini, webhooks, customer records or provider state, and it does not
+arm #552.
+
+## 2026-09-05 - Recreate signed PGMQ extension relations before data restore
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-EXTENSION-RELATIONS-2026-09-05`
+
+Change type: real-runtime recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The safe PostgreSQL coordinates localized the restore failure to the first
+`COPY` for `pgmq.a_platform_dead_letter_v1`. The signed data export contains
+exactly the active/archive relations for `platform_work_v1` and
+`platform_dead_letter_v1`, while the managed schema export intentionally
+excludes extension-owned `pgmq`. All four signed sections currently contain
+zero rows, but an empty COPY still requires its relation. Migration 045 is the
+reviewed authority that originally created these two queues and revoked direct
+browser/service access.
+
+Decision:
+
+- require the signed data inventory to contain exactly the four canonical
+  `pgmq.q_*` / `pgmq.a_*` relations and no additional PGMQ table; preserve and
+  reconcile their signed row counts, including non-empty future backups;
+- after signed schema/history restore and before `data.sql`, require the pinned
+  `pgmq.create(text)` API and recreate only `platform_work_v1` and
+  `platform_dead_letter_v1`;
+- reapply migration 045's schema/table/sequence/function revocations and
+  default-privilege containment for `PUBLIC`, `anon`, `authenticated`,
+  `service_role` and `supabase_auth_admin`, including optional `pgmq_public`;
+- verify all four relations exist and that no forbidden ACL remains before
+  loading signed queue rows; retain only relation/count/ACL hashes and booleans
+  in evidence; and
+- fail closed on a renamed/missing/extra PGMQ relation, unavailable API,
+  privilege leak, shape mismatch or row-count mismatch.
+
+This follows Supabase's documented PGMQ model: `pgmq.create(text)` creates a
+queue, each queue owns paired `q_<name>` and `a_<name>` tables, and direct queue
+tables do not receive RLS by default:
+<https://supabase.com/docs/guides/queues/pgmq> and
+<https://supabase.com/docs/guides/queues/quickstart>. It changes only the
+disposable local recovery consumer and does not contact or mutate managed
+Supabase, production, VPS, WAHA, amoCRM, Gemini, webhooks, customer records or
+provider state. #552 remains unarmed.
+
+## 2026-09-05 - Localize restored table-count drift without row disclosure
+
+Block-ID: `EVO-V3-H-RECOVERY-TABLE-COUNT-DIAGNOSTIC-2026-09-05`
+
+Change type: real-runtime recovery diagnostics correction.
+Affected plan section: Order 7 / Issue #551.
+
+After the canonical PGMQ relations were recreated, the signed data loaded but
+aggregate reconciliation stopped with a count mismatch. Aggregate hashes alone
+cannot distinguish a restore side effect from a missing row or an
+extension-owned relation, while row output would violate the evidence boundary.
+
+Decision: compare the signed COPY row count with the restored count for every
+table before aggregate reconciliation. On mismatch retain only the first fixed
+schema/table name, expected/actual integer counts, mismatch count and a hash of
+the mismatch set. Never retain row values or identifiers. A missing, extra,
+non-integer or changed table count fails closed.
+
+The failed contour completed owned cleanup with disposition `remove`. This
+change affects only the disposable local recovery consumer and does not contact
+or mutate managed Supabase, production, VPS, providers, webhooks or customer
+records. #552 remains unarmed.
+
+## 2026-09-05 - Bind recovery resource identity before cleanup
+
+Block-ID: `EVO-V3-H-RECOVERY-RESOURCE-IDENTITY-CORRECTION-2026-09-05`
+
+Change type: independent-review runtime-safety correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent immutable-head review found three fail-closed gaps after the
+PGMQ correction: the ClamAV container joined the recovery bridge outside both
+existing container censuses; cleanup selected containers and volumes by names
+and could remove planned names before inspecting ownership; and the streaming
+SQL validator counted guard tokens without proving their order. Review also
+found stale evidence text that called the deliberately non-internal bridge
+internal.
+
+Decision:
+
+- give the recovery scanner its own exact project/type labels and exactly-one
+  census, separate from the candidate app's exactly-one owner label, and include
+  the scanner as a validated bridge member in later Supabase/app inspection;
+- enumerate and inspect every disposable container and volume, require exact
+  type-specific ownership labels before removal, remove containers only by
+  inspected immutable ID, and quarantine on collisions, missing/conflicting
+  labels, duplicate types or incomplete inventory;
+- require the streaming SQL validator used on decrypted artifacts to observe
+  exactly one matching `\restrict` before its `\unrestrict`, with a test that
+  exercises the real file-streaming path; and
+- describe the disposable topology consistently as one owned, egress-blocked,
+  non-internal bridge with loopback-only host publication.
+
+This correction does not weaken app ownership, delete a same-name foreign
+Docker resource, contact or mutate managed Supabase, production, VPS, WAHA,
+amoCRM, Gemini, webhooks, customer records or provider state, and it does not
+arm #552.
+
+## 2026-09-05 - Bind cleanup to captured immutable recovery identities
+
+Block-ID: `EVO-V3-H-RECOVERY-CLEANUP-IDENTITY-BINDING-2026-09-05`
+
+Change type: second independent-review runtime-safety correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review of the first resource-identity correction found that image
+cleanup still accepted every image inheriting the candidate project/type
+labels, ownership selectors did not reject a category-correct resource carrying
+an additional foreign reserved ownership label, and final deletion rediscovered
+resources without binding them to the immutable identities captured when the
+isolated contour created and validated them.
+
+Decision:
+
+- accept exactly the captured candidate image ID, exact sole candidate tag and
+  complete target revision/tree/archive/build-network provenance; quarantine on
+  an extra matching image, a foreign tag, inherited labels or any drift;
+- for each selected container, volume, network and image, require every
+  reserved ownership label to be absent or exactly correct for that one resource
+  category; any cross-category or foreign ownership label quarantines cleanup;
+- capture the network, Supabase census, scanner, candidate app and TLS proxy
+  immutable IDs as their creation and validation steps complete, capture the
+  validated volume-name census before product proof, and compare every cleanup
+  inventory with the still-expected captured identities before each removal;
+  and
+- after a successful type-specific removal, expect that exact captured set to
+  be absent while retaining identity checks for every remaining resource.
+
+Missing capture, replacement, duplication, extra owned resource, same-name
+collision or identity drift fails closed and leaves the marked private root in
+quarantine. This correction remains local to the disposable recovery consumer;
+it does not run Docker, contact or mutate managed Supabase, production, VPS,
+WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
+not arm #552.
+
+## 2026-09-05 - Keep the recovery-consumer marker until plaintext removal completes
+
+Block-ID: `EVO-V3-H-RECOVERY-CONSUMER-CLEANUP-MARKER-2026-09-05`
+
+Change type: independent-review local plaintext-cleanup correction.
+Affected plan section: Order 7 / Issue #551.
+
+The recovery consumer used recursive root removal after checking only that a
+marker path existed. A partial filesystem failure could therefore remove the
+marker before leaving plaintext children behind, and a raced marker or root
+could be accepted without revalidating exact owner, private mode and content.
+
+Decision: validate the canonical generated root plus exact regular marker
+owner, private mode and project-bound content; remove every non-marker child
+first; unlink the marker only for the final empty-directory removal; and restore
+the same private marker atomically if that final removal loses a race or fails.
+Any validation, child removal, marker restoration or directory-removal failure
+keeps the root quarantined and is never converted into permission for recursive
+fallback deletion.
+
+This correction affects only the marked disposable local recovery directory.
+It does not run Docker, contact or mutate managed Supabase, production, VPS,
+WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
+not arm #552.
+## 2026-09-05 - Bind PGMQ shape and effective privileges across recovery phases
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-EFFECTIVE-CONTAINMENT-2026-09-05`
+
+Change type: real-runtime recovery security correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review of the PGMQ reconstruction found that the first correction
+proved only the four relation names and direct catalog ACLs immediately after
+creation. That could miss inherited role access, column grants, a malformed
+queue metadata/identity shape, signed COPY-column drift, or a pending migration
+that reopened access. It also described per-schema default `REVOKE` too broadly:
+PostgreSQL states that per-schema defaults can add privileges but cannot cancel
+global or hard-wired defaults, including default `PUBLIC EXECUTE` for future
+functions.
+
+Decision:
+
+- bind the signed artifact to exactly the four reviewed PGMQ COPY headers and
+  their expected column order, and continue rejecting an extra or renamed
+  extension data section until a versioned consumer is reviewed;
+- require exactly two logged, non-partitioned queue metadata rows, four logged
+  queue/archive relations, two active-queue identity sequences and every
+  signed COPY column with its expected PostgreSQL type;
+- require all four forbidden runtime roles to exist, then prove zero direct,
+  inherited, column, schema, relation, sequence and function privilege as well
+  as zero additive global/per-schema default ACL entry for those roles or
+  `PUBLIC`;
+- compare the actual four-table row-count digest with the signed digest before
+  calling the data restored, and repeat the read-only containment inspection
+  after pending migrations; and
+- never re-run `REVOKE` after pending migrations, because doing so would hide a
+  security regression in the target migration set. The initial current-object
+  revocation remains necessary; the per-schema default statements are retained
+  only for migration-045 fidelity and do not claim protection for unknown
+  future functions.
+
+Official references:
+<https://www.postgresql.org/docs/current/sql-alterdefaultprivileges.html>,
+<https://www.postgresql.org/docs/17/catalog-pg-default-acl.html>,
+<https://supabase.com/docs/guides/queues/pgmq>, and
+<https://supabase.com/docs/guides/queues/quickstart>.
+
+This changes only the disposable local recovery consumer and redacted evidence.
+It does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
+Gemini, webhooks, customer records or provider state. #552 remains unarmed.
+
+## 2026-09-05 - Correct PGMQ ACL object code and bind worker signatures
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-ACL-SIGNATURE-CORRECTION-2026-09-05`
+
+Change type: real-runtime recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The first exact-head run of the expanded PGMQ inspection stopped before signed
+data load with PostgreSQL SQLSTATE `22023`. The inspected ACL default used the
+`pg_class.relkind` sequence code `S` where PostgreSQL `acldefault` requires its
+own lowercase sequence object code `s`. Owned cleanup completed with disposition
+`remove`; no source, production or provider state was contacted or mutated.
+
+The same review also found that checking only `pgmq.create(text)` could accept
+an extension version that recreated table shape but lacked a worker operation
+required by migration 045. Correct the ACL object code and require all five
+canonical signatures — `create`, `read`, `send`, `set_vt` and `archive` — both
+before queue recreation and during every pre-data, post-data and post-migration
+inspection. Any missing signature fails closed.
+
+This changes only the disposable local recovery consumer and redacted evidence.
+It does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
+Gemini, webhooks, customer records or provider state. #552 remains unarmed.
+
+## 2026-09-05 - Derive post-restore PGMQ invariants and cover SET ROLE
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-PHASE-SET-ROLE-2026-09-05`
+
+Change type: independent-review recovery security correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review found two fail-open seams in the PGMQ containment proof.
+The caller could disable signed relation-count equality for a post-data or
+post-migration phase, and direct ACL expansion followed inherited `USAGE` but
+not a membership that permits an explicit `SET ROLE` into a privileged grantee
+or object owner.
+
+Decision: derive count equality from the inspected phase. Only `pre_data` may
+observe newly created empty relations before signed rows are loaded; both
+`post_data` and `post_migration` always require the signed count digest, and a
+contradictory caller option fails closed. Expand direct and default ACL
+reachability through both inherited `USAGE` and explicit `SET ROLE`, while the
+existing effective privilege checks remain independently required. Bind the
+source test to the actual post-migration inspection call after `migration up`
+instead of accepting a phase-name literal elsewhere in the validator.
+
+This changes only the disposable local recovery consumer and its tests. It
+does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
+Gemini, webhooks, customer records or provider state. #552 remains unarmed.
+
+## 2026-09-05 - Preserve NULL column ACL semantics in PGMQ inspection
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-COLUMN-ACL-2026-09-05`
+
+Change type: real-runtime recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The next isolated exact-head recovery run stopped in the pre-data PGMQ
+inspection with PostgreSQL SQLSTATE `22023`. A disposable catalog-only
+reproduction identified the safe error as `ACL arrays must be one-dimensional`:
+the inspection converted a nullable `pg_attribute.attacl` into a zero-dimensional
+empty ACL array before calling `aclexplode`.
+
+Decision: pass nullable column ACLs directly to `aclexplode`. A `NULL` column
+ACL correctly contributes zero direct grants, while relation ACL/default and
+effective column-privilege checks remain independent. Bind the source test so
+the invalid empty-array coercion cannot return.
+
+This changes only the disposable local recovery consumer and its tests. The
+failed contour completed owned cleanup with disposition `remove`; no managed
+Supabase, production, VPS, provider, webhook or customer state was contacted or
+mutated. #552 remains unarmed.
+
+## 2026-09-05 - Bind implicit PGMQ ownership and aggregate diagnostics
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-OWNERSHIP-AGGREGATE-2026-09-05`
+
+Change type: independent-review security and real-runtime diagnostic
+correction. Affected plan section: Order 7 / Issue #551.
+
+Independent review found that ACL expansion can miss implicit object-owner
+authority: a forbidden runtime role able to `SET ROLE` to a schema, relation,
+function or default-ACL owner could regrant or mutate the object even when all
+explicit ACL counters are zero. The first full run after the column-ACL fix
+passed signed PGMQ reconstruction and then stopped at aggregate reconciliation,
+but the aggregate failure retained no safe coordinate to distinguish signed
+dump drift from restored-state drift.
+
+Decision:
+
+- add an independent zero-count proof for direct, inherited or `SET ROLE`
+  reachability to each target schema, relation, function and applicable
+  default-ACL owner;
+- keep that proof separate from direct ACL and effective privilege counts so
+  neither mechanism can mask the other; and
+- on aggregate mismatch retain only the named comparison phase, first aggregate
+  field, integer or SHA-256 expected/actual values, mismatch count and mismatch-
+  set hash. Never retain a row, identifier, email, filename or content.
+
+The failed exact candidate `2b4061c7` retained redacted mode-`0600` evidence at
+the authorized external evidence destination and completed owned cleanup with
+disposition `remove`. This changes only the disposable local recovery consumer
+and its tests; it does not contact or mutate managed Supabase, production, VPS,
+providers, webhooks or customer state. #552 remains unarmed.
+
+Safe offline comparison then proved that the signed manifest and `data.sql`
+both contain 208 tables, 1,453 rows and one Auth user. Only the table-count
+digest differed because the exporter canonicalizes object keys with
+`localeCompare("en")`, while the recovery consumer accidentally re-canonicalized
+that signed structure with JavaScript's default code-point `.sort()`. This is
+observable for names such as `platform_private.*` and `platform.*`.
+
+The recovery consumer must mirror the exporter's signed canonical-JSON
+algorithm exactly for every exporter-owned digest. Keep the recovery evidence's
+own canonicalization separate; never accept either digest convention as a
+fallback. A cross-order regression fixture binds the exporter ordering before
+the next single real rehearsal.
+
+## 2026-09-05 - Apply target Storage buckets after exact source recovery
+
+Block-ID: `EVO-V3-H-RECOVERY-TARGET-STORAGE-LIFECYCLE-2026-09-05`
+
+Change type: real-runtime recovery lifecycle correction.
+Affected plan section: Order 7 / Issue #551.
+
+The exact-head rehearsal passed signed database restore, pending migrations and
+source Storage reconciliation, then stopped before the document canary because
+the signed source legitimately contains only three legacy buckets and zero
+objects. The target V3 private buckets live in the exact target commit's
+`supabase/config.toml`; the recovery consumer had intentionally stripped those
+declarations before source reconciliation but never applied them afterward and
+incorrectly searched the source manifest for `platform-documents`.
+
+Decision: keep every target bucket declaration absent until the signed source
+bucket/object inventory has been restored and reconciled. Then restore the
+exact target config as the contract in the disposable contour, list the real
+local Storage API inventory, reconcile each configured bucket through that API,
+then require configured privacy, byte limits and MIME allowlists to match.
+Reject `objects_path` so the lifecycle cannot load fixture bytes. Feed the
+verified target inventory—not the signed source manifest—to the document
+behavior canary. Record source-recovery and target-upgrade evidence separately;
+creating target infrastructure never satisfies the independent real-source-
+object requirement, so the current zero-object backup remains `not_ready` even
+when the canary passes.
+
+This changes only the disposable local recovery consumer, its tests and plan
+contract. It does not contact or mutate managed Supabase, production, VPS,
+providers, webhooks or customer state. #552 remains unarmed.
+
+## 2026-09-05 - Refuse foreign image references and recreated volumes during cleanup
+
+Block-ID: `EVO-V3-H-RECOVERY-CLEANUP-REFERENCE-CENSUS-2026-09-05`
+
+Change type: final independent-review cleanup identity correction.
+Affected plan section: Order 7 / Issue #551.
+
+Review of the captured-ID cleanup found two remaining gaps. A foreign stopped
+container could still reference the captured candidate image even though the
+image's own ID, labels, tag and provenance were exact, and `image rm --force`
+could remove all references. Volume cleanup retained only name plus ownership
+labels, so a same-name volume recreated after validation could pass. Both image
+and volume deletion still requested `--force`, weakening the runtime's own
+reference protections.
+
+Decision:
+
+- include the immutable image ID in the inspection of every container, and
+  require the complete candidate-image reference census to equal exactly the
+  still-present captured candidate-app and TLS-proxy IDs; a foreign, missing or
+  wrong-image reference quarantines before any deletion;
+- remove the candidate image without `--force` only after a fresh all-container
+  inspection proves zero remaining references, so a raced reference makes the
+  Docker command fail and quarantine;
+- capture every validated volume's exact `CreatedAt`, driver, scope and hashes
+  of its full labels/options together with its name, and require that frozen
+  identity census before each cleanup phase; a same-name recreation or metadata
+  drift quarantines; and
+- remove volumes without `--force`, preserving Docker's in-use protection and
+  treating any raced reference or removal failure as quarantine.
+
+Docker's volume-inspect reference documents `CreatedAt`, `Driver`, `Scope` and
+other inspected metadata:
+<https://docs.docker.com/reference/cli/docker/volume/inspect/>. Docker's image
+and volume removal references document the stronger non-force behavior:
+<https://docs.docker.com/reference/cli/docker/image/rm/> and
+<https://docs.docker.com/reference/cli/docker/volume/rm/>.
+
+This correction changes only the disposable local recovery consumer and its
+tests. It does not run Docker, contact or mutate managed Supabase, production,
+VPS, providers, webhooks or customer state. #552 remains unarmed.
+
+## 2026-09-05 - Preserve the full source bucket overlay and resolve signed paths
+
+Block-ID: `EVO-V3-H-RECOVERY-STORAGE-OVERLAY-SIGNED-PATH-2026-09-05`
+
+Change type: independent-review security correction plus real-runtime recovery
+correction. Affected plan section: Order 7 / Issue #551.
+
+Independent review found that validating the final bucket count plus only the
+target-config subset could miss a removed or mutated source-only bucket if a
+different extra bucket kept the count unchanged. The exact-head real rehearsal
+then passed source reconciliation and target bucket configuration but exposed a
+separate URL-shape error: the Storage API returns a raw `/object/sign/...`
+signed path, while the canary resolved it at the API origin root rather than
+beneath `/storage/v1`, producing a safe local `404`.
+
+Decision: build the expected final bucket inventory by overlaying exact target
+declarations on the complete normalized pre-upgrade source inventory, and
+require the complete post-upgrade API inventory to match it. Resolve the raw
+signed path only beneath `/storage/v1` on the exact local API origin and require
+the exact bucket/object path plus one non-empty `token` query; reject a different
+origin, path, credentials, fragment or query shape. Regression tests cover a
+mutated source-only bucket at unchanged count and the raw signed-path contract.
+
+The failed exact candidate retained only redacted mode-`0600` evidence and
+completed owned cleanup with disposition `remove`. No managed Supabase,
+production, VPS, provider, webhook or customer state was contacted or mutated;
+#552 remains unarmed.

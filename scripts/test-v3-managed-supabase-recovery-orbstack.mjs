@@ -9,7 +9,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import {
   chmodSync,
   closeSync,
@@ -27,8 +27,10 @@ import {
   readdirSync,
   realpathSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -37,6 +39,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { parse as parseToml } from "smol-toml";
 
 const OPT_IN = "EVO_RUN_V3_MANAGED_SUPABASE_RECOVERY_ORBSTACK";
 const OPT_IN_VALUE = "1";
@@ -44,15 +47,26 @@ const RECEIPT_SCHEMA = "evo-v3-managed-supabase-export-receipt/v1";
 const DATABASE_SCHEMA = "evo-v3-managed-supabase-logical-backup/v1";
 const STORAGE_SCHEMA = "evo-v3-managed-supabase-storage-backup/v1";
 const RESULT_SCHEMA = "evo-v3-managed-supabase-recovery-result/v2";
+const REQUIRED_NODE_VERSION = "22.23.1";
+const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
+const EICAR = String.raw`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`;
+const RECOVERY_SUPABASE_HOSTNAME = "evov3recoverylocal00.supabase.co";
 const SIGNATURE_NAMESPACE = "evo-v3-managed-supabase-recovery";
 const SIGNATURE_IDENTITY = "evo-v3-managed-supabase-export";
 const SNAPSHOT_MODE = "postgresql-exported-repeatable-read-read-only";
 const MARKER = ".evo-v3-managed-recovery-harness";
 const HARNESS_PREFIX = "evo-v3-managed-recovery-";
 const QUARANTINE_SUFFIX = ".quarantine";
+const CONTAINER_MUTATION_CAPTURE_STAGES = new Set([
+  "exact_target_image_build",
+  "local_supabase_start",
+  "malware_scanner_start",
+  "candidate_start",
+]);
 const COMMAND_GRACE_MS = 2_000;
 const MAX_CAPTURE_BYTES = 64 * 1024;
 const MAX_JSON_BYTES = 16 * 1024 * 1024;
+const MAX_TARGET_CONFIG_BYTES = 1024 * 1024;
 const MAX_SQL_BYTES = 128 * 1024 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024 * 1024;
 const MAX_AGE_HOURS = 24 * 31;
@@ -73,9 +87,45 @@ const ADMIN_MEMBERSHIP_DENIAL = Object.freeze({
   sqlstate: "42501",
   domainSentinel: "admin_membership_permission_required",
 });
+const RECORDED_ROOT_HISTORY_EXCEPTIONS = Object.freeze({
+  "030": Object.freeze({
+    name: "ai_knowledge",
+    kind: "signed_comment_only_history_drift",
+    signedRowSha256: "391845ec8286a35d27d3be4bc1badb08a69587cd07f7cacec128727d2dc4db07",
+    signedStatementCount: 36,
+    signedStatementsSha256: "3d2c866a2c3a5eee959fa7e2fa6b08f961c74a1794a91ce3016ed5d2ad8c2efd",
+    rootFileSha256: "173e1314a8c41014569ec431915bb578d7cd1626c56b6d7f1d59fa45b9dd8212",
+    rootStatementCount: 36,
+    rootStatementsSha256: "d41f32a95072a864107f222e5e92335212abac3bce7caa71448f3d5da313da98",
+  }),
+  "038": Object.freeze({
+    name: "authorization_containment",
+    kind: "signed_empty_history_exception",
+    signedRowSha256: "addaa73497b212b650722cc0c64eabc0f9edb3410db79a8b11d7ea675ea2a309",
+    signedStatementCount: 0,
+    signedStatementsSha256: "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    rootFileSha256: "64c7d648e3cebd890212e021cc7774e2f427756a70af0bda083e1ddbc977499c",
+    rootStatementCount: 49,
+    rootStatementsSha256: "c18f4d19ab95e77252bad3a1726f8e655e5aec84c16155a94a5c03d50b888dae",
+  }),
+  "039": Object.freeze({
+    name: "private_inbox_media",
+    kind: "signed_empty_history_exception",
+    signedRowSha256: "bf77eb6533399b4ffa738aeb75fcef8d67acf4f7c15b3f0c32421170d763332f",
+    signedStatementCount: 0,
+    signedStatementsSha256: "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    rootFileSha256: "a9297f27628a8ea7d2cd27e31b9cf396d9ea9a782aa668c4df330c6cfdc3c796",
+    rootStatementCount: 20,
+    rootStatementsSha256: "3a237b079808a3c9de431162dc564894645d3668d8d778bfbda35540239f48c1",
+  }),
+});
+let activePrivateChildEnvironment;
 // Deliberately excludes Config.Env so inspect output can never capture runtime secrets.
 const SAFE_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}\t{{json .HostConfig.NetworkMode}}\t{{json .NetworkSettings.Ports}}\t{{json .NetworkSettings.Networks}}";
 const SAFE_IMAGE_INSPECT_FORMAT = "{{json .Id}}\t{{json .RepoDigests}}\t{{json .Config.Labels}}\t{{json .Os}}\t{{json .Architecture}}";
+const SAFE_CLEANUP_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}";
+const SAFE_CLEANUP_VOLUME_INSPECT_FORMAT = "{{json .Name}}\t{{json .CreatedAt}}\t{{json .Driver}}\t{{json .Scope}}\t{{json .Labels}}\t{{json .Options}}";
+const SAFE_CLEANUP_NETWORK_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Labels}}";
 const DATABASE_DENIAL_SENTINELS = Object.freeze({
   "Active scoped Admin permission membership.role.change is required": ADMIN_MEMBERSHIP_DENIAL.domainSentinel,
 });
@@ -98,6 +148,28 @@ const SQL_ARTIFACTS = Object.freeze([
 ]);
 const EXCLUDED_SERVICES =
   "imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
+const RECOVERY_PGMQ_QUEUES = Object.freeze(["platform_dead_letter_v1", "platform_work_v1"]);
+const RECOVERY_PGMQ_SIGNATURES = Object.freeze([
+  "pgmq.create(text)",
+  "pgmq.read(text,integer,integer,jsonb)",
+  "pgmq.send(text,jsonb,integer)",
+  "pgmq.set_vt(text,bigint,integer)",
+  "pgmq.archive(text,bigint)",
+]);
+const RECOVERY_PGMQ_RELATIONS = Object.freeze([
+  "pgmq.a_platform_dead_letter_v1",
+  "pgmq.a_platform_work_v1",
+  "pgmq.q_platform_dead_letter_v1",
+  "pgmq.q_platform_work_v1",
+]);
+const RECOVERY_PGMQ_COPY_COLUMNS = Object.freeze({
+  "pgmq.a_platform_dead_letter_v1": Object.freeze(["msg_id", "read_ct", "enqueued_at", "archived_at", "vt", "message", "headers"]),
+  "pgmq.a_platform_work_v1": Object.freeze(["msg_id", "read_ct", "enqueued_at", "archived_at", "vt", "message", "headers"]),
+  "pgmq.q_platform_dead_letter_v1": Object.freeze(["msg_id", "read_ct", "enqueued_at", "vt", "message", "headers"]),
+  "pgmq.q_platform_work_v1": Object.freeze(["msg_id", "read_ct", "enqueued_at", "vt", "message", "headers"]),
+});
+const RECOVERY_PGMQ_COPY_COLUMN_COUNT = Object.values(RECOVERY_PGMQ_COPY_COLUMNS)
+  .reduce((total, columns) => total + columns.length, 0);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export class RecoveryFailure extends Error {
@@ -116,6 +188,12 @@ function fail(code, stage, diagnostic) {
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPlainTable(value) {
+  if (!isRecord(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 function exactKeys(value, keys, code, stage = "artifact_validation") {
@@ -165,6 +243,22 @@ function canonicalValue(value) {
 
 export function canonicalJson(value) {
   return JSON.stringify(canonicalValue(value));
+}
+
+function signedExportCanonicalValue(value) {
+  if (Array.isArray(value)) return value.map(signedExportCanonicalValue);
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right, "en"))
+        .map(([key, item]) => [key, signedExportCanonicalValue(item)]),
+    );
+  }
+  return value;
+}
+
+function signedExportCanonicalJson(value) {
+  return `${JSON.stringify(signedExportCanonicalValue(value))}\n`;
 }
 
 function sha256(value) {
@@ -223,7 +317,17 @@ function validateTools(value) {
   if (value.pg_dump !== value.pg_dumpall || value.pg_dump !== value.psql) fail("export_postgres_tool_mismatch", "artifact_validation");
   string(value.age, null, "export_tool_evidence_invalid", "artifact_validation", 256);
   string(value.database_ca_sha256, SHA256, "export_tool_evidence_invalid");
-  string(value.managed_dump_inputs_sha256, SHA256, "export_tool_evidence_invalid");
+  exactKeys(
+    value.managed_dump_inputs_sha256,
+    ["data", "database_ca", "roles", "schema"],
+    "export_tool_evidence_invalid",
+  );
+  for (const digest of Object.values(value.managed_dump_inputs_sha256)) {
+    string(digest, SHA256, "export_tool_evidence_invalid");
+  }
+  if (value.managed_dump_inputs_sha256.database_ca !== value.database_ca_sha256) {
+    fail("export_tool_evidence_invalid", "artifact_validation");
+  }
   string(value.database_ca_fingerprint, /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/u, "export_tool_evidence_invalid");
   return Object.freeze({ ...value });
 }
@@ -396,7 +500,7 @@ function validateSourceReceipt(value, expected) {
   ) {
     fail("database_pooler_invalid", "artifact_validation");
   }
-  const calculated = sha256(canonicalJson({ project, backup: value.backup, pooler: value.pooler }));
+  const calculated = sha256(signedExportCanonicalJson({ project, backup: value.backup, pooler: value.pooler }));
   if (value.sha256 !== calculated || value.sha256 !== expected.sourceIdentity) {
     fail("database_source_identity_mismatch", "artifact_validation");
   }
@@ -466,7 +570,7 @@ export function validateDatabaseManifest(manifest, expected) {
     string(hash, SHA256, "database_stability_invalid");
   }
   const stabilityProof = string(manifest.stability.proof_sha256, SHA256, "database_stability_invalid");
-  if (stabilityProof !== sha256(canonicalJson(manifest.stability.artifact_semantic_sha256))) {
+  if (stabilityProof !== sha256(signedExportCanonicalJson(manifest.stability.artifact_semantic_sha256))) {
     fail("database_stability_digest_invalid", "artifact_validation");
   }
   const dataCopy = string(manifest.data_copy_sections_sha256, SHA256, "database_copy_digest_invalid");
@@ -802,14 +906,30 @@ export function extractExactMigrationLedger(historySql) {
         fail("migration_history_row_invalid", "artifact_validation");
       }
       const parsedStatements = parsePostgresTextArray(statements);
-      if (parsedStatements.length === 0) fail("migration_statements_array_invalid", "artifact_validation");
-      rows.push(Object.freeze({
+      const exception = RECORDED_ROOT_HISTORY_EXCEPTIONS[version];
+      if (
+        parsedStatements.length === 0 &&
+        (exception?.name !== name || exception.signedStatementCount !== 0)
+      ) {
+        fail("migration_statements_array_invalid", "artifact_validation");
+      }
+      const row = Object.freeze({
         version,
         name,
         row_sha256: sha256(`${lines[index]}\n`),
         statement_count: parsedStatements.length,
         statements_sha256: sha256(canonicalJson(parsedStatements)),
-      }));
+        statement_evidence: parsedStatements.length === 0
+          ? "signed_empty_history_exception"
+          : "recorded_statements",
+      });
+      if (parsedStatements.length === 0 && (
+        row.row_sha256 !== exception.signedRowSha256 ||
+        row.statements_sha256 !== exception.signedStatementsSha256
+      )) {
+        fail("migration_statements_array_invalid", "artifact_validation");
+      }
+      rows.push(row);
     }
     if (index >= lines.length || lines[index] !== "\\." || rows.length === 0) {
       fail("migration_history_copy_unterminated", "artifact_validation");
@@ -845,31 +965,44 @@ export function validateRestrictedSqlEnvelope(sql, name) {
   return Object.freeze({ artifact: name, guardSha256: sha256(openings[0][1]) });
 }
 
-async function validateRestrictedSqlFile(path, name) {
+export async function validateRestrictedSqlFile(path, name) {
   const input = createReadStream(path, { encoding: "utf8" });
   const lines = createInterface({ input, crlfDelay: Infinity });
   let opening;
   let closing;
+  let openingIndex = -1;
+  let closingIndex = -1;
   let openingCount = 0;
   let closingCount = 0;
+  let lineIndex = 0;
   try {
     for await (const line of lines) {
       const open = /^\\restrict ([A-Za-z0-9]{63})$/u.exec(line);
       if (open) {
         openingCount += 1;
         opening = open[1];
+        if (openingIndex === -1) openingIndex = lineIndex;
       }
       const close = /^\\unrestrict ([A-Za-z0-9]{63})$/u.exec(line);
       if (close) {
         closingCount += 1;
         closing = close[1];
+        if (closingIndex === -1) closingIndex = lineIndex;
       }
+      lineIndex += 1;
     }
   } finally {
     lines.close();
     input.destroy();
   }
-  if (openingCount !== 1 || closingCount !== 1 || opening !== closing || !GUARD.test(opening ?? "")) {
+  if (
+    openingCount !== 1 ||
+    closingCount !== 1 ||
+    opening !== closing ||
+    !GUARD.test(opening ?? "") ||
+    openingIndex < 0 ||
+    openingIndex >= closingIndex
+  ) {
     fail("sql_restricted_guard_invalid", "artifact_validation", { artifact: name });
   }
   return Object.freeze({ artifact: name, guardSha256: sha256(opening) });
@@ -888,21 +1021,61 @@ export function verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete
     fail("migration_ledger_summary_mismatch", "migration_rehearsal");
   }
   const prefix = root.entries.slice(0, ledger.entries.length);
-  if (
-    prefix.length !== ledger.entries.length ||
-    prefix.some((entry, index) =>
-      entry.version !== ledger.entries[index].version ||
-      entry.name !== ledger.entries[index].name ||
-      entry.statementCount !== ledger.entries[index].statement_count ||
-      entry.statementsSha256 !== ledger.entries[index].statements_sha256)
-  ) {
-    fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
+  if (prefix.length !== ledger.entries.length) fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
+  const recordedRootHistoryExceptions = [];
+  for (let index = 0; index < prefix.length; index += 1) {
+    const entry = prefix[index];
+    const recorded = ledger.entries[index];
+    if (entry.version !== recorded.version || entry.name !== recorded.name) {
+      fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
+    }
+    const exactStatementMatch = recorded.statement_count > 0 &&
+      recorded.statement_evidence === "recorded_statements" &&
+      entry.statementCount === recorded.statement_count &&
+      entry.statementsSha256 === recorded.statements_sha256;
+    if (exactStatementMatch) continue;
+    const exception = RECORDED_ROOT_HISTORY_EXCEPTIONS[recorded.version];
+    const evidenceMatches = exception?.kind === recorded.statement_evidence ||
+      (exception?.kind === "signed_comment_only_history_drift" && recorded.statement_evidence === "recorded_statements");
+    if (
+      exception?.name !== recorded.name ||
+      !evidenceMatches ||
+      recorded.row_sha256 !== exception.signedRowSha256 ||
+      recorded.statement_count !== exception.signedStatementCount ||
+      recorded.statements_sha256 !== exception.signedStatementsSha256 ||
+      entry.sha256 !== exception.rootFileSha256 ||
+      entry.statementCount !== exception.rootStatementCount ||
+      entry.statementsSha256 !== exception.rootStatementsSha256
+    ) {
+      fail("migration_ledger_root_prefix_mismatch", "migration_rehearsal");
+    }
+    recordedRootHistoryExceptions.push(Object.freeze({
+      version: recorded.version,
+      name: recorded.name,
+      kind: exception.kind,
+      signedRowSha256: recorded.row_sha256,
+      signedStatementsSha256: recorded.statements_sha256,
+      rootFileSha256: entry.sha256,
+      rootStatementsSha256: entry.statementsSha256,
+    }));
   }
   if (requireComplete && root.entries.length !== prefix.length) fail("source_migration_ledger_not_complete", "migration_rehearsal");
+  const recordedSource = ledger.entries.map((recorded) => Object.freeze({
+    version: recorded.version,
+    name: recorded.name,
+    statementCount: recorded.statement_count,
+    statementsSha256: recorded.statements_sha256,
+  }));
+  const emptyStatementHistoryExceptions = recordedRootHistoryExceptions.filter(
+    ({ kind }) => kind === "signed_empty_history_exception",
+  );
   return Object.freeze({
     source: Object.freeze(prefix),
+    recordedSource: Object.freeze(recordedSource),
     pending: Object.freeze(root.entries.slice(prefix.length)),
     orderedLedgerSha256: ledger.orderedLedgerSha256,
+    recordedRootHistoryExceptions: Object.freeze(recordedRootHistoryExceptions),
+    emptyStatementHistoryExceptions: Object.freeze(emptyStatementHistoryExceptions),
   });
 }
 
@@ -1092,6 +1265,7 @@ export function validateEvidenceRuntimeSeparation(path, harnessRoot) {
 function safeEnvironment(extra = {}) {
   return Object.freeze({
     PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    ...(activePrivateChildEnvironment ?? {}),
     LANG: "C.UTF-8",
     LC_ALL: "C",
     DOCKER_CONTEXT: "orbstack",
@@ -1117,6 +1291,36 @@ export function orbStackEnvironment(home = homedir()) {
     fail("orbstack_home_invalid", "toolchain");
   }
   return safeEnvironment({ HOME: canonical });
+}
+
+function activatePrivateChildEnvironment(harnessRoot, dockerHost, dockerBuildx) {
+  if (activePrivateChildEnvironment) fail("private_child_environment_already_active", "toolchain");
+  const home = join(harnessRoot, "child-home");
+  const temporary = join(harnessRoot, "child-tmp");
+  const dockerConfig = join(home, ".docker");
+  const pluginDirectory = join(dockerConfig, "cli-plugins");
+  for (const directory of [home, temporary, dockerConfig, pluginDirectory]) {
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    chmodSync(directory, 0o700);
+  }
+  symlinkSync(dockerBuildx.real, join(pluginDirectory, "docker-buildx"));
+  const contextRoot = join(dockerConfig, "contexts", "meta", sha256("orbstack"));
+  mkdirSync(contextRoot, { recursive: true, mode: 0o700 });
+  writeFileSync(join(contextRoot, "meta.json"), `${JSON.stringify({
+    Name: "orbstack",
+    Metadata: { Description: "OrbStack recovery contour" },
+    Endpoints: { docker: { Host: dockerHost, SkipTLSVerify: false } },
+  })}\n`, { mode: 0o600, flag: "wx" });
+  activePrivateChildEnvironment = Object.freeze({
+    HOME: home,
+    TMPDIR: temporary,
+    DOCKER_CONFIG: dockerConfig,
+  });
+  return Object.freeze({
+    homeMode: (lstatSync(home).mode & 0o777).toString(8),
+    dockerConfigMode: (lstatSync(dockerConfig).mode & 0o777).toString(8),
+    buildxRealpathSha256: sha256(realpathSync(join(pluginDirectory, "docker-buildx"))),
+  });
 }
 
 function pinnedSupabaseEnvironment(paths) {
@@ -1375,12 +1579,28 @@ export function sanitizeCommandDiagnostic(output, status) {
 export function sanitizePsqlDiagnostic(output, status) {
   const text = Buffer.isBuffer(output) ? output.toString("utf8") : String(output ?? "");
   const base = sanitizeCommandDiagnostic(text, status);
-  const match = /^ERROR:\s+([0-9A-Z]{5}):\s+([^\r\n]+)$/mu.exec(text);
-  const domainSentinel = match ? DATABASE_DENIAL_SENTINELS[match[2]] ?? null : null;
+  const match = /^(?:psql:[^\r\n]+?:(\d+):\s+)?ERROR:\s+([0-9A-Z]{5}):\s+([^\r\n]+)$/mu.exec(text);
+  const errorClasses = Object.freeze({
+    "22P02": "invalid_text_representation",
+    "23502": "not_null_violation",
+    "23503": "foreign_key_violation",
+    "23505": "unique_violation",
+    "42501": "insufficient_privilege",
+    "42601": "syntax_error",
+    "42703": "undefined_column",
+    "42883": "undefined_function",
+    "42P01": "undefined_table",
+  });
+  const domainSentinel = match ? DATABASE_DENIAL_SENTINELS[match[3]] ?? null : null;
   return Object.freeze({
     ...base,
     postgres: match
-      ? Object.freeze({ sqlstate: match[1], domainSentinel })
+      ? Object.freeze({
+          sqlstate: match[2],
+          errorClass: errorClasses[match[2]] ?? "other",
+          inputLine: match[1] === undefined ? null : Number(match[1]),
+          domainSentinel,
+        })
       : null,
   });
 }
@@ -1501,7 +1721,7 @@ function versionToken(output, label, code) {
   return `${label} ${match[1]}`;
 }
 
-async function trustedToolchain(supervisor, availableEvidence = {}) {
+async function trustedToolchain(supervisor, harnessRoot, availableEvidence = {}) {
   const supabaseChain = resolveSupabaseExecutableChain();
   availableEvidence.supabase_bin_link_sha256 = supabaseChain.binLinkSha256;
   const tools = Object.freeze({
@@ -1527,6 +1747,21 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
       ["/opt/homebrew/opt/libpq/bin/psql", "/usr/local/opt/libpq/bin/psql"],
       ["/opt/homebrew/Cellar/libpq", "/usr/local/Cellar/libpq"],
       "psql_unavailable",
+    ),
+    node: resolveExecutable(
+      ["/opt/homebrew/opt/node@22/bin/node", "/usr/local/opt/node@22/bin/node"],
+      ["/opt/homebrew/Cellar/node@22", "/usr/local/Cellar/node@22"],
+      "node_22_unavailable",
+    ),
+    openssl: resolveExecutable(
+      ["/usr/bin/openssl"],
+      ["/usr/bin/openssl"],
+      "openssl_unavailable",
+    ),
+    dockerBuildx: resolveExecutable(
+      ["/Applications/OrbStack.app/Contents/MacOS/xbin/docker-buildx"],
+      ["/Applications/OrbStack.app/Contents/MacOS/xbin/docker-tools"],
+      "docker_buildx_unavailable",
     ),
     supabaseLauncher: supabaseChain.launcher,
     supabaseNative: supabaseChain.native,
@@ -1589,6 +1824,32 @@ async function trustedToolchain(supervisor, availableEvidence = {}) {
   const context = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "context", "show"], { stage: "toolchain", code: "docker_context_invalid", timeoutMs: 10_000 });
   if (context.stdout.toString("utf8").trim() !== "orbstack") fail("docker_context_invalid", "toolchain");
   availableEvidence.docker_context = "orbstack";
+  const contextHost = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "context", "inspect", "orbstack", "--format", "{{.Endpoints.docker.Host}}"], {
+    stage: "toolchain",
+    code: "docker_context_endpoint_invalid",
+    timeoutMs: 10_000,
+  });
+  const dockerHost = contextHost.stdout.toString("utf8").trim();
+  if (!/^unix:\/\/[A-Za-z0-9_./-]+$/u.test(dockerHost)) fail("docker_context_endpoint_invalid", "toolchain");
+  const privateEnvironment = activatePrivateChildEnvironment(harnessRoot, dockerHost, tools.dockerBuildx);
+  const privateContext = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "context", "show"], {
+    stage: "toolchain",
+    code: "private_docker_context_unavailable",
+    timeoutMs: 10_000,
+  });
+  if (privateContext.stdout.toString("utf8").trim() !== "orbstack") fail("private_docker_context_not_orbstack", "toolchain");
+  const buildxVersion = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "buildx", "version"], {
+    stage: "toolchain",
+    code: "private_docker_buildx_unavailable",
+    timeoutMs: 10_000,
+  });
+  availableEvidence.docker_buildx = versionToken(buildxVersion.stdout.toString("utf8"), "buildx", "docker_buildx_version_invalid");
+  availableEvidence.private_home_mode = privateEnvironment.homeMode;
+  availableEvidence.private_docker_config_mode = privateEnvironment.dockerConfigMode;
+  availableEvidence.private_buildx_realpath_sha256 = privateEnvironment.buildxRealpathSha256;
+  const nodeVersion = await supervisor.run(tools.node.real, ["--version"], { stage: "toolchain", code: "node_22_version_failed", timeoutMs: 10_000 });
+  if (nodeVersion.stdout.toString("utf8").trim() !== `v${REQUIRED_NODE_VERSION}`) fail("node_22_version_invalid", "toolchain");
+  availableEvidence.node = REQUIRED_NODE_VERSION;
   for (const [field, template] of [["docker_client", "{{.Client.Version}}"], ["docker_server", "{{.Server.Version}}"]]) {
     const version = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "version", "--format", template], {
       stage: "toolchain",
@@ -1956,13 +2217,240 @@ async function reservePort() {
 async function reservePorts() {
   const originals = [45420, 45421, 45422, 45423, 45424, 45425, 45426, 45427, 45428, 45429, 3000];
   const values = [];
-  while (values.length < originals.length) {
+  while (values.length < originals.length + 1) {
     const candidate = await reservePort();
     if (!values.includes(candidate)) values.push(candidate);
   }
   return Object.freeze({
     replacements: Object.freeze(Object.fromEntries(originals.map((port, index) => [port, values[index]]))),
-    app: values.at(-1),
+    app: values.at(-2),
+    scanner: values.at(-1),
+  });
+}
+
+const STORAGE_SIZE_MULTIPLIERS = Object.freeze({
+  B: 1,
+  KB: 1_000,
+  MB: 1_000_000,
+  GB: 1_000_000_000,
+  KiB: 1_024,
+  MiB: 1_024 * 1_024,
+  GiB: 1_024 * 1_024 * 1_024,
+});
+
+function targetStorageSize(value) {
+  const match = /^([1-9][0-9]{0,8})(B|KB|MB|GB|KiB|MiB|GiB)$/u.exec(value);
+  if (!match) fail("target_storage_bucket_size_invalid", "target_storage_configuration");
+  const bytes = Number(match[1]) * STORAGE_SIZE_MULTIPLIERS[match[2]];
+  if (!Number.isSafeInteger(bytes)) fail("target_storage_bucket_size_invalid", "target_storage_configuration");
+  return bytes;
+}
+
+function targetStorageMimeTypes(value) {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((item) => typeof item !== "string" || item.length === 0 || item !== item.trim()) ||
+    new Set(value).size !== value.length
+  ) {
+    fail("target_storage_bucket_mime_types_invalid", "target_storage_configuration");
+  }
+  return Object.freeze([...value].sort((left, right) => left.localeCompare(right, "en")));
+}
+
+export function parseTargetStorageBucketConfig(source) {
+  if (
+    typeof source !== "string" ||
+    source.length === 0 ||
+    Buffer.byteLength(source, "utf8") > MAX_TARGET_CONFIG_BYTES
+  ) {
+    fail("target_storage_config_invalid", "target_storage_configuration");
+  }
+  let parsed;
+  try {
+    parsed = parseToml(source);
+  } catch {
+    fail("target_storage_config_invalid", "target_storage_configuration");
+  }
+  const configured = parsed?.storage?.buckets;
+  if (!isPlainTable(configured) || Object.keys(configured).length === 0) {
+    fail("target_storage_buckets_missing", "target_storage_configuration");
+  }
+  const buckets = [];
+  const allowedKeys = new Set(["public", "file_size_limit", "allowed_mime_types", "objects_path"]);
+  for (const [id, bucket] of Object.entries(configured)) {
+    string(id, /^[A-Za-z0-9_-]+$/u, "target_storage_bucket_identity_invalid", "target_storage_configuration", 1_024);
+    if (!isPlainTable(bucket)) fail("target_storage_bucket_config_invalid", "target_storage_configuration");
+    for (const key of Object.keys(bucket)) {
+      if (!allowedKeys.has(key)) fail("target_storage_bucket_config_invalid", "target_storage_configuration");
+      if (key === "objects_path") fail("target_storage_bucket_objects_path_forbidden", "target_storage_configuration");
+    }
+    if (bucket.public !== undefined && typeof bucket.public !== "boolean") {
+      fail("target_storage_bucket_public_invalid", "target_storage_configuration");
+    }
+    buckets.push(Object.freeze({
+      id,
+      name: id,
+      public: bucket.public ?? false,
+      file_size_limit: bucket.file_size_limit === undefined ? null : targetStorageSize(bucket.file_size_limit),
+      allowed_mime_types: bucket.allowed_mime_types === undefined ? null : targetStorageMimeTypes(bucket.allowed_mime_types),
+    }));
+  }
+  return Object.freeze(buckets.sort((left, right) => left.id.localeCompare(right.id, "en")));
+}
+
+function normalizeRuntimeStorageBucket(bucket) {
+  if (!isRecord(bucket)) fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+  const normalized = {
+    id: string(bucket.id, null, "target_storage_bucket_inventory_invalid", "target_storage_configuration", 1_024),
+    name: string(bucket.name, null, "target_storage_bucket_inventory_invalid", "target_storage_configuration", 1_024),
+    public: bucket.public,
+    file_size_limit: bucket.file_size_limit === null ? null : Number(bucket.file_size_limit),
+    allowed_mime_types: bucket.allowed_mime_types === null
+      ? null
+      : Array.isArray(bucket.allowed_mime_types)
+        ? [...bucket.allowed_mime_types].map((item) => String(item)).sort((left, right) => left.localeCompare(right, "en"))
+        : fail("target_storage_bucket_inventory_invalid", "target_storage_configuration"),
+  };
+  if (
+    typeof normalized.public !== "boolean" ||
+    (normalized.file_size_limit !== null && (!Number.isSafeInteger(normalized.file_size_limit) || normalized.file_size_limit < 0))
+  ) {
+    fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+  }
+  return Object.freeze(normalized);
+}
+
+export function validateTargetStorageBuckets(expected, actual, sourceBucketCount) {
+  if (!Array.isArray(expected) || expected.length === 0 || !Array.isArray(actual)) {
+    fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+  }
+  integer(sourceBucketCount, "target_storage_bucket_inventory_invalid", "target_storage_configuration");
+  const normalized = actual.map(normalizeRuntimeStorageBucket);
+  const byId = new Map();
+  for (const bucket of normalized) {
+    if (byId.has(bucket.id)) fail("target_storage_bucket_inventory_duplicate", "target_storage_configuration");
+    byId.set(bucket.id, bucket);
+  }
+  const configured = expected.map((bucket) => {
+    const candidate = byId.get(bucket.id);
+    if (!candidate || !sameJson(candidate, bucket)) fail("target_storage_bucket_mismatch", "target_storage_configuration");
+    return candidate;
+  });
+  return Object.freeze({
+    buckets: Object.freeze(configured),
+    evidence: Object.freeze({
+      lifecycle: "storage_api_reconcile_local",
+      sourceBucketCount,
+      configuredBucketCount: configured.length,
+      configuredPrivateBucketCount: configured.filter((bucket) => !bucket.public).length,
+      postUpgradeBucketCount: normalized.length,
+      configuredInventorySha256: sha256(canonicalJson(configured)),
+    }),
+  });
+}
+
+function targetStorageBucketProjection(bucket) {
+  return Object.freeze({
+    id: bucket.id,
+    name: bucket.name,
+    public: bucket.public,
+    file_size_limit: bucket.file_size_limit,
+    allowed_mime_types: bucket.allowed_mime_types === null
+      ? null
+      : Object.freeze([...bucket.allowed_mime_types].sort((left, right) => left.localeCompare(right, "en"))),
+  });
+}
+
+export async function reconcileTargetStorageBuckets(
+  status,
+  targetConfig,
+  sourceBuckets,
+  interruptionGuard,
+  { fetchImpl = globalThis.fetch } = {},
+) {
+  if (
+    !isRecord(status) ||
+    typeof status.apiUrl !== "string" ||
+    typeof status.serviceRoleKey !== "string" ||
+    !Array.isArray(sourceBuckets) ||
+    !(interruptionGuard instanceof RecoveryInterruptionGuard) ||
+    typeof fetchImpl !== "function"
+  ) {
+    fail("target_storage_configuration_input_invalid", "target_storage_configuration");
+  }
+  const expected = parseTargetStorageBucketConfig(targetConfig);
+  const headers = Object.freeze({
+    apikey: status.serviceRoleKey,
+    Authorization: `Bearer ${status.serviceRoleKey}`,
+    "content-type": "application/json",
+  });
+  const listBuckets = async () => {
+    const response = await apiRequest(
+      new URL("/storage/v1/bucket", status.apiUrl),
+      { headers },
+      [200],
+      "target_storage_bucket_list_failed",
+      "target_storage_configuration",
+      interruptionGuard,
+      { fetchImpl },
+    );
+    let payload;
+    try {
+      payload = await interruptionGuard.run("target_storage_configuration", async () => await response.json());
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
+      fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+    }
+    if (!Array.isArray(payload)) fail("target_storage_bucket_inventory_invalid", "target_storage_configuration");
+    return payload.map(normalizeRuntimeStorageBucket).sort((left, right) => left.id.localeCompare(right.id, "en"));
+  };
+  const before = await listBuckets();
+  const restoredSource = sourceBuckets
+    .map((bucket) => targetStorageBucketProjection(validateBucket(bucket)))
+    .sort((left, right) => left.id.localeCompare(right.id, "en"));
+  if (!sameJson(before, restoredSource)) {
+    fail("source_storage_bucket_restore_mismatch", "target_storage_configuration");
+  }
+  const byId = new Map(before.map((bucket) => [bucket.id, bucket]));
+  let createdBucketCount = 0;
+  let updatedBucketCount = 0;
+  for (const bucket of expected) {
+    const current = byId.get(bucket.id);
+    if (current && sameJson(current, bucket)) continue;
+    const creating = !current;
+    const url = creating
+      ? new URL("/storage/v1/bucket", status.apiUrl)
+      : new URL(`/storage/v1/bucket/${encodeURIComponent(bucket.id)}`, status.apiUrl);
+    const response = await apiRequest(
+      url,
+      { method: creating ? "POST" : "PUT", headers, body: JSON.stringify(bucket) },
+      [200],
+      creating ? "target_storage_bucket_create_failed" : "target_storage_bucket_update_failed",
+      "target_storage_configuration",
+      interruptionGuard,
+      { fetchImpl },
+    );
+    await interruptionGuard.run("target_storage_configuration", async () => await response.arrayBuffer());
+    if (creating) createdBucketCount += 1;
+    else updatedBucketCount += 1;
+  }
+  const after = await listBuckets();
+  const expectedPostUpgrade = new Map(before.map((bucket) => [bucket.id, bucket]));
+  for (const bucket of expected) expectedPostUpgrade.set(bucket.id, bucket);
+  const expectedAfter = [...expectedPostUpgrade.values()]
+    .sort((left, right) => left.id.localeCompare(right.id, "en"));
+  if (!sameJson(after, expectedAfter)) {
+    fail("target_storage_bucket_inventory_mismatch", "target_storage_configuration");
+  }
+  const verified = validateTargetStorageBuckets(expected, after, restoredSource.length);
+  return Object.freeze({
+    buckets: verified.buckets,
+    evidence: Object.freeze({
+      ...verified.evidence,
+      createdBucketCount,
+      updatedBucketCount,
+    }),
   });
 }
 
@@ -2038,12 +2526,22 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   mkdirSync(join(workdir, "supabase"), { recursive: true, mode: 0o700 });
   const configPath = join(workdir, "supabase", "config.toml");
   writeFileSync(configPath, isolatedConfig(root.config, state.projectName, ports), { mode: 0o600, flag: "wx" });
-  state.containerMutationAttempted = true;
-  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "network", "create", "--internal", "--opt", "com.docker.network.bridge.host_binding_ipv4=127.0.0.1", "--label", `evo.recovery.owner=${state.projectName}`, state.networkName], {
+  beginContainerMutationCapture(state, "local_supabase_start");
+  const createdNetwork = await runDocker(supervisor, toolchain.paths.docker, [
+    "--context", "orbstack", "network", "create",
+    "--driver", "bridge",
+    "--opt", "com.docker.network.bridge.enable_ip_masquerade=false",
+    "--opt", "com.docker.network.bridge.host_binding_ipv4=127.0.0.1",
+    "--label", `evo.recovery.owner=${state.projectName}`,
+    state.networkName,
+  ], {
     stage: "local_supabase_start",
     code: "isolated_network_create_failed",
     timeoutMs: 30_000,
   });
+  const networkId = createdNetwork.stdout.toString("utf8").trim();
+  if (!SHA256.test(networkId)) fail("isolated_network_id_invalid", "local_supabase_start");
+  state.networkId = networkId;
   state.networkCreated = true;
   await supervisor.run(toolchain.paths.supabaseNative.real, ["start", "--workdir", workdir, "--network-id", state.networkName, "--exclude", EXCLUDED_SERVICES, "--ignore-health-check", "--debug", "--yes"], {
     stage: "local_supabase_start",
@@ -2053,13 +2551,18 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
     env: pinnedSupabaseEnvironment(toolchain.paths),
   });
   state.stackStarted = true;
-  const status = await supervisor.run(toolchain.paths.supabaseNative.real, ["status", "--workdir", workdir, "--output", "env"], {
+  const statusResult = await supervisor.run(toolchain.paths.supabaseNative.real, ["status", "--workdir", workdir, "--output", "env"], {
     stage: "local_supabase_start",
     code: "local_supabase_status_failed",
     timeoutMs: 60_000,
     env: pinnedSupabaseEnvironment(toolchain.paths),
   });
-  return Object.freeze({ status: parseStatus(status.stdout.toString("utf8")), configPath });
+  const status = parseStatus(statusResult.stdout.toString("utf8"));
+  const endpoint = await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
+  if (endpoint.networkId !== state.networkId) fail("isolated_network_identity_drift", "local_supabase_start");
+  state.supabaseContainerIds = endpoint.memberIds;
+  const egress = await proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain);
+  return Object.freeze({ status, configPath, endpoint, egress });
 }
 
 function parsedJson(value, code, stage) {
@@ -2103,9 +2606,11 @@ function recoveryNetwork(value, expected, code, stage) {
     network.Name !== expected.networkName ||
     network.Driver !== "bridge" ||
     network.Scope !== "local" ||
-    network.Internal !== true ||
+    network.Internal !== false ||
+    network.EnableIPv6 !== false ||
     network.Ingress !== false ||
     network.Options?.["com.docker.network.bridge.host_binding_ipv4"] !== "127.0.0.1" ||
+    network.Options?.["com.docker.network.bridge.enable_ip_masquerade"] !== "false" ||
     network.Labels?.["evo.recovery.owner"] !== expected.projectName ||
     !isRecord(network.Containers) ||
     Object.keys(network.Containers).length === 0
@@ -2148,41 +2653,125 @@ function loopbackPortBindings(ports, code, stage) {
   return Object.freeze(published);
 }
 
-export function validateContainerCensusIds(projectOutput, ownerOutput, { requireOwner = false } = {}) {
-  const parse = (output) => String(output).split(/\r?\n/u).filter(Boolean).map((id) =>
-    string(id, SHA256, "container_census_invalid", "isolation_identity", 64));
-  const projectIds = parse(projectOutput);
-  const ownerIds = parse(ownerOutput);
-  if (projectIds.length === 0 || (requireOwner && ownerIds.length !== 1)) {
-    fail("container_census_invalid", "isolation_identity");
+function validatedContainerCensus(value, code, stage) {
+  if (!isRecord(value)) fail(code, stage);
+  exactKeys(value, ["appOwnerIds", "ids", "scannerIds", "supabaseIds"], code, stage);
+  for (const field of ["appOwnerIds", "ids", "scannerIds", "supabaseIds"]) {
+    if (
+      !Array.isArray(value[field]) ||
+      value[field].some((id) => !SHA256.test(id)) ||
+      new Set(value[field]).size !== value[field].length ||
+      !sameJson(value[field], [...value[field]].sort())
+    ) {
+      fail(code, stage);
+    }
   }
-  if (new Set(projectIds).size !== projectIds.length || new Set(ownerIds).size !== ownerIds.length) {
-    fail("container_census_invalid", "isolation_identity");
-  }
-  return Object.freeze([...new Set([...projectIds, ...ownerIds])].sort());
+  const members = [...value.supabaseIds, ...value.appOwnerIds, ...value.scannerIds];
+  if (new Set(members).size !== members.length || !sameJson(value.ids, [...members].sort())) fail(code, stage);
+  return value;
 }
 
-async function containerCensus(supervisor, toolchain, projectName, { requireOwner = false, stage = "local_supabase_start" } = {}) {
+export function validateContainerCensusIds(
+  projectOutput,
+  ownerOutput,
+  scannerOutput = "",
+  { requireOwner = false, requireScanner = false } = {},
+) {
+  const parse = (output) => String(output).split(/\r?\n/u).filter(Boolean).map((id) =>
+    string(id, SHA256, "container_census_invalid", "isolation_identity", 64)).sort();
+  const supabaseIds = parse(projectOutput);
+  const appOwnerIds = parse(ownerOutput);
+  const scannerIds = parse(scannerOutput);
+  if (
+    supabaseIds.length === 0 ||
+    appOwnerIds.length > 1 ||
+    scannerIds.length > 1 ||
+    (requireOwner && appOwnerIds.length !== 1) ||
+    (requireScanner && scannerIds.length !== 1)
+  ) {
+    fail("container_census_invalid", "isolation_identity");
+  }
+  const ids = [...supabaseIds, ...appOwnerIds, ...scannerIds];
+  if (
+    new Set(supabaseIds).size !== supabaseIds.length ||
+    new Set(appOwnerIds).size !== appOwnerIds.length ||
+    new Set(scannerIds).size !== scannerIds.length ||
+    new Set(ids).size !== ids.length
+  ) {
+    fail("container_census_invalid", "isolation_identity");
+  }
+  return Object.freeze({
+    appOwnerIds: Object.freeze(appOwnerIds),
+    ids: Object.freeze(ids.sort()),
+    scannerIds: Object.freeze(scannerIds),
+    supabaseIds: Object.freeze(supabaseIds),
+  });
+}
+
+async function containerCensus(
+  supervisor,
+  toolchain,
+  projectName,
+  { requireOwner = false, requireScanner = false, stage = "local_supabase_start" } = {},
+) {
   const common = ["--context", "orbstack", "ps", "--all", "--no-trunc", "--format", "{{.ID}}"];
-  const [project, owner] = await Promise.all([
+  const [project, owner, scanner] = await Promise.all([
     runDocker(supervisor, toolchain.paths.docker, [...common, "--filter", `label=com.supabase.cli.project=${projectName}`], {
       stage, code: "supabase_project_container_census_failed", timeoutMs: 30_000,
     }),
     runDocker(supervisor, toolchain.paths.docker, [...common, "--filter", `label=evo.recovery.owner=${projectName}`], {
       stage, code: "recovery_app_container_census_failed", timeoutMs: 30_000,
     }),
+    runDocker(supervisor, toolchain.paths.docker, [...common, "--filter", `label=evo.recovery.scanner=${projectName}`], {
+      stage, code: "recovery_scanner_container_census_failed", timeoutMs: 30_000,
+    }),
   ]);
-  return validateContainerCensusIds(project.stdout.toString("utf8"), owner.stdout.toString("utf8"), { requireOwner });
+  return validateContainerCensusIds(
+    project.stdout.toString("utf8"),
+    owner.stdout.toString("utf8"),
+    scanner.stdout.toString("utf8"),
+    { requireOwner, requireScanner },
+  );
+}
+
+function validateScannerContainerRecord(record, network, expected, code, stage) {
+  if (!isRecord(expected)) fail(code, stage);
+  exactKeys(expected, ["containerId", "containerName", "imageId", "networkHost", "projectName"], code, stage);
+  if (
+    record.id !== expected.containerId ||
+    record.name !== expected.containerName ||
+    record.image !== expected.imageId
+  ) {
+    fail(code, stage);
+  }
+  if (
+    record.labels["com.docker.compose.project"] !== expected.projectName ||
+    record.labels["com.evo.runtime.role"] !== "private-malware-scanner" ||
+    record.labels["evo.recovery.project"] !== expected.projectName ||
+    record.labels["evo.recovery.scanner"] !== expected.projectName ||
+    record.labels["evo.recovery.type"] !== "malware-scanner"
+  ) {
+    fail(code, stage);
+  }
+  validateContainerNetwork(record, network, network.Name, code, stage);
+  const aliases = record.networks[network.Name].Aliases;
+  if (!aliases.includes(expected.networkHost) || loopbackPortBindings(record.ports, code, stage).length !== 0) fail(code, stage);
 }
 
 export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, expected) {
-  exactKeys(expected, ["apiUrl", "censusIds", "networkName", "projectName"], "local_supabase_network_invalid", "local_supabase_start");
+  exactKeys(expected, ["apiUrl", "census", "networkName", "projectName", "scanner"], "local_supabase_network_invalid", "local_supabase_start");
+  const census = validatedContainerCensus(expected.census, "local_supabase_container_census_mismatch", "local_supabase_start");
   const network = recoveryNetwork(networkPayload, expected, "local_supabase_network_invalid", "local_supabase_start");
   const records = projectedContainers(projectionOutput, "local_supabase_container_inspection_invalid", "local_supabase_start");
   const memberIds = Object.keys(network.Containers).sort();
-  const censusIds = [...expected.censusIds].sort();
+  const censusIds = [...census.ids];
   const recordIds = records.map((record) => record.id).sort();
-  if (!sameJson(censusIds, memberIds) || !sameJson(recordIds, censusIds)) {
+  if (
+    (expected.scanner === null && census.scannerIds.length !== 0) ||
+    (isRecord(expected.scanner) && census.scannerIds.length !== 1) ||
+    !sameJson(censusIds, memberIds) ||
+    !sameJson(recordIds, censusIds)
+  ) {
     fail("local_supabase_container_census_mismatch", "local_supabase_start");
   }
   let apiPort;
@@ -2195,11 +2784,29 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
     fail("local_supabase_network_invalid", "local_supabase_start");
   }
   const matches = [];
+  const databaseMatches = [];
   for (const record of records) {
     const member = network.Containers[record.id];
+    const isSupabase = census.supabaseIds.includes(record.id);
+    const isScanner = census.scannerIds.includes(record.id);
     if (
       !memberIds.includes(record.id) ||
       member.Name !== record.name ||
+      Number(isSupabase) + Number(isScanner) !== 1
+    ) {
+      fail("local_supabase_container_inspection_invalid", "local_supabase_start");
+    }
+    if (isScanner) {
+      validateScannerContainerRecord(
+        record,
+        network,
+        expected.scanner,
+        "local_supabase_container_inspection_invalid",
+        "local_supabase_start",
+      );
+      continue;
+    }
+    if (
       !record.name.startsWith("supabase_") ||
       !record.name.endsWith(`_${expected.projectName}`) ||
       record.labels["com.supabase.cli.project"] !== expected.projectName
@@ -2207,26 +2814,50 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
       fail("local_supabase_container_inspection_invalid", "local_supabase_start");
     }
     validateContainerNetwork(record, network, expected.networkName, "local_supabase_container_inspection_invalid", "local_supabase_start");
+    if (record.name === `supabase_db_${expected.projectName}`) databaseMatches.push(record);
     for (const binding of loopbackPortBindings(record.ports, "local_supabase_container_inspection_invalid", "local_supabase_start")) {
       if (binding.protocol === "tcp" && binding.hostPort === apiPort) matches.push(Object.freeze({ record, targetPort: binding.containerPort }));
     }
   }
   if (matches.length !== 1) fail("local_supabase_api_endpoint_ambiguous", "local_supabase_start");
+  if (databaseMatches.length !== 1) fail("local_supabase_database_container_ambiguous", "local_supabase_start");
   return Object.freeze({
     networkId: network.Id,
     memberIds: Object.freeze(memberIds),
     targetHost: matches[0].record.name,
     targetPort: matches[0].targetPort,
     apiLoopbackPort: apiPort,
+    databaseContainerId: databaseMatches[0].id,
+  });
+}
+
+async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain) {
+  const command = "command -v timeout >/dev/null 2>&1 || exit 96; if timeout 3 /bin/bash -c '</dev/tcp/1.1.1.1/443' >/dev/null 2>&1; then exit 97; fi; printf egress-blocked";
+  const result = await runDocker(supervisor, toolchain.paths.docker, [
+    "--context", "orbstack", "exec", endpoint.databaseContainerId, "/bin/bash", "-c", command,
+  ], {
+    stage: "local_supabase_start",
+    code: "recovery_network_egress_not_blocked",
+    timeoutMs: 10_000,
+  });
+  if (result.stdout.toString("utf8") !== "egress-blocked") {
+    fail("recovery_network_egress_proof_invalid", "local_supabase_start");
+  }
+  return Object.freeze({
+    status: "blocked",
+    mechanism: "bridge_ip_masquerade_disabled_plus_runtime_probe",
+    probeContainerIdSha256: sha256(endpoint.databaseContainerId),
+    probeTargetSha256: sha256("1.1.1.1:443"),
   });
 }
 
 export function validateCandidateNetworkAttachment(networkPayload, projectionOutput, expected) {
-  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appPort", "censusIds", "networkName", "previousMemberIds", "projectName"], "candidate_network_attachment_invalid", "image_verification");
+  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appPort", "census", "networkName", "previousMemberIds", "projectName", "scanner"], "candidate_network_attachment_invalid", "image_verification");
+  const census = validatedContainerCensus(expected.census, "candidate_container_census_mismatch", "image_verification");
   const network = recoveryNetwork(networkPayload, expected, "candidate_network_attachment_invalid", "image_verification");
   const records = projectedContainers(projectionOutput, "candidate_container_inspection_invalid", "image_verification");
   const record = records.find((candidate) => candidate.id === expected.appContainerId);
-  const censusIds = [...expected.censusIds].sort();
+  const censusIds = [...census.ids];
   const members = Object.keys(network.Containers).sort();
   const recordIds = records.map((candidate) => candidate.id).sort();
   if (!sameJson(censusIds, members) || !sameJson(recordIds, censusIds)) {
@@ -2238,6 +2869,11 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     record.name !== expected.appContainerName ||
     record.image !== expected.appImageId ||
     record.labels["evo.recovery.owner"] !== expected.projectName ||
+    record.labels["evo.recovery.project"] !== expected.projectName ||
+    record.labels["evo.recovery.type"] !== "candidate-app" ||
+    census.appOwnerIds.length !== 1 ||
+    census.appOwnerIds[0] !== record.id ||
+    census.scannerIds.length !== 1 ||
     network.Containers[record.id]?.Name !== record.name
   ) {
     fail("candidate_container_inspection_invalid", "image_verification");
@@ -2248,12 +2884,23 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     }
     validateContainerNetwork(candidate, network, expected.networkName, "candidate_network_attachment_invalid", "image_verification");
     loopbackPortBindings(candidate.ports, "candidate_network_attachment_invalid", "image_verification");
-    if (candidate.id !== record.id && (
-      !candidate.name.startsWith("supabase_") ||
-      !candidate.name.endsWith(`_${expected.projectName}`) ||
-      candidate.labels["com.supabase.cli.project"] !== expected.projectName
-    )) {
-      fail("candidate_container_inspection_invalid", "image_verification");
+    if (candidate.id !== record.id) {
+      if (census.scannerIds.includes(candidate.id)) {
+        validateScannerContainerRecord(
+          candidate,
+          network,
+          expected.scanner,
+          "candidate_container_inspection_invalid",
+          "image_verification",
+        );
+      } else if (
+        !census.supabaseIds.includes(candidate.id) ||
+        !candidate.name.startsWith("supabase_") ||
+        !candidate.name.endsWith(`_${expected.projectName}`) ||
+        candidate.labels["com.supabase.cli.project"] !== expected.projectName
+      ) {
+        fail("candidate_container_inspection_invalid", "image_verification");
+      }
     }
   }
   const previous = [...expected.previousMemberIds].sort();
@@ -2272,7 +2919,7 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     attachedNetworkCount: 1,
     publishedPortCount: 1,
     loopbackOnly: true,
-    externalEgress: "blocked_by_internal_network",
+    externalEgress: "blocked_by_disabled_masquerade_and_runtime_probe",
   });
 }
 
@@ -2281,22 +2928,520 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
     stage: "local_supabase_start", code: "local_supabase_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   const networkPayload = parsedJson(networkResult.stdout.toString("utf8"), "local_supabase_network_invalid", "local_supabase_start");
-  const censusIds = await containerCensus(supervisor, toolchain, state.projectName);
-  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
+  const census = await containerCensus(supervisor, toolchain, state.projectName, {
+    requireScanner: isRecord(state.scannerIdentity),
+  });
+  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...census.ids], {
     stage: "local_supabase_start", code: "local_supabase_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
-  return validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
-    apiUrl: status.apiUrl, censusIds, networkName: state.networkName, projectName: state.projectName,
+  const endpoint = validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
+    apiUrl: status.apiUrl,
+    census,
+    networkName: state.networkName,
+    projectName: state.projectName,
+    scanner: state.scannerIdentity ?? null,
   });
+  if (typeof state.networkId === "string" && endpoint.networkId !== state.networkId) {
+    fail("isolated_network_identity_drift", "local_supabase_start");
+  }
+  if (Array.isArray(state.supabaseContainerIds)) {
+    const expectedMemberIds = [
+      ...state.supabaseContainerIds,
+      ...(typeof state.scannerContainer === "string" ? [state.scannerContainer] : []),
+    ].sort();
+    if (!sameJson(endpoint.memberIds, expectedMemberIds)) {
+      fail("local_supabase_container_identity_drift", "local_supabase_start");
+    }
+  }
+  return endpoint;
+}
+
+function pgmqRelationCounts(counts, code, stage) {
+  if (!isRecord(counts)) fail(code, stage);
+  const entries = Object.entries(counts)
+    .filter(([table]) => table.startsWith("pgmq."))
+    .sort(([left], [right]) => left.localeCompare(right, "en"));
+  if (
+    entries.length !== RECOVERY_PGMQ_RELATIONS.length ||
+    entries.some(([table, count], index) => {
+      integer(count, code, stage);
+      return table !== RECOVERY_PGMQ_RELATIONS[index];
+    })
+  ) {
+    fail(code, stage);
+  }
+  return Object.freeze(Object.fromEntries(entries));
+}
+
+export function validatePgmqRestoreInventory(counts, columns) {
+  const relationCounts = pgmqRelationCounts(counts, "pgmq_restore_inventory_invalid", "database_restore");
+  if (!isRecord(columns)) fail("pgmq_restore_inventory_invalid", "database_restore");
+  const pgmqColumns = Object.fromEntries(Object.entries(columns)
+    .filter(([table]) => table.startsWith("pgmq."))
+    .sort(([left], [right]) => left.localeCompare(right, "en")));
+  if (!sameJson(pgmqColumns, RECOVERY_PGMQ_COPY_COLUMNS)) {
+    fail("pgmq_restore_inventory_invalid", "database_restore");
+  }
+  return Object.freeze({
+    queueSetSha256: sha256(canonicalJson(RECOVERY_PGMQ_QUEUES)),
+    relationSetSha256: sha256(canonicalJson(RECOVERY_PGMQ_RELATIONS)),
+    relationCountsSha256: sha256(canonicalJson(relationCounts)),
+    copyColumnsSha256: sha256(canonicalJson(pgmqColumns)),
+    signedRowCount: Object.values(relationCounts).reduce((total, count) => total + count, 0),
+  });
+}
+
+export function validatePgmqContainmentProof(verified, inventory, options = {}) {
+  const stage = options.stage ?? "database_restore";
+  const phase = options.phase;
+  const signedRelationCountsSha256 = inventory?.relationCountsSha256 ?? inventory?.signedRelationCountsSha256;
+  exactKeys(verified, [
+    "queueMetadata", "queueMetadataTotalCount", "queueRelationCount",
+    "requiredRelationCount", "loggedRelationCount", "identitySequenceCount",
+    "copyCompatibleColumnCount", "requiredSignatureCount", "missingRoleCount", "directForbiddenGrantCount",
+    "forbiddenOwnerReachabilityCount", "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
+    "restoredRelationCounts",
+  ], "pgmq_extension_relation_containment_failed", stage);
+  if (!new Set(["pre_data", "post_data", "post_migration"]).has(phase)) {
+    fail("pgmq_extension_relation_containment_failed", stage);
+  }
+  const requireCountsMatch = phase !== "pre_data";
+  if (options.requireCountsMatch !== undefined && options.requireCountsMatch !== requireCountsMatch) {
+    fail("pgmq_extension_relation_containment_failed", stage);
+  }
+  const expectedMetadata = RECOVERY_PGMQ_QUEUES.map((queueName) => Object.freeze({
+    queueName,
+    isPartitioned: false,
+    isUnlogged: false,
+  }));
+  const zeroFields = [
+    "missingRoleCount", "directForbiddenGrantCount",
+    "forbiddenOwnerReachabilityCount", "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
+  ];
+  if (
+    !isRecord(inventory) ||
+    !SHA256.test(signedRelationCountsSha256 ?? "") ||
+    !SHA256.test(inventory.copyColumnsSha256 ?? "") ||
+    !sameJson(verified.queueMetadata, expectedMetadata) ||
+    verified.queueMetadataTotalCount !== RECOVERY_PGMQ_QUEUES.length ||
+    verified.queueRelationCount !== RECOVERY_PGMQ_RELATIONS.length ||
+    verified.requiredRelationCount !== RECOVERY_PGMQ_RELATIONS.length ||
+    verified.loggedRelationCount !== RECOVERY_PGMQ_RELATIONS.length ||
+    verified.identitySequenceCount !== RECOVERY_PGMQ_QUEUES.length ||
+    verified.copyCompatibleColumnCount !== RECOVERY_PGMQ_COPY_COLUMN_COUNT ||
+    verified.requiredSignatureCount !== RECOVERY_PGMQ_SIGNATURES.length ||
+    zeroFields.some((field) => verified[field] !== 0)
+  ) {
+    fail("pgmq_extension_relation_containment_failed", stage);
+  }
+  const restoredCounts = pgmqRelationCounts(
+    verified.restoredRelationCounts,
+    "pgmq_extension_relation_containment_failed",
+    stage,
+  );
+  const restoredRelationCountsSha256 = sha256(canonicalJson(restoredCounts));
+  const relationCountsMatch = restoredRelationCountsSha256 === signedRelationCountsSha256;
+  if (requireCountsMatch && !relationCountsMatch) {
+    fail("pgmq_extension_relation_count_mismatch", stage);
+  }
+  return Object.freeze({
+    status: requireCountsMatch ? "restored_and_contained" : "created_and_contained",
+    phase,
+    signedRelationCountsSha256,
+    restoredRelationCountsSha256,
+    relationCountsMatch,
+    copyColumnsSha256: inventory.copyColumnsSha256,
+    queueMetadataSha256: sha256(canonicalJson(verified.queueMetadata)),
+    queueMetadataTotalCount: verified.queueMetadataTotalCount,
+    queueRelationCount: verified.queueRelationCount,
+    requiredRelationCount: verified.requiredRelationCount,
+    loggedRelationCount: verified.loggedRelationCount,
+    identitySequenceCount: verified.identitySequenceCount,
+    copyCompatibleColumnCount: verified.copyCompatibleColumnCount,
+    requiredSignatureCount: verified.requiredSignatureCount,
+    missingRoleCount: verified.missingRoleCount,
+    directForbiddenGrantCount: verified.directForbiddenGrantCount,
+    forbiddenOwnerReachabilityCount: verified.forbiddenOwnerReachabilityCount,
+    effectiveForbiddenPrivilegeCount: verified.effectiveForbiddenPrivilegeCount,
+    additiveDefaultGrantCount: verified.additiveDefaultGrantCount,
+  });
+}
+
+async function inspectPgmqExtensionRelations(inventory, phase, status, supervisor, toolchain, options = {}) {
+  const stage = options.stage ?? "database_restore";
+  const structure = await psqlJson(supervisor, toolchain, status, String.raw`
+    WITH forbidden_role_names(role_name) AS (
+      VALUES ('anon'), ('authenticated'), ('service_role'), ('supabase_auth_admin')
+    ), named_roles AS (
+      SELECT roles.oid, roles.rolname
+      FROM pg_roles AS roles
+      JOIN forbidden_role_names AS forbidden ON forbidden.role_name = roles.rolname
+    ), target_namespaces AS (
+      SELECT namespace.oid, namespace.nspname, namespace.nspowner
+      FROM pg_namespace AS namespace
+      WHERE namespace.nspname IN ('pgmq', 'pgmq_public')
+    ), forbidden_direct_acl AS (
+      SELECT 1
+      FROM pg_namespace AS namespace
+      JOIN target_namespaces AS target ON target.oid = namespace.oid
+      CROSS JOIN LATERAL aclexplode(coalesce(namespace.nspacl, acldefault('n'::"char", namespace.nspowner))) AS acl
+      WHERE CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+        SELECT 1 FROM named_roles AS role
+        WHERE role.oid = acl.grantee
+           OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+           OR pg_has_role(role.oid, acl.grantee, 'SET')
+      ) END
+      UNION ALL
+      SELECT 1
+      FROM pg_class AS relation
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      CROSS JOIN LATERAL aclexplode(coalesce(
+        relation.relacl,
+        acldefault((CASE WHEN relation.relkind = 'S' THEN 's' ELSE 'r' END)::"char", relation.relowner)
+      )) AS acl
+      WHERE relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+        AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+          SELECT 1 FROM named_roles AS role
+          WHERE role.oid = acl.grantee
+             OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+             OR pg_has_role(role.oid, acl.grantee, 'SET')
+        ) END
+      UNION ALL
+      SELECT 1
+      FROM pg_attribute AS attribute
+      JOIN pg_class AS relation ON relation.oid = attribute.attrelid
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      CROSS JOIN LATERAL aclexplode(attribute.attacl) AS acl
+      WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+        AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+          SELECT 1 FROM named_roles AS role
+          WHERE role.oid = acl.grantee
+             OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+             OR pg_has_role(role.oid, acl.grantee, 'SET')
+        ) END
+      UNION ALL
+      SELECT 1
+      FROM pg_proc AS routine
+      JOIN target_namespaces AS namespace ON namespace.oid = routine.pronamespace
+      CROSS JOIN LATERAL aclexplode(coalesce(routine.proacl, acldefault('f'::"char", routine.proowner))) AS acl
+      WHERE CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+        SELECT 1 FROM named_roles AS role
+        WHERE role.oid = acl.grantee
+           OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+           OR pg_has_role(role.oid, acl.grantee, 'SET')
+      ) END
+    ), forbidden_owner_reachability AS (
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN target_namespaces AS namespace
+      WHERE role.oid = namespace.nspowner
+         OR pg_has_role(role.oid, namespace.nspowner, 'USAGE')
+         OR pg_has_role(role.oid, namespace.nspowner, 'SET')
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_class AS relation
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      WHERE relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+        AND (
+          role.oid = relation.relowner
+          OR pg_has_role(role.oid, relation.relowner, 'USAGE')
+          OR pg_has_role(role.oid, relation.relowner, 'SET')
+        )
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_proc AS routine
+      JOIN target_namespaces AS namespace ON namespace.oid = routine.pronamespace
+      WHERE role.oid = routine.proowner
+         OR pg_has_role(role.oid, routine.proowner, 'USAGE')
+         OR pg_has_role(role.oid, routine.proowner, 'SET')
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_default_acl AS defaults
+      LEFT JOIN pg_namespace AS namespace ON namespace.oid = defaults.defaclnamespace
+      WHERE (defaults.defaclnamespace = 0 OR namespace.nspname IN ('pgmq', 'pgmq_public'))
+        AND (
+          role.oid = defaults.defaclrole
+          OR pg_has_role(role.oid, defaults.defaclrole, 'USAGE')
+          OR pg_has_role(role.oid, defaults.defaclrole, 'SET')
+        )
+    ), forbidden_effective_privilege AS (
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN target_namespaces AS namespace
+      WHERE has_schema_privilege(role.oid, namespace.oid, 'USAGE')
+         OR has_schema_privilege(role.oid, namespace.oid, 'CREATE')
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_class AS relation
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'f')
+        AND (
+          has_table_privilege(role.oid, relation.oid, 'SELECT')
+          OR has_table_privilege(role.oid, relation.oid, 'INSERT')
+          OR has_table_privilege(role.oid, relation.oid, 'UPDATE')
+          OR has_table_privilege(role.oid, relation.oid, 'DELETE')
+          OR has_table_privilege(role.oid, relation.oid, 'TRUNCATE')
+          OR has_table_privilege(role.oid, relation.oid, 'REFERENCES')
+          OR has_table_privilege(role.oid, relation.oid, 'TRIGGER')
+          OR has_any_column_privilege(role.oid, relation.oid, 'SELECT')
+          OR has_any_column_privilege(role.oid, relation.oid, 'INSERT')
+          OR has_any_column_privilege(role.oid, relation.oid, 'UPDATE')
+          OR has_any_column_privilege(role.oid, relation.oid, 'REFERENCES')
+        )
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_class AS relation
+      JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
+      WHERE relation.relkind = 'S'
+        AND (
+          has_sequence_privilege(role.oid, relation.oid, 'USAGE')
+          OR has_sequence_privilege(role.oid, relation.oid, 'SELECT')
+          OR has_sequence_privilege(role.oid, relation.oid, 'UPDATE')
+        )
+      UNION ALL
+      SELECT 1
+      FROM named_roles AS role
+      CROSS JOIN pg_proc AS routine
+      JOIN target_namespaces AS namespace ON namespace.oid = routine.pronamespace
+      WHERE has_function_privilege(role.oid, routine.oid, 'EXECUTE')
+    ), forbidden_default_acl AS (
+      SELECT 1
+      FROM pg_default_acl AS defaults
+      LEFT JOIN pg_namespace AS namespace ON namespace.oid = defaults.defaclnamespace
+      CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl
+      WHERE (defaults.defaclnamespace = 0 OR namespace.nspname IN ('pgmq', 'pgmq_public'))
+        AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
+          SELECT 1 FROM named_roles AS role
+          WHERE role.oid = acl.grantee
+             OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+             OR pg_has_role(role.oid, acl.grantee, 'SET')
+        ) END
+    ), expected_columns(relation_name, column_name, type_oid) AS (
+      VALUES
+        ('a_platform_dead_letter_v1', 'msg_id', 'int8'::regtype),
+        ('a_platform_dead_letter_v1', 'read_ct', 'int4'::regtype),
+        ('a_platform_dead_letter_v1', 'enqueued_at', 'timestamptz'::regtype),
+        ('a_platform_dead_letter_v1', 'archived_at', 'timestamptz'::regtype),
+        ('a_platform_dead_letter_v1', 'vt', 'timestamptz'::regtype),
+        ('a_platform_dead_letter_v1', 'message', 'jsonb'::regtype),
+        ('a_platform_dead_letter_v1', 'headers', 'jsonb'::regtype),
+        ('a_platform_work_v1', 'msg_id', 'int8'::regtype),
+        ('a_platform_work_v1', 'read_ct', 'int4'::regtype),
+        ('a_platform_work_v1', 'enqueued_at', 'timestamptz'::regtype),
+        ('a_platform_work_v1', 'archived_at', 'timestamptz'::regtype),
+        ('a_platform_work_v1', 'vt', 'timestamptz'::regtype),
+        ('a_platform_work_v1', 'message', 'jsonb'::regtype),
+        ('a_platform_work_v1', 'headers', 'jsonb'::regtype),
+        ('q_platform_dead_letter_v1', 'msg_id', 'int8'::regtype),
+        ('q_platform_dead_letter_v1', 'read_ct', 'int4'::regtype),
+        ('q_platform_dead_letter_v1', 'enqueued_at', 'timestamptz'::regtype),
+        ('q_platform_dead_letter_v1', 'vt', 'timestamptz'::regtype),
+        ('q_platform_dead_letter_v1', 'message', 'jsonb'::regtype),
+        ('q_platform_dead_letter_v1', 'headers', 'jsonb'::regtype),
+        ('q_platform_work_v1', 'msg_id', 'int8'::regtype),
+        ('q_platform_work_v1', 'read_ct', 'int4'::regtype),
+        ('q_platform_work_v1', 'enqueued_at', 'timestamptz'::regtype),
+        ('q_platform_work_v1', 'vt', 'timestamptz'::regtype),
+        ('q_platform_work_v1', 'message', 'jsonb'::regtype),
+        ('q_platform_work_v1', 'headers', 'jsonb'::regtype)
+    )
+    SELECT json_build_object(
+      'queueMetadata', (
+        SELECT coalesce(json_agg(json_build_object(
+          'queueName', queue_name,
+          'isPartitioned', is_partitioned,
+          'isUnlogged', is_unlogged
+        ) ORDER BY queue_name), '[]'::json)
+        FROM pgmq.meta
+        WHERE queue_name IN ('platform_dead_letter_v1', 'platform_work_v1')
+      ),
+      'queueMetadataTotalCount', (SELECT count(*)::integer FROM pgmq.meta),
+      'queueRelationCount', (
+        SELECT count(*)::integer
+        FROM pg_class AS relation
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'pgmq'
+          AND relation.relkind IN ('r', 'p')
+          AND relation.relname ~ '^[aq]_'
+      ),
+      'requiredRelationCount', (
+        SELECT count(*)::integer
+        FROM pg_class AS relation
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'pgmq'
+          AND relation.relkind IN ('r', 'p')
+          AND relation.relname IN (
+            'a_platform_dead_letter_v1', 'a_platform_work_v1',
+            'q_platform_dead_letter_v1', 'q_platform_work_v1'
+          )
+      ),
+      'loggedRelationCount', (
+        SELECT count(*)::integer
+        FROM pg_class AS relation
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'pgmq'
+          AND relation.relkind = 'r'
+          AND relation.relpersistence = 'p'
+          AND relation.relname IN (
+            'a_platform_dead_letter_v1', 'a_platform_work_v1',
+            'q_platform_dead_letter_v1', 'q_platform_work_v1'
+          )
+      ),
+      'identitySequenceCount', (
+        SELECT count(*)::integer
+        FROM pg_attribute AS attribute
+        JOIN pg_class AS relation ON relation.oid = attribute.attrelid
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'pgmq'
+          AND relation.relname IN ('q_platform_dead_letter_v1', 'q_platform_work_v1')
+          AND attribute.attname = 'msg_id'
+          AND attribute.attidentity IN ('a', 'd')
+          AND pg_get_serial_sequence(format('%I.%I', namespace.nspname, relation.relname), attribute.attname) IS NOT NULL
+      ),
+      'copyCompatibleColumnCount', (
+        SELECT count(*)::integer
+        FROM expected_columns AS expected
+        JOIN pg_class AS relation ON relation.relname = expected.relation_name
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace AND namespace.nspname = 'pgmq'
+        JOIN pg_attribute AS attribute ON attribute.attrelid = relation.oid
+          AND attribute.attname = expected.column_name
+          AND attribute.atttypid = expected.type_oid
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped
+      ),
+      'requiredSignatureCount', (
+        SELECT count(*)::integer
+        FROM unnest(ARRAY[
+          'pgmq.create(text)',
+          'pgmq.read(text,integer,integer,jsonb)',
+          'pgmq.send(text,jsonb,integer)',
+          'pgmq.set_vt(text,bigint,integer)',
+          'pgmq.archive(text,bigint)'
+        ]) AS signature(name)
+        WHERE to_regprocedure(signature.name) IS NOT NULL
+      ),
+      'missingRoleCount', (
+        SELECT (count(*) - (SELECT count(*) FROM named_roles))::integer
+        FROM forbidden_role_names
+      ),
+      'directForbiddenGrantCount', (SELECT count(*)::integer FROM forbidden_direct_acl),
+      'forbiddenOwnerReachabilityCount', (SELECT count(*)::integer FROM forbidden_owner_reachability),
+      'effectiveForbiddenPrivilegeCount', (SELECT count(*)::integer FROM forbidden_effective_privilege),
+      'additiveDefaultGrantCount', (SELECT count(*)::integer FROM forbidden_default_acl)
+    )::text`, stage);
+  const zeroCounts = Object.freeze(Object.fromEntries(RECOVERY_PGMQ_RELATIONS.map((relation) => [relation, 0])));
+  const restoredRelationCounts = await restoredTableCounts(zeroCounts, supervisor, toolchain, status, stage);
+  return validatePgmqContainmentProof(
+    { ...structure, restoredRelationCounts },
+    inventory,
+    { stage, phase, requireCountsMatch: options.requireCountsMatch },
+  );
+}
+
+async function restorePgmqExtensionRelations(dataPath, status, supervisor, toolchain) {
+  const dump = await dataDumpTableInventory(dataPath);
+  const inventory = validatePgmqRestoreInventory(dump.counts, dump.columns);
+  await psql(supervisor, toolchain, status, ["--command", String.raw`
+    BEGIN;
+    DO $$
+    DECLARE
+      required_signature TEXT;
+    BEGIN
+      FOREACH required_signature IN ARRAY ARRAY[
+        'pgmq.create(text)',
+        'pgmq.read(text,integer,integer,jsonb)',
+        'pgmq.send(text,jsonb,integer)',
+        'pgmq.set_vt(text,bigint,integer)',
+        'pgmq.archive(text,bigint)'
+      ]
+      LOOP
+        IF to_regprocedure(required_signature) IS NULL THEN
+          RAISE EXCEPTION 'Required PGMQ signature is unavailable'
+            USING ERRCODE = '0A000';
+        END IF;
+      END LOOP;
+    END
+    $$;
+    SELECT pgmq.create('platform_work_v1');
+    SELECT pgmq.create('platform_dead_letter_v1');
+    REVOKE ALL ON SCHEMA pgmq
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    REVOKE ALL ON ALL TABLES IN SCHEMA pgmq
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    REVOKE ALL ON ALL SEQUENCES IN SCHEMA pgmq
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    REVOKE ALL ON ALL FUNCTIONS IN SCHEMA pgmq
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq
+      REVOKE ALL PRIVILEGES ON TABLES
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq
+      REVOKE ALL PRIVILEGES ON SEQUENCES
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq
+      REVOKE ALL PRIVILEGES ON FUNCTIONS
+      FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+    DO $$
+    BEGIN
+      IF to_regnamespace('pgmq_public') IS NOT NULL THEN
+        EXECUTE 'REVOKE ALL ON SCHEMA pgmq_public FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'REVOKE ALL ON ALL TABLES IN SCHEMA pgmq_public FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA pgmq_public FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA pgmq_public FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq_public REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq_public REVOKE ALL PRIVILEGES ON SEQUENCES FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA pgmq_public REVOKE ALL PRIVILEGES ON FUNCTIONS FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+      END IF;
+    END
+    $$;
+    COMMIT;`], {
+    stage: "database_restore",
+    code: "pgmq_extension_relation_restore_failed",
+  });
+  const preData = await inspectPgmqExtensionRelations(
+    inventory,
+    "pre_data",
+    status,
+    supervisor,
+    toolchain,
+    { requireCountsMatch: false },
+  );
+  return Object.freeze({ inventory, preData });
 }
 
 async function restoreDatabase(artifacts, status, supervisor, toolchain) {
   const order = ["roles.sql", "schema.sql"];
   for (const name of order) await psql(supervisor, toolchain, status, ["--file", artifacts.plaintext[name]], { stage: "database_restore", code: `${name.replaceAll(/[^a-z]/gu, "_")}_restore_failed` });
   await psql(supervisor, toolchain, status, ["--command", "DROP SCHEMA IF EXISTS supabase_migrations CASCADE"], { stage: "database_restore", code: "history_target_reset_failed" });
-  for (const name of ["history-schema.sql", "history-data.sql", "data.sql"]) {
+  for (const name of ["history-schema.sql", "history-data.sql"]) {
     await psql(supervisor, toolchain, status, ["--file", artifacts.plaintext[name]], { stage: "database_restore", code: `${name.replaceAll(/[^a-z]/gu, "_")}_restore_failed` });
   }
+  const extensionBootstrap = await restorePgmqExtensionRelations(
+    artifacts.plaintext["data.sql"],
+    status,
+    supervisor,
+    toolchain,
+  );
+  await psql(supervisor, toolchain, status, ["--file", artifacts.plaintext["data.sql"]], {
+    stage: "database_restore",
+    code: "data_sql_restore_failed",
+  });
+  const postData = await inspectPgmqExtensionRelations(
+    extensionBootstrap.inventory,
+    "post_data",
+    status,
+    supervisor,
+    toolchain,
+  );
+  return Object.freeze({
+    ...postData,
+    preDataChecked: extensionBootstrap.preData.phase === "pre_data",
+  });
 }
 
 export function databaseAggregatesFromTableCounts(counts, code = "restored_database_aggregate_invalid") {
@@ -2311,11 +3456,15 @@ export function databaseAggregatesFromTableCounts(counts, code = "restored_datab
     table_count: entries.length,
     row_count: entries.reduce((total, [, count]) => total + count, 0),
     auth_user_count: counts["auth.users"] ?? 0,
-    table_counts_sha256: sha256(canonicalJson(Object.fromEntries(entries))),
+    table_counts_sha256: sha256(signedExportCanonicalJson(Object.fromEntries(entries))),
   });
 }
 
-export function validateRestoredDatabaseAggregates(expected, actual) {
+export function validateRestoredDatabaseAggregates(expected, actual, options = {}) {
+  const comparison = options.comparison ?? "unspecified";
+  if (!new Set(["unspecified", "signed_dump", "restored_database"]).has(comparison)) {
+    fail("restored_database_aggregate_invalid", "database_restore");
+  }
   const fields = ["table_count", "row_count", "auth_user_count", "table_counts_sha256"];
   exactKeys(actual, fields, "restored_database_aggregate_invalid", "database_restore");
   for (const field of fields.slice(0, 3)) {
@@ -2324,8 +3473,17 @@ export function validateRestoredDatabaseAggregates(expected, actual) {
   }
   string(expected?.table_counts_sha256, SHA256, "signed_database_aggregate_invalid", "database_restore", 64);
   string(actual.table_counts_sha256, SHA256, "restored_database_aggregate_invalid", "database_restore", 64);
-  if (fields.some((field) => actual[field] !== expected[field])) {
-    fail("restored_database_aggregate_mismatch", "database_restore");
+  const mismatches = fields.filter((field) => actual[field] !== expected[field]);
+  if (mismatches.length > 0) {
+    const firstField = mismatches[0];
+    fail("restored_database_aggregate_mismatch", "database_restore", Object.freeze({
+      comparison,
+      mismatchCount: mismatches.length,
+      mismatchSetSha256: sha256(canonicalJson(mismatches)),
+      firstField,
+      expectedValue: expected[firstField],
+      actualValue: actual[firstField],
+    }));
   }
   return Object.freeze({
     tableCount: actual.table_count,
@@ -2335,8 +3493,34 @@ export function validateRestoredDatabaseAggregates(expected, actual) {
   });
 }
 
-async function dataDumpTableCounts(path) {
+export function validateRestoredTableCounts(expected, actual) {
+  if (!isRecord(expected) || !isRecord(actual)) {
+    fail("restored_database_table_inventory_mismatch", "database_restore");
+  }
+  const tables = [...new Set([...Object.keys(expected), ...Object.keys(actual)])]
+    .sort((left, right) => left.localeCompare(right, "en"));
+  for (const table of tables) {
+    quotedQualifiedTable(table);
+    if (Object.hasOwn(expected, table)) integer(expected[table], "database_dump_aggregate_invalid", "database_restore");
+    if (Object.hasOwn(actual, table)) integer(actual[table], "restored_database_aggregate_invalid", "database_restore");
+  }
+  const mismatches = tables.filter((table) => expected[table] !== actual[table]);
+  if (mismatches.length > 0) {
+    const firstTable = mismatches[0];
+    fail("restored_database_table_count_mismatch", "database_restore", Object.freeze({
+      mismatchCount: mismatches.length,
+      mismatchSetSha256: sha256(canonicalJson(mismatches)),
+      firstTable,
+      expectedCount: Object.hasOwn(expected, firstTable) ? expected[firstTable] : null,
+      actualCount: Object.hasOwn(actual, firstTable) ? actual[firstTable] : null,
+    }));
+  }
+  return Object.freeze(actual);
+}
+
+async function dataDumpTableInventory(path) {
   const counts = {};
+  const columns = {};
   const input = createReadStream(path);
   const lines = createInterface({ input, crlfDelay: Infinity });
   let current;
@@ -2354,6 +3538,7 @@ async function dataDumpTableCounts(path) {
       if (!line.startsWith("COPY ")) continue;
       const header = copyHeader(line);
       if (!header || Object.hasOwn(counts, header.table)) fail("database_data_copy_invalid", "database_restore");
+      columns[header.table] = header.columns;
       current = { table: header.table, rows: 0 };
     }
   } finally {
@@ -2361,7 +3546,14 @@ async function dataDumpTableCounts(path) {
     input.destroy();
   }
   if (current) fail("database_data_copy_invalid", "database_restore");
-  return Object.freeze(Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right, "en"))));
+  return Object.freeze({
+    counts: Object.freeze(Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right, "en")))),
+    columns: Object.freeze(Object.fromEntries(Object.entries(columns).sort(([left], [right]) => left.localeCompare(right, "en")))),
+  });
+}
+
+async function dataDumpTableCounts(path) {
+  return (await dataDumpTableInventory(path)).counts;
 }
 
 function quotedQualifiedTable(table) {
@@ -2372,13 +3564,13 @@ function quotedQualifiedTable(table) {
   return parts.map((part) => `"${part}"`).join(".");
 }
 
-async function restoredTableCounts(expectedCounts, supervisor, toolchain, status) {
+async function restoredTableCounts(expectedCounts, supervisor, toolchain, status, stage = "database_restore") {
   const tables = Object.keys(expectedCounts);
   if (tables.length === 0) return Object.freeze({});
   const values = tables.map((table) => `(${sqlLiteral(table)}, (SELECT count(*)::bigint FROM ${quotedQualifiedTable(table)}))`).join(",\n");
   const actual = await psqlJson(supervisor, toolchain, status, String.raw`
     SELECT coalesce(jsonb_object_agg(table_name, row_count ORDER BY table_name), '{}'::jsonb)::text
-    FROM (VALUES ${values}) AS restored_counts(table_name, row_count)`, "database_restore", 16 * 1_024 * 1_024);
+    FROM (VALUES ${values}) AS restored_counts(table_name, row_count)`, stage, 16 * 1_024 * 1_024);
   if (!isRecord(actual) || Object.keys(actual).length !== tables.length || tables.some((table) => !Object.hasOwn(actual, table))) {
     fail("restored_database_table_inventory_mismatch", "database_restore");
   }
@@ -2393,9 +3585,18 @@ async function reconcileRestoredDatabase(artifacts, status, supervisor, toolchai
     table_counts_sha256: artifacts.database.aggregates.table_counts_sha256,
   });
   const dumpCounts = await dataDumpTableCounts(artifacts.plaintext["data.sql"]);
-  validateRestoredDatabaseAggregates(signed, databaseAggregatesFromTableCounts(dumpCounts, "database_dump_aggregate_invalid"));
+  validateRestoredDatabaseAggregates(
+    signed,
+    databaseAggregatesFromTableCounts(dumpCounts, "database_dump_aggregate_invalid"),
+    { comparison: "signed_dump" },
+  );
   const actualCounts = await restoredTableCounts(dumpCounts, supervisor, toolchain, status);
-  return validateRestoredDatabaseAggregates(signed, databaseAggregatesFromTableCounts(actualCounts));
+  validateRestoredTableCounts(dumpCounts, actualCounts);
+  return validateRestoredDatabaseAggregates(
+    signed,
+    databaseAggregatesFromTableCounts(actualCounts),
+    { comparison: "restored_database" },
+  );
 }
 
 async function databaseLedger(supervisor, toolchain, status) {
@@ -2412,7 +3613,10 @@ async function databaseLedger(supervisor, toolchain, status) {
     !MIGRATION_VERSION.test(row.version) ||
     !MIGRATION_NAME.test(row.name) ||
     !Array.isArray(row.statements) ||
-    row.statements.length === 0 ||
+    (row.statements.length === 0 && (
+      RECORDED_ROOT_HISTORY_EXCEPTIONS[row.version]?.name !== row.name ||
+      RECORDED_ROOT_HISTORY_EXCEPTIONS[row.version]?.signedStatementCount !== 0
+    )) ||
     row.statements.some((statement) => typeof statement !== "string"))) {
     fail("restored_migration_ledger_invalid", "migration_rehearsal");
   }
@@ -2424,15 +3628,15 @@ async function databaseLedger(supervisor, toolchain, status) {
   }));
 }
 
-async function applyPendingMigrations(state, local, root, verified, supervisor, toolchain) {
+async function applyPendingMigrations(state, local, root, verified, extensionInventory, supervisor, toolchain) {
   const restored = await databaseLedger(supervisor, toolchain, local.status);
   if (
-    restored.length !== verified.source.length ||
+    restored.length !== verified.recordedSource.length ||
     restored.some((row, index) =>
-      row.version !== verified.source[index].version ||
-      row.name !== verified.source[index].name ||
-      row.statementCount !== verified.source[index].statementCount ||
-      row.statementsSha256 !== verified.source[index].statementsSha256)
+      row.version !== verified.recordedSource[index].version ||
+      row.name !== verified.recordedSource[index].name ||
+      row.statementCount !== verified.recordedSource[index].statementCount ||
+      row.statementsSha256 !== verified.recordedSource[index].statementsSha256)
   ) {
     fail("restored_migration_ledger_mismatch", "migration_rehearsal");
   }
@@ -2449,17 +3653,33 @@ async function applyPendingMigrations(state, local, root, verified, supervisor, 
     });
   }
   const final = await databaseLedger(supervisor, toolchain, local.status);
+  const expectedFinal = [...verified.recordedSource, ...verified.pending];
   if (
-    final.length !== root.entries.length ||
+    expectedFinal.length !== root.entries.length ||
+    final.length !== expectedFinal.length ||
     final.some((row, index) =>
-      row.version !== root.entries[index].version ||
-      row.name !== root.entries[index].name ||
-      row.statementCount !== root.entries[index].statementCount ||
-      row.statementsSha256 !== root.entries[index].statementsSha256)
+      row.version !== expectedFinal[index].version ||
+      row.name !== expectedFinal[index].name ||
+      row.statementCount !== expectedFinal[index].statementCount ||
+      row.statementsSha256 !== expectedFinal[index].statementsSha256)
   ) {
     fail("final_migration_ledger_mismatch", "migration_rehearsal");
   }
-  return Object.freeze({ sourceCount: verified.source.length, pendingApplied: verified.pending.length, finalCount: final.length, orderedSourceLedgerSha256: verified.orderedLedgerSha256 });
+  const extensionRelations = await inspectPgmqExtensionRelations(
+    extensionInventory,
+    "post_migration",
+    local.status,
+    supervisor,
+    toolchain,
+    { stage: "migration_rehearsal" },
+  );
+  return Object.freeze({
+    sourceCount: verified.source.length,
+    pendingApplied: verified.pending.length,
+    finalCount: final.length,
+    orderedSourceLedgerSha256: verified.orderedLedgerSha256,
+    extensionRelations,
+  });
 }
 
 function safeTarMember(name) {
@@ -2667,6 +3887,36 @@ export async function uploadStorageObjectFromFile(
 function objectUrl(apiUrl, bucket, path, prefix = "object") {
   const encoded = path.split("/").map(encodeURIComponent).join("/");
   return new URL(`/storage/v1/${prefix}/${encodeURIComponent(bucket)}/${encoded}`, apiUrl).toString();
+}
+
+export function resolveStorageSignedObjectUrl(apiUrl, bucket, path, signedPath) {
+  string(signedPath, null, "private_document_signed_url_invalid", "document_proof", 16_384);
+  let base;
+  let candidate;
+  let expectedPath;
+  try {
+    base = new URL(apiUrl);
+    expectedPath = new URL(objectUrl(apiUrl, bucket, path, "object/sign")).pathname;
+    candidate = signedPath.startsWith("/object/sign/")
+      ? new URL(`/storage/v1${signedPath}`, base)
+      : new URL(signedPath, base);
+  } catch {
+    fail("private_document_signed_url_invalid", "document_proof");
+  }
+  const queryKeys = [...candidate.searchParams.keys()];
+  if (
+    candidate.origin !== base.origin ||
+    candidate.username !== "" ||
+    candidate.password !== "" ||
+    candidate.hash !== "" ||
+    candidate.pathname !== expectedPath ||
+    queryKeys.length !== 1 ||
+    queryKeys[0] !== "token" ||
+    !candidate.searchParams.get("token")
+  ) {
+    fail("private_document_signed_url_invalid", "document_proof");
+  }
+  return candidate;
 }
 
 async function databaseStorageIdentities(supervisor, toolchain, status) {
@@ -3013,6 +4263,149 @@ async function platformGet(status, actor, resource, query, interruptionGuard) {
   return payload;
 }
 
+async function platformRpc(status, actor, functionName, body, interruptionGuard, stage = "malware_scanner_proof") {
+  const response = await apiRequest(new URL(`/rest/v1/rpc/${functionName}`, status.apiUrl), {
+    method: "POST",
+    headers: {
+      apikey: status.publishableKey,
+      Authorization: `Bearer ${actor.accessToken}`,
+      "Accept-Profile": "platform",
+      "Content-Profile": "platform",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  }, [200], `${functionName}_failed`, stage, interruptionGuard);
+  let payload;
+  try {
+    payload = await interruptionGuard.run(stage, async () => await response.json());
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    payload = null;
+  }
+  if (payload === null) fail(`${functionName}_response_invalid`, stage);
+  return payload;
+}
+
+async function assertPlatformRpcDenied(status, actor, functionName, body, interruptionGuard) {
+  const stage = "role_outcome_proof";
+  const response = await apiRequest(new URL(`/rest/v1/rpc/${functionName}`, status.apiUrl), {
+    method: "POST",
+    headers: {
+      apikey: status.publishableKey,
+      Authorization: `Bearer ${actor.accessToken}`,
+      "Accept-Profile": "platform",
+      "Content-Profile": "platform",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  }, [400, 401, 403], `${functionName}_unexpectedly_authorized`, stage, interruptionGuard);
+  let payload;
+  try {
+    payload = await interruptionGuard.run(stage, async () => await response.json());
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    payload = null;
+  }
+  if (!isRecord(payload) || payload.code !== "42501") {
+    fail(`${functionName}_denial_contract_invalid`, stage, { status: response.status });
+  }
+}
+
+function requiredPositiveVersion(value, code) {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) fail(code, "role_outcome_proof");
+  return parsed;
+}
+
+function assertReplayResult(first, replayed, code) {
+  if (!sameJson(first, replayed)) fail(code, "role_outcome_proof");
+}
+
+async function assertRoleMutationAudit(supervisor, toolchain, status, {
+  action,
+  actor,
+  requestId,
+  receiptKind,
+}) {
+  const receiptCount = receiptKind === "sales"
+    ? `(SELECT count(*) FROM platform_private.sales_lead_workflow_receipts AS receipt
+        WHERE receipt.request_id = ${sqlLiteral(requestId)}::uuid
+          AND receipt.actor_membership_id = ${sqlLiteral(actor.membershipId)}::uuid)`
+    : receiptKind === "admissions"
+      ? `(SELECT count(*) FROM platform.case_task_events AS event
+          WHERE event.request_id = ${sqlLiteral(requestId)}::uuid
+            AND event.actor_membership_id = ${sqlLiteral(actor.membershipId)}::uuid)`
+      : null;
+  if (receiptCount === null) fail("role_mutation_receipt_kind_invalid", "role_outcome_proof");
+  const facts = await psqlJson(supervisor, toolchain, status, `SELECT json_build_object(
+    'auditCount', (
+      SELECT count(*) FROM platform.audit_events AS audit
+      WHERE audit.request_id = ${sqlLiteral(requestId)}::uuid
+        AND audit.action = ${sqlLiteral(action)}
+        AND audit.actor_profile_id = ${sqlLiteral(actor.profileId)}::uuid
+    ),
+    'receiptCount', ${receiptCount}
+  )::text`, "role_outcome_proof");
+  if (Number(facts?.auditCount) !== 1 || Number(facts?.receiptCount) !== 1) {
+    fail("role_mutation_audit_correlation_failed", "role_outcome_proof");
+  }
+  const appendOnly = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", String.raw`
+    DO $audit_append_only$
+    BEGIN
+      BEGIN
+        UPDATE platform.audit_events SET reason = reason || ' forbidden'
+        WHERE request_id = ${sqlLiteral(requestId)}::uuid;
+        RAISE EXCEPTION 'audit update unexpectedly succeeded';
+      EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+      END;
+      BEGIN
+        DELETE FROM platform.audit_events WHERE request_id = ${sqlLiteral(requestId)}::uuid;
+        RAISE EXCEPTION 'audit delete unexpectedly succeeded';
+      EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+      END;
+    END
+    $audit_append_only$;
+    SELECT count(*)::text FROM platform.audit_events
+    WHERE request_id = ${sqlLiteral(requestId)}::uuid;`], {
+    stage: "role_outcome_proof",
+    code: "audit_append_only_proof_failed",
+  });
+  if (appendOnly.stdout.toString("utf8").trim().split(/\s+/u).at(-1) !== "1") {
+    fail("audit_append_only_row_missing", "role_outcome_proof");
+  }
+}
+
+async function recordRecoveryProviderBoundary(status, organizationId, repositoryCommit, interruptionGuard) {
+  const evidence = {};
+  for (const target of ["waha", "ai"]) {
+    const response = await apiRequest(new URL("/rest/v1/rpc/record_messaging_integration_health_event", status.apiUrl), {
+      method: "POST",
+      headers: {
+        apikey: status.serviceRoleKey,
+        Authorization: `Bearer ${status.serviceRoleKey}`,
+        "Accept-Profile": "platform",
+        "Content-Profile": "platform",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        p_organization_id: organizationId,
+        p_target: target,
+        p_readiness: "unconfigured",
+        p_evidence_kind: "configuration_check",
+        p_reason: "Managed recovery contour has no external provider configuration",
+        p_evidence_ref: `v3-recovery:${repositoryCommit.slice(0, 12)}:${target}`,
+        p_request_id: randomUUID(),
+      }),
+    }, [200], `${target}_provider_configuration_boundary_append_failed`, "provider_boundary", interruptionGuard);
+    const event = await interruptionGuard.run("provider_boundary", async () => await response.json()).catch(() => null);
+    if (!isRecord(event) || event.target !== target || event.readiness !== "unconfigured" || event.evidence_kind !== "configuration_check") {
+      fail(`${target}_provider_configuration_boundary_response_invalid`, "provider_boundary");
+    }
+    evidence[target] = "configuration_check_unconfigured";
+  }
+  return Object.freeze(evidence);
+}
+
 async function expectDatabaseDenial(operation, expectedCode, expected) {
   try {
     await operation();
@@ -3095,14 +4488,18 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
   const otherOrganizations = await psqlJson(supervisor, toolchain, status,
     `SELECT coalesce(json_agg(id ORDER BY id), '[]'::json)::text FROM platform.organizations WHERE id <> ${sqlLiteral(options.platformOrganizationId)}::uuid`,
     "auth_rls_proof");
-  if (!Array.isArray(otherOrganizations) || !otherOrganizations.some((value) => UUID.test(value))) {
-    fail("preexisting_cross_organization_reference_missing", "auth_rls_proof");
-  }
-  const crossOrganizationId = otherOrganizations.find((value) => UUID.test(value));
+  const crossOrganizationId = Array.isArray(otherOrganizations)
+    ? otherOrganizations.find((value) => UUID.test(value))
+    : undefined;
+  const blockers = [];
+  if (!crossOrganizationId) blockers.push("preexisting_cross_organization_reference_missing");
   for (const role of ["admin", "sales", "admissions"]) {
     const own = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${options.platformOrganizationId}` }, interruptionGuard);
-    const cross = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${crossOrganizationId}` }, interruptionGuard);
-    if (own.length !== 1 || cross.length !== 0) fail("organization_rls_boundary_failed", "auth_rls_proof", { role });
+    if (own.length !== 1) fail("organization_rls_boundary_failed", "auth_rls_proof", { role });
+    if (crossOrganizationId) {
+      const cross = await platformGet(status, actors[role], "organizations", { select: "id", id: `eq.${crossOrganizationId}` }, interruptionGuard);
+      if (cross.length !== 0) fail("organization_rls_boundary_failed", "auth_rls_proof", { role });
+    }
   }
   const requestId = randomUUID();
   const claims = JSON.stringify({ sub: actors.admin.userId, role: "authenticated" });
@@ -3121,16 +4518,18 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
     ROLLBACK;`;
   const positive = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", writeProbe], { stage: "canonical_write_audit_proof", code: "canonical_write_audit_failed" });
   const adminAuditCount = Number(positive.stdout.toString("utf8").trim().split(/\s+/u).at(-1));
-  const crossOrganizationWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
-      BEGIN;
-      SELECT set_config('request.jwt.claims', ${sqlLiteral(claims)}, true);
-      SET LOCAL ROLE authenticated;
-      SELECT platform.change_membership_permission(
-        ${sqlLiteral(crossOrganizationId)}::uuid,
-        ${sqlLiteral(actors.admin.membershipId)}::uuid,
-        'contract.evidence.confirm', true, 'must be denied across organizations', ${sqlLiteral(randomUUID())}::uuid
-      );
-      ROLLBACK;`], { stage: "cross_organization_write_negative_proof", code: "expected_cross_organization_write_denial" }), "expected_cross_organization_write_denial", ADMIN_MEMBERSHIP_DENIAL);
+  const crossOrganizationWriteDenied = crossOrganizationId
+    ? await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
+        BEGIN;
+        SELECT set_config('request.jwt.claims', ${sqlLiteral(claims)}, true);
+        SET LOCAL ROLE authenticated;
+        SELECT platform.change_membership_permission(
+          ${sqlLiteral(crossOrganizationId)}::uuid,
+          ${sqlLiteral(actors.admin.membershipId)}::uuid,
+          'contract.evidence.confirm', true, 'must be denied across organizations', ${sqlLiteral(randomUUID())}::uuid
+        );
+        ROLLBACK;`], { stage: "cross_organization_write_negative_proof", code: "expected_cross_organization_write_denial" }), "expected_cross_organization_write_denial", ADMIN_MEMBERSHIP_DENIAL)
+    : null;
   const salesClaims = JSON.stringify({ sub: actors.sales.userId, role: "authenticated" });
   const salesAdminWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
       BEGIN;
@@ -3142,61 +4541,7 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
         'contract.evidence.confirm', true, 'must be denied', ${sqlLiteral(randomUUID())}::uuid
       );
       ROLLBACK;`], { stage: "canonical_write_negative_proof", code: "expected_sales_write_denial" }), "expected_sales_write_denial", ADMIN_MEMBERSHIP_DENIAL);
-  const admissionsTasks = await psqlJson(supervisor, toolchain, status, String.raw`
-    SELECT coalesce(json_agg(row_to_json(candidate) ORDER BY candidate.id), '[]'::json)::text
-    FROM (
-      SELECT task.id::text AS id, task.status::text AS status,
-        task.assignee_membership_id::text AS "assigneeMembershipId",
-        task.priority::text AS priority, task.due_at::text AS "dueAt",
-        task.due_on::text AS "dueOn", task.student_visible AS "studentVisible",
-        task.version AS version
-      FROM platform.case_tasks AS task
-      JOIN platform.student_cases AS student_case
-        ON student_case.organization_id = task.organization_id
-        AND student_case.id = task.student_case_id
-      WHERE task.organization_id = ${sqlLiteral(options.platformOrganizationId)}::uuid
-        AND task.assignee_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
-        AND student_case.current_curator_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
-      ORDER BY task.id
-      LIMIT 1
-    ) AS candidate`, "admissions_write_proof");
-  const admissionsTask = Array.isArray(admissionsTasks) ? admissionsTasks[0] : undefined;
-  if (
-    !isRecord(admissionsTask) ||
-    !UUID.test(admissionsTask.id) ||
-    admissionsTask.assigneeMembershipId !== actors.admissions.membershipId ||
-    !["open", "in_progress", "blocked", "done", "cancelled"].includes(admissionsTask.status) ||
-    !["low", "normal", "high", "urgent"].includes(admissionsTask.priority) ||
-    (admissionsTask.dueAt !== null && typeof admissionsTask.dueAt !== "string") ||
-    (admissionsTask.dueOn !== null && typeof admissionsTask.dueOn !== "string") ||
-    typeof admissionsTask.studentVisible !== "boolean" ||
-    !Number.isSafeInteger(admissionsTask.version) ||
-    admissionsTask.version < 1
-  ) {
-    fail("authorized_admissions_task_missing", "admissions_write_proof");
-  }
-  const admissionsMutation = selectAdmissionsTaskMutation(admissionsTask);
   const admissionsClaims = JSON.stringify({ sub: actors.admissions.userId, role: "authenticated" });
-  const admissionsRequestId = randomUUID();
-  const admissionsPositive = await psql(supervisor, toolchain, status, ["--tuples-only", "--no-align", "--command", String.raw`
-    BEGIN;
-    SELECT set_config('request.jwt.claims', ${sqlLiteral(admissionsClaims)}, true);
-    SET LOCAL ROLE authenticated;
-    SELECT platform.change_case_task(
-      ${sqlLiteral(options.platformOrganizationId)}::uuid,
-      ${sqlLiteral(admissionsTask.id)}::uuid,
-      ${sqlLiteral(admissionsMutation.status)}::platform.case_task_status,
-      ${sqlLiteral(admissionsMutation.assigneeMembershipId)}::uuid,
-      ${sqlLiteral(admissionsMutation.priority)}::platform.case_task_priority,
-      ${admissionsMutation.dueAt === null ? "NULL" : sqlLiteral(admissionsMutation.dueAt)}::timestamptz,
-      ${admissionsMutation.dueOn === null ? "NULL" : sqlLiteral(admissionsMutation.dueOn)}::date,
-      ${admissionsMutation.studentVisible ? "true" : "false"},
-      ${admissionsMutation.version},
-      ${sqlLiteral(admissionsRequestId)}::uuid
-    );
-    SELECT count(*)::text FROM platform.audit_events WHERE request_id = ${sqlLiteral(admissionsRequestId)}::uuid;
-    ROLLBACK;`], { stage: "admissions_write_proof", code: "admissions_task_write_failed" });
-  const admissionsTaskAuditCount = Number(admissionsPositive.stdout.toString("utf8").trim().split(/\s+/u).at(-1));
   const admissionsAdminWriteDenied = await expectDatabaseDenial(() => psql(supervisor, toolchain, status, ["--command", String.raw`
     BEGIN;
     SELECT set_config('request.jwt.claims', ${sqlLiteral(admissionsClaims)}, true);
@@ -3207,14 +4552,270 @@ async function proveRlsAndCanonicalWrite(options, status, actors, supervisor, to
       'contract.evidence.confirm', true, 'Admissions must not administer staff', ${sqlLiteral(randomUUID())}::uuid
     );
     ROLLBACK;`], { stage: "admissions_admin_negative_proof", code: "expected_admissions_admin_write_denial" }), "expected_admissions_admin_write_denial", ADMIN_MEMBERSHIP_DENIAL);
-  const writes = validateWriteBoundaryResults({
-    adminAuditCount,
-    crossOrganizationWriteDenied,
-    salesAdminWriteDenied,
-    admissionsTaskAuditCount,
-    admissionsAdminWriteDenied,
+  if (
+    adminAuditCount !== 1 ||
+    salesAdminWriteDenied !== true ||
+    admissionsAdminWriteDenied !== true ||
+    (crossOrganizationId && crossOrganizationWriteDenied !== true)
+  ) fail("authorization_write_boundary_failed", "auth_rls_proof");
+  return Object.freeze({
+    evidence: Object.freeze({
+      sameOrganization: "passed",
+      crossOrganization: crossOrganizationId ? "passed" : "not_run_missing_restored_reference",
+      canonicalRead: "passed",
+      canonicalWriteRollbackOnly: "passed",
+      auditRollbackOnly: "passed",
+      crossOrganizationWriteDenied,
+      salesAdminWriteDenied: true,
+      admissionsAdminWriteDenied: true,
+      admissionsTaskWrite: "proved_by_restored_role_outcome_suite",
+    }),
+    blockers: Object.freeze(blockers),
   });
-  return Object.freeze({ sameOrganization: "passed", crossOrganization: "passed", canonicalRead: "passed", ...writes });
+}
+
+function admissionsTaskBrowserDay(task) {
+  if (typeof task.dueOn === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(task.dueOn)) return task.dueOn;
+  if (typeof task.dueAt !== "string" || !Number.isFinite(Date.parse(task.dueAt))) return null;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Bishkek",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(task.dueAt)).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+async function proveRestoredRoleServerOutcomes(options, status, actors, supervisor, toolchain, interruptionGuard) {
+  const outcomes = {
+    admin: "incomplete_role_outcome_suite",
+    sales: isRecord(actors.sales) ? "incomplete_role_outcome_suite" : "missing_restored_identity",
+    admissions: isRecord(actors.admissions) ? "incomplete_role_outcome_suite" : "missing_restored_identity",
+  };
+  const blockers = [];
+  let salesProof;
+  let admissionsProof;
+  let documentProof;
+  if (![actors.admin, actors.sales, actors.admissions].every(isRecord)) {
+    return Object.freeze({
+      outcomes: Object.freeze(outcomes),
+      blockers: Object.freeze(blockers),
+      evidence: Object.freeze({
+        salesMutationReplayAudit: "not_run_missing_restored_identity",
+        admissionsMutationReplayAudit: "not_run_missing_restored_identity",
+        privateDocument: "not_run_missing_restored_identity",
+      }),
+    });
+  }
+
+  const salesPageBody = Object.freeze({
+    p_limit: 101,
+    p_cursor_updated_at: null,
+    p_cursor_id: null,
+    p_connection_filter: "all",
+    p_stage_filter: "all",
+    p_assignment_filter: "all",
+    p_owner_membership_id: null,
+    p_due_filter: "all",
+    p_query: null,
+  });
+  await assertPlatformRpcDenied(status, actors.admissions, "staff_sales_lead_page", salesPageBody, interruptionGuard);
+  const salesCandidates = await psqlJson(supervisor, toolchain, status, String.raw`
+    SELECT coalesce(json_agg(row_to_json(candidate) ORDER BY candidate.lead_id), '[]'::json)::text
+    FROM (
+      SELECT lead.id::text AS lead_id
+      FROM platform.leads AS lead
+      WHERE lead.organization_id = ${sqlLiteral(options.platformOrganizationId)}::uuid
+        AND lead.lifecycle_state = 'open'
+        AND (lead.current_owner_membership_id IS NULL
+          OR lead.current_owner_membership_id = ${sqlLiteral(actors.sales.membershipId)}::uuid)
+      ORDER BY lead.id
+      LIMIT 1
+    ) AS candidate`, "role_outcome_proof");
+  const salesCandidate = Array.isArray(salesCandidates) ? salesCandidates[0] : undefined;
+  const salesRows = isRecord(salesCandidate) && UUID.test(salesCandidate.lead_id)
+    ? await platformRpc(status, actors.sales, "staff_sales_lead_page", {
+        ...salesPageBody,
+        p_query: salesCandidate.lead_id,
+      }, interruptionGuard, "role_outcome_proof")
+    : [];
+  const salesLead = Array.isArray(salesRows)
+    ? salesRows.find((row) => isRecord(row) && row.lead_id === salesCandidate?.lead_id &&
+      row.lifecycle_state === "open" && [null, actors.sales.membershipId].includes(row.current_owner_membership_id))
+    : undefined;
+  if (isRecord(salesCandidate) && UUID.test(salesCandidate.lead_id) && !salesLead) {
+    fail("restored_sales_lead_role_projection_failed", "role_outcome_proof");
+  }
+  if (!salesLead) {
+    outcomes.sales = "missing_restored_sales_lead";
+    blockers.push("restored_sales_lead_missing");
+  } else {
+    const workflowVersion = requiredPositiveVersion(salesLead.workflow_version, "restored_sales_workflow_version_invalid");
+    if (typeof salesLead.stage_key !== "string" || salesLead.stage_key.length === 0) {
+      fail("restored_sales_stage_invalid", "role_outcome_proof");
+    }
+    const requestId = randomUUID();
+    const marker = `Recovery Sales ${randomUUID()}`;
+    const mutationBody = Object.freeze({
+      p_lead_id: salesLead.lead_id,
+      p_expected_workflow_version: workflowVersion,
+      p_request_id: requestId,
+      p_stage_key: salesLead.stage_key,
+      p_owner_membership_id: actors.sales.membershipId,
+      p_next_action_text: marker,
+      p_next_action_due_date: "2099-12-31",
+      p_clear_next_action: false,
+      p_reason: null,
+    });
+    const result = await platformRpc(status, actors.sales, "mutate_sales_lead_workflow", mutationBody, interruptionGuard, "role_outcome_proof");
+    const replayed = await platformRpc(status, actors.sales, "mutate_sales_lead_workflow", mutationBody, interruptionGuard, "role_outcome_proof");
+    assertReplayResult(result, replayed, "sales_workflow_replay_mismatch");
+    if (!isRecord(result) || result.lead_id !== salesLead.lead_id || result.next_action_text !== marker ||
+      requiredPositiveVersion(result.workflow_version, "sales_workflow_result_version_invalid") !== workflowVersion + 1) {
+      fail("sales_workflow_result_invalid", "role_outcome_proof");
+    }
+    for (const actor of [actors.sales, actors.admin]) {
+      const rows = await platformRpc(status, actor, "staff_sales_lead_page", { ...salesPageBody, p_query: salesLead.lead_id }, interruptionGuard, "role_outcome_proof");
+      const readback = Array.isArray(rows) ? rows.find((row) => row?.lead_id === salesLead.lead_id) : undefined;
+      if (readback?.next_action_text !== marker || Number(readback?.workflow_version) !== workflowVersion + 1) {
+        fail("sales_workflow_role_readback_failed", "role_outcome_proof");
+      }
+    }
+    await assertRoleMutationAudit(supervisor, toolchain, status, {
+      action: "lead.sales.workflow.changed",
+      actor: actors.sales,
+      requestId,
+      receiptKind: "sales",
+    });
+    outcomes.sales = "passed";
+    salesProof = Object.freeze({ leadId: salesLead.lead_id, marker, workflowVersion: workflowVersion + 1 });
+  }
+
+  const admissionsTasks = await psqlJson(supervisor, toolchain, status, String.raw`
+    SELECT coalesce(json_agg(row_to_json(candidate) ORDER BY candidate.id), '[]'::json)::text
+    FROM (
+      SELECT task.id::text AS id, task.student_case_id::text AS "studentCaseId",
+        task.status::text AS status, task.assignee_membership_id::text AS "assigneeMembershipId",
+        task.priority::text AS priority, task.due_at::text AS "dueAt",
+        task.due_on::text AS "dueOn", task.student_visible AS "studentVisible",
+        task.version AS version
+      FROM platform.case_tasks AS task
+      JOIN platform.student_cases AS student_case
+        ON student_case.organization_id = task.organization_id
+        AND student_case.id = task.student_case_id
+      WHERE task.organization_id = ${sqlLiteral(options.platformOrganizationId)}::uuid
+        AND task.assignee_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
+        AND student_case.current_curator_membership_id = ${sqlLiteral(actors.admissions.membershipId)}::uuid
+        AND student_case.state IN ('active', 'closed')
+        AND student_case.handoff_at IS NOT NULL
+        AND (task.due_at IS NOT NULL OR task.due_on IS NOT NULL)
+      ORDER BY task.id
+      LIMIT 1
+    ) AS candidate`, "role_outcome_proof");
+  const admissionsTask = Array.isArray(admissionsTasks) ? admissionsTasks[0] : undefined;
+  if (!isRecord(admissionsTask) || !UUID.test(admissionsTask.id) || !UUID.test(admissionsTask.studentCaseId)) {
+    outcomes.admissions = "missing_restored_admissions_task";
+    blockers.push("restored_admissions_task_missing");
+  } else {
+    const admissionsMutation = selectAdmissionsTaskMutation({
+      id: admissionsTask.id,
+      status: admissionsTask.status,
+      assigneeMembershipId: admissionsTask.assigneeMembershipId,
+      priority: admissionsTask.priority,
+      dueAt: admissionsTask.dueAt,
+      dueOn: admissionsTask.dueOn,
+      studentVisible: admissionsTask.studentVisible,
+      version: requiredPositiveVersion(admissionsTask.version, "restored_admissions_task_version_invalid"),
+    });
+    if (admissionsMutation.assigneeMembershipId !== actors.admissions.membershipId) {
+      fail("restored_admissions_task_assignee_invalid", "role_outcome_proof");
+    }
+    const browserDay = admissionsTaskBrowserDay(admissionsMutation);
+    if (browserDay === null) fail("restored_admissions_task_deadline_invalid", "role_outcome_proof");
+    const requestId = randomUUID();
+    const workspaceBody = Object.freeze({ p_student_case_id: admissionsTask.studentCaseId });
+    await assertPlatformRpcDenied(status, actors.sales, "staff_student_case_task_workspace", workspaceBody, interruptionGuard);
+    const mutationBody = Object.freeze({
+      p_organization_id: options.platformOrganizationId,
+      p_case_task_id: admissionsMutation.id,
+      p_new_status: admissionsMutation.status,
+      p_new_assignee_membership_id: admissionsMutation.assigneeMembershipId,
+      p_priority: admissionsMutation.priority,
+      p_due_at: admissionsMutation.dueAt,
+      p_due_on: admissionsMutation.dueOn,
+      p_student_visible: admissionsMutation.studentVisible,
+      p_expected_version: admissionsMutation.version,
+      p_request_id: requestId,
+    });
+    const result = await platformRpc(status, actors.admissions, "change_case_task", mutationBody, interruptionGuard, "role_outcome_proof");
+    const replayed = await platformRpc(status, actors.admissions, "change_case_task", mutationBody, interruptionGuard, "role_outcome_proof");
+    assertReplayResult(result, replayed, "admissions_task_replay_mismatch");
+    const resultVersion = requiredPositiveVersion(result?.version, "admissions_task_result_version_invalid");
+    if (!isRecord(result) || result.case_task_id !== admissionsTask.id || result.student_case_id !== admissionsTask.studentCaseId ||
+      result.status !== admissionsMutation.status || resultVersion !== admissionsMutation.version + 1) {
+      fail("admissions_task_result_invalid", "role_outcome_proof");
+    }
+    for (const actor of [actors.admissions, actors.admin]) {
+      const workspace = await platformRpc(status, actor, "staff_student_case_task_workspace", workspaceBody, interruptionGuard, "role_outcome_proof");
+      const readback = Array.isArray(workspace?.tasks)
+        ? workspace.tasks.find((task) => task?.case_task_id === admissionsTask.id)
+        : undefined;
+      if (readback?.status !== admissionsMutation.status || Number(readback?.version) !== resultVersion) {
+        fail("admissions_task_role_readback_failed", "role_outcome_proof");
+      }
+    }
+    await assertRoleMutationAudit(supervisor, toolchain, status, {
+      action: "task.change",
+      actor: actors.admissions,
+      requestId,
+      receiptKind: "admissions",
+    });
+    outcomes.admissions = "passed";
+    admissionsProof = Object.freeze({
+      taskId: admissionsTask.id,
+      studentCaseId: admissionsTask.studentCaseId,
+      status: admissionsMutation.status,
+      version: resultVersion,
+      browserDay,
+    });
+  }
+
+  const documentBody = Object.freeze({ p_limit: 101 });
+  const adminDocuments = await platformRpc(status, actors.admin, "staff_document_queue", documentBody, interruptionGuard, "role_outcome_proof");
+  const admissionsDocuments = await platformRpc(status, actors.admissions, "staff_document_queue", documentBody, interruptionGuard, "role_outcome_proof");
+  await assertPlatformRpcDenied(status, actors.sales, "staff_document_queue", documentBody, interruptionGuard);
+  const document = Array.isArray(admissionsDocuments)
+    ? admissionsDocuments.find((row) => isRecord(row) && row.download_ready === true &&
+      UUID.test(row.current_version_id) && SHA256.test(row.current_sha256_hex) &&
+      Number.isSafeInteger(Number(row.current_byte_size)) && Number(row.current_byte_size) >= 0)
+    : undefined;
+  const adminDocument = document && Array.isArray(adminDocuments)
+    ? adminDocuments.find((row) => row?.current_version_id === document.current_version_id && row.download_ready === true)
+    : undefined;
+  if (!document || !adminDocument) {
+    blockers.push("restored_downloadable_document_missing");
+    if (outcomes.sales === "passed") outcomes.sales = "missing_restored_downloadable_document";
+    if (outcomes.admissions === "passed") outcomes.admissions = "missing_restored_downloadable_document";
+  } else {
+    documentProof = Object.freeze({
+      versionId: document.current_version_id,
+      sha256Hex: document.current_sha256_hex,
+      byteSize: Number(document.current_byte_size),
+    });
+  }
+  if (outcomes.sales === "passed" && outcomes.admissions === "passed" && documentProof) outcomes.admin = "passed";
+  return Object.freeze({
+    outcomes: Object.freeze(outcomes),
+    blockers: Object.freeze(blockers),
+    sales: salesProof,
+    admissions: admissionsProof,
+    document: documentProof,
+    evidence: Object.freeze({
+      salesMutationReplayAudit: salesProof ? "passed" : "not_run_missing_restored_sales_lead",
+      admissionsMutationReplayAudit: admissionsProof ? "passed" : "not_run_missing_restored_admissions_task",
+      privateDocument: documentProof ? "passed_role_scoped_projection" : "not_run_missing_restored_downloadable_document",
+    }),
+  });
 }
 
 export function canonicalRecoveryPdfBytes() {
@@ -3238,8 +4839,8 @@ export function canonicalRecoveryPdfBytes() {
   return Buffer.from(document, "latin1");
 }
 
-async function provePrivateDocument(status, actor, storage, interruptionGuard) {
-  const bucket = storage.buckets.find((candidate) => candidate.id === "platform-documents" && candidate.public === false);
+async function provePrivateDocument(status, actor, buckets, interruptionGuard) {
+  const bucket = buckets.find((candidate) => candidate.id === "platform-documents" && candidate.public === false);
   if (!bucket) fail("private_document_bucket_missing", "document_proof");
   if (!Array.isArray(bucket.allowed_mime_types) || !bucket.allowed_mime_types.includes("application/pdf")) {
     fail("private_document_pdf_not_allowed", "document_proof");
@@ -3269,7 +4870,14 @@ async function provePrivateDocument(status, actor, storage, interruptionGuard) {
       signedPayload = null;
     }
     if (!isRecord(signedPayload) || typeof signedPayload.signedURL !== "string") fail("private_document_signed_url_invalid", "document_proof");
-    const download = await apiRequest(new URL(signedPayload.signedURL, status.apiUrl), {}, [200], "private_document_signed_read_failed", "document_proof", interruptionGuard);
+    const download = await apiRequest(
+      resolveStorageSignedObjectUrl(status.apiUrl, bucket.id, path, signedPayload.signedURL),
+      {},
+      [200],
+      "private_document_signed_read_failed",
+      "document_proof",
+      interruptionGuard,
+    );
     const actual = Buffer.from(await interruptionGuard.run("document_proof", async () => await download.arrayBuffer()));
     if (!actual.equals(bytes)) fail("private_document_roundtrip_mismatch", "document_proof");
   } finally {
@@ -3461,7 +5069,8 @@ export function validateBuiltImageInspection(output, expected) {
     !Array.isArray(repoDigests) ||
     !isRecord(labels) ||
     labels["org.opencontainers.image.revision"] !== expected.targetCommit ||
-    labels["evo.recovery.owner"] !== expected.projectName ||
+    labels["evo.recovery.project"] !== expected.projectName ||
+    labels["evo.recovery.type"] !== "candidate-image" ||
     labels["evo.recovery.target-tree"] !== expected.targetTree ||
     labels["evo.recovery.snapshot-archive-sha256"] !== expected.archiveSha256 ||
     labels["evo.recovery.build-network"] !== "dependency-fetch-only" ||
@@ -3484,7 +5093,7 @@ async function buildCandidateImage(repository, state, supervisor, toolchain) {
   const snapshot = await materializeTargetSnapshot(repository, state, supervisor, toolchain);
   state.appImageTag = `evo-v3-recovery-${state.projectName}:candidate`;
   const iidFile = join(state.harnessRoot, "candidate-image-id");
-  state.containerMutationAttempted = true;
+  beginContainerMutationCapture(state, "exact_target_image_build");
   await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "build",
     "--platform=linux/amd64",
@@ -3497,7 +5106,8 @@ async function buildCandidateImage(repository, state, supervisor, toolchain) {
     "--build-arg", `EVO_IMAGE_REVISION=${repository.target.commit}`,
     "--build-arg", `EVO_IMAGE_VERSION=recovery-${repository.target.commit.slice(0, 12)}`,
     "--label", `org.opencontainers.image.revision=${repository.target.commit}`,
-    "--label", `evo.recovery.owner=${state.projectName}`,
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", "evo.recovery.type=candidate-image",
     "--label", `evo.recovery.target-tree=${repository.target.tree}`,
     "--label", `evo.recovery.snapshot-archive-sha256=${snapshot.archiveSha256}`,
     "--label", "evo.recovery.build-network=dependency-fetch-only",
@@ -3528,6 +5138,16 @@ async function buildCandidateImage(repository, state, supervisor, toolchain) {
     targetCommit: repository.target.commit,
     targetTree: repository.target.tree,
   });
+  state.appImageIdentity = Object.freeze({
+    archiveSha256: snapshot.archiveSha256,
+    buildNetwork: "dependency-fetch-only",
+    id: image.id,
+    projectName: state.projectName,
+    tag: state.appImageTag,
+    targetCommit: repository.target.commit,
+    targetTree: repository.target.tree,
+  });
+  completeContainerMutationCapture(state, "exact_target_image_build");
   return Object.freeze({ ...image, snapshot });
 }
 
@@ -3553,36 +5173,146 @@ async function waitForHttp(url, expected, timeoutMs, code, stage, state, interru
   fail(code, stage);
 }
 
-// The host browser keeps using the CLI's loopback-only API publication. Inside
-// the isolated app namespace, the same URL lands on this fixed TCP forwarder,
-// whose upstream is derived from the inspected owned Supabase network.
-function writeCandidateEntrypoint(path) {
-  const source = `import { connect, createServer } from "node:net";
-
-const [targetHost, targetPortValue, listenPortValue] = process.argv.slice(2);
-const targetPort = Number(targetPortValue);
-const listenPort = Number(listenPortValue);
-if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(targetHost ?? "") ||
-    !Number.isSafeInteger(targetPort) || targetPort < 1 || targetPort > 65535 ||
-    !Number.isSafeInteger(listenPort) || listenPort < 1 || listenPort > 65535) {
-  throw new Error("invalid recovery proxy endpoint");
+async function waitForRecoveryScanner(containerId, supervisor, toolchain, interruptionGuard) {
+  const deadline = Date.now() + 10 * 60 * 1_000;
+  while (Date.now() < deadline) {
+    interruptionGuard.assertActive("malware_scanner_proof");
+    const state = await runDocker(supervisor, toolchain.paths.docker, [
+      "--context", "orbstack", "inspect", "--format",
+      "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
+      containerId,
+    ], { stage: "malware_scanner_proof", code: "malware_scanner_inspect_failed", timeoutMs: 30_000 });
+    const health = state.stdout.toString("utf8").trim();
+    if (health === "healthy") return;
+    if (["dead", "exited", "removing"].includes(health)) fail("malware_scanner_exited", "malware_scanner_proof");
+    await interruptionGuard.run("malware_scanner_proof", async () => await delay(5_000));
+  }
+  fail("malware_scanner_health_timeout", "malware_scanner_proof");
 }
-const proxy = createServer((downstream) => {
-  const upstream = connect({ host: targetHost, port: targetPort });
-  const close = () => { downstream.destroy(); upstream.destroy(); };
-  downstream.once("error", close);
-  upstream.once("error", close);
-  upstream.once("connect", () => {
-    downstream.pipe(upstream);
-    upstream.pipe(downstream);
+
+async function startRecoveryScanner(state, status, repositorySnapshotRoot, supervisor, toolchain, interruptionGuard) {
+  const compose = readFileSync(join(repositorySnapshotRoot, "docker-compose.prod.yml"), "utf8");
+  if (!compose.includes(`image: "${CLAMAV_IMAGE}"`)) fail("malware_scanner_image_contract_mismatch", "malware_scanner_proof");
+  try {
+    await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "image", "inspect", CLAMAV_IMAGE], {
+      stage: "malware_scanner_proof", code: "malware_scanner_image_missing", timeoutMs: 60_000,
+    });
+  } catch (error) {
+    if (!(error instanceof RecoveryFailure) || error.code !== "malware_scanner_image_missing") throw error;
+    await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "pull", "--platform", "linux/amd64", CLAMAV_IMAGE], {
+      stage: "malware_scanner_proof", code: "malware_scanner_image_pull_failed", timeoutMs: 20 * 60 * 1_000,
+      maxCaptureBytes: 8 * 1_024 * 1_024,
+    });
+  }
+  const platform = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "image", "inspect", "--format", "{{json .Id}}\t{{.Os}}/{{.Architecture}}", CLAMAV_IMAGE], {
+    stage: "malware_scanner_proof", code: "malware_scanner_image_inspect_failed", timeoutMs: 60_000,
   });
-});
-await new Promise((resolve, reject) => {
-  proxy.once("error", reject);
-  proxy.listen(listenPort, "127.0.0.1", resolve);
-});
-await import("/app/server.js");
-`;
+  const [imageIdJson, imagePlatform] = platform.stdout.toString("utf8").trim().split("\t");
+  let imageId;
+  try {
+    imageId = JSON.parse(imageIdJson);
+  } catch {
+    fail("malware_scanner_image_platform_invalid", "malware_scanner_proof");
+  }
+  if (!/^sha256:[0-9a-f]{64}$/u.test(imageId ?? "") || imagePlatform !== "linux/amd64") {
+    fail("malware_scanner_image_platform_invalid", "malware_scanner_proof");
+  }
+  const containerName = `supabase_clamav_${state.projectName}`;
+  const networkHost = `evo-recovery-clamav-${state.projectName.slice(-12)}`;
+  if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/u.test(networkHost)) fail("malware_scanner_network_host_invalid", "malware_scanner_proof");
+  const signatureVolume = `supabase_clamav_signatures_${state.projectName}`;
+  // The shared pinned ClamAV image is not harness-owned. Capture begins at the
+  // first owned mutation so a killed volume/container create stays quarantined.
+  beginContainerMutationCapture(state, "malware_scanner_start");
+  state.scannerSignatureVolume = signatureVolume;
+  await runDocker(supervisor, toolchain.paths.docker, [
+    "--context", "orbstack", "volume", "create",
+    "--label", `com.docker.compose.project=${state.projectName}`,
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", `evo.recovery.scanner=${state.projectName}`,
+    "--label", "evo.recovery.type=clamav-signatures",
+    signatureVolume,
+  ], { stage: "malware_scanner_proof", code: "malware_scanner_volume_create_failed", timeoutMs: 60_000 });
+  const inspectedVolume = await runDocker(supervisor, toolchain.paths.docker, [
+    "--context", "orbstack", "volume", "inspect", "--format", SAFE_CLEANUP_VOLUME_INSPECT_FORMAT,
+    signatureVolume,
+  ], { stage: "malware_scanner_proof", code: "malware_scanner_volume_inspect_failed", timeoutMs: 60_000 });
+  if (!sameJson(selectOwnedVolumeNames(inspectedVolume.stdout.toString("utf8"), state.projectName), [signatureVolume])) {
+    fail("malware_scanner_volume_ownership_invalid", "malware_scanner_proof");
+  }
+  const started = await runDocker(supervisor, toolchain.paths.docker, [
+    "--context", "orbstack", "run", "--detach",
+    "--platform", "linux/amd64",
+    "--name", containerName,
+    "--network", state.networkName,
+    "--network-alias", networkHost,
+    "--init",
+    "--cpus", "2.0",
+    "--memory", "4096m",
+    "--pids-limit", "256",
+    "--label", `com.docker.compose.project=${state.projectName}`,
+    "--label", "com.evo.runtime.role=private-malware-scanner",
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", `evo.recovery.scanner=${state.projectName}`,
+    "--label", "evo.recovery.type=malware-scanner",
+    "--volume", `${signatureVolume}:/var/lib/clamav`,
+    "--health-cmd", "/usr/local/bin/clamdcheck.sh",
+    "--health-interval", "5s",
+    "--health-timeout", "10s",
+    "--health-retries", "60",
+    "--health-start-period", "180s",
+    CLAMAV_IMAGE,
+  ], { stage: "malware_scanner_proof", code: "malware_scanner_start_failed", timeoutMs: 2 * 60 * 1_000 });
+  const containerId = started.stdout.toString("utf8").trim();
+  if (!SHA256.test(containerId)) fail("malware_scanner_container_id_invalid", "malware_scanner_proof");
+  state.scannerContainer = containerId;
+  state.scannerIdentity = Object.freeze({
+    containerId,
+    containerName,
+    imageId,
+    networkHost,
+    projectName: state.projectName,
+  });
+  await waitForRecoveryScanner(containerId, supervisor, toolchain, interruptionGuard);
+  await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
+  return Object.freeze({
+    containerId,
+    containerName,
+    networkHost,
+    image: CLAMAV_IMAGE,
+    network: "owned_egress_blocked_non_internal_bridge",
+    publish: "none",
+  });
+}
+
+async function createRecoveryTlsMaterial(state, supervisor, toolchain) {
+  const directory = join(state.harnessRoot, "app-tls");
+  const configPath = join(directory, "openssl.cnf");
+  const certificatePath = join(directory, "ca.pem");
+  const privateKeyPath = join(directory, "key.pem");
+  mkdirSync(directory, { mode: 0o700 });
+  writeFileSync(configPath, `[req]\nprompt = no\ndistinguished_name = dn\nx509_extensions = v3\n[dn]\nCN = ${RECOVERY_SUPABASE_HOSTNAME}\n[v3]\nsubjectAltName = DNS:${RECOVERY_SUPABASE_HOSTNAME}\nbasicConstraints = critical,CA:TRUE\nkeyUsage = critical,digitalSignature,keyEncipherment,keyCertSign\n`, { mode: 0o600, flag: "wx" });
+  await supervisor.run(toolchain.paths.openssl.real, [
+    "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+    "-keyout", privateKeyPath,
+    "-out", certificatePath,
+    "-days", "1",
+    "-config", configPath,
+  ], { stage: "image_verification", code: "recovery_tls_material_generation_failed", timeoutMs: 60_000 });
+  for (const path of [certificatePath, privateKeyPath]) {
+    const metadata = lstatSync(path);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size <= 0) fail("recovery_tls_material_invalid", "image_verification");
+    chmodSync(path, 0o444);
+  }
+  return Object.freeze({
+    certificatePath: realpathSync(certificatePath),
+    privateKeyPath: realpathSync(privateKeyPath),
+    certificateSha256: await sha256File(certificatePath),
+  });
+}
+
+function writeCandidateEntrypoint(path) {
+  const source = `await import("/app/server.js");\n`;
   writeFileSync(path, source, { mode: 0o444, flag: "wx" });
 }
 
@@ -3590,8 +5320,12 @@ async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain
   const networkResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "network", "inspect", state.networkName], {
     stage: "image_verification", code: "candidate_network_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
-  const censusIds = await containerCensus(supervisor, toolchain, state.projectName, { requireOwner: true, stage: "image_verification" });
-  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...censusIds], {
+  const census = await containerCensus(supervisor, toolchain, state.projectName, {
+    requireOwner: true,
+    requireScanner: true,
+    stage: "image_verification",
+  });
+  const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...census.ids], {
     stage: "image_verification", code: "candidate_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
   return validateCandidateNetworkAttachment(
@@ -3602,57 +5336,69 @@ async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain
       appContainerName: state.appContainer,
       appImageId: image.id,
       appPort,
-      censusIds,
+      census,
       networkName: state.networkName,
       previousMemberIds: endpoint.memberIds,
       projectName: state.projectName,
+      scanner: state.scannerIdentity,
     },
   );
 }
 
-async function startCandidateApp(options, status, actors, state, supervisor, toolchain, image, appPort, interruptionGuard) {
+async function startCandidateApp(options, status, actors, state, supervisor, toolchain, image, scanner, appPort, interruptionGuard) {
   const endpoint = await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
   const envFile = join(state.harnessRoot, "candidate.env");
   const entrypoint = join(state.harnessRoot, "candidate-entrypoint.mjs");
   writeCandidateEntrypoint(entrypoint);
+  const tls = await createRecoveryTlsMaterial(state, supervisor, toolchain);
   const observabilitySecret = randomBytes(48).toString("base64url");
   const environment = {
     NODE_ENV: "production",
     PORT: String(appPort),
     HOSTNAME: "0.0.0.0",
-    NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
+    NEXT_PUBLIC_SUPABASE_URL: `https://${RECOVERY_SUPABASE_HOSTNAME}`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.publishableKey,
     EVO_PLATFORM_SUPABASE_SECRET_KEY: status.serviceRoleKey,
     EVO_PLATFORM_ORGANIZATION_ID: options.platformOrganizationId,
     EVO_PLATFORM_P7A_AUDIT_ENABLED: "1",
-    EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "0",
+    EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",
     EVO_PLATFORM_AI_MEMORY_ENABLED: "0",
     EVO_PLATFORM_STAFF_ASSISTANT_ENABLED: "0",
     EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: "0",
+    EVO_CLAMD_HOST: scanner.networkHost,
+    EVO_CLAMD_PORT: "3310",
+    EVO_CLAMD_TIMEOUT_MS: "10000",
     EVO_V2_AMOCRM_WRITES_ENABLED: "0",
     EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "0",
     EVO_ENABLE_EXTERNAL_TRANSCRIPT_IMPROVEMENT: "0",
     EVO_PLATFORM_GEMINI_API_KEY: "",
     EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "",
     EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: observabilitySecret,
+    NODE_EXTRA_CA_CERTS: "/run/evo-recovery-ca.pem",
   };
   writeFileSync(envFile, `${Object.entries(environment).map(([key, value]) => `${key}=${value}`).join("\n")}\n`, { mode: 0o600, flag: "wx" });
+  beginContainerMutationCapture(state, "candidate_start");
   state.appContainer = `supabase_app_${state.projectName}`;
   const started = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "run", "--detach", "--name", state.appContainer,
     "--label", `evo.recovery.owner=${state.projectName}`,
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", "evo.recovery.type=candidate-app",
     "--network", state.networkName,
+    "--add-host", `${RECOVERY_SUPABASE_HOSTNAME}:127.0.0.1`,
     "--publish", `127.0.0.1:${appPort}:${appPort}`,
     "--cap-drop", "ALL",
     "--security-opt", "no-new-privileges",
     "--env-file", envFile,
     "--mount", `type=bind,source=${entrypoint},target=/opt/evo-recovery-entry.mjs,readonly`,
+    "--mount", `type=bind,source=${tls.certificatePath},target=/run/evo-recovery-ca.pem,readonly`,
     "--entrypoint", "node",
     image.id,
-    "/opt/evo-recovery-entry.mjs", endpoint.targetHost, String(endpoint.targetPort), String(endpoint.apiLoopbackPort),
+    "/opt/evo-recovery-entry.mjs",
   ], { stage: "image_verification", code: "candidate_container_start_failed", timeoutMs: 2 * 60 * 1_000 });
   const containerId = started.stdout.toString("utf8").trim();
   if (!/^[0-9a-f]{64}$/u.test(containerId)) fail("candidate_container_id_invalid", "image_verification");
+  state.appContainerId = containerId;
   const appUrl = `http://127.0.0.1:${appPort}`;
   const appNetworkAttachment = await inspectCandidateAttachment(state, endpoint, supervisor, toolchain, image, appPort, containerId);
   state.isolationInput.destination = {
@@ -3661,8 +5407,55 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
     appNetworkAttachment,
   };
   state.isolationEvidence = buildIsolationEvidence(state.isolationInput, { requireComplete: true, requireAppNetwork: true });
+  state.appProxyContainer = `supabase_app_proxy_${state.projectName}`;
+  const proxySource = String.raw`
+const fs = require("node:fs");
+const net = require("node:net");
+const tls = require("node:tls");
+const [targetHost, targetPortRaw] = process.argv.slice(1);
+const targetPort = Number(targetPortRaw);
+const server = tls.createServer({
+  cert: fs.readFileSync("/run/evo-recovery-cert.pem"),
+  key: fs.readFileSync("/run/evo-recovery-key.pem"),
+}, (client) => {
+  const upstream = net.connect({ host: targetHost, port: targetPort });
+  client.on("error", () => upstream.destroy());
+  upstream.on("error", () => client.destroy());
+  client.pipe(upstream);
+  upstream.pipe(client);
+});
+server.listen(443, "0.0.0.0");
+`;
+  const proxyStarted = await runDocker(supervisor, toolchain.paths.docker, [
+    "--context", "orbstack", "run", "--detach", "--name", state.appProxyContainer,
+    "--label", `evo.recovery.project=${state.projectName}`,
+    "--label", `evo.recovery.proxy=${state.projectName}`,
+    "--label", "evo.recovery.type=app-tls-proxy",
+    "--network", `container:${state.appContainer}`,
+    "--read-only",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--mount", `type=bind,source=${tls.certificatePath},target=/run/evo-recovery-cert.pem,readonly`,
+    "--mount", `type=bind,source=${tls.privateKeyPath},target=/run/evo-recovery-key.pem,readonly`,
+    "--entrypoint", "node",
+    image.id,
+    "--eval", proxySource,
+    endpoint.targetHost, String(endpoint.targetPort),
+  ], { stage: "image_verification", code: "recovery_app_tls_proxy_start_failed", timeoutMs: 2 * 60 * 1_000 });
+  const proxyContainerId = proxyStarted.stdout.toString("utf8").trim();
+  if (!SHA256.test(proxyContainerId)) fail("recovery_app_tls_proxy_id_invalid", "image_verification");
+  state.appProxyContainerId = proxyContainerId;
+  completeContainerMutationCapture(state, "candidate_start");
   await waitForHttp(`${appUrl}/api/health`, [200], 3 * 60 * 1_000, "candidate_app_start_timeout", "image_verification", state, interruptionGuard);
-  return Object.freeze({ appUrl, observabilitySecret, actors });
+  return Object.freeze({
+    appUrl,
+    observabilitySecret,
+    actors,
+    supabaseTls: Object.freeze({
+      origin: `https://${RECOVERY_SUPABASE_HOSTNAME}`,
+      certificateSha256: tls.certificateSha256,
+    }),
+  });
 }
 
 async function browserExecutable(supervisor) {
@@ -3741,7 +5534,247 @@ export async function installBrowserWebSocketBlocker(context, browserNetwork, br
   }));
 }
 
-async function proveBrowser(app, state, supervisor, interruptionGuard) {
+async function proveFailClosedReadiness(app, interruptionGuard) {
+  const requestId = randomUUID();
+  const timestamp = String(Date.now());
+  const hmac = createHmac("sha256", app.observabilitySecret)
+    .update(`GET\n/api/readiness\n${requestId}\n${timestamp}`)
+    .digest("hex");
+  const response = await apiRequest(new URL("/api/readiness", app.appUrl), {
+    headers: {
+      "x-evo-observability-request-id": requestId,
+      "x-evo-observability-timestamp": timestamp,
+      "x-evo-observability-hmac-algorithm": "sha256",
+      "x-evo-observability-hmac": hmac,
+    },
+  }, [503], "readiness_fail_closed_status_invalid", "browser_proof", interruptionGuard);
+  let payload;
+  try {
+    payload = await interruptionGuard.run("browser_proof", async () => await response.json());
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    payload = null;
+  }
+  if (
+    !isRecord(payload) || payload.status !== "not_ready" ||
+    payload.components?.supabase?.status !== "ready" ||
+    payload.components?.audit_append?.status !== "ready" ||
+    payload.components?.waha?.status === "ready" ||
+    payload.components?.ai?.status === "ready" ||
+    payload.signals?.waha_evidence_kind !== "configuration_check" ||
+    payload.signals?.ai_evidence_kind !== "configuration_check"
+  ) {
+    fail("readiness_component_contract_failed", "browser_proof");
+  }
+  return Object.freeze({
+    status: "not_ready",
+    supabase: "ready",
+    auditAppend: "ready",
+    providersBlocked: true,
+  });
+}
+
+async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filename, requestId) {
+  return await page.evaluate(async ({ baseUrl, fileId, expectedVersion, encoded, name, id }) => {
+    const form = new FormData();
+    form.set("expected_file_version", expectedVersion);
+    form.set("request_id", id);
+    const binary = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+    form.set("file", new File([binary], name, { type: "text/plain" }));
+    const response = await fetch(`${baseUrl}/api/v3/company-files/${encodeURIComponent(fileId)}/versions`, { method: "POST", body: form });
+    return Object.freeze({ status: response.status, payload: await response.json().catch(() => null) });
+  }, {
+    baseUrl: appUrl,
+    fileId: companyFile.id,
+    expectedVersion: companyFile.version,
+    encoded: Buffer.from(bytes).toString("base64"),
+    name: filename,
+    id: requestId,
+  });
+}
+
+async function readScannerPersistenceState(status, supervisor, toolchain) {
+  const value = await psqlJson(supervisor, toolchain, status, `SELECT json_build_object(
+    'reservations', (SELECT count(*) FROM platform_private.company_file_upload_reservations),
+    'finalizations', (SELECT count(*) FROM platform_private.company_file_upload_finalizations),
+    'versions', (SELECT count(*) FROM platform.company_file_versions),
+    'proofs', (SELECT count(*) FROM platform_private.company_file_malware_scan_attestations),
+    'storageObjects', (SELECT count(*) FROM storage.objects)
+  )::text`, "malware_scanner_proof");
+  if (!isRecord(value) || Object.values(value).some((count) => !Number.isSafeInteger(Number(count)) || Number(count) < 0)) {
+    fail("malware_persistence_inventory_invalid", "malware_scanner_proof");
+  }
+  return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, count]) => [key, Number(count)])));
+}
+
+async function readCompanyFileScannerAttestation(status, organizationId, companyFileId, companyFileVersionId, supervisor, toolchain) {
+  const value = await psqlJson(supervisor, toolchain, status, `SELECT coalesce((
+    SELECT json_build_object(
+      'engine', attestation.scanner_engine,
+      'engineVersion', attestation.scanner_engine_version,
+      'signatureVersion', attestation.scanner_signature_version,
+      'protocol', attestation.scanner_protocol,
+      'scannedAt', attestation.scanned_at,
+      'sha256Hex', attestation.scanned_sha256_hex
+    )
+    FROM platform_private.company_file_malware_scan_attestations AS attestation
+    WHERE attestation.organization_id = ${sqlLiteral(organizationId)}::uuid
+      AND attestation.company_file_id = ${sqlLiteral(companyFileId)}::uuid
+      AND attestation.company_file_version_id = ${sqlLiteral(companyFileVersionId)}::uuid
+  ), 'null'::json)::text`, "malware_scanner_proof");
+  if (!isRecord(value)) fail("malware_scanner_attestation_missing", "malware_scanner_proof");
+  return Object.freeze(value);
+}
+
+function assertScannerAttestation(proof, expectedSha256, code) {
+  if (
+    proof.engine !== "ClamAV" || proof.protocol !== "clamd-zinstream-v1" ||
+    proof.sha256Hex !== expectedSha256 || !Number.isFinite(Date.parse(proof.scannedAt ?? "")) ||
+    typeof proof.engineVersion !== "string" || !/^[0-9][0-9A-Za-z.+~-]{0,63}$/u.test(proof.engineVersion) ||
+    typeof proof.signatureVersion !== "string" || !/^[1-9][0-9]{0,18}$/u.test(proof.signatureVersion)
+  ) fail(code, "malware_scanner_proof");
+}
+
+async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, supervisor, toolchain, interruptionGuard) {
+  const created = await platformRpc(status, adminActor, "create_company_file", {
+    p_organization_id: adminActor.organizationId,
+    p_folder_id: null,
+    p_display_name: `Recovery scanner proof ${randomUUID()}`,
+    p_request_id: randomUUID(),
+  }, interruptionGuard);
+  if (!isRecord(created) || !UUID.test(created.company_file_id) || typeof created.version !== "string" || !/^\d+$/u.test(created.version)) {
+    fail("scanner_proof_company_file_invalid", "malware_scanner_proof");
+  }
+  let companyFile = Object.freeze({ id: created.company_file_id, version: created.version });
+  const cleanBytes = Buffer.from("EVO recovery clean company file\n", "utf8");
+  const clean = await browserCompanyFileUpload(page, appUrl, companyFile, cleanBytes, "recovery-clean.txt", randomUUID());
+  if (
+    clean.status !== 201 || !isRecord(clean.payload?.companyFile) ||
+    clean.payload.companyFile.companyFileId !== companyFile.id ||
+    !UUID.test(clean.payload.companyFile.companyFileVersionId ?? "") ||
+    typeof clean.payload.companyFile.fileVersion !== "string" ||
+    clean.payload.companyFile.sha256Hex !== sha256(cleanBytes)
+  ) fail("malware_scanner_clean_data_path_failed", "malware_scanner_proof");
+  const cleanAttestation = await readCompanyFileScannerAttestation(status, adminActor.organizationId, companyFile.id, clean.payload.companyFile.companyFileVersionId, supervisor, toolchain);
+  assertScannerAttestation(cleanAttestation, sha256(cleanBytes), "malware_scanner_clean_attestation_invalid");
+  companyFile = Object.freeze({ ...companyFile, version: clean.payload.companyFile.fileVersion });
+  const afterClean = await readScannerPersistenceState(status, supervisor, toolchain);
+
+  const infected = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from(EICAR, "ascii"), "recovery-eicar.txt", randomUUID());
+  if (infected.status !== 422 || infected.payload?.error !== "malware_detected") fail("malware_scanner_eicar_data_path_not_blocked", "malware_scanner_proof");
+  if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_eicar_persisted_state", "malware_scanner_proof");
+
+  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "stop", "--time", "30", scanner.containerId], {
+    stage: "malware_scanner_proof", code: "malware_scanner_outage_stop_failed", timeoutMs: 60_000,
+  });
+  const outage = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from("EVO recovery scanner outage proof\n", "utf8"), "recovery-outage.txt", randomUUID());
+  if (outage.status !== 503 || outage.payload?.error !== "malware_scanner_unavailable") fail("malware_scanner_outage_not_fail_closed", "malware_scanner_proof");
+  if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_outage_persisted_state", "malware_scanner_proof");
+
+  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "start", scanner.containerId], {
+    stage: "malware_scanner_proof", code: "malware_scanner_recovery_start_failed", timeoutMs: 60_000,
+  });
+  await waitForRecoveryScanner(scanner.containerId, supervisor, toolchain, interruptionGuard);
+  const recoveredBytes = Buffer.from("EVO recovery scanner restored proof\n", "utf8");
+  const recovered = await browserCompanyFileUpload(page, appUrl, companyFile, recoveredBytes, "recovery-restored.txt", randomUUID());
+  if (
+    recovered.status !== 201 || !isRecord(recovered.payload?.companyFile) ||
+    recovered.payload.companyFile.companyFileId !== companyFile.id ||
+    !UUID.test(recovered.payload.companyFile.companyFileVersionId ?? "") ||
+    recovered.payload.companyFile.sha256Hex !== sha256(recoveredBytes)
+  ) fail("malware_scanner_recovered_data_path_failed", "malware_scanner_proof");
+  const recoveredAttestation = await readCompanyFileScannerAttestation(status, adminActor.organizationId, companyFile.id, recovered.payload.companyFile.companyFileVersionId, supervisor, toolchain);
+  assertScannerAttestation(recoveredAttestation, sha256(recoveredBytes), "malware_scanner_recovered_attestation_invalid");
+  const afterRecovered = await readScannerPersistenceState(status, supervisor, toolchain);
+  for (const key of ["reservations", "finalizations", "versions", "proofs", "storageObjects"]) {
+    if (afterRecovered[key] !== afterClean[key] + 1) fail("malware_scanner_recovered_persistence_invalid", "malware_scanner_proof");
+  }
+  return Object.freeze({
+    image: scanner.image,
+    network: scanner.network,
+    publish: scanner.publish,
+    clean: "passed_with_persisted_attestation",
+    eicar: "blocked_without_persistence",
+    outage: "blocked_without_persistence",
+    recovery: "passed_with_persisted_attestation",
+  });
+}
+
+async function proveBrowserDocumentDownload(page, appUrl, status, document, allowed, role, browserStep) {
+  const response = await browserStep(async () => await page.request.get(
+    `${appUrl}/api/v2/document-versions/${document.versionId}/download`,
+    { failOnStatusCode: false, maxRedirects: 0 },
+  ));
+  if (!allowed) {
+    if (response.status() !== 403) fail(`browser_${role}_document_denial_failed`, "browser_proof");
+    return;
+  }
+  if (response.status() !== 307) fail(`browser_${role}_document_grant_failed`, "browser_proof");
+  const location = response.headers().location;
+  let signedUrl;
+  try {
+    signedUrl = new URL(location);
+  } catch {
+    fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
+  }
+  if (signedUrl.protocol !== "https:" || signedUrl.hostname !== RECOVERY_SUPABASE_HOSTNAME) {
+    fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
+  }
+  const localSignedUrl = new URL(`${signedUrl.pathname}${signedUrl.search}`, status.apiUrl);
+  const download = await browserStep(async () => await page.request.get(localSignedUrl.toString(), {
+    failOnStatusCode: false,
+    maxRedirects: 0,
+  }));
+  if (download.status() !== 200) fail(`browser_${role}_document_download_failed`, "browser_proof");
+  const bytes = Buffer.from(await browserStep(async () => await download.body()));
+  if (bytes.byteLength !== document.byteSize || sha256(bytes) !== document.sha256Hex) {
+    fail(`browser_${role}_document_bytes_mismatch`, "browser_proof");
+  }
+}
+
+async function proveBrowserSalesReadback(page, appUrl, salesProof, role, browserStep) {
+  await browserStep(async () => await page.goto(`${appUrl}/v3/pipeline`, { waitUntil: "domcontentloaded" }));
+  await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
+  const panel = await browserStep(async () => page.locator(
+    `[data-testid="v3-pipeline-decision"][data-lead-id="${salesProof.leadId}"]`,
+  ));
+  await browserStep(async () => await panel.waitFor({ state: "visible", timeout: 45_000 }));
+  if (await browserStep(async () => await panel.getAttribute("open")) === null) {
+    await browserStep(async () => await panel.locator("summary").click());
+  }
+  const form = await browserStep(async () => panel.getByTestId("v3-pipeline-workflow-form"));
+  await browserStep(async () => await form.waitFor({ state: "visible", timeout: 45_000 }));
+  const marker = await browserStep(async () => await form.getByTestId("v3-pipeline-next-action").inputValue());
+  const version = Number(await browserStep(async () => await form.locator('input[name="expected_version"]').inputValue()));
+  if (marker !== salesProof.marker || version !== salesProof.workflowVersion) {
+    fail(`browser_${role}_sales_readback_failed`, "browser_proof");
+  }
+}
+
+async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, role, browserStep) {
+  await browserStep(async () => await page.goto(
+    `${appUrl}/v3/calendar?view=day&date=${admissionsProof.browserDay}`,
+    { waitUntil: "domcontentloaded" },
+  ));
+  await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
+  const task = await browserStep(async () => page.locator(`#task-${admissionsProof.taskId}`));
+  await browserStep(async () => await task.waitFor({ state: "visible", timeout: 45_000 }));
+  await browserStep(async () => await task.click());
+  const controls = await browserStep(async () => page.getByTestId("v3-calendar-task-controls"));
+  await browserStep(async () => await controls.waitFor({ state: "visible", timeout: 45_000 }));
+  const form = await browserStep(async () => controls.getByTestId("v3-calendar-task-change-form"));
+  if (!(await browserStep(async () => await form.isVisible()))) {
+    await browserStep(async () => await controls.getByText("Изменить задачу", { exact: true }).click());
+  }
+  await browserStep(async () => await form.waitFor({ state: "visible", timeout: 45_000 }));
+  const statusValue = await browserStep(async () => await form.locator('select[name="status"]').inputValue());
+  const version = Number(await browserStep(async () => await form.locator('input[name="expected_version"]').inputValue()));
+  if (statusValue !== admissionsProof.status || version !== admissionsProof.version) {
+    fail(`browser_${role}_admissions_readback_failed`, "browser_proof");
+  }
+}
+
+async function proveBrowser(app, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
   const browserTool = await browserExecutable(supervisor);
   state.availableTools.chromium = browserTool.version;
@@ -3773,6 +5806,8 @@ async function proveBrowser(app, state, supervisor, interruptionGuard) {
       admissions: Object.freeze({ path: "/v3/calendar", marker: "calendar_heading", heading: "Календарь" }),
     });
     const routeProofs = {};
+    const roleReadbacks = {};
+    let scannerDataPath;
     const browserNetwork = {
       allowedOriginSha256: sha256(new URL(app.appUrl).origin),
       deniedExternalRequestCount: 0,
@@ -3832,17 +5867,72 @@ async function proveBrowser(app, state, supervisor, interruptionGuard) {
         moduleMarker: route.marker,
         markerVisible,
       }));
+      if (role === "admin") {
+        scannerDataPath = await proveScannerDataPath(
+          status,
+          app.actors.admin,
+          page,
+          app.appUrl,
+          scanner,
+          supervisor,
+          toolchain,
+          interruptionGuard,
+        );
+        if (roleServerProof?.sales) {
+          await proveBrowserSalesReadback(page, app.appUrl, roleServerProof.sales, role, browserStep);
+        }
+        if (roleServerProof?.admissions) {
+          await proveBrowserAdmissionsReadback(page, app.appUrl, roleServerProof.admissions, role, browserStep);
+        }
+        if (roleServerProof?.document) {
+          await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, true, role, browserStep);
+        }
+        roleReadbacks.admin = roleServerProof?.outcomes?.admin === "passed" &&
+          roleServerProof.sales && roleServerProof.admissions && roleServerProof.document
+          ? "passed"
+          : "not_run_incomplete_server_outcomes";
+      } else if (role === "sales") {
+        if (roleServerProof?.sales) {
+          await proveBrowserSalesReadback(page, app.appUrl, roleServerProof.sales, role, browserStep);
+        }
+        if (roleServerProof?.document) {
+          await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, false, role, browserStep);
+        }
+        roleReadbacks.sales = roleServerProof?.outcomes?.sales === "passed" &&
+          roleServerProof.sales && roleServerProof.document
+          ? "passed"
+          : "not_run_incomplete_server_outcomes";
+      } else if (role === "admissions") {
+        if (roleServerProof?.admissions) {
+          await proveBrowserAdmissionsReadback(page, app.appUrl, roleServerProof.admissions, role, browserStep);
+        }
+        if (roleServerProof?.document) {
+          await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, true, role, browserStep);
+        }
+        roleReadbacks.admissions = roleServerProof?.outcomes?.admissions === "passed" &&
+          roleServerProof.admissions && roleServerProof.document
+          ? "passed"
+          : "not_run_incomplete_server_outcomes";
+      }
       await browserStep(async () => await context.close(), { allowAfterInterrupt: true });
       validateBrowserNetworkProof(browserNetwork);
     }
+    for (const role of ["admin", "sales", "admissions"]) {
+      roleReadbacks[role] ??= "not_run_missing_representative";
+    }
+    const readiness = await proveFailClosedReadiness(app, interruptionGuard);
     return Object.freeze({
       admin: availableRoles.includes("admin") ? "passed" : "not_run_missing_representative",
       sales: availableRoles.includes("sales") ? "passed" : "not_run_missing_representative",
       admissions: availableRoles.includes("admissions") ? "passed" : "not_run_missing_representative",
       routes: Object.freeze(routeProofs),
+      roleOutcomes: Object.freeze(roleReadbacks),
       network: validateBrowserNetworkProof(browserNetwork),
       chromium: browserTool.version,
       exactCandidateImage: true,
+      readiness,
+      supabaseTls: app.supabaseTls,
+      malwareScanner: scannerDataPath,
       evidenceScope: availableRoles.length === 3
         ? "complete_real_representative_browser_proof"
         : "available_real_representatives_only",
@@ -3910,7 +6000,7 @@ function sanitizedAppNetworkAttachment(value) {
     value.attachedNetworkCount !== 1 ||
     value.publishedPortCount !== 1 ||
     value.loopbackOnly !== true ||
-    value.externalEgress !== "blocked_by_internal_network"
+    value.externalEgress !== "blocked_by_disabled_masquerade_and_runtime_probe"
   ) {
     fail("destination_app_network_invalid", "isolation_identity");
   }
@@ -3982,15 +6072,67 @@ export function buildIsolationEvidence(value, { requireComplete = false, require
   });
 }
 
-function safeHarnessRoot(path) {
-  if (!path || !isAbsolute(path) || !basename(path).startsWith(HARNESS_PREFIX)) return false;
+function validatedHarnessRoot(path, projectName) {
+  if (
+    !path ||
+    !isAbsolute(path) ||
+    !new RegExp(`^${HARNESS_PREFIX}[A-Za-z0-9]{6}$`, "u").test(basename(path)) ||
+    !/^evov3recovery[0-9a-f]{12}$/u.test(projectName ?? "")
+  ) return null;
   try {
     const canonicalTmp = realpathSync(tmpdir());
     const canonical = realpathSync(path);
     const rel = relative(canonicalTmp, canonical);
-    return rel.length > 0 && !rel.startsWith("..") && !isAbsolute(rel) && existsSync(join(canonical, MARKER));
+    const rootMetadata = lstatSync(path);
+    const markerPath = join(canonical, MARKER);
+    const markerMetadata = lstatSync(markerPath);
+    if (
+      resolve(path) !== canonical ||
+      rel.length === 0 || rel.startsWith("..") || isAbsolute(rel) ||
+      !rootMetadata.isDirectory() || rootMetadata.isSymbolicLink() ||
+      typeof process.getuid !== "function" || rootMetadata.uid !== process.getuid() ||
+      (rootMetadata.mode & 0o077) !== 0 ||
+      !markerMetadata.isFile() || markerMetadata.isSymbolicLink() ||
+      markerMetadata.uid !== process.getuid() || (markerMetadata.mode & 0o077) !== 0 ||
+      readFileSync(markerPath, "utf8") !== `${projectName}\n`
+    ) return null;
+    return canonical;
   } catch {
-    return false;
+    return null;
+  }
+}
+
+function safeHarnessRoot(path, projectName) {
+  return validatedHarnessRoot(path, projectName) !== null;
+}
+
+export function guardedRemoveHarness(path, projectName, { beforeRootRemoval = null } = {}) {
+  const canonical = validatedHarnessRoot(path, projectName);
+  if (canonical === null) fail("cleanup_target_invalid", "cleanup");
+  const markerPath = join(canonical, MARKER);
+  const markerContent = `${projectName}\n`;
+  for (const entry of readdirSync(canonical)) {
+    if (entry === MARKER) continue;
+    rmSync(join(canonical, entry), {
+      recursive: true,
+      force: false,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+  }
+  unlinkSync(markerPath);
+  try {
+    beforeRootRemoval?.(canonical);
+    rmdirSync(canonical);
+  } catch {
+    try {
+      if (existsSync(canonical) && !existsSync(markerPath)) {
+        writeFileSync(markerPath, markerContent, { mode: 0o600, flag: "wx" });
+      }
+    } catch {
+      fail("cleanup_marker_restore_failed", "cleanup");
+    }
+    fail("cleanup_directory_not_empty", "cleanup");
   }
 }
 
@@ -3998,16 +6140,60 @@ export function cleanupDisposition({ descendantsDrained, targetsOwned, cleanupSu
   return descendantsDrained && targetsOwned && cleanupSucceeded ? "remove" : "quarantine";
 }
 
+function beginContainerMutationCapture(state, stage) {
+  if (
+    !isRecord(state) ||
+    !CONTAINER_MUTATION_CAPTURE_STAGES.has(stage) ||
+    state.containerMutationCapture?.status === "pending"
+  ) {
+    fail("container_mutation_capture_invalid", stage);
+  }
+  state.containerMutationAttempted = true;
+  state.containerMutationCapture = Object.freeze({ stage, status: "pending" });
+}
+
+function completeContainerMutationCapture(state, stage) {
+  if (
+    !isRecord(state) ||
+    !CONTAINER_MUTATION_CAPTURE_STAGES.has(stage) ||
+    state.containerMutationCapture?.stage !== stage ||
+    state.containerMutationCapture?.status !== "pending"
+  ) {
+    fail("container_mutation_capture_invalid", stage);
+  }
+  state.containerMutationCapture = Object.freeze({ stage, status: "complete" });
+}
+
+function containerMutationCaptureComplete(state) {
+  return (
+    isRecord(state?.containerMutationCapture) &&
+    CONTAINER_MUTATION_CAPTURE_STAGES.has(state.containerMutationCapture.stage) &&
+    state.containerMutationCapture.status === "complete" &&
+    Object.keys(state.containerMutationCapture).length === 2
+  );
+}
+
 export function cleanupContainerPolicy(state, toolchainAvailable) {
   const mutationAttempted = state?.containerMutationAttempted === true;
   const runtimeFlags =
     state?.networkCreated === true ||
+    typeof state?.networkId === "string" ||
+    Array.isArray(state?.supabaseContainerIds) ||
+    Array.isArray(state?.ownedVolumeNames) ||
+    Array.isArray(state?.ownedVolumeIdentities) ||
     state?.stackStarted === true ||
     typeof state?.appContainer === "string" ||
+    typeof state?.appContainerId === "string" ||
+    typeof state?.appProxyContainer === "string" ||
+    typeof state?.appProxyContainerId === "string" ||
     typeof state?.appImageTag === "string" ||
-    typeof state?.appImageId === "string";
+    typeof state?.appImageId === "string" ||
+    isRecord(state?.appImageIdentity) ||
+    typeof state?.scannerContainer === "string" ||
+    typeof state?.scannerSignatureVolume === "string";
   const contradictory =
     (runtimeFlags && !mutationAttempted) ||
+    (mutationAttempted && !containerMutationCaptureComplete(state)) ||
     (state?.stackStarted === true && state?.networkCreated !== true) ||
     (typeof state?.appContainer === "string" && (state?.stackStarted !== true || state?.networkCreated !== true)) ||
     ((mutationAttempted || runtimeFlags) && (state?.containerPreflightPassed !== true || toolchainAvailable !== true));
@@ -4019,64 +6205,485 @@ function assertCleanupProject(projectName) {
   if (!/^evov3recovery[0-9a-f]{12}$/u.test(projectName)) fail("cleanup_project_scope_invalid", "cleanup");
 }
 
+const RESERVED_RECOVERY_OWNERSHIP_LABELS = Object.freeze([
+  "com.docker.compose.project",
+  "com.evo.runtime.role",
+  "com.supabase.cli.project",
+  "evo.recovery.owner",
+  "evo.recovery.project",
+  "evo.recovery.proxy",
+  "evo.recovery.scanner",
+  "evo.recovery.type",
+]);
+
+function assertExactRecoveryOwnershipLabels(labels, required, optional, code) {
+  if (!isRecord(labels) || !isRecord(required) || !isRecord(optional)) fail(code, "cleanup");
+  for (const label of RESERVED_RECOVERY_OWNERSHIP_LABELS) {
+    const present = Object.hasOwn(labels, label);
+    if (Object.hasOwn(required, label)) {
+      if (!present || labels[label] !== required[label]) fail(code, "cleanup");
+    } else if (Object.hasOwn(optional, label)) {
+      if (present && labels[label] !== optional[label]) fail(code, "cleanup");
+    } else if (present) {
+      fail(code, "cleanup");
+    }
+  }
+}
+
+function cleanupContainerRecords(output) {
+  const records = [];
+  for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
+    const fields = line.split("\t");
+    let id;
+    let name;
+    let image;
+    let labels;
+    try {
+      [id, name, image, labels] = fields.map((field) => JSON.parse(field));
+    } catch {
+      fail("cleanup_container_inventory_invalid", "cleanup");
+    }
+    if (
+      fields.length !== 4 ||
+      !SHA256.test(id ?? "") ||
+      typeof name !== "string" || !name.startsWith("/") ||
+      !/^sha256:[0-9a-f]{64}$/u.test(image ?? "") ||
+      (labels !== null && !isRecord(labels))
+    ) {
+      fail("cleanup_container_inventory_invalid", "cleanup");
+    }
+    records.push(Object.freeze({ id, name: name.slice(1), image, labels }));
+  }
+  if (new Set(records.map(({ id }) => id)).size !== records.length) {
+    fail("cleanup_container_inventory_invalid", "cleanup");
+  }
+  return Object.freeze(records);
+}
+
+export function selectCandidateImageContainerReferences(output, imageId) {
+  if (!/^sha256:[0-9a-f]{64}$/u.test(imageId ?? "")) fail("cleanup_image_reference_invalid", "cleanup");
+  return Object.freeze(cleanupContainerRecords(output)
+    .filter((record) => record.image === imageId)
+    .map((record) => record.id)
+    .sort());
+}
+
 export function selectOwnedContainerIds(output, projectName) {
   assertCleanupProject(projectName);
   const ids = [];
+  const typeCounts = { app: 0, proxy: 0, scanner: 0 };
+  for (const { id, name: normalizedName, labels } of cleanupContainerRecords(output)) {
+    const namedForProject = normalizedName.startsWith("supabase_") && normalizedName.endsWith(`_${projectName}`);
+    const labeledForProject = isRecord(labels) && [
+      labels["com.supabase.cli.project"],
+      labels["evo.recovery.owner"],
+      labels["evo.recovery.project"],
+      labels["evo.recovery.proxy"],
+      labels["evo.recovery.scanner"],
+    ].includes(projectName);
+    if (!namedForProject && !labeledForProject) continue;
+    if (!isRecord(labels)) fail("cleanup_container_ownership_invalid", "cleanup");
+    const categories = {
+      app: labels["evo.recovery.owner"] === projectName,
+      proxy: labels["evo.recovery.proxy"] === projectName,
+      scanner: labels["evo.recovery.scanner"] === projectName,
+      supabase: labels["com.supabase.cli.project"] === projectName,
+    };
+    if (Object.values(categories).filter(Boolean).length !== 1) fail("cleanup_container_ownership_invalid", "cleanup");
+    if (categories.supabase) {
+      if (!namedForProject || labels["com.docker.compose.project"] !== projectName) {
+        fail("cleanup_container_ownership_invalid", "cleanup");
+      }
+      assertExactRecoveryOwnershipLabels(labels, {
+        "com.docker.compose.project": projectName,
+        "com.supabase.cli.project": projectName,
+      }, {}, "cleanup_container_ownership_invalid");
+    } else {
+      const expected = categories.app
+        ? { name: `supabase_app_${projectName}`, type: "candidate-app", count: "app" }
+        : categories.proxy
+          ? { name: `supabase_app_proxy_${projectName}`, type: "app-tls-proxy", count: "proxy" }
+          : { name: `supabase_clamav_${projectName}`, type: "malware-scanner", count: "scanner" };
+      if (
+        normalizedName !== expected.name ||
+        labels["evo.recovery.project"] !== projectName ||
+        labels["evo.recovery.type"] !== expected.type
+      ) {
+        fail("cleanup_container_ownership_invalid", "cleanup");
+      }
+      if (categories.scanner && (
+        labels["com.docker.compose.project"] !== projectName ||
+        labels["com.evo.runtime.role"] !== "private-malware-scanner"
+      )) {
+        fail("cleanup_container_ownership_invalid", "cleanup");
+      }
+      assertExactRecoveryOwnershipLabels(labels, categories.app
+        ? {
+          "evo.recovery.owner": projectName,
+          "evo.recovery.project": projectName,
+          "evo.recovery.type": "candidate-app",
+        }
+        : categories.proxy
+          ? {
+            "evo.recovery.project": projectName,
+            "evo.recovery.proxy": projectName,
+            "evo.recovery.type": "app-tls-proxy",
+          }
+          : {
+            "com.docker.compose.project": projectName,
+            "com.evo.runtime.role": "private-malware-scanner",
+            "evo.recovery.project": projectName,
+            "evo.recovery.scanner": projectName,
+            "evo.recovery.type": "malware-scanner",
+          }, {}, "cleanup_container_ownership_invalid");
+      typeCounts[expected.count] += 1;
+    }
+    ids.push(id);
+  }
+  if (Object.values(typeCounts).some((count) => count > 1) || new Set(ids).size !== ids.length) {
+    fail("cleanup_container_ownership_invalid", "cleanup");
+  }
+  return Object.freeze(ids.sort());
+}
+
+function cleanupVolumeRecords(output) {
+  const records = [];
   for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
     const fields = line.split("\t");
-    if (fields.length !== 2 || !/^[0-9a-f]{12,64}$/u.test(fields[0]) || !fields[1]) fail("cleanup_container_inventory_invalid", "cleanup");
-    if (fields[1].startsWith("supabase_") && fields[1].endsWith(`_${projectName}`)) ids.push(fields[0]);
+    let name;
+    let createdAt;
+    let driver;
+    let scope;
+    let labels;
+    let options;
+    try {
+      [name, createdAt, driver, scope, labels, options] = fields.map((field) => JSON.parse(field));
+    } catch {
+      fail("cleanup_volume_inventory_invalid", "cleanup");
+    }
+    if (
+      fields.length !== 6 ||
+      typeof name !== "string" || name.length === 0 ||
+      typeof createdAt !== "string" || createdAt.length === 0 ||
+      typeof driver !== "string" || driver.length === 0 ||
+      typeof scope !== "string" || scope.length === 0 ||
+      (labels !== null && !isRecord(labels)) ||
+      (options !== null && !isRecord(options))
+    ) {
+      fail("cleanup_volume_inventory_invalid", "cleanup");
+    }
+    records.push(Object.freeze({ createdAt, driver, labels, name, options, scope }));
   }
-  return Object.freeze(ids);
+  if (new Set(records.map(({ name }) => name)).size !== records.length) fail("cleanup_volume_inventory_invalid", "cleanup");
+  return Object.freeze(records);
+}
+
+function validatedCleanupVolumeIdentity(identity) {
+  if (!isRecord(identity)) fail("cleanup_volume_identity_invalid", "cleanup");
+  exactKeys(identity, ["createdAt", "driver", "labelsSha256", "name", "optionsSha256", "scope"], "cleanup_volume_identity_invalid", "cleanup");
+  if (
+    typeof identity.name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/u.test(identity.name) ||
+    typeof identity.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/u.test(identity.createdAt) ||
+    !Number.isFinite(Date.parse(identity.createdAt)) ||
+    identity.driver !== "local" || identity.scope !== "local" ||
+    !SHA256.test(identity.labelsSha256 ?? "") || !SHA256.test(identity.optionsSha256 ?? "")
+  ) {
+    fail("cleanup_volume_identity_invalid", "cleanup");
+  }
+  return identity;
+}
+
+export function selectOwnedVolumeIdentities(output, projectName) {
+  assertCleanupProject(projectName);
+  const identities = [];
+  let scannerVolumeCount = 0;
+  for (const { createdAt, driver, labels, name, options, scope } of cleanupVolumeRecords(output)) {
+    const namedForProject = name.startsWith("supabase_") && name.endsWith(`_${projectName}`);
+    const labeledForProject = isRecord(labels) && [
+      labels["com.supabase.cli.project"],
+      labels["evo.recovery.project"],
+      labels["evo.recovery.scanner"],
+    ].includes(projectName);
+    if (!namedForProject && !labeledForProject) continue;
+    if (
+      !isRecord(labels) ||
+      !/^\d{4}-\d{2}-\d{2}T/u.test(createdAt) || !Number.isFinite(Date.parse(createdAt)) ||
+      driver !== "local" || scope !== "local" ||
+      (options !== null && !isRecord(options))
+    ) fail("cleanup_volume_ownership_invalid", "cleanup");
+    const supabaseOwned = labels["com.supabase.cli.project"] === projectName;
+    const scannerOwned = labels["evo.recovery.scanner"] === projectName;
+    if (Number(supabaseOwned) + Number(scannerOwned) !== 1) fail("cleanup_volume_ownership_invalid", "cleanup");
+    if (supabaseOwned) {
+      if (!namedForProject) fail("cleanup_volume_ownership_invalid", "cleanup");
+      assertExactRecoveryOwnershipLabels(labels, {
+        "com.supabase.cli.project": projectName,
+      }, {
+        "com.docker.compose.project": projectName,
+      }, "cleanup_volume_ownership_invalid");
+    }
+    if (scannerOwned) {
+      if (
+        name !== `supabase_clamav_signatures_${projectName}` ||
+        labels["com.docker.compose.project"] !== projectName ||
+        labels["evo.recovery.project"] !== projectName ||
+        labels["evo.recovery.type"] !== "clamav-signatures"
+      ) {
+        fail("cleanup_volume_ownership_invalid", "cleanup");
+      }
+      assertExactRecoveryOwnershipLabels(labels, {
+        "com.docker.compose.project": projectName,
+        "evo.recovery.project": projectName,
+        "evo.recovery.scanner": projectName,
+        "evo.recovery.type": "clamav-signatures",
+      }, {}, "cleanup_volume_ownership_invalid");
+      scannerVolumeCount += 1;
+    }
+    identities.push(Object.freeze({
+      createdAt,
+      driver,
+      labelsSha256: sha256(canonicalJson(labels)),
+      name,
+      optionsSha256: sha256(canonicalJson(options)),
+      scope,
+    }));
+  }
+  if (scannerVolumeCount > 1 || new Set(identities.map(({ name }) => name)).size !== identities.length) {
+    fail("cleanup_volume_ownership_invalid", "cleanup");
+  }
+  return Object.freeze(identities.sort((left, right) => left.name.localeCompare(right.name, "en")));
 }
 
 export function selectOwnedVolumeNames(output, projectName) {
-  assertCleanupProject(projectName);
-  return Object.freeze(String(output).split(/\r?\n/u).filter(Boolean).filter((name) => name.startsWith("supabase_") && name.endsWith(`_${projectName}`)));
+  return Object.freeze(selectOwnedVolumeIdentities(output, projectName).map(({ name }) => name));
 }
 
-export function selectOwnedNetworkNames(output, networkName) {
+export function selectOwnedNetworkIds(output, networkName) {
   if (!/^evov3recovery[0-9a-f]{12}_private$/u.test(networkName)) fail("cleanup_network_scope_invalid", "cleanup");
-  return Object.freeze(String(output).split(/\r?\n/u).filter(Boolean).filter((name) => name === networkName));
+  const lines = String(output).split(/\r?\n/u).filter(Boolean);
+  if (lines.length === 0) return Object.freeze([]);
+  if (lines.length !== 1) fail("cleanup_network_inventory_invalid", "cleanup");
+  const fields = lines[0].split("\t");
+  let id;
+  let name;
+  let labels;
+  try {
+    [id, name, labels] = fields.map((field) => JSON.parse(field));
+  } catch {
+    fail("cleanup_network_inventory_invalid", "cleanup");
+  }
+  const projectName = networkName.slice(0, -"_private".length);
+  if (
+    fields.length !== 3 ||
+    !SHA256.test(id ?? "") ||
+    name !== networkName ||
+    !isRecord(labels) ||
+    labels["evo.recovery.owner"] !== projectName
+  ) {
+    fail("cleanup_network_ownership_invalid", "cleanup");
+  }
+  assertExactRecoveryOwnershipLabels(labels, {
+    "evo.recovery.owner": projectName,
+  }, {}, "cleanup_network_ownership_invalid");
+  return Object.freeze([id]);
 }
 
-export function selectOwnedImageIds(output, projectName) {
-  assertCleanupProject(projectName);
+export function selectOwnedImageIds(output, expected) {
+  if (!isRecord(expected)) fail("cleanup_image_inventory_invalid", "cleanup");
+  exactKeys(expected, ["archiveSha256", "buildNetwork", "id", "projectName", "tag", "targetCommit", "targetTree"], "cleanup_image_inventory_invalid", "cleanup");
+  assertCleanupProject(expected.projectName);
+  if (
+    !/^sha256:[0-9a-f]{64}$/u.test(expected.id ?? "") ||
+    typeof expected.tag !== "string" || expected.tag !== `evo-v3-recovery-${expected.projectName}:candidate` ||
+    !SHA256.test(expected.archiveSha256 ?? "") ||
+    !GIT_OID.test(expected.targetCommit ?? "") ||
+    !GIT_OID.test(expected.targetTree ?? "") ||
+    expected.buildNetwork !== "dependency-fetch-only"
+  ) {
+    fail("cleanup_image_inventory_invalid", "cleanup");
+  }
+  const lines = String(output).split(/\r?\n/u).filter(Boolean);
+  if (lines.length !== 1) fail("cleanup_image_inventory_invalid", "cleanup");
   const ids = [];
-  for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
+  for (const line of lines) {
     const fields = line.split("\t");
+    let id;
+    let tags;
+    let labels;
+    try {
+      [id, tags, labels] = fields.map((field) => JSON.parse(field));
+    } catch {
+      fail("cleanup_image_inventory_invalid", "cleanup");
+    }
     if (
       fields.length !== 3 ||
-      !/^sha256:[0-9a-f]{64}$/u.test(fields[0]) ||
-      !fields[1] ||
-      fields[2] !== projectName
+      !/^sha256:[0-9a-f]{64}$/u.test(id ?? "") ||
+      !Array.isArray(tags) ||
+      tags.some((tag) => typeof tag !== "string" || tag.length === 0) ||
+      !isRecord(labels) ||
+      id !== expected.id ||
+      !sameJson(tags, [expected.tag]) ||
+      labels["org.opencontainers.image.revision"] !== expected.targetCommit ||
+      labels["evo.recovery.project"] !== expected.projectName ||
+      labels["evo.recovery.type"] !== "candidate-image" ||
+      labels["evo.recovery.target-tree"] !== expected.targetTree ||
+      labels["evo.recovery.snapshot-archive-sha256"] !== expected.archiveSha256 ||
+      labels["evo.recovery.build-network"] !== expected.buildNetwork
     ) {
       fail("cleanup_image_inventory_invalid", "cleanup");
     }
-    ids.push(fields[0]);
+    assertExactRecoveryOwnershipLabels(labels, {
+      "evo.recovery.project": expected.projectName,
+      "evo.recovery.type": "candidate-image",
+    }, {}, "cleanup_image_inventory_invalid");
+    ids.push(id);
   }
   if (new Set(ids).size !== ids.length) fail("cleanup_image_inventory_invalid", "cleanup");
   return Object.freeze(ids);
 }
 
-async function cleanupInventory(state, supervisor, tools, { allowAfterInterrupt = false, stage = "cleanup" } = {}) {
-  const [containers, volumes, networks, images] = await Promise.all([
-    runDocker(supervisor, tools.docker, ["--context", "orbstack", "ps", "--all", "--format", "{{.ID}}\t{{.Names}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt }),
+export function selectCandidateImageIds(output) {
+  const ids = String(output).split(/\r?\n/u).filter(Boolean);
+  if (ids.some((id) => !/^sha256:[0-9a-f]{64}$/u.test(id))) {
+    fail("cleanup_image_list_invalid", "cleanup");
+  }
+  return Object.freeze([...new Set(ids)]);
+}
+
+function cleanupCapturedIdentity(state) {
+  const containers = [
+    ...(Array.isArray(state?.supabaseContainerIds) ? state.supabaseContainerIds : []),
+    state?.scannerContainer,
+    state?.appContainerId,
+    state?.appProxyContainerId,
+  ].filter((id) => typeof id === "string").sort();
+  const volumes = Array.isArray(state?.ownedVolumeNames) ? [...state.ownedVolumeNames].sort() : [];
+  const volumeIdentities = Array.isArray(state?.ownedVolumeIdentities)
+    ? state.ownedVolumeIdentities.map((identity) => validatedCleanupVolumeIdentity(identity))
+      .sort((left, right) => left.name.localeCompare(right.name, "en"))
+    : [];
+  const networkIds = typeof state?.networkId === "string" ? [state.networkId] : [];
+  const images = isRecord(state?.appImageIdentity) ? [state.appImageIdentity.id] : [];
+  const imageReferenceContainerIds = images.length === 1
+    ? [state?.appContainerId, state?.appProxyContainerId].filter((id) => typeof id === "string").sort()
+    : [];
+  if (
+    containers.some((id) => !SHA256.test(id)) || new Set(containers).size !== containers.length ||
+    volumes.some((name) => typeof name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/u.test(name)) ||
+    new Set(volumes).size !== volumes.length ||
+    new Set(volumeIdentities.map(({ name }) => name)).size !== volumeIdentities.length ||
+    !sameJson(volumes, volumeIdentities.map(({ name }) => name)) ||
+    networkIds.some((id) => !SHA256.test(id)) ||
+    images.some((id) => !/^sha256:[0-9a-f]{64}$/u.test(id)) ||
+    (images.length === 1 && state?.appImageId !== images[0]) ||
+    ((typeof state?.appContainerId === "string" || typeof state?.appProxyContainerId === "string") && images.length !== 1) ||
+    imageReferenceContainerIds.some((id) => !containers.includes(id))
+  ) {
+    fail("cleanup_captured_identity_invalid", "cleanup");
+  }
+  return Object.freeze({
+    containers: Object.freeze(containers),
+    volumes: Object.freeze(volumes),
+    volumeIdentities: Object.freeze(volumeIdentities),
+    networkIds: Object.freeze(networkIds),
+    images: Object.freeze(images),
+    imageReferenceContainerIds: Object.freeze(imageReferenceContainerIds),
+  });
+}
+
+function assertCleanupInventoryIdentity(inventory, expected) {
+  for (const field of ["containers", "volumes", "volumeIdentities", "networkIds", "images", "imageReferenceContainerIds"]) {
+    if (!Array.isArray(inventory?.[field]) || !Array.isArray(expected?.[field])) {
+      fail("cleanup_captured_identity_invalid", "cleanup");
+    }
+    if (!sameJson([...inventory[field]].sort(), [...expected[field]].sort())) {
+      fail("cleanup_identity_drift", "cleanup");
+    }
+  }
+}
+
+async function cleanupInventory(state, supervisor, tools, {
+  allowAfterInterrupt = false,
+  expectedIdentity,
+  stage = "cleanup",
+} = {}) {
+  const [containerList, volumeList, networkList, imageList] = await Promise.all([
+    runDocker(supervisor, tools.docker, ["--context", "orbstack", "ps", "--all", "--no-trunc", "--format", "{{.ID}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt, maxCaptureBytes: 4 * 1_024 * 1_024 }),
     runDocker(supervisor, tools.docker, ["--context", "orbstack", "volume", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_volume_inventory_failed", allowAfterInterrupt }),
     runDocker(supervisor, tools.docker, ["--context", "orbstack", "network", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_network_inventory_failed", allowAfterInterrupt }),
-    runDocker(supervisor, tools.docker, ["--context", "orbstack", "image", "ls", "--all", "--no-trunc", "--filter", `label=evo.recovery.owner=${state.projectName}`, "--format", "{{.ID}}\t{{.Repository}}:{{.Tag}}\t{{.Label \"evo.recovery.owner\"}}"], { stage, code: "cleanup_image_inventory_failed", allowAfterInterrupt }),
+    runDocker(supervisor, tools.docker, [
+      "--context", "orbstack", "image", "ls", "--all", "--no-trunc",
+      "--filter", `label=evo.recovery.project=${state.projectName}`,
+      "--filter", "label=evo.recovery.type=candidate-image",
+      "--format", "{{.ID}}",
+    ], { stage, code: "cleanup_image_inventory_failed", allowAfterInterrupt }),
   ]);
-  return Object.freeze({
-    containers: selectOwnedContainerIds(containers.stdout.toString("utf8"), state.projectName),
-    volumes: selectOwnedVolumeNames(volumes.stdout.toString("utf8"), state.projectName),
-    networks: selectOwnedNetworkNames(networks.stdout.toString("utf8"), state.networkName),
-    images: selectOwnedImageIds(images.stdout.toString("utf8"), state.projectName),
+  const containerIds = containerList.stdout.toString("utf8").split(/\r?\n/u).filter(Boolean);
+  if (containerIds.some((id) => !SHA256.test(id)) || new Set(containerIds).size !== containerIds.length) {
+    fail("cleanup_container_inventory_invalid", "cleanup");
+  }
+  const volumeNames = volumeList.stdout.toString("utf8").split(/\r?\n/u).filter(Boolean);
+  if (
+    volumeNames.some((name) => !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/u.test(name)) ||
+    new Set(volumeNames).size !== volumeNames.length
+  ) {
+    fail("cleanup_volume_inventory_invalid", "cleanup");
+  }
+  const networkNames = networkList.stdout.toString("utf8").split(/\r?\n/u).filter(Boolean);
+  const candidateNetworkNames = networkNames.filter((name) => name === state.networkName);
+  if (candidateNetworkNames.length > 1) fail("cleanup_network_inventory_invalid", "cleanup");
+  const [containerInspection, volumeInspection, networkInspection] = await Promise.all([
+    containerIds.length === 0
+      ? Promise.resolve({ stdout: Buffer.from("") })
+      : runDocker(supervisor, tools.docker, [
+        "--context", "orbstack", "inspect", "--format", SAFE_CLEANUP_CONTAINER_INSPECT_FORMAT, ...containerIds,
+      ], { stage, code: "cleanup_container_inspection_failed", allowAfterInterrupt, maxCaptureBytes: 4 * 1_024 * 1_024 }),
+    volumeNames.length === 0
+      ? Promise.resolve({ stdout: Buffer.from("") })
+      : runDocker(supervisor, tools.docker, [
+        "--context", "orbstack", "volume", "inspect", "--format", SAFE_CLEANUP_VOLUME_INSPECT_FORMAT, ...volumeNames,
+      ], { stage, code: "cleanup_volume_inspection_failed", allowAfterInterrupt, maxCaptureBytes: 4 * 1_024 * 1_024 }),
+    candidateNetworkNames.length === 0
+      ? Promise.resolve({ stdout: Buffer.from("") })
+      : runDocker(supervisor, tools.docker, [
+        "--context", "orbstack", "network", "inspect", "--format", SAFE_CLEANUP_NETWORK_INSPECT_FORMAT, ...candidateNetworkNames,
+      ], { stage, code: "cleanup_network_inspection_failed", allowAfterInterrupt }),
+  ]);
+  const candidateImageIds = selectCandidateImageIds(imageList.stdout.toString("utf8"));
+  const containerInspectionText = containerInspection.stdout.toString("utf8");
+  let images = Object.freeze([]);
+  if (candidateImageIds.length > 0) {
+    if (!isRecord(state.appImageIdentity)) fail("cleanup_image_inventory_invalid", "cleanup");
+    const inspected = await runDocker(supervisor, tools.docker, [
+      "--context", "orbstack", "image", "inspect",
+      "--format", "{{json .Id}}\t{{json .RepoTags}}\t{{json .Config.Labels}}",
+      ...candidateImageIds,
+    ], { stage, code: "cleanup_image_inspection_failed", allowAfterInterrupt });
+    images = selectOwnedImageIds(inspected.stdout.toString("utf8"), state.appImageIdentity);
+    if (!sameJson([...images].sort(), [...candidateImageIds].sort())) {
+      fail("cleanup_image_inventory_invalid", "cleanup");
+    }
+  }
+  const networkIds = selectOwnedNetworkIds(networkInspection.stdout.toString("utf8"), state.networkName);
+  const volumeIdentities = selectOwnedVolumeIdentities(volumeInspection.stdout.toString("utf8"), state.projectName);
+  const inventory = Object.freeze({
+    containers: selectOwnedContainerIds(containerInspectionText, state.projectName),
+    volumes: Object.freeze(volumeIdentities.map(({ name }) => name)),
+    volumeIdentities,
+    networks: networkIds.length === 0 ? Object.freeze([]) : Object.freeze([state.networkName]),
+    networkIds,
+    images,
+    imageReferenceContainerIds: isRecord(state.appImageIdentity)
+      ? selectCandidateImageContainerReferences(containerInspectionText, state.appImageIdentity.id)
+      : Object.freeze([]),
   });
+  if (expectedIdentity !== undefined) assertCleanupInventoryIdentity(inventory, expectedIdentity);
+  return inventory;
 }
 
 export async function cleanupState(state, supervisor, toolchain) {
   const descendantsDrained = await supervisor.stopAll();
-  const targetsOwned = safeHarnessRoot(state.harnessRoot);
+  const targetsOwned = safeHarnessRoot(state.harnessRoot, state.projectName);
   const containerPolicy = cleanupContainerPolicy(state, Boolean(
     toolchain?.paths?.docker?.real &&
     toolchain?.paths?.supabaseNative?.real &&
@@ -4093,36 +6700,62 @@ export async function cleanupState(state, supervisor, toolchain) {
         return false;
       }
     };
-    if (state.appContainer) cleanupSucceeded = (await run(["rm", "--force", state.appContainer])) && cleanupSucceeded;
-    if (state.stackStarted && state.supabaseRoot) {
-      try {
-        await supervisor.run(toolchain.paths.supabaseNative.real, ["stop", "--workdir", state.supabaseRoot, "--no-backup"], {
-          stage: "cleanup",
-          code: "supabase_stop_failed",
-          timeoutMs: 5 * 60 * 1_000,
-          maxCaptureBytes: 8 * 1_024 * 1_024,
-          allowAfterInterrupt: true,
-          env: pinnedSupabaseEnvironment(toolchain.paths),
+    try {
+      let expectedIdentity = cleanupCapturedIdentity(state);
+      let owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
+      if (owned.containers.length > 0) {
+        cleanupSucceeded = (await run(["rm", "--force", ...owned.containers])) && cleanupSucceeded;
+        expectedIdentity = Object.freeze({
+          ...expectedIdentity,
+          containers: Object.freeze([]),
+          imageReferenceContainerIds: Object.freeze([]),
         });
-      } catch {
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
+      }
+      if (owned.containers.length > 0) cleanupSucceeded = false;
+      if (cleanupSucceeded && owned.images.length > 0) {
+        cleanupSucceeded = (await run(["image", "rm", ...owned.images])) && cleanupSucceeded;
+        expectedIdentity = Object.freeze({ ...expectedIdentity, images: Object.freeze([]) });
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
+      }
+      if (cleanupSucceeded && owned.volumes.length > 0) {
+        cleanupSucceeded = (await run(["volume", "rm", ...owned.volumes])) && cleanupSucceeded;
+        expectedIdentity = Object.freeze({
+          ...expectedIdentity,
+          volumes: Object.freeze([]),
+          volumeIdentities: Object.freeze([]),
+        });
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
+      }
+      if (cleanupSucceeded && owned.networkIds.length > 0) {
+        cleanupSucceeded = (await run(["network", "rm", ...owned.networkIds])) && cleanupSucceeded;
+        expectedIdentity = Object.freeze({ ...expectedIdentity, networkIds: Object.freeze([]) });
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
+      }
+      if (
+        owned.containers.length ||
+        owned.volumes.length ||
+        owned.volumeIdentities.length ||
+        owned.networkIds.length ||
+        owned.images.length ||
+        owned.imageReferenceContainerIds.length
+      ) {
         cleanupSucceeded = false;
       }
-    }
-    try {
-      const owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
-      if (owned.containers.length > 0) cleanupSucceeded = (await run(["rm", "--force", ...owned.containers])) && cleanupSucceeded;
-      if (owned.images.length > 0) cleanupSucceeded = (await run(["image", "rm", "--force", ...owned.images])) && cleanupSucceeded;
-      if (owned.volumes.length > 0) cleanupSucceeded = (await run(["volume", "rm", "--force", ...owned.volumes])) && cleanupSucceeded;
-      if (owned.networks.length > 0) cleanupSucceeded = (await run(["network", "rm", ...owned.networks])) && cleanupSucceeded;
-      const remaining = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
-      if (remaining.containers.length || remaining.volumes.length || remaining.networks.length || remaining.images.length) cleanupSucceeded = false;
     } catch {
       cleanupSucceeded = false;
     }
   }
-  const disposition = cleanupDisposition({ descendantsDrained, targetsOwned, cleanupSucceeded });
-  if (disposition === "remove") rmSync(state.harnessRoot, { recursive: true, force: false });
-  else if (safeHarnessRoot(state.harnessRoot)) {
+  let disposition = cleanupDisposition({ descendantsDrained, targetsOwned, cleanupSucceeded });
+  if (disposition === "remove") {
+    try {
+      guardedRemoveHarness(state.harnessRoot, state.projectName);
+    } catch {
+      cleanupSucceeded = false;
+      disposition = "quarantine";
+    }
+  }
+  if (disposition === "quarantine" && safeHarnessRoot(state.harnessRoot, state.projectName)) {
     const quarantine = `${state.harnessRoot}${QUARANTINE_SUFFIX}-${randomUUID()}`;
     try {
       renameSync(state.harnessRoot, quarantine);
@@ -4203,6 +6836,10 @@ function durableToolEvidence(value) {
     "docker_context",
     "docker_client",
     "docker_server",
+    "docker_buildx",
+    "node",
+    "private_home_mode",
+    "private_docker_config_mode",
     "chromium",
     "git_realpath_sha256",
     "sshKeygen_realpath_sha256",
@@ -4211,6 +6848,9 @@ function durableToolEvidence(value) {
     "orb_realpath_sha256",
     "docker_realpath_sha256",
     "psql_realpath_sha256",
+    "node_realpath_sha256",
+    "openssl_realpath_sha256",
+    "dockerBuildx_realpath_sha256",
     "supabaseLauncher_realpath_sha256",
     "supabaseNative_realpath_sha256",
     "supabaseGo_realpath_sha256",
@@ -4221,6 +6861,10 @@ function durableToolEvidence(value) {
     "orb_binary_sha256",
     "docker_binary_sha256",
     "psql_binary_sha256",
+    "node_binary_sha256",
+    "openssl_binary_sha256",
+    "dockerBuildx_binary_sha256",
+    "private_buildx_realpath_sha256",
     "supabaseLauncher_binary_sha256",
     "supabaseNative_binary_sha256",
     "supabaseGo_binary_sha256",
@@ -4250,6 +6894,12 @@ function durableToolEvidence(value) {
                     ? /^OrbStack \d[A-Za-z0-9.+_-]*$/u.test(field)
                     : key === "docker_context"
                       ? field === "orbstack"
+                      : key === "node"
+                        ? field === REQUIRED_NODE_VERSION
+                        : key === "docker_buildx"
+                          ? /^buildx \d[A-Za-z0-9.+_-]*$/u.test(field)
+                          : new Set(["private_home_mode", "private_docker_config_mode"]).has(key)
+                            ? field === "700"
                       : new Set(["docker_client", "docker_server"]).has(key)
                         ? VERSION.test(field)
                         : key === "chromium"
@@ -4274,6 +6924,11 @@ export function buildDurableEvidence({ result, failure, interrupted, stages, cle
       "sales_representative_missing",
       "admissions_representative_missing",
       "storage_source_object_missing",
+      "preexisting_cross_organization_reference_missing",
+      "restored_sales_lead_missing",
+      "restored_admissions_task_missing",
+      "restored_downloadable_document_missing",
+      "restored_role_outcome_proof_incomplete",
     ]).has(blocker));
   let durableFailure = interrupted
     ? Object.freeze({ code: "recovery_interrupted", stage: "signal", diagnostic: Object.freeze({ signal: interrupted }) })
@@ -4315,6 +6970,44 @@ export function buildDurableEvidence({ result, failure, interrupted, stages, cle
     });
   }
   return Object.freeze({ ...result, tools: safeTools, isolation, stages, cleanup });
+}
+
+export function buildRestoredRoleOutcomeReadiness(actors, serverProof = {}, browserProof = {}) {
+  const outcomes = {};
+  for (const role of ["admin", "sales", "admissions"]) {
+    if (!isRecord(actors?.[role])) {
+      outcomes[role] = "missing_restored_identity";
+    } else if (serverProof?.outcomes?.[role] !== "passed") {
+      outcomes[role] = typeof serverProof?.outcomes?.[role] === "string"
+        ? serverProof.outcomes[role]
+        : "incomplete_mutation_replay_audit_document_suite";
+    } else if (browserProof?.roleOutcomes?.[role] !== "passed") {
+      outcomes[role] = "incomplete_exact_role_browser_readback";
+    } else {
+      outcomes[role] = "passed";
+    }
+  }
+  const complete = Object.values(outcomes).every((outcome) => outcome === "passed");
+  const acceptedDataBlockers = new Set([
+    "restored_sales_lead_missing",
+    "restored_admissions_task_missing",
+    "restored_downloadable_document_missing",
+  ]);
+  const blockers = complete
+    ? []
+    : [
+        ...(Array.isArray(serverProof?.blockers)
+          ? serverProof.blockers.filter((blocker) => acceptedDataBlockers.has(blocker))
+          : []),
+        "restored_role_outcome_proof_incomplete",
+      ];
+  return Object.freeze({
+    complete,
+    blocker: complete ? null : "restored_role_outcome_proof_incomplete",
+    blockers: Object.freeze([...new Set(blockers)]),
+    outcomes: Object.freeze(outcomes),
+    required: "Sales and Admissions canonical mutation, idempotent replay, correlated append-only audit, private-document readback, and exact-role browser readback",
+  });
 }
 
 export function latchInterruption(state, supervisor, signal) {
@@ -4378,9 +7071,23 @@ async function executeMode(mode, options) {
     supabaseRoot: undefined,
     containerPreflightPassed: false,
     containerMutationAttempted: false,
+    containerMutationCapture: Object.freeze({ stage: null, status: "not_started" }),
     stackStarted: false,
     networkCreated: false,
+    networkId: undefined,
+    supabaseContainerIds: undefined,
+    ownedVolumeNames: undefined,
+    ownedVolumeIdentities: undefined,
     appContainer: undefined,
+    appContainerId: undefined,
+    appProxyContainer: undefined,
+    appProxyContainerId: undefined,
+    appImageTag: undefined,
+    appImageId: undefined,
+    appImageIdentity: undefined,
+    scannerContainer: undefined,
+    scannerIdentity: undefined,
+    scannerSignatureVolume: undefined,
     browserRecord: undefined,
     interrupted: undefined,
     signalCount: 0,
@@ -4416,7 +7123,8 @@ async function executeMode(mode, options) {
   process.on("SIGINT", sigint);
   process.on("SIGTERM", sigterm);
   try {
-    toolchain = await runStage("toolchain", () => trustedToolchain(supervisor, state.availableTools));
+    if (process.versions.node !== REQUIRED_NODE_VERSION) fail("node_22_required", "toolchain");
+    toolchain = await runStage("toolchain", () => trustedToolchain(supervisor, harnessRoot, state.availableTools));
     state.containerPreflightPassed = true;
     const repository = await runStage("repository", () => repositorySnapshot(supervisor, toolchain.paths, options));
     const artifacts = await runStage("signed_artifact_validation", () => prepareArtifacts(options, harnessRoot, supervisor, toolchain));
@@ -4492,6 +7200,10 @@ async function executeMode(mode, options) {
         restoredDatabaseCount: verifiedLedger.source.length,
         pendingDatabaseMigrationCount: verifiedLedger.pending.length,
         orderedLedgerSha256: verifiedLedger.orderedLedgerSha256,
+        recordedRootHistoryExceptionCount: verifiedLedger.recordedRootHistoryExceptions.length,
+        recordedRootHistoryExceptionSha256: sha256(canonicalJson(verifiedLedger.recordedRootHistoryExceptions)),
+        emptyStatementHistoryExceptionCount: verifiedLedger.emptyStatementHistoryExceptions.length,
+        emptyStatementHistoryExceptionSha256: sha256(canonicalJson(verifiedLedger.emptyStatementHistoryExceptions)),
         sourceRecordedHistoryValidatedCount: sourceRoot.recordedHistoryCount,
         targetRecordedHistoryValidatedCount: targetRoot.recordedHistoryCount,
       }),
@@ -4517,7 +7229,24 @@ async function executeMode(mode, options) {
     } else {
       const ports = await runStage("port_reservation", reservePorts);
       const local = await runStage("local_supabase_start", () => startLocalSupabase(state, targetRoot, ports, supervisor, toolchain));
+      const localDestinationInventory = await runStage("local_supabase_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "local_supabase_identity" }));
+      state.ownedVolumeNames = localDestinationInventory.volumes;
+      state.ownedVolumeIdentities = localDestinationInventory.volumeIdentities;
+      assertCleanupInventoryIdentity(localDestinationInventory, cleanupCapturedIdentity(state));
+      completeContainerMutationCapture(state, "local_supabase_start");
+      const scanner = await runStage("malware_scanner_start", () => startRecoveryScanner(
+        state,
+        local.status,
+        image.snapshot.root,
+        supervisor,
+        toolchain,
+        state.interruptionGuard,
+      ));
       const destinationInventory = await runStage("destination_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "destination_identity" }));
+      state.ownedVolumeNames = destinationInventory.volumes;
+      state.ownedVolumeIdentities = destinationInventory.volumeIdentities;
+      assertCleanupInventoryIdentity(destinationInventory, cleanupCapturedIdentity(state));
+      completeContainerMutationCapture(state, "malware_scanner_start");
       state.isolationInput.destination = {
         projectRef: state.projectName,
         urls: [local.status.apiUrl, local.status.dbUrl],
@@ -4529,37 +7258,74 @@ async function executeMode(mode, options) {
       const isolation = state.isolationEvidence;
       const extracted = await runStage("storage_archive_validation", () => extractStorage(artifacts, state, supervisor, toolchain));
       const database = await runStage("database_restore", async () => {
-        await restoreDatabase(artifacts, local.status, supervisor, toolchain);
-        return await reconcileRestoredDatabase(artifacts, local.status, supervisor, toolchain);
+        const extensionRelations = await restoreDatabase(artifacts, local.status, supervisor, toolchain);
+        return Object.freeze({
+          ...await reconcileRestoredDatabase(artifacts, local.status, supervisor, toolchain),
+          extensionRelations,
+        });
       });
-      const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(state, local, targetRoot, verifiedLedger, supervisor, toolchain));
+      const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(
+        state,
+        local,
+        targetRoot,
+        verifiedLedger,
+        database.extensionRelations,
+        supervisor,
+        toolchain,
+      ));
       const storage = await runStage("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain, state.interruptionGuard));
       if (!sameJson(storage.readiness, sourceStorageReadiness)) fail("storage_source_readiness_mismatch", "storage_verification");
+      const targetStorage = await runStage("target_storage_configuration", () => reconcileTargetStorageBuckets(
+        local.status,
+        targetRoot.config,
+        artifacts.storage.buckets,
+        state.interruptionGuard,
+      ));
       const actorReadiness = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));
       const actors = actorReadiness.actors;
       const completeRoleCohort = ["admin", "sales", "admissions"].every((role) => isRecord(actors[role]));
-      const authorization = await runStage("authorization_and_audit", async () => completeRoleCohort
+      const authorizationProof = await runStage("authorization_and_audit", async () => completeRoleCohort
         ? await proveRlsAndCanonicalWrite(options, local.status, actors, supervisor, toolchain, state.interruptionGuard)
         : Object.freeze({
-          status: "not_run_missing_representatives",
-          evidenceScope: "requires_distinct_real_admin_sales_admissions",
+          evidence: Object.freeze({
+            status: "not_run_missing_representatives",
+            evidenceScope: "requires_distinct_real_admin_sales_admissions",
+          }),
+          blockers: Object.freeze([]),
         }));
+      const roleServerProof = await runStage("role_outcome_proof", () => proveRestoredRoleServerOutcomes(
+        options,
+        local.status,
+        actors,
+        supervisor,
+        toolchain,
+        state.interruptionGuard,
+      ));
       const documentActor = actors.sales ?? actors.admin;
       const document = await runStage("private_document", async () => documentActor
-        ? await provePrivateDocument(local.status, documentActor, artifacts.storage, state.interruptionGuard)
+        ? await provePrivateDocument(local.status, documentActor, targetStorage.buckets, state.interruptionGuard)
         : Object.freeze({
           status: "not_run_missing_representative",
           evidenceScope: "behavior_canary_only_not_source_recovery",
         }));
+      const providerConfigurationBoundary = await runStage("provider_boundary", () => recordRecoveryProviderBoundary(
+        local.status,
+        options.platformOrganizationId,
+        repository.target.commit,
+        state.interruptionGuard,
+      ));
       const storageReadiness = await runStage("storage_source_readiness", async () => sourceStorageReadiness);
-      const app = await runStage("candidate_start", () => startCandidateApp(options, local.status, actors, state, supervisor, toolchain, image, ports.app, state.interruptionGuard));
+      const app = await runStage("candidate_start", () => startCandidateApp(options, local.status, actors, state, supervisor, toolchain, image, scanner, ports.app, state.interruptionGuard));
       const browser = await runStage("browser_proof", async () => Object.keys(actors).length > 0
-        ? await proveBrowser(app, state, supervisor, state.interruptionGuard)
+        ? await proveBrowser(app, local.status, scanner, roleServerProof, state, supervisor, toolchain, state.interruptionGuard)
         : Object.freeze({ status: "not_run_missing_representative", evidenceScope: "no_real_representative_available" }));
-      const blockers = Object.freeze([
+      const roleOutcomes = buildRestoredRoleOutcomeReadiness(actors, roleServerProof, browser);
+      const blockers = Object.freeze([...new Set([
         ...actorReadiness.blockers,
+        ...authorizationProof.blockers,
         ...(storageReadiness.status === "ready" ? [] : [storageReadiness.blocker]),
-      ]);
+        ...roleOutcomes.blockers,
+      ])]);
       const representatives = Object.freeze({
         presentRoles: Object.freeze(["admin", "sales", "admissions"].filter((role) => isRecord(actors[role]))),
         userIdSha256ByRole: Object.freeze(Object.fromEntries(
@@ -4571,13 +7337,26 @@ async function executeMode(mode, options) {
         schema: RESULT_SCHEMA,
         ...shared,
         isolation,
+        networkEgress: local.egress,
         database,
         migrations,
         storage,
+        targetStorage: targetStorage.evidence,
         representatives,
-        authorization,
+        authorization: Object.freeze({
+          ...authorizationProof.evidence,
+          roleOutcomeProof: roleServerProof.evidence,
+        }),
         document,
+        providerConfigurationBoundary,
+        malwareScanner: browser.malwareScanner ?? Object.freeze({
+          status: "not_run_missing_admin_representative",
+          image: scanner.image,
+          network: scanner.network,
+          publish: scanner.publish,
+        }),
         browser,
+        roleOutcomes,
       };
       result = blockers.length > 0
         ? Object.freeze({
@@ -4603,7 +7382,7 @@ async function executeMode(mode, options) {
       if (state.signalShutdown) await state.signalShutdown;
       cleanup = await cleanupState(state, supervisor, toolchain);
     } catch {
-      cleanup = Object.freeze({ descendantsDrained: false, targetsOwned: safeHarnessRoot(state.harnessRoot), cleanupSucceeded: false, disposition: "quarantine" });
+      cleanup = Object.freeze({ descendantsDrained: false, targetsOwned: safeHarnessRoot(state.harnessRoot, state.projectName), cleanupSucceeded: false, disposition: "quarantine" });
     }
     const evidence = buildDurableEvidence({
       result,

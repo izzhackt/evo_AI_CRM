@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
@@ -14,6 +14,7 @@ import {
   assessRepresentativeCohort,
   apiRequest,
   browserRequestAllowed,
+  buildRestoredRoleOutcomeReadiness,
   canonicalRecoveryPdfBytes,
   buildDurableEvidence,
   buildIsolationEvidence,
@@ -26,24 +27,31 @@ import {
   extractExactMigrationLedger,
   evidenceDestination,
   gitBlobOid,
+  guardedRemoveHarness,
   installBrowserWebSocketBlocker,
   latchInterruption,
   migrationStatementsDigest,
   parseHarnessOptions,
+  parseTargetStorageBucketConfig,
   privateBackupDirectory,
+  reconcileTargetStorageBuckets,
   parseTargetTreeListing,
   orderedTargetEntries,
   orbStackEnvironment,
   runBrowserOperation,
   resolveSupabaseExecutableChain,
+  resolveStorageSignedObjectUrl,
   sanitizePsqlDiagnostic,
   sanitizeCommandDiagnostic,
   storageSourceRecoveryReadiness,
   suppliedRepresentativeUserIds,
   selectAdmissionsTaskMutation,
   selectOwnedContainerIds,
+  selectCandidateImageContainerReferences,
+  selectCandidateImageIds,
   selectOwnedImageIds,
-  selectOwnedNetworkNames,
+  selectOwnedNetworkIds,
+  selectOwnedVolumeIdentities,
   selectOwnedVolumeNames,
   uploadStorageObjectFromFile,
   validateEvidenceRuntimeSeparation,
@@ -54,12 +62,17 @@ import {
   validateDatabaseManifest,
   validateBuiltImageInspection,
   validateLocalSupabaseNetwork,
+  validatePgmqContainmentProof,
+  validatePgmqRestoreInventory,
   validateRepresentativeCohort,
   validateRepositoryBindings,
   validateRestoredDatabaseAggregates,
+  validateRestoredTableCounts,
+  validateRestrictedSqlFile,
   validateRestrictedSqlEnvelope,
   validateSignedReceipt,
   validateStorageManifest,
+  validateTargetStorageBuckets,
   validateWriteBoundaryResults,
   verifyLedgerAgainstRoot,
   verifyMigrationTreePrefix,
@@ -79,6 +92,127 @@ const sourceFullTree = "6".repeat(40);
 const targetFullTree = "7".repeat(40);
 const commit = sourceCommit;
 const migrationTree = sourceMigrationTree;
+
+test("runtime preflight pins Node 22 and provisions private OrbStack buildx state", () => {
+  assert.match(source, /const REQUIRED_NODE_VERSION = "22\.23\.1"/u);
+  assert.match(source, /process\.versions\.node !== REQUIRED_NODE_VERSION/u);
+  assert.match(source, /function activatePrivateChildEnvironment/u);
+  assert.match(source, /DOCKER_CONFIG:\s*dockerConfig/u);
+  assert.match(source, /dockerConfig, "cli-plugins"/u);
+  assert.match(source, /"docker-buildx"/u);
+  assert.match(source, /private_docker_buildx_unavailable/u);
+});
+
+test("candidate image uses a production-valid local Supabase TLS origin", () => {
+  assert.match(source, /const RECOVERY_SUPABASE_HOSTNAME = "evov3recoverylocal00\.supabase\.co"/u);
+  assert.match(source, /function createRecoveryTlsMaterial/u);
+  assert.match(source, /subjectAltName = DNS:\$\{RECOVERY_SUPABASE_HOSTNAME\}/u);
+  assert.match(source, /NEXT_PUBLIC_SUPABASE_URL:\s*`https:\/\/\$\{RECOVERY_SUPABASE_HOSTNAME\}`/u);
+  assert.match(source, /NODE_EXTRA_CA_CERTS:\s*"\/run\/evo-recovery-ca\.pem"/u);
+  assert.match(source, /"--network", `container:\$\{state\.appContainer\}`/u);
+  assert.match(source, /recovery_app_tls_proxy_start_failed/u);
+});
+
+test("provider configuration evidence is local-only and authenticated readiness stays fail-closed", () => {
+  const providerStart = source.indexOf("async function recordRecoveryProviderBoundary");
+  const readinessStart = source.indexOf("async function proveFailClosedReadiness");
+  const runStart = source.indexOf("async function executeMode");
+  const providerCall = source.indexOf('runStage("provider_boundary"', runStart);
+  const appCall = source.indexOf('runStage("candidate_start"', runStart);
+  assert.ok(providerStart > 0 && readinessStart > providerStart);
+  assert.ok(providerCall > runStart && appCall > providerCall);
+  assert.match(source.slice(providerStart, readinessStart), /p_readiness:\s*"unconfigured"/u);
+  assert.match(source.slice(providerStart, readinessStart), /p_evidence_kind:\s*"configuration_check"/u);
+  assert.match(source.slice(readinessStart, runStart), /createHmac\("sha256"/u);
+  assert.match(source.slice(readinessStart, runStart), /\[503\]/u);
+  assert.match(source.slice(readinessStart, runStart), /waha_evidence_kind !== "configuration_check"/u);
+  assert.match(source.slice(readinessStart, runStart), /ai_evidence_kind !== "configuration_check"/u);
+});
+
+test("Admin passes only after complete server and exact-role browser outcomes", () => {
+  const missing = buildRestoredRoleOutcomeReadiness({ admin: { userId: "admin" } });
+  assert.equal(missing.complete, false);
+  assert.equal(missing.blocker, "restored_role_outcome_proof_incomplete");
+  assert.equal(missing.outcomes.admin, "incomplete_mutation_replay_audit_document_suite");
+  assert.equal(missing.outcomes.sales, "missing_restored_identity");
+  const actors = { admin: {}, sales: {}, admissions: {} };
+  const server = {
+    outcomes: { admin: "passed", sales: "passed", admissions: "passed" },
+    blockers: [],
+  };
+  const browserIncomplete = buildRestoredRoleOutcomeReadiness(actors, server, {
+    roleOutcomes: { admin: "passed", sales: "passed", admissions: "not_run_incomplete_server_outcomes" },
+  });
+  assert.equal(browserIncomplete.complete, false);
+  assert.equal(browserIncomplete.outcomes.admissions, "incomplete_exact_role_browser_readback");
+  const complete = buildRestoredRoleOutcomeReadiness(actors, server, {
+    roleOutcomes: { admin: "passed", sales: "passed", admissions: "passed" },
+  });
+  assert.equal(complete.complete, true);
+  assert.equal(complete.blocker, null);
+  assert.deepEqual(complete.blockers, []);
+  assert.deepEqual(complete.outcomes, { admin: "passed", sales: "passed", admissions: "passed" });
+  const missingData = buildRestoredRoleOutcomeReadiness(actors, {
+    outcomes: {
+      admin: "incomplete_role_outcome_suite",
+      sales: "missing_restored_sales_lead",
+      admissions: "missing_restored_admissions_task",
+    },
+    blockers: ["restored_sales_lead_missing", "restored_admissions_task_missing"],
+  });
+  assert.deepEqual(missingData.blockers, [
+    "restored_sales_lead_missing",
+    "restored_admissions_task_missing",
+    "restored_role_outcome_proof_incomplete",
+  ]);
+  assert.match(source, /restored_role_outcome_proof_incomplete/u);
+});
+
+test("private pinned ClamAV is exercised through the Company Files product route", () => {
+  const scannerStart = source.indexOf("async function startRecoveryScanner");
+  const dataPathStart = source.indexOf("async function proveScannerDataPath");
+  const browserStart = source.indexOf("async function proveBrowser", dataPathStart);
+  assert.ok(scannerStart > 0 && dataPathStart > scannerStart && browserStart > dataPathStart);
+  const scannerSource = source.slice(scannerStart, dataPathStart);
+  const dataPathSource = source.slice(dataPathStart, browserStart);
+  assert.match(source, /clamav\/clamav@sha256:[0-9a-f]{64}/u);
+  assert.match(scannerSource, /const networkHost = `evo-recovery-clamav-/u);
+  assert.match(scannerSource, /"--network-alias", networkHost/u);
+  assert.match(scannerSource, /`evo\.recovery\.scanner=\$\{state\.projectName\}`/u);
+  assert.match(scannerSource, /"evo\.recovery\.type=malware-scanner"/u);
+  assert.match(scannerSource, /network:\s*"owned_egress_blocked_non_internal_bridge"/u);
+  assert.doesNotMatch(scannerSource, /unique_internal_recovery_network/u);
+  assert.match(scannerSource, /publish:\s*"none"/u);
+  assert.match(source, /\/api\/v3\/company-files\/\$\{encodeURIComponent\(fileId\)\}\/versions/u);
+  assert.match(dataPathSource, /malware_scanner_clean_attestation_invalid/u);
+  assert.match(dataPathSource, /malware_scanner_eicar_persisted_state/u);
+  assert.match(dataPathSource, /malware_scanner_outage_persisted_state/u);
+  assert.match(dataPathSource, /malware_scanner_recovered_persistence_invalid/u);
+  assert.match(dataPathSource, /Buffer\.from\(EICAR, "ascii"\)/u);
+});
+
+test("restored role proof mutates existing records, replays, audits, and reads back in browser", () => {
+  const roleStart = source.indexOf("async function proveRestoredRoleServerOutcomes");
+  const storageStart = source.indexOf("export function canonicalRecoveryPdfBytes", roleStart);
+  const roleSource = source.slice(roleStart, storageStart);
+  assert.ok(roleStart > 0 && storageStart > roleStart);
+  assert.match(roleSource, /staff_sales_lead_page/u);
+  assert.match(roleSource, /mutate_sales_lead_workflow/u);
+  assert.match(roleSource, /change_case_task/u);
+  assert.match(roleSource, /staff_student_case_task_workspace/u);
+  assert.match(roleSource, /staff_document_queue/u);
+  assert.match(roleSource, /assertReplayResult/u);
+  assert.match(roleSource, /assertRoleMutationAudit/u);
+  assert.doesNotMatch(roleSource, /create_case_task/u);
+  assert.match(source, /proveBrowserSalesReadback/u);
+  assert.match(source, /proveBrowserAdmissionsReadback/u);
+  assert.match(source, /proveBrowserDocumentDownload/u);
+  assert.match(source, /restored_sales_lead_missing/u);
+  assert.match(source, /restored_admissions_task_missing/u);
+  assert.match(source, /restored_downloadable_document_missing/u);
+  assert.match(source, /roleOutcomeProof: roleServerProof\.evidence/u);
+  assert.doesNotMatch(source, /roleOutcomeEvidence:/u);
+});
 const projectRef = "iosckaqtovbbnssqcpde";
 const supabaseOrganizationId = "provider-org";
 const platformOrganizationId = "10000000-0000-4000-8000-000000000001";
@@ -112,7 +246,12 @@ function tools() {
     docker_context: "orbstack",
     database_ca_sha256: "7".repeat(64),
     database_ca_fingerprint: "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA",
-    managed_dump_inputs_sha256: "8".repeat(64),
+    managed_dump_inputs_sha256: {
+      data: "8".repeat(64),
+      database_ca: "7".repeat(64),
+      roles: "9".repeat(64),
+      schema: "a".repeat(64),
+    },
   };
 }
 
@@ -145,13 +284,13 @@ function sourceReceipt() {
     source_mode: "transaction",
     source_port: 6543,
   };
-  return { project, backup, pooler, sha256: hash(canonicalJson({ project, backup, pooler })) };
+  return { project, backup, pooler, sha256: hash(`${canonicalJson({ project, backup, pooler })}\n`) };
 }
 
 const sqlNames = ["roles.sql", "schema.sql", "history-schema.sql", "history-data.sql", "data.sql"];
 const artifactDescriptors = Object.fromEntries(sqlNames.map((name, index) => [name, { bytes: 100 + index, sha256: String(index + 1).repeat(64) }]));
 const semantic = Object.fromEntries(sqlNames.map((name, index) => [name, String(index + 5).repeat(64)]));
-const stabilityProof = hash(canonicalJson(semantic));
+const stabilityProof = hash(`${canonicalJson(semantic)}\n`);
 const migrationCopyHash = "a".repeat(64);
 const dataCopyHash = "b".repeat(64);
 const storageInventoryHash = "c".repeat(64);
@@ -254,6 +393,191 @@ function optionsArgs() {
     "--evidence-out", "/private/tmp/evidence.json",
   ];
 }
+
+test("target Storage buckets are parsed from exact config and verified after source restore", () => {
+  const config = `
+[storage]
+enabled = true
+
+[storage.buckets.platform-documents]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
+
+[storage.buckets.platform-company-files]
+public = false
+file_size_limit = "50MB"
+allowed_mime_types = ["text/plain", "application/pdf"]
+
+[auth]
+enabled = true
+`;
+  const expected = parseTargetStorageBucketConfig(config);
+  assert.deepEqual(expected, [
+    {
+      id: "platform-company-files",
+      name: "platform-company-files",
+      public: false,
+      file_size_limit: 50_000_000,
+      allowed_mime_types: ["application/pdf", "text/plain"],
+    },
+    {
+      id: "platform-documents",
+      name: "platform-documents",
+      public: false,
+      file_size_limit: 25 * 1_024 * 1_024,
+      allowed_mime_types: ["application/pdf", "image/jpeg", "image/png"],
+    },
+  ]);
+  const actual = [
+    { id: "legacy-private", name: "legacy-private", public: false, file_size_limit: null, allowed_mime_types: null },
+    ...expected.map((bucket) => ({ ...bucket, created_at: "ignored", updated_at: "ignored" })),
+  ];
+  const validated = validateTargetStorageBuckets(expected, actual, 1);
+  assert.deepEqual(validated.buckets, expected);
+  assert.equal(validated.evidence.lifecycle, "storage_api_reconcile_local");
+  assert.equal(validated.evidence.sourceBucketCount, 1);
+  assert.equal(validated.evidence.configuredBucketCount, 2);
+  assert.equal(validated.evidence.configuredPrivateBucketCount, 2);
+  assert.equal(validated.evidence.postUpgradeBucketCount, 3);
+  assert.match(validated.evidence.configuredInventorySha256, /^[0-9a-f]{64}$/u);
+  expectCode(
+    () => validateTargetStorageBuckets(expected, actual.map((bucket) => bucket.id === "platform-documents" ? { ...bucket, public: true } : bucket), 1),
+    "target_storage_bucket_mismatch",
+  );
+  expectCode(
+    () => parseTargetStorageBucketConfig(`${config}\n[storage.buckets.fixture]\nobjects_path = "./fixtures"\n`),
+    "target_storage_bucket_objects_path_forbidden",
+  );
+  expectCode(
+    () => parseTargetStorageBucketConfig(`${config}\n[ "storage" . "buckets" . fixture ]\nobjects_path = "./fixtures"\n`),
+    "target_storage_bucket_objects_path_forbidden",
+  );
+  expectCode(
+    () => parseTargetStorageBucketConfig(`${config}\n["stor\\u0061ge"."buckets".fixture]\nobjects_path = "./fixtures"\n`),
+    "target_storage_bucket_objects_path_forbidden",
+  );
+  for (const scalar of ["1979-05-27", "07:32:00"]) {
+    expectCode(
+      () => parseTargetStorageBucketConfig(`[storage.buckets]\nfixture = ${scalar}\n`),
+      "target_storage_bucket_config_invalid",
+    );
+  }
+  assert.equal(
+    parseTargetStorageBucketConfig('[storage.buckets."quoted-bucket"] # exact target declaration\npublic = false\n')[0]?.id,
+    "quoted-bucket",
+  );
+});
+
+test("target Storage reconciliation preserves source buckets and applies only exact target config through the local API", async () => {
+  const config = `
+[storage.buckets.platform-documents]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
+
+[storage.buckets.platform-company-files]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = ["application/pdf", "text/plain"]
+`;
+  const sourceBuckets = [
+    { id: "legacy-private", name: "legacy-private", public: false, file_size_limit: null, allowed_mime_types: null, created_at: null, updated_at: null },
+    { id: "platform-documents", name: "platform-documents", public: true, file_size_limit: null, allowed_mime_types: null, created_at: null, updated_at: null },
+  ];
+  const runtime = sourceBuckets.map((bucket) => ({
+    id: bucket.id,
+    name: bucket.name,
+    public: bucket.public,
+    file_size_limit: bucket.file_size_limit,
+    allowed_mime_types: bucket.allowed_mime_types,
+  }));
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(url);
+    calls.push({ method: init.method ?? "GET", pathname: parsed.pathname });
+    if ((init.method ?? "GET") === "GET") {
+      return new Response(JSON.stringify(runtime), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    const bucket = JSON.parse(init.body);
+    const index = runtime.findIndex((candidate) => candidate.id === bucket.id);
+    if (init.method === "POST") runtime.push(bucket);
+    else if (init.method === "PUT" && index >= 0) runtime[index] = bucket;
+    else return new Response("{}", { status: 409 });
+    return new Response("{}", { status: 200 });
+  };
+  const reconciled = await reconcileTargetStorageBuckets(
+    { apiUrl: "http://127.0.0.1:54321", serviceRoleKey: "local-service-role" },
+    config,
+    sourceBuckets,
+    new RecoveryInterruptionGuard(),
+    { fetchImpl },
+  );
+  assert.equal(reconciled.evidence.lifecycle, "storage_api_reconcile_local");
+  assert.equal(reconciled.evidence.sourceBucketCount, 2);
+  assert.equal(reconciled.evidence.configuredBucketCount, 2);
+  assert.equal(reconciled.evidence.postUpgradeBucketCount, 3);
+  assert.equal(reconciled.evidence.createdBucketCount, 1);
+  assert.equal(reconciled.evidence.updatedBucketCount, 1);
+  assert.deepEqual(calls, [
+    { method: "GET", pathname: "/storage/v1/bucket" },
+    { method: "POST", pathname: "/storage/v1/bucket" },
+    { method: "PUT", pathname: "/storage/v1/bucket/platform-documents" },
+    { method: "GET", pathname: "/storage/v1/bucket" },
+  ]);
+  assert.equal(runtime.find((bucket) => bucket.id === "legacy-private")?.public, false);
+  assert.equal(runtime.find((bucket) => bucket.id === "platform-documents")?.public, false);
+  const originalRuntime = sourceBuckets.map((bucket) => ({
+    id: bucket.id,
+    name: bucket.name,
+    public: bucket.public,
+    file_size_limit: bucket.file_size_limit,
+    allowed_mime_types: bucket.allowed_mime_types,
+  }));
+  let negativeListCount = 0;
+  await expectCodeAsync(
+    () => reconcileTargetStorageBuckets(
+      { apiUrl: "http://127.0.0.1:54321", serviceRoleKey: "local-service-role" },
+      config,
+      sourceBuckets,
+      new RecoveryInterruptionGuard(),
+      {
+        fetchImpl: async (_url, init = {}) => {
+          if ((init.method ?? "GET") !== "GET") return Response.json({});
+          negativeListCount += 1;
+          if (negativeListCount === 1) return Response.json(originalRuntime);
+          return Response.json(runtime.map((bucket) => bucket.id === "legacy-private"
+            ? { ...bucket, name: "replaced-source-bucket" }
+            : bucket));
+        },
+      },
+    ),
+    "target_storage_bucket_inventory_mismatch",
+  );
+  await expectCodeAsync(
+    () => reconcileTargetStorageBuckets(
+      { apiUrl: "http://127.0.0.1:54321", serviceRoleKey: "local-service-role" },
+      config,
+      sourceBuckets,
+      new RecoveryInterruptionGuard(),
+      { fetchImpl: async () => Response.json([]) },
+    ),
+    "source_storage_bucket_restore_mismatch",
+  );
+});
+
+test("target Storage lifecycle runs only after exact source reconciliation and feeds document proof", () => {
+  const storageRestore = source.indexOf('runStage("storage_restore"');
+  const targetConfiguration = source.indexOf('runStage("target_storage_configuration"');
+  const representativeAuth = source.indexOf('runStage("representative_auth"');
+  const privateDocument = source.indexOf('runStage("private_document"');
+  assert.ok(storageRestore > 0 && targetConfiguration > storageRestore);
+  assert.ok(representativeAuth > targetConfiguration && privateDocument > representativeAuth);
+  assert.match(source, /reconcileTargetStorageBuckets\(\s*local\.status,\s*targetRoot\.config,\s*artifacts\.storage\.buckets/u);
+  assert.match(source, /new URL\("\/storage\/v1\/bucket", status\.apiUrl\)/u);
+  assert.match(source, /provePrivateDocument\(local\.status, documentActor, targetStorage\.buckets/u);
+  assert.doesNotMatch(source, /provePrivateDocument\(local\.status, documentActor, artifacts\.storage/u);
+});
 
 test("contract advertises signed exporter artifacts and no remote/provider authority", () => {
   const output = JSON.parse(execFileSync(process.execPath, [script.pathname, "contract"], { encoding: "utf8" }));
@@ -418,6 +742,19 @@ test("receipt accepts only exact #636 schema and exact signing identity/fingerpr
   expectCode(() => validateSignedReceipt(receipt({ database: { ...receipt().database, snapshot_mode: "independent-dumps" } }), {
     sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
   }), "receipt_database_snapshot_mode_invalid");
+  expectCode(() => validateSignedReceipt(receipt({
+    tools: { ...tools(), managed_dump_inputs_sha256: "8".repeat(64) },
+  }), {
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+  }), "export_tool_evidence_invalid");
+  expectCode(() => validateSignedReceipt(receipt({
+    tools: {
+      ...tools(),
+      managed_dump_inputs_sha256: { ...tools().managed_dump_inputs_sha256, database_ca: "0".repeat(64) },
+    },
+  }), {
+    sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint, now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72,
+  }), "export_tool_evidence_invalid");
   const missingArtifact = receipt();
   delete missingArtifact.encrypted_artifacts["history-schema.sql.age"];
   expectCode(() => validateSignedReceipt(missingArtifact, {
@@ -463,6 +800,11 @@ function historySql(rows = [
 ]) {
   const guard = "A".repeat(63);
   return `\\restrict ${guard}\nCOPY supabase_migrations.schema_migrations (version, statements, name) FROM stdin;\n${rows.join("\n")}\n\\.\n\\unrestrict ${guard}\n`;
+}
+
+function signedHistorySql(rows) {
+  const guard = "B".repeat(63);
+  return `\\restrict ${guard}\nCOPY "supabase_migrations"."schema_migrations" ("version", "statements", "name", "created_by", "idempotency_key", "rollback") FROM stdin;\n${rows.join("\n")}\n\\.\n\\unrestrict ${guard}\n`;
 }
 
 test("exact history parser binds ordered full COPY rows and rejects reconstruction", () => {
@@ -517,6 +859,138 @@ test("exact history parser binds ordered full COPY rows and rejects reconstructi
     statementCount: 37,
     statementsSha256: "7c1afc344169fc5492dcf917d6b05279c3f60d3962993cc218c5f90a1711727d",
   });
+});
+
+test("only the two signed empty-history anomalies are accepted and hash-bound", () => {
+  const ledger = extractExactMigrationLedger(signedHistorySql([
+    "038\t{}\tauthorization_containment\t\\N\t\\N\t\\N",
+    "039\t{}\tprivate_inbox_media\t\\N\t\\N\t\\N",
+  ]));
+  const summary = {
+    count: 2,
+    min_version: "038",
+    max_version: "039",
+    copy_rows_sha256: ledger.copyRowsSha256,
+  };
+  const rootEntry = (version, name, sql) => ({
+    version,
+    name,
+    bytes: Buffer.byteLength(sql),
+    sha256: hash(sql),
+    ...migrationStatementsDigest(sql),
+  });
+  const migration038 = readFileSync(
+    new URL("../supabase/migrations/038_authorization_containment.sql", import.meta.url),
+    "utf8",
+  );
+  const migration039 = readFileSync(
+    new URL("../supabase/migrations/039_private_inbox_media.sql", import.meta.url),
+    "utf8",
+  );
+  const root = { entries: [
+    rootEntry("038", "authorization_containment", migration038),
+    rootEntry("039", "private_inbox_media", migration039),
+    rootEntry("040", "next", "select 40;"),
+  ] };
+  const verified = verifyLedgerAgainstRoot(ledger, root, summary);
+  assert.deepEqual(verified.pending.map(({ version }) => version), ["040"]);
+  assert.deepEqual(verified.recordedSource.map(({ version, statementCount }) => ({ version, statementCount })), [
+    { version: "038", statementCount: 0 },
+    { version: "039", statementCount: 0 },
+  ]);
+  assert.deepEqual(
+    verified.emptyStatementHistoryExceptions.map(({ version, name }) => ({ version, name })),
+    [
+      { version: "038", name: "authorization_containment" },
+      { version: "039", name: "private_inbox_media" },
+    ],
+  );
+  for (const exception of verified.emptyStatementHistoryExceptions) {
+    assert.match(exception.signedRowSha256, /^[a-f0-9]{64}$/u);
+    assert.match(exception.rootFileSha256, /^[a-f0-9]{64}$/u);
+  }
+  expectCode(() => extractExactMigrationLedger(signedHistorySql([
+    "038\t{}\twrong_name\t\\N\t\\N\t\\N",
+  ])), "migration_statements_array_invalid");
+  expectCode(() => extractExactMigrationLedger(signedHistorySql([
+    "037\t{}\tauthorization_containment\t\\N\t\\N\t\\N",
+  ])), "migration_statements_array_invalid");
+  expectCode(() => extractExactMigrationLedger(signedHistorySql([
+    "040\t{}\tnext\t\\N\t\\N\t\\N",
+  ])), "migration_statements_array_invalid");
+  expectCode(
+    () => verifyLedgerAgainstRoot(ledger, {
+      entries: [
+        rootEntry("038", "authorization_containment", migration038),
+        rootEntry("039", "wrong_name", migration039),
+      ],
+    }, summary),
+    "migration_ledger_root_prefix_mismatch",
+  );
+  expectCode(
+    () => verifyLedgerAgainstRoot(ledger, {
+      entries: [
+        rootEntry("038", "authorization_containment", `${migration038}\n-- drift`),
+        rootEntry("039", "private_inbox_media", migration039),
+      ],
+    }, summary),
+    "migration_ledger_root_prefix_mismatch",
+  );
+});
+
+test("the one signed comment-only statement drift is accepted only by exact hashes", () => {
+  const migration030 = readFileSync(
+    new URL("../supabase/migrations/030_ai_knowledge.sql", import.meta.url),
+    "utf8",
+  );
+  const digest = migrationStatementsDigest(migration030);
+  const root = { entries: [{
+    version: "030",
+    name: "ai_knowledge",
+    bytes: Buffer.byteLength(migration030),
+    sha256: hash(migration030),
+    ...digest,
+  }] };
+  const entry = {
+    version: "030",
+    name: "ai_knowledge",
+    row_sha256: "391845ec8286a35d27d3be4bc1badb08a69587cd07f7cacec128727d2dc4db07",
+    statement_count: 36,
+    statements_sha256: "3d2c866a2c3a5eee959fa7e2fa6b08f961c74a1794a91ce3016ed5d2ad8c2efd",
+    statement_evidence: "recorded_statements",
+  };
+  const ledger = {
+    entries: [entry],
+    copyRowsSha256: "8".repeat(64),
+    orderedLedgerSha256: "9".repeat(64),
+  };
+  const summary = {
+    count: 1,
+    min_version: "030",
+    max_version: "030",
+    copy_rows_sha256: ledger.copyRowsSha256,
+  };
+  const verified = verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete: true });
+  assert.deepEqual(verified.recordedRootHistoryExceptions.map(({ version, name, kind }) => ({ version, name, kind })), [{
+    version: "030",
+    name: "ai_knowledge",
+    kind: "signed_comment_only_history_drift",
+  }]);
+  assert.deepEqual(verified.recordedSource, [{
+    version: "030",
+    name: "ai_knowledge",
+    statementCount: 36,
+    statementsSha256: entry.statements_sha256,
+  }]);
+  expectCode(
+    () => verifyLedgerAgainstRoot({ ...ledger, entries: [{ ...entry, row_sha256: "0".repeat(64) }] }, root, summary),
+    "migration_ledger_root_prefix_mismatch",
+  );
+  const changedRoot = { entries: [{ ...root.entries[0], sha256: "0".repeat(64) }] };
+  expectCode(
+    () => verifyLedgerAgainstRoot(ledger, changedRoot, summary),
+    "migration_ledger_root_prefix_mismatch",
+  );
 });
 
 test("database pending migrations and source-code target suffix are independently bound", () => {
@@ -583,6 +1057,28 @@ test("private document behavior canary is a deterministic canonical PDF accepted
   assert.doesNotMatch(source, /"content-type": "text\/plain"/u);
 });
 
+test("raw Storage signed paths are resolved under the local Storage API and cannot redirect", () => {
+  const apiUrl = "http://127.0.0.1:54321";
+  const path = "recovery-proof/60000000-0000-4000-8000-000000000001.pdf";
+  const raw = `/object/sign/platform-documents/${path}?token=local-token`;
+  assert.equal(
+    resolveStorageSignedObjectUrl(apiUrl, "platform-documents", path, raw).toString(),
+    `${apiUrl}/storage/v1${raw}`,
+  );
+  expectCode(
+    () => resolveStorageSignedObjectUrl(apiUrl, "platform-documents", path, "https://example.com/object/sign/file?token=x"),
+    "private_document_signed_url_invalid",
+  );
+  expectCode(
+    () => resolveStorageSignedObjectUrl(apiUrl, "platform-documents", path, `${raw}&download=1`),
+    "private_document_signed_url_invalid",
+  );
+  expectCode(
+    () => resolveStorageSignedObjectUrl(apiUrl, "platform-documents", path, raw.replace("?token=local-token", "")),
+    "private_document_signed_url_invalid",
+  );
+});
+
 test("Storage restore streams bounded file chunks and aborts an in-flight upload", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "evo-recovery-storage-stream-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -639,6 +1135,21 @@ test("all five SQL payloads require one matching active restricted-mode guard", 
   assert.match(validateRestrictedSqlEnvelope(sql, "history-data.sql").guardSha256, /^[0-9a-f]{64}$/u);
   expectCode(() => validateRestrictedSqlEnvelope(sql.replace("\\unrestrict", "-- \\unrestrict"), "history-data.sql"), "sql_restricted_guard_invalid");
   expectCode(() => validateRestrictedSqlEnvelope(sql.replace(`\\unrestrict ${"A".repeat(63)}`, `\\unrestrict ${"B".repeat(63)}`), "history-data.sql"), "sql_restricted_guard_invalid");
+});
+
+test("streaming SQL validation requires restrict before unrestrict", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "evo-recovery-streamed-sql-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const guard = "A".repeat(63);
+  const valid = join(root, "valid.sql");
+  const reversed = join(root, "reversed.sql");
+  writeFileSync(valid, `\\restrict ${guard}\nSELECT 1;\n\\unrestrict ${guard}\n`);
+  writeFileSync(reversed, `\\unrestrict ${guard}\nSELECT 1;\n\\restrict ${guard}\n`);
+  assert.match((await validateRestrictedSqlFile(valid, "valid.sql")).guardSha256, /^[0-9a-f]{64}$/u);
+  await expectCodeAsync(
+    () => validateRestrictedSqlFile(reversed, "reversed.sql"),
+    "sql_restricted_guard_invalid",
+  );
 });
 
 function cohortRows() {
@@ -708,20 +1219,34 @@ test("Admissions recovery proof selects a real status change and preserves every
 });
 
 test("restored database aggregate reconciliation fails on every signed aggregate mismatch", () => {
-  const counts = { "platform.zero_rows": 0, "auth.users": 3, "platform.leads": 5 };
+  const counts = {
+    "platform.zero_rows": 0,
+    "platform_private.provider_webhook_events": 0,
+    "auth.users": 3,
+    "platform.leads": 5,
+  };
   const expected = databaseAggregatesFromTableCounts(counts);
-  assert.deepEqual(expected, databaseAggregatesFromTableCounts({ "platform.leads": 5, "platform.zero_rows": 0, "auth.users": 3 }));
-  assert.equal(expected.table_count, 3);
+  assert.deepEqual(expected, databaseAggregatesFromTableCounts({
+    "platform.leads": 5,
+    "platform.zero_rows": 0,
+    "auth.users": 3,
+    "platform_private.provider_webhook_events": 0,
+  }));
+  const exportOrderedCounts = Object.fromEntries(
+    Object.entries(counts).sort(([left], [right]) => left.localeCompare(right, "en")),
+  );
+  assert.equal(expected.table_counts_sha256, hash(`${JSON.stringify(exportOrderedCounts)}\n`));
+  assert.equal(expected.table_count, 4);
   assert.equal(expected.row_count, 8);
   assert.equal(expected.auth_user_count, 3);
   assert.deepEqual(validateRestoredDatabaseAggregates(expected, expected), {
-    tableCount: 3,
+    tableCount: 4,
     rowCount: 8,
     authUserCount: 3,
     tableCountsSha256: expected.table_counts_sha256,
   });
   for (const [key, value] of [
-    ["table_count", 4],
+    ["table_count", 5],
     ["row_count", 9],
     ["auth_user_count", 2],
     ["table_counts_sha256", "b".repeat(64)],
@@ -733,6 +1258,53 @@ test("restored database aggregate reconciliation fails on every signed aggregate
   }
   const missingZeroRowTable = databaseAggregatesFromTableCounts({ "auth.users": 3, "platform.leads": 5 });
   expectCode(() => validateRestoredDatabaseAggregates(expected, missingZeroRowTable), "restored_database_aggregate_mismatch");
+  let failure;
+  try {
+    validateRestoredDatabaseAggregates(
+      expected,
+      { ...expected, row_count: 9 },
+      { comparison: "restored_database" },
+    );
+  } catch (error) {
+    failure = error;
+  }
+  assert.ok(failure instanceof RecoveryFailure);
+  assert.deepEqual(failure.diagnostic, {
+    comparison: "restored_database",
+    mismatchCount: 1,
+    mismatchSetSha256: hash(canonicalJson(["row_count"])),
+    firstField: "row_count",
+    expectedValue: 8,
+    actualValue: 9,
+  });
+  expectCode(
+    () => validateRestoredDatabaseAggregates(expected, expected, { comparison: "unsafe" }),
+    "restored_database_aggregate_invalid",
+  );
+});
+
+test("restored table-count drift reports only safe table coordinates and counts", () => {
+  const expected = { "auth.users": 1, "platform.audit_events": 1 };
+  assert.deepEqual(validateRestoredTableCounts(expected, { ...expected }), expected);
+  let failure;
+  try {
+    validateRestoredTableCounts(expected, { "auth.users": 1, "platform.audit_events": 2 });
+  } catch (error) {
+    failure = error;
+  }
+  assert.ok(failure instanceof RecoveryFailure);
+  assert.equal(failure.code, "restored_database_table_count_mismatch");
+  assert.deepEqual(failure.diagnostic, {
+    mismatchCount: 1,
+    mismatchSetSha256: hash(canonicalJson(["platform.audit_events"])),
+    firstTable: "platform.audit_events",
+    expectedCount: 1,
+    actualCount: 2,
+  });
+  expectCode(
+    () => validateRestoredTableCounts(expected, { ...expected, "public.extra": 0 }),
+    "restored_database_table_count_mismatch",
+  );
 });
 
 test("expected database denial requires the exact SQLSTATE and domain sentinel", () => {
@@ -740,11 +1312,146 @@ test("expected database denial requires the exact SQLSTATE and domain sentinel",
   const expected = { sqlstate: "42501", domainSentinel: "admin_membership_permission_required" };
   const diagnostic = sanitizePsqlDiagnostic(`ERROR:  42501: ${expectedMessage}\nLOCATION:  exec_stmt_raise, pl_exec.c:3905\n`, 3);
   assert.equal(classifyExpectedDatabaseDenial(diagnostic, expected), true);
+  assert.deepEqual(diagnostic.postgres, {
+    sqlstate: "42501",
+    errorClass: "insufficient_privilege",
+    inputLine: null,
+    domainSentinel: "admin_membership_permission_required",
+  });
   assert.equal(JSON.stringify(diagnostic).includes(expectedMessage), false);
+  const restoreDiagnostic = sanitizePsqlDiagnostic(
+    `psql:/private/redacted/data.sql:741: ERROR:  23503: row-specific text\nDETAIL:  redacted\n`,
+    3,
+  );
+  assert.deepEqual(restoreDiagnostic.postgres, {
+    sqlstate: "23503",
+    errorClass: "foreign_key_violation",
+    inputLine: 741,
+    domainSentinel: null,
+  });
+  assert.equal(JSON.stringify(restoreDiagnostic).includes("row-specific text"), false);
+  assert.equal(JSON.stringify(restoreDiagnostic).includes("/private/redacted"), false);
   assert.equal(classifyExpectedDatabaseDenial({ ...diagnostic, postgres: { ...diagnostic.postgres, sqlstate: "42P01" } }, expected), false);
   assert.equal(classifyExpectedDatabaseDenial({ ...diagnostic, postgres: { ...diagnostic.postgres, domainSentinel: null } }, expected), false);
   assert.equal(classifyExpectedDatabaseDenial(sanitizePsqlDiagnostic("connection refused", 2), expected), false);
   assert.equal(classifyExpectedDatabaseDenial(sanitizePsqlDiagnostic("ERROR:  42601: syntax error\n", 3), expected), false);
+});
+
+test("PGMQ recovery binds the two canonical queue relation pairs and containment", () => {
+  const counts = {
+    "auth.users": 1,
+    "pgmq.a_platform_dead_letter_v1": 0,
+    "pgmq.a_platform_work_v1": 2,
+    "pgmq.q_platform_dead_letter_v1": 3,
+    "pgmq.q_platform_work_v1": 4,
+  };
+  const columns = {
+    "auth.users": ["id"],
+    "pgmq.a_platform_dead_letter_v1": ["msg_id", "read_ct", "enqueued_at", "archived_at", "vt", "message", "headers"],
+    "pgmq.a_platform_work_v1": ["msg_id", "read_ct", "enqueued_at", "archived_at", "vt", "message", "headers"],
+    "pgmq.q_platform_dead_letter_v1": ["msg_id", "read_ct", "enqueued_at", "vt", "message", "headers"],
+    "pgmq.q_platform_work_v1": ["msg_id", "read_ct", "enqueued_at", "vt", "message", "headers"],
+  };
+  const inventory = validatePgmqRestoreInventory(counts, columns);
+  assert.equal(inventory.signedRowCount, 9);
+  assert.match(inventory.queueSetSha256, /^[0-9a-f]{64}$/u);
+  assert.match(inventory.relationSetSha256, /^[0-9a-f]{64}$/u);
+  assert.match(inventory.relationCountsSha256, /^[0-9a-f]{64}$/u);
+  assert.match(inventory.copyColumnsSha256, /^[0-9a-f]{64}$/u);
+  expectCode(
+    () => validatePgmqRestoreInventory({ ...counts, "pgmq.q_unreviewed": 0 }, columns),
+    "pgmq_restore_inventory_invalid",
+  );
+  const missing = { ...counts };
+  delete missing["pgmq.a_platform_work_v1"];
+  expectCode(() => validatePgmqRestoreInventory(missing, columns), "pgmq_restore_inventory_invalid");
+  expectCode(() => validatePgmqRestoreInventory(counts, {
+    ...columns,
+    "pgmq.q_platform_work_v1": ["msg_id", "message"],
+  }), "pgmq_restore_inventory_invalid");
+
+  const verified = {
+    queueMetadata: [
+      { queueName: "platform_dead_letter_v1", isPartitioned: false, isUnlogged: false },
+      { queueName: "platform_work_v1", isPartitioned: false, isUnlogged: false },
+    ],
+    queueMetadataTotalCount: 2,
+    queueRelationCount: 4,
+    requiredRelationCount: 4,
+    loggedRelationCount: 4,
+    identitySequenceCount: 2,
+    copyCompatibleColumnCount: 26,
+    requiredSignatureCount: 5,
+    missingRoleCount: 0,
+    directForbiddenGrantCount: 0,
+    forbiddenOwnerReachabilityCount: 0,
+    effectiveForbiddenPrivilegeCount: 0,
+    additiveDefaultGrantCount: 0,
+    restoredRelationCounts: Object.fromEntries(Object.entries(counts).filter(([table]) => table.startsWith("pgmq."))),
+  };
+  const proof = validatePgmqContainmentProof(verified, inventory, { phase: "post_data" });
+  assert.equal(proof.status, "restored_and_contained");
+  assert.equal(proof.relationCountsMatch, true);
+  assert.equal(proof.copyCompatibleColumnCount, 26);
+  for (const field of [
+    "requiredSignatureCount",
+    "missingRoleCount", "directForbiddenGrantCount",
+    "forbiddenOwnerReachabilityCount", "effectiveForbiddenPrivilegeCount", "additiveDefaultGrantCount",
+  ]) {
+    expectCode(
+      () => validatePgmqContainmentProof({ ...verified, [field]: field === "requiredSignatureCount" ? 4 : 1 }, inventory, { phase: "post_data" }),
+      "pgmq_extension_relation_containment_failed",
+    );
+  }
+  const drifted = {
+    ...verified,
+    restoredRelationCounts: { ...verified.restoredRelationCounts, "pgmq.q_platform_work_v1": 5 },
+  };
+  expectCode(
+    () => validatePgmqContainmentProof(drifted, inventory, { phase: "post_data" }),
+    "pgmq_extension_relation_count_mismatch",
+  );
+  expectCode(
+    () => validatePgmqContainmentProof(drifted, inventory, { phase: "post_data", requireCountsMatch: false }),
+    "pgmq_extension_relation_containment_failed",
+  );
+  expectCode(
+    () => validatePgmqContainmentProof(drifted, inventory, { phase: "post_migration", requireCountsMatch: false }),
+    "pgmq_extension_relation_containment_failed",
+  );
+  assert.equal(validatePgmqContainmentProof(
+    drifted,
+    inventory,
+    { phase: "pre_data", requireCountsMatch: false },
+  ).status, "created_and_contained");
+  assert.match(source, /SELECT pgmq\.create\('platform_work_v1'\)/u);
+  assert.match(source, /SELECT pgmq\.create\('platform_dead_letter_v1'\)/u);
+  for (const signature of [
+    "pgmq.create(text)",
+    "pgmq.read(text,integer,integer,jsonb)",
+    "pgmq.send(text,jsonb,integer)",
+    "pgmq.set_vt(text,bigint,integer)",
+    "pgmq.archive(text,bigint)",
+  ]) {
+    assert.ok(source.includes(`'${signature}'`));
+  }
+  assert.match(source, /REVOKE ALL ON ALL TABLES IN SCHEMA pgmq/u);
+  assert.match(source, /relation\.relkind = 'S' THEN 's'/u);
+  assert.match(source, /pg_has_role\(role\.oid, acl\.grantee, 'USAGE'\)/u);
+  assert.match(source, /pg_has_role\(role\.oid, acl\.grantee, 'SET'\)/u);
+  assert.match(source, /SELECT namespace\.oid, namespace\.nspname, namespace\.nspowner/u);
+  assert.match(source, /role\.oid = namespace\.nspowner/u);
+  assert.match(source, /pg_has_role\(role\.oid, relation\.relowner, 'SET'\)/u);
+  assert.match(source, /pg_has_role\(role\.oid, routine\.proowner, 'SET'\)/u);
+  assert.match(source, /pg_has_role\(role\.oid, defaults\.defaclrole, 'SET'\)/u);
+  assert.match(source, /has_any_column_privilege/u);
+  assert.match(source, /aclexplode\(attribute\.attacl\)/u);
+  assert.doesNotMatch(source, /aclexplode\(coalesce\(attribute\.attacl/u);
+  assert.match(source, /FROM pg_default_acl AS defaults/u);
+  const migrationApplyIndex = source.indexOf('["migration", "up", "--local"');
+  const postMigrationInspection = /inspectPgmqExtensionRelations\(\s*extensionInventory,\s*"post_migration"/u.exec(source);
+  assert.ok(migrationApplyIndex >= 0);
+  assert.ok(postMigrationInspection?.index > migrationApplyIndex);
 });
 
 test("durable evidence fails closed before write when cleanup quarantines", () => {
@@ -1088,17 +1795,29 @@ function projectedContainer({ id, name, image = `sha256:${"e".repeat(64)}`, labe
   return [id, `/${name}`, image, labels, networkMode, ports, networks].map((value) => JSON.stringify(value)).join("\t");
 }
 
-test("internal recovery network derives the Supabase API target and proves one loopback-only candidate attachment", () => {
+test("egress-blocked recovery bridge derives the Supabase API target and proves one loopback-only candidate attachment", () => {
   const projectName = "evov3recoveryabcdef123456";
   const networkName = `${projectName}_private`;
   const networkId = "a".repeat(64);
   const kongId = "b".repeat(64);
   const authId = "c".repeat(64);
+  const databaseId = "f".repeat(64);
   const appId = "d".repeat(64);
+  const scannerId = "8".repeat(64);
   const appImageId = `sha256:${"e".repeat(64)}`;
-  assert.deepEqual(validateContainerCensusIds(`${kongId}\n${authId}\n`, ""), [kongId, authId].sort());
-  assert.deepEqual(validateContainerCensusIds(`${kongId}\n${authId}\n`, `${appId}\n`, { requireOwner: true }), [kongId, authId, appId].sort());
-  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", { requireOwner: true }), "container_census_invalid");
+  const scannerImageId = `sha256:${"7".repeat(64)}`;
+  const supabaseOutput = `${kongId}\n${authId}\n${databaseId}\n`;
+  assert.deepEqual(validateContainerCensusIds(supabaseOutput, ""), {
+    appOwnerIds: [],
+    ids: [kongId, authId, databaseId].sort(),
+    scannerIds: [],
+    supabaseIds: [kongId, authId, databaseId].sort(),
+  });
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", "", { requireOwner: true }), "container_census_invalid");
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, `${appId}\n${"6".repeat(64)}\n`), "container_census_invalid");
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", "", { requireScanner: true }), "container_census_invalid");
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", `${scannerId}\n${"6".repeat(64)}\n`), "container_census_invalid");
+  expectCode(() => validateContainerCensusIds(`${kongId}\n`, "", `${kongId}\n`), "container_census_invalid");
   const containerNetwork = (name, aliases = [name]) => ({
     [networkName]: { NetworkID: networkId, Aliases: aliases },
   });
@@ -1107,15 +1826,20 @@ test("internal recovery network derives the Supabase API target and proves one l
     Name: networkName,
     Driver: "bridge",
     Scope: "local",
-    Internal: true,
+    Internal: false,
+    EnableIPv6: false,
     Ingress: false,
-    Options: { "com.docker.network.bridge.host_binding_ipv4": "127.0.0.1" },
+    Options: {
+      "com.docker.network.bridge.enable_ip_masquerade": "false",
+      "com.docker.network.bridge.host_binding_ipv4": "127.0.0.1",
+    },
     Labels: { "evo.recovery.owner": projectName },
     Containers: containers,
   }];
   const supabaseMembers = {
     [kongId]: { Name: `supabase_kong_${projectName}` },
     [authId]: { Name: `supabase_auth_${projectName}` },
+    [databaseId]: { Name: `supabase_db_${projectName}` },
   };
   const baseProjection = [
     projectedContainer({
@@ -1134,19 +1858,56 @@ test("internal recovery network derives the Supabase API target and proves one l
       ports: { "9999/tcp": null },
       networks: containerNetwork(supabaseMembers[authId].Name),
     }),
+    projectedContainer({
+      id: databaseId,
+      name: supabaseMembers[databaseId].Name,
+      labels: { "com.supabase.cli.project": projectName },
+      networkMode: networkName,
+      ports: { "5432/tcp": [{ HostIp: "127.0.0.1", HostPort: "43122" }] },
+      networks: containerNetwork(supabaseMembers[databaseId].Name),
+    }),
   ].join("\n");
-  const endpoint = validateLocalSupabaseNetwork(network(supabaseMembers), baseProjection, {
+  const scannerName = `supabase_clamav_${projectName}`;
+  const scannerHost = "evo-recovery-clamav-abcdef123456";
+  const scannerIdentity = {
+    containerId: scannerId,
+    containerName: scannerName,
+    imageId: scannerImageId,
+    networkHost: scannerHost,
+    projectName,
+  };
+  const scannerProjection = projectedContainer({
+    id: scannerId,
+    name: scannerName,
+    image: scannerImageId,
+    labels: {
+      "com.docker.compose.project": projectName,
+      "com.evo.runtime.role": "private-malware-scanner",
+      "evo.recovery.project": projectName,
+      "evo.recovery.scanner": projectName,
+      "evo.recovery.type": "malware-scanner",
+    },
+    networkMode: networkName,
+    ports: { "3310/tcp": null },
+    networks: containerNetwork(scannerName, [scannerName, scannerHost]),
+  });
+  const scannerMembers = { ...supabaseMembers, [scannerId]: { Name: scannerName } };
+  const scannerCensus = validateContainerCensusIds(supabaseOutput, "", `${scannerId}\n`, { requireScanner: true });
+  const runtimeProjection = `${baseProjection}\n${scannerProjection}`;
+  const endpoint = validateLocalSupabaseNetwork(network(scannerMembers), runtimeProjection, {
     apiUrl: "http://127.0.0.1:43121",
-    censusIds: [kongId, authId],
+    census: scannerCensus,
     networkName,
     projectName,
+    scanner: scannerIdentity,
   });
   assert.deepEqual(endpoint, {
     networkId,
-    memberIds: [kongId, authId].sort(),
+    memberIds: [kongId, authId, databaseId, scannerId].sort(),
     targetHost: supabaseMembers[kongId].Name,
     targetPort: 8000,
     apiLoopbackPort: 43121,
+    databaseContainerId: databaseId,
   });
 
   const appName = `supabase_app_${projectName}`;
@@ -1154,24 +1915,35 @@ test("internal recovery network derives the Supabase API target and proves one l
     id: appId,
     name: appName,
     image: appImageId,
-    labels: { "evo.recovery.owner": projectName },
+    labels: {
+      "evo.recovery.owner": projectName,
+      "evo.recovery.project": projectName,
+      "evo.recovery.type": "candidate-app",
+    },
     networkMode: networkName,
     ports: { "3000/tcp": null, "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }] },
     networks: containerNetwork(appName),
   });
-  const candidateProjection = `${baseProjection}\n${appProjection}`;
+  const candidateProjection = `${runtimeProjection}\n${appProjection}`;
+  const candidateCensus = validateContainerCensusIds(
+    supabaseOutput,
+    `${appId}\n`,
+    `${scannerId}\n`,
+    { requireOwner: true, requireScanner: true },
+  );
   const candidateExpected = {
     appContainerId: appId,
     appContainerName: appName,
     appImageId,
     appPort: 43123,
-    censusIds: [...endpoint.memberIds, appId],
+    census: candidateCensus,
     networkName,
     previousMemberIds: endpoint.memberIds,
     projectName,
+    scanner: scannerIdentity,
   };
   const attachment = validateCandidateNetworkAttachment(
-    network({ ...supabaseMembers, [appId]: { Name: appName } }),
+    network({ ...scannerMembers, [appId]: { Name: appName } }),
     candidateProjection,
     candidateExpected,
   );
@@ -1183,58 +1955,86 @@ test("internal recovery network derives the Supabase API target and proves one l
     attachedNetworkCount: 1,
     publishedPortCount: 1,
     loopbackOnly: true,
-    externalEgress: "blocked_by_internal_network",
+    externalEgress: "blocked_by_disabled_masquerade_and_runtime_probe",
   });
 
-  const publicNetwork = network(supabaseMembers);
-  publicNetwork[0].Internal = false;
-  expectCode(() => validateLocalSupabaseNetwork(publicNetwork, baseProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }), "local_supabase_network_invalid");
-  const wildcardProjection = baseProjection.replace('"127.0.0.1"', '"0.0.0.0"');
-  expectCode(() => validateLocalSupabaseNetwork(network(supabaseMembers), wildcardProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }), "local_supabase_container_inspection_invalid");
-  const duplicateApiProjection = baseProjection.replace(
+  const localExpected = { apiUrl: "http://127.0.0.1:43121", census: scannerCensus, networkName, projectName, scanner: scannerIdentity };
+  const masqueradedNetwork = network(scannerMembers);
+  masqueradedNetwork[0].Options["com.docker.network.bridge.enable_ip_masquerade"] = "true";
+  expectCode(() => validateLocalSupabaseNetwork(masqueradedNetwork, runtimeProjection, localExpected), "local_supabase_network_invalid");
+  const wildcardProjection = runtimeProjection.replace('"127.0.0.1"', '"0.0.0.0"');
+  expectCode(() => validateLocalSupabaseNetwork(network(scannerMembers), wildcardProjection, localExpected), "local_supabase_container_inspection_invalid");
+  const duplicateApiProjection = runtimeProjection.replace(
     '{"9999/tcp":null}',
     '{"9999/tcp":[{"HostIp":"127.0.0.1","HostPort":"43121"}]}',
   );
   expectCode(
-    () => validateLocalSupabaseNetwork(network(supabaseMembers), duplicateApiProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }),
+    () => validateLocalSupabaseNetwork(network(scannerMembers), duplicateApiProjection, localExpected),
     "local_supabase_api_endpoint_ambiguous",
   );
-  const wrongProjectProjection = baseProjection.replace(
+  const wrongProjectProjection = runtimeProjection.replace(
     `"com.supabase.cli.project":"${projectName}"`,
     '"com.supabase.cli.project":"foreign-project"',
   );
   expectCode(
-    () => validateLocalSupabaseNetwork(network(supabaseMembers), wrongProjectProjection, { apiUrl: "http://127.0.0.1:43121", censusIds: endpoint.memberIds, networkName, projectName }),
+    () => validateLocalSupabaseNetwork(network(scannerMembers), wrongProjectProjection, localExpected),
     "local_supabase_container_inspection_invalid",
+  );
+  const wrongScannerType = runtimeProjection.replace('"evo.recovery.type":"malware-scanner"', '"evo.recovery.type":"candidate-app"');
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(scannerMembers), wrongScannerType, localExpected),
+    "local_supabase_container_inspection_invalid",
+  );
+  const scannerWithoutAlias = runtimeProjection.replace(`,"${scannerHost}"`, "");
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(scannerMembers), scannerWithoutAlias, localExpected),
+    "local_supabase_container_inspection_invalid",
+  );
+  const publiclyBoundScanner = runtimeProjection.replace('{"3310/tcp":null}', '{"3310/tcp":[{"HostIp":"127.0.0.1","HostPort":"3310"}]}');
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(scannerMembers), publiclyBoundScanner, localExpected),
+    "local_supabase_container_inspection_invalid",
+  );
+  expectCode(
+    () => validateLocalSupabaseNetwork(network(supabaseMembers), baseProjection, localExpected),
+    "local_supabase_container_census_mismatch",
   );
   const hostApp = appProjection.replace(JSON.stringify(networkName), JSON.stringify("host"));
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${hostApp}`, candidateExpected),
+    () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${hostApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   const publicApp = appProjection.replace('"127.0.0.1"', '"0.0.0.0"');
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${publicApp}`, candidateExpected),
+    () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${publicApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   const extraNetworkApp = projectedContainer({
     id: appId,
     name: appName,
     image: appImageId,
-    labels: { "evo.recovery.owner": projectName },
+    labels: {
+      "evo.recovery.owner": projectName,
+      "evo.recovery.project": projectName,
+      "evo.recovery.type": "candidate-app",
+    },
     networkMode: networkName,
     ports: { "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }] },
     networks: { ...containerNetwork(appName), bridge: { NetworkID: "f".repeat(64), Aliases: [appName] } },
   });
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${extraNetworkApp}`, candidateExpected),
+    () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${extraNetworkApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   const extraPublishedPortApp = projectedContainer({
     id: appId,
     name: appName,
     image: appImageId,
-    labels: { "evo.recovery.owner": projectName },
+    labels: {
+      "evo.recovery.owner": projectName,
+      "evo.recovery.project": projectName,
+      "evo.recovery.type": "candidate-app",
+    },
     networkMode: networkName,
     ports: {
       "43123/tcp": [{ HostIp: "127.0.0.1", HostPort: "43123" }],
@@ -1243,21 +2043,22 @@ test("internal recovery network derives the Supabase API target and proves one l
     networks: containerNetwork(appName),
   });
   expectCode(
-    () => validateCandidateNetworkAttachment(network({ ...supabaseMembers, [appId]: { Name: appName } }), `${baseProjection}\n${extraPublishedPortApp}`, candidateExpected),
+    () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${extraPublishedPortApp}`, candidateExpected),
     "candidate_network_attachment_invalid",
   );
   expectCode(
     () => validateCandidateNetworkAttachment(
-      network({ ...supabaseMembers, [appId]: { Name: appName } }),
+      network({ ...scannerMembers, [appId]: { Name: appName } }),
       candidateProjection,
-      { ...candidateExpected, censusIds: [kongId, appId] },
+      { ...candidateExpected, census: { ...candidateCensus, ids: [kongId, appId].sort() } },
     ),
     "candidate_container_census_mismatch",
   );
   const orphanId = "9".repeat(64);
   expectCode(
-    () => validateLocalSupabaseNetwork(network(supabaseMembers), baseProjection, {
-      apiUrl: "http://127.0.0.1:43121", censusIds: [...endpoint.memberIds, orphanId], networkName, projectName,
+    () => validateLocalSupabaseNetwork(network(scannerMembers), runtimeProjection, {
+      ...localExpected,
+      census: { ...scannerCensus, ids: [...scannerCensus.ids, orphanId].sort() },
     }),
     "local_supabase_container_census_mismatch",
   );
@@ -1306,7 +2107,8 @@ test("candidate image is locally built from sorted exact target blobs for linux/
   const archiveSha256 = "e".repeat(64);
   const labels = {
     "org.opencontainers.image.revision": targetCommit,
-    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-image",
     "evo.recovery.target-tree": targetFullTree,
     "evo.recovery.snapshot-archive-sha256": archiveSha256,
     "evo.recovery.build-network": "dependency-fetch-only",
@@ -1344,6 +2146,9 @@ test("candidate image is locally built from sorted exact target blobs for linux/
   assert.match(source, /image\.id,/u);
   assert.match(source, /NODE_ENV: "production"/u);
   assert.doesNotMatch(source, /NODE_ENV: "development"/u);
+  const candidateStart = source.slice(source.indexOf("async function startCandidateApp"), source.indexOf("async function browserExecutable"));
+  assert.match(candidateStart, /const started = await runDocker[\s\S]*?"--entrypoint", "node",\s+image\.id,/u);
+  assert.match(candidateStart, /const proxyStarted = await runDocker[\s\S]*?"--entrypoint", "node",\s+image\.id,/u);
 });
 
 test("detached SSH signature accepts exact namespace and rejects receipt tamper/spoof", async (t) => {
@@ -1494,33 +2299,156 @@ test("unsafe drain or ownership always quarantines cleanup", () => {
 
 test("cleanup inventory selects only the exact isolated Supabase contour", () => {
   const project = "evov3recoveryabcdef123456";
+  const containerId = "a".repeat(64);
+  const appId = "b".repeat(64);
+  const proxyId = "c".repeat(64);
+  const scannerId = "d".repeat(64);
+  const unrelatedImageId = `sha256:${"0".repeat(64)}`;
+  const containerLine = (id, name, labels, image = unrelatedImageId) => [id, `/${name}`, image, labels].map((value) => JSON.stringify(value)).join("\t");
   assert.deepEqual(selectOwnedContainerIds([
-    `aaaaaaaaaaaa\tsupabase_db_${project}`,
-    "bbbbbbbbbbbb\tsupabase_db_other",
-    `cccccccccccc\tnotsupabase_${project}`,
-  ].join("\n"), project), ["aaaaaaaaaaaa"]);
-  assert.deepEqual(selectOwnedVolumeNames([
+    containerLine(containerId, `supabase_db_${project}`, {
+      "com.docker.compose.project": project,
+      "com.supabase.cli.project": project,
+    }),
+    containerLine(appId, `supabase_app_${project}`, {
+      "evo.recovery.owner": project,
+      "evo.recovery.project": project,
+      "evo.recovery.type": "candidate-app",
+    }),
+    containerLine(proxyId, `supabase_app_proxy_${project}`, {
+      "evo.recovery.project": project,
+      "evo.recovery.proxy": project,
+      "evo.recovery.type": "app-tls-proxy",
+    }),
+    containerLine(scannerId, `supabase_clamav_${project}`, {
+      "com.docker.compose.project": project,
+      "com.evo.runtime.role": "private-malware-scanner",
+      "evo.recovery.project": project,
+      "evo.recovery.scanner": project,
+      "evo.recovery.type": "malware-scanner",
+    }),
+    containerLine("e".repeat(64), "supabase_db_other", {
+      "com.docker.compose.project": "other",
+      "com.supabase.cli.project": "other",
+    }),
+  ].join("\n"), project), [containerId, appId, proxyId, scannerId].sort());
+  const volumeCreatedAt = "2026-09-05T12:34:56Z";
+  const volumeLine = (name, labels, { createdAt = volumeCreatedAt, driver = "local", scope = "local", options = null } = {}) =>
+    [name, createdAt, driver, scope, labels, options].map((value) => JSON.stringify(value)).join("\t");
+  const volumeOutput = [
+    volumeLine(`supabase_db_${project}`, { "com.supabase.cli.project": project }),
+    volumeLine(`supabase_storage_${project}`, { "com.supabase.cli.project": project }),
+    volumeLine(`supabase_clamav_signatures_${project}`, {
+      "com.docker.compose.project": project,
+      "evo.recovery.project": project,
+      "evo.recovery.scanner": project,
+      "evo.recovery.type": "clamav-signatures",
+    }),
+    volumeLine("supabase_db_other", { "com.supabase.cli.project": "other" }),
+  ].join("\n");
+  assert.deepEqual(selectOwnedVolumeNames(volumeOutput, project), [
+    `supabase_clamav_signatures_${project}`,
     `supabase_db_${project}`,
     `supabase_storage_${project}`,
-    "supabase_db_other",
-  ].join("\n"), project), [`supabase_db_${project}`, `supabase_storage_${project}`]);
+  ]);
+  const volumeIdentities = selectOwnedVolumeIdentities(volumeOutput, project);
+  assert.equal(volumeIdentities.length, 3);
+  assert.equal(volumeIdentities.every((identity) => identity.createdAt === volumeCreatedAt), true);
+  assert.equal(volumeIdentities.every((identity) => identity.driver === "local" && identity.scope === "local"), true);
+  assert.equal(volumeIdentities.every((identity) => /^[0-9a-f]{64}$/u.test(identity.labelsSha256)), true);
+  assert.equal(volumeIdentities.every((identity) => /^[0-9a-f]{64}$/u.test(identity.optionsSha256)), true);
   const network = `${project}_private`;
-  assert.deepEqual(selectOwnedNetworkNames(`${network}\nbridge\n`, network), [network]);
+  const networkId = "c".repeat(64);
+  assert.deepEqual(selectOwnedNetworkIds(
+    [networkId, network, { "evo.recovery.owner": project }].map((value) => JSON.stringify(value)).join("\t"),
+    network,
+  ), [networkId]);
   const imageId = `sha256:${"d".repeat(64)}`;
-  assert.deepEqual(selectOwnedImageIds([
-    `${imageId}\tevo-v3-recovery-${project}:candidate\t${project}`,
-    `sha256:${"e".repeat(64)}\t<none>:<none>\t${project}`,
-  ].join("\n"), project), [imageId, `sha256:${"e".repeat(64)}`]);
+  const secondImageId = `sha256:${"e".repeat(64)}`;
+  const imageTag = `evo-v3-recovery-${project}:candidate`;
+  const imageExpected = {
+    archiveSha256: "8".repeat(64),
+    buildNetwork: "dependency-fetch-only",
+    id: imageId,
+    projectName: project,
+    tag: imageTag,
+    targetCommit,
+    targetTree: targetFullTree,
+  };
+  const imageLabels = {
+    "org.opencontainers.image.revision": targetCommit,
+    "evo.recovery.project": project,
+    "evo.recovery.type": "candidate-image",
+    "evo.recovery.target-tree": targetFullTree,
+    "evo.recovery.snapshot-archive-sha256": imageExpected.archiveSha256,
+    "evo.recovery.build-network": "dependency-fetch-only",
+  };
+  assert.deepEqual(selectCandidateImageIds(`${imageId}\n${secondImageId}\n${imageId}\n`), [imageId, secondImageId]);
+  assert.deepEqual(selectCandidateImageContainerReferences([
+    containerLine(appId, `supabase_app_${project}`, {}, imageId),
+    containerLine("e".repeat(64), "foreign", {}, imageId),
+    containerLine("f".repeat(64), "unrelated", {}, unrelatedImageId),
+  ].join("\n"), imageId), [appId, "e".repeat(64)].sort());
+  const imageLine = (id, tags, labels) => `${JSON.stringify(id)}\t${JSON.stringify(tags)}\t${JSON.stringify(labels)}`;
+  assert.deepEqual(selectOwnedImageIds(imageLine(imageId, [imageTag], imageLabels), imageExpected), [imageId]);
+  expectCode(
+    () => selectOwnedContainerIds(containerLine("d".repeat(64), `supabase_app_${project}`, {}), project),
+    "cleanup_container_ownership_invalid",
+  );
+  expectCode(
+    () => selectOwnedContainerIds(containerLine(appId, `supabase_app_${project}`, {
+      "evo.recovery.owner": project,
+      "evo.recovery.project": project,
+      "evo.recovery.scanner": "foreign-project",
+      "evo.recovery.type": "candidate-app",
+    }), project),
+    "cleanup_container_ownership_invalid",
+  );
+  expectCode(
+    () => selectOwnedVolumeNames(volumeLine(`supabase_db_${project}`, {}), project),
+    "cleanup_volume_ownership_invalid",
+  );
+  expectCode(
+    () => selectOwnedVolumeNames(volumeLine(`supabase_clamav_signatures_${project}`, {
+      "com.docker.compose.project": project,
+      "evo.recovery.owner": "foreign-project",
+      "evo.recovery.project": project,
+      "evo.recovery.scanner": project,
+      "evo.recovery.type": "clamav-signatures",
+    }), project),
+    "cleanup_volume_ownership_invalid",
+  );
+  expectCode(() => selectOwnedNetworkIds(
+    [networkId, network, { "evo.recovery.owner": "other" }].map((value) => JSON.stringify(value)).join("\t"),
+    network,
+  ), "cleanup_network_ownership_invalid");
   expectCode(() => selectOwnedContainerIds("bad", project), "cleanup_container_inventory_invalid");
-  expectCode(() => selectOwnedImageIds("bad", project), "cleanup_image_inventory_invalid");
-  expectCode(() => selectOwnedImageIds(`${imageId}\tunrelated:latest\tother`, project), "cleanup_image_inventory_invalid");
+  expectCode(() => selectCandidateImageIds("bad"), "cleanup_image_list_invalid");
+  expectCode(() => selectOwnedImageIds("bad", imageExpected), "cleanup_image_inventory_invalid");
+  expectCode(() => selectOwnedImageIds([
+    imageLine(imageId, [imageTag], imageLabels),
+    imageLine(secondImageId, [], imageLabels),
+  ].join("\n"), imageExpected), "cleanup_image_inventory_invalid");
+  expectCode(() => selectOwnedImageIds(
+    imageLine(imageId, [imageTag, "unrelated:latest"], imageLabels),
+    imageExpected,
+  ), "cleanup_image_inventory_invalid");
+  expectCode(() => selectOwnedImageIds(
+    imageLine(imageId, [imageTag], { ...imageLabels, "evo.recovery.target-tree": "9".repeat(40) }),
+    imageExpected,
+  ), "cleanup_image_inventory_invalid");
+  expectCode(() => selectOwnedImageIds(
+    imageLine(imageId, [imageTag], { ...imageLabels, "evo.recovery.owner": "foreign-project" }),
+    imageExpected,
+  ), "cleanup_image_inventory_invalid");
 });
 
 test("cleanup is local-only before container preflight and quarantines contradictory mutation state", async (t) => {
+  const projectName = "evov3recoveryabcdef123456";
   const createRoot = () => {
-    const root = mkdtempSync(join(tmpdir(), "evo-v3-managed-recovery-"));
+    const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
     chmodSync(root, 0o700);
-    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), "owned\n", { mode: 0o600 });
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
     return root;
   };
   let runtimeCalls = 0;
@@ -1534,6 +2462,7 @@ test("cleanup is local-only before container preflight and quarantines contradic
   const localRoot = createRoot();
   const local = await cleanupState({
     harnessRoot: localRoot,
+    projectName,
     containerPreflightPassed: false,
     containerMutationAttempted: false,
     networkCreated: false,
@@ -1558,6 +2487,7 @@ test("cleanup is local-only before container preflight and quarantines contradic
   }, false), "quarantine");
   const quarantined = await cleanupState({
     harnessRoot: contradictoryRoot,
+    projectName,
     containerPreflightPassed: false,
     containerMutationAttempted: false,
     networkCreated: true,
@@ -1566,6 +2496,480 @@ test("cleanup is local-only before container preflight and quarantines contradic
   assert.equal(quarantined.containerPolicy, "quarantine");
   assert.equal(quarantined.disposition, "quarantine");
   assert.equal(runtimeCalls, 0);
+});
+
+test("cleanup quarantines a pending immutable capture even when Docker inventory would be empty", async (t) => {
+  const projectName = "evov3recoveryabcdef123456";
+  const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
+  chmodSync(root, 0o700);
+  writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
+  const quarantinePrefix = `${basename(root)}.quarantine-`;
+  t.after(() => {
+    for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix))) {
+      rmSync(join(tmpdir(), name), { recursive: true, force: true });
+    }
+  });
+  let runtimeCalls = 0;
+  const result = await cleanupState({
+    harnessRoot: root,
+    projectName,
+    networkName: `${projectName}_private`,
+    containerPreflightPassed: true,
+    containerMutationAttempted: true,
+    containerMutationCapture: Object.freeze({
+      stage: "local_supabase_start",
+      status: "pending",
+    }),
+    networkCreated: false,
+    stackStarted: false,
+  }, {
+    stopAll: async () => true,
+    run: async () => {
+      runtimeCalls += 1;
+      return { stdout: Buffer.from("") };
+    },
+  }, {
+    paths: {
+      docker: { real: "/verified/docker" },
+      supabaseNative: { real: "/verified/supabase" },
+      supabaseGo: { real: "/verified/supabase-go" },
+    },
+  });
+
+  assert.equal(result.containerPolicy, "quarantine");
+  assert.equal(result.disposition, "quarantine");
+  assert.equal(runtimeCalls, 0);
+  assert.equal(existsSync(root), false);
+  const quarantines = readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix));
+  assert.equal(quarantines.length, 1);
+  assert.equal(
+    readFileSync(join(tmpdir(), quarantines[0], ".evo-v3-managed-recovery-harness"), "utf8"),
+    `${projectName}\n`,
+  );
+});
+
+test("scanner cleanup quarantines killed owned volume and container capture", async (t) => {
+  const projectName = "evov3recoveryabcdef123456";
+  const signatureVolume = `supabase_clamav_signatures_${projectName}`;
+  const scannerContainer = "a".repeat(64);
+  const cases = [
+    {
+      name: "volume-create",
+      state: { scannerSignatureVolume: signatureVolume },
+    },
+    {
+      name: "container-create",
+      state: { scannerContainer, scannerSignatureVolume: signatureVolume },
+    },
+  ];
+
+  for (const scenario of cases) {
+    await t.test(scenario.name, async (subtest) => {
+      const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
+      chmodSync(root, 0o700);
+      writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
+      const quarantinePrefix = `${basename(root)}.quarantine-`;
+      subtest.after(() => {
+        for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix))) {
+          rmSync(join(tmpdir(), name), { recursive: true, force: true });
+        }
+      });
+      let runtimeCalls = 0;
+      const result = await cleanupState({
+        harnessRoot: root,
+        projectName,
+        networkName: `${projectName}_private`,
+        containerPreflightPassed: true,
+        containerMutationAttempted: true,
+        containerMutationCapture: Object.freeze({
+          stage: "malware_scanner_start",
+          status: "pending",
+        }),
+        networkCreated: true,
+        stackStarted: true,
+        ...scenario.state,
+      }, {
+        stopAll: async () => true,
+        run: async () => {
+          runtimeCalls += 1;
+          return { stdout: Buffer.from("") };
+        },
+      }, {
+        paths: {
+          docker: { real: "/verified/docker" },
+          supabaseNative: { real: "/verified/supabase" },
+          supabaseGo: { real: "/verified/supabase-go" },
+        },
+      });
+
+      assert.equal(result.containerPolicy, "quarantine");
+      assert.equal(result.disposition, "quarantine");
+      assert.equal(runtimeCalls, 0);
+      assert.equal(existsSync(root), false);
+      const quarantines = readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix));
+      assert.equal(quarantines.length, 1);
+      assert.equal(
+        readFileSync(join(tmpdir(), quarantines[0], ".evo-v3-managed-recovery-harness"), "utf8"),
+        `${projectName}\n`,
+      );
+    });
+  }
+});
+
+test("guarded recovery removal keeps the exact marker until final root removal", (t) => {
+  const projectName = "evov3recoveryabcdef123456";
+  const createRoot = () => {
+    const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
+    chmodSync(root, 0o700);
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
+    writeFileSync(join(root, "plaintext.sql"), "private\n", { mode: 0o600 });
+    return root;
+  };
+  const removed = createRoot();
+  guardedRemoveHarness(removed, projectName);
+  assert.equal(existsSync(removed), false);
+
+  const raced = createRoot();
+  t.after(() => rmSync(raced, { recursive: true, force: true }));
+  expectCode(() => guardedRemoveHarness(raced, projectName, {
+    beforeRootRemoval: (root) => writeFileSync(join(root, "raced-child"), "race\n", { mode: 0o600, flag: "wx" }),
+  }), "cleanup_directory_not_empty");
+  assert.equal(readFileSync(join(raced, ".evo-v3-managed-recovery-harness"), "utf8"), `${projectName}\n`);
+  assert.equal((lstatSync(join(raced, ".evo-v3-managed-recovery-harness")).mode & 0o077), 0);
+
+  const wrongMarker = createRoot();
+  t.after(() => rmSync(wrongMarker, { recursive: true, force: true }));
+  writeFileSync(join(wrongMarker, ".evo-v3-managed-recovery-harness"), "foreign\n");
+  expectCode(() => guardedRemoveHarness(wrongMarker, projectName), "cleanup_target_invalid");
+  assert.equal(existsSync(join(wrongMarker, "plaintext.sql")), true);
+});
+
+test("container cleanup inspects labels and removes only immutable owned IDs", async (t) => {
+  const cleanupSource = source.slice(source.indexOf("export async function cleanupState"), source.indexOf("class StageTimings"));
+  assert.doesNotMatch(cleanupSource, /\["rm", "--force", state\./u);
+  assert.doesNotMatch(cleanupSource, /\["(?:image|volume)", "rm", "--force"/u);
+  assert.doesNotMatch(cleanupSource, /supabaseNative\.real, \["stop"/u);
+  const projectName = "evov3recoveryabcdef123456";
+  const containerName = `supabase_app_${projectName}`;
+  const containerId = "a".repeat(64);
+  const networkId = "b".repeat(64);
+  const imageId = `sha256:${"c".repeat(64)}`;
+  const imageTag = `evo-v3-recovery-${projectName}:candidate`;
+  const volumeName = `supabase_clamav_signatures_${projectName}`;
+  const volumeCreatedAt = "2026-09-05T12:34:56Z";
+  const ownedVolumeLabels = {
+    "com.docker.compose.project": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.scanner": projectName,
+    "evo.recovery.type": "clamav-signatures",
+  };
+  const ownedVolumeIdentity = {
+    createdAt: volumeCreatedAt,
+    driver: "local",
+    labelsSha256: hash(canonicalJson(ownedVolumeLabels)),
+    name: volumeName,
+    optionsSha256: hash(canonicalJson(null)),
+    scope: "local",
+  };
+  const imageIdentity = {
+    archiveSha256: "8".repeat(64),
+    buildNetwork: "dependency-fetch-only",
+    id: imageId,
+    projectName,
+    tag: imageTag,
+    targetCommit,
+    targetTree: targetFullTree,
+  };
+  const imageLabels = {
+    "org.opencontainers.image.revision": targetCommit,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-image",
+    "evo.recovery.target-tree": targetFullTree,
+    "evo.recovery.snapshot-archive-sha256": imageIdentity.archiveSha256,
+    "evo.recovery.build-network": imageIdentity.buildNetwork,
+  };
+  const createRoot = () => {
+    const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
+    chmodSync(root, 0o700);
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
+    return root;
+  };
+  const toolchain = {
+    paths: {
+      docker: { real: "/verified/docker" },
+      supabaseNative: { real: "/verified/supabase" },
+      supabaseGo: { real: "/verified/supabase-go" },
+    },
+  };
+  const state = (harnessRoot) => ({
+    harnessRoot,
+    projectName,
+    networkName: `${projectName}_private`,
+    networkId,
+    containerPreflightPassed: true,
+    containerMutationAttempted: true,
+    containerMutationCapture: Object.freeze({ stage: "candidate_start", status: "complete" }),
+    networkCreated: true,
+    stackStarted: true,
+    appContainer: containerName,
+    appContainerId: containerId,
+    supabaseContainerIds: [],
+    ownedVolumeNames: [volumeName],
+    ownedVolumeIdentities: [ownedVolumeIdentity],
+    appImageTag: imageTag,
+    appImageId: imageId,
+    appImageIdentity: imageIdentity,
+  });
+  const runCleanup = async (labels, {
+    actualContainerId = containerId,
+    actualNetworkId = networkId,
+    volumeCreated = volumeCreatedAt,
+    volumeLabels = ownedVolumeLabels,
+  } = {}) => {
+    let containerPresent = true;
+    let networkPresent = true;
+    let volumePresent = true;
+    let imagePresent = true;
+    const removalArgs = [];
+    const supervisor = {
+      stopAll: async () => true,
+      run: async (_executable, args) => {
+        if (args[2] === "ps") return { stdout: Buffer.from(containerPresent ? `${actualContainerId}\n` : "") };
+        if (args[2] === "volume" && args[3] === "ls") {
+          return { stdout: Buffer.from(volumePresent ? `${volumeName}\n` : "") };
+        }
+        if (args[2] === "network" && args[3] === "ls") {
+          return { stdout: Buffer.from(networkPresent ? `${projectName}_private\n` : "") };
+        }
+        if (args[2] === "image" && args[3] === "ls") return { stdout: Buffer.from(imagePresent ? `${imageId}\n` : "") };
+        if (args[2] === "inspect") {
+          return { stdout: Buffer.from([
+            actualContainerId,
+            `/${containerName}`,
+            imageId,
+            labels,
+          ].map((value) => JSON.stringify(value)).join("\t")) };
+        }
+        if (args[2] === "volume" && args[3] === "inspect") {
+          return { stdout: Buffer.from([
+            volumeName,
+            volumeCreated,
+            "local",
+            "local",
+            volumeLabels,
+            null,
+          ].map((value) => JSON.stringify(value)).join("\t")) };
+        }
+        if (args[2] === "image" && args[3] === "inspect") {
+          return { stdout: Buffer.from([
+            imageId,
+            [imageTag],
+            imageLabels,
+          ].map((value) => JSON.stringify(value)).join("\t")) };
+        }
+        if (args[2] === "network" && args[3] === "inspect") {
+          return { stdout: Buffer.from([
+            actualNetworkId,
+            `${projectName}_private`,
+            { "evo.recovery.owner": projectName },
+          ].map((value) => JSON.stringify(value)).join("\t")) };
+        }
+        if (args[2] === "rm") {
+          removalArgs.push([...args]);
+          containerPresent = false;
+          return { stdout: Buffer.from(actualContainerId) };
+        }
+        if (args[2] === "network" && args[3] === "rm") {
+          removalArgs.push([...args]);
+          networkPresent = false;
+          return { stdout: Buffer.from(actualNetworkId) };
+        }
+        if (args[2] === "volume" && args[3] === "rm") {
+          removalArgs.push([...args]);
+          volumePresent = false;
+          return { stdout: Buffer.from(volumeName) };
+        }
+        if (args[2] === "image" && args[3] === "rm") {
+          removalArgs.push([...args]);
+          imagePresent = false;
+          return { stdout: Buffer.from(imageId) };
+        }
+        throw new Error(`unexpected command: ${args.join(" ")}`);
+      },
+    };
+    const root = createRoot();
+    const result = await cleanupState(state(root), supervisor, toolchain);
+    return { result, removalArgs, root };
+  };
+
+  const owned = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  });
+  assert.equal(owned.result.disposition, "remove");
+  assert.equal(owned.removalArgs.length, 4);
+  assert.equal(owned.removalArgs[0].includes(containerId), true);
+  assert.equal(owned.removalArgs[0].includes(containerName), false);
+  assert.equal(owned.removalArgs[1].includes(imageId), true);
+  assert.equal(owned.removalArgs[1].includes("--force"), false);
+  assert.equal(owned.removalArgs[2].includes(volumeName), true);
+  assert.equal(owned.removalArgs[2].includes("--force"), false);
+  assert.equal(owned.removalArgs[3].includes(networkId), true);
+  assert.equal(owned.removalArgs[3].includes(`${projectName}_private`), false);
+
+  const foreign = await runCleanup({});
+  assert.equal(foreign.result.disposition, "quarantine");
+  assert.equal(foreign.removalArgs.length, 0);
+  const replaced = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  }, { actualContainerId: "c".repeat(64) });
+  assert.equal(replaced.result.disposition, "quarantine");
+  assert.equal(replaced.removalArgs.length, 0);
+  const networkReplaced = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  }, { actualNetworkId: "d".repeat(64) });
+  assert.equal(networkReplaced.result.disposition, "quarantine");
+  assert.equal(networkReplaced.removalArgs.length, 0);
+  const volumeConflict = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  }, { volumeLabels: { ...ownedVolumeLabels, "evo.recovery.owner": "foreign-project" } });
+  assert.equal(volumeConflict.result.disposition, "quarantine");
+  assert.equal(volumeConflict.removalArgs.length, 0);
+  const volumeRecreated = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  }, { volumeCreated: "2026-09-05T12:35:57Z" });
+  assert.equal(volumeRecreated.result.disposition, "quarantine");
+  assert.equal(volumeRecreated.removalArgs.length, 0);
+  t.after(() => {
+    for (const root of [foreign.root, replaced.root, networkReplaced.root, volumeConflict.root, volumeRecreated.root]) {
+      const prefix = `${basename(root)}.quarantine-`;
+      for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(prefix))) {
+        rmSync(join(tmpdir(), name), { recursive: true, force: true });
+      }
+    }
+  });
+});
+
+test("image cleanup removes only the captured ID with exact tag and provenance", async (t) => {
+  const projectName = "evov3recoveryabcdef123456";
+  const imageId = `sha256:${"e".repeat(64)}`;
+  const extraImageId = `sha256:${"f".repeat(64)}`;
+  const tag = `evo-v3-recovery-${projectName}:candidate`;
+  const identity = {
+    archiveSha256: "8".repeat(64),
+    buildNetwork: "dependency-fetch-only",
+    id: imageId,
+    projectName,
+    tag,
+    targetCommit,
+    targetTree: targetFullTree,
+  };
+  const labels = {
+    "org.opencontainers.image.revision": targetCommit,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-image",
+    "evo.recovery.target-tree": targetFullTree,
+    "evo.recovery.snapshot-archive-sha256": identity.archiveSha256,
+    "evo.recovery.build-network": identity.buildNetwork,
+  };
+  const toolchain = {
+    paths: {
+      docker: { real: "/verified/docker" },
+      supabaseNative: { real: "/verified/supabase" },
+      supabaseGo: { real: "/verified/supabase-go" },
+    },
+  };
+  const createRoot = () => {
+    const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
+    chmodSync(root, 0o700);
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
+    return root;
+  };
+  const foreignContainerId = "9".repeat(64);
+  const runCleanup = async ({ extra = false, foreignReference = false } = {}) => {
+    let imagePresent = true;
+    const removalArgs = [];
+    const root = createRoot();
+    const supervisor = {
+      stopAll: async () => true,
+      run: async (_executable, args) => {
+        if (args[2] === "ps") return { stdout: Buffer.from(foreignReference ? `${foreignContainerId}\n` : "") };
+        if (args[2] === "volume" && args[3] === "ls") return { stdout: Buffer.from("") };
+        if (args[2] === "network" && args[3] === "ls") return { stdout: Buffer.from("") };
+        if (args[2] === "image" && args[3] === "ls") {
+          return { stdout: Buffer.from(imagePresent ? `${imageId}${extra ? `\n${extraImageId}` : ""}\n` : "") };
+        }
+        if (args[2] === "image" && args[3] === "inspect") {
+          const lines = [
+            [imageId, [tag], labels],
+            ...(extra ? [[extraImageId, [], labels]] : []),
+          ].map((line) => line.map((value) => JSON.stringify(value)).join("\t"));
+          return { stdout: Buffer.from(lines.join("\n")) };
+        }
+        if (args[2] === "inspect") {
+          return { stdout: Buffer.from([
+            foreignContainerId,
+            "/foreign-container",
+            imageId,
+            {},
+          ].map((value) => JSON.stringify(value)).join("\t")) };
+        }
+        if (args[2] === "image" && args[3] === "rm") {
+          removalArgs.push([...args]);
+          imagePresent = false;
+          return { stdout: Buffer.from(imageId) };
+        }
+        throw new Error(`unexpected command: ${args.join(" ")}`);
+      },
+    };
+    const result = await cleanupState({
+      harnessRoot: root,
+      projectName,
+      networkName: `${projectName}_private`,
+      containerPreflightPassed: true,
+      containerMutationAttempted: true,
+      containerMutationCapture: Object.freeze({ stage: "exact_target_image_build", status: "complete" }),
+      networkCreated: false,
+      stackStarted: false,
+      supabaseContainerIds: [],
+      ownedVolumeNames: [],
+      appImageTag: tag,
+      appImageId: imageId,
+      appImageIdentity: identity,
+    }, supervisor, toolchain);
+    return { removalArgs, result, root };
+  };
+
+  const owned = await runCleanup();
+  assert.equal(owned.result.disposition, "remove");
+  assert.equal(owned.removalArgs.length, 1);
+  assert.equal(owned.removalArgs[0].includes(imageId), true);
+  assert.equal(owned.removalArgs[0].includes(tag), false);
+  assert.equal(owned.removalArgs[0].includes("--force"), false);
+
+  const inheritedExtra = await runCleanup({ extra: true });
+  assert.equal(inheritedExtra.result.disposition, "quarantine");
+  assert.equal(inheritedExtra.removalArgs.length, 0);
+  const foreignReference = await runCleanup({ foreignReference: true });
+  assert.equal(foreignReference.result.disposition, "quarantine");
+  assert.equal(foreignReference.removalArgs.length, 0);
+  t.after(() => {
+    for (const root of [inheritedExtra.root, foreignReference.root]) {
+      const prefix = `${basename(root)}.quarantine-`;
+      for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(prefix))) {
+        rmSync(join(tmpdir(), name), { recursive: true, force: true });
+      }
+    }
+  });
 });
 
 test("Supabase launcher pins the platform-native executable children", () => {
@@ -1601,7 +3005,9 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.match(source, /history-data\.sql\.age/u);
   assert.match(source, /receipt\.json\.sig/u);
   assert.doesNotMatch(source, /--network", "host"/u);
-  assert.match(source, /"network", "create", "--internal"/u);
+  assert.doesNotMatch(source, /"network", "create", "--internal"/u);
+  assert.match(source, /com\.docker\.network\.bridge\.enable_ip_masquerade=false/u);
+  assert.match(source, /bridge_ip_masquerade_disabled_plus_runtime_probe/u);
   assert.match(source, /"--network", state\.networkName/u);
   assert.match(source, /"--publish", `127\.0\.0\.1:\$\{appPort\}:\$\{appPort\}`/u);
   assert.match(source, /SAFE_CONTAINER_INSPECT_FORMAT/u);
@@ -1609,8 +3015,8 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.match(source, /await import\("\/app\/server\.js"\)/u);
   assert.match(source, /change_membership_permission/u);
   assert.match(source, /ROLLBACK/u);
-  assert.match(source, /selectAdmissionsTaskMutation\(admissionsTask\)/u);
-  assert.match(source, /return await reconcileRestoredDatabase\(/u);
+  assert.match(source, /selectAdmissionsTaskMutation\(\{/u);
+  assert.match(source, /\.\.\.await reconcileRestoredDatabase\(/u);
   assert.match(source, /classifyExpectedDatabaseDenial\(error\.diagnostic/u);
   assert.match(source, /response\?\.status\(\) \?\? 0/u);
   assert.match(source, /buildIsolationEvidence\(state\.isolationInput, \{ requireComplete: true \}\)/u);

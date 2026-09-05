@@ -17,6 +17,9 @@
     "lint": "eslint",
     "test:fast-release": "node --conditions=react-server --experimental-strip-types --test tests/release-metadata.test.mjs tests/fast-release-control.test.mjs tests/production-release-workflow.test.mjs tests/production-browser-smoke.test.mjs tests/app-env-contract.test.mjs tests/v3-release-rollback-harness.test.mjs tests/v3-managed-supabase-export.test.mjs",
     "backup:v3:managed": "EVO_RUN_V3_MANAGED_SUPABASE_EXPORT=1 node scripts/export-v3-managed-supabase-backup.mjs run",
+    "recovery:v3:managed:contract": "node scripts/test-v3-managed-supabase-recovery-orbstack.mjs contract",
+    "recovery:v3:managed:preflight": "EVO_RUN_V3_MANAGED_SUPABASE_RECOVERY_ORBSTACK=1 node scripts/test-v3-managed-supabase-recovery-orbstack.mjs preflight",
+    "recovery:v3:managed:run": "EVO_RUN_V3_MANAGED_SUPABASE_RECOVERY_ORBSTACK=1 node scripts/test-v3-managed-supabase-recovery-orbstack.mjs run",
     "test:p6d": "node --test tests/p6d-release-candidate.test.mjs tests/runtime-hardening.test.mjs",
     "test:p6d:orbstack": "EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node EVO_P6D_CANDIDATE_PROOF=1 bash scripts/test-postgres-v2-foundation.sh",
     "test:v3:release:orbstack": "EVO_RUN_V3_RELEASE_ROLLBACK_ORBSTACK=1 node scripts/test-v3-release-rollback-orbstack.mjs",
@@ -78,6 +81,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "smol-toml": "1.8.0",
     "supabase": "2.116.0",
     "tailwindcss": "^4",
     "typescript": "^5"

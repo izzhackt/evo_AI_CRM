@@ -27,6 +27,14 @@ Verified #551 contract baseline: GitHub `origin/main` at
 no-staging recovery/release contract; exact-main CI run `33944079179` passed
 and production-release run `33944667061` remained safely skipped while the
 release arm was absent.
+Verified #551 signed-consumer baseline: GitHub `origin/main` at
+`72ce0a4b480ac63c12dca4a25b295ad04c7a7cf9` after PR #640 merged the
+result-v2 signed-artifact, lineage, isolation, exact-image and cleanup
+architecture. That merge is not #551 completion: it was not exercised with
+Docker and a post-merge audit found production-local TLS, real product-route
+malware-scanner, provider-readiness, private Node/buildx and complete role-
+outcome proof still missing. #551 remains open and #552 remains unarmed until
+one corrected exact-head rehearsal records the truthful result.
 
 ## Current authority: V3 becomes the managed-Supabase product
 
@@ -235,12 +243,36 @@ The rehearsal applies every target migration after the restored database
 history and records the database-pending and target-only source-code suffixes
 separately.
 
+The signed 2026-09-05 source history contains exactly three closed legacy
+anomalies. `038 authorization_containment` and `039 private_inbox_media` have
+signed empty statement arrays even though their source Git migration files are
+non-empty. `030 ai_knowledge` has the same 36 executable statements as its
+source Git file, but two recorded statement strings retain earlier comment text.
+The consumer may accept only those exact version/name and signed-row/statement-
+digest/root-file/statement-digest tuples. It must bind both sides into durable
+evidence, while every other recorded row still requires exact statement-count
+and statement-digest identity. A different version, name, count, digest, extra
+empty row, missing Git migration or reordered prefix fails closed. This is not
+permission to reconstruct or edit signed history: the restored ledger remains
+the signed database ledger, new rows come only from the verified pending Git
+suffix, and recovery still restores the signed schema/data artifacts before
+applying that suffix.
+
 The recovery target is bound to the exact clean target checkout, a verified
 private Git snapshot and a locally built `linux/amd64` production image that is
 run by inspected image ID. Locked dependency acquisition is the only build-time
-network use; the candidate runtime has only one owned internal Docker network,
-publishes the app solely to loopback and blocks every browser HTTP request and
-every WebSocket before page creation using Playwright's documented
+network use. The disposable runtime has one owned user-defined Docker bridge
+with IPv6 disabled, IPv4 masquerading disabled, and every published port bound
+to loopback. It must also prove from a running restored-stack container that an
+external TCP target is unreachable; any enabled masquerade, successful egress
+probe, wildcard port or second network fails closed. This preserves host access
+needed by the Supabase CLI on OrbStack without giving the candidate outbound
+provider access. Docker documents that bridge masquerading supplies external
+access, that `com.docker.network.bridge.enable_ip_masquerade` controls it, and
+that `com.docker.network.bridge.host_binding_ipv4` controls the default publish
+address: <https://docs.docker.com/engine/network/drivers/bridge/#options>.
+The harness also blocks every browser HTTP request and every WebSocket before
+page creation using Playwright's documented
 `BrowserContext.routeWebSocket` interception:
 <https://playwright.dev/docs/api/class-browsercontext#browser-context-route-web-socket>.
 The trusted OrbStack Docker frontend is a verified multi-call executable: the
@@ -248,6 +280,32 @@ recovery harness executes its resolved allowlisted binary with `argv[0]`
 explicitly fixed to `docker`. It must not invoke the resolved `docker-tools`
 basename, follow an unverified PATH fallback or bypass the exact `orbstack`
 context.
+The recovery scanner is a distinct runtime resource with its own exact type
+and project labels and exactly-one census; it must not share or weaken the
+exactly-one candidate-app owner identity. Every disposable container and
+volume is enumerated, inspected and matched to its exact project/type labels
+before removal. A same-name collision, missing or conflicting label, duplicate
+type, or incomplete inventory quarantines the private contour; cleanup never
+removes a container directly by a planned name. The streaming SQL-artifact
+validator must observe exactly one matching `\restrict` before its
+`\unrestrict`, not merely count equal guard tokens.
+Cleanup is also bound to the immutable network, Supabase-census, scanner,
+candidate-app and TLS-proxy IDs captured at creation/validation, plus the exact
+validated volume-name census. The candidate image must be the one captured
+image ID with its sole expected tag and complete revision/tree/archive/build
+provenance; an inherited-label image or any identity drift quarantines rather
+than expands the deletion set. Every reserved ownership label must be absent or
+exactly correct for the selected resource category. The private plaintext root
+keeps its exact owner/mode/content marker until all non-marker children are
+removed; final-directory failure atomically restores that marker and never
+falls back to recursive root deletion.
+Before image removal, the all-container inspection must prove that references
+to the captured candidate image are exactly the still-present captured app and
+TLS-proxy containers, then zero after their removal. Image deletion is
+non-force so a new foreign reference fails closed. Each volume identity binds
+its captured name, `CreatedAt`, driver, scope and full label/options hashes;
+same-name recreation or metadata drift quarantines. Volume removal is also
+non-force so an in-use or raced reference cannot bypass Docker's protection.
 The rehearsal reconciles aggregate counts rather than publishing
 customer rows, proves the safe available Supabase Auth/RLS/private-Storage and
 V3 browser behaviors, then destroys the disposable contour and atomically
@@ -260,6 +318,51 @@ proved with a canonical allowed PDF and exact hash round trip, but cannot
 satisfy either missing-role or real source-byte recovery. A missing backup
 directory, missing source credentials or either real backup is also a named
 blocker, and synthetic identities, records or objects cannot satisfy this gate.
+The signed source bucket rows and object bytes are reconciled before target
+Storage configuration is applied. Only after that exact source proof, the
+consumer restores the exact target commit's `[storage.buckets.*]` declarations
+as its contract and reconciles them through the local Supabase Storage bucket
+API. It lists the API inventory before and after the change and requires every
+configured bucket's privacy, byte limit and MIME allowlist to match before any
+application canary starts. The complete final inventory must equal the exact
+source inventory with target-config buckets overlaid, so a source-only bucket
+cannot disappear or change behind an equal count. An `objects_path` is
+forbidden in this recovery gate so configuration cannot inject fixture bytes.
+Target bucket creation is forward infrastructure rehearsal: it neither changes
+the signed source-recovery counts nor satisfies the independent requirement for
+at least one real recovered source object. Supabase documents bucket declarations
+in the [CLI config reference](https://supabase.com/docs/guides/local-development/cli/config)
+and the bucket lifecycle in
+[Creating Buckets](https://supabase.com/docs/guides/storage/buckets/creating-buckets).
+The private-document canary consumes the Storage API's raw `/object/sign/...`
+response only after resolving it beneath `/storage/v1` on the exact local API
+origin; a different origin, object path, fragment or query shape fails closed.
+Because the managed schema export intentionally excludes extension-owned
+`pgmq` objects while the signed data export retains queue rows, recovery must
+recreate only the two migration-045 queues before loading `data.sql`. It binds
+the exact four `q_*`/`a_*` COPY sections and their column order, recreates two
+logged non-partitioned metadata entries and two identity sequences, reapplies
+the migration's deny ACLs, requires its exact `create`, `read`, `send`,
+`set_vt` and `archive` worker signatures, and then inspects direct, inherited
+and `SET ROLE`-reachable column, function and additive default grants plus
+schema/relation/function/default-ACL ownership for every browser/service role.
+The same inspection runs before data, after signed row-count reconciliation
+and again after pending migrations; the final inspection never repairs ACLs,
+so a bad target migration fails instead of being masked. PostgreSQL documents that a
+per-schema default `REVOKE` cannot cancel a global or hard-wired default grant,
+including default `PUBLIC EXECUTE` on future functions. Therefore only explicit
+current-object revocation plus the repeated effective-privilege inspection is
+claimed here; the harness does not promise automatic containment of unknown
+future extension objects. Supabase's PGMQ reference confirms that
+`pgmq.create(text)` creates a queue, while its Queues quickstart documents the
+paired `q_<name>` and `a_<name>` tables and warns that direct queue tables do
+not receive RLS by default:
+<https://supabase.com/docs/guides/queues/pgmq> and
+<https://supabase.com/docs/guides/queues/quickstart>. PostgreSQL default-
+privilege behavior is authoritative at
+<https://www.postgresql.org/docs/current/sql-alterdefaultprivileges.html> and
+the inspected catalog is documented at
+<https://www.postgresql.org/docs/17/catalog-pg-default-acl.html>.
 
 #600 keeps the proved `/v3/*` module URLs and makes the authenticated root a
 role-aware dispatcher into them: Admin and Sales enter `/v3/main`, while
@@ -443,7 +546,11 @@ in #552 after every prerequisite below passes.
    run only in a loopback-bound OrbStack copy. The gate proves source and
    destination project refs, URLs, networks and volumes are unequal, limits
    application-level verification to a named minimum authorized cohort, and
-   never publishes row, object, credential or session data in evidence.
+   never publishes row, object, credential or session data in evidence. Exact
+   source bucket/object reconciliation completes before the target commit's
+   bucket declarations are reconciled and verified through the real local
+   Storage API; that target upgrade cannot replace or waive source-byte
+   recovery.
 6. **Scanner prerequisite.** Before the release may be armed, both active
    document-ingress paths are bound to the same real scanner implementation.
    Each upload first scans the ingress bytes before any reservation or Storage

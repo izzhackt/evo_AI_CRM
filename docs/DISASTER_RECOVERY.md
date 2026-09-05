@@ -218,6 +218,92 @@ existing application-facing recovery result remains `u11-recovery-result`; it
 may become ready only after a separate isolated restore proves database/Auth,
 role-specific RLS/browser behavior, Storage bytes and malware scanning.
 
+## Isolated managed-Supabase recovery consumer
+
+The consumer accepts exactly one completed, signed exporter directory. It
+does not accept loose dumps, a replacement manifest, a database URL or an
+unsigned migration ledger, and it never contacts the managed project. Before
+decrypting anything it verifies the detached signature with the separately
+retained public key, validates every ciphertext digest and binds the source
+project, Supabase organization, platform organization, physical provider
+backup, export commit, source migration tree and integrated main-equivalent
+commit. The target is independently bound to the exact clean checkout, target
+migration tree, immutable Git archive and locally built `linux/amd64`
+production image.
+
+Use the repository scripts from an exact clean reviewed commit. Supply every
+identifier through the child process or literal operator input without
+printing it or saving it in Git. Sales and Admissions IDs are optional only so
+the rehearsal can produce an honest diagnostic; their absence can never pass
+the acceptance gate.
+
+```bash
+npm run recovery:v3:managed:contract
+
+npm run recovery:v3:managed:preflight -- \
+  --backup-dir '<absolute-completed-export-directory>' \
+  --trusted-public-key '<absolute-operator-held-public-key>' \
+  --age-identity '<absolute-mode-0600-age-identity>' \
+  --project-ref '<signed-project-ref>' \
+  --supabase-organization-id '<signed-supabase-organization-id>' \
+  --platform-organization-id '<restored-platform-organization-uuid>' \
+  --source-repository-commit '<signed-export-commit>' \
+  --source-migration-tree '<signed-source-migration-tree>' \
+  --source-main-equivalent-commit '<integrated-equivalent-main-commit>' \
+  --target-repository-commit '<exact-clean-target-commit>' \
+  --target-migration-tree '<exact-target-migration-tree>' \
+  --admin-user-id '<restored-admin-auth-user-uuid>' \
+  --sales-user-id '<restored-sales-auth-user-uuid>' \
+  --admissions-user-id '<restored-admissions-auth-user-uuid>' \
+  --evidence-out '<absolute-private-preflight-evidence-path>'
+
+npm run recovery:v3:managed:run -- \
+  --backup-dir '<same-completed-export-directory>' \
+  --trusted-public-key '<same-operator-held-public-key>' \
+  --age-identity '<same-mode-0600-age-identity>' \
+  --project-ref '<same-signed-project-ref>' \
+  --supabase-organization-id '<same-signed-supabase-organization-id>' \
+  --platform-organization-id '<same-restored-platform-organization-uuid>' \
+  --source-repository-commit '<same-signed-export-commit>' \
+  --source-migration-tree '<same-signed-source-migration-tree>' \
+  --source-main-equivalent-commit '<same-integrated-equivalent-main-commit>' \
+  --target-repository-commit '<exact-clean-target-commit>' \
+  --target-migration-tree '<exact-target-migration-tree>' \
+  --admin-user-id '<same-restored-admin-auth-user-uuid>' \
+  --sales-user-id '<same-restored-sales-auth-user-uuid>' \
+  --admissions-user-id '<same-restored-admissions-auth-user-uuid>' \
+  --evidence-out '<absolute-private-run-evidence-path>'
+```
+
+The full run restores only into a disposable OrbStack Supabase contour with one
+owned, egress-blocked, non-internal bridge and loopback-only app publication.
+It applies only the
+authenticated pending migration suffix, verifies exact source Storage bytes,
+runs the exact production image through local TLS, blocks browser HTTP and
+WebSocket egress, proves restored Auth/RLS/business outcomes, exercises the
+real Company Files scanner path for clean, EICAR, unavailable and recovered
+outcomes, and verifies fail-closed provider readiness without contacting a
+provider. This result is only one half of the #551 scanner gate. The same exact
+target commit must also pass `test:database:local`, which starts the pinned real
+ClamAV image and drives both active Student 360 `/api/v2/document-slots/*` and
+Company Files `/api/v3/company-files/*` ingress paths, plus `test:u7`, whose
+focused scanner/client/route contracts cover timeout, malformed, duplicate,
+missing, unknown and uncorrelated request IDs, scanner identity drift, and
+zero persistence/download on failure. Record the matching exact-head CI run
+with the result-v2 evidence; neither half alone closes #551.
+
+Cleanup must drain every owned process and container before the private
+runtime directory is removed; uncertainty is quarantined rather than deleted.
+Only mode-`0600` redacted result-v2 evidence is retained outside the runtime
+directory.
+
+`status=passed` requires all three real restored staff identities and at least
+one real source private-Storage object. Missing Sales/Admissions identities or
+a signed zero-object Storage source returns a non-zero `status=not_ready` with
+named blockers. The available Admin and deterministic PDF canary may still
+prove safe behavior, but they never substitute fixtures for the missing
+source evidence.
+
 ## WAHA boundary
 
 Normal app rollback preserves `crm_primary`; it does not rescan a QR or move
@@ -267,5 +353,11 @@ gate and stops; it does not fall back to fixtures or a historical runtime.
   <https://supabase.com/docs/guides/database/connecting-to-postgres>
 - Supabase PostgreSQL SSL verification and CA instructions:
   <https://supabase.com/docs/guides/platform/ssl-enforcement>
+- ClamAV scanning and exit-status contract:
+  <https://docs.clamav.net/manual/Usage/Scanning.html>
+- ClamAV `clamd` protocol:
+  <https://docs.clamav.net/manual/Usage/ClamdProtocol.html>
+- ClamAV official container images:
+  <https://docs.clamav.net/manual/Installing/Docker.html>
 - WAHA sessions: <https://waha.devlike.pro/docs/how-to/sessions/>
 - WAHA security: <https://waha.devlike.pro/docs/how-to/security/>

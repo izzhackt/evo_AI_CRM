@@ -217,6 +217,11 @@ publishes the app solely to loopback and blocks every browser HTTP request and
 every WebSocket before page creation using Playwright's documented
 `BrowserContext.routeWebSocket` interception:
 <https://playwright.dev/docs/api/class-browsercontext#browser-context-route-web-socket>.
+The trusted OrbStack Docker frontend is a verified multi-call executable: the
+recovery harness executes its resolved allowlisted binary with `argv[0]`
+explicitly fixed to `docker`. It must not invoke the resolved `docker-tools`
+basename, follow an unverified PATH fallback or bypass the exact `orbstack`
+context.
 The rehearsal reconciles aggregate counts rather than publishing
 customer rows, proves the safe available Supabase Auth/RLS/private-Storage and
 V3 browser behaviors, then destroys the disposable contour and atomically

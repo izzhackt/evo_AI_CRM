@@ -1419,6 +1419,37 @@ test("tracked process groups TERM then drain descendants and timeouts cannot orp
   assert.equal(await supervisor.stopAll(), true);
 });
 
+test("tracked commands preserve an explicit validated argv0 for multi-call tools", async () => {
+  const supervisor = new ProcessSupervisor();
+  const result = await supervisor.run(
+    process.execPath,
+    ["-e", "process.stdout.write(process.argv0)"],
+    { argv0: "docker", stage: "toolchain", timeoutMs: 10_000 },
+  );
+  assert.equal(result.stdout.toString("utf8"), "docker");
+  await expectCodeAsync(
+    () => supervisor.run(process.execPath, ["--version"], { argv0: "../docker", stage: "toolchain" }),
+    "command_argv0_invalid",
+  );
+
+  const record = supervisor.start(
+    process.execPath,
+    ["-e", "process.stdout.write(process.argv0)"],
+    { argv0: "docker", stage: "toolchain" },
+  );
+  const status = await new Promise((resolve, reject) => {
+    record.child.once("error", reject);
+    record.child.once("close", resolve);
+  });
+  assert.equal(status, 0);
+  assert.equal(record.stdout.toString("utf8"), "docker");
+  assert.equal(await supervisor.stopOne(record), true);
+  expectCode(
+    () => supervisor.start(process.execPath, ["--version"], { argv0: "../docker", stage: "toolchain" }),
+    "command_argv0_invalid",
+  );
+});
+
 test("tracked long-lived spawn failures are observed and remain drainable", async () => {
   const supervisor = new ProcessSupervisor();
   const record = supervisor.start(join(tmpdir(), `missing-recovery-tool-${process.pid}`), [], { stage: "browser_proof" });
@@ -1548,6 +1579,15 @@ test("Supabase launcher pins the platform-native executable children", () => {
   assert.match(source, /supervisor\.run\(toolchain\.paths\.supabaseNative\.real/u);
   assert.doesNotMatch(source, /supervisor\.run\(toolchain\.paths\.supabase\.real/u);
   assert.match(source, /SUPABASE_GO_BINARY: paths\.supabaseGo\.real/u);
+});
+
+test("all Docker commands preserve the verified docker frontend name", () => {
+  assert.match(
+    source,
+    /function runDocker\(supervisor, executable, args, options = \{\}\) \{\s+return supervisor\.run\(executable\.real, args, \{ \.\.\.options, argv0: "docker" \}\);/u,
+  );
+  assert.doesNotMatch(source, /supervisor\.run\((?:toolchain\.paths|tools)\.docker\.real/u);
+  assert.ok(source.split("runDocker(").length - 1 > 10);
 });
 
 test("diagnostics are hash-only and implementation has no sync executor or synthetic actor path", () => {

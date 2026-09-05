@@ -78,6 +78,7 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const GIT_OID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const PROJECT_REF = /^[a-z0-9]{20}$/u;
 const REGION = /^[a-z][a-z0-9-]{1,62}$/u;
+const PLAYWRIGHT_CHROMIUM_VERSION = /^(?:Chromium|Google Chrome for Testing) \d+(?:\.\d+){3}$/u;
 const VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u;
 const MIGRATION_VERSION = /^\d{3}$/u;
 const MIGRATION_NAME = /^[a-z0-9][a-z0-9_]{0,126}$/u;
@@ -5465,6 +5466,10 @@ server.listen(443, "0.0.0.0");
   });
 }
 
+export function isTrustedPlaywrightChromiumVersion(value) {
+  return typeof value === "string" && PLAYWRIGHT_CHROMIUM_VERSION.test(value);
+}
+
 async function browserExecutable(supervisor) {
   const { chromium } = await import("@playwright/test");
   const path = chromium.executablePath();
@@ -5472,7 +5477,7 @@ async function browserExecutable(supervisor) {
   if (!canonical.includes(`${sep}ms-playwright${sep}`)) fail("browser_executable_untrusted", "browser_proof");
   const version = await supervisor.run(canonical, ["--version"], { stage: "browser_proof", code: "browser_version_failed", timeoutMs: 10_000 });
   const value = version.stdout.toString("utf8").trim();
-  if (!/^Chromium \d+(?:\.\d+){3}$/u.test(value)) fail("browser_version_invalid", "browser_proof");
+  if (!isTrustedPlaywrightChromiumVersion(value)) fail("browser_version_invalid", "browser_proof");
   return Object.freeze({ chromium, path: canonical, version: value, binarySha256: await sha256File(canonical) });
 }
 
@@ -6910,7 +6915,7 @@ function durableToolEvidence(value) {
                       : new Set(["docker_client", "docker_server"]).has(key)
                         ? VERSION.test(field)
                         : key === "chromium"
-                          ? /^Chromium \d+(?:\.\d+){3}$/u.test(field)
+                          ? isTrustedPlaywrightChromiumVersion(field)
                           : false;
     if (!valid) continue;
     result[key] = field;

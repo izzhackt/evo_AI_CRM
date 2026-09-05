@@ -29,6 +29,7 @@ import {
   gitBlobOid,
   guardedRemoveHarness,
   installBrowserWebSocketBlocker,
+  isTrustedPlaywrightChromiumVersion,
   latchInterruption,
   migrationStatementsDigest,
   parseHarnessOptions,
@@ -1510,7 +1511,7 @@ test("durable evidence fails closed before write when cleanup quarantines", () =
       tar_binary_sha256: binaryDigest,
       orb_binary_sha256: binaryDigest,
       docker_binary_sha256: binaryDigest,
-      chromium: "Chromium 140.0.7339.16",
+      chromium: "Google Chrome for Testing 149.0.7827.55",
       chromium_binary_sha256: binaryDigest,
       leaked_path: "/usr/local/bin/tool",
     },
@@ -1518,8 +1519,26 @@ test("durable evidence fails closed before write when cleanup quarantines", () =
   assert.equal(safeToolResult.tools.git, "git version 2.50.1 (Apple Git-155)");
   assert.equal(safeToolResult.tools.sshKeygen_binary_sha256, binaryDigest);
   assert.equal(safeToolResult.tools.chromium_binary_sha256, binaryDigest);
+  assert.equal(safeToolResult.tools.chromium, "Google Chrome for Testing 149.0.7827.55");
   assert.equal(JSON.stringify(safeToolResult.tools).includes("/usr/"), false);
   assert.equal(Object.hasOwn(safeToolResult.tools, "leaked_path"), false);
+
+  for (const invalidBrowserVersion of [
+    "Google Chrome 149.0.7827.55",
+    "Microsoft Edge 149.0.7827.55",
+    "Chromium 149.0.7827.55 beta",
+    "Google Chrome for Testing 149.0.7827",
+    "Chromium 149.0.7827.55\n/private/secret/browser",
+    "\u001B[31mChromium 149.0.7827.55\u001B[0m",
+  ]) {
+    const sanitized = buildDurableEvidence({
+      ...common,
+      cleanup: { descendantsDrained: true, targetsOwned: true, cleanupSucceeded: true, disposition: "remove" },
+      tools: { chromium: invalidBrowserVersion },
+    });
+    assert.equal(Object.hasOwn(sanitized.tools, "chromium"), false);
+    assert.equal(JSON.stringify(sanitized.tools).includes("/private/secret"), false);
+  }
 
   const notReady = buildDurableEvidence({
     ...common,
@@ -1536,6 +1555,18 @@ test("durable evidence fails closed before write when cleanup quarantines", () =
   assert.equal(notReady.failure.code, "recovery_not_ready");
   assert.equal(notReady.failure.diagnostic.blockerCount, 3);
   assert.deepEqual(notReady.blockers, ["sales_representative_missing", "admissions_representative_missing", "storage_source_object_missing"]);
+});
+
+test("browser version contract accepts only bundled Chromium brands with four numeric components", () => {
+  assert.equal(isTrustedPlaywrightChromiumVersion("Chromium 140.0.7339.16"), true);
+  assert.equal(isTrustedPlaywrightChromiumVersion("Google Chrome for Testing 149.0.7827.55"), true);
+  assert.equal(isTrustedPlaywrightChromiumVersion("Google Chrome 149.0.7827.55"), false);
+  assert.equal(isTrustedPlaywrightChromiumVersion("Microsoft Edge 149.0.7827.55"), false);
+  assert.equal(isTrustedPlaywrightChromiumVersion("Chromium 140.0.7339.16 beta"), false);
+  assert.equal(isTrustedPlaywrightChromiumVersion("Google Chrome for Testing 149.0.7827"), false);
+  assert.equal(isTrustedPlaywrightChromiumVersion("Google Chrome for Testing 149.0.7827.55.1"), false);
+  assert.equal(isTrustedPlaywrightChromiumVersion("Chromium 149.0.7827.55\n/private/secret/browser"), false);
+  assert.equal(isTrustedPlaywrightChromiumVersion("\u001B[31mChromium 149.0.7827.55\u001B[0m"), false);
 });
 
 test("durable evidence is atomically retained mode-0600 outside the runtime root", (t) => {

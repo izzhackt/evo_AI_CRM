@@ -19498,3 +19498,33 @@ These changes affect only the isolated local recovery harness and its redacted
 evidence. No managed Supabase, production, VPS, provider, webhook or customer
 state is contacted or mutated; #552 remains unarmed until #551 produces a
 complete exact-main result.
+
+## 2026-09-05 - Bind the complete browser and Playwright execution closure
+
+Block-ID: `EVO-V3-H-RECOVERY-BROWSER-CLOSURE-2026-09-05`
+
+Change type: independent security-review correction. Affected plan section:
+Order 7 / Issue #551.
+
+Exact-head review found that the earlier browser attestation covered the small
+macOS Chromium launcher but not the loaded application framework/helpers or the
+Playwright JavaScript that controls CDP. It also executed `Chromium --version`
+directly before the operating-system sandbox control was proved.
+
+Decision: before dynamic import or browser execution, bind the exact lockfile
+version, registry URL and integrity for `@playwright/test`, `playwright`,
+`playwright-core` and the macOS optional runtime, then verify deterministic
+installed-tree manifests for all four packages. Bind the complete Chromium
+application bundle with a sorted manifest of every directory, file byte digest,
+mode and contained relative symlink, while requiring current-user ownership and
+rejecting group/world-writable files or directories. Resolve the package entry
+with Node's module-relative `import.meta.resolve()` and require it to remain
+inside the reviewed package root before import. Run both version inspection and
+the evidence browser only through the already verified `sandbox-exec` policy,
+after its positive and negative network controls pass.
+
+The package-resolution behavior follows Node's official ESM contract:
+<https://nodejs.org/download/release/latest-jod/docs/api/esm.html#importmetaresolvespecifier>.
+This correction changes only the isolated local recovery consumer, its tests
+and plan contract. It does not contact or mutate managed Supabase, production,
+VPS, providers, webhooks or customer state; #552 remains unarmed.

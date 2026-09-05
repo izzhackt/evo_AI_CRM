@@ -275,12 +275,19 @@ Docker documents that bridge masquerading supplies external access, that
 `com.docker.network.bridge.enable_ip_masquerade` controls it, and that
 `com.docker.network.bridge.host_binding_ipv4` controls the default publish
 address: <https://docs.docker.com/engine/network/drivers/bridge/#options>.
-The reviewed Playwright Chromium revision, path, owner/mode, version and binary
-SHA-256 are exact bindings checked before execution; an ambient
-`PLAYWRIGHT_BROWSERS_PATH` is forbidden. Chromium runs under a macOS
-`sandbox-exec` policy that permits loopback and denies other outbound IP traffic,
-with both allowed-loopback and denied-public runtime controls. Its CDP endpoint
-must be the reserved `ws://127.0.0.1` port and exact browser path. The harness
+The reviewed Playwright Chromium revision, path, owner/mode, version, launcher
+SHA-256 and complete application-bundle manifest are exact bindings checked
+before execution. The manifest binds every directory, file byte digest,
+executable mode and contained relative symlink; the exact lockfile registry
+integrity plus installed-tree manifests bind `@playwright/test`, `playwright`,
+`playwright-core` and the macOS optional runtime before dynamic import. Node's
+documented module-relative `import.meta.resolve()` result must remain inside that
+reviewed package root: <https://nodejs.org/download/release/latest-jod/docs/api/esm.html#importmetaresolvespecifier>.
+An ambient `PLAYWRIGHT_BROWSERS_PATH` is forbidden. Chromium version inspection
+and the browser itself run only under a macOS `sandbox-exec` policy that permits
+loopback and denies other outbound IP traffic, with both allowed-loopback and
+denied-public runtime controls. Its CDP endpoint must be the reserved
+`ws://127.0.0.1` port and exact browser path. The harness
 also blocks every browser HTTP request and every WebSocket before page creation
 using Playwright's documented `BrowserContext.routeWebSocket` interception:
 <https://playwright.dev/docs/api/class-browsercontext#browser-context-route-web-socket>.

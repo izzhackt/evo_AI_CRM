@@ -84,9 +84,63 @@ const PLAYWRIGHT_BROWSER_BINDINGS = Object.freeze({
   "darwin-arm64": Object.freeze({
     revision: "1228",
     directory: "chrome-mac-arm64",
+    bundle: "Google Chrome for Testing.app",
     executable: "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
     version: "Google Chrome for Testing 149.0.7827.55",
     sha256: "b1b9e2dd063115031f08eadc10ed381ca0fa05b2284baff8f721d87f5f0f61b7",
+    bundleTreeSha256: "6efa41ec8565fe1a75a283f65781524da299318e8b2745acf2a7937c2380a650",
+    bundleEntryCount: 640,
+    bundleFileCount: 325,
+    bundleExecutableFileCount: 13,
+    bundleSymlinkCount: 5,
+    bundleTotalBytes: 359_429_638,
+    playwrightRuntimeSha256: "6f4c7620ec7113735e0b68de2ca28ad875f144fd0fc53212558fe1f1fd757e2f",
+  }),
+});
+const PLAYWRIGHT_PACKAGE_BINDINGS = Object.freeze({
+  "@playwright/test": Object.freeze({
+    version: "1.61.1",
+    resolved: "https://registry.npmjs.org/@playwright/test/-/test-1.61.1.tgz",
+    integrity: "sha512-8nKv6+0RJSL9FE4jYOEGXnPeM/Hg12qZpmqzZjRh3qM0Y7c3z1mrOTfFLids72RDQYVh9WpLEfR5WdpNX4fkig==",
+    treeSha256: "425ef062964cf7c557023d34f4e6148a72cbf299ce854912e7bca6eddeaae8ad",
+    entryCount: 12,
+    fileCount: 11,
+    executableFileCount: 1,
+    symlinkCount: 0,
+    totalBytes: 28_544,
+  }),
+  playwright: Object.freeze({
+    version: "1.61.1",
+    resolved: "https://registry.npmjs.org/playwright/-/playwright-1.61.1.tgz",
+    integrity: "sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==",
+    treeSha256: "5af868a7a8da7f5b89bb7bef61615fa41a848160f11f4a496a2627c82dfb29ca",
+    entryCount: 75,
+    fileCount: 62,
+    executableFileCount: 1,
+    symlinkCount: 0,
+    totalBytes: 4_875_435,
+  }),
+  "playwright-core": Object.freeze({
+    version: "1.61.1",
+    resolved: "https://registry.npmjs.org/playwright-core/-/playwright-core-1.61.1.tgz",
+    integrity: "sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==",
+    treeSha256: "0f9a2db7be0e51929cd41ca785c90e801d939e09e4a18d6c376327f231a28ed3",
+    entryCount: 129,
+    fileCount: 106,
+    executableFileCount: 12,
+    symlinkCount: 0,
+    totalBytes: 12_701_224,
+  }),
+  fsevents: Object.freeze({
+    version: "2.3.2",
+    resolved: "https://registry.npmjs.org/fsevents/-/fsevents-2.3.2.tgz",
+    integrity: "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==",
+    treeSha256: "a9c24542cf14ddcdbf1baa192491a19441248650d542236538c1b244a0fc24d5",
+    entryCount: 7,
+    fileCount: 6,
+    executableFileCount: 1,
+    symlinkCount: 0,
+    totalBytes: 156_422,
   }),
 });
 const BROWSER_SANDBOX_PROFILE = '(version 1) (allow default) (deny network-outbound (remote ip "*:*")) (allow network-outbound (remote ip "localhost:*"))';
@@ -308,6 +362,171 @@ async function sha256File(path) {
   const digest = createHash("sha256");
   for await (const chunk of createReadStream(path)) digest.update(chunk);
   return digest.digest("hex");
+}
+
+function trustedTreeFailure(code, stage) {
+  fail(code, stage);
+}
+
+function trustedTreeMode(metadata) {
+  return metadata.mode & 0o7777;
+}
+
+function assertTrustedTreeMetadata(metadata, currentUid, code, stage, allowSymlinkMode = false) {
+  if (
+    !metadata ||
+    (currentUid !== null && metadata.uid !== currentUid) ||
+    (!allowSymlinkMode && (trustedTreeMode(metadata) & 0o022) !== 0)
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+}
+
+export async function inspectTrustedRuntimeTree(root, {
+  code = "runtime_tree_untrusted",
+  stage = "browser_proof",
+  currentUid = typeof process.getuid === "function" ? process.getuid() : null,
+} = {}) {
+  if (typeof root !== "string" || root.length === 0 || root.length > 8_192 || !isAbsolute(root)) {
+    trustedTreeFailure(code, stage);
+  }
+  let canonicalRoot;
+  let rootMetadata;
+  try {
+    canonicalRoot = realpathSync(root);
+    rootMetadata = lstatSync(root);
+  } catch {
+    trustedTreeFailure(code, stage);
+  }
+  if (
+    canonicalRoot !== resolve(root) ||
+    !rootMetadata.isDirectory() ||
+    rootMetadata.isSymbolicLink()
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+  assertTrustedTreeMetadata(rootMetadata, currentUid, code, stage);
+  const entries = [{ path: ".", type: "directory", mode: trustedTreeMode(rootMetadata) }];
+  let fileCount = 0;
+  let executableFileCount = 0;
+  let symlinkCount = 0;
+  let totalBytes = 0;
+
+  async function walk(directory, prefix) {
+    let names;
+    try {
+      names = readdirSync(directory).sort((left, right) => left.localeCompare(right, "en"));
+    } catch {
+      trustedTreeFailure(code, stage);
+    }
+    for (const name of names) {
+      if (name.length === 0 || name.includes("\0") || name.includes("/") || name === "." || name === "..") {
+        trustedTreeFailure(code, stage);
+      }
+      const relativePath = prefix.length > 0 ? `${prefix}/${name}` : name;
+      const entryPath = join(directory, name);
+      let metadata;
+      try {
+        metadata = lstatSync(entryPath);
+      } catch {
+        trustedTreeFailure(code, stage);
+      }
+      if (metadata.isDirectory()) {
+        assertTrustedTreeMetadata(metadata, currentUid, code, stage);
+        entries.push({ path: relativePath, type: "directory", mode: trustedTreeMode(metadata) });
+        await walk(entryPath, relativePath);
+        continue;
+      }
+      if (metadata.isFile()) {
+        assertTrustedTreeMetadata(metadata, currentUid, code, stage);
+        const mode = trustedTreeMode(metadata);
+        const bytes = Number(metadata.size);
+        if (!Number.isSafeInteger(bytes) || bytes < 0) trustedTreeFailure(code, stage);
+        entries.push({
+          path: relativePath,
+          type: "file",
+          mode,
+          bytes,
+          sha256: await sha256File(entryPath),
+        });
+        fileCount += 1;
+        totalBytes += bytes;
+        if ((mode & 0o111) !== 0) executableFileCount += 1;
+        continue;
+      }
+      if (metadata.isSymbolicLink()) {
+        assertTrustedTreeMetadata(metadata, currentUid, code, stage, true);
+        let target;
+        let resolvedTarget;
+        try {
+          target = readlinkSync(entryPath);
+          resolvedTarget = realpathSync(entryPath);
+        } catch {
+          trustedTreeFailure(code, stage);
+        }
+        if (
+          typeof target !== "string" ||
+          target.length === 0 ||
+          target.length > 8_192 ||
+          target.includes("\0") ||
+          isAbsolute(target) ||
+          (resolvedTarget !== canonicalRoot && !resolvedTarget.startsWith(`${canonicalRoot}${sep}`))
+        ) {
+          trustedTreeFailure(code, stage);
+        }
+        entries.push({ path: relativePath, type: "symlink", target });
+        symlinkCount += 1;
+        continue;
+      }
+      trustedTreeFailure(code, stage);
+    }
+  }
+
+  await walk(canonicalRoot, "");
+  if (!Number.isSafeInteger(totalBytes)) trustedTreeFailure(code, stage);
+  return Object.freeze({
+    treeSha256: sha256(`${canonicalJson(entries)}\n`),
+    entryCount: entries.length,
+    fileCount,
+    executableFileCount,
+    symlinkCount,
+    totalBytes,
+  });
+}
+
+export function validateTrustedRuntimeTree(value, binding, code = "runtime_tree_untrusted", stage = "browser_proof") {
+  exactKeys(value, [
+    "entryCount",
+    "executableFileCount",
+    "fileCount",
+    "symlinkCount",
+    "totalBytes",
+    "treeSha256",
+  ], code, stage);
+  if (
+    !isRecord(binding) ||
+    !SHA256.test(binding.treeSha256 ?? "") ||
+    !SHA256.test(value.treeSha256 ?? "") ||
+    !Number.isSafeInteger(value.entryCount) ||
+    !Number.isSafeInteger(value.fileCount) ||
+    !Number.isSafeInteger(value.executableFileCount) ||
+    !Number.isSafeInteger(value.symlinkCount) ||
+    !Number.isSafeInteger(value.totalBytes) ||
+    value.entryCount < 1 ||
+    value.fileCount < 1 ||
+    value.executableFileCount < 0 ||
+    value.symlinkCount < 0 ||
+    value.totalBytes < 1 ||
+    value.treeSha256 !== binding.treeSha256 ||
+    value.entryCount !== binding.entryCount ||
+    value.fileCount !== binding.fileCount ||
+    value.executableFileCount !== binding.executableFileCount ||
+    value.symlinkCount !== binding.symlinkCount ||
+    value.totalBytes !== binding.totalBytes
+  ) {
+    trustedTreeFailure(code, stage);
+  }
+  return Object.freeze({ ...value });
 }
 
 function descriptor(value, code) {
@@ -5728,11 +5947,107 @@ export function isTrustedPlaywrightChromiumVersion(value) {
   return typeof value === "string" && PLAYWRIGHT_CHROMIUM_VERSION.test(value);
 }
 
+export function validatePlaywrightPackageLock(value, bindings = PLAYWRIGHT_PACKAGE_BINDINGS) {
+  if (!isRecord(value) || !isRecord(value.packages) || !isRecord(bindings)) {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  const locked = [];
+  for (const name of Object.keys(bindings).sort((left, right) => left.localeCompare(right, "en"))) {
+    const binding = bindings[name];
+    const entry = value.packages[`node_modules/${name}`];
+    if (
+      !isRecord(binding) ||
+      !isRecord(entry) ||
+      entry.link === true ||
+      entry.version !== binding.version ||
+      entry.resolved !== binding.resolved ||
+      entry.integrity !== binding.integrity ||
+      !SHA256.test(binding.treeSha256 ?? "")
+    ) {
+      fail("playwright_runtime_untrusted", "browser_proof");
+    }
+    locked.push(Object.freeze({
+      name,
+      version: binding.version,
+      resolved: binding.resolved,
+      integrity: binding.integrity,
+    }));
+  }
+  return Object.freeze(locked);
+}
+
+async function trustedPlaywrightRuntime() {
+  let lock;
+  try {
+    lock = JSON.parse(readFileSync(join(repositoryRoot, "package-lock.json"), "utf8"));
+  } catch {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  const locked = validatePlaywrightPackageLock(lock);
+  const currentUid = typeof process.getuid === "function" ? process.getuid() : null;
+  const identities = [];
+  for (const name of Object.keys(PLAYWRIGHT_PACKAGE_BINDINGS).sort((left, right) => left.localeCompare(right, "en"))) {
+    const binding = PLAYWRIGHT_PACKAGE_BINDINGS[name];
+    const root = join(repositoryRoot, "node_modules", ...name.split("/"));
+    let canonicalRoot;
+    let metadata;
+    let packageMetadata;
+    try {
+      canonicalRoot = realpathSync(root);
+      metadata = lstatSync(root);
+      packageMetadata = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    } catch {
+      fail("playwright_runtime_untrusted", "browser_proof");
+    }
+    if (
+      canonicalRoot !== resolve(root) ||
+      !metadata.isDirectory() ||
+      metadata.isSymbolicLink() ||
+      packageMetadata?.version !== binding.version
+    ) {
+      fail("playwright_runtime_untrusted", "browser_proof");
+    }
+    const tree = validateTrustedRuntimeTree(
+      await inspectTrustedRuntimeTree(root, {
+        code: "playwright_runtime_untrusted",
+        stage: "browser_proof",
+        currentUid,
+      }),
+      binding,
+      "playwright_runtime_untrusted",
+      "browser_proof",
+    );
+    identities.push(Object.freeze({
+      ...locked.find((item) => item.name === name),
+      ...tree,
+    }));
+  }
+  let resolvedEntry;
+  let playwrightTestRoot;
+  try {
+    playwrightTestRoot = realpathSync(join(repositoryRoot, "node_modules", "@playwright", "test"));
+    resolvedEntry = realpathSync(fileURLToPath(import.meta.resolve("@playwright/test")));
+  } catch {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  if (
+    resolvedEntry !== playwrightTestRoot &&
+    !resolvedEntry.startsWith(`${playwrightTestRoot}${sep}`)
+  ) {
+    fail("playwright_runtime_untrusted", "browser_proof");
+  }
+  return Object.freeze({
+    identities: Object.freeze(identities),
+    packageSetSha256: sha256(`${canonicalJson(identities)}\n`),
+  });
+}
+
 export function validatePinnedPlaywrightBrowser(value, bindings = PLAYWRIGHT_BROWSER_BINDINGS) {
   exactKeys(value, [
     "ambientPathPresent",
     "architecture",
     "binarySha256",
+    "bundle",
     "canonicalPath",
     "currentUid",
     "expectedPath",
@@ -5742,13 +6057,27 @@ export function validatePinnedPlaywrightBrowser(value, bindings = PLAYWRIGHT_BRO
     "ownerUid",
     "platform",
     "playwrightPath",
+    "playwrightRuntimeSha256",
     "version",
   ], "browser_executable_untrusted", "browser_proof");
   if (value.ambientPathPresent !== false) fail("browser_ambient_path_forbidden", "browser_proof");
   const binding = bindings?.[`${value.platform}-${value.architecture}`];
-  if (!isRecord(binding) || !SHA256.test(binding.sha256 ?? "")) {
+  if (
+    !isRecord(binding) ||
+    !SHA256.test(binding.sha256 ?? "") ||
+    !SHA256.test(binding.bundleTreeSha256 ?? "") ||
+    !SHA256.test(binding.playwrightRuntimeSha256 ?? "")
+  ) {
     fail("browser_platform_unsupported", "browser_proof");
   }
+  const bundle = validateTrustedRuntimeTree(value.bundle, {
+    treeSha256: binding.bundleTreeSha256,
+    entryCount: binding.bundleEntryCount,
+    fileCount: binding.bundleFileCount,
+    executableFileCount: binding.bundleExecutableFileCount,
+    symlinkCount: binding.bundleSymlinkCount,
+    totalBytes: binding.bundleTotalBytes,
+  }, "browser_executable_untrusted", "browser_proof");
   if (
     value.expectedPath !== value.canonicalPath ||
     value.playwrightPath !== value.canonicalPath ||
@@ -5759,11 +6088,37 @@ export function validatePinnedPlaywrightBrowser(value, bindings = PLAYWRIGHT_BRO
     (value.mode & 0o022) !== 0 ||
     (value.currentUid !== null && value.ownerUid !== value.currentUid) ||
     value.binarySha256 !== binding.sha256 ||
+    value.playwrightRuntimeSha256 !== binding.playwrightRuntimeSha256 ||
     value.version !== binding.version
   ) {
     fail("browser_executable_untrusted", "browser_proof");
   }
-  return Object.freeze({ version: binding.version, binarySha256: binding.sha256 });
+  return Object.freeze({
+    version: binding.version,
+    binarySha256: binding.sha256,
+    bundleTreeSha256: bundle.treeSha256,
+    playwrightRuntimeSha256: binding.playwrightRuntimeSha256,
+  });
+}
+
+function pinnedBrowserValidationValue(browserTool, version) {
+  return Object.freeze({
+    ambientPathPresent: browserTool.ambientPathPresent,
+    architecture: browserTool.architecture,
+    binarySha256: browserTool.binarySha256,
+    bundle: browserTool.bundle,
+    canonicalPath: browserTool.canonicalPath,
+    currentUid: browserTool.currentUid,
+    expectedPath: browserTool.expectedPath,
+    isFile: browserTool.isFile,
+    isSymbolicLink: browserTool.isSymbolicLink,
+    mode: browserTool.mode,
+    ownerUid: browserTool.ownerUid,
+    platform: browserTool.platform,
+    playwrightPath: browserTool.playwrightPath,
+    playwrightRuntimeSha256: browserTool.playwrightRuntimeSha256,
+    version,
+  });
 }
 
 export function validateBrowserDebuggerUrl(value, debugPort) {
@@ -5792,7 +6147,7 @@ export function validateBrowserDebuggerUrl(value, debugPort) {
   return parsed.toString();
 }
 
-async function browserExecutable(supervisor) {
+async function browserExecutable() {
   const ambientPathPresent = Object.prototype.hasOwnProperty.call(process.env, "PLAYWRIGHT_BROWSERS_PATH");
   if (ambientPathPresent) fail("browser_ambient_path_forbidden", "browser_proof");
   const binding = PLAYWRIGHT_BROWSER_BINDINGS[`${process.platform}-${process.arch}`];
@@ -5806,16 +6161,48 @@ async function browserExecutable(supervisor) {
     binding.directory,
     binding.executable,
   );
+  const bundleRoot = join(
+    realpathSync(homedir()),
+    "Library",
+    "Caches",
+    "ms-playwright",
+    `chromium-${binding.revision}`,
+    binding.directory,
+    binding.bundle,
+  );
   let canonicalPath;
   let metadata;
   let binarySha256;
   let chromium;
+  let bundle;
+  let playwrightRuntime;
   try {
     canonicalPath = realpathSync(expectedPath);
     metadata = lstatSync(expectedPath);
     binarySha256 = await sha256File(expectedPath);
+    bundle = validateTrustedRuntimeTree(
+      await inspectTrustedRuntimeTree(bundleRoot, {
+        code: "browser_executable_untrusted",
+        stage: "browser_proof",
+      }),
+      {
+        treeSha256: binding.bundleTreeSha256,
+        entryCount: binding.bundleEntryCount,
+        fileCount: binding.bundleFileCount,
+        executableFileCount: binding.bundleExecutableFileCount,
+        symlinkCount: binding.bundleSymlinkCount,
+        totalBytes: binding.bundleTotalBytes,
+      },
+      "browser_executable_untrusted",
+      "browser_proof",
+    );
+    playwrightRuntime = await trustedPlaywrightRuntime();
+    if (playwrightRuntime.packageSetSha256 !== binding.playwrightRuntimeSha256) {
+      fail("playwright_runtime_untrusted", "browser_proof");
+    }
     ({ chromium } = await import("@playwright/test"));
-  } catch {
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
     fail("browser_executable_untrusted", "browser_proof");
   }
   let playwrightPath;
@@ -5825,17 +6212,13 @@ async function browserExecutable(supervisor) {
     fail("browser_executable_untrusted", "browser_proof");
   }
   if (binarySha256 !== binding.sha256) fail("browser_executable_untrusted", "browser_proof");
-  const version = await supervisor.run(canonicalPath, ["--version"], {
-    stage: "browser_proof",
-    code: "browser_version_failed",
-    timeoutMs: 10_000,
-  });
-  const value = version.stdout.toString("utf8").trim();
-  if (!isTrustedPlaywrightChromiumVersion(value)) fail("browser_version_invalid", "browser_proof");
-  validatePinnedPlaywrightBrowser({
+  const browserTool = Object.freeze({
+    chromium,
+    path: canonicalPath,
     ambientPathPresent,
     architecture: process.arch,
     binarySha256,
+    bundle,
     canonicalPath,
     currentUid: typeof process.getuid === "function" ? process.getuid() : null,
     expectedPath,
@@ -5845,9 +6228,27 @@ async function browserExecutable(supervisor) {
     ownerUid: metadata.uid,
     platform: process.platform,
     playwrightPath,
-    version: value,
+    playwrightRuntimeSha256: playwrightRuntime.packageSetSha256,
   });
-  return Object.freeze({ chromium, path: canonicalPath, version: value, binarySha256 });
+  validatePinnedPlaywrightBrowser(pinnedBrowserValidationValue(browserTool, binding.version));
+  return browserTool;
+}
+
+async function validateBrowserVersionInSandbox(browserTool, supervisor, toolchain) {
+  const version = await supervisor.run(toolchain.paths.sandboxExec.real, [
+    "-p", BROWSER_SANDBOX_PROFILE,
+    browserTool.path,
+    "--version",
+  ], {
+    argv0: "sandbox-exec",
+    stage: "browser_proof",
+    code: "browser_version_failed",
+    timeoutMs: 10_000,
+  });
+  const value = version.stdout.toString("utf8").trim();
+  if (!isTrustedPlaywrightChromiumVersion(value)) fail("browser_version_invalid", "browser_proof");
+  validatePinnedPlaywrightBrowser(pinnedBrowserValidationValue(browserTool, value));
+  return Object.freeze({ ...browserTool, version: value });
 }
 
 async function proveBrowserHostSandbox(supervisor, toolchain) {
@@ -6236,11 +6637,15 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
   let browserRecord;
   let browser;
   try {
-    browserTool = await browserExecutable(supervisor);
-    state.availableTools.chromium = browserTool.version;
-    state.availableTools.chromium_binary_sha256 = browserTool.binarySha256;
+    browserTool = await browserExecutable();
     browserPhase = "sandbox_validation";
     browserSandbox = await proveBrowserHostSandbox(supervisor, toolchain);
+    browserPhase = "version_validation";
+    browserTool = await validateBrowserVersionInSandbox(browserTool, supervisor, toolchain);
+    state.availableTools.chromium = browserTool.version;
+    state.availableTools.chromium_binary_sha256 = browserTool.binarySha256;
+    state.availableTools.chromium_bundle_sha256 = browserTool.bundle.treeSha256;
+    state.availableTools.playwright_runtime_sha256 = browserTool.playwrightRuntimeSha256;
     browserPhase = "debug_port_reservation";
     const debugPort = await reservePort();
     const profile = join(state.harnessRoot, "chromium-profile");
@@ -7359,6 +7764,8 @@ function durableToolEvidence(value) {
     "supabase_bin_link_sha256",
     "supabase_execution_chain_sha256",
     "chromium_binary_sha256",
+    "chromium_bundle_sha256",
+    "playwright_runtime_sha256",
   ]);
   if (!isRecord(value)) return Object.freeze({});
   const result = {};
@@ -7908,7 +8315,9 @@ async function main() {
   process.stdout.write(`${JSON.stringify({ ok: true, status: evidence.status, evidenceSha256: sha256(canonicalJson(evidence)) })}\n`);
 }
 
-const invokedDirectly = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+const invokedDirectly = process.argv[1] &&
+  existsSync(process.argv[1]) &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (invokedDirectly) {
   main().catch((error) => {
     const failure = safeFailure(error);

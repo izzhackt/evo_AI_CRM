@@ -28,6 +28,7 @@ import {
   evidenceDestination,
   gitBlobOid,
   guardedRemoveHarness,
+  inspectTrustedRuntimeTree,
   installBrowserWebSocketBlocker,
   isTrustedPlaywrightChromiumVersion,
   latchInterruption,
@@ -67,6 +68,7 @@ import {
   validateLocalSupabaseNetwork,
   validatePinnedPlaywrightBrowser,
   validatePinnedSupabaseServiceImages,
+  validatePlaywrightPackageLock,
   validatePgmqContainmentProof,
   validatePgmqRestoreInventory,
   validateRepresentativeCohort,
@@ -78,6 +80,7 @@ import {
   validateSignedReceipt,
   validateStorageManifest,
   validateTargetStorageBuckets,
+  validateTrustedRuntimeTree,
   validateWriteBoundaryResults,
   verifyLedgerAgainstRoot,
   verifyMigrationTreePrefix,
@@ -142,11 +145,22 @@ test("candidate egress probes run only after immutable cleanup capture completes
 
 test("browser execution is bound to one reviewed binary and exact loopback CDP endpoint", () => {
   const digest = "a".repeat(64);
+  const bundleDigest = "b".repeat(64);
+  const runtimeDigest = "c".repeat(64);
   const path = "/Users/operator/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing";
+  const bundle = {
+    treeSha256: bundleDigest,
+    entryCount: 12,
+    fileCount: 7,
+    executableFileCount: 2,
+    symlinkCount: 1,
+    totalBytes: 50_000,
+  };
   const value = {
     ambientPathPresent: false,
     architecture: "arm64",
     binarySha256: digest,
+    bundle,
     canonicalPath: path,
     currentUid: 501,
     expectedPath: path,
@@ -156,17 +170,27 @@ test("browser execution is bound to one reviewed binary and exact loopback CDP e
     ownerUid: 501,
     platform: "darwin",
     playwrightPath: path,
+    playwrightRuntimeSha256: runtimeDigest,
     version: "Google Chrome for Testing 149.0.7827.55",
   };
   const bindings = {
     "darwin-arm64": {
       version: value.version,
       sha256: digest,
+      bundleTreeSha256: bundleDigest,
+      bundleEntryCount: bundle.entryCount,
+      bundleFileCount: bundle.fileCount,
+      bundleExecutableFileCount: bundle.executableFileCount,
+      bundleSymlinkCount: bundle.symlinkCount,
+      bundleTotalBytes: bundle.totalBytes,
+      playwrightRuntimeSha256: runtimeDigest,
     },
   };
   assert.deepEqual(validatePinnedPlaywrightBrowser(value, bindings), {
     version: value.version,
     binarySha256: digest,
+    bundleTreeSha256: bundleDigest,
+    playwrightRuntimeSha256: runtimeDigest,
   });
   expectCode(
     () => validatePinnedPlaywrightBrowser({ ...value, ambientPathPresent: true }, bindings),
@@ -178,6 +202,14 @@ test("browser execution is bound to one reviewed binary and exact loopback CDP e
   );
   expectCode(
     () => validatePinnedPlaywrightBrowser({ ...value, mode: 0o100775 }, bindings),
+    "browser_executable_untrusted",
+  );
+  expectCode(
+    () => validatePinnedPlaywrightBrowser({ ...value, bundle: { ...bundle, fileCount: 6 } }, bindings),
+    "browser_executable_untrusted",
+  );
+  expectCode(
+    () => validatePinnedPlaywrightBrowser({ ...value, playwrightRuntimeSha256: "d".repeat(64) }, bindings),
     "browser_executable_untrusted",
   );
   const debuggerUrl = "ws://127.0.0.1:43124/devtools/browser/123e4567-e89b-12d3-a456-426614174000";
@@ -196,6 +228,64 @@ test("browser execution is bound to one reviewed binary and exact loopback CDP e
   assert.match(source, /sandbox-exec/u);
   assert.match(source, /macos_sandbox_exec_deny_network_outbound_except_loopback/u);
   assert.match(source, /connectOverCDP\(debuggerUrl, \{ timeout: 10_000 \}\)/u);
+  assert.doesNotMatch(source, /supervisor\.run\(canonicalPath, \["--version"\]/u);
+  assert.ok(source.indexOf("playwrightRuntime = await trustedPlaywrightRuntime()") < source.indexOf('await import("@playwright/test")'));
+  assert.ok(source.indexOf('browserPhase = "sandbox_validation"') < source.indexOf('browserPhase = "version_validation"'));
+});
+
+test("trusted runtime trees bind paths, file bytes, modes and contained symlinks", async (t) => {
+  const parent = mkdtempSync(join(tmpdir(), "evo-runtime-tree-"));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const root = join(realpathSync(parent), "runtime");
+  mkdirSync(root, { mode: 0o700 });
+  writeFileSync(join(root, "entry.mjs"), "export const value = 1;\n", { mode: 0o500 });
+  symlinkSync("entry.mjs", join(root, "current"));
+  const identity = await inspectTrustedRuntimeTree(root);
+  assert.deepEqual(validateTrustedRuntimeTree(identity, identity), identity);
+  assert.equal(identity.entryCount, 3);
+  assert.equal(identity.fileCount, 1);
+  assert.equal(identity.executableFileCount, 1);
+  assert.equal(identity.symlinkCount, 1);
+  chmodSync(join(root, "entry.mjs"), 0o522);
+  await assert.rejects(
+    inspectTrustedRuntimeTree(root),
+    (error) => error instanceof RecoveryFailure && error.code === "runtime_tree_untrusted",
+  );
+});
+
+test("Playwright package lock requires exact registry integrity bindings", () => {
+  const digest = "a".repeat(64);
+  const bindings = {
+    playwright: {
+      version: "1.2.3",
+      resolved: "https://registry.npmjs.org/playwright/-/playwright-1.2.3.tgz",
+      integrity: "sha512-test",
+      treeSha256: digest,
+    },
+  };
+  const lock = {
+    packages: {
+      "node_modules/playwright": {
+        version: bindings.playwright.version,
+        resolved: bindings.playwright.resolved,
+        integrity: bindings.playwright.integrity,
+      },
+    },
+  };
+  assert.deepEqual(validatePlaywrightPackageLock(lock, bindings), [{
+    name: "playwright",
+    version: bindings.playwright.version,
+    resolved: bindings.playwright.resolved,
+    integrity: bindings.playwright.integrity,
+  }]);
+  expectCode(
+    () => validatePlaywrightPackageLock({
+      packages: {
+        "node_modules/playwright": { ...lock.packages["node_modules/playwright"], integrity: "sha512-tampered" },
+      },
+    }, bindings),
+    "playwright_runtime_untrusted",
+  );
 });
 test("provider configuration evidence is local-only and authenticated readiness stays fail-closed", () => {
   const providerStart = source.indexOf("async function recordRecoveryProviderBoundary");
@@ -1614,12 +1704,16 @@ test("durable evidence fails closed before write when cleanup quarantines", () =
       docker_binary_sha256: binaryDigest,
       chromium: "Google Chrome for Testing 149.0.7827.55",
       chromium_binary_sha256: binaryDigest,
+      chromium_bundle_sha256: binaryDigest,
+      playwright_runtime_sha256: binaryDigest,
       leaked_path: "/usr/local/bin/tool",
     },
   });
   assert.equal(safeToolResult.tools.git, "git version 2.50.1 (Apple Git-155)");
   assert.equal(safeToolResult.tools.sshKeygen_binary_sha256, binaryDigest);
   assert.equal(safeToolResult.tools.chromium_binary_sha256, binaryDigest);
+  assert.equal(safeToolResult.tools.chromium_bundle_sha256, binaryDigest);
+  assert.equal(safeToolResult.tools.playwright_runtime_sha256, binaryDigest);
   assert.equal(safeToolResult.tools.chromium, "Google Chrome for Testing 149.0.7827.55");
   assert.equal(JSON.stringify(safeToolResult.tools).includes("/usr/"), false);
   assert.equal(Object.hasOwn(safeToolResult.tools, "leaked_path"), false);

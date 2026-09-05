@@ -18517,3 +18517,48 @@ The real managed-source export plus isolated restore run remains required.
 Missing source artifacts, trusted signature material, representative staff
 identities or either database/Storage proof is reported as the exact blocker;
 fixtures or a newly invented bundle cannot satisfy #551.
+
+## 2026-09-05 - Record the real signed-bundle recovery rehearsal boundary
+
+Block-ID: `EVO-V3-H-MANAGED-RECOVERY-REAL-RUN-2026-09-05`
+
+Change type: real #551 acceptance evidence and remaining-gate clarification.
+Affected plan section: Order 7 / Issue #551.
+
+The canonical recovery consumer was run from exact clean commit
+`5a91a2c58b5cc01cf949a747d5c72c530aa93ab6` against the one completed,
+detached-signature-verified export captured at `2026-09-05T06:41:31.067Z`.
+The run used OrbStack with Docker context exactly `orbstack`; it did not contact
+or mutate the managed Supabase source, VPS, WAHA, amoCRM, Gemini, webhooks,
+production traffic or provider state.
+
+Result:
+
+- the signed receipt, external SSH trust root, source identity, export commit,
+  migration tree, all encrypted-artifact hashes and authenticated migration
+  history passed;
+- Postgres 17/Auth restored, all 79 exported migrations reconciled, root
+  forward migrations reached exact ledger `001` through `115`, and aggregate
+  source counts did not decrease;
+- the separate Storage manifest/archive restored as its exact authenticated
+  empty-object inventory; all three V3 authoritative buckets were private,
+  direct anonymous and staff reads were denied, and the signed canary
+  round-trip passed;
+- restored Admin authentication, same-organization authorization,
+  cross-organization denial, append-only audit behavior and the real V3 browser
+  surface passed with external providers blocked;
+- the pinned private ClamAV path passed clean persistence with attestation,
+  EICAR denial without persistence, scanner-outage denial without fallback and
+  successful post-recovery persistence with attestation; and
+- exact owned-container/network/volume/plaintext cleanup passed. The validated
+  aggregate-only result is mode `0600` and has SHA-256
+  `7210a9c19406098335e570a5cd28acb9c6a37d720e247c594da34c67fd7cec95`.
+
+The truthful overall result is `not_ready`, not passed: the authenticated
+export contains one active Admin identity and zero real Sales or Admissions
+identities. The consumer did not create fixtures or synthetic staff, recorded
+both missing roles, completed every safe proof above, cleaned the disposable
+contour and then exited non-zero. #551 therefore remains open and #552 remains
+unarmed until real named Sales and Admissions identities exist in the managed
+authority and the same three-role recovery/browser assertions pass. This is a
+real staff-data prerequisite, not a request for routine repository approval.

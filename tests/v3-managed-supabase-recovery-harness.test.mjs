@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { once } from "node:events";
 import { readFileSync } from "node:fs";
+import { createInterface } from "node:readline";
 import test from "node:test";
 
 import {
@@ -36,6 +38,41 @@ const region = "ap-southeast-1";
 const sourceIdentitySha256 = deriveSourceIdentitySha256(projectRef, region);
 const projectRefSha256 = createHash("sha256").update(projectRef).digest("hex");
 const expectedRepositoryCommit = "a".repeat(40);
+
+function withTimeout(promise, timeoutMs, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function processExists(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === "ESRCH") return false;
+    throw error;
+  }
+}
+
+async function waitForProcessToStop(pid) {
+  const deadline = Date.now() + 2_000;
+  while (processExists(pid) && Date.now() < deadline) {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
+  }
+  return !processExists(pid);
+}
+
+function forceStopProcess(pid) {
+  if (!pid || !processExists(pid)) return;
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
+}
 
 function migrationLedgerDigest(entries) {
   return createHash("sha256").update(JSON.stringify(entries)).digest("hex");
@@ -602,6 +639,122 @@ test("executor is pinned to OrbStack and only targets one unique local contour",
   assert.match(source, /process\.once\("SIGTERM", \(\) => terminationHandler\("SIGTERM"\)\)/u);
   assert.match(source, /process\.once\("exit", exitCleanupHandler\)/u);
   assert.match(source, /cleanupActiveState/u);
+});
+
+test("SIGINT and SIGTERM stop the exact active browser-proof children before exit", async (t) => {
+  for (const [signal, expectedExitCode] of [["SIGINT", 130], ["SIGTERM", 143]]) {
+    await t.test(signal, async () => {
+      const helperSource = `
+        import { spawn } from "node:child_process";
+        import { installProcessCleanupHandlers } from ${JSON.stringify(scriptUrl.href)};
+
+        const waitForExit = (child) => child.exitCode !== null || child.signalCode !== null
+          ? Promise.resolve()
+          : new Promise((resolveExit) => child.once("exit", resolveExit));
+        const sleeper = "setInterval(() => {}, 1_000)";
+        const appChild = spawn(process.execPath, ["--eval", sleeper], {
+          detached: process.platform !== "win32",
+          stdio: "ignore",
+        });
+        const browserChild = spawn(process.execPath, ["--eval", sleeper], {
+          stdio: "ignore",
+        });
+        const browserServer = {
+          process: () => browserChild,
+          close: async () => {
+            if (browserChild.exitCode === null && browserChild.signalCode === null) {
+              browserChild.kill("SIGTERM");
+            }
+            await waitForExit(browserChild);
+          },
+          kill: async () => {
+            if (browserChild.exitCode === null && browserChild.signalCode === null) {
+              browserChild.kill("SIGKILL");
+            }
+            await waitForExit(browserChild);
+          },
+        };
+        const browserProof = {
+          appChild,
+          browserServerPromise: Promise.resolve(browserServer),
+        };
+        const processExists = (pid) => {
+          try {
+            process.kill(pid, 0);
+            return true;
+          } catch (error) {
+            if (error?.code === "ESRCH") return false;
+            throw error;
+          }
+        };
+        installProcessCleanupHandlers({
+          getBrowserProof: () => browserProof,
+          cleanup: () => process.stdout.write(JSON.stringify({
+            cleanupSawAppRunning: processExists(appChild.pid),
+            cleanupSawBrowserRunning: processExists(browserChild.pid),
+          }) + "\\n"),
+        });
+        process.stdout.write(JSON.stringify({
+          appPid: appChild.pid,
+          browserPid: browserChild.pid,
+        }) + "\\n");
+      `;
+      const probe = spawn(
+        process.execPath,
+        ["--input-type=module", "--eval", helperSource],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      let stderr = "";
+      let pids;
+      probe.stderr.on("data", (chunk) => {
+        stderr += chunk;
+      });
+      const exitPromise = once(probe, "exit");
+      const lines = createInterface({ input: probe.stdout });
+      try {
+        const line = await withTimeout(
+          Promise.race([
+            once(lines, "line").then(([value]) => value),
+            exitPromise.then(([code, exitSignal]) => {
+              throw new Error(
+                `signal probe exited before ready: code=${code} signal=${exitSignal} stderr=${stderr}`,
+              );
+            }),
+          ]),
+          5_000,
+          `signal probe did not become ready: stderr=${stderr}`,
+        );
+        pids = JSON.parse(line);
+        assert.equal(processExists(pids.appPid), true);
+        assert.equal(processExists(pids.browserPid), true);
+        const cleanupLinePromise = once(lines, "line").then(([value]) => JSON.parse(value));
+        assert.equal(probe.kill(signal), true);
+        const cleanupObservation = await withTimeout(
+          cleanupLinePromise,
+          5_000,
+          `signal probe did not report cleanup ordering after ${signal}: stderr=${stderr}`,
+        );
+        const [exitCode, exitSignal] = await withTimeout(
+          exitPromise,
+          5_000,
+          `signal probe did not exit after ${signal}: stderr=${stderr}`,
+        );
+        assert.deepEqual(cleanupObservation, {
+          cleanupSawAppRunning: false,
+          cleanupSawBrowserRunning: false,
+        }, `stderr=${stderr}`);
+        assert.equal(exitSignal, null);
+        assert.equal(exitCode, expectedExitCode);
+        assert.equal(await waitForProcessToStop(pids.appPid), true);
+        assert.equal(await waitForProcessToStop(pids.browserPid), true);
+      } finally {
+        lines.close();
+        if (probe.exitCode === null && probe.signalCode === null) probe.kill("SIGKILL");
+        forceStopProcess(pids?.appPid);
+        forceStopProcess(pids?.browserPid);
+      }
+    });
+  }
 });
 
 test("restore follows official logical order, applies only local pending root migrations, and never exports", () => {

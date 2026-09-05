@@ -139,6 +139,7 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const supabaseCli = join(repositoryRoot, "node_modules", ".bin", "supabase");
 let activeCleanupState;
 let activeCleanupRunning = false;
+let activeBrowserProof;
 
 class HarnessFailure extends Error {
   constructor(code, stage = "contract", diagnostic) {
@@ -2410,14 +2411,112 @@ async function waitForApp(child, appUrl) {
   fail("v3_application_start_timeout", "v3_browser_proof");
 }
 
-async function stopApp(child) {
-  if (!child || child.exitCode !== null) return;
-  child.kill("SIGTERM");
-  await Promise.race([
-    new Promise((resolveExit) => child.once("exit", resolveExit)),
-    new Promise((resolveTimeout) => setTimeout(resolveTimeout, 10_000)),
+function childIsRunning(child) {
+  return Boolean(child) && child.exitCode === null && child.signalCode === null;
+}
+
+function processGroupIsRunning(child) {
+  if (!child || !Number.isInteger(child.pid)) return false;
+  if (process.platform === "win32") return childIsRunning(child);
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch (error) {
+    if (["EPERM", "ESRCH"].includes(error?.code)) return childIsRunning(child);
+    throw error;
+  }
+}
+
+function signalExactProcessGroup(child, signal) {
+  if (process.platform !== "win32" && Number.isInteger(child.pid)) {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch (error) {
+      if (error?.code === "ESRCH" && !childIsRunning(child)) return;
+    }
+  }
+  if (childIsRunning(child)) child.kill(signal);
+}
+
+async function waitForProcessGroupExit(child, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (processGroupIsRunning(child) && Date.now() < deadline) {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 25));
+  }
+  return !processGroupIsRunning(child);
+}
+
+async function waitForChildExit(child, timeoutMs) {
+  if (!childIsRunning(child)) return true;
+  let timer;
+  const stopped = await Promise.race([
+    new Promise((resolveExit) => child.once("exit", () => resolveExit(true))),
+    new Promise((resolveTimeout) => {
+      timer = setTimeout(() => resolveTimeout(false), timeoutMs);
+    }),
   ]);
-  if (child.exitCode === null) child.kill("SIGKILL");
+  clearTimeout(timer);
+  return stopped || !childIsRunning(child);
+}
+
+async function settleWithin(promise, timeoutMs) {
+  let timer;
+  const settled = await Promise.race([
+    Promise.resolve(promise).then(() => true, () => false),
+    new Promise((resolveTimeout) => {
+      timer = setTimeout(() => resolveTimeout(false), timeoutMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  return settled;
+}
+
+async function stopApp(child) {
+  if (!processGroupIsRunning(child)) return;
+  signalExactProcessGroup(child, "SIGTERM");
+  if (await waitForProcessGroupExit(child, 10_000)) {
+    await waitForChildExit(child, 1_000);
+    return;
+  }
+  signalExactProcessGroup(child, "SIGKILL");
+  await waitForProcessGroupExit(child, 5_000);
+  await waitForChildExit(child, 1_000);
+}
+
+async function stopBrowserServer(browserServer) {
+  if (!browserServer) return;
+  const child = browserServer.process();
+  if (!childIsRunning(child)) return;
+  await settleWithin(browserServer.close(), 10_000);
+  if (!childIsRunning(child)) return;
+  await settleWithin(browserServer.kill(), 5_000);
+  if (childIsRunning(child)) child.kill("SIGKILL");
+  await waitForProcessGroupExit(child, 5_000);
+}
+
+function registerActiveBrowserProof(state) {
+  if (activeBrowserProof) fail("browser_proof_state_already_registered", "v3_browser_proof");
+  activeBrowserProof = state;
+}
+
+async function stopBrowserProof(state = activeBrowserProof) {
+  if (!state) return;
+  if (!state.shutdownPromise) {
+    state.shutdownPromise = (async () => {
+      const browserServer = state.browserServerPromise
+        ? await state.browserServerPromise.catch(() => undefined)
+        : undefined;
+      await stopBrowserServer(browserServer);
+      await stopApp(state.appChild);
+      if (!state.logClosed && Number.isInteger(state.logFd)) {
+        state.logClosed = true;
+        closeSync(state.logFd);
+      }
+      if (activeBrowserProof === state) activeBrowserProof = undefined;
+    })();
+  }
+  await state.shutdownPromise;
 }
 
 async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot) {
@@ -2448,14 +2547,25 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot) 
         EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "0",
         EVO_ENABLE_EXTERNAL_TRANSCRIPT_IMPROVEMENT: "0",
       }),
+      detached: process.platform !== "win32",
       stdio: ["ignore", logFd, logFd],
     },
   );
+  const browserProof = {
+    appChild: child,
+    browserServerPromise: undefined,
+    logFd,
+    logClosed: false,
+    shutdownPromise: undefined,
+  };
+  registerActiveBrowserProof(browserProof);
   let browser;
   try {
     await waitForApp(child, appUrl);
     const { chromium } = await import("@playwright/test");
-    browser = await chromium.launch({ headless: true });
+    browserProof.browserServerPromise = chromium.launchServer({ headless: true, timeout: 45_000 });
+    const browserServer = await browserProof.browserServerPromise;
+    browser = await chromium.connect(browserServer.wsEndpoint());
     for (const actor of [actors.admin, actors.sales, actors.admissions]) {
       const context = await browser.newContext({ locale: "ru-RU" });
       const page = await context.newPage();
@@ -2509,9 +2619,7 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot) 
       providersBlocked: true,
     });
   } finally {
-    if (browser) await browser.close().catch(() => undefined);
-    await stopApp(child);
-    closeSync(logFd);
+    await stopBrowserProof(browserProof);
   }
 }
 
@@ -2750,16 +2858,35 @@ function cleanupActiveState(state = activeCleanupState) {
   }
 }
 
-function terminationHandler(signal) {
-  cleanupActiveState();
-  process.exit(signal === "SIGINT" ? 130 : 143);
-}
-
-function exitCleanupHandler() {
-  cleanupActiveState();
-}
-
-function installProcessCleanupHandlers() {
+export function installProcessCleanupHandlers({
+  getBrowserProof = () => activeBrowserProof,
+  cleanup = cleanupActiveState,
+  exit = (code) => process.exit(code),
+} = {}) {
+  let terminationPromise;
+  let terminationFailed = false;
+  function terminationHandler(signal) {
+    if (terminationPromise) return terminationPromise;
+    const exitCode = signal === "SIGINT" ? 130 : 143;
+    terminationPromise = (async () => {
+      try {
+        await stopBrowserProof(getBrowserProof());
+      } catch {
+        terminationFailed = true;
+        process.exitCode = exitCode;
+        return;
+      }
+      try {
+        cleanup();
+      } finally {
+        exit(exitCode);
+      }
+    })();
+    return terminationPromise;
+  }
+  function exitCleanupHandler() {
+    if (!terminationFailed) cleanup();
+  }
   process.once("SIGINT", () => terminationHandler("SIGINT"));
   process.once("SIGTERM", () => terminationHandler("SIGTERM"));
   process.once("exit", exitCleanupHandler);

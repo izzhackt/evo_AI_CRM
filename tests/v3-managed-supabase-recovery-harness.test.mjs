@@ -268,13 +268,13 @@ function sourceReceipt() {
     source_mode: "transaction",
     source_port: 6543,
   };
-  return { project, backup, pooler, sha256: hash(canonicalJson({ project, backup, pooler })) };
+  return { project, backup, pooler, sha256: hash(`${canonicalJson({ project, backup, pooler })}\n`) };
 }
 
 const sqlNames = ["roles.sql", "schema.sql", "history-schema.sql", "history-data.sql", "data.sql"];
 const artifactDescriptors = Object.fromEntries(sqlNames.map((name, index) => [name, { bytes: 100 + index, sha256: String(index + 1).repeat(64) }]));
 const semantic = Object.fromEntries(sqlNames.map((name, index) => [name, String(index + 5).repeat(64)]));
-const stabilityProof = hash(canonicalJson(semantic));
+const stabilityProof = hash(`${canonicalJson(semantic)}\n`);
 const migrationCopyHash = "a".repeat(64);
 const dataCopyHash = "b".repeat(64);
 const storageInventoryHash = "c".repeat(64);

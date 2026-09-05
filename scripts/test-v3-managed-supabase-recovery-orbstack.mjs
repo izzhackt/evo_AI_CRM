@@ -173,6 +173,10 @@ export function canonicalJson(value) {
   return JSON.stringify(canonicalValue(value));
 }
 
+function signedExportCanonicalJson(value) {
+  return `${canonicalJson(value)}\n`;
+}
+
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -412,7 +416,7 @@ function validateSourceReceipt(value, expected) {
   ) {
     fail("database_pooler_invalid", "artifact_validation");
   }
-  const calculated = sha256(canonicalJson({ project, backup: value.backup, pooler: value.pooler }));
+  const calculated = sha256(signedExportCanonicalJson({ project, backup: value.backup, pooler: value.pooler }));
   if (value.sha256 !== calculated || value.sha256 !== expected.sourceIdentity) {
     fail("database_source_identity_mismatch", "artifact_validation");
   }
@@ -482,7 +486,7 @@ export function validateDatabaseManifest(manifest, expected) {
     string(hash, SHA256, "database_stability_invalid");
   }
   const stabilityProof = string(manifest.stability.proof_sha256, SHA256, "database_stability_invalid");
-  if (stabilityProof !== sha256(canonicalJson(manifest.stability.artifact_semantic_sha256))) {
+  if (stabilityProof !== sha256(signedExportCanonicalJson(manifest.stability.artifact_semantic_sha256))) {
     fail("database_stability_digest_invalid", "artifact_validation");
   }
   const dataCopy = string(manifest.data_copy_sections_sha256, SHA256, "database_copy_digest_invalid");
@@ -2400,7 +2404,7 @@ export function databaseAggregatesFromTableCounts(counts, code = "restored_datab
     table_count: entries.length,
     row_count: entries.reduce((total, [, count]) => total + count, 0),
     auth_user_count: counts["auth.users"] ?? 0,
-    table_counts_sha256: sha256(canonicalJson(Object.fromEntries(entries))),
+    table_counts_sha256: sha256(signedExportCanonicalJson(Object.fromEntries(entries))),
   });
 }
 

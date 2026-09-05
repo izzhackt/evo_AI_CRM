@@ -214,7 +214,10 @@ private Git snapshot and a locally built `linux/amd64` production image that is
 run by inspected image ID. Locked dependency acquisition is the only build-time
 network use; the candidate runtime has only one owned internal Docker network,
 publishes the app solely to loopback and blocks every browser HTTP request and
-every WebSocket before page creation. The rehearsal reconciles aggregate counts rather than publishing
+every WebSocket before page creation using Playwright's documented
+`BrowserContext.routeWebSocket` interception:
+<https://playwright.dev/docs/api/class-browsercontext#browser-context-route-web-socket>.
+The rehearsal reconciles aggregate counts rather than publishing
 customer rows, proves the safe available Supabase Auth/RLS/private-Storage and
 V3 browser behaviors, then destroys the disposable contour and atomically
 retains only mode-`0600` redacted evidence outside the runtime directory.

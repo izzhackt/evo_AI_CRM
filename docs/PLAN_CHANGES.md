@@ -18635,3 +18635,20 @@ Decision:
 The focused recovery suite covers all four corrections. This change performs
 no Docker, managed Supabase, VPS, provider, webhook, production-traffic or
 customer mutation and does not activate a release.
+
+## 2026-09-05 - Cite the recovery WebSocket isolation contract
+
+Block-ID: `EVO-V3-H-RECOVERY-WEBSOCKET-DOCS-CITATION-2026-09-05`
+
+Change type: independent-review documentation correction.
+Affected plan section: Order 7 / Issue #551.
+
+The recovery browser installs Playwright's documented
+`BrowserContext.routeWebSocket` interception before creating any page, never
+connects an intercepted socket to its server and rejects the proof if a socket
+is attempted. Official API reference:
+<https://playwright.dev/docs/api/class-browsercontext#browser-context-route-web-socket>.
+
+This clarification changes no runtime behavior and performs no Docker,
+managed Supabase, VPS, provider, webhook, production-traffic or customer
+mutation.

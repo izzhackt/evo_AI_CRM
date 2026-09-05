@@ -17366,3 +17366,36 @@ Decision:
   exact-head review and one exact-head CI pass. Missing canonical data or
   services must stop clearly; no compatibility route or fixture business
   acceptance is allowed.
+
+## 2026-09-05 - Preserve case discovery and operational attention in the sole V3 UI
+
+Block-ID: `EVO-V3-G-CASE-DISCOVERY-DASHBOARD-PARITY-2026-09-05`
+
+Change type: acceptance clarification.
+Affected plan section: Order 6 / Issue #600.
+
+The pre-deletion outcome inventory found two additional gaps in the proposed
+sole-V3 tree. The removed `/clients` list was the only interface that could
+search and page through arbitrary authorized Student Cases, including closed
+cases, while the current V3 profile picker reads only its first six records.
+The canonical Supabase dashboard reader also still produces role-scoped
+cross-module attention counts that the period funnel alone does not render.
+Deleting those outcomes would make the new interface smaller than the proved
+product even though the underlying authority remains correct.
+
+Decision:
+
+- add a V3-native Student 360 case directory using the existing canonical
+  `listPlatformStudentCases` boundary. Preserve strict name, route, country and
+  UUID search, the pending/active/closed filters, bounded keyset pagination and
+  direct links to exact authorized cases. Invalid or ambiguous query shapes
+  fail closed and never substitute the first visible record;
+- render the existing role-scoped `readPlatformDashboardSnapshot` on
+  `/v3/main` alongside its period funnel so Sales overdue/unassigned work,
+  Student 360 attention, Admissions overdue tasks, Finance stops and open
+  WhatsApp queues remain visible without recreating their business logic;
+- delete the old `/clients` and `/dashboard` screens only in the same candidate
+  that proves these V3 outcomes through focused tests and the real local
+  database/application/browser gate. This clarification creates no temporary
+  coexistence, alternate data authority, provider call, schema change or
+  production mutation.

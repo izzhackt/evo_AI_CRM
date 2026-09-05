@@ -142,9 +142,16 @@ role-preview control, and route visibility follows the selected presentation
 role while every mutation continues to authorize the real Supabase staff
 identity. Existing contract-draft/report behavior moves into V3 Student 360 and
 provider-readiness browser proof moves to V3 before `/clients/:id` and the
-remaining V2 staff routes are removed. The canonical Supabase readers,
-`src/lib/server` engines and private P6C operations endpoint remain; #600 does
-not enable providers, transfer webhooks, deploy or apply schema.
+remaining V2 staff routes are removed. V3 Student 360 must also retain the
+canonical case directory outcome: strict name/route/country/UUID search,
+pending/active/closed filters, bounded keyset pagination and direct access to
+arbitrary authorized cases rather than only the first picker page. `/v3/main`
+must render the role-scoped canonical operational snapshot for Sales overdue
+and unassigned work, Student 360 attention, Admissions overdue tasks, Finance
+stops and open WhatsApp queues in addition to the period funnel. The canonical
+Supabase readers, `src/lib/server` engines and private P6C operations endpoint
+remain; #600 does not enable providers, transfer webhooks, deploy or apply
+schema.
 
 The final #599 slice extends the existing case-document authority rather than
 creating another document or visa model. It uses one typed link relation with

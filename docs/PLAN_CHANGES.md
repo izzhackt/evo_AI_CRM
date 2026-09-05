@@ -17452,3 +17452,56 @@ Decision:
 - preserve the exact role-specific RLS proof for real Sales and Admissions
   identities in the real local database/browser gate. No schema, provider or
   production state changes here.
+
+## 2026-09-05 - Replace manual staging release with exact-main recovery-first deployment
+
+Block-ID: `EVO-V3-H-EXACT-MAIN-RECOVERY-RELEASE-2026-09-05`
+
+Change type: execution-contract clarification.
+Affected plan section: Order 7 / Issue #551.
+
+#600 completed the sole V3 product surface at exact `origin/main`
+`405201141649805cb8f5d40f633e1483ed582094`, with successful exact-main CI run
+`33935503547`. The remaining active workflow still requires manual dispatch,
+contains a staging/reviewer branch and limits releases to a presentation-only
+path allowlist. It cannot deliver the production-successor range defined by
+#551. The current production app is also intentionally absent, so a controller
+that insists on inspecting a running previous app cannot create a truthful
+rollback boundary.
+
+Decision:
+
+- replace the active manual/staging workflow with one downstream release path
+  triggered only by a completed successful `EVO platform CI` run caused by a
+  push to `main`. Bind checkout, CI verification, candidate metadata and
+  current `origin/main` to the triggering run's exact SHA;
+- serialize the path in one fixed `evo-production-release` concurrency group
+  with no cancellation, manual dispatch, staging job, GitHub Environment
+  reviewer or schema mutation. Keep an absent/false repository activation
+  variable through #551 so repository validation cannot deploy; #552 owns the
+  one-time enablement immediately before its exact-main cutover commit;
+- retire the presentation-only scope allowlist. Retain immutable linux/amd64
+  image construction, pinned SSH trust, exact migration-ledger equality,
+  private-WAHA digest verification, preflight, health, sanitized evidence and
+  automatic application rollback. Supabase schema apply remains a separate
+  explicit #552 action;
+- allow rollback state to come from either a healthy running previous app or
+  one explicit sealed seed. The stopped-app seed must bind the retained image,
+  revision/version, exact Compose bytes and application-environment hash.
+  Missing, malformed or drifted previous state stops the release rather than
+  treating first boot as rollback-safe;
+- replace managed-staging recovery with one disposable local OrbStack restore.
+  Read production only to obtain an encrypted database backup and a separate
+  private-Storage inventory/byte backup. Restore both into the isolated
+  contour, keep provider configuration absent and provider actions blocked,
+  apply pending forward migrations, reconcile redacted aggregate counts,
+  exercise Auth/RLS/private Storage and V3 browser outcomes, then remove the
+  contour. Database backup and Storage bytes are separate required evidence;
+- never accept synthetic data, a local schema reset, service-key API reads or
+  a container health response as production backup/restore proof. If the
+  needed source credential or real artifact is absent, merge only the safe
+  repository/controller work and leave #551 open with that exact blocker.
+
+This clarification changes no production app, schema, traffic, provider,
+webhook or customer record. It preserves frozen V1/V2 deployments and all
+historical migrations, ADRs, runbooks, archived docs and evidence unchanged.

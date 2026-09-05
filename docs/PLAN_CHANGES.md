@@ -17568,7 +17568,6 @@ Decision:
 The focused tests use injected local responses only. This correction performs
 no managed-Supabase, VPS, production, provider, webhook or customer-data
 mutation.
-
 ## 2026-09-05 - Define the no-staging #551 release and recovery contract
 
 Block-ID: `EVO-V3-H-RELEASE-RECOVERY-CONTRACT-2026-09-05`

@@ -2742,7 +2742,6 @@ export function validatePgmqRestoreInventory(counts, columns) {
 export function validatePgmqContainmentProof(verified, inventory, options = {}) {
   const stage = options.stage ?? "database_restore";
   const phase = options.phase;
-  const requireCountsMatch = options.requireCountsMatch !== false;
   const signedRelationCountsSha256 = inventory?.relationCountsSha256 ?? inventory?.signedRelationCountsSha256;
   exactKeys(verified, [
     "queueMetadata", "queueMetadataTotalCount", "queueRelationCount",
@@ -2752,6 +2751,10 @@ export function validatePgmqContainmentProof(verified, inventory, options = {}) 
     "restoredRelationCounts",
   ], "pgmq_extension_relation_containment_failed", stage);
   if (!new Set(["pre_data", "post_data", "post_migration"]).has(phase)) {
+    fail("pgmq_extension_relation_containment_failed", stage);
+  }
+  const requireCountsMatch = phase !== "pre_data";
+  if (options.requireCountsMatch !== undefined && options.requireCountsMatch !== requireCountsMatch) {
     fail("pgmq_extension_relation_containment_failed", stage);
   }
   const expectedMetadata = RECOVERY_PGMQ_QUEUES.map((queueName) => Object.freeze({
@@ -2831,7 +2834,9 @@ async function inspectPgmqExtensionRelations(inventory, phase, status, superviso
       CROSS JOIN LATERAL aclexplode(coalesce(namespace.nspacl, acldefault('n'::"char", namespace.nspowner))) AS acl
       WHERE CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
         SELECT 1 FROM named_roles AS role
-        WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+        WHERE role.oid = acl.grantee
+           OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+           OR pg_has_role(role.oid, acl.grantee, 'SET')
       ) END
       UNION ALL
       SELECT 1
@@ -2844,18 +2849,22 @@ async function inspectPgmqExtensionRelations(inventory, phase, status, superviso
       WHERE relation.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
         AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
           SELECT 1 FROM named_roles AS role
-          WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+          WHERE role.oid = acl.grantee
+             OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+             OR pg_has_role(role.oid, acl.grantee, 'SET')
         ) END
       UNION ALL
       SELECT 1
       FROM pg_attribute AS attribute
       JOIN pg_class AS relation ON relation.oid = attribute.attrelid
       JOIN target_namespaces AS namespace ON namespace.oid = relation.relnamespace
-      CROSS JOIN LATERAL aclexplode(coalesce(attribute.attacl, '{}'::aclitem[])) AS acl
+      CROSS JOIN LATERAL aclexplode(attribute.attacl) AS acl
       WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
         AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
           SELECT 1 FROM named_roles AS role
-          WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+          WHERE role.oid = acl.grantee
+             OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+             OR pg_has_role(role.oid, acl.grantee, 'SET')
         ) END
       UNION ALL
       SELECT 1
@@ -2864,7 +2873,9 @@ async function inspectPgmqExtensionRelations(inventory, phase, status, superviso
       CROSS JOIN LATERAL aclexplode(coalesce(routine.proacl, acldefault('f'::"char", routine.proowner))) AS acl
       WHERE CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
         SELECT 1 FROM named_roles AS role
-        WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+        WHERE role.oid = acl.grantee
+           OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+           OR pg_has_role(role.oid, acl.grantee, 'SET')
       ) END
     ), forbidden_effective_privilege AS (
       SELECT 1
@@ -2916,7 +2927,9 @@ async function inspectPgmqExtensionRelations(inventory, phase, status, superviso
       WHERE (defaults.defaclnamespace = 0 OR namespace.nspname IN ('pgmq', 'pgmq_public'))
         AND CASE WHEN acl.grantee = 0 THEN true ELSE EXISTS (
           SELECT 1 FROM named_roles AS role
-          WHERE role.oid = acl.grantee OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+          WHERE role.oid = acl.grantee
+             OR pg_has_role(role.oid, acl.grantee, 'USAGE')
+             OR pg_has_role(role.oid, acl.grantee, 'SET')
         ) END
     ), expected_columns(relation_name, column_name, type_oid) AS (
       VALUES

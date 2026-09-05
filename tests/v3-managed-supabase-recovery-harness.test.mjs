@@ -1160,6 +1160,14 @@ test("PGMQ recovery binds the two canonical queue relation pairs and containment
     () => validatePgmqContainmentProof(drifted, inventory, { phase: "post_data" }),
     "pgmq_extension_relation_count_mismatch",
   );
+  expectCode(
+    () => validatePgmqContainmentProof(drifted, inventory, { phase: "post_data", requireCountsMatch: false }),
+    "pgmq_extension_relation_containment_failed",
+  );
+  expectCode(
+    () => validatePgmqContainmentProof(drifted, inventory, { phase: "post_migration", requireCountsMatch: false }),
+    "pgmq_extension_relation_containment_failed",
+  );
   assert.equal(validatePgmqContainmentProof(
     drifted,
     inventory,
@@ -1179,9 +1187,15 @@ test("PGMQ recovery binds the two canonical queue relation pairs and containment
   assert.match(source, /REVOKE ALL ON ALL TABLES IN SCHEMA pgmq/u);
   assert.match(source, /relation\.relkind = 'S' THEN 's'/u);
   assert.match(source, /pg_has_role\(role\.oid, acl\.grantee, 'USAGE'\)/u);
+  assert.match(source, /pg_has_role\(role\.oid, acl\.grantee, 'SET'\)/u);
   assert.match(source, /has_any_column_privilege/u);
+  assert.match(source, /aclexplode\(attribute\.attacl\)/u);
+  assert.doesNotMatch(source, /aclexplode\(coalesce\(attribute\.attacl/u);
   assert.match(source, /FROM pg_default_acl AS defaults/u);
-  assert.match(source, /"post_migration"/u);
+  const migrationApplyIndex = source.indexOf('["migration", "up", "--local"');
+  const postMigrationInspection = /inspectPgmqExtensionRelations\(\s*extensionInventory,\s*"post_migration"/u.exec(source);
+  assert.ok(migrationApplyIndex >= 0);
+  assert.ok(postMigrationInspection?.index > migrationApplyIndex);
 });
 
 test("durable evidence fails closed before write when cleanup quarantines", () => {

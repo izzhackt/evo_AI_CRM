@@ -19240,3 +19240,52 @@ inspection. Any missing signature fails closed.
 This changes only the disposable local recovery consumer and redacted evidence.
 It does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
 Gemini, webhooks, customer records or provider state. #552 remains unarmed.
+
+## 2026-09-05 - Derive post-restore PGMQ invariants and cover SET ROLE
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-PHASE-SET-ROLE-2026-09-05`
+
+Change type: independent-review recovery security correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review found two fail-open seams in the PGMQ containment proof.
+The caller could disable signed relation-count equality for a post-data or
+post-migration phase, and direct ACL expansion followed inherited `USAGE` but
+not a membership that permits an explicit `SET ROLE` into a privileged grantee
+or object owner.
+
+Decision: derive count equality from the inspected phase. Only `pre_data` may
+observe newly created empty relations before signed rows are loaded; both
+`post_data` and `post_migration` always require the signed count digest, and a
+contradictory caller option fails closed. Expand direct and default ACL
+reachability through both inherited `USAGE` and explicit `SET ROLE`, while the
+existing effective privilege checks remain independently required. Bind the
+source test to the actual post-migration inspection call after `migration up`
+instead of accepting a phase-name literal elsewhere in the validator.
+
+This changes only the disposable local recovery consumer and its tests. It
+does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
+Gemini, webhooks, customer records or provider state. #552 remains unarmed.
+
+## 2026-09-05 - Preserve NULL column ACL semantics in PGMQ inspection
+
+Block-ID: `EVO-V3-H-RECOVERY-PGMQ-COLUMN-ACL-2026-09-05`
+
+Change type: real-runtime recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The next isolated exact-head recovery run stopped in the pre-data PGMQ
+inspection with PostgreSQL SQLSTATE `22023`. A disposable catalog-only
+reproduction identified the safe error as `ACL arrays must be one-dimensional`:
+the inspection converted a nullable `pg_attribute.attacl` into a zero-dimensional
+empty ACL array before calling `aclexplode`.
+
+Decision: pass nullable column ACLs directly to `aclexplode`. A `NULL` column
+ACL correctly contributes zero direct grants, while relation ACL/default and
+effective column-privilege checks remain independent. Bind the source test so
+the invalid empty-array coercion cannot return.
+
+This changes only the disposable local recovery consumer and its tests. The
+failed contour completed owned cleanup with disposition `remove`; no managed
+Supabase, production, VPS, provider, webhook or customer state was contacted or
+mutated. #552 remains unarmed.

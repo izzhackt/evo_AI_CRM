@@ -48,6 +48,8 @@ test("the release stays coarse-unarmed and admits only successful manual exact-m
   assert.doesNotMatch(workflow, /^  workflow_dispatch:/mu);
   assert.match(workflow, /^permissions: \{\}$/mu);
   assert.match(workflow, /^  cancel-in-progress: false$/mu);
+  assert.match(workflow, /node_modules\/\.bin\/playwright install --with-deps --only-shell chromium/u);
+  assert.doesNotMatch(workflow, /node_modules\/\.bin\/playwright install --with-deps chromium/u);
 
   for (const releaseJob of [build, deploy]) {
     assert.match(releaseJob, /github\.event\.workflow_run\.event == 'workflow_dispatch'/u);

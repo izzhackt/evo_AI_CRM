@@ -18718,3 +18718,77 @@ new unique `Changed range` and `Fast checks` PR jobs when this change merges.
 This is a validation-orchestration change, not permission to skip risk-matched
 real tests or the single final full release proof. It performs no managed
 Supabase, VPS, provider, webhook, production-traffic or customer mutation.
+
+## 2026-09-05 - Deduplicate and risk-route the remaining validation pipeline
+
+Block-ID: `EVO-V3-CI-DEDUPLICATED-PIPELINE-2026-09-05`
+
+Change type: owner-directed CI performance correction without reducing the
+single real release-candidate proof. Affected plan sections: Execution and
+production gates; Order 7 / Issue #551.
+
+The post-#644 audit found three avoidable costs inside the now-manual proof:
+the complete migration chain was applied first by the isolated authorization
+harness and then again by `supabase db reset`; composed npm suites expanded to
+238 Node test-file executions although only 97 files were unique; and the
+workflow performed standalone typecheck immediately before a production Next
+build that already rejects TypeScript errors. GitHub-hosted jobs are fresh
+virtual machines, so a browser binary cannot be assumed to survive between
+runs; installing the full Chromium bundle when only headless proof is used was
+also unnecessary. Fast PR checks still treated prose-only changes as product
+builds.
+
+Decision:
+
+- make `supabase db reset` the one migration application in the manual real
+  Supabase/Auth/Storage/application/browser proof;
+- retain the historical intermediate-migration authorization harness as a
+  separately named fail-closed gate, invoked only when migrations, its SQL
+  assertions or the harness itself change;
+- replace the overlapping `test:security` plus `test:unit` CI expansion with
+  one deterministic manifest that validates and executes every unique Node
+  test file once, while preserving targeted npm suites for local diagnosis;
+  keep `pretest:unit` as a validation-only npm lifecycle hook, bound ordinary
+  files to concurrency four and keep the 20 stateful provider files serial;
+- remove the overlapping Node-only provider contract replay from the database
+  harness after the unique manifest proves those files remain covered;
+- install only Chromium headless shell, once and only in a browser-proof job;
+  keep browser workers serial because the real scenarios share state, but run
+  fail-closed alternate modes only by their named scenario;
+- run ESLint separately, use `next build` as the TypeScript/build authority when
+  a build is required, keep standalone `next typegen && tsc --noEmit` available
+  for scoped local diagnosis, and do not select a second whole-project
+  typecheck lane for script/test-only changes;
+- keep `Changed range` and aggregate `Fast checks` present on every PR, classify
+  changed paths fail-closed, and skip install/lint/typecheck/build for prose-only
+  documentation while still running launch/release contract checks when an
+  authoritative plan, workflow or release-control document changes, including
+  `deploy/fast-app-release.md` and `deploy/production-release.md`; empty and
+  unknown ranges fail rather than selecting no lane; and
+- parallelize independent Node/static and real database/browser jobs inside the
+  manual proof so static analysis is no longer on the database critical path.
+
+The superseded protected context `Main CRM` and stale active-plan `push` wording
+were already corrected by #644: current branch protection requires exactly
+`Changed range` and `Fast checks`, and the full proof is
+`workflow_dispatch`-only. Manual run `33970508569` on pre-optimization main was
+cancelled before Playwright installation and database/browser work when this
+owner change made its SHA non-final. #551 remains paused and must run exactly
+one manual proof only after this optimization merges to a new frozen exact
+`main` SHA. This change authorizes no managed Supabase, VPS, provider, webhook,
+production-traffic or customer mutation.
+
+## 2026-09-05 - Remove the final active exact-main push-CI instruction
+
+Block-ID: `EVO-V3-CI-FINAL-ACTIVE-PUSH-WORDING-2026-09-05`
+
+Change type: contract clarification found by independent read-only review.
+Affected plan section: the active owner-authorized merge rule immediately
+before the explicitly historical pre-#376 material.
+
+The remaining active sentence requiring exact-main push CI after every block
+is superseded. Intermediate slices end after their risk-selected short PR
+checks and exact-head merge. The full exact-current-main proof is manual and
+runs once only after the release-candidate SHA is frozen, before release or
+recovery acceptance. Older `push CI` statements inside the explicitly marked
+historical pre-#376 section remain unchanged as preserved decision evidence.

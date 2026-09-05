@@ -1529,22 +1529,35 @@ test("active platform CI executes only the root successor product", () => {
   const fastPr = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
   const auditAllowlist = readFileSync("scripts/check-npm-audit-allowlist.mjs", "utf8");
   assert.match(workflow, /^  workflow_dispatch:$/mu);
+  assert.match(workflow, /proof_revision:\n        description: Exact current main commit SHA to prove\./u);
   assert.doesNotMatch(workflow, /^  pull_request:|^  push:/mu);
   assert.match(workflow, /^  main_admission:\n    name: Current main admission$/mu);
   assert.match(workflow, /exact\("EVO_EVENT_NAME", "workflow_dispatch"\)/u);
   assert.match(workflow, /exact\("EVO_REF", "refs\/heads\/main"\)/u);
+  assert.match(workflow, /EVO_PROOF_REVISION: \$\{\{ inputs\.proof_revision \}\}/u);
+  assert.match(workflow, /exact\("EVO_PROOF_REVISION", env\.EVO_SHA\)/u);
   assert.match(workflow, /exact\("EVO_WORKFLOW_SHA", env\.EVO_SHA\)/u);
   assert.match(workflow, /git\/ref\/heads\/main/u);
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
-  assert.match(workflow, /^  crm_product:\n    name: Main CRM product$/mu);
-  assert.match(workflow, /^    needs: main_admission$/mu);
+  assert.match(workflow, /^  crm_node_static:\n    name: Main CRM Node\/static$/mu);
+  assert.match(workflow, /^  crm_browser:\n    name: Main CRM database\/browser proof$/mu);
+  assert.equal((workflow.match(/run: npm run test:ci:node/gu) ?? []).length, 1);
+  assert.match(workflow, /run: npm run lint/u);
+  assert.match(workflow, /run: npm run build/u);
+  assert.doesNotMatch(workflow, /run: npm run typecheck|run: npm run test:security|run: npm run test:unit/u);
+  assert.match(workflow, /node_modules\/\.bin\/playwright install --with-deps --only-shell chromium/u);
+  assert.equal((workflow.match(/node_modules\/\.bin\/playwright install --with-deps --only-shell chromium/gu) ?? []).length, 1);
+  assert.doesNotMatch(workflow, /node_modules\/\.bin\/playwright install --with-deps chromium/u);
+  assert.doesNotMatch(workflow, /test:database:migration-boundaries|v3-managed-supabase-recovery-harness/u);
   assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
-  assert.match(workflow, /needs:\n      - main_admission\n      - crm_product\n      - dependency_audit/u);
+  assert.match(workflow, /needs:\n      - main_admission\n      - crm_node_static\n      - crm_browser\n      - dependency_audit/u);
   assert.match(workflow, /ADMISSION_RESULT: \$\{\{ needs\.main_admission\.result \}\}/u);
   assert.match(workflow, /test "\$ADMISSION_RESULT" = "success"/u);
-  assert.match(workflow, /PRODUCT_RESULT: \$\{\{ needs\.crm_product\.result \}\}/u);
+  assert.match(workflow, /NODE_STATIC_RESULT: \$\{\{ needs\.crm_node_static\.result \}\}/u);
+  assert.match(workflow, /BROWSER_RESULT: \$\{\{ needs\.crm_browser\.result \}\}/u);
   assert.match(workflow, /AUDIT_RESULT: \$\{\{ needs\.dependency_audit\.result \}\}/u);
-  assert.match(workflow, /test "\$PRODUCT_RESULT" = "success"/u);
+  assert.match(workflow, /test "\$NODE_STATIC_RESULT" = "success"/u);
+  assert.match(workflow, /test "\$BROWSER_RESULT" = "success"/u);
   assert.match(workflow, /test "\$AUDIT_RESULT" = "success"/u);
   assert.match(
     workflow,
@@ -1572,16 +1585,36 @@ test("active platform CI executes only the root successor product", () => {
 
   assert.match(fastPr, /^name: EVO fast PR checks$/mu);
   assert.match(fastPr, /^  pull_request:$/mu);
+  assert.doesNotMatch(fastPr, /^\s+paths(?:-ignore)?:/mu);
   assert.doesNotMatch(fastPr, /^  push:|^  workflow_dispatch:/mu);
   assert.match(fastPr, /^  changed-range:\n    name: Changed range$/mu);
   assert.match(fastPr, /^  fast-checks:\n    name: Fast checks$/mu);
   assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Changed range$/gmu) ?? []).length, 1);
   assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Fast checks$/gmu) ?? []).length, 1);
-  assert.match(fastPr, /run: npm ci/u);
+  assert.match(fastPr, /git diff --check origin\/main\.\.\.HEAD/u);
+  assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --github-output "\$GITHUB_OUTPUT"/u);
+  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "unknown"]) {
+    assert.match(fastPr, new RegExp(`${output}: \\$\\{\\{ steps\\.classify\\.outputs\\.${output} \\}\\}`, "u"));
+  }
+  assert.doesNotMatch(fastPr, /^  classification_guard:/mu);
+  assert.match(fastPr, /^  fast-checks:[\s\S]*test "\$HAS_CHANGES" = "true"/mu);
+  assert.match(fastPr, /^  fast-checks:[\s\S]*test "\$UNKNOWN" = "false"/mu);
+  assert.match(fastPr, /^  contracts:\n    name: Release contracts$/mu);
+  assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.contracts == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run test:fast-release/u);
+  assert.match(fastPr, /^  lint:\n    name: Lint$/mu);
+  assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.lint == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run lint/u);
-  assert.match(fastPr, /run: npm run typecheck/u);
+  assert.match(fastPr, /^  build:\n    name: Build$/mu);
+  assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.build == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run build/u);
+  assert.match(fastPr, /^  migration_boundary:\n    name: Migration boundary$/mu);
+  assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.migration_boundary == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
+  assert.match(fastPr, /run: npm run test:database:migration-boundaries/u);
+  assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - migration_boundary/u);
+  assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
+  assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
+  assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
   assert.doesNotMatch(fastPr, /test:database:local|test:security|test:unit|playwright|supabase/iu);
 });
 

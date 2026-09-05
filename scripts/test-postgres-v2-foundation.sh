@@ -311,9 +311,6 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   [[ "$(docker context show)" == "orbstack" ]] || fail "Docker context must be exactly orbstack"
 fi
 
-"$repo_root/scripts/test-postgres-authorization.sh"
-echo "Supabase migration, RLS, request replay and concurrent handoff proofs passed."
-
 app_port="${EVO_DATABASE_APP_PORT:-$(free_port)}"
 staff_identity_suffix="${RANDOM}-$$-$(openssl rand -hex 4)"
 staff_admin_email="admin-${staff_identity_suffix}@evo.local.test"
@@ -1221,6 +1218,14 @@ platform_provider_runtime_inventory_browser_assert() {
 
 platform_communications_browser_assert() {
   local communications_mode="$1"
+  local test_grep="${2:-}"
+  local -a playwright_args=(
+    test
+    --config=playwright.platform-communications.config.ts
+  )
+  if [[ -n "$test_grep" ]]; then
+    playwright_args+=(--grep "$test_grep")
+  fi
   assert_app_reachable
   PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
     EVO_EXPECT_PLATFORM_COMMUNICATIONS_MODE="$communications_mode" \
@@ -1233,8 +1238,7 @@ platform_communications_browser_assert() {
     EVO_PLATFORM_WAHA_RESULT_FILE="$waha_acceptance_result" \
     EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
     EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
-    "$node_bin" node_modules/@playwright/test/cli.js test \
-      --config=playwright.platform-communications.config.ts
+    "$node_bin" node_modules/@playwright/test/cli.js "${playwright_args[@]}"
 }
 
 assert_no_secret_or_payload_logs() {
@@ -1266,30 +1270,6 @@ assert_no_secret_or_payload_logs() {
 cd "$repo_root"
 echo "Validating the active Supabase-only foundation without the retired Drizzle toolchain."
 
-"$node_bin" --conditions=react-server --experimental-strip-types --test \
-    --test-concurrency=1 \
-    tests/platform-gemini-provider.test.mjs \
-    tests/platform-provider-action-contract.test.mjs \
-    tests/platform-provider-orchestrator.test.mjs \
-    tests/platform-provider-readiness.test.mjs \
-    tests/platform-provider-workflows.test.mjs \
-    tests/platform-provider-actions.test.mjs \
-    tests/platform-provider-controls.test.mjs \
-    tests/v3-inbox-integration.test.mjs \
-    tests/platform-waha-local-fetch.test.mjs \
-    tests/platform-waha-provider.test.mjs \
-    tests/platform-waha-webhook.test.mjs \
-    tests/platform-waha-projector.test.mjs \
-    tests/platform-waha-projector-recovery.test.mjs \
-    tests/platform-provider-acceptance-harness.test.mjs \
-    tests/platform-whatsapp-pages.test.mjs \
-    tests/platform-communications-local-provisioner.test.mjs \
-    tests/platform-amocrm-discovery-repository.test.mjs \
-    tests/platform-amocrm-runtime.test.mjs \
-    tests/platform-amocrm-command-service.test.mjs \
-    tests/platform-amocrm-command-rpc.test.mjs
-echo "Platform provider workflow and Supabase-authoritative amoCRM contracts passed without the retired Drizzle amoCRM runtime."
-
 start_clamav_scanner
 start_isolated_waha_service
 start_app configured configured local-service
@@ -1308,12 +1288,12 @@ assert_no_secret_or_payload_logs
 stop_app
 start_app configured unavailable blocked provider-not-authorized disabled
 supabase_staff_auth_browser_assert audit-disabled "disabled canonical audit hides export"
-platform_communications_browser_assert inbound-unavailable
+platform_communications_browser_assert inbound-unavailable "missing primary webhook secret fails clearly without projection"
 assert_no_secret_or_payload_logs
 
 stop_app
 start_app unavailable
-supabase_staff_auth_browser_assert unavailable
+supabase_staff_auth_browser_assert unavailable "missing Supabase configuration stays unavailable"
 assert_no_secret_or_payload_logs
 
 stop_app

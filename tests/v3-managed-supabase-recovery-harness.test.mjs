@@ -46,9 +46,11 @@ import {
   suppliedRepresentativeUserIds,
   selectAdmissionsTaskMutation,
   selectOwnedContainerIds,
+  selectCandidateImageContainerReferences,
   selectCandidateImageIds,
   selectOwnedImageIds,
   selectOwnedNetworkIds,
+  selectOwnedVolumeIdentities,
   selectOwnedVolumeNames,
   uploadStorageObjectFromFile,
   validateEvidenceRuntimeSeparation,
@@ -2076,6 +2078,9 @@ test("candidate image is locally built from sorted exact target blobs for linux/
   assert.match(source, /image\.id,/u);
   assert.match(source, /NODE_ENV: "production"/u);
   assert.doesNotMatch(source, /NODE_ENV: "development"/u);
+  const candidateStart = source.slice(source.indexOf("async function startCandidateApp"), source.indexOf("async function browserExecutable"));
+  assert.match(candidateStart, /const started = await runDocker[\s\S]*?"--entrypoint", "node",\s+image\.id,/u);
+  assert.match(candidateStart, /const proxyStarted = await runDocker[\s\S]*?"--entrypoint", "node",\s+image\.id,/u);
 });
 
 test("detached SSH signature accepts exact namespace and rejects receipt tamper/spoof", async (t) => {
@@ -2230,7 +2235,8 @@ test("cleanup inventory selects only the exact isolated Supabase contour", () =>
   const appId = "b".repeat(64);
   const proxyId = "c".repeat(64);
   const scannerId = "d".repeat(64);
-  const containerLine = (id, name, labels) => [id, `/${name}`, labels].map((value) => JSON.stringify(value)).join("\t");
+  const unrelatedImageId = `sha256:${"0".repeat(64)}`;
+  const containerLine = (id, name, labels, image = unrelatedImageId) => [id, `/${name}`, image, labels].map((value) => JSON.stringify(value)).join("\t");
   assert.deepEqual(selectOwnedContainerIds([
     containerLine(containerId, `supabase_db_${project}`, {
       "com.docker.compose.project": project,
@@ -2258,8 +2264,10 @@ test("cleanup inventory selects only the exact isolated Supabase contour", () =>
       "com.supabase.cli.project": "other",
     }),
   ].join("\n"), project), [containerId, appId, proxyId, scannerId].sort());
-  const volumeLine = (name, labels) => [name, labels].map((value) => JSON.stringify(value)).join("\t");
-  assert.deepEqual(selectOwnedVolumeNames([
+  const volumeCreatedAt = "2026-09-05T12:34:56Z";
+  const volumeLine = (name, labels, { createdAt = volumeCreatedAt, driver = "local", scope = "local", options = null } = {}) =>
+    [name, createdAt, driver, scope, labels, options].map((value) => JSON.stringify(value)).join("\t");
+  const volumeOutput = [
     volumeLine(`supabase_db_${project}`, { "com.supabase.cli.project": project }),
     volumeLine(`supabase_storage_${project}`, { "com.supabase.cli.project": project }),
     volumeLine(`supabase_clamav_signatures_${project}`, {
@@ -2269,11 +2277,18 @@ test("cleanup inventory selects only the exact isolated Supabase contour", () =>
       "evo.recovery.type": "clamav-signatures",
     }),
     volumeLine("supabase_db_other", { "com.supabase.cli.project": "other" }),
-  ].join("\n"), project), [
+  ].join("\n");
+  assert.deepEqual(selectOwnedVolumeNames(volumeOutput, project), [
     `supabase_clamav_signatures_${project}`,
     `supabase_db_${project}`,
     `supabase_storage_${project}`,
   ]);
+  const volumeIdentities = selectOwnedVolumeIdentities(volumeOutput, project);
+  assert.equal(volumeIdentities.length, 3);
+  assert.equal(volumeIdentities.every((identity) => identity.createdAt === volumeCreatedAt), true);
+  assert.equal(volumeIdentities.every((identity) => identity.driver === "local" && identity.scope === "local"), true);
+  assert.equal(volumeIdentities.every((identity) => /^[0-9a-f]{64}$/u.test(identity.labelsSha256)), true);
+  assert.equal(volumeIdentities.every((identity) => /^[0-9a-f]{64}$/u.test(identity.optionsSha256)), true);
   const network = `${project}_private`;
   const networkId = "c".repeat(64);
   assert.deepEqual(selectOwnedNetworkIds(
@@ -2301,6 +2316,11 @@ test("cleanup inventory selects only the exact isolated Supabase contour", () =>
     "evo.recovery.build-network": "dependency-fetch-only",
   };
   assert.deepEqual(selectCandidateImageIds(`${imageId}\n${secondImageId}\n${imageId}\n`), [imageId, secondImageId]);
+  assert.deepEqual(selectCandidateImageContainerReferences([
+    containerLine(appId, `supabase_app_${project}`, {}, imageId),
+    containerLine("e".repeat(64), "foreign", {}, imageId),
+    containerLine("f".repeat(64), "unrelated", {}, unrelatedImageId),
+  ].join("\n"), imageId), [appId, "e".repeat(64)].sort());
   const imageLine = (id, tags, labels) => `${JSON.stringify(id)}\t${JSON.stringify(tags)}\t${JSON.stringify(labels)}`;
   assert.deepEqual(selectOwnedImageIds(imageLine(imageId, [imageTag], imageLabels), imageExpected), [imageId]);
   expectCode(
@@ -2441,17 +2461,46 @@ test("guarded recovery removal keeps the exact marker until final root removal",
 test("container cleanup inspects labels and removes only immutable owned IDs", async (t) => {
   const cleanupSource = source.slice(source.indexOf("export async function cleanupState"), source.indexOf("class StageTimings"));
   assert.doesNotMatch(cleanupSource, /\["rm", "--force", state\./u);
+  assert.doesNotMatch(cleanupSource, /\["(?:image|volume)", "rm", "--force"/u);
   assert.doesNotMatch(cleanupSource, /supabaseNative\.real, \["stop"/u);
   const projectName = "evov3recoveryabcdef123456";
   const containerName = `supabase_app_${projectName}`;
   const containerId = "a".repeat(64);
   const networkId = "b".repeat(64);
+  const imageId = `sha256:${"c".repeat(64)}`;
+  const imageTag = `evo-v3-recovery-${projectName}:candidate`;
   const volumeName = `supabase_clamav_signatures_${projectName}`;
+  const volumeCreatedAt = "2026-09-05T12:34:56Z";
   const ownedVolumeLabels = {
     "com.docker.compose.project": projectName,
     "evo.recovery.project": projectName,
     "evo.recovery.scanner": projectName,
     "evo.recovery.type": "clamav-signatures",
+  };
+  const ownedVolumeIdentity = {
+    createdAt: volumeCreatedAt,
+    driver: "local",
+    labelsSha256: hash(canonicalJson(ownedVolumeLabels)),
+    name: volumeName,
+    optionsSha256: hash(canonicalJson(null)),
+    scope: "local",
+  };
+  const imageIdentity = {
+    archiveSha256: "8".repeat(64),
+    buildNetwork: "dependency-fetch-only",
+    id: imageId,
+    projectName,
+    tag: imageTag,
+    targetCommit,
+    targetTree: targetFullTree,
+  };
+  const imageLabels = {
+    "org.opencontainers.image.revision": targetCommit,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-image",
+    "evo.recovery.target-tree": targetFullTree,
+    "evo.recovery.snapshot-archive-sha256": imageIdentity.archiveSha256,
+    "evo.recovery.build-network": imageIdentity.buildNetwork,
   };
   const createRoot = () => {
     const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
@@ -2479,15 +2528,21 @@ test("container cleanup inspects labels and removes only immutable owned IDs", a
     appContainerId: containerId,
     supabaseContainerIds: [],
     ownedVolumeNames: [volumeName],
+    ownedVolumeIdentities: [ownedVolumeIdentity],
+    appImageTag: imageTag,
+    appImageId: imageId,
+    appImageIdentity: imageIdentity,
   });
   const runCleanup = async (labels, {
     actualContainerId = containerId,
     actualNetworkId = networkId,
+    volumeCreated = volumeCreatedAt,
     volumeLabels = ownedVolumeLabels,
   } = {}) => {
     let containerPresent = true;
     let networkPresent = true;
     let volumePresent = true;
+    let imagePresent = true;
     const removalArgs = [];
     const supervisor = {
       stopAll: async () => true,
@@ -2499,18 +2554,30 @@ test("container cleanup inspects labels and removes only immutable owned IDs", a
         if (args[2] === "network" && args[3] === "ls") {
           return { stdout: Buffer.from(networkPresent ? `${projectName}_private\n` : "") };
         }
-        if (args[2] === "image" && args[3] === "ls") return { stdout: Buffer.from("") };
+        if (args[2] === "image" && args[3] === "ls") return { stdout: Buffer.from(imagePresent ? `${imageId}\n` : "") };
         if (args[2] === "inspect") {
           return { stdout: Buffer.from([
             actualContainerId,
             `/${containerName}`,
+            imageId,
             labels,
           ].map((value) => JSON.stringify(value)).join("\t")) };
         }
         if (args[2] === "volume" && args[3] === "inspect") {
           return { stdout: Buffer.from([
             volumeName,
+            volumeCreated,
+            "local",
+            "local",
             volumeLabels,
+            null,
+          ].map((value) => JSON.stringify(value)).join("\t")) };
+        }
+        if (args[2] === "image" && args[3] === "inspect") {
+          return { stdout: Buffer.from([
+            imageId,
+            [imageTag],
+            imageLabels,
           ].map((value) => JSON.stringify(value)).join("\t")) };
         }
         if (args[2] === "network" && args[3] === "inspect") {
@@ -2535,6 +2602,11 @@ test("container cleanup inspects labels and removes only immutable owned IDs", a
           volumePresent = false;
           return { stdout: Buffer.from(volumeName) };
         }
+        if (args[2] === "image" && args[3] === "rm") {
+          removalArgs.push([...args]);
+          imagePresent = false;
+          return { stdout: Buffer.from(imageId) };
+        }
         throw new Error(`unexpected command: ${args.join(" ")}`);
       },
     };
@@ -2549,12 +2621,15 @@ test("container cleanup inspects labels and removes only immutable owned IDs", a
     "evo.recovery.type": "candidate-app",
   });
   assert.equal(owned.result.disposition, "remove");
-  assert.equal(owned.removalArgs.length, 3);
+  assert.equal(owned.removalArgs.length, 4);
   assert.equal(owned.removalArgs[0].includes(containerId), true);
   assert.equal(owned.removalArgs[0].includes(containerName), false);
-  assert.equal(owned.removalArgs[1].includes(volumeName), true);
-  assert.equal(owned.removalArgs[2].includes(networkId), true);
-  assert.equal(owned.removalArgs[2].includes(`${projectName}_private`), false);
+  assert.equal(owned.removalArgs[1].includes(imageId), true);
+  assert.equal(owned.removalArgs[1].includes("--force"), false);
+  assert.equal(owned.removalArgs[2].includes(volumeName), true);
+  assert.equal(owned.removalArgs[2].includes("--force"), false);
+  assert.equal(owned.removalArgs[3].includes(networkId), true);
+  assert.equal(owned.removalArgs[3].includes(`${projectName}_private`), false);
 
   const foreign = await runCleanup({});
   assert.equal(foreign.result.disposition, "quarantine");
@@ -2580,8 +2655,15 @@ test("container cleanup inspects labels and removes only immutable owned IDs", a
   }, { volumeLabels: { ...ownedVolumeLabels, "evo.recovery.owner": "foreign-project" } });
   assert.equal(volumeConflict.result.disposition, "quarantine");
   assert.equal(volumeConflict.removalArgs.length, 0);
+  const volumeRecreated = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  }, { volumeCreated: "2026-09-05T12:35:57Z" });
+  assert.equal(volumeRecreated.result.disposition, "quarantine");
+  assert.equal(volumeRecreated.removalArgs.length, 0);
   t.after(() => {
-    for (const root of [foreign.root, replaced.root, networkReplaced.root, volumeConflict.root]) {
+    for (const root of [foreign.root, replaced.root, networkReplaced.root, volumeConflict.root, volumeRecreated.root]) {
       const prefix = `${basename(root)}.quarantine-`;
       for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(prefix))) {
         rmSync(join(tmpdir(), name), { recursive: true, force: true });
@@ -2625,14 +2707,15 @@ test("image cleanup removes only the captured ID with exact tag and provenance",
     writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
     return root;
   };
-  const runCleanup = async ({ extra = false } = {}) => {
+  const foreignContainerId = "9".repeat(64);
+  const runCleanup = async ({ extra = false, foreignReference = false } = {}) => {
     let imagePresent = true;
     const removalArgs = [];
     const root = createRoot();
     const supervisor = {
       stopAll: async () => true,
       run: async (_executable, args) => {
-        if (args[2] === "ps") return { stdout: Buffer.from("") };
+        if (args[2] === "ps") return { stdout: Buffer.from(foreignReference ? `${foreignContainerId}\n` : "") };
         if (args[2] === "volume" && args[3] === "ls") return { stdout: Buffer.from("") };
         if (args[2] === "network" && args[3] === "ls") return { stdout: Buffer.from("") };
         if (args[2] === "image" && args[3] === "ls") {
@@ -2644,6 +2727,14 @@ test("image cleanup removes only the captured ID with exact tag and provenance",
             ...(extra ? [[extraImageId, [], labels]] : []),
           ].map((line) => line.map((value) => JSON.stringify(value)).join("\t"));
           return { stdout: Buffer.from(lines.join("\n")) };
+        }
+        if (args[2] === "inspect") {
+          return { stdout: Buffer.from([
+            foreignContainerId,
+            "/foreign-container",
+            imageId,
+            {},
+          ].map((value) => JSON.stringify(value)).join("\t")) };
         }
         if (args[2] === "image" && args[3] === "rm") {
           removalArgs.push([...args]);
@@ -2675,14 +2766,20 @@ test("image cleanup removes only the captured ID with exact tag and provenance",
   assert.equal(owned.removalArgs.length, 1);
   assert.equal(owned.removalArgs[0].includes(imageId), true);
   assert.equal(owned.removalArgs[0].includes(tag), false);
+  assert.equal(owned.removalArgs[0].includes("--force"), false);
 
   const inheritedExtra = await runCleanup({ extra: true });
   assert.equal(inheritedExtra.result.disposition, "quarantine");
   assert.equal(inheritedExtra.removalArgs.length, 0);
+  const foreignReference = await runCleanup({ foreignReference: true });
+  assert.equal(foreignReference.result.disposition, "quarantine");
+  assert.equal(foreignReference.removalArgs.length, 0);
   t.after(() => {
-    const prefix = `${basename(inheritedExtra.root)}.quarantine-`;
-    for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(prefix))) {
-      rmSync(join(tmpdir(), name), { recursive: true, force: true });
+    for (const root of [inheritedExtra.root, foreignReference.root]) {
+      const prefix = `${basename(root)}.quarantine-`;
+      for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(prefix))) {
+        rmSync(join(tmpdir(), name), { recursive: true, force: true });
+      }
     }
   });
 });

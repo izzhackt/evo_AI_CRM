@@ -115,8 +115,8 @@ let activePrivateChildEnvironment;
 // Deliberately excludes Config.Env so inspect output can never capture runtime secrets.
 const SAFE_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}\t{{json .HostConfig.NetworkMode}}\t{{json .NetworkSettings.Ports}}\t{{json .NetworkSettings.Networks}}";
 const SAFE_IMAGE_INSPECT_FORMAT = "{{json .Id}}\t{{json .RepoDigests}}\t{{json .Config.Labels}}\t{{json .Os}}\t{{json .Architecture}}";
-const SAFE_CLEANUP_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Config.Labels}}";
-const SAFE_CLEANUP_VOLUME_INSPECT_FORMAT = "{{json .Name}}\t{{json .Labels}}";
+const SAFE_CLEANUP_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}";
+const SAFE_CLEANUP_VOLUME_INSPECT_FORMAT = "{{json .Name}}\t{{json .CreatedAt}}\t{{json .Driver}}\t{{json .Scope}}\t{{json .Labels}}\t{{json .Options}}";
 const SAFE_CLEANUP_NETWORK_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Labels}}";
 const DATABASE_DENIAL_SENTINELS = Object.freeze({
   "Active scoped Admin permission membership.role.change is required": ADMIN_MEMBERSHIP_DENIAL.domainSentinel,
@@ -6110,6 +6110,7 @@ export function cleanupContainerPolicy(state, toolchainAvailable) {
     typeof state?.networkId === "string" ||
     Array.isArray(state?.supabaseContainerIds) ||
     Array.isArray(state?.ownedVolumeNames) ||
+    Array.isArray(state?.ownedVolumeIdentities) ||
     state?.stackStarted === true ||
     typeof state?.appContainer === "string" ||
     typeof state?.appContainerId === "string" ||
@@ -6158,24 +6159,49 @@ function assertExactRecoveryOwnershipLabels(labels, required, optional, code) {
   }
 }
 
-export function selectOwnedContainerIds(output, projectName) {
-  assertCleanupProject(projectName);
-  const ids = [];
-  const typeCounts = { app: 0, proxy: 0, scanner: 0 };
+function cleanupContainerRecords(output) {
+  const records = [];
   for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
     const fields = line.split("\t");
     let id;
     let name;
+    let image;
     let labels;
     try {
-      [id, name, labels] = fields.map((field) => JSON.parse(field));
+      [id, name, image, labels] = fields.map((field) => JSON.parse(field));
     } catch {
       fail("cleanup_container_inventory_invalid", "cleanup");
     }
-    if (fields.length !== 3 || !SHA256.test(id ?? "") || typeof name !== "string" || !name.startsWith("/")) {
+    if (
+      fields.length !== 4 ||
+      !SHA256.test(id ?? "") ||
+      typeof name !== "string" || !name.startsWith("/") ||
+      !/^sha256:[0-9a-f]{64}$/u.test(image ?? "") ||
+      (labels !== null && !isRecord(labels))
+    ) {
       fail("cleanup_container_inventory_invalid", "cleanup");
     }
-    const normalizedName = name.slice(1);
+    records.push(Object.freeze({ id, name: name.slice(1), image, labels }));
+  }
+  if (new Set(records.map(({ id }) => id)).size !== records.length) {
+    fail("cleanup_container_inventory_invalid", "cleanup");
+  }
+  return Object.freeze(records);
+}
+
+export function selectCandidateImageContainerReferences(output, imageId) {
+  if (!/^sha256:[0-9a-f]{64}$/u.test(imageId ?? "")) fail("cleanup_image_reference_invalid", "cleanup");
+  return Object.freeze(cleanupContainerRecords(output)
+    .filter((record) => record.image === imageId)
+    .map((record) => record.id)
+    .sort());
+}
+
+export function selectOwnedContainerIds(output, projectName) {
+  assertCleanupProject(projectName);
+  const ids = [];
+  const typeCounts = { app: 0, proxy: 0, scanner: 0 };
+  for (const { id, name: normalizedName, labels } of cleanupContainerRecords(output)) {
     const namedForProject = normalizedName.startsWith("supabase_") && normalizedName.endsWith(`_${projectName}`);
     const labeledForProject = isRecord(labels) && [
       labels["com.supabase.cli.project"],
@@ -6249,22 +6275,58 @@ export function selectOwnedContainerIds(output, projectName) {
   return Object.freeze(ids.sort());
 }
 
-export function selectOwnedVolumeNames(output, projectName) {
-  assertCleanupProject(projectName);
-  const names = [];
-  let scannerVolumeCount = 0;
+function cleanupVolumeRecords(output) {
+  const records = [];
   for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
     const fields = line.split("\t");
     let name;
+    let createdAt;
+    let driver;
+    let scope;
     let labels;
+    let options;
     try {
-      [name, labels] = fields.map((field) => JSON.parse(field));
+      [name, createdAt, driver, scope, labels, options] = fields.map((field) => JSON.parse(field));
     } catch {
       fail("cleanup_volume_inventory_invalid", "cleanup");
     }
-    if (fields.length !== 2 || typeof name !== "string" || name.length === 0) {
+    if (
+      fields.length !== 6 ||
+      typeof name !== "string" || name.length === 0 ||
+      typeof createdAt !== "string" || createdAt.length === 0 ||
+      typeof driver !== "string" || driver.length === 0 ||
+      typeof scope !== "string" || scope.length === 0 ||
+      (labels !== null && !isRecord(labels)) ||
+      (options !== null && !isRecord(options))
+    ) {
       fail("cleanup_volume_inventory_invalid", "cleanup");
     }
+    records.push(Object.freeze({ createdAt, driver, labels, name, options, scope }));
+  }
+  if (new Set(records.map(({ name }) => name)).size !== records.length) fail("cleanup_volume_inventory_invalid", "cleanup");
+  return Object.freeze(records);
+}
+
+function validatedCleanupVolumeIdentity(identity) {
+  if (!isRecord(identity)) fail("cleanup_volume_identity_invalid", "cleanup");
+  exactKeys(identity, ["createdAt", "driver", "labelsSha256", "name", "optionsSha256", "scope"], "cleanup_volume_identity_invalid", "cleanup");
+  if (
+    typeof identity.name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/u.test(identity.name) ||
+    typeof identity.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/u.test(identity.createdAt) ||
+    !Number.isFinite(Date.parse(identity.createdAt)) ||
+    identity.driver !== "local" || identity.scope !== "local" ||
+    !SHA256.test(identity.labelsSha256 ?? "") || !SHA256.test(identity.optionsSha256 ?? "")
+  ) {
+    fail("cleanup_volume_identity_invalid", "cleanup");
+  }
+  return identity;
+}
+
+export function selectOwnedVolumeIdentities(output, projectName) {
+  assertCleanupProject(projectName);
+  const identities = [];
+  let scannerVolumeCount = 0;
+  for (const { createdAt, driver, labels, name, options, scope } of cleanupVolumeRecords(output)) {
     const namedForProject = name.startsWith("supabase_") && name.endsWith(`_${projectName}`);
     const labeledForProject = isRecord(labels) && [
       labels["com.supabase.cli.project"],
@@ -6272,7 +6334,12 @@ export function selectOwnedVolumeNames(output, projectName) {
       labels["evo.recovery.scanner"],
     ].includes(projectName);
     if (!namedForProject && !labeledForProject) continue;
-    if (!isRecord(labels)) fail("cleanup_volume_ownership_invalid", "cleanup");
+    if (
+      !isRecord(labels) ||
+      !/^\d{4}-\d{2}-\d{2}T/u.test(createdAt) || !Number.isFinite(Date.parse(createdAt)) ||
+      driver !== "local" || scope !== "local" ||
+      (options !== null && !isRecord(options))
+    ) fail("cleanup_volume_ownership_invalid", "cleanup");
     const supabaseOwned = labels["com.supabase.cli.project"] === projectName;
     const scannerOwned = labels["evo.recovery.scanner"] === projectName;
     if (Number(supabaseOwned) + Number(scannerOwned) !== 1) fail("cleanup_volume_ownership_invalid", "cleanup");
@@ -6301,10 +6368,23 @@ export function selectOwnedVolumeNames(output, projectName) {
       }, {}, "cleanup_volume_ownership_invalid");
       scannerVolumeCount += 1;
     }
-    names.push(name);
+    identities.push(Object.freeze({
+      createdAt,
+      driver,
+      labelsSha256: sha256(canonicalJson(labels)),
+      name,
+      optionsSha256: sha256(canonicalJson(options)),
+      scope,
+    }));
   }
-  if (scannerVolumeCount > 1 || new Set(names).size !== names.length) fail("cleanup_volume_ownership_invalid", "cleanup");
-  return Object.freeze(names.sort());
+  if (scannerVolumeCount > 1 || new Set(identities.map(({ name }) => name)).size !== identities.length) {
+    fail("cleanup_volume_ownership_invalid", "cleanup");
+  }
+  return Object.freeze(identities.sort((left, right) => left.name.localeCompare(right.name, "en")));
+}
+
+export function selectOwnedVolumeNames(output, projectName) {
+  return Object.freeze(selectOwnedVolumeIdentities(output, projectName).map(({ name }) => name));
 }
 
 export function selectOwnedNetworkIds(output, networkName) {
@@ -6407,28 +6487,41 @@ function cleanupCapturedIdentity(state) {
     state?.appProxyContainerId,
   ].filter((id) => typeof id === "string").sort();
   const volumes = Array.isArray(state?.ownedVolumeNames) ? [...state.ownedVolumeNames].sort() : [];
+  const volumeIdentities = Array.isArray(state?.ownedVolumeIdentities)
+    ? state.ownedVolumeIdentities.map((identity) => validatedCleanupVolumeIdentity(identity))
+      .sort((left, right) => left.name.localeCompare(right.name, "en"))
+    : [];
   const networkIds = typeof state?.networkId === "string" ? [state.networkId] : [];
   const images = isRecord(state?.appImageIdentity) ? [state.appImageIdentity.id] : [];
+  const imageReferenceContainerIds = images.length === 1
+    ? [state?.appContainerId, state?.appProxyContainerId].filter((id) => typeof id === "string").sort()
+    : [];
   if (
     containers.some((id) => !SHA256.test(id)) || new Set(containers).size !== containers.length ||
     volumes.some((name) => typeof name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/u.test(name)) ||
     new Set(volumes).size !== volumes.length ||
+    new Set(volumeIdentities.map(({ name }) => name)).size !== volumeIdentities.length ||
+    !sameJson(volumes, volumeIdentities.map(({ name }) => name)) ||
     networkIds.some((id) => !SHA256.test(id)) ||
     images.some((id) => !/^sha256:[0-9a-f]{64}$/u.test(id)) ||
-    (images.length === 1 && state?.appImageId !== images[0])
+    (images.length === 1 && state?.appImageId !== images[0]) ||
+    ((typeof state?.appContainerId === "string" || typeof state?.appProxyContainerId === "string") && images.length !== 1) ||
+    imageReferenceContainerIds.some((id) => !containers.includes(id))
   ) {
     fail("cleanup_captured_identity_invalid", "cleanup");
   }
   return Object.freeze({
     containers: Object.freeze(containers),
     volumes: Object.freeze(volumes),
+    volumeIdentities: Object.freeze(volumeIdentities),
     networkIds: Object.freeze(networkIds),
     images: Object.freeze(images),
+    imageReferenceContainerIds: Object.freeze(imageReferenceContainerIds),
   });
 }
 
 function assertCleanupInventoryIdentity(inventory, expected) {
-  for (const field of ["containers", "volumes", "networkIds", "images"]) {
+  for (const field of ["containers", "volumes", "volumeIdentities", "networkIds", "images", "imageReferenceContainerIds"]) {
     if (!Array.isArray(inventory?.[field]) || !Array.isArray(expected?.[field])) {
       fail("cleanup_captured_identity_invalid", "cleanup");
     }
@@ -6486,6 +6579,7 @@ async function cleanupInventory(state, supervisor, tools, {
       ], { stage, code: "cleanup_network_inspection_failed", allowAfterInterrupt }),
   ]);
   const candidateImageIds = selectCandidateImageIds(imageList.stdout.toString("utf8"));
+  const containerInspectionText = containerInspection.stdout.toString("utf8");
   let images = Object.freeze([]);
   if (candidateImageIds.length > 0) {
     if (!isRecord(state.appImageIdentity)) fail("cleanup_image_inventory_invalid", "cleanup");
@@ -6500,12 +6594,17 @@ async function cleanupInventory(state, supervisor, tools, {
     }
   }
   const networkIds = selectOwnedNetworkIds(networkInspection.stdout.toString("utf8"), state.networkName);
+  const volumeIdentities = selectOwnedVolumeIdentities(volumeInspection.stdout.toString("utf8"), state.projectName);
   const inventory = Object.freeze({
-    containers: selectOwnedContainerIds(containerInspection.stdout.toString("utf8"), state.projectName),
-    volumes: selectOwnedVolumeNames(volumeInspection.stdout.toString("utf8"), state.projectName),
+    containers: selectOwnedContainerIds(containerInspectionText, state.projectName),
+    volumes: Object.freeze(volumeIdentities.map(({ name }) => name)),
+    volumeIdentities,
     networks: networkIds.length === 0 ? Object.freeze([]) : Object.freeze([state.networkName]),
     networkIds,
     images,
+    imageReferenceContainerIds: isRecord(state.appImageIdentity)
+      ? selectCandidateImageContainerReferences(containerInspectionText, state.appImageIdentity.id)
+      : Object.freeze([]),
   });
   if (expectedIdentity !== undefined) assertCleanupInventoryIdentity(inventory, expectedIdentity);
   return inventory;
@@ -6535,18 +6634,26 @@ export async function cleanupState(state, supervisor, toolchain) {
       let owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
       if (owned.containers.length > 0) {
         cleanupSucceeded = (await run(["rm", "--force", ...owned.containers])) && cleanupSucceeded;
-        expectedIdentity = Object.freeze({ ...expectedIdentity, containers: Object.freeze([]) });
+        expectedIdentity = Object.freeze({
+          ...expectedIdentity,
+          containers: Object.freeze([]),
+          imageReferenceContainerIds: Object.freeze([]),
+        });
         owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
       }
       if (owned.containers.length > 0) cleanupSucceeded = false;
       if (cleanupSucceeded && owned.images.length > 0) {
-        cleanupSucceeded = (await run(["image", "rm", "--force", ...owned.images])) && cleanupSucceeded;
+        cleanupSucceeded = (await run(["image", "rm", ...owned.images])) && cleanupSucceeded;
         expectedIdentity = Object.freeze({ ...expectedIdentity, images: Object.freeze([]) });
         owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
       }
       if (cleanupSucceeded && owned.volumes.length > 0) {
-        cleanupSucceeded = (await run(["volume", "rm", "--force", ...owned.volumes])) && cleanupSucceeded;
-        expectedIdentity = Object.freeze({ ...expectedIdentity, volumes: Object.freeze([]) });
+        cleanupSucceeded = (await run(["volume", "rm", ...owned.volumes])) && cleanupSucceeded;
+        expectedIdentity = Object.freeze({
+          ...expectedIdentity,
+          volumes: Object.freeze([]),
+          volumeIdentities: Object.freeze([]),
+        });
         owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
       }
       if (cleanupSucceeded && owned.networkIds.length > 0) {
@@ -6557,8 +6664,10 @@ export async function cleanupState(state, supervisor, toolchain) {
       if (
         owned.containers.length ||
         owned.volumes.length ||
+        owned.volumeIdentities.length ||
         owned.networkIds.length ||
-        owned.images.length
+        owned.images.length ||
+        owned.imageReferenceContainerIds.length
       ) {
         cleanupSucceeded = false;
       }
@@ -6896,6 +7005,7 @@ async function executeMode(mode, options) {
     networkId: undefined,
     supabaseContainerIds: undefined,
     ownedVolumeNames: undefined,
+    ownedVolumeIdentities: undefined,
     appContainer: undefined,
     appContainerId: undefined,
     appProxyContainer: undefined,
@@ -7057,6 +7167,7 @@ async function executeMode(mode, options) {
       ));
       const destinationInventory = await runStage("destination_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "destination_identity" }));
       state.ownedVolumeNames = destinationInventory.volumes;
+      state.ownedVolumeIdentities = destinationInventory.volumeIdentities;
       assertCleanupInventoryIdentity(destinationInventory, cleanupCapturedIdentity(state));
       state.isolationInput.destination = {
         projectRef: state.projectName,

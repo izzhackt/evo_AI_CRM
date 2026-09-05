@@ -2923,6 +2923,8 @@ export function installProcessCleanupHandlers({
         // The exact signal exit code remains authoritative even if cleanup fails.
       } finally {
         clearInterval(shutdownLifetime);
+        process.removeListener("SIGINT", sigintHandler);
+        process.removeListener("SIGTERM", sigtermHandler);
         exit(exitCode);
       }
     })();
@@ -2931,8 +2933,14 @@ export function installProcessCleanupHandlers({
   function exitCleanupHandler() {
     if (!terminationStarted) cleanup();
   }
-  process.once("SIGINT", () => terminationHandler("SIGINT"));
-  process.once("SIGTERM", () => terminationHandler("SIGTERM"));
+  function sigintHandler() {
+    terminationHandler("SIGINT");
+  }
+  function sigtermHandler() {
+    terminationHandler("SIGTERM");
+  }
+  process.on("SIGINT", sigintHandler);
+  process.on("SIGTERM", sigtermHandler);
   process.once("exit", exitCleanupHandler);
 }
 

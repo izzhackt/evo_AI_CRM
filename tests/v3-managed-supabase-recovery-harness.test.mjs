@@ -635,8 +635,10 @@ test("executor is pinned to OrbStack and only targets one unique local contour",
   assert.equal(cleanupBody.match(/ownedNetworkNames\(state\)/gu)?.length, 1);
   assert.ok(cleanupBody.indexOf('["network", "rm", state.networkName]') <
     cleanupBody.indexOf("ownedNetworkNames(state)"));
-  assert.match(source, /process\.once\("SIGINT", \(\) => terminationHandler\("SIGINT"\)\)/u);
-  assert.match(source, /process\.once\("SIGTERM", \(\) => terminationHandler\("SIGTERM"\)\)/u);
+  assert.match(source, /process\.on\("SIGINT", sigintHandler\)/u);
+  assert.match(source, /process\.on\("SIGTERM", sigtermHandler\)/u);
+  assert.match(source, /process\.removeListener\("SIGINT", sigintHandler\)/u);
+  assert.match(source, /process\.removeListener\("SIGTERM", sigtermHandler\)/u);
   assert.match(source, /process\.once\("exit", exitCleanupHandler\)/u);
   assert.match(source, /cleanupActiveState/u);
 });
@@ -805,6 +807,127 @@ test("SIGTERM without an active browser proof still cleans up and exits 143", as
   } finally {
     lines.close();
     if (probe.exitCode === null && probe.signalCode === null) probe.kill("SIGKILL");
+  }
+});
+
+test("repeated same or different signals cannot bypass active teardown", async (t) => {
+  for (const { firstSignal, secondSignal, expectedExitCode } of [
+    { firstSignal: "SIGTERM", secondSignal: "SIGTERM", expectedExitCode: 143 },
+    { firstSignal: "SIGINT", secondSignal: "SIGINT", expectedExitCode: 130 },
+    { firstSignal: "SIGTERM", secondSignal: "SIGINT", expectedExitCode: 143 },
+    { firstSignal: "SIGINT", secondSignal: "SIGTERM", expectedExitCode: 130 },
+  ]) {
+    await t.test(`${firstSignal} followed by ${secondSignal}`, async () => {
+      const helperSource = `
+        import { spawn } from "node:child_process";
+        import { once } from "node:events";
+        import { installProcessCleanupHandlers } from ${JSON.stringify(scriptUrl.href)};
+
+        const appChild = spawn(
+          process.execPath,
+          ["--eval", "setInterval(() => undefined, 1_000)"],
+          { detached: process.platform !== "win32", stdio: "ignore" },
+        );
+        const browserChild = spawn(
+          process.execPath,
+          ["--eval", "setInterval(() => undefined, 1_000)"],
+          { stdio: "ignore" },
+        );
+        const browserServer = {
+          process: () => browserChild,
+          close: async () => {
+            process.stdout.write("teardown-started\\n");
+            await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+            if (browserChild.exitCode === null && browserChild.signalCode === null) {
+              const browserExit = once(browserChild, "exit");
+              browserChild.kill("SIGTERM");
+              await browserExit;
+            }
+          },
+          kill: () => browserChild.kill("SIGKILL"),
+        };
+        const processExists = (pid) => {
+          try {
+            process.kill(pid, 0);
+            return true;
+          } catch (error) {
+            if (error?.code === "ESRCH") return false;
+            throw error;
+          }
+        };
+        installProcessCleanupHandlers({
+          getBrowserProof: () => ({
+            appChild,
+            browserServerPromise: Promise.resolve(browserServer),
+          }),
+          cleanup: () => process.stdout.write(JSON.stringify({
+            appRunning: processExists(appChild.pid),
+            browserRunning: processExists(browserChild.pid),
+          }) + "\\n"),
+        });
+        process.stdout.write(JSON.stringify({
+          appPid: appChild.pid,
+          browserPid: browserChild.pid,
+        }) + "\\n");
+      `;
+      const probe = spawn(
+        process.execPath,
+        ["--input-type=module", "--eval", helperSource],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      let stderr = "";
+      let pids;
+      probe.stderr.on("data", (chunk) => {
+        stderr += chunk;
+      });
+      const exitPromise = once(probe, "exit");
+      const lines = createInterface({ input: probe.stdout });
+      try {
+        const [readyLine] = await withTimeout(
+          once(lines, "line"),
+          5_000,
+          `repeated-signal probe did not become ready: stderr=${stderr}`,
+        );
+        pids = JSON.parse(readyLine);
+        assert.equal(probe.kill(firstSignal), true);
+        const [teardownLine] = await withTimeout(
+          once(lines, "line"),
+          5_000,
+          `repeated-signal teardown did not start: stderr=${stderr}`,
+        );
+        assert.equal(teardownLine, "teardown-started");
+        const cleanupLinePromise = once(lines, "line").then(([line]) => JSON.parse(line));
+        assert.equal(probe.kill(secondSignal), true);
+        const cleanupObservation = await withTimeout(
+          Promise.race([
+            cleanupLinePromise,
+            exitPromise.then(([prematureCode, prematureSignal]) => {
+              throw new Error(
+                `repeated-signal probe exited before cleanup: code=${prematureCode} signal=${prematureSignal}`,
+              );
+            }),
+          ]),
+          5_000,
+          `repeated-signal probe did not finish: stderr=${stderr}`,
+        );
+        const [exitCode, exitSignal] = await withTimeout(
+          exitPromise,
+          5_000,
+          `repeated-signal probe did not exit after cleanup: stderr=${stderr}`,
+        );
+        assert.deepEqual(cleanupObservation, {
+          appRunning: false,
+          browserRunning: false,
+        }, `stderr=${stderr}`);
+        assert.equal(exitSignal, null);
+        assert.equal(exitCode, expectedExitCode);
+      } finally {
+        lines.close();
+        if (probe.exitCode === null && probe.signalCode === null) probe.kill("SIGKILL");
+        forceStopProcess(pids?.appPid);
+        forceStopProcess(pids?.browserPid);
+      }
+    });
   }
 });
 

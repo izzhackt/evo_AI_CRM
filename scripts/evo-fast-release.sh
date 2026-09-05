@@ -15,10 +15,12 @@ readonly PROJECT_NAME_RE='^[a-z0-9][a-z0-9_-]{0,99}$'
 readonly SUPABASE_PROJECT_REF_RE='^[a-z0-9]{20}$'
 readonly ABSOLUTE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 readonly HEALTH_URL_RE='^(https://[A-Za-z0-9.-]+(:[0-9]{1,5})?|http://127\.0\.0\.1:[0-9]{1,5})/api/health$'
+readonly CLAMAV_IMAGE='clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9'
 
 command_name=${1:-}
 candidate_expected_image_id=''
 current_app_container_id=''
+current_clamav_container_id=''
 rollback_previous_image=''
 rollback_previous_revision=''
 rollback_previous_version=''
@@ -30,6 +32,8 @@ rollback_previous_generation=''
 rollback_previous_release_id=''
 rollback_previous_pointer=''
 rollback_previous_pointer_sha256=''
+rollback_previous_scanner_present=false
+rollback_previous_scanner_image=''
 candidate_app_env_snapshot=''
 candidate_app_env_sha256=''
 candidate_compose_file=''
@@ -124,6 +128,10 @@ safe_status() {
   verify_current_runtime
   local container image health restarts revision version
   container=$(app_container_id) || fail "app_container_unavailable"
+  [[ -n $current_clamav_container_id ]] || fail "scanner_container_unavailable"
+  verify_runtime_clamav_pinned_image
+  verify_private_service_ports clamav
+  verify_private_service_ports waha
   image=$(docker inspect --format '{{.Image}}' "$container")
   health=$(container_health "$container")
   restarts=$(docker inspect --format '{{.RestartCount}}' "$container")
@@ -137,7 +145,7 @@ safe_status() {
     --arg image "$image" \
     --arg revision "$revision" \
     --arg version "$version" \
-    '{ok:true,command:"status",health:"healthy",restarts:0,image:$image,revision:$revision,version:$version}'
+    '{ok:true,command:"status",health:"healthy",restarts:0,image:$image,revision:$revision,version:$version,scanner:"healthy"}'
 }
 
 load_configuration() {
@@ -291,7 +299,7 @@ verify_current_runtime_identity() {
     --filter "label=com.docker.compose.project=${EVO_RELEASE_PROJECT_NAME}")
   local service_count
   service_count=$(printf '%s\n' "$ids" | count_nonempty_lines)
-  [[ $service_count -eq 1 || $service_count -eq 2 ]] || fail "runtime_service_contract_invalid"
+  [[ $service_count -ge 1 && $service_count -le 3 ]] || fail "runtime_service_contract_invalid"
   services=''
   while IFS= read -r id; do
     [[ -n $id ]] || continue
@@ -299,11 +307,20 @@ verify_current_runtime_identity() {
     services+="${service}"$'\n'
   done <<<"$ids"
   services=$(printf '%s' "$services" | awk 'NF' | LC_ALL=C sort -u)
-  [[ $services == waha || $services == $'app\nwaha' ]] || fail "runtime_service_contract_invalid"
+  [[ $services == waha \
+    || $services == $'clamav\nwaha' \
+    || $services == $'app\nwaha' \
+    || $services == $'app\nclamav\nwaha' ]] \
+    || fail "runtime_service_contract_invalid"
 
   current_app_container_id=''
-  if [[ $services == $'app\nwaha' ]]; then
+  current_clamav_container_id=''
+  if [[ $services == app$'\n'* ]]; then
     current_app_container_id=$(app_container_id) || fail "runtime_service_contract_invalid"
+  fi
+  if [[ $services == clamav$'\n'* || $services == *$'\nclamav\n'* ]]; then
+    current_clamav_container_id=$(service_container_id clamav) \
+      || fail "runtime_service_contract_invalid"
   fi
 }
 
@@ -311,8 +328,11 @@ verify_current_runtime() {
   verify_current_runtime_identity
   local service id health restarts
   local -a runtime_services=(waha)
+  if [[ -n $current_clamav_container_id ]]; then
+    runtime_services=(clamav "${runtime_services[@]}")
+  fi
   if [[ -n $current_app_container_id ]]; then
-    runtime_services=(app waha)
+    runtime_services=(app "${runtime_services[@]}")
   fi
   for service in "${runtime_services[@]}"; do
     id=$(service_container_id "$service") || fail "runtime_service_contract_invalid"
@@ -333,11 +353,40 @@ verify_runtime_waha_image() {
   [[ $actual_image == "$expected_image" ]] || fail "runtime_waha_image_drift"
 }
 
+verify_runtime_clamav_image() {
+  local id expected_image actual_image
+  id=$(service_container_id clamav) || fail "runtime_service_contract_invalid"
+  expected_image=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+    EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+    compose config --format json 2>/dev/null | jq -er '.services.clamav.image') \
+    || fail "compose_clamav_image_invalid"
+  [[ $expected_image == "$CLAMAV_IMAGE" ]] || fail "compose_clamav_image_invalid"
+  actual_image=$(docker inspect --format '{{.Config.Image}}' "$id")
+  [[ $actual_image == "$expected_image" ]] || fail "runtime_clamav_image_drift"
+}
+
+verify_runtime_clamav_pinned_image() {
+  local id actual_image
+  id=$(service_container_id clamav) || fail "runtime_service_contract_invalid"
+  actual_image=$(docker inspect --format '{{.Config.Image}}' "$id")
+  [[ $actual_image == "$CLAMAV_IMAGE" ]] || fail "runtime_clamav_image_drift"
+}
+
+verify_private_service_ports() {
+  local service=$1 id bindings
+  id=$(service_container_id "$service") || fail "runtime_service_contract_invalid"
+  bindings=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$id")
+  [[ $bindings == null || $bindings == '{}' ]] || fail "private_service_port_published"
+}
+
 verify_networks() {
   local service container networks expected_networks network
   local -a runtime_services=(waha)
+  if [[ -n $current_clamav_container_id ]]; then
+    runtime_services=(clamav "${runtime_services[@]}")
+  fi
   if [[ -n $current_app_container_id ]]; then
-    runtime_services=(app waha)
+    runtime_services=(app "${runtime_services[@]}")
   fi
   for service in "${runtime_services[@]}"; do
     container=$(service_container_id "$service") || fail "runtime_service_contract_invalid"
@@ -367,6 +416,7 @@ verify_transition_runtime_identity() (
   local expected_image=$4
   local candidate_app_env_snapshot=$5
   local candidate_app_env_sha256=$6
+  local scanner_required=$7
   local candidate_compose_file=$EVO_RELEASE_COMPOSE_FILE
   local container actual_image actual_revision actual_version
 
@@ -374,11 +424,21 @@ verify_transition_runtime_identity() (
   require_match "$EVO_RELEASE_REVISION" "$SHA40_RE" "runtime_revision_invalid"
   require_match "$EVO_RELEASE_VERSION" "$VERSION_RE" "runtime_version_invalid"
   require_match "$expected_image" "$SHA256_RE" "runtime_image_invalid"
+  [[ $scanner_required == true || $scanner_required == false ]] \
+    || fail "runtime_scanner_contract_invalid"
 
   current_app_container_id=''
   verify_current_runtime_identity
   [[ -n $current_app_container_id ]] || fail "app_container_unavailable"
+  if [[ $scanner_required == true ]]; then
+    [[ -n $current_clamav_container_id ]] || fail "scanner_container_unavailable"
+    verify_runtime_clamav_image
+    verify_private_service_ports clamav
+  else
+    [[ -z $current_clamav_container_id ]] || fail "unexpected_scanner_runtime"
+  fi
   verify_runtime_waha_image
+  verify_private_service_ports waha
   verify_networks
 
   container=$(app_container_id) || fail "runtime_service_contract_invalid"
@@ -427,7 +487,7 @@ verify_capacity() {
 
 verify_compose() {
   require_file "$candidate_compose_file" "compose_missing"
-  local actual_hash services app_image waha_image
+  local actual_hash services app_image clamav_image waha_image
   actual_hash=$(sha256sum "$candidate_compose_file" | awk '{print $1}')
   [[ $actual_hash == "$EVO_RELEASE_EXPECTED_COMPOSE_SHA256" ]] || fail "compose_drift"
   EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
@@ -437,7 +497,7 @@ verify_compose() {
     EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
     compose config --services 2>/dev/null | awk 'NF' | LC_ALL=C sort -u) \
     || fail "compose_service_contract_invalid"
-  [[ $services == $'app\nwaha' ]] || fail "compose_service_contract_invalid"
+  [[ $services == $'app\nclamav\nwaha' ]] || fail "compose_service_contract_invalid"
   app_image=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
     EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
     compose config --format json 2>/dev/null | jq -er '.services.app.image') \
@@ -446,10 +506,34 @@ verify_compose() {
     EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
     compose config --format json 2>/dev/null | jq -er '.services.waha.image') \
     || fail "compose_service_contract_invalid"
+  clamav_image=$(EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+    EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+    compose config --format json 2>/dev/null | jq -er '.services.clamav.image') \
+    || fail "compose_service_contract_invalid"
   [[ $app_image == "evo-crm:${EVO_RELEASE_REVISION}" ]] \
     || fail "compose_app_image_invalid"
   [[ $waha_image == *@"${EVO_WAHA_IMAGE_DIGEST}" ]] \
     || fail "compose_waha_image_invalid"
+  [[ $clamav_image == "$CLAMAV_IMAGE" ]] || fail "compose_clamav_image_invalid"
+}
+
+provision_scanner_runtime() {
+  local image_os image_arch
+  if ! docker image inspect "$CLAMAV_IMAGE" >/dev/null 2>&1; then
+    compose pull --quiet clamav >/dev/null || fail "scanner_image_pull_failed"
+  fi
+  image_os=$(docker image inspect --format '{{.Os}}' "$CLAMAV_IMAGE" 2>/dev/null || true)
+  image_arch=$(docker image inspect --format '{{.Architecture}}' "$CLAMAV_IMAGE" 2>/dev/null || true)
+  [[ $image_os == linux && $image_arch == amd64 ]] || fail "scanner_image_platform_invalid"
+  EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
+  EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
+  compose up --detach --no-deps --no-build --pull never --wait --wait-timeout 600 clamav >/dev/null \
+    || fail "scanner_start_failed"
+  verify_current_runtime
+  [[ -n $current_clamav_container_id ]] || fail "scanner_container_unavailable"
+  verify_runtime_clamav_image
+  verify_private_service_ports clamav
+  verify_networks
 }
 
 verify_archive() {
@@ -629,11 +713,12 @@ verify_rollback_seed() {
   [[ $(file_mode "$previous_app_env") == 600 ]] || fail "rollback_seed_env_permissions_invalid"
   jq -e '
     type == "object" and
-    keys == ["appEnvSha256", "appEnvSnapshot", "composeSha256", "generation", "previousImage", "previousRevision", "previousVersion", "releaseId", "schema"] and
-    .schema == "evo-release-rollback-seed/v2" and
+    keys == ["appEnvSha256", "appEnvSnapshot", "composeSha256", "generation", "previousImage", "previousRevision", "previousScannerImage", "previousScannerPresent", "previousVersion", "releaseId", "schema"] and
+    .schema == "evo-release-rollback-seed/v3" and
     .generation == "v1" and
     .appEnvSnapshot == "app.env" and
-    all(.[]; type == "string")
+    (.previousScannerPresent | type) == "boolean" and
+    all(.[] | select(type != "boolean"); type == "string")
   ' "$seed_real" >/dev/null 2>&1 || fail "rollback_seed_contract_invalid"
 
   rollback_previous_image=$(jq -er '.previousImage' "$seed_real") || fail "rollback_seed_contract_invalid"
@@ -643,6 +728,10 @@ verify_rollback_seed() {
   rollback_app_env_sha256=$(jq -er '.appEnvSha256' "$seed_real") || fail "rollback_seed_contract_invalid"
   rollback_previous_generation=v1
   rollback_previous_release_id=$(jq -er '.releaseId' "$seed_real") || fail "rollback_seed_contract_invalid"
+  rollback_previous_scanner_present=$(jq -r '.previousScannerPresent' "$seed_real") \
+    || fail "rollback_seed_contract_invalid"
+  rollback_previous_scanner_image=$(jq -er '.previousScannerImage' "$seed_real") \
+    || fail "rollback_seed_contract_invalid"
   rollback_app_env_snapshot=$previous_app_env
   rollback_previous_compose=$previous_compose
   require_match "$rollback_previous_image" "$SHA256_RE" "rollback_seed_image_invalid"
@@ -651,6 +740,15 @@ verify_rollback_seed() {
   require_match "$rollback_compose_sha256" "$HASH64_RE" "rollback_seed_compose_hash_invalid"
   require_match "$rollback_app_env_sha256" "$HASH64_RE" "rollback_seed_env_hash_invalid"
   require_match "$rollback_previous_release_id" "$SAFE_NAME_RE" "rollback_seed_release_id_invalid"
+  if [[ $rollback_previous_scanner_present == true ]]; then
+    [[ $rollback_previous_scanner_image == "$CLAMAV_IMAGE" ]] \
+      || fail "rollback_seed_scanner_image_invalid"
+    docker image inspect "$rollback_previous_scanner_image" >/dev/null 2>&1 \
+      || fail "rollback_seed_scanner_image_missing"
+  else
+    [[ $rollback_previous_scanner_present == false && -z $rollback_previous_scanner_image ]] \
+      || fail "rollback_seed_scanner_contract_invalid"
+  fi
   [[ ${EVO_RELEASE_REVISION-} != "$rollback_previous_revision" ]] || fail "rollback_seed_target_collision"
   [[ ${candidate_expected_image_id-} != "$rollback_previous_image" ]] || fail "rollback_seed_target_collision"
 
@@ -761,12 +859,15 @@ verify_rollback_source() {
   rollback_previous_release_id=''
   rollback_previous_pointer=''
   rollback_previous_pointer_sha256=''
+  rollback_previous_scanner_present=false
+  rollback_previous_scanner_image=''
 
   local pending_pointer=$EVO_RELEASE_EVIDENCE_ROOT/pending-current.json
   [[ ! -e $pending_pointer ]] || fail "unresolved_pending_release"
   local accepted_pointer=$EVO_RELEASE_EVIDENCE_ROOT/current-v3-accepted.json
   if [[ -z $current_app_container_id ]]; then
     [[ ! -e $accepted_pointer ]] || fail "accepted_runtime_missing"
+    [[ -z $current_clamav_container_id ]] || fail "scanner_without_active_app"
     rollback_previous_generation=none
     rollback_previous_release_id=none
     return
@@ -776,6 +877,16 @@ verify_rollback_source() {
     load_accepted_v3_source
   else
     verify_rollback_seed
+  fi
+
+  if [[ -n $current_clamav_container_id ]]; then
+    rollback_previous_scanner_present=true
+    rollback_previous_scanner_image=$(docker inspect --format '{{.Config.Image}}' "$current_clamav_container_id")
+    [[ $rollback_previous_scanner_image == "$CLAMAV_IMAGE" ]] \
+      || fail "current_scanner_image_invalid"
+  fi
+  if [[ $rollback_previous_generation == v3 && $rollback_previous_scanner_present != true ]]; then
+    fail "accepted_scanner_missing"
   fi
 
   local current_image current_revision current_version
@@ -813,7 +924,7 @@ seal_rollback_seed() {
   verify_current_runtime
   [[ -n $current_app_container_id ]] || fail "rollback_seed_requires_active_app"
 
-  local evidence_real seed_dir seed_parent seed_name temporary_dir image_id image_revision image_version image_os image_arch compose_hash env_hash
+  local evidence_real seed_dir seed_parent seed_name temporary_dir image_id image_revision image_version image_os image_arch compose_hash env_hash previous_scanner_image
   evidence_real=$(canonical_path "$EVO_RELEASE_EVIDENCE_ROOT")
   seed_dir=$(dirname "$EVO_RELEASE_ROLLBACK_SEED")
   seed_parent=$(dirname "$seed_dir")
@@ -845,6 +956,12 @@ seal_rollback_seed() {
   env_hash=$(seal_app_env_snapshot \
     "$EVO_RELEASE_APP_ENV_FILE" \
     "$temporary_dir/app.env") || fail "rollback_seed_create_failed"
+  previous_scanner_image=''
+  if [[ -n $current_clamav_container_id ]]; then
+    previous_scanner_image=$(docker inspect --format '{{.Config.Image}}' "$current_clamav_container_id")
+    [[ $previous_scanner_image == "$CLAMAV_IMAGE" ]] \
+      || fail "rollback_seed_scanner_image_invalid"
+  fi
   verify_previous_compose \
     "$temporary_dir/docker-compose.previous.yml" \
     "$image_revision" \
@@ -858,7 +975,9 @@ seal_rollback_seed() {
     --arg previousVersion "$image_version" \
     --arg composeSha256 "$compose_hash" \
     --arg appEnvSha256 "$env_hash" \
-    '{schema:"evo-release-rollback-seed/v2",generation:"v1",releaseId:$releaseId,previousImage:$previousImage,previousRevision:$previousRevision,previousVersion:$previousVersion,composeSha256:$composeSha256,appEnvSnapshot:"app.env",appEnvSha256:$appEnvSha256}' \
+    --arg previousScannerImage "$previous_scanner_image" \
+    --argjson previousScannerPresent "$( [[ -n $previous_scanner_image ]] && printf true || printf false )" \
+    '{schema:"evo-release-rollback-seed/v3",generation:"v1",releaseId:$releaseId,previousImage:$previousImage,previousRevision:$previousRevision,previousVersion:$previousVersion,previousScannerPresent:$previousScannerPresent,previousScannerImage:$previousScannerImage,composeSha256:$composeSha256,appEnvSnapshot:"app.env",appEnvSha256:$appEnvSha256}' \
     >"$temporary_dir/state.json" || fail "rollback_seed_create_failed"
   chmod 600 "$temporary_dir/state.json"
   sync -f "$temporary_dir/state.json" || fail "rollback_seed_create_failed"
@@ -902,7 +1021,12 @@ run_preflight_checks() {
   verify_capacity
   verify_compose
   verify_current_runtime
+  if [[ -n $current_clamav_container_id ]]; then
+    verify_runtime_clamav_image
+    verify_private_service_ports clamav
+  fi
   verify_runtime_waha_image
+  verify_private_service_ports waha
   verify_networks
   verify_archive
   verify_rollback_source
@@ -1166,7 +1290,9 @@ create_rollback_state() {
     --arg previousAppEnvSha256 "$rollback_app_env_sha256" \
     --arg previousPointerSha256 "$previous_pointer_hash" \
     --argjson previousAppPresent "$previous_app_present" \
-    '{schema:"evo-fast-release-state/v2",generation:"v3",repository:$repository,releaseId:$releaseId,releaseRunId:$releaseRunId,workflowRunId:$workflowRunId,workflowRunAttempt:$workflowRunAttempt,upstreamCiRunId:$upstreamCiRunId,upstreamCiRunAttempt:$upstreamCiRunAttempt,artifactId:$artifactId,artifactDigest:$artifactDigest,revision:$revision,version:$version,imageId:$imageId,imageConfigDigest:$imageConfigDigest,imageSource:$imageSource,archiveSha256:$archiveSha256,composeSnapshot:"docker-compose.candidate.yml",composeSha256:$composeSha256,appEnvSnapshot:"candidate-app.env",appEnvSha256:$appEnvSha256,controllerSha256:$controllerSha256,rollbackWrapperSha256:$rollbackWrapperSha256,rollbackTag:$rollbackTag,previous:{generation:$previousGeneration,releaseId:$previousReleaseId,appPresent:$previousAppPresent,imageId:$previousImage,revision:$previousRevision,version:$previousVersion,composeSnapshot:(if $previousAppPresent then "docker-compose.previous.yml" else "" end),composeSha256:$previousComposeSha256,appEnvSnapshot:(if $previousAppPresent then "rollback-app.env" else "" end),appEnvSha256:$previousAppEnvSha256,acceptedPointerSnapshot:(if $previousGeneration == "v3" then "previous-current-v3-accepted.json" else "" end),acceptedPointerSha256:$previousPointerSha256}}') \
+    --arg previousScannerImage "$rollback_previous_scanner_image" \
+    --argjson previousScannerPresent "$rollback_previous_scanner_present" \
+    '{schema:"evo-fast-release-state/v3",generation:"v3",repository:$repository,releaseId:$releaseId,releaseRunId:$releaseRunId,workflowRunId:$workflowRunId,workflowRunAttempt:$workflowRunAttempt,upstreamCiRunId:$upstreamCiRunId,upstreamCiRunAttempt:$upstreamCiRunAttempt,artifactId:$artifactId,artifactDigest:$artifactDigest,revision:$revision,version:$version,imageId:$imageId,imageConfigDigest:$imageConfigDigest,imageSource:$imageSource,archiveSha256:$archiveSha256,composeSnapshot:"docker-compose.candidate.yml",composeSha256:$composeSha256,appEnvSnapshot:"candidate-app.env",appEnvSha256:$appEnvSha256,controllerSha256:$controllerSha256,rollbackWrapperSha256:$rollbackWrapperSha256,rollbackTag:$rollbackTag,previous:{generation:$previousGeneration,releaseId:$previousReleaseId,appPresent:$previousAppPresent,imageId:$previousImage,revision:$previousRevision,version:$previousVersion,scannerPresent:$previousScannerPresent,scannerImage:$previousScannerImage,composeSnapshot:(if $previousAppPresent then "docker-compose.previous.yml" else "" end),composeSha256:$previousComposeSha256,appEnvSnapshot:(if $previousAppPresent then "rollback-app.env" else "" end),appEnvSha256:$previousAppEnvSha256,acceptedPointerSnapshot:(if $previousGeneration == "v3" then "previous-current-v3-accepted.json" else "" end),acceptedPointerSha256:$previousPointerSha256}}') \
     || fail "release_state_create_failed"
   create_once_json "$directory/state.json" "$state_payload" \
     || fail "release_state_create_failed"
@@ -1194,15 +1320,17 @@ verify_rollback_state_contract() {
   jq -e '
     type == "object" and
     keys == ["appEnvSha256", "appEnvSnapshot", "archiveSha256", "artifactDigest", "artifactId", "composeSha256", "composeSnapshot", "controllerSha256", "generation", "imageConfigDigest", "imageId", "imageSource", "previous", "releaseId", "releaseRunId", "repository", "revision", "rollbackTag", "rollbackWrapperSha256", "schema", "upstreamCiRunAttempt", "upstreamCiRunId", "version", "workflowRunAttempt", "workflowRunId"] and
-    .schema == "evo-fast-release-state/v2" and
+    .schema == "evo-fast-release-state/v3" and
     .generation == "v3" and
     .appEnvSnapshot == "candidate-app.env" and
     .composeSnapshot == "docker-compose.candidate.yml" and
     ([.repository,.releaseId,.releaseRunId,.workflowRunId,.workflowRunAttempt,.upstreamCiRunId,.upstreamCiRunAttempt,.artifactId,.artifactDigest,.revision,.version,.imageId,.imageConfigDigest,.imageSource,.archiveSha256,.composeSha256,.appEnvSha256,.controllerSha256,.rollbackWrapperSha256,.rollbackTag] | all(.[]; type == "string")) and
     (.previous | type) == "object" and
-    (.previous | keys) == ["acceptedPointerSha256", "acceptedPointerSnapshot", "appEnvSha256", "appEnvSnapshot", "appPresent", "composeSha256", "composeSnapshot", "generation", "imageId", "releaseId", "revision", "version"] and
+    (.previous | keys) == ["acceptedPointerSha256", "acceptedPointerSnapshot", "appEnvSha256", "appEnvSnapshot", "appPresent", "composeSha256", "composeSnapshot", "generation", "imageId", "releaseId", "revision", "scannerImage", "scannerPresent", "version"] and
     (.previous.appPresent | type) == "boolean" and
-    ([.previous.generation,.previous.releaseId,.previous.imageId,.previous.revision,.previous.version,.previous.composeSnapshot,.previous.composeSha256,.previous.appEnvSnapshot,.previous.appEnvSha256,.previous.acceptedPointerSnapshot,.previous.acceptedPointerSha256] | all(.[]; type == "string"))
+    (.previous.scannerPresent | type) == "boolean" and
+    ([.previous.generation,.previous.releaseId,.previous.imageId,.previous.revision,.previous.version,.previous.scannerImage,.previous.composeSnapshot,.previous.composeSha256,.previous.appEnvSnapshot,.previous.appEnvSha256,.previous.acceptedPointerSnapshot,.previous.acceptedPointerSha256] | all(.[]; type == "string")) and
+    (if .previous.scannerPresent then .previous.scannerImage == "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9" else .previous.scannerImage == "" end)
   ' "$state_file" >/dev/null 2>&1
 }
 
@@ -1272,13 +1400,63 @@ load_candidate_runtime_record() {
   [[ $bound_candidate_container_id =~ ^[0-9a-f]{12,64}$ ]]
 }
 
+verify_recovery_runtime_for_state() {
+  local state_file=$1 ids id service services health restarts scanner_image
+  verify_rollback_state_contract "$state_file" || fail "rollback_state_contract_invalid"
+
+  ids=$(docker ps -aq \
+    --filter "label=com.docker.compose.project=${EVO_RELEASE_PROJECT_NAME}")
+  local service_count
+  service_count=$(printf '%s\n' "$ids" | count_nonempty_lines)
+  [[ $service_count -ge 1 && $service_count -le 3 ]] \
+    || fail "rollback_runtime_service_contract_invalid"
+  services=''
+  while IFS= read -r id; do
+    [[ -n $id ]] || continue
+    service=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$id")
+    services+="${service}"$'\n'
+  done <<<"$ids"
+  services=$(printf '%s' "$services" | awk 'NF' | LC_ALL=C sort -u)
+  [[ $services == waha \
+    || $services == $'clamav\nwaha' \
+    || $services == $'app\nwaha' \
+    || $services == $'app\nclamav\nwaha' ]] \
+    || fail "rollback_runtime_service_contract_invalid"
+
+  current_app_container_id=''
+  current_clamav_container_id=''
+  if [[ $services == app$'\n'* ]]; then
+    current_app_container_id=$(app_container_id) \
+      || fail "rollback_runtime_service_contract_invalid"
+  fi
+  if [[ $services == clamav$'\n'* || $services == *$'\nclamav\n'* ]]; then
+    current_clamav_container_id=$(service_container_id clamav) \
+      || fail "rollback_runtime_service_contract_invalid"
+  fi
+
+  id=$(service_container_id waha) || fail "rollback_runtime_service_contract_invalid"
+  health=$(container_health "$id")
+  restarts=$(docker inspect --format '{{.RestartCount}}' "$id")
+  [[ $health == healthy && $restarts == 0 ]] || fail "rollback_waha_unhealthy"
+  verify_runtime_waha_image
+  verify_private_service_ports waha
+
+  if [[ -n $current_clamav_container_id ]]; then
+    scanner_image=$(docker inspect --format '{{.Config.Image}}' "$current_clamav_container_id")
+    [[ $scanner_image == "$CLAMAV_IMAGE" ]] || fail "rollback_scanner_mismatch"
+    verify_private_service_ports clamav
+  fi
+  verify_networks
+}
+
 rollback_from_state() {
   local state_file=$1 directory pending current_pointer mode='' runtime_already_restored=false
   directory=$(dirname "$state_file")
   pending=$EVO_RELEASE_EVIDENCE_ROOT/pending-current.json
   current_pointer=$EVO_RELEASE_EVIDENCE_ROOT/current-v3-accepted.json
   local release_id target_image target_revision target_version target_container
-  local previous_generation previous_image previous_revision previous_version rollback_tag compose_hash app_env_hash
+  local previous_generation previous_image previous_revision previous_version previous_scanner_present previous_scanner_image
+  local previous_compose_scanner_image rollback_tag compose_hash app_env_hash
   local previous_pointer_hash actual_hash override previous_compose previous_app_env current_image current_revision current_version
   local previous_pointer='' pointer_payload=''
   local candidate_compose_file candidate_app_env_snapshot candidate_app_env_sha256
@@ -1295,12 +1473,20 @@ rollback_from_state() {
   previous_image=$(jq -er '.previous.imageId' "$state_file") || return 1
   previous_revision=$(jq -er '.previous.revision' "$state_file") || return 1
   previous_version=$(jq -er '.previous.version' "$state_file") || return 1
+  previous_scanner_present=$(jq -r '.previous.scannerPresent' "$state_file") || return 1
+  previous_scanner_image=$(jq -er '.previous.scannerImage' "$state_file") || return 1
   rollback_tag=$(jq -er '.rollbackTag' "$state_file") || return 1
   previous_pointer_hash=$(jq -er '.previous.acceptedPointerSha256' "$state_file") || return 1
   require_match "$release_id" "$SAFE_NAME_RE" "rollback_release_id_invalid"
   require_match "$target_image" "$SHA256_RE" "rollback_target_image_invalid"
   require_match "$target_revision" "$SHA40_RE" "rollback_target_revision_invalid"
   require_match "$target_version" "$VERSION_RE" "rollback_target_version_invalid"
+  if [[ $previous_scanner_present == true ]]; then
+    [[ $previous_scanner_image == "$CLAMAV_IMAGE" ]] || return 1
+    docker image inspect "$previous_scanner_image" >/dev/null 2>&1 || return 1
+  else
+    [[ $previous_scanner_present == false && -z $previous_scanner_image ]] || return 1
+  fi
 
   if verify_pending_for_state "$state_file"; then
     mode=pending
@@ -1320,6 +1506,8 @@ rollback_from_state() {
       || return 1
     [[ $(jq -er '.imageId' "$acceptance_record" 2>/dev/null || true) == "$target_image" ]] \
       || return 1
+  elif [[ ! -e $pending ]] && require_pointer_hash "$current_pointer" "$previous_pointer_hash"; then
+    mode=recovered
   else
     return 1
   fi
@@ -1334,21 +1522,20 @@ rollback_from_state() {
   require_app_env_snapshot "$candidate_app_env_snapshot" "$candidate_app_env_sha256" || return 1
 
   current_app_container_id=''
-  verify_current_runtime_identity || return 1
+  current_clamav_container_id=''
   EVO_RELEASE_REVISION=$target_revision EVO_RELEASE_VERSION=$target_version \
-    verify_runtime_waha_image || return 1
-  EVO_RELEASE_REVISION=$target_revision EVO_RELEASE_VERSION=$target_version \
-    verify_networks || return 1
+    verify_recovery_runtime_for_state "$state_file" || return 1
   if [[ -n $current_app_container_id ]]; then
     current_image=$(docker inspect --format '{{.Image}}' "$current_app_container_id" 2>/dev/null || true)
     current_revision=$(container_label "$current_app_container_id" 'org.opencontainers.image.revision' 2>/dev/null || true)
     current_version=$(container_label "$current_app_container_id" 'org.opencontainers.image.version' 2>/dev/null || true)
     if [[ $current_image == "$target_image" && $current_revision == "$target_revision" && $current_version == "$target_version" ]]; then
+      [[ $mode != recovered ]] || return 1
       if [[ -n $target_container && $current_app_container_id != "$target_container" ]]; then
         return 1
       fi
     elif [[ $previous_generation != none && $current_image == "$previous_image" && $current_revision == "$previous_revision" && $current_version == "$previous_version" ]]; then
-      if [[ $mode == accepted && $previous_generation == v3 ]]; then
+      if [[ $mode == recovered || ( $mode == accepted && $previous_generation == v3 ) ]]; then
         runtime_already_restored=true
       elif [[ $mode != pending ]]; then
         return 1
@@ -1361,8 +1548,9 @@ rollback_from_state() {
   fi
 
   if [[ $previous_generation == none ]]; then
-    [[ $mode == pending ]] || return 1
-    if [[ -n $current_app_container_id ]]; then
+    [[ $mode == pending || $mode == recovered ]] || return 1
+    [[ $previous_scanner_present == false ]] || return 1
+    if [[ $mode == pending && -n $current_app_container_id ]]; then
       EVO_RELEASE_REVISION=$target_revision EVO_RELEASE_VERSION=$target_version \
       compose_with_app_env "$candidate_app_env_snapshot" "$candidate_app_env_sha256" "$candidate_compose_file" \
         stop app >/dev/null || return 1
@@ -1370,8 +1558,13 @@ rollback_from_state() {
       compose_with_app_env "$candidate_app_env_snapshot" "$candidate_app_env_sha256" "$candidate_compose_file" \
         rm --force --stop app >/dev/null || return 1
     fi
+    if [[ $mode == pending && -n $current_clamav_container_id ]]; then
+      compose_with_app_env "$candidate_app_env_snapshot" "$candidate_app_env_sha256" "$candidate_compose_file" \
+        rm --stop --force clamav >/dev/null || return 1
+    fi
     verify_current_runtime || return 1
     [[ -z $current_app_container_id ]] || return 1
+    [[ -z $current_clamav_container_id ]] || return 1
   else
     compose_hash=$(jq -er '.previous.composeSha256' "$state_file") || return 1
     app_env_hash=$(jq -er '.previous.appEnvSha256' "$state_file") || return 1
@@ -1387,6 +1580,14 @@ rollback_from_state() {
     EVO_RELEASE_REVISION=$previous_revision EVO_RELEASE_VERSION=$previous_version \
       compose_with_app_env "$previous_app_env" "$app_env_hash" "$previous_compose" \
       config --quiet >/dev/null 2>&1 || return 1
+    if [[ $previous_scanner_present == true ]]; then
+      previous_compose_scanner_image=$(EVO_RELEASE_REVISION=$previous_revision \
+        EVO_RELEASE_VERSION=$previous_version \
+        compose_with_app_env "$previous_app_env" "$app_env_hash" "$previous_compose" \
+          config --format json 2>/dev/null | jq -er '.services.clamav.image') \
+        || return 1
+      [[ $previous_compose_scanner_image == "$previous_scanner_image" ]] || return 1
+    fi
     if [[ $previous_generation == v3 ]]; then
       previous_pointer=$directory/previous-current-v3-accepted.json
       [[ -f $previous_pointer && ! -L $previous_pointer ]] || return 1
@@ -1398,6 +1599,12 @@ rollback_from_state() {
     printf 'services:\n  app:\n    image: "%s"\n    labels:\n      org.opencontainers.image.revision: "%s"\n      org.opencontainers.image.version: "%s"\n' \
       "$rollback_tag" "$previous_revision" "$previous_version" >"$override" || return 1
     chmod 600 "$override" || return 1
+    if [[ $previous_scanner_present == true ]]; then
+      EVO_RELEASE_REVISION=$previous_revision EVO_RELEASE_VERSION=$previous_version \
+        compose_with_app_env "$previous_app_env" "$app_env_hash" "$previous_compose" \
+          up --detach --no-deps --no-build --pull never --wait --wait-timeout 600 clamav >/dev/null \
+        || return 1
+    fi
     if [[ $runtime_already_restored != true ]]; then
       EVO_RELEASE_REVISION=$previous_revision EVO_RELEASE_VERSION=$previous_version \
         EVO_CRM_APP_ENV_FILE="$previous_app_env" docker compose \
@@ -1405,9 +1612,13 @@ rollback_from_state() {
         --file "$previous_compose" --file "$override" --env-file "$previous_app_env" \
         up --detach --no-deps --no-build --pull never --wait --wait-timeout 120 app >/dev/null || return 1
     fi
+    if [[ $previous_scanner_present == false ]] && service_container_id clamav >/dev/null 2>&1; then
+      compose_with_app_env "$candidate_app_env_snapshot" "$candidate_app_env_sha256" "$candidate_compose_file" \
+        rm --stop --force clamav >/dev/null || return 1
+    fi
     verify_transition_runtime \
       "$previous_compose" "$previous_revision" "$previous_version" "$previous_image" \
-      "$previous_app_env" "$app_env_hash" || return 1
+      "$previous_app_env" "$app_env_hash" "$previous_scanner_present" || return 1
     verify_external_health || return 1
     if [[ $mode == accepted ]]; then
       runtime_already_restored=true
@@ -1418,10 +1629,13 @@ rollback_from_state() {
     verify_pending_for_state "$state_file" || return 1
     unlink "$pending" || return 1
     sync -f "$EVO_RELEASE_EVIDENCE_ROOT" || return 1
-  else
+  elif [[ $mode == accepted ]]; then
     [[ $runtime_already_restored == true && -n $previous_pointer && -n $pointer_payload ]] \
       || return 1
     replace_json_atomically "$current_pointer" "$pointer_payload" || return 1
+  else
+    [[ $mode == recovered ]] || return 1
+    require_pointer_hash "$current_pointer" "$previous_pointer_hash" || return 1
   fi
 }
 
@@ -1485,7 +1699,8 @@ verify_bound_candidate_identity() {
     "$EVO_RELEASE_VERSION" \
     "$candidate_expected_image_id" \
     "$candidate_app_env_snapshot" \
-    "$candidate_app_env_sha256"
+    "$candidate_app_env_sha256" \
+    true
   container=$(app_container_id) || fail "candidate_container_missing"
   [[ $container == "$expected_container" ]] || fail "candidate_container_drift"
 }
@@ -1753,6 +1968,7 @@ deploy() {
   create_rollback_state "$release_evidence_dir"
 
   arm_release_mutation_trap "$release_evidence_dir/state.json" "$release_evidence_dir"
+  provision_scanner_runtime
   if EVO_RELEASE_REVISION=$EVO_RELEASE_REVISION \
     EVO_RELEASE_VERSION=$EVO_RELEASE_VERSION \
     compose up --detach --no-deps --no-build --pull never --wait --wait-timeout 120 app >/dev/null; then
@@ -1766,6 +1982,7 @@ deploy() {
       "$candidate_expected_image_id" \
       "$candidate_app_env_snapshot" \
       "$candidate_app_env_sha256" \
+      true \
       && verify_external_health; then
       write_result "$release_evidence_dir" "pending" "verified" false
       disarm_release_mutation_trap

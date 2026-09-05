@@ -189,8 +189,9 @@ docker compose -p evo-crm -f docker-compose.prod.yml config --services
 docker compose -p evo-crm -f docker-compose.prod.yml config --images
 ```
 
-The service output must be exactly `app` and `waha`. The image output must bind
-the app to the exact commit tag and WAHA to the reviewed digest.
+The service output must be exactly `app`, `clamav` and `waha`. The image output
+must bind the app to the exact commit tag, ClamAV to the reviewed digest and
+WAHA to the reviewed digest.
 
 The host controller, not this operator shell, creates the protected
 generation-owned app-environment snapshot. Offline validation, the publishable
@@ -226,18 +227,18 @@ npm run test:p6d
 The result must include the sanitized dependency/path inventory and scoped
 legacy-reference inventory. It must not include environment values or secrets.
 
-Then run exactly one real disposable Supabase + app/private-WAHA candidate
-proof on OrbStack:
+Then run exactly one real disposable Supabase + app/private-ClamAV/private-WAHA
+candidate proof on OrbStack:
 
 ```bash
 npm run test:p6d:orbstack
 ```
 
 It must exercise the real Next.js image, real disposable Supabase/PostgreSQL
-stack and WAHA process; verify Auth/database/browser behavior, health, private
-network, resources and bounded logs; and confirm exactly two application
-Compose services. It must not reuse or alter the production WAHA volume or call
-a live provider.
+stack, ClamAV scanner and WAHA process; verify Auth/database/browser behavior,
+health, private network, resources and bounded logs; and confirm exactly three
+application Compose services: `app`, `clamav` and `waha`. It must not reuse or
+alter the production WAHA volume or call a live provider.
 
 ## 5. Authorized deployment
 

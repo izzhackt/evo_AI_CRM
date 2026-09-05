@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 
 import {
+  closeSync,
+  constants as fsConstants,
+  fchmodSync,
+  fstatSync,
+  fsyncSync,
   lstatSync,
-  readFileSync,
+  openSync,
+  readSync,
   realpathSync,
+  unlinkSync,
+  writeSync,
 } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const MAX_ENV_BYTES = 256 * 1024;
@@ -293,23 +302,251 @@ export function validateAppEnvironmentContract({
   return Object.freeze({ ok: true, code: "valid" });
 }
 
-function readClosedFile(path, { privateFile }) {
+function normalizedAbsolutePath(path) {
   if (typeof path !== "string" || !isAbsolute(path) || path.includes("\0")) {
     fail("env_path_invalid");
   }
   const absolute = resolve(path);
-  const metadata = lstatSync(absolute);
-  if (metadata.isSymbolicLink() || !metadata.isFile()) fail("env_file_invalid");
-  if (metadata.size < 1 || metadata.size > MAX_ENV_BYTES) fail("env_file_invalid");
+  if (absolute !== path) fail("env_path_invalid");
+  return absolute;
+}
+
+function requireNoFollowSupport() {
+  if (!Number.isInteger(fsConstants.O_NOFOLLOW) || fsConstants.O_NOFOLLOW === 0) {
+    fail("no_follow_unavailable");
+  }
+}
+
+function statIdentity(metadata) {
+  return Object.freeze({
+    dev: metadata.dev,
+    ino: metadata.ino,
+    size: metadata.size,
+    mode: metadata.mode,
+    mtimeNs: metadata.mtimeNs,
+    ctimeNs: metadata.ctimeNs,
+  });
+}
+
+function sameIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mode === right.mode &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+function sameInode(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function closedRegularFile(path, { privateFile, code = "env_file_invalid" }) {
+  requireNoFollowSupport();
+  const absolute = normalizedAbsolutePath(path);
+  const beforePath = lstatSync(absolute, { bigint: true });
+  if (beforePath.isSymbolicLink() || !beforePath.isFile()) fail(code);
+  if (beforePath.size < 1n || beforePath.size > BigInt(MAX_ENV_BYTES)) fail(code);
   if (realpathSync(absolute) !== absolute) fail("env_path_invalid");
-  if (privateFile && !new Set([0o600, 0o640]).has(metadata.mode & 0o777)) {
+  if (
+    privateFile &&
+    !new Set([0o600, 0o640]).has(Number(beforePath.mode & 0o777n))
+  ) {
     fail("env_permissions_invalid");
   }
-  return readFileSync(absolute, "utf8");
+
+  let descriptor;
+  try {
+    // Node/libuv opens descriptors close-on-exec. Add O_CLOEXEC explicitly on
+    // platforms that expose it, and always require O_NOFOLLOW.
+    descriptor = openSync(
+      absolute,
+      fsConstants.O_RDONLY |
+        fsConstants.O_NOFOLLOW |
+        (fsConstants.O_CLOEXEC ?? 0),
+    );
+    const beforeDescriptor = fstatSync(descriptor, { bigint: true });
+    if (
+      !beforeDescriptor.isFile() ||
+      !sameIdentity(statIdentity(beforePath), statIdentity(beforeDescriptor))
+    ) {
+      fail(code);
+    }
+
+    const bytes = Buffer.alloc(Number(beforeDescriptor.size));
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = readSync(descriptor, bytes, offset, bytes.length - offset, null);
+      if (count <= 0) fail(code);
+      offset += count;
+    }
+    const afterDescriptor = fstatSync(descriptor, { bigint: true });
+    const afterPath = lstatSync(absolute, { bigint: true });
+    if (
+      !sameIdentity(statIdentity(beforeDescriptor), statIdentity(afterDescriptor)) ||
+      !sameIdentity(statIdentity(beforeDescriptor), statIdentity(afterPath))
+    ) {
+      fail(code);
+    }
+    return Object.freeze({ absolute, bytes, metadata: statIdentity(afterDescriptor) });
+  } catch (error) {
+    if (error instanceof AppEnvironmentContractError) throw error;
+    fail(code);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function readClosedFile(path, { privateFile }) {
+  return closedRegularFile(path, { privateFile }).bytes.toString("utf8");
+}
+
+function removeCreatedSnapshot(path, createdIdentity) {
+  if (!createdIdentity) return;
+  try {
+    const current = lstatSync(path, { bigint: true });
+    if (sameInode(statIdentity(current), createdIdentity)) unlinkSync(path);
+  } catch {
+    // Never remove a path whose exact created inode cannot be re-proven.
+  }
+}
+
+export function sealPrivateEnvironmentSnapshot(
+  sourcePath,
+  snapshotPath,
+  { afterSourceOpened, afterSourceRead } = {},
+) {
+  requireNoFollowSupport();
+  const source = normalizedAbsolutePath(sourcePath);
+  const snapshot = normalizedAbsolutePath(snapshotPath);
+  if (source === snapshot) fail("snapshot_path_invalid");
+  if (realpathSync(dirname(snapshot)) !== dirname(snapshot)) {
+    fail("snapshot_path_invalid");
+  }
+
+  let sourceDescriptor;
+  let snapshotDescriptor;
+  let createdIdentity;
+  try {
+    const sourcePathBefore = lstatSync(source, { bigint: true });
+    if (sourcePathBefore.isSymbolicLink() || !sourcePathBefore.isFile()) {
+      fail("snapshot_source_invalid");
+    }
+    if (
+      sourcePathBefore.size < 1n ||
+      sourcePathBefore.size > BigInt(MAX_ENV_BYTES)
+    ) {
+      fail("snapshot_source_invalid");
+    }
+    if (![0o600, 0o640].includes(Number(sourcePathBefore.mode & 0o777n))) {
+      fail("env_permissions_invalid");
+    }
+    if (realpathSync(source) !== source) fail("env_path_invalid");
+
+    sourceDescriptor = openSync(
+      source,
+      fsConstants.O_RDONLY |
+        fsConstants.O_NOFOLLOW |
+        (fsConstants.O_CLOEXEC ?? 0),
+    );
+    const sourceBefore = fstatSync(sourceDescriptor, { bigint: true });
+    if (
+      !sourceBefore.isFile() ||
+      !sameIdentity(statIdentity(sourcePathBefore), statIdentity(sourceBefore))
+    ) {
+      fail("snapshot_source_changed");
+    }
+    afterSourceOpened?.();
+
+    const bytes = Buffer.alloc(Number(sourceBefore.size));
+    let readOffset = 0;
+    while (readOffset < bytes.length) {
+      const count = readSync(
+        sourceDescriptor,
+        bytes,
+        readOffset,
+        bytes.length - readOffset,
+        null,
+      );
+      if (count <= 0) fail("snapshot_source_changed");
+      readOffset += count;
+    }
+    afterSourceRead?.();
+
+    const sourceAfter = fstatSync(sourceDescriptor, { bigint: true });
+    const sourcePathAfter = lstatSync(source, { bigint: true });
+    if (
+      !sameIdentity(statIdentity(sourceBefore), statIdentity(sourceAfter)) ||
+      !sameIdentity(statIdentity(sourceBefore), statIdentity(sourcePathAfter))
+    ) {
+      fail("snapshot_source_changed");
+    }
+
+    snapshotDescriptor = openSync(
+      snapshot,
+      fsConstants.O_WRONLY |
+        fsConstants.O_CREAT |
+        fsConstants.O_EXCL |
+        fsConstants.O_NOFOLLOW |
+        (fsConstants.O_CLOEXEC ?? 0),
+      0o600,
+    );
+    fchmodSync(snapshotDescriptor, 0o600);
+    createdIdentity = statIdentity(fstatSync(snapshotDescriptor, { bigint: true }));
+    let writeOffset = 0;
+    while (writeOffset < bytes.length) {
+      const count = writeSync(
+        snapshotDescriptor,
+        bytes,
+        writeOffset,
+        bytes.length - writeOffset,
+        null,
+      );
+      if (count <= 0) fail("snapshot_write_failed");
+      writeOffset += count;
+    }
+    fsyncSync(snapshotDescriptor);
+
+    const snapshotDescriptorAfter = fstatSync(snapshotDescriptor, { bigint: true });
+    const snapshotPathAfter = lstatSync(snapshot, { bigint: true });
+    if (
+      !snapshotDescriptorAfter.isFile() ||
+      Number(snapshotDescriptorAfter.mode & 0o777n) !== 0o600 ||
+      snapshotDescriptorAfter.size !== BigInt(bytes.length) ||
+      !sameIdentity(
+        statIdentity(snapshotDescriptorAfter),
+        statIdentity(snapshotPathAfter),
+      )
+    ) {
+      fail("snapshot_write_failed");
+    }
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    return Object.freeze({ ok: true, sha256 });
+  } catch (error) {
+    removeCreatedSnapshot(snapshot, createdIdentity);
+    if (error instanceof AppEnvironmentContractError) throw error;
+    fail("snapshot_seal_failed");
+  } finally {
+    if (snapshotDescriptor !== undefined) closeSync(snapshotDescriptor);
+    if (sourceDescriptor !== undefined) closeSync(sourceDescriptor);
+  }
 }
 
 function parseCli(argv) {
   if (!Array.isArray(argv)) fail("invalid_arguments");
+  if (
+    argv.length === 4 &&
+    argv[0] === "--seal-private-env" &&
+    argv[2] === "--snapshot"
+  ) {
+    return Object.freeze({
+      operation: "seal",
+      sourcePath: argv[1],
+      snapshotPath: argv[3],
+    });
+  }
   if (
     (argv.length === 6 || argv.length === 7) &&
     argv[0] === "--example" &&
@@ -318,6 +555,7 @@ function parseCli(argv) {
     (argv.length === 6 || argv[6] === "--verify-supabase-keys")
   ) {
     return Object.freeze({
+      operation: "validate",
       examplePath: argv[1],
       envPath: argv[3],
       expectedSupabaseProjectRef: argv[5],
@@ -328,12 +566,16 @@ function parseCli(argv) {
 }
 
 export async function runAppEnvironmentContractCli(argv) {
+  const parsed = parseCli(argv);
+  if (parsed.operation === "seal") {
+    return sealPrivateEnvironmentSnapshot(parsed.sourcePath, parsed.snapshotPath);
+  }
   const {
     examplePath,
     envPath,
     expectedSupabaseProjectRef,
     verifySupabaseKeys,
-  } = parseCli(argv);
+  } = parsed;
   const files = {
     exampleText: readClosedFile(examplePath, { privateFile: false }),
     actualText: readClosedFile(envPath, { privateFile: true }),

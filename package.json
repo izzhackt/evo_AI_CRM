@@ -15,7 +15,7 @@
     "prestart": "node scripts/check-node-runtime.mjs",
     "start": "next start",
     "lint": "eslint",
-    "test:fast-release": "node --conditions=react-server --experimental-strip-types --test tests/release-metadata.test.mjs tests/fast-release-control.test.mjs tests/production-release-workflow.test.mjs tests/app-env-contract.test.mjs tests/v3-release-rollback-harness.test.mjs tests/v3-managed-supabase-export.test.mjs",
+    "test:fast-release": "node --conditions=react-server --experimental-strip-types --test tests/release-metadata.test.mjs tests/fast-release-control.test.mjs tests/production-release-workflow.test.mjs tests/production-browser-smoke.test.mjs tests/app-env-contract.test.mjs tests/v3-release-rollback-harness.test.mjs tests/v3-managed-supabase-export.test.mjs",
     "backup:v3:managed": "EVO_RUN_V3_MANAGED_SUPABASE_EXPORT=1 node scripts/export-v3-managed-supabase-backup.mjs run",
     "test:p6d": "node --test tests/p6d-release-candidate.test.mjs tests/runtime-hardening.test.mjs",
     "test:p6d:orbstack": "EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node EVO_P6D_CANDIDATE_PROOF=1 bash scripts/test-postgres-v2-foundation.sh",

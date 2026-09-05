@@ -134,18 +134,32 @@ set cannot substitute for the corresponding recoverable artifact.
 The #551 restore accepts only artifacts produced by the reviewed read-only
 export command. The command verifies the exact project through the Management
 API, requires a fresh completed provider backup, verifies both runtime API keys
-against that same project, and then captures database/Auth and Storage as two
-separate sources. It does not link or modify the project.
+against that same project, allowlists its existing session-pooler identity, and
+then captures database/Auth and Storage as two separate sources. It does not
+link or modify the project.
 
 Prerequisites:
 
 - OrbStack reports `Running` and `docker context show` is exactly `orbstack`;
-- the repository-pinned Supabase CLI is installed from the lockfile;
+- the repository-pinned Supabase CLI is installed from the lockfile. Its
+  Supabase filter contract is retained, but its PostgreSQL 17.6 dump image is
+  rejected because it predates the client fixes in PostgreSQL 17.11;
+- a trusted `pg_dump` and `pg_dumpall` pair passes the published security floor
+  (18.6, 17.11, 16.15, 15.19 or 14.24, or a later minor in the same supported
+  branch). The exporter records their exact accepted version and refuses an
+  unpatched or mismatched pair before any managed-Supabase read;
+- the reviewed public Supabase Root 2021 CA at
+  `scripts/support/supabase-prod-ca-2021.crt` remains byte-identical to its
+  pinned SHA-256 and X.509 fingerprint and is inside its validity period. The
+  exporter records both identifiers in the signed receipt and uses this exact
+  file for `verify-full`; it never relies on an ambient user CA file;
 - `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
   `EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY` and
   `EVO_PLATFORM_SUPABASE_SECRET_KEY` are injected into the exporter process,
-  never written to arguments, output or Git. Only the pinned Supabase dump
-  subprocesses receive the access token and database password;
+  never written to arguments, output or Git. The Management token is available
+  only to the exporter process, the publishable/secret keys are sent only to
+  their allowlisted HTTPS project origin, and only the patched PostgreSQL dump
+  process tree receives the database password through its environment;
 - an existing absolute mode-`0700` output directory outside the repository;
 - an age recipient, an existing mode-`0600` SSH signing key, and an
   operator-held trusted public key stored outside both the repository and the
@@ -164,7 +178,27 @@ npm run backup:v3:managed -- \
 
 The command produces individually age-encrypted roles, schema, data and exact
 `supabase_migrations` dumps, plus an encrypted Storage manifest/archive. It
-double-inventories Storage and hashes every downloaded payload. `receipt.json`
+uses the reviewed Supabase CLI 2.116.0 schema/data/role filtering
+transformations except for the obsolete step that comments out PostgreSQL
+restricted-mode guards. The patched local PostgreSQL clients' active
+`\restrict`/`\unrestrict` pair remains in every SQL artifact. The project's
+allowlisted session pooler is used over verified TLS; the command does not
+substitute a second schema authority.
+Every external command runs in its own process group, and cleanup begins only
+after that complete process tree has drained.
+The signing public key and fingerprint are pinned during local preflight; a
+later coordinated replacement of both key paths cannot change the receipt's
+trust root.
+After the clean-commit check, the CA and all three dump-filter scripts are
+compared byte-for-byte with their blobs at the recorded Git HEAD, copied into
+the private runtime directory, and executed only from that snapshot. Their
+SHA-256 values are bound into the signed receipt, so later worktree edits cannot
+change an in-progress export.
+The stability digest validates the exact active-guard envelope for roles,
+schema, data, history-schema and history-data, normalizes only each paired
+63-byte random guard token, and hashes every other byte.
+The command double-inventories Storage and hashes every downloaded payload.
+`receipt.json`
 contains only aggregate counts, timestamps, tool/repository bindings,
 ciphertext hashes and the authenticated provider-backup receipt; its detached
 SSH signature is verified before the partial directory is atomically renamed.
@@ -172,9 +206,12 @@ The public key is not copied into the bundle; later verification must use the
 same independently retained trusted key and compare its fingerprint with the
 signed receipt.
 Customer rows, staff email/phone values, Storage paths and keys remain only in
-encrypted artifacts. Any error or `SIGINT`/`SIGTERM` removes plaintext and the
-partial result; non-exiting child tools are forcibly killed after a bounded
-grace period.
+encrypted artifacts. After an error or `SIGINT`/`SIGTERM`, cleanup is attempted
+only after the complete child process tree drains. If draining or safe cleanup
+cannot be proved, the command fails clearly and retains the marked private
+directory for exact-target retry or quarantine instead of risking an unsafe
+deletion; non-exiting child tools are forcibly killed after a bounded grace
+period.
 
 This export is a restore input, not recovery-readiness evidence by itself. The
 existing application-facing recovery result remains `u11-recovery-result`; it
@@ -218,5 +255,17 @@ gate and stops; it does not fall back to fixtures or a historical runtime.
   <https://supabase.com/docs/guides/storage/s3/compatibility>
 - PostgreSQL `pg_dump`: <https://www.postgresql.org/docs/current/app-pgdump.html>
 - PostgreSQL `pg_restore`: <https://www.postgresql.org/docs/current/app-pgrestore.html>
+- PostgreSQL CVE-2026-19385: <https://www.postgresql.org/support/security/CVE-2026-19385/>
+- PostgreSQL CVE-2026-18408: <https://www.postgresql.org/support/security/CVE-2026-18408/>
+- Supabase CLI 2.116.0 schema filter:
+  <https://github.com/supabase/cli/blob/v2.116.0/apps/cli-go/pkg/migration/scripts/dump_schema.sh>
+- Supabase CLI 2.116.0 data filter:
+  <https://github.com/supabase/cli/blob/v2.116.0/apps/cli-go/pkg/migration/scripts/dump_data.sh>
+- Supabase CLI 2.116.0 role filter:
+  <https://github.com/supabase/cli/blob/v2.116.0/apps/cli-go/pkg/migration/scripts/dump_role.sh>
+- Supabase database connection modes:
+  <https://supabase.com/docs/guides/database/connecting-to-postgres>
+- Supabase PostgreSQL SSL verification and CA instructions:
+  <https://supabase.com/docs/guides/platform/ssl-enforcement>
 - WAHA sessions: <https://waha.devlike.pro/docs/how-to/sessions/>
 - WAHA security: <https://waha.devlike.pro/docs/how-to/security/>

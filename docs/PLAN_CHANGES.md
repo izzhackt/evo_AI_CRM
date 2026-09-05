@@ -18022,3 +18022,186 @@ Decision:
 
 This correction strengthens local cleanup only. It performs no managed-
 Supabase mutation, export, VPS/provider/webhook action or release activation.
+
+## 2026-09-05 - Drain export children before deleting guarded plaintext
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-SIGNAL-DRAIN-CORRECTION-2026-09-05`
+
+Change type: independent-review recovery integrity correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent exact-head review found that synchronous recursive cleanup inside a
+signal handler could block the event loop that owns the bounded `SIGKILL`
+timer, that fail-fast concurrent preflight could unwind while sibling children
+were still active, and that a final recursive root removal did not truly keep
+the retry marker until directory removal.
+
+Decision:
+
+- a termination signal aborts work and immediately starts bounded child
+  termination, but does not synchronously delete paths while a child may still
+  write. A repeated signal forces the remaining children to `SIGKILL`;
+- every concurrently started preflight branch settles and every registered
+  child terminator drains before the persistent signal handlers are removed or
+  guarded cleanup begins; and
+- after non-marker children are removed, explicitly unlink the marker and use
+  a non-recursive empty-directory removal. If that final removal loses a race,
+  restore the exact private marker before failing so the drained retry retains
+  deletion authority.
+
+This correction changes local failure handling only. It creates no export,
+mutates no managed-Supabase/VPS/provider/customer state and does not activate a
+release.
+
+## 2026-09-05 - Complete local gates before authenticated Supabase reads
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-READ-ORDER-CORRECTION-2026-09-05`
+
+Change type: independent-review fail-closed and wording correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent exact-head review found that the concurrent first preflight could
+start an authenticated Supabase Management read while a local OrbStack,
+repository or signing-trust gate was still able to fail. It also found that the
+earlier phrase “no provider call” was too broad: the exporter necessarily makes
+authenticated read-only Supabase Management, Auth and Storage requests.
+
+Decision:
+
+- settle and drain the local tool/OrbStack/Docker-context, exact-clean-repository
+  and signing-pair gates first. Only after all pass may the exporter read the
+  allowlisted Supabase Management, Auth and Storage endpoints;
+- make the Storage SDK transport reject redirects so the elevated `apikey`
+  header can never follow a response to another origin; and
+- supersede “no provider call” with the precise boundary: the exporter performs
+  authenticated read-only Supabase calls, but no Supabase mutation and no
+  business-provider, VPS, webhook, customer-write or release action.
+
+This correction authorizes only those already-defined read-only source checks.
+It does not create an export or activate production release.
+
+## 2026-09-05 - Bind recovery export to patched PostgreSQL clients and one drained process tree
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-PATCHED-CLIENT-CORRECTION-2026-09-05`
+
+Change type: security-advisory and independent-review recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+PostgreSQL's 2026-08-13 advisories state that `pg_dump` clients before 18.6,
+17.11, 16.15, 15.19 and 14.24 are affected by client-side code-execution
+vulnerabilities. The repository-pinned Supabase CLI 2.116.0 selects a
+PostgreSQL 17.6 dump image, so that embedded client is not acceptable recovery
+evidence even though the CLI itself remains the pinned Supabase toolchain.
+Independent review also found that killing only the CLI wrapper could leave its
+real dump descendant running, and that signing-key paths and broad guard-line
+normalization could change what the receipt actually proved.
+
+Decision:
+
+- execute the Supabase 2.116.0 schema/data/role filter pipelines with an
+  independently resolved, security-patched `pg_dump`/`pg_dumpall` pair. Bind
+  the exact client versions into the signed receipt and fail before any managed
+  read when the patched-version floor is not met;
+- obtain and allowlist the project's existing session-pooler endpoint through
+  the read-only Management API, use verified TLS, and expose the database
+  password only to the dump process environment. The Management token and API
+  keys are not inherited by dump children;
+- start every external command in a dedicated process group, terminate and
+  drain the entire tree before guarded plaintext cleanup, and retain the marker
+  rather than deleting a directory whose children cannot be proved stopped;
+- pin the normalized signing public key and fingerprint during local preflight,
+  re-derive the private key immediately before signing, and verify the final
+  signature only against that pinned trust material; and
+- normalize only the two exact 63-byte random guard-token fields in the known
+  Supabase data-dump wrapper. Hash every other byte, including guard-shaped SQL
+  body content, and reject malformed or mismatched wrappers.
+
+Sources: PostgreSQL CVE-2026-19385 and CVE-2026-18408; Supabase CLI v2.116.0
+`dump_schema.sh`, `dump_data.sh` and `dump_role.sh`; Supabase's documented
+session-pooler connection contract.
+
+This correction makes no managed-Supabase mutation and does not yet run the
+full export. It creates no VPS/provider/webhook/customer write and activates no
+release.
+
+## 2026-09-05 - Pin the Supabase database CA used by the recovery export
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-TLS-TRUST-CORRECTION-2026-09-05`
+
+Change type: real-connection fail-closed correction.
+Affected plan section: Order 7 / Issue #551.
+
+A no-credential connection probe showed that the session pooler does not chain
+to the host system CA set. Supabase's official PostgreSQL SSL instructions
+require the project's Supabase CA for `verify-full`; setting only
+`PGSSLMODE=verify-full` would therefore make the reviewed exporter fail on its
+first real database connection.
+
+Decision:
+
+- retain the public Supabase Root 2021 CA as one reviewed repository input,
+  pinned to SHA-256
+  `700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7`
+  and X.509 fingerprint
+  `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`;
+- validate its exact bytes, CA flag, fingerprint and validity period during the
+  local gate, before any authenticated managed-Supabase read;
+- pass only that exact file as `PGSSLROOTCERT` together with
+  `PGSSLMODE=verify-full`; and
+- bind its SHA-256 and fingerprint into the signed export receipt.
+
+Source: Supabase's official PostgreSQL SSL-enforcement and `psql` connection
+guidance. This correction adds no credential, makes no provider mutation and
+does not activate a release.
+
+## 2026-09-05 - Snapshot recovery trust inputs from the recorded Git HEAD
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-INPUT-SNAPSHOT-CORRECTION-2026-09-05`
+
+Change type: independent-review trust-boundary correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review found a time-of-check/time-of-use gap: after a clean Git and
+CA check, a later worktree edit could replace the CA or a dump-filter script
+before the long export used its path, while the receipt still described the
+earlier verified input.
+
+Decision:
+
+- after the clean-repository gate, read each CA/filter input once and compare
+  those exact bytes with the corresponding blob at the already-recorded Git
+  HEAD;
+- copy only matching bytes into the private marked runtime directory before
+  any authenticated managed-Supabase read;
+- execute and trust only those private snapshots for the entire run; and
+- bind the SHA-256 of every snapped input into the signed receipt.
+
+Any untracked, dirty, racing or mismatched input stops before provider access.
+This correction makes no provider mutation and does not activate a release.
+
+## 2026-09-05 - Preserve PostgreSQL restricted-mode guards in managed exports
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-ACTIVE-GUARD-CORRECTION-2026-09-05`
+
+Change type: independent-review restore-safety correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review found that Supabase CLI 2.116.0's filter scripts comment out
+the random `\restrict` and `\unrestrict` pair emitted by patched PostgreSQL
+clients. Reproducing that obsolete step would discard the restore-time command
+restriction strengthened by PostgreSQL's CVE-2026-18408 fix.
+
+Decision:
+
+- retain the reviewed Supabase schema/data/role filtering transformations, but
+  do not comment out or otherwise rewrite the active restricted-mode guards;
+- require one exact, matching, 63-byte alphanumeric guard pair in each roles,
+  schema, data, history-schema and history-data artifact;
+- normalize only those validated random token bytes for two-pass stability
+  comparison and hash every other byte; and
+- attempt signal/error cleanup only after the complete process tree drains. If
+  drain or cleanup safety cannot be proved, fail clearly and retain the marked
+  private directory for exact-target retry or quarantine.
+
+This correction preserves PostgreSQL restore-time protection, changes no
+provider state and does not activate a release.

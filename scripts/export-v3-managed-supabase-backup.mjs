@@ -10,7 +10,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, X509Certificate } from "node:crypto";
 import {
   chmodSync,
   closeSync,
@@ -27,7 +27,9 @@ import {
   renameSync,
   readSync,
   rmSync,
+  rmdirSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { pipeline } from "node:stream/promises";
@@ -69,6 +71,38 @@ const RECEIPT_SCHEMA = "evo-v3-managed-supabase-export-receipt/v1";
 const SIGNATURE_NAMESPACE = "evo-v3-managed-supabase-recovery";
 const SIGNATURE_IDENTITY = "evo-v3-managed-supabase-export";
 const RUN_MARKER = ".evo-v3-managed-supabase-export";
+const NORMALIZED_PSQL_GUARD = "evo_semantic_digest_guard".padEnd(63, "0");
+const PROCESS_GROUP_DRAIN_POLL_MS = 20;
+const SUPABASE_DATABASE_CA_SHA256 = "700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7";
+const SUPABASE_DATABASE_CA_FINGERPRINT = "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA";
+const SUPABASE_CLI_PACKAGES = Object.freeze({
+  darwin: Object.freeze({ arm64: Object.freeze(["darwin-arm64"]), x64: Object.freeze(["darwin-x64"]) }),
+  linux: Object.freeze({
+    arm64: Object.freeze(["linux-arm64", "linux-arm64-musl"]),
+    x64: Object.freeze(["linux-x64", "linux-x64-musl"]),
+  }),
+});
+const SUPABASE_INTERNAL_SCHEMAS = Object.freeze([
+  "information_schema", "pg_*", "_analytics", "_realtime", "_supavisor", "auth",
+  "etl", "extensions", "pgbouncer", "realtime", "storage", "supabase_functions",
+  "supabase_migrations", "cron", "dbdev", "graphql", "graphql_public", "net", "pgmq",
+  "pgsodium", "pgsodium_masks", "pgtle", "repack", "tiger", "tiger_data",
+  "timescaledb_*", "_timescaledb_*", "topology", "vault",
+]);
+const SUPABASE_DATA_EXCLUDED_SCHEMAS = Object.freeze([
+  "information_schema", "pg_*", "graphql", "graphql_public", "pgsodium",
+  "pgsodium_masks", "pgtle", "repack", "tiger", "tiger_data", "timescaledb_*",
+  "_timescaledb_*", "topology", "vault", "etl", "extensions", "pgbouncer", "realtime",
+  "supabase_migrations", "_analytics", "_realtime", "_supavisor",
+]);
+const SUPABASE_RESERVED_ROLES = Object.freeze([
+  "anon", "authenticated", "authenticator", "cli_login_.*", "dashboard_user", "pgbouncer",
+  "postgres", "service_role", "supabase_.*", "pgsodium_keyholder", "pgsodium_keyiduser",
+  "pgsodium_keymaker", "pgtle_admin",
+]);
+const SUPABASE_ALLOWED_CONFIGS = Object.freeze([
+  "pgaudit.*", "pgrst.*", "session_replication_role", "statement_timeout", "track_io_timing",
+]);
 const REQUIRED_SECRET_NAMES = Object.freeze([
   "SUPABASE_ACCESS_TOKEN",
   "SUPABASE_DB_PASSWORD",
@@ -313,6 +347,53 @@ export function storageClientHeaders(inputHeaders, secretKey) {
   return headers;
 }
 
+function validatedStorageOrigin(value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail("storage_origin_invalid");
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.port !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    !/^[a-z0-9]{20}\.supabase\.co$/u.test(parsed.hostname)
+  ) {
+    fail("storage_origin_invalid");
+  }
+  return parsed.origin;
+}
+
+function assertStorageRequestOrigin(input, origin) {
+  let parsed;
+  try {
+    parsed = new URL(input instanceof Request ? input.url : input);
+  } catch {
+    fail("storage_origin_invalid");
+  }
+  if (parsed.origin !== origin || parsed.username !== "" || parsed.password !== "") {
+    fail("storage_origin_invalid");
+  }
+}
+
+export function createStorageClientFetch(origin, secretKey, signal, fetchImpl = fetch) {
+  const allowedOrigin = validatedStorageOrigin(origin);
+  return (url, options = {}) => {
+    assertStorageRequestOrigin(url, allowedOrigin);
+    return fetchImpl(url, {
+      ...options,
+      redirect: "error",
+      headers: storageClientHeaders(options.headers, secretKey),
+      signal: combineSignals(signal, REQUEST_TIMEOUT_MS),
+    });
+  };
+}
+
 function isoTimestamp(value, code) {
   const timestamp = new Date(requiredString(value, code, 128));
   if (!Number.isFinite(timestamp.valueOf())) fail(code);
@@ -340,6 +421,8 @@ export function normalizeProjectReceipt(project, expectedRef) {
     32,
   );
   if (!/^\d+$/u.test(postgresEngine)) fail("management_project_invalid");
+  const region = requiredString(project.region, "management_project_invalid", 128);
+  if (!/^[a-z0-9-]+$/u.test(region)) fail("management_project_invalid");
   return Object.freeze({
     ref,
     organization_id: requiredString(
@@ -348,7 +431,7 @@ export function normalizeProjectReceipt(project, expectedRef) {
       256,
     ),
     name: requiredString(project.name, "management_project_invalid", 512),
-    region: requiredString(project.region, "management_project_invalid", 128),
+    region,
     created_at: isoTimestamp(project.created_at, "management_project_invalid"),
     status: "ACTIVE_HEALTHY",
     database: Object.freeze({
@@ -361,6 +444,36 @@ export function normalizeProjectReceipt(project, expectedRef) {
         128,
       ),
     }),
+  });
+}
+
+export function normalizePoolerReceipt(payload, project) {
+  if (!Array.isArray(payload)) fail("management_pooler_invalid");
+  const matches = payload.filter((candidate) =>
+    candidate?.identifier === project.ref && candidate?.database_type === "PRIMARY");
+  if (matches.length !== 1) fail("management_pooler_invalid");
+  const pooler = matches[0];
+  const host = requiredString(pooler.db_host, "management_pooler_invalid", 512);
+  const expectedHost = new RegExp(
+    `^aws-[0-9]+-${project.region}\\.pooler\\.supabase\\.com$`,
+    "u",
+  );
+  if (
+    !expectedHost.test(host) ||
+    pooler.db_user !== `postgres.${project.ref}` ||
+    pooler.db_name !== "postgres" ||
+    pooler.pool_mode !== "transaction" ||
+    pooler.db_port !== 6543
+  ) {
+    fail("management_pooler_invalid");
+  }
+  return Object.freeze({
+    host,
+    user: `postgres.${project.ref}`,
+    database: "postgres",
+    session_port: 5432,
+    source_mode: "transaction",
+    source_port: 6543,
   });
 }
 
@@ -691,21 +804,121 @@ async function analyzeCopyDumpFile(path, requireLedger = false) {
   });
 }
 
-export async function semanticSqlFileDigest(path) {
-  const digest = createHash("sha256");
-  const input = createReadStream(path, { encoding: "utf8" });
-  const lines = createInterface({ input, crlfDelay: Infinity });
+function readExactFileSlice(path, start, length) {
+  const descriptor = openSync(path, "r");
+  const buffer = Buffer.alloc(length);
+  let offset = 0;
   try {
-    for await (const line of lines) {
-      // PostgreSQL 17 emits a fresh random psql guard token for every dump.
-      // It has no restore semantics beyond pairing these two meta-commands.
-      if (/^\\(?:un)?restrict\s+\S+$/u.test(line)) continue;
-      digest.update(`${line}\n`);
+    while (offset < length) {
+      const bytesRead = readSync(descriptor, buffer, offset, length - offset, start + offset);
+      if (bytesRead === 0) fail("dump_guard_envelope_invalid");
+      offset += bytesRead;
     }
   } finally {
-    lines.close();
+    closeSync(descriptor);
+  }
+  return buffer;
+}
+
+function isGuardToken(buffer) {
+  return buffer.length === 63 && buffer.every((byte) =>
+    (byte >= 48 && byte <= 57) ||
+    (byte >= 65 && byte <= 90) ||
+    (byte >= 97 && byte <= 122));
+}
+
+async function updateDigestFromRange(digest, path, start, endExclusive) {
+  if (endExclusive <= start) return;
+  const input = createReadStream(path, { start, end: endExclusive - 1 });
+  try {
+    for await (const chunk of input) digest.update(chunk);
+  } finally {
     input.destroy();
   }
+}
+
+export async function semanticSqlFileDigest(path, artifactName = basename(path)) {
+  const digest = createHash("sha256");
+  const envelope = new Map([
+    ["data.sql", Object.freeze({
+      opening: "SET session_replication_role = replica;\n\n--\n-- PostgreSQL database dump\n--\n\n\\restrict ",
+      openingTail: "\n\n",
+      closing: "--\n-- PostgreSQL database dump complete\n--\n\n\\unrestrict ",
+      closingTail: "\n\nRESET ALL;\n",
+    })],
+    ["history-data.sql", Object.freeze({
+      opening: "SET session_replication_role = replica;\n\n--\n-- PostgreSQL database dump\n--\n\n\\restrict ",
+      openingTail: "\n\n",
+      closing: "--\n-- PostgreSQL database dump complete\n--\n\n\\unrestrict ",
+      closingTail: "\n\nRESET ALL;\n",
+    })],
+    ["schema.sql", Object.freeze({
+      opening: "\n\\restrict ",
+      openingTail: "\n\n",
+      closing: "\\unrestrict ",
+      closingTail: "\n\n",
+    })],
+    ["history-schema.sql", Object.freeze({
+      opening: "\n\\restrict ",
+      openingTail: "\n\n",
+      closing: "\\unrestrict ",
+      closingTail: "\n\n",
+    })],
+    ["roles.sql", Object.freeze({
+      opening: "\n\\restrict ",
+      openingTail: "\n\n",
+      closing: "\\unrestrict ",
+      closingTail: "\n\nRESET ALL;\n",
+    })],
+  ]).get(artifactName);
+  if (!envelope) {
+    await updateDigestFromRange(digest, path, 0, statSync(path).size);
+    return digest.digest("hex");
+  }
+
+  const opening = Buffer.from(envelope.opening);
+  const openingTail = Buffer.from(envelope.openingTail);
+  const closing = Buffer.from(envelope.closing);
+  const closingTail = Buffer.from(envelope.closingTail);
+  const tokenBytes = 63;
+  const size = statSync(path).size;
+  const openingLength = opening.length + tokenBytes + openingTail.length;
+  const closingLength = closing.length + tokenBytes + closingTail.length;
+  if (size < openingLength + closingLength) fail("dump_guard_envelope_invalid");
+
+  const openingSlice = readExactFileSlice(path, 0, openingLength);
+  const openingToken = openingSlice.subarray(opening.length, opening.length + tokenBytes);
+  if (
+    !openingSlice.subarray(0, opening.length).equals(opening) ||
+    !openingSlice.subarray(opening.length + tokenBytes).equals(openingTail) ||
+    !isGuardToken(openingToken)
+  ) {
+    fail("dump_guard_envelope_invalid");
+  }
+
+  const closingStart = size - closingLength;
+  const closingSlice = readExactFileSlice(path, closingStart, closingLength);
+  const closingToken = closingSlice.subarray(closing.length, closing.length + tokenBytes);
+  if (
+    !closingSlice.subarray(0, closing.length).equals(closing) ||
+    !closingSlice.subarray(closing.length + tokenBytes).equals(closingTail) ||
+    !isGuardToken(closingToken) ||
+    !openingToken.equals(closingToken)
+  ) {
+    fail("dump_guard_envelope_invalid");
+  }
+
+  const normalizedToken = Buffer.from(NORMALIZED_PSQL_GUARD);
+  await updateDigestFromRange(digest, path, 0, opening.length);
+  digest.update(normalizedToken);
+  await updateDigestFromRange(
+    digest,
+    path,
+    opening.length + tokenBytes,
+    closingStart + closing.length,
+  );
+  digest.update(normalizedToken);
+  await updateDigestFromRange(digest, path, closingStart + closing.length + tokenBytes, size);
   return digest.digest("hex");
 }
 
@@ -831,6 +1044,7 @@ export function spawnCommand(command, args, {
   signal,
   input = null,
   captureStdout = false,
+  stdoutPath = null,
   code = "command_failed",
   timeoutMs = COMMAND_TIMEOUT_MS,
   killGraceMs = COMMAND_KILL_GRACE_MS,
@@ -845,29 +1059,79 @@ export function spawnCommand(command, args, {
       reject(new ManagedSupabaseExportError("export_interrupted"));
       return;
     }
+    if (process.platform === "win32") {
+      reject(new ManagedSupabaseExportError("process_group_unsupported"));
+      return;
+    }
+    if (captureStdout && stdoutPath != null) {
+      reject(new ManagedSupabaseExportError("command_output_contract_invalid"));
+      return;
+    }
     const stdout = limitedCollector();
-    const child = spawn(command, args, {
-      cwd,
-      env: environment,
-      ...(argv0 ? { argv0 } : {}),
-      stdio: [input == null ? "ignore" : "pipe", captureStdout ? "pipe" : "ignore", "ignore"],
-    });
+    let outputDescriptor = null;
+    let child;
+    try {
+      if (stdoutPath != null) outputDescriptor = openSync(stdoutPath, "wx", 0o600);
+      child = spawn(command, args, {
+        cwd,
+        env: environment,
+        ...(argv0 ? { argv0 } : {}),
+        detached: true,
+        stdio: [
+          input == null ? "ignore" : "pipe",
+          outputDescriptor ?? (captureStdout ? "pipe" : "ignore"),
+          "ignore",
+        ],
+      });
+    } catch {
+      if (outputDescriptor != null) closeSync(outputDescriptor);
+      reject(new ManagedSupabaseExportError(code));
+      return;
+    }
+    if (outputDescriptor != null) closeSync(outputDescriptor);
     let finished = false;
+    let settling = false;
     let terminationCode = null;
     let killTimer = null;
+    const processGroupId = child.pid;
+    if (processGroupId != null) state?.processGroups?.add(processGroupId);
+    const processGroupAlive = () => {
+      if (processGroupId == null) return false;
+      try {
+        process.kill(-processGroupId, 0);
+        return true;
+      } catch (error) {
+        if (error?.code === "ESRCH") return false;
+        return true;
+      }
+    };
+    const signalProcessGroup = (childSignal) => {
+      if (processGroupId == null) return child.kill(childSignal);
+      try {
+        process.kill(-processGroupId, childSignal);
+        return true;
+      } catch (error) {
+        if (error?.code === "ESRCH") return false;
+        try {
+          return child.kill(childSignal);
+        } catch {
+          return false;
+        }
+      }
+    };
     const terminate = (reason, force = false) => {
       if (finished) return;
       terminationCode ??= reason;
       if (force) {
         if (killTimer) clearTimeout(killTimer);
         killTimer = null;
-        child.kill("SIGKILL");
+        signalProcessGroup("SIGKILL");
         return;
       }
-      child.kill("SIGTERM");
+      signalProcessGroup("SIGTERM");
       if (!killTimer) {
         killTimer = setTimeout(() => {
-          if (!finished) child.kill("SIGKILL");
+          if (!finished) signalProcessGroup("SIGKILL");
         }, killGraceMs);
         killTimer.unref?.();
       }
@@ -876,6 +1140,45 @@ export function spawnCommand(command, args, {
     const timeout = setTimeout(() => terminate(code), timeoutMs);
     const abort = () => terminate("export_interrupted");
     signal?.addEventListener("abort", abort, { once: true });
+    const finish = () => {
+      finished = true;
+      clearTimeout(timeout);
+      if (killTimer) clearTimeout(killTimer);
+      signal?.removeEventListener("abort", abort);
+      state?.terminators.delete(terminate);
+    };
+    const settle = async (status, childSignal) => {
+      if (settling) return;
+      settling = true;
+      if (processGroupAlive()) {
+        terminate(terminationCode ?? "process_tree_not_drained");
+        const deadline = Date.now() + killGraceMs + 2_000;
+        while (processGroupAlive() && Date.now() < deadline) {
+          await new Promise((resolveWait) => setTimeout(resolveWait, PROCESS_GROUP_DRAIN_POLL_MS));
+        }
+      }
+      if (processGroupAlive()) {
+        terminationCode = "process_tree_termination_failed";
+      } else if (processGroupId != null) {
+        state?.processGroups?.delete(processGroupId);
+      }
+      finish();
+      if (terminationCode) {
+        reject(new ManagedSupabaseExportError(terminationCode));
+      } else if (signal?.aborted) {
+        reject(new ManagedSupabaseExportError("export_interrupted"));
+      } else if (childSignal || status !== 0) {
+        reject(new ManagedSupabaseExportError(code));
+      } else {
+        accept(stdout.value());
+      }
+    };
+    child.once("error", () => {
+      terminationCode ??= code;
+    });
+    child.once("close", (status, childSignal) => {
+      void settle(status, childSignal);
+    });
     if (captureStdout) {
       child.stdout.on("data", (chunk) => {
         try {
@@ -889,36 +1192,14 @@ export function spawnCommand(command, args, {
         }
       });
     }
-    if (input != null) child.stdin.end(input);
-    const finish = () => {
-      finished = true;
-      clearTimeout(timeout);
-      if (killTimer) clearTimeout(killTimer);
-      signal?.removeEventListener("abort", abort);
-      state?.terminators.delete(terminate);
-    };
-    child.once("error", () => {
-      finish();
-      reject(new ManagedSupabaseExportError(terminationCode ?? code));
-    });
-    child.once("close", (status, childSignal) => {
-      finish();
-      if (terminationCode) {
-        reject(new ManagedSupabaseExportError(terminationCode));
-      } else if (signal?.aborted) {
-        reject(new ManagedSupabaseExportError("export_interrupted"));
-      } else if (childSignal) {
-        reject(new ManagedSupabaseExportError(code));
-      } else if (status !== 0) {
-        reject(new ManagedSupabaseExportError(code));
-      } else {
-        accept(stdout.value());
-      }
-    });
+    if (input != null) {
+      child.stdin.on("error", () => terminate(code));
+      child.stdin.end(input);
+    }
   });
 }
 
-function registerSignalCleanup(abortController, state) {
+export function registerSignalCleanup(abortController, state) {
   const handlers = new Map();
   for (const signal of ["SIGINT", "SIGTERM"]) {
     const handler = () => {
@@ -927,11 +1208,6 @@ function registerSignalCleanup(abortController, state) {
       abortController.abort(new ManagedSupabaseExportError("export_interrupted"));
       for (const terminate of state.terminators) {
         terminate("export_interrupted", state.signalCount > 1);
-      }
-      try {
-        state.cleanup?.();
-      } catch {
-        // The normal finally path retries after every child has exited.
       }
     };
     handlers.set(signal, handler);
@@ -942,7 +1218,28 @@ function registerSignalCleanup(abortController, state) {
   };
 }
 
-export function guardedRemove(path) {
+export async function drainConcurrentOperations(operations, outerSignal, state) {
+  const branchController = new AbortController();
+  const branchSignal = AbortSignal.any([outerSignal, branchController.signal]);
+  let branchFailure = null;
+  const settled = await Promise.allSettled(operations.map((operation) =>
+    Promise.resolve()
+      .then(() => operation(branchSignal))
+      .catch((error) => {
+        if (branchFailure == null) {
+          branchFailure = error;
+          branchController.abort(error);
+        }
+        throw error;
+      })));
+  if (state.terminators.size !== 0 || state.processGroups?.size !== 0) {
+    fail("child_process_drain_failed");
+  }
+  if (branchFailure != null) throw branchFailure;
+  return settled.map((result) => result.value);
+}
+
+export function guardedRemove(path, { beforeRootRemoval = null } = {}) {
   if (!path || !isAbsolute(path) || !existsSync(path)) return;
   const canonical = realpathSync(path);
   if (!basename(canonical).startsWith("evo-v3-managed-export-")) fail("cleanup_target_invalid");
@@ -956,12 +1253,14 @@ export function guardedRemove(path) {
     fail("cleanup_target_invalid");
   }
   const marker = join(canonical, RUN_MARKER);
+  const markerMetadata = existsSync(marker) ? lstatSync(marker) : null;
+  const markerContent = markerMetadata?.isFile() ? readFileSync(marker, "utf8") : null;
   if (
     !existsSync(marker) ||
-    !lstatSync(marker).isFile() ||
-    !new Set(["managed-supabase-export\n", "managed-supabase-export-runtime\n"]).has(
-      readFileSync(marker, "utf8"),
-    )
+    !markerMetadata?.isFile() ||
+    markerMetadata.uid !== process.getuid() ||
+    (markerMetadata.mode & 0o077) !== 0 ||
+    !new Set(["managed-supabase-export\n", "managed-supabase-export-runtime\n"]).has(markerContent)
   ) {
     fail("cleanup_target_invalid");
   }
@@ -974,7 +1273,35 @@ export function guardedRemove(path) {
       retryDelay: 100,
     });
   }
-  rmSync(canonical, { recursive: true, force: false });
+  unlinkSync(marker);
+  try {
+    beforeRootRemoval?.(canonical);
+    rmdirSync(canonical);
+  } catch {
+    try {
+      if (existsSync(canonical) && !existsSync(marker)) {
+        writeFileSync(marker, markerContent, { mode: 0o600, flag: "wx" });
+      }
+    } catch {
+      fail("cleanup_marker_restore_failed");
+    }
+    fail("cleanup_directory_not_empty");
+  }
+}
+
+function runCleanupActions(state, actions) {
+  if (state.terminators.size !== 0 || state.processGroups.size !== 0) {
+    fail("child_process_drain_failed");
+  }
+  let firstFailure = null;
+  for (const action of actions) {
+    try {
+      action();
+    } catch (error) {
+      firstFailure ??= error;
+    }
+  }
+  if (firstFailure) throw firstFailure;
 }
 
 async function listStorageInventory(storageClient) {
@@ -1042,6 +1369,7 @@ export async function downloadStorageObjects({
   if (!Number.isSafeInteger(idleTimeoutMs) || idleTimeoutMs <= 0) {
     fail("storage_download_timeout_invalid");
   }
+  const allowedOrigin = validatedStorageOrigin(origin);
   mkdirSync(outputDirectory, { mode: 0o700 });
   const downloaded = [];
   let totalBytes = 0;
@@ -1049,7 +1377,7 @@ export async function downloadStorageObjects({
     if (signal.aborted) fail("export_interrupted");
     const filename = `${String(index).padStart(8, "0")}.bin`;
     const output = join(outputDirectory, filename);
-    const url = `${origin}/storage/v1/object/authenticated/${encodeURIComponent(item.bucket_id)}/${encodedObjectPath(item.path)}`;
+    const url = `${allowedOrigin}/storage/v1/object/authenticated/${encodeURIComponent(item.bucket_id)}/${encodedObjectPath(item.path)}`;
     let response;
     const downloadController = new AbortController();
     const downloadSignal = AbortSignal.any([signal, downloadController.signal]);
@@ -1167,10 +1495,18 @@ async function managementReceipt(projectRef, accessToken, signal, nowMs) {
     signal,
   );
   const backup = selectLatestCompletedBackup(backups, nowMs);
+  const poolerPayload = await fetchJson(
+    `https://api.supabase.com/v1/projects/${projectRef}/config/database/pooler`,
+    { method: "GET", headers },
+    "management_pooler_lookup_failed",
+    signal,
+  );
+  const pooler = normalizePoolerReceipt(poolerPayload, project);
   return Object.freeze({
     project,
     backup,
-    sha256: sha256(canonicalJson({ project, backup })),
+    pooler,
+    sha256: sha256(canonicalJson({ project, backup, pooler })),
   });
 }
 
@@ -1239,16 +1575,72 @@ function resolveTrustedExecutable(candidates, allowedRealLocations, code, argv0 
   fail(code);
 }
 
-function trustedExecutables(root) {
-  const cliLink = join(root, "node_modules", ".bin", "supabase");
-  if (!existsSync(cliLink)) fail("supabase_cli_missing");
-  const cli = realpathSync(cliLink);
-  const nodeModulesRoot = realpathSync(join(root, "node_modules"));
-  if (!isInside(nodeModulesRoot, cli)) fail("supabase_cli_invalid");
-  const node = canonicalExistingPath(process.execPath, "node_runtime_invalid");
+function resolveSupabaseCliBinary(root) {
+  const platformPackages = SUPABASE_CLI_PACKAGES[process.platform]?.[process.arch];
+  if (!platformPackages) fail("supabase_cli_platform_unsupported");
+  const executableName = process.platform === "win32" ? "supabase.exe" : "supabase";
+  const candidates = platformPackages.map((suffix) =>
+    join(root, "node_modules", "@supabase", `cli-${suffix}`, "bin", executableName));
+  const resolved = resolveTrustedExecutable(
+    candidates,
+    candidates,
+    "supabase_cli_missing",
+  );
   return Object.freeze({
-    node,
-    cli,
+    ...resolved,
+    packageJson: join(dirname(dirname(resolved.real)), "package.json"),
+  });
+}
+
+function resolvePostgresClient(name) {
+  return resolveTrustedExecutable(
+    [
+      `/opt/homebrew/opt/libpq/bin/${name}`,
+      `/usr/local/opt/libpq/bin/${name}`,
+    ],
+    [
+      "/opt/homebrew/Cellar/libpq/",
+      "/usr/local/Cellar/libpq/",
+    ],
+    `${name}_unavailable`,
+  );
+}
+
+export function validateSupabaseDatabaseCa(path, nowMs = Date.now()) {
+  if (!isAbsolute(path) || !existsSync(path) || realpathSync(path) !== path) {
+    fail("database_ca_invalid");
+  }
+  const metadata = statSync(path);
+  if (!metadata.isFile() || (metadata.mode & 0o022) !== 0) fail("database_ca_invalid");
+  const bytes = readFileSync(path);
+  if (sha256(bytes) !== SUPABASE_DATABASE_CA_SHA256) fail("database_ca_invalid");
+  let certificate;
+  try {
+    certificate = new X509Certificate(bytes);
+  } catch {
+    fail("database_ca_invalid");
+  }
+  if (
+    !certificate.ca ||
+    certificate.fingerprint256 !== SUPABASE_DATABASE_CA_FINGERPRINT ||
+    Date.parse(certificate.validFrom) > nowMs ||
+    Date.parse(certificate.validTo) <= nowMs
+  ) {
+    fail("database_ca_invalid");
+  }
+  return Object.freeze({
+    path,
+    sha256: SUPABASE_DATABASE_CA_SHA256,
+    fingerprint: SUPABASE_DATABASE_CA_FINGERPRINT,
+  });
+}
+
+function trustedExecutables(root) {
+  return Object.freeze({
+    cli: resolveSupabaseCliBinary(root),
+    pgDump: resolvePostgresClient("pg_dump"),
+    pgDumpAll: resolvePostgresClient("pg_dumpall"),
+    bash: resolveTrustedExecutable(["/bin/bash"], ["/bin/bash"], "bash_unavailable"),
     git: resolveTrustedExecutable(["/usr/bin/git"], ["/usr/bin/git"], "git_unavailable"),
     ssh: resolveTrustedExecutable(["/usr/bin/ssh"], ["/usr/bin/ssh"], "ssh_unavailable"),
     sshKeygen: resolveTrustedExecutable(
@@ -1287,19 +1679,27 @@ function trustedExecutables(root) {
   });
 }
 
-function safeCommandEnvironment(tools, runtimeDirectory, secrets = null) {
+export function patchedPostgresClientVersion(output, name) {
+  const match = new RegExp(`^${name} \\(PostgreSQL\\) (\\d+)\\.(\\d+)(?:\\.\\d+)?$`, "u")
+    .exec(output.trim());
+  if (!match) fail("postgres_client_version_invalid");
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const minimumMinor = new Map([[14, 24], [15, 19], [16, 15], [17, 11], [18, 6]])
+    .get(major);
+  if (minimumMinor == null || minor < minimumMinor) fail("postgres_client_security_update_required");
+  return `${major}.${minor}`;
+}
+
+function safeCommandEnvironment(tools, runtimeDirectory) {
   const environment = {
-    PATH: `${dirname(tools.docker.real)}:/usr/bin:/bin:/usr/sbin:/sbin`,
+    PATH: `${dirname(tools.pgDump.real)}:${dirname(tools.docker.real)}:/usr/bin:/bin:/usr/sbin:/sbin`,
     HOME: join(runtimeDirectory, "home"),
     TMPDIR: join(runtimeDirectory, "tmp"),
     LANG: "C.UTF-8",
     LC_ALL: "C",
     DOCKER_CONTEXT: "orbstack",
   };
-  if (secrets) {
-    environment.SUPABASE_ACCESS_TOKEN = secrets.SUPABASE_ACCESS_TOKEN;
-    environment.SUPABASE_DB_PASSWORD = secrets.SUPABASE_DB_PASSWORD;
-  }
   return environment;
 }
 
@@ -1314,8 +1714,10 @@ async function toolEvidence(
   const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const expectedSupabase = packageJson.devDependencies?.supabase;
   if (expectedSupabase !== "2.116.0") fail("supabase_cli_not_pinned");
+  const platformPackage = JSON.parse(readFileSync(executables.cli.packageJson, "utf8"));
+  if (platformPackage.version !== expectedSupabase) fail("supabase_cli_version_mismatch");
   const supabaseVersion = (
-    await spawnCommand(executables.node, [executables.cli, "--version"], {
+    await spawnCommand(executables.cli.real, ["--version"], {
       cwd: root,
       environment: commandEnvironment,
       signal,
@@ -1328,6 +1730,31 @@ async function toolEvidence(
   if (supabaseVersion !== expectedSupabase || !VERSION.test(supabaseVersion)) {
     fail("supabase_cli_version_mismatch");
   }
+  const pgDumpVersion = patchedPostgresClientVersion(
+    await spawnCommand(executables.pgDump.real, ["--version"], {
+      cwd: root,
+      environment: commandEnvironment,
+      signal,
+      state,
+      captureStdout: true,
+      code: "pg_dump_version_failed",
+      timeoutMs: 10_000,
+    }),
+    "pg_dump",
+  );
+  const pgDumpAllVersion = patchedPostgresClientVersion(
+    await spawnCommand(executables.pgDumpAll.real, ["--version"], {
+      cwd: root,
+      environment: commandEnvironment,
+      signal,
+      state,
+      captureStdout: true,
+      code: "pg_dumpall_version_failed",
+      timeoutMs: 10_000,
+    }),
+    "pg_dumpall",
+  );
+  if (pgDumpVersion !== pgDumpAllVersion) fail("postgres_client_version_mismatch");
   const orbStatus = (
     await spawnCommand(executables.orb.real, ["status"], {
       cwd: root,
@@ -1378,6 +1805,8 @@ async function toolEvidence(
   );
   return Object.freeze({
     supabase_cli: supabaseVersion,
+    pg_dump: pgDumpVersion,
+    pg_dumpall: pgDumpAllVersion,
     age: requiredString(ageVersion, "age_unavailable", 256),
     ssh: sshVersion,
     orb: orbStatus,
@@ -1423,6 +1852,112 @@ async function repositoryEvidence(root, signal, state, commandEnvironment, execu
   return Object.freeze({ head, migration_tree: migrationTree });
 }
 
+async function snapshotManagedDumpInputs({
+  root,
+  runtimeDirectory,
+  gitHead,
+  signal,
+  state,
+  environment,
+  executables,
+}) {
+  const directory = join(runtimeDirectory, "managed-dump-inputs");
+  mkdirSync(directory, { mode: 0o700 });
+  const definitions = Object.freeze([
+    Object.freeze({
+      key: "database_ca",
+      relativePath: "scripts/support/supabase-prod-ca-2021.crt",
+      destination: "supabase-prod-ca-2021.crt",
+      mode: 0o600,
+    }),
+    Object.freeze({
+      key: "schema",
+      relativePath: "scripts/support/v3-managed-supabase-dump-schema.sh",
+      destination: "dump-schema.sh",
+      mode: 0o700,
+    }),
+    Object.freeze({
+      key: "data",
+      relativePath: "scripts/support/v3-managed-supabase-dump-data.sh",
+      destination: "dump-data.sh",
+      mode: 0o700,
+    }),
+    Object.freeze({
+      key: "roles",
+      relativePath: "scripts/support/v3-managed-supabase-dump-roles.sh",
+      destination: "dump-roles.sh",
+      mode: 0o700,
+    }),
+  ]);
+  const snapshots = {};
+  const hashes = {};
+  for (const definition of definitions) {
+    const source = join(root, definition.relativePath);
+    if (!existsSync(source) || realpathSync(source) !== source) fail("managed_dump_input_invalid");
+    const metadata = statSync(source);
+    if (!metadata.isFile() || (metadata.mode & 0o022) !== 0) {
+      fail("managed_dump_input_invalid");
+    }
+    const bytes = readFileSync(source);
+    const expectedBlob = (
+      await spawnCommand(
+        executables.git.real,
+        ["rev-parse", `${gitHead}:${definition.relativePath}`],
+        {
+          cwd: root,
+          environment,
+          signal,
+          state,
+          captureStdout: true,
+          code: "managed_dump_input_untracked",
+          timeoutMs: 10_000,
+        },
+      )
+    ).trim();
+    const actualBlob = (
+      await spawnCommand(executables.git.real, ["hash-object", "--stdin"], {
+        cwd: root,
+        environment,
+        signal,
+        state,
+        input: bytes,
+        captureStdout: true,
+        code: "managed_dump_input_hash_failed",
+        timeoutMs: 10_000,
+      })
+    ).trim();
+    if (!/^[0-9a-f]{40}$/u.test(expectedBlob) || actualBlob !== expectedBlob) {
+      fail("managed_dump_input_changed");
+    }
+    const destination = join(directory, definition.destination);
+    writeFileSync(destination, bytes, { mode: definition.mode, flag: "wx" });
+    hashes[definition.key] = sha256(bytes);
+    snapshots[definition.key] = destination;
+  }
+  const databaseCa = validateSupabaseDatabaseCa(snapshots.database_ca);
+  return Object.freeze({
+    databaseCa,
+    dumpScripts: Object.freeze({
+      schema: resolveTrustedExecutable(
+        [snapshots.schema],
+        [snapshots.schema],
+        "managed_dump_script_invalid",
+      ),
+      data: resolveTrustedExecutable(
+        [snapshots.data],
+        [snapshots.data],
+        "managed_dump_script_invalid",
+      ),
+      roles: resolveTrustedExecutable(
+        [snapshots.roles],
+        [snapshots.roles],
+        "managed_dump_script_invalid",
+      ),
+    }),
+    sha256: Object.freeze(hashes),
+  });
+}
+
 async function dumpDatabase({
   root,
   executables,
@@ -1433,36 +1968,66 @@ async function dumpDatabase({
   environment,
   reverse = false,
 }) {
+  if (environment.PGUSER !== `postgres.${projectRef}`) fail("database_source_mismatch");
   const commands = Object.freeze([
-    ["roles.sql", ["--role-only"]],
-    ["schema.sql", []],
-    ["data.sql", ["--data-only", "--use-copy", "--exclude", "storage.buckets_vectors", "--exclude", "storage.vector_indexes"]],
-    ["history-schema.sql", ["--schema", "supabase_migrations"]],
-    ["history-data.sql", ["--schema", "supabase_migrations", "--data-only", "--use-copy"]],
+    Object.freeze({
+      filename: "roles.sql",
+      script: executables.dumpScripts.roles.real,
+      variables: Object.freeze({
+        RESERVED_ROLES: SUPABASE_RESERVED_ROLES.join("|"),
+        ALLOWED_CONFIGS: SUPABASE_ALLOWED_CONFIGS.join("|"),
+        EXTRA_SED: "/^--/d",
+      }),
+    }),
+    Object.freeze({
+      filename: "schema.sql",
+      script: executables.dumpScripts.schema.real,
+      variables: Object.freeze({
+        EXCLUDED_SCHEMAS: SUPABASE_INTERNAL_SCHEMAS.join("|"),
+        EXTRA_SED: "/^--/d",
+      }),
+    }),
+    Object.freeze({
+      filename: "data.sql",
+      script: executables.dumpScripts.data.real,
+      variables: Object.freeze({
+        EXCLUDED_SCHEMAS: SUPABASE_DATA_EXCLUDED_SCHEMAS.join("|"),
+        INCLUDED_SCHEMAS: "*",
+        EXTRA_FLAGS: "--exclude-table storage.buckets_vectors --exclude-table storage.vector_indexes",
+      }),
+    }),
+    Object.freeze({
+      filename: "history-schema.sql",
+      script: executables.dumpScripts.schema.real,
+      variables: Object.freeze({
+        EXCLUDED_SCHEMAS: "",
+        EXTRA_FLAGS: "--schema=supabase_migrations",
+        EXTRA_SED: "/^--/d",
+      }),
+    }),
+    Object.freeze({
+      filename: "history-data.sql",
+      script: executables.dumpScripts.data.real,
+      variables: Object.freeze({
+        EXCLUDED_SCHEMAS: "",
+        INCLUDED_SCHEMAS: "supabase_migrations",
+        EXTRA_FLAGS: "",
+      }),
+    }),
   ]);
   const orderedCommands = reverse ? [...commands].reverse() : commands;
-  for (const [filename, extra] of orderedCommands) {
-    const output = join(staging, filename);
+  for (const command of orderedCommands) {
+    const output = join(staging, command.filename);
     await spawnCommand(
-      executables.node,
-      [
-        executables.cli,
-        "--log-level",
-        "error",
-        "db",
-        "dump",
-        "--project-ref",
-        projectRef,
-        "--file",
-        output,
-        ...extra,
-      ],
+      executables.bash.real,
+      [command.script],
       {
         cwd: root,
-        environment,
+        environment: { ...environment, ...command.variables },
         signal,
         state,
-        code: `database_dump_${filename.replaceAll(/[^a-z]+/gu, "_")}_failed`,
+        stdoutPath: output,
+        code: `database_dump_${command.filename.replaceAll(/[^a-z]+/gu, "_")}_failed`,
       },
     );
     chmodSync(output, 0o600);
@@ -1533,25 +2098,6 @@ async function encryptArtifact({
   return artifactMetadata(destination);
 }
 
-async function signingFingerprint(publicKey, cwd, signal, state, environment, executables) {
-  const output = await spawnCommand(
-    executables.sshKeygen.real,
-    ["-lf", publicKey, "-E", "sha256"],
-    {
-      cwd,
-      environment,
-      signal,
-      state,
-      captureStdout: true,
-      code: "signing_key_fingerprint_failed",
-      timeoutMs: 10_000,
-    },
-  );
-  const match = /\b(SHA256:[A-Za-z0-9+/]+)\b/u.exec(output);
-  if (!match) fail("signing_key_fingerprint_failed");
-  return match[1];
-}
-
 function normalizedSshPublicKey(value) {
   const fields = requiredString(value.trim(), "signing_public_key_invalid", 16_384).split(/\s+/u);
   if (
@@ -1564,10 +2110,31 @@ function normalizedSshPublicKey(value) {
   return `${fields[0]} ${fields[1]}`;
 }
 
-async function verifySigningKeyPair(signing, cwd, signal, state, environment, executables) {
+export function sshPublicKeyFingerprint(value) {
+  const publicLine = normalizedSshPublicKey(value);
+  const encoded = publicLine.split(" ")[1];
+  const keyBlob = Buffer.from(encoded, "base64");
+  if (
+    keyBlob.length === 0 ||
+    keyBlob.toString("base64").replace(/=+$/u, "") !== encoded.replace(/=+$/u, "")
+  ) {
+    fail("signing_public_key_invalid");
+  }
+  return `SHA256:${createHash("sha256").update(keyBlob).digest("base64").replace(/=+$/u, "")}`;
+}
+
+export async function verifyPrivateSigningKey(
+  privateKey,
+  trustedPublicLine,
+  cwd,
+  signal,
+  state,
+  environment,
+  executables,
+) {
   const derived = await spawnCommand(
     executables.sshKeygen.real,
-    ["-y", "-f", signing.privateKey],
+    ["-y", "-f", privateKey],
     {
       cwd,
       environment,
@@ -1578,22 +2145,52 @@ async function verifySigningKeyPair(signing, cwd, signal, state, environment, ex
       timeoutMs: 30_000,
     },
   );
-  const trusted = readFileSync(signing.publicKey, "utf8");
-  if (normalizedSshPublicKey(derived) !== normalizedSshPublicKey(trusted)) {
+  if (normalizedSshPublicKey(derived) !== trustedPublicLine) {
     fail("signing_trust_root_mismatch");
   }
 }
 
-async function signAndVerifyReceipt({
+export async function verifySigningKeyPair(
+  signing,
+  cwd,
+  signal,
+  state,
+  environment,
+  executables,
+) {
+  const publicLine = normalizedSshPublicKey(readFileSync(signing.publicKey, "utf8"));
+  const fingerprint = sshPublicKeyFingerprint(publicLine);
+  await verifyPrivateSigningKey(
+    signing.privateKey,
+    publicLine,
+    cwd,
+    signal,
+    state,
+    environment,
+    executables,
+  );
+  return Object.freeze({ publicLine, fingerprint });
+}
+
+export async function signAndVerifyReceipt({
   receiptPath,
   signingKey,
-  publicKey,
+  trustedPublicLine,
   temporaryDirectory,
   signal,
   state,
   environment,
   executables,
 }) {
+  await verifyPrivateSigningKey(
+    signingKey,
+    trustedPublicLine,
+    dirname(receiptPath),
+    signal,
+    state,
+    environment,
+    executables,
+  );
   await spawnCommand(
     executables.sshKeygen.real,
     ["-Y", "sign", "-f", signingKey, "-n", SIGNATURE_NAMESPACE, receiptPath],
@@ -1608,9 +2205,8 @@ async function signAndVerifyReceipt({
   );
   const signaturePath = `${receiptPath}.sig`;
   chmodSync(signaturePath, 0o600);
-  const publicLine = normalizedSshPublicKey(readFileSync(publicKey, "utf8"));
   const allowedSigners = join(temporaryDirectory, "allowed_signers");
-  writeFileSync(allowedSigners, `${SIGNATURE_IDENTITY} ${publicLine}\n`, {
+  writeFileSync(allowedSigners, `${SIGNATURE_IDENTITY} ${trustedPublicLine}\n`, {
     mode: 0o600,
     flag: "wx",
   });
@@ -1672,40 +2268,107 @@ async function collectPreflight({
   mkdirSync(join(runtimeDirectory, "home"), { mode: 0o700 });
   mkdirSync(join(runtimeDirectory, "tmp"), { mode: 0o700 });
   const commandEnvironment = safeCommandEnvironment(executables, runtimeDirectory);
-  const supabaseEnvironment = safeCommandEnvironment(executables, runtimeDirectory, secrets);
   const orbEnvironment = { ...commandEnvironment, HOME: operatorHome };
-  const [tools, git, source] = await Promise.all([
-    toolEvidence(root, signal, state, commandEnvironment, orbEnvironment, executables),
-    repositoryEvidence(root, signal, state, commandEnvironment, executables),
-    managementReceipt(args.projectRef, secrets.SUPABASE_ACCESS_TOKEN, signal, Date.now()),
-    verifySigningKeyPair(signing, root, signal, state, commandEnvironment, executables),
-  ]);
+  const [baseTools, git, signingTrust] = await drainConcurrentOperations([
+    (branchSignal) => toolEvidence(
+      root,
+      branchSignal,
+      state,
+      commandEnvironment,
+      orbEnvironment,
+      executables,
+    ),
+    (branchSignal) => repositoryEvidence(
+      root,
+      branchSignal,
+      state,
+      commandEnvironment,
+      executables,
+    ),
+    (branchSignal) => verifySigningKeyPair(
+      signing,
+      root,
+      branchSignal,
+      state,
+      commandEnvironment,
+      executables,
+    ),
+  ], signal, state);
+  const managedDumpInputs = await snapshotManagedDumpInputs({
+    root,
+    runtimeDirectory,
+    gitHead: git.head,
+    signal,
+    state,
+    environment: commandEnvironment,
+    executables,
+  });
+  const runtimeExecutables = Object.freeze({
+    ...executables,
+    dumpScripts: managedDumpInputs.dumpScripts,
+  });
+  const databaseCa = managedDumpInputs.databaseCa;
+  const tools = Object.freeze({
+    ...baseTools,
+    database_ca_sha256: databaseCa.sha256,
+    database_ca_fingerprint: databaseCa.fingerprint,
+    managed_dump_inputs_sha256: managedDumpInputs.sha256,
+  });
+  let createClient;
+  try {
+    ({ createClient } = await import("@supabase/supabase-js"));
+  } catch {
+    fail("supabase_client_unavailable");
+  }
+  if (typeof createClient !== "function") fail("supabase_client_unavailable");
+  const origin = `https://${args.projectRef}.supabase.co`;
+  let storageClient;
+  try {
+    storageClient = createClient(origin, secrets.EVO_PLATFORM_SUPABASE_SECRET_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      global: {
+        fetch: createStorageClientFetch(
+          origin,
+          secrets.EVO_PLATFORM_SUPABASE_SECRET_KEY,
+          signal,
+        ),
+      },
+    }).storage;
+  } catch {
+    fail("supabase_client_unavailable");
+  }
   ensureInterrupted(signal);
+  const source = await managementReceipt(
+    args.projectRef,
+    secrets.SUPABASE_ACCESS_TOKEN,
+    signal,
+    Date.now(),
+  );
+  const databaseEnvironment = Object.freeze({
+    ...commandEnvironment,
+    PGHOST: source.pooler.host,
+    PGPORT: String(source.pooler.session_port),
+    PGUSER: source.pooler.user,
+    PGPASSWORD: secrets.SUPABASE_DB_PASSWORD,
+    PGDATABASE: source.pooler.database,
+    PGSSLMODE: "verify-full",
+    PGSSLROOTCERT: databaseCa.path,
+    PGCONNECT_TIMEOUT: "20",
+    PGAPPNAME: "evo_v3_managed_backup_export",
+    PG_DUMP_BIN: executables.pgDump.real,
+    PG_DUMPALL_BIN: executables.pgDumpAll.real,
+  });
   await verifyProjectKeys(
     args.projectRef,
     secrets.EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY,
     secrets.EVO_PLATFORM_SUPABASE_SECRET_KEY,
     signal,
   );
-  const { createClient } = await import("@supabase/supabase-js");
-  const origin = `https://${args.projectRef}.supabase.co`;
-  const storageClient = createClient(origin, secrets.EVO_PLATFORM_SUPABASE_SECRET_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: {
-      fetch: (url, options = {}) => fetch(url, {
-        ...options,
-        headers: storageClientHeaders(
-          options.headers,
-          secrets.EVO_PLATFORM_SUPABASE_SECRET_KEY,
-        ),
-        signal: combineSignals(signal, REQUEST_TIMEOUT_MS),
-      }),
-    },
-  }).storage;
   const storageBefore = await listStorageInventory(storageClient);
   return Object.freeze({
     outputRoot,
     signing,
+    signingTrust,
     tools,
     git,
     source,
@@ -1713,8 +2376,8 @@ async function collectPreflight({
     storageClient,
     storageBefore,
     commandEnvironment,
-    supabaseEnvironment,
-    executables,
+    databaseEnvironment,
+    executables: runtimeExecutables,
   });
 }
 
@@ -1740,9 +2403,15 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
   let temporaryDirectory;
   const parentCleanup = state.cleanup;
   const cleanup = () => {
-    if (temporaryDirectory && existsSync(temporaryDirectory)) guardedRemove(temporaryDirectory);
-    if (partialDirectory && existsSync(partialDirectory)) guardedRemove(partialDirectory);
-    parentCleanup?.();
+    runCleanupActions(state, [
+      () => {
+        if (temporaryDirectory && existsSync(temporaryDirectory)) guardedRemove(temporaryDirectory);
+      },
+      () => {
+        if (partialDirectory && existsSync(partialDirectory)) guardedRemove(partialDirectory);
+      },
+      () => parentCleanup?.(),
+    ]);
   };
   try {
     mkdirSync(partialDirectory, { mode: 0o700 });
@@ -1765,7 +2434,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       staging: temporaryDirectory,
       signal,
       state,
-      environment: preflight.supabaseEnvironment,
+      environment: preflight.databaseEnvironment,
     });
     const databaseStability = await verifyDatabaseSnapshotStable({
       root,
@@ -1774,7 +2443,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       staging: temporaryDirectory,
       signal,
       state,
-      environment: preflight.supabaseEnvironment,
+      environment: preflight.databaseEnvironment,
     });
     ensureInterrupted(signal);
 
@@ -1874,14 +2543,6 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       });
     }
 
-    const fingerprint = await signingFingerprint(
-      preflight.signing.publicKey,
-      root,
-      signal,
-      state,
-      preflight.commandEnvironment,
-      preflight.executables,
-    );
     const receipt = assertRedactedReceipt(Object.freeze({
       schema: RECEIPT_SCHEMA,
       captured_at: timestamp,
@@ -1918,7 +2579,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       signature: Object.freeze({
         namespace: SIGNATURE_NAMESPACE,
         identity: SIGNATURE_IDENTITY,
-        public_key_fingerprint: fingerprint,
+        public_key_fingerprint: preflight.signingTrust.fingerprint,
         trust_root: "operator-held-external-public-key",
       }),
       result: "export_verified",
@@ -1928,7 +2589,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
     await signAndVerifyReceipt({
       receiptPath,
       signingKey: preflight.signing.privateKey,
-      publicKey: preflight.signing.publicKey,
+      trustedPublicLine: preflight.signingTrust.publicLine,
       temporaryDirectory,
       signal,
       state,
@@ -1943,8 +2604,11 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
       receipt_sha256: sha256(readFileSync(join(finalDirectory, "receipt.json"))),
     });
   } finally {
-    cleanup();
-    if (state.cleanup === cleanup) state.cleanup = parentCleanup;
+    try {
+      cleanup();
+    } finally {
+      if (state.cleanup === cleanup) state.cleanup = parentCleanup;
+    }
   }
 }
 
@@ -1960,6 +2624,7 @@ export async function runManagedSupabaseExport(argv, environment = process.env) 
     signal: null,
     signalCount: 0,
     terminators: new Set(),
+    processGroups: new Set(),
   };
   const removeSignalHandlers = registerSignalCleanup(abortController, state);
   let runtimeDirectory;
@@ -1971,7 +2636,9 @@ export async function runManagedSupabaseExport(argv, environment = process.env) 
       flag: "wx",
     });
     const runtimeCleanup = () => {
-      if (runtimeDirectory && existsSync(runtimeDirectory)) guardedRemove(runtimeDirectory);
+      runCleanupActions(state, [() => {
+        if (runtimeDirectory && existsSync(runtimeDirectory)) guardedRemove(runtimeDirectory);
+      }]);
     };
     state.cleanup = runtimeCleanup;
     const preflight = await collectPreflight({
@@ -1993,9 +2660,12 @@ export async function runManagedSupabaseExport(argv, environment = process.env) 
       preflight,
     });
   } finally {
-    state.cleanup?.();
-    state.cleanup = null;
-    removeSignalHandlers();
+    try {
+      state.cleanup?.();
+    } finally {
+      state.cleanup = null;
+      removeSignalHandlers();
+    }
   }
 }
 

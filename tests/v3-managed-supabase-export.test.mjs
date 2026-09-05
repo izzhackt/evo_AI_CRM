@@ -4,25 +4,33 @@ import {
   existsSync,
   mkdtempSync,
   mkdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   ManagedSupabaseExportError,
   assertRedactedReceipt,
   canonicalJson,
+  createStorageClientFetch,
   dataRowAggregates,
   downloadStorageObjects,
+  drainConcurrentOperations,
   exactMigrationLedger,
   guardedRemove,
   normalizeProjectReceipt,
+  normalizePoolerReceipt,
   parseArgs,
   parseCopySections,
+  patchedPostgresClientVersion,
+  registerSignalCleanup,
   selectLatestCompletedBackup,
   semanticSqlFileDigest,
   sha256,
@@ -32,9 +40,20 @@ import {
   storageInventoryDigest,
   validateOperatorHome,
   validateOutputRoot,
+  validateSupabaseDatabaseCa,
+  verifyPrivateSigningKey,
+  verifySigningKeyPair,
 } from "../scripts/export-v3-managed-supabase-backup.mjs";
 
 const REF = "a".repeat(20);
+const DATABASE_CA = fileURLToPath(
+  new URL("../scripts/support/supabase-prod-ca-2021.crt", import.meta.url),
+);
+const DUMP_FILTERS = [
+  "v3-managed-supabase-dump-schema.sh",
+  "v3-managed-supabase-dump-data.sh",
+  "v3-managed-supabase-dump-roles.sh",
+].map((name) => fileURLToPath(new URL(`../scripts/support/${name}`, import.meta.url)));
 
 function expectCode(action, code) {
   assert.throws(
@@ -147,6 +166,30 @@ test("guarded cleanup requires its marker and removes that marker last", () => {
   }
 });
 
+test("guarded cleanup restores the exact marker when a late file prevents root removal", () => {
+  const root = realpathSync(
+    mkdtempSync(join(tmpdir(), "evo-v3-managed-export-cleanup-race-test-")),
+  );
+  const marker = join(root, ".evo-v3-managed-supabase-export");
+  const markerContent = "managed-supabase-export-runtime\n";
+  try {
+    chmodSync(root, 0o700);
+    writeFileSync(marker, markerContent, { mode: 0o600 });
+    expectCode(
+      () => guardedRemove(root, {
+        beforeRootRemoval(directory) {
+          writeFileSync(join(directory, "late-artifact"), "late\n", { mode: 0o600 });
+        },
+      }),
+      "cleanup_directory_not_empty",
+    );
+    assert.equal(readFileSync(marker, "utf8"), markerContent);
+    assert.equal(statSync(marker).mode & 0o777, 0o600);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("Storage headers never send opaque secret keys as bearer JWTs", () => {
   const opaque = `sb_secret_${"a".repeat(24)}`;
   const direct = storageDownloadHeaders(opaque);
@@ -168,6 +211,144 @@ test("Storage headers never send opaque secret keys as bearer JWTs", () => {
     storageClientHeaders({}, legacy).get("authorization"),
     `Bearer ${legacy}`,
   );
+});
+
+test("Storage SDK fetch rejects redirects and never sends an opaque secret as bearer", async () => {
+  const opaque = `sb_secret_${"b".repeat(24)}`;
+  const controller = new AbortController();
+  let observed = null;
+  const origin = `https://${REF}.supabase.co`;
+  const storageFetch = createStorageClientFetch(
+    origin,
+    opaque,
+    controller.signal,
+    async (url, options) => {
+      observed = { url: String(url), options };
+      return new Response(null, { status: 204 });
+    },
+  );
+
+  await storageFetch(`${origin}/storage/v1/bucket`, {
+    redirect: "follow",
+    headers: { Authorization: `Bearer ${opaque}`, "x-client-info": "focused-test" },
+  });
+
+  assert.equal(observed.url, `${origin}/storage/v1/bucket`);
+  assert.equal(observed.options.redirect, "error");
+  assert.equal(observed.options.headers.get("apikey"), opaque);
+  assert.equal(observed.options.headers.get("authorization"), null);
+  assert.equal(observed.options.headers.get("x-client-info"), "focused-test");
+  expectCode(
+    () => storageFetch("https://attacker.invalid/storage/v1/bucket"),
+    "storage_origin_invalid",
+  );
+});
+
+test("signal cleanup aborts and terminates children without running filesystem cleanup", () => {
+  const controller = new AbortController();
+  const calls = [];
+  let cleanupCalls = 0;
+  const state = {
+    cleanup() {
+      cleanupCalls += 1;
+    },
+    signal: null,
+    signalCount: 0,
+    terminators: new Set([
+      (reason, force) => calls.push({ reason, force }),
+    ]),
+  };
+  const before = new Set(process.listeners("SIGTERM"));
+  const remove = registerSignalCleanup(controller, state);
+  const handler = process.listeners("SIGTERM").find((listener) => !before.has(listener));
+  try {
+    assert.equal(typeof handler, "function");
+    handler();
+    handler();
+    assert.equal(controller.signal.aborted, true);
+    assert.equal(cleanupCalls, 0);
+    assert.deepEqual(calls, [
+      { reason: "export_interrupted", force: false },
+      { reason: "export_interrupted", force: true },
+    ]);
+  } finally {
+    remove();
+  }
+});
+
+test("concurrent preflight drains an aborted sibling and every registered terminator", async () => {
+  const state = { terminators: new Set(), processGroups: new Set() };
+  let siblingSettled = false;
+  const siblingTerminator = () => {};
+
+  await expectCodeAsync(
+    drainConcurrentOperations([
+      async () => {
+        throw new ManagedSupabaseExportError("local_gate_failed");
+      },
+      async (signal) => {
+        state.terminators.add(siblingTerminator);
+        await new Promise((resolve) => {
+          const settle = () => setTimeout(resolve, 20);
+          if (signal.aborted) settle();
+          else signal.addEventListener("abort", settle, { once: true });
+        });
+        state.terminators.delete(siblingTerminator);
+        siblingSettled = true;
+      },
+    ], new AbortController().signal, state),
+    "local_gate_failed",
+  );
+
+  assert.equal(siblingSettled, true);
+  assert.equal(state.terminators.size, 0);
+  assert.equal(state.processGroups.size, 0);
+});
+
+test("signing trust stays pinned when both key paths are replaced after preflight", async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-export-signing-trust-test-")));
+  const privateKey = join(root, "signing-key");
+  const publicKey = join(root, "signing-key.pub");
+  const fakeKeygen = join(root, "fake-ssh-keygen");
+  const state = { terminators: new Set(), processGroups: new Set() };
+  const environment = { PATH: "/usr/bin:/bin", HOME: root, TMPDIR: root };
+  const executables = { sshKeygen: { real: fakeKeygen } };
+  const controller = new AbortController();
+  try {
+    writeFileSync(privateKey, "ssh-ed25519 AAAA\n", { mode: 0o600 });
+    writeFileSync(publicKey, "ssh-ed25519 AAAA original\n", { mode: 0o644 });
+    writeFileSync(
+      fakeKeygen,
+      "#!/bin/sh\n[ \"$1\" = \"-y\" ] || exit 2\ncat \"$3\"\n",
+      { mode: 0o700 },
+    );
+    const trust = await verifySigningKeyPair(
+      { privateKey, publicKey },
+      root,
+      controller.signal,
+      state,
+      environment,
+      executables,
+    );
+    assert.equal(trust.publicLine, "ssh-ed25519 AAAA");
+
+    writeFileSync(privateKey, "ssh-ed25519 AQID\n", { mode: 0o600 });
+    writeFileSync(publicKey, "ssh-ed25519 AQID replacement\n", { mode: 0o644 });
+    await expectCodeAsync(
+      verifyPrivateSigningKey(
+        privateKey,
+        trust.publicLine,
+        root,
+        controller.signal,
+        state,
+        environment,
+        executables,
+      ),
+      "signing_trust_root_mismatch",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("Management API receipt is allowlisted, exact-project bound, and healthy", () => {
@@ -322,17 +503,245 @@ test("Storage inventory is deterministic, duplicate-safe, and byte bounded", () 
   );
 });
 
-test("semantic SQL digest ignores only PostgreSQL guard tokens and catches restore drift", async () => {
+function guardToken(token) {
+  return token.replaceAll(/[^A-Za-z0-9]/gu, "0").padEnd(63, "0").slice(0, 63);
+}
+
+function pgDumpEnvelope(body, token) {
+  const guard = guardToken(token);
+  return [
+    "SET session_replication_role = replica;",
+    "",
+    "--",
+    "-- PostgreSQL database dump",
+    "--",
+    "",
+    `\\restrict ${guard}`,
+    "",
+    body,
+    "--",
+    "-- PostgreSQL database dump complete",
+    "--",
+    "",
+    `\\unrestrict ${guard}`,
+    "",
+    "RESET ALL;",
+    "",
+  ].join("\n");
+}
+
+function pgSchemaEnvelope(body, token) {
+  const guard = guardToken(token);
+  return ["", `\\restrict ${guard}`, "", body, `\\unrestrict ${guard}`, "", ""].join("\n");
+}
+
+function pgRolesEnvelope(body, token) {
+  const guard = guardToken(token);
+  return [
+    "",
+    `\\restrict ${guard}`,
+    "",
+    body,
+    `\\unrestrict ${guard}`,
+    "",
+    "RESET ALL;",
+    "",
+  ].join("\n");
+}
+
+test("tracked Supabase dump filters preserve PostgreSQL restricted-mode guards", () => {
+  for (const path of DUMP_FILTERS) {
+    const source = readFileSync(path, "utf8");
+    assert.doesNotMatch(source, /(?:un)?restrict/u);
+  }
+});
+
+test("semantic SQL digest normalizes valid active guards for all managed SQL artifacts", async () => {
   const root = mkdtempSync(join(tmpdir(), "evo-export-sql-digest-test-"));
-  const first = join(root, "first.sql");
-  const equivalent = join(root, "equivalent.sql");
-  const drifted = join(root, "drifted.sql");
   try {
-    writeFileSync(first, "\\restrict token_one\nCREATE TABLE x(id bigint);\nSELECT setval('x_id_seq', 7);\n\\unrestrict token_one\n");
-    writeFileSync(equivalent, "\\restrict token_two\nCREATE TABLE x(id bigint);\nSELECT setval('x_id_seq', 7);\n\\unrestrict token_two\n");
-    writeFileSync(drifted, "\\restrict token_three\nCREATE TABLE x(id bigint);\nSELECT setval('x_id_seq', 8);\n\\unrestrict token_three\n");
-    assert.equal(await semanticSqlFileDigest(first), await semanticSqlFileDigest(equivalent));
-    assert.notEqual(await semanticSqlFileDigest(first), await semanticSqlFileDigest(drifted));
+    const cases = [
+      ["data.sql", pgDumpEnvelope],
+      ["history-data.sql", pgDumpEnvelope],
+      ["schema.sql", pgSchemaEnvelope],
+      ["history-schema.sql", pgSchemaEnvelope],
+      ["roles.sql", pgRolesEnvelope],
+    ];
+    for (const [artifactName, envelope] of cases) {
+      const first = join(root, `${artifactName}.first`);
+      const equivalent = join(root, `${artifactName}.equivalent`);
+      const drifted = join(root, `${artifactName}.drifted`);
+      writeFileSync(first, envelope("CREATE TABLE x(id bigint);\nSELECT setval('x_id_seq', 7);", "token_one"));
+      writeFileSync(equivalent, envelope("CREATE TABLE x(id bigint);\nSELECT setval('x_id_seq', 7);", "token_two"));
+      writeFileSync(drifted, envelope("CREATE TABLE x(id bigint);\nSELECT setval('x_id_seq', 8);", "token_three"));
+      assert.equal(
+        await semanticSqlFileDigest(first, artifactName),
+        await semanticSqlFileDigest(equivalent, artifactName),
+        `${artifactName} should ignore only its random active guard token`,
+      );
+      assert.notEqual(
+        await semanticSqlFileDigest(first, artifactName),
+        await semanticSqlFileDigest(drifted, artifactName),
+        `${artifactName} should retain body bytes in its digest`,
+      );
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("semantic SQL digest hashes guard-shaped inner SQL content", async () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-export-semantic-inner-guard-test-"));
+  const first = join(root, "first.sql");
+  const changed = join(root, "changed.sql");
+  try {
+    writeFileSync(first, pgDumpEnvelope("SELECT 'before';\n-- \\restrict inner_one\nSELECT 'after';", "outer_one"));
+    writeFileSync(changed, pgDumpEnvelope("SELECT 'before';\n-- \\restrict inner_two\nSELECT 'after';", "outer_two"));
+    assert.notEqual(
+      await semanticSqlFileDigest(first, "data.sql"),
+      await semanticSqlFileDigest(changed, "data.sql"),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("semantic SQL digest rejects missing or mismatched pg_dump guard pairs", async () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-export-semantic-invalid-guard-test-"));
+  const mismatched = join(root, "mismatched.sql");
+  const missing = join(root, "missing.sql");
+  try {
+    const openingToken = "opening0token".padEnd(63, "0").slice(0, 63);
+    const differentToken = "different0token".padEnd(63, "0").slice(0, 63);
+    writeFileSync(
+      mismatched,
+      pgDumpEnvelope("SELECT 1;", "opening0token").replace(
+        `\\unrestrict ${openingToken}`,
+        `\\unrestrict ${differentToken}`,
+      ),
+    );
+    writeFileSync(
+      missing,
+      pgDumpEnvelope("SELECT 1;", "opening0token").replace(
+        `\\unrestrict ${openingToken}\n`,
+        "",
+      ),
+    );
+    await expectCodeAsync(
+      semanticSqlFileDigest(mismatched, "data.sql"),
+      "dump_guard_envelope_invalid",
+    );
+    await expectCodeAsync(
+      semanticSqlFileDigest(missing, "data.sql"),
+      "dump_guard_envelope_invalid",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("semantic SQL digest is byte-exact outside known active guard tokens", async () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-export-semantic-bytes-test-"));
+  const canonical = join(root, "canonical.sql");
+  const crlf = join(root, "crlf.sql");
+  const noFinalNewline = join(root, "no-final-newline.sql");
+  const schema = join(root, "schema.sql");
+  const schemaChanged = join(root, "schema-changed.sql");
+  try {
+    const envelope = pgDumpEnvelope("SELECT 1;", "outer0token");
+    writeFileSync(canonical, envelope);
+    writeFileSync(crlf, envelope.replaceAll("\n", "\r\n"));
+    writeFileSync(noFinalNewline, envelope.slice(0, -1));
+    await expectCodeAsync(
+      semanticSqlFileDigest(crlf, "data.sql"),
+      "dump_guard_envelope_invalid",
+    );
+    await expectCodeAsync(
+      semanticSqlFileDigest(noFinalNewline, "data.sql"),
+      "dump_guard_envelope_invalid",
+    );
+
+    writeFileSync(schema, "-- arbitrary artifact\nSELECT 1;\n");
+    writeFileSync(schemaChanged, "-- arbitrary artifact\nSELECT 2;\n");
+    assert.notEqual(
+      await semanticSqlFileDigest(schema, "other.sql"),
+      await semanticSqlFileDigest(schemaChanged, "other.sql"),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("pooler receipt pins the documented session endpoint and rejects drift", () => {
+  const project = { ref: REF, region: "ap-southeast-1" };
+  const payload = [{
+    identifier: REF,
+    database_type: "PRIMARY",
+    db_host: "aws-1-ap-southeast-1.pooler.supabase.com",
+    db_user: `postgres.${REF}`,
+    db_name: "postgres",
+    pool_mode: "transaction",
+    db_port: 6543,
+  }];
+  assert.deepEqual(normalizePoolerReceipt(payload, project), {
+    host: "aws-1-ap-southeast-1.pooler.supabase.com",
+    user: `postgres.${REF}`,
+    database: "postgres",
+    session_port: 5432,
+    source_mode: "transaction",
+    source_port: 6543,
+  });
+  expectCode(
+    () => normalizePoolerReceipt([{ ...payload[0], pool_mode: "session" }], project),
+    "management_pooler_invalid",
+  );
+});
+
+test("PostgreSQL dump clients must meet a patched security floor", () => {
+  assert.equal(
+    patchedPostgresClientVersion("pg_dump (PostgreSQL) 18.6\n", "pg_dump"),
+    "18.6",
+  );
+  assert.equal(
+    patchedPostgresClientVersion("pg_dumpall (PostgreSQL) 17.11\n", "pg_dumpall"),
+    "17.11",
+  );
+  expectCode(
+    () => patchedPostgresClientVersion("pg_dump (PostgreSQL) 17.10\n", "pg_dump"),
+    "postgres_client_security_update_required",
+  );
+  expectCode(
+    () => patchedPostgresClientVersion("pg_dump 18.6\n", "pg_dump"),
+    "postgres_client_version_invalid",
+  );
+});
+
+test("database TLS pins the reviewed Supabase CA bytes, fingerprint, and validity", () => {
+  const verified = validateSupabaseDatabaseCa(
+    DATABASE_CA,
+    Date.parse("2026-09-05T00:00:00Z"),
+  );
+  assert.equal(
+    verified.sha256,
+    "700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7",
+  );
+  assert.equal(
+    verified.fingerprint,
+    "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA",
+  );
+
+  const root = mkdtempSync(join(tmpdir(), "evo-export-ca-test-"));
+  const changed = join(root, "changed.crt");
+  try {
+    writeFileSync(
+      changed,
+      readFileSync(DATABASE_CA, "utf8").replace("MIIDxD", "NIIDxD"),
+      { mode: 0o600 },
+    );
+    expectCode(() => validateSupabaseDatabaseCa(changed), "database_ca_invalid");
+    expectCode(
+      () => validateSupabaseDatabaseCa(DATABASE_CA, Date.parse("2031-04-27T00:00:00Z")),
+      "database_ca_invalid",
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -369,6 +778,78 @@ test("command timeout forcibly ends a child that ignores SIGTERM", async () => {
   }
 });
 
+test("command input failure rejects cleanly when the child closes stdin early", async () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-export-command-stdin-test-"));
+  try {
+    await expectCodeAsync(
+      spawnCommand(
+        process.execPath,
+        ["-e", "process.stdin.destroy(); setTimeout(() => {}, 250);"],
+        {
+          cwd: root,
+          environment: { PATH: "/usr/bin:/bin", HOME: root, TMPDIR: root },
+          input: Buffer.alloc(16 * 1024 * 1024, 0x61),
+          code: "stdin_closed",
+          timeoutMs: 2_000,
+          killGraceMs: 100,
+        },
+      ),
+      "stdin_closed",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("command timeout kills a SIGTERM-ignoring process tree before settling", async () => {
+  const root = mkdtempSync(join(tmpdir(), "evo-export-command-tree-test-"));
+  const pidPath = join(root, "grandchild.pid");
+  let grandchildPid = null;
+  try {
+    await expectCodeAsync(
+      spawnCommand(
+        process.execPath,
+        [
+          "-e",
+          [
+            "const { spawn } = require('node:child_process');",
+            "const { writeFileSync } = require('node:fs');",
+            "const grandchild = spawn(process.execPath, ['-e', `process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`], { stdio: 'ignore' });",
+            "writeFileSync(process.argv[1], String(grandchild.pid));",
+            "process.on('SIGTERM', () => {});",
+            "setInterval(() => {}, 1000);",
+          ].join(" "),
+          pidPath,
+        ],
+        {
+          cwd: root,
+          environment: { PATH: "/usr/bin:/bin", HOME: root, TMPDIR: root },
+          code: "process_tree_timeout",
+          timeoutMs: 350,
+          killGraceMs: 100,
+        },
+      ),
+      "process_tree_timeout",
+    );
+    assert.equal(existsSync(pidPath), true);
+    grandchildPid = Number(readFileSync(pidPath, "utf8"));
+    assert.equal(Number.isSafeInteger(grandchildPid), true);
+    assert.throws(
+      () => process.kill(grandchildPid, 0),
+      (error) => error?.code === "ESRCH",
+    );
+  } finally {
+    if (Number.isSafeInteger(grandchildPid)) {
+      try {
+        process.kill(grandchildPid, "SIGKILL");
+      } catch (error) {
+        if (error?.code !== "ESRCH") throw error;
+      }
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function oneObjectInventory(size) {
   return storageInventoryDigest({
     buckets: [{ id: "private", name: "private", public: false }],
@@ -386,7 +867,7 @@ async function runDownloadCase({ size, body, idleTimeoutMs = 100 }) {
   try {
     return await downloadStorageObjects({
       inventory: oneObjectInventory(size),
-      origin: "https://example.invalid",
+      origin: `https://${REF}.supabase.co`,
       secretKey: `sb_secret_${"a".repeat(24)}`,
       outputDirectory: join(root, "bytes"),
       signal: new AbortController().signal,

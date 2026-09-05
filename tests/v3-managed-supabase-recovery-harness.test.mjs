@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
@@ -27,6 +27,7 @@ import {
   extractExactMigrationLedger,
   evidenceDestination,
   gitBlobOid,
+  guardedRemoveHarness,
   installBrowserWebSocketBlocker,
   latchInterruption,
   migrationStatementsDigest,
@@ -2009,17 +2010,52 @@ test("cleanup inventory selects only the exact isolated Supabase contour", () =>
   ), [networkId]);
   const imageId = `sha256:${"d".repeat(64)}`;
   const secondImageId = `sha256:${"e".repeat(64)}`;
+  const imageTag = `evo-v3-recovery-${project}:candidate`;
+  const imageExpected = {
+    archiveSha256: "8".repeat(64),
+    buildNetwork: "dependency-fetch-only",
+    id: imageId,
+    projectName: project,
+    tag: imageTag,
+    targetCommit,
+    targetTree: targetFullTree,
+  };
+  const imageLabels = {
+    "org.opencontainers.image.revision": targetCommit,
+    "evo.recovery.project": project,
+    "evo.recovery.type": "candidate-image",
+    "evo.recovery.target-tree": targetFullTree,
+    "evo.recovery.snapshot-archive-sha256": imageExpected.archiveSha256,
+    "evo.recovery.build-network": "dependency-fetch-only",
+  };
   assert.deepEqual(selectCandidateImageIds(`${imageId}\n${secondImageId}\n${imageId}\n`), [imageId, secondImageId]);
-  assert.deepEqual(selectOwnedImageIds([
-    `${JSON.stringify(imageId)}\t${JSON.stringify([`evo-v3-recovery-${project}:candidate`])}\t${JSON.stringify({ "evo.recovery.project": project, "evo.recovery.type": "candidate-image" })}`,
-    `${JSON.stringify(secondImageId)}\t${JSON.stringify([])}\t${JSON.stringify({ "evo.recovery.project": project, "evo.recovery.type": "candidate-image" })}`,
-  ].join("\n"), project), [imageId, secondImageId]);
+  const imageLine = (id, tags, labels) => `${JSON.stringify(id)}\t${JSON.stringify(tags)}\t${JSON.stringify(labels)}`;
+  assert.deepEqual(selectOwnedImageIds(imageLine(imageId, [imageTag], imageLabels), imageExpected), [imageId]);
   expectCode(
     () => selectOwnedContainerIds(containerLine("d".repeat(64), `supabase_app_${project}`, {}), project),
     "cleanup_container_ownership_invalid",
   );
   expectCode(
+    () => selectOwnedContainerIds(containerLine(appId, `supabase_app_${project}`, {
+      "evo.recovery.owner": project,
+      "evo.recovery.project": project,
+      "evo.recovery.scanner": "foreign-project",
+      "evo.recovery.type": "candidate-app",
+    }), project),
+    "cleanup_container_ownership_invalid",
+  );
+  expectCode(
     () => selectOwnedVolumeNames(volumeLine(`supabase_db_${project}`, {}), project),
+    "cleanup_volume_ownership_invalid",
+  );
+  expectCode(
+    () => selectOwnedVolumeNames(volumeLine(`supabase_clamav_signatures_${project}`, {
+      "com.docker.compose.project": project,
+      "evo.recovery.owner": "foreign-project",
+      "evo.recovery.project": project,
+      "evo.recovery.scanner": project,
+      "evo.recovery.type": "clamav-signatures",
+    }), project),
     "cleanup_volume_ownership_invalid",
   );
   expectCode(() => selectOwnedNetworkIds(
@@ -2028,18 +2064,31 @@ test("cleanup inventory selects only the exact isolated Supabase contour", () =>
   ), "cleanup_network_ownership_invalid");
   expectCode(() => selectOwnedContainerIds("bad", project), "cleanup_container_inventory_invalid");
   expectCode(() => selectCandidateImageIds("bad"), "cleanup_image_list_invalid");
-  expectCode(() => selectOwnedImageIds("bad", project), "cleanup_image_inventory_invalid");
+  expectCode(() => selectOwnedImageIds("bad", imageExpected), "cleanup_image_inventory_invalid");
+  expectCode(() => selectOwnedImageIds([
+    imageLine(imageId, [imageTag], imageLabels),
+    imageLine(secondImageId, [], imageLabels),
+  ].join("\n"), imageExpected), "cleanup_image_inventory_invalid");
   expectCode(() => selectOwnedImageIds(
-    `${JSON.stringify(imageId)}\t${JSON.stringify(["unrelated:latest"])}\t${JSON.stringify({ "evo.recovery.project": "other", "evo.recovery.type": "candidate-image" })}`,
-    project,
+    imageLine(imageId, [imageTag, "unrelated:latest"], imageLabels),
+    imageExpected,
+  ), "cleanup_image_inventory_invalid");
+  expectCode(() => selectOwnedImageIds(
+    imageLine(imageId, [imageTag], { ...imageLabels, "evo.recovery.target-tree": "9".repeat(40) }),
+    imageExpected,
+  ), "cleanup_image_inventory_invalid");
+  expectCode(() => selectOwnedImageIds(
+    imageLine(imageId, [imageTag], { ...imageLabels, "evo.recovery.owner": "foreign-project" }),
+    imageExpected,
   ), "cleanup_image_inventory_invalid");
 });
 
 test("cleanup is local-only before container preflight and quarantines contradictory mutation state", async (t) => {
+  const projectName = "evov3recoveryabcdef123456";
   const createRoot = () => {
-    const root = mkdtempSync(join(tmpdir(), "evo-v3-managed-recovery-"));
+    const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
     chmodSync(root, 0o700);
-    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), "owned\n", { mode: 0o600 });
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
     return root;
   };
   let runtimeCalls = 0;
@@ -2053,6 +2102,7 @@ test("cleanup is local-only before container preflight and quarantines contradic
   const localRoot = createRoot();
   const local = await cleanupState({
     harnessRoot: localRoot,
+    projectName,
     containerPreflightPassed: false,
     containerMutationAttempted: false,
     networkCreated: false,
@@ -2077,6 +2127,7 @@ test("cleanup is local-only before container preflight and quarantines contradic
   }, false), "quarantine");
   const quarantined = await cleanupState({
     harnessRoot: contradictoryRoot,
+    projectName,
     containerPreflightPassed: false,
     containerMutationAttempted: false,
     networkCreated: true,
@@ -2087,6 +2138,34 @@ test("cleanup is local-only before container preflight and quarantines contradic
   assert.equal(runtimeCalls, 0);
 });
 
+test("guarded recovery removal keeps the exact marker until final root removal", (t) => {
+  const projectName = "evov3recoveryabcdef123456";
+  const createRoot = () => {
+    const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
+    chmodSync(root, 0o700);
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
+    writeFileSync(join(root, "plaintext.sql"), "private\n", { mode: 0o600 });
+    return root;
+  };
+  const removed = createRoot();
+  guardedRemoveHarness(removed, projectName);
+  assert.equal(existsSync(removed), false);
+
+  const raced = createRoot();
+  t.after(() => rmSync(raced, { recursive: true, force: true }));
+  expectCode(() => guardedRemoveHarness(raced, projectName, {
+    beforeRootRemoval: (root) => writeFileSync(join(root, "raced-child"), "race\n", { mode: 0o600, flag: "wx" }),
+  }), "cleanup_directory_not_empty");
+  assert.equal(readFileSync(join(raced, ".evo-v3-managed-recovery-harness"), "utf8"), `${projectName}\n`);
+  assert.equal((lstatSync(join(raced, ".evo-v3-managed-recovery-harness")).mode & 0o077), 0);
+
+  const wrongMarker = createRoot();
+  t.after(() => rmSync(wrongMarker, { recursive: true, force: true }));
+  writeFileSync(join(wrongMarker, ".evo-v3-managed-recovery-harness"), "foreign\n");
+  expectCode(() => guardedRemoveHarness(wrongMarker, projectName), "cleanup_target_invalid");
+  assert.equal(existsSync(join(wrongMarker, "plaintext.sql")), true);
+});
+
 test("container cleanup inspects labels and removes only immutable owned IDs", async (t) => {
   const cleanupSource = source.slice(source.indexOf("export async function cleanupState"), source.indexOf("class StageTimings"));
   assert.doesNotMatch(cleanupSource, /\["rm", "--force", state\./u);
@@ -2094,10 +2173,18 @@ test("container cleanup inspects labels and removes only immutable owned IDs", a
   const projectName = "evov3recoveryabcdef123456";
   const containerName = `supabase_app_${projectName}`;
   const containerId = "a".repeat(64);
+  const networkId = "b".repeat(64);
+  const volumeName = `supabase_clamav_signatures_${projectName}`;
+  const ownedVolumeLabels = {
+    "com.docker.compose.project": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.scanner": projectName,
+    "evo.recovery.type": "clamav-signatures",
+  };
   const createRoot = () => {
-    const root = mkdtempSync(join(tmpdir(), "evo-v3-managed-recovery-"));
+    const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
     chmodSync(root, 0o700);
-    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), "owned\n", { mode: 0o600 });
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
     return root;
   };
   const toolchain = {
@@ -2111,33 +2198,70 @@ test("container cleanup inspects labels and removes only immutable owned IDs", a
     harnessRoot,
     projectName,
     networkName: `${projectName}_private`,
+    networkId,
     containerPreflightPassed: true,
     containerMutationAttempted: true,
     networkCreated: true,
     stackStarted: true,
     appContainer: containerName,
+    appContainerId: containerId,
+    supabaseContainerIds: [],
+    ownedVolumeNames: [volumeName],
   });
-  const runCleanup = async (labels) => {
-    let present = true;
+  const runCleanup = async (labels, {
+    actualContainerId = containerId,
+    actualNetworkId = networkId,
+    volumeLabels = ownedVolumeLabels,
+  } = {}) => {
+    let containerPresent = true;
+    let networkPresent = true;
+    let volumePresent = true;
     const removalArgs = [];
     const supervisor = {
       stopAll: async () => true,
       run: async (_executable, args) => {
-        if (args[2] === "ps") return { stdout: Buffer.from(present ? `${containerId}\n` : "") };
-        if (args[2] === "volume" && args[3] === "ls") return { stdout: Buffer.from("") };
-        if (args[2] === "network" && args[3] === "ls") return { stdout: Buffer.from("") };
+        if (args[2] === "ps") return { stdout: Buffer.from(containerPresent ? `${actualContainerId}\n` : "") };
+        if (args[2] === "volume" && args[3] === "ls") {
+          return { stdout: Buffer.from(volumePresent ? `${volumeName}\n` : "") };
+        }
+        if (args[2] === "network" && args[3] === "ls") {
+          return { stdout: Buffer.from(networkPresent ? `${projectName}_private\n` : "") };
+        }
         if (args[2] === "image" && args[3] === "ls") return { stdout: Buffer.from("") };
         if (args[2] === "inspect") {
           return { stdout: Buffer.from([
-            containerId,
+            actualContainerId,
             `/${containerName}`,
             labels,
           ].map((value) => JSON.stringify(value)).join("\t")) };
         }
+        if (args[2] === "volume" && args[3] === "inspect") {
+          return { stdout: Buffer.from([
+            volumeName,
+            volumeLabels,
+          ].map((value) => JSON.stringify(value)).join("\t")) };
+        }
+        if (args[2] === "network" && args[3] === "inspect") {
+          return { stdout: Buffer.from([
+            actualNetworkId,
+            `${projectName}_private`,
+            { "evo.recovery.owner": projectName },
+          ].map((value) => JSON.stringify(value)).join("\t")) };
+        }
         if (args[2] === "rm") {
           removalArgs.push([...args]);
-          present = false;
-          return { stdout: Buffer.from(containerId) };
+          containerPresent = false;
+          return { stdout: Buffer.from(actualContainerId) };
+        }
+        if (args[2] === "network" && args[3] === "rm") {
+          removalArgs.push([...args]);
+          networkPresent = false;
+          return { stdout: Buffer.from(actualNetworkId) };
+        }
+        if (args[2] === "volume" && args[3] === "rm") {
+          removalArgs.push([...args]);
+          volumePresent = false;
+          return { stdout: Buffer.from(volumeName) };
         }
         throw new Error(`unexpected command: ${args.join(" ")}`);
       },
@@ -2153,16 +2277,139 @@ test("container cleanup inspects labels and removes only immutable owned IDs", a
     "evo.recovery.type": "candidate-app",
   });
   assert.equal(owned.result.disposition, "remove");
-  assert.equal(owned.removalArgs.length, 1);
+  assert.equal(owned.removalArgs.length, 3);
   assert.equal(owned.removalArgs[0].includes(containerId), true);
   assert.equal(owned.removalArgs[0].includes(containerName), false);
+  assert.equal(owned.removalArgs[1].includes(volumeName), true);
+  assert.equal(owned.removalArgs[2].includes(networkId), true);
+  assert.equal(owned.removalArgs[2].includes(`${projectName}_private`), false);
 
   const foreign = await runCleanup({});
   assert.equal(foreign.result.disposition, "quarantine");
   assert.equal(foreign.removalArgs.length, 0);
-  const quarantinePrefix = `${basename(foreign.root)}.quarantine-`;
+  const replaced = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  }, { actualContainerId: "c".repeat(64) });
+  assert.equal(replaced.result.disposition, "quarantine");
+  assert.equal(replaced.removalArgs.length, 0);
+  const networkReplaced = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  }, { actualNetworkId: "d".repeat(64) });
+  assert.equal(networkReplaced.result.disposition, "quarantine");
+  assert.equal(networkReplaced.removalArgs.length, 0);
+  const volumeConflict = await runCleanup({
+    "evo.recovery.owner": projectName,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-app",
+  }, { volumeLabels: { ...ownedVolumeLabels, "evo.recovery.owner": "foreign-project" } });
+  assert.equal(volumeConflict.result.disposition, "quarantine");
+  assert.equal(volumeConflict.removalArgs.length, 0);
   t.after(() => {
-    for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(quarantinePrefix))) {
+    for (const root of [foreign.root, replaced.root, networkReplaced.root, volumeConflict.root]) {
+      const prefix = `${basename(root)}.quarantine-`;
+      for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(prefix))) {
+        rmSync(join(tmpdir(), name), { recursive: true, force: true });
+      }
+    }
+  });
+});
+
+test("image cleanup removes only the captured ID with exact tag and provenance", async (t) => {
+  const projectName = "evov3recoveryabcdef123456";
+  const imageId = `sha256:${"e".repeat(64)}`;
+  const extraImageId = `sha256:${"f".repeat(64)}`;
+  const tag = `evo-v3-recovery-${projectName}:candidate`;
+  const identity = {
+    archiveSha256: "8".repeat(64),
+    buildNetwork: "dependency-fetch-only",
+    id: imageId,
+    projectName,
+    tag,
+    targetCommit,
+    targetTree: targetFullTree,
+  };
+  const labels = {
+    "org.opencontainers.image.revision": targetCommit,
+    "evo.recovery.project": projectName,
+    "evo.recovery.type": "candidate-image",
+    "evo.recovery.target-tree": targetFullTree,
+    "evo.recovery.snapshot-archive-sha256": identity.archiveSha256,
+    "evo.recovery.build-network": identity.buildNetwork,
+  };
+  const toolchain = {
+    paths: {
+      docker: { real: "/verified/docker" },
+      supabaseNative: { real: "/verified/supabase" },
+      supabaseGo: { real: "/verified/supabase-go" },
+    },
+  };
+  const createRoot = () => {
+    const root = realpathSync(mkdtempSync(join(realpathSync(tmpdir()), "evo-v3-managed-recovery-")));
+    chmodSync(root, 0o700);
+    writeFileSync(join(root, ".evo-v3-managed-recovery-harness"), `${projectName}\n`, { mode: 0o600 });
+    return root;
+  };
+  const runCleanup = async ({ extra = false } = {}) => {
+    let imagePresent = true;
+    const removalArgs = [];
+    const root = createRoot();
+    const supervisor = {
+      stopAll: async () => true,
+      run: async (_executable, args) => {
+        if (args[2] === "ps") return { stdout: Buffer.from("") };
+        if (args[2] === "volume" && args[3] === "ls") return { stdout: Buffer.from("") };
+        if (args[2] === "network" && args[3] === "ls") return { stdout: Buffer.from("") };
+        if (args[2] === "image" && args[3] === "ls") {
+          return { stdout: Buffer.from(imagePresent ? `${imageId}${extra ? `\n${extraImageId}` : ""}\n` : "") };
+        }
+        if (args[2] === "image" && args[3] === "inspect") {
+          const lines = [
+            [imageId, [tag], labels],
+            ...(extra ? [[extraImageId, [], labels]] : []),
+          ].map((line) => line.map((value) => JSON.stringify(value)).join("\t"));
+          return { stdout: Buffer.from(lines.join("\n")) };
+        }
+        if (args[2] === "image" && args[3] === "rm") {
+          removalArgs.push([...args]);
+          imagePresent = false;
+          return { stdout: Buffer.from(imageId) };
+        }
+        throw new Error(`unexpected command: ${args.join(" ")}`);
+      },
+    };
+    const result = await cleanupState({
+      harnessRoot: root,
+      projectName,
+      networkName: `${projectName}_private`,
+      containerPreflightPassed: true,
+      containerMutationAttempted: true,
+      networkCreated: false,
+      stackStarted: false,
+      supabaseContainerIds: [],
+      ownedVolumeNames: [],
+      appImageTag: tag,
+      appImageId: imageId,
+      appImageIdentity: identity,
+    }, supervisor, toolchain);
+    return { removalArgs, result, root };
+  };
+
+  const owned = await runCleanup();
+  assert.equal(owned.result.disposition, "remove");
+  assert.equal(owned.removalArgs.length, 1);
+  assert.equal(owned.removalArgs[0].includes(imageId), true);
+  assert.equal(owned.removalArgs[0].includes(tag), false);
+
+  const inheritedExtra = await runCleanup({ extra: true });
+  assert.equal(inheritedExtra.result.disposition, "quarantine");
+  assert.equal(inheritedExtra.removalArgs.length, 0);
+  t.after(() => {
+    const prefix = `${basename(inheritedExtra.root)}.quarantine-`;
+    for (const name of readdirSync(tmpdir()).filter((entry) => entry.startsWith(prefix))) {
       rmSync(join(tmpdir(), name), { recursive: true, force: true });
     }
   });

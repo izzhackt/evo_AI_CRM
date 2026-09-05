@@ -27,6 +27,7 @@ import {
   readdirSync,
   realpathSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -2259,7 +2260,7 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   const configPath = join(workdir, "supabase", "config.toml");
   writeFileSync(configPath, isolatedConfig(root.config, state.projectName, ports), { mode: 0o600, flag: "wx" });
   state.containerMutationAttempted = true;
-  await runDocker(supervisor, toolchain.paths.docker, [
+  const createdNetwork = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "network", "create",
     "--driver", "bridge",
     "--opt", "com.docker.network.bridge.enable_ip_masquerade=false",
@@ -2271,6 +2272,9 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
     code: "isolated_network_create_failed",
     timeoutMs: 30_000,
   });
+  const networkId = createdNetwork.stdout.toString("utf8").trim();
+  if (!SHA256.test(networkId)) fail("isolated_network_id_invalid", "local_supabase_start");
+  state.networkId = networkId;
   state.networkCreated = true;
   await supervisor.run(toolchain.paths.supabaseNative.real, ["start", "--workdir", workdir, "--network-id", state.networkName, "--exclude", EXCLUDED_SERVICES, "--ignore-health-check", "--debug", "--yes"], {
     stage: "local_supabase_start",
@@ -2288,6 +2292,8 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   });
   const status = parseStatus(statusResult.stdout.toString("utf8"));
   const endpoint = await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
+  if (endpoint.networkId !== state.networkId) fail("isolated_network_identity_drift", "local_supabase_start");
+  state.supabaseContainerIds = endpoint.memberIds;
   const egress = await proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain);
   return Object.freeze({ status, configPath, endpoint, egress });
 }
@@ -2661,13 +2667,26 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
   const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...census.ids], {
     stage: "local_supabase_start", code: "local_supabase_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
-  return validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
+  const endpoint = validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
     apiUrl: status.apiUrl,
     census,
     networkName: state.networkName,
     projectName: state.projectName,
     scanner: state.scannerIdentity ?? null,
   });
+  if (typeof state.networkId === "string" && endpoint.networkId !== state.networkId) {
+    fail("isolated_network_identity_drift", "local_supabase_start");
+  }
+  if (Array.isArray(state.supabaseContainerIds)) {
+    const expectedMemberIds = [
+      ...state.supabaseContainerIds,
+      ...(typeof state.scannerContainer === "string" ? [state.scannerContainer] : []),
+    ].sort();
+    if (!sameJson(endpoint.memberIds, expectedMemberIds)) {
+      fail("local_supabase_container_identity_drift", "local_supabase_start");
+    }
+  }
+  return endpoint;
 }
 
 export function validatePgmqRestoreInventory(counts) {
@@ -4433,6 +4452,15 @@ async function buildCandidateImage(repository, state, supervisor, toolchain) {
     targetCommit: repository.target.commit,
     targetTree: repository.target.tree,
   });
+  state.appImageIdentity = Object.freeze({
+    archiveSha256: snapshot.archiveSha256,
+    buildNetwork: "dependency-fetch-only",
+    id: image.id,
+    projectName: state.projectName,
+    tag: state.appImageTag,
+    targetCommit: repository.target.commit,
+    targetTree: repository.target.tree,
+  });
   return Object.freeze({ ...image, snapshot });
 }
 
@@ -4679,6 +4707,7 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
   ], { stage: "image_verification", code: "candidate_container_start_failed", timeoutMs: 2 * 60 * 1_000 });
   const containerId = started.stdout.toString("utf8").trim();
   if (!/^[0-9a-f]{64}$/u.test(containerId)) fail("candidate_container_id_invalid", "image_verification");
+  state.appContainerId = containerId;
   const appUrl = `http://127.0.0.1:${appPort}`;
   const appNetworkAttachment = await inspectCandidateAttachment(state, endpoint, supervisor, toolchain, image, appPort, containerId);
   state.isolationInput.destination = {
@@ -4706,7 +4735,7 @@ const server = tls.createServer({
 });
 server.listen(443, "0.0.0.0");
 `;
-  await runDocker(supervisor, toolchain.paths.docker, [
+  const proxyStarted = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "run", "--detach", "--name", state.appProxyContainer,
     "--label", `evo.recovery.project=${state.projectName}`,
     "--label", `evo.recovery.proxy=${state.projectName}`,
@@ -4722,6 +4751,9 @@ server.listen(443, "0.0.0.0");
     "--eval", proxySource,
     endpoint.targetHost, String(endpoint.targetPort),
   ], { stage: "image_verification", code: "recovery_app_tls_proxy_start_failed", timeoutMs: 2 * 60 * 1_000 });
+  const proxyContainerId = proxyStarted.stdout.toString("utf8").trim();
+  if (!SHA256.test(proxyContainerId)) fail("recovery_app_tls_proxy_id_invalid", "image_verification");
+  state.appProxyContainerId = proxyContainerId;
   await waitForHttp(`${appUrl}/api/health`, [200], 3 * 60 * 1_000, "candidate_app_start_timeout", "image_verification", state, interruptionGuard);
   return Object.freeze({
     appUrl,
@@ -5348,15 +5380,67 @@ export function buildIsolationEvidence(value, { requireComplete = false, require
   });
 }
 
-function safeHarnessRoot(path) {
-  if (!path || !isAbsolute(path) || !basename(path).startsWith(HARNESS_PREFIX)) return false;
+function validatedHarnessRoot(path, projectName) {
+  if (
+    !path ||
+    !isAbsolute(path) ||
+    !new RegExp(`^${HARNESS_PREFIX}[A-Za-z0-9]{6}$`, "u").test(basename(path)) ||
+    !/^evov3recovery[0-9a-f]{12}$/u.test(projectName ?? "")
+  ) return null;
   try {
     const canonicalTmp = realpathSync(tmpdir());
     const canonical = realpathSync(path);
     const rel = relative(canonicalTmp, canonical);
-    return rel.length > 0 && !rel.startsWith("..") && !isAbsolute(rel) && existsSync(join(canonical, MARKER));
+    const rootMetadata = lstatSync(path);
+    const markerPath = join(canonical, MARKER);
+    const markerMetadata = lstatSync(markerPath);
+    if (
+      resolve(path) !== canonical ||
+      rel.length === 0 || rel.startsWith("..") || isAbsolute(rel) ||
+      !rootMetadata.isDirectory() || rootMetadata.isSymbolicLink() ||
+      typeof process.getuid !== "function" || rootMetadata.uid !== process.getuid() ||
+      (rootMetadata.mode & 0o077) !== 0 ||
+      !markerMetadata.isFile() || markerMetadata.isSymbolicLink() ||
+      markerMetadata.uid !== process.getuid() || (markerMetadata.mode & 0o077) !== 0 ||
+      readFileSync(markerPath, "utf8") !== `${projectName}\n`
+    ) return null;
+    return canonical;
   } catch {
-    return false;
+    return null;
+  }
+}
+
+function safeHarnessRoot(path, projectName) {
+  return validatedHarnessRoot(path, projectName) !== null;
+}
+
+export function guardedRemoveHarness(path, projectName, { beforeRootRemoval = null } = {}) {
+  const canonical = validatedHarnessRoot(path, projectName);
+  if (canonical === null) fail("cleanup_target_invalid", "cleanup");
+  const markerPath = join(canonical, MARKER);
+  const markerContent = `${projectName}\n`;
+  for (const entry of readdirSync(canonical)) {
+    if (entry === MARKER) continue;
+    rmSync(join(canonical, entry), {
+      recursive: true,
+      force: false,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+  }
+  unlinkSync(markerPath);
+  try {
+    beforeRootRemoval?.(canonical);
+    rmdirSync(canonical);
+  } catch {
+    try {
+      if (existsSync(canonical) && !existsSync(markerPath)) {
+        writeFileSync(markerPath, markerContent, { mode: 0o600, flag: "wx" });
+      }
+    } catch {
+      fail("cleanup_marker_restore_failed", "cleanup");
+    }
+    fail("cleanup_directory_not_empty", "cleanup");
   }
 }
 
@@ -5368,11 +5452,17 @@ export function cleanupContainerPolicy(state, toolchainAvailable) {
   const mutationAttempted = state?.containerMutationAttempted === true;
   const runtimeFlags =
     state?.networkCreated === true ||
+    typeof state?.networkId === "string" ||
+    Array.isArray(state?.supabaseContainerIds) ||
+    Array.isArray(state?.ownedVolumeNames) ||
     state?.stackStarted === true ||
     typeof state?.appContainer === "string" ||
+    typeof state?.appContainerId === "string" ||
     typeof state?.appProxyContainer === "string" ||
+    typeof state?.appProxyContainerId === "string" ||
     typeof state?.appImageTag === "string" ||
     typeof state?.appImageId === "string" ||
+    isRecord(state?.appImageIdentity) ||
     typeof state?.scannerContainer === "string" ||
     typeof state?.scannerSignatureVolume === "string";
   const contradictory =
@@ -5386,6 +5476,31 @@ export function cleanupContainerPolicy(state, toolchainAvailable) {
 
 function assertCleanupProject(projectName) {
   if (!/^evov3recovery[0-9a-f]{12}$/u.test(projectName)) fail("cleanup_project_scope_invalid", "cleanup");
+}
+
+const RESERVED_RECOVERY_OWNERSHIP_LABELS = Object.freeze([
+  "com.docker.compose.project",
+  "com.evo.runtime.role",
+  "com.supabase.cli.project",
+  "evo.recovery.owner",
+  "evo.recovery.project",
+  "evo.recovery.proxy",
+  "evo.recovery.scanner",
+  "evo.recovery.type",
+]);
+
+function assertExactRecoveryOwnershipLabels(labels, required, optional, code) {
+  if (!isRecord(labels) || !isRecord(required) || !isRecord(optional)) fail(code, "cleanup");
+  for (const label of RESERVED_RECOVERY_OWNERSHIP_LABELS) {
+    const present = Object.hasOwn(labels, label);
+    if (Object.hasOwn(required, label)) {
+      if (!present || labels[label] !== required[label]) fail(code, "cleanup");
+    } else if (Object.hasOwn(optional, label)) {
+      if (present && labels[label] !== optional[label]) fail(code, "cleanup");
+    } else if (present) {
+      fail(code, "cleanup");
+    }
+  }
 }
 
 export function selectOwnedContainerIds(output, projectName) {
@@ -5427,6 +5542,10 @@ export function selectOwnedContainerIds(output, projectName) {
       if (!namedForProject || labels["com.docker.compose.project"] !== projectName) {
         fail("cleanup_container_ownership_invalid", "cleanup");
       }
+      assertExactRecoveryOwnershipLabels(labels, {
+        "com.docker.compose.project": projectName,
+        "com.supabase.cli.project": projectName,
+      }, {}, "cleanup_container_ownership_invalid");
     } else {
       const expected = categories.app
         ? { name: `supabase_app_${projectName}`, type: "candidate-app", count: "app" }
@@ -5446,6 +5565,25 @@ export function selectOwnedContainerIds(output, projectName) {
       )) {
         fail("cleanup_container_ownership_invalid", "cleanup");
       }
+      assertExactRecoveryOwnershipLabels(labels, categories.app
+        ? {
+          "evo.recovery.owner": projectName,
+          "evo.recovery.project": projectName,
+          "evo.recovery.type": "candidate-app",
+        }
+        : categories.proxy
+          ? {
+            "evo.recovery.project": projectName,
+            "evo.recovery.proxy": projectName,
+            "evo.recovery.type": "app-tls-proxy",
+          }
+          : {
+            "com.docker.compose.project": projectName,
+            "com.evo.runtime.role": "private-malware-scanner",
+            "evo.recovery.project": projectName,
+            "evo.recovery.scanner": projectName,
+            "evo.recovery.type": "malware-scanner",
+          }, {}, "cleanup_container_ownership_invalid");
       typeCounts[expected.count] += 1;
     }
     ids.push(id);
@@ -5483,7 +5621,14 @@ export function selectOwnedVolumeNames(output, projectName) {
     const supabaseOwned = labels["com.supabase.cli.project"] === projectName;
     const scannerOwned = labels["evo.recovery.scanner"] === projectName;
     if (Number(supabaseOwned) + Number(scannerOwned) !== 1) fail("cleanup_volume_ownership_invalid", "cleanup");
-    if (supabaseOwned && !namedForProject) fail("cleanup_volume_ownership_invalid", "cleanup");
+    if (supabaseOwned) {
+      if (!namedForProject) fail("cleanup_volume_ownership_invalid", "cleanup");
+      assertExactRecoveryOwnershipLabels(labels, {
+        "com.supabase.cli.project": projectName,
+      }, {
+        "com.docker.compose.project": projectName,
+      }, "cleanup_volume_ownership_invalid");
+    }
     if (scannerOwned) {
       if (
         name !== `supabase_clamav_signatures_${projectName}` ||
@@ -5493,6 +5638,12 @@ export function selectOwnedVolumeNames(output, projectName) {
       ) {
         fail("cleanup_volume_ownership_invalid", "cleanup");
       }
+      assertExactRecoveryOwnershipLabels(labels, {
+        "com.docker.compose.project": projectName,
+        "evo.recovery.project": projectName,
+        "evo.recovery.scanner": projectName,
+        "evo.recovery.type": "clamav-signatures",
+      }, {}, "cleanup_volume_ownership_invalid");
       scannerVolumeCount += 1;
     }
     names.push(name);
@@ -5525,13 +5676,30 @@ export function selectOwnedNetworkIds(output, networkName) {
   ) {
     fail("cleanup_network_ownership_invalid", "cleanup");
   }
+  assertExactRecoveryOwnershipLabels(labels, {
+    "evo.recovery.owner": projectName,
+  }, {}, "cleanup_network_ownership_invalid");
   return Object.freeze([id]);
 }
 
-export function selectOwnedImageIds(output, projectName) {
-  assertCleanupProject(projectName);
+export function selectOwnedImageIds(output, expected) {
+  if (!isRecord(expected)) fail("cleanup_image_inventory_invalid", "cleanup");
+  exactKeys(expected, ["archiveSha256", "buildNetwork", "id", "projectName", "tag", "targetCommit", "targetTree"], "cleanup_image_inventory_invalid", "cleanup");
+  assertCleanupProject(expected.projectName);
+  if (
+    !/^sha256:[0-9a-f]{64}$/u.test(expected.id ?? "") ||
+    typeof expected.tag !== "string" || expected.tag !== `evo-v3-recovery-${expected.projectName}:candidate` ||
+    !SHA256.test(expected.archiveSha256 ?? "") ||
+    !GIT_OID.test(expected.targetCommit ?? "") ||
+    !GIT_OID.test(expected.targetTree ?? "") ||
+    expected.buildNetwork !== "dependency-fetch-only"
+  ) {
+    fail("cleanup_image_inventory_invalid", "cleanup");
+  }
+  const lines = String(output).split(/\r?\n/u).filter(Boolean);
+  if (lines.length !== 1) fail("cleanup_image_inventory_invalid", "cleanup");
   const ids = [];
-  for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
+  for (const line of lines) {
     const fields = line.split("\t");
     let id;
     let tags;
@@ -5547,11 +5715,21 @@ export function selectOwnedImageIds(output, projectName) {
       !Array.isArray(tags) ||
       tags.some((tag) => typeof tag !== "string" || tag.length === 0) ||
       !isRecord(labels) ||
-      labels["evo.recovery.project"] !== projectName ||
-      labels["evo.recovery.type"] !== "candidate-image"
+      id !== expected.id ||
+      !sameJson(tags, [expected.tag]) ||
+      labels["org.opencontainers.image.revision"] !== expected.targetCommit ||
+      labels["evo.recovery.project"] !== expected.projectName ||
+      labels["evo.recovery.type"] !== "candidate-image" ||
+      labels["evo.recovery.target-tree"] !== expected.targetTree ||
+      labels["evo.recovery.snapshot-archive-sha256"] !== expected.archiveSha256 ||
+      labels["evo.recovery.build-network"] !== expected.buildNetwork
     ) {
       fail("cleanup_image_inventory_invalid", "cleanup");
     }
+    assertExactRecoveryOwnershipLabels(labels, {
+      "evo.recovery.project": expected.projectName,
+      "evo.recovery.type": "candidate-image",
+    }, {}, "cleanup_image_inventory_invalid");
     ids.push(id);
   }
   if (new Set(ids).size !== ids.length) fail("cleanup_image_inventory_invalid", "cleanup");
@@ -5566,7 +5744,50 @@ export function selectCandidateImageIds(output) {
   return Object.freeze([...new Set(ids)]);
 }
 
-async function cleanupInventory(state, supervisor, tools, { allowAfterInterrupt = false, stage = "cleanup" } = {}) {
+function cleanupCapturedIdentity(state) {
+  const containers = [
+    ...(Array.isArray(state?.supabaseContainerIds) ? state.supabaseContainerIds : []),
+    state?.scannerContainer,
+    state?.appContainerId,
+    state?.appProxyContainerId,
+  ].filter((id) => typeof id === "string").sort();
+  const volumes = Array.isArray(state?.ownedVolumeNames) ? [...state.ownedVolumeNames].sort() : [];
+  const networkIds = typeof state?.networkId === "string" ? [state.networkId] : [];
+  const images = isRecord(state?.appImageIdentity) ? [state.appImageIdentity.id] : [];
+  if (
+    containers.some((id) => !SHA256.test(id)) || new Set(containers).size !== containers.length ||
+    volumes.some((name) => typeof name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/u.test(name)) ||
+    new Set(volumes).size !== volumes.length ||
+    networkIds.some((id) => !SHA256.test(id)) ||
+    images.some((id) => !/^sha256:[0-9a-f]{64}$/u.test(id)) ||
+    (images.length === 1 && state?.appImageId !== images[0])
+  ) {
+    fail("cleanup_captured_identity_invalid", "cleanup");
+  }
+  return Object.freeze({
+    containers: Object.freeze(containers),
+    volumes: Object.freeze(volumes),
+    networkIds: Object.freeze(networkIds),
+    images: Object.freeze(images),
+  });
+}
+
+function assertCleanupInventoryIdentity(inventory, expected) {
+  for (const field of ["containers", "volumes", "networkIds", "images"]) {
+    if (!Array.isArray(inventory?.[field]) || !Array.isArray(expected?.[field])) {
+      fail("cleanup_captured_identity_invalid", "cleanup");
+    }
+    if (!sameJson([...inventory[field]].sort(), [...expected[field]].sort())) {
+      fail("cleanup_identity_drift", "cleanup");
+    }
+  }
+}
+
+async function cleanupInventory(state, supervisor, tools, {
+  allowAfterInterrupt = false,
+  expectedIdentity,
+  stage = "cleanup",
+} = {}) {
   const [containerList, volumeList, networkList, imageList] = await Promise.all([
     runDocker(supervisor, tools.docker, ["--context", "orbstack", "ps", "--all", "--no-trunc", "--format", "{{.ID}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt, maxCaptureBytes: 4 * 1_024 * 1_024 }),
     runDocker(supervisor, tools.docker, ["--context", "orbstack", "volume", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_volume_inventory_failed", allowAfterInterrupt }),
@@ -5612,29 +5833,32 @@ async function cleanupInventory(state, supervisor, tools, { allowAfterInterrupt 
   const candidateImageIds = selectCandidateImageIds(imageList.stdout.toString("utf8"));
   let images = Object.freeze([]);
   if (candidateImageIds.length > 0) {
+    if (!isRecord(state.appImageIdentity)) fail("cleanup_image_inventory_invalid", "cleanup");
     const inspected = await runDocker(supervisor, tools.docker, [
       "--context", "orbstack", "image", "inspect",
       "--format", "{{json .Id}}\t{{json .RepoTags}}\t{{json .Config.Labels}}",
       ...candidateImageIds,
     ], { stage, code: "cleanup_image_inspection_failed", allowAfterInterrupt });
-    images = selectOwnedImageIds(inspected.stdout.toString("utf8"), state.projectName);
+    images = selectOwnedImageIds(inspected.stdout.toString("utf8"), state.appImageIdentity);
     if (!sameJson([...images].sort(), [...candidateImageIds].sort())) {
       fail("cleanup_image_inventory_invalid", "cleanup");
     }
   }
   const networkIds = selectOwnedNetworkIds(networkInspection.stdout.toString("utf8"), state.networkName);
-  return Object.freeze({
+  const inventory = Object.freeze({
     containers: selectOwnedContainerIds(containerInspection.stdout.toString("utf8"), state.projectName),
     volumes: selectOwnedVolumeNames(volumeInspection.stdout.toString("utf8"), state.projectName),
     networks: networkIds.length === 0 ? Object.freeze([]) : Object.freeze([state.networkName]),
     networkIds,
     images,
   });
+  if (expectedIdentity !== undefined) assertCleanupInventoryIdentity(inventory, expectedIdentity);
+  return inventory;
 }
 
 export async function cleanupState(state, supervisor, toolchain) {
   const descendantsDrained = await supervisor.stopAll();
-  const targetsOwned = safeHarnessRoot(state.harnessRoot);
+  const targetsOwned = safeHarnessRoot(state.harnessRoot, state.projectName);
   const containerPolicy = cleanupContainerPolicy(state, Boolean(
     toolchain?.paths?.docker?.real &&
     toolchain?.paths?.supabaseNative?.real &&
@@ -5652,23 +5876,28 @@ export async function cleanupState(state, supervisor, toolchain) {
       }
     };
     try {
-      let owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+      let expectedIdentity = cleanupCapturedIdentity(state);
+      let owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
       if (owned.containers.length > 0) {
         cleanupSucceeded = (await run(["rm", "--force", ...owned.containers])) && cleanupSucceeded;
-        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+        expectedIdentity = Object.freeze({ ...expectedIdentity, containers: Object.freeze([]) });
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
       }
       if (owned.containers.length > 0) cleanupSucceeded = false;
       if (cleanupSucceeded && owned.images.length > 0) {
         cleanupSucceeded = (await run(["image", "rm", "--force", ...owned.images])) && cleanupSucceeded;
-        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+        expectedIdentity = Object.freeze({ ...expectedIdentity, images: Object.freeze([]) });
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
       }
       if (cleanupSucceeded && owned.volumes.length > 0) {
         cleanupSucceeded = (await run(["volume", "rm", "--force", ...owned.volumes])) && cleanupSucceeded;
-        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+        expectedIdentity = Object.freeze({ ...expectedIdentity, volumes: Object.freeze([]) });
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
       }
       if (cleanupSucceeded && owned.networkIds.length > 0) {
         cleanupSucceeded = (await run(["network", "rm", ...owned.networkIds])) && cleanupSucceeded;
-        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true });
+        expectedIdentity = Object.freeze({ ...expectedIdentity, networkIds: Object.freeze([]) });
+        owned = await cleanupInventory(state, supervisor, toolchain.paths, { allowAfterInterrupt: true, expectedIdentity });
       }
       if (
         owned.containers.length ||
@@ -5682,9 +5911,16 @@ export async function cleanupState(state, supervisor, toolchain) {
       cleanupSucceeded = false;
     }
   }
-  const disposition = cleanupDisposition({ descendantsDrained, targetsOwned, cleanupSucceeded });
-  if (disposition === "remove") rmSync(state.harnessRoot, { recursive: true, force: false });
-  else if (safeHarnessRoot(state.harnessRoot)) {
+  let disposition = cleanupDisposition({ descendantsDrained, targetsOwned, cleanupSucceeded });
+  if (disposition === "remove") {
+    try {
+      guardedRemoveHarness(state.harnessRoot, state.projectName);
+    } catch {
+      cleanupSucceeded = false;
+      disposition = "quarantine";
+    }
+  }
+  if (disposition === "quarantine" && safeHarnessRoot(state.harnessRoot, state.projectName)) {
     const quarantine = `${state.harnessRoot}${QUARANTINE_SUFFIX}-${randomUUID()}`;
     try {
       renameSync(state.harnessRoot, quarantine);
@@ -6002,8 +6238,16 @@ async function executeMode(mode, options) {
     containerMutationAttempted: false,
     stackStarted: false,
     networkCreated: false,
+    networkId: undefined,
+    supabaseContainerIds: undefined,
+    ownedVolumeNames: undefined,
     appContainer: undefined,
+    appContainerId: undefined,
     appProxyContainer: undefined,
+    appProxyContainerId: undefined,
+    appImageTag: undefined,
+    appImageId: undefined,
+    appImageIdentity: undefined,
     scannerContainer: undefined,
     scannerIdentity: undefined,
     scannerSignatureVolume: undefined,
@@ -6157,6 +6401,8 @@ async function executeMode(mode, options) {
         state.interruptionGuard,
       ));
       const destinationInventory = await runStage("destination_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "destination_identity" }));
+      state.ownedVolumeNames = destinationInventory.volumes;
+      assertCleanupInventoryIdentity(destinationInventory, cleanupCapturedIdentity(state));
       state.isolationInput.destination = {
         projectRef: state.projectName,
         urls: [local.status.apiUrl, local.status.dbUrl],
@@ -6277,7 +6523,7 @@ async function executeMode(mode, options) {
       if (state.signalShutdown) await state.signalShutdown;
       cleanup = await cleanupState(state, supervisor, toolchain);
     } catch {
-      cleanup = Object.freeze({ descendantsDrained: false, targetsOwned: safeHarnessRoot(state.harnessRoot), cleanupSucceeded: false, disposition: "quarantine" });
+      cleanup = Object.freeze({ descendantsDrained: false, targetsOwned: safeHarnessRoot(state.harnessRoot, state.projectName), cleanupSucceeded: false, disposition: "quarantine" });
     }
     const evidence = buildDurableEvidence({
       result,

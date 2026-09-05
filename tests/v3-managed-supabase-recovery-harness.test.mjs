@@ -226,8 +226,11 @@ function storageManifest(receipt = normalizedReceipt()) {
 }
 
 function historyFixture() {
-  const header = "COPY supabase_migrations.schema_migrations (version, statements, name) FROM stdin;";
-  const rows = ["001\t{}\tinitial", "002\t{}\tadd_crm"];
+  const header = "COPY supabase_migrations.schema_migrations (version, statements, name, created_by, idempotency_key, rollback) FROM stdin;";
+  const rows = [
+    "001\t{}\tinitial\t\\N\t\\N\t\\N",
+    "002\t{}\tadd_crm\t\\N\t\\N\t\\N",
+  ];
   const copy = `${header}\n${rows.join("\n")}\n\\.\n`;
   return {
     text: `-- authenticated history\n${copy}`,
@@ -472,6 +475,10 @@ test("authenticated history is the sole migration prefix source", () => {
     ...fixture.ledger,
     copyRowsSha256: "0".repeat(64),
   }), "exported_migration_history_manifest_mismatch");
+  expectCode(() => parseExportedMigrationHistory(
+    fixture.text.replace(", created_by, idempotency_key, rollback", ""),
+    fixture.ledger,
+  ), "exported_migration_history_columns_invalid");
   expectCode(() => verifiedExportedHistoryPrefix({ entries: [
     { version: "001", name: "different" },
     { version: "002", name: "add_crm" },
@@ -624,6 +631,9 @@ test("source contains no obsolete attestation or compatibility fallback", () => 
 });
 
 test("restored contour runs migration 115 and the real scanner-backed upload path", () => {
+  assert.match(source, /artifacts\.plaintext\.historySchema/u);
+  assert.match(source, /base_migration_ledger_already_exists/u);
+  assert.doesNotMatch(source, /initializeLocalMigrationLedger/u);
   assert.match(source, /finalLedger\.includes\("115"\)/u);
   assert.match(source, /clamav\/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9/u);
   assert.match(source, /clamd-malware-scanner\.ts/u);

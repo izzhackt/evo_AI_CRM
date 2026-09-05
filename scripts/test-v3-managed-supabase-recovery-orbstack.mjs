@@ -78,6 +78,14 @@ const MAX_BACKUP_AGE_HOURS = 24 * 31;
 const FUTURE_SKEW_MS = 5 * 60 * 1000;
 const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
 const EICAR = String.raw`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`;
+const MIGRATION_HISTORY_COLUMNS = Object.freeze([
+  "version",
+  "statements",
+  "name",
+  "created_by",
+  "idempotency_key",
+  "rollback",
+]);
 const REQUIRED_LOCAL_SERVICES = Object.freeze([
   ["database", "db"],
   ["postgrest", "rest"],
@@ -1233,12 +1241,12 @@ export function parseExportedMigrationHistory(text, manifestLedger) {
     fail("exported_migration_history_missing", "artifact_validation");
   }
   const columns = section.columns.split(",").map((column) => column.trim().replaceAll('"', ""));
+  if (JSON.stringify(columns) !== JSON.stringify(MIGRATION_HISTORY_COLUMNS)) {
+    fail("exported_migration_history_columns_invalid", "artifact_validation");
+  }
   const versionIndex = columns.indexOf("version");
   const nameIndex = columns.indexOf("name");
   const statementsIndex = columns.indexOf("statements");
-  if (versionIndex < 0 || nameIndex < 0 || statementsIndex < 0) {
-    fail("exported_migration_history_columns_invalid", "artifact_validation");
-  }
   const entries = [];
   for (const row of section.rows) {
     const cells = row.split("\t");
@@ -1895,31 +1903,7 @@ export function verifiedExportedHistoryPrefix(root, manifestLedger, exportedHist
   return Object.freeze(prefix);
 }
 
-function initializeLocalMigrationLedger(status) {
-  // `supabase start` does not create its CLI history table when migrations are
-  // disabled for the exact logical restore. Run the official CLI ledger DDL as
-  // local `postgres` before seeding the manifest-verified prefix. IF NOT EXISTS
-  // deliberately preserves other CLI-owned objects such as `cli_init`.
-  psqlScalar(
-    status,
-    `BEGIN;
-     SET LOCAL lock_timeout = '4s';
-     CREATE SCHEMA IF NOT EXISTS supabase_migrations;
-     CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
-       version text NOT NULL PRIMARY KEY
-     );
-     ALTER TABLE supabase_migrations.schema_migrations
-       ADD COLUMN IF NOT EXISTS statements text[];
-     ALTER TABLE supabase_migrations.schema_migrations
-       ADD COLUMN IF NOT EXISTS name text;
-     COMMIT;
-     SELECT 'initialized'`,
-    "database_restore",
-    false,
-    "migration_ledger_initialize_failed",
-    undefined,
-    sanitizeDatabaseCommandDiagnostic,
-  );
+function assertLocalMigrationLedgerShape(status) {
   const shapeIsExact = psqlScalar(
     status,
     `SELECT (
@@ -1934,7 +1918,7 @@ function initializeLocalMigrationLedger(status) {
           AND relation.relname = 'schema_migrations'
           AND relation.relkind IN ('r', 'p'))
        AND
-       (SELECT count(*) = 3
+       (SELECT count(*) = 6
           AND count(*) FILTER (
             WHERE column_name = 'version' AND udt_name = 'text' AND is_nullable = 'NO'
           ) = 1
@@ -1944,12 +1928,28 @@ function initializeLocalMigrationLedger(status) {
           AND count(*) FILTER (
             WHERE column_name = 'name' AND udt_name = 'text' AND is_nullable = 'YES'
           ) = 1
+          AND count(*) FILTER (
+            WHERE column_name = 'created_by' AND udt_name = 'text' AND is_nullable = 'YES'
+          ) = 1
+          AND count(*) FILTER (
+            WHERE column_name = 'idempotency_key' AND udt_name = 'text' AND is_nullable = 'YES'
+          ) = 1
+          AND count(*) FILTER (
+            WHERE column_name = 'rollback' AND udt_name = '_text' AND is_nullable = 'YES'
+          ) = 1
         FROM information_schema.columns
         WHERE table_schema = 'supabase_migrations'
           AND table_name = 'schema_migrations')
        AND
-       (SELECT count(*) = 1
-          AND count(*) FILTER (WHERE key_column_usage.column_name = 'version') = 1
+       (SELECT count(*) = 2
+          AND count(*) FILTER (
+            WHERE table_constraint.constraint_type = 'PRIMARY KEY'
+              AND key_column_usage.column_name = 'version'
+          ) = 1
+          AND count(*) FILTER (
+            WHERE table_constraint.constraint_type = 'UNIQUE'
+              AND key_column_usage.column_name = 'idempotency_key'
+          ) = 1
         FROM information_schema.table_constraints AS table_constraint
         JOIN information_schema.key_column_usage AS key_column_usage
           ON key_column_usage.constraint_catalog = table_constraint.constraint_catalog
@@ -1968,10 +1968,18 @@ function initializeLocalMigrationLedger(status) {
   if (shapeIsExact !== "true") fail("migration_ledger_shape_invalid", "database_restore");
 }
 
-function restoreExportedMigrationHistory(status, historyDataPath) {
-  initializeLocalMigrationLedger(status);
-  if (readAppliedMigrationVersions(status, "database_restore").length !== 0) {
-    fail("base_migration_ledger_not_empty", "database_restore");
+function restoreExportedMigrationHistory(status, historySchemaPath, historyDataPath) {
+  const ledgerAlreadyExists = psqlScalar(
+    status,
+    "SELECT (to_regclass('supabase_migrations.schema_migrations') IS NOT NULL)::text",
+    "database_restore",
+    true,
+    "migration_ledger_preexistence_query_failed",
+    undefined,
+    sanitizeDatabaseCommandDiagnostic,
+  ) === "true";
+  if (ledgerAlreadyExists) {
+    fail("base_migration_ledger_already_exists", "database_restore");
   }
   execute(
     "psql",
@@ -1980,6 +1988,8 @@ function restoreExportedMigrationHistory(status, historyDataPath) {
       "--single-transaction",
       "--variable",
       "ON_ERROR_STOP=1",
+      "--file",
+      historySchemaPath,
       "--file",
       historyDataPath,
     ],
@@ -1991,6 +2001,7 @@ function restoreExportedMigrationHistory(status, historyDataPath) {
       stage: "database_restore",
     },
   );
+  assertLocalMigrationLedgerShape(status);
 }
 
 function assertManifestLedger(applied, prefix) {
@@ -3967,7 +3978,11 @@ async function runRecovery(options) {
     const copyTargets = await scanCopyInventory(artifacts.plaintext.data);
     const localDatabaseMajor = assertLocalDatabaseMajor(status, artifacts.database.databaseMajor);
     const pgmqQueues = restoreLogicalDatabase(status, artifacts, copyTargets);
-    restoreExportedMigrationHistory(status, artifacts.plaintext.historyData);
+    restoreExportedMigrationHistory(
+      status,
+      artifacts.plaintext.historySchema,
+      artifacts.plaintext.historyData,
+    );
     const restoredLedger = readAppliedMigrationEntries(status, "database_restore");
     assertManifestLedger(restoredLedger, sourceMigrationPrefix);
     const storageRestore = await restoreStorageBytes(status, artifacts, harnessRoot);

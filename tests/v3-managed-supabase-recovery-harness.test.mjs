@@ -123,6 +123,14 @@ test("candidate image uses a production-valid local Supabase TLS origin", () => 
 });
 
 test("candidate egress probes run only after immutable cleanup capture completes", () => {
+  const localStart = source.indexOf("async function startLocalSupabase");
+  const localEnd = source.indexOf("function parsedJson", localStart);
+  const localSource = source.slice(localStart, localEnd);
+  const localCaptureComplete = localSource.indexOf('completeContainerMutationCapture(state, "local_supabase_start")');
+  const localEgressProbe = localSource.indexOf("const egress = await proveRecoveryNetworkEgressBlocked");
+  assert.ok(localStart > 0 && localEnd > localStart);
+  assert.ok(localCaptureComplete > 0 && localEgressProbe > localCaptureComplete);
+
   const candidateStart = source.indexOf("async function startCandidateApp");
   const candidateEnd = source.indexOf("export function isTrustedPlaywrightChromiumVersion", candidateStart);
   const candidateSource = source.slice(candidateStart, candidateEnd);
@@ -3427,6 +3435,10 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.doesNotMatch(source, /"network", "create", "--internal"/u);
   assert.match(source, /com\.docker\.network\.bridge\.enable_ip_masquerade=false/u);
   assert.match(source, /bridge_ip_masquerade_disabled_plus_exact_container_probe/u);
+  assert.match(source, /timeout 1 \/bin\/bash -c 'sleep 30'/u);
+  assert.match(source, /124\|143\) ;;/u);
+  assert.match(source, /\^egress-blocked:\(124\|143\)\$/u);
+  assert.match(source, /timeoutExitStatus: Number\(probe\[1\]\)/u);
   assert.match(source, /candidateRuntime: app\.runtimeInternetTcpEgress/u);
   assert.match(source, /browserHost: browser\.sandbox/u);
   assert.match(source, /"--network", state\.networkName/u);

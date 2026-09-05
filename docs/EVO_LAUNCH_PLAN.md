@@ -270,6 +270,12 @@ positive control followed by a bounded public IPv4 TCP/443 denial probe runs
 independently inside the database, candidate-app and scanner containers; any
 missing probe capability, successful public probe, enabled masquerade, wildcard
 port, unexpected alias/container-shape change or second network fails closed.
+Before interpreting a timed-out public probe, the harness calibrates the pinned
+container image's own `timeout` exit behavior against a local sleep and accepts
+only that exact calibrated timeout status (or an immediate connection-denied
+status). The complete owned container, volume, network and image identity is
+captured before the first public probe so a probe failure can still perform
+strict identity-bound cleanup instead of leaving an avoidable quarantine.
 These claims are deliberately limited to the exact inspected bridge and probes.
 Docker documents that bridge masquerading supplies external access, that
 `com.docker.network.bridge.enable_ip_masquerade` controls it, and that

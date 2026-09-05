@@ -106,11 +106,16 @@ preserved.
 
 ### Execution and production gates
 
-Work executes as small sequential launch-control PRs. Every PR requires an
-independent exact-head review, protected exact-head CI, match-head merge and
-exact-main verification. A slice includes a scoped import/runtime inventory
-showing that the superseded path is no longer active and a fail-closed proof
-showing that the app does not fall back.
+Work executes as coherent sequential launch-control PRs. Every PR requires an
+independent exact-head review, scoped real tests for the behavior it changes,
+the short protected PR checks and a match-head merge. Routine PRs and pushes to
+`main` do not automatically run the full PostgreSQL migration/RLS, local
+Supabase and Chromium suite. That full suite runs manually once, only after the
+release-candidate SHA is frozen on exact current `main`; unchanged evidence is
+reused rather than rerun. A candidate SHA change invalidates that proof and
+requires one new manual full run. A slice still includes a scoped import/runtime
+inventory showing that the superseded path is no longer active and a
+fail-closed proof showing that the app does not fall back.
 
 Repository changes, read-only provider/deployment inspection, isolated local
 Supabase work and isolated recovery/migration rehearsal continue without
@@ -153,8 +158,10 @@ new path is accepted; historical and rollback material remains preserved.
 | 9 | #553 | Completion audit and safe cleanup | certify one exact-main live product authority, then remove only inventoried stale branches/comments while preserving history |
 
 #551 replaces the active manual fast/staging release workflow rather than
-adding another deploy lane. One downstream workflow listens only for a
-successful same-repository `EVO platform CI` push run for exact current `main`.
+adding another deploy lane. `EVO platform CI` is the manually dispatched full
+release-candidate proof and accepts only exact current `main`; it has no PR or
+push trigger. One downstream workflow listens only for its successful
+same-repository `workflow_dispatch` run.
 Its fresh secretless build job has only read access, no production Environment,
 secret, cache, SSH or Supabase access, and builds only after the event, current-
 main, fail-closed arm and original-actor-ID guards pass. It uploads only one
@@ -167,11 +174,13 @@ code, and obtains its release code from a second credentials-disabled exact-main
 checkout. One non-cancelling concurrency group plus one host lock serialize all
 production mutations.
 
-The lane has no `workflow_dispatch`, staging job, GitHub Environment reviewer or
-schema-apply step. `EVO_PRODUCTION_RELEASE_ARMED` remains absent or not exactly
-`true` through #551, and the exact original workflow actor must match canonical
-repository variable `EVO_PRODUCTION_RELEASE_ACTOR_ID`; #552 configures both only
-after every schema, recovery, scanner and staging-retirement gate passes. #551
+The downstream release lane has no direct `workflow_dispatch`, staging job,
+GitHub Environment reviewer or schema-apply step; only the upstream full-proof
+workflow is manually dispatched. `EVO_PRODUCTION_RELEASE_ARMED` remains absent
+or not exactly `true` through #551, and the exact original workflow actor must
+match canonical repository variable `EVO_PRODUCTION_RELEASE_ACTOR_ID`; #552
+configures both only after every schema, recovery, scanner and staging-
+retirement gate passes. #551
 removes the active staging Compose/env/profile/CLI/test contour and archives
 `docs/runbooks/u11-staging-recovery.md`; #552 retires the exact verified
 non-production managed Supabase staging ref and remote/GitHub contour under the

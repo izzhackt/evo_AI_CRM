@@ -7,6 +7,7 @@ const read = (path) => readFile(new URL(path, root), "utf8");
 
 const activeReleaseFiles = [
   ".github/workflows/evo-platform-ci.yml",
+  ".github/workflows/evo-fast-pr-checks.yml",
   ".github/workflows/evo-fast-release.yml",
   "package.json",
   "scripts/evo-fast-release.sh",
@@ -58,12 +59,21 @@ test("the active package exposes one P6D proof and no P8 release entrypoint", as
 
 test("CI and the exact-SHA gate require only the current root successor", async () => {
   const workflow = await read(".github/workflows/evo-platform-ci.yml");
+  const fastPr = await read(".github/workflows/evo-fast-pr-checks.yml");
   const gate = await read("scripts/fast-release-ci-gate.mjs");
   const auditAllowlist = await read("scripts/check-npm-audit-allowlist.mjs");
+  assert.match(workflow, /^  workflow_dispatch:$/mu);
+  assert.doesNotMatch(workflow, /^  pull_request:|^  push:/mu);
+  assert.match(workflow, /^  main_admission:\n    name: Current main admission$/mu);
+  assert.match(workflow, /exact\("EVO_EVENT_NAME", "workflow_dispatch"\)/u);
+  assert.match(workflow, /exact\("EVO_REF", "refs\/heads\/main"\)/u);
+  assert.match(workflow, /exact\("EVO_WORKFLOW_SHA", env\.EVO_SHA\)/u);
+  assert.match(workflow, /git\/ref\/heads\/main/u);
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
   assert.match(workflow, /^  crm_product:\n    name: Main CRM product$/mu);
+  assert.match(workflow, /^    needs: main_admission$/mu);
   assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
-  assert.match(workflow, /needs:\n      - crm_product\n      - dependency_audit/u);
+  assert.match(workflow, /needs:\n      - main_admission\n      - crm_product\n      - dependency_audit/u);
   assert.match(workflow, /if: \$\{\{ always\(\) \}\}/u);
   assert.match(workflow, /Install pinned npm audit CLI/u);
   assert.match(workflow, /Install pinned npm audit CLI\n        timeout-minutes: 4/u);
@@ -83,6 +93,16 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.doesNotMatch(auditAllowlist, /hasMeaningfulAuditError|empty npm audit placeholder/u);
   assert.doesNotMatch(workflow, /npm exec --yes --package=npm@11\.19\.0/u);
   assert.doesNotMatch(workflow, /name: EVO Inbox|name: EVO Lead Agent|working-directory: (?:agent-lead2-inbox|evo-lead-agent)|Prepare P8/u);
+  assert.match(fastPr, /^  pull_request:$/mu);
+  assert.doesNotMatch(fastPr, /^  push:|^  workflow_dispatch:/mu);
+  assert.match(fastPr, /^  changed-range:\n    name: Changed range$/mu);
+  assert.match(fastPr, /^  fast-checks:\n    name: Fast checks$/mu);
+  assert.match(fastPr, /run: npm ci/u);
+  assert.match(fastPr, /run: npm run test:fast-release/u);
+  assert.match(fastPr, /run: npm run lint/u);
+  assert.match(fastPr, /run: npm run typecheck/u);
+  assert.match(fastPr, /run: npm run build/u);
+  assert.doesNotMatch(fastPr, /test:database:local|test:security|test:unit|playwright|supabase/iu);
   assert.match(gate, /"Main CRM"/u);
   assert.doesNotMatch(gate, /"EVO Inbox"|"EVO Lead Agent"/u);
 });

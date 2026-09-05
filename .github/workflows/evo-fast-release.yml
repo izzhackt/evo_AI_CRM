@@ -19,7 +19,7 @@ jobs:
   build:
     name: Build immutable exact-main V3 image
     if: >-
-      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.event == 'workflow_dispatch' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main' &&
       vars.EVO_PRODUCTION_RELEASE_ARMED == 'true'
@@ -81,7 +81,7 @@ jobs:
             exact("EVO_UPSTREAM_WORKFLOW_NAME", "EVO platform CI");
             exact("EVO_UPSTREAM_WORKFLOW_PATH", ".github/workflows/evo-platform-ci.yml");
             exact("EVO_UPSTREAM_STATUS", "completed");
-            exact("EVO_UPSTREAM_EVENT", "push");
+            exact("EVO_UPSTREAM_EVENT", "workflow_dispatch");
             exact("EVO_UPSTREAM_CONCLUSION", "success");
             exact("EVO_UPSTREAM_HEAD_BRANCH", "main");
             exact("EVO_UPSTREAM_HEAD_REPOSITORY", env.EVO_EXPECTED_REPOSITORY);
@@ -273,7 +273,7 @@ jobs:
     name: Deploy pending V3 and accept exact proof
     if: >-
       needs.build.result == 'success' &&
-      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.event == 'workflow_dispatch' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main' &&
       vars.EVO_PRODUCTION_RELEASE_ARMED == 'true'
@@ -334,7 +334,7 @@ jobs:
             exact("EVO_UPSTREAM_WORKFLOW_NAME", "EVO platform CI");
             exact("EVO_UPSTREAM_WORKFLOW_PATH", ".github/workflows/evo-platform-ci.yml");
             exact("EVO_UPSTREAM_STATUS", "completed");
-            exact("EVO_UPSTREAM_EVENT", "push");
+            exact("EVO_UPSTREAM_EVENT", "workflow_dispatch");
             exact("EVO_UPSTREAM_CONCLUSION", "success");
             exact("EVO_UPSTREAM_HEAD_BRANCH", "main");
             exact("EVO_UPSTREAM_HEAD_REPOSITORY", env.EVO_EXPECTED_REPOSITORY);
@@ -717,7 +717,7 @@ jobs:
               ci?.name !== "EVO platform CI" ||
               ci?.path !== ".github/workflows/evo-platform-ci.yml" ||
               ci?.status !== "completed" || ci?.conclusion !== "success" ||
-              ci?.event !== "push" || ci?.head_branch !== "main" ||
+              ci?.event !== "workflow_dispatch" || ci?.head_branch !== "main" ||
               ci?.head_sha !== env.EVO_RELEASE_REVISION ||
               ci?.head_repository?.full_name !== env.EVO_REPOSITORY ||
               String(ci?.head_repository?.id) !== env.EVO_REPOSITORY_ID ||
@@ -1085,7 +1085,7 @@ jobs:
               ci?.name !== "EVO platform CI" ||
               ci?.path !== ".github/workflows/evo-platform-ci.yml" ||
               ci?.status !== "completed" || ci?.conclusion !== "success" ||
-              ci?.event !== "push" || ci?.head_branch !== "main" ||
+              ci?.event !== "workflow_dispatch" || ci?.head_branch !== "main" ||
               ci?.head_sha !== env.EVO_RELEASE_REVISION ||
               ci?.head_repository?.full_name !== env.EVO_REPOSITORY ||
               String(ci?.head_repository?.id) !== env.EVO_REPOSITORY_ID ||

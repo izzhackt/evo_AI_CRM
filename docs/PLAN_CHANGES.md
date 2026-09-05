@@ -18680,3 +18680,41 @@ Decision:
 The failed attempt retained redacted mode-`0600` evidence and proved complete
 cleanup. This correction performs no managed Supabase, VPS, provider, webhook,
 production-traffic or customer mutation and does not activate a release.
+
+## 2026-09-05 - Stop automatic full validation on every PR and main push
+
+Block-ID: `EVO-V3-CI-SINGLE-FULL-PROOF-2026-09-05`
+
+Change type: owner-directed delivery-speed and validation-cadence correction.
+Affected plan sections: Execution and production gates; Order 7 / Issue #551.
+
+Live GitHub evidence showed that the same monolithic full-product workflow ran
+on every PR head and then again after merge on `main`. At the 2026-09-05 audit
+snapshot, GitHub listed 37 completed runs created after 00:00 UTC with a median
+elapsed time of 762 seconds. PR #643 had already passed its focused 41/41
+recovery tests, yet its unrelated full PostgreSQL/Supabase/browser step still
+consumed 640 seconds. The redundant post-merge run `33969445368` was cancelled
+at the owner's direction while its database/browser step was still running;
+later frontend, lint, typecheck and build steps did not run.
+
+Decision:
+
+- remove automatic PR and `main` push triggers from the full `EVO platform CI`
+  workflow;
+- keep one short protected PR workflow for diff hygiene, focused release
+  contracts, lint, typecheck and production build, with no PostgreSQL replay,
+  Supabase reset, Playwright installation or browser suite;
+- require scoped real tests and independent exact-head review before each PR,
+  but do not rerun an unrelated full-product suite for every small change;
+- run the full PostgreSQL migration/RLS, local Supabase/Auth/Storage and Chromium
+  proof manually once on the frozen exact-current-`main` release candidate;
+- invalidate that proof only when the candidate SHA changes, and never repeat
+  the expensive run merely because time passed; and
+- allow the production release workflow to consume only that successful manual
+  full-proof run, never the short PR workflow.
+
+The protected check contexts move from the old full `Main CRM` PR job to the
+new unique `Changed range` and `Fast checks` PR jobs when this change merges.
+This is a validation-orchestration change, not permission to skip risk-matched
+real tests or the single final full release proof. It performs no managed
+Supabase, VPS, provider, webhook, production-traffic or customer mutation.

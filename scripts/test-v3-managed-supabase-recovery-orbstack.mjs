@@ -3295,16 +3295,22 @@ async function proveRecoveryContainerInternetTcpBlocked(containerId, internalHos
   }
   const command = String.raw`command -v timeout >/dev/null 2>&1 || exit 96
 test -x /bin/bash || exit 96
+set +e
+timeout 1 /bin/bash -c 'sleep 30' >/dev/null 2>&1
+timeout_result=$?
+set -e
+case "$timeout_result" in
+  124|143) ;;
+  *) exit 96 ;;
+esac
 timeout 3 /bin/bash -c '</dev/tcp/$1/$2' _ "$1" "$2" >/dev/null 2>&1 || exit 95
 set +e
 timeout 3 /bin/bash -c '</dev/tcp/1.1.1.1/443' >/dev/null 2>&1
 result=$?
 set -e
-case "$result" in
-  0) exit 97 ;;
-  1|124|143) printf egress-blocked ;;
-  *) exit 94 ;;
-esac`;
+if [ "$result" -eq 0 ]; then exit 97; fi
+if [ "$result" -ne 1 ] && [ "$result" -ne "$timeout_result" ]; then exit 94; fi
+printf 'egress-blocked:%s' "$timeout_result"`;
   const result = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "exec", containerId, "/bin/bash", "-c", command, "_", internalHost, String(internalPort),
   ], {
@@ -3312,7 +3318,8 @@ esac`;
     code: "recovery_network_egress_not_blocked",
     timeoutMs: 10_000,
   });
-  if (result.stdout.toString("utf8") !== "egress-blocked") {
+  const probe = /^egress-blocked:(124|143)$/u.exec(result.stdout.toString("utf8"));
+  if (probe === null) {
     fail("recovery_network_egress_proof_invalid", stage);
   }
   return Object.freeze({
@@ -3323,6 +3330,7 @@ esac`;
     positiveControlTargetSha256: sha256(`${internalHost}:${internalPort}`),
     positiveControl: "private_network_tcp_connected",
     probeTargetSha256: sha256("1.1.1.1:443"),
+    timeoutExitStatus: Number(probe[1]),
   });
 }
 

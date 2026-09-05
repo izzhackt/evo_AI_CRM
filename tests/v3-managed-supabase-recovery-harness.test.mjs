@@ -149,13 +149,16 @@ test("candidate egress probes run only after immutable cleanup capture completes
   }, true), "container_cleanup");
 });
 
-test("local Supabase egress proof accepts the pinned BusyBox timeout and runs after immutable cleanup capture", () => {
+test("local Supabase egress proof calibrates the pinned timeout and runs after immutable cleanup capture", () => {
   const localStart = source.indexOf('const local = await runStage("local_supabase_start"');
   const captureComplete = source.indexOf('completeContainerMutationCapture(state, "local_supabase_start")', localStart);
   const egressProbe = source.indexOf('const bridgeEgress = await runStage("local_supabase_egress"', captureComplete);
   const scannerStart = source.indexOf('runStage("malware_scanner_start"', egressProbe);
   assert.ok(localStart > 0 && captureComplete > localStart && egressProbe > captureComplete && scannerStart > egressProbe);
-  assert.match(source, /1\|124\|143\) printf egress-blocked/u);
+  assert.match(source, /timeout 1 \/bin\/bash -c 'sleep 30'/u);
+  assert.match(source, /124\|143\) ;;/u);
+  assert.match(source, /\^egress-blocked:\(124\|143\)\$/u);
+  assert.match(source, /timeoutExitStatus: Number\(probe\[1\]\)/u);
   assert.match(source, /bridgeFoundation:\s*bridgeEgress/u);
 });
 

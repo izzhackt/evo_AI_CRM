@@ -19532,3 +19532,32 @@ The package-resolution behavior follows Node's official ESM contract:
 This correction changes only the isolated local recovery consumer, its tests
 and plan contract. It does not contact or mutate managed Supabase, production,
 VPS, providers, webhooks or customer state; #552 remains unarmed.
+
+## 2026-09-05 - Calibrate container timeout semantics before egress denial
+
+Block-ID: `EVO-V3-H-RECOVERY-EGRESS-TIMEOUT-CALIBRATION-2026-09-05`
+
+Change type: exact-main real-runtime correction. Affected plan section: Order 7
+/ Issue #551.
+
+The first real rehearsal of exact `main` `8b72913730494c78e734f550bfe01e50272ee615`
+stopped fail-closed during the database-container public TCP denial probe. The
+pinned Supabase PostgreSQL image's `/usr/bin/timeout` returns `143` when it
+terminates a timed-out child, while the harness assumed only GNU-style `124`.
+A disposable reproduction on the same masquerade-disabled OrbStack bridge
+confirmed an internal shell timeout status of `143`; no managed Supabase,
+provider, VPS or production system was contacted or mutated.
+
+Decision: calibrate each probed pinned image's timeout behavior against a local
+sleep, require the result to be one of the explicitly supported timeout
+semantics, and accept a public connection as blocked only when its result is an
+immediate denial or exactly the calibrated timeout result. A successful public
+connection and every other result remain fail-closed. Capture and verify the
+complete owned local Supabase cleanup identity before this first egress probe,
+matching the already-correct candidate app/scanner ordering, so a failed probe
+can clean only the immutable owned contour rather than forcing quarantine.
+
+The prior failed attempt retained only private redacted mode-`0600` evidence and
+left no running recovery containers or network. The correction remains limited
+to the disposable local recovery consumer, tests and plan contract. #552 stays
+unarmed until a new exact-main CI and recovery result are complete.

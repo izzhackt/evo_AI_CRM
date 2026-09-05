@@ -261,9 +261,18 @@ applying that suffix.
 The recovery target is bound to the exact clean target checkout, a verified
 private Git snapshot and a locally built `linux/amd64` production image that is
 run by inspected image ID. Locked dependency acquisition is the only build-time
-network use; the candidate runtime has only one owned internal Docker network,
-publishes the app solely to loopback and blocks every browser HTTP request and
-every WebSocket before page creation using Playwright's documented
+network use. The disposable runtime has one owned user-defined Docker bridge
+with IPv6 disabled, IPv4 masquerading disabled, and every published port bound
+to loopback. It must also prove from a running restored-stack container that an
+external TCP target is unreachable; any enabled masquerade, successful egress
+probe, wildcard port or second network fails closed. This preserves host access
+needed by the Supabase CLI on OrbStack without giving the candidate outbound
+provider access. Docker documents that bridge masquerading supplies external
+access, that `com.docker.network.bridge.enable_ip_masquerade` controls it, and
+that `com.docker.network.bridge.host_binding_ipv4` controls the default publish
+address: <https://docs.docker.com/engine/network/drivers/bridge/#options>.
+The harness also blocks every browser HTTP request and every WebSocket before
+page creation using Playwright's documented
 `BrowserContext.routeWebSocket` interception:
 <https://playwright.dev/docs/api/class-browsercontext#browser-context-route-web-socket>.
 The trusted OrbStack Docker frontend is a verified multi-call executable: the

@@ -18936,3 +18936,45 @@ Decision:
 This correction changes only the disposable local OrbStack recovery proof. It
 does not contact or mutate managed Supabase, production, VPS, WAHA, amoCRM,
 Gemini, webhooks, customer records or provider state, and it does not arm #552.
+
+## 2026-09-05 - Preserve OrbStack loopback while blocking recovery egress
+
+Block-ID: `EVO-V3-H-ORBSTACK-LOOPBACK-EGRESS-CORRECTION-2026-09-05`
+
+Change type: real-runtime recovery correction.
+Affected plan section: Order 7 / Issue #551.
+
+The exact rehearsal proved that OrbStack accepts a Docker `--internal` network
+and Supabase's requested host-port bindings, but reports every effective
+`NetworkSettings.Ports` binding as null. The Supabase database becomes healthy
+inside the container while the CLI's required loopback PostgreSQL connection is
+refused, so that topology cannot run the recovery proof. A disposable runtime
+probe then proved the supported bridge alternative: disabling
+`com.docker.network.bridge.enable_ip_masquerade` blocks container egress while
+`com.docker.network.bridge.host_binding_ipv4=127.0.0.1` preserves an effective
+loopback publish. Docker's official bridge documentation identifies
+masquerading as the default source of external container access and documents
+both options: <https://docs.docker.com/engine/network/drivers/bridge/#options>.
+
+Decision:
+
+- use one owned user-defined bridge with IPv6 disabled, IP masquerading exactly
+  `false`, and the default host binding exactly `127.0.0.1`; do not attach the
+  disposable stack or candidate to a second/default network;
+- after Supabase starts, execute a bounded external TCP probe from its exact
+  PostgreSQL container and require failure. Enabled masquerading, reachable
+  egress, a missing probe tool, a wildcard publish or changed network ownership
+  fails closed;
+- store only the probe target hash, container-ID hash, mechanism and blocked
+  result in durable evidence; and
+- repair cleanup image discovery by listing candidate image IDs and validating
+  their exact owner label through `docker image inspect`. The prior Docker image
+  list template used an unsupported `.Label` field, which quarantined an
+  otherwise precisely owned failed contour instead of removing it.
+
+The diagnosed quarantine was inventoried by exact owner labels and securely
+removed, including its private decrypted temporary files, one candidate image
+and one empty owned network. No unrelated container, image, volume or network
+was removed. This correction does not contact or mutate managed Supabase,
+production, VPS, WAHA, amoCRM, Gemini, webhooks, customer records or provider
+state, and it does not arm #552.

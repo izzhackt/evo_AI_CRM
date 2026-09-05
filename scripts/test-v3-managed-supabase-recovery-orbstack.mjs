@@ -1743,7 +1743,7 @@ async function trustedToolchain(supervisor, harnessRoot, availableEvidence = {})
   const context = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "context", "show"], { stage: "toolchain", code: "docker_context_invalid", timeoutMs: 10_000 });
   if (context.stdout.toString("utf8").trim() !== "orbstack") fail("docker_context_invalid", "toolchain");
   availableEvidence.docker_context = "orbstack";
-  const contextHost = await supervisor.run(tools.docker.real, ["--context", "orbstack", "context", "inspect", "orbstack", "--format", "{{.Endpoints.docker.Host}}"], {
+  const contextHost = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "context", "inspect", "orbstack", "--format", "{{.Endpoints.docker.Host}}"], {
     stage: "toolchain",
     code: "docker_context_endpoint_invalid",
     timeoutMs: 10_000,
@@ -1751,13 +1751,13 @@ async function trustedToolchain(supervisor, harnessRoot, availableEvidence = {})
   const dockerHost = contextHost.stdout.toString("utf8").trim();
   if (!/^unix:\/\/[A-Za-z0-9_./-]+$/u.test(dockerHost)) fail("docker_context_endpoint_invalid", "toolchain");
   const privateEnvironment = activatePrivateChildEnvironment(harnessRoot, dockerHost, tools.dockerBuildx);
-  const privateContext = await supervisor.run(tools.docker.real, ["--context", "orbstack", "context", "show"], {
+  const privateContext = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "context", "show"], {
     stage: "toolchain",
     code: "private_docker_context_unavailable",
     timeoutMs: 10_000,
   });
   if (privateContext.stdout.toString("utf8").trim() !== "orbstack") fail("private_docker_context_not_orbstack", "toolchain");
-  const buildxVersion = await supervisor.run(tools.docker.real, ["--context", "orbstack", "buildx", "version"], {
+  const buildxVersion = await runDocker(supervisor, tools.docker, ["--context", "orbstack", "buildx", "version"], {
     stage: "toolchain",
     code: "private_docker_buildx_unavailable",
     timeoutMs: 10_000,
@@ -2220,7 +2220,14 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   const configPath = join(workdir, "supabase", "config.toml");
   writeFileSync(configPath, isolatedConfig(root.config, state.projectName, ports), { mode: 0o600, flag: "wx" });
   state.containerMutationAttempted = true;
-  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "network", "create", "--internal", "--opt", "com.docker.network.bridge.host_binding_ipv4=127.0.0.1", "--label", `evo.recovery.owner=${state.projectName}`, state.networkName], {
+  await runDocker(supervisor, toolchain.paths.docker, [
+    "--context", "orbstack", "network", "create",
+    "--driver", "bridge",
+    "--opt", "com.docker.network.bridge.enable_ip_masquerade=false",
+    "--opt", "com.docker.network.bridge.host_binding_ipv4=127.0.0.1",
+    "--label", `evo.recovery.owner=${state.projectName}`,
+    state.networkName,
+  ], {
     stage: "local_supabase_start",
     code: "isolated_network_create_failed",
     timeoutMs: 30_000,
@@ -2234,13 +2241,16 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
     env: pinnedSupabaseEnvironment(toolchain.paths),
   });
   state.stackStarted = true;
-  const status = await supervisor.run(toolchain.paths.supabaseNative.real, ["status", "--workdir", workdir, "--output", "env"], {
+  const statusResult = await supervisor.run(toolchain.paths.supabaseNative.real, ["status", "--workdir", workdir, "--output", "env"], {
     stage: "local_supabase_start",
     code: "local_supabase_status_failed",
     timeoutMs: 60_000,
     env: pinnedSupabaseEnvironment(toolchain.paths),
   });
-  return Object.freeze({ status: parseStatus(status.stdout.toString("utf8")), configPath });
+  const status = parseStatus(statusResult.stdout.toString("utf8"));
+  const endpoint = await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
+  const egress = await proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain);
+  return Object.freeze({ status, configPath, endpoint, egress });
 }
 
 function parsedJson(value, code, stage) {
@@ -2284,9 +2294,11 @@ function recoveryNetwork(value, expected, code, stage) {
     network.Name !== expected.networkName ||
     network.Driver !== "bridge" ||
     network.Scope !== "local" ||
-    network.Internal !== true ||
+    network.Internal !== false ||
+    network.EnableIPv6 !== false ||
     network.Ingress !== false ||
     network.Options?.["com.docker.network.bridge.host_binding_ipv4"] !== "127.0.0.1" ||
+    network.Options?.["com.docker.network.bridge.enable_ip_masquerade"] !== "false" ||
     network.Labels?.["evo.recovery.owner"] !== expected.projectName ||
     !isRecord(network.Containers) ||
     Object.keys(network.Containers).length === 0
@@ -2376,6 +2388,7 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
     fail("local_supabase_network_invalid", "local_supabase_start");
   }
   const matches = [];
+  const databaseMatches = [];
   for (const record of records) {
     const member = network.Containers[record.id];
     if (
@@ -2388,17 +2401,40 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
       fail("local_supabase_container_inspection_invalid", "local_supabase_start");
     }
     validateContainerNetwork(record, network, expected.networkName, "local_supabase_container_inspection_invalid", "local_supabase_start");
+    if (record.name === `supabase_db_${expected.projectName}`) databaseMatches.push(record);
     for (const binding of loopbackPortBindings(record.ports, "local_supabase_container_inspection_invalid", "local_supabase_start")) {
       if (binding.protocol === "tcp" && binding.hostPort === apiPort) matches.push(Object.freeze({ record, targetPort: binding.containerPort }));
     }
   }
   if (matches.length !== 1) fail("local_supabase_api_endpoint_ambiguous", "local_supabase_start");
+  if (databaseMatches.length !== 1) fail("local_supabase_database_container_ambiguous", "local_supabase_start");
   return Object.freeze({
     networkId: network.Id,
     memberIds: Object.freeze(memberIds),
     targetHost: matches[0].record.name,
     targetPort: matches[0].targetPort,
     apiLoopbackPort: apiPort,
+    databaseContainerId: databaseMatches[0].id,
+  });
+}
+
+async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain) {
+  const command = "command -v timeout >/dev/null 2>&1 || exit 96; if timeout 3 /bin/bash -c '</dev/tcp/1.1.1.1/443' >/dev/null 2>&1; then exit 97; fi; printf egress-blocked";
+  const result = await runDocker(supervisor, toolchain.paths.docker, [
+    "--context", "orbstack", "exec", endpoint.databaseContainerId, "/bin/bash", "-c", command,
+  ], {
+    stage: "local_supabase_start",
+    code: "recovery_network_egress_not_blocked",
+    timeoutMs: 10_000,
+  });
+  if (result.stdout.toString("utf8") !== "egress-blocked") {
+    fail("recovery_network_egress_proof_invalid", "local_supabase_start");
+  }
+  return Object.freeze({
+    status: "blocked",
+    mechanism: "bridge_ip_masquerade_disabled_plus_runtime_probe",
+    probeContainerIdSha256: sha256(endpoint.databaseContainerId),
+    probeTargetSha256: sha256("1.1.1.1:443"),
   });
 }
 
@@ -2453,7 +2489,7 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     attachedNetworkCount: 1,
     publishedPortCount: 1,
     loopbackOnly: true,
-    externalEgress: "blocked_by_internal_network",
+    externalEgress: "blocked_by_disabled_masquerade_and_runtime_probe",
   });
 }
 
@@ -4094,7 +4130,7 @@ async function waitForRecoveryScanner(containerName, supervisor, toolchain, inte
   const deadline = Date.now() + 10 * 60 * 1_000;
   while (Date.now() < deadline) {
     interruptionGuard.assertActive("malware_scanner_proof");
-    const state = await supervisor.run(toolchain.paths.docker.real, [
+    const state = await runDocker(supervisor, toolchain.paths.docker, [
       "--context", "orbstack", "inspect", "--format",
       "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
       containerName,
@@ -4111,17 +4147,17 @@ async function startRecoveryScanner(state, repositorySnapshotRoot, supervisor, t
   const compose = readFileSync(join(repositorySnapshotRoot, "docker-compose.prod.yml"), "utf8");
   if (!compose.includes(`image: "${CLAMAV_IMAGE}"`)) fail("malware_scanner_image_contract_mismatch", "malware_scanner_proof");
   try {
-    await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "image", "inspect", CLAMAV_IMAGE], {
+    await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "image", "inspect", CLAMAV_IMAGE], {
       stage: "malware_scanner_proof", code: "malware_scanner_image_missing", timeoutMs: 60_000,
     });
   } catch (error) {
     if (!(error instanceof RecoveryFailure) || error.code !== "malware_scanner_image_missing") throw error;
-    await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "pull", "--platform", "linux/amd64", CLAMAV_IMAGE], {
+    await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "pull", "--platform", "linux/amd64", CLAMAV_IMAGE], {
       stage: "malware_scanner_proof", code: "malware_scanner_image_pull_failed", timeoutMs: 20 * 60 * 1_000,
       maxCaptureBytes: 8 * 1_024 * 1_024,
     });
   }
-  const platform = await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", CLAMAV_IMAGE], {
+  const platform = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", CLAMAV_IMAGE], {
     stage: "malware_scanner_proof", code: "malware_scanner_image_inspect_failed", timeoutMs: 60_000,
   });
   if (platform.stdout.toString("utf8").trim() !== "linux/amd64") fail("malware_scanner_image_platform_invalid", "malware_scanner_proof");
@@ -4129,12 +4165,12 @@ async function startRecoveryScanner(state, repositorySnapshotRoot, supervisor, t
   const networkHost = `evo-recovery-clamav-${state.projectName.slice(-12)}`;
   if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/u.test(networkHost)) fail("malware_scanner_network_host_invalid", "malware_scanner_proof");
   const signatureVolume = `supabase_clamav_signatures_${state.projectName}`;
-  await supervisor.run(toolchain.paths.docker.real, [
+  await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "volume", "create",
     "--label", `com.docker.compose.project=${state.projectName}`,
     signatureVolume,
   ], { stage: "malware_scanner_proof", code: "malware_scanner_volume_create_failed", timeoutMs: 60_000 });
-  await supervisor.run(toolchain.paths.docker.real, [
+  await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "run", "--detach",
     "--platform", "linux/amd64",
     "--name", containerName,
@@ -4298,7 +4334,7 @@ const server = tls.createServer({
 });
 server.listen(443, "0.0.0.0");
 `;
-  await supervisor.run(toolchain.paths.docker.real, [
+  await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "run", "--detach", "--name", state.appProxyContainer,
     "--label", `evo.recovery.owner=${state.projectName}`,
     "--network", `container:${state.appContainer}`,
@@ -4530,14 +4566,14 @@ async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, s
   if (infected.status !== 422 || infected.payload?.error !== "malware_detected") fail("malware_scanner_eicar_data_path_not_blocked", "malware_scanner_proof");
   if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_eicar_persisted_state", "malware_scanner_proof");
 
-  await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "stop", "--time", "30", scanner.containerName], {
+  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "stop", "--time", "30", scanner.containerName], {
     stage: "malware_scanner_proof", code: "malware_scanner_outage_stop_failed", timeoutMs: 60_000,
   });
   const outage = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from("EVO recovery scanner outage proof\n", "utf8"), "recovery-outage.txt", randomUUID());
   if (outage.status !== 503 || outage.payload?.error !== "malware_scanner_unavailable") fail("malware_scanner_outage_not_fail_closed", "malware_scanner_proof");
   if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_outage_persisted_state", "malware_scanner_proof");
 
-  await supervisor.run(toolchain.paths.docker.real, ["--context", "orbstack", "start", scanner.containerName], {
+  await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "start", scanner.containerName], {
     stage: "malware_scanner_proof", code: "malware_scanner_recovery_start_failed", timeoutMs: 60_000,
   });
   await waitForRecoveryScanner(scanner.containerName, supervisor, toolchain, interruptionGuard);
@@ -4866,7 +4902,7 @@ function sanitizedAppNetworkAttachment(value) {
     value.attachedNetworkCount !== 1 ||
     value.publishedPortCount !== 1 ||
     value.loopbackOnly !== true ||
-    value.externalEgress !== "blocked_by_internal_network"
+    value.externalEgress !== "blocked_by_disabled_masquerade_and_runtime_probe"
   ) {
     fail("destination_app_network_invalid", "isolation_identity");
   }
@@ -5001,32 +5037,63 @@ export function selectOwnedImageIds(output, projectName) {
   const ids = [];
   for (const line of String(output).split(/\r?\n/u).filter(Boolean)) {
     const fields = line.split("\t");
+    let id;
+    let tags;
+    let labels;
+    try {
+      [id, tags, labels] = fields.map((field) => JSON.parse(field));
+    } catch {
+      fail("cleanup_image_inventory_invalid", "cleanup");
+    }
     if (
       fields.length !== 3 ||
-      !/^sha256:[0-9a-f]{64}$/u.test(fields[0]) ||
-      !fields[1] ||
-      fields[2] !== projectName
+      !/^sha256:[0-9a-f]{64}$/u.test(id ?? "") ||
+      !Array.isArray(tags) ||
+      tags.some((tag) => typeof tag !== "string" || tag.length === 0) ||
+      !isRecord(labels) ||
+      labels["evo.recovery.owner"] !== projectName
     ) {
       fail("cleanup_image_inventory_invalid", "cleanup");
     }
-    ids.push(fields[0]);
+    ids.push(id);
   }
   if (new Set(ids).size !== ids.length) fail("cleanup_image_inventory_invalid", "cleanup");
   return Object.freeze(ids);
 }
 
+export function selectCandidateImageIds(output) {
+  const ids = String(output).split(/\r?\n/u).filter(Boolean);
+  if (ids.some((id) => !/^sha256:[0-9a-f]{64}$/u.test(id))) {
+    fail("cleanup_image_list_invalid", "cleanup");
+  }
+  return Object.freeze([...new Set(ids)]);
+}
+
 async function cleanupInventory(state, supervisor, tools, { allowAfterInterrupt = false, stage = "cleanup" } = {}) {
-  const [containers, volumes, networks, images] = await Promise.all([
+  const [containers, volumes, networks, imageList] = await Promise.all([
     runDocker(supervisor, tools.docker, ["--context", "orbstack", "ps", "--all", "--format", "{{.ID}}\t{{.Names}}"], { stage, code: "cleanup_container_inventory_failed", allowAfterInterrupt }),
     runDocker(supervisor, tools.docker, ["--context", "orbstack", "volume", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_volume_inventory_failed", allowAfterInterrupt }),
     runDocker(supervisor, tools.docker, ["--context", "orbstack", "network", "ls", "--format", "{{.Name}}"], { stage, code: "cleanup_network_inventory_failed", allowAfterInterrupt }),
-    runDocker(supervisor, tools.docker, ["--context", "orbstack", "image", "ls", "--all", "--no-trunc", "--filter", `label=evo.recovery.owner=${state.projectName}`, "--format", "{{.ID}}\t{{.Repository}}:{{.Tag}}\t{{.Label \"evo.recovery.owner\"}}"], { stage, code: "cleanup_image_inventory_failed", allowAfterInterrupt }),
+    runDocker(supervisor, tools.docker, ["--context", "orbstack", "image", "ls", "--all", "--no-trunc", "--filter", `label=evo.recovery.owner=${state.projectName}`, "--format", "{{.ID}}"], { stage, code: "cleanup_image_inventory_failed", allowAfterInterrupt }),
   ]);
+  const candidateImageIds = selectCandidateImageIds(imageList.stdout.toString("utf8"));
+  let images = Object.freeze([]);
+  if (candidateImageIds.length > 0) {
+    const inspected = await runDocker(supervisor, tools.docker, [
+      "--context", "orbstack", "image", "inspect",
+      "--format", "{{json .Id}}\t{{json .RepoTags}}\t{{json .Config.Labels}}",
+      ...candidateImageIds,
+    ], { stage, code: "cleanup_image_inspection_failed", allowAfterInterrupt });
+    images = selectOwnedImageIds(inspected.stdout.toString("utf8"), state.projectName);
+    if (!sameJson([...images].sort(), [...candidateImageIds].sort())) {
+      fail("cleanup_image_inventory_invalid", "cleanup");
+    }
+  }
   return Object.freeze({
     containers: selectOwnedContainerIds(containers.stdout.toString("utf8"), state.projectName),
     volumes: selectOwnedVolumeNames(volumes.stdout.toString("utf8"), state.projectName),
     networks: selectOwnedNetworkNames(networks.stdout.toString("utf8"), state.networkName),
-    images: selectOwnedImageIds(images.stdout.toString("utf8"), state.projectName),
+    images,
   });
 }
 
@@ -5621,6 +5688,7 @@ async function executeMode(mode, options) {
         schema: RESULT_SCHEMA,
         ...shared,
         isolation,
+        networkEgress: local.egress,
         database,
         migrations,
         storage,

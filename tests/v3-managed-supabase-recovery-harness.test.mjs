@@ -22,6 +22,7 @@ import {
   parseExportedMigrationHistory,
   parseHarnessOptions,
   parseQualifiedCopyHeader,
+  parseSupabaseStatus,
   safeHarnessRoot,
   sanitizeDatabaseCommandDiagnostic,
   sanitizeLocalSupabaseStartDiagnostic,
@@ -75,6 +76,14 @@ const semanticArtifactHashes = Object.freeze(Object.fromEntries(
   sqlNames.map((name) => [name, "e".repeat(64)]),
 ));
 const stabilityProofSha256 = sha(canonicalJson(semanticArtifactHashes));
+
+function unsignedJwt(role) {
+  return [
+    Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"),
+    Buffer.from(JSON.stringify({ role })).toString("base64url"),
+    "signature",
+  ].join(".");
+}
 
 function expectCode(operation, code) {
   assert.throws(operation, (error) => error?.code === code);
@@ -502,6 +511,27 @@ test("recovery HEAD is clean and exact but may be later than export HEAD", () =>
     tree: "d".repeat(40),
     status: " M package.json",
   }, recoveryCommit), "repository_worktree_not_clean");
+});
+
+test("local status separates the server secret from the service-role bearer JWT", () => {
+  const serviceRoleKey = unsignedJwt("service_role");
+  const serverSecretKey = `sb_secret_${"s".repeat(24)}`;
+  const status = parseSupabaseStatus([
+    "API_URL=http://127.0.0.1:54321",
+    "DB_URL=postgresql://postgres:password@127.0.0.1:54322/postgres",
+    `PUBLISHABLE_KEY=sb_publishable_${"p".repeat(24)}`,
+    `SECRET_KEY=${serverSecretKey}`,
+    `SERVICE_ROLE_KEY=${serviceRoleKey}`,
+  ].join("\n"));
+  assert.equal(status.serverSecretKey, serverSecretKey);
+  assert.equal(status.serviceRoleKey, serviceRoleKey);
+  expectCode(() => parseSupabaseStatus([
+    "API_URL=http://127.0.0.1:54321",
+    "DB_URL=postgresql://postgres:password@127.0.0.1:54322/postgres",
+    `PUBLISHABLE_KEY=sb_publishable_${"p".repeat(24)}`,
+    `SECRET_KEY=${serverSecretKey}`,
+    `SERVICE_ROLE_KEY=${serverSecretKey}`,
+  ].join("\n")), "supabase_status_service_role_key_invalid");
 });
 
 test("COPY parser remains schema-qualified and fail closed", () => {

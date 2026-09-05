@@ -1448,7 +1448,19 @@ function setMigrationsEnabled(configPath) {
   writeFileSync(configPath, content, { mode: 0o600 });
 }
 
-function parseSupabaseStatus(output) {
+function decodedJwtRole(value) {
+  if (typeof value !== "string") return null;
+  const parts = value.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    return typeof payload?.role === "string" ? payload.role : null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseSupabaseStatus(output) {
   const values = {};
   for (const line of output.split(/\r?\n/u)) {
     const match = /^([A-Z0-9_]+)=(.*)$/u.exec(line.trim());
@@ -1466,13 +1478,18 @@ function parseSupabaseStatus(output) {
   const apiUrl = values.API_URL;
   const dbUrl = values.DB_URL;
   const publishableKey = values.PUBLISHABLE_KEY ?? values.ANON_KEY;
-  const serviceRoleKey = values.SECRET_KEY ?? values.SERVICE_ROLE_KEY;
-  if (![apiUrl, dbUrl, publishableKey, serviceRoleKey].every((value) => typeof value === "string" && value.length > 0)) {
+  const serviceRoleKey = values.SERVICE_ROLE_KEY;
+  const serverSecretKey = values.SECRET_KEY ?? serviceRoleKey;
+  if (![apiUrl, dbUrl, publishableKey, serviceRoleKey, serverSecretKey].every((value) =>
+    typeof value === "string" && value.length > 0)) {
     fail("supabase_status_missing_required_value", "local_supabase_start");
+  }
+  if (decodedJwtRole(serviceRoleKey) !== "service_role") {
+    fail("supabase_status_service_role_key_invalid", "local_supabase_start");
   }
   assertLoopbackUrl(apiUrl, "supabase_api_not_loopback");
   assertLoopbackUrl(dbUrl, "supabase_database_not_loopback", ["postgresql:", "postgres:"]);
-  return Object.freeze({ apiUrl, dbUrl, publishableKey, serviceRoleKey });
+  return Object.freeze({ apiUrl, dbUrl, publishableKey, serviceRoleKey, serverSecretKey });
 }
 
 function assertLoopbackUrl(raw, code, protocols = ["http:", "https:"]) {
@@ -3244,7 +3261,7 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot, 
       env: minimalChildEnvironment({
         NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.publishableKey,
-        EVO_PLATFORM_SUPABASE_SECRET_KEY: status.serviceRoleKey,
+        EVO_PLATFORM_SUPABASE_SECRET_KEY: status.serverSecretKey,
         EVO_PLATFORM_ORGANIZATION_ID: actors.organizationId,
         EVO_PLATFORM_P7A_AUDIT_ENABLED: "1",
         EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",

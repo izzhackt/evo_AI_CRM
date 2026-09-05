@@ -11,6 +11,11 @@ const AUTHORITY_ROLE_PATTERN = /^(admin|sales|admissions)$/u;
 
 type TestRole = "admin" | "sales";
 
+const ROLE_HOME = {
+  admin: "/v3/main",
+  sales: "/v3/main",
+} as const satisfies Readonly<Record<TestRole, string>>;
+
 type Snapshot = Readonly<{
   admissionsClientId: string;
   admissionsLeadId: string;
@@ -171,7 +176,11 @@ async function signInAs(page: Page, role: TestRole) {
   await page.locator("#staff-email").fill(email);
   await page.locator("#staff-password").fill(password);
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page.getByTestId("active-role")).toHaveAttribute(
+  await expect(page).toHaveURL(new RegExp(`${ROLE_HOME[role]}$`));
+  await expect(page.getByTestId("v3-shell")).toBeVisible();
+  const activeRole = page.getByTestId("active-role");
+  await expect(activeRole).toHaveAttribute("data-role", role);
+  await expect(activeRole).toHaveAttribute(
     "data-authority-role",
     role,
   );

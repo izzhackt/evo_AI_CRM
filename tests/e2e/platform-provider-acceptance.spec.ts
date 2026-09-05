@@ -102,7 +102,16 @@ async function signIn(page: Page): Promise<void> {
     .locator("#staff-password")
     .fill(requiredText("EVO_STAFF_AUTH_SALES_PASSWORD"));
   await page.getByRole("button", { name: "Войти в CRM" }).click();
+  await expect(page).toHaveURL(/\/v3\/main$/);
   await expect(page.getByTestId("v3-shell")).toBeVisible();
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-role",
+    "sales",
+  );
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-authority-role",
+    "sales",
+  );
 }
 
 async function writePrivateJson(

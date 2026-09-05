@@ -47,7 +47,16 @@ async function signIn(page: Page) {
   await page.locator("#staff-email").fill(credentials.email);
   await page.locator("#staff-password").fill(credentials.password);
   await page.getByRole("button", { name: "Войти в CRM" }).click();
+  await expect(page).toHaveURL(/\/v3\/main$/);
   await expect(page.getByTestId("v3-shell")).toBeVisible();
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-role",
+    "sales",
+  );
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-authority-role",
+    "sales",
+  );
 }
 
 function signedInboundBody(

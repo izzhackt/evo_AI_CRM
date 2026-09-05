@@ -9,13 +9,13 @@ The active contract is [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md)
 together with
 [`ADR 0024`](docs/adr/0024-use-managed-supabase-for-the-evo-production-successor.md),
 [`ADR 0027`](docs/adr/0027-promote-v3-to-the-single-product-surface-on-managed-supabase.md),
-parent issue `#543`, active sequence `#594` through `#600` then `#551` through
-`#553`, and the latest append-only entry in
-[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-09-04, V3 becomes the
-product surface over the ready-made managed Supabase foundation and the proved
-server-side CRM workflows. The target has one canonical Supabase Postgres model,
-real staff identity, private files, one UI and one runtime; V1/V2 remain
-transition evidence and cleanup inputs, not parallel products.
+parent issue `#543`, completed integration sequence `#594` through `#600`, active
+sequence `#551` through `#553`, and the latest append-only entry in
+[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-09-04, V3 is the sole
+authenticated product surface over the ready-made managed Supabase foundation
+and the proved server-side CRM workflows. The target has one canonical Supabase
+Postgres model, real staff identity, private files, one UI and one runtime;
+V1/V2 are historical and rollback inputs, not parallel products.
 
 The completed U2 contract is
 recorded in
@@ -366,18 +366,18 @@ be terminally consumed.
 _Avoid_: autonomous-send worker, merged capability, provider proof
 
 **Unified WAHA Session**:
-The target single private WAHA transport session for active V2 is the already
+The target single private WAHA transport session for active V3 is the already
 connected sales session `crm_primary`, read-only verified `WORKING` with an
-identity on 2026-09-02. V2 reuses only its provider session/container; Supabase
+identity on 2026-09-02. V3 reuses only its provider session/container; Supabase
 remains the sole business authority, and frozen V1 senders, writers and webhook
-workers are not active V2 dependencies. The unpaired companion `evo-inbox`
+workers are not active V3 dependencies. The unpaired companion `evo-inbox`
 session is preserved as historical deployment evidence, never an alias,
 fallback or second current session, and #566/#568 do not require another QR
-scan. Under ADR 0026, active #566/#568 verification is read-only at the provider
-boundary: it does not require a selected inbound message, Gemini provider call
-or WhatsApp send and therefore does not claim real delivery. Production webhook
-transfer is a separate controlled cutover that first proves the old owner
-inactive and leaves exactly one V2 owner.
+scan. Under ADR 0026, completed #566/#568 verification was read-only at the
+provider boundary: it did not require a selected inbound message, Gemini
+provider call or WhatsApp send and therefore did not claim real delivery.
+Production webhook transfer is a separate controlled cutover that first proves
+the old owner inactive and leaves exactly one V3 owner.
 _Avoid_: public WAHA port, multi-session production target, session alias
 
 **Manual-Send WAHA Runtime Binding**:

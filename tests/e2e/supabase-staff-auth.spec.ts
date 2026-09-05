@@ -28,6 +28,12 @@ const PROFILES = [
 
 type TestRole = (typeof PROFILES)[number]["role"];
 
+const ROLE_HOME = {
+  admin: "/v3/main",
+  sales: "/v3/main",
+  admissions: "/v3/calendar",
+} as const satisfies Readonly<Record<TestRole, string>>;
+
 const ROLE_DASHBOARD_CARD_KEYS = {
   admin: ["sales", "clients", "tasks", "finance", "whatsapp"],
   sales: ["sales", "whatsapp"],
@@ -292,7 +298,9 @@ async function submitLogin(page: Page, email: string, password: string) {
 async function signIn(page: Page, role: TestRole) {
   const credentials = profile(role);
   await submitLogin(page, credentials.email, credentials.password);
+  await expect(page).toHaveURL(new RegExp(`${ROLE_HOME[role]}$`));
   await expect(page.getByTestId("v3-shell")).toBeVisible();
+  await expectActiveRole(page, role);
 }
 
 async function expectActiveRole(

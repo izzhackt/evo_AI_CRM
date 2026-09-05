@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 
 import AxeBuilder from "@axe-core/playwright";
@@ -48,6 +49,10 @@ try {
       await page.locator("#staff-password").fill(adminPassword);
       await page.locator('form[aria-labelledby="login-title"] button[type="submit"]').click();
       await page.getByTestId("v3-shell").waitFor();
+      assert.equal(new URL(page.url()).pathname, "/v3/main");
+      const activeRole = page.getByTestId("active-role");
+      assert.equal(await activeRole.getAttribute("data-role"), "admin");
+      assert.equal(await activeRole.getAttribute("data-authority-role"), "admin");
 
       for (const route of routes) {
         await page.goto(`${base}${route}`, { waitUntil: "networkidle" });

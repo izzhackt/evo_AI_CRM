@@ -31,49 +31,43 @@
 
 - For active production-successor work, the owner's 2026-09-04 direction,
   parent issue #543, ADRs 0024, 0026 and 0027, `docs/EVO_LAUNCH_PLAN.md`, and
-  the latest merged `docs/PLAN_CHANGES.md` entry define the target and active
-  ordered sequence #594 through #600, then #551 through #553. Once #594 merges
-  the V3 branch, root `CLAUDE.md` and `docs/design/v3/product.md` govern V3
-  product detail under those higher-level authorities. ADR 0022 and the
-  no-Supabase parts of ADR 0023 remain completed local-validation history, not
-  current runtime authority.
+  the latest merged `docs/PLAN_CHANGES.md` entry define the target. Integration
+  sequence #594 through #600 is completed on `main`; the current active ordered
+  sequence is #551 through #553. Root `CLAUDE.md` and
+  `docs/design/v3/product.md` govern V3 product detail under those higher-level
+  authorities. ADR 0022 and the no-Supabase parts of ADR 0023 remain completed
+  local-validation history, not current runtime authority.
 - EVO remains one internal product with one access surface, one UI, one role
   model and one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks,
   Documents and AI are modules, not separate target products.
-- The target is the V3 product surface running on the ready-made managed
+- The active product is the V3 surface running on the ready-made managed
   Supabase foundation retained from V1. One dedicated EVO Supabase project
   supplies canonical Postgres, Supabase Auth, private Storage, RLS and only
   the Realtime capabilities the product actually uses. The existing project is
   preferred when the read-only audit proves its identity, migration history,
   data and security state.
 - `claude/v3-frontend` at `c53c978e251754509948240fc7eef40d3a74da90` is the
-  first active integration target, not a passive design reference. Bring its
-  V3 surface onto current `main` before continuing the successor sequence, but
-  do not blindly merge branch-wide deploy, workflow, archive, SQLite, Drizzle
-  or runtime-contract changes that would regress completed `main` work or
-  delete frozen history. After that integration, V3 is the product direction;
-  V2 screens remain only until the same business action is wired into V3 and
-  proved, then the superseded screen is deleted in that slice. The authenticated
-  root moves to V3 only in #600 after those actions have replacement proof.
-  Before changing or merging #594, read that pinned branch's complete
-  `CLAUDE.md`, `docs/design/v3/product.md`, `docs/design/v3/frontend-rules.md`,
-  `docs/design/v3/backend-gaps.md` and `docs/design/v3/handover-to-codex.md`;
-  they are the pre-merge integration inputs even though the files do not yet
-  exist on `main`.
+  historical pinned integration input for completed #594, not an active target
+  or independent runtime authority. Its selected surface and governing V3 docs
+  now exist on `main`. After completed #600, V3 is the sole authenticated root
+  and product UI; do not resurrect a V2 screen. Do not blindly merge historical
+  branch-wide deploy, workflow, archive, SQLite, Drizzle or runtime-contract
+  changes that would regress completed `main` work or delete frozen history.
 - Root `supabase/` is the sole target migration authority. Do not ship Drizzle
   `evo_*`, SQLite or another PostgreSQL schema as a second production business
-  authority. V2-only domain gaps move into `platform` or `platform_private`
+  authority. Successor domain gaps move into `platform` or `platform_private`
   through reviewed forward Supabase migrations.
-- Supabase Auth replaces the two-field development gate for real staff.
-  Supabase private Storage replaces application-local document bytes. Keep the
-  accepted Admin, Sales and Admissions product behavior, with Admin as the
-  functional superset and exact role-preview authority, while mapping it to
-  real staff identities and server-enforced RLS/authorization.
+- Supabase Auth is the sole real-staff authentication path. Supabase private
+  Storage is the sole active private-file path. Keep the accepted Admin, Sales
+  and Admissions product behavior, with Admin as the functional superset and
+  exact role-preview authority, mapped to real staff identities and
+  server-enforced RLS/authorization.
 - Do not rebuild product logic that already exists. The existing server actions
   in `src/lib/server/` and the canonical CRM repository are the current
-  business engine, not dead V2 UI code. Wire those actions into V3 with real
-  forms, `useActionState`, server validation and `expected_version`, then
-  remove the superseded V2 screen in the same replacement slice.
+  business engine, not dead UI code. New or extended V3 actions use real forms,
+  `useActionState`, server validation and `expected_version`; remove any
+  superseded path in the same proven replacement slice instead of restoring a
+  V2 screen as fallback.
 - Reuse the existing managed-Supabase capabilities already present in root
   migrations before building new schema. The current authoritative examples are
   document requirements/reviews from migrations 043, 046, 053 and 055; visa
@@ -84,10 +78,10 @@
   shape changes, change the V3 source adapters before changing V3 screens, and
   do not create a second status dictionary or an in-app WhatsApp channel
   connection flow.
-- Keep the V2 human-reviewed Gemini, staff-controlled WhatsApp and explicit
-  amoCRM command semantics. Gemini never sends or changes CRM state; WhatsApp
-  has no autonomous/broadcast path or blind retry; amoCRM is an integration,
-  never a competing business authority.
+- Keep the accepted human-reviewed Gemini, staff-controlled WhatsApp and
+  explicit amoCRM command semantics in V3. Gemini never sends or changes CRM
+  state; WhatsApp has no autonomous/broadcast path or blind retry; amoCRM is an
+  integration, never a competing business authority.
 - Active V3 reuses the already connected private sales WAHA transport session
   `crm_primary`, verified `WORKING` on 2026-09-02. This is session/container
   reuse only: Supabase remains the sole business authority, and V3 must not run
@@ -222,8 +216,9 @@ canonical store or new dependency.
   `evo-crm-waha`, `crm_primary`, or the lead-agent webhook path. EVO Inbox owns
   its companion WAHA webhook at `/api/waha/webhook`, its own HMAC secret, and
   its own encrypted WAHA settings. This companion-only isolation record is not
-  current V2 session authority; ADR 0025 authorizes active V2 to reuse the
-  connected sales `crm_primary` transport under the single-runtime rules above.
+  current successor session authority. ADR 0025 records the selected transport;
+  Current Product Authority above carries the connected sales `crm_primary`
+  transport into active V3 under the single-runtime rules.
 - Do not publish WAHA ports publicly. Operator access to WAHA QR/dashboard must
   use a private server-side path such as SSH tunnel or an authenticated internal
   admin surface.
@@ -237,9 +232,9 @@ canonical store or new dependency.
 - The lead-agent owns WAHA inbound automation:
   `http://evo-lead-agent:8000/webhooks/waha`.
 - The CRM legacy WAHA webhook route describes the frozen V1 deployment only.
-  It is not V2 compatibility permission: V2 must not import, execute, bundle or
-  route through it, and the replacing V2 slice must remove its superseded
-  active references after real proof.
+  It is not successor compatibility permission: V3 must not import, execute,
+  bundle or route through it, and the replacing V3 slice must remove its
+  superseded active references after real proof.
 - The lead-agent resolves/creates amoCRM contact and lead first, then posts a
   signed internal sync event to:
   `http://evo-crm-app:3000/api/internal/lead-agent/whatsapp`.

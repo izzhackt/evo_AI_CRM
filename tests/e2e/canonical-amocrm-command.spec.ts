@@ -1,6 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 type TestRole = "admin" | "sales" | "admissions";
+const ROLE_HOME = {
+  admin: "/v3/main",
+  sales: "/v3/main",
+  admissions: "/v3/calendar",
+} as const satisfies Readonly<Record<TestRole, string>>;
+
 type ProofMode =
   | "provider-not-authorized"
   | "routing-missing"
@@ -103,7 +109,11 @@ async function signInAs(page: Page, role: TestRole) {
   await page.locator("#staff-email").fill(identifier);
   await page.locator("#staff-password").fill(secret);
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page.getByTestId("active-role")).toHaveAttribute(
+  await expect(page).toHaveURL(new RegExp(`${ROLE_HOME[role]}$`));
+  await expect(page.getByTestId("v3-shell")).toBeVisible();
+  const activeRole = page.getByTestId("active-role");
+  await expect(activeRole).toHaveAttribute("data-role", role);
+  await expect(activeRole).toHaveAttribute(
     "data-authority-role",
     role,
   );

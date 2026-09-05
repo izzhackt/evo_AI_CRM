@@ -95,6 +95,10 @@ async function signInAsStaff(page: Page, role: FixedRole) {
     "data-role",
     role,
   );
+  await expect(page.getByTestId("active-role")).toHaveAttribute(
+    "data-authority-role",
+    role,
+  );
 }
 
 async function expectNoAutomatedWcagViolations(page: Page, context: string) {

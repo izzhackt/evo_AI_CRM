@@ -1,6 +1,6 @@
 # EVO production-successor recovery contract
 
-Status: active V2 recovery boundary for one managed Supabase authority, one
+Status: active V3 recovery boundary for one managed Supabase authority, one
 Next.js application, and one private WAHA transport. This document does not
 authorize a production restore, provider mutation, customer-data change, WAHA
 logout/relink, or traffic cutover. The superseded SQLite/companion proposal is

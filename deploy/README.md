@@ -17,8 +17,9 @@ application, Lead Agent service, manual-send worker, local staff bootstrap, or
 second application UI. amoCRM and Gemini remain explicit integrations; neither
 is a second data authority.
 
-Use [production-release.md](production-release.md) for the exact-SHA release
-flow and [runtime-hardening.md](runtime-hardening.md) for health, privacy,
+Use [production-release.md](production-release.md) for the exact-SHA release,
+[fast-app-release.md](fast-app-release.md) for automatic execution and exact
+rollback, and [runtime-hardening.md](runtime-hardening.md) for health, privacy,
 resource, and log rules. The managed-Supabase recovery boundary is in
 [`docs/DISASTER_RECOVERY.md`](../docs/DISASTER_RECOVERY.md). The superseded V1
 multi-runtime material is retained under
@@ -57,18 +58,14 @@ bootstrap or maintain a second credential store.
 - The Compose file does not create or operate Supabase, Caddy, Inbox, Lead
   Agent, or any manual worker.
 
-`docker-compose.staging.yml` declares the same two-service shape with the
-separate `evo-crm-staging` project, staging-only networks/volumes and
-`deploy/env.staging.example`. Staging must never mount the production WAHA
-session volume or use the production Supabase project.
-
 The release lane must not log environment values, Supabase keys, WAHA keys,
 session data, customer content, phone numbers, or provider payloads.
 
 ## Current authorization boundary
 
-Repository validation and an isolated local candidate may run without routine
-approval. A real VPS change, public traffic cutover, webhook ownership change,
-Supabase migration or restore, WAHA session change, provider write, customer
-data operation, or V1 retirement requires the applicable current gate and
-explicit owner authorization.
+Repository validation and isolated local recovery proof run without routine
+approval. The owner’s 2026-09-04 direction already authorizes the one #552 V3
+production cutover after #551 and every named prerequisite pass; no second
+routine approval is added. Missing access or failed prerequisites stop clearly.
+Webhook ownership change, schema apply/restore, WAHA session change, provider
+write and customer-data operation remain separate controlled actions.

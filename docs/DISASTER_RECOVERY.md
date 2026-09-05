@@ -9,8 +9,9 @@ retained only at
 
 ## Safety contract
 
-- Rehearse only in a newly provisioned isolated destination with separate URLs,
-  keys, networks, volumes and DNS. Never point a rehearsal at production.
+- Rehearse #551 only in a newly created disposable local OrbStack contour with
+  separate URLs, keys, networks and volumes. Never point the restored app or a
+  restore command at production.
 - Every restore operation requires an explicit source, destination, timestamp,
   manifest, byte count, checksum and verification result.
 - Evidence must not contain secrets, customer rows, object names, session
@@ -25,8 +26,8 @@ retained only at
 
 | Store | Successor authority | Recovery boundary |
 | --- | --- | --- |
-| CRM data, role mappings and audit events | managed Supabase Postgres/Auth/RLS | provider backup or an approved logical backup restored into an isolated managed-Supabase target; verify root migration compatibility and server-enforced access |
-| Private documents | managed Supabase Storage | separate authenticated object export/inventory and isolated private-bucket restore; database backup alone is insufficient |
+| CRM data, role mappings and audit events | managed Supabase Postgres/Auth/RLS | encrypted provider or logical database backup restored into disposable local Supabase/Postgres; verify root migration compatibility and server-enforced access |
+| Private documents | managed Supabase Storage | separate authenticated object inventory/byte backup restored into disposable private Storage; database backup alone is insufficient |
 | WAHA session `crm_primary` | protected `evo_crm_waha_sessions` volume | preserve in place for app releases; use only a WAHA-supported, separately approved backup/relink procedure for disaster recovery |
 | Runtime secrets and encrypted provider settings | protected server/provider secret stores | independently retained configuration restored without printing values, then verified through the real server-side reader |
 | App generated output | `evo_crm_output` | non-authoritative; regenerate when possible and restore only if a named workflow requires it |
@@ -41,16 +42,18 @@ isolated application/browser verification.
 
 1. Record the exact repository commit, migration set, source backup identity,
    destination project identity, app image ID, WAHA digest and evidence root.
-2. Prove the destination is isolated and empty; reject production identifiers,
-   URLs, networks and volume names.
-3. Restore Postgres/Auth according to the managed provider's supported process.
+2. Prove the new local OrbStack destination is isolated and empty; reject
+   production URLs, networks and volume names.
+3. Restore Postgres/Auth from the real encrypted artifact according to the
+   provider/PostgreSQL-supported process. A service-key table export, local
+   schema reset or synthetic seed is not backup proof.
 4. Reconcile root `supabase/` forward migrations without editing historical
    migrations or introducing another schema authority.
 5. Restore private Storage separately and verify counts, sizes, checksums,
    bucket privacy and signed-access behavior without logging object names.
-6. Start the exact app image against the isolated Supabase project. Use a fresh,
-   private disposable WAHA instance only if transport verification is in the
-   approved rehearsal; never copy or mount the live session volume.
+6. Start the exact app image against the disposable local Supabase contour.
+   Keep provider settings absent and provider actions blocked; never copy or
+   mount the live WAHA session volume.
 7. Verify Supabase Auth, Admin/Sales/Admissions authorization, canonical CRM
    reads and writes, private document access, event-log continuity, health and
    fail-closed behavior in a real browser and database.
@@ -76,7 +79,7 @@ not establish a production recovery objective.
 ## Official references
 
 - Supabase database backups: <https://supabase.com/docs/guides/platform/backups>
-- Supabase backup and restore: <https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore>
+- Supabase local restore of a downloaded backup: <https://supabase.com/docs/guides/local-development/restoring-downloaded-backup>
 - Supabase Storage downloads: <https://supabase.com/docs/guides/storage/management/download-objects>
 - PostgreSQL `pg_dump`: <https://www.postgresql.org/docs/current/app-pgdump.html>
 - PostgreSQL `pg_restore`: <https://www.postgresql.org/docs/current/app-pgrestore.html>

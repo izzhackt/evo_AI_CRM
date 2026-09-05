@@ -100,21 +100,16 @@ def test_load_settings_uses_only_the_canonical_platform_waha_session(
 def test_forward_runtime_examples_do_not_reactivate_the_lead_agent_webhook() -> None:
     repository_root = Path(__file__).resolve().parents[2]
     local_env = (repository_root / "evo-lead-agent/.env.example").read_text()
-    deploy_env = (repository_root / "deploy/env.lead-agent.example").read_text()
     local_compose = (repository_root / "evo-lead-agent/docker-compose.yml").read_text()
     production_compose = (repository_root / "docker-compose.prod.yml").read_text()
-    staging_compose = (repository_root / "docker-compose.staging.yml").read_text()
-    deploy_readme = (repository_root / "deploy/README.md").read_text()
+    production_env = (repository_root / "deploy/env.production.example").read_text()
 
-    for environment_example in (local_env, deploy_env):
-        assert re.search(r"^EVO_AGENT_WAHA_SESSION=evo-inbox$", environment_example, re.M)
-        assert re.search(r"^EVO_AGENT_WAHA_WEBHOOK_SECRET=$", environment_example, re.M)
-        assert re.search(r"^EVO_AGENT_WAHA_WEBHOOK_URL=$", environment_example, re.M)
+    assert re.search(r"^EVO_AGENT_WAHA_SESSION=evo-inbox$", local_env, re.M)
+    assert re.search(r"^EVO_AGENT_WAHA_WEBHOOK_SECRET=$", local_env, re.M)
+    assert re.search(r"^EVO_AGENT_WAHA_WEBHOOK_URL=$", local_env, re.M)
 
     assert "${EVO_AGENT_WAHA_SESSION:-evo-inbox}" in local_compose
-    for active_compose in (production_compose, staging_compose):
-        assert "EVO_AGENT_WAHA_SESSION: evo-inbox" not in active_compose
-        assert "evo-lead-agent" not in active_compose
-    assert "/api/internal/platform-messaging/waha/events" in deploy_readme
-    assert "EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET" in deploy_readme
-    assert "EVO_AGENT_WAHA_WEBHOOK_URL=http://evo-lead-agent" not in deploy_readme
+    assert "EVO_AGENT_WAHA_SESSION: evo-inbox" not in production_compose
+    assert "evo-lead-agent" not in production_compose
+    assert "EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET" in production_env
+    assert "EVO_AGENT_WAHA_WEBHOOK_URL=http://evo-lead-agent" not in production_env

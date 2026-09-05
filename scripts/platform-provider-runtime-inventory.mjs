@@ -35,7 +35,6 @@ const HISTORICAL_FILES = new Set([
   "CONTRIBUTING.md",
   "README.md",
   "docker-compose.prod.yml",
-  "docker-compose.staging.yml",
 ]);
 const GUARD_ROOTS = Object.freeze(["tests/"]);
 const SCAN_IGNORED_DIRECTORIES = new Set([".git", ".next", "node_modules", "output"]);

@@ -20,7 +20,7 @@ function serviceBlock(value, name) {
   return match[0];
 }
 
-for (const file of ["docker-compose.prod.yml", "docker-compose.staging.yml"]) {
+for (const file of ["docker-compose.prod.yml"]) {
   test(`${file} is exactly the hardened app and private-WAHA successor`, async () => {
     const value = await read(file);
     assert.deepEqual(serviceNames(value), ["app", "waha"]);
@@ -78,7 +78,7 @@ test("the Docker context excludes secrets, frozen applications and non-runtime e
 test("runtime hardening validation checks only the root successor Compose models", async () => {
   const validator = await read("scripts/validate-runtime-hardening.mjs");
   assert.match(validator, /docker-compose\.prod\.yml/u);
-  assert.match(validator, /docker-compose\.staging\.yml/u);
+  assert.doesNotMatch(validator, /docker-compose\.staging\.yml/u);
   assert.match(validator, /\["app", "waha"\]/u);
   assert.doesNotMatch(validator, /agent-lead2-inbox\/deploy|evo-lead-agent\/deploy/u);
 });

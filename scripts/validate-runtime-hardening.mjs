@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 
 const revision = "0123456789abcdef0123456789abcdef01234567";
 const digest = `sha256:${"a".repeat(64)}`;
-const composeFiles = ["docker-compose.prod.yml", "docker-compose.staging.yml"];
+const composeFiles = ["docker-compose.prod.yml"];
 const forbidden = /agent-lead2-inbox|evo-lead-agent|manual-send-worker|EVO_AGENT_|EVO_DB_PATH|EVO_BACKUP_DIR|sqlite|drizzle/iu;
 const baseEnvironment = {
   ...process.env,
@@ -62,9 +62,7 @@ for (const file of composeFiles) {
   if (process.argv.includes("--compose")) {
     const environment = {
       ...baseEnvironment,
-      EVO_CRM_PRIVATE_NETWORK: file.includes("staging")
-        ? "evo_runtime_validation_staging_private"
-        : "evo_runtime_validation_private",
+      EVO_CRM_PRIVATE_NETWORK: "evo_runtime_validation_private",
       EVO_CADDY_NETWORK: "evo_runtime_validation_web",
     };
     const rendered = execFileSync(

@@ -1,7 +1,7 @@
 # EVO production-successor runtime hardening
 
-This is the active V3 runtime contract for root `docker-compose.prod.yml` and
-`docker-compose.staging.yml`. It does not authorize a deployment. The
+This is the active V3 runtime contract for root `docker-compose.prod.yml`.
+It does not authorize a deployment. The
 superseded V1/companion record is retained at
 [`docs/archive/v1/runtime-hardening.md`](../docs/archive/v1/runtime-hardening.md).
 
@@ -12,8 +12,6 @@ superseded V1/companion record is retained at
   generated-output volume and declared tmpfs paths are writable.
 - `waha` has bounded CPU, memory, PIDs and logs, stores session material only in
   `evo_crm_waha_sessions`, and joins only `evo_crm_private`.
-- Staging uses its own Compose project, networks, volumes, environment and
-  Supabase project; it never mounts the production WAHA session volume.
 - `/api/health` is app process liveness and does not call Supabase or a provider.
 - WAHA `/ping` is process liveness, not proof that `crm_primary` is connected or
   that a message can be sent.

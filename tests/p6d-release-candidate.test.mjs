@@ -11,7 +11,6 @@ const activeReleaseFiles = [
   "package.json",
   "scripts/evo-fast-release.sh",
   "scripts/fast-release-ci-gate.mjs",
-  "scripts/evo-release-environment-profile.mjs",
   "scripts/validate-runtime-hardening.mjs",
   "deploy/README.md",
   "deploy/production-release.md",

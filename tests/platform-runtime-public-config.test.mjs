@@ -89,8 +89,8 @@ test("browser clients are reused only for the exact runtime public configuration
   }
 });
 
-test("successor env templates expose only publishable Supabase values to the browser", () => {
-  for (const path of ["deploy/env.production.example", "deploy/env.staging.example"]) {
+test("the successor env template exposes only publishable Supabase values to the browser", () => {
+  for (const path of ["deploy/env.production.example"]) {
     const source = readFileSync(path, "utf8");
     assert.match(source, /^NEXT_PUBLIC_SUPABASE_URL=/mu, path);
     assert.match(source, /^NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/mu, path);

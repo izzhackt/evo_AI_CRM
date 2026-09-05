@@ -771,10 +771,6 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
     controller.indexOf("deploy() {"),
     controller.indexOf("manual_rollback() {"),
   );
-  const rollback = controller.slice(
-    controller.indexOf("rollback_from_state() {"),
-    controller.indexOf("load_bound_release_state() {"),
-  );
   execFileSync("bash", ["-n", "scripts/evo-fast-release.sh"]);
   assert.match(controller, /--no-deps/u);
   assert.match(controller, /--no-build/u);

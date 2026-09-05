@@ -197,7 +197,7 @@ export function ProfileCaseDirectory({
                       <span className="block">
                         Admissions: {row.admissionsDisplayName ?? "—"}
                       </span>
-                      {row.leadId ? (
+                      {row.leadId && row.access === "full" ? (
                         <Link
                           className="block font-mono text-accent hover:underline"
                           href={`/v3/profile?id=${row.leadId}`}

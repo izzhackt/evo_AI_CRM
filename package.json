@@ -81,6 +81,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "smol-toml": "1.8.0",
     "supabase": "2.116.0",
     "tailwindcss": "^4",
     "typescript": "^5"

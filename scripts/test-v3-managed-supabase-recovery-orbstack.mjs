@@ -39,6 +39,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
+import { parse as parseToml } from "smol-toml";
 
 const OPT_IN = "EVO_RUN_V3_MANAGED_SUPABASE_RECOVERY_ORBSTACK";
 const OPT_IN_VALUE = "1";
@@ -59,6 +60,7 @@ const QUARANTINE_SUFFIX = ".quarantine";
 const COMMAND_GRACE_MS = 2_000;
 const MAX_CAPTURE_BYTES = 64 * 1024;
 const MAX_JSON_BYTES = 16 * 1024 * 1024;
+const MAX_TARGET_CONFIG_BYTES = 1024 * 1024;
 const MAX_SQL_BYTES = 128 * 1024 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024 * 1024;
 const MAX_AGE_HOURS = 24 * 31;
@@ -2225,7 +2227,7 @@ const STORAGE_SIZE_MULTIPLIERS = Object.freeze({
 });
 
 function targetStorageSize(value) {
-  const match = /^"([1-9][0-9]{0,8})(B|KB|MB|GB|KiB|MiB|GiB)"$/u.exec(value);
+  const match = /^([1-9][0-9]{0,8})(B|KB|MB|GB|KiB|MiB|GiB)$/u.exec(value);
   if (!match) fail("target_storage_bucket_size_invalid", "target_storage_configuration");
   const bytes = Number(match[1]) * STORAGE_SIZE_MULTIPLIERS[match[2]];
   if (!Number.isSafeInteger(bytes)) fail("target_storage_bucket_size_invalid", "target_storage_configuration");
@@ -2233,83 +2235,56 @@ function targetStorageSize(value) {
 }
 
 function targetStorageMimeTypes(value) {
-  let parsed;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    fail("target_storage_bucket_mime_types_invalid", "target_storage_configuration");
-  }
   if (
-    !Array.isArray(parsed) ||
-    parsed.length === 0 ||
-    parsed.some((item) => typeof item !== "string" || item.length === 0 || item !== item.trim()) ||
-    new Set(parsed).size !== parsed.length
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((item) => typeof item !== "string" || item.length === 0 || item !== item.trim()) ||
+    new Set(value).size !== value.length
   ) {
     fail("target_storage_bucket_mime_types_invalid", "target_storage_configuration");
   }
-  return Object.freeze([...parsed].sort((left, right) => left.localeCompare(right, "en")));
+  return Object.freeze([...value].sort((left, right) => left.localeCompare(right, "en")));
 }
 
 export function parseTargetStorageBucketConfig(source) {
-  if (typeof source !== "string" || source.length === 0) fail("target_storage_config_invalid", "target_storage_configuration");
-  const buckets = [];
-  const identities = new Set();
-  let current = null;
-  for (const line of source.split(/\r?\n/u)) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
-    if (trimmed.startsWith("[")) {
-      current = null;
-      const bucketSection = /^\[\s*(?:storage|"storage"|'storage')\s*\.\s*(?:buckets|"buckets"|'buckets')(?:\s*\.|\s*\])/u.test(trimmed);
-      const section = /^\[storage\.buckets\.(?:"([A-Za-z0-9_-]+)"|([A-Za-z0-9_-]+))\](?:\s*#.*)?$/u.exec(trimmed);
-      if (!section) {
-        if (bucketSection) fail("target_storage_bucket_header_invalid", "target_storage_configuration");
-        continue;
-      }
-      const id = section[1] ?? section[2];
-      if (
-        id.length > 1_024 ||
-        id.includes("/") ||
-        id.includes("\\") ||
-        /[\u0000-\u001f\u007f]/u.test(id) ||
-        [".", ".."].includes(id) ||
-        identities.has(id)
-      ) {
-        fail("target_storage_bucket_identity_invalid", "target_storage_configuration");
-      }
-      identities.add(id);
-      current = { id, name: id, public: false, file_size_limit: null, allowed_mime_types: null, seen: new Set() };
-      buckets.push(current);
-      continue;
-    }
-    if (!current) continue;
-    const assignment = /^([a-z_]+)\s*=\s*(.+)$/u.exec(trimmed);
-    if (!assignment || current.seen.has(assignment[1])) fail("target_storage_bucket_config_invalid", "target_storage_configuration");
-    const [, key, value] = assignment;
-    current.seen.add(key);
-    if (key === "public") {
-      if (!new Set(["true", "false"]).has(value)) fail("target_storage_bucket_public_invalid", "target_storage_configuration");
-      current.public = value === "true";
-    } else if (key === "file_size_limit") {
-      current.file_size_limit = targetStorageSize(value);
-    } else if (key === "allowed_mime_types") {
-      current.allowed_mime_types = targetStorageMimeTypes(value);
-    } else if (key === "objects_path") {
-      fail("target_storage_bucket_objects_path_forbidden", "target_storage_configuration");
-    } else {
-      fail("target_storage_bucket_config_invalid", "target_storage_configuration");
-    }
+  if (
+    typeof source !== "string" ||
+    source.length === 0 ||
+    Buffer.byteLength(source, "utf8") > MAX_TARGET_CONFIG_BYTES
+  ) {
+    fail("target_storage_config_invalid", "target_storage_configuration");
   }
-  if (buckets.length === 0) fail("target_storage_buckets_missing", "target_storage_configuration");
-  return Object.freeze(buckets
-    .map((bucket) => Object.freeze({
-      id: bucket.id,
-      name: bucket.name,
-      public: bucket.public,
-      file_size_limit: bucket.file_size_limit,
-      allowed_mime_types: bucket.allowed_mime_types,
-    }))
-    .sort((left, right) => left.id.localeCompare(right.id, "en")));
+  let parsed;
+  try {
+    parsed = parseToml(source);
+  } catch {
+    fail("target_storage_config_invalid", "target_storage_configuration");
+  }
+  const configured = parsed?.storage?.buckets;
+  if (!isRecord(configured) || Object.keys(configured).length === 0) {
+    fail("target_storage_buckets_missing", "target_storage_configuration");
+  }
+  const buckets = [];
+  const allowedKeys = new Set(["public", "file_size_limit", "allowed_mime_types", "objects_path"]);
+  for (const [id, bucket] of Object.entries(configured)) {
+    string(id, /^[A-Za-z0-9_-]+$/u, "target_storage_bucket_identity_invalid", "target_storage_configuration", 1_024);
+    if (!isRecord(bucket)) fail("target_storage_bucket_config_invalid", "target_storage_configuration");
+    for (const key of Object.keys(bucket)) {
+      if (!allowedKeys.has(key)) fail("target_storage_bucket_config_invalid", "target_storage_configuration");
+      if (key === "objects_path") fail("target_storage_bucket_objects_path_forbidden", "target_storage_configuration");
+    }
+    if (bucket.public !== undefined && typeof bucket.public !== "boolean") {
+      fail("target_storage_bucket_public_invalid", "target_storage_configuration");
+    }
+    buckets.push(Object.freeze({
+      id,
+      name: id,
+      public: bucket.public ?? false,
+      file_size_limit: bucket.file_size_limit === undefined ? null : targetStorageSize(bucket.file_size_limit),
+      allowed_mime_types: bucket.allowed_mime_types === undefined ? null : targetStorageMimeTypes(bucket.allowed_mime_types),
+    }));
+  }
+  return Object.freeze(buckets.sort((left, right) => left.id.localeCompare(right.id, "en")));
 }
 
 function normalizeRuntimeStorageBucket(bucket) {

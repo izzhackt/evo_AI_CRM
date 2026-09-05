@@ -451,7 +451,11 @@ enabled = true
   );
   expectCode(
     () => parseTargetStorageBucketConfig(`${config}\n[ "storage" . "buckets" . fixture ]\nobjects_path = "./fixtures"\n`),
-    "target_storage_bucket_header_invalid",
+    "target_storage_bucket_objects_path_forbidden",
+  );
+  expectCode(
+    () => parseTargetStorageBucketConfig(`${config}\n["stor\\u0061ge"."buckets".fixture]\nobjects_path = "./fixtures"\n`),
+    "target_storage_bucket_objects_path_forbidden",
   );
   assert.equal(
     parseTargetStorageBucketConfig('[storage.buckets."quoted-bucket"] # exact target declaration\npublic = false\n')[0]?.id,

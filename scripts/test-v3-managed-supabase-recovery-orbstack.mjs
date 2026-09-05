@@ -80,6 +80,16 @@ const PROJECT_REF = /^[a-z0-9]{20}$/u;
 const REGION = /^[a-z][a-z0-9-]{1,62}$/u;
 const PLAYWRIGHT_CHROMIUM_VERSION = /^(?:Chromium|Google Chrome for Testing) \d+(?:\.\d+){3}$/u;
 const VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u;
+const PLAYWRIGHT_BROWSER_BINDINGS = Object.freeze({
+  "darwin-arm64": Object.freeze({
+    revision: "1228",
+    directory: "chrome-mac-arm64",
+    executable: "Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+    version: "Google Chrome for Testing 149.0.7827.55",
+    sha256: "b1b9e2dd063115031f08eadc10ed381ca0fa05b2284baff8f721d87f5f0f61b7",
+  }),
+});
+const BROWSER_SANDBOX_PROFILE = '(version 1) (allow default) (deny network-outbound (remote ip "*:*")) (allow network-outbound (remote ip "localhost:*"))';
 const MIGRATION_VERSION = /^\d{3}$/u;
 const MIGRATION_NAME = /^[a-z0-9][a-z0-9_]{0,126}$/u;
 const IMAGE = /^(?:[a-z0-9][a-z0-9._/-]*@)?sha256:[0-9a-f]{64}$/u;
@@ -128,6 +138,7 @@ const SAFE_IMAGE_INSPECT_FORMAT = "{{json .Id}}\t{{json .RepoDigests}}\t{{json .
 const SAFE_CLEANUP_CONTAINER_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Image}}\t{{json .Config.Labels}}";
 const SAFE_CLEANUP_VOLUME_INSPECT_FORMAT = "{{json .Name}}\t{{json .CreatedAt}}\t{{json .Driver}}\t{{json .Scope}}\t{{json .Labels}}\t{{json .Options}}";
 const SAFE_CLEANUP_NETWORK_INSPECT_FORMAT = "{{json .Id}}\t{{json .Name}}\t{{json .Labels}}";
+const SAFE_PINNED_IMAGE_INSPECT_FORMAT = "{{json .Id}}\t{{json .RepoDigests}}\t{{json .RepoTags}}\t{{json .Os}}\t{{json .Architecture}}";
 const DATABASE_DENIAL_SENTINELS = Object.freeze({
   "Active scoped Admin permission membership.role.change is required": ADMIN_MEMBERSHIP_DENIAL.domainSentinel,
 });
@@ -172,6 +183,32 @@ const RECOVERY_PGMQ_COPY_COLUMNS = Object.freeze({
 });
 const RECOVERY_PGMQ_COPY_COLUMN_COUNT = Object.values(RECOVERY_PGMQ_COPY_COLUMNS)
   .reduce((total, columns) => total + columns.length, 0);
+const PINNED_SUPABASE_SERVICE_IMAGES = Object.freeze({
+  auth: Object.freeze({
+    reference: "public.ecr.aws/supabase/gotrue:v2.196.0",
+    digest: "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+  }),
+  db: Object.freeze({
+    reference: "public.ecr.aws/supabase/postgres:17.6.1.165",
+    digest: "sha256:28f0e16a019e648089fc1a6d333549a55548f6019c15ae4bd7cd58b989027518",
+  }),
+  kong: Object.freeze({
+    reference: "public.ecr.aws/supabase/kong:2.8.1",
+    digest: "sha256:1b53405d8680a09d6f44494b7990bf7da2ea43f84a258c59717d4539abf09f6d",
+  }),
+  realtime: Object.freeze({
+    reference: "public.ecr.aws/supabase/realtime:v2.129.3",
+    digest: "sha256:3211f8ebd59edcd0aa772186f1c8249c82c6b1ae5565f40dedb7aa93e951fe37",
+  }),
+  rest: Object.freeze({
+    reference: "public.ecr.aws/supabase/postgrest:v16.1",
+    digest: "sha256:5922bde07147b82b1c9d8f749e48c1e5b99ebb233f3888bb7ab65f07cf4ac82d",
+  }),
+  storage: Object.freeze({
+    reference: "public.ecr.aws/supabase/storage-api:v1.70.3",
+    digest: "sha256:528ec49c3c32561908b07ee91bced7f8456f3b688164e341eaa422441767a0bd",
+  }),
+});
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export class RecoveryFailure extends Error {
@@ -1578,6 +1615,29 @@ export function sanitizeCommandDiagnostic(output, status) {
   return Object.freeze({ category, status: Number.isInteger(status) ? status : null, outputSha256: sha256(text), bytes: Buffer.byteLength(text) });
 }
 
+export function sanitizeBrowserDiagnostic(error) {
+  const message = error instanceof Error && typeof error.message === "string"
+    ? error.message
+    : String(error ?? "");
+  const rawName = error instanceof Error && typeof error.name === "string" ? error.name : "Error";
+  const name = /^[A-Za-z][A-Za-z0-9]{0,63}(?:Error)?$/u.test(rawName) ? rawName : "Error";
+  const category = /timed?\s*out|timeout/iu.test(message)
+    ? "timeout"
+    : /target page, context or browser has been closed|browser has been closed|connection closed/iu.test(message)
+      ? "browser_closed"
+      : /net::err_|network/iu.test(message)
+        ? "network"
+        : /strict mode violation|resolved to \d+ elements/iu.test(message)
+          ? "locator_ambiguous"
+          : "browser_operation_failed";
+  return Object.freeze({
+    name,
+    category,
+    messageSha256: sha256(message),
+    bytes: Buffer.byteLength(message),
+  });
+}
+
 export function sanitizePsqlDiagnostic(output, status) {
   const text = Buffer.isBuffer(output) ? output.toString("utf8") : String(output ?? "");
   const base = sanitizeCommandDiagnostic(text, status);
@@ -1759,6 +1819,11 @@ async function trustedToolchain(supervisor, harnessRoot, availableEvidence = {})
       ["/usr/bin/openssl"],
       ["/usr/bin/openssl"],
       "openssl_unavailable",
+    ),
+    sandboxExec: resolveExecutable(
+      ["/usr/bin/sandbox-exec"],
+      ["/usr/bin/sandbox-exec"],
+      "browser_sandbox_unavailable",
     ),
     dockerBuildx: resolveExecutable(
       ["/Applications/OrbStack.app/Contents/MacOS/xbin/docker-buildx"],
@@ -2528,6 +2593,7 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   mkdirSync(join(workdir, "supabase"), { recursive: true, mode: 0o700 });
   const configPath = join(workdir, "supabase", "config.toml");
   writeFileSync(configPath, isolatedConfig(root.config, state.projectName, ports), { mode: 0o600, flag: "wx" });
+  await verifyPinnedSupabaseImageTags(supervisor, toolchain);
   beginContainerMutationCapture(state, "local_supabase_start");
   const createdNetwork = await runDocker(supervisor, toolchain.paths.docker, [
     "--context", "orbstack", "network", "create",
@@ -2600,6 +2666,74 @@ function projectedContainers(output, code, stage) {
   return Object.freeze(records);
 }
 
+export function validatePinnedSupabaseServiceImages(records, projectName, expected = PINNED_SUPABASE_SERVICE_IMAGES) {
+  if (
+    !Array.isArray(records) ||
+    !isPlainTable(expected) ||
+    typeof projectName !== "string" ||
+    !/^evov3recovery[0-9a-f]{12}$/u.test(projectName)
+  ) {
+    fail("supabase_service_image_set_invalid", "local_supabase_start");
+  }
+  const expectedServices = Object.keys(expected).sort();
+  const actual = [];
+  for (const service of expectedServices) {
+    const binding = expected[service];
+    if (
+      !/^[a-z][a-z0-9-]{0,31}$/u.test(service) ||
+      !isPlainTable(binding) ||
+      !sameJson(Object.keys(binding).sort(), ["digest", "reference"]) ||
+      typeof binding.reference !== "string" ||
+      !binding.reference.startsWith("public.ecr.aws/supabase/") ||
+      !IMAGE.test(binding.digest)
+    ) {
+      fail("supabase_service_image_binding_invalid", "local_supabase_start");
+    }
+    const name = `supabase_${service}_${projectName}`;
+    const matches = records.filter((record) => record?.name === name);
+    if (matches.length !== 1 || matches[0].image !== binding.digest) {
+      fail("supabase_service_image_set_invalid", "local_supabase_start");
+    }
+    actual.push(Object.freeze({ service, digest: binding.digest }));
+  }
+  if (records.length !== expectedServices.length) fail("supabase_service_image_set_invalid", "local_supabase_start");
+  return Object.freeze({
+    serviceCount: actual.length,
+    imageSetSha256: sha256(canonicalJson(actual)),
+  });
+}
+
+async function verifyPinnedSupabaseImageTags(supervisor, toolchain) {
+  const expectedArchitecture = process.arch === "arm64" ? "arm64" : null;
+  if (process.platform !== "darwin" || expectedArchitecture === null) {
+    fail("supabase_service_image_platform_unsupported", "local_supabase_start");
+  }
+  for (const binding of Object.values(PINNED_SUPABASE_SERVICE_IMAGES)) {
+    const result = await runDocker(supervisor, toolchain.paths.docker, [
+      "--context", "orbstack", "image", "inspect", "--format", SAFE_PINNED_IMAGE_INSPECT_FORMAT, binding.reference,
+    ], {
+      stage: "local_supabase_start",
+      code: "supabase_service_image_missing",
+      timeoutMs: 60_000,
+    });
+    const fields = result.stdout.toString("utf8").trim().split("\t").map((field) => parsedJson(field, "supabase_service_image_inspection_invalid", "local_supabase_start"));
+    if (fields.length !== 5) fail("supabase_service_image_inspection_invalid", "local_supabase_start");
+    const [id, repoDigests, repoTags, operatingSystem, architecture] = fields;
+    const repository = binding.reference.slice(0, binding.reference.lastIndexOf(":"));
+    if (
+      id !== binding.digest ||
+      !Array.isArray(repoDigests) ||
+      !repoDigests.includes(`${repository}@${binding.digest}`) ||
+      !Array.isArray(repoTags) ||
+      !repoTags.includes(binding.reference) ||
+      operatingSystem !== "linux" ||
+      architecture !== expectedArchitecture
+    ) {
+      fail("supabase_service_image_inspection_invalid", "local_supabase_start");
+    }
+  }
+}
+
 function recoveryNetwork(value, expected, code, stage) {
   if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) fail(code, stage);
   const network = value[0];
@@ -2634,6 +2768,7 @@ function validateContainerNetwork(record, network, networkName, code, stage) {
   const attachment = record.networks[networkName];
   if (attachment.NetworkID !== network.Id || !Array.isArray(attachment.Aliases) || attachment.Aliases.length === 0) fail(code, stage);
   if (attachment.Aliases.some((alias) => typeof alias !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(alias))) fail(code, stage);
+  return attachment;
 }
 
 function loopbackPortBindings(ports, code, stage) {
@@ -2653,6 +2788,16 @@ function loopbackPortBindings(ports, code, stage) {
     }
   }
   return Object.freeze(published);
+}
+
+function containerRuntimeShapeSha256(record) {
+  return sha256(canonicalJson({
+    image: record.image,
+    labels: record.labels,
+    networkMode: record.networkMode,
+    ports: record.ports,
+    networks: record.networks,
+  }));
 }
 
 function validatedContainerCensus(value, code, stage) {
@@ -2757,7 +2902,7 @@ function validateScannerContainerRecord(record, network, expected, code, stage) 
   }
   validateContainerNetwork(record, network, network.Name, code, stage);
   const aliases = record.networks[network.Name].Aliases;
-  if (!aliases.includes(expected.networkHost) || loopbackPortBindings(record.ports, code, stage).length !== 0) fail(code, stage);
+  if (!sameJson(aliases, [expected.networkHost]) || loopbackPortBindings(record.ports, code, stage).length !== 0) fail(code, stage);
 }
 
 export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, expected) {
@@ -2826,6 +2971,9 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
   return Object.freeze({
     networkId: network.Id,
     memberIds: Object.freeze(memberIds),
+    memberShapeSha256ById: Object.freeze(Object.fromEntries(
+      records.map((record) => [record.id, containerRuntimeShapeSha256(record)]),
+    )),
     targetHost: matches[0].record.name,
     targetPort: matches[0].targetPort,
     apiLoopbackPort: apiPort,
@@ -2833,29 +2981,71 @@ export function validateLocalSupabaseNetwork(networkPayload, projectionOutput, e
   });
 }
 
-async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain) {
-  const command = "command -v timeout >/dev/null 2>&1 || exit 96; if timeout 3 /bin/bash -c '</dev/tcp/1.1.1.1/443' >/dev/null 2>&1; then exit 97; fi; printf egress-blocked";
+async function proveRecoveryContainerInternetTcpBlocked(containerId, internalHost, internalPort, supervisor, toolchain, stage) {
+  if (
+    !SHA256.test(containerId) ||
+    typeof internalHost !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(internalHost) ||
+    !Number.isSafeInteger(internalPort) ||
+    internalPort < 1 ||
+    internalPort > 65_535
+  ) {
+    fail("recovery_network_egress_probe_input_invalid", stage);
+  }
+  const command = String.raw`command -v timeout >/dev/null 2>&1 || exit 96
+test -x /bin/bash || exit 96
+timeout 3 /bin/bash -c '</dev/tcp/$1/$2' _ "$1" "$2" >/dev/null 2>&1 || exit 95
+set +e
+timeout 3 /bin/bash -c '</dev/tcp/1.1.1.1/443' >/dev/null 2>&1
+result=$?
+set -e
+case "$result" in
+  0) exit 97 ;;
+  1|124) printf egress-blocked ;;
+  *) exit 94 ;;
+esac`;
   const result = await runDocker(supervisor, toolchain.paths.docker, [
-    "--context", "orbstack", "exec", endpoint.databaseContainerId, "/bin/bash", "-c", command,
+    "--context", "orbstack", "exec", containerId, "/bin/bash", "-c", command, "_", internalHost, String(internalPort),
   ], {
-    stage: "local_supabase_start",
+    stage,
     code: "recovery_network_egress_not_blocked",
     timeoutMs: 10_000,
   });
   if (result.stdout.toString("utf8") !== "egress-blocked") {
-    fail("recovery_network_egress_proof_invalid", "local_supabase_start");
+    fail("recovery_network_egress_proof_invalid", stage);
   }
   return Object.freeze({
-    status: "blocked",
-    mechanism: "bridge_ip_masquerade_disabled_plus_runtime_probe",
-    probeContainerIdSha256: sha256(endpoint.databaseContainerId),
+    status: "bounded_probe_blocked",
+    scope: "public_ipv4_tcp_443",
+    mechanism: "bridge_ip_masquerade_disabled_plus_exact_container_probe",
+    probeContainerIdSha256: sha256(containerId),
+    positiveControlTargetSha256: sha256(`${internalHost}:${internalPort}`),
+    positiveControl: "private_network_tcp_connected",
     probeTargetSha256: sha256("1.1.1.1:443"),
   });
 }
 
+async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain) {
+  return Object.freeze({
+    ipMasquerade: false,
+    ipv6: false,
+    database: await proveRecoveryContainerInternetTcpBlocked(
+      endpoint.databaseContainerId,
+      endpoint.targetHost,
+      endpoint.targetPort,
+      supervisor,
+      toolchain,
+      "local_supabase_start",
+    ),
+  });
+}
+
 export function validateCandidateNetworkAttachment(networkPayload, projectionOutput, expected) {
-  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appPort", "census", "networkName", "previousMemberIds", "projectName", "scanner"], "candidate_network_attachment_invalid", "image_verification");
+  exactKeys(expected, ["appContainerId", "appContainerName", "appImageId", "appNetworkAlias", "appPort", "census", "networkName", "previousMemberIds", "previousMemberShapeSha256ById", "projectName", "scanner"], "candidate_network_attachment_invalid", "image_verification");
   const census = validatedContainerCensus(expected.census, "candidate_container_census_mismatch", "image_verification");
+  if (typeof expected.appNetworkAlias !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u.test(expected.appNetworkAlias)) {
+    fail("candidate_network_attachment_invalid", "image_verification");
+  }
   const network = recoveryNetwork(networkPayload, expected, "candidate_network_attachment_invalid", "image_verification");
   const records = projectedContainers(projectionOutput, "candidate_container_inspection_invalid", "image_verification");
   const record = records.find((candidate) => candidate.id === expected.appContainerId);
@@ -2864,6 +3054,20 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
   const recordIds = records.map((candidate) => candidate.id).sort();
   if (!sameJson(censusIds, members) || !sameJson(recordIds, censusIds)) {
     fail("candidate_container_census_mismatch", "image_verification");
+  }
+  if (!isPlainTable(expected.previousMemberShapeSha256ById)) {
+    fail("candidate_supabase_container_shape_changed", "image_verification");
+  }
+  const previousShapeEntries = Object.entries(expected.previousMemberShapeSha256ById);
+  if (
+    previousShapeEntries.length !== census.supabaseIds.length ||
+    previousShapeEntries.some(([id, digest]) => !census.supabaseIds.includes(id) || !SHA256.test(digest)) ||
+    census.supabaseIds.some((id) => {
+      const previousRecord = records.find((candidate) => candidate.id === id);
+      return !previousRecord || containerRuntimeShapeSha256(previousRecord) !== expected.previousMemberShapeSha256ById[id];
+    })
+  ) {
+    fail("candidate_supabase_container_shape_changed", "image_verification");
   }
   if (
     !record ||
@@ -2884,28 +3088,33 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     if (network.Containers[candidate.id]?.Name !== candidate.name) {
       fail("candidate_container_inspection_invalid", "image_verification");
     }
-    validateContainerNetwork(candidate, network, expected.networkName, "candidate_network_attachment_invalid", "image_verification");
+    const networkAttachment = validateContainerNetwork(candidate, network, expected.networkName, "candidate_network_attachment_invalid", "image_verification");
     loopbackPortBindings(candidate.ports, "candidate_network_attachment_invalid", "image_verification");
-    if (candidate.id !== record.id) {
-      if (census.scannerIds.includes(candidate.id)) {
-        validateScannerContainerRecord(
-          candidate,
-          network,
-          expected.scanner,
-          "candidate_container_inspection_invalid",
-          "image_verification",
-        );
-      } else if (
-        !census.supabaseIds.includes(candidate.id) ||
-        !candidate.name.startsWith("supabase_") ||
-        !candidate.name.endsWith(`_${expected.projectName}`) ||
-        candidate.labels["com.supabase.cli.project"] !== expected.projectName
-      ) {
-        fail("candidate_container_inspection_invalid", "image_verification");
+    if (candidate.id === record.id) {
+      if (!sameJson(networkAttachment.Aliases, [expected.appNetworkAlias])) {
+        fail("candidate_app_network_alias_invalid", "image_verification");
       }
+    } else if (census.scannerIds.includes(candidate.id)) {
+      if (loopbackPortBindings(candidate.ports, "candidate_network_attachment_invalid", "image_verification").length !== 0) {
+        fail("candidate_scanner_published_port_forbidden", "image_verification");
+      }
+      validateScannerContainerRecord(
+        candidate,
+        network,
+        expected.scanner,
+        "candidate_scanner_inspection_invalid",
+        "image_verification",
+      );
+    } else if (
+      !census.supabaseIds.includes(candidate.id) ||
+      !candidate.name.startsWith("supabase_") ||
+      !candidate.name.endsWith(`_${expected.projectName}`) ||
+      candidate.labels["com.supabase.cli.project"] !== expected.projectName
+    ) {
+      fail("candidate_container_inspection_invalid", "image_verification");
     }
   }
-  if (!record.networks[expected.networkName].Aliases.includes(record.name)) {
+  if (!sameJson(record.networks[expected.networkName].Aliases, [expected.appNetworkAlias])) {
     fail("candidate_network_attachment_invalid", "image_verification");
   }
   const previous = [...expected.previousMemberIds].sort();
@@ -2917,14 +3126,14 @@ export function validateCandidateNetworkAttachment(networkPayload, projectionOut
     fail("candidate_network_attachment_invalid", "image_verification");
   }
   return Object.freeze({
-    schema: "evo-v3-recovery-app-network/v1",
+    schema: "evo-v3-recovery-app-network/v2",
     appContainerIdSha256: sha256(record.id),
     appImageIdSha256: sha256(record.image),
     networkIdSha256: sha256(network.Id),
     attachedNetworkCount: 1,
     publishedPortCount: 1,
     loopbackOnly: true,
-    externalEgress: "blocked_by_disabled_masquerade_and_runtime_probe",
+    ipMasquerade: false,
   });
 }
 
@@ -2939,7 +3148,8 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
   const containerResult = await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "inspect", "--format", SAFE_CONTAINER_INSPECT_FORMAT, ...census.ids], {
     stage: "local_supabase_start", code: "local_supabase_container_inspect_failed", timeoutMs: 30_000, maxCaptureBytes: 4 * 1_024 * 1_024,
   });
-  const endpoint = validateLocalSupabaseNetwork(networkPayload, containerResult.stdout.toString("utf8"), {
+  const projection = containerResult.stdout.toString("utf8");
+  const endpoint = validateLocalSupabaseNetwork(networkPayload, projection, {
     apiUrl: status.apiUrl,
     census,
     networkName: state.networkName,
@@ -2958,7 +3168,12 @@ async function inspectLocalSupabaseNetwork(state, status, supervisor, toolchain)
       fail("local_supabase_container_identity_drift", "local_supabase_start");
     }
   }
-  return endpoint;
+  const serviceImages = validatePinnedSupabaseServiceImages(
+    projectedContainers(projection, "supabase_service_image_set_invalid", "local_supabase_start")
+      .filter((record) => census.supabaseIds.includes(record.id)),
+    state.projectName,
+  );
+  return Object.freeze({ ...endpoint, serviceImages });
 }
 
 function pgmqRelationCounts(counts, code, stage) {
@@ -4804,10 +5019,30 @@ async function proveRestoredRoleServerOutcomes(options, status, actors, supervis
     if (outcomes.sales === "passed") outcomes.sales = "missing_restored_downloadable_document";
     if (outcomes.admissions === "passed") outcomes.admissions = "missing_restored_downloadable_document";
   } else {
+    const storageBinding = await psqlJson(supervisor, toolchain, status, String.raw`
+      SELECT coalesce((
+        SELECT json_build_object(
+          'bucketId', binding.bucket_id,
+          'objectName', binding.object_name
+        )
+        FROM platform_private.document_storage_bindings AS binding
+        WHERE binding.organization_id = ${sqlLiteral(options.platformOrganizationId)}::uuid
+          AND binding.document_version_id = ${sqlLiteral(document.current_version_id)}::uuid
+      ), 'null'::json)::text`, "role_outcome_proof");
+    if (
+      !isRecord(storageBinding) ||
+      storageBinding.bucketId !== "platform-documents" ||
+      typeof storageBinding.objectName !== "string" ||
+      !/^[0-9a-f]{2}\/[0-9a-f]{62}$/u.test(storageBinding.objectName)
+    ) {
+      fail("restored_document_storage_binding_invalid", "role_outcome_proof");
+    }
     documentProof = Object.freeze({
       versionId: document.current_version_id,
       sha256Hex: document.current_sha256_hex,
       byteSize: Number(document.current_byte_size),
+      bucketId: storageBinding.bucketId,
+      objectName: storageBinding.objectName,
     });
   }
   if (outcomes.sales === "passed" && outcomes.admissions === "passed" && documentProof) outcomes.admin = "passed";
@@ -5341,10 +5576,14 @@ async function inspectCandidateAttachment(state, endpoint, supervisor, toolchain
     {
       appContainerId,
       appContainerName: state.appContainer,
+      appNetworkAlias: state.appContainer,
       appImageId: image.id,
       appPort,
       census,
       networkName: state.networkName,
+      previousMemberShapeSha256ById: Object.freeze(Object.fromEntries(
+        state.supabaseContainerIds.map((id) => [id, endpoint.memberShapeSha256ById[id]]),
+      )),
       previousMemberIds: endpoint.memberIds,
       projectName: state.projectName,
       scanner: state.scannerIdentity,
@@ -5409,6 +5648,24 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
   state.appContainerId = containerId;
   const appUrl = `http://127.0.0.1:${appPort}`;
   const appNetworkAttachment = await inspectCandidateAttachment(state, endpoint, supervisor, toolchain, image, appPort, containerId);
+  const runtimeInternetTcpEgress = Object.freeze({
+    app: await proveRecoveryContainerInternetTcpBlocked(
+      containerId,
+      endpoint.targetHost,
+      endpoint.targetPort,
+      supervisor,
+      toolchain,
+      "image_verification",
+    ),
+    scanner: await proveRecoveryContainerInternetTcpBlocked(
+      scanner.containerId,
+      endpoint.targetHost,
+      endpoint.targetPort,
+      supervisor,
+      toolchain,
+      "image_verification",
+    ),
+  });
   state.isolationInput.destination = {
     ...state.isolationInput.destination,
     urls: [...state.isolationInput.destination.urls, appUrl],
@@ -5463,6 +5720,7 @@ server.listen(443, "0.0.0.0");
       origin: `https://${RECOVERY_SUPABASE_HOSTNAME}`,
       certificateSha256: tls.certificateSha256,
     }),
+    runtimeInternetTcpEgress,
   });
 }
 
@@ -5470,15 +5728,191 @@ export function isTrustedPlaywrightChromiumVersion(value) {
   return typeof value === "string" && PLAYWRIGHT_CHROMIUM_VERSION.test(value);
 }
 
+export function validatePinnedPlaywrightBrowser(value, bindings = PLAYWRIGHT_BROWSER_BINDINGS) {
+  exactKeys(value, [
+    "ambientPathPresent",
+    "architecture",
+    "binarySha256",
+    "canonicalPath",
+    "currentUid",
+    "expectedPath",
+    "isFile",
+    "isSymbolicLink",
+    "mode",
+    "ownerUid",
+    "platform",
+    "playwrightPath",
+    "version",
+  ], "browser_executable_untrusted", "browser_proof");
+  if (value.ambientPathPresent !== false) fail("browser_ambient_path_forbidden", "browser_proof");
+  const binding = bindings?.[`${value.platform}-${value.architecture}`];
+  if (!isRecord(binding) || !SHA256.test(binding.sha256 ?? "")) {
+    fail("browser_platform_unsupported", "browser_proof");
+  }
+  if (
+    value.expectedPath !== value.canonicalPath ||
+    value.playwrightPath !== value.canonicalPath ||
+    value.isFile !== true ||
+    value.isSymbolicLink !== false ||
+    !Number.isSafeInteger(value.mode) ||
+    (value.mode & 0o111) === 0 ||
+    (value.mode & 0o022) !== 0 ||
+    (value.currentUid !== null && value.ownerUid !== value.currentUid) ||
+    value.binarySha256 !== binding.sha256 ||
+    value.version !== binding.version
+  ) {
+    fail("browser_executable_untrusted", "browser_proof");
+  }
+  return Object.freeze({ version: binding.version, binarySha256: binding.sha256 });
+}
+
+export function validateBrowserDebuggerUrl(value, debugPort) {
+  string(value, null, "browser_debug_endpoint_invalid", "browser_proof", 2_048);
+  if (!Number.isSafeInteger(debugPort) || debugPort < 1_024 || debugPort > 65_535) {
+    fail("browser_debug_endpoint_invalid", "browser_proof");
+  }
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail("browser_debug_endpoint_invalid", "browser_proof");
+  }
+  if (
+    parsed.protocol !== "ws:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.port !== String(debugPort) ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    !/^\/devtools\/browser\/[A-Za-z0-9-]{1,128}$/u.test(parsed.pathname)
+  ) {
+    fail("browser_debug_endpoint_invalid", "browser_proof");
+  }
+  return parsed.toString();
+}
+
 async function browserExecutable(supervisor) {
-  const { chromium } = await import("@playwright/test");
-  const path = chromium.executablePath();
-  const canonical = realpathSync(path);
-  if (!canonical.includes(`${sep}ms-playwright${sep}`)) fail("browser_executable_untrusted", "browser_proof");
-  const version = await supervisor.run(canonical, ["--version"], { stage: "browser_proof", code: "browser_version_failed", timeoutMs: 10_000 });
+  const ambientPathPresent = Object.prototype.hasOwnProperty.call(process.env, "PLAYWRIGHT_BROWSERS_PATH");
+  if (ambientPathPresent) fail("browser_ambient_path_forbidden", "browser_proof");
+  const binding = PLAYWRIGHT_BROWSER_BINDINGS[`${process.platform}-${process.arch}`];
+  if (!binding) fail("browser_platform_unsupported", "browser_proof");
+  const expectedPath = join(
+    realpathSync(homedir()),
+    "Library",
+    "Caches",
+    "ms-playwright",
+    `chromium-${binding.revision}`,
+    binding.directory,
+    binding.executable,
+  );
+  let canonicalPath;
+  let metadata;
+  let binarySha256;
+  let chromium;
+  try {
+    canonicalPath = realpathSync(expectedPath);
+    metadata = lstatSync(expectedPath);
+    binarySha256 = await sha256File(expectedPath);
+    ({ chromium } = await import("@playwright/test"));
+  } catch {
+    fail("browser_executable_untrusted", "browser_proof");
+  }
+  let playwrightPath;
+  try {
+    playwrightPath = realpathSync(chromium.executablePath());
+  } catch {
+    fail("browser_executable_untrusted", "browser_proof");
+  }
+  if (binarySha256 !== binding.sha256) fail("browser_executable_untrusted", "browser_proof");
+  const version = await supervisor.run(canonicalPath, ["--version"], {
+    stage: "browser_proof",
+    code: "browser_version_failed",
+    timeoutMs: 10_000,
+  });
   const value = version.stdout.toString("utf8").trim();
   if (!isTrustedPlaywrightChromiumVersion(value)) fail("browser_version_invalid", "browser_proof");
-  return Object.freeze({ chromium, path: canonical, version: value, binarySha256: await sha256File(canonical) });
+  validatePinnedPlaywrightBrowser({
+    ambientPathPresent,
+    architecture: process.arch,
+    binarySha256,
+    canonicalPath,
+    currentUid: typeof process.getuid === "function" ? process.getuid() : null,
+    expectedPath,
+    isFile: metadata.isFile(),
+    isSymbolicLink: metadata.isSymbolicLink(),
+    mode: metadata.mode,
+    ownerUid: metadata.uid,
+    platform: process.platform,
+    playwrightPath,
+    version: value,
+  });
+  return Object.freeze({ chromium, path: canonicalPath, version: value, binarySha256 });
+}
+
+async function proveBrowserHostSandbox(supervisor, toolchain) {
+  const listener = createServer((socket) => socket.end());
+  const listen = await new Promise((resolveListen, rejectListen) => {
+    listener.once("error", rejectListen);
+    listener.listen(0, "127.0.0.1", () => resolveListen(listener.address()));
+  }).catch(() => fail("browser_sandbox_loopback_listener_failed", "browser_proof"));
+  if (!isRecord(listen) || listen.address !== "127.0.0.1" || !Number.isSafeInteger(listen.port)) {
+    listener.close();
+    fail("browser_sandbox_loopback_listener_failed", "browser_proof");
+  }
+  try {
+    const loopbackScript = String.raw`import { connect } from "node:net";
+const socket = connect({ host: "127.0.0.1", port: Number(process.argv[1]) });
+socket.once("connect", () => { process.stdout.write("loopback-ok"); socket.end(); });
+socket.once("error", () => process.exit(97));
+setTimeout(() => process.exit(98), 3000).unref();`;
+    const loopback = await supervisor.run(toolchain.paths.sandboxExec.real, [
+      "-p", BROWSER_SANDBOX_PROFILE,
+      toolchain.paths.node.real,
+      "--input-type=module",
+      "--eval",
+      loopbackScript,
+      String(listen.port),
+    ], {
+      argv0: "sandbox-exec",
+      stage: "browser_proof",
+      code: "browser_sandbox_loopback_probe_failed",
+      timeoutMs: 10_000,
+    });
+    if (loopback.stdout.toString("utf8") !== "loopback-ok") {
+      fail("browser_sandbox_loopback_probe_failed", "browser_proof");
+    }
+  } finally {
+    await new Promise((resolveClose) => listener.close(resolveClose));
+  }
+  const blockedScript = String.raw`import { connect } from "node:net";
+const socket = connect({ host: "1.1.1.1", port: 443 });
+socket.once("connect", () => process.exit(97));
+socket.once("error", (error) => { if (error.code !== "EPERM") process.exit(96); process.stdout.write("sandbox-blocked"); });
+setTimeout(() => process.exit(98), 3000).unref();`;
+  const blocked = await supervisor.run(toolchain.paths.sandboxExec.real, [
+    "-p", BROWSER_SANDBOX_PROFILE,
+    toolchain.paths.node.real,
+    "--input-type=module",
+    "--eval",
+    blockedScript,
+  ], {
+    argv0: "sandbox-exec",
+    stage: "browser_proof",
+    code: "browser_sandbox_external_probe_not_blocked",
+    timeoutMs: 10_000,
+  });
+  if (blocked.stdout.toString("utf8") !== "sandbox-blocked") {
+    fail("browser_sandbox_external_probe_not_blocked", "browser_proof");
+  }
+  return Object.freeze({
+    status: "os_policy_enforced",
+    mechanism: "macos_sandbox_exec_deny_network_outbound_except_loopback",
+    profileSha256: sha256(BROWSER_SANDBOX_PROFILE),
+    loopbackProbe: "allowed",
+    publicIpv4Tcp443Probe: "blocked_with_eperm",
+    probeTargetSha256: sha256("1.1.1.1:443"),
+  });
 }
 
 export function validateBrowserRouteProof(value) {
@@ -5725,9 +6159,17 @@ async function proveBrowserDocumentDownload(page, appUrl, status, document, allo
   const location = response.headers().location;
   let signedUrl;
   try {
-    signedUrl = new URL(location);
-  } catch {
-    fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
+    signedUrl = resolveStorageSignedObjectUrl(
+      `https://${RECOVERY_SUPABASE_HOSTNAME}`,
+      document.bucketId,
+      document.objectName,
+      location,
+    );
+  } catch (error) {
+    if (error instanceof RecoveryFailure && error.code === "private_document_signed_url_invalid") {
+      fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
+    }
+    throw error;
   }
   if (signedUrl.protocol !== "https:" || signedUrl.hostname !== RECOVERY_SUPABASE_HOSTNAME) {
     fail(`browser_${role}_document_redirect_invalid`, "browser_proof");
@@ -5788,20 +6230,31 @@ async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, rol
 
 async function proveBrowser(app, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
-  const browserTool = await browserExecutable(supervisor);
-  state.availableTools.chromium = browserTool.version;
-  state.availableTools.chromium_binary_sha256 = browserTool.binarySha256;
-  const debugPort = await reservePort();
-  const profile = join(state.harnessRoot, "chromium-profile");
-  mkdirSync(profile, { mode: 0o700 });
-  const browserRecord = supervisor.start(browserTool.path, [
-    "--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--disable-background-networking",
-    `--remote-debugging-address=127.0.0.1`, `--remote-debugging-port=${debugPort}`,
-    `--user-data-dir=${profile}`, "about:blank",
-  ], { stage: "browser_proof", maxCaptureBytes: 2 * 1_024 * 1_024 });
-  state.browserRecord = browserRecord;
+  let browserPhase = "tool_binding";
+  let browserTool;
+  let browserSandbox;
+  let browserRecord;
   let browser;
   try {
+    browserTool = await browserExecutable(supervisor);
+    state.availableTools.chromium = browserTool.version;
+    state.availableTools.chromium_binary_sha256 = browserTool.binarySha256;
+    browserPhase = "sandbox_validation";
+    browserSandbox = await proveBrowserHostSandbox(supervisor, toolchain);
+    browserPhase = "debug_port_reservation";
+    const debugPort = await reservePort();
+    const profile = join(state.harnessRoot, "chromium-profile");
+    mkdirSync(profile, { mode: 0o700 });
+    browserPhase = "process_start";
+    browserRecord = supervisor.start(toolchain.paths.sandboxExec.real, [
+      "-p", BROWSER_SANDBOX_PROFILE,
+      browserTool.path,
+      "--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--disable-background-networking",
+      `--remote-debugging-address=127.0.0.1`, `--remote-debugging-port=${debugPort}`,
+      `--user-data-dir=${profile}`, "about:blank",
+    ], { argv0: "sandbox-exec", stage: "browser_proof", maxCaptureBytes: 2 * 1_024 * 1_024 });
+    state.browserRecord = browserRecord;
+    browserPhase = "startup";
     const versionResponse = await waitForHttp(`http://127.0.0.1:${debugPort}/json/version`, [200], 45_000, "browser_start_timeout", "browser_proof", state, interruptionGuard);
     let versionPayload;
     try {
@@ -5811,7 +6264,9 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
       versionPayload = null;
     }
     if (!isRecord(versionPayload) || typeof versionPayload.webSocketDebuggerUrl !== "string") fail("browser_debug_endpoint_invalid", "browser_proof");
-    browser = await browserStep(async () => await browserTool.chromium.connectOverCDP(versionPayload.webSocketDebuggerUrl));
+    const debuggerUrl = validateBrowserDebuggerUrl(versionPayload.webSocketDebuggerUrl, debugPort);
+    browserPhase = "connect";
+    browser = await browserStep(async () => await browserTool.chromium.connectOverCDP(debuggerUrl, { timeout: 10_000 }));
     const routes = Object.freeze({
       admin: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
       sales: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
@@ -5830,6 +6285,7 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
     const availableRoles = ["admin", "sales", "admissions"].filter((role) => isRecord(app.actors[role]));
     if (availableRoles.length === 0) fail("browser_representative_missing", "browser_proof");
     for (const role of availableRoles) {
+      browserPhase = `${role}_context`;
       const context = await browserStep(async () => await browser.newContext({ locale: "ru-RU", serviceWorkers: "block" }));
       await browserStep(async () => await context.route("**/*", async (route) => {
         if (interruptionGuard.interrupted) {
@@ -5845,6 +6301,7 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
       }));
       await installBrowserWebSocketBlocker(context, browserNetwork, browserStep);
       const page = await browserStep(async () => await context.newPage());
+      browserPhase = `${role}_login`;
       await browserStep(async () => await page.goto(`${app.appUrl}/login`, { waitUntil: "domcontentloaded" }));
       await browserStep(async () => await page.locator("#staff-email").fill(app.actors[role].email));
       await browserStep(async () => await page.locator("#staff-password").fill(app.actors[role].password));
@@ -5854,6 +6311,7 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
       if (await browserStep(async () => await shell.getAttribute("data-authority-role")) !== role) {
         fail("browser_role_mismatch", "browser_proof", { role });
       }
+      browserPhase = `${role}_route`;
       const route = routes[role];
       const response = await browserStep(async () => await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded" }));
       await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
@@ -5880,6 +6338,7 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
         markerVisible,
       }));
       if (role === "admin") {
+        browserPhase = "admin_scanner";
         scannerDataPath = await proveScannerDataPath(
           status,
           app.actors.admin,
@@ -5891,12 +6350,15 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
           interruptionGuard,
         );
         if (roleServerProof?.sales) {
+          browserPhase = "admin_sales_readback";
           await proveBrowserSalesReadback(page, app.appUrl, roleServerProof.sales, role, browserStep);
         }
         if (roleServerProof?.admissions) {
+          browserPhase = "admin_admissions_readback";
           await proveBrowserAdmissionsReadback(page, app.appUrl, roleServerProof.admissions, role, browserStep);
         }
         if (roleServerProof?.document) {
+          browserPhase = "admin_document_readback";
           await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, true, role, browserStep);
         }
         roleReadbacks.admin = roleServerProof?.outcomes?.admin === "passed" &&
@@ -5905,9 +6367,11 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
           : "not_run_incomplete_server_outcomes";
       } else if (role === "sales") {
         if (roleServerProof?.sales) {
+          browserPhase = "sales_readback";
           await proveBrowserSalesReadback(page, app.appUrl, roleServerProof.sales, role, browserStep);
         }
         if (roleServerProof?.document) {
+          browserPhase = "sales_document_readback";
           await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, false, role, browserStep);
         }
         roleReadbacks.sales = roleServerProof?.outcomes?.sales === "passed" &&
@@ -5916,9 +6380,11 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
           : "not_run_incomplete_server_outcomes";
       } else if (role === "admissions") {
         if (roleServerProof?.admissions) {
+          browserPhase = "admissions_readback";
           await proveBrowserAdmissionsReadback(page, app.appUrl, roleServerProof.admissions, role, browserStep);
         }
         if (roleServerProof?.document) {
+          browserPhase = "admissions_document_readback";
           await proveBrowserDocumentDownload(page, app.appUrl, status, roleServerProof.document, true, role, browserStep);
         }
         roleReadbacks.admissions = roleServerProof?.outcomes?.admissions === "passed" &&
@@ -5926,12 +6392,14 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
           ? "passed"
           : "not_run_incomplete_server_outcomes";
       }
+      browserPhase = `${role}_context_close`;
       await browserStep(async () => await context.close(), { allowAfterInterrupt: true });
       validateBrowserNetworkProof(browserNetwork);
     }
     for (const role of ["admin", "sales", "admissions"]) {
       roleReadbacks[role] ??= "not_run_missing_representative";
     }
+    browserPhase = "readiness";
     const readiness = await proveFailClosedReadiness(app, interruptionGuard);
     return Object.freeze({
       admin: availableRoles.includes("admin") ? "passed" : "not_run_missing_representative",
@@ -5940,6 +6408,7 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
       routes: Object.freeze(routeProofs),
       roleOutcomes: Object.freeze(roleReadbacks),
       network: validateBrowserNetworkProof(browserNetwork),
+      sandbox: browserSandbox,
       chromium: browserTool.version,
       exactCandidateImage: true,
       readiness,
@@ -5949,13 +6418,18 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
         ? "complete_real_representative_browser_proof"
         : "available_real_representatives_only",
     });
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    fail(`browser_${browserPhase}_operation_failed`, "browser_proof", sanitizeBrowserDiagnostic(error));
   } finally {
     if (browser) {
       await browserStep(async () => await browser.close(), { allowAfterInterrupt: true }).catch(() => undefined);
     }
-    const drained = await supervisor.stopOne(browserRecord);
-    state.browserRecord = undefined;
-    if (!drained) fail("browser_descendants_not_drained", "browser_proof");
+    if (browserRecord) {
+      const drained = await supervisor.stopOne(browserRecord);
+      state.browserRecord = undefined;
+      if (!drained) fail("browser_descendants_not_drained", "browser_proof");
+    }
   }
 }
 
@@ -5998,21 +6472,21 @@ function sanitizedAppNetworkAttachment(value) {
     "appContainerIdSha256",
     "appImageIdSha256",
     "attachedNetworkCount",
-    "externalEgress",
+    "ipMasquerade",
     "loopbackOnly",
     "networkIdSha256",
     "publishedPortCount",
     "schema",
   ], "destination_app_network_invalid", "isolation_identity");
   if (
-    value.schema !== "evo-v3-recovery-app-network/v1" ||
+    value.schema !== "evo-v3-recovery-app-network/v2" ||
     !SHA256.test(value.appContainerIdSha256) ||
     !SHA256.test(value.appImageIdSha256) ||
     !SHA256.test(value.networkIdSha256) ||
     value.attachedNetworkCount !== 1 ||
     value.publishedPortCount !== 1 ||
     value.loopbackOnly !== true ||
-    value.externalEgress !== "blocked_by_disabled_masquerade_and_runtime_probe"
+    value.ipMasquerade !== false
   ) {
     fail("destination_app_network_invalid", "isolation_identity");
   }
@@ -6862,6 +7336,7 @@ function durableToolEvidence(value) {
     "psql_realpath_sha256",
     "node_realpath_sha256",
     "openssl_realpath_sha256",
+    "sandboxExec_realpath_sha256",
     "dockerBuildx_realpath_sha256",
     "supabaseLauncher_realpath_sha256",
     "supabaseNative_realpath_sha256",
@@ -6875,6 +7350,7 @@ function durableToolEvidence(value) {
     "psql_binary_sha256",
     "node_binary_sha256",
     "openssl_binary_sha256",
+    "sandboxExec_binary_sha256",
     "dockerBuildx_binary_sha256",
     "private_buildx_realpath_sha256",
     "supabaseLauncher_binary_sha256",
@@ -7349,7 +7825,12 @@ async function executeMode(mode, options) {
         schema: RESULT_SCHEMA,
         ...shared,
         isolation,
-        networkEgress: local.egress,
+        networkEgress: Object.freeze({
+          bridgeFoundation: local.egress,
+          supabaseServiceImages: local.endpoint.serviceImages,
+          candidateRuntime: app.runtimeInternetTcpEgress,
+          browserHost: browser.sandbox ?? Object.freeze({ status: "not_run_missing_representative" }),
+        }),
         database,
         migrations,
         storage,

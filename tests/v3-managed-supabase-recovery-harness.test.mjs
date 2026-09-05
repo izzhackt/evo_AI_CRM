@@ -42,6 +42,7 @@ import {
   runBrowserOperation,
   resolveSupabaseExecutableChain,
   resolveStorageSignedObjectUrl,
+  sanitizeBrowserDiagnostic,
   sanitizePsqlDiagnostic,
   sanitizeCommandDiagnostic,
   storageSourceRecoveryReadiness,
@@ -57,12 +58,15 @@ import {
   uploadStorageObjectFromFile,
   validateEvidenceRuntimeSeparation,
   validateBrowserRouteProof,
+  validateBrowserDebuggerUrl,
   validateBrowserNetworkProof,
   validateCandidateNetworkAttachment,
   validateContainerCensusIds,
   validateDatabaseManifest,
   validateBuiltImageInspection,
   validateLocalSupabaseNetwork,
+  validatePinnedPlaywrightBrowser,
+  validatePinnedSupabaseServiceImages,
   validatePgmqContainmentProof,
   validatePgmqRestoreInventory,
   validateRepresentativeCohort,
@@ -114,6 +118,63 @@ test("candidate image uses a production-valid local Supabase TLS origin", () => 
   assert.match(source, /recovery_app_tls_proxy_start_failed/u);
 });
 
+test("browser execution is bound to one reviewed binary and exact loopback CDP endpoint", () => {
+  const digest = "a".repeat(64);
+  const path = "/Users/operator/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing";
+  const value = {
+    ambientPathPresent: false,
+    architecture: "arm64",
+    binarySha256: digest,
+    canonicalPath: path,
+    currentUid: 501,
+    expectedPath: path,
+    isFile: true,
+    isSymbolicLink: false,
+    mode: 0o100755,
+    ownerUid: 501,
+    platform: "darwin",
+    playwrightPath: path,
+    version: "Google Chrome for Testing 149.0.7827.55",
+  };
+  const bindings = {
+    "darwin-arm64": {
+      version: value.version,
+      sha256: digest,
+    },
+  };
+  assert.deepEqual(validatePinnedPlaywrightBrowser(value, bindings), {
+    version: value.version,
+    binarySha256: digest,
+  });
+  expectCode(
+    () => validatePinnedPlaywrightBrowser({ ...value, ambientPathPresent: true }, bindings),
+    "browser_ambient_path_forbidden",
+  );
+  expectCode(
+    () => validatePinnedPlaywrightBrowser({ ...value, binarySha256: "b".repeat(64) }, bindings),
+    "browser_executable_untrusted",
+  );
+  expectCode(
+    () => validatePinnedPlaywrightBrowser({ ...value, mode: 0o100775 }, bindings),
+    "browser_executable_untrusted",
+  );
+  const debuggerUrl = "ws://127.0.0.1:43124/devtools/browser/123e4567-e89b-12d3-a456-426614174000";
+  assert.equal(validateBrowserDebuggerUrl(debuggerUrl, 43124), debuggerUrl);
+  for (const invalid of [
+    "ws://localhost:43124/devtools/browser/123e4567-e89b-12d3-a456-426614174000",
+    "ws://127.0.0.1:43125/devtools/browser/123e4567-e89b-12d3-a456-426614174000",
+    "ws://user@127.0.0.1:43124/devtools/browser/123e4567-e89b-12d3-a456-426614174000",
+    "ws://127.0.0.1:43124/devtools/browser/123e4567-e89b-12d3-a456-426614174000?token=x",
+    "wss://127.0.0.1:43124/devtools/browser/123e4567-e89b-12d3-a456-426614174000",
+    "ws://127.0.0.1:43124/devtools/page/123e4567-e89b-12d3-a456-426614174000",
+  ]) {
+    expectCode(() => validateBrowserDebuggerUrl(invalid, 43124), "browser_debug_endpoint_invalid");
+  }
+  assert.match(source, /Object\.prototype\.hasOwnProperty\.call\(process\.env, "PLAYWRIGHT_BROWSERS_PATH"\)/u);
+  assert.match(source, /sandbox-exec/u);
+  assert.match(source, /macos_sandbox_exec_deny_network_outbound_except_loopback/u);
+  assert.match(source, /connectOverCDP\(debuggerUrl, \{ timeout: 10_000 \}\)/u);
+});
 test("provider configuration evidence is local-only and authenticated readiness stays fail-closed", () => {
   const providerStart = source.indexOf("async function recordRecoveryProviderBoundary");
   const readinessStart = source.indexOf("async function proveFailClosedReadiness");
@@ -202,12 +263,15 @@ test("restored role proof mutates existing records, replays, audits, and reads b
   assert.match(roleSource, /change_case_task/u);
   assert.match(roleSource, /staff_student_case_task_workspace/u);
   assert.match(roleSource, /staff_document_queue/u);
+  assert.match(roleSource, /platform_private\.document_storage_bindings/u);
+  assert.match(roleSource, /restored_document_storage_binding_invalid/u);
   assert.match(roleSource, /assertReplayResult/u);
   assert.match(roleSource, /assertRoleMutationAudit/u);
   assert.doesNotMatch(roleSource, /create_case_task/u);
   assert.match(source, /proveBrowserSalesReadback/u);
   assert.match(source, /proveBrowserAdmissionsReadback/u);
   assert.match(source, /proveBrowserDocumentDownload/u);
+  assert.match(source, /resolveStorageSignedObjectUrl\(\s*`https:\/\/\$\{RECOVERY_SUPABASE_HOSTNAME\}`/u);
   assert.match(source, /restored_sales_lead_missing/u);
   assert.match(source, /restored_admissions_task_missing/u);
   assert.match(source, /restored_downloadable_document_missing/u);
@@ -1078,6 +1142,21 @@ test("raw Storage signed paths are resolved under the local Storage API and cann
     () => resolveStorageSignedObjectUrl(apiUrl, "platform-documents", path, raw.replace("?token=local-token", "")),
     "private_document_signed_url_invalid",
   );
+  const recoveryOrigin = "https://evov3recoverylocal00.supabase.co";
+  const exactRemote = `${recoveryOrigin}/storage/v1${raw}`;
+  assert.equal(
+    resolveStorageSignedObjectUrl(recoveryOrigin, "platform-documents", path, exactRemote).toString(),
+    exactRemote,
+  );
+  expectCode(
+    () => resolveStorageSignedObjectUrl(
+      recoveryOrigin,
+      "platform-documents",
+      path,
+      exactRemote.replace(path, "wrong/object.pdf"),
+    ),
+    "private_document_signed_url_invalid",
+  );
 });
 
 test("Storage restore streams bounded file chunks and aborts an in-flight upload", async (t) => {
@@ -1723,6 +1802,16 @@ test("browser proof requires a 2xx response, exact final route and loaded module
   expectCode(() => validateBrowserRouteProof({ ...valid, markerVisible: false }), "browser_module_marker_missing");
 });
 
+test("browser diagnostics retain only a bounded category and hashes", () => {
+  const message = "Timeout while waiting for private staff UI";
+  const diagnostic = sanitizeBrowserDiagnostic(new Error(message));
+  assert.equal(diagnostic.name, "Error");
+  assert.equal(diagnostic.category, "timeout");
+  assert.match(diagnostic.messageSha256, /^[0-9a-f]{64}$/u);
+  assert.equal(diagnostic.bytes, Buffer.byteLength(message));
+  assert.equal(JSON.stringify(diagnostic).includes("private staff UI"), false);
+});
+
 test("browser network policy allows only the exact loopback app origin and fails on any denied attempt", () => {
   const appOrigin = "http://127.0.0.1:43123";
   assert.equal(browserRequestAllowed(`${appOrigin}/v3/main`, appOrigin), true);
@@ -1830,6 +1919,46 @@ function projectedContainer({ id, name, image = `sha256:${"e".repeat(64)}`, labe
   return [id, `/${name}`, image, labels, networkMode, ports, networks].map((value) => JSON.stringify(value)).join("\t");
 }
 
+test("local Supabase runtime accepts only the reviewed service image set", () => {
+  const projectName = "evov3recoveryabcdef123456";
+  const expected = {
+    auth: {
+      reference: "public.ecr.aws/supabase/gotrue:v2.196.0",
+      digest: `sha256:${"a".repeat(64)}`,
+    },
+    db: {
+      reference: "public.ecr.aws/supabase/postgres:17.6.1.165",
+      digest: `sha256:${"b".repeat(64)}`,
+    },
+  };
+  const records = Object.entries(expected).map(([service, binding], index) => ({
+    id: String(index + 1).repeat(64),
+    name: `supabase_${service}_${projectName}`,
+    image: binding.digest,
+    labels: { "com.supabase.cli.project": projectName },
+    networkMode: `${projectName}_private`,
+    ports: {},
+    networks: {},
+  }));
+  const proof = validatePinnedSupabaseServiceImages(records, projectName, expected);
+  assert.equal(proof.serviceCount, 2);
+  assert.match(proof.imageSetSha256, /^[0-9a-f]{64}$/u);
+  expectCode(
+    () => validatePinnedSupabaseServiceImages([{ ...records[0], image: `sha256:${"c".repeat(64)}` }, records[1]], projectName, expected),
+    "supabase_service_image_set_invalid",
+  );
+  expectCode(
+    () => validatePinnedSupabaseServiceImages(records.slice(0, 1), projectName, expected),
+    "supabase_service_image_set_invalid",
+  );
+  expectCode(
+    () => validatePinnedSupabaseServiceImages([...records, { ...records[0], id: "9".repeat(64) }], projectName, expected),
+    "supabase_service_image_set_invalid",
+  );
+  assert.match(source, /verifyPinnedSupabaseImageTags/u);
+  assert.match(source, /validatePinnedSupabaseServiceImages/u);
+});
+
 test("egress-blocked recovery bridge derives the Supabase API target and proves one loopback-only candidate attachment", () => {
   const projectName = "evov3recoveryabcdef123456";
   const networkName = `${projectName}_private`;
@@ -1924,7 +2053,7 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
     },
     networkMode: networkName,
     ports: { "3310/tcp": null },
-    networks: containerNetwork(scannerName, [scannerName, scannerHost]),
+    networks: containerNetwork(scannerName, [scannerHost]),
   });
   const scannerMembers = { ...supabaseMembers, [scannerId]: { Name: scannerName } };
   const scannerCensus = validateContainerCensusIds(supabaseOutput, "", `${scannerId}\n`, { requireScanner: true });
@@ -1936,14 +2065,14 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
     projectName,
     scanner: scannerIdentity,
   });
-  assert.deepEqual(endpoint, {
-    networkId,
-    memberIds: [kongId, authId, databaseId, scannerId].sort(),
-    targetHost: supabaseMembers[kongId].Name,
-    targetPort: 8000,
-    apiLoopbackPort: 43121,
-    databaseContainerId: databaseId,
-  });
+  assert.equal(endpoint.networkId, networkId);
+  assert.deepEqual(endpoint.memberIds, [kongId, authId, databaseId, scannerId].sort());
+  assert.equal(endpoint.targetHost, supabaseMembers[kongId].Name);
+  assert.equal(endpoint.targetPort, 8000);
+  assert.equal(endpoint.apiLoopbackPort, 43121);
+  assert.equal(endpoint.databaseContainerId, databaseId);
+  assert.deepEqual(Object.keys(endpoint.memberShapeSha256ById).sort(), endpoint.memberIds);
+  for (const digest of Object.values(endpoint.memberShapeSha256ById)) assert.match(digest, /^[0-9a-f]{64}$/u);
 
   const appName = `supabase_app_${projectName}`;
   const appProjection = projectedContainer({
@@ -1969,10 +2098,14 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
   const candidateExpected = {
     appContainerId: appId,
     appContainerName: appName,
+    appNetworkAlias: appName,
     appImageId,
     appPort: 43123,
     census: candidateCensus,
     networkName,
+    previousMemberShapeSha256ById: Object.fromEntries(
+      Object.keys(supabaseMembers).map((id) => [id, endpoint.memberShapeSha256ById[id]]),
+    ),
     previousMemberIds: endpoint.memberIds,
     projectName,
     scanner: scannerIdentity,
@@ -1983,14 +2116,14 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
     candidateExpected,
   );
   assert.deepEqual(attachment, {
-    schema: "evo-v3-recovery-app-network/v1",
+    schema: "evo-v3-recovery-app-network/v2",
     appContainerIdSha256: hash(appId),
     appImageIdSha256: hash(appImageId),
     networkIdSha256: hash(networkId),
     attachedNetworkCount: 1,
     publishedPortCount: 1,
     loopbackOnly: true,
-    externalEgress: "blocked_by_disabled_masquerade_and_runtime_probe",
+    ipMasquerade: false,
   });
 
   const localExpected = { apiUrl: "http://127.0.0.1:43121", census: scannerCensus, networkName, projectName, scanner: scannerIdentity };
@@ -2020,7 +2153,7 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
     () => validateLocalSupabaseNetwork(network(scannerMembers), wrongScannerType, localExpected),
     "local_supabase_container_inspection_invalid",
   );
-  const scannerWithoutAlias = runtimeProjection.replace(`,"${scannerHost}"`, "");
+  const scannerWithoutAlias = runtimeProjection.replace(`"Aliases":["${scannerHost}"]`, '"Aliases":[]');
   expectCode(
     () => validateLocalSupabaseNetwork(network(scannerMembers), scannerWithoutAlias, localExpected),
     "local_supabase_container_inspection_invalid",
@@ -2047,7 +2180,7 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
   const appWithoutNameAlias = appProjection.replace(JSON.stringify([appName]), JSON.stringify(["other-valid-alias"]));
   expectCode(
     () => validateCandidateNetworkAttachment(network({ ...scannerMembers, [appId]: { Name: appName } }), `${runtimeProjection}\n${appWithoutNameAlias}`, candidateExpected),
-    "candidate_network_attachment_invalid",
+    "candidate_app_network_alias_invalid",
   );
   const extraNetworkApp = projectedContainer({
     id: appId,
@@ -2093,6 +2226,86 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
       { ...candidateExpected, census: { ...candidateCensus, ids: [kongId, appId].sort() } },
     ),
     "candidate_container_census_mismatch",
+  );
+  const wrongScannerRole = scannerProjection.replace("private-malware-scanner", "untrusted-scanner");
+  expectCode(
+    () => validateCandidateNetworkAttachment(
+      network({ ...supabaseMembers, [scannerId]: { Name: scannerName }, [appId]: { Name: appName } }),
+      `${baseProjection}\n${wrongScannerRole}\n${appProjection}`,
+      candidateExpected,
+    ),
+    "candidate_scanner_inspection_invalid",
+  );
+  const wrongScannerAlias = scannerProjection.replace(scannerHost, scannerName);
+  expectCode(
+    () => validateCandidateNetworkAttachment(
+      network({ ...supabaseMembers, [scannerId]: { Name: scannerName }, [appId]: { Name: appName } }),
+      `${baseProjection}\n${wrongScannerAlias}\n${appProjection}`,
+      candidateExpected,
+    ),
+    "candidate_scanner_inspection_invalid",
+  );
+  const extraScannerAlias = scannerProjection.replace(
+    `\"Aliases\":[\"${scannerHost}\"]`,
+    `\"Aliases\":[\"${scannerHost}\",\"extra-scanner\"]`,
+  );
+  expectCode(
+    () => validateCandidateNetworkAttachment(
+      network({ ...supabaseMembers, [scannerId]: { Name: scannerName }, [appId]: { Name: appName } }),
+      `${baseProjection}\n${extraScannerAlias}\n${appProjection}`,
+      candidateExpected,
+    ),
+    "candidate_scanner_inspection_invalid",
+  );
+  const wrongAppAlias = appProjection.replace(`\"Aliases\":[\"${appName}\"]`, `\"Aliases\":[\"wrong-app\"]`);
+  expectCode(
+    () => validateCandidateNetworkAttachment(
+      network({ ...supabaseMembers, [scannerId]: { Name: scannerName }, [appId]: { Name: appName } }),
+      `${baseProjection}\n${scannerProjection}\n${wrongAppAlias}`,
+      candidateExpected,
+    ),
+    "candidate_app_network_alias_invalid",
+  );
+  const extraAppAlias = appProjection.replace(
+    `\"Aliases\":[\"${appName}\"]`,
+    `\"Aliases\":[\"${appName}\",\"extra-app\"]`,
+  );
+  expectCode(
+    () => validateCandidateNetworkAttachment(
+      network({ ...supabaseMembers, [scannerId]: { Name: scannerName }, [appId]: { Name: appName } }),
+      `${baseProjection}\n${scannerProjection}\n${extraAppAlias}`,
+      candidateExpected,
+    ),
+    "candidate_app_network_alias_invalid",
+  );
+  const driftedSupabaseProjection = baseProjection.replace('"9999/tcp":null', '"9999/tcp":{"HostIp":null}');
+  expectCode(
+    () => validateCandidateNetworkAttachment(
+      network({ ...supabaseMembers, [scannerId]: { Name: scannerName }, [appId]: { Name: appName } }),
+      `${driftedSupabaseProjection}\n${scannerProjection}\n${appProjection}`,
+      candidateExpected,
+    ),
+    "candidate_supabase_container_shape_changed",
+  );
+  const publishedScanner = projectedContainer({
+    id: scannerId,
+    name: scannerName,
+    image: scannerImageId,
+    labels: {
+      "com.docker.compose.project": projectName,
+      "com.evo.runtime.role": "private-malware-scanner",
+    },
+    networkMode: networkName,
+    ports: { "3310/tcp": [{ HostIp: "127.0.0.1", HostPort: "43310" }] },
+    networks: containerNetwork(scannerName),
+  });
+  expectCode(
+    () => validateCandidateNetworkAttachment(
+      network({ ...supabaseMembers, [scannerId]: { Name: scannerName }, [appId]: { Name: appName } }),
+      `${baseProjection}\n${publishedScanner}\n${appProjection}`,
+      candidateExpected,
+    ),
+    "candidate_scanner_published_port_forbidden",
   );
   const orphanId = "9".repeat(64);
   expectCode(
@@ -3048,7 +3261,9 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.doesNotMatch(source, /--network", "host"/u);
   assert.doesNotMatch(source, /"network", "create", "--internal"/u);
   assert.match(source, /com\.docker\.network\.bridge\.enable_ip_masquerade=false/u);
-  assert.match(source, /bridge_ip_masquerade_disabled_plus_runtime_probe/u);
+  assert.match(source, /bridge_ip_masquerade_disabled_plus_exact_container_probe/u);
+  assert.match(source, /candidateRuntime: app\.runtimeInternetTcpEgress/u);
+  assert.match(source, /browserHost: browser\.sandbox/u);
   assert.match(source, /"--network", state\.networkName/u);
   assert.match(source, /"--publish", `127\.0\.0\.1:\$\{appPort\}:\$\{appPort\}`/u);
   assert.match(source, /SAFE_CONTAINER_INSPECT_FORMAT/u);

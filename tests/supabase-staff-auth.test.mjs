@@ -149,6 +149,7 @@ test("the runtime uses Supabase SSR cookies and keeps Admin preview presentation
     entry,
     shell,
     pending,
+    loginForm,
   ] = await Promise.all([
     readFile(new URL("../src/lib/supabase/server.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/lib/supabase/browser.ts", import.meta.url), "utf8"),
@@ -161,6 +162,7 @@ test("the runtime uses Supabase SSR cookies and keeps Admin preview presentation
     readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/components/v3/AppShell.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/app/platform-pending/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/AuthForms.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(server, /createServerClient/);
@@ -186,4 +188,5 @@ test("the runtime uses Supabase SSR cookies and keeps Admin preview presentation
   assert.match(shell, /selectStaffRolePreviewAction/);
   assert.match(shell, /logoutStaffAction/);
   assert.doesNotMatch(pending, /temporary V2 session|тесттик рол/);
+  assert.match(loginForm, /data-auth-error=\{error\}/);
 });

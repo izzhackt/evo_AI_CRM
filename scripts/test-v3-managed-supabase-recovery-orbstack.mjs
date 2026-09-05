@@ -71,6 +71,7 @@ const MAX_TARGET_CONFIG_BYTES = 1024 * 1024;
 const MAX_SQL_BYTES = 128 * 1024 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024 * 1024;
 const MAX_AGE_HOURS = 24 * 31;
+const BROWSER_COMPANY_FILE_REQUEST_TIMEOUT_MS = 45_000;
 const FUTURE_SKEW_MS = 5 * 60 * 1_000;
 const CAPTURE_WINDOW_MS = 60 * 60 * 1_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -1734,11 +1735,42 @@ export class RecoveryInterruptionGuard {
   }
 }
 
-export async function runBrowserOperation(interruptionGuard, operation, options) {
+export function sanitizeBrowserDiagnostic(error) {
+  const message = error instanceof Error && typeof error.message === "string"
+    ? error.message
+    : String(error ?? "");
+  const rawName = error instanceof Error && typeof error.name === "string" ? error.name : "Error";
+  const name = new Set(["Error", "TimeoutError", "TypeError"]).has(rawName) ? rawName : "Error";
+  const category = /timed?\s*out|timeout/iu.test(message)
+    ? "timeout"
+    : /target page, context or browser has been closed|browser has been closed|connection closed|execution context was destroyed/iu.test(message)
+      ? "target_closed"
+      : /failed to fetch|net::err_|network/iu.test(message)
+        ? "fetch_failed"
+        : /protocol|cdp|session closed/iu.test(message)
+          ? "protocol"
+          : "unknown";
+  return Object.freeze({
+    category,
+    name,
+    messageSha256: sha256(message),
+    bytes: Buffer.byteLength(message),
+  });
+}
+
+export async function runBrowserOperation(interruptionGuard, operation, options = {}) {
   if (!(interruptionGuard instanceof RecoveryInterruptionGuard)) {
     fail("interruption_guard_invalid", "browser_proof");
   }
-  return await interruptionGuard.run("browser_proof", operation, options);
+  const operationCode = options.operationCode ?? "browser_operation_failed";
+  string(operationCode, /^[a-z][a-z0-9_]{0,95}$/u, "browser_operation_code_invalid", "browser_proof", 96);
+  const guardOptions = { allowAfterInterrupt: options.allowAfterInterrupt === true };
+  try {
+    return await interruptionGuard.run("browser_proof", operation, guardOptions);
+  } catch (error) {
+    if (error instanceof RecoveryFailure) throw error;
+    fail(operationCode, "browser_proof", sanitizeBrowserDiagnostic(error));
+  }
 }
 
 export class ProcessSupervisor {
@@ -1906,29 +1938,6 @@ export function sanitizeCommandDiagnostic(output, status) {
           ? "conflict"
           : "command_failed";
   return Object.freeze({ category, status: Number.isInteger(status) ? status : null, outputSha256: sha256(text), bytes: Buffer.byteLength(text) });
-}
-
-export function sanitizeBrowserDiagnostic(error) {
-  const message = error instanceof Error && typeof error.message === "string"
-    ? error.message
-    : String(error ?? "");
-  const rawName = error instanceof Error && typeof error.name === "string" ? error.name : "Error";
-  const name = /^[A-Za-z][A-Za-z0-9]{0,63}(?:Error)?$/u.test(rawName) ? rawName : "Error";
-  const category = /timed?\s*out|timeout/iu.test(message)
-    ? "timeout"
-    : /target page, context or browser has been closed|browser has been closed|connection closed/iu.test(message)
-      ? "browser_closed"
-      : /net::err_|network/iu.test(message)
-        ? "network"
-        : /strict mode violation|resolved to \d+ elements/iu.test(message)
-          ? "locator_ambiguous"
-          : "browser_operation_failed";
-  return Object.freeze({
-    name,
-    category,
-    messageSha256: sha256(message),
-    bytes: Buffer.byteLength(message),
-  });
 }
 
 export function sanitizePsqlDiagnostic(output, status) {
@@ -2922,15 +2931,7 @@ async function startLocalSupabase(state, root, ports, supervisor, toolchain) {
   const endpoint = await inspectLocalSupabaseNetwork(state, status, supervisor, toolchain);
   if (endpoint.networkId !== state.networkId) fail("isolated_network_identity_drift", "local_supabase_start");
   state.supabaseContainerIds = endpoint.memberIds;
-  const localDestinationInventory = await cleanupInventory(state, supervisor, toolchain.paths, {
-    stage: "local_supabase_start",
-  });
-  state.ownedVolumeNames = localDestinationInventory.volumes;
-  state.ownedVolumeIdentities = localDestinationInventory.volumeIdentities;
-  assertCleanupInventoryIdentity(localDestinationInventory, cleanupCapturedIdentity(state));
-  completeContainerMutationCapture(state, "local_supabase_start");
-  const egress = await proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain);
-  return Object.freeze({ status, configPath, endpoint, egress });
+  return Object.freeze({ status, configPath, endpoint });
 }
 
 function parsedJson(value, code, stage) {
@@ -3333,7 +3334,14 @@ printf 'egress-blocked:%s' "$timeout_result"`;
   });
 }
 
-async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain) {
+export async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain, stage) {
+  const operationStage = string(
+    stage,
+    /^[a-z][a-z0-9_]{0,95}$/u,
+    "recovery_network_egress_stage_invalid",
+    "local_supabase_egress",
+    96,
+  );
   return Object.freeze({
     ipMasquerade: false,
     ipv6: false,
@@ -3343,7 +3351,7 @@ async function proveRecoveryNetworkEgressBlocked(endpoint, supervisor, toolchain
       endpoint.targetPort,
       supervisor,
       toolchain,
-      "local_supabase_start",
+      operationStage,
     ),
   });
 }
@@ -4369,6 +4377,83 @@ export async function apiRequest(
     fail(code, stage, { status: response.status, bodySha256: sha256(body), bytes: Buffer.byteLength(body) });
   }
   return response;
+}
+
+const POSTGREST_SCHEMA_CACHE_RETRY = Object.freeze({
+  status: 503,
+  bodySha256: "107e1a89a72826b2133db156785c784b47f5b3e46882ed0b08b8fde6dab39ff8",
+  bytes: 119,
+});
+
+export function classifyPostgrestSchemaCacheProbe(status, body) {
+  if (status === 200) return "ready";
+  if (!Number.isSafeInteger(status) || typeof body !== "string") {
+    fail("postgrest_schema_cache_probe_invalid", "postgrest_schema_cache");
+  }
+  const diagnostic = Object.freeze({
+    status,
+    bodySha256: sha256(body),
+    bytes: Buffer.byteLength(body),
+  });
+  if (
+    diagnostic.status === POSTGREST_SCHEMA_CACHE_RETRY.status &&
+    diagnostic.bodySha256 === POSTGREST_SCHEMA_CACHE_RETRY.bodySha256 &&
+    diagnostic.bytes === POSTGREST_SCHEMA_CACHE_RETRY.bytes
+  ) {
+    return "retry";
+  }
+  fail("postgrest_schema_cache_probe_failed", "postgrest_schema_cache", diagnostic);
+}
+
+export async function waitForPostgrestSchemaCache(
+  status,
+  interruptionGuard,
+  { fetchImpl = globalThis.fetch } = {},
+) {
+  const stage = "postgrest_schema_cache";
+  if (typeof fetchImpl !== "function") fail("postgrest_schema_cache_probe_invalid", stage);
+  const deadline = Date.now() + 2 * 60 * 1_000;
+  const url = new URL("/rest/v1/", status.apiUrl);
+  const headers = {
+    apikey: status.serviceRoleKey,
+    Authorization: `Bearer ${status.serviceRoleKey}`,
+    "Accept-Profile": "platform",
+  };
+  while (Date.now() < deadline) {
+    interruptionGuard.assertActive(stage);
+    let response;
+    try {
+      response = await interruptionGuard.run(stage, async (signal) => await fetchImpl(url, {
+        headers,
+        redirect: "manual",
+        signal: AbortSignal.any([AbortSignal.timeout(3_000), signal]),
+      }));
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
+      fail("postgrest_schema_cache_probe_failed", stage, { category: "network_failure" });
+    }
+    if (response.status === 200) {
+      try {
+        await interruptionGuard.run(stage, async () => await response.body?.cancel());
+      } catch (error) {
+        if (error instanceof RecoveryFailure) throw error;
+        fail("postgrest_schema_cache_probe_failed", stage, { category: "body_cancel_failure" });
+      }
+      return Object.freeze({ status: "ready", schema: "platform" });
+    }
+    let body;
+    try {
+      body = await interruptionGuard.run(stage, async () => await response.text());
+    } catch (error) {
+      if (error instanceof RecoveryFailure) throw error;
+      fail("postgrest_schema_cache_probe_failed", stage, { category: "body_read_failure" });
+    }
+    if (classifyPostgrestSchemaCacheProbe(response.status, body) !== "retry") {
+      fail("postgrest_schema_cache_probe_failed", stage);
+    }
+    await interruptionGuard.run(stage, async () => await delay(250));
+  }
+  fail("postgrest_schema_cache_timeout", stage);
 }
 
 export async function uploadStorageObjectFromFile(
@@ -6518,6 +6603,27 @@ export function validateBrowserNetworkProof(value) {
   return Object.freeze({ ...value });
 }
 
+const BROWSER_LOGIN_ERROR_SUFFIXES = Object.freeze({
+  accessDenied: "access_denied",
+  authUnavailable: "auth_unavailable",
+  staffAccessDenied: "staff_access_denied",
+});
+
+export function browserLoginFailureCode(role, outcome) {
+  if (!new Set(["admin", "sales", "admissions"]).has(role)) {
+    fail("browser_login_role_invalid", "browser_proof");
+  }
+  if (!isRecord(outcome) || !new Set(["authenticated", "rejected"]).has(outcome.status)) {
+    fail(`browser_${role}_login_result_invalid`, "browser_proof");
+  }
+  if (outcome.status === "authenticated") return null;
+  if (typeof outcome.code !== "string" || !Object.hasOwn(BROWSER_LOGIN_ERROR_SUFFIXES, outcome.code)) {
+    fail(`browser_${role}_login_error_code_invalid`, "browser_proof");
+  }
+  const suffix = BROWSER_LOGIN_ERROR_SUFFIXES[outcome.code];
+  return `browser_${role}_login_${suffix}`;
+}
+
 export async function installBrowserWebSocketBlocker(context, browserNetwork, browserStep = async (operation) => await operation()) {
   await browserStep(async () => await context.routeWebSocket("**/*", async (webSocket) => {
     browserNetwork.webSocketAttemptCount += 1;
@@ -6538,10 +6644,10 @@ async function proveFailClosedReadiness(app, interruptionGuard) {
       "x-evo-observability-hmac-algorithm": "sha256",
       "x-evo-observability-hmac": hmac,
     },
-  }, [503], "readiness_fail_closed_status_invalid", "browser_proof", interruptionGuard);
+  }, [503], "readiness_fail_closed_status_invalid", "candidate_readiness", interruptionGuard);
   let payload;
   try {
-    payload = await interruptionGuard.run("browser_proof", async () => await response.json());
+    payload = await interruptionGuard.run("candidate_readiness", async () => await response.json());
   } catch (error) {
     if (error instanceof RecoveryFailure) throw error;
     payload = null;
@@ -6555,7 +6661,7 @@ async function proveFailClosedReadiness(app, interruptionGuard) {
     payload.signals?.waha_evidence_kind !== "configuration_check" ||
     payload.signals?.ai_evidence_kind !== "configuration_check"
   ) {
-    fail("readiness_component_contract_failed", "browser_proof");
+    fail("readiness_component_contract_failed", "candidate_readiness");
   }
   return Object.freeze({
     status: "not_ready",
@@ -6565,23 +6671,55 @@ async function proveFailClosedReadiness(app, interruptionGuard) {
   });
 }
 
-async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filename, requestId) {
-  return await page.evaluate(async ({ baseUrl, fileId, expectedVersion, encoded, name, id }) => {
+export async function evaluateBrowserCompanyFileUpload({ baseUrl, fileId, expectedVersion, encoded, name, id, requestTimeoutMs }) {
+  if (!Number.isSafeInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 60_000) {
+    return Object.freeze({ transport: "failed" });
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  try {
     const form = new FormData();
     form.set("expected_file_version", expectedVersion);
     form.set("request_id", id);
     const binary = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
     form.set("file", new File([binary], name, { type: "text/plain" }));
-    const response = await fetch(`${baseUrl}/api/v3/company-files/${encodeURIComponent(fileId)}/versions`, { method: "POST", body: form });
-    return Object.freeze({ status: response.status, payload: await response.json().catch(() => null) });
-  }, {
+    const response = await fetch(`${baseUrl}/api/v3/company-files/${encodeURIComponent(fileId)}/versions`, {
+      method: "POST",
+      body: form,
+      signal: controller.signal,
+    });
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      // A malformed non-aborted body remains a semantic response with a null payload.
+    }
+    if (controller.signal.aborted) return Object.freeze({ transport: "timeout" });
+    return Object.freeze({ transport: "response", status: response.status, payload });
+  } catch {
+    return Object.freeze({ transport: controller.signal.aborted ? "timeout" : "failed" });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filename, requestId, browserStep, operationCode) {
+  const result = await browserStep(async () => await page.evaluate(evaluateBrowserCompanyFileUpload, {
     baseUrl: appUrl,
     fileId: companyFile.id,
     expectedVersion: companyFile.version,
     encoded: Buffer.from(bytes).toString("base64"),
     name: filename,
     id: requestId,
-  });
+    requestTimeoutMs: BROWSER_COMPANY_FILE_REQUEST_TIMEOUT_MS,
+  }), { operationCode });
+  if (!isRecord(result) || result.transport !== "response") {
+    const diagnostic = result?.transport === "timeout"
+      ? sanitizeBrowserDiagnostic(new Error("Browser request timeout"))
+      : sanitizeBrowserDiagnostic(new TypeError("Failed to fetch"));
+    fail(operationCode, "browser_proof", diagnostic);
+  }
+  return Object.freeze({ status: result.status, payload: result.payload });
 }
 
 async function readScannerPersistenceState(status, supervisor, toolchain) {
@@ -6626,7 +6764,7 @@ function assertScannerAttestation(proof, expectedSha256, code) {
   ) fail(code, "malware_scanner_proof");
 }
 
-async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, supervisor, toolchain, interruptionGuard) {
+async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, supervisor, toolchain, interruptionGuard, browserStep) {
   const created = await platformRpc(status, adminActor, "create_company_file", {
     p_organization_id: adminActor.organizationId,
     p_folder_id: null,
@@ -6638,7 +6776,16 @@ async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, s
   }
   let companyFile = Object.freeze({ id: created.company_file_id, version: created.version });
   const cleanBytes = Buffer.from("EVO recovery clean company file\n", "utf8");
-  const clean = await browserCompanyFileUpload(page, appUrl, companyFile, cleanBytes, "recovery-clean.txt", randomUUID());
+  const clean = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    cleanBytes,
+    "recovery-clean.txt",
+    randomUUID(),
+    browserStep,
+    "malware_scanner_clean_browser_request_failed",
+  );
   if (
     clean.status !== 201 || !isRecord(clean.payload?.companyFile) ||
     clean.payload.companyFile.companyFileId !== companyFile.id ||
@@ -6651,14 +6798,32 @@ async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, s
   companyFile = Object.freeze({ ...companyFile, version: clean.payload.companyFile.fileVersion });
   const afterClean = await readScannerPersistenceState(status, supervisor, toolchain);
 
-  const infected = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from(EICAR, "ascii"), "recovery-eicar.txt", randomUUID());
+  const infected = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    Buffer.from(EICAR, "ascii"),
+    "recovery-eicar.txt",
+    randomUUID(),
+    browserStep,
+    "malware_scanner_eicar_browser_request_failed",
+  );
   if (infected.status !== 422 || infected.payload?.error !== "malware_detected") fail("malware_scanner_eicar_data_path_not_blocked", "malware_scanner_proof");
   if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_eicar_persisted_state", "malware_scanner_proof");
 
   await runDocker(supervisor, toolchain.paths.docker, ["--context", "orbstack", "stop", "--time", "30", scanner.containerId], {
     stage: "malware_scanner_proof", code: "malware_scanner_outage_stop_failed", timeoutMs: 60_000,
   });
-  const outage = await browserCompanyFileUpload(page, appUrl, companyFile, Buffer.from("EVO recovery scanner outage proof\n", "utf8"), "recovery-outage.txt", randomUUID());
+  const outage = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    Buffer.from("EVO recovery scanner outage proof\n", "utf8"),
+    "recovery-outage.txt",
+    randomUUID(),
+    browserStep,
+    "malware_scanner_outage_browser_request_failed",
+  );
   if (outage.status !== 503 || outage.payload?.error !== "malware_scanner_unavailable") fail("malware_scanner_outage_not_fail_closed", "malware_scanner_proof");
   if (!sameJson(await readScannerPersistenceState(status, supervisor, toolchain), afterClean)) fail("malware_scanner_outage_persisted_state", "malware_scanner_proof");
 
@@ -6667,7 +6832,16 @@ async function proveScannerDataPath(status, adminActor, page, appUrl, scanner, s
   });
   await waitForRecoveryScanner(scanner.containerId, supervisor, toolchain, interruptionGuard);
   const recoveredBytes = Buffer.from("EVO recovery scanner restored proof\n", "utf8");
-  const recovered = await browserCompanyFileUpload(page, appUrl, companyFile, recoveredBytes, "recovery-restored.txt", randomUUID());
+  const recovered = await browserCompanyFileUpload(
+    page,
+    appUrl,
+    companyFile,
+    recoveredBytes,
+    "recovery-restored.txt",
+    randomUUID(),
+    browserStep,
+    "malware_scanner_recovered_browser_request_failed",
+  );
   if (
     recovered.status !== 201 || !isRecord(recovered.payload?.companyFile) ||
     recovered.payload.companyFile.companyFileId !== companyFile.id ||
@@ -6773,7 +6947,7 @@ async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, rol
   }
 }
 
-async function proveBrowser(app, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
+async function proveBrowser(app, readiness, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
   let browserPhase = "tool_binding";
   let browserTool;
@@ -6807,7 +6981,10 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
     const versionResponse = await waitForHttp(`http://127.0.0.1:${debugPort}/json/version`, [200], 45_000, "browser_start_timeout", "browser_proof", state, interruptionGuard);
     let versionPayload;
     try {
-      versionPayload = await browserStep(async () => await versionResponse.json());
+      versionPayload = await browserStep(
+        async () => await versionResponse.json(),
+        { operationCode: "browser_debug_version_read_failed" },
+      );
     } catch (error) {
       if (error instanceof RecoveryFailure) throw error;
       versionPayload = null;
@@ -6815,7 +6992,10 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
     if (!isRecord(versionPayload) || typeof versionPayload.webSocketDebuggerUrl !== "string") fail("browser_debug_endpoint_invalid", "browser_proof");
     const debuggerUrl = validateBrowserDebuggerUrl(versionPayload.webSocketDebuggerUrl, debugPort);
     browserPhase = "connect";
-    browser = await browserStep(async () => await browserTool.chromium.connectOverCDP(debuggerUrl, { timeout: 10_000 }));
+    browser = await browserStep(
+      async () => await browserTool.chromium.connectOverCDP(debuggerUrl, { timeout: 10_000 }),
+      { operationCode: "browser_cdp_connect_failed" },
+    );
     const routes = Object.freeze({
       admin: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
       sales: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
@@ -6834,8 +7014,12 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
     const availableRoles = ["admin", "sales", "admissions"].filter((role) => isRecord(app.actors[role]));
     if (availableRoles.length === 0) fail("browser_representative_missing", "browser_proof");
     for (const role of availableRoles) {
+      const route = routes[role];
       browserPhase = `${role}_context`;
-      const context = await browserStep(async () => await browser.newContext({ locale: "ru-RU", serviceWorkers: "block" }));
+      const context = await browserStep(
+        async () => await browser.newContext({ locale: "ru-RU", serviceWorkers: "block" }),
+        { operationCode: `browser_${role}_context_create_failed` },
+      );
       await browserStep(async () => await context.route("**/*", async (route) => {
         if (interruptionGuard.interrupted) {
           await route.abort("blockedbyclient");
@@ -6847,27 +7031,74 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
         }
         browserNetwork.deniedExternalRequestCount += 1;
         await route.abort("blockedbyclient");
-      }));
+      }), { operationCode: `browser_${role}_network_policy_failed` });
       await installBrowserWebSocketBlocker(context, browserNetwork, browserStep);
-      const page = await browserStep(async () => await context.newPage());
       browserPhase = `${role}_login`;
-      await browserStep(async () => await page.goto(`${app.appUrl}/login`, { waitUntil: "domcontentloaded" }));
-      await browserStep(async () => await page.locator("#staff-email").fill(app.actors[role].email));
-      await browserStep(async () => await page.locator("#staff-password").fill(app.actors[role].password));
-      await browserStep(async () => await page.getByRole("button", { name: "Войти в CRM" }).click());
+      const page = await browserStep(
+        async () => await context.newPage(),
+        { operationCode: `browser_${role}_page_create_failed` },
+      );
+      const loginResponse = await browserStep(
+        async () => await page.goto(`${app.appUrl}/login`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
+        { operationCode: `browser_${role}_login_navigation_failed` },
+      );
+      if (!loginResponse || loginResponse.status() < 200 || loginResponse.status() >= 300 || page.url() !== `${app.appUrl}/login`) {
+        fail(`browser_${role}_login_response_invalid`, "browser_proof");
+      }
+      await browserStep(
+        async () => await page.locator("#staff-email").fill(app.actors[role].email),
+        { operationCode: `browser_${role}_login_email_fill_failed` },
+      );
+      await browserStep(
+        async () => await page.locator("#staff-password").fill(app.actors[role].password),
+        { operationCode: `browser_${role}_login_password_fill_failed` },
+      );
+      await browserStep(
+        async () => await page.getByRole("button", { name: "Войти в CRM" }).click({ noWaitAfter: true, timeout: 45_000 }),
+        { operationCode: `browser_${role}_login_click_failed` },
+      );
+      const loginOutcome = await browserStep(
+        async () => await (await page.waitForFunction(() => {
+          if (document.querySelector('[data-testid="v3-shell"]')) {
+            return { status: "authenticated" };
+          }
+          const error = document.querySelector("#login-error")?.getAttribute("data-auth-error");
+          return error ? { status: "rejected", code: error } : false;
+        }, undefined, { timeout: 45_000 })).jsonValue(),
+        { operationCode: `browser_${role}_login_result_wait_failed` },
+      );
+      const loginFailureCode = browserLoginFailureCode(role, loginOutcome);
+      if (loginFailureCode) fail(loginFailureCode, "browser_proof");
+      if (page.url() !== `${app.appUrl}${route.path}`) {
+        fail(`browser_${role}_login_destination_mismatch`, "browser_proof");
+      }
       const shell = await browserStep(async () => page.getByTestId("v3-shell"));
-      await browserStep(async () => await shell.waitFor({ state: "visible", timeout: 45_000 }));
+      await browserStep(
+        async () => await shell.waitFor({ state: "visible", timeout: 45_000 }),
+        { operationCode: `browser_${role}_login_shell_failed` },
+      );
       if (await browserStep(async () => await shell.getAttribute("data-authority-role")) !== role) {
         fail("browser_role_mismatch", "browser_proof", { role });
       }
       browserPhase = `${role}_route`;
-      const route = routes[role];
-      const response = await browserStep(async () => await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded" }));
-      await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
+      const response = await browserStep(
+        async () => await page.goto(`${app.appUrl}${route.path}`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
+        { operationCode: `browser_${role}_module_navigation_failed` },
+      );
+      await browserStep(
+        async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }),
+        { operationCode: `browser_${role}_module_shell_failed` },
+      );
       let markerVisible = false;
       try {
-        await browserStep(async () => await page.getByRole("heading", { name: route.heading, exact: true }).waitFor({ state: "visible", timeout: 45_000 }));
-        await browserStep(async () => await page.getByTestId("v3-operational-dashboard").waitFor({ state: "visible", timeout: 45_000 }));
+        await browserStep(
+          async () => await page.getByRole("heading", { name: route.heading, exact: true }).waitFor({ state: "visible", timeout: 45_000 }),
+          { operationCode: `browser_${role}_module_heading_failed` },
+        );
+        await browserStep(
+          async () => await page.getByTestId("v3-operational-dashboard").waitFor({ state: "visible", timeout: 45_000 }),
+          { operationCode: `browser_${role}_module_marker_failed` },
+        );
         markerVisible = true;
       } catch (error) {
         interruptionGuard.assertActive("browser_proof", { afterOperation: true });
@@ -6897,6 +7128,7 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
           supervisor,
           toolchain,
           interruptionGuard,
+          browserStep,
         );
         if (roleServerProof?.sales) {
           browserPhase = "admin_sales_readback";
@@ -6948,8 +7180,6 @@ async function proveBrowser(app, status, scanner, roleServerProof, state, superv
     for (const role of ["admin", "sales", "admissions"]) {
       roleReadbacks[role] ??= "not_run_missing_representative";
     }
-    browserPhase = "readiness";
-    const readiness = await proveFailClosedReadiness(app, interruptionGuard);
     return Object.freeze({
       admin: availableRoles.includes("admin") ? "passed" : "not_run_missing_representative",
       sales: availableRoles.includes("sales") ? "passed" : "not_run_missing_representative",
@@ -8268,6 +8498,17 @@ async function executeMode(mode, options) {
     } else {
       const ports = await runStage("port_reservation", reservePorts);
       const local = await runStage("local_supabase_start", () => startLocalSupabase(state, targetRoot, ports, supervisor, toolchain));
+      const localDestinationInventory = await runStage("local_supabase_identity", () => cleanupInventory(state, supervisor, toolchain.paths, { stage: "local_supabase_identity" }));
+      state.ownedVolumeNames = localDestinationInventory.volumes;
+      state.ownedVolumeIdentities = localDestinationInventory.volumeIdentities;
+      assertCleanupInventoryIdentity(localDestinationInventory, cleanupCapturedIdentity(state));
+      completeContainerMutationCapture(state, "local_supabase_start");
+      const bridgeEgress = await runStage("local_supabase_egress", () => proveRecoveryNetworkEgressBlocked(
+        local.endpoint,
+        supervisor,
+        toolchain,
+        "local_supabase_egress",
+      ));
       const scanner = await runStage("malware_scanner_start", () => startRecoveryScanner(
         state,
         local.status,
@@ -8315,6 +8556,10 @@ async function executeMode(mode, options) {
         artifacts.storage.buckets,
         state.interruptionGuard,
       ));
+      const postgrestSchemaCache = await runStage("postgrest_schema_cache", () => waitForPostgrestSchemaCache(
+        local.status,
+        state.interruptionGuard,
+      ));
       const actorReadiness = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));
       const actors = actorReadiness.actors;
       const completeRoleCohort = ["admin", "sales", "admissions"].every((role) => isRecord(actors[role]));
@@ -8350,9 +8595,10 @@ async function executeMode(mode, options) {
       ));
       const storageReadiness = await runStage("storage_source_readiness", async () => sourceStorageReadiness);
       const app = await runStage("candidate_start", () => startCandidateApp(options, local.status, actors, state, supervisor, toolchain, image, scanner, ports.app, state.interruptionGuard));
+      const readiness = await runStage("candidate_readiness", () => proveFailClosedReadiness(app, state.interruptionGuard));
       const browser = await runStage("browser_proof", async () => Object.keys(actors).length > 0
-        ? await proveBrowser(app, local.status, scanner, roleServerProof, state, supervisor, toolchain, state.interruptionGuard)
-        : Object.freeze({ status: "not_run_missing_representative", evidenceScope: "no_real_representative_available" }));
+        ? await proveBrowser(app, readiness, local.status, scanner, roleServerProof, state, supervisor, toolchain, state.interruptionGuard)
+        : Object.freeze({ status: "not_run_missing_representative", readiness, evidenceScope: "no_real_representative_available" }));
       const roleOutcomes = buildRestoredRoleOutcomeReadiness(actors, roleServerProof, browser);
       const blockers = Object.freeze([...new Set([
         ...actorReadiness.blockers,
@@ -8372,7 +8618,7 @@ async function executeMode(mode, options) {
         ...shared,
         isolation,
         networkEgress: Object.freeze({
-          bridgeFoundation: local.egress,
+          bridgeFoundation: bridgeEgress,
           supabaseServiceImages: local.endpoint.serviceImages,
           candidateRuntime: app.runtimeInternetTcpEgress,
           browserHost: browser.sandbox ?? Object.freeze({ status: "not_run_missing_representative" }),
@@ -8381,6 +8627,7 @@ async function executeMode(mode, options) {
         migrations,
         storage,
         targetStorage: targetStorage.evidence,
+        postgrestSchemaCache,
         representatives,
         authorization: Object.freeze({
           ...authorizationProof.evidence,

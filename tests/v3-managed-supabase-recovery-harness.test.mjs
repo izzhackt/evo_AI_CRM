@@ -13,6 +13,8 @@ import {
   RecoveryFailure,
   assessRepresentativeCohort,
   apiRequest,
+  browserCompanyFileUpload,
+  browserLoginFailureCode,
   browserRequestAllowed,
   buildRestoredRoleOutcomeReadiness,
   canonicalRecoveryPdfBytes,
@@ -20,10 +22,12 @@ import {
   buildIsolationEvidence,
   canonicalJson,
   classifyExpectedDatabaseDenial,
+  classifyPostgrestSchemaCacheProbe,
   cleanupDisposition,
   cleanupContainerPolicy,
   cleanupState,
   databaseAggregatesFromTableCounts,
+  evaluateBrowserCompanyFileUpload,
   extractExactMigrationLedger,
   evidenceDestination,
   gitBlobOid,
@@ -36,6 +40,7 @@ import {
   parseHarnessOptions,
   parseTargetStorageBucketConfig,
   privateBackupDirectory,
+  proveRecoveryNetworkEgressBlocked,
   reconcileTargetStorageBuckets,
   parseTargetTreeListing,
   orderedTargetEntries,
@@ -87,6 +92,7 @@ import {
   verifyMigrationTreePrefix,
   verifyReceiptSignature,
   verifyRestoredStorageInventory,
+  waitForPostgrestSchemaCache,
   writeEvidence,
 } from "../scripts/test-v3-managed-supabase-recovery-orbstack.mjs";
 
@@ -123,14 +129,6 @@ test("candidate image uses a production-valid local Supabase TLS origin", () => 
 });
 
 test("candidate egress probes run only after immutable cleanup capture completes", () => {
-  const localStart = source.indexOf("async function startLocalSupabase");
-  const localEnd = source.indexOf("function parsedJson", localStart);
-  const localSource = source.slice(localStart, localEnd);
-  const localCaptureComplete = localSource.indexOf('completeContainerMutationCapture(state, "local_supabase_start")');
-  const localEgressProbe = localSource.indexOf("const egress = await proveRecoveryNetworkEgressBlocked");
-  assert.ok(localStart > 0 && localEnd > localStart);
-  assert.ok(localCaptureComplete > 0 && localEgressProbe > localCaptureComplete);
-
   const candidateStart = source.indexOf("async function startCandidateApp");
   const candidateEnd = source.indexOf("export function isTrustedPlaywrightChromiumVersion", candidateStart);
   const candidateSource = source.slice(candidateStart, candidateEnd);
@@ -150,6 +148,44 @@ test("candidate egress probes run only after immutable cleanup capture completes
     appProxyContainer: "supabase_app_proxy_evov3recoveryabcdef123456",
     appProxyContainerId: "b".repeat(64),
   }, true), "container_cleanup");
+});
+
+test("local Supabase egress proof calibrates the pinned timeout and runs after immutable cleanup capture", () => {
+  const localStart = source.indexOf('const local = await runStage("local_supabase_start"');
+  const captureComplete = source.indexOf('completeContainerMutationCapture(state, "local_supabase_start")', localStart);
+  const egressProbe = source.indexOf('const bridgeEgress = await runStage("local_supabase_egress"', captureComplete);
+  const scannerStart = source.indexOf('runStage("malware_scanner_start"', egressProbe);
+  assert.ok(localStart > 0 && captureComplete > localStart && egressProbe > captureComplete && scannerStart > egressProbe);
+  assert.match(source, /timeout 1 \/bin\/bash -c 'sleep 30'/u);
+  assert.match(source, /124\|143\) ;;/u);
+  assert.match(source, /\^egress-blocked:\(124\|143\)\$/u);
+  assert.match(source, /timeoutExitStatus: Number\(probe\[1\]\)/u);
+  assert.match(source, /bridgeFoundation:\s*bridgeEgress/u);
+});
+
+test("local Supabase egress failures retain the named egress stage", async () => {
+  const endpoint = {
+    databaseContainerId: "a".repeat(64),
+    targetHost: "supabase_db_evov3recovery000000000000",
+    targetPort: 5432,
+  };
+  const supervisor = {
+    run: async (_executable, _args, options) => {
+      throw new RecoveryFailure(options.code, options.stage);
+    },
+  };
+  await assert.rejects(
+    proveRecoveryNetworkEgressBlocked(
+      endpoint,
+      supervisor,
+      { paths: { docker: { real: "/verified/docker" } } },
+      "local_supabase_egress",
+    ),
+    (error) => error instanceof RecoveryFailure &&
+      error.code === "recovery_network_egress_not_blocked" &&
+      error.stage === "local_supabase_egress",
+  );
+  assert.match(source, /proveRecoveryNetworkEgressBlocked\([\s\S]*?"local_supabase_egress",\n\s*\)\);/u);
 });
 
 test("browser execution is bound to one reviewed binary and exact loopback CDP endpoint", () => {
@@ -350,14 +386,76 @@ test("provider configuration evidence is local-only and authenticated readiness 
   const runStart = source.indexOf("async function executeMode");
   const providerCall = source.indexOf('runStage("provider_boundary"', runStart);
   const appCall = source.indexOf('runStage("candidate_start"', runStart);
+  const readinessCall = source.indexOf('runStage("candidate_readiness"', runStart);
+  const browserCall = source.indexOf('runStage("browser_proof"', runStart);
   assert.ok(providerStart > 0 && readinessStart > providerStart);
-  assert.ok(providerCall > runStart && appCall > providerCall);
+  assert.ok(
+    providerCall > runStart &&
+    appCall > providerCall &&
+    readinessCall > appCall &&
+    browserCall > readinessCall,
+  );
   assert.match(source.slice(providerStart, readinessStart), /p_readiness:\s*"unconfigured"/u);
   assert.match(source.slice(providerStart, readinessStart), /p_evidence_kind:\s*"configuration_check"/u);
   assert.match(source.slice(readinessStart, runStart), /createHmac\("sha256"/u);
   assert.match(source.slice(readinessStart, runStart), /\[503\]/u);
   assert.match(source.slice(readinessStart, runStart), /waha_evidence_kind !== "configuration_check"/u);
   assert.match(source.slice(readinessStart, runStart), /ai_evidence_kind !== "configuration_check"/u);
+  assert.match(source.slice(readinessCall, browserCall), /proveFailClosedReadiness\(app/u);
+  assert.match(source.slice(browserCall), /Object\.freeze\(\{ status: "not_run_missing_representative", readiness,/u);
+});
+
+test("PostgREST schema cache waits only for the exact PGRST002 recovery state", () => {
+  const retryBody = '{"code":"PGRST002","details":null,"hint":null,"message":"Could not query the database for the schema cache. Retrying."}';
+  assert.equal(classifyPostgrestSchemaCacheProbe(200, ""), "ready");
+  assert.equal(classifyPostgrestSchemaCacheProbe(503, retryBody), "retry");
+  expectCode(
+    () => classifyPostgrestSchemaCacheProbe(503, '{"code":"different"}'),
+    "postgrest_schema_cache_probe_failed",
+  );
+  expectCode(
+    () => classifyPostgrestSchemaCacheProbe(401, "unauthorized"),
+    "postgrest_schema_cache_probe_failed",
+  );
+  const runStart = source.indexOf("async function executeMode");
+  const targetStorageCall = source.indexOf('runStage("target_storage_configuration"', runStart);
+  const schemaCacheCall = source.indexOf('runStage("postgrest_schema_cache"', runStart);
+  const representativeCall = source.indexOf('runStage("representative_auth"', runStart);
+  assert.ok(targetStorageCall > runStart && schemaCacheCall > targetStorageCall && representativeCall > schemaCacheCall);
+  assert.match(source, /const deadline = Date\.now\(\) \+ 2 \* 60 \* 1_000/u);
+  assert.match(source, /POSTGREST_SCHEMA_CACHE_RETRY/u);
+});
+
+test("PostgREST schema cache does not retry unexpected transport or body failures", async () => {
+  const status = { apiUrl: "http://127.0.0.1:54321", serviceRoleKey: "test-service-role" };
+  let transportAttempts = 0;
+  await expectCodeAsync(
+    () => waitForPostgrestSchemaCache(status, new RecoveryInterruptionGuard(), {
+      fetchImpl: async () => {
+        transportAttempts += 1;
+        throw new TypeError("synthetic transport failure");
+      },
+    }),
+    "postgrest_schema_cache_probe_failed",
+  );
+  assert.equal(transportAttempts, 1);
+
+  let bodyAttempts = 0;
+  await expectCodeAsync(
+    () => waitForPostgrestSchemaCache(status, new RecoveryInterruptionGuard(), {
+      fetchImpl: async () => {
+        bodyAttempts += 1;
+        return {
+          status: 503,
+          async text() {
+            throw new TypeError("synthetic body failure");
+          },
+        };
+      },
+    }),
+    "postgrest_schema_cache_probe_failed",
+  );
+  assert.equal(bodyAttempts, 1);
 });
 
 test("Admin passes only after complete server and exact-role browser outcomes", () => {
@@ -420,6 +518,9 @@ test("private pinned ClamAV is exercised through the Company Files product route
   assert.match(dataPathSource, /malware_scanner_outage_persisted_state/u);
   assert.match(dataPathSource, /malware_scanner_recovered_persistence_invalid/u);
   assert.match(dataPathSource, /Buffer\.from\(EICAR, "ascii"\)/u);
+  for (const phase of ["clean", "eicar", "outage", "recovered"]) {
+    assert.match(dataPathSource, new RegExp(`malware_scanner_${phase}_browser_request_failed`, "u"));
+  }
 });
 
 test("restored role proof mutates existing records, replays, audits, and reads back in browser", () => {
@@ -1955,6 +2056,142 @@ test("interruption aborts pending HTTP and refuses later API or browser work whi
   assert.equal(cleanupInvocations, 1);
 });
 
+test("browser operations map native failures to a named step without leaking diagnostics", async () => {
+  const guard = new RecoveryInterruptionGuard();
+  const sensitiveMarker = "sensitive-selector-and-credential";
+  await assert.rejects(
+    () => runBrowserOperation(
+      guard,
+      async () => { throw new Error(`page.evaluate: TypeError: Failed to fetch ${sensitiveMarker}`); },
+      { operationCode: "browser_admin_login_submit_failed" },
+    ),
+    (error) => {
+      assert.ok(error instanceof RecoveryFailure);
+      assert.equal(error.code, "browser_admin_login_submit_failed");
+      assert.equal(error.stage, "browser_proof");
+      assert.deepEqual(Object.keys(error.diagnostic).sort(), ["bytes", "category", "messageSha256", "name"]);
+      assert.equal(error.diagnostic.category, "fetch_failed");
+      assert.equal(error.diagnostic.name, "Error");
+      assert.match(error.diagnostic.messageSha256, /^[0-9a-f]{64}$/u);
+      assert.equal(JSON.stringify(error.diagnostic).includes(sensitiveMarker), false);
+      return true;
+    },
+  );
+  await expectCodeAsync(
+    () => runBrowserOperation(guard, async () => undefined, { operationCode: "INVALID CODE" }),
+    "browser_operation_code_invalid",
+  );
+  assert.match(source, /operationCode: `browser_\$\{role\}_login_click_failed`/u);
+  assert.match(source, /page\.waitForFunction\(\(\) => \{/u);
+  assert.match(source, /getAttribute\("data-auth-error"\)/u);
+  assert.match(source, /operationCode: `browser_\$\{role\}_login_result_wait_failed`/u);
+  assert.match(source, /click\(\{ noWaitAfter: true, timeout: 45_000 \}\)/u);
+});
+
+test("browser login outcomes expose only stable allowlisted failure codes", () => {
+  assert.equal(browserLoginFailureCode("admin", { status: "authenticated" }), null);
+  assert.equal(
+    browserLoginFailureCode("sales", { status: "rejected", code: "accessDenied" }),
+    "browser_sales_login_access_denied",
+  );
+  assert.equal(
+    browserLoginFailureCode("admissions", { status: "rejected", code: "authUnavailable" }),
+    "browser_admissions_login_auth_unavailable",
+  );
+  assert.equal(
+    browserLoginFailureCode("admin", { status: "rejected", code: "staffAccessDenied" }),
+    "browser_admin_login_staff_access_denied",
+  );
+  expectCode(
+    () => browserLoginFailureCode("admin", { status: "rejected", code: "localized-secret-text" }),
+    "browser_admin_login_error_code_invalid",
+  );
+  for (const inheritedName of ["constructor", "toString", "__proto__"]) {
+    expectCode(
+      () => browserLoginFailureCode("admin", { status: "rejected", code: inheritedName }),
+      "browser_admin_login_error_code_invalid",
+    );
+  }
+  expectCode(() => browserLoginFailureCode("unknown", { status: "authenticated" }), "browser_login_role_invalid");
+});
+
+test("browser diagnostic uses a bounded allowlist for native error types and categories", () => {
+  assert.deepEqual(sanitizeBrowserDiagnostic(new TypeError("Failed to fetch")), {
+    category: "fetch_failed",
+    name: "TypeError",
+    messageSha256: hash("Failed to fetch"),
+    bytes: Buffer.byteLength("Failed to fetch"),
+  });
+  const custom = new Error("Target page, context or browser has been closed");
+  custom.name = "PrivateCredentialError";
+  const sanitized = sanitizeBrowserDiagnostic(custom);
+  assert.equal(sanitized.category, "target_closed");
+  assert.equal(sanitized.name, "Error");
+  assert.equal(JSON.stringify(sanitized).includes(custom.message), false);
+  const timeout = new Error("locator.click: Timeout 30000ms exceeded");
+  timeout.name = "TimeoutError";
+  assert.equal(sanitizeBrowserDiagnostic(timeout).category, "timeout");
+  assert.equal(sanitizeBrowserDiagnostic(timeout).name, "TimeoutError");
+});
+
+test("company-file browser uploads fail closed on native and in-page transport errors", async () => {
+  const guard = new RecoveryInterruptionGuard();
+  const browserStep = async (operation, options) => await runBrowserOperation(guard, operation, options);
+  const input = [
+    "http://127.0.0.1:43123",
+    { id: "10000000-0000-4000-8000-000000000001", version: "1" },
+    Buffer.from("clean", "utf8"),
+    "clean.txt",
+    "20000000-0000-4000-8000-000000000001",
+    browserStep,
+    "malware_scanner_clean_browser_request_failed",
+  ];
+  await assert.rejects(
+    () => browserCompanyFileUpload({ evaluate: async () => { throw new Error("Target page, context or browser has been closed"); } }, ...input),
+    (error) => error instanceof RecoveryFailure &&
+      error.code === "malware_scanner_clean_browser_request_failed" &&
+      error.diagnostic?.category === "target_closed",
+  );
+  await assert.rejects(
+    () => browserCompanyFileUpload({ evaluate: async () => ({ transport: "failed" }) }, ...input),
+    (error) => error instanceof RecoveryFailure &&
+      error.code === "malware_scanner_clean_browser_request_failed" &&
+      error.diagnostic?.category === "fetch_failed",
+  );
+  await assert.rejects(
+    () => browserCompanyFileUpload({ evaluate: async () => ({ transport: "timeout" }) }, ...input),
+    (error) => error instanceof RecoveryFailure &&
+      error.code === "malware_scanner_clean_browser_request_failed" &&
+      error.diagnostic?.category === "timeout",
+  );
+});
+
+test("company-file browser evaluator keeps an abort during response parsing classified as timeout", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    status: 201,
+    async json() {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return { ignored: true };
+    },
+  });
+  try {
+    const result = await evaluateBrowserCompanyFileUpload({
+      baseUrl: "http://127.0.0.1:43123",
+      fileId: "10000000-0000-4000-8000-000000000001",
+      expectedVersion: "1",
+      encoded: Buffer.from("clean", "utf8").toString("base64"),
+      name: "clean.txt",
+      id: "20000000-0000-4000-8000-000000000001",
+      requestTimeoutMs: 1,
+    });
+    assert.deepEqual(result, { transport: "timeout" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.match(source, /BROWSER_COMPANY_FILE_REQUEST_TIMEOUT_MS = 45_000/u);
+});
+
 test("browser proof requires a 2xx response, exact final route and loaded module marker", () => {
   const valid = {
     appOrigin: "http://127.0.0.1:43123",
@@ -3435,10 +3672,6 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.doesNotMatch(source, /"network", "create", "--internal"/u);
   assert.match(source, /com\.docker\.network\.bridge\.enable_ip_masquerade=false/u);
   assert.match(source, /bridge_ip_masquerade_disabled_plus_exact_container_probe/u);
-  assert.match(source, /timeout 1 \/bin\/bash -c 'sleep 30'/u);
-  assert.match(source, /124\|143\) ;;/u);
-  assert.match(source, /\^egress-blocked:\(124\|143\)\$/u);
-  assert.match(source, /timeoutExitStatus: Number\(probe\[1\]\)/u);
   assert.match(source, /candidateRuntime: app\.runtimeInternetTcpEgress/u);
   assert.match(source, /browserHost: browser\.sandbox/u);
   assert.match(source, /"--network", state\.networkName/u);

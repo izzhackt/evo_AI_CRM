@@ -386,14 +386,23 @@ in #552 after every prerequisite below passes.
    destination project refs, URLs, networks and volumes are unequal, limits
    application-level verification to a named minimum authorized cohort, and
    never publishes row, object, credential or session data in evidence.
-6. **Scanner prerequisite.** Before the release may be armed, the exact
-   production document-ingress path is bound to one real scanner implementation
-   and proves a clean file is accepted, a standard safe detection sample is
-   quarantined/rejected, and unavailable, timeout or malformed scanner results
-   deny finalization and download until a successful rescan. Missing scanner
-   access is a named #551 blocker, not permission to reuse
-   `scanner_proof=false`; this proof does not imply WhatsApp, Gemini or amoCRM
-   provider acceptance.
+6. **Scanner prerequisite.** Before the release may be armed, both active
+   document-ingress paths are bound to the same real scanner implementation.
+   Each upload first scans the ingress bytes before any reservation or Storage
+   write. After the private object is written, the server must download those
+   exact stored bytes, re-verify their size, MIME/signature and SHA-256, then
+   scan them again before it may write durable clean proof, finalize the version
+   or permit download. The scan and its engine/signature identity use one
+   request-ID-matched clamd `IDSESSION`; the `VERSION` facts before and after
+   `INSTREAM` must be identical. A clean pre-scan alone is never durable proof.
+   The gate proves a clean file is accepted through both routes, a standard safe
+   detection sample is rejected, and infected, unavailable, timeout, malformed,
+   uncorrelated or identity-drift results deny finalization and download until a
+   successful rescan. Valid correlated replies may arrive out of order; missing,
+   duplicate or unknown request IDs fail closed. Missing scanner access is a
+   named #551 blocker, not
+   permission to reuse `scanner_proof=false`; this proof does not imply
+   WhatsApp, Gemini or amoCRM provider acceptance.
 7. **Sanitized evidence.** Evidence binds the exact source SHA, CI run, arm
    result, actor, build/deploy job separation, artifact ID/digests/manifest,
    image, Compose/controller/config hashes, pending/acceptance transition,

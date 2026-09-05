@@ -59,6 +59,9 @@ const MAX_PROVIDER_BACKUP_AGE_MS = 48 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 20_000;
 const COMMAND_TIMEOUT_MS = 30 * 60 * 1000;
 const COMMAND_KILL_GRACE_MS = 2_000;
+const SNAPSHOT_HOLDER_TIMEOUT_MS = 35 * 60 * 1000;
+const SNAPSHOT_OUTPUT_PREFIX = "EVO_SYNC_SNAPSHOT:";
+const SNAPSHOT_ID = /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{8}-[1-9][0-9]*$/u;
 const STORAGE_DOWNLOAD_IDLE_TIMEOUT_MS = 60_000;
 const STORAGE_PAGE_SIZE = 100;
 const MAX_STORAGE_PAGES = 100_000;
@@ -1199,6 +1202,216 @@ export function spawnCommand(command, args, {
   });
 }
 
+export function synchronizedSnapshotFlag(value) {
+  if (typeof value !== "string" || !SNAPSHOT_ID.test(value)) {
+    fail("database_snapshot_id_invalid");
+  }
+  return `--snapshot=${value}`;
+}
+
+export async function openSynchronizedDatabaseSnapshot(command, args, {
+  cwd,
+  environment,
+  signal,
+  state,
+  timeoutMs = SNAPSHOT_HOLDER_TIMEOUT_MS,
+  killGraceMs = COMMAND_KILL_GRACE_MS,
+} = {}) {
+  if (!environment || typeof environment !== "object") {
+    fail("command_environment_required");
+  }
+  if (signal?.aborted) fail("export_interrupted");
+  if (process.platform === "win32") fail("process_group_unsupported");
+
+  let child;
+  try {
+    child = spawn(command, args, {
+      cwd,
+      env: environment,
+      detached: true,
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+  } catch {
+    fail("database_snapshot_holder_failed");
+  }
+
+  const processGroupId = child.pid;
+  if (processGroupId != null) state?.processGroups?.add(processGroupId);
+  let finished = false;
+  let settling = false;
+  let closeRequested = false;
+  let readySettled = false;
+  let terminationCode = null;
+  let killTimer = null;
+  let output = "";
+  let snapshotId = null;
+  let resolveReady;
+  let rejectReady;
+  let resolveDone;
+  let rejectDone;
+  const readyPromise = new Promise((resolveReadyPromise, rejectReadyPromise) => {
+    resolveReady = resolveReadyPromise;
+    rejectReady = rejectReadyPromise;
+  });
+  const donePromise = new Promise((resolveDonePromise, rejectDonePromise) => {
+    resolveDone = resolveDonePromise;
+    rejectDone = rejectDonePromise;
+  });
+  // A holder can fail between becoming ready and the caller entering its first
+  // Promise.race. Keep the rejection observed without changing its semantics.
+  void donePromise.catch(() => undefined);
+
+  const processGroupAlive = () => {
+    if (processGroupId == null) return false;
+    try {
+      process.kill(-processGroupId, 0);
+      return true;
+    } catch (error) {
+      if (error?.code === "ESRCH") return false;
+      return true;
+    }
+  };
+  const signalProcessGroup = (childSignal) => {
+    if (processGroupId == null) return child.kill(childSignal);
+    try {
+      process.kill(-processGroupId, childSignal);
+      return true;
+    } catch (error) {
+      if (error?.code === "ESRCH") return false;
+      try {
+        return child.kill(childSignal);
+      } catch {
+        return false;
+      }
+    }
+  };
+  const rejectReadiness = (code) => {
+    if (readySettled) return;
+    readySettled = true;
+    rejectReady(new ManagedSupabaseExportError(code));
+  };
+  const resolveReadiness = (value) => {
+    if (readySettled) return;
+    readySettled = true;
+    resolveReady(value);
+  };
+  const terminate = (reason, force = false) => {
+    terminationCode ??= reason;
+    if (finished) return;
+    signalProcessGroup(force ? "SIGKILL" : "SIGTERM");
+    if (!force && killTimer == null) {
+      killTimer = setTimeout(() => {
+        killTimer = null;
+        if (!finished && processGroupAlive()) signalProcessGroup("SIGKILL");
+      }, killGraceMs);
+    }
+  };
+  state?.terminators?.add(terminate);
+  const timeout = setTimeout(
+    () => terminate("database_snapshot_holder_timeout"),
+    timeoutMs,
+  );
+  const abort = () => terminate("export_interrupted");
+  signal?.addEventListener("abort", abort, { once: true });
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timeout);
+    if (killTimer != null) clearTimeout(killTimer);
+    signal?.removeEventListener("abort", abort);
+    state?.terminators?.delete(terminate);
+    if (!processGroupAlive() && processGroupId != null) {
+      state?.processGroups?.delete(processGroupId);
+    }
+  };
+  const settle = async (status, childSignal) => {
+    if (settling) return;
+    settling = true;
+    if (processGroupAlive()) {
+      terminate(terminationCode ?? "database_snapshot_process_tree_not_drained");
+      const deadline = Date.now() + killGraceMs + 2_000;
+      while (processGroupAlive() && Date.now() < deadline) {
+        await new Promise((resolveWait) => setTimeout(resolveWait, PROCESS_GROUP_DRAIN_POLL_MS));
+      }
+    }
+    if (processGroupAlive()) {
+      terminationCode = "database_snapshot_process_tree_termination_failed";
+    }
+    const failureCode = terminationCode ?? (
+      signal?.aborted
+        ? "export_interrupted"
+        : !closeRequested || childSignal || status !== 0
+          ? "database_snapshot_holder_exited_early"
+          : snapshotId == null
+            ? "database_snapshot_holder_output_invalid"
+            : null
+    );
+    finish();
+    if (failureCode) {
+      rejectReadiness(failureCode);
+      rejectDone(new ManagedSupabaseExportError(failureCode));
+    } else {
+      resolveDone();
+    }
+  };
+
+  child.once("error", () => terminate("database_snapshot_holder_failed"));
+  child.once("close", (status, childSignal) => {
+    void settle(status, childSignal);
+  });
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    output += chunk;
+    if (output.length > MAX_CAPTURE_BYTES) {
+      terminate("database_snapshot_holder_output_invalid");
+      return;
+    }
+    const lines = output.split(/\r?\n/u);
+    output = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line === "") continue;
+      if (!line.startsWith(SNAPSHOT_OUTPUT_PREFIX) || snapshotId != null) {
+        terminate("database_snapshot_holder_output_invalid");
+        return;
+      }
+      try {
+        snapshotId = synchronizedSnapshotFlag(
+          line.slice(SNAPSHOT_OUTPUT_PREFIX.length),
+        ).slice("--snapshot=".length);
+      } catch {
+        terminate("database_snapshot_holder_output_invalid");
+        return;
+      }
+      resolveReadiness(snapshotId);
+    }
+  });
+  child.stdin.on("error", () => terminate("database_snapshot_holder_failed"));
+  child.stdin.write(
+    `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\n` +
+      `SELECT '${SNAPSHOT_OUTPUT_PREFIX}' || pg_export_snapshot();\n`,
+    (error) => {
+      if (error) terminate("database_snapshot_holder_failed");
+    },
+  );
+
+  const readySnapshot = await readyPromise;
+  return Object.freeze({
+    snapshotId: readySnapshot,
+    done: donePromise,
+    close: async () => {
+      if (!closeRequested && !finished) {
+        closeRequested = true;
+        try {
+          child.stdin.end("ROLLBACK;\n\\q\n");
+        } catch {
+          terminate("database_snapshot_holder_close_failed");
+        }
+      }
+      await donePromise;
+    },
+  });
+}
+
 export function registerSignalCleanup(abortController, state) {
   const handlers = new Map();
   for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -1646,6 +1859,7 @@ function trustedExecutables(root) {
     cli: resolveSupabaseCliBinary(root),
     pgDump: resolvePostgresClient("pg_dump"),
     pgDumpAll: resolvePostgresClient("pg_dumpall"),
+    psql: resolvePostgresClient("psql"),
     bash: resolveTrustedExecutable(["/bin/bash"], ["/bin/bash"], "bash_unavailable"),
     git: resolveTrustedExecutable(["/usr/bin/git"], ["/usr/bin/git"], "git_unavailable"),
     ssh: resolveTrustedExecutable(["/usr/bin/ssh"], ["/usr/bin/ssh"], "ssh_unavailable"),
@@ -1760,7 +1974,21 @@ async function toolEvidence(
     }),
     "pg_dumpall",
   );
-  if (pgDumpVersion !== pgDumpAllVersion) fail("postgres_client_version_mismatch");
+  const psqlVersion = patchedPostgresClientVersion(
+    await spawnCommand(executables.psql.real, ["--version"], {
+      cwd: root,
+      environment: commandEnvironment,
+      signal,
+      state,
+      captureStdout: true,
+      code: "psql_version_failed",
+      timeoutMs: 10_000,
+    }),
+    "psql",
+  );
+  if (pgDumpVersion !== pgDumpAllVersion || pgDumpVersion !== psqlVersion) {
+    fail("postgres_client_version_mismatch");
+  }
   const orbStatus = (
     await spawnCommand(executables.orb.real, ["status"], {
       cwd: root,
@@ -1813,6 +2041,7 @@ async function toolEvidence(
     supabase_cli: supabaseVersion,
     pg_dump: pgDumpVersion,
     pg_dumpall: pgDumpAllVersion,
+    psql: psqlVersion,
     age: requiredString(ageVersion, "age_unavailable", 256),
     ssh: sshVersion,
     orb: orbStatus,
@@ -1964,21 +2193,12 @@ async function snapshotManagedDumpInputs({
   });
 }
 
-async function dumpDatabase({
-  root,
-  executables,
-  projectRef,
-  staging,
-  signal,
-  state,
-  environment,
-  reverse = false,
-}) {
-  if (environment.PGUSER !== `postgres.${projectRef}`) fail("database_source_mismatch");
-  const commands = Object.freeze([
+export function managedDatabaseDumpPlan(snapshotId) {
+  const snapshotFlag = synchronizedSnapshotFlag(snapshotId);
+  return Object.freeze([
     Object.freeze({
       filename: "roles.sql",
-      script: executables.dumpScripts.roles.real,
+      scriptKey: "roles",
       variables: Object.freeze({
         RESERVED_ROLES: SUPABASE_RESERVED_ROLES.join("|"),
         ALLOWED_CONFIGS: SUPABASE_ALLOWED_CONFIGS.join("|"),
@@ -1987,46 +2207,62 @@ async function dumpDatabase({
     }),
     Object.freeze({
       filename: "schema.sql",
-      script: executables.dumpScripts.schema.real,
+      scriptKey: "schema",
       variables: Object.freeze({
         EXCLUDED_SCHEMAS: SUPABASE_INTERNAL_SCHEMAS.join("|"),
+        EXTRA_FLAGS: snapshotFlag,
         EXTRA_SED: "/^--/d",
       }),
     }),
     Object.freeze({
       filename: "data.sql",
-      script: executables.dumpScripts.data.real,
+      scriptKey: "data",
       variables: Object.freeze({
         EXCLUDED_SCHEMAS: SUPABASE_DATA_EXCLUDED_SCHEMAS.join("|"),
         INCLUDED_SCHEMAS: "*",
-        EXTRA_FLAGS: "--exclude-table storage.buckets_vectors --exclude-table storage.vector_indexes",
+        EXTRA_FLAGS: `--exclude-table storage.buckets_vectors --exclude-table storage.vector_indexes ${snapshotFlag}`,
       }),
     }),
     Object.freeze({
       filename: "history-schema.sql",
-      script: executables.dumpScripts.schema.real,
+      scriptKey: "schema",
       variables: Object.freeze({
         EXCLUDED_SCHEMAS: "",
-        EXTRA_FLAGS: "--schema=supabase_migrations",
+        EXTRA_FLAGS: `--schema=supabase_migrations ${snapshotFlag}`,
         EXTRA_SED: "/^--/d",
       }),
     }),
     Object.freeze({
       filename: "history-data.sql",
-      script: executables.dumpScripts.data.real,
+      scriptKey: "data",
       variables: Object.freeze({
         EXCLUDED_SCHEMAS: "",
         INCLUDED_SCHEMAS: "supabase_migrations",
-        EXTRA_FLAGS: "",
+        EXTRA_FLAGS: snapshotFlag,
       }),
     }),
   ]);
+}
+
+async function dumpDatabase({
+  root,
+  executables,
+  projectRef,
+  snapshotId,
+  staging,
+  signal,
+  state,
+  environment,
+  reverse = false,
+}) {
+  if (environment.PGUSER !== `postgres.${projectRef}`) fail("database_source_mismatch");
+  const commands = managedDatabaseDumpPlan(snapshotId);
   const orderedCommands = reverse ? [...commands].reverse() : commands;
   for (const command of orderedCommands) {
     const output = join(staging, command.filename);
     await spawnCommand(
       executables.bash.real,
-      [command.script],
+      [executables.dumpScripts[command.scriptKey].real],
       {
         cwd: root,
         environment: { ...environment, ...command.variables },
@@ -2045,6 +2281,7 @@ async function verifyDatabaseSnapshotStable({
   root,
   executables,
   projectRef,
+  snapshotId,
   staging,
   signal,
   state,
@@ -2056,6 +2293,7 @@ async function verifyDatabaseSnapshotStable({
     root,
     executables,
     projectRef,
+    snapshotId,
     staging: verification,
     signal,
     state,
@@ -2073,6 +2311,7 @@ async function verifyDatabaseSnapshotStable({
   }
   rmSync(verification, { recursive: true, force: false });
   return Object.freeze({
+    snapshot_mode: "postgresql-exported-repeatable-read-read-only",
     artifact_semantic_sha256: Object.freeze(semanticArtifacts),
     proof_sha256: sha256(canonicalJson(semanticArtifacts)),
   });
@@ -2435,24 +2674,64 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
     });
     state.cleanup = cleanup;
 
-    await dumpDatabase({
-      root,
-      executables: preflight.executables,
-      projectRef: args.projectRef,
-      staging: temporaryDirectory,
-      signal,
-      state,
-      environment: preflight.databaseEnvironment,
-    });
-    const databaseStability = await verifyDatabaseSnapshotStable({
-      root,
-      executables: preflight.executables,
-      projectRef: args.projectRef,
-      staging: temporaryDirectory,
-      signal,
-      state,
-      environment: preflight.databaseEnvironment,
-    });
+    const snapshotHolder = await openSynchronizedDatabaseSnapshot(
+      preflight.executables.psql.real,
+      [
+        "--no-psqlrc",
+        "--quiet",
+        "--tuples-only",
+        "--no-align",
+        "--set",
+        "ON_ERROR_STOP=1",
+      ],
+      {
+        cwd: root,
+        environment: preflight.databaseEnvironment,
+        signal,
+        state,
+      },
+    );
+    const databaseController = new AbortController();
+    const databaseSignal = AbortSignal.any([signal, databaseController.signal]);
+    const runWithSnapshot = async (operation) => {
+      try {
+        return await Promise.race([
+          operation,
+          snapshotHolder.done.then(() => {
+            fail("database_snapshot_holder_exited_early");
+          }),
+        ]);
+      } catch (error) {
+        databaseController.abort(error);
+        await Promise.allSettled([operation]);
+        throw error;
+      }
+    };
+    let databaseStability;
+    try {
+      await runWithSnapshot(dumpDatabase({
+        root,
+        executables: preflight.executables,
+        projectRef: args.projectRef,
+        snapshotId: snapshotHolder.snapshotId,
+        staging: temporaryDirectory,
+        signal: databaseSignal,
+        state,
+        environment: preflight.databaseEnvironment,
+      }));
+      databaseStability = await runWithSnapshot(verifyDatabaseSnapshotStable({
+        root,
+        executables: preflight.executables,
+        projectRef: args.projectRef,
+        snapshotId: snapshotHolder.snapshotId,
+        staging: temporaryDirectory,
+        signal: databaseSignal,
+        state,
+        environment: preflight.databaseEnvironment,
+      }));
+    } finally {
+      await snapshotHolder.close();
+    }
     ensureInterrupted(signal);
 
     const databaseArtifacts = Object.fromEntries(
@@ -2570,6 +2849,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
         migration_copy_rows_sha256: ledger.copy_rows_sha256,
         data_copy_sections_sha256: dataAnalysis.copy_sections_sha256,
         stability_proof_sha256: databaseStability.proof_sha256,
+        snapshot_mode: databaseStability.snapshot_mode,
         table_count: aggregates.table_count,
         row_count: aggregates.row_count,
         auth_user_count: aggregates.auth_user_count,

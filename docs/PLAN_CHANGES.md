@@ -17568,6 +17568,7 @@ Decision:
 The focused tests use injected local responses only. This correction performs
 no managed-Supabase, VPS, production, provider, webhook or customer-data
 mutation.
+
 ## 2026-09-05 - Define the no-staging #551 release and recovery contract
 
 Block-ID: `EVO-V3-H-RELEASE-RECOVERY-CONTRACT-2026-09-05`
@@ -17891,3 +17892,44 @@ Validation impact: rerun scoped Node 22 release-contract, link, append-only and
 whitespace checks and obtain fresh exact-head review. This append-only
 clarification does not retire staging, configure an arm, deploy, or mutate
 Supabase/production/provider state.
+
+## 2026-09-05 - Produce one trusted managed-Supabase recovery source
+
+Block-ID: `EVO-V3-H-TRUSTED-MANAGED-BACKUP-EXPORT-2026-09-05`
+
+Change type: recovery implementation clarification.
+Affected plan section: Order 7 / Issue #551.
+
+The no-staging recovery contract requires real database/Auth and private
+Storage artifacts from the exact production Supabase project. A caller-written
+identity hash, a local schema reset or an unsigned collection of files cannot
+prove that source. Supabase database backups also exclude Storage object bytes,
+so database and Storage need separate, independently verifiable artifacts.
+
+Decision:
+
+- add one opt-in, read-only export command that authenticates to the Supabase
+  Management API, resolves exactly the configured 20-character project ref,
+  requires an `ACTIVE_HEALTHY` project and a latest `COMPLETED` provider backup,
+  and binds the allowlisted project/backup receipt to every exported artifact;
+- use only the repository-pinned Supabase CLI on OrbStack to export roles,
+  user schema/data and the exact `supabase_migrations` schema/data. Preserve and
+  hash the complete ordered migration COPY rows rather than reconstructing a
+  ledger from a count or local filenames;
+- inventory every Storage bucket/object through the authenticated Storage API,
+  download the real bytes with full pagination, hash each payload, repeat the
+  inventory and fail on drift. An empty real inventory is valid; fabricated
+  objects are not;
+- keep all plaintext under one guarded mode-`0700` temporary directory,
+  individually age-encrypt database and Storage artifacts, emit only a
+  redacted aggregate receipt, sign and immediately verify that receipt with an
+  explicitly supplied SSH signing key, and remove plaintext plus partial output
+  on any error or termination signal;
+- keep the existing recovery-readiness contract as the only application-facing
+  authority. These source artifacts are inputs to the later isolated restore;
+  they do not independently mark database or Storage recovery ready.
+
+The exporter performs no Supabase mutation, schema apply, provider call, VPS
+change, customer write or production release. The production activation
+variable remains absent or false and #551 remains open until the separately
+reviewed restore, role-specific Auth/RLS/browser and malware-scanner proofs pass.

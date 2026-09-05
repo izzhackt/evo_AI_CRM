@@ -25,8 +25,10 @@ import {
   drainConcurrentOperations,
   exactMigrationLedger,
   guardedRemove,
+  managedDatabaseDumpPlan,
   normalizeProjectReceipt,
   normalizePoolerReceipt,
+  openSynchronizedDatabaseSnapshot,
   parseArgs,
   parseCopySections,
   patchedPostgresClientVersion,
@@ -38,6 +40,7 @@ import {
   storageClientHeaders,
   storageDownloadHeaders,
   storageInventoryDigest,
+  synchronizedSnapshotFlag,
   validateOperatorHome,
   validateOutputRoot,
   validateSupabaseDatabaseCa,
@@ -705,6 +708,10 @@ test("PostgreSQL dump clients must meet a patched security floor", () => {
     patchedPostgresClientVersion("pg_dumpall (PostgreSQL) 17.11\n", "pg_dumpall"),
     "17.11",
   );
+  assert.equal(
+    patchedPostgresClientVersion("psql (PostgreSQL) 18.6\n", "psql"),
+    "18.6",
+  );
   expectCode(
     () => patchedPostgresClientVersion("pg_dump (PostgreSQL) 17.10\n", "pg_dump"),
     "postgres_client_security_update_required",
@@ -713,6 +720,122 @@ test("PostgreSQL dump clients must meet a patched security floor", () => {
     () => patchedPostgresClientVersion("pg_dump 18.6\n", "pg_dump"),
     "postgres_client_version_invalid",
   );
+});
+
+test("every database dump pass imports one strictly validated synchronized snapshot", () => {
+  const snapshotId = "00000003-0000001B-1";
+  assert.equal(synchronizedSnapshotFlag(snapshotId), `--snapshot=${snapshotId}`);
+  const plan = managedDatabaseDumpPlan(snapshotId);
+  assert.equal(plan.length, 5);
+  assert.equal(plan.find((entry) => entry.filename === "roles.sql").variables.EXTRA_FLAGS, undefined);
+  for (const entry of plan.filter((candidate) => candidate.filename !== "roles.sql")) {
+    assert.match(entry.variables.EXTRA_FLAGS, new RegExp(`(?:^| )--snapshot=${snapshotId}(?: |$)`, "u"));
+    assert.equal(entry.variables.EXTRA_FLAGS.match(/--snapshot=/gu)?.length, 1);
+  }
+  for (const invalid of [
+    "",
+    "00000003-0000001B-0",
+    "00000003-0000001B-1 --file=/tmp/leak",
+    "00000003-0000001B-1\n--no-owner",
+  ]) {
+    expectCode(() => synchronizedSnapshotFlag(invalid), "database_snapshot_id_invalid");
+  }
+});
+
+test("snapshot holder keeps one read-only transaction alive and drains on close", async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-export-snapshot-holder-")));
+  const state = { terminators: new Set(), processGroups: new Set() };
+  const controller = new AbortController();
+  const fakeHolder = String.raw`
+    let input = "";
+    let ready = false;
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => {
+      input += chunk;
+      if (!ready && input.includes("pg_export_snapshot")) {
+        ready = true;
+        process.stdout.write("EVO_SYNC_SNAPSHOT:00000003-0000001B-1\n");
+      }
+      if (input.includes("ROLLBACK;") && input.includes("\\q")) process.exit(0);
+    });
+    setInterval(() => undefined, 1000);
+  `;
+  try {
+    const holder = await openSynchronizedDatabaseSnapshot(
+      process.execPath,
+      ["-e", fakeHolder],
+      {
+        cwd: root,
+        environment: { PATH: "/usr/bin:/bin", HOME: root, TMPDIR: root },
+        signal: controller.signal,
+        state,
+        timeoutMs: 5_000,
+        killGraceMs: 50,
+      },
+    );
+    assert.equal(holder.snapshotId, "00000003-0000001B-1");
+    assert.equal(state.terminators.size, 1);
+    assert.equal(state.processGroups.size, 1);
+    await holder.close();
+    assert.equal(state.terminators.size, 0);
+    assert.equal(state.processGroups.size, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("snapshot holder fails closed on malformed output and interruption", async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-export-snapshot-failure-")));
+  const environment = { PATH: "/usr/bin:/bin", HOME: root, TMPDIR: root };
+  try {
+    await expectCodeAsync(
+      openSynchronizedDatabaseSnapshot(
+        process.execPath,
+        ["-e", 'process.stdout.write("not-a-snapshot\\n"); setInterval(() => {}, 1000)'],
+        {
+          cwd: root,
+          environment,
+          signal: new AbortController().signal,
+          state: { terminators: new Set(), processGroups: new Set() },
+          timeoutMs: 5_000,
+          killGraceMs: 50,
+        },
+      ),
+      "database_snapshot_holder_output_invalid",
+    );
+
+    const state = { terminators: new Set(), processGroups: new Set() };
+    const controller = new AbortController();
+    const holder = await openSynchronizedDatabaseSnapshot(
+      process.execPath,
+      ["-e", String.raw`
+        let input = "";
+        process.stdin.setEncoding("utf8");
+        process.stdin.on("data", (chunk) => {
+          input += chunk;
+          if (input.includes("pg_export_snapshot")) {
+            process.stdout.write("EVO_SYNC_SNAPSHOT:00000003-0000001B-1\n");
+          }
+        });
+        process.on("SIGTERM", () => undefined);
+        setInterval(() => undefined, 1000);
+      `],
+      {
+        cwd: root,
+        environment,
+        signal: controller.signal,
+        state,
+        timeoutMs: 5_000,
+        killGraceMs: 50,
+      },
+    );
+    controller.abort();
+    await expectCodeAsync(holder.done, "export_interrupted");
+    assert.equal(state.terminators.size, 0);
+    assert.equal(state.processGroups.size, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("database TLS pins the reviewed Supabase CA bytes, fingerprint, and validity", () => {

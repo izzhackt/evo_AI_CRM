@@ -18294,3 +18294,40 @@ Decision:
 
 This correction preserves PostgreSQL restore-time protection, changes no
 provider state and does not activate a release.
+
+## 2026-09-05 - Export the live database through one synchronized snapshot
+
+Block-ID: `EVO-V3-H-MANAGED-BACKUP-SYNCHRONIZED-SNAPSHOT-2026-09-05`
+
+Change type: real-export consistency correction.
+Affected plan section: Order 7 / Issue #551.
+
+The first full exact-main export stopped with `database_snapshot_drift` and
+removed every partial/plaintext path. The exporter had taken each logical dump
+in a separate transaction, so legitimate concurrent managed-database writes
+could make two safe dumps describe different points in time.
+
+Decision:
+
+- open one read-only `REPEATABLE READ` transaction through a trusted,
+  security-patched `psql`, call `pg_export_snapshot()` and keep that exporter
+  transaction open until both logical dump passes complete;
+- pass the same strictly validated synchronized-snapshot identifier to every
+  schema, data and migration-history `pg_dump` in both passes. Capture global
+  roles separately because `pg_dumpall` has no synchronized-snapshot option,
+  while retaining the existing two-pass role drift comparison;
+- bind the trusted `psql` version and the synchronized-snapshot proof mode, but
+  never the ephemeral snapshot identifier, into sanitized evidence; and
+- track the snapshot holder as a full process group. On success, rollback the
+  read-only transaction and drain it; on failure or interruption, perform the
+  same bounded process-tree termination and drain required before guarded
+  plaintext cleanup.
+
+PostgreSQL documents that exported snapshots let concurrent sessions see the
+same database contents and remain importable only while the exporting
+transaction stays open; `pg_dump --snapshot` imports that synchronized view.
+Sources: [PostgreSQL snapshot synchronization](https://www.postgresql.org/docs/18/functions-admin.html#FUNCTIONS-SNAPSHOT-SYNCHRONIZATION)
+and [`pg_dump --snapshot`](https://www.postgresql.org/docs/18/app-pgdump.html).
+This correction performs authenticated read-only database access only. It
+does not mutate managed Supabase, Storage, VPS, providers, webhooks, production
+traffic or customer records and does not activate a release.

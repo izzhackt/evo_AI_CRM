@@ -27,6 +27,7 @@ import {
   safeHarnessRoot,
   sanitizeAppStartupDiagnostic,
   sanitizeDatabaseCommandDiagnostic,
+  sanitizeImageBuildDiagnostic,
   sanitizeLocalSupabaseStartDiagnostic,
   selectOwnedContainerIds,
   selectOwnedNetworkNames,
@@ -766,6 +767,19 @@ test("child commands use trusted executables and a private process environment",
   );
 });
 
+test("private child HOME provisions the trusted OrbStack docker-buildx plugin", () => {
+  const privateEnvironmentStart = source.indexOf("function activatePrivateChildEnvironment");
+  const privateEnvironmentEnd = source.indexOf("function executable", privateEnvironmentStart);
+  const privateEnvironmentSource = source.slice(privateEnvironmentStart, privateEnvironmentEnd);
+
+  assert.match(source, /dockerBuildx:\s*Object\.freeze/u);
+  assert.match(source, /\/Applications\/OrbStack\.app\/Contents\/MacOS\/xbin\/docker-buildx/u);
+  assert.match(privateEnvironmentSource, /join\(home,\s*"\.docker",\s*"cli-plugins"\)/u);
+  assert.match(privateEnvironmentSource, /docker-buildx/u);
+  assert.match(privateEnvironmentSource, /trustedExecutable\("dockerBuildx"\)/u);
+  assert.match(privateEnvironmentSource, /(?:copyFileSync|symlinkSync)/u);
+});
+
 test("restored contour runs migration 115 and the real scanner-backed upload path", () => {
   assert.match(source, /artifacts\.plaintext\.historySchema/u);
   assert.match(source, /base_migration_ledger_already_exists/u);
@@ -797,6 +811,28 @@ test("browser proof runs the exact production image and never starts Next dev", 
   assert.doesNotMatch(source, /prepareAppWorkspace/u);
   assert.doesNotMatch(source, /"dev",\s*\n\s*"--webpack"/u);
   assert.doesNotMatch(source, /next\s+dev/iu);
+});
+
+test("image build failures are captured and reduced to sanitized diagnostics", () => {
+  const raw = [
+    "ERROR: failed to solve: docker-buildx plugin unavailable",
+    "fatal /Users/private/.docker token=never-print-this-value staff@example.com",
+  ].join("\n");
+  const diagnostic = sanitizeImageBuildDiagnostic(raw, 1);
+  const serialized = JSON.stringify(diagnostic);
+  assert.equal(diagnostic.exitCode, 1);
+  assert.equal(diagnostic.outputBytes, Buffer.byteLength(raw));
+  assert.equal(diagnostic.outputSha256, sha(raw));
+  assert.equal(serialized.includes("/Users/private"), false);
+  assert.equal(serialized.includes("never-print-this-value"), false);
+  assert.equal(serialized.includes("staff@example.com"), false);
+  assert.ok(diagnostic.sanitizedErrorTemplates.length > 0);
+
+  const imageBuildStart = source.indexOf("function buildRecoveryAppImage");
+  const imageBuildEnd = source.indexOf("export function sanitizeAppStartupDiagnostic", imageBuildStart);
+  const imageBuildSource = source.slice(imageBuildStart, imageBuildEnd);
+  assert.match(imageBuildSource, /failureDiagnostic:\s*sanitizeImageBuildDiagnostic/u);
+  assert.doesNotMatch(imageBuildSource, /capture:\s*false/u);
 });
 
 test("late missing-role result is written after cleanup and still exits nonzero", () => {

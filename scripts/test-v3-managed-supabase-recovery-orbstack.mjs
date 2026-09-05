@@ -207,6 +207,12 @@ const TRUSTED_EXECUTABLES = Object.freeze({
     candidates: Object.freeze(["/usr/local/bin/docker", "/opt/homebrew/bin/docker"]),
     roots: Object.freeze(["/Applications/OrbStack.app/Contents/MacOS/"]),
   }),
+  dockerBuildx: Object.freeze({
+    candidates: Object.freeze([
+      "/Applications/OrbStack.app/Contents/MacOS/xbin/docker-buildx",
+    ]),
+    roots: Object.freeze(["/Applications/OrbStack.app/Contents/MacOS/xbin/"]),
+  }),
   orb: Object.freeze({
     candidates: Object.freeze(["/usr/local/bin/orb", "/opt/homebrew/bin/orb"]),
     roots: Object.freeze(["/Applications/OrbStack.app/Contents/MacOS/"]),
@@ -1062,6 +1068,13 @@ function activatePrivateChildEnvironment(harnessRoot, dockerHost) {
     }
     copies[name] = destination;
   }
+
+  const dockerPluginDirectory = join(home, ".docker", "cli-plugins");
+  mkdirSync(dockerPluginDirectory, { recursive: true, mode: 0o700 });
+  chmodSync(dockerPluginDirectory, 0o700);
+  const dockerBuildxDestination = join(dockerPluginDirectory, "docker-buildx");
+  symlinkSync(trustedExecutable("dockerBuildx"), dockerBuildxDestination);
+  copies.dockerBuildx = dockerBuildxDestination;
 
   const contextHash = sha256Text("orbstack");
   const contextRoot = join(home, ".docker", "contexts", "meta", contextHash);
@@ -3675,10 +3688,11 @@ function buildRecoveryAppImage(state, repositorySnapshotRoot, repository) {
     "--tag", imageTag,
     repositorySnapshotRoot,
   ], {
-    capture: false,
     timeout: 2 * 60 * 60 * 1000,
+    maxBuffer: 64 * 1024 * 1024,
     code: "recovery_app_image_build_failed",
     stage: "v3_image_proof",
+    failureDiagnostic: sanitizeImageBuildDiagnostic,
   });
   let inspection;
   try {
@@ -3741,6 +3755,29 @@ export function sanitizeAppStartupDiagnostic(output, child = {}) {
     outputSha256: sha256Text(raw),
     fingerprints: Object.freeze(fingerprints),
     sanitizedErrorTemplates: Object.freeze(sanitizedErrorTemplates),
+  });
+}
+
+export function sanitizeImageBuildDiagnostic(output, exitStatus) {
+  const raw = String(output);
+  const lower = raw.toLowerCase();
+  const generic = sanitizeAppStartupDiagnostic(raw, {
+    exitCode: exitStatus,
+    signalCode: null,
+  });
+  const buildFingerprints = Object.entries({
+    buildx_missing: /unknown command: docker buildx|buildx component is missing|buildx.*not found/u,
+    buildkit_failed: /failed to solve|buildkit/u,
+    registry_unreachable: /failed to resolve source metadata|failed to fetch|dial tcp|network is unreachable/u,
+    package_install_failed: /npm (?:error|err!)|npm ci.*failed/u,
+    architecture_failure: /exec format error|requested image's platform/u,
+  }).filter(([, pattern]) => pattern.test(lower)).map(([name]) => name);
+  return Object.freeze({
+    ...generic,
+    fingerprints: Object.freeze([...new Set([
+      ...generic.fingerprints,
+      ...buildFingerprints,
+    ])]),
   });
 }
 
@@ -5020,6 +5057,10 @@ async function runPreflight(options) {
     }) !== "orbstack") {
       fail("private_docker_context_not_orbstack", "tool_preflight");
     }
+    execute(executable("docker"), ["buildx", "version"], {
+      code: "private_docker_buildx_unavailable",
+      stage: "tool_preflight",
+    });
     const repositorySnapshotRoot = materializeRepositorySnapshot(harnessRoot, repository);
     const artifacts = await prepareArtifacts(options, harnessRoot, false);
     if (projectName === artifacts.database.sourceProjectRef) {
@@ -5096,6 +5137,10 @@ async function runRecovery(options) {
     }) !== "orbstack") {
       fail("private_docker_context_not_orbstack", "tool_preflight");
     }
+    execute(executable("docker"), ["buildx", "version"], {
+      code: "private_docker_buildx_unavailable",
+      stage: "tool_preflight",
+    });
     const repositorySnapshotRoot = materializeRepositorySnapshot(harnessRoot, repository);
     const artifacts = await prepareArtifacts(options, harnessRoot, true);
     if (projectName === artifacts.database.sourceProjectRef) {

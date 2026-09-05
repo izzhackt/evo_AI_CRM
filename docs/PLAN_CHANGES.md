@@ -18473,3 +18473,182 @@ Decision:
 This correction does not contact or mutate managed Supabase, production, VPS,
 WAHA, amoCRM, Gemini, webhooks, customer records or provider state, and it does
 not arm #552.
+
+## 2026-09-05 - Consume only the signed managed-export contract during recovery
+
+Block-ID: `EVO-V3-H-SIGNED-MANAGED-RECOVERY-CONSUMER-2026-09-05`
+
+Change type: stale-worktree salvage and recovery trust correction.
+Affected plan section: Order 7 / Issue #551.
+
+Read-only inventory found that the old `izzhackt/v3-h-release-recovery`
+worktree predates the current release controller and the managed exporter. Its
+combined tree would roll back accepted exact-main controls, while its recovery
+harness trusts an obsolete unsigned manifest, reconstructs migration history
+from summary counts, permits synthetic role actors and cannot interrupt long
+synchronous restore children safely. The dirty worktree remains preserved and
+is not current authority.
+
+Decision:
+
+- rebuild recovery on the exact main commit containing the #636 exporter. Only
+  the old harness's isolation, private-file, hashing, Storage-integrity and
+  targeted-cleanup primitives may be used as implementation material;
+- before decryption or restore, verify `receipt.json.sig` against an
+  independently supplied trusted public key, exact namespace and identity,
+  then verify the receipt schema, source/project/backup bindings and every
+  ciphertext digest. A missing, altered or mismatched signature, receipt,
+  artifact or trusted-key fingerprint stops without restore;
+- restore the exported history schema and exact history COPY rows. Compare the
+  complete ordered signed ledger and its digest with root migrations, then
+  apply only the genuine pending suffix. Never synthesize migration rows from
+  a count, minimum, maximum or local filename;
+- require an explicitly authorized representative cohort already present in
+  the restored snapshot for Admin, Sales and Admissions. Do not provision
+  synthetic staff or fixture business records. Prove positive and negative
+  same- and cross-organization RLS, canonical reads/writes, private-document
+  behavior, audit behavior and role-visible V3 browser routes against the exact
+  immutable candidate image; and
+- run every external command in a tracked process group. On interruption,
+  perform bounded `TERM` then `KILL`, prove the complete descendant tree has
+  drained, and only then clean the owned loopback OrbStack contour. If drain or
+  targeted cleanup cannot be proved, fail and preserve the marked private root
+  for quarantine. Required sanitized success or failure evidence records
+  trusted executable versions, per-stage timings and cleanup outcome.
+
+This recovery consumer may decrypt and restore the read-only export only into
+an isolated loopback-bound local OrbStack contour. It does not mutate managed
+Supabase, Storage, VPS, provider/webhook state, production traffic or customer
+records and does not activate a release.
+
+## 2026-09-05 - Separate recovery source, target and image identities
+
+Block-ID: `EVO-V3-H-RECOVERY-SOURCE-TARGET-SEPARATION-2026-09-05`
+
+Change type: independent-review recovery correctness correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review found that one repository-commit input was incorrectly used
+for the signed export source, the current recovery checkout and the candidate
+image. That made a real older backup impossible to consume from a later target
+and made a genuine pending-migration suffix impossible to prove.
+
+Decision:
+
+- bind the signed receipt and source migration tree to one explicit export
+  source commit;
+- bind the clean recovery checkout, full target migration tree and immutable
+  application-image revision to a separate explicit target commit;
+- require the source commit to be an ancestor of the target, require the signed
+  complete source ledger to be the exact target-ledger prefix, and rehearse only
+  the resulting target-only forward suffix. Never require source and target to
+  be equal and never reconstruct either ledger from filenames or counts;
+- run the candidate with production runtime semantics on the exact owned
+  internal Docker network. Derive the local Supabase endpoint from a complete
+  inspected project-container census, publish only the application port to
+  `127.0.0.1`, and block every browser request outside that loopback origin;
+- stream restored Storage payloads rather than buffering whole objects, while
+  retaining byte/hash read-back verification and interruption cancellation; and
+- record sanitized versions or binary identities for every external tool used.
+  Before OrbStack and its exact Docker context pass, cleanup may remove only the
+  marked local temporary root and must not invoke the container runtime.
+
+This correction changes no managed Supabase, VPS, provider, webhook,
+production-traffic or customer state and does not activate a release.
+
+## 2026-09-05 - Correct squash lineage, dual ledgers and recovery readiness
+
+Block-ID: `EVO-V3-H-RECOVERY-LINEAGE-AND-READINESS-CORRECTION-2026-09-05`
+
+Change type: real-export and current-main correctness correction.
+Affected plan section: Order 7 / Issue #551.
+
+The signed export was created at pre-merge commit
+`b54ccc6f274a7962ed2c6d93a6fd445086292191`. PR #637 was then squash-merged
+as `a0ba8b340e5d472a1a97ffd9005d3122ad2b279f`: the two commits have the exact
+same complete tree and migration tree, but the former is not a Git ancestor of
+current `main`. The export's authenticated database history contains migrations
+`001` through `079`, while its source Git tree contains `001` through `114` and
+the current target contains `001` through `116`. The signed source Storage
+inventory is valid but contains zero real objects, and the restored authority
+contains Admin but no active real Sales or Admissions identities.
+
+Decision:
+
+- keep the receipt bound to the exact pre-squash source SHA. Require one
+  explicit integrated-equivalent commit whose full tree and migration tree are
+  identical to that source, then require the equivalent commit to be an
+  ancestor of the exact target. This supersedes the earlier direct-source-
+  ancestry requirement without accepting a branch name or approximate tree;
+- prove two separate ordered relationships. The authenticated database ledger
+  `001`-`079` is an exact statement-level prefix of both Git roots and the
+  recovery applies its real pending suffix `080`-`116`. Independently, the
+  complete source Git root `001`-`114` is the exact target prefix and records
+  target-only source-code suffix `115`-`116`. Never call either relationship
+  the other or reconstruct one from filenames/counts;
+- materialize and verify a private snapshot of the exact clean target commit,
+  reject symlinks, gitlinks, special files and Git-discovery paths, build the
+  `linux/amd64` production target from that snapshot and run only the inspected
+  image ID. Dependency download is explicit build-time input; the application
+  runtime remains on exactly one owned internal network with loopback-only app
+  publication and browser service-worker/external-request blocking;
+- execute the verified native Supabase CLI and its verified delegated binary
+  directly, stream Storage upload/read-back, inventory every project/owner-
+  labelled container and image, and invoke no Docker cleanup before OrbStack
+  plus the exact `orbstack` context pass; and
+- accept optional explicit Sales and Admissions IDs only when real restored
+  identities exist. With the current source, continue the safe Admin and
+  destination-canary checks, but atomically retain mode-`0600` redacted
+  `not_ready` evidence after cleanup and exit non-zero with all three blockers:
+  missing Sales, missing Admissions and zero source Storage objects. Admin
+  behavior never substitutes for a role, and a destination canary never
+  substitutes for recovered source bytes.
+
+This diagnostic mutates only the disposable local recovery contour. It does
+not contact or mutate managed Supabase, VPS, WAHA, amoCRM, Gemini, webhooks,
+production traffic or customer records, and it does not arm #552. The internal
+network contract follows Docker's documented `--internal` behavior:
+<https://docs.docker.com/reference/cli/docker/network/create/>.
+
+## 2026-09-05 - Close managed recovery exact-head review gaps
+
+Block-ID: `EVO-V3-H-RECOVERY-EXACT-HEAD-REVIEW-CORRECTIONS-2026-09-05`
+
+Change type: independent-review correctness and fail-closed correction.
+Affected plan section: Order 7 / Issue #551.
+
+Decision:
+
+- accept equality for either exact ordered migration-prefix relationship so a
+  later authentic fully migrated backup remains recoverable; retain exact
+  evidence for the current export's database suffix `080`-`116` and
+  source-code suffix `115`-`116`;
+- use a deterministic valid `application/pdf` object for the private-document
+  behavior canary, require the canonical bucket policy to allow PDF, and retain
+  only its content hash and outcome evidence;
+- install a Playwright `BrowserContext.routeWebSocket` blocker before page
+  creation, never connect the routed socket, and fail the proof if any
+  WebSocket attempt occurs; and
+- translate an absent backup directory into the named
+  `backup_directory_missing` preflight blocker.
+
+The focused recovery suite covers all four corrections. This change performs
+no Docker, managed Supabase, VPS, provider, webhook, production-traffic or
+customer mutation and does not activate a release.
+
+## 2026-09-05 - Cite the recovery WebSocket isolation contract
+
+Block-ID: `EVO-V3-H-RECOVERY-WEBSOCKET-DOCS-CITATION-2026-09-05`
+
+Change type: independent-review documentation correction.
+Affected plan section: Order 7 / Issue #551.
+
+The recovery browser installs Playwright's documented
+`BrowserContext.routeWebSocket` interception before creating any page, never
+connects an intercepted socket to its server and rejects the proof if a socket
+is attempted. Official API reference:
+<https://playwright.dev/docs/api/class-browsercontext#browser-context-route-web-socket>.
+
+This clarification changes no runtime behavior and performs no Docker,
+managed Supabase, VPS, provider, webhook, production-traffic or customer
+mutation.

@@ -3158,6 +3158,7 @@ export function buildRestoredRoleReadiness(outcomes) {
     "missing_restored_admissions_case",
     "missing_restored_downloadable_document",
     "missing_restored_peer_identity",
+    "incomplete_role_outcome_suite",
   ]);
   if (Object.values(outcomes).some((value) =>
     typeof value !== "string" || !allowedOutcomes.has(value))) {
@@ -3321,7 +3322,7 @@ function assertRoleMutationAudit(status, {
 
 async function proveRestoredRoleServerOutcomes(status, actors) {
   const outcomes = {
-    admin: "passed",
+    admin: "incomplete_role_outcome_suite",
     sales: actors.sales ? "missing_restored_peer_identity" : "missing_restored_identity",
     admissions: actors.admissions ? "missing_restored_peer_identity" : "missing_restored_identity",
   };
@@ -3331,6 +3332,7 @@ async function proveRestoredRoleServerOutcomes(status, actors) {
     return Object.freeze({
       outcomes: Object.freeze(outcomes),
       evidence: Object.freeze({
+        admin: outcomes.admin,
         sales: outcomes.sales,
         admissions: outcomes.admissions,
         auditReplay: "not_run_missing_restored_identity",
@@ -3596,6 +3598,16 @@ async function proveRestoredRoleServerOutcomes(status, actors) {
     if (outcomes.sales === "passed") outcomes.sales = "missing_restored_downloadable_document";
     if (outcomes.admissions === "passed") outcomes.admissions = "missing_restored_downloadable_document";
   }
+  if (
+    outcomes.sales === "passed" &&
+    outcomes.admissions === "passed" &&
+    salesProof &&
+    admissionsProof &&
+    document &&
+    adminHasSameDocument
+  ) {
+    outcomes.admin = "passed";
+  }
 
   return Object.freeze({
     outcomes: Object.freeze(outcomes),
@@ -3607,6 +3619,7 @@ async function proveRestoredRoleServerOutcomes(status, actors) {
       byteSize: Number(document.current_byte_size),
     }) : undefined,
     evidence: Object.freeze({
+      admin: outcomes.admin,
       sales: outcomes.sales,
       admissions: outcomes.admissions,
       auditReplay: salesProof && admissionsProof ? "passed" : "not_run_incomplete_role_data",
@@ -4591,11 +4604,11 @@ async function proveV3BrowserAndReadiness(
       fail("readiness_component_contract_failed", "v3_browser_proof");
     }
     return Object.freeze({
-      admin: "passed",
+      admin: roleServerProof.outcomes.admin,
       sales: roleServerProof.outcomes.sales,
       admissions: roleServerProof.outcomes.admissions,
       roleOutcomes: Object.freeze({
-        admin: "passed",
+        admin: roleServerProof.outcomes.admin,
         sales: roleServerProof.outcomes.sales,
         admissions: roleServerProof.outcomes.admissions,
       }),

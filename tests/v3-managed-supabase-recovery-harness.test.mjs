@@ -673,18 +673,18 @@ test("diagnostics and late role evidence stay aggregate-only", () => {
     admissions: true,
   }));
   const readiness = buildRestoredRoleReadiness({
-    admin: "passed",
+    admin: "incomplete_role_outcome_suite",
     sales: "missing_restored_identity",
     admissions: "missing_restored_identity",
   });
   assert.equal(readiness.complete, false);
-  assert.deepEqual(readiness.missingRoles, ["sales", "admissions"]);
+  assert.deepEqual(readiness.missingRoles, ["admin", "sales", "admissions"]);
   assert.deepEqual(readiness.roleStatus, {
-    admin: "passed",
+    admin: "incomplete_role_outcome_suite",
     sales: "missing_restored_identity",
     admissions: "missing_restored_identity",
   });
-  assert.equal(readiness.blocker.code, "restored_representative_staff_roles_missing");
+  assert.equal(readiness.blocker.code, "restored_role_outcome_proof_incomplete");
   assert.equal(validateSanitizedEvidence({
     schema: "evo-v3-managed-supabase-recovery-result/v1",
     ok: false,
@@ -711,6 +711,47 @@ test("restored role readiness passes only explicit proof outcomes for every role
     admissions: "passed",
   });
   assert.equal(readiness.blocker, undefined);
+});
+
+test("Admin passes only after the complete peer-role outcome suite", () => {
+  const proofStart = source.indexOf("async function proveRestoredRoleServerOutcomes");
+  const proofEnd = source.indexOf("function createRecoveryTlsMaterial", proofStart);
+  const proofSource = source.slice(proofStart, proofEnd);
+  const browserStart = source.indexOf("async function proveV3BrowserAndReadiness");
+  const browserEnd = source.indexOf("function docker", browserStart);
+  const browserSource = source.slice(browserStart, browserEnd);
+  assert.ok(proofStart > 0 && proofEnd > proofStart);
+  assert.ok(browserStart > 0 && browserEnd > browserStart);
+
+  assert.match(
+    proofSource,
+    /const outcomes = \{\s*admin:\s*"incomplete_role_outcome_suite"/u,
+  );
+  const replayProof = proofSource.lastIndexOf("assertReplayResult(");
+  const auditProof = proofSource.lastIndexOf("assertRoleMutationAudit(");
+  const documentProof = proofSource.indexOf("const adminHasSameDocument");
+  const adminCompletion = proofSource.lastIndexOf("outcomes.admin =");
+  assert.ok(replayProof > 0 && auditProof > replayProof);
+  assert.ok(documentProof > auditProof && adminCompletion > documentProof);
+  const completionCondition = proofSource.lastIndexOf("if (", adminCompletion);
+  assert.ok(completionCondition > documentProof);
+  const completionSource = proofSource.slice(completionCondition, adminCompletion + 40);
+  assert.match(
+    completionSource,
+    /outcomes\.sales === "passed"\s*&&\s*outcomes\.admissions === "passed"/u,
+  );
+  assert.match(completionSource, /salesProof/u);
+  assert.match(completionSource, /admissionsProof/u);
+  assert.match(completionSource, /document/u);
+  assert.match(completionSource, /adminHasSameDocument/u);
+  assert.match(completionSource, /"passed"/u);
+  assert.match(proofSource.slice(documentProof, adminCompletion), /!document \|\| !adminHasSameDocument/u);
+
+  assert.doesNotMatch(browserSource, /admin:\s*"passed"/u);
+  assert.equal(
+    browserSource.match(/admin:\s*roleServerProof\.outcomes\.admin/gu)?.length,
+    2,
+  );
 });
 
 test("app startup diagnostics expose only bounded redacted fingerprints", () => {

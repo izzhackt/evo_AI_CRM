@@ -203,6 +203,16 @@ required because a Supabase database backup does not contain Storage object
 bytes. Missing source credentials or either real backup is a named blocker;
 synthetic data cannot satisfy this gate.
 
+The rehearsal executes from an immutable Git-object snapshot, builds and runs
+the exact `linux/amd64` production image, isolates trusted child tools and
+rechecks the recorded HEAD/tree before accepting evidence. A restored staff
+identity is only a prerequisite: Admin, Sales and Admissions pass separately
+only after their canonical role-scoped read/write, optimistic-version replay,
+opposite-role denial, organization RLS, append-only audit, private-document and
+V3 browser-readback outcomes pass. Missing representative identity or restored
+lead/case/document data is an explicit `not_ready` result, never synthetic
+replacement or a fixture-only acceptance path.
+
 #600 keeps the proved `/v3/*` module URLs and makes the authenticated root a
 role-aware dispatcher into them: Admin and Sales enter `/v3/main`, while
 Admissions enters `/v3/calendar`. The V3 shell retains logout and Admin's exact

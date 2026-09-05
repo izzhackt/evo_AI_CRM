@@ -225,8 +225,12 @@ does not accept loose dumps, an alternate manifest, a compatibility ledger or
 an unsigned replacement artifact. The detached SSH signature is verified with
 the independently retained public key before the receipt is trusted. The
 receipt then binds the encrypted artifact inventory, source identity, export
-commit and export migration tree; the recovery checkout is independently bound
-to one exact clean commit.
+commit and export migration tree. The recovery checkout is independently bound
+to one exact clean commit, and every repository input is materialized from that
+immutable Git object into the private harness before the long run begins. A
+later worktree edit cannot change migrations, application bytes or scanner code
+under the already recorded revision; exact HEAD/tree/cleanliness are checked
+again before evidence is accepted.
 
 First validate the signed bundle and local prerequisites without starting a
 database:
@@ -259,23 +263,51 @@ npm run recovery:v3:managed:run -- \
   --evidence-out '<absolute-private-redacted-result-path>'
 ```
 
-The run decrypts only below a mode-`0700` temporary root, restores the signed
-Postgres/Auth snapshot and separate Storage archive into one loopback-only
-OrbStack contour, authenticates the exported migration history, applies only
-the current root forward migrations and starts the real application. It also
-starts the repository-pinned private ClamAV image and exercises the real V3
+The run decrypts only below a mode-`0700` temporary root with its own `HOME`,
+`TMPDIR`, trusted-tool directory and exact private OrbStack context. Required
+executables are resolved through fixed absolute allowlists, checked for owner-
+safe executable permissions and expected roots, and the repository-pinned
+Supabase binary is additionally pinned by SHA-256. Ambient `PATH`, user Docker
+configuration and untracked `node_modules/.bin` wrappers are not command
+authorities.
+
+The consumer restores the signed Postgres/Auth snapshot and separate Storage
+archive into one loopback-only OrbStack contour, authenticates the exported
+migration history and applies only the current root forward migrations. It
+builds the exact immutable Git snapshot through the production `Dockerfile`,
+verifies the resulting `linux/amd64` image ID and OCI revision labels, and runs
+that production image read-only against the isolated project. A private
+one-run TLS bridge and ephemeral CA let the production configuration retain its
+HTTPS-only Supabase contract without weakening application validation or
+publishing the contour. It also starts the repository-pinned private ClamAV
+image and exercises the real V3
 Company Files upload path: a clean upload must persist with append-only scanner
 proof, EICAR and scanner outage must fail without persistence, and a later
 clean upload may persist only after scanner recovery. Providers remain disabled
 and neither managed Supabase nor the VPS is contacted by the consumer.
 
-The signed export is authoritative for representative staff availability. The
-consumer never creates synthetic Sales or Admissions identities. If either
-role is absent, it still completes every safe Admin, database, Storage,
+The signed export is authoritative for representative staff and business-data
+availability. The consumer never creates synthetic Sales or Admissions
+identities or substitutes fixture-only leads, cases or documents. Identity
+presence is only a prerequisite, never a passed role result. Sales must prove a
+role-scoped canonical lead read/write with optimistic versioning, idempotent
+replay, Admissions denial, correlated append-only audit evidence and V3
+pipeline readback. Admissions must prove an assigned-case/task read/write,
+Sales denial, idempotent replay, correlated append-only audit evidence and V3
+calendar readback. Admin and Admissions must download the same restored private
+document with matching size/hash while Sales is denied. All available actors
+must also see their own organization and no cross-organization canary.
+
+If either identity or required restored lead/case/downloadable document is
+absent, the consumer still completes every safe Admin, database, Storage,
 migration, scanner and browser assertion, destroys the owned local contour,
-writes an aggregate-only `not_ready` result and exits non-zero. That result is
-useful blocker evidence, but it is not a passed three-role recovery rehearsal.
-Any earlier failure also stops closed; it cannot fall back to SQLite, fixtures,
+writes an aggregate-only `not_ready` result with the exact missing outcome and
+exits non-zero. Cleanup removes the private harness only after final scoped
+inventories prove that its containers, volumes, network and temporary app image
+are gone; otherwise it retains the marked private harness so cleanup can be
+retried without losing its trusted tools/context. A `not_ready` result is useful
+blocker evidence, but it is not a passed three-role recovery rehearsal. Any
+earlier failure also stops closed; it cannot fall back to SQLite, fixtures,
 another bundle, another migration history or a second runtime.
 
 ## WAHA boundary

@@ -18590,3 +18590,47 @@ acceptance blocker: the real authenticated source contains Admin but no real
 Sales or Admissions identities. No synthetic identity was created. #552 stays
 unarmed until those named staff identities exist and the same exact-current-main
 rehearsal proves both missing roles.
+
+## 2026-09-05 - Bind recovery to immutable production bytes and role outcomes
+
+Block-ID: `EVO-V3-H-MANAGED-RECOVERY-EXACT-RUNTIME-ROLE-OUTCOMES-2026-09-05`
+
+Change type: independent-review correctness and security correction.
+Affected plan section: Order 7 / Issue #551.
+
+Independent review of the first recovery consumer found two false-authority
+risks. A clean HEAD recorded only at the beginning did not stop later worktree
+changes from altering migrations or application bytes during the long run, and
+the presence of a restored staff identity was incorrectly promoted to a passed
+role result after login/shell checks alone. Ambient user process configuration
+also remained broader than the recovery trust boundary, while the application
+was started through a development server rather than the exact production
+image.
+
+Decision:
+
+- materialize every migration, application and scanner input from the recorded
+  immutable Git commit/tree into the private harness and recheck exact
+  HEAD/tree/cleanliness before accepting evidence;
+- resolve required tools through fixed absolute allowlists, isolate child
+  `HOME`, `TMPDIR`, `PATH` and Docker context, and SHA-256 pin the copied
+  repository Supabase CLI binary;
+- build the immutable snapshot with the production `Dockerfile`, verify the
+  `linux/amd64` image ID and OCI revision labels, and run that exact image
+  read-only. Preserve the production HTTPS-only Supabase rule through a private
+  ephemeral TLS bridge instead of weakening configuration validation;
+- treat restored identity presence only as a prerequisite. A role becomes
+  `passed` only after its canonical read/write, optimistic version, idempotent
+  replay, opposite-role denial, own/cross-organization RLS, append-only audit,
+  private-document access/denial and V3 browser readback outcomes pass;
+- never invent Sales/Admissions identities or fixture-only acceptance data.
+  Missing restored identities, an eligible Sales lead, an assigned Admissions
+  case or a downloadable restored document is recorded as an exact `not_ready`
+  outcome; and
+- retain the marked private harness when final scoped cleanup inventory cannot
+  prove all owned containers, volumes, network and temporary image are gone, so
+  cleanup remains retryable instead of losing its trusted context.
+
+This correction remains isolated and local. It does not contact or mutate
+managed Supabase, the VPS, production, WAHA, amoCRM, Gemini, webhooks, customers
+or provider state, and it does not arm #552.

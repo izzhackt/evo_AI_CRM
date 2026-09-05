@@ -666,13 +666,23 @@ test("diagnostics and late role evidence stay aggregate-only", () => {
   assert.equal(JSON.stringify(local).includes("secret=value"), false);
   assert.equal(JSON.stringify(database).includes(raw), false);
 
-  const readiness = buildRestoredRoleReadiness({
+  assert.throws(() => buildRestoredRoleReadiness({
     admin: true,
-    sales: false,
-    admissions: false,
+    sales: true,
+    admissions: true,
+  }));
+  const readiness = buildRestoredRoleReadiness({
+    admin: "passed",
+    sales: "missing_restored_identity",
+    admissions: "missing_restored_identity",
   });
   assert.equal(readiness.complete, false);
   assert.deepEqual(readiness.missingRoles, ["sales", "admissions"]);
+  assert.deepEqual(readiness.roleStatus, {
+    admin: "passed",
+    sales: "missing_restored_identity",
+    admissions: "missing_restored_identity",
+  });
   assert.equal(readiness.blocker.code, "restored_representative_staff_roles_missing");
   assert.equal(validateSanitizedEvidence({
     schema: "evo-v3-managed-supabase-recovery-result/v1",
@@ -684,6 +694,22 @@ test("diagnostics and late role evidence stay aggregate-only", () => {
     status: "not_ready",
     email: "staff@example.com",
   }), "evidence_contains_sensitive_material");
+});
+
+test("restored role readiness passes only explicit proof outcomes for every role", () => {
+  const readiness = buildRestoredRoleReadiness({
+    admin: "passed",
+    sales: "passed",
+    admissions: "passed",
+  });
+  assert.equal(readiness.complete, true);
+  assert.deepEqual(readiness.missingRoles, []);
+  assert.deepEqual(readiness.roleStatus, {
+    admin: "passed",
+    sales: "passed",
+    admissions: "passed",
+  });
+  assert.equal(readiness.blocker, undefined);
 });
 
 test("app startup diagnostics expose only bounded redacted fingerprints", () => {
@@ -711,12 +737,40 @@ test("source contains no obsolete attestation or compatibility fallback", () => 
   assert.match(source, /process\.on\("SIGTERM"/u);
 });
 
+test("repository inputs come from an immutable Git object snapshot and are rechecked", () => {
+  assert.match(source, /GIT_INDEX_FILE:\s*indexPath/u);
+  assert.match(source, /\["read-tree",\s*repository\.commit\]/u);
+  assert.match(source, /\["write-tree"\]/u);
+  assert.match(source, /"checkout-index",\s*\n\s*"--all"/u);
+  assert.match(source, /indexedTree\s*!==\s*repository\.tree/u);
+  assert.match(source, /repositorySnapshotRoot/u);
+  assert.match(source, /const finalRepository = assertRepositoryState\(options\.expectedRepositoryCommit\)/u);
+  assert.match(source, /repository_state_changed_during_recovery/u);
+});
+
+test("child commands use trusted executables and a private process environment", () => {
+  assert.match(source, /const TRUSTED_EXECUTABLES = Object\.freeze/u);
+  assert.match(source, /const SUPABASE_CLI_SHA256 = "[0-9a-f]{64}"/u);
+  assert.match(source, /resolved = realpathSync\(candidate\)/u);
+  assert.match(source, /!isAbsolute\(candidate\)/u);
+  assert.match(source, /\(metadata\.mode & 0o022\) !== 0/u);
+  assert.match(source, /function activatePrivateChildEnvironment\(harnessRoot, dockerHost\)/u);
+  assert.match(source, /PATH:\s*privateEnvironment\?\.path/u);
+  assert.match(source, /HOME:\s*privateEnvironment\?\.home/u);
+  assert.match(source, /TMPDIR:\s*privateEnvironment\?\.temporary/u);
+  assert.match(source, /execute\(executable\("git"\)/u);
+  assert.match(source, /execute\(executable\("docker"\)/u);
+  assert.doesNotMatch(
+    source,
+    /(?:execute|executeStatus|spawn|spawnSync)\(\s*["'](?:git|ssh-keygen|tar|openssl|age|psql|docker|orb|supabase)["']/u,
+  );
+});
+
 test("restored contour runs migration 115 and the real scanner-backed upload path", () => {
   assert.match(source, /artifacts\.plaintext\.historySchema/u);
   assert.match(source, /base_migration_ledger_already_exists/u);
   assert.doesNotMatch(source, /initializeLocalMigrationLedger/u);
   assert.match(source, /\/rest\/v1\/rpc\/document_storage_backup_inventory/u);
-  assert.match(source, /"dev",\s*\n\s*"--webpack"/u);
   assert.match(source, /finalLedger\.includes\("115"\)/u);
   assert.match(source, /clamav\/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9/u);
   assert.match(source, /clamd-malware-scanner\.ts/u);
@@ -727,6 +781,22 @@ test("restored contour runs migration 115 and the real scanner-backed upload pat
   assert.match(source, /malware_scanner_recovered_persistence_invalid/u);
   assert.match(source, /unprovedCompanyFileBytesExposed: false/u);
   assert.match(source, /providersCalled: false/u);
+});
+
+test("browser proof runs the exact production image and never starts Next dev", () => {
+  assert.match(source, /function buildRecoveryAppImage\(state, repositorySnapshotRoot, repository\)/u);
+  assert.match(source, /"build",\s*\n\s*"--platform",\s*"linux\/amd64"/u);
+  assert.match(source, /`EVO_IMAGE_REVISION=\$\{repository\.commit\}`/u);
+  assert.match(source, /labels\?\.\["org\.opencontainers\.image\.revision"\]\s*!==\s*repository\.commit/u);
+  assert.match(source, /function startRecoveryAppContainer\([\s\S]*?supabaseTlsPort,[\s\S]*?appImage,[\s\S]*?\)/u);
+  assert.match(source, /NEXT_PUBLIC_SUPABASE_URL:\s*recoverySupabaseUrl/u);
+  assert.match(source, /NODE_EXTRA_CA_CERTS:\s*"\/run\/evo-recovery-ca\.pem"/u);
+  assert.match(source, /"--read-only"[\s\S]*?"--env-file", environmentPath,[\s\S]*?appImage\.id/u);
+  assert.match(source, /inspectLocalContainerState\(appContainerName\)\s*!==\s*"running"/u);
+  assert.match(source, /runtime:\s*"production_container"/u);
+  assert.doesNotMatch(source, /prepareAppWorkspace/u);
+  assert.doesNotMatch(source, /"dev",\s*\n\s*"--webpack"/u);
+  assert.doesNotMatch(source, /next\s+dev/iu);
 });
 
 test("late missing-role result is written after cleanup and still exits nonzero", () => {

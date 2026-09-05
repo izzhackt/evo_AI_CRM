@@ -16,7 +16,7 @@
  * Each payload and both manifests are encrypted independently with age.
  */
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import {
   createHash,
   createHmac,
@@ -26,6 +26,7 @@ import {
 import {
   chmodSync,
   closeSync,
+  copyFileSync,
   cpSync,
   createReadStream,
   existsSync,
@@ -168,10 +169,61 @@ const COPY_HEADER_PATTERN = new RegExp(
 );
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const supabaseCli = join(repositoryRoot, "node_modules", ".bin", "supabase");
+const SUPABASE_CLI_SHA256 = "42a9fe8b8a266bc0fbde804c08efb75cc0653480e91ba3f20fba1c3c27a7b49a";
+const TRUSTED_EXECUTABLES = Object.freeze({
+  git: Object.freeze({
+    candidates: Object.freeze(["/usr/bin/git"]),
+    roots: Object.freeze(["/usr/bin/"]),
+  }),
+  sshKeygen: Object.freeze({
+    candidates: Object.freeze(["/usr/bin/ssh-keygen"]),
+    roots: Object.freeze(["/usr/bin/"]),
+  }),
+  tar: Object.freeze({
+    candidates: Object.freeze(["/usr/bin/tar"]),
+    roots: Object.freeze(["/usr/bin/"]),
+  }),
+  openssl: Object.freeze({
+    candidates: Object.freeze(["/usr/bin/openssl"]),
+    roots: Object.freeze(["/usr/bin/"]),
+  }),
+  age: Object.freeze({
+    candidates: Object.freeze(["/opt/homebrew/bin/age", "/usr/local/bin/age"]),
+    roots: Object.freeze(["/opt/homebrew/Cellar/", "/usr/local/Cellar/"]),
+  }),
+  psql: Object.freeze({
+    candidates: Object.freeze([
+      "/opt/homebrew/bin/psql",
+      "/usr/local/bin/psql",
+      "/Applications/Postgres.app/Contents/Versions/latest/bin/psql",
+    ]),
+    roots: Object.freeze([
+      "/opt/homebrew/Cellar/",
+      "/usr/local/Cellar/",
+      "/Applications/Postgres.app/Contents/Versions/",
+    ]),
+  }),
+  docker: Object.freeze({
+    candidates: Object.freeze(["/usr/local/bin/docker", "/opt/homebrew/bin/docker"]),
+    roots: Object.freeze(["/Applications/OrbStack.app/Contents/MacOS/"]),
+  }),
+  orb: Object.freeze({
+    candidates: Object.freeze(["/usr/local/bin/orb", "/opt/homebrew/bin/orb"]),
+    roots: Object.freeze(["/Applications/OrbStack.app/Contents/MacOS/"]),
+  }),
+  supabase: Object.freeze({
+    candidates: Object.freeze([
+      join(repositoryRoot, "node_modules", "@supabase", "cli-darwin-arm64", "bin", "supabase"),
+    ]),
+    roots: Object.freeze([join(repositoryRoot, "node_modules", "@supabase", "cli-darwin-arm64", "bin") + sep]),
+    sha256: SUPABASE_CLI_SHA256,
+  }),
+});
 let activeCleanupState;
 let activeCleanupRunning = false;
 let activeBrowserProof;
+let activePrivateChildEnvironment;
+let activeTrustedExecutableCopies;
 
 class HarnessFailure extends Error {
   constructor(code, stage = "contract", diagnostic) {
@@ -912,11 +964,132 @@ function assertEvidenceDestination(path) {
   return join(parent, relative(parent, path));
 }
 
-function minimalChildEnvironment(extra = {}) {
+function trustedExecutable(name) {
+  const contract = TRUSTED_EXECUTABLES[name];
+  if (!contract) fail("trusted_executable_contract_missing", "tool_preflight");
+  for (const candidate of contract.candidates) {
+    if (!isAbsolute(candidate) || !existsSync(candidate)) continue;
+    let resolved;
+    let metadata;
+    try {
+      resolved = realpathSync(candidate);
+      metadata = statSync(resolved);
+    } catch {
+      continue;
+    }
+    if (
+      !metadata.isFile() ||
+      (metadata.mode & 0o111) === 0 ||
+      (metadata.mode & 0o022) !== 0 ||
+      !contract.roots.some((root) => resolved.startsWith(root))
+    ) {
+      continue;
+    }
+    if (contract.sha256 && sha256Text(readFileSync(resolved)) !== contract.sha256) continue;
+    return candidate;
+  }
+  fail(`${name}_trusted_executable_unavailable`, "tool_preflight");
+}
+
+function trustedOperatorHome() {
+  const candidate = process.env.HOME;
+  if (!candidate || !isAbsolute(candidate)) {
+    fail("operator_home_invalid", "tool_preflight");
+  }
+  let metadata;
+  let operatorHome;
+  try {
+    metadata = lstatSync(candidate);
+    operatorHome = realpathSync(candidate);
+  } catch {
+    fail("operator_home_invalid", "tool_preflight");
+  }
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    (typeof process.getuid === "function" && metadata.uid !== process.getuid()) ||
+    (metadata.mode & 0o022) !== 0 ||
+    operatorHome !== candidate
+  ) {
+    fail("operator_home_untrusted", "tool_preflight");
+  }
+  return operatorHome;
+}
+
+function operatorPreflightEnvironment(extra = {}) {
   return {
-    PATH: process.env.PATH ?? "/usr/bin:/bin:/usr/sbin:/sbin",
-    HOME: process.env.HOME ?? tmpdir(),
-    TMPDIR: process.env.TMPDIR ?? tmpdir(),
+    PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
+    HOME: trustedOperatorHome(),
+    TMPDIR: realpathSync(tmpdir()),
+    LANG: process.env.LANG ?? "C.UTF-8",
+    LC_ALL: "C",
+    ...extra,
+  };
+}
+
+function activatePrivateChildEnvironment(harnessRoot, dockerHost) {
+  const home = join(harnessRoot, "child-home");
+  const temporary = join(harnessRoot, "child-tmp");
+  const bin = join(harnessRoot, "trusted-bin");
+  for (const directory of [home, temporary, bin]) {
+    mkdirSync(directory, { mode: 0o700 });
+    chmodSync(directory, 0o700);
+  }
+
+  const executableNames = Object.freeze({
+    git: "git",
+    sshKeygen: "ssh-keygen",
+    tar: "tar",
+    openssl: "openssl",
+    age: "age",
+    psql: "psql",
+    docker: "docker",
+    orb: "orb",
+    supabase: "supabase",
+  });
+  const copies = {};
+  for (const [name, filename] of Object.entries(executableNames)) {
+    const source = trustedExecutable(name);
+    const destination = join(bin, filename);
+    if (name === "supabase") {
+      copyFileSync(source, destination);
+      chmodSync(destination, 0o500);
+      if (sha256Text(readFileSync(destination)) !== SUPABASE_CLI_SHA256) {
+        fail("supabase_private_copy_sha256_mismatch", "tool_preflight");
+      }
+    } else {
+      symlinkSync(source, destination);
+    }
+    copies[name] = destination;
+  }
+
+  const contextHash = sha256Text("orbstack");
+  const contextRoot = join(home, ".docker", "contexts", "meta", contextHash);
+  mkdirSync(contextRoot, { recursive: true, mode: 0o700 });
+  writeFileSync(join(contextRoot, "meta.json"), `${JSON.stringify({
+    Name: "orbstack",
+    Metadata: { Description: "OrbStack" },
+    Endpoints: { docker: { Host: dockerHost, SkipTLSVerify: false } },
+  })}\n`, { mode: 0o600, flag: "wx" });
+
+  activePrivateChildEnvironment = Object.freeze({
+    home: realpathSync(home),
+    temporary: realpathSync(temporary),
+    path: `${realpathSync(bin)}:/usr/bin:/bin:/usr/sbin:/sbin`,
+  });
+  activeTrustedExecutableCopies = Object.freeze(copies);
+}
+
+function executable(name) {
+  return activeTrustedExecutableCopies?.[name] ?? trustedExecutable(name);
+}
+
+function minimalChildEnvironment(extra = {}) {
+  const privateEnvironment = activePrivateChildEnvironment;
+  return {
+    PATH: privateEnvironment?.path ?? "/usr/bin:/bin:/usr/sbin:/sbin",
+    HOME: privateEnvironment?.home ?? "/var/empty",
+    TMPDIR: privateEnvironment?.temporary ?? realpathSync(tmpdir()),
     LANG: process.env.LANG ?? "C.UTF-8",
     LC_ALL: "C",
     DOCKER_CONTEXT: "orbstack",
@@ -953,7 +1126,7 @@ export function validateRepositoryStateSnapshot(snapshot, expectedCommit) {
 
 function assertRepositoryState(expectedCommit) {
   const gitEnvironment = minimalChildEnvironment({ GIT_OPTIONAL_LOCKS: "0" });
-  const topLevel = execute("git", ["rev-parse", "--show-toplevel"], {
+  const topLevel = execute(executable("git"), ["rev-parse", "--show-toplevel"], {
     env: gitEnvironment,
     code: "repository_root_query_failed",
     stage: "repository_preflight",
@@ -962,22 +1135,89 @@ function assertRepositoryState(expectedCommit) {
     fail("repository_root_mismatch", "repository_preflight");
   }
   return validateRepositoryStateSnapshot({
-    commit: execute("git", ["rev-parse", "--verify", "HEAD^{commit}"], {
+    commit: execute(executable("git"), ["rev-parse", "--verify", "HEAD^{commit}"], {
       env: gitEnvironment,
       code: "repository_commit_query_failed",
       stage: "repository_preflight",
     }),
-    tree: execute("git", ["rev-parse", "--verify", "HEAD^{tree}"], {
+    tree: execute(executable("git"), ["rev-parse", "--verify", "HEAD^{tree}"], {
       env: gitEnvironment,
       code: "repository_tree_query_failed",
       stage: "repository_preflight",
     }),
-    status: execute("git", ["status", "--porcelain=v1", "--untracked-files=all"], {
+    status: execute(executable("git"), ["status", "--porcelain=v1", "--untracked-files=all"], {
       env: gitEnvironment,
       code: "repository_status_query_failed",
       stage: "repository_preflight",
     }),
   }, expectedCommit);
+}
+
+function assertRepositorySnapshotEntries(root) {
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const path = join(root, entry.name);
+    const metadata = lstatSync(path);
+    if (metadata.isSymbolicLink()) {
+      fail("repository_snapshot_symlink_forbidden", "repository_snapshot");
+    }
+    if (metadata.isDirectory()) {
+      assertRepositorySnapshotEntries(path);
+    } else if (!metadata.isFile()) {
+      fail("repository_snapshot_entry_invalid", "repository_snapshot");
+    }
+  }
+}
+
+function materializeRepositorySnapshot(harnessRoot, repository) {
+  const snapshotRoot = join(harnessRoot, "repository-snapshot");
+  const indexPath = join(harnessRoot, "repository-snapshot.index");
+  mkdirSync(snapshotRoot, { mode: 0o700 });
+  const environment = minimalChildEnvironment({
+    GIT_INDEX_FILE: indexPath,
+    GIT_OPTIONAL_LOCKS: "0",
+  });
+  execute(executable("git"), ["read-tree", repository.commit], {
+    env: environment,
+    code: "repository_snapshot_index_failed",
+    stage: "repository_snapshot",
+  });
+  const indexedTree = execute(executable("git"), ["write-tree"], {
+    env: environment,
+    code: "repository_snapshot_tree_query_failed",
+    stage: "repository_snapshot",
+  });
+  if (indexedTree !== repository.tree) {
+    fail("repository_snapshot_tree_mismatch", "repository_snapshot");
+  }
+  execute(executable("git"), [
+    "checkout-index",
+    "--all",
+    `--prefix=${snapshotRoot}${sep}`,
+  ], {
+    env: environment,
+    capture: false,
+    timeout: 5 * 60 * 1000,
+    code: "repository_snapshot_materialization_failed",
+    stage: "repository_snapshot",
+  });
+  rmSync(indexPath, { force: true });
+  assertRepositorySnapshotEntries(snapshotRoot);
+  for (const required of [
+    "Dockerfile",
+    "docker-compose.prod.yml",
+    "package.json",
+    "package-lock.json",
+    "src",
+    "public",
+    "supabase/config.toml",
+    "supabase/migration-history.json",
+    "supabase/migrations",
+  ]) {
+    if (!existsSync(join(snapshotRoot, required))) {
+      fail("repository_snapshot_required_path_missing", "repository_snapshot");
+    }
+  }
+  return realpathSync(snapshotRoot);
 }
 
 export function classifyLocalSupabaseStartFailure(output, processErrorCode) {
@@ -1146,7 +1386,7 @@ export function verifyReceiptSignature({
   });
   try {
     execute(
-      "ssh-keygen",
+      executable("sshKeygen"),
       [
         "-Y",
         "verify",
@@ -1173,24 +1413,66 @@ export function verifyReceiptSignature({
 }
 
 function assertOrbStackPreflight() {
-  const orbStatus = execute("orb", ["status"], {
+  const environment = operatorPreflightEnvironment();
+  const expectedSocketPath = join(environment.HOME, ".orbstack", "run", "docker.sock");
+  for (const path of [
+    join(environment.HOME, ".orbstack"),
+    join(environment.HOME, ".orbstack", "run"),
+    expectedSocketPath,
+  ]) {
+    let metadata;
+    try {
+      metadata = lstatSync(path);
+    } catch {
+      fail("orbstack_socket_path_missing", "orbstack_preflight");
+    }
+    if (
+      metadata.isSymbolicLink() ||
+      (typeof process.getuid === "function" && metadata.uid !== process.getuid()) ||
+      (metadata.mode & 0o022) !== 0 ||
+      (path === expectedSocketPath ? !metadata.isSocket() : !metadata.isDirectory())
+    ) {
+      fail("orbstack_socket_path_untrusted", "orbstack_preflight");
+    }
+  }
+  const orbStatus = execute(executable("orb"), ["status"], {
+    env: environment,
     code: "orbstack_status_unavailable",
     stage: "orbstack_preflight",
   });
   if (!/(?:^|\s)Running(?:\s|$)/u.test(orbStatus)) {
     fail("orbstack_not_running", "orbstack_preflight");
   }
-  const context = execute("docker", ["context", "show"], {
+  const context = execute(executable("docker"), ["context", "show"], {
+    env: environment,
     code: "docker_context_unavailable",
     stage: "orbstack_preflight",
   });
   if (context !== "orbstack") fail("docker_context_not_orbstack", "orbstack_preflight");
   if (process.env.DOCKER_HOST) fail("docker_host_override_present", "orbstack_preflight");
+  let inspected;
+  try {
+    inspected = JSON.parse(execute(executable("docker"), ["context", "inspect", "orbstack"], {
+      env: environment,
+      code: "docker_context_inspect_failed",
+      stage: "orbstack_preflight",
+    }));
+  } catch {
+    fail("docker_context_inspect_invalid", "orbstack_preflight");
+  }
+  const dockerHost = inspected?.[0]?.Endpoints?.docker?.Host;
+  if (
+    typeof dockerHost !== "string" ||
+    dockerHost !== `unix://${expectedSocketPath}`
+  ) {
+    fail("docker_context_endpoint_invalid", "orbstack_preflight");
+  }
+  return Object.freeze({ dockerHost });
 }
 
 function decryptAge(inputPath, outputPath, identityPath) {
   execute(
-    "age",
+    executable("age"),
     ["--decrypt", "--identity", identityPath, "--output", outputPath, inputPath],
     { capture: false, timeout: 2 * 60 * 60 * 1000, code: "age_decrypt_failed", stage: "decryption" },
   );
@@ -1396,19 +1678,20 @@ async function reserveLoopbackPort() {
 async function reservePortMap() {
   const originals = [45420, 45421, 45422, 45423, 45424, 45425, 45426, 45427, 45428, 45429];
   const ports = [];
-  while (ports.length < originals.length + 2) {
+  while (ports.length < originals.length + 3) {
     const port = await reserveLoopbackPort();
     if (!ports.includes(port)) ports.push(port);
   }
   return Object.freeze({
     replacements: Object.freeze(Object.fromEntries(originals.map((value, index) => [value, ports[index]]))),
-    app: ports.at(-2),
-    clamd: ports.at(-1),
+    app: ports.at(-3),
+    clamd: ports.at(-2),
+    supabaseTls: ports.at(-1),
   });
 }
 
-function renderIsolatedSupabaseConfig(projectName, portMap) {
-  let content = readFileSync(join(repositoryRoot, "supabase", "config.toml"), "utf8");
+function renderIsolatedSupabaseConfig(repositorySnapshotRoot, projectName, portMap) {
+  let content = readFileSync(join(repositorySnapshotRoot, "supabase", "config.toml"), "utf8");
   content = content.replace(/^project_id\s*=.*$/mu, `project_id = "${projectName}"`);
   for (const [from, to] of Object.entries(portMap.replacements)) {
     content = content.replaceAll(String(from), String(to));
@@ -1678,7 +1961,7 @@ function restoreLogicalDatabase(status, artifacts, copyTargets) {
   // while the official schema dump excludes those system-owned definitions.
   // Local app migrations and config buckets remain disabled during this step.
   execute(
-    "psql",
+    executable("psql"),
     [
       "--no-psqlrc",
       "--single-transaction",
@@ -1701,7 +1984,7 @@ function restoreLogicalDatabase(status, artifacts, copyTargets) {
   preparePgmqQueues(status, pgmqQueues);
   truncateCopyTargets(status, copyTargets);
   execute(
-    "psql",
+    executable("psql"),
     [
       "--no-psqlrc",
       "--single-transaction",
@@ -1734,7 +2017,7 @@ function psqlScalar(
   failureDiagnostic,
 ) {
   return execute(
-    "psql",
+    executable("psql"),
     ["--no-psqlrc", "--tuples-only", "--no-align", "--set", "ON_ERROR_STOP=1", "--command", sql],
     {
       env: psqlEnvironment(status.dbUrl, privileged ? "supabase_admin" : undefined),
@@ -1818,8 +2101,8 @@ function assertNonDecreasingAggregates(before, after) {
   }
 }
 
-function rootMigrationEntries() {
-  const migrationsRoot = join(repositoryRoot, "supabase", "migrations");
+function rootMigrationEntries(repositorySnapshotRoot) {
+  const migrationsRoot = join(repositorySnapshotRoot, "supabase", "migrations");
   const migrationDirectoryEntries = readdirSync(migrationsRoot);
   const invalidSqlFilename = migrationDirectoryEntries.find((name) =>
     name.endsWith(".sql") && !/^\d{3}_[a-z0-9_]+\.sql$/u.test(name));
@@ -1840,7 +2123,7 @@ function rootMigrationEntries() {
   });
   if (entries.length === 0) fail("root_migration_files_missing", "migration_rehearsal");
 
-  const history = JSON.parse(readFileSync(join(repositoryRoot, "supabase", "migration-history.json"), "utf8"));
+  const history = JSON.parse(readFileSync(join(repositorySnapshotRoot, "supabase", "migration-history.json"), "utf8"));
   if (history.algorithm !== "sha256" || !Array.isArray(history.files) || history.files.length > entries.length) {
     fail("root_migration_history_invalid", "migration_rehearsal");
   }
@@ -1998,7 +2281,7 @@ function restoreExportedMigrationHistory(status, historySchemaPath, historyDataP
     fail("base_migration_ledger_already_exists", "database_restore");
   }
   execute(
-    "psql",
+    executable("psql"),
     [
       "--no-psqlrc",
       "--single-transaction",
@@ -2212,8 +2495,8 @@ async function ensureBuckets(status, buckets, { allowUpdate }) {
   }
 }
 
-function readV3PrivateBucketContract() {
-  const lines = readFileSync(join(repositoryRoot, "supabase", "config.toml"), "utf8").split(/\r?\n/u);
+function readV3PrivateBucketContract(repositorySnapshotRoot) {
+  const lines = readFileSync(join(repositorySnapshotRoot, "supabase", "config.toml"), "utf8").split(/\r?\n/u);
   return Object.freeze(V3_AUTHORITATIVE_BUCKET_IDS.map((id) => {
     const header = `[storage.buckets.${id}]`;
     const start = lines.indexOf(header);
@@ -2264,10 +2547,10 @@ function activeSourceFiles(root) {
   return result;
 }
 
-function assertNoActivePublicLegacyBucketDependency(sourceBuckets) {
+function assertNoActivePublicLegacyBucketDependency(repositorySnapshotRoot, sourceBuckets) {
   const publicIds = sourceBuckets.filter((bucket) => bucket.public).map((bucket) => bucket.id);
   let references = 0;
-  for (const path of activeSourceFiles(join(repositoryRoot, "src"))) {
+  for (const path of activeSourceFiles(join(repositorySnapshotRoot, "src"))) {
     const content = readFileSync(path, "utf8");
     for (const id of publicIds) {
       if ([`'${id}'`, `"${id}"`, `\`${id}\``].some((literal) => content.includes(literal))) {
@@ -2279,8 +2562,8 @@ function assertNoActivePublicLegacyBucketDependency(sourceBuckets) {
   return references;
 }
 
-async function establishV3PrivateStorage(status, sourceBuckets) {
-  const buckets = readV3PrivateBucketContract();
+async function establishV3PrivateStorage(status, repositorySnapshotRoot, sourceBuckets) {
+  const buckets = readV3PrivateBucketContract(repositorySnapshotRoot);
   await ensureBuckets(status, buckets, { allowUpdate: true });
   if (buckets.some((bucket) => readBucketState(status, bucket.id)?.public !== false)) {
     fail("v3_storage_bucket_not_private", "storage_privacy_proof");
@@ -2290,7 +2573,7 @@ async function establishV3PrivateStorage(status, sourceBuckets) {
     evidence: Object.freeze({
       authoritativeBucketCount: buckets.length,
       allAuthoritativeBucketsPrivate: true,
-      activePublicLegacyReferences: assertNoActivePublicLegacyBucketDependency(sourceBuckets),
+      activePublicLegacyReferences: assertNoActivePublicLegacyBucketDependency(repositorySnapshotRoot, sourceBuckets),
     }),
   });
 }
@@ -2328,14 +2611,14 @@ export function validateStorageArchiveEntries(entries, objects) {
 }
 
 function inspectTarArchive(archivePath, objects) {
-  const listed = execute("tar", ["-tf", archivePath], {
+  const listed = execute(executable("tar"), ["-tf", archivePath], {
     code: "storage_archive_list_failed",
     stage: "storage_restore",
     timeout: 30 * 60 * 1000,
     maxBuffer: 64 * 1024 * 1024,
   }).split(/\r?\n/u).filter(Boolean);
   validateStorageArchiveEntries(listed, objects);
-  const verbose = execute("tar", ["-tvf", archivePath], {
+  const verbose = execute(executable("tar"), ["-tvf", archivePath], {
     code: "storage_archive_types_failed",
     stage: "storage_restore",
     timeout: 30 * 60 * 1000,
@@ -2355,7 +2638,7 @@ function inspectTarArchive(archivePath, objects) {
 function extractOneTarEntry(archivePath, archiveEntry, destination) {
   const fd = openSync(destination, "wx", 0o600);
   try {
-    const result = spawnSync("tar", ["-xOf", archivePath, archiveEntry], {
+    const result = spawnSync(executable("tar"), ["-xOf", archivePath, archiveEntry], {
       cwd: repositoryRoot,
       env: minimalChildEnvironment(),
       stdio: ["ignore", fd, "ignore"],
@@ -2506,6 +2789,8 @@ function discoverRestoredRepresentativeActors(status) {
     FROM (
       SELECT
         profile.auth_user_id AS "userId",
+        profile.id AS "profileId",
+        membership.id AS "membershipId",
         membership.organization_id AS "organizationId",
         membership.current_role::text AS "databaseRole",
         auth_user.email AS email
@@ -2525,6 +2810,8 @@ function discoverRestoredRepresentativeActors(status) {
     if (
       !isRecord(row) ||
       !UUID_PATTERN.test(row.userId) ||
+      !UUID_PATTERN.test(row.profileId) ||
+      !UUID_PATTERN.test(row.membershipId) ||
       !UUID_PATTERN.test(row.organizationId) ||
       !["admin", "sales", "curator"].includes(row.databaseRole) ||
       typeof row.email !== "string" ||
@@ -2617,6 +2904,37 @@ async function platformRpc(status, actor, functionName, body, stage = "malware_s
   const payload = await response.json().catch(() => null);
   if (payload === null) fail(`${functionName}_response_invalid`, stage);
   return payload;
+}
+
+async function assertPlatformRpcDenied(
+  status,
+  actor,
+  functionName,
+  body,
+  stage = "auth_rls_proof",
+) {
+  const response = await storageRequest(
+    status,
+    new URL(`/rest/v1/rpc/${functionName}`, status.apiUrl).toString(),
+    {
+      method: "POST",
+      headers: {
+        apikey: status.publishableKey,
+        Authorization: `Bearer ${actor.accessToken}`,
+        "Accept-Profile": "platform",
+        "Content-Profile": "platform",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+    [403],
+    `${functionName}_unexpectedly_authorized`,
+    stage,
+  );
+  const payload = await response.json().catch(() => null);
+  if (!isRecord(payload) || payload.code !== "42501") {
+    fail(`${functionName}_denial_contract_invalid`, stage);
+  }
 }
 
 async function assertHistoricalScannerGate(status, adminActor, finalLedger) {
@@ -2766,39 +3084,47 @@ async function prepareRepresentativeActors(status) {
   return Object.freeze(actors);
 }
 
-export function buildRestoredRoleReadiness(availability) {
+export function buildRestoredRoleReadiness(outcomes) {
   exactKeys(
-    availability,
+    outcomes,
     ["admin", "sales", "admissions"],
     "restored_role_availability_invalid",
     "auth_rls_proof",
   );
-  if (Object.values(availability).some((value) => typeof value !== "boolean")) {
+  const allowedOutcomes = new Set([
+    "passed",
+    "missing_restored_identity",
+    "missing_restored_sales_lead",
+    "missing_restored_admissions_case",
+    "missing_restored_downloadable_document",
+    "missing_restored_peer_identity",
+  ]);
+  if (Object.values(outcomes).some((value) =>
+    typeof value !== "string" || !allowedOutcomes.has(value))) {
     fail("restored_role_availability_invalid", "auth_rls_proof");
   }
-  const roleStatus = Object.freeze(Object.fromEntries(
-    Object.entries(availability).map(([role, available]) => [
-      role,
-      available ? "passed" : "missing_restored_identity",
-    ]),
-  ));
+  const roleStatus = Object.freeze({ ...outcomes });
   const missingRoles = Object.freeze(
-    ["admin", "sales", "admissions"].filter((role) => !availability[role]),
+    ["admin", "sales", "admissions"].filter((role) => roleStatus[role] !== "passed"),
   );
   const complete = missingRoles.length === 0;
+  const identityOnlyBlocker = missingRoles.every((role) =>
+    roleStatus[role] === "missing_restored_identity");
   return Object.freeze({
     complete,
     missingRoles,
     roleStatus,
     blocker: complete ? undefined : Object.freeze({
-      code: "restored_representative_staff_roles_missing",
+      code: identityOnlyBlocker
+        ? "restored_representative_staff_roles_missing"
+        : "restored_role_outcome_proof_incomplete",
       missingRoles,
       roleStatus,
     }),
   });
 }
 
-async function proveSameAndCrossOrganizationRls(status, adminActor) {
+async function proveSameAndCrossOrganizationRls(status, actors) {
   const crossOrganizationId = randomUUID();
   psqlScalar(
     status,
@@ -2810,7 +3136,7 @@ async function proveSameAndCrossOrganizationRls(status, adminActor) {
     true,
   );
   try {
-    const query = async (id) => {
+    const query = async (actor, id) => {
       const url = new URL("/rest/v1/organizations", status.apiUrl);
       url.searchParams.set("select", "id");
       url.searchParams.set("id", `eq.${id}`);
@@ -2820,7 +3146,7 @@ async function proveSameAndCrossOrganizationRls(status, adminActor) {
         {
           headers: {
             apikey: status.publishableKey,
-            Authorization: `Bearer ${adminActor.accessToken}`,
+            Authorization: `Bearer ${actor.accessToken}`,
             "Accept-Profile": "platform",
           },
         },
@@ -2832,11 +3158,13 @@ async function proveSameAndCrossOrganizationRls(status, adminActor) {
       if (!Array.isArray(payload)) fail("organization_rls_response_invalid", "auth_rls_proof");
       return payload.length;
     };
-    if (await query(adminActor.organizationId) !== 1) {
-      fail("same_organization_rls_failed", "auth_rls_proof");
-    }
-    if (await query(crossOrganizationId) !== 0) {
-      fail("cross_organization_rls_failed", "auth_rls_proof");
+    for (const actor of [actors.admin, actors.sales, actors.admissions].filter(Boolean)) {
+      if (await query(actor, actor.organizationId) !== 1) {
+        fail("same_organization_rls_failed", "auth_rls_proof");
+      }
+      if (await query(actor, crossOrganizationId) !== 0) {
+        fail("cross_organization_rls_failed", "auth_rls_proof");
+      }
     }
   } finally {
     psqlScalar(
@@ -2848,7 +3176,385 @@ async function proveSameAndCrossOrganizationRls(status, adminActor) {
       true,
     );
   }
-  return Object.freeze({ sameOrganization: "passed", crossOrganization: "passed", crossOrganizationMode: "isolated_canary" });
+  return Object.freeze({
+    sameOrganization: "passed",
+    crossOrganization: "passed",
+    testedRestoredRoleCount: [actors.admin, actors.sales, actors.admissions].filter(Boolean).length,
+    crossOrganizationMode: "isolated_canary",
+  });
+}
+
+function requiredPositiveVersion(value, code) {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) fail(code, "role_outcome_proof");
+  return parsed;
+}
+
+function assertReplayResult(first, replayed, code) {
+  if (JSON.stringify(first) !== JSON.stringify(replayed)) {
+    fail(code, "role_outcome_proof");
+  }
+}
+
+function assertRoleMutationAudit(status, {
+  action,
+  actor,
+  requestId,
+  receiptTable,
+  receiptActorColumn,
+}) {
+  const facts = psqlJson(
+    status,
+    `SELECT json_build_object(
+      'auditCount', (
+        SELECT count(*)
+        FROM platform.audit_events AS audit
+        WHERE audit.request_id = ${sqlLiteral(requestId)}
+          AND audit.action = ${sqlLiteral(action)}
+          AND audit.actor_profile_id = ${sqlLiteral(actor.profileId)}
+      ),
+      'receiptCount', (
+        SELECT count(*)
+        FROM ${receiptTable} AS receipt
+        WHERE receipt.request_id = ${sqlLiteral(requestId)}
+          AND receipt.${receiptActorColumn} = ${sqlLiteral(actor.membershipId)}
+      )
+    )::text`,
+    "role_outcome_proof",
+    true,
+  );
+  if (Number(facts.auditCount) !== 1 || Number(facts.receiptCount) !== 1) {
+    fail("role_mutation_audit_correlation_failed", "role_outcome_proof");
+  }
+  const remainingAuditRows = psqlScalar(
+    status,
+    `DO $audit_append_only$
+     BEGIN
+       BEGIN
+         UPDATE platform.audit_events
+         SET reason = reason || ' forbidden'
+         WHERE request_id = ${sqlLiteral(requestId)};
+         RAISE EXCEPTION 'audit update unexpectedly succeeded';
+       EXCEPTION WHEN SQLSTATE '55000' THEN
+         NULL;
+       END;
+       BEGIN
+         DELETE FROM platform.audit_events
+         WHERE request_id = ${sqlLiteral(requestId)};
+         RAISE EXCEPTION 'audit delete unexpectedly succeeded';
+       EXCEPTION WHEN SQLSTATE '55000' THEN
+         NULL;
+       END;
+     END
+     $audit_append_only$;
+     SELECT count(*)
+     FROM platform.audit_events
+     WHERE request_id = ${sqlLiteral(requestId)}`,
+    "role_outcome_proof",
+    true,
+    "audit_append_only_proof_failed",
+  );
+  if (remainingAuditRows !== "1") {
+    fail("audit_append_only_row_missing", "role_outcome_proof");
+  }
+}
+
+async function proveRestoredRoleServerOutcomes(status, actors) {
+  const outcomes = {
+    admin: "passed",
+    sales: actors.sales ? "missing_restored_peer_identity" : "missing_restored_identity",
+    admissions: actors.admissions ? "missing_restored_peer_identity" : "missing_restored_identity",
+  };
+  let salesProof;
+  let admissionsProof;
+  if (!actors.sales || !actors.admissions) {
+    return Object.freeze({
+      outcomes: Object.freeze(outcomes),
+      evidence: Object.freeze({
+        sales: outcomes.sales,
+        admissions: outcomes.admissions,
+        auditReplay: "not_run_missing_restored_identity",
+        privateDocument: "not_run_missing_restored_identity",
+      }),
+    });
+  }
+
+  const salesPageBody = Object.freeze({
+    p_limit: 101,
+    p_cursor_updated_at: null,
+    p_cursor_id: null,
+    p_connection_filter: "all",
+    p_stage_filter: "all",
+    p_assignment_filter: "all",
+    p_owner_membership_id: null,
+    p_due_filter: "all",
+    p_query: null,
+  });
+  const salesRows = await platformRpc(
+    status,
+    actors.sales,
+    "staff_sales_lead_page",
+    salesPageBody,
+    "role_outcome_proof",
+  );
+  await assertPlatformRpcDenied(
+    status,
+    actors.admissions,
+    "staff_sales_lead_page",
+    salesPageBody,
+    "role_outcome_proof",
+  );
+  const salesLead = Array.isArray(salesRows)
+    ? salesRows.find((row) =>
+      isRecord(row) &&
+      UUID_PATTERN.test(row.lead_id) &&
+      row.lifecycle_state === "open" &&
+      [null, actors.sales.membershipId].includes(row.current_owner_membership_id))
+    : undefined;
+  if (!salesLead) {
+    outcomes.sales = "missing_restored_sales_lead";
+  } else {
+    const workflowVersion = requiredPositiveVersion(
+      salesLead.workflow_version,
+      "restored_sales_workflow_version_invalid",
+    );
+    if (typeof salesLead.stage_key !== "string") {
+      fail("restored_sales_stage_invalid", "role_outcome_proof");
+    }
+    const requestId = randomUUID();
+    const marker = `Recovery Sales ${randomUUID()}`;
+    const mutationBody = Object.freeze({
+      p_lead_id: salesLead.lead_id,
+      p_expected_workflow_version: workflowVersion,
+      p_request_id: requestId,
+      p_stage_key: salesLead.stage_key,
+      p_owner_membership_id: actors.sales.membershipId,
+      p_next_action_text: marker,
+      p_next_action_due_date: "2099-12-31",
+      p_clear_next_action: false,
+      p_reason: null,
+    });
+    const result = await platformRpc(
+      status,
+      actors.sales,
+      "mutate_sales_lead_workflow",
+      mutationBody,
+      "role_outcome_proof",
+    );
+    const replayed = await platformRpc(
+      status,
+      actors.sales,
+      "mutate_sales_lead_workflow",
+      mutationBody,
+      "role_outcome_proof",
+    );
+    assertReplayResult(result, replayed, "sales_workflow_replay_mismatch");
+    if (
+      !isRecord(result) ||
+      result.lead_id !== salesLead.lead_id ||
+      result.next_action_text !== marker ||
+      requiredPositiveVersion(result.workflow_version, "sales_workflow_result_version_invalid") !== workflowVersion + 1
+    ) {
+      fail("sales_workflow_result_invalid", "role_outcome_proof");
+    }
+    const adminRows = await platformRpc(
+      status,
+      actors.admin,
+      "staff_sales_lead_page",
+      { ...salesPageBody, p_query: salesLead.lead_id },
+      "role_outcome_proof",
+    );
+    if (
+      !Array.isArray(adminRows) ||
+      adminRows.length !== 1 ||
+      adminRows[0]?.next_action_text !== marker ||
+      Number(adminRows[0]?.workflow_version) !== workflowVersion + 1
+    ) {
+      fail("sales_workflow_admin_readback_failed", "role_outcome_proof");
+    }
+    assertRoleMutationAudit(status, {
+      action: "lead.sales.workflow.changed",
+      actor: actors.sales,
+      requestId,
+      receiptTable: "platform_private.sales_lead_workflow_receipts",
+      receiptActorColumn: "actor_membership_id",
+    });
+    outcomes.sales = "passed";
+    salesProof = Object.freeze({
+      leadId: salesLead.lead_id,
+      marker,
+      workflowVersion: workflowVersion + 1,
+    });
+  }
+
+  const admissionsPageBody = Object.freeze({
+    p_limit: 101,
+    p_before_sort_at: null,
+    p_before_student_case_id: null,
+    p_state: "active",
+    p_query: null,
+    p_student_case_id: null,
+  });
+  const admissionsRows = await platformRpc(
+    status,
+    actors.admissions,
+    "staff_student_case_page",
+    admissionsPageBody,
+    "role_outcome_proof",
+  );
+  const admissionsCase = Array.isArray(admissionsRows)
+    ? admissionsRows.find((row) =>
+      isRecord(row) &&
+      row.access_mode === "full" &&
+      UUID_PATTERN.test(row.student_case_id))
+    : undefined;
+  if (!admissionsCase) {
+    outcomes.admissions = "missing_restored_admissions_case";
+  } else {
+    const workspaceBody = Object.freeze({ p_student_case_id: admissionsCase.student_case_id });
+    await platformRpc(
+      status,
+      actors.admissions,
+      "staff_student_case_task_workspace",
+      workspaceBody,
+      "role_outcome_proof",
+    );
+    await platformRpc(
+      status,
+      actors.admin,
+      "staff_student_case_task_workspace",
+      workspaceBody,
+      "role_outcome_proof",
+    );
+    await assertPlatformRpcDenied(
+      status,
+      actors.sales,
+      "staff_student_case_task_workspace",
+      workspaceBody,
+      "role_outcome_proof",
+    );
+    const requestId = randomUUID();
+    const marker = `Recovery Admissions ${randomUUID()}`;
+    const dueOn = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Bishkek",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const mutationBody = Object.freeze({
+      p_organization_id: actors.admissions.organizationId,
+      p_student_case_id: admissionsCase.student_case_id,
+      p_task_type: "follow_up",
+      p_title: marker,
+      p_assignee_membership_id: actors.admissions.membershipId,
+      p_priority: "normal",
+      p_due_at: null,
+      p_due_on: dueOn,
+      p_status: "open",
+      p_student_visible: false,
+      p_expected_version: 0,
+      p_request_id: requestId,
+    });
+    const result = await platformRpc(
+      status,
+      actors.admissions,
+      "create_case_task",
+      mutationBody,
+      "role_outcome_proof",
+    );
+    const replayed = await platformRpc(
+      status,
+      actors.admissions,
+      "create_case_task",
+      mutationBody,
+      "role_outcome_proof",
+    );
+    assertReplayResult(result, replayed, "admissions_task_replay_mismatch");
+    if (
+      !isRecord(result) ||
+      !UUID_PATTERN.test(result.case_task_id) ||
+      result.student_case_id !== admissionsCase.student_case_id ||
+      result.assignee_membership_id !== actors.admissions.membershipId ||
+      String(result.version) !== "1"
+    ) {
+      fail("admissions_task_result_invalid", "role_outcome_proof");
+    }
+    assertRoleMutationAudit(status, {
+      action: "task.create",
+      actor: actors.admissions,
+      requestId,
+      receiptTable: "platform.case_task_events",
+      receiptActorColumn: "actor_membership_id",
+    });
+    outcomes.admissions = "passed";
+    admissionsProof = Object.freeze({
+      caseId: admissionsCase.student_case_id,
+      taskId: result.case_task_id,
+      marker,
+      dueOn,
+    });
+  }
+
+  const adminDocuments = await platformRpc(
+    status,
+    actors.admin,
+    "staff_document_queue",
+    { p_limit: 101 },
+    "role_outcome_proof",
+  );
+  const admissionsDocuments = await platformRpc(
+    status,
+    actors.admissions,
+    "staff_document_queue",
+    { p_limit: 101 },
+    "role_outcome_proof",
+  );
+  await assertPlatformRpcDenied(
+    status,
+    actors.sales,
+    "staff_document_queue",
+    { p_limit: 101 },
+    "role_outcome_proof",
+  );
+  const document = Array.isArray(admissionsDocuments)
+    ? admissionsDocuments.find((row) =>
+      isRecord(row) &&
+      row.download_ready === true &&
+      UUID_PATTERN.test(row.current_version_id) &&
+      typeof row.current_sha256_hex === "string" &&
+      SHA256_PATTERN.test(row.current_sha256_hex) &&
+      Number.isSafeInteger(Number(row.current_byte_size)) &&
+      Number(row.current_byte_size) >= 0)
+    : undefined;
+  const adminHasSameDocument = Array.isArray(adminDocuments) && document
+    ? adminDocuments.some((row) =>
+      isRecord(row) &&
+      row.current_version_id === document.current_version_id &&
+      row.download_ready === true)
+    : false;
+  if (!document || !adminHasSameDocument) {
+    if (outcomes.sales === "passed") outcomes.sales = "missing_restored_downloadable_document";
+    if (outcomes.admissions === "passed") outcomes.admissions = "missing_restored_downloadable_document";
+  }
+
+  return Object.freeze({
+    outcomes: Object.freeze(outcomes),
+    sales: salesProof,
+    admissions: admissionsProof,
+    document: document ? Object.freeze({
+      versionId: document.current_version_id,
+      sha256Hex: document.current_sha256_hex,
+      byteSize: Number(document.current_byte_size),
+    }) : undefined,
+    evidence: Object.freeze({
+      sales: outcomes.sales,
+      admissions: outcomes.admissions,
+      auditReplay: salesProof && admissionsProof ? "passed" : "not_run_incomplete_role_data",
+      privateDocument: document && adminHasSameDocument
+        ? "passed_role_scoped_projection"
+        : "missing_restored_downloadable_document",
+    }),
+  });
 }
 
 async function provePrivateStorage(status, v3Buckets, sourceObjectCount, authenticatedActor) {
@@ -2953,18 +3659,56 @@ async function provePrivateStorage(status, v3Buckets, sourceObjectCount, authent
   });
 }
 
-function prepareAppWorkspace(harnessRoot) {
-  const appRoot = join(harnessRoot, "app");
-  mkdirSync(appRoot, { mode: 0o700 });
-  for (const directory of ["src", "public"]) {
-    cpSync(join(repositoryRoot, directory), join(appRoot, directory), { recursive: true });
+function buildRecoveryAppImage(state, repositorySnapshotRoot, repository) {
+  const imageTag = `evo-crm-recovery:${state.projectName}`;
+  if (dockerStatus(["image", "inspect", imageTag]) === 0) {
+    fail("recovery_app_image_tag_collision", "v3_image_proof");
   }
-  for (const file of ["package.json", "next.config.ts", "tsconfig.json", "postcss.config.mjs", "next-env.d.ts"]) {
-    const source = join(repositoryRoot, file);
-    if (existsSync(source)) cpSync(source, join(appRoot, file));
+  state.appImageTag = imageTag;
+  const version = `recovery-${repository.commit.slice(0, 12)}`;
+  docker([
+    "build",
+    "--platform", "linux/amd64",
+    "--build-arg", "EVO_IMAGE_SOURCE=https://github.com/izzhackt/evo_AI_CRM",
+    "--build-arg", `EVO_IMAGE_REVISION=${repository.commit}`,
+    "--build-arg", `EVO_IMAGE_VERSION=${version}`,
+    "--tag", imageTag,
+    repositorySnapshotRoot,
+  ], {
+    capture: false,
+    timeout: 2 * 60 * 60 * 1000,
+    code: "recovery_app_image_build_failed",
+    stage: "v3_image_proof",
+  });
+  let inspection;
+  try {
+    inspection = JSON.parse(docker(["image", "inspect", imageTag], {
+      code: "recovery_app_image_inspect_failed",
+      stage: "v3_image_proof",
+    }));
+  } catch {
+    fail("recovery_app_image_inspect_invalid", "v3_image_proof");
   }
-  symlinkSync(join(repositoryRoot, "node_modules"), join(appRoot, "node_modules"), "dir");
-  return appRoot;
+  const image = inspection?.[0];
+  const labels = image?.Config?.Labels;
+  if (
+    !isRecord(image) ||
+    !/^sha256:[0-9a-f]{64}$/u.test(image.Id ?? "") ||
+    image.Os !== "linux" ||
+    image.Architecture !== "amd64" ||
+    labels?.["org.opencontainers.image.source"] !== "https://github.com/izzhackt/evo_AI_CRM" ||
+    labels?.["org.opencontainers.image.revision"] !== repository.commit ||
+    labels?.["org.opencontainers.image.version"] !== version
+  ) {
+    fail("recovery_app_image_contract_invalid", "v3_image_proof");
+  }
+  return Object.freeze({
+    id: image.Id,
+    revision: repository.commit,
+    version,
+    source: "https://github.com/izzhackt/evo_AI_CRM",
+    runtime: "production_container",
+  });
 }
 
 export function sanitizeAppStartupDiagnostic(output, child = {}) {
@@ -3000,15 +3744,21 @@ export function sanitizeAppStartupDiagnostic(output, child = {}) {
   });
 }
 
-async function waitForApp(child, appUrl, appLog) {
+async function waitForAppContainer(containerName, appUrl) {
   const deadline = Date.now() + 3 * 60 * 1000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
-      const output = existsSync(appLog) ? readFileSync(appLog, "utf8") : "";
+    const state = inspectLocalContainerState(containerName);
+    if (["missing", "dead", "exited", "removing"].includes(state)) {
+      const output = docker(["logs", containerName], {
+        accepted: [0, 1],
+        code: "recovery_app_logs_failed",
+        stage: "v3_image_proof",
+        maxBuffer: 4 * 1024 * 1024,
+      });
       fail(
         "v3_application_exited",
         "v3_browser_proof",
-        sanitizeAppStartupDiagnostic(output, child),
+        sanitizeAppStartupDiagnostic(output),
       );
     }
     try {
@@ -3195,11 +3945,19 @@ async function browserCompanyFileUpload(page, appUrl, companyFile, bytes, filena
   });
 }
 
-async function proveScannerDataPath(status, adminActor, page, appUrl, scanner) {
+async function proveScannerDataPath(
+  status,
+  adminActor,
+  page,
+  appUrl,
+  scanner,
+  repositorySnapshotRoot,
+) {
   const directClean = scanWithProductClient(
     scanner,
     Buffer.from("EVO restored-contour scanner clean proof\n", "utf8"),
     "clean",
+    repositorySnapshotRoot,
   );
   if (
     !isRecord(directClean.proof) || directClean.proof.engine !== "ClamAV" ||
@@ -3209,7 +3967,14 @@ async function proveScannerDataPath(status, adminActor, page, appUrl, scanner) {
     fail("malware_scanner_clean_proof_invalid", "malware_scanner_proof");
   }
   assertPlaintextScannerProof(directClean.proof);
-  if (scanWithProductClient(scanner, Buffer.from(EICAR, "ascii"), "infected").outcome !== "infected") {
+  if (
+    scanWithProductClient(
+      scanner,
+      Buffer.from(EICAR, "ascii"),
+      "infected",
+      repositorySnapshotRoot,
+    ).outcome !== "infected"
+  ) {
     fail("malware_scanner_eicar_not_blocked", "malware_scanner_proof");
   }
 
@@ -3314,60 +4079,256 @@ function assertPlaintextScannerProof(proof) {
   }
 }
 
-async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot, scanner) {
+function createRecoveryTlsMaterial(state) {
+  const directory = join(state.harnessRoot, "app-tls");
+  const configPath = join(directory, "openssl.cnf");
+  const certificatePath = join(directory, "ca.pem");
+  const privateKeyPath = join(directory, "key.pem");
+  mkdirSync(directory, { mode: 0o700 });
+  writeFileSync(
+    configPath,
+    `[req]\nprompt = no\ndistinguished_name = dn\nx509_extensions = v3\n[dn]\nCN = 127.0.0.1\n[v3]\nsubjectAltName = IP:127.0.0.1,DNS:localhost\nbasicConstraints = critical,CA:TRUE\nkeyUsage = critical,digitalSignature,keyEncipherment,keyCertSign\n`,
+    { mode: 0o600, flag: "wx" },
+  );
+  execute(executable("openssl"), [
+    "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+    "-keyout", privateKeyPath,
+    "-out", certificatePath,
+    "-days", "1",
+    "-config", configPath,
+  ], {
+    capture: false,
+    timeout: 60_000,
+    code: "recovery_tls_material_generation_failed",
+    stage: "v3_image_proof",
+  });
+  for (const path of [certificatePath, privateKeyPath]) {
+    const metadata = lstatSync(path);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size <= 0) {
+      fail("recovery_tls_material_invalid", "v3_image_proof");
+    }
+    chmodSync(path, 0o444);
+  }
+  return Object.freeze({
+    certificatePath: realpathSync(certificatePath),
+    privateKeyPath: realpathSync(privateKeyPath),
+    certificateSha256: sha256Text(readFileSync(certificatePath)),
+  });
+}
+
+function startRecoveryAppContainer(
+  status,
+  state,
+  appPort,
+  supabaseTlsPort,
+  scanner,
+  appImage,
+) {
+  const api = new URL(status.apiUrl);
+  const apiPort = Number(api.port);
+  if (
+    !LOOPBACK_HOSTS.has(api.hostname) ||
+    !Number.isSafeInteger(apiPort) ||
+    apiPort < 1024 ||
+    !Number.isSafeInteger(supabaseTlsPort) ||
+    supabaseTlsPort < 1024 ||
+    supabaseTlsPort === apiPort ||
+    supabaseTlsPort === appPort
+  ) {
+    fail("recovery_app_supabase_origin_invalid", "v3_image_proof");
+  }
+  const appContainerName = `supabase_app_${state.projectName}`;
+  const proxyContainerName = `supabase_app_proxy_${state.projectName}`;
+  const environmentPath = join(state.harnessRoot, "app.env");
+  const tls = createRecoveryTlsMaterial(state);
+  const recoverySupabaseUrl = `https://127.0.0.1:${supabaseTlsPort}`;
+  const observabilitySecret = randomBytes(40).toString("base64url");
+  const environment = Object.freeze({
+    NEXT_PUBLIC_SUPABASE_URL: recoverySupabaseUrl,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.publishableKey,
+    EVO_PLATFORM_SUPABASE_SECRET_KEY: status.serverSecretKey,
+    EVO_PLATFORM_ORGANIZATION_ID: state.organizationId,
+    EVO_PLATFORM_P7A_AUDIT_ENABLED: "1",
+    EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",
+    EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: observabilitySecret,
+    EVO_PLATFORM_AI_MEMORY_ENABLED: "0",
+    EVO_PLATFORM_STAFF_ASSISTANT_ENABLED: "0",
+    EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: "0",
+    EVO_CLAMD_HOST: scanner.containerName,
+    EVO_CLAMD_PORT: "3310",
+    EVO_CLAMD_TIMEOUT_MS: "10000",
+    EVO_V2_AMOCRM_WRITES_ENABLED: "0",
+    EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "0",
+    EVO_ENABLE_EXTERNAL_TRANSCRIPT_IMPROVEMENT: "0",
+    NODE_EXTRA_CA_CERTS: "/run/evo-recovery-ca.pem",
+  });
+  if (Object.values(environment).some((value) => /[\0\r\n]/u.test(value))) {
+    fail("recovery_app_environment_invalid", "v3_image_proof");
+  }
+  writeFileSync(
+    environmentPath,
+    `${Object.entries(environment).map(([key, value]) => `${key}=${value}`).join("\n")}\n`,
+    { mode: 0o600, flag: "wx" },
+  );
+  state.appContainerName = appContainerName;
+  state.appProxyContainerName = proxyContainerName;
+  docker([
+    "run", "--detach",
+    "--name", appContainerName,
+    "--label", `com.docker.compose.project=${state.projectName}`,
+    "--label", "com.evo.runtime.role=recovery-app",
+    "--platform", "linux/amd64",
+    "--network", state.networkName,
+    "--publish", `127.0.0.1:${appPort}:3000`,
+    "--publish", `127.0.0.1:${supabaseTlsPort}:${supabaseTlsPort}`,
+    "--read-only",
+    "--init",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges:true",
+    "--pids-limit", "256",
+    "--memory", "1536m",
+    "--cpus", "1.5",
+    "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777",
+    "--tmpfs", "/app/output:rw,noexec,nosuid,nodev,size=64m,mode=0700,uid=1001,gid=1001",
+    "--tmpfs", "/app/.next/cache:rw,noexec,nosuid,nodev,size=128m,mode=0700,uid=1001,gid=1001",
+    "--mount", `type=bind,src=${tls.certificatePath},dst=/run/evo-recovery-ca.pem,readonly`,
+    "--env-file", environmentPath,
+    appImage.id,
+  ], {
+    capture: false,
+    code: "recovery_app_container_start_failed",
+    stage: "v3_image_proof",
+  });
+
+  const proxySource = String.raw`
+const fs = require("node:fs");
+const net = require("node:net");
+const tls = require("node:tls");
+const [targetHost, targetPortRaw, listenPortRaw] = process.argv.slice(1);
+const targetPort = Number(targetPortRaw);
+const listenPort = Number(listenPortRaw);
+const server = tls.createServer({
+  cert: fs.readFileSync("/run/evo-recovery-cert.pem"),
+  key: fs.readFileSync("/run/evo-recovery-key.pem"),
+}, (client) => {
+  const upstream = net.connect({ host: targetHost, port: targetPort });
+  client.on("error", () => upstream.destroy());
+  upstream.on("error", () => client.destroy());
+  client.pipe(upstream);
+  upstream.pipe(client);
+});
+server.listen(listenPort, "0.0.0.0");
+`;
+  docker([
+    "run", "--detach",
+    "--name", proxyContainerName,
+    "--label", `com.docker.compose.project=${state.projectName}`,
+    "--label", "com.evo.runtime.role=recovery-loopback-proxy",
+    "--platform", "linux/amd64",
+    "--network", `container:${appContainerName}`,
+    "--read-only",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges:true",
+    "--pids-limit", "64",
+    "--memory", "128m",
+    "--mount", `type=bind,src=${tls.certificatePath},dst=/run/evo-recovery-cert.pem,readonly`,
+    "--mount", `type=bind,src=${tls.privateKeyPath},dst=/run/evo-recovery-key.pem,readonly`,
+    "--entrypoint", "node",
+    appImage.id,
+    "--eval", proxySource,
+    `supabase_kong_${state.projectName}`,
+    "8000",
+    String(supabaseTlsPort),
+  ], {
+    capture: false,
+    code: "recovery_app_loopback_proxy_start_failed",
+    stage: "v3_image_proof",
+  });
+  if (
+    inspectLocalContainerState(appContainerName) !== "running" ||
+    inspectLocalContainerState(proxyContainerName) !== "running" ||
+    docker(["inspect", "--format", "{{.Image}}", appContainerName], {
+      code: "recovery_app_container_inspect_failed",
+      stage: "v3_image_proof",
+    }) !== appImage.id
+  ) {
+    fail("recovery_app_runtime_identity_invalid", "v3_image_proof");
+  }
+  return Object.freeze({
+    appUrl: `http://127.0.0.1:${appPort}`,
+    observabilitySecret,
+    supabaseTls: Object.freeze({
+      origin: recoverySupabaseUrl,
+      certificateSha256: tls.certificateSha256,
+    }),
+  });
+}
+
+async function proveBrowserDocumentDownload(page, appUrl, document, allowed, role) {
+  const url = `${appUrl}/api/v2/document-versions/${document.versionId}/download`;
+  const response = await page.request.get(url, {
+    failOnStatusCode: false,
+    maxRedirects: 0,
+  });
+  if (!allowed) {
+    if (response.status() !== 403) {
+      fail(`v3_${role}_document_denial_failed`, "v3_browser_proof");
+    }
+    return;
+  }
+  if (response.status() !== 307) {
+    fail(`v3_${role}_document_grant_failed`, "v3_browser_proof");
+  }
+  const location = response.headers().location;
+  if (typeof location !== "string" || location.length === 0) {
+    fail(`v3_${role}_document_redirect_invalid`, "v3_browser_proof");
+  }
+  const download = await page.request.get(location, {
+    failOnStatusCode: false,
+    maxRedirects: 0,
+  });
+  if (download.status() !== 200) {
+    fail(`v3_${role}_document_download_failed`, "v3_browser_proof");
+  }
+  const bytes = Buffer.from(await download.body());
+  if (bytes.byteLength !== document.byteSize || sha256Text(bytes) !== document.sha256Hex) {
+    fail(`v3_${role}_document_bytes_mismatch`, "v3_browser_proof");
+  }
+}
+
+async function proveV3BrowserAndReadiness(
+  status,
+  actors,
+  roleServerProof,
+  ports,
+  state,
+  scanner,
+  repositorySnapshotRoot,
+  repository,
+) {
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   if (nodeMajor !== 22) fail("node_22_required", "v3_browser_proof");
-  const appRoot = prepareAppWorkspace(harnessRoot);
-  const appLog = join(harnessRoot, "app.log");
-  const logFd = openSync(appLog, "wx", 0o600);
-  const observabilitySecret = randomBytes(40).toString("base64url");
-  const appUrl = `http://127.0.0.1:${appPort}`;
-  const child = spawn(
-    process.execPath,
-    [
-      join(appRoot, "node_modules", "next", "dist", "bin", "next"),
-      "dev",
-      "--webpack",
-      "--hostname",
-      "127.0.0.1",
-      "--port",
-      String(appPort),
-    ],
-    {
-      cwd: appRoot,
-      env: minimalChildEnvironment({
-        NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.publishableKey,
-        EVO_PLATFORM_SUPABASE_SECRET_KEY: status.serverSecretKey,
-        EVO_PLATFORM_ORGANIZATION_ID: actors.organizationId,
-        EVO_PLATFORM_P7A_AUDIT_ENABLED: "1",
-        EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",
-        EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: observabilitySecret,
-        EVO_PLATFORM_AI_MEMORY_ENABLED: "0",
-        EVO_PLATFORM_STAFF_ASSISTANT_ENABLED: "0",
-        EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: "0",
-        EVO_CLAMD_HOST: scanner.host,
-        EVO_CLAMD_PORT: String(scanner.port),
-        EVO_CLAMD_TIMEOUT_MS: "10000",
-        EVO_V2_AMOCRM_WRITES_ENABLED: "0",
-        EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "0",
-        EVO_ENABLE_EXTERNAL_TRANSCRIPT_IMPROVEMENT: "0",
-      }),
-      detached: process.platform !== "win32",
-      stdio: ["ignore", logFd, logFd],
-    },
+  state.organizationId = actors.organizationId;
+  const appImage = buildRecoveryAppImage(state, repositorySnapshotRoot, repository);
+  const { appUrl, observabilitySecret, supabaseTls } = startRecoveryAppContainer(
+    status,
+    state,
+    ports.app,
+    ports.supabaseTls,
+    scanner,
+    appImage,
   );
   const browserProof = {
-    appChild: child,
+    appChild: undefined,
     browserServerPromise: undefined,
-    logFd,
+    logFd: undefined,
     logClosed: false,
     shutdownPromise: undefined,
   };
   registerActiveBrowserProof(browserProof);
   let browser;
   try {
-    await waitForApp(child, appUrl, appLog);
+    await waitForAppContainer(state.appContainerName, appUrl);
     const { chromium } = await import("@playwright/test");
     browserProof.browserServerPromise = chromium.launchServer({ headless: true, timeout: 45_000 });
     const browserServer = await browserProof.browserServerPromise;
@@ -3375,7 +4336,7 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot, 
     let scannerDataPath;
     const availableActors = [actors.admin, actors.sales, actors.admissions].filter(Boolean);
     for (const actor of availableActors) {
-      const context = await browser.newContext({ locale: "ru-RU" });
+      const context = await browser.newContext({ locale: "ru-RU", ignoreHTTPSErrors: true });
       const page = await context.newPage();
       await page.goto(`${appUrl}/login`, { waitUntil: "domcontentloaded" });
       await page.locator("#staff-email").fill(actor.email);
@@ -3389,7 +4350,78 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot, 
       await page.goto(`${appUrl}${actor.landing}`, { waitUntil: "domcontentloaded" });
       await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 });
       if (actor.appRole === "admin") {
-        scannerDataPath = await proveScannerDataPath(status, actor, page, appUrl, scanner);
+        scannerDataPath = await proveScannerDataPath(
+          status,
+          actor,
+          page,
+          appUrl,
+          scanner,
+          repositorySnapshotRoot,
+        );
+        if (roleServerProof.sales) {
+          await page.goto(`${appUrl}/v3/pipeline`, { waitUntil: "domcontentloaded" });
+          const panel = page.locator(
+            `[data-testid="v3-pipeline-decision"][data-lead-id="${roleServerProof.sales.leadId}"]`,
+          );
+          await panel.waitFor({ state: "visible", timeout: 45_000 });
+          if ((await panel.getAttribute("open")) === null) await panel.locator("summary").click();
+          const form = panel.getByTestId("v3-pipeline-workflow-form");
+          if (
+            await form.getByTestId("v3-pipeline-next-action").inputValue() !== roleServerProof.sales.marker ||
+            Number(await form.locator('input[name="expected_version"]').inputValue()) !== roleServerProof.sales.workflowVersion
+          ) {
+            fail("v3_admin_sales_readback_failed", "v3_browser_proof");
+          }
+        }
+        if (roleServerProof.document) {
+          await proveBrowserDocumentDownload(
+            page,
+            appUrl,
+            roleServerProof.document,
+            true,
+            "admin",
+          );
+        }
+      } else if (actor.appRole === "sales" && roleServerProof.outcomes.sales === "passed") {
+        const panel = page.locator(
+          `[data-testid="v3-pipeline-decision"][data-lead-id="${roleServerProof.sales.leadId}"]`,
+        );
+        await panel.waitFor({ state: "visible", timeout: 45_000 });
+        if ((await panel.getAttribute("open")) === null) await panel.locator("summary").click();
+        const form = panel.getByTestId("v3-pipeline-workflow-form");
+        if (
+          await form.getByTestId("v3-pipeline-next-action").inputValue() !== roleServerProof.sales.marker ||
+          Number(await form.locator('input[name="expected_version"]').inputValue()) !== roleServerProof.sales.workflowVersion
+        ) {
+          fail("v3_sales_workflow_readback_failed", "v3_browser_proof");
+        }
+        await proveBrowserDocumentDownload(
+          page,
+          appUrl,
+          roleServerProof.document,
+          false,
+          "sales",
+        );
+      } else if (
+        actor.appRole === "admissions" &&
+        roleServerProof.outcomes.admissions === "passed"
+      ) {
+        await page.goto(
+          `${appUrl}/v3/calendar?view=day&date=${roleServerProof.admissions.dueOn}`,
+          { waitUntil: "domcontentloaded" },
+        );
+        const task = page.locator(`#task-${roleServerProof.admissions.taskId}`);
+        await task.waitFor({ state: "visible", timeout: 45_000 });
+        if (!(await task.textContent())?.includes(roleServerProof.admissions.marker)) {
+          fail("v3_admissions_task_readback_failed", "v3_browser_proof");
+        }
+        await proveBrowserDocumentDownload(
+          page,
+          appUrl,
+          roleServerProof.document,
+          true,
+          "admissions",
+        );
       }
       await context.close();
     }
@@ -3422,12 +4454,19 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot, 
     }
     return Object.freeze({
       admin: "passed",
-      sales: actors.sales ? "passed" : "not_run_missing_restored_identity",
-      admissions: actors.admissions ? "passed" : "not_run_missing_restored_identity",
+      sales: roleServerProof.outcomes.sales,
+      admissions: roleServerProof.outcomes.admissions,
+      roleOutcomes: Object.freeze({
+        admin: "passed",
+        sales: roleServerProof.outcomes.sales,
+        admissions: roleServerProof.outcomes.admissions,
+      }),
       readinessStatus: "not_ready",
       supabase: "ready",
       auditAppend: "ready",
       providersBlocked: true,
+      image: appImage,
+      supabaseTls,
       malwareScanner: scannerDataPath,
     });
   } finally {
@@ -3436,14 +4475,14 @@ async function proveV3BrowserAndReadiness(status, actors, appPort, harnessRoot, 
 }
 
 function docker(args, options = {}) {
-  return execute("docker", ["--context", "orbstack", ...args], {
+  return execute(executable("docker"), ["--context", "orbstack", ...args], {
     ...options,
     stage: options.stage ?? "cleanup",
   });
 }
 
 function dockerStatus(args) {
-  const result = spawnSync("docker", ["--context", "orbstack", ...args], {
+  const result = spawnSync(executable("docker"), ["--context", "orbstack", ...args], {
     cwd: repositoryRoot,
     env: minimalChildEnvironment(),
     stdio: "ignore",
@@ -3476,8 +4515,8 @@ async function waitForRecoveryScanner(containerName) {
   fail("malware_scanner_health_timeout", "malware_scanner_proof");
 }
 
-async function startRecoveryScanner(state, port) {
-  const compose = readFileSync(join(repositoryRoot, "docker-compose.prod.yml"), "utf8");
+async function startRecoveryScanner(state, port, repositorySnapshotRoot) {
+  const compose = readFileSync(join(repositorySnapshotRoot, "docker-compose.prod.yml"), "utf8");
   if (!compose.includes(`image: "${CLAMAV_IMAGE}"`)) {
     fail("malware_scanner_image_contract_mismatch", "malware_scanner_proof");
   }
@@ -3557,11 +4596,12 @@ async function startRecoveryScanner(state, port) {
   });
 }
 
-const scannerProbeSource = String.raw`
+function scannerProbeSource(repositorySnapshotRoot) {
+  return String.raw`
 import {
   ClamdScanError,
   scanBytesWithClamd,
-} from "${join(repositoryRoot, "src", "lib", "server", "clamd-malware-scanner.ts")}";
+} from "${join(repositorySnapshotRoot, "src", "lib", "server", "clamd-malware-scanner.ts")}";
 
 const bytes = Buffer.from(process.argv[1], "base64");
 const host = process.argv[2];
@@ -3576,14 +4616,15 @@ try {
   process.stdout.write(JSON.stringify({ outcome: error.code }));
 }
 `;
+}
 
-function scanWithProductClient(scanner, bytes, expected) {
+function scanWithProductClient(scanner, bytes, expected, repositorySnapshotRoot) {
   const output = execute(process.execPath, [
     "--conditions=react-server",
     "--experimental-strip-types",
     "--input-type=module",
     "--eval",
-    scannerProbeSource,
+    scannerProbeSource(repositorySnapshotRoot),
     Buffer.from(bytes).toString("base64"),
     scanner.host,
     String(scanner.port),
@@ -3607,7 +4648,7 @@ function scanWithProductClient(scanner, bytes, expected) {
 
 function inspectLocalContainerState(containerName) {
   const result = spawnSync(
-    "docker",
+    executable("docker"),
     [
       "--context",
       "orbstack",
@@ -3631,7 +4672,7 @@ function inspectLocalContainerState(containerName) {
 
 function localSupabaseCliStatusReady(supabaseRoot) {
   const result = spawnSync(
-    supabaseCli,
+    executable("supabase"),
     ["status", "--workdir", supabaseRoot, "-o", "json"],
     {
       env: minimalChildEnvironment(),
@@ -3742,17 +4783,16 @@ function ownedNetworkNames(state) {
 }
 
 function cleanupContour(state) {
-  const failures = [];
   const attempt = (fn) => {
     try {
       fn();
     } catch {
-      failures.push(1);
+      // Final scoped inventories below are the cleanup authority.
     }
   };
   if (state.stackStarted) {
     attempt(() => execute(
-      supabaseCli,
+      executable("supabase"),
       ["stop", "--no-backup", "--project-id", state.projectName, "--workdir", state.supabaseRoot],
       { capture: false, timeout: 20 * 60 * 1000, code: "supabase_stop_failed", stage: "cleanup" },
     ));
@@ -3768,6 +4808,22 @@ function cleanupContour(state) {
     }
   });
   attempt(() => {
+    if (!state.appImageTag) return;
+    if (!/^evo-crm-recovery:evov3recovery[0-9a-f]{12}$/u.test(state.appImageTag)) {
+      fail("cleanup_app_image_scope_invalid", "cleanup");
+    }
+    if (dockerStatus(["image", "inspect", state.appImageTag]) === 0) {
+      docker(["image", "rm", state.appImageTag], {
+        capture: false,
+        code: "cleanup_app_image_remove_failed",
+        stage: "cleanup",
+      });
+    }
+    if (dockerStatus(["image", "inspect", state.appImageTag]) === 0) {
+      fail("cleanup_app_image_remains", "cleanup");
+    }
+  });
+  attempt(() => {
     const names = ownedVolumeNames(state);
     if (names.length > 0) docker(["volume", "rm", "--force", ...names], { capture: false, code: "cleanup_volume_remove_failed" });
   });
@@ -3778,17 +4834,30 @@ function cleanupContour(state) {
       code: "cleanup_network_remove_failed",
     }));
   }
-  attempt(() => {
+  const residualFailures = [];
+  const verify = (fn) => {
+    try {
+      fn();
+    } catch {
+      residualFailures.push(1);
+    }
+  };
+  verify(() => {
     if (ownedContainerIds(state).length !== 0) fail("cleanup_owned_containers_remain", "cleanup");
   });
-  attempt(() => {
+  verify(() => {
     if (ownedVolumeNames(state).length !== 0) fail("cleanup_owned_volumes_remain", "cleanup");
   });
-  attempt(() => {
+  verify(() => {
     if (ownedNetworkNames(state).length !== 0) fail("cleanup_owned_network_remains", "cleanup");
   });
-  attempt(() => cleanupHarnessRoot(state));
-  return failures.length === 0 ? "passed" : "incomplete";
+  verify(() => {
+    if (state.appImageTag && dockerStatus(["image", "inspect", state.appImageTag]) === 0) {
+      fail("cleanup_app_image_remains", "cleanup");
+    }
+  });
+  if (residualFailures.length === 0) verify(() => cleanupHarnessRoot(state));
+  return residualFailures.length === 0 ? "passed" : "incomplete";
 }
 
 function cleanupHarnessRoot(state) {
@@ -3826,7 +4895,11 @@ function cleanupActiveState(state = activeCleanupState) {
         result = "incomplete";
       }
     }
-    if (result === "passed" && activeCleanupState === state) activeCleanupState = undefined;
+    if (result === "passed" && activeCleanupState === state) {
+      activeCleanupState = undefined;
+      activePrivateChildEnvironment = undefined;
+      activeTrustedExecutableCopies = undefined;
+    }
     return result;
   } finally {
     activeCleanupRunning = false;
@@ -3929,7 +5002,7 @@ function contractOutput() {
 
 async function runPreflight(options) {
   const repository = assertRepositoryState(options.expectedRepositoryCommit);
-  assertOrbStackPreflight();
+  const orbStack = assertOrbStackPreflight();
   const temporaryRoot = realpathSync(tmpdir());
   const harnessRoot = realpathSync(mkdtempSync(join(temporaryRoot, HARNESS_PREFIX)));
   chmodSync(harnessRoot, 0o700);
@@ -3940,11 +5013,19 @@ async function runPreflight(options) {
   let cleanupStatus = "not_started";
   let result;
   try {
+    activatePrivateChildEnvironment(harnessRoot, orbStack.dockerHost);
+    if (execute(executable("docker"), ["context", "show"], {
+      code: "private_docker_context_unavailable",
+      stage: "tool_preflight",
+    }) !== "orbstack") {
+      fail("private_docker_context_not_orbstack", "tool_preflight");
+    }
+    const repositorySnapshotRoot = materializeRepositorySnapshot(harnessRoot, repository);
     const artifacts = await prepareArtifacts(options, harnessRoot, false);
     if (projectName === artifacts.database.sourceProjectRef) {
       fail("recovery_destination_matches_managed_source", "preflight");
     }
-    const rootMigrations = rootMigrationEntries();
+    const rootMigrations = rootMigrationEntries(repositorySnapshotRoot);
     const sourceMigrationPrefix = verifiedExportedHistoryPrefix(
       rootMigrations,
       artifacts.database.migrationLedger,
@@ -3987,7 +5068,7 @@ async function runPreflight(options) {
 
 async function runRecovery(options) {
   const repository = assertRepositoryState(options.expectedRepositoryCommit);
-  assertOrbStackPreflight();
+  const orbStack = assertOrbStackPreflight();
   const temporaryRoot = realpathSync(tmpdir());
   const harnessRoot = realpathSync(mkdtempSync(join(temporaryRoot, HARNESS_PREFIX)));
   chmodSync(harnessRoot, 0o700);
@@ -4008,11 +5089,19 @@ async function runRecovery(options) {
   let cleanupStatus = "not_started";
   let evidence;
   try {
+    activatePrivateChildEnvironment(harnessRoot, orbStack.dockerHost);
+    if (execute(executable("docker"), ["context", "show"], {
+      code: "private_docker_context_unavailable",
+      stage: "tool_preflight",
+    }) !== "orbstack") {
+      fail("private_docker_context_not_orbstack", "tool_preflight");
+    }
+    const repositorySnapshotRoot = materializeRepositorySnapshot(harnessRoot, repository);
     const artifacts = await prepareArtifacts(options, harnessRoot, true);
     if (projectName === artifacts.database.sourceProjectRef) {
       fail("recovery_destination_matches_managed_source", "preflight");
     }
-    const rootMigrations = rootMigrationEntries();
+    const rootMigrations = rootMigrationEntries(repositorySnapshotRoot);
     const sourceMigrationPrefix = verifiedExportedHistoryPrefix(
       rootMigrations,
       artifacts.database.migrationLedger,
@@ -4023,7 +5112,11 @@ async function runRecovery(options) {
     state.supabaseRoot = supabaseRoot;
     mkdirSync(join(supabaseRoot, "supabase"), { recursive: true, mode: 0o700 });
     const configPath = join(supabaseRoot, "supabase", "config.toml");
-    writeFileSync(configPath, renderIsolatedSupabaseConfig(projectName, portMap), { mode: 0o600 });
+    writeFileSync(
+      configPath,
+      renderIsolatedSupabaseConfig(repositorySnapshotRoot, projectName, portMap),
+      { mode: 0o600 },
+    );
     state.networkCreated = true;
     docker([
       "network",
@@ -4036,10 +5129,10 @@ async function runRecovery(options) {
       "com.docker.network.bridge.host_binding_ipv4=127.0.0.1",
       networkName,
     ], { capture: false, code: "isolated_network_create_failed", stage: "local_supabase_start" });
-    const scanner = await startRecoveryScanner(state, portMap.clamd);
+    const scanner = await startRecoveryScanner(state, portMap.clamd, repositorySnapshotRoot);
     state.stackStarted = true;
     execute(
-      supabaseCli,
+      executable("supabase"),
       [
         "start",
         "--workdir",
@@ -4063,7 +5156,7 @@ async function runRecovery(options) {
     );
     await waitForLocalSupabaseReadiness(state);
     const status = parseSupabaseStatus(execute(
-      supabaseCli,
+      executable("supabase"),
       ["status", "--workdir", supabaseRoot, "-o", "env"],
       { code: "local_supabase_status_failed", stage: "local_supabase_start" },
     ));
@@ -4082,13 +5175,13 @@ async function runRecovery(options) {
     const aggregatesBefore = readAggregates(status);
 
     cpSync(
-      join(repositoryRoot, "supabase", "migrations"),
+      join(repositorySnapshotRoot, "supabase", "migrations"),
       join(supabaseRoot, "supabase", "migrations"),
       { recursive: true },
     );
     setMigrationsEnabled(configPath);
     execute(
-      supabaseCli,
+      executable("supabase"),
       ["migration", "up", "--local", "--include-all", "--workdir", supabaseRoot],
       { capture: false, timeout: 4 * 60 * 60 * 1000, code: "pending_migration_apply_failed", stage: "migration_rehearsal" },
     );
@@ -4106,32 +5199,43 @@ async function runRecovery(options) {
     const aggregatesAfter = readAggregates(status, true);
     assertNonDecreasingAggregates(aggregatesBefore, aggregatesAfter);
 
-    const v3Storage = await establishV3PrivateStorage(status, artifacts.storage.buckets);
+    const v3Storage = await establishV3PrivateStorage(
+      status,
+      repositorySnapshotRoot,
+      artifacts.storage.buckets,
+    );
     const actors = await prepareRepresentativeActors(status);
     const historicalScannerGate = await assertHistoricalScannerGate(
       status,
       actors.admin,
       appliedMigrationVersions,
     );
-    const rls = await proveSameAndCrossOrganizationRls(status, actors.admin);
+    const rls = await proveSameAndCrossOrganizationRls(status, actors);
     const storagePrivacy = await provePrivateStorage(
       status,
       v3Storage.buckets,
       artifacts.storage.objectCount,
       actors.sales ?? actors.admin,
     );
+    const roleServerProof = await proveRestoredRoleServerOutcomes(status, actors);
     const browser = await proveV3BrowserAndReadiness(
       status,
       actors,
-      portMap.app,
-      harnessRoot,
+      roleServerProof,
+      portMap,
+      state,
       scanner,
+      repositorySnapshotRoot,
+      repository,
     );
-    const roleReadiness = buildRestoredRoleReadiness({
-      admin: true,
-      sales: Boolean(actors.sales),
-      admissions: Boolean(actors.admissions),
-    });
+    const finalRepository = assertRepositoryState(options.expectedRepositoryCommit);
+    if (
+      finalRepository.commit !== repository.commit ||
+      finalRepository.tree !== repository.tree
+    ) {
+      fail("repository_state_changed_during_recovery", "repository_snapshot");
+    }
+    const roleReadiness = buildRestoredRoleReadiness(browser.roleOutcomes);
 
     evidence = {
       schema: RESULT_SCHEMA,
@@ -4182,6 +5286,7 @@ async function runRecovery(options) {
         ...roleReadiness.roleStatus,
         actors: actors.evidence,
         ...rls,
+        roleOutcomeProof: roleServerProof.evidence,
       },
       application: browser,
       malwareScanner: {

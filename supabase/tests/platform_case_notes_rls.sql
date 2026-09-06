@@ -200,6 +200,11 @@ BEGIN
         TRUE
       ),
       ('require_lead_note_actor', 'p_organization_id uuid, p_lead_id uuid', FALSE),
+      (
+        'require_lead_note_mutation_actor',
+        'p_organization_id uuid, p_lead_id uuid',
+        FALSE
+      ),
       ('forbid_case_note_change', '', FALSE)
     ) AS expected(private_name, private_signature, private_authenticated)
   LOOP
@@ -239,6 +244,58 @@ BEGIN
           forbidden_role, private_name;
       END IF;
     END LOOP;
+  END LOOP;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc AS routine
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = routine.pronamespace
+    WHERE namespace.nspname = 'private'
+      AND routine.proname = 'require_lead_note_actor'
+      AND routine.provolatile = 's'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc AS routine
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = routine.pronamespace
+    WHERE namespace.nspname = 'private'
+      AND routine.proname = 'require_lead_note_mutation_actor'
+      AND routine.provolatile = 'v'
+  ) THEN
+    RAISE EXCEPTION 'lead-note read/mutation volatility boundary drifted';
+  END IF;
+
+  SELECT count(*), (array_agg(routine.oid))[1]
+  INTO routine_count, routine_oid
+  FROM pg_catalog.pg_proc AS routine
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = routine.pronamespace
+  WHERE namespace.nspname = 'private'
+    AND routine.proname = 'assert_case_note_request_actor';
+  IF routine_count <> 1
+    OR routine_oid IS NULL
+    OR pg_get_function_identity_arguments(routine_oid) <>
+      'p_request_id uuid, p_organization_id uuid, p_actor_profile_id uuid, p_actor_auth_user_id uuid'
+    OR NOT COALESCE((
+      SELECT NOT routine.prosecdef
+        AND routine.provolatile = 's'
+        AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
+      FROM pg_catalog.pg_proc AS routine
+      WHERE routine.oid = routine_oid
+    ), FALSE)
+  THEN
+    RAISE EXCEPTION
+      'private.assert_case_note_request_actor execution contract drifted';
+  END IF;
+  FOREACH forbidden_role IN ARRAY ARRAY[
+    'anon', 'authenticated', 'service_role', 'supabase_auth_admin'
+  ]
+  LOOP
+    IF has_function_privilege(forbidden_role, routine_oid, 'EXECUTE') THEN
+      RAISE EXCEPTION '% unexpectedly executes private actor replay guard',
+        forbidden_role;
+    END IF;
   END LOOP;
 
   SELECT routine.oid
@@ -448,6 +505,18 @@ FROM platform.profiles AS profile
 WHERE profile.id = :'p117_sales_profile'
 \gset
 SELECT jsonb_build_object(
+  'sub', :'p117_sales_two_user', 'role', 'authenticated',
+  'platform_role', 'sales',
+  'platform_access_version', profile.access_version,
+  'platform_organization_id', :'p117_org',
+  'platform_membership_id', :'p117_sales_two_membership',
+  'platform_bundle_id', :'p117_sales_bundle',
+  'platform_bundle_version', :'p117_sales_version'::INTEGER
+)::TEXT AS p117_sales_two_claims
+FROM platform.profiles AS profile
+WHERE profile.id = :'p117_sales_two_profile'
+\gset
+SELECT jsonb_build_object(
   'sub', :'p117_student_user', 'role', 'authenticated',
   'platform_role', 'student',
   'platform_access_version', profile.access_version,
@@ -501,6 +570,21 @@ SELECT platform.create_case_note(
   '59911700-0000-4000-8000-000000000204'
 )::TEXT AS p117_unowned_lead_note
 \gset
+
+-- A second Sales actor may access the same unowned lead, but must never
+-- recover the first actor's mutation result from an exact request-id replay.
+RESET ROLE;
+SET request.jwt.claims TO :'p117_sales_two_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p117_capture_error(format(
+  'SELECT platform.create_case_note(%L::UUID, %L::UUID, NULL, %L, %L::UUID)',
+  :'p117_org', :'p117_lead_unowned', 'Unowned leads accept sales notes.',
+  '59911700-0000-4000-8000-000000000204'
+))::TEXT AS p117_cross_actor_replay_error
+\gset
+RESET ROLE;
+SET request.jwt.claims TO :'p117_sales_claims';
+SET ROLE authenticated;
 
 -- Validation and authority failures stay closed.
 SELECT pg_temp.p117_capture_error(format(
@@ -581,6 +665,7 @@ SELECT pg_temp.p117_assert(
       = :'p117_sales_membership'
     AND (:'p117_lead_note_create'::JSONB ->> 'body') LIKE E'%\n%'
     AND :'p117_request_conflict_error'::JSONB ->> 'sqlstate' = '22023'
+    AND :'p117_cross_actor_replay_error'::JSONB ->> 'sqlstate' = '42501'
     AND :'p117_foreign_owner_error'::JSONB ->> 'sqlstate' = '42501'
     AND :'p117_two_subjects_error'::JSONB ->> 'sqlstate' = '22023'
     AND :'p117_no_subject_error'::JSONB ->> 'sqlstate' = '22023'
@@ -942,6 +1027,7 @@ BEGIN;
 \set p117c_sales_two_membership 59911799-0000-4000-8000-000000000032
 \set p117c_admin_membership 59911799-0000-4000-8000-000000000033
 \set p117c_lead 59911799-0000-4000-8000-000000000041
+\set p117c_actor_lead 59911799-0000-4000-8000-000000000042
 
 SELECT bundle.id AS p117c_sales_bundle, bundle.version AS p117c_sales_version
 FROM platform.role_bundle_versions AS bundle
@@ -1038,10 +1124,15 @@ INSERT INTO platform.membership_scope_assignments (
 INSERT INTO platform.leads (
   id, organization_id, current_owner_membership_id,
   stage_key, source_key, lifecycle_state
-) VALUES (
-  :'p117c_lead', :'p117c_org', :'p117c_sales_membership',
-  'new', 'whatsapp', 'open'
-);
+) VALUES
+  (
+    :'p117c_lead', :'p117c_org', :'p117c_sales_membership',
+    'new', 'whatsapp', 'open'
+  ),
+  (
+    :'p117c_actor_lead', :'p117c_org', NULL,
+    'new', 'whatsapp', 'open'
+  );
 
 COMMIT;
 
@@ -1243,6 +1334,140 @@ SELECT pg_temp.p117c_assert(
         '59911799-0000-4000-8000-000000000071'::UUID
     ),
   'authority-change race did not fail closed'
+);
+
+-- Repeat the race against the actor authority itself. The lead is owned by
+-- nobody, so the owner rule is deliberately irrelevant while a concurrent
+-- profile suspension holds the actor's row lock. create_case_note must wait in
+-- require_domain_actor, observe the committed suspension and fail without a
+-- note or success audit.
+SELECT p117_test_extensions.dblink_exec('p117c_note', 'ROLLBACK');
+
+SELECT p117_test_extensions.dblink_exec(
+  'p117c_note',
+  format(
+    $remote$
+      BEGIN;
+      CREATE OR REPLACE FUNCTION pg_temp.p117c_capture_error(p_statement TEXT)
+      RETURNS JSONB
+      LANGUAGE plpgsql
+      AS $capture$
+      BEGIN
+        EXECUTE p_statement;
+        RETURN jsonb_build_object('ok', TRUE);
+      EXCEPTION
+        WHEN OTHERS THEN
+          RETURN jsonb_build_object(
+            'ok', FALSE,
+            'sqlstate', SQLSTATE,
+            'message', SQLERRM
+          );
+      END
+      $capture$;
+      GRANT EXECUTE ON FUNCTION pg_temp.p117c_capture_error(TEXT)
+        TO authenticated;
+      SET ROLE authenticated;
+      SET LOCAL request.jwt.claims = %L;
+    $remote$,
+    :'p117c_sales_claims'
+  )
+);
+
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_send_query(
+    'p117c_authority',
+    $authority$
+      WITH changed AS (
+        UPDATE platform.profiles
+        SET status = 'blocked'
+        WHERE id = '59911799-0000-4000-8000-000000000021'::UUID
+        -- Evaluate the sleep in RETURNING so the row is already locked. A
+        -- sleep in the outer SELECT can be scheduled before the data-changing
+        -- CTE and would not establish a deterministic concurrency boundary.
+        RETURNING status, pg_catalog.pg_sleep(5) AS held
+      )
+      SELECT changed.status::TEXT AS profile_status
+      FROM changed
+    $authority$
+  ) = 1,
+  'actor-suspension query was not dispatched'
+);
+
+DO $wait_for_actor_authority_lock$
+DECLARE
+  attempt INTEGER;
+BEGIN
+  FOR attempt IN 1..80 LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_stat_activity AS activity
+      WHERE activity.application_name = 'p117c-authority'
+        AND activity.state = 'active'
+        AND activity.wait_event = 'PgSleep'
+    ) THEN
+      RETURN;
+    END IF;
+    PERFORM pg_catalog.pg_sleep(0.05);
+  END LOOP;
+  RAISE EXCEPTION
+    'Migration 117 actor-suspension worker never held the profile row';
+END
+$wait_for_actor_authority_lock$;
+
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_send_query(
+    'p117c_note',
+    $note$
+      SELECT pg_temp.p117c_capture_error(
+        $command$
+          SELECT platform.create_case_note(
+            '59911799-0000-4000-8000-000000000001'::UUID,
+            '59911799-0000-4000-8000-000000000042'::UUID,
+            NULL,
+            'A suspended actor must not write this note.',
+            '59911799-0000-4000-8000-000000000072'::UUID
+          )
+        $command$
+      )::TEXT AS outcome
+    $note$
+  ) = 1,
+  'stale-actor note query was not dispatched'
+);
+
+SELECT result.profile_status AS p117c_committed_profile_status
+FROM p117_test_extensions.dblink_get_result('p117c_authority')
+  AS result(profile_status TEXT)
+\gset
+SELECT count(*) AS p117c_actor_authority_result_drained
+FROM p117_test_extensions.dblink_get_result('p117c_authority')
+  AS result(profile_status TEXT)
+\gset
+
+SELECT result.outcome AS p117c_actor_note_outcome
+FROM p117_test_extensions.dblink_get_result('p117c_note') AS result(outcome TEXT)
+\gset
+SELECT count(*) AS p117c_actor_note_result_drained
+FROM p117_test_extensions.dblink_get_result('p117c_note') AS result(outcome TEXT)
+\gset
+
+SELECT pg_temp.p117c_assert(
+  :'p117c_committed_profile_status' = 'blocked'
+    AND :'p117c_actor_authority_result_drained'::INTEGER = 0
+    AND :'p117c_actor_note_result_drained'::INTEGER = 0
+    AND :'p117c_actor_note_outcome'::JSONB ->> 'sqlstate' = '42501'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.case_notes AS note
+      WHERE note.organization_id = :'p117c_org'
+        AND note.lead_id = :'p117c_actor_lead'
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.audit_events AS event
+      WHERE event.request_id =
+        '59911799-0000-4000-8000-000000000072'::UUID
+    ),
+  'actor-authority race did not fail closed'
 );
 
 SELECT p117_test_extensions.dblink_exec('p117c_note', 'ROLLBACK');

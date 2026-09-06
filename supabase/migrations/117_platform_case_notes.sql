@@ -168,6 +168,99 @@ $$;
 REVOKE ALL ON FUNCTION private.require_lead_note_actor(UUID, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
+-- Mutation authority is deliberately separate from the STABLE list helper.
+-- require_domain_actor locks the live profile, membership and organization
+-- rows so a concurrent authority change must commit before a create command
+-- makes its final authorization decision.
+CREATE FUNCTION private.require_lead_note_mutation_actor(
+  p_organization_id UUID,
+  p_lead_id UUID
+)
+RETURNS TABLE (
+  actor_profile_id UUID,
+  actor_membership_id UUID,
+  actor_auth_user_id UUID,
+  actor_role platform.business_role
+)
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  actor RECORD;
+BEGIN
+  SELECT * INTO actor
+  FROM platform_private.require_domain_actor(
+    p_organization_id,
+    'lead.sales.workflow.manage'
+  );
+
+  IF actor.actor_role NOT IN ('admin', 'sales') OR NOT EXISTS (
+    SELECT 1
+    FROM platform.leads AS lead
+    WHERE lead.organization_id = p_organization_id
+      AND lead.id = p_lead_id
+      AND (
+        actor.actor_role = 'admin'
+        OR lead.current_owner_membership_id = actor.actor_membership_id
+        OR lead.current_owner_membership_id IS NULL
+      )
+  ) THEN
+    RAISE EXCEPTION 'Lead is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY SELECT
+    actor.actor_profile_id,
+    actor.actor_membership_id,
+    actor.actor_auth_user_id,
+    actor.actor_role;
+END
+$$;
+
+REVOKE ALL ON FUNCTION private.require_lead_note_mutation_actor(UUID, UUID)
+  FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
+-- request_id is globally unique in the audit journal. Bind a replay to the
+-- same live actor before replay_audit compares mutation payloads, otherwise a
+-- colleague with access to the same subject could recover another actor's
+-- result by guessing both the UUID and the original inputs.
+CREATE FUNCTION private.assert_case_note_request_actor(
+  p_request_id UUID,
+  p_organization_id UUID,
+  p_actor_profile_id UUID,
+  p_actor_auth_user_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM platform.audit_events AS event
+    WHERE event.request_id = p_request_id
+      AND (
+        event.organization_id IS DISTINCT FROM p_organization_id
+        OR event.actor_kind IS DISTINCT FROM 'user'
+        OR event.actor_profile_id IS DISTINCT FROM p_actor_profile_id
+        OR event.actor_principal IS DISTINCT FROM
+          'auth:' || p_actor_auth_user_id::TEXT
+      )
+  ) THEN
+    RAISE EXCEPTION 'Case note request is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+END
+$$;
+
+REVOKE ALL ON FUNCTION private.assert_case_note_request_actor(
+  UUID, UUID, UUID, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
 CREATE FUNCTION private.create_case_note(
   p_organization_id UUID,
   p_lead_id UUID,
@@ -225,7 +318,7 @@ BEGIN
     -- finishes. Re-resolve authority only after the lock so a concurrent
     -- handoff cannot race a stale authorization decision.
     SELECT * INTO actor
-    FROM private.require_lead_note_actor(
+    FROM private.require_lead_note_mutation_actor(
       p_organization_id,
       p_lead_id
     );
@@ -251,6 +344,13 @@ BEGIN
       'case.read.full'
     );
   END IF;
+
+  PERFORM private.assert_case_note_request_actor(
+    p_request_id,
+    p_organization_id,
+    actor.actor_profile_id,
+    actor.actor_auth_user_id
+  );
 
   replay_shape := jsonb_build_object(
     'organization_id', p_organization_id,

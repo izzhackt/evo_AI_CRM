@@ -606,12 +606,8 @@ BEGIN
         AND audit_event.reason =
           'U4 normalizes the sole U3 legacy Sales stage'
         AND audit_event.resulting_version = 2
-        AND audit_event.created_at >= lead.created_at
       ) AS is_exact
     FROM visible_lead_scope AS scope
-    JOIN platform.leads AS lead
-      ON lead.organization_id = scope.organization_id
-     AND lead.id = scope.lead_id
     JOIN platform.audit_events AS audit_event
       ON audit_event.organization_id = scope.organization_id
      AND audit_event.resource_type = 'lead'

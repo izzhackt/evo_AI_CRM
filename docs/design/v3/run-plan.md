@@ -138,7 +138,8 @@ objects/bytes. Подписанное exact empty-source evidence (#653) дос�
 
 ### D · Пять потребностей заказчика — В РАБОТЕ
 
-**Волна D1 (схема+бэкенд, миграции 117–121)** — пять параллельных вертикалей,
+**Волна D1 (схема+бэкенд, миграции 117–121) — ТЕХНИЧЕСКИ ЗАВЕРШЕНА,
+PR #660 проходит последний merge-gate.** Пять вертикалей,
 каждая: идемпотентность по request_id, optimistic versions, compose-аудит,
 REVOKE/GRANT, RLS через RPC-гарды; новые привилегированные тела живут в
 существующей неэкспонированной схеме `private`, а `platform` оставляет только
@@ -168,56 +169,60 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
   без публичных URL и байтов через браузер; связь медиа ↔ дело проверяется
   через диалог (105/106).
 
-Если волна оборвалась: проверить `git status` — есть ли файлы миграций
-117–121 и их контракты; недописанное чистить, дописанное валидировать
-`test-postgres-authorization.sh` и перезапускать недостающие вертикали.
-
-**Текущий durable checkpoint:** worktree
+**Durable checkpoint и cold-resume:** worktree
 `/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, remote
-ветка `izzhackt/v3-d1-backend`, draft PR #660, точный проверяемый code
-checkpoint `3660c989ef4466d881292296f9933f57cc1888f0`. После rebase на PR #659
-спасённый черновик — commit `9f2e3390`; первичные repair-правки четырёх файлов
-(118 contract/fixtures, escaped control-byte regex, 121 SQL fixture) — commit
-`4622ef4f`; каноническая WAHA session в 121 fixture — commit `3187512b`;
-fail-closed wiring D1-гейтов — commit `60490b6e`.
-Найти состояние: `git worktree list --porcelain`, затем
-`git -C <worktree> status --short`, `git -C <worktree> log -2 --oneline` и
-`gh pr view 660 --json headRefOid,statusCheckRollup`; `headRefOid` —
-авторитетный текущий head после metadata-коммитов. При каждом следующем
-implementation push обновлять здесь code checkpoint и фактический статус
-вертикалей.
+ветка `izzhackt/v3-d1-backend`, draft PR #660. Проверенный code checkpoint —
+`97b122c80bb153950a83dcaf037c88af0290a217`; последующий docs-only commit не
+меняет этот code tree. Найти состояние:
 
-**Фактический статус D1 на checkpoint `3660c989`:**
+```bash
+git worktree list --porcelain
+git -C /Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover status --short --branch
+git -C /Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover rev-parse HEAD
+gh pr view 660 --repo izzhackt/evo_AI_CRM --json headRefOid,isDraft,statusCheckRollup
+```
 
-- 117 интегрирована (`e8404f8a`): targeted PostgreSQL, реальный двухсессионный
-  authority-race, Node 11/11, typecheck, полный ESLint и build зелёные;
-  независимый adversarial review — `APPROVED`.
-- 118 интегрирована (`3660c989`): UI/contract/migration/SQL/E2E сведены вместе;
-  Node 24/24 и typecheck зелёные. Полный migration-boundary и независимое
-  подтверждение точного diff ещё идут; до их завершения вертикаль не считать
-  окончательно принятой.
-- 119 в работе в отдельном worktree: contracts/read models, новая migration,
-  SQL- и Node-сюты собраны; targeted Node/lint/typecheck/build зелёные, реальный
-  disposable-Postgres/adversarial раунд ещё идёт. В integration пока не влита.
-- 120 интегрирована (`97556836`): targeted PostgreSQL, Node 10/10, typecheck,
-  полный ESLint и build зелёные; независимый adversarial review точного SHA —
+Если PR #660 уже слит, не восстанавливать D1 из старых worktree: проверить на
+`main` наличие миграций 117–121 и продолжить с D2. Если PR ещё открыт,
+`headRefOid` обязан совпадать с remote-веткой; любые новые изменения требуют
+повторить задетые проверки и exact-head review.
+
+**Фактический статус D1 на code checkpoint `97b122c8`:**
+
+- **117 принято:** append-only lead/case notes, точная subject-authority,
+  replay-safe create, keyset list и реальная двухсессионная
+  membership-revocation race. Независимые review после исправлений —
   `APPROVED`.
-- 121 в работе в отдельном worktree: усиливается полная causal chain
-  intent → reservation → private storage copy → finalize → scan и добавляется
-  server action/canonical Node suite. В integration пока не влита.
+- **118 принято:** география и ступень заявки проведены через migration, RPC,
+  серверные actions, формы и словарь; primary-switch держит один primary под
+  детерминированной блокировкой, replay привязан к exact request. Targeted SQL,
+  Node и независимые review зелёные.
+- **119 принято:** communication search/direction, Sales stage-entry evidence и
+  Admissions task keyset/date bounds интегрированы. Повреждённый или
+  неподтверждённый workflow ledger закрывает всю видимую очередь. Полный
+  foundation выявил старые synthetic fixtures с версиями 7/11/21 без receipt;
+  production-валидатор не ослаблялся — provisioner теперь завершает их через
+  канонический `mutate_sales_lead_workflow` и сразу проверяет реальный read RPC.
+- **120 принято:** reply snippets с exact audience, optimistic version,
+  archive, receipt causality и role/capability guards. Targeted SQL/Node и
+  независимые review зелёные.
+- **121 принято:** actor-bound intent → одноразовый media grant → version-bound
+  reservation → private Storage copy/TUS → download/hash/ClamAV → finalize.
+  Stale slot, expired reservation, replay с иными входами, revoked actor,
+  foreign tenant/object и lost-response recovery покрыты реальными SQL/Node
+  регрессиями. Последний недублирующий security-test из PR #663 перенесён в
+  #660; #663 закрыт без отдельного merge.
 
-После интеграции 119 и 121 заново прогнать единый `npm run test:d1`, весь
-`scripts/test-postgres-authorization.sh`, затем полный foundation-контур и
-независимую проверку уже общего точного HEAD. Частичные зелёные результаты не
-заменяют этот финальный общий гейт.
-
-**Состояние спасённого черновика Fable на 06.09 (не считать готовым):** 117 и
-120 имеют миграции, SQL/Node-тесты и backend-контракты; 118 не собирался и не
-был подключён к формам; 119 был почти только миграцией; 121 не имел server
-action/call-site/Node-тестов и требовал усилить attribution/causal binding.
-SQL-сюты 118 и 120 не были включены в общий migration-boundary runner, SQL-сют
-119 отсутствовал. Каждую вертикаль довести отдельно в порядке 117 → 118 → 119
-→ 120 → 121; не начинать D2 до их интеграции.
+**Общий gate D1:** `npm run test:d1` — 87/87; `npm run test:unit` — 162/162;
+полный `scripts/test-postgres-authorization.sh` — PASS; Node 22 typecheck,
+полный ESLint и production build — PASS. Свежий
+`scripts/test-postgres-v2-foundation.sh` прошёл реальный локальный Postgres,
+Supabase Auth/RLS, private Storage, provider workflows и Chromium: активные
+staff-auth E2E 15/15, V3 gate зелёный на desktop, 393 px и forced-dark.
+GitHub fast checks точного `97b122c8`, включая Migration boundary, — SUCCESS.
+Последний обязательный шаг перед переводом #660 из draft: независимый
+cumulative adversarial review всего `origin/main...97b122c8`, затем короткое
+подтверждение финального docs-only HEAD.
 
 Проверка актуальной официальной документации 06.09: новый
 `SECURITY DEFINER` нельзя оставлять в exposed schema `platform`. D1 переносит

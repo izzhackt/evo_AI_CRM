@@ -2,6 +2,7 @@ import {
   fixedRoleCan,
   type FixedRole,
 } from "../fixed-role-policy.ts";
+import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
 import { projectPlatformTaskDeadline } from "../platform-task-deadline.ts";
 
 type DashboardActor = Readonly<{
@@ -61,7 +62,7 @@ export type PlatformDashboardReaders<TActor extends DashboardActor> = Readonly<{
   ) => Promise<DashboardPage<DashboardAdmissionsTaskRow>>;
   listFinanceCases: (
     actor: TActor,
-  ) => Promise<readonly DashboardFinanceRow[]>;
+  ) => Promise<DashboardPage<DashboardFinanceRow>>;
   listConversations: (
     actor: TActor,
     options: Readonly<{ pageSize: number }>,
@@ -119,9 +120,21 @@ export type PlatformDashboardSnapshot = Readonly<{
   attentionItems: readonly PlatformDashboardAttentionItem[];
 }>;
 
+const DAY_IN_ORG_TZ = new Intl.DateTimeFormat("en-CA", {
+  timeZone: PLATFORM_ORGANIZATION_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * Просрочка даты-срока считается по суткам организации — ровно так же, как
+ * фильтр `due=overdue` доски, куда ведёт ссылка этого счёта. Дата «сегодня»
+ * не просрочена ни здесь, ни там.
+ */
 function isPastDue(value: string | null, now: number): boolean {
-  const parsed = value === null ? Number.NaN : Date.parse(value);
-  return Number.isFinite(parsed) && parsed < now;
+  if (value === null || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  return value < DAY_IN_ORG_TZ.format(new Date(now));
 }
 
 export async function readPlatformDashboardSnapshot<
@@ -244,22 +257,22 @@ export async function readPlatformDashboardSnapshot<
   }
 
   if (financeQueue) {
-    // Финансовая очередь приходит целиком, без страниц — счёты точные.
-    const blockedCount = financeQueue.filter(
+    const financeHasMore = financeQueue.hasNext === true;
+    const blockedOnPage = financeQueue.rows.filter(
       (row) => row.activeStopFactorCount > 0,
     ).length;
     cards.push({
       key: "finance",
       href: "/v3/profile",
-      loadedCount: financeQueue.length,
-      hasMore: false,
-      blockedCount,
+      loadedCount: financeQueue.rows.length,
+      hasMore: financeHasMore,
+      blockedCount: financeHasMore ? null : blockedOnPage,
     });
-    if (blockedCount > 0) {
+    if (blockedOnPage > 0) {
       attentionItems.push({
         key: "finance_stops",
         href: "/v3/profile",
-        value: blockedCount,
+        value: financeHasMore ? null : blockedOnPage,
         tone: "warn",
       });
     }

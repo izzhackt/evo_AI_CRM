@@ -13,6 +13,11 @@
  * случай, ради которого файл и заведён.
  */
 
+import type {
+  PlatformAuditAction,
+  PlatformAuditResourceType,
+} from "../platform-audit.ts";
+
 /** Каноническая стадия `platform` sales workflow. */
 const LEAD_STAGE: Record<string, string> = {
   new: "новый",
@@ -123,7 +128,7 @@ type Gender = "m" | "f" | "n";
 const EVENT_OBJECT: Record<string, Readonly<{ word: string; gender: Gender }>> = {
   lead: { word: "Лид", gender: "m" },
   sales_lead: { word: "Лид", gender: "m" },
-  student_case: { word: "Кейс", gender: "m" },
+  student_case: { word: "Дело", gender: "n" },
   application: { word: "Заявка", gender: "f" },
   visa_milestone: { word: "Визовая веха", gender: "f" },
   task: { word: "Задача", gender: "f" },
@@ -224,3 +229,212 @@ export const FUNNEL_STEP = {
   qualified: "Квалифицированы",
   handed: "Переданы",
 } as const;
+
+/* ------------------------------------------------------------------ */
+
+/** Роль с заглавной — для подписей в интерфейсе (рельс, access-denied). */
+const ROLE_TITLE: Record<string, string> = {
+  admin: "Администратор",
+  sales: "Продажи",
+  admissions: "Приёмная",
+};
+export const roleTitle = (v: string | null | undefined) => lookup(ROLE_TITLE, v);
+
+/**
+ * Статусы контура договора: шаблон (draft/approved/retired), артефакты
+ * (draft/approved/rejected) и пункты постдоговорного чек-листа.
+ */
+const CONTRACT_STATUS: Record<string, string> = {
+  approved: "Утверждён",
+  blocked: "Заблокирован",
+  delivered: "Выполнен",
+  draft: "Черновик",
+  in_progress: "В работе",
+  open: "Открыт",
+  rejected: "Отклонён",
+  retired: "Снят",
+};
+export const contractStatus = (v: string | null | undefined) =>
+  lookup(CONTRACT_STATUS, v);
+
+/**
+ * Слова журнала действий (безопасный аудит платформы).
+ *
+ * Ключи — канонические allowlist-ы аудита, и `satisfies` требует полноты:
+ * пропущенный ключ — ошибка сборки, а не сырая строка на экране. Если во
+ * времени выполнения всё же придёт неизвестное действие, строка не рисуется
+ * и попадает в счёт «без названия» внизу списка.
+ */
+const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
+  "ai.control.set": "Управление ИИ изменено",
+  "ai.draft.generate": "Черновик ответа ИИ создан",
+  "ai.draft.language.resolve": "Определён язык черновика ИИ",
+  "ai.draft.record": "Черновик ИИ записан",
+  "ai.draft.request": "Запрошен черновик ИИ",
+  "ai.draft.request.knowledge": "Подобраны знания для черновика ИИ",
+  "ai.draft.review": "Черновик ИИ проверен",
+  "ai.fact.record": "Факт ИИ записан",
+  "ai.memory.record": "Память ИИ записана",
+  "ai.qualification.record": "Квалификация ИИ записана",
+  "ai.retrieval.preview": "Предпросмотр поиска ИИ",
+  "application.create": "Заявка заведена",
+  "application.details.update": "Данные заявки изменены",
+  "application.status.change": "Статус заявки изменён",
+  "audit.export": "Журнал выгружен",
+  "autonomous.reply.control.set": "Автоответ переключён",
+  "case.create": "Дело заведено",
+  "case.curator.set": "Куратор дела назначен",
+  "case.handoff.create": "Передача дела оформлена",
+  "case.lifecycle.change": "Состояние дела изменено",
+  "case.route.change": "Маршрут дела изменён",
+  "case.update.append": "Запись добавлена в дело",
+  "catalog.import.batch.create": "Партия импорта каталога создана",
+  "catalog.import.batch.review": "Партия импорта каталога проверена",
+  "catalog.import.batch.validate": "Партия импорта каталога провалидирована",
+  "catalog.import.candidate.stage": "Кандидат каталога подготовлен",
+  "communication.conversation.create": "Диалог создан",
+  "communication.conversation.link": "Диалог привязан",
+  "communication.manual.authorize": "Ручная отправка разрешена",
+  "communication.manual.send": "Сообщение отправлено вручную",
+  "communication.manual.send.request": "Запрошена ручная отправка",
+  "communication.message.record": "Сообщение записано",
+  "communication.participant.record": "Участник диалога записан",
+  "communication.provider.observe": "Снято состояние провайдера связи",
+  "communication.waha.history.begin": "Сверка истории WhatsApp начата",
+  "communication.waha.history.complete": "Сверка истории WhatsApp завершена",
+  "communication.waha.history.pause": "Сверка истории WhatsApp приостановлена",
+  "communication.waha.history.project": "История WhatsApp спроецирована",
+  "communication.waha.project": "Сообщение WhatsApp спроецировано",
+  "communication.waha.project.retry": "Повтор проекции WhatsApp",
+  "contract.draft.generate": "Черновик договора создан",
+  "contract.draft.review": "Черновик договора проверен",
+  "contract.template.version.approve": "Версия шаблона договора утверждена",
+  "contract.template.version.create": "Версия шаблона договора создана",
+  "contract.template.version.retire": "Версия шаблона договора отозвана",
+  "country.requirement.apply": "Требования страны применены",
+  "country.requirement.source.link": "Источник требований страны привязан",
+  "country.requirement.version.approve": "Версия требований страны утверждена",
+  "country.requirement.version.create": "Версия требований страны создана",
+  "country.requirement.version.retire": "Версия требований страны отозвана",
+  "decision.backlog.create": "Решение отложено в бэклог",
+  "decision.backlog.transition": "Отложенное решение переведено",
+  "document.download.grant": "Выдан доступ к скачиванию документа",
+  "document.download.sign.authorize": "Скачивание документа подписано",
+  "document.requirement.create": "Требование к документам создано",
+  "document.requirement.retire": "Требование к документам снято",
+  "document.slot.application.link": "Документ привязан к заявке",
+  "document.slot.application.unlink": "Документ отвязан от заявки",
+  "document.slot.create": "Пункт документов создан",
+  "document.slot.custom.create": "Свой пункт документов создан",
+  "document.slot.metadata.change": "Пункт документов изменён",
+  "document.slot.remove": "Пункт документов убран",
+  "document.slot.visa.link": "Документ привязан к визе",
+  "document.slot.visa.unlink": "Документ отвязан от визы",
+  "document.upload.finalize": "Документ загружен",
+  "document.upload.reserve": "Загрузка документа начата",
+  "document.validation.attest": "Документ заверен",
+  "document.version.record": "Версия документа записана",
+  "document.version.review": "Версия документа проверена",
+  "finance.obligation.create": "Платёжное обязательство создано",
+  "finance.payment.record": "Платёж записан",
+  "finance.stop.create": "Финансовый стоп поставлен",
+  "finance.stop.resolve": "Финансовый стоп снят",
+  "knowledge.chunkset.publish": "Фрагменты базы знаний опубликованы",
+  "knowledge.version.publish": "Версия базы знаний опубликована",
+  "knowledge.version.retire": "Версия базы знаний отозвана",
+  "membership.permission.change": "Права сотрудника изменены",
+  "membership.provision": "Сотрудник заведён",
+  "membership.role.change": "Роль сотрудника изменена",
+  "membership.scope.organization.assign": "Сотруднику назначена организация",
+  "membership.scope.organization.revoke": "У сотрудника отозвана организация",
+  "membership.status.change": "Статус сотрудника изменён",
+  "messaging.integration.health.record": "Состояние мессенджера записано",
+  "notification.consent.set": "Согласие на уведомления изменено",
+  "notification.create": "Уведомление создано",
+  "notification.read": "Уведомление прочитано",
+  "organization.bootstrap": "Организация создана",
+  "post.contract.item.update": "Пункт сопровождения изменён",
+  "post.contract.items.seed": "Пункты сопровождения заведены",
+  "post.contract.report.generate": "Отчёт сопровождения создан",
+  "post.contract.report.review": "Отчёт сопровождения проверен",
+  "rbac.bundle.upgrade": "Набор прав обновлён",
+  "student.profile.upsert": "Анкета студента обновлена",
+  "task.change": "Задача изменена",
+  "task.create": "Задача создана",
+  "visa.create": "Визовое дело создано",
+  "visa.status.change": "Статус визы изменён",
+  "workflow.contract.create": "Контракт процесса создан",
+  "workflow.source.link": "Источник процесса привязан",
+  "workflow.source.register": "Источник процесса зарегистрирован",
+  "workflow.source.retire": "Источник процесса отозван",
+  "workflow.source.review": "Источник процесса проверен",
+  "workflow.version.approve": "Версия процесса утверждена",
+  "workflow.version.create": "Версия процесса создана",
+  "workflow.version.retire": "Версия процесса отозвана",
+} satisfies Readonly<Record<PlatformAuditAction, string>>;
+
+const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
+  ai_draft: "Черновик ИИ",
+  ai_draft_request: "Запрос черновика ИИ",
+  ai_draft_request_knowledge_selection: "Подбор знаний для черновика ИИ",
+  ai_retrieval_request: "Поисковый запрос ИИ",
+  approved_knowledge_chunk_set: "Набор фрагментов базы знаний",
+  approved_knowledge_version: "Версия базы знаний",
+  audit_export: "Экспорт журнала",
+  case_task: "Задача по делу",
+  catalog_import_batch: "Партия импорта каталога",
+  catalog_import_candidate: "Кандидат импорта каталога",
+  communication_conversation: "Диалог",
+  communication_message: "Сообщение",
+  contract_template_version: "Версия шаблона договора",
+  conversation_ai_control: "Управление ИИ в диалоге",
+  conversation_ai_fact: "Факт ИИ по диалогу",
+  conversation_ai_memory: "Память ИИ по диалогу",
+  conversation_ai_qualification: "Квалификация ИИ по диалогу",
+  conversation_participant: "Участник диалога",
+  country_requirement_version: "Версия требований страны",
+  country_requirement_version_source: "Источник требований страны",
+  decision_backlog: "Отложенное решение",
+  document_requirement: "Требование к документам",
+  document_slot: "Пункт чеклиста документов",
+  document_version: "Версия документа",
+  durable_work_item: "Фоновая задача",
+  manual_send_authorization: "Разрешение ручной отправки",
+  messaging_integration_health_event: "Состояние мессенджера",
+  notification: "Уведомление",
+  notification_consent: "Согласие на уведомления",
+  organization: "Организация",
+  organization_membership: "Членство в организации",
+  payment_event: "Платёж",
+  payment_obligation: "Платёжное обязательство",
+  post_contract_item: "Пункт сопровождения",
+  post_contract_item_set: "Набор пунктов сопровождения",
+  post_contract_report: "Отчёт сопровождения",
+  provider_reconciliation_event: "Сверка с провайдером",
+  source_registry: "Реестр источников",
+  stop_factor: "Финансовый стоп",
+  student_case: "Дело студента",
+  student_case_contract_draft: "Черновик договора",
+  student_case_update: "Запись в деле",
+  student_profile: "Анкета студента",
+  university_application: "Заявка в вуз",
+  visa_case: "Визовое дело",
+  waha_history_reconciliation_run: "Сверка истории WhatsApp",
+  workflow_contract: "Контракт процесса",
+  workflow_contract_version: "Версия контракта процесса",
+  workflow_contract_version_source: "Источник контракта процесса",
+} satisfies Readonly<Record<PlatformAuditResourceType, string>>;
+
+/** Категория актора безопасного журнала; персональных данных в нём нет. */
+const JOURNAL_ACTOR_WORD: Readonly<Record<string, string>> = {
+  Staff: "сотрудник",
+  Service: "сервис",
+  System: "система",
+};
+
+export const journalEvent = (v: string | null | undefined) =>
+  lookup(JOURNAL_EVENT_WORD, v);
+export const journalObject = (v: string | null | undefined) =>
+  lookup(JOURNAL_OBJECT_WORD, v);
+export const journalActor = (v: string | null | undefined) =>
+  lookup(JOURNAL_ACTOR_WORD, v);

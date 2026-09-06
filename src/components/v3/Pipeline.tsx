@@ -172,7 +172,7 @@ export function Pipeline({
                 role="group"
                 aria-label={`Стадия «${stage.title}»`}
                 tabIndex={0}
-                className="flex max-h-[70dvh] flex-col overflow-y-auto overscroll-contain rounded-card"
+                className="flex flex-col rounded-card @2xl:max-h-[70dvh] @2xl:overflow-y-auto"
               >
                 <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-surface-2 px-3.5 pb-2 pt-3">
                   <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-fg">

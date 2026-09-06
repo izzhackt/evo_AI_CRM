@@ -122,7 +122,16 @@ function awaitingReplyFor(
   if (messageCursor !== null) return null;
   const newest = messages.at(-1);
   if (newest === undefined || newest.direction !== "inbound") return null;
-  return formatWaitingRu(newest.createdAt);
+  // Ожидание меряется от ПЕРВОГО входящего после нашего последнего ответа:
+  // каждое новое сообщение клиента не обнуляет его ожидание, иначе самый
+  // настойчивый клиент выглядел бы самым свежим.
+  let earliestUnanswered = newest;
+  for (let index = messages.length - 2; index >= 0; index -= 1) {
+    const message = messages[index]!;
+    if (message.direction !== "inbound") break;
+    earliestUnanswered = message;
+  }
+  return formatWaitingRu(earliestUnanswered.createdAt);
 }
 
 function queueSearchParams(

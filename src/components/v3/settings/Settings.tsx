@@ -54,7 +54,6 @@ export function Settings({
   auditExportEnabled: boolean;
   journalFacets: Readonly<{
     objectTypes: readonly Readonly<{ key: string; count: number }>[];
-    roles: readonly string[];
   }>;
   journalFilters: Readonly<{ objectType?: string; role?: string }>;
   journalHrefFor: (next: Readonly<{ objectType?: string; role?: string }>) => string;

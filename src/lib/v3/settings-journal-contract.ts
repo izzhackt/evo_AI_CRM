@@ -1,10 +1,13 @@
 import { PLATFORM_AUDIT_RESOURCE_TYPES } from "../platform-audit.ts";
 
-const AUDIT_ACTOR_LABELS = ["Staff", "Service", "System"] as const;
-
+/**
+ * Фильтр журнала — только тип объекта. Фильтр по актору здесь был и снят:
+ * аудит-API не умеет фильтровать по актору на сервере, а клиентский отбор
+ * поверх серверной страницы честно не работает — страница из 60 строк без
+ * искомой роли утверждала бы «событий нет» про журнал, где они есть.
+ */
 export type JournalFilters = Readonly<{
   objectType?: string;
-  role?: string;
 }>;
 
 function isAuditResourceType(
@@ -13,17 +16,10 @@ function isAuditResourceType(
   return value !== undefined && (PLATFORM_AUDIT_RESOURCE_TYPES as readonly string[]).includes(value);
 }
 
-function isAuditActorLabel(
-  value: string | undefined,
-): value is (typeof AUDIT_ACTOR_LABELS)[number] {
-  return value !== undefined && (AUDIT_ACTOR_LABELS as readonly string[]).includes(value);
-}
-
 export function normalizeJournalFilters(filters: JournalFilters): JournalFilters {
   return {
     ...(isAuditResourceType(filters.objectType)
       ? { objectType: filters.objectType }
       : {}),
-    ...(isAuditActorLabel(filters.role) ? { role: filters.role } : {}),
   };
 }

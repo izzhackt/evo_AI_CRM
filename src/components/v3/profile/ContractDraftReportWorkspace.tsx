@@ -13,30 +13,11 @@ import type {
   PlatformCaseContractWorkspace,
   PlatformContractMutationOutcome,
 } from "@/lib/platform-contract-workflow";
-
-/* Все три словаря статусов этого экрана: шаблон (draft/approved/retired),
-   артефакты (draft/approved/rejected), пункты чек-листа. Неизвестный ключ
-   не рисуется. */
-const STATUS_LABEL: Record<string, string> = {
-  approved: "Утверждён",
-  blocked: "Заблокирован",
-  delivered: "Выполнен",
-  draft: "Черновик",
-  in_progress: "В работе",
-  open: "Открыт",
-  rejected: "Отклонён",
-  retired: "Снят",
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  admin: "администратор",
-  admissions: "приёмная",
-  sales: "продажи",
-};
+import { contractStatus, role as roleWord } from "@/lib/v3/wording";
 
 function StatusBadge({ value }: { value: string }) {
-  const label = STATUS_LABEL[value];
-  if (!label) return null;
+  const label = contractStatus(value);
+  if (label === null) return null;
   return <Badge value={value} label={label} />;
 }
 
@@ -530,7 +511,7 @@ function ReportArtifact({
                 <StatusBadge value={item.status} />
               </div>
               <p className="mt-1 text-2xs text-fg-3">
-                ответственный: {ROLE_LABEL[item.ownerRole] ?? "—"} · правка {item.revision}
+                ответственный: {roleWord(item.ownerRole) ?? "—"} · правка {item.revision}
               </p>
             </div>
             <dl className="grid gap-2 text-xs">
@@ -781,7 +762,7 @@ export function ContractDraftReportWorkspace({
                 <div>
                   <h4 className="text-base font-bold text-fg">{item.label}</h4>
                   <p className="mt-1 font-mono text-2xs text-fg-3">
-                    {item.itemKey} · revision {item.revision} · {templateLabel(
+                    правка {item.revision} · {templateLabel(
                       templateById.get(item.contractTemplateVersionId),
                       item.contractTemplateVersionId,
                     )}
@@ -790,9 +771,9 @@ export function ContractDraftReportWorkspace({
                 <StatusBadge value={item.status} />
               </div>
               <dl className="grid gap-3 sm:grid-cols-3">
-                <div><dt className={labelCls}>Owner</dt><dd className="break-all font-mono text-xs text-fg-2">{item.ownerMembershipId ?? item.ownerRole}</dd></div>
+                <div><dt className={labelCls}>Ответственный</dt><dd className="text-xs text-fg-2">{roleWord(item.ownerRole) ?? "—"}</dd></div>
                 <div><dt className={labelCls}>Следующее действие</dt><dd className="max-w-[56ch] whitespace-pre-wrap text-xs text-fg-2">{item.nextAction ?? "—"}</dd></div>
-                <div><dt className={labelCls}>Evidence</dt><dd className="break-all text-xs text-fg-2">{item.evidenceRef ?? "—"}</dd></div>
+                <div><dt className={labelCls}>Подтверждение</dt><dd className="break-all text-xs text-fg-2">{item.evidenceRef ?? "—"}</dd></div>
               </dl>
               {workspace.canManagePostContract ? <PostContractItemForm workspace={workspace} item={item} action={actions.updateItem} requestIdFor={requestIdFor} /> : null}
             </article>
@@ -804,7 +785,7 @@ export function ContractDraftReportWorkspace({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 id="post-contract-report-title" className="text-base font-bold text-fg">Версии постдоговорного отчёта</h3>
-            <p className="mt-1 text-xs leading-4 text-fg-3">Каждая версия фиксирует delivered/open/blocked counts, owner, evidence и next action на момент генерации.</p>
+            <p className="mt-1 text-xs leading-4 text-fg-3">Каждая версия фиксирует статусы пунктов, ответственных, подтверждения и следующие действия на момент генерации.</p>
           </div>
         </div>
         {workspace.canManagePostContract ? (

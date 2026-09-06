@@ -218,14 +218,14 @@ export function CalendarCreateTaskForm({
   if (cases.length === 0) {
     return (
       <p className="text-sm text-fg-2" role="status">
-        Нет активного Student 360: задача не может быть создана без канонического кейса.
+        Нет активного дела — задачу не к чему привязать.
       </p>
     );
   }
   if (availableAssignees.length === 0) {
     return (
       <p className="text-sm text-danger" role="alert">
-        Нет доступного сотрудника Admissions. Задача не создана.
+        Нет доступного сотрудника приёмной. Задача не создана.
       </p>
     );
   }
@@ -317,8 +317,8 @@ export function CalendarCreateTaskForm({
         <div className="space-y-1 md:col-span-2 xl:col-span-3">
           {casesHaveMore ? (
             <p className="text-xs text-fg-3" role="status">
-              Показаны первые 100 активных Student 360. Для остальных используйте
-              поиск в Student 360.
+              Показаны первые 100 активных дел. Остальные ищутся в разделе
+              «Студенты».
             </p>
           ) : null}
           <Feedback state={state} />

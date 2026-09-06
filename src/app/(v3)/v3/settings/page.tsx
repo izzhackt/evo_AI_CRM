@@ -2,6 +2,8 @@ import { PartShell } from "@/components/v3/PartShell";
 import { Settings } from "@/components/v3/settings/Settings";
 import { isSectionKey } from "@/components/v3/settings/types";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { redirect } from "next/navigation";
+
 import { normalizeJournalFilters } from "@/lib/v3/settings-journal-contract";
 import {
   readAuditExportEnabled,
@@ -25,7 +27,6 @@ export default async function SettingsPart({
   searchParams: Promise<{
     section?: string;
     object?: string;
-    role?: string;
     snapshot?: string;
     snapshotId?: string;
     cursor?: string;
@@ -36,12 +37,11 @@ export default async function SettingsPart({
   const section = isSectionKey(params.section) ? params.section : "state";
   const journalFilters = normalizeJournalFilters({
     objectType: params.object,
-    role: params.role,
   });
   const actor = await requireV3PageActor("/v3/settings");
   const isAdmin = actor.presentationRole === "admin";
 
-  const [health, integrations, journal, journalFacets, gates, platform] = await Promise.all([
+  const [health, integrations, journalRead, journalFacets, gates, platform] = await Promise.all([
     readHealth(actor),
     readIntegrations(actor),
     isAdmin
@@ -51,13 +51,23 @@ export default async function SettingsPart({
           cursorCreatedAt: params.cursor,
           cursorId: params.cursorId,
         })
-      : Promise.resolve([]),
+      : Promise.resolve({ entries: [], cursorHonored: true }),
     isAdmin
       ? readJournalFacets(actor)
-      : Promise.resolve({ objectTypes: [], roles: [] }),
+      : Promise.resolve({ objectTypes: [] }),
     readGateFacts(actor),
     readPlatformFact(),
   ]);
+
+  // Протухший курсор из адреса читается первой страницей; адрес при этом
+  // обязан перестать врать — курсор снимается редиректом.
+  if (!journalRead.cursorHonored) {
+    const clean = new URLSearchParams();
+    clean.set("section", "journal");
+    if (params.object) clean.set("object", params.object);
+    redirect(`/v3/settings?${clean.toString()}`);
+  }
+  const journal = journalRead.entries;
 
   const query = (next: Record<string, string | undefined>) => {
     const search = new URLSearchParams();
@@ -87,7 +97,6 @@ export default async function SettingsPart({
         // самым честно возвращает на первую страницу.
         journalHrefFor={(next: Readonly<{
           objectType?: string;
-          role?: string;
           snapshotAt?: string;
           snapshotId?: string;
           cursorAt?: string;
@@ -96,7 +105,6 @@ export default async function SettingsPart({
           query({
             section: "journal",
             object: next.objectType,
-            role: next.role,
             snapshot: next.snapshotAt,
             snapshotId: next.snapshotId,
             cursor: next.cursorAt,

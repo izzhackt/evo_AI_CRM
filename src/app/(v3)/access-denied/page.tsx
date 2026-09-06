@@ -5,10 +5,10 @@ import {
   fixedRoleCanAccessRoute,
   fixedRoleHomeRoute,
   isFixedRoleRoute,
-  type FixedRole,
   type FixedRoleRoute,
 } from "@/lib/fixed-role-policy";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import { roleTitle } from "@/lib/v3/wording";
 
 export const metadata = { title: "Нет доступа · EVO" };
 
@@ -20,12 +20,6 @@ const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/v3/calendar": "Календарь",
   "/v3/knowledge": "База знаний",
   "/v3/settings": "Настройки",
-};
-
-const ROLE_LABELS: Record<FixedRole, string> = {
-  admin: "Администратор",
-  sales: "Продажи",
-  admissions: "Приёмная",
 };
 
 function firstValue(value: string | string[] | undefined): string | null {
@@ -72,7 +66,7 @@ export default async function AccessDeniedPage({
           <div>
             <dt className="text-xs text-fg-3">Выбранная роль</dt>
             <dd className="mt-1 font-medium text-fg">
-              {ROLE_LABELS[actor.presentationRole]}
+              {roleTitle(actor.presentationRole)}
             </dd>
           </div>
         </dl>

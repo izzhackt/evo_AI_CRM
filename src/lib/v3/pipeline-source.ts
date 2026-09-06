@@ -17,9 +17,9 @@ import { FUNNEL_STEP, leadStage } from "@/lib/v3/wording";
 const PAGE_SIZE = 100;
 const OWNER_PAGE_SIZE = 100;
 /**
- * Верхняя граница пагинации. Доска, которой мало 4000 лидов, — это уже не
- * доска; молчаливое усечение спрятало бы лид, поэтому предел падает с ошибкой,
- * как и остальные аномалии пагинации ниже.
+ * Верхняя граница пагинации: 4000 лидов. Дальше чтение честно останавливается
+ * с признаком truncated — доска показывает факт усечения, а когорта главной
+ * отказывается считать по неполным данным.
  */
 const MAX_LEAD_PAGES = 40;
 
@@ -29,7 +29,12 @@ const MAX_LEAD_PAGES = 40;
  */
 export type PipelineBoardFilters = Readonly<{
   query: string | null;
-  stage: PlatformSalesStage | "all";
+  /**
+   * «handed_off» — производная колонка: в базе переданный лид остаётся в
+   * своей канонической стадии, а колонку определяет связанное дело. Поэтому
+   * фильтр по ней применяется после чтения, а не в RPC.
+   */
+  stage: PlatformSalesStage | "handed_off" | "all";
   due: "overdue" | "today" | "all";
   assignment: "unassigned" | "mine" | "all";
   ownerMembershipId: string | null;
@@ -132,10 +137,16 @@ function dueState(
  * so a filtered read pays for the matching pages only; the board still renders
  * every stage column and simply finds some of them empty.
  */
+export type CanonicalSalesLeadsRead = Readonly<{
+  rows: readonly PlatformSalesLeadRow[];
+  /** true — верхняя граница чтения достигнута, дальше лиды не читались. */
+  truncated: boolean;
+}>;
+
 export async function readAllCanonicalSalesLeads(
   actor: PlatformActor,
   filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
-): Promise<readonly PlatformSalesLeadRow[]> {
+): Promise<CanonicalSalesLeadsRead> {
   const rows: PlatformSalesLeadRow[] = [];
   const seenLeadIds = new Set<string>();
   const seenCursors = new Set<string>();
@@ -145,7 +156,7 @@ export async function readAllCanonicalSalesLeads(
     const page = await listPlatformSalesLeads(actor, {
       pageSize: PAGE_SIZE,
       cursor,
-      stageFilter: filters.stage,
+      stageFilter: filters.stage === "handed_off" ? "all" : filters.stage,
       assignmentFilter: filters.assignment,
       dueFilter: RPC_DUE_FILTER[filters.due],
       ...(filters.ownerMembershipId
@@ -162,7 +173,9 @@ export async function readAllCanonicalSalesLeads(
       rows.push(row);
     }
 
-    if (!page.hasNext) return Object.freeze(rows);
+    if (!page.hasNext) {
+      return Object.freeze({ rows: Object.freeze(rows), truncated: false });
+    }
     if (!page.nextCursor) {
       throw new Error("Canonical sales pagination stopped without a cursor.");
     }
@@ -175,17 +188,22 @@ export async function readAllCanonicalSalesLeads(
     cursor = page.nextCursor;
   }
 
-  throw new Error("Canonical sales pagination exceeded the supported volume.");
+  return Object.freeze({ rows: Object.freeze(rows), truncated: true });
 }
+
+export type PipelineBoardRead = Readonly<{
+  leads: readonly PipelineLead[];
+  truncated: boolean;
+}>;
 
 export async function readPipelineLeads(
   actor: PlatformActor,
   filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
-): Promise<readonly PipelineLead[]> {
-  const rows = await readAllCanonicalSalesLeads(actor, filters);
+): Promise<PipelineBoardRead> {
+  const read = await readAllCanonicalSalesLeads(actor, filters);
   const today = organizationDate(new Date());
 
-  return rows.map((row) => ({
+  const mapped = read.rows.map((row) => ({
     id: row.leadId,
     name:
       row.clientDisplayName ??
@@ -208,4 +226,17 @@ export async function readPipelineLeads(
       workflowVersion: row.workflowVersion,
     }),
   } satisfies PipelineLead));
+
+  // Фильтр стадии сверяется с ПРОИЗВОДНОЙ стадией: переданный лид живёт в
+  // колонке «Переданы» независимо от stage_key, и наоборот — фильтр по
+  // канонической стадии не должен вываливать переданных в их старую колонку.
+  const leads =
+    filters.stage === "all"
+      ? mapped
+      : mapped.filter((lead) => lead.stageKey === filters.stage);
+
+  return Object.freeze({
+    leads: Object.freeze(leads),
+    truncated: read.truncated,
+  });
 }

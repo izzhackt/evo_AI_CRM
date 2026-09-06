@@ -237,12 +237,21 @@ export function TimeGrid({
   // Прокрутка к якорному часу — эффект, а не адрес: фрагмента в ссылках нет.
   // Ключ склеен из показанного дня и часа, поэтому клик по карточке (чужое
   // состояние, тот же день) прокрутку не повторяет, а переход на соседний
-  // день — повторяет.
+  // день — повторяет. Прокручивается СВОЯ область дня, а не окно страницы:
+  // окно унесло бы за верх экрана строку об обрыве очереди и задачи без срока.
   const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const dayScrollRef = useRef<HTMLDivElement | null>(null);
   const anchorKey = anchor === null ? null : `${days[0]}:${anchor}`;
   useEffect(() => {
     if (anchorKey === null) return;
-    anchorRef.current?.scrollIntoView({ block: "start" });
+    const container = dayScrollRef.current;
+    const target = anchorRef.current;
+    if (!container || !target) return;
+    container.scrollTop =
+      target.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop -
+      8;
   }, [anchorKey]);
 
   const at = (day: Day, hour: number) =>
@@ -329,7 +338,17 @@ export function TimeGrid({
       {grid}
     </div>
   ) : (
-    grid
+    // Дню — своя вертикальная прокрутка: сетка суток выше экрана, а якорный
+    // час не должен утаскивать всю страницу вместе со строками над сеткой.
+    <div
+      ref={dayScrollRef}
+      className="max-h-[75dvh] max-w-full overflow-y-auto"
+      role="group"
+      aria-label={label}
+      tabIndex={0}
+    >
+      {grid}
+    </div>
   );
 }
 

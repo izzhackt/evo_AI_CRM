@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { allDayDate } from "@/lib/v3/wording";
 import { useId, useState } from "react";
 
 import { Icon } from "@/components/icons";
@@ -24,7 +25,6 @@ import {
   periodLabel,
   stepDay,
   stepLabel,
-  taskCountLabel,
   timeLabel,
 } from "./types";
 
@@ -42,7 +42,7 @@ export function Calendar({
   nowMinutes,
   days,
   tasks,
-  tasksShownFirst,
+  tasksTruncatedAfter,
   periodComplete,
   cases,
   casesHaveMore,
@@ -62,7 +62,7 @@ export function Calendar({
   days: readonly Day[];
   tasks: readonly CalendarTask[];
   /** Очередь отдала первые N задач по сроку; null — прочитаны все. */
-  tasksShownFirst: number | null;
+  tasksTruncatedAfter: string | null;
   /** Видимый отрезок дочитан: пустой период — факт, а не обрыв чтения. */
   periodComplete: boolean;
   cases: readonly CalendarCaseOption[];
@@ -94,6 +94,9 @@ export function Calendar({
   const anchorMinute = view === "day"
     ? Math.min(Math.max(Math.floor(nowMinutes / 60) * 60, first), last - 60)
     : null;
+
+  const truncatedAfterLabel =
+    tasksTruncatedAfter !== null ? allDayDate(tasksTruncatedAfter) : null;
 
   const href = (nextView: CalendarView, nextDay: Day) =>
     `${basePath}?view=${nextView}&date=${nextDay}`;
@@ -197,7 +200,7 @@ export function Calendar({
                 href={`/v3/profile?case=${encodeURIComponent(open.studentCaseId)}`}
                 className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent hover:underline"
               >
-                Открыть Student 360
+                Открыть раздел «Студенты»
               </Link>
               {open.details ? <p className="mt-3 text-sm leading-6 text-fg">{open.details}</p> : null}
               {open.cancelReason ? (
@@ -243,10 +246,10 @@ export function Calendar({
       ) : null}
 
       {/* Канонический RPC отдаёт одну страницу очереди без курсора: когда
-          задач больше, обрыв — видимый факт, а не тихая потеря хвоста. */}
-      {tasksShownFirst !== null ? (
+          отрезок не дочитан, обрыв — видимый факт, а не тихая потеря хвоста. */}
+      {truncatedAfterLabel !== null ? (
         <p className="px-1 text-xs text-fg-3" role="status">
-          Показаны первые {taskCountLabel(tasksShownFirst)} с ближайшими сроками.
+          Задачи со сроком после {truncatedAfterLabel} не прочитаны.
         </p>
       ) : null}
 

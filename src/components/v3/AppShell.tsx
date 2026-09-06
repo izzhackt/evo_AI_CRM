@@ -13,6 +13,7 @@ import {
   selectStaffRolePreviewAction,
 } from "@/lib/staff-auth-actions";
 import { EvoMark } from "@/components/platform/brand/EvoMark";
+import { roleTitle } from "@/lib/v3/wording";
 
 /**
  * Оболочка продукта.
@@ -37,11 +38,7 @@ const SECTIONS = [
   label: string;
 }>[];
 
-const ROLE_LABELS = {
-  admin: "Администратор",
-  sales: "Продажи",
-  admissions: "Приёмная",
-} as const satisfies Record<FixedRole, string>;
+const FIXED_ROLES = ["admin", "sales", "admissions"] as const satisfies readonly FixedRole[];
 
 export function AppShell({
   children,
@@ -105,7 +102,7 @@ export function AppShell({
             data-role={presentationRole}
             data-authority-role={authorityRole}
           >
-            {ROLE_LABELS[presentationRole]}
+            {roleTitle(presentationRole)}
           </span>
         </p>
 
@@ -122,7 +119,7 @@ export function AppShell({
               className="mt-2 grid grid-cols-3 gap-1 md:grid-cols-1"
               data-testid="admin-role-preview"
             >
-              {(Object.keys(ROLE_LABELS) as FixedRole[]).map((role) => (
+              {FIXED_ROLES.map((role) => (
                 <button
                   key={role}
                   type="submit"
@@ -132,7 +129,7 @@ export function AppShell({
                   aria-pressed={presentationRole === role}
                   className="min-h-10 rounded-nav border border-control-edge px-2 text-xs text-fg-2 transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
                 >
-                  {ROLE_LABELS[role]}
+                  {roleTitle(role)}
                 </button>
               ))}
             </form>
@@ -141,7 +138,7 @@ export function AppShell({
                 className="mt-2 px-1 text-xs leading-5 text-accent"
                 data-testid="preview-active"
               >
-                Администратор видит интерфейс роли «{ROLE_LABELS[presentationRole]}».
+                Администратор видит интерфейс роли «{roleTitle(presentationRole)}».
               </p>
             ) : null}
           </section>

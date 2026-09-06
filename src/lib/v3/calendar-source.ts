@@ -48,12 +48,12 @@ export async function readNowMinutes(): Promise<number> {
 export type CalendarTasksRead = Readonly<{
   tasks: readonly CalendarTask[];
   /**
-   * Очередь отдала только первые N задач по сроку; null — прочитаны все.
-   * Канонический RPC читает одну страницу без курсора и без фильтра по
-   * датам, поэтому добрать хвост отсюда нечем: обрыв выносится на экран
-   * фактом, а не роняет страницу.
+   * День срока последней прочитанной задачи, когда очередь оборвана внутри
+   * отрезка; null — обрыва нет. Канонический RPC читает одну страницу без
+   * курсора и без фильтра по датам, поэтому добрать хвост отсюда нечем:
+   * обрыв выносится на экран фактом, а не роняет страницу.
    */
-  shownFirst: number | null;
+  truncatedAfter: Day | null;
   /**
    * Отрезок [from, to] дочитан до конца: «на этот период задач нет» — правда,
    * а не обрыв чтения. Очередь отсортирована по сроку, поэтому обрыв на дне
@@ -78,15 +78,37 @@ export async function readCalendarTasks(
   });
 
   const now = new Date();
-  let shownFirst: number | null = null;
+
+  // Вывод «отрезок дочитан» держится на сортировке очереди по сроку.
+  // Предположение проверяется, а не берётся на веру: сломанный порядок
+  // означает, что по хвосту ничего сказать нельзя, и чтение считается
+  // оборванным (consеrvативно, в пользу честности).
+  let orderedByDeadline = true;
+  let previousDay: Day | null = null;
+  let seenUndated = false;
+  for (const row of queue.rows) {
+    const day = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now).day;
+    if (day === null) {
+      seenUndated = true;
+      continue;
+    }
+    if (seenUndated || (previousDay !== null && day < previousDay)) {
+      orderedByDeadline = false;
+      break;
+    }
+    previousDay = day;
+  }
+
+  let truncatedAfter: Day | null = null;
   let periodComplete = true;
   if (queue.hasNext) {
     const tail = queue.rows[queue.rows.length - 1];
     const tailDay = tail
       ? projectPlatformTaskDeadline(tail.dueOn, tail.dueAt, now).day
       : null;
-    shownFirst = queue.rows.length;
-    periodComplete = tailDay === null || tailDay > to;
+    periodComplete =
+      orderedByDeadline && (tailDay === null || tailDay > to);
+    if (!periodComplete) truncatedAfter = tailDay;
   }
 
   const tasks = queue.rows.flatMap((row) => {
@@ -119,7 +141,7 @@ export async function readCalendarTasks(
 
   return Object.freeze({
     tasks: Object.freeze(tasks),
-    shownFirst,
+    truncatedAfter,
     periodComplete,
   });
 }
@@ -160,7 +182,7 @@ async function readActiveCases(
 export type CalendarWorkspace = Readonly<{
   tasks: readonly CalendarTask[];
   /** Очередь отдала первые N задач по сроку; null — прочитаны все. */
-  tasksShownFirst: number | null;
+  tasksTruncatedAfter: Day | null;
   /** Видимый отрезок дочитан: пустой период — факт, а не обрыв чтения. */
   periodComplete: boolean;
   cases: readonly CalendarCaseOption[];
@@ -194,7 +216,7 @@ export async function readCalendarWorkspace(
 
   return Object.freeze({
     tasks: read.tasks,
-    tasksShownFirst: read.shownFirst,
+    tasksTruncatedAfter: read.truncatedAfter,
     periodComplete: read.periodComplete,
     cases: cases.rows,
     casesHaveMore: cases.hasNext,

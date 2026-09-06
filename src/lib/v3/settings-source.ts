@@ -322,6 +322,8 @@ type AuditPage = Readonly<{
   snapshotId: string | null;
   nextCursorCreatedAt: string | null;
   nextCursorId: string | null;
+  /** false — присланный курсор протух, и страница прочитана с начала. */
+  cursorHonored: boolean;
 }>;
 
 const EMPTY_AUDIT_PAGE: AuditPage = Object.freeze({
@@ -331,6 +333,7 @@ const EMPTY_AUDIT_PAGE: AuditPage = Object.freeze({
   snapshotId: null,
   nextCursorCreatedAt: null,
   nextCursorId: null,
+  cursorHonored: true,
 });
 
 async function loadAuditRows(
@@ -361,6 +364,7 @@ async function loadAuditRows(
       snapshotId: result.snapshotId,
       nextCursorCreatedAt: result.nextCursorCreatedAt,
       nextCursorId: result.nextCursorId,
+      cursorHonored: true,
     };
   } catch (error) {
     // The canonical audit is feature-gated. Disabled/unavailable yields no
@@ -379,7 +383,8 @@ async function loadAuditRows(
       error instanceof PlatformAuditActionError &&
       error.kind === "invalid"
     ) {
-      return loadAuditRows(actor, objectType, pageSize, null);
+      const retried = await loadAuditRows(actor, objectType, pageSize, null);
+      return { ...retried, cursorHonored: false };
     }
     throw error;
   }
@@ -400,11 +405,21 @@ function formatAuditTime(value: string): string {
   }).format(parsed).replace(",", "");
 }
 
+export type JournalRead = Readonly<{
+  entries: readonly JournalEntry[];
+  /**
+   * false — курсор из адреса не был применён (снимок протух), показана
+   * первая страница. Страница обязана снять курсор из адреса редиректом:
+   * адрес, который врёт о содержимом, хуже потерянной позиции.
+   */
+  cursorHonored: boolean;
+}>;
+
 export async function readJournal(
   actor: ActivePlatformActor,
   filters: JournalFilters = {},
   cursor?: Readonly<Partial<JournalCursor>>,
-): Promise<readonly JournalEntry[]> {
+): Promise<JournalRead> {
   const normalizedFilters = normalizeJournalFilters(filters);
   const page = await loadAuditRows(
     actor,
@@ -413,11 +428,6 @@ export async function readJournal(
     normalizeJournalCursor(cursor),
   );
   const entries: JournalEntry[] = page.rows
-    .filter(
-      (row) =>
-        normalizedFilters.role === undefined ||
-        row.actorDisplayLabel === normalizedFilters.role,
-    )
     .map((row) => ({
       kind: "event" as const,
       id: row.auditEventId,
@@ -447,30 +457,26 @@ export async function readJournal(
       cursorId: page.nextCursorId,
     });
   }
-  return entries;
+  return { entries, cursorHonored: page.cursorHonored };
 }
 
 export async function readJournalFacets(
   actor: ActivePlatformActor,
 ): Promise<Readonly<{
   objectTypes: readonly Readonly<{ key: string; count: number }>[];
-  roles: readonly string[];
 }>> {
   const result = await loadAuditRows(actor, undefined, AUDIT_PAGE_SIZE);
   // Counts over a truncated page would look exact. Omit the facets instead.
-  if (result.hasMore) return { objectTypes: [], roles: [] };
+  if (result.hasMore) return { objectTypes: [] };
 
   const counts = new Map<string, number>();
-  const roles = new Set<string>();
   for (const row of result.rows) {
     counts.set(row.resourceType, (counts.get(row.resourceType) ?? 0) + 1);
-    roles.add(row.actorDisplayLabel);
   }
   return {
     objectTypes: [...counts.entries()]
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
       .map(([key, count]) => ({ key, count })),
-    roles: [...roles].sort(),
   };
 }
 

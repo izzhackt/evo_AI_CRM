@@ -168,8 +168,10 @@ export function Inbox({
               <Icon name="arrow-left" size={16} />
             </Link>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h2 className="min-w-0 truncate text-md font-bold text-fg">
+              {/* Имя не сжимается первым: при нехватке ширины пилюля
+                  переносится на свою строку, а заголовок остаётся целым. */}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h2 className="min-w-0 text-md font-bold text-fg">
                   {open.person}
                 </h2>
                 {open.awaitingReplyFor ? (

@@ -121,11 +121,11 @@ test("P6B Admin Sales preview reads only Sales and messaging outcomes", async ()
         return {
           rows: [
             {
-              nextActionDueDate: "2026-09-02T12:00:00.000Z",
+              nextActionDueDate: "2026-09-02",
               currentOwnerMembershipId: null,
             },
             {
-              nextActionDueDate: "2026-09-04T12:00:00.000Z",
+              nextActionDueDate: "2026-09-04",
               currentOwnerMembershipId: "10000000-0000-4000-8000-000000000006",
             },
           ],
@@ -178,6 +178,53 @@ test("P6B Admin Sales preview reads only Sales and messaging outcomes", async ()
   );
 });
 
+test("P6B page-limited queues surface honest partial counts", async () => {
+  const snapshot = await readPlatformDashboardSnapshot(actor("sales"), {
+    now: Date.parse("2026-09-03T12:00:00.000Z"),
+    readers: {
+      listSalesLeads: async () => ({
+        rows: [
+          { nextActionDueDate: "2026-09-01", currentOwnerMembershipId: null },
+          {
+            nextActionDueDate: "2026-09-30",
+            currentOwnerMembershipId: "10000000-0000-4000-8000-000000000006",
+          },
+        ],
+        nextCursor: null,
+        hasNext: true,
+      }),
+      listStudentCases: () => forbidden("admissions cases"),
+      listAdmissionsTasks: () => forbidden("admissions tasks"),
+      listFinanceCases: () => forbidden("finance"),
+      listConversations: async () => ({
+        rows: [{ queue: "sales" }],
+        nextCursor: null,
+        hasNext: false,
+      }),
+    },
+  });
+
+  const sales = snapshot.cards.find((card) => card.key === "sales");
+  assert.deepEqual(sales, {
+    key: "sales",
+    href: "/v3/pipeline",
+    loadedCount: 2,
+    hasMore: true,
+    overdueCount: null,
+    unassignedCount: null,
+  });
+  // Отклонение с неполной страницы остаётся сигналом без числа и
+  // поднимается выше точных счётов.
+  assert.deepEqual(
+    snapshot.attentionItems.map(({ key, value }) => ({ key, value })),
+    [
+      { key: "sales_overdue", value: null },
+      { key: "sales_unassigned", value: null },
+      { key: "whatsapp_open", value: 1 },
+    ],
+  );
+});
+
 test("P6B Admin Admissions preview aggregates overdue work and finance stops", async () => {
   const calls = [];
   const snapshot = await readPlatformDashboardSnapshot(actor("admissions"), {
@@ -223,7 +270,10 @@ test("P6B Admin Admissions preview aggregates overdue work and finance stops", a
       },
       listFinanceCases: async () => {
         calls.push("finance");
-        return [{ activeStopFactorCount: 2 }, { activeStopFactorCount: 0 }];
+        return {
+          rows: [{ activeStopFactorCount: 2 }, { activeStopFactorCount: 0 }],
+          hasNext: false,
+        };
       },
       listConversations: async () => {
         calls.push("whatsapp");

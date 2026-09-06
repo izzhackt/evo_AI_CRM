@@ -13,6 +13,17 @@ import {
 } from "@/lib/platform-sales-stage-entries";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { readAllCanonicalSalesLeads } from "@/lib/v3/pipeline-source";
+
+/** Когорта считается только по полному чтению: усечённые числа врали бы. */
+async function readAllCanonicalSalesLeadsComplete(
+  actor: Parameters<typeof readAllCanonicalSalesLeads>[0],
+) {
+  const read = await readAllCanonicalSalesLeads(actor);
+  if (read.truncated) {
+    throw new Error("Canonical sales pagination exceeded the supported volume.");
+  }
+  return read.rows;
+}
 import { FUNNEL_STEP } from "@/lib/v3/wording";
 
 const STAGE_ENTRY_PAGE_SIZE = 100;
@@ -406,7 +417,7 @@ export async function readPeriodDashboard(
   period: Period,
 ): Promise<PeriodDashboard> {
   const [leadRows, stageEntries] = await Promise.all([
-    readAllCanonicalSalesLeads(actor),
+    readAllCanonicalSalesLeadsComplete(actor),
     readAllProvenStageEntries(actor, period),
   ]);
   const cohort = creationCohort(leadRows, period);

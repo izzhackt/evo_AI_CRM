@@ -34,7 +34,7 @@ type SearchParams = Readonly<{
 
 type BoardQuery = Readonly<{
   q: string | null;
-  stage: PlatformSalesStage | "all";
+  stage: PlatformSalesStage | "handed_off" | "all";
   due: PipelineBoardFilters["due"];
   assignment: PipelineBoardFilters["assignment"];
   owner: string | null;
@@ -70,7 +70,6 @@ export default async function PipelinePart({
   ) {
     throw new Error("Sales route resolved a non-Sales staff role.");
   }
-  assertExpectedQueryKeys(params);
   const query = parseBoardQuery(params);
 
   const stages = readPipelineStages();
@@ -81,28 +80,23 @@ export default async function PipelinePart({
     assignment: query.assignment,
     ownerMembershipId: query.owner,
   });
-  const [leads, ownerOptions] = await Promise.all([
+  const [board, ownerOptions] = await Promise.all([
     readPipelineLeads(actor, filters),
     readPipelineOwnerOptions(actor),
   ]);
+  const leads = board.leads;
   const requestIds = Object.fromEntries(
     leads.map((lead) => [lead.id, randomUUID()]),
   );
 
   const stageChoices: readonly FilterChoice[] = [
     allChoice(query.stage === "all", boardHref({ ...query, stage: "all" })),
-    ...stages.flatMap((stage) =>
-      stage.key === "handed_off"
-        ? []
-        : [
-            {
-              key: stage.key,
-              title: stage.title,
-              href: boardHref({ ...query, stage: stage.key }),
-              active: query.stage === stage.key,
-            },
-          ],
-    ),
+    ...stages.map((stage) => ({
+      key: stage.key,
+      title: stage.title,
+      href: boardHref({ ...query, stage: stage.key }),
+      active: query.stage === stage.key,
+    })),
   ];
   const dueChoices: readonly FilterChoice[] = [
     allChoice(query.due === "all", boardHref({ ...query, due: "all" })),
@@ -261,6 +255,12 @@ export default async function PipelinePart({
         />
       </div>
 
+      {board.truncated ? (
+        <p className="mt-4 text-2xs leading-4 text-fg-3">
+          Прочитаны первые 4000 лидов — используйте поиск или фильтры.
+        </p>
+      ) : null}
+
       <div className="mt-6">
         <Pipeline
           stages={stages}
@@ -339,18 +339,6 @@ function boardHref(query: BoardQuery): string {
   return search ? `/v3/pipeline?${search}` : "/v3/pipeline";
 }
 
-function assertExpectedQueryKeys(params: SearchParams): void {
-  const allowed = new Set([
-    "q",
-    "stage",
-    "due",
-    "assignment",
-    "owner",
-    "handed",
-  ]);
-  if (Object.keys(params).some((key) => !allowed.has(key))) notFound();
-}
-
 function parseBoardQuery(params: SearchParams): BoardQuery {
   return Object.freeze({
     q: parseSearchText(params.q),
@@ -380,9 +368,10 @@ function parseSearchText(raw: string | string[] | undefined): string | null {
 
 function parseStage(
   raw: string | string[] | undefined,
-): PlatformSalesStage | "all" {
+): PlatformSalesStage | "handed_off" | "all" {
   const value = singleValue(raw);
   if (value === undefined || value === "" || value === "all") return "all";
+  if (value === "handed_off") return "handed_off";
   const stage = PLATFORM_SALES_STAGES.find((key) => key === value);
   if (stage === undefined) notFound();
   return stage;

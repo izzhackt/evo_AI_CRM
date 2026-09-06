@@ -196,7 +196,7 @@ test("task reads expose exact versions and bounded case choices", () => {
   assert.match(adapterSource, /const QUEUE_PAGE_SIZE = 100/);
   assert.match(adapterSource, /const CASE_PAGE_SIZE = 100/);
   assert.match(adapterSource, /casesHaveMore:\s*cases\.hasNext/);
-  assert.match(controlsSource, /Показаны первые 100 активных Student 360/);
+  assert.match(controlsSource, /Показаны первые 100 активных дел/);
   assert.doesNotMatch(
     `${repositorySource}\n${adapterSource}`,
     /canonical-admissions|canonical-crm-repository|drizzle|sqlite|fallback/i,

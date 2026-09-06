@@ -30,6 +30,12 @@ export type PipelineLead = Readonly<{
   workflow: PlatformSalesWorkflowLead;
 }>;
 
+/**
+ * Терминальная колонка копится вечно, поэтому свёрнутой она показывает только
+ * последние карточки: строки приходят от RPC новыми вперёд, срез честен.
+ */
+const HANDED_VISIBLE_LIMIT = 20;
+
 const DUE_MARK: Record<PipelineLead["due"], { tone: string; label: string } | null> = {
   overdue: { tone: "bg-danger", label: "срок прошёл" },
   today: { tone: "bg-warn", label: "срок сегодня" },
@@ -119,6 +125,9 @@ export function Pipeline({
   actorRole,
   actorMembershipId,
   requestIds,
+  handedExpanded,
+  handedShowAllHref,
+  handedShowLatestHref,
 }: {
   stages: readonly PipelineStage[];
   leads: readonly PipelineLead[];
@@ -127,6 +136,9 @@ export function Pipeline({
   actorRole: Extract<FixedRole, "admin" | "sales">;
   actorMembershipId: string;
   requestIds: Readonly<Record<string, string>>;
+  handedExpanded: boolean;
+  handedShowAllHref: string;
+  handedShowLatestHref: string;
 }) {
   const workflowStages = stages.flatMap((stage) =>
     stage.key === "handed_off"
@@ -144,46 +156,84 @@ export function Pipeline({
       <ol className="flex flex-col gap-3 @2xl:w-max @2xl:flex-row md:items-start">
         {stages.map((stage) => {
           const inStage = leads.filter((lead) => lead.stageKey === stage.key);
+          const visible =
+            stage.terminal && !handedExpanded
+              ? inStage.slice(0, HANDED_VISIBLE_LIMIT)
+              : inStage;
           return (
             <li
               key={stage.key}
-              className="flex min-w-0 flex-col gap-2 rounded-card bg-surface-2 p-2.5 @2xl:w-[280px] md:shrink-0"
+              className="min-w-0 rounded-card bg-surface-2 @2xl:w-[280px] md:shrink-0"
             >
-              <div className="flex items-center justify-between gap-2 px-1 py-0.5">
-                <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-fg">
-                  <span className="truncate">{stage.title}</span>
-                  {stage.gate ? <Pill tone="solid">гейт</Pill> : null}
-                </h3>
-                <span className="shrink-0 font-mono text-2xs text-fg-3">
-                  {inStage.length}
-                </span>
-              </div>
+              {/* У каждой колонки своя вертикальная прокрутка: без неё длинная
+                  стадия растянула бы доску в бесконечную страницу. Заголовок
+                  липнет внутри прокрутки, чтобы имя стадии не уезжало. */}
+              <div
+                role="group"
+                aria-label={`Стадия «${stage.title}»`}
+                tabIndex={0}
+                className="flex flex-col rounded-card @2xl:max-h-[70dvh] @2xl:overflow-y-auto"
+              >
+                <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-surface-2 px-3.5 pb-2 pt-3">
+                  <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-fg">
+                    <span className="truncate">{stage.title}</span>
+                    {stage.gate ? <Pill tone="solid">гейт</Pill> : null}
+                  </h3>
+                  <span className="shrink-0 font-mono text-2xs text-fg-3">
+                    {inStage.length}
+                  </span>
+                </div>
 
-              <ul className="flex flex-col gap-2">
-                {inStage.map((lead) => {
-                  const requestId = requestIds[lead.id];
-                  if (!requestId) {
-                    throw new Error("Pipeline decision request ID is missing.");
-                  }
-                  return (
-                    <li key={lead.id}>
-                      <LeadCard
-                        lead={lead}
-                        terminal={stage.terminal}
-                        workflowStages={workflowStages}
-                        ownerOptions={ownerOptions}
-                        ownerOptionsHaveMore={ownerOptionsHaveMore}
-                        actorRole={actorRole}
-                        actorMembershipId={actorMembershipId}
-                        requestId={requestId}
-                      />
+                <ul className="flex flex-col gap-2 px-2.5 pb-2.5">
+                  {visible.map((lead) => {
+                    const requestId = requestIds[lead.id];
+                    if (!requestId) {
+                      throw new Error("Pipeline decision request ID is missing.");
+                    }
+                    return (
+                      <li key={lead.id}>
+                        <LeadCard
+                          lead={lead}
+                          terminal={stage.terminal}
+                          workflowStages={workflowStages}
+                          ownerOptions={ownerOptions}
+                          ownerOptionsHaveMore={ownerOptionsHaveMore}
+                          actorRole={actorRole}
+                          actorMembershipId={actorMembershipId}
+                          requestId={requestId}
+                        />
+                      </li>
+                    );
+                  })}
+                  {inStage.length === 0 ? (
+                    <li className="px-1 py-2 text-2xs text-fg-3">Пусто</li>
+                  ) : null}
+                  {stage.terminal && visible.length < inStage.length ? (
+                    <li>
+                      <Link
+                        href={handedShowAllHref}
+                        prefetch={false}
+                        className="flex min-h-6 items-center px-1 text-2xs font-semibold text-fg-2 underline underline-offset-4 hover:text-fg"
+                      >
+                        Показать все {inStage.length}
+                      </Link>
                     </li>
-                  );
-                })}
-                {inStage.length === 0 ? (
-                  <li className="px-1 py-2 text-2xs text-fg-3">Пусто</li>
-                ) : null}
-              </ul>
+                  ) : null}
+                  {stage.terminal &&
+                  handedExpanded &&
+                  inStage.length > HANDED_VISIBLE_LIMIT ? (
+                    <li>
+                      <Link
+                        href={handedShowLatestHref}
+                        prefetch={false}
+                        className="flex min-h-6 items-center px-1 text-2xs font-semibold text-fg-2 underline underline-offset-4 hover:text-fg"
+                      >
+                        Показать последние {HANDED_VISIBLE_LIMIT}
+                      </Link>
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
             </li>
           );
         })}

@@ -121,11 +121,11 @@ test("P6B Admin Sales preview reads only Sales and messaging outcomes", async ()
         return {
           rows: [
             {
-              nextActionDueDate: "2026-09-02T12:00:00.000Z",
+              nextActionDueDate: "2026-09-02",
               currentOwnerMembershipId: null,
             },
             {
-              nextActionDueDate: "2026-09-04T12:00:00.000Z",
+              nextActionDueDate: "2026-09-04",
               currentOwnerMembershipId: "10000000-0000-4000-8000-000000000006",
             },
           ],
@@ -150,25 +150,78 @@ test("P6B Admin Sales preview reads only Sales and messaging outcomes", async ()
     {
       key: "sales",
       href: "/v3/pipeline",
-      totalOnPage: 2,
+      loadedCount: 2,
+      hasMore: false,
       overdueCount: 1,
       unassignedCount: 1,
     },
     {
       key: "whatsapp",
       href: "/v3/inbox",
-      totalOnPage: 2,
+      loadedCount: 2,
+      hasMore: false,
       salesCount: 1,
       admissionsCount: 1,
     },
   ]);
   assert.deepEqual(
+    snapshot.attentionItems.map(({ key, value, href }) => ({ key, value, href })),
+    [
+      { key: "whatsapp_open", value: 2, href: "/v3/inbox" },
+      { key: "sales_overdue", value: 1, href: "/v3/pipeline?due=overdue" },
+      {
+        key: "sales_unassigned",
+        value: 1,
+        href: "/v3/pipeline?assignment=unassigned",
+      },
+    ],
+  );
+});
+
+test("P6B page-limited queues surface honest partial counts", async () => {
+  const snapshot = await readPlatformDashboardSnapshot(actor("sales"), {
+    now: Date.parse("2026-09-03T12:00:00.000Z"),
+    readers: {
+      listSalesLeads: async () => ({
+        rows: [
+          { nextActionDueDate: "2026-09-01", currentOwnerMembershipId: null },
+          {
+            nextActionDueDate: "2026-09-30",
+            currentOwnerMembershipId: "10000000-0000-4000-8000-000000000006",
+          },
+        ],
+        nextCursor: null,
+        hasNext: true,
+      }),
+      listStudentCases: () => forbidden("admissions cases"),
+      listAdmissionsTasks: () => forbidden("admissions tasks"),
+      listFinanceCases: () => forbidden("finance"),
+      listConversations: async () => ({
+        rows: [{ queue: "sales" }],
+        nextCursor: null,
+        hasNext: false,
+      }),
+    },
+  });
+
+  const sales = snapshot.cards.find((card) => card.key === "sales");
+  assert.deepEqual(sales, {
+    key: "sales",
+    href: "/v3/pipeline",
+    loadedCount: 2,
+    hasMore: true,
+    overdueCount: null,
+    unassignedCount: null,
+  });
+  // Отклонение с неполной страницы остаётся сигналом без числа и
+  // поднимается выше точных счётов.
+  assert.deepEqual(
     snapshot.attentionItems.map(({ key, value }) => ({ key, value })),
     [
-      { key: "sales_overdue", value: 1 },
-      { key: "sales_unassigned", value: 1 },
-      { key: "whatsapp_open", value: 2 },
-    ].sort((left, right) => right.value - left.value || left.key.localeCompare(right.key)),
+      { key: "sales_overdue", value: null },
+      { key: "sales_unassigned", value: null },
+      { key: "whatsapp_open", value: 1 },
+    ],
   );
 });
 
@@ -217,7 +270,10 @@ test("P6B Admin Admissions preview aggregates overdue work and finance stops", a
       },
       listFinanceCases: async () => {
         calls.push("finance");
-        return [{ activeStopFactorCount: 2 }, { activeStopFactorCount: 0 }];
+        return {
+          rows: [{ activeStopFactorCount: 2 }, { activeStopFactorCount: 0 }],
+          hasNext: false,
+        };
       },
       listConversations: async () => {
         calls.push("whatsapp");
@@ -230,15 +286,16 @@ test("P6B Admin Admissions preview aggregates overdue work and finance stops", a
   assert.deepEqual(
     snapshot.cards.map((card) => [card.key, card]),
     [
-      ["clients", { key: "clients", href: "/v3/profile", totalOnPage: 2, attentionCount: 1 }],
-      ["tasks", { key: "tasks", href: "/v3/calendar", totalOnPage: 5, overdueCount: 2 }],
-      ["finance", { key: "finance", href: "/v3/profile", totalOnPage: 2, blockedCount: 1 }],
+      ["clients", { key: "clients", href: "/v3/profile", loadedCount: 2, hasMore: false, attentionCount: 1 }],
+      ["tasks", { key: "tasks", href: "/v3/calendar", loadedCount: 5, hasMore: false, overdueCount: 2 }],
+      ["finance", { key: "finance", href: "/v3/profile", loadedCount: 2, hasMore: false, blockedCount: 1 }],
       [
         "whatsapp",
         {
           key: "whatsapp",
           href: "/v3/inbox",
-          totalOnPage: 0,
+          loadedCount: 0,
+          hasMore: false,
           salesCount: 0,
           admissionsCount: 0,
         },

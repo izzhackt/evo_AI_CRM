@@ -12,6 +12,7 @@ import {
   listPlatformAdmissionsTaskQueue,
 } from "@/lib/platform-admissions-workspace";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import {
   dayInOrganizationTimezone,
   projectPlatformTaskDeadline,
@@ -25,6 +26,46 @@ export async function readToday(): Promise<Day> {
   return dayInOrganizationTimezone(new Date());
 }
 
+const CLOCK_PARTS = new Intl.DateTimeFormat("en-GB", {
+  timeZone: PLATFORM_ORGANIZATION_TIMEZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Minutes since local midnight on the same Bishkek clock as task deadlines. */
+export async function readNowMinutes(): Promise<number> {
+  const parts = CLOCK_PARTS.formatToParts(new Date());
+  const read = (type: "hour" | "minute") =>
+    Number(parts.find((part) => part.type === type)?.value);
+  const minutes = read("hour") * 60 + read("minute");
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes >= 24 * 60) {
+    throw new Error("V3 calendar cannot read the organization clock.");
+  }
+  return minutes;
+}
+
+export type CalendarTasksRead = Readonly<{
+  tasks: readonly CalendarTask[];
+  /**
+   * День срока последней прочитанной задачи, когда очередь оборвана внутри
+   * отрезка; обрыв может рассечь этот день пополам, поэтому экран называет
+   * его включительно («{дата} и позже прочитаны не полностью»). null при
+   * periodComplete=false означает обрыв без известной даты (например, при
+   * сломанном порядке очереди) — плашка тогда безадресная. Канонический RPC
+   * читает одну страницу без курсора и без фильтра по датам, добрать хвост
+   * отсюда нечем: обрыв выносится на экран фактом, а не роняет страницу.
+   */
+  truncatedAfter: Day | null;
+  /**
+   * Отрезок [from, to] дочитан до конца: «на этот период задач нет» — правда,
+   * а не обрыв чтения. Очередь отсортирована по сроку, поэтому обрыв на дне
+   * позже `to` (или на задачах без срока — они в самом хвосте) не отнимает
+   * у отрезка ни одной задачи со сроком.
+   */
+  periodComplete: boolean;
+}>;
+
 /**
  * Read the current actor's canonical Admissions task queue through Supabase.
  * The adapter only narrows it to the calendar interval; it never reads a
@@ -34,17 +75,46 @@ export async function readCalendarTasks(
   actor: ActivePlatformActor,
   from: Day,
   to: Day,
-): Promise<readonly CalendarTask[]> {
+): Promise<CalendarTasksRead> {
   const queue = await listPlatformAdmissionsTaskQueue(actor, {
     pageSize: QUEUE_PAGE_SIZE,
   });
 
-  if (queue.hasNext) {
-    throw new Error("V3 calendar task queue exceeds its canonical read window.");
+  const now = new Date();
+
+  // Вывод «отрезок дочитан» держится на сортировке очереди по сроку.
+  // Предположение проверяется, а не берётся на веру: сломанный порядок
+  // означает, что по хвосту ничего сказать нельзя, и чтение считается
+  // оборванным (consеrvативно, в пользу честности).
+  let orderedByDeadline = true;
+  let previousDay: Day | null = null;
+  let seenUndated = false;
+  for (const row of queue.rows) {
+    const day = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now).day;
+    if (day === null) {
+      seenUndated = true;
+      continue;
+    }
+    if (seenUndated || (previousDay !== null && day < previousDay)) {
+      orderedByDeadline = false;
+      break;
+    }
+    previousDay = day;
   }
 
-  const now = new Date();
-  return queue.rows.flatMap((row) => {
+  let truncatedAfter: Day | null = null;
+  let periodComplete = true;
+  if (queue.hasNext) {
+    const tail = queue.rows[queue.rows.length - 1];
+    const tailDay = tail
+      ? projectPlatformTaskDeadline(tail.dueOn, tail.dueAt, now).day
+      : null;
+    periodComplete =
+      orderedByDeadline && (tailDay === null || tailDay > to);
+    if (!periodComplete) truncatedAfter = tailDay;
+  }
+
+  const tasks = queue.rows.flatMap((row) => {
     const deadline = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now);
     const day = deadline.day;
     if (day !== null && (day < from || day > to)) return [];
@@ -70,6 +140,12 @@ export async function readCalendarTasks(
       caseState: row.caseState,
       version: row.version,
     } satisfies CalendarTask];
+  });
+
+  return Object.freeze({
+    tasks: Object.freeze(tasks),
+    truncatedAfter,
+    periodComplete,
   });
 }
 
@@ -108,6 +184,10 @@ async function readActiveCases(
 
 export type CalendarWorkspace = Readonly<{
   tasks: readonly CalendarTask[];
+  /** Очередь отдала первые N задач по сроку; null — прочитаны все. */
+  tasksTruncatedAfter: Day | null;
+  /** Видимый отрезок дочитан: пустой период — факт, а не обрыв чтения. */
+  periodComplete: boolean;
   cases: readonly CalendarCaseOption[];
   casesHaveMore: boolean;
   assignees: readonly CalendarAssigneeOption[];
@@ -123,7 +203,7 @@ export async function readCalendarWorkspace(
   from: Day,
   to: Day,
 ): Promise<CalendarWorkspace> {
-  const [tasks, cases] = await Promise.all([
+  const [read, cases] = await Promise.all([
     readCalendarTasks(actor, from, to),
     readActiveCases(actor),
   ]);
@@ -138,7 +218,9 @@ export async function readCalendarWorkspace(
     } satisfies CalendarAssigneeOption)) ?? [];
 
   return Object.freeze({
-    tasks,
+    tasks: read.tasks,
+    tasksTruncatedAfter: read.truncatedAfter,
+    periodComplete: read.periodComplete,
     cases: cases.rows,
     casesHaveMore: cases.hasNext,
     assignees: Object.freeze(assignees),

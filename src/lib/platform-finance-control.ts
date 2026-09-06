@@ -88,7 +88,9 @@ const QUEUE_ROW_KEYS = [
 ] as const;
 
 const DEFAULT_HISTORY_LIMIT = 50;
-const DEFAULT_QUEUE_LIMIT = 100;
+/** Одна страница очереди; выше канонический RPC не читает. */
+export const PLATFORM_FINANCE_QUEUE_PAGE_LIMIT = 100;
+const DEFAULT_QUEUE_LIMIT = PLATFORM_FINANCE_QUEUE_PAGE_LIMIT;
 const MAX_HISTORY_LIMIT = 100;
 const MAX_QUEUE_LIMIT = 100;
 const MAX_CASE_OBLIGATIONS = 500;

@@ -4,9 +4,9 @@ import Link from "next/link";
 
 import { Icon } from "@/components/icons";
 import { Pill } from "@/components/v3/Pill";
-import { eventLabel, role as roleWord } from "@/lib/v3/wording";
 
 import type { GateFacts, Health, Integration, JournalEntry, RoleRow } from "./types";
+import { journalActor, journalEvent, journalObject } from "@/lib/v3/wording";
 
 export function Card({
   title,
@@ -153,6 +153,19 @@ export function IntegrationsSection({
 
 /* ----------------------------------------------------- Журнал действий */
 
+type JournalEvent = Extract<JournalEntry, { kind: "event" }>;
+type JournalNextPage = Extract<JournalEntry, { kind: "page" }>;
+
+
+function pluralRu(n: number, one: string, few: string, many: string): string {
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+}
+
 export function JournalSection({
   entries,
   exportEnabled,
@@ -164,11 +177,26 @@ export function JournalSection({
   exportEnabled: boolean;
   facets: Readonly<{
     objectTypes: readonly Readonly<{ key: string; count: number }>[];
-    roles: readonly string[];
   }>;
-  active: Readonly<{ objectType?: string; role?: string }>;
-  hrefFor: (next: Readonly<{ objectType?: string; role?: string }>) => string;
+  active: Readonly<{ objectType?: string }>;
+  hrefFor: (next: Readonly<{
+    objectType?: string;
+    snapshotAt?: string;
+    snapshotId?: string;
+    cursorAt?: string;
+    cursorId?: string;
+  }>) => string;
 }) {
+  const events = entries.filter(
+    (entry): entry is JournalEvent => entry.kind === "event",
+  );
+  const nextPage = entries.find(
+    (entry): entry is JournalNextPage => entry.kind === "page",
+  ) ?? null;
+  const named = events.filter(
+    (entry) => journalEvent(entry.transition) !== null,
+  );
+  const unnamed = events.length - named.length;
   const exportEndAt = new Date();
   const exportStartAt = new Date(exportEndAt.getTime() - 30 * 24 * 60 * 60 * 1_000);
   const chip = (on: boolean) =>
@@ -186,46 +214,31 @@ export function JournalSection({
         <p className="text-2xs uppercase tracking-wide text-fg-3">Что за объект</p>
         <ul className="flex flex-wrap gap-1.5">
           <li>
-            <Link href={hrefFor({ role: active.role })} className={chip(!active.objectType)}>
+            <Link href={hrefFor({})} className={chip(!active.objectType)}>
               любой
             </Link>
           </li>
-          {facets.objectTypes.map((type) => (
-            <li key={type.key}>
-              <Link
-                href={hrefFor({ objectType: type.key, role: active.role })}
-                className={chip(active.objectType === type.key)}
-              >
-                {type.key}
-                <span className={active.objectType === type.key ? "text-on-accent" : "text-fg-3"}>
-                  {type.count}
-                </span>
-              </Link>
-            </li>
-          ))}
+          {facets.objectTypes.map((type) => {
+            // Сырой ключ типа не показывается; тип без слова остаётся без
+            // плитки, а его события считает строка «без названия» внизу.
+            const word = journalObject(type.key);
+            if (word === null) return null;
+            return (
+              <li key={type.key}>
+                <Link
+                  href={hrefFor({ objectType: type.key })}
+                  className={chip(active.objectType === type.key)}
+                >
+                  {word}
+                  <span className={active.objectType === type.key ? "text-on-accent" : "text-fg-3"}>
+                    {type.count}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
 
-        <p className="mt-1 text-2xs uppercase tracking-wide text-fg-3">Кто</p>
-        <ul className="flex flex-wrap gap-1.5">
-          <li>
-            <Link
-              href={hrefFor({ objectType: active.objectType })}
-              className={chip(!active.role)}
-            >
-              любая роль
-            </Link>
-          </li>
-          {facets.roles.map((role) => (
-            <li key={role}>
-              <Link
-                href={hrefFor({ objectType: active.objectType, role })}
-                className={chip(active.role === role)}
-              >
-                {roleWord(role) ?? role}
-              </Link>
-            </li>
-          ))}
-        </ul>
       </nav>
 
       {exportEnabled ? (
@@ -246,7 +259,11 @@ export function JournalSection({
             ) : null}
 
             <p id="v3-audit-export-scope" className="text-xs leading-5 text-fg-2">
-              Последние 30 дней · {active.objectType ?? "все объекты"} · все участники
+              Последние 30 дней ·{" "}
+              {active.objectType
+                ? (journalObject(active.objectType) ?? "выбранный тип объекта")
+                : "все объекты"}{" "}
+              · все участники
             </p>
             <button
               type="submit"
@@ -256,16 +273,13 @@ export function JournalSection({
               Скачать CSV
             </button>
           </form>
-          {active.role ? (
-            <Note>
-              Фильтр «Кто» действует только на список на экране. CSV содержит действия всех
-              участников.
-            </Note>
-          ) : null}
         </Card>
       ) : null}
 
-      <Card title="События" aside={<Pill>{entries.length}</Pill>}>
+      <Card
+        title="События"
+        aside={<Pill>{nextPage ? `${events.length}+` : events.length}</Pill>}
+      >
         <div
           role="group"
           aria-label="Журнал действий"
@@ -273,33 +287,76 @@ export function JournalSection({
           className="max-h-[540px] overflow-y-auto"
         >
           <ul>
-            {entries.map((entry) => {
-              const label = eventLabel(entry.transition);
-              if (!label) return null;
+            {named.map((entry) => {
+              const objectWord = journalObject(entry.objectType);
+              const actorWord = journalActor(entry.role);
               return (
                 <li
                   key={entry.id}
                   className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5 last:border-b-0"
                 >
-                  <span className="min-w-0 flex-1 text-sm text-fg">{label}</span>
-                  {entry.reason ? (
-                    <span className="w-full text-2xs text-fg-3">{entry.reason}</span>
-                  ) : null}
-                  <Pill>{roleWord(entry.role) ?? entry.role}</Pill>
+                  <span className="min-w-0 flex-1 text-sm text-fg">
+                    {journalEvent(entry.transition)}
+                  </span>
+                  {actorWord !== null ? <Pill>{actorWord}</Pill> : null}
                   <span className="shrink-0 font-mono text-2xs text-fg-3">{entry.at}</span>
+                  {/* Имени объекта аудит не отдаёт — только тип и id. Короткий
+                      id различает строки об одном типе, ссылка есть там, где
+                      id ведёт в профиль нового мира. */}
+                  <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-fg-3">
+                    {objectWord !== null ? <span>{objectWord}</span> : null}
+                    {entry.objectId !== null ? (
+                      <span className="font-mono">#{entry.objectId.slice(0, 8)}</span>
+                    ) : null}
+                    {entry.profileHref ? (
+                      <Link
+                        href={entry.profileHref}
+                        className="inline-flex min-h-6 items-center font-medium text-accent hover:underline"
+                      >
+                        открыть профиль
+                      </Link>
+                    ) : null}
+                  </span>
                 </li>
               );
             })}
-            {entries.length === 0 ? (
+            {events.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-fg-3">
                 По этому фильтру событий нет.
               </li>
             ) : null}
           </ul>
         </div>
+        {unnamed > 0 ? (
+          <p className="border-t border-border px-4 py-2 text-2xs text-fg-3">
+            {unnamed}{" "}
+            {pluralRu(
+              unnamed,
+              "событие без названия",
+              "события без названия",
+              "событий без названия",
+            )}
+          </p>
+        ) : null}
+        {nextPage ? (
+          <p className="border-t border-border px-4 py-2.5">
+            <Link
+              href={hrefFor({
+                objectType: active.objectType,
+                snapshotAt: nextPage.snapshotCreatedAt,
+                snapshotId: nextPage.snapshotId,
+                cursorAt: nextPage.cursorCreatedAt,
+                cursorId: nextPage.cursorId,
+              })}
+              className="inline-flex min-h-8 items-center rounded-nav border border-border bg-surface px-2.5 text-xs text-fg-2 hover:border-control-edge"
+            >
+              Следующие события
+            </Link>
+          </p>
+        ) : null}
         <Note>
           Сотрудники входят через личные учётные записи Supabase Auth. Этот безопасный журнал
-          намеренно показывает категорию актора — Staff, Service или System — без раскрытия
+          намеренно показывает категорию актора — сотрудник, сервис или система — без раскрытия
           персональных данных на экране.
         </Note>
       </Card>

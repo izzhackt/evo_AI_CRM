@@ -12,6 +12,8 @@ import {
   logoutStaffAction,
   selectStaffRolePreviewAction,
 } from "@/lib/staff-auth-actions";
+import { EvoMark } from "@/components/platform/brand/EvoMark";
+import { roleTitle } from "@/lib/v3/wording";
 
 /**
  * Оболочка продукта.
@@ -20,14 +22,14 @@ import {
  * собирались. Теперь это один интерфейс, поэтому вместо ссылки «назад к
  * каталогу» у каждой страницы одна и та же навигация.
  *
- * Student 360 доступен и из рабочих карточек, и из меню: его собственный
+ * «Студенты» доступны и из рабочих карточек, и из меню: их собственный
  * каталог нужен, чтобы найти любое разрешённое дело, включая закрытое.
  */
 const SECTIONS = [
   { href: "/v3/main", label: "Главная" },
   { href: "/v3/pipeline", label: "Воронка" },
   { href: "/v3/inbox", label: "Входящие" },
-  { href: "/v3/profile", label: "Student 360" },
+  { href: "/v3/profile", label: "Студенты" },
   { href: "/v3/calendar", label: "Календарь" },
   { href: "/v3/knowledge", label: "База знаний" },
   { href: "/v3/settings", label: "Настройки" },
@@ -36,11 +38,7 @@ const SECTIONS = [
   label: string;
 }>[];
 
-const ROLE_LABELS = {
-  admin: "Director/Admin",
-  sales: "Sales Manager",
-  admissions: "Admissions Manager",
-} as const satisfies Record<FixedRole, string>;
+const FIXED_ROLES = ["admin", "sales", "admissions"] as const satisfies readonly FixedRole[];
 
 export function AppShell({
   children,
@@ -69,8 +67,10 @@ export function AppShell({
         aria-label="Разделы"
         className="border-b border-border bg-surface md:sticky md:top-0 md:h-dvh md:w-[224px] md:shrink-0 md:border-b-0 md:border-e"
       >
-        <p className="hidden px-4 pb-3 pt-5 font-mono text-2xs uppercase tracking-wide text-fg-3 md:block">
-          EVO
+        {/* Слово «EVO Admissions» несёт шапка главной; рельсу достаточно знака. */}
+        <p className="hidden px-4 pb-3 pt-5 text-fg-2 md:block">
+          <EvoMark size={20} tone="mono" />
+          <span className="sr-only">EVO Admissions</span>
         </p>
 
         <ul className="grid grid-cols-3 gap-1 p-2 md:flex md:flex-col md:gap-0.5 md:px-3 md:pb-3 md:pt-0">
@@ -102,7 +102,7 @@ export function AppShell({
             data-role={presentationRole}
             data-authority-role={authorityRole}
           >
-            {ROLE_LABELS[presentationRole]}
+            {roleTitle(presentationRole)}
           </span>
         </p>
 
@@ -119,7 +119,7 @@ export function AppShell({
               className="mt-2 grid grid-cols-3 gap-1 md:grid-cols-1"
               data-testid="admin-role-preview"
             >
-              {(Object.keys(ROLE_LABELS) as FixedRole[]).map((role) => (
+              {FIXED_ROLES.map((role) => (
                 <button
                   key={role}
                   type="submit"
@@ -129,7 +129,7 @@ export function AppShell({
                   aria-pressed={presentationRole === role}
                   className="min-h-10 rounded-nav border border-control-edge px-2 text-xs text-fg-2 transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
                 >
-                  {ROLE_LABELS[role]}
+                  {roleTitle(role)}
                 </button>
               ))}
             </form>
@@ -138,7 +138,7 @@ export function AppShell({
                 className="mt-2 px-1 text-xs leading-5 text-accent"
                 data-testid="preview-active"
               >
-                Admin показывает интерфейс роли {ROLE_LABELS[presentationRole]}.
+                Администратор видит интерфейс роли «{roleTitle(presentationRole)}».
               </p>
             ) : null}
           </section>

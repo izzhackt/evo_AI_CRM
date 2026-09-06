@@ -96,6 +96,54 @@ function formatInboxTime(value: string): string {
   return BISHKEK_TIME.format(parsed).replace(",", "");
 }
 
+function formatWaitingRu(sinceIso: string): string | null {
+  const since = new Date(sinceIso);
+  if (!Number.isFinite(since.valueOf())) return null;
+  const elapsedMs = Date.now() - since.valueOf();
+  if (elapsedMs < 0) return null;
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 60) return `${Math.max(minutes, 1)} мин`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ч`;
+  return `${Math.floor(hours / 24)} дн`;
+}
+
+/**
+ * The waiting state is honest only on the newest transcript page: there the
+ * final chronological message is the conversation's true latest message. On an
+ * older page the newest message is not loaded, so the state stays unknown.
+ * The queue projection carries no last-message direction, which is why rows
+ * cannot show this yet — see backend-gaps.
+ */
+function awaitingReplyFor(
+  messages: readonly PlatformConversationMessage[],
+  messageCursor: PlatformConversationCursor | null,
+  olderMessagesExist: boolean,
+): string | null {
+  if (messageCursor !== null) return null;
+  const newest = messages.at(-1);
+  if (newest === undefined || newest.direction !== "inbound") return null;
+  // Ожидание меряется от ПЕРВОГО входящего после нашего последнего ответа:
+  // каждое новое сообщение клиента не обнуляет его ожидание, иначе самый
+  // настойчивый клиент выглядел бы самым свежим.
+  let earliestUnanswered = newest;
+  let reachedPageStart = true;
+  for (let index = messages.length - 2; index >= 0; index -= 1) {
+    const message = messages[index]!;
+    if (message.direction !== "inbound") {
+      reachedPageStart = false;
+      break;
+    }
+    earliestUnanswered = message;
+  }
+  const shown = formatWaitingRu(earliestUnanswered.createdAt);
+  if (shown === null) return null;
+  // Серия входящих упёрлась в границу страницы, а за ней есть более старые
+  // сообщения: начало ожидания неизвестно, число честно становится нижней
+  // границей.
+  return reachedPageStart && olderMessagesExist ? `${shown}+` : shown;
+}
+
 function queueSearchParams(
   queueCursor: PlatformConversationCursor | null,
 ): URLSearchParams {
@@ -226,6 +274,11 @@ export async function readInbox(
     selected = Object.freeze({
       ...toInboxConversation(thread.conversation, options.queueCursor),
       messages: Object.freeze(thread.messages.map(toInboxMessage)),
+      awaitingReplyFor: awaitingReplyFor(
+        thread.messages,
+        options.messageCursor,
+        thread.nextMessageCursor !== null,
+      ),
       latestInboundSourceMessageId: latestInboundMessageId(
         thread.messages,
         options.messageCursor,

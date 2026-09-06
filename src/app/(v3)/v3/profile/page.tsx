@@ -154,7 +154,7 @@ export default async function ProfilePart({
               className="inline-flex text-sm font-semibold text-accent hover:underline"
               href="/v3/profile"
             >
-              К каталогу Student 360
+              К каталогу студентов
             </Link>
             <Profile
               profile={view.profile}

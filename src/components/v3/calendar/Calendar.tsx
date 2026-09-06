@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { allDayDate } from "@/lib/v3/wording";
 import { useId, useState } from "react";
 
 import { Icon } from "@/components/icons";
@@ -38,8 +39,11 @@ export function Calendar({
   view,
   day,
   today,
+  nowMinutes,
   days,
   tasks,
+  tasksTruncatedAfter,
+  periodComplete,
   cases,
   casesHaveMore,
   assignees,
@@ -53,8 +57,14 @@ export function Calendar({
   view: CalendarView;
   day: Day;
   today: Day;
+  /** Минуты от полуночи сейчас — по часам организации, как и сроки задач. */
+  nowMinutes: number;
   days: readonly Day[];
   tasks: readonly CalendarTask[];
+  /** Очередь отдала первые N задач по сроку; null — прочитаны все. */
+  tasksTruncatedAfter: string | null;
+  /** Видимый отрезок дочитан: пустой период — факт, а не обрыв чтения. */
+  periodComplete: boolean;
   cases: readonly CalendarCaseOption[];
   casesHaveMore: boolean;
   assignees: readonly CalendarAssigneeOption[];
@@ -77,6 +87,16 @@ export function Calendar({
   );
   const hours: number[] = [];
   for (let minute = first; minute < last; minute += 60) hours.push(minute);
+
+  // День при открытии прокручен к текущему часу организации, а не к началу
+  // суток и не к первой задаче. Час зажат в границы нарисованной сетки:
+  // раньше первой строки и позже последней прокручивать некуда.
+  const anchorMinute = view === "day"
+    ? Math.min(Math.max(Math.floor(nowMinutes / 60) * 60, first), last - 60)
+    : null;
+
+  const truncatedAfterLabel =
+    tasksTruncatedAfter !== null ? allDayDate(tasksTruncatedAfter) : null;
 
   const href = (nextView: CalendarView, nextDay: Day) =>
     `${basePath}?view=${nextView}&date=${nextDay}`;
@@ -180,7 +200,7 @@ export function Calendar({
                 href={`/v3/profile?case=${encodeURIComponent(open.studentCaseId)}`}
                 className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent hover:underline"
               >
-                Открыть Student 360
+                Открыть раздел «Студенты»
               </Link>
               {open.details ? <p className="mt-3 text-sm leading-6 text-fg">{open.details}</p> : null}
               {open.cancelReason ? (
@@ -219,8 +239,22 @@ export function Calendar({
         </aside>
       ) : null}
 
-      {tasks.length === 0 ? (
+      {/* «Задач нет» — только когда отрезок дочитан: оборванное чтение не
+          даёт права на это утверждение. */}
+      {tasks.length === 0 && periodComplete ? (
         <p className="px-1 text-sm text-fg-3">На этот период задач нет.</p>
+      ) : null}
+
+      {/* Канонический RPC отдаёт одну страницу очереди без курсора: когда
+          отрезок не дочитан, обрыв — видимый факт, а не тихая потеря хвоста.
+          Обрыв может рассекать день пополам, поэтому граница называется
+          включительно: день границы прочитан не полностью. */}
+      {!periodComplete ? (
+        <p className="px-1 text-xs text-fg-3" role="status">
+          {truncatedAfterLabel !== null
+            ? `Задачи со сроком ${truncatedAfterLabel} и позже прочитаны не полностью.`
+            : "Очередь задач прочитана не до конца."}
+        </p>
       ) : null}
 
       {unscheduled.length > 0 ? (
@@ -261,6 +295,7 @@ export function Calendar({
             days={days}
             tasks={tasks}
             hours={hours}
+            anchor={anchorMinute}
             hrefForDay={(value) => href("day", value)}
             label={`Сетка периода, ${periodLabel(view, day)}`}
             chip={chip}

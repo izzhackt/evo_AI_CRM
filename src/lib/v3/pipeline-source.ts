@@ -6,14 +6,56 @@ import {
   listPlatformSalesOwnerOptions,
   listPlatformSalesLeads,
   type PlatformSalesCursor,
+  type PlatformSalesDueFilter,
   type PlatformSalesLeadRow,
   type PlatformSalesOwnerOptionsPage,
+  type PlatformSalesStage,
 } from "@/lib/platform-sales";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { FUNNEL_STEP, leadStage } from "@/lib/v3/wording";
 
 const PAGE_SIZE = 100;
 const OWNER_PAGE_SIZE = 100;
+/**
+ * Верхняя граница пагинации: 4000 лидов. Дальше чтение честно останавливается
+ * с признаком truncated — доска показывает факт усечения, а когорта главной
+ * отказывается считать по неполным данным.
+ */
+const MAX_LEAD_PAGES = 40;
+
+/**
+ * Фильтры доски. `due: "today"` — слово адресной строки; в RPC оно называется
+ * `due_today`, и перевод живёт здесь, а не в странице.
+ */
+export type PipelineBoardFilters = Readonly<{
+  query: string | null;
+  /**
+   * «handed_off» — производная колонка: в базе переданный лид остаётся в
+   * своей канонической стадии, а колонку определяет связанное дело. Поэтому
+   * фильтр по ней применяется после чтения, а не в RPC.
+   */
+  stage: PlatformSalesStage | "handed_off" | "all";
+  due: "overdue" | "today" | "all";
+  assignment: "unassigned" | "mine" | "all";
+  ownerMembershipId: string | null;
+}>;
+
+export const PIPELINE_BOARD_NO_FILTERS: PipelineBoardFilters = Object.freeze({
+  query: null,
+  stage: "all",
+  due: "all",
+  assignment: "all",
+  ownerMembershipId: null,
+});
+
+const RPC_DUE_FILTER: Record<
+  PipelineBoardFilters["due"],
+  PlatformSalesDueFilter
+> = Object.freeze({
+  all: "all",
+  overdue: "overdue",
+  today: "due_today",
+});
 
 function requiredStageTitle(key: string): string {
   const title = leadStage(key);
@@ -91,20 +133,36 @@ function dueState(
 /**
  * Read every visible canonical lead page. The cursor and lead-id checks make a
  * changing or malformed result fail closed instead of silently duplicating or
- * truncating the board and dashboard.
+ * truncating the board and dashboard. Filters are applied by the RPC itself,
+ * so a filtered read pays for the matching pages only; the board still renders
+ * every stage column and simply finds some of them empty.
  */
+export type CanonicalSalesLeadsRead = Readonly<{
+  rows: readonly PlatformSalesLeadRow[];
+  /** true — верхняя граница чтения достигнута, дальше лиды не читались. */
+  truncated: boolean;
+}>;
+
 export async function readAllCanonicalSalesLeads(
   actor: PlatformActor,
-): Promise<readonly PlatformSalesLeadRow[]> {
+  filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
+): Promise<CanonicalSalesLeadsRead> {
   const rows: PlatformSalesLeadRow[] = [];
   const seenLeadIds = new Set<string>();
   const seenCursors = new Set<string>();
   let cursor: PlatformSalesCursor | null = null;
 
-  for (;;) {
+  for (let pageIndex = 0; pageIndex < MAX_LEAD_PAGES; pageIndex += 1) {
     const page = await listPlatformSalesLeads(actor, {
       pageSize: PAGE_SIZE,
       cursor,
+      stageFilter: filters.stage === "handed_off" ? "all" : filters.stage,
+      assignmentFilter: filters.assignment,
+      dueFilter: RPC_DUE_FILTER[filters.due],
+      ...(filters.ownerMembershipId
+        ? { ownerMembershipId: filters.ownerMembershipId }
+        : {}),
+      ...(filters.query ? { query: filters.query } : {}),
     });
 
     for (const row of page.rows) {
@@ -115,7 +173,9 @@ export async function readAllCanonicalSalesLeads(
       rows.push(row);
     }
 
-    if (!page.hasNext) return Object.freeze(rows);
+    if (!page.hasNext) {
+      return Object.freeze({ rows: Object.freeze(rows), truncated: false });
+    }
     if (!page.nextCursor) {
       throw new Error("Canonical sales pagination stopped without a cursor.");
     }
@@ -127,15 +187,23 @@ export async function readAllCanonicalSalesLeads(
     seenCursors.add(cursorKey);
     cursor = page.nextCursor;
   }
+
+  return Object.freeze({ rows: Object.freeze(rows), truncated: true });
 }
+
+export type PipelineBoardRead = Readonly<{
+  leads: readonly PipelineLead[];
+  truncated: boolean;
+}>;
 
 export async function readPipelineLeads(
   actor: PlatformActor,
-): Promise<readonly PipelineLead[]> {
-  const rows = await readAllCanonicalSalesLeads(actor);
+  filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
+): Promise<PipelineBoardRead> {
+  const read = await readAllCanonicalSalesLeads(actor, filters);
   const today = organizationDate(new Date());
 
-  return rows.map((row) => ({
+  const mapped = read.rows.map((row) => ({
     id: row.leadId,
     name:
       row.clientDisplayName ??
@@ -158,4 +226,17 @@ export async function readPipelineLeads(
       workflowVersion: row.workflowVersion,
     }),
   } satisfies PipelineLead));
+
+  // Фильтр стадии сверяется с ПРОИЗВОДНОЙ стадией: переданный лид живёт в
+  // колонке «Переданы» независимо от stage_key, и наоборот — фильтр по
+  // канонической стадии не должен вываливать переданных в их старую колонку.
+  const leads =
+    filters.stage === "all"
+      ? mapped
+      : mapped.filter((lead) => lead.stageKey === filters.stage);
+
+  return Object.freeze({
+    leads: Object.freeze(leads),
+    truncated: read.truncated,
+  });
 }

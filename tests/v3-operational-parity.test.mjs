@@ -47,7 +47,7 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.match(page, /loadV3ProfileRoute\(routeMode/u);
   assert.match(page, /kind: "target", target: explicitTarget/u);
   assert.match(page, /kind: "directory", params: directoryParams/u);
-  assert.match(page, /К каталогу Student 360/u);
+  assert.match(page, /К каталогу студентов/u);
   assert.doesNotMatch(page, /readProfilePicks/u);
   assert.match(page, /invalidIdentityShape/u);
   assert.match(page, /\(hasLeadParam \|\| hasCaseParam\) && directoryParams\.active/u);
@@ -104,10 +104,10 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.doesNotMatch(directory, /href=["']\/clients/u);
 });
 
-test("Student 360 stays discoverable from navigation and both inbox queues", () => {
+test("the student directory stays discoverable from navigation and both inbox queues", () => {
   const shell = source("src/components/v3/AppShell.tsx");
   const inbox = source("src/app/(v3)/v3/inbox/page.tsx");
 
-  assert.match(shell, /\{ href: "\/v3\/profile", label: "Student 360" \}/u);
+  assert.match(shell, /\{ href: "\/v3\/profile", label: "Студенты" \}/u);
   assert.match(inbox, /v3InboxProfileHref\(/u);
 });

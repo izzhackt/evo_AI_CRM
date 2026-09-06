@@ -50,11 +50,20 @@ test("V3 calendar reads one bounded canonical workspace without a second data pa
   assert.match(adapter, /getPlatformAdmissionsTaskWorkspace/);
   assert.match(adapter, /const QUEUE_PAGE_SIZE = 100/);
   assert.match(adapter, /const CASE_PAGE_SIZE = 100/);
-  assert.match(adapter, /if \(queue\.hasNext\)[\s\S]*throw new Error/);
+  // Обрыв очереди — видимый факт, а не отказ: усечение выражается полями
+  // truncatedAfter/periodComplete, и адаптер не роняет календарь throw-ом
+  // внутри ветки hasNext.
+  assert.match(adapter, /if \(queue\.hasNext\) \{/);
+  assert.match(adapter, /truncatedAfter/);
+  assert.match(adapter, /periodComplete/);
+  assert.doesNotMatch(
+    adapter,
+    /if \(queue\.hasNext\) \{[^}]*throw new Error/,
+  );
   assert.match(adapter, /hasNext: page\.hasNext/);
   assert.match(adapter, /casesHaveMore:\s*cases\.hasNext/);
   assert.match(page, /casesHaveMore=\{workspace\.casesHaveMore\}/);
-  assert.match(controls, /Показаны первые 100 активных Student 360/);
+  assert.match(controls, /Показаны первые 100 активных дел/);
   assert.equal(
     [...adapter.matchAll(/await getPlatformAdmissionsTaskWorkspace\(/g)].length,
     1,

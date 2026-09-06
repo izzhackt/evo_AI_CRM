@@ -8,6 +8,7 @@ import {
   type FixedRoleRoute,
 } from "@/lib/fixed-role-policy";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import { roleTitle } from "@/lib/v3/wording";
 
 export const metadata = { title: "Нет доступа · EVO" };
 
@@ -15,7 +16,7 @@ const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/v3/main": "Главная",
   "/v3/pipeline": "Воронка продаж",
   "/v3/inbox": "Входящие",
-  "/v3/profile": "Student 360",
+  "/v3/profile": "Студенты",
   "/v3/calendar": "Календарь",
   "/v3/knowledge": "База знаний",
   "/v3/settings": "Настройки",
@@ -51,15 +52,11 @@ export default async function AccessDeniedPage({
       data-testid="access-denied-state"
     >
       <section className="w-full border-y border-border py-10 sm:py-14">
-        <p className="font-mono text-xs font-medium uppercase tracking-wide text-danger">
-          Доступ проверен на сервере
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-fg">
+        <h1 className="text-3xl font-semibold tracking-[-0.03em] text-fg">
           Нет доступа к разделу
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-fg-3">
           Раздел «{requestedLabel}» не входит в интерфейс выбранной роли.
-          Защищённые данные раздела не загружались.
         </p>
         <dl className="mt-8 grid gap-5 border-y border-border py-5 sm:grid-cols-2">
           <div>
@@ -68,8 +65,8 @@ export default async function AccessDeniedPage({
           </div>
           <div>
             <dt className="text-xs text-fg-3">Выбранная роль</dt>
-            <dd className="mt-1 font-medium uppercase text-fg">
-              {actor.presentationRole}
+            <dd className="mt-1 font-medium text-fg">
+              {roleTitle(actor.presentationRole)}
             </dd>
           </div>
         </dl>

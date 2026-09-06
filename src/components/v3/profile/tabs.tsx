@@ -6,8 +6,6 @@ import {
   leadStage,
   role as roleWord,
   source as sourceWord,
-  visaKind,
-  visaStatus,
 } from "@/lib/v3/wording";
 
 import { Card } from "./Card";
@@ -365,48 +363,29 @@ export function History({ profile }: { profile: PersonProfile }) {
         </div>
       </Card>
 
-      <div className="flex flex-col gap-4">
-        <Card title="Как он к нам пришёл">
-          <FactList
-            facts={[
-              { label: "Откуда", value: sourceWord(profile.source) ?? "неизвестно" },
-              { label: "Появился", value: profile.arrived },
-              {
-                label: "Передан",
-                value: profile.handoff
-                  ? profile.handoff.override
-                    ? `${profile.handoff.at} · в обход гейта`
-                    : profile.handoff.at
-                  : null,
-              },
-            ]}
-          />
-        </Card>
-
-        {profile.student && profile.visa.length > 0 ? (
-          <Card title="Виза">
-            <ol>
-              {profile.visa.map((milestone, index) => (
-                <li
-                  key={milestone.id}
-                  className="flex items-center gap-3 border-b border-border px-4 py-2 last:border-b-0"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-border-strong font-mono text-2xs text-fg-3"
-                  >
-                    {index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1 text-sm text-fg">
-                    {visaKind(milestone.kind) ?? milestone.kind}
-                  </span>
-                  <Pill tone={tone(milestone.status)}>{visaStatus(milestone.status) ?? "—"}</Pill>
-                </li>
-              ))}
-            </ol>
-          </Card>
-        ) : null}
-      </div>
+      {/* Визовых вех здесь больше нет, и номеров при них тоже. Веха — это
+          состояние, а не шаг инструкции, поэтому нумерация врала; а сама виза
+          — не история, а текущее положение дела. Она живёт своей секцией
+          «Виза» рядом с «Заявками» в панели приёмной (обзор): `profile.visa`
+          непуста ровно тогда, когда та панель есть, и карточка здесь
+          повторяла её второй раз. `profile.visa` остаётся в модели и
+          намеренно не рисуется в истории. */}
+      <Card title="Как он к нам пришёл">
+        <FactList
+          facts={[
+            { label: "Откуда", value: sourceWord(profile.source) ?? "неизвестно" },
+            { label: "Появился", value: profile.arrived },
+            {
+              label: "Передан",
+              value: profile.handoff
+                ? profile.handoff.override
+                  ? `${profile.handoff.at} · в обход гейта`
+                  : profile.handoff.at
+                : null,
+            },
+          ]}
+        />
+      </Card>
     </div>
   );
 }

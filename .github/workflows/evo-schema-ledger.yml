@@ -1,0 +1,97 @@
+name: EVO schema ledger
+
+# Ручное действие оператора над managed Supabase: read-only сверка леджера
+# миграций и, отдельным явным запуском, применение недостающего хвоста через
+# официальный linked-flow (короткоживущая login-role, без пароля БД).
+# Это и есть «миграции руками» из product.md 04.09 — ручной диспатч, никакой
+# автоматики. Релизный конвейер (evo-fast-release.yml) миграции по-прежнему
+# только сверяет и останавливается при расхождении.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check — только прочитать леджер; apply — применить недостающие миграции"
+        required: true
+        default: check
+        type: choice
+        options:
+          - check
+          - apply
+
+concurrency:
+  group: evo-schema-ledger
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  ledger:
+    name: Schema ledger (${{ inputs.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Read remote migration ledger (read-only)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
+          local_versions="$(ls supabase/migrations/*.sql | sed -E 's|.*/([0-9]{3})_.*|\1|' | sort)"
+          remote_json="$(curl -sf --max-time 30 \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$EVO_SUPABASE_PROJECT_REF/database/migrations")"
+          remote_versions="$(printf '%s' "$remote_json" | node -e '
+            const rows = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+            if (!Array.isArray(rows)) process.exit(1);
+            for (const row of rows) {
+              if (!row || typeof row.version !== "string") process.exit(1);
+              console.log(row.version);
+            }' | sort)"
+          echo "== локальные миграции: $(echo "$local_versions" | wc -l | tr -d ' ') (по $(echo "$local_versions" | tail -1))"
+          echo "== применено в проде: $(echo "$remote_versions" | grep -c . || true) (по $(echo "$remote_versions" | tail -1))"
+          echo "== недостающие в проде:"
+          comm -23 <(echo "$local_versions") <(echo "$remote_versions") | tr '\n' ' '
+          echo
+          echo "== лишние в проде (должно быть пусто):"
+          comm -13 <(echo "$local_versions") <(echo "$remote_versions") | tr '\n' ' '
+          echo
+
+      - name: Install pinned Supabase CLI
+        if: ${{ inputs.mode == 'apply' }}
+        run: |
+          set -Eeuo pipefail
+          npm install --no-save --ignore-scripts=false supabase@2.116.0
+          npx --no-install supabase --version
+
+      - name: Apply missing migrations (linked flow, dry-run first)
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+        run: |
+          set -Eeuo pipefail
+          npx --no-install supabase link --project-ref "$EVO_SUPABASE_PROJECT_REF"
+          echo "== dry-run =="
+          npx --no-install supabase db push --linked --dry-run --yes
+          echo "== apply =="
+          npx --no-install supabase db push --linked --yes
+          echo "== леджер после применения =="
+          curl -sf --max-time 30 \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$EVO_SUPABASE_PROJECT_REF/database/migrations" \
+            | node -e '
+              const rows = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+              console.log(rows.map((row) => row.version).join(" "));'

@@ -118,6 +118,7 @@ function formatWaitingRu(sinceIso: string): string | null {
 function awaitingReplyFor(
   messages: readonly PlatformConversationMessage[],
   messageCursor: PlatformConversationCursor | null,
+  olderMessagesExist: boolean,
 ): string | null {
   if (messageCursor !== null) return null;
   const newest = messages.at(-1);
@@ -126,12 +127,21 @@ function awaitingReplyFor(
   // каждое новое сообщение клиента не обнуляет его ожидание, иначе самый
   // настойчивый клиент выглядел бы самым свежим.
   let earliestUnanswered = newest;
+  let reachedPageStart = true;
   for (let index = messages.length - 2; index >= 0; index -= 1) {
     const message = messages[index]!;
-    if (message.direction !== "inbound") break;
+    if (message.direction !== "inbound") {
+      reachedPageStart = false;
+      break;
+    }
     earliestUnanswered = message;
   }
-  return formatWaitingRu(earliestUnanswered.createdAt);
+  const shown = formatWaitingRu(earliestUnanswered.createdAt);
+  if (shown === null) return null;
+  // Серия входящих упёрлась в границу страницы, а за ней есть более старые
+  // сообщения: начало ожидания неизвестно, число честно становится нижней
+  // границей.
+  return reachedPageStart && olderMessagesExist ? `${shown}+` : shown;
 }
 
 function queueSearchParams(
@@ -267,6 +277,7 @@ export async function readInbox(
       awaitingReplyFor: awaitingReplyFor(
         thread.messages,
         options.messageCursor,
+        thread.nextMessageCursor !== null,
       ),
       latestInboundSourceMessageId: latestInboundMessageId(
         thread.messages,

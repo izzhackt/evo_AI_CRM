@@ -698,6 +698,29 @@ SELECT pg_temp.p119_assert(
   'a version-2 lead with no receipt or normalization proof did not fail closed'
 );
 
+-- A version-1 creation baseline stops being trustworthy as soon as workflow
+-- action state appears without the canonical mutation receipt/audit pair.
+SAVEPOINT p119_no_receipt_action_drift;
+UPDATE platform.leads
+SET
+  next_action_text = 'Unproven synthetic action',
+  next_action_due_date = '2026-09-10'
+WHERE id = :'p119_lead_fallback';
+SET request.jwt.claims TO :'p119_admin_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p119_capture_error(
+  'SELECT * FROM platform.staff_sales_lead_page(20)'
+)::TEXT AS p119_no_receipt_action_drift_error
+\gset
+RESET ROLE;
+ROLLBACK TO SAVEPOINT p119_no_receipt_action_drift;
+SELECT pg_temp.p119_assert(
+  :'p119_no_receipt_action_drift_error'::JSONB ->> 'sqlstate' = '23514'
+    AND :'p119_no_receipt_action_drift_error'::JSONB ->> 'message'
+      = 'sales_stage_entry_evidence_inconsistent',
+  'a version-1 lead with unproven next-action state did not fail closed'
+);
+
 -- Migration 086 legitimately advanced an existing new_inbound lead to
 -- version 2 without a workflow receipt. Preserve only that exact audited
 -- one-time normalization as a proven creation baseline.

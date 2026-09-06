@@ -34,9 +34,9 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 244);
+  assert.equal(plan.occurrenceCount, 243);
   assert.equal(plan.uniqueFileCount, 101);
-  assert.equal(plan.duplicateCount, 143);
+  assert.equal(plan.duplicateCount, 142);
   assert.equal(new Set(plan.files).size, plan.files.length);
   for (const requiredD1Test of [
     "tests/platform-case-notes.test.mjs",
@@ -67,8 +67,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 140);
-  assert.equal(plan.uniqueFileCount, 97);
+  assert.equal(plan.occurrenceCount, 139);
+  assert.equal(plan.uniqueFileCount, 96);
   assert.equal(plan.duplicateCount, 43);
 });
 

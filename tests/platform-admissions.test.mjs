@@ -22,6 +22,8 @@ import {
 } from "../src/lib/platform-admissions.ts";
 import {
   isPlatformApplicationCalendarDate,
+  parsePlatformApplicationCountryInput,
+  parsePlatformApplicationDegreeInput,
   parsePlatformApplicationDetailsReceipt,
   parsePlatformApplicationDeadlineInput,
   parsePlatformApplicationPrimaryCheckbox,
@@ -492,6 +494,38 @@ test("application detail form values use one strict checkbox and calendar-date c
   }
 });
 
+test("application geography form values accept only canonical select options", () => {
+  for (const country of ["CN", "MY", "AE", "TR", "IT", "CZ"]) {
+    assert.equal(parsePlatformApplicationCountryInput(country), country);
+  }
+  for (const degree of [
+    "foundation",
+    "language",
+    "bachelor",
+    "master",
+    "phd",
+  ]) {
+    assert.equal(parsePlatformApplicationDegreeInput(degree), degree);
+  }
+  assert.equal(parsePlatformApplicationCountryInput(""), null);
+  assert.equal(parsePlatformApplicationDegreeInput(""), null);
+
+  for (const value of ["my", "US", " MY", "MY ", "MYS", null, undefined, 7]) {
+    assert.equal(parsePlatformApplicationCountryInput(value), undefined);
+  }
+  for (const value of [
+    "Bachelor",
+    "doctorate",
+    " bachelor",
+    "bachelor ",
+    null,
+    undefined,
+    7,
+  ]) {
+    assert.equal(parsePlatformApplicationDegreeInput(value), undefined);
+  }
+});
+
 test("application primary-switch receipt metadata is paired and target-safe", () => {
   assert.deepEqual(
     parsePlatformApplicationSwitchMetadata(
@@ -596,6 +630,8 @@ test("application details receipt returns the authoritative case and rejects inc
     { ...response, student_case_id: "not-a-case" },
     { ...response, is_primary: false },
     { ...response, university_deadline_on: null },
+    { ...response, country: "TR" },
+    { ...response, degree: "master" },
     { ...response, request_id: APPLICATION_ID },
     { ...response, expected_version: "3" },
     { ...response, version: "6" },
@@ -603,6 +639,15 @@ test("application details receipt returns the authoritative case and rejects inc
   ]) {
     assert.equal(
       parsePlatformApplicationDetailsReceipt(malformed, expectation),
+      undefined,
+    );
+  }
+  for (const malformedExpectation of [
+    { ...expectation, country: "US" },
+    { ...expectation, degree: "doctorate" },
+  ]) {
+    assert.equal(
+      parsePlatformApplicationDetailsReceipt(response, malformedExpectation),
       undefined,
     );
   }
@@ -718,6 +763,12 @@ test("malformed, cross-organization and partially-null projections fail closed",
   assert.throws(
     () => normalizePlatformApplicationQueueRow(
       applicationRow({ university_deadline_on: "2027-02-29" }),
+    ),
+    PlatformAdmissionsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformApplicationQueueRow(
+      applicationRow({ degree: "d".repeat(161) }),
     ),
     PlatformAdmissionsRepositoryError,
   );

@@ -42,7 +42,7 @@ DROP FUNCTION platform.update_university_application_details(
   UUID, UUID, BOOLEAN, DATE, BIGINT, UUID
 );
 
-CREATE FUNCTION platform.create_university_application(
+CREATE FUNCTION private.platform_create_university_application(
   p_organization_id UUID,
   p_student_case_id UUID,
   p_institution_name TEXT,
@@ -299,7 +299,7 @@ BEGIN
 END
 $$;
 
-CREATE FUNCTION platform.create_catalog_university_application(
+CREATE FUNCTION private.platform_create_catalog_university_application(
   p_organization_id UUID,
   p_student_case_id UUID,
   p_catalog_institution_id UUID,
@@ -576,7 +576,7 @@ BEGIN
 END
 $$;
 
-CREATE FUNCTION platform.update_university_application_details(
+CREATE FUNCTION private.platform_update_university_application_details(
   p_organization_id UUID,
   p_university_application_id UUID,
   p_is_primary BOOLEAN,
@@ -822,12 +822,137 @@ BEGIN
 END
 $$;
 
+-- Keep the Data API surface invoker-only. The privileged implementations live
+-- in the non-exposed private schema, re-derive actor/tenant authority inside
+-- their bodies and remain unreachable to anon/service roles.
+CREATE FUNCTION platform.create_university_application(
+  p_organization_id UUID,
+  p_student_case_id UUID,
+  p_institution_name TEXT,
+  p_program_name TEXT,
+  p_status platform.application_status,
+  p_evidence_reference TEXT,
+  p_note TEXT,
+  p_is_primary BOOLEAN,
+  p_university_deadline_on DATE,
+  p_country TEXT,
+  p_degree TEXT,
+  p_expected_version BIGINT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE SQL
+VOLATILE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT private.platform_create_university_application(
+    p_organization_id,
+    p_student_case_id,
+    p_institution_name,
+    p_program_name,
+    p_status,
+    p_evidence_reference,
+    p_note,
+    p_is_primary,
+    p_university_deadline_on,
+    p_country,
+    p_degree,
+    p_expected_version,
+    p_request_id
+  )
+$$;
+
+CREATE FUNCTION platform.create_catalog_university_application(
+  p_organization_id UUID,
+  p_student_case_id UUID,
+  p_catalog_institution_id UUID,
+  p_program_name TEXT,
+  p_status platform.application_status,
+  p_evidence_reference TEXT,
+  p_note TEXT,
+  p_is_primary BOOLEAN,
+  p_university_deadline_on DATE,
+  p_country TEXT,
+  p_degree TEXT,
+  p_expected_version BIGINT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE SQL
+VOLATILE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT private.platform_create_catalog_university_application(
+    p_organization_id,
+    p_student_case_id,
+    p_catalog_institution_id,
+    p_program_name,
+    p_status,
+    p_evidence_reference,
+    p_note,
+    p_is_primary,
+    p_university_deadline_on,
+    p_country,
+    p_degree,
+    p_expected_version,
+    p_request_id
+  )
+$$;
+
+CREATE FUNCTION platform.update_university_application_details(
+  p_organization_id UUID,
+  p_university_application_id UUID,
+  p_is_primary BOOLEAN,
+  p_university_deadline_on DATE,
+  p_country TEXT,
+  p_degree TEXT,
+  p_expected_version BIGINT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE SQL
+VOLATILE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT private.platform_update_university_application_details(
+    p_organization_id,
+    p_university_application_id,
+    p_is_primary,
+    p_university_deadline_on,
+    p_country,
+    p_degree,
+    p_expected_version,
+    p_request_id
+  )
+$$;
+
+REVOKE ALL ON FUNCTION private.platform_create_university_application(
+  UUID, UUID, TEXT, TEXT, platform.application_status, TEXT, TEXT,
+  BOOLEAN, DATE, TEXT, TEXT, BIGINT, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.platform_create_university_application(
+  UUID, UUID, TEXT, TEXT, platform.application_status, TEXT, TEXT,
+  BOOLEAN, DATE, TEXT, TEXT, BIGINT, UUID
+) TO authenticated;
+
 REVOKE ALL ON FUNCTION platform.create_university_application(
   UUID, UUID, TEXT, TEXT, platform.application_status, TEXT, TEXT,
   BOOLEAN, DATE, TEXT, TEXT, BIGINT, UUID
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION platform.create_university_application(
   UUID, UUID, TEXT, TEXT, platform.application_status, TEXT, TEXT,
+  BOOLEAN, DATE, TEXT, TEXT, BIGINT, UUID
+) TO authenticated;
+
+REVOKE ALL ON FUNCTION private.platform_create_catalog_university_application(
+  UUID, UUID, UUID, TEXT, platform.application_status, TEXT, TEXT,
+  BOOLEAN, DATE, TEXT, TEXT, BIGINT, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.platform_create_catalog_university_application(
+  UUID, UUID, UUID, TEXT, platform.application_status, TEXT, TEXT,
   BOOLEAN, DATE, TEXT, TEXT, BIGINT, UUID
 ) TO authenticated;
 
@@ -838,6 +963,13 @@ REVOKE ALL ON FUNCTION platform.create_catalog_university_application(
 GRANT EXECUTE ON FUNCTION platform.create_catalog_university_application(
   UUID, UUID, UUID, TEXT, platform.application_status, TEXT, TEXT,
   BOOLEAN, DATE, TEXT, TEXT, BIGINT, UUID
+) TO authenticated;
+
+REVOKE ALL ON FUNCTION private.platform_update_university_application_details(
+  UUID, UUID, BOOLEAN, DATE, TEXT, TEXT, BIGINT, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.platform_update_university_application_details(
+  UUID, UUID, BOOLEAN, DATE, TEXT, TEXT, BIGINT, UUID
 ) TO authenticated;
 
 REVOKE ALL ON FUNCTION platform.update_university_application_details(
@@ -854,7 +986,7 @@ DROP FUNCTION platform.staff_application_page(
   INTEGER, TIMESTAMPTZ, UUID, platform.application_status, UUID, UUID
 );
 
-CREATE FUNCTION platform.staff_application_page(
+CREATE FUNCTION private.platform_staff_application_page(
   p_limit INTEGER,
   p_before_updated_at TIMESTAMPTZ DEFAULT NULL,
   p_before_application_id UUID DEFAULT NULL,
@@ -1002,7 +1134,7 @@ BEGIN
 END
 $$;
 
-CREATE FUNCTION platform.staff_application_snapshot(
+CREATE FUNCTION private.platform_staff_application_snapshot(
   p_university_application_id UUID
 )
 RETURNS TABLE (
@@ -1040,7 +1172,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
   SELECT page.*
-  FROM platform.staff_application_page(
+  FROM private.platform_staff_application_page(
     1,
     NULL,
     NULL,
@@ -1049,6 +1181,113 @@ AS $$
     p_university_application_id
   ) AS page
 $$;
+
+CREATE FUNCTION platform.staff_application_page(
+  p_limit INTEGER,
+  p_before_updated_at TIMESTAMPTZ DEFAULT NULL,
+  p_before_application_id UUID DEFAULT NULL,
+  p_status platform.application_status DEFAULT NULL,
+  p_student_case_id UUID DEFAULT NULL,
+  p_application_id UUID DEFAULT NULL
+)
+RETURNS TABLE (
+  organization_id UUID,
+  university_application_id UUID,
+  version TEXT,
+  student_case_id UUID,
+  student_display_name TEXT,
+  target_country TEXT,
+  target_degree TEXT,
+  program_direction TEXT,
+  intake TEXT,
+  institution_name TEXT,
+  program_name TEXT,
+  status platform.application_status,
+  latest_evidence_reference TEXT,
+  is_primary BOOLEAN,
+  university_deadline_on DATE,
+  country TEXT,
+  degree TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  responsible_sales_display_name TEXT,
+  current_curator_display_name TEXT,
+  document_count BIGINT,
+  open_document_count BIGINT,
+  task_count BIGINT,
+  open_task_count BIGINT,
+  payment_obligation_count BIGINT,
+  outstanding_payment_obligation_count BIGINT
+)
+LANGUAGE SQL
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT page.*
+  FROM private.platform_staff_application_page(
+    p_limit,
+    p_before_updated_at,
+    p_before_application_id,
+    p_status,
+    p_student_case_id,
+    p_application_id
+  ) AS page
+$$;
+
+CREATE FUNCTION platform.staff_application_snapshot(
+  p_university_application_id UUID
+)
+RETURNS TABLE (
+  organization_id UUID,
+  university_application_id UUID,
+  version TEXT,
+  student_case_id UUID,
+  student_display_name TEXT,
+  target_country TEXT,
+  target_degree TEXT,
+  program_direction TEXT,
+  intake TEXT,
+  institution_name TEXT,
+  program_name TEXT,
+  status platform.application_status,
+  latest_evidence_reference TEXT,
+  is_primary BOOLEAN,
+  university_deadline_on DATE,
+  country TEXT,
+  degree TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  responsible_sales_display_name TEXT,
+  current_curator_display_name TEXT,
+  document_count BIGINT,
+  open_document_count BIGINT,
+  task_count BIGINT,
+  open_task_count BIGINT,
+  payment_obligation_count BIGINT,
+  outstanding_payment_obligation_count BIGINT
+)
+LANGUAGE SQL
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT snapshot.*
+  FROM private.platform_staff_application_snapshot(
+    p_university_application_id
+  ) AS snapshot
+$$;
+
+REVOKE ALL ON FUNCTION private.platform_staff_application_page(
+  INTEGER, TIMESTAMPTZ, UUID, platform.application_status, UUID, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.platform_staff_application_page(
+  INTEGER, TIMESTAMPTZ, UUID, platform.application_status, UUID, UUID
+) TO authenticated;
+REVOKE ALL ON FUNCTION private.platform_staff_application_snapshot(UUID)
+  FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.platform_staff_application_snapshot(UUID)
+  TO authenticated;
 
 REVOKE ALL ON FUNCTION platform.staff_application_page(
   INTEGER, TIMESTAMPTZ, UUID, platform.application_status, UUID, UUID

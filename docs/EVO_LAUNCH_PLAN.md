@@ -616,10 +616,13 @@ in #552 after every prerequisite below passes.
    prior accepted V3 while atomically moving the current pointer. WAHA, its
    session and volumes remain untouched in every mode.
 5. **Separate recovery paths.** The pre-change recovery set identifies one
-   recoverable managed-Postgres backup and a separate authenticated export of
-   private Storage object bytes with count, size and checksums; database backup
-   metadata is not file-byte recovery. Restore and forward-migration rehearsal
-   run only in a loopback-bound OrbStack copy. The gate proves source and
+   recoverable managed-Postgres backup and a separate signed authenticated
+   private-Storage inventory. If that inventory is non-empty, it must include an
+   object-byte export with count, size and checksums; if it is signed and empty,
+   it is exact empty-source evidence because there are no source bytes to
+   restore. Database backup metadata is not file-byte recovery. Restore and
+   forward-migration rehearsal run only in a loopback-bound OrbStack copy. The
+   gate proves source and
    destination project refs, URLs, networks and volumes are unequal, limits
    application-level verification to a named minimum authorized cohort, and
    never publishes row, object, credential or session data in evidence. Exact

@@ -233,7 +233,11 @@ period.
 This export is a restore input, not recovery-readiness evidence by itself. The
 existing application-facing recovery result remains `u11-recovery-result`; it
 may become ready only after a separate isolated restore proves database/Auth,
-role-specific RLS/browser behavior, Storage bytes and malware scanning.
+applicable real-role RLS/browser behavior, exact Storage evidence and malware
+scanning: source-byte restore when the signed source inventory is non-empty, or
+a signed empty-source inventory when it is zero. For the current Admin-only
+source, the Admin proof and Sales/Admissions limits below remain the live
+acceptance boundary.
 
 ## Isolated managed-Supabase recovery consumer
 

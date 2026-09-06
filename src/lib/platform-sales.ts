@@ -74,10 +74,13 @@ const QUEUE_ROW_KEYS = [
   "linked_conversation_count",
   "created_at",
   "updated_at",
+  "stage_entered_at",
 ] as const;
 
 const DETAIL_ROW_KEYS = [
-  ...QUEUE_ROW_KEYS.filter((key) => key !== "sort_at"),
+  ...QUEUE_ROW_KEYS.filter(
+    (key) => key !== "sort_at" && key !== "stage_entered_at",
+  ),
   "external_identifiers",
   "provenance",
   "linked_student_cases",
@@ -134,7 +137,7 @@ export type PlatformSalesCursor = Readonly<{
   id: string;
 }>;
 
-export type PlatformSalesLeadRow = Readonly<{
+type PlatformSalesLeadCore = Readonly<{
   organizationId: string;
   leadId: string;
   clientId: string | null;
@@ -157,6 +160,12 @@ export type PlatformSalesLeadRow = Readonly<{
   updatedAt: string;
 }>;
 
+export type PlatformSalesLeadRow = Readonly<
+  PlatformSalesLeadCore & {
+    stageEnteredAt: string;
+  }
+>;
+
 export type PlatformSalesLinkedConversation = Readonly<{
   conversationId: string;
   subject: string;
@@ -166,7 +175,7 @@ export type PlatformSalesLinkedConversation = Readonly<{
 }>;
 
 export type PlatformSalesLeadDetail = Readonly<
-  PlatformSalesLeadRow & {
+  PlatformSalesLeadCore & {
     linkedConversations: readonly PlatformSalesLinkedConversation[];
   }
 >;
@@ -542,10 +551,10 @@ function normalizeOwnerProjection(
   return Object.freeze({ currentOwnerMembershipId, currentOwnerDisplayName });
 }
 
-function normalizeLeadRow(
+function normalizeLeadCore(
   value: Record<string, unknown>,
   organizationId: string,
-): PlatformSalesLeadRow {
+): PlatformSalesLeadCore {
   const parsedOrganizationId = requiredUuid(value.organization_id);
   if (parsedOrganizationId !== organizationId) return invalidShape();
   const client = normalizeClientProjection(
@@ -696,7 +705,11 @@ export async function listPlatformSalesLeads(
     const seenLeadIds = new Set<string>();
     const normalized = response.data.map((value) => {
       const raw = requireExactRecord(value, QUEUE_ROW_KEYS);
-      const row = normalizeLeadRow(raw, organizationId);
+      const core = normalizeLeadCore(raw, organizationId);
+      const row: PlatformSalesLeadRow = Object.freeze({
+        ...core,
+        stageEnteredAt: requiredTimestamp(raw.stage_entered_at),
+      });
       const rowCursor = parsePlatformSalesCursor(raw.sort_at, row.leadId);
       if (
         rowCursor === null ||
@@ -807,7 +820,7 @@ export async function getPlatformSalesLead(
     if (response.data.length === 0) return null;
 
     const raw = requireExactRecord(response.data[0], DETAIL_ROW_KEYS);
-    const row = normalizeLeadRow(raw, organizationId);
+    const row = normalizeLeadCore(raw, organizationId);
     if (row.leadId !== normalizedLeadId) return invalidShape();
     requireBoundedRecordArray(raw.external_identifiers);
     requireBoundedRecordArray(raw.provenance);

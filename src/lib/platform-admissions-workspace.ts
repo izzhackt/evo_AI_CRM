@@ -1,11 +1,13 @@
 import type { PlatformActor } from "./platform-auth";
-import { parsePlatformAdmissionsUuid } from "./platform-admissions";
+import { parsePlatformAdmissionsUuid } from "./platform-admissions.ts";
 import {
   PLATFORM_CASE_TASK_PRIORITIES,
   PLATFORM_CASE_TASK_STATUSES,
   type PlatformAdmissionsTask,
   type PlatformAdmissionsTaskAssignee,
   type PlatformAdmissionsTaskQueue,
+  type PlatformAdmissionsTaskQueueCursor,
+  type PlatformAdmissionsTaskQueueOptions,
   type PlatformAdmissionsTaskQueueRow,
   type PlatformAdmissionsTaskWorkspace,
   type PlatformCaseTaskPriority,
@@ -19,7 +21,7 @@ import {
   DATABASE_STAFF_ROLES,
   databaseRoleToInterfaceRole,
   type DatabaseStaffRole,
-} from "./supabase/platform-authority";
+} from "./supabase/platform-authority.ts";
 import { platformTaskDeadlineSortTime } from "./platform-task-deadline.ts";
 
 const SAFE_REPOSITORY_ERROR_MESSAGE =
@@ -126,31 +128,36 @@ function optionalText(value: unknown, maximum: number): string | null {
   return value === null ? null : requiredText(value, maximum);
 }
 
+function parseTimestamp(value: unknown): string | null {
+  return typeof value === "string" &&
+    TIMESTAMPTZ_PATTERN.test(value) &&
+    parseDate(value.slice(0, 10)) !== null &&
+    Number.isFinite(Date.parse(value))
+    ? value
+    : null;
+}
+
 function requiredTimestamp(value: unknown): string {
-  if (
-    typeof value !== "string" ||
-    !TIMESTAMPTZ_PATTERN.test(value) ||
-    !Number.isFinite(Date.parse(value))
-  ) {
-    return invalidShape();
-  }
-  return value;
+  return parseTimestamp(value) ?? invalidShape();
 }
 
 function optionalTimestamp(value: unknown): string | null {
   return value === null ? null : requiredTimestamp(value);
 }
 
-function optionalDate(value: unknown): string | null {
-  if (value === null) return null;
+function parseDate(value: unknown): string | null {
   if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) {
-    return invalidShape();
+    return null;
   }
   const parsed = new Date(`${value}T00:00:00Z`);
-  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
-    return invalidShape();
-  }
-  return value;
+  return Number.isFinite(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
+    ? value
+    : null;
+}
+
+function optionalDate(value: unknown): string | null {
+  return value === null ? null : parseDate(value) ?? invalidShape();
 }
 
 function positiveBigint(value: unknown): string {
@@ -197,6 +204,33 @@ function normalizedPageSize(value: number | undefined): number {
     return invalidShape();
   }
   return value;
+}
+
+export function parsePlatformAdmissionsTaskQueueCursor(
+  sortAt: unknown,
+  caseTaskId: unknown,
+): PlatformAdmissionsTaskQueueCursor | null {
+  const normalizedSortAt = parseTimestamp(sortAt);
+  const normalizedCaseTaskId = parsePlatformAdmissionsUuid(caseTaskId);
+  return normalizedSortAt && normalizedCaseTaskId
+    ? Object.freeze({
+        sortAt: normalizedSortAt,
+        caseTaskId: normalizedCaseTaskId,
+      })
+    : null;
+}
+
+function normalizeTaskQueueCursor(
+  value: PlatformAdmissionsTaskQueueCursor | null | undefined,
+): PlatformAdmissionsTaskQueueCursor | null {
+  if (value === null || value === undefined) return null;
+  const cursor = exactRecord(value, ["sortAt", "caseTaskId"]);
+  return (
+    parsePlatformAdmissionsTaskQueueCursor(
+      cursor.sortAt,
+      cursor.caseTaskId,
+    ) ?? invalidShape()
+  );
 }
 
 async function getPlatformClient(): Promise<PlatformAdmissionsWorkspaceRpcClient> {
@@ -474,17 +508,33 @@ export async function getPlatformAdmissionsTaskWorkspace(
 
 export async function listPlatformAdmissionsTaskQueue(
   actor: PlatformActor,
-  options: Readonly<{ pageSize?: number }> = {},
+  options: PlatformAdmissionsTaskQueueOptions = {},
   dependencies: PlatformAdmissionsWorkspaceDependencies = {},
 ): Promise<PlatformAdmissionsTaskQueue> {
   try {
     const organizationId = requireAdmissionsActor(actor);
     const pageSize = normalizedPageSize(options.pageSize);
     const requestedLimit = pageSize + 1;
+    const cursor = normalizeTaskQueueCursor(options.cursor);
+    const dueFrom = optionalDate(options.dueFrom ?? null);
+    const dueTo = optionalDate(options.dueTo ?? null);
+    if (dueFrom !== null && dueTo !== null && dueTo < dueFrom) {
+      return invalidShape();
+    }
     const client = dependencies.client ?? await getPlatformClient();
     const response = await client.schema("platform").rpc(
       "staff_case_task_queue",
-      { p_limit: requestedLimit },
+      {
+        p_limit: requestedLimit,
+        ...(cursor
+          ? {
+              p_after_sort_at: cursor.sortAt,
+              p_after_case_task_id: cursor.caseTaskId,
+            }
+          : {}),
+        ...(dueFrom ? { p_due_from: dueFrom } : {}),
+        ...(dueTo ? { p_due_to: dueTo } : {}),
+      },
       { get: true },
     );
     if (
@@ -504,9 +554,20 @@ export async function listPlatformAdmissionsTaskQueue(
       seen.add(row.caseTaskId);
       return row;
     });
+    const hasNext = rows.length > pageSize;
+    const page = rows.slice(0, pageSize);
+    const last = page.at(-1);
+    const nextCursor =
+      hasNext && last
+        ? parsePlatformAdmissionsTaskQueueCursor(
+            last.sortAt,
+            last.caseTaskId,
+          ) ?? invalidShape()
+        : null;
     return Object.freeze({
-      rows: Object.freeze(rows.slice(0, pageSize)),
-      hasNext: rows.length > pageSize,
+      rows: Object.freeze(page),
+      nextCursor,
+      hasNext,
     });
   } catch (error) {
     return failClosed(error);

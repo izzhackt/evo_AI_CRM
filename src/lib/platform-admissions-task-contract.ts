@@ -139,6 +139,18 @@ export type PlatformAdmissionsTaskQueueRow = Readonly<{
   updatedAt: string;
 }>;
 
+export type PlatformAdmissionsTaskQueueCursor = Readonly<{
+  sortAt: string;
+  caseTaskId: string;
+}>;
+
+export type PlatformAdmissionsTaskQueueOptions = Readonly<{
+  cursor?: PlatformAdmissionsTaskQueueCursor | null;
+  pageSize?: number;
+  dueFrom?: string | null;
+  dueTo?: string | null;
+}>;
+
 export type PlatformAdmissionsTaskAssignee = Readonly<{
   membershipId: string;
   displayName: string;
@@ -154,5 +166,6 @@ export type PlatformAdmissionsTaskWorkspace = Readonly<{
 
 export type PlatformAdmissionsTaskQueue = Readonly<{
   rows: readonly PlatformAdmissionsTaskQueueRow[];
+  nextCursor: PlatformAdmissionsTaskQueueCursor | null;
   hasNext: boolean;
 }>;

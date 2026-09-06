@@ -172,7 +172,7 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
 **Durable checkpoint и cold-resume:** worktree
 `/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, remote
 ветка `izzhackt/v3-d1-backend`, draft PR #660. Проверенный code checkpoint —
-`97b122c80bb153950a83dcaf037c88af0290a217`; последующий docs-only commit не
+`428a222cd8e738578728b225f964f16933109acb`; последующий docs-only commit не
 меняет этот code tree. Найти состояние:
 
 ```bash
@@ -187,13 +187,15 @@ gh pr view 660 --repo izzhackt/evo_AI_CRM --json headRefOid,isDraft,statusCheckR
 `headRefOid` обязан совпадать с remote-веткой; любые новые изменения требуют
 повторить задетые проверки и exact-head review.
 
-**Фактический статус D1 на code checkpoint `97b122c8`:**
+**Фактический статус D1 на code checkpoint `428a222c`:**
 
 - **117 принято:** append-only lead/case notes, точная subject-authority,
-  replay-safe create, keyset list и реальная двухсессионная
-  membership-revocation race. Независимые review после исправлений —
-  `APPROVED`.
-- **118 принято:** география и ступень заявки проведены через migration, RPC,
+  replay-safe create, keyset list и реальные dblink-race. Unicode считается
+  теми же code points и с тем же edge-whitespace, что PostgreSQL; Sales держит
+  порядок блокировок lead → actor/org, Admissions — actor/org → case. Реальные
+  workflow-vs-note, curator-vs-note и membership-revocation race зелёные.
+- **118 принято:** точный список стран CN/MY/AE/TR/IT/CZ и ступень заявки
+  проведены через migration, RPC,
   серверные actions, формы и словарь; primary-switch держит один primary под
   детерминированной блокировкой, replay привязан к exact request. Targeted SQL,
   Node и независимые review зелёные.
@@ -204,8 +206,9 @@ gh pr view 660 --repo izzhackt/evo_AI_CRM --json headRefOid,isDraft,statusCheckR
   production-валидатор не ослаблялся — provisioner теперь завершает их через
   канонический `mutate_sales_lead_workflow` и сразу проверяет реальный read RPC.
 - **120 принято:** reply snippets с exact audience, optimistic version,
-  archive, receipt causality и role/capability guards. Targeted SQL/Node и
-  независимые review зелёные.
+  archive, receipt causality и role/capability guards. SQL и TypeScript имеют
+  одну trim/Unicode/C1-control границу, поэтому прямой RPC не может отравить
+  последующее чтение списка.
 - **121 принято:** actor-bound intent → одноразовый media grant → version-bound
   reservation → private Storage copy/TUS → download/hash/ClamAV → finalize.
   Stale slot, expired reservation, replay с иными входами, revoked actor,
@@ -213,16 +216,17 @@ gh pr view 660 --repo izzhackt/evo_AI_CRM --json headRefOid,isDraft,statusCheckR
   регрессиями. Последний недублирующий security-test из PR #663 перенесён в
   #660; #663 закрыт без отдельного merge.
 
-**Общий gate D1:** `npm run test:d1` — 87/87; `npm run test:unit` — 162/162;
-полный `scripts/test-postgres-authorization.sh` — PASS; Node 22 typecheck,
-полный ESLint и production build — PASS. Свежий
+**Общий gate D1:** `npm run test:d1` — 89/89; `npm run test:unit` — PASS (96
+уникальных Node-файлов); полный `scripts/test-postgres-authorization.sh` —
+PASS; Node 22 typecheck, полный ESLint и production build — PASS. Свежий
 `scripts/test-postgres-v2-foundation.sh` прошёл реальный локальный Postgres,
 Supabase Auth/RLS, private Storage, provider workflows и Chromium: активные
 staff-auth E2E 15/15, V3 gate зелёный на desktop, 393 px и forced-dark.
-GitHub fast checks точного `97b122c8`, включая Migration boundary, — SUCCESS.
-Последний обязательный шаг перед переводом #660 из draft: независимый
-cumulative adversarial review всего `origin/main...97b122c8`, затем короткое
-подтверждение финального docs-only HEAD.
+Два независимых confirming review исправлений (SQL/security/concurrency и
+SQL↔TypeScript contracts) — `APPROVED`; подтверждённых замечаний не осталось.
+Предыдущие GitHub fast checks `97b122c8` были SUCCESS. Последний обязательный
+шаг перед переводом #660 из draft: push финального docs-only HEAD, GitHub fast
+checks именно этого SHA и короткое подтверждение, что docs-only delta точен.
 
 Проверка актуальной официальной документации 06.09: новый
 `SECURITY DEFINER` нельзя оставлять в exposed schema `platform`. D1 переносит

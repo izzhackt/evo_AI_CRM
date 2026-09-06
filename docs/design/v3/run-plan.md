@@ -172,16 +172,16 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
 117–121 и их контракты; недописанное чистить, дописанное валидировать
 `test-postgres-authorization.sh` и перезапускать недостающие вертикали.
 
-**Текущий локальный checkpoint (до первого durable push):** worktree
-`/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, ветка
-`izzhackt/v3-d1-backend`, базовый спасённый commit `18474980`. Поверх него
-изменены четыре файла: `src/lib/platform-admissions-actions.ts`,
-`src/lib/server/platform-media-attach.ts`,
-`supabase/tests/platform_message_media_case_attach.sql`,
-`tests/platform-admissions.test.mjs`. Remote-ветки пока нет. Найти состояние:
-`git worktree list --porcelain`, затем `git -C <worktree> status --short` и
-`git -C <worktree> log -1 --oneline`. После первого push этот абзац в той же
-пачке заменить на remote branch + PR + точный head SHA.
+**Текущий durable checkpoint:** worktree
+`/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, remote
+ветка `izzhackt/v3-d1-backend`, draft PR #660, точный head
+`4622ef4f23bb30a34c5b096057c5ff48796232bb`. После rebase на PR #659
+спасённый черновик — commit `9f2e3390`; первичные repair-правки четырёх файлов
+(118 contract/fixtures, escaped control-byte regex, 121 SQL fixture) — commit
+`4622ef4f`. Найти состояние: `git worktree list --porcelain`, затем
+`git -C <worktree> status --short`, `git -C <worktree> log -2 --oneline` и
+`gh pr view 660`. При каждом следующем push обновлять здесь точный head и
+фактический статус вертикалей.
 
 **Состояние спасённого черновика Fable на 06.09 (не считать готовым):** 117 и
 120 имеют миграции, SQL/Node-тесты и backend-контракты; 118 не собирался и не

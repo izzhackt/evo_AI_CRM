@@ -60,7 +60,7 @@ retained only at
 | Store | Successor authority | Recovery boundary |
 | --- | --- | --- |
 | CRM data, role mappings and audit events | managed Supabase Postgres/Auth/RLS | one identified provider backup or approved logical backup, retained with identity, timestamp, size and checksum and restored only into the loopback OrbStack destination; verify root migration compatibility and server-enforced access |
-| Private documents and WhatsApp media | managed Supabase Storage | one separate authenticated object-byte export with bucket/count/size/checksum manifest and isolated private-bucket restore; database backup metadata alone is insufficient |
+| Private documents and WhatsApp media | managed Supabase Storage | one separate authenticated bucket/object inventory; if the source inventory is non-empty, an object-byte export with bucket/count/size/checksum manifest and isolated private-bucket restore is mandatory; if the signed source inventory proves zero objects, record exact empty-source evidence instead of claiming source-byte recovery; database backup metadata alone is insufficient |
 | WAHA session `crm_primary` | protected `evo_crm_waha_sessions` volume | preserve in place for app releases; use only a WAHA-supported, separately approved backup/relink procedure for disaster recovery |
 | Runtime secrets and encrypted provider settings | protected server/provider secret stores | independently retained configuration restored without printing values, then verified through the real server-side reader |
 | App generated output | `evo_crm_output` | non-authoritative; regenerate when possible and restore only if a named workflow requires it |
@@ -70,6 +70,14 @@ Supabase database backups and Storage object bytes are separate recovery
 artifacts. A database-only restore must not be called a complete product
 restore. Auth, RLS, Storage privacy, signed URLs and role behavior all require
 isolated application/browser verification.
+
+The current #551 production source state is one confirmed Admin and zero private
+Storage objects. A signed exact zero-object Storage inventory is valid release
+evidence because there are no source bytes to restore. It must be recorded as
+empty-source inventory evidence, not as source-byte recovery. The real private
+Storage lifecycle/scanner proof remains required through the product document
+path, but that proof validates the current target path and cannot stand in for
+source bytes when a source inventory is non-empty.
 
 The obsolete deployment staging contour is not a recovery environment or
 backup. #551 preserves its runbook only as non-executable history while removing
@@ -86,15 +94,18 @@ recoverable paths without creating credentials or changing provider state:
 1. **Database/Auth metadata:** the exact managed backup identity or an approved
    logical export, its creation time, Postgres image/version compatibility,
    encrypted protected location, byte count and SHA-256 checksum.
-2. **Storage bytes:** a separate authenticated S3/Storage export of every
-   in-scope private object, plus a protected manifest of bucket, object count,
-   aggregate bytes and per-object checksums. Object names remain only in the
-   protected manifest and never enter review or CI evidence.
+2. **Storage objects:** a separate authenticated S3/Storage inventory for every
+   in-scope private object. When that inventory is non-empty, it must include an
+   object-byte export plus a protected manifest of bucket, object count,
+   aggregate bytes and per-object checksums. When that inventory is signed and
+   empty, retain it as exact empty-source evidence instead of inventing bytes.
+   Object names remain only in the protected manifest and never enter review or
+   CI evidence.
 
 If existing authorized access cannot retrieve either artifact, record the
 missing credential/capability and stop. A provider's backup-list entry, a
-database dump containing `storage.objects` metadata, or an empty/synthetic file
-set cannot substitute for the corresponding recoverable artifact.
+database dump containing `storage.objects` metadata, or a synthetic file set
+cannot substitute for the corresponding recoverable artifact.
 
 ## Isolated rehearsal sequence
 
@@ -113,14 +124,20 @@ set cannot substitute for the corresponding recoverable artifact.
    without editing historical migrations or introducing another schema
    authority. Automatic application release never applies schema.
 5. Restore private Storage bytes separately through the supported Storage/S3
-   API and verify counts, sizes, checksums, bucket privacy and signed-access
-   behavior without logging object names.
+   API when the signed source inventory is non-empty, and verify counts, sizes,
+   checksums, bucket privacy and signed-access behavior without logging object
+   names. When the signed source inventory proves zero objects, validate and
+   retain the exact empty-source inventory instead of fabricating bytes.
 6. Start the exact app image against the isolated Supabase project. Use a fresh,
    private disposable WAHA instance only if transport verification is in the
    approved rehearsal; never copy or mount the live session volume.
-7. Verify Supabase Auth, Admin/Sales/Admissions authorization, canonical CRM
-   reads and writes, private document access, event-log continuity, health and
-   fail-closed behavior in a real browser and database.
+7. Verify Supabase Auth/session, the V3 shell, canonical CRM reads and writes,
+   private document access, event-log continuity, health and fail-closed behavior
+   in a real browser and database. With the current Admin-only managed source,
+   live proof is Admin authority plus Admin presentation preview of Sales and
+   Admissions; missing live Sales and Admissions are not fabricated and their
+   RLS/business outcomes remain isolated-local proof, explicitly not live staff
+   acceptance.
 8. Prove the configured real document scanner accepts a clean sample, rejects
    and quarantines a standard safe detection sample, denies finalization and
    download when unavailable, timed out or malformed, and resumes only after a
@@ -233,9 +250,10 @@ production image.
 
 Use the repository scripts from an exact clean reviewed commit. Supply every
 identifier through the child process or literal operator input without
-printing it or saving it in Git. Sales and Admissions IDs are optional only so
-the rehearsal can produce an honest diagnostic; their absence can never pass
-the acceptance gate.
+printing it or saving it in Git. Sales and Admissions IDs are optional because
+the current managed source has only one confirmed Admin. Their absence must be
+reported honestly: it does not authorize live Sales/Admissions acceptance, and
+it must not be filled with synthetic staff identities.
 
 ```bash
 npm run recovery:v3:managed:contract
@@ -278,12 +296,16 @@ npm run recovery:v3:managed:run -- \
 The full run restores only into a disposable OrbStack Supabase contour with one
 owned, egress-blocked, non-internal bridge and loopback-only app publication.
 It applies only the
-authenticated pending migration suffix, verifies exact source Storage bytes,
-runs the exact production image through local TLS, blocks browser HTTP and
-WebSocket egress, proves restored Auth/RLS/business outcomes, exercises the
-real Company Files scanner path for clean, EICAR, unavailable and recovered
-outcomes, and verifies fail-closed provider readiness without contacting a
-provider. This result is only one half of the #551 scanner gate. The same exact
+authenticated pending migration suffix, verifies exact source Storage bytes when
+the signed source inventory is non-empty, or verifies the exact signed empty
+source when the inventory has zero objects. It runs the exact production image
+through local TLS, blocks browser HTTP and WebSocket egress, proves Admin Auth/
+session and V3-shell behavior for the current managed source, records Admin
+presentation preview of Sales/Admissions without changing live authority,
+exercises the real Company Files scanner path for clean, EICAR, unavailable and
+recovered outcomes, and verifies fail-closed provider readiness without
+contacting a provider. This result is only one half of the #551 scanner gate.
+The same exact
 target commit must also pass `test:database:local`, which starts the pinned real
 ClamAV image and drives both active Student 360 `/api/v2/document-slots/*` and
 Company Files `/api/v3/company-files/*` ingress paths, plus `test:u7`, whose
@@ -297,12 +319,17 @@ runtime directory is removed; uncertainty is quarantined rather than deleted.
 Only mode-`0600` redacted result-v2 evidence is retained outside the runtime
 directory.
 
-`status=passed` requires all three real restored staff identities and at least
-one real source private-Storage object. Missing Sales/Admissions identities or
-a signed zero-object Storage source returns a non-zero `status=not_ready` with
-named blockers. The available Admin and deterministic PDF canary may still
-prove safe behavior, but they never substitute fixtures for the missing
-source evidence.
+For the current #551 source, `status=passed` may be honest with one confirmed
+Admin and a signed zero-object private-Storage source only when evidence states
+both limits explicitly: source-byte recovery is not applicable because no source
+objects exist, and live Sales/Admissions staff acceptance is not claimed. The
+Admin proof must use normal Supabase Auth/session and the V3 shell, and may show
+only Admin presentation preview of Sales/Admissions while authority remains
+Admin. Sales/Admissions RLS and business outcomes remain isolated-local proof.
+If the source inventory has any objects, the full non-empty disaster-recovery
+contract is strict again and `status=passed` requires exact source object-byte
+restore and verification. Synthetic staff, records, objects or provider calls
+can never convert a missing real source into acceptance.
 
 ## WAHA boundary
 

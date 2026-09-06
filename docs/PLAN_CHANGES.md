@@ -19613,3 +19613,41 @@ sslip documents embedded-IP hostname resolution at <https://sslip.io/>. Caddy
 documents automatic HTTPS and certificate management at
 <https://caddyserver.com/docs/automatic-https> and the reverse-proxy contract at
 <https://caddyserver.com/docs/caddyfile/directives/reverse_proxy>.
+
+## 2026-09-06 - Accept exact empty-source Storage evidence without relabeling it as source-byte recovery
+
+Block-ID: `EVO-V3-H-EMPTY-SOURCE-RECOVERY-ACCEPTANCE-2026-09-06`
+
+Change type: owner-directed recovery acceptance correction. Affected plan
+sections: Order 7 / Issue #551 and `docs/DISASTER_RECOVERY.md`.
+
+The latest real managed-production inventory for #551 is one confirmed Admin and
+zero private Storage objects. Earlier recovery text treated zero source objects
+as a `not_ready` blocker even when the signed source inventory was exact. That
+overstated the source-byte requirement for the current state: with zero source
+objects there are no source bytes to restore, so a signed exact empty-source
+inventory is valid release evidence when it is named honestly.
+
+Decision:
+
+- accept the signed zero-object Storage inventory as exact empty-source release
+  evidence for the current #551 source, because no source bytes exist;
+- never describe the empty-source result or target bucket setup as source-byte
+  recovery;
+- keep the real private Storage lifecycle/scanner proof mandatory through the
+  product document path, including clean acceptance, safe detection-sample
+  rejection, unavailable/timeout denial and clean rescan recovery;
+- require Admin-only managed proof to use normal Supabase Auth/session, load the
+  V3 shell and show only Admin presentation preview of Sales and Admissions
+  while actual authority stays Admin;
+- do not fabricate live Sales or Admissions staff. Their RLS and business
+  outcomes remain isolated-local proof and are explicitly not live staff
+  acceptance; and
+- keep the full disaster-recovery contract strict for any non-empty source:
+  exact object-byte export, bucket/count/size/checksum reconciliation, private
+  restore and signed-access checks are mandatory when source objects exist.
+
+This correction authorizes no fake source data, synthetic staff identities,
+provider calls, WAHA mutation, webhook transfer, production mutation, or customer
+data change. It changes only the authoritative documentation contract for honest
+#551 acceptance evidence.

@@ -602,7 +602,7 @@ fi
     EVO_RELEASE_EVIDENCE_ROOT: evidenceRoot,
     EVO_RELEASE_COMPOSE_FILE: candidateComposePath,
     EVO_RELEASE_APP_ENV_FILE: liveEnv,
-    EVO_RELEASE_EXTERNAL_HEALTH_URL: "https://crm.example.test/api/health",
+    EVO_RELEASE_EXTERNAL_HEALTH_URL: "https://evo-crm.72.62.119.112.sslip.io/api/health",
     EVO_SUPABASE_PROJECT_REF: "abcdefghijklmnopqrst",
     EVO_WAHA_IMAGE_DIGEST: wahaDigest,
     EVO_RELEASE_ROLLBACK_STATE: statePath,
@@ -1509,6 +1509,10 @@ test("workflow binds exact green main to one runner-built immutable release", ()
   assert.equal((workflow.match(/run\?\.name === "Main CRM"/gu) ?? []).length, 2);
   assert.equal((workflow.match(/run\?\.app\?\.slug === "github-actions"/gu) ?? []).length, 2);
   assert.match(workflow, /fast-release-ledger-gate\.mjs/u);
+  assert.match(
+    workflow,
+    /\[\[ -z "\$EVO_RELEASE_ROLLBACK_SEED" \|\| "\$EVO_RELEASE_ROLLBACK_SEED" =~/u,
+  );
   assert.match(workflow, /docker build/u);
   assert.match(workflow, /docker save/u);
   assert.match(workflow, /StrictHostKeyChecking yes/u);

@@ -594,8 +594,8 @@ jobs:
             [[ "$path" =~ ^/[A-Za-z0-9._/-]+$ && "$path" != / && "$path" != *//* && "$path" != *'/../'* ]]
           done
           [[ "$EVO_RELEASE_PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]{0,99}$ ]]
-          [[ "$EVO_RELEASE_ROLLBACK_SEED" =~ ^/[A-Za-z0-9._/-]+/state\.json$ ]]
-          [[ "$EVO_RELEASE_EXTERNAL_HEALTH_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/api/health$ ]]
+          [[ -z "$EVO_RELEASE_ROLLBACK_SEED" || "$EVO_RELEASE_ROLLBACK_SEED" =~ ^/[A-Za-z0-9._/-]+/state\.json$ ]]
+          [[ "$EVO_RELEASE_EXTERNAL_HEALTH_URL" == "https://evo-crm.72.62.119.112.sslip.io/api/health" ]]
           [[ "$EVO_RELEASE_MIN_FREE_KB" =~ ^[0-9]+$ ]]
           (( EVO_RELEASE_MIN_FREE_KB >= 1048576 ))
           [[ "$EVO_WAHA_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]

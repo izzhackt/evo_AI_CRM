@@ -604,7 +604,7 @@ function writeHarnessFiles() {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
   }
 
-  const environment = `EVO_CRM_DOMAIN=rollback-proof.invalid
+  const environment = `EVO_CRM_DOMAIN=evo-crm.72.62.119.112.sslip.io
 EVO_CADDY_NETWORK=${networkName}
 NEXT_PUBLIC_SUPABASE_URL=https://${supabaseProjectRef}.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabasePublishableKey}

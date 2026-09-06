@@ -11,11 +11,13 @@ together with
 [`ADR 0027`](docs/adr/0027-promote-v3-to-the-single-product-surface-on-managed-supabase.md),
 parent issue `#543`, completed integration sequence `#594` through `#600`, active
 sequence `#551` through `#553`, and the latest append-only entry in
-[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-09-04, V3 is the sole
+[`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md). As of 2026-09-06, V3 is the sole
 authenticated product surface over the ready-made managed Supabase foundation
 and the proved server-side CRM workflows. The target has one canonical Supabase
 Postgres model, real staff identity, private files, one UI and one runtime;
-V1/V2 are historical and rollback inputs, not parallel products.
+V1/V2 are historical and rollback inputs, not parallel products. The current
+production hostname is `https://evo-crm.72.62.119.112.sslip.io`; custom CRM DNS
+is deferred and is not a release prerequisite or parallel route.
 
 The completed U2 contract is
 recorded in

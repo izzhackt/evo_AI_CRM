@@ -9,6 +9,7 @@ The successor has one runtime topology:
 | Component | Authority | Deployment boundary |
 | --- | --- | --- |
 | EVO staff application | root Next.js application | Compose service `app` |
+| Document malware scanner | pinned ClamAV image | Compose service `clamav`, private network only |
 | WhatsApp transport | existing private WAHA session `crm_primary` | Compose service `waha`, private network only |
 | Business data and authorization | one managed Supabase project | external Postgres, Auth, RLS, and private Storage |
 
@@ -24,6 +25,19 @@ resource, and log rules. The managed-Supabase recovery boundary is in
 [`docs/DISASTER_RECOVERY.md`](../docs/DISASTER_RECOVERY.md). The superseded V1
 multi-runtime material is retained under
 [`docs/archive/v1`](../docs/archive/v1/README.md) and must not be executed.
+
+## Current public hostname
+
+The sole current production hostname is
+`https://evo-crm.72.62.119.112.sslip.io`. `evo-edge-caddy` terminates automatic
+HTTPS for that exact hostname and proxies it to the single `evo-crm-app:3000`
+upstream on `evo_public_web`. `crm.evoadmissions.com` is deferred until the
+owner has working DNS; its absence does not block #552 and it must not be kept
+as a parallel active route. Both `EVO_CRM_DOMAIN` and
+`EVO_RELEASE_EXTERNAL_HEALTH_URL` must use the sslip hostname for this release.
+See [sslip.io](https://sslip.io/) for embedded-IP hostname resolution and
+[Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https) for the
+certificate lifecycle.
 
 ## Active inputs
 
@@ -48,9 +62,11 @@ bootstrap or maintain a second credential store.
 
 ## Network and storage boundary
 
-`docker-compose.prod.yml` declares exactly `app` and `waha`.
+`docker-compose.prod.yml` declares exactly `app`, private `clamav` and private
+`waha`.
 
 - `app` joins `evo_crm_private` and the pre-existing EVO web network.
+- `clamav` joins only `evo_crm_private`; it has no host-published port.
 - `waha` joins only `evo_crm_private`; it has no host-published port.
 - WAHA session bytes remain in `evo_crm_waha_sessions`.
 - Canonical documents live in private Supabase Storage, not the app output

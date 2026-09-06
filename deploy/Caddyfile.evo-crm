@@ -1,4 +1,4 @@
-crm.evoadmissions.com {
+evo-crm.72.62.119.112.sslip.io {
 	encode zstd gzip
 	reverse_proxy evo-crm-app:3000
 	header {

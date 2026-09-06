@@ -25,6 +25,7 @@ const SUPABASE_PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]+$/u;
 const SUPABASE_SECRET_KEY = /^sb_secret_[A-Za-z0-9_-]{16,}$/u;
 const SUPABASE_PROJECT_REF = /^[a-z0-9]{20}$/u;
 const SUPABASE_KEY_VERIFICATION_TIMEOUT_MS = 10_000;
+const PRODUCTION_CRM_DOMAIN = "evo-crm.72.62.119.112.sslip.io";
 const REQUIRED_RUNTIME_VALUES = Object.freeze([
   "EVO_CRM_DOMAIN",
   "EVO_CADDY_NETWORK",
@@ -290,6 +291,9 @@ export function validateAppEnvironmentContract({
     }
   }
   requireNonEmpty(actualEntries, REQUIRED_RUNTIME_VALUES, "required_env_value_missing");
+  if (actualEntries.get("EVO_CRM_DOMAIN") !== PRODUCTION_CRM_DOMAIN) {
+    fail("crm_domain_invalid");
+  }
   if (
     !UUID.test(actualEntries.get("EVO_PLATFORM_ORGANIZATION_ID")) ||
     !isSupabaseSecretKey(actualEntries.get("EVO_PLATFORM_SUPABASE_SECRET_KEY"))

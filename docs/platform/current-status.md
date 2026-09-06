@@ -1,53 +1,38 @@
 # Текущий статус EVO Platform
 
 - Owner: технический ответственный EVO Admissions
-- Snapshot date: 2026-08-27
+- Snapshot date: 2026-09-06
 - Repository baseline: GitHub `origin/main`
-  `edb58d22c9390dbf97e1e82a8975617cc3972d8a`
-- Active product contract: GitHub issue #376
-- Active implementation block: U11/#388 managed staging and recovery proof
-- Target decision: `docs/adr/0020-unify-evo-v1-on-canonical-supabase.md`
-- Supabase boundary: `docs/adr/0015-establish-canonical-supabase-schema-and-migration-boundary.md`
-- Active Student Profile automation boundary:
-  `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
+  `f3c591ee40a5f76e4279e74adbc2c20a82958077`
+- Active product contract: parent #543, ADRs 0024/0026/0027 and
+  `docs/EVO_LAUNCH_PLAN.md`
+- Active implementation sequence: #551 recovery/release readiness, #552 one
+  production deployment, then #553 exact-live completion audit
+- Product authority: V3 is the sole UI; managed Supabase supplies canonical
+  Postgres, Auth and private Storage
 - Evidence rule: code/configuration is not real-provider proof
-- Provider/production status: re-read 2026-08-27; isolated app-only staging is
-  running server-side, a real read-only Admin smoke succeeded through a
-  temporary SSH loopback path, production is unchanged, public owner-network
-  acceptance and managed recovery proof are still open
+- Provider/production status: production providers and webhook transfer remain
+  disabled; the selected private WAHA `crm_primary` session is preserved
 
 ## Короткий вывод
 
-Target — одна внутренняя EVO Platform с canonical Supabase data, временным
-amoCRM read/import adapter, private WAHA transport и advisory human-reviewed
-AI. Active data должна пройти one-time migration/reconciliation; SQLite
-runtime, dual-read/write и compatibility layers запрещены. Первый live stage
-receive-only: no outbound WhatsApp and no amoCRM writes.
+Target — один внутренний CRM-продукт EVO: V3 UI над managed Supabase и
+существующими server-side workflows. SQLite/Drizzle, dual-read/write,
+compatibility UI и старые workers не являются активным runtime.
 
-Owner-approved V1 staging теперь существует отдельно от production:
+Manual full-proof run `33982734454` прошёл на exact main, но #551 ещё не
+завершён: в реальном managed project есть только Admin, отсутствуют реальные
+Sales и Admissions identities, а private Storage не содержит исходного
+реального объекта для recovery proof. Эти входы нельзя заменять fixtures.
 
-- Supabase branch `evo-v1-staging` / `brkihdobevpknkjvbuep` создан без
-  production data и проверен с migration ledger `001-092`;
-- один approved Admin подтверждён реальным password grant и Admin JWT claims;
-- protected GitHub staging preflight run `33084233185` зелёный;
-- на `hermes-vps` запущен только `evo-crm-staging-app-1` exact revision
-  `6d2109b865da334bd41ad8c432147a2f7045937b`; staging WAHA, worker и Lead
-  Agent не запускались;
-- production CRM остался на
-  `ee8a825ebc72f84449636e3feaefab7a330913d4`, healthy, restart count `0`.
-
-Это ещё не staff-ready acceptance. Owner разрешил временно использовать
-`https://staging-crm.72.62.119.112.sslip.io`, поэтому canonical staging DNS
-больше не является prerequisite для первого feedback loop. Реальный Admin UI
-login и read-only smoke по `/sales`, `/clients`, `/applications`, `/whatsapp`
-и `/settings?tab=staff` прошли через временный SSH loopback к live staging app
-без fatal и console errors. Это не заменяет owner-network proof: certificate
-warnings bypass-ить нельзя, а на локальном Fortinet path раньше был
-`ERR_CERT_AUTHORITY_INVALID`, хотя сам public sslip route на VPS отвечал
-HTTP 200 с valid TLS. Owner feedback/fix round и managed Database + Storage
-restore drill не завершены, поэтому Issue #388 остаётся открытым. Production
-replacement, outbound WhatsApp, autonomous replies, amoCRM writes, V1 tag и V2
-re-baseline не разрешены этим staging execution.
+На VPS старый `evo-crm-app-1` уже отсутствует. Caddy имеет валидный TLS и
+готовый единственный production route
+`https://evo-crm.72.62.119.112.sslip.io -> evo-crm-app:3000`; до deployment
+этот маршрут закономерно возвращает `502`. Решением owner-а от 2026-09-06
+sslip URL является текущим production hostname, а `crm.evoadmissions.com`
+отложен и не блокирует release. Remote staging contour и GitHub `staging`
+Environment должны быть точно инвентаризированы и удалены до arm. Никакие
+реальные WhatsApp/amoCRM/Gemini calls и webhook transfer этим не разрешены.
 
 ## Historical repository snapshot before #376
 

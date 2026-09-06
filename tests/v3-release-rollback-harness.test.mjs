@@ -206,7 +206,8 @@ test("rollback harness cannot call real Supabase or provider mutation paths", ()
   assert.match(source, /EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0/u);
   assert.match(source, /EVO_SUPABASE_PROJECT_REF: supabaseProjectRef/u);
   assert.match(source, /providersCalled: false/u);
-  assert.doesNotMatch(source, /iosckaqtovbbnssqcpde|crm\.evoadmissions\.com|72\.62\.119\.112/u);
+  assert.match(source, /EVO_CRM_DOMAIN=evo-crm\.72\.62\.119\.112\.sslip\.io/u);
+  assert.doesNotMatch(source, /iosckaqtovbbnssqcpde|crm\.evoadmissions\.com/u);
   assert.doesNotMatch(source, /SUPABASE_ACCESS_TOKEN|EVO_P6D_SUPABASE_SECRET_KEY/u);
   assert.doesNotMatch(source, /api\/sendText|api\/sessions|api\/webhook|amoCRM|Gemini/u);
   assert.doesNotMatch(source, /\bssh\b|\bscp\b|\brsync\b/u);

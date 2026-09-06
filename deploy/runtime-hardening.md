@@ -36,14 +36,13 @@ configuration and assertions from these active files:
 - `package.json`.
 
 The new two-job release workflow also removes its `staging` Environment/input/
-job path. The active `staging-crm.72.62.119.112.sslip.io` route is removed from
-the legacy `agent-lead2-inbox/deploy/Caddyfile.evo-edge`. `deploy/README.md` and
+job path. The obsolete CRM staging route is removed from the
+legacy source `agent-lead2-inbox/deploy/Caddyfile.evo-edge`. `deploy/README.md` and
 root `CONTEXT.md` describe only the no-staging V3 authority; the superseded
 staging runbooks are copied to historical-only
 `docs/archive/v2/staging-release.md` and
-`docs/archive/v2/u11-staging-recovery.md` before the active
-`docs/runbooks/u11-staging-recovery.md` file and every active link to it are
-removed.
+`docs/archive/v2/u11-staging-recovery.md` before the active runbook and every
+active link to it are removed.
 Existing V1/V2 ADRs, migrations, runbooks, archived docs, evidence, Git history
 and other historical decision/rollback documentation remain unchanged and
 non-executable.
@@ -63,8 +62,8 @@ Hermes/GitHub/Supabase/repository inventory for the staging hostname/Caddy
 route, `/opt/evo-crm-staging`, Compose project and containers labelled
 `evo-crm-staging`, staging-owned networks/volumes, GitHub `staging`
 Environment and staging-only variables/secrets, the managed Supabase staging
-branch/project recorded as `evo-v1-staging`, and the active
-`docs/runbooks/u11-staging-recovery.md` path plus every active link to it. The
+branch/project recorded as `evo-v1-staging`, and the active staging-runbook path
+plus every active link to it. The
 Supabase inventory must resolve the exact organization and 20-character
 project ref, prove that it differs from the production ref, and prove from
 database/Auth/Storage counts and retained backup identity that it is the

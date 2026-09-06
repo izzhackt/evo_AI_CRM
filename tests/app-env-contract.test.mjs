@@ -28,7 +28,7 @@ const TEST_SECRET_KEY = "sb_secret_ssssssssssssssssssssssss";
 const TEST_SUPABASE_PROJECT_REF = "aaaaaaaaaaaaaaaaaaaa";
 
 const example = `
-EVO_CRM_DOMAIN=crm.evoadmissions.com
+EVO_CRM_DOMAIN=evo-crm.72.62.119.112.sslip.io
 EVO_CADDY_NETWORK=evo_public_web
 NEXT_PUBLIC_SUPABASE_URL=https://replace-with-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=replace-with-publishable-key
@@ -43,7 +43,7 @@ ANTHROPIC_API_KEY=
 
 function valid(overrides = {}) {
   const values = {
-    EVO_CRM_DOMAIN: "crm.evoadmissions.com",
+    EVO_CRM_DOMAIN: "evo-crm.72.62.119.112.sslip.io",
     EVO_CADDY_NETWORK: "evo_public_web",
     NEXT_PUBLIC_SUPABASE_URL: `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
@@ -157,6 +157,7 @@ test("fails closed without leaking keys when Supabase verification is unavailabl
 test("rejects missing names, duplicate names, empty Supabase authority, and known placeholders", () => {
   expectInvalid(valid().replace(/^EVO_CRM_DOMAIN=.*\n/mu, ""), "required_env_name_missing");
   expectInvalid(`${valid()}EVO_CRM_DOMAIN=duplicate.example\n`, "duplicate_env_name");
+  expectInvalid(valid({ EVO_CRM_DOMAIN: "crm.evoadmissions.com" }), "crm_domain_invalid");
   expectInvalid(
     valid({ EVO_PLATFORM_ORGANIZATION_ID: "" }),
     "required_env_value_missing",

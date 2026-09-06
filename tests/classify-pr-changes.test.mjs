@@ -109,6 +109,17 @@ test("test and script changes lint without repeating the TypeScript or Next grap
   assert.equal(result.unknown, false);
 });
 
+test("the shared EVO edge Caddy source is a known infrastructure path", () => {
+  const result = classifyNameStatus(nul(
+    "M",
+    "agent-lead2-inbox/deploy/Caddyfile.evo-edge",
+  ));
+  assert.equal(result.code, true);
+  assert.equal(result.lint, true);
+  assert.equal(result.build, false);
+  assert.equal(result.unknown, false);
+});
+
 test("runtime schemas and Node-version changes receive the production build gate", () => {
   const result = classifyNameStatus(nul(
     "M",

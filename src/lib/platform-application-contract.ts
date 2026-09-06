@@ -17,6 +17,78 @@ export const PLATFORM_APPLICATION_EVIDENCE_STATUSES = new Set<
   PlatformApplicationStatus
 >(["submitted", "under_review", "offer", "rejected", "enrolled"]);
 
+/**
+ * The six destination countries the business works with, as ISO-3166-1
+ * alpha-2 codes. Staff forms offer exactly these; the database stores any
+ * well-formed alpha-2 code, and unknown codes are simply never rendered.
+ */
+export const PLATFORM_APPLICATION_COUNTRIES = [
+  "CN",
+  "MY",
+  "AE",
+  "TR",
+  "IT",
+  "CZ",
+] as const;
+
+export type PlatformApplicationCountry =
+  (typeof PLATFORM_APPLICATION_COUNTRIES)[number];
+
+/**
+ * Canonical machine degree keys of a university application. The schema
+ * intentionally keeps the column as free TEXT (the same shape as
+ * `student_cases.target_degree`); this list is the one product dictionary,
+ * translated for humans only in `src/lib/v3/wording.ts`.
+ */
+export const PLATFORM_APPLICATION_DEGREES = [
+  "foundation",
+  "language",
+  "bachelor",
+  "master",
+  "phd",
+] as const;
+
+export type PlatformApplicationDegree =
+  (typeof PLATFORM_APPLICATION_DEGREES)[number];
+
+const PLATFORM_APPLICATION_COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
+
+/** True only for a well-formed ISO-3166-1 alpha-2 country code. */
+export function isPlatformApplicationCountryCode(
+  value: unknown,
+): value is string {
+  return typeof value === "string" &&
+    PLATFORM_APPLICATION_COUNTRY_CODE_PATTERN.test(value);
+}
+
+/**
+ * Parses the nullable country select of a staff form. Empty means "no
+ * country"; anything outside the fixed business list is malformed.
+ */
+export function parsePlatformApplicationCountryInput(
+  value: unknown,
+): PlatformApplicationCountry | null | undefined {
+  if (typeof value !== "string") return undefined;
+  if (value === "") return null;
+  return (PLATFORM_APPLICATION_COUNTRIES as readonly string[]).includes(value)
+    ? (value as PlatformApplicationCountry)
+    : undefined;
+}
+
+/**
+ * Parses the nullable degree select of a staff form. Empty means "no
+ * degree"; anything outside the canonical dictionary is malformed.
+ */
+export function parsePlatformApplicationDegreeInput(
+  value: unknown,
+): PlatformApplicationDegree | null | undefined {
+  if (typeof value !== "string") return undefined;
+  if (value === "") return null;
+  return (PLATFORM_APPLICATION_DEGREES as readonly string[]).includes(value)
+    ? (value as PlatformApplicationDegree)
+    : undefined;
+}
+
 const PLATFORM_APPLICATION_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORM_APPLICATION_NIL_UUID = "00000000-0000-0000-0000-000000000000";
@@ -153,6 +225,8 @@ export type PlatformApplicationDetailsReceiptExpectation = Readonly<{
   universityApplicationId: string;
   isPrimary: boolean;
   universityDeadlineOn: string | null;
+  country: string | null;
+  degree: string | null;
   requestId: string;
   expectedVersion: string;
 }>;
@@ -182,13 +256,19 @@ export function parsePlatformApplicationDetailsReceipt(
   const expectedVersion = positiveApplicationBigint(expected.expectedVersion);
   const deadlineIsValid = expected.universityDeadlineOn === null ||
     isPlatformApplicationCalendarDate(expected.universityDeadlineOn);
+  const countryIsValid = expected.country === null ||
+    isPlatformApplicationCountryCode(expected.country);
+  const degreeIsValid = expected.degree === null ||
+    (typeof expected.degree === "string" && expected.degree.length > 0);
   if (
     organizationId === null ||
     universityApplicationId === null ||
     requestId === null ||
     expectedVersion === null ||
     typeof expected.isPrimary !== "boolean" ||
-    !deadlineIsValid
+    !deadlineIsValid ||
+    !countryIsValid ||
+    !degreeIsValid
   ) {
     return undefined;
   }
@@ -207,6 +287,8 @@ export function parsePlatformApplicationDetailsReceipt(
     studentCaseId === null ||
     record.is_primary !== expected.isPrimary ||
     record.university_deadline_on !== expected.universityDeadlineOn ||
+    record.country !== expected.country ||
+    record.degree !== expected.degree ||
     platformApplicationUuid(record.request_id) !== requestId ||
     record.expected_version !== expectedVersion ||
     nextVersion === null ||
@@ -238,6 +320,8 @@ export type PlatformApplicationQueueRow = Readonly<{
   programName: string;
   isPrimary: boolean;
   universityDeadlineOn: string | null;
+  country: string | null;
+  degree: string | null;
   status: PlatformApplicationStatus;
   latestEvidenceReference: string | null;
   createdAt: string;

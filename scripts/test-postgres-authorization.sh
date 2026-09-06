@@ -2071,6 +2071,22 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_malware_scan_transaction_boundaries.sql
   fi
+
+  # Migration 117 adds append-only human case notes on leads and student
+  # cases behind RPC-only access with domain actor guards.
+  if [[ "$(basename "$migration")" == 117_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_notes_rls.sql
+  fi
+
+  # Migration 121 bridges archived WhatsApp message media into the canonical
+  # case document pipeline through an audited intent/completion ledger.
+  if [[ "$(basename "$migration")" == 121_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_message_media_case_attach.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

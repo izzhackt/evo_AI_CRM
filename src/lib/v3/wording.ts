@@ -103,6 +103,35 @@ export const financeBlockedActionOptions = Object.entries(FINANCE_BLOCKED_ACTION
   ([value, label]) => ({ value, label }),
 );
 
+/**
+ * Страна заявки: код ISO-3166-1 alpha-2 → русское название. Здесь только
+ * шесть стран, с которыми работает бизнес (см. frontend-roadmap,
+ * «Требования под страну и программу»). Неизвестный код не рисуется:
+ * `lookup` вернёт `null`, и вызывающий ничего не показывает.
+ */
+const COUNTRY: Record<string, string> = {
+  CN: "Китай",
+  MY: "Малайзия",
+  AE: "ОАЭ",
+  TR: "Турция",
+  IT: "Италия",
+  CZ: "Чехия",
+};
+
+/**
+ * Ступень обучения университетской заявки: машинный ключ → слово. Ключи —
+ * канонический словарь продукта; в схеме второго словаря нет, колонка —
+ * тот же свободный TEXT, что и `student_cases.target_degree`. Неизвестный
+ * ключ не рисуется.
+ */
+const DEGREE: Record<string, string> = {
+  foundation: "Фаундейшн",
+  language: "Языковые курсы",
+  bachelor: "Бакалавриат",
+  master: "Магистратура",
+  phd: "Докторантура",
+};
+
 /** Роль: три фиксированные роли EVO. */
 const ROLE: Record<string, string> = {
   admin: "администратор",
@@ -182,6 +211,8 @@ export const taskStatus = (v: string | null | undefined) => lookup(TASK_STATUS, 
 export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];
 export const financeBlockedAction = (v: string | null | undefined) =>
   lookup(FINANCE_BLOCKED_ACTION, v);
+export const country = (v: string | null | undefined) => lookup(COUNTRY, v);
+export const degree = (v: string | null | undefined) => lookup(DEGREE, v);
 export const role = (v: string | null | undefined) => lookup(ROLE, v);
 export const source = (v: string | null | undefined) => lookup(SOURCE, v);
 

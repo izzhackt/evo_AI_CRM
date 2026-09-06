@@ -6,7 +6,9 @@ import { revalidatePath } from "next/cache";
 
 import { parsePlatformAdmissionsUuid } from "./platform-admissions";
 import {
+  parsePlatformApplicationCountryInput,
   parsePlatformApplicationDeadlineInput,
+  parsePlatformApplicationDegreeInput,
   parsePlatformApplicationDetailsReceipt,
   parsePlatformApplicationPrimaryCheckbox,
   PLATFORM_APPLICATION_EVIDENCE_STATUSES,
@@ -41,6 +43,8 @@ const CREATE_APPLICATION_FIELDS = [
   "note",
   "is_primary",
   "university_deadline_on",
+  "country",
+  "degree",
   "request_id",
   "expected_version",
 ] as const;
@@ -48,6 +52,8 @@ const UPDATE_APPLICATION_DETAILS_FIELDS = [
   "application_id",
   "is_primary",
   "university_deadline_on",
+  "country",
+  "degree",
   "request_id",
   "expected_version",
 ] as const;
@@ -271,12 +277,19 @@ export async function createPlatformUniversityApplicationAction(
   const universityDeadlineOn = parsePlatformApplicationDeadlineInput(
     rawApplicationField(fields, "university_deadline_on"),
   );
+  const country = parsePlatformApplicationCountryInput(
+    applicationField(fields, "country"),
+  );
+  const degree = parsePlatformApplicationDegreeInput(
+    applicationField(fields, "degree"),
+  );
   if (
     !studentCaseId || !requestId || expectedVersion !== "0" ||
     (catalogValue !== "" && !catalogInstitutionId) ||
     (!catalogInstitutionId && !institutionName) || !programName || !status ||
     evidence === undefined || note === undefined || isPrimary === null ||
     universityDeadlineOn === undefined ||
+    country === undefined || degree === undefined ||
     (PLATFORM_APPLICATION_EVIDENCE_STATUSES.has(status) && !evidence) ||
     ((status === "rejected" || status === "withdrawn") && !note)
   ) {
@@ -298,6 +311,8 @@ export async function createPlatformUniversityApplicationAction(
             p_note: note,
             p_is_primary: isPrimary,
             p_university_deadline_on: universityDeadlineOn,
+            p_country: country,
+            p_degree: degree,
             p_expected_version: expectedVersion,
             p_request_id: requestId,
           },
@@ -314,6 +329,8 @@ export async function createPlatformUniversityApplicationAction(
             p_note: note,
             p_is_primary: isPrimary,
             p_university_deadline_on: universityDeadlineOn,
+            p_country: country,
+            p_degree: degree,
             p_expected_version: expectedVersion,
             p_request_id: requestId,
           },
@@ -344,6 +361,7 @@ export async function createPlatformUniversityApplicationAction(
       data.evidence_reference !== evidence || data.note !== note ||
       data.is_primary !== isPrimary ||
       data.university_deadline_on !== universityDeadlineOn ||
+      data.country !== country || data.degree !== degree ||
       data.request_id !== requestId || data.expected_version !== "0" ||
       typeof data.version !== "string" ||
       applicationVersion(data.version, false) !== "1" ||

@@ -225,8 +225,8 @@ export type PlatformApplicationDetailsReceiptExpectation = Readonly<{
   universityApplicationId: string;
   isPrimary: boolean;
   universityDeadlineOn: string | null;
-  country: string | null;
-  degree: string | null;
+  country: PlatformApplicationCountry | null;
+  degree: PlatformApplicationDegree | null;
   requestId: string;
   expectedVersion: string;
 }>;
@@ -257,9 +257,9 @@ export function parsePlatformApplicationDetailsReceipt(
   const deadlineIsValid = expected.universityDeadlineOn === null ||
     isPlatformApplicationCalendarDate(expected.universityDeadlineOn);
   const countryIsValid = expected.country === null ||
-    isPlatformApplicationCountryCode(expected.country);
+    parsePlatformApplicationCountryInput(expected.country) === expected.country;
   const degreeIsValid = expected.degree === null ||
-    (typeof expected.degree === "string" && expected.degree.length > 0);
+    parsePlatformApplicationDegreeInput(expected.degree) === expected.degree;
   if (
     organizationId === null ||
     universityApplicationId === null ||

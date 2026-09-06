@@ -607,7 +607,7 @@ export function normalizePlatformApplicationQueueRow(
     isPrimary: requiredBoolean(value.is_primary),
     universityDeadlineOn: optionalDate(value.university_deadline_on),
     country: optionalCountryCode(value.country),
-    degree: optionalText(value.degree, 200),
+    degree: optionalText(value.degree, 160),
     status: oneOf(value.status, PLATFORM_APPLICATION_STATUSES),
     latestEvidenceReference: optionalText(
       value.latest_evidence_reference,

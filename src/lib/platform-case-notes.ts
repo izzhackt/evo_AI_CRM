@@ -29,6 +29,27 @@ export const PLATFORM_CASE_NOTE_MAX_BODY_LENGTH = 4000;
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 
+function hasValidCaseNoteCodePointLength(value: string): boolean {
+  let codePointLength = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const followingCodeUnit = value.charCodeAt(index + 1);
+      if (followingCodeUnit < 0xdc00 || followingCodeUnit > 0xdfff) {
+        return false;
+      }
+      index += 1;
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      return false;
+    }
+
+    codePointLength += 1;
+    if (codePointLength > PLATFORM_CASE_NOTE_MAX_BODY_LENGTH) return false;
+  }
+
+  return codePointLength > 0;
+}
+
 const NOTE_ROW_KEYS = [
   "organization_id",
   "case_note_id",
@@ -212,8 +233,7 @@ export function parsePlatformCaseNoteBody(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
   if (
-    normalized.length < 1 ||
-    normalized.length > PLATFORM_CASE_NOTE_MAX_BODY_LENGTH ||
+    !hasValidCaseNoteCodePointLength(normalized) ||
     NOTE_CONTROL_CHARACTER_PATTERN.test(normalized)
   ) {
     return null;
@@ -236,9 +256,10 @@ function requiredDisplayText(value: unknown, maximumLength: number): string {
 
 function requiredNoteBody(value: unknown): string {
   if (typeof value !== "string") return invalidShape();
+  const normalized = value.trim();
   if (
-    value.trim().length < 1 ||
-    value.length > PLATFORM_CASE_NOTE_MAX_BODY_LENGTH ||
+    value !== normalized ||
+    !hasValidCaseNoteCodePointLength(normalized) ||
     NOTE_CONTROL_CHARACTER_PATTERN.test(value)
   ) {
     return invalidShape();

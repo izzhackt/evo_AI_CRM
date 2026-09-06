@@ -169,6 +169,37 @@ test("reply-snippet rows normalize multi-line bodies and lossless versions", () 
   assert.equal(large.version, "9007199254740993");
 });
 
+test("reply-snippet rows enforce PostgreSQL edge whitespace and code-point limits", () => {
+  const emojiTitle = "😀".repeat(120);
+  const emojiBody = "😀".repeat(2_000);
+  const boundary = normalizePlatformReplySnippetRow(
+    row({ title: emojiTitle, body: emojiBody }),
+    ORGANIZATION_ID,
+  );
+  assert.equal(boundary.title, emojiTitle);
+  assert.equal(boundary.body, emojiBody);
+
+  for (const overrides of [
+    { title: "😀".repeat(121) },
+    { body: "😀".repeat(2_001) },
+    { body: "\nBody accepted by SQL only after canonical trimming\n" },
+  ]) {
+    assert.throws(
+      () => normalizePlatformReplySnippetRow(row(overrides), ORGANIZATION_ID),
+      PlatformReplySnippetsRepositoryError,
+    );
+  }
+
+  const nonBreakingSpace = "\u00a0";
+  assert.equal(
+    normalizePlatformReplySnippetRow(
+      row({ body: `${nonBreakingSpace}content${nonBreakingSpace}` }),
+      ORGANIZATION_ID,
+    ).body,
+    `${nonBreakingSpace}content${nonBreakingSpace}`,
+  );
+});
+
 test("an unknown audience key from the database never reaches the screen raw", () => {
   for (const audience of ["draft", "handed_off", "ALL", "", null]) {
     assert.throws(
@@ -200,6 +231,13 @@ test("reply-snippet rows fail closed on malformed or foreign shapes", () => {
   assert.throws(
     () => normalizePlatformReplySnippetRow(
       row({ title: "Bad\u0007title" }),
+      ORGANIZATION_ID,
+    ),
+    PlatformReplySnippetsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformReplySnippetRow(
+      row({ title: "Bad\u0085title" }),
       ORGANIZATION_ID,
     ),
     PlatformReplySnippetsRepositoryError,
@@ -475,4 +513,67 @@ test("reply-snippet mutation verifies the lossless echoed expected version", asy
       },
     },
   ]);
+});
+
+test("reply-snippet actions match SQL LF trimming and Unicode code-point limits", async () => {
+  const { updatePlatformReplySnippetAction } = await import(
+    "../src/lib/platform-reply-snippet-actions.ts"
+  );
+  const previous = {
+    status: "idle",
+    requestId: REQUEST_ID,
+    replySnippetId: SNIPPET_ID,
+    version: LARGE_VERSION,
+    archivedAt: null,
+  };
+
+  actionHarness.rpcCalls.length = 0;
+  actionHarness.revalidated.length = 0;
+  actionHarness.response = {
+    data: updateReceipt({ body: "Wrapped body" }),
+    error: null,
+  };
+  const wrappedForm = updateForm();
+  wrappedForm.set("body", "\r\n  Wrapped body  \r\n");
+  const wrapped = await updatePlatformReplySnippetAction(previous, wrappedForm);
+  assert.equal(wrapped.status, "saved");
+  assert.equal(actionHarness.rpcCalls[0].args.p_body, "Wrapped body");
+
+  const emojiTitle = "😀".repeat(120);
+  const emojiBody = "😀".repeat(2_000);
+  actionHarness.rpcCalls.length = 0;
+  actionHarness.revalidated.length = 0;
+  actionHarness.response = {
+    data: updateReceipt({ title: emojiTitle, body: emojiBody }),
+    error: null,
+  };
+  const boundaryForm = updateForm();
+  boundaryForm.set("title", emojiTitle);
+  boundaryForm.set("body", emojiBody);
+  const boundary = await updatePlatformReplySnippetAction(previous, boundaryForm);
+  assert.equal(boundary.status, "saved");
+  assert.equal(actionHarness.rpcCalls[0].args.p_title, emojiTitle);
+  assert.equal(actionHarness.rpcCalls[0].args.p_body, emojiBody);
+
+  actionHarness.rpcCalls.length = 0;
+  actionHarness.revalidated.length = 0;
+  const overLimitForm = updateForm();
+  overLimitForm.set("body", "😀".repeat(2_001));
+  const overLimit = await updatePlatformReplySnippetAction(
+    previous,
+    overLimitForm,
+  );
+  assert.equal(overLimit.status, "invalid");
+  assert.deepEqual(actionHarness.rpcCalls, []);
+  assert.deepEqual(actionHarness.revalidated, []);
+
+  const c1ControlForm = updateForm();
+  c1ControlForm.set("title", "Bad\u0085title");
+  const c1Control = await updatePlatformReplySnippetAction(
+    previous,
+    c1ControlForm,
+  );
+  assert.equal(c1Control.status, "invalid");
+  assert.deepEqual(actionHarness.rpcCalls, []);
+  assert.deepEqual(actionHarness.revalidated, []);
 });

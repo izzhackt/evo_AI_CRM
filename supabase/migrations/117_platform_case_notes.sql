@@ -15,8 +15,14 @@ CREATE TABLE platform.case_notes (
     REFERENCES platform.organizations(id) ON DELETE RESTRICT,
   lead_id UUID,
   student_case_id UUID,
+  -- Match ECMAScript String.trim() exactly at the SQL boundary so an
+  -- authenticated direct RPC cannot persist a value the TypeScript reader
+  -- later rejects. Internal LF/CR/TAB remain valid note prose.
   body TEXT NOT NULL CHECK (
-    body = btrim(body)
+    body = btrim(
+      body,
+      U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF'
+    )
     AND body <> ''
     AND char_length(body) <= 4000
   ),
@@ -169,9 +175,10 @@ REVOKE ALL ON FUNCTION private.require_lead_note_actor(UUID, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 -- Mutation authority is deliberately separate from the STABLE list helper.
--- require_domain_actor locks the live profile, membership and organization
--- rows so a concurrent authority change must commit before a create command
--- makes its final authorization decision.
+-- Sales workflow commands lock the lead before writing audit rows whose
+-- immediate FKs touch actor/organization rows. Keep that domain lock order
+-- here too: lead first, then the live actor/profile/membership/organization;
+-- evaluate ownership only after both lock sets are held.
 CREATE FUNCTION private.require_lead_note_mutation_actor(
   p_organization_id UUID,
   p_lead_id UUID
@@ -189,24 +196,30 @@ SET search_path = ''
 AS $$
 DECLARE
   actor RECORD;
+  target_lead platform.leads%ROWTYPE;
+  target_found BOOLEAN;
 BEGIN
+  SELECT * INTO target_lead
+  FROM platform.leads AS lead
+  WHERE lead.organization_id = p_organization_id
+    AND lead.id = p_lead_id
+  FOR UPDATE;
+  target_found := FOUND;
+
   SELECT * INTO actor
   FROM platform_private.require_domain_actor(
     p_organization_id,
     'lead.sales.workflow.manage'
   );
 
-  IF actor.actor_role NOT IN ('admin', 'sales') OR NOT EXISTS (
-    SELECT 1
-    FROM platform.leads AS lead
-    WHERE lead.organization_id = p_organization_id
-      AND lead.id = p_lead_id
-      AND (
-        actor.actor_role = 'admin'
-        OR lead.current_owner_membership_id = actor.actor_membership_id
-        OR lead.current_owner_membership_id IS NULL
-      )
-  ) THEN
+  IF NOT target_found
+    OR actor.actor_role NOT IN ('admin', 'sales')
+    OR NOT (
+      actor.actor_role = 'admin'
+      OR target_lead.current_owner_membership_id = actor.actor_membership_id
+      OR target_lead.current_owner_membership_id IS NULL
+    )
+  THEN
     RAISE EXCEPTION 'Lead is unavailable'
       USING ERRCODE = '42501';
   END IF;
@@ -221,6 +234,90 @@ $$;
 
 REVOKE ALL ON FUNCTION private.require_lead_note_mutation_actor(UUID, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
+-- Lock mutations in the same order as the existing case commands: the live
+-- actor/profile/membership/organization rows first, then the student case.
+-- The exact-case authority decision is made only after both lock sets are held.
+CREATE FUNCTION private.require_student_case_note_mutation_actor(
+  p_organization_id UUID,
+  p_student_case_id UUID
+)
+RETURNS TABLE (
+  actor_profile_id UUID,
+  actor_membership_id UUID,
+  actor_auth_user_id UUID,
+  actor_role platform.business_role
+)
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  actor RECORD;
+  target_case platform.student_cases%ROWTYPE;
+  target_found BOOLEAN;
+BEGIN
+  SELECT * INTO actor
+  FROM platform_private.require_domain_actor(
+    p_organization_id,
+    'case.read.full'
+  );
+
+  SELECT * INTO target_case
+  FROM platform.student_cases AS student_case
+  WHERE student_case.organization_id = p_organization_id
+    AND student_case.id = p_student_case_id
+  FOR UPDATE;
+  target_found := FOUND;
+
+  IF NOT target_found OR NOT (
+    (
+      actor.actor_role = 'admin'
+      AND private.platform_has_scope(
+        p_organization_id,
+        'organization',
+        p_organization_id
+      )
+    )
+    OR (
+      actor.actor_role = 'sales'
+      AND target_case.state = 'pending'
+      AND target_case.responsible_sales_membership_id =
+        actor.actor_membership_id
+      AND private.platform_has_scope(
+        p_organization_id,
+        'student_case',
+        p_student_case_id
+      )
+    )
+    OR (
+      actor.actor_role = 'curator'
+      AND target_case.state IN ('active', 'closed')
+      AND target_case.current_curator_membership_id =
+        actor.actor_membership_id
+      AND private.platform_has_scope(
+        p_organization_id,
+        'student_case',
+        p_student_case_id
+      )
+    )
+  ) THEN
+    RAISE EXCEPTION 'Student case is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY SELECT
+    actor.actor_profile_id,
+    actor.actor_membership_id,
+    actor.actor_auth_user_id,
+    actor.actor_role;
+END
+$$;
+
+REVOKE ALL ON FUNCTION private.require_student_case_note_mutation_actor(
+  UUID, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 -- request_id is globally unique in the audit journal. Bind a replay to the
 -- same live actor before replay_audit compares mutation payloads, otherwise a
@@ -278,7 +375,10 @@ DECLARE
   actor RECORD;
   subject_kind TEXT;
   subject_id UUID;
-  normalized_body TEXT := btrim(p_body);
+  normalized_body TEXT := btrim(
+    p_body,
+    U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF'
+  );
   created_note_id UUID := gen_random_uuid();
   note_created_at TIMESTAMPTZ;
   replayed JSONB;
@@ -304,19 +404,8 @@ BEGIN
   IF p_lead_id IS NOT NULL THEN
     subject_kind := 'lead';
     subject_id := p_lead_id;
-    PERFORM lead.id
-    FROM platform.leads AS lead
-    WHERE lead.organization_id = p_organization_id
-      AND lead.id = p_lead_id
-    FOR UPDATE;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Lead is unavailable'
-        USING ERRCODE = '42501';
-    END IF;
-
-    -- The strongest row lock blocks owner changes until this transaction
-    -- finishes. Re-resolve authority only after the lock so a concurrent
-    -- handoff cannot race a stale authorization decision.
+    -- Match the Sales workflow order: lead before actor/organization. The
+    -- helper evaluates ownership only after both lock sets are held.
     SELECT * INTO actor
     FROM private.require_lead_note_mutation_actor(
       p_organization_id,
@@ -325,23 +414,12 @@ BEGIN
   ELSE
     subject_kind := 'student_case';
     subject_id := p_student_case_id;
-    PERFORM student_case.id
-    FROM platform.student_cases AS student_case
-    WHERE student_case.organization_id = p_organization_id
-      AND student_case.id = p_student_case_id
-    FOR UPDATE;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Student case is unavailable'
-        USING ERRCODE = '42501';
-    END IF;
-
-    -- State and responsible-member changes use this same row, so the lock
-    -- makes the exact-case operator check causal for the whole note write.
+    -- Case assignment and note creation now share actor -> subject lock order,
+    -- while the helper keeps the exact-case operator check causal.
     SELECT * INTO actor
-    FROM platform_private.require_case_operator(
+    FROM private.require_student_case_note_mutation_actor(
       p_organization_id,
-      p_student_case_id,
-      'case.read.full'
+      p_student_case_id
     );
   END IF;
 
@@ -387,12 +465,14 @@ BEGIN
   );
 
   INSERT INTO platform.audit_events (
-    organization_id, actor_kind, actor_profile_id, actor_principal, action,
-    resource_type, resource_id, before_state, after_state, reason, request_id
+    organization_id, actor_kind, actor_profile_id, actor_membership_id,
+    actor_principal, action, resource_type, resource_id, before_state,
+    after_state, reason, request_id
   ) VALUES (
     p_organization_id, 'user', actor.actor_profile_id,
-    'auth:' || actor.actor_auth_user_id::TEXT, 'note.create',
-    subject_kind, subject_id, NULL, result, fixed_reason, p_request_id
+    actor.actor_membership_id, 'auth:' || actor.actor_auth_user_id::TEXT,
+    'note.create', subject_kind, subject_id, NULL, result, fixed_reason,
+    p_request_id
   );
 
   RETURN result;

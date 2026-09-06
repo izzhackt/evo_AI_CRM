@@ -18,9 +18,9 @@ export const PLATFORM_APPLICATION_EVIDENCE_STATUSES = new Set<
 >(["submitted", "under_review", "offer", "rejected", "enrolled"]);
 
 /**
- * The six destination countries the business works with, as ISO-3166-1
- * alpha-2 codes. Staff forms offer these as new choices; a well-formed stored
- * code outside this list remains visible and preservable during an edit.
+ * The exact six destination countries the business works with, represented as
+ * ISO-3166-1 alpha-2 codes. This allowlist is shared by response validation and
+ * every staff form; no other two-letter code is a valid application country.
  */
 export const PLATFORM_APPLICATION_COUNTRIES = [
   "CN",
@@ -51,15 +51,14 @@ export const PLATFORM_APPLICATION_DEGREES = [
 export type PlatformApplicationDegree =
   (typeof PLATFORM_APPLICATION_DEGREES)[number];
 
-const PLATFORM_APPLICATION_COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
 const PLATFORM_APPLICATION_DEGREE_CONTROL_PATTERN = /[\u0000-\u001f\u007f-\u009f]/u;
 
-/** True only for a well-formed ISO-3166-1 alpha-2 country code. */
+/** True only for a destination country in the exact product allowlist. */
 export function isPlatformApplicationCountryCode(
   value: unknown,
-): value is string {
+): value is PlatformApplicationCountry {
   return typeof value === "string" &&
-    PLATFORM_APPLICATION_COUNTRY_CODE_PATTERN.test(value);
+    (PLATFORM_APPLICATION_COUNTRIES as readonly string[]).includes(value);
 }
 
 /** Mirrors the nullable degree column's non-null database CHECK. */
@@ -103,20 +102,13 @@ export function parsePlatformApplicationDegreeInput(
 }
 
 /**
- * Returns the country choices for an edit form. A valid non-canonical value is
- * included only when it is already stored, so an unrelated edit cannot erase
- * it while the product still offers only the canonical list as new choices.
+ * Returns the exact country choices for an edit form. A value outside the
+ * product allowlist is invalid at both the database and response boundaries.
  */
 export function platformApplicationCountryEditOptions(
   currentValue: string | null,
 ): readonly string[] {
-  if (
-    currentValue !== null &&
-    isPlatformApplicationCountryCode(currentValue) &&
-    !(PLATFORM_APPLICATION_COUNTRIES as readonly string[]).includes(currentValue)
-  ) {
-    return Object.freeze([...PLATFORM_APPLICATION_COUNTRIES, currentValue]);
-  }
+  void currentValue;
   return PLATFORM_APPLICATION_COUNTRIES;
 }
 
@@ -135,18 +127,15 @@ export function platformApplicationDegreeEditOptions(
 }
 
 /**
- * Parses a details-edit country against the authoritative stored value. New
- * values must be canonical; a non-canonical value is accepted only unchanged.
+ * Parses a details-edit country against the exact product allowlist. The
+ * current value parameter keeps the country and degree parser APIs symmetric.
  */
 export function parsePlatformApplicationCountryDetailsInput(
   value: unknown,
   currentValue: string | null,
 ): string | null | undefined {
-  const canonical = parsePlatformApplicationCountryInput(value);
-  if (canonical !== undefined) return canonical;
-  return isPlatformApplicationCountryCode(value) && value === currentValue
-    ? value
-    : undefined;
+  void currentValue;
+  return parsePlatformApplicationCountryInput(value);
 }
 
 /** Degree counterpart of {@link parsePlatformApplicationCountryDetailsInput}. */

@@ -548,13 +548,13 @@ test("new application geography values accept only canonical select options", ()
   }
 });
 
-test("details geography preserves only an exact valid non-canonical stored value", () => {
+test("application countries are restricted to the exact six-country allowlist", () => {
   const databaseValidUnicodeDegree = `\u00a0${"🎓".repeat(100)}\u00a0`;
   const normalized = normalizePlatformApplicationQueueRow(
-    applicationRow({ country: "US", degree: databaseValidUnicodeDegree }),
+    applicationRow({ country: "MY", degree: databaseValidUnicodeDegree }),
     ORGANIZATION_ID,
   );
-  assert.equal(normalized.country, "US");
+  assert.equal(normalized.country, "MY");
   assert.equal(normalized.degree, databaseValidUnicodeDegree);
   assert.deepEqual(platformApplicationCountryEditOptions("US"), [
     "CN",
@@ -563,7 +563,6 @@ test("details geography preserves only an exact valid non-canonical stored value
     "TR",
     "IT",
     "CZ",
-    "US",
   ]);
   assert.deepEqual(platformApplicationDegreeEditOptions("doctorate"), [
     "foundation",
@@ -573,7 +572,7 @@ test("details geography preserves only an exact valid non-canonical stored value
     "phd",
     "doctorate",
   ]);
-  assert.equal(parsePlatformApplicationCountryDetailsInput("US", "US"), "US");
+  assert.equal(parsePlatformApplicationCountryDetailsInput("US", "US"), undefined);
   assert.equal(
     parsePlatformApplicationDegreeDetailsInput("doctorate", "doctorate"),
     "doctorate",
@@ -610,6 +609,15 @@ test("details geography preserves only an exact valid non-canonical stored value
     "IT",
     "CZ",
   ]);
+  for (const country of ["ZZ", "AA", "US"]) {
+    assert.throws(
+      () => normalizePlatformApplicationQueueRow(
+        applicationRow({ country }),
+        ORGANIZATION_ID,
+      ),
+      PlatformAdmissionsRepositoryError,
+    );
+  }
 });
 
 test("application primary-switch receipt metadata is paired and target-safe", () => {
@@ -713,8 +721,8 @@ test("application details receipt returns the authoritative case and rejects inc
   );
   assert.deepEqual(
     parsePlatformApplicationDetailsReceipt(
-      { ...response, country: "US", degree: "doctorate" },
-      { ...expectation, country: "US", degree: "doctorate" },
+      { ...response, country: "CZ", degree: "doctorate" },
+      { ...expectation, country: "CZ", degree: "doctorate" },
     ),
     { studentCaseId: CASE_ID, version: "5" },
   );
@@ -724,6 +732,7 @@ test("application details receipt returns the authoritative case and rejects inc
     { ...response, is_primary: false },
     { ...response, university_deadline_on: null },
     { ...response, country: "TR" },
+    { ...response, country: "ZZ" },
     { ...response, degree: "master" },
     { ...response, request_id: APPLICATION_ID },
     { ...response, expected_version: "3" },
@@ -737,6 +746,7 @@ test("application details receipt returns the authoritative case and rejects inc
   }
   for (const malformedExpectation of [
     { ...expectation, country: "usa" },
+    { ...expectation, country: "AA" },
     { ...expectation, degree: " doctorate" },
     { ...expectation, degree: "d".repeat(161) },
   ]) {

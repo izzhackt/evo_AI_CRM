@@ -144,9 +144,18 @@ test("case note parsers accept only the reviewed contract", () => {
     "Multi-line\nnote body.",
   );
   assert.equal(parsePlatformCaseNoteBody("   "), null);
+  assert.equal(parsePlatformCaseNoteBody("\n\t\r"), null);
+  assert.equal(parsePlatformCaseNoteBody("\u00a0"), null);
+  assert.equal(parsePlatformCaseNoteBody("\u00a0Visible note\u00a0"), "Visible note");
   assert.equal(parsePlatformCaseNoteBody("bellchar"), null);
   assert.equal(parsePlatformCaseNoteBody("a".repeat(4001)), null);
   assert.equal(parsePlatformCaseNoteBody("a".repeat(4000)), "a".repeat(4000));
+  assert.equal(
+    parsePlatformCaseNoteBody("📝".repeat(4000)),
+    "📝".repeat(4000),
+  );
+  assert.equal(parsePlatformCaseNoteBody("📝".repeat(4001)), null);
+  assert.equal(parsePlatformCaseNoteBody("broken\ud800unicode"), null);
 
   assert.deepEqual(parsePlatformCaseNoteCursor(NEWEST_AT, NOTE_ID), {
     createdAt: NEWEST_AT,
@@ -229,6 +238,9 @@ test("readCaseNotes fails closed on every unexpected shape", async () => {
       validNoteRow({ case_note_id: SECOND_NOTE_ID, created_at: NEWEST_AT }),
     ]),
     staticClient([validNoteRow({ body: "bellchar" })]),
+    staticClient([validNoteRow({ body: "\n\t\r" })]),
+    staticClient([validNoteRow({ body: "\u00a0" })]),
+    staticClient([validNoteRow({ body: " wrapped note " })]),
     staticClient([validNoteRow({ author_display_name: "" })]),
   ];
   for (const { client } of failures) {

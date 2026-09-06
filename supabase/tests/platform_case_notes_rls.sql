@@ -205,6 +205,11 @@ BEGIN
         'p_organization_id uuid, p_lead_id uuid',
         FALSE
       ),
+      (
+        'require_student_case_note_mutation_actor',
+        'p_organization_id uuid, p_student_case_id uuid',
+        FALSE
+      ),
       ('forbid_case_note_change', '', FALSE)
     ) AS expected(private_name, private_signature, private_authenticated)
   LOOP
@@ -262,8 +267,16 @@ BEGIN
     WHERE namespace.nspname = 'private'
       AND routine.proname = 'require_lead_note_mutation_actor'
       AND routine.provolatile = 'v'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc AS routine
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = routine.pronamespace
+    WHERE namespace.nspname = 'private'
+      AND routine.proname = 'require_student_case_note_mutation_actor'
+      AND routine.provolatile = 'v'
   ) THEN
-    RAISE EXCEPTION 'lead-note read/mutation volatility boundary drifted';
+    RAISE EXCEPTION 'case-note read/mutation volatility boundary drifted';
   END IF;
 
   SELECT count(*), (array_agg(routine.oid))[1]
@@ -613,6 +626,18 @@ SELECT pg_temp.p117_capture_error(format(
 \gset
 SELECT pg_temp.p117_capture_error(format(
   'SELECT platform.create_case_note(%L::UUID, %L::UUID, NULL, %L, %L::UUID)',
+  :'p117_org', :'p117_lead_owned', E'\n\t\r',
+  '59911700-0000-4000-8000-000000000250'
+))::TEXT AS p117_control_whitespace_body_error
+\gset
+SELECT pg_temp.p117_capture_error(format(
+  'SELECT platform.create_case_note(%L::UUID, %L::UUID, NULL, %L, %L::UUID)',
+  :'p117_org', :'p117_lead_owned', U&'\00A0',
+  '59911700-0000-4000-8000-000000000251'
+))::TEXT AS p117_unicode_whitespace_body_error
+\gset
+SELECT pg_temp.p117_capture_error(format(
+  'SELECT platform.create_case_note(%L::UUID, %L::UUID, NULL, %L, %L::UUID)',
   :'p117_org', :'p117_lead_owned', repeat('a', 4001),
   '59911700-0000-4000-8000-000000000209'
 ))::TEXT AS p117_long_body_error
@@ -670,6 +695,8 @@ SELECT pg_temp.p117_assert(
     AND :'p117_two_subjects_error'::JSONB ->> 'sqlstate' = '22023'
     AND :'p117_no_subject_error'::JSONB ->> 'sqlstate' = '22023'
     AND :'p117_blank_body_error'::JSONB ->> 'sqlstate' = '22023'
+    AND :'p117_control_whitespace_body_error'::JSONB ->> 'sqlstate' = '22023'
+    AND :'p117_unicode_whitespace_body_error'::JSONB ->> 'sqlstate' = '22023'
     AND :'p117_long_body_error'::JSONB ->> 'sqlstate' = '22023'
     AND :'p117_control_body_error'::JSONB ->> 'sqlstate' = '22023'
     AND :'p117_null_request_error'::JSONB ->> 'sqlstate' = '22023'
@@ -981,10 +1008,9 @@ SELECT pg_temp.p117_assert(
 RESET request.jwt.claims;
 ROLLBACK;
 
--- A real second-session race proves that authority is resolved after the
--- subject's FOR UPDATE lock. The first connection changes ownership and holds
--- the row lock; the stale owner must wait, observe the committed handoff and
--- fail without a note or success audit. dblink is test-only and removed again.
+-- Real second-session races prove the mutation lock order against the actual
+-- Sales workflow and actor-authority writers. dblink and the fixture-scoped
+-- pause trigger are test-only and removed again.
 CREATE OR REPLACE FUNCTION pg_temp.p117c_assert(
   p_condition BOOLEAN,
   p_message TEXT
@@ -1017,17 +1043,25 @@ BEGIN;
 
 \set p117c_org 59911799-0000-4000-8000-000000000001
 \set p117c_org_scope 59911799-0000-4000-8000-000000000002
+\set p117c_case_scope 59911799-0000-4000-8000-000000000003
 \set p117c_sales_user 59911799-0000-4000-8000-000000000011
 \set p117c_sales_two_user 59911799-0000-4000-8000-000000000012
 \set p117c_admin_user 59911799-0000-4000-8000-000000000013
+\set p117c_curator_user 59911799-0000-4000-8000-000000000014
+\set p117c_student_user 59911799-0000-4000-8000-000000000015
 \set p117c_sales_profile 59911799-0000-4000-8000-000000000021
 \set p117c_sales_two_profile 59911799-0000-4000-8000-000000000022
 \set p117c_admin_profile 59911799-0000-4000-8000-000000000023
+\set p117c_curator_profile 59911799-0000-4000-8000-000000000024
+\set p117c_student_profile 59911799-0000-4000-8000-000000000025
 \set p117c_sales_membership 59911799-0000-4000-8000-000000000031
 \set p117c_sales_two_membership 59911799-0000-4000-8000-000000000032
 \set p117c_admin_membership 59911799-0000-4000-8000-000000000033
+\set p117c_curator_membership 59911799-0000-4000-8000-000000000034
+\set p117c_student_membership 59911799-0000-4000-8000-000000000035
 \set p117c_lead 59911799-0000-4000-8000-000000000041
 \set p117c_actor_lead 59911799-0000-4000-8000-000000000042
+\set p117c_case 59911799-0000-4000-8000-000000000043
 
 SELECT bundle.id AS p117c_sales_bundle, bundle.version AS p117c_sales_version
 FROM platform.role_bundle_versions AS bundle
@@ -1044,9 +1078,37 @@ ORDER BY bundle.version DESC
 LIMIT 1
 \gset
 
-SELECT bundle.id AS p117c_admin_bundle
+SELECT bundle.id AS p117c_admin_bundle, bundle.version AS p117c_admin_version
 FROM platform.role_bundle_versions AS bundle
 WHERE bundle.role = 'admin'
+  AND bundle.status = 'published'
+  AND EXISTS (
+    SELECT 1 FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'case.read.full'
+  )
+  AND EXISTS (
+    SELECT 1 FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'case.curator.assign'
+  )
+ORDER BY bundle.version DESC
+LIMIT 1
+\gset
+
+SELECT bundle.id AS p117c_curator_bundle
+FROM platform.role_bundle_versions AS bundle
+WHERE bundle.role = 'curator'
+  AND bundle.status = 'published'
+ORDER BY bundle.version DESC
+LIMIT 1
+\gset
+
+SELECT bundle.id AS p117c_student_bundle
+FROM platform.role_bundle_versions AS bundle
+WHERE bundle.role = 'student'
   AND bundle.status = 'published'
 ORDER BY bundle.version DESC
 LIMIT 1
@@ -1057,14 +1119,16 @@ VALUES (:'p117c_org', 'Migration 117 concurrency organization');
 
 INSERT INTO platform.record_scopes (
   id, organization_id, scope_kind, scope_key, scope_version
-) VALUES (
-  :'p117c_org_scope', :'p117c_org', 'organization', :'p117c_org', 1
-);
+) VALUES
+  (:'p117c_org_scope', :'p117c_org', 'organization', :'p117c_org', 1),
+  (:'p117c_case_scope', :'p117c_org', 'student_case', :'p117c_case', 1);
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   (:'p117c_sales_user', 'p117c-sales@example.invalid', '{}'::JSONB),
   (:'p117c_sales_two_user', 'p117c-sales-two@example.invalid', '{}'::JSONB),
-  (:'p117c_admin_user', 'p117c-admin@example.invalid', '{}'::JSONB);
+  (:'p117c_admin_user', 'p117c-admin@example.invalid', '{}'::JSONB),
+  (:'p117c_curator_user', 'p117c-curator@example.invalid', '{}'::JSONB),
+  (:'p117c_student_user', 'p117c-student@example.invalid', '{}'::JSONB);
 
 INSERT INTO platform.profiles (
   id, auth_user_id, display_name, status, access_version
@@ -1080,6 +1144,14 @@ INSERT INTO platform.profiles (
   (
     :'p117c_admin_profile', :'p117c_admin_user',
     'Migration 117 concurrency Admin', 'active', 1
+  ),
+  (
+    :'p117c_curator_profile', :'p117c_curator_user',
+    'Migration 117 concurrency Curator', 'active', 1
+  ),
+  (
+    :'p117c_student_profile', :'p117c_student_user',
+    'Migration 117 concurrency Student', 'active', 1
   );
 
 INSERT INTO platform.organization_memberships (
@@ -1096,6 +1168,14 @@ INSERT INTO platform.organization_memberships (
   (
     :'p117c_admin_membership', :'p117c_org', :'p117c_admin_profile',
     'active', 'admin', :'p117c_admin_bundle'
+  ),
+  (
+    :'p117c_curator_membership', :'p117c_org', :'p117c_curator_profile',
+    'active', 'curator', :'p117c_curator_bundle'
+  ),
+  (
+    :'p117c_student_membership', :'p117c_org', :'p117c_student_profile',
+    'active', 'student', :'p117c_student_bundle'
   );
 
 INSERT INTO platform.membership_scope_assignments (
@@ -1119,6 +1199,12 @@ INSERT INTO platform.membership_scope_assignments (
     :'p117c_admin_membership', :'p117c_org_scope', 1, 1, TRUE, 'system', NULL,
     'Migration 117 concurrency Admin scope',
     '59911799-0000-4000-8000-000000000063'
+  ),
+  (
+    '59911799-0000-4000-8000-000000000054', :'p117c_org',
+    :'p117c_sales_membership', :'p117c_case_scope', 1, 1, TRUE, 'system', NULL,
+    'Migration 117 concurrency Sales case scope',
+    '59911799-0000-4000-8000-000000000064'
   );
 
 INSERT INTO platform.leads (
@@ -1134,6 +1220,23 @@ INSERT INTO platform.leads (
     'new', 'whatsapp', 'open'
   );
 
+INSERT INTO platform.student_cases (
+  id, organization_id, student_membership_id,
+  responsible_sales_membership_id, current_curator_membership_id,
+  source_key, contract_confirmation_ref, contract_confirmed_at,
+  student_display_name, target_country, target_degree, program_direction,
+  intake, route_approval_status, operational_stage, state, handoff_at,
+  portal_activated_at, next_action, current_scope_id, current_scope_version
+) VALUES (
+  :'p117c_case', :'p117c_org', :'p117c_student_membership',
+  :'p117c_sales_membership', NULL,
+  'synthetic:p117:concurrency-case', 'contract:p117:concurrency',
+  '2026-09-07T09:00:00Z', 'Migration 117 concurrency Student',
+  'United Kingdom', 'Bachelor', 'Business', '2031', 'approved',
+  'contract_confirmed', 'pending', NULL, NULL, 'Assign the Curator',
+  :'p117c_case_scope', 1
+);
+
 COMMIT;
 
 SELECT jsonb_build_object(
@@ -1147,6 +1250,19 @@ SELECT jsonb_build_object(
 )::TEXT AS p117c_sales_claims
 FROM platform.profiles AS profile
 WHERE profile.id = :'p117c_sales_profile'
+\gset
+
+SELECT jsonb_build_object(
+  'sub', :'p117c_admin_user', 'role', 'authenticated',
+  'platform_role', 'admin',
+  'platform_access_version', profile.access_version,
+  'platform_organization_id', :'p117c_org',
+  'platform_membership_id', :'p117c_admin_membership',
+  'platform_bundle_id', :'p117c_admin_bundle',
+  'platform_bundle_version', :'p117c_admin_version'::INTEGER
+)::TEXT AS p117c_admin_claims
+FROM platform.profiles AS profile
+WHERE profile.id = :'p117c_admin_profile'
 \gset
 
 -- The Supabase image deliberately keeps the migration actor non-superuser.
@@ -1212,34 +1328,80 @@ SELECT p117_test_extensions.dblink_exec(
   )
 );
 
+-- The BEFORE UPDATE hook runs only for this fixture and only inside the
+-- marked workflow transaction. mutate_sales_lead_workflow already owns the
+-- lead row when it reaches the hook, so PgSleep is an exact synchronization
+-- point after the production function's FOR UPDATE.
+CREATE FUNCTION p117_test_extensions.p117c_pause_workflow_after_lead_lock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.organization_id =
+      '59911799-0000-4000-8000-000000000001'::UUID
+    AND NEW.id = '59911799-0000-4000-8000-000000000041'::UUID
+    AND OLD.stage_key = 'new'
+    AND NEW.stage_key = 'contacting'
+    AND pg_catalog.current_setting(
+      'evo_test.p117_pause_workflow',
+      TRUE
+    ) = 'on'
+  THEN
+    PERFORM pg_catalog.pg_sleep(3);
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER p117c_pause_workflow_after_lead_lock
+  BEFORE UPDATE ON platform.leads
+  FOR EACH ROW
+  EXECUTE FUNCTION
+    p117_test_extensions.p117c_pause_workflow_after_lead_lock();
+
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_exec(
+    'p117c_authority',
+    format(
+      $remote$
+        BEGIN;
+        SET LOCAL evo_test.p117_pause_workflow = 'on';
+        SET ROLE authenticated;
+        SET LOCAL request.jwt.claims = %L;
+      $remote$,
+      :'p117c_admin_claims'
+    )
+  ) = 'SET',
+  'Admin workflow transaction did not begin'
+);
+
 SELECT pg_temp.p117c_assert(
   p117_test_extensions.dblink_send_query(
     'p117c_authority',
-    $authority$
-      WITH changed AS (
-        UPDATE platform.leads
-        SET current_owner_membership_id =
-          '59911799-0000-4000-8000-000000000032'::UUID
-        WHERE organization_id =
-          '59911799-0000-4000-8000-000000000001'::UUID
-          AND id = '59911799-0000-4000-8000-000000000041'::UUID
-        RETURNING current_owner_membership_id
-      )
-      SELECT changed.current_owner_membership_id::TEXT AS owner_membership_id
-      FROM changed
-      CROSS JOIN LATERAL (
-        SELECT pg_catalog.pg_sleep(3)
-      ) AS held
-    $authority$
+    $workflow$
+      SELECT platform.mutate_sales_lead_workflow(
+        '59911799-0000-4000-8000-000000000041'::UUID,
+        1,
+        '59911799-0000-4000-8000-000000000075'::UUID,
+        'contacting',
+        '59911799-0000-4000-8000-000000000032'::UUID,
+        NULL,
+        NULL,
+        TRUE,
+        'Migration 117 real workflow concurrency proof'
+      )::TEXT AS outcome
+    $workflow$
   ) = 1,
-  'authority-change query was not dispatched'
+  'Admin workflow query was not dispatched'
 );
 
-DO $wait_for_authority_lock$
+DO $wait_for_workflow_lead_lock$
 DECLARE
   attempt INTEGER;
 BEGIN
-  FOR attempt IN 1..50 LOOP
+  FOR attempt IN 1..80 LOOP
     IF EXISTS (
       SELECT 1
       FROM pg_catalog.pg_stat_activity AS activity
@@ -1251,9 +1413,10 @@ BEGIN
     END IF;
     PERFORM pg_catalog.pg_sleep(0.05);
   END LOOP;
-  RAISE EXCEPTION 'Migration 117 authority-change worker never held the row';
+  RAISE EXCEPTION
+    'Migration 117 Sales workflow never held the fixture lead row';
 END
-$wait_for_authority_lock$;
+$wait_for_workflow_lead_lock$;
 
 SELECT pg_temp.p117c_assert(
   p117_test_extensions.dblink_send_query(
@@ -1265,21 +1428,21 @@ SELECT pg_temp.p117c_assert(
             '59911799-0000-4000-8000-000000000001'::UUID,
             '59911799-0000-4000-8000-000000000041'::UUID,
             NULL,
-            'A stale owner must not write this note.',
+            'A note concurrent with the real Sales workflow.',
             '59911799-0000-4000-8000-000000000071'::UUID
           )
         $command$
       )::TEXT AS outcome
     $note$
   ) = 1,
-  'stale-owner note query was not dispatched'
+  'concurrent Sales note query was not dispatched'
 );
 
-DO $wait_for_note_lock$
+DO $wait_for_note_on_workflow_lock$
 DECLARE
   attempt INTEGER;
 BEGIN
-  FOR attempt IN 1..50 LOOP
+  FOR attempt IN 1..80 LOOP
     IF EXISTS (
       SELECT 1
       FROM pg_catalog.pg_stat_activity AS note_activity
@@ -1296,18 +1459,27 @@ BEGIN
     END IF;
     PERFORM pg_catalog.pg_sleep(0.05);
   END LOOP;
-  RAISE EXCEPTION 'Migration 117 stale-owner worker did not wait on the row';
+  RAISE EXCEPTION
+    'Migration 117 note worker did not wait on the Sales workflow';
 END
-$wait_for_note_lock$;
+$wait_for_note_on_workflow_lock$;
 
-SELECT result.owner_membership_id AS p117c_committed_owner
+SELECT result.outcome AS p117c_workflow_outcome
 FROM p117_test_extensions.dblink_get_result('p117c_authority')
-  AS result(owner_membership_id TEXT)
+  AS result(outcome TEXT)
 \gset
-SELECT count(*) AS p117c_authority_result_drained
+SELECT count(*) AS p117c_workflow_result_drained
 FROM p117_test_extensions.dblink_get_result('p117c_authority')
-  AS result(owner_membership_id TEXT)
+  AS result(outcome TEXT)
 \gset
+
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_exec(
+    'p117c_authority',
+    'COMMIT'
+  ) = 'COMMIT',
+  'Admin workflow transaction did not commit'
+);
 
 SELECT result.outcome AS p117c_note_outcome
 FROM p117_test_extensions.dblink_get_result('p117c_note') AS result(outcome TEXT)
@@ -1315,25 +1487,110 @@ FROM p117_test_extensions.dblink_get_result('p117c_note') AS result(outcome TEXT
 SELECT count(*) AS p117c_note_result_drained
 FROM p117_test_extensions.dblink_get_result('p117c_note') AS result(outcome TEXT)
 \gset
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_exec(
+    'p117c_note',
+    'COMMIT'
+  ) = 'COMMIT',
+  'concurrent Sales note transaction did not commit'
+);
 
 SELECT pg_temp.p117c_assert(
-  :'p117c_committed_owner' = :'p117c_sales_two_membership'
-    AND :'p117c_authority_result_drained'::INTEGER = 0
+  p117_test_extensions.dblink_exec(
+    'p117c_authority',
+    'RESET ROLE'
+  ) = 'RESET',
+  'workflow worker role did not reset'
+);
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_exec(
+    'p117c_note',
+    'RESET ROLE'
+  ) = 'RESET',
+  'note worker role did not reset'
+);
+
+DROP TRIGGER p117c_pause_workflow_after_lead_lock ON platform.leads;
+DROP FUNCTION p117_test_extensions.p117c_pause_workflow_after_lead_lock();
+
+SELECT pg_temp.p117c_assert(
+  :'p117c_workflow_result_drained'::INTEGER = 0
     AND :'p117c_note_result_drained'::INTEGER = 0
-    AND :'p117c_note_outcome'::JSONB ->> 'sqlstate' = '42501'
-    AND NOT EXISTS (
-      SELECT 1
-      FROM platform.case_notes AS note
-      WHERE note.organization_id = :'p117c_org'
-        AND note.lead_id = :'p117c_lead'
-    )
-    AND NOT EXISTS (
-      SELECT 1
-      FROM platform.audit_events AS event
-      WHERE event.request_id =
+    AND :'p117c_workflow_outcome'::JSONB ->> 'request_id' =
+      '59911799-0000-4000-8000-000000000075'
+    AND :'p117c_workflow_outcome'::JSONB ->> 'organization_id' = :'p117c_org'
+    AND :'p117c_workflow_outcome'::JSONB ->> 'lead_id' = :'p117c_lead'
+    AND :'p117c_workflow_outcome'::JSONB ->> 'stage_key' = 'contacting'
+    AND :'p117c_workflow_outcome'::JSONB ->> 'current_owner_membership_id' =
+      :'p117c_sales_two_membership'
+    AND (:'p117c_workflow_outcome'::JSONB ->> 'workflow_version')::BIGINT = 2
+    AND :'p117c_note_outcome'::JSONB ->> 'ok' = 'false'
+    AND :'p117c_note_outcome'::JSONB ->> 'sqlstate' = '42501',
+  'real Admin workflow or stale-owner note result drifted'
+);
+
+SELECT pg_temp.p117c_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform.leads AS lead
+    WHERE lead.organization_id = :'p117c_org'
+      AND lead.id = :'p117c_lead'
+      AND lead.current_owner_membership_id = :'p117c_sales_two_membership'
+      AND lead.stage_key = 'contacting'
+      AND lead.workflow_version = 2
+  ),
+  'real Admin workflow did not commit the reassigned lead state'
+);
+
+SELECT pg_temp.p117c_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform.audit_events AS event
+    WHERE event.request_id =
+        '59911799-0000-4000-8000-000000000075'::UUID
+      AND event.action = 'lead.sales.workflow.changed'
+      AND event.resource_type = 'lead'
+      AND event.resource_id = :'p117c_lead'
+      AND event.actor_membership_id = :'p117c_admin_membership'
+      AND event.resulting_version = 2
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.audit_events AS event
+    WHERE event.request_id =
         '59911799-0000-4000-8000-000000000071'::UUID
-    ),
-  'authority-change race did not fail closed'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.case_notes AS note
+    WHERE note.organization_id = :'p117c_org'
+      AND note.lead_id = :'p117c_lead'
+  ),
+  'real Admin workflow audit or stale-owner fail-closed evidence drifted'
+);
+
+SELECT pg_temp.p117c_assert(
+  EXISTS (
+    SELECT 1
+    FROM platform_private.sales_lead_workflow_receipts AS receipt
+    WHERE receipt.request_id =
+      '59911799-0000-4000-8000-000000000075'::UUID
+      AND receipt.organization_id = :'p117c_org'
+      AND receipt.actor_membership_id = :'p117c_admin_membership'
+      AND receipt.actor_profile_id = :'p117c_admin_profile'
+      AND receipt.lead_id = :'p117c_lead'
+      AND receipt.expected_workflow_version = 1
+      AND receipt.desired_stage_key = 'contacting'
+      AND receipt.desired_owner_membership_id = :'p117c_sales_two_membership'
+      AND receipt.desired_next_action_text IS NULL
+      AND receipt.desired_next_action_due_date IS NULL
+      AND receipt.clear_next_action
+      AND receipt.requested_reason =
+        'Migration 117 real workflow concurrency proof'
+      AND receipt.resulting_workflow_version = 2
+      AND receipt.result = :'p117c_workflow_outcome'::JSONB
+  ),
+  'real Admin workflow receipt drifted'
 );
 
 -- Repeat the race against the actor authority itself. The lead is owned by
@@ -1341,7 +1598,6 @@ SELECT pg_temp.p117c_assert(
 -- profile suspension holds the actor's row lock. create_case_note must wait in
 -- require_domain_actor, observe the committed suspension and fail without a
 -- note or success audit.
-SELECT p117_test_extensions.dblink_exec('p117c_note', 'ROLLBACK');
 
 SELECT p117_test_extensions.dblink_exec(
   'p117c_note',
@@ -1470,7 +1726,198 @@ SELECT pg_temp.p117c_assert(
   'actor-authority race did not fail closed'
 );
 
+-- Prove case-note creation and Curator assignment cannot form an ABBA
+-- deadlock. The assignment worker holds the Admin actor/profile/membership/
+-- organization rows, then the note worker enters create_case_note. With the
+-- canonical actor -> subject order, the note waits without holding the case,
+-- so assignment can lock and commit the case before the note continues.
 SELECT p117_test_extensions.dblink_exec('p117c_note', 'ROLLBACK');
+
+SELECT p117_test_extensions.dblink_exec(
+  'p117c_note',
+  format(
+    $remote$
+      BEGIN;
+      CREATE OR REPLACE FUNCTION pg_temp.p117c_capture_error(p_statement TEXT)
+      RETURNS JSONB
+      LANGUAGE plpgsql
+      AS $capture$
+      BEGIN
+        EXECUTE p_statement;
+        RETURN jsonb_build_object('ok', TRUE);
+      EXCEPTION
+        WHEN OTHERS THEN
+          RETURN jsonb_build_object(
+            'ok', FALSE,
+            'sqlstate', SQLSTATE,
+            'message', SQLERRM
+          );
+      END
+      $capture$;
+      GRANT EXECUTE ON FUNCTION pg_temp.p117c_capture_error(TEXT)
+        TO authenticated;
+      SET ROLE authenticated;
+      SET LOCAL request.jwt.claims = %L;
+    $remote$,
+    :'p117c_admin_claims'
+  )
+);
+
+SELECT p117_test_extensions.dblink_exec(
+  'p117c_authority',
+  format(
+    $remote$
+      BEGIN;
+      CREATE OR REPLACE FUNCTION pg_temp.p117c_capture_error(p_statement TEXT)
+      RETURNS JSONB
+      LANGUAGE plpgsql
+      AS $capture$
+      BEGIN
+        EXECUTE p_statement;
+        RETURN jsonb_build_object('ok', TRUE);
+      EXCEPTION
+        WHEN OTHERS THEN
+          RETURN jsonb_build_object(
+            'ok', FALSE,
+            'sqlstate', SQLSTATE,
+            'message', SQLERRM
+          );
+      END
+      $capture$;
+      DO $hold_actor$
+      BEGIN
+        PERFORM membership.id
+        FROM platform.organization_memberships AS membership
+        JOIN platform.profiles AS profile
+          ON profile.id = membership.profile_id
+        JOIN platform.organizations AS organization
+          ON organization.id = membership.organization_id
+        WHERE membership.organization_id =
+            '59911799-0000-4000-8000-000000000001'::UUID
+          AND membership.id =
+            '59911799-0000-4000-8000-000000000033'::UUID
+        FOR UPDATE OF membership, profile, organization;
+      END
+      $hold_actor$;
+      GRANT EXECUTE ON FUNCTION pg_temp.p117c_capture_error(TEXT)
+        TO authenticated;
+      SET ROLE authenticated;
+      SET LOCAL request.jwt.claims = %L;
+    $remote$,
+    :'p117c_admin_claims'
+  )
+);
+
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_send_query(
+    'p117c_note',
+    $note$
+      SELECT pg_temp.p117c_capture_error(
+        $command$
+          SELECT platform.create_case_note(
+            '59911799-0000-4000-8000-000000000001'::UUID,
+            NULL,
+            '59911799-0000-4000-8000-000000000043'::UUID,
+            'Admin note concurrent with Curator assignment.',
+            '59911799-0000-4000-8000-000000000073'::UUID
+          )
+        $command$
+      )::TEXT AS outcome
+    $note$
+  ) = 1,
+  'case-note deadlock worker was not dispatched'
+);
+
+DO $wait_for_case_note_actor_lock$
+DECLARE
+  attempt INTEGER;
+BEGIN
+  FOR attempt IN 1..80 LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_stat_activity AS note_activity
+      JOIN pg_catalog.pg_stat_activity AS authority_activity
+        ON authority_activity.application_name = 'p117c-authority'
+       AND authority_activity.pid = ANY (
+         pg_catalog.pg_blocking_pids(note_activity.pid)
+       )
+      WHERE note_activity.application_name = 'p117c-note'
+        AND note_activity.state = 'active'
+        AND note_activity.wait_event_type = 'Lock'
+    ) THEN
+      RETURN;
+    END IF;
+    PERFORM pg_catalog.pg_sleep(0.05);
+  END LOOP;
+  RAISE EXCEPTION
+    'Migration 117 case-note worker did not wait on actor authority';
+END
+$wait_for_case_note_actor_lock$;
+
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_send_query(
+    'p117c_authority',
+    $assignment$
+      SELECT pg_temp.p117c_capture_error(
+        $command$
+          SELECT platform.assign_student_case_curator(
+            '59911799-0000-4000-8000-000000000001'::UUID,
+            '59911799-0000-4000-8000-000000000043'::UUID,
+            '59911799-0000-4000-8000-000000000034'::UUID,
+            'Assign Curator while an Admin records a note.',
+            '59911799-0000-4000-8000-000000000074'::UUID
+          )
+        $command$
+      )::TEXT AS outcome
+    $assignment$
+  ) = 1,
+  'Curator-assignment deadlock worker was not dispatched'
+);
+
+SELECT result.outcome AS p117c_assignment_outcome
+FROM p117_test_extensions.dblink_get_result('p117c_authority')
+  AS result(outcome TEXT)
+\gset
+SELECT count(*) AS p117c_assignment_result_drained
+FROM p117_test_extensions.dblink_get_result('p117c_authority')
+  AS result(outcome TEXT)
+\gset
+SELECT p117_test_extensions.dblink_exec('p117c_authority', 'COMMIT');
+
+SELECT result.outcome AS p117c_case_note_outcome
+FROM p117_test_extensions.dblink_get_result('p117c_note')
+  AS result(outcome TEXT)
+\gset
+SELECT count(*) AS p117c_case_note_result_drained
+FROM p117_test_extensions.dblink_get_result('p117c_note')
+  AS result(outcome TEXT)
+\gset
+SELECT p117_test_extensions.dblink_exec('p117c_note', 'COMMIT');
+
+SELECT pg_temp.p117c_assert(
+  :'p117c_assignment_outcome'::JSONB ->> 'ok' = 'true'
+    AND :'p117c_case_note_outcome'::JSONB ->> 'ok' = 'true'
+    AND :'p117c_assignment_result_drained'::INTEGER = 0
+    AND :'p117c_case_note_result_drained'::INTEGER = 0
+    AND EXISTS (
+      SELECT 1
+      FROM platform.student_cases AS student_case
+      WHERE student_case.organization_id = :'p117c_org'
+        AND student_case.id = :'p117c_case'
+        AND student_case.current_curator_membership_id =
+          :'p117c_curator_membership'
+        AND student_case.state = 'active'
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM platform.case_notes AS note
+      WHERE note.organization_id = :'p117c_org'
+        AND note.student_case_id = :'p117c_case'
+        AND note.body = 'Admin note concurrent with Curator assignment.'
+    ),
+  'case-note creation and Curator assignment deadlocked or lost a write'
+);
+
 SELECT p117_test_extensions.dblink_disconnect('p117c_note');
 SELECT p117_test_extensions.dblink_disconnect('p117c_authority');
 
@@ -1478,7 +1925,14 @@ SELECT p117_test_extensions.dblink_disconnect('p117c_authority');
 BEGIN;
 SET LOCAL session_replication_role = replica;
 DELETE FROM platform.case_notes WHERE organization_id = :'p117c_org';
+DELETE FROM platform_private.sales_lead_workflow_receipts
+WHERE organization_id = :'p117c_org';
 DELETE FROM platform.audit_events WHERE organization_id = :'p117c_org';
+DELETE FROM platform.student_case_assignment_events
+WHERE organization_id = :'p117c_org';
+DELETE FROM platform.student_case_lifecycle_events
+WHERE organization_id = :'p117c_org';
+DELETE FROM platform.student_cases WHERE organization_id = :'p117c_org';
 DELETE FROM platform.leads WHERE organization_id = :'p117c_org';
 DELETE FROM platform.membership_scope_assignments
 WHERE organization_id = :'p117c_org';
@@ -1486,11 +1940,13 @@ DELETE FROM platform.organization_memberships
 WHERE organization_id = :'p117c_org';
 DELETE FROM platform.profiles
 WHERE id IN (
-  :'p117c_sales_profile', :'p117c_sales_two_profile', :'p117c_admin_profile'
+  :'p117c_sales_profile', :'p117c_sales_two_profile', :'p117c_admin_profile',
+  :'p117c_curator_profile', :'p117c_student_profile'
 );
 DELETE FROM auth.users
 WHERE id IN (
-  :'p117c_sales_user', :'p117c_sales_two_user', :'p117c_admin_user'
+  :'p117c_sales_user', :'p117c_sales_two_user', :'p117c_admin_user',
+  :'p117c_curator_user', :'p117c_student_user'
 );
 DELETE FROM platform.record_scopes WHERE organization_id = :'p117c_org';
 DELETE FROM platform.organizations WHERE id = :'p117c_org';

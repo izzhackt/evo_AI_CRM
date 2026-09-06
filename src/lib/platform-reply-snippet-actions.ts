@@ -9,8 +9,11 @@ import type { PlatformAdmissionsActionStatus } from "./platform-admissions-task-
 import { requirePlatformStaffActor } from "./platform-guards";
 import {
   isPlatformReplySnippetAudience,
+  normalizePlatformReplySnippetBody,
+  normalizePlatformReplySnippetTitle,
   PLATFORM_REPLY_SNIPPET_BODY_MAX_LENGTH,
   PLATFORM_REPLY_SNIPPET_TITLE_MAX_LENGTH,
+  platformReplySnippetCodePointLength,
 } from "./platform-reply-snippets";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { createSupabaseServerClient } from "./supabase/server";
@@ -20,7 +23,7 @@ const UUID_PATTERN =
 const TIMESTAMPTZ_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 const POSITIVE_BIGINT_PATTERN = /^[1-9]\d*$/;
-const SINGLE_LINE_CONTROL_PATTERN = /[\u0000-\u001F\u007F]/;
+const SINGLE_LINE_CONTROL_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
 const BODY_CONTROL_PATTERN = /[\u0000-\u0009\u000B-\u001F\u007F]/;
 
 const CREATE_SNIPPET_FIELDS = [
@@ -57,6 +60,10 @@ function field(fields: Fields, key: string): string {
   return fields.get(key)?.trim() ?? "";
 }
 
+function contentField(fields: Fields, key: "title" | "body"): string {
+  return fields.get(key) ?? "";
+}
+
 function uuid(value: unknown): string | null {
   return typeof value === "string" && UUID_PATTERN.test(value)
     ? value.toLowerCase()
@@ -80,9 +87,10 @@ function audienceValue(value: string): string | null {
 }
 
 function titleValue(value: string): string | null {
-  const normalized = value.trim();
-  return normalized.length >= 1 &&
-      normalized.length <= PLATFORM_REPLY_SNIPPET_TITLE_MAX_LENGTH &&
+  const normalized = normalizePlatformReplySnippetTitle(value);
+  const length = platformReplySnippetCodePointLength(normalized);
+  return length >= 1 &&
+      length <= PLATFORM_REPLY_SNIPPET_TITLE_MAX_LENGTH &&
       !SINGLE_LINE_CONTROL_PATTERN.test(normalized)
     ? normalized
     : null;
@@ -90,9 +98,12 @@ function titleValue(value: string): string | null {
 
 /** Browsers submit textarea newlines as CRLF; the model stores LF only. */
 function bodyValue(value: string): string | null {
-  const normalized = value.replace(/\r\n?/g, "\n").trim();
-  return normalized.length >= 1 &&
-      normalized.length <= PLATFORM_REPLY_SNIPPET_BODY_MAX_LENGTH &&
+  const normalized = normalizePlatformReplySnippetBody(
+    value.replace(/\r\n?/g, "\n"),
+  );
+  const length = platformReplySnippetCodePointLength(normalized);
+  return length >= 1 &&
+      length <= PLATFORM_REPLY_SNIPPET_BODY_MAX_LENGTH &&
       !BODY_CONTROL_PATTERN.test(normalized)
     ? normalized
     : null;
@@ -270,8 +281,8 @@ export async function createPlatformReplySnippetAction(
   const fields = exactActionStringFields(form, CREATE_SNIPPET_FIELDS);
   if (!fields) return failureState(form, "invalid");
   const audience = audienceValue(field(fields, "audience"));
-  const title = titleValue(field(fields, "title"));
-  const body = bodyValue(field(fields, "body"));
+  const title = titleValue(contentField(fields, "title"));
+  const body = bodyValue(contentField(fields, "body"));
   const requestId = uuid(field(fields, "request_id"));
   if (!audience || !title || !body || !requestId) {
     return failureState(form, "invalid", null, requestId);
@@ -318,8 +329,8 @@ export async function updatePlatformReplySnippetAction(
   if (!fields) return failureState(form, "invalid");
   const replySnippetId = uuid(field(fields, "reply_snippet_id"));
   const audience = audienceValue(field(fields, "audience"));
-  const title = titleValue(field(fields, "title"));
-  const body = bodyValue(field(fields, "body"));
+  const title = titleValue(contentField(fields, "title"));
+  const body = bodyValue(contentField(fields, "body"));
   const expectedVersion = version(field(fields, "expected_version"));
   const requestId = uuid(field(fields, "request_id"));
   if (

@@ -521,6 +521,15 @@ SELECT pg_temp.p118_capture_error(format(
 SELECT pg_temp.p118_capture_error(format(
   'INSERT INTO platform.university_applications ('
     || 'organization_id, student_case_id, institution_name, program_name, '
+    || 'status, created_by_membership_id, version, country'
+    || ') VALUES (%L, %L, %L, %L, %L, %L, 1, %L)',
+  :'p118_org', :'p118_case', 'Invariant University', 'History',
+  'preparation', :'p118_sales_membership', 'ZZ'
+))::TEXT AS p118_unlisted_country_error
+\gset
+SELECT pg_temp.p118_capture_error(format(
+  'INSERT INTO platform.university_applications ('
+    || 'organization_id, student_case_id, institution_name, program_name, '
     || 'status, created_by_membership_id, version, degree'
     || ') VALUES (%L, %L, %L, %L, %L, %L, 1, %L)',
   :'p118_org', :'p118_case', 'Invariant University', 'History',
@@ -530,6 +539,7 @@ SELECT pg_temp.p118_capture_error(format(
 SELECT pg_temp.p118_assert(
   :'p118_lowercase_country_error'::JSONB ->> 'sqlstate' = '23514'
     AND :'p118_long_country_error'::JSONB ->> 'sqlstate' = '23514'
+    AND :'p118_unlisted_country_error'::JSONB ->> 'sqlstate' = '23514'
     AND :'p118_padded_degree_error'::JSONB ->> 'sqlstate' = '23514',
   'university_applications geography CHECK constraints drifted'
 );
@@ -715,17 +725,17 @@ SELECT pg_temp.p118_capture_error(format(
   'SELECT platform.create_university_application(%L::UUID, %L::UUID, %L, %L, '
     || '%L::platform.application_status, NULL, %L, TRUE, %L::DATE, %L, %L, 0, %L::UUID)',
   :'p118_org', :'p118_case', 'Geography University', 'Economics',
-  'preparation', 'Initial geography', '2031-10-09', 'KZ', 'bachelor',
+  'preparation', 'Initial geography', '2031-10-09', 'AE', 'bachelor',
   '59911800-0000-4000-8000-000000000201'
 ))::TEXT AS p118_replay_conflict
 \gset
 
--- Malformed country and degree fail closed before any write.
+-- Malformed or unlisted country and degree values fail closed before any write.
 SELECT pg_temp.p118_capture_error(format(
   'SELECT platform.create_university_application(%L::UUID, %L::UUID, %L, %L, '
     || '%L::platform.application_status, NULL, NULL, FALSE, NULL, %L, NULL, 0, %L::UUID)',
   :'p118_org', :'p118_case', 'Invalid Country University', 'History',
-  'preparation', 'MYS', '59911800-0000-4000-8000-000000000204'
+  'preparation', 'ZZ', '59911800-0000-4000-8000-000000000204'
 ))::TEXT AS p118_invalid_country_error
 \gset
 SELECT pg_temp.p118_capture_error(format(
@@ -747,7 +757,7 @@ SELECT pg_temp.p118_capture_error(format(
     || '%L::UUID, %L, %L::platform.application_status, NULL, NULL, FALSE, '
     || 'NULL, %L, NULL, 0, %L::UUID)',
   :'p118_org', :'p118_case', :'p118_catalog_institution', 'Analytics',
-  'preparation', 'C1', '59911800-0000-4000-8000-000000000207'
+  'preparation', 'AA', '59911800-0000-4000-8000-000000000207'
 ))::TEXT AS p118_catalog_invalid_country_error
 \gset
 
@@ -764,6 +774,8 @@ SELECT pg_temp.p118_assert(
     AND :'p118_blank_create'::JSONB -> 'country' = 'null'::JSONB
     AND :'p118_blank_create'::JSONB -> 'degree' = 'null'::JSONB
     AND :'p118_replay_conflict'::JSONB ->> 'sqlstate' = '22023'
+    AND :'p118_replay_conflict'::JSONB ->> 'message'
+      LIKE '%already used for another mutation%'
     AND :'p118_invalid_country_error'::JSONB ->> 'sqlstate' = '22023'
     AND :'p118_lowercase_rpc_country_error'::JSONB ->> 'sqlstate' = '22023'
     AND :'p118_long_degree_error'::JSONB ->> 'sqlstate' = '22023'
@@ -847,7 +859,7 @@ SELECT pg_temp.p118_capture_error(format(
 SELECT pg_temp.p118_capture_error(format(
   'SELECT platform.update_university_application_details(%L::UUID, %L::UUID, '
     || 'TRUE, %L::DATE, %L, %L, 2, %L::UUID)',
-  :'p118_org', :'p118_first_application', '2031-10-09', 'TUR', 'foundation',
+  :'p118_org', :'p118_first_application', '2031-10-09', 'ZZ', 'foundation',
   '59911800-0000-4000-8000-000000000211'
 ))::TEXT AS p118_details_invalid_country_error
 \gset

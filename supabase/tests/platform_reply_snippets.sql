@@ -376,6 +376,12 @@ SELECT pg_temp.p120_capture_error(format(
   '77120000-0000-4000-8000-000000000706'
 ))::TEXT AS p120_long_body_error
 \gset
+SELECT pg_temp.p120_capture_error(format(
+  'SELECT platform.create_reply_snippet(%L::uuid,%L,%L,%L,%L::uuid)',
+  :'p120_org_a', 'sales', U&'Bad\0085title', 'Valid body',
+  '77120000-0000-4000-8000-000000000708'
+))::TEXT AS p120_c1_title_error
+\gset
 RESET ROLE;
 
 SET request.jwt.claims TO :'p120_curator_a_claims';
@@ -395,7 +401,8 @@ SELECT pg_temp.p120_assert(
     AND :'p120_sales_admissions_error'::JSONB ->> 'sqlstate' = '42501'
     AND :'p120_bad_audience_error'::JSONB ->> 'sqlstate' = '22023'
     AND :'p120_blank_title_error'::JSONB ->> 'sqlstate' = '22023'
-    AND :'p120_long_body_error'::JSONB ->> 'sqlstate' = '22023',
+    AND :'p120_long_body_error'::JSONB ->> 'sqlstate' = '22023'
+    AND :'p120_c1_title_error'::JSONB ->> 'sqlstate' = '22023',
   'create validation, audience guard or idempotent replay failed'
 );
 
@@ -798,6 +805,54 @@ SELECT pg_temp.p120_assert(
       )
     ),
   'role transition crossed the original audience boundary'
+);
+
+-- PostgreSQL and TypeScript share an explicit storage contract: ASCII SPACE
+-- and edge LF are trimmed from bodies, while char_length/code-point limits
+-- treat an astral emoji as one character. A direct RPC write must therefore
+-- never create a row that the TypeScript reader rejects.
+SET request.jwt.claims TO :'p120_admin_a_claims';
+SET ROLE authenticated;
+SELECT platform.create_reply_snippet(
+  :'p120_org_a', 'all', 'Whitespace boundary',
+  E'\n  Wrapped body  \n',
+  '77120000-0000-4000-8000-000000000721'
+)::TEXT AS p120_wrapped_body_snippet
+\gset
+SELECT platform.create_reply_snippet(
+  :'p120_org_a', 'all', 'Emoji boundary', repeat('😀', 2000),
+  '77120000-0000-4000-8000-000000000722'
+)::TEXT AS p120_emoji_boundary_snippet
+\gset
+SELECT pg_temp.p120_capture_error(format(
+  'SELECT platform.create_reply_snippet(%L::uuid,%L,%L,%L,%L::uuid)',
+  :'p120_org_a', 'all', 'Emoji over limit', repeat('😀', 2001),
+  '77120000-0000-4000-8000-000000000723'
+))::TEXT AS p120_emoji_over_limit_error
+\gset
+SELECT count(*) FILTER (
+    WHERE listing.reply_snippet_id =
+      (:'p120_wrapped_body_snippet'::JSONB ->> 'reply_snippet_id')::UUID
+      AND listing.body = 'Wrapped body'
+  )::TEXT AS p120_wrapped_body_list_count,
+  count(*) FILTER (
+    WHERE listing.reply_snippet_id =
+      (:'p120_emoji_boundary_snippet'::JSONB ->> 'reply_snippet_id')::UUID
+      AND pg_catalog.char_length(listing.body) = 2000
+  )::TEXT AS p120_emoji_boundary_list_count
+FROM platform.list_reply_snippets(:'p120_org_a') AS listing
+\gset
+RESET ROLE;
+
+SELECT pg_temp.p120_assert(
+  :'p120_wrapped_body_snippet'::JSONB ->> 'body' = 'Wrapped body'
+    AND :'p120_wrapped_body_list_count'::INTEGER = 1
+    AND pg_catalog.char_length(
+      :'p120_emoji_boundary_snippet'::JSONB ->> 'body'
+    ) = 2000
+    AND :'p120_emoji_boundary_list_count'::INTEGER = 1
+    AND :'p120_emoji_over_limit_error'::JSONB ->> 'sqlstate' = '22023',
+  'reply snippet whitespace or Unicode code-point contract drifted'
 );
 
 ROLLBACK;

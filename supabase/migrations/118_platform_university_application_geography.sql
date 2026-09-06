@@ -2,8 +2,9 @@
 --
 -- The business works with a fixed set of destination countries, but until now
 -- only the case knew a free-text target_country/target_degree. Every
--- university application now carries its own nullable ISO-3166-1 alpha-2
--- country code and a machine degree key. The stored type mirrors
+-- university application now carries its own nullable destination-country
+-- code from the exact six-country product allowlist and a machine degree key.
+-- The stored type mirrors
 -- student_cases.target_degree (TEXT with a format CHECK, migrations 042/088):
 -- the value dictionary lives in the interface wording layer, never as a
 -- second schema-level enum.
@@ -12,7 +13,10 @@ BEGIN;
 
 ALTER TABLE platform.university_applications
   ADD COLUMN country TEXT
-    CHECK (country IS NULL OR country ~ '^[A-Z]{2}$');
+    CHECK (
+      country IS NULL
+      OR country IN ('CN', 'MY', 'AE', 'TR', 'IT', 'CZ')
+    );
 ALTER TABLE platform.university_applications
   ADD COLUMN degree TEXT
     CHECK (
@@ -112,7 +116,7 @@ BEGIN
     )
     OR (
       normalized_country IS NOT NULL
-      AND normalized_country !~ '^[A-Z]{2}$'
+      AND normalized_country NOT IN ('CN', 'MY', 'AE', 'TR', 'IT', 'CZ')
     )
     OR (
       normalized_degree IS NOT NULL
@@ -372,7 +376,7 @@ BEGIN
     )
     OR (
       normalized_country IS NOT NULL
-      AND normalized_country !~ '^[A-Z]{2}$'
+      AND normalized_country NOT IN ('CN', 'MY', 'AE', 'TR', 'IT', 'CZ')
     )
     OR (
       normalized_degree IS NOT NULL
@@ -635,7 +639,7 @@ BEGIN
     )
     OR (
       normalized_country IS NOT NULL
-      AND normalized_country !~ '^[A-Z]{2}$'
+      AND normalized_country NOT IN ('CN', 'MY', 'AE', 'TR', 'IT', 'CZ')
     )
     OR (
       normalized_degree IS NOT NULL
@@ -1311,7 +1315,7 @@ GRANT EXECUTE ON FUNCTION platform.staff_application_snapshot(UUID)
   TO authenticated;
 
 COMMENT ON COLUMN platform.university_applications.country IS
-  'Nullable ISO-3166-1 alpha-2 destination country of this exact application; the interface wording layer owns the value dictionary.';
+  'Nullable destination country of this exact application; limited to the product allowlist CN, MY, AE, TR, IT and CZ.';
 COMMENT ON COLUMN platform.university_applications.degree IS
   'Nullable machine degree key of this exact application, stored as the same free TEXT shape as student_cases.target_degree; no schema-level enum.';
 COMMENT ON FUNCTION platform.update_university_application_details(

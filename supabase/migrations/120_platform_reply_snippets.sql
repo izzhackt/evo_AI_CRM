@@ -8,15 +8,20 @@ CREATE TABLE platform.reply_snippets (
   id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
   organization_id UUID NOT NULL,
   audience TEXT NOT NULL CHECK (audience IN ('sales', 'admissions', 'all')),
+  -- The storage contract trims ASCII SPACE (U+0020) only. Keep this explicit:
+  -- PostgreSQL btrim(text) and JavaScript String.trim() do not share the same
+  -- Unicode whitespace set.
   title TEXT NOT NULL CHECK (
-    title = pg_catalog.btrim(title)
+    title = pg_catalog.btrim(title, ' ')
     AND pg_catalog.char_length(title) BETWEEN 1 AND 120
     AND title !~ '[[:cntrl:]]'
   ),
-  -- Bodies are multi-line WhatsApp texts: LF stays, every other control
-  -- character (including CR and TAB) is rejected.
+  -- Bodies are multi-line WhatsApp texts: internal LF stays, ASCII SPACE and
+  -- LF are trimmed at the edges, and every other control character (including
+  -- CR and TAB) is rejected. char_length is the shared Unicode-code-point
+  -- length contract used by the TypeScript boundary too.
   body TEXT NOT NULL CHECK (
-    body = pg_catalog.btrim(body)
+    body = pg_catalog.btrim(body, E' \n')
     AND pg_catalog.char_length(body) BETWEEN 1 AND 2000
     AND body !~ '[\x01-\x09\x0B-\x1F\x7F]'
   ),
@@ -307,8 +312,8 @@ AS $$
 DECLARE
   actor RECORD;
   snippet_row platform.reply_snippets%ROWTYPE;
-  normalized_title TEXT := pg_catalog.btrim(p_title);
-  normalized_body TEXT := pg_catalog.btrim(p_body);
+  normalized_title TEXT := pg_catalog.btrim(p_title, ' ');
+  normalized_body TEXT := pg_catalog.btrim(p_body, E' \n');
   replayed JSONB;
   replay_shape JSONB;
   result JSONB;
@@ -416,8 +421,8 @@ AS $$
 DECLARE
   actor RECORD;
   snippet_row platform.reply_snippets%ROWTYPE;
-  normalized_title TEXT := pg_catalog.btrim(p_title);
-  normalized_body TEXT := pg_catalog.btrim(p_body);
+  normalized_title TEXT := pg_catalog.btrim(p_title, ' ');
+  normalized_body TEXT := pg_catalog.btrim(p_body, E' \n');
   replayed JSONB;
   replay_shape JSONB;
   result JSONB;

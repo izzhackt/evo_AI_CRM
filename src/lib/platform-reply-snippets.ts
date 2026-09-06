@@ -6,7 +6,7 @@ const UUID_PATTERN =
 const TIMESTAMPTZ_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 const POSITIVE_BIGINT_PATTERN = /^[1-9]\d*$/;
-const SINGLE_LINE_CONTROL_PATTERN = /[\u0000-\u001F\u007F]/;
+const SINGLE_LINE_CONTROL_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
 const BODY_CONTROL_PATTERN = /[\u0000-\u0009\u000B-\u001F\u007F]/;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform reply-snippet data is unavailable.";
@@ -22,6 +22,24 @@ export type PlatformReplySnippetAudience =
 
 export const PLATFORM_REPLY_SNIPPET_TITLE_MAX_LENGTH = 120;
 export const PLATFORM_REPLY_SNIPPET_BODY_MAX_LENGTH = 2_000;
+
+/** Match PostgreSQL char_length(text): limits are Unicode code points. */
+export function platformReplySnippetCodePointLength(value: string): number {
+  return Array.from(value).length;
+}
+
+/** Match PostgreSQL btrim(value, ' '): only ASCII SPACE is structural. */
+export function normalizePlatformReplySnippetTitle(value: string): string {
+  return value.replace(/^\u0020+|\u0020+$/gu, "");
+}
+
+/**
+ * Match PostgreSQL btrim(value, E' \\n'): trim ASCII SPACE and edge LF while
+ * retaining every internal LF in the multi-line WhatsApp body.
+ */
+export function normalizePlatformReplySnippetBody(value: string): string {
+  return value.replace(/^[\u0020\n]+|[\u0020\n]+$/gu, "");
+}
 
 export type PlatformReplySnippet = Readonly<{
   replySnippetId: string;
@@ -118,10 +136,14 @@ function snippetAudience(value: unknown): PlatformReplySnippetAudience {
 }
 
 function snippetTitle(value: unknown): string {
+  const length = typeof value === "string"
+    ? platformReplySnippetCodePointLength(value)
+    : 0;
   if (
-    typeof value !== "string" || value.length < 1 ||
-    value.length > PLATFORM_REPLY_SNIPPET_TITLE_MAX_LENGTH ||
-    value !== value.trim() || SINGLE_LINE_CONTROL_PATTERN.test(value)
+    typeof value !== "string" || length < 1 ||
+    length > PLATFORM_REPLY_SNIPPET_TITLE_MAX_LENGTH ||
+    value !== normalizePlatformReplySnippetTitle(value) ||
+    SINGLE_LINE_CONTROL_PATTERN.test(value)
   ) {
     return invalidShape();
   }
@@ -130,10 +152,14 @@ function snippetTitle(value: unknown): string {
 
 /** Snippet bodies are multi-line: LF is content, other controls fail closed. */
 function snippetBody(value: unknown): string {
+  const length = typeof value === "string"
+    ? platformReplySnippetCodePointLength(value)
+    : 0;
   if (
-    typeof value !== "string" || value.length < 1 ||
-    value.length > PLATFORM_REPLY_SNIPPET_BODY_MAX_LENGTH ||
-    value !== value.trim() || BODY_CONTROL_PATTERN.test(value)
+    typeof value !== "string" || length < 1 ||
+    length > PLATFORM_REPLY_SNIPPET_BODY_MAX_LENGTH ||
+    value !== normalizePlatformReplySnippetBody(value) ||
+    BODY_CONTROL_PATTERN.test(value)
   ) {
     return invalidShape();
   }

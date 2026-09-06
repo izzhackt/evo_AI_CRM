@@ -19765,3 +19765,55 @@ same download/hash/ClamAV/finalize proof. References:
 This correction authorizes no immediate managed schema apply, production
 arming/deployment, Auth invitation, provider call, webhook transfer, amoCRM
 write or remote-ref deletion. Those actions retain their existing exact gates.
+
+## 2026-09-06 - Canonicalize case-note and Curator-assignment locking
+
+Block-ID: `EVO-V3-D1-CASE-NOTE-CURATOR-LOCK-ORDER-2026-09-06`
+
+Change type: adversarial D1 concurrency correction. Affected plan section:
+Stage D1 / migration 117 and its real-Postgres authorization suite.
+
+The final cumulative review reproduced a real two-session deadlock that the
+Admin-authored regression did not cover. A current Curator could lock their
+profile and membership while creating a case note, then wait on the
+organization/case held by `assign_student_case_curator`; the assignment could
+in turn wait on that same Curator membership/profile. The same inversion also
+exists when the assignment targets a Curator writing on another case, and when
+a reassignment later bumps the previous Curator's access version. Rejecting
+only a same-current no-op would therefore leave the wider lock graph unsafe.
+
+Decision: migration 117 keeps migration 042 immutable, moves its established
+assignment body into a non-exposed internal routine, and preserves the public
+RPC contract through a `SECURITY INVOKER` entrypoint backed by a narrow guarded
+coordinator in non-exposed `private`. Student-case note creation and Curator
+assignment share this transaction-lock order before either owns a request or
+row lock:
+
+1. after a read-only live-authority preflight, lock the organization-scoped
+   student-note/Curator-assignment advisory domain;
+2. lock `request_id`; and
+3. for assignment, lock the Admin membership, profile and organization rows,
+   then repeat the complete JWT access-version, published-bundle, permission
+   and organization-scope check against the post-wait state; and
+4. run the existing live actor, organization, case and membership row-lock
+   validation and mutation body.
+
+Both operations already take `FOR UPDATE` on the same organization row, so the
+organization advisory domain does not remove concurrency that these two paths
+previously had with each other. It moves their existing serialization point
+ahead of every current, target or previous Curator row and therefore closes the
+whole participant class without a stale current-Curator snapshot or a growing
+list of special cases. New dblink regressions exercise the exact
+current-Curator/same-current race, a cross-case target-Curator race and a stale
+Admin assignment waiting behind a real organization-scope revocation. Their
+`pg_stat_activity` polling clears PostgreSQL's per-transaction statistics
+snapshot before every observation so a cached observer cannot produce a false
+timeout. The complete migration-boundary suite remains the acceptance gate.
+
+PostgreSQL documents that transaction-level advisory locks wait for a
+conflicting key and are released automatically at transaction end:
+<https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS>.
+
+This is a repository-only D1 correction. It authorizes no managed schema apply,
+production release, provider call or credential use; those remain in the later
+schema-ledger and frozen-main release stages.

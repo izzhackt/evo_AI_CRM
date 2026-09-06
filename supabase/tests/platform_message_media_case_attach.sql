@@ -1888,6 +1888,7 @@ DECLARE
   attempt INTEGER;
 BEGIN
   FOR attempt IN 1..50 LOOP
+    PERFORM pg_catalog.pg_stat_clear_snapshot();
     IF EXISTS (
       SELECT 1
       FROM pg_catalog.pg_stat_activity AS completion_activity

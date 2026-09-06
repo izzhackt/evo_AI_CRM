@@ -1,7 +1,8 @@
 \set ON_ERROR_STOP on
 
--- Migration 121 boundary proof. Fixtures are synthetic, isolated and rolled
--- back; no provider, Storage byte or production state is touched.
+-- Migration 121 boundary proof. Fixtures are synthetic, isolated and removed
+-- after the two-session race; no provider, Storage byte or production state is
+-- touched.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION pg_temp.p121_assert(
@@ -50,10 +51,10 @@ DECLARE
   completions_oid OID :=
     'platform_private.message_media_attachment_completions'::REGCLASS;
   reserve_rpc_oid OID := (
-    'platform.reserve_message_media_attachment(uuid,uuid,uuid,uuid,uuid)'::REGPROCEDURE
+    'platform.reserve_message_media_attachment(uuid,uuid,uuid,uuid,bigint,uuid)'::REGPROCEDURE
   )::OID;
   reserve_body_oid OID := (
-    'private.reserve_message_media_attachment(uuid,uuid,uuid,uuid,uuid)'::REGPROCEDURE
+    'private.reserve_message_media_attachment(uuid,uuid,uuid,uuid,bigint,uuid)'::REGPROCEDURE
   )::OID;
   upload_rpc_oid OID := (
     'platform.reserve_message_media_attachment_upload(uuid,text,text,text,text,text,timestamptz)'::REGPROCEDURE
@@ -151,7 +152,7 @@ BEGIN
   END LOOP;
 
   IF pg_catalog.pg_get_function_identity_arguments(reserve_rpc_oid) <>
-    'p_conversation_id uuid, p_communication_media_id uuid, p_student_case_id uuid, p_document_slot_id uuid, p_request_id uuid'
+    'p_conversation_id uuid, p_communication_media_id uuid, p_student_case_id uuid, p_document_slot_id uuid, p_expected_version bigint, p_request_id uuid'
   THEN
     RAISE EXCEPTION 'reserve_message_media_attachment signature drifted';
   END IF;
@@ -191,6 +192,9 @@ BEGIN
     )
     OR pg_catalog.has_function_privilege(
       'supabase_auth_admin', reserve_rpc_oid, 'EXECUTE'
+    )
+    OR pg_catalog.has_function_privilege(
+      'supabase_auth_admin', reserve_body_oid, 'EXECUTE'
     )
   THEN
     RAISE EXCEPTION 'reserve_message_media_attachment grants drifted';
@@ -736,31 +740,31 @@ VALUES
   (
     :'p121_message_1', :'p121_org_a', :'p121_conversation_1', :'p121_case_a',
     :'p121_participant_1', 'inbound', '[media message]', 'undetermined',
-    FALSE, 'private_waha_binding', NULL, NULL, NULL, NULL, NULL,
+    FALSE, 'public_provider_id', 'crm_primary', 'p121-message-1', NULL, NULL, NULL,
     NULL, NULL, NULL, :'p121_event_1', NULL
   ),
   (
     :'p121_message_2', :'p121_org_a', :'p121_conversation_1', :'p121_case_a',
     :'p121_participant_1', 'inbound', '[voice message]', 'undetermined',
-    FALSE, 'private_waha_binding', NULL, NULL, NULL, NULL, NULL,
+    FALSE, 'public_provider_id', 'crm_primary', 'p121-message-2', NULL, NULL, NULL,
     NULL, NULL, NULL, :'p121_event_1', NULL
   ),
   (
     :'p121_message_3', :'p121_org_a', :'p121_conversation_1', :'p121_case_a',
     :'p121_participant_1', 'inbound', '[pending media]', 'undetermined',
-    FALSE, 'private_waha_binding', NULL, NULL, NULL, NULL, NULL,
+    FALSE, 'public_provider_id', 'crm_primary', 'p121-message-3', NULL, NULL, NULL,
     NULL, NULL, NULL, :'p121_event_1', NULL
   ),
   (
     :'p121_message_4', :'p121_org_a', :'p121_conversation_2', NULL,
     :'p121_participant_2', 'inbound', '[lead media]', 'undetermined',
-    FALSE, 'private_waha_binding', NULL, NULL, NULL, NULL, NULL,
+    FALSE, 'public_provider_id', 'crm_primary', 'p121-message-4', NULL, NULL, NULL,
     NULL, NULL, NULL, :'p121_event_1', NULL
   ),
   (
     :'p121_message_5', :'p121_org_a', :'p121_conversation_3', NULL,
     :'p121_participant_3', 'inbound', '[unlinked media]', 'undetermined',
-    FALSE, 'private_waha_binding', NULL, NULL, NULL, NULL, NULL,
+    FALSE, 'public_provider_id', 'crm_primary', 'p121-message-5', NULL, NULL, NULL,
     NULL, NULL, NULL, :'p121_event_1', NULL
   );
 
@@ -913,6 +917,16 @@ SELECT
     'platform_bundle_version', :'p121_sales_bundle_version'::INTEGER
   )::TEXT AS p121_sales_a_claims,
   jsonb_build_object(
+    'sub', :'p121_student_a_user',
+    'role', 'authenticated',
+    'platform_role', 'student',
+    'platform_access_version', 1,
+    'platform_organization_id', :'p121_org_a',
+    'platform_membership_id', :'p121_student_a_membership',
+    'platform_bundle_id', :'p121_student_bundle',
+    'platform_bundle_version', :'p121_student_bundle_version'::INTEGER
+  )::TEXT AS p121_student_a_claims,
+  jsonb_build_object(
     'sub', :'p121_admin_a_user',
     'role', 'authenticated',
     'platform_role', 'admin',
@@ -940,9 +954,9 @@ SET request.jwt.claims TO '{}';
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000911'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000911'
     ))->>'sqlstate'
   ) = '42501',
   'anon must not execute the media attach reserve RPC'
@@ -955,12 +969,25 @@ SET ROLE authenticated;
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000912'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000912'
     ))->>'sqlstate'
   ) = '42501',
   'sales must not reserve media attachments on an active case'
+);
+
+SET request.jwt.claims TO :'p121_student_a_claims';
+
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
+      :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000914'
+    ))->>'sqlstate'
+  ) = '42501',
+  'student must not reserve a staff media attachment intent'
 );
 
 SET request.jwt.claims TO :'p121_curator_unassigned_claims';
@@ -968,9 +995,9 @@ SET request.jwt.claims TO :'p121_curator_unassigned_claims';
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000913'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000913'
     ))->>'sqlstate'
   ) = '42501',
   'Admissions without the current case assignment must fail closed'
@@ -978,15 +1005,26 @@ SELECT pg_temp.p121_assert(
 
 SET request.jwt.claims TO :'p121_curator_a_claims';
 
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
+      :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
+      :'p121_slot_a', 2, '59912100-0000-4000-8000-000000000915'
+    ))->>'sqlstate'
+  ) = 'PT409',
+  'stale document slot version must fail before attachment intent creation'
+);
+
 SELECT platform.reserve_message_media_attachment(
   :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
-  :'p121_slot_a', '59912100-0000-4000-8000-000000000921'
+  :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000921'
 )::TEXT AS p121_reserve
 \gset
 
 SELECT platform.reserve_message_media_attachment(
   :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
-  :'p121_slot_a', '59912100-0000-4000-8000-000000000921'
+  :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000921'
 )::TEXT AS p121_reserve_replay
 \gset
 
@@ -998,6 +1036,7 @@ SELECT pg_temp.p121_assert(
     'communication_media_id', :'p121_media_pdf'::UUID,
     'student_case_id', :'p121_case_a'::UUID,
     'document_slot_id', :'p121_slot_a'::UUID,
+    'slot_expected_version', '1',
     'media_mime_type', 'application/pdf',
     'media_file_name', 'offer.pdf',
     'media_file_size_bytes', 2048,
@@ -1005,6 +1044,16 @@ SELECT pg_temp.p121_assert(
     'slot_status', 'required',
     'request_id', '59912100-0000-4000-8000-000000000921'::UUID
   )
+  AND (
+    SELECT pg_catalog.array_agg(receipt_key ORDER BY receipt_key)
+    FROM pg_catalog.jsonb_object_keys(:'p121_reserve'::JSONB)
+      AS receipt(receipt_key)
+  ) = ARRAY[
+    'attachment_intent_id', 'communication_media_id', 'conversation_id',
+    'document_slot_id', 'media_file_name', 'media_file_size_bytes',
+    'media_mime_type', 'media_sha256_hex', 'organization_id', 'request_id',
+    'slot_expected_version', 'slot_status', 'student_case_id'
+  ]::TEXT[]
   AND (:'p121_reserve'::JSONB ->> 'attachment_intent_id') IS NOT NULL
   AND position('object_name' IN :'p121_reserve') = 0
   AND position('platform-whatsapp-media' IN :'p121_reserve') = 0
@@ -1015,12 +1064,23 @@ SELECT pg_temp.p121_assert(
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_1', :'p121_media_audio', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000921'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000921'
     ))->>'sqlstate'
   ) = '23505',
   'same request id with changed media must fail as a replay conflict'
+);
+
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
+      :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
+      :'p121_slot_a', 2, '59912100-0000-4000-8000-000000000921'
+    ))->>'sqlstate'
+  ) = '23505',
+  'same request id with a changed expected version must conflict'
 );
 
 SET request.jwt.claims TO :'p121_admin_a_claims';
@@ -1028,9 +1088,9 @@ SET request.jwt.claims TO :'p121_admin_a_claims';
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000921'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000921'
     ))->>'sqlstate'
   ) = '23505',
   'same request id replayed by another authorized actor must fail closed'
@@ -1041,9 +1101,9 @@ SET request.jwt.claims TO :'p121_admin_b_claims';
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000922'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000922'
     ))->>'sqlstate'
   ) = '42501',
   'an authenticated actor must not select another tenant through resource ids'
@@ -1054,9 +1114,9 @@ SET request.jwt.claims TO :'p121_curator_a_claims';
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_1', :'p121_media_audio', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000923'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000923'
     ))->>'sqlstate'
   ) = '22023',
   'non-document media kinds must be rejected as unattachable'
@@ -1065,9 +1125,9 @@ SELECT pg_temp.p121_assert(
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_1', :'p121_media_pending', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000924'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000924'
     ))->>'sqlstate'
   ) = '42501',
   'unarchived media must be unavailable for attachment'
@@ -1076,9 +1136,9 @@ SELECT pg_temp.p121_assert(
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_3', :'p121_media_c3_pdf', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000925'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000925'
     ))->>'sqlstate'
   ) = '42501',
   'media from an unlinked conversation must not attach to the case'
@@ -1087,9 +1147,9 @@ SELECT pg_temp.p121_assert(
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
-      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::uuid)',
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
       :'p121_conversation_1', :'p121_media_c2_pdf', :'p121_case_a',
-      :'p121_slot_a', '59912100-0000-4000-8000-000000000926'
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000926'
     ))->>'sqlstate'
   ) = '42501',
   'a media and conversation mismatch must fail closed'
@@ -1099,7 +1159,7 @@ SET request.jwt.claims TO :'p121_admin_a_claims';
 
 SELECT platform.reserve_message_media_attachment(
   :'p121_conversation_2', :'p121_media_c2_pdf', :'p121_case_a',
-  :'p121_slot_a', '59912100-0000-4000-8000-000000000927'
+  :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000927'
 )::TEXT AS p121_admin_reserve
 \gset
 
@@ -1197,6 +1257,39 @@ SELECT pg_temp.p121_assert(
   'same-hash finalized version without the attachment upload edge must fail'
 );
 
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.reserve_message_media_attachment_upload(%L::uuid,%L,%L,%L,%L,%L,%L::timestamptz)',
+      :'p121_reserve'::JSONB ->> 'attachment_intent_id',
+      'clean', 'ClamAV', '1.5.4', '27890', 'clamd-zinstream-v1',
+      :'p121_scan_at'
+    ))->>'sqlstate'
+  ) = 'PT409',
+  'an intent must become stale when another finalization advances its slot'
+);
+
+RESET ROLE;
+RESET request.jwt.claims;
+SET request.jwt.claims TO :'p121_curator_a_claims';
+SET ROLE authenticated;
+
+SELECT platform.reserve_message_media_attachment(
+  :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
+  :'p121_slot_a', 2, '59912100-0000-4000-8000-000000000928'
+)::TEXT AS p121_reserve
+\gset
+
+SELECT pg_temp.p121_assert(
+  :'p121_reserve'::JSONB ->> 'slot_expected_version' = '2',
+  'a new intent must capture the slot version after unrelated finalization'
+);
+
+RESET ROLE;
+RESET request.jwt.claims;
+SET request.jwt.claims TO '{"role":"service_role"}';
+SET ROLE service_role;
+
 SELECT platform.reserve_message_media_attachment_upload(
   (:'p121_reserve'::JSONB ->> 'attachment_intent_id')::UUID,
   'clean', 'ClamAV', '1.5.4', '27890', 'clamd-zinstream-v1',
@@ -1230,7 +1323,18 @@ SELECT pg_temp.p121_assert(
   AND (:'p121_upload'::JSONB ->> 'storage_binding_id') IS NOT NULL
   AND (:'p121_upload'::JSONB ->> 'document_version_id')
     IS DISTINCT FROM
-      (:'p121_unrelated_reservation'::JSONB ->> 'document_version_id'),
+      (:'p121_unrelated_reservation'::JSONB ->> 'document_version_id')
+  AND (
+    SELECT pg_catalog.array_agg(receipt_key ORDER BY receipt_key)
+    FROM pg_catalog.jsonb_object_keys(:'p121_upload'::JSONB)
+      AS receipt(receipt_key)
+  ) = ARRAY[
+    'attachment_intent_id', 'bucket_id', 'byte_size', 'declared_mime_type',
+    'document_slot_id', 'document_slot_published', 'document_version_id',
+    'expires_at', 'object_name', 'organization_id', 'sha256_hex',
+    'storage_binding_id', 'storage_object_present', 'student_case_id',
+    'upload_reservation_id', 'version_number'
+  ]::TEXT[],
   'service reserve must bind a distinct exact version to the intent'
 );
 
@@ -1273,6 +1377,34 @@ SELECT pg_temp.p121_assert(
 
 RESET ROLE;
 RESET request.jwt.claims;
+
+SAVEPOINT p121_slot_version_changed;
+
+UPDATE platform.document_slots AS slot
+SET version = slot.version + 1
+WHERE slot.organization_id = :'p121_org_a'
+  AND slot.id = :'p121_slot_a';
+
+SET request.jwt.claims TO '{"role":"service_role"}';
+SET ROLE service_role;
+
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.complete_message_media_attachment(%L::uuid,%L::uuid,%L,%L,%L,%L,%L::timestamptz)',
+      :'p121_reserve'::JSONB ->> 'attachment_intent_id',
+      :'p121_upload'::JSONB ->> 'upload_reservation_id',
+      'ClamAV', '1.5.4', '27890', 'clamd-zinstream-v1',
+      statement_timestamp()::TEXT
+    ))->>'sqlstate'
+  ) = 'PT409',
+  'completion must reject a slot version changed after upload reservation'
+);
+
+RESET ROLE;
+RESET request.jwt.claims;
+ROLLBACK TO SAVEPOINT p121_slot_version_changed;
+RELEASE SAVEPOINT p121_slot_version_changed;
 
 SAVEPOINT p121_membership_revoked;
 
@@ -1359,7 +1491,18 @@ SELECT pg_temp.p121_assert(
     'sha256_hex', :'p121_media_sha'
   )
   AND (:'p121_complete'::JSONB ->> 'upload_finalization_id') IS NOT NULL
-  AND (:'p121_complete'::JSONB ->> 'malware_scan_attestation_id') IS NOT NULL,
+  AND (:'p121_complete'::JSONB ->> 'malware_scan_attestation_id') IS NOT NULL
+  AND (
+    SELECT pg_catalog.array_agg(receipt_key ORDER BY receipt_key)
+    FROM pg_catalog.jsonb_object_keys(:'p121_complete'::JSONB)
+      AS receipt(receipt_key)
+  ) = ARRAY[
+    'attachment_completion_id', 'attachment_intent_id', 'communication_media_id',
+    'completed_at', 'conversation_id', 'document_slot_id',
+    'document_version_id', 'malware_scan_attestation_id', 'organization_id',
+    'sha256_hex', 'student_case_id', 'upload_finalization_id',
+    'upload_reservation_id', 'version_number'
+  ]::TEXT[],
   'completion must record and replay one exact causal-chain receipt'
 );
 
@@ -1369,7 +1512,10 @@ RESET request.jwt.claims;
 SELECT pg_temp.p121_assert(
   EXISTS (
     SELECT 1
-    FROM platform_private.message_media_attachment_uploads AS attachment_upload
+    FROM platform_private.message_media_attachment_intents AS intent
+    JOIN platform_private.message_media_attachment_uploads AS attachment_upload
+      ON attachment_upload.organization_id = intent.organization_id
+      AND attachment_upload.attachment_intent_id = intent.id
     JOIN platform_private.message_media_attachment_completions AS completion
       ON completion.organization_id = attachment_upload.organization_id
       AND completion.attachment_intent_id =
@@ -1392,7 +1538,21 @@ SELECT pg_temp.p121_assert(
       AND scan_proof.upload_finalization_id = finalization.id
       AND scan_proof.document_version_id = completion.document_version_id
       AND scan_proof.scanned_sha256_hex = completion.sha256_hex
-    WHERE attachment_upload.attachment_intent_id =
+    JOIN platform.audit_events AS reserve_audit
+      ON reserve_audit.organization_id = intent.organization_id
+      AND reserve_audit.request_id = intent.request_id
+      AND reserve_audit.action = 'document.media.attach.reserve'
+      AND reserve_audit.resource_type = 'document_slot'
+      AND reserve_audit.resource_id = intent.document_slot_id
+      AND reserve_audit.after_state @> intent.response
+    JOIN platform.audit_events AS completion_audit
+      ON completion_audit.organization_id = completion.organization_id
+      AND completion_audit.request_id = completion.request_id
+      AND completion_audit.action = 'document.media.attach.complete'
+      AND completion_audit.resource_type = 'document_version'
+      AND completion_audit.resource_id = completion.document_version_id
+      AND completion_audit.after_state = completion.response
+    WHERE intent.id =
       (:'p121_reserve'::JSONB ->> 'attachment_intent_id')::UUID
       AND attachment_upload.upload_reservation_id =
         (:'p121_upload'::JSONB ->> 'upload_reservation_id')::UUID
@@ -1454,7 +1614,7 @@ SELECT pg_temp.p121_assert(
     FROM platform.audit_events AS event
     WHERE event.organization_id = :'p121_org_a'
       AND event.action = 'document.media.attach.reserve'
-  ) = 2
+  ) = 3
   AND (
     SELECT count(*)
     FROM platform.audit_events AS event
@@ -1464,6 +1624,382 @@ SELECT pg_temp.p121_assert(
   'each real attachment reserve and completion must append one audit event'
 );
 
-ROLLBACK;
+-- Commit one uncompleted exact chain so two independent dblink sessions can
+-- race an append-only case-scope revocation against service completion.
+SET request.jwt.claims TO :'p121_curator_a_claims';
+SET ROLE authenticated;
+
+SELECT platform.reserve_message_media_attachment(
+  :'p121_conversation_1', :'p121_media_pdf', :'p121_case_a',
+  :'p121_slot_a', 3, '59912100-0000-4000-8000-000000000929'
+)::TEXT AS p121_race_reserve
+\gset
+
+RESET ROLE;
+RESET request.jwt.claims;
+SELECT statement_timestamp()::TEXT AS p121_race_scan_at
+\gset
+SET request.jwt.claims TO '{"role":"service_role"}';
+SET ROLE service_role;
+
+SELECT platform.reserve_message_media_attachment_upload(
+  (:'p121_race_reserve'::JSONB ->> 'attachment_intent_id')::UUID,
+  'clean', 'ClamAV', '1.5.4', '27890', 'clamd-zinstream-v1',
+  :'p121_race_scan_at'::TIMESTAMPTZ
+)::TEXT AS p121_race_upload
+\gset
+
+RESET ROLE;
+RESET request.jwt.claims;
+
+-- Move only the test clock window so the explicit SQL expiry branch is
+-- deterministic without sleeping for the production reservation duration.
+SET LOCAL session_replication_role = replica;
+UPDATE platform_private.document_upload_reservations AS reservation
+SET
+  created_at = statement_timestamp() - INTERVAL '20 minutes',
+  expires_at = statement_timestamp() - INTERVAL '10 minutes',
+  ingress_scanned_at = statement_timestamp() - INTERVAL '20 minutes'
+WHERE reservation.id =
+  (:'p121_race_upload'::JSONB ->> 'upload_reservation_id')::UUID;
+SET LOCAL session_replication_role = origin;
+
+SET request.jwt.claims TO '{"role":"service_role"}';
+SET ROLE service_role;
+SELECT pg_temp.p121_capture_error(format(
+  'SELECT platform.complete_message_media_attachment(%L::uuid,%L::uuid,%L,%L,%L,%L,%L::timestamptz)',
+  :'p121_race_reserve'::JSONB ->> 'attachment_intent_id',
+  :'p121_race_upload'::JSONB ->> 'upload_reservation_id',
+  'ClamAV', '1.5.4', '27890', 'clamd-zinstream-v1',
+  statement_timestamp()::TEXT
+))::TEXT AS p121_race_expired_error
+\gset
+RESET ROLE;
+RESET request.jwt.claims;
+
+SELECT pg_temp.p121_assert(
+  :'p121_race_expired_error'::JSONB ->> 'sqlstate' = 'PT409'
+  AND :'p121_race_expired_error'::JSONB ->> 'message'
+    = 'attachment_reservation_expired',
+  'an expired exact reservation must fail with its explicit recovery code'
+);
+
+-- Restore a live reservation and exact Storage catalog row so current
+-- authority would complete successfully; only the concurrent revocation may
+-- stop the race below.
+SET LOCAL session_replication_role = replica;
+UPDATE platform_private.document_upload_reservations AS reservation
+SET
+  created_at = statement_timestamp(),
+  expires_at = statement_timestamp() + INTERVAL '10 minutes',
+  ingress_scanned_at = :'p121_race_scan_at'::TIMESTAMPTZ
+WHERE reservation.id =
+  (:'p121_race_upload'::JSONB ->> 'upload_reservation_id')::UUID;
+SET LOCAL session_replication_role = origin;
+
+INSERT INTO storage.objects (bucket_id, name, metadata, created_at)
+VALUES (
+  :'p121_race_upload'::JSONB ->> 'bucket_id',
+  :'p121_race_upload'::JSONB ->> 'object_name',
+  jsonb_build_object('size', 2048, 'mimetype', 'application/pdf'),
+  statement_timestamp()
+);
+
+SELECT
+  intent.upload_finalization_request_id::TEXT AS p121_race_finalize_request,
+  intent.completion_request_id::TEXT AS p121_race_complete_request
+FROM platform_private.message_media_attachment_intents AS intent
+WHERE intent.id =
+  (:'p121_race_reserve'::JSONB ->> 'attachment_intent_id')::UUID
+\gset
+
+COMMIT;
+
+DO $dblink_boundary$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_extension AS extension
+    WHERE extension.extname = 'dblink'
+  ) THEN
+    RAISE EXCEPTION
+      'Migration 121 test requires a disposable database without dblink';
+  END IF;
+END
+$dblink_boundary$;
+
+CREATE SCHEMA p121_test_extensions AUTHORIZATION postgres;
+CREATE EXTENSION dblink WITH SCHEMA p121_test_extensions;
+
+SET ROLE supabase_admin;
+SELECT p121_test_extensions.dblink_connect(
+  'p121c_authority',
+  format(
+    'hostaddr=127.0.0.1 port=%s dbname=%s user=postgres application_name=p121c-authority options=-csearch_path=',
+    current_setting('port'),
+    current_database()
+  )
+);
+SELECT p121_test_extensions.dblink_connect(
+  'p121c_complete',
+  format(
+    'hostaddr=127.0.0.1 port=%s dbname=%s user=postgres application_name=p121c-complete options=-csearch_path=',
+    current_setting('port'),
+    current_database()
+  )
+);
+RESET ROLE;
+
+SELECT p121_test_extensions.dblink_exec(
+  'p121c_authority',
+  'SET statement_timeout = ''15s''; SET lock_timeout = ''5s'''
+);
+SELECT p121_test_extensions.dblink_exec(
+  'p121c_complete',
+  'SET statement_timeout = ''15s''; SET lock_timeout = ''10s'''
+);
+
+SELECT p121_test_extensions.dblink_exec(
+  'p121c_complete',
+  $remote$
+    BEGIN;
+    CREATE OR REPLACE FUNCTION pg_temp.p121c_capture_error(p_statement TEXT)
+    RETURNS JSONB
+    LANGUAGE plpgsql
+    AS $capture$
+    BEGIN
+      EXECUTE p_statement;
+      RETURN jsonb_build_object('ok', TRUE);
+    EXCEPTION WHEN OTHERS THEN
+      RETURN jsonb_build_object(
+        'ok', FALSE,
+        'sqlstate', SQLSTATE,
+        'message', SQLERRM
+      );
+    END
+    $capture$;
+    GRANT EXECUTE ON FUNCTION pg_temp.p121c_capture_error(TEXT)
+      TO service_role;
+    SET ROLE service_role;
+    SET LOCAL request.jwt.claims = '{"role":"service_role"}';
+  $remote$
+);
+
+SELECT p121_test_extensions.dblink_exec(
+  'p121c_authority',
+  'BEGIN'
+);
+
+SELECT p121_test_extensions.dblink_exec(
+  'p121c_authority',
+  format(
+    $authority$
+      DO $revoke$
+      BEGIN
+        PERFORM platform_private.append_scope_event(
+          %L::UUID,
+          %L::UUID,
+          %L::UUID,
+          2,
+          FALSE,
+          'system',
+          NULL,
+          'Migration 121 concurrent case-scope revocation',
+          '59912100-0000-4000-8000-000000000930'::UUID
+        );
+      END
+      $revoke$
+    $authority$,
+    :'p121_org_a',
+    :'p121_curator_a_membership',
+    :'p121_case_scope_a_v2'
+  )
+);
+
+SELECT pg_temp.p121_assert(
+  EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_stat_activity AS activity
+    WHERE activity.application_name = 'p121c-authority'
+      AND activity.state = 'idle in transaction'
+  ),
+  'scope revocation did not retain its transaction locks'
+);
+
+SELECT pg_temp.p121_assert(
+  p121_test_extensions.dblink_send_query(
+    'p121c_complete',
+    format(
+      $complete$
+        SELECT pg_temp.p121c_capture_error(
+          $command$
+            SELECT platform.complete_message_media_attachment(
+              %L::UUID,
+              %L::UUID,
+              'ClamAV',
+              '1.5.4',
+              '27890',
+              'clamd-zinstream-v1',
+              statement_timestamp()
+            )
+          $command$
+        )::TEXT AS outcome
+      $complete$,
+      :'p121_race_reserve'::JSONB ->> 'attachment_intent_id',
+      :'p121_race_upload'::JSONB ->> 'upload_reservation_id'
+    )
+  ) = 1,
+  'concurrent completion query was not dispatched'
+);
+
+DO $wait_for_completion_lock$
+DECLARE
+  attempt INTEGER;
+BEGIN
+  FOR attempt IN 1..50 LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_stat_activity AS completion_activity
+      JOIN pg_catalog.pg_stat_activity AS authority_activity
+        ON authority_activity.application_name = 'p121c-authority'
+        AND authority_activity.pid = ANY (
+          pg_catalog.pg_blocking_pids(completion_activity.pid)
+        )
+      WHERE completion_activity.application_name = 'p121c-complete'
+        AND completion_activity.state = 'active'
+        AND completion_activity.wait_event_type = 'Lock'
+    ) THEN
+      RETURN;
+    END IF;
+    PERFORM pg_catalog.pg_sleep(0.05);
+  END LOOP;
+  RAISE EXCEPTION
+    'Migration 121 completion worker did not wait for scope revocation';
+END
+$wait_for_completion_lock$;
+
+SELECT p121_test_extensions.dblink_exec('p121c_authority', 'COMMIT');
+
+SELECT result.outcome AS p121c_completion_outcome
+FROM p121_test_extensions.dblink_get_result('p121c_complete')
+  AS result(outcome TEXT)
+\gset
+SELECT count(*) AS p121c_completion_result_drained
+FROM p121_test_extensions.dblink_get_result('p121c_complete')
+  AS result(outcome TEXT)
+\gset
+
+SELECT pg_temp.p121_assert(
+  :'p121c_completion_result_drained'::INTEGER = 0
+  AND :'p121c_completion_outcome'::JSONB ->> 'sqlstate' = '42501'
+  AND :'p121c_completion_outcome'::JSONB ->> 'message'
+    = 'The attachment actor no longer has current case authority'
+  AND EXISTS (
+    SELECT 1
+    FROM platform.membership_scope_assignments AS assignment
+    WHERE assignment.organization_id = :'p121_org_a'
+      AND assignment.membership_id = :'p121_curator_a_membership'
+      AND assignment.scope_id = :'p121_case_scope_a_v2'
+      AND assignment.assignment_version = 2
+      AND NOT assignment.granted
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform_private.message_media_attachment_completions AS completion
+    WHERE completion.attachment_intent_id =
+      (:'p121_race_reserve'::JSONB ->> 'attachment_intent_id')::UUID
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform_private.document_upload_finalizations AS finalization
+    WHERE finalization.upload_reservation_id =
+      (:'p121_race_upload'::JSONB ->> 'upload_reservation_id')::UUID
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM platform.audit_events AS event
+    WHERE event.request_id IN (
+      :'p121_race_finalize_request'::UUID,
+      :'p121_race_complete_request'::UUID
+    )
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.document_slots AS slot
+    WHERE slot.organization_id = :'p121_org_a'
+      AND slot.id = :'p121_slot_a'
+      AND slot.version = 3
+      AND slot.current_version_id =
+        (:'p121_complete'::JSONB ->> 'document_version_id')::UUID
+      AND slot.current_version_id IS DISTINCT FROM
+        (:'p121_race_upload'::JSONB ->> 'document_version_id')::UUID
+  ),
+  'scope-revocation race did not fail closed before finalization'
+);
+
+SELECT p121_test_extensions.dblink_exec('p121c_complete', 'ROLLBACK');
+SELECT p121_test_extensions.dblink_disconnect('p121c_complete');
+SELECT p121_test_extensions.dblink_disconnect('p121c_authority');
+
+-- Remove every committed synthetic row, including generated ledger/audit IDs.
+BEGIN;
+SET LOCAL session_replication_role = replica;
+DO $cleanup$
+DECLARE
+  target RECORD;
+BEGIN
+  FOR target IN
+    SELECT
+      column_info.table_schema,
+      column_info.table_name,
+      pg_catalog.string_agg(
+        pg_catalog.format(
+          '%I::TEXT LIKE %L',
+          column_info.column_name,
+          '59912100-%'
+        ),
+        ' OR '
+        ORDER BY column_info.ordinal_position
+      ) AS predicate
+    FROM information_schema.columns AS column_info
+    JOIN information_schema.tables AS table_info
+      ON table_info.table_schema = column_info.table_schema
+      AND table_info.table_name = column_info.table_name
+      AND table_info.table_type = 'BASE TABLE'
+    WHERE column_info.table_schema IN (
+      'auth', 'platform', 'platform_private', 'public'
+    )
+      AND column_info.data_type = 'uuid'
+    GROUP BY column_info.table_schema, column_info.table_name
+  LOOP
+    EXECUTE pg_catalog.format(
+      'DELETE FROM %I.%I WHERE %s',
+      target.table_schema,
+      target.table_name,
+      target.predicate
+    );
+  END LOOP;
+END
+$cleanup$;
+DELETE FROM storage.objects AS object
+WHERE (object.bucket_id, object.name) IN (
+  (
+    :'p121_unrelated_reservation'::JSONB ->> 'bucket_id',
+    :'p121_unrelated_reservation'::JSONB ->> 'object_name'
+  ),
+  (
+    :'p121_upload'::JSONB ->> 'bucket_id',
+    :'p121_upload'::JSONB ->> 'object_name'
+  ),
+  (
+    :'p121_race_upload'::JSONB ->> 'bucket_id',
+    :'p121_race_upload'::JSONB ->> 'object_name'
+  )
+);
+DELETE FROM storage.buckets WHERE id = 'platform-documents';
+COMMIT;
+
+DROP EXTENSION dblink;
+DROP SCHEMA p121_test_extensions;
 
 SELECT 'platform message media case attach checks passed' AS result;

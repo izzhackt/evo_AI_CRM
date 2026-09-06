@@ -18,6 +18,7 @@ CREATE TABLE platform_private.message_media_attachment_intents (
   communication_media_id UUID NOT NULL,
   student_case_id UUID NOT NULL,
   document_slot_id UUID NOT NULL,
+  slot_expected_version BIGINT NOT NULL CHECK (slot_expected_version > 0),
   source_object_binding_id UUID NOT NULL,
   source_archive_work_id UUID NOT NULL,
   source_archive_effect_id UUID NOT NULL,
@@ -294,106 +295,185 @@ CREATE FUNCTION private.message_media_attachment_actor_is_current(
   p_attachment_intent_id UUID
 )
 RETURNS BOOLEAN
-LANGUAGE SQL
-STABLE
+LANGUAGE plpgsql
+VOLATILE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  intent_row platform_private.message_media_attachment_intents%ROWTYPE;
+  locked_bundle_id UUID;
+  locked_scope_id UUID;
+  locked_scope_version BIGINT;
+  actor_is_current BOOLEAN := FALSE;
+BEGIN
+  SELECT intent.*
+  INTO intent_row
+  FROM platform_private.message_media_attachment_intents AS intent
+  WHERE intent.id = p_attachment_intent_id;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  -- Acquire the immutable identity and parent rows before deciding whether the
+  -- captured authority is still current. In particular, a scope event's
+  -- membership/scope foreign keys cannot pass these FOR UPDATE locks. If a
+  -- revocation began first, this function waits here and the separate final
+  -- query below evaluates it from a fresh READ COMMITTED statement snapshot.
+  -- Organization is first in the repository's shared lock order. NO KEY
+  -- UPDATE blocks status changes but remains compatible with audit FK inserts.
+  PERFORM 1
+  FROM platform.organizations AS organization
+  WHERE organization.id = intent_row.organization_id
+  FOR NO KEY UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  PERFORM 1
+  FROM platform.profiles AS profile
+  WHERE profile.id = intent_row.actor_profile_id
+  FOR NO KEY UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  SELECT membership.current_bundle_id
+  INTO locked_bundle_id
+  FROM platform.organization_memberships AS membership
+  WHERE membership.organization_id = intent_row.organization_id
+    AND membership.id = intent_row.actor_membership_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  PERFORM 1
+  FROM platform.role_bundle_versions AS bundle
+  WHERE bundle.id = locked_bundle_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  PERFORM 1
+  FROM platform.role_bundle_permissions AS bundle_permission
+  WHERE bundle_permission.bundle_id = locked_bundle_id
+    AND bundle_permission.permission_key = 'communication.read.full'
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  PERFORM 1
+  FROM platform.role_bundle_permissions AS bundle_permission
+  WHERE bundle_permission.bundle_id = locked_bundle_id
+    AND bundle_permission.permission_key = 'document.manage'
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  PERFORM 1
+  FROM platform.student_cases AS student_case
+  WHERE student_case.organization_id = intent_row.organization_id
+    AND student_case.id = intent_row.student_case_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  SELECT scope.id, scope.scope_version
+  INTO locked_scope_id, locked_scope_version
+  FROM platform.record_scopes AS scope
+  WHERE scope.organization_id = intent_row.organization_id
+    AND scope.scope_kind = CASE intent_row.actor_role
+      WHEN 'admin' THEN 'organization'::platform.scope_kind
+      ELSE 'student_case'::platform.scope_kind
+    END
+    AND scope.scope_key = CASE intent_row.actor_role
+      WHEN 'admin' THEN intent_row.organization_id
+      ELSE intent_row.student_case_id
+    END
+    AND scope.is_active
+  ORDER BY scope.scope_version DESC
+  LIMIT 1
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
   SELECT EXISTS (
     SELECT 1
-    FROM platform_private.message_media_attachment_intents AS intent
-    JOIN platform.profiles AS profile
-      ON profile.id = intent.actor_profile_id
-      AND profile.auth_user_id = intent.actor_auth_user_id
-      AND profile.access_version = intent.actor_access_version
-      AND profile.status = 'active'
+    FROM platform.profiles AS profile
     JOIN platform.organization_memberships AS membership
-      ON membership.organization_id = intent.organization_id
-      AND membership.id = intent.actor_membership_id
+      ON membership.organization_id = intent_row.organization_id
+      AND membership.id = intent_row.actor_membership_id
       AND membership.profile_id = profile.id
-      AND membership."current_role" = intent.actor_role
+      AND membership."current_role" = intent_row.actor_role
       AND membership.status = 'active'
     JOIN platform.organizations AS organization
-      ON organization.id = intent.organization_id
+      ON organization.id = intent_row.organization_id
       AND organization.status = 'active'
     JOIN platform.role_bundle_versions AS bundle
       ON bundle.id = membership.current_bundle_id
+      AND bundle.id = locked_bundle_id
       AND bundle.role = membership."current_role"
       AND bundle.status = 'published'
+    JOIN platform.role_bundle_permissions AS document_permission
+      ON document_permission.bundle_id = bundle.id
+      AND document_permission.bundle_role = bundle.role
+      AND document_permission.permission_key = 'document.manage'
+    JOIN platform.role_bundle_permissions AS communication_permission
+      ON communication_permission.bundle_id = bundle.id
+      AND communication_permission.bundle_role = bundle.role
+      AND communication_permission.permission_key = 'communication.read.full'
     JOIN platform.student_cases AS student_case
-      ON student_case.organization_id = intent.organization_id
-      AND student_case.id = intent.student_case_id
+      ON student_case.organization_id = intent_row.organization_id
+      AND student_case.id = intent_row.student_case_id
       AND student_case.state = 'active'
-    WHERE intent.id = p_attachment_intent_id
-      AND intent.actor_role IN ('admin', 'curator')
-      AND EXISTS (
-        SELECT 1
-        FROM platform.role_bundle_permissions AS permission
-        WHERE permission.bundle_id = bundle.id
-          AND permission.bundle_role = bundle.role
-          AND permission.permission_key = 'document.manage'
-      )
-      AND EXISTS (
-        SELECT 1
-        FROM platform.role_bundle_permissions AS permission
-        WHERE permission.bundle_id = bundle.id
-          AND permission.bundle_role = bundle.role
-          AND permission.permission_key = 'communication.read.full'
-      )
+    JOIN platform.record_scopes AS scope
+      ON scope.organization_id = intent_row.organization_id
+      AND scope.id = locked_scope_id
+      AND scope.scope_version = locked_scope_version
+      AND scope.is_active
+    JOIN platform.membership_scope_assignments AS assignment
+      ON assignment.organization_id = scope.organization_id
+      AND assignment.membership_id = intent_row.actor_membership_id
+      AND assignment.scope_id = scope.id
+      AND assignment.scope_version = scope.scope_version
+      AND assignment.granted
+    WHERE profile.id = intent_row.actor_profile_id
+      AND profile.auth_user_id = intent_row.actor_auth_user_id
+      AND profile.access_version = intent_row.actor_access_version
+      AND profile.status = 'active'
+      AND intent_row.actor_role IN ('admin', 'curator')
       AND (
-        (
-          intent.actor_role = 'admin'
-          AND EXISTS (
-            SELECT 1
-            FROM platform.record_scopes AS scope
-            JOIN platform.membership_scope_assignments AS assignment
-              ON assignment.organization_id = scope.organization_id
-              AND assignment.membership_id = intent.actor_membership_id
-              AND assignment.scope_id = scope.id
-              AND assignment.scope_version = scope.scope_version
-            WHERE scope.organization_id = intent.organization_id
-              AND scope.scope_kind = 'organization'
-              AND scope.scope_key = intent.organization_id
-              AND scope.is_active
-              AND assignment.granted
-              AND NOT EXISTS (
-                SELECT 1
-                FROM platform.membership_scope_assignments AS later_assignment
-                WHERE later_assignment.organization_id = assignment.organization_id
-                  AND later_assignment.membership_id = assignment.membership_id
-                  AND later_assignment.scope_id = assignment.scope_id
-                  AND later_assignment.assignment_version > assignment.assignment_version
-              )
-          )
-        )
-        OR (
-          intent.actor_role = 'curator'
-          AND student_case.current_curator_membership_id = intent.actor_membership_id
-          AND EXISTS (
-            SELECT 1
-            FROM platform.record_scopes AS scope
-            JOIN platform.membership_scope_assignments AS assignment
-              ON assignment.organization_id = scope.organization_id
-              AND assignment.membership_id = intent.actor_membership_id
-              AND assignment.scope_id = scope.id
-              AND assignment.scope_version = scope.scope_version
-            WHERE scope.organization_id = intent.organization_id
-              AND scope.scope_kind = 'student_case'
-              AND scope.scope_key = intent.student_case_id
-              AND scope.is_active
-              AND assignment.granted
-              AND NOT EXISTS (
-                SELECT 1
-                FROM platform.membership_scope_assignments AS later_assignment
-                WHERE later_assignment.organization_id = assignment.organization_id
-                  AND later_assignment.membership_id = assignment.membership_id
-                  AND later_assignment.scope_id = assignment.scope_id
-                  AND later_assignment.assignment_version > assignment.assignment_version
-              )
-          )
-        )
+        intent_row.actor_role = 'admin'
+        OR student_case.current_curator_membership_id = intent_row.actor_membership_id
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM platform.membership_scope_assignments AS later_assignment
+        WHERE later_assignment.organization_id = assignment.organization_id
+          AND later_assignment.membership_id = assignment.membership_id
+          AND later_assignment.scope_id = assignment.scope_id
+          AND later_assignment.assignment_version > assignment.assignment_version
       )
   )
+  INTO actor_is_current;
+
+  RETURN COALESCE(actor_is_current, FALSE);
+END
 $$;
 
 REVOKE ALL ON FUNCTION private.message_media_attachment_actor_is_current(UUID)
@@ -406,6 +486,7 @@ CREATE FUNCTION private.reserve_message_media_attachment(
   p_communication_media_id UUID,
   p_student_case_id UUID,
   p_document_slot_id UUID,
+  p_expected_version BIGINT,
   p_request_id UUID
 )
 RETURNS JSONB
@@ -433,6 +514,8 @@ BEGIN
     OR p_communication_media_id IS NULL
     OR p_student_case_id IS NULL
     OR p_document_slot_id IS NULL
+    OR p_expected_version IS NULL
+    OR p_expected_version < 1
     OR p_request_id IS NULL
   THEN
     RAISE EXCEPTION
@@ -472,6 +555,7 @@ BEGIN
       'communication_media_id', p_communication_media_id,
       'student_case_id', p_student_case_id,
       'document_slot_id', p_document_slot_id,
+      'expected_version', p_expected_version::TEXT,
       'actor_profile_id', authority.profile_id,
       'actor_membership_id', authority.membership_id,
       'actor_auth_user_id', authority.auth_user_id,
@@ -506,6 +590,7 @@ BEGIN
     'communication_media_id', p_communication_media_id,
     'student_case_id', p_student_case_id,
     'document_slot_id', p_document_slot_id,
+    'expected_version', p_expected_version::TEXT,
     'actor_profile_id', authority.profile_id,
     'actor_membership_id', authority.membership_id,
     'actor_auth_user_id', authority.auth_user_id,
@@ -544,6 +629,10 @@ BEGIN
   IF NOT FOUND OR slot_row.status = 'approved' THEN
     RAISE EXCEPTION 'Document slot is unavailable'
       USING ERRCODE = '42501';
+  END IF;
+  IF slot_row.version IS DISTINCT FROM p_expected_version THEN
+    RAISE EXCEPTION 'document_slot_version_conflict'
+      USING ERRCODE = 'PT409';
   END IF;
 
   SELECT
@@ -632,6 +721,7 @@ BEGIN
     'communication_media_id', p_communication_media_id,
     'student_case_id', p_student_case_id,
     'document_slot_id', p_document_slot_id,
+    'slot_expected_version', p_expected_version::TEXT,
     'request_id', p_request_id,
     'attachment_intent_id', created_intent_id,
     'media_mime_type', media_row.mime_type,
@@ -644,6 +734,7 @@ BEGIN
   INSERT INTO platform_private.message_media_attachment_intents (
     id, request_id, input_sha256, organization_id, conversation_id,
     communication_media_id, student_case_id, document_slot_id,
+    slot_expected_version,
     source_object_binding_id, source_archive_work_id, source_archive_effect_id,
     source_bucket_id, source_object_name, media_mime_type, media_file_name,
     media_file_size_bytes, media_sha256_hex, actor_profile_id,
@@ -653,7 +744,7 @@ BEGIN
   ) VALUES (
     created_intent_id, p_request_id, input_sha256,
     authority.organization_id, p_conversation_id, p_communication_media_id,
-    p_student_case_id, p_document_slot_id,
+    p_student_case_id, p_document_slot_id, p_expected_version,
     media_row.source_object_binding_id, media_row.source_archive_work_id,
     media_row.source_archive_effect_id, media_row.source_bucket_id,
     media_row.source_object_name, media_row.mime_type, media_row.file_name,
@@ -705,6 +796,7 @@ SET search_path = ''
 AS $$
 DECLARE
   intent_row platform_private.message_media_attachment_intents%ROWTYPE;
+  slot_row platform.document_slots%ROWTYPE;
   prior_upload platform_private.message_media_attachment_uploads%ROWTYPE;
   reservation_row RECORD;
   ignored_receipt JSONB;
@@ -798,6 +890,22 @@ BEGIN
         USING ERRCODE = '23505';
     END IF;
     RETURN prior_upload.response;
+  END IF;
+
+  SELECT slot.* INTO slot_row
+  FROM platform.document_slots AS slot
+  WHERE slot.organization_id = intent_row.organization_id
+    AND slot.student_case_id = intent_row.student_case_id
+    AND slot.id = intent_row.document_slot_id
+    AND slot.removed_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND OR slot_row.status = 'approved' THEN
+    RAISE EXCEPTION 'Document slot is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+  IF slot_row.version IS DISTINCT FROM intent_row.slot_expected_version THEN
+    RAISE EXCEPTION 'document_slot_version_conflict'
+      USING ERRCODE = 'PT409';
   END IF;
 
   ignored_receipt := platform.reserve_document_upload_after_ingress_scan(
@@ -929,7 +1037,9 @@ SET search_path = ''
 AS $$
 DECLARE
   intent_row platform_private.message_media_attachment_intents%ROWTYPE;
+  slot_row platform.document_slots%ROWTYPE;
   attachment_upload platform_private.message_media_attachment_uploads%ROWTYPE;
+  reservation_row platform_private.document_upload_reservations%ROWTYPE;
   prior_completion platform_private.message_media_attachment_completions%ROWTYPE;
   proof_row RECORD;
   ignored_receipt JSONB;
@@ -1013,6 +1123,43 @@ BEGIN
     RAISE EXCEPTION 'The attachment actor no longer has current case authority'
       USING ERRCODE = '42501';
   END IF;
+  SELECT slot.* INTO slot_row
+  FROM platform.document_slots AS slot
+  WHERE slot.organization_id = intent_row.organization_id
+    AND slot.student_case_id = intent_row.student_case_id
+    AND slot.id = intent_row.document_slot_id
+    AND slot.removed_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND OR slot_row.status = 'approved' THEN
+    RAISE EXCEPTION 'Document slot is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+  IF slot_row.version IS DISTINCT FROM intent_row.slot_expected_version THEN
+    RAISE EXCEPTION 'document_slot_version_conflict'
+      USING ERRCODE = 'PT409';
+  END IF;
+
+  SELECT reservation.* INTO reservation_row
+  FROM platform_private.document_upload_reservations AS reservation
+  WHERE reservation.organization_id = intent_row.organization_id
+    AND reservation.id = attachment_upload.upload_reservation_id
+    AND reservation.request_id = intent_row.upload_reservation_request_id
+    AND reservation.document_version_id = attachment_upload.document_version_id
+    AND reservation.student_case_id = intent_row.student_case_id
+    AND reservation.document_slot_id = intent_row.document_slot_id
+    AND reservation.uploader_profile_id = intent_row.actor_profile_id
+    AND reservation.uploader_membership_id = intent_row.actor_membership_id
+    AND reservation.uploader_auth_user_id = intent_row.actor_auth_user_id
+    AND reservation.bucket_id = attachment_upload.bucket_id
+    AND reservation.object_name = attachment_upload.object_name;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Exact intent-bound upload reservation is required'
+      USING ERRCODE = '42501';
+  END IF;
+  IF reservation_row.expires_at <= pg_catalog.statement_timestamp() THEN
+    RAISE EXCEPTION 'attachment_reservation_expired'
+      USING ERRCODE = 'PT409';
+  END IF;
 
   -- The finalizer verifies the exact Storage object/window and commits its
   -- clean ClamAV attestation. This call and our completion insert are atomic.
@@ -1061,6 +1208,7 @@ BEGIN
     AND slot.student_case_id = version.student_case_id
     AND slot.current_version_id = version.id
     AND slot.current_version_no = version.version_no
+    AND slot.version = intent_row.slot_expected_version + 1
   JOIN platform_private.document_upload_finalizations AS finalization
     ON finalization.organization_id = reservation.organization_id
     AND finalization.request_id = intent_row.upload_finalization_request_id
@@ -1121,8 +1269,7 @@ BEGIN
     'upload_finalization_id', proof_row.exact_finalization_id,
     'malware_scan_attestation_id', proof_row.exact_scan_proof_id,
     'sha256_hex', intent_row.media_sha256_hex,
-    'completed_at', completed_at,
-    'request_id', intent_row.completion_request_id
+    'completed_at', completed_at
   );
 
   INSERT INTO platform_private.message_media_attachment_completions (
@@ -1164,6 +1311,7 @@ CREATE FUNCTION platform.reserve_message_media_attachment(
   p_communication_media_id UUID,
   p_student_case_id UUID,
   p_document_slot_id UUID,
+  p_expected_version BIGINT,
   p_request_id UUID
 )
 RETURNS JSONB
@@ -1172,7 +1320,7 @@ VOLATILE
 SECURITY INVOKER
 SET search_path = ''
 AS $$
-  SELECT private.reserve_message_media_attachment($1, $2, $3, $4, $5)
+  SELECT private.reserve_message_media_attachment($1, $2, $3, $4, $5, $6)
 $$;
 
 CREATE FUNCTION platform.reserve_message_media_attachment_upload(
@@ -1216,17 +1364,17 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION private.reserve_message_media_attachment(
-  UUID, UUID, UUID, UUID, UUID
+  UUID, UUID, UUID, UUID, BIGINT, UUID
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION private.reserve_message_media_attachment(
-  UUID, UUID, UUID, UUID, UUID
+  UUID, UUID, UUID, UUID, BIGINT, UUID
 ) TO authenticated;
 
 REVOKE ALL ON FUNCTION platform.reserve_message_media_attachment(
-  UUID, UUID, UUID, UUID, UUID
+  UUID, UUID, UUID, UUID, BIGINT, UUID
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION platform.reserve_message_media_attachment(
-  UUID, UUID, UUID, UUID, UUID
+  UUID, UUID, UUID, UUID, BIGINT, UUID
 ) TO authenticated;
 
 REVOKE ALL ON FUNCTION private.reserve_message_media_attachment_upload(
@@ -1264,7 +1412,7 @@ COMMENT ON TABLE platform_private.message_media_attachment_uploads IS
 COMMENT ON TABLE platform_private.message_media_attachment_completions IS
   'Append-only service proof binding an attachment intent to its exact reservation, finalization, clean scan attestation and published version.';
 COMMENT ON FUNCTION platform.reserve_message_media_attachment(
-  UUID, UUID, UUID, UUID, UUID
+  UUID, UUID, UUID, UUID, BIGINT, UUID
 ) IS
   'SECURITY INVOKER staff entrypoint that derives organization and actor from current verified authority and creates no Storage grant.';
 COMMENT ON FUNCTION platform.reserve_message_media_attachment_upload(

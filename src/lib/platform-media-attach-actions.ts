@@ -17,10 +17,13 @@ const ATTACH_MEDIA_FIELDS = [
   "communication_media_id",
   "student_case_id",
   "document_slot_id",
+  "expected_version",
   "request_id",
 ] as const;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const POSITIVE_BIGINT_PATTERN = /^[1-9][0-9]*$/;
+const POSTGRES_BIGINT_MAX = "9223372036854775807";
 
 export type PlatformMediaAttachActionStatus =
   | "idle"
@@ -46,6 +49,15 @@ function uuid(value: string | undefined): string | null {
     : null;
 }
 
+function version(value: string | undefined): string | null {
+  if (!value || !POSITIVE_BIGINT_PATTERN.test(value)) return null;
+  return value.length < POSTGRES_BIGINT_MAX.length
+    || (value.length === POSTGRES_BIGINT_MAX.length
+      && value <= POSTGRES_BIGINT_MAX)
+    ? value
+    : null;
+}
+
 function submittedRequestId(form: FormData): string | null {
   for (const [rawKey, value] of form.entries()) {
     const key = rawKey.startsWith("_1_") ? rawKey.slice(3) : rawKey;
@@ -64,6 +76,8 @@ function failureState(
   return Object.freeze({
     status,
     requestId: status === "request_conflict"
+      || status === "stale"
+      || status === "reservation_expired"
       ? randomUUID()
       : (requestId ?? randomUUID()),
     documentVersionId: null,
@@ -93,12 +107,14 @@ export async function attachPlatformMessageMediaToCaseAction(
   const communicationMediaId = uuid(fields.get("communication_media_id"));
   const studentCaseId = uuid(fields.get("student_case_id"));
   const documentSlotId = uuid(fields.get("document_slot_id"));
+  const expectedVersion = version(fields.get("expected_version"));
   const requestId = uuid(fields.get("request_id"));
   if (
     !conversationId
     || !communicationMediaId
     || !studentCaseId
     || !documentSlotId
+    || !expectedVersion
     || !requestId
   ) {
     return failureState(form, "invalid");
@@ -109,6 +125,7 @@ export async function attachPlatformMessageMediaToCaseAction(
     communicationMediaId,
     studentCaseId,
     documentSlotId,
+    expectedVersion,
     requestId,
   });
   if (result.status === "failed") {

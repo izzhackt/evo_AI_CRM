@@ -36,6 +36,8 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OBJECT_NAME_PATTERN = /^[0-9a-f]{2}\/[0-9a-f]{62}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+const POSITIVE_BIGINT_PATTERN = /^[1-9][0-9]*$/;
+const POSTGRES_BIGINT_MAX = "9223372036854775807";
 const CONTROL_CHARACTER_PATTERN = /[\x00-\x1F\x7F]/;
 const ACCEPTED_MIME_TYPES = new Set([
   "application/pdf",
@@ -63,6 +65,7 @@ export type PlatformMediaAttachInput = Readonly<{
   communicationMediaId: string;
   studentCaseId: string;
   documentSlotId: string;
+  expectedVersion: string;
   requestId: string;
 }>;
 
@@ -71,7 +74,9 @@ export type PlatformMediaAttachFailureCode =
   | "forbidden"
   | "unsupported_media"
   | "request_conflict"
+  | "stale"
   | "upload_in_progress"
+  | "reservation_expired"
   | "rate_limited"
   | "malware_detected"
   | "unavailable";
@@ -92,6 +97,7 @@ export type PlatformMediaAttachResult =
 
 type AttachIntent = Readonly<{
   attachmentIntentId: string;
+  slotExpectedVersion: string;
   mediaMimeType: string;
   mediaFileName: string;
   mediaFileSizeBytes: number;
@@ -142,6 +148,17 @@ function uuid(value: unknown): string | null {
   return typeof value === "string"
     && value === value.toLowerCase()
     && UUID_PATTERN.test(value)
+    ? value
+    : null;
+}
+
+function positiveBigint(value: unknown): string | null {
+  if (typeof value !== "string" || !POSITIVE_BIGINT_PATTERN.test(value)) {
+    return null;
+  }
+  return value.length < POSTGRES_BIGINT_MAX.length
+    || (value.length === POSTGRES_BIGINT_MAX.length
+      && value <= POSTGRES_BIGINT_MAX)
     ? value
     : null;
 }
@@ -226,6 +243,12 @@ function failure(code: PlatformMediaAttachFailureCode): PlatformMediaAttachResul
 function reserveIntentFailure(error: unknown): PlatformMediaAttachResult {
   const code = rpcErrorCode(error);
   if (code === "42501") return failure("forbidden");
+  if (
+    code === "PT409"
+    && rpcErrorMessage(error) === "document_slot_version_conflict"
+  ) {
+    return failure("stale");
+  }
   if (code === "23505") return failure("request_conflict");
   if (code === "22023") {
     return /cannot be attached/i.test(rpcErrorMessage(error))
@@ -238,7 +261,14 @@ function reserveIntentFailure(error: unknown): PlatformMediaAttachResult {
 function uploadMutationFailure(error: unknown): PlatformMediaAttachResult {
   const code = rpcErrorCode(error);
   if (code === "42501") return failure("forbidden");
-  if (code === "PT409") return failure("upload_in_progress");
+  if (code === "PT409") {
+    const message = rpcErrorMessage(error);
+    if (message === "document_slot_version_conflict") return failure("stale");
+    if (message === "attachment_reservation_expired") {
+      return failure("reservation_expired");
+    }
+    return failure("upload_in_progress");
+  }
   if (code === "PT429") return failure("rate_limited");
   if (code === "23505") return failure("request_conflict");
   if (code === "22023") return failure("invalid");
@@ -258,6 +288,7 @@ function normalizeAttachIntent(
       "communication_media_id",
       "student_case_id",
       "document_slot_id",
+      "slot_expected_version",
       "request_id",
       "attachment_intent_id",
       "media_mime_type",
@@ -270,6 +301,7 @@ function normalizeAttachIntent(
     return null;
   }
   const attachmentIntentId = uuid(value.attachment_intent_id);
+  const slotExpectedVersion = positiveBigint(value.slot_expected_version);
   const mediaFileName = safeFilename(value.media_file_name);
   const mediaFileSizeBytes = positiveInteger(value.media_file_size_bytes);
   if (
@@ -279,6 +311,8 @@ function normalizeAttachIntent(
     || value.communication_media_id !== input.communicationMediaId
     || value.student_case_id !== input.studentCaseId
     || value.document_slot_id !== input.documentSlotId
+    || !slotExpectedVersion
+    || slotExpectedVersion !== input.expectedVersion
     || value.request_id !== input.requestId
     || typeof value.media_mime_type !== "string"
     || !ACCEPTED_MIME_TYPES.has(value.media_mime_type)
@@ -293,6 +327,7 @@ function normalizeAttachIntent(
   }
   return Object.freeze({
     attachmentIntentId,
+    slotExpectedVersion,
     mediaMimeType: value.media_mime_type,
     mediaFileName,
     mediaFileSizeBytes,
@@ -454,6 +489,7 @@ function normalizeCompletionReceipt(
     studentCaseId: string;
     documentSlotId: string;
     documentVersionId: string;
+    versionNumber: number;
     uploadReservationId: string;
     sha256Hex: string;
   }>,
@@ -475,7 +511,6 @@ function normalizeCompletionReceipt(
       "malware_scan_attestation_id",
       "sha256_hex",
       "completed_at",
-      "request_id",
     ])
   ) {
     return null;
@@ -492,13 +527,12 @@ function normalizeCompletionReceipt(
     || value.student_case_id !== expected.studentCaseId
     || value.document_slot_id !== expected.documentSlotId
     || value.document_version_id !== expected.documentVersionId
-    || !versionNumber
+    || versionNumber !== expected.versionNumber
     || value.upload_reservation_id !== expected.uploadReservationId
     || !uploadFinalizationId
     || !malwareScanAttestationId
     || value.sha256_hex !== expected.sha256Hex
     || !timestamp(value.completed_at)
-    || !uuid(value.request_id)
   ) {
     return null;
   }
@@ -779,6 +813,7 @@ export async function attachPlatformMessageMediaToCase(
     || uuid(input.communicationMediaId) !== input.communicationMediaId
     || uuid(input.studentCaseId) !== input.studentCaseId
     || uuid(input.documentSlotId) !== input.documentSlotId
+    || positiveBigint(input.expectedVersion) !== input.expectedVersion
     || uuid(input.requestId) !== input.requestId
   ) {
     return failure("invalid");
@@ -793,6 +828,7 @@ export async function attachPlatformMessageMediaToCase(
         p_communication_media_id: input.communicationMediaId,
         p_student_case_id: input.studentCaseId,
         p_document_slot_id: input.documentSlotId,
+        p_expected_version: input.expectedVersion,
         p_request_id: input.requestId,
       },
     );
@@ -900,9 +936,10 @@ export async function attachPlatformMessageMediaToCase(
         sha256Hex,
       },
     );
-    if (!storedBytes) return failure("unavailable");
-    if (!beforeExpiry(reservation.expiresAt, dependencies.now())) {
-      return failure("unavailable");
+    if (!storedBytes) {
+      return beforeExpiry(reservation.expiresAt, dependencies.now())
+        ? failure("unavailable")
+        : failure("reservation_expired");
     }
 
     let storedScanProof: ClamdMalwareScanProof;
@@ -917,6 +954,10 @@ export async function attachPlatformMessageMediaToCase(
     if (!isClamdMalwareScanProof(storedScanProof, sha256Hex)) {
       return failure("unavailable");
     }
+
+    // Even after local expiry, an exact object may represent a committed
+    // completion whose response was lost. The atomic SQL function returns that
+    // prior receipt first; otherwise it rejects a new finalization as expired.
 
     const completionResponse = await serviceClient.schema("platform").rpc(
       "complete_message_media_attachment",
@@ -941,6 +982,7 @@ export async function attachPlatformMessageMediaToCase(
       studentCaseId: input.studentCaseId,
       documentSlotId: input.documentSlotId,
       documentVersionId: reservation.documentVersionId,
+      versionNumber: reservation.versionNumber,
       uploadReservationId: reservation.uploadReservationId,
       sha256Hex,
     });

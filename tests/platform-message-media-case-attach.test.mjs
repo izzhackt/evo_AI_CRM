@@ -33,9 +33,11 @@ const IDS = Object.freeze({
   grantRequestRetry: "81818181-8181-4181-8181-818181818181",
   consumptionRequestRetry: "91919191-9191-4191-8191-919191919191",
   attachmentIntent: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  otherAttachmentIntent: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
   mediaGrant: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   replayedMediaGrant: "bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc",
   documentVersion: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  otherDocumentVersion: "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1",
   uploadReservation: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   otherUploadReservation: "dededede-dede-4ded-8ded-dededededede",
   storageBinding: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
@@ -54,6 +56,7 @@ const INPUT = Object.freeze({
   communicationMediaId: IDS.media,
   studentCaseId: IDS.studentCase,
   documentSlotId: IDS.documentSlot,
+  expectedVersion: "1",
   requestId: IDS.request,
 });
 
@@ -118,6 +121,7 @@ function createHarness({
   tusLocation = TUS_UPLOAD_URL,
   ambiguousFirstPatch = false,
   dynamicReservationPresence = false,
+  reservationOverridesForCall,
   scanFile,
 } = {}) {
   const sourceBytes = Uint8Array.from(bytes);
@@ -141,6 +145,7 @@ function createHarness({
   const fetchCalls = [];
   const scanCalls = [];
   let generatedRequestIndex = 0;
+  let reservationRpcCall = 0;
   let tusOffset = 0;
   let ambiguousPatchThrown = false;
 
@@ -150,6 +155,7 @@ function createHarness({
     communication_media_id: IDS.media,
     student_case_id: IDS.studentCase,
     document_slot_id: IDS.documentSlot,
+    slot_expected_version: "1",
     request_id: IDS.request,
     attachment_intent_id: IDS.attachmentIntent,
     media_mime_type: MIME_TYPE,
@@ -212,7 +218,6 @@ function createHarness({
     malware_scan_attestation_id: IDS.malwareAttestation,
     sha256_hex: sourceSha256Hex,
     completed_at: "2026-09-06T10:00:02.000Z",
-    request_id: IDS.completionRequest,
     ...completionOverrides,
   };
 
@@ -248,8 +253,10 @@ function createHarness({
             return responseFor(name, consumption);
           }
           if (name === "reserve_message_media_attachment_upload") {
+            reservationRpcCall += 1;
             return responseFor(name, {
               ...reservation,
+              ...(reservationOverridesForCall?.({ call: reservationRpcCall }) ?? {}),
               storage_object_present: dynamicReservationPresence
                 ? objects.has(storageKey("platform-documents", DOCUMENT_OBJECT_NAME))
                 : reservation.storage_object_present,
@@ -422,6 +429,7 @@ test("the browser action and server boundary derive authority instead of accepti
       "communication_media_id",
       "student_case_id",
       "document_slot_id",
+      "expected_version",
       "request_id",
     ],
   );
@@ -436,13 +444,26 @@ test("the browser action and server boundary derive authority instead of accepti
   );
   assert.match(
     actionSource,
-    /attachPlatformMessageMediaToCase\(actor, \{[\s\S]*?conversationId,[\s\S]*?communicationMediaId,[\s\S]*?studentCaseId,[\s\S]*?documentSlotId,[\s\S]*?requestId,/,
+    /attachPlatformMessageMediaToCase\(actor, \{[\s\S]*?conversationId,[\s\S]*?communicationMediaId,[\s\S]*?studentCaseId,[\s\S]*?documentSlotId,[\s\S]*?expectedVersion,[\s\S]*?requestId,/,
   );
   assert.doesNotMatch(
     actionSource,
     /fields\.get\("(?:organization_id|auth_user_id|actor_auth_user_id)"\)/,
   );
   assert.doesNotMatch(actionSource, /createServiceClient|storage\.from|signed_url/i);
+
+  const failureStateDeclaration = actionSource.match(
+    /function failureState\([\s\S]*?\n\}/,
+  );
+  assert.ok(failureStateDeclaration);
+  assert.match(
+    failureStateDeclaration[0],
+    /status === "request_conflict"[\s\S]*?\|\| status === "stale"[\s\S]*?\|\| status === "reservation_expired"[\s\S]*?\? randomUUID\(\)/,
+  );
+  assert.match(
+    failureStateDeclaration[0],
+    /: \(requestId \?\? randomUUID\(\)\)/,
+  );
 
   const actorDeclaration = serverSource.match(
     /export type PlatformMediaAttachActor = Pick<[\s\S]*?>;/,
@@ -463,6 +484,7 @@ test("the browser action and server boundary derive authority instead of accepti
       "communicationMediaId",
       "studentCaseId",
       "documentSlotId",
+      "expectedVersion",
       "requestId",
     ],
   );
@@ -478,6 +500,7 @@ test("the browser action and server boundary derive authority instead of accepti
     "p_communication_media_id",
     "p_student_case_id",
     "p_document_slot_id",
+    "p_expected_version",
     "p_request_id",
   ]) {
     assert.match(intentCall[0], new RegExp(`${parameter}:`));
@@ -505,6 +528,7 @@ test("the exported orchestration completes the exact clean standard-upload chain
     p_communication_media_id: IDS.media,
     p_student_case_id: IDS.studentCase,
     p_document_slot_id: IDS.documentSlot,
+    p_expected_version: "1",
     p_request_id: IDS.request,
   });
   assert.deepEqual(harness.rpcCalls[1].args, {
@@ -554,9 +578,13 @@ test("exactly 6 MiB stays on standard upload", async () => {
   assert.deepEqual(harness.fetchCalls, []);
 });
 
-test("a full action retry accepts fresh ClamAV times and replays the exact chain", async () => {
+test("a completed full retry after reservation expiry replays the exact chain", async () => {
+  let reservationCalls = 0;
   const harness = createHarness({
-    dynamicReservationPresence: true,
+    reservationOverridesForCall({ call }) {
+      reservationCalls = call;
+      return call === 2 ? { expires_at: PAST_EXPIRY } : {};
+    },
     scanFile({ call, proof }) {
       return {
         ...proof,
@@ -572,6 +600,7 @@ test("a full action retry accepts fresh ClamAV times and replays the exact chain
 
   assert.deepEqual(first, expectedAttachedResult(harness.bytes));
   assert.deepEqual(replay, first);
+  assert.equal(reservationCalls, 2);
   assert.equal(harness.uploadCalls.length, 1);
   assert.equal(harness.scanCalls.length, 4);
   const reserveCalls = harness.rpcCalls.filter(
@@ -709,7 +738,10 @@ test("a foreign TUS Location fails closed before any upload bytes leave the serv
     tusLocation: "https://attacker.example/upload-1",
   });
 
-  assert.deepEqual(await harness.run(), { status: "failed", code: "unavailable" });
+  assert.deepEqual(await harness.run(), {
+    status: "failed",
+    code: "unavailable",
+  });
   assert.deepEqual(
     harness.fetchCalls.map(({ init }) => init.method),
     ["POST"],
@@ -725,7 +757,10 @@ test("an expired reservation cannot upload or finalize", async () => {
     reservationOverrides: { expires_at: PAST_EXPIRY },
   });
 
-  assert.deepEqual(await harness.run(), { status: "failed", code: "unavailable" });
+  assert.deepEqual(await harness.run(), {
+    status: "failed",
+    code: "reservation_expired",
+  });
   assert.deepEqual(harness.uploadCalls, []);
   assert.deepEqual(harness.fetchCalls, []);
   assert.equal(
@@ -746,12 +781,111 @@ test("an exact pre-existing reservation object can finish without overwrite", as
   );
 });
 
+test("service mutation conflicts map consistently at reservation and completion", async (t) => {
+  await t.test("intent expected-version conflict maps to stale", async () => {
+    const harness = createHarness({
+      rpcErrors: {
+        reserve_message_media_attachment: {
+          code: "PT409",
+          message: "document_slot_version_conflict",
+        },
+      },
+    });
+
+    assert.deepEqual(await harness.run(), {
+      status: "failed",
+      code: "stale",
+    });
+    assert.deepEqual(
+      harness.rpcCalls.map(({ name }) => name),
+      ["reserve_message_media_attachment"],
+    );
+  });
+
+  const stages = [
+    {
+      rpcName: "reserve_message_media_attachment_upload",
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+        "consume_communication_media_download_grant",
+        "reserve_message_media_attachment_upload",
+      ],
+    },
+    {
+      rpcName: "complete_message_media_attachment",
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+        "consume_communication_media_download_grant",
+        "reserve_message_media_attachment_upload",
+        "complete_message_media_attachment",
+      ],
+    },
+  ];
+  const mappings = [
+    {
+      message: "document_slot_version_conflict",
+      expectedCode: "stale",
+    },
+    {
+      message: "attachment_reservation_expired",
+      expectedCode: "reservation_expired",
+    },
+  ];
+
+  for (const stage of stages) {
+    for (const mapping of mappings) {
+      await t.test(`${stage.rpcName}: ${mapping.message}`, async () => {
+        const harness = createHarness({
+          rpcErrors: {
+            [stage.rpcName]: {
+              code: "PT409",
+              message: mapping.message,
+            },
+          },
+        });
+
+        assert.deepEqual(await harness.run(), {
+          status: "failed",
+          code: mapping.expectedCode,
+        });
+        assert.deepEqual(
+          harness.rpcCalls.map(({ name }) => name),
+          stage.expectedRpcNames,
+        );
+      });
+    }
+  }
+});
+
 test("tenant, grant, reservation, completion and request replay misuse fail closed", async (t) => {
   const cases = [
     {
       name: "foreign tenant in the staff intent receipt",
       options: { intentOverrides: { organization_id: IDS.foreignOrganization } },
       expectedRpcNames: ["reserve_message_media_attachment"],
+      expectedCode: "unavailable",
+    },
+    {
+      name: "an extra staff intent receipt field",
+      options: { intentOverrides: { unexpected: "not-authority" } },
+      expectedRpcNames: ["reserve_message_media_attachment"],
+      expectedCode: "unavailable",
+    },
+    {
+      name: "a mismatched expected version in the staff intent receipt",
+      options: { intentOverrides: { slot_expected_version: "2" } },
+      expectedRpcNames: ["reserve_message_media_attachment"],
+      expectedCode: "unavailable",
+    },
+    {
+      name: "an extra media download grant receipt field",
+      options: { grantOverrides: { unexpected: "not-authority" } },
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+      ],
       expectedCode: "unavailable",
     },
     {
@@ -769,6 +903,16 @@ test("tenant, grant, reservation, completion and request replay misuse fail clos
       expectedCode: "unavailable",
     },
     {
+      name: "an extra media consumption receipt field",
+      options: { consumptionOverrides: { unexpected: "not-authority" } },
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+        "consume_communication_media_download_grant",
+      ],
+      expectedCode: "unavailable",
+    },
+    {
       name: "foreign tenant in the upload reservation receipt",
       options: {
         reservationOverrides: { organization_id: IDS.foreignOrganization },
@@ -778,6 +922,90 @@ test("tenant, grant, reservation, completion and request replay misuse fail clos
         "grant_communication_media_download",
         "consume_communication_media_download_grant",
         "reserve_message_media_attachment_upload",
+      ],
+      expectedCode: "unavailable",
+    },
+    {
+      name: "a completion receipt for another document version",
+      options: {
+        completionOverrides: {
+          document_version_id: IDS.otherDocumentVersion,
+        },
+      },
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+        "consume_communication_media_download_grant",
+        "reserve_message_media_attachment_upload",
+        "complete_message_media_attachment",
+      ],
+      expectedCode: "unavailable",
+    },
+    {
+      name: "a completion receipt for another version number",
+      options: { completionOverrides: { version_number: 2 } },
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+        "consume_communication_media_download_grant",
+        "reserve_message_media_attachment_upload",
+        "complete_message_media_attachment",
+      ],
+      expectedCode: "unavailable",
+    },
+    {
+      name: "a completion receipt for another content hash",
+      options: { completionOverrides: { sha256_hex: "0".repeat(64) } },
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+        "consume_communication_media_download_grant",
+        "reserve_message_media_attachment_upload",
+        "complete_message_media_attachment",
+      ],
+      expectedCode: "unavailable",
+    },
+    {
+      name: "a completion receipt for another attachment intent",
+      options: {
+        completionOverrides: {
+          attachment_intent_id: IDS.otherAttachmentIntent,
+        },
+      },
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+        "consume_communication_media_download_grant",
+        "reserve_message_media_attachment_upload",
+        "complete_message_media_attachment",
+      ],
+      expectedCode: "unavailable",
+    },
+    {
+      name: "a completion receipt for another student case",
+      options: {
+        completionOverrides: { student_case_id: IDS.foreignOrganization },
+      },
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+        "consume_communication_media_download_grant",
+        "reserve_message_media_attachment_upload",
+        "complete_message_media_attachment",
+      ],
+      expectedCode: "unavailable",
+    },
+    {
+      name: "a completion receipt for another document slot",
+      options: {
+        completionOverrides: { document_slot_id: IDS.otherUploadReservation },
+      },
+      expectedRpcNames: [
+        "reserve_message_media_attachment",
+        "grant_communication_media_download",
+        "consume_communication_media_download_grant",
+        "reserve_message_media_attachment_upload",
+        "complete_message_media_attachment",
       ],
       expectedCode: "unavailable",
     },

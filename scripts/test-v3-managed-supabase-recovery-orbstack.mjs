@@ -8732,7 +8732,7 @@ export function buildManagedSupabaseRecoveryAcceptance(
     return Object.freeze({
       complete,
       mode: "full_dr_non_empty_source",
-      blocker: complete ? null : "restored_role_outcome_proof_incomplete",
+      blocker: complete ? null : blockers[0] ?? "managed_supabase_recovery_acceptance_incomplete",
       blockers,
       evidenceScope: STORAGE_NON_EMPTY_SOURCE_EVIDENCE_SCOPE,
       sourceByteRecovery: "restored_and_verified",

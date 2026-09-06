@@ -777,6 +777,7 @@ test("non-empty managed Storage source remains strict full DR byte recovery", ()
   assert.equal(blocked.mode, "full_dr_non_empty_source");
   assert.equal(blocked.evidenceScope, "signed_source_object_byte_recovery");
   assert.equal(blocked.sourceByteRecovery, "restored_and_verified");
+  assert.equal(blocked.blocker, "restored_role_outcome_proof_incomplete");
   assert.deepEqual(blocked.blockers, ["restored_role_outcome_proof_incomplete"]);
 
   const actors = { admin: {}, sales: {}, admissions: {} };
@@ -790,6 +791,19 @@ test("non-empty managed Storage source remains strict full DR byte recovery", ()
   assert.equal(accepted.mode, "full_dr_non_empty_source");
   assert.equal(accepted.roleOutcomeScope, "complete_restored_admin_sales_admissions_live_managed_snapshot");
   assert.deepEqual(accepted.blockers, []);
+
+  const driftBlocked = buildManagedSupabaseRecoveryAcceptance(
+    actors,
+    storage,
+    document,
+    {},
+    fullOutcomes,
+    sourceInventory,
+    {},
+  );
+  assert.equal(driftBlocked.complete, false);
+  assert.equal(driftBlocked.blocker, "source_staff_inventory_migration_drift");
+  assert.deepEqual(driftBlocked.blockers, ["source_staff_inventory_migration_drift"]);
 });
 
 test("private pinned ClamAV is exercised through the Company Files product route", () => {

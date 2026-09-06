@@ -2080,6 +2080,30 @@ SQL
       -f /workspace/supabase/tests/platform_case_notes_rls.sql
   fi
 
+  # Migration 118 extends university applications with validated country and
+  # degree fields while preserving the canonical Admissions command surface.
+  if [[ "$(basename "$migration")" == 118_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_university_application_geography.sql
+  fi
+
+  # Migration 119 extends the staff communications, Sales and Admissions queue
+  # projections. Keep this explicit path so a missing contract suite fails.
+  if [[ "$(basename "$migration")" == 119_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_queue_read_extensions.sql
+  fi
+
+  # Migration 120 adds organization-scoped reply snippets with optimistic
+  # create, update and archive commands.
+  if [[ "$(basename "$migration")" == 120_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_reply_snippets.sql
+  fi
+
   # Migration 121 bridges archived WhatsApp message media into the canonical
   # case document pipeline through an audited intent/completion ledger.
   if [[ "$(basename "$migration")" == 121_* ]]; then

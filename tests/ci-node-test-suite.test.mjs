@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  D1_ENTRY_SCRIPTS,
   DEFAULT_ENTRY_SCRIPTS,
   SERIAL_PROVIDER_TEST_FILES,
   UNIT_ENTRY_SCRIPTS,
@@ -33,16 +34,24 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 238);
-  assert.equal(plan.uniqueFileCount, 97);
+  assert.equal(plan.occurrenceCount, 242);
+  assert.equal(plan.uniqueFileCount, 101);
   assert.equal(plan.duplicateCount, 141);
   assert.equal(new Set(plan.files).size, plan.files.length);
+  for (const requiredD1Test of [
+    "tests/platform-case-notes.test.mjs",
+    "tests/platform-queue-read-extensions.test.mjs",
+    "tests/platform-reply-snippets.test.mjs",
+    "tests/platform-message-media-case-attach.test.mjs",
+  ]) {
+    assert.ok(plan.files.includes(requiredD1Test), requiredD1Test);
+  }
 
   const special = plan.groups.find((group) => group.stripTypes);
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 76);
+  assert.equal(bounded.files.length, 80);
   assert.equal(serial.files.length, 20);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs"]);
@@ -56,9 +65,25 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 134);
-  assert.equal(plan.uniqueFileCount, 92);
+  assert.equal(plan.occurrenceCount, 138);
+  assert.equal(plan.uniqueFileCount, 96);
   assert.equal(plan.duplicateCount, 42);
+});
+
+test("focused D1 command validates every required test before execution", () => {
+  assert.deepEqual(D1_ENTRY_SCRIPTS, ["test:d1"]);
+  assert.match(packageJson.scripts["pretest:d1"], /--suite d1 --validate-only/u);
+  const plan = resolveNodeTestPlan({
+    packageJson,
+    repositoryRoot,
+    entryScripts: D1_ENTRY_SCRIPTS,
+  });
+  assert.deepEqual(plan.files, [
+    "tests/platform-case-notes.test.mjs",
+    "tests/platform-queue-read-extensions.test.mjs",
+    "tests/platform-reply-snippets.test.mjs",
+    "tests/platform-message-media-case-attach.test.mjs",
+  ]);
 });
 
 test("CI Node suite retains every provider contract removed from the database harness", () => {
@@ -138,6 +163,7 @@ test("targeted local suite names remain available", () => {
     "test:security",
     "test:security:node",
     "test:typecheck-stability",
+    "test:d1",
     "test:unit",
   ]) {
     assert.equal(typeof packageJson.scripts[scriptName], "string", scriptName);

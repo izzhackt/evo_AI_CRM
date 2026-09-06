@@ -7127,6 +7127,26 @@ async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, rol
 }
 
 async function assertBrowserActiveRole(page, presentationRole, authorityRole, browserStep, operationPrefix) {
+  const matchingShell = await browserStep(
+    async () => page.locator(
+      `[data-testid="v3-shell"][data-authority-role="${authorityRole}"][data-presentation-role="${presentationRole}"]`,
+    ),
+    { operationCode: `${operationPrefix}_shell_role_locator_failed` },
+  );
+  await browserStep(
+    async () => await matchingShell.waitFor({ state: "visible", timeout: 45_000 }),
+    { operationCode: `${operationPrefix}_shell_role_wait_failed` },
+  );
+  const matchingActiveRole = await browserStep(
+    async () => page.locator(
+      `[data-testid="active-role"][data-authority-role="${authorityRole}"][data-role="${presentationRole}"]`,
+    ),
+    { operationCode: `${operationPrefix}_active_role_match_locator_failed` },
+  );
+  await browserStep(
+    async () => await matchingActiveRole.waitFor({ state: "visible", timeout: 45_000 }),
+    { operationCode: `${operationPrefix}_active_role_match_wait_failed` },
+  );
   const activeRole = await browserStep(
     async () => page.getByTestId("active-role"),
     { operationCode: `${operationPrefix}_active_role_locator_failed` },

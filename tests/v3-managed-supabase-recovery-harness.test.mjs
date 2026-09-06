@@ -2420,6 +2420,25 @@ test("browser operations map native failures to a named step without leaking dia
   assert.match(source, /click\(\{ noWaitAfter: true, timeout: 45_000 \}\)/u);
 });
 
+test("Admin role preview waits for the new server-rendered role before reading it", () => {
+  const start = source.indexOf("async function assertBrowserActiveRole");
+  const end = source.indexOf("function assertBrowserUrlPath", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const roleProof = source.slice(start, end);
+
+  assert.match(
+    roleProof,
+    /\[data-testid="v3-shell"\]\[data-authority-role="\$\{authorityRole\}"\]\[data-presentation-role="\$\{presentationRole\}"\]/u,
+  );
+  assert.match(
+    roleProof,
+    /\[data-testid="active-role"\]\[data-authority-role="\$\{authorityRole\}"\]\[data-role="\$\{presentationRole\}"\]/u,
+  );
+  assert.match(roleProof, /matchingShell\.waitFor\(\{ state: "visible", timeout: 45_000 \}\)/u);
+  assert.match(roleProof, /matchingActiveRole\.waitFor\(\{ state: "visible", timeout: 45_000 \}\)/u);
+});
+
 test("browser login outcomes expose only stable allowlisted failure codes", () => {
   assert.equal(browserLoginFailureCode("admin", { status: "authenticated" }), null);
   assert.equal(

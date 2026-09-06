@@ -345,6 +345,13 @@ WHERE bundle.role = 'admin' AND bundle.status = 'published'
       AND permission.bundle_role = bundle.role
       AND permission.permission_key = 'communication.read.full'
   )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'organization.read'
+  )
 ORDER BY bundle.version DESC LIMIT 1
 \gset
 
@@ -357,6 +364,13 @@ WHERE bundle.role = 'sales' AND bundle.status = 'published'
     WHERE permission.bundle_id = bundle.id
       AND permission.bundle_role = bundle.role
       AND permission.permission_key = 'communication.read.full'
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'organization.read'
   )
 ORDER BY bundle.version DESC LIMIT 1
 \gset
@@ -377,6 +391,13 @@ WHERE bundle.role = 'curator' AND bundle.status = 'published'
     WHERE permission.bundle_id = bundle.id
       AND permission.bundle_role = bundle.role
       AND permission.permission_key = 'communication.read.full'
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'organization.read'
   )
 ORDER BY bundle.version DESC LIMIT 1
 \gset

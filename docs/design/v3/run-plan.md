@@ -175,16 +175,41 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
 **Текущий durable checkpoint:** worktree
 `/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, remote
 ветка `izzhackt/v3-d1-backend`, draft PR #660, точный проверяемый code
-checkpoint `3187512b3b472452a41b955c3ef8af3977e88acd`. После rebase на PR #659
+checkpoint `3660c989ef4466d881292296f9933f57cc1888f0`. После rebase на PR #659
 спасённый черновик — commit `9f2e3390`; первичные repair-правки четырёх файлов
 (118 contract/fixtures, escaped control-byte regex, 121 SQL fixture) — commit
-`4622ef4f`; каноническая WAHA session в 121 fixture — commit `3187512b`.
+`4622ef4f`; каноническая WAHA session в 121 fixture — commit `3187512b`;
+fail-closed wiring D1-гейтов — commit `60490b6e`.
 Найти состояние: `git worktree list --porcelain`, затем
 `git -C <worktree> status --short`, `git -C <worktree> log -2 --oneline` и
 `gh pr view 660 --json headRefOid,statusCheckRollup`; `headRefOid` —
 авторитетный текущий head после metadata-коммитов. При каждом следующем
 implementation push обновлять здесь code checkpoint и фактический статус
 вертикалей.
+
+**Фактический статус D1 на checkpoint `3660c989`:**
+
+- 117 интегрирована (`e8404f8a`): targeted PostgreSQL, реальный двухсессионный
+  authority-race, Node 11/11, typecheck, полный ESLint и build зелёные;
+  независимый adversarial review — `APPROVED`.
+- 118 интегрирована (`3660c989`): UI/contract/migration/SQL/E2E сведены вместе;
+  Node 24/24 и typecheck зелёные. Полный migration-boundary и независимое
+  подтверждение точного diff ещё идут; до их завершения вертикаль не считать
+  окончательно принятой.
+- 119 в работе в отдельном worktree: contracts/read models, новая migration,
+  SQL- и Node-сюты собраны; targeted Node/lint/typecheck/build зелёные, реальный
+  disposable-Postgres/adversarial раунд ещё идёт. В integration пока не влита.
+- 120 интегрирована (`97556836`): targeted PostgreSQL, Node 10/10, typecheck,
+  полный ESLint и build зелёные; независимый adversarial review точного SHA —
+  `APPROVED`.
+- 121 в работе в отдельном worktree: усиливается полная causal chain
+  intent → reservation → private storage copy → finalize → scan и добавляется
+  server action/canonical Node suite. В integration пока не влита.
+
+После интеграции 119 и 121 заново прогнать единый `npm run test:d1`, весь
+`scripts/test-postgres-authorization.sh`, затем полный foundation-контур и
+независимую проверку уже общего точного HEAD. Частичные зелёные результаты не
+заменяют этот финальный общий гейт.
 
 **Состояние спасённого черновика Fable на 06.09 (не считать готовым):** 117 и
 120 имеют миграции, SQL/Node-тесты и backend-контракты; 118 не собирался и не

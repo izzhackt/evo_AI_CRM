@@ -19651,3 +19651,43 @@ This correction authorizes no fake source data, synthetic staff identities,
 provider calls, WAHA mutation, webhook transfer, production mutation, or customer
 data change. It changes only the authoritative documentation contract for honest
 #551 acceptance evidence.
+
+## 2026-09-06 - Transfer successor execution to Fable and add the owner's product stages
+
+Block-ID: `EVO-V3-RUN-FABLE-2026-09-06`
+
+Change type: owner-directed execution transfer and scope addition. Affected
+plan sections: current active sequence #551-#553; new product stages.
+
+The owner stopped the previous successor executor on 2026-09-06 and directed
+Fable to complete the run: "i stopped it and wanna give to fable to complete
+it... start doing the plan, complete it, dont stop untill you are really
+stuck and u need my help". The working plan for this run is
+`docs/design/v3/run-plan.md`; owner conditions of 2026-09-06 are recorded in
+`docs/design/v3/product.md`.
+
+Decisions:
+
+- execution authority for the active sequence passes to Fable; the ordered
+  contract #551-#553 stays in force, followed by the owner's product stages
+  (honest numbers and register criticals, the five product needs, the student
+  portal, cleanup, amoCRM enablement pending owner credentials);
+- for the remaining #551 acceptance with the current real state (one Admin,
+  empty database, zero private Storage objects, zero users), the signed
+  empty-source evidence accepted in
+  `EVO-V3-H-EMPTY-SOURCE-RECOVERY-ACCEPTANCE-2026-09-06` is sufficient
+  recovery evidence for the first cutover; a full non-empty-source recovery
+  rehearsal becomes mandatory again before the first release after real
+  customer data exists;
+- the abandoned earlier recovery draft branch
+  `izzhackt/v3-h-managed-recovery-current-main` is superseded by the
+  re-landed main work (#640-#654) and is scheduled for deletion in cleanup;
+- interface language is Russian only by owner direction ("only russian is
+  enough"); the en/ky dictionaries and the language switcher are removed in
+  cleanup;
+- numbers on screens must come from real data or not render at all ("for the
+  numbers in front-end for now if u dont have data, just dont put anything");
+  page-limited counts presented as totals are a defect in scope.
+
+This block authorizes no provider enablement and no fabricated data; amoCRM
+activation waits for owner credentials and explicit routing values.

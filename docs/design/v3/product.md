@@ -190,6 +190,78 @@ PostgreSQL», ни ключей из базы. *02.09*
 
 ---
 
+## Передача и выкат
+
+**Codex владеет всем: фронтом, бэкендом, схемой, конвейером и деплоем.** *04.09*
+> «codex всем будет, твоя работа закончена с фронтом возможно еще обращусь к
+> тебе с фронт-ендом»
+
+**Staging нет. Автосинхронизация и автовыкат прямо в прод.** *04.09*
+> «давай пока без staging, это же маленький продукт, сделаем авто сразу на
+> прод и потооом когда станет продуктом настоящим где будут люди использовать
+> тогда сделаем так это строго»
+
+**Миграции схемы — руками.** Единственный ручной шаг. *04.09*
+
+**V2 и V1 убираются целиком, V3 остаётся продуктом.** *04.09* — выполнено.
+> «v2 v1 полностью убираем v3 остается продуктом»
+
+**Перед каждым пушем в `main` — состязательная проверка, как часть цикла
+исполнителя.** *05.09.* Автовыкат без второй пары глаз — автовыкат ошибок.
+> «done, just do it»
+
+### 06.09 — исполнение передано Fable
+
+**Codex остановлен, работу завершает Fable.** Не останавливаться до упора.
+> «codex was doing some work from yesterday, i stopped it and wanna give to
+> fable to complete it»
+> «start doing the plan, complete it, dont stop untill you are really stuck
+> and u need my help»
+
+**Роадмап фронта входит в общий план** — минусы чинятся, UX-UI улучшается.
+> «inside we have the minuses, so we need to fix them and also make ux-ui
+> better, so overall put this frontend md, somewhere in the appropriate place
+> in the overall plan and complete that plan»
+
+**Портал студента — строить, дружелюбным.**
+> «add in the plan to do the portal part as well, think that u r a student and
+> u know in general what this business do and make with a friendly ux-ui and
+> do it properly»
+
+**Старый SQLite-мир — удалить.** На `main` уже удалён; подтверждено как
+решение, остатки дочищаются.
+> «delete this fucking shit … why we need it»
+
+**Числа на экране без данных не показываются вовсе.**
+> «for the numbers in front-end for now if u dont have data, just dont put
+> anything»
+
+**Переезд данных закончить: один авторитет. Доменную логику держать
+разрезанной по областям, гигантских файлов не заводить.** (Пункты 1 и 2 из
+`needs-and-architecture.md`, подтверждены заказчиком дословной вставкой.)
+
+**Синхронизация с amoCRM нужна и срочна.**
+> «syn with amoCRM is needed and urgent, we shall do it, its done, just turned
+> off right?»
+
+**Язык интерфейса — только русский.**
+> «only russian is enough»
+
+**Пять потребностей — решить:** заметки к человеку; вложения из WhatsApp в
+дело; шаблоны ответов из базы знаний в поле ответа; страна и ступень у заявки;
+сроки набора (дедлайны вузов).
+> «also we need to solve these»
+
+**Критические находки `review-log.md` — решить.** Это снимает для критов
+правило от 03.09 «в план идёт только то, на что заказчик указал сам».
+> «read the review-log and solve the critical ones»
+
+**Визуальный мир трогать можно чуть-чуть — если уверен, что станет лучше.**
+Правка заказчика в роадмапе, рукой.
+> «можно немножко если думаешь что надо и сделаешь лучше»
+
+---
+
 ## Мелочи, названные заказчиком
 
 **Часовой пояс организации — Бишкек.** Границы суток и «сегодня» считаются в

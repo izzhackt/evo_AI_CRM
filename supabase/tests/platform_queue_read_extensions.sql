@@ -673,6 +673,88 @@ SELECT pg_temp.p119_assert(
 
 RESET ROLE;
 
+-- A lead with no workflow receipt is a creation baseline only at version 1.
+-- This regression must fail both the old INNER LATERAL join (which omitted the
+-- lead) and a naive LEFT LATERAL join whose NULL request id never trips the
+-- final PL/pgSQL guard.
+SAVEPOINT p119_no_receipt_state_drift;
+UPDATE platform.leads
+SET
+  stage_key = 'contacting',
+  workflow_version = 2
+WHERE id = :'p119_lead_fallback';
+SET request.jwt.claims TO :'p119_admin_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p119_capture_error(
+  'SELECT * FROM platform.staff_sales_lead_page(20)'
+)::TEXT AS p119_no_receipt_state_drift_error
+\gset
+RESET ROLE;
+ROLLBACK TO SAVEPOINT p119_no_receipt_state_drift;
+SELECT pg_temp.p119_assert(
+  :'p119_no_receipt_state_drift_error'::JSONB ->> 'sqlstate' = '23514'
+    AND :'p119_no_receipt_state_drift_error'::JSONB ->> 'message'
+      = 'sales_stage_entry_evidence_inconsistent',
+  'a version-2 lead with no receipt or normalization proof did not fail closed'
+);
+
+-- Migration 086 legitimately advanced an existing new_inbound lead to
+-- version 2 without a workflow receipt. Preserve only that exact audited
+-- one-time normalization as a proven creation baseline.
+\set p119_normalization_request 59911900-0000-4000-8000-000000000405
+SAVEPOINT p119_legacy_normalization;
+UPDATE platform.leads
+SET workflow_version = 2
+WHERE id = :'p119_lead_fallback';
+INSERT INTO platform.audit_events (
+  organization_id, actor_kind, actor_profile_id, actor_principal,
+  action, resource_type, resource_id, before_state, after_state,
+  reason, request_id, created_at, resulting_version
+) VALUES (
+  :'p119_org', 'system', NULL, 'migration:086_platform_sales_workflow',
+  'lead.sales.stage.normalized', 'lead', :'p119_lead_fallback',
+  pg_catalog.jsonb_build_object(
+    'stage_key', 'new_inbound', 'workflow_version', 1
+  ),
+  pg_catalog.jsonb_build_object('stage_key', 'new', 'workflow_version', 2),
+  'U4 normalizes the sole U3 legacy Sales stage',
+  :'p119_normalization_request', '2026-09-02 06:00:00+00', 2
+);
+SET request.jwt.claims TO :'p119_admin_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p119_assert(
+  (
+    SELECT page.stage_key = 'new'
+      AND page.workflow_version = 2
+      AND page.stage_entered_at = lead.created_at
+    FROM platform.staff_sales_lead_page(20) AS page
+    JOIN platform.leads AS lead ON lead.id = page.lead_id
+    WHERE page.lead_id = :'p119_lead_fallback'
+  ),
+  'the exact migration-086 normalization baseline was rejected or re-aged'
+);
+RESET ROLE;
+
+SET LOCAL session_replication_role = replica;
+UPDATE platform.audit_events
+SET reason = 'tampered normalization evidence'
+WHERE request_id = :'p119_normalization_request';
+SET LOCAL session_replication_role = origin;
+SET request.jwt.claims TO :'p119_admin_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p119_capture_error(
+  'SELECT * FROM platform.staff_sales_lead_page(20)'
+)::TEXT AS p119_malformed_normalization_error
+\gset
+RESET ROLE;
+ROLLBACK TO SAVEPOINT p119_legacy_normalization;
+SELECT pg_temp.p119_assert(
+  :'p119_malformed_normalization_error'::JSONB ->> 'sqlstate' = '23514'
+    AND :'p119_malformed_normalization_error'::JSONB ->> 'message'
+      = 'sales_stage_entry_evidence_inconsistent',
+  'malformed migration-086 normalization evidence was accepted'
+);
+
 SET request.jwt.claims TO :'p119_foreign_admin_claims';
 SET ROLE authenticated;
 SELECT pg_temp.p119_assert(

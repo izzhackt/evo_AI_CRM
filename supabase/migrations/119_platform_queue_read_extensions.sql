@@ -471,7 +471,9 @@ BEGIN
   -- The current-stage timestamp is allowed to depend on the U4 receipt/audit
   -- ledger only after the complete caller-visible ledger has passed the exact
   -- migration-111 integrity contract. A damaged pair must fail the queue
-  -- closed instead of silently changing a lead's apparent stage age.
+  -- closed instead of silently changing a lead's apparent stage age. A lead
+  -- with no receipt is valid only as the version-1 creation baseline or as
+  -- migration 086's exact audited vocabulary normalization to version 2.
   WITH visible_lead_scope AS MATERIALIZED (
     SELECT lead.organization_id, lead.id AS lead_id
     FROM platform.leads AS lead
@@ -581,13 +583,55 @@ BEGIN
         audit_event.organization_id
       OR receipt.lead_id IS DISTINCT FROM audit_event.resource_id
   ),
+  normalization_events AS (
+    SELECT
+      scope.organization_id,
+      scope.lead_id,
+      (
+        audit_event.actor_kind = 'system'
+        AND audit_event.actor_profile_id IS NULL
+        AND audit_event.actor_membership_id IS NULL
+        AND audit_event.actor_principal =
+          'migration:086_platform_sales_workflow'
+        AND audit_event.before_state IS NOT DISTINCT FROM
+          pg_catalog.jsonb_build_object(
+            'stage_key', 'new_inbound',
+            'workflow_version', 1
+          )
+        AND audit_event.after_state IS NOT DISTINCT FROM
+          pg_catalog.jsonb_build_object(
+            'stage_key', 'new',
+            'workflow_version', 2
+          )
+        AND audit_event.reason =
+          'U4 normalizes the sole U3 legacy Sales stage'
+        AND audit_event.resulting_version = 2
+      ) AS is_exact
+    FROM visible_lead_scope AS scope
+    JOIN platform.audit_events AS audit_event
+      ON audit_event.organization_id = scope.organization_id
+     AND audit_event.resource_type = 'lead'
+     AND audit_event.resource_id = scope.lead_id
+     AND audit_event.action = 'lead.sales.stage.normalized'
+  ),
+  legacy_normalization_evidence AS (
+    SELECT
+      normalization.organization_id,
+      normalization.lead_id,
+      pg_catalog.count(*) AS event_count,
+      pg_catalog.count(*) FILTER (
+        WHERE normalization.is_exact
+      ) AS exact_event_count
+    FROM normalization_events AS normalization
+    GROUP BY normalization.organization_id, normalization.lead_id
+  ),
   current_state_mismatches AS (
-    SELECT latest_receipt.request_id
+    SELECT COALESCE(latest_receipt.request_id, lead.id) AS request_id
     FROM visible_lead_scope AS scope
     JOIN platform.leads AS lead
       ON lead.organization_id = scope.organization_id
      AND lead.id = scope.lead_id
-    JOIN LATERAL (
+    LEFT JOIN LATERAL (
       SELECT receipt.*
       FROM platform_private.sales_lead_workflow_receipts AS receipt
       WHERE receipt.organization_id = scope.organization_id
@@ -597,15 +641,42 @@ BEGIN
         receipt.request_id DESC
       LIMIT 1
     ) AS latest_receipt ON TRUE
-    WHERE latest_receipt.resulting_workflow_version IS DISTINCT FROM
-        lead.workflow_version
-      OR latest_receipt.desired_stage_key IS DISTINCT FROM lead.stage_key
-      OR latest_receipt.desired_owner_membership_id IS DISTINCT FROM
-        lead.current_owner_membership_id
-      OR latest_receipt.desired_next_action_text IS DISTINCT FROM
-        lead.next_action_text
-      OR latest_receipt.desired_next_action_due_date IS DISTINCT FROM
-        lead.next_action_due_date
+    LEFT JOIN legacy_normalization_evidence AS normalization
+      ON normalization.organization_id = scope.organization_id
+     AND normalization.lead_id = scope.lead_id
+    WHERE (
+        latest_receipt.request_id IS NULL
+        AND NOT (
+          (
+            lead.workflow_version = 1
+            AND lead.next_action_text IS NULL
+            AND lead.next_action_due_date IS NULL
+            AND normalization.lead_id IS NULL
+          )
+          OR (
+            lead.workflow_version = 2
+            AND lead.stage_key = 'new'
+            AND lead.next_action_text IS NULL
+            AND lead.next_action_due_date IS NULL
+            AND COALESCE(normalization.event_count, 0) = 1
+            AND COALESCE(normalization.exact_event_count, 0) = 1
+          )
+        )
+      )
+      OR (
+        latest_receipt.request_id IS NOT NULL
+        AND (
+          latest_receipt.resulting_workflow_version IS DISTINCT FROM
+            lead.workflow_version
+          OR latest_receipt.desired_stage_key IS DISTINCT FROM lead.stage_key
+          OR latest_receipt.desired_owner_membership_id IS DISTINCT FROM
+            lead.current_owner_membership_id
+          OR latest_receipt.desired_next_action_text IS DISTINCT FROM
+            lead.next_action_text
+          OR latest_receipt.desired_next_action_due_date IS DISTINCT FROM
+            lead.next_action_due_date
+        )
+      )
   ),
   inconsistencies AS (
     SELECT mismatch.request_id
@@ -765,7 +836,8 @@ BEGIN
       -- The last proven entry into the lead's CURRENT stage is selected by
       -- authoritative workflow version, not mutable lead.updated_at or event
       -- wall-clock order. Owner/action-only commands cannot reset it; a lead
-      -- that has never transitioned uses its immutable creation timestamp.
+      -- with no U4 business transition uses its immutable creation timestamp;
+      -- migration 086's audited vocabulary normalization remains that baseline.
       COALESCE((
         SELECT receipt.created_at
         FROM platform_private.sales_lead_workflow_receipts AS receipt

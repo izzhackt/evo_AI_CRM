@@ -479,10 +479,10 @@ INSERT INTO platform_private.provider_webhook_events (
   request_id
 ) VALUES (
   :'p121_event_1', :'p121_org_a', 'waha',
-  'waha:evo-inbox', NULL, NULL, 'synthetic:p121:event:1',
-  'evo-inbox', 'p121-event-1', 'history.message',
+  'waha:crm_primary', NULL, NULL, 'synthetic:p121:event:1',
+  'crm_primary', 'p121-event-1', 'history.message',
   '2026-09-01T09:00:00+00:00', 'missing',
-  '{"provenance":"api_history","read_only":true,"session":"evo-inbox"}',
+  '{"provenance":"api_history","read_only":true,"session":"crm_primary"}',
   '{"provenance":"api_history","webhook_verified":false,"read_only":true}',
   'api-history-read:p121-test', repeat('ef', 32),
   '59912100-0000-4000-8000-000000000901'
@@ -503,7 +503,7 @@ VALUES
     :'p121_conversation_1', :'p121_org_a', :'p121_case_a',
     :'p121_sales_a_membership', 'provider_linked',
     :'p121_curator_a_membership', 'curator', 'open',
-    'P121 case conversation', 'evo-inbox', NULL, NULL,
+    'P121 case conversation', 'crm_primary', NULL, NULL,
     910000001, 910000002, 910000003,
     NULL, :'p121_conv_scope_1', 1, :'p121_event_1'
   ),
@@ -511,7 +511,7 @@ VALUES
     :'p121_conversation_2', :'p121_org_a', NULL,
     :'p121_sales_a_membership', 'provider_linked',
     NULL, 'sales', 'open',
-    'P121 canonical lead conversation', 'evo-inbox', NULL, NULL,
+    'P121 canonical lead conversation', 'crm_primary', NULL, NULL,
     910000004, 910000005, 910000006,
     :'p121_lead_a', :'p121_conv_scope_2', 1, :'p121_event_1'
   ),
@@ -519,7 +519,7 @@ VALUES
     :'p121_conversation_3', :'p121_org_a', NULL,
     :'p121_sales_a_membership', 'provider_linked',
     NULL, 'sales', 'open',
-    'P121 unlinked conversation', 'evo-inbox', NULL, NULL,
+    'P121 unlinked conversation', 'crm_primary', NULL, NULL,
     910000007, 910000008, 910000009,
     NULL, :'p121_conv_scope_3', 1, :'p121_event_1'
   );
@@ -621,7 +621,7 @@ INSERT INTO platform_private.waha_media_object_bindings (
   bucket_id, object_name
 ) VALUES (
   :'p121_media_binding', :'p121_org_a', :'p121_media_pdf',
-  :'p121_message_1', :'p121_event_1', 'evo-inbox', '77010000001@c.us',
+  :'p121_message_1', :'p121_event_1', 'crm_primary', '77010000001@c.us',
   'p121-raw-message-1', 'platform-whatsapp-media',
   'aa/' || repeat('0', 62)
 );

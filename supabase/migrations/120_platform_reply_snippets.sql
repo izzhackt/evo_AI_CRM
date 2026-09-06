@@ -5,25 +5,25 @@
 BEGIN;
 
 CREATE TABLE platform.reply_snippets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
   organization_id UUID NOT NULL,
   audience TEXT NOT NULL CHECK (audience IN ('sales', 'admissions', 'all')),
   title TEXT NOT NULL CHECK (
-    title = btrim(title)
-    AND char_length(title) BETWEEN 1 AND 120
+    title = pg_catalog.btrim(title)
+    AND pg_catalog.char_length(title) BETWEEN 1 AND 120
     AND title !~ '[[:cntrl:]]'
   ),
   -- Bodies are multi-line WhatsApp texts: LF stays, every other control
   -- character (including CR and TAB) is rejected.
   body TEXT NOT NULL CHECK (
-    body = btrim(body)
-    AND char_length(body) BETWEEN 1 AND 2000
+    body = pg_catalog.btrim(body)
+    AND pg_catalog.char_length(body) BETWEEN 1 AND 2000
     AND body !~ '[\x01-\x09\x0B-\x1F\x7F]'
   ),
   archived_at TIMESTAMPTZ,
   created_by_membership_id UUID NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT pg_catalog.statement_timestamp(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT pg_catalog.statement_timestamp(),
   version BIGINT NOT NULL DEFAULT 1 CHECK (version > 0),
   CONSTRAINT reply_snippets_org_id_key UNIQUE (organization_id, id),
   CONSTRAINT reply_snippets_org_fkey
@@ -41,7 +41,11 @@ CREATE TABLE platform.reply_snippets (
 );
 
 CREATE INDEX reply_snippets_active_audience_idx
-  ON platform.reply_snippets (organization_id, audience, lower(title))
+  ON platform.reply_snippets (
+    organization_id,
+    audience,
+    pg_catalog.lower(title)
+  )
   WHERE archived_at IS NULL;
 CREATE INDEX reply_snippets_created_by_idx
   ON platform.reply_snippets (organization_id, created_by_membership_id);
@@ -114,14 +118,14 @@ REVOKE ALL ON FUNCTION platform_private.p7a_safe_audit_resource_types()
 
 -- One audience-visibility rule for reads and writes. The database roles map
 -- to the product roles as admin=admin, sales=sales, curator=admissions.
-CREATE FUNCTION platform_private.reply_snippet_audience_visible(
+CREATE FUNCTION private.reply_snippet_audience_visible(
   p_role TEXT,
   p_audience TEXT
 )
 RETURNS BOOLEAN
 LANGUAGE SQL
 IMMUTABLE
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = ''
 AS $$
   SELECT CASE
@@ -132,15 +136,14 @@ AS $$
   END
 $$;
 
-REVOKE ALL ON FUNCTION
-  platform_private.reply_snippet_audience_visible(TEXT, TEXT)
+REVOKE ALL ON FUNCTION private.reply_snippet_audience_visible(TEXT, TEXT)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 -- Snippet commands are open to every staff role; finance and student actors
 -- fail closed. require_domain_actor also locks the actor's profile and
 -- membership rows FOR UPDATE, which serializes this transaction against a
 -- concurrent authority change until commit.
-CREATE FUNCTION platform_private.require_reply_snippet_actor(
+CREATE FUNCTION private.require_reply_snippet_actor(
   p_organization_id UUID
 )
 RETURNS TABLE (
@@ -151,7 +154,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 VOLATILE
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = ''
 AS $$
 DECLARE
@@ -160,7 +163,7 @@ BEGIN
   SELECT * INTO actor
   FROM platform_private.require_domain_actor(
     p_organization_id,
-    'organization.read'
+    'communication.manual.send'
   );
 
   IF actor.actor_role NOT IN ('admin', 'sales', 'curator') THEN
@@ -175,10 +178,49 @@ BEGIN
 END
 $$;
 
-REVOKE ALL ON FUNCTION platform_private.require_reply_snippet_actor(UUID)
+REVOKE ALL ON FUNCTION private.require_reply_snippet_actor(UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
-CREATE FUNCTION platform.list_reply_snippets(
+-- request_id is globally unique in the audit journal. Bind a replay to the
+-- same live actor before replay_audit compares mutation payloads, otherwise a
+-- colleague in the same organization could recover another actor's result by
+-- guessing both the UUID and the original inputs.
+CREATE FUNCTION private.assert_reply_snippet_request_actor(
+  p_request_id UUID,
+  p_organization_id UUID,
+  p_actor_profile_id UUID,
+  p_actor_auth_user_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM platform.audit_events AS event
+    WHERE event.request_id = p_request_id
+      AND (
+        event.organization_id IS DISTINCT FROM p_organization_id
+        OR event.actor_kind IS DISTINCT FROM 'user'
+        OR event.actor_profile_id IS DISTINCT FROM p_actor_profile_id
+        OR event.actor_principal IS DISTINCT FROM
+          'auth:' || p_actor_auth_user_id::TEXT
+      )
+  ) THEN
+    RAISE EXCEPTION 'Reply snippet request is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+END
+$$;
+
+REVOKE ALL ON FUNCTION private.assert_reply_snippet_request_actor(
+  UUID, UUID, UUID, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
+CREATE FUNCTION private.list_reply_snippets(
   p_organization_id UUID,
   p_audience TEXT DEFAULT NULL
 )
@@ -214,7 +256,7 @@ BEGIN
       NOT IN ('admin', 'sales', 'curator')
     OR NOT private.platform_has_permission(
       p_organization_id,
-      'organization.read'
+      'communication.read.full'
     )
   THEN
     RAISE EXCEPTION 'Reply snippets are unavailable' USING ERRCODE = '42501';
@@ -240,16 +282,16 @@ BEGIN
     ON creator_profile.id = creator_membership.profile_id
   WHERE snippet.organization_id = p_organization_id
     AND snippet.archived_at IS NULL
-    AND platform_private.reply_snippet_audience_visible(
+    AND private.reply_snippet_audience_visible(
       (SELECT auth.jwt() ->> 'platform_role'),
       snippet.audience
     )
     AND (p_audience IS NULL OR snippet.audience = p_audience)
-  ORDER BY lower(snippet.title), snippet.created_at, snippet.id;
+  ORDER BY pg_catalog.lower(snippet.title), snippet.created_at, snippet.id;
 END
 $$;
 
-CREATE FUNCTION platform.create_reply_snippet(
+CREATE FUNCTION private.create_reply_snippet(
   p_organization_id UUID,
   p_audience TEXT,
   p_title TEXT,
@@ -265,8 +307,8 @@ AS $$
 DECLARE
   actor RECORD;
   snippet_row platform.reply_snippets%ROWTYPE;
-  normalized_title TEXT := btrim(p_title);
-  normalized_body TEXT := btrim(p_body);
+  normalized_title TEXT := pg_catalog.btrim(p_title);
+  normalized_body TEXT := pg_catalog.btrim(p_body);
   replayed JSONB;
   replay_shape JSONB;
   result JSONB;
@@ -279,11 +321,11 @@ BEGIN
     OR p_audience NOT IN ('sales', 'admissions', 'all')
     OR normalized_title IS NULL
     OR normalized_title = ''
-    OR char_length(normalized_title) > 120
+    OR pg_catalog.char_length(normalized_title) > 120
     OR normalized_title ~ '[[:cntrl:]]'
     OR normalized_body IS NULL
     OR normalized_body = ''
-    OR char_length(normalized_body) > 2000
+    OR pg_catalog.char_length(normalized_body) > 2000
     OR normalized_body ~ '[\x01-\x09\x0B-\x1F\x7F]'
   THEN
     RAISE EXCEPTION 'Reply snippet audience, title and body are invalid'
@@ -291,17 +333,24 @@ BEGIN
   END IF;
 
   SELECT * INTO actor
-  FROM platform_private.require_reply_snippet_actor(p_organization_id);
+  FROM private.require_reply_snippet_actor(p_organization_id);
 
   -- A non-admin author only publishes into audiences they can read.
-  IF NOT platform_private.reply_snippet_audience_visible(
+  IF NOT private.reply_snippet_audience_visible(
     actor.actor_role::TEXT,
     p_audience
   ) THEN
     RAISE EXCEPTION 'Reply snippets are unavailable' USING ERRCODE = '42501';
   END IF;
 
-  replay_shape := jsonb_build_object(
+  PERFORM private.assert_reply_snippet_request_actor(
+    p_request_id,
+    p_organization_id,
+    actor.actor_profile_id,
+    actor.actor_auth_user_id
+  );
+
+  replay_shape := pg_catalog.jsonb_build_object(
     'organization_id', p_organization_id,
     'audience', p_audience,
     'title', normalized_title,
@@ -328,7 +377,7 @@ BEGIN
   )
   RETURNING * INTO snippet_row;
 
-  result := replay_shape || jsonb_build_object(
+  result := replay_shape || pg_catalog.jsonb_build_object(
     'reply_snippet_id', snippet_row.id,
     'version', snippet_row.version::TEXT,
     'archived_at', snippet_row.archived_at,
@@ -349,7 +398,7 @@ BEGIN
 END
 $$;
 
-CREATE FUNCTION platform.update_reply_snippet(
+CREATE FUNCTION private.update_reply_snippet(
   p_organization_id UUID,
   p_reply_snippet_id UUID,
   p_audience TEXT,
@@ -367,8 +416,8 @@ AS $$
 DECLARE
   actor RECORD;
   snippet_row platform.reply_snippets%ROWTYPE;
-  normalized_title TEXT := btrim(p_title);
-  normalized_body TEXT := btrim(p_body);
+  normalized_title TEXT := pg_catalog.btrim(p_title);
+  normalized_body TEXT := pg_catalog.btrim(p_body);
   replayed JSONB;
   replay_shape JSONB;
   result JSONB;
@@ -389,11 +438,11 @@ BEGIN
     OR p_audience NOT IN ('sales', 'admissions', 'all')
     OR normalized_title IS NULL
     OR normalized_title = ''
-    OR char_length(normalized_title) > 120
+    OR pg_catalog.char_length(normalized_title) > 120
     OR normalized_title ~ '[[:cntrl:]]'
     OR normalized_body IS NULL
     OR normalized_body = ''
-    OR char_length(normalized_body) > 2000
+    OR pg_catalog.char_length(normalized_body) > 2000
     OR normalized_body ~ '[\x01-\x09\x0B-\x1F\x7F]'
   THEN
     RAISE EXCEPTION 'Reply snippet audience, title and body are invalid'
@@ -401,9 +450,9 @@ BEGIN
   END IF;
 
   SELECT * INTO actor
-  FROM platform_private.require_reply_snippet_actor(p_organization_id);
+  FROM private.require_reply_snippet_actor(p_organization_id);
 
-  IF NOT platform_private.reply_snippet_audience_visible(
+  IF NOT private.reply_snippet_audience_visible(
     actor.actor_role::TEXT,
     p_audience
   ) THEN
@@ -421,13 +470,26 @@ BEGIN
 
   -- The author edits their own snippet; Admin edits any snippet.
   IF actor.actor_role <> 'admin'
-    AND snippet_row.created_by_membership_id
-      IS DISTINCT FROM actor.actor_membership_id
+    AND (
+      snippet_row.created_by_membership_id
+        IS DISTINCT FROM actor.actor_membership_id
+      OR NOT private.reply_snippet_audience_visible(
+        actor.actor_role::TEXT,
+        snippet_row.audience
+      )
+    )
   THEN
     RAISE EXCEPTION 'Reply snippet is unavailable' USING ERRCODE = '42501';
   END IF;
 
-  replay_shape := jsonb_build_object(
+  PERFORM private.assert_reply_snippet_request_actor(
+    p_request_id,
+    p_organization_id,
+    actor.actor_profile_id,
+    actor.actor_auth_user_id
+  );
+
+  replay_shape := pg_catalog.jsonb_build_object(
     'organization_id', p_organization_id,
     'reply_snippet_id', p_reply_snippet_id,
     'audience', p_audience,
@@ -474,14 +536,14 @@ BEGIN
   RETURNING snippet.version, snippet.updated_at
   INTO next_version, changed_at;
 
-  audit_before := jsonb_build_object(
+  audit_before := pg_catalog.jsonb_build_object(
     'audience', snippet_row.audience,
     'title', snippet_row.title,
     'body', snippet_row.body,
     'archived_at', snippet_row.archived_at,
     'version', snippet_row.version::TEXT
   );
-  result := replay_shape || jsonb_build_object(
+  result := replay_shape || pg_catalog.jsonb_build_object(
     'version', next_version::TEXT,
     'archived_at', NULL,
     'created_at', snippet_row.created_at,
@@ -502,7 +564,7 @@ BEGIN
 END
 $$;
 
-CREATE FUNCTION platform.archive_reply_snippet(
+CREATE FUNCTION private.archive_reply_snippet(
   p_organization_id UUID,
   p_reply_snippet_id UUID,
   p_expected_version BIGINT,
@@ -538,7 +600,7 @@ BEGIN
   END IF;
 
   SELECT * INTO actor
-  FROM platform_private.require_reply_snippet_actor(p_organization_id);
+  FROM private.require_reply_snippet_actor(p_organization_id);
 
   SELECT * INTO snippet_row
   FROM platform.reply_snippets AS snippet
@@ -550,13 +612,26 @@ BEGIN
   END IF;
 
   IF actor.actor_role <> 'admin'
-    AND snippet_row.created_by_membership_id
-      IS DISTINCT FROM actor.actor_membership_id
+    AND (
+      snippet_row.created_by_membership_id
+        IS DISTINCT FROM actor.actor_membership_id
+      OR NOT private.reply_snippet_audience_visible(
+        actor.actor_role::TEXT,
+        snippet_row.audience
+      )
+    )
   THEN
     RAISE EXCEPTION 'Reply snippet is unavailable' USING ERRCODE = '42501';
   END IF;
 
-  replay_shape := jsonb_build_object(
+  PERFORM private.assert_reply_snippet_request_actor(
+    p_request_id,
+    p_organization_id,
+    actor.actor_profile_id,
+    actor.actor_auth_user_id
+  );
+
+  replay_shape := pg_catalog.jsonb_build_object(
     'organization_id', p_organization_id,
     'reply_snippet_id', p_reply_snippet_id,
     'request_id', p_request_id,
@@ -583,21 +658,21 @@ BEGIN
   END IF;
 
   UPDATE platform.reply_snippets AS snippet
-  SET archived_at = statement_timestamp(),
+  SET archived_at = pg_catalog.statement_timestamp(),
       version = snippet_row.version + 1
   WHERE snippet.organization_id = p_organization_id
     AND snippet.id = p_reply_snippet_id
   RETURNING snippet.version, snippet.archived_at, snippet.updated_at
   INTO next_version, archived_time, changed_at;
 
-  audit_before := jsonb_build_object(
+  audit_before := pg_catalog.jsonb_build_object(
     'audience', snippet_row.audience,
     'title', snippet_row.title,
     'body', snippet_row.body,
     'archived_at', snippet_row.archived_at,
     'version', snippet_row.version::TEXT
   );
-  result := replay_shape || jsonb_build_object(
+  result := replay_shape || pg_catalog.jsonb_build_object(
     'audience', snippet_row.audience,
     'title', snippet_row.title,
     'body', snippet_row.body,
@@ -620,6 +695,138 @@ BEGIN
   RETURN result;
 END
 $$;
+
+-- The Data API sees only these SECURITY INVOKER entrypoints. The privileged
+-- implementations remain in the existing non-exposed private schema and
+-- repeat the complete authorization checks even if called directly over SQL.
+CREATE FUNCTION platform.list_reply_snippets(
+  p_organization_id UUID,
+  p_audience TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  organization_id UUID,
+  reply_snippet_id UUID,
+  audience TEXT,
+  title TEXT,
+  body TEXT,
+  version TEXT,
+  created_by_membership_id UUID,
+  created_by_display_name TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+)
+LANGUAGE SQL
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT
+    snippet.organization_id,
+    snippet.reply_snippet_id,
+    snippet.audience,
+    snippet.title,
+    snippet.body,
+    snippet.version,
+    snippet.created_by_membership_id,
+    snippet.created_by_display_name,
+    snippet.created_at,
+    snippet.updated_at
+  FROM private.list_reply_snippets(p_organization_id, p_audience) AS snippet
+$$;
+
+CREATE FUNCTION platform.create_reply_snippet(
+  p_organization_id UUID,
+  p_audience TEXT,
+  p_title TEXT,
+  p_body TEXT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE SQL
+VOLATILE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT private.create_reply_snippet(
+    p_organization_id,
+    p_audience,
+    p_title,
+    p_body,
+    p_request_id
+  )
+$$;
+
+CREATE FUNCTION platform.update_reply_snippet(
+  p_organization_id UUID,
+  p_reply_snippet_id UUID,
+  p_audience TEXT,
+  p_title TEXT,
+  p_body TEXT,
+  p_expected_version BIGINT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE SQL
+VOLATILE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT private.update_reply_snippet(
+    p_organization_id,
+    p_reply_snippet_id,
+    p_audience,
+    p_title,
+    p_body,
+    p_expected_version,
+    p_request_id
+  )
+$$;
+
+CREATE FUNCTION platform.archive_reply_snippet(
+  p_organization_id UUID,
+  p_reply_snippet_id UUID,
+  p_expected_version BIGINT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE SQL
+VOLATILE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT private.archive_reply_snippet(
+    p_organization_id,
+    p_reply_snippet_id,
+    p_expected_version,
+    p_request_id
+  )
+$$;
+
+REVOKE ALL ON FUNCTION private.list_reply_snippets(UUID, TEXT)
+  FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.list_reply_snippets(UUID, TEXT)
+  TO authenticated;
+
+REVOKE ALL ON FUNCTION private.create_reply_snippet(
+  UUID, TEXT, TEXT, TEXT, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.create_reply_snippet(
+  UUID, TEXT, TEXT, TEXT, UUID
+) TO authenticated;
+
+REVOKE ALL ON FUNCTION private.update_reply_snippet(
+  UUID, UUID, TEXT, TEXT, TEXT, BIGINT, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.update_reply_snippet(
+  UUID, UUID, TEXT, TEXT, TEXT, BIGINT, UUID
+) TO authenticated;
+
+REVOKE ALL ON FUNCTION private.archive_reply_snippet(
+  UUID, UUID, BIGINT, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.archive_reply_snippet(
+  UUID, UUID, BIGINT, UUID
+) TO authenticated;
 
 REVOKE ALL ON FUNCTION platform.list_reply_snippets(UUID, TEXT)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;

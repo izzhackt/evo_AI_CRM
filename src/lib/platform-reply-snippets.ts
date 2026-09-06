@@ -7,7 +7,7 @@ const TIMESTAMPTZ_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
 const POSITIVE_BIGINT_PATTERN = /^[1-9]\d*$/;
 const SINGLE_LINE_CONTROL_PATTERN = /[\u0000-\u001F\u007F]/;
-const BODY_CONTROL_PATTERN = /[\u0001-\u0009\u000B-\u001F\u007F]/;
+const BODY_CONTROL_PATTERN = /[\u0000-\u0009\u000B-\u001F\u007F]/;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
   "Platform reply-snippet data is unavailable.";
 

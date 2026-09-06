@@ -44,6 +44,7 @@ GRANT EXECUTE ON FUNCTION pg_temp.p120_capture_error(TEXT)
 DO $catalog_contract$
 DECLARE
   rpc_signature TEXT;
+  routine_oid REGPROCEDURE;
 BEGIN
   IF NOT EXISTS (
     SELECT 1
@@ -81,21 +82,75 @@ BEGIN
     'platform.update_reply_snippet(uuid,uuid,text,text,text,bigint,uuid)',
     'platform.archive_reply_snippet(uuid,uuid,bigint,uuid)'
   ] LOOP
-    IF NOT has_function_privilege('authenticated', rpc_signature, 'EXECUTE')
+    routine_oid := pg_catalog.to_regprocedure(rpc_signature);
+    IF routine_oid IS NULL
+      OR NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_proc AS routine
+        WHERE routine.oid = routine_oid
+          AND NOT routine.prosecdef
+          AND routine.provolatile = CASE
+            WHEN rpc_signature LIKE '%.list_reply_snippets%' THEN 's'::"char"
+            ELSE 'v'::"char"
+          END
+          AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
+      )
+      OR NOT has_function_privilege('authenticated', rpc_signature, 'EXECUTE')
       OR has_function_privilege('anon', rpc_signature, 'EXECUTE')
       OR has_function_privilege('service_role', rpc_signature, 'EXECUTE')
+      OR has_function_privilege(
+        'supabase_auth_admin', rpc_signature, 'EXECUTE'
+      )
     THEN
-      RAISE EXCEPTION '% has the wrong browser grants', rpc_signature;
+      RAISE EXCEPTION
+        '% must be an empty-search-path invoker with exact browser grants',
+        rpc_signature;
     END IF;
   END LOOP;
 
   FOREACH rpc_signature IN ARRAY ARRAY[
-    'platform_private.require_reply_snippet_actor(uuid)',
-    'platform_private.reply_snippet_audience_visible(text,text)'
+    'private.list_reply_snippets(uuid,text)',
+    'private.create_reply_snippet(uuid,text,text,text,uuid)',
+    'private.update_reply_snippet(uuid,uuid,text,text,text,bigint,uuid)',
+    'private.archive_reply_snippet(uuid,uuid,bigint,uuid)'
+  ] LOOP
+    routine_oid := pg_catalog.to_regprocedure(rpc_signature);
+    IF routine_oid IS NULL
+      OR NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_proc AS routine
+        WHERE routine.oid = routine_oid
+          AND routine.prosecdef
+          AND routine.provolatile = CASE
+            WHEN rpc_signature LIKE '%.list_reply_snippets%' THEN 's'::"char"
+            ELSE 'v'::"char"
+          END
+          AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
+      )
+      OR NOT has_function_privilege('authenticated', rpc_signature, 'EXECUTE')
+      OR has_function_privilege('anon', rpc_signature, 'EXECUTE')
+      OR has_function_privilege('service_role', rpc_signature, 'EXECUTE')
+      OR has_function_privilege(
+        'supabase_auth_admin', rpc_signature, 'EXECUTE'
+      )
+    THEN
+      RAISE EXCEPTION
+        '% must be a hardened private definer with exact caller grants',
+        rpc_signature;
+    END IF;
+  END LOOP;
+
+  FOREACH rpc_signature IN ARRAY ARRAY[
+    'private.require_reply_snippet_actor(uuid)',
+    'private.reply_snippet_audience_visible(text,text)',
+    'private.assert_reply_snippet_request_actor(uuid,uuid,uuid,uuid)'
   ] LOOP
     IF has_function_privilege('anon', rpc_signature, 'EXECUTE')
       OR has_function_privilege('authenticated', rpc_signature, 'EXECUTE')
       OR has_function_privilege('service_role', rpc_signature, 'EXECUTE')
+      OR has_function_privilege(
+        'supabase_auth_admin', rpc_signature, 'EXECUTE'
+      )
     THEN
       RAISE EXCEPTION '% must stay private', rpc_signature;
     END IF;
@@ -333,6 +388,17 @@ SELECT pg_temp.p120_capture_error(format(
 \gset
 RESET ROLE;
 
+SET request.jwt.claims TO :'p120_sales_a_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p120_capture_error(format(
+  'SELECT platform.create_reply_snippet(%L::uuid,%L,%L,%L,%L::uuid)',
+  :'p120_org_a', 'all', 'Greeting',
+  E'Hello!\nThanks for reaching out to EVO.',
+  '77120000-0000-4000-8000-000000000701'
+))::TEXT AS p120_cross_actor_replay_error
+\gset
+RESET ROLE;
+
 SET request.jwt.claims TO '{"role":"anon"}';
 SET ROLE anon;
 SELECT pg_temp.p120_capture_error(format(
@@ -349,8 +415,9 @@ SELECT pg_temp.p120_assert(
     AND :'p120_request_conflict_error'::JSONB ->> 'message'
       LIKE '%already used%'
     AND :'p120_cross_org_replay_error'::JSONB ->> 'sqlstate' = '42501'
+    AND :'p120_cross_actor_replay_error'::JSONB ->> 'sqlstate' = '42501'
     AND :'p120_anon_error'::JSONB ->> 'sqlstate' = '42501',
-  'request-id reuse, cross-organization or anonymous access crossed the boundary'
+  'request-id reuse, cross-actor, cross-organization or anonymous access crossed the boundary'
 );
 
 -- Direct table access stays revoked for browser principals.
@@ -553,6 +620,142 @@ SELECT pg_temp.p120_assert(
         AND snippet.archived_at IS NOT NULL
     ),
   'archive lifecycle, idempotent replay or archived-row visibility failed'
+);
+
+-- A role label is not enough: loss of the exact communication permissions in
+-- the live bundle revokes both reads and writes immediately.
+INSERT INTO platform.role_bundle_versions (
+  id, role, version, status, label, published_at
+) VALUES (
+  '77120000-0000-4000-8000-000000000401',
+  'sales',
+  120001,
+  'draft',
+  'P120 sales bundle without communication permissions',
+  NULL
+);
+INSERT INTO platform.role_bundle_permissions (
+  bundle_id, bundle_role, permission_key
+) VALUES (
+  '77120000-0000-4000-8000-000000000401',
+  'sales',
+  'organization.read'
+);
+UPDATE platform.role_bundle_versions
+SET status = 'published',
+    published_at = statement_timestamp()
+WHERE id = '77120000-0000-4000-8000-000000000401';
+UPDATE platform.organization_memberships
+SET current_bundle_id = '77120000-0000-4000-8000-000000000401'
+WHERE id = :'p120_sales_a_membership';
+SELECT jsonb_build_object(
+  'sub', :'p120_sales_a_user', 'role', 'authenticated',
+  'platform_role', 'sales', 'platform_access_version', 1,
+  'platform_organization_id', :'p120_org_a',
+  'platform_membership_id', :'p120_sales_a_membership',
+  'platform_bundle_id', '77120000-0000-4000-8000-000000000401',
+  'platform_bundle_version', 120001
+)::TEXT AS p120_limited_sales_claims
+\gset
+
+SET request.jwt.claims TO :'p120_limited_sales_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p120_capture_error(format(
+  'SELECT count(*) FROM platform.list_reply_snippets(%L::uuid)',
+  :'p120_org_a'
+))::TEXT AS p120_missing_read_permission_error
+\gset
+SELECT pg_temp.p120_capture_error(format(
+  'SELECT platform.create_reply_snippet(%L::uuid,%L,%L,%L,%L::uuid)',
+  :'p120_org_a', 'sales', 'Permission probe',
+  'Missing communication.manual.send must fail closed.',
+  '77120000-0000-4000-8000-000000000717'
+))::TEXT AS p120_missing_send_permission_error
+\gset
+RESET ROLE;
+
+SELECT pg_temp.p120_assert(
+  :'p120_missing_read_permission_error'::JSONB ->> 'sqlstate' = '42501'
+    AND :'p120_missing_send_permission_error'::JSONB ->> 'sqlstate' = '42501'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.audit_events AS audit
+      WHERE audit.request_id = '77120000-0000-4000-8000-000000000717'
+    ),
+  'live communication permission loss did not revoke snippet access'
+);
+
+UPDATE platform.organization_memberships
+SET current_bundle_id = :'p120_sales_bundle'
+WHERE id = :'p120_sales_a_membership';
+
+-- Authorship does not survive a role change across an invisible audience.
+-- The same person, now Admissions, cannot mutate the Sales-only text they
+-- authored under their former role.
+SET request.jwt.claims TO :'p120_sales_a_claims';
+SET ROLE authenticated;
+SELECT platform.create_reply_snippet(
+  :'p120_org_a', 'sales', 'Role transition probe',
+  'This remains visible only to Sales.',
+  '77120000-0000-4000-8000-000000000718'
+)::TEXT AS p120_role_transition_snippet
+\gset
+RESET ROLE;
+SELECT (:'p120_role_transition_snippet'::JSONB ->> 'reply_snippet_id')::UUID
+  AS p120_role_transition_snippet_id
+\gset
+
+UPDATE platform.organization_memberships
+SET "current_role" = 'curator',
+    current_bundle_id = :'p120_curator_bundle'
+WHERE id = :'p120_sales_a_membership';
+SELECT jsonb_build_object(
+  'sub', :'p120_sales_a_user', 'role', 'authenticated',
+  'platform_role', 'curator', 'platform_access_version', 1,
+  'platform_organization_id', :'p120_org_a',
+  'platform_membership_id', :'p120_sales_a_membership',
+  'platform_bundle_id', :'p120_curator_bundle',
+  'platform_bundle_version', :'p120_curator_bundle_version'::INTEGER
+)::TEXT AS p120_sales_as_curator_claims
+\gset
+
+SET request.jwt.claims TO :'p120_sales_as_curator_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p120_capture_error(format(
+  'SELECT platform.update_reply_snippet(%L::uuid,%L::uuid,%L,%L,%L,1,%L::uuid)',
+  :'p120_org_a', :'p120_role_transition_snippet_id', 'admissions',
+  'Role transition probe', 'A new role cannot retarget an invisible snippet.',
+  '77120000-0000-4000-8000-000000000719'
+))::TEXT AS p120_role_transition_update_error
+\gset
+SELECT pg_temp.p120_capture_error(format(
+  'SELECT platform.archive_reply_snippet(%L::uuid,%L::uuid,1,%L::uuid)',
+  :'p120_org_a', :'p120_role_transition_snippet_id',
+  '77120000-0000-4000-8000-000000000720'
+))::TEXT AS p120_role_transition_archive_error
+\gset
+RESET ROLE;
+
+SELECT pg_temp.p120_assert(
+  :'p120_role_transition_update_error'::JSONB ->> 'sqlstate' = '42501'
+    AND :'p120_role_transition_archive_error'::JSONB ->> 'sqlstate' = '42501'
+    AND EXISTS (
+      SELECT 1
+      FROM platform.reply_snippets AS snippet
+      WHERE snippet.id = :'p120_role_transition_snippet_id'
+        AND snippet.audience = 'sales'
+        AND snippet.version = 1
+        AND snippet.archived_at IS NULL
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.audit_events AS audit
+      WHERE audit.request_id IN (
+        '77120000-0000-4000-8000-000000000719',
+        '77120000-0000-4000-8000-000000000720'
+      )
+    ),
+  'role transition crossed the original audience boundary'
 );
 
 ROLLBACK;

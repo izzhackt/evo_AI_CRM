@@ -122,6 +122,13 @@ test("reply-snippet rows fail closed on malformed or foreign shapes", () => {
   );
   assert.throws(
     () => normalizePlatformReplySnippetRow(
+      row({ body: "NUL\u0000must never reach the composer" }),
+      ORGANIZATION_ID,
+    ),
+    PlatformReplySnippetsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformReplySnippetRow(
       row({ title: "x".repeat(121) }),
       ORGANIZATION_ID,
     ),
@@ -283,4 +290,8 @@ test("reply-snippet action bodies keep LF newlines and normalize CRLF", () => {
   );
   assert.match(actionsSource, /PLATFORM_REPLY_SNIPPET_BODY_MAX_LENGTH/);
   assert.match(actionsSource, /PLATFORM_REPLY_SNIPPET_TITLE_MAX_LENGTH/);
+  assert.match(
+    actionsSource,
+    /BODY_CONTROL_PATTERN = \/\[\\u0000-\\u0009\\u000B-\\u001F\\u007F\]\//,
+  );
 });

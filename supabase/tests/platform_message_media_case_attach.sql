@@ -68,6 +68,9 @@ DECLARE
   complete_body_oid OID := (
     'private.complete_message_media_attachment(uuid,uuid,text,text,text,text,timestamptz)'::REGPROCEDURE
   )::OID;
+  actor_helper_oid OID := (
+    'private.message_media_attachment_actor_is_current(uuid)'::REGPROCEDURE
+  )::OID;
   checked_table OID;
   checked_invoker OID;
   checked_definer OID;
@@ -113,7 +116,7 @@ BEGIN
     reserve_rpc_oid, upload_rpc_oid, complete_rpc_oid
   ]
   LOOP
-    IF NOT (
+    IF NOT COALESCE((
       SELECT NOT routine.prosecdef
         AND routine.provolatile = 'v'
         AND routine.prokind = 'f'
@@ -125,7 +128,7 @@ BEGIN
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = routine.pronamespace
       WHERE routine.oid = checked_invoker
-    ) THEN
+    ), FALSE) THEN
       RAISE EXCEPTION 'exposed attachment entrypoint must be SECURITY INVOKER';
     END IF;
   END LOOP;
@@ -134,7 +137,7 @@ BEGIN
     reserve_body_oid, upload_body_oid, complete_body_oid
   ]
   LOOP
-    IF NOT (
+    IF NOT COALESCE((
       SELECT routine.prosecdef
         AND routine.provolatile = 'v'
         AND routine.prokind = 'f'
@@ -146,8 +149,36 @@ BEGIN
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = routine.pronamespace
       WHERE routine.oid = checked_definer
-    ) THEN
+    ), FALSE) THEN
       RAISE EXCEPTION 'privileged attachment body must be private and hardened';
+    END IF;
+  END LOOP;
+
+  IF NOT COALESCE((
+    SELECT routine.prosecdef
+      AND routine.provolatile = 'v'
+      AND routine.prokind = 'f'
+      AND NOT routine.proretset
+      AND pg_catalog.pg_get_function_result(routine.oid) = 'boolean'
+      AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
+      AND namespace.nspname = 'private'
+    FROM pg_catalog.pg_proc AS routine
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = routine.pronamespace
+    WHERE routine.oid = actor_helper_oid
+  ), FALSE) THEN
+    RAISE EXCEPTION 'attachment actor helper must be private and hardened';
+  END IF;
+
+  FOREACH checked_role IN ARRAY ARRAY[
+    'anon', 'authenticated', 'service_role', 'supabase_auth_admin'
+  ]
+  LOOP
+    IF pg_catalog.has_function_privilege(
+      checked_role, actor_helper_oid, 'EXECUTE'
+    ) THEN
+      RAISE EXCEPTION '% unexpectedly executes attachment actor helper',
+        checked_role;
     END IF;
   END LOOP;
 

@@ -4,33 +4,38 @@ import { createHash, randomUUID } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { ActivePlatformActor } from "../platform-auth.ts";
 import {
   ClamdScanError,
   isClamdMalwareScanProof,
   scanBytesWithClamd,
   type ClamdMalwareScanProof,
 } from "./clamd-malware-scanner.ts";
-import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
+import {
+  getPlatformSupabaseBackendConfig,
+  type PlatformSupabaseBackendConfig,
+} from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 
 /**
- * Server-side bridge: copy one archived WhatsApp message media object into the
- * canonical case document pipeline. Bytes move service-to-service only — the
- * private media object is read with service credentials after an audited
- * one-time grant, scanned with ClamAV, then pushed through the existing
- * reserve-after-ingress-scan / finalize-with-scan document path. No URL, byte
- * or object name ever reaches the browser.
+ * Server-only bridge from one archived WhatsApp media object to one canonical
+ * private case-document version. The authenticated browser call creates only
+ * an intent; service credentials, bytes, Storage paths and scan receipts stay
+ * behind this boundary.
  */
 
 const MEDIA_BUCKET_ID = "platform-whatsapp-media";
 const DOCUMENT_BUCKET_ID = "platform-documents";
+export const STANDARD_UPLOAD_MAX_BYTES = 6 * 1024 * 1024;
+export const TUS_CHUNK_BYTES = 6 * 1024 * 1024;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const TUS_VERSION = "1.0.0";
+const TUS_REQUEST_TIMEOUT_MS = 60_000;
+const MAX_TUS_RECOVERY_ATTEMPTS = 3;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OBJECT_NAME_PATTERN = /^[0-9a-f]{2}\/[0-9a-f]{62}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
-const SCANNER_ENGINE_VERSION_PATTERN = /^[0-9][0-9A-Za-z.+~-]{0,63}$/;
-const SCANNER_SIGNATURE_VERSION_PATTERN = /^[1-9][0-9]{0,18}$/;
 const CONTROL_CHARACTER_PATTERN = /[\x00-\x1F\x7F]/;
 const ACCEPTED_MIME_TYPES = new Set([
   "application/pdf",
@@ -41,17 +46,23 @@ const ACCEPTED_MIME_TYPES = new Set([
 export type PlatformMediaAttachDependencies = Readonly<{
   createUserClient(): Promise<SupabaseClient>;
   createServiceClient(): SupabaseClient;
+  backendConfig(): PlatformSupabaseBackendConfig;
+  fetch(input: string | URL, init: RequestInit): Promise<Response>;
   scanFile(bytes: Uint8Array): Promise<ClamdMalwareScanProof>;
   requestId(): string;
+  now(): number;
 }>;
 
+export type PlatformMediaAttachActor = Pick<
+  ActivePlatformActor,
+  "organizationId" | "authUserId"
+>;
+
 export type PlatformMediaAttachInput = Readonly<{
-  organizationId: string;
   conversationId: string;
   communicationMediaId: string;
   studentCaseId: string;
   documentSlotId: string;
-  actorAuthUserId: string;
   requestId: string;
 }>;
 
@@ -84,6 +95,7 @@ type AttachIntent = Readonly<{
   mediaMimeType: string;
   mediaFileName: string;
   mediaFileSizeBytes: number;
+  mediaSha256Hex: string;
 }>;
 
 type MediaObjectTarget = Readonly<{
@@ -96,15 +108,20 @@ type UploadReservation = Readonly<{
   studentCaseId: string;
   documentSlotId: string;
   documentVersionId: string;
+  versionNumber: number;
   uploadReservationId: string;
+  storageBindingId: string;
   bucketId: typeof DOCUMENT_BUCKET_ID;
   objectName: string;
+  expiresAt: string;
   storageObjectPresent: boolean;
 }>;
 
-type FinalizedUpload = Readonly<{
+type CompletionReceipt = Readonly<{
   documentVersionId: string;
   versionNumber: number;
+  uploadFinalizationId: string;
+  malwareScanAttestationId: string;
 }>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -113,26 +130,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function hasExactKeys(
   value: Record<string, unknown>,
-  expected: readonly string[],
+  expectedKeys: readonly string[],
 ): boolean {
   const actual = Object.keys(value).sort();
-  const sortedExpected = [...expected].sort();
-  return actual.length === sortedExpected.length
-    && actual.every((key, index) => key === sortedExpected[index]);
+  const expected = [...expectedKeys].sort();
+  return actual.length === expected.length
+    && actual.every((key, index) => key === expected[index]);
 }
 
 function uuid(value: unknown): string | null {
-  if (typeof value !== "string" || !UUID_PATTERN.test(value)) return null;
-  const normalized = value.toLowerCase();
-  return normalized === "00000000-0000-0000-0000-000000000000"
-    ? null
-    : normalized;
+  return typeof value === "string"
+    && value === value.toLowerCase()
+    && UUID_PATTERN.test(value)
+    ? value
+    : null;
 }
 
 function timestamp(value: unknown): string | null {
-  return typeof value === "string" && Number.isFinite(Date.parse(value))
-    ? value
-    : null;
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) {
+    return null;
+  }
+  return value;
 }
 
 function positiveInteger(value: unknown): number | null {
@@ -159,21 +177,6 @@ function safeFilename(value: unknown): string | null {
     return null;
   }
   return value;
-}
-
-/**
- * Deterministic per-step request identity derived from the one attach
- * request id, so every durable RPC in the chain replays on retry.
- */
-function derivedRequestId(requestId: string, operation: string): string {
-  const bytes = createHash("sha256")
-    .update(`evo-platform-media-attach:${operation}:${requestId}`)
-    .digest()
-    .subarray(0, 16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = bytes.toString("hex");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function matchesDeclaredFileSignature(
@@ -232,7 +235,7 @@ function reserveIntentFailure(error: unknown): PlatformMediaAttachResult {
   return failure("unavailable");
 }
 
-function uploadReservationFailure(error: unknown): PlatformMediaAttachResult {
+function uploadMutationFailure(error: unknown): PlatformMediaAttachResult {
   const code = rpcErrorCode(error);
   if (code === "42501") return failure("forbidden");
   if (code === "PT409") return failure("upload_in_progress");
@@ -244,6 +247,7 @@ function uploadReservationFailure(error: unknown): PlatformMediaAttachResult {
 
 function normalizeAttachIntent(
   value: unknown,
+  actor: PlatformMediaAttachActor,
   input: PlatformMediaAttachInput,
 ): AttachIntent | null {
   if (
@@ -259,6 +263,7 @@ function normalizeAttachIntent(
       "media_mime_type",
       "media_file_name",
       "media_file_size_bytes",
+      "media_sha256_hex",
       "slot_status",
     ])
   ) {
@@ -269,7 +274,7 @@ function normalizeAttachIntent(
   const mediaFileSizeBytes = positiveInteger(value.media_file_size_bytes);
   if (
     !attachmentIntentId
-    || value.organization_id !== input.organizationId
+    || value.organization_id !== actor.organizationId
     || value.conversation_id !== input.conversationId
     || value.communication_media_id !== input.communicationMediaId
     || value.student_case_id !== input.studentCaseId
@@ -280,6 +285,8 @@ function normalizeAttachIntent(
     || !mediaFileName
     || !mediaFileSizeBytes
     || mediaFileSizeBytes > MAX_FILE_BYTES
+    || typeof value.media_sha256_hex !== "string"
+    || !SHA256_PATTERN.test(value.media_sha256_hex)
     || typeof value.slot_status !== "string"
   ) {
     return null;
@@ -289,6 +296,7 @@ function normalizeAttachIntent(
     mediaMimeType: value.media_mime_type,
     mediaFileName,
     mediaFileSizeBytes,
+    mediaSha256Hex: value.media_sha256_hex,
   });
 }
 
@@ -305,15 +313,12 @@ function normalizeMediaGrant(value: unknown): string | null {
     return null;
   }
   const grantId = uuid(value.media_download_grant_id);
-  if (
-    !grantId
-    || !timestamp(value.expires_at)
-    || value.signed_url !== null
-    || value.storage_api_service_sign_required !== true
-  ) {
-    return null;
-  }
-  return grantId;
+  return grantId
+    && timestamp(value.expires_at)
+    && value.signed_url === null
+    && value.storage_api_service_sign_required === true
+    ? grantId
+    : null;
 }
 
 function normalizeMediaConsumption(
@@ -364,6 +369,8 @@ function normalizeUploadReservation(
   value: unknown,
   expected: Readonly<{
     organizationId: string;
+    attachmentIntentId: string;
+    studentCaseId: string;
     documentSlotId: string;
     mimeType: string;
     byteSize: number;
@@ -373,24 +380,20 @@ function normalizeUploadReservation(
   if (
     !isRecord(value)
     || !hasExactKeys(value, [
+      "attachment_intent_id",
       "organization_id",
       "student_case_id",
       "document_slot_id",
       "document_version_id",
+      "version_number",
       "upload_reservation_id",
+      "storage_binding_id",
       "bucket_id",
       "object_name",
       "expires_at",
       "declared_mime_type",
       "byte_size",
       "sha256_hex",
-      "ingress_scan_proof",
-      "ingress_scan_result",
-      "ingress_scanner_engine",
-      "ingress_scanner_engine_version",
-      "ingress_scanner_signature_version",
-      "ingress_scanner_protocol",
-      "ingress_scanned_at",
       "storage_object_present",
       "document_slot_published",
     ])
@@ -401,34 +404,27 @@ function normalizeUploadReservation(
   const studentCaseId = uuid(value.student_case_id);
   const documentVersionId = uuid(value.document_version_id);
   const uploadReservationId = uuid(value.upload_reservation_id);
+  const storageBindingId = uuid(value.storage_binding_id);
+  const versionNumber = positiveInteger(value.version_number);
+  const expiresAt = timestamp(value.expires_at);
   if (
-    value.organization_id !== expected.organizationId
+    value.attachment_intent_id !== expected.attachmentIntentId
+    || value.organization_id !== expected.organizationId
+    || studentCaseId !== expected.studentCaseId
     || value.document_slot_id !== expected.documentSlotId
-    || !studentCaseId
     || !documentVersionId
     || !uploadReservationId
+    || !storageBindingId
+    || !versionNumber
     || value.bucket_id !== DOCUMENT_BUCKET_ID
     || typeof value.object_name !== "string"
     || !OBJECT_NAME_PATTERN.test(value.object_name)
-    || !timestamp(value.expires_at)
+    || !expiresAt
     || value.declared_mime_type !== expected.mimeType
     || positiveInteger(value.byte_size) !== expected.byteSize
     || value.sha256_hex !== expected.sha256Hex
-    || value.ingress_scan_proof !== true
-    || value.ingress_scan_result !== "clean"
-    || value.ingress_scanner_engine !== "ClamAV"
-    || typeof value.ingress_scanner_engine_version !== "string"
-    || !SCANNER_ENGINE_VERSION_PATTERN.test(
-      value.ingress_scanner_engine_version,
-    )
-    || typeof value.ingress_scanner_signature_version !== "string"
-    || !SCANNER_SIGNATURE_VERSION_PATTERN.test(
-      value.ingress_scanner_signature_version,
-    )
-    || value.ingress_scanner_protocol !== "clamd-zinstream-v1"
-    || !timestamp(value.ingress_scanned_at)
     || typeof value.storage_object_present !== "boolean"
-    || typeof value.document_slot_published !== "boolean"
+    || value.document_slot_published !== false
   ) {
     return null;
   }
@@ -438,97 +434,17 @@ function normalizeUploadReservation(
     studentCaseId,
     documentSlotId: expected.documentSlotId,
     documentVersionId,
+    versionNumber,
     uploadReservationId,
+    storageBindingId,
     bucketId: DOCUMENT_BUCKET_ID,
     objectName: value.object_name,
+    expiresAt,
     storageObjectPresent: value.storage_object_present,
   });
 }
 
-function normalizeFinalizedUpload(
-  value: unknown,
-  reservation: UploadReservation,
-  sha256Hex: string,
-): FinalizedUpload | null {
-  if (
-    !isRecord(value)
-    || !hasExactKeys(value, [
-      "organization_id",
-      "student_case_id",
-      "document_slot_id",
-      "document_version_id",
-      "upload_reservation_id",
-      "bucket_id",
-      "object_name",
-      "object_created_at",
-      "finalized_at",
-      "published_slot_status",
-      "published_version_no",
-      "document_slot_published",
-      "integrity_status",
-      "malware_status",
-      "validation_source",
-      "evidence_ref",
-      "validation_updated_at",
-      "malware_scan_attestation_id",
-      "storage_binding_id",
-      "upload_finalization_id",
-      "scanner_engine",
-      "scanner_engine_version",
-      "scanner_signature_version",
-      "scanner_protocol",
-      "scanned_sha256_hex",
-      "scanned_at",
-      "scanner_proof",
-      "finalization_request_id",
-      "scan_proof_request_id",
-    ])
-  ) {
-    return null;
-  }
-  const versionNumber = positiveInteger(value.published_version_no);
-  if (
-    value.organization_id !== reservation.organizationId
-    || value.student_case_id !== reservation.studentCaseId
-    || value.document_slot_id !== reservation.documentSlotId
-    || value.document_version_id !== reservation.documentVersionId
-    || value.upload_reservation_id !== reservation.uploadReservationId
-    || value.bucket_id !== reservation.bucketId
-    || value.object_name !== reservation.objectName
-    || !timestamp(value.object_created_at)
-    || !timestamp(value.finalized_at)
-    || value.published_slot_status !== "submitted"
-    || !versionNumber
-    || value.document_slot_published !== true
-    || value.integrity_status !== "verified"
-    || value.malware_status !== "clean"
-    || value.validation_source !== "clamav-clamd-zinstream"
-    || value.evidence_ref !== `sha256:${sha256Hex}`
-    || !timestamp(value.validation_updated_at)
-    || !uuid(value.malware_scan_attestation_id)
-    || !uuid(value.storage_binding_id)
-    || !uuid(value.upload_finalization_id)
-    || value.scanner_engine !== "ClamAV"
-    || typeof value.scanner_engine_version !== "string"
-    || !SCANNER_ENGINE_VERSION_PATTERN.test(value.scanner_engine_version)
-    || typeof value.scanner_signature_version !== "string"
-    || !SCANNER_SIGNATURE_VERSION_PATTERN.test(value.scanner_signature_version)
-    || value.scanner_protocol !== "clamd-zinstream-v1"
-    || value.scanned_sha256_hex !== sha256Hex
-    || !timestamp(value.scanned_at)
-    || value.scanner_proof !== true
-    || !uuid(value.finalization_request_id)
-    || !uuid(value.scan_proof_request_id)
-  ) {
-    return null;
-  }
-  return Object.freeze({
-    documentVersionId: reservation.documentVersionId,
-    versionNumber,
-  });
-}
-
-function isCompletionReceipt(
+function normalizeCompletionReceipt(
   value: unknown,
   expected: Readonly<{
     organizationId: string;
@@ -538,12 +454,13 @@ function isCompletionReceipt(
     studentCaseId: string;
     documentSlotId: string;
     documentVersionId: string;
+    uploadReservationId: string;
     sha256Hex: string;
-    requestId: string;
   }>,
-): boolean {
-  return isRecord(value)
-    && hasExactKeys(value, [
+): CompletionReceipt | null {
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, [
       "organization_id",
       "attachment_intent_id",
       "attachment_completion_id",
@@ -552,21 +469,45 @@ function isCompletionReceipt(
       "student_case_id",
       "document_slot_id",
       "document_version_id",
+      "version_number",
+      "upload_reservation_id",
+      "upload_finalization_id",
+      "malware_scan_attestation_id",
       "sha256_hex",
       "completed_at",
       "request_id",
     ])
-    && value.organization_id === expected.organizationId
-    && value.attachment_intent_id === expected.attachmentIntentId
-    && uuid(value.attachment_completion_id) !== null
-    && value.conversation_id === expected.conversationId
-    && value.communication_media_id === expected.communicationMediaId
-    && value.student_case_id === expected.studentCaseId
-    && value.document_slot_id === expected.documentSlotId
-    && value.document_version_id === expected.documentVersionId
-    && value.sha256_hex === expected.sha256Hex
-    && timestamp(value.completed_at) !== null
-    && value.request_id === expected.requestId;
+  ) {
+    return null;
+  }
+  const versionNumber = positiveInteger(value.version_number);
+  const uploadFinalizationId = uuid(value.upload_finalization_id);
+  const malwareScanAttestationId = uuid(value.malware_scan_attestation_id);
+  if (
+    value.organization_id !== expected.organizationId
+    || value.attachment_intent_id !== expected.attachmentIntentId
+    || !uuid(value.attachment_completion_id)
+    || value.conversation_id !== expected.conversationId
+    || value.communication_media_id !== expected.communicationMediaId
+    || value.student_case_id !== expected.studentCaseId
+    || value.document_slot_id !== expected.documentSlotId
+    || value.document_version_id !== expected.documentVersionId
+    || !versionNumber
+    || value.upload_reservation_id !== expected.uploadReservationId
+    || !uploadFinalizationId
+    || !malwareScanAttestationId
+    || value.sha256_hex !== expected.sha256Hex
+    || !timestamp(value.completed_at)
+    || !uuid(value.request_id)
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    documentVersionId: expected.documentVersionId,
+    versionNumber,
+    uploadFinalizationId,
+    malwareScanAttestationId,
+  });
 }
 
 async function readExactMediaObject(
@@ -586,13 +527,10 @@ async function readExactMediaObject(
     return null;
   }
   const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
-  if (
-    bytes.byteLength !== expected.byteSize
-    || !matchesDeclaredFileSignature(expected.mimeType, bytes)
-  ) {
-    return null;
-  }
-  return bytes;
+  return bytes.byteLength === expected.byteSize
+    && matchesDeclaredFileSignature(expected.mimeType, bytes)
+    ? bytes
+    : null;
 }
 
 async function readExactStoredDocument(
@@ -612,14 +550,207 @@ async function readExactStoredDocument(
   }
   const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
   const sha256Hex = createHash("sha256").update(bytes).digest("hex");
+  return bytes.byteLength === expected.byteSize
+    && sha256Hex === expected.sha256Hex
+    && matchesDeclaredFileSignature(expected.mimeType, bytes)
+    ? bytes
+    : null;
+}
+
+function tusEndpoint(supabaseUrl: string): URL {
+  const base = new URL(supabaseUrl);
+  const managedSuffix = ".supabase.co";
   if (
-    bytes.byteLength !== expected.byteSize
-    || sha256Hex !== expected.sha256Hex
-    || !matchesDeclaredFileSignature(expected.mimeType, bytes)
+    base.protocol === "https:"
+    && base.hostname.endsWith(managedSuffix)
+    && base.hostname.length > managedSuffix.length
   ) {
+    const projectRef = base.hostname.slice(0, -managedSuffix.length);
+    return new URL(
+      `https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`,
+    );
+  }
+  return new URL("/storage/v1/upload/resumable", base);
+}
+
+function tusAuthHeaders(secretKey: string): Readonly<Record<string, string>> {
+  const headers: Record<string, string> = { apikey: secretKey };
+  if (!secretKey.startsWith("sb_secret_")) {
+    headers.Authorization = `Bearer ${secretKey}`;
+  }
+  return headers;
+}
+
+function tusMetadata(values: Readonly<Record<string, string>>): string {
+  return Object.entries(values)
+    .map(([key, value]) => `${key} ${Buffer.from(value, "utf8").toString("base64")}`)
+    .join(",");
+}
+
+function exactTusUploadUrl(endpoint: URL, location: string | null): URL | null {
+  if (!location) return null;
+  let resolved: URL;
+  try {
+    resolved = new URL(location, endpoint);
+  } catch {
     return null;
   }
-  return bytes;
+  const expectedPrefix = endpoint.pathname.endsWith("/")
+    ? endpoint.pathname
+    : `${endpoint.pathname}/`;
+  return resolved.origin === endpoint.origin
+    && resolved.pathname.startsWith(expectedPrefix)
+    && !resolved.username
+    && !resolved.password
+    && !resolved.search
+    && !resolved.hash
+    ? resolved
+    : null;
+}
+
+function exactOffset(value: string | null, maximum: number): number | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const offset = Number(value);
+  return Number.isSafeInteger(offset) && offset >= 0 && offset <= maximum
+    ? offset
+    : null;
+}
+
+function beforeExpiry(expiresAt: string, now: number): boolean {
+  const expiry = Date.parse(expiresAt);
+  return Number.isFinite(expiry) && now < expiry;
+}
+
+/**
+ * Minimal server-side TUS client following Supabase's current upload contract:
+ * https://supabase.com/docs/guides/storage/uploads/resumable-uploads
+ * Standard uploads remain limited to the documented 6 MiB boundary:
+ * https://supabase.com/docs/guides/storage/uploads/standard-uploads
+ */
+async function uploadWithTus(
+  bytes: Uint8Array,
+  reservation: UploadReservation,
+  mimeType: string,
+  dependencies: PlatformMediaAttachDependencies,
+): Promise<boolean> {
+  const config = dependencies.backendConfig();
+  const endpoint = tusEndpoint(config.supabaseUrl);
+  const authHeaders = tusAuthHeaders(config.supabaseSecretKey);
+  if (!beforeExpiry(reservation.expiresAt, dependencies.now())) return false;
+
+  let creation: Response;
+  try {
+    creation = await dependencies.fetch(endpoint, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "Tus-Resumable": TUS_VERSION,
+        "Upload-Length": String(bytes.byteLength),
+        "Upload-Metadata": tusMetadata({
+          bucketName: reservation.bucketId,
+          objectName: reservation.objectName,
+          contentType: mimeType,
+          cacheControl: "0",
+        }),
+      },
+      redirect: "error",
+      signal: AbortSignal.timeout(TUS_REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    return false;
+  }
+  if (creation.status !== 201) return false;
+  const uploadUrl = exactTusUploadUrl(endpoint, creation.headers.get("location"));
+  if (!uploadUrl) return false;
+
+  let offset = 0;
+  let recoveryAttempts = 0;
+  while (offset < bytes.byteLength) {
+    if (!beforeExpiry(reservation.expiresAt, dependencies.now())) return false;
+    const chunkEnd = Math.min(offset + TUS_CHUNK_BYTES, bytes.byteLength);
+    const chunk = bytes.slice(offset, chunkEnd);
+    try {
+      const response = await dependencies.fetch(uploadUrl, {
+        method: "PATCH",
+        headers: {
+          ...authHeaders,
+          "Tus-Resumable": TUS_VERSION,
+          "Content-Type": "application/offset+octet-stream",
+          "Upload-Offset": String(offset),
+        },
+        body: chunk,
+        redirect: "error",
+        signal: AbortSignal.timeout(TUS_REQUEST_TIMEOUT_MS),
+      });
+      const nextOffset = exactOffset(
+        response.headers.get("upload-offset"),
+        bytes.byteLength,
+      );
+      if (response.status === 204 && nextOffset === chunkEnd) {
+        offset = nextOffset;
+        recoveryAttempts = 0;
+        continue;
+      }
+      if (response.status < 500 && response.status !== 409) return false;
+    } catch {
+      // A timeout may hide a committed PATCH. HEAD reconciles the one upload
+      // URL; a second URL is never created for the immutable reservation path.
+    }
+
+    recoveryAttempts += 1;
+    if (recoveryAttempts > MAX_TUS_RECOVERY_ATTEMPTS) return false;
+    if (!beforeExpiry(reservation.expiresAt, dependencies.now())) return false;
+    try {
+      const head = await dependencies.fetch(uploadUrl, {
+        method: "HEAD",
+        headers: {
+          ...authHeaders,
+          "Tus-Resumable": TUS_VERSION,
+        },
+        redirect: "error",
+        signal: AbortSignal.timeout(TUS_REQUEST_TIMEOUT_MS),
+      });
+      if (head.status !== 200 && head.status !== 204) return false;
+      const serverOffset = exactOffset(
+        head.headers.get("upload-offset"),
+        bytes.byteLength,
+      );
+      if (
+        serverOffset === null
+        || serverOffset < offset
+        || serverOffset > chunkEnd
+      ) {
+        return false;
+      }
+      offset = serverOffset;
+    } catch {
+      if (recoveryAttempts >= MAX_TUS_RECOVERY_ATTEMPTS) return false;
+    }
+  }
+  return true;
+}
+
+async function writeReservedDocument(
+  serviceClient: SupabaseClient,
+  reservation: UploadReservation,
+  bytes: Uint8Array,
+  mimeType: string,
+  dependencies: PlatformMediaAttachDependencies,
+): Promise<void> {
+  if (reservation.storageObjectPresent) return;
+  if (!beforeExpiry(reservation.expiresAt, dependencies.now())) return;
+
+  if (bytes.byteLength <= STANDARD_UPLOAD_MAX_BYTES) {
+    await serviceClient.storage
+      .from(reservation.bucketId)
+      .upload(reservation.objectName, bytes, {
+        contentType: mimeType,
+        cacheControl: "0",
+        upsert: false,
+      });
+    return;
+  }
+  await uploadWithTus(bytes, reservation, mimeType, dependencies);
 }
 
 const defaultDependencies: PlatformMediaAttachDependencies = {
@@ -629,21 +760,25 @@ const defaultDependencies: PlatformMediaAttachDependencies = {
   },
   createServiceClient: () =>
     createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig()),
+  backendConfig: getPlatformSupabaseBackendConfig,
+  fetch: (input, init) => fetch(input, init),
   scanFile: scanBytesWithClamd,
   requestId: randomUUID,
+  now: Date.now,
 };
 
 export async function attachPlatformMessageMediaToCase(
+  actor: PlatformMediaAttachActor,
   input: PlatformMediaAttachInput,
   dependencies: PlatformMediaAttachDependencies = defaultDependencies,
 ): Promise<PlatformMediaAttachResult> {
   if (
-    uuid(input.organizationId) !== input.organizationId
+    uuid(actor.organizationId) !== actor.organizationId
+    || uuid(actor.authUserId) !== actor.authUserId
     || uuid(input.conversationId) !== input.conversationId
     || uuid(input.communicationMediaId) !== input.communicationMediaId
     || uuid(input.studentCaseId) !== input.studentCaseId
     || uuid(input.documentSlotId) !== input.documentSlotId
-    || uuid(input.actorAuthUserId) !== input.actorAuthUserId
     || uuid(input.requestId) !== input.requestId
   ) {
     return failure("invalid");
@@ -651,11 +786,9 @@ export async function attachPlatformMessageMediaToCase(
 
   try {
     const userClient = await dependencies.createUserClient();
-
     const intentResponse = await userClient.schema("platform").rpc(
       "reserve_message_media_attachment",
       {
-        p_organization_id: input.organizationId,
         p_conversation_id: input.conversationId,
         p_communication_media_id: input.communicationMediaId,
         p_student_case_id: input.studentCaseId,
@@ -666,16 +799,15 @@ export async function attachPlatformMessageMediaToCase(
     if (intentResponse.error) {
       return reserveIntentFailure(intentResponse.error);
     }
-    const intent = normalizeAttachIntent(intentResponse.data, input);
+    const intent = normalizeAttachIntent(intentResponse.data, actor, input);
     if (!intent) return failure("unavailable");
 
-    // The one-time read grant is per attempt on purpose: a consumed grant
-    // cannot be replayed, while the mutation chain below stays derived from
-    // the caller's durable request id.
+    // A consumed media grant is never reused. The durable intent and the two
+    // intent-owned upload request IDs still make the mutation chain replayable.
     const grantResponse = await userClient.schema("platform").rpc(
       "grant_communication_media_download",
       {
-        p_organization_id: input.organizationId,
+        p_organization_id: actor.organizationId,
         p_media_id: input.communicationMediaId,
         p_request_id: dependencies.requestId(),
       },
@@ -698,7 +830,7 @@ export async function attachPlatformMessageMediaToCase(
     );
     if (consumptionResponse.error) return failure("unavailable");
     const mediaTarget = normalizeMediaConsumption(consumptionResponse.data, {
-      organizationId: input.organizationId,
+      organizationId: actor.organizationId,
       grantId,
       mediaId: input.communicationMediaId,
       mimeType: intent.mediaMimeType,
@@ -710,9 +842,8 @@ export async function attachPlatformMessageMediaToCase(
       mimeType: intent.mediaMimeType,
     });
     if (!bytes) return failure("unavailable");
-
     const sha256Hex = createHash("sha256").update(bytes).digest("hex");
-    if (!SHA256_PATTERN.test(sha256Hex)) return failure("unavailable");
+    if (sha256Hex !== intent.mediaSha256Hex) return failure("unavailable");
 
     let ingressScanProof: ClamdMalwareScanProof;
     try {
@@ -728,49 +859,38 @@ export async function attachPlatformMessageMediaToCase(
     }
 
     const reservationResponse = await serviceClient.schema("platform").rpc(
-      "reserve_document_upload_after_ingress_scan",
+      "reserve_message_media_attachment_upload",
       {
-        p_organization_id: input.organizationId,
-        p_actor_auth_user_id: input.actorAuthUserId,
-        p_document_slot_id: input.documentSlotId,
-        p_original_filename: intent.mediaFileName,
-        p_declared_mime_type: intent.mediaMimeType,
-        p_byte_size: bytes.byteLength,
-        p_sha256_hex: sha256Hex,
+        p_attachment_intent_id: intent.attachmentIntentId,
         p_scan_result: "clean",
         p_scanner_engine: ingressScanProof.engine,
         p_scanner_engine_version: ingressScanProof.engineVersion,
         p_scanner_signature_version: ingressScanProof.signatureVersion,
         p_scanner_protocol: ingressScanProof.protocol,
         p_scanned_at: ingressScanProof.scannedAt,
-        p_request_id: derivedRequestId(input.requestId, "upload-reserve"),
       },
     );
     if (reservationResponse.error) {
-      return uploadReservationFailure(reservationResponse.error);
+      return uploadMutationFailure(reservationResponse.error);
     }
     const reservation = normalizeUploadReservation(reservationResponse.data, {
-      organizationId: input.organizationId,
+      organizationId: actor.organizationId,
+      attachmentIntentId: intent.attachmentIntentId,
+      studentCaseId: input.studentCaseId,
       documentSlotId: input.documentSlotId,
       mimeType: intent.mediaMimeType,
       byteSize: bytes.byteLength,
       sha256Hex,
     });
-    if (!reservation || reservation.studentCaseId !== input.studentCaseId) {
-      return failure("unavailable");
-    }
+    if (!reservation) return failure("unavailable");
 
-    if (!reservation.storageObjectPresent) {
-      const uploadResponse = await serviceClient.storage
-        .from(reservation.bucketId)
-        .upload(reservation.objectName, bytes, {
-          contentType: intent.mediaMimeType,
-          cacheControl: "0",
-          upsert: false,
-        });
-      if (uploadResponse.error) return failure("unavailable");
-    }
-
+    await writeReservedDocument(
+      serviceClient,
+      reservation,
+      bytes,
+      intent.mediaMimeType,
+      dependencies,
+    );
     const storedBytes = await readExactStoredDocument(
       serviceClient,
       reservation,
@@ -781,6 +901,9 @@ export async function attachPlatformMessageMediaToCase(
       },
     );
     if (!storedBytes) return failure("unavailable");
+    if (!beforeExpiry(reservation.expiresAt, dependencies.now())) {
+      return failure("unavailable");
+    }
 
     let storedScanProof: ClamdMalwareScanProof;
     try {
@@ -795,61 +918,40 @@ export async function attachPlatformMessageMediaToCase(
       return failure("unavailable");
     }
 
-    const finalizationResponse = await serviceClient.schema("platform").rpc(
-      "finalize_document_upload_with_scan",
+    const completionResponse = await serviceClient.schema("platform").rpc(
+      "complete_message_media_attachment",
       {
-        p_organization_id: input.organizationId,
+        p_attachment_intent_id: intent.attachmentIntentId,
         p_upload_reservation_id: reservation.uploadReservationId,
         p_scanner_engine: storedScanProof.engine,
         p_scanner_engine_version: storedScanProof.engineVersion,
         p_scanner_signature_version: storedScanProof.signatureVersion,
         p_scanner_protocol: storedScanProof.protocol,
-        p_scanned_sha256_hex: storedScanProof.sha256Hex,
         p_scanned_at: storedScanProof.scannedAt,
-        p_request_id: derivedRequestId(input.requestId, "upload-finalize"),
       },
     );
-    if (finalizationResponse.error) return failure("unavailable");
-    const finalized = normalizeFinalizedUpload(
-      finalizationResponse.data,
-      reservation,
-      sha256Hex,
-    );
-    if (!finalized) return failure("unavailable");
-
-    const completionRequestId = derivedRequestId(input.requestId, "complete");
-    const completionResponse = await serviceClient.schema("platform").rpc(
-      "complete_message_media_attachment",
-      {
-        p_organization_id: input.organizationId,
-        p_attachment_intent_id: intent.attachmentIntentId,
-        p_document_version_id: finalized.documentVersionId,
-        p_request_id: completionRequestId,
-      },
-    );
-    if (completionResponse.error) return failure("unavailable");
-    if (
-      !isCompletionReceipt(completionResponse.data, {
-        organizationId: input.organizationId,
-        attachmentIntentId: intent.attachmentIntentId,
-        conversationId: input.conversationId,
-        communicationMediaId: input.communicationMediaId,
-        studentCaseId: input.studentCaseId,
-        documentSlotId: input.documentSlotId,
-        documentVersionId: finalized.documentVersionId,
-        sha256Hex,
-        requestId: completionRequestId,
-      })
-    ) {
-      return failure("unavailable");
+    if (completionResponse.error) {
+      return uploadMutationFailure(completionResponse.error);
     }
+    const completion = normalizeCompletionReceipt(completionResponse.data, {
+      organizationId: actor.organizationId,
+      attachmentIntentId: intent.attachmentIntentId,
+      conversationId: input.conversationId,
+      communicationMediaId: input.communicationMediaId,
+      studentCaseId: input.studentCaseId,
+      documentSlotId: input.documentSlotId,
+      documentVersionId: reservation.documentVersionId,
+      uploadReservationId: reservation.uploadReservationId,
+      sha256Hex,
+    });
+    if (!completion) return failure("unavailable");
 
     return Object.freeze({
       status: "attached" as const,
       studentCaseId: reservation.studentCaseId,
       documentSlotId: reservation.documentSlotId,
-      documentVersionId: finalized.documentVersionId,
-      versionNumber: finalized.versionNumber,
+      documentVersionId: completion.documentVersionId,
+      versionNumber: completion.versionNumber,
       originalFilename: intent.mediaFileName,
       declaredMimeType: intent.mediaMimeType,
       byteSize: bytes.byteLength,

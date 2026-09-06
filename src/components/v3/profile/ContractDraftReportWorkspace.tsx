@@ -14,6 +14,32 @@ import type {
   PlatformContractMutationOutcome,
 } from "@/lib/platform-contract-workflow";
 
+/* Все три словаря статусов этого экрана: шаблон (draft/approved/retired),
+   артефакты (draft/approved/rejected), пункты чек-листа. Неизвестный ключ
+   не рисуется. */
+const STATUS_LABEL: Record<string, string> = {
+  approved: "Утверждён",
+  blocked: "Заблокирован",
+  delivered: "Выполнен",
+  draft: "Черновик",
+  in_progress: "В работе",
+  open: "Открыт",
+  rejected: "Отклонён",
+  retired: "Снят",
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: "администратор",
+  admissions: "приёмная",
+  sales: "продажи",
+};
+
+function StatusBadge({ value }: { value: string }) {
+  const label = STATUS_LABEL[value];
+  if (!label) return null;
+  return <Badge value={value} label={label} />;
+}
+
 export type ContractDraftReportFormAction = (
   formData: FormData,
 ) => void | Promise<void>;
@@ -93,7 +119,7 @@ const RESULT_COPY: Record<
   item_updated: {
     tone: "info",
     title: "Пункт чек-листа обновлён",
-    description: "Статус, ответственный, evidence и следующий шаг сохранены аудируемой операцией.",
+    description: "Статус, ответственный, подтверждение и следующий шаг сохранены.",
   },
   report_generated: {
     tone: "info",
@@ -269,7 +295,7 @@ function TemplateLifecycle({
             {template.templateKey} · v{template.version}
           </p>
         </div>
-        <Badge value={template.status} label={template.status} />
+        <StatusBadge value={template.status} />
       </div>
       <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
         <div className="min-w-0 border-b border-border pb-3">
@@ -347,7 +373,7 @@ function DraftArtifact({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 className="text-base font-bold text-fg">Договор · v{draft.version}</h4>
-        <Badge value={draft.status} label={draft.status} />
+        <StatusBadge value={draft.status} />
       </div>
       <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-nav border border-border bg-surface-2 p-4 font-mono text-xs leading-6 text-fg" data-testid="platform-contract-rendered-draft">
         {draft.renderedText}
@@ -401,10 +427,10 @@ function PostContractItemForm({
       <label className={labelCls}>
         Статус
         <select name="status" defaultValue={item.status} required className={cn(inputCls, "mt-1")}>
-          <option value="open">open</option>
-          <option value="in_progress">in_progress</option>
-          <option value="blocked">blocked</option>
-          <option value="delivered">delivered</option>
+          <option value="open">Открыт</option>
+          <option value="in_progress">В работе</option>
+          <option value="blocked">Заблокирован</option>
+          <option value="delivered">Выполнен</option>
         </select>
       </label>
       <label className={labelCls}>
@@ -427,7 +453,7 @@ function PostContractItemForm({
         />
       </label>
       <label className={labelCls}>
-        Evidence reference
+        Ссылка на подтверждение
         <input
           name="evidence_ref"
           defaultValue={item.evidenceRef ?? ""}
@@ -470,7 +496,7 @@ function ReportArtifact({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 className="text-base font-bold text-fg">Постдоговорный отчёт · v{report.version}</h4>
-        <Badge value={report.status} label={report.status} />
+        <StatusBadge value={report.status} />
       </div>
       <p className="text-xs text-fg-3">
         Шаблон: {templateLabel(template, report.contractTemplateVersionId)}
@@ -501,15 +527,15 @@ function ReportArtifact({
             <div className="min-w-0">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <p className="text-sm font-semibold text-fg">{item.label}</p>
-                <Badge value={item.status} label={item.status} />
+                <StatusBadge value={item.status} />
               </div>
-              <p className="mt-1 break-all font-mono text-2xs text-fg-3">
-                owner: {item.ownerMembershipId} ({item.ownerRole}) · revision {item.revision}
+              <p className="mt-1 text-2xs text-fg-3">
+                ответственный: {ROLE_LABEL[item.ownerRole] ?? "—"} · правка {item.revision}
               </p>
             </div>
             <dl className="grid gap-2 text-xs">
               <div>
-                <dt className="font-semibold text-fg-3">Evidence</dt>
+                <dt className="font-semibold text-fg-3">Подтверждение</dt>
                 <dd className="mt-0.5 break-all text-fg-2">{item.evidenceRef ?? "—"}</dd>
               </div>
               <div>
@@ -650,14 +676,14 @@ export function ContractDraftReportWorkspace({
               </span>
             </label>
             <label className={labelCls}>
-              Typed manifest · по одной строке
+              Манифест · по одной строке
               <textarea name="manifest_lines" required minLength={5} maxLength={10_000} rows={6} className={textAreaCls} aria-describedby="contract-manifest-hint" />
               <span id="contract-manifest-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
                 field_key|source_path|value_type|required
               </span>
             </label>
             <label className={labelCls}>
-              Checklist blueprint · по одной строке
+              Схема чек-листа · по одной строке
               <textarea name="checklist_lines" required minLength={5} maxLength={10_000} rows={6} className={textAreaCls} aria-describedby="contract-checklist-hint" />
               <span id="contract-checklist-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
                 item_key|label|owner_role|next_action
@@ -719,7 +745,7 @@ export function ContractDraftReportWorkspace({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 id="post-contract-items-title" className="text-base font-bold text-fg">Постдоговорный чек-лист</h3>
-            <p className="mt-1 text-xs leading-4 text-fg-3">Delivered требует evidence. Open, in progress и blocked требуют owner и следующего действия.</p>
+            <p className="mt-1 text-xs leading-4 text-fg-3">«Выполнен» требует подтверждения; открытым пунктам нужны ответственный и следующее действие.</p>
           </div>
         </div>
         {workspace.canManagePostContract ? (
@@ -761,7 +787,7 @@ export function ContractDraftReportWorkspace({
                     )}
                   </p>
                 </div>
-                <Badge value={item.status} label={item.status} />
+                <StatusBadge value={item.status} />
               </div>
               <dl className="grid gap-3 sm:grid-cols-3">
                 <div><dt className={labelCls}>Owner</dt><dd className="break-all font-mono text-xs text-fg-2">{item.ownerMembershipId ?? item.ownerRole}</dd></div>

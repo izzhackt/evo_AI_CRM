@@ -12,6 +12,7 @@ import {
   logoutStaffAction,
   selectStaffRolePreviewAction,
 } from "@/lib/staff-auth-actions";
+import { EvoMark } from "@/components/platform/brand/EvoMark";
 
 /**
  * Оболочка продукта.
@@ -20,14 +21,14 @@ import {
  * собирались. Теперь это один интерфейс, поэтому вместо ссылки «назад к
  * каталогу» у каждой страницы одна и та же навигация.
  *
- * Student 360 доступен и из рабочих карточек, и из меню: его собственный
+ * «Студенты» доступны и из рабочих карточек, и из меню: их собственный
  * каталог нужен, чтобы найти любое разрешённое дело, включая закрытое.
  */
 const SECTIONS = [
   { href: "/v3/main", label: "Главная" },
   { href: "/v3/pipeline", label: "Воронка" },
   { href: "/v3/inbox", label: "Входящие" },
-  { href: "/v3/profile", label: "Student 360" },
+  { href: "/v3/profile", label: "Студенты" },
   { href: "/v3/calendar", label: "Календарь" },
   { href: "/v3/knowledge", label: "База знаний" },
   { href: "/v3/settings", label: "Настройки" },
@@ -37,9 +38,9 @@ const SECTIONS = [
 }>[];
 
 const ROLE_LABELS = {
-  admin: "Director/Admin",
-  sales: "Sales Manager",
-  admissions: "Admissions Manager",
+  admin: "Администратор",
+  sales: "Продажи",
+  admissions: "Приёмная",
 } as const satisfies Record<FixedRole, string>;
 
 export function AppShell({
@@ -69,8 +70,10 @@ export function AppShell({
         aria-label="Разделы"
         className="border-b border-border bg-surface md:sticky md:top-0 md:h-dvh md:w-[224px] md:shrink-0 md:border-b-0 md:border-e"
       >
-        <p className="hidden px-4 pb-3 pt-5 font-mono text-2xs uppercase tracking-wide text-fg-3 md:block">
-          EVO
+        {/* Слово «EVO Admissions» несёт шапка главной; рельсу достаточно знака. */}
+        <p className="hidden px-4 pb-3 pt-5 text-fg-2 md:block">
+          <EvoMark size={20} tone="mono" />
+          <span className="sr-only">EVO Admissions</span>
         </p>
 
         <ul className="grid grid-cols-3 gap-1 p-2 md:flex md:flex-col md:gap-0.5 md:px-3 md:pb-3 md:pt-0">
@@ -138,7 +141,7 @@ export function AppShell({
                 className="mt-2 px-1 text-xs leading-5 text-accent"
                 data-testid="preview-active"
               >
-                Admin показывает интерфейс роли {ROLE_LABELS[presentationRole]}.
+                Администратор видит интерфейс роли «{ROLE_LABELS[presentationRole]}».
               </p>
             ) : null}
           </section>

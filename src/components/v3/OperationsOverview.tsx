@@ -7,43 +7,54 @@ import type {
 } from "@/lib/server/platform-dashboard";
 
 const CARD_TITLE: Record<PlatformDashboardQueueCard["key"], string> = {
-  clients: "Student 360",
+  clients: "Студенты",
   finance: "Финансы",
   sales: "Продажи",
-  tasks: "Задачи Admissions",
+  tasks: "Задачи приёмной",
   whatsapp: "WhatsApp",
 };
 
 const ATTENTION_TITLE: Record<PlatformDashboardAttentionItem["key"], string> = {
-  admissions_overdue: "Просроченные задачи Admissions",
-  finance_stops: "Активные стоп-факторы",
-  sales_overdue: "Просроченные следующие шаги Sales",
+  admissions_overdue: "Просроченные задачи приёмной",
+  finance_stops: "Действующие финансовые стопы",
+  sales_overdue: "Просроченные шаги по лидам",
   sales_unassigned: "Лиды без ответственного",
-  student_attention: "Student Cases требуют внимания",
+  student_attention: "Студенты, требующие внимания",
   whatsapp_open: "Открытые диалоги WhatsApp",
 };
 
-const ATTENTION_TONE: Record<
-  PlatformDashboardAttentionItem["tone"],
-  string
-> = {
-  danger: "border-danger/30 bg-danger-weak text-danger",
-  info: "border-info/30 bg-info-weak text-info",
-  warn: "border-warn/30 bg-warn-weak text-warn",
+/* Цвет живёт в пилюлях и рёбрах, поверхность не подкрашивается. Для info
+   отдельного ребра у мира нет — информационная строка стоит на нейтральном. */
+const ATTENTION_EDGE: Record<PlatformDashboardAttentionItem["tone"], string> = {
+  danger: "v3-edge-danger",
+  info: "v3-edge-muted",
+  warn: "v3-edge-warn",
 };
 
-function cardDetails(card: PlatformDashboardQueueCard): string {
+/* Очередь длиннее прочитанного — точных производных счётов нет, и строки
+   деталей у карточки не будет: число, посчитанное по куску очереди, врёт. */
+function cardDetails(card: PlatformDashboardQueueCard): string | null {
   switch (card.key) {
     case "sales":
-      return `просрочено ${card.overdueCount} · без ответственного ${card.unassignedCount}`;
+      return card.overdueCount === null || card.unassignedCount === null
+        ? null
+        : `просрочено ${card.overdueCount} · без ответственного ${card.unassignedCount}`;
     case "clients":
-      return `требуют внимания ${card.attentionCount}`;
+      return card.attentionCount === null
+        ? null
+        : `требуют внимания ${card.attentionCount}`;
     case "tasks":
-      return `просрочено ${card.overdueCount}`;
+      return card.overdueCount === null
+        ? null
+        : `просрочено ${card.overdueCount}`;
     case "finance":
-      return `со стоп-фактором ${card.blockedCount}`;
+      return card.blockedCount === null
+        ? null
+        : `со стоп-фактором ${card.blockedCount}`;
     case "whatsapp":
-      return `Sales ${card.salesCount} · Admissions ${card.admissionsCount}`;
+      return card.salesCount === null || card.admissionsCount === null
+        ? null
+        : `продажи ${card.salesCount} · приёмная ${card.admissionsCount}`;
   }
 }
 
@@ -56,19 +67,12 @@ export function OperationsOverview({
       className="mt-8 border-t border-border pt-7"
       data-testid="v3-operational-dashboard"
     >
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2
-            className="text-lg font-semibold text-fg"
-            id="operations-overview-title"
-          >
-            Операционная работа
-          </h2>
-          <p className="mt-1 text-sm text-fg-3">
-            Рабочие очереди, доступные выбранной роли прямо сейчас.
-          </p>
-        </div>
-      </div>
+      <h2
+        className="text-lg font-semibold text-fg"
+        id="operations-overview-title"
+      >
+        Операционная работа
+      </h2>
 
       {snapshot.cards.length === 0 ? (
         <p className="mt-4 rounded-card border border-border bg-surface px-4 py-8 text-center text-sm text-fg-3">
@@ -87,11 +91,14 @@ export function OperationsOverview({
                   {CARD_TITLE[card.key]}
                 </span>
                 <strong className="mt-2 block font-mono text-3xl font-semibold text-fg">
-                  {card.totalOnPage}
+                  {card.loadedCount}
+                  {card.hasMore ? "+" : ""}
                 </strong>
-                <span className="mt-2 block text-xs leading-5 text-fg-2">
-                  {cardDetails(card)}
-                </span>
+                {cardDetails(card) ? (
+                  <span className="mt-2 block text-xs leading-5 text-fg-2">
+                    {cardDetails(card)}
+                  </span>
+                ) : null}
               </Link>
             </li>
           ))}
@@ -109,12 +116,14 @@ export function OperationsOverview({
             {snapshot.attentionItems.map((item) => (
               <li key={item.key}>
                 <Link
-                  className={`flex min-h-12 items-center justify-between gap-3 rounded-nav border px-3 py-2 text-sm font-medium ${ATTENTION_TONE[item.tone]}`}
+                  className={`flex min-h-12 items-center justify-between gap-3 rounded-nav border border-border border-s-2 bg-surface px-3 py-2 text-sm font-medium text-fg transition-colors hover:bg-surface-2 ${ATTENTION_EDGE[item.tone]}`}
                   data-dashboard-attention={item.key}
                   href={item.href}
                 >
                   <span>{ATTENTION_TITLE[item.key]}</span>
-                  <strong className="font-mono text-base">{item.value}</strong>
+                  {item.value === null ? null : (
+                    <strong className="font-mono text-base">{item.value}</strong>
+                  )}
                 </Link>
               </li>
             ))}

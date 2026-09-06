@@ -10,6 +10,7 @@ type DashboardActor = Readonly<{
 
 type DashboardPage<T> = Readonly<{
   rows: readonly T[];
+  hasNext?: boolean;
 }>;
 
 type DashboardSalesRow = Readonly<{
@@ -69,31 +70,34 @@ export type PlatformDashboardReaders<TActor extends DashboardActor> = Readonly<{
 
 type PlatformDashboardQueueCardBase = Readonly<{
   href: string;
-  totalOnPage: number;
+  /** Сколько строк реально прочитано. */
+  loadedCount: number;
+  /** true — очередь длиннее прочитанного, и точных счётов у экрана нет. */
+  hasMore: boolean;
 }>;
 
 export type PlatformDashboardQueueCard =
   | (PlatformDashboardQueueCardBase & Readonly<{
       key: "sales";
-      overdueCount: number;
-      unassignedCount: number;
+      overdueCount: number | null;
+      unassignedCount: number | null;
     }>)
   | (PlatformDashboardQueueCardBase & Readonly<{
       key: "clients";
-      attentionCount: number;
+      attentionCount: number | null;
     }>)
   | (PlatformDashboardQueueCardBase & Readonly<{
       key: "tasks";
-      overdueCount: number;
+      overdueCount: number | null;
     }>)
   | (PlatformDashboardQueueCardBase & Readonly<{
       key: "finance";
-      blockedCount: number;
+      blockedCount: number | null;
     }>)
   | (PlatformDashboardQueueCardBase & Readonly<{
       key: "whatsapp";
-      salesCount: number;
-      admissionsCount: number;
+      salesCount: number | null;
+      admissionsCount: number | null;
     }>);
 
 export type PlatformDashboardAttentionItem = Readonly<{
@@ -105,7 +109,8 @@ export type PlatformDashboardAttentionItem = Readonly<{
     | "finance_stops"
     | "whatsapp_open";
   href: string;
-  value: number;
+  /** null — отклонение замечено на неполной странице, точного числа нет. */
+  value: number | null;
   tone: "danger" | "warn" | "info";
 }>;
 
@@ -157,38 +162,41 @@ export async function readPlatformDashboardSnapshot<
   const attentionItems: PlatformDashboardAttentionItem[] = [];
 
   if (salesPage) {
-    const overdueCount = salesPage.rows.filter((row) =>
+    const salesHasMore = salesPage.hasNext === true;
+    const overdueOnPage = salesPage.rows.filter((row) =>
       isPastDue(row.nextActionDueDate, now)).length;
-    const unassignedCount = salesPage.rows.filter(
+    const unassignedOnPage = salesPage.rows.filter(
       (row) => row.currentOwnerMembershipId === null,
     ).length;
     cards.push({
       key: "sales",
       href: "/v3/pipeline",
-      totalOnPage: salesPage.rows.length,
-      overdueCount,
-      unassignedCount,
+      loadedCount: salesPage.rows.length,
+      hasMore: salesHasMore,
+      overdueCount: salesHasMore ? null : overdueOnPage,
+      unassignedCount: salesHasMore ? null : unassignedOnPage,
     });
-    if (overdueCount > 0) {
+    if (overdueOnPage > 0) {
       attentionItems.push({
         key: "sales_overdue",
-        href: "/v3/pipeline",
-        value: overdueCount,
+        href: "/v3/pipeline?due=overdue",
+        value: salesHasMore ? null : overdueOnPage,
         tone: "danger",
       });
     }
-    if (unassignedCount > 0) {
+    if (unassignedOnPage > 0) {
       attentionItems.push({
         key: "sales_unassigned",
-        href: "/v3/pipeline",
-        value: unassignedCount,
+        href: "/v3/pipeline?assignment=unassigned",
+        value: salesHasMore ? null : unassignedOnPage,
         tone: "warn",
       });
     }
   }
 
   if (casesPage) {
-    const attentionCount = casesPage.rows.filter(
+    const casesHasMore = casesPage.hasNext === true;
+    const attentionOnPage = casesPage.rows.filter(
       (item) =>
         item.access === "full" &&
         (item.studentCase.overdueTaskCount > 0 ||
@@ -198,48 +206,53 @@ export async function readPlatformDashboardSnapshot<
     cards.push({
       key: "clients",
       href: "/v3/profile",
-      totalOnPage: casesPage.rows.length,
-      attentionCount,
+      loadedCount: casesPage.rows.length,
+      hasMore: casesHasMore,
+      attentionCount: casesHasMore ? null : attentionOnPage,
     });
-    if (attentionCount > 0) {
+    if (attentionOnPage > 0) {
       attentionItems.push({
         key: "student_attention",
         href: "/v3/profile",
-        value: attentionCount,
+        value: casesHasMore ? null : attentionOnPage,
         tone: "warn",
       });
     }
   }
 
   if (taskQueue) {
-    const overdueCount = taskQueue.rows.filter((row) =>
+    const tasksHasMore = taskQueue.hasNext === true;
+    const overdueOnPage = taskQueue.rows.filter((row) =>
       ["open", "in_progress", "blocked"].includes(row.status) &&
       projectPlatformTaskDeadline(row.dueOn, row.dueAt, new Date(now)).overdue
     ).length;
     cards.push({
       key: "tasks",
       href: "/v3/calendar",
-      totalOnPage: taskQueue.rows.length,
-      overdueCount,
+      loadedCount: taskQueue.rows.length,
+      hasMore: tasksHasMore,
+      overdueCount: tasksHasMore ? null : overdueOnPage,
     });
-    if (overdueCount > 0) {
+    if (overdueOnPage > 0) {
       attentionItems.push({
         key: "admissions_overdue",
         href: "/v3/calendar",
-        value: overdueCount,
+        value: tasksHasMore ? null : overdueOnPage,
         tone: "danger",
       });
     }
   }
 
   if (financeQueue) {
+    // Финансовая очередь приходит целиком, без страниц — счёты точные.
     const blockedCount = financeQueue.filter(
       (row) => row.activeStopFactorCount > 0,
     ).length;
     cards.push({
       key: "finance",
       href: "/v3/profile",
-      totalOnPage: financeQueue.length,
+      loadedCount: financeQueue.length,
+      hasMore: false,
       blockedCount,
     });
     if (blockedCount > 0) {
@@ -253,29 +266,37 @@ export async function readPlatformDashboardSnapshot<
   }
 
   if (conversations) {
+    const conversationsHasMore = conversations.hasNext === true;
     const salesCount = conversations.rows.filter(
       (row) => row.queue === "sales",
     ).length;
     cards.push({
       key: "whatsapp",
       href: "/v3/inbox",
-      totalOnPage: conversations.rows.length,
-      salesCount,
-      admissionsCount: conversations.rows.length - salesCount,
+      loadedCount: conversations.rows.length,
+      hasMore: conversationsHasMore,
+      salesCount: conversationsHasMore ? null : salesCount,
+      admissionsCount: conversationsHasMore
+        ? null
+        : conversations.rows.length - salesCount,
     });
     if (conversations.rows.length > 0) {
       attentionItems.push({
         key: "whatsapp_open",
         href: "/v3/inbox",
-        value: conversations.rows.length,
+        value: conversationsHasMore ? null : conversations.rows.length,
         tone: "info",
       });
     }
   }
 
+  // Неизвестное число тяжелее любого известного: если страница неполная и
+  // точного счёта нет, отклонение поднимается наверх.
   attentionItems.sort(
     (left, right) =>
-      right.value - left.value || left.key.localeCompare(right.key),
+      (right.value ?? Number.MAX_SAFE_INTEGER) -
+        (left.value ?? Number.MAX_SAFE_INTEGER) ||
+      left.key.localeCompare(right.key),
   );
   return Object.freeze({
     cards: Object.freeze(cards),

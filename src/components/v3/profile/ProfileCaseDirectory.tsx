@@ -128,14 +128,14 @@ export function ProfileCaseDirectory({
 
         {params.invalid ? (
           <p
-            className="rounded-nav border border-danger/30 bg-danger-weak px-4 py-3 text-sm text-danger"
+            className="v3-edge-danger rounded-nav border border-border border-s-2 bg-surface px-4 py-3 text-sm text-danger"
             data-testid="v3-student-case-filter-rejected"
           >
-            Фильтр отклонён: параметры поиска не прошли строгую проверку.
+            Параметры поиска не приняты.
           </p>
         ) : directory.rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-fg-3">
-            В доступном вам списке Student Cases ничего не найдено.
+            Среди доступных дел ничего не найдено.
           </p>
         ) : (
           <div className="max-w-full overflow-x-auto border-y border-border">

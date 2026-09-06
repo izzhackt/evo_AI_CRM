@@ -202,6 +202,8 @@ test("projections preserve immutable session evidence while active selection rem
     amocrm_contact_id: null,
     created_at: "2026-09-03T12:00:00.000Z",
     sort_at: "2026-09-03T12:00:00.000Z",
+    last_message_direction: "inbound",
+    last_message_at: "2026-09-03T12:00:00.000Z",
   };
   const message = {
     message_id: "54600000-0000-4000-8000-000000000008",
@@ -294,6 +296,8 @@ test("Admissions queue filters use the exact curator database enum", async () =>
     amocrm_contact_id: null,
     created_at: "2026-09-03T12:00:00.000Z",
     sort_at: "2026-09-03T12:00:00.000Z",
+    last_message_direction: null,
+    last_message_at: null,
   };
   const recorded = commandContextClient([conversation]);
 

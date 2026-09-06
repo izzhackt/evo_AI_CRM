@@ -70,6 +70,8 @@ export type PlatformConversationSummary = Readonly<{
   amocrmContactId: string | null;
   createdAt: string;
   sortAt: string;
+  lastMessageDirection: PlatformMessageDirection | null;
+  lastMessageAt: string | null;
 }>;
 
 export type PlatformConversationCommandContext = Readonly<{
@@ -129,6 +131,7 @@ export type PlatformConversationPageOptions = Readonly<{
   pageSize?: number;
   queue?: PlatformConversationQueue;
   status?: PlatformConversationStatus;
+  query?: string;
 }>;
 
 export type PlatformMessagePageOptions = Readonly<{
@@ -201,6 +204,14 @@ function parseTimestamp(value: unknown): string | null {
     typeof value !== "string" ||
     !TIMESTAMPTZ_PATTERN.test(value) ||
     !Number.isFinite(Date.parse(value))
+  ) {
+    return null;
+  }
+  const calendarDate = value.slice(0, 10);
+  const parsedCalendarDate = new Date(`${calendarDate}T00:00:00Z`);
+  if (
+    !Number.isFinite(parsedCalendarDate.getTime()) ||
+    parsedCalendarDate.toISOString().slice(0, 10) !== calendarDate
   ) {
     return null;
   }
@@ -410,6 +421,14 @@ function normalizePageSize(value: number | undefined, fallback: number): number 
     : fallback;
 }
 
+function normalizeConversationQuery(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  if (typeof value !== "string") return invalidShape();
+  const normalized = value.trim();
+  if (normalized.length > 200) return invalidShape();
+  return normalized || null;
+}
+
 function compactGetRpcArgs(
   args: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {
@@ -445,6 +464,24 @@ function parseHistoricalOrCurrentWahaEvidenceSessionName(
     : null;
 }
 
+const PLATFORM_CONVERSATION_SUMMARY_KEYS = Object.freeze([
+  "conversation_id",
+  "student_case_id",
+  "queue",
+  "status",
+  "subject",
+  "waha_session_name",
+  "kommo_account_id",
+  "kommo_conversation_id",
+  "amocrm_account_id",
+  "amocrm_lead_id",
+  "amocrm_contact_id",
+  "created_at",
+  "sort_at",
+  "last_message_direction",
+  "last_message_at",
+]);
+
 /**
  * Converts the unknown PostgREST row into the only shape accepted by the UI.
  * It is exported so the boundary contract can be unit-tested without a live
@@ -453,7 +490,12 @@ function parseHistoricalOrCurrentWahaEvidenceSessionName(
 export function normalizePlatformConversationSummary(
   value: unknown,
 ): PlatformConversationSummary {
-  if (!isRecord(value)) return invalidShape();
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, PLATFORM_CONVERSATION_SUMMARY_KEYS)
+  ) {
+    return invalidShape();
+  }
 
   const id = parsePlatformRouteUuid(value.conversation_id);
   const studentCaseId =
@@ -477,6 +519,17 @@ export function normalizePlatformConversationSummary(
   );
   const createdAt = parseTimestamp(value.created_at);
   const sortAt = parseTimestamp(value.sort_at);
+  const lastMessageDirection =
+    value.last_message_direction === null
+      ? null
+      : value.last_message_direction === "inbound" ||
+          value.last_message_direction === "outbound"
+        ? value.last_message_direction
+        : undefined;
+  const lastMessageAt =
+    value.last_message_at === null
+      ? null
+      : parseTimestamp(value.last_message_at);
   const queue: PlatformConversationQueue | null =
     value.queue === "sales"
       ? "sales"
@@ -497,7 +550,10 @@ export function normalizePlatformConversationSummary(
     amocrmLeadId === undefined ||
     amocrmContactId === undefined ||
     createdAt === null ||
-    sortAt === null
+    sortAt === null ||
+    lastMessageDirection === undefined ||
+    (value.last_message_at !== null && lastMessageAt === null) ||
+    (lastMessageDirection === null) !== (lastMessageAt === null)
   ) {
     return invalidShape();
   }
@@ -516,6 +572,8 @@ export function normalizePlatformConversationSummary(
     amocrmContactId,
     createdAt,
     sortAt,
+    lastMessageDirection,
+    lastMessageAt,
   };
 }
 
@@ -756,9 +814,10 @@ export async function listPlatformConversations(
 ): Promise<PlatformPageSlice<PlatformConversationSummary>> {
   try {
     const organizationId = requireMessagingOrganization(actor);
-    const client = await getPlatformClient(dependencies.client);
     const pageSize = normalizePageSize(options?.pageSize, 50);
     const cursor = options?.cursor ?? null;
+    const query = normalizeConversationQuery(options?.query);
+    const client = await getPlatformClient(dependencies.client);
     const response = await client.schema("platform").rpc(
       "staff_communication_page",
       compactGetRpcArgs({
@@ -769,6 +828,7 @@ export async function listPlatformConversations(
         p_queue: toPlatformConversationQueueWire(options?.queue),
         p_status: options?.status ?? null,
         p_conversation_id: null,
+        p_query: query,
       }),
       { get: true },
     );

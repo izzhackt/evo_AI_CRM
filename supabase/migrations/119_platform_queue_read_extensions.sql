@@ -7,8 +7,8 @@
 --   (b) the same queue accepts an optional bounded participant/phone query
 --       over the stored subject and the canonical client identity;
 --   (c) the Sales queue exposes the receipt-and-audit-proven time of the last
---       entry into the lead's CURRENT stage (NULL when no proven entry
---       exists; nothing is inferred from mutable lead timestamps);
+--       entry into the lead's CURRENT stage (falling back to immutable
+--       lead.created_at when the lead has never transitioned);
 --   (d) the Admissions task queue gains a keyset cursor over its existing
 --       (deadline projection, id) order plus optional due-day bounds, so a
 --       calendar can read past the first page. Cursorless behavior is
@@ -32,7 +32,7 @@ DROP FUNCTION platform.staff_communication_page(
   platform.communication_queue, platform.communication_status, UUID
 );
 
-CREATE FUNCTION platform.staff_communication_page(
+CREATE FUNCTION private.staff_communication_page(
   p_organization_id UUID,
   p_limit INTEGER,
   p_before_sort_at TIMESTAMPTZ DEFAULT NULL,
@@ -66,6 +66,7 @@ SET search_path = ''
 AS $$
 DECLARE
   normalized_query TEXT;
+  normalized_phone_query TEXT;
 BEGIN
   IF p_limit IS NULL OR p_limit < 1 OR p_limit > 101 THEN
     RAISE EXCEPTION 'Invalid page limit' USING ERRCODE = '22023';
@@ -85,6 +86,15 @@ BEGIN
     pg_catalog.lower(pg_catalog.btrim(p_query)),
     ''
   );
+  normalized_phone_query := CASE
+    WHEN p_query IS NOT NULL
+      AND pg_catalog.btrim(p_query) ~ '^[+0-9() ./-]+$'
+    THEN NULLIF(
+      pg_catalog.regexp_replace(p_query, '[^0-9]', '', 'g'),
+      ''
+    )
+    ELSE NULL
+  END;
 
   PERFORM 1
   FROM platform_private.require_domain_actor_read(
@@ -150,6 +160,22 @@ BEGIN
         )),
         normalized_query
       ) > 0
+      OR (
+        normalized_phone_query IS NOT NULL
+        AND pg_catalog.strpos(
+          pg_catalog.regexp_replace(
+            COALESCE(
+              canonical_client.normalized_phone,
+              canonical_client.phone,
+              ''
+            ),
+            '[^0-9]',
+            '',
+            'g'
+          ),
+          normalized_phone_query
+        ) > 0
+      )
     )
     AND (
       p_before_sort_at IS NULL
@@ -167,6 +193,51 @@ BEGIN
   ) DESC, conversation.id DESC
   LIMIT p_limit;
 END
+$$;
+
+CREATE FUNCTION platform.staff_communication_page(
+  p_organization_id UUID,
+  p_limit INTEGER,
+  p_before_sort_at TIMESTAMPTZ DEFAULT NULL,
+  p_before_conversation_id UUID DEFAULT NULL,
+  p_queue platform.communication_queue DEFAULT NULL,
+  p_status platform.communication_status DEFAULT NULL,
+  p_conversation_id UUID DEFAULT NULL,
+  p_query TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  conversation_id UUID,
+  student_case_id UUID,
+  queue platform.communication_queue,
+  status platform.communication_status,
+  subject TEXT,
+  waha_session_name TEXT,
+  kommo_account_id BIGINT,
+  kommo_conversation_id TEXT,
+  amocrm_account_id BIGINT,
+  amocrm_lead_id BIGINT,
+  amocrm_contact_id BIGINT,
+  created_at TIMESTAMPTZ,
+  sort_at TIMESTAMPTZ,
+  last_message_direction platform.communication_direction,
+  last_message_at TIMESTAMPTZ
+)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT page.*
+  FROM private.staff_communication_page(
+    p_organization_id,
+    p_limit,
+    p_before_sort_at,
+    p_before_conversation_id,
+    p_queue,
+    p_status,
+    p_conversation_id,
+    p_query
+  ) AS page
 $$;
 
 CREATE FUNCTION platform.staff_communication_snapshot(
@@ -192,7 +263,7 @@ RETURNS TABLE (
 )
 LANGUAGE SQL
 STABLE
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = ''
 AS $$
   SELECT page.*
@@ -212,6 +283,14 @@ REVOKE ALL ON FUNCTION platform.staff_communication_page(
   UUID, INTEGER, TIMESTAMPTZ, UUID,
   platform.communication_queue, platform.communication_status, UUID, TEXT
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+REVOKE ALL ON FUNCTION private.staff_communication_page(
+  UUID, INTEGER, TIMESTAMPTZ, UUID,
+  platform.communication_queue, platform.communication_status, UUID, TEXT
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.staff_communication_page(
+  UUID, INTEGER, TIMESTAMPTZ, UUID,
+  platform.communication_queue, platform.communication_status, UUID, TEXT
+) TO authenticated;
 GRANT EXECUTE ON FUNCTION platform.staff_communication_page(
   UUID, INTEGER, TIMESTAMPTZ, UUID,
   platform.communication_queue, platform.communication_status, UUID, TEXT
@@ -242,7 +321,7 @@ DROP FUNCTION platform.staff_sales_lead_page(
   INTEGER, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT
 );
 
-CREATE FUNCTION platform.staff_sales_lead_page(
+CREATE FUNCTION private.staff_sales_lead_page(
   p_limit INTEGER,
   p_cursor_updated_at TIMESTAMPTZ DEFAULT NULL,
   p_cursor_id UUID DEFAULT NULL,
@@ -290,6 +369,7 @@ DECLARE
   normalized_due_filter TEXT;
   normalized_query TEXT;
   bishkek_today DATE;
+  inconsistent_request_id UUID;
 BEGIN
   IF p_limit IS NULL OR p_limit < 1 OR p_limit > 101 THEN
     RAISE EXCEPTION 'sales_workflow_invalid_limit'
@@ -386,6 +466,166 @@ BEGIN
   THEN
     RAISE EXCEPTION 'sales_workflow_invalid_owner_filter'
       USING ERRCODE = '22023';
+  END IF;
+
+  -- The current-stage timestamp is allowed to depend on the U4 receipt/audit
+  -- ledger only after the complete caller-visible ledger has passed the exact
+  -- migration-111 integrity contract. A damaged pair must fail the queue
+  -- closed instead of silently changing a lead's apparent stage age.
+  WITH visible_lead_scope AS MATERIALIZED (
+    SELECT lead.organization_id, lead.id AS lead_id
+    FROM platform.leads AS lead
+    WHERE lead.organization_id = actor.organization_id
+      AND lead.lifecycle_state = 'open'
+      AND (
+        actor.platform_role = 'admin'
+        OR lead.current_owner_membership_id = actor.membership_id
+        OR lead.current_owner_membership_id IS NULL
+      )
+  ),
+  receipt_mismatches AS (
+    SELECT receipt.request_id
+    FROM visible_lead_scope AS scope
+    JOIN platform_private.sales_lead_workflow_receipts AS receipt
+      ON receipt.organization_id = scope.organization_id
+     AND receipt.lead_id = scope.lead_id
+    LEFT JOIN platform.audit_events AS audit_event
+      ON audit_event.request_id = receipt.request_id
+    LEFT JOIN platform.profiles AS actor_profile
+      ON actor_profile.id = receipt.actor_profile_id
+    LEFT JOIN platform.organization_memberships AS actor_membership
+      ON actor_membership.organization_id = receipt.organization_id
+     AND actor_membership.id = receipt.actor_membership_id
+     AND actor_membership.profile_id = receipt.actor_profile_id
+    WHERE audit_event.id IS NULL
+      OR actor_profile.id IS NULL
+      OR actor_membership.id IS NULL
+      OR audit_event.organization_id IS DISTINCT FROM
+        receipt.organization_id
+      OR audit_event.request_id IS DISTINCT FROM receipt.request_id
+      OR audit_event.resource_type IS DISTINCT FROM 'lead'
+      OR audit_event.resource_id IS DISTINCT FROM receipt.lead_id
+      OR audit_event.actor_kind IS DISTINCT FROM 'user'
+      OR audit_event.actor_profile_id IS DISTINCT FROM
+        receipt.actor_profile_id
+      OR audit_event.actor_membership_id IS DISTINCT FROM
+        receipt.actor_membership_id
+      OR audit_event.actor_principal IS DISTINCT FROM
+        'auth:' || actor_profile.auth_user_id::TEXT
+      OR audit_event.action IS DISTINCT FROM
+        'lead.sales.workflow.changed'
+      OR audit_event.created_at IS DISTINCT FROM receipt.created_at
+      OR audit_event.resulting_version IS DISTINCT FROM
+        receipt.resulting_workflow_version
+      OR receipt.resulting_workflow_version IS DISTINCT FROM
+        receipt.expected_workflow_version + 1
+      OR audit_event.reason IS DISTINCT FROM COALESCE(
+        receipt.requested_reason,
+        'sales_workflow_update'
+      )
+      OR audit_event.before_state IS NULL
+      OR audit_event.before_state ->> 'stage_key' IS NULL
+      OR NOT (
+        audit_event.before_state @> pg_catalog.jsonb_build_object(
+          'workflow_version', receipt.expected_workflow_version
+        )
+      )
+      OR NOT (
+        audit_event.after_state @> pg_catalog.jsonb_build_object(
+          'stage_key', receipt.desired_stage_key,
+          'current_owner_membership_id',
+            receipt.desired_owner_membership_id,
+          'next_action_text', receipt.desired_next_action_text,
+          'next_action_due_date', receipt.desired_next_action_due_date,
+          'workflow_version', receipt.resulting_workflow_version
+        )
+      )
+      OR NOT (
+        receipt.result @> pg_catalog.jsonb_build_object(
+          'request_id', receipt.request_id,
+          'organization_id', receipt.organization_id,
+          'lead_id', receipt.lead_id,
+          'stage_key', receipt.desired_stage_key,
+          'current_owner_membership_id',
+            receipt.desired_owner_membership_id,
+          'next_action_text', receipt.desired_next_action_text,
+          'next_action_due_date', receipt.desired_next_action_due_date,
+          'workflow_version', receipt.resulting_workflow_version
+        )
+      )
+      OR CASE
+        WHEN pg_catalog.jsonb_typeof(receipt.result -> 'changed_at')
+          IS DISTINCT FROM 'string'
+        THEN TRUE
+        WHEN NOT pg_catalog.pg_input_is_valid(
+          receipt.result ->> 'changed_at',
+          'timestamp with time zone'
+        )
+        THEN TRUE
+        ELSE (receipt.result ->> 'changed_at')::TIMESTAMPTZ
+          IS DISTINCT FROM receipt.created_at
+      END
+  ),
+  audit_without_receipts AS (
+    SELECT audit_event.request_id
+    FROM visible_lead_scope AS scope
+    JOIN platform.audit_events AS audit_event
+      ON audit_event.organization_id = scope.organization_id
+     AND audit_event.resource_type = 'lead'
+     AND audit_event.resource_id = scope.lead_id
+     AND audit_event.action = 'lead.sales.workflow.changed'
+    LEFT JOIN platform_private.sales_lead_workflow_receipts AS receipt
+      ON receipt.request_id = audit_event.request_id
+    WHERE receipt.request_id IS NULL
+      OR receipt.organization_id IS DISTINCT FROM
+        audit_event.organization_id
+      OR receipt.lead_id IS DISTINCT FROM audit_event.resource_id
+  ),
+  current_state_mismatches AS (
+    SELECT latest_receipt.request_id
+    FROM visible_lead_scope AS scope
+    JOIN platform.leads AS lead
+      ON lead.organization_id = scope.organization_id
+     AND lead.id = scope.lead_id
+    JOIN LATERAL (
+      SELECT receipt.*
+      FROM platform_private.sales_lead_workflow_receipts AS receipt
+      WHERE receipt.organization_id = scope.organization_id
+        AND receipt.lead_id = scope.lead_id
+      ORDER BY
+        receipt.resulting_workflow_version DESC,
+        receipt.request_id DESC
+      LIMIT 1
+    ) AS latest_receipt ON TRUE
+    WHERE latest_receipt.resulting_workflow_version IS DISTINCT FROM
+        lead.workflow_version
+      OR latest_receipt.desired_stage_key IS DISTINCT FROM lead.stage_key
+      OR latest_receipt.desired_owner_membership_id IS DISTINCT FROM
+        lead.current_owner_membership_id
+      OR latest_receipt.desired_next_action_text IS DISTINCT FROM
+        lead.next_action_text
+      OR latest_receipt.desired_next_action_due_date IS DISTINCT FROM
+        lead.next_action_due_date
+  ),
+  inconsistencies AS (
+    SELECT mismatch.request_id
+    FROM receipt_mismatches AS mismatch
+    UNION ALL
+    SELECT missing.request_id
+    FROM audit_without_receipts AS missing
+    UNION ALL
+    SELECT current_state.request_id
+    FROM current_state_mismatches AS current_state
+  )
+  SELECT inconsistency.request_id
+  INTO inconsistent_request_id
+  FROM inconsistencies AS inconsistency
+  ORDER BY inconsistency.request_id
+  LIMIT 1;
+
+  IF inconsistent_request_id IS NOT NULL THEN
+    RAISE EXCEPTION 'sales_stage_entry_evidence_inconsistent'
+      USING ERRCODE = '23514';
   END IF;
 
   bishkek_today := pg_catalog.timezone(
@@ -522,12 +762,11 @@ BEGIN
       ) AS linked_conversation_count,
       lead.created_at,
       lead.updated_at,
-      -- The last proven entry into the lead's CURRENT stage: the newest
-      -- migration-086 receipt whose paired append-only audit event records a
-      -- real transition into that stage. Owner/action-only commands and
-      -- leads that never transitioned yield NULL - nothing is inferred from
-      -- lead.updated_at (same evidence rule as migration 111).
-      (
+      -- The last proven entry into the lead's CURRENT stage is selected by
+      -- authoritative workflow version, not mutable lead.updated_at or event
+      -- wall-clock order. Owner/action-only commands cannot reset it; a lead
+      -- that has never transitioned uses its immutable creation timestamp.
+      COALESCE((
         SELECT receipt.created_at
         FROM platform_private.sales_lead_workflow_receipts AS receipt
         JOIN platform.audit_events AS audit_event
@@ -542,9 +781,11 @@ BEGIN
           AND audit_event.before_state ->> 'stage_key'
             <> audit_event.after_state ->> 'stage_key'
           AND audit_event.after_state ->> 'stage_key' = lead.stage_key
-        ORDER BY receipt.created_at DESC, receipt.request_id DESC
+        ORDER BY
+          receipt.resulting_workflow_version DESC,
+          receipt.request_id DESC
         LIMIT 1
-      ) AS stage_entered_at
+      ), lead.created_at) AS stage_entered_at
     FROM platform.leads AS lead
     LEFT JOIN platform.clients AS client
       ON client.organization_id = lead.organization_id
@@ -664,9 +905,69 @@ BEGIN
 END
 $$;
 
+CREATE FUNCTION platform.staff_sales_lead_page(
+  p_limit INTEGER,
+  p_cursor_updated_at TIMESTAMPTZ DEFAULT NULL,
+  p_cursor_id UUID DEFAULT NULL,
+  p_connection_filter TEXT DEFAULT 'all',
+  p_stage_filter TEXT DEFAULT NULL,
+  p_assignment_filter TEXT DEFAULT 'all',
+  p_owner_membership_id UUID DEFAULT NULL,
+  p_due_filter TEXT DEFAULT 'all',
+  p_query TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  sort_at TIMESTAMPTZ,
+  organization_id UUID,
+  lead_id UUID,
+  client_id UUID,
+  client_display_name TEXT,
+  client_email TEXT,
+  client_phone TEXT,
+  current_owner_membership_id UUID,
+  current_owner_display_name TEXT,
+  stage_key TEXT,
+  source_key TEXT,
+  lifecycle_state platform.lead_lifecycle_state,
+  next_action_text TEXT,
+  next_action_due_date DATE,
+  workflow_version BIGINT,
+  is_connected BOOLEAN,
+  open_duplicate_candidate_count BIGINT,
+  linked_student_case_count BIGINT,
+  linked_conversation_count BIGINT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  stage_entered_at TIMESTAMPTZ
+)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT page.*
+  FROM private.staff_sales_lead_page(
+    p_limit,
+    p_cursor_updated_at,
+    p_cursor_id,
+    p_connection_filter,
+    p_stage_filter,
+    p_assignment_filter,
+    p_owner_membership_id,
+    p_due_filter,
+    p_query
+  ) AS page
+$$;
+
 REVOKE ALL ON FUNCTION platform.staff_sales_lead_page(
   INTEGER, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+REVOKE ALL ON FUNCTION private.staff_sales_lead_page(
+  INTEGER, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.staff_sales_lead_page(
+  INTEGER, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT
+) TO authenticated;
 GRANT EXECUTE ON FUNCTION platform.staff_sales_lead_page(
   INTEGER, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT
 ) TO authenticated;
@@ -674,7 +975,7 @@ GRANT EXECUTE ON FUNCTION platform.staff_sales_lead_page(
 COMMENT ON FUNCTION platform.staff_sales_lead_page(
   INTEGER, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, UUID, TEXT, TEXT
 ) IS
-  'Bounded role-scoped U4 Sales queue with pre-limit connected, stage, assignment, due and query filters plus the receipt-and-audit-proven current-stage entry time (NULL when no transition is proven).';
+  'Bounded role-scoped U4 Sales queue with pre-limit connected, stage, assignment, due and query filters plus the receipt-and-audit-proven current-stage entry time (lead.created_at when no transition exists).';
 
 -- ------------------------------------------------------------
 -- (d) Admissions task queue: keyset cursor and due-day bounds.
@@ -685,7 +986,7 @@ COMMENT ON FUNCTION platform.staff_sales_lead_page(
 
 DROP FUNCTION platform.staff_case_task_queue(INTEGER);
 
-CREATE FUNCTION platform.staff_case_task_queue(
+CREATE FUNCTION private.staff_case_task_queue(
   p_limit INTEGER,
   p_after_sort_at TIMESTAMPTZ DEFAULT NULL,
   p_after_case_task_id UUID DEFAULT NULL,
@@ -834,9 +1135,57 @@ BEGIN
 END
 $$;
 
+CREATE FUNCTION platform.staff_case_task_queue(
+  p_limit INTEGER,
+  p_after_sort_at TIMESTAMPTZ DEFAULT NULL,
+  p_after_case_task_id UUID DEFAULT NULL,
+  p_due_from DATE DEFAULT NULL,
+  p_due_to DATE DEFAULT NULL
+)
+RETURNS TABLE (
+  sort_at TIMESTAMPTZ,
+  organization_id UUID,
+  case_task_id UUID,
+  version TEXT,
+  student_case_id UUID,
+  student_display_name TEXT,
+  case_state platform.student_case_state,
+  task_type TEXT,
+  title TEXT,
+  status platform.case_task_status,
+  priority platform.case_task_priority,
+  due_at TIMESTAMPTZ,
+  due_on DATE,
+  student_visible BOOLEAN,
+  assignee_membership_id UUID,
+  assignee_display_name TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT queue.*
+  FROM private.staff_case_task_queue(
+    p_limit,
+    p_after_sort_at,
+    p_after_case_task_id,
+    p_due_from,
+    p_due_to
+  ) AS queue
+$$;
+
 REVOKE ALL ON FUNCTION platform.staff_case_task_queue(
   INTEGER, TIMESTAMPTZ, UUID, DATE, DATE
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+REVOKE ALL ON FUNCTION private.staff_case_task_queue(
+  INTEGER, TIMESTAMPTZ, UUID, DATE, DATE
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.staff_case_task_queue(
+  INTEGER, TIMESTAMPTZ, UUID, DATE, DATE
+) TO authenticated;
 GRANT EXECUTE ON FUNCTION platform.staff_case_task_queue(
   INTEGER, TIMESTAMPTZ, UUID, DATE, DATE
 ) TO authenticated;

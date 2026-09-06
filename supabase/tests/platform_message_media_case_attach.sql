@@ -331,18 +331,53 @@ SELECT repeat('cd', 32) AS p121_other_sha
 SELECT bundle.id AS p121_admin_bundle, bundle.version AS p121_admin_bundle_version
 FROM platform.role_bundle_versions AS bundle
 WHERE bundle.role = 'admin' AND bundle.status = 'published'
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'document.manage'
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'communication.read.full'
+  )
 ORDER BY bundle.version DESC LIMIT 1
 \gset
 
 SELECT bundle.id AS p121_sales_bundle, bundle.version AS p121_sales_bundle_version
 FROM platform.role_bundle_versions AS bundle
 WHERE bundle.role = 'sales' AND bundle.status = 'published'
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'communication.read.full'
+  )
 ORDER BY bundle.version DESC LIMIT 1
 \gset
 
 SELECT bundle.id AS p121_curator_bundle, bundle.version AS p121_curator_bundle_version
 FROM platform.role_bundle_versions AS bundle
 WHERE bundle.role = 'curator' AND bundle.status = 'published'
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'document.manage'
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'communication.read.full'
+  )
 ORDER BY bundle.version DESC LIMIT 1
 \gset
 
@@ -364,6 +399,21 @@ INSERT INTO storage.buckets (
 ) VALUES (
   'platform-documents', 'platform-documents', FALSE, 26214400,
   ARRAY['application/pdf', 'image/jpeg', 'image/png']
+)
+ON CONFLICT (id) DO NOTHING;
+
+SELECT pg_temp.p121_assert(
+  EXISTS (
+    SELECT 1
+    FROM storage.buckets AS bucket
+    WHERE bucket.id = 'platform-documents'
+      AND bucket.name = 'platform-documents'
+      AND NOT bucket.public
+      AND bucket.file_size_limit = 26214400
+      AND bucket.allowed_mime_types =
+        ARRAY['application/pdf', 'image/jpeg', 'image/png']
+  ),
+  'private destination bucket contract drifted'
 );
 
 INSERT INTO auth.users (id, email, raw_user_meta_data)

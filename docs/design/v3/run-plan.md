@@ -5,13 +5,14 @@
 кто угодно), новый исполнитель продолжает ровно отсюда. Статусы обновляются в
 этом файле в той же пачке, что и код.
 
-Исполнение передано от Codex решением заказчика 06.09: «i stopped it and
-wanna give to fable to complete it… complete it, dont stop untill you are
-really stuck and u need my help». Условия заказчика — в `product.md`
-(пополняется немедленно при каждом его слове). Порядок более высокого
-уровня — корневой `AGENTS.md`, `docs/EVO_LAUNCH_PLAN.md`, ADR 0027 и
-последний блок `docs/PLAN_CHANGES.md` (append-only; передача исполнения
-записана блоком `EVO-V3-RUN-FABLE-2026-09-06`).
+После остановки Fable заказчик вернул исполнение Codex решением 06.09:
+«окей работай как он выполни план». Codex продолжает тот же прогон с той же
+дисциплиной: не останавливаться до реального блокера. Условия заказчика — в
+`product.md` (пополняется немедленно при каждом его слове). Порядок более
+высокого уровня — корневой `AGENTS.md`, `docs/EVO_LAUNCH_PLAN.md`, ADR 0027 и
+последний блок `docs/PLAN_CHANGES.md` (append-only; актуальная передача и
+порядок записаны блоком
+`EVO-V3-RUN-ORDER-PORTAL-REUSE-CORRECTION-2026-09-06`).
 
 ## Как продолжать этот прогон (для холодного исполнителя)
 
@@ -63,6 +64,12 @@ V3) → `docs/design/v3/frontend-rules.md`.
 
 ## Этапы прогона
 
+**Актуальный порядок:** D1 → D2 → E → F (только код репозитория) → заморозить
+`main` → B/#552 → #553 (включая удаление remote refs) → G после отдельных
+входных данных заказчика. #551 уже закрыта. Этот порядок уточняет прежнюю
+формулировку «#551–#553, затем продуктовые этапы»: первый боевой релиз должен
+включать завершённый продукт, а не промежуточную сборку.
+
 ### A · Документы и приём — СДЕЛАНО (PR #655)
 
 Слова заказчика 05–06.09 в `product.md`; блок передачи в `PLAN_CHANGES.md`;
@@ -92,20 +99,29 @@ V3) → `docs/design/v3/frontend-rules.md`.
    исполнителя провижинит `evo-release-smoke@evoadmissions.com` (auth-юзер уже
    создан, id `0d7a3ea5-9098-405b-9c59-4af90c09acf1`, пароль у исполнителя,
    членства нет).
-3. После кода: применить накопленные миграции (117+ из этапа D) —
+3. После D, E и репозиторной части F заморозить финальный `main`; применить
+   накопленные миграции (117+) —
    `EVO schema ledger` mode=check, затем mode=apply, затем снова check.
-4. Один ручной полный прогон «EVO platform CI» на замороженном финальном main
+4. Провести read-only preflight и поставить
+   `gh variable set EVO_PRODUCTION_RELEASE_ARMED --body true` **до** полного
+   CI: автоматический `workflow_run` проверяет флаг уже при старте.
+5. Один ручной полный прогон «EVO platform CI» на замороженном финальном main
    (input proof_revision = его полный SHA; диспатчить от аккаунта заказчика —
    gh CLI здесь действует его токеном, actor-гард сойдётся).
-5. `gh variable set EVO_PRODUCTION_RELEASE_ARMED --body true` → релиз едет
-   сам: образ → Hermes → смок на https://evo-crm.72.62.119.112.sslip.io →
-   приёмка. Проверить логин и `/api/health` снаружи; записать в `deploy/`
-   фактическую команду отката (`rollback-command.sh` поколения).
+6. Дождаться автоматического релиза: образ → Hermes → смок на
+   https://evo-crm.72.62.119.112.sslip.io → приёмка. Проверить логин и
+   `/api/health` снаружи; записать в `deploy/` фактическую команду отката
+   (`rollback-command.sh` поколения).
 
-По остатку #551 записано решение (`PLAN_CHANGES.md`, блок передачи): при
-пустой базе и нуле пользователей подписанное empty-source evidence (#653)
-достаточно для первого выката; полная репетиция восстановления обязательна
-перед первым релизом после появления настоящих данных.
+По остатку #551 записано решение (`PLAN_CHANGES.md`, блок передачи): control
+plane не пуст — есть organization, подтверждённые Admin identity/membership,
+published role bundles, knowledge account и bootstrap audit; отдельно создан
+Auth user `evo-release-smoke@evoadmissions.com` без membership. Customer plane
+пуст: нет клиентских lead/case/document rows и нет приватных Storage
+objects/bytes. Подписанное exact empty-source evidence (#653) достаточно
+именно для отсутствующих Storage bytes первого выката. Полная репетиция
+восстановления обязательна перед первым релизом после появления настоящих
+данных.
 
 ### C · Честные числа и криты реестра — СДЕЛАНО (PR #657)
 
@@ -123,8 +139,10 @@ V3) → `docs/design/v3/frontend-rules.md`.
 ### D · Пять потребностей заказчика — В РАБОТЕ
 
 **Волна D1 (схема+бэкенд, миграции 117–121)** — пять параллельных вертикалей,
-каждая: миграция в стиле 112 (SECURITY DEFINER, идемпотентность по request_id,
-optimistic versions, compose-аудит, REVOKE/GRANT, RLS через RPC-гарды) +
+каждая: идемпотентность по request_id, optimistic versions, compose-аудит,
+REVOKE/GRANT, RLS через RPC-гарды; новые привилегированные тела живут в
+существующей неэкспонированной схеме `private`, а `platform` оставляет только
+`SECURITY INVOKER` entrypoint +
 SQL-тесты в `supabase/tests` + контракт в `src/lib` + server actions +
 node-тесты + прогон `scripts/test-postgres-authorization.sh`:
 
@@ -154,6 +172,40 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
 117–121 и их контракты; недописанное чистить, дописанное валидировать
 `test-postgres-authorization.sh` и перезапускать недостающие вертикали.
 
+**Текущий локальный checkpoint (до первого durable push):** worktree
+`/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, ветка
+`izzhackt/v3-d1-backend`, базовый спасённый commit `18474980`. Поверх него
+изменены четыре файла: `src/lib/platform-admissions-actions.ts`,
+`src/lib/server/platform-media-attach.ts`,
+`supabase/tests/platform_message_media_case_attach.sql`,
+`tests/platform-admissions.test.mjs`. Remote-ветки пока нет. Найти состояние:
+`git worktree list --porcelain`, затем `git -C <worktree> status --short` и
+`git -C <worktree> log -1 --oneline`. После первого push этот абзац в той же
+пачке заменить на remote branch + PR + точный head SHA.
+
+**Состояние спасённого черновика Fable на 06.09 (не считать готовым):** 117 и
+120 имеют миграции, SQL/Node-тесты и backend-контракты; 118 не собирался и не
+был подключён к формам; 119 был почти только миграцией; 121 не имел server
+action/call-site/Node-тестов и требовал усилить attribution/causal binding.
+SQL-сюты 118 и 120 не были включены в общий migration-boundary runner, SQL-сют
+119 отсутствовал. Каждую вертикаль довести отдельно в порядке 117 → 118 → 119
+→ 120 → 121; не начинать D2 до их интеграции.
+
+Проверка актуальной официальной документации 06.09: новый
+`SECURITY DEFINER` нельзя оставлять в exposed schema `platform`. D1 переносит
+привилегированные тела в существующую неэкспонированную `private`; exposed RPC
+становятся `SECURITY INVOKER`. У definer-helper обязательны пустой
+`search_path`, полная квалификация объектов и атомарные `REVOKE`/точечные
+`GRANT`; всё дополнительно проверяется cross-role/cross-org adversarial
+тестами. Для Storage сохраняется продуктовый предел 25 MiB: до 6 MB допустим
+standard upload, а диапазон свыше 6 MB D1 переводит на TUS resumable upload с
+повторным download/hash/ClamAV proof до finalize. Источники:
+[Database Functions](https://supabase.com/docs/guides/database/functions),
+[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
+[Standard Uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads),
+[Resumable Uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads),
+[Next.js Data Security](https://nextjs.org/docs/app/guides/data-security).
+
 **Волна D2 (UI поверх D1)** — после интеграции D1:
 
 - Заметки: блок на профиле (обе вкладки-аудитории) и в карточке лида.
@@ -170,22 +222,22 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
   приёмной (university_deadline_on уже есть с #622).
 - Цикл проверки полный, состязательный раунд обязателен.
 
-### E · Портал студента — НЕ НАЧАТ
+### E · Портал студента — НЕ НАЧАТ (существующую authority переиспользовать)
 
 Серверная машинерия ЖИВА и поддерживается (RPC `student_portal_*`, миграции
 042/043/044/053/068/069, обновлялись 108/110; воркер просрочек
 `/api/internal/platform-operations/portal-overdue` живой) — снесён только
 старый read-only фронт (#627/#629). Строить:
 
-1. Миграции 122+: сема провижининга студента (auth-юзер + membership
-   `student` + привязка `student_membership_id` к делу + `portal_activated_at`
-   — CHECK из 088 требует именно этот порядок); публикация студенческого role
-   bundle (сейчас все Student-бандлы draft, token hook требует published;
-   least privilege: `portal.read.self` + новое право self-upload);
-   студенческая upload reservation в СВОЙ слот через существующий
-   скан-конвейер + студенческий download-guard. Каждая новая студенческая RPC
-   повторяет полный гард (auth.uid → membership student → свой кейс →
-   portal_activated_at → permission → scope) — иначе дыра между кейсами.
+1. Сначала read-only reuse-аудит. Уже существуют и не дублируются:
+   опубликованные Student bundles, `portal.read.self`, `document.upload`,
+   `document.download`, `student_portal_*`, own-case/activated-portal guards и
+   приватный Storage/ClamAV-конвейер (042/046/108/110). Добавить только
+   отсутствующий trusted-server invite/provisioning и replay-safe атомарную
+   связку нового membership `student` с pending-делом перед установкой
+   `portal_activated_at` (CHECK из 088 требует этот порядок). Admin invite —
+   только server-side с secret/service key; ключ не попадает в браузер:
+   [Supabase inviteUserByEmail](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail).
 2. Фронт `/portal` (пять экранов, дружелюбно, по-русски, мир V3): «Моё
    поступление» (стадия, следующий шаг с датой, куратор), «Документы»
    (чеклист со статусами и причинами возврата + загрузка в свой слот),
@@ -200,7 +252,7 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
 Решения по умолчанию (заказчик может поправить): вход — приглашение на почту
 с установкой пароля; загрузка документов студентом в v1 — да; язык — русский.
 
-### F · Чистка — НЕ НАЧАТА (после D и E)
+### F · Чистка кода репозитория — НЕ НАЧАТА (после D и E)
 
 1. Мёртвые модули с их тестами и строками package.json: platform-bw4-workflow
    (1389 строк), platform-pilot-cohort, platform-ai-memory (+repository),
@@ -217,10 +269,11 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
    охраняющего теста p6c (строки ~211–218) и HISTORICAL_ROOTS/forbidden-regex
    в scripts. `agent-lead2-inbox/` и `evo-lead-agent/` НЕ трогать: там живой
    edge-Caddyfile и осознанно сохранённая граница.
-5. Мёртвые ветки origin: izzhackt/v3-h-managed-recovery-current-main
-   (перекрыта #640–#654; перед удалением беглый diff её довесков к
-   DISASTER_RECOVERY/PLAN_CHANGES), прочие izzhackt/* по списку git fetch;
-   `claude/v3-frontend` держать до конца прогона.
+5. Remote refs и комментарии здесь не удалять. Ветку
+   `izzhackt/v3-h-managed-recovery-current-main` и прочие `izzhackt/*`
+   инвентаризировать на уникальные commits/смысловые довески, но удалять только
+   в #553 после exact-live аудита. `claude/v3-frontend` держать до конца
+   прогона.
 6. После каждого шага: build + целевые сьюты (списки тестов в package.json
    пофайловые и ломаются при удалении файла).
 

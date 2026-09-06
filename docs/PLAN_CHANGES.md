@@ -19691,3 +19691,77 @@ Decisions:
 
 This block authorizes no provider enablement and no fabricated data; amoCRM
 activation waits for owner credentials and explicit routing values.
+
+## 2026-09-06 - Finish product slices before one armed release and reuse the existing Student Portal authority
+
+Block-ID: `EVO-V3-RUN-ORDER-PORTAL-REUSE-CORRECTION-2026-09-06`
+
+Change type: owner-directed execution transfer, plan-freshness,
+execution-order and reuse correction. Affected plan sections: active #552/#553
+and V3 run stages D, E, F, B and G.
+
+The owner returned execution from the interrupted Fable run to Codex with
+«окей работай как он выполни план». Read-only inspection then confirmed that
+#551 is closed, while #552 and #553 remain open. The current run plan places
+migrations 117+ before the final release, but the prior transfer wording could
+be read as requiring #552/#553 before those product slices. The product slices
+must finish before the one final exact-main release.
+
+This block also supersedes the older shorthand «one Admin, empty database,
+zero private Storage objects, zero users». The exact split is: control-plane
+rows exist (organization, confirmed Admin identity/membership, published role
+bundles, knowledge account and bootstrap audit); an additional smoke Auth user
+exists without membership; customer-plane lead/case/document rows are zero;
+and private Storage objects/bytes are zero. Empty-source acceptance applies
+only to the absent source objects/bytes, not to Auth or control-plane state.
+
+Read-only inspection also found that the proposed Portal work duplicated
+existing authority. Migration 042 already publishes the Student role bundle
+with `portal.read.self` and implements own-activated-case portal projections;
+046 already publishes `document.upload` and `document.download` for Student and
+guards the private document path; 108/110 retain that authority. The missing
+seam is trusted invitation/provisioning plus replay-safe membership-to-case
+binding before portal activation, followed by V3 adapters and UI.
+
+Decision:
+
+- complete and merge D1, D2, the Student Portal and repository-code cleanup
+  before freezing the #552 release candidate;
+- use scoped real tests, the risk-routed migration boundary gate and independent
+  exact-head review for routine PRs; run the full `EVO platform CI` only once
+  after final main is frozen;
+- apply final forward migrations through schema-ledger
+  `check -> apply -> check`, complete the production preflight, set
+  `EVO_PRODUCTION_RELEASE_ARMED=true`, and only then dispatch the exact-main
+  full-proof workflow, because the downstream `workflow_run` evaluates the arm
+  at launch;
+- reuse the already published Student role bundles, `portal.read.self`,
+  `document.upload`, `document.download`, Student Portal projections and the
+  existing private Storage/scanner pipeline. Add only the missing
+  trusted-server invitation/provisioning and replay-safe membership-to-case
+  binding seam before portal activation;
+- perform repository code cleanup after D/E proof, but defer remote branch and
+  comment deletion to #553 after exact deployed-main inventory;
+- keep amoCRM disabled until the owner supplies a valid long-lived token, eight
+  routing values, explicit production-write confirmation and the manual versus
+  background/two-way synchronization decision. Background or two-way sync is a
+  separate architecture amendment.
+
+The implementation review also follows current official guidance: privileged
+Auth administration stays server-only and service/secret keys never reach the
+browser. Because `platform` is an exposed Data API schema, new privileged D1
+function bodies move to the existing non-exposed `private` schema behind
+`SECURITY INVOKER` exposed entrypoints; each helper uses an empty `search_path`,
+fully qualified objects, exact grants and adversarial authorization tests. The
+existing 25 MiB product limit remains: standard upload is used only through
+6 MB and larger service-to-service objects use TUS resumable upload before the
+same download/hash/ClamAV/finalize proof. References:
+<https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail>,
+<https://supabase.com/docs/guides/database/functions>,
+<https://supabase.com/docs/guides/database/postgres/row-level-security>, and
+<https://supabase.com/docs/guides/storage/uploads/standard-uploads>, and
+<https://supabase.com/docs/guides/storage/uploads/resumable-uploads>.
+
+This correction authorizes no immediate managed schema apply, production
+arming/deployment, Auth invitation, provider call, webhook transfer, amoCRM
+write or remote-ref deletion. Those actions retain their existing exact gates.

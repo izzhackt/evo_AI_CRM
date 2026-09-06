@@ -1234,16 +1234,28 @@ SELECT pg_temp.p121_assert(
   'service reserve must bind a distinct exact version to the intent'
 );
 
+SELECT platform.reserve_message_media_attachment_upload(
+  (:'p121_reserve'::JSONB ->> 'attachment_intent_id')::UUID,
+  'clean', 'ClamAV', '1.5.5', '27891', 'clamd-zinstream-v1',
+  statement_timestamp()
+)::TEXT AS p121_upload_fresh_rescan_replay
+\gset
+
+SELECT pg_temp.p121_assert(
+  :'p121_upload_fresh_rescan_replay'::JSONB = :'p121_upload'::JSONB,
+  'a valid fresh rescan must replay the first durable reservation receipt'
+);
+
 SELECT pg_temp.p121_assert(
   (
     pg_temp.p121_capture_error(format(
       'SELECT platform.reserve_message_media_attachment_upload(%L::uuid,%L,%L,%L,%L,%L,%L::timestamptz)',
       :'p121_reserve'::JSONB ->> 'attachment_intent_id',
-      'clean', 'ClamAV', '1.5.4', 'different-signature',
-      'clamd-zinstream-v1', :'p121_scan_at'
+      'clean', 'ClamAV', '1.5.5', 'invalid-signature',
+      'clamd-zinstream-v1', statement_timestamp()::TEXT
     ))->>'sqlstate'
-  ) = '23505',
-  'a changed scan receipt racing the same intent must fail as a conflict'
+  ) = '22023',
+  'reservation replay must validate every fresh scanner proof'
 );
 
 SELECT pg_temp.p121_assert(
@@ -1270,6 +1282,18 @@ WHERE id = :'p121_curator_a_membership';
 
 SET request.jwt.claims TO '{"role":"service_role"}';
 SET ROLE service_role;
+
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.reserve_message_media_attachment_upload(%L::uuid,%L,%L,%L,%L,%L,%L::timestamptz)',
+      :'p121_reserve'::JSONB ->> 'attachment_intent_id',
+      'clean', 'ClamAV', '1.5.5', '27891', 'clamd-zinstream-v1',
+      statement_timestamp()::TEXT
+    ))->>'sqlstate'
+  ) = '42501',
+  'reservation replay must revalidate the exact intent actor membership'
+);
 
 SELECT pg_temp.p121_assert(
   (
@@ -1314,8 +1338,8 @@ SELECT platform.complete_message_media_attachment(
 SELECT platform.complete_message_media_attachment(
   (:'p121_reserve'::JSONB ->> 'attachment_intent_id')::UUID,
   (:'p121_upload'::JSONB ->> 'upload_reservation_id')::UUID,
-  'ClamAV', '1.5.4', '27890', 'clamd-zinstream-v1',
-  :'p121_stored_scan_at'::TIMESTAMPTZ
+  'ClamAV', '1.5.5', '27891', 'clamd-zinstream-v1',
+  statement_timestamp()
 )::TEXT AS p121_complete_replay
 \gset
 

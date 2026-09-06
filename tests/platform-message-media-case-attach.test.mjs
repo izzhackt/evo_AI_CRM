@@ -30,6 +30,8 @@ const IDS = Object.freeze({
   request: "77777777-7777-4777-8777-777777777777",
   grantRequest: "88888888-8888-4888-8888-888888888888",
   consumptionRequest: "99999999-9999-4999-8999-999999999999",
+  grantRequestRetry: "81818181-8181-4181-8181-818181818181",
+  consumptionRequestRetry: "91919191-9191-4191-8191-919191919191",
   attachmentIntent: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   mediaGrant: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   replayedMediaGrant: "bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc",
@@ -115,6 +117,7 @@ function createHarness({
   storageObjectPresent = false,
   tusLocation = TUS_UPLOAD_URL,
   ambiguousFirstPatch = false,
+  dynamicReservationPresence = false,
   scanFile,
 } = {}) {
   const sourceBytes = Uint8Array.from(bytes);
@@ -245,7 +248,12 @@ function createHarness({
             return responseFor(name, consumption);
           }
           if (name === "reserve_message_media_attachment_upload") {
-            return responseFor(name, reservation);
+            return responseFor(name, {
+              ...reservation,
+              storage_object_present: dynamicReservationPresence
+                ? objects.has(storageKey("platform-documents", DOCUMENT_OBJECT_NAME))
+                : reservation.storage_object_present,
+            });
           }
           if (name === "complete_message_media_attachment") {
             return responseFor(name, completion);
@@ -349,7 +357,12 @@ function createHarness({
         : proof;
     },
     requestId() {
-      const requestIds = [IDS.grantRequest, IDS.consumptionRequest];
+      const requestIds = [
+        IDS.grantRequest,
+        IDS.consumptionRequest,
+        IDS.grantRequestRetry,
+        IDS.consumptionRequestRetry,
+      ];
       const value = requestIds[generatedRequestIndex];
       generatedRequestIndex += 1;
       if (!value) throw new Error("unexpected requestId call");
@@ -539,6 +552,46 @@ test("exactly 6 MiB stays on standard upload", async () => {
   assert.equal(harness.uploadCalls.length, 1);
   assert.equal(harness.uploadCalls[0].bytes.byteLength, 6_291_456);
   assert.deepEqual(harness.fetchCalls, []);
+});
+
+test("a full action retry accepts fresh ClamAV times and replays the exact chain", async () => {
+  const harness = createHarness({
+    dynamicReservationPresence: true,
+    scanFile({ call, proof }) {
+      return {
+        ...proof,
+        engineVersion: call > 2 ? "1.5.5" : "1.5.4",
+        signatureVersion: call > 2 ? "27891" : "27890",
+        scannedAt: `2026-09-06T10:00:0${call}.000Z`,
+      };
+    },
+  });
+
+  const first = await harness.run();
+  const replay = await harness.run();
+
+  assert.deepEqual(first, expectedAttachedResult(harness.bytes));
+  assert.deepEqual(replay, first);
+  assert.equal(harness.uploadCalls.length, 1);
+  assert.equal(harness.scanCalls.length, 4);
+  const reserveCalls = harness.rpcCalls.filter(
+    ({ name }) => name === "reserve_message_media_attachment_upload",
+  );
+  const completionCalls = harness.rpcCalls.filter(
+    ({ name }) => name === "complete_message_media_attachment",
+  );
+  assert.equal(reserveCalls.length, 2);
+  assert.equal(completionCalls.length, 2);
+  assert.notEqual(
+    reserveCalls[0].args.p_scanned_at,
+    reserveCalls[1].args.p_scanned_at,
+  );
+  assert.notEqual(
+    completionCalls[0].args.p_scanned_at,
+    completionCalls[1].args.p_scanned_at,
+  );
+  assert.equal(reserveCalls[1].args.p_scanner_signature_version, "27891");
+  assert.equal(completionCalls[1].args.p_scanner_engine_version, "1.5.5");
 });
 
 test("6 MiB plus one byte uses raw TUS with exact creation and patch metadata", async () => {

@@ -730,33 +730,29 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  IF p_scan_result IS DISTINCT FROM 'clean' THEN
+    RAISE EXCEPTION 'A clean ingress scan is required for the attachment'
+      USING ERRCODE = '22000';
+  END IF;
+  -- A retry rescans the same immutable archive bytes. Validate every fresh
+  -- proof, but keep idempotency anchored to the intent rather than ephemeral
+  -- scanner versions or timestamps. Migration 116 follows the same rule.
+  PERFORM platform_private.assert_clamd_scan_facts(
+    p_scanner_engine,
+    p_scanner_engine_version,
+    p_scanner_signature_version,
+    p_scanner_protocol,
+    intent_row.media_sha256_hex,
+    p_scanned_at
+  );
+
   input_sha256 := pg_catalog.encode(
     pg_catalog.sha256(pg_catalog.convert_to(pg_catalog.jsonb_build_object(
       'attachment_intent_id', p_attachment_intent_id,
-      'scan_result', p_scan_result,
-      'scanner_engine', p_scanner_engine,
-      'scanner_engine_version', p_scanner_engine_version,
-      'scanner_signature_version', p_scanner_signature_version,
-      'scanner_protocol', p_scanner_protocol,
-      'scanned_at', p_scanned_at,
       'operation', 'reserve_message_media_attachment_upload'
     )::TEXT, 'UTF8')),
     'hex'
   );
-
-  SELECT * INTO prior_upload
-  FROM platform_private.message_media_attachment_uploads AS attachment_upload
-  WHERE attachment_upload.organization_id = intent_row.organization_id
-    AND attachment_upload.attachment_intent_id = intent_row.id;
-  IF FOUND THEN
-    IF prior_upload.request_id IS DISTINCT FROM intent_row.upload_reservation_request_id
-      OR prior_upload.input_sha256 IS DISTINCT FROM input_sha256
-    THEN
-      RAISE EXCEPTION 'Attachment intent was already used with different upload inputs'
-        USING ERRCODE = '23505';
-    END IF;
-    RETURN prior_upload.response;
-  END IF;
 
   IF NOT private.message_media_attachment_actor_is_current(intent_row.id) THEN
     RAISE EXCEPTION 'The attachment actor no longer has current case authority'
@@ -788,6 +784,20 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Archived media provenance no longer matches the intent'
       USING ERRCODE = '55000';
+  END IF;
+
+  SELECT * INTO prior_upload
+  FROM platform_private.message_media_attachment_uploads AS attachment_upload
+  WHERE attachment_upload.organization_id = intent_row.organization_id
+    AND attachment_upload.attachment_intent_id = intent_row.id;
+  IF FOUND THEN
+    IF prior_upload.request_id IS DISTINCT FROM intent_row.upload_reservation_request_id
+      OR prior_upload.input_sha256 IS DISTINCT FROM input_sha256
+    THEN
+      RAISE EXCEPTION 'Attachment intent was already used with different upload inputs'
+        USING ERRCODE = '23505';
+    END IF;
+    RETURN prior_upload.response;
   END IF;
 
   ignored_receipt := platform.reserve_document_upload_after_ingress_scan(
@@ -951,17 +961,24 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  -- Completion retries also carry a newly observed scan time. Validate the
+  -- rescan, while replay identity remains the immutable intent/reservation
+  -- pair so a lost committed response can recover deterministically.
+  PERFORM platform_private.assert_clamd_scan_facts(
+    p_scanner_engine,
+    p_scanner_engine_version,
+    p_scanner_signature_version,
+    p_scanner_protocol,
+    intent_row.media_sha256_hex,
+    p_scanned_at
+  );
+
   PERFORM platform_private.lock_p2e_request(intent_row.completion_request_id);
 
   input_sha256 := pg_catalog.encode(
     pg_catalog.sha256(pg_catalog.convert_to(pg_catalog.jsonb_build_object(
       'attachment_intent_id', p_attachment_intent_id,
       'upload_reservation_id', p_upload_reservation_id,
-      'scanner_engine', p_scanner_engine,
-      'scanner_engine_version', p_scanner_engine_version,
-      'scanner_signature_version', p_scanner_signature_version,
-      'scanner_protocol', p_scanner_protocol,
-      'scanned_at', p_scanned_at,
       'operation', 'complete_message_media_attachment'
     )::TEXT, 'UTF8')),
     'hex'

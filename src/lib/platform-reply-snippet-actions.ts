@@ -224,6 +224,9 @@ function verifiedSnippetResult(
   const replySnippetId = uuid(value.reply_snippet_id);
   const requestId = uuid(value.request_id);
   const nextVersion = version(value.version);
+  const echoedExpectedVersion = expected.previousVersion === undefined
+    ? null
+    : version(value.expected_version);
   const archivedAt = value.archived_at === null
     ? null
     : timestamp(value.archived_at);
@@ -242,7 +245,8 @@ function verifiedSnippetResult(
     !timestamp(value.created_at) || !timestamp(value.updated_at) ||
     (expected.archived ? archivedAt === null : archivedAt !== null) ||
     (expected.previousVersion !== undefined &&
-      BigInt(nextVersion) !== BigInt(expected.previousVersion) + BigInt(1))
+      (echoedExpectedVersion !== expected.previousVersion ||
+        BigInt(nextVersion) !== BigInt(expected.previousVersion) + BigInt(1)))
   ) {
     return null;
   }

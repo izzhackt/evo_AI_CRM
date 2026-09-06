@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 import test from "node:test";
 
 import {
@@ -15,7 +16,9 @@ const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const SNIPPET_ID = "22222222-2222-4222-8222-222222222222";
 const OTHER_SNIPPET_ID = "33333333-3333-4333-8333-333333333333";
 const MEMBERSHIP_ID = "44444444-4444-4444-8444-444444444444";
+const REQUEST_ID = "55555555-5555-4555-8555-555555555555";
 const AT = "2026-09-06T10:00:00+00:00";
+const LARGE_VERSION = "9007199254740993";
 
 const ACTOR = Object.freeze({
   authUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -30,6 +33,94 @@ const ACTOR = Object.freeze({
   platformAccessVersion: 1,
   platformBundleId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   platformBundleVersion: 1,
+});
+
+function dataModule(source) {
+  return `data:text/javascript,${encodeURIComponent(source)}`;
+}
+
+const actionHarness = {
+  actor: ACTOR,
+  response: { data: null, error: null },
+  rpcCalls: [],
+  revalidated: [],
+};
+globalThis.__platformReplySnippetActionHarness = actionHarness;
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "server-only") {
+      return { shortCircuit: true, url: dataModule("export default {};") };
+    }
+    if (!context.parentURL?.includes("/platform-reply-snippet-actions.ts")) {
+      return nextResolve(specifier, context);
+    }
+    if (specifier === "next/cache") {
+      return {
+        shortCircuit: true,
+        url: dataModule(`
+          export function revalidatePath(path) {
+            globalThis.__platformReplySnippetActionHarness.revalidated.push(path);
+          }
+        `),
+      };
+    }
+    if (specifier === "./fixed-role-policy") {
+      return {
+        shortCircuit: true,
+        url: dataModule("export function fixedRoleCan() { return true; }"),
+      };
+    }
+    if (specifier === "./platform-guards") {
+      return {
+        shortCircuit: true,
+        url: dataModule(`
+          export async function requirePlatformStaffActor() {
+            return globalThis.__platformReplySnippetActionHarness.actor;
+          }
+        `),
+      };
+    }
+    if (specifier === "./platform-reply-snippets") {
+      return {
+        shortCircuit: true,
+        url: new URL(
+          "../src/lib/platform-reply-snippets.ts",
+          import.meta.url,
+        ).href,
+      };
+    }
+    if (specifier === "./server/action-form-fields") {
+      return {
+        shortCircuit: true,
+        url: new URL(
+          "../src/lib/server/action-form-fields.ts",
+          import.meta.url,
+        ).href,
+      };
+    }
+    if (specifier === "./supabase/server") {
+      return {
+        shortCircuit: true,
+        url: dataModule(`
+          export async function createSupabaseServerClient() {
+            const harness = globalThis.__platformReplySnippetActionHarness;
+            return {
+              schema(schemaName) {
+                return {
+                  async rpc(rpcName, args) {
+                    harness.rpcCalls.push({ schemaName, rpcName, args });
+                    return harness.response;
+                  },
+                };
+              },
+            };
+          }
+        `),
+      };
+    }
+    return nextResolve(specifier, context);
+  },
 });
 
 function row(overrides = {}) {
@@ -294,4 +385,94 @@ test("reply-snippet action bodies keep LF newlines and normalize CRLF", () => {
     actionsSource,
     /BODY_CONTROL_PATTERN = \/\[\\u0000-\\u0009\\u000B-\\u001F\\u007F\]\//,
   );
+});
+
+function updateForm() {
+  const form = new FormData();
+  form.set("reply_snippet_id", SNIPPET_ID);
+  form.set("audience", "sales");
+  form.set("title", "Приветствие");
+  form.set("body", "Здравствуйте!\nСпасибо, что написали нам.");
+  form.set("expected_version", LARGE_VERSION);
+  form.set("request_id", REQUEST_ID);
+  return form;
+}
+
+function updateReceipt(overrides = {}) {
+  return {
+    organization_id: ORGANIZATION_ID,
+    reply_snippet_id: SNIPPET_ID,
+    audience: "sales",
+    title: "Приветствие",
+    body: "Здравствуйте!\nСпасибо, что написали нам.",
+    request_id: REQUEST_ID,
+    expected_version: LARGE_VERSION,
+    version: "9007199254740994",
+    archived_at: null,
+    created_at: AT,
+    updated_at: AT,
+    ...overrides,
+  };
+}
+
+test("reply-snippet mutation verifies the lossless echoed expected version", async () => {
+  const { updatePlatformReplySnippetAction } = await import(
+    "../src/lib/platform-reply-snippet-actions.ts"
+  );
+  actionHarness.rpcCalls.length = 0;
+  actionHarness.revalidated.length = 0;
+  actionHarness.response = { data: updateReceipt(), error: null };
+
+  const accepted = await updatePlatformReplySnippetAction(
+    {
+      status: "idle",
+      requestId: REQUEST_ID,
+      replySnippetId: SNIPPET_ID,
+      version: LARGE_VERSION,
+      archivedAt: null,
+    },
+    updateForm(),
+  );
+
+  assert.equal(accepted.status, "saved");
+  assert.equal(accepted.version, "9007199254740994");
+  assert.deepEqual(actionHarness.revalidated, ["/v3/inbox"]);
+
+  actionHarness.rpcCalls.length = 0;
+  actionHarness.revalidated.length = 0;
+  actionHarness.response = {
+    data: updateReceipt({ expected_version: "9007199254740992" }),
+    error: null,
+  };
+
+  const rejected = await updatePlatformReplySnippetAction(
+    {
+      status: "idle",
+      requestId: REQUEST_ID,
+      replySnippetId: SNIPPET_ID,
+      version: LARGE_VERSION,
+      archivedAt: null,
+    },
+    updateForm(),
+  );
+
+  assert.equal(rejected.status, "unavailable");
+  assert.equal(rejected.requestId, REQUEST_ID);
+  assert.equal(rejected.version, null);
+  assert.deepEqual(actionHarness.revalidated, []);
+  assert.deepEqual(actionHarness.rpcCalls, [
+    {
+      schemaName: "platform",
+      rpcName: "update_reply_snippet",
+      args: {
+        p_organization_id: ORGANIZATION_ID,
+        p_reply_snippet_id: SNIPPET_ID,
+        p_audience: "sales",
+        p_title: "Приветствие",
+        p_body: "Здравствуйте!\nСпасибо, что написали нам.",
+        p_expected_version: LARGE_VERSION,
+        p_request_id: REQUEST_ID,
+      },
+    },
+  ]);
 });

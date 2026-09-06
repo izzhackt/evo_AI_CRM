@@ -54,6 +54,8 @@ const ADMIN_ROLE_PREVIEW_EVIDENCE_SCOPE = "real_admin_authority_role_preview_no_
 const ADMIN_EMPTY_SOURCE_ACCEPTANCE_SCOPE = "real_admin_auth_session_shell_and_role_preview_with_isolated_local_sales_admissions_rls";
 const STAFF_ROLE_MAP = Object.freeze({ admin: "admin", sales: "sales", curator: "admissions" });
 const SOURCE_STAFF_INVENTORY_ADMIN_ONLY_BLOCKER = "source_staff_inventory_not_exact_admin_only";
+const SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER = "source_staff_inventory_migration_drift";
+const SOURCE_STAFF_INVENTORY_FINGERPRINT = Symbol("sourceStaffInventoryFingerprint");
 const REQUIRED_NODE_VERSION = "22.23.1";
 const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
 const EICAR = String.raw`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`;
@@ -4800,12 +4802,13 @@ export function assessRepresentativeCohort(rows, expected) {
   return Object.freeze({ actors: Object.freeze(selected), blockers: Object.freeze(blockers) });
 }
 
-export function buildRestoredSourceStaffInventoryEvidence(inventory, expected) {
+export function buildRestoredSourceStaffInventoryEvidence(inventory, expected, signedSourceAuthUserCount = inventory?.totalAuthUserCount) {
   if (
     !isRecord(inventory) ||
     !Array.isArray(inventory.expectedOrganizationActiveStaff) ||
     !Number.isSafeInteger(inventory.totalAuthUserCount) ||
     !Number.isSafeInteger(inventory.activeStaffOutsideExpectedOrganizationCount) ||
+    !Number.isSafeInteger(signedSourceAuthUserCount) ||
     !isRecord(expected) ||
     !UUID.test(expected.platformOrganizationId) ||
     !UUID.test(expected.adminUserId)
@@ -4842,7 +4845,10 @@ export function buildRestoredSourceStaffInventoryEvidence(inventory, expected) {
   const activeProfileCount = new Set(activeStaff.map((row) => row.profileId)).size;
   const activeAdmin = activeStaff.find((row) => row.appRole === "admin");
   const activeAdminMatchesExpected = activeAdmin?.userId === expected.adminUserId;
-  const exactAdminOnly = inventory.totalAuthUserCount === 1 &&
+  const authUserCountMatchesSignedSource = inventory.totalAuthUserCount === signedSourceAuthUserCount;
+  const exactAdminOnly = signedSourceAuthUserCount === 1 &&
+    inventory.totalAuthUserCount === 1 &&
+    authUserCountMatchesSignedSource &&
     inventory.activeStaffOutsideExpectedOrganizationCount === 0 &&
     activeStaff.length === 1 &&
     activeAuthUserCount === 1 &&
@@ -4853,9 +4859,11 @@ export function buildRestoredSourceStaffInventoryEvidence(inventory, expected) {
     roleCounts.other === 0 &&
     activeAdminMatchesExpected;
   const blockers = exactAdminOnly ? [] : [SOURCE_STAFF_INVENTORY_ADMIN_ONLY_BLOCKER];
-  return Object.freeze({
+  const evidence = {
     status: exactAdminOnly ? "exact_one_active_admin" : "not_exact_admin_only",
     evidenceScope: "complete_restored_source_staff_inventory_counts_only",
+    signedSourceAuthUserCount,
+    authUserCountMatchesSignedSource,
     totalAuthUserCount: inventory.totalAuthUserCount,
     activeStaffOutsideExpectedOrganizationCount: inventory.activeStaffOutsideExpectedOrganizationCount,
     activeAdminMatchesExpected,
@@ -4864,6 +4872,64 @@ export function buildRestoredSourceStaffInventoryEvidence(inventory, expected) {
     activeProfileCount,
     roleCounts: Object.freeze(roleCounts),
     blockers: Object.freeze(blockers),
+  };
+  Object.defineProperty(evidence, SOURCE_STAFF_INVENTORY_FINGERPRINT, {
+    value: sha256(canonicalJson({
+      signedSourceAuthUserCount,
+      totalAuthUserCount: inventory.totalAuthUserCount,
+      activeStaffOutsideExpectedOrganizationCount: inventory.activeStaffOutsideExpectedOrganizationCount,
+      activeStaff: activeStaff.map((row) => ({
+        userId: row.userId,
+        profileId: row.profileId,
+        membershipId: row.membershipId,
+        databaseRole: row.databaseRole,
+      })).sort((left, right) =>
+        `${left.userId}:${left.profileId}:${left.membershipId}:${left.databaseRole}`
+          .localeCompare(`${right.userId}:${right.profileId}:${right.membershipId}:${right.databaseRole}`, "en")),
+    })),
+    enumerable: false,
+  });
+  return Object.freeze(evidence);
+}
+
+const SOURCE_STAFF_INVENTORY_DRIFT_FIELDS = Object.freeze([
+  "status",
+  "evidenceScope",
+  "signedSourceAuthUserCount",
+  "authUserCountMatchesSignedSource",
+  "totalAuthUserCount",
+  "activeStaffOutsideExpectedOrganizationCount",
+  "activeAdminMatchesExpected",
+  "activeStaffMembershipCount",
+  "activeAuthUserCount",
+  "activeProfileCount",
+  "roleCounts",
+]);
+
+function sourceStaffInventoryFingerprint(sourceStaffInventory) {
+  const fingerprint = isRecord(sourceStaffInventory)
+    ? sourceStaffInventory[SOURCE_STAFF_INVENTORY_FINGERPRINT]
+    : null;
+  return typeof fingerprint === "string" && SHA256.test(fingerprint) ? fingerprint : null;
+}
+
+export function buildSourceStaffInventoryMigrationDriftEvidence(sourceStaffInventory, postMigrationStaffInventory) {
+  const sourceFingerprint = sourceStaffInventoryFingerprint(sourceStaffInventory);
+  const postMigrationFingerprint = sourceStaffInventoryFingerprint(postMigrationStaffInventory);
+  if (!isRecord(sourceStaffInventory) || !isRecord(postMigrationStaffInventory) || !sourceFingerprint || !postMigrationFingerprint) {
+    fail("source_staff_inventory_drift_invalid", "auth_rls_proof");
+  }
+  const mismatches = SOURCE_STAFF_INVENTORY_DRIFT_FIELDS.filter((field) =>
+    !sameJson(sourceStaffInventory[field], postMigrationStaffInventory[field]));
+  if (sourceFingerprint !== postMigrationFingerprint) mismatches.push("identity_membership_fingerprint");
+  const stable = mismatches.length === 0;
+  return Object.freeze({
+    status: stable ? "unchanged" : "drift_detected",
+    evidenceScope: "post_migration_staff_inventory_drift_counts_only",
+    checkedFieldCount: SOURCE_STAFF_INVENTORY_DRIFT_FIELDS.length,
+    identityMembershipFingerprintCompared: true,
+    mismatchCount: mismatches.length,
+    blockers: Object.freeze(stable ? [] : [SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER]),
   });
 }
 
@@ -4907,7 +4973,7 @@ async function discoverActors(options, status, supervisor, toolchain) {
   return assessRepresentativeCohort(rows, options);
 }
 
-async function discoverRestoredSourceStaffInventory(options, status, supervisor, toolchain) {
+async function discoverRestoredSourceStaffInventory(options, status, supervisor, toolchain, signedSourceAuthUserCount) {
   const inventory = await psqlJson(supervisor, toolchain, status, String.raw`
     WITH active_staff AS (
       SELECT auth_user.id::text AS "authUserId", profile.auth_user_id::text AS "userId",
@@ -4932,7 +4998,7 @@ async function discoverRestoredSourceStaffInventory(options, status, supervisor,
         WHERE staff."organizationId" = ${sqlLiteral(options.platformOrganizationId)}
       )
     )::text`, "auth_rls_proof");
-  return buildRestoredSourceStaffInventoryEvidence(inventory, options);
+  return buildRestoredSourceStaffInventoryEvidence(inventory, options, signedSourceAuthUserCount);
 }
 
 async function localPasswordSession(actor, status, interruptionGuard) {
@@ -8476,6 +8542,7 @@ export function buildDurableEvidence({ result, failure, interrupted, stages, cle
       "admin_role_preview_proof_missing",
       "private_document_canary_missing",
       SOURCE_STAFF_INVENTORY_ADMIN_ONLY_BLOCKER,
+      SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER,
     ]).has(blocker));
   let durableFailure = interrupted
     ? Object.freeze({ code: "recovery_interrupted", stage: "signal", diagnostic: Object.freeze({ signal: interrupted }) })
@@ -8615,6 +8682,16 @@ function sourceStaffInventoryExactAdminOnly(sourceStaffInventory) {
     sourceStaffInventory.blockers.length === 0;
 }
 
+function sourceStaffInventoryMigrationStable(staffInventoryDrift) {
+  return isRecord(staffInventoryDrift) &&
+    staffInventoryDrift.status === "unchanged" &&
+    staffInventoryDrift.evidenceScope === "post_migration_staff_inventory_drift_counts_only" &&
+    staffInventoryDrift.identityMembershipFingerprintCompared === true &&
+    staffInventoryDrift.mismatchCount === 0 &&
+    Array.isArray(staffInventoryDrift.blockers) &&
+    staffInventoryDrift.blockers.length === 0;
+}
+
 export function buildManagedSupabaseRecoveryAcceptance(
   actors,
   storageReadiness = {},
@@ -8622,6 +8699,7 @@ export function buildManagedSupabaseRecoveryAcceptance(
   browserProof = {},
   fullRoleOutcomes = {},
   sourceStaffInventory = {},
+  staffInventoryDrift = {},
 ) {
   const signedEmptySource = isRecord(storageReadiness) &&
     storageReadiness.status === "signed_empty_source_verified" &&
@@ -8637,12 +8715,20 @@ export function buildManagedSupabaseRecoveryAcceptance(
     storageReadiness.evidenceScope === STORAGE_NON_EMPTY_SOURCE_EVIDENCE_SCOPE &&
     storageReadiness.sourceByteRecovery === "restored_and_verified";
   if (nonEmptyByteRecovery) {
-    const complete = fullRoleOutcomes?.complete === true;
+    const stableStaffInventory = sourceStaffInventoryMigrationStable(staffInventoryDrift);
+    const roleOutcomesComplete = fullRoleOutcomes?.complete === true;
+    const complete = roleOutcomesComplete && stableStaffInventory;
+    const roleOutcomeBlockers = roleOutcomesComplete
+      ? []
+      : Array.isArray(fullRoleOutcomes?.blockers) && fullRoleOutcomes.blockers.length > 0
+        ? fullRoleOutcomes.blockers
+        : ["restored_role_outcome_proof_incomplete"];
     const blockers = complete
       ? Object.freeze([])
-      : uniqueFrozenStrings(Array.isArray(fullRoleOutcomes?.blockers) && fullRoleOutcomes.blockers.length > 0
-        ? fullRoleOutcomes.blockers
-        : ["restored_role_outcome_proof_incomplete"]);
+      : uniqueFrozenStrings([
+        ...roleOutcomeBlockers,
+        ...(stableStaffInventory ? [] : [SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER]),
+      ]);
     return Object.freeze({
       complete,
       mode: "full_dr_non_empty_source",
@@ -8659,6 +8745,8 @@ export function buildManagedSupabaseRecoveryAcceptance(
   if (!signedEmptySource) blockers.push("signed_empty_storage_source_missing");
   const exactAdminOnlySourceStaffInventory = sourceStaffInventoryExactAdminOnly(sourceStaffInventory);
   if (!exactAdminOnlySourceStaffInventory) blockers.push(SOURCE_STAFF_INVENTORY_ADMIN_ONLY_BLOCKER);
+  const stableStaffInventory = sourceStaffInventoryMigrationStable(staffInventoryDrift);
+  if (!stableStaffInventory) blockers.push(SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER);
   if (!isRecord(actors?.admin)) blockers.push("admin_representative_missing");
   if (browserProof?.admin !== "passed") blockers.push("admin_browser_shell_missing");
   if (!adminRolePreviewPassed(browserProof?.adminRolePreview)) blockers.push("admin_role_preview_proof_missing");
@@ -8949,6 +9037,13 @@ async function executeMode(mode, options) {
           extensionRelations,
         });
       });
+      const sourceStaffInventory = await runStage("source_staff_inventory", () => discoverRestoredSourceStaffInventory(
+        options,
+        local.status,
+        supervisor,
+        toolchain,
+        database.authUserCount,
+      ));
       const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(
         state,
         local,
@@ -8958,6 +9053,17 @@ async function executeMode(mode, options) {
         supervisor,
         toolchain,
       ));
+      const postMigrationStaffInventory = await runStage("post_migration_staff_inventory", () => discoverRestoredSourceStaffInventory(
+        options,
+        local.status,
+        supervisor,
+        toolchain,
+        database.authUserCount,
+      ));
+      const staffInventoryDrift = await runStage(
+        "source_staff_inventory_drift",
+        () => buildSourceStaffInventoryMigrationDriftEvidence(sourceStaffInventory, postMigrationStaffInventory),
+      );
       const storage = await runStage("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain, state.interruptionGuard));
       if (!sameJson(storage.readiness, sourceStorageReadiness)) fail("storage_source_readiness_mismatch", "storage_verification");
       const targetStorage = await runStage("target_storage_configuration", () => reconcileTargetStorageBuckets(
@@ -8969,12 +9075,6 @@ async function executeMode(mode, options) {
       const postgrestSchemaCache = await runStage("postgrest_schema_cache", () => waitForPostgrestSchemaCache(
         local.status,
         state.interruptionGuard,
-      ));
-      const sourceStaffInventory = await runStage("source_staff_inventory", () => discoverRestoredSourceStaffInventory(
-        options,
-        local.status,
-        supervisor,
-        toolchain,
       ));
       const actorReadiness = await runStage("representative_auth", () => prepareActors(options, local.status, supervisor, toolchain, state.interruptionGuard));
       const actors = actorReadiness.actors;
@@ -9016,7 +9116,7 @@ async function executeMode(mode, options) {
         ? await proveBrowser(app, readiness, local.status, scanner, roleServerProof, state, supervisor, toolchain, state.interruptionGuard)
         : Object.freeze({ status: "not_run_missing_representative", readiness, evidenceScope: "no_real_representative_available" }));
       const roleOutcomes = buildRestoredRoleOutcomeReadiness(actors, roleServerProof, browser);
-      const releaseAcceptance = buildManagedSupabaseRecoveryAcceptance(actors, storageReadiness, document, browser, roleOutcomes, sourceStaffInventory);
+      const releaseAcceptance = buildManagedSupabaseRecoveryAcceptance(actors, storageReadiness, document, browser, roleOutcomes, sourceStaffInventory, staffInventoryDrift);
       const representativeBlockers = releaseAcceptance.mode === "signed_empty_source_admin_only"
         ? actorReadiness.blockers.filter((blocker) => blocker === "admin_representative_missing")
         : actorReadiness.blockers;
@@ -9048,6 +9148,8 @@ async function executeMode(mode, options) {
         targetStorage: targetStorage.evidence,
         postgrestSchemaCache,
         sourceStaffInventory,
+        postMigrationStaffInventory,
+        staffInventoryDrift,
         representatives,
         authorization: Object.freeze({
           ...authorizationProof.evidence,

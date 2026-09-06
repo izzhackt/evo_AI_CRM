@@ -19,6 +19,7 @@ import {
   buildManagedSupabaseRecoveryAcceptance,
   buildRestoredSourceStaffInventoryEvidence,
   buildRestoredRoleOutcomeReadiness,
+  buildSourceStaffInventoryMigrationDriftEvidence,
   canonicalRecoveryPdfBytes,
   buildDurableEvidence,
   buildIsolationEvidence,
@@ -562,7 +563,11 @@ function sourceStaffInventory(rows, expected = {}, counts = {}) {
     platformOrganizationId: exactAdminOnlyOrganizationId,
     adminUserId: exactAdminOnlyAdminUserId,
     ...expected,
-  });
+  }, counts.signedSourceAuthUserCount ?? counts.totalAuthUserCount ?? new Set(rows.map((row) => row.userId)).size);
+}
+
+function stableSourceStaffInventoryDrift(inventory) {
+  return buildSourceStaffInventoryMigrationDriftEvidence(inventory, inventory);
 }
 
 test("signed empty managed Storage source accepts only real Admin shell and role-preview proof", () => {
@@ -570,6 +575,7 @@ test("signed empty managed Storage source accepts only real Admin shell and role
   const storage = storageSourceRecoveryReadiness({ objectCount: 0 });
   const document = exactAdminOnlyDocumentCanary();
   const exactSourceStaffInventory = sourceStaffInventory([sourceStaffRow()]);
+  const stableStaffInventoryDrift = stableSourceStaffInventoryDrift(exactSourceStaffInventory);
   const fullRoleOutcomes = buildRestoredRoleOutcomeReadiness(actors);
   assert.equal(fullRoleOutcomes.complete, false);
   assert.equal(fullRoleOutcomes.outcomes.sales, "missing_restored_identity");
@@ -587,6 +593,7 @@ test("signed empty managed Storage source accepts only real Admin shell and role
     { admin: "passed" },
     fullRoleOutcomes,
     exactSourceStaffInventory,
+    stableStaffInventoryDrift,
   );
   assert.equal(missingPreview.complete, false);
   assert.deepEqual(missingPreview.blockers, ["admin_role_preview_proof_missing"]);
@@ -612,6 +619,7 @@ test("signed empty managed Storage source accepts only real Admin shell and role
       { admin: "passed", adminRolePreview: tamperedAdminRolePreview },
       fullRoleOutcomes,
       exactSourceStaffInventory,
+      stableStaffInventoryDrift,
     );
     assert.equal(tampered.complete, false);
     assert.deepEqual(tampered.blockers, ["admin_role_preview_proof_missing"]);
@@ -624,6 +632,7 @@ test("signed empty managed Storage source accepts only real Admin shell and role
     { admin: "passed", adminRolePreview: exactAdminRolePreview },
     fullRoleOutcomes,
     exactSourceStaffInventory,
+    stableStaffInventoryDrift,
   );
   assert.equal(accepted.complete, true);
   assert.equal(accepted.mode, "signed_empty_source_admin_only");
@@ -659,6 +668,7 @@ test("signed empty source blocks omitted or supplied extra active staff inventor
     { admin: "passed", adminRolePreview: preview },
     outcomes,
     omittedExtraStaff,
+    stableSourceStaffInventoryDrift(omittedExtraStaff),
   );
   assert.equal(omittedBlocked.complete, false);
   assert.deepEqual(omittedBlocked.blockers, ["source_staff_inventory_not_exact_admin_only"]);
@@ -676,6 +686,7 @@ test("signed empty source blocks omitted or supplied extra active staff inventor
     { admin: "passed", adminRolePreview: preview },
     outcomes,
     suppliedExtraStaff,
+    stableSourceStaffInventoryDrift(suppliedExtraStaff),
   );
   assert.equal(suppliedBlocked.complete, false);
   assert.deepEqual(suppliedBlocked.blockers, ["source_staff_inventory_not_exact_admin_only"]);
@@ -689,6 +700,60 @@ test("signed empty source blocks omitted or supplied extra active staff inventor
   assert.deepEqual(outsideStaff.blockers, ["source_staff_inventory_not_exact_admin_only"]);
 });
 
+test("signed empty source blocks pre-migration extra staff even when post-migration census looks Admin-only", () => {
+  const storage = storageSourceRecoveryReadiness({ objectCount: 0 });
+  const document = exactAdminOnlyDocumentCanary();
+  const preview = exactAdminRolePreviewProof();
+  const outcomes = buildRestoredRoleOutcomeReadiness({ admin: { userId: exactAdminOnlyAdminUserId } });
+  const salesRow = sourceStaffRow({
+    userId: exactAdminOnlySalesUserId,
+    profileId: "80000000-0000-4000-8000-000000000112",
+    membershipId: "80000000-0000-4000-8000-000000000212",
+    databaseRole: "sales",
+    email: "sales-before-migration@example.invalid",
+  });
+  const preMigrationSource = sourceStaffInventory([sourceStaffRow(), salesRow], {}, { signedSourceAuthUserCount: 2 });
+  assert.equal(preMigrationSource.status, "not_exact_admin_only");
+  assert.equal(preMigrationSource.totalAuthUserCount, 2);
+  assert.equal(preMigrationSource.authUserCountMatchesSignedSource, true);
+
+  const postMigrationWouldPassWithoutSignedBinding = sourceStaffInventory(
+    [sourceStaffRow()],
+    {},
+    { totalAuthUserCount: 1, signedSourceAuthUserCount: 1 },
+  );
+  assert.equal(postMigrationWouldPassWithoutSignedBinding.status, "exact_one_active_admin");
+
+  const postMigrationBoundToSignedSource = sourceStaffInventory(
+    [sourceStaffRow()],
+    {},
+    { totalAuthUserCount: 1, signedSourceAuthUserCount: 2 },
+  );
+  assert.equal(postMigrationBoundToSignedSource.status, "not_exact_admin_only");
+  assert.equal(postMigrationBoundToSignedSource.authUserCountMatchesSignedSource, false);
+
+  const drift = buildSourceStaffInventoryMigrationDriftEvidence(preMigrationSource, postMigrationBoundToSignedSource);
+  assert.equal(drift.status, "drift_detected");
+  assert.deepEqual(drift.blockers, ["source_staff_inventory_migration_drift"]);
+
+  const blocked = buildManagedSupabaseRecoveryAcceptance(
+    { admin: { userId: exactAdminOnlyAdminUserId } },
+    storage,
+    document,
+    { admin: "passed", adminRolePreview: preview },
+    outcomes,
+    preMigrationSource,
+    drift,
+  );
+  assert.equal(blocked.complete, false);
+  assert.deepEqual(blocked.blockers, [
+    "source_staff_inventory_not_exact_admin_only",
+    "source_staff_inventory_migration_drift",
+  ]);
+  assert.equal(blocked.liveManagedOutcomes.sales, "not_evaluated_source_staff_inventory_not_exact_admin_only");
+  assert.equal(blocked.liveManagedOutcomes.admissions, "not_evaluated_source_staff_inventory_not_exact_admin_only");
+});
+
 test("non-empty managed Storage source remains strict full DR byte recovery", () => {
   const storage = storageSourceRecoveryReadiness({ objectCount: 2 });
   const document = {
@@ -696,6 +761,8 @@ test("non-empty managed Storage source remains strict full DR byte recovery", ()
     canaryDeleted: true,
     evidenceScope: "behavior_canary_only_not_source_recovery",
   };
+  const sourceInventory = sourceStaffInventory([sourceStaffRow()]);
+  const stableStaffInventoryDrift = stableSourceStaffInventoryDrift(sourceInventory);
   const adminOnlyOutcomes = buildRestoredRoleOutcomeReadiness({ admin: {} });
   const blocked = buildManagedSupabaseRecoveryAcceptance(
     { admin: {} },
@@ -703,6 +770,8 @@ test("non-empty managed Storage source remains strict full DR byte recovery", ()
     document,
     { admin: "passed", adminRolePreview: { status: "passed" } },
     adminOnlyOutcomes,
+    sourceInventory,
+    stableStaffInventoryDrift,
   );
   assert.equal(blocked.complete, false);
   assert.equal(blocked.mode, "full_dr_non_empty_source");
@@ -716,7 +785,7 @@ test("non-empty managed Storage source remains strict full DR byte recovery", ()
     { outcomes: { admin: "passed", sales: "passed", admissions: "passed" }, blockers: [] },
     { roleOutcomes: { admin: "passed", sales: "passed", admissions: "passed" } },
   );
-  const accepted = buildManagedSupabaseRecoveryAcceptance(actors, storage, document, {}, fullOutcomes);
+  const accepted = buildManagedSupabaseRecoveryAcceptance(actors, storage, document, {}, fullOutcomes, sourceInventory, stableStaffInventoryDrift);
   assert.equal(accepted.complete, true);
   assert.equal(accepted.mode, "full_dr_non_empty_source");
   assert.equal(accepted.roleOutcomeScope, "complete_restored_admin_sales_admissions_live_managed_snapshot");
@@ -2140,6 +2209,7 @@ test("durable evidence fails closed before write when cleanup quarantines", () =
         "admin_role_preview_proof_missing",
         "private_document_canary_missing",
         "source_staff_inventory_not_exact_admin_only",
+        "source_staff_inventory_migration_drift",
       ],
     },
     cleanup: { descendantsDrained: true, targetsOwned: true, cleanupSucceeded: true, disposition: "remove" },
@@ -2147,13 +2217,14 @@ test("durable evidence fails closed before write when cleanup quarantines", () =
   assert.equal(notReady.ok, false);
   assert.equal(notReady.status, "not_ready");
   assert.equal(notReady.failure.code, "recovery_not_ready");
-  assert.equal(notReady.failure.diagnostic.blockerCount, 5);
+  assert.equal(notReady.failure.diagnostic.blockerCount, 6);
   assert.deepEqual(notReady.blockers, [
     "signed_empty_storage_source_missing",
     "admin_browser_shell_missing",
     "admin_role_preview_proof_missing",
     "private_document_canary_missing",
     "source_staff_inventory_not_exact_admin_only",
+    "source_staff_inventory_migration_drift",
   ]);
 });
 
@@ -3930,6 +4001,16 @@ test("diagnostics are hash-only and implementation has no sync executor or synth
   assert.match(source, /ROLLBACK/u);
   assert.match(source, /selectAdmissionsTaskMutation\(\{/u);
   assert.match(source, /\.\.\.await reconcileRestoredDatabase\(/u);
+  const databaseRestore = source.indexOf('const database = await runStage("database_restore"');
+  const sourceStaffInventory = source.indexOf('const sourceStaffInventory = await runStage("source_staff_inventory"', databaseRestore);
+  const pendingMigrations = source.indexOf('const migrations = await runStage("pending_migration_rehearsal"', databaseRestore);
+  const postMigrationStaffInventory = source.indexOf('const postMigrationStaffInventory = await runStage("post_migration_staff_inventory"', pendingMigrations);
+  const staffInventoryDrift = source.indexOf('const staffInventoryDrift = await runStage(', postMigrationStaffInventory);
+  assert.ok(databaseRestore > 0);
+  assert.ok(databaseRestore < sourceStaffInventory);
+  assert.ok(sourceStaffInventory < pendingMigrations);
+  assert.ok(pendingMigrations < postMigrationStaffInventory);
+  assert.ok(postMigrationStaffInventory < staffInventoryDrift);
   assert.match(source, /classifyExpectedDatabaseDenial\(error\.diagnostic/u);
   assert.match(source, /response\?\.status\(\) \?\? 0/u);
   assert.match(source, /buildIsolationEvidence\(state\.isolationInput, \{ requireComplete: true \}\)/u);

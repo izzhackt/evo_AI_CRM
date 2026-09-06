@@ -175,10 +175,11 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
 **Текущий durable checkpoint:** worktree
 `/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, remote
 ветка `izzhackt/v3-d1-backend`, draft PR #660, точный проверяемый code
-checkpoint `4622ef4f23bb30a34c5b096057c5ff48796232bb`. После rebase на PR #659
+checkpoint `3187512b3b472452a41b955c3ef8af3977e88acd`. После rebase на PR #659
 спасённый черновик — commit `9f2e3390`; первичные repair-правки четырёх файлов
 (118 contract/fixtures, escaped control-byte regex, 121 SQL fixture) — commit
-`4622ef4f`. Найти состояние: `git worktree list --porcelain`, затем
+`4622ef4f`; каноническая WAHA session в 121 fixture — commit `3187512b`.
+Найти состояние: `git worktree list --porcelain`, затем
 `git -C <worktree> status --short`, `git -C <worktree> log -2 --oneline` и
 `gh pr view 660 --json headRefOid,statusCheckRollup`; `headRefOid` —
 авторитетный текущий head после metadata-коммитов. При каждом следующем

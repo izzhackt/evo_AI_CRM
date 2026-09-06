@@ -405,9 +405,16 @@ export async function updatePlatformUniversityApplicationDetailsAction(
   const universityDeadlineOn = parsePlatformApplicationDeadlineInput(
     rawApplicationField(fields, "university_deadline_on"),
   );
+  const country = parsePlatformApplicationCountryInput(
+    applicationField(fields, "country"),
+  );
+  const degree = parsePlatformApplicationDegreeInput(
+    applicationField(fields, "degree"),
+  );
   if (
     !applicationId || !requestId || !expectedVersion ||
-    isPrimary === null || universityDeadlineOn === undefined
+    isPrimary === null || universityDeadlineOn === undefined ||
+    country === undefined || degree === undefined
   ) {
     return applicationFailureState(form, "invalid", applicationId, requestId);
   }
@@ -421,6 +428,8 @@ export async function updatePlatformUniversityApplicationDetailsAction(
         p_university_application_id: applicationId,
         p_is_primary: isPrimary,
         p_university_deadline_on: universityDeadlineOn,
+        p_country: country,
+        p_degree: degree,
         p_expected_version: expectedVersion,
         p_request_id: requestId,
       },
@@ -438,6 +447,8 @@ export async function updatePlatformUniversityApplicationDetailsAction(
       universityApplicationId: applicationId,
       isPrimary,
       universityDeadlineOn,
+      country,
+      degree,
       requestId,
       expectedVersion,
     });

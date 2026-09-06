@@ -389,7 +389,7 @@ VALUES
 INSERT INTO platform.leads (
   id, organization_id, stage_key, source_key
 )
-VALUES (:'p121_lead_a', :'p121_org_a', 'documents', 'whatsapp');
+VALUES (:'p121_lead_a', :'p121_org_a', 'new', 'whatsapp');
 
 INSERT INTO platform.student_cases (
   id, organization_id, student_membership_id,

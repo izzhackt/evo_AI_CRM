@@ -12,6 +12,7 @@ import {
   listPlatformAdmissionsTaskQueue,
 } from "@/lib/platform-admissions-workspace";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import {
   dayInOrganizationTimezone,
   projectPlatformTaskDeadline,
@@ -25,6 +26,43 @@ export async function readToday(): Promise<Day> {
   return dayInOrganizationTimezone(new Date());
 }
 
+const CLOCK_PARTS = new Intl.DateTimeFormat("en-GB", {
+  timeZone: PLATFORM_ORGANIZATION_TIMEZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Minutes since local midnight on the same Bishkek clock as task deadlines. */
+export async function readNowMinutes(): Promise<number> {
+  const parts = CLOCK_PARTS.formatToParts(new Date());
+  const read = (type: "hour" | "minute") =>
+    Number(parts.find((part) => part.type === type)?.value);
+  const minutes = read("hour") * 60 + read("minute");
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes >= 24 * 60) {
+    throw new Error("V3 calendar cannot read the organization clock.");
+  }
+  return minutes;
+}
+
+export type CalendarTasksRead = Readonly<{
+  tasks: readonly CalendarTask[];
+  /**
+   * Очередь отдала только первые N задач по сроку; null — прочитаны все.
+   * Канонический RPC читает одну страницу без курсора и без фильтра по
+   * датам, поэтому добрать хвост отсюда нечем: обрыв выносится на экран
+   * фактом, а не роняет страницу.
+   */
+  shownFirst: number | null;
+  /**
+   * Отрезок [from, to] дочитан до конца: «на этот период задач нет» — правда,
+   * а не обрыв чтения. Очередь отсортирована по сроку, поэтому обрыв на дне
+   * позже `to` (или на задачах без срока — они в самом хвосте) не отнимает
+   * у отрезка ни одной задачи со сроком.
+   */
+  periodComplete: boolean;
+}>;
+
 /**
  * Read the current actor's canonical Admissions task queue through Supabase.
  * The adapter only narrows it to the calendar interval; it never reads a
@@ -34,17 +72,24 @@ export async function readCalendarTasks(
   actor: ActivePlatformActor,
   from: Day,
   to: Day,
-): Promise<readonly CalendarTask[]> {
+): Promise<CalendarTasksRead> {
   const queue = await listPlatformAdmissionsTaskQueue(actor, {
     pageSize: QUEUE_PAGE_SIZE,
   });
 
+  const now = new Date();
+  let shownFirst: number | null = null;
+  let periodComplete = true;
   if (queue.hasNext) {
-    throw new Error("V3 calendar task queue exceeds its canonical read window.");
+    const tail = queue.rows[queue.rows.length - 1];
+    const tailDay = tail
+      ? projectPlatformTaskDeadline(tail.dueOn, tail.dueAt, now).day
+      : null;
+    shownFirst = queue.rows.length;
+    periodComplete = tailDay === null || tailDay > to;
   }
 
-  const now = new Date();
-  return queue.rows.flatMap((row) => {
+  const tasks = queue.rows.flatMap((row) => {
     const deadline = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now);
     const day = deadline.day;
     if (day !== null && (day < from || day > to)) return [];
@@ -70,6 +115,12 @@ export async function readCalendarTasks(
       caseState: row.caseState,
       version: row.version,
     } satisfies CalendarTask];
+  });
+
+  return Object.freeze({
+    tasks: Object.freeze(tasks),
+    shownFirst,
+    periodComplete,
   });
 }
 
@@ -108,6 +159,10 @@ async function readActiveCases(
 
 export type CalendarWorkspace = Readonly<{
   tasks: readonly CalendarTask[];
+  /** Очередь отдала первые N задач по сроку; null — прочитаны все. */
+  tasksShownFirst: number | null;
+  /** Видимый отрезок дочитан: пустой период — факт, а не обрыв чтения. */
+  periodComplete: boolean;
   cases: readonly CalendarCaseOption[];
   casesHaveMore: boolean;
   assignees: readonly CalendarAssigneeOption[];
@@ -123,7 +178,7 @@ export async function readCalendarWorkspace(
   from: Day,
   to: Day,
 ): Promise<CalendarWorkspace> {
-  const [tasks, cases] = await Promise.all([
+  const [read, cases] = await Promise.all([
     readCalendarTasks(actor, from, to),
     readActiveCases(actor),
   ]);
@@ -138,7 +193,9 @@ export async function readCalendarWorkspace(
     } satisfies CalendarAssigneeOption)) ?? [];
 
   return Object.freeze({
-    tasks,
+    tasks: read.tasks,
+    tasksShownFirst: read.shownFirst,
+    periodComplete: read.periodComplete,
     cases: cases.rows,
     casesHaveMore: cases.hasNext,
     assignees: Object.freeze(assignees),

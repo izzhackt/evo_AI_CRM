@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 
 import Link from "next/link";
 
@@ -21,8 +21,8 @@ import {
 /**
  * Сетки календаря: часовая (день и неделя) и месячная.
  *
- * Обе рисуют переданное и ничего не решают: какой день считать сегодняшним и
- * какая задача выбрана — приходит сверху.
+ * Обе рисуют переданное и ничего не решают: какой день считать сегодняшним,
+ * какая задача выбрана и к какому часу прокручен день — приходит сверху.
  *
  * ПОЧЕМУ ЗАДАЧИ ЛЕЖАТ ПОТОКОМ, А НЕ ВИСЯТ АБСОЛЮТНО. У задачи нет
  * длительности, поэтому высоту карточки нечем задать — рисовать «час» было бы
@@ -214,6 +214,7 @@ export function TimeGrid({
   days,
   tasks,
   hours,
+  anchor = null,
   hrefForDay,
   label,
   chip,
@@ -222,6 +223,8 @@ export function TimeGrid({
   tasks: readonly CalendarTask[];
   /** Минуты от полуночи: начало каждого часа сетки. */
   hours: readonly number[];
+  /** Час, к которому сетка прокручена при открытии. null — не прокручивать. */
+  anchor?: number | null;
   hrefForDay: (day: Day) => string;
   /** Доступное имя области — она прокручивается по горизонтали. */
   label: string;
@@ -230,6 +233,17 @@ export function TimeGrid({
   const columns = `56px repeat(${days.length}, minmax(0, 1fr))`;
   const allDay = tasks.filter((task) => task.day !== null && task.minutes === null);
   const week = days.length > 1;
+
+  // Прокрутка к якорному часу — эффект, а не адрес: фрагмента в ссылках нет.
+  // Ключ склеен из показанного дня и часа, поэтому клик по карточке (чужое
+  // состояние, тот же день) прокрутку не повторяет, а переход на соседний
+  // день — повторяет.
+  const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const anchorKey = anchor === null ? null : `${days[0]}:${anchor}`;
+  useEffect(() => {
+    if (anchorKey === null) return;
+    anchorRef.current?.scrollIntoView({ block: "start" });
+  }, [anchorKey]);
 
   const at = (day: Day, hour: number) =>
     tasks.filter(
@@ -280,7 +294,10 @@ export function TimeGrid({
           const edge = last ? "" : "border-b border-border";
           return (
             <Fragment key={hour}>
-              <span className={`pe-2 pt-1 text-end font-mono text-2xs text-fg-3 ${edge}`}>
+              <span
+                ref={hour === anchor ? anchorRef : undefined}
+                className={`scroll-mt-2 pe-2 pt-1 text-end font-mono text-2xs text-fg-3 ${edge}`}
+              >
                 {timeLabel(hour)}
               </span>
               {days.map((day) => (

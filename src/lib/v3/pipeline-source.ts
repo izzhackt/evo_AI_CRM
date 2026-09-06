@@ -6,14 +6,51 @@ import {
   listPlatformSalesOwnerOptions,
   listPlatformSalesLeads,
   type PlatformSalesCursor,
+  type PlatformSalesDueFilter,
   type PlatformSalesLeadRow,
   type PlatformSalesOwnerOptionsPage,
+  type PlatformSalesStage,
 } from "@/lib/platform-sales";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { FUNNEL_STEP, leadStage } from "@/lib/v3/wording";
 
 const PAGE_SIZE = 100;
 const OWNER_PAGE_SIZE = 100;
+/**
+ * Верхняя граница пагинации. Доска, которой мало 4000 лидов, — это уже не
+ * доска; молчаливое усечение спрятало бы лид, поэтому предел падает с ошибкой,
+ * как и остальные аномалии пагинации ниже.
+ */
+const MAX_LEAD_PAGES = 40;
+
+/**
+ * Фильтры доски. `due: "today"` — слово адресной строки; в RPC оно называется
+ * `due_today`, и перевод живёт здесь, а не в странице.
+ */
+export type PipelineBoardFilters = Readonly<{
+  query: string | null;
+  stage: PlatformSalesStage | "all";
+  due: "overdue" | "today" | "all";
+  assignment: "unassigned" | "mine" | "all";
+  ownerMembershipId: string | null;
+}>;
+
+export const PIPELINE_BOARD_NO_FILTERS: PipelineBoardFilters = Object.freeze({
+  query: null,
+  stage: "all",
+  due: "all",
+  assignment: "all",
+  ownerMembershipId: null,
+});
+
+const RPC_DUE_FILTER: Record<
+  PipelineBoardFilters["due"],
+  PlatformSalesDueFilter
+> = Object.freeze({
+  all: "all",
+  overdue: "overdue",
+  today: "due_today",
+});
 
 function requiredStageTitle(key: string): string {
   const title = leadStage(key);
@@ -91,20 +128,30 @@ function dueState(
 /**
  * Read every visible canonical lead page. The cursor and lead-id checks make a
  * changing or malformed result fail closed instead of silently duplicating or
- * truncating the board and dashboard.
+ * truncating the board and dashboard. Filters are applied by the RPC itself,
+ * so a filtered read pays for the matching pages only; the board still renders
+ * every stage column and simply finds some of them empty.
  */
 export async function readAllCanonicalSalesLeads(
   actor: PlatformActor,
+  filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
 ): Promise<readonly PlatformSalesLeadRow[]> {
   const rows: PlatformSalesLeadRow[] = [];
   const seenLeadIds = new Set<string>();
   const seenCursors = new Set<string>();
   let cursor: PlatformSalesCursor | null = null;
 
-  for (;;) {
+  for (let pageIndex = 0; pageIndex < MAX_LEAD_PAGES; pageIndex += 1) {
     const page = await listPlatformSalesLeads(actor, {
       pageSize: PAGE_SIZE,
       cursor,
+      stageFilter: filters.stage,
+      assignmentFilter: filters.assignment,
+      dueFilter: RPC_DUE_FILTER[filters.due],
+      ...(filters.ownerMembershipId
+        ? { ownerMembershipId: filters.ownerMembershipId }
+        : {}),
+      ...(filters.query ? { query: filters.query } : {}),
     });
 
     for (const row of page.rows) {
@@ -127,12 +174,15 @@ export async function readAllCanonicalSalesLeads(
     seenCursors.add(cursorKey);
     cursor = page.nextCursor;
   }
+
+  throw new Error("Canonical sales pagination exceeded the supported volume.");
 }
 
 export async function readPipelineLeads(
   actor: PlatformActor,
+  filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
 ): Promise<readonly PipelineLead[]> {
-  const rows = await readAllCanonicalSalesLeads(actor);
+  const rows = await readAllCanonicalSalesLeads(actor, filters);
   const today = organizationDate(new Date());
 
   return rows.map((row) => ({

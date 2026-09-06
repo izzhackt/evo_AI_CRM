@@ -52,6 +52,7 @@ export type Integration = Readonly<{
 
 const ROLES: readonly FixedRole[] = ["admin", "sales", "admissions"];
 const AUDIT_PAGE_SIZE = 100;
+const JOURNAL_PAGE_SIZE = 60;
 
 export function readAuditExportEnabled(
   environment: Readonly<Record<string, string | undefined>> = process.env,
@@ -244,28 +245,123 @@ export async function readHealth(
   ];
 }
 
-export type JournalEntry = Readonly<{
+export type JournalEventEntry = Readonly<{
+  kind: "event";
   id: string;
   transition: string;
   objectType: string;
+  /** Канонический id объекта; на экране живёт только короткая форма. */
+  objectId: string | null;
   role: string;
   at: string;
+  /**
+   * Есть в модели, намеренно не рисуется: код причины полностью выводится из
+   * действия, то есть в строке он не сообщал бы ничего.
+   */
   reason: string | null;
+  /**
+   * Ссылка на профиль нового мира. Безопасный аудит отдаёт только тип и id
+   * объекта, поэтому она строится лишь там, где id — само дело студента.
+   * Человекочитаемого имени объекта аудит не отдаёт вовсе.
+   */
+  profileHref: string | null;
 }>;
+
+/**
+ * Хвостовой элемент журнала: курсор следующей страницы того же снимка.
+ * Страница и её курсор нарочно едут одним списком — журнал проходит сквозь
+ * экран настроек одним пропом, и второй канал только размножил бы контракт.
+ */
+export type JournalPageEntry = Readonly<{
+  kind: "page";
+  snapshotCreatedAt: string;
+  snapshotId: string;
+  cursorCreatedAt: string;
+  cursorId: string;
+}>;
+
+export type JournalEntry = JournalEventEntry | JournalPageEntry;
+
+export type JournalCursor = Readonly<{
+  snapshotCreatedAt: string;
+  snapshotId: string;
+  cursorCreatedAt: string;
+  cursorId: string;
+}>;
+
+const JOURNAL_UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const JOURNAL_UTC_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$/;
+
+/** Курсор приходит адресом; неполный или кривой означает первую страницу. */
+function normalizeJournalCursor(
+  cursor: Readonly<Partial<JournalCursor>> | undefined,
+): JournalCursor | null {
+  if (!cursor) return null;
+  const { snapshotCreatedAt, snapshotId, cursorCreatedAt, cursorId } = cursor;
+  if (
+    !snapshotCreatedAt ||
+    !snapshotId ||
+    !cursorCreatedAt ||
+    !cursorId ||
+    !JOURNAL_UTC_PATTERN.test(snapshotCreatedAt) ||
+    !JOURNAL_UTC_PATTERN.test(cursorCreatedAt) ||
+    !JOURNAL_UUID_PATTERN.test(snapshotId) ||
+    !JOURNAL_UUID_PATTERN.test(cursorId)
+  ) {
+    return null;
+  }
+  return { snapshotCreatedAt, snapshotId, cursorCreatedAt, cursorId };
+}
+
+type AuditPage = Readonly<{
+  rows: readonly PlatformAuditSafeRow[];
+  hasMore: boolean;
+  snapshotCreatedAt: string | null;
+  snapshotId: string | null;
+  nextCursorCreatedAt: string | null;
+  nextCursorId: string | null;
+}>;
+
+const EMPTY_AUDIT_PAGE: AuditPage = Object.freeze({
+  rows: [],
+  hasMore: false,
+  snapshotCreatedAt: null,
+  snapshotId: null,
+  nextCursorCreatedAt: null,
+  nextCursorId: null,
+});
 
 async function loadAuditRows(
   actor: ActivePlatformActor,
   objectType: string | undefined,
   pageSize: number,
-): Promise<Readonly<{ rows: readonly PlatformAuditSafeRow[]; hasMore: boolean }>> {
+  cursor: JournalCursor | null = null,
+): Promise<AuditPage> {
   assertAdminAuthority(actor);
 
   try {
     const result = await searchPlatformAudit({
       page_size: String(pageSize),
       ...(objectType ? { resource_types: objectType } : {}),
+      ...(cursor
+        ? {
+            snapshot_created_at: cursor.snapshotCreatedAt,
+            snapshot_id: cursor.snapshotId,
+            cursor_created_at: cursor.cursorCreatedAt,
+            cursor_id: cursor.cursorId,
+          }
+        : {}),
     });
-    return { rows: result.rows, hasMore: result.hasMore };
+    return {
+      rows: result.rows,
+      hasMore: result.hasMore,
+      snapshotCreatedAt: result.snapshotCreatedAt,
+      snapshotId: result.snapshotId,
+      nextCursorCreatedAt: result.nextCursorCreatedAt,
+      nextCursorId: result.nextCursorId,
+    };
   } catch (error) {
     // The canonical audit is feature-gated. Disabled/unavailable yields no
     // projection here; it never falls back to a legacy journal.
@@ -273,7 +369,17 @@ async function loadAuditRows(
       error instanceof PlatformAuditActionError &&
       error.kind === "unavailable"
     ) {
-      return { rows: [], hasMore: false };
+      return EMPTY_AUDIT_PAGE;
+    }
+    // Форму курсора мы проверили, но снимок мог протухнуть на стороне
+    // репозитория. Чужое слово из адреса не роняет страницу — журнал
+    // открывается с начала.
+    if (
+      cursor !== null &&
+      error instanceof PlatformAuditActionError &&
+      error.kind === "invalid"
+    ) {
+      return loadAuditRows(actor, objectType, pageSize, null);
     }
     throw error;
   }
@@ -297,23 +403,51 @@ function formatAuditTime(value: string): string {
 export async function readJournal(
   actor: ActivePlatformActor,
   filters: JournalFilters = {},
+  cursor?: Readonly<Partial<JournalCursor>>,
 ): Promise<readonly JournalEntry[]> {
   const normalizedFilters = normalizeJournalFilters(filters);
-  const result = await loadAuditRows(actor, normalizedFilters.objectType, 60);
-  return result.rows
+  const page = await loadAuditRows(
+    actor,
+    normalizedFilters.objectType,
+    JOURNAL_PAGE_SIZE,
+    normalizeJournalCursor(cursor),
+  );
+  const entries: JournalEntry[] = page.rows
     .filter(
       (row) =>
         normalizedFilters.role === undefined ||
         row.actorDisplayLabel === normalizedFilters.role,
     )
     .map((row) => ({
+      kind: "event" as const,
       id: row.auditEventId,
       transition: row.action,
       objectType: row.resourceType,
+      objectId: row.resourceId,
       role: row.actorDisplayLabel,
       at: formatAuditTime(row.createdAt),
       reason: row.reasonCode,
+      profileHref:
+        row.resourceType === "student_case"
+          ? `/v3/profile?case=${row.resourceId}`
+          : null,
     }));
+  if (
+    page.hasMore &&
+    page.snapshotCreatedAt !== null &&
+    page.snapshotId !== null &&
+    page.nextCursorCreatedAt !== null &&
+    page.nextCursorId !== null
+  ) {
+    entries.push({
+      kind: "page",
+      snapshotCreatedAt: page.snapshotCreatedAt,
+      snapshotId: page.snapshotId,
+      cursorCreatedAt: page.nextCursorCreatedAt,
+      cursorId: page.nextCursorId,
+    });
+  }
+  return entries;
 }
 
 export async function readJournalFacets(

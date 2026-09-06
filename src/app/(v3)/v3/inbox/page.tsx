@@ -122,7 +122,7 @@ function renderAmoCrmControls(
   if (command.status === "blocked") {
     return (
       <section
-        className="rounded-ctl bg-warn-weak px-3 py-3 text-sm text-warn"
+        className="v3-edge-warn rounded-ctl border border-border border-s-2 bg-surface px-3 py-3 text-sm leading-5 text-fg-2"
         data-testid="v3-inbox-amocrm"
         data-status="unavailable"
         role="status"

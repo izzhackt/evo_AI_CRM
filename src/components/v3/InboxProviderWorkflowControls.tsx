@@ -22,9 +22,9 @@ import type {
 const BUTTON_CLASS =
   "inline-flex min-h-10 items-center justify-center rounded-ctl bg-accent px-3 text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-fg-3";
 const SECONDARY_BUTTON_CLASS =
-  "inline-flex min-h-10 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-10 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 disabled:cursor-not-allowed disabled:border-border disabled:text-fg-3";
 const DANGER_BUTTON_CLASS =
-  "inline-flex min-h-10 items-center justify-center rounded-ctl border border-danger/30 bg-surface px-3 text-sm font-semibold text-danger hover:bg-danger-weak disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-10 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-danger hover:bg-surface-2 disabled:cursor-not-allowed disabled:border-border disabled:text-fg-3";
 const FIELD_CLASS =
   "mt-1 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm leading-6 text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10";
 
@@ -275,7 +275,7 @@ export function InboxProviderWorkflowControls({
           ) : null}
         </form>
       ) : (
-        <p className="rounded-ctl bg-warn-weak px-3 py-2 text-sm text-warn">
+        <p className="v3-edge-warn rounded-ctl border border-border border-s-2 bg-surface px-3 py-2 text-sm leading-5 text-fg-2">
           Действия доступны только на странице с новыми сообщениями: источником
           должно быть последнее входящее сообщение.
         </p>

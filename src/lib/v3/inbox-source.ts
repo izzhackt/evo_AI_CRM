@@ -96,6 +96,35 @@ function formatInboxTime(value: string): string {
   return BISHKEK_TIME.format(parsed).replace(",", "");
 }
 
+function formatWaitingRu(sinceIso: string): string | null {
+  const since = new Date(sinceIso);
+  if (!Number.isFinite(since.valueOf())) return null;
+  const elapsedMs = Date.now() - since.valueOf();
+  if (elapsedMs < 0) return null;
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 60) return `${Math.max(minutes, 1)} мин`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ч`;
+  return `${Math.floor(hours / 24)} дн`;
+}
+
+/**
+ * The waiting state is honest only on the newest transcript page: there the
+ * final chronological message is the conversation's true latest message. On an
+ * older page the newest message is not loaded, so the state stays unknown.
+ * The queue projection carries no last-message direction, which is why rows
+ * cannot show this yet — see backend-gaps.
+ */
+function awaitingReplyFor(
+  messages: readonly PlatformConversationMessage[],
+  messageCursor: PlatformConversationCursor | null,
+): string | null {
+  if (messageCursor !== null) return null;
+  const newest = messages.at(-1);
+  if (newest === undefined || newest.direction !== "inbound") return null;
+  return formatWaitingRu(newest.createdAt);
+}
+
 function queueSearchParams(
   queueCursor: PlatformConversationCursor | null,
 ): URLSearchParams {
@@ -226,6 +255,10 @@ export async function readInbox(
     selected = Object.freeze({
       ...toInboxConversation(thread.conversation, options.queueCursor),
       messages: Object.freeze(thread.messages.map(toInboxMessage)),
+      awaitingReplyFor: awaitingReplyFor(
+        thread.messages,
+        options.messageCursor,
+      ),
       latestInboundSourceMessageId: latestInboundMessageId(
         thread.messages,
         options.messageCursor,

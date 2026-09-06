@@ -5,7 +5,7 @@ import { OperationsOverview } from "@/components/v3/OperationsOverview";
 import { Calendar } from "@/components/v3/calendar/Calendar";
 import { gridDays, resolveDay, resolveView } from "@/components/v3/calendar/types";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { readCalendarWorkspace, readToday } from "@/lib/v3/calendar-source";
+import { readCalendarWorkspace, readNowMinutes, readToday } from "@/lib/v3/calendar-source";
 import { readV3OperationalDashboard } from "@/lib/v3/operations-source";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +24,10 @@ export default async function CalendarPart({
 }: {
   searchParams: Promise<{ view?: string; date?: string }>;
 }) {
-  const [params, today, actor] = await Promise.all([
+  const [params, today, nowMinutes, actor] = await Promise.all([
     searchParams,
     readToday(),
+    readNowMinutes(),
     requireV3PageActor("/v3/calendar"),
   ]);
 
@@ -55,8 +56,11 @@ export default async function CalendarPart({
           view={view}
           day={day}
           today={today}
+          nowMinutes={nowMinutes}
           days={days}
           tasks={workspace.tasks}
+          tasksShownFirst={workspace.tasksShownFirst}
+          periodComplete={workspace.periodComplete}
           cases={workspace.cases}
           casesHaveMore={workspace.casesHaveMore}
           assignees={workspace.assignees}

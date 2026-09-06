@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { Pill } from "@/components/v3/Pill";
 
 export type InboxMessage = Readonly<{
   id: string;
@@ -31,6 +32,12 @@ export type InboxConversation = Readonly<{
 export type InboxSelectedConversation = InboxConversation &
   Readonly<{
     messages: readonly InboxMessage[];
+    /**
+     * `5 мин` / `3 ч` / `2 дн` — how long the client has been waiting since
+     * their latest message. Null when the latest loaded message is outbound
+     * or when an older transcript page hides the newest message.
+     */
+    awaitingReplyFor: string | null;
     latestInboundSourceMessageId: string | null;
     newestMessagesHref: string | null;
     olderMessagesHref: string | null;
@@ -161,7 +168,14 @@ export function Inbox({
               <Icon name="arrow-left" size={16} />
             </Link>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-md font-bold text-fg">{open.person}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="min-w-0 truncate text-md font-bold text-fg">
+                  {open.person}
+                </h2>
+                {open.awaitingReplyFor ? (
+                  <Pill tone="warn">Ждёт ответа · {open.awaitingReplyFor}</Pill>
+                ) : null}
+              </div>
               <p className="mt-0.5 text-2xs text-fg-3">
                 {channelLabel(open.channelState)}
                 {open.channelObservedAt
@@ -181,7 +195,12 @@ export function Inbox({
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto" tabIndex={0}>
+          <div
+            role="region"
+            aria-label="Лента переписки"
+            tabIndex={0}
+            className="min-h-0 flex-1 overflow-y-auto"
+          >
             <div className="px-4 py-4">
               <div className="mb-3 flex items-center justify-between gap-2 text-xs">
                 {open.newestMessagesHref ? (

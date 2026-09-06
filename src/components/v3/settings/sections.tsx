@@ -4,7 +4,10 @@ import Link from "next/link";
 
 import { Icon } from "@/components/icons";
 import { Pill } from "@/components/v3/Pill";
-import { eventLabel, role as roleWord } from "@/lib/v3/wording";
+import type {
+  PlatformAuditAction,
+  PlatformAuditResourceType,
+} from "@/lib/platform-audit";
 
 import type { GateFacts, Health, Integration, JournalEntry, RoleRow } from "./types";
 
@@ -153,6 +156,193 @@ export function IntegrationsSection({
 
 /* ----------------------------------------------------- Журнал действий */
 
+type JournalEvent = Extract<JournalEntry, { kind: "event" }>;
+type JournalNextPage = Extract<JournalEntry, { kind: "page" }>;
+
+/**
+ * Слова журнала.
+ *
+ * Ключи — канонические allowlist-ы аудита, и `satisfies` требует полноты:
+ * пропущенный ключ — ошибка сборки, а не сырая строка на экране. Если во
+ * времени выполнения всё же придёт неизвестное действие, строка не рисуется
+ * и попадает в счёт «без названия» внизу списка.
+ */
+const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
+  "ai.control.set": "Управление ИИ изменено",
+  "ai.draft.generate": "Черновик ответа ИИ создан",
+  "ai.draft.language.resolve": "Определён язык черновика ИИ",
+  "ai.draft.record": "Черновик ИИ записан",
+  "ai.draft.request": "Запрошен черновик ИИ",
+  "ai.draft.request.knowledge": "Подобраны знания для черновика ИИ",
+  "ai.draft.review": "Черновик ИИ проверен",
+  "ai.fact.record": "Факт ИИ записан",
+  "ai.memory.record": "Память ИИ записана",
+  "ai.qualification.record": "Квалификация ИИ записана",
+  "ai.retrieval.preview": "Предпросмотр поиска ИИ",
+  "application.create": "Заявка заведена",
+  "application.details.update": "Данные заявки изменены",
+  "application.status.change": "Статус заявки изменён",
+  "audit.export": "Журнал выгружен",
+  "autonomous.reply.control.set": "Автоответ переключён",
+  "case.create": "Дело заведено",
+  "case.curator.set": "Куратор дела назначен",
+  "case.handoff.create": "Передача дела оформлена",
+  "case.lifecycle.change": "Состояние дела изменено",
+  "case.route.change": "Маршрут дела изменён",
+  "case.update.append": "Запись добавлена в дело",
+  "catalog.import.batch.create": "Партия импорта каталога создана",
+  "catalog.import.batch.review": "Партия импорта каталога проверена",
+  "catalog.import.batch.validate": "Партия импорта каталога провалидирована",
+  "catalog.import.candidate.stage": "Кандидат каталога подготовлен",
+  "communication.conversation.create": "Диалог создан",
+  "communication.conversation.link": "Диалог привязан",
+  "communication.manual.authorize": "Ручная отправка разрешена",
+  "communication.manual.send": "Сообщение отправлено вручную",
+  "communication.manual.send.request": "Запрошена ручная отправка",
+  "communication.message.record": "Сообщение записано",
+  "communication.participant.record": "Участник диалога записан",
+  "communication.provider.observe": "Снято состояние провайдера связи",
+  "communication.waha.history.begin": "Сверка истории WhatsApp начата",
+  "communication.waha.history.complete": "Сверка истории WhatsApp завершена",
+  "communication.waha.history.pause": "Сверка истории WhatsApp приостановлена",
+  "communication.waha.history.project": "История WhatsApp спроецирована",
+  "communication.waha.project": "Сообщение WhatsApp спроецировано",
+  "communication.waha.project.retry": "Повтор проекции WhatsApp",
+  "contract.draft.generate": "Черновик договора создан",
+  "contract.draft.review": "Черновик договора проверен",
+  "contract.template.version.approve": "Версия шаблона договора утверждена",
+  "contract.template.version.create": "Версия шаблона договора создана",
+  "contract.template.version.retire": "Версия шаблона договора отозвана",
+  "country.requirement.apply": "Требования страны применены",
+  "country.requirement.source.link": "Источник требований страны привязан",
+  "country.requirement.version.approve": "Версия требований страны утверждена",
+  "country.requirement.version.create": "Версия требований страны создана",
+  "country.requirement.version.retire": "Версия требований страны отозвана",
+  "decision.backlog.create": "Решение отложено в бэклог",
+  "decision.backlog.transition": "Отложенное решение переведено",
+  "document.download.grant": "Выдан доступ к скачиванию документа",
+  "document.download.sign.authorize": "Скачивание документа подписано",
+  "document.requirement.create": "Требование к документам создано",
+  "document.requirement.retire": "Требование к документам снято",
+  "document.slot.application.link": "Документ привязан к заявке",
+  "document.slot.application.unlink": "Документ отвязан от заявки",
+  "document.slot.create": "Пункт документов создан",
+  "document.slot.custom.create": "Свой пункт документов создан",
+  "document.slot.metadata.change": "Пункт документов изменён",
+  "document.slot.remove": "Пункт документов убран",
+  "document.slot.visa.link": "Документ привязан к визе",
+  "document.slot.visa.unlink": "Документ отвязан от визы",
+  "document.upload.finalize": "Документ загружен",
+  "document.upload.reserve": "Загрузка документа начата",
+  "document.validation.attest": "Документ заверен",
+  "document.version.record": "Версия документа записана",
+  "document.version.review": "Версия документа проверена",
+  "finance.obligation.create": "Платёжное обязательство создано",
+  "finance.payment.record": "Платёж записан",
+  "finance.stop.create": "Финансовый стоп поставлен",
+  "finance.stop.resolve": "Финансовый стоп снят",
+  "knowledge.chunkset.publish": "Фрагменты базы знаний опубликованы",
+  "knowledge.version.publish": "Версия базы знаний опубликована",
+  "knowledge.version.retire": "Версия базы знаний отозвана",
+  "membership.permission.change": "Права сотрудника изменены",
+  "membership.provision": "Сотрудник заведён",
+  "membership.role.change": "Роль сотрудника изменена",
+  "membership.scope.organization.assign": "Сотруднику назначена организация",
+  "membership.scope.organization.revoke": "У сотрудника отозвана организация",
+  "membership.status.change": "Статус сотрудника изменён",
+  "messaging.integration.health.record": "Состояние мессенджера записано",
+  "notification.consent.set": "Согласие на уведомления изменено",
+  "notification.create": "Уведомление создано",
+  "notification.read": "Уведомление прочитано",
+  "organization.bootstrap": "Организация создана",
+  "post.contract.item.update": "Пункт сопровождения изменён",
+  "post.contract.items.seed": "Пункты сопровождения заведены",
+  "post.contract.report.generate": "Отчёт сопровождения создан",
+  "post.contract.report.review": "Отчёт сопровождения проверен",
+  "rbac.bundle.upgrade": "Набор прав обновлён",
+  "student.profile.upsert": "Анкета студента обновлена",
+  "task.change": "Задача изменена",
+  "task.create": "Задача создана",
+  "visa.create": "Визовое дело создано",
+  "visa.status.change": "Статус визы изменён",
+  "workflow.contract.create": "Контракт процесса создан",
+  "workflow.source.link": "Источник процесса привязан",
+  "workflow.source.register": "Источник процесса зарегистрирован",
+  "workflow.source.retire": "Источник процесса отозван",
+  "workflow.source.review": "Источник процесса проверен",
+  "workflow.version.approve": "Версия процесса утверждена",
+  "workflow.version.create": "Версия процесса создана",
+  "workflow.version.retire": "Версия процесса отозвана",
+} satisfies Readonly<Record<PlatformAuditAction, string>>;
+
+const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
+  ai_draft: "Черновик ИИ",
+  ai_draft_request: "Запрос черновика ИИ",
+  ai_draft_request_knowledge_selection: "Подбор знаний для черновика ИИ",
+  ai_retrieval_request: "Поисковый запрос ИИ",
+  approved_knowledge_chunk_set: "Набор фрагментов базы знаний",
+  approved_knowledge_version: "Версия базы знаний",
+  audit_export: "Экспорт журнала",
+  case_task: "Задача по делу",
+  catalog_import_batch: "Партия импорта каталога",
+  catalog_import_candidate: "Кандидат импорта каталога",
+  communication_conversation: "Диалог",
+  communication_message: "Сообщение",
+  contract_template_version: "Версия шаблона договора",
+  conversation_ai_control: "Управление ИИ в диалоге",
+  conversation_ai_fact: "Факт ИИ по диалогу",
+  conversation_ai_memory: "Память ИИ по диалогу",
+  conversation_ai_qualification: "Квалификация ИИ по диалогу",
+  conversation_participant: "Участник диалога",
+  country_requirement_version: "Версия требований страны",
+  country_requirement_version_source: "Источник требований страны",
+  decision_backlog: "Отложенное решение",
+  document_requirement: "Требование к документам",
+  document_slot: "Пункт чеклиста документов",
+  document_version: "Версия документа",
+  durable_work_item: "Фоновая задача",
+  manual_send_authorization: "Разрешение ручной отправки",
+  messaging_integration_health_event: "Состояние мессенджера",
+  notification: "Уведомление",
+  notification_consent: "Согласие на уведомления",
+  organization: "Организация",
+  organization_membership: "Членство в организации",
+  payment_event: "Платёж",
+  payment_obligation: "Платёжное обязательство",
+  post_contract_item: "Пункт сопровождения",
+  post_contract_item_set: "Набор пунктов сопровождения",
+  post_contract_report: "Отчёт сопровождения",
+  provider_reconciliation_event: "Сверка с провайдером",
+  source_registry: "Реестр источников",
+  stop_factor: "Финансовый стоп",
+  student_case: "Дело студента",
+  student_case_contract_draft: "Черновик договора",
+  student_case_update: "Запись в деле",
+  student_profile: "Анкета студента",
+  university_application: "Заявка в вуз",
+  visa_case: "Визовое дело",
+  waha_history_reconciliation_run: "Сверка истории WhatsApp",
+  workflow_contract: "Контракт процесса",
+  workflow_contract_version: "Версия контракта процесса",
+  workflow_contract_version_source: "Источник контракта процесса",
+} satisfies Readonly<Record<PlatformAuditResourceType, string>>;
+
+/** Категория актора безопасного журнала; персональных данных в нём нет. */
+const JOURNAL_ACTOR_WORD: Readonly<Record<string, string>> = {
+  Staff: "сотрудник",
+  Service: "сервис",
+  System: "система",
+};
+
+function pluralRu(n: number, one: string, few: string, many: string): string {
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+}
+
 export function JournalSection({
   entries,
   exportEnabled,
@@ -167,8 +357,25 @@ export function JournalSection({
     roles: readonly string[];
   }>;
   active: Readonly<{ objectType?: string; role?: string }>;
-  hrefFor: (next: Readonly<{ objectType?: string; role?: string }>) => string;
+  hrefFor: (next: Readonly<{
+    objectType?: string;
+    role?: string;
+    snapshotAt?: string;
+    snapshotId?: string;
+    cursorAt?: string;
+    cursorId?: string;
+  }>) => string;
 }) {
+  const events = entries.filter(
+    (entry): entry is JournalEvent => entry.kind === "event",
+  );
+  const nextPage = entries.find(
+    (entry): entry is JournalNextPage => entry.kind === "page",
+  ) ?? null;
+  const named = events.filter(
+    (entry) => JOURNAL_EVENT_WORD[entry.transition] !== undefined,
+  );
+  const unnamed = events.length - named.length;
   const exportEndAt = new Date();
   const exportStartAt = new Date(exportEndAt.getTime() - 30 * 24 * 60 * 60 * 1_000);
   const chip = (on: boolean) =>
@@ -190,19 +397,25 @@ export function JournalSection({
               любой
             </Link>
           </li>
-          {facets.objectTypes.map((type) => (
-            <li key={type.key}>
-              <Link
-                href={hrefFor({ objectType: type.key, role: active.role })}
-                className={chip(active.objectType === type.key)}
-              >
-                {type.key}
-                <span className={active.objectType === type.key ? "text-on-accent" : "text-fg-3"}>
-                  {type.count}
-                </span>
-              </Link>
-            </li>
-          ))}
+          {facets.objectTypes.map((type) => {
+            // Сырой ключ типа не показывается; тип без слова остаётся без
+            // плитки, а его события считает строка «без названия» внизу.
+            const word = JOURNAL_OBJECT_WORD[type.key];
+            if (word === undefined) return null;
+            return (
+              <li key={type.key}>
+                <Link
+                  href={hrefFor({ objectType: type.key, role: active.role })}
+                  className={chip(active.objectType === type.key)}
+                >
+                  {word}
+                  <span className={active.objectType === type.key ? "text-on-accent" : "text-fg-3"}>
+                    {type.count}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
 
         <p className="mt-1 text-2xs uppercase tracking-wide text-fg-3">Кто</p>
@@ -215,16 +428,20 @@ export function JournalSection({
               любая роль
             </Link>
           </li>
-          {facets.roles.map((role) => (
-            <li key={role}>
-              <Link
-                href={hrefFor({ objectType: active.objectType, role })}
-                className={chip(active.role === role)}
-              >
-                {roleWord(role) ?? role}
-              </Link>
-            </li>
-          ))}
+          {facets.roles.map((role) => {
+            const word = JOURNAL_ACTOR_WORD[role];
+            if (word === undefined) return null;
+            return (
+              <li key={role}>
+                <Link
+                  href={hrefFor({ objectType: active.objectType, role })}
+                  className={chip(active.role === role)}
+                >
+                  {word}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </nav>
 
@@ -246,7 +463,11 @@ export function JournalSection({
             ) : null}
 
             <p id="v3-audit-export-scope" className="text-xs leading-5 text-fg-2">
-              Последние 30 дней · {active.objectType ?? "все объекты"} · все участники
+              Последние 30 дней ·{" "}
+              {active.objectType
+                ? (JOURNAL_OBJECT_WORD[active.objectType] ?? "выбранный тип объекта")
+                : "все объекты"}{" "}
+              · все участники
             </p>
             <button
               type="submit"
@@ -265,7 +486,10 @@ export function JournalSection({
         </Card>
       ) : null}
 
-      <Card title="События" aside={<Pill>{entries.length}</Pill>}>
+      <Card
+        title="События"
+        aside={<Pill>{nextPage ? `${events.length}+` : events.length}</Pill>}
+      >
         <div
           role="group"
           aria-label="Журнал действий"
@@ -273,33 +497,77 @@ export function JournalSection({
           className="max-h-[540px] overflow-y-auto"
         >
           <ul>
-            {entries.map((entry) => {
-              const label = eventLabel(entry.transition);
-              if (!label) return null;
+            {named.map((entry) => {
+              const objectWord = JOURNAL_OBJECT_WORD[entry.objectType];
+              const actorWord = JOURNAL_ACTOR_WORD[entry.role];
               return (
                 <li
                   key={entry.id}
                   className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5 last:border-b-0"
                 >
-                  <span className="min-w-0 flex-1 text-sm text-fg">{label}</span>
-                  {entry.reason ? (
-                    <span className="w-full text-2xs text-fg-3">{entry.reason}</span>
-                  ) : null}
-                  <Pill>{roleWord(entry.role) ?? entry.role}</Pill>
+                  <span className="min-w-0 flex-1 text-sm text-fg">
+                    {JOURNAL_EVENT_WORD[entry.transition]}
+                  </span>
+                  {actorWord !== undefined ? <Pill>{actorWord}</Pill> : null}
                   <span className="shrink-0 font-mono text-2xs text-fg-3">{entry.at}</span>
+                  {/* Имени объекта аудит не отдаёт — только тип и id. Короткий
+                      id различает строки об одном типе, ссылка есть там, где
+                      id ведёт в профиль нового мира. */}
+                  <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-fg-3">
+                    {objectWord !== undefined ? <span>{objectWord}</span> : null}
+                    {entry.objectId !== null ? (
+                      <span className="font-mono">#{entry.objectId.slice(0, 8)}</span>
+                    ) : null}
+                    {entry.profileHref ? (
+                      <Link
+                        href={entry.profileHref}
+                        className="inline-flex min-h-6 items-center font-medium text-accent hover:underline"
+                      >
+                        открыть профиль
+                      </Link>
+                    ) : null}
+                  </span>
                 </li>
               );
             })}
-            {entries.length === 0 ? (
+            {events.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-fg-3">
                 По этому фильтру событий нет.
               </li>
             ) : null}
           </ul>
         </div>
+        {unnamed > 0 ? (
+          <p className="border-t border-border px-4 py-2 text-2xs text-fg-3">
+            {unnamed}{" "}
+            {pluralRu(
+              unnamed,
+              "событие без названия",
+              "события без названия",
+              "событий без названия",
+            )}
+          </p>
+        ) : null}
+        {nextPage ? (
+          <p className="border-t border-border px-4 py-2.5">
+            <Link
+              href={hrefFor({
+                objectType: active.objectType,
+                role: active.role,
+                snapshotAt: nextPage.snapshotCreatedAt,
+                snapshotId: nextPage.snapshotId,
+                cursorAt: nextPage.cursorCreatedAt,
+                cursorId: nextPage.cursorId,
+              })}
+              className="inline-flex min-h-8 items-center rounded-nav border border-border bg-surface px-2.5 text-xs text-fg-2 hover:border-control-edge"
+            >
+              Следующие события
+            </Link>
+          </p>
+        ) : null}
         <Note>
           Сотрудники входят через личные учётные записи Supabase Auth. Этот безопасный журнал
-          намеренно показывает категорию актора — Staff, Service или System — без раскрытия
+          намеренно показывает категорию актора — сотрудник, сервис или система — без раскрытия
           персональных данных на экране.
         </Note>
       </Card>

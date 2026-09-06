@@ -22,7 +22,15 @@ export const metadata = { title: "V3 · Настройки" };
 export default async function SettingsPart({
   searchParams,
 }: {
-  searchParams: Promise<{ section?: string; object?: string; role?: string }>;
+  searchParams: Promise<{
+    section?: string;
+    object?: string;
+    role?: string;
+    snapshot?: string;
+    snapshotId?: string;
+    cursor?: string;
+    cursorId?: string;
+  }>;
 }) {
   const params = await searchParams;
   const section = isSectionKey(params.section) ? params.section : "state";
@@ -36,7 +44,14 @@ export default async function SettingsPart({
   const [health, integrations, journal, journalFacets, gates, platform] = await Promise.all([
     readHealth(actor),
     readIntegrations(actor),
-    isAdmin ? readJournal(actor, journalFilters) : Promise.resolve([]),
+    isAdmin
+      ? readJournal(actor, journalFilters, {
+          snapshotCreatedAt: params.snapshot,
+          snapshotId: params.snapshotId,
+          cursorCreatedAt: params.cursor,
+          cursorId: params.cursorId,
+        })
+      : Promise.resolve([]),
     isAdmin
       ? readJournalFacets(actor)
       : Promise.resolve({ objectTypes: [], roles: [] }),
@@ -67,8 +82,26 @@ export default async function SettingsPart({
         auditExportEnabled={readAuditExportEnabled()}
         journalFacets={journalFacets}
         journalFilters={journalFilters}
-        journalHrefFor={(next) =>
-          query({ section: "journal", object: next.objectType, role: next.role })
+        // Параметр типизирован шире, чем требует Settings: сюда же приходит
+        // курсор страницы журнала, а смена фильтра его не несёт — и тем
+        // самым честно возвращает на первую страницу.
+        journalHrefFor={(next: Readonly<{
+          objectType?: string;
+          role?: string;
+          snapshotAt?: string;
+          snapshotId?: string;
+          cursorAt?: string;
+          cursorId?: string;
+        }>) =>
+          query({
+            section: "journal",
+            object: next.objectType,
+            role: next.role,
+            snapshot: next.snapshotAt,
+            snapshotId: next.snapshotId,
+            cursor: next.cursorAt,
+            cursorId: next.cursorId,
+          })
         }
         roles={readRoles()}
         capabilityNames={readCapabilityNames()}

@@ -176,7 +176,10 @@ approval request, but only after all of these are true:
 
 1. the exact managed project and production runtime are identified;
 2. separate recoverable pre-change artifacts exist for managed Supabase
-   Postgres and private Storage object bytes, and both restore paths are proved;
+   Postgres and, for private Storage, either a signed exact empty-source
+   inventory or a non-empty object-byte backup; the applicable restore,
+   empty-source and lifecycle/scanner paths are proved without inventing source
+   bytes;
 3. forward migrations and data reconciliation pass only on an isolated,
    loopback-bound OrbStack copy whose source and destination identities are
    demonstrably different, using the minimum authorized representative data;
@@ -252,9 +255,10 @@ closed. Schema recovery stays forward-only and schema apply remains a separate
 #552 action followed only by a clean same-SHA all-jobs rerun.
 
 #551 recovery proof uses no managed staging project. A read-only encrypted
-database export and a separate private-Storage object inventory/byte backup are
-restored only into a disposable local OrbStack Supabase contour with provider
-configuration absent and outbound provider actions blocked. The rehearsal
+database export and a separate private-Storage object inventory, plus object
+bytes only when the signed source inventory is non-empty, are restored or
+validated only inside a disposable local OrbStack Supabase contour with
+provider configuration absent and outbound provider actions blocked. The rehearsal
 binds the signed export to its exact source Git commit and migration tree. When
 that source was squash-merged, one explicit integrated-equivalent commit must
 have the identical complete Git tree and migration tree, and that equivalent
@@ -363,26 +367,46 @@ customer rows, proves the safe available Supabase Auth/RLS/private-Storage and
 V3 browser behaviors, then destroys the disposable contour and atomically
 retains only mode-`0600` redacted evidence outside the runtime directory.
 Database and Storage proof are independently required because a Supabase
-database backup does not contain Storage object bytes. Missing real Sales or
-Admissions identities, or a signed source Storage inventory with zero objects,
-produces a non-zero `not_ready` diagnostic; Admin/canary behavior may still be
-proved with a canonical allowed PDF and exact hash round trip, but cannot
-satisfy either missing-role or real source-byte recovery. A missing backup
-directory, missing source credentials or either real backup is also a named
-blocker, and synthetic identities, records or objects cannot satisfy this gate.
-The signed source bucket rows and object bytes are reconciled before target
-Storage configuration is applied. Only after that exact source proof, the
-consumer restores the exact target commit's `[storage.buckets.*]` declarations
-as its contract and reconciles them through the local Supabase Storage bucket
-API. It lists the API inventory before and after the change and requires every
-configured bucket's privacy, byte limit and MIME allowlist to match before any
-application canary starts. The complete final inventory must equal the exact
-source inventory with target-config buckets overlaid, so a source-only bucket
-cannot disappear or change behind an equal count. An `objects_path` is
-forbidden in this recovery gate so configuration cannot inject fixture bytes.
-Target bucket creation is forward infrastructure rehearsal: it neither changes
-the signed source-recovery counts nor satisfies the independent requirement for
-at least one real recovered source object. Supabase documents bucket declarations
+database backup does not contain Storage object bytes. The current managed
+production source is explicitly one confirmed Admin and zero private Storage
+objects. For that exact state, a signed source inventory proving zero objects is
+valid release evidence because there are no source bytes to restore. It must be
+reported as exact empty-source inventory evidence, not as source-byte recovery.
+
+Admin-only managed proof must use the normal Supabase Auth/session path, load
+the V3 shell and demonstrate the Admin presentation preview of Sales and
+Admissions while the actual live authority remains the Admin identity. Missing
+live Sales and Admissions users are not fabricated. Their RLS and business
+outcomes remain isolated-local proof only and must be labelled explicitly as not
+live staff acceptance.
+
+Private Storage lifecycle and scanner proof remain required through the real
+product document path: an authenticated controlled proof file is scanned,
+stored, finalized, downloaded, rejected on the safe detection sample, denied
+when the scanner is unavailable or times out, and recovered only after a clean
+rescan. That lifecycle/scanner result proves the current product path, but it is
+not source-byte recovery and cannot substitute for source object bytes when a
+source inventory is non-empty. If a future or incident source contains any
+private Storage objects, the full disaster-recovery proof is strict again: the
+exact object-byte export, bucket/count/size/checksum reconciliation, private
+restore and signed-access checks are mandatory. A missing backup directory,
+missing source credentials, missing non-empty object bytes, or any unsigned or
+ambiguous Storage inventory is a named blocker, and synthetic identities,
+records or objects cannot satisfy this gate.
+
+The signed source bucket rows and, when present, object bytes are reconciled
+before target Storage configuration is applied. Only after that exact source
+proof, the consumer restores the exact target commit's `[storage.buckets.*]`
+declarations as its contract and reconciles them through the local Supabase
+Storage bucket API. It lists the API inventory before and after the change and
+requires every configured bucket's privacy, byte limit and MIME allowlist to
+match before any application lifecycle/scanner proof starts. The complete final
+inventory must equal the exact source inventory with target-config buckets
+overlaid, so a source-only bucket cannot disappear or change behind an equal
+count. An `objects_path` is forbidden in this recovery gate so configuration
+cannot inject fixture bytes. Target bucket creation is forward infrastructure
+rehearsal: it neither changes the signed source-recovery counts nor satisfies a
+non-empty source-byte recovery requirement. Supabase documents bucket declarations
 in the [CLI config reference](https://supabase.com/docs/guides/local-development/cli/config)
 and the bucket lifecycle in
 [Creating Buckets](https://supabase.com/docs/guides/storage/buckets/creating-buckets).
@@ -592,17 +616,23 @@ in #552 after every prerequisite below passes.
    prior accepted V3 while atomically moving the current pointer. WAHA, its
    session and volumes remain untouched in every mode.
 5. **Separate recovery paths.** The pre-change recovery set identifies one
-   recoverable managed-Postgres backup and a separate authenticated export of
-   private Storage object bytes with count, size and checksums; database backup
-   metadata is not file-byte recovery. Restore and forward-migration rehearsal
-   run only in a loopback-bound OrbStack copy. The gate proves source and
+   recoverable managed-Postgres backup and a separate signed authenticated
+   private-Storage inventory. If that inventory is non-empty, it must include an
+   object-byte export with count, size and checksums; if it is signed and empty,
+   it is exact empty-source evidence because there are no source bytes to
+   restore. Database backup metadata is not file-byte recovery. Restore and
+   forward-migration rehearsal run only in a loopback-bound OrbStack copy. The
+   gate proves source and
    destination project refs, URLs, networks and volumes are unequal, limits
    application-level verification to a named minimum authorized cohort, and
    never publishes row, object, credential or session data in evidence. Exact
    source bucket/object reconciliation completes before the target commit's
    bucket declarations are reconciled and verified through the real local
-   Storage API; that target upgrade cannot replace or waive source-byte
-   recovery.
+   Storage API. A signed exact zero-object source inventory is valid
+   empty-source evidence because no source bytes exist; target bucket lifecycle
+   and scanner proof remain required but cannot be described as source-byte
+   recovery. If the signed source inventory is non-empty, that target upgrade
+   cannot replace or waive exact source-byte recovery.
 6. **Scanner prerequisite.** Before the release may be armed, both active
    document-ingress paths are bound to the same real scanner implementation.
    Each upload first scans the ingress bytes before any reservation or Storage

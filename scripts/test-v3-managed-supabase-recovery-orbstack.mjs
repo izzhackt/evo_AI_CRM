@@ -48,6 +48,14 @@ const RECEIPT_SCHEMA = "evo-v3-managed-supabase-export-receipt/v1";
 const DATABASE_SCHEMA = "evo-v3-managed-supabase-logical-backup/v1";
 const STORAGE_SCHEMA = "evo-v3-managed-supabase-storage-backup/v1";
 const RESULT_SCHEMA = "evo-v3-managed-supabase-recovery-result/v2";
+const STORAGE_EMPTY_SOURCE_EVIDENCE_SCOPE = "signed_zero_object_inventory_no_source_bytes_to_restore";
+const STORAGE_NON_EMPTY_SOURCE_EVIDENCE_SCOPE = "signed_source_object_byte_recovery";
+const ADMIN_ROLE_PREVIEW_EVIDENCE_SCOPE = "real_admin_authority_role_preview_no_synthetic_sales_admissions_identity";
+const ADMIN_EMPTY_SOURCE_ACCEPTANCE_SCOPE = "real_admin_auth_session_shell_and_role_preview_with_isolated_local_sales_admissions_rls";
+const STAFF_ROLE_MAP = Object.freeze({ admin: "admin", sales: "sales", curator: "admissions" });
+const SOURCE_STAFF_INVENTORY_ADMIN_ONLY_BLOCKER = "source_staff_inventory_not_exact_admin_only";
+const SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER = "source_staff_inventory_migration_drift";
+const SOURCE_STAFF_INVENTORY_FINGERPRINT = Symbol("sourceStaffInventoryFingerprint");
 const REQUIRED_NODE_VERSION = "22.23.1";
 const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
 const EICAR = String.raw`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`;
@@ -4335,9 +4343,22 @@ export function storageSourceRecoveryReadiness(verified) {
   if (!isRecord(verified) || !Number.isSafeInteger(verified.objectCount) || verified.objectCount < 0) {
     fail("storage_source_recovery_invalid", "storage_verification");
   }
-  return Object.freeze(verified.objectCount === 0
-    ? { status: "not_ready", blocker: "storage_source_object_missing", recoveredObjectCount: 0 }
-    : { status: "ready", blocker: null, recoveredObjectCount: verified.objectCount });
+  if (verified.objectCount === 0) {
+    return Object.freeze({
+      status: "signed_empty_source_verified",
+      blocker: null,
+      recoveredObjectCount: 0,
+      evidenceScope: STORAGE_EMPTY_SOURCE_EVIDENCE_SCOPE,
+      sourceByteRecovery: "not_applicable_no_source_objects",
+    });
+  }
+  return Object.freeze({
+    status: "ready",
+    blocker: null,
+    recoveredObjectCount: verified.objectCount,
+    evidenceScope: STORAGE_NON_EMPTY_SOURCE_EVIDENCE_SCOPE,
+    sourceByteRecovery: "restored_and_verified",
+  });
 }
 
 export async function apiRequest(
@@ -4749,7 +4770,6 @@ async function restoreStorage(artifacts, extracted, status, state, supervisor, t
 
 export function assessRepresentativeCohort(rows, expected) {
   if (!Array.isArray(rows)) fail("representative_cohort_invalid", "auth_rls_proof");
-  const roleMap = Object.freeze({ admin: "admin", sales: "sales", curator: "admissions" });
   const selected = {};
   for (const row of rows) {
     if (
@@ -4758,13 +4778,13 @@ export function assessRepresentativeCohort(rows, expected) {
       !UUID.test(row.profileId) ||
       !UUID.test(row.membershipId) ||
       !UUID.test(row.organizationId) ||
-      !Object.hasOwn(roleMap, row.databaseRole) ||
+      !Object.hasOwn(STAFF_ROLE_MAP, row.databaseRole) ||
       typeof row.email !== "string" ||
       !row.email.includes("@")
     ) {
       fail("representative_cohort_invalid", "auth_rls_proof");
     }
-    const appRole = roleMap[row.databaseRole];
+    const appRole = STAFF_ROLE_MAP[row.databaseRole];
     if (row.userId === expected[`${appRole}UserId`]) {
       if (selected[appRole]) fail("representative_cohort_duplicate", "auth_rls_proof");
       selected[appRole] = Object.freeze({ ...row, appRole });
@@ -4780,6 +4800,137 @@ export function assessRepresentativeCohort(rows, expected) {
     .filter((role) => !selected[role])
     .map((role) => `${role}_representative_missing`);
   return Object.freeze({ actors: Object.freeze(selected), blockers: Object.freeze(blockers) });
+}
+
+export function buildRestoredSourceStaffInventoryEvidence(inventory, expected, signedSourceAuthUserCount = inventory?.totalAuthUserCount) {
+  if (
+    !isRecord(inventory) ||
+    !Array.isArray(inventory.expectedOrganizationActiveStaff) ||
+    !Number.isSafeInteger(inventory.totalAuthUserCount) ||
+    !Number.isSafeInteger(inventory.activeStaffOutsideExpectedOrganizationCount) ||
+    !Number.isSafeInteger(signedSourceAuthUserCount) ||
+    !isRecord(expected) ||
+    !UUID.test(expected.platformOrganizationId) ||
+    !UUID.test(expected.adminUserId)
+  ) {
+    fail("source_staff_inventory_invalid", "auth_rls_proof");
+  }
+  const activeStaff = [];
+  for (const row of inventory.expectedOrganizationActiveStaff) {
+    if (
+      !isRecord(row) ||
+      !UUID.test(row.userId) ||
+      !UUID.test(row.authUserId) ||
+      row.authUserId !== row.userId ||
+      !UUID.test(row.profileId) ||
+      !UUID.test(row.membershipId) ||
+      row.organizationId !== expected.platformOrganizationId ||
+      typeof row.databaseRole !== "string" ||
+      typeof row.email !== "string" ||
+      !row.email.includes("@")
+    ) {
+      fail("source_staff_inventory_invalid", "auth_rls_proof");
+    }
+    activeStaff.push(Object.freeze({
+      userId: row.userId,
+      profileId: row.profileId,
+      membershipId: row.membershipId,
+      databaseRole: row.databaseRole,
+      appRole: STAFF_ROLE_MAP[row.databaseRole] ?? "other",
+    }));
+  }
+  const roleCounts = { admin: 0, sales: 0, admissions: 0, other: 0 };
+  for (const row of activeStaff) roleCounts[row.appRole] += 1;
+  const activeAuthUserCount = new Set(activeStaff.map((row) => row.userId)).size;
+  const activeProfileCount = new Set(activeStaff.map((row) => row.profileId)).size;
+  const activeAdmin = activeStaff.find((row) => row.appRole === "admin");
+  const activeAdminMatchesExpected = activeAdmin?.userId === expected.adminUserId;
+  const authUserCountMatchesSignedSource = inventory.totalAuthUserCount === signedSourceAuthUserCount;
+  const exactAdminOnly = signedSourceAuthUserCount === 1 &&
+    inventory.totalAuthUserCount === 1 &&
+    authUserCountMatchesSignedSource &&
+    inventory.activeStaffOutsideExpectedOrganizationCount === 0 &&
+    activeStaff.length === 1 &&
+    activeAuthUserCount === 1 &&
+    activeProfileCount === 1 &&
+    roleCounts.admin === 1 &&
+    roleCounts.sales === 0 &&
+    roleCounts.admissions === 0 &&
+    roleCounts.other === 0 &&
+    activeAdminMatchesExpected;
+  const blockers = exactAdminOnly ? [] : [SOURCE_STAFF_INVENTORY_ADMIN_ONLY_BLOCKER];
+  const evidence = {
+    status: exactAdminOnly ? "exact_one_active_admin" : "not_exact_admin_only",
+    evidenceScope: "complete_restored_source_staff_inventory_counts_only",
+    signedSourceAuthUserCount,
+    authUserCountMatchesSignedSource,
+    totalAuthUserCount: inventory.totalAuthUserCount,
+    activeStaffOutsideExpectedOrganizationCount: inventory.activeStaffOutsideExpectedOrganizationCount,
+    activeAdminMatchesExpected,
+    activeStaffMembershipCount: activeStaff.length,
+    activeAuthUserCount,
+    activeProfileCount,
+    roleCounts: Object.freeze(roleCounts),
+    blockers: Object.freeze(blockers),
+  };
+  Object.defineProperty(evidence, SOURCE_STAFF_INVENTORY_FINGERPRINT, {
+    value: sha256(canonicalJson({
+      signedSourceAuthUserCount,
+      totalAuthUserCount: inventory.totalAuthUserCount,
+      activeStaffOutsideExpectedOrganizationCount: inventory.activeStaffOutsideExpectedOrganizationCount,
+      activeStaff: activeStaff.map((row) => ({
+        userId: row.userId,
+        profileId: row.profileId,
+        membershipId: row.membershipId,
+        databaseRole: row.databaseRole,
+      })).sort((left, right) =>
+        `${left.userId}:${left.profileId}:${left.membershipId}:${left.databaseRole}`
+          .localeCompare(`${right.userId}:${right.profileId}:${right.membershipId}:${right.databaseRole}`, "en")),
+    })),
+    enumerable: false,
+  });
+  return Object.freeze(evidence);
+}
+
+const SOURCE_STAFF_INVENTORY_DRIFT_FIELDS = Object.freeze([
+  "status",
+  "evidenceScope",
+  "signedSourceAuthUserCount",
+  "authUserCountMatchesSignedSource",
+  "totalAuthUserCount",
+  "activeStaffOutsideExpectedOrganizationCount",
+  "activeAdminMatchesExpected",
+  "activeStaffMembershipCount",
+  "activeAuthUserCount",
+  "activeProfileCount",
+  "roleCounts",
+]);
+
+function sourceStaffInventoryFingerprint(sourceStaffInventory) {
+  const fingerprint = isRecord(sourceStaffInventory)
+    ? sourceStaffInventory[SOURCE_STAFF_INVENTORY_FINGERPRINT]
+    : null;
+  return typeof fingerprint === "string" && SHA256.test(fingerprint) ? fingerprint : null;
+}
+
+export function buildSourceStaffInventoryMigrationDriftEvidence(sourceStaffInventory, postMigrationStaffInventory) {
+  const sourceFingerprint = sourceStaffInventoryFingerprint(sourceStaffInventory);
+  const postMigrationFingerprint = sourceStaffInventoryFingerprint(postMigrationStaffInventory);
+  if (!isRecord(sourceStaffInventory) || !isRecord(postMigrationStaffInventory) || !sourceFingerprint || !postMigrationFingerprint) {
+    fail("source_staff_inventory_drift_invalid", "auth_rls_proof");
+  }
+  const mismatches = SOURCE_STAFF_INVENTORY_DRIFT_FIELDS.filter((field) =>
+    !sameJson(sourceStaffInventory[field], postMigrationStaffInventory[field]));
+  if (sourceFingerprint !== postMigrationFingerprint) mismatches.push("identity_membership_fingerprint");
+  const stable = mismatches.length === 0;
+  return Object.freeze({
+    status: stable ? "unchanged" : "drift_detected",
+    evidenceScope: "post_migration_staff_inventory_drift_counts_only",
+    checkedFieldCount: SOURCE_STAFF_INVENTORY_DRIFT_FIELDS.length,
+    identityMembershipFingerprintCompared: true,
+    mismatchCount: mismatches.length,
+    blockers: Object.freeze(stable ? [] : [SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER]),
+  });
 }
 
 export function validateRepresentativeCohort(rows, expected) {
@@ -4820,6 +4971,34 @@ async function discoverActors(options, status, supervisor, toolchain) {
         AND profile.status = 'active' AND membership.status = 'active'
     ) AS actor`, "auth_rls_proof");
   return assessRepresentativeCohort(rows, options);
+}
+
+async function discoverRestoredSourceStaffInventory(options, status, supervisor, toolchain, signedSourceAuthUserCount) {
+  const inventory = await psqlJson(supervisor, toolchain, status, String.raw`
+    WITH active_staff AS (
+      SELECT auth_user.id::text AS "authUserId", profile.auth_user_id::text AS "userId",
+        profile.id::text AS "profileId",
+        membership.id::text AS "membershipId", membership.organization_id::text AS "organizationId",
+        membership.current_role::text AS "databaseRole", auth_user.email AS email
+      FROM platform.organization_memberships AS membership
+      JOIN platform.profiles AS profile ON profile.id = membership.profile_id
+      LEFT JOIN auth.users AS auth_user ON auth_user.id = profile.auth_user_id
+      WHERE profile.status = 'active' AND membership.status = 'active'
+    )
+    SELECT json_build_object(
+      'totalAuthUserCount', (SELECT count(*) FROM auth.users),
+      'activeStaffOutsideExpectedOrganizationCount', (
+        SELECT count(*)
+        FROM active_staff
+        WHERE "organizationId" <> ${sqlLiteral(options.platformOrganizationId)}
+      ),
+      'expectedOrganizationActiveStaff', (
+        SELECT coalesce(json_agg(row_to_json(staff) ORDER BY staff."databaseRole", staff."userId", staff."membershipId"), '[]'::json)
+        FROM active_staff AS staff
+        WHERE staff."organizationId" = ${sqlLiteral(options.platformOrganizationId)}
+      )
+    )::text`, "auth_rls_proof");
+  return buildRestoredSourceStaffInventoryEvidence(inventory, options, signedSourceAuthUserCount);
 }
 
 async function localPasswordSession(actor, status, interruptionGuard) {
@@ -6947,6 +7126,159 @@ async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, rol
   }
 }
 
+async function assertBrowserActiveRole(page, presentationRole, authorityRole, browserStep, operationPrefix) {
+  const activeRole = await browserStep(
+    async () => page.getByTestId("active-role"),
+    { operationCode: `${operationPrefix}_active_role_locator_failed` },
+  );
+  await browserStep(
+    async () => await activeRole.waitFor({ state: "visible", timeout: 45_000 }),
+    { operationCode: `${operationPrefix}_active_role_wait_failed` },
+  );
+  const observed = await browserStep(async () => Object.freeze({
+    presentationRole: await activeRole.getAttribute("data-role"),
+    authorityRole: await activeRole.getAttribute("data-authority-role"),
+    shellAuthorityRole: await page.getByTestId("v3-shell").getAttribute("data-authority-role"),
+    shellPresentationRole: await page.getByTestId("v3-shell").getAttribute("data-presentation-role"),
+  }), { operationCode: `${operationPrefix}_role_attributes_failed` });
+  if (
+    observed.presentationRole !== presentationRole ||
+    observed.shellPresentationRole !== presentationRole ||
+    observed.authorityRole !== authorityRole ||
+    observed.shellAuthorityRole !== authorityRole
+  ) {
+    fail(`${operationPrefix}_role_mismatch`, "browser_proof");
+  }
+}
+
+function assertBrowserUrlPath(urlString, appUrl, path, code) {
+  let actual;
+  try {
+    actual = new URL(urlString);
+  } catch {
+    fail(code, "browser_proof");
+  }
+  if (actual.origin !== new URL(appUrl).origin || actual.pathname !== path || actual.search || actual.hash) {
+    fail(code, "browser_proof");
+  }
+}
+
+async function proveBrowserRouteAllowed(
+  page,
+  appUrl,
+  path,
+  browserStep,
+  operationPrefix,
+  expectedPresentationRole = null,
+  expectedAuthorityRole = null,
+) {
+  const response = await browserStep(
+    async () => await page.goto(`${appUrl}${path}`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
+    { operationCode: `${operationPrefix}_navigation_failed` },
+  );
+  if (!response || response.status() < 200 || response.status() >= 300) {
+    fail(`${operationPrefix}_response_failed`, "browser_proof");
+  }
+  await browserStep(
+    async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }),
+    { operationCode: `${operationPrefix}_shell_failed` },
+  );
+  assertBrowserUrlPath(page.url(), appUrl, path, `${operationPrefix}_destination_mismatch`);
+  if (expectedPresentationRole && expectedAuthorityRole) {
+    await assertBrowserActiveRole(page, expectedPresentationRole, expectedAuthorityRole, browserStep, `${operationPrefix}_role`);
+  }
+}
+
+async function proveBrowserRouteDenied(
+  page,
+  appUrl,
+  path,
+  browserStep,
+  operationPrefix,
+  expectedPresentationRole = null,
+  expectedAuthorityRole = null,
+) {
+  const response = await browserStep(
+    async () => await page.goto(`${appUrl}${path}`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
+    { operationCode: `${operationPrefix}_navigation_failed` },
+  );
+  if (!response || response.status() < 200 || response.status() >= 400) {
+    fail(`${operationPrefix}_response_failed`, "browser_proof");
+  }
+  await browserStep(
+    async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }),
+    { operationCode: `${operationPrefix}_shell_failed` },
+  );
+  await browserStep(
+    async () => await page.getByTestId("access-denied-state").waitFor({ state: "visible", timeout: 45_000 }),
+    { operationCode: `${operationPrefix}_state_failed` },
+  );
+  let actual;
+  try {
+    actual = new URL(page.url());
+  } catch {
+    fail(`${operationPrefix}_destination_mismatch`, "browser_proof");
+  }
+  if (
+    actual.origin !== new URL(appUrl).origin ||
+    actual.pathname !== "/access-denied" ||
+    actual.searchParams.get("from") !== path ||
+    actual.hash
+  ) {
+    fail(`${operationPrefix}_destination_mismatch`, "browser_proof");
+  }
+  if (expectedPresentationRole && expectedAuthorityRole) {
+    await assertBrowserActiveRole(page, expectedPresentationRole, expectedAuthorityRole, browserStep, `${operationPrefix}_role`);
+  }
+}
+
+async function selectAdminPreviewRole(page, appUrl, role, expectedPath, browserStep) {
+  await browserStep(
+    async () => await Promise.all([
+      page.waitForURL(`${appUrl}${expectedPath}`, { waitUntil: "domcontentloaded", timeout: 45_000 }),
+      page.getByTestId(`preview-role-${role}`).click({ timeout: 45_000 }),
+    ]),
+    { operationCode: `browser_admin_preview_${role}_select_failed` },
+  );
+  await assertBrowserActiveRole(page, role, "admin", browserStep, `browser_admin_preview_${role}`);
+  assertBrowserUrlPath(page.url(), appUrl, expectedPath, `browser_admin_preview_${role}_destination_mismatch`);
+  if (role !== "admin") {
+    await browserStep(
+      async () => await page.getByTestId("preview-active").waitFor({ state: "visible", timeout: 45_000 }),
+      { operationCode: `browser_admin_preview_${role}_banner_failed` },
+    );
+  }
+}
+
+async function proveAdminRolePreview(page, appUrl, browserStep) {
+  await assertBrowserActiveRole(page, "admin", "admin", browserStep, "browser_admin_preview_initial_admin");
+  await selectAdminPreviewRole(page, appUrl, "sales", "/v3/main", browserStep);
+  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.sales.allowedRoutes.filter((route) => route !== "/v3/main")) {
+    await proveBrowserRouteAllowed(page, appUrl, path, browserStep, `browser_admin_preview_sales_${path.slice(4)}_allowed`, "sales", "admin");
+  }
+  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.sales.deniedRoutes) {
+    await proveBrowserRouteDenied(page, appUrl, path, browserStep, `browser_admin_preview_sales_${path.slice(4)}_denied`, "sales", "admin");
+  }
+  await selectAdminPreviewRole(page, appUrl, "admissions", "/v3/calendar", browserStep);
+  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.admissions.allowedRoutes.filter((route) => route !== "/v3/calendar")) {
+    await proveBrowserRouteAllowed(page, appUrl, path, browserStep, `browser_admin_preview_admissions_${path.slice(4)}_allowed`, "admissions", "admin");
+  }
+  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.admissions.deniedRoutes) {
+    await proveBrowserRouteDenied(page, appUrl, path, browserStep, `browser_admin_preview_admissions_${path.slice(4)}_denied`, "admissions", "admin");
+  }
+  await selectAdminPreviewRole(page, appUrl, "admin", "/v3/main", browserStep);
+  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.admin.allowedRoutes.filter((route) => route !== "/v3/main")) {
+    await proveBrowserRouteAllowed(page, appUrl, path, browserStep, `browser_admin_preview_admin_${path.slice(4)}_allowed`, "admin", "admin");
+  }
+  await assertBrowserActiveRole(page, "admin", "admin", browserStep, "browser_admin_preview_restored_admin");
+  return Object.freeze({
+    status: "passed",
+    evidenceScope: ADMIN_ROLE_PREVIEW_EVIDENCE_SCOPE,
+    authorityRole: "admin",
+    presentations: ADMIN_ROLE_PREVIEW_PRESENTATIONS,
+  });
+}
+
 async function proveBrowser(app, readiness, status, scanner, roleServerProof, state, supervisor, toolchain, interruptionGuard) {
   const browserStep = async (operation, options) => await runBrowserOperation(interruptionGuard, operation, options);
   let browserPhase = "tool_binding";
@@ -7003,6 +7335,10 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
     });
     const routeProofs = {};
     const roleReadbacks = {};
+    let adminRolePreview = Object.freeze({
+      status: "not_run_missing_admin_representative",
+      evidenceScope: "no_real_admin_session_available",
+    });
     let scannerDataPath;
     const browserNetwork = {
       allowedOriginSha256: sha256(new URL(app.appUrl).origin),
@@ -7146,6 +7482,8 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
           roleServerProof.sales && roleServerProof.admissions && roleServerProof.document
           ? "passed"
           : "not_run_incomplete_server_outcomes";
+        browserPhase = "admin_role_preview";
+        adminRolePreview = await proveAdminRolePreview(page, app.appUrl, browserStep);
       } else if (role === "sales") {
         if (roleServerProof?.sales) {
           browserPhase = "sales_readback";
@@ -7185,6 +7523,7 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
       sales: availableRoles.includes("sales") ? "passed" : "not_run_missing_representative",
       admissions: availableRoles.includes("admissions") ? "passed" : "not_run_missing_representative",
       routes: Object.freeze(routeProofs),
+      adminRolePreview,
       roleOutcomes: Object.freeze(roleReadbacks),
       network: validateBrowserNetworkProof(browserNetwork),
       sandbox: browserSandbox,
@@ -8198,6 +8537,12 @@ export function buildDurableEvidence({ result, failure, interrupted, stages, cle
       "restored_admissions_task_missing",
       "restored_downloadable_document_missing",
       "restored_role_outcome_proof_incomplete",
+      "signed_empty_storage_source_missing",
+      "admin_browser_shell_missing",
+      "admin_role_preview_proof_missing",
+      "private_document_canary_missing",
+      SOURCE_STAFF_INVENTORY_ADMIN_ONLY_BLOCKER,
+      SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER,
     ]).has(blocker));
   let durableFailure = interrupted
     ? Object.freeze({ code: "recovery_interrupted", stage: "signal", diagnostic: Object.freeze({ signal: interrupted }) })
@@ -8276,6 +8621,159 @@ export function buildRestoredRoleOutcomeReadiness(actors, serverProof = {}, brow
     blockers: Object.freeze([...new Set(blockers)]),
     outcomes: Object.freeze(outcomes),
     required: "Sales and Admissions canonical mutation, idempotent replay, correlated append-only audit, private-document readback, and exact-role browser readback",
+  });
+}
+
+function privateDocumentCanaryPassed(document) {
+  return isRecord(document) &&
+    document.signedRoundTrip === "passed" &&
+    document.canaryDeleted === true &&
+    document.evidenceScope === "behavior_canary_only_not_source_recovery";
+}
+
+function uniqueFrozenStrings(values) {
+  return Object.freeze([...new Set(values.filter((value) => typeof value === "string" && value.length > 0))]);
+}
+
+const ADMIN_ROLE_PREVIEW_PRESENTATIONS = Object.freeze({
+  sales: Object.freeze({
+    role: "sales",
+    authorityRole: "admin",
+    landingRoute: "/v3/main",
+    allowedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile"]),
+    deniedRoutes: Object.freeze(["/v3/calendar", "/v3/knowledge", "/v3/settings"]),
+  }),
+  admissions: Object.freeze({
+    role: "admissions",
+    authorityRole: "admin",
+    landingRoute: "/v3/calendar",
+    allowedRoutes: Object.freeze(["/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge"]),
+    deniedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/settings"]),
+  }),
+  admin: Object.freeze({
+    role: "admin",
+    authorityRole: "admin",
+    landingRoute: "/v3/main",
+    allowedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge", "/v3/settings"]),
+    deniedRoutes: Object.freeze([]),
+  }),
+});
+
+function adminRolePreviewPassed(adminRolePreview) {
+  return isRecord(adminRolePreview) &&
+    adminRolePreview.status === "passed" &&
+    adminRolePreview.authorityRole === "admin" &&
+    adminRolePreview.evidenceScope === ADMIN_ROLE_PREVIEW_EVIDENCE_SCOPE &&
+    sameJson(adminRolePreview.presentations, ADMIN_ROLE_PREVIEW_PRESENTATIONS);
+}
+
+function sourceStaffInventoryExactAdminOnly(sourceStaffInventory) {
+  return isRecord(sourceStaffInventory) &&
+    sourceStaffInventory.status === "exact_one_active_admin" &&
+    sourceStaffInventory.evidenceScope === "complete_restored_source_staff_inventory_counts_only" &&
+    sourceStaffInventory.totalAuthUserCount === 1 &&
+    sourceStaffInventory.activeStaffOutsideExpectedOrganizationCount === 0 &&
+    sourceStaffInventory.activeStaffMembershipCount === 1 &&
+    sourceStaffInventory.activeAuthUserCount === 1 &&
+    sourceStaffInventory.activeProfileCount === 1 &&
+    sourceStaffInventory.activeAdminMatchesExpected === true &&
+    sameJson(sourceStaffInventory.roleCounts, { admin: 1, sales: 0, admissions: 0, other: 0 }) &&
+    Array.isArray(sourceStaffInventory.blockers) &&
+    sourceStaffInventory.blockers.length === 0;
+}
+
+function sourceStaffInventoryMigrationStable(staffInventoryDrift) {
+  return isRecord(staffInventoryDrift) &&
+    staffInventoryDrift.status === "unchanged" &&
+    staffInventoryDrift.evidenceScope === "post_migration_staff_inventory_drift_counts_only" &&
+    staffInventoryDrift.identityMembershipFingerprintCompared === true &&
+    staffInventoryDrift.mismatchCount === 0 &&
+    Array.isArray(staffInventoryDrift.blockers) &&
+    staffInventoryDrift.blockers.length === 0;
+}
+
+export function buildManagedSupabaseRecoveryAcceptance(
+  actors,
+  storageReadiness = {},
+  document = {},
+  browserProof = {},
+  fullRoleOutcomes = {},
+  sourceStaffInventory = {},
+  staffInventoryDrift = {},
+) {
+  const signedEmptySource = isRecord(storageReadiness) &&
+    storageReadiness.status === "signed_empty_source_verified" &&
+    storageReadiness.blocker === null &&
+    storageReadiness.recoveredObjectCount === 0 &&
+    storageReadiness.evidenceScope === STORAGE_EMPTY_SOURCE_EVIDENCE_SCOPE &&
+    storageReadiness.sourceByteRecovery === "not_applicable_no_source_objects";
+  const nonEmptyByteRecovery = isRecord(storageReadiness) &&
+    storageReadiness.status === "ready" &&
+    storageReadiness.blocker === null &&
+    Number.isSafeInteger(storageReadiness.recoveredObjectCount) &&
+    storageReadiness.recoveredObjectCount > 0 &&
+    storageReadiness.evidenceScope === STORAGE_NON_EMPTY_SOURCE_EVIDENCE_SCOPE &&
+    storageReadiness.sourceByteRecovery === "restored_and_verified";
+  if (nonEmptyByteRecovery) {
+    const stableStaffInventory = sourceStaffInventoryMigrationStable(staffInventoryDrift);
+    const roleOutcomesComplete = fullRoleOutcomes?.complete === true;
+    const complete = roleOutcomesComplete && stableStaffInventory;
+    const roleOutcomeBlockers = roleOutcomesComplete
+      ? []
+      : Array.isArray(fullRoleOutcomes?.blockers) && fullRoleOutcomes.blockers.length > 0
+        ? fullRoleOutcomes.blockers
+        : ["restored_role_outcome_proof_incomplete"];
+    const blockers = complete
+      ? Object.freeze([])
+      : uniqueFrozenStrings([
+        ...roleOutcomeBlockers,
+        ...(stableStaffInventory ? [] : [SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER]),
+      ]);
+    return Object.freeze({
+      complete,
+      mode: "full_dr_non_empty_source",
+      blocker: complete ? null : blockers[0] ?? "managed_supabase_recovery_acceptance_incomplete",
+      blockers,
+      evidenceScope: STORAGE_NON_EMPTY_SOURCE_EVIDENCE_SCOPE,
+      sourceByteRecovery: "restored_and_verified",
+      roleOutcomeScope: "complete_restored_admin_sales_admissions_live_managed_snapshot",
+      required: "Non-empty managed Storage source bytes plus complete restored Admin, Sales, and Admissions server/RLS/browser outcomes",
+    });
+  }
+
+  const blockers = [];
+  if (!signedEmptySource) blockers.push("signed_empty_storage_source_missing");
+  const exactAdminOnlySourceStaffInventory = sourceStaffInventoryExactAdminOnly(sourceStaffInventory);
+  if (!exactAdminOnlySourceStaffInventory) blockers.push(SOURCE_STAFF_INVENTORY_ADMIN_ONLY_BLOCKER);
+  const stableStaffInventory = sourceStaffInventoryMigrationStable(staffInventoryDrift);
+  if (!stableStaffInventory) blockers.push(SOURCE_STAFF_INVENTORY_DRIFT_BLOCKER);
+  if (!isRecord(actors?.admin)) blockers.push("admin_representative_missing");
+  if (browserProof?.admin !== "passed") blockers.push("admin_browser_shell_missing");
+  if (!adminRolePreviewPassed(browserProof?.adminRolePreview)) blockers.push("admin_role_preview_proof_missing");
+  if (!privateDocumentCanaryPassed(document)) blockers.push("private_document_canary_missing");
+  const uniqueBlockers = uniqueFrozenStrings(blockers);
+  const complete = uniqueBlockers.length === 0;
+  return Object.freeze({
+    complete,
+    mode: "signed_empty_source_admin_only",
+    blocker: complete ? null : "managed_empty_source_acceptance_incomplete",
+    blockers: uniqueBlockers,
+    evidenceScope: ADMIN_EMPTY_SOURCE_ACCEPTANCE_SCOPE,
+    storageEvidenceScope: STORAGE_EMPTY_SOURCE_EVIDENCE_SCOPE,
+    sourceByteRecovery: "not_applicable_no_source_objects",
+    roleOutcomeScope: "admin_live_managed_sales_admissions_isolated_local_only",
+    liveManagedOutcomes: Object.freeze({
+      admin: complete
+        ? "passed_real_admin_auth_session_shell_role_preview"
+        : "incomplete_real_admin_auth_session_shell_role_preview",
+      sales: exactAdminOnlySourceStaffInventory
+        ? "not_applicable_live_identity_absent_isolated_local_rls_only"
+        : "not_evaluated_source_staff_inventory_not_exact_admin_only",
+      admissions: exactAdminOnlySourceStaffInventory
+        ? "not_applicable_live_identity_absent_isolated_local_rls_only"
+        : "not_evaluated_source_staff_inventory_not_exact_admin_only",
+    }),
+    required: "Signed zero-object managed Storage inventory, private-file canary, real Admin Auth/session, Admin browser shell, and exact Admin role-preview behavior with immutable Admin authority",
   });
 }
 
@@ -8539,6 +9037,13 @@ async function executeMode(mode, options) {
           extensionRelations,
         });
       });
+      const sourceStaffInventory = await runStage("source_staff_inventory", () => discoverRestoredSourceStaffInventory(
+        options,
+        local.status,
+        supervisor,
+        toolchain,
+        database.authUserCount,
+      ));
       const migrations = await runStage("pending_migration_rehearsal", () => applyPendingMigrations(
         state,
         local,
@@ -8548,6 +9053,17 @@ async function executeMode(mode, options) {
         supervisor,
         toolchain,
       ));
+      const postMigrationStaffInventory = await runStage("post_migration_staff_inventory", () => discoverRestoredSourceStaffInventory(
+        options,
+        local.status,
+        supervisor,
+        toolchain,
+        database.authUserCount,
+      ));
+      const staffInventoryDrift = await runStage(
+        "source_staff_inventory_drift",
+        () => buildSourceStaffInventoryMigrationDriftEvidence(sourceStaffInventory, postMigrationStaffInventory),
+      );
       const storage = await runStage("storage_restore", () => restoreStorage(artifacts, extracted, local.status, state, supervisor, toolchain, state.interruptionGuard));
       if (!sameJson(storage.readiness, sourceStorageReadiness)) fail("storage_source_readiness_mismatch", "storage_verification");
       const targetStorage = await runStage("target_storage_configuration", () => reconcileTargetStorageBuckets(
@@ -8600,11 +9116,14 @@ async function executeMode(mode, options) {
         ? await proveBrowser(app, readiness, local.status, scanner, roleServerProof, state, supervisor, toolchain, state.interruptionGuard)
         : Object.freeze({ status: "not_run_missing_representative", readiness, evidenceScope: "no_real_representative_available" }));
       const roleOutcomes = buildRestoredRoleOutcomeReadiness(actors, roleServerProof, browser);
+      const releaseAcceptance = buildManagedSupabaseRecoveryAcceptance(actors, storageReadiness, document, browser, roleOutcomes, sourceStaffInventory, staffInventoryDrift);
+      const representativeBlockers = releaseAcceptance.mode === "signed_empty_source_admin_only"
+        ? actorReadiness.blockers.filter((blocker) => blocker === "admin_representative_missing")
+        : actorReadiness.blockers;
       const blockers = Object.freeze([...new Set([
-        ...actorReadiness.blockers,
+        ...representativeBlockers,
         ...authorizationProof.blockers,
-        ...(storageReadiness.status === "ready" ? [] : [storageReadiness.blocker]),
-        ...roleOutcomes.blockers,
+        ...releaseAcceptance.blockers,
       ])]);
       const representatives = Object.freeze({
         presentRoles: Object.freeze(["admin", "sales", "admissions"].filter((role) => isRecord(actors[role]))),
@@ -8628,6 +9147,9 @@ async function executeMode(mode, options) {
         storage,
         targetStorage: targetStorage.evidence,
         postgrestSchemaCache,
+        sourceStaffInventory,
+        postMigrationStaffInventory,
+        staffInventoryDrift,
         representatives,
         authorization: Object.freeze({
           ...authorizationProof.evidence,
@@ -8643,20 +9165,25 @@ async function executeMode(mode, options) {
         }),
         browser,
         roleOutcomes,
+        releaseAcceptance,
       };
       result = blockers.length > 0
         ? Object.freeze({
           ...proof,
           ok: false,
           status: "not_ready",
-          proof: "isolated_recovery_behavior_only_acceptance_blocked",
+          proof: releaseAcceptance.mode === "signed_empty_source_admin_only"
+            ? "signed_empty_source_admin_only_release_acceptance_blocked"
+            : "isolated_recovery_behavior_only_acceptance_blocked",
           blockers,
         })
         : Object.freeze({
           ...proof,
           ok: true,
           status: "passed",
-          proof: "isolated_orbstack_restore_and_exact_image_browser",
+          proof: releaseAcceptance.mode === "signed_empty_source_admin_only"
+            ? "signed_empty_source_admin_only_release_acceptance"
+            : "isolated_orbstack_restore_and_exact_image_browser",
         });
     }
   } catch (error) {

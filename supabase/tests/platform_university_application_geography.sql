@@ -653,6 +653,25 @@ SELECT :'p118_first_create'::JSONB ->> 'university_application_id'
   AS p118_first_application
 \gset
 
+-- Idempotency is actor-bound: an equally authorized Admin cannot claim the
+-- Sales actor's successful manual-create receipt with the same request id.
+SET request.jwt.claims TO :'p118_admin_claims';
+SELECT pg_temp.p118_capture_error(format(
+  'SELECT platform.create_university_application(%L::UUID, %L::UUID, %L, %L, '
+    || '%L::platform.application_status, NULL, %L, TRUE, %L::DATE, %L, %L, 0, %L::UUID)',
+  :'p118_org', :'p118_case', 'Geography University', 'Economics',
+  'preparation', 'Initial geography', '2031-10-09', 'MY', 'bachelor',
+  '59911800-0000-4000-8000-000000000201'
+))::TEXT AS p118_manual_create_cross_actor_error
+\gset
+SELECT pg_temp.p118_assert(
+  :'p118_manual_create_cross_actor_error'::JSONB ->> 'sqlstate' = '22023'
+    AND :'p118_manual_create_cross_actor_error'::JSONB ->> 'message'
+      LIKE '%already used for another mutation%',
+  'manual-create request replay crossed the authenticated actor boundary'
+);
+SET request.jwt.claims TO :'p118_sales_claims';
+
 -- Whitespace-only geography normalizes to NULL exactly like other optional
 -- text facts, and stays absent from the stored row.
 SELECT platform.create_university_application(
@@ -736,6 +755,8 @@ RESET ROLE;
 SELECT pg_temp.p118_assert(
   :'p118_first_create'::JSONB = :'p118_first_replay'::JSONB
     AND :'p118_catalog_create'::JSONB = :'p118_catalog_replay'::JSONB
+    AND :'p118_first_create'::JSONB ->> 'actor_membership_id'
+      = :'p118_sales_membership'
     AND :'p118_first_create'::JSONB ->> 'country' = 'MY'
     AND :'p118_first_create'::JSONB ->> 'degree' = 'bachelor'
     AND :'p118_catalog_create'::JSONB ->> 'country' = 'CN'
@@ -792,6 +813,23 @@ SELECT platform.update_university_application_details(
 )::TEXT AS p118_details_replay
 \gset
 
+-- Details-update replay is actor-bound under the same request id as well.
+SET request.jwt.claims TO :'p118_admin_claims';
+SELECT pg_temp.p118_capture_error(format(
+  'SELECT platform.update_university_application_details(%L::UUID, %L::UUID, '
+    || 'TRUE, %L::DATE, %L, %L, 1, %L::UUID)',
+  :'p118_org', :'p118_first_application', '2031-10-09', 'TR', 'foundation',
+  '59911800-0000-4000-8000-000000000208'
+))::TEXT AS p118_details_cross_actor_error
+\gset
+SELECT pg_temp.p118_assert(
+  :'p118_details_cross_actor_error'::JSONB ->> 'sqlstate' = '22023'
+    AND :'p118_details_cross_actor_error'::JSONB ->> 'message'
+      LIKE '%already used for another mutation%',
+  'details-update request replay crossed the authenticated actor boundary'
+);
+SET request.jwt.claims TO :'p118_sales_claims';
+
 SELECT pg_temp.p118_capture_error(format(
   'SELECT platform.update_university_application_details(%L::UUID, %L::UUID, '
     || 'TRUE, %L::DATE, %L, %L, 2, %L::UUID)',
@@ -817,6 +855,8 @@ SELECT pg_temp.p118_capture_error(format(
 RESET ROLE;
 SELECT pg_temp.p118_assert(
   :'p118_details_update'::JSONB = :'p118_details_replay'::JSONB
+    AND :'p118_details_update'::JSONB ->> 'actor_membership_id'
+      = :'p118_sales_membership'
     AND :'p118_details_update'::JSONB ->> 'version' = '2'
     AND :'p118_details_update'::JSONB ->> 'country' = 'TR'
     AND :'p118_details_update'::JSONB ->> 'degree' = 'foundation'

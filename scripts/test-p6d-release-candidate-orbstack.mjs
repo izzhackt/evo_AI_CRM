@@ -458,7 +458,7 @@ async function main() {
   createLocalTlsCertificate();
 
   const appEnvironment = [
-    `EVO_CRM_DOMAIN=127.0.0.1:${appPort}`,
+    "EVO_CRM_DOMAIN=evo-crm.72.62.119.112.sslip.io",
     `EVO_CADDY_NETWORK=${webNetwork}`,
     `NEXT_PUBLIC_SUPABASE_URL=${appSupabaseUrl}`,
     `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabasePublishableKey}`,

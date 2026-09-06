@@ -138,11 +138,12 @@ objects/bytes. Подписанное exact empty-source evidence (#653) дос�
 
 ### D · Пять потребностей заказчика — В РАБОТЕ
 
-**Волна D1 (схема+бэкенд, миграции 117–121)** — пять параллельных вертикалей,
+**Волна D1 (схема+бэкенд, миграции 117–121) — ТЕХНИЧЕСКИ ЗАВЕРШЕНА,
+PR #660 проходит exact-head CI/merge-gate.** Пять вертикалей,
 каждая: идемпотентность по request_id, optimistic versions, compose-аудит,
 REVOKE/GRANT, RLS через RPC-гарды; новые привилегированные тела живут в
-существующей неэкспонированной схеме `private`, а `platform` оставляет только
-`SECURITY INVOKER` entrypoint +
+существующих неэкспонированных схемах `private`/`platform_private`, а
+`platform` оставляет только `SECURITY INVOKER` entrypoint +
 SQL-тесты в `supabase/tests` + контракт в `src/lib` + server actions +
 node-тесты + прогон `scripts/test-postgres-authorization.sh`:
 
@@ -168,30 +169,75 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
   без публичных URL и байтов через браузер; связь медиа ↔ дело проверяется
   через диалог (105/106).
 
-Если волна оборвалась: проверить `git status` — есть ли файлы миграций
-117–121 и их контракты; недописанное чистить, дописанное валидировать
-`test-postgres-authorization.sh` и перезапускать недостающие вертикали.
+**Durable checkpoint и cold-resume:** worktree
+`/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, remote
+ветка `izzhackt/v3-d1-backend`, draft PR #660. Проверенный code checkpoint —
+`a01567043fc7cac488b2cc655e205742392fe85f`; последующий docs-only commit не
+меняет этот code tree. Найти состояние:
 
-**Текущий локальный checkpoint (до первого durable push):** worktree
-`/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, ветка
-`izzhackt/v3-d1-backend`, базовый спасённый commit `18474980`. Поверх него
-изменены четыре файла: `src/lib/platform-admissions-actions.ts`,
-`src/lib/server/platform-media-attach.ts`,
-`supabase/tests/platform_message_media_case_attach.sql`,
-`tests/platform-admissions.test.mjs`. Remote-ветки пока нет. Найти состояние:
-`git worktree list --porcelain`, затем `git -C <worktree> status --short` и
-`git -C <worktree> log -1 --oneline`. После первого push этот абзац в той же
-пачке заменить на remote branch + PR + точный head SHA.
+```bash
+git worktree list --porcelain
+git -C /Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover status --short --branch
+git -C /Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover rev-parse HEAD
+gh pr view 660 --repo izzhackt/evo_AI_CRM --json headRefOid,isDraft,statusCheckRollup
+```
 
-**Состояние спасённого черновика Fable на 06.09 (не считать готовым):** 117 и
-120 имеют миграции, SQL/Node-тесты и backend-контракты; 118 не собирался и не
-был подключён к формам; 119 был почти только миграцией; 121 не имел server
-action/call-site/Node-тестов и требовал усилить attribution/causal binding.
-SQL-сюты 118 и 120 не были включены в общий migration-boundary runner, SQL-сют
-119 отсутствовал. Каждую вертикаль довести отдельно в порядке 117 → 118 → 119
-→ 120 → 121; не начинать D2 до их интеграции.
+Если PR #660 уже слит, не восстанавливать D1 из старых worktree: проверить на
+`main` наличие миграций 117–121 и продолжить с D2. Если PR ещё открыт,
+`headRefOid` обязан совпадать с remote-веткой; любые новые изменения требуют
+повторить задетые проверки и exact-head review.
 
-Проверка актуальной официальной документации 06.09: новый
+**Фактический статус D1 на code checkpoint `a0156704`:**
+
+- **117 принято:** append-only lead/case notes, точная subject-authority,
+  replay-safe create, keyset list и реальные dblink-race. Unicode считается
+  теми же code points и с тем же edge-whitespace, что PostgreSQL; Sales держит
+  порядок блокировок lead → actor/org, Admissions — actor/org → case. Note и
+  Curator assignment теперь входят через единый organization-scoped
+  transaction advisory domain до request/actor/case locks. Assignment после
+  ожидания повторно проверяет JWT access version, published bundle,
+  `case.curator.assign` и свежий organization scope под membership/profile/org
+  locks. Реальные workflow-vs-note, current/target Curator-vs-assignment,
+  membership revocation и Admin scope-revocation races зелёные; stale Admin
+  получает `42501` без изменения дела, assignment event или audit.
+- **118 принято:** точный список стран CN/MY/AE/TR/IT/CZ и ступень заявки
+  проведены через migration, RPC,
+  серверные actions, формы и словарь; primary-switch держит один primary под
+  детерминированной блокировкой, replay привязан к exact request. Targeted SQL,
+  Node и независимые review зелёные.
+- **119 принято:** communication search/direction, Sales stage-entry evidence и
+  Admissions task keyset/date bounds интегрированы. Повреждённый или
+  неподтверждённый workflow ledger закрывает всю видимую очередь. Полный
+  foundation выявил старые synthetic fixtures с версиями 7/11/21 без receipt;
+  production-валидатор не ослаблялся — provisioner теперь завершает их через
+  канонический `mutate_sales_lead_workflow` и сразу проверяет реальный read RPC.
+- **120 принято:** reply snippets с exact audience, optimistic version,
+  archive, receipt causality и role/capability guards. SQL и TypeScript имеют
+  одну trim/Unicode/C1-control границу, поэтому прямой RPC не может отравить
+  последующее чтение списка.
+- **121 принято:** actor-bound intent → одноразовый media grant → version-bound
+  reservation → private Storage copy/TUS → download/hash/ClamAV → finalize.
+  Stale slot, expired reservation, replay с иными входами, revoked actor,
+  foreign tenant/object и lost-response recovery покрыты реальными SQL/Node
+  регрессиями. Последний недублирующий security-test из PR #663 перенесён в
+  #660; #663 закрыт без отдельного merge.
+
+**Общий gate D1 на 07.09:** `npm run test:d1` — 89/89; `npm run test:unit` —
+PASS (96 уникальных Node-файлов, 162 теста); полный
+`scripts/test-postgres-authorization.sh` — PASS на точном финальном diff; Node
+22 typecheck, полный ESLint и production build — PASS. Свежий
+`scripts/test-postgres-v2-foundation.sh` прошёл реальный локальный Postgres,
+Supabase Auth/RLS, private Storage, provider workflows и Chromium: активные
+staff-auth E2E 15/15, V3 gate зелёный на desktop, 393 px и forced-dark.
+Финальный cumulative adversarial review exact diff
+`80ba267ddad2186ce682da0e3cf84e88c5a8d0af2ad0a001f8da45d918989d85` —
+`APPROVED`; он отдельно подтвердил Curator deadlock, exposed
+invoker/non-exposed definer boundary и stale-Admin revocation race.
+Подтверждённых замечаний не осталось. Последний обязательный шаг перед
+переводом #660 из draft: push этого docs-only HEAD, GitHub fast checks именно
+его SHA и проверка, что delta поверх `a0156704` меняет только этот handover.
+
+Проверка актуальной официальной документации 06–07.09: новый
 `SECURITY DEFINER` нельзя оставлять в exposed schema `platform`. D1 переносит
 привилегированные тела в существующую неэкспонированную `private`; exposed RPC
 становятся `SECURITY INVOKER`. У definer-helper обязательны пустой
@@ -204,7 +250,8 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
 [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
 [Standard Uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads),
 [Resumable Uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads),
-[Next.js Data Security](https://nextjs.org/docs/app/guides/data-security).
+[Next.js Data Security](https://nextjs.org/docs/app/guides/data-security),
+[PostgreSQL advisory locks](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS).
 
 **Волна D2 (UI поверх D1)** — после интеграции D1:
 

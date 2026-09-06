@@ -47,6 +47,14 @@ const NON_INTAKE_SCOPE_REQUEST_ID =
   "54600000-0000-4000-8000-000000000027";
 const HANDOFF_CLIENT_ID = "54600000-0000-4000-8000-000000000028";
 const HANDOFF_LEAD_ID = "54600000-0000-4000-8000-000000000029";
+const SALES_PROOF_WORKFLOW_REQUEST_ID =
+  "54600000-0000-4000-8000-000000000201";
+const WORKFLOW_PROOF_WORKFLOW_REQUEST_ID =
+  "54600000-0000-4000-8000-000000000202";
+const API_PROOF_WORKFLOW_REQUEST_ID =
+  "54600000-0000-4000-8000-000000000203";
+const HANDOFF_PROOF_WORKFLOW_REQUEST_ID =
+  "54600000-0000-4000-8000-000000000204";
 const CONVERSATION_CHAT_ID = "15550005461@c.us";
 const CONVERSATION_EXTERNAL_IDENTITY = `crm_primary:${CONVERSATION_CHAT_ID}`;
 const UUID_PATTERN =
@@ -100,8 +108,13 @@ function salesEmail() {
 function assertAuthority(row) {
   if (
     !row ||
+    !UUID_PATTERN.test(row.auth_user_id) ||
+    !UUID_PATTERN.test(row.profile_id) ||
     !UUID_PATTERN.test(row.organization_id) ||
     !UUID_PATTERN.test(row.membership_id) ||
+    !UUID_PATTERN.test(row.bundle_id) ||
+    !/^[1-9][0-9]*$/.test(row.platform_access_version) ||
+    !/^[1-9][0-9]*$/.test(row.bundle_version) ||
     row.current_role !== "sales" ||
     row.membership_status !== "active" ||
     row.profile_status !== "active"
@@ -109,6 +122,48 @@ function assertAuthority(row) {
     fail("SALES_AUTHORITY_INVALID");
   }
   return row;
+}
+
+async function seedCanonicalWorkflowEvidence(
+  transaction,
+  authority,
+  {
+    leadId,
+    requestId,
+    expectedVersion,
+    stageKey,
+    nextActionText,
+    nextActionDueDate,
+  },
+) {
+  const [row] = await transaction`
+    SELECT platform.mutate_sales_lead_workflow(
+      ${leadId},
+      ${expectedVersion},
+      ${requestId},
+      ${stageKey},
+      ${authority.membership_id},
+      ${nextActionText},
+      ${nextActionDueDate}::DATE,
+      FALSE,
+      NULL
+    ) AS result
+  `;
+  const expectedResultingVersion = expectedVersion + 1;
+  if (
+    !row ||
+    !row.result ||
+    row.result.request_id !== requestId ||
+    row.result.lead_id !== leadId ||
+    row.result.stage_key !== stageKey ||
+    row.result.current_owner_membership_id !== authority.membership_id ||
+    row.result.next_action_text !== nextActionText ||
+    row.result.next_action_due_date !== nextActionDueDate ||
+    Number(row.result.workflow_version) !== expectedResultingVersion ||
+    typeof row.result.changed_at !== "string"
+  ) {
+    fail("SALES_WORKFLOW_EVIDENCE_INVALID");
+  }
 }
 
 async function main() {
@@ -122,8 +177,13 @@ async function main() {
   try {
     const [authorityRow] = await sql`
       SELECT
+        auth_user.id AS auth_user_id,
+        profile.id AS profile_id,
+        profile.access_version::TEXT AS platform_access_version,
         membership.organization_id,
         membership.id AS membership_id,
+        membership.current_bundle_id AS bundle_id,
+        bundle.version::TEXT AS bundle_version,
         membership."current_role"::TEXT AS current_role,
         membership.status::TEXT AS membership_status,
         profile.status::TEXT AS profile_status
@@ -132,6 +192,8 @@ async function main() {
         ON profile.auth_user_id = auth_user.id
       JOIN platform.organization_memberships AS membership
         ON membership.profile_id = profile.id
+      JOIN platform.role_bundle_versions AS bundle
+        ON bundle.id = membership.current_bundle_id
       WHERE lower(auth_user.email) = ${salesEmail()}
       ORDER BY membership.created_at DESC, membership.id DESC
       LIMIT 1
@@ -188,14 +250,14 @@ async function main() {
           ${authority.organization_id},
           ${CLIENT_ID},
           ${authority.membership_id},
-          'contacting',
+          'new',
           'isolated_browser',
           'open',
-          'Verify authenticated Supabase Sales read path',
-          '2099-09-02',
-          7,
+          NULL,
+          NULL,
+          6,
           '2026-09-02T08:00:00Z',
-          '2026-09-02T08:05:00Z'
+          '2026-09-02T08:00:00Z'
         )
       `;
 
@@ -251,8 +313,8 @@ async function main() {
           'qualified',
           'isolated_handoff_browser',
           'open',
-          'Complete reviewed contract, payment and Admissions handoff',
-          '2099-09-03',
+          NULL,
+          NULL,
           1,
           '2026-09-02T08:20:00Z',
           '2026-09-02T08:20:00Z'
@@ -282,11 +344,11 @@ async function main() {
           'new',
           'isolated_direct_api_workflow',
           'open',
-          'Initial direct API workflow action',
-          '2099-09-04',
-          21,
+          NULL,
+          NULL,
+          20,
           '2026-09-02T08:02:00Z',
-          '2026-09-02T08:07:00Z'
+          '2026-09-02T08:02:00Z'
         )
       `;
 
@@ -313,11 +375,11 @@ async function main() {
           'new',
           'isolated_browser_workflow',
           'open',
-          'Initial isolated workflow action',
-          '2099-09-03',
-          11,
+          NULL,
+          NULL,
+          10,
           '2026-09-02T08:01:00Z',
-          '2026-09-02T08:06:00Z'
+          '2026-09-02T08:01:00Z'
         )
       `;
 
@@ -815,6 +877,84 @@ async function main() {
           ${CONVERSATION_EVENT_ID}
         )
       `;
+
+      const claims = JSON.stringify({
+        sub: authority.auth_user_id,
+        role: "authenticated",
+        platform_role: authority.current_role,
+        platform_access_version: authority.platform_access_version,
+        platform_organization_id: authority.organization_id,
+        platform_membership_id: authority.membership_id,
+        platform_bundle_id: authority.bundle_id,
+        platform_bundle_version: authority.bundle_version,
+      });
+      await transaction`
+        SELECT pg_catalog.set_config('request.jwt.claims', ${claims}, TRUE)
+      `;
+      await transaction.unsafe("SET LOCAL ROLE authenticated");
+      await seedCanonicalWorkflowEvidence(transaction, authority, {
+        leadId: LEAD_ID,
+        requestId: SALES_PROOF_WORKFLOW_REQUEST_ID,
+        expectedVersion: 6,
+        stageKey: "contacting",
+        nextActionText: "Verify authenticated Supabase Sales read path",
+        nextActionDueDate: "2099-09-02",
+      });
+      await seedCanonicalWorkflowEvidence(transaction, authority, {
+        leadId: WORKFLOW_LEAD_ID,
+        requestId: WORKFLOW_PROOF_WORKFLOW_REQUEST_ID,
+        expectedVersion: 10,
+        stageKey: "new",
+        nextActionText: "Initial isolated workflow action",
+        nextActionDueDate: "2099-09-03",
+      });
+      await seedCanonicalWorkflowEvidence(transaction, authority, {
+        leadId: API_WORKFLOW_LEAD_ID,
+        requestId: API_PROOF_WORKFLOW_REQUEST_ID,
+        expectedVersion: 20,
+        stageKey: "new",
+        nextActionText: "Initial direct API workflow action",
+        nextActionDueDate: "2099-09-04",
+      });
+      await seedCanonicalWorkflowEvidence(transaction, authority, {
+        leadId: HANDOFF_LEAD_ID,
+        requestId: HANDOFF_PROOF_WORKFLOW_REQUEST_ID,
+        expectedVersion: 1,
+        stageKey: "qualified",
+        nextActionText:
+          "Complete reviewed contract, payment and Admissions handoff",
+        nextActionDueDate: "2099-09-03",
+      });
+      const visibleSalesLeads = await transaction`
+        SELECT lead_id
+        FROM platform.staff_sales_lead_page(
+          51,
+          NULL,
+          NULL,
+          'all',
+          'all',
+          'all',
+          NULL,
+          'all',
+          NULL
+        )
+      `;
+      await transaction.unsafe("RESET ROLE");
+
+      const visibleLeadIds = new Set(
+        visibleSalesLeads.map((row) => row.lead_id),
+      );
+      for (const expectedLeadId of [
+        LEAD_ID,
+        WORKFLOW_LEAD_ID,
+        API_WORKFLOW_LEAD_ID,
+        CONVERSATION_LEAD_ID,
+        HANDOFF_LEAD_ID,
+      ]) {
+        if (!visibleLeadIds.has(expectedLeadId)) {
+          fail("SALES_QUEUE_EVIDENCE_INVALID");
+        }
+      }
     });
 
     console.log(

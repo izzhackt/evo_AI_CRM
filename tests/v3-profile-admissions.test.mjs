@@ -68,6 +68,8 @@ test("V3 profile actions use canonical versioned server commands and honest outc
     "stop_factor_id",
     "is_primary",
     "university_deadline_on",
+    "country",
+    "degree",
   ]) {
     assert.match(controls, new RegExp(`name="${field}"`));
   }
@@ -105,6 +107,24 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   );
   assert.match(detailsForm, /name="application_id"/u);
   assert.doesNotMatch(detailsForm, /name="student_case_id"/u);
+  assert.match(detailsForm, /<ApplicationCountryField defaultValue=\{application\.country \?\? ""\} \/>/u);
+  assert.match(detailsForm, /<ApplicationDegreeField defaultValue=\{application\.degree \?\? ""\} \/>/u);
+
+  const createForm = controls.slice(
+    controls.indexOf("function ApplicationCreateForm"),
+    controls.indexOf("function ApplicationStatusForm"),
+  );
+  assert.match(createForm, /<ApplicationCountryField \/>/u);
+  assert.match(createForm, /<ApplicationDegreeField \/>/u);
+  assert.match(controls, /<select name="country"/u);
+  assert.match(controls, /<select name="degree"/u);
+  assert.match(controls, /platformApplicationCountryEditOptions\(defaultValue \|\| null\)/u);
+  assert.match(controls, /platformApplicationDegreeEditOptions\(defaultValue \|\| null\)/u);
+  assert.match(controls, /applicationCountry\(countryCode\)/u);
+  assert.match(controls, /applicationDegree\(degreeKey\)/u);
+  assert.match(controls, /Сохранено ранее \(оставить без изменений\)/u);
+  assert.doesNotMatch(controls, /Сохранено ранее[^<\n]*\$\{/u);
+  assert.doesNotMatch(controls, />\s*(?:CN|MY|AE|TR|IT|CZ|foundation|language|bachelor|master|phd)\s*</u);
 
   const tabs = source("src/components/v3/profile/tabs.tsx");
   assert.match(tabs, /find\(\(candidate\) => candidate\.isPrimary\)/u);

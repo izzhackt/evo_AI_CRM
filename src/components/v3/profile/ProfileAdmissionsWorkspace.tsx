@@ -14,6 +14,8 @@ import {
 } from "@/lib/platform-admissions-actions";
 import {
   PLATFORM_APPLICATION_STATUSES,
+  platformApplicationCountryEditOptions,
+  platformApplicationDegreeEditOptions,
   type PlatformApplicationQueueRow,
 } from "@/lib/platform-application-contract";
 import {
@@ -27,6 +29,8 @@ import { PLATFORM_VISA_STATUSES } from "@/lib/platform-case-operations-contract"
 import {
   allDayDate,
   applicationStatus,
+  country as applicationCountry,
+  degree as applicationDegree,
   financeBlockedAction,
   financeBlockedActionOptions,
   visaStatus,
@@ -81,6 +85,61 @@ function PrimaryApplicationField({
         </span>
       </span>
     </label>
+  );
+}
+
+function ApplicationCountryField({
+  defaultValue = "",
+}: Readonly<{ defaultValue?: string }>) {
+  const options = platformApplicationCountryEditOptions(defaultValue || null);
+  return (
+    <label>
+      <span className={labelCls}>Страна</span>
+      <select name="country" defaultValue={defaultValue} className={inputCls}>
+        <option value="">Не указана</option>
+        {options.map((countryCode) => (
+          <option key={countryCode} value={countryCode}>
+            {applicationCountry(countryCode) ?? "Сохранено ранее (оставить без изменений)"}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ApplicationDegreeField({
+  defaultValue = "",
+}: Readonly<{ defaultValue?: string }>) {
+  const options = platformApplicationDegreeEditOptions(defaultValue || null);
+  return (
+    <label>
+      <span className={labelCls}>Ступень</span>
+      <select name="degree" defaultValue={defaultValue} className={inputCls}>
+        <option value="">Не указана</option>
+        {options.map((degreeKey) => (
+          <option key={degreeKey} value={degreeKey}>
+            {applicationDegree(degreeKey) ?? "Сохранено ранее (оставить без изменений)"}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ApplicationGeographySummary({
+  countryCode,
+  degreeKey,
+}: Readonly<{ countryCode: string | null; degreeKey: string | null }>) {
+  const countryLabel = applicationCountry(countryCode);
+  const degreeLabel = applicationDegree(degreeKey);
+  if (!countryLabel && !degreeLabel) return null;
+
+  return (
+    <p className="mt-2 text-xs text-fg-3">
+      {[countryLabel ? `Страна: ${countryLabel}` : null, degreeLabel ? `Ступень: ${degreeLabel}` : null]
+        .filter((value): value is string => value !== null)
+        .join(" · ")}
+    </p>
   );
 }
 
@@ -145,6 +204,8 @@ function ApplicationCreateForm({ workspace }: Readonly<{ workspace: ProfileAdmis
           <span className={labelCls}>Дедлайн от университета</span>
           <input name="university_deadline_on" type="date" className={inputCls} />
         </label>
+        <ApplicationCountryField />
+        <ApplicationDegreeField />
         <label>
           <span className={labelCls}>Ссылка на подтверждение</span>
           <input name="evidence_reference" maxLength={1000} className={inputCls} />
@@ -255,6 +316,8 @@ function ApplicationDetailsForm({
             className={inputCls}
           />
         </label>
+        <ApplicationCountryField defaultValue={application.country ?? ""} />
+        <ApplicationDegreeField defaultValue={application.degree ?? ""} />
         <button type="submit" className={btnGhostCls} disabled={locked}>
           {pending ? "Сохраняем…" : "Сохранить детали"}
         </button>
@@ -471,6 +534,10 @@ export function ProfileAdmissionsWorkspacePanel({
                     </time>
                   ) : "не указан"}
                 </p>
+                <ApplicationGeographySummary
+                  countryCode={application.country}
+                  degreeKey={application.degree}
+                />
                 {application.latestEvidenceReference ? (
                   <p className="mt-2 break-all text-xs text-fg-3">
                     {application.latestEvidenceReference}
@@ -491,7 +558,7 @@ export function ProfileAdmissionsWorkspacePanel({
                 {canWrite ? (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium text-accent">
-                      Изменить приоритет и дедлайн
+                      Изменить параметры заявки
                     </summary>
                     <ApplicationDetailsForm
                       key={`details-${application.universityApplicationId}-${application.version}`}

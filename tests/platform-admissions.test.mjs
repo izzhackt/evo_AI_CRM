@@ -22,10 +22,17 @@ import {
 } from "../src/lib/platform-admissions.ts";
 import {
   isPlatformApplicationCalendarDate,
+  isPlatformApplicationDegreeValue,
+  parsePlatformApplicationCountryDetailsInput,
+  parsePlatformApplicationCountryInput,
+  parsePlatformApplicationDegreeDetailsInput,
+  parsePlatformApplicationDegreeInput,
   parsePlatformApplicationDetailsReceipt,
   parsePlatformApplicationDeadlineInput,
   parsePlatformApplicationPrimaryCheckbox,
   parsePlatformApplicationSwitchMetadata,
+  platformApplicationCountryEditOptions,
+  platformApplicationDegreeEditOptions,
 } from "../src/lib/platform-application-contract.ts";
 import {
   PlatformCaseAssignmentRepositoryError,
@@ -102,6 +109,23 @@ test("V3 Admissions forms own versioned retry state without legacy query envelop
   assert.match(detailsAction, /p_university_application_id: applicationId/);
   assert.doesNotMatch(detailsAction, /p_application_id: applicationId/);
   assert.doesNotMatch(detailsAction, /applicationField\(fields, "student_case_id"\)/);
+  assert.match(detailsAction, /getPlatformApplication\(actor, applicationId\)/);
+  assert.match(
+    detailsAction,
+    /parsePlatformApplicationCountryDetailsInput\(\s*submittedCountry,\s*currentApplication\.country/u,
+  );
+  assert.match(
+    detailsAction,
+    /parsePlatformApplicationDegreeDetailsInput\(\s*submittedDegree,\s*currentApplication\.degree/u,
+  );
+  assert.match(
+    detailsAction,
+    /const submittedCountry = rawApplicationField\(fields, "country"\)/u,
+  );
+  assert.match(
+    detailsAction,
+    /const submittedDegree = rawApplicationField\(fields, "degree"\)/u,
+  );
   assert.match(detailsAction, /revalidateApplication\(receipt\.studentCaseId\)/);
   const statusOnlyAction = v3ApplicationActions.slice(
     v3ApplicationActions.indexOf("export async function changePlatformUniversityApplicationAction"),
@@ -310,6 +334,8 @@ function applicationRow(overrides = {}) {
     program_name: "Computer Science",
     is_primary: true,
     university_deadline_on: "2027-02-15",
+    country: "MY",
+    degree: "bachelor",
     status: "submitted",
     latest_evidence_reference: "evidence:submission-1",
     created_at: AT,
@@ -490,6 +516,110 @@ test("application detail form values use one strict checkbox and calendar-date c
   }
 });
 
+test("new application geography values accept only canonical select options", () => {
+  for (const country of ["CN", "MY", "AE", "TR", "IT", "CZ"]) {
+    assert.equal(parsePlatformApplicationCountryInput(country), country);
+  }
+  for (const degree of [
+    "foundation",
+    "language",
+    "bachelor",
+    "master",
+    "phd",
+  ]) {
+    assert.equal(parsePlatformApplicationDegreeInput(degree), degree);
+  }
+  assert.equal(parsePlatformApplicationCountryInput(""), null);
+  assert.equal(parsePlatformApplicationDegreeInput(""), null);
+
+  for (const value of ["my", "US", " MY", "MY ", "MYS", null, undefined, 7]) {
+    assert.equal(parsePlatformApplicationCountryInput(value), undefined);
+  }
+  for (const value of [
+    "Bachelor",
+    "doctorate",
+    " bachelor",
+    "bachelor ",
+    null,
+    undefined,
+    7,
+  ]) {
+    assert.equal(parsePlatformApplicationDegreeInput(value), undefined);
+  }
+});
+
+test("application countries are restricted to the exact six-country allowlist", () => {
+  const databaseValidUnicodeDegree = `\u00a0${"🎓".repeat(100)}\u00a0`;
+  const normalized = normalizePlatformApplicationQueueRow(
+    applicationRow({ country: "MY", degree: databaseValidUnicodeDegree }),
+    ORGANIZATION_ID,
+  );
+  assert.equal(normalized.country, "MY");
+  assert.equal(normalized.degree, databaseValidUnicodeDegree);
+  assert.deepEqual(platformApplicationCountryEditOptions("US"), [
+    "CN",
+    "MY",
+    "AE",
+    "TR",
+    "IT",
+    "CZ",
+  ]);
+  assert.deepEqual(platformApplicationDegreeEditOptions("doctorate"), [
+    "foundation",
+    "language",
+    "bachelor",
+    "master",
+    "phd",
+    "doctorate",
+  ]);
+  assert.equal(parsePlatformApplicationCountryDetailsInput("US", "US"), undefined);
+  assert.equal(
+    parsePlatformApplicationDegreeDetailsInput("doctorate", "doctorate"),
+    "doctorate",
+  );
+  assert.equal(parsePlatformApplicationCountryDetailsInput("CA", "US"), undefined);
+  assert.equal(
+    parsePlatformApplicationDegreeDetailsInput("specialist", "doctorate"),
+    undefined,
+  );
+  assert.equal(parsePlatformApplicationCountryDetailsInput("MY", "US"), "MY");
+  assert.equal(
+    parsePlatformApplicationDegreeDetailsInput("master", "doctorate"),
+    "master",
+  );
+  assert.equal(parsePlatformApplicationCountryDetailsInput("", "US"), null);
+  assert.equal(parsePlatformApplicationDegreeDetailsInput("", "doctorate"), null);
+  assert.equal(isPlatformApplicationDegreeValue("doctorate"), true);
+  assert.equal(isPlatformApplicationDegreeValue(databaseValidUnicodeDegree), true);
+  assert.equal(
+    parsePlatformApplicationDegreeDetailsInput(
+      databaseValidUnicodeDegree,
+      normalized.degree,
+    ),
+    databaseValidUnicodeDegree,
+  );
+  assert.equal(isPlatformApplicationDegreeValue(" doctorate"), false);
+  assert.equal(isPlatformApplicationDegreeValue("doctor\nate"), false);
+  assert.equal(isPlatformApplicationDegreeValue("d".repeat(161)), false);
+  assert.deepEqual(platformApplicationCountryEditOptions("USA"), [
+    "CN",
+    "MY",
+    "AE",
+    "TR",
+    "IT",
+    "CZ",
+  ]);
+  for (const country of ["ZZ", "AA", "US"]) {
+    assert.throws(
+      () => normalizePlatformApplicationQueueRow(
+        applicationRow({ country }),
+        ORGANIZATION_ID,
+      ),
+      PlatformAdmissionsRepositoryError,
+    );
+  }
+});
+
 test("application primary-switch receipt metadata is paired and target-safe", () => {
   assert.deepEqual(
     parsePlatformApplicationSwitchMetadata(
@@ -565,6 +695,8 @@ test("application details receipt returns the authoritative case and rejects inc
     universityApplicationId: APPLICATION_ID,
     isPrimary: true,
     universityDeadlineOn: "2028-02-29",
+    country: "MY",
+    degree: "bachelor",
     requestId: HANDOFF_ID,
     expectedVersion: "4",
   };
@@ -574,6 +706,8 @@ test("application details receipt returns the authoritative case and rejects inc
     student_case_id: CASE_ID,
     is_primary: true,
     university_deadline_on: "2028-02-29",
+    country: "MY",
+    degree: "bachelor",
     request_id: HANDOFF_ID,
     expected_version: "4",
     version: "5",
@@ -585,11 +719,21 @@ test("application details receipt returns the authoritative case and rejects inc
     parsePlatformApplicationDetailsReceipt(response, expectation),
     { studentCaseId: CASE_ID, version: "5" },
   );
+  assert.deepEqual(
+    parsePlatformApplicationDetailsReceipt(
+      { ...response, country: "CZ", degree: "doctorate" },
+      { ...expectation, country: "CZ", degree: "doctorate" },
+    ),
+    { studentCaseId: CASE_ID, version: "5" },
+  );
   for (const malformed of [
     { ...response, organization_id: CASE_ID },
     { ...response, student_case_id: "not-a-case" },
     { ...response, is_primary: false },
     { ...response, university_deadline_on: null },
+    { ...response, country: "TR" },
+    { ...response, country: "ZZ" },
+    { ...response, degree: "master" },
     { ...response, request_id: APPLICATION_ID },
     { ...response, expected_version: "3" },
     { ...response, version: "6" },
@@ -597,6 +741,17 @@ test("application details receipt returns the authoritative case and rejects inc
   ]) {
     assert.equal(
       parsePlatformApplicationDetailsReceipt(malformed, expectation),
+      undefined,
+    );
+  }
+  for (const malformedExpectation of [
+    { ...expectation, country: "usa" },
+    { ...expectation, country: "AA" },
+    { ...expectation, degree: " doctorate" },
+    { ...expectation, degree: "d".repeat(161) },
+  ]) {
+    assert.equal(
+      parsePlatformApplicationDetailsReceipt(response, malformedExpectation),
       undefined,
     );
   }
@@ -712,6 +867,12 @@ test("malformed, cross-organization and partially-null projections fail closed",
   assert.throws(
     () => normalizePlatformApplicationQueueRow(
       applicationRow({ university_deadline_on: "2027-02-29" }),
+    ),
+    PlatformAdmissionsRepositoryError,
+  );
+  assert.throws(
+    () => normalizePlatformApplicationQueueRow(
+      applicationRow({ degree: "d".repeat(161) }),
     ),
     PlatformAdmissionsRepositoryError,
   );

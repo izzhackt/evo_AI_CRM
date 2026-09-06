@@ -4,9 +4,18 @@ import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { parsePlatformAdmissionsUuid } from "./platform-admissions";
 import {
+  getPlatformApplication,
+  parsePlatformAdmissionsUuid,
+} from "./platform-admissions";
+import {
+  isPlatformApplicationCountryCode,
+  isPlatformApplicationDegreeValue,
+  parsePlatformApplicationCountryInput,
+  parsePlatformApplicationCountryDetailsInput,
   parsePlatformApplicationDeadlineInput,
+  parsePlatformApplicationDegreeDetailsInput,
+  parsePlatformApplicationDegreeInput,
   parsePlatformApplicationDetailsReceipt,
   parsePlatformApplicationPrimaryCheckbox,
   PLATFORM_APPLICATION_EVIDENCE_STATUSES,
@@ -41,6 +50,8 @@ const CREATE_APPLICATION_FIELDS = [
   "note",
   "is_primary",
   "university_deadline_on",
+  "country",
+  "degree",
   "request_id",
   "expected_version",
 ] as const;
@@ -48,6 +59,8 @@ const UPDATE_APPLICATION_DETAILS_FIELDS = [
   "application_id",
   "is_primary",
   "university_deadline_on",
+  "country",
+  "degree",
   "request_id",
   "expected_version",
 ] as const;
@@ -271,12 +284,19 @@ export async function createPlatformUniversityApplicationAction(
   const universityDeadlineOn = parsePlatformApplicationDeadlineInput(
     rawApplicationField(fields, "university_deadline_on"),
   );
+  const country = parsePlatformApplicationCountryInput(
+    applicationField(fields, "country"),
+  );
+  const degree = parsePlatformApplicationDegreeInput(
+    applicationField(fields, "degree"),
+  );
   if (
     !studentCaseId || !requestId || expectedVersion !== "0" ||
     (catalogValue !== "" && !catalogInstitutionId) ||
     (!catalogInstitutionId && !institutionName) || !programName || !status ||
     evidence === undefined || note === undefined || isPrimary === null ||
     universityDeadlineOn === undefined ||
+    country === undefined || degree === undefined ||
     (PLATFORM_APPLICATION_EVIDENCE_STATUSES.has(status) && !evidence) ||
     ((status === "rejected" || status === "withdrawn") && !note)
   ) {
@@ -298,6 +318,8 @@ export async function createPlatformUniversityApplicationAction(
             p_note: note,
             p_is_primary: isPrimary,
             p_university_deadline_on: universityDeadlineOn,
+            p_country: country,
+            p_degree: degree,
             p_expected_version: expectedVersion,
             p_request_id: requestId,
           },
@@ -314,6 +336,8 @@ export async function createPlatformUniversityApplicationAction(
             p_note: note,
             p_is_primary: isPrimary,
             p_university_deadline_on: universityDeadlineOn,
+            p_country: country,
+            p_degree: degree,
             p_expected_version: expectedVersion,
             p_request_id: requestId,
           },
@@ -344,6 +368,7 @@ export async function createPlatformUniversityApplicationAction(
       data.evidence_reference !== evidence || data.note !== note ||
       data.is_primary !== isPrimary ||
       data.university_deadline_on !== universityDeadlineOn ||
+      data.country !== country || data.degree !== degree ||
       data.request_id !== requestId || data.expected_version !== "0" ||
       typeof data.version !== "string" ||
       applicationVersion(data.version, false) !== "1" ||
@@ -387,14 +412,40 @@ export async function updatePlatformUniversityApplicationDetailsAction(
   const universityDeadlineOn = parsePlatformApplicationDeadlineInput(
     rawApplicationField(fields, "university_deadline_on"),
   );
+  const submittedCountry = rawApplicationField(fields, "country");
+  const submittedDegree = rawApplicationField(fields, "degree");
   if (
     !applicationId || !requestId || !expectedVersion ||
-    isPrimary === null || universityDeadlineOn === undefined
+    isPrimary === null || universityDeadlineOn === undefined ||
+    (submittedCountry !== "" &&
+      !isPlatformApplicationCountryCode(submittedCountry)) ||
+    (submittedDegree !== "" &&
+      !isPlatformApplicationDegreeValue(submittedDegree))
   ) {
     return applicationFailureState(form, "invalid", applicationId, requestId);
   }
 
   try {
+    const currentApplication = await getPlatformApplication(actor, applicationId);
+    if (currentApplication === null) {
+      return applicationFailureState(
+        form,
+        "unavailable",
+        applicationId,
+        requestId,
+      );
+    }
+    const country = parsePlatformApplicationCountryDetailsInput(
+      submittedCountry,
+      currentApplication.country,
+    );
+    const degree = parsePlatformApplicationDegreeDetailsInput(
+      submittedDegree,
+      currentApplication.degree,
+    );
+    if (country === undefined || degree === undefined) {
+      return applicationFailureState(form, "invalid", applicationId, requestId);
+    }
     const client = await createSupabaseServerClient();
     const response = await client.schema("platform").rpc(
       "update_university_application_details",
@@ -403,6 +454,8 @@ export async function updatePlatformUniversityApplicationDetailsAction(
         p_university_application_id: applicationId,
         p_is_primary: isPrimary,
         p_university_deadline_on: universityDeadlineOn,
+        p_country: country,
+        p_degree: degree,
         p_expected_version: expectedVersion,
         p_request_id: requestId,
       },
@@ -420,6 +473,8 @@ export async function updatePlatformUniversityApplicationDetailsAction(
       universityApplicationId: applicationId,
       isPrimary,
       universityDeadlineOn,
+      country,
+      degree,
       requestId,
       expectedVersion,
     });

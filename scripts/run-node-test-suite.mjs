@@ -32,6 +32,8 @@ export const UNIT_ENTRY_SCRIPTS = Object.freeze([
   "test:unit:core",
 ]);
 
+export const D1_ENTRY_SCRIPTS = Object.freeze(["test:d1"]);
+
 export const SERIAL_PROVIDER_TEST_FILES = new Set([
   "tests/platform-gemini-provider.test.mjs",
   "tests/platform-provider-action-contract.test.mjs",
@@ -258,12 +260,19 @@ if (isMainModule()) {
     else if (cliArguments[index] === "--suite") suiteName = cliArguments[++index] ?? "";
     else throw new Error(`Unknown argument: ${cliArguments[index]}`);
   }
-  if (!new Set(["ci", "unit"]).has(suiteName)) throw new Error(`Unknown Node test suite: ${suiteName}`);
+  if (!new Set(["ci", "unit", "d1"]).has(suiteName)) {
+    throw new Error(`Unknown Node test suite: ${suiteName}`);
+  }
   const packageJson = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8"));
+  const entryScripts = suiteName === "unit"
+    ? UNIT_ENTRY_SCRIPTS
+    : suiteName === "d1"
+      ? D1_ENTRY_SCRIPTS
+      : DEFAULT_ENTRY_SCRIPTS;
   const plan = resolveNodeTestPlan({
     packageJson,
     repositoryRoot,
-    entryScripts: suiteName === "unit" ? UNIT_ENTRY_SCRIPTS : DEFAULT_ENTRY_SCRIPTS,
+    entryScripts,
   });
   if (listJson) {
     process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);

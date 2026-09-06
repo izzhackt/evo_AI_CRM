@@ -8,19 +8,19 @@ const authMode = process.env.EVO_EXPECT_STAFF_AUTH_MODE ?? "configured";
 const PROFILES = [
   {
     role: "admin",
-    label: "Director/Admin",
+    label: "Администратор",
     email: process.env.EVO_STAFF_AUTH_ADMIN_EMAIL,
     password: process.env.EVO_STAFF_AUTH_ADMIN_PASSWORD,
   },
   {
     role: "sales",
-    label: "Sales Manager",
+    label: "Продажи",
     email: process.env.EVO_STAFF_AUTH_SALES_EMAIL,
     password: process.env.EVO_STAFF_AUTH_SALES_PASSWORD,
   },
   {
     role: "admissions",
-    label: "Admissions Manager",
+    label: "Приёмная",
     email: process.env.EVO_STAFF_AUTH_ADMISSIONS_EMAIL,
     password: process.env.EVO_STAFF_AUTH_ADMISSIONS_PASSWORD,
   },

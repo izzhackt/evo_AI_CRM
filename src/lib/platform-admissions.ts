@@ -2,6 +2,7 @@ import type { PlatformActor } from "./platform-auth";
 import {
   isPlatformApplicationCalendarDate,
   isPlatformApplicationCountryCode,
+  isPlatformApplicationDegreeValue,
   PLATFORM_APPLICATION_STATUSES,
   type PlatformApplicationQueueRow,
   type PlatformApplicationStatus,
@@ -40,6 +41,11 @@ function optionalDate(value: unknown): string | null {
 function optionalCountryCode(value: unknown): string | null {
   if (value === null) return null;
   return isPlatformApplicationCountryCode(value) ? value : invalidShape();
+}
+
+function optionalApplicationDegreeValue(value: unknown): string | null {
+  if (value === null) return null;
+  return isPlatformApplicationDegreeValue(value) ? value : invalidShape();
 }
 
 export type PlatformStudentCaseState = "pending" | "active" | "closed";
@@ -607,7 +613,7 @@ export function normalizePlatformApplicationQueueRow(
     isPrimary: requiredBoolean(value.is_primary),
     universityDeadlineOn: optionalDate(value.university_deadline_on),
     country: optionalCountryCode(value.country),
-    degree: optionalText(value.degree, 160),
+    degree: optionalApplicationDegreeValue(value.degree),
     status: oneOf(value.status, PLATFORM_APPLICATION_STATUSES),
     latestEvidenceReference: optionalText(
       value.latest_evidence_reference,

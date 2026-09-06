@@ -4,10 +4,17 @@ import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { parsePlatformAdmissionsUuid } from "./platform-admissions";
 import {
+  getPlatformApplication,
+  parsePlatformAdmissionsUuid,
+} from "./platform-admissions";
+import {
+  isPlatformApplicationCountryCode,
+  isPlatformApplicationDegreeValue,
   parsePlatformApplicationCountryInput,
+  parsePlatformApplicationCountryDetailsInput,
   parsePlatformApplicationDeadlineInput,
+  parsePlatformApplicationDegreeDetailsInput,
   parsePlatformApplicationDegreeInput,
   parsePlatformApplicationDetailsReceipt,
   parsePlatformApplicationPrimaryCheckbox,
@@ -405,21 +412,40 @@ export async function updatePlatformUniversityApplicationDetailsAction(
   const universityDeadlineOn = parsePlatformApplicationDeadlineInput(
     rawApplicationField(fields, "university_deadline_on"),
   );
-  const country = parsePlatformApplicationCountryInput(
-    applicationField(fields, "country"),
-  );
-  const degree = parsePlatformApplicationDegreeInput(
-    applicationField(fields, "degree"),
-  );
+  const submittedCountry = rawApplicationField(fields, "country");
+  const submittedDegree = rawApplicationField(fields, "degree");
   if (
     !applicationId || !requestId || !expectedVersion ||
     isPrimary === null || universityDeadlineOn === undefined ||
-    country === undefined || degree === undefined
+    (submittedCountry !== "" &&
+      !isPlatformApplicationCountryCode(submittedCountry)) ||
+    (submittedDegree !== "" &&
+      !isPlatformApplicationDegreeValue(submittedDegree))
   ) {
     return applicationFailureState(form, "invalid", applicationId, requestId);
   }
 
   try {
+    const currentApplication = await getPlatformApplication(actor, applicationId);
+    if (currentApplication === null) {
+      return applicationFailureState(
+        form,
+        "unavailable",
+        applicationId,
+        requestId,
+      );
+    }
+    const country = parsePlatformApplicationCountryDetailsInput(
+      submittedCountry,
+      currentApplication.country,
+    );
+    const degree = parsePlatformApplicationDegreeDetailsInput(
+      submittedDegree,
+      currentApplication.degree,
+    );
+    if (country === undefined || degree === undefined) {
+      return applicationFailureState(form, "invalid", applicationId, requestId);
+    }
     const client = await createSupabaseServerClient();
     const response = await client.schema("platform").rpc(
       "update_university_application_details",

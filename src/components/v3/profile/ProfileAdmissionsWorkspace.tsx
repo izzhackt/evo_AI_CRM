@@ -13,9 +13,9 @@ import {
   type PlatformUniversityApplicationActionState,
 } from "@/lib/platform-admissions-actions";
 import {
-  PLATFORM_APPLICATION_COUNTRIES,
-  PLATFORM_APPLICATION_DEGREES,
   PLATFORM_APPLICATION_STATUSES,
+  platformApplicationCountryEditOptions,
+  platformApplicationDegreeEditOptions,
   type PlatformApplicationQueueRow,
 } from "@/lib/platform-application-contract";
 import {
@@ -91,14 +91,15 @@ function PrimaryApplicationField({
 function ApplicationCountryField({
   defaultValue = "",
 }: Readonly<{ defaultValue?: string }>) {
+  const options = platformApplicationCountryEditOptions(defaultValue || null);
   return (
     <label>
       <span className={labelCls}>Страна</span>
       <select name="country" defaultValue={defaultValue} className={inputCls}>
         <option value="">Не указана</option>
-        {PLATFORM_APPLICATION_COUNTRIES.map((countryCode) => (
+        {options.map((countryCode) => (
           <option key={countryCode} value={countryCode}>
-            {applicationCountry(countryCode) ?? ""}
+            {applicationCountry(countryCode) ?? "Сохранено ранее (оставить без изменений)"}
           </option>
         ))}
       </select>
@@ -109,14 +110,15 @@ function ApplicationCountryField({
 function ApplicationDegreeField({
   defaultValue = "",
 }: Readonly<{ defaultValue?: string }>) {
+  const options = platformApplicationDegreeEditOptions(defaultValue || null);
   return (
     <label>
       <span className={labelCls}>Ступень</span>
       <select name="degree" defaultValue={defaultValue} className={inputCls}>
         <option value="">Не указана</option>
-        {PLATFORM_APPLICATION_DEGREES.map((degreeKey) => (
+        {options.map((degreeKey) => (
           <option key={degreeKey} value={degreeKey}>
-            {applicationDegree(degreeKey) ?? ""}
+            {applicationDegree(degreeKey) ?? "Сохранено ранее (оставить без изменений)"}
           </option>
         ))}
       </select>

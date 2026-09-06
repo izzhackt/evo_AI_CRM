@@ -164,6 +164,7 @@ BEGIN
     'university_deadline_on', p_university_deadline_on,
     'country', normalized_country,
     'degree', normalized_degree,
+    'actor_membership_id', actor.actor_membership_id,
     'request_id', p_request_id,
     'expected_version', p_expected_version::TEXT
   );
@@ -205,6 +206,9 @@ BEGIN
     p_organization_id,
     p_student_case_id,
     'application.manage'
+  );
+  replay_shape := replay_shape || jsonb_build_object(
+    'actor_membership_id', actor.actor_membership_id
   );
   replayed := platform_private.replay_audit(
     p_request_id,
@@ -680,6 +684,9 @@ BEGIN
     target_student_case_id,
     'application.manage'
   );
+  replay_shape := replay_shape || jsonb_build_object(
+    'actor_membership_id', actor.actor_membership_id
+  );
   replayed := platform_private.replay_audit(
     p_request_id, 'application.details.update', 'university_application',
     p_university_application_id, fixed_reason, replay_shape
@@ -719,6 +726,9 @@ BEGIN
     p_organization_id,
     application_row.student_case_id,
     'application.manage'
+  );
+  replay_shape := replay_shape || jsonb_build_object(
+    'actor_membership_id', actor.actor_membership_id
   );
   replayed := platform_private.replay_audit(
     p_request_id, 'application.details.update', 'university_application',

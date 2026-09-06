@@ -19,8 +19,8 @@ export const PLATFORM_APPLICATION_EVIDENCE_STATUSES = new Set<
 
 /**
  * The six destination countries the business works with, as ISO-3166-1
- * alpha-2 codes. Staff forms offer exactly these; the database stores any
- * well-formed alpha-2 code, and unknown codes are simply never rendered.
+ * alpha-2 codes. Staff forms offer these as new choices; a well-formed stored
+ * code outside this list remains visible and preservable during an edit.
  */
 export const PLATFORM_APPLICATION_COUNTRIES = [
   "CN",
@@ -52,6 +52,7 @@ export type PlatformApplicationDegree =
   (typeof PLATFORM_APPLICATION_DEGREES)[number];
 
 const PLATFORM_APPLICATION_COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
+const PLATFORM_APPLICATION_DEGREE_CONTROL_PATTERN = /[\u0000-\u001f\u007f-\u009f]/u;
 
 /** True only for a well-formed ISO-3166-1 alpha-2 country code. */
 export function isPlatformApplicationCountryCode(
@@ -59,6 +60,18 @@ export function isPlatformApplicationCountryCode(
 ): value is string {
   return typeof value === "string" &&
     PLATFORM_APPLICATION_COUNTRY_CODE_PATTERN.test(value);
+}
+
+/** Mirrors the nullable degree column's non-null database CHECK. */
+export function isPlatformApplicationDegreeValue(
+  value: unknown,
+): value is string {
+  return typeof value === "string" &&
+    value !== "" &&
+    !value.startsWith(" ") &&
+    !value.endsWith(" ") &&
+    Array.from(value).length <= 160 &&
+    !PLATFORM_APPLICATION_DEGREE_CONTROL_PATTERN.test(value);
 }
 
 /**
@@ -86,6 +99,65 @@ export function parsePlatformApplicationDegreeInput(
   if (value === "") return null;
   return (PLATFORM_APPLICATION_DEGREES as readonly string[]).includes(value)
     ? (value as PlatformApplicationDegree)
+    : undefined;
+}
+
+/**
+ * Returns the country choices for an edit form. A valid non-canonical value is
+ * included only when it is already stored, so an unrelated edit cannot erase
+ * it while the product still offers only the canonical list as new choices.
+ */
+export function platformApplicationCountryEditOptions(
+  currentValue: string | null,
+): readonly string[] {
+  if (
+    currentValue !== null &&
+    isPlatformApplicationCountryCode(currentValue) &&
+    !(PLATFORM_APPLICATION_COUNTRIES as readonly string[]).includes(currentValue)
+  ) {
+    return Object.freeze([...PLATFORM_APPLICATION_COUNTRIES, currentValue]);
+  }
+  return PLATFORM_APPLICATION_COUNTRIES;
+}
+
+/** Degree counterpart of {@link platformApplicationCountryEditOptions}. */
+export function platformApplicationDegreeEditOptions(
+  currentValue: string | null,
+): readonly string[] {
+  if (
+    currentValue !== null &&
+    isPlatformApplicationDegreeValue(currentValue) &&
+    !(PLATFORM_APPLICATION_DEGREES as readonly string[]).includes(currentValue)
+  ) {
+    return Object.freeze([...PLATFORM_APPLICATION_DEGREES, currentValue]);
+  }
+  return PLATFORM_APPLICATION_DEGREES;
+}
+
+/**
+ * Parses a details-edit country against the authoritative stored value. New
+ * values must be canonical; a non-canonical value is accepted only unchanged.
+ */
+export function parsePlatformApplicationCountryDetailsInput(
+  value: unknown,
+  currentValue: string | null,
+): string | null | undefined {
+  const canonical = parsePlatformApplicationCountryInput(value);
+  if (canonical !== undefined) return canonical;
+  return isPlatformApplicationCountryCode(value) && value === currentValue
+    ? value
+    : undefined;
+}
+
+/** Degree counterpart of {@link parsePlatformApplicationCountryDetailsInput}. */
+export function parsePlatformApplicationDegreeDetailsInput(
+  value: unknown,
+  currentValue: string | null,
+): string | null | undefined {
+  const canonical = parsePlatformApplicationDegreeInput(value);
+  if (canonical !== undefined) return canonical;
+  return isPlatformApplicationDegreeValue(value) && value === currentValue
+    ? value
     : undefined;
 }
 
@@ -225,8 +297,8 @@ export type PlatformApplicationDetailsReceiptExpectation = Readonly<{
   universityApplicationId: string;
   isPrimary: boolean;
   universityDeadlineOn: string | null;
-  country: PlatformApplicationCountry | null;
-  degree: PlatformApplicationDegree | null;
+  country: string | null;
+  degree: string | null;
   requestId: string;
   expectedVersion: string;
 }>;
@@ -257,9 +329,9 @@ export function parsePlatformApplicationDetailsReceipt(
   const deadlineIsValid = expected.universityDeadlineOn === null ||
     isPlatformApplicationCalendarDate(expected.universityDeadlineOn);
   const countryIsValid = expected.country === null ||
-    parsePlatformApplicationCountryInput(expected.country) === expected.country;
+    isPlatformApplicationCountryCode(expected.country);
   const degreeIsValid = expected.degree === null ||
-    parsePlatformApplicationDegreeInput(expected.degree) === expected.degree;
+    isPlatformApplicationDegreeValue(expected.degree);
   if (
     organizationId === null ||
     universityApplicationId === null ||

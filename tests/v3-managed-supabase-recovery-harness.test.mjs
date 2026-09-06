@@ -16,6 +16,8 @@ import {
   browserCompanyFileUpload,
   browserLoginFailureCode,
   browserRequestAllowed,
+  buildManagedSupabaseRecoveryAcceptance,
+  buildRestoredSourceStaffInventoryEvidence,
   buildRestoredRoleOutcomeReadiness,
   canonicalRecoveryPdfBytes,
   buildDurableEvidence,
@@ -495,6 +497,230 @@ test("Admin passes only after complete server and exact-role browser outcomes", 
     "restored_role_outcome_proof_incomplete",
   ]);
   assert.match(source, /restored_role_outcome_proof_incomplete/u);
+});
+
+const exactAdminOnlyOrganizationId = "80000000-0000-4000-8000-000000000001";
+const exactAdminOnlyAdminUserId = "80000000-0000-4000-8000-000000000002";
+const exactAdminOnlySalesUserId = "80000000-0000-4000-8000-000000000003";
+
+function exactAdminOnlyDocumentCanary() {
+  return {
+    signedRoundTrip: "passed",
+    canaryDeleted: true,
+    evidenceScope: "behavior_canary_only_not_source_recovery",
+  };
+}
+
+function exactAdminRolePreviewProof() {
+  return {
+    status: "passed",
+    evidenceScope: "real_admin_authority_role_preview_no_synthetic_sales_admissions_identity",
+    authorityRole: "admin",
+    presentations: {
+      sales: {
+        role: "sales",
+        authorityRole: "admin",
+        landingRoute: "/v3/main",
+        allowedRoutes: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile"],
+        deniedRoutes: ["/v3/calendar", "/v3/knowledge", "/v3/settings"],
+      },
+      admissions: {
+        role: "admissions",
+        authorityRole: "admin",
+        landingRoute: "/v3/calendar",
+        allowedRoutes: ["/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge"],
+        deniedRoutes: ["/v3/main", "/v3/pipeline", "/v3/settings"],
+      },
+      admin: {
+        role: "admin",
+        authorityRole: "admin",
+        landingRoute: "/v3/main",
+        allowedRoutes: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge", "/v3/settings"],
+        deniedRoutes: [],
+      },
+    },
+  };
+}
+
+function sourceStaffRow({
+  userId = exactAdminOnlyAdminUserId,
+  profileId = "80000000-0000-4000-8000-000000000101",
+  membershipId = "80000000-0000-4000-8000-000000000201",
+  organizationId = exactAdminOnlyOrganizationId,
+  databaseRole = "admin",
+  email = "admin@example.invalid",
+} = {}) {
+  return { authUserId: userId, userId, profileId, membershipId, organizationId, databaseRole, email };
+}
+
+function sourceStaffInventory(rows, expected = {}, counts = {}) {
+  return buildRestoredSourceStaffInventoryEvidence({
+    totalAuthUserCount: counts.totalAuthUserCount ?? new Set(rows.map((row) => row.userId)).size,
+    activeStaffOutsideExpectedOrganizationCount: counts.activeStaffOutsideExpectedOrganizationCount ?? 0,
+    expectedOrganizationActiveStaff: rows,
+  }, {
+    platformOrganizationId: exactAdminOnlyOrganizationId,
+    adminUserId: exactAdminOnlyAdminUserId,
+    ...expected,
+  });
+}
+
+test("signed empty managed Storage source accepts only real Admin shell and role-preview proof", () => {
+  const actors = { admin: { userId: exactAdminOnlyAdminUserId } };
+  const storage = storageSourceRecoveryReadiness({ objectCount: 0 });
+  const document = exactAdminOnlyDocumentCanary();
+  const exactSourceStaffInventory = sourceStaffInventory([sourceStaffRow()]);
+  const fullRoleOutcomes = buildRestoredRoleOutcomeReadiness(actors);
+  assert.equal(fullRoleOutcomes.complete, false);
+  assert.equal(fullRoleOutcomes.outcomes.sales, "missing_restored_identity");
+  assert.equal(fullRoleOutcomes.outcomes.admissions, "missing_restored_identity");
+  assert.equal(exactSourceStaffInventory.status, "exact_one_active_admin");
+  assert.equal(exactSourceStaffInventory.totalAuthUserCount, 1);
+  assert.equal(exactSourceStaffInventory.activeStaffOutsideExpectedOrganizationCount, 0);
+  assert.deepEqual(exactSourceStaffInventory.roleCounts, { admin: 1, sales: 0, admissions: 0, other: 0 });
+  const exactAdminRolePreview = exactAdminRolePreviewProof();
+
+  const missingPreview = buildManagedSupabaseRecoveryAcceptance(
+    actors,
+    storage,
+    document,
+    { admin: "passed" },
+    fullRoleOutcomes,
+    exactSourceStaffInventory,
+  );
+  assert.equal(missingPreview.complete, false);
+  assert.deepEqual(missingPreview.blockers, ["admin_role_preview_proof_missing"]);
+  for (const tamperedAdminRolePreview of [
+    { ...exactAdminRolePreview, authorityRole: "sales" },
+    {
+      status: "passed",
+      authorityRole: "admin",
+      presentations: exactAdminRolePreview.presentations,
+    },
+    {
+      ...exactAdminRolePreview,
+      presentations: {
+        ...exactAdminRolePreview.presentations,
+        sales: { ...exactAdminRolePreview.presentations.sales, authorityRole: "sales" },
+      },
+    },
+  ]) {
+    const tampered = buildManagedSupabaseRecoveryAcceptance(
+      actors,
+      storage,
+      document,
+      { admin: "passed", adminRolePreview: tamperedAdminRolePreview },
+      fullRoleOutcomes,
+      exactSourceStaffInventory,
+    );
+    assert.equal(tampered.complete, false);
+    assert.deepEqual(tampered.blockers, ["admin_role_preview_proof_missing"]);
+  }
+
+  const accepted = buildManagedSupabaseRecoveryAcceptance(
+    actors,
+    storage,
+    document,
+    { admin: "passed", adminRolePreview: exactAdminRolePreview },
+    fullRoleOutcomes,
+    exactSourceStaffInventory,
+  );
+  assert.equal(accepted.complete, true);
+  assert.equal(accepted.mode, "signed_empty_source_admin_only");
+  assert.equal(accepted.evidenceScope, "real_admin_auth_session_shell_and_role_preview_with_isolated_local_sales_admissions_rls");
+  assert.equal(accepted.sourceByteRecovery, "not_applicable_no_source_objects");
+  assert.equal(accepted.liveManagedOutcomes.admin, "passed_real_admin_auth_session_shell_role_preview");
+  assert.equal(accepted.liveManagedOutcomes.sales, "not_applicable_live_identity_absent_isolated_local_rls_only");
+  assert.equal(accepted.liveManagedOutcomes.admissions, "not_applicable_live_identity_absent_isolated_local_rls_only");
+  assert.deepEqual(accepted.blockers, []);
+  assert.match(source, /adminRolePreview/u);
+  assert.match(source, /signed_empty_source_admin_only_release_acceptance/u);
+});
+
+test("signed empty source blocks omitted or supplied extra active staff inventory", () => {
+  const storage = storageSourceRecoveryReadiness({ objectCount: 0 });
+  const document = exactAdminOnlyDocumentCanary();
+  const preview = exactAdminRolePreviewProof();
+  const outcomes = buildRestoredRoleOutcomeReadiness({ admin: { userId: exactAdminOnlyAdminUserId } });
+  const salesRow = sourceStaffRow({
+    userId: exactAdminOnlySalesUserId,
+    profileId: "80000000-0000-4000-8000-000000000102",
+    membershipId: "80000000-0000-4000-8000-000000000202",
+    databaseRole: "sales",
+    email: "sales@example.invalid",
+  });
+  const omittedExtraStaff = sourceStaffInventory([sourceStaffRow(), salesRow]);
+  assert.equal(omittedExtraStaff.status, "not_exact_admin_only");
+  assert.deepEqual(omittedExtraStaff.blockers, ["source_staff_inventory_not_exact_admin_only"]);
+  const omittedBlocked = buildManagedSupabaseRecoveryAcceptance(
+    { admin: { userId: exactAdminOnlyAdminUserId } },
+    storage,
+    document,
+    { admin: "passed", adminRolePreview: preview },
+    outcomes,
+    omittedExtraStaff,
+  );
+  assert.equal(omittedBlocked.complete, false);
+  assert.deepEqual(omittedBlocked.blockers, ["source_staff_inventory_not_exact_admin_only"]);
+  assert.equal(omittedBlocked.liveManagedOutcomes.sales, "not_evaluated_source_staff_inventory_not_exact_admin_only");
+  assert.equal(omittedBlocked.liveManagedOutcomes.admissions, "not_evaluated_source_staff_inventory_not_exact_admin_only");
+
+  const suppliedExtraStaff = sourceStaffInventory(
+    [sourceStaffRow(), salesRow],
+    { salesUserId: exactAdminOnlySalesUserId },
+  );
+  const suppliedBlocked = buildManagedSupabaseRecoveryAcceptance(
+    { admin: { userId: exactAdminOnlyAdminUserId }, sales: { userId: exactAdminOnlySalesUserId } },
+    storage,
+    document,
+    { admin: "passed", adminRolePreview: preview },
+    outcomes,
+    suppliedExtraStaff,
+  );
+  assert.equal(suppliedBlocked.complete, false);
+  assert.deepEqual(suppliedBlocked.blockers, ["source_staff_inventory_not_exact_admin_only"]);
+
+  const outsideStaff = sourceStaffInventory(
+    [sourceStaffRow()],
+    {},
+    { totalAuthUserCount: 2, activeStaffOutsideExpectedOrganizationCount: 1 },
+  );
+  assert.equal(outsideStaff.status, "not_exact_admin_only");
+  assert.deepEqual(outsideStaff.blockers, ["source_staff_inventory_not_exact_admin_only"]);
+});
+
+test("non-empty managed Storage source remains strict full DR byte recovery", () => {
+  const storage = storageSourceRecoveryReadiness({ objectCount: 2 });
+  const document = {
+    signedRoundTrip: "passed",
+    canaryDeleted: true,
+    evidenceScope: "behavior_canary_only_not_source_recovery",
+  };
+  const adminOnlyOutcomes = buildRestoredRoleOutcomeReadiness({ admin: {} });
+  const blocked = buildManagedSupabaseRecoveryAcceptance(
+    { admin: {} },
+    storage,
+    document,
+    { admin: "passed", adminRolePreview: { status: "passed" } },
+    adminOnlyOutcomes,
+  );
+  assert.equal(blocked.complete, false);
+  assert.equal(blocked.mode, "full_dr_non_empty_source");
+  assert.equal(blocked.evidenceScope, "signed_source_object_byte_recovery");
+  assert.equal(blocked.sourceByteRecovery, "restored_and_verified");
+  assert.deepEqual(blocked.blockers, ["restored_role_outcome_proof_incomplete"]);
+
+  const actors = { admin: {}, sales: {}, admissions: {} };
+  const fullOutcomes = buildRestoredRoleOutcomeReadiness(
+    actors,
+    { outcomes: { admin: "passed", sales: "passed", admissions: "passed" }, blockers: [] },
+    { roleOutcomes: { admin: "passed", sales: "passed", admissions: "passed" } },
+  );
+  const accepted = buildManagedSupabaseRecoveryAcceptance(actors, storage, document, {}, fullOutcomes);
+  assert.equal(accepted.complete, true);
+  assert.equal(accepted.mode, "full_dr_non_empty_source");
+  assert.equal(accepted.roleOutcomeScope, "complete_restored_admin_sales_admissions_live_managed_snapshot");
+  assert.deepEqual(accepted.blockers, []);
 });
 
 test("private pinned ClamAV is exercised through the Company Files product route", () => {
@@ -1372,8 +1598,17 @@ test("restored Storage inventory requires exact identity, version and streamed b
   expectCode(() => verifyRestoredStorageInventory(sourceObjects, identities, [...readbacks, { ...readbacks[0], path: "org/extra.pdf" }]), "restored_storage_readback_extra");
   const ready = storageSourceRecoveryReadiness({ objectCount: 1 });
   assert.equal(ready.status, "ready");
+  assert.equal(ready.evidenceScope, "signed_source_object_byte_recovery");
+  assert.equal(ready.sourceByteRecovery, "restored_and_verified");
   const empty = storageSourceRecoveryReadiness({ objectCount: 0 });
-  assert.deepEqual(empty, { status: "not_ready", blocker: "storage_source_object_missing", recoveredObjectCount: 0 });
+  assert.deepEqual(empty, {
+    status: "signed_empty_source_verified",
+    blocker: null,
+    recoveredObjectCount: 0,
+    evidenceScope: "signed_zero_object_inventory_no_source_bytes_to_restore",
+    sourceByteRecovery: "not_applicable_no_source_objects",
+  });
+  assert.notEqual(empty.status, "ready");
   assert.match(source, /evidenceScope: "behavior_canary_only_not_source_recovery"/u);
 });
 
@@ -1899,15 +2134,27 @@ test("durable evidence fails closed before write when cleanup quarantines", () =
       schema: "evo-v3-managed-supabase-recovery-result/v2",
       ok: false,
       status: "not_ready",
-      blockers: ["sales_representative_missing", "admissions_representative_missing", "storage_source_object_missing"],
+      blockers: [
+        "signed_empty_storage_source_missing",
+        "admin_browser_shell_missing",
+        "admin_role_preview_proof_missing",
+        "private_document_canary_missing",
+        "source_staff_inventory_not_exact_admin_only",
+      ],
     },
     cleanup: { descendantsDrained: true, targetsOwned: true, cleanupSucceeded: true, disposition: "remove" },
   });
   assert.equal(notReady.ok, false);
   assert.equal(notReady.status, "not_ready");
   assert.equal(notReady.failure.code, "recovery_not_ready");
-  assert.equal(notReady.failure.diagnostic.blockerCount, 3);
-  assert.deepEqual(notReady.blockers, ["sales_representative_missing", "admissions_representative_missing", "storage_source_object_missing"]);
+  assert.equal(notReady.failure.diagnostic.blockerCount, 5);
+  assert.deepEqual(notReady.blockers, [
+    "signed_empty_storage_source_missing",
+    "admin_browser_shell_missing",
+    "admin_role_preview_proof_missing",
+    "private_document_canary_missing",
+    "source_staff_inventory_not_exact_admin_only",
+  ]);
 });
 
 test("browser version contract accepts only bundled Chromium brands with four numeric components", () => {

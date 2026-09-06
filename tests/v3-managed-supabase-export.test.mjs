@@ -492,11 +492,19 @@ test("Storage inventory is deterministic, duplicate-safe, and byte bounded", () 
     }),
     "storage_inventory_duplicate_object",
   );
-  const empty = storageInventoryDigest({
+  const trulyEmpty = storageInventoryDigest({
+    buckets: [{ id: "empty", name: "empty", public: false }],
+    objects: [],
+  });
+  assert.equal(trulyEmpty.object_count, 0);
+  assert.equal(trulyEmpty.total_bytes, 0);
+  assert.deepEqual(trulyEmpty.normalized.objects, []);
+  const zeroByte = storageInventoryDigest({
     buckets: [{ id: "empty", name: "empty", public: false }],
     objects: [{ bucket_id: "empty", path: "zero.bin", id: "0", metadata: { size: 0 } }],
   });
-  assert.equal(empty.total_bytes, 0);
+  assert.equal(zeroByte.object_count, 1);
+  assert.equal(zeroByte.total_bytes, 0);
   expectCode(
     () => storageInventoryDigest({
       buckets: [{ id: "bad", name: "bad", public: false }],

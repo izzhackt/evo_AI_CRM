@@ -36,8 +36,8 @@ configuration and assertions from these active files:
 - `package.json`.
 
 The new two-job release workflow also removes its `staging` Environment/input/
-job path. The obsolete CRM staging route is removed from the legacy
-`agent-lead2-inbox/deploy/Caddyfile.evo-edge`. `deploy/README.md` and
+job path. The obsolete CRM staging route is removed from the
+legacy source `agent-lead2-inbox/deploy/Caddyfile.evo-edge`. `deploy/README.md` and
 root `CONTEXT.md` describe only the no-staging V3 authority; the superseded
 staging runbooks are copied to historical-only
 `docs/archive/v2/staging-release.md` and

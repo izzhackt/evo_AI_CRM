@@ -36,6 +36,7 @@ const KNOWN_CODE_PATHS = new Set([
   ".gitignore",
   ".nvmrc",
   "Dockerfile",
+  "agent-lead2-inbox/deploy/Caddyfile.evo-edge",
   "docker-compose.prod.yml",
   "eslint.config.mjs",
   "next.config.ts",

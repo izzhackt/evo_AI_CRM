@@ -19588,6 +19588,9 @@ Decision:
 - keep `agent-lead2-inbox/deploy/Caddyfile.evo-edge` as the active multi-route
   edge source, retain every unrelated route, and remove only the obsolete CRM
   staging block plus its active runbook after archival;
+- classify that shared edge Caddy source as an explicit known infrastructure
+  path so the short PR workflow selects its risk-matched checks instead of
+  failing it as an unknown path;
 - correct the release runbooks to match the implemented manual
   `workflow_dispatch` full proof followed by the automatic exact-run
   `workflow_run` release, and document the actual

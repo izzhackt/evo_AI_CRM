@@ -48,6 +48,9 @@ DECLARE
   forbidden_role TEXT;
   expected_signature TEXT;
   rpc_name TEXT;
+  private_name TEXT;
+  private_signature TEXT;
+  private_authenticated BOOLEAN;
   api_role TEXT;
   table_privilege TEXT;
 BEGIN
@@ -82,8 +85,9 @@ BEGIN
     WHERE namespace.nspname = 'platform'
       AND relation.relname = 'case_notes'
       AND relation.relrowsecurity
+      AND relation.relforcerowsecurity
   ) THEN
-    RAISE EXCEPTION 'case_notes RLS is not enabled';
+    RAISE EXCEPTION 'case_notes RLS is not enabled and forced';
   END IF;
 
   IF EXISTS (
@@ -101,7 +105,7 @@ BEGIN
   ]
   LOOP
     FOREACH table_privilege IN ARRAY ARRAY[
-      'SELECT', 'INSERT', 'UPDATE', 'DELETE'
+      'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'
     ]
     LOOP
       IF pg_catalog.has_table_privilege(
@@ -121,8 +125,14 @@ BEGIN
     WHERE trigger_row.tgrelid = 'platform.case_notes'::REGCLASS
       AND trigger_row.tgname = 'case_notes_append_only'
       AND NOT trigger_row.tgisinternal
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_trigger AS trigger_row
+    WHERE trigger_row.tgrelid = 'platform.case_notes'::REGCLASS
+      AND trigger_row.tgname = 'case_notes_append_only_truncate'
+      AND NOT trigger_row.tgisinternal
   ) THEN
-    RAISE EXCEPTION 'case_notes append-only trigger is missing';
+    RAISE EXCEPTION 'case_notes row or truncate append-only trigger is missing';
   END IF;
 
   FOR rpc_name, expected_signature IN
@@ -154,7 +164,7 @@ BEGIN
     END IF;
 
     IF NOT COALESCE((
-      SELECT routine.prosecdef
+      SELECT NOT routine.prosecdef
         AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
       FROM pg_catalog.pg_proc AS routine
       WHERE routine.oid = routine_oid
@@ -176,6 +186,75 @@ BEGIN
       END IF;
     END LOOP;
   END LOOP;
+
+  FOR private_name, private_signature, private_authenticated IN
+    SELECT * FROM (VALUES
+      (
+        'create_case_note',
+        'p_organization_id uuid, p_lead_id uuid, p_student_case_id uuid, p_body text, p_request_id uuid',
+        TRUE
+      ),
+      (
+        'list_case_notes',
+        'p_lead_id uuid, p_student_case_id uuid, p_limit integer, p_before_created_at timestamp with time zone, p_before_note_id uuid',
+        TRUE
+      ),
+      ('require_lead_note_actor', 'p_organization_id uuid, p_lead_id uuid', FALSE),
+      ('forbid_case_note_change', '', FALSE)
+    ) AS expected(private_name, private_signature, private_authenticated)
+  LOOP
+    SELECT count(*), (array_agg(routine.oid))[1]
+    INTO routine_count, routine_oid
+    FROM pg_catalog.pg_proc AS routine
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = routine.pronamespace
+    WHERE namespace.nspname = 'private'
+      AND routine.proname = private_name;
+
+    IF routine_count <> 1
+      OR routine_oid IS NULL
+      OR pg_get_function_identity_arguments(routine_oid) <> private_signature
+      OR NOT COALESCE((
+        SELECT routine.prosecdef
+          AND routine.proconfig @> ARRAY['search_path=""']::TEXT[]
+        FROM pg_catalog.pg_proc AS routine
+        WHERE routine.oid = routine_oid
+      ), FALSE)
+    THEN
+      RAISE EXCEPTION 'private.% privileged-body contract drifted', private_name;
+    END IF;
+
+    IF has_function_privilege('authenticated', routine_oid, 'EXECUTE')
+      IS DISTINCT FROM private_authenticated
+    THEN
+      RAISE EXCEPTION 'private.% authenticated grant drifted', private_name;
+    END IF;
+
+    FOREACH forbidden_role IN ARRAY ARRAY[
+      'anon', 'service_role', 'supabase_auth_admin'
+    ]
+    LOOP
+      IF has_function_privilege(forbidden_role, routine_oid, 'EXECUTE') THEN
+        RAISE EXCEPTION '% unexpectedly executes private.%',
+          forbidden_role, private_name;
+      END IF;
+    END LOOP;
+  END LOOP;
+
+  SELECT routine.oid
+  INTO routine_oid
+  FROM pg_catalog.pg_proc AS routine
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = routine.pronamespace
+  WHERE namespace.nspname = 'platform_private'
+    AND routine.proname = 'p7a_safe_audit_actions';
+  IF routine_oid IS NULL OR (
+    SELECT routine.prosecdef
+    FROM pg_catalog.pg_proc AS routine
+    WHERE routine.oid = routine_oid
+  ) THEN
+    RAISE EXCEPTION 'audit action composition must remain SECURITY INVOKER';
+  END IF;
 
   IF NOT ('note.create' = ANY (platform_private.p7a_safe_audit_actions())) THEN
     RAISE EXCEPTION 'note.create is absent from the Admin audit journal';
@@ -783,9 +862,14 @@ SELECT pg_temp.p117_capture_error(format(
   :'p117_org'
 ))::TEXT AS p117_delete_error
 \gset
+SELECT pg_temp.p117_capture_error(
+  'TRUNCATE platform.case_notes'
+)::TEXT AS p117_truncate_error
+\gset
 SELECT pg_temp.p117_assert(
   :'p117_update_error'::JSONB ->> 'sqlstate' = '55000'
-    AND :'p117_delete_error'::JSONB ->> 'sqlstate' = '55000',
+    AND :'p117_delete_error'::JSONB ->> 'sqlstate' = '55000'
+    AND :'p117_truncate_error'::JSONB ->> 'sqlstate' = '55000',
   'case notes were not append-only'
 );
 
@@ -811,3 +895,383 @@ SELECT pg_temp.p117_assert(
 
 RESET request.jwt.claims;
 ROLLBACK;
+
+-- A real second-session race proves that authority is resolved after the
+-- subject's FOR UPDATE lock. The first connection changes ownership and holds
+-- the row lock; the stale owner must wait, observe the committed handoff and
+-- fail without a note or success audit. dblink is test-only and removed again.
+CREATE OR REPLACE FUNCTION pg_temp.p117c_assert(
+  p_condition BOOLEAN,
+  p_message TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF p_condition IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'Migration 117 concurrency assertion failed: %', p_message;
+  END IF;
+END
+$$;
+
+DO $dblink_boundary$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_extension AS extension
+    WHERE extension.extname = 'dblink'
+  ) THEN
+    RAISE EXCEPTION 'Migration 117 test requires a disposable database without dblink';
+  END IF;
+END
+$dblink_boundary$;
+CREATE SCHEMA p117_test_extensions AUTHORIZATION postgres;
+CREATE EXTENSION dblink WITH SCHEMA p117_test_extensions;
+
+BEGIN;
+
+\set p117c_org 59911799-0000-4000-8000-000000000001
+\set p117c_org_scope 59911799-0000-4000-8000-000000000002
+\set p117c_sales_user 59911799-0000-4000-8000-000000000011
+\set p117c_sales_two_user 59911799-0000-4000-8000-000000000012
+\set p117c_admin_user 59911799-0000-4000-8000-000000000013
+\set p117c_sales_profile 59911799-0000-4000-8000-000000000021
+\set p117c_sales_two_profile 59911799-0000-4000-8000-000000000022
+\set p117c_admin_profile 59911799-0000-4000-8000-000000000023
+\set p117c_sales_membership 59911799-0000-4000-8000-000000000031
+\set p117c_sales_two_membership 59911799-0000-4000-8000-000000000032
+\set p117c_admin_membership 59911799-0000-4000-8000-000000000033
+\set p117c_lead 59911799-0000-4000-8000-000000000041
+
+SELECT bundle.id AS p117c_sales_bundle, bundle.version AS p117c_sales_version
+FROM platform.role_bundle_versions AS bundle
+WHERE bundle.role = 'sales'
+  AND bundle.status = 'published'
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'lead.sales.workflow.manage'
+  )
+ORDER BY bundle.version DESC
+LIMIT 1
+\gset
+
+SELECT bundle.id AS p117c_admin_bundle
+FROM platform.role_bundle_versions AS bundle
+WHERE bundle.role = 'admin'
+  AND bundle.status = 'published'
+ORDER BY bundle.version DESC
+LIMIT 1
+\gset
+
+INSERT INTO platform.organizations (id, name)
+VALUES (:'p117c_org', 'Migration 117 concurrency organization');
+
+INSERT INTO platform.record_scopes (
+  id, organization_id, scope_kind, scope_key, scope_version
+) VALUES (
+  :'p117c_org_scope', :'p117c_org', 'organization', :'p117c_org', 1
+);
+
+INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
+  (:'p117c_sales_user', 'p117c-sales@example.invalid', '{}'::JSONB),
+  (:'p117c_sales_two_user', 'p117c-sales-two@example.invalid', '{}'::JSONB),
+  (:'p117c_admin_user', 'p117c-admin@example.invalid', '{}'::JSONB);
+
+INSERT INTO platform.profiles (
+  id, auth_user_id, display_name, status, access_version
+) VALUES
+  (
+    :'p117c_sales_profile', :'p117c_sales_user',
+    'Migration 117 concurrency Sales', 'active', 1
+  ),
+  (
+    :'p117c_sales_two_profile', :'p117c_sales_two_user',
+    'Migration 117 concurrency second Sales', 'active', 1
+  ),
+  (
+    :'p117c_admin_profile', :'p117c_admin_user',
+    'Migration 117 concurrency Admin', 'active', 1
+  );
+
+INSERT INTO platform.organization_memberships (
+  id, organization_id, profile_id, status, "current_role", current_bundle_id
+) VALUES
+  (
+    :'p117c_sales_membership', :'p117c_org', :'p117c_sales_profile',
+    'active', 'sales', :'p117c_sales_bundle'
+  ),
+  (
+    :'p117c_sales_two_membership', :'p117c_org', :'p117c_sales_two_profile',
+    'active', 'sales', :'p117c_sales_bundle'
+  ),
+  (
+    :'p117c_admin_membership', :'p117c_org', :'p117c_admin_profile',
+    'active', 'admin', :'p117c_admin_bundle'
+  );
+
+INSERT INTO platform.membership_scope_assignments (
+  id, organization_id, membership_id, scope_id, scope_version,
+  assignment_version, granted, actor_kind, actor_profile_id, reason, request_id
+) VALUES
+  (
+    '59911799-0000-4000-8000-000000000051', :'p117c_org',
+    :'p117c_sales_membership', :'p117c_org_scope', 1, 1, TRUE, 'system', NULL,
+    'Migration 117 concurrency first Sales scope',
+    '59911799-0000-4000-8000-000000000061'
+  ),
+  (
+    '59911799-0000-4000-8000-000000000052', :'p117c_org',
+    :'p117c_sales_two_membership', :'p117c_org_scope', 1, 1, TRUE, 'system',
+    NULL, 'Migration 117 concurrency second Sales scope',
+    '59911799-0000-4000-8000-000000000062'
+  ),
+  (
+    '59911799-0000-4000-8000-000000000053', :'p117c_org',
+    :'p117c_admin_membership', :'p117c_org_scope', 1, 1, TRUE, 'system', NULL,
+    'Migration 117 concurrency Admin scope',
+    '59911799-0000-4000-8000-000000000063'
+  );
+
+INSERT INTO platform.leads (
+  id, organization_id, current_owner_membership_id,
+  stage_key, source_key, lifecycle_state
+) VALUES (
+  :'p117c_lead', :'p117c_org', :'p117c_sales_membership',
+  'new', 'whatsapp', 'open'
+);
+
+COMMIT;
+
+SELECT jsonb_build_object(
+  'sub', :'p117c_sales_user', 'role', 'authenticated',
+  'platform_role', 'sales',
+  'platform_access_version', profile.access_version,
+  'platform_organization_id', :'p117c_org',
+  'platform_membership_id', :'p117c_sales_membership',
+  'platform_bundle_id', :'p117c_sales_bundle',
+  'platform_bundle_version', :'p117c_sales_version'::INTEGER
+)::TEXT AS p117c_sales_claims
+FROM platform.profiles AS profile
+WHERE profile.id = :'p117c_sales_profile'
+\gset
+
+-- The Supabase image deliberately keeps the migration actor non-superuser.
+-- Enter its provider-owned extension-admin role only for opening these local,
+-- test-only dblink sessions, then immediately return to the migration actor.
+SET ROLE supabase_admin;
+SELECT p117_test_extensions.dblink_connect(
+  'p117c_authority',
+  format(
+    'hostaddr=127.0.0.1 port=%s dbname=%s user=postgres application_name=p117c-authority options=-csearch_path=',
+    current_setting('port'),
+    current_database()
+  )
+);
+SELECT p117_test_extensions.dblink_connect(
+  'p117c_note',
+  format(
+    'hostaddr=127.0.0.1 port=%s dbname=%s user=postgres application_name=p117c-note options=-csearch_path=',
+    current_setting('port'),
+    current_database()
+  )
+);
+RESET ROLE;
+
+-- Keep every remote wait finite so a regression fails the harness instead of
+-- leaving the authorization runner blocked indefinitely.
+SELECT p117_test_extensions.dblink_exec(
+  'p117c_authority',
+  'SET statement_timeout = ''15s''; SET lock_timeout = ''5s'''
+);
+SELECT p117_test_extensions.dblink_exec(
+  'p117c_note',
+  'SET statement_timeout = ''15s''; SET lock_timeout = ''10s'''
+);
+
+SELECT p117_test_extensions.dblink_exec(
+  'p117c_note',
+  format(
+    $remote$
+      BEGIN;
+      CREATE OR REPLACE FUNCTION pg_temp.p117c_capture_error(p_statement TEXT)
+      RETURNS JSONB
+      LANGUAGE plpgsql
+      AS $capture$
+      BEGIN
+        EXECUTE p_statement;
+        RETURN jsonb_build_object('ok', TRUE);
+      EXCEPTION
+        WHEN OTHERS THEN
+          RETURN jsonb_build_object(
+            'ok', FALSE,
+            'sqlstate', SQLSTATE,
+            'message', SQLERRM
+          );
+      END
+      $capture$;
+      GRANT EXECUTE ON FUNCTION pg_temp.p117c_capture_error(TEXT)
+        TO authenticated;
+      SET ROLE authenticated;
+      SET LOCAL request.jwt.claims = %L;
+    $remote$,
+    :'p117c_sales_claims'
+  )
+);
+
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_send_query(
+    'p117c_authority',
+    $authority$
+      WITH changed AS (
+        UPDATE platform.leads
+        SET current_owner_membership_id =
+          '59911799-0000-4000-8000-000000000032'::UUID
+        WHERE organization_id =
+          '59911799-0000-4000-8000-000000000001'::UUID
+          AND id = '59911799-0000-4000-8000-000000000041'::UUID
+        RETURNING current_owner_membership_id
+      )
+      SELECT changed.current_owner_membership_id::TEXT AS owner_membership_id
+      FROM changed
+      CROSS JOIN LATERAL (
+        SELECT pg_catalog.pg_sleep(3)
+      ) AS held
+    $authority$
+  ) = 1,
+  'authority-change query was not dispatched'
+);
+
+DO $wait_for_authority_lock$
+DECLARE
+  attempt INTEGER;
+BEGIN
+  FOR attempt IN 1..50 LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_stat_activity AS activity
+      WHERE activity.application_name = 'p117c-authority'
+        AND activity.state = 'active'
+        AND activity.wait_event = 'PgSleep'
+    ) THEN
+      RETURN;
+    END IF;
+    PERFORM pg_catalog.pg_sleep(0.05);
+  END LOOP;
+  RAISE EXCEPTION 'Migration 117 authority-change worker never held the row';
+END
+$wait_for_authority_lock$;
+
+SELECT pg_temp.p117c_assert(
+  p117_test_extensions.dblink_send_query(
+    'p117c_note',
+    $note$
+      SELECT pg_temp.p117c_capture_error(
+        $command$
+          SELECT platform.create_case_note(
+            '59911799-0000-4000-8000-000000000001'::UUID,
+            '59911799-0000-4000-8000-000000000041'::UUID,
+            NULL,
+            'A stale owner must not write this note.',
+            '59911799-0000-4000-8000-000000000071'::UUID
+          )
+        $command$
+      )::TEXT AS outcome
+    $note$
+  ) = 1,
+  'stale-owner note query was not dispatched'
+);
+
+DO $wait_for_note_lock$
+DECLARE
+  attempt INTEGER;
+BEGIN
+  FOR attempt IN 1..50 LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_stat_activity AS note_activity
+      JOIN pg_catalog.pg_stat_activity AS authority_activity
+        ON authority_activity.application_name = 'p117c-authority'
+       AND authority_activity.pid = ANY (
+         pg_catalog.pg_blocking_pids(note_activity.pid)
+       )
+      WHERE note_activity.application_name = 'p117c-note'
+        AND note_activity.state = 'active'
+        AND note_activity.wait_event_type = 'Lock'
+    ) THEN
+      RETURN;
+    END IF;
+    PERFORM pg_catalog.pg_sleep(0.05);
+  END LOOP;
+  RAISE EXCEPTION 'Migration 117 stale-owner worker did not wait on the row';
+END
+$wait_for_note_lock$;
+
+SELECT result.owner_membership_id AS p117c_committed_owner
+FROM p117_test_extensions.dblink_get_result('p117c_authority')
+  AS result(owner_membership_id TEXT)
+\gset
+SELECT count(*) AS p117c_authority_result_drained
+FROM p117_test_extensions.dblink_get_result('p117c_authority')
+  AS result(owner_membership_id TEXT)
+\gset
+
+SELECT result.outcome AS p117c_note_outcome
+FROM p117_test_extensions.dblink_get_result('p117c_note') AS result(outcome TEXT)
+\gset
+SELECT count(*) AS p117c_note_result_drained
+FROM p117_test_extensions.dblink_get_result('p117c_note') AS result(outcome TEXT)
+\gset
+
+SELECT pg_temp.p117c_assert(
+  :'p117c_committed_owner' = :'p117c_sales_two_membership'
+    AND :'p117c_authority_result_drained'::INTEGER = 0
+    AND :'p117c_note_result_drained'::INTEGER = 0
+    AND :'p117c_note_outcome'::JSONB ->> 'sqlstate' = '42501'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.case_notes AS note
+      WHERE note.organization_id = :'p117c_org'
+        AND note.lead_id = :'p117c_lead'
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM platform.audit_events AS event
+      WHERE event.request_id =
+        '59911799-0000-4000-8000-000000000071'::UUID
+    ),
+  'authority-change race did not fail closed'
+);
+
+SELECT p117_test_extensions.dblink_exec('p117c_note', 'ROLLBACK');
+SELECT p117_test_extensions.dblink_disconnect('p117c_note');
+SELECT p117_test_extensions.dblink_disconnect('p117c_authority');
+
+-- Remove the committed test fixture before the remaining migrations/tests.
+BEGIN;
+SET LOCAL session_replication_role = replica;
+DELETE FROM platform.case_notes WHERE organization_id = :'p117c_org';
+DELETE FROM platform.audit_events WHERE organization_id = :'p117c_org';
+DELETE FROM platform.leads WHERE organization_id = :'p117c_org';
+DELETE FROM platform.membership_scope_assignments
+WHERE organization_id = :'p117c_org';
+DELETE FROM platform.organization_memberships
+WHERE organization_id = :'p117c_org';
+DELETE FROM platform.profiles
+WHERE id IN (
+  :'p117c_sales_profile', :'p117c_sales_two_profile', :'p117c_admin_profile'
+);
+DELETE FROM auth.users
+WHERE id IN (
+  :'p117c_sales_user', :'p117c_sales_two_user', :'p117c_admin_user'
+);
+DELETE FROM platform.record_scopes WHERE organization_id = :'p117c_org';
+DELETE FROM platform.organizations WHERE id = :'p117c_org';
+COMMIT;
+
+DROP EXTENSION dblink;
+DROP SCHEMA p117_test_extensions;
+
+SELECT 'platform migration 117 case notes and authority race verified' AS result;

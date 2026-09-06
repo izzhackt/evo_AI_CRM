@@ -58,10 +58,11 @@ CREATE INDEX case_notes_author_idx
 -- policy so a future stray grant still fails closed; the RPCs below are the
 -- only doors.
 ALTER TABLE platform.case_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform.case_notes FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE platform.case_notes
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
-CREATE FUNCTION platform_private.forbid_case_note_change()
+CREATE FUNCTION private.forbid_case_note_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -73,13 +74,18 @@ BEGIN
 END
 $$;
 
-REVOKE ALL ON FUNCTION platform_private.forbid_case_note_change()
+REVOKE ALL ON FUNCTION private.forbid_case_note_change()
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 CREATE TRIGGER case_notes_append_only
   BEFORE UPDATE OR DELETE ON platform.case_notes
   FOR EACH ROW
-  EXECUTE FUNCTION platform_private.forbid_case_note_change();
+  EXECUTE FUNCTION private.forbid_case_note_change();
+
+CREATE TRIGGER case_notes_append_only_truncate
+  BEFORE TRUNCATE ON platform.case_notes
+  FOR EACH STATEMENT
+  EXECUTE FUNCTION private.forbid_case_note_change();
 
 -- Keep the existing Admin audit journal as the one observable audit surface.
 -- Compose with the current allowlist instead of copying it; 'lead' and
@@ -90,7 +96,7 @@ CREATE FUNCTION platform_private.p7a_safe_audit_actions()
 RETURNS TEXT[]
 LANGUAGE SQL
 IMMUTABLE
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = ''
 AS $$
   SELECT pg_catalog.array_agg(DISTINCT allowed.action ORDER BY allowed.action)
@@ -108,7 +114,7 @@ REVOKE ALL ON FUNCTION platform_private.p7a_safe_audit_actions()
 -- The Sales lead-note authority mirrors mutate_sales_lead_workflow /
 -- staff_sales_lead_detail (migration 086): Admin sees every lead of the
 -- organization, Sales sees owned and unowned leads, nobody else sees any.
-CREATE FUNCTION platform_private.require_lead_note_actor(
+CREATE FUNCTION private.require_lead_note_actor(
   p_organization_id UUID,
   p_lead_id UUID
 )
@@ -159,10 +165,10 @@ BEGIN
 END
 $$;
 
-REVOKE ALL ON FUNCTION platform_private.require_lead_note_actor(UUID, UUID)
+REVOKE ALL ON FUNCTION private.require_lead_note_actor(UUID, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
-CREATE FUNCTION platform.create_case_note(
+CREATE FUNCTION private.create_case_note(
   p_organization_id UUID,
   p_lead_id UUID,
   p_student_case_id UUID,
@@ -205,14 +211,39 @@ BEGIN
   IF p_lead_id IS NOT NULL THEN
     subject_kind := 'lead';
     subject_id := p_lead_id;
+    PERFORM lead.id
+    FROM platform.leads AS lead
+    WHERE lead.organization_id = p_organization_id
+      AND lead.id = p_lead_id
+    FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Lead is unavailable'
+        USING ERRCODE = '42501';
+    END IF;
+
+    -- The strongest row lock blocks owner changes until this transaction
+    -- finishes. Re-resolve authority only after the lock so a concurrent
+    -- handoff cannot race a stale authorization decision.
     SELECT * INTO actor
-    FROM platform_private.require_lead_note_actor(
+    FROM private.require_lead_note_actor(
       p_organization_id,
       p_lead_id
     );
   ELSE
     subject_kind := 'student_case';
     subject_id := p_student_case_id;
+    PERFORM student_case.id
+    FROM platform.student_cases AS student_case
+    WHERE student_case.organization_id = p_organization_id
+      AND student_case.id = p_student_case_id
+    FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Student case is unavailable'
+        USING ERRCODE = '42501';
+    END IF;
+
+    -- State and responsible-member changes use this same row, so the lock
+    -- makes the exact-case operator check causal for the whole note write.
     SELECT * INTO actor
     FROM platform_private.require_case_operator(
       p_organization_id,
@@ -228,53 +259,6 @@ BEGIN
     'body', normalized_body,
     'request_id', p_request_id
   );
-  replayed := platform_private.replay_audit(
-    p_request_id,
-    'note.create',
-    subject_kind,
-    subject_id,
-    fixed_reason,
-    replay_shape
-  );
-  IF replayed IS NOT NULL THEN
-    RETURN replayed;
-  END IF;
-
-  -- Pin the subject row so it cannot disappear under the insert, then repeat
-  -- the authority check under the lock so a concurrent ownership or state
-  -- change still fails closed.
-  IF p_lead_id IS NOT NULL THEN
-    PERFORM lead.id
-    FROM platform.leads AS lead
-    WHERE lead.organization_id = p_organization_id
-      AND lead.id = p_lead_id
-    FOR KEY SHARE;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Lead is unavailable'
-        USING ERRCODE = '42501';
-    END IF;
-    SELECT * INTO actor
-    FROM platform_private.require_lead_note_actor(
-      p_organization_id,
-      p_lead_id
-    );
-  ELSE
-    PERFORM student_case.id
-    FROM platform.student_cases AS student_case
-    WHERE student_case.organization_id = p_organization_id
-      AND student_case.id = p_student_case_id
-    FOR KEY SHARE;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Student case is unavailable'
-        USING ERRCODE = '42501';
-    END IF;
-    SELECT * INTO actor
-    FROM platform_private.require_case_operator(
-      p_organization_id,
-      p_student_case_id,
-      'case.read.full'
-    );
-  END IF;
   replayed := platform_private.replay_audit(
     p_request_id,
     'note.create',
@@ -315,7 +299,7 @@ BEGIN
 END
 $$;
 
-CREATE FUNCTION platform.list_case_notes(
+CREATE FUNCTION private.list_case_notes(
   p_lead_id UUID,
   p_student_case_id UUID,
   p_limit INTEGER,
@@ -368,7 +352,7 @@ BEGIN
 
   IF p_lead_id IS NOT NULL THEN
     PERFORM 1
-    FROM platform_private.require_lead_note_actor(
+    FROM private.require_lead_note_actor(
       actor.organization_id,
       p_lead_id
     );
@@ -414,6 +398,78 @@ BEGIN
 END
 $$;
 
+REVOKE ALL ON FUNCTION private.create_case_note(
+  UUID, UUID, UUID, TEXT, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.create_case_note(
+  UUID, UUID, UUID, TEXT, UUID
+) TO authenticated;
+
+REVOKE ALL ON FUNCTION private.list_case_notes(
+  UUID, UUID, INTEGER, TIMESTAMPTZ, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION private.list_case_notes(
+  UUID, UUID, INTEGER, TIMESTAMPTZ, UUID
+) TO authenticated;
+
+-- PostgREST discovers only these narrow functions in the exposed platform
+-- schema. They retain invoker privilege and can only enter the privileged
+-- bodies through the exact grants above; the bodies themselves are not in an
+-- exposed Data API schema.
+CREATE FUNCTION platform.create_case_note(
+  p_organization_id UUID,
+  p_lead_id UUID,
+  p_student_case_id UUID,
+  p_body TEXT,
+  p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE SQL
+VOLATILE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT private.create_case_note(
+    p_organization_id,
+    p_lead_id,
+    p_student_case_id,
+    p_body,
+    p_request_id
+  )
+$$;
+
+CREATE FUNCTION platform.list_case_notes(
+  p_lead_id UUID,
+  p_student_case_id UUID,
+  p_limit INTEGER,
+  p_before_created_at TIMESTAMPTZ DEFAULT NULL,
+  p_before_note_id UUID DEFAULT NULL
+)
+RETURNS TABLE (
+  organization_id UUID,
+  case_note_id UUID,
+  lead_id UUID,
+  student_case_id UUID,
+  body TEXT,
+  created_by_membership_id UUID,
+  author_display_name TEXT,
+  created_at TIMESTAMPTZ
+)
+LANGUAGE SQL
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT result.*
+  FROM private.list_case_notes(
+    p_lead_id,
+    p_student_case_id,
+    p_limit,
+    p_before_created_at,
+    p_before_note_id
+  ) AS result
+$$;
+
 REVOKE ALL ON FUNCTION platform.create_case_note(
   UUID, UUID, UUID, TEXT, UUID
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
@@ -433,10 +489,10 @@ COMMENT ON TABLE platform.case_notes IS
 COMMENT ON COLUMN platform.case_notes.body IS
   'Trimmed non-empty multi-line note text, at most 4000 characters.';
 COMMENT ON FUNCTION platform.create_case_note(UUID, UUID, UUID, TEXT, UUID) IS
-  'Records one note under the owning domain authority (Sales lead workflow or exact-case operator) with idempotent request replay and Admin-journal audit.';
+  'SECURITY INVOKER Data API entrypoint that records one note through the non-exposed private authority body.';
 COMMENT ON FUNCTION platform.list_case_notes(
   UUID, UUID, INTEGER, TIMESTAMPTZ, UUID
 ) IS
-  'Keyset-paged newest-first notes for one subject, readable exactly where the owning domain already grants visibility.';
+  'SECURITY INVOKER Data API entrypoint for keyset-paged notes through the non-exposed private authority body.';
 
 COMMIT;

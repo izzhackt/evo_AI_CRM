@@ -186,6 +186,13 @@ SELECT bundle.id AS p120_admin_bundle,
   bundle.version AS p120_admin_bundle_version
 FROM platform.role_bundle_versions AS bundle
 WHERE bundle.role = 'admin' AND bundle.status = 'published'
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'communication.manual.send'
+  )
 ORDER BY bundle.version DESC
 LIMIT 1
 \gset
@@ -193,6 +200,13 @@ SELECT bundle.id AS p120_sales_bundle,
   bundle.version AS p120_sales_bundle_version
 FROM platform.role_bundle_versions AS bundle
 WHERE bundle.role = 'sales' AND bundle.status = 'published'
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'communication.manual.send'
+  )
 ORDER BY bundle.version DESC
 LIMIT 1
 \gset
@@ -200,6 +214,13 @@ SELECT bundle.id AS p120_curator_bundle,
   bundle.version AS p120_curator_bundle_version
 FROM platform.role_bundle_versions AS bundle
 WHERE bundle.role = 'curator' AND bundle.status = 'published'
+  AND EXISTS (
+    SELECT 1
+    FROM platform.role_bundle_permissions AS permission
+    WHERE permission.bundle_id = bundle.id
+      AND permission.bundle_role = bundle.role
+      AND permission.permission_key = 'communication.manual.send'
+  )
 ORDER BY bundle.version DESC
 LIMIT 1
 \gset

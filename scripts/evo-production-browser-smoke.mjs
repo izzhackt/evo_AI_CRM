@@ -13,6 +13,7 @@ const POSITIVE_DECIMAL = /^[1-9][0-9]*$/u;
 const SAFE_RELEASE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/u;
 const SAFE_VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
+const PRODUCTION_HEALTH_URL = "https://evo-crm.72.62.119.112.sslip.io/api/health";
 
 function exactEnvironment(environment, name, pattern, code) {
   const value = environment[name];
@@ -24,9 +25,10 @@ export function readProductionSmokeConfiguration(environment = process.env) {
   const healthUrl = exactEnvironment(
     environment,
     "EVO_RELEASE_EXTERNAL_HEALTH_URL",
-    /^https:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?\/api\/health$/u,
+    /^https:\/\/evo-crm\.72\.62\.119\.112\.sslip\.io\/api\/health$/u,
     "health_url_invalid",
   );
+  if (healthUrl !== PRODUCTION_HEALTH_URL) throw new Error("health_url_invalid");
   const parsedHealthUrl = new URL(healthUrl);
   if (
     parsedHealthUrl.username ||

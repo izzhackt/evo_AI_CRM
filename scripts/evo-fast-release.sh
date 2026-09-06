@@ -14,7 +14,7 @@ readonly POSITIVE_INT_RE='^[1-9][0-9]*$'
 readonly PROJECT_NAME_RE='^[a-z0-9][a-z0-9_-]{0,99}$'
 readonly SUPABASE_PROJECT_REF_RE='^[a-z0-9]{20}$'
 readonly ABSOLUTE_PATH_RE='^/[A-Za-z0-9._/-]+$'
-readonly HEALTH_URL_RE='^(https://[A-Za-z0-9.-]+(:[0-9]{1,5})?|http://127\.0\.0\.1:[0-9]{1,5})/api/health$'
+readonly HEALTH_URL_RE='^(https://evo-crm\.72\.62\.119\.112\.sslip\.io|http://127\.0\.0\.1:[0-9]{1,5})/api/health$'
 readonly CLAMAV_IMAGE='clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9'
 
 command_name=${1:-}

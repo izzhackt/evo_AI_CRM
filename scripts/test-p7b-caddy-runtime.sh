@@ -8,6 +8,7 @@ umask 077
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly DEADLINE_RUNNER="${REPO_ROOT}/scripts/run-command-with-deadline.mjs"
 readonly SOURCE_CADDYFILE="${REPO_ROOT}/agent-lead2-inbox/deploy/Caddyfile.evo-edge"
+readonly CRM_HOST="evo-crm.72.62.119.112.sslip.io"
 readonly CADDY_IMAGE="caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
 readonly RUN_ID="p7b-edge-$$_${RANDOM}"
 readonly CONTAINER_NAME="evo-platform-${RUN_ID}"
@@ -129,7 +130,7 @@ for _ in {1..40}; do
     curl --silent --show-error \
       --output "${RESPONSE_FILE}" \
       --write-out '%{http_code}' \
-      --header 'Host: crm.evoadmissions.com' \
+      --header "Host: ${CRM_HOST}" \
       "${edge_origin}/api/health" 2>/dev/null || true
   )"
   if [[ "${status}" == "204" ]]; then
@@ -152,7 +153,7 @@ for private_path in \
     curl --silent --show-error \
       --output "${RESPONSE_FILE}" \
       --write-out '%{http_code}' \
-      --header 'Host: crm.evoadmissions.com' \
+      --header "Host: ${CRM_HOST}" \
       --header "Authorization: Bearer ${AUTH_SENTINEL}" \
       --header "x-evo-observability-hmac: ${HMAC_SENTINEL}" \
       "${edge_origin}${private_path}"

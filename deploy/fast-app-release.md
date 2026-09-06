@@ -12,10 +12,13 @@ restarts WAHA, or writes amoCRM/WhatsApp/customer data.
 
 ## Trigger and trust boundary
 
-`EVO fast app release` runs after a completed `EVO platform CI` `workflow_run`,
-not from `workflow_dispatch`, a GitHub Environment approval or a staging
-environment. It has two separate jobs and trust domains; one job must never
-combine build execution with production credentials or production access.
+An operator manually starts `EVO platform CI` with `workflow_dispatch` for the
+frozen exact-current-`main` candidate. A successful completion then starts
+`EVO fast app release` automatically through `workflow_run`; the release
+workflow itself has no manual dispatch button, GitHub Environment approval or
+staging environment. It has two separate jobs and trust domains; one job must
+never combine build execution with production credentials or production
+access.
 
 ### Secretless build job
 
@@ -26,7 +29,7 @@ credentials, no production secret references, no SSH material, no
 or build, its secretless admission step requires all of the following:
 
 1. `github.event.workflow_run.conclusion == 'success'`;
-2. `github.event.workflow_run.event == 'push'`;
+2. `github.event.workflow_run.event == 'workflow_dispatch'`;
 3. `github.event.workflow_run.head_branch == 'main'`;
 4. the triggering head repository full name equals this repository exactly;
 5. the 40-character `workflow_run.head_sha` equals freshly fetched current
@@ -195,10 +198,18 @@ Required non-secret variables:
 - `EVO_DEPLOY_HOST`, `EVO_DEPLOY_PORT`, `EVO_DEPLOY_USER`;
 - `EVO_RELEASE_ROOT`, `EVO_RELEASE_PROJECT_NAME`,
   `EVO_RELEASE_TRANSFER_ROOT`, `EVO_RELEASE_EVIDENCE_ROOT`;
-- `EVO_RELEASE_EXTERNAL_HEALTH_URL`;
+- `EVO_RELEASE_EXTERNAL_HEALTH_URL` — exactly
+  `https://evo-crm.72.62.119.112.sslip.io/api/health` for the current release;
 - `EVO_RELEASE_MIN_FREE_KB` — at least `1048576`;
 - `EVO_WAHA_IMAGE_DIGEST` — the reviewed immutable digest; and
 - `EVO_SUPABASE_PROJECT_REF`.
+
+`EVO_RELEASE_ROLLBACK_SEED` is a conditional non-secret variable. Leave it
+empty when the locked inventory proves the first-cutover app is genuinely
+absent; rollback then removes only the pending candidate and restores app
+absence. When the active app is the approved frozen V1 runtime, set it to that
+runtime's sealed absolute `/.../state.json` path. It is never synthesized for
+an absent app.
 
 The controller also enforces at least 4,194,304 KiB available memory by default
 before mutation so the pinned scanner can start safely. A deployment-specific
@@ -268,15 +279,17 @@ workflow or controller.
 mutation. After the separately authorized manual schema action succeeds, the
 only continuation is **Re-run all jobs** for that completed `EVO fast app
 release` workflow run. The rerun preserves the original successful
-same-repository `push` event and exact `workflow_run.head_sha`, but starts the
+   same-repository manual `workflow_dispatch` event and exact
+   `workflow_run.head_sha`, but starts the
 release from the beginning: it repeats both trust guards, verifies the original
 CI conclusion, freshly re-reads the canonical
 `EVO_PRODUCTION_RELEASE_ACTOR_ID` and requires its exact string equality with
 the original `github.actor_id`, performs a fresh clean checkout and image
 build, re-reads the arm and migration ledger, and creates new release state.
 Authorization never comes from the rerun initiator. It never resumes a stopped
-shell, reuses its image/archive/state, uses `workflow_dispatch`, or creates a
-no-op commit merely to retrigger deployment. If the event SHA is no longer
+   shell, reuses its image/archive/state, manually dispatches the release
+   workflow, or creates a no-op commit merely to retrigger deployment. If the
+   event SHA is no longer
 current `origin/main`, or any actor/arm/CI/ledger guard fails, the rerun stops.
 
 ## Acceptance and rollback contract
@@ -403,8 +416,9 @@ newer or superseding accepted/current/pending release, running candidate
 mismatch, missing record, digest/hash mismatch or unknown generation refuses
 without mutation.
 
-An absent-state wrapper can remove only its still-pending candidate and can
-never remove an accepted V3. A V1-mode wrapper can restore V1 only while its
+An absent-state wrapper needs no frozen-V1 rollback seed: it can remove only its
+still-pending candidate, restore app absence, and never remove an accepted V3.
+A V1-mode wrapper can restore V1 only while its
 first V3 candidate remains pending and can never overwrite an accepted V3.
 Thus an old wrapper cannot overwrite a newer release. Wrappers accept no moving
 tag, implicit current checkout, caller-supplied path or fallback. Automatic

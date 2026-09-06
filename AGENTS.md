@@ -199,8 +199,11 @@
 
 - Target server: `hermes-vps` (`root@72.62.119.112` via SSH config).
 - Target path: `/opt/evo-crm`.
-- Public CRM URL: `https://crm.evoadmissions.com`.
-- Fallback URL in Caddy: `https://evo-crm.72.62.119.112.sslip.io`.
+- Current public CRM URL: `https://evo-crm.72.62.119.112.sslip.io`.
+- `crm.evoadmissions.com` is deferred until EVO controls working DNS. It is not
+  a release prerequisite and must not be configured as a parallel product
+  route. The current sslip hostname is the one production hostname and uses
+  Caddy automatic HTTPS.
 - Production runs with `docker compose -f docker-compose.prod.yml` as project
   `evo-crm`.
 - The app container is `evo-crm-app-1`, image `evo-crm:latest`, private network

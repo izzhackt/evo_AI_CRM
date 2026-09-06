@@ -1509,6 +1509,10 @@ test("workflow binds exact green main to one runner-built immutable release", ()
   assert.equal((workflow.match(/run\?\.name === "Main CRM"/gu) ?? []).length, 2);
   assert.equal((workflow.match(/run\?\.app\?\.slug === "github-actions"/gu) ?? []).length, 2);
   assert.match(workflow, /fast-release-ledger-gate\.mjs/u);
+  assert.match(
+    workflow,
+    /\[\[ -z "\$EVO_RELEASE_ROLLBACK_SEED" \|\| "\$EVO_RELEASE_ROLLBACK_SEED" =~/u,
+  );
   assert.match(workflow, /docker build/u);
   assert.match(workflow, /docker save/u);
   assert.match(workflow, /StrictHostKeyChecking yes/u);

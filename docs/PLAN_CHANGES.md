@@ -19561,3 +19561,52 @@ The prior failed attempt retained only private redacted mode-`0600` evidence and
 left no running recovery containers or network. The correction remains limited
 to the disposable local recovery consumer, tests and plan contract. #552 stays
 unarmed until a new exact-main CI and recovery result are complete.
+
+## 2026-09-06 - Use the sslip hostname and finish the single V3 release path
+
+Block-ID: `EVO-V3-I-SSLIP-PRODUCTION-HOSTNAME-2026-09-06`
+
+Change type: owner deployment decision plus release-contract correction.
+Affected plan sections: Order 7 / #551, Order 8 / #552 and Order 9 / #553.
+
+The owner confirmed that EVO does not currently control usable custom CRM DNS
+and directed the program to finish on the existing server-derived sslip
+hostname instead of waiting. Read-only verification found that
+`evo-crm.72.62.119.112.sslip.io` resolves to the EVO VPS, the EVO edge Caddy
+already owns exactly one CRM route for it, and a publicly trusted individual
+certificate is valid. The route currently returns `502` only because the V3
+application container is intentionally absent. `crm.evoadmissions.com` remains
+unresolved and is not an active release input.
+
+Decision:
+
+- make `https://evo-crm.72.62.119.112.sslip.io` the sole current production
+  hostname for `EVO_CRM_DOMAIN`, external health and authenticated browser
+  acceptance;
+- defer `crm.evoadmissions.com` until EVO controls working DNS, without keeping
+  it as a parallel route or blocking #551-#553;
+- keep `agent-lead2-inbox/deploy/Caddyfile.evo-edge` as the active multi-route
+  edge source, retain every unrelated route, and remove only the obsolete CRM
+  staging block plus its active runbook after archival;
+- correct the release runbooks to match the implemented manual
+  `workflow_dispatch` full proof followed by the automatic exact-run
+  `workflow_run` release, and document the actual
+  `app`/private-`clamav`/private-`waha` topology; and
+- accept an empty rollback-seed variable only for the controller's already
+  supported, verified absent-app first-cutover state; a seed remains mandatory
+  when an approved frozen V1 app is actually active, and no nonexistent seed is
+  fabricated; and
+- preserve `crm_primary`, its private WAHA service and volume without QR scan,
+  provider calls or webhook ownership transfer.
+
+This hostname decision does not waive recovery, Auth/RLS/Storage, scanner,
+exact-image, rollback, single-runtime or authenticated-browser gates. The
+current real-data gaps remain truthful stop conditions: one Admin exists, but
+real Sales and Admissions identities and one real private Storage object are
+not present and cannot be invented for acceptance. Repository cleanup and
+read-only work continue immediately; production arming remains last.
+
+sslip documents embedded-IP hostname resolution at <https://sslip.io/>. Caddy
+documents automatic HTTPS and certificate management at
+<https://caddyserver.com/docs/automatic-https> and the reverse-proxy contract at
+<https://caddyserver.com/docs/caddyfile/directives/reverse_proxy>.

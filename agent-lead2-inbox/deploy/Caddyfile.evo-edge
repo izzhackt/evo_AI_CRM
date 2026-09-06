@@ -73,17 +73,6 @@ evo-crm.72.62.119.112.sslip.io {
 	reverse_proxy evo-crm-app:3000
 }
 
-# Temporary owner test route approved on 2026-08-27; never bypass TLS warnings.
-# Canonical staging DNS is deferred unless the owner later requests it.
-staging-crm.72.62.119.112.sslip.io {
-	import evo_app
-	request_body {
-		max_size 105MB
-	}
-	encode zstd gzip
-	reverse_proxy evo-crm-staging-app:3000
-}
-
 # Existing VPS routes are intentionally part of the EVO edge source of truth.
 # Keep them when reconciling the live, locally edited Caddyfile.
 invite-bishkek.72.62.119.112.sslip.io {

@@ -1,8 +1,9 @@
 # EVO Launch Plan
 
 Status: active V3-on-managed-Supabase production-successor contract
-Date: 2026-09-04 (Asia/Dubai)
-Authority: owner direction 2026-09-04, ADRs 0024, 0026 and 0027, this plan and
+Date: 2026-09-06 (Asia/Dubai)
+Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
+0027, this plan and
 the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
 ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
@@ -35,6 +36,12 @@ Docker and a post-merge audit found production-local TLS, real product-route
 malware-scanner, provider-readiness, private Node/buildx and complete role-
 outcome proof still missing. #551 remains open and #552 remains unarmed until
 one corrected exact-head rehearsal records the truthful result.
+Verified current release-preparation baseline: GitHub `origin/main` at
+`f3c591ee40a5f76e4279e74adbc2c20a82958077`; manual full-proof run
+`33982734454` succeeded for that exact SHA, while downstream release run
+`33983142821` remained safely skipped because the production arm was absent.
+Any merged correction changes the candidate SHA and requires exactly one new
+manual full proof after the corrected main is frozen.
 
 ## Current authority: V3 becomes the managed-Supabase product
 
@@ -70,6 +77,25 @@ The production successor uses:
   QR scan or an `evo-inbox` fallback;
 - the existing EVO-owned VPS, Caddy, CI/release and private WAHA capabilities
   where the audit proves they are current and correctly isolated.
+
+### Current public hostname
+
+The owner's 2026-09-06 decision makes
+`https://evo-crm.72.62.119.112.sslip.io` the sole current production hostname.
+The hostname resolves to the EVO VPS from its embedded IPv4 address, and the
+existing EVO edge Caddy already serves it with an individually issued publicly
+trusted certificate. `EVO_CRM_DOMAIN`, the release external-health URL and all
+production browser proof use this sslip hostname. `crm.evoadmissions.com` is
+deferred until EVO controls working DNS; it is not a #551, #552 or #553
+prerequisite and must not remain as an active parallel route.
+
+The active edge source is
+`agent-lead2-inbox/deploy/Caddyfile.evo-edge`. Its one production CRM block
+proxies the sslip hostname to `evo-crm-app:3000` on `evo_public_web`. Caddy
+automatic HTTPS owns certificate issuance and renewal. Missing or invalid TLS,
+an unexpected upstream, or any non-V3 response still stops the release; the
+hostname decision does not weaken health, authenticated-browser, exact-image or
+single-runtime acceptance.
 
 ### V3 integration boundary
 
@@ -207,7 +233,7 @@ match canonical repository variable `EVO_PRODUCTION_RELEASE_ACTOR_ID`; #552
 configures both only after every schema, recovery, scanner and staging-
 retirement gate passes. #551
 removes the active staging Compose/env/profile/CLI/test contour and archives
-`docs/runbooks/u11-staging-recovery.md`; #552 retires the exact verified
+the superseded staging runbook under `docs/archive/v2/`; #552 retires the exact verified
 non-production managed Supabase staging ref and remote/GitHub contour under the
 recorded owner authority, then proves their absence independently. Historical
 runbooks and evidence remain unchanged. Immediately before the first SSH or

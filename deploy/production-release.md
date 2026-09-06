@@ -20,6 +20,14 @@ One release candidate contains:
 - one previously approved managed Supabase project whose migration ledger
   matches root `supabase/`.
 
+The sole current public hostname is
+`https://evo-crm.72.62.119.112.sslip.io`. Caddy obtains and renews HTTPS for
+that hostname and proxies it to `evo-crm-app:3000` on `evo_public_web`.
+`crm.evoadmissions.com` is deferred until working owner-controlled DNS exists;
+it is not a release prerequisite or a parallel active route. Set
+`EVO_CRM_DOMAIN=evo-crm.72.62.119.112.sslip.io` and
+`EVO_RELEASE_EXTERNAL_HEALTH_URL=https://evo-crm.72.62.119.112.sslip.io/api/health`.
+
 The candidate must not start, require, inspect, or fall back to a companion
 Inbox, Lead Agent, manual-send worker, SQLite database, Drizzle repository, V1
 sender/webhook, or second UI.
@@ -36,11 +44,12 @@ during #552 makes that wrapper non-executable. V1 is never a permanent fallback.
 
 ### Automatic entry and schema boundary
 
-After #552 explicitly arms the fail-closed circuit breaker, a trusted successful
-same-repository push run of `EVO platform CI` for exact current `main` starts the
-app-only release automatically. There is no staging environment, manual
-workflow button or GitHub Environment reviewer pause. All runs use the constant
-`evo-production-release` concurrency group and never overlap.
+After #552 explicitly arms the fail-closed circuit breaker, an operator manually
+starts `EVO platform CI` with `workflow_dispatch` for exact current `main`. A
+trusted successful same-repository completion starts the app-only release
+automatically through `workflow_run`. The release workflow itself has no manual
+button, staging environment or GitHub Environment reviewer pause. All runs use
+the constant `evo-production-release` concurrency group and never overlap.
 
 The workflow has two fresh-runner trust domains. A secretless `build` job with
 explicit `contents: read` and no production Environment, secret, cache, SSH or
@@ -51,7 +60,8 @@ artifact ID, GitHub SHA-256 digest, archive hash, image ID/config digest and OCI
 labels bind it to the workflow run, attempt and source SHA.
 
 A separate fresh privileged `deploy` job receives no build workspace/cache. Its
-first secretless step independently validates success, `push`, `main`, exact
+first secretless step independently validates success, `workflow_dispatch`,
+`main`, exact
 repository/current-main SHA, the workflow-dispatch-time arm snapshot and
 original actor ID before any production secret, SSH or Supabase access. It
 downloads only the exact same-run numeric
@@ -127,8 +137,8 @@ Stop before any production command unless all of these are true:
 10. #552's read-only staging inventory and exact retirement verification prove
     no remote staging route, container, Compose project, network, volume,
     executable root, GitHub `staging` Environment, exact managed Supabase
-    staging branch/project ref, active `docs/runbooks/u11-staging-recovery.md`
-    file or active link to it remains. Managed Supabase retirement requires the
+    staging branch/project ref, active staging runbook or active link to it
+    remains. Managed Supabase retirement requires the
     exact organization/ref, non-production identity, data/Auth/Storage inventory
     and recorded owner authorization; ambiguity keeps the arm disabled.
 
@@ -153,6 +163,13 @@ environment. Install the exact V3 Compose only after the seed succeeds. Routine
 releases use their own credentials-disabled exact-main checkout and transferred
 controller inputs, not this mutable host copy. Keep the release arm disabled
 through all preparation and do not call providers or rescan `crm_primary`.
+
+When the locked preflight proves that no `app`, accepted-V3 pointer or pending
+candidate exists, the first install needs no frozen-V1 rollback seed or V1 image.
+Leave `EVO_RELEASE_ROLLBACK_SEED` empty: the generated pending-state wrapper
+removes only the candidate and restores app absence. When an approved frozen V1
+app is active instead, configure that variable with its exact sealed
+`/.../state.json` seed. Never create a synthetic V1 seed for an absent app.
 
 ## 3. Pin and verify the candidate
 

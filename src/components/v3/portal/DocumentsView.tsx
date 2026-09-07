@@ -14,7 +14,9 @@ export function DocumentsView({
 }: {
   documents: readonly StudentPortalDocument[];
 }) {
-  if (documents.length === 0) {
+  const currentDocuments = selectCurrentPortalDocuments(documents);
+
+  if (currentDocuments.length === 0) {
     return (
       <PortalEmptyState
         title="Список документов пока пуст"
@@ -26,10 +28,10 @@ export function DocumentsView({
   return (
     <PortalSection
       title="Чеклист"
-      description={`${documents.length} ${documentCountLabel(documents.length)} в вашем деле`}
+      description={`${currentDocuments.length} ${documentCountLabel(currentDocuments.length)} в вашем деле`}
     >
       <ul className="divide-y divide-border">
-        {documents.map((document) => {
+        {currentDocuments.map((document) => {
           const status = documentStatus(document);
           const reviewLabel = documentReviewLabel(document);
           const deadlineLabel = formatPortalTimestamp(document.deadline);
@@ -120,6 +122,35 @@ export function DocumentsView({
       </ul>
     </PortalSection>
   );
+}
+
+/**
+ * The portal RPC currently returns one row per slot/version. Keep the UI at
+ * one row per slot and bind all actions to the highest canonical version_no.
+ * A slot without submissions remains visible until its first version exists.
+ */
+export function selectCurrentPortalDocuments(
+  documents: readonly StudentPortalDocument[],
+): readonly StudentPortalDocument[] {
+  const currentBySlot = new Map<string, StudentPortalDocument>();
+
+  for (const document of documents) {
+    const selected = currentBySlot.get(document.documentSlotId);
+    if (!selected || isLaterDocumentVersion(document, selected)) {
+      currentBySlot.set(document.documentSlotId, document);
+    }
+  }
+
+  return [...currentBySlot.values()];
+}
+
+function isLaterDocumentVersion(
+  candidate: StudentPortalDocument,
+  selected: StudentPortalDocument,
+): boolean {
+  if (candidate.versionNo === null) return false;
+  if (selected.versionNo === null) return true;
+  return BigInt(candidate.versionNo) > BigInt(selected.versionNo);
 }
 
 function documentCountLabel(count: number): string {

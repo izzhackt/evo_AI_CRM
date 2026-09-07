@@ -36,6 +36,10 @@ function requiredEnvironment(name: string): string {
   return value;
 }
 
+function canonicalTimestamp(value: string): string {
+  return value.replace(" ", "T").replace(/([+-]\d{2})$/u, "$1:00");
+}
+
 function localDatabaseUrl(): string {
   const raw = requiredEnvironment("EVO_STUDENT_PORTAL_DB_URL");
   let parsed: URL;
@@ -434,8 +438,11 @@ test("the Student can persist one own notification read through the UI", async (
       expect(replay.data).toMatchObject({
         notification_id: notificationId,
         is_read: true,
-        read_at: firstReadAt,
       });
+      expect(typeof replay.data?.read_at).toBe("string");
+      expect(canonicalTimestamp(replay.data!.read_at)).toBe(
+        canonicalTimestamp(firstReadAt),
+      );
     }
 
     await page.reload({ waitUntil: "networkidle" });

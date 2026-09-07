@@ -69,6 +69,12 @@ export function PortalShell({
                 <Link
                   href={section.href}
                   aria-current={active ? "page" : undefined}
+                  onFocus={(event) =>
+                    event.currentTarget.scrollIntoView({
+                      block: "nearest",
+                      inline: "nearest",
+                    })
+                  }
                   className={`inline-flex min-h-10 items-center rounded-nav px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
                     active
                       ? "bg-accent text-on-accent"

@@ -362,6 +362,8 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
 
   assert.match(shell, /overflow-x-auto/u);
   assert.match(shell, /flex w-full max-w-\[1180px\]/u);
+  assert.match(shell, /scrollIntoView\(\{/u);
+  assert.match(shell, /inline: "nearest"/u);
   assert.match(shell, /aria-label="Навигация по разделам кабинета"/u);
   assert.match(shell, /tabIndex=\{0\}/u);
   assert.match(shell, /min-h-10/u);

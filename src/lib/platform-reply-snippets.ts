@@ -59,7 +59,7 @@ export type PlatformReplySnippetsRpcClient = Readonly<{
   schema(name: "platform"): Readonly<{
     rpc(
       name: "list_reply_snippets",
-      args: Readonly<{ p_organization_id: string; p_audience: string | null }>,
+      args: Readonly<{ p_organization_id: string; p_audience?: string }>,
       options: Readonly<{ get: true }>,
     ): Promise<RpcResponse>;
   }>;
@@ -255,9 +255,12 @@ export async function getPlatformReplySnippets(
     }
     const organizationId = requireReplySnippetReader(actor);
     const client = dependencies.client ?? await getPlatformClient();
+    const args = audience === null
+      ? { p_organization_id: organizationId }
+      : { p_organization_id: organizationId, p_audience: audience };
     const response = await client.schema("platform").rpc(
       "list_reply_snippets",
-      { p_organization_id: organizationId, p_audience: audience },
+      args,
       { get: true },
     );
     if (response.error) return invalidShape();

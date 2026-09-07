@@ -320,6 +320,33 @@ test("reply-snippet reads use exactly one organization-scoped read RPC", async (
   ]);
 });
 
+test("reply-snippet reads omit the optional audience instead of serializing null", async () => {
+  const calls = [];
+  const listing = await getPlatformReplySnippets(ACTOR, null, {
+    client: {
+      schema(name) {
+        calls.push(["schema", name]);
+        return {
+          async rpc(name, args, options) {
+            calls.push(["rpc", name, args, options]);
+            return { data: [], error: null };
+          },
+        };
+      },
+    },
+  });
+  assert.deepEqual(listing, []);
+  assert.deepEqual(calls, [
+    ["schema", "platform"],
+    [
+      "rpc",
+      "list_reply_snippets",
+      { p_organization_id: ORGANIZATION_ID },
+      { get: true },
+    ],
+  ]);
+});
+
 test("reply-snippet reads fail closed on bad filters, RPC errors and rows", async () => {
   await assert.rejects(
     getPlatformReplySnippets(ACTOR, "draft", {

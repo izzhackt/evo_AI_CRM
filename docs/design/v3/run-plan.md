@@ -32,7 +32,7 @@ managed Supabase — единственный Auth/database/Storage. Providers �
   ещё не выполнялся. Это не проверка минимальности PAT permissions. Требование остаётся:
   fine-grained PAT только для этого repo, `Variables: Read-only`; более широкий
   token не подставлять. Отдельный повторный API probe не нужен.
-- С разрешения владельца пароль существующего `demo@evoadmissions.com` сброшен;
+- С разрешения владельца пароль существующего smoke Admin сброшен;
   реальный login и `platform.current_actor_authority()` подтвердили active Admin.
   Обе smoke secrets сохранены 2026-09-07 20:56 UTC. Роль/пользователь не создавались;
   canonical Custom Access Token hook включён. Не сбрасывать пароль повторно.

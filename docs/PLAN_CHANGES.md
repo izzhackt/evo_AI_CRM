@@ -21367,3 +21367,60 @@ Decision and durable result:
    `WORKING`; live G therefore also needs separately authorized private session
    recovery/relink or a separately reviewed amoCRM-only harness. No restart,
    QR/relink, amoCRM write or provider enablement is implied by this block.
+
+## 2026-09-07 - Shorten the active run plan and remove duplicate test runs
+
+Block-ID: `EVO-V3-LEAN-RUN-PLAN-2026-09-07`
+
+Change type: documentation and execution-cadence clarification; no application,
+workflow, migration, test-file or branch-protection changes.
+
+The owner requested a shorter plan with unnecessary work and repeated tests
+removed. The 695-line handover mixes completed implementation history with the
+remaining release actions. README also still recommends overlapping security,
+typecheck, build, database and OrbStack runs as a routine checklist, despite the
+current scoped-PR and one-manual-full-proof policy.
+
+Decision:
+
+1. Keep the active handover at `docs/design/v3/run-plan.md`, with three blocks:
+   inputs/freeze/preflight; schema and one release; acceptance/disarm/closure.
+   Link completed wave details to immutable GitHub history instead of treating
+   them as work to repeat. Preserve exact blockers and cold-resume commands.
+2. Align README with actual workflow entrypoints. Prose-only docs receive diff,
+   link and range-classifier checks; code PRs receive affected real tests and
+   existing protected checks. Do not prepend overlapping `test:security`,
+   `test:unit`, frontend, standalone typecheck/build or local database suites to
+   the final manual CI. Keep the accepted #551 recovery evidence reusable only
+   under its source/inventory and recovery-contract conditions; non-empty source
+   drift requires the real export/restore/rehearsal path, not a waiver.
+3. Keep one successful manual `EVO platform CI` on the final frozen current-main
+   SHA: `evo-fast-release.yml` requires that exact upstream run. This docs-only
+   change does not remove tests from CI or allow direct/unguarded deployment.
+   Retain fresh arm/actor/SHA, schema, artifact, host, Auth and acceptance guards;
+   they protect different mutation boundaries and are not duplicate test runs.
+4. The existing dedicated Variables-read secret is now present, but its actual
+   permission remains unverified. The owner cancelled creating a new Auth user;
+   use an existing account only after real Admin authority/password validation.
+   The two smoke secrets remain absent. No credential values enter these docs.
+5. The last WAHA recovery reached `SCAN_QR_CODE`; the owner then declined QR.
+   Pause further pairing/restarts, keep its retained volume/configuration, and
+   make no connected-WhatsApp claim. WAHA, live portal invitation, live amoCRM,
+   background/two-way design and custom DNS stay outside first app-only cutover.
+6. Keep `6326146009f953d42e7cf6ee5cf2904a14a43ed1` as the verified pre-change
+   baseline, not the eventual release SHA. This change may touch only README,
+   the run plan and this ledger. After merge, freeze the actual new `main` and
+   retain the existing exact-SHA gates. #552 remains open until accepted V3 and
+   scoped runtime retirement; #553 remains the final live-authority audit.
+
+Validation for this documentation block: inspect current workflow/manifest
+behavior and GitHub state; verify relative links, closed evidence references,
+diff whitespace, append-only ledger and the real docs-only range classifier;
+independent exact-head review and existing short PR checks. No full CI, local
+Supabase, OrbStack, production mutation or provider operation is required to
+validate this prose-only change.
+
+Official behavior checked: GitHub `workflow_run` reacts to upstream completion;
+the repository itself enforces success and exact-run admission before secrets
+or production access:
+<https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run>.

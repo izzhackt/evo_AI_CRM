@@ -10,6 +10,7 @@ import {
 import { loadV3KnowledgeSurface } from "../src/lib/v3/knowledge-surface.ts";
 import {
   readV3ReplySnippets,
+  v3CanMutateReplySnippet,
   v3ReplySnippetAudiencesForRole,
 } from "../src/lib/v3/reply-snippets-source.ts";
 
@@ -96,6 +97,30 @@ test("presentation role filters exact reply-snippet audiences", async () => {
   assert.ok(calls.every((call) => call.audience === null));
 });
 
+test("visible mutation controls follow presentation role and authorship", () => {
+  const ownSnippet = snippet("all", "70000000-0000-4000-8000-000000000007");
+  const foreignSnippet = {
+    ...ownSnippet,
+    createdByMembershipId: "80000000-0000-4000-8000-000000000008",
+  };
+
+  const matrix = [
+    ["Admin", actor("admin"), true, true],
+    ["Admin as Sales", actor("sales", "admin"), true, false],
+    ["Admin as Admissions", actor("admissions", "admin"), true, false],
+    ["Sales", actor("sales"), true, false],
+  ];
+
+  for (const [label, currentActor, own, foreign] of matrix) {
+    assert.equal(v3CanMutateReplySnippet(currentActor, ownSnippet), own, `${label}: own`);
+    assert.equal(
+      v3CanMutateReplySnippet(currentActor, foreignSnippet),
+      foreign,
+      `${label}: foreign`,
+    );
+  }
+});
+
 test("Sales presentation never invokes knowledge document readers", async () => {
   const calls = { company: 0, students: 0, documents: 0, snippets: 0 };
   const result = await loadV3KnowledgeSurface(actor("sales", "admin"), {
@@ -156,6 +181,7 @@ test("Admissions presentation composes document and snippet readers", async () =
 test("picker and CRUD components keep insertion separate from sending", () => {
   const picker = source("src/components/v3/reply-snippets/ReplySnippetPicker.tsx");
   const section = source("src/components/v3/reply-snippets/KnowledgeReplySnippetSection.tsx");
+  const tabs = source("src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx");
   const page = source("src/app/(v3)/v3/knowledge/page.tsx");
 
   assert.match(picker, /type="button"/u);
@@ -175,9 +201,14 @@ test("picker and CRUD components keep insertion separate from sending", () => {
   assert.match(page, /loadV3KnowledgeSurface/u);
   assert.match(page, /KnowledgeWorkspaceTabs/u);
   assert.match(page, /KnowledgeReplySnippetSection/u);
-  assert.match(page, /actor\.authorityRole === "admin"/u);
-  assert.match(page, /snippet\.createdByMembershipId === actor\.membershipId/u);
+  assert.match(page, /v3CanMutateReplySnippet\(actor, snippet\)/u);
   assert.doesNotMatch(page, /Promise\.all\(\[\s*readCompanyKnowledge/u);
+
+  assert.match(tabs, /<nav/u);
+  assert.match(tabs, /<ul/u);
+  assert.match(tabs, /<li/u);
+  assert.match(tabs, /aria-current=\{active === id \? "page" : undefined\}/u);
+  assert.doesNotMatch(tabs, /role="tablist"|role="tab"|role="tabpanel"/u);
 });
 
 test("fresh request IDs rotate the React form remount keys after refresh", () => {

@@ -17,6 +17,7 @@ import {
 } from "@/lib/v3/knowledge-source";
 import {
   readV3ReplySnippets,
+  v3CanMutateReplySnippet,
   v3ReplySnippetAudiencesForRole,
 } from "@/lib/v3/reply-snippets-source";
 
@@ -160,8 +161,7 @@ export default async function KnowledgePart({
             <KnowledgeReplySnippetSection
               items={surface.snippets.map((snippet) => ({
                 snippet,
-                canMutate: actor.authorityRole === "admin" ||
-                  snippet.createdByMembershipId === actor.membershipId,
+                canMutate: v3CanMutateReplySnippet(actor, snippet),
                 updateRequestId: randomUUID(),
                 archiveRequestId: randomUUID(),
               }))}

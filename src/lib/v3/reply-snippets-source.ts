@@ -25,6 +25,16 @@ export function v3ReplySnippetAudiencesForRole(
   return ROLE_AUDIENCES[role];
 }
 
+export function v3CanMutateReplySnippet(
+  actor: ActivePlatformActor,
+  snippet: Pick<PlatformReplySnippet, "createdByMembershipId">,
+): boolean {
+  return (
+    actor.presentationRole === "admin" ||
+    snippet.createdByMembershipId === actor.membershipId
+  );
+}
+
 export async function readV3ReplySnippets(
   actor: ActivePlatformActor,
   reader: V3ReplySnippetReader = getPlatformReplySnippets,

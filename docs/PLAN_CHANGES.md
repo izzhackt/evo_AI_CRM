@@ -20357,3 +20357,124 @@ identity creation or new receipt is allowed.
 
 This clarification changes no D2, hostname, Stage F, runtime or production
 scope and authorizes no external action.
+
+## 2026-09-07 - Split E1 Admin authorization from service receipt execution
+
+Block-ID: `EVO-V3-E0-ADMIN-SERVICE-RPC-AND-ATTEMPT-CAS-CORRECTION-2026-09-07`
+
+Change type: caller authority, least-privilege grants and stale-worker safety.
+Affected plan section: migration 126 prepare/claim/record/finalize contract.
+
+Current SQL proves that `platform_private.require_admin_actor` requires a real
+`auth.uid()` plus scoped Admin permission. Existing `platform.provision_member`,
+`platform.assign_organization_scope` and
+`platform.assign_student_case_curator` call that guard and are granted to
+`authenticated`, not `service_role`. A service-key transaction therefore cannot
+truthfully satisfy or impersonate the Admin-session guard.
+
+Decision:
+
+1. The authenticated Admin-session `prepare` RPC performs the live
+   `require_admin_actor` checks and durable reservation. It records the exact
+   authorizing Admin/profile/membership, organization, permission/access version,
+   immutable fingerprint and authorization time on the private receipt.
+2. Provider-workflow `claim`, `record_success`, `record_failure`,
+   `record_unknown`, reconciliation and `finalize` RPCs are separate
+   service-role-only entrypoints. They accept only a receipt identifier and
+   bounded expected-state/attempt inputs, validate the durable Admin-authorized
+   receipt under canonical locks, and never claim that service role has an
+   Admin JWT or `auth.uid()`.
+3. Migration 126 must not grant service role access to existing public
+   Admin-session wrappers. Where finalize needs their mutations, it introduces
+   or refactors one private receipt-authorized core reused by the existing Admin
+   wrapper and the service finalizer, preserving the same invariants, canonical
+   lock order, deterministic audit actor/child request IDs and replay behavior.
+   It must not duplicate or bypass RBAC logic.
+4. Grants are explicit and least privilege: `prepare` is revoked from PUBLIC,
+   `anon`, `service_role` and `supabase_auth_admin`, then granted only to
+   `authenticated`; coordinator entrypoints are revoked from PUBLIC, `anon`,
+   `authenticated` and `supabase_auth_admin`, then granted only to
+   `service_role`; internal cores receive no client role grant.
+5. Initial dispatch and reissue both use a unique durable `attempt_id`/claim
+   token plus expected receipt version and expected invite generation. The CAS
+   claim stores that attempt as active before any provider call. Every success,
+   definite failure or unknown transition must CAS-match the active attempt,
+   version, generation and dispatch state. A late or reordered response from a
+   stale worker returns a deterministic conflict and cannot overwrite a newer
+   attempt or receipt result.
+6. E1 SQL and E3 Node tests must cover caller/grant separation, service-role
+   denial on Admin prepare, authenticated denial on coordinator RPCs, absent
+   Admin JWT behavior, initial-attempt replay, concurrent claim, stale worker
+   and reordered success/failure/unknown responses with zero state overwrite or
+   extra provider call.
+
+This correction preserves all prior invite expiry/reissue, hostname, D2, Stage
+F and proof boundaries. It authorizes no migration implementation, provider,
+managed Supabase, credential, production or release action in E0.
+
+## 2026-09-07 - Freeze unknown-invite and one-way Student bind semantics
+
+Block-ID: `EVO-V3-E0-UNKNOWN-INVITE-AND-STUDENT-BIND-FREEZE-2026-09-07`
+
+Change type: external-side-effect uncertainty and current-schema compatibility.
+Affected plan section: migration 126 receipt reconciliation and Student case
+binding.
+
+Official Supabase Auth `sendInvite` generates and persists its token timestamp
+inside the provider request, not at the coordinator's earlier claim. Therefore
+the prior correction's generic “possible invite expiry boundary” cannot be
+derived from local claim time. Current schema also blocks the planned Student
+bind: migration 042's `student_cases_identity_immutable` trigger includes
+`student_membership_id`, while migration 088 only drops that column's `NOT
+NULL` constraint.
+
+Decision:
+
+1. `reissue_unknown` may resolve to `issued` only from a reliably observed
+   provider token-issuance timestamp such as `auth.users.confirmation_sent_at`
+   changing after the stored pre-attempt value on the same exact Auth user/email.
+   `invite_expires_at` is then that provider timestamp plus the verified Email
+   OTP Expiration.
+2. Local `claim_time + OTP TTL` is never an expiry or retry fence. If the system
+   can prove a provider/request upper bound after which the ambiguous operation
+   cannot still issue and exact read-back remains unchanged, an authorized CAS
+   may record definite no-issuance. Without either observed provider issuance or
+   that proven upper bound, the receipt remains fail-closed
+   `reissue_unknown` indefinitely and no reissue is allowed.
+3. Migration 126 must replace `student_cases_identity_immutable` with a
+   specialized trigger that keeps every existing identity column immutable but
+   permits `student_membership_id` only from `NULL` to the exact validated active
+   Student membership in the same organization once. It rejects `UUID -> other
+   UUID`, `UUID -> NULL`, wrong-organization, non-Student and inactive targets.
+   The receipt-authorized finalizer remains the only granted mutation path.
+4. E1 SQL tests must prove the trigger replacement exists, the exact one-way
+   bind succeeds through finalizer, replay is a no-op, and unbind/rebind/wrong-
+   org/non-Student/inactive/direct unauthorized updates fail, including
+   concurrent bind attempts.
+5. E0 freezes caller families, not final SQL spelling: authenticated Admin
+   `prepare` and reissue authorization; service-role initial/reissue claim,
+   outcome record, reconciliation and authority finalize. E1 must append exact
+   RPC names/signatures and grants to `PLAN_CHANGES.md` before migration code.
+6. After the migration 117 domain lock, service finalize locks and reads the
+   receipt-bound authorizing Auth user/profile/membership and current access
+   version. Without using `auth.uid()`, it revalidates active profile and
+   membership, same organization, Admin role, published current bundle, every
+   exact recorded required permission, current organization scope and
+   stored-equals-current access version. Revocation or authority/version drift
+   blocks activation; the durable receipt is necessary but not sufficient.
+7. Every new `platform_private` receipt/attempt table has ENABLE plus FORCE RLS,
+   no policies, and no direct table or backing-sequence privilege for PUBLIC,
+   `anon`, `authenticated`, `service_role` or `supabase_auth_admin`. Only the
+   narrow role-specific SECURITY DEFINER RPCs with `SET search_path = ''` reach
+   them. E1 tests inspect RLS, policy, relation/sequence ACL and routine grants.
+8. Canonical concurrency order is migration 117 organization-domain advisory
+   lock, then root request and every deterministic child request advisory lock
+   in one documented stable order, then receipt/attempt/Auth/case/membership/
+   profile row locks. Finalizer never waits for a child lock while holding a
+   participant row lock. E1 dblink tests race finalizer against direct scope and
+   Curator wrappers under bounded lock timeouts and prove serialization without
+   deadlock, partial mutation or stale-result overwrite.
+
+This is the final E0 contract clarification. It preserves D2 closure, sole
+first-launch sslip authority, Stage F product-decision gates and all no-runtime/
+no-provider/no-production boundaries.

@@ -458,13 +458,17 @@ invite в репозитории ещё нет. Не выдавать E0 или 
 #### Migration 126 — только provisioning, scope и receipt state machine
 
 126 идёт строго после D2 migration 125 и не содержит read-моделей. Она
-добавляет private receipt/intent и Admin-only prepare/record/finalize RPC для
-trusted-server coordinator. Финальная DB-транзакция композиционно использует
-существующие primitives, а не переписывает RBAC:
+добавляет private receipt/intent, authenticated Admin-session `prepare` RPC и
+отдельные service-role-only `claim`/`record_*`/reconcile/finalize RPC для
+trusted-server coordinator. Service role никогда не изображает Admin JWT или
+`auth.uid()`. Финальная DB-транзакция использует один receipt-authorized private
+core с теми же invariants/audit, что существующие Admin primitives, а не
+ослабляет или дублирует RBAC:
 
-1. `platform.provision_member(..., 'student', ...)` создаёт/проверяет ровно
+1. Результирующая mutation сохраняет семантику
+   `platform.provision_member(..., 'student', ...)`: создаёт/проверяет ровно
    один active Student membership для уже существующего `auth.users.id` и
-   опубликованного Student bundle. Затем обязательно вызывается
+   опубликованного Student bundle. Затем сохраняется семантика обязательного
    `platform.assign_organization_scope`: migration 083
    `current_actor_authority()` требует и `organization.read`, и active
    organization scope также для роли Student. После этого
@@ -472,24 +476,49 @@ trusted-server coordinator. Финальная DB-транзакция комп�
    `record_scopes(scope_kind='student_case', scope_key=<exact case_id>)` из
    `student_cases.current_scope_id/current_scope_version`. Organization scope
    нужен только для actor bootstrap и не заменяет exact-case scope/RLS.
-2. В той же транзакции после read-only Admin preflight функция **сначала**
-   вызывает migration 117
+   Migration 126 не даёт service role EXECUTE на эти существующие public
+   Admin-session wrappers: общий private core вызывается либо wrapper-ом после
+   live `require_admin_actor`, либо service finalizer после receipt validation.
+2. Authenticated `prepare` сначала выполняет read-only live
+   `require_admin_actor`; затем **сначала** вызывает migration 117
    `platform_private.lock_student_case_note_assignment_domain(organization_id)`,
-   и только затем берёт receipt/request и participant row locks. После domain
-   lock она заново проверяет Admin JWT/access-version/bundle/permission/scope,
-   затем блокирует exact case, membership и profile; проверяет organization,
-   одну из двух разрешённых case-форм, active
-   Student role/bundle и отсутствие чужой привязки; добавляет organization и
-   exact-case scope; записывает `student_cases.student_membership_id`; и
-   безусловно вызывает `platform_private.bump_access_version(profile_id)`
+   затем root и все deterministic child request advisory locks в стабильном
+   порядке, и только потом receipt/request и participant row locks. Под domain
+   lock prepare заново проверяет реальный Admin JWT/access-version/bundle/
+   permission/scope, валидирует organization/case/fingerprint/email и записывает
+   durable authorization: exact Admin auth/profile/membership, access version,
+   organization, permission, authorization time и immutable fingerprint.
+   Service finalizer отдельно берёт тот же migration 117 domain lock, затем все
+   request advisory locks и только потом receipt/participant row locks. Он
+   блокирует и читает receipt-bound Admin auth user/profile/membership/access
+   version и data-bound проверяет active profile+membership, ту же organization,
+   роль Admin, published current bundle, каждый exact сохранённый required
+   permission, current organization scope и равенство stored/current
+   `access_version`. Revoked/changed Admin authority блокирует activation;
+   durable authorization необходима, но недостаточна. Finalizer также проверяет
+   exact case/Auth identity, но **не** вызывает `require_admin_actor` и не
+   утверждает, что service role имеет Admin session. После этого private core
+   добавляет organization и exact-case scope, записывает
+   `student_cases.student_membership_id` и безусловно вызывает
+   `platform_private.bump_access_version(profile_id)`
    **после** scope/bind (помимо bump внутри organization-scope primitive).
    Для normal U6 только после этого выставляется `portal_activated_at`. Для
-   legacy pending портал остаётся `NULL`, пока вложенный вызов существующего
-   `platform.assign_student_case_curator` с validated Curator не ротирует
-   scope, не выдаст новую exact-case grant Student/Curator, не bump-нет их
-   access versions и не запишет `active`/`handoff_at`/`portal_activated_at`.
-   Все шаги finalizer находятся в одной транзакции; ошибка Curator assignment
+   legacy pending портал остаётся `NULL`, пока тот же receipt-authorized private
+   core не выполнит с validated Curator точную mutation-семантику существующего
+   `platform.assign_student_case_curator`: scope rotation, новую exact-case grant
+   Student/Curator, access-version bumps и запись
+   `active`/`handoff_at`/`portal_activated_at`. Public Curator wrapper продолжает
+   требовать live Admin session; service finalizer не получает на него grant.
+   Все шаги finalizer находятся в одной транзакции; ошибка Curator mutation
    откатывает membership/scopes/bind целиком.
+   Migration 126 перед bind обязана `DROP`-нуть текущий migration 042 trigger
+   `student_cases_identity_immutable` и заменить его specialized one-way guard.
+   Все прежние identity columns остаются immutable; для
+   `student_membership_id` разрешён только один переход `NULL -> exact UUID`
+   validated active Student membership той же organization. `UUID -> другой
+   UUID`, `UUID -> NULL`, wrong-org, non-Student и inactive target запрещены;
+   same-UUID replay — no-op. Receipt-authorized finalizer остаётся единственным
+   granted bind path, а case row lock/CAS сериализует concurrent bind.
 3. Один `request_id` + неизменяемый fingerprint
    `(organization_id, student_case_id, normalized_email, display_name,
    case_shape, legacy_curator_membership_id)` даёт точный replay ранее
@@ -526,6 +555,35 @@ trusted-server coordinator. Финальная DB-транзакция комп�
    finalizer означает grant на уже новый scope, reassign после finalizer сам
    переносит Student grant; legacy curator step выполняется только после bind.
    Ноль затронутых строк — rollback, не partial success.
+5. Grants перечисляются явно. `prepare` сначала REVOKE-ится у PUBLIC, `anon`,
+   `service_role` и `supabase_auth_admin`, затем выдаётся только
+   `authenticated`. `claim`/`record_*`/reconcile/finalize сначала REVOKE-ятся у
+   PUBLIC, `anon`, `authenticated` и `supabase_auth_admin`, затем выдаются только
+   `service_role`; internal receipt-authorized core не получает client-role
+   grants. Service entrypoints принимают только receipt ID и bounded expected
+   state/version/generation/attempt inputs, а не произвольные organization,
+   case, email или membership authority.
+   E0 фиксирует caller surfaces: authenticated Admin `prepare` и expired-invite
+   reissue authorization; service-role initial/reissue claim, outcome
+   `record_success|record_failure|record_unknown`, reconciliation и authority
+   finalize. Exact SQL identifiers/signatures и полный grant inventory должны
+   быть сначала добавлены в E1 `PLAN_CHANGES`, до migration code.
+6. Все новые receipt/attempt tables в `platform_private` имеют `ENABLE ROW LEVEL
+   SECURITY`, `FORCE ROW LEVEL SECURITY` и ноль policies. Прямые table и
+   backing-sequence privileges REVOKE-ятся у PUBLIC, `anon`, `authenticated`,
+   `service_role` и `supabase_auth_admin`; доступ возможен только через narrow
+   role-specific `SECURITY DEFINER SET search_path = ''` RPC. Catalog tests
+   проверяют RLS/force flags, отсутствие policies, relation/sequence ACL и exact
+   routine grants.
+7. Lock graph E1 prepare/finalizer неизменяем: migration 117 organization-domain
+   advisory lock -> root `request_id` advisory lock -> каждый deterministic
+   child request advisory lock в документированном стабильном порядке ->
+   receipt/attempt/Auth/case/membership/profile row locks. Ни один participant
+   row lock не берётся до всех root/child locks. Так direct provision/scope/
+   Curator wrapper, уже владеющий своим child request lock, не образует цикл с
+   finalizer. E1 dblink regressions с bounded `lock_timeout` гоняют finalizer
+   против direct scope и Curator wrappers и требуют serialization без deadlock,
+   partial mutation или stale overwrite.
 
 Supabase Auth нельзя включить в PostgreSQL-транзакцию. Поэтому coordinator
 выполняет строго `prepare receipt -> claim dispatch -> inviteUserByEmail ->
@@ -545,14 +603,22 @@ pending не может завершиться состоянием success, п�
   browser session persistence; email и provider payload не логируются и не
   попадают в public tables/JSON;
 - `prepared` означает, что provider dispatch точно ещё не мог начаться. Перед
-  каждым network call worker атомарным compare-and-set claim переводит receipt
-  в `dispatching`, фиксирует attempt/claimed-at и commit-ит этот state; только
+  initial network call service worker передаёт unique `attempt_id`, expected
+  receipt version и expected invite generation. Атомарный compare-and-set claim
+  переводит receipt в `dispatching`, сохраняет `active_attempt_id`, version,
+  generation и claimed-at и commit-ит этот state; только
   владелец успешного claim может вызвать `inviteUserByEmail`. Crash до claim
   оставляет definitely-never-dispatched `prepared`, который можно безопасно
   claim-ить. Crash/timeout после committed `dispatching` — даже если процесс
   мог упасть за мгновение до фактического HTTP call — является неоднозначным:
   stale `dispatching` переводится в `invite_outcome_unknown`, требует exact-email
   reconciliation и никогда автоматически не resend-ит invite;
+- каждый initial или reissue provider outcome записывается только отдельным
+  service-role `record_*` CAS, который совпал одновременно по
+  `active_attempt_id`, expected receipt version, expected invite generation и
+  dispatch state. Late/reordered success, failure или unknown от stale worker
+  получает deterministic `stale_invite_attempt` и не может переписать новый
+  attempt, Auth identity, generation или terminal result;
 - definite invite failure оставляет case без membership/activation; тот же
   request можно снова claim-ить только из `invite_failed`, только когда
   provider evidence однозначно доказывает отсутствие side effect, и после
@@ -581,24 +647,31 @@ pending не может завершиться состоянием success, п�
   `lower(btrim(auth.users.email)) = receipt.normalized_email`. Wrong user ID,
   null/другой email или identity, уже принадлежащая другой organization/case,
   дают hard conflict без membership/scope/bind. Finalizer повторяет эту
-  проверку под canonical locks непосредственно перед `provision_member`.
+  проверку под canonical locks непосредственно перед private membership/scope
+  mutation.
 
 Invite expiration/reissue остаётся fenced side effect на **том же** receipt и
 identity:
 
-- после initial/reissue success coordinator записывает `issued`, generation,
-  issued-at и `invite_expires_at`, вычисленный из exact read-back настройки
-  Email OTP Expiration. Успешный callback для matching Auth user/email переводит
-  delivery status в `accepted`, не трогая уже завершённую authority;
+- перед reissue attempt coordinator сохраняет exact прежний provider
+  `confirmation_sent_at`. После initial/reissue success он записывает `issued`,
+  generation и `invite_issued_at` только из надёжно наблюдаемого provider
+  token-issuance timestamp — текущего `auth.users.confirmation_sent_at` того же
+  exact Auth user/email, для reissue строго нового относительно pre-attempt
+  значения. `invite_expires_at` равен этому provider timestamp плюс exact
+  read-back Email OTP Expiration. Успешный callback для matching Auth user/email
+  переводит delivery status в `accepted`, не трогая завершённую authority;
 - только заново авторизованный Admin может после `invite_expires_at` CAS-ом
   отметить unaccepted `issued` как `expired`. Перед этим он под canonical locks
   проверяет expected receipt version/generation, exact immutable fingerprint и
   тот же `auth.users.id` + normalized email; confirmed/accepted, too-early,
   mismatched или unverifiable identity fail closed;
 - reissue command принимает тот же root `request_id`, unique
-  `reissue_request_id`, expected receipt version и expected generation. Один
+  `reissue_request_id`, unique `attempt_id`, expected receipt version и expected
+  generation. Один
   committed CAS `expired|reissue_failed -> reissue_dispatching` выигрывает,
-  фиксирует новый monotonic generation/claim time **до** network call. Replay
+  фиксирует active attempt, новый monotonic generation и claim time **до**
+  network call. Replay
   того же reissue key возвращает durable in-progress/result без provider call;
   concurrent другой key получает `invite_reissue_in_progress` или
   `stale_invite_generation`, также без provider call;
@@ -618,13 +691,15 @@ identity:
   Definite no-side-effect failure даёт `reissue_failed`; новый operator attempt
   всё равно требует новый idempotency key и CAS. Lost/timeout/ambiguous response
   даёт `reissue_unknown`, никогда auto/blind resend. Reconciliation либо
-  подтверждает тот же identity/acceptance, либо остаётся unknown. Если факт
-  delivery не доказуем, следующий operator reissue запрещён как минимум до
-  conservative expiry `claim_time + verified OTP expiration`. После этой
-  границы только явная Admin-команда может CAS-ом перевести
-  `reissue_unknown -> expired`, и лишь при fresh read-back того же unconfirmed
-  Auth user/email и expected version/generation; затем новый fenced reissue CAS
-  требует новый idempotency key;
+  видит accepted identity, либо наблюдает новое exact provider
+  `confirmation_sent_at` и переводит в `issued` с expiry от него. Local
+  `claim_time + OTP TTL`, client timeout, отсутствие строки при одном read-back
+  или простое истечение wall time **никогда** не являются expiry/retry fence.
+  Перевод в definite no-issuance возможен только при доказанном provider/request
+  upper bound, после которого этот exact ambiguous attempt уже не может выпустить
+  token, и неизменившемся exact read-back. Если ни provider issuance timestamp,
+  ни такой upper bound не доказаны, receipt остаётся `reissue_unknown`
+  бессрочно и следующий reissue запрещён;
 - expired/stale/consumed token в callback показывает только bounded auth error:
   он не меняет receipt, не создаёт identity и не запускает reissue. Если token
   любой generation всё ещё успешно verify-ится, результат принимается только
@@ -758,7 +833,9 @@ standard/resumable boundary:
    файл; `git diff --check`, Node 22.23.1 runtime, PR-classifier/release-contract
    tests, independent adversarial docs review. Никакой migration/code/runtime
    claim.
-2. **E1 authority (126):** receipt + prepare/record/finalize RPC, mandatory
+2. **E1 authority (126):** authenticated Admin `prepare` + service-role-only
+   claim/record/reconcile/finalize RPC и private receipt-authorized core;
+   explicit least-privilege grants, mandatory
    organization + exact-case grants, bind/bump/activate, normal-U6 и legacy
    pending+Curator paths, SQL inventory/RLS/replay/cross-org/closed/
    already-bound/race tests. Все provisioning/legacy curator paths обязаны
@@ -770,8 +847,18 @@ standard/resumable boundary:
    two-request tests, global same-email cross-org race, crash before claim,
    crash after durable dispatch marker, stale-dispatch reconciliation, wrong
    `auth.users.id`/email record+finalize rejection, invite-delivery state/
-   generation CAS, concurrent reissue winner/replay/unknown transitions и полный
-   `scripts/test-postgres-authorization.sh` на OrbStack.
+   generation/active-attempt CAS, concurrent initial/reissue claim,
+   stale-worker/reordered success/failure/unknown rejection, caller/grant
+   separation, service-role denial on Admin prepare, authenticated denial on
+   coordinator RPCs, no-Admin-JWT service behavior, receipt-bound current Admin
+   role/bundle/permission/scope/access-version revalidation и revoked/drifted
+   Admin denial; private receipt/attempt ENABLE+FORCE RLS/no-policy/no-direct-
+   table-or-sequence-grant catalog checks; domain->root/child->row lock order и
+   dblink finalizer-vs-direct-scope/Curator bounded serialization — затем полный
+   `scripts/test-postgres-authorization.sh` на OrbStack. Отдельные SQL regressions
+   обязаны доказать replacement `student_cases_identity_immutable`: successful
+   one-way exact Student bind/finalizer replay и отказ unbind/rebind/wrong-org/
+   non-Student/inactive/direct unauthorized/concurrent competing bind.
 3. **E2 read models (127):** только additive projections выше, SQL
    column/grant/RLS/data-minimization tests и `src/lib/v3` Student adapters с
    strict decoders. Сначала E1 merge, затем refresh exact `main`; полный
@@ -786,7 +873,11 @@ standard/resumable boundary:
    same-identity operator reissue, concurrent reissue с максимум одним provider
    call, same-key replay без второго call, stale-token behavior, ambiguous
    reissue без blind resend, wrong Auth identity rejection, no arbitrary
-   redirect/secret-browser leakage и staff/Student mutual rejection.
+   redirect/secret-browser leakage, initial/reissue active-attempt replay и
+   reordered stale-worker responses без state overwrite/provider recall,
+   observed-`confirmation_sent_at` expiry, claim-time-TTL refusal и indefinite
+   unknown без доказанного provider upper bound, а также staff/Student mutual
+   rejection.
 5. **E4 portal surface:** отдельный Student layout и ровно пять routes на E2
    adapters; Russian wording, empty/error/loading states, no fabricated facts,
    desktop/393px/forced-dark/a11y tests. Staff/Admin preview не открывает portal,

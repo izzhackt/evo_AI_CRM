@@ -358,7 +358,7 @@ async function main() {
         VALUES (
           ${ids.version}, ${ids.organization}, ${ids.case}, ${ids.slot}, 1,
           'passport.pdf', 'application/pdf', 2048, ${"a".repeat(64)},
-          'synthetic:e4:document', ${ids.studentMembership}, 'verified', 'clean',
+          'synthetic:e4:document', ${ids.studentMembership}, 'verified', 'pending',
           '2026-09-03T08:00:00Z'
         )
       `;

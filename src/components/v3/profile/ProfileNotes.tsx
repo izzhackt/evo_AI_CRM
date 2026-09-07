@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import {
   createCaseNoteAction,
   type PlatformCaseNoteActionState,
 } from "@/lib/platform-case-note-actions";
+import { isPlatformCaseNoteBodyWithinCodePointLimit } from "@/lib/platform-case-note-contract";
 import type { ProfileNotesSnapshot } from "./types";
 
 const NOTE_TIME = new Intl.DateTimeFormat("ru-RU", {
@@ -41,6 +42,7 @@ export function ProfileNotes({
   latestHref: string | null;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const acceptedBodyRef = useRef("");
   const initialState: PlatformCaseNoteActionState = Object.freeze({
     status: "idle",
     requestId,
@@ -51,9 +53,13 @@ export function ProfileNotes({
     createCaseNoteAction,
     initialState,
   );
+  const [lengthRejected, setLengthRejected] = useState(false);
 
   useEffect(() => {
-    if (state.status === "saved") formRef.current?.reset();
+    if (state.status === "saved") {
+      acceptedBodyRef.current = "";
+      formRef.current?.reset();
+    }
   }, [state.status, state.caseNoteId]);
 
   return (
@@ -85,18 +91,39 @@ export function ProfileNotes({
           id="profile-note-body"
           name="body"
           required
-          maxLength={4000}
           rows={3}
           disabled={pending}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            if (!isPlatformCaseNoteBodyWithinCodePointLimit(value)) {
+              event.currentTarget.value = acceptedBodyRef.current;
+              setLengthRejected(true);
+              return;
+            }
+            acceptedBodyRef.current = value;
+            setLengthRejected(false);
+          }}
+          aria-describedby={
+            lengthRejected ? "profile-note-body-length-error" : undefined
+          }
           className="w-full resize-y rounded-ctl border border-control-edge bg-bg px-3 py-2 text-sm text-fg outline-none focus:border-accent disabled:opacity-60"
         />
+        {lengthRejected ? (
+          <p
+            id="profile-note-body-length-error"
+            role="alert"
+            className="text-xs text-danger"
+          >
+            Изменение не применено: заметка не может превышать 4000 символов.
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-2xs text-fg-3" aria-live="polite">
             {state.status === "idle" ? "До 4000 знаков." : STATUS_COPY[state.status]}
           </p>
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || lengthRejected}
             className="min-h-10 rounded-ctl bg-accent px-3 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? "Сохраняем…" : "Добавить заметку"}

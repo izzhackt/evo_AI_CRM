@@ -6,6 +6,7 @@ import { personState } from "@/lib/v3/wording";
 import { Documents } from "./Documents";
 import { ProfileContractWorkspace } from "./ProfileContractWorkspace";
 import { ProfileNotes } from "./ProfileNotes";
+import { profileNotesSubjectKey } from "./profile-notes-view";
 import { Anketa, History, Money, Overview } from "./tabs";
 import {
   tabsFor,
@@ -150,6 +151,7 @@ export function Profile({
             tabHref={hrefFor}
           />
           <ProfileNotes
+            key={profileNotesSubjectKey(notes.subject)}
             notes={notes}
             requestId={noteRequestId}
             olderHref={notesOlderHref}

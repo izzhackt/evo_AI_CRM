@@ -22,3 +22,15 @@ export function toProfileNotesSnapshot(
     ),
   });
 }
+
+export function profileNotesSubjectKey(
+  subject: PlatformCaseNoteSubject,
+): string {
+  if (subject.leadId !== null && subject.studentCaseId === null) {
+    return `lead:${subject.leadId}`;
+  }
+  if (subject.leadId === null && subject.studentCaseId !== null) {
+    return `student-case:${subject.studentCaseId}`;
+  }
+  throw new Error("Profile note subject is invalid.");
+}

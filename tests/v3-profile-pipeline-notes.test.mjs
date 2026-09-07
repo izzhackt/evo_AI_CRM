@@ -6,7 +6,11 @@ import {
   listPlatformSalesLeads,
   PlatformSalesRepositoryError,
 } from "../src/lib/platform-sales.ts";
-import { toProfileNotesSnapshot } from "../src/components/v3/profile/profile-notes-view.ts";
+import {
+  profileNotesSubjectKey,
+  toProfileNotesSnapshot,
+} from "../src/components/v3/profile/profile-notes-view.ts";
+import { isPlatformCaseNoteBodyWithinCodePointLimit } from "../src/lib/platform-case-note-contract.ts";
 
 const ORGANIZATION_ID = "10000000-0000-4000-8000-000000000001";
 const LEAD_ID = "20000000-0000-4000-8000-000000000001";
@@ -139,6 +143,12 @@ test("Profile notes preserve exact route subjects and bounded keyset paging", ()
   assert.match(component, /note\.authorDisplayName/u);
   assert.match(component, /<time dateTime=\{note\.createdAt\}/u);
   assert.doesNotMatch(component, /data-note-id|note\.caseNoteId/u);
+  assert.doesNotMatch(component, /maxLength=\{4000\}/u);
+  assert.match(component, /isPlatformCaseNoteBodyWithinCodePointLimit/u);
+  assert.match(component, /role="alert"/u);
+  assert.match(component, /disabled=\{pending \|\| lengthRejected\}/u);
+  const profile = source("src/components/v3/profile/Profile.tsx");
+  assert.match(profile, /key=\{profileNotesSubjectKey\(notes\.subject\)\}/u);
   assert.match(component, />\s*Ранее\s*</u);
   assert.match(page, /parsePlatformCaseNoteCursor\(noteBeforeAt, noteBeforeId\)/u);
   assert.match(page, /noteCursor === null \|\| \(!hasLeadParam && !hasCaseParam\)/u);
@@ -148,7 +158,7 @@ test("Profile notes preserve exact route subjects and bounded keyset paging", ()
   assert.match(page, /toProfileNotesSnapshot\(view\.notes\.subject, view\.notes\.page\)/u);
 });
 
-test("Profile note client snapshot excludes repository-only identities", () => {
+test("Profile note client rows exclude repository-only identities", () => {
   const subject = Object.freeze({ leadId: LEAD_ID, studentCaseId: null });
   const snapshot = toProfileNotesSnapshot(subject, {
     rows: [
@@ -189,6 +199,31 @@ test("Profile note client snapshot excludes repository-only identities", () => {
   assert.doesNotMatch(serializedRows, new RegExp(LEAD_ID, "u"));
   assert.doesNotMatch(serializedRows, new RegExp(NOTE_ID, "u"));
   assert.doesNotMatch(serializedRows, new RegExp(MEMBERSHIP_ID, "u"));
+  assert.equal(profileNotesSubjectKey(subject), `lead:${LEAD_ID}`);
+  assert.equal(
+    profileNotesSubjectKey({ leadId: null, studentCaseId: NOTE_ID }),
+    `student-case:${NOTE_ID}`,
+  );
+  assert.notEqual(
+    profileNotesSubjectKey(subject),
+    profileNotesSubjectKey({ leadId: null, studentCaseId: NOTE_ID }),
+  );
+  assert.throws(
+    () => profileNotesSubjectKey({ leadId: null, studentCaseId: null }),
+    /subject is invalid/u,
+  );
+});
+
+test("Profile note draft limit uses Unicode code points", () => {
+  assert.equal(
+    isPlatformCaseNoteBodyWithinCodePointLimit("📝".repeat(4_000)),
+    true,
+  );
+  assert.equal(
+    isPlatformCaseNoteBodyWithinCodePointLimit("📝".repeat(4_001)),
+    false,
+  );
+  assert.equal(isPlatformCaseNoteBodyWithinCodePointLimit("broken\ud800"), false);
 });
 
 test("Pipeline cards use batched latest notes and suppress synthetic handoff age", () => {

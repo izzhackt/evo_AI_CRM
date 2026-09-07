@@ -368,6 +368,7 @@ test("portal feedback and status markers reuse the shared restrained visual lang
   const applications = source("src/components/v3/portal/ApplicationsView.tsx");
   const documents = source("src/components/v3/portal/DocumentsView.tsx");
   const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+  const error = source("src/app/(portal)/portal/error.tsx");
 
   assert.match(
     applications,
@@ -378,7 +379,7 @@ test("portal feedback and status markers reuse the shared restrained visual lang
     /<PortalStatus label="Новое" tone="info" \/>/u,
   );
   assert.doesNotMatch(
-    `${documents}\n${notifications}`,
+    `${documents}\n${notifications}\n${error}`,
     /border-danger|bg-danger-weak|rounded-\[5px\] bg-info-weak/u,
   );
   assert.match(documents, /role="note"/u);

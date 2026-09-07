@@ -8,8 +8,11 @@ export default function StudentPortalError({
 }) {
   return (
     <main className="mx-auto w-full max-w-[760px] px-4 py-12 sm:px-6 sm:py-16">
-      <section role="alert" className="rounded-card border border-danger bg-danger-weak p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-danger">
+      <section
+        role="alert"
+        className="rounded-card border border-border bg-surface p-5 shadow-card"
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-fg-3">
           Данные недоступны
         </p>
         <h1 className="mt-2 text-xl font-semibold text-fg">

@@ -19,6 +19,7 @@ import {
   type InboxAmoCrmCommand,
 } from "@/lib/v3/inbox-source";
 import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
+import { readV3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 
 export const dynamic = "force-dynamic";
@@ -77,20 +78,32 @@ export default async function InboxPart({
   let workflowControls = null;
   let amoCrmControls = null;
   let profileHref: string | null = null;
+  let mediaAttachmentContext: Awaited<
+    ReturnType<typeof readV3InboxMediaAttachmentContext>
+  > = null;
   if (view.selected) {
     if (model.providerWorkflow === null || model.amoCrmCommand === null) {
       throw new Error("V3 inbox command state is unavailable.");
     }
     const selected = view.selected;
     const provider = model.providerWorkflow;
-    const replySnippets = fixedRoleCan(
-      actor.presentationRole,
-      "messaging.send",
-    )
-      ? (await readV3ReplySnippets(actor)).map(
-          ({ replySnippetId, title, body }) => ({ replySnippetId, title, body }),
-        )
-      : null;
+    const [replySnippets, resolvedMediaAttachmentContext] = await Promise.all([
+      fixedRoleCan(
+        actor.presentationRole,
+        "messaging.send",
+      )
+        ? readV3ReplySnippets(actor).then((snippets) =>
+            snippets.map(
+              ({ replySnippetId, title, body }) => ({ replySnippetId, title, body }),
+            ))
+        : Promise.resolve(null),
+      readV3InboxMediaAttachmentContext(actor, {
+        conversationId: selected.id,
+        studentCaseId: selected.canonicalContext.studentCaseId,
+        media: selected.messages.flatMap((message) => message.media),
+      }),
+    ]);
+    mediaAttachmentContext = resolvedMediaAttachmentContext;
     workflowControls = (
       <InboxProviderWorkflowControls
         key={`${selected.id}:${selected.latestInboundSourceMessageId ?? "no-source"}:${
@@ -129,6 +142,7 @@ export default async function InboxPart({
         profileHref={profileHref}
         workflowControls={workflowControls}
         amoCrmControls={amoCrmControls}
+        mediaAttachmentContext={mediaAttachmentContext}
       />
     </PartShell>
   );

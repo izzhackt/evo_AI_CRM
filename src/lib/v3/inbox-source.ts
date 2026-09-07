@@ -50,6 +50,8 @@ export type InboxReadOptions = Readonly<{
   conversationId: string | null;
   queueCursor: PlatformConversationCursor | null;
   messageCursor: PlatformConversationCursor | null;
+  query: string | null;
+  waitingOnly: boolean;
 }>;
 
 export type InboxProviderWorkflow = Readonly<{
@@ -108,46 +110,13 @@ function formatWaitingRu(sinceIso: string): string | null {
   return `${Math.floor(hours / 24)} дн`;
 }
 
-/**
- * The waiting state is honest only on the newest transcript page: there the
- * final chronological message is the conversation's true latest message. On an
- * older page the newest message is not loaded, so the state stays unknown.
- * The queue projection carries no last-message direction, which is why rows
- * cannot show this yet — see backend-gaps.
- */
-function awaitingReplyFor(
-  messages: readonly PlatformConversationMessage[],
-  messageCursor: PlatformConversationCursor | null,
-  olderMessagesExist: boolean,
-): string | null {
-  if (messageCursor !== null) return null;
-  const newest = messages.at(-1);
-  if (newest === undefined || newest.direction !== "inbound") return null;
-  // Ожидание меряется от ПЕРВОГО входящего после нашего последнего ответа:
-  // каждое новое сообщение клиента не обнуляет его ожидание, иначе самый
-  // настойчивый клиент выглядел бы самым свежим.
-  let earliestUnanswered = newest;
-  let reachedPageStart = true;
-  for (let index = messages.length - 2; index >= 0; index -= 1) {
-    const message = messages[index]!;
-    if (message.direction !== "inbound") {
-      reachedPageStart = false;
-      break;
-    }
-    earliestUnanswered = message;
-  }
-  const shown = formatWaitingRu(earliestUnanswered.createdAt);
-  if (shown === null) return null;
-  // Серия входящих упёрлась в границу страницы, а за ней есть более старые
-  // сообщения: начало ожидания неизвестно, число честно становится нижней
-  // границей.
-  return reachedPageStart && olderMessagesExist ? `${shown}+` : shown;
-}
-
 function queueSearchParams(
   queueCursor: PlatformConversationCursor | null,
+  filters: Readonly<{ query: string | null; waitingOnly: boolean }>,
 ): URLSearchParams {
   const query = new URLSearchParams();
+  if (filters.query) query.set("q", filters.query);
+  if (filters.waitingOnly) query.set("waiting", "1");
   if (queueCursor) {
     query.set("before_at", queueCursor.sortAt);
     query.set("before_id", queueCursor.id);
@@ -159,12 +128,14 @@ function inboxHref({
   conversationId,
   queueCursor,
   messageCursor,
+  filters,
 }: Readonly<{
   conversationId?: string;
   queueCursor?: PlatformConversationCursor | null;
   messageCursor?: PlatformConversationCursor | null;
-}> = {}): string {
-  const query = queueSearchParams(queueCursor ?? null);
+  filters: Readonly<{ query: string | null; waitingOnly: boolean }>;
+}>): string {
+  const query = queueSearchParams(queueCursor ?? null, filters);
   if (conversationId) query.set("conversation", conversationId);
   if (messageCursor) {
     query.set("messages_before_at", messageCursor.sortAt);
@@ -177,6 +148,7 @@ function inboxHref({
 function toInboxConversation(
   summary: PlatformConversationSummary,
   queueCursor: PlatformConversationCursor | null,
+  filters: Readonly<{ query: string | null; waitingOnly: boolean }>,
 ): InboxConversation {
   return Object.freeze({
     id: summary.id,
@@ -184,7 +156,13 @@ function toInboxConversation(
     queue: summary.queue,
     status: summary.status,
     updatedAt: formatInboxTime(summary.sortAt),
-    href: inboxHref({ conversationId: summary.id, queueCursor }),
+    waitingSince: summary.waitingSince
+      ? formatInboxTime(summary.waitingSince)
+      : null,
+    awaitingReplyFor: summary.waitingSince
+      ? formatWaitingRu(summary.waitingSince)
+      : null,
+    href: inboxHref({ conversationId: summary.id, queueCursor, filters }),
   });
 }
 
@@ -223,10 +201,16 @@ export async function readInbox(
 ): Promise<InboxReadModel> {
   const presentationQueue =
     actor.presentationRole === "admin" ? undefined : actor.presentationRole;
+  const filters = Object.freeze({
+    query: options.query,
+    waitingOnly: options.waitingOnly,
+  });
   const [queue, resolvedThread] = await Promise.all([
     listPlatformConversations(actor, {
       cursor: options.queueCursor,
       pageSize: INBOX_PAGE_SIZE,
+      query: options.query ?? undefined,
+      waitingOnly: options.waitingOnly,
       ...(presentationQueue ? { queue: presentationQueue } : {}),
     }),
     options.conversationId
@@ -272,13 +256,8 @@ export async function readInbox(
     }
 
     selected = Object.freeze({
-      ...toInboxConversation(thread.conversation, options.queueCursor),
+      ...toInboxConversation(thread.conversation, options.queueCursor, filters),
       messages: Object.freeze(thread.messages.map(toInboxMessage)),
-      awaitingReplyFor: awaitingReplyFor(
-        thread.messages,
-        options.messageCursor,
-        thread.nextMessageCursor !== null,
-      ),
       latestInboundSourceMessageId: latestInboundMessageId(
         thread.messages,
         options.messageCursor,
@@ -287,6 +266,7 @@ export async function readInbox(
         ? inboxHref({
             conversationId: thread.conversation.id,
             queueCursor: options.queueCursor,
+            filters,
           })
         : null,
       olderMessagesHref: thread.nextMessageCursor
@@ -294,6 +274,7 @@ export async function readInbox(
             conversationId: thread.conversation.id,
             queueCursor: options.queueCursor,
             messageCursor: thread.nextMessageCursor,
+            filters,
           })
         : null,
       channelState:
@@ -322,14 +303,22 @@ export async function readInbox(
     view: Object.freeze({
       conversations: Object.freeze(
         queue.rows.map((summary) =>
-          toInboxConversation(summary, options.queueCursor),
+          toInboxConversation(summary, options.queueCursor, filters),
         ),
       ),
       selected,
-      queueCurrentHref: inboxHref({ queueCursor: options.queueCursor }),
-      queueNewestHref: options.queueCursor ? "/v3/inbox" : null,
+      searchQuery: options.query,
+      waitingOnly: options.waitingOnly,
+      waitingToggleHref: inboxHref({
+        filters: Object.freeze({
+          query: options.query,
+          waitingOnly: !options.waitingOnly,
+        }),
+      }),
+      queueCurrentHref: inboxHref({ queueCursor: options.queueCursor, filters }),
+      queueNewestHref: options.queueCursor ? inboxHref({ filters }) : null,
       queueOlderHref: queue.nextCursor
-        ? inboxHref({ queueCursor: queue.nextCursor })
+        ? inboxHref({ queueCursor: queue.nextCursor, filters })
         : null,
     }),
     providerWorkflow,

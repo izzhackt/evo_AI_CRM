@@ -23,6 +23,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Входящие" };
 
 type SearchParams = Readonly<{
+  q?: string | string[];
+  waiting?: string | string[];
   conversation?: string | string[];
   before_at?: string | string[];
   before_id?: string | string[];
@@ -51,6 +53,8 @@ export default async function InboxPart({
   ]);
   assertExpectedQueryKeys(query);
   const conversationId = parseConversationId(query.conversation);
+  const inboxQuery = parseInboxQuery(query.q);
+  const waitingOnly = parseWaitingOnly(query.waiting);
   const queueCursor = parseCursor(query.before_at, query.before_id);
   const messageCursor = parseCursor(
     query.messages_before_at,
@@ -62,6 +66,8 @@ export default async function InboxPart({
     conversationId,
     queueCursor,
     messageCursor,
+    query: inboxQuery,
+    waitingOnly,
   });
   const { view } = model;
   if (conversationId !== null && view.selected === null) notFound();
@@ -149,6 +155,8 @@ function renderAmoCrmControls(
 
 function assertExpectedQueryKeys(params: SearchParams): void {
   const allowed = new Set([
+    "q",
+    "waiting",
     "conversation",
     "before_at",
     "before_id",
@@ -156,6 +164,21 @@ function assertExpectedQueryKeys(params: SearchParams): void {
     "messages_before_id",
   ]);
   if (Object.keys(params).some((key) => !allowed.has(key))) notFound();
+}
+
+function parseInboxQuery(raw: string | string[] | undefined): string | null {
+  const value = singleValue(raw);
+  if (value === undefined) return null;
+  const normalized = value.trim();
+  if (normalized.length > 200) notFound();
+  return normalized || null;
+}
+
+function parseWaitingOnly(raw: string | string[] | undefined): boolean {
+  const value = singleValue(raw);
+  if (value === undefined) return false;
+  if (value !== "1") notFound();
+  return true;
 }
 
 function parseConversationId(raw: string | string[] | undefined): string | null {

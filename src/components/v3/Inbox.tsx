@@ -26,18 +26,14 @@ export type InboxConversation = Readonly<{
   /** Kept in the model; intentionally omitted while it adds no operator decision. */
   status: "open" | "closed";
   updatedAt: string;
+  waitingSince: string | null;
+  awaitingReplyFor: string | null;
   href: string;
 }>;
 
 export type InboxSelectedConversation = InboxConversation &
   Readonly<{
     messages: readonly InboxMessage[];
-    /**
-     * `5 мин` / `3 ч` / `2 дн` — how long the client has been waiting since
-     * their latest message. Null when the latest loaded message is outbound
-     * or when an older transcript page hides the newest message.
-     */
-    awaitingReplyFor: string | null;
     latestInboundSourceMessageId: string | null;
     newestMessagesHref: string | null;
     olderMessagesHref: string | null;
@@ -52,6 +48,9 @@ export type InboxView = Readonly<{
   queueCurrentHref: string;
   queueNewestHref: string | null;
   queueOlderHref: string | null;
+  searchQuery: string | null;
+  waitingOnly: boolean;
+  waitingToggleHref: string;
 }>;
 
 function channelLabel(
@@ -88,6 +87,49 @@ export function Inbox({
           open ? "hidden @4xl:block" : ""
         }`}
       >
+        <form
+          action="/v3/inbox"
+          method="get"
+          role="search"
+          className="border-b border-border p-3"
+        >
+          {view.waitingOnly ? (
+            <input type="hidden" name="waiting" value="1" />
+          ) : null}
+          <label htmlFor="v3-inbox-search" className="sr-only">
+            Найти диалог
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="v3-inbox-search"
+              name="q"
+              type="search"
+              maxLength={200}
+              defaultValue={view.searchQuery ?? ""}
+              placeholder="Имя, телефон или тема"
+              className="min-h-10 min-w-0 flex-1 rounded-ctl border border-border bg-canvas px-3 text-sm text-fg outline-none focus:border-accent"
+            />
+            <button
+              type="submit"
+              className="min-h-10 rounded-ctl bg-accent px-3 text-xs font-semibold text-on-accent"
+            >
+              Найти
+            </button>
+          </div>
+          <Link
+            href={view.waitingToggleHref}
+            aria-current={view.waitingOnly ? "page" : undefined}
+            className={`mt-2 inline-flex min-h-9 items-center rounded-ctl px-2.5 text-xs font-semibold ${
+              view.waitingOnly
+                ? "bg-warn-weak text-warn"
+                : "bg-surface-2 text-fg-2 hover:text-fg"
+            }`}
+            data-testid="v3-inbox-waiting-filter"
+          >
+            {view.waitingOnly ? "Показать все" : "Только ждут ответа"}
+          </Link>
+        </form>
+
         <nav
           aria-label="Страницы диалогов"
           className="flex min-h-12 items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs"
@@ -140,6 +182,14 @@ export function Inbox({
                       {conversation.updatedAt}
                     </span>
                   </span>
+                  {conversation.waitingSince ? (
+                    <span className="text-2xs font-medium text-warn">
+                      Ждёт ответа с {conversation.waitingSince}
+                      {conversation.awaitingReplyFor
+                        ? ` · ${conversation.awaitingReplyFor}`
+                        : ""}
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             );
@@ -174,8 +224,11 @@ export function Inbox({
                 <h2 className="min-w-0 text-md font-bold text-fg">
                   {open.person}
                 </h2>
-                {open.awaitingReplyFor ? (
-                  <Pill tone="warn">Ждёт ответа · {open.awaitingReplyFor}</Pill>
+                {open.waitingSince ? (
+                  <Pill tone="warn">
+                    Ждёт ответа с {open.waitingSince}
+                    {open.awaitingReplyFor ? ` · ${open.awaitingReplyFor}` : ""}
+                  </Pill>
                 ) : null}
               </div>
               <p className="mt-0.5 text-2xs text-fg-3">

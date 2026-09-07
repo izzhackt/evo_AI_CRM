@@ -27,16 +27,40 @@ test("V3 Inbox reads one URL-selected canonical transcript with exact cursors", 
   assert.match(adapter, /messages_before_id/u);
   assert.match(adapter, /before_at/u);
   assert.match(adapter, /before_id/u);
+  assert.match(adapter, /query: options\.query \?\? undefined/u);
+  assert.match(adapter, /waitingOnly: options\.waitingOnly/u);
+  assert.match(adapter, /query\.set\("q", filters\.query\)/u);
+  assert.match(adapter, /query\.set\("waiting", "1"\)/u);
 
   assert.match(page, /conversation\?: string \| string\[\]/u);
   assert.match(page, /parsePlatformRouteUuid/u);
   assert.match(page, /parsePlatformConversationCursor/u);
   assert.match(page, /conversationId === null && messageCursor !== null/u);
   assert.match(page, /conversationId !== null && view\.selected === null/u);
+  assert.match(page, /q\?: string \| string\[\]/u);
+  assert.match(page, /waiting\?: string \| string\[\]/u);
+  assert.match(page, /value !== "1"/u);
+  assert.match(page, /normalized\.length > 200/u);
   assert.doesNotMatch(inbox, /useState|onClick=/u);
   assert.match(inbox, /href=\{conversation\.href\}/u);
   assert.match(inbox, /href=\{open\.olderMessagesHref\}/u);
   assert.match(inbox, /href=\{view\.queueOlderHref\}/u);
+});
+
+test("V3 Inbox search and waiting UI use the server waiting_since projection", () => {
+  const adapter = source("src/lib/v3/inbox-source.ts");
+  const inbox = source("src/components/v3/Inbox.tsx");
+
+  assert.match(adapter, /summary\.waitingSince/u);
+  assert.match(adapter, /formatWaitingRu\(summary\.waitingSince\)/u);
+  assert.doesNotMatch(adapter, /function awaitingReplyFor/u);
+  assert.match(adapter, /waitingToggleHref/u);
+  assert.match(inbox, /name="q"/u);
+  assert.match(inbox, /name="waiting" value="1"/u);
+  assert.match(inbox, /Только ждут ответа/u);
+  assert.match(inbox, /Ждёт ответа с \{conversation\.waitingSince\}/u);
+  assert.match(inbox, /Ждёт ответа с \{open\.waitingSince\}/u);
+  assert.doesNotMatch(`${adapter}\n${inbox}`, /lastMessageAt.*formatWaitingRu/su);
 });
 
 test("V3 owns human-reviewed Gemini and explicit WhatsApp action controls", () => {

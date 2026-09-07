@@ -97,6 +97,7 @@ function validConversationRow(overrides = {}) {
     sort_at: SORT_AT,
     last_message_direction: "inbound",
     last_message_at: SORT_AT,
+    waiting_since: "2026-09-07T08:45:00+00:00",
     ...overrides,
   };
 }
@@ -172,25 +173,32 @@ function validTaskQueueRow(overrides = {}) {
   };
 }
 
-test("119 communication summaries require the exact last-message pair", () => {
+test("122 communication summaries require the exact waiting projection", () => {
   const summary = normalizePlatformConversationSummary(validConversationRow());
   assert.equal(summary.lastMessageDirection, "inbound");
   assert.equal(summary.lastMessageAt, SORT_AT);
+  assert.equal(summary.waitingSince, "2026-09-07T08:45:00+00:00");
 
   const emptySummary = normalizePlatformConversationSummary(
     validConversationRow({
       last_message_direction: null,
       last_message_at: null,
+      waiting_since: null,
     }),
   );
   assert.equal(emptySummary.lastMessageDirection, null);
   assert.equal(emptySummary.lastMessageAt, null);
+  assert.equal(emptySummary.waitingSince, null);
 
   for (const invalidRow of [
     withoutKey(validConversationRow(), "last_message_at"),
+    withoutKey(validConversationRow(), "waiting_since"),
     { ...validConversationRow(), unexpected: true },
     validConversationRow({ last_message_direction: null }),
     validConversationRow({ last_message_at: null }),
+    validConversationRow({ waiting_since: null }),
+    validConversationRow({ waiting_since: "2026-09-07T09:01:00+00:00" }),
+    validConversationRow({ last_message_direction: "outbound" }),
     validConversationRow({ last_message_direction: "sideways" }),
     validConversationRow({ last_message_at: "2026-02-30T09:00:00+00:00" }),
   ]) {
@@ -201,7 +209,7 @@ test("119 communication summaries require the exact last-message pair", () => {
   }
 });
 
-test("119 communication search trims, bounds and passes p_query exactly", async () => {
+test("122 communication search and waiting flag pass exact server filters", async () => {
   const recorded = recordingClient([]);
   await listPlatformConversations(
     salesActor,
@@ -217,6 +225,7 @@ test("119 communication search trims, bounds and passes p_query exactly", async 
         p_organization_id: ORGANIZATION_ID,
         p_limit: 26,
         p_query: "+996 555",
+        p_waiting_only: false,
       },
       options: { get: true },
     },
@@ -234,6 +243,31 @@ test("119 communication search trims, bounds and passes p_query exactly", async 
     );
     assert.deepEqual(invalid.calls, []);
   }
+
+  const waiting = recordingClient([validConversationRow()]);
+  const waitingPage = await listPlatformConversations(
+    salesActor,
+    { pageSize: 1, query: "Aijan", waitingOnly: true },
+    { client: waiting.client },
+  );
+  assert.equal(waitingPage.rows[0]?.waitingSince, "2026-09-07T08:45:00+00:00");
+  assert.deepEqual(waiting.calls[1].args, {
+    p_organization_id: ORGANIZATION_ID,
+    p_limit: 2,
+    p_query: "Aijan",
+    p_waiting_only: true,
+  });
+
+  const invalidWaiting = recordingClient([]);
+  await assert.rejects(
+    listPlatformConversations(
+      salesActor,
+      { waitingOnly: "yes" },
+      { client: invalidWaiting.client },
+    ),
+    PlatformCommunicationsRepositoryError,
+  );
+  assert.deepEqual(invalidWaiting.calls, []);
 });
 
 test("119 Sales queue requires stage_entered_at without changing detail", async () => {

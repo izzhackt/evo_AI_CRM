@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 import { expect, test, type Download, type Locator, type Page } from "@playwright/test";
+import postgres from "postgres";
 
 const authMode = process.env.EVO_EXPECT_STAFF_AUTH_MODE ?? "configured";
 
@@ -263,6 +264,228 @@ function writeP4AcceptanceResult(result: Readonly<Record<string, unknown>>) {
     throw new Error("EVO_P4_ACCEPTANCE_RESULT_FILE is required");
   }
   writeFileSync(resultPath, JSON.stringify(result), { mode: 0o600 });
+}
+
+type MediaBrowserFixture = Readonly<{
+  conversationId: string;
+  mediaId: string;
+  documentSlotId: string;
+  fileName: string;
+  privateBucketId: string;
+  privateObjectName: string;
+}>;
+
+function requiredLocalDatabaseUrl(): string {
+  const value = process.env.SUPABASE_DB_URL;
+  if (!value) throw new Error("SUPABASE_DB_URL is required");
+  const parsed = new URL(value);
+  if (
+    parsed.protocol !== "postgresql:" ||
+    (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") ||
+    !parsed.username ||
+    !parsed.password ||
+    parsed.pathname.length <= 1
+  ) {
+    throw new Error(
+      "SUPABASE_DB_URL must address the private local Supabase database",
+    );
+  }
+  return value;
+}
+
+function readP4MediaFixtureContext(): Readonly<{
+  organizationId: string;
+  studentCaseId: string;
+  documentSlotId: string;
+}> {
+  const resultPath = process.env.EVO_P4_ACCEPTANCE_RESULT_FILE;
+  if (!resultPath) {
+    throw new Error("EVO_P4_ACCEPTANCE_RESULT_FILE is required");
+  }
+  const parsed: unknown = JSON.parse(readFileSync(resultPath, "utf8"));
+  const result = expectObject(parsed);
+  return Object.freeze({
+    organizationId: requireUuidValue(result.organizationId),
+    studentCaseId: requireUuidValue(result.studentCaseId),
+    documentSlotId: requireUuidValue(result.documentSlotId),
+  });
+}
+
+async function provisionExactCaseMediaFixture(): Promise<MediaBrowserFixture> {
+  const context = readP4MediaFixtureContext();
+  const connectionString = requiredLocalDatabaseUrl();
+  const sql = postgres(connectionString, { max: 1, onnotice: () => undefined });
+  const conversationId = randomUUID();
+  const participantId = randomUUID();
+  const messageId = randomUUID();
+  const mediaId = randomUUID();
+  const bindingId = randomUUID();
+  const workId = randomUUID();
+  const effectId = randomUUID();
+  const attemptId = randomUUID();
+  const requestId = randomUUID();
+  const sha256Hex = `${randomUUID().replaceAll("-", "")}${randomUUID().replaceAll("-", "")}`;
+  const privateBucketId = "platform-whatsapp-media";
+  const privateObjectName = `${sha256Hex.slice(0, 2)}/${sha256Hex.slice(2)}`;
+  const fileName = "d2-isolated-offer.pdf";
+  const providerIdentity = (
+    BigInt(Date.now()) * BigInt(1_000_000) +
+    BigInt(`0x${sha256Hex.slice(0, 10)}`)
+  ).toString();
+  const rawChatId = `${providerIdentity}@c.us`;
+
+  try {
+    await sql.begin(async (transaction) => {
+      const caseRows = await transaction<
+        Array<{
+          responsible_sales_membership_id: string;
+          current_curator_membership_id: string;
+          current_scope_id: string;
+          current_scope_version: string;
+          canonical_client_id: string;
+          canonical_lead_id: string;
+          created_from_webhook_event_id: string;
+        }>
+      >`
+        SELECT
+          student_case.responsible_sales_membership_id,
+          student_case.current_curator_membership_id,
+          student_case.current_scope_id,
+          student_case.current_scope_version::text,
+          student_case.canonical_client_id,
+          student_case.canonical_lead_id,
+          source.created_from_webhook_event_id
+        FROM platform.student_cases AS student_case
+        CROSS JOIN LATERAL (
+          SELECT conversation.created_from_webhook_event_id
+          FROM platform.communication_conversations AS conversation
+          WHERE conversation.organization_id = student_case.organization_id
+          ORDER BY conversation.created_at, conversation.id
+          LIMIT 1
+        ) AS source
+        WHERE student_case.organization_id = ${context.organizationId}::uuid
+          AND student_case.id = ${context.studentCaseId}::uuid
+          AND student_case.state = 'active'
+          AND student_case.current_curator_membership_id IS NOT NULL
+          AND student_case.canonical_client_id IS NOT NULL
+          AND student_case.canonical_lead_id IS NOT NULL
+      `;
+      expect(caseRows).toHaveLength(1);
+      const caseRow = caseRows[0];
+
+      await transaction`
+        INSERT INTO platform.communication_conversations (
+          id, organization_id, student_case_id,
+          responsible_sales_membership_id, sales_authority_source,
+          current_curator_membership_id, queue, status, subject,
+          waha_session_name, kommo_account_id, kommo_conversation_id,
+          amocrm_account_id, amocrm_lead_id, amocrm_contact_id,
+          canonical_client_id, canonical_lead_id,
+          current_scope_id, current_scope_version,
+          created_from_webhook_event_id
+        ) VALUES (
+          ${conversationId}::uuid, ${context.organizationId}::uuid,
+          ${context.studentCaseId}::uuid,
+          ${caseRow.responsible_sales_membership_id}::uuid, 'provider_linked',
+          ${caseRow.current_curator_membership_id}::uuid, 'curator', 'open',
+          'D2 isolated exact-case media proof', 'crm_primary', NULL, NULL,
+          ${providerIdentity}::bigint, (${providerIdentity}::bigint + 1),
+          (${providerIdentity}::bigint + 2),
+          ${caseRow.canonical_client_id}::uuid, ${caseRow.canonical_lead_id}::uuid,
+          ${caseRow.current_scope_id}::uuid,
+          ${caseRow.current_scope_version}::bigint,
+          ${caseRow.created_from_webhook_event_id}::uuid
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.conversation_participants (
+          id, organization_id, conversation_id, participant_kind,
+          membership_id, external_subject_ref, source_webhook_event_id
+        ) VALUES (
+          ${participantId}::uuid, ${context.organizationId}::uuid,
+          ${conversationId}::uuid, 'customer', NULL,
+          ${`opaque:d2-media:${participantId}`} ,
+          ${caseRow.created_from_webhook_event_id}::uuid
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.communication_messages (
+          id, organization_id, conversation_id, student_case_id,
+          sender_participant_id, direction, body_text, language,
+          student_visible, message_identity_source,
+          waha_session_name, waha_message_id,
+          kommo_account_id, kommo_conversation_id, kommo_message_id,
+          amocrm_account_id, amocrm_lead_id, amocrm_contact_id,
+          source_webhook_event_id, manual_send_authorization_id
+        ) VALUES (
+          ${messageId}::uuid, ${context.organizationId}::uuid,
+          ${conversationId}::uuid, ${context.studentCaseId}::uuid,
+          ${participantId}::uuid, 'inbound', '[isolated media message]',
+          'undetermined', FALSE, 'public_provider_id', 'crm_primary',
+          ${`d2-media-${messageId}`}, NULL, NULL, NULL,
+          ${providerIdentity}::bigint, (${providerIdentity}::bigint + 1),
+          (${providerIdentity}::bigint + 2),
+          ${caseRow.created_from_webhook_event_id}::uuid, NULL
+        )
+      `;
+      await transaction`
+        INSERT INTO platform.communication_message_media (
+          id, organization_id, conversation_id, communication_message_id,
+          ordinal, media_kind, mime_type, file_name, file_size_bytes,
+          archival_status, archived_at
+        ) VALUES (
+          ${mediaId}::uuid, ${context.organizationId}::uuid,
+          ${conversationId}::uuid, ${messageId}::uuid, 0, 'pdf',
+          'application/pdf', ${fileName}, 4096, 'archived', statement_timestamp()
+        )
+      `;
+      await transaction`
+        INSERT INTO platform_private.waha_media_object_bindings (
+          id, organization_id, media_id, communication_message_id,
+          source_webhook_event_id, waha_session_name, raw_chat_id,
+          raw_message_id, bucket_id, object_name
+        ) VALUES (
+          ${bindingId}::uuid, ${context.organizationId}::uuid,
+          ${mediaId}::uuid, ${messageId}::uuid,
+          ${caseRow.created_from_webhook_event_id}::uuid, 'crm_primary',
+          ${rawChatId}, ${`d2-private-${messageId}`},
+          ${privateBucketId}, ${privateObjectName}
+        )
+      `;
+      await transaction`
+        INSERT INTO platform_private.waha_media_archive_work (
+          id, organization_id, media_id, object_binding_id, state, attempt_count
+        ) VALUES (
+          ${workId}::uuid, ${context.organizationId}::uuid,
+          ${mediaId}::uuid, ${bindingId}::uuid, 'archived', 1
+        )
+      `;
+      await transaction`
+        INSERT INTO platform_private.waha_media_archive_effects (
+          id, organization_id, work_id, attempt_id, outcome, error_code,
+          media_kind, mime_type, file_name, file_size_bytes, sha256_hex,
+          input_sha256, response, request_id
+        ) VALUES (
+          ${effectId}::uuid, ${context.organizationId}::uuid,
+          ${workId}::uuid, ${attemptId}::uuid, 'archived', NULL,
+          'pdf', 'application/pdf', ${fileName}, 4096, ${sha256Hex},
+          ${sha256Hex}, ${JSON.stringify({ outcome: "archived" })}::jsonb,
+          ${requestId}::uuid
+        )
+      `;
+    });
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+
+  return Object.freeze({
+    conversationId,
+    mediaId,
+    documentSlotId: context.documentSlotId,
+    fileName,
+    privateBucketId,
+    privateObjectName,
+  });
 }
 
 function assertDeniedRpc(
@@ -1077,7 +1300,6 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator('textarea[name="reason"]')
     .fill("Local browser proof of the reviewed Sales to Admissions handoff");
   await handoffForm.locator('button[type="submit"]').click();
-
   const result = page.getByTestId("v3-sales-handoff-completed");
   await expect(result).toBeVisible();
   await expect(
@@ -2140,6 +2362,90 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     firstDocumentVersionId,
     secondDocumentVersionId,
   });
+});
+
+test("D2 media stays opaque and exact-case attach fails safely without source bytes", async ({
+  page,
+}) => {
+  test.skip(authMode !== "configured");
+  test.setTimeout(120_000);
+  const fixture = await provisionExactCaseMediaFixture();
+  const inboxHref = `/v3/inbox?conversation=${fixture.conversationId}`;
+  const previewHref = `/api/v3/communication-media/${fixture.mediaId}`;
+  const downloadHref = `${previewHref}?download=1`;
+  const attachmentFormName = `Добавить ${fixture.fileName} в дело студента`;
+
+  await signIn(page, "sales");
+  await page.goto(inboxHref);
+  await expect(
+    page.getByRole("form", { name: attachmentFormName, exact: true }),
+  ).toHaveCount(0);
+
+  await page.context().clearCookies();
+  await signIn(page, "admin");
+  await page.getByTestId("preview-role-sales").click();
+  await expectActiveRole(page, "sales", "admin");
+  await page.goto(inboxHref);
+  await expect(
+    page.getByRole("form", { name: attachmentFormName, exact: true }),
+  ).toHaveCount(0);
+
+  await page.context().clearCookies();
+  await signIn(page, "admissions");
+  await page.goto(inboxHref);
+  await expect(page).toHaveURL(
+    new RegExp(`/v3/inbox\\?conversation=${fixture.conversationId}$`),
+  );
+  const mediaList = page.getByTestId("v3-inbox-message-media");
+  await expect(mediaList).toBeVisible();
+  await expect(
+    mediaList.getByRole("link", {
+      name: `Открыть вложение ${fixture.fileName}`,
+      exact: true,
+    }),
+  ).toHaveAttribute("href", previewHref);
+  await expect(
+    mediaList.getByRole("link", {
+      name: `Скачать вложение ${fixture.fileName}`,
+      exact: true,
+    }),
+  ).toHaveAttribute("href", downloadHref);
+
+  const renderedHtml = await page.content();
+  expect(renderedHtml).not.toContain(fixture.privateBucketId);
+  expect(renderedHtml).not.toContain(fixture.privateObjectName);
+
+  const attachmentForm = page.getByRole("form", {
+    name: attachmentFormName,
+    exact: true,
+  });
+  await expect(attachmentForm).toBeVisible();
+  const slotSelect = attachmentForm.getByRole("combobox", {
+    name: "Документ в деле студента",
+    exact: true,
+  });
+  await expect(slotSelect).toHaveValue("");
+  await expect(
+    slotSelect.locator(`option[value="${fixture.documentSlotId}"]`),
+  ).toHaveCount(1);
+  await expect(
+    attachmentForm.getByRole("button", {
+      name: "В дело студента",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+
+  await slotSelect.selectOption(fixture.documentSlotId);
+  await attachmentForm
+    .getByRole("button", { name: "В дело студента", exact: true })
+    .click();
+  await expect(attachmentForm.getByRole("alert")).toHaveText(
+    "Вложение или документ сейчас недоступны.",
+  );
+  await expect(attachmentForm.getByRole("status")).toHaveCount(0);
+  await expect(page).toHaveURL(
+    new RegExp(`/v3/inbox\\?conversation=${fixture.conversationId}$`),
+  );
 });
 
 test("Admissions manages one real private company file through V3", async ({

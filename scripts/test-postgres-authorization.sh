@@ -2152,6 +2152,15 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_student_portal_provisioning.sql
   fi
+
+  # Migration 127 adds only Student-self Portal read models. Exercise its
+  # exact columns, grants, RLS preservation and data-minimization boundary at
+  # the immutable migration checkpoint.
+  if [[ "$(basename "$migration")" == 127_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_portal_read_models.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

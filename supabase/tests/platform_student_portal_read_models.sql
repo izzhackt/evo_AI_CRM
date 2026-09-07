@@ -128,7 +128,7 @@ BEGIN
         contract.signature;
     END IF;
 
-    SELECT pg_catalog.coalesce(
+    SELECT COALESCE(
       pg_catalog.array_agg(parameter.parameter_name::TEXT
         ORDER BY parameter.ordinal_position),
       ARRAY[]::TEXT[]
@@ -394,6 +394,12 @@ FROM (VALUES
   ('59927000-0000-4000-8000-000000000507'::UUID, :'p127_student_c_membership'::UUID, :'p127_case_scope_c'::UUID, '59927000-0000-4000-8000-000000000607'::UUID)
 ) AS fixture(id, membership_id, scope_id, request_id);
 
+-- These synthetic rows model both active and pre-handoff Portal snapshots.
+-- Migration 126 correctly requires new runtime cases to begin pending, so
+-- bypass only that write-time transition guard while seeding this read-model
+-- fixture. Every RPC/RLS assertion below runs with normal trigger behavior.
+SET LOCAL session_replication_role = replica;
+
 INSERT INTO platform.student_cases (
   id, organization_id, student_membership_id,
   responsible_sales_membership_id, current_curator_membership_id,
@@ -433,6 +439,8 @@ VALUES
     'contract_confirmed', 'pending', NULL, NULL, NULL,
     'Inactive portal action', :'p127_case_scope_c', 1
   );
+
+SET LOCAL session_replication_role = origin;
 
 INSERT INTO platform.university_applications (
   id, organization_id, student_case_id, institution_name, program_name,
@@ -811,9 +819,11 @@ ROLLBACK TO SAVEPOINT p127_org_scope_denial;
 -- Portal permission is mandatory for every projection; finance additionally
 -- requires finance.read.self.
 SAVEPOINT p127_portal_permission_denial;
+SET LOCAL session_replication_role = replica;
 DELETE FROM platform.role_bundle_permissions
 WHERE bundle_id = :'p127_student_bundle'
   AND permission_key = 'portal.read.self';
+SET LOCAL session_replication_role = origin;
 SET request.jwt.claims TO :'p127_student_a_claims';
 SET ROLE authenticated;
 SELECT pg_temp.p127_assert(
@@ -827,9 +837,11 @@ RESET request.jwt.claims;
 ROLLBACK TO SAVEPOINT p127_portal_permission_denial;
 
 SAVEPOINT p127_finance_permission_denial;
+SET LOCAL session_replication_role = replica;
 DELETE FROM platform.role_bundle_permissions
 WHERE bundle_id = :'p127_student_bundle'
   AND permission_key = 'finance.read.self';
+SET LOCAL session_replication_role = origin;
 SET request.jwt.claims TO :'p127_student_a_claims';
 SET ROLE authenticated;
 SELECT pg_temp.p127_assert(

@@ -21234,3 +21234,49 @@ SQLite or `src/db` dependency. The assertion now preserves the replacement and
 fails closed if obsolete database markers return.
 
 This correction changes no runtime, provider, database or production state.
+
+## 2026-09-07 - Freeze V2 Drizzle history outside the successor build context
+
+Block-ID: `EVO-V3-FB-FROZEN-DRIZZLE-HISTORY-BOUNDARY-2026-09-07`
+
+Change type: Stage F preservation conflict correction.
+Affected plan section: Stage F item 4 and the completed P6C historical/build-
+context guard.
+
+Owner approval: after this exact preserve-at-current-paths, exclude-from-build,
+and strengthen-the-guards resolution was presented in the primary EVO task on
+2026-09-07, the owner replied exactly: `okay, do it, i liked your plan`.
+
+Stage F item 4 said to delete root `drizzle/`, but the higher-level AGENTS
+preservation exception and completed #586 contract require historical
+migrations, evidence and decision/rollback inputs to remain available in the
+repository without becoming successor authority. The existing archive rule
+also explicitly forbids moving code or migrations into `docs/archive`.
+
+The exact current inventory is six frozen SQL migrations
+`drizzle/0000_database_foundation.sql` through
+`drizzle/0005_v2_amocrm_lead_tag_catalog.sql`, six matching snapshots
+`drizzle/meta/0000_snapshot.json` through
+`drizzle/meta/0005_snapshot.json`, and `drizzle/meta/_journal.json`.
+
+Decision:
+
+1. Preserve those 13 files byte-for-byte at their exact current paths. Do not
+   relocate them, edit them, delete them in favour of Git history, import them,
+   execute them, bundle them or restore Drizzle tool discovery around them.
+2. Add root `drizzle` to `.dockerignore`. The production workflow and P6D use
+   repository context `.` and the root Dockerfile uses `COPY . .`; Docker's
+   documented contract removes ignored paths from the build context before it
+   is sent to the builder:
+   <https://docs.docker.com/build/concepts/context/#dockerignore-files>.
+3. Keep `drizzle/` in the provider inventory `HISTORICAL_ROOTS` and keep the
+   existing final-image SQLite/Drizzle forbidden guards. Historical
+   classification never exempts a reference under active source, package,
+   workflow, configuration or runtime paths.
+4. Strengthen only the P6C preservation guard and runtime-hardening Docker-
+   context guard: prove the exact 13-file SHA-256 inventory, require the Docker
+   exclusion, retain zero executable dependencies/config/scripts/imports, and
+   retain zero final-image path/dependency matches.
+
+This correction changes no product behavior, migration authority, provider,
+managed Supabase, VPS, production runtime or frozen V1/V2 deployment state.

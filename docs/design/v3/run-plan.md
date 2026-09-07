@@ -959,10 +959,15 @@ first-launch sslip hostname и exact managed Site URL/allowlist. Custom domain
    `locale-actions`, `getLocale` и user-facing switching не удалять без
    отдельной product-decision пачки, usage/evidence review и явного owner
    approval. Судьба `ThemeToggle`/dark mode также остаётся отдельным решением.
-4. `drizzle/` (SQLite-остаток, «delete this fucking shit») — с правкой
-   охраняющего теста p6c (строки ~211–218) и HISTORICAL_ROOTS/forbidden-regex
-   в scripts. `agent-lead2-inbox/` и `evo-lead-agent/` НЕ трогать: там живой
-   edge-Caddyfile и осознанно сохранённая граница.
+4. `drizzle/` сохраняет ровно 13 замороженных V2 migration/history
+   artifacts на их стабильных путях: это историческое исключение AGENTS,
+   а не active SQLite/Drizzle path. Добавить `drizzle` в корневой
+   `.dockerignore`; не переносить миграции в `docs/archive`, не удалять их
+   ссылкой на Git history и не импортировать, не исполнять и не бандлить
+   их. P6C фиксирует exact file/hash inventory и build-context exclusion;
+   `HISTORICAL_ROOTS` с `drizzle/` и final-image forbidden regexes остаются.
+   `agent-lead2-inbox/` и `evo-lead-agent/` НЕ трогать: там живой edge-Caddyfile
+   и осознанно сохранённая граница.
 5. Remote refs и комментарии здесь не удалять. Ветку
    `izzhackt/v3-h-managed-recovery-current-main` и прочие `izzhackt/*`
    инвентаризировать на уникальные commits/смысловые довески, но удалять только

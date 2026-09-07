@@ -20,6 +20,8 @@ evo_website
 twenty-evo-admissions-app
 agent-lead2-inbox
 evo-lead-agent
+# Frozen V2 database history; never part of the successor build context.
+drizzle
 tests
 docs/archive
 docs/evidence

@@ -21490,3 +21490,80 @@ and passes with real `unlink`/`rmdir` after the two-line correction; the origina
 fixture remains byte-identical. The app-only controller invariant and Bash
 syntax checks also pass. The protected diagnostic snapshots were removed under
 the release lock after exact path, ownership/mode and original-hash checks.
+
+## 2026-09-07 - Finish the scoped V3 runtime retirement and final handover
+
+Block-ID: `EVO-V3-PRODUCTION-FINALIZATION-2026-09-07`
+
+Change type: implementation of the existing #552 retirement and #553 final
+exact-main audit, not a new product or provider authorization. After a named
+V3 acceptance, remove only the obsolete `evo-inbox` public edge block and its
+two already-stopped companion containers. Preserve their volumes, images,
+configuration and historical evidence. Preserve `inbox` (a different project),
+the separate EVO Docs service, OlympiadAI and every other unrelated route.
+The shared active Caddy source remains the explicit historical-tree exception;
+do not revive or rewrite the frozen companion product.
+
+Read-only pre-acceptance inspection found that the live edge lacked the exact
+canonical API-path guard already accepted in #678. Only that snippet and the
+CRM import were installed from frozen main `3ab67a44` after independent
+byte-equivalence review, protected backup, Caddy validation and graceful reload.
+The bind-mounted inode and every original route were preserved. Strict-TLS
+original-URI probes proved the malformed paths return 404 without redirects.
+This reconciles an existing security boundary; it does not grant provider access.
+Official validation/reload behavior: <https://caddyserver.com/docs/command-line>.
+
+Keep this finalization diff limited to the shared edge template, current agent
+guidance and the compact run handover. Validate the affected infrastructure and
+documentation contract, obtain independent exact-head review, then merge while
+the production release arm is false. Freeze that final current-main revision,
+perform its required full proof and automatic release, and close #553 only when
+the accepted deployed revision equals that exact main. No docs-only equivalence
+exception is introduced. Do not repeat schema application while the managed
+ledger remains equal. Terminal SHA/run/acceptance and retirement checkpoints
+belong in #552/#553 so reporting does not create another post-freeze commit.
+
+## 2026-09-07 - Align release runners with the production image store
+
+Block-ID: `EVO-V3-RELEASE-IMAGE-STORE-PARITY-2026-09-07`
+
+Release `34164160455` attempt 1 on `3ab67a44` passed artifact, Variables,
+schema and transfer guards, then stopped before app/scanner creation or any
+pending/accepted authority. The release arm was set false and read back.
+The loaded VPS image ID is its byte-verified OCI manifest digest
+`sha256:b60899bcd7d6106e50eda3c8e5eb6e6442a0abb3aeb05f3277f4645c11c25fb8`;
+the same immutable archive carries config digest
+`sha256:d0c27db6ac0f3cb90a25b3fc0ff051849dd3eb0ed7f24d67543ef5d233be645e`.
+Docker 29.4.0 on this VPS uses the containerd image store, whereas the hosted
+runner attested its classic-store config digest as the engine-native image ID.
+The controller correctly rejects that mismatch; do not relax its guard.
+
+Scope the correction to the release workflow and its focused tests. Use
+official `docker/setup-docker-action` pinned to
+`77e84dbf09b47d1e29270283c22f16145aa85ca1` (v5.4.0), Docker `v29.4.0` and
+`containerd-snapshotter=true` in both ephemeral GitHub jobs. Do not change or
+restart the shared production Docker daemon. Derive the config digest from
+the exact saved archive's sole validated config path and bytes instead of
+equating it with `.Id`; check that separate attestation again after runner
+load. Preserve strict engine-ID, source, revision, version, platform, archive,
+current-main, actor, schema, rollback and acceptance bindings.
+
+Official setup guidance:
+<https://docs.docker.com/build/ci/github-actions/multi-platform/#build-and-load-multi-platform-images>
+and <https://github.com/docker/setup-docker-action/tree/77e84dbf09b47d1e29270283c22f16145aa85ca1>.
+Add behavioral archive regressions for distinct manifest/config identities and
+malformed config entries/bytes, plus both-job setup/order coverage. Retain the
+failed generation and snapshots as private historical evidence. Combine this
+reviewed correction with the conditional retirement-source/handover preparation
+before the next freeze; no live retirement before named acceptance. Record
+terminal progress in the issues rather than another post-freeze documentation
+commit, then complete #553 on the accepted exact current-main revision.
+
+Correction proof: all 38 workflow tests pass, including 17 new cases; 14 new
+cases failed before the fix. The actual new config-byte derivation also passes
+read-only against the retained VPS artifact and its distinct loaded manifest
+ID. A tiny real Docker 29.4.0/containerd build/save/remove-own-tag/load round-trip
+preserves the engine-native ID while keeping the config digest distinct and
+the saved manifest single-image. The disposable local image/tag was removed.
+The edited shared edge passed the existing pinned Caddy runtime proof. These
+are scoped correction proofs, not production acceptance of a new revision.

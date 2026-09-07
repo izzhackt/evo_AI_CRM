@@ -82,11 +82,13 @@
   explicit amoCRM command semantics in V3. Gemini never sends or changes CRM
   state; WhatsApp has no autonomous/broadcast path or blind retry; amoCRM is an
   integration, never a competing business authority.
-- Active V3 reuses the already connected private sales WAHA transport session
-  `crm_primary`, verified `WORKING` on 2026-09-02. This is session/container
-  reuse only: Supabase remains the sole business authority, and V3 must not run
-  the frozen V1 sender, writer or webhook worker, create dual inbound
-  processing, or fall back to `evo-inbox`. Completed #566/#568 verification
+- Active V3 reuses the private sales WAHA transport session `crm_primary`.
+  Its `WORKING` proof from 2026-09-02 is historical: the 2026-09-07 read-only
+  check reported `SCAN_QR_CODE`, and the owner declined QR pairing. Do not
+  claim current connectivity or restart, relink or pair the session. This is
+  session/container reuse only: Supabase remains the sole business authority,
+  and V3 must not run the frozen V1 sender, writer or webhook worker, create
+  dual inbound processing, or fall back to `evo-inbox`. Completed #566/#568 verification
   confirmed `crm_primary` readiness read-only, but did not require a selected
   inbound message, Gemini provider call or WhatsApp send. Those slices prove
   implementation and fail-closed readiness, not real message delivery. Moving
@@ -214,30 +216,34 @@
   Arcadis/acadis is a separate project boundary. EVO services should use their
   own Compose projects and neutral EVO-owned proxy/network names.
 
-## Current Production EVO Inbox Companion Boundary
+## Historical EVO Inbox Companion Boundary
 
-This section records the currently deployed companion contour as migration and
-rollback input. It does not authorize a separate target product, login, UI,
-canonical store or new dependency.
+The frozen companion records below are migration and rollback input, not
+current V3 runtime authority or permission for a separate product, login, UI,
+canonical store or fallback. Issue #552 owns its post-acceptance retirement;
+check the live checkpoint in `docs/design/v3/run-plan.md` and #552 before acting.
 
-- Target path: `/opt/evo-inbox`.
-- Public companion URL: `https://inbox.evoadmissions.com`.
-- Compose project: `evo-inbox`.
-- Public edge/proxy network: `evo_public_web`.
-- Public edge proxy: `evo-edge-caddy`, configured from
+- Historical path: `/opt/evo-inbox`; Compose project: `evo-inbox`.
+- After named V3 acceptance, retire only the obsolete public route
+  `https://evo-inbox.72.62.119.112.sslip.io` and its two already-stopped
+  containers, `evo-inbox-app-1` and `evo-inbox-waha`. Preserve companion volumes
+  (including WAHA sessions), images, configuration and historical evidence.
+  Do not restart the companion or use it as a V3 fallback. The separate
+  `inbox.72.62.119.112.sslip.io` route is not a retirement target.
+- The shared `evo-edge-caddy` proxy and `evo_public_web` network remain active.
+  Their source files are the explicit active exception in this frozen tree:
   `agent-lead2-inbox/deploy/docker-compose.edge.yml` and
-  `agent-lead2-inbox/deploy/Caddyfile.evo-edge`.
-- `acadis-caddy-1` is not an EVO edge dependency. If it owns `80/443`, archive
-  or stop the Acadis stack and move public routes onto `evo-edge-caddy`.
-- Private WAHA service: `evo-inbox-waha`, reachable only on the companion
-  Compose private network at `http://evo-inbox-waha:3000`.
-- First-launch WAHA session: `evo-inbox`.
+  `agent-lead2-inbox/deploy/Caddyfile.evo-edge`. Preserve the canonical CRM
+  API-path guard, every unrelated live route and the bind-mounted source path;
+  do not delete its historical release directory or stop/recreate the proxy.
+- Historical private WAHA service: `evo-inbox-waha`, reachable only on the
+  companion network at `http://evo-inbox-waha:3000`; its session was `evo-inbox`.
 - Frozen companion rule: the companion app does not reuse `/opt/evo-crm`,
   `evo-crm-waha`, `crm_primary`, or the lead-agent webhook path. EVO Inbox owns
   its companion WAHA webhook at `/api/waha/webhook`, its own HMAC secret, and
   its own encrypted WAHA settings. This companion-only isolation record is not
   current successor session authority. ADR 0025 records the selected transport;
-  Current Product Authority above carries the connected sales `crm_primary`
+  Current Product Authority above carries the selected sales `crm_primary`
   transport into active V3 under the single-runtime rules.
 - Do not publish WAHA ports publicly. Operator access to WAHA QR/dashboard must
   use a private server-side path such as SSH tunnel or an authenticated internal

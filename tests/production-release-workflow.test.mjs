@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import test from "node:test";
 
 const workflow = readFileSync(
@@ -39,6 +42,143 @@ function jobStepNames(releaseJob) {
 
 const build = job("build", "deploy");
 const deploy = job("deploy");
+
+function savedImageFixture(t, variant) {
+  const root = mkdtempSync(join(tmpdir(), "evo-release-image-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const revision = "a".repeat(40);
+  const tag = `evo-crm:${revision}`;
+  const config = Buffer.from('{"architecture":"amd64","os":"linux","config":{}}\n');
+  const configHash = createHash("sha256").update(config).digest("hex");
+  const configDigest = `sha256:${configHash}`;
+  const imageId = variant === "classic" ? configDigest : `sha256:${"b".repeat(64)}`;
+  const configPath = variant === "classic"
+    ? `${configHash}.json`
+    : `blobs/sha256/${variant === "wrong bytes" ? "c".repeat(64) : configHash}`;
+  const entries = [{
+    Config: variant === "unsafe path" ? "../outside.json" : configPath,
+    RepoTags: [variant === "wrong tag" ? "evo-crm:other" : tag],
+    Layers: [],
+  }];
+  if (variant === "multiple images") entries.push({ ...entries[0] });
+  const files = join(root, "files");
+  mkdirSync(dirname(join(files, configPath)), { recursive: true });
+  writeFileSync(join(files, "manifest.json"), JSON.stringify(entries));
+  const members = ["manifest.json"];
+  if (variant !== "missing config") {
+    writeFileSync(join(files, configPath), config);
+    members.push(configPath);
+  }
+  const archive = join(root, "saved-image.tar.gz");
+  const packed = spawnSync("tar", ["-czf", archive, "-C", files, ...members], {
+    encoding: "utf8",
+  });
+  assert.equal(packed.status, 0, packed.stderr);
+  const manifest = join(root, "release.json");
+  writeFileSync(manifest, JSON.stringify({
+    imageId,
+    imageConfigDigest: variant === "wrong attestation" ? `sha256:${"d".repeat(64)}` : configDigest,
+    imageVersion: "test-version",
+  }));
+  return {
+    root, archive, manifest, revision, imageId, configDigest,
+    tagId: variant === "wrong loaded tag" ? `sha256:${"e".repeat(64)}` : imageId,
+  };
+}
+
+function runSavedImageStep(lane, fixture) {
+  const source = namedStep(lane === "build"
+    ? "Build and inspect immutable linux-amd64 image"
+    : "Load and inspect candidate image");
+  const marker = lane === "build" ? "image_id=$(docker image inspect" : "expected_image_id=$(jq";
+  const start = source.indexOf(marker);
+  assert.notEqual(start, -1, `${lane} image identity code must exist`);
+  const end = lane === "build" ? source.indexOf("          archive_sha256=", start) : source.length;
+  assert.ok(end > start, `${lane} image identity code must be complete`);
+  const snippet = source.slice(start, end).replace(/^          /gmu, "")
+    .replace(">/tmp/evo-production-docker-load.txt", '>"$EVO_TEST_LOAD_LOG"');
+  // Execute the actual workflow shell against real tar/gzip/config bytes.
+  // Only Docker is a seam: no image build or production daemon is needed here.
+  const docker = String.raw`
+docker() {
+  if [[ "$1" == save ]]; then gzip -dc "$EVO_TEST_ARCHIVE"; return; fi
+  if [[ "$1" == load ]]; then return 0; fi
+  [[ "$1 $2 $3" == "image inspect --format" ]] || return 64
+  case "$4" in
+    '{{.Id}}')
+      if [[ "$5" == evo-crm:* ]]; then printf '%s\n' "$EVO_TEST_TAG_ID"
+      else printf '%s\n' "$EVO_TEST_IMAGE_ID"; fi ;;
+    '{{.Os}}') printf 'linux\n' ;;
+    '{{.Architecture}}') printf 'amd64\n' ;;
+    *org.opencontainers.image.source*) printf '%s\n' "$EVO_IMAGE_SOURCE" ;;
+    *org.opencontainers.image.revision*) printf '%s\n' "$EVO_RELEASE_REVISION" ;;
+    *org.opencontainers.image.version*) printf '%s\n' "$EVO_RELEASE_VERSION" ;;
+    *) return 64 ;;
+  esac
+}
+`;
+  return spawnSync("bash", ["-c", `set -Eeuo pipefail\n${docker}\n${snippet}\nprintf '%s\\n' "$${lane === "build" ? "image_config_digest" : "expected_config_digest"}"`], {
+    cwd: fixture.root,
+    encoding: "utf8",
+    timeout: 10_000,
+    env: {
+      PATH: process.env.PATH,
+      archive: lane === "build" ? join(fixture.root, "resaved-image.tar.gz") : fixture.archive,
+      manifest: fixture.manifest,
+      EVO_TEST_ARCHIVE: fixture.archive,
+      EVO_TEST_LOAD_LOG: join(fixture.root, "docker-load.log"),
+      EVO_TEST_IMAGE_ID: fixture.imageId,
+      EVO_TEST_TAG_ID: fixture.tagId,
+      EVO_RELEASE_REVISION: fixture.revision,
+      EVO_RELEASE_VERSION: "test-version",
+      EVO_IMAGE_SOURCE: "https://github.com/izzhackt/evo_AI_CRM",
+      GITHUB_REPOSITORY: "izzhackt/evo_AI_CRM",
+    },
+  });
+}
+
+for (const lane of ["build", "deploy"]) {
+  for (const variant of ["containerd", "classic"]) {
+    test(`${lane} saved-image verification accepts ${variant} identities`, (t) => {
+      const fixture = savedImageFixture(t, variant);
+      const result = runSavedImageStep(lane, fixture);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout.trim(), fixture.configDigest);
+    });
+  }
+  for (const variant of ["unsafe path", "wrong bytes", "wrong tag", "multiple images", "missing config"]) {
+    test(`${lane} saved-image verification rejects ${variant}`, (t) => {
+      const result = runSavedImageStep(lane, savedImageFixture(t, variant));
+      assert.notEqual(result.status, 0, `${variant} must fail closed`);
+    });
+  }
+}
+for (const variant of ["wrong attestation", "wrong loaded tag"]) {
+  test(`deploy saved-image verification rejects ${variant}`, (t) => {
+    const result = runSavedImageStep("deploy", savedImageFixture(t, variant));
+    assert.notEqual(result.status, 0, `${variant} must fail closed`);
+  });
+}
+
+test("both jobs pin the production Docker containerd store after secretless admission", () => {
+  for (const [releaseJob, admission] of [
+    [build, "Secretless build admission"], [deploy, "Secretless deploy admission"],
+  ]) {
+    const steps = releaseJob.split("\n      - name:").slice(1);
+    const setupIndex = steps.findIndex((step) => step.includes("uses: docker/setup-docker-action@"));
+    assert.ok(setupIndex > 0, "Docker setup follows secretless admission");
+    assert.ok(steps[0].startsWith(` ${admission}\n`));
+    const setup = steps[setupIndex];
+    assert.match(setup, /uses: docker\/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5\.4\.0/u);
+    assert.match(setup, /version: v29\.4\.0/u);
+    const config = setup.match(/daemon-config: \|\n([\s\S]*)/u);
+    assert.ok(config, "explicit daemon config must exist");
+    assert.deepEqual(JSON.parse(config[1]), { features: { "containerd-snapshotter": true } });
+    assert.doesNotMatch(setup, /tcp-port:|docker-host:|secrets\./u);
+    const firstDocker = steps.findIndex((step) => /\bdocker (?:build|save|load|image|info|version)\b/u.test(step));
+    assert.ok(firstDocker > setupIndex, "store setup precedes the first Docker operation");
+  }
+});
 
 function releaseSshArgv(stepName, startMarker, endMarker, env) {
   const step = namedStep(stepName);
@@ -201,7 +341,7 @@ test("build emits one closed immutable linux-amd64 candidate artifact", () => {
     "org.opencontainers.image.version",
   ]) assert.match(image, new RegExp(label.replaceAll(".", "\\."), "u"));
   assert.match(image, /image_id=.*docker image inspect/u);
-  assert.match(image, /image_config_digest=\$image_id/u);
+  assert.doesNotMatch(image, /image_config_digest=\$image_id/u);
   assert.match(image, /archive_bytes/u);
   for (const hash of [
     "composeSha256",

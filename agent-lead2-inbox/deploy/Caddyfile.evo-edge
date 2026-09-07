@@ -62,15 +62,6 @@
 	respond @reject_noncanonical_api 404
 }
 
-evo-inbox.72.62.119.112.sslip.io {
-	import evo_app
-	request_body {
-		max_size 20MB
-	}
-	encode zstd gzip
-	reverse_proxy evo-inbox-app:3000
-}
-
 evo-crm.72.62.119.112.sslip.io {
 	import evo_app
 	import evo_canonical_api_paths

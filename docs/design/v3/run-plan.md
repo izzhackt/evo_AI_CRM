@@ -421,16 +421,20 @@ review точного cumulative diff. Любая последующая фун�
 replacement run. D2 не разрешает managed schema apply, provider calls или
 production release.
 
-### E · Портал студента — E1 implementation candidate (не merged/deployed)
+### E · Портал студента — E1 СДЕЛАНО; E2 implementation candidate
 
 **Статус на exact `origin/main`
-`63b5c4eede91948824dbe3cf0fa3939bf5819abb` после merge E0 PR #669:**
-текущая ветка содержит только E1 implementation candidate: migration 126,
-её dedicated SQL acceptance suite, регистрацию в authorization harness и
-документированный result/grant contract. E2 migration 127, portal routes,
-callback и trusted-server provider coordinator здесь отсутствуют. E1 не
-отправляет приглашение, не вызывает managed Supabase и не является deployment
-или production proof.
+`c523dc59323aa315ffbdf0724eedab9cb510dabe` после squash-merge E1 PR #674 из
+независимо одобренного head
+`bc4bd5ecc3cd39a8d11241b80e16c4ba8354a260`:** migration 126, её dedicated
+SQL acceptance suite, регистрация в authorization harness и точный
+result/grant contract находятся на `main`. Текущая ветка
+`izzhackt/v3-e2-student-portal-read-models` — локальный, ещё не слитый E2
+implementation candidate: только additive migration 127, её SQL acceptance,
+регистрация после 126, строгие Student read adapters в `src/lib/v3` и целевой
+Node suite. Portal routes/UI, callback и trusted-server provider coordinator
+здесь отсутствуют. E1/E2 не отправляют приглашение, не вызывают managed
+Supabase и не являются deployment или production proof.
 
 #### Уже существующая authority — не дублировать
 

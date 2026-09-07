@@ -20864,3 +20864,35 @@ including an already-bound membership and, for late legacy continuation, the
 already-applied portal activation timestamp. Child-01 continuation evidence is
 complete only when both the exact provisioning audit payload/reason and the
 matching role-history row are present; partial or mismatched evidence fails.
+
+## 2026-09-07 - Bind the Portal overview action and deadline to one canonical task
+
+Block-ID: `EVO-V3-E2-PORTAL-NEXT-ACTION-PROJECTION-2026-09-07`
+
+Change type: read-model source clarification. Affected plan section: Stage E2
+migration 127 Student Portal overview only.
+
+Migration 042 owns `student_cases.next_action` but no deadline for that text,
+while migration 110 owns the exact timed/all-day deadlines of student-visible
+case tasks. Pairing the case text with an unrelated task deadline would create
+a false UI fact.
+
+Decision:
+
+1. The overview projection selects one earliest student-visible nonterminal
+   `case_task` in `open`, `in_progress` or `blocked` state. `next_action`,
+   `next_action_due_at` and `next_action_due_on` all come from that same row.
+2. Selection reuses migration 110 ordering: timed `due_at` at its exact instant,
+   all-day `due_on` at the start of that date in `Asia/Bishkek`, undated tasks
+   after dated tasks, then task UUID as the deterministic tie-breaker.
+3. If no such task exists, the projection returns the existing
+   `student_cases.next_action` and keeps both due fields `NULL`. It does not
+   synthesize a date, title or task.
+4. This is a projection rule only. Migration 127 adds no stored source flag,
+   status dictionary, task mutation, fallback authority or second workflow.
+   All existing Student activation, permission, organization-scope and exact
+   case-scope checks remain mandatory.
+
+This clarification authorizes only the local E2 migration/read adapter and its
+tests. It does not authorize migration 126, managed Supabase apply, Auth/UI,
+provider calls, production deployment or release arming.

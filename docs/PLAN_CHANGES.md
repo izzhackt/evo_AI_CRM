@@ -20684,3 +20684,20 @@ the current Supabase Database Functions and RLS guides and PostgreSQL advisory
 lock/`CREATE FUNCTION` documentation: SECURITY DEFINER routines pin an empty
 search path and are schema-qualified; routine EXECUTE is explicitly revoked
 before narrow grants; transaction advisory locks release at transaction end.
+
+## 2026-09-07 - Correct the E1 organization-scope permission key
+
+Block-ID: `EVO-V3-E1-SCOPE-PERMISSION-KEY-CORRECTION-2026-09-07`
+
+Change type: pre-code schema-compatibility correction. Affected plan section:
+the immediately preceding E1 required-permission inventory only.
+
+Targeted migration-041 inspection confirmed that the live Admin permission for
+both assignment and revocation of organization scope is `scope.manage`.
+`membership.scope.organization.assign` is the audit action, not a permission
+definition. Therefore the exact receipt permission array is
+`{membership.provision,scope.manage}` for normal U6 and that set plus
+`case.curator.assign` for legacy pending. Prepare and finalize must check these
+existing keys exactly; migration 126 creates no replacement permission or
+alias. Every other E1 signature, grant, state, lock, result, error, test and
+file-ownership decision in the preceding entry remains unchanged.

@@ -364,8 +364,13 @@ async function main() {
       `;
       await tx`
         UPDATE platform.document_slots
-        SET status = 'rejected', current_version_id = ${ids.version},
+        SET status = 'submitted', current_version_id = ${ids.version},
           current_version_no = 1
+        WHERE id = ${ids.slot}
+      `;
+      await tx`
+        UPDATE platform.document_slots
+        SET status = 'rejected'
         WHERE id = ${ids.slot}
       `;
       await tx`

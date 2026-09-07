@@ -19817,3 +19817,145 @@ conflicting key and are released automatically at transaction end:
 This is a repository-only D1 correction. It authorizes no managed schema apply,
 production release, provider call or credential use; those remain in the later
 schema-ledger and frozen-main release stages.
+
+## 2026-09-07 - Lock the D2 UI integration contract before parallel delivery
+
+Block-ID: `EVO-V3-D2-PARALLEL-UI-CONTRACT-2026-09-07`
+
+Change type: plan-freshness, schema-number reservation, authority boundary and
+parallel-integration contract. Affected plan section: current run Stage D2.
+
+D1 is no longer in flight. PR #660 passed its exact-head checks and independent
+cumulative adversarial review, then squash-merged to `main` as
+`77462ba023531df81339fc00296e2681fec783a1`. Migrations 117 through 121 are the
+immutable D1 boundary. No managed schema or production runtime was changed by
+that merge.
+
+The owner explicitly requested the fastest path and authorized parallel Codex
+tasks. D2 can be developed in parallel only after this docs-only contract is in
+`main`. The integration owner remains responsible for shared hotspots,
+exact-head evidence and ordered merges. Package branches may not edit this
+plan, the shared V3 wording dictionary, fixed-role/router policy, shared test
+manifests, or another package's UI hotspot unless the integration owner assigns
+that file explicitly.
+
+Decision:
+
+1. Reserve migration 122 exclusively for Inbox waiting/search projection work,
+   migration 123 exclusively for Profile/Pipeline notes and stage-age projection
+   work, and migration 124 exclusively for Calendar/application-deadline
+   projection work. Reply-snippet UI and media UI add no migration. Merged
+   migrations remain immutable.
+2. Inbox `waiting_since` is the first inbound message in the current contiguous
+   inbound tail after the most recent outbound message. If the conversation has
+   never had an outbound message, it is the first inbound message in the
+   conversation. It is NULL unless the canonical latest message is inbound.
+   Equal timestamps use the canonical `(created_at, id)` message order. The
+   `?waiting=1` filter is server-side `waiting_since IS NOT NULL`; displayed
+   waiting age derives from `waiting_since`, never `last_message_at`. Search is
+   limited to stored conversation subject plus canonical client display name
+   and phone. It must not inspect message text or provider payloads. The URL
+   accepts scalar `q` and exact `waiting=1`; both survive queue, conversation
+   and message-pagination links, while invalid arrays/values fail closed.
+   Migration 122 adds backward-compatible `p_waiting_only BOOLEAN DEFAULT
+   FALSE`; false preserves prior row membership, ordering, cursor semantics and
+   every pre-existing column value, while callers explicitly accept the sole
+   new `waiting_since` return column. It updates page and snapshot shapes
+   together and applies search/waiting predicates before `LIMIT`. Filtered and
+   unfiltered calls retain canonical
+   `sort_at DESC, conversation_id DESC` ordering and cursor semantics; waiting
+   duration does not become a second ordering authority.
+3. `/v3/knowledge` becomes a capability-composed surface rather than a route
+   that implies one global capability. Document folders/readers require
+   `documents.read`. Reply-snippet listing requires `messaging.read`; snippet
+   create/update/archive and composer use require `messaging.send`. Sales keeps
+   messaging capabilities and therefore receives the snippet tab, but never
+   receives `documents.read` and must not invoke a document reader. Admin
+   preview remains the established presentation-only mechanism: the selected
+   presentation role controls route/read dispatch, rendered tabs and visible
+   controls, while every submitted action is still authorized server-side from
+   the immutable real Admin `authorityRole`. Preview must neither leak hidden
+   document reads nor manufacture a downgraded actor. The adapter filters
+   snippet audiences for the presentation role: Sales receives `sales` plus
+   `all`, Admissions receives `admissions` plus `all`, and Admin receives all
+   three. Selecting a snippet inserts its body at the cursor or replaces the
+   selection without erasing the rest of editable `message_text`; it never
+   sends automatically.
+4. Notes keep exact subjects. The Sales profile and lead card use only
+   `lead_id`; the Admissions profile uses only `student_case_id`. The UI cannot
+   merge, substitute or infer one subject from the other. Notes remain
+   append-only and display canonical author and timestamp. The UI reads at most
+   50 notes initially in the existing keyset order and must expose a functional
+   older-page control whenever `hasNext` is true. Pipeline/card summary data
+   obtains exact note id/body/author/created_at for at most the latest visible
+   lead note through the single `staff_sales_lead_page` RPC, never an N+1
+   query. Stage age uses `stage_entered_at`; the synthetic `handed_off` column
+   has no stage age.
+5. Calendar exhausts the selected dated range using migration 119's keyset/date
+   contract before removing truncation language. Migration 119's date
+   predicates exclude NULL, so migration 124 adds a separate bounded,
+   keyset-paged undated-only projection which reuses 119's canonical
+   `(sort_at, case_task_id) ASC` ordering/cursor with the undated sentinel; the
+   UI renders it as “Без срока” and may not scan the full dated history to find
+   NULLs. Application deadlines use
+   a separate `application_deadline` discriminated read-only calendar item, not
+   the mutable task type: it exposes application id, case id/display name,
+   university/program, application status and deadline, has no task controls,
+   and links to that exact case's Admissions tab. They come only from non-null
+   `university_deadline_on`; no intake, milestone, task or free-text inference
+   is allowed. They are restricted to visible student cases with
+   `state='active'` and application statuses `preparation`, `ready`, `submitted`,
+   `under_review` and `offer`, ordered and paged by
+   `(university_deadline_on, application_id)`. The selected bounded range is
+   exhausted for calendar rendering. A separate one-row aggregate projection
+   computes the global nearest deadline across all visible active applications,
+   independent of the selected calendar range. Date-only values remain
+   date-only. Day bounds, “today” and day deltas use `Asia/Bishkek`. This metric
+   belongs on the actual Admissions landing surface `/v3/calendar`; D2 does not
+   open Sales-only `/v3/main` to Admissions. A past deadline renders as overdue,
+   today as today, and a future deadline as days remaining; empty state remains
+   honest.
+6. Media is integrated last because it shares Inbox UI. Rendering uses only the
+   canonical media facts already exposed by the conversation read model.
+   Browser download/preview must traverse a server-only
+   `grant_communication_media_download` then one-time
+   `consume_communication_media_download_grant`, followed by a private-bucket
+   signed URL with a maximum 60-second lifetime. No public bucket or public URL
+   may be introduced. Application JSON exposes neither service credentials nor
+   raw bucket/object coordinates; the browser receives only a server-authorized
+   redirect to the short-lived signed URL with `Cache-Control: no-store`.
+   Preview/download requires `messaging.read`. “В дело студента” additionally
+   requires `documents.write`, an exact conversation `student_case_id`, and an
+   explicit choice from canonical writable slots for that same case; Sales has
+   no attach control. It reuses migration 121's server-side copy pipeline, so
+   source bytes never round-trip through the browser. Cross-organization,
+   revoked actor, expired/consumed grant and archived, quarantined or otherwise
+   unavailable media fail closed. Supabase
+   documents signed URLs as fixed-duration access and takes `expiresIn` in
+   seconds:
+   <https://supabase.com/docs/reference/javascript/file-buckets-createsignedurl>.
+7. Merge order is contract docs, Inbox 122, reply snippets, Profile/Pipeline
+   123, Calendar 124, then Media. Each package starts from the exact contract
+   merge, publishes its own head and scoped evidence, and is rebased or merged
+   onto current `main` before acceptance. Ownership is: Inbox 122 owns the
+   communication/inbox read model and queue UI; snippets owns new
+   snippet/knowledge components; Profile/Pipeline 123 owns its migration,
+   sources and components; Calendar 124 owns its migration, sources and
+   components. Only the integration owner wires the snippet picker into shared
+   `InboxProviderWorkflowControls.tsx`, composes `/v3/knowledge` route policy,
+   changes AppShell or route guards, or edits `src/lib/fixed-role-policy.ts`,
+   shared wording, docs or common test manifests. Media begins only after
+   Inbox/snippets are integrated and then receives explicit ownership of
+   `Inbox.tsx` and the Inbox hotspot.
+8. Every package must pass targeted Node/SQL/component tests, Node 22
+   typecheck, full ESLint and production build plus the risk-routed foundation
+   gate. Every migration package additionally passes the complete
+   `scripts/test-postgres-authorization.sh`. The cumulative D2 head then passes
+   the full local Postgres/Auth/RLS/Storage/Chromium contour at desktop, 393px
+   and forced dark, followed by an independent adversarial review of the exact
+   cumulative diff. Confirmed findings are fixed and re-reviewed before merge.
+
+This contract authorizes repository work and GitHub PR integration only. It
+does not authorize applying migrations to managed Supabase, enabling providers,
+using owner credentials, writing amoCRM, deploying to Hermes or arming the
+production release.

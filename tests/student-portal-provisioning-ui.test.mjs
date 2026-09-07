@@ -13,7 +13,12 @@ test("V3 profile exposes Student Portal provisioning only in the Admin presentat
   const page = source("src/app/(v3)/v3/profile/page.tsx");
   assert.match(profile, /actorRole === "admin"[\s\S]*<StudentPortalAccessCard/u);
   assert.doesNotMatch(profile, /authorityRole === "admin"[\s\S]*<StudentPortalAccessCard/u);
-  assert.match(page, /actor\.presentationRole === "admin"[\s\S]*listPlatformActiveCurators/u);
+  assert.match(
+    page,
+    /actor\.presentationRole === "admin"[\s\S]*listStudentPortalActiveCurators/u,
+  );
+  assert.match(page, /@\/lib\/server\/student-portal-curator-options/u);
+  assert.doesNotMatch(page, /@\/lib\/platform-case-assignment/u);
 });
 
 test("Admin action replays the authenticated receipt before service-role reconciliation", () => {

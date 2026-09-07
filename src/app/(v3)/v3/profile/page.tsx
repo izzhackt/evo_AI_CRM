@@ -22,11 +22,11 @@ import {
   parsePlatformCaseNoteCursor,
   type PlatformCaseNoteCursor,
 } from "@/lib/platform-case-notes";
-import {
-  listPlatformActiveCurators,
-  type PlatformCuratorOption,
-} from "@/lib/platform-case-assignment";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import {
+  listStudentPortalActiveCurators,
+  type StudentPortalCuratorOption,
+} from "@/lib/server/student-portal-curator-options";
 import {
   parseV3ProfileCaseDirectoryParams,
   readProfileTarget,
@@ -179,14 +179,14 @@ export default async function ProfilePart({
   const notesLatestHref = view && noteCursor
     ? buildProfileNotesHref(view.details.routeTarget)
     : null;
-  let studentPortalCurators: readonly PlatformCuratorOption[] = [];
+  let studentPortalCurators: readonly StudentPortalCuratorOption[] = [];
   let studentPortalCuratorsAvailable = true;
   if (
     actor.presentationRole === "admin" &&
     view?.details.admissions?.caseState === "pending"
   ) {
     try {
-      studentPortalCurators = await listPlatformActiveCurators(actor);
+      studentPortalCurators = await listStudentPortalActiveCurators(actor);
     } catch {
       studentPortalCuratorsAvailable = false;
     }

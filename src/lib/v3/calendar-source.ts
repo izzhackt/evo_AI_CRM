@@ -61,6 +61,7 @@ export async function readNowMinutes(): Promise<number> {
 
 export type CalendarTasksRead = Readonly<{
   tasks: readonly CalendarTask[];
+  undatedNextCursor: CalendarUndatedTaskCursor | null;
 }>;
 
 function calendarTaskFromRow(
@@ -92,13 +93,15 @@ function calendarTaskFromRow(
 }
 
 /**
- * Exhaust the selected dated task range and the dedicated undated projection.
- * The adapter never scans dated history to discover NULL deadlines.
+ * Exhaust the selected dated task range and read one bounded page from the
+ * dedicated undated projection. The adapter never scans dated history to
+ * discover NULL deadlines and never materializes the full undated history.
  */
 export async function readCalendarTasks(
   actor: ActivePlatformActor,
   from: Day,
   to: Day,
+  undatedCursor: CalendarUndatedTaskCursor | null = null,
 ): Promise<CalendarTasksRead> {
   const now = new Date();
   const tasks: CalendarTask[] = [];
@@ -129,24 +132,23 @@ export async function readCalendarTasks(
     datedCursor = page.nextCursor;
   } while (datedCursor !== null);
 
-  let undatedCursor: CalendarUndatedTaskCursor | null = null;
-  do {
-    const page = await listCalendarUndatedTaskPage(actor, {
-      pageSize: QUEUE_PAGE_SIZE,
-      cursor: undatedCursor,
-    });
-    for (const row of page.rows) {
-      const task = calendarTaskFromRow(row, now);
-      if (task.day !== null || seenTaskIds.has(task.id)) {
-        throw new Error("V3 calendar received an invalid undated task page.");
-      }
-      seenTaskIds.add(task.id);
-      tasks.push(task);
+  const undatedPage = await listCalendarUndatedTaskPage(actor, {
+    pageSize: QUEUE_PAGE_SIZE,
+    cursor: undatedCursor,
+  });
+  for (const row of undatedPage.rows) {
+    const task = calendarTaskFromRow(row, now);
+    if (task.day !== null || seenTaskIds.has(task.id)) {
+      throw new Error("V3 calendar received an invalid undated task page.");
     }
-    undatedCursor = page.nextCursor;
-  } while (undatedCursor !== null);
+    seenTaskIds.add(task.id);
+    tasks.push(task);
+  }
 
-  return Object.freeze({ tasks: Object.freeze(tasks) });
+  return Object.freeze({
+    tasks: Object.freeze(tasks),
+    undatedNextCursor: undatedPage.nextCursor,
+  });
 }
 
 function calendarDeadlineFromRow(
@@ -226,6 +228,7 @@ async function readActiveCases(
 
 export type CalendarWorkspace = Readonly<{
   tasks: readonly CalendarTask[];
+  undatedNextCursor: CalendarUndatedTaskCursor | null;
   applicationDeadlines: readonly CalendarApplicationDeadline[];
   nearestApplicationDeadline: CalendarApplicationDeadline | null;
   cases: readonly CalendarCaseOption[];
@@ -242,9 +245,10 @@ export async function readCalendarWorkspace(
   actor: ActivePlatformActor,
   from: Day,
   to: Day,
+  undatedCursor: CalendarUndatedTaskCursor | null = null,
 ): Promise<CalendarWorkspace> {
   const [read, applicationDeadlines, nearestDeadline, cases] = await Promise.all([
-    readCalendarTasks(actor, from, to),
+    readCalendarTasks(actor, from, to, undatedCursor),
     readCalendarApplicationDeadlines(actor, from, to),
     readNearestCalendarApplicationDeadline(actor),
     readActiveCases(actor),
@@ -261,6 +265,7 @@ export async function readCalendarWorkspace(
 
   return Object.freeze({
     tasks: read.tasks,
+    undatedNextCursor: read.undatedNextCursor,
     applicationDeadlines,
     nearestApplicationDeadline: nearestDeadline
       ? calendarDeadlineFromRow(nearestDeadline)

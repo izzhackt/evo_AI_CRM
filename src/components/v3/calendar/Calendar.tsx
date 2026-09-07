@@ -44,6 +44,7 @@ export function Calendar({
   nowMinutes,
   days,
   tasks,
+  undatedNextHref,
   applicationDeadlines,
   nearestApplicationDeadline,
   cases,
@@ -63,6 +64,7 @@ export function Calendar({
   nowMinutes: number;
   days: readonly Day[];
   tasks: readonly CalendarTask[];
+  undatedNextHref: string | null;
   applicationDeadlines: readonly CalendarApplicationDeadline[];
   nearestApplicationDeadline: CalendarApplicationDeadline | null;
   cases: readonly CalendarCaseOption[];
@@ -265,6 +267,16 @@ export function Calendar({
               />
             ))}
           </div>
+          {undatedNextHref ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+              <p className="text-sm text-fg-3">
+                Показаны не все задачи без срока: на этой странице {unscheduled.length}.
+              </p>
+              <Link href={undatedNextHref} className={GHOST}>
+                Показать следующие
+              </Link>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

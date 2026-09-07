@@ -235,6 +235,21 @@ export function resolveDay(raw: string | undefined, fallback: Day): Day {
   return toDay(toMs(raw)) === raw ? raw : fallback;
 }
 
+export function calendarUndatedContinuationHref(
+  basePath: string,
+  view: CalendarView,
+  day: Day,
+  cursor: Readonly<{ sortAt: string; caseTaskId: string }>,
+): string {
+  const params = new URLSearchParams({
+    view,
+    date: day,
+    undated_after_sort_at: cursor.sortAt,
+    undated_after_case_task_id: cursor.caseTaskId,
+  });
+  return `${basePath}?${params.toString()}`;
+}
+
 /* ------------------------------------------------------- отрезок и шаг */
 
 /** Клетки сетки: один день, семь дней недели или всё поле месяца. */

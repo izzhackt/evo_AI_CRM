@@ -8,9 +8,13 @@ import {
   listCalendarApplicationDeadlinePage,
   listCalendarUndatedTaskPage,
   normalizeCalendarApplicationDeadlineRow,
+  parseCalendarUndatedTaskCursor,
   readNearestCalendarApplicationDeadline,
 } from "../src/lib/v3/calendar-contract.ts";
-import { hasCalendarAllDayRow } from "../src/components/v3/calendar/types.ts";
+import {
+  calendarUndatedContinuationHref,
+  hasCalendarAllDayRow,
+} from "../src/components/v3/calendar/types.ts";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -59,6 +63,10 @@ function undatedRow(id) {
   };
 }
 
+function taskIdAt(index) {
+  return `12400000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+}
+
 function applicationRow(id = APPLICATION_ID, deadline = "2026-09-10") {
   return {
     application_id: id,
@@ -104,6 +112,41 @@ test("D2 undated projection is bounded and advances the canonical sentinel curso
   });
   assert.deepEqual(page.rows.map((row) => row.caseTaskId), [TASK_ID]);
   assert.deepEqual(page.nextCursor, { sortAt: SENTINEL, caseTaskId: TASK_ID });
+  assert.deepEqual(parseCalendarUndatedTaskCursor(SENTINEL, TASK_ID), {
+    sortAt: SENTINEL,
+    caseTaskId: TASK_ID,
+  });
+  assert.equal(
+    parseCalendarUndatedTaskCursor("2026-09-07T08:00:00+00:00", TASK_ID),
+    null,
+  );
+});
+
+test("D2 default undated page is hard capped at 100 rows with continuation", async () => {
+  let call;
+  const page = await listCalendarUndatedTaskPage(
+    actor,
+    {},
+    {
+      client: rpcClient((name, args) => {
+        call = { name, args };
+        return {
+          data: Array.from({ length: 101 }, (_, index) => undatedRow(taskIdAt(index + 1))),
+          error: null,
+        };
+      }),
+    },
+  );
+
+  assert.deepEqual(call, {
+    name: "staff_case_task_undated_page",
+    args: { p_limit: 101 },
+  });
+  assert.equal(page.rows.length, 100);
+  assert.deepEqual(page.nextCursor, {
+    sortAt: SENTINEL,
+    caseTaskId: taskIdAt(100),
+  });
 });
 
 test("D2 deadline projection sends range and (deadline, application_id) cursor", async () => {
@@ -197,13 +240,34 @@ test("D2 global nearest deadline is a separate one-row projection", async () => 
   assert.equal(deadline?.applicationId, APPLICATION_ID);
 });
 
-test("D2 calendar exhausts dated, undated and application pages without history scan", () => {
+test("D2 calendar exhausts bounded ranges but reads only one undated page", () => {
   const adapter = source("src/lib/v3/calendar-source.ts");
   assert.match(adapter, /dueFrom: from,[\s\S]*dueTo: to/u);
   assert.match(adapter, /do \{[\s\S]*listPlatformAdmissionsTaskQueue[\s\S]*\} while \(datedCursor !== null\)/u);
-  assert.match(adapter, /do \{[\s\S]*listCalendarUndatedTaskPage[\s\S]*\} while \(undatedCursor !== null\)/u);
+  assert.match(adapter, /const undatedPage = await listCalendarUndatedTaskPage/u);
+  assert.doesNotMatch(adapter, /while \(undatedCursor !== null\)/u);
+  assert.match(adapter, /undatedNextCursor: undatedPage\.nextCursor/u);
   assert.match(adapter, /do \{[\s\S]*listCalendarApplicationDeadlinePage[\s\S]*\} while \(cursor !== null\)/u);
   assert.doesNotMatch(adapter, /tasksTruncatedAfter|periodComplete|truncatedAfter/u);
+});
+
+test("D2 undated continuation is URL-backed and never silently claims completeness", () => {
+  const page = source("src/app/(v3)/v3/calendar/page.tsx");
+  const calendar = source("src/components/v3/calendar/Calendar.tsx");
+  const href = calendarUndatedContinuationHref("/v3/calendar", "week", "2026-09-10", {
+    sortAt: SENTINEL,
+    caseTaskId: TASK_ID,
+  });
+
+  assert.equal(
+    href,
+    "/v3/calendar?view=week&date=2026-09-10&undated_after_sort_at=9999-12-31T00%3A00%3A00%2B00%3A00&undated_after_case_task_id=12400000-0000-4000-8000-000000000101",
+  );
+  assert.match(page, /undatedCursorFromParams[\s\S]*parseCalendarUndatedTaskCursor/u);
+  assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
+  assert.match(calendar, /Показаны не все задачи без срока/u);
+  assert.match(calendar, /Показать следующие/u);
+  assert.doesNotMatch(calendar, /Все задачи без срока показаны/u);
 });
 
 test("application deadlines are read-only calendar items linked to exact Admissions case", () => {

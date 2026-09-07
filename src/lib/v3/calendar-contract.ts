@@ -147,6 +147,16 @@ function normalizeApplicationStatus(value: unknown): CalendarApplicationStatus {
     : invalidShape();
 }
 
+export function parseCalendarUndatedTaskCursor(
+  sortAt: unknown,
+  caseTaskId: unknown,
+): CalendarUndatedTaskCursor | null {
+  const cursor = parsePlatformAdmissionsTaskQueueCursor(sortAt, caseTaskId);
+  return cursor !== null && Date.parse(cursor.sortAt) === UNDATED_SENTINEL_MS
+    ? Object.freeze({ sortAt: cursor.sortAt, caseTaskId: cursor.caseTaskId })
+    : null;
+}
+
 /**
  * Migration 119 owns the dated task projection, while Calendar owns exhausting
  * it across pages. Recheck the complete keyset boundary here so an out-of-order
@@ -218,14 +228,11 @@ export async function listCalendarUndatedTaskPage(
     const normalizedPageSize = pageSize(options.pageSize);
     const requestedLimit = normalizedPageSize + 1;
     const cursor = options.cursor
-      ? parsePlatformAdmissionsTaskQueueCursor(
+      ? parseCalendarUndatedTaskCursor(
           options.cursor.sortAt,
           options.cursor.caseTaskId,
         ) ?? invalidShape()
       : null;
-    if (cursor && Date.parse(cursor.sortAt) !== UNDATED_SENTINEL_MS) {
-      return invalidShape();
-    }
     const client = dependencies.client ?? await getCalendarClient();
     const response = await client.schema("platform").rpc(
       "staff_case_task_undated_page",

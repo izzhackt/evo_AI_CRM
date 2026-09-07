@@ -228,8 +228,8 @@ const expectedVersions = (await readdir(migrationsDirectory))
   .map((name) => /^(\d+)_.*\.sql$/u.exec(name)?.[1] ?? null)
   .filter((version) => version !== null)
   .sort();
-if (expectedVersions.length === 0 || expectedVersions.at(-1) !== "127") {
-  throw new Error("repository migration inventory is incomplete");
+if (expectedVersions.length === 0 || !expectedVersions.includes("127")) {
+  throw new Error("repository migration inventory omits the Student Portal authority");
 }
 
 const sql = postgres(databaseUrl, { max: 1, prepare: false });
@@ -248,7 +248,7 @@ try {
 }
 EOF
 then
-  fail "The isolated E4 database did not apply the exact repository migration ledger through 127"
+  fail "The isolated E4 database did not apply the exact repository migration ledger including 127"
 fi
 
 if ! API_URL="$supabase_api_url" SERVICE_ROLE_KEY="$supabase_service_role_key" \

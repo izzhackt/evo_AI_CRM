@@ -328,9 +328,11 @@ async function provisionExactCaseMediaFixture(): Promise<MediaBrowserFixture> {
   const privateBucketId = "platform-whatsapp-media";
   const privateObjectName = `${sha256Hex.slice(0, 2)}/${sha256Hex.slice(2)}`;
   const fileName = "d2-isolated-offer.pdf";
+  // PostgREST may decode BIGINT values as JavaScript numbers. Keep the random
+  // provider fixture below Number.MAX_SAFE_INTEGER so the strict read adapter
+  // can validate it without precision loss.
   const providerIdentity = (
-    BigInt(Date.now()) * BigInt(1_000_000) +
-    BigInt(`0x${sha256Hex.slice(0, 10)}`)
+    BigInt(`0x${sha256Hex.slice(0, 12)}`) + BigInt(1_000_000)
   ).toString();
   const rawChatId = `${providerIdentity}@c.us`;
 

@@ -206,6 +206,19 @@ test("V3 Inbox loads exact-audience reply snippets only for a selected send-capa
   assert.doesNotMatch(picker, /sendPlatform|type="submit"|form action/u);
 });
 
+test("switching conversations remounts the stateful composer", () => {
+  const page = source("src/app/(v3)/v3/inbox/page.tsx");
+  const controlsStart = page.indexOf("<InboxProviderWorkflowControls");
+  const controlsEnd = page.indexOf("/>", controlsStart);
+
+  assert.notEqual(controlsStart, -1);
+  assert.notEqual(controlsEnd, -1);
+  assert.match(
+    page.slice(controlsStart, controlsEnd),
+    /key=\{`\$\{selected\.id\}:/u,
+  );
+});
+
 test("V3 Inbox scopes amoCRM commands to exact canonical EVO identity", () => {
   const page = source("src/app/(v3)/v3/inbox/page.tsx");
   const adapter = source("src/lib/v3/inbox-source.ts");

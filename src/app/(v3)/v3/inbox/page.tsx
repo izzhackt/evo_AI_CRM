@@ -93,7 +93,9 @@ export default async function InboxPart({
       : null;
     workflowControls = (
       <InboxProviderWorkflowControls
-        key={`${provider.proposal?.proposalRequestId ?? "no-proposal"}:${
+        key={`${selected.id}:${
+          provider.proposal?.proposalRequestId ?? "no-proposal"
+        }:${
           provider.reviews.find(
             (review) =>
               review.proposalRequestId === provider.proposal?.proposalRequestId,

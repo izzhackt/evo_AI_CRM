@@ -138,8 +138,8 @@ objects/bytes. Подписанное exact empty-source evidence (#653) дос�
 
 ### D · Пять потребностей заказчика — В РАБОТЕ
 
-**Волна D1 (схема+бэкенд, миграции 117–121) — ТЕХНИЧЕСКИ ЗАВЕРШЕНА,
-PR #660 проходит exact-head CI/merge-gate.** Пять вертикалей,
+**Волна D1 (схема+бэкенд, миграции 117–121) — СДЕЛАНА (PR #660,
+`main` `77462ba023531df81339fc00296e2681fec783a1`).** Пять вертикалей,
 каждая: идемпотентность по request_id, optimistic versions, compose-аудит,
 REVOKE/GRANT, RLS через RPC-гарды; новые привилегированные тела живут в
 существующих неэкспонированных схемах `private`/`platform_private`, а
@@ -169,23 +169,24 @@ node-тесты + прогон `scripts/test-postgres-authorization.sh`:
   без публичных URL и байтов через браузер; связь медиа ↔ дело проверяется
   через диалог (105/106).
 
-**Durable checkpoint и cold-resume:** worktree
-`/Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover`, remote
-ветка `izzhackt/v3-d1-backend`, draft PR #660. Проверенный code checkpoint —
-`a01567043fc7cac488b2cc655e205742392fe85f`; последующий docs-only commit не
-меняет этот code tree. Найти состояние:
+**Durable checkpoint и cold-resume:** D1 уже в `origin/main`; удалённую ветку
+PR #660 после merge удалили штатно. Проверенный code checkpoint до финального
+handover — `a01567043fc7cac488b2cc655e205742392fe85f`, итоговый squash в `main` —
+`77462ba023531df81339fc00296e2681fec783a1`. Не восстанавливать D1 из старой
+ветки или worktree. Новый исполнитель сначала подтверждает `origin/main` и
+наличие всех пяти неизменяемых миграций:
 
 ```bash
-git worktree list --porcelain
-git -C /Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover status --short --branch
-git -C /Users/iskhak.tazhibaev/Documents/01_Projects/evo_AI_CRM-d1-takeover rev-parse HEAD
-gh pr view 660 --repo izzhackt/evo_AI_CRM --json headRefOid,isDraft,statusCheckRollup
+git fetch origin --prune
+git rev-parse origin/main
+git ls-tree -r --name-only origin/main -- supabase/migrations \
+  | rg '/(117|118|119|120|121)_'
+gh pr view 660 --repo izzhackt/evo_AI_CRM --json state,mergedAt,mergeCommit
 ```
 
-Если PR #660 уже слит, не восстанавливать D1 из старых worktree: проверить на
-`main` наличие миграций 117–121 и продолжить с D2. Если PR ещё открыт,
-`headRefOid` обязан совпадать с remote-веткой; любые новые изменения требуют
-повторить задетые проверки и exact-head review.
+Ожидаемый результат: PR `MERGED`, merge commit `77462ba0`, миграции 117–121
+есть. Затем продолжать только с D2. Любое расхождение — stop-and-investigate,
+а не повторная реализация D1.
 
 **Фактический статус D1 на code checkpoint `a0156704`:**
 
@@ -233,9 +234,10 @@ staff-auth E2E 15/15, V3 gate зелёный на desktop, 393 px и forced-dark
 `80ba267ddad2186ce682da0e3cf84e88c5a8d0af2ad0a001f8da45d918989d85` —
 `APPROVED`; он отдельно подтвердил Curator deadlock, exposed
 invoker/non-exposed definer boundary и stale-Admin revocation race.
-Подтверждённых замечаний не осталось. Последний обязательный шаг перед
-переводом #660 из draft: push этого docs-only HEAD, GitHub fast checks именно
-его SHA и проверка, что delta поверх `a0156704` меняет только этот handover.
+Подтверждённых замечаний не осталось. Финальный head PR
+`1f57ef9158ce2456380c40def83aaff275e117f4` прошёл exact-head GitHub CI;
+PR #660 затем squash-merged в `main` как `77462ba0`. Managed Supabase и
+production этой волной не менялись.
 
 Проверка актуальной официальной документации 06–07.09: новый
 `SECURITY DEFINER` нельзя оставлять в exposed schema `platform`. D1 переносит
@@ -253,21 +255,105 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
 [Next.js Data Security](https://nextjs.org/docs/app/guides/data-security),
 [PostgreSQL advisory locks](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS).
 
-**Волна D2 (UI поверх D1)** — после интеграции D1:
+**Волна D2 (UI поверх D1) — СЛЕДУЮЩАЯ.** До параллельного кода действует
+следующий замороженный контракт:
 
-- Заметки: блок на профиле (обе вкладки-аудитории) и в карточке лида.
-- Вложения в переписке: рендер media в пузырях (read-модель уже отдаёт) +
-  кнопка «В дело студента» с выбором слота (121).
-- Пикер шаблонов в композере входящих (вставка в message_text) + вкладка
-  «Шаблоны ответов» в /v3/knowledge (CRUD по 120).
-- Очередь входящих: маркер «ждёт ответа с …» в строках + фильтр ?waiting=1 +
-  поиск (119а/б).
-- Карточка лида: возраст в стадии (119в).
-- Календарь: дочитывание хвоста курсором/датовым фильтром (119г) — убрать
-  строку обрыва там, где она больше не нужна.
-- Дедлайны заявок в календарь + «до ближайшего дедлайна N дней» на главной
-  приёмной (university_deadline_on уже есть с #622).
-- Цикл проверки полный, состязательный раунд обязателен.
+- **Inbox, миграция 122:** сервер вычисляет `waiting_since` как время первого
+  входящего сообщения в непрерывном входящем хвосте после последнего
+  исходящего; если исходящих ещё не было — время первого входящего в диалоге.
+  Значение существует только когда последнее сообщение входящее. Равные
+  timestamps разрешаются тем же порядком `(created_at, id)`, что и каноническая
+  лента. `?waiting=1` фильтрует на сервере именно `waiting_since IS NOT NULL`.
+  Поиск — только сохранённые `subject`, имя и телефон канонического клиента;
+  provider payload и текст сообщений в поиск не входят. UI показывает
+  «Ждёт ответа с …» от `waiting_since`, не от последнего сообщения. URL
+  принимает скалярный `q` и только exact `waiting=1`; оба параметра сохраняются
+  в ссылках очереди, выбора диалога и пагинации сообщений. Фильтрация идёт до
+  `LIMIT`; RPC получает backward-compatible `p_waiting_only BOOLEAN DEFAULT
+  FALSE`, а `FALSE` сохраняет прежний состав строк, порядок, cursor semantics и
+  значения всех прежних колонок; return shape честно расширяется только
+  `waiting_since`. Даже при фильтре порядок/cursor остаются каноническими
+  `sort_at DESC, conversation_id DESC`, не «самый долгий первым». 122 синхронно
+  обновляет page и snapshot shapes.
+- **Шаблоны, без миграции:** пикер вставляет выбранный body в `message_text`,
+  в позицию курсора/вместо выделения, не стирает остальной набранный текст и не
+  отправляет автоматически. `/v3/knowledge` становится смешанным экраном:
+  документы требуют `documents.read`, чтение шаблонов — `messaging.read`, CRUD
+  — `messaging.send`. Sales видит шаблоны, но никогда не получает
+  `documents.read` и не вызывает document readers. В Admin preview
+  presentation role управляет route/read dispatch, вкладками и видимыми
+  controls выбранной роли; actions по-прежнему авторизуются неизменяемым
+  реальным `authorityRole` Admin на сервере — preview не создаёт поддельного
+  downgraded actor. Adapter дополнительно фильтрует аудитории: Sales preview —
+  `sales` + `all`, Admissions — `admissions` + `all`, Admin — все три.
+- **Заметки и воронка, миграция 123:** профиль Sales читает/создаёт заметки
+  только с subject `lead_id`; профиль Admissions — только с subject
+  `student_case_id`. Карточка лида использует тот же exact `lead_id`; данные
+  разных subjects не склеиваются. Заметки остаются append-only с настоящими
+  автором/временем. Первый экран — до 50 записей в каноническом keyset-порядке;
+  при `hasNext` обязательно есть рабочее «Ранее», поэтому хвост не скрывается.
+  Для списка лидов `staff_sales_lead_page` одним RPC отдаёт exact
+  id/body/author/created_at только последней доступной lead-note, без N+1.
+  Возраст стадии считается от `stage_entered_at`; для производной колонки
+  `handed_off` он не показывается.
+- **Календарь, миграция 124:** клиент дочитывает весь выбранный диапазон через
+  keyset/date contract 119; предупреждение об обрыве снимается лишь после
+  доказанного исчерпания cursor. Date predicates 119 исключают `NULL`, поэтому
+  124 добавляет отдельную bounded keyset-проекцию только для undated, повторяя
+  порядок/cursor 119 `(sort_at, case_task_id) ASC` с каноническим undated
+  sentinel; UI показывает её группой «Без срока», полный исторический scan
+  запрещён.
+  Дедлайны — отдельные read-only calendar events с discriminator
+  `application_deadline`, а не редактируемые задачи: они не получают
+  TaskControls и ведут в Admissions-вкладку exact дела. Проекция отдаёт только
+  application id, case id/display name, university/program, status и deadline.
+  Они берутся только из
+  `university_deadline_on`: не выводить его из intake, названия, вех или задач.
+  Учитываются только доступные текущему actor дела `state='active'` и статусы
+  заявки `preparation`, `ready`, `submitted`, `under_review`, `offer`.
+  Проекция событий идёт keyset-порядком
+  `(university_deadline_on, application_id)` и дочитывается полностью только в
+  выбранном bounded диапазоне. Отдельная one-row aggregate projection находит
+  глобальный ближайший дедлайн по всем доступным активным заявкам независимо от
+  calendar view. Date-only дедлайн не сдвигается через UTC; границы дня,
+  «сегодня» и «N дней» считаются в `Asia/Bishkek`. Метрика живёт на фактической
+  стартовой странице Admissions `/v3/calendar`, а не на закрытом для роли
+  `/v3/main`: прошедший срок — «Просрочено N дн», сегодняшний — «Сегодня»,
+  будущий — «До дедлайна N дн».
+- **Media, последним и без новой миграции:** пузыри используют уже выданные
+  read-моделью media facts. Просмотр/скачивание идёт через server-only
+  `grant_communication_media_download` → одноразовый
+  `consume_communication_media_download_grant` → signed URL не дольше 60
+  секунд. Бакет остаётся private; public URL и service key запрещены, сырые
+  bucket/object coordinates не возвращаются в application JSON — браузер
+  получает только server-authorized redirect с `Cache-Control: no-store` на
+  короткий signed URL. Preview/download требует `messaging.read`. «В дело
+  студента» дополнительно требует `documents.write`, exact `student_case_id`
+  диалога и явный выбор из доступных для записи слотов того же дела; Sales
+  кнопку не видит. Путь переиспользует 121, браузер не переносит source bytes.
+  Cross-org, revoked, expired/consumed grant и quarantined/unavailable media
+  закрываются fail-closed.
+
+Номера зарезервированы жёстко: **122 Inbox**, **123 Profile/Pipeline**,
+**124 Calendar**. Порядок интеграции: contract docs → Inbox 122 → snippets →
+Profile/Pipeline 123 → Calendar 124 → Media. Параллельные исполнители не
+редактируют `docs/**`, `src/lib/v3/wording.ts`,
+`src/lib/fixed-role-policy.ts`, AppShell/route guards, общие test manifests или
+чужой UI hotspot. Inbox владеет 122, communication/inbox read-моделью и queue
+UI; snippets — новыми snippet/knowledge components; Profile/Pipeline — 123 и
+своими source/components; Calendar — 124 и calendar source/components.
+Composer wiring в `InboxProviderWorkflowControls.tsx`, mixed `/v3/knowledge`
+route policy и общий wording сводит интеграционный владелец после merge нужной
+пачки. Media стартует после Inbox/snippets и тогда получает явное владение
+`Inbox.tsx`/Inbox hotspot.
+
+Каждая пачка получает целевые Node/SQL/component tests, Node 22 typecheck,
+полный ESLint, production build и риск-маршрутизированный foundation gate.
+Миграции 122–124 дополнительно проходят полный
+`scripts/test-postgres-authorization.sh`. После сведения всех пачек — полный
+локальный контур desktop/393px/forced-dark и независимый adversarial review
+точного cumulative diff. D2 не разрешает managed schema apply, provider calls
+или production release.
 
 ### E · Портал студента — НЕ НАЧАТ (существующую authority переиспользовать)
 

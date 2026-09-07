@@ -20896,3 +20896,123 @@ Decision:
 This clarification authorizes only the local E2 migration/read adapter and its
 tests. It does not authorize migration 126, managed Supabase apply, Auth/UI,
 provider calls, production deployment or release arming.
+## 2026-09-07 - Start Stage E3 Student Auth and invite callback implementation
+
+Block-ID: `EVO-V3-E3-STUDENT-AUTH-CALLBACK-IMPLEMENTATION-2026-09-07`
+
+Change type: implementation slice. Affected plan section: Stage E3 only.
+
+Decision:
+
+1. E3 adds a separate strict Student authority decoder, resolver and guard.
+   It accepts only verified Supabase claims plus live organization-scoped
+   Student authority and one exact activated active/closed case projection.
+   Existing Admin/Sales/Curator authority remains staff-only; neither path
+   reads `user_metadata` as authority.
+2. The invite callback uses the exact local and production URLs frozen in E0.
+   Its GET surface only validates an exact `token_hash` plus `type=invite`
+   query and renders a no-store confirmation interstitial. Only its explicit
+   same-origin, CSRF-bound POST calls server-side `verifyOtp`, then redirects
+   without the token to `/auth/set-password`. Callback replay never creates,
+   reissues or deletes an Auth identity.
+3. Password setup and account-pending remain auth-only surfaces. Password
+   update is permitted only for the exact verified Auth user/email bound to the
+   durable receipt, before active Portal authority is required. The pending
+   surface exposes only bounded refresh and sign-out behavior and reads no
+   Student case data.
+4. The trusted coordinator is split into a pure attempt/generation/version CAS
+   workflow, a server-only Supabase Auth provider adapter and a strict m126 RPC
+   store adapter. E3 may prepare the workflow against typed seams, but must not
+   guess RPC arguments or ship a runtime fallback: the store adapter is bound
+   only after E1 merges its exact signatures. A service-role client never
+   supplies, synthesizes or impersonates an Admin JWT.
+5. Initial and reissue provider calls are possible only after a committed claim
+   bound to one receipt, attempt, version and generation. `dispatching`,
+   `invite_outcome_unknown` and `reissue_unknown` reconcile without blind
+   resend. An issued unexpired invite is never resent. Expired unconfirmed
+   recovery requires the separate authenticated Admin authorization and the
+   same receipt, Auth user and normalized email.
+6. This branch changes no m126/m127 migration and no Portal screen or document
+   route. It performs no managed Supabase, SMTP/provider, VPS, DNS or production
+   mutation. Local preparation remains unpushed until E1 and E2 merge; then it
+   rebases, binds exact signatures, runs scoped Node/static proof and receives
+   independent exact-head review before PR publication.
+
+Official implementation references:
+
+- [Supabase Auth email templates](https://supabase.com/docs/guides/auth/auth-email-templates)
+- [Supabase JavaScript `verifyOtp`](https://supabase.com/docs/reference/javascript/auth-verifyotp)
+- [Supabase JavaScript `inviteUserByEmail`](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail)
+- [Supabase redirect URL allowlist](https://supabase.com/docs/guides/auth/redirect-urls)
+- [Next.js Server Actions security](https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions)
+
+Validation impact: focused E3 Node contract tests and static source assertions
+are added now. Migration, local Supabase and browser suites remain downstream
+E1/E2 integration gates and are not replayed during this initial preparation.
+
+Reviewer notes: pending independent launch-control review on the final rebased
+E3 head after E1/E2 merge and exact m126 binding.
+
+## 2026-09-07 - Bind E3 to the merged E1 and E2 contracts
+
+Block-ID: `EVO-V3-E3-MERGED-AUTHORITY-BINDING-2026-09-07`
+
+Change type: post-rebase interface correction. Affected plan section: Stage E3
+trusted invite coordinator and Admin provisioning UI only. Exact integration
+base: `83d5a2ed9f1ca8ea5fb1b985db1d9386bfa28fac`.
+
+The reissue claim decoder consumes migration 126's exact attempt-level
+`pre_confirmation_sent_at` field. It does not substitute the receipt-level
+`invite_issued_at`, because that timestamp cannot prove the Auth provider state
+observed immediately before this exact reissue attempt. The value remains a
+server-only comparison baseline and is never exposed as invite evidence.
+
+The Admin provisioning UI now reads its narrow active-Curator options through
+the E3-owned `student-portal-curator-options` server module. It no longer
+imports the superseded catch-all case-assignment module that Stage F-A will
+delete. The decoder rejects invalid, cross-organization and wrong-role rows,
+and the repository rejects non-Admin authority before database access.
+
+The rebased test manifest preserves E2's Student Portal source test and adds
+the E3 suite once. Acceptance for this correction is the focused E3 Node suite,
+the route-role contract test, scoped lint and diff validation. It authorizes no
+managed Supabase, provider, SMTP, VPS, DNS, production or release mutation.
+
+## 2026-09-07 - Preserve the initial Auth issuance baseline
+
+Block-ID: `EVO-V3-E3-INITIAL-ISSUANCE-BASELINE-CORRECTION-2026-09-07`
+
+Change type: exact-head review correction. Affected plan section: Stage E3
+trusted invite coordinator only.
+
+Migration 126 returns nullable `pre_confirmation_sent_at` for both initial and
+reissue claims. An initial claim can have a non-null value when an unconfirmed
+Auth identity already exists for the reserved email. E3 must preserve that
+attempt-level baseline and accept provider success only when the exact Auth
+readback has a later `confirmation_sent_at`. An unchanged or older timestamp is
+recorded as `provider_issuance_unobserved`; it is never accepted and never
+blindly retried. Initial claims without a pre-existing Auth user retain a null
+baseline. Reissue claims continue to require a non-null baseline.
+
+Focused store and coordinator tests cover null, valid existing-user, malformed,
+unchanged and advanced initial baselines. This correction changes no migration,
+provider invocation policy, managed service or production state.
+
+## 2026-09-07 - Restore failed-reissue continuation and classify safe env examples
+
+Block-ID: `EVO-V3-E3-REISSUE-FAILED-CONTINUATION-CORRECTION-2026-09-07`
+
+Change type: exact-head review and PR-gate correction. Affected plan section:
+Stage E3 durable reissue continuation and fast-PR change classification only.
+
+A definite reissue failure remains retryable only under the receipt's existing
+Admin-authorized `reissue_request_id`. Replaying the exact prepare request must
+therefore dispatch a new generation with its deterministic new attempt id and
+the receipt's current version/generation CAS. It must not mint another reissue
+authorization key, while `reissue_unknown` remains reconciliation-only.
+
+The committed `.env.example` is a safe runtime-configuration contract and is a
+known code/config path for the fail-closed PR classifier. Unknown paths remain
+blocking. Focused tests cover the failed-reissue transition, preserved durable
+key/new-attempt derivation and `.env.example` classification. This correction
+authorizes no provider call, managed service, production or release mutation.

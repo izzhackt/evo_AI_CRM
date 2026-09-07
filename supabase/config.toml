@@ -85,11 +85,18 @@ allowed_mime_types = ["application/octet-stream", "application/pdf", "image/gif"
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = ["http://127.0.0.1:3000/auth/callback"]
 jwt_expiry = 3600
 enable_signup = false
 enable_anonymous_sign_ins = false
 enable_manual_linking = false
+
+[auth.email]
+otp_expiry = 3600
+
+[auth.email.template.invite]
+subject = "Доступ к личному кабинету EVO"
+content_path = "./supabase/templates/invite.html"
 
 [auth.hook.custom_access_token]
 enabled = true

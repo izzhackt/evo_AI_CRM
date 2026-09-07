@@ -24,6 +24,10 @@ import {
 } from "@/lib/platform-case-notes";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
+  listStudentPortalActiveCurators,
+  type StudentPortalCuratorOption,
+} from "@/lib/server/student-portal-curator-options";
+import {
   parseV3ProfileCaseDirectoryParams,
   readProfileTarget,
   readV3ProfileCaseDirectory,
@@ -175,6 +179,18 @@ export default async function ProfilePart({
   const notesLatestHref = view && noteCursor
     ? buildProfileNotesHref(view.details.routeTarget)
     : null;
+  let studentPortalCurators: readonly StudentPortalCuratorOption[] = [];
+  let studentPortalCuratorsAvailable = true;
+  if (
+    actor.presentationRole === "admin" &&
+    view?.details.admissions?.caseState === "pending"
+  ) {
+    try {
+      studentPortalCurators = await listStudentPortalActiveCurators(actor);
+    } catch {
+      studentPortalCuratorsAvailable = false;
+    }
+  }
 
   return (
     <PartShell title="Профиль">
@@ -201,6 +217,8 @@ export default async function ProfilePart({
               actorRole={actor.presentationRole}
               authorityRole={actor.authorityRole}
               organizationId={actor.organizationId}
+              studentPortalCurators={studentPortalCurators}
+              studentPortalCuratorsAvailable={studentPortalCuratorsAvailable}
               requestIds={requestIds}
               noteRequestId={randomUUID()}
               notes={toProfileNotesSnapshot(view.notes.subject, view.notes.page)}

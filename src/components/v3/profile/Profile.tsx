@@ -1,11 +1,13 @@
 import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
+import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { personState } from "@/lib/v3/wording";
 
 import { Documents } from "./Documents";
 import { ProfileContractWorkspace } from "./ProfileContractWorkspace";
 import { ProfileNotes } from "./ProfileNotes";
+import { StudentPortalAccessCard } from "./StudentPortalAccessCard";
 import { profileNotesSubjectKey } from "./profile-notes-view";
 import { Anketa, History, Money, Overview } from "./tabs";
 import {
@@ -51,6 +53,8 @@ export function Profile({
   actorRole,
   authorityRole,
   organizationId,
+  studentPortalCurators,
+  studentPortalCuratorsAvailable,
   requestIds,
   noteRequestId,
   notes,
@@ -68,6 +72,11 @@ export function Profile({
   actorRole: ProfileActorRole;
   authorityRole: ProfileActorRole;
   organizationId: string;
+  studentPortalCurators: readonly Readonly<{
+    membershipId: string;
+    displayName: string;
+  }>[];
+  studentPortalCuratorsAvailable: boolean;
   requestIds: ProfileSalesRequestIds;
   noteRequestId: string;
   notes: ProfileNotesSnapshot;
@@ -150,6 +159,21 @@ export function Profile({
             requestIds={requestIds}
             tabHref={hrefFor}
           />
+          {actorRole === "admin" && profile.student && draft.admissions ? (
+            <StudentPortalAccessCard
+              organizationId={organizationId}
+              studentCaseId={draft.admissions.studentCaseId}
+              email={profile.email}
+              displayName={profile.person}
+              caseState={draft.admissions.caseState}
+              requestId={studentPortalProvisioningRequestId(
+                organizationId,
+                draft.admissions.studentCaseId,
+              )}
+              curatorOptions={studentPortalCurators}
+              curatorOptionsAvailable={studentPortalCuratorsAvailable}
+            />
+          ) : null}
           <ProfileNotes
             key={profileNotesSubjectKey(notes.subject)}
             notes={notes}

@@ -10,6 +10,8 @@ import {
   isConnectedPlatformApi,
   isConnectedPlatformPage,
   isConnectedPlatformPrivateApi,
+  isConnectedStudentAuthPage,
+  isConnectedStudentPortalPage,
   isRetiredPlatformRoute,
   platformHomeRoute,
 } from "../src/lib/platform-route-contract.ts";
@@ -65,6 +67,46 @@ test("the active V3 route policy exposes each exact presentation interface", () 
   assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/settings"), false);
 });
 
+test("Student Portal and auth-only routes are exact and disjoint from tombstones", () => {
+  const portalRoutes = [
+    "/portal",
+    "/portal/documents",
+    "/portal/applications",
+    "/portal/payments",
+    "/portal/notifications",
+  ];
+  const authRoutes = [
+    "/auth/callback",
+    "/auth/set-password",
+    "/auth/account-pending",
+  ];
+
+  for (const path of portalRoutes) {
+    assert.equal(isConnectedStudentPortalPage(path), true, path);
+    assert.equal(isConnectedStudentAuthPage(path), false, path);
+    assert.equal(isConnectedPlatformPage(path), true, path);
+    assert.equal(isRetiredPlatformRoute(path), false, path);
+  }
+  for (const path of authRoutes) {
+    assert.equal(isConnectedStudentAuthPage(path), true, path);
+    assert.equal(isConnectedStudentPortalPage(path), false, path);
+    assert.equal(isConnectedPlatformPage(path), true, path);
+    assert.equal(isRetiredPlatformRoute(path), false, path);
+  }
+  for (const path of [
+    "/portal/",
+    "/portal/profile",
+    "/portal/documents/child",
+    "/auth/callback/",
+    "/auth/set-password/child",
+    "/auth/unknown",
+  ]) {
+    assert.equal(isConnectedStudentPortalPage(path), false, path);
+    assert.equal(isConnectedStudentAuthPage(path), false, path);
+    assert.equal(isConnectedPlatformPage(path), false, path);
+  }
+});
+
 test("root and V3 entry share the exact role-home policy", () => {
   assert.equal(platformHomeRoute("admin"), "/v3/main");
   assert.equal(platformHomeRoute("sales"), "/v3/main");
@@ -116,7 +158,7 @@ test("access denial is a V3 surface and recovers only through active routes", ()
   assert.doesNotMatch(denied, /@\/lib\/auth|@\/lib\/domain|ROLE_HOME_ROUTE/);
 });
 
-test("retired staff and portal roots are hidden tombstones before auth", () => {
+test("retired staff roots are hidden tombstones before auth", () => {
   for (const root of [
     "/dashboard",
     "/sales",
@@ -127,7 +169,6 @@ test("retired staff and portal roots are hidden tombstones before auth", () => {
     "/finance",
     "/tasks",
     "/settings",
-    "/portal",
     "/calls",
     "/chat",
     "/whatsapp",

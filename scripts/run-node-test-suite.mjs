@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 export const DEFAULT_ENTRY_SCRIPTS = Object.freeze([
   "test:security",
   "test:frontend",
+  "test:e3",
   "test:u1",
   "test:u2",
   "test:u4",
@@ -20,6 +21,7 @@ export const DEFAULT_ENTRY_SCRIPTS = Object.freeze([
 
 export const UNIT_ENTRY_SCRIPTS = Object.freeze([
   "test:frontend",
+  "test:e3",
   "test:u1",
   "test:u2",
   "test:u4",

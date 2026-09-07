@@ -109,6 +109,15 @@ test("test and script changes lint without repeating the TypeScript or Next grap
   assert.equal(result.unknown, false);
 });
 
+test("the safe environment example is a known runtime configuration contract", () => {
+  const result = classifyNameStatus(nul("M", ".env.example"));
+  assert.equal(result.code, true);
+  assert.equal(result.lint, true);
+  assert.equal(result.build, false);
+  assert.equal(result.unknown, false);
+  assert.deepEqual(result.unknown_paths, []);
+});
+
 test("the shared EVO edge Caddy source is a known infrastructure path", () => {
   const result = classifyNameStatus(nul(
     "M",

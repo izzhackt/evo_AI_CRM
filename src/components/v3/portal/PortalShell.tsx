@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { EvoMark } from "@/components/platform/brand/EvoMark";
+import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 
 const SECTIONS = [
   { href: "/portal", label: "Поступление" },
@@ -13,7 +14,13 @@ const SECTIONS = [
   { href: "/portal/notifications", label: "Уведомления" },
 ] as const;
 
-export function PortalShell({ children }: { children: React.ReactNode }) {
+export function PortalShell({
+  children,
+  displayName,
+}: {
+  children: React.ReactNode;
+  displayName: string;
+}) {
   const pathname = usePathname();
 
   return (
@@ -30,7 +37,19 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               EVO Admissions
             </span>
           </Link>
-          <p className="text-xs font-medium text-fg-3">Кабинет студента</p>
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="hidden max-w-48 truncate text-xs font-medium text-fg-3 sm:block">
+              {displayName}
+            </p>
+            <form action={logoutStudentPortalAction}>
+              <button
+                type="submit"
+                className="inline-flex min-h-10 items-center rounded-nav border border-control-edge px-3 text-xs font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg"
+              >
+                Выйти
+              </button>
+            </form>
+          </div>
         </div>
       </header>
 

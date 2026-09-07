@@ -849,9 +849,13 @@ export async function attachPlatformMessageMediaToCase(
       },
     );
     if (grantResponse.error) {
-      return rpcErrorCode(grantResponse.error) === "42501"
-        ? failure("forbidden")
-        : failure("unavailable");
+      if (rpcErrorCode(grantResponse.error) !== "42501") {
+        return failure("unavailable");
+      }
+      const message = rpcErrorMessage(grantResponse.error);
+      return message === "Communication media is unavailable"
+        ? failure("unavailable")
+        : failure("forbidden");
     }
     const grantId = normalizeMediaGrant(grantResponse.data);
     if (!grantId) return failure("unavailable");

@@ -815,6 +815,7 @@ supabase_staff_auth_browser_assert() {
     EVO_SUPABASE_HANDOFF_PROOF_CLIENT_ID="$supabase_handoff_client_id" \
     EVO_SUPABASE_DIRECT_API_URL="$supabase_api_url" \
     EVO_SUPABASE_DIRECT_PUBLISHABLE_KEY="$supabase_publishable_key" \
+    SUPABASE_DB_URL="$supabase_database_url" \
     EVO_P4_ACCEPTANCE_RESULT_FILE="$p4_acceptance_result" \
     "$node_bin" node_modules/@playwright/test/cli.js "${playwright_args[@]}"
 }

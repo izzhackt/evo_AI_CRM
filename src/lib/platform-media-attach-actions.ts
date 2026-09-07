@@ -37,13 +37,6 @@ export type PlatformMediaAttachActionState = Readonly<{
   documentVersionId: string | null;
 }>;
 
-export const PLATFORM_MEDIA_ATTACH_INITIAL_ACTION_STATE:
-PlatformMediaAttachActionState = Object.freeze({
-  status: "idle",
-  requestId: "",
-  documentVersionId: null,
-});
-
 function uuid(value: string | undefined): string | null {
   return value && value === value.toLowerCase() && UUID_PATTERN.test(value)
     ? value

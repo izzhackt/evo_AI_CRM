@@ -188,8 +188,13 @@ registerHooks({
 
 const {
   attachPlatformMessageMediaToCaseAction,
-  PLATFORM_MEDIA_ATTACH_INITIAL_ACTION_STATE,
 } = await import("../src/lib/platform-media-attach-actions.ts");
+
+const PLATFORM_MEDIA_ATTACH_INITIAL_ACTION_STATE = Object.freeze({
+  status: "idle",
+  requestId: "",
+  documentVersionId: null,
+});
 
 function pdfBytes(byteLength = 64) {
   assert.ok(byteLength >= 5);
@@ -980,6 +985,46 @@ test("an exact pre-existing reservation object can finish without overwrite", as
     harness.rpcCalls.at(-1).name,
     "complete_message_media_attachment",
   );
+});
+
+test("media grant distinguishes missing source bytes from authority denial", async (t) => {
+  const scenarios = [
+    {
+      name: "missing archived Storage object stays unavailable",
+      message: "Communication media is unavailable",
+      expectedCode: "unavailable",
+    },
+    {
+      name: "other permission denial stays forbidden",
+      message: "Active Platform staff authority is required",
+      expectedCode: "forbidden",
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    await t.test(scenario.name, async () => {
+      const harness = createHarness({
+        rpcErrors: {
+          grant_communication_media_download: {
+            code: "42501",
+            message: scenario.message,
+          },
+        },
+      });
+
+      assert.deepEqual(await harness.run(), {
+        status: "failed",
+        code: scenario.expectedCode,
+      });
+      assert.deepEqual(
+        harness.rpcCalls.map(({ name }) => name),
+        [
+          "reserve_message_media_attachment",
+          "grant_communication_media_download",
+        ],
+      );
+    });
+  }
 });
 
 test("service mutation conflicts map consistently at reservation and completion", async (t) => {

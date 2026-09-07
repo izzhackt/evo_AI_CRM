@@ -34,6 +34,7 @@ import {
 import { isFreshWorkingWahaSession } from "@/lib/provider-display-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
+import { toV3InboxMessageMedia } from "@/lib/v3/inbox-media";
 
 const INBOX_PAGE_SIZE = 50;
 const MESSAGE_PAGE_SIZE = 50;
@@ -142,6 +143,7 @@ function toInboxMessage(message: PlatformConversationMessage): InboxMessage {
     inbound: message.direction === "inbound",
     body: message.bodyText,
     at: formatInboxTime(message.createdAt),
+    media: Object.freeze(message.media.map(toV3InboxMessageMedia)),
   });
 }
 
@@ -221,7 +223,11 @@ export async function readInbox(
         conversationId: thread.conversation.id,
       }),
     ]);
-    if (context === null || context.conversationId !== thread.conversation.id) {
+    if (
+      context === null
+      || context.conversationId !== thread.conversation.id
+      || context.studentCaseId !== thread.conversation.studentCaseId
+    ) {
       throw new Error("V3 inbox is unavailable.");
     }
 
@@ -257,7 +263,7 @@ export async function readInbox(
       canonicalContext: Object.freeze({
         leadId: context.canonicalLeadId,
         clientId: context.canonicalClientId,
-        studentCaseId: context.studentCaseId,
+        studentCaseId: thread.conversation.studentCaseId,
       }),
     });
     providerWorkflow = Object.freeze({ proposal, reviews, latestAttempt });

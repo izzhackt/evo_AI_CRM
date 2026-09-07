@@ -534,6 +534,77 @@ BEGIN
 END
 $$;
 
+CREATE OR REPLACE FUNCTION pg_temp.p126_expect_incomplete_child_membership_evidence(
+  p_receipt_id UUID,
+  p_child_membership_request_id UUID,
+  p_expected_receipt_version BIGINT,
+  p_expected_invite_generation BIGINT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  BEGIN
+    DELETE FROM platform.membership_role_history
+    WHERE request_id = p_child_membership_request_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'child membership role history fixture is missing';
+    END IF;
+    PERFORM platform.finalize_student_portal_authority(
+      p_receipt_id, p_expected_receipt_version, p_expected_invite_generation
+    );
+    RAISE EXCEPTION 'continuation accepted missing child role history';
+  EXCEPTION WHEN SQLSTATE '40001' THEN
+    IF SQLERRM <> 'portal_identity_conflict' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    UPDATE platform.audit_events
+    SET after_state = jsonb_set(
+      after_state, '{display_name}', to_jsonb('Mismatched Student'::TEXT)
+    )
+    WHERE request_id = p_child_membership_request_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'child membership audit fixture is missing';
+    END IF;
+    PERFORM platform.finalize_student_portal_authority(
+      p_receipt_id, p_expected_receipt_version, p_expected_invite_generation
+    );
+    RAISE EXCEPTION 'continuation accepted mismatched child display name';
+  EXCEPTION WHEN SQLSTATE '40001' THEN
+    IF SQLERRM <> 'portal_identity_conflict' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    UPDATE platform.audit_events
+    SET reason = 'Mismatched provisioning reason'
+    WHERE request_id = p_child_membership_request_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'child membership audit fixture is missing';
+    END IF;
+    PERFORM platform.finalize_student_portal_authority(
+      p_receipt_id, p_expected_receipt_version, p_expected_invite_generation
+    );
+    RAISE EXCEPTION 'continuation accepted mismatched child audit reason';
+  EXCEPTION WHEN SQLSTATE '40001' THEN
+    IF SQLERRM <> 'portal_identity_conflict' THEN RAISE; END IF;
+  END;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM platform.membership_role_history
+    WHERE request_id = p_child_membership_request_id
+  ) OR NOT EXISTS (
+    SELECT 1 FROM platform.audit_events
+    WHERE request_id = p_child_membership_request_id
+      AND reason = 'Student Portal provisioning'
+      AND after_state ->> 'display_name' <> 'Mismatched Student'
+  ) THEN
+    RAISE EXCEPTION 'child membership evidence was not restored after negatives';
+  END IF;
+END
+$$;
+
 REVOKE ALL ON FUNCTION
   pg_temp.p126_expect_claim_fence(UUID, UUID),
   pg_temp.p126_expect_stale_claim_replay(UUID, UUID),
@@ -551,7 +622,8 @@ REVOKE ALL ON FUNCTION
   pg_temp.p126_expect_acceptance_null_cas_denied(UUID),
   pg_temp.p126_expect_null_case_shape_denied(UUID, UUID, UUID),
   pg_temp.p126_expect_success_null_ttl_denied(UUID, UUID, BIGINT, BIGINT, UUID),
-  pg_temp.p126_expect_reconcile_null_ttl_denied(UUID, UUID, BIGINT, BIGINT, UUID)
+  pg_temp.p126_expect_reconcile_null_ttl_denied(UUID, UUID, BIGINT, BIGINT, UUID),
+  pg_temp.p126_expect_incomplete_child_membership_evidence(UUID, UUID, BIGINT, BIGINT)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION
   pg_temp.p126_expect_claim_fence(UUID, UUID),
@@ -662,6 +734,50 @@ BEGIN
       )
   ) THEN
     RAISE EXCEPTION 'Migration 126 private table direct ACL drifted';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class AS sequence_class
+    WHERE sequence_class.relkind = 'S'
+      AND (
+        EXISTS (
+          SELECT 1
+          FROM pg_catalog.pg_depend AS dependency
+          JOIN pg_catalog.pg_class AS table_class
+            ON table_class.oid = dependency.refobjid
+          JOIN pg_catalog.pg_namespace AS table_namespace
+            ON table_namespace.oid = table_class.relnamespace
+          WHERE dependency.classid = 'pg_catalog.pg_class'::REGCLASS
+            AND dependency.objid = sequence_class.oid
+            AND dependency.refclassid = 'pg_catalog.pg_class'::REGCLASS
+            AND dependency.deptype IN ('a', 'i')
+            AND table_namespace.nspname = 'platform_private'
+            AND table_class.relname IN (
+              'student_portal_provisioning_receipts',
+              'student_portal_invite_attempts'
+            )
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM pg_catalog.pg_depend AS dependency
+          JOIN pg_catalog.pg_attrdef AS attribute_default
+            ON attribute_default.oid = dependency.objid
+          JOIN pg_catalog.pg_class AS table_class
+            ON table_class.oid = attribute_default.adrelid
+          JOIN pg_catalog.pg_namespace AS table_namespace
+            ON table_namespace.oid = table_class.relnamespace
+          WHERE dependency.classid = 'pg_catalog.pg_attrdef'::REGCLASS
+            AND dependency.refclassid = 'pg_catalog.pg_class'::REGCLASS
+            AND dependency.refobjid = sequence_class.oid
+            AND table_namespace.nspname = 'platform_private'
+            AND table_class.relname IN (
+              'student_portal_provisioning_receipts',
+              'student_portal_invite_attempts'
+            )
+        )
+      )
+  ) THEN
+    RAISE EXCEPTION 'Migration 126 private tables unexpectedly use a sequence';
   END IF;
 
   FOREACH function_name IN ARRAY authenticated_functions LOOP
@@ -1966,7 +2082,16 @@ SELECT platform_private.bump_access_version(
   (:'p126_continuation_member'::JSONB ->> 'profile_id')::UUID
 ) AS p126_continuation_access_version
 \gset
+SELECT platform_private.student_portal_child_request_id(
+  :'p126_continuation_request', '01-membership-provision'
+) AS p126_continuation_child_membership
+\gset
 
+SET LOCAL session_replication_role = replica;
+SELECT pg_temp.p126_expect_incomplete_child_membership_evidence(
+  :'p126_continuation_receipt', :'p126_continuation_child_membership', 3, 1
+);
+SET LOCAL session_replication_role = origin;
 SET ROLE service_role;
 SELECT platform.finalize_student_portal_authority(
   :'p126_continuation_receipt', 3, 1

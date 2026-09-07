@@ -2441,12 +2441,53 @@ BEGIN
         FROM platform.audit_events AS event
         WHERE event.request_id = child_membership
           AND event.organization_id = receipt.organization_id
+          AND event.actor_kind = 'user'
+          AND event.actor_profile_id = receipt.authorizing_profile_id
+          AND event.actor_principal
+            = 'auth:' || receipt.authorizing_auth_user_id::TEXT
           AND event.action = 'membership.provision'
           AND event.resource_type = 'organization_membership'
           AND event.resource_id = new_student_membership_id
+          AND event.before_state IS NULL
+          AND event.reason = 'Student Portal provisioning'
+          AND event.after_state ->> 'organization_id'
+            = receipt.organization_id::TEXT
           AND event.after_state ->> 'profile_id' = new_student_profile_id::TEXT
           AND event.after_state ->> 'member_auth_user_id' = receipt.auth_user_id::TEXT
+          AND event.after_state ->> 'display_name'
+            = receipt.student_display_name
+          AND event.after_state ->> 'membership_id'
+            = new_student_membership_id::TEXT
           AND event.after_state ->> 'role' = 'student'
+          AND event.after_state ->> 'status' = 'active'
+          AND event.after_state ->> 'bundle_id' = (
+            SELECT membership.current_bundle_id::TEXT
+            FROM platform.organization_memberships AS membership
+            WHERE membership.organization_id = receipt.organization_id
+              AND membership.id = new_student_membership_id
+          )
+          AND event.after_state -> 'organization_scope_assigned' = 'false'::JSONB
+          AND event.after_state ? 'access_version'
+          AND (event.after_state ->> 'access_version')::BIGINT > 0
+      )
+      OR NOT EXISTS (
+        SELECT 1
+        FROM platform.membership_role_history AS history
+        JOIN platform.organization_memberships AS membership
+          ON membership.organization_id = history.organization_id
+          AND membership.id = history.membership_id
+        WHERE history.request_id = child_membership
+          AND history.organization_id = receipt.organization_id
+          AND history.membership_id = new_student_membership_id
+          AND history.profile_id = new_student_profile_id
+          AND history.role_version = 1
+          AND history.previous_role IS NULL
+          AND history.new_role = 'student'
+          AND history.previous_bundle_id IS NULL
+          AND history.new_bundle_id = membership.current_bundle_id
+          AND history.actor_kind = 'user'
+          AND history.actor_profile_id = receipt.authorizing_profile_id
+          AND history.reason = 'Student Portal provisioning'
       )
       OR NOT EXISTS (
         SELECT 1

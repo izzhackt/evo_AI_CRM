@@ -223,7 +223,11 @@ export async function readInbox(
         conversationId: thread.conversation.id,
       }),
     ]);
-    if (context === null || context.conversationId !== thread.conversation.id) {
+    if (
+      context === null
+      || context.conversationId !== thread.conversation.id
+      || context.studentCaseId !== thread.conversation.studentCaseId
+    ) {
       throw new Error("V3 inbox is unavailable.");
     }
 
@@ -259,7 +263,7 @@ export async function readInbox(
       canonicalContext: Object.freeze({
         leadId: context.canonicalLeadId,
         clientId: context.canonicalClientId,
-        studentCaseId: context.studentCaseId,
+        studentCaseId: thread.conversation.studentCaseId,
       }),
     });
     providerWorkflow = Object.freeze({ proposal, reviews, latestAttempt });

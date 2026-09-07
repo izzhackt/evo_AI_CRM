@@ -149,7 +149,7 @@ test("processing, retryable and terminal media are visible but never linkable", 
     ["pending", "processing"],
     ["processing", "processing"],
     ["retryable_error", "unavailable"],
-    ["terminal_error", "quarantined"],
+    ["terminal_error", "unavailable"],
   ];
   for (const [archivalStatus, state] of cases) {
     const view = toV3InboxMessageMedia(canonicalMedia({
@@ -282,6 +282,14 @@ test("Inbox integrates media for both directions without provider calls or byte 
   const page = source("src/app/(v3)/v3/inbox/page.tsx");
 
   assert.match(adapter, /message\.media\.map\(toV3InboxMessageMedia\)/u);
+  assert.match(
+    adapter,
+    /context\.studentCaseId !== thread\.conversation\.studentCaseId/u,
+  );
+  assert.match(
+    adapter,
+    /studentCaseId: thread\.conversation\.studentCaseId/u,
+  );
   assert.match(inbox, /items=\{message\.media\}/u);
   assert.match(inbox, /inbound=\{message\.inbound\}/u);
   assert.match(page, /readV3InboxMediaAttachmentContext\(actor,/u);

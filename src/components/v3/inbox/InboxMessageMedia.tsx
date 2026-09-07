@@ -142,11 +142,7 @@ export function InboxMessageMedia({
         const requestId = item.mediaId === null
           ? null
           : attachmentContext?.requestIdsByMediaId[item.mediaId] ?? null;
-        const statusTone = inbound
-          ? item.state === "quarantined"
-            ? "text-danger"
-            : "text-fg-3"
-          : "text-on-accent";
+        const statusTone = inbound ? "text-fg-3" : "text-on-accent";
         return (
           <li
             key={item.mediaId ?? `unavailable-media-${index}`}

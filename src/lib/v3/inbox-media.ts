@@ -28,8 +28,7 @@ export const V3_INBOX_MEDIA_ATTACH_MAX_BYTES = 25 * 1024 * 1024;
 export type V3InboxMessageMediaState =
   | "available"
   | "processing"
-  | "unavailable"
-  | "quarantined";
+  | "unavailable";
 
 export type V3InboxMessageMedia = Readonly<{
   /** Opaque route/action identifier. null means the item must fail closed. */
@@ -178,22 +177,17 @@ export function toV3InboxMessageMedia(
 
   const processing = media.archivalStatus === "pending"
     || media.archivalStatus === "processing";
-  const quarantined = media.archivalStatus === "terminal_error";
   return Object.freeze({
     mediaId,
     kindLabel,
     fileName,
     mimeType,
     fileSizeLabel: formatFileSize(fileSizeBytes),
-    state: processing
-      ? "processing" as const
-      : quarantined
-        ? "quarantined" as const
-        : "unavailable" as const,
+    state: processing ? "processing" as const : "unavailable" as const,
     stateLabel: processing
       ? "Вложение обрабатывается."
-      : quarantined
-        ? "Вложение недоступно: отклонено проверкой или помещено в карантин."
+      : media.archivalStatus === "terminal_error"
+        ? "Вложение недоступно: обработка завершилась с ошибкой."
         : "Вложение временно недоступно.",
     previewHref: null,
     downloadHref: null,

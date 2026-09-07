@@ -109,6 +109,18 @@ export type CalendarTask = Readonly<{
   version: string;
 }>;
 
+/**
+ * Day/week grids share one all-day row between tasks without a time and
+ * application deadlines. A deadline must keep that row visible even when the
+ * selected period has no all-day task.
+ */
+export function hasCalendarAllDayRow(
+  allDayTasks: readonly CalendarTask[],
+  deadlines: readonly CalendarApplicationDeadline[],
+): boolean {
+  return allDayTasks.length > 0 || deadlines.length > 0;
+}
+
 export type CalendarTaskDeadlineInputDefaults = Readonly<{
   dueOn: Day;
   dueAt: string;

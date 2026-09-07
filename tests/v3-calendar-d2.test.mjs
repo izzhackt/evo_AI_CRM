@@ -9,6 +9,7 @@ import {
   normalizeCalendarApplicationDeadlineRow,
   readNearestCalendarApplicationDeadline,
 } from "../src/lib/v3/calendar-contract.ts";
+import { hasCalendarAllDayRow } from "../src/components/v3/calendar/types.ts";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -195,6 +196,24 @@ test("application deadlines are read-only calendar items linked to exact Admissi
   assert.match(calendar, /NearestApplicationDeadline/u);
   assert.match(calendar, /Без срока/u);
   assert.doesNotMatch(calendar, /прочитан.*не до конца|tasksTruncatedAfter/u);
+});
+
+test("day and week grids keep the all-day row for deadlines without all-day tasks", () => {
+  const grids = source("src/components/v3/calendar/grids.tsx");
+  const deadline = {
+    kind: "application_deadline",
+    id: APPLICATION_ID,
+    studentCaseId: CASE_ID,
+    studentDisplayName: "Алия Садыкова",
+    universityName: "University of Example",
+    programName: "Computer Science",
+    status: "preparation",
+    day: "2026-09-10",
+  };
+
+  assert.equal(hasCalendarAllDayRow([], [deadline]), true);
+  assert.equal(hasCalendarAllDayRow([], []), false);
+  assert.match(grids, /hasCalendarAllDayRow\(allDay, deadlines\)/u);
 });
 
 test("nearest deadline wording covers overdue, today, future and empty", () => {

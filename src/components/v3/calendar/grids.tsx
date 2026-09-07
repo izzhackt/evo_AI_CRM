@@ -13,6 +13,7 @@ import {
   dayFullLabel,
   dayLabel,
   dayNumber,
+  hasCalendarAllDayRow,
   isSameMonth,
   taskCountLabel,
   timeLabel,
@@ -314,9 +315,10 @@ export function TimeGrid({
           </>
         ) : null}
 
-        {/* Строка «весь день»: сюда ложится задача со сроком, но без времени.
-            Пустой строки нет — она появляется вместе с такой задачей. */}
-        {allDay.length > 0 ? (
+        {/* Строка «весь день»: сюда ложатся задача со сроком без времени и
+            дедлайн заявки. Пустой строки нет — она появляется вместе с любым
+            из этих событий. */}
+        {hasCalendarAllDayRow(allDay, deadlines) ? (
           <>
             <span className="border-b border-border px-2 py-2 text-end font-mono text-2xs text-fg-3">
               весь день

@@ -266,6 +266,18 @@ PostgreSQL», ни ключей из базы. *02.09*
 той же дисциплиной до реального блокера.**
 > «окей работай как он выполни план»
 
+### 07.09 — ускорить критический путь
+
+**Параллелить независимые волны и ревью, убирать повторные тяжёлые прогоны и
+сводить зависимые cleanup-пачки в один PR, не ослабляя exact-SHA gates.**
+> «u can also spawn another codex agents ... because i need the faster path»
+>
+> «make overall plan faster, cut bottlenecks, optimize»
+
+Полный release proof запускается один раз на окончательно замороженном main;
+routine PR получают только risk-matched local evidence, adversarial review и
+protected short checks.
+
 ---
 
 ## Мелочи, названные заказчиком

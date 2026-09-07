@@ -1,4 +1,4 @@
-# Единый план прогона — 06.09
+# Единый план прогона — 06–07.09
 
 **Это рабочий план текущего прогона и одновременно документ передачи.** Если
 исполнитель сменился (лимиты, обрыв сессии, другой агент — Codex, Sol, Astra,
@@ -255,8 +255,46 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
 [Next.js Data Security](https://nextjs.org/docs/app/guides/data-security),
 [PostgreSQL advisory locks](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS).
 
-**Волна D2 (UI поверх D1) — СЛЕДУЮЩАЯ.** До параллельного кода действует
-следующий замороженный контракт:
+**Волна D2 (UI поверх D1) — КАНДИДАТ НА ЗАВЕРШЕНИЕ.** Зафиксированная
+последовательность уже находится в `origin/main`:
+
+- контракт D2 — PR #664, `ca71dbc5`;
+- exact-case поправка контракта Media — PR #665, `234f390b`;
+- Inbox / migration 122 — PR #667, `11778fce`;
+- reply snippets — PR #668, `a305152a`;
+- snippets-to-Inbox integration — PR #671, `42b53f8f`;
+- Profile/Pipeline / migration 123 — PR #670, `d005cfe5`;
+- Calendar / migration 124 — PR #666, `cb8ee183`;
+- Media route, attach boundary и corrective migration 125 — PR #672,
+  `a6ecd2af`.
+
+Осталась одна closure-пачка: Media UI в Inbox, регистрация всех новых D2
+Node/SQL тестов в канонических harness, browser proof, cumulative local gate и
+независимое exact-head review. Текущая integration-ветка —
+`izzhackt/v3-d2-final-integration`, создана от точного `a6ecd2af`; номер и head
+closure-PR дописываются после его публикации. До его squash-merge D2 не
+называть сделанной.
+
+Холодный исполнитель сначала проверяет состояние, а не повторяет уже слитые
+пачки:
+
+```bash
+git fetch origin --prune
+git rev-parse origin/main
+git ls-tree -r --name-only origin/main -- supabase/migrations \
+  | rg '/(122|123|124|125)_'
+gh pr list --repo izzhackt/evo_AI_CRM \
+  --head izzhackt/v3-d2-final-integration \
+  --json number,state,headRefOid,mergeCommit,url
+```
+
+Если closure-PR ещё открыт, продолжать только его exact head. Если он слит,
+миграции 122–125 есть в `origin/main`, канонические Node manifests проходят
+validate-only, cumulative gates и review совпадают с зафиксированным head — D2
+не переделывать, отметить `СДЕЛАНО` и перейти к E. Любое расхождение —
+stop-and-investigate.
+
+Замороженный продуктовый контракт D2:
 
 - **Inbox, миграция 122:** сервер вычисляет `waiting_since` как время первого
   входящего сообщения в непрерывном входящем хвосте после последнего
@@ -355,13 +393,18 @@ route policy и общий wording сводит интеграционный в�
 пачки. Media стартует после Inbox/snippets и тогда получает явное владение
 `Inbox.tsx`/Inbox hotspot.
 
-Каждая пачка получает целевые Node/SQL/component tests, Node 22 typecheck,
-полный ESLint, production build и риск-маршрутизированный foundation gate.
-Миграции 122–125 дополнительно проходят полный
-`scripts/test-postgres-authorization.sh`. После сведения всех пачек — полный
-локальный контур desktop/393px/forced-dark и независимый adversarial review
-точного cumulative diff. D2 не разрешает managed schema apply, provider calls
-или production release.
+Каждая leaf-пачка получает целевые Node/SQL/component tests, применимые
+protected checks, independent exact-head review и match-head merge. Зависимая
+ветка освежается ровно один раз; при patch-equivalent base-only refresh
+неизменившееся доказательство переиспользуется. Полный
+`scripts/test-postgres-authorization.sh` и полный локальный контур
+Postgres/Auth/RLS/private Storage/Chromium (desktop, 393 px, forced-dark)
+запускаются один раз на собранном exact D2 head после регистрации всех новых
+Node tests и SQL hooks 123–125. Затем выполняется независимый adversarial
+review точного cumulative diff. Любая последующая функциональная или harness
+правка инвалидирует затронутое exact-head доказательство и требует одного
+replacement run. D2 не разрешает managed schema apply, provider calls или
+production release.
 
 ### E · Портал студента — НЕ НАЧАТ (существующую authority переиспользовать)
 

@@ -20009,3 +20009,26 @@ This correction does not authorize a managed schema apply, a real provider
 call or a production release. A real archived private media object and the
 runtime archival processor are still required before claiming live WhatsApp
 attachment proof.
+
+## 2026-09-07 - Correct D2 validation cadence to the non-duplicating execution policy
+
+Block-ID: `EVO-V3-D2-VALIDATION-CADENCE-CORRECTION-2026-09-07`
+
+Change type: execution-cadence correction only. Affected plan section:
+`EVO-V3-D2-PARALLEL-UI-CONTRACT-2026-09-07`, Decision 8.
+
+The D2 product, authority, migration, security and acceptance contracts remain
+unchanged. Decision 8's repeated heavy-proof cadence is superseded by the
+risk-routed, non-duplicating policy in `docs/EVO_LAUNCH_PLAN.md`.
+
+Each package keeps focused tests, applicable protected checks, independent
+exact-head review and match-head merge. A dependent branch is refreshed once;
+patch-equivalent base-only refreshes reuse unchanged evidence. The complete
+migration-boundary harness and the local Postgres/Auth/RLS/Storage/Chromium
+contour run once on the assembled exact D2 head, after every new Node test and
+the 123–125 SQL boundary hooks are registered. Any later functional or harness
+change invalidates the affected exact-head proof and requires one replacement
+run.
+
+This correction authorizes no managed schema apply, provider call, production
+release or credential use.

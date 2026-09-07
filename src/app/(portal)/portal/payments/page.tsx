@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 };
 
 export default async function StudentPortalPaymentsPage() {
-  const view = await readStudentPortalPayments();
+  const payments = await readStudentPortalPayments();
 
   return (
     <PortalPage
       title="Оплата"
       description="Опубликованные обязательства: сколько начислено, оплачено и осталось."
     >
-      <PaymentsView view={view} />
+      <PaymentsView payments={payments} />
     </PortalPage>
   );
 }

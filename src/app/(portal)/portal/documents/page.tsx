@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 };
 
 export default async function StudentPortalDocumentsPage() {
-  const view = await readStudentPortalDocuments();
+  const documents = await readStudentPortalDocuments();
 
   return (
     <PortalPage
       title="Документы"
       description="Что нужно предоставить, что уже принято и что требуется исправить."
     >
-      <DocumentsView view={view} />
+      <DocumentsView documents={documents} />
     </PortalPage>
   );
 }

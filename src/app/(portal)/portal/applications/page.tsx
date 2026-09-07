@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 };
 
 export default async function StudentPortalApplicationsPage() {
-  const view = await readStudentPortalApplications();
+  const applications = await readStudentPortalApplications();
 
   return (
     <PortalPage
       title="Заявки и виза"
       description="Статусы университетских заявок, дедлайны и ход визового дела."
     >
-      <ApplicationsView view={view} />
+      <ApplicationsView applications={applications} />
     </PortalPage>
   );
 }

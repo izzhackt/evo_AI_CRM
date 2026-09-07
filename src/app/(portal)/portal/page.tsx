@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 };
 
 export default async function StudentPortalOverviewPage() {
-  const view = await readStudentPortalOverview();
+  const overview = await readStudentPortalOverview();
 
   return (
     <PortalPage
       title="Моё поступление"
       description="Текущий этап, ближайшее действие и человек, который сопровождает ваше дело."
     >
-      <OverviewView view={view} />
+      <OverviewView overview={overview} />
     </PortalPage>
   );
 }

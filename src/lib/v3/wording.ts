@@ -17,6 +17,14 @@ import type {
   PlatformAuditAction,
   PlatformAuditResourceType,
 } from "../platform-audit.ts";
+import type {
+  PlatformObligationCategory,
+  PlatformObligationStatus,
+} from "../platform-case-operations-contract.ts";
+import type {
+  PlatformDocumentReviewDecision,
+  PlatformDocumentSlotStatus,
+} from "../platform-private-documents.ts";
 
 /** Каноническая стадия `platform` sales workflow. */
 const LEAD_STAGE: Record<string, string> = {
@@ -64,6 +72,47 @@ const CASE_STATUS: Record<string, string> = {
   pending: "ожидает начала",
   active: "в работе",
   closed: "закрыт",
+};
+
+/** Student-visible allowlist for the otherwise free-text operational stage. */
+const STUDENT_OPERATIONAL_STAGE: Record<string, string> = {
+  contract_confirmed: "договор подтверждён",
+  admissions_handoff: "передано в приёмную",
+  intake: "начало работы",
+  profile_and_route: "профиль и маршрут",
+  documents: "сбор документов",
+  applications: "заявки в университеты",
+  decisions: "решения университетов",
+  visa_and_predeparture: "виза и подготовка к отъезду",
+  arrival_and_adaptation: "прибытие и адаптация",
+  completed: "поступление завершено",
+  closed: "дело закрыто",
+};
+
+const DOCUMENT_SLOT_STATUS: Record<PlatformDocumentSlotStatus, string> = {
+  required: "требуется",
+  submitted: "отправлен",
+  approved: "принят",
+  correction_required: "нужно исправить",
+  rejected: "отклонён",
+};
+
+const DOCUMENT_REVIEW_DECISION: Record<PlatformDocumentReviewDecision, string> = {
+  approved: "принят",
+  correction_required: "возвращён на исправление",
+  rejected: "отклонён",
+};
+
+const PAYMENT_OBLIGATION_STATUS: Record<PlatformObligationStatus, string> = {
+  pending: "ожидает оплаты",
+  partially_paid: "оплачено частично",
+  paid: "оплачено",
+  overdue: "просрочено",
+};
+
+const PAYMENT_OBLIGATION_CATEGORY: Record<PlatformObligationCategory, string> = {
+  evo_service_fee: "услуги EVO",
+  third_party_cost: "сторонние расходы",
 };
 
 /**
@@ -207,8 +256,18 @@ export function allDayDate(value: string | null | undefined): string | null {
 export const visaStatus = (v: string | null | undefined) => lookup(VISA_STATUS, v);
 export const visaKind = (v: string | null | undefined) => lookup(VISA_KIND, v);
 export const caseStatus = (v: string | null | undefined) => lookup(CASE_STATUS, v);
+export const studentOperationalStage = (v: string | null | undefined) =>
+  lookup(STUDENT_OPERATIONAL_STAGE, v);
 export const taskStatus = (v: string | null | undefined) => lookup(TASK_STATUS, v);
 export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];
+export const documentSlotStatus = (v: string | null | undefined) =>
+  lookup(DOCUMENT_SLOT_STATUS, v);
+export const documentReviewDecision = (v: string | null | undefined) =>
+  lookup(DOCUMENT_REVIEW_DECISION, v);
+export const paymentObligationStatus = (v: string | null | undefined) =>
+  lookup(PAYMENT_OBLIGATION_STATUS, v);
+export const paymentObligationCategory = (v: string | null | undefined) =>
+  lookup(PAYMENT_OBLIGATION_CATEGORY, v);
 export const financeBlockedAction = (v: string | null | undefined) =>
   lookup(FINANCE_BLOCKED_ACTION, v);
 export const country = (v: string | null | undefined) => lookup(COUNTRY, v);

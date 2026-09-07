@@ -1,6 +1,11 @@
-import { Pill } from "@/components/v3/Pill";
-import type { PortalStatus as PortalStatusValue } from "@/components/v3/portal/types";
+import { Pill, type PillTone } from "@/components/v3/Pill";
 
-export function PortalStatus({ status }: { status: PortalStatusValue }) {
-  return <Pill tone={status.tone}>{status.label}</Pill>;
+export function PortalStatus({
+  label,
+  tone = "neutral",
+}: {
+  label: string | null;
+  tone?: PillTone;
+}) {
+  return <Pill tone={tone}>{label ?? "статус недоступен"}</Pill>;
 }

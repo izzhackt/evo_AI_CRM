@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { test } from "node:test";
+
+import {
+  documentReviewDecision,
+  documentSlotStatus,
+  paymentObligationCategory,
+  paymentObligationStatus,
+  studentOperationalStage,
+} from "../src/lib/v3/wording.ts";
 
 const ROOT = new URL("../", import.meta.url);
 
@@ -12,10 +20,8 @@ function filesUnder(path) {
   const absolute = new URL(path, ROOT);
   return readdirSync(absolute)
     .flatMap((name) => {
-      const child = new URL(`${name}${statSync(new URL(name, absolute)).isDirectory() ? "/" : ""}`, absolute);
-      return statSync(child).isDirectory()
-        ? filesUnder(`${path}${name}/`)
-        : [`${path}${name}`];
+      const directory = statSync(new URL(name, absolute)).isDirectory();
+      return directory ? filesUnder(`${path}${name}/`) : [`${path}${name}`];
     })
     .sort();
 }
@@ -52,27 +58,130 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
   assert.match(layout, /requireStudentPortalActor\(\)/u);
   assert.match(layout, /<PortalShell displayName=\{actor\.displayName\}>/u);
   assert.match(shell, /logoutStudentPortalAction/u);
-  assert.doesNotMatch(`${layout}\n${shell}`, /AppShell|requirePlatformStaffActor|role preview|presentationRole/u);
+  assert.doesNotMatch(
+    `${layout}\n${shell}`,
+    /AppShell|requirePlatformStaffActor|role preview|presentationRole/u,
+  );
 });
 
-test("every page reads only its strict V3 portal adapter", () => {
-  const expected = new Map([
-    ["src/app/(portal)/portal/page.tsx", "readStudentPortalOverview"],
-    ["src/app/(portal)/portal/documents/page.tsx", "readStudentPortalDocuments"],
-    ["src/app/(portal)/portal/applications/page.tsx", "readStudentPortalApplications"],
-    ["src/app/(portal)/portal/payments/page.tsx", "readStudentPortalPayments"],
-    ["src/app/(portal)/portal/notifications/page.tsx", "readStudentPortalNotifications"],
-  ]);
+test("every page passes the direct strict E2 result to its view", () => {
+  const expected = [
+    ["src/app/(portal)/portal/page.tsx", "readStudentPortalOverview", "overview", "OverviewView"],
+    ["src/app/(portal)/portal/documents/page.tsx", "readStudentPortalDocuments", "documents", "DocumentsView"],
+    ["src/app/(portal)/portal/applications/page.tsx", "readStudentPortalApplications", "applications", "ApplicationsView"],
+    ["src/app/(portal)/portal/payments/page.tsx", "readStudentPortalPayments", "payments", "PaymentsView"],
+    ["src/app/(portal)/portal/notifications/page.tsx", "readStudentPortalNotifications", "notifications", "NotificationsView"],
+  ];
 
-  for (const [path, reader] of expected) {
+  for (const [path, reader, resultName, component] of expected) {
     const page = source(path);
-    assert.match(page, new RegExp(`import \\{ ${reader} \\} from "@/lib/v3/portal-source"`, "u"));
-    assert.match(page, new RegExp(`await ${reader}\\(\\)`, "u"));
+    assert.match(
+      page,
+      new RegExp(`import \\{ ${reader} \\} from "@/lib/v3/portal-source"`, "u"),
+    );
+    assert.match(page, new RegExp(`const ${resultName} = await ${reader}\\(\\)`, "u"));
+    assert.match(
+      page,
+      new RegExp(`<${component}[\\s\\S]*${resultName}=\\{${resultName}\\}`, "u"),
+    );
     assert.doesNotMatch(page, /createClient|supabase|sqlite|drizzle|fixture|demo/iu);
   }
 });
 
-test("portal components stay presentation-only and do not expose raw status keys", () => {
+test("views consume the exact E2 DTOs without an invented wrapper", () => {
+  assert.equal(
+    existsSync(new URL("src/components/v3/portal/types.ts", ROOT)),
+    false,
+  );
+
+  const expectedTypes = new Map([
+    ["OverviewView.tsx", "StudentPortalOverview"],
+    ["DocumentsView.tsx", "StudentPortalDocument"],
+    ["ApplicationsView.tsx", "StudentPortalApplications"],
+    ["PaymentsView.tsx", "StudentPortalPayment"],
+    ["NotificationsView.tsx", "StudentPortalNotification"],
+  ]);
+  for (const [filename, typeName] of expectedTypes) {
+    const view = source(`src/components/v3/portal/${filename}`);
+    assert.match(view, new RegExp(`\\b${typeName}\\b`, "u"));
+    assert.match(view, /@\/lib\/v3\/portal-source/u);
+    assert.doesNotMatch(view, /Portal(?:Overview|Documents|Applications|Payments|Notifications)View/u);
+  }
+
+  const applications = source("src/components/v3/portal/ApplicationsView.tsx");
+  const payments = source("src/components/v3/portal/PaymentsView.tsx");
+  assert.match(applications, /application\.isPrimary/u);
+  assert.match(payments, /payment\.category/u);
+  assert.match(payments, /payment\.refundedMinor/u);
+  assert.doesNotMatch(payments, /paymentObligationId/u);
+});
+
+test("the single wording module maps every Student status exposed by E2", () => {
+  const operationalStages = new Map([
+    ["contract_confirmed", "договор подтверждён"],
+    ["admissions_handoff", "передано в приёмную"],
+    ["intake", "начало работы"],
+    ["profile_and_route", "профиль и маршрут"],
+    ["documents", "сбор документов"],
+    ["applications", "заявки в университеты"],
+    ["decisions", "решения университетов"],
+    ["visa_and_predeparture", "виза и подготовка к отъезду"],
+    ["arrival_and_adaptation", "прибытие и адаптация"],
+    ["completed", "поступление завершено"],
+    ["closed", "дело закрыто"],
+  ]);
+  const documentStatuses = new Map([
+    ["required", "требуется"],
+    ["submitted", "отправлен"],
+    ["approved", "принят"],
+    ["correction_required", "нужно исправить"],
+    ["rejected", "отклонён"],
+  ]);
+  const reviewDecisions = new Map([
+    ["approved", "принят"],
+    ["correction_required", "возвращён на исправление"],
+    ["rejected", "отклонён"],
+  ]);
+  const paymentStatuses = new Map([
+    ["pending", "ожидает оплаты"],
+    ["partially_paid", "оплачено частично"],
+    ["paid", "оплачено"],
+    ["overdue", "просрочено"],
+  ]);
+  const paymentCategories = new Map([
+    ["evo_service_fee", "услуги EVO"],
+    ["third_party_cost", "сторонние расходы"],
+  ]);
+
+  for (const [value, label] of operationalStages) {
+    assert.equal(studentOperationalStage(value), label);
+  }
+  for (const [value, label] of documentStatuses) {
+    assert.equal(documentSlotStatus(value), label);
+  }
+  for (const [value, label] of reviewDecisions) {
+    assert.equal(documentReviewDecision(value), label);
+  }
+  for (const [value, label] of paymentStatuses) {
+    assert.equal(paymentObligationStatus(value), label);
+  }
+  for (const [value, label] of paymentCategories) {
+    assert.equal(paymentObligationCategory(value), label);
+  }
+
+  for (const mapper of [
+    studentOperationalStage,
+    documentSlotStatus,
+    documentReviewDecision,
+    paymentObligationStatus,
+    paymentObligationCategory,
+  ]) {
+    assert.equal(mapper("unexpected_runtime_value"), null);
+    assert.equal(mapper(null), null);
+  }
+});
+
+test("portal components stay presentation-only and never render raw status keys", () => {
   const componentFiles = filesUnder("src/components/v3/portal/")
     .filter((path) => path.endsWith(".tsx"));
   const components = componentFiles.map(source).join("\n");
@@ -85,30 +194,43 @@ test("portal components stay presentation-only and do not expose raw status keys
     components,
     /createClient|supabase|sqlite|drizzle|Realtime|useEffect|Fixture|Legacy|Connected/u,
   );
-  assert.match(components, /<PortalStatus status=/u);
+  assert.match(components, /<PortalStatus[\s\S]*label=/u);
   assert.match(components, /Что нужно исправить/u);
   assert.match(components, /История статусов/u);
 });
 
-test("portal includes honest empty, loading, failure and mark-read states", () => {
+test("mark-read accepts one opaque handle and creates authority and replay data server-side", () => {
+  const action = source("src/lib/student-portal-actions.ts");
+  const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+
+  assert.match(action, /^"use server";/u);
+  assert.match(action, /await requireStudentPortalActor\(\)/u);
+  assert.match(action, /exactActionStringFields\(form, MARK_NOTIFICATION_READ_FIELDS\)/u);
+  assert.match(action, /const MARK_NOTIFICATION_READ_FIELDS = \["notification_id"\] as const/u);
+  assert.match(action, /markStudentPortalNotificationRead\(\{[\s\S]*requestId: randomUUID\(\)/u);
+  assert.doesNotMatch(action, /form\.get\("request_id"\)|auth_user_id|organization_id|student_case_id/iu);
+  assert.match(notifications, /form action=\{markReadAction\}/u);
+  assert.match(notifications, /name="notification_id"/u);
+  assert.doesNotMatch(notifications, /onClick|fetch\(|useState/u);
+});
+
+test("portal includes honest empty, loading and failure states", () => {
   const components = filesUnder("src/components/v3/portal/")
     .filter((path) => path.endsWith(".tsx"))
     .map(source)
     .join("\n");
   const loading = source("src/app/(portal)/portal/loading.tsx");
   const error = source("src/app/(portal)/portal/error.tsx");
-  const notifications = source("src/components/v3/portal/NotificationsView.tsx");
 
   assert.match(components, /PortalEmptyState/u);
   assert.match(loading, /aria-busy="true"/u);
   assert.match(error, /role="alert"/u);
   assert.match(error, /кабинет не будет подменять недоступные сведения/u);
-  assert.match(notifications, /form action=\{markReadAction\}/u);
-  assert.match(notifications, /name="notification_id"/u);
-  assert.doesNotMatch(notifications, /onClick|fetch\(|useState/u);
 });
 
-test("the shell and view layouts retain usable narrow-screen controls", () => {
+// This is deliberately structural. The cumulative E5 integration gate must
+// still exercise 393px, forced-dark and axe against real Supabase-backed pages.
+test("markup keeps responsive hooks and semantic navigation for the later browser gate", () => {
   const shell = source("src/components/v3/portal/PortalShell.tsx");
   const components = filesUnder("src/components/v3/portal/")
     .filter((path) => path.endsWith(".tsx"))
@@ -120,4 +242,13 @@ test("the shell and view layouts retain usable narrow-screen controls", () => {
   assert.match(shell, /aria-current=\{active \? "page" : undefined\}/u);
   assert.match(shell, /aria-label="Разделы кабинета"/u);
   assert.match(components, /sm:grid-cols-2|sm:grid-cols-3/u);
+});
+
+test("the Student portal structural contract is registered exactly once", () => {
+  const packageJson = JSON.parse(source("package.json"));
+  const registrations = Object.values(packageJson.scripts)
+    .filter((command) => command.includes("tests/v3-student-portal-ui.test.mjs"));
+
+  assert.equal(registrations.length, 1);
+  assert.match(packageJson.scripts["test:frontend"], /tests\/v3-student-portal-ui\.test\.mjs/u);
 });

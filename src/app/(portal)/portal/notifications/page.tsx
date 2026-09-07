@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function StudentPortalNotificationsPage() {
-  const view = await readStudentPortalNotifications();
+  const notifications = await readStudentPortalNotifications();
 
   return (
     <PortalPage
@@ -20,7 +20,7 @@ export default async function StudentPortalNotificationsPage() {
       description="Важные изменения и сроки по вашему делу без внутренних комментариев команды."
     >
       <NotificationsView
-        view={view}
+        notifications={notifications}
         markReadAction={markStudentPortalNotificationReadAction}
       />
     </PortalPage>

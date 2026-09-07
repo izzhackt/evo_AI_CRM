@@ -90,6 +90,7 @@ export default async function CalendarPart({
           nowMinutes={nowMinutes}
           days={days}
           tasks={workspace.tasks}
+          undatedContinuationPage={undatedCursor !== null}
           undatedNextHref={workspace.undatedNextCursor
             ? calendarUndatedContinuationHref(
                 "/v3/calendar",

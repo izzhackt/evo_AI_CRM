@@ -69,6 +69,7 @@ test("V3 calendar exhausts selected ranges and bounds undated history", () => {
   assert.match(adapter, /casesHaveMore:\s*cases\.hasNext/);
   assert.match(page, /casesHaveMore=\{workspace\.casesHaveMore\}/);
   assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
+  assert.match(page, /undatedContinuationPage=\{undatedCursor !== null\}/u);
   assert.match(controls, /Показаны первые 100 активных дел/);
   assert.equal(
     [...adapter.matchAll(/await getPlatformAdmissionsTaskWorkspace\(/g)].length,

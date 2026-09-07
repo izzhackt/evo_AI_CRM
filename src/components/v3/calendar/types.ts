@@ -250,6 +250,23 @@ export function calendarUndatedContinuationHref(
   return `${basePath}?${params.toString()}`;
 }
 
+export function calendarUndatedPageNotice(
+  continuationPage: boolean,
+  hasNextPage: boolean,
+  visibleCount: number,
+): string | null {
+  if (continuationPage && hasNextPage) {
+    return `Показана текущая страница (${visibleCount}): предыдущие и следующие задачи без срока находятся на других страницах.`;
+  }
+  if (continuationPage) {
+    return `Показана последняя страница (${visibleCount}): предыдущие задачи без срока не показаны.`;
+  }
+  if (hasNextPage) {
+    return `Показаны не все задачи без срока: на этой странице ${visibleCount}.`;
+  }
+  return null;
+}
+
 /* ------------------------------------------------------- отрезок и шаг */
 
 /** Клетки сетки: один день, семь дней недели или всё поле месяца. */

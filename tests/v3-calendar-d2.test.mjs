@@ -13,6 +13,7 @@ import {
 } from "../src/lib/v3/calendar-contract.ts";
 import {
   calendarUndatedContinuationHref,
+  calendarUndatedPageNotice,
   hasCalendarAllDayRow,
 } from "../src/components/v3/calendar/types.ts";
 
@@ -265,8 +266,16 @@ test("D2 undated continuation is URL-backed and never silently claims completene
   );
   assert.match(page, /undatedCursorFromParams[\s\S]*parseCalendarUndatedTaskCursor/u);
   assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
-  assert.match(calendar, /Показаны не все задачи без срока/u);
+  assert.match(page, /undatedContinuationPage=\{undatedCursor !== null\}/u);
+  assert.equal(calendarUndatedPageNotice(false, false, 12), null);
+  assert.match(calendarUndatedPageNotice(false, true, 100) ?? "", /не все/u);
+  assert.match(calendarUndatedPageNotice(true, true, 100) ?? "", /предыдущие и следующие/u);
+  assert.match(calendarUndatedPageNotice(true, false, 7) ?? "", /предыдущие задачи/u);
+  assert.match(calendar, /calendarUndatedPageNotice/u);
   assert.match(calendar, /Показать следующие/u);
+  assert.match(calendar, /К началу списка/u);
+  assert.match(calendar, /unscheduled\.length > 0 \|\| undatedNotice/u);
+  assert.match(calendar, /!undatedContinuationPage/u);
   assert.doesNotMatch(calendar, /Все задачи без срока показаны/u);
 });
 

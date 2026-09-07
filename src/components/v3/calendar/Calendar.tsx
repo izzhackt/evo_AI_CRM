@@ -22,6 +22,7 @@ import {
   type CalendarView,
   type Day,
   VIEW_TITLES,
+  calendarUndatedPageNotice,
   dayLabel,
   periodLabel,
   stepDay,
@@ -44,6 +45,7 @@ export function Calendar({
   nowMinutes,
   days,
   tasks,
+  undatedContinuationPage,
   undatedNextHref,
   applicationDeadlines,
   nearestApplicationDeadline,
@@ -64,6 +66,7 @@ export function Calendar({
   nowMinutes: number;
   days: readonly Day[];
   tasks: readonly CalendarTask[];
+  undatedContinuationPage: boolean;
   undatedNextHref: string | null;
   applicationDeadlines: readonly CalendarApplicationDeadline[];
   nearestApplicationDeadline: CalendarApplicationDeadline | null;
@@ -106,6 +109,11 @@ export function Calendar({
     onSelect: (id: string) => setSelected((current) => (current === id ? null : id)),
   };
   const unscheduled = tasks.filter((task) => task.day === null);
+  const undatedNotice = calendarUndatedPageNotice(
+    undatedContinuationPage,
+    undatedNextHref !== null,
+    unscheduled.length,
+  );
 
   return (
     <div
@@ -243,11 +251,13 @@ export function Calendar({
         </aside>
       ) : null}
 
-      {tasks.length === 0 && applicationDeadlines.length === 0 ? (
+      {tasks.length === 0 &&
+      applicationDeadlines.length === 0 &&
+      !undatedContinuationPage ? (
         <p className="px-1 text-sm text-fg-3">На этот период событий нет.</p>
       ) : null}
 
-      {unscheduled.length > 0 ? (
+      {unscheduled.length > 0 || undatedNotice ? (
         <section
           aria-label="Задачи без срока"
           className="rounded-card border border-border bg-surface p-3"
@@ -267,14 +277,21 @@ export function Calendar({
               />
             ))}
           </div>
-          {undatedNextHref ? (
+          {undatedNotice ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-              <p className="text-sm text-fg-3">
-                Показаны не все задачи без срока: на этой странице {unscheduled.length}.
-              </p>
-              <Link href={undatedNextHref} className={GHOST}>
-                Показать следующие
-              </Link>
+              <p className="text-sm text-fg-3">{undatedNotice}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {undatedContinuationPage ? (
+                  <Link href={href(view, day)} className={GHOST}>
+                    К началу списка
+                  </Link>
+                ) : null}
+                {undatedNextHref ? (
+                  <Link href={undatedNextHref} className={GHOST}>
+                    Показать следующие
+                  </Link>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </section>

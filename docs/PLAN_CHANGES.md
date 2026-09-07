@@ -21280,3 +21280,90 @@ Decision:
 
 This correction changes no product behavior, migration authority, provider,
 managed Supabase, VPS, production runtime or frozen V1/V2 deployment state.
+
+## 2026-09-07 - Promote the run plan to an agent-agnostic cold handover
+
+Block-ID: `EVO-V3-RUN-PLAN-COLD-HANDOVER-2026-09-07`
+
+Change type: documentation and execution-order clarification after E5 and
+Stage F merge.
+
+The repository work through D1, D2, E0-E5 and F is now durable on `main` via
+PR #660, #673, #669, #674-#678 and #679. The former run plan still described
+D as in flight, E as a local candidate and F as future work, which would cause
+a cold executor to repeat merged work. It also mixed repo evidence with
+managed-production claims and contained obsolete Auth callback and migration-
+tail facts.
+
+Decision:
+
+1. Replace `docs/design/v3/run-plan.md` with a self-contained cold-resume
+   document: authority read order, exact-main verification, per-wave
+   verification/adversarial/PR discipline, A-G status, precise B/G blockers and
+   next actions.
+2. Record `52c2a2c6c9e7f9f5f7401e1e1a5dffc72a595cb5` as the frozen code baseline
+   before this docs-only handover. The handover merge itself may be a newer
+   docs-only descendant; any other later code must be inspected before action.
+3. Treat A/C/D/E/F as repo-complete. Treat migrations 117-128, portal live
+   invite, production deployment and provider behavior as unproved until their
+   separate managed/live gates run.
+4. Collapse remaining critical path to one final freeze and one full manual
+   `EVO platform CI`: run read-only B preflight and owner-input collection in
+   parallel, then ledger `check -> apply -> check`, arm, one exact-SHA proof,
+   automatic release/acceptance and #553 audit.
+5. Keep the Stage F Drizzle preservation correction authoritative: the exact
+   13 historical files remain byte-for-byte frozen and outside Docker build
+   context. The cold handover must not reintroduce the superseded deletion
+   instruction.
+
+This documentation change performs no schema apply, credential mutation,
+provider call, VPS change, production deploy, live invite or amoCRM write.
+
+## 2026-09-07 - Gate amoCRM routing and refresh the cold-handover baseline
+
+Block-ID: `EVO-V3-G0-ROUTING-GATE-AND-B-PREFLIGHT-2026-09-07`
+
+Change type: provider-write safety correction plus read-only execution-state
+refresh. This block supersedes the `52c2a2c6...` cold-handover baseline above;
+that SHA remains the durable Stage F merge evidence.
+
+Independent adversarial review found that the connected amoCRM harness still
+selected the sole main pipeline, the first two editable statuses, current user
+and fixed tags, then entered the live-write phase without a separate owner
+decision over those eight routing values. The same review also identified
+same-path/hardlink, loose-mode, unbounded-read, stale-marker and checkout-drift
+ways to weaken a naive approval gate.
+
+Decision and durable result:
+
+1. Merge PR #680 at main `fb170b6169a2859d8bd271cd78d61739589ffcd1`.
+   The connected harness is now strictly two phase: read-only
+   `discover -> independent owner approval -> fresh discovery/equality ->
+   dispatch`.
+2. Require the eight-key routing approval to be canonical, byte-identical to
+   discovery, exact mode 0600, no more than 4 KiB, regular/non-symlink and on a
+   different path and inode. Read through bounded `O_NOFOLLOW` descriptors and
+   revalidate the semantic zero-mutation markers inside the authorised child
+   boundary.
+3. Run dispatch source from an exact-SHA `git archive` snapshot so edits to the
+   originating worktree during a long discovery cannot enter the authorized
+   app. Focused harness 11/11, relevant `test:u9` 232/232, typecheck, targeted
+   ESLint, syntax and diff checks passed; final exact-head review found no
+   P0-P2. The PR work itself made no credential or provider call.
+4. Treat `fb170b61...` as the frozen code baseline before the docs-only
+   handover. Only the three declared handover documents may follow it without
+   first refreshing the baseline and evidence.
+5. Record read-only schema-ledger run `34124147750` on that exact SHA as
+   successful: local ledger through 128, managed ledger through 116, missing
+   exactly ordered suffix 117-128 and no extra versions. No schema `apply` was
+   dispatched. Recheck immediately before the authorized apply because managed
+   state can drift.
+6. Preserve `EVO_PRODUCTION_RELEASE_ARMED=false`. The #552 chain remains gated
+   by the dedicated Variables-read PAT, active dedicated smoke Admin membership
+   and both smoke credential secrets. The current broad classic GitHub token is
+   not a substitute and must not be copied.
+7. Record the authenticated read-only WAHA observation
+   `crm_primary.status=FAILED`. The existing connected G harness requires exact
+   `WORKING`; live G therefore also needs separately authorized private session
+   recovery/relink or a separately reviewed amoCRM-only harness. No restart,
+   QR/relink, amoCRM write or provider enablement is implied by this block.

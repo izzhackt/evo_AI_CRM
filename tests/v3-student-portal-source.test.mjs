@@ -371,6 +371,13 @@ test("notification decoder exposes only the reusable read model", async () => {
   assert.deepEqual(mock.calls[0].options, { get: true });
 });
 
+test("timestamp decoder rejects calendar-invalid offset timestamps", () => {
+  expectUnavailable(() => normalizeStudentPortalNotification({
+    ...NOTIFICATION_ROW,
+    created_at: "2026-02-31T08:00:00+00:00",
+  }));
+});
+
 test("mark-read seam validates action handles and calls only the existing RPC", async () => {
   const readAt = "2026-09-07T11:00:00+00:00";
   const mock = mockRpc((name, args, options) => {

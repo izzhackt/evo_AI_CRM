@@ -24,7 +24,7 @@ const UUID_PATTERN =
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIMESTAMPTZ_PATTERN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|([+-])(\d{2}):(\d{2}))$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const REQUIREMENT_KEY_PATTERN = /^[a-z][a-z0-9_.-]*$/;
 const NOTIFICATION_CODE_PATTERN = /^[a-z][a-z0-9_.-]*$/;
@@ -212,13 +212,52 @@ function optionalText(value: unknown, maximum: number): string | null {
 }
 
 function requiredTimestamp(value: unknown): string {
+  if (typeof value !== "string") {
+    return invalidShape();
+  }
+
+  const match = TIMESTAMPTZ_PATTERN.exec(value);
+  const parsedTimestamp = Date.parse(value);
+  if (!match || !Number.isFinite(parsedTimestamp)) return invalidShape();
+
+  const [
+    ,
+    yearText,
+    monthText,
+    dayText,
+    hourText,
+    minuteText,
+    secondText,
+    fractionalSecond = "",
+    offsetText,
+    offsetSign,
+    offsetHourText = "0",
+    offsetMinuteText = "0",
+  ] = match;
+  requiredDate(`${yearText}-${monthText}-${dayText}`);
+
+  const offsetHour = Number(offsetHourText);
+  const offsetMinute = Number(offsetMinuteText);
+  if (offsetHour > 23 || offsetMinute > 59) return invalidShape();
+
+  const offsetDirection = offsetText === "Z" || offsetSign === "+" ? 1 : -1;
+  const offsetMilliseconds = offsetDirection
+    * ((offsetHour * 60) + offsetMinute)
+    * 60_000;
+  const localTimestamp = new Date(parsedTimestamp + offsetMilliseconds);
+  const millisecond = Number(fractionalSecond.padEnd(3, "0").slice(0, 3));
   if (
-    typeof value !== "string" ||
-    !TIMESTAMPTZ_PATTERN.test(value) ||
-    !Number.isFinite(Date.parse(value))
+    localTimestamp.getUTCFullYear() !== Number(yearText) ||
+    localTimestamp.getUTCMonth() !== Number(monthText) - 1 ||
+    localTimestamp.getUTCDate() !== Number(dayText) ||
+    localTimestamp.getUTCHours() !== Number(hourText) ||
+    localTimestamp.getUTCMinutes() !== Number(minuteText) ||
+    localTimestamp.getUTCSeconds() !== Number(secondText) ||
+    localTimestamp.getUTCMilliseconds() !== millisecond
   ) {
     return invalidShape();
   }
+
   return value;
 }
 

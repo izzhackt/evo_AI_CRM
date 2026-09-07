@@ -1,6 +1,7 @@
 import type { StudentPortalNotification } from "@/lib/v3/portal-source";
 
 import { PortalEmptyState, PortalSection } from "./PortalPage";
+import { PortalNotificationReadButton } from "./PortalNotificationReadButton";
 import { PortalStatus } from "./PortalStatus";
 import { formatPortalTimestamp } from "./presentation";
 
@@ -82,12 +83,7 @@ export function NotificationsView({
                       name="notification_id"
                       value={notification.notificationId}
                     />
-                    <button
-                      type="submit"
-                      className="inline-flex min-h-10 items-center justify-center rounded-nav border border-control-edge bg-surface px-3 text-sm font-medium text-fg transition-colors hover:bg-surface-2"
-                    >
-                      Отметить прочитанным
-                    </button>
+                    <PortalNotificationReadButton />
                   </form>
                 ) : null}
               </div>

@@ -253,6 +253,9 @@ test("portal components stay presentation-only and never render raw status keys"
 test("mark-read accepts one opaque handle and creates authority and replay data server-side", () => {
   const action = source("src/lib/student-portal-actions.ts");
   const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+  const submit = source(
+    "src/components/v3/portal/PortalNotificationReadButton.tsx",
+  );
 
   assert.match(action, /^"use server";/u);
   assert.match(action, /const actor = await requireStudentPortalActor\(\)/u);
@@ -266,7 +269,16 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
   assert.doesNotMatch(action, /form\.get\("request_id"\)|auth_user_id|organization_id|student_case_id/iu);
   assert.match(notifications, /form action=\{markReadAction\}/u);
   assert.match(notifications, /name="notification_id"/u);
+  assert.match(notifications, /<PortalNotificationReadButton \/>/u);
   assert.doesNotMatch(notifications, /onClick|fetch\(|useState/u);
+  assert.match(submit, /^"use client";/u);
+  assert.match(submit, /useFormStatus/u);
+  assert.match(submit, /disabled=\{pending\}/u);
+  assert.match(submit, /aria-disabled=\{pending\}/u);
+  assert.match(
+    submit,
+    /pending \? "Отмечаем…" : "Отметить прочитанным"/u,
+  );
 });
 
 test("notification command IDs replay per verified Student actor and notification", () => {

@@ -362,6 +362,30 @@ async function expectDirectRouteAllowed(
   await expect(page).toHaveURL(new RegExp(`${path}$`));
 }
 
+async function expectKnowledgeSurface(
+  page: Page,
+  expected: Readonly<{ documents: boolean; snippets: boolean }>,
+) {
+  await expect(page.getByTestId("v3-knowledge-documents")).toHaveCount(
+    expected.documents ? 1 : 0,
+  );
+  await expect(page.getByTestId("v3-knowledge-reply-snippets")).toHaveCount(
+    expected.snippets ? 1 : 0,
+  );
+  if (!expected.documents) {
+    await expect(page.getByTestId("v3-knowledge-folder-link")).toHaveCount(0);
+  }
+}
+
+async function expectKnowledgeDocumentsAndSnippets(page: Page) {
+  await expectKnowledgeSurface(page, { documents: true, snippets: false });
+  await page
+    .getByRole("link", { name: "Шаблоны ответов", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/v3\/knowledge\?tab=snippets$/);
+  await expectKnowledgeSurface(page, { documents: false, snippets: true });
+}
+
 async function expectExactSupabaseSalesRead(
   page: Page,
   leadId: string,
@@ -523,12 +547,18 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
   await signIn(page, "sales");
   await expectActiveRole(page, "sales");
   await expect(page).toHaveURL(/\/v3\/main$/);
-  for (const path of ["/v3/calendar", "/v3/knowledge", "/v3/settings"] as const) {
+  for (const path of ["/v3/calendar", "/v3/settings"] as const) {
     await expectDirectRouteDenied(page, path);
   }
-  for (const path of ["/v3/main", "/v3/pipeline", "/v3/inbox"] as const) {
+  for (const path of [
+    "/v3/main",
+    "/v3/pipeline",
+    "/v3/inbox",
+    "/v3/knowledge",
+  ] as const) {
     await expectDirectRouteAllowed(page, path);
   }
+  await expectKnowledgeSurface(page, { documents: false, snippets: true });
 
   await page.context().clearCookies();
   await signIn(page, "admissions");
@@ -539,6 +569,7 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
   await expectDirectRouteDenied(page, "/v3/settings");
   await expectDirectRouteAllowed(page, "/v3/calendar");
   await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expectKnowledgeDocumentsAndSnippets(page);
   await expectDirectRouteAllowed(page, "/v3/inbox");
 });
 
@@ -2308,6 +2339,8 @@ test("Admin preview changes only the effective interface, not Supabase authority
 
   await signIn(page, "admin");
   await expectActiveRole(page, "admin");
+  await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expectKnowledgeDocumentsAndSnippets(page);
   await expectExactSupabaseSalesRead(page, leadId);
   await page.goto("/v3/settings");
   await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
@@ -2319,7 +2352,8 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expectExactSupabaseSalesRead(page, leadId);
   await expectDirectRouteAllowed(page, "/v3/pipeline");
   await expectDirectRouteDenied(page, "/v3/calendar");
-  await expectDirectRouteDenied(page, "/v3/knowledge");
+  await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expectKnowledgeSurface(page, { documents: false, snippets: true });
   await expectDirectRouteDenied(page, "/v3/settings");
 
   await page.getByTestId("preview-role-admissions").click();
@@ -2329,6 +2363,7 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expectDirectRouteDenied(page, "/v3/pipeline");
   await expectDirectRouteDenied(page, "/v3/settings");
   await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expectKnowledgeDocumentsAndSnippets(page);
   await page.goto(`/v3/profile?id=${leadId}`);
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(

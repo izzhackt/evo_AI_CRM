@@ -1,7 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import {
+  ReplySnippetPicker,
+  type ReplySnippetPickerItem,
+} from "@/components/v3/reply-snippets/ReplySnippetPicker";
+import { isReplyMessageWithinCodePointLimit } from "@/components/v3/reply-snippets/insert-reply-snippet";
 
 import {
   reconcilePlatformWhatsAppSendAction,
@@ -103,6 +109,7 @@ type Props = Readonly<{
   proposal: PlatformStaffGeminiProposal | null;
   reviews: readonly PlatformGeminiProposalReview[];
   latestAttempt: PlatformManualWhatsAppSendAttempt | null;
+  replySnippets: readonly ReplySnippetPickerItem[] | null;
   requestIds: RequestIds;
 }>;
 
@@ -175,6 +182,7 @@ export function InboxProviderWorkflowControls({
   proposal,
   reviews,
   latestAttempt,
+  replySnippets,
   requestIds,
 }: Props) {
   const router = useRouter();
@@ -187,6 +195,8 @@ export function InboxProviderWorkflowControls({
     latestReview?.reviewedPayload?.reply_text ?? "",
   );
   const [confirmed, setConfirmed] = useState(false);
+  const [messageLengthRejected, setMessageLengthRejected] = useState(false);
+  const messageTextRef = useRef<HTMLTextAreaElement>(null);
   const [geminiState, geminiAction, requesting] = useActionState(
     requestPlatformGeminiProposalAction,
     INITIAL_GEMINI_STATE,
@@ -439,21 +449,52 @@ export function InboxProviderWorkflowControls({
             value={latestInboundSourceMessageId ?? ""}
           />
           <input type="hidden" name="send_request_id" value={requestIds.send} />
+          {replySnippets !== null ? (
+            <ReplySnippetPicker
+              snippets={replySnippets}
+              messageText={messageText}
+              textareaRef={messageTextRef}
+              onMessageTextChange={(value) => {
+                setMessageText(value);
+                setMessageLengthRejected(false);
+                setConfirmed(false);
+              }}
+              disabled={sending || sendSettled || unresolvedAttempt}
+            />
+          ) : null}
           <label className="block text-sm font-medium text-fg">
             Финальный текст сотрудника
             <textarea
               name="message_text"
               required
-              maxLength={3_000}
               rows={5}
+              ref={messageTextRef}
               value={messageText}
               onChange={(event) => {
-                setMessageText(event.currentTarget.value);
                 setConfirmed(false);
+                if (!isReplyMessageWithinCodePointLimit(event.currentTarget.value)) {
+                  setMessageLengthRejected(true);
+                  return;
+                }
+                setMessageLengthRejected(false);
+                setMessageText(event.currentTarget.value);
               }}
+              aria-describedby={
+                messageLengthRejected ? "v3-inbox-message-length-error" : undefined
+              }
               className={FIELD_CLASS}
             />
           </label>
+          {messageLengthRejected ? (
+            <p
+              id="v3-inbox-message-length-error"
+              role="alert"
+              className="text-sm text-danger"
+            >
+              Изменение не применено: финальный текст не может превышать 3000
+              символов.
+            </p>
+          ) : null}
           <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-ctl px-2 py-2 text-sm leading-5 text-fg-2 hover:bg-surface-2">
             <input
               type="checkbox"

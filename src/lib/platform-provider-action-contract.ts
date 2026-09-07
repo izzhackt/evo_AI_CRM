@@ -72,12 +72,14 @@ function exactText(
   value: string | undefined,
   minimumLength: number,
   maximumLength: number,
+  lengthOf: (text: string) => number = (text) => text.length,
 ): string | null {
+  const length = value === undefined ? 0 : lengthOf(value);
   if (
     value === undefined ||
     value !== value.trim() ||
-    value.length < minimumLength ||
-    value.length > maximumLength ||
+    length < minimumLength ||
+    length > maximumLength ||
     UNSAFE_CONTROL_CHARACTER_PATTERN.test(value)
   ) {
     return null;
@@ -150,7 +152,12 @@ export function parsePlatformWhatsAppSendForm(
   const conversationId = normalizedUuid(fields.get("conversation_id"));
   const sourceMessageId = normalizedUuid(fields.get("source_message_id"));
   const requestId = normalizedUuid(fields.get("send_request_id"));
-  const messageText = exactText(fields.get("message_text"), 1, 3_000);
+  const messageText = exactText(
+    fields.get("message_text"),
+    1,
+    3_000,
+    (text) => Array.from(text).length,
+  );
   if (
     conversationId === null ||
     sourceMessageId === null ||

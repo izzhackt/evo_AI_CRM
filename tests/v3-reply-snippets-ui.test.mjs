@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { insertReplySnippet } from "../src/components/v3/reply-snippets/insert-reply-snippet.ts";
+import {
+  insertReplySnippet,
+  insertReplySnippetWithinCodePointLimit,
+  isReplyMessageWithinCodePointLimit,
+} from "../src/components/v3/reply-snippets/insert-reply-snippet.ts";
 import {
   createReplySnippetFormKey,
   replySnippetRowFormKey,
@@ -69,6 +73,57 @@ test("snippet insertion appends when a textarea selection is unavailable", () =>
     selectionStart: 14,
     selectionEnd: 14,
   });
+});
+
+test("snippet insertion enforces the 3000-character provider boundary in code points", () => {
+  const boundary = insertReplySnippetWithinCodePointLimit(
+    "🙂".repeat(2_999),
+    "Я",
+  );
+  assert.equal(boundary.accepted, true);
+  assert.equal(Array.from(boundary.value).length, 3_000);
+
+  const original = "а".repeat(3_000);
+  assert.deepEqual(
+    insertReplySnippetWithinCodePointLimit(original, "б", 12, 12),
+    {
+      accepted: false,
+      value: original,
+      selectionStart: 12,
+      selectionEnd: 12,
+    },
+  );
+});
+
+test("a rejected replacement preserves the original text and selection", () => {
+  const original = `${"а".repeat(2_999)}в`;
+  assert.deepEqual(
+    insertReplySnippetWithinCodePointLimit(original, "ответ", 2_999, 3_000),
+    {
+      accepted: false,
+      value: original,
+      selectionStart: 2_999,
+      selectionEnd: 3_000,
+    },
+  );
+});
+
+test("manual composer validation uses Unicode code points instead of UTF-16 units", () => {
+  assert.equal(isReplyMessageWithinCodePointLimit("🚀".repeat(3_000)), true);
+  assert.equal(isReplyMessageWithinCodePointLimit("🚀".repeat(3_001)), false);
+
+  const controls = source("src/components/v3/InboxProviderWorkflowControls.tsx");
+  assert.match(controls, /isReplyMessageWithinCodePointLimit/u);
+  assert.match(controls, /messageLengthRejected/u);
+  assert.match(controls, /role="alert"/u);
+  const composerStart = controls.indexOf('name="message_text"');
+  const composerEnd = controls.indexOf('name="confirm_send"', composerStart);
+  assert.notEqual(composerStart, -1);
+  assert.notEqual(composerEnd, -1);
+  assert.doesNotMatch(
+    controls.slice(composerStart, composerEnd),
+    /maxLength=\{3_000\}/u,
+  );
 });
 
 test("presentation role filters exact reply-snippet audiences", async () => {
@@ -185,9 +240,12 @@ test("picker and CRUD components keep insertion separate from sending", () => {
   const page = source("src/app/(v3)/v3/knowledge/page.tsx");
 
   assert.match(picker, /type="button"/u);
-  assert.match(picker, /insertReplySnippet/u);
+  assert.match(picker, /insertReplySnippetWithinCodePointLimit/u);
   assert.match(picker, /setSelectionRange/u);
   assert.match(picker, /onMessageTextChange/u);
+  assert.match(picker, /role="alert"/u);
+  assert.match(picker, /replySnippetId: string;[\s\S]*title: string;[\s\S]*body: string;/u);
+  assert.doesNotMatch(picker, /PlatformReplySnippet|version|createdAt|updatedAt/u);
   assert.doesNotMatch(picker, /sendPlatform|message_text|form action|type="submit"/u);
 
   assert.match(section, /createPlatformReplySnippetAction/u);

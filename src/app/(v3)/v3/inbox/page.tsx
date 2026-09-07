@@ -12,12 +12,14 @@ import {
   parsePlatformRouteUuid,
   type PlatformConversationCursor,
 } from "@/lib/platform-communications";
+import { fixedRoleCan } from "@/lib/fixed-role-policy";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   readInbox,
   type InboxAmoCrmCommand,
 } from "@/lib/v3/inbox-source";
 import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
+import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Входящие" };
@@ -81,9 +83,19 @@ export default async function InboxPart({
     }
     const selected = view.selected;
     const provider = model.providerWorkflow;
+    const replySnippets = fixedRoleCan(
+      actor.presentationRole,
+      "messaging.send",
+    )
+      ? (await readV3ReplySnippets(actor)).map(
+          ({ replySnippetId, title, body }) => ({ replySnippetId, title, body }),
+        )
+      : null;
     workflowControls = (
       <InboxProviderWorkflowControls
-        key={`${provider.proposal?.proposalRequestId ?? "no-proposal"}:${
+        key={`${selected.id}:${selected.latestInboundSourceMessageId ?? "no-source"}:${
+          provider.proposal?.proposalRequestId ?? "no-proposal"
+        }:${
           provider.reviews.find(
             (review) =>
               review.proposalRequestId === provider.proposal?.proposalRequestId,
@@ -94,6 +106,7 @@ export default async function InboxPart({
         proposal={provider.proposal}
         reviews={provider.reviews}
         latestAttempt={provider.latestAttempt}
+        replySnippets={replySnippets}
         requestIds={{
           gemini: randomUUID(),
           review: randomUUID(),

@@ -136,7 +136,7 @@ export default async function KnowledgePart({
         <KnowledgeWorkspaceTabs
           requestedTab={requestedTab}
           documents={documentSurface === null ? null : (
-            <>
+            <div data-testid="v3-knowledge-documents">
               {!studentDocuments.complete ? (
                 <p
                   role="alert"
@@ -155,7 +155,7 @@ export default async function KnowledgePart({
                 createFolderRequestId={randomUUID()}
                 createFileRequestId={randomUUID()}
               />
-            </>
+            </div>
           )}
           snippets={surface.canReadSnippets ? (
             <KnowledgeReplySnippetSection

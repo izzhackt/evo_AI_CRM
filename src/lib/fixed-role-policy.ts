@@ -50,15 +50,20 @@ const ROLE_CAPABILITIES = {
   ]),
 } as const satisfies Record<FixedRole, ReadonlySet<FixedRoleCapability>>;
 
-const ROUTE_CAPABILITY = {
-  "/v3/main": "sales.read",
-  "/v3/pipeline": "sales.read",
-  "/v3/inbox": "messaging.read",
-  "/v3/profile": "dashboard.read",
-  "/v3/calendar": "admissions.read",
-  "/v3/knowledge": "documents.read",
-  "/v3/settings": "admin.preview",
-} as const satisfies Record<FixedRoleRoute, FixedRoleCapability>;
+type RouteCapabilityRequirement = readonly [
+  FixedRoleCapability,
+  ...FixedRoleCapability[],
+];
+
+const ROUTE_CAPABILITY_ANY_OF = {
+  "/v3/main": ["sales.read"],
+  "/v3/pipeline": ["sales.read"],
+  "/v3/inbox": ["messaging.read"],
+  "/v3/profile": ["dashboard.read"],
+  "/v3/calendar": ["admissions.read"],
+  "/v3/knowledge": ["documents.read", "messaging.read"],
+  "/v3/settings": ["admin.preview"],
+} as const satisfies Record<FixedRoleRoute, RouteCapabilityRequirement>;
 
 export function isFixedRoleRoute(value: unknown): value is FixedRoleRoute {
   return (
@@ -85,7 +90,9 @@ export function fixedRoleCanAccessRoute(
   role: FixedRole,
   route: FixedRoleRoute,
 ): boolean {
-  return fixedRoleCan(role, ROUTE_CAPABILITY[route]);
+  return ROUTE_CAPABILITY_ANY_OF[route].some((capability) =>
+    fixedRoleCan(role, capability),
+  );
 }
 
 export function fixedRoleHomeRoute(

@@ -164,7 +164,7 @@ test("initial invite is claimed before one exact provider call and fenced record
   ]);
 });
 
-test("claim replay, in-progress and stale conflicts never call Auth", async () => {
+test("claim replay finalizes locally while in-progress and stale conflicts never call Auth", async () => {
   for (const claimResult of [
     {
       status: "replay",
@@ -194,8 +194,13 @@ test("claim replay, in-progress and stale conflicts never call Auth", async () =
       command(),
       setup.dependencies,
     );
-    assert.equal(result.status, claimResult.status === "replay" ? "invite_issued" : "blocked");
-    assert.deepEqual(setup.calls.map(([name]) => name), ["claim-initial"]);
+    assert.equal(result.status, claimResult.status === "replay" ? "portal_activated" : "blocked");
+    assert.deepEqual(
+      setup.calls.map(([name]) => name),
+      claimResult.status === "replay"
+        ? ["claim-initial", "finalize"]
+        : ["claim-initial"],
+    );
   }
 });
 
@@ -420,6 +425,74 @@ test("a reissue success without a newly observed issuance timestamp is unknown",
   assert.equal(reads, 2);
   assert.equal(result.status, "invite_outcome_unknown");
   assert.equal(setup.calls.at(-1)?.[0], "record-unknown");
+});
+
+test("initial invite replay retries authority finalization without another provider call", async () => {
+  const setup = fixture({
+    overrides: {
+      store: {
+        claimInitial: async (input) => {
+          setup.calls.push(["claim-initial", input]);
+          return {
+            status: "replay",
+            outcome: {
+              status: "invite_issued",
+              receiptId: RECEIPT_ID,
+              attemptId: ATTEMPT_ID,
+              receiptVersion: "9",
+              inviteGeneration: "1",
+            },
+          };
+        },
+      },
+      auth: {
+        inviteUserByEmail: async () => {
+          throw new Error("provider must not be called for replay");
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(
+    await coordinateStudentPortalInvite(command(), setup.dependencies),
+    {
+      status: "portal_activated",
+      receiptId: RECEIPT_ID,
+      attemptId: ATTEMPT_ID,
+      receiptVersion: "10",
+      inviteGeneration: "1",
+    },
+  );
+  assert.deepEqual(setup.calls.map(([name]) => name), ["claim-initial", "finalize"]);
+});
+
+test("unknown recording propagates store conflict or outage deterministically", async () => {
+  for (const [recordResult, expected] of [
+    [
+      { status: "conflict", code: "stale_invite_attempt" },
+      { status: "blocked", code: "stale_invite_attempt" },
+    ],
+    [
+      { status: "unavailable" },
+      { status: "unavailable", code: "receipt_store_unavailable" },
+    ],
+  ]) {
+    const setup = fixture({
+      overrides: {
+        store: { recordUnknown: async () => recordResult },
+        auth: {
+          inviteUserByEmail: async () => ({
+            status: "unknown",
+            code: "provider_outcome_unknown",
+          }),
+        },
+      },
+    });
+    assert.deepEqual(
+      await coordinateStudentPortalInvite(command(), setup.dependencies),
+      expected,
+    );
+  }
 });
 
 test("malformed command fails before the receipt store", async () => {

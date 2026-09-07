@@ -43,6 +43,7 @@ export type StudentPortalProvisioningReceipt = Readonly<{
   receiptVersion: string;
   inviteGeneration: string;
   activeAttemptId: string | null;
+  reissueRequestId: string | null;
   authUserId: string | null;
   inviteExpiresAt: string | null;
   authorityActivated: boolean;
@@ -143,6 +144,10 @@ function decodeReceipt(value: unknown): StudentPortalProvisioningReceipt | null 
     data?.auth_user_id === undefined || data.auth_user_id === null
       ? null
       : uuid(data.auth_user_id);
+  const reissueRequestId =
+    data?.reissue_request_id === undefined || data.reissue_request_id === null
+      ? null
+      : uuid(data.reissue_request_id);
   const inviteExpiresAt =
     data?.invite_expires_at === undefined || data.invite_expires_at === null
       ? null
@@ -168,6 +173,9 @@ function decodeReceipt(value: unknown): StudentPortalProvisioningReceipt | null 
     (data.auth_user_id !== undefined &&
       data.auth_user_id !== null &&
       authUserId === null) ||
+    (data.reissue_request_id !== undefined &&
+      data.reissue_request_id !== null &&
+      reissueRequestId === null) ||
     (data.invite_expires_at !== undefined &&
       data.invite_expires_at !== null &&
       inviteExpiresAt === null) ||
@@ -189,6 +197,7 @@ function decodeReceipt(value: unknown): StudentPortalProvisioningReceipt | null 
     receiptVersion,
     inviteGeneration,
     activeAttemptId,
+    reissueRequestId,
     authUserId,
     inviteExpiresAt,
     authorityActivated: data.authority_activated,

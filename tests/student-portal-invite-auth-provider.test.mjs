@@ -5,12 +5,13 @@ import { createStudentPortalInviteAuthProvider } from "../src/lib/server/student
 
 const AUTH_USER_ID = "10000000-0000-4000-8000-000000000001";
 
-function client({ invite, getUser }) {
+function client({ invite, getUser, listUsers = async () => ({ data: { users: [], nextPage: null }, error: null }) }) {
   return {
     auth: {
       admin: {
         inviteUserByEmail: invite,
         getUserById: getUser,
+        listUsers,
       },
     },
   };
@@ -42,6 +43,45 @@ test("provider sends only exact email and redirectTo without metadata", async ()
     ],
   ]);
   assert.doesNotMatch(JSON.stringify(calls), /data|metadata|user_metadata/u);
+});
+
+test("provider reconciliation finds one exact normalized email without inviting", async () => {
+  const calls = [];
+  const provider = createStudentPortalInviteAuthProvider(
+    client({
+      invite: async () => {
+        throw new Error("must not invite during readback");
+      },
+      getUser: async () => ({ data: { user: null }, error: null }),
+      listUsers: async (input) => {
+        calls.push(input);
+        return {
+          data: {
+            users: [
+              {
+                id: AUTH_USER_ID,
+                email: "Student@Example.com",
+                confirmation_sent_at: "2026-09-07T10:00:00.000Z",
+                email_confirmed_at: null,
+              },
+            ],
+            nextPage: null,
+          },
+          error: null,
+        };
+      },
+    }),
+  );
+  assert.deepEqual(await provider.findUserByExactEmail("student@example.com"), {
+    status: "found",
+    user: {
+      authUserId: AUTH_USER_ID,
+      email: "Student@Example.com",
+      confirmedAt: null,
+      confirmationSentAt: "2026-09-07T10:00:00.000Z",
+    },
+  });
+  assert.deepEqual(calls, [{ page: 1, perPage: 1000 }]);
 });
 
 test("provider distinguishes definite Auth rejection from uncertain outcome", async () => {

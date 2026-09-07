@@ -378,3 +378,132 @@ test("malformed or unavailable RPC responses fail closed", async () => {
     { status: "unavailable" },
   );
 });
+
+test("reconciliation store binds replay and observed issuance to exact m126 fences", async () => {
+  const fake = fakeClient([
+    {
+      data: {
+        receipt_id: RECEIPT_ID,
+        attempt_id: ATTEMPT_ID,
+        receipt_version: 12,
+        invite_generation: 2,
+        normalized_email: EMAIL,
+        auth_user_id: AUTH_USER_ID,
+        reissue_request_id: REISSUE_ID,
+        provisioning_state: "authority_activated",
+        invite_delivery_status: "reissue_unknown",
+        authority_activated: true,
+        replayed: true,
+      },
+      error: null,
+    },
+    {
+      data: {
+        receipt_id: RECEIPT_ID,
+        attempt_id: ATTEMPT_ID,
+        receipt_version: 13,
+        invite_generation: 2,
+        invite_delivery_status: "issued",
+        authority_activated: true,
+        reconciled: true,
+      },
+      error: null,
+    },
+  ]);
+  const store = createStudentPortalInviteStore(fake.client);
+  const command = {
+    kind: "reissue",
+    receiptId: RECEIPT_ID,
+    attemptId: ATTEMPT_ID,
+    reissueRequestId: REISSUE_ID,
+    expectedReceiptVersion: "12",
+    expectedInviteGeneration: "2",
+  };
+  assert.deepEqual(await store.recoverReconciliationClaim(command), {
+    status: "recovered",
+    claim: {
+      kind: "reissue",
+      lifecycle: "unknown",
+      receiptId: RECEIPT_ID,
+      attemptId: ATTEMPT_ID,
+      receiptVersion: "12",
+      inviteGeneration: "2",
+      normalizedEmail: EMAIL,
+      authUserId: AUTH_USER_ID,
+      reissueRequestId: REISSUE_ID,
+    },
+  });
+  assert.deepEqual(
+    await store.reconcileObserved({
+      receiptId: RECEIPT_ID,
+      attemptId: ATTEMPT_ID,
+      expectedReceiptVersion: "12",
+      expectedInviteGeneration: "2",
+      authUserId: AUTH_USER_ID,
+      otpExpirySeconds: 3600,
+    }),
+    {
+      status: "recorded",
+      receiptVersion: "13",
+      inviteGeneration: "2",
+      inviteDeliveryStatus: "issued",
+      authorityActivated: true,
+    },
+  );
+  assert.deepEqual(fake.calls, [
+    [
+      "claim_student_portal_invite_reissue",
+      {
+        p_receipt_id: RECEIPT_ID,
+        p_reissue_request_id: REISSUE_ID,
+        p_attempt_id: ATTEMPT_ID,
+        p_expected_receipt_version: "12",
+        p_expected_invite_generation: "2",
+      },
+    ],
+    [
+      "reconcile_student_portal_invite",
+      {
+        p_receipt_id: RECEIPT_ID,
+        p_attempt_id: ATTEMPT_ID,
+        p_expected_receipt_version: "12",
+        p_expected_invite_generation: "2",
+        p_auth_user_id: AUTH_USER_ID,
+        p_email_otp_expires_in_seconds: 3600,
+        p_provider_no_issuance_proven: false,
+        p_provider_operation_upper_bound_at: null,
+        p_safe_error_code: "provider_issuance_observed",
+      },
+    ],
+  ]);
+});
+
+test("reissue-unknown replay is never hidden by already-active authority", async () => {
+  const fake = fakeClient([
+    {
+      data: {
+        receipt_id: RECEIPT_ID,
+        attempt_id: ATTEMPT_ID,
+        receipt_version: 12,
+        invite_generation: 2,
+        provisioning_state: "authority_activated",
+        invite_delivery_status: "reissue_unknown",
+        authority_activated: true,
+        replayed: true,
+      },
+      error: null,
+    },
+  ]);
+  const store = createStudentPortalInviteStore(fake.client);
+  assert.deepEqual(
+    await store.claimReissue({
+      kind: "reissue",
+      receiptId: RECEIPT_ID,
+      attemptId: ATTEMPT_ID,
+      reissueRequestId: REISSUE_ID,
+      expectedReceiptVersion: "12",
+      expectedInviteGeneration: "2",
+    }),
+    { status: "blocked", code: "portal_reconciliation_required" },
+  );
+});

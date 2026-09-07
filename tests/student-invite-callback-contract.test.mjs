@@ -150,8 +150,14 @@ test("local Auth config and invite template expose one exact callback contract",
     new URL("../supabase/templates/invite.html", import.meta.url),
     "utf8",
   );
+  const environment = readFileSync(
+    new URL("../.env.example", import.meta.url),
+    "utf8",
+  );
 
   assert.match(config, /^site_url = "http:\/\/127\.0\.0\.1:3000"$/mu);
+  assert.match(config, /\[auth\.email\][\s\S]*otp_expiry = 3600/u);
+  assert.match(environment, /^EVO_STUDENT_INVITE_OTP_EXPIRY_SECONDS=3600$/mu);
   assert.match(
     config,
     /^additional_redirect_urls = \["http:\/\/127\.0\.0\.1:3000\/auth\/callback"\]$/mu,

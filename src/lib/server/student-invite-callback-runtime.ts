@@ -12,13 +12,8 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 function isDefiniteOtpRejection(error: unknown): boolean {
-  const status = record(error)?.status;
-  return (
-    typeof status === "number" &&
-    Number.isInteger(status) &&
-    status >= 400 &&
-    status < 500
-  );
+  const code = record(error)?.code;
+  return code === "otp_expired" || code === "otp_disabled";
 }
 
 /** Bind the callback core to one cookie-writing SSR client and one private store. */

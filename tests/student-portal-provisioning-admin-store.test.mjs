@@ -67,6 +67,7 @@ test("Admin prepare binds the exact authenticated m126 signature", async () => {
       receiptVersion: "0",
       inviteGeneration: "0",
       activeAttemptId: null,
+      reissueRequestId: null,
       authUserId: null,
       inviteExpiresAt: null,
       authorityActivated: false,

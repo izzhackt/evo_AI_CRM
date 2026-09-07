@@ -91,6 +91,9 @@ enable_signup = false
 enable_anonymous_sign_ins = false
 enable_manual_linking = false
 
+[auth.email]
+otp_expiry = 3600
+
 [auth.email.template.invite]
 subject = "Доступ к личному кабинету EVO"
 content_path = "./supabase/templates/invite.html"

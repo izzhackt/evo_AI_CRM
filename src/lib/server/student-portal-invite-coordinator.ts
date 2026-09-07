@@ -134,6 +134,9 @@ export type StudentPortalProviderInviteResult =
 
 export type StudentPortalInviteAuthProvider = Readonly<{
   readUserById: (authUserId: string) => Promise<StudentPortalAuthUserResult>;
+  findUserByExactEmail: (
+    normalizedEmail: string,
+  ) => Promise<StudentPortalAuthUserResult>;
   inviteUserByEmail: (input: Readonly<{
     email: string;
     redirectTo: string;
@@ -306,14 +309,23 @@ async function recordUnknown(
   store: StudentPortalInviteStore,
 ): Promise<StudentPortalInviteOutcome> {
   const boundedCode = safeCode(code, "provider_outcome_unknown");
-  let result: StudentPortalInviteMutationResult | undefined;
+  let result: StudentPortalInviteMutationResult;
   try {
     result = await store.recordUnknown({
       ...recordInput(claim),
       code: boundedCode,
     });
   } catch {
-    // External dispatch is still unknown even when its durable record is down.
+    return { status: "unavailable", code: "receipt_store_unavailable" };
+  }
+  if (result.status === "conflict") {
+    return {
+      status: "blocked",
+      code: safeCode(result.code, "stale_invite_attempt"),
+    };
+  }
+  if (result.status === "unavailable") {
+    return { status: "unavailable", code: "receipt_store_unavailable" };
   }
   return {
     status: "invite_outcome_unknown",
@@ -399,7 +411,31 @@ export async function coordinateStudentPortalInvite(
   if (claimResult.status === "unavailable") {
     return { status: "unavailable", code: "receipt_store_unavailable" };
   }
-  if (claimResult.status === "replay") return claimResult.outcome;
+  if (claimResult.status === "replay") {
+    const replay = claimResult.outcome;
+    if (command.kind !== "initial" || replay.status !== "invite_issued") {
+      return replay;
+    }
+    try {
+      const finalized = await dependencies.store.finalizeAuthority({
+        receiptId: replay.receiptId,
+        expectedReceiptVersion: replay.receiptVersion,
+        expectedInviteGeneration: replay.inviteGeneration,
+      });
+      return finalized.status === "activated"
+        ? {
+            status: "portal_activated",
+            receiptId: replay.receiptId,
+            attemptId: replay.attemptId,
+            receiptVersion: finalized.receiptVersion ?? replay.receiptVersion,
+            inviteGeneration:
+              finalized.inviteGeneration ?? replay.inviteGeneration,
+          }
+        : replay;
+    } catch {
+      return replay;
+    }
+  }
   if (claimResult.status === "blocked") {
     return {
       status: "blocked",

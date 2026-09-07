@@ -10,6 +10,8 @@ import type {
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const LIST_USERS_PAGE_SIZE = 1_000;
+const LIST_USERS_MAX_PAGES = 100;
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -52,6 +54,39 @@ function timestampOrNull(value: unknown): string | null {
     : null;
 }
 
+function normalizeEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLocaleLowerCase("en-US");
+  return normalized.length >= 3 &&
+    normalized.length <= 320 &&
+    normalized.includes("@") &&
+    !/\s/.test(normalized)
+    ? normalized
+    : null;
+}
+
+function decodeAuthUser(value: unknown): StudentPortalAuthUserResult {
+  const user = record(value);
+  if (!user) return { status: "missing", user: null };
+  if (
+    typeof user.id !== "string" ||
+    !UUID_PATTERN.test(user.id) ||
+    typeof user.email !== "string" ||
+    user.email.length === 0
+  ) {
+    return { status: "unavailable", user: null };
+  }
+  return {
+    status: "found",
+    user: {
+      authUserId: user.id,
+      email: user.email,
+      confirmedAt: timestampOrNull(user.email_confirmed_at ?? user.confirmed_at),
+      confirmationSentAt: timestampOrNull(user.confirmation_sent_at),
+    },
+  };
+}
+
 /**
  * Wraps the trusted Supabase Admin API without exposing metadata, provider
  * bodies or the service credential to the coordinator result.
@@ -89,30 +124,44 @@ export function createStudentPortalInviteAuthProvider(
             : { status: "unavailable", user: null };
         }
 
-        const user = record(record(data)?.user);
-        if (!user) return { status: "missing", user: null };
-        if (
-          typeof user.id !== "string" ||
-          !UUID_PATTERN.test(user.id) ||
-          typeof user.email !== "string" ||
-          user.email.length === 0
-        ) {
-          return { status: "unavailable", user: null };
-        }
+        return decodeAuthUser(record(data)?.user);
+      } catch {
+        return { status: "unavailable", user: null };
+      }
+    },
 
-        const confirmationSentAt = timestampOrNull(user.confirmation_sent_at);
-        const confirmedAt = timestampOrNull(
-          user.email_confirmed_at ?? user.confirmed_at,
-        );
-        return {
-          status: "found",
-          user: {
-            authUserId: user.id,
-            email: user.email,
-            confirmedAt,
-            confirmationSentAt,
-          },
-        };
+    async findUserByExactEmail(normalizedEmail): Promise<StudentPortalAuthUserResult> {
+      const expectedEmail = normalizeEmail(normalizedEmail);
+      if (expectedEmail !== normalizedEmail) {
+        return { status: "unavailable", user: null };
+      }
+      try {
+        let match: StudentPortalAuthUserResult | null = null;
+        for (let page = 1; page <= LIST_USERS_MAX_PAGES; page += 1) {
+          const { data, error } = await client.auth.admin.listUsers({
+            page,
+            perPage: LIST_USERS_PAGE_SIZE,
+          });
+          if (error || !Array.isArray(data.users)) {
+            return { status: "unavailable", user: null };
+          }
+          for (const candidate of data.users) {
+            if (normalizeEmail(candidate.email) !== expectedEmail) continue;
+            const decoded = decodeAuthUser(candidate);
+            if (decoded.status !== "found" || match !== null) {
+              return { status: "unavailable", user: null };
+            }
+            match = decoded;
+          }
+          const nextPage = record(data)?.nextPage;
+          if (nextPage === null || data.users.length < LIST_USERS_PAGE_SIZE) {
+            return match ?? { status: "missing", user: null };
+          }
+          if (nextPage !== page + 1) {
+            return { status: "unavailable", user: null };
+          }
+        }
+        return { status: "unavailable", user: null };
       } catch {
         return { status: "unavailable", user: null };
       }

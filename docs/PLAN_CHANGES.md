@@ -20749,3 +20749,70 @@ not PII or provider evidence. The snapshot still excludes normalized email
 except from the service-only claim dispatch envelope, plus all tokens, Auth
 metadata, provider payloads and raw errors. The E1 SQL suite must prove the
 authorized snapshot and its same-request replay return the exact key.
+## 2026-09-07 - Close E1 exact-head review gaps
+
+Block-ID: `EVO-V3-E1-EXACT-HEAD-REVIEW-CORRECTION-2026-09-07`
+
+Change type: review correction. Affected plan section: migration 126 invite
+attempt replay, definite-failure reissue, resolver response and wrapper grants.
+
+Decision:
+
+1. A claim replay is valid only while that exact attempt remains the receipt's
+   active `dispatching` attempt at the same invite generation. A terminal or
+   superseded attempt fails with `stale_invite_attempt`; it can never inherit
+   `provider_dispatch_allowed` from a newer active attempt.
+2. `reissue_failed` is retryable under the same durable Admin-authorized
+   `reissue_request_id`, but only with a new unique `attempt_id` and current
+   receipt-version/invite-generation CAS. `reissue_unknown` remains non-retryable.
+3. `resolve_student_portal_invite_identity` returns only the frozen bounded
+   receipt/state/version/generation fields plus booleans. It does not reuse the
+   broader provider-safe dispatch snapshot.
+4. Migration 083 remains the public authority for staff provisioning grants:
+   authenticated Admin callers use `platform.provision_pilot_staff_member`,
+   while the historical broad `platform.provision_member` stays unexposed.
+   Migration 126 must preserve and regression-test that wrapper boundary while
+   granting neither wrapper nor private cores to `service_role`.
+
+The correction changes no provider, managed-Supabase, deployment, callback,
+UI, E2 or production scope and authorizes no external action.
+
+## 2026-09-07 - Preserve E1 shared-core error and ACL contracts
+
+Block-ID: `EVO-V3-E1-SHARED-CORE-COMPATIBILITY-CORRECTION-2026-09-07`
+
+Change type: exact-head compatibility correction. Affected plan section:
+migration 126 shared provisioning core and final routine ACLs.
+
+The shared provisioning core must preserve the pre-126 staff wrapper's exact
+profile/display conflict (`22023`) and duplicate-membership (`23505`) behavior.
+The receipt finalizer translates those already-validated data conflicts to the
+frozen E1 `portal_identity_conflict`/`40001` contract. SQL acceptance must prove
+both entrypoint families independently.
+
+Migration 126 also makes its final ACL posture literal: authenticated retains
+only the current staff provisioning, organization-scope and case-curator public
+wrappers; the historical broad provisioner and all three E1 private mutation
+cores remain unavailable to every client/service role. Exact catalog assertions
+cover those public wrappers and private cores.
+
+## 2026-09-07 - Fence E1 reconciliation and concurrent acceptance
+
+Block-ID: `EVO-V3-E1-RECONCILIATION-ACCEPTANCE-CORRECTION-2026-09-07`
+
+Change type: exact-head concurrency correction. Affected plan section:
+unknown-outcome reconciliation, acceptance and final cleanup evidence.
+
+Definite no-issuance reconciliation must prove an operation upper bound that is
+not in the future and covers the exact attempt from at least its durable
+`claimed_at`; an earlier observation cannot unlock retry. When durable Auth
+confirmation arrives during an active reissue dispatch, acceptance atomically
+settles that exact active attempt as succeeded before clearing it from the
+receipt. The late provider response is then stale, while finalization may use
+the same confirmed identity and latest succeeded generation without reopening
+dispatch.
+
+Acceptance adds focused regression proof for early-upper-bound rejection,
+acceptance during reissue dispatch, late-result fencing, trigger-negative paths,
+bounded dblink timeouts and exact committed-fixture cleanup including
+`membership_role_history`.

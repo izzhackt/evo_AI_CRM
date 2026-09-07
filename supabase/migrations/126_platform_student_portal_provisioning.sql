@@ -157,7 +157,7 @@ CREATE TABLE platform_private.student_portal_invite_attempts (
     REFERENCES platform_private.student_portal_provisioning_receipts(id)
     ON DELETE RESTRICT,
   attempt_kind TEXT NOT NULL CHECK (attempt_kind IN ('initial', 'reissue')),
-  reissue_request_id UUID UNIQUE,
+  reissue_request_id UUID,
   claimed_receipt_version BIGINT NOT NULL CHECK (claimed_receipt_version > 0),
   invite_generation BIGINT NOT NULL CHECK (invite_generation > 0),
   attempt_state TEXT NOT NULL DEFAULT 'dispatching' CHECK (
@@ -530,12 +530,19 @@ BEGIN
     SELECT 1 FROM platform.organization_memberships AS membership
     WHERE membership.organization_id = p_organization_id
       AND membership.profile_id = member_profile_id
-  ) OR EXISTS (
+  ) THEN
+    RAISE EXCEPTION
+      'A membership for this profile and organization already exists'
+      USING ERRCODE = '23505';
+  END IF;
+  IF EXISTS (
     SELECT 1 FROM platform.organization_memberships AS membership
     WHERE membership.profile_id = member_profile_id
       AND membership.status = 'active'
   ) THEN
-    RAISE EXCEPTION 'portal_identity_conflict' USING ERRCODE = '40001';
+    RAISE EXCEPTION
+      'This profile already has an active organization membership'
+      USING ERRCODE = '23505';
   END IF;
 
   member_bundle_id := platform_private.published_bundle_for_role(p_role);
@@ -663,6 +670,12 @@ REVOKE ALL ON FUNCTION platform_private.provision_member_authorized_e1(
 REVOKE ALL ON FUNCTION platform.provision_member(
   UUID, UUID, TEXT, platform.business_role, TEXT, UUID
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+REVOKE ALL ON FUNCTION platform.provision_pilot_staff_member(
+  UUID, UUID, TEXT, platform.business_role, TEXT, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION platform.provision_pilot_staff_member(
+  UUID, UUID, TEXT, platform.business_role, TEXT, UUID
+) TO authenticated;
 
 CREATE FUNCTION platform_private.assign_organization_scope_authorized_e1(
   p_organization_id UUID,
@@ -828,7 +841,7 @@ REVOKE ALL ON FUNCTION platform_private.assign_organization_scope_authorized_e1(
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 REVOKE ALL ON FUNCTION platform.assign_organization_scope(
   UUID, UUID, TEXT, UUID
-) FROM PUBLIC, anon, service_role, supabase_auth_admin;
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION platform.assign_organization_scope(
   UUID, UUID, TEXT, UUID
 ) TO authenticated;
@@ -1086,7 +1099,13 @@ BEGIN
   FROM platform_private.student_portal_invite_attempts AS attempt
   WHERE attempt.id = p_attempt_id FOR UPDATE;
   IF FOUND THEN
-    IF prior_attempt.receipt_id <> p_receipt_id OR prior_attempt.attempt_kind <> 'initial' THEN
+    IF prior_attempt.receipt_id <> p_receipt_id
+      OR prior_attempt.attempt_kind <> 'initial'
+      OR prior_attempt.attempt_state <> 'dispatching'
+      OR receipt.active_attempt_id IS DISTINCT FROM prior_attempt.id
+      OR receipt.provisioning_state <> 'dispatching'
+      OR receipt.invite_generation <> prior_attempt.invite_generation
+    THEN
       RAISE EXCEPTION 'stale_invite_attempt' USING ERRCODE = '40001';
     END IF;
     RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, TRUE)
@@ -1303,13 +1322,16 @@ BEGIN
 
   SELECT * INTO prior_attempt
   FROM platform_private.student_portal_invite_attempts AS attempt
-  WHERE attempt.id = p_attempt_id OR attempt.reissue_request_id = p_reissue_request_id
-  ORDER BY (attempt.id = p_attempt_id) DESC LIMIT 1 FOR UPDATE;
+  WHERE attempt.id = p_attempt_id
+  FOR UPDATE;
   IF FOUND THEN
     IF prior_attempt.receipt_id <> p_receipt_id
       OR prior_attempt.attempt_kind <> 'reissue'
       OR prior_attempt.reissue_request_id <> p_reissue_request_id
-      OR prior_attempt.id <> p_attempt_id
+      OR prior_attempt.attempt_state <> 'dispatching'
+      OR receipt.active_attempt_id IS DISTINCT FROM prior_attempt.id
+      OR receipt.invite_delivery_status <> 'reissue_dispatching'
+      OR receipt.invite_generation <> prior_attempt.invite_generation
     THEN
       RAISE EXCEPTION 'stale_invite_attempt' USING ERRCODE = '40001';
     END IF;
@@ -1716,6 +1738,7 @@ BEGIN
 
   IF NOT p_provider_no_issuance_proven
     OR p_provider_operation_upper_bound_at IS NULL
+    OR p_provider_operation_upper_bound_at < attempt.claimed_at
     OR p_provider_operation_upper_bound_at > statement_timestamp()
     OR fixed_error_code IS NULL
     OR fixed_error_code !~ '^[a-z][a-z0-9_.-]{0,99}$'
@@ -2017,6 +2040,12 @@ REVOKE ALL ON FUNCTION platform_private.assign_student_case_curator_authorized_e
 REVOKE ALL ON FUNCTION platform_private.assign_student_case_curator_body(
   UUID, UUID, UUID, TEXT, UUID
 ) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+REVOKE ALL ON FUNCTION platform.assign_student_case_curator(
+  UUID, UUID, UUID, TEXT, UUID
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION platform.assign_student_case_curator(
+  UUID, UUID, UUID, TEXT, UUID
+) TO authenticated;
 
 CREATE FUNCTION platform_private.assert_student_portal_receipt_admin_e1(
   p_receipt_id UUID
@@ -2212,16 +2241,25 @@ BEGIN
   IF receipt.provisioning_state <> 'invite_succeeded'
     OR receipt.auth_user_id IS NULL
     OR latest_attempt.id IS NULL
-    OR latest_attempt.attempt_state <> 'succeeded'
+    OR (
+      latest_attempt.attempt_state <> 'succeeded'
+      AND receipt.invite_delivery_status <> 'accepted'
+    )
   THEN RAISE EXCEPTION 'portal_authority_not_ready' USING ERRCODE = '40001'; END IF;
 
   SELECT auth_user.id,
-         pg_catalog.lower(pg_catalog.btrim(auth_user.email)) AS email
+         pg_catalog.lower(pg_catalog.btrim(auth_user.email)) AS email,
+         COALESCE(auth_user.email_confirmed_at, auth_user.confirmed_at) AS confirmed_at
   INTO auth_row
   FROM auth.users AS auth_user
   WHERE auth_user.id = receipt.auth_user_id;
   IF NOT FOUND OR auth_row.email <> receipt.normalized_email THEN
     RAISE EXCEPTION 'portal_identity_conflict' USING ERRCODE = '40001';
+  END IF;
+  IF receipt.invite_delivery_status = 'accepted'
+    AND auth_row.confirmed_at IS NULL
+  THEN
+    RAISE EXCEPTION 'portal_authority_not_ready' USING ERRCODE = '40001';
   END IF;
   IF target_case.id IS NULL OR target_case.student_membership_id IS NOT NULL THEN
     RAISE EXCEPTION 'portal_case_already_bound' USING ERRCODE = '40001';
@@ -2256,11 +2294,16 @@ BEGIN
     THEN RAISE EXCEPTION 'portal_case_invalid_shape' USING ERRCODE = '40001'; END IF;
   END IF;
 
-  membership_result := platform_private.provision_member_authorized_e1(
-    receipt.organization_id, receipt.auth_user_id, receipt.student_display_name,
-    'student', 'Student Portal provisioning', child_membership,
-    receipt.authorizing_profile_id, receipt.authorizing_auth_user_id
-  );
+  BEGIN
+    membership_result := platform_private.provision_member_authorized_e1(
+      receipt.organization_id, receipt.auth_user_id, receipt.student_display_name,
+      'student', 'Student Portal provisioning', child_membership,
+      receipt.authorizing_profile_id, receipt.authorizing_auth_user_id
+    );
+  EXCEPTION
+    WHEN invalid_parameter_value OR unique_violation THEN
+      RAISE EXCEPTION 'portal_identity_conflict' USING ERRCODE = '40001';
+  END;
   new_student_profile_id := (membership_result ->> 'profile_id')::UUID;
   new_student_membership_id := (membership_result ->> 'membership_id')::UUID;
   scope_result := platform_private.assign_organization_scope_authorized_e1(
@@ -2383,6 +2426,61 @@ GRANT EXECUTE ON FUNCTION platform.finalize_student_portal_authority(
   UUID, BIGINT, BIGINT
 ) TO service_role;
 
+CREATE FUNCTION platform_private.accept_student_portal_invite_e1(
+  p_receipt_id UUID,
+  p_confirmed_at TIMESTAMPTZ
+)
+RETURNS VOID
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  receipt platform_private.student_portal_provisioning_receipts%ROWTYPE;
+  row_count INTEGER;
+BEGIN
+  SELECT * INTO receipt
+  FROM platform_private.student_portal_provisioning_receipts AS candidate
+  WHERE candidate.id = p_receipt_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'receipt unavailable' USING ERRCODE = 'P0002';
+  END IF;
+  IF p_confirmed_at IS NULL THEN
+    RAISE EXCEPTION 'portal_authority_not_ready' USING ERRCODE = '40001';
+  END IF;
+  IF receipt.active_attempt_id IS NOT NULL THEN
+    UPDATE platform_private.student_portal_invite_attempts AS target
+    SET attempt_state = 'succeeded',
+        auth_user_id = COALESCE(target.auth_user_id, receipt.auth_user_id),
+        safe_error_code = NULL,
+        recorded_at = COALESCE(target.recorded_at, statement_timestamp()),
+        reconciled_at = statement_timestamp()
+    WHERE target.id = receipt.active_attempt_id
+      AND target.receipt_id = receipt.id
+      AND target.invite_generation = receipt.invite_generation
+      AND target.attempt_state = 'dispatching';
+    GET DIAGNOSTICS row_count = ROW_COUNT;
+    IF row_count <> 1 THEN
+      RAISE EXCEPTION 'stale_invite_attempt' USING ERRCODE = '40001';
+    END IF;
+  END IF;
+  UPDATE platform_private.student_portal_provisioning_receipts AS target
+  SET invite_delivery_status = 'accepted',
+      accepted_at = COALESCE(target.accepted_at, p_confirmed_at),
+      active_attempt_id = NULL,
+      receipt_version = target.receipt_version + 1,
+      safe_error_code = NULL,
+      updated_at = statement_timestamp()
+  WHERE target.id = receipt.id;
+END
+$$;
+
+REVOKE ALL ON FUNCTION platform_private.accept_student_portal_invite_e1(
+  UUID, TIMESTAMPTZ
+) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
+
 CREATE FUNCTION platform.record_student_portal_invite_accepted(
   p_receipt_id UUID,
   p_expected_receipt_version BIGINT,
@@ -2428,14 +2526,9 @@ BEGIN
   IF auth_row.confirmed_at IS NULL THEN
     RAISE EXCEPTION 'portal_authority_not_ready' USING ERRCODE = '40001';
   END IF;
-  UPDATE platform_private.student_portal_provisioning_receipts AS target
-  SET invite_delivery_status = 'accepted',
-      accepted_at = COALESCE(target.accepted_at, auth_row.confirmed_at),
-      active_attempt_id = NULL,
-      receipt_version = target.receipt_version + 1,
-      safe_error_code = NULL,
-      updated_at = statement_timestamp()
-  WHERE target.id = p_receipt_id;
+  PERFORM platform_private.accept_student_portal_invite_e1(
+    p_receipt_id, auth_row.confirmed_at
+  );
   RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, FALSE)
     || jsonb_build_object('replayed', FALSE);
 END
@@ -2456,7 +2549,6 @@ DECLARE
   v_normalized_email TEXT := pg_catalog.lower(pg_catalog.btrim(p_email));
   receipt platform_private.student_portal_provisioning_receipts%ROWTYPE;
   auth_row RECORD;
-  replayed BOOLEAN := TRUE;
 BEGIN
   IF p_auth_user_id IS NULL OR v_normalized_email IS NULL
     OR pg_catalog.char_length(v_normalized_email) NOT BETWEEN 3 AND 320
@@ -2482,21 +2574,22 @@ BEGIN
     RAISE EXCEPTION 'portal_authority_not_ready' USING ERRCODE = '40001';
   END IF;
   IF p_mark_accepted AND receipt.invite_delivery_status <> 'accepted' THEN
-    UPDATE platform_private.student_portal_provisioning_receipts AS target
-    SET invite_delivery_status = 'accepted',
-        accepted_at = COALESCE(target.accepted_at, auth_row.confirmed_at),
-        active_attempt_id = NULL,
-        receipt_version = target.receipt_version + 1,
-        safe_error_code = NULL,
-        updated_at = statement_timestamp()
-    WHERE target.id = receipt.id;
-    replayed := FALSE;
-  END IF;
-  RETURN platform_private.student_portal_safe_snapshot(receipt.id, FALSE)
-    || jsonb_build_object(
-      'replayed', replayed,
-      'account_pending', receipt.provisioning_state <> 'authority_activated'
+    PERFORM platform_private.accept_student_portal_invite_e1(
+      receipt.id, auth_row.confirmed_at
     );
+  END IF;
+  SELECT * INTO receipt
+  FROM platform_private.student_portal_provisioning_receipts AS candidate
+  WHERE candidate.id = receipt.id;
+  RETURN jsonb_strip_nulls(jsonb_build_object(
+    'receipt_id', receipt.id,
+    'provisioning_state', receipt.provisioning_state,
+    'invite_delivery_status', receipt.invite_delivery_status,
+    'receipt_version', receipt.receipt_version,
+    'invite_generation', receipt.invite_generation,
+    'authority_activated', receipt.provisioning_state = 'authority_activated',
+    'account_pending', receipt.provisioning_state <> 'authority_activated'
+  ));
 END
 $$;
 

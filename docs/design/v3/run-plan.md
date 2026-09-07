@@ -608,6 +608,12 @@ identity:
   email. Нельзя удалять/создавать identity, менять email или заводить новый
   provisioning receipt. Если выбранный Supabase re-invite механизм не сохраняет
   exact user ID в local/managed acceptance, E3 блокируется без fallback;
+- invite `data`/`user_metadata` не является authority или recovery storage.
+  Текущий Supabase Auth применяет invite data при создании пользователя, но не
+  переустанавливает его при reissue существующему unconfirmed user. Поэтому
+  identity, authority, immutable fingerprint, generation и recovery никогда не
+  зависят от mutable metadata; их единственный источник — durable private
+  receipt + exact `auth_user_id` + normalized email;
 - durable success возвращает delivery status в `issued` с новыми timestamps.
   Definite no-side-effect failure даёт `reissue_failed`; новый operator attempt
   всё равно требует новый idempotency key и CAS. Lost/timeout/ambiguous response
@@ -631,6 +637,9 @@ Admin invite использует
 Supabase связывает expiry с Email OTP Expiration (по умолчанию один час) и
 требует новый invite после истечения:
 [Inviting users](https://supabase.com/docs/guides/auth/users#inviting-users).
+Текущие same-user/reissue и metadata semantics видны в официальных
+[`invite.go`](https://github.com/supabase/auth/blob/master/internal/api/invite.go)
+и [`mail.go`](https://github.com/supabase/auth/blob/master/internal/api/mail.go).
 
 #### Migration 127 — только additive student read models
 
@@ -776,7 +785,7 @@ standard/resumable boundary:
    pending-authority recovery, expired-token bounded denial, same-receipt/
    same-identity operator reissue, concurrent reissue с максимум одним provider
    call, same-key replay без второго call, stale-token behavior, ambiguous
-  reissue без blind resend, wrong Auth identity rejection, no arbitrary
+   reissue без blind resend, wrong Auth identity rejection, no arbitrary
    redirect/secret-browser leakage и staff/Student mutual rejection.
 5. **E4 portal surface:** отдельный Student layout и ровно пять routes на E2
    adapters; Russian wording, empty/error/loading states, no fabricated facts,

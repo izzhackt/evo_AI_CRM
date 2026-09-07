@@ -20332,3 +20332,28 @@ Decision:
 4. This correction does not decide `ThemeToggle`, dark mode or other Stage F
    inventory items and authorizes no Stage E/F runtime edit, dependency removal,
    deployment, provider call or production action.
+
+## 2026-09-07 - Keep invite metadata outside E0 authority and recovery
+
+Block-ID: `EVO-V3-E0-INVITE-METADATA-AUTHORITY-CORRECTION-2026-09-07`
+
+Change type: identity-source and recovery clarification. Affected plan section:
+expired-invite reissue only.
+
+The current official Supabase Auth
+[`Invite` handler](https://github.com/supabase/auth/blob/master/internal/api/invite.go)
+finds an existing user by email, rejects a confirmed identity with
+`email_exists`, and reuses an unconfirmed identity. Its invite `Data` is applied
+only on the create path. The official
+[`sendInvite` implementation](https://github.com/supabase/auth/blob/master/internal/api/mail.go)
+rotates confirmation token/timestamps on that same user.
+
+Decision: E1/E3 must never depend on invite `data`/`user_metadata` for identity,
+authority, immutable fingerprint, recovery state or invite generation, because
+existing-user reissue does not reapply that mutable metadata. The authoritative
+reissue inputs remain the durable private receipt plus exact `auth_user_id` and
+normalized email. Any mismatch fails closed; no alternate metadata fallback,
+identity creation or new receipt is allowed.
+
+This clarification changes no D2, hostname, Stage F, runtime or production
+scope and authorizes no external action.

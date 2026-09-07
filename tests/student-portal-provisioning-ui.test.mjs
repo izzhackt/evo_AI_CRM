@@ -43,6 +43,18 @@ test("issued or accepted initial receipt can reach no-resend finalization replay
   );
 });
 
+test("a definite reissue failure retries only through the durable receipt continuation", () => {
+  const actions = source("src/lib/student-portal-provisioning-actions.ts");
+  assert.match(
+    actions,
+    /if \(receipt\.inviteDeliveryStatus === "reissue_failed"\) \{\s*return "dispatch_reissue";\s*\}/u,
+  );
+  assert.match(
+    actions,
+    /async function dispatchReissue[\s\S]*?targetGeneration = nextVersion\(receipt\.inviteGeneration\)[\s\S]*?studentPortalAttemptId\([\s\S]*?"reissue",[\s\S]*?targetGeneration[\s\S]*?reissueRequestId: receipt\.reissueRequestId[\s\S]*?expectedReceiptVersion: receipt\.receiptVersion[\s\S]*?expectedInviteGeneration: receipt\.inviteGeneration/u,
+  );
+});
+
 test("React action envelope decodes one exact portal operation", () => {
   const form = new FormData();
   form.append("0", "null");

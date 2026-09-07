@@ -20997,3 +20997,22 @@ baseline. Reissue claims continue to require a non-null baseline.
 Focused store and coordinator tests cover null, valid existing-user, malformed,
 unchanged and advanced initial baselines. This correction changes no migration,
 provider invocation policy, managed service or production state.
+
+## 2026-09-07 - Restore failed-reissue continuation and classify safe env examples
+
+Block-ID: `EVO-V3-E3-REISSUE-FAILED-CONTINUATION-CORRECTION-2026-09-07`
+
+Change type: exact-head review and PR-gate correction. Affected plan section:
+Stage E3 durable reissue continuation and fast-PR change classification only.
+
+A definite reissue failure remains retryable only under the receipt's existing
+Admin-authorized `reissue_request_id`. Replaying the exact prepare request must
+therefore dispatch a new generation with its deterministic new attempt id and
+the receipt's current version/generation CAS. It must not mint another reissue
+authorization key, while `reissue_unknown` remains reconciliation-only.
+
+The committed `.env.example` is a safe runtime-configuration contract and is a
+known code/config path for the fail-closed PR classifier. Unknown paths remain
+blocking. Focused tests cover the failed-reissue transition, preserved durable
+key/new-attempt derivation and `.env.example` classification. This correction
+authorizes no provider call, managed service, production or release mutation.

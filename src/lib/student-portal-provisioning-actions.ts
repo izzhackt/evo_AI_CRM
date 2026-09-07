@@ -219,11 +219,7 @@ function existingReceiptState(
     return "dispatch_initial";
   }
   if (receipt.inviteDeliveryStatus === "reissue_failed") {
-    return {
-      status: "inviteFailed",
-      code: "portal_reissue_failed",
-      ...binding,
-    };
+    return "dispatch_reissue";
   }
   if (receipt.inviteDeliveryStatus === "expired") {
     return receipt.reissueRequestId

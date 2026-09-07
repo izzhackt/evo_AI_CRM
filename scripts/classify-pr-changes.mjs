@@ -32,6 +32,7 @@ const DOCUMENT_ASSET_EXTENSIONS = new Set([
 ]);
 const KNOWN_CODE_PATHS = new Set([
   ".dockerignore",
+  ".env.example",
   ".eslintignore",
   ".gitignore",
   ".nvmrc",

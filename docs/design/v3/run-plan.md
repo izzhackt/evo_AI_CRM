@@ -421,14 +421,16 @@ review точного cumulative diff. Любая последующая фун�
 replacement run. D2 не разрешает managed schema apply, provider calls или
 production release.
 
-### E · Портал студента — E0 ТЕКУЩАЯ (docs-only; runtime не начат)
+### E · Портал студента — E1 implementation candidate (не merged/deployed)
 
 **Статус на exact `origin/main`
-`aecb115f58966ec9609ae72774ab029009475e55` после merge D2 PR #673:** D2
-сделано, E0/PR #669 — текущая docs-only пачка. Реализация Stage E не начата:
-миграций 126/127, portal routes, student resolver, callback и trusted-server
-invite в репозитории ещё нет. Не выдавать E0 или существующие SQL-функции за
-работающий фронт, отправленное приглашение либо production proof.
+`63b5c4eede91948824dbe3cf0fa3939bf5819abb` после merge E0 PR #669:**
+текущая ветка содержит только E1 implementation candidate: migration 126,
+её dedicated SQL acceptance suite, регистрацию в authorization harness и
+документированный result/grant contract. E2 migration 127, portal routes,
+callback и trusted-server provider coordinator здесь отсутствуют. E1 не
+отправляет приглашение, не вызывает managed Supabase и не является deployment
+или production proof.
 
 #### Уже существующая authority — не дублировать
 
@@ -715,6 +717,22 @@ Supabase связывает expiry с Email OTP Expiration (по умолчан�
 Текущие same-user/reissue и metadata semantics видны в официальных
 [`invite.go`](https://github.com/supabase/auth/blob/master/internal/api/invite.go)
 и [`mail.go`](https://github.com/supabase/auth/blob/master/internal/api/mail.go).
+
+#### E1 local acceptance evidence
+
+- На macOS подтверждены `orb status = Running`, `docker context show =
+  orbstack` и Node `v22.23.1`.
+- Focused disposable PostgreSQL apply миграций `001–126` плюс
+  `supabase/tests/platform_student_portal_provisioning.sql` прошёл. Suite
+  проверяет normal/reissue replay и CAS, active-attempt/stale-generation
+  fencing, unknown-outcome recovery, rollback и one-way bind, grants/RLS/no-PII,
+  отсутствие повторных scope/audit/access-version mutations, а также реальные
+  двухсессионные `dblink` гонки finalizer/Curator в обоих порядках,
+  finalizer/direct-scope и cross-organization normalized-email reservation.
+- Единственный завершённый canonical
+  `bash scripts/test-postgres-authorization.sh` на финальных файлах прошёл на
+  pinned Supabase PostgreSQL image. Это local SQL evidence; managed apply,
+  provider delivery, callback и production не выполнялись.
 
 #### Migration 127 — только additive student read models
 

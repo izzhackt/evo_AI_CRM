@@ -2144,6 +2144,14 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_message_media_case_attach.sql
   fi
+
+  # Migration 126 adds the private Student Portal provisioning receipt and
+  # fenced invite/finalization coordinator contract.
+  if [[ "$(basename "$migration")" == 126_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_portal_provisioning.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

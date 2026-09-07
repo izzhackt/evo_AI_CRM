@@ -20478,3 +20478,389 @@ Decision:
 This is the final E0 contract clarification. It preserves D2 closure, sole
 first-launch sslip authority, Stage F product-decision gates and all no-runtime/
 no-provider/no-production boundaries.
+
+## 2026-09-07 - Freeze the Stage E1 migration 126 implementation boundary
+
+Block-ID: `EVO-V3-E1-STUDENT-PORTAL-PROVISIONING-AUTHORITY-2026-09-07`
+
+Change type: implementation boundary, SQL API freeze, least-privilege and
+concurrency contract. Affected plan section: Stage E1 only, migration 126 after
+the merged E0 PR #669 at exact base
+`63b5c4eede91948824dbe3cf0fa3939bf5819abb`.
+
+Read-only inspection confirmed that migration 125 is the current root migration
+head, migration 042's `student_cases_identity_immutable` still blocks the one
+planned Student bind, migration 117 already owns the organization-domain lock,
+and migrations 041/083/117 remain the mutation and live-authority primitives.
+This entry freezes the exact E1 database surface before any migration code.
+
+### Exact durable objects and states
+
+1. Migration `126_platform_student_portal_provisioning.sql` creates exactly two
+   new tables, both in `platform_private`:
+   `student_portal_provisioning_receipts` and
+   `student_portal_invite_attempts`. Both use UUID keys only, have `ENABLE ROW
+   LEVEL SECURITY` plus `FORCE ROW LEVEL SECURITY`, have no policies, and have
+   every direct table and owned-sequence privilege revoked from PUBLIC, `anon`,
+   `authenticated`, `service_role` and `supabase_auth_admin`.
+2. A receipt globally reserves one `request_id`, one `student_case_id`, one
+   `normalized_email = lower(btrim(email))`, and eventually one exact
+   `auth_user_id` and Student membership. It stores the immutable fingerprint
+   over organization, case, normalized email, trimmed display name,
+   `case_shape` and nullable legacy Curator; the exact authorizing Admin Auth
+   user/profile/membership, bundle id/version, access version, required
+   permissions and authorization timestamp; receipt version; provisioning and
+   delivery state; current invite generation/attempt; observed provider
+   issuance timestamps only; Student identity/bind result; and bounded safe
+   error codes. It never stores a provider response/body, invite token, URL,
+   password, session, user metadata or browser-visible payload.
+3. `provisioning_state` is exactly `prepared`, `dispatching`,
+   `invite_succeeded`, `invite_failed`, `invite_outcome_unknown` or
+   `authority_activated`. `invite_delivery_status` is NULL before proven
+   issuance, then exactly `issued`, `expired`, `reissue_dispatching`,
+   `reissue_failed`, `reissue_unknown` or `accepted`. `invite_generation`
+   starts at zero and is incremented by each successful initial or reissue
+   claim before external dispatch. `receipt_version` increments on every
+   accepted state mutation.
+4. Each invite attempt belongs to one receipt and has caller-supplied unique
+   `attempt_id`, exact `attempt_kind = initial|reissue`, optional unique
+   reissue request id, claimed receipt version/generation, state exactly
+   `dispatching|succeeded|failed|unknown`, pre-attempt and observed
+   `auth.users.confirmation_sent_at`, claimed/completed timestamps and one
+   bounded non-PII error code. The receipt's nullable `active_attempt_id` is a
+   same-receipt foreign key. No stale attempt may update receipt state.
+5. `case_shape` is exactly `normal_u6` or `legacy_pending`. Normal U6 requires
+   an active open case with non-null Curator and `handoff_at`, and a NULL legacy
+   Curator input. Legacy pending requires the exact pending/null-handoff/null-
+   activation/null-closed shape and an explicitly selected active same-org
+   Curator. Closed, contradictory, cross-org, already-reserved and already-
+   bound cases fail before dispatch.
+
+### Exact RPC surface and grants
+
+The exact public SQL identities are frozen as follows. Every function is
+`SECURITY DEFINER SET search_path = ''`; each signature is revoked from PUBLIC,
+`anon`, `authenticated`, `service_role` and `supabase_auth_admin` before its one
+grant. No internal `platform_private` core receives a client-role grant.
+
+Authenticated Admin only:
+
+- `platform.prepare_student_portal_provisioning(UUID, UUID, TEXT, TEXT, TEXT,
+  UUID, TEXT, UUID) -> JSONB`: organization, case, email, display name,
+  case-shape, nullable legacy Curator, reason and root request id.
+- `platform.authorize_student_portal_invite_reissue(UUID, BIGINT, BIGINT, UUID,
+  TEXT) -> JSONB`: receipt id, expected receipt version, expected invite
+  generation, unique reissue request id and reason.
+
+Service role only:
+
+- `platform.claim_student_portal_invite(UUID, UUID, BIGINT, BIGINT) -> JSONB`.
+- `platform.claim_student_portal_invite_reissue(UUID, UUID, UUID, BIGINT,
+  BIGINT) -> JSONB`.
+- `platform.record_student_portal_invite_success(UUID, UUID, BIGINT, BIGINT,
+  UUID, INTEGER) -> JSONB`: exact Auth user plus the verified Email OTP expiry
+  seconds; the database reads and validates exact Auth email and
+  `confirmation_sent_at` and derives `invite_expires_at`.
+- `platform.record_student_portal_invite_failure(UUID, UUID, BIGINT, BIGINT,
+  TEXT) -> JSONB`: only a definite no-side-effect failure with bounded error
+  code.
+- `platform.record_student_portal_invite_unknown(UUID, UUID, BIGINT, BIGINT,
+  TEXT) -> JSONB`.
+- `platform.reconcile_student_portal_invite(UUID, UUID, BIGINT, BIGINT, UUID,
+  INTEGER, BOOLEAN, TIMESTAMPTZ, TEXT) -> JSONB`: receipt, attempt, expected
+  version/generation, nullable exact Auth user, nullable verified OTP expiry,
+  explicit provider no-issuance proof flag, nullable provider/request upper
+  bound and bounded error code. Without a newly observed exact provider
+  issuance timestamp or a passed upper bound plus unchanged exact read-back,
+  unknown remains unknown.
+- `platform.finalize_student_portal_authority(UUID, BIGINT, BIGINT) -> JSONB`:
+  receipt id and expected receipt version/generation only.
+- `platform.record_student_portal_invite_accepted(UUID, BIGINT, BIGINT) ->
+  JSONB`: exact receipt/version/generation only; it succeeds only after the
+  same exact Auth user/email is confirmed.
+
+`prepare` and reissue authorization are granted only to `authenticated`.
+Every claim/record/reconcile/finalize/accepted RPC is granted only to
+`service_role`. Service role receives no EXECUTE on `prepare`, reissue
+authorization, `platform.provision_member`,
+`platform.assign_organization_scope` or
+`platform.assign_student_case_curator`; authenticated receives no coordinator
+RPC. No function relies on invite `data`/`user_metadata`.
+
+### Lock, authority and mutation contract
+
+1. Prepare performs a read-only live `require_admin_actor` preflight, then
+   takes `lock_student_case_note_assignment_domain(organization_id)`, then the
+   root request advisory lock and these deterministic UUID-v5 child request
+   locks in lexical order: `01-membership-provision`,
+   `02-organization-scope`, `03-student-case-scope`,
+   `04-legacy-curator`, `05-student-portal-audit`. Only after all six request
+   locks may it lock receipt/case/Admin/Curator rows. Under those locks it
+   repeats current Admin checks and saves required permissions exactly as
+   `{membership.provision,scope.organization.assign}` for normal U6 and that
+   set plus `case.curator.assign` for legacy pending.
+2. Finalize derives organization/root/children from the receipt without
+   trusting caller authority. It takes the same migration-117 domain lock,
+   root and all five child locks in that same order before any receipt,
+   attempt, Auth, case, membership, profile, bundle, permission or scope row
+   lock. It locks receipt/attempt, Auth rows by UUID, the exact case, then
+   memberships/profiles by UUID order. It never waits for a child lock while
+   holding a participant row lock.
+3. Finalize does not call `require_admin_actor` and never sets or impersonates
+   `auth.uid()`. It data-bound revalidates the receipt authorizer's exact active
+   Auth user/profile/membership, same organization, Admin role, unchanged
+   access version and bundle id/version, published current bundle, every saved
+   permission and current organization scope. Any revocation or authority
+   drift raises `portal_admin_authority_changed` before Student mutation.
+4. The shared private mutation cores preserve the established
+   `provision_member`, `assign_organization_scope` and migration-117 Curator
+   assignment invariants/audit. Their authenticated wrappers perform live
+   Admin authorization; the receipt finalizer supplies only the already locked
+   and revalidated receipt-bound actor. Existing public wrappers remain
+   authenticated-only and service role is never granted them.
+5. Finalize proves exact `auth.users.id` and normalized email, provisions or
+   replays exactly one active Student membership with the current published
+   Student bundle, assigns the organization scope, appends the current exact
+   student-case scope, performs the one-way case bind, then unconditionally
+   bumps the Student profile access version after scope/bind. Normal U6 sets
+   `portal_activated_at` last. Legacy pending then runs the shared Curator core
+   with child request `04`, so scope rotation, Student/Curator grants, affected
+   access-version bumps, active/handoff and activation remain one transaction.
+   Any failure rolls the full transaction back.
+6. Migration 126 drops and replaces trigger
+   `student_cases_identity_immutable`. All prior identity columns remain
+   immutable. `student_membership_id` permits only same-UUID replay or one
+   `NULL -> exact active Student membership in the same organization` bind;
+   UUID-to-other, UUID-to-NULL, foreign, non-Student and inactive targets fail.
+   The finalizer is the only granted bind path.
+7. The final audit action is exactly `student.portal.authority.activate` on
+   resource type `student_case`, uses child request `05`, contains no email or
+   provider data, and is added to `platform_private.p7a_safe_audit_actions()`.
+   A successful same-request replay returns the prior bounded result without
+   new membership/scope/audit rows or another access-version bump.
+
+### Results, deterministic errors and file ownership
+
+Every authenticated/Admin result is bounded to receipt/request/attempt ids,
+state/version/generation, case shape, Student membership/profile ids,
+activation timestamp, and booleans `replayed`,
+`provider_dispatch_allowed` or `authority_activated` as applicable. The two
+service-role claim results additionally return the exact reserved
+`normalized_email`, because a crash-safe trusted coordinator cannot dispatch
+from the private receipt without a narrow retrieval path. That field is never
+returned to authenticated/anon, written to audit/public tables, logged or
+included in browser JSON. No result contains display name, provider
+payload/error body, Auth metadata, token, URL, password, session or secret.
+
+The stable application error messages are exactly:
+`request_replay_conflict`, `portal_case_already_reserved`,
+`portal_case_already_bound`, `portal_email_already_reserved`,
+`portal_case_invalid_shape`, `portal_curator_required`,
+`portal_identity_conflict`, `stale_receipt_version`,
+`stale_invite_generation`, `stale_invite_attempt`,
+`invite_reissue_in_progress`, `portal_invite_not_expired`,
+`portal_invite_already_accepted`, `portal_reconciliation_required`,
+`portal_invite_no_issuance_unproven`, `portal_admin_authority_changed` and
+`portal_authority_not_ready`. Invalid argument shape remains SQLSTATE `22023`;
+missing/unavailable objects remain `P0002`; authorization remains `42501`;
+named state/CAS conflicts use `40001`.
+
+E1 owns only:
+
+- `docs/PLAN_CHANGES.md` for this pre-code contract and evidence;
+- `supabase/migrations/126_platform_student_portal_provisioning.sql`;
+- `supabase/tests/platform_student_portal_provisioning.sql`;
+- `scripts/test-postgres-authorization.sh` for the one canonical migration-126
+  suite registration; and
+- `docs/design/v3/run-plan.md` for truthful E1 status/evidence only after the
+  implementation passes.
+
+No E2 read model/adapter, callback, app route/UI, provider call, managed
+Supabase mutation, VPS/production action or release arming belongs to E1.
+Focused SQL iteration precedes exactly one full
+`bash scripts/test-postgres-authorization.sh` under Node 22.23.1 and the
+required OrbStack context. Official security behavior was rechecked against
+the current Supabase Database Functions and RLS guides and PostgreSQL advisory
+lock/`CREATE FUNCTION` documentation: SECURITY DEFINER routines pin an empty
+search path and are schema-qualified; routine EXECUTE is explicitly revoked
+before narrow grants; transaction advisory locks release at transaction end.
+
+## 2026-09-07 - Correct the E1 organization-scope permission key
+
+Block-ID: `EVO-V3-E1-SCOPE-PERMISSION-KEY-CORRECTION-2026-09-07`
+
+Change type: pre-code schema-compatibility correction. Affected plan section:
+the immediately preceding E1 required-permission inventory only.
+
+Targeted migration-041 inspection confirmed that the live Admin permission for
+both assignment and revocation of organization scope is `scope.manage`.
+`membership.scope.organization.assign` is the audit action, not a permission
+definition. Therefore the exact receipt permission array is
+`{membership.provision,scope.manage}` for normal U6 and that set plus
+`case.curator.assign` for legacy pending. Prepare and finalize must check these
+existing keys exactly; migration 126 creates no replacement permission or
+alias. Every other E1 signature, grant, state, lock, result, error, test and
+file-ownership decision in the preceding entry remains unchanged.
+
+## 2026-09-07 - Add the E1 verified-invite identity resolver
+
+Block-ID: `EVO-V3-E1-VERIFIED-INVITE-IDENTITY-RESOLVER-2026-09-07`
+
+Change type: trusted-consumer compatibility and least-privilege correction.
+Affected plan section: migration 126 service-role receipt surface only.
+
+The E3 callback contract yields a verified Supabase Auth user id and email, but
+does not and must not put a private receipt id/version/generation in the invite
+URL or mutable Auth metadata. Since direct receipt access is revoked, migration
+126 must add exactly one narrow service-only resolver:
+
+- `platform.resolve_student_portal_invite_identity(UUID, TEXT, BOOLEAN) ->
+  JSONB`, accepting verified Auth user id, verified email and
+  `mark_accepted`. It normalizes the email, resolves only the globally unique
+  receipt already bound to that exact Auth id/email, rechecks the same
+  `auth.users` row, and when requested changes delivery to `accepted` only if
+  Auth confirmation is durable. It returns only receipt id, provisioning/
+  delivery state, receipt version, invite generation and bounded
+  authority/pending booleans; never email, token, session, metadata or provider
+  payload.
+
+The resolver is `SECURITY DEFINER SET search_path = ''`, revoked from PUBLIC,
+`anon`, `authenticated` and `supabase_auth_admin`, and granted only to
+`service_role`. The previously frozen receipt-id based
+`record_student_portal_invite_accepted(UUID, BIGINT, BIGINT)` remains available
+for exact coordinator replay/CAS. No broad lookup/list RPC or direct private-
+table grant is added, and E1 still contains no callback or Auth provider code.
+
+## 2026-09-07 - Preserve the bounded reissue continuation key in E1 snapshots
+
+Block-ID: `EVO-V3-E1-REISSUE-CONTINUATION-KEY-2026-09-07`
+
+Change type: downstream recovery contract correction. Affected plan section:
+migration 126 safe receipt result only.
+
+After an authorized reissue ends in definite failure or unknown outcome, the
+next trusted coordinator call must reuse the exact durable
+`reissue_request_id`; accepting a caller-invented replacement would bypass the
+Admin authorization receipt, while hiding the stored value would make safe
+recovery impossible. Therefore
+`platform_private.student_portal_safe_snapshot` includes the nullable UUID
+`reissue_request_id` in every bounded RPC result. This is an idempotency key,
+not PII or provider evidence. The snapshot still excludes normalized email
+except from the service-only claim dispatch envelope, plus all tokens, Auth
+metadata, provider payloads and raw errors. The E1 SQL suite must prove the
+authorized snapshot and its same-request replay return the exact key.
+## 2026-09-07 - Close E1 exact-head review gaps
+
+Block-ID: `EVO-V3-E1-EXACT-HEAD-REVIEW-CORRECTION-2026-09-07`
+
+Change type: review correction. Affected plan section: migration 126 invite
+attempt replay, definite-failure reissue, resolver response and wrapper grants.
+
+Decision:
+
+1. A claim replay is valid only while that exact attempt remains the receipt's
+   active `dispatching` attempt at the same invite generation. A terminal or
+   superseded attempt fails with `stale_invite_attempt`; it can never inherit
+   `provider_dispatch_allowed` from a newer active attempt.
+2. `reissue_failed` is retryable under the same durable Admin-authorized
+   `reissue_request_id`, but only with a new unique `attempt_id` and current
+   receipt-version/invite-generation CAS. `reissue_unknown` remains non-retryable.
+3. `resolve_student_portal_invite_identity` returns only the frozen bounded
+   receipt/state/version/generation fields plus booleans. It does not reuse the
+   broader provider-safe dispatch snapshot.
+4. Migration 083 remains the public authority for staff provisioning grants:
+   authenticated Admin callers use `platform.provision_pilot_staff_member`,
+   while the historical broad `platform.provision_member` stays unexposed.
+   Migration 126 must preserve and regression-test that wrapper boundary while
+   granting neither wrapper nor private cores to `service_role`.
+
+The correction changes no provider, managed-Supabase, deployment, callback,
+UI, E2 or production scope and authorizes no external action.
+
+## 2026-09-07 - Preserve E1 shared-core error and ACL contracts
+
+Block-ID: `EVO-V3-E1-SHARED-CORE-COMPATIBILITY-CORRECTION-2026-09-07`
+
+Change type: exact-head compatibility correction. Affected plan section:
+migration 126 shared provisioning core and final routine ACLs.
+
+The shared provisioning core must preserve the pre-126 staff wrapper's exact
+profile/display conflict (`22023`) and duplicate-membership (`23505`) behavior.
+The receipt finalizer translates those already-validated data conflicts to the
+frozen E1 `portal_identity_conflict`/`40001` contract. SQL acceptance must prove
+both entrypoint families independently.
+
+Migration 126 also makes its final ACL posture literal: authenticated retains
+only the current staff provisioning, organization-scope and case-curator public
+wrappers; the historical broad provisioner and all three E1 private mutation
+cores remain unavailable to every client/service role. Exact catalog assertions
+cover those public wrappers and private cores.
+
+## 2026-09-07 - Fence E1 reconciliation and concurrent acceptance
+
+Block-ID: `EVO-V3-E1-RECONCILIATION-ACCEPTANCE-CORRECTION-2026-09-07`
+
+Change type: exact-head concurrency correction. Affected plan section:
+unknown-outcome reconciliation, acceptance and final cleanup evidence.
+
+Definite no-issuance reconciliation must prove an operation upper bound that is
+not in the future and covers the exact attempt from at least its durable
+`claimed_at`; an earlier observation cannot unlock retry. When durable Auth
+confirmation arrives during an active reissue dispatch, acceptance atomically
+settles that exact active attempt as succeeded before clearing it from the
+receipt. The late provider response is then stale, while finalization may use
+the same confirmed identity and latest succeeded generation without reopening
+dispatch.
+
+Acceptance adds focused regression proof for early-upper-bound rejection,
+acceptance during reissue dispatch, late-result fencing, trigger-negative paths,
+bounded dblink timeouts and exact committed-fixture cleanup including
+`membership_role_history`.
+
+## 2026-09-07 - Complete final E1 exact-receipt and bind proof
+
+Block-ID: `EVO-V3-E1-FINAL-EXACT-RECEIPT-CORRECTION-2026-09-07`
+
+Change type: final bounded exact-head correction. Affected plan section:
+reissue replay, no-issuance read-back and one-way-bind acceptance only.
+
+Definite no-issuance now requires null-safe equality between the exact current
+Auth `confirmation_sent_at` read-back and the attempt's stored pre-dispatch
+value. A reissue idempotency key replays only for its own receipt; reuse against
+another receipt is `request_replay_conflict`. Final SQL acceptance explicitly
+proves receipt-bound wrong-organization, non-Student and inactive bind denial,
+plus two concurrent finalizers producing one bind and one durable replay.
+
+## 2026-09-07 - Close E1 unclaimed-key and same-receipt continuation gaps
+
+Block-ID: `EVO-V3-E1-FINAL-CONTINUATION-CORRECTION-2026-09-07`
+
+Change type: exact frozen-contract correction. Affected plan section: E1
+reissue-key ownership and same-receipt finalization continuation only.
+
+Reissue authorization now serializes on the globally unique reissue request id
+and checks receipt ownership before update, so authorized-but-unclaimed and
+cross-organization concurrent collisions return `request_replay_conflict`
+instead of leaking `unique_violation`. Finalization may continue an exact
+same-receipt partial bind only when the bound active Student membership resolves
+to the receipt Auth user and organization, the case is the receipt's exact case,
+and deterministic child evidence replays. Normal continuation requires an
+unactivated case; legacy continuation may also replay an exact already-applied
+child-04 Curator activation. Foreign or mismatched bindings remain fail-closed,
+and already-applied access-version bumps are not repeated. Terminal same-request
+replay is resolved before
+rechecking now-irrelevant historical Admin authority. Cross-receipt attempt-id
+collisions translate their unique races to the frozen
+`40001` contracts, while required case shape, OTP TTL, terminal/acceptance IDs
+and CAS values reject null as `22023`. A confirmed exact Auth identity settles
+an unknown reissue without replacing its prior issued window, whether or not a
+valid provider no-issuance proof is also present, and fences a late outcome.
+Service-role claim results include the exact attempt
+`pre_confirmation_sent_at` baseline for later provider read-back comparison;
+catalog acceptance proves zero direct policies or relation privileges on both
+private E1 tables and zero owned or default-backing sequences. The terminal
+audit records the locked case's real pre-state,
+including an already-bound membership and, for late legacy continuation, the
+already-applied portal activation timestamp. Child-01 continuation evidence is
+complete only when both the exact provisioning audit payload/reason and the
+matching role-history row are present; partial or mismatched evidence fails.

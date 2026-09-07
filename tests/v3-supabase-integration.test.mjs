@@ -8,8 +8,48 @@ function source(path) {
 
 test("V3 server adapters use the canonical Supabase runtime only", () => {
   const adapterDirectory = new URL("../src/lib/v3/", import.meta.url);
-  const adapterSources = readdirSync(adapterDirectory)
+  const typescriptFiles = readdirSync(adapterDirectory)
     .filter((name) => name.endsWith(".ts"))
+    .sort();
+  assert.deepEqual(typescriptFiles, [
+    "calendar-contract.ts",
+    "calendar-source.ts",
+    "funnel-source.ts",
+    "inbox-href.ts",
+    "inbox-media.ts",
+    "inbox-profile-link.ts",
+    "inbox-source.ts",
+    "knowledge-source.ts",
+    "knowledge-surface.ts",
+    "operations-source.ts",
+    "period.ts",
+    "pipeline-source.ts",
+    "portal-source.ts",
+    "profile-route-load.ts",
+    "profile-source.ts",
+    "reply-snippets-source.ts",
+    "settings-journal-contract.ts",
+    "settings-source.ts",
+    "wording.ts",
+  ]);
+
+  const adapterFiles = typescriptFiles.filter((name) =>
+    name.endsWith("-source.ts"),
+  );
+  assert.deepEqual(adapterFiles, [
+    "calendar-source.ts",
+    "funnel-source.ts",
+    "inbox-source.ts",
+    "knowledge-source.ts",
+    "operations-source.ts",
+    "pipeline-source.ts",
+    "portal-source.ts",
+    "profile-source.ts",
+    "reply-snippets-source.ts",
+    "settings-source.ts",
+  ]);
+
+  const adapterSources = adapterFiles
     .map((name) => readFileSync(new URL(name, adapterDirectory), "utf8"))
     .join("\n");
 

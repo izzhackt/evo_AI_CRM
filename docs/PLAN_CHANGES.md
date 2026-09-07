@@ -21016,3 +21016,35 @@ known code/config path for the fail-closed PR classifier. Unknown paths remain
 blocking. Focused tests cover the failed-reissue transition, preserved durable
 key/new-attempt derivation and `.env.example` classification. This correction
 authorizes no provider call, managed service, production or release mutation.
+
+## 2026-09-07 - Close E4 presentation and browser-acceptance gaps
+
+Block-ID: `EVO-V3-E4-EXACT-PRESENTATION-BROWSER-CORRECTION-2026-09-07`
+
+Change type: pre-merge review correction. Affected plan section: Stage E4
+five-route Student Portal UI and its package-specific acceptance only.
+
+Decision:
+
+1. Notification mark-read keeps the browser input to one opaque notification
+   id, but its server request id is deterministic for the verified Student
+   actor and notification. A repeated or concurrent submission therefore
+   replays one operation instead of minting a new command.
+2. The mobile horizontal navigation is keyboard-focusable and explicitly
+   named. Portal status and feedback surfaces reuse the shared neutral/Pill
+   visual language; full-panel destructive emphasis is reserved for destructive
+   actions, not read failures.
+3. Every database-valid `operational_stage` has one canonical Russian label.
+   Unknown/raw status keys never reach the screen, and a valid known stage is
+   not mislabeled as unavailable.
+4. The V3 canonical-runtime regression inspects an exact asserted inventory of
+   server adapters, not UI wording dictionaries. This retains the ban on the
+   legacy backend while allowing canonical payment category keys.
+5. E4 acceptance is real local Supabase/Auth/RLS/Chromium proof for exactly five
+   Portal routes at desktop, 393 px and forced dark, with axe, one-h1,
+   horizontal-overflow and target-size checks. It also proves anonymous and
+   staff-to-Portal denial, Student-to-`/v3/*` denial and keeps `/portal/legacy`
+   retired. E5 cumulative proof cannot substitute for this E4 gate.
+
+This correction adds no document mutation route and does not authorize managed
+Supabase, SMTP, provider, VPS, production, deployment or release arming.

@@ -740,7 +740,6 @@ test("retired V2 staff and API routes are absent from the authenticated runtime"
     "/finance",
     "/tasks",
     "/settings",
-    "/portal",
     "/calls",
     "/chat",
     "/whatsapp",

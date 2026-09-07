@@ -20243,3 +20243,92 @@ All other invite-safety corrections remain authoritative: GET callback
 prefetch does not call `verifyOtp`, password setup survives pending authority,
 the durable dispatch marker prevents blind resend, normalized email is reserved
 globally before dispatch, and exact Auth user/email matching is required.
+
+## 2026-09-07 - Add a fenced expired-invite reissue path to E0
+
+Block-ID: `EVO-V3-E0-EXPIRED-INVITE-REISSUE-CORRECTION-2026-09-07`
+
+Change type: recoverability, external-side-effect idempotency and acceptance
+correction. Affected plan section: migration 126 receipt state and E3 trusted
+invite coordinator.
+
+[Supabase Auth documents that invite links expire after the configured Email
+OTP Expiration, one hour by default, and says to send a new invite after an
+unaccepted invite expires](https://supabase.com/docs/guides/auth/users#inviting-users).
+The E0 contract therefore needs an operator-authorized recovery path without
+weakening its no-blind-resend or one-identity rules.
+
+Decision:
+
+1. The same durable receipt gains an invite-delivery status/generation that is
+   independent of provisioning/authority status. This permits recovery whether
+   DB finalize is pending or `authority_activated`, without rolling back or
+   recreating memberships, scopes or case binding.
+2. Only a currently authorized Admin may mark an unaccepted issued invite
+   `expired` after the receipt's durable `invite_expires_at`, derived from the
+   exact verified Email OTP Expiration setting. The action must re-read the
+   exact existing `auth.users.id` and normalized email. Accepted/confirmed,
+   mismatched, early, unknown or unverifiable states fail closed.
+3. Reissue uses the same root receipt, exact `auth_user_id`, normalized email
+   and immutable fingerprint. It never deletes or creates an identity, changes
+   email, creates a new provisioning request, or repeats DB authority finalize.
+   If the provider cannot prove that the returned/read-back identity is the
+   same Auth user, reissue fails closed.
+4. An operator supplies a unique reissue idempotency key plus expected receipt
+   version and invite generation. A committed compare-and-set claim changes
+   `expired -> reissue_dispatching` and increments one generation before the
+   network call. One concurrent claimant wins; same-key replay returns the
+   stored result, while another key receives a deterministic in-progress or
+   stale-version conflict and makes no provider call.
+5. Durable provider success records `issued`, issued/expires timestamps and the
+   same exact Auth user. A lost/ambiguous response records `reissue_unknown` and
+   can never auto-resend. It requires operator reconciliation; if delivery
+   cannot be proven, no further reissue is allowed before the possible invite's
+   configured expiry boundary and a fresh authorized expiry/read-back check.
+6. An expired, stale or consumed callback token gives only the bounded auth
+   error already defined by E0. It cannot mutate the receipt, create an
+   identity or trigger reissue. If any still-valid invite generation verifies,
+   callback identity checks still require the same receipt Auth user/email.
+7. E1/E3 tests must cover expired-token denial, authorized recovery on the same
+   identity and receipt, concurrent reissue CAS with at most one provider call,
+   same-key replay with zero additional calls, stale-token behavior and
+   ambiguous reissue response with no blind resend.
+
+This correction preserves the merged D2 closure, sole first-launch sslip Site
+URL/callback, dual organization + exact-case authority, callback prefetch
+safety and all production/provider proof boundaries. It authorizes no runtime,
+managed Supabase, email-provider, credential, DNS, production or release action.
+
+## 2026-09-07 - Remove live features from the mechanical Stage F cleanup list
+
+Block-ID: `EVO-V3-F-LIVE-FEATURE-REMOVAL-GATE-2026-09-07`
+
+Change type: scope safety and owner-decision gate. Affected plan section: Stage
+F repository cleanup only; Stage E0 runtime scope is unchanged.
+
+Targeted authority inspection found that Transcription Lab and locale behavior
+cannot be classified as dead-code cleanup. `docs/EVO_LAUNCH_PLAN.md` requires
+Transcription Lab to be authenticated/admin-gated or explicitly disabled when
+no approved operator role exists, and its launch UI acceptance preserves
+Russian/Kyrgyz/English switching. A later production-successor decision also
+retains an application output volume for the separately bounded local
+transcription feature. The V3 product detail says Russian-only, so language
+removal has conflicting product evidence rather than mechanical authorization.
+
+Decision:
+
+1. Stage F must not mechanically delete Transcription Lab, its routes/workers/
+   dependencies, locale dictionaries, `LangSwitcher`, `locale-actions` or
+   three-language behavior.
+2. Each proposed feature removal moves to a separate product-decision slice.
+   Before code deletion that slice must inventory current imports/routes/runtime
+   reachability, collect available usage and production evidence, map security,
+   storage/retention, package and user-facing consequences, and obtain explicit
+   owner approval naming the removal boundary.
+3. If removal is approved, its own plan change, replacement/disable behavior,
+   tests and rollback evidence are required. If usage or authority remains
+   ambiguous, preserve the feature and fail closed at its existing authorization
+   boundary. Do not hide a product decision inside dependency cleanup.
+4. This correction does not decide `ThemeToggle`, dark mode or other Stage F
+   inventory items and authorizes no Stage E/F runtime edit, dependency removal,
+   deployment, provider call or production action.

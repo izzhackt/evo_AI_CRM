@@ -529,9 +529,15 @@ trusted-server coordinator. Финальная DB-транзакция комп�
 
 Supabase Auth нельзя включить в PostgreSQL-транзакцию. Поэтому coordinator
 выполняет строго `prepare receipt -> claim dispatch -> inviteUserByEmail ->
-record Auth result -> finalize authority` и сохраняет состояния `prepared`,
-`dispatching`, `invite_succeeded`, `authority_activated`, `invite_failed`,
-`invite_outcome_unknown`. Legacy
+record Auth result -> finalize authority`. Receipt сохраняет provisioning state
+`prepared`, `dispatching`, `invite_succeeded`, `authority_activated`,
+`invite_failed` или `invite_outcome_unknown`. Независимый invite-delivery status
+после первого durable success хранит `issued`, `expired`,
+`reissue_dispatching`, `reissue_failed`, `reissue_unknown` или `accepted`, а
+также monotonic `invite_generation`, `invite_issued_at`, `invite_expires_at`,
+receipt version и reissue idempotency key. Поэтому истёкший invite можно
+восстановить, даже когда authority уже активирована, не откатывая provisioning.
+Legacy
 pending не может завершиться состоянием success, пока тот же finalizer не
 завершил Curator assignment и Portal activation:
 
@@ -577,9 +583,54 @@ pending не может завершиться состоянием success, п�
   дают hard conflict без membership/scope/bind. Finalizer повторяет эту
   проверку под canonical locks непосредственно перед `provision_member`.
 
+Invite expiration/reissue остаётся fenced side effect на **том же** receipt и
+identity:
+
+- после initial/reissue success coordinator записывает `issued`, generation,
+  issued-at и `invite_expires_at`, вычисленный из exact read-back настройки
+  Email OTP Expiration. Успешный callback для matching Auth user/email переводит
+  delivery status в `accepted`, не трогая уже завершённую authority;
+- только заново авторизованный Admin может после `invite_expires_at` CAS-ом
+  отметить unaccepted `issued` как `expired`. Перед этим он под canonical locks
+  проверяет expected receipt version/generation, exact immutable fingerprint и
+  тот же `auth.users.id` + normalized email; confirmed/accepted, too-early,
+  mismatched или unverifiable identity fail closed;
+- reissue command принимает тот же root `request_id`, unique
+  `reissue_request_id`, expected receipt version и expected generation. Один
+  committed CAS `expired|reissue_failed -> reissue_dispatching` выигрывает,
+  фиксирует новый monotonic generation/claim time **до** network call. Replay
+  того же reissue key возвращает durable in-progress/result без provider call;
+  concurrent другой key получает `invite_reissue_in_progress` или
+  `stale_invite_generation`, также без provider call;
+- trusted server отправляет новый invite только exact receipt email и только
+  после read-back существующего unconfirmed Auth user. Provider result и
+  повторный read-back обязаны вернуть **тот же** `auth_user_id` и normalized
+  email. Нельзя удалять/создавать identity, менять email или заводить новый
+  provisioning receipt. Если выбранный Supabase re-invite механизм не сохраняет
+  exact user ID в local/managed acceptance, E3 блокируется без fallback;
+- durable success возвращает delivery status в `issued` с новыми timestamps.
+  Definite no-side-effect failure даёт `reissue_failed`; новый operator attempt
+  всё равно требует новый idempotency key и CAS. Lost/timeout/ambiguous response
+  даёт `reissue_unknown`, никогда auto/blind resend. Reconciliation либо
+  подтверждает тот же identity/acceptance, либо остаётся unknown. Если факт
+  delivery не доказуем, следующий operator reissue запрещён как минимум до
+  conservative expiry `claim_time + verified OTP expiration`. После этой
+  границы только явная Admin-команда может CAS-ом перевести
+  `reissue_unknown -> expired`, и лишь при fresh read-back того же unconfirmed
+  Auth user/email и expected version/generation; затем новый fenced reissue CAS
+  требует новый idempotency key;
+- expired/stale/consumed token в callback показывает только bounded auth error:
+  он не меняет receipt, не создаёт identity и не запускает reissue. Если token
+  любой generation всё ещё успешно verify-ится, результат принимается только
+  при exact совпадении receipt Auth user/email; same POST replay не меняет
+  identity/delivery state повторно и не отправляет письмо.
+
 Admin invite использует
 [trusted-server `inviteUserByEmail`](https://supabase.com/docs/guides/auth/users)
 и его [JS reference](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail).
+Supabase связывает expiry с Email OTP Expiration (по умолчанию один час) и
+требует новый invite после истечения:
+[Inviting users](https://supabase.com/docs/guides/auth/users#inviting-users).
 
 #### Migration 127 — только additive student read models
 
@@ -637,7 +688,9 @@ Staff и Student — две непересекающиеся authorization ве�
   client-side Auth API. Prefetch/scanner GET поэтому не расходует одноразовый
   token. Повторный POST consumed token не создаёт identity и не разрушает уже
   существующую matching verified session: она может продолжить set-password;
-  без такой session показывается bounded expired/used error без resend;
+  без такой session показывается bounded expired/used error без resend. Этот
+  callback никогда сам не запускает reissue: recovery доступен только через
+  отдельную authenticated Admin-команду с receipt/generation CAS;
 - `/auth/set-password` — не экран портала. Его session-bound Server Action
   проверяет verified session и совпадение exact auth user/email с durable
   receipt, затем вызывает `auth.updateUser` **до** требования активной Portal
@@ -707,7 +760,8 @@ standard/resumable boundary:
    portal-inactive до `assign_student_case_curator`. Обязательны concurrent
    two-request tests, global same-email cross-org race, crash before claim,
    crash after durable dispatch marker, stale-dispatch reconciliation, wrong
-   `auth.users.id`/email record+finalize rejection и полный
+   `auth.users.id`/email record+finalize rejection, invite-delivery state/
+   generation CAS, concurrent reissue winner/replay/unknown transitions и полный
    `scripts/test-postgres-authorization.sh` на OrbStack.
 3. **E2 read models (127):** только additive projections выше, SQL
    column/grant/RLS/data-minimization tests и `src/lib/v3` Student adapters с
@@ -719,9 +773,11 @@ standard/resumable boundary:
    success+finalize failure, lost response, same-request replay, changed-input
    conflict, prefetch/scanner GET без `verifyOtp`, explicit POST verification,
    consumed-token POST replay, auth-only password setup до authority activation,
-   pending-authority recovery, wrong Auth identity rejection, no arbitrary
-   redirect/blind resend/secret-browser leakage и staff/Student mutual
-   rejection.
+   pending-authority recovery, expired-token bounded denial, same-receipt/
+   same-identity operator reissue, concurrent reissue с максимум одним provider
+   call, same-key replay без второго call, stale-token behavior, ambiguous
+  reissue без blind resend, wrong Auth identity rejection, no arbitrary
+   redirect/secret-browser leakage и staff/Student mutual rejection.
 5. **E4 portal surface:** отдельный Student layout и ровно пять routes на E2
    adapters; Russian wording, empty/error/loading states, no fabricated facts,
    desktop/393px/forced-dark/a11y tests. Staff/Admin preview не открывает portal,
@@ -766,14 +822,21 @@ first-launch sslip hostname и exact managed Site URL/allowlist. Custom domain
 1. Мёртвые модули с их тестами и строками package.json: platform-bw4-workflow
    (1389 строк), platform-pilot-cohort, platform-ai-memory (+repository),
    platform-case-assignment, supabase/browser.ts.
-2. transcription-lab целиком (mlx-whisper — Apple-Silicon-only, в
-   linux-контейнере прода неработоспособен): src/app/transcription-lab,
-   api/transcription/**, components/transcription/**, lib/transcription/**,
-   lib/guards.ts, scripts/transcribe_mlx_chunks.py + зависимость three;
-   перевесить tests/request-limits с маршрута transcription.
-3. Только русский: словари en/ky из i18n-data.ts, LangSwitcher,
-   locale-actions; getLocale → 'ru' (механизм getT оставить — им пользуется
-   V3); решить судьбу ThemeToggle и тёмной темы на /login.
+2. Transcription Lab — **не механическая чистка**. Launch authority признаёт
+   его отдельной bounded local feature и требует authenticated/admin-gated либо
+   явно disabled surface. Удаление `src/app/transcription-lab`,
+   `api/transcription/**`, `components/transcription/**`, `lib/transcription/**`,
+   `lib/guards.ts`, `scripts/transcribe_mlx_chunks.py`, output volume или
+   связанных dependencies/tests разрешается только отдельной product-decision
+   пачкой после inventory runtime reachability, usage/production evidence,
+   security/storage/retention impact и явного owner approval. До этого
+   сохранить feature и её fail-closed authorization boundary.
+3. Locale/трёхъязычность — **не механическая чистка**. Launch plan сохраняет
+   Russian/Kyrgyz/English switching, а V3 product detail говорит «только
+   русский»; это конфликт product evidence. Словари en/ky, `LangSwitcher`,
+   `locale-actions`, `getLocale` и user-facing switching не удалять без
+   отдельной product-decision пачки, usage/evidence review и явного owner
+   approval. Судьба `ThemeToggle`/dark mode также остаётся отдельным решением.
 4. `drizzle/` (SQLite-остаток, «delete this fucking shit») — с правкой
    охраняющего теста p6c (строки ~211–218) и HISTORICAL_ROOTS/forbidden-regex
    в scripts. `agent-lead2-inbox/` и `evo-lead-agent/` НЕ трогать: там живой

@@ -20896,3 +20896,59 @@ Decision:
 This clarification authorizes only the local E2 migration/read adapter and its
 tests. It does not authorize migration 126, managed Supabase apply, Auth/UI,
 provider calls, production deployment or release arming.
+## 2026-09-07 - Start Stage E3 Student Auth and invite callback implementation
+
+Block-ID: `EVO-V3-E3-STUDENT-AUTH-CALLBACK-IMPLEMENTATION-2026-09-07`
+
+Change type: implementation slice. Affected plan section: Stage E3 only.
+
+Decision:
+
+1. E3 adds a separate strict Student authority decoder, resolver and guard.
+   It accepts only verified Supabase claims plus live organization-scoped
+   Student authority and one exact activated active/closed case projection.
+   Existing Admin/Sales/Curator authority remains staff-only; neither path
+   reads `user_metadata` as authority.
+2. The invite callback uses the exact local and production URLs frozen in E0.
+   Its GET surface only validates an exact `token_hash` plus `type=invite`
+   query and renders a no-store confirmation interstitial. Only its explicit
+   same-origin, CSRF-bound POST calls server-side `verifyOtp`, then redirects
+   without the token to `/auth/set-password`. Callback replay never creates,
+   reissues or deletes an Auth identity.
+3. Password setup and account-pending remain auth-only surfaces. Password
+   update is permitted only for the exact verified Auth user/email bound to the
+   durable receipt, before active Portal authority is required. The pending
+   surface exposes only bounded refresh and sign-out behavior and reads no
+   Student case data.
+4. The trusted coordinator is split into a pure attempt/generation/version CAS
+   workflow, a server-only Supabase Auth provider adapter and a strict m126 RPC
+   store adapter. E3 may prepare the workflow against typed seams, but must not
+   guess RPC arguments or ship a runtime fallback: the store adapter is bound
+   only after E1 merges its exact signatures. A service-role client never
+   supplies, synthesizes or impersonates an Admin JWT.
+5. Initial and reissue provider calls are possible only after a committed claim
+   bound to one receipt, attempt, version and generation. `dispatching`,
+   `invite_outcome_unknown` and `reissue_unknown` reconcile without blind
+   resend. An issued unexpired invite is never resent. Expired unconfirmed
+   recovery requires the separate authenticated Admin authorization and the
+   same receipt, Auth user and normalized email.
+6. This branch changes no m126/m127 migration and no Portal screen or document
+   route. It performs no managed Supabase, SMTP/provider, VPS, DNS or production
+   mutation. Local preparation remains unpushed until E1 and E2 merge; then it
+   rebases, binds exact signatures, runs scoped Node/static proof and receives
+   independent exact-head review before PR publication.
+
+Official implementation references:
+
+- [Supabase Auth email templates](https://supabase.com/docs/guides/auth/auth-email-templates)
+- [Supabase JavaScript `verifyOtp`](https://supabase.com/docs/reference/javascript/auth-verifyotp)
+- [Supabase JavaScript `inviteUserByEmail`](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail)
+- [Supabase redirect URL allowlist](https://supabase.com/docs/guides/auth/redirect-urls)
+- [Next.js Server Actions security](https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions)
+
+Validation impact: focused E3 Node contract tests and static source assertions
+are added now. Migration, local Supabase and browser suites remain downstream
+E1/E2 integration gates and are not replayed during this initial preparation.
+
+Reviewer notes: pending independent launch-control review on the final rebased
+E3 head after E1/E2 merge and exact m126 binding.

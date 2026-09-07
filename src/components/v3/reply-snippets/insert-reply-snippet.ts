@@ -7,6 +7,15 @@ export type ReplySnippetInsertion = Readonly<{
 export type ReplySnippetInsertionAttempt = ReplySnippetInsertion &
   Readonly<{ accepted: boolean }>;
 
+export const REPLY_MESSAGE_MAX_CODE_POINTS = 3_000;
+
+export function isReplyMessageWithinCodePointLimit(
+  value: string,
+  maxCodePoints = REPLY_MESSAGE_MAX_CODE_POINTS,
+): boolean {
+  return Array.from(value).length <= maxCodePoints;
+}
+
 function boundedOffset(value: string, offset: number | null | undefined): number {
   if (!Number.isInteger(offset)) return value.length;
   return Math.min(Math.max(offset ?? value.length, 0), value.length);
@@ -39,13 +48,13 @@ export function insertReplySnippetWithinCodePointLimit(
   body: string,
   selectionStart?: number | null,
   selectionEnd?: number | null,
-  maxCodePoints = 3_000,
+  maxCodePoints = REPLY_MESSAGE_MAX_CODE_POINTS,
 ): ReplySnippetInsertionAttempt {
   const start = boundedOffset(value, selectionStart);
   const end = Math.max(start, boundedOffset(value, selectionEnd ?? start));
   const insertion = insertReplySnippet(value, body, start, end);
 
-  if (Array.from(insertion.value).length > maxCodePoints) {
+  if (!isReplyMessageWithinCodePointLimit(insertion.value, maxCodePoints)) {
     return {
       accepted: false,
       value,

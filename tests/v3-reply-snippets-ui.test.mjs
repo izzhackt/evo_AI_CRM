@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   insertReplySnippet,
   insertReplySnippetWithinCodePointLimit,
+  isReplyMessageWithinCodePointLimit,
 } from "../src/components/v3/reply-snippets/insert-reply-snippet.ts";
 import {
   createReplySnippetFormKey,
@@ -104,6 +105,24 @@ test("a rejected replacement preserves the original text and selection", () => {
       selectionStart: 2_999,
       selectionEnd: 3_000,
     },
+  );
+});
+
+test("manual composer validation uses Unicode code points instead of UTF-16 units", () => {
+  assert.equal(isReplyMessageWithinCodePointLimit("🚀".repeat(3_000)), true);
+  assert.equal(isReplyMessageWithinCodePointLimit("🚀".repeat(3_001)), false);
+
+  const controls = source("src/components/v3/InboxProviderWorkflowControls.tsx");
+  assert.match(controls, /isReplyMessageWithinCodePointLimit/u);
+  assert.match(controls, /messageLengthRejected/u);
+  assert.match(controls, /role="alert"/u);
+  const composerStart = controls.indexOf('name="message_text"');
+  const composerEnd = controls.indexOf('name="confirm_send"', composerStart);
+  assert.notEqual(composerStart, -1);
+  assert.notEqual(composerEnd, -1);
+  assert.doesNotMatch(
+    controls.slice(composerStart, composerEnd),
+    /maxLength=\{3_000\}/u,
   );
 });
 

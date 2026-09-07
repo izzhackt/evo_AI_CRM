@@ -68,7 +68,7 @@ const RETIRED_UI_ROUTES = [
   "/finance",
   "/tasks",
   "/settings",
-  "/portal",
+  "/portal/legacy",
   "/calls",
   "/chat",
   "/whatsapp",

@@ -21048,3 +21048,54 @@ Decision:
 
 This correction adds no document mutation route and does not authorize managed
 Supabase, SMTP, provider, VPS, production, deployment or release arming.
+
+## 2026-09-07 - Close Stage E5 Student private-document authority
+
+Block-ID: `EVO-V3-E5-STUDENT-PRIVATE-DOCUMENTS-IMPLEMENTATION-2026-09-07`
+
+Change type: implementation and adversarial review correction. Affected plan
+section: Stage E5 private Student document routes only. Exact integration base:
+`dc8c71019321b65e006de719d4399f2630fb2af3`.
+
+The proxy admits Student authority only for exact method/path pairs `POST
+/api/portal/document-slots/[UUID]/versions` and `GET
+/api/portal/document-versions/[UUID]/download`; malformed, nil, child,
+trailing-slash and wrong-method variants remain disconnected. Both handlers
+repeat the live Student resolver and database authority checks.
+
+Student upload accepts one `file` form part. The server creates the base
+request id once, reuses it for preflight and reservation, and derives the
+finalization id. Existing staff upload keeps its issued request-id contract.
+The established Supabase Storage transport is shared by media attach and E5:
+standard upload through exactly 6 MiB, resumable TUS above 6 MiB through 25
+MiB, and rejection above 25 MiB. Both transports converge on exact Storage
+readback, hash/signature match, second ClamAV scan and canonical finalization.
+Supabase's official
+[resumable-upload guide](https://supabase.com/docs/guides/storage/uploads/resumable-uploads),
+verified 2026-09-07, recommends TUS above 6 MiB, the direct project Storage
+hostname, exact 6 MiB chunks and no overwrite; each server-created upload URL
+is unique and remains valid for up to roughly 24 hours. E5 keeps `upsert`
+disabled and never creates a replacement URL after an ambiguous PATCH.
+
+Migration 128 retains the existing document grant/consume bodies as the single
+audit, expiry, replay and revocation implementation behind non-exposed
+functions. Staff entrypoints reject Student use. Narrow Student grant and
+consume entrypoints both require the exact Student role and recheck that the
+requested version is the slot's current finalized verified-clean version, so a
+historical version or a version superseded between grant and consumption is
+never signed.
+
+The official
+[download guide](https://supabase.com/docs/guides/storage/serving/downloads)
+confirms that private objects require authenticated access or a time-limited
+server-signed URL. E5 therefore issues one narrow database grant, consumes it
+once, and signs for at most 60 seconds. The official
+[Storage schema guide](https://supabase.com/docs/guides/storage/schema/design)
+requires treating `storage` metadata as read-only and performing object writes
+through the Storage API; E5 does not mutate the provider schema. The official
+[API security guide](https://supabase.com/docs/guides/api/securing-your-api)
+requires explicit grants plus RLS/request checks, reflected by the exposed
+invoker RPCs, hidden definer authority and exact role grants in migration 128.
+
+This slice adds no second store or auth path and performs no managed migration,
+provider call, production deployment or browser/full-suite gate.

@@ -6,6 +6,7 @@ import {
   isConnectedPlatformPrivateApi,
   isConnectedPlatformPage,
   isConnectedStudentAuthPage,
+  isConnectedStudentPortalApi,
   isConnectedStudentPortalPage,
   isDirectPlatformStaffAssistantApi,
   isRetiredPlatformRoute,
@@ -217,6 +218,7 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-request-id", id);
   const path = request.nextUrl.pathname;
+  const studentPortalApi = isConnectedStudentPortalApi(path, request.method);
   const observabilityPathCandidate =
     path.startsWith("/api/readiness") || path.startsWith("/metrics");
 
@@ -276,7 +278,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path)) {
-    return blockedPlatformRoute(request, id);
+    if (!studentPortalApi) return blockedPlatformRoute(request, id);
   }
 
   const session = await liveSessionState(request, requestHeaders);
@@ -335,6 +337,19 @@ export async function proxy(request: NextRequest) {
       session.response,
       id,
       session.state === "staff" ? "/" : "/auth/account-pending",
+    );
+  }
+
+  if (studentPortalApi) {
+    if (session.state === "student") {
+      return setResponseHeaders(session.response, id);
+    }
+    return copyResponseCookies(
+      session.response,
+      setResponseHeaders(
+        NextResponse.json({ error: "forbidden" }, { status: 403 }),
+        id,
+      ),
     );
   }
 

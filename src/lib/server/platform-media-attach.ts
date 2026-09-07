@@ -16,6 +16,13 @@ import {
   type PlatformSupabaseBackendConfig,
 } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import {
+  STANDARD_UPLOAD_MAX_BYTES,
+  TUS_CHUNK_BYTES,
+  uploadSupabaseStorageObjectWithTus,
+} from "./platform-storage-resumable-upload.ts";
+
+export { STANDARD_UPLOAD_MAX_BYTES, TUS_CHUNK_BYTES };
 
 /**
  * Server-only bridge from one archived WhatsApp media object to one canonical
@@ -26,12 +33,7 @@ import { createPlatformSupabaseServiceClient } from "./platform-supabase-service
 
 const MEDIA_BUCKET_ID = "platform-whatsapp-media";
 const DOCUMENT_BUCKET_ID = "platform-documents";
-export const STANDARD_UPLOAD_MAX_BYTES = 6 * 1024 * 1024;
-export const TUS_CHUNK_BYTES = 6 * 1024 * 1024;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const TUS_VERSION = "1.0.0";
-const TUS_REQUEST_TIMEOUT_MS = 60_000;
-const MAX_TUS_RECOVERY_ATTEMPTS = 3;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OBJECT_NAME_PATTERN = /^[0-9a-f]{2}\/[0-9a-f]{62}$/;
@@ -591,177 +593,9 @@ async function readExactStoredDocument(
     : null;
 }
 
-function tusEndpoint(supabaseUrl: string): URL {
-  const base = new URL(supabaseUrl);
-  const managedSuffix = ".supabase.co";
-  if (
-    base.protocol === "https:"
-    && base.hostname.endsWith(managedSuffix)
-    && base.hostname.length > managedSuffix.length
-  ) {
-    const projectRef = base.hostname.slice(0, -managedSuffix.length);
-    return new URL(
-      `https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`,
-    );
-  }
-  return new URL("/storage/v1/upload/resumable", base);
-}
-
-function tusAuthHeaders(secretKey: string): Readonly<Record<string, string>> {
-  const headers: Record<string, string> = { apikey: secretKey };
-  if (!secretKey.startsWith("sb_secret_")) {
-    headers.Authorization = `Bearer ${secretKey}`;
-  }
-  return headers;
-}
-
-function tusMetadata(values: Readonly<Record<string, string>>): string {
-  return Object.entries(values)
-    .map(([key, value]) => `${key} ${Buffer.from(value, "utf8").toString("base64")}`)
-    .join(",");
-}
-
-function exactTusUploadUrl(endpoint: URL, location: string | null): URL | null {
-  if (!location) return null;
-  let resolved: URL;
-  try {
-    resolved = new URL(location, endpoint);
-  } catch {
-    return null;
-  }
-  const expectedPrefix = endpoint.pathname.endsWith("/")
-    ? endpoint.pathname
-    : `${endpoint.pathname}/`;
-  return resolved.origin === endpoint.origin
-    && resolved.pathname.startsWith(expectedPrefix)
-    && !resolved.username
-    && !resolved.password
-    && !resolved.search
-    && !resolved.hash
-    ? resolved
-    : null;
-}
-
-function exactOffset(value: string | null, maximum: number): number | null {
-  if (!value || !/^\d+$/.test(value)) return null;
-  const offset = Number(value);
-  return Number.isSafeInteger(offset) && offset >= 0 && offset <= maximum
-    ? offset
-    : null;
-}
-
-function beforeExpiry(expiresAt: string, now: number): boolean {
+function beforeReservationExpiry(expiresAt: string, now: number): boolean {
   const expiry = Date.parse(expiresAt);
   return Number.isFinite(expiry) && now < expiry;
-}
-
-/**
- * Minimal server-side TUS client following Supabase's current upload contract:
- * https://supabase.com/docs/guides/storage/uploads/resumable-uploads
- * Standard uploads remain limited to the documented 6 MiB boundary:
- * https://supabase.com/docs/guides/storage/uploads/standard-uploads
- */
-async function uploadWithTus(
-  bytes: Uint8Array,
-  reservation: UploadReservation,
-  mimeType: string,
-  dependencies: PlatformMediaAttachDependencies,
-): Promise<boolean> {
-  const config = dependencies.backendConfig();
-  const endpoint = tusEndpoint(config.supabaseUrl);
-  const authHeaders = tusAuthHeaders(config.supabaseSecretKey);
-  if (!beforeExpiry(reservation.expiresAt, dependencies.now())) return false;
-
-  let creation: Response;
-  try {
-    creation = await dependencies.fetch(endpoint, {
-      method: "POST",
-      headers: {
-        ...authHeaders,
-        "Tus-Resumable": TUS_VERSION,
-        "Upload-Length": String(bytes.byteLength),
-        "Upload-Metadata": tusMetadata({
-          bucketName: reservation.bucketId,
-          objectName: reservation.objectName,
-          contentType: mimeType,
-          cacheControl: "0",
-        }),
-      },
-      redirect: "error",
-      signal: AbortSignal.timeout(TUS_REQUEST_TIMEOUT_MS),
-    });
-  } catch {
-    return false;
-  }
-  if (creation.status !== 201) return false;
-  const uploadUrl = exactTusUploadUrl(endpoint, creation.headers.get("location"));
-  if (!uploadUrl) return false;
-
-  let offset = 0;
-  let recoveryAttempts = 0;
-  while (offset < bytes.byteLength) {
-    if (!beforeExpiry(reservation.expiresAt, dependencies.now())) return false;
-    const chunkEnd = Math.min(offset + TUS_CHUNK_BYTES, bytes.byteLength);
-    const chunk = bytes.slice(offset, chunkEnd);
-    try {
-      const response = await dependencies.fetch(uploadUrl, {
-        method: "PATCH",
-        headers: {
-          ...authHeaders,
-          "Tus-Resumable": TUS_VERSION,
-          "Content-Type": "application/offset+octet-stream",
-          "Upload-Offset": String(offset),
-        },
-        body: chunk,
-        redirect: "error",
-        signal: AbortSignal.timeout(TUS_REQUEST_TIMEOUT_MS),
-      });
-      const nextOffset = exactOffset(
-        response.headers.get("upload-offset"),
-        bytes.byteLength,
-      );
-      if (response.status === 204 && nextOffset === chunkEnd) {
-        offset = nextOffset;
-        recoveryAttempts = 0;
-        continue;
-      }
-      if (response.status < 500 && response.status !== 409) return false;
-    } catch {
-      // A timeout may hide a committed PATCH. HEAD reconciles the one upload
-      // URL; a second URL is never created for the immutable reservation path.
-    }
-
-    recoveryAttempts += 1;
-    if (recoveryAttempts > MAX_TUS_RECOVERY_ATTEMPTS) return false;
-    if (!beforeExpiry(reservation.expiresAt, dependencies.now())) return false;
-    try {
-      const head = await dependencies.fetch(uploadUrl, {
-        method: "HEAD",
-        headers: {
-          ...authHeaders,
-          "Tus-Resumable": TUS_VERSION,
-        },
-        redirect: "error",
-        signal: AbortSignal.timeout(TUS_REQUEST_TIMEOUT_MS),
-      });
-      if (head.status !== 200 && head.status !== 204) return false;
-      const serverOffset = exactOffset(
-        head.headers.get("upload-offset"),
-        bytes.byteLength,
-      );
-      if (
-        serverOffset === null
-        || serverOffset < offset
-        || serverOffset > chunkEnd
-      ) {
-        return false;
-      }
-      offset = serverOffset;
-    } catch {
-      if (recoveryAttempts >= MAX_TUS_RECOVERY_ATTEMPTS) return false;
-    }
-  }
-  return true;
 }
 
 async function writeReservedDocument(
@@ -772,7 +606,7 @@ async function writeReservedDocument(
   dependencies: PlatformMediaAttachDependencies,
 ): Promise<void> {
   if (reservation.storageObjectPresent) return;
-  if (!beforeExpiry(reservation.expiresAt, dependencies.now())) return;
+  if (!beforeReservationExpiry(reservation.expiresAt, dependencies.now())) return;
 
   if (bytes.byteLength <= STANDARD_UPLOAD_MAX_BYTES) {
     await serviceClient.storage
@@ -784,7 +618,12 @@ async function writeReservedDocument(
       });
     return;
   }
-  await uploadWithTus(bytes, reservation, mimeType, dependencies);
+  await uploadSupabaseStorageObjectWithTus(
+    bytes,
+    reservation,
+    mimeType,
+    dependencies,
+  );
 }
 
 const defaultDependencies: PlatformMediaAttachDependencies = {
@@ -941,7 +780,7 @@ export async function attachPlatformMessageMediaToCase(
       },
     );
     if (!storedBytes) {
-      return beforeExpiry(reservation.expiresAt, dependencies.now())
+      return beforeReservationExpiry(reservation.expiresAt, dependencies.now())
         ? failure("unavailable")
         : failure("reservation_expired");
     }

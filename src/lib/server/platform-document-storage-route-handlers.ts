@@ -15,8 +15,15 @@ import {
   scanBytesWithClamd,
   type ClamdMalwareScanProof,
 } from "./clamd-malware-scanner.ts";
-import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
+import {
+  getPlatformSupabaseBackendConfig,
+  type PlatformSupabaseBackendConfig,
+} from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import {
+  STANDARD_UPLOAD_MAX_BYTES,
+  uploadSupabaseStorageObjectWithTus,
+} from "./platform-storage-resumable-upload.ts";
 
 const BUCKET_ID = "platform-documents";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -55,9 +62,12 @@ export type PlatformDocumentStorageRouteDependencies = Readonly<{
   authorize(operation: DocumentOperation): Promise<DocumentAuthorization>;
   createUserClient(): Promise<SupabaseClient>;
   createServiceClient(): SupabaseClient;
+  backendConfig(): PlatformSupabaseBackendConfig;
+  fetch(input: string | URL, init: RequestInit): Promise<Response>;
   scanFile(bytes: Uint8Array): Promise<ClamdMalwareScanProof>;
   supabaseOrigin(): string;
   requestId(): string;
+  now(): number;
 }>;
 
 type UploadReservation = Readonly<{
@@ -625,10 +635,13 @@ function createDefaultDependencies(
     },
     createServiceClient: () =>
       createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig()),
+    backendConfig: getPlatformSupabaseBackendConfig,
+    fetch: (input, init) => fetch(input, init),
     scanFile: scanBytesWithClamd,
     supabaseOrigin: () =>
       new URL(getPlatformSupabaseBackendConfig().supabaseUrl).origin,
     requestId: randomUUID,
+    now: Date.now,
   };
 }
 
@@ -688,19 +701,30 @@ function safeFilename(value: string): string | null {
   return value;
 }
 
-function exactUploadForm(form: FormData): Readonly<{
+function exactUploadForm(
+  form: FormData,
+  responseAudience: UploadResponseAudience,
+): Readonly<{
   file: File;
-  requestId: string;
+  requestId: string | null;
 }> | null {
   const keys = [...form.keys()].sort();
-  if (keys.length !== 2 || keys[0] !== "file" || keys[1] !== "request_id") {
+  const expectedKeys = responseAudience === "student"
+    ? ["file"]
+    : ["file", "request_id"];
+  if (
+    keys.length !== expectedKeys.length
+    || keys.some((key, index) => key !== expectedKeys[index])
+  ) {
     return null;
   }
   const file = form.get("file");
-  const requestId = uuid(form.get("request_id"));
+  const requestId = responseAudience === "student"
+    ? null
+    : uuid(form.get("request_id"));
   if (
     !(file instanceof File)
-    || !requestId
+    || (responseAudience === "staff" && !requestId)
     || !safeFilename(file.name)
     || file.size < 1
     || file.size > MAX_FILE_BYTES
@@ -709,6 +733,14 @@ function exactUploadForm(form: FormData): Readonly<{
     return null;
   }
   return Object.freeze({ file, requestId });
+}
+
+export function selectPrivateDocumentUploadTransport(
+  byteLength: number,
+): "standard" | "resumable" | null {
+  if (!Number.isSafeInteger(byteLength) || byteLength < 1) return null;
+  if (byteLength <= STANDARD_UPLOAD_MAX_BYTES) return "standard";
+  return byteLength <= MAX_FILE_BYTES ? "resumable" : null;
 }
 
 function safeSignedUrl(value: unknown, supabaseOrigin: string): string | null {
@@ -810,10 +842,12 @@ function createDocumentUploadHandler(
     if (multipart.status === "invalid") {
       return errorResponse(400, "invalid_multipart");
     }
-    const upload = exactUploadForm(multipart.form);
+    const upload = exactUploadForm(multipart.form, responseAudience);
     if (!upload) return errorResponse(400, "invalid_upload");
 
     const bytes = new Uint8Array(await upload.file.arrayBuffer());
+    const uploadTransport = selectPrivateDocumentUploadTransport(bytes.byteLength);
+    if (!uploadTransport) return errorResponse(413, "file_too_large");
     if (!matchesDeclaredFileSignature(upload.file.type, bytes)) {
       return errorResponse(400, "file_signature_mismatch");
     }
@@ -821,6 +855,8 @@ function createDocumentUploadHandler(
     if (!SHA256_PATTERN.test(sha256Hex)) {
       return errorResponse(503, "storage_unavailable");
     }
+    const uploadRequestId = upload.requestId ?? uuid(dependencies.requestId());
+    if (!uploadRequestId) return errorResponse(503, "storage_unavailable");
 
     let userClient: SupabaseClient;
     try {
@@ -834,7 +870,7 @@ function createDocumentUploadHandler(
           p_declared_mime_type: upload.file.type,
           p_byte_size: bytes.byteLength,
           p_sha256_hex: sha256Hex,
-          p_request_id: upload.requestId,
+          p_request_id: uploadRequestId,
         },
       );
       if (preflightResponse.error) {
@@ -843,7 +879,7 @@ function createDocumentUploadHandler(
       if (!normalizeUploadPreflight(preflightResponse.data, {
         organizationId: authorization.actor.organizationId,
         documentSlotId,
-        requestId: upload.requestId,
+        requestId: uploadRequestId,
       })) {
         return errorResponse(503, "upload_preflight_unconfirmed");
       }
@@ -882,7 +918,7 @@ function createDocumentUploadHandler(
           p_scanner_signature_version: requestScanProof.signatureVersion,
           p_scanner_protocol: requestScanProof.protocol,
           p_scanned_at: requestScanProof.scannedAt,
-          p_request_id: upload.requestId,
+          p_request_id: uploadRequestId,
         },
       );
       if (reservationResponse.error) {
@@ -897,17 +933,27 @@ function createDocumentUploadHandler(
       });
       if (!reservation) return errorResponse(503, "storage_unavailable");
 
-      if (!reservation.storageObjectPresent) {
-        const storageResponse = await serviceClient.storage
-          .from(BUCKET_ID)
-          .upload(reservation.objectName, bytes, {
+      if (!reservation.storageObjectPresent && uploadTransport === "standard") {
+        const storageResponse = await serviceClient.storage.from(BUCKET_ID).upload(
+          reservation.objectName,
+          bytes,
+          {
             contentType: upload.file.type,
             cacheControl: "0",
             upsert: false,
-          });
+          },
+        );
         if (storageResponse.error) {
           return errorResponse(503, "storage_upload_unconfirmed");
         }
+      }
+      if (!reservation.storageObjectPresent && uploadTransport === "resumable") {
+        await uploadSupabaseStorageObjectWithTus(
+          bytes,
+          reservation,
+          upload.file.type,
+          dependencies,
+        );
       }
 
       const storedObject = await readExactStoredDocument(
@@ -945,7 +991,7 @@ function createDocumentUploadHandler(
           p_scanner_protocol: scanProof.protocol,
           p_scanned_sha256_hex: scanProof.sha256Hex,
           p_scanned_at: scanProof.scannedAt,
-          p_request_id: derivedRequestId(upload.requestId, "finalize"),
+          p_request_id: derivedRequestId(uploadRequestId, "finalize"),
         },
       );
       if (finalizationResponse.error) {
@@ -1013,16 +1059,26 @@ function createDocumentDownloadHandler(
 
     try {
       const userClient = await dependencies.createUserClient();
-      const grantResponse = await userClient.schema("platform").rpc(
-        "grant_document_download",
-        {
-          p_organization_id: authorization.actor.organizationId,
-          p_document_version_id: versionId,
-          p_access_purpose: policy.accessPurpose,
-          p_expires_in_seconds: 60,
-          p_request_id: dependencies.requestId(),
-        },
-      );
+      const grantRequestId = dependencies.requestId();
+      const grantResponse = policy.accessPurpose === "student_document_download"
+        ? await userClient.schema("platform").rpc(
+            "grant_student_portal_document_download",
+            {
+              p_organization_id: authorization.actor.organizationId,
+              p_document_version_id: versionId,
+              p_request_id: grantRequestId,
+            },
+          )
+        : await userClient.schema("platform").rpc(
+            "grant_document_download",
+            {
+              p_organization_id: authorization.actor.organizationId,
+              p_document_version_id: versionId,
+              p_access_purpose: policy.accessPurpose,
+              p_expires_in_seconds: 60,
+              p_request_id: grantRequestId,
+            },
+          );
       if (grantResponse.error) {
         return errorResponse(403, "download_not_authorized");
       }
@@ -1030,8 +1086,11 @@ function createDocumentDownloadHandler(
       if (!grant) return errorResponse(503, "storage_unavailable");
 
       const serviceClient = dependencies.createServiceClient();
+      const consumptionRpc = policy.accessPurpose === "student_document_download"
+        ? "consume_student_portal_document_download_grant"
+        : "consume_document_download_grant";
       const consumptionResponse = await serviceClient.schema("platform").rpc(
-        "consume_document_download_grant",
+        consumptionRpc,
         {
           p_document_download_grant_id: grant.id,
           p_request_id: dependencies.requestId(),

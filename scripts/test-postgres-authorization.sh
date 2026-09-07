@@ -40,6 +40,11 @@ p113c_concurrency_worker_a_log="$(mktemp -t evo-p113c-concurrency-a.XXXXXX)"
 p113c_concurrency_worker_b_log="$(mktemp -t evo-p113c-concurrency-b.XXXXXX)"
 p113c_concurrency_assert_log="$(mktemp -t evo-p113c-concurrency-assert.XXXXXX)"
 p113c_concurrency_worker_a_pid=""
+e5c_concurrency_setup_log="$(mktemp -t evo-e5c-concurrency-setup.XXXXXX)"
+e5c_concurrency_worker_a_log="$(mktemp -t evo-e5c-concurrency-a.XXXXXX)"
+e5c_concurrency_worker_b_log="$(mktemp -t evo-e5c-concurrency-b.XXXXXX)"
+e5c_concurrency_assert_log="$(mktemp -t evo-e5c-concurrency-assert.XXXXXX)"
+e5c_concurrency_worker_a_pid=""
 
 cleanup() {
   if [[ -n "$p6c_concurrency_worker_a_pid" ]]; then
@@ -61,6 +66,10 @@ cleanup() {
   if [[ -n "$p113c_concurrency_worker_a_pid" ]]; then
     kill "$p113c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
     wait "$p113c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$e5c_concurrency_worker_a_pid" ]]; then
+    kill "$e5c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
+    wait "$e5c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
   fi
   node "$deadline_runner" 30000 docker rm -f "$container_name" \
     >/dev/null 2>&1 || true
@@ -88,7 +97,11 @@ cleanup() {
     "$p113c_concurrency_setup_log" \
     "$p113c_concurrency_worker_a_log" \
     "$p113c_concurrency_worker_b_log" \
-    "$p113c_concurrency_assert_log"
+    "$p113c_concurrency_assert_log" \
+    "$e5c_concurrency_setup_log" \
+    "$e5c_concurrency_worker_a_log" \
+    "$e5c_concurrency_worker_b_log" \
+    "$e5c_concurrency_assert_log"
 }
 trap cleanup EXIT
 
@@ -2160,6 +2173,85 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_student_portal_read_models.sql
+  fi
+
+  # Migration 128 splits staff and Student document download authority. Prove
+  # the Student RPC is current-version-only at both grant and consume time,
+  # while role, tenant, finalization, scan and revocation checks fail closed.
+  if [[ "$(basename "$migration")" == 128_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_document_download.sql
+
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_document_download_concurrency_setup.sql \
+      >"$e5c_concurrency_setup_log" 2>&1; then
+      echo "Migration 128 concurrency setup failed." >&2
+      cat "$e5c_concurrency_setup_log" >&2
+      exit 1
+    fi
+
+    node "$deadline_runner" 15000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v e5c_hold_lock=1 \
+      -v e5c_hold_seconds=4 \
+      -f /workspace/supabase/tests/platform_student_document_download_concurrency_worker.sql \
+      >"$e5c_concurrency_worker_a_log" 2>&1 &
+    e5c_concurrency_worker_a_pid=$!
+
+    e5c_concurrency_ready=0
+    for _ in {1..50}; do
+      if grep -Fq 'E5C_SLOT_LOCK_HELD=1' \
+        "$e5c_concurrency_worker_a_log" 2>/dev/null; then
+        e5c_concurrency_ready=1
+        break
+      fi
+      sleep 0.1
+    done
+
+    if [[ "$e5c_concurrency_ready" != "1" ]]; then
+      echo "Migration 128 concurrency worker did not reach the slot-lock marker." >&2
+      cat "$e5c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! node "$deadline_runner" 12000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v e5c_hold_lock=0 \
+      -v e5c_hold_seconds=0 \
+      -f /workspace/supabase/tests/platform_student_document_download_concurrency_worker.sql \
+      >"$e5c_concurrency_worker_b_log" 2>&1; then
+      echo "Migration 128 overlapping Student consume worker failed." >&2
+      cat "$e5c_concurrency_worker_b_log" >&2
+      cat "$e5c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! wait "$e5c_concurrency_worker_a_pid"; then
+      e5c_concurrency_worker_a_pid=""
+      echo "Migration 128 slot-locking worker failed." >&2
+      cat "$e5c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+    e5c_concurrency_worker_a_pid=""
+
+    if ! grep -Fxq 'E5C_WRITER=ok' "$e5c_concurrency_worker_a_log" \
+      || ! grep -Fxq 'E5C_OUTCOME=55P03' "$e5c_concurrency_worker_b_log"; then
+      echo "Migration 128 overlapping consume did not fail NOWAIT with 55P03." >&2
+      cat "$e5c_concurrency_worker_a_log" >&2
+      cat "$e5c_concurrency_worker_b_log" >&2
+      exit 1
+    fi
+
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_document_download_concurrency_assert.sql \
+      >"$e5c_concurrency_assert_log" 2>&1; then
+      echo "Migration 128 concurrency durable-state assertion failed." >&2
+      cat "$e5c_concurrency_assert_log" >&2
+      exit 1
+    fi
   fi
 done < <(
   cd "$repo_root"

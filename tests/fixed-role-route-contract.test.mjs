@@ -11,6 +11,7 @@ import {
   isConnectedPlatformPage,
   isConnectedPlatformPrivateApi,
   isConnectedStudentAuthPage,
+  isConnectedStudentPortalApi,
   isConnectedStudentPortalPage,
   isRetiredPlatformRoute,
   platformHomeRoute,
@@ -230,6 +231,48 @@ test("only exact private document and company-file APIs are connected", () => {
   ]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
   }
+});
+
+test("Student document APIs admit only the exact path and HTTP method", () => {
+  const documentSlotId = "10000000-0000-4000-8000-000000000001";
+  const documentVersionId = "20000000-0000-4000-8000-000000000002";
+
+  assert.equal(
+    isConnectedStudentPortalApi(
+      `/api/portal/document-slots/${documentSlotId}/versions`,
+      "POST",
+    ),
+    true,
+  );
+  assert.equal(
+    isConnectedStudentPortalApi(
+      `/api/portal/document-versions/${documentVersionId}/download`,
+      "GET",
+    ),
+    true,
+  );
+
+  for (const [path, method] of [
+    [`/api/portal/document-slots/${documentSlotId}/versions`, "GET"],
+    [`/api/portal/document-versions/${documentVersionId}/download`, "POST"],
+    [`/api/portal/document-slots/${documentSlotId}/versions/`, "POST"],
+    ["/api/portal/document-slots/not-a-uuid/versions", "POST"],
+    ["/api/portal/document-versions/00000000-0000-0000-0000-000000000000/download", "GET"],
+    [`/api/portal/document-versions/${documentVersionId}/download/child`, "GET"],
+  ]) {
+    assert.equal(isConnectedStudentPortalApi(path, method), false, `${method} ${path}`);
+  }
+
+  const proxy = source("src/proxy.ts");
+  const studentApiBranch = proxy.indexOf("if (studentPortalApi)");
+  const genericStaffApiDenial = proxy.indexOf('if (session.state !== "staff")');
+  assert.ok(studentApiBranch >= 0 && studentApiBranch < genericStaffApiDenial);
+  const studentOnlyBranch = proxy.slice(studentApiBranch, genericStaffApiDenial);
+  assert.match(studentOnlyBranch, /session\.state === "student"/u);
+  assert.match(
+    studentOnlyBranch,
+    /NextResponse\.json\(\{ error: "forbidden" \}, \{ status: 403 \}\)/u,
+  );
 });
 
 test("only the canonical WhatsApp inbound and private recovery routes enter the contract", () => {

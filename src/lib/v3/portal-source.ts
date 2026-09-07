@@ -698,7 +698,7 @@ export async function readStudentPortalDocuments(
       "student_portal_documents",
       {},
       normalizeStudentPortalDocument,
-      (row) => `${row.documentSlotId}:${row.documentVersionId ?? "none"}`,
+      (row) => row.documentSlotId,
     );
   } catch (error) {
     return failClosed(error);

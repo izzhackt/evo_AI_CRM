@@ -21048,3 +21048,189 @@ Decision:
 
 This correction adds no document mutation route and does not authorize managed
 Supabase, SMTP, provider, VPS, production, deployment or release arming.
+
+## 2026-09-07 - Close Stage E5 Student private-document authority
+
+Block-ID: `EVO-V3-E5-STUDENT-PRIVATE-DOCUMENTS-IMPLEMENTATION-2026-09-07`
+
+Change type: implementation and adversarial review correction. Affected plan
+section: Stage E5 private Student document routes only. Exact integration base:
+`dc8c71019321b65e006de719d4399f2630fb2af3`.
+
+The proxy admits Student authority only for exact method/path pairs `POST
+/api/portal/document-slots/[UUID]/versions` and `GET
+/api/portal/document-versions/[UUID]/download`; malformed, nil, child,
+trailing-slash and wrong-method variants remain disconnected. Both handlers
+repeat the live Student resolver and database authority checks.
+
+Student upload accepts one `file` form part. The server creates the base
+request id once, reuses it for preflight and reservation, and derives the
+finalization id. Existing staff upload keeps its issued request-id contract.
+The established Supabase Storage transport is shared by media attach and E5:
+standard upload through exactly 6 MiB, resumable TUS above 6 MiB through 25
+MiB, and rejection above 25 MiB. Both transports converge on exact Storage
+readback, hash/signature match, second ClamAV scan and canonical finalization.
+Supabase's official
+[resumable-upload guide](https://supabase.com/docs/guides/storage/uploads/resumable-uploads),
+verified 2026-09-07, recommends TUS above 6 MiB, the direct project Storage
+hostname, exact 6 MiB chunks and no overwrite; each server-created upload URL
+is unique and remains valid for up to roughly 24 hours. E5 keeps `upsert`
+disabled and never creates a replacement URL after an ambiguous PATCH.
+
+Migration 128 retains the existing document grant/consume bodies as the single
+audit, expiry, replay and revocation implementation behind non-exposed
+functions. Staff entrypoints reject Student use. Narrow Student grant and
+consume entrypoints both require the exact Student role and recheck that the
+requested version is the slot's current finalized verified-clean version, so a
+historical version or a version superseded between grant and consumption is
+never signed.
+
+The official
+[download guide](https://supabase.com/docs/guides/storage/serving/downloads)
+confirms that private objects require authenticated access or a time-limited
+server-signed URL. E5 therefore issues one narrow database grant, consumes it
+once, and signs for at most 60 seconds. The official
+[Storage schema guide](https://supabase.com/docs/guides/storage/schema/design)
+requires treating `storage` metadata as read-only and performing object writes
+through the Storage API; E5 does not mutate the provider schema. The official
+[API security guide](https://supabase.com/docs/guides/api/securing-your-api)
+requires explicit grants plus RLS/request checks, reflected by the exposed
+invoker RPCs, hidden definer authority and exact role grants in migration 128.
+
+This slice adds no second store or auth path and performs no managed migration,
+provider call, production deployment or browser/full-suite gate.
+
+## 2026-09-07 - Bind E5 Portal controls to one current document version
+
+Block-ID: `EVO-V3-E5-CURRENT-DOCUMENT-PRESENTATION-CORRECTION-2026-09-07`
+
+Change type: independent-review correction. Affected plan section: Stage E5
+Student document presentation and focused acceptance only.
+
+The Student read model can return historical document-version rows. The Portal
+must collapse them to one row per document slot and bind upload/download
+controls only to the greatest validated PostgreSQL `version_no`; an empty slot
+remains visible until its first submission. This prevents duplicate controls
+and prevents presenting a historical download which the E5 database authority
+correctly rejects. A behavioral regression covers multiple versions, an empty
+duplicate and bigint-safe ordering. The focused Portal document test is added
+once to the canonical frontend test entrypoint.
+
+This correction changes no V3 source adapter, database authority, provider,
+managed Supabase or production state.
+
+## 2026-09-07 - Repair the inherited exact Node-suite manifest
+
+Block-ID: `EVO-V3-E5-INHERITED-NODE-MANIFEST-CORRECTION-2026-09-07`
+
+Change type: current-main gate correction carried with E5. The optimized Node
+runner already includes `test:e3`, but its exact inventory regression still
+described the pre-E3 tree. E4 also added its Portal tests and E5 adds the Portal
+document test once through `test:frontend`. The regression is updated to the
+actual current entrypoint, unique-file and execution-group counts; it does not
+add another test execution path. Stage F must recalculate these assertions only
+after its exact deletion inventory is known.
+
+This correction changes no product behavior, migration, provider, managed
+Supabase or production state.
+
+## 2026-09-07 - Use the private proof step for the E5 legacy fixture
+
+Block-ID: `EVO-V3-E5-LEGACY-SCAN-FIXTURE-CORRECTION-2026-09-07`
+
+Change type: local database-gate correction. Migration 115 deliberately marks
+historical proof-free document reservations as ineligible for the active upload
+finalizer, and migration 116 removes the standalone public proof writer. The E5
+disposable PostgreSQL fixture therefore invokes the revoked private attestation
+step as the harness superuser, while retaining a `service_role` JWT claim. This
+normalizes one already-finalized historical test object without reopening a
+runtime RPC or weakening the production reservation contract. Its Student and
+Admin JWT fixtures also carry the complete organization, membership, bundle
+and access-version tuple required by the current unified authority boundary.
+
+This correction changes only disposable SQL fixtures. It changes no product
+SQL, role grant, provider, managed Supabase or production state.
+
+## 2026-09-07 - Close E5 current-version and exact-URL review gaps
+
+Block-ID: `EVO-V3-E5-CURRENT-VERSION-AND-URL-CORRECTION-2026-09-07`
+
+Change type: independent adversarial review correction. Migration 128 narrows
+the existing Student document projection to `document_slots.current_version_id`
+and matching `current_version_no`; an abandoned higher pending reservation can
+no longer displace the finalized current file in the Portal. The strict V3
+adapter also rejects duplicate slot rows, and the UI no longer guesses current
+authority by choosing the greatest version number.
+
+Next.js 16 normally redirects trailing-slash URLs, and its router performs an
+earlier unconditional 308 canonicalization for repeated slashes and
+backslashes. The root config therefore uses the documented
+`skipTrailingSlashRedirect` control for trailing slashes. The canonical EVO
+Caddy edge separately rejects repeated, encoded repeated and backslash API
+paths before Next.js. A real loopback Next HTTP regression covers both Student
+document trailing-slash routes, while the existing pinned Caddy runtime proof
+now covers malformed GET/POST-equivalent API paths from the exact production
+edge source. The Next server regression is serialized because it writes the
+shared `.next` directory.
+
+This correction changes no public route name, role grant, provider, managed
+Supabase or production state.
+
+## 2026-09-07 - Split Student upload attempt admission from scarce scan capacity
+
+Block-ID: `EVO-V3-E5-STUDENT-SCAN-ADMISSION-2026-09-07`
+
+Change type: E5 security and availability architecture correction. The Student
+upload route now requires one browser-generated UUID `Idempotency-Key` that is
+stable across a failed response and changes only after a committed `201` or a
+file selection change. Before reading the multipart body, an authenticated
+Student RPC validates the active own-case slot, binds that request identity and
+records every attempt in a private durable lifecycle ledger. All attempts,
+including rejected and scanner-failed attempts, count toward rolling limits of
+60 per actor and 12 per slot per hour. A failed or rejected attempt may retry
+under the same stable request identity as a new counted `attempt_no`; a
+completed attempt is a terminal receipt replay and never reads or scans again.
+
+Attempt admission deliberately does not occupy one of the scarce ClamAV slots.
+After the bounded body, signature, hash and existing user preflight succeed, a
+separate service-only claim runs immediately before ClamAV. It serializes and
+enforces four active scans globally, two per actor and one per slot, with a
+15-minute recovery lease and partial active-row indexes. The handler completes
+every admitted terminal path as `completed`, `rejected` or `failed`. This
+two-phase design prevents slow upload bodies from blocking the scanner while
+still counting abusive requests before expensive work.
+
+Database timestamps are treated as duration evidence, not as a shared host
+clock. Both body and scan responses must prove a positive lease no longer than
+15 minutes; the server applies that duration to its local timestamp captured
+before the RPC. It bounds body reads and checks the scan deadline before both
+malware scans, avoiding clock-skew extensions. A scan starts only when more
+than ClamAV's maximum 30-second socket deadline plus a one-second margin
+remains on the claim. Claim replays return the database's current check time;
+the handler derives its local deadline from only the verified remaining lease,
+so replay cannot renew capacity after the original database expiry.
+
+The exact-path correction follows the official Next.js 16 configuration and
+upgrade guidance and Caddy's documented original-URI matcher behavior:
+<https://nextjs.org/docs/app/api-reference/config/next-config-js/skipTrailingSlashRedirect>,
+<https://nextjs.org/docs/app/guides/upgrading/version-16>,
+<https://caddyserver.com/docs/caddyfile/matchers#vars-regexp>, and
+<https://caddyserver.com/docs/caddyfile/concepts#snippets>.
+
+This correction changes no public route name, upload size, provider, managed
+Supabase or production state. Staff uploads retain their established flow.
+Reviewer notes: pending exact-head independent code and database review.
+
+## 2026-09-07 - Distinguish the replacement Portal browser gate from its deleted fixture predecessor
+
+Block-ID: `EVO-V3-E5-P6C-PORTAL-GATE-ASSERTION-CORRECTION-2026-09-07`
+
+Change type: inherited test-contract correction. Stage E4 intentionally reused
+`tests/e2e/student-portal.spec.ts` for a real local Supabase browser gate after
+P6C had deleted an obsolete fixture-driven file at that path. The P6C cleanup
+assertion still required the pathname itself to be absent, making current main
+fail despite the replacement importing Supabase and containing no Drizzle,
+SQLite or `src/db` dependency. The assertion now preserves the replacement and
+fails closed if obsolete database markers return.
+
+This correction changes no runtime, provider, database or production state.

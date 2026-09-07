@@ -29,6 +29,11 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
   "/auth/account-pending",
 ]);
 
+const STUDENT_DOCUMENT_VERSION_UPLOAD_PATH =
+  /^\/api\/portal\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions$/i;
+const STUDENT_DOCUMENT_DOWNLOAD_PATH =
+  /^\/api\/portal\/document-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
+
 const PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/v2\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
 const PRIVATE_DOCUMENT_DOWNLOAD_PATH =
@@ -102,6 +107,17 @@ export function isConnectedStudentPortalPage(path: string): boolean {
 /** Auth-only invite surfaces; none grants Student or staff product authority. */
 export function isConnectedStudentAuthPage(path: string): boolean {
   return STUDENT_AUTH_PAGE_ALLOWLIST.has(path);
+}
+
+/** Student-only document APIs are connected only for their one exact method. */
+export function isConnectedStudentPortalApi(
+  path: string,
+  method: string,
+): boolean {
+  return (
+    (method === "POST" && STUDENT_DOCUMENT_VERSION_UPLOAD_PATH.test(path))
+    || (method === "GET" && STUDENT_DOCUMENT_DOWNLOAD_PATH.test(path))
+  );
 }
 
 /**

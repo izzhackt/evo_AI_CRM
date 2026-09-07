@@ -214,6 +214,22 @@ test("document decoder keeps database nulls and validates one complete safe vers
   assert.deepEqual(await readStudentPortalDocuments({ client: mock.client }), [emptySlot]);
   assert.equal(mock.calls[0].functionName, "student_portal_documents");
   assert.deepEqual(mock.calls[0].options, { get: true });
+
+  const duplicateSlot = mockRpc(() => ok([
+    DOCUMENT_ROW,
+    {
+      ...DOCUMENT_ROW,
+      document_version_id: VERSION_ID,
+      version_no: "2",
+      original_filename: "pending-passport.pdf",
+      declared_mime_type: "application/pdf",
+      byte_size: 2048,
+      submitted_at: "2026-09-07T08:00:00+00:00",
+    },
+  ]));
+  await expectUnavailableAsync(() => readStudentPortalDocuments({
+    client: duplicateSlot.client,
+  }));
 });
 
 test("applications reader joins only bounded safe status timelines", async () => {

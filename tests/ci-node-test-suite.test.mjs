@@ -21,6 +21,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   assert.deepEqual(DEFAULT_ENTRY_SCRIPTS, [
     "test:security",
     "test:frontend",
+    "test:e3",
     "test:u1",
     "test:u2",
     "test:u4",
@@ -34,8 +35,8 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 249);
-  assert.equal(plan.uniqueFileCount, 106);
+  assert.equal(plan.occurrenceCount, 270);
+  assert.equal(plan.uniqueFileCount, 127);
   assert.equal(plan.duplicateCount, 143);
   assert.equal(new Set(plan.files).size, plan.files.length);
   for (const requiredD1Test of [
@@ -62,8 +63,8 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 85);
-  assert.equal(serial.files.length, 20);
+  assert.equal(bounded.files.length, 105);
+  assert.equal(serial.files.length, 21);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs"]);
   assert.equal(plain.concurrency, 1);
@@ -76,8 +77,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 144);
-  assert.equal(plan.uniqueFileCount, 101);
+  assert.equal(plan.occurrenceCount, 165);
+  assert.equal(plan.uniqueFileCount, 122);
   assert.equal(plan.duplicateCount, 43);
 });
 
@@ -99,9 +100,9 @@ test("focused D1 command validates every required test before execution", () => 
   ]);
 });
 
-test("CI Node suite retains every provider contract removed from the database harness", () => {
+test("CI Node suite retains every test that requires serial shared-state execution", () => {
   const plan = resolveNodeTestPlan({ packageJson, repositoryRoot });
-  const removedDatabaseReplay = [
+  const serialTests = [
     "platform-gemini-provider",
     "platform-provider-action-contract",
     "platform-provider-orchestrator",
@@ -123,11 +124,12 @@ test("CI Node suite retains every provider contract removed from the database ha
     "platform-amocrm-command-service",
     "platform-amocrm-command-rpc",
   ].map((name) => `tests/${name}.test.mjs`);
+  serialTests.push("tests/v3-student-portal-exact-http-routes.test.mjs");
 
-  for (const file of removedDatabaseReplay) {
+  for (const file of serialTests) {
     assert.equal(plan.files.filter((candidate) => candidate === file).length, 1, file);
   }
-  assert.deepEqual(new Set(removedDatabaseReplay), SERIAL_PROVIDER_TEST_FILES);
+  assert.deepEqual(new Set(serialTests), SERIAL_PROVIDER_TEST_FILES);
   const serialGroup = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
   assert.deepEqual(new Set(serialGroup.files), SERIAL_PROVIDER_TEST_FILES);
 });

@@ -1,5 +1,6 @@
 import type { StudentPortalDocument } from "@/lib/v3/portal-source";
 
+import { PortalDocumentControls } from "./PortalDocumentControls";
 import { PortalEmptyState, PortalSection } from "./PortalPage";
 import { PortalStatus } from "./PortalStatus";
 import {
@@ -106,6 +107,13 @@ export function DocumentsView({
                   {document.nextAction}
                 </p>
               ) : null}
+
+              <PortalDocumentControls
+                documentSlotId={document.documentSlotId}
+                documentVersionId={document.documentVersionId}
+                originalFilename={document.originalFilename}
+                allowUpload={document.status !== "approved"}
+              />
             </li>
           );
         })}

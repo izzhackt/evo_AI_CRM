@@ -33,6 +33,7 @@ import {
 } from "@/lib/platform-provider-workflows";
 import { isFreshWorkingWahaSession } from "@/lib/provider-display-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 
 const INBOX_PAGE_SIZE = 50;
 const MESSAGE_PAGE_SIZE = 50;
@@ -110,41 +111,6 @@ function formatWaitingRu(sinceIso: string): string | null {
   return `${Math.floor(hours / 24)} дн`;
 }
 
-function queueSearchParams(
-  queueCursor: PlatformConversationCursor | null,
-  filters: Readonly<{ query: string | null; waitingOnly: boolean }>,
-): URLSearchParams {
-  const query = new URLSearchParams();
-  if (filters.query) query.set("q", filters.query);
-  if (filters.waitingOnly) query.set("waiting", "1");
-  if (queueCursor) {
-    query.set("before_at", queueCursor.sortAt);
-    query.set("before_id", queueCursor.id);
-  }
-  return query;
-}
-
-function inboxHref({
-  conversationId,
-  queueCursor,
-  messageCursor,
-  filters,
-}: Readonly<{
-  conversationId?: string;
-  queueCursor?: PlatformConversationCursor | null;
-  messageCursor?: PlatformConversationCursor | null;
-  filters: Readonly<{ query: string | null; waitingOnly: boolean }>;
-}>): string {
-  const query = queueSearchParams(queueCursor ?? null, filters);
-  if (conversationId) query.set("conversation", conversationId);
-  if (messageCursor) {
-    query.set("messages_before_at", messageCursor.sortAt);
-    query.set("messages_before_id", messageCursor.id);
-  }
-  const serialized = query.toString();
-  return serialized ? `/v3/inbox?${serialized}` : "/v3/inbox";
-}
-
 function toInboxConversation(
   summary: PlatformConversationSummary,
   queueCursor: PlatformConversationCursor | null,
@@ -162,7 +128,11 @@ function toInboxConversation(
     awaitingReplyFor: summary.waitingSince
       ? formatWaitingRu(summary.waitingSince)
       : null,
-    href: inboxHref({ conversationId: summary.id, queueCursor, filters }),
+    href: buildV3InboxHref({
+      conversationId: summary.id,
+      queueCursor,
+      filters,
+    }),
   });
 }
 
@@ -263,14 +233,14 @@ export async function readInbox(
         options.messageCursor,
       ),
       newestMessagesHref: options.messageCursor
-        ? inboxHref({
+        ? buildV3InboxHref({
             conversationId: thread.conversation.id,
             queueCursor: options.queueCursor,
             filters,
           })
         : null,
       olderMessagesHref: thread.nextMessageCursor
-        ? inboxHref({
+        ? buildV3InboxHref({
             conversationId: thread.conversation.id,
             queueCursor: options.queueCursor,
             messageCursor: thread.nextMessageCursor,
@@ -309,16 +279,21 @@ export async function readInbox(
       selected,
       searchQuery: options.query,
       waitingOnly: options.waitingOnly,
-      waitingToggleHref: inboxHref({
+      waitingToggleHref: buildV3InboxHref({
         filters: Object.freeze({
           query: options.query,
           waitingOnly: !options.waitingOnly,
         }),
       }),
-      queueCurrentHref: inboxHref({ queueCursor: options.queueCursor, filters }),
-      queueNewestHref: options.queueCursor ? inboxHref({ filters }) : null,
+      queueCurrentHref: buildV3InboxHref({
+        queueCursor: options.queueCursor,
+        filters,
+      }),
+      queueNewestHref: options.queueCursor
+        ? buildV3InboxHref({ filters })
+        : null,
       queueOlderHref: queue.nextCursor
-        ? inboxHref({ queueCursor: queue.nextCursor, filters })
+        ? buildV3InboxHref({ queueCursor: queue.nextCursor, filters })
         : null,
     }),
     providerWorkflow,

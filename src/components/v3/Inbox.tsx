@@ -118,7 +118,6 @@ export function Inbox({
           </div>
           <Link
             href={view.waitingToggleHref}
-            aria-current={view.waitingOnly ? "page" : undefined}
             className={`mt-2 inline-flex min-h-9 items-center rounded-ctl px-2.5 text-xs font-semibold ${
               view.waitingOnly
                 ? "bg-warn-weak text-warn"

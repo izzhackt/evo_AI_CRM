@@ -2111,6 +2111,15 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_message_media_case_attach.sql
   fi
+
+  # Migration 122 adds the exact server-derived waiting_since projection and
+  # waiting-only Inbox filter. Exercise its ordering, cursor and RLS contract
+  # immediately at the migration boundary so later schema cannot mask drift.
+  if [[ "$(basename "$migration")" == 122_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_inbox_waiting_projection.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

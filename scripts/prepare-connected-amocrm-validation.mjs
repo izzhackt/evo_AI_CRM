@@ -2,6 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import { chmod, lstat, open, readFile, rename, unlink } from "node:fs/promises";
 import { isIP } from "node:net";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
@@ -9,6 +10,7 @@ import { parseEnv } from "node:util";
 import { createClient } from "@supabase/supabase-js";
 
 const PRIVATE_FILE_MAX_BYTES = 256 * 1024;
+const ROUTING_APPROVAL_MAX_BYTES = 4 * 1024;
 const PROVIDER_ID = /^[1-9][0-9]{0,9}$/u;
 const DIRECT_SELF_ID = /^[1-9][0-9]{4,31}@(c\.us|lid)$/u;
 const SHA40 = /^[0-9a-f]{40}$/u;
@@ -18,6 +20,16 @@ const MANAGED_TAGS = Object.freeze({
   sales: "EVO V2 Sales",
   admissions: "EVO V2 Admissions",
 });
+const ROUTING_APPROVAL_KEYS = Object.freeze([
+  "EVO_V2_AMOCRM_SALES_PIPELINE_ID",
+  "EVO_V2_AMOCRM_SALES_STATUS_ID",
+  "EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID",
+  "EVO_V2_AMOCRM_SALES_TAG_NAME",
+  "EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID",
+  "EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID",
+  "EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID",
+  "EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME",
+]);
 const ACTIVE_WAHA_SESSION = "crm_primary";
 const LEGACY_KEYS = Object.freeze({
   baseUrl: "EVO_AGENT_AMO_BASE_URL",
@@ -218,7 +230,11 @@ function absolutePath(value, code = "private_path_invalid") {
   return safe;
 }
 
-async function assertPrivateFile(filePath, code) {
+async function assertPrivateFile(
+  filePath,
+  code,
+  maximumBytes = PRIVATE_FILE_MAX_BYTES,
+) {
   const safePath = absolutePath(filePath, code);
   let status;
   try {
@@ -230,13 +246,80 @@ async function assertPrivateFile(filePath, code) {
     !status.isFile() ||
     status.isSymbolicLink() ||
     status.size < 1 ||
-    status.size > PRIVATE_FILE_MAX_BYTES ||
+    status.size > maximumBytes ||
     (status.mode & 0o077) !== 0 ||
     (typeof process.getuid === "function" && status.uid !== process.getuid())
   ) {
     fail(code);
   }
   return safePath;
+}
+
+async function readPrivateBytes(
+  filePath,
+  code,
+  maximumBytes = PRIVATE_FILE_MAX_BYTES,
+  exactMode = false,
+) {
+  const safePath = absolutePath(filePath, code);
+  let handle;
+  try {
+    handle = await open(
+      safePath,
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+    );
+  } catch {
+    fail(code);
+  }
+  try {
+    const status = await handle.stat();
+    if (
+      !status.isFile() ||
+      status.size < 1 ||
+      status.size > maximumBytes ||
+      (exactMode
+        ? (status.mode & 0o7777) !== 0o600
+        : (status.mode & 0o077) !== 0) ||
+      (typeof process.getuid === "function" && status.uid !== process.getuid())
+    ) {
+      fail(code);
+    }
+    const bounded = Buffer.allocUnsafe(maximumBytes + 1);
+    let offset = 0;
+    while (offset <= maximumBytes) {
+      const { bytesRead } = await handle.read(
+        bounded,
+        offset,
+        maximumBytes + 1 - offset,
+        null,
+      );
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    if (offset > maximumBytes) fail(code);
+    const raw = bounded.subarray(0, offset);
+    const finalStatus = await handle.stat();
+    if (
+      raw.length !== status.size ||
+      finalStatus.dev !== status.dev ||
+      finalStatus.ino !== status.ino ||
+      finalStatus.size !== status.size ||
+      finalStatus.mtimeMs !== status.mtimeMs ||
+      finalStatus.ctimeMs !== status.ctimeMs
+    ) {
+      fail(code);
+    }
+    return Object.freeze({
+      raw,
+      path: safePath,
+      device: status.dev,
+      inode: status.ino,
+    });
+  } catch {
+    fail(code);
+  } finally {
+    await handle.close().catch(() => undefined);
+  }
 }
 
 async function syncDirectory(filePath) {
@@ -292,15 +375,260 @@ async function replacePrivateJson(filePath, value) {
   }
 }
 
-async function readPrivateJson(filePath, code) {
-  const safePath = await assertPrivateFile(filePath, code);
+async function readPrivateJson(filePath, code, exactMode = false) {
+  const { raw } = await readPrivateBytes(
+    filePath,
+    code,
+    PRIVATE_FILE_MAX_BYTES,
+    exactMode,
+  );
   let value;
   try {
-    value = JSON.parse(await readFile(safePath, "utf8"));
+    value = JSON.parse(raw.toString("utf8"));
   } catch {
     fail(code);
   }
   return record(value, code);
+}
+
+function routingApprovalFromContext(routingRaw, code) {
+  const routing = record(routingRaw, code);
+  const sales = record(routing.sales, code);
+  const admissions = record(routing.admissions, code);
+  return Object.freeze({
+    EVO_V2_AMOCRM_SALES_PIPELINE_ID: exactProviderId(sales.pipelineId, code),
+    EVO_V2_AMOCRM_SALES_STATUS_ID: exactProviderId(sales.statusId, code),
+    EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID: exactProviderId(
+      sales.responsibleUserId,
+      code,
+    ),
+    EVO_V2_AMOCRM_SALES_TAG_NAME: exactText(sales.tagName, code, 128),
+    EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID: exactProviderId(
+      admissions.pipelineId,
+      code,
+    ),
+    EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID: exactProviderId(
+      admissions.statusId,
+      code,
+    ),
+    EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID: exactProviderId(
+      admissions.responsibleUserId,
+      code,
+    ),
+    EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME: exactText(
+      admissions.tagName,
+      code,
+      128,
+    ),
+  });
+}
+
+function exactRoutingApproval(value, code) {
+  const approval = record(value, code);
+  const keys = Object.keys(approval);
+  if (
+    keys.length !== ROUTING_APPROVAL_KEYS.length ||
+    keys.some((key, index) => key !== ROUTING_APPROVAL_KEYS[index])
+  ) {
+    fail(code);
+  }
+  return Object.freeze({
+    EVO_V2_AMOCRM_SALES_PIPELINE_ID: exactProviderId(
+      approval.EVO_V2_AMOCRM_SALES_PIPELINE_ID,
+      code,
+    ),
+    EVO_V2_AMOCRM_SALES_STATUS_ID: exactProviderId(
+      approval.EVO_V2_AMOCRM_SALES_STATUS_ID,
+      code,
+    ),
+    EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID: exactProviderId(
+      approval.EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID,
+      code,
+    ),
+    EVO_V2_AMOCRM_SALES_TAG_NAME: exactText(
+      approval.EVO_V2_AMOCRM_SALES_TAG_NAME,
+      code,
+      128,
+    ),
+    EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID: exactProviderId(
+      approval.EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID,
+      code,
+    ),
+    EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID: exactProviderId(
+      approval.EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID,
+      code,
+    ),
+    EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID: exactProviderId(
+      approval.EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID,
+      code,
+    ),
+    EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME: exactText(
+      approval.EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME,
+      code,
+      128,
+    ),
+  });
+}
+
+async function readExactRoutingApproval(filePath, code) {
+  const privateFile = await readPrivateBytes(
+    filePath,
+    code,
+    ROUTING_APPROVAL_MAX_BYTES,
+    true,
+  );
+  const { raw } = privateFile;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw.toString("utf8"));
+  } catch {
+    fail(code);
+  }
+  const value = exactRoutingApproval(parsed, code);
+  const canonical = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
+  if (!raw.equals(canonical)) fail(code);
+  return Object.freeze({
+    raw,
+    value,
+    path: privateFile.path,
+    device: privateFile.device,
+    inode: privateFile.inode,
+  });
+}
+
+async function verifyRoutingApproval(parsed, contextOverride = undefined) {
+  const discoveryPath = requiredOption(parsed, "routing-discovery-file");
+  const approvalPath = requiredOption(parsed, "routing-approval-file");
+  if (
+    absolutePath(discoveryPath, "routing_discovery_invalid") ===
+    absolutePath(approvalPath, "routing_approval_invalid")
+  ) {
+    fail("routing_approval_not_independent");
+  }
+  const discovery = await readExactRoutingApproval(
+    discoveryPath,
+    "routing_discovery_invalid",
+  );
+  const approval = await readExactRoutingApproval(
+    approvalPath,
+    "routing_approval_invalid",
+  );
+  if (
+    discovery.device === approval.device &&
+    discovery.inode === approval.inode
+  ) {
+    fail("routing_approval_not_independent");
+  }
+  if (!approval.raw.equals(discovery.raw)) fail("routing_approval_mismatch");
+
+  if (contextOverride !== undefined || parsed.options.has("context-file")) {
+    const context =
+      contextOverride ??
+      (await readPrivateJson(
+        requiredOption(parsed, "context-file"),
+        "context_file_invalid",
+      ));
+    const expected = routingApprovalFromContext(
+      context.routing,
+      "context_file_invalid",
+    );
+    if (JSON.stringify(discovery.value) !== JSON.stringify(expected)) {
+      fail("routing_discovery_stale");
+    }
+  }
+}
+
+function assertExactRecordKeys(value, expectedKeys, code) {
+  const candidate = record(value, code);
+  const actualKeys = Object.keys(candidate).sort();
+  const sortedExpectedKeys = [...expectedKeys].sort();
+  if (
+    actualKeys.length !== sortedExpectedKeys.length ||
+    actualKeys.some((key, index) => key !== sortedExpectedKeys[index])
+  ) {
+    fail(code);
+  }
+  return candidate;
+}
+
+function exactIsoTimestamp(value, code) {
+  const timestamp = exactText(value, code, 32);
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== timestamp) {
+    fail(code);
+  }
+  return parsed;
+}
+
+async function verifyDiscoveryBoundary(parsed) {
+  const gitSha = requiredOption(parsed, "git-sha");
+  if (!SHA40.test(gitSha)) fail("discovery_boundary_invalid");
+  const blocked = assertExactRecordKeys(
+    await readPrivateJson(
+      requiredOption(parsed, "authority-marker-file"),
+      "discovery_boundary_invalid",
+      true,
+    ),
+    [
+      "schemaVersion",
+      "kind",
+      "status",
+      "proofMode",
+      "gitSha",
+      "completedAt",
+      "checks",
+    ],
+    "discovery_boundary_invalid",
+  );
+  const checks = assertExactRecordKeys(
+    blocked.checks,
+    [
+      "providerAuthorization",
+      "reason",
+      "browserBlocked",
+      "providerAttemptCount",
+      "bindingCount",
+      "fallbackObserved",
+    ],
+    "discovery_boundary_invalid",
+  );
+  const preparation = assertExactRecordKeys(
+    await readPrivateJson(
+      requiredOption(parsed, "preparation-marker-file"),
+      "discovery_boundary_invalid",
+      true,
+    ),
+    ["schemaVersion", "kind", "status", "gitSha", "startedAt"],
+    "discovery_boundary_invalid",
+  );
+  const blockedAt = exactIsoTimestamp(
+    blocked.completedAt,
+    "discovery_boundary_invalid",
+  );
+  const preparationAt = exactIsoTimestamp(
+    preparation.startedAt,
+    "discovery_boundary_invalid",
+  );
+  if (
+    blocked.schemaVersion !== 1 ||
+    blocked.kind !== "evo-v2-connected-amocrm-authority-blocked" ||
+    blocked.status !== "passed" ||
+    blocked.proofMode !== "provider-not-authorized" ||
+    blocked.gitSha !== gitSha ||
+    checks.providerAuthorization !== "disabled" ||
+    checks.reason !== "provider-not-authorized" ||
+    checks.browserBlocked !== true ||
+    checks.providerAttemptCount !== 0 ||
+    checks.bindingCount !== 0 ||
+    checks.fallbackObserved !== false ||
+    preparation.schemaVersion !== 1 ||
+    preparation.kind !== "provider-preparation-attempt" ||
+    preparation.status !== "started" ||
+    preparation.gitSha !== gitSha ||
+    preparationAt < blockedAt
+  ) {
+    fail("discovery_boundary_invalid");
+  }
 }
 
 function requiredLegacyValue(values, key, code, maximumBytes) {
@@ -1052,6 +1380,7 @@ function exactManagedTags(tagsRaw) {
 async function discoverProviderRouting(parsed) {
   const runtimePath = requiredOption(parsed, "runtime-file");
   const contextPath = requiredOption(parsed, "context-file");
+  const routingOutputPath = requiredOption(parsed, "routing-output");
   const runtime = await readPrivateJson(runtimePath, "runtime_file_invalid");
   const context = await readPrivateJson(contextPath, "context_file_invalid");
   const providerEnvironment = record(
@@ -1140,6 +1469,10 @@ async function discoverProviderRouting(parsed) {
       leadTagCatalogCountBeforeCommand: managed.tags.length,
     }),
   });
+  await replacePrivateJson(
+    routingOutputPath,
+    routingApprovalFromContext(routing, "provider_response_invalid"),
+  );
 }
 
 async function createAttemptMarker(parsed) {
@@ -1238,6 +1571,31 @@ async function runApp(parsed) {
   if (authorization !== "0" && authorization !== "1") {
     fail("arguments_invalid");
   }
+  if (authorization === "1") {
+    if (
+      !parsed.options.has("routing-discovery-file") ||
+      !parsed.options.has("routing-approval-file")
+    ) {
+      fail("routing_approval_required");
+    }
+    await verifyRoutingApproval(parsed, context);
+    if (
+      !parsed.options.has("authority-marker-file") ||
+      !parsed.options.has("preparation-marker-file") ||
+      !parsed.options.has("git-sha")
+    ) {
+      fail("discovery_boundary_required");
+    }
+    await verifyDiscoveryBoundary(parsed);
+  } else if (
+    parsed.options.has("routing-discovery-file") ||
+    parsed.options.has("routing-approval-file") ||
+    parsed.options.has("authority-marker-file") ||
+    parsed.options.has("preparation-marker-file") ||
+    parsed.options.has("git-sha")
+  ) {
+    fail("arguments_invalid");
+  }
   if (parsed.commandArgs.length < 1) fail("arguments_invalid");
 
   const [command, ...args] = parsed.commandArgs;
@@ -1283,8 +1641,28 @@ async function main() {
     return seedValidationLead(parsed);
   }
   if (command === "discover") {
-    assertExactOptions(parsed, ["runtime-file", "context-file"]);
+    assertExactOptions(parsed, [
+      "runtime-file",
+      "context-file",
+      "routing-output",
+    ]);
     return discoverProviderRouting(parsed);
+  }
+  if (command === "verify-routing-approval") {
+    assertExactOptions(parsed, [
+      "routing-discovery-file",
+      "routing-approval-file",
+      "context-file",
+    ]);
+    return verifyRoutingApproval(parsed);
+  }
+  if (command === "verify-discovery-boundary") {
+    assertExactOptions(parsed, [
+      "authority-marker-file",
+      "preparation-marker-file",
+      "git-sha",
+    ]);
+    return verifyDiscoveryBoundary(parsed);
   }
   if (command === "mark-attempt") {
     assertExactOptions(parsed, ["kind", "git-sha", "output"]);
@@ -1297,7 +1675,16 @@ async function main() {
   if (command === "run-app") {
     assertExactOptions(
       parsed,
-      ["runtime-file", "context-file", "provider-authorized"],
+      [
+        "runtime-file",
+        "context-file",
+        "provider-authorized",
+        "routing-discovery-file",
+        "routing-approval-file",
+        "authority-marker-file",
+        "preparation-marker-file",
+        "git-sha",
+      ],
       true,
     );
     return runApp(parsed);

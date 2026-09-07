@@ -10,6 +10,9 @@ import {
 } from "./platform-auth";
 import { createSupabaseServerClient } from "./supabase/server";
 import { readVerifiedPlatformAuthority } from "./supabase/platform-authority";
+import { readVerifiedStudentPortalAuthority } from "./supabase/student-portal-authority";
+import { createTrustedStudentInviteReceiptStore } from "./server/student-invite-session-runtime";
+import { readVerifiedStudentInviteSession } from "./server/student-invite-session";
 
 export type StaffLoginActionState =
   | "accessDenied"
@@ -56,9 +59,9 @@ export async function loginStaffAction(
     return "accessDenied";
   }
 
-  let client;
+  let redirectTarget: "/" | "/portal" | "/auth/account-pending" | null = null;
   try {
-    client = await createSupabaseServerClient();
+    const client = await createSupabaseServerClient();
     const { error: signInError } = await client.auth.signInWithPassword({
       email,
       password,
@@ -75,16 +78,40 @@ export async function loginStaffAction(
       return "accessDenied";
     }
 
-    const authority = await readVerifiedPlatformAuthority(
+    const staffAuthority = await readVerifiedPlatformAuthority(
       client,
       claimsData.claims,
     );
-    if (authority.status !== "authenticated") {
-      logStaffAuthFailure("authority", null);
-      await client.auth.signOut({ scope: "local" });
-      return authority.status === "unavailable"
-        ? "authUnavailable"
-        : "staffAccessDenied";
+    if (staffAuthority.status === "authenticated") {
+      redirectTarget = "/";
+    } else if (staffAuthority.status === "unavailable") {
+      return "authUnavailable";
+    } else {
+      const studentAuthority = await readVerifiedStudentPortalAuthority(
+        client,
+        claimsData.claims,
+      );
+      if (studentAuthority.status === "authenticated") {
+        redirectTarget = "/portal";
+      } else if (studentAuthority.status === "unavailable") {
+        return "authUnavailable";
+      } else {
+        const inviteSession = await readVerifiedStudentInviteSession(
+          client,
+          createTrustedStudentInviteReceiptStore(),
+        );
+        if (inviteSession.status === "unavailable") return "authUnavailable";
+        if (
+          inviteSession.status === "authenticated" &&
+          inviteSession.receipt.accountPending
+        ) {
+          redirectTarget = "/auth/account-pending";
+        } else {
+          logStaffAuthFailure("authority", null);
+          await client.auth.signOut({ scope: "local" });
+          return "staffAccessDenied";
+        }
+      }
     }
     await clearAdminPreview();
   } catch (error) {
@@ -97,7 +124,8 @@ export async function loginStaffAction(
     );
     return "authUnavailable";
   }
-  redirect("/");
+  if (!redirectTarget) return "authUnavailable";
+  redirect(redirectTarget);
 }
 
 export async function logoutStaffAction(): Promise<void> {

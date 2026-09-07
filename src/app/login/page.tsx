@@ -25,10 +25,10 @@ const COPY: Record<
   ru: {
     accessDenied: "Не удалось войти. Проверьте оба значения.",
     authUnavailable: "Сервис входа временно недоступен.",
-    staffAccessDenied: "Аккаунт не имеет активного доступа сотрудника EVO.",
-    email: "Рабочий email",
+    staffAccessDenied: "Аккаунт не имеет активного доступа к продукту EVO.",
+    email: "Email",
     intro:
-      "Единый защищённый вход сотрудников EVO через Supabase Auth.",
+      "Единый защищённый вход сотрудников и студентов EVO через Supabase Auth.",
     password: "Пароль",
     signIn: "Войти в CRM",
     title: "Вход в EVO Admissions CRM",
@@ -36,10 +36,10 @@ const COPY: Record<
   ky: {
     accessDenied: "Кирүү ишке ашкан жок. Эки маанини тең текшериңиз.",
     authUnavailable: "Кирүү кызматы убактылуу жеткиликсиз.",
-    staffAccessDenied: "Аккаунтта EVO кызматкеринин активдүү мүмкүнчүлүгү жок.",
-    email: "Жумуш email",
+    staffAccessDenied: "Аккаунтта EVO продуктусуна активдүү мүмкүнчүлүк жок.",
+    email: "Email",
     intro:
-      "EVO кызматкерлери үчүн Supabase Auth аркылуу бирдиктүү корголгон кирүү.",
+      "EVO кызматкерлери жана студенттери үчүн Supabase Auth аркылуу бирдиктүү корголгон кирүү.",
     password: "Сырсөз",
     signIn: "CRMге кирүү",
     title: "EVO Admissions CRMге кирүү",
@@ -47,10 +47,10 @@ const COPY: Record<
   en: {
     accessDenied: "Access was not granted. Check both values.",
     authUnavailable: "The sign-in service is temporarily unavailable.",
-    staffAccessDenied: "This account has no active EVO staff access.",
-    email: "Work email",
+    staffAccessDenied: "This account has no active access to EVO.",
+    email: "Email",
     intro:
-      "One protected EVO staff sign-in backed by Supabase Auth.",
+      "One protected EVO sign-in for staff and students, backed by Supabase Auth.",
     password: "Password",
     signIn: "Sign in to CRM",
     title: "Sign in to EVO Admissions CRM",

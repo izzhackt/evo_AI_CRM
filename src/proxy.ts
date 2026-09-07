@@ -5,14 +5,27 @@ import {
   isConnectedPlatformApi,
   isConnectedPlatformPrivateApi,
   isConnectedPlatformPage,
+  isConnectedStudentAuthPage,
+  isConnectedStudentPortalPage,
   isDirectPlatformStaffAssistantApi,
   isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
+import {
+  STUDENT_INVITE_CSRF_COOKIE,
+  isStudentInviteCsrfToken,
+} from "@/lib/student-invite-callback-contract";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 import { readVerifiedPlatformAuthority } from "@/lib/supabase/platform-authority";
+import { readVerifiedStudentPortalAuthority } from "@/lib/supabase/student-portal-authority";
 
-type SessionState = "authenticated" | "invalid" | "missing" | "unavailable";
+type SessionState =
+  | "staff"
+  | "student"
+  | "authenticated_without_product"
+  | "invalid"
+  | "missing"
+  | "unavailable";
 
 function nextResponse(requestHeaders: Headers) {
   return NextResponse.next({ request: { headers: requestHeaders } });
@@ -33,6 +46,43 @@ function hiddenNotFound(id: string) {
   const response = new NextResponse(null, { status: 404 });
   response.headers.set("x-request-id", id);
   response.headers.set("Cache-Control", "no-store");
+  return response;
+}
+
+function redirectWithRefreshedCookies(
+  request: NextRequest,
+  refreshedResponse: NextResponse,
+  id: string,
+  pathname: string,
+) {
+  const target = request.nextUrl.clone();
+  target.pathname = pathname;
+  target.search = "";
+  return copyResponseCookies(
+    refreshedResponse,
+    setResponseHeaders(NextResponse.redirect(target), id),
+  );
+}
+
+function callbackInterstitialResponse(
+  request: NextRequest,
+  requestHeaders: Headers,
+  id: string,
+) {
+  let csrfToken = request.cookies.get(STUDENT_INVITE_CSRF_COOKIE)?.value;
+  if (!isStudentInviteCsrfToken(csrfToken)) csrfToken = crypto.randomUUID();
+
+  request.cookies.set(STUDENT_INVITE_CSRF_COOKIE, csrfToken);
+  requestHeaders.set("cookie", request.cookies.toString());
+  const response = setResponseHeaders(nextResponse(requestHeaders), id);
+  response.cookies.set(STUDENT_INVITE_CSRF_COOKIE, csrfToken, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    path: "/auth/callback",
+    maxAge: 10 * 60,
+  });
+  response.headers.set("Referrer-Policy", "no-referrer");
   return response;
 }
 
@@ -137,13 +187,24 @@ async function liveSessionState(
     }
 
     const authority = await readVerifiedPlatformAuthority(client, data.claims);
+    if (authority.status === "authenticated") {
+      return { state: "staff", response };
+    }
+    if (authority.status === "unavailable") {
+      return { state: "unavailable", response };
+    }
+
+    const studentAuthority = await readVerifiedStudentPortalAuthority(
+      client,
+      data.claims,
+    );
     return {
       state:
-        authority.status === "authenticated"
-          ? "authenticated"
-          : authority.status === "unavailable"
+        studentAuthority.status === "authenticated"
+          ? "student"
+          : studentAuthority.status === "unavailable"
             ? "unavailable"
-            : "invalid",
+            : "authenticated_without_product",
       response,
     };
   } catch {
@@ -198,22 +259,43 @@ export async function proxy(request: NextRequest) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
 
+  if (path === "/auth/callback") {
+    if (request.method === "GET") {
+      return callbackInterstitialResponse(request, requestHeaders, id);
+    }
+    if (request.method === "HEAD" || request.method === "POST") {
+      return setResponseHeaders(nextResponse(requestHeaders), id);
+    }
+    return setResponseHeaders(
+      NextResponse.json(
+        { error: "method_not_allowed", request_id: id },
+        { status: 405, headers: { Allow: "GET, HEAD, POST" } },
+      ),
+      id,
+    );
+  }
+
   if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path)) {
     return blockedPlatformRoute(request, id);
   }
 
   const session = await liveSessionState(request, requestHeaders);
   if (path === "/login") {
-    if (session.state !== "authenticated") {
+    if (
+      session.state === "missing" ||
+      session.state === "invalid" ||
+      session.state === "unavailable"
+    ) {
       return setResponseHeaders(session.response, id);
     }
-    const target = request.nextUrl.clone();
-    target.pathname = "/";
-    target.search = "";
-    return copyResponseCookies(
-      session.response,
-      setResponseHeaders(NextResponse.redirect(target), id),
-    );
+    if (
+      session.state === "authenticated_without_product" &&
+      (request.nextUrl.searchParams.get("error") === "session_invalid" ||
+        request.nextUrl.searchParams.get("error") === "auth_unavailable")
+    ) {
+      return setResponseHeaders(session.response, id);
+    }
+    return redirectWithRefreshedCookies(request, session.response, id, "/");
   }
 
   if (session.state === "missing") {
@@ -234,6 +316,33 @@ export async function proxy(request: NextRequest) {
       id,
       "auth_unavailable",
     );
+  }
+
+  if (path === "/") return setResponseHeaders(session.response, id);
+
+  if (isConnectedStudentAuthPage(path)) {
+    return session.state === "staff"
+      ? redirectWithRefreshedCookies(request, session.response, id, "/")
+      : setResponseHeaders(session.response, id);
+  }
+
+  if (isConnectedStudentPortalPage(path)) {
+    if (session.state === "student") {
+      return setResponseHeaders(session.response, id);
+    }
+    return redirectWithRefreshedCookies(
+      request,
+      session.response,
+      id,
+      session.state === "staff" ? "/" : "/auth/account-pending",
+    );
+  }
+
+  if (session.state !== "staff") {
+    if (path.startsWith("/api/")) {
+      return accessDeniedResponse(request, session.response, id, null);
+    }
+    return redirectWithRefreshedCookies(request, session.response, id, "/");
   }
   return setResponseHeaders(session.response, id);
 }

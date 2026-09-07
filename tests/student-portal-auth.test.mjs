@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -144,4 +145,15 @@ test("Student guard destinations are bounded and never route to staff UI", () =>
     studentPortalGuardDestination({ status: "authenticated", actor: {} }),
     null,
   );
+});
+
+test("Student logout uses the local Supabase scope and never a provider/global mutation", () => {
+  const source = readFileSync(
+    new URL("../src/lib/student-portal-auth-actions.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /logoutStudentPortalAction/u);
+  assert.match(source, /signOut\(\{ scope: "local" \}\)/u);
+  assert.match(source, /redirect\("\/login"\)/u);
+  assert.doesNotMatch(source, /scope: "global"|auth\.admin/u);
 });

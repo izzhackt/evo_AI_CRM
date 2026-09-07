@@ -1,6 +1,6 @@
 import { fixedRoleHomeRoute, type FixedRole } from "./fixed-role-policy.ts";
 
-const PLATFORM_PAGE_ALLOWLIST = new Set([
+const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/",
   "/login",
   "/access-denied",
@@ -13,6 +13,20 @@ const PLATFORM_PAGE_ALLOWLIST = new Set([
   "/v3/settings",
   "/v3/knowledge",
   "/v3/calendar",
+]);
+
+const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
+  "/portal",
+  "/portal/documents",
+  "/portal/applications",
+  "/portal/payments",
+  "/portal/notifications",
+]);
+
+const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
+  "/auth/callback",
+  "/auth/set-password",
+  "/auth/account-pending",
 ]);
 
 const PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH =
@@ -41,7 +55,6 @@ const RETIRED_PLATFORM_ROUTE_ROOTS = [
   "/finance",
   "/tasks",
   "/settings",
-  "/portal",
   "/calls",
   "/chat",
   "/whatsapp",
@@ -73,7 +86,21 @@ export function isRetiredPlatformRoute(path: string): boolean {
  * route.
  */
 export function isConnectedPlatformPage(path: string): boolean {
-  return PLATFORM_PAGE_ALLOWLIST.has(path);
+  return (
+    PLATFORM_STAFF_PAGE_ALLOWLIST.has(path) ||
+    isConnectedStudentPortalPage(path) ||
+    isConnectedStudentAuthPage(path)
+  );
+}
+
+/** Exactly the five Student Portal pages frozen in Stage E0. */
+export function isConnectedStudentPortalPage(path: string): boolean {
+  return STUDENT_PORTAL_PAGE_ALLOWLIST.has(path);
+}
+
+/** Auth-only invite surfaces; none grants Student or staff product authority. */
+export function isConnectedStudentAuthPage(path: string): boolean {
+  return STUDENT_AUTH_PAGE_ALLOWLIST.has(path);
 }
 
 /**

@@ -1216,7 +1216,17 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM platform_private.student_portal_invite_attempts AS attempt
     WHERE attempt.reissue_request_id = p_reissue_request_id
-  ) OR receipt.reissue_request_id = p_reissue_request_id THEN
+      AND attempt.receipt_id <> p_receipt_id
+  ) THEN
+    RAISE EXCEPTION 'request_replay_conflict' USING ERRCODE = '40001';
+  END IF;
+  IF receipt.reissue_request_id = p_reissue_request_id
+    OR EXISTS (
+      SELECT 1 FROM platform_private.student_portal_invite_attempts AS attempt
+      WHERE attempt.reissue_request_id = p_reissue_request_id
+        AND attempt.receipt_id = p_receipt_id
+    )
+  THEN
     RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, FALSE)
       || jsonb_build_object('replayed', TRUE);
   END IF;
@@ -1643,6 +1653,7 @@ DECLARE
   matching_email_count INTEGER;
   fixed_error_code TEXT := pg_catalog.lower(pg_catalog.btrim(p_safe_error_code));
   issuance_observed BOOLEAN := FALSE;
+  readback_confirmation_sent_at TIMESTAMPTZ;
 BEGIN
   IF p_receipt_id IS NULL OR p_attempt_id IS NULL
     OR p_expected_receipt_version IS NULL
@@ -1691,6 +1702,7 @@ BEGIN
       OR (attempt.auth_user_id IS NOT NULL AND attempt.auth_user_id <> p_auth_user_id)
       OR (receipt.auth_user_id IS NOT NULL AND receipt.auth_user_id <> p_auth_user_id)
     THEN RAISE EXCEPTION 'portal_identity_conflict' USING ERRCODE = '40001'; END IF;
+    readback_confirmation_sent_at := auth_row.confirmation_sent_at;
     issuance_observed := auth_row.confirmation_sent_at IS NOT NULL
       AND (
         attempt.pre_confirmation_sent_at IS NULL
@@ -1740,6 +1752,7 @@ BEGIN
     OR p_provider_operation_upper_bound_at IS NULL
     OR p_provider_operation_upper_bound_at < attempt.claimed_at
     OR p_provider_operation_upper_bound_at > statement_timestamp()
+    OR readback_confirmation_sent_at IS DISTINCT FROM attempt.pre_confirmation_sent_at
     OR fixed_error_code IS NULL
     OR fixed_error_code !~ '^[a-z][a-z0-9_.-]{0,99}$'
   THEN

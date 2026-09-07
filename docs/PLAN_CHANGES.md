@@ -20816,3 +20816,17 @@ Acceptance adds focused regression proof for early-upper-bound rejection,
 acceptance during reissue dispatch, late-result fencing, trigger-negative paths,
 bounded dblink timeouts and exact committed-fixture cleanup including
 `membership_role_history`.
+
+## 2026-09-07 - Complete final E1 exact-receipt and bind proof
+
+Block-ID: `EVO-V3-E1-FINAL-EXACT-RECEIPT-CORRECTION-2026-09-07`
+
+Change type: final bounded exact-head correction. Affected plan section:
+reissue replay, no-issuance read-back and one-way-bind acceptance only.
+
+Definite no-issuance now requires null-safe equality between the exact current
+Auth `confirmation_sent_at` read-back and the attempt's stored pre-dispatch
+value. A reissue idempotency key replays only for its own receipt; reuse against
+another receipt is `request_replay_conflict`. Final SQL acceptance explicitly
+proves receipt-bound wrong-organization, non-Student and inactive bind denial,
+plus two concurrent finalizers producing one bind and one durable replay.

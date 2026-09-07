@@ -20701,3 +20701,32 @@ definition. Therefore the exact receipt permission array is
 existing keys exactly; migration 126 creates no replacement permission or
 alias. Every other E1 signature, grant, state, lock, result, error, test and
 file-ownership decision in the preceding entry remains unchanged.
+
+## 2026-09-07 - Add the E1 verified-invite identity resolver
+
+Block-ID: `EVO-V3-E1-VERIFIED-INVITE-IDENTITY-RESOLVER-2026-09-07`
+
+Change type: trusted-consumer compatibility and least-privilege correction.
+Affected plan section: migration 126 service-role receipt surface only.
+
+The E3 callback contract yields a verified Supabase Auth user id and email, but
+does not and must not put a private receipt id/version/generation in the invite
+URL or mutable Auth metadata. Since direct receipt access is revoked, migration
+126 must add exactly one narrow service-only resolver:
+
+- `platform.resolve_student_portal_invite_identity(UUID, TEXT, BOOLEAN) ->
+  JSONB`, accepting verified Auth user id, verified email and
+  `mark_accepted`. It normalizes the email, resolves only the globally unique
+  receipt already bound to that exact Auth id/email, rechecks the same
+  `auth.users` row, and when requested changes delivery to `accepted` only if
+  Auth confirmation is durable. It returns only receipt id, provisioning/
+  delivery state, receipt version, invite generation and bounded
+  authority/pending booleans; never email, token, session, metadata or provider
+  payload.
+
+The resolver is `SECURITY DEFINER SET search_path = ''`, revoked from PUBLIC,
+`anon`, `authenticated` and `supabase_auth_admin`, and granted only to
+`service_role`. The previously frozen receipt-id based
+`record_student_portal_invite_accepted(UUID, BIGINT, BIGINT)` remains available
+for exact coordinator replay/CAS. No broad lookup/list RPC or direct private-
+table grant is added, and E1 still contains no callback or Auth provider code.

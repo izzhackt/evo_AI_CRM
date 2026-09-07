@@ -2120,6 +2120,30 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_inbox_waiting_projection.sql
   fi
+
+  # Migration 123 adds exact-subject profile notes and the latest-note Sales
+  # projection. Exercise the projection and authorization boundary in-place.
+  if [[ "$(basename "$migration")" == 123_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_profile_pipeline_notes.sql
+  fi
+
+  # Migration 124 adds bounded task/application-deadline calendar projections.
+  if [[ "$(basename "$migration")" == 124_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_calendar_deadline_projections.sql
+  fi
+
+  # Migration 125 narrows media-to-case authority to the exact conversation
+  # case. Re-run the 121 suite so it exercises both historical and corrected
+  # boundaries at their immutable migration checkpoints.
+  if [[ "$(basename "$migration")" == 125_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_message_media_case_attach.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

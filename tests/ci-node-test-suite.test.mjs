@@ -34,9 +34,9 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 243);
-  assert.equal(plan.uniqueFileCount, 101);
-  assert.equal(plan.duplicateCount, 142);
+  assert.equal(plan.occurrenceCount, 249);
+  assert.equal(plan.uniqueFileCount, 106);
+  assert.equal(plan.duplicateCount, 143);
   assert.equal(new Set(plan.files).size, plan.files.length);
   for (const requiredD1Test of [
     "tests/platform-case-notes.test.mjs",
@@ -48,12 +48,21 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]) {
     assert.ok(plan.files.includes(requiredD1Test), requiredD1Test);
   }
+  for (const requiredD2Test of [
+    "tests/v3-reply-snippets-ui.test.mjs",
+    "tests/v3-profile-pipeline-notes.test.mjs",
+    "tests/v3-calendar-d2.test.mjs",
+    "tests/platform-media-route.test.mjs",
+    "tests/v3-inbox-media-ui.test.mjs",
+  ]) {
+    assert.ok(plan.files.includes(requiredD2Test), requiredD2Test);
+  }
 
   const special = plan.groups.find((group) => group.stripTypes);
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 80);
+  assert.equal(bounded.files.length, 85);
   assert.equal(serial.files.length, 20);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs"]);
@@ -67,8 +76,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 139);
-  assert.equal(plan.uniqueFileCount, 96);
+  assert.equal(plan.occurrenceCount, 144);
+  assert.equal(plan.uniqueFileCount, 101);
   assert.equal(plan.duplicateCount, 43);
 });
 

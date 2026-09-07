@@ -393,7 +393,9 @@ SELECT
   slot.status::TEXT AS current_slot_status,
   slot.current_version_no AS current_version_no,
   version.id AS current_version_id,
-  version.sha256_hex AS current_sha256_hex
+  version.sha256_hex AS current_sha256_hex,
+  finalization.upload_reservation_id AS current_upload_reservation_id,
+  finalization.request_id AS current_finalization_request_id
 FROM platform.document_slots AS slot
 JOIN platform.document_versions AS version
   ON version.organization_id = slot.organization_id
@@ -416,16 +418,16 @@ LIMIT 1
 
 SET request.jwt.claims TO '{"role":"service_role"}';
 SET ROLE service_role;
-SELECT platform.attest_document_validation(
+SELECT platform.finalize_document_upload_with_scan(
   :'org_a_id',
-  :'current_version_id',
+  :'current_upload_reservation_id',
   'ClamAV',
   '1.5.4',
   '28001',
   'clamd-zinstream-v1',
   :'current_sha256_hex',
   statement_timestamp(),
-  '58012800-0000-4000-8000-000000000003'
+  :'current_finalization_request_id'
 );
 RESET ROLE;
 

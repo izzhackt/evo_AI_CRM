@@ -64,7 +64,9 @@ SELECT jsonb_build_object(
 SELECT
   slot.id AS e5c_slot_id,
   version.id AS e5c_original_version_id,
-  version.sha256_hex AS e5c_original_sha256_hex
+  version.sha256_hex AS e5c_original_sha256_hex,
+  finalization.upload_reservation_id AS e5c_upload_reservation_id,
+  finalization.request_id AS e5c_finalization_request_id
 FROM platform.document_slots AS slot
 JOIN platform.document_versions AS version
   ON version.organization_id = slot.organization_id
@@ -87,16 +89,16 @@ LIMIT 1
 
 SET request.jwt.claims TO '{"role":"service_role"}';
 SET ROLE service_role;
-SELECT platform.attest_document_validation(
+SELECT platform.finalize_document_upload_with_scan(
   :'e5c_org_id',
-  :'e5c_original_version_id',
+  :'e5c_upload_reservation_id',
   'ClamAV',
   '1.5.4',
   '28001',
   'clamd-zinstream-v1',
   :'e5c_original_sha256_hex',
   statement_timestamp(),
-  '58012890-0000-4000-8000-000000000002'
+  :'e5c_finalization_request_id'
 );
 RESET ROLE;
 RESET request.jwt.claims;

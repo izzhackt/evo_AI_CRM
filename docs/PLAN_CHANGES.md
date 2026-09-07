@@ -21099,3 +21099,37 @@ invoker RPCs, hidden definer authority and exact role grants in migration 128.
 
 This slice adds no second store or auth path and performs no managed migration,
 provider call, production deployment or browser/full-suite gate.
+
+## 2026-09-07 - Bind E5 Portal controls to one current document version
+
+Block-ID: `EVO-V3-E5-CURRENT-DOCUMENT-PRESENTATION-CORRECTION-2026-09-07`
+
+Change type: independent-review correction. Affected plan section: Stage E5
+Student document presentation and focused acceptance only.
+
+The Student read model can return historical document-version rows. The Portal
+must collapse them to one row per document slot and bind upload/download
+controls only to the greatest validated PostgreSQL `version_no`; an empty slot
+remains visible until its first submission. This prevents duplicate controls
+and prevents presenting a historical download which the E5 database authority
+correctly rejects. A behavioral regression covers multiple versions, an empty
+duplicate and bigint-safe ordering. The focused Portal document test is added
+once to the canonical frontend test entrypoint.
+
+This correction changes no V3 source adapter, database authority, provider,
+managed Supabase or production state.
+
+## 2026-09-07 - Repair the inherited exact Node-suite manifest
+
+Block-ID: `EVO-V3-E5-INHERITED-NODE-MANIFEST-CORRECTION-2026-09-07`
+
+Change type: current-main gate correction carried with E5. The optimized Node
+runner already includes `test:e3`, but its exact inventory regression still
+described the pre-E3 tree. E4 also added its Portal tests and E5 adds the Portal
+document test once through `test:frontend`. The regression is updated to the
+actual current entrypoint, unique-file and execution-group counts; it does not
+add another test execution path. Stage F must recalculate these assertions only
+after its exact deletion inventory is known.
+
+This correction changes no product behavior, migration, provider, managed
+Supabase or production state.

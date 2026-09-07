@@ -255,8 +255,9 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
 [Next.js Data Security](https://nextjs.org/docs/app/guides/data-security),
 [PostgreSQL advisory locks](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS).
 
-**Волна D2 (UI поверх D1) — ГОТОВА К MERGE В PR #673.** Зафиксированная
-последовательность уже находится в `origin/main`:
+**Волна D2 (UI поверх D1) — СДЕЛАНО (PR #673, squash
+`aecb115f58966ec9609ae72774ab029009475e55`).** Зафиксированная
+последовательность находится в `origin/main`:
 
 - контракт D2 — PR #664, `ca71dbc5`;
 - exact-case поправка контракта Media — PR #665, `234f390b`;
@@ -268,10 +269,13 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
 - Media route, attach boundary и corrective migration 125 — PR #672,
   `a6ecd2af`.
 
-Closure-пачка опубликована как PR #673 из ветки
-`izzhackt/v3-d2-final-integration`, созданной от точного `a6ecd2af`.
-Проверенный функциональный head — `e935103a`: Media UI в Inbox, регистрация
-всех новых D2 Node/SQL тестов в канонических harness, browser proof и две
+Closure-пачка PR #673 из ветки `izzhackt/v3-d2-final-integration` слита
+2026-09-07 из reviewed head `4aff77e1008cc647956b22f33c07fa6e9975170d`
+в squash `aecb115f58966ec9609ae72774ab029009475e55`. Миграции 122–125 и
+канонические harness теперь присутствуют в `origin/main`; E0 продолжает только
+от этого exact base. Проверенный функциональный head `e935103a` дал Media UI в
+Inbox, регистрацию всех новых D2 Node/SQL тестов в канонических harness,
+browser proof и две
 исправленные только реальным браузером ошибки — недопустимый object export из
 `"use server"` и точное различение отсутствующего private Storage object
 (`unavailable`) от настоящего отказа полномочий (`forbidden`).
@@ -283,10 +287,9 @@ PASS; desktop, 393 px и forced-dark V3 gate — PASS; production build и по�
 ESLint — PASS; независимое adversarial review — APPROVED. Отдельный SQL
 authorization harness был зелёным до последней runtime/test-only поправки;
 после него не менялись migration/SQL/harness-файлы, поэтому дублирующий полный
-локальный rerun не требовался. Защищённые GitHub checks обязаны пройти на
-актуальном `headRefOid` PR #673. До его match-head squash-merge D2 не называть
-сделанной; после merge сразу отметить `СДЕЛАНО` в следующей плановой пачке и
-перейти к E0/PR #669.
+локальный rerun не требовался. На финальном head PR #673 прошли `Changed
+range`, `Release contracts`, `Lint`, `Build`, `Migration boundary` и `Fast
+checks`; PR слит. D2 не повторять, текущая пачка — E0/PR #669.
 
 Холодный исполнитель сначала проверяет состояние, а не повторяет уже слитые
 пачки:
@@ -301,10 +304,9 @@ gh pr list --repo izzhackt/evo_AI_CRM \
   --json number,state,headRefOid,mergeCommit,url
 ```
 
-Если closure-PR ещё открыт, продолжать только его exact head. Если он слит,
-миграции 122–125 есть в `origin/main`, канонические Node manifests проходят
-validate-only, cumulative gates и review совпадают с зафиксированным head — D2
-не переделывать, отметить `СДЕЛАНО` и перейти к E. Любое расхождение —
+Ожидаемый результат проверки теперь — merged PR #673, exact `origin/main`
+`aecb115f58966ec9609ae72774ab029009475e55` и migrations 122–125. При этом
+состоянии D2 не переделывать и продолжать E0. Любое расхождение —
 stop-and-investigate.
 
 Замороженный продуктовый контракт D2:
@@ -419,49 +421,522 @@ review точного cumulative diff. Любая последующая фун�
 replacement run. D2 не разрешает managed schema apply, provider calls или
 production release.
 
-### E · Портал студента — НЕ НАЧАТ (существующую authority переиспользовать)
+### E · Портал студента — E0 ТЕКУЩАЯ (docs-only; runtime не начат)
 
-Серверная машинерия ЖИВА и поддерживается (RPC `student_portal_*`, миграции
-042/043/044/053/068/069, обновлялись 108/110; воркер просрочек
-`/api/internal/platform-operations/portal-overdue` живой) — снесён только
-старый read-only фронт (#627/#629). Строить:
+**Статус на exact `origin/main`
+`aecb115f58966ec9609ae72774ab029009475e55` после merge D2 PR #673:** D2
+сделано, E0/PR #669 — текущая docs-only пачка. Реализация Stage E не начата:
+миграций 126/127, portal routes, student resolver, callback и trusted-server
+invite в репозитории ещё нет. Не выдавать E0 или существующие SQL-функции за
+работающий фронт, отправленное приглашение либо production proof.
 
-1. Сначала read-only reuse-аудит. Уже существуют и не дублируются:
-   опубликованные Student bundles, `portal.read.self`, `document.upload`,
-   `document.download`, `student_portal_*`, own-case/activated-portal guards и
-   приватный Storage/ClamAV-конвейер (042/046/108/110). Добавить только
-   отсутствующий trusted-server invite/provisioning и replay-safe атомарную
-   связку нового membership `student` с pending-делом перед установкой
-   `portal_activated_at` (CHECK из 088 требует этот порядок). Admin invite —
-   только server-side с secret/service key; ключ не попадает в браузер:
-   [Supabase inviteUserByEmail](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail).
-2. Фронт `/portal` (пять экранов, дружелюбно, по-русски, мир V3): «Моё
-   поступление» (стадия, следующий шаг с датой, куратор), «Документы»
-   (чеклист со статусами и причинами возврата + загрузка в свой слот),
-   «Заявки и виза» (статусы, дедлайны, трек вех), «Платежи» (что и когда,
-   остаток/просрочка), «Уведомления» (+прочитано). Отдельная ветка
-   авторизации: студент НИКОГДА не резолвится в staff-актора; staff-фильтр
-   `isDatabaseStaffRole` не ослаблять.
-3. Контрактные тесты портала вернуть (были удалены с фронтом).
-4. Data minimization старого контракта сохранить: без internal id,
-   провайдеров, имён ревьюеров.
+#### Уже существующая authority — не дублировать
 
-Решения по умолчанию (заказчик может поправить): вход — приглашение на почту
-с установкой пароля; загрузка документов студентом в v1 — да; язык — русский.
+- Миграции 042/043/044/053/068/069 и их актуализации 108/110 уже дают
+  опубликованный Student bundle, `portal.read.self`, `profile.read.self`,
+  `document.read.self`, `document.upload`, `document.download`,
+  `finance.read.self`, `notification.read.self`, `communication.read.self`,
+  `student_portal_*`, own-membership + exact-case + activated-portal guards и
+  worker `/api/internal/platform-operations/portal-overdue`.
+- Миграции 046/108/115/116 и текущие server handlers уже задают единственный
+  private Storage/hash/ClamAV/finalize/download-grant pipeline. E не создаёт
+  второй bucket, public URL, локальное хранение, service-key upload из браузера
+  или обход scanner.
+- Нормальное дело после завершённого U6 (088) имеет форму `state='active'`,
+  `current_curator_membership_id IS NOT NULL`, `handoff_at IS NOT NULL`,
+  `closed_at IS NULL`; `student_membership_id` и `portal_activated_at` до E
+  могут быть `NULL`. Отдельно поддерживается историческая pre-handoff форма:
+  `state='pending'`, `current_curator_membership_id IS NULL`, `handoff_at IS
+  NULL`, `portal_activated_at IS NULL`, `closed_at IS NULL`. Для неё
+  provisioning сначала привязывает Student и оба scope, оставляя портал
+  неактивным, а затем существующий `assign_student_case_curator` с явно
+  выбранным active Curator ротирует case scope, переводит дело в `active`,
+  ставит `handoff_at` и активирует портал. Это не новый U6 и не разрешение
+  придумать куратора. Closed, cross-org и любая третья/противоречивая форма
+  fail closed и не переоткрывается.
+
+#### Migration 126 — только provisioning, scope и receipt state machine
+
+126 идёт строго после D2 migration 125 и не содержит read-моделей. Она
+добавляет private receipt/intent, authenticated Admin-session `prepare` RPC и
+отдельные service-role-only `claim`/`record_*`/reconcile/finalize RPC для
+trusted-server coordinator. Service role никогда не изображает Admin JWT или
+`auth.uid()`. Финальная DB-транзакция использует один receipt-authorized private
+core с теми же invariants/audit, что существующие Admin primitives, а не
+ослабляет или дублирует RBAC:
+
+1. Результирующая mutation сохраняет семантику
+   `platform.provision_member(..., 'student', ...)`: создаёт/проверяет ровно
+   один active Student membership для уже существующего `auth.users.id` и
+   опубликованного Student bundle. Затем сохраняется семантика обязательного
+   `platform.assign_organization_scope`: migration 083
+   `current_actor_authority()` требует и `organization.read`, и active
+   organization scope также для роли Student. После этого
+   `platform_private.append_scope_event` выдаёт второй, более узкий active
+   `record_scopes(scope_kind='student_case', scope_key=<exact case_id>)` из
+   `student_cases.current_scope_id/current_scope_version`. Organization scope
+   нужен только для actor bootstrap и не заменяет exact-case scope/RLS.
+   Migration 126 не даёт service role EXECUTE на эти существующие public
+   Admin-session wrappers: общий private core вызывается либо wrapper-ом после
+   live `require_admin_actor`, либо service finalizer после receipt validation.
+2. Authenticated `prepare` сначала выполняет read-only live
+   `require_admin_actor`; затем **сначала** вызывает migration 117
+   `platform_private.lock_student_case_note_assignment_domain(organization_id)`,
+   затем root и все deterministic child request advisory locks в стабильном
+   порядке, и только потом receipt/request и participant row locks. Под domain
+   lock prepare заново проверяет реальный Admin JWT/access-version/bundle/
+   permission/scope, валидирует organization/case/fingerprint/email и записывает
+   durable authorization: exact Admin auth/profile/membership, access version,
+   organization, permission, authorization time и immutable fingerprint.
+   Service finalizer отдельно берёт тот же migration 117 domain lock, затем все
+   request advisory locks и только потом receipt/participant row locks. Он
+   блокирует и читает receipt-bound Admin auth user/profile/membership/access
+   version и data-bound проверяет active profile+membership, ту же organization,
+   роль Admin, published current bundle, каждый exact сохранённый required
+   permission, current organization scope и равенство stored/current
+   `access_version`. Revoked/changed Admin authority блокирует activation;
+   durable authorization необходима, но недостаточна. Finalizer также проверяет
+   exact case/Auth identity, но **не** вызывает `require_admin_actor` и не
+   утверждает, что service role имеет Admin session. После этого private core
+   добавляет organization и exact-case scope, записывает
+   `student_cases.student_membership_id` и безусловно вызывает
+   `platform_private.bump_access_version(profile_id)`
+   **после** scope/bind (помимо bump внутри organization-scope primitive).
+   Для normal U6 только после этого выставляется `portal_activated_at`. Для
+   legacy pending портал остаётся `NULL`, пока тот же receipt-authorized private
+   core не выполнит с validated Curator точную mutation-семантику существующего
+   `platform.assign_student_case_curator`: scope rotation, новую exact-case grant
+   Student/Curator, access-version bumps и запись
+   `active`/`handoff_at`/`portal_activated_at`. Public Curator wrapper продолжает
+   требовать live Admin session; service finalizer не получает на него grant.
+   Все шаги finalizer находятся в одной транзакции; ошибка Curator mutation
+   откатывает membership/scopes/bind целиком.
+   Migration 126 перед bind обязана `DROP`-нуть текущий migration 042 trigger
+   `student_cases_identity_immutable` и заменить его specialized one-way guard.
+   Все прежние identity columns остаются immutable; для
+   `student_membership_id` разрешён только один переход `NULL -> exact UUID`
+   validated active Student membership той же organization. `UUID -> другой
+   UUID`, `UUID -> NULL`, wrong-org, non-Student и inactive target запрещены;
+   same-UUID replay — no-op. Receipt-authorized finalizer остаётся единственным
+   granted bind path, а case row lock/CAS сериализует concurrent bind.
+3. Один `request_id` + неизменяемый fingerprint
+   `(organization_id, student_case_id, normalized_email, display_name,
+   case_shape, legacy_curator_membership_id)` даёт точный replay ранее
+   сохранённого результата. `case_shape` — только `normal_u6` или
+   `legacy_pending`; Curator равен `NULL` для normal U6 и exact selected active
+   Curator для legacy. Поэтому replay не может молча поменять Curator. Тот же
+   `request_id` с иным
+   fingerprint — `request_replay_conflict`. Новый request для уже reserved,
+   bound или active case — `portal_case_already_reserved`/
+   `portal_case_already_bound`; он не отправляет второе письмо. Уже-bound case
+   может продолжить **только тот же receipt**, только с тем же
+   `auth_user_id`/Student membership и только пока `portal_activated_at IS
+   NULL`; любая иная привязка — конфликт. Успешный replay не создаёт новые
+   membership/scope/audit rows и не повышает `access_version` повторно.
+   `normalized_email` определяется один раз как `lower(btrim(email))` и до
+   provider call резервируется private unique constraint **глобально**, а не
+   внутри organization/case. Резервация сохраняется и после terminal state:
+   другой request, case или organization с тем же normalized email получает
+   deterministic `portal_email_already_reserved` до dispatch. Это отражает
+   глобальную identity-модель `auth.users`/`provision_member` и исключает
+   cross-org гонку двух приглашений одному email.
+4. Каждый вложенный auditable primitive получает deterministic child request
+   ID от корневого receipt request (отдельные стабильные suffix для membership,
+   organization scope, legacy curator и final audit); один UUID нельзя
+   повторно использовать для разных `audit_events.action`. Cross-org auth
+   profile/membership, inactive profile/membership, non-Student role, closed
+   case и foreign scope всегда отказ. Для legacy pending prepare до invite
+   требует exact выбранный active Curator; отсутствующий/foreign/inactive
+   Curator — отказ. Два request на один case
+   или normalized email сериализуются row/advisory locks + unique constraints:
+   первый durable reservation выигрывает, второй получает deterministic
+   conflict **до** Auth invite. Гонка finalize с curator assignment/close/
+   rebind повторно читает locked current case/scope: normal-U6 reassign до
+   finalizer означает grant на уже новый scope, reassign после finalizer сам
+   переносит Student grant; legacy curator step выполняется только после bind.
+   Ноль затронутых строк — rollback, не partial success.
+5. Grants перечисляются явно. `prepare` сначала REVOKE-ится у PUBLIC, `anon`,
+   `service_role` и `supabase_auth_admin`, затем выдаётся только
+   `authenticated`. `claim`/`record_*`/reconcile/finalize сначала REVOKE-ятся у
+   PUBLIC, `anon`, `authenticated` и `supabase_auth_admin`, затем выдаются только
+   `service_role`; internal receipt-authorized core не получает client-role
+   grants. Service entrypoints принимают только receipt ID и bounded expected
+   state/version/generation/attempt inputs, а не произвольные organization,
+   case, email или membership authority.
+   E0 фиксирует caller surfaces: authenticated Admin `prepare` и expired-invite
+   reissue authorization; service-role initial/reissue claim, outcome
+   `record_success|record_failure|record_unknown`, reconciliation и authority
+   finalize. Exact SQL identifiers/signatures и полный grant inventory должны
+   быть сначала добавлены в E1 `PLAN_CHANGES`, до migration code.
+6. Все новые receipt/attempt tables в `platform_private` имеют `ENABLE ROW LEVEL
+   SECURITY`, `FORCE ROW LEVEL SECURITY` и ноль policies. Прямые table и
+   backing-sequence privileges REVOKE-ятся у PUBLIC, `anon`, `authenticated`,
+   `service_role` и `supabase_auth_admin`; доступ возможен только через narrow
+   role-specific `SECURITY DEFINER SET search_path = ''` RPC. Catalog tests
+   проверяют RLS/force flags, отсутствие policies, relation/sequence ACL и exact
+   routine grants.
+7. Lock graph E1 prepare/finalizer неизменяем: migration 117 organization-domain
+   advisory lock -> root `request_id` advisory lock -> каждый deterministic
+   child request advisory lock в документированном стабильном порядке ->
+   receipt/attempt/Auth/case/membership/profile row locks. Ни один participant
+   row lock не берётся до всех root/child locks. Так direct provision/scope/
+   Curator wrapper, уже владеющий своим child request lock, не образует цикл с
+   finalizer. E1 dblink regressions с bounded `lock_timeout` гоняют finalizer
+   против direct scope и Curator wrappers и требуют serialization без deadlock,
+   partial mutation или stale overwrite.
+
+Supabase Auth нельзя включить в PostgreSQL-транзакцию. Поэтому coordinator
+выполняет строго `prepare receipt -> claim dispatch -> inviteUserByEmail ->
+record Auth result -> finalize authority`. Receipt сохраняет provisioning state
+`prepared`, `dispatching`, `invite_succeeded`, `authority_activated`,
+`invite_failed` или `invite_outcome_unknown`. Независимый invite-delivery status
+после первого durable success хранит `issued`, `expired`,
+`reissue_dispatching`, `reissue_failed`, `reissue_unknown` или `accepted`, а
+также monotonic `invite_generation`, `invite_issued_at`, `invite_expires_at`,
+receipt version и reissue idempotency key. Поэтому истёкший invite можно
+восстановить, даже когда authority уже активирована, не откатывая provisioning.
+Legacy
+pending не может завершиться состоянием success, пока тот же finalizer не
+завершил Curator assignment и Portal activation:
+
+- secret/service key существует только в trusted server client с отключённым
+  browser session persistence; email и provider payload не логируются и не
+  попадают в public tables/JSON;
+- `prepared` означает, что provider dispatch точно ещё не мог начаться. Перед
+  initial network call service worker передаёт unique `attempt_id`, expected
+  receipt version и expected invite generation. Атомарный compare-and-set claim
+  переводит receipt в `dispatching`, сохраняет `active_attempt_id`, version,
+  generation и claimed-at и commit-ит этот state; только
+  владелец успешного claim может вызвать `inviteUserByEmail`. Crash до claim
+  оставляет definitely-never-dispatched `prepared`, который можно безопасно
+  claim-ить. Crash/timeout после committed `dispatching` — даже если процесс
+  мог упасть за мгновение до фактического HTTP call — является неоднозначным:
+  stale `dispatching` переводится в `invite_outcome_unknown`, требует exact-email
+  reconciliation и никогда автоматически не resend-ит invite;
+- каждый initial или reissue provider outcome записывается только отдельным
+  service-role `record_*` CAS, который совпал одновременно по
+  `active_attempt_id`, expected receipt version, expected invite generation и
+  dispatch state. Late/reordered success, failure или unknown от stale worker
+  получает deterministic `stale_invite_attempt` и не может переписать новый
+  attempt, Auth identity, generation или terminal result;
+- definite invite failure оставляет case без membership/activation; тот же
+  request можно снова claim-ить только из `invite_failed`, только когда
+  provider evidence однозначно доказывает отсутствие side effect, и после
+  operator-visible причины без provider body;
+- invite success + finalize failure оставляет приглашённого Auth user без
+  Portal authority; retry того же request использует сохранённый exact
+  `auth_user_id` и **не** отправляет письмо повторно. Уже verified invite
+  session при этом может установить пароль независимо от Portal activation,
+  после чего остаётся на bounded auth-only «аккаунт подготавливается» surface
+  до успешного finalize; session не уничтожается только из-за отсутствующей
+  Student authority, но все `/portal*` routes продолжают fail closed;
+- timeout/lost response — `invite_outcome_unknown`: никакого blind retry,
+  удаления Auth user или создания второго identity. Оператор сначала
+  сверяет managed Auth по exact normalized email, затем либо записывает
+  найденный exact identity и продолжает тот же receipt, либо сохраняет
+  blocked unknown. Отсутствие найденной строки само по себе не доказывает, что
+  dispatch не произошёл, и не разрешает resend;
+- если `record Auth result` недоступен после реального provider success,
+  результат честно остаётся unknown и требует той же reconciliation. Ни один
+  ответ coordinator не называет invite успешным, пока durable receipt не
+  содержит `auth_user_id`; ни один не называет портал активным до успешного
+  finalize;
+- `record Auth result`, reconciliation и finalizer не доверяют только provider
+  payload: под service-role транзакцией они проверяют, что exact
+  `auth.users.id = receipt.auth_user_id` существует и его
+  `lower(btrim(auth.users.email)) = receipt.normalized_email`. Wrong user ID,
+  null/другой email или identity, уже принадлежащая другой organization/case,
+  дают hard conflict без membership/scope/bind. Finalizer повторяет эту
+  проверку под canonical locks непосредственно перед private membership/scope
+  mutation.
+
+Invite expiration/reissue остаётся fenced side effect на **том же** receipt и
+identity:
+
+- перед reissue attempt coordinator сохраняет exact прежний provider
+  `confirmation_sent_at`. После initial/reissue success он записывает `issued`,
+  generation и `invite_issued_at` только из надёжно наблюдаемого provider
+  token-issuance timestamp — текущего `auth.users.confirmation_sent_at` того же
+  exact Auth user/email, для reissue строго нового относительно pre-attempt
+  значения. `invite_expires_at` равен этому provider timestamp плюс exact
+  read-back Email OTP Expiration. Успешный callback для matching Auth user/email
+  переводит delivery status в `accepted`, не трогая завершённую authority;
+- только заново авторизованный Admin может после `invite_expires_at` CAS-ом
+  отметить unaccepted `issued` как `expired`. Перед этим он под canonical locks
+  проверяет expected receipt version/generation, exact immutable fingerprint и
+  тот же `auth.users.id` + normalized email; confirmed/accepted, too-early,
+  mismatched или unverifiable identity fail closed;
+- reissue command принимает тот же root `request_id`, unique
+  `reissue_request_id`, unique `attempt_id`, expected receipt version и expected
+  generation. Один
+  committed CAS `expired|reissue_failed -> reissue_dispatching` выигрывает,
+  фиксирует active attempt, новый monotonic generation и claim time **до**
+  network call. Replay
+  того же reissue key возвращает durable in-progress/result без provider call;
+  concurrent другой key получает `invite_reissue_in_progress` или
+  `stale_invite_generation`, также без provider call;
+- trusted server отправляет новый invite только exact receipt email и только
+  после read-back существующего unconfirmed Auth user. Provider result и
+  повторный read-back обязаны вернуть **тот же** `auth_user_id` и normalized
+  email. Нельзя удалять/создавать identity, менять email или заводить новый
+  provisioning receipt. Если выбранный Supabase re-invite механизм не сохраняет
+  exact user ID в local/managed acceptance, E3 блокируется без fallback;
+- invite `data`/`user_metadata` не является authority или recovery storage.
+  Текущий Supabase Auth применяет invite data при создании пользователя, но не
+  переустанавливает его при reissue существующему unconfirmed user. Поэтому
+  identity, authority, immutable fingerprint, generation и recovery никогда не
+  зависят от mutable metadata; их единственный источник — durable private
+  receipt + exact `auth_user_id` + normalized email;
+- durable success возвращает delivery status в `issued` с новыми timestamps.
+  Definite no-side-effect failure даёт `reissue_failed`; новый operator attempt
+  всё равно требует новый idempotency key и CAS. Lost/timeout/ambiguous response
+  даёт `reissue_unknown`, никогда auto/blind resend. Reconciliation либо
+  видит accepted identity, либо наблюдает новое exact provider
+  `confirmation_sent_at` и переводит в `issued` с expiry от него. Local
+  `claim_time + OTP TTL`, client timeout, отсутствие строки при одном read-back
+  или простое истечение wall time **никогда** не являются expiry/retry fence.
+  Перевод в definite no-issuance возможен только при доказанном provider/request
+  upper bound, после которого этот exact ambiguous attempt уже не может выпустить
+  token, и неизменившемся exact read-back. Если ни provider issuance timestamp,
+  ни такой upper bound не доказаны, receipt остаётся `reissue_unknown`
+  бессрочно и следующий reissue запрещён;
+- expired/stale/consumed token в callback показывает только bounded auth error:
+  он не меняет receipt, не создаёт identity и не запускает reissue. Если token
+  любой generation всё ещё успешно verify-ится, результат принимается только
+  при exact совпадении receipt Auth user/email; same POST replay не меняет
+  identity/delivery state повторно и не отправляет письмо.
+
+Admin invite использует
+[trusted-server `inviteUserByEmail`](https://supabase.com/docs/guides/auth/users)
+и его [JS reference](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail).
+Supabase связывает expiry с Email OTP Expiration (по умолчанию один час) и
+требует новый invite после истечения:
+[Inviting users](https://supabase.com/docs/guides/auth/users#inviting-users).
+Текущие same-user/reissue и metadata semantics видны в официальных
+[`invite.go`](https://github.com/supabase/auth/blob/master/internal/api/invite.go)
+и [`mail.go`](https://github.com/supabase/auth/blob/master/internal/api/mail.go).
+
+#### Migration 127 — только additive student read models
+
+127 идёт после 126. Существующие `student_portal_*` signatures, RLS, grants и
+document pipeline не ломаются и не заменяются broad table reads. Новые
+student-self RPC добавляют только недостающие UI facts:
+
+- overview: текущая стадия/следующий шаг, `next_action_due_at` или
+  Bishkek-date `next_action_due_on`, и `curator_display_name` из active
+  `current_curator_membership_id`;
+- applications: institution/program/status, `is_primary`,
+  `university_deadline_on`, а отдельная student-safe timeline — только
+  previous/new status + occurred-at; visa даёт такой же status timeline;
+- finance: label/category, amount, paid, refunded, **outstanding** minor units,
+  currency, due-at, derived status, overdue и next action;
+- documents/notifications продолжают текущие 108 contracts; в браузер не
+  уходят organization/profile/membership/scope/audit IDs, evidence/provider
+  refs, storage coordinates, reviewer/actor identity или internal notes.
+  Необходимые opaque case/slot/version/application keys используются только
+  как authorization-bound action handles и никогда не показываются как текст.
+
+Каждая projection повторяет `platform_can_read_student_portal_case`, exact
+Student membership, active portal, permission и exact case relation. Timeline
+не возвращает `evidence_reference`, note или actor. Пустые факты остаются
+`NULL`/пустым списком; UI не придумывает даты, суммы, куратора или вехи.
+
+#### Auth, callback, routes и документы
+
+Staff и Student — две непересекающиеся authorization ветки:
+
+- существующий `resolvePlatformActor`/`requirePlatformStaffActor` остаётся
+  staff-only; `isDatabaseStaffRole` по-прежнему допускает только
+  Admin/Sales/Curator и никогда не расширяется до Student;
+- новый `resolveStudentPortalActor` принимает только verified Supabase
+  session + active Student profile/membership/bundle + exact active/closed
+  own case + organization scope + `portal_activated_at` + exact case scope.
+  Portal routes никогда
+  не вызывают staff resolver/AppShell/preview, staff routes — student resolver;
+- shared login может аутентифицировать email/password, но root dispatcher
+  маршрутизирует результат отдельных resolvers: staff в свой `/v3/*` home,
+  Student в `/portal`; invalid/mixed identity очищает session и возвращает
+  bounded login error. Verified invite identity с durable matching receipt, но
+  ещё без активной Student authority, сохраняет session и видит только
+  auth-only `/auth/account-pending`, не staff pending UI и не `/portal*`;
+- единственный invite callback path — `/auth/callback`. Invite email template
+  строит ссылку только как `{{ .RedirectTo }}?token_hash={{ .TokenHash
+  }}&type=invite`. `GET /auth/callback` **никогда** не вызывает `verifyOtp` и не
+  меняет Auth/DB state: он только валидирует форму query, возвращает no-store
+  same-origin interstitial с явной кнопкой «Продолжить» и bounded form POST.
+  Только human-triggered `POST /auth/callback`, защищённый same-origin/CSRF
+  проверкой, принимает ровно один `token_hash` и точное `type=invite` и вызывает
+  server-side `verifyOtp`. После успеха POST отвечает 303 на auth-only
+  `/auth/set-password`, так что token отсутствует в следующем URL. Нет `code`,
+  `next`, arbitrary redirect, wildcard, automatic GET verification или
+  client-side Auth API. Prefetch/scanner GET поэтому не расходует одноразовый
+  token. Повторный POST consumed token не создаёт identity и не разрушает уже
+  существующую matching verified session: она может продолжить set-password;
+  без такой session показывается bounded expired/used error без resend. Этот
+  callback никогда сам не запускает reissue: recovery доступен только через
+  отдельную authenticated Admin-команду с receipt/generation CAS;
+- `/auth/set-password` — не экран портала. Его session-bound Server Action
+  проверяет verified session и совпадение exact auth user/email с durable
+  receipt, затем вызывает `auth.updateUser` **до** требования активной Portal
+  authority. После подтверждённого password update отдельный Student resolver
+  отправляет активированного Student на `/portal`, а matching invite identity
+  без завершённого finalize — на no-store auth-only `/auth/account-pending`.
+  Pending surface даёт только bounded status refresh/sign-out; он не читает
+  student data и не даёт Portal authority. Callback/set-password/pending имеют
+  `Cache-Control: no-store`; пароль, token hash и Auth response не логируются.
+
+**Target E3 Auth configuration (ещё не current proof):** sole first-launch
+managed Site URL — ровно `https://evo-crm.72.62.119.112.sslip.io`, а production
+redirect allowlist содержит ровно exact
+`https://evo-crm.72.62.119.112.sslip.io/auth/callback`. Wildcard и параллельный
+production callback запрещены. `https://crm.evoadmissions.com` отложен до
+рабочего DNS под контролем EVO и не входит в E0–E5 acceptance, Site URL или
+allowlist. Сейчас managed settings не проверены, а `supabase/config.toml`
+содержит старый `additional_redirect_urls = ["https://127.0.0.1:3000"]`; E3
+обязан заменить его exact sslip callback и отдельно подтвердить managed Site
+URL, не описывая это как уже готовое.
+Local target: Site URL
+`http://127.0.0.1:3000` и единственный callback
+`http://127.0.0.1:3000/auth/callback`. Preview wildcard и `localhost` alias не
+добавлять. `redirectTo` должен быть exact callback:
+[Supabase Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls).
+Managed и local invite templates обязаны иметь одинаковый server-side
+token-hash contract:
+[Supabase Email Templates](https://supabase.com/docs/guides/auth/auth-email-templates).
+
+Ровно пять portal routes, в отдельном Student layout, по-русски и в мире V3:
+
+1. `/portal` — «Моё поступление»: стадия, следующий шаг с датой, куратор.
+2. `/portal/documents` — чеклист, статусы/причины возврата, upload в свой slot.
+3. `/portal/applications` — заявки + виза, дедлайны и безопасный трек статусов.
+4. `/portal/payments` — обязательства, paid/outstanding/overdue без выдумки.
+5. `/portal/notifications` — safe notifications и replay-safe «прочитано».
+
+Private student-document routes ровно `POST
+/api/portal/document-slots/[documentSlotId]/versions` и `GET
+/api/portal/document-versions/[versionId]/download`. Оба используют только
+Student resolver и existing preflight/reserve/hash/ClamAV/finalize либо
+grant/consume/signed-URL primitives. Upload требует own exact case + current
+slot + `document.upload`, лимит/mime/signature/version/replay guards; download
+требует own exact case + finalized clean version + `document.download`,
+возвращает server-authorized 302 на signed URL не дольше 60 секунд с
+`Cache-Control: no-store`. Bucket/object/service key никогда не попадают в
+browser JSON; scanner failure/quarantine/mismatch/expired or consumed grant —
+fail closed. Сохранить существующий 25 MiB product limit и established
+standard/resumable boundary:
+[standard uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads),
+[resumable uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads).
+
+#### Жёсткий порядок пакетов E0–E5 и acceptance
+
+1. **E0 contract (этот docs-only PR):** только `docs/PLAN_CHANGES.md` и этот
+   файл; `git diff --check`, Node 22.23.1 runtime, PR-classifier/release-contract
+   tests, independent adversarial docs review. Никакой migration/code/runtime
+   claim.
+2. **E1 authority (126):** authenticated Admin `prepare` + service-role-only
+   claim/record/reconcile/finalize RPC и private receipt-authorized core;
+   explicit least-privilege grants, mandatory
+   organization + exact-case grants, bind/bump/activate, normal-U6 и legacy
+   pending+Curator paths, SQL inventory/RLS/replay/cross-org/closed/
+   already-bound/race tests. Все provisioning/legacy curator paths обязаны
+   брать migration 117 organization advisory domain до request/row locks;
+   concurrency regressions включают direct Curator assignment против finalize.
+   Тест обязан доказать, что Student без organization
+   scope не проходит `current_actor_authority()`, а legacy pending остаётся
+   portal-inactive до `assign_student_case_curator`. Обязательны concurrent
+   two-request tests, global same-email cross-org race, crash before claim,
+   crash after durable dispatch marker, stale-dispatch reconciliation, wrong
+   `auth.users.id`/email record+finalize rejection, invite-delivery state/
+   generation/active-attempt CAS, concurrent initial/reissue claim,
+   stale-worker/reordered success/failure/unknown rejection, caller/grant
+   separation, service-role denial on Admin prepare, authenticated denial on
+   coordinator RPCs, no-Admin-JWT service behavior, receipt-bound current Admin
+   role/bundle/permission/scope/access-version revalidation и revoked/drifted
+   Admin denial; private receipt/attempt ENABLE+FORCE RLS/no-policy/no-direct-
+   table-or-sequence-grant catalog checks; domain->root/child->row lock order и
+   dblink finalizer-vs-direct-scope/Curator bounded serialization — затем полный
+   `scripts/test-postgres-authorization.sh` на OrbStack. Отдельные SQL regressions
+   обязаны доказать replacement `student_cases_identity_immutable`: successful
+   one-way exact Student bind/finalizer replay и отказ unbind/rebind/wrong-org/
+   non-Student/inactive/direct unauthorized/concurrent competing bind.
+3. **E2 read models (127):** только additive projections выше, SQL
+   column/grant/RLS/data-minimization tests и `src/lib/v3` Student adapters с
+   strict decoders. Сначала E1 merge, затем refresh exact `main`; полный
+   migration boundary gate.
+4. **E3 auth + trusted coordinator:** separate Student resolver/guard, exact
+   callback/config allowlist, server-only Auth client, Admin invite action/UI и
+   receipt reconciliation. Node tests обязаны доказать definite failure,
+   success+finalize failure, lost response, same-request replay, changed-input
+   conflict, prefetch/scanner GET без `verifyOtp`, explicit POST verification,
+   consumed-token POST replay, auth-only password setup до authority activation,
+   pending-authority recovery, expired-token bounded denial, same-receipt/
+   same-identity operator reissue, concurrent reissue с максимум одним provider
+   call, same-key replay без второго call, stale-token behavior, ambiguous
+   reissue без blind resend, wrong Auth identity rejection, no arbitrary
+   redirect/secret-browser leakage, initial/reissue active-attempt replay и
+   reordered stale-worker responses без state overwrite/provider recall,
+   observed-`confirmation_sent_at` expiry, claim-time-TTL refusal и indefinite
+   unknown без доказанного provider upper bound, а также staff/Student mutual
+   rejection.
+5. **E4 portal surface:** отдельный Student layout и ровно пять routes на E2
+   adapters; Russian wording, empty/error/loading states, no fabricated facts,
+   desktop/393px/forced-dark/a11y tests. Staff/Admin preview не открывает portal,
+   Student не открывает `/v3/*`.
+6. **E5 documents + cumulative closure:** две private document routes, upload/
+   download UI, existing scanner pipeline tests, own-case/cross-case/cross-org/
+   revoked/quarantine/replay/expired-grant matrix; восстановленные portal
+   contract/E2E tests для всех пяти routes, callback и mark-read. Затем Node
+   22 typecheck, full ESLint, production build, целевые Node suites, полный
+   local Postgres/Auth/RLS/Storage/Chromium contour и independent exact-head
+   adversarial review с re-review подтверждённых fixes.
+
+Каждый пакет — отдельный scoped PR после предыдущего merge; migration 125 уже
+есть на exact `main`, а migrations 126/127 не перенумеровывать. Рутинные PR не
+запускают полный release-candidate `EVO platform CI`; он выполняется один раз
+только на замороженном exact-current-`main` согласно общему release contract.
+
+#### Live blockers и граница доказательства
+
+Repo/local acceptance доказывает только код, SQL, local Supabase/Auth email
+sandbox, RLS/Storage/scanner и browser behavior. Оно **не** доказывает managed
+schema apply, production Auth URL settings, SMTP delivery, реальное письмо,
+принятие invite владельцем email, live Student login или production portal.
+
+До live invite нужны: read-only подтверждение exact managed project; merged
+125–127 и schema-ledger apply; owner-approved real case/student recipient;
+owner-selected transactional sender/from-domain; custom SMTP credentials в
+Supabase Dashboard (не Git), проверенные SPF/DKIM/DMARC, invite template,
+delivery/rate limits и exact Site URL/redirect allowlist. Email-provider link
+tracking отключён, чтобы не переписывать одноразовый invite URL. Default
+Supabase SMTP не является production proof и ограничивает получателей/доставку:
+[Custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp). Сам E0 и пакеты
+E1–E5 не разрешают managed apply, SMTP/DNS mutation, live invite/provider call,
+production deployment, amoCRM/WhatsApp write или release arming.
+До E3/final freeze отдельно нужны read-only proof рабочего TLS на sole
+first-launch sslip hostname и exact managed Site URL/allowlist. Custom domain
+`crm.evoadmissions.com` остаётся deferred до отдельного owner-approved DNS
+перехода; его отсутствие не блокирует E и не разрешает параллельный route.
 
 ### F · Чистка кода репозитория — НЕ НАЧАТА (после D и E)
 
 1. Мёртвые модули с их тестами и строками package.json: platform-bw4-workflow
    (1389 строк), platform-pilot-cohort, platform-ai-memory (+repository),
    platform-case-assignment, supabase/browser.ts.
-2. transcription-lab целиком (mlx-whisper — Apple-Silicon-only, в
-   linux-контейнере прода неработоспособен): src/app/transcription-lab,
-   api/transcription/**, components/transcription/**, lib/transcription/**,
-   lib/guards.ts, scripts/transcribe_mlx_chunks.py + зависимость three;
-   перевесить tests/request-limits с маршрута transcription.
-3. Только русский: словари en/ky из i18n-data.ts, LangSwitcher,
-   locale-actions; getLocale → 'ru' (механизм getT оставить — им пользуется
-   V3); решить судьбу ThemeToggle и тёмной темы на /login.
+2. Transcription Lab — **не механическая чистка**. Launch authority признаёт
+   его отдельной bounded local feature и требует authenticated/admin-gated либо
+   явно disabled surface. Удаление `src/app/transcription-lab`,
+   `api/transcription/**`, `components/transcription/**`, `lib/transcription/**`,
+   `lib/guards.ts`, `scripts/transcribe_mlx_chunks.py`, output volume или
+   связанных dependencies/tests разрешается только отдельной product-decision
+   пачкой после inventory runtime reachability, usage/production evidence,
+   security/storage/retention impact и явного owner approval. До этого
+   сохранить feature и её fail-closed authorization boundary.
+3. Locale/трёхъязычность — **не механическая чистка**. Launch plan сохраняет
+   Russian/Kyrgyz/English switching, а V3 product detail говорит «только
+   русский»; это конфликт product evidence. Словари en/ky, `LangSwitcher`,
+   `locale-actions`, `getLocale` и user-facing switching не удалять без
+   отдельной product-decision пачки, usage/evidence review и явного owner
+   approval. Судьба `ThemeToggle`/dark mode также остаётся отдельным решением.
 4. `drizzle/` (SQLite-остаток, «delete this fucking shit») — с правкой
    охраняющего теста p6c (строки ~211–218) и HISTORICAL_ROOTS/forbidden-regex
    в scripts. `agent-lead2-inbox/` и `evo-lead-agent/` НЕ трогать: там живой

@@ -20032,3 +20032,449 @@ run.
 
 This correction authorizes no managed schema apply, provider call, production
 release or credential use.
+## 2026-09-07 - Freeze the Stage E0 Student Portal cold-handover contract
+
+Block-ID: `EVO-V3-E0-STUDENT-PORTAL-COLD-HANDOVER-2026-09-07`
+
+Change type: plan-freshness, security boundary and ordered delivery contract.
+Affected plan section: current run Stage E after D2 migration 125.
+
+Read-only inspection at exact `origin/main`
+`234f390b2bd19525a60d4d4988b56cb1bfd0ef7d` confirmed that Stage E is not
+started. The repository already owns the Student role/bundles, own-case portal
+RPCs, notifications/overdue worker and private document pipeline, but it has no
+trusted invitation/provisioning seam, V3 Student resolver/callback, active
+portal routes or the few additive read facts required by the five screens.
+
+Decision:
+
+1. Preserve the existing 042/043/044/046/053/068/069/108/110/115/116 Student
+   and document authority. E is a missing-seam and UI restoration, not a second
+   portal schema, second auth path, public bucket or duplicated upload stack.
+2. Reserve migration 126, strictly after D2 migration 125, for private durable
+   provisioning receipts and Admin-only prepare/record/finalize RPCs. Reserve
+   127, strictly after 126, for additive Student-self read models only. Existing
+   `student_portal_*` signatures remain compatible.
+3. Two exact case shapes may be reserved. Normal completed U6 is `active` with
+   non-null Curator and `handoff_at`. Supported legacy pre-handoff is `pending`
+   with null Curator, `handoff_at`, `portal_activated_at` and `closed_at`; it
+   requires an explicitly selected active Curator before invite. Provisioning
+   binds/scopes Student while activation remains null, then the existing
+   `assign_student_case_curator` rotates the case scope and atomically records
+   active/handoff/portal activation. Closed, cross-org and every third or
+   contradictory shape fail before invite; E never invents a Curator or
+   reopens a case.
+4. Finalization compositionally calls `platform.provision_member` for the
+   Student bundle, then `platform.assign_organization_scope` because migration
+   083 `current_actor_authority()` requires that scope for Student too, then
+   grants current exact `student_case` scope through
+   `platform_private.append_scope_event`, binds `student_membership_id` and
+   bumps access version after scope/bind. Normal U6 sets
+   `portal_activated_at` last; legacy pending delegates rotation, Curator grant,
+   state/handoff and activation to existing `assign_student_case_curator` only
+   after Student bind. All are one DB transaction with deterministic child
+   request IDs for distinct audit actions. After read-only Admin preflight it
+   must take migration 117's
+   `lock_student_case_note_assignment_domain(organization_id)` before any
+   receipt/request/participant row lock, then repeat current Admin authority;
+   the nested legacy Curator command cannot reverse the canonical lock order.
+5. One immutable request fingerprint gives exact-result replay. Changed-input,
+   new-request-on-reserved/bound case, cross-org identity, foreign binding and
+   concurrent case/email claims fail deterministically before a second invite.
+   Same-receipt continuation may reuse an already-bound membership only when
+   auth user, organization, role and exact case all match and activation is
+   still null; successful replay adds no rows and does not bump twice.
+   The fingerprint includes explicit `case_shape` plus nullable
+   `legacy_curator_membership_id`: null for normal U6, exact selected active
+   Curator for legacy pending. Replaying with another Curator is a changed-input
+   conflict, never a silent substitution.
+6. Auth invite is an external side effect, so the server follows `prepare ->
+   inviteUserByEmail -> durable Auth result -> DB finalize`. Definite failure,
+   durable success followed by finalize failure, and unknown/lost response are
+   distinct states. Unknown never blind-retries or deletes/duplicates Auth;
+   operator reconciliation by exact normalized email is required. A response
+   claims invite success only after durable `auth_user_id`, and portal success
+   only after atomic authority activation.
+7. Staff and Student resolvers remain disjoint. The staff
+   `isDatabaseStaffRole` filter is not widened; Portal gets a separate Student
+   actor/guard and layout. The only callback is `/auth/callback`; the invite
+   template sends exact `token_hash` + `type=invite`, the callback verifies it
+   server-side, strips it before redirect and has no arbitrary `next`.
+   Successful invite sessions go to auth-only `/auth/set-password`; its
+   session-bound password update rechecks Student authority before `/portal`.
+   This auth route is not a sixth portal screen. E3 must change production and
+   local Auth allowlists to the exact callback URLs, never wildcards. This is a
+   target requirement: current `supabase/config.toml` still has the obsolete
+   `https://127.0.0.1:3000` entry and managed Auth settings are unverified.
+8. The product exposes exactly `/portal`, `/portal/documents`,
+   `/portal/applications`, `/portal/payments` and `/portal/notifications`.
+   Student document traffic uses exactly the private upload/download routes
+   named in the run plan and the existing hash/ClamAV/finalize and one-time
+   download-grant pipeline.
+9. Delivery order is frozen as E0 docs -> E1 migration 126 -> E2 migration 127
+   plus strict V3 adapters -> E3 auth/callback/trusted invite coordinator -> E4
+   five-route Portal UI -> E5 private documents and cumulative closure. Each is
+   a separate scoped PR after the prior merge, with the package-specific
+   replay/tenant/race/data-minimization/browser tests and gates written in
+   `docs/design/v3/run-plan.md`.
+10. Repository/local proof stops at local Supabase/Auth sandbox,
+    Postgres/RLS/Storage/scanner and browser behavior. Live acceptance remains
+    blocked on exact managed-project/schema proof, owner-approved real case and
+    recipient, custom transactional SMTP/from-domain plus SPF/DKIM/DMARC,
+    template/rate-limit review and exact managed Site URL/redirect settings.
+    E0–E5 do not authorize managed apply, SMTP/DNS mutation, live invite,
+    production deployment, provider writes or release arming.
+
+Evidence for the corrected dual-scope/legacy contract: migration 083
+`current_actor_authority()` admits Student but requires both
+`organization.read` and active organization scope; its staff provisioner shows
+the existing deterministic `assign_organization_scope` composition. Migration
+042 `assign_student_case_curator` accepts `pending`, rotates the active
+student-case scope, grants it to both Curator and already-bound Student, bumps
+affected access versions and only then writes `active`, `handoff_at` and
+`portal_activated_at`. Migration 088 preserves that exact pending shape and
+the rule that portal activation requires a non-null Student membership.
+
+Official contract basis:
+[Supabase Users and trusted-server invites](https://supabase.com/docs/guides/auth/users),
+[inviteUserByEmail](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail),
+[Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls),
+[Email Templates](https://supabase.com/docs/guides/auth/auth-email-templates),
+[Custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp),
+[Database functions](https://supabase.com/docs/guides/database/functions),
+[Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security),
+[standard uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads)
+and [resumable uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads).
+
+## 2026-09-07 - Correct the Stage E0 invite safety and recovery contract
+
+Block-ID: `EVO-V3-E0-STUDENT-PORTAL-INVITE-SAFETY-CORRECTION-2026-09-07`
+
+Change type: security, recoverability, identity integrity and release-blocker
+correction. Affected plan section: Stage E1 provisioning receipt and Stage E3
+Auth/callback coordinator acceptance.
+
+Exact-head review of the initial E0 contract requested changes before any
+Stage E implementation. This entry is additive and supersedes only conflicting
+invite/callback/hostname wording in the immediately preceding E0 entry; its
+dual organization + exact student-case scopes, migration 117 lock order,
+normal-U6 versus legacy-pending paths, migrations 126/127, five Portal routes
+and E0-E5 delivery order remain unchanged.
+
+Decision:
+
+1. A mail scanner or browser prefetch must not consume an invite. `GET
+   /auth/callback` is a no-store, non-mutating interstitial and never calls
+   `verifyOtp`; only an explicit same-origin/CSRF-protected human POST may call
+   it. Success strips the credential through a 303 redirect. Consumed-token
+   POST replay neither creates another identity nor destroys an already valid
+   matching verified session.
+2. Password setup depends on a verified matching invite session/receipt, not on
+   completed Portal activation. If durable invite success is followed by DB
+   finalize failure, the user may set a password and remains signed in on a
+   bounded auth-only account-provisioning-pending surface. Every `/portal*`
+   route still fails closed until Student authority and both scopes exist.
+3. The receipt state machine is `prepared -> dispatching -> invite_succeeded ->
+   authority_activated`, with explicit `invite_failed` and
+   `invite_outcome_unknown` branches. The worker must commit an atomic
+   `dispatching` claim before `inviteUserByEmail`. Only a crash before claim is
+   definitely never dispatched and automatically retryable. Any stale or
+   interrupted committed dispatch claim is ambiguous, even if the network call
+   may not have started; it requires exact-email reconciliation and never
+   automatic resend. `invite_failed` is retryable only with provider evidence
+   that no side effect occurred.
+4. Prepare stores `lower(btrim(email))` and reserves it globally across all
+   organizations/cases before provider dispatch. Cross-org concurrent claims
+   for the same normalized email fail before the network call. Record,
+   reconciliation and finalize verify both exact `auth.users.id` and normalized
+   Auth email against the receipt under canonical locks; wrong/missing identity
+   is a hard conflict with no membership, scope or bind.
+5. The current owner/review target freezes canonical Site URL
+   `https://crm.evoadmissions.com` and primary callback
+   `https://crm.evoadmissions.com/auth/callback`. An exact sslip callback may
+   remain only if the final release contract explicitly retains it as fallback.
+   Current repository production instructions/workflow still naming sslip as
+   primary are recorded as an unresolved hostname authority/config blocker:
+   after D2 moves first and E refreshes current `main`, governing docs,
+   DNS/TLS, release health checks and Supabase Auth settings must be reconciled
+   before E3 apply or final freeze. E0 does not claim that external work done.
+6. E1/E3 negative acceptance now explicitly covers prefetch GET, POST replay,
+   password setup with pending authority, crash before claim, crash after the
+   durable dispatch marker, stale/unknown reconciliation, wrong Auth user/email
+   and the cross-org same-email race. Local proof remains non-production proof;
+   this correction authorizes no provider call, managed mutation or release.
+
+Official behavior basis remains the Supabase Auth Users, `inviteUserByEmail`,
+Redirect URLs, Email Templates and Custom SMTP documentation linked in the
+preceding E0 entry.
+
+## 2026-09-07 - Align E0 with the merged D2 base and first-launch hostname authority
+
+Block-ID: `EVO-V3-E0-D2-BASE-AND-HOSTNAME-CORRECTION-2026-09-07`
+
+Change type: plan freshness, delivery status and hostname authority correction.
+Affected plan section: D2 closure, current Stage E0 status and E3 Auth URL
+configuration.
+
+D2 PR #673 is merged. Exact `origin/main`
+`aecb115f58966ec9609ae72774ab029009475e55` contains migrations 122–125 and the
+newer non-duplicating D2 validation cadence. E0/PR #669 is rebased once onto
+that exact base and is now the current docs-only package; Stage E runtime work
+remains not started.
+
+The shared production authority already selects one first-launch hostname.
+Therefore Decision 5 of
+`EVO-V3-E0-STUDENT-PORTAL-INVITE-SAFETY-CORRECTION-2026-09-07` is superseded:
+
+1. Managed Supabase Auth Site URL for first launch is exactly
+   `https://evo-crm.72.62.119.112.sslip.io`.
+2. The sole production invite callback allowlist entry is exactly
+   `https://evo-crm.72.62.119.112.sslip.io/auth/callback`; no wildcard or
+   parallel custom-domain callback is added.
+3. `https://crm.evoadmissions.com` remains deferred until EVO controls working
+   DNS and a separately approved cutover changes the shared release authority.
+   Its absence is not an E0–E5 blocker or release prerequisite.
+4. E3 must still verify and, when authorized in that later package, configure
+   the exact managed Site URL/callback. E0 proves only the repository contract;
+   it performs no managed Supabase, DNS, SMTP, provider, credential, production
+   or release action.
+
+All other invite-safety corrections remain authoritative: GET callback
+prefetch does not call `verifyOtp`, password setup survives pending authority,
+the durable dispatch marker prevents blind resend, normalized email is reserved
+globally before dispatch, and exact Auth user/email matching is required.
+
+## 2026-09-07 - Add a fenced expired-invite reissue path to E0
+
+Block-ID: `EVO-V3-E0-EXPIRED-INVITE-REISSUE-CORRECTION-2026-09-07`
+
+Change type: recoverability, external-side-effect idempotency and acceptance
+correction. Affected plan section: migration 126 receipt state and E3 trusted
+invite coordinator.
+
+[Supabase Auth documents that invite links expire after the configured Email
+OTP Expiration, one hour by default, and says to send a new invite after an
+unaccepted invite expires](https://supabase.com/docs/guides/auth/users#inviting-users).
+The E0 contract therefore needs an operator-authorized recovery path without
+weakening its no-blind-resend or one-identity rules.
+
+Decision:
+
+1. The same durable receipt gains an invite-delivery status/generation that is
+   independent of provisioning/authority status. This permits recovery whether
+   DB finalize is pending or `authority_activated`, without rolling back or
+   recreating memberships, scopes or case binding.
+2. Only a currently authorized Admin may mark an unaccepted issued invite
+   `expired` after the receipt's durable `invite_expires_at`, derived from the
+   exact verified Email OTP Expiration setting. The action must re-read the
+   exact existing `auth.users.id` and normalized email. Accepted/confirmed,
+   mismatched, early, unknown or unverifiable states fail closed.
+3. Reissue uses the same root receipt, exact `auth_user_id`, normalized email
+   and immutable fingerprint. It never deletes or creates an identity, changes
+   email, creates a new provisioning request, or repeats DB authority finalize.
+   If the provider cannot prove that the returned/read-back identity is the
+   same Auth user, reissue fails closed.
+4. An operator supplies a unique reissue idempotency key plus expected receipt
+   version and invite generation. A committed compare-and-set claim changes
+   `expired -> reissue_dispatching` and increments one generation before the
+   network call. One concurrent claimant wins; same-key replay returns the
+   stored result, while another key receives a deterministic in-progress or
+   stale-version conflict and makes no provider call.
+5. Durable provider success records `issued`, issued/expires timestamps and the
+   same exact Auth user. A lost/ambiguous response records `reissue_unknown` and
+   can never auto-resend. It requires operator reconciliation; if delivery
+   cannot be proven, no further reissue is allowed before the possible invite's
+   configured expiry boundary and a fresh authorized expiry/read-back check.
+6. An expired, stale or consumed callback token gives only the bounded auth
+   error already defined by E0. It cannot mutate the receipt, create an
+   identity or trigger reissue. If any still-valid invite generation verifies,
+   callback identity checks still require the same receipt Auth user/email.
+7. E1/E3 tests must cover expired-token denial, authorized recovery on the same
+   identity and receipt, concurrent reissue CAS with at most one provider call,
+   same-key replay with zero additional calls, stale-token behavior and
+   ambiguous reissue response with no blind resend.
+
+This correction preserves the merged D2 closure, sole first-launch sslip Site
+URL/callback, dual organization + exact-case authority, callback prefetch
+safety and all production/provider proof boundaries. It authorizes no runtime,
+managed Supabase, email-provider, credential, DNS, production or release action.
+
+## 2026-09-07 - Remove live features from the mechanical Stage F cleanup list
+
+Block-ID: `EVO-V3-F-LIVE-FEATURE-REMOVAL-GATE-2026-09-07`
+
+Change type: scope safety and owner-decision gate. Affected plan section: Stage
+F repository cleanup only; Stage E0 runtime scope is unchanged.
+
+Targeted authority inspection found that Transcription Lab and locale behavior
+cannot be classified as dead-code cleanup. `docs/EVO_LAUNCH_PLAN.md` requires
+Transcription Lab to be authenticated/admin-gated or explicitly disabled when
+no approved operator role exists, and its launch UI acceptance preserves
+Russian/Kyrgyz/English switching. A later production-successor decision also
+retains an application output volume for the separately bounded local
+transcription feature. The V3 product detail says Russian-only, so language
+removal has conflicting product evidence rather than mechanical authorization.
+
+Decision:
+
+1. Stage F must not mechanically delete Transcription Lab, its routes/workers/
+   dependencies, locale dictionaries, `LangSwitcher`, `locale-actions` or
+   three-language behavior.
+2. Each proposed feature removal moves to a separate product-decision slice.
+   Before code deletion that slice must inventory current imports/routes/runtime
+   reachability, collect available usage and production evidence, map security,
+   storage/retention, package and user-facing consequences, and obtain explicit
+   owner approval naming the removal boundary.
+3. If removal is approved, its own plan change, replacement/disable behavior,
+   tests and rollback evidence are required. If usage or authority remains
+   ambiguous, preserve the feature and fail closed at its existing authorization
+   boundary. Do not hide a product decision inside dependency cleanup.
+4. This correction does not decide `ThemeToggle`, dark mode or other Stage F
+   inventory items and authorizes no Stage E/F runtime edit, dependency removal,
+   deployment, provider call or production action.
+
+## 2026-09-07 - Keep invite metadata outside E0 authority and recovery
+
+Block-ID: `EVO-V3-E0-INVITE-METADATA-AUTHORITY-CORRECTION-2026-09-07`
+
+Change type: identity-source and recovery clarification. Affected plan section:
+expired-invite reissue only.
+
+The current official Supabase Auth
+[`Invite` handler](https://github.com/supabase/auth/blob/master/internal/api/invite.go)
+finds an existing user by email, rejects a confirmed identity with
+`email_exists`, and reuses an unconfirmed identity. Its invite `Data` is applied
+only on the create path. The official
+[`sendInvite` implementation](https://github.com/supabase/auth/blob/master/internal/api/mail.go)
+rotates confirmation token/timestamps on that same user.
+
+Decision: E1/E3 must never depend on invite `data`/`user_metadata` for identity,
+authority, immutable fingerprint, recovery state or invite generation, because
+existing-user reissue does not reapply that mutable metadata. The authoritative
+reissue inputs remain the durable private receipt plus exact `auth_user_id` and
+normalized email. Any mismatch fails closed; no alternate metadata fallback,
+identity creation or new receipt is allowed.
+
+This clarification changes no D2, hostname, Stage F, runtime or production
+scope and authorizes no external action.
+
+## 2026-09-07 - Split E1 Admin authorization from service receipt execution
+
+Block-ID: `EVO-V3-E0-ADMIN-SERVICE-RPC-AND-ATTEMPT-CAS-CORRECTION-2026-09-07`
+
+Change type: caller authority, least-privilege grants and stale-worker safety.
+Affected plan section: migration 126 prepare/claim/record/finalize contract.
+
+Current SQL proves that `platform_private.require_admin_actor` requires a real
+`auth.uid()` plus scoped Admin permission. Existing `platform.provision_member`,
+`platform.assign_organization_scope` and
+`platform.assign_student_case_curator` call that guard and are granted to
+`authenticated`, not `service_role`. A service-key transaction therefore cannot
+truthfully satisfy or impersonate the Admin-session guard.
+
+Decision:
+
+1. The authenticated Admin-session `prepare` RPC performs the live
+   `require_admin_actor` checks and durable reservation. It records the exact
+   authorizing Admin/profile/membership, organization, permission/access version,
+   immutable fingerprint and authorization time on the private receipt.
+2. Provider-workflow `claim`, `record_success`, `record_failure`,
+   `record_unknown`, reconciliation and `finalize` RPCs are separate
+   service-role-only entrypoints. They accept only a receipt identifier and
+   bounded expected-state/attempt inputs, validate the durable Admin-authorized
+   receipt under canonical locks, and never claim that service role has an
+   Admin JWT or `auth.uid()`.
+3. Migration 126 must not grant service role access to existing public
+   Admin-session wrappers. Where finalize needs their mutations, it introduces
+   or refactors one private receipt-authorized core reused by the existing Admin
+   wrapper and the service finalizer, preserving the same invariants, canonical
+   lock order, deterministic audit actor/child request IDs and replay behavior.
+   It must not duplicate or bypass RBAC logic.
+4. Grants are explicit and least privilege: `prepare` is revoked from PUBLIC,
+   `anon`, `service_role` and `supabase_auth_admin`, then granted only to
+   `authenticated`; coordinator entrypoints are revoked from PUBLIC, `anon`,
+   `authenticated` and `supabase_auth_admin`, then granted only to
+   `service_role`; internal cores receive no client role grant.
+5. Initial dispatch and reissue both use a unique durable `attempt_id`/claim
+   token plus expected receipt version and expected invite generation. The CAS
+   claim stores that attempt as active before any provider call. Every success,
+   definite failure or unknown transition must CAS-match the active attempt,
+   version, generation and dispatch state. A late or reordered response from a
+   stale worker returns a deterministic conflict and cannot overwrite a newer
+   attempt or receipt result.
+6. E1 SQL and E3 Node tests must cover caller/grant separation, service-role
+   denial on Admin prepare, authenticated denial on coordinator RPCs, absent
+   Admin JWT behavior, initial-attempt replay, concurrent claim, stale worker
+   and reordered success/failure/unknown responses with zero state overwrite or
+   extra provider call.
+
+This correction preserves all prior invite expiry/reissue, hostname, D2, Stage
+F and proof boundaries. It authorizes no migration implementation, provider,
+managed Supabase, credential, production or release action in E0.
+
+## 2026-09-07 - Freeze unknown-invite and one-way Student bind semantics
+
+Block-ID: `EVO-V3-E0-UNKNOWN-INVITE-AND-STUDENT-BIND-FREEZE-2026-09-07`
+
+Change type: external-side-effect uncertainty and current-schema compatibility.
+Affected plan section: migration 126 receipt reconciliation and Student case
+binding.
+
+Official Supabase Auth `sendInvite` generates and persists its token timestamp
+inside the provider request, not at the coordinator's earlier claim. Therefore
+the prior correction's generic “possible invite expiry boundary” cannot be
+derived from local claim time. Current schema also blocks the planned Student
+bind: migration 042's `student_cases_identity_immutable` trigger includes
+`student_membership_id`, while migration 088 only drops that column's `NOT
+NULL` constraint.
+
+Decision:
+
+1. `reissue_unknown` may resolve to `issued` only from a reliably observed
+   provider token-issuance timestamp such as `auth.users.confirmation_sent_at`
+   changing after the stored pre-attempt value on the same exact Auth user/email.
+   `invite_expires_at` is then that provider timestamp plus the verified Email
+   OTP Expiration.
+2. Local `claim_time + OTP TTL` is never an expiry or retry fence. If the system
+   can prove a provider/request upper bound after which the ambiguous operation
+   cannot still issue and exact read-back remains unchanged, an authorized CAS
+   may record definite no-issuance. Without either observed provider issuance or
+   that proven upper bound, the receipt remains fail-closed
+   `reissue_unknown` indefinitely and no reissue is allowed.
+3. Migration 126 must replace `student_cases_identity_immutable` with a
+   specialized trigger that keeps every existing identity column immutable but
+   permits `student_membership_id` only from `NULL` to the exact validated active
+   Student membership in the same organization once. It rejects `UUID -> other
+   UUID`, `UUID -> NULL`, wrong-organization, non-Student and inactive targets.
+   The receipt-authorized finalizer remains the only granted mutation path.
+4. E1 SQL tests must prove the trigger replacement exists, the exact one-way
+   bind succeeds through finalizer, replay is a no-op, and unbind/rebind/wrong-
+   org/non-Student/inactive/direct unauthorized updates fail, including
+   concurrent bind attempts.
+5. E0 freezes caller families, not final SQL spelling: authenticated Admin
+   `prepare` and reissue authorization; service-role initial/reissue claim,
+   outcome record, reconciliation and authority finalize. E1 must append exact
+   RPC names/signatures and grants to `PLAN_CHANGES.md` before migration code.
+6. After the migration 117 domain lock, service finalize locks and reads the
+   receipt-bound authorizing Auth user/profile/membership and current access
+   version. Without using `auth.uid()`, it revalidates active profile and
+   membership, same organization, Admin role, published current bundle, every
+   exact recorded required permission, current organization scope and
+   stored-equals-current access version. Revocation or authority/version drift
+   blocks activation; the durable receipt is necessary but not sufficient.
+7. Every new `platform_private` receipt/attempt table has ENABLE plus FORCE RLS,
+   no policies, and no direct table or backing-sequence privilege for PUBLIC,
+   `anon`, `authenticated`, `service_role` or `supabase_auth_admin`. Only the
+   narrow role-specific SECURITY DEFINER RPCs with `SET search_path = ''` reach
+   them. E1 tests inspect RLS, policy, relation/sequence ACL and routine grants.
+8. Canonical concurrency order is migration 117 organization-domain advisory
+   lock, then root request and every deterministic child request advisory lock
+   in one documented stable order, then receipt/attempt/Auth/case/membership/
+   profile row locks. Finalizer never waits for a child lock while holding a
+   participant row lock. E1 dblink tests race finalizer against direct scope and
+   Curator wrappers under bounded lock timeouts and prove serialization without
+   deadlock, partial mutation or stale-result overwrite.
+
+This is the final E0 contract clarification. It preserves D2 closure, sole
+first-launch sslip authority, Stage F product-decision gates and all no-runtime/
+no-provider/no-production boundaries.

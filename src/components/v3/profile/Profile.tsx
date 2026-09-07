@@ -5,12 +5,15 @@ import { personState } from "@/lib/v3/wording";
 
 import { Documents } from "./Documents";
 import { ProfileContractWorkspace } from "./ProfileContractWorkspace";
+import { ProfileNotes } from "./ProfileNotes";
+import { profileNotesSubjectKey } from "./profile-notes-view";
 import { Anketa, History, Money, Overview } from "./tabs";
 import {
   tabsFor,
   type PersonProfile,
   type ProfileActorRole,
   type ProfileDraft,
+  type ProfileNotesSnapshot,
   type ProfileContractRetry,
   type ProfileSalesRequestIds,
   type ProfileSalesSnapshot,
@@ -49,6 +52,10 @@ export function Profile({
   authorityRole,
   organizationId,
   requestIds,
+  noteRequestId,
+  notes,
+  notesOlderHref,
+  notesLatestHref,
   contractResult,
   contractRetry,
   tab,
@@ -62,6 +69,10 @@ export function Profile({
   authorityRole: ProfileActorRole;
   organizationId: string;
   requestIds: ProfileSalesRequestIds;
+  noteRequestId: string;
+  notes: ProfileNotesSnapshot;
+  notesOlderHref: string | null;
+  notesLatestHref: string | null;
   contractResult?: PlatformContractMutationOutcome;
   contractRetry?: ProfileContractRetry;
   tab: TabKey;
@@ -130,14 +141,23 @@ export function Profile({
       </nav>
 
       {current === "overview" ? (
-        <Overview
-          profile={profile}
-          draft={draft}
-          sales={sales}
-          actorRole={actorRole}
-          requestIds={requestIds}
-          tabHref={hrefFor}
-        />
+        <div className="space-y-4">
+          <Overview
+            profile={profile}
+            draft={draft}
+            sales={sales}
+            actorRole={actorRole}
+            requestIds={requestIds}
+            tabHref={hrefFor}
+          />
+          <ProfileNotes
+            key={profileNotesSubjectKey(notes.subject)}
+            notes={notes}
+            requestId={noteRequestId}
+            olderHref={notesOlderHref}
+            latestHref={notesLatestHref}
+          />
+        </div>
       ) : null}
       {current === "anketa" ? <Anketa profile={profile} draft={draft} /> : null}
       {current === "documents" ? (

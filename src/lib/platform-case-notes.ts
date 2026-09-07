@@ -1,4 +1,9 @@
 import type { PlatformActor } from "./platform-auth";
+import {
+  isPlatformCaseNoteBodyWithinCodePointLimit,
+} from "./platform-case-note-contract.ts";
+
+export { PLATFORM_CASE_NOTE_MAX_BODY_LENGTH } from "./platform-case-note-contract.ts";
 
 /**
  * Repository for append-only human case notes (migration 117).
@@ -16,7 +21,7 @@ const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 const REQUEST_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TIMESTAMPTZ_PATTERN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/;
 /**
  * Notes are multi-line prose: newline, carriage return and tab stay allowed
  * while every other control character is rejected — the exact database rule.
@@ -25,30 +30,8 @@ const NOTE_CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const DISPLAY_CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
-export const PLATFORM_CASE_NOTE_MAX_BODY_LENGTH = 4000;
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
-
-function hasValidCaseNoteCodePointLength(value: string): boolean {
-  let codePointLength = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    const codeUnit = value.charCodeAt(index);
-    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
-      const followingCodeUnit = value.charCodeAt(index + 1);
-      if (followingCodeUnit < 0xdc00 || followingCodeUnit > 0xdfff) {
-        return false;
-      }
-      index += 1;
-    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
-      return false;
-    }
-
-    codePointLength += 1;
-    if (codePointLength > PLATFORM_CASE_NOTE_MAX_BODY_LENGTH) return false;
-  }
-
-  return codePointLength > 0;
-}
 
 const NOTE_ROW_KEYS = [
   "organization_id",
@@ -229,11 +212,39 @@ function requiredTimestamp(value: unknown): string {
   return parseTimestamp(value) ?? invalidShape();
 }
 
+function timestampEpochMicroseconds(value: string): bigint {
+  const match = TIMESTAMPTZ_PATTERN.exec(value);
+  const dateTime = match?.[1];
+  const offset = match?.[3];
+  if (!dateTime || !offset) return invalidShape();
+
+  const epochMilliseconds = Date.parse(`${dateTime}${offset}`);
+  if (!Number.isSafeInteger(epochMilliseconds)) return invalidShape();
+
+  const fractionalMicroseconds = (match[2] ?? "").padEnd(6, "0");
+  return BigInt(epochMilliseconds) * BigInt(1_000) +
+    BigInt(fractionalMicroseconds || "0");
+}
+
+function compareCaseNoteKeys(
+  left: PlatformCaseNoteCursor,
+  right: PlatformCaseNoteCursor,
+): number {
+  const leftCreatedAt = timestampEpochMicroseconds(left.createdAt);
+  const rightCreatedAt = timestampEpochMicroseconds(right.createdAt);
+  if (leftCreatedAt !== rightCreatedAt) {
+    return leftCreatedAt < rightCreatedAt ? -1 : 1;
+  }
+  if (left.id === right.id) return 0;
+  return left.id < right.id ? -1 : 1;
+}
+
 export function parsePlatformCaseNoteBody(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
   if (
-    !hasValidCaseNoteCodePointLength(normalized) ||
+    normalized.length === 0 ||
+    !isPlatformCaseNoteBodyWithinCodePointLimit(normalized) ||
     NOTE_CONTROL_CHARACTER_PATTERN.test(normalized)
   ) {
     return null;
@@ -259,7 +270,8 @@ function requiredNoteBody(value: unknown): string {
   const normalized = value.trim();
   if (
     value !== normalized ||
-    !hasValidCaseNoteCodePointLength(normalized) ||
+    normalized.length === 0 ||
+    !isPlatformCaseNoteBodyWithinCodePointLimit(normalized) ||
     NOTE_CONTROL_CHARACTER_PATTERN.test(value)
   ) {
     return invalidShape();
@@ -383,7 +395,6 @@ export async function readCaseNotes(
             }
           : {}),
       },
-      { get: true },
     );
     if (
       response.error ||
@@ -400,16 +411,16 @@ export async function readCaseNotes(
       seenNoteIds.add(row.caseNoteId);
       return row;
     });
-    for (let index = 1; index < normalized.length; index += 1) {
-      const earlier = normalized[index - 1];
-      const later = normalized[index];
-      if (
-        !earlier ||
-        !later ||
-        Date.parse(later.createdAt) > Date.parse(earlier.createdAt)
-      ) {
+    let previousKey = cursor;
+    for (const row of normalized) {
+      const currentKey = {
+        createdAt: row.createdAt,
+        id: row.caseNoteId,
+      };
+      if (previousKey && compareCaseNoteKeys(currentKey, previousKey) >= 0) {
         return invalidShape();
       }
+      previousKey = currentKey;
     }
     const hasNext = normalized.length > pageSize;
     const page = normalized.slice(0, pageSize);

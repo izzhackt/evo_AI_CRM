@@ -70,6 +70,10 @@ function validQueueRow(overrides = {}) {
     created_at: "2026-09-01T10:00:00Z",
     updated_at: UPDATED_AT,
     stage_entered_at: "2026-09-02T09:00:00Z",
+    latest_note_id: null,
+    latest_note_body: null,
+    latest_note_author_display_name: null,
+    latest_note_created_at: null,
     ...overrides,
   };
 }
@@ -77,7 +81,10 @@ function validQueueRow(overrides = {}) {
 function validDetailRow(overrides = {}) {
   const queueRow = Object.fromEntries(
     Object.entries(validQueueRow()).filter(
-      ([key]) => key !== "sort_at" && key !== "stage_entered_at",
+      ([key]) =>
+        key !== "sort_at" &&
+        key !== "stage_entered_at" &&
+        !key.startsWith("latest_note_"),
     ),
   );
   return {
@@ -242,6 +249,7 @@ test("listPlatformSalesLeads uses the cookie-bound platform RPC contract and pag
     createdAt: "2026-09-01T10:00:00Z",
     updatedAt: UPDATED_AT,
     stageEnteredAt: "2026-09-02T09:00:00Z",
+    latestNote: null,
   });
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.rows), true);
@@ -265,6 +273,37 @@ test("listPlatformSalesLeads omits nullable arguments from its GET RPC", async (
     options: { get: true },
   });
   assert.equal(Object.values(recorded.calls[1].args).includes(null), false);
+});
+
+test("latest Sales note body uses the canonical Unicode code-point contract", async () => {
+  const body = "📝".repeat(4_000);
+  const recorded = staticClient([
+    validQueueRow({
+      latest_note_id: SECOND_LEAD_ID,
+      latest_note_body: body,
+      latest_note_author_display_name: "Exact Author",
+      latest_note_created_at: UPDATED_AT,
+    }),
+  ]);
+
+  const result = await listPlatformSalesLeads(actor, {}, { client: recorded.client });
+  assert.equal(result.rows[0]?.latestNote?.body, body);
+
+  for (const invalidBody of ["📝".repeat(4_001), "broken\ud800unicode"])
+  {
+    const invalid = staticClient([
+      validQueueRow({
+        latest_note_id: SECOND_LEAD_ID,
+        latest_note_body: invalidBody,
+        latest_note_author_display_name: "Exact Author",
+        latest_note_created_at: UPDATED_AT,
+      }),
+    ]);
+    await assert.rejects(
+      listPlatformSalesLeads(actor, {}, { client: invalid.client }),
+      PlatformSalesRepositoryError,
+    );
+  }
 });
 
 test("getPlatformSalesLead accepts exactly one row and parses linked conversations", async () => {

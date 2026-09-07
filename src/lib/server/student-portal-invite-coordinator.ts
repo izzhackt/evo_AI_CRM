@@ -222,7 +222,8 @@ function validClaim(
 
   return command.kind === "initial"
     ? claim.authUserId === null &&
-        claim.preAttemptConfirmationSentAt === null
+        (claim.preAttemptConfirmationSentAt === null ||
+          isTimestamp(claim.preAttemptConfirmationSentAt))
     : isUuid(claim.authUserId) &&
         isTimestamp(claim.preAttemptConfirmationSentAt);
 }
@@ -496,8 +497,8 @@ export async function coordinateStudentPortalInvite(
     return recordUnknown(claim, "provider_readback_unknown", dependencies.store);
   }
   if (
-    command.kind === "reissue" &&
-    (!claim.preAttemptConfirmationSentAt ||
+    (command.kind === "reissue" && claim.preAttemptConfirmationSentAt === null) ||
+    (claim.preAttemptConfirmationSentAt !== null &&
       Date.parse(user.confirmationSentAt) <=
         Date.parse(claim.preAttemptConfirmationSentAt))
   ) {

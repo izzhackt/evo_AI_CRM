@@ -31,7 +31,7 @@ function command(kind = "initial") {
       };
 }
 
-function fixture({ kind = "initial", overrides = {} } = {}) {
+function fixture({ kind = "initial", claimOverrides = {}, overrides = {} } = {}) {
   const calls = [];
   let readCount = 0;
   const claim = {
@@ -42,6 +42,7 @@ function fixture({ kind = "initial", overrides = {} } = {}) {
     normalizedEmail: EMAIL,
     authUserId: kind === "initial" ? null : AUTH_USER_ID,
     preAttemptConfirmationSentAt: kind === "initial" ? null : ISSUED_AT,
+    ...claimOverrides,
   };
 
   const store = {
@@ -118,7 +119,7 @@ function fixture({ kind = "initial", overrides = {} } = {}) {
   };
 }
 
-test("initial invite is claimed before one exact provider call and fenced records", async () => {
+test("initial invite without an existing-user baseline reaches fenced success", async () => {
   const setup = fixture();
   const result = await coordinateStudentPortalInvite(
     command(),
@@ -162,6 +163,68 @@ test("initial invite is claimed before one exact provider call and fenced record
       },
     ],
   ]);
+});
+
+test("initial existing-user baseline requires newly observed provider issuance", async () => {
+  {
+    const setup = fixture({
+      claimOverrides: { preAttemptConfirmationSentAt: ISSUED_AT },
+    });
+    const result = await coordinateStudentPortalInvite(
+      command(),
+      setup.dependencies,
+    );
+
+    assert.deepEqual(result, {
+      status: "invite_outcome_unknown",
+      receiptId: RECEIPT_ID,
+      attemptId: ATTEMPT_ID,
+      receiptVersion: "9",
+      inviteGeneration: "1",
+      code: "provider_issuance_unobserved",
+    });
+    assert.deepEqual(setup.calls.map(([name]) => name), [
+      "claim-initial",
+      "invite",
+      "read-user",
+      "record-unknown",
+    ]);
+  }
+
+  {
+    const setup = fixture({
+      claimOverrides: { preAttemptConfirmationSentAt: ISSUED_AT },
+      overrides: {
+        auth: {
+          readUserById: async (authUserId) => {
+            setup.calls.push(["read-user", authUserId]);
+            return {
+              status: "found",
+              user: {
+                authUserId,
+                email: EMAIL,
+                confirmedAt: null,
+                confirmationSentAt: REISSUED_AT,
+              },
+            };
+          },
+        },
+      },
+    });
+    const result = await coordinateStudentPortalInvite(
+      command(),
+      setup.dependencies,
+    );
+
+    assert.equal(result.status, "portal_activated");
+    assert.deepEqual(setup.calls.map(([name]) => name), [
+      "claim-initial",
+      "invite",
+      "read-user",
+      "record-success",
+      "finalize",
+    ]);
+  }
 });
 
 test("claim replay finalizes locally while in-progress and stale conflicts never call Auth", async () => {

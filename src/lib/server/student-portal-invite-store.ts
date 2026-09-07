@@ -249,6 +249,9 @@ function decodeClaim(
   const receiptVersion = version(data.receipt_version);
   const inviteGeneration = version(data.invite_generation);
   const email = normalizedEmail(data.normalized_email);
+  const preConfirmationSentAt = data.pre_confirmation_sent_at === null
+    ? null
+    : timestamp(data.pre_confirmation_sent_at);
   if (
     data.replayed !== false ||
     data.provider_dispatch_allowed !== true ||
@@ -256,7 +259,8 @@ function decodeClaim(
     data.attempt_id !== command.attemptId ||
     receiptVersion === null ||
     inviteGeneration === null ||
-    email === null
+    email === null ||
+    (data.pre_confirmation_sent_at !== null && preConfirmationSentAt === null)
   ) {
     return { status: "unavailable" };
   }
@@ -270,10 +274,9 @@ function decodeClaim(
       inviteGeneration,
       normalizedEmail: email,
       authUserId: null,
-      preAttemptConfirmationSentAt: null,
+      preAttemptConfirmationSentAt: preConfirmationSentAt,
     };
   } else {
-    const preConfirmationSentAt = timestamp(data.pre_confirmation_sent_at);
     if (!isUuid(data.auth_user_id) || preConfirmationSentAt === null) {
       return { status: "unavailable" };
     }

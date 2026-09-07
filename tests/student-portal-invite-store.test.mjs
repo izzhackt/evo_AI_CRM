@@ -40,6 +40,7 @@ test("store binds initial and reissue claims to exact m126 arguments", async () 
         invite_generation: 1,
         normalized_email: EMAIL,
         provisioning_state: "dispatching",
+        pre_confirmation_sent_at: null,
         provider_dispatch_allowed: true,
         replayed: false,
       },
@@ -129,6 +130,52 @@ test("store binds initial and reissue claims to exact m126 arguments", async () 
       },
     ],
   ]);
+});
+
+test("initial claim preserves a valid existing-user baseline and rejects malformed data", async () => {
+  const response = (preConfirmationSentAt) => ({
+    data: {
+      receipt_id: RECEIPT_ID,
+      attempt_id: ATTEMPT_ID,
+      receipt_version: 8,
+      invite_generation: 1,
+      normalized_email: EMAIL,
+      provisioning_state: "dispatching",
+      pre_confirmation_sent_at: preConfirmationSentAt,
+      provider_dispatch_allowed: true,
+      replayed: false,
+    },
+    error: null,
+  });
+  const validStore = createStudentPortalInviteStore(
+    fakeClient([response(PRE_CONFIRMATION_SENT_AT)]).client,
+  );
+  const malformedStore = createStudentPortalInviteStore(
+    fakeClient([response("not-a-timestamp")]).client,
+  );
+  const input = {
+    kind: "initial",
+    receiptId: RECEIPT_ID,
+    attemptId: ATTEMPT_ID,
+    expectedReceiptVersion: "7",
+    expectedInviteGeneration: "0",
+  };
+
+  assert.deepEqual(await validStore.claimInitial(input), {
+    status: "claimed",
+    claim: {
+      receiptId: RECEIPT_ID,
+      attemptId: ATTEMPT_ID,
+      receiptVersion: "8",
+      inviteGeneration: "1",
+      normalizedEmail: EMAIL,
+      authUserId: null,
+      preAttemptConfirmationSentAt: PRE_CONFIRMATION_SENT_AT,
+    },
+  });
+  assert.deepEqual(await malformedStore.claimInitial(input), {
+    status: "unavailable",
+  });
 });
 
 test("reissue claim rejects the receipt issuance timestamp as an attempt baseline", async () => {

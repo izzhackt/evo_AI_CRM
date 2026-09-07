@@ -20977,3 +20977,23 @@ The rebased test manifest preserves E2's Student Portal source test and adds
 the E3 suite once. Acceptance for this correction is the focused E3 Node suite,
 the route-role contract test, scoped lint and diff validation. It authorizes no
 managed Supabase, provider, SMTP, VPS, DNS, production or release mutation.
+
+## 2026-09-07 - Preserve the initial Auth issuance baseline
+
+Block-ID: `EVO-V3-E3-INITIAL-ISSUANCE-BASELINE-CORRECTION-2026-09-07`
+
+Change type: exact-head review correction. Affected plan section: Stage E3
+trusted invite coordinator only.
+
+Migration 126 returns nullable `pre_confirmation_sent_at` for both initial and
+reissue claims. An initial claim can have a non-null value when an unconfirmed
+Auth identity already exists for the reserved email. E3 must preserve that
+attempt-level baseline and accept provider success only when the exact Auth
+readback has a later `confirmation_sent_at`. An unchanged or older timestamp is
+recorded as `provider_issuance_unobserved`; it is never accepted and never
+blindly retried. Initial claims without a pre-existing Auth user retain a null
+baseline. Reissue claims continue to require a non-null baseline.
+
+Focused store and coordinator tests cover null, valid existing-user, malformed,
+unchanged and advanced initial baselines. This correction changes no migration,
+provider invocation policy, managed service or production state.

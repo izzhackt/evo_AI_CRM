@@ -20952,3 +20952,28 @@ E1/E2 integration gates and are not replayed during this initial preparation.
 
 Reviewer notes: pending independent launch-control review on the final rebased
 E3 head after E1/E2 merge and exact m126 binding.
+
+## 2026-09-07 - Bind E3 to the merged E1 and E2 contracts
+
+Block-ID: `EVO-V3-E3-MERGED-AUTHORITY-BINDING-2026-09-07`
+
+Change type: post-rebase interface correction. Affected plan section: Stage E3
+trusted invite coordinator and Admin provisioning UI only. Exact integration
+base: `83d5a2ed9f1ca8ea5fb1b985db1d9386bfa28fac`.
+
+The reissue claim decoder consumes migration 126's exact attempt-level
+`pre_confirmation_sent_at` field. It does not substitute the receipt-level
+`invite_issued_at`, because that timestamp cannot prove the Auth provider state
+observed immediately before this exact reissue attempt. The value remains a
+server-only comparison baseline and is never exposed as invite evidence.
+
+The Admin provisioning UI now reads its narrow active-Curator options through
+the E3-owned `student-portal-curator-options` server module. It no longer
+imports the superseded catch-all case-assignment module that Stage F-A will
+delete. The decoder rejects invalid, cross-organization and wrong-role rows,
+and the repository rejects non-Admin authority before database access.
+
+The rebased test manifest preserves E2's Student Portal source test and adds
+the E3 suite once. Acceptance for this correction is the focused E3 Node suite,
+the route-role contract test, scoped lint and diff validation. It authorizes no
+managed Supabase, provider, SMTP, VPS, DNS, production or release mutation.

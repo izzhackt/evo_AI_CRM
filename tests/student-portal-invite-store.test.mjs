@@ -8,7 +8,7 @@ const ATTEMPT_ID = "20000000-0000-4000-8000-000000000002";
 const REISSUE_ID = "30000000-0000-4000-8000-000000000003";
 const AUTH_USER_ID = "40000000-0000-4000-8000-000000000004";
 const EMAIL = "student@example.com";
-const ISSUED_AT = "2026-09-07T10:00:00.000Z";
+const PRE_CONFIRMATION_SENT_AT = "2026-09-07T10:00:00.000Z";
 
 function fakeClient(responses) {
   const calls = [];
@@ -53,7 +53,7 @@ test("store binds initial and reissue claims to exact m126 arguments", async () 
         invite_generation: 2,
         normalized_email: EMAIL,
         auth_user_id: AUTH_USER_ID,
-        invite_issued_at: ISSUED_AT,
+        pre_confirmation_sent_at: PRE_CONFIRMATION_SENT_AT,
         provisioning_state: "authority_activated",
         invite_delivery_status: "reissue_dispatching",
         provider_dispatch_allowed: true,
@@ -103,7 +103,7 @@ test("store binds initial and reissue claims to exact m126 arguments", async () 
         inviteGeneration: "2",
         normalizedEmail: EMAIL,
         authUserId: AUTH_USER_ID,
-        preAttemptConfirmationSentAt: ISSUED_AT,
+        preAttemptConfirmationSentAt: PRE_CONFIRMATION_SENT_AT,
       },
     },
   );
@@ -129,6 +129,38 @@ test("store binds initial and reissue claims to exact m126 arguments", async () 
       },
     ],
   ]);
+});
+
+test("reissue claim rejects the receipt issuance timestamp as an attempt baseline", async () => {
+  const fake = fakeClient([{
+    data: {
+      receipt_id: RECEIPT_ID,
+      attempt_id: ATTEMPT_ID,
+      receipt_version: 12,
+      invite_generation: 2,
+      normalized_email: EMAIL,
+      auth_user_id: AUTH_USER_ID,
+      invite_issued_at: PRE_CONFIRMATION_SENT_AT,
+      provisioning_state: "authority_activated",
+      invite_delivery_status: "reissue_dispatching",
+      provider_dispatch_allowed: true,
+      replayed: false,
+    },
+    error: null,
+  }]);
+  const store = createStudentPortalInviteStore(fake.client);
+
+  assert.deepEqual(
+    await store.claimReissue({
+      kind: "reissue",
+      receiptId: RECEIPT_ID,
+      reissueRequestId: REISSUE_ID,
+      attemptId: ATTEMPT_ID,
+      expectedReceiptVersion: "11",
+      expectedInviteGeneration: "1",
+    }),
+    { status: "unavailable" },
+  );
 });
 
 test("claim replay and database conflicts never become a dispatch claim", async () => {

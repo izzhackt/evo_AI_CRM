@@ -273,8 +273,8 @@ function decodeClaim(
       preAttemptConfirmationSentAt: null,
     };
   } else {
-    const issuedAt = timestamp(data.invite_issued_at);
-    if (!isUuid(data.auth_user_id) || issuedAt === null) {
+    const preConfirmationSentAt = timestamp(data.pre_confirmation_sent_at);
+    if (!isUuid(data.auth_user_id) || preConfirmationSentAt === null) {
       return { status: "unavailable" };
     }
     claim = {
@@ -284,7 +284,7 @@ function decodeClaim(
       inviteGeneration,
       normalizedEmail: email,
       authUserId: data.auth_user_id,
-      preAttemptConfirmationSentAt: issuedAt,
+      preAttemptConfirmationSentAt: preConfirmationSentAt,
     };
   }
   return { status: "claimed", claim };

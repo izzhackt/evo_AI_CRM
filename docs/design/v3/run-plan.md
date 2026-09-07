@@ -501,6 +501,13 @@ trusted-server coordinator. Финальная DB-транзакция комп�
    `auth_user_id`/Student membership и только пока `portal_activated_at IS
    NULL`; любая иная привязка — конфликт. Успешный replay не создаёт новые
    membership/scope/audit rows и не повышает `access_version` повторно.
+   `normalized_email` определяется один раз как `lower(btrim(email))` и до
+   provider call резервируется private unique constraint **глобально**, а не
+   внутри organization/case. Резервация сохраняется и после terminal state:
+   другой request, case или organization с тем же normalized email получает
+   deterministic `portal_email_already_reserved` до dispatch. Это отражает
+   глобальную identity-модель `auth.users`/`provision_member` и исключает
+   cross-org гонку двух приглашений одному email.
 4. Каждый вложенный auditable primitive получает deterministic child request
    ID от корневого receipt request (отдельные стабильные suffix для membership,
    organization scope, legacy curator и final audit); один UUID нельзя
@@ -518,31 +525,54 @@ trusted-server coordinator. Финальная DB-транзакция комп�
    Ноль затронутых строк — rollback, не partial success.
 
 Supabase Auth нельзя включить в PostgreSQL-транзакцию. Поэтому coordinator
-выполняет строго `prepare receipt -> inviteUserByEmail -> record Auth result ->
-finalize authority` и сохраняет состояния `prepared`, `invite_succeeded`,
-`authority_activated`, `invite_failed`, `invite_outcome_unknown`. Legacy
+выполняет строго `prepare receipt -> claim dispatch -> inviteUserByEmail ->
+record Auth result -> finalize authority` и сохраняет состояния `prepared`,
+`dispatching`, `invite_succeeded`, `authority_activated`, `invite_failed`,
+`invite_outcome_unknown`. Legacy
 pending не может завершиться состоянием success, пока тот же finalizer не
 завершил Curator assignment и Portal activation:
 
 - secret/service key существует только в trusted server client с отключённым
   browser session persistence; email и provider payload не логируются и не
   попадают в public tables/JSON;
+- `prepared` означает, что provider dispatch точно ещё не мог начаться. Перед
+  каждым network call worker атомарным compare-and-set claim переводит receipt
+  в `dispatching`, фиксирует attempt/claimed-at и commit-ит этот state; только
+  владелец успешного claim может вызвать `inviteUserByEmail`. Crash до claim
+  оставляет definitely-never-dispatched `prepared`, который можно безопасно
+  claim-ить. Crash/timeout после committed `dispatching` — даже если процесс
+  мог упасть за мгновение до фактического HTTP call — является неоднозначным:
+  stale `dispatching` переводится в `invite_outcome_unknown`, требует exact-email
+  reconciliation и никогда автоматически не resend-ит invite;
 - definite invite failure оставляет case без membership/activation; тот же
-  request можно повторить только из `invite_failed` после operator-visible
-  причины без provider body;
+  request можно снова claim-ить только из `invite_failed`, только когда
+  provider evidence однозначно доказывает отсутствие side effect, и после
+  operator-visible причины без provider body;
 - invite success + finalize failure оставляет приглашённого Auth user без
   Portal authority; retry того же request использует сохранённый exact
-  `auth_user_id` и **не** отправляет письмо повторно;
+  `auth_user_id` и **не** отправляет письмо повторно. Уже verified invite
+  session при этом может установить пароль независимо от Portal activation,
+  после чего остаётся на bounded auth-only «аккаунт подготавливается» surface
+  до успешного finalize; session не уничтожается только из-за отсутствующей
+  Student authority, но все `/portal*` routes продолжают fail closed;
 - timeout/lost response — `invite_outcome_unknown`: никакого blind retry,
   удаления Auth user или создания второго identity. Оператор сначала
   сверяет managed Auth по exact normalized email, затем либо записывает
-  найденный `auth_user_id` и продолжает тот же receipt, либо явно переводит
-  его в retryable `invite_failed` с audit reason;
+  найденный exact identity и продолжает тот же receipt, либо сохраняет
+  blocked unknown. Отсутствие найденной строки само по себе не доказывает, что
+  dispatch не произошёл, и не разрешает resend;
 - если `record Auth result` недоступен после реального provider success,
   результат честно остаётся unknown и требует той же reconciliation. Ни один
   ответ coordinator не называет invite успешным, пока durable receipt не
   содержит `auth_user_id`; ни один не называет портал активным до успешного
-  finalize.
+  finalize;
+- `record Auth result`, reconciliation и finalizer не доверяют только provider
+  payload: под service-role транзакцией они проверяют, что exact
+  `auth.users.id = receipt.auth_user_id` существует и его
+  `lower(btrim(auth.users.email)) = receipt.normalized_email`. Wrong user ID,
+  null/другой email или identity, уже принадлежащая другой organization/case,
+  дают hard conflict без membership/scope/bind. Finalizer повторяет эту
+  проверку под canonical locks непосредственно перед `provision_member`.
 
 Admin invite использует
 [trusted-server `inviteUserByEmail`](https://supabase.com/docs/guides/auth/users)
@@ -587,28 +617,50 @@ Staff и Student — две непересекающиеся authorization ве�
   не вызывают staff resolver/AppShell/preview, staff routes — student resolver;
 - shared login может аутентифицировать email/password, но root dispatcher
   маршрутизирует результат отдельных resolvers: staff в свой `/v3/*` home,
-  Student в `/portal`; no-membership/invalid/mixed authority очищает session и
-  возвращает `/login?error=account-not-ready`, не staff pending UI;
-- единственный invite callback — `GET /auth/callback`. Invite email template
+  Student в `/portal`; invalid/mixed identity очищает session и возвращает
+  bounded login error. Verified invite identity с durable matching receipt, но
+  ещё без активной Student authority, сохраняет session и видит только
+  auth-only `/auth/account-pending`, не staff pending UI и не `/portal*`;
+- единственный invite callback path — `/auth/callback`. Invite email template
   строит ссылку только как `{{ .RedirectTo }}?token_hash={{ .TokenHash
-  }}&type=invite`; route принимает ровно один `token_hash` и точное
-  `type=invite`, выполняет server-side `verifyOtp`, удаляет token из следующего
-  URL, затем вызывает только Student resolver. Нет `code`, `next`, arbitrary
-  redirect, wildcard или client-side token handling. Ошибка/неполная authority
-  очищает session и возвращает bounded login error; успешная invite-сессия
-  переходит на auth-only `/auth/set-password`. Эта route не является экраном
-  портала: её session-bound Server Action вызывает `auth.updateUser`, а после
-  подтверждённого password update повторно проверяет Student resolver и
-  redirect-ит на `/portal`. Callback/set-password имеют `Cache-Control:
-  no-store`; пароль, token hash и Auth response никогда не логируются.
+  }}&type=invite`. `GET /auth/callback` **никогда** не вызывает `verifyOtp` и не
+  меняет Auth/DB state: он только валидирует форму query, возвращает no-store
+  same-origin interstitial с явной кнопкой «Продолжить» и bounded form POST.
+  Только human-triggered `POST /auth/callback`, защищённый same-origin/CSRF
+  проверкой, принимает ровно один `token_hash` и точное `type=invite` и вызывает
+  server-side `verifyOtp`. После успеха POST отвечает 303 на auth-only
+  `/auth/set-password`, так что token отсутствует в следующем URL. Нет `code`,
+  `next`, arbitrary redirect, wildcard, automatic GET verification или
+  client-side Auth API. Prefetch/scanner GET поэтому не расходует одноразовый
+  token. Повторный POST consumed token не создаёт identity и не разрушает уже
+  существующую matching verified session: она может продолжить set-password;
+  без такой session показывается bounded expired/used error без resend;
+- `/auth/set-password` — не экран портала. Его session-bound Server Action
+  проверяет verified session и совпадение exact auth user/email с durable
+  receipt, затем вызывает `auth.updateUser` **до** требования активной Portal
+  authority. После подтверждённого password update отдельный Student resolver
+  отправляет активированного Student на `/portal`, а matching invite identity
+  без завершённого finalize — на no-store auth-only `/auth/account-pending`.
+  Pending surface даёт только bounded status refresh/sign-out; он не читает
+  student data и не даёт Portal authority. Callback/set-password/pending имеют
+  `Cache-Control: no-store`; пароль, token hash и Auth response не логируются.
 
-**Target E3 Auth configuration (ещё не current proof):** managed Site URL
-должен стать ровно `https://evo-crm.72.62.119.112.sslip.io`, а production
-redirect allowlist — ровно
-`https://evo-crm.72.62.119.112.sslip.io/auth/callback`. Сейчас managed settings
-не проверены, а exact-main `supabase/config.toml` всё ещё содержит старый
-`additional_redirect_urls = ["https://127.0.0.1:3000"]`; E3 обязан заменить
-его, а не описать как уже готовый. Local target: Site URL
+**Target E3 Auth configuration (ещё не current proof):** canonical managed Site
+URL должен стать ровно `https://crm.evoadmissions.com`, а primary production
+redirect allowlist должен содержать exact
+`https://crm.evoadmissions.com/auth/callback`. sslip callback
+`https://evo-crm.72.62.119.112.sslip.io/auth/callback` допускается как
+дополнительный exact fallback только если он явно сохранён финальным release
+contract; wildcard запрещён, Site URL остаётся canonical domain. Сейчас это
+не готовая конфигурация: managed settings не проверены,
+`supabase/config.toml` содержит старый
+`additional_redirect_urls = ["https://127.0.0.1:3000"]`, а существующие
+repository release/production instructions и workflow всё ещё называют или
+health-check-ят sslip как primary. Это authority/config conflict и жёсткий
+blocker до E3 apply/final freeze: после обязательного merge D2/current-main
+refresh governing plan, hostname/DNS/TLS и release workflow должны быть
+согласованы одним решением; E3 не угадывает и не меняет managed Auth до этого.
+Local target: Site URL
 `http://127.0.0.1:3000` и единственный callback
 `http://127.0.0.1:3000/auth/callback`. Preview wildcard и `localhost` alias не
 добавлять. `redirectTo` должен быть exact callback:
@@ -655,8 +707,10 @@ standard/resumable boundary:
    Тест обязан доказать, что Student без organization
    scope не проходит `current_actor_authority()`, а legacy pending остаётся
    portal-inactive до `assign_student_case_curator`. Обязательны concurrent
-   two-request tests и полный `scripts/test-postgres-authorization.sh` на
-   OrbStack.
+   two-request tests, global same-email cross-org race, crash before claim,
+   crash after durable dispatch marker, stale-dispatch reconciliation, wrong
+   `auth.users.id`/email record+finalize rejection и полный
+   `scripts/test-postgres-authorization.sh` на OrbStack.
 3. **E2 read models (127):** только additive projections выше, SQL
    column/grant/RLS/data-minimization tests и `src/lib/v3` Student adapters с
    strict decoders. Сначала E1 merge, затем refresh exact `main`; полный
@@ -665,9 +719,11 @@ standard/resumable boundary:
    callback/config allowlist, server-only Auth client, Admin invite action/UI и
    receipt reconciliation. Node tests обязаны доказать definite failure,
    success+finalize failure, lost response, same-request replay, changed-input
-   conflict, exact invite token-hash verification и auth-only password setup,
-   no arbitrary redirect/blind resend/secret-browser leakage и staff/Student
-   mutual rejection.
+   conflict, prefetch/scanner GET без `verifyOtp`, explicit POST verification,
+   consumed-token POST replay, auth-only password setup до authority activation,
+   pending-authority recovery, wrong Auth identity rejection, no arbitrary
+   redirect/blind resend/secret-browser leakage и staff/Student mutual
+   rejection.
 5. **E4 portal surface:** отдельный Student layout и ровно пять routes на E2
    adapters; Russian wording, empty/error/loading states, no fabricated facts,
    desktop/393px/forced-dark/a11y tests. Staff/Admin preview не открывает portal,
@@ -702,6 +758,10 @@ Supabase SMTP не является production proof и ограничивает
 [Custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp). Сам E0 и пакеты
 E1–E5 не разрешают managed apply, SMTP/DNS mutation, live invite/provider call,
 production deployment, amoCRM/WhatsApp write или release arming.
+Отдельный blocker до E3/final freeze — привести governing hostname authority,
+DNS/TLS, Supabase Site URL/allowlist и hardcoded release health URL к одному
+primary `https://crm.evoadmissions.com`; sslip можно оставить только явно
+утверждённым exact fallback. Текущий конфликт нельзя скрыть успешным local test.
 
 ### F · Чистка кода репозитория — НЕ НАЧАТА (после D и E)
 

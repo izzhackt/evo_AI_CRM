@@ -20145,3 +20145,65 @@ Official contract basis:
 [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security),
 [standard uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads)
 and [resumable uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads).
+
+## 2026-09-07 - Correct the Stage E0 invite safety and recovery contract
+
+Block-ID: `EVO-V3-E0-STUDENT-PORTAL-INVITE-SAFETY-CORRECTION-2026-09-07`
+
+Change type: security, recoverability, identity integrity and release-blocker
+correction. Affected plan section: Stage E1 provisioning receipt and Stage E3
+Auth/callback coordinator acceptance.
+
+Exact-head review of the initial E0 contract requested changes before any
+Stage E implementation. This entry is additive and supersedes only conflicting
+invite/callback/hostname wording in the immediately preceding E0 entry; its
+dual organization + exact student-case scopes, migration 117 lock order,
+normal-U6 versus legacy-pending paths, migrations 126/127, five Portal routes
+and E0-E5 delivery order remain unchanged.
+
+Decision:
+
+1. A mail scanner or browser prefetch must not consume an invite. `GET
+   /auth/callback` is a no-store, non-mutating interstitial and never calls
+   `verifyOtp`; only an explicit same-origin/CSRF-protected human POST may call
+   it. Success strips the credential through a 303 redirect. Consumed-token
+   POST replay neither creates another identity nor destroys an already valid
+   matching verified session.
+2. Password setup depends on a verified matching invite session/receipt, not on
+   completed Portal activation. If durable invite success is followed by DB
+   finalize failure, the user may set a password and remains signed in on a
+   bounded auth-only account-provisioning-pending surface. Every `/portal*`
+   route still fails closed until Student authority and both scopes exist.
+3. The receipt state machine is `prepared -> dispatching -> invite_succeeded ->
+   authority_activated`, with explicit `invite_failed` and
+   `invite_outcome_unknown` branches. The worker must commit an atomic
+   `dispatching` claim before `inviteUserByEmail`. Only a crash before claim is
+   definitely never dispatched and automatically retryable. Any stale or
+   interrupted committed dispatch claim is ambiguous, even if the network call
+   may not have started; it requires exact-email reconciliation and never
+   automatic resend. `invite_failed` is retryable only with provider evidence
+   that no side effect occurred.
+4. Prepare stores `lower(btrim(email))` and reserves it globally across all
+   organizations/cases before provider dispatch. Cross-org concurrent claims
+   for the same normalized email fail before the network call. Record,
+   reconciliation and finalize verify both exact `auth.users.id` and normalized
+   Auth email against the receipt under canonical locks; wrong/missing identity
+   is a hard conflict with no membership, scope or bind.
+5. The current owner/review target freezes canonical Site URL
+   `https://crm.evoadmissions.com` and primary callback
+   `https://crm.evoadmissions.com/auth/callback`. An exact sslip callback may
+   remain only if the final release contract explicitly retains it as fallback.
+   Current repository production instructions/workflow still naming sslip as
+   primary are recorded as an unresolved hostname authority/config blocker:
+   after D2 moves first and E refreshes current `main`, governing docs,
+   DNS/TLS, release health checks and Supabase Auth settings must be reconciled
+   before E3 apply or final freeze. E0 does not claim that external work done.
+6. E1/E3 negative acceptance now explicitly covers prefetch GET, POST replay,
+   password setup with pending authority, crash before claim, crash after the
+   durable dispatch marker, stale/unknown reconciliation, wrong Auth user/email
+   and the cross-org same-email race. Local proof remains non-production proof;
+   this correction authorizes no provider call, managed mutation or release.
+
+Official behavior basis remains the Supabase Auth Users, `inviteUserByEmail`,
+Redirect URLs, Email Templates and Custom SMTP documentation linked in the
+preceding E0 entry.

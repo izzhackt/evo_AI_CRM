@@ -6,26 +6,47 @@ import {
   type KnowledgeFile,
   type KnowledgeFolder,
 } from "@/components/v3/FileManager";
-import { fixedRoleCan } from "@/lib/fixed-role-policy";
+import { KnowledgeReplySnippetSection } from "@/components/v3/reply-snippets/KnowledgeReplySnippetSection";
+import { KnowledgeWorkspaceTabs } from "@/components/v3/reply-snippets/KnowledgeWorkspaceTabs";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { loadV3KnowledgeSurface } from "@/lib/v3/knowledge-surface";
 import {
   readCompanyKnowledge,
   readKnowledgeDocuments,
   readKnowledgeStudents,
 } from "@/lib/v3/knowledge-source";
+import {
+  readV3ReplySnippets,
+  v3CanMutateReplySnippet,
+  v3ReplySnippetAudiencesForRole,
+} from "@/lib/v3/reply-snippets-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · База знаний" };
 
 const STUDENTS_ROOT = "students";
 
-export default async function KnowledgePart() {
+export default async function KnowledgePart({
+  searchParams,
+}: Readonly<{
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}>) {
+  const query = await searchParams;
+  const requestedTab = typeof query.tab === "string" ? query.tab : null;
   const actor = await requireV3PageActor("/v3/knowledge");
-  const [company, students, studentDocuments] = await Promise.all([
-    readCompanyKnowledge(actor),
-    readKnowledgeStudents(actor),
-    readKnowledgeDocuments(actor),
-  ]);
+  const surface = await loadV3KnowledgeSurface(actor, {
+    readCompany: readCompanyKnowledge,
+    readStudents: readKnowledgeStudents,
+    readDocuments: readKnowledgeDocuments,
+    readSnippets: readV3ReplySnippets,
+  });
+  const documentSurface = surface.documents;
+  const company = documentSurface?.company ?? { folders: [], files: [] };
+  const students = documentSurface?.students ?? [];
+  const studentDocuments = documentSurface?.studentDocuments ?? {
+    documents: [],
+    complete: true,
+  };
 
   const folders: KnowledgeFolder[] = [
     {
@@ -111,25 +132,44 @@ export default async function KnowledgePart() {
         База знаний
       </h1>
 
-      {!studentDocuments.complete ? (
-        <p
-          role="alert"
-          data-testid="v3-knowledge-student-documents-limited"
-          className="mt-4 rounded-card border border-warn/30 bg-warn-weak px-4 py-3 text-sm text-warn"
-        >
-          Документов студентов больше безопасного окна этого экрана. Здесь они
-          не показаны частично: откройте документы нужного студента в разделе «Студенты».
-          Раздел «Компания» продолжает работать полностью.
-        </p>
-      ) : null}
-
       <div className="mt-6">
-        <FileManager
-          folders={folders}
-          files={files}
-          canManage={fixedRoleCan(actor.presentationRole, "documents.write")}
-          createFolderRequestId={randomUUID()}
-          createFileRequestId={randomUUID()}
+        <KnowledgeWorkspaceTabs
+          requestedTab={requestedTab}
+          documents={documentSurface === null ? null : (
+            <>
+              {!studentDocuments.complete ? (
+                <p
+                  role="alert"
+                  data-testid="v3-knowledge-student-documents-limited"
+                  className="v3-edge-warn mb-4 rounded-card border border-border border-s-2 bg-surface px-4 py-3 text-sm text-fg-2"
+                >
+                  Документов студентов больше безопасного окна этого экрана. Здесь они
+                  не показаны частично: откройте документы нужного студента в разделе «Студенты».
+                  Раздел «Компания» продолжает работать полностью.
+                </p>
+              ) : null}
+              <FileManager
+                folders={folders}
+                files={files}
+                canManage={surface.canManageDocuments}
+                createFolderRequestId={randomUUID()}
+                createFileRequestId={randomUUID()}
+              />
+            </>
+          )}
+          snippets={surface.canReadSnippets ? (
+            <KnowledgeReplySnippetSection
+              items={surface.snippets.map((snippet) => ({
+                snippet,
+                canMutate: v3CanMutateReplySnippet(actor, snippet),
+                updateRequestId: randomUUID(),
+                archiveRequestId: randomUUID(),
+              }))}
+              canManage={surface.canManageSnippets}
+              availableAudiences={v3ReplySnippetAudiencesForRole(actor.presentationRole)}
+              createRequestId={randomUUID()}
+            />
+          ) : null}
         />
       </div>
     </main>

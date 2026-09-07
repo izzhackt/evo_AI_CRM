@@ -133,6 +133,26 @@ EXCEPTION WHEN SQLSTATE '40001' THEN
 END
 $$;
 
+CREATE OR REPLACE FUNCTION pg_temp.p126_expect_finalizer_case_bound_conflict(
+  p_receipt_id UUID,
+  p_expected_receipt_version BIGINT,
+  p_expected_invite_generation BIGINT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  PERFORM platform.finalize_student_portal_authority(
+    p_receipt_id, p_expected_receipt_version, p_expected_invite_generation
+  );
+  RAISE EXCEPTION 'foreign case binding was accepted as continuation';
+EXCEPTION WHEN SQLSTATE '40001' THEN
+  IF SQLERRM <> 'portal_case_already_bound' THEN RAISE; END IF;
+END
+$$;
+
 CREATE OR REPLACE FUNCTION pg_temp.p126_expect_staff_profile_conflict(
   p_organization_id UUID,
   p_member_auth_user_id UUID
@@ -293,32 +313,265 @@ EXCEPTION WHEN SQLSTATE '40001' THEN
 END
 $$;
 
+CREATE OR REPLACE FUNCTION pg_temp.p126_expect_terminal_null_cas_denied(
+  p_receipt_id UUID,
+  p_attempt_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  receipt_before JSONB;
+  attempt_before JSONB;
+  receipt_after JSONB;
+  attempt_after JSONB;
+BEGIN
+  SELECT to_jsonb(candidate) INTO receipt_before
+  FROM platform_private.student_portal_provisioning_receipts AS candidate
+  WHERE candidate.id = p_receipt_id;
+  SELECT to_jsonb(candidate) INTO attempt_before
+  FROM platform_private.student_portal_invite_attempts AS candidate
+  WHERE candidate.id = p_attempt_id;
+
+  BEGIN
+    PERFORM platform.record_student_portal_invite_failure(
+      NULL, p_attempt_id, 2, 1, 'provider_rejected'
+    );
+    RAISE EXCEPTION 'null receipt id bypassed terminal CAS';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  BEGIN
+    PERFORM platform.record_student_portal_invite_unknown(
+      p_receipt_id, NULL, 2, 1, 'provider_outcome_unknown'
+    );
+    RAISE EXCEPTION 'null attempt id bypassed terminal CAS';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  BEGIN
+    PERFORM platform.record_student_portal_invite_failure(
+      p_receipt_id, p_attempt_id, NULL, 1, 'provider_rejected'
+    );
+    RAISE EXCEPTION 'null receipt version bypassed terminal CAS';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  BEGIN
+    PERFORM platform.record_student_portal_invite_unknown(
+      p_receipt_id, p_attempt_id, 2, NULL, 'provider_outcome_unknown'
+    );
+    RAISE EXCEPTION 'null invite generation bypassed terminal CAS';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+
+  SELECT to_jsonb(candidate) INTO receipt_after
+  FROM platform_private.student_portal_provisioning_receipts AS candidate
+  WHERE candidate.id = p_receipt_id;
+  SELECT to_jsonb(candidate) INTO attempt_after
+  FROM platform_private.student_portal_invite_attempts AS candidate
+  WHERE candidate.id = p_attempt_id;
+  IF receipt_after IS DISTINCT FROM receipt_before
+    OR attempt_after IS DISTINCT FROM attempt_before
+  THEN
+    RAISE EXCEPTION 'null terminal CAS changed durable state';
+  END IF;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.p126_expect_acceptance_null_cas_denied(
+  p_receipt_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  receipt_before JSONB;
+  receipt_after JSONB;
+BEGIN
+  SELECT to_jsonb(candidate) INTO receipt_before
+  FROM platform_private.student_portal_provisioning_receipts AS candidate
+  WHERE candidate.id = p_receipt_id;
+  BEGIN
+    PERFORM platform.record_student_portal_invite_accepted(NULL, 3, 1);
+    RAISE EXCEPTION 'null receipt id bypassed acceptance CAS';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  BEGIN
+    PERFORM platform.record_student_portal_invite_accepted(
+      p_receipt_id, NULL, 1
+    );
+    RAISE EXCEPTION 'null receipt version bypassed acceptance CAS';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  BEGIN
+    PERFORM platform.record_student_portal_invite_accepted(
+      p_receipt_id, 3, NULL
+    );
+    RAISE EXCEPTION 'null invite generation bypassed acceptance CAS';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  SELECT to_jsonb(candidate) INTO receipt_after
+  FROM platform_private.student_portal_provisioning_receipts AS candidate
+  WHERE candidate.id = p_receipt_id;
+  IF receipt_after IS DISTINCT FROM receipt_before THEN
+    RAISE EXCEPTION 'null acceptance CAS changed durable state';
+  END IF;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.p126_expect_null_case_shape_denied(
+  p_organization_id UUID,
+  p_case_id UUID,
+  p_request_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  receipt_count BIGINT;
+BEGIN
+  SELECT pg_catalog.count(*) INTO receipt_count
+  FROM platform_private.student_portal_provisioning_receipts;
+  BEGIN
+    PERFORM platform.prepare_student_portal_provisioning(
+      p_organization_id, p_case_id, 'p126-null-shape@example.invalid',
+      'P126 Null Shape', NULL, NULL,
+      'Migration 126 null shape', p_request_id
+    );
+    RAISE EXCEPTION 'null case shape bypassed validation';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  IF (SELECT pg_catalog.count(*) FROM platform_private.student_portal_provisioning_receipts)
+    <> receipt_count
+  THEN
+    RAISE EXCEPTION 'null case shape changed durable state';
+  END IF;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.p126_expect_success_null_ttl_denied(
+  p_receipt_id UUID,
+  p_attempt_id UUID,
+  p_expected_receipt_version BIGINT,
+  p_expected_invite_generation BIGINT,
+  p_auth_user_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  receipt_before JSONB;
+  attempt_before JSONB;
+BEGIN
+  SELECT to_jsonb(candidate) INTO receipt_before
+  FROM platform_private.student_portal_provisioning_receipts AS candidate
+  WHERE candidate.id = p_receipt_id;
+  SELECT to_jsonb(candidate) INTO attempt_before
+  FROM platform_private.student_portal_invite_attempts AS candidate
+  WHERE candidate.id = p_attempt_id;
+  BEGIN
+    PERFORM platform.record_student_portal_invite_success(
+      p_receipt_id, p_attempt_id, p_expected_receipt_version,
+      p_expected_invite_generation, p_auth_user_id, NULL
+    );
+    RAISE EXCEPTION 'null success TTL bypassed validation';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  IF (SELECT to_jsonb(candidate) FROM platform_private.student_portal_provisioning_receipts AS candidate WHERE candidate.id = p_receipt_id)
+      IS DISTINCT FROM receipt_before
+    OR (SELECT to_jsonb(candidate) FROM platform_private.student_portal_invite_attempts AS candidate WHERE candidate.id = p_attempt_id)
+      IS DISTINCT FROM attempt_before
+  THEN
+    RAISE EXCEPTION 'null success TTL changed durable state';
+  END IF;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.p126_expect_reconcile_null_ttl_denied(
+  p_receipt_id UUID,
+  p_attempt_id UUID,
+  p_expected_receipt_version BIGINT,
+  p_expected_invite_generation BIGINT,
+  p_auth_user_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  receipt_before JSONB;
+  attempt_before JSONB;
+BEGIN
+  SELECT to_jsonb(candidate) INTO receipt_before
+  FROM platform_private.student_portal_provisioning_receipts AS candidate
+  WHERE candidate.id = p_receipt_id;
+  SELECT to_jsonb(candidate) INTO attempt_before
+  FROM platform_private.student_portal_invite_attempts AS candidate
+  WHERE candidate.id = p_attempt_id;
+  BEGIN
+    PERFORM platform.reconcile_student_portal_invite(
+      p_receipt_id, p_attempt_id, p_expected_receipt_version,
+      p_expected_invite_generation, p_auth_user_id, NULL,
+      FALSE, NULL, NULL
+    );
+    RAISE EXCEPTION 'null reconciliation TTL bypassed validation';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  IF (SELECT to_jsonb(candidate) FROM platform_private.student_portal_provisioning_receipts AS candidate WHERE candidate.id = p_receipt_id)
+      IS DISTINCT FROM receipt_before
+    OR (SELECT to_jsonb(candidate) FROM platform_private.student_portal_invite_attempts AS candidate WHERE candidate.id = p_attempt_id)
+      IS DISTINCT FROM attempt_before
+  THEN
+    RAISE EXCEPTION 'null reconciliation TTL changed durable state';
+  END IF;
+END
+$$;
+
 REVOKE ALL ON FUNCTION
   pg_temp.p126_expect_claim_fence(UUID, UUID),
   pg_temp.p126_expect_stale_claim_replay(UUID, UUID),
   pg_temp.p126_expect_stale_generation(UUID, UUID),
   pg_temp.p126_expect_finalizer_identity_conflict(UUID, BIGINT, BIGINT),
+  pg_temp.p126_expect_finalizer_case_bound_conflict(UUID, BIGINT, BIGINT),
   pg_temp.p126_expect_staff_profile_conflict(UUID, UUID),
   pg_temp.p126_expect_staff_membership_conflict(UUID, UUID),
   pg_temp.p126_expect_uncovered_no_issuance(UUID, UUID, BIGINT, BIGINT, UUID),
   pg_temp.p126_expect_late_invite_failure(UUID, UUID, BIGINT, BIGINT),
   pg_temp.p126_expect_changed_readback_no_issuance(UUID, UUID, BIGINT, BIGINT, UUID),
   pg_temp.p126_expect_cross_receipt_reissue_conflict(UUID, UUID),
-  pg_temp.p126_expect_receipt_bound_bind_denied(UUID, UUID, UUID, TEXT)
+  pg_temp.p126_expect_receipt_bound_bind_denied(UUID, UUID, UUID, TEXT),
+  pg_temp.p126_expect_terminal_null_cas_denied(UUID, UUID),
+  pg_temp.p126_expect_acceptance_null_cas_denied(UUID),
+  pg_temp.p126_expect_null_case_shape_denied(UUID, UUID, UUID),
+  pg_temp.p126_expect_success_null_ttl_denied(UUID, UUID, BIGINT, BIGINT, UUID),
+  pg_temp.p126_expect_reconcile_null_ttl_denied(UUID, UUID, BIGINT, BIGINT, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION
   pg_temp.p126_expect_claim_fence(UUID, UUID),
   pg_temp.p126_expect_stale_claim_replay(UUID, UUID),
   pg_temp.p126_expect_stale_generation(UUID, UUID),
   pg_temp.p126_expect_finalizer_identity_conflict(UUID, BIGINT, BIGINT),
+  pg_temp.p126_expect_finalizer_case_bound_conflict(UUID, BIGINT, BIGINT),
   pg_temp.p126_expect_uncovered_no_issuance(UUID, UUID, BIGINT, BIGINT, UUID),
   pg_temp.p126_expect_late_invite_failure(UUID, UUID, BIGINT, BIGINT),
-  pg_temp.p126_expect_changed_readback_no_issuance(UUID, UUID, BIGINT, BIGINT, UUID)
+  pg_temp.p126_expect_changed_readback_no_issuance(UUID, UUID, BIGINT, BIGINT, UUID),
+  pg_temp.p126_expect_terminal_null_cas_denied(UUID, UUID),
+  pg_temp.p126_expect_acceptance_null_cas_denied(UUID),
+  pg_temp.p126_expect_success_null_ttl_denied(UUID, UUID, BIGINT, BIGINT, UUID),
+  pg_temp.p126_expect_reconcile_null_ttl_denied(UUID, UUID, BIGINT, BIGINT, UUID)
   TO service_role;
 GRANT EXECUTE ON FUNCTION
   pg_temp.p126_expect_staff_profile_conflict(UUID, UUID),
   pg_temp.p126_expect_staff_membership_conflict(UUID, UUID),
-  pg_temp.p126_expect_cross_receipt_reissue_conflict(UUID, UUID)
+  pg_temp.p126_expect_cross_receipt_reissue_conflict(UUID, UUID),
+  pg_temp.p126_expect_null_case_shape_denied(UUID, UUID, UUID)
   TO authenticated;
 
 -- The provider-facing durable state remains private even from authenticated
@@ -371,6 +624,44 @@ BEGIN
       )
   ) THEN
     RAISE EXCEPTION 'Migration 126 private table RLS or ACL drifted';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_policy AS policy
+    JOIN pg_catalog.pg_class AS class ON class.oid = policy.polrelid
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
+    WHERE namespace.nspname = 'platform_private'
+      AND class.relname IN (
+        'student_portal_provisioning_receipts',
+        'student_portal_invite_attempts'
+      )
+  ) THEN
+    RAISE EXCEPTION 'Migration 126 private tables unexpectedly have RLS policies';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+    ) AS acl
+    WHERE namespace.nspname = 'platform_private'
+      AND class.relname IN (
+        'student_portal_provisioning_receipts',
+        'student_portal_invite_attempts'
+      )
+      AND (
+        acl.grantee = 0
+        OR acl.grantee IN (
+          SELECT role.oid
+          FROM pg_catalog.pg_roles AS role
+          WHERE role.rolname IN (
+            'anon', 'authenticated', 'service_role', 'supabase_auth_admin'
+          )
+        )
+      )
+  ) THEN
+    RAISE EXCEPTION 'Migration 126 private table direct ACL drifted';
   END IF;
 
   FOREACH function_name IN ARRAY authenticated_functions LOOP
@@ -669,6 +960,11 @@ EXCEPTION WHEN SQLSTATE '40001' THEN
 END
 $prepare_conflict$;
 
+SELECT pg_temp.p126_expect_null_case_shape_denied(
+  :'p126_org', :'p126_case_two',
+  '61260000-0000-4000-8000-000000000057'
+);
+
 RESET ROLE;
 SET request.jwt.claims TO :'p126_sales_claims';
 SET ROLE authenticated;
@@ -697,6 +993,7 @@ SELECT pg_temp.p126_assert(
   :'p126_claimed'::JSONB ->> 'provisioning_state' = 'dispatching'
   AND :'p126_claimed'::JSONB ->> 'receipt_version' = '2'
   AND :'p126_claimed'::JSONB ->> 'invite_generation' = '1'
+  AND :'p126_claimed'::JSONB ? 'pre_confirmation_sent_at'
   AND :'p126_claimed'::JSONB ->> 'normalized_email'
     = 'p126-student@example.invalid',
   'service claim did not return its fenced dispatch envelope'
@@ -707,8 +1004,13 @@ SELECT platform.claim_student_portal_invite(
 )::TEXT AS p126_claim_replay
 \gset
 SELECT pg_temp.p126_assert(
-  :'p126_claim_replay'::JSONB ->> 'replayed' = 'true',
+  :'p126_claim_replay'::JSONB ->> 'replayed' = 'true'
+  AND :'p126_claim_replay'::JSONB -> 'pre_confirmation_sent_at'
+    = :'p126_claimed'::JSONB -> 'pre_confirmation_sent_at',
   'same-attempt claim did not replay'
+);
+SELECT pg_temp.p126_expect_terminal_null_cas_denied(
+  :'p126_receipt', :'p126_attempt'
 );
 SELECT pg_temp.p126_expect_claim_fence(
   :'p126_receipt', :'p126_attempt_two'
@@ -742,6 +1044,9 @@ VALUES (
 );
 
 SET ROLE service_role;
+SELECT pg_temp.p126_expect_success_null_ttl_denied(
+  :'p126_receipt', :'p126_attempt_two', 4, 2, :'p126_student_user'
+);
 SELECT platform.record_student_portal_invite_success(
   :'p126_receipt', :'p126_attempt_two', 4, 2, :'p126_student_user', 3600
 )::TEXT AS p126_succeeded
@@ -1016,6 +1321,11 @@ UPDATE platform_private.student_portal_provisioning_receipts
 SET invite_issued_at = statement_timestamp() - INTERVAL '2 hours',
     invite_expires_at = statement_timestamp() - INTERVAL '1 hour'
 WHERE id = :'p126_reissue_receipt';
+SELECT invite_issued_at::TEXT AS p126_reissue_original_issued_at,
+       invite_expires_at::TEXT AS p126_reissue_original_expires_at
+FROM platform_private.student_portal_provisioning_receipts
+WHERE id = :'p126_reissue_receipt'
+\gset
 
 SET request.jwt.claims TO :'p126_admin_claims';
 SET ROLE authenticated;
@@ -1047,6 +1357,26 @@ SELECT platform.claim_student_portal_invite_reissue(
   '61260000-0000-4000-8000-000000000084', 4, 1
 )::TEXT AS p126_reissue_claimed
 \gset
+SELECT platform.claim_student_portal_invite_reissue(
+  :'p126_reissue_receipt',
+  '61260000-0000-4000-8000-000000000083',
+  '61260000-0000-4000-8000-000000000084', 4, 1
+)::TEXT AS p126_reissue_claimed_replay
+\gset
+RESET ROLE;
+SELECT pg_temp.p126_assert(
+  :'p126_reissue_claimed'::JSONB -> 'pre_confirmation_sent_at'
+    = :'p126_reissue_claimed_replay'::JSONB -> 'pre_confirmation_sent_at'
+  AND (:'p126_reissue_claimed'::JSONB ->> 'pre_confirmation_sent_at')::TIMESTAMPTZ
+    IS NOT DISTINCT FROM (
+      SELECT pre_confirmation_sent_at
+      FROM platform_private.student_portal_invite_attempts
+      WHERE id = '61260000-0000-4000-8000-000000000084'
+    )
+  AND :'p126_reissue_claimed_replay'::JSONB ->> 'replayed' = 'true',
+  'reissue claim did not return the exact attempt baseline on replay'
+);
+SET ROLE service_role;
 SELECT platform.record_student_portal_invite_failure(
   :'p126_reissue_receipt',
   '61260000-0000-4000-8000-000000000084', 5, 2,
@@ -1085,13 +1415,29 @@ UPDATE auth.users
 SET confirmation_sent_at = confirmation_sent_at + INTERVAL '2 minutes'
 WHERE id = '61260000-0000-4000-8000-000000000082';
 SET ROLE service_role;
+SELECT pg_temp.p126_expect_reconcile_null_ttl_denied(
+  :'p126_reissue_receipt',
+  '61260000-0000-4000-8000-000000000085', 8, 3,
+  '61260000-0000-4000-8000-000000000082'
+);
+RESET ROLE;
+UPDATE auth.users
+SET confirmation_sent_at = confirmation_sent_at - INTERVAL '1 minute',
+    email_confirmed_at = statement_timestamp()
+WHERE id = '61260000-0000-4000-8000-000000000082';
+SET ROLE service_role;
 SELECT platform.reconcile_student_portal_invite(
   :'p126_reissue_receipt',
   '61260000-0000-4000-8000-000000000085', 8, 3,
-  '61260000-0000-4000-8000-000000000082', 3600,
+  '61260000-0000-4000-8000-000000000082', NULL,
   FALSE, NULL, NULL
 )::TEXT AS p126_reissue_reconciled
 \gset
+SELECT pg_temp.p126_expect_late_invite_failure(
+  :'p126_reissue_receipt',
+  '61260000-0000-4000-8000-000000000085', 9, 3
+);
+RESET ROLE;
 SELECT pg_temp.p126_assert(
   :'p126_reissue_claimed'::JSONB ->> 'invite_generation' = '2'
   AND :'p126_reissue_failed'::JSONB ->> 'invite_delivery_status'
@@ -1101,10 +1447,16 @@ SELECT pg_temp.p126_assert(
     = 'reissue_unknown'
   AND :'p126_reissue_reconciled'::JSONB ->> 'provisioning_state'
     = 'invite_succeeded'
-  AND :'p126_reissue_reconciled'::JSONB ->> 'receipt_version' = '9',
-  'unknown reissue outcome did not recover from newer Auth evidence'
+  AND :'p126_reissue_reconciled'::JSONB ->> 'invite_delivery_status' = 'accepted'
+  AND :'p126_reissue_reconciled'::JSONB ->> 'receipt_version' = '9'
+  AND (
+    SELECT invite_issued_at::TEXT = :'p126_reissue_original_issued_at'
+      AND invite_expires_at::TEXT = :'p126_reissue_original_expires_at'
+    FROM platform_private.student_portal_provisioning_receipts
+    WHERE id = :'p126_reissue_receipt'
+  ),
+  'confirmed exact identity did not settle unknown reissue without new issuance'
 );
-RESET ROLE;
 SELECT pg_temp.p126_assert(
   (
     SELECT pg_catalog.count(*) = 2
@@ -1148,6 +1500,9 @@ SELECT platform.record_student_portal_invite_success(
   :'p126_acceptance_receipt',
   '61260000-0000-4000-8000-000000000091', 2, 1,
   '61260000-0000-4000-8000-000000000092', 3600
+);
+SELECT pg_temp.p126_expect_acceptance_null_cas_denied(
+  :'p126_acceptance_receipt'
 );
 RESET ROLE;
 UPDATE platform_private.student_portal_provisioning_receipts
@@ -1257,6 +1612,18 @@ BEGIN;
 \set p126_bind_request 61260000-0000-4000-8000-000000000302
 \set p126_bind_attempt 61260000-0000-4000-8000-000000000303
 \set p126_bind_student 61260000-0000-4000-8000-000000000304
+\set p126_missing_profile 61260000-0000-4000-8000-000000000305
+\set p126_missing_membership 61260000-0000-4000-8000-000000000306
+\set p126_reissue_two_case 61260000-0000-4000-8000-000000000320
+\set p126_reissue_two_scope 61260000-0000-4000-8000-000000000321
+\set p126_reissue_two_request 61260000-0000-4000-8000-000000000322
+\set p126_reissue_two_attempt 61260000-0000-4000-8000-000000000323
+\set p126_reissue_two_student 61260000-0000-4000-8000-000000000324
+\set p126_continuation_case 61260000-0000-4000-8000-000000000330
+\set p126_continuation_scope 61260000-0000-4000-8000-000000000331
+\set p126_continuation_request 61260000-0000-4000-8000-000000000332
+\set p126_continuation_attempt 61260000-0000-4000-8000-000000000333
+\set p126_continuation_student 61260000-0000-4000-8000-000000000334
 
 INSERT INTO platform.organizations (id, name)
 VALUES (:'p126_org_two', 'Migration 126 second synthetic organization');
@@ -1270,7 +1637,9 @@ INSERT INTO platform.record_scopes (
   (:'p126_scope_case_scope', :'p126_org', 'student_case', :'p126_scope_case', 1),
   (:'p126_email_scope_one', :'p126_org', 'student_case', :'p126_email_case_one', 1),
   (:'p126_email_scope_two', :'p126_org_two', 'student_case', :'p126_email_case_two', 1),
-  (:'p126_bind_scope', :'p126_org', 'student_case', :'p126_bind_case', 1);
+  (:'p126_bind_scope', :'p126_org', 'student_case', :'p126_bind_case', 1),
+  (:'p126_reissue_two_scope', :'p126_org_two', 'student_case', :'p126_reissue_two_case', 1),
+  (:'p126_continuation_scope', :'p126_org', 'student_case', :'p126_continuation_case', 1);
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   (:'p126_admin_two_user', 'p126-admin-two@example.invalid', '{}'::JSONB),
@@ -1343,7 +1712,17 @@ INSERT INTO platform.student_cases (
    'synthetic:p126:bind-race', 'contract:p126:bind-race', statement_timestamp(),
    'P126 Bind Race', 'United Kingdom', 'Bachelor', 'Business', '2027',
    'approved', 'admissions_active', 'active', statement_timestamp(), NULL, NULL,
-   'Provision bind race', :'p126_bind_scope', 1);
+   'Provision bind race', :'p126_bind_scope', 1),
+  (:'p126_reissue_two_case', :'p126_org_two', NULL, :'p126_sales_two_membership', :'p126_curator_two_membership',
+   'synthetic:p126:reissue-two', 'contract:p126:reissue-two', statement_timestamp(),
+   'P126 Reissue Two', 'Canada', 'Master', 'Engineering', '2027',
+   'approved', 'admissions_active', 'active', statement_timestamp(), NULL, NULL,
+   'Authorize cross-org reissue', :'p126_reissue_two_scope', 1),
+  (:'p126_continuation_case', :'p126_org', NULL, :'p126_sales_membership', :'p126_curator_membership',
+   'synthetic:p126:continuation', 'contract:p126:continuation', statement_timestamp(),
+   'P126 Continuation', 'United Kingdom', 'Bachelor', 'Business', '2027',
+   'approved', 'admissions_active', 'active', statement_timestamp(), NULL, NULL,
+   'Continue exact receipt bind', :'p126_continuation_scope', 1);
 SET LOCAL session_replication_role = origin;
 
 SELECT jsonb_build_object(
@@ -1356,7 +1735,7 @@ SELECT jsonb_build_object(
 )::TEXT AS p126_admin_two_claims
 \gset
 
-  -- Prepare four receipts that the race probes will finalize.
+  -- Prepare the committed receipts used by bind, reissue and race probes.
 SET request.jwt.claims TO :'p126_admin_claims';
 SET ROLE authenticated;
 SELECT platform.prepare_student_portal_provisioning(
@@ -1383,6 +1762,21 @@ SELECT platform.prepare_student_portal_provisioning(
   'Migration 126 concurrent bind race', :'p126_bind_request'
 )::TEXT AS p126_bind_prepared
 \gset
+SELECT platform.prepare_student_portal_provisioning(
+  :'p126_org', :'p126_continuation_case', 'p126-continuation@example.invalid',
+  'P126 Continuation', 'normal_u6', NULL,
+  'Migration 126 same-receipt continuation', :'p126_continuation_request'
+)::TEXT AS p126_continuation_prepared
+\gset
+RESET ROLE;
+SET request.jwt.claims TO :'p126_admin_two_claims';
+SET ROLE authenticated;
+SELECT platform.prepare_student_portal_provisioning(
+  :'p126_org_two', :'p126_reissue_two_case', 'p126-reissue-two@example.invalid',
+  'P126 Reissue Two', 'normal_u6', NULL,
+  'Migration 126 cross-org reissue collision', :'p126_reissue_two_request'
+)::TEXT AS p126_reissue_two_prepared
+\gset
 RESET ROLE;
 
 SELECT :'p126_legacy_a_prepared'::JSONB ->> 'receipt_id' AS p126_legacy_a_receipt
@@ -1393,12 +1787,18 @@ SELECT :'p126_scope_prepared'::JSONB ->> 'receipt_id' AS p126_scope_receipt
 \gset
 SELECT :'p126_bind_prepared'::JSONB ->> 'receipt_id' AS p126_bind_receipt
 \gset
+SELECT :'p126_continuation_prepared'::JSONB ->> 'receipt_id' AS p126_continuation_receipt
+\gset
+SELECT :'p126_reissue_two_prepared'::JSONB ->> 'receipt_id' AS p126_reissue_two_receipt
+\gset
 
 SET ROLE service_role;
 SELECT platform.claim_student_portal_invite(:'p126_legacy_a_receipt', :'p126_legacy_a_attempt', 1, 0);
 SELECT platform.claim_student_portal_invite(:'p126_legacy_b_receipt', :'p126_legacy_b_attempt', 1, 0);
 SELECT platform.claim_student_portal_invite(:'p126_scope_receipt', :'p126_scope_attempt', 1, 0);
 SELECT platform.claim_student_portal_invite(:'p126_bind_receipt', :'p126_bind_attempt', 1, 0);
+SELECT platform.claim_student_portal_invite(:'p126_continuation_receipt', :'p126_continuation_attempt', 1, 0);
+SELECT platform.claim_student_portal_invite(:'p126_reissue_two_receipt', :'p126_reissue_two_attempt', 1, 0);
 RESET ROLE;
 
 INSERT INTO auth.users (
@@ -1407,14 +1807,259 @@ INSERT INTO auth.users (
   (:'p126_legacy_a_student', 'p126-legacy-a@example.invalid', '{}'::JSONB, statement_timestamp()),
   (:'p126_legacy_b_student', 'p126-legacy-b@example.invalid', '{}'::JSONB, statement_timestamp()),
   (:'p126_scope_student', 'p126-scope-race@example.invalid', '{}'::JSONB, statement_timestamp()),
-  (:'p126_bind_student', 'p126-bind-race@example.invalid', '{}'::JSONB, statement_timestamp());
+  (:'p126_bind_student', 'p126-bind-race@example.invalid', '{}'::JSONB, statement_timestamp()),
+  (:'p126_continuation_student', 'p126-continuation@example.invalid', '{}'::JSONB, statement_timestamp()),
+  (:'p126_reissue_two_student', 'p126-reissue-two@example.invalid', '{}'::JSONB, statement_timestamp());
 
 SET ROLE service_role;
 SELECT platform.record_student_portal_invite_success(:'p126_legacy_a_receipt', :'p126_legacy_a_attempt', 2, 1, :'p126_legacy_a_student', 3600);
 SELECT platform.record_student_portal_invite_success(:'p126_legacy_b_receipt', :'p126_legacy_b_attempt', 2, 1, :'p126_legacy_b_student', 3600);
 SELECT platform.record_student_portal_invite_success(:'p126_scope_receipt', :'p126_scope_attempt', 2, 1, :'p126_scope_student', 3600);
 SELECT platform.record_student_portal_invite_success(:'p126_bind_receipt', :'p126_bind_attempt', 2, 1, :'p126_bind_student', 3600);
+SELECT platform.record_student_portal_invite_success(:'p126_continuation_receipt', :'p126_continuation_attempt', 2, 1, :'p126_continuation_student', 3600);
+SELECT platform.record_student_portal_invite_success(:'p126_reissue_two_receipt', :'p126_reissue_two_attempt', 2, 1, :'p126_reissue_two_student', 3600);
 RESET ROLE;
+
+-- Matching identity without the exact child 01/02/03 evidence is not a
+-- continuable receipt and must not synthesize the missing mutations.
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.profiles (
+  id, auth_user_id, display_name, status, access_version
+) VALUES (
+  :'p126_missing_profile', :'p126_bind_student', 'P126 Bind Race', 'active', 1
+);
+INSERT INTO platform.organization_memberships (
+  id, organization_id, profile_id, status, "current_role", current_bundle_id
+) VALUES (
+  :'p126_missing_membership', :'p126_org', :'p126_missing_profile',
+  'active', 'student', :'p126_student_bundle'
+);
+UPDATE platform_private.student_portal_provisioning_receipts
+SET student_profile_id = :'p126_missing_profile',
+    student_membership_id = :'p126_missing_membership'
+WHERE id = :'p126_bind_receipt';
+UPDATE platform.student_cases
+SET student_membership_id = :'p126_missing_membership'
+WHERE id = :'p126_bind_case';
+SET LOCAL session_replication_role = origin;
+SET ROLE service_role;
+SELECT pg_temp.p126_expect_finalizer_identity_conflict(
+  :'p126_bind_receipt', 3, 1
+);
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+UPDATE platform.student_cases SET student_membership_id = NULL
+WHERE id = :'p126_bind_case';
+UPDATE platform_private.student_portal_provisioning_receipts
+SET student_profile_id = NULL, student_membership_id = NULL
+WHERE id = :'p126_bind_receipt';
+DELETE FROM platform.organization_memberships
+WHERE id = :'p126_missing_membership';
+DELETE FROM platform.profiles WHERE id = :'p126_missing_profile';
+SET LOCAL session_replication_role = origin;
+
+UPDATE platform_private.student_portal_provisioning_receipts
+SET invite_issued_at = statement_timestamp() - INTERVAL '2 hours',
+    invite_expires_at = statement_timestamp() - INTERVAL '1 hour'
+WHERE id IN (:'p126_legacy_a_receipt', :'p126_reissue_two_receipt');
+
+-- A receipt owns its reissue key as soon as authorization commits, before any
+-- claim/attempt row exists.
+SET request.jwt.claims TO :'p126_admin_claims';
+SET ROLE authenticated;
+SELECT platform.authorize_student_portal_invite_reissue(
+  :'p126_legacy_a_receipt', 3, 1,
+  '61260000-0000-4000-8000-000000000325',
+  'Migration 126 authorized unclaimed owner'
+);
+RESET ROLE;
+SET request.jwt.claims TO :'p126_admin_two_claims';
+SET ROLE authenticated;
+SELECT pg_temp.p126_expect_cross_receipt_reissue_conflict(
+  :'p126_reissue_two_receipt',
+  '61260000-0000-4000-8000-000000000325'
+);
+RESET ROLE;
+
+-- Restore only the synthetic authorization fields so the same two receipts
+-- can prove the concurrent cross-organization collision below.
+UPDATE platform_private.student_portal_provisioning_receipts
+SET invite_delivery_status = 'issued',
+    reissue_request_id = NULL,
+    reissue_authorized_by_auth_user_id = NULL,
+    reissue_authorized_by_profile_id = NULL,
+    reissue_authorized_by_membership_id = NULL,
+    reissue_authorized_access_version = NULL,
+    reissue_authorized_at = NULL,
+    receipt_version = 3
+WHERE id = :'p126_legacy_a_receipt';
+
+-- A foreign active Student binding is not same-receipt continuation.
+SET LOCAL session_replication_role = replica;
+UPDATE platform.student_cases
+SET student_membership_id = (
+  :'p126_finalized'::JSONB ->> 'student_membership_id'
+)::UUID
+WHERE id = :'p126_continuation_case';
+SET LOCAL session_replication_role = origin;
+SET ROLE service_role;
+SELECT pg_temp.p126_expect_finalizer_case_bound_conflict(
+  :'p126_continuation_receipt', 3, 1
+);
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+UPDATE platform.student_cases
+SET student_membership_id = NULL
+WHERE id = :'p126_continuation_case';
+SET LOCAL session_replication_role = origin;
+
+-- Simulate a durable same-request partial bind through the exact child
+-- commands, including the final access bump, then prove finalization continues
+-- without inserting or bumping those effects again.
+SELECT platform_private.provision_member_authorized_e1(
+  :'p126_org', :'p126_continuation_student', 'P126 Continuation', 'student',
+  'Student Portal provisioning',
+  platform_private.student_portal_child_request_id(
+    :'p126_continuation_request', '01-membership-provision'
+  ),
+  :'p126_admin_profile', :'p126_admin_user'
+)::TEXT AS p126_continuation_member
+\gset
+SELECT platform_private.assign_organization_scope_authorized_e1(
+  :'p126_org',
+  (:'p126_continuation_member'::JSONB ->> 'membership_id')::UUID,
+  'Student Portal organization scope',
+  platform_private.student_portal_child_request_id(
+    :'p126_continuation_request', '02-organization-scope'
+  ),
+  :'p126_admin_profile', :'p126_admin_user'
+)::TEXT AS p126_continuation_org_scope
+\gset
+SELECT platform_private.append_scope_event(
+  :'p126_org',
+  (:'p126_continuation_member'::JSONB ->> 'membership_id')::UUID,
+  :'p126_continuation_scope', 1, TRUE,
+  'user', :'p126_admin_profile',
+  'Student Portal exact case scope',
+  platform_private.student_portal_child_request_id(
+    :'p126_continuation_request', '03-student-case-scope'
+  )
+);
+UPDATE platform_private.student_portal_provisioning_receipts
+SET student_profile_id = (
+      :'p126_continuation_member'::JSONB ->> 'profile_id'
+    )::UUID,
+    student_membership_id = (
+      :'p126_continuation_member'::JSONB ->> 'membership_id'
+    )::UUID
+WHERE id = :'p126_continuation_receipt';
+SELECT pg_catalog.set_config(
+  'platform.student_portal_bind_receipt_id',
+  :'p126_continuation_receipt', TRUE
+);
+UPDATE platform.student_cases
+SET student_membership_id = (
+  :'p126_continuation_member'::JSONB ->> 'membership_id'
+)::UUID
+WHERE id = :'p126_continuation_case';
+SELECT platform_private.bump_access_version(
+  (:'p126_continuation_member'::JSONB ->> 'profile_id')::UUID
+) AS p126_continuation_access_version
+\gset
+
+SET ROLE service_role;
+SELECT platform.finalize_student_portal_authority(
+  :'p126_continuation_receipt', 3, 1
+)::TEXT AS p126_continuation_finalized
+\gset
+SELECT platform.finalize_student_portal_authority(
+  :'p126_continuation_receipt', 3, 1
+)::TEXT AS p126_continuation_replay
+\gset
+RESET ROLE;
+UPDATE platform.profiles
+SET access_version = access_version + 1
+WHERE id = :'p126_admin_profile';
+SET ROLE service_role;
+SELECT platform.finalize_student_portal_authority(
+  :'p126_continuation_receipt', 3, 1
+)::TEXT AS p126_continuation_revoked_admin_replay
+\gset
+RESET ROLE;
+UPDATE platform.profiles
+SET access_version = access_version - 1
+WHERE id = :'p126_admin_profile';
+SELECT pg_temp.p126_assert(
+  :'p126_continuation_finalized'::JSONB ->> 'replayed' = 'false'
+  AND :'p126_continuation_replay'::JSONB ->> 'replayed' = 'true'
+  AND :'p126_continuation_revoked_admin_replay'::JSONB ->> 'replayed' = 'true'
+  AND (
+    SELECT provisioning_state = 'authority_activated'
+      AND receipt_version = 4
+    FROM platform_private.student_portal_provisioning_receipts
+    WHERE id = :'p126_continuation_receipt'
+  )
+  AND (
+    SELECT student_membership_id = (
+        :'p126_continuation_member'::JSONB ->> 'membership_id'
+      )::UUID
+      AND portal_activated_at IS NOT NULL
+    FROM platform.student_cases
+    WHERE id = :'p126_continuation_case'
+  )
+  AND (
+    SELECT access_version = :'p126_continuation_access_version'::BIGINT
+    FROM platform.profiles
+    WHERE id = (:'p126_continuation_member'::JSONB ->> 'profile_id')::UUID
+  )
+  AND (
+    SELECT pg_catalog.count(*) = 1
+    FROM platform.membership_role_history
+    WHERE request_id = platform_private.student_portal_child_request_id(
+      :'p126_continuation_request', '01-membership-provision'
+    )
+  )
+  AND (
+    SELECT pg_catalog.count(*) = 3
+    FROM platform.audit_events
+    WHERE request_id = ANY (ARRAY[
+      platform_private.student_portal_child_request_id(
+        :'p126_continuation_request', '01-membership-provision'
+      ),
+      platform_private.student_portal_child_request_id(
+        :'p126_continuation_request', '02-organization-scope'
+      ),
+      platform_private.student_portal_child_request_id(
+        :'p126_continuation_request', '05-student-portal-audit'
+      )
+    ]::UUID[])
+  )
+  AND (
+    SELECT pg_catalog.count(*) = 2
+    FROM platform.membership_scope_assignments
+    WHERE membership_id = (
+      :'p126_continuation_member'::JSONB ->> 'membership_id'
+    )::UUID
+  )
+  AND NOT EXISTS (
+    SELECT request_id
+    FROM platform.audit_events
+    WHERE request_id = ANY (ARRAY[
+      platform_private.student_portal_child_request_id(
+        :'p126_continuation_request', '01-membership-provision'
+      ),
+      platform_private.student_portal_child_request_id(
+        :'p126_continuation_request', '02-organization-scope'
+      ),
+      platform_private.student_portal_child_request_id(
+        :'p126_continuation_request', '05-student-portal-audit'
+      )
+    ]::UUID[])
+    GROUP BY request_id
+    HAVING pg_catalog.count(*) <> 1
+  ),
+  'same-receipt continuation duplicated rows or access-version bumps'
+);
 
 -- Receipt-bound trigger negatives isolate every membership predicate. The
 -- receipt fixture is restored before the real finalizer races.
@@ -1488,6 +2133,60 @@ SET status = 'active', "current_role" = 'sales',
     current_bundle_id = :'p126_sales_bundle'
 WHERE id = :'p126_observer_membership';
 SET LOCAL session_replication_role = origin;
+
+-- Legacy continuation carries exact child 01/02/03 evidence, the mandatory
+-- bind bump and an already-applied child 04 Curator activation. Only the
+-- terminal receipt audit remains, so finalization must replay every mutation.
+SELECT platform_private.provision_member_authorized_e1(
+  :'p126_org', :'p126_legacy_a_student', 'P126 Legacy A', 'student',
+  'Student Portal provisioning',
+  platform_private.student_portal_child_request_id(
+    :'p126_legacy_a_request', '01-membership-provision'
+  ),
+  :'p126_admin_profile', :'p126_admin_user'
+)::TEXT AS p126_legacy_a_member
+\gset
+SELECT platform_private.assign_organization_scope_authorized_e1(
+  :'p126_org', (:'p126_legacy_a_member'::JSONB ->> 'membership_id')::UUID,
+  'Student Portal organization scope',
+  platform_private.student_portal_child_request_id(
+    :'p126_legacy_a_request', '02-organization-scope'
+  ),
+  :'p126_admin_profile', :'p126_admin_user'
+);
+SELECT platform_private.append_scope_event(
+  :'p126_org', (:'p126_legacy_a_member'::JSONB ->> 'membership_id')::UUID,
+  :'p126_legacy_a_scope', 1, TRUE,
+  'user', :'p126_admin_profile', 'Student Portal exact case scope',
+  platform_private.student_portal_child_request_id(
+    :'p126_legacy_a_request', '03-student-case-scope'
+  )
+);
+UPDATE platform_private.student_portal_provisioning_receipts
+SET student_profile_id = (:'p126_legacy_a_member'::JSONB ->> 'profile_id')::UUID,
+    student_membership_id = (:'p126_legacy_a_member'::JSONB ->> 'membership_id')::UUID
+WHERE id = :'p126_legacy_a_receipt';
+SELECT pg_catalog.set_config(
+  'platform.student_portal_bind_receipt_id', :'p126_legacy_a_receipt', TRUE
+);
+UPDATE platform.student_cases
+SET student_membership_id = (:'p126_legacy_a_member'::JSONB ->> 'membership_id')::UUID
+WHERE id = :'p126_legacy_a_case';
+SELECT platform_private.bump_access_version(
+  (:'p126_legacy_a_member'::JSONB ->> 'profile_id')::UUID
+) AS p126_legacy_a_bind_access_version;
+SELECT platform_private.assign_student_case_curator_authorized_e1(
+  :'p126_org', :'p126_legacy_a_case', :'p126_curator_membership',
+  'Student Portal legacy Curator activation',
+  platform_private.student_portal_child_request_id(
+    :'p126_legacy_a_request', '04-legacy-curator'
+  ),
+  :'p126_admin_profile', :'p126_admin_membership', :'p126_admin_user'
+);
+SELECT access_version AS p126_legacy_a_access_version
+FROM platform.profiles
+WHERE id = (:'p126_legacy_a_member'::JSONB ->> 'profile_id')::UUID
+\gset
 COMMIT;
 
 DROP SCHEMA IF EXISTS p126_test_extensions CASCADE;
@@ -1519,6 +2218,165 @@ CREATE TEMP TABLE p126_race_results (
   race_name TEXT NOT NULL,
   worker_name TEXT NOT NULL,
   result JSONB
+);
+
+-- Cross-organization authorizations for one globally unique reissue key are
+-- serialized before either receipt update. The owner succeeds; the waiter
+-- receives the frozen conflict rather than a raw unique violation.
+SELECT p126_test_extensions.dblink_send_query(
+  'p126_a',
+  format($sql$
+    WITH configured AS MATERIALIZED (
+      SELECT pg_catalog.set_config('request.jwt.claims', %L, TRUE)
+    ), domain_locked AS MATERIALIZED (
+      SELECT platform_private.lock_student_case_note_assignment_domain(%L::UUID)
+      FROM configured
+    ), key_locked AS MATERIALIZED (
+      SELECT platform_private.lock_p2d_request(%L::UUID)
+      FROM domain_locked
+    ), paused AS MATERIALIZED (
+      SELECT pg_catalog.pg_sleep(0.4) FROM key_locked
+    )
+    SELECT platform.authorize_student_portal_invite_reissue(
+      %L::UUID, 3, 1, %L::UUID,
+      'Migration 126 concurrent reissue owner'
+    ) FROM paused
+  $sql$, :'p126_admin_claims', :'p126_org',
+    '61260000-0000-4000-8000-000000000326',
+    :'p126_legacy_a_receipt',
+    '61260000-0000-4000-8000-000000000326')
+);
+SELECT pg_catalog.pg_sleep(0.1);
+SELECT p126_test_extensions.dblink_send_query(
+  'p126_b',
+  format($sql$
+    WITH configured AS MATERIALIZED (
+      SELECT pg_catalog.set_config('request.jwt.claims', %L, TRUE)
+    )
+    SELECT platform.authorize_student_portal_invite_reissue(
+      %L::UUID, 3, 1, %L::UUID,
+      'Migration 126 concurrent reissue collision'
+    ) FROM configured
+  $sql$, :'p126_admin_two_claims', :'p126_reissue_two_receipt',
+    '61260000-0000-4000-8000-000000000326')
+);
+INSERT INTO p126_race_results
+SELECT 'reissue_key', 'owner', outcome
+FROM p126_test_extensions.dblink_get_result('p126_a', FALSE)
+  AS result(outcome JSONB);
+SELECT p126_test_extensions.dblink_error_message('p126_a') AS p126_reissue_key_a_error
+\gset
+SELECT pg_catalog.count(*)
+FROM p126_test_extensions.dblink_get_result('p126_a', FALSE)
+  AS result(outcome JSONB);
+INSERT INTO p126_race_results
+SELECT 'reissue_key', 'waiter', outcome
+FROM p126_test_extensions.dblink_get_result('p126_b', FALSE)
+  AS result(outcome JSONB);
+SELECT p126_test_extensions.dblink_error_message('p126_b') AS p126_reissue_key_b_error
+\gset
+SELECT pg_catalog.count(*)
+FROM p126_test_extensions.dblink_get_result('p126_b', FALSE)
+  AS result(outcome JSONB);
+SELECT pg_temp.p126_assert(
+  :'p126_reissue_key_a_error' = 'OK'
+  AND :'p126_reissue_key_b_error' LIKE '%request_replay_conflict%'
+  AND (
+    SELECT pg_catalog.count(*) = 1
+    FROM p126_race_results
+    WHERE race_name = 'reissue_key' AND worker_name = 'owner'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM p126_race_results
+    WHERE race_name = 'reissue_key' AND worker_name = 'waiter'
+  )
+  AND (
+    SELECT reissue_request_id = '61260000-0000-4000-8000-000000000326'
+      AND receipt_version = 4
+    FROM platform_private.student_portal_provisioning_receipts
+    WHERE id = :'p126_legacy_a_receipt'
+  )
+  AND (
+    SELECT reissue_request_id IS NULL AND receipt_version = 3
+    FROM platform_private.student_portal_provisioning_receipts
+    WHERE id = :'p126_reissue_two_receipt'
+  ),
+  'concurrent cross-organization reissue key collision was not frozen'
+);
+UPDATE platform_private.student_portal_provisioning_receipts
+SET invite_delivery_status = 'issued',
+    reissue_request_id = NULL,
+    reissue_authorized_by_auth_user_id = NULL,
+    reissue_authorized_by_profile_id = NULL,
+    reissue_authorized_by_membership_id = NULL,
+    reissue_authorized_access_version = NULL,
+    reissue_authorized_at = NULL,
+    receipt_version = 3
+WHERE id = :'p126_legacy_a_receipt';
+
+-- Confirmed Auth identity is decisive for an unknown reissue even when the
+-- provider also supplies a valid no-issuance proof. Reconciliation must retain
+-- the previous issued window and fence any late provider outcome.
+SET request.jwt.claims TO :'p126_admin_two_claims';
+SET ROLE authenticated;
+SELECT platform.authorize_student_portal_invite_reissue(
+  :'p126_reissue_two_receipt', 3, 1,
+  '61260000-0000-4000-8000-000000000340',
+  'Migration 126 confirmed reissue reconciliation'
+);
+RESET ROLE;
+SET ROLE service_role;
+SELECT platform.claim_student_portal_invite_reissue(
+  :'p126_reissue_two_receipt',
+  '61260000-0000-4000-8000-000000000340',
+  '61260000-0000-4000-8000-000000000341', 4, 1
+);
+SELECT platform.record_student_portal_invite_unknown(
+  :'p126_reissue_two_receipt',
+  '61260000-0000-4000-8000-000000000341', 5, 2,
+  'provider_outcome_unknown'
+);
+RESET ROLE;
+SELECT invite_issued_at::TEXT AS p126_reissue_two_original_issued_at,
+       invite_expires_at::TEXT AS p126_reissue_two_original_expires_at
+FROM platform_private.student_portal_provisioning_receipts
+WHERE id = :'p126_reissue_two_receipt'
+\gset
+UPDATE auth.users
+SET email_confirmed_at = statement_timestamp()
+WHERE id = :'p126_reissue_two_student';
+SET ROLE service_role;
+SELECT platform.reconcile_student_portal_invite(
+  :'p126_reissue_two_receipt',
+  '61260000-0000-4000-8000-000000000341', 6, 2,
+  :'p126_reissue_two_student', NULL,
+  TRUE, statement_timestamp(), 'provider_no_issuance'
+)::TEXT AS p126_reissue_two_reconciled
+\gset
+SELECT pg_temp.p126_expect_late_invite_failure(
+  :'p126_reissue_two_receipt',
+  '61260000-0000-4000-8000-000000000341', 7, 2
+);
+RESET ROLE;
+SELECT pg_temp.p126_assert(
+  :'p126_reissue_two_reconciled'::JSONB ->> 'provisioning_state'
+    = 'invite_succeeded'
+  AND :'p126_reissue_two_reconciled'::JSONB ->> 'invite_delivery_status'
+    = 'accepted'
+  AND :'p126_reissue_two_reconciled'::JSONB ->> 'receipt_version' = '7'
+  AND (
+    SELECT invite_issued_at::TEXT = :'p126_reissue_two_original_issued_at'
+      AND invite_expires_at::TEXT = :'p126_reissue_two_original_expires_at'
+    FROM platform_private.student_portal_provisioning_receipts
+    WHERE id = :'p126_reissue_two_receipt'
+  )
+  AND (
+    SELECT attempt_state = 'succeeded'
+      AND reconciled_at IS NOT NULL
+    FROM platform_private.student_portal_invite_attempts
+    WHERE id = '61260000-0000-4000-8000-000000000341'
+  ),
+  'confirmed identity with no-issuance proof did not settle the unknown reissue'
 );
 
 -- Two finalizers for the same unbound receipt serialize through the complete
@@ -1656,7 +2514,17 @@ SELECT pg_temp.p126_assert(
   (SELECT pg_catalog.count(*) = 1 FROM p126_race_results WHERE race_name = 'finalizer_first' AND worker_name = 'finalizer')
   AND :'p126_finalizer_first_a_error' = 'OK'
   AND :'p126_finalizer_first_b_error' <> 'OK'
-  AND (SELECT provisioning_state = 'authority_activated' FROM platform_private.student_portal_provisioning_receipts WHERE id = :'p126_legacy_a_receipt'),
+  AND (SELECT provisioning_state = 'authority_activated' FROM platform_private.student_portal_provisioning_receipts WHERE id = :'p126_legacy_a_receipt')
+  AND (
+    SELECT access_version = :'p126_legacy_a_access_version'::BIGINT
+    FROM platform.profiles
+    WHERE id = (:'p126_legacy_a_member'::JSONB ->> 'profile_id')::UUID
+  )
+  AND (
+    SELECT pg_catalog.count(*) = 3
+    FROM platform.membership_scope_assignments
+    WHERE membership_id = (:'p126_legacy_a_member'::JSONB ->> 'membership_id')::UUID
+  ),
   'finalizer-first curator race did not serialize fail-closed'
 );
 
@@ -1823,6 +2691,117 @@ SELECT pg_temp.p126_assert(
   AND (SELECT pg_catalog.count(*) = 1 FROM platform_private.student_portal_provisioning_receipts WHERE normalized_email = 'p126-global-race@example.invalid')
   AND ((:'p126_email_a_error' = 'OK') <> (:'p126_email_b_error' = 'OK')),
   'cross-organization normalized-email race did not select one winner'
+);
+
+-- One attempt UUID cannot be claimed by two receipts. The unique collision is
+-- translated to the frozen stale-attempt contract even when both claims race.
+BEGIN;
+SET LOCAL session_replication_role = replica;
+DELETE FROM platform_private.student_portal_invite_attempts
+WHERE receipt_id IN (
+  :'p126_continuation_receipt', :'p126_reissue_two_receipt'
+);
+UPDATE platform_private.student_portal_provisioning_receipts
+SET provisioning_state = 'prepared',
+    invite_delivery_status = NULL,
+    receipt_version = 1,
+    invite_generation = 0,
+    active_attempt_id = NULL,
+    auth_user_id = NULL,
+    student_profile_id = NULL,
+    student_membership_id = NULL,
+    invite_issued_at = NULL,
+    invite_expires_at = NULL,
+    accepted_at = NULL,
+    safe_error_code = NULL,
+    authority_activated_at = NULL,
+    reissue_authorized_by_auth_user_id = NULL,
+    reissue_authorized_by_profile_id = NULL,
+    reissue_authorized_by_membership_id = NULL,
+    reissue_authorized_access_version = NULL,
+    reissue_request_id = NULL,
+    reissue_authorized_at = NULL,
+    updated_at = statement_timestamp()
+WHERE id IN (:'p126_continuation_receipt', :'p126_reissue_two_receipt');
+UPDATE auth.users
+SET email_confirmed_at = NULL
+WHERE id = :'p126_reissue_two_student';
+COMMIT;
+
+SELECT p126_test_extensions.dblink_send_query(
+  'p126_a',
+  format($sql$
+    SELECT platform.claim_student_portal_invite(
+      %L::UUID, %L::UUID, 1, 0
+    )
+  $sql$, :'p126_continuation_receipt',
+    '61260000-0000-4000-8000-000000000342')
+);
+SELECT p126_test_extensions.dblink_send_query(
+  'p126_b',
+  format($sql$
+    SELECT platform.claim_student_portal_invite(
+      %L::UUID, %L::UUID, 1, 0
+    )
+  $sql$, :'p126_reissue_two_receipt',
+    '61260000-0000-4000-8000-000000000342')
+);
+INSERT INTO p126_race_results
+SELECT 'attempt_uuid', 'first_receipt', outcome
+FROM p126_test_extensions.dblink_get_result('p126_a', FALSE)
+  AS result(outcome JSONB);
+SELECT p126_test_extensions.dblink_error_message('p126_a')
+  AS p126_attempt_uuid_a_error
+\gset
+SELECT pg_catalog.count(*)
+FROM p126_test_extensions.dblink_get_result('p126_a', FALSE)
+  AS result(outcome JSONB);
+INSERT INTO p126_race_results
+SELECT 'attempt_uuid', 'second_receipt', outcome
+FROM p126_test_extensions.dblink_get_result('p126_b', FALSE)
+  AS result(outcome JSONB);
+SELECT p126_test_extensions.dblink_error_message('p126_b')
+  AS p126_attempt_uuid_b_error
+\gset
+SELECT pg_catalog.count(*)
+FROM p126_test_extensions.dblink_get_result('p126_b', FALSE)
+  AS result(outcome JSONB);
+
+SELECT pg_temp.p126_assert(
+  (SELECT pg_catalog.count(*) = 1
+   FROM p126_race_results WHERE race_name = 'attempt_uuid')
+  AND ((:'p126_attempt_uuid_a_error' = 'OK') <>
+       (:'p126_attempt_uuid_b_error' = 'OK'))
+  AND (
+    :'p126_attempt_uuid_a_error' = 'OK'
+    OR :'p126_attempt_uuid_a_error' LIKE '%stale_invite_attempt%'
+  )
+  AND (
+    :'p126_attempt_uuid_b_error' = 'OK'
+    OR :'p126_attempt_uuid_b_error' LIKE '%stale_invite_attempt%'
+  )
+  AND (
+    SELECT pg_catalog.count(*) = 1
+    FROM platform_private.student_portal_invite_attempts
+    WHERE id = '61260000-0000-4000-8000-000000000342'
+  )
+  AND (
+    SELECT pg_catalog.count(*) FILTER (
+      WHERE provisioning_state = 'dispatching'
+        AND active_attempt_id = '61260000-0000-4000-8000-000000000342'
+        AND receipt_version = 2
+        AND invite_generation = 1
+    ) = 1
+    AND pg_catalog.count(*) FILTER (
+      WHERE provisioning_state = 'prepared'
+        AND active_attempt_id IS NULL
+        AND receipt_version = 1
+        AND invite_generation = 0
+    ) = 1
+    FROM platform_private.student_portal_provisioning_receipts
+    WHERE id IN (:'p126_continuation_receipt', :'p126_reissue_two_receipt')
+  ),
+  'concurrent cross-receipt attempt UUID claim was not frozen safely'
 );
 
 SELECT p126_test_extensions.dblink_disconnect('p126_a');

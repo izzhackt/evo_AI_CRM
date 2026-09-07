@@ -885,6 +885,7 @@ BEGIN
     OR v_normalized_display_name IS NULL
     OR pg_catalog.char_length(v_normalized_display_name) NOT BETWEEN 1 AND 200
     OR v_normalized_display_name ~ '[[:cntrl:]]'
+    OR p_case_shape IS NULL
     OR p_case_shape NOT IN ('normal_u6', 'legacy_pending')
     OR pg_catalog.char_length(pg_catalog.btrim(COALESCE(p_reason, '')))
       NOT BETWEEN 1 AND 1000
@@ -1109,7 +1110,11 @@ BEGIN
       RAISE EXCEPTION 'stale_invite_attempt' USING ERRCODE = '40001';
     END IF;
     RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, TRUE)
-      || jsonb_build_object('attempt_id', p_attempt_id, 'replayed', TRUE);
+      || jsonb_build_object(
+        'attempt_id', p_attempt_id,
+        'pre_confirmation_sent_at', prior_attempt.pre_confirmation_sent_at,
+        'replayed', TRUE
+      );
   END IF;
   IF receipt.receipt_version <> p_expected_receipt_version THEN
     RAISE EXCEPTION 'stale_receipt_version' USING ERRCODE = '40001';
@@ -1137,13 +1142,17 @@ BEGIN
     RAISE EXCEPTION 'portal_identity_conflict' USING ERRCODE = '40001';
   END IF;
 
-  INSERT INTO platform_private.student_portal_invite_attempts (
-    id, receipt_id, attempt_kind, claimed_receipt_version,
-    invite_generation, pre_confirmation_sent_at, auth_user_id
-  ) VALUES (
-    p_attempt_id, p_receipt_id, 'initial', receipt.receipt_version + 1,
-    receipt.invite_generation + 1, pre_confirmation_sent_at, pre_auth_user_id
-  );
+  BEGIN
+    INSERT INTO platform_private.student_portal_invite_attempts (
+      id, receipt_id, attempt_kind, claimed_receipt_version,
+      invite_generation, pre_confirmation_sent_at, auth_user_id
+    ) VALUES (
+      p_attempt_id, p_receipt_id, 'initial', receipt.receipt_version + 1,
+      receipt.invite_generation + 1, pre_confirmation_sent_at, pre_auth_user_id
+    );
+  EXCEPTION WHEN unique_violation THEN
+    RAISE EXCEPTION 'stale_invite_attempt' USING ERRCODE = '40001';
+  END;
   UPDATE platform_private.student_portal_provisioning_receipts AS target
   SET provisioning_state = 'dispatching',
       active_attempt_id = p_attempt_id,
@@ -1153,7 +1162,11 @@ BEGIN
       updated_at = statement_timestamp()
   WHERE target.id = p_receipt_id;
   RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, TRUE)
-    || jsonb_build_object('attempt_id', p_attempt_id, 'replayed', FALSE);
+    || jsonb_build_object(
+      'attempt_id', p_attempt_id,
+      'pre_confirmation_sent_at', pre_confirmation_sent_at,
+      'replayed', FALSE
+    );
 END
 $$;
 
@@ -1208,12 +1221,18 @@ BEGIN
   PERFORM platform_private.lock_student_case_note_assignment_domain(
     receipt_hint.organization_id
   );
+  PERFORM platform_private.lock_p2d_request(p_reissue_request_id);
   PERFORM platform_private.lock_student_portal_request_tree(receipt_hint.request_id);
 
   SELECT * INTO receipt
   FROM platform_private.student_portal_provisioning_receipts AS candidate
   WHERE candidate.id = p_receipt_id FOR UPDATE;
   IF EXISTS (
+    SELECT 1
+    FROM platform_private.student_portal_provisioning_receipts AS candidate
+    WHERE candidate.reissue_request_id = p_reissue_request_id
+      AND candidate.id <> p_receipt_id
+  ) OR EXISTS (
     SELECT 1 FROM platform_private.student_portal_invite_attempts AS attempt
     WHERE attempt.reissue_request_id = p_reissue_request_id
       AND attempt.receipt_id <> p_receipt_id
@@ -1276,18 +1295,22 @@ BEGIN
     RAISE EXCEPTION 'portal_invite_already_accepted' USING ERRCODE = '40001';
   END IF;
 
-  UPDATE platform_private.student_portal_provisioning_receipts AS target
-  SET invite_delivery_status = 'expired',
-      reissue_request_id = p_reissue_request_id,
-      reissue_authorized_by_auth_user_id = actor.actor_auth_user_id,
-      reissue_authorized_by_profile_id = actor.actor_profile_id,
-      reissue_authorized_by_membership_id = actor.actor_membership_id,
-      reissue_authorized_access_version = actor_access_version,
-      reissue_authorized_at = statement_timestamp(),
-      receipt_version = target.receipt_version + 1,
-      safe_error_code = NULL,
-      updated_at = statement_timestamp()
-  WHERE target.id = p_receipt_id;
+  BEGIN
+    UPDATE platform_private.student_portal_provisioning_receipts AS target
+    SET invite_delivery_status = 'expired',
+        reissue_request_id = p_reissue_request_id,
+        reissue_authorized_by_auth_user_id = actor.actor_auth_user_id,
+        reissue_authorized_by_profile_id = actor.actor_profile_id,
+        reissue_authorized_by_membership_id = actor.actor_membership_id,
+        reissue_authorized_access_version = actor_access_version,
+        reissue_authorized_at = statement_timestamp(),
+        receipt_version = target.receipt_version + 1,
+        safe_error_code = NULL,
+        updated_at = statement_timestamp()
+    WHERE target.id = p_receipt_id;
+  EXCEPTION WHEN unique_violation THEN
+    RAISE EXCEPTION 'request_replay_conflict' USING ERRCODE = '40001';
+  END;
   RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, FALSE)
     || jsonb_build_object('replayed', FALSE);
 END
@@ -1346,7 +1369,11 @@ BEGIN
       RAISE EXCEPTION 'stale_invite_attempt' USING ERRCODE = '40001';
     END IF;
     RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, TRUE)
-      || jsonb_build_object('attempt_id', p_attempt_id, 'replayed', TRUE);
+      || jsonb_build_object(
+        'attempt_id', p_attempt_id,
+        'pre_confirmation_sent_at', prior_attempt.pre_confirmation_sent_at,
+        'replayed', TRUE
+      );
   END IF;
   IF receipt.receipt_version <> p_expected_receipt_version THEN
     RAISE EXCEPTION 'stale_receipt_version' USING ERRCODE = '40001';
@@ -1379,15 +1406,19 @@ BEGIN
     RAISE EXCEPTION 'portal_invite_already_accepted' USING ERRCODE = '40001';
   END IF;
 
-  INSERT INTO platform_private.student_portal_invite_attempts (
-    id, receipt_id, attempt_kind, reissue_request_id,
-    claimed_receipt_version, invite_generation,
-    pre_confirmation_sent_at, auth_user_id
-  ) VALUES (
-    p_attempt_id, p_receipt_id, 'reissue', p_reissue_request_id,
-    receipt.receipt_version + 1, receipt.invite_generation + 1,
-    auth_row.confirmation_sent_at, receipt.auth_user_id
-  );
+  BEGIN
+    INSERT INTO platform_private.student_portal_invite_attempts (
+      id, receipt_id, attempt_kind, reissue_request_id,
+      claimed_receipt_version, invite_generation,
+      pre_confirmation_sent_at, auth_user_id
+    ) VALUES (
+      p_attempt_id, p_receipt_id, 'reissue', p_reissue_request_id,
+      receipt.receipt_version + 1, receipt.invite_generation + 1,
+      auth_row.confirmation_sent_at, receipt.auth_user_id
+    );
+  EXCEPTION WHEN unique_violation THEN
+    RAISE EXCEPTION 'stale_invite_attempt' USING ERRCODE = '40001';
+  END;
   UPDATE platform_private.student_portal_provisioning_receipts AS target
   SET invite_delivery_status = 'reissue_dispatching',
       active_attempt_id = p_attempt_id,
@@ -1397,7 +1428,11 @@ BEGIN
       updated_at = statement_timestamp()
   WHERE target.id = p_receipt_id;
   RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, TRUE)
-    || jsonb_build_object('attempt_id', p_attempt_id, 'replayed', FALSE);
+    || jsonb_build_object(
+      'attempt_id', p_attempt_id,
+      'pre_confirmation_sent_at', auth_row.confirmation_sent_at,
+      'replayed', FALSE
+    );
 END
 $$;
 
@@ -1432,6 +1467,7 @@ BEGIN
   IF p_receipt_id IS NULL OR p_attempt_id IS NULL OR p_auth_user_id IS NULL
     OR p_expected_receipt_version IS NULL
     OR p_expected_invite_generation IS NULL
+    OR p_email_otp_expires_in_seconds IS NULL
     OR p_email_otp_expires_in_seconds NOT BETWEEN 60 AND 604800
   THEN
     RAISE EXCEPTION 'invalid student portal invite success'
@@ -1530,7 +1566,10 @@ DECLARE
   attempt platform_private.student_portal_invite_attempts%ROWTYPE;
   fixed_error_code TEXT := pg_catalog.lower(pg_catalog.btrim(p_safe_error_code));
 BEGIN
-  IF p_outcome NOT IN ('failed', 'unknown')
+  IF p_receipt_id IS NULL OR p_attempt_id IS NULL
+    OR p_expected_receipt_version IS NULL
+    OR p_expected_invite_generation IS NULL
+    OR p_outcome NOT IN ('failed', 'unknown')
     OR fixed_error_code IS NULL
     OR fixed_error_code !~ '^[a-z][a-z0-9_.-]{0,99}$'
   THEN RAISE EXCEPTION 'invalid student portal invite outcome' USING ERRCODE = '22023'; END IF;
@@ -1712,8 +1751,33 @@ BEGIN
     RAISE EXCEPTION 'portal_identity_conflict' USING ERRCODE = '40001';
   END IF;
 
+  IF attempt.attempt_kind = 'reissue'
+    AND receipt.auth_user_id = p_auth_user_id
+    AND auth_row.confirmed_at IS NOT NULL
+  THEN
+    UPDATE platform_private.student_portal_invite_attempts AS target
+    SET attempt_state = 'succeeded',
+        observed_confirmation_sent_at = auth_row.confirmation_sent_at,
+        auth_user_id = p_auth_user_id,
+        safe_error_code = NULL,
+        reconciled_at = statement_timestamp()
+    WHERE target.id = p_attempt_id;
+    UPDATE platform_private.student_portal_provisioning_receipts AS target
+    SET invite_delivery_status = 'accepted',
+        active_attempt_id = NULL,
+        accepted_at = COALESCE(target.accepted_at, auth_row.confirmed_at),
+        safe_error_code = NULL,
+        receipt_version = target.receipt_version + 1,
+        updated_at = statement_timestamp()
+    WHERE target.id = p_receipt_id;
+    RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, FALSE)
+      || jsonb_build_object('attempt_id', p_attempt_id, 'reconciled', TRUE);
+  END IF;
+
   IF issuance_observed THEN
-    IF p_email_otp_expires_in_seconds NOT BETWEEN 60 AND 604800 THEN
+    IF p_email_otp_expires_in_seconds IS NULL
+      OR p_email_otp_expires_in_seconds NOT BETWEEN 60 AND 604800
+    THEN
       RAISE EXCEPTION 'invalid student portal reconciliation'
         USING ERRCODE = '22023';
     END IF;
@@ -2167,6 +2231,9 @@ DECLARE
   child_final_audit UUID;
   occurred_at TIMESTAMPTZ := statement_timestamp();
   row_count INTEGER;
+  continuing_bound_case BOOLEAN := FALSE;
+  continuing_legacy_activation BOOLEAN := FALSE;
+  bound_student_profile_id UUID;
   final_result JSONB;
 BEGIN
   IF p_receipt_id IS NULL OR p_expected_receipt_version IS NULL
@@ -2243,11 +2310,11 @@ BEGIN
   IF receipt.invite_generation <> p_expected_invite_generation THEN
     RAISE EXCEPTION 'stale_invite_generation' USING ERRCODE = '40001';
   END IF;
-  PERFORM platform_private.assert_student_portal_receipt_admin_e1(p_receipt_id);
   IF receipt.provisioning_state = 'authority_activated' THEN
     RETURN platform_private.student_portal_safe_snapshot(p_receipt_id, FALSE)
       || jsonb_build_object('replayed', TRUE);
   END IF;
+  PERFORM platform_private.assert_student_portal_receipt_admin_e1(p_receipt_id);
   IF receipt.receipt_version <> p_expected_receipt_version THEN
     RAISE EXCEPTION 'stale_receipt_version' USING ERRCODE = '40001';
   END IF;
@@ -2274,8 +2341,37 @@ BEGIN
   THEN
     RAISE EXCEPTION 'portal_authority_not_ready' USING ERRCODE = '40001';
   END IF;
-  IF target_case.id IS NULL OR target_case.student_membership_id IS NOT NULL THEN
+  IF target_case.id IS NULL THEN
     RAISE EXCEPTION 'portal_case_already_bound' USING ERRCODE = '40001';
+  END IF;
+  IF target_case.student_membership_id IS NOT NULL THEN
+    SELECT membership.profile_id
+    INTO bound_student_profile_id
+    FROM platform.organization_memberships AS membership
+    JOIN platform.profiles AS profile ON profile.id = membership.profile_id
+    JOIN platform.role_bundle_versions AS bundle
+      ON bundle.id = membership.current_bundle_id
+      AND bundle.role = membership."current_role"
+    WHERE membership.organization_id = receipt.organization_id
+      AND membership.id = target_case.student_membership_id
+      AND membership.status = 'active'
+      AND membership."current_role" = 'student'
+      AND profile.auth_user_id = receipt.auth_user_id
+      AND profile.status = 'active'
+      AND bundle.status = 'published'
+      AND receipt.student_membership_id = membership.id
+      AND receipt.student_profile_id = profile.id
+    FOR UPDATE OF membership, profile, bundle;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'portal_case_already_bound' USING ERRCODE = '40001';
+    END IF;
+    continuing_bound_case := TRUE;
+    IF target_case.portal_activated_at IS NOT NULL THEN
+      IF receipt.case_shape <> 'legacy_pending' THEN
+        RAISE EXCEPTION 'portal_case_already_bound' USING ERRCODE = '40001';
+      END IF;
+      continuing_legacy_activation := TRUE;
+    END IF;
   END IF;
   IF receipt.case_shape = 'normal_u6' THEN
     IF target_case.state <> 'active'
@@ -2285,11 +2381,26 @@ BEGIN
       OR target_case.closed_at IS NOT NULL
     THEN RAISE EXCEPTION 'portal_case_invalid_shape' USING ERRCODE = '40001'; END IF;
   ELSE
-    IF target_case.state <> 'pending'
-      OR target_case.current_curator_membership_id IS NOT NULL
-      OR target_case.handoff_at IS NOT NULL
-      OR target_case.portal_activated_at IS NOT NULL
-      OR target_case.closed_at IS NOT NULL
+    IF (
+      NOT continuing_legacy_activation
+      AND (
+        target_case.state <> 'pending'
+        OR target_case.current_curator_membership_id IS NOT NULL
+        OR target_case.handoff_at IS NOT NULL
+        OR target_case.portal_activated_at IS NOT NULL
+        OR target_case.closed_at IS NOT NULL
+      )
+    ) OR (
+      continuing_legacy_activation
+      AND (
+        target_case.state <> 'active'
+        OR target_case.current_curator_membership_id
+          IS DISTINCT FROM receipt.legacy_curator_membership_id
+        OR target_case.handoff_at IS NULL
+        OR target_case.portal_activated_at IS NULL
+        OR target_case.closed_at IS NOT NULL
+      )
+    )
       OR NOT EXISTS (
         SELECT 1
         FROM platform.organization_memberships AS membership
@@ -2307,24 +2418,6 @@ BEGIN
     THEN RAISE EXCEPTION 'portal_case_invalid_shape' USING ERRCODE = '40001'; END IF;
   END IF;
 
-  BEGIN
-    membership_result := platform_private.provision_member_authorized_e1(
-      receipt.organization_id, receipt.auth_user_id, receipt.student_display_name,
-      'student', 'Student Portal provisioning', child_membership,
-      receipt.authorizing_profile_id, receipt.authorizing_auth_user_id
-    );
-  EXCEPTION
-    WHEN invalid_parameter_value OR unique_violation THEN
-      RAISE EXCEPTION 'portal_identity_conflict' USING ERRCODE = '40001';
-  END;
-  new_student_profile_id := (membership_result ->> 'profile_id')::UUID;
-  new_student_membership_id := (membership_result ->> 'membership_id')::UUID;
-  scope_result := platform_private.assign_organization_scope_authorized_e1(
-    receipt.organization_id, new_student_membership_id,
-    'Student Portal organization scope', child_org_scope,
-    receipt.authorizing_profile_id, receipt.authorizing_auth_user_id
-  );
-
   SELECT * INTO case_scope
   FROM platform.record_scopes AS scope
   WHERE scope.organization_id = receipt.organization_id
@@ -2337,33 +2430,183 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Active student-case scope is unavailable' USING ERRCODE = '55000';
   END IF;
-  PERFORM platform_private.append_scope_event(
-    receipt.organization_id, new_student_membership_id,
-    case_scope.id, case_scope.scope_version, TRUE,
-    'user', receipt.authorizing_profile_id,
-    'Student Portal exact case scope', child_case_scope
-  );
 
-  UPDATE platform_private.student_portal_provisioning_receipts AS target
-  SET student_profile_id = new_student_profile_id,
-      student_membership_id = new_student_membership_id,
-      updated_at = statement_timestamp()
-  WHERE target.id = p_receipt_id;
-  PERFORM pg_catalog.set_config(
-    'platform.student_portal_bind_receipt_id', p_receipt_id::TEXT, TRUE
-  );
-  UPDATE platform.student_cases AS student_case
-  SET student_membership_id = new_student_membership_id
-  WHERE student_case.organization_id = receipt.organization_id
-    AND student_case.id = receipt.student_case_id
-    AND student_case.student_membership_id IS NULL;
-  GET DIAGNOSTICS row_count = ROW_COUNT;
-  IF row_count <> 1 THEN
-    RAISE EXCEPTION 'portal_case_already_bound' USING ERRCODE = '40001';
+  IF continuing_bound_case THEN
+    new_student_profile_id := bound_student_profile_id;
+    new_student_membership_id := target_case.student_membership_id;
+    IF receipt.student_profile_id <> new_student_profile_id
+      OR receipt.student_membership_id <> new_student_membership_id
+      OR NOT EXISTS (
+        SELECT 1
+        FROM platform.audit_events AS event
+        WHERE event.request_id = child_membership
+          AND event.organization_id = receipt.organization_id
+          AND event.action = 'membership.provision'
+          AND event.resource_type = 'organization_membership'
+          AND event.resource_id = new_student_membership_id
+          AND event.after_state ->> 'profile_id' = new_student_profile_id::TEXT
+          AND event.after_state ->> 'member_auth_user_id' = receipt.auth_user_id::TEXT
+          AND event.after_state ->> 'role' = 'student'
+      )
+      OR NOT EXISTS (
+        SELECT 1
+        FROM platform.audit_events AS event
+        WHERE event.request_id = child_org_scope
+          AND event.organization_id = receipt.organization_id
+          AND event.action = 'membership.scope.organization.assign'
+          AND event.resource_type = 'organization_membership'
+          AND event.resource_id = new_student_membership_id
+      )
+      OR NOT EXISTS (
+        SELECT 1
+        FROM platform.membership_scope_assignments AS assignment
+        JOIN platform.record_scopes AS scope
+          ON scope.organization_id = assignment.organization_id
+          AND scope.id = assignment.scope_id
+          AND scope.scope_version = assignment.scope_version
+        WHERE assignment.request_id = child_org_scope
+          AND assignment.organization_id = receipt.organization_id
+          AND assignment.membership_id = new_student_membership_id
+          AND assignment.granted
+          AND scope.scope_kind = 'organization'
+          AND scope.scope_key = receipt.organization_id
+          AND scope.is_active
+          AND NOT EXISTS (
+            SELECT 1
+            FROM platform.membership_scope_assignments AS later
+            WHERE later.organization_id = assignment.organization_id
+              AND later.membership_id = assignment.membership_id
+              AND later.scope_id = assignment.scope_id
+              AND later.assignment_version > assignment.assignment_version
+          )
+      )
+      OR (
+        NOT continuing_legacy_activation
+        AND NOT EXISTS (
+          SELECT 1
+          FROM platform.membership_scope_assignments AS assignment
+          WHERE assignment.request_id = child_case_scope
+            AND assignment.organization_id = receipt.organization_id
+            AND assignment.membership_id = new_student_membership_id
+            AND assignment.scope_id = case_scope.id
+            AND assignment.scope_version = case_scope.scope_version
+            AND assignment.granted
+            AND NOT EXISTS (
+              SELECT 1
+              FROM platform.membership_scope_assignments AS later
+              WHERE later.organization_id = assignment.organization_id
+                AND later.membership_id = assignment.membership_id
+                AND later.scope_id = assignment.scope_id
+                AND later.assignment_version > assignment.assignment_version
+            )
+        )
+      )
+      OR (
+        continuing_legacy_activation
+        AND (
+          NOT EXISTS (
+            SELECT 1
+            FROM platform.audit_events AS event
+            WHERE event.request_id = child_legacy_curator
+              AND event.organization_id = receipt.organization_id
+              AND event.actor_kind = 'user'
+              AND event.actor_profile_id = receipt.authorizing_profile_id
+              AND event.actor_principal
+                = 'auth:' || receipt.authorizing_auth_user_id::TEXT
+              AND event.action = 'case.curator.set'
+              AND event.resource_type = 'student_case'
+              AND event.resource_id = receipt.student_case_id
+              AND event.reason = 'Student Portal legacy Curator activation'
+              AND event.after_state ->> 'curator_membership_id'
+                = receipt.legacy_curator_membership_id::TEXT
+              AND event.after_state ->> 'scope_id' = case_scope.id::TEXT
+              AND (event.after_state ->> 'scope_version')::BIGINT
+                = case_scope.scope_version
+              AND (event.after_state ->> 'portal_activated_at')::TIMESTAMPTZ
+                = target_case.portal_activated_at
+          )
+          OR NOT EXISTS (
+            SELECT 1
+            FROM platform.membership_scope_assignments AS assignment
+            WHERE assignment.request_id = child_legacy_curator
+              AND assignment.organization_id = receipt.organization_id
+              AND assignment.membership_id = new_student_membership_id
+              AND assignment.scope_id = case_scope.id
+              AND assignment.scope_version = case_scope.scope_version
+              AND assignment.granted
+              AND NOT EXISTS (
+                SELECT 1
+                FROM platform.membership_scope_assignments AS later
+                WHERE later.organization_id = assignment.organization_id
+                  AND later.membership_id = assignment.membership_id
+                  AND later.scope_id = assignment.scope_id
+                  AND later.assignment_version > assignment.assignment_version
+              )
+          )
+          OR NOT EXISTS (
+            SELECT 1
+            FROM platform.membership_scope_assignments AS assignment
+            JOIN platform.audit_events AS event
+              ON event.request_id = child_legacy_curator
+              AND event.organization_id = assignment.organization_id
+              AND event.before_state ->> 'scope_id' = assignment.scope_id::TEXT
+              AND (event.before_state ->> 'scope_version')::BIGINT
+                = assignment.scope_version
+            WHERE assignment.request_id = child_case_scope
+              AND assignment.organization_id = receipt.organization_id
+              AND assignment.membership_id = new_student_membership_id
+              AND assignment.granted
+          )
+        )
+      )
+    THEN
+      RAISE EXCEPTION 'portal_identity_conflict' USING ERRCODE = '40001';
+    END IF;
+
+  ELSE
+    BEGIN
+      membership_result := platform_private.provision_member_authorized_e1(
+        receipt.organization_id, receipt.auth_user_id, receipt.student_display_name,
+        'student', 'Student Portal provisioning', child_membership,
+        receipt.authorizing_profile_id, receipt.authorizing_auth_user_id
+      );
+    EXCEPTION
+      WHEN invalid_parameter_value OR unique_violation THEN
+        RAISE EXCEPTION 'portal_identity_conflict' USING ERRCODE = '40001';
+    END;
+    new_student_profile_id := (membership_result ->> 'profile_id')::UUID;
+    new_student_membership_id := (membership_result ->> 'membership_id')::UUID;
+    scope_result := platform_private.assign_organization_scope_authorized_e1(
+      receipt.organization_id, new_student_membership_id,
+      'Student Portal organization scope', child_org_scope,
+      receipt.authorizing_profile_id, receipt.authorizing_auth_user_id
+    );
+    PERFORM platform_private.append_scope_event(
+      receipt.organization_id, new_student_membership_id,
+      case_scope.id, case_scope.scope_version, TRUE,
+      'user', receipt.authorizing_profile_id,
+      'Student Portal exact case scope', child_case_scope
+    );
+    UPDATE platform_private.student_portal_provisioning_receipts AS target
+    SET student_profile_id = new_student_profile_id,
+        student_membership_id = new_student_membership_id,
+        updated_at = statement_timestamp()
+    WHERE target.id = p_receipt_id;
+    PERFORM pg_catalog.set_config(
+      'platform.student_portal_bind_receipt_id', p_receipt_id::TEXT, TRUE
+    );
+    UPDATE platform.student_cases AS student_case
+    SET student_membership_id = new_student_membership_id
+    WHERE student_case.organization_id = receipt.organization_id
+      AND student_case.id = receipt.student_case_id
+      AND student_case.student_membership_id IS NULL;
+    GET DIAGNOSTICS row_count = ROW_COUNT;
+    IF row_count <> 1 THEN
+      RAISE EXCEPTION 'portal_case_already_bound' USING ERRCODE = '40001';
+    END IF;
+    -- Mandatory extra bump after both scopes and the one-way bind.
+    PERFORM platform_private.bump_access_version(new_student_profile_id);
   END IF;
-
-  -- Mandatory extra bump after both scopes and the one-way bind.
-  PERFORM platform_private.bump_access_version(new_student_profile_id);
 
   IF receipt.case_shape = 'normal_u6' THEN
     UPDATE platform.student_cases AS student_case
@@ -2509,6 +2752,12 @@ DECLARE
   receipt platform_private.student_portal_provisioning_receipts%ROWTYPE;
   auth_row RECORD;
 BEGIN
+  IF p_receipt_id IS NULL OR p_expected_receipt_version IS NULL
+    OR p_expected_invite_generation IS NULL
+  THEN
+    RAISE EXCEPTION 'invalid student portal invite acceptance'
+      USING ERRCODE = '22023';
+  END IF;
   SELECT * INTO receipt
   FROM platform_private.student_portal_provisioning_receipts AS candidate
   WHERE candidate.id = p_receipt_id FOR UPDATE;

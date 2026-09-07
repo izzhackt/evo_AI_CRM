@@ -20830,3 +20830,32 @@ value. A reissue idempotency key replays only for its own receipt; reuse against
 another receipt is `request_replay_conflict`. Final SQL acceptance explicitly
 proves receipt-bound wrong-organization, non-Student and inactive bind denial,
 plus two concurrent finalizers producing one bind and one durable replay.
+
+## 2026-09-07 - Close E1 unclaimed-key and same-receipt continuation gaps
+
+Block-ID: `EVO-V3-E1-FINAL-CONTINUATION-CORRECTION-2026-09-07`
+
+Change type: exact frozen-contract correction. Affected plan section: E1
+reissue-key ownership and same-receipt finalization continuation only.
+
+Reissue authorization now serializes on the globally unique reissue request id
+and checks receipt ownership before update, so authorized-but-unclaimed and
+cross-organization concurrent collisions return `request_replay_conflict`
+instead of leaking `unique_violation`. Finalization may continue an exact
+same-receipt partial bind only when the bound active Student membership resolves
+to the receipt Auth user and organization, the case is the receipt's exact case,
+and deterministic child evidence replays. Normal continuation requires an
+unactivated case; legacy continuation may also replay an exact already-applied
+child-04 Curator activation. Foreign or mismatched bindings remain fail-closed,
+and already-applied access-version bumps are not repeated. Terminal same-request
+replay is resolved before
+rechecking now-irrelevant historical Admin authority. Cross-receipt attempt-id
+collisions translate their unique races to the frozen
+`40001` contracts, while required case shape, OTP TTL, terminal/acceptance IDs
+and CAS values reject null as `22023`. A confirmed exact Auth identity settles
+an unknown reissue without replacing its prior issued window, whether or not a
+valid provider no-issuance proof is also present, and fences a late outcome.
+Service-role claim results include the exact attempt
+`pre_confirmation_sent_at` baseline for later provider read-back comparison;
+catalog acceptance proves zero direct policies or relation privileges on both
+private E1 tables.

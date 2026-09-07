@@ -8,7 +8,7 @@ import {
   fixedRoleCan,
   type FixedRoleCapability,
 } from "../fixed-role-policy.ts";
-import type { ActivePlatformActor } from "../platform-auth.ts";
+import type { PlatformActorResult } from "../platform-auth.ts";
 import {
   ClamdScanError,
   isClamdMalwareScanProof,
@@ -40,12 +40,19 @@ type DocumentCapability = Extract<
   "documents.read" | "documents.write"
 >;
 
+type DocumentOperation = "read" | "write";
+
+export type DocumentStorageRouteActor = Readonly<{
+  authUserId: string;
+  organizationId: string;
+}>;
+
 type DocumentAuthorization =
-  | Readonly<{ status: "authorized"; actor: ActivePlatformActor }>
+  | Readonly<{ status: "authorized"; actor: DocumentStorageRouteActor }>
   | Readonly<{ status: "anonymous" | "forbidden" | "unavailable"; actor: null }>;
 
 export type PlatformDocumentStorageRouteDependencies = Readonly<{
-  authorize(capability: DocumentCapability): Promise<DocumentAuthorization>;
+  authorize(operation: DocumentOperation): Promise<DocumentAuthorization>;
   createUserClient(): Promise<SupabaseClient>;
   createServiceClient(): SupabaseClient;
   scanFile(bytes: Uint8Array): Promise<ClamdMalwareScanProof>;
@@ -95,6 +102,44 @@ type DownloadConsumption = Readonly<{
 type RouteContext<Params extends Record<string, string>> = Readonly<{
   params: Promise<Params>;
 }>;
+
+type StaffActorResolver = () => Promise<PlatformActorResult>;
+
+type StudentActorResolver = () => Promise<
+  | Readonly<{ status: "anonymous"; actor: null }>
+  | Readonly<{
+      status: "invalid";
+      actor: null;
+      reason:
+        | "supabase_session_invalid"
+        | "student_authority_invalid"
+        | "student_authority_unavailable";
+    }>
+  | Readonly<{
+      status: "authenticated";
+      actor: DocumentStorageRouteActor;
+    }>
+>;
+
+type UploadResponseAudience = "staff" | "student";
+
+type DownloadPolicy = Readonly<{
+  accessPurpose: "staff_document_download" | "student_document_download";
+  redirectStatus: 302 | 307;
+  noStore: boolean;
+}>;
+
+const STAFF_DOWNLOAD_POLICY: DownloadPolicy = Object.freeze({
+  accessPurpose: "staff_document_download",
+  redirectStatus: 307,
+  noStore: false,
+});
+
+const STUDENT_DOWNLOAD_POLICY: DownloadPolicy = Object.freeze({
+  accessPurpose: "student_document_download",
+  redirectStatus: 302,
+  noStore: true,
+});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -509,36 +554,91 @@ function normalizeDownloadConsumption(
   });
 }
 
-async function defaultAuthorize(
-  capability: DocumentCapability,
-): Promise<DocumentAuthorization> {
-  const { resolvePlatformActor } = await import("../platform-auth.ts");
-  const result = await resolvePlatformActor();
-  if (result.status === "anonymous") {
-    return { status: "anonymous", actor: null };
-  }
-  if (result.status === "invalid") {
-    return { status: "unavailable", actor: null };
-  }
-  if (!fixedRoleCan(result.actor.authorityRole, capability)) {
-    return { status: "forbidden", actor: null };
-  }
-  return { status: "authorized", actor: result.actor };
+export function createStaffDocumentAuthorizationFactory(
+  resolveActor: StaffActorResolver = async () => {
+    const { resolvePlatformActor } = await import("../platform-auth.ts");
+    return resolvePlatformActor();
+  },
+) {
+  return async function authorizeStaffDocument(
+    operation: DocumentOperation,
+  ): Promise<DocumentAuthorization> {
+    const result = await resolveActor();
+    if (result.status === "anonymous") {
+      return { status: "anonymous", actor: null };
+    }
+    if (result.status === "invalid") {
+      return { status: "unavailable", actor: null };
+    }
+    const capability: DocumentCapability = operation === "read"
+      ? "documents.read"
+      : "documents.write";
+    if (!fixedRoleCan(result.actor.authorityRole, capability)) {
+      return { status: "forbidden", actor: null };
+    }
+    return {
+      status: "authorized",
+      actor: {
+        authUserId: result.actor.authUserId,
+        organizationId: result.actor.organizationId,
+      },
+    };
+  };
 }
 
-const defaultDependencies: PlatformDocumentStorageRouteDependencies = {
-  authorize: defaultAuthorize,
-  createUserClient: async () => {
-    const { createSupabaseServerClient } = await import("../supabase/server.ts");
-    return createSupabaseServerClient();
+export function createStudentDocumentAuthorizationFactory(
+  resolveActor: StudentActorResolver = async () => {
+    const { resolveStudentPortalActor } = await import(
+      "../student-portal-auth.ts"
+    );
+    return resolveStudentPortalActor();
   },
-  createServiceClient: () =>
-    createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig()),
-  scanFile: scanBytesWithClamd,
-  supabaseOrigin: () =>
-    new URL(getPlatformSupabaseBackendConfig().supabaseUrl).origin,
-  requestId: randomUUID,
-};
+) {
+  return async function authorizeStudentDocument(): Promise<DocumentAuthorization> {
+    const result = await resolveActor();
+    if (result.status === "anonymous") {
+      return { status: "anonymous", actor: null };
+    }
+    if (result.status === "invalid") {
+      return result.reason === "student_authority_unavailable"
+        ? { status: "unavailable", actor: null }
+        : { status: "anonymous", actor: null };
+    }
+    return {
+      status: "authorized",
+      actor: {
+        authUserId: result.actor.authUserId,
+        organizationId: result.actor.organizationId,
+      },
+    };
+  };
+}
+
+function createDefaultDependencies(
+  authorize: PlatformDocumentStorageRouteDependencies["authorize"],
+): PlatformDocumentStorageRouteDependencies {
+  return {
+    authorize,
+    createUserClient: async () => {
+      const { createSupabaseServerClient } = await import("../supabase/server.ts");
+      return createSupabaseServerClient();
+    },
+    createServiceClient: () =>
+      createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig()),
+    scanFile: scanBytesWithClamd,
+    supabaseOrigin: () =>
+      new URL(getPlatformSupabaseBackendConfig().supabaseUrl).origin,
+    requestId: randomUUID,
+  };
+}
+
+const defaultStaffDependencies = createDefaultDependencies(
+  createStaffDocumentAuthorizationFactory(),
+);
+
+const defaultStudentDependencies = createDefaultDependencies(
+  createStudentDocumentAuthorizationFactory(),
+);
 
 function errorResponse(status: number, code: string): Response {
   return Response.json({ error: code }, { status });
@@ -678,14 +778,15 @@ async function readBoundedMultipartForm(
   }
 }
 
-export function createPlatformDocumentUploadHandler(
-  dependencies: PlatformDocumentStorageRouteDependencies = defaultDependencies,
+function createDocumentUploadHandler(
+  dependencies: PlatformDocumentStorageRouteDependencies,
+  responseAudience: UploadResponseAudience,
 ) {
   return async function POST(
     request: Request,
     context: RouteContext<{ documentSlotId: string }>,
   ): Promise<Response> {
-    const authorization = await dependencies.authorize("documents.write");
+    const authorization = await dependencies.authorize("write");
     if (authorization.status !== "authorized") {
       return authorizationResponse(authorization.status);
     }
@@ -856,9 +957,8 @@ export function createPlatformDocumentUploadHandler(
       );
       if (!finalized) return errorResponse(503, "storage_unavailable");
 
-      return Response.json(
-        {
-          document: {
+      const document = responseAudience === "staff"
+        ? {
             studentCaseId: finalized.studentCaseId,
             documentSlotId: finalized.documentSlotId,
             documentVersionId: finalized.documentVersionId,
@@ -867,24 +967,44 @@ export function createPlatformDocumentUploadHandler(
             declaredMimeType: upload.file.type,
             byteSize: bytes.byteLength,
             sha256Hex,
-          },
-        },
-        { status: 201 },
-      );
+          }
+        : {
+            documentSlotId: finalized.documentSlotId,
+            documentVersionId: finalized.documentVersionId,
+            versionNumber: finalized.versionNumber,
+            originalFilename: upload.file.name,
+            declaredMimeType: upload.file.type,
+            byteSize: bytes.byteLength,
+          };
+
+      return Response.json({ document }, { status: 201 });
     } catch {
       return errorResponse(503, "storage_unavailable");
     }
   };
 }
 
-export function createPlatformDocumentDownloadHandler(
-  dependencies: PlatformDocumentStorageRouteDependencies = defaultDependencies,
+export function createPlatformDocumentUploadHandler(
+  dependencies: PlatformDocumentStorageRouteDependencies = defaultStaffDependencies,
+) {
+  return createDocumentUploadHandler(dependencies, "staff");
+}
+
+export function createStudentPortalDocumentUploadHandler(
+  dependencies: PlatformDocumentStorageRouteDependencies = defaultStudentDependencies,
+) {
+  return createDocumentUploadHandler(dependencies, "student");
+}
+
+function createDocumentDownloadHandler(
+  dependencies: PlatformDocumentStorageRouteDependencies,
+  policy: DownloadPolicy,
 ) {
   return async function GET(
     _request: Request,
     context: RouteContext<{ versionId: string }>,
   ): Promise<Response> {
-    const authorization = await dependencies.authorize("documents.read");
+    const authorization = await dependencies.authorize("read");
     if (authorization.status !== "authorized") {
       return authorizationResponse(authorization.status);
     }
@@ -898,7 +1018,7 @@ export function createPlatformDocumentDownloadHandler(
         {
           p_organization_id: authorization.actor.organizationId,
           p_document_version_id: versionId,
-          p_access_purpose: "staff_document_download",
+          p_access_purpose: policy.accessPurpose,
           p_expires_in_seconds: 60,
           p_request_id: dependencies.requestId(),
         },
@@ -941,9 +1061,30 @@ export function createPlatformDocumentDownloadHandler(
         dependencies.supabaseOrigin(),
       );
       if (!signedUrl) return errorResponse(503, "storage_unavailable");
-      return Response.redirect(signedUrl, 307);
+      if (policy.noStore) {
+        return new Response(null, {
+          status: policy.redirectStatus,
+          headers: {
+            "Cache-Control": "no-store",
+            Location: signedUrl,
+          },
+        });
+      }
+      return Response.redirect(signedUrl, policy.redirectStatus);
     } catch {
       return errorResponse(503, "storage_unavailable");
     }
   };
+}
+
+export function createPlatformDocumentDownloadHandler(
+  dependencies: PlatformDocumentStorageRouteDependencies = defaultStaffDependencies,
+) {
+  return createDocumentDownloadHandler(dependencies, STAFF_DOWNLOAD_POLICY);
+}
+
+export function createStudentPortalDocumentDownloadHandler(
+  dependencies: PlatformDocumentStorageRouteDependencies = defaultStudentDependencies,
+) {
+  return createDocumentDownloadHandler(dependencies, STUDENT_DOWNLOAD_POLICY);
 }

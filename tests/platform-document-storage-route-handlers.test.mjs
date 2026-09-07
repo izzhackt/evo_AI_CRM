@@ -6,6 +6,9 @@ import test from "node:test";
 import {
   createPlatformDocumentDownloadHandler,
   createPlatformDocumentUploadHandler,
+  createStudentDocumentAuthorizationFactory,
+  createStudentPortalDocumentDownloadHandler,
+  createStudentPortalDocumentUploadHandler,
 } from "../src/lib/server/platform-document-storage-route-handlers.ts";
 import { ClamdScanError } from "../src/lib/server/clamd-malware-scanner.ts";
 
@@ -727,6 +730,98 @@ test("authorized download consumes one grant and redirects only to a 60-second p
   assert.deepEqual(calls.at(-1)[4], { download: true });
 });
 
+test("Student upload uses the same storage engine but returns only the browser-safe receipt", async () => {
+  const { dependencies } = uploadDependencies({
+    scanOutcomes: [
+      { result: SCAN_PROOF },
+      { result: STORED_SCAN_PROOF },
+    ],
+  });
+  const response = await createStudentPortalDocumentUploadHandler(dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+  );
+
+  assert.equal(response.status, 201);
+  const body = await response.json();
+  assert.deepEqual(body, {
+    document: {
+      documentSlotId: SLOT_ID,
+      documentVersionId: VERSION_ID,
+      versionNumber: 1,
+      originalFilename: "proof.pdf",
+      declaredMimeType: "application/pdf",
+      byteSize: BYTES.byteLength,
+    },
+  });
+  assert.doesNotMatch(
+    JSON.stringify(body),
+    new RegExp(`${CASE_ID}|${SHA256}|${OBJECT_NAME}|platform-documents`, "u"),
+  );
+});
+
+test("Student download uses its own audit purpose and a no-store 302", async () => {
+  const { calls, dependencies } = downloadDependencies();
+  const response = await createStudentPortalDocumentDownloadHandler(dependencies)(
+    new Request("http://app.test/api/portal/document-versions/x/download"),
+    { params: Promise.resolve({ versionId: VERSION_ID }) },
+  );
+
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.match(
+    response.headers.get("location"),
+    /^http:\/\/127\.0\.0\.1:54321\/storage\/v1\/object\/sign\/platform-documents\//u,
+  );
+  assert.equal(
+    calls.find(([, name]) => name === "grant_document_download")[2]
+      .p_access_purpose,
+    "student_document_download",
+  );
+  assert.equal(calls.at(-1)[3], 60);
+});
+
+test("Student authorization returns only the minimal route actor and fails unavailable authority closed", async () => {
+  const studentActor = {
+    ...ACTOR,
+    studentCaseId: CASE_ID,
+    databaseRole: "student",
+    caseState: "active",
+    portalActivatedAt: AT,
+  };
+  const authorize = createStudentDocumentAuthorizationFactory(async () => ({
+    status: "authenticated",
+    actor: studentActor,
+  }));
+  assert.deepEqual(await authorize("write"), {
+    status: "authorized",
+    actor: {
+      authUserId: ACTOR.authUserId,
+      organizationId: ORGANIZATION_ID,
+    },
+  });
+
+  const invalid = createStudentDocumentAuthorizationFactory(async () => ({
+    status: "invalid",
+    actor: null,
+    reason: "student_authority_invalid",
+  }));
+  assert.deepEqual(await invalid("read"), {
+    status: "anonymous",
+    actor: null,
+  });
+
+  const unavailable = createStudentDocumentAuthorizationFactory(async () => ({
+    status: "invalid",
+    actor: null,
+    reason: "student_authority_unavailable",
+  }));
+  assert.deepEqual(await unavailable("read"), {
+    status: "unavailable",
+    actor: null,
+  });
+});
+
 test("download rejects a foreign signed origin and never exposes it", async () => {
   const { dependencies } = downloadDependencies({
     signedUrl: `https://evil.example/storage/v1/object/sign/platform-documents/${OBJECT_NAME}?token=x`,
@@ -774,6 +869,20 @@ test("active document routes have no filesystem, Drizzle, public bucket or legac
       ),
       "utf8",
     ),
+    readFileSync(
+      new URL(
+        "../src/app/api/portal/document-slots/[documentSlotId]/versions/route.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFileSync(
+      new URL(
+        "../src/app/api/portal/document-versions/[versionId]/download/route.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
   ].join("\n");
   assert.doesNotMatch(
     source,
@@ -781,4 +890,8 @@ test("active document routes have no filesystem, Drizzle, public bucket or legac
   );
   assert.match(source, /upsert:\s*false/);
   assert.match(source, /platform-documents/);
+  assert.match(source, /createStudentPortalDocumentUploadHandler/u);
+  assert.match(source, /createStudentPortalDocumentDownloadHandler/u);
+  assert.match(source, /student_document_download/u);
+  assert.match(source, /"Cache-Control": "no-store"/u);
 });

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { buildV3InboxHref } from "../src/lib/v3/inbox-href.ts";
+
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
@@ -23,20 +25,94 @@ test("V3 Inbox reads one URL-selected canonical transcript with exact cursors", 
   assert.doesNotMatch(adapter, /THREAD_READ_CONCURRENCY|batch\.map/u);
   assert.match(adapter, /if \(messageCursor !== null\) return null/u);
   assert.match(adapter, /message\?\.direction === "inbound"/u);
-  assert.match(adapter, /messages_before_at/u);
-  assert.match(adapter, /messages_before_id/u);
-  assert.match(adapter, /before_at/u);
-  assert.match(adapter, /before_id/u);
+  assert.match(adapter, /query: options\.query \?\? undefined/u);
+  assert.match(adapter, /waitingOnly: options\.waitingOnly/u);
+  assert.match(adapter, /buildV3InboxHref/u);
 
   assert.match(page, /conversation\?: string \| string\[\]/u);
   assert.match(page, /parsePlatformRouteUuid/u);
   assert.match(page, /parsePlatformConversationCursor/u);
   assert.match(page, /conversationId === null && messageCursor !== null/u);
   assert.match(page, /conversationId !== null && view\.selected === null/u);
+  assert.match(page, /q\?: string \| string\[\]/u);
+  assert.match(page, /waiting\?: string \| string\[\]/u);
+  assert.match(page, /value !== "1"/u);
+  assert.match(page, /normalized\.length > 200/u);
+  assert.match(page, /if \(Array\.isArray\(value\)\) notFound\(\)/u);
+  assert.match(
+    page,
+    /if \(Object\.keys\(params\)\.some\(\(key\) => !allowed\.has\(key\)\)\) notFound\(\)/u,
+  );
+  assert.match(
+    page,
+    /if \(sortAt === undefined \|\| id === undefined\) notFound\(\)/u,
+  );
   assert.doesNotMatch(inbox, /useState|onClick=/u);
   assert.match(inbox, /href=\{conversation\.href\}/u);
   assert.match(inbox, /href=\{open\.olderMessagesHref\}/u);
   assert.match(inbox, /href=\{view\.queueOlderHref\}/u);
+});
+
+test("V3 Inbox href preserves filters and both cursor pairs behaviorally", () => {
+  const href = buildV3InboxHref({
+    filters: { query: "Иван Петров", waitingOnly: true },
+    queueCursor: {
+      sortAt: "2026-09-07T09:00:00.000Z",
+      id: "62000000-0000-4000-8000-000000000001",
+    },
+    conversationId: "62000000-0000-4000-8000-000000000002",
+    messageCursor: {
+      sortAt: "2026-09-07T08:00:00.000Z",
+      id: "62000000-0000-4000-8000-000000000003",
+    },
+  });
+
+  assert.equal(
+    href,
+    "/v3/inbox?q=%D0%98%D0%B2%D0%B0%D0%BD+%D0%9F%D0%B5%D1%82%D1%80%D0%BE%D0%B2&waiting=1&before_at=2026-09-07T09%3A00%3A00.000Z&before_id=62000000-0000-4000-8000-000000000001&conversation=62000000-0000-4000-8000-000000000002&messages_before_at=2026-09-07T08%3A00%3A00.000Z&messages_before_id=62000000-0000-4000-8000-000000000003",
+  );
+});
+
+test("V3 Inbox href produces q-only, waiting-toggle and newest states", () => {
+  assert.equal(
+    buildV3InboxHref({
+      filters: { query: "Анна", waitingOnly: false },
+    }),
+    "/v3/inbox?q=%D0%90%D0%BD%D0%BD%D0%B0",
+  );
+  assert.equal(
+    buildV3InboxHref({
+      filters: { query: "Анна", waitingOnly: true },
+    }),
+    "/v3/inbox?q=%D0%90%D0%BD%D0%BD%D0%B0&waiting=1",
+  );
+  assert.equal(
+    buildV3InboxHref({
+      filters: { query: null, waitingOnly: true },
+      conversationId: "62000000-0000-4000-8000-000000000002",
+    }),
+    "/v3/inbox?waiting=1&conversation=62000000-0000-4000-8000-000000000002",
+  );
+  assert.equal(
+    buildV3InboxHref({ filters: { query: null, waitingOnly: false } }),
+    "/v3/inbox",
+  );
+});
+
+test("V3 Inbox search and waiting UI use the server waiting_since projection", () => {
+  const adapter = source("src/lib/v3/inbox-source.ts");
+  const inbox = source("src/components/v3/Inbox.tsx");
+
+  assert.match(adapter, /summary\.waitingSince/u);
+  assert.match(adapter, /formatWaitingRu\(summary\.waitingSince\)/u);
+  assert.doesNotMatch(adapter, /function awaitingReplyFor/u);
+  assert.match(adapter, /waitingToggleHref/u);
+  assert.match(inbox, /name="q"/u);
+  assert.match(inbox, /name="waiting" value="1"/u);
+  assert.match(inbox, /Только ждут ответа/u);
+  assert.match(inbox, /Ждёт ответа с \{conversation\.waitingSince\}/u);
+  assert.match(inbox, /Ждёт ответа с \{open\.waitingSince\}/u);
+  assert.doesNotMatch(`${adapter}\n${inbox}`, /lastMessageAt.*formatWaitingRu/su);
 });
 
 test("V3 owns human-reviewed Gemini and explicit WhatsApp action controls", () => {

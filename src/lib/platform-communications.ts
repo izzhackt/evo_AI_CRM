@@ -72,6 +72,7 @@ export type PlatformConversationSummary = Readonly<{
   sortAt: string;
   lastMessageDirection: PlatformMessageDirection | null;
   lastMessageAt: string | null;
+  waitingSince: string | null;
 }>;
 
 export type PlatformConversationCommandContext = Readonly<{
@@ -132,6 +133,7 @@ export type PlatformConversationPageOptions = Readonly<{
   queue?: PlatformConversationQueue;
   status?: PlatformConversationStatus;
   query?: string;
+  waitingOnly?: boolean;
 }>;
 
 export type PlatformMessagePageOptions = Readonly<{
@@ -480,6 +482,7 @@ const PLATFORM_CONVERSATION_SUMMARY_KEYS = Object.freeze([
   "sort_at",
   "last_message_direction",
   "last_message_at",
+  "waiting_since",
 ]);
 
 /**
@@ -530,6 +533,10 @@ export function normalizePlatformConversationSummary(
     value.last_message_at === null
       ? null
       : parseTimestamp(value.last_message_at);
+  const waitingSince =
+    value.waiting_since === null
+      ? null
+      : parseTimestamp(value.waiting_since);
   const queue: PlatformConversationQueue | null =
     value.queue === "sales"
       ? "sales"
@@ -553,7 +560,12 @@ export function normalizePlatformConversationSummary(
     sortAt === null ||
     lastMessageDirection === undefined ||
     (value.last_message_at !== null && lastMessageAt === null) ||
-    (lastMessageDirection === null) !== (lastMessageAt === null)
+    (value.waiting_since !== null && waitingSince === null) ||
+    (lastMessageDirection === null) !== (lastMessageAt === null) ||
+    (lastMessageDirection === "inbound") !== (waitingSince !== null) ||
+    (waitingSince !== null &&
+      lastMessageAt !== null &&
+      new Date(waitingSince).valueOf() > new Date(lastMessageAt).valueOf())
   ) {
     return invalidShape();
   }
@@ -574,6 +586,7 @@ export function normalizePlatformConversationSummary(
     sortAt,
     lastMessageDirection,
     lastMessageAt,
+    waitingSince,
   };
 }
 
@@ -817,6 +830,8 @@ export async function listPlatformConversations(
     const pageSize = normalizePageSize(options?.pageSize, 50);
     const cursor = options?.cursor ?? null;
     const query = normalizeConversationQuery(options?.query);
+    const waitingOnly = options?.waitingOnly ?? false;
+    if (typeof waitingOnly !== "boolean") return invalidShape();
     const client = await getPlatformClient(dependencies.client);
     const response = await client.schema("platform").rpc(
       "staff_communication_page",
@@ -829,6 +844,7 @@ export async function listPlatformConversations(
         p_status: options?.status ?? null,
         p_conversation_id: null,
         p_query: query,
+        p_waiting_only: waitingOnly,
       }),
       { get: true },
     );

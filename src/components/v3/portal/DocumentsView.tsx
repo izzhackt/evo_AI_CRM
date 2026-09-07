@@ -86,11 +86,15 @@ export function DocumentsView({
               </dl>
 
               {document.reworkReason ? (
-                <div className="mt-4 rounded-nav border border-danger bg-danger-weak px-3 py-3">
-                  <p className="text-xs font-semibold text-danger">
+                <div
+                  role="note"
+                  aria-label="Что нужно исправить"
+                  className="mt-4 border-s-2 border-border-strong ps-3"
+                >
+                  <p className="text-xs font-semibold text-fg">
                     Что нужно исправить
                   </p>
-                  <p className="mt-1 text-sm leading-6 text-danger">
+                  <p className="mt-1 text-sm leading-6 text-fg-2">
                     {document.reworkReason}
                   </p>
                 </div>

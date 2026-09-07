@@ -57,7 +57,11 @@ export function PortalShell({
         aria-label="Разделы кабинета"
         className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur"
       >
-        <ul className="mx-auto flex max-w-[1180px] gap-1 overflow-x-auto px-3 py-2 sm:px-5">
+        <ul
+          aria-label="Навигация по разделам кабинета"
+          tabIndex={0}
+          className="mx-auto flex max-w-[1180px] gap-1 overflow-x-auto px-3 py-2 sm:px-5"
+        >
           {SECTIONS.map((section) => {
             const active = pathname === section.href;
             return (

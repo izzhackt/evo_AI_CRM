@@ -74,7 +74,11 @@ const CASE_STATUS: Record<string, string> = {
   closed: "закрыт",
 };
 
-/** Student-visible allowlist for the otherwise free-text operational stage. */
+/**
+ * Published OZO lifecycle plus its two pre-lifecycle bridge states. The
+ * database column deliberately remains non-empty free text, so other valid
+ * values use one neutral Student-safe label below instead of leaking a key.
+ */
 const STUDENT_OPERATIONAL_STAGE: Record<string, string> = {
   contract_confirmed: "договор подтверждён",
   admissions_handoff: "передано в приёмную",
@@ -88,6 +92,8 @@ const STUDENT_OPERATIONAL_STAGE: Record<string, string> = {
   completed: "поступление завершено",
   closed: "дело закрыто",
 };
+
+const CUSTOM_STUDENT_OPERATIONAL_STAGE = "индивидуальный этап сопровождения";
 
 const DOCUMENT_SLOT_STATUS: Record<PlatformDocumentSlotStatus, string> = {
   required: "требуется",
@@ -256,8 +262,14 @@ export function allDayDate(value: string | null | undefined): string | null {
 export const visaStatus = (v: string | null | undefined) => lookup(VISA_STATUS, v);
 export const visaKind = (v: string | null | undefined) => lookup(VISA_KIND, v);
 export const caseStatus = (v: string | null | undefined) => lookup(CASE_STATUS, v);
-export const studentOperationalStage = (v: string | null | undefined) =>
-  lookup(STUDENT_OPERATIONAL_STAGE, v);
+export function studentOperationalStage(
+  value: string | null | undefined,
+): string | null {
+  const normalized = value?.trim();
+  if (!normalized) return null;
+  return lookup(STUDENT_OPERATIONAL_STAGE, normalized) ??
+    CUSTOM_STUDENT_OPERATIONAL_STAGE;
+}
 export const taskStatus = (v: string | null | undefined) => lookup(TASK_STATUS, v);
 export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];
 export const documentSlotStatus = (v: string | null | undefined) =>

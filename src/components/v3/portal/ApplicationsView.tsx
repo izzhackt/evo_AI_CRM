@@ -37,9 +37,7 @@ function Timeline({ items }: { items: readonly TimelineItem[] }) {
                 className="absolute -start-[19px] top-1.5 size-2 rounded-full border border-control-edge bg-surface"
                 aria-hidden="true"
               />
-              <span className="font-medium text-fg">
-                {item.label ?? "Статус недоступен"}
-              </span>
+              <PortalStatus label={item.label} tone="neutral" />
               {occurredLabel ? (
                 <time
                   dateTime={item.occurredAt}

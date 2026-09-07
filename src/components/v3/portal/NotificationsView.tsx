@@ -1,6 +1,7 @@
 import type { StudentPortalNotification } from "@/lib/v3/portal-source";
 
 import { PortalEmptyState, PortalSection } from "./PortalPage";
+import { PortalStatus } from "./PortalStatus";
 import { formatPortalTimestamp } from "./presentation";
 
 export type MarkPortalNotificationReadAction = (
@@ -47,9 +48,7 @@ export function NotificationsView({
                       {notification.subjectLabel}
                     </h3>
                     {unread ? (
-                      <span className="rounded-[5px] bg-info-weak px-1.5 py-0.5 text-2xs font-medium text-info">
-                        Новое
-                      </span>
+                      <PortalStatus label="Новое" tone="info" />
                     ) : null}
                   </div>
                   {notification.detail ? (

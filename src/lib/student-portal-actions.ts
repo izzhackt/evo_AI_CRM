@@ -1,11 +1,10 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-
 import { revalidatePath } from "next/cache";
 
 import { requireStudentPortalActor } from "./student-portal-guards";
 import { exactActionStringFields } from "./server/action-form-fields";
+import { studentPortalNotificationReadRequestId } from "./server/student-portal-notification-command-id";
 import { markStudentPortalNotificationRead } from "./v3/portal-source";
 
 const MARK_NOTIFICATION_READ_FIELDS = ["notification_id"] as const;
@@ -16,7 +15,7 @@ const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 export async function markStudentPortalNotificationReadAction(
   form: FormData,
 ): Promise<void> {
-  await requireStudentPortalActor();
+  const actor = await requireStudentPortalActor();
 
   const fields = exactActionStringFields(form, MARK_NOTIFICATION_READ_FIELDS);
   const notificationId = fields?.get("notification_id")?.toLowerCase() ?? null;
@@ -30,7 +29,7 @@ export async function markStudentPortalNotificationReadAction(
 
   await markStudentPortalNotificationRead({
     notificationId,
-    requestId: randomUUID(),
+    requestId: studentPortalNotificationReadRequestId(actor, notificationId),
   });
   revalidatePath("/portal/notifications");
 }

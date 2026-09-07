@@ -20207,3 +20207,39 @@ Decision:
 Official behavior basis remains the Supabase Auth Users, `inviteUserByEmail`,
 Redirect URLs, Email Templates and Custom SMTP documentation linked in the
 preceding E0 entry.
+
+## 2026-09-07 - Align E0 with the merged D2 base and first-launch hostname authority
+
+Block-ID: `EVO-V3-E0-D2-BASE-AND-HOSTNAME-CORRECTION-2026-09-07`
+
+Change type: plan freshness, delivery status and hostname authority correction.
+Affected plan section: D2 closure, current Stage E0 status and E3 Auth URL
+configuration.
+
+D2 PR #673 is merged. Exact `origin/main`
+`aecb115f58966ec9609ae72774ab029009475e55` contains migrations 122–125 and the
+newer non-duplicating D2 validation cadence. E0/PR #669 is rebased once onto
+that exact base and is now the current docs-only package; Stage E runtime work
+remains not started.
+
+The shared production authority already selects one first-launch hostname.
+Therefore Decision 5 of
+`EVO-V3-E0-STUDENT-PORTAL-INVITE-SAFETY-CORRECTION-2026-09-07` is superseded:
+
+1. Managed Supabase Auth Site URL for first launch is exactly
+   `https://evo-crm.72.62.119.112.sslip.io`.
+2. The sole production invite callback allowlist entry is exactly
+   `https://evo-crm.72.62.119.112.sslip.io/auth/callback`; no wildcard or
+   parallel custom-domain callback is added.
+3. `https://crm.evoadmissions.com` remains deferred until EVO controls working
+   DNS and a separately approved cutover changes the shared release authority.
+   Its absence is not an E0–E5 blocker or release prerequisite.
+4. E3 must still verify and, when authorized in that later package, configure
+   the exact managed Site URL/callback. E0 proves only the repository contract;
+   it performs no managed Supabase, DNS, SMTP, provider, credential, production
+   or release action.
+
+All other invite-safety corrections remain authoritative: GET callback
+prefetch does not call `verifyOtp`, password setup survives pending authority,
+the durable dispatch marker prevents blind resend, normalized email is reserved
+globally before dispatch, and exact Auth user/email matching is required.

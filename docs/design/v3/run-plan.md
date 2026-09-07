@@ -255,8 +255,9 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
 [Next.js Data Security](https://nextjs.org/docs/app/guides/data-security),
 [PostgreSQL advisory locks](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS).
 
-**Волна D2 (UI поверх D1) — ГОТОВА К MERGE В PR #673.** Зафиксированная
-последовательность уже находится в `origin/main`:
+**Волна D2 (UI поверх D1) — СДЕЛАНО (PR #673, squash
+`aecb115f58966ec9609ae72774ab029009475e55`).** Зафиксированная
+последовательность находится в `origin/main`:
 
 - контракт D2 — PR #664, `ca71dbc5`;
 - exact-case поправка контракта Media — PR #665, `234f390b`;
@@ -268,10 +269,13 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
 - Media route, attach boundary и corrective migration 125 — PR #672,
   `a6ecd2af`.
 
-Closure-пачка опубликована как PR #673 из ветки
-`izzhackt/v3-d2-final-integration`, созданной от точного `a6ecd2af`.
-Проверенный функциональный head — `e935103a`: Media UI в Inbox, регистрация
-всех новых D2 Node/SQL тестов в канонических harness, browser proof и две
+Closure-пачка PR #673 из ветки `izzhackt/v3-d2-final-integration` слита
+2026-09-07 из reviewed head `4aff77e1008cc647956b22f33c07fa6e9975170d`
+в squash `aecb115f58966ec9609ae72774ab029009475e55`. Миграции 122–125 и
+канонические harness теперь присутствуют в `origin/main`; E0 продолжает только
+от этого exact base. Проверенный функциональный head `e935103a` дал Media UI в
+Inbox, регистрацию всех новых D2 Node/SQL тестов в канонических harness,
+browser proof и две
 исправленные только реальным браузером ошибки — недопустимый object export из
 `"use server"` и точное различение отсутствующего private Storage object
 (`unavailable`) от настоящего отказа полномочий (`forbidden`).
@@ -283,10 +287,9 @@ PASS; desktop, 393 px и forced-dark V3 gate — PASS; production build и по�
 ESLint — PASS; независимое adversarial review — APPROVED. Отдельный SQL
 authorization harness был зелёным до последней runtime/test-only поправки;
 после него не менялись migration/SQL/harness-файлы, поэтому дублирующий полный
-локальный rerun не требовался. Защищённые GitHub checks обязаны пройти на
-актуальном `headRefOid` PR #673. До его match-head squash-merge D2 не называть
-сделанной; после merge сразу отметить `СДЕЛАНО` в следующей плановой пачке и
-перейти к E0/PR #669.
+локальный rerun не требовался. На финальном head PR #673 прошли `Changed
+range`, `Release contracts`, `Lint`, `Build`, `Migration boundary` и `Fast
+checks`; PR слит. D2 не повторять, текущая пачка — E0/PR #669.
 
 Холодный исполнитель сначала проверяет состояние, а не повторяет уже слитые
 пачки:
@@ -301,10 +304,9 @@ gh pr list --repo izzhackt/evo_AI_CRM \
   --json number,state,headRefOid,mergeCommit,url
 ```
 
-Если closure-PR ещё открыт, продолжать только его exact head. Если он слит,
-миграции 122–125 есть в `origin/main`, канонические Node manifests проходят
-validate-only, cumulative gates и review совпадают с зафиксированным head — D2
-не переделывать, отметить `СДЕЛАНО` и перейти к E. Любое расхождение —
+Ожидаемый результат проверки теперь — merged PR #673, exact `origin/main`
+`aecb115f58966ec9609ae72774ab029009475e55` и migrations 122–125. При этом
+состоянии D2 не переделывать и продолжать E0. Любое расхождение —
 stop-and-investigate.
 
 Замороженный продуктовый контракт D2:
@@ -419,13 +421,14 @@ review точного cumulative diff. Любая последующая фун�
 replacement run. D2 не разрешает managed schema apply, provider calls или
 production release.
 
-### E · Портал студента — НЕ НАЧАТ (cold handover E0; reuse, не rebuild)
+### E · Портал студента — E0 ТЕКУЩАЯ (docs-only; runtime не начат)
 
-**Статус на exact `origin/main` `234f390b2bd19525a60d4d4988b56cb1bfd0ef7d`:**
-Stage E не начат; E0 — только этот документационный контракт. Миграций
-126/127, portal routes, student resolver, callback и trusted-server invite в
-репозитории ещё нет. Не выдавать E0 или существующие SQL-функции за работающий
-фронт, отправленное приглашение либо production proof.
+**Статус на exact `origin/main`
+`aecb115f58966ec9609ae72774ab029009475e55` после merge D2 PR #673:** D2
+сделано, E0/PR #669 — текущая docs-only пачка. Реализация Stage E не начата:
+миграций 126/127, portal routes, student resolver, callback и trusted-server
+invite в репозитории ещё нет. Не выдавать E0 или существующие SQL-функции за
+работающий фронт, отправленное приглашение либо production proof.
 
 #### Уже существующая authority — не дублировать
 
@@ -645,21 +648,16 @@ Staff и Student — две непересекающиеся authorization ве�
   student data и не даёт Portal authority. Callback/set-password/pending имеют
   `Cache-Control: no-store`; пароль, token hash и Auth response не логируются.
 
-**Target E3 Auth configuration (ещё не current proof):** canonical managed Site
-URL должен стать ровно `https://crm.evoadmissions.com`, а primary production
-redirect allowlist должен содержать exact
-`https://crm.evoadmissions.com/auth/callback`. sslip callback
-`https://evo-crm.72.62.119.112.sslip.io/auth/callback` допускается как
-дополнительный exact fallback только если он явно сохранён финальным release
-contract; wildcard запрещён, Site URL остаётся canonical domain. Сейчас это
-не готовая конфигурация: managed settings не проверены,
-`supabase/config.toml` содержит старый
-`additional_redirect_urls = ["https://127.0.0.1:3000"]`, а существующие
-repository release/production instructions и workflow всё ещё называют или
-health-check-ят sslip как primary. Это authority/config conflict и жёсткий
-blocker до E3 apply/final freeze: после обязательного merge D2/current-main
-refresh governing plan, hostname/DNS/TLS и release workflow должны быть
-согласованы одним решением; E3 не угадывает и не меняет managed Auth до этого.
+**Target E3 Auth configuration (ещё не current proof):** sole first-launch
+managed Site URL — ровно `https://evo-crm.72.62.119.112.sslip.io`, а production
+redirect allowlist содержит ровно exact
+`https://evo-crm.72.62.119.112.sslip.io/auth/callback`. Wildcard и параллельный
+production callback запрещены. `https://crm.evoadmissions.com` отложен до
+рабочего DNS под контролем EVO и не входит в E0–E5 acceptance, Site URL или
+allowlist. Сейчас managed settings не проверены, а `supabase/config.toml`
+содержит старый `additional_redirect_urls = ["https://127.0.0.1:3000"]`; E3
+обязан заменить его exact sslip callback и отдельно подтвердить managed Site
+URL, не описывая это как уже готовое.
 Local target: Site URL
 `http://127.0.0.1:3000` и единственный callback
 `http://127.0.0.1:3000/auth/callback`. Preview wildcard и `localhost` alias не
@@ -736,10 +734,10 @@ standard/resumable boundary:
    local Postgres/Auth/RLS/Storage/Chromium contour и independent exact-head
    adversarial review с re-review подтверждённых fixes.
 
-Каждый пакет — отдельный scoped PR после предыдущего merge; migrations 126/127
-не перенумеровывать и не принимать до 125 на `main`. Рутинные PR не запускают
-полный release-candidate `EVO platform CI`; он выполняется один раз только на
-замороженном exact-current-`main` согласно общему release contract.
+Каждый пакет — отдельный scoped PR после предыдущего merge; migration 125 уже
+есть на exact `main`, а migrations 126/127 не перенумеровывать. Рутинные PR не
+запускают полный release-candidate `EVO platform CI`; он выполняется один раз
+только на замороженном exact-current-`main` согласно общему release contract.
 
 #### Live blockers и граница доказательства
 
@@ -758,10 +756,10 @@ Supabase SMTP не является production proof и ограничивает
 [Custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp). Сам E0 и пакеты
 E1–E5 не разрешают managed apply, SMTP/DNS mutation, live invite/provider call,
 production deployment, amoCRM/WhatsApp write или release arming.
-Отдельный blocker до E3/final freeze — привести governing hostname authority,
-DNS/TLS, Supabase Site URL/allowlist и hardcoded release health URL к одному
-primary `https://crm.evoadmissions.com`; sslip можно оставить только явно
-утверждённым exact fallback. Текущий конфликт нельзя скрыть успешным local test.
+До E3/final freeze отдельно нужны read-only proof рабочего TLS на sole
+first-launch sslip hostname и exact managed Site URL/allowlist. Custom domain
+`crm.evoadmissions.com` остаётся deferred до отдельного owner-approved DNS
+перехода; его отсутствие не блокирует E и не разрешает параллельный route.
 
 ### F · Чистка кода репозитория — НЕ НАЧАТА (после D и E)
 

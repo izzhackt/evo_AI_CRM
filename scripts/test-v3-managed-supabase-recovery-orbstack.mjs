@@ -6180,7 +6180,6 @@ async function startCandidateApp(options, status, actors, state, supervisor, too
     EVO_PLATFORM_ORGANIZATION_ID: options.platformOrganizationId,
     EVO_PLATFORM_P7A_AUDIT_ENABLED: "1",
     EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1",
-    EVO_PLATFORM_AI_MEMORY_ENABLED: "0",
     EVO_PLATFORM_STAFF_ASSISTANT_ENABLED: "0",
     EVO_PLATFORM_P6C_OVERDUE_NOTIFICATIONS_ENABLED: "0",
     EVO_CLAMD_HOST: scanner.networkHost,

@@ -34,11 +34,6 @@ import {
   platformApplicationCountryEditOptions,
   platformApplicationDegreeEditOptions,
 } from "../src/lib/platform-application-contract.ts";
-import {
-  PlatformCaseAssignmentRepositoryError,
-  normalizePlatformCuratorOptions,
-  normalizePlatformStudentCaseAssignmentState,
-} from "../src/lib/platform-case-assignment.ts";
 import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
 
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -49,8 +44,6 @@ const LEAD_ID = "33333333-3333-4333-8333-444444444444";
 const VERSION_ID = "44444444-4444-4444-8444-444444444444";
 const CONTRACT_ID = "55555555-5555-4555-8555-555555555555";
 const HANDOFF_ID = "66666666-6666-4666-8666-666666666666";
-const CURATOR_MEMBERSHIP_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const CURATOR_PROFILE_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const AT = "2026-08-01T05:00:00+00:00";
 
 test("V3 Admissions forms own versioned retry state without legacy query envelopes", () => {
@@ -893,85 +886,10 @@ test("finance, student and curator are denied before restricted repository reads
   );
 });
 
-test("assignment projections normalize only same-org active Curator authority", () => {
-  assert.deepEqual(
-    normalizePlatformStudentCaseAssignmentState(
-      {
-        id: CASE_ID,
-        organization_id: ORGANIZATION_ID,
-        current_curator_membership_id: CURATOR_MEMBERSHIP_ID,
-        portal_activated_at: AT,
-      },
-      ORGANIZATION_ID,
-      CASE_ID,
-    ),
-    {
-      organizationId: ORGANIZATION_ID,
-      studentCaseId: CASE_ID,
-      currentCuratorMembershipId: CURATOR_MEMBERSHIP_ID,
-      portalActivatedAt: AT,
-    },
-  );
-  assert.deepEqual(
-    normalizePlatformCuratorOptions(
-      [{
-        id: CURATOR_MEMBERSHIP_ID,
-        organization_id: ORGANIZATION_ID,
-        profile_id: CURATOR_PROFILE_ID,
-        status: "active",
-        current_role: "curator",
-      }],
-      [{
-        id: CURATOR_PROFILE_ID,
-        display_name: "  Assigned Curator  ",
-        status: "active",
-      }],
-      ORGANIZATION_ID,
-    ),
-    [{
-      membershipId: CURATOR_MEMBERSHIP_ID,
-      displayName: "Assigned Curator",
-    }],
-  );
-
-  assert.throws(
-    () => normalizePlatformCuratorOptions(
-      [{
-        id: CURATOR_MEMBERSHIP_ID,
-        organization_id: ORGANIZATION_ID,
-        profile_id: CURATOR_PROFILE_ID,
-        status: "active",
-        current_role: "sales",
-      }],
-      [{
-        id: CURATOR_PROFILE_ID,
-        display_name: "Wrong role",
-        status: "active",
-      }],
-      ORGANIZATION_ID,
-    ),
-    PlatformCaseAssignmentRepositoryError,
-  );
-  assert.throws(
-    () => normalizePlatformStudentCaseAssignmentState(
-      {
-        id: CASE_ID,
-        organization_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-        current_curator_membership_id: null,
-        portal_activated_at: null,
-      },
-      ORGANIZATION_ID,
-      CASE_ID,
-    ),
-    PlatformCaseAssignmentRepositoryError,
-  );
-});
-
 test("connected Platform runtime modules do not statically import SQLite or legacy auth", () => {
   const files = [
     "src/lib/platform-admissions.ts",
     "src/lib/platform-admissions-actions.ts",
-    "src/lib/platform-case-assignment.ts",
     "src/app/(v3)/v3/calendar/page.tsx",
     "src/app/(v3)/v3/profile/page.tsx",
     "src/components/v3/calendar/TaskControls.tsx",

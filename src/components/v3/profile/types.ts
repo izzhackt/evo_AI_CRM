@@ -17,7 +17,6 @@ import type {
   PlatformContractRetryOperation,
 } from "@/lib/platform-contract-workflow";
 import type {
-  PlatformCaseNotePage,
   PlatformCaseNoteSubject,
 } from "@/lib/platform-case-notes";
 
@@ -105,7 +104,11 @@ export type ProfileSalesSnapshot = Readonly<{
 
 export type ProfileNotesSnapshot = Readonly<{
   subject: PlatformCaseNoteSubject;
-  page: PlatformCaseNotePage;
+  rows: readonly Readonly<{
+    body: string;
+    authorDisplayName: string;
+    createdAt: string;
+  }>[];
 }>;
 
 export type ProfileAdmissionsRequestIds = Readonly<{

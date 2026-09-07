@@ -104,10 +104,10 @@ export function ProfileNotes({
         </div>
       </form>
 
-      {notes.page.rows.length > 0 ? (
+      {notes.rows.length > 0 ? (
         <ol className="divide-y divide-border">
-          {notes.page.rows.map((note) => (
-            <li key={note.caseNoteId} data-note-id={note.caseNoteId} className="px-4 py-3">
+          {notes.rows.map((note, index) => (
+            <li key={`${note.createdAt}:${index}`} className="px-4 py-3">
               <p className="whitespace-pre-wrap break-words text-sm text-fg">{note.body}</p>
               <p className="mt-1 text-2xs text-fg-3">
                 <span>{note.authorDisplayName}</span>

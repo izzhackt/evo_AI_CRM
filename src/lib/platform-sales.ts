@@ -1,4 +1,5 @@
 import type { PlatformActor } from "./platform-auth";
+import { parsePlatformCaseNoteBody } from "./platform-case-notes.ts";
 import {
   PLATFORM_SALES_STAGES,
   type PlatformSalesOwnerOption,
@@ -626,10 +627,12 @@ function normalizeLatestLeadNote(
   ];
   if (rawValues.every((candidate) => candidate === null)) return null;
   if (rawValues.some((candidate) => candidate === null)) return invalidShape();
+  const body = parsePlatformCaseNoteBody(value.latest_note_body);
+  if (body === null || body !== value.latest_note_body) return invalidShape();
 
   return Object.freeze({
     id: requiredUuid(value.latest_note_id),
-    body: requiredText(value.latest_note_body, 4_000),
+    body,
     authorDisplayName: requiredText(
       value.latest_note_author_display_name,
       500,

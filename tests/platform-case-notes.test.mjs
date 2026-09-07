@@ -196,9 +196,78 @@ test("readCaseNotes pages newest-first with a verified keyset cursor", async () 
   assert.equal(rpcCall.options, undefined);
 });
 
+test("readCaseNotes enforces descending UUID order for equal timestamps", async () => {
+  const validRows = [
+    validNoteRow({ case_note_id: SECOND_NOTE_ID }),
+    validNoteRow({ case_note_id: NOTE_ID }),
+  ];
+  const page = await readCaseNotes(actor, leadSubject, { limit: 2 }, {
+    client: staticClient(validRows).client,
+  });
+  assert.deepEqual(
+    page.rows.map((row) => row.caseNoteId),
+    [SECOND_NOTE_ID, NOTE_ID],
+  );
+
+  await assert.rejects(
+    readCaseNotes(actor, leadSubject, { limit: 2 }, {
+      client: staticClient(validRows.toReversed()).client,
+    }),
+    PlatformCaseNoteRepositoryError,
+  );
+});
+
+test("readCaseNotes preserves microsecond precision when checking order", async () => {
+  const newestMicrosecond = "2026-09-06T12:00:00.123456+00:00";
+  const olderMicrosecond = "2026-09-06T12:00:00.123455+00:00";
+  const validRows = [
+    validNoteRow({ created_at: newestMicrosecond }),
+    validNoteRow({
+      case_note_id: SECOND_NOTE_ID,
+      created_at: olderMicrosecond,
+    }),
+  ];
+  const page = await readCaseNotes(actor, leadSubject, { limit: 2 }, {
+    client: staticClient(validRows).client,
+  });
+  assert.deepEqual(
+    page.rows.map((row) => row.createdAt),
+    [newestMicrosecond, olderMicrosecond],
+  );
+
+  await assert.rejects(
+    readCaseNotes(actor, leadSubject, { limit: 2 }, {
+      client: staticClient(validRows.toReversed()).client,
+    }),
+    PlatformCaseNoteRepositoryError,
+  );
+});
+
+test("readCaseNotes requires the first returned key to be below its cursor", async () => {
+  const cursor = { createdAt: NEWEST_AT, id: SECOND_NOTE_ID };
+  const invalidFirstRows = [
+    validNoteRow({ case_note_id: SECOND_NOTE_ID }),
+    validNoteRow({ case_note_id: THIRD_NOTE_ID }),
+    validNoteRow({ created_at: "2026-09-06T12:00:00.123457+00:00" }),
+  ];
+
+  for (const row of invalidFirstRows) {
+    await assert.rejects(
+      readCaseNotes(actor, leadSubject, { cursor }, {
+        client: staticClient([row]).client,
+      }),
+      PlatformCaseNoteRepositoryError,
+    );
+  }
+});
+
 test("readCaseNotes sends the cursor and reads a student-case subject", async () => {
   const rows = [
-    validNoteRow({ lead_id: null, student_case_id: STUDENT_CASE_ID }),
+    validNoteRow({
+      lead_id: null,
+      student_case_id: STUDENT_CASE_ID,
+      created_at: MIDDLE_AT,
+    }),
   ];
   const { client, calls } = staticClient(rows);
   const page = await readCaseNotes(

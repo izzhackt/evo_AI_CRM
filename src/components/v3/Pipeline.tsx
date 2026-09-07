@@ -133,7 +133,6 @@ function LeadCard({
 
       {lead.latestNote ? (
         <div
-          data-note-id={lead.latestNote.id}
           className="mt-2 rounded-ctl border border-border bg-bg px-2.5 py-2"
         >
           <p className="line-clamp-2 whitespace-pre-wrap break-words text-2xs text-fg-2">

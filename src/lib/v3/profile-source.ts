@@ -11,7 +11,6 @@ import type {
   ProfileAdmissionsWorkspace,
   ProfileContractSnapshot,
   ProfileDraft,
-  ProfileNotesSnapshot,
   ProfileRouteTarget,
   ProfileSalesSnapshot,
 } from "@/components/v3/profile/types";
@@ -32,6 +31,8 @@ import { getPlatformCaseVisa } from "@/lib/platform-case-operations";
 import {
   readCaseNotes,
   type PlatformCaseNoteCursor,
+  type PlatformCaseNotePage,
+  type PlatformCaseNoteSubject,
 } from "@/lib/platform-case-notes";
 import type { PlatformCaseVisa } from "@/lib/platform-case-operations-contract";
 import {
@@ -79,8 +80,13 @@ type V3ProfileCoreView = Readonly<{
   sales: ProfileSalesSnapshot | null;
 }>;
 
+type V3ProfileNotesView = Readonly<{
+  subject: PlatformCaseNoteSubject;
+  page: PlatformCaseNotePage;
+}>;
+
 export type V3ProfileView = Readonly<
-  V3ProfileCoreView & { notes: ProfileNotesSnapshot }
+  V3ProfileCoreView & { notes: V3ProfileNotesView }
 >;
 
 export type V3ProfileCaseDirectoryParams = Readonly<{

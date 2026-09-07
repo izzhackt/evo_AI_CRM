@@ -275,6 +275,37 @@ test("listPlatformSalesLeads omits nullable arguments from its GET RPC", async (
   assert.equal(Object.values(recorded.calls[1].args).includes(null), false);
 });
 
+test("latest Sales note body uses the canonical Unicode code-point contract", async () => {
+  const body = "📝".repeat(4_000);
+  const recorded = staticClient([
+    validQueueRow({
+      latest_note_id: SECOND_LEAD_ID,
+      latest_note_body: body,
+      latest_note_author_display_name: "Exact Author",
+      latest_note_created_at: UPDATED_AT,
+    }),
+  ]);
+
+  const result = await listPlatformSalesLeads(actor, {}, { client: recorded.client });
+  assert.equal(result.rows[0]?.latestNote?.body, body);
+
+  for (const invalidBody of ["📝".repeat(4_001), "broken\ud800unicode"])
+  {
+    const invalid = staticClient([
+      validQueueRow({
+        latest_note_id: SECOND_LEAD_ID,
+        latest_note_body: invalidBody,
+        latest_note_author_display_name: "Exact Author",
+        latest_note_created_at: UPDATED_AT,
+      }),
+    ]);
+    await assert.rejects(
+      listPlatformSalesLeads(actor, {}, { client: invalid.client }),
+      PlatformSalesRepositoryError,
+    );
+  }
+});
+
 test("getPlatformSalesLead accepts exactly one row and parses linked conversations", async () => {
   const recorded = staticClient([validDetailRow()]);
   const detail = await getPlatformSalesLead(actor, LEAD_ID, {

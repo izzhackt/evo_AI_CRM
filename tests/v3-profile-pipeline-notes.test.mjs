@@ -6,6 +6,7 @@ import {
   listPlatformSalesLeads,
   PlatformSalesRepositoryError,
 } from "../src/lib/platform-sales.ts";
+import { toProfileNotesSnapshot } from "../src/components/v3/profile/profile-notes-view.ts";
 
 const ORGANIZATION_ID = "10000000-0000-4000-8000-000000000001";
 const LEAD_ID = "20000000-0000-4000-8000-000000000001";
@@ -134,14 +135,60 @@ test("Profile notes preserve exact route subjects and bounded keyset paging", ()
   assert.match(adapter, /readCaseNotes\(actor, subject, \{[\s\S]*limit: 50,[\s\S]*cursor: noteCursor/u);
   assert.match(component, /name="lead_id" value=\{notes\.subject\.leadId \?\? ""\}/u);
   assert.match(component, /name="student_case_id"[\s\S]*notes\.subject\.studentCaseId \?\? ""/u);
+  assert.match(component, /notes\.rows\.map/u);
   assert.match(component, /note\.authorDisplayName/u);
   assert.match(component, /<time dateTime=\{note\.createdAt\}/u);
+  assert.doesNotMatch(component, /data-note-id|note\.caseNoteId/u);
   assert.match(component, />\s*Ранее\s*</u);
   assert.match(page, /parsePlatformCaseNoteCursor\(noteBeforeAt, noteBeforeId\)/u);
   assert.match(page, /noteCursor === null \|\| \(!hasLeadParam && !hasCaseParam\)/u);
   assert.match(page, /note_before_at/u);
   assert.match(page, /note_before_id/u);
   assert.match(page, /readProfileTarget\(actor, target, noteCursor\)/u);
+  assert.match(page, /toProfileNotesSnapshot\(view\.notes\.subject, view\.notes\.page\)/u);
+});
+
+test("Profile note client snapshot excludes repository-only identities", () => {
+  const subject = Object.freeze({ leadId: LEAD_ID, studentCaseId: null });
+  const snapshot = toProfileNotesSnapshot(subject, {
+    rows: [
+      {
+        organizationId: ORGANIZATION_ID,
+        caseNoteId: NOTE_ID,
+        leadId: LEAD_ID,
+        studentCaseId: null,
+        body: "Visible note body",
+        createdByMembershipId: MEMBERSHIP_ID,
+        authorDisplayName: "Exact Author",
+        createdAt: "2026-09-06T09:30:00+00:00",
+      },
+    ],
+    nextCursor: {
+      createdAt: "2026-09-06T09:30:00+00:00",
+      id: NOTE_ID,
+    },
+    hasNext: true,
+  });
+
+  assert.equal(snapshot.subject, subject);
+  assert.deepEqual(snapshot.rows, [
+    {
+      body: "Visible note body",
+      authorDisplayName: "Exact Author",
+      createdAt: "2026-09-06T09:30:00+00:00",
+    },
+  ]);
+  assert.deepEqual(Object.keys(snapshot), ["subject", "rows"]);
+  assert.deepEqual(Object.keys(snapshot.rows[0]), [
+    "body",
+    "authorDisplayName",
+    "createdAt",
+  ]);
+  const serializedRows = JSON.stringify(snapshot.rows);
+  assert.doesNotMatch(serializedRows, new RegExp(ORGANIZATION_ID, "u"));
+  assert.doesNotMatch(serializedRows, new RegExp(LEAD_ID, "u"));
+  assert.doesNotMatch(serializedRows, new RegExp(NOTE_ID, "u"));
+  assert.doesNotMatch(serializedRows, new RegExp(MEMBERSHIP_ID, "u"));
 });
 
 test("Pipeline cards use batched latest notes and suppress synthetic handoff age", () => {
@@ -153,7 +200,7 @@ test("Pipeline cards use batched latest notes and suppress synthetic handoff age
   assert.match(adapter, /stageKey === "handed_off"[\s\S]*\? null/u);
   assert.match(adapter, /latestNote: row\.latestNote/u);
   assert.match(card, /!terminal && lead\.stageAgeDays !== null/u);
-  assert.match(card, /data-note-id=\{lead\.latestNote\.id\}/u);
+  assert.doesNotMatch(card, /data-note-id/u);
   assert.match(card, /lead\.latestNote\.body/u);
   assert.match(card, /lead\.latestNote\.authorDisplayName/u);
   assert.match(card, /dateTime=\{lead\.latestNote\.createdAt\}/u);

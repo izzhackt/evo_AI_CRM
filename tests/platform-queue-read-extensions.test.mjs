@@ -126,13 +126,24 @@ function validSalesQueueRow(overrides = {}) {
     created_at: "2026-09-06T09:00:00+00:00",
     updated_at: SORT_AT,
     stage_entered_at: "2026-09-06T10:00:00+00:00",
+    latest_note_id: null,
+    latest_note_body: null,
+    latest_note_author_display_name: null,
+    latest_note_created_at: null,
     ...overrides,
   };
 }
 
 function validSalesDetailRow(overrides = {}) {
   return {
-    ...withoutKey(withoutKey(validSalesQueueRow(), "sort_at"), "stage_entered_at"),
+    ...Object.fromEntries(
+      Object.entries(validSalesQueueRow()).filter(
+        ([key]) =>
+          key !== "sort_at" &&
+          key !== "stage_entered_at" &&
+          !key.startsWith("latest_note_"),
+      ),
+    ),
     external_identifiers: [],
     provenance: [],
     linked_student_cases: [],

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
 import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
+import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
 import {
   buildV3ProfileHref,
   resolveTab,
@@ -202,7 +203,7 @@ export default async function ProfilePart({
               organizationId={actor.organizationId}
               requestIds={requestIds}
               noteRequestId={randomUUID()}
-              notes={view.notes}
+              notes={toProfileNotesSnapshot(view.notes.subject, view.notes.page)}
               notesOlderHref={notesOlderHref}
               notesLatestHref={notesLatestHref}
               contractResult={contractResult}

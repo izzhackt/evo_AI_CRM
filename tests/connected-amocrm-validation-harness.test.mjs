@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   chmod,
+  link,
   mkdtemp,
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -25,6 +27,72 @@ const E2E_PATH = new URL(
   "./e2e/canonical-amocrm-connected-provider.spec.ts",
   import.meta.url,
 );
+const ROUTING_APPROVAL = Object.freeze({
+  EVO_V2_AMOCRM_SALES_PIPELINE_ID: "1001",
+  EVO_V2_AMOCRM_SALES_STATUS_ID: "2001",
+  EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID: "3001",
+  EVO_V2_AMOCRM_SALES_TAG_NAME: "EVO V2 Sales",
+  EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID: "1001",
+  EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID: "2002",
+  EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID: "3001",
+  EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME: "EVO V2 Admissions",
+});
+const ACCEPTANCE_SHA = "a".repeat(40);
+
+function privateJson(value) {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function routingContext() {
+  return {
+    databaseAuthority: "local_supabase_postgresql",
+    routing: {
+      sales: {
+        pipelineId: ROUTING_APPROVAL.EVO_V2_AMOCRM_SALES_PIPELINE_ID,
+        statusId: ROUTING_APPROVAL.EVO_V2_AMOCRM_SALES_STATUS_ID,
+        responsibleUserId:
+          ROUTING_APPROVAL.EVO_V2_AMOCRM_SALES_RESPONSIBLE_USER_ID,
+        tagName: ROUTING_APPROVAL.EVO_V2_AMOCRM_SALES_TAG_NAME,
+      },
+      admissions: {
+        pipelineId: ROUTING_APPROVAL.EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID,
+        statusId: ROUTING_APPROVAL.EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID,
+        responsibleUserId:
+          ROUTING_APPROVAL.EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID,
+        tagName: ROUTING_APPROVAL.EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME,
+      },
+    },
+  };
+}
+
+function blockedAuthorityMarker(gitSha = ACCEPTANCE_SHA) {
+  return {
+    schemaVersion: 1,
+    kind: "evo-v2-connected-amocrm-authority-blocked",
+    status: "passed",
+    proofMode: "provider-not-authorized",
+    gitSha,
+    completedAt: "2026-09-07T08:00:00.000Z",
+    checks: {
+      providerAuthorization: "disabled",
+      reason: "provider-not-authorized",
+      browserBlocked: true,
+      providerAttemptCount: 0,
+      bindingCount: 0,
+      fallbackObserved: false,
+    },
+  };
+}
+
+function preparationMarker(gitSha = ACCEPTANCE_SHA) {
+  return {
+    schemaVersion: 1,
+    kind: "provider-preparation-attempt",
+    status: "started",
+    gitSha,
+    startedAt: "2026-09-07T08:00:01.000Z",
+  };
+}
 
 test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async () => {
   const source = await readFile(SHELL_PATH, "utf8");
@@ -33,8 +101,11 @@ test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async (
   assert.match(source, /^umask 077$/m);
   assert.match(source, /Shell xtrace must be disabled/u);
   assert.match(source, /EVO_V2_REAL_AMOCRM_ACCEPTANCE:-.*== "1"/u);
-  assert.match(source, /git fetch --quiet origin main/u);
-  assert.match(source, /git status --porcelain=v1 --untracked-files=all/u);
+  assert.match(source, /git -C "\$repo_root" fetch --quiet origin main/u);
+  assert.match(
+    source,
+    /git -C "\$repo_root" status --porcelain=v1 --untracked-files=all/u,
+  );
   assert.match(source, /head_sha.*origin_main_sha.*expected_main_sha/su);
   assert.match(source, /\$\(orb status\).*Running/u);
   assert.match(source, /\$\(docker context show\).*orbstack/u);
@@ -488,6 +559,321 @@ test("preparation CLI maps a private bundle without executing it and rejects loo
     assert.notEqual(refused.status, 0);
     assert.match(refused.stderr, /legacy_provider_env_invalid/u);
     await assert.rejects(() => stat(refusedRuntimeFile), { code: "ENOENT" });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("connected amoCRM discovery exits before the authorized dispatch boundary", async () => {
+  const source = await readFile(SHELL_PATH, "utf8");
+  assert.match(
+    source,
+    /validation_phase="\$\{EVO_V2_AMOCRM_VALIDATION_PHASE:-discover\}"/u,
+  );
+  const discoveryBranchStart = source.indexOf(
+    'if [[ "$validation_phase" == "discover" ]]; then',
+    source.indexOf("scripts/prepare-connected-amocrm-validation.mjs seed"),
+  );
+  const discoveryExit = source.indexOf("exit 0", discoveryBranchStart);
+  const authorizedStart = source.indexOf("start_app 1", discoveryBranchStart);
+  assert.ok(discoveryBranchStart >= 0);
+  assert.ok(discoveryExit > discoveryBranchStart);
+  assert.ok(authorizedStart > discoveryExit);
+  const discoveryBranch = source.slice(discoveryBranchStart, discoveryExit);
+  assert.match(discoveryBranch, /start_app 0/u);
+  assert.match(discoveryBranch, /--routing-output "\$routing_discovery_file"/u);
+  assert.doesNotMatch(discoveryBranch, /start_app 1/u);
+  assert.match(
+    source.slice(discoveryExit, authorizedStart),
+    /verify-routing-approval[\s\S]*--context-file "\$context_file"/u,
+  );
+  const snapshotIndex = source.indexOf(
+    'git -C "$repo_root" archive --format=tar "$expected_main_sha"',
+  );
+  const boundaryVerificationIndex = source.indexOf(
+    "verify-discovery-boundary",
+  );
+  const freshDiscoveryIndex = source.indexOf(
+    "scripts/prepare-connected-amocrm-validation.mjs discover",
+    discoveryExit,
+  );
+  assert.ok(snapshotIndex >= 0 && snapshotIndex < boundaryVerificationIndex);
+  assert.ok(
+    boundaryVerificationIndex < freshDiscoveryIndex &&
+      freshDiscoveryIndex < authorizedStart,
+  );
+  assert.match(source, /execution_root="\$tmp_dir\/exact-main"/u);
+  assert.match(
+    source,
+    /--authority-marker-file "\$authority_marker_file"[\s\S]*--preparation-marker-file "\$preparation_marker_file"[\s\S]*--git-sha "\$expected_main_sha"/u,
+  );
+});
+
+test("routing approval is exact, private and fail-closed before an authorized child", async () => {
+  const preparationSource = await readFile(PREPARE_PATH, "utf8");
+  const boundedReaderStart = preparationSource.indexOf(
+    "async function readPrivateBytes",
+  );
+  const boundedReaderEnd = preparationSource.indexOf(
+    "async function syncDirectory",
+    boundedReaderStart,
+  );
+  const boundedReader = preparationSource.slice(
+    boundedReaderStart,
+    boundedReaderEnd,
+  );
+  assert.match(boundedReader, /fsConstants\.O_NOFOLLOW/u);
+  assert.match(boundedReader, /Buffer\.allocUnsafe\(maximumBytes \+ 1\)/u);
+  assert.match(boundedReader, /await handle\.read\(/u);
+  assert.match(boundedReader, /offset > maximumBytes/u);
+  assert.doesNotMatch(boundedReader, /handle\.readFile/u);
+
+  const directory = await mkdtemp(join(tmpdir(), "evo-amocrm-routing."));
+  const runtimeFile = join(directory, "runtime.json");
+  const contextFile = join(directory, "context.json");
+  const discoveryFile = join(directory, "discovery.json");
+  const approvalFile = join(directory, "approval.json");
+  const malformedFile = join(directory, "malformed.json");
+  const extraFile = join(directory, "extra.json");
+  const mismatchedFile = join(directory, "mismatched.json");
+  const wrongTypeFile = join(directory, "wrong-type.json");
+  const reformattedFile = join(directory, "reformatted.json");
+  const oversizedFile = join(directory, "oversized.json");
+  const looseFile = join(directory, "loose.json");
+  const readOnlyFile = join(directory, "read-only.json");
+  const ownerExecutableFile = join(directory, "owner-executable.json");
+  const symlinkTarget = join(directory, "symlink-target.json");
+  const symlinkFile = join(directory, "approval-link.json");
+  const hardlinkFile = join(directory, "approval-hardlink.json");
+  const authorityMarkerFile = join(directory, "authority-blocked.json");
+  const preparationMarkerFile = join(directory, "provider-preparation.json");
+  const malformedMarkerFile = join(directory, "malformed-marker.json");
+  const wrongShaMarkerFile = join(directory, "wrong-sha-marker.json");
+  const markerSymlinkTarget = join(directory, "marker-symlink-target.json");
+  const markerSymlinkFile = join(directory, "authority-marker-link.json");
+  const readOnlyMarkerFile = join(directory, "read-only-marker.json");
+  const ownerExecutableMarkerFile = join(
+    directory,
+    "owner-executable-marker.json",
+  );
+  const childMarker = join(directory, "authorized-child.txt");
+  const missingFile = join(directory, "missing.json");
+
+  const invoke = (args) =>
+    spawnSync(process.execPath, [fileURLToPath(PREPARE_PATH), ...args], {
+      cwd: new URL("..", import.meta.url),
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+  const runAuthorized = (
+    routingApprovalFile,
+    {
+      includeApproval = true,
+      authorityMarker = authorityMarkerFile,
+      preparationMarker: preparedMarker = preparationMarkerFile,
+    } = {},
+  ) => {
+    const args = [
+      "run-app",
+      "--runtime-file",
+      runtimeFile,
+      "--context-file",
+      contextFile,
+      "--provider-authorized",
+      "1",
+      "--routing-discovery-file",
+      discoveryFile,
+    ];
+    if (includeApproval) {
+      args.push("--routing-approval-file", routingApprovalFile);
+    }
+    args.push(
+      "--authority-marker-file",
+      authorityMarker,
+      "--preparation-marker-file",
+      preparedMarker,
+      "--git-sha",
+      ACCEPTANCE_SHA,
+      "--",
+      process.execPath,
+      "--input-type=module",
+      "-e",
+      'import { writeFileSync } from "node:fs"; writeFileSync(process.argv[1], `${process.env.EVO_V2_AMOCRM_PROVIDER_AUTHORIZED}:${process.env.EVO_V2_AMOCRM_SALES_PIPELINE_ID}`);',
+      childMarker,
+    );
+    return invoke(args);
+  };
+
+  try {
+    await Promise.all([
+      writeFile(runtimeFile, privateJson({ providerEnvironment: {} }), {
+        mode: 0o600,
+      }),
+      writeFile(contextFile, privateJson(routingContext()), { mode: 0o600 }),
+      writeFile(discoveryFile, privateJson(ROUTING_APPROVAL), { mode: 0o600 }),
+      writeFile(approvalFile, privateJson(ROUTING_APPROVAL), { mode: 0o600 }),
+      writeFile(malformedFile, "{\n", { mode: 0o600 }),
+      writeFile(
+        extraFile,
+        privateJson({ ...ROUTING_APPROVAL, EXTRA_ROUTING_VALUE: "rejected" }),
+        { mode: 0o600 },
+      ),
+      writeFile(
+        mismatchedFile,
+        privateJson({
+          ...ROUTING_APPROVAL,
+          EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID: "2999",
+        }),
+        { mode: 0o600 },
+      ),
+      writeFile(
+        wrongTypeFile,
+        privateJson({
+          ...ROUTING_APPROVAL,
+          EVO_V2_AMOCRM_SALES_PIPELINE_ID: 1001,
+        }),
+        { mode: 0o600 },
+      ),
+      writeFile(reformattedFile, `${JSON.stringify(ROUTING_APPROVAL)}\n`, {
+        mode: 0o600,
+      }),
+      writeFile(oversizedFile, `{"padding":"${"x".repeat(4_096)}"}\n`, {
+        mode: 0o600,
+      }),
+      writeFile(looseFile, privateJson(ROUTING_APPROVAL), { mode: 0o600 }),
+      writeFile(readOnlyFile, privateJson(ROUTING_APPROVAL), { mode: 0o600 }),
+      writeFile(ownerExecutableFile, privateJson(ROUTING_APPROVAL), {
+        mode: 0o600,
+      }),
+      writeFile(symlinkTarget, privateJson(ROUTING_APPROVAL), { mode: 0o600 }),
+      writeFile(
+        authorityMarkerFile,
+        privateJson(blockedAuthorityMarker()),
+        { mode: 0o600 },
+      ),
+      writeFile(preparationMarkerFile, privateJson(preparationMarker()), {
+        mode: 0o600,
+      }),
+      writeFile(malformedMarkerFile, "{}\n", { mode: 0o600 }),
+      writeFile(
+        wrongShaMarkerFile,
+        privateJson(blockedAuthorityMarker("b".repeat(40))),
+        { mode: 0o600 },
+      ),
+      writeFile(
+        markerSymlinkTarget,
+        privateJson(blockedAuthorityMarker()),
+        { mode: 0o600 },
+      ),
+      writeFile(
+        readOnlyMarkerFile,
+        privateJson(blockedAuthorityMarker()),
+        { mode: 0o600 },
+      ),
+      writeFile(
+        ownerExecutableMarkerFile,
+        privateJson(blockedAuthorityMarker()),
+        { mode: 0o600 },
+      ),
+    ]);
+    await chmod(looseFile, 0o644);
+    await chmod(readOnlyFile, 0o400);
+    await chmod(ownerExecutableFile, 0o700);
+    await chmod(readOnlyMarkerFile, 0o400);
+    await chmod(ownerExecutableMarkerFile, 0o700);
+    await symlink(symlinkTarget, symlinkFile);
+    await link(discoveryFile, hardlinkFile);
+    await symlink(markerSymlinkTarget, markerSymlinkFile);
+
+    const verify = (candidate) =>
+      invoke([
+        "verify-routing-approval",
+        "--routing-discovery-file",
+        discoveryFile,
+        "--routing-approval-file",
+        candidate,
+        "--context-file",
+        contextFile,
+      ]);
+
+    const accepted = verify(approvalFile);
+    assert.equal(accepted.status, 0, accepted.stderr);
+    assert.equal(accepted.stdout, "");
+    assert.equal(accepted.stderr, "");
+
+    for (const candidate of [discoveryFile, hardlinkFile]) {
+      const rejected = verify(candidate);
+      assert.notEqual(rejected.status, 0);
+      assert.equal(rejected.stdout, "");
+      assert.match(rejected.stderr, /routing_approval_not_independent/u);
+    }
+
+    for (const [candidate, errorCode] of [
+      [missingFile, "routing_approval_invalid"],
+      [malformedFile, "routing_approval_invalid"],
+      [extraFile, "routing_approval_invalid"],
+      [wrongTypeFile, "routing_approval_invalid"],
+      [reformattedFile, "routing_approval_invalid"],
+      [oversizedFile, "routing_approval_invalid"],
+      [looseFile, "routing_approval_invalid"],
+      [readOnlyFile, "routing_approval_invalid"],
+      [ownerExecutableFile, "routing_approval_invalid"],
+      [symlinkFile, "routing_approval_invalid"],
+      [mismatchedFile, "routing_approval_mismatch"],
+    ]) {
+      const rejected = verify(candidate);
+      assert.notEqual(rejected.status, 0);
+      assert.equal(rejected.stdout, "");
+      assert.match(rejected.stderr, new RegExp(errorCode, "u"));
+    }
+
+    for (const [candidate, options, errorCode] of [
+      [missingFile, { includeApproval: false }, "routing_approval_required"],
+      [malformedFile, {}, "routing_approval_invalid"],
+      [extraFile, {}, "routing_approval_invalid"],
+      [mismatchedFile, {}, "routing_approval_mismatch"],
+      [discoveryFile, {}, "routing_approval_not_independent"],
+      [hardlinkFile, {}, "routing_approval_not_independent"],
+      [readOnlyFile, {}, "routing_approval_invalid"],
+      [ownerExecutableFile, {}, "routing_approval_invalid"],
+      [
+        approvalFile,
+        { authorityMarker: malformedMarkerFile },
+        "discovery_boundary_invalid",
+      ],
+      [
+        approvalFile,
+        { authorityMarker: wrongShaMarkerFile },
+        "discovery_boundary_invalid",
+      ],
+      [
+        approvalFile,
+        { authorityMarker: markerSymlinkFile },
+        "discovery_boundary_invalid",
+      ],
+      [
+        approvalFile,
+        { authorityMarker: readOnlyMarkerFile },
+        "discovery_boundary_invalid",
+      ],
+      [
+        approvalFile,
+        { authorityMarker: ownerExecutableMarkerFile },
+        "discovery_boundary_invalid",
+      ],
+    ]) {
+      const rejected = runAuthorized(candidate, options);
+      assert.notEqual(rejected.status, 0);
+      assert.equal(rejected.stdout, "");
+      assert.match(rejected.stderr, new RegExp(errorCode, "u"));
+      await assert.rejects(() => stat(childMarker), { code: "ENOENT" });
+    }
+
+    const started = runAuthorized(approvalFile);
+    assert.equal(started.status, 0, started.stderr);
+    assert.equal(started.stdout, "");
+    assert.equal(started.stderr, "");
+    assert.equal(await readFile(childMarker, "utf8"), "1:1001");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

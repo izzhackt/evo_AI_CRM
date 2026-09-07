@@ -8,6 +8,8 @@ node_bin="${EVO_NODE_BIN:-node}"
 expected_main_sha="${1:-${EVO_V2_EXPECTED_MAIN_SHA:-}}"
 provider_env_file="${EVO_V2_AMOCRM_PROVIDER_ENV_FILE:-}"
 token_file="${EVO_V2_AMOCRM_TOKEN_FILE:-}"
+validation_phase="${EVO_V2_AMOCRM_VALIDATION_PHASE:-discover}"
+routing_approval_file="${EVO_V2_AMOCRM_ROUTING_APPROVAL_FILE:-}"
 ssh_host="hermes-vps"
 container_name="evo-crm-waha-1"
 tmp_root="$(cd "${TMPDIR:-/tmp}" && pwd -P)"
@@ -106,6 +108,15 @@ else
   fail "Connected amoCRM acceptance requires EVO_V2_REAL_AMOCRM_ACCEPTANCE=1"
 fi
 
+case "$validation_phase" in
+  discover) ;;
+  dispatch)
+    [[ -n "$routing_approval_file" ]] \
+      || fail "Dispatch requires a private owner-approved routing file via EVO_V2_AMOCRM_ROUTING_APPROVAL_FILE"
+    ;;
+  *) fail "EVO_V2_AMOCRM_VALIDATION_PHASE must be discover or dispatch" ;;
+esac
+
 if [[ "$($node_bin --version)" != v22.* ]]; then
   fail "Connected amoCRM acceptance requires Node 22.x"
 fi
@@ -123,10 +134,10 @@ for variable_name in \
   require_env "$variable_name"
 done
 
-git fetch --quiet origin main
-head_sha="$(git rev-parse HEAD)"
-origin_main_sha="$(git rev-parse origin/main)"
-git_status="$(git status --porcelain=v1 --untracked-files=all)"
+git -C "$repo_root" fetch --quiet origin main
+head_sha="$(git -C "$repo_root" rev-parse HEAD)"
+origin_main_sha="$(git -C "$repo_root" rev-parse origin/main)"
+git_status="$(git -C "$repo_root" status --porcelain=v1 --untracked-files=all)"
 
 [[ -z "$git_status" ]] \
   || fail "Connected amoCRM acceptance requires a clean exact-main worktree"
@@ -135,6 +146,46 @@ git_status="$(git status --porcelain=v1 --untracked-files=all)"
 [[ "$head_sha" == "$origin_main_sha" ]] \
   || fail "Checkout exact origin/main before running connected amoCRM acceptance"
 
+evidence_dir="$repo_root/output/provider-acceptance/amocrm/$expected_main_sha"
+routing_discovery_file="$evidence_dir/routing-discovery.json"
+authority_marker_file="$evidence_dir/authority-blocked.json"
+preparation_marker_file="$evidence_dir/provider-preparation-attempt.json"
+execution_root="$repo_root"
+browser_evidence_dir="$evidence_dir"
+if [[ "$validation_phase" == "discover" ]]; then
+  mkdir -p "$evidence_dir"
+  chmod 700 "$evidence_dir"
+else
+  [[ "$(git -C "$repo_root" rev-parse HEAD)" == "$expected_main_sha" ]] \
+    || fail "HEAD changed before the immutable dispatch snapshot was created"
+  [[ -z "$(git -C "$repo_root" status --porcelain=v1 --untracked-files=all)" ]] \
+    || fail "The exact-main worktree changed before the immutable dispatch snapshot was created"
+  [[ -d "$repo_root/node_modules" ]] \
+    || fail "Install exact-main dependencies before connected amoCRM dispatch"
+  execution_root="$tmp_dir/exact-main"
+  mkdir -p "$execution_root"
+  chmod 700 "$execution_root"
+  git -C "$repo_root" archive --format=tar "$expected_main_sha" \
+    | tar -xf - -C "$execution_root" \
+    || fail "Could not create the immutable exact-main dispatch snapshot"
+  ln -s "$repo_root/node_modules" "$execution_root/node_modules"
+  mkdir -p "$execution_root/output/provider-acceptance/amocrm"
+  browser_evidence_dir="$execution_root/output/provider-acceptance/amocrm/$expected_main_sha"
+  ln -s "$evidence_dir" "$browser_evidence_dir"
+
+  cd "$execution_root"
+  "$node_bin" scripts/prepare-connected-amocrm-validation.mjs verify-routing-approval \
+    --routing-discovery-file "$routing_discovery_file" \
+    --routing-approval-file "$routing_approval_file" \
+    || fail "The owner-approved routing file does not exactly match the prior discovery artifact"
+  "$node_bin" scripts/prepare-connected-amocrm-validation.mjs verify-discovery-boundary \
+    --authority-marker-file "$authority_marker_file" \
+    --preparation-marker-file "$preparation_marker_file" \
+    --git-sha "$expected_main_sha" \
+    || fail "The prior blocked-authority discovery boundary is invalid"
+fi
+cd "$execution_root"
+
 [[ "$(orb status)" == "Running" ]] \
   || fail "OrbStack must report Running before local connected acceptance"
 [[ "$(docker context show)" == "orbstack" ]] \
@@ -142,10 +193,6 @@ git_status="$(git status --porcelain=v1 --untracked-files=all)"
 
 app_port="$(free_port)"
 tunnel_port="$(free_port)"
-evidence_dir="$repo_root/output/provider-acceptance/amocrm/$expected_main_sha"
-
-mkdir -p "$evidence_dir"
-chmod 700 "$evidence_dir"
 
 if ! npx --no-install supabase status -o env \
   >"$supabase_env_file" 2>"$supabase_log"; then
@@ -203,6 +250,16 @@ assert_app_reachable() {
 
 start_app() {
   local provider_authorized="$1"
+  local -a routing_approval_args=()
+  if [[ "$provider_authorized" == "1" ]]; then
+    routing_approval_args=(
+      --routing-discovery-file "$routing_discovery_file"
+      --routing-approval-file "$routing_approval_file"
+      --authority-marker-file "$authority_marker_file"
+      --preparation-marker-file "$preparation_marker_file"
+      --git-sha "$expected_main_sha"
+    )
+  fi
   : >"$app_log"
   NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
@@ -211,6 +268,7 @@ start_app() {
       --runtime-file "$runtime_file" \
       --context-file "$context_file" \
       --provider-authorized "$provider_authorized" \
+      "${routing_approval_args[@]}" \
       -- \
       "$node_bin" node_modules/next/dist/bin/next dev \
         --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
@@ -282,37 +340,60 @@ EVO_V2_SUPABASE_DATABASE_URL="$supabase_database_url" \
     --self-file "$self_file" \
     --context-file "$context_file"
 
-start_app 0
-PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
-  EVO_V2_SUPABASE_DATABASE_URL="$supabase_database_url" \
-  EVO_V2_REAL_AMOCRM_ACCEPTANCE=1 \
-  EVO_V2_CONNECTED_AMOCRM_MODE=blocked \
-  EVO_V2_ACCEPTANCE_MAIN_SHA="$expected_main_sha" \
-  EVO_V2_AMOCRM_EVIDENCE_DIR="$evidence_dir" \
-  EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE="$runtime_file" \
-  EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
-  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
-  EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
-  "$node_bin" node_modules/@playwright/test/cli.js test \
-    tests/e2e/canonical-amocrm-connected-provider.spec.ts \
-    --config=playwright.config.ts \
-    --project=desktop-chromium \
-    --workers=1 \
-    --reporter=line >"$blocked_log" 2>&1 || {
-      sed -n '1,240p' "$blocked_log" >&2 || true
-      fail "The blocked-authority amoCRM browser validation failed"
-    }
-stop_app
+if [[ "$validation_phase" == "discover" ]]; then
+  start_app 0
+  PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
+    EVO_V2_SUPABASE_DATABASE_URL="$supabase_database_url" \
+    EVO_V2_REAL_AMOCRM_ACCEPTANCE=1 \
+    EVO_V2_CONNECTED_AMOCRM_MODE=blocked \
+    EVO_V2_ACCEPTANCE_MAIN_SHA="$expected_main_sha" \
+    EVO_V2_AMOCRM_EVIDENCE_DIR="$browser_evidence_dir" \
+    EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE="$runtime_file" \
+    EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    "$node_bin" node_modules/@playwright/test/cli.js test \
+      tests/e2e/canonical-amocrm-connected-provider.spec.ts \
+      --config=playwright.config.ts \
+      --project=desktop-chromium \
+      --workers=1 \
+      --reporter=line >"$blocked_log" 2>&1 || {
+        sed -n '1,240p' "$blocked_log" >&2 || true
+        fail "The blocked-authority amoCRM browser validation failed"
+      }
+  stop_app
 
-"$node_bin" scripts/prepare-connected-amocrm-validation.mjs mark-attempt \
-  --kind provider-preparation-attempt \
-  --git-sha "$expected_main_sha" \
-  --output "$evidence_dir/provider-preparation-attempt.json"
+  "$node_bin" scripts/prepare-connected-amocrm-validation.mjs mark-attempt \
+    --kind provider-preparation-attempt \
+    --git-sha "$expected_main_sha" \
+    --output "$evidence_dir/provider-preparation-attempt.json"
 
-"$node_bin" --conditions=react-server --experimental-strip-types \
+  "$node_bin" --conditions=react-server --experimental-strip-types \
     scripts/prepare-connected-amocrm-validation.mjs discover \
     --runtime-file "$runtime_file" \
-    --context-file "$context_file"
+    --context-file "$context_file" \
+    --routing-output "$routing_discovery_file"
+
+  run_succeeded=1
+  printf 'Read-only amoCRM routing discovery is ready for owner review at %s\n' \
+    "$routing_discovery_file"
+  exit 0
+fi
+
+[[ ! -e "$evidence_dir/dispatch-attempt.json" && ! -e "$evidence_dir/success.json" ]] \
+  || fail "Connected amoCRM dispatch evidence already exists at this exact SHA"
+
+"$node_bin" --conditions=react-server --experimental-strip-types \
+  scripts/prepare-connected-amocrm-validation.mjs discover \
+  --runtime-file "$runtime_file" \
+  --context-file "$context_file" \
+  --routing-output "$routing_discovery_file"
+
+"$node_bin" scripts/prepare-connected-amocrm-validation.mjs verify-routing-approval \
+  --routing-discovery-file "$routing_discovery_file" \
+  --routing-approval-file "$routing_approval_file" \
+  --context-file "$context_file" \
+  || fail "Fresh amoCRM routing no longer matches the private owner-approved routing file"
 
 start_app 1
 PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
@@ -320,7 +401,7 @@ PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
   EVO_V2_REAL_AMOCRM_ACCEPTANCE=1 \
   EVO_V2_CONNECTED_AMOCRM_MODE=dispatch \
   EVO_V2_ACCEPTANCE_MAIN_SHA="$expected_main_sha" \
-  EVO_V2_AMOCRM_EVIDENCE_DIR="$evidence_dir" \
+  EVO_V2_AMOCRM_EVIDENCE_DIR="$browser_evidence_dir" \
   EVO_V2_AMOCRM_PRIVATE_RUNTIME_FILE="$runtime_file" \
   EVO_V2_AMOCRM_PRIVATE_CONTEXT_FILE="$context_file" \
   EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \

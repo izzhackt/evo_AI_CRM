@@ -2651,8 +2651,8 @@ BEGIN
     'auth:' || receipt.authorizing_auth_user_id::TEXT,
     'student.portal.authority.activate', 'student_case', receipt.student_case_id,
     jsonb_build_object(
-      'student_membership_id', NULL,
-      'portal_activated_at', NULL,
+      'student_membership_id', target_case.student_membership_id,
+      'portal_activated_at', target_case.portal_activated_at,
       'case_shape', receipt.case_shape
     ),
     final_result,

@@ -20858,4 +20858,6 @@ valid provider no-issuance proof is also present, and fences a late outcome.
 Service-role claim results include the exact attempt
 `pre_confirmation_sent_at` baseline for later provider read-back comparison;
 catalog acceptance proves zero direct policies or relation privileges on both
-private E1 tables.
+private E1 tables. The terminal audit records the locked case's real pre-state,
+including an already-bound membership and, for late legacy continuation, the
+already-applied portal activation timestamp.

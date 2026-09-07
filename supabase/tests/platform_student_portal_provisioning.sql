@@ -2034,6 +2034,18 @@ SELECT pg_temp.p126_assert(
       )
     ]::UUID[])
   )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.audit_events AS event
+    WHERE event.request_id = platform_private.student_portal_child_request_id(
+        :'p126_continuation_request', '05-student-portal-audit'
+      )
+      AND event.before_state ? 'student_membership_id'
+      AND event.before_state ->> 'student_membership_id' =
+        (:'p126_continuation_member'::JSONB ->> 'membership_id')
+      AND event.before_state ? 'portal_activated_at'
+      AND event.before_state ->> 'portal_activated_at' IS NULL
+  )
   AND (
     SELECT pg_catalog.count(*) = 2
     FROM platform.membership_scope_assignments
@@ -2183,9 +2195,13 @@ SELECT platform_private.assign_student_case_curator_authorized_e1(
   ),
   :'p126_admin_profile', :'p126_admin_membership', :'p126_admin_user'
 );
-SELECT access_version AS p126_legacy_a_access_version
-FROM platform.profiles
-WHERE id = (:'p126_legacy_a_member'::JSONB ->> 'profile_id')::UUID
+SELECT profile.access_version AS p126_legacy_a_access_version,
+       student_case.portal_activated_at::TEXT
+         AS p126_legacy_a_pre_final_portal_activated_at
+FROM platform.profiles AS profile
+CROSS JOIN platform.student_cases AS student_case
+WHERE profile.id = (:'p126_legacy_a_member'::JSONB ->> 'profile_id')::UUID
+  AND student_case.id = :'p126_legacy_a_case'
 \gset
 COMMIT;
 
@@ -2524,6 +2540,19 @@ SELECT pg_temp.p126_assert(
     SELECT pg_catalog.count(*) = 3
     FROM platform.membership_scope_assignments
     WHERE membership_id = (:'p126_legacy_a_member'::JSONB ->> 'membership_id')::UUID
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM platform.audit_events AS event
+    WHERE event.request_id = platform_private.student_portal_child_request_id(
+        :'p126_legacy_a_request', '05-student-portal-audit'
+      )
+      AND event.before_state ? 'student_membership_id'
+      AND event.before_state ->> 'student_membership_id' =
+        (:'p126_legacy_a_member'::JSONB ->> 'membership_id')
+      AND event.before_state ? 'portal_activated_at'
+      AND (event.before_state ->> 'portal_activated_at')::TIMESTAMPTZ
+        = :'p126_legacy_a_pre_final_portal_activated_at'::TIMESTAMPTZ
   ),
   'finalizer-first curator race did not serialize fail-closed'
 );

@@ -757,6 +757,43 @@ test("migration gate requires an exact contiguous source and production ledger",
   }
 });
 
+test("preflight removes only owned snapshots with real filesystem commands", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const preflight = controller.slice(
+    controller.indexOf("preflight() {"),
+    controller.indexOf("sync_file_and_parent() {"),
+  );
+  const start = preflight.indexOf('  unlink "$candidate_app_env_snapshot"');
+  const end = preflight.indexOf("  jq -cn", start);
+  assert.ok(start >= 0 && end > start, "actual preflight cleanup must exist");
+  const root = mkdtempSync(join(tmpdir(), "evo-preflight-cleanup-"));
+  const preflightDir = join(root, "owned-preflight");
+  const original = join(root, "original.env");
+  mkdirSync(preflightDir, { mode: 0o700 });
+  writeFileSync(original, "original fixture\n", { mode: 0o600 });
+  const appSnapshot = join(preflightDir, "candidate-app.env");
+  const composeSnapshot = join(preflightDir, "docker-compose.candidate.yml");
+  writeFileSync(appSnapshot, "snapshot fixture\n", { mode: 0o600 });
+  writeFileSync(composeSnapshot, "compose fixture\n", { mode: 0o600 });
+  try {
+    // Run the actual cleanup against real unlink/rmdir, not a permissive stub.
+    const result = spawnSync("bash", ["-c", `
+      set -Eeuo pipefail
+      fail() { printf '%s\\n' "$1" >&2; exit 2; }
+      ${preflight.slice(start, end)}
+    `], {
+      env: { PATH: "/usr/bin:/bin", candidate_app_env_snapshot: appSnapshot,
+        candidate_compose_file: composeSnapshot, preflight_dir: preflightDir },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr || result.error?.message);
+    assert.equal(existsSync(preflightDir), false);
+    assert.equal(readFileSync(original, "utf8"), "original fixture\n");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("release controller is app-only, wait-gated, and avoids destructive shortcuts", () => {
   const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
   const preflight = controller.slice(

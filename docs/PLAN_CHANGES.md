@@ -21474,3 +21474,19 @@ existing release invariants); the nine argv cases also pass through real SSH to
 `hermes-vps` using only a harmless argument-printing receiver, never the deploy
 script. Both complete affected Bash blocks pass syntax validation. The range
 classifier selects contracts and lint, not build or migration-boundary tests.
+
+Preflight follow-up before the next freeze: the unchanged controller passed its
+host/env/network/archive/rollback checks on the retained exact artifact, but
+its final cleanup failed with `preflight_cleanup_failed`: GNU `unlink` accepts
+one operand, while `preflight` supplied both temporary snapshot paths at once.
+Extend this correction only to unlink each owned snapshot individually and
+cover successful preflight cleanup in the existing controller test. Preserve
+the original env/Compose, release evidence, app/WAHA state and all guards. The
+operator removes only the two exact protected temporary files from this failed
+diagnostic under the release lock; this is not runtime retirement.
+
+The new cleanup regression failed against the original multi-operand command
+and passes with real `unlink`/`rmdir` after the two-line correction; the original
+fixture remains byte-identical. The app-only controller invariant and Bash
+syntax checks also pass. The protected diagnostic snapshots were removed under
+the release lock after exact path, ownership/mode and original-hash checks.

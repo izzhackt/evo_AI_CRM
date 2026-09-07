@@ -17,6 +17,9 @@ managed Supabase — единственный Auth/database/Storage. Providers �
   App, ClamAV, pending/accepted pointers не созданы; WAHA не изменён.
   `EVO_PRODUCTION_RELEASE_ARMED=false` после failure подтверждён readback.
   Остались исправленный релиз, реальный production Admin browser smoke и retirement.
+  Диагностический preflight также выявил multi-operand `unlink` в cleanup;
+  исправление удаляет snapshots по одному. Старые временные snapshots уже удалены,
+  исходные env/Compose сохранены; перед запуском нужен reviewed новый controller.
 - Schema `apply` [34161431038](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34161431038)
   применил 117–128; отдельный [check 34161695009](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34161695009)
   подтвердил local 128 = managed 128, missing/extra пусты. Не повторять apply.

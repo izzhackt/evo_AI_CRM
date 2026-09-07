@@ -317,9 +317,14 @@ WHERE profile.auth_user_id = '10000000-0000-4000-8000-000000000008'
 SELECT
   membership.id AS admin_a_membership_id,
   profile.auth_user_id AS admin_a_user_id,
-  profile.access_version AS admin_a_access_version
+  profile.access_version AS admin_a_access_version,
+  membership.current_bundle_id AS admin_a_bundle_id,
+  bundle.version AS admin_a_bundle_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
+  AND bundle.role = membership."current_role"
 WHERE membership.organization_id = :'org_a_id'
   AND profile.auth_user_id = '10000000-0000-4000-8000-000000000001'
   AND membership.status = 'active'
@@ -330,7 +335,11 @@ SELECT jsonb_build_object(
   'sub', :'admin_a_user_id',
   'role', 'authenticated',
   'platform_role', 'admin',
-  'platform_access_version', :'admin_a_access_version'::BIGINT
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'admin_a_membership_id',
+  'platform_access_version', :'admin_a_access_version'::BIGINT,
+  'platform_bundle_id', :'admin_a_bundle_id',
+  'platform_bundle_version', :'admin_a_bundle_version'::BIGINT
 )::TEXT AS admin_a_claims
 \gset
 
@@ -351,9 +360,14 @@ FROM changed_membership;
 SELECT
   profile.id AS student_a_profile_id,
   profile.auth_user_id AS student_a_user_id,
-  profile.access_version AS student_a_access_version
+  profile.access_version AS student_a_access_version,
+  membership.current_bundle_id AS student_a_bundle_id,
+  bundle.version AS student_a_bundle_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
+  AND bundle.role = membership."current_role"
 WHERE membership.organization_id = :'org_a_id'
   AND membership.id = :'student_a_membership_id'
   AND membership.status = 'active'
@@ -361,9 +375,14 @@ WHERE membership.organization_id = :'org_a_id'
 
 SELECT
   profile.auth_user_id AS student_b_user_id,
-  profile.access_version AS student_b_access_version
+  profile.access_version AS student_b_access_version,
+  membership.current_bundle_id AS student_b_bundle_id,
+  bundle.version AS student_b_bundle_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
+  AND bundle.role = membership."current_role"
 WHERE membership.organization_id = :'org_a_id'
   AND membership.id = :'student_b_membership_id'
   AND membership.status = 'active'
@@ -373,14 +392,22 @@ SELECT jsonb_build_object(
   'sub', :'student_a_user_id',
   'role', 'authenticated',
   'platform_role', 'student',
-  'platform_access_version', :'student_a_access_version'::BIGINT
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'student_a_membership_id',
+  'platform_access_version', :'student_a_access_version'::BIGINT,
+  'platform_bundle_id', :'student_a_bundle_id',
+  'platform_bundle_version', :'student_a_bundle_version'::BIGINT
 )::TEXT AS student_a_claims
 \gset
 SELECT jsonb_build_object(
   'sub', :'student_b_user_id',
   'role', 'authenticated',
   'platform_role', 'student',
-  'platform_access_version', :'student_b_access_version'::BIGINT
+  'platform_organization_id', :'org_a_id',
+  'platform_membership_id', :'student_b_membership_id',
+  'platform_access_version', :'student_b_access_version'::BIGINT,
+  'platform_bundle_id', :'student_b_bundle_id',
+  'platform_bundle_version', :'student_b_bundle_version'::BIGINT
 )::TEXT AS student_b_claims
 \gset
 
@@ -393,9 +420,7 @@ SELECT
   slot.status::TEXT AS current_slot_status,
   slot.current_version_no AS current_version_no,
   version.id AS current_version_id,
-  version.sha256_hex AS current_sha256_hex,
-  finalization.upload_reservation_id AS current_upload_reservation_id,
-  finalization.request_id AS current_finalization_request_id
+  version.sha256_hex AS current_sha256_hex
 FROM platform.document_slots AS slot
 JOIN platform.document_versions AS version
   ON version.organization_id = slot.organization_id
@@ -417,19 +442,80 @@ LIMIT 1
 \gset
 
 SET request.jwt.claims TO '{"role":"service_role"}';
-SET ROLE service_role;
-SELECT platform.finalize_document_upload_with_scan(
+SELECT platform_private.attest_document_validation_step(
   :'org_a_id',
-  :'current_upload_reservation_id',
+  :'current_version_id',
   'ClamAV',
   '1.5.4',
   '28001',
   'clamd-zinstream-v1',
   :'current_sha256_hex',
   statement_timestamp(),
-  :'current_finalization_request_id'
+  '58012800-0000-4000-8000-000000000003'
 );
+RESET request.jwt.claims;
+
+-- Reservation creates its immutable pending version before finalization moves
+-- the slot pointer. A failed upload may therefore leave a higher version_no;
+-- the Student projection must still expose only the canonical current version.
+SELECT COALESCE(MAX(version.version_no), 0) + 1 AS abandoned_version_no
+FROM platform.document_versions AS version
+WHERE version.organization_id = :'org_a_id'
+  AND version.document_slot_id = :'current_slot_id'
+\gset
+
+SAVEPOINT e5_current_projection_state;
+INSERT INTO platform.document_versions (
+  id,
+  organization_id,
+  student_case_id,
+  document_slot_id,
+  version_no,
+  original_filename,
+  declared_mime_type,
+  byte_size,
+  sha256_hex,
+  ingest_evidence_ref,
+  submitted_by_membership_id,
+  integrity_status,
+  malware_status
+)
+VALUES (
+  '58012800-0000-4000-8000-000000000004',
+  :'org_a_id',
+  :'case_a_id',
+  :'current_slot_id',
+  :'abandoned_version_no',
+  'abandoned-e5.pdf',
+  'application/pdf',
+  128,
+  repeat('d', 64),
+  'test:e5:abandoned-upload-reservation',
+  :'student_a_membership_id',
+  'pending',
+  'pending'
+);
+
+SET request.jwt.claims TO :'student_a_claims';
+SET ROLE authenticated;
+SELECT (
+  count(*) = 1
+  AND bool_and(
+    document.document_version_id = :'current_version_id'::UUID
+  )
+) AS e5_current_projection_only
+FROM platform.student_portal_documents() AS document
+WHERE document.document_slot_id = :'current_slot_id'::UUID
+\gset
 RESET ROLE;
+RESET request.jwt.claims;
+
+SELECT pg_temp.e5_assert_true(
+  :'e5_current_projection_only'::BOOLEAN,
+  'Student projection selected an abandoned pending version'
+);
+ROLLBACK TO SAVEPOINT e5_current_projection_state;
+RELEASE SAVEPOINT e5_current_projection_state;
 
 -- Expire any still-live historical P2H grant deterministically. The fixture's
 -- append-only trigger is disabled only for this test normalization statement;

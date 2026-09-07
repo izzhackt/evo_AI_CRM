@@ -43,9 +43,14 @@ FROM changed_membership;
 
 SELECT
   profile.auth_user_id AS e5c_student_user_id,
-  profile.access_version AS e5c_student_access_version
+  profile.access_version AS e5c_student_access_version,
+  membership.current_bundle_id AS e5c_student_bundle_id,
+  bundle.version AS e5c_student_bundle_version
 FROM platform.organization_memberships AS membership
 JOIN platform.profiles AS profile ON profile.id = membership.profile_id
+JOIN platform.role_bundle_versions AS bundle
+  ON bundle.id = membership.current_bundle_id
+  AND bundle.role = membership."current_role"
 WHERE membership.organization_id = :'e5c_org_id'
   AND membership.id = :'e5c_student_membership_id'
   AND membership.status = 'active'
@@ -55,7 +60,11 @@ SELECT jsonb_build_object(
   'sub', :'e5c_student_user_id',
   'role', 'authenticated',
   'platform_role', 'student',
-  'platform_access_version', :'e5c_student_access_version'::BIGINT
+  'platform_organization_id', :'e5c_org_id',
+  'platform_membership_id', :'e5c_student_membership_id',
+  'platform_access_version', :'e5c_student_access_version'::BIGINT,
+  'platform_bundle_id', :'e5c_student_bundle_id',
+  'platform_bundle_version', :'e5c_student_bundle_version'::BIGINT
 )::TEXT AS e5c_student_claims
 \gset
 
@@ -64,9 +73,7 @@ SELECT jsonb_build_object(
 SELECT
   slot.id AS e5c_slot_id,
   version.id AS e5c_original_version_id,
-  version.sha256_hex AS e5c_original_sha256_hex,
-  finalization.upload_reservation_id AS e5c_upload_reservation_id,
-  finalization.request_id AS e5c_finalization_request_id
+  version.sha256_hex AS e5c_original_sha256_hex
 FROM platform.document_slots AS slot
 JOIN platform.document_versions AS version
   ON version.organization_id = slot.organization_id
@@ -88,19 +95,17 @@ LIMIT 1
 \gset
 
 SET request.jwt.claims TO '{"role":"service_role"}';
-SET ROLE service_role;
-SELECT platform.finalize_document_upload_with_scan(
+SELECT platform_private.attest_document_validation_step(
   :'e5c_org_id',
-  :'e5c_upload_reservation_id',
+  :'e5c_original_version_id',
   'ClamAV',
   '1.5.4',
   '28001',
   'clamd-zinstream-v1',
   :'e5c_original_sha256_hex',
   statement_timestamp(),
-  :'e5c_finalization_request_id'
+  '58012890-0000-4000-8000-000000000002'
 );
-RESET ROLE;
 RESET request.jwt.claims;
 
 -- Normalize only unconsumed live grants for this actor/version. Restore normal

@@ -21133,3 +21133,104 @@ after its exact deletion inventory is known.
 
 This correction changes no product behavior, migration, provider, managed
 Supabase or production state.
+
+## 2026-09-07 - Use the private proof step for the E5 legacy fixture
+
+Block-ID: `EVO-V3-E5-LEGACY-SCAN-FIXTURE-CORRECTION-2026-09-07`
+
+Change type: local database-gate correction. Migration 115 deliberately marks
+historical proof-free document reservations as ineligible for the active upload
+finalizer, and migration 116 removes the standalone public proof writer. The E5
+disposable PostgreSQL fixture therefore invokes the revoked private attestation
+step as the harness superuser, while retaining a `service_role` JWT claim. This
+normalizes one already-finalized historical test object without reopening a
+runtime RPC or weakening the production reservation contract. Its Student and
+Admin JWT fixtures also carry the complete organization, membership, bundle
+and access-version tuple required by the current unified authority boundary.
+
+This correction changes only disposable SQL fixtures. It changes no product
+SQL, role grant, provider, managed Supabase or production state.
+
+## 2026-09-07 - Close E5 current-version and exact-URL review gaps
+
+Block-ID: `EVO-V3-E5-CURRENT-VERSION-AND-URL-CORRECTION-2026-09-07`
+
+Change type: independent adversarial review correction. Migration 128 narrows
+the existing Student document projection to `document_slots.current_version_id`
+and matching `current_version_no`; an abandoned higher pending reservation can
+no longer displace the finalized current file in the Portal. The strict V3
+adapter also rejects duplicate slot rows, and the UI no longer guesses current
+authority by choosing the greatest version number.
+
+Next.js 16 normally redirects trailing-slash URLs, and its router performs an
+earlier unconditional 308 canonicalization for repeated slashes and
+backslashes. The root config therefore uses the documented
+`skipTrailingSlashRedirect` control for trailing slashes. The canonical EVO
+Caddy edge separately rejects repeated, encoded repeated and backslash API
+paths before Next.js. A real loopback Next HTTP regression covers both Student
+document trailing-slash routes, while the existing pinned Caddy runtime proof
+now covers malformed GET/POST-equivalent API paths from the exact production
+edge source. The Next server regression is serialized because it writes the
+shared `.next` directory.
+
+This correction changes no public route name, role grant, provider, managed
+Supabase or production state.
+
+## 2026-09-07 - Split Student upload attempt admission from scarce scan capacity
+
+Block-ID: `EVO-V3-E5-STUDENT-SCAN-ADMISSION-2026-09-07`
+
+Change type: E5 security and availability architecture correction. The Student
+upload route now requires one browser-generated UUID `Idempotency-Key` that is
+stable across a failed response and changes only after a committed `201` or a
+file selection change. Before reading the multipart body, an authenticated
+Student RPC validates the active own-case slot, binds that request identity and
+records every attempt in a private durable lifecycle ledger. All attempts,
+including rejected and scanner-failed attempts, count toward rolling limits of
+60 per actor and 12 per slot per hour. A failed or rejected attempt may retry
+under the same stable request identity as a new counted `attempt_no`; a
+completed attempt is a terminal receipt replay and never reads or scans again.
+
+Attempt admission deliberately does not occupy one of the scarce ClamAV slots.
+After the bounded body, signature, hash and existing user preflight succeed, a
+separate service-only claim runs immediately before ClamAV. It serializes and
+enforces four active scans globally, two per actor and one per slot, with a
+15-minute recovery lease and partial active-row indexes. The handler completes
+every admitted terminal path as `completed`, `rejected` or `failed`. This
+two-phase design prevents slow upload bodies from blocking the scanner while
+still counting abusive requests before expensive work.
+
+Database timestamps are treated as duration evidence, not as a shared host
+clock. Both body and scan responses must prove a positive lease no longer than
+15 minutes; the server applies that duration to its local timestamp captured
+before the RPC. It bounds body reads and checks the scan deadline before both
+malware scans, avoiding clock-skew extensions. A scan starts only when more
+than ClamAV's maximum 30-second socket deadline plus a one-second margin
+remains on the claim. Claim replays return the database's current check time;
+the handler derives its local deadline from only the verified remaining lease,
+so replay cannot renew capacity after the original database expiry.
+
+The exact-path correction follows the official Next.js 16 configuration and
+upgrade guidance and Caddy's documented original-URI matcher behavior:
+<https://nextjs.org/docs/app/api-reference/config/next-config-js/skipTrailingSlashRedirect>,
+<https://nextjs.org/docs/app/guides/upgrading/version-16>,
+<https://caddyserver.com/docs/caddyfile/matchers#vars-regexp>, and
+<https://caddyserver.com/docs/caddyfile/concepts#snippets>.
+
+This correction changes no public route name, upload size, provider, managed
+Supabase or production state. Staff uploads retain their established flow.
+Reviewer notes: pending exact-head independent code and database review.
+
+## 2026-09-07 - Distinguish the replacement Portal browser gate from its deleted fixture predecessor
+
+Block-ID: `EVO-V3-E5-P6C-PORTAL-GATE-ASSERTION-CORRECTION-2026-09-07`
+
+Change type: inherited test-contract correction. Stage E4 intentionally reused
+`tests/e2e/student-portal.spec.ts` for a real local Supabase browser gate after
+P6C had deleted an obsolete fixture-driven file at that path. The P6C cleanup
+assertion still required the pathname itself to be absent, making current main
+fail despite the replacement importing Supabase and containing no Drizzle,
+SQLite or `src/db` dependency. The assertion now preserves the replacement and
+fails closed if obsolete database markers return.
+
+This correction changes no runtime, provider, database or production state.

@@ -26,6 +26,7 @@ export function PortalDocumentControls({
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const uploadIdempotencyKeyRef = useRef<string | null>(null);
   const [state, setState] = useState<UploadState>({ status: "idle" });
   const [refreshing, startRefresh] = useTransition();
   const pending = state.status === "uploading" || refreshing;
@@ -43,11 +44,17 @@ export function PortalDocumentControls({
 
     setState({ status: "uploading" });
     try {
+      const idempotencyKey =
+        uploadIdempotencyKeyRef.current ?? crypto.randomUUID();
+      uploadIdempotencyKeyRef.current = idempotencyKey;
       const response = await fetch(
         `/api/portal/document-slots/${encodeURIComponent(documentSlotId)}/versions`,
         {
           method: "POST",
-          headers: { Accept: "application/json" },
+          headers: {
+            Accept: "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
           body: formData,
           credentials: "same-origin",
         },
@@ -67,6 +74,7 @@ export function PortalDocumentControls({
         return;
       }
 
+      uploadIdempotencyKeyRef.current = null;
       formRef.current?.reset();
       setState({
         status: "success",
@@ -99,6 +107,10 @@ export function PortalDocumentControls({
               required
               accept="application/pdf,image/jpeg,image/png"
               disabled={pending}
+              onChange={() => {
+                uploadIdempotencyKeyRef.current = null;
+                setState({ status: "idle" });
+              }}
               className="min-h-11 min-w-0 flex-1 rounded-nav border border-control-edge bg-surface px-3 py-2 text-sm text-fg file:me-3 file:rounded-nav file:border-0 file:bg-surface-2 file:px-3 file:py-1 file:font-medium file:text-fg disabled:cursor-not-allowed disabled:opacity-60"
             />
             <button

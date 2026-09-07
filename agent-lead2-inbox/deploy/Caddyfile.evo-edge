@@ -55,6 +55,13 @@
 	}
 }
 
+(evo_canonical_api_paths) {
+	# Match the original request URI before an application framework can
+	# canonicalize a malformed API request into a different route.
+	@reject_noncanonical_api vars_regexp {http.request.orig_uri} `^/api[^?]*(//|\\|%5[cC]|%2[fF]|%2[eE]|/\.\.?(/|$))`
+	respond @reject_noncanonical_api 404
+}
+
 evo-inbox.72.62.119.112.sslip.io {
 	import evo_app
 	request_body {
@@ -66,6 +73,7 @@ evo-inbox.72.62.119.112.sslip.io {
 
 evo-crm.72.62.119.112.sslip.io {
 	import evo_app
+	import evo_canonical_api_paths
 	request_body {
 		max_size 105MB
 	}

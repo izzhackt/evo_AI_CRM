@@ -83,6 +83,7 @@ awk '
 cat >>"${TEST_CADDYFILE}" <<'CADDY'
 :8080 {
 	import evo_app
+	import evo_canonical_api_paths
 	respond 204
 }
 CADDY
@@ -139,6 +140,28 @@ for _ in {1..40}; do
   fi
   sleep 0.25
 done
+
+for noncanonical_path in \
+  /api//health \
+  /api/portal/document-slots/10000000-0000-4000-8000-000000000001//versions \
+  /api/%5Chealth \
+  '/api/portal/document-slots/10000000-0000-4000-8000-000000000001\versions' \
+  /api/portal%2Fdocument-versions \
+  /api/portal/document-slots/10000000-0000-4000-8000-000000000001/x/../versions \
+  /api/portal/document-slots/10000000-0000-4000-8000-000000000001/%2e%2e/versions; do
+  status="$(
+    curl --silent --show-error \
+      --path-as-is \
+      --request POST \
+      --data-binary 'malformed-request-must-not-reach-next' \
+      --output "${RESPONSE_FILE}" \
+      --write-out '%{http_code}' \
+      --header "Host: ${CRM_HOST}" \
+      "${edge_origin}${noncanonical_path}"
+  )" || fail "The disposable Caddy malformed-path request failed."
+  [[ "${status}" == "404" ]] \
+    || fail "The public edge did not deny ${noncanonical_path} before the app."
+done
 [[ "${ready}" == true ]] \
   || fail "The disposable Caddy edge did not become ready."
 
@@ -161,6 +184,17 @@ for private_path in \
   [[ "${status}" == "404" ]] \
     || fail "The public edge did not deny ${private_path}."
 done
+
+status="$(
+  curl --silent --show-error \
+    --path-as-is \
+    --output "${RESPONSE_FILE}" \
+    --write-out '%{http_code}' \
+    --header "Host: ${CRM_HOST}" \
+    "${edge_origin}/api/health?next=https%3A%2F%2Fexample.com/a%2Eb"
+)" || fail "The disposable Caddy canonical-query request failed."
+[[ "${status}" == "204" ]] \
+  || fail "The public edge treated canonical query data as malformed path data."
 
 run_with_deadline 10000 docker logs "${CONTAINER_NAME}" >"${LOG_FILE}" 2>&1 \
   || fail "Unable to inspect bounded disposable Caddy logs."
@@ -192,4 +226,4 @@ pids_limit="$(
 [[ "${memory_limit}" == "134217728" && "${pids_limit}" == "64" ]] \
   || fail "The disposable Caddy resource bounds were not applied."
 
-printf 'Verified the pinned disposable Caddy runtime denies every private EVO route, redacts credential headers, and enforces bounded resources/logs.\n'
+printf 'Verified the pinned disposable Caddy runtime denies private and noncanonical API routes, redacts credential headers, and enforces bounded resources/logs.\n'

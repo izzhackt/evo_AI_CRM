@@ -2175,10 +2175,89 @@ SQL
       -f /workspace/supabase/tests/platform_student_portal_read_models.sql
   fi
 
-  # Migration 128 splits staff and Student document download authority. Prove
-  # the Student RPC is current-version-only at both grant and consume time,
-  # while role, tenant, finalization, scan and revocation checks fail closed.
+  # Migration 128 bounds Student upload scans before request-body work and
+  # splits staff and Student document download authority. Prove the admission
+  # ledger first, including an actual two-session serialized slot race, then
+  # exercise current-version-only download grant and consume behavior.
   if [[ "$(basename "$migration")" == 128_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_document_scan_admission.sql
+
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_document_scan_admission_concurrency_setup.sql \
+      >"$e5c_concurrency_setup_log" 2>&1; then
+      echo "Migration 128 scan admission concurrency setup failed." >&2
+      cat "$e5c_concurrency_setup_log" >&2
+      exit 1
+    fi
+
+    node "$deadline_runner" 15000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v e5ac_request_id=58012891-0000-4000-8000-000000000002 \
+      -v e5ac_hold_lock=1 \
+      -v e5ac_hold_seconds=4 \
+      -f /workspace/supabase/tests/platform_student_document_scan_admission_concurrency_worker.sql \
+      >"$e5c_concurrency_worker_a_log" 2>&1 &
+    e5c_concurrency_worker_a_pid=$!
+
+    e5ac_concurrency_ready=0
+    for _ in {1..50}; do
+      if grep -Fq 'E5AC_SCAN_CLAIM_LOCK_HELD=1' \
+        "$e5c_concurrency_worker_a_log" 2>/dev/null; then
+        e5ac_concurrency_ready=1
+        break
+      fi
+      sleep 0.1
+    done
+
+    if [[ "$e5ac_concurrency_ready" != "1" ]]; then
+      echo "Migration 128 scan claim worker did not reach the lock marker." >&2
+      cat "$e5c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! node "$deadline_runner" 12000 docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v e5ac_request_id=58012891-0000-4000-8000-000000000003 \
+      -v e5ac_hold_lock=0 \
+      -v e5ac_hold_seconds=0 \
+      -f /workspace/supabase/tests/platform_student_document_scan_admission_concurrency_worker.sql \
+      >"$e5c_concurrency_worker_b_log" 2>&1; then
+      echo "Migration 128 overlapping scan claim worker failed." >&2
+      cat "$e5c_concurrency_worker_b_log" >&2
+      cat "$e5c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+
+    if ! wait "$e5c_concurrency_worker_a_pid"; then
+      e5c_concurrency_worker_a_pid=""
+      echo "Migration 128 scan claim lock holder failed." >&2
+      cat "$e5c_concurrency_worker_a_log" >&2
+      exit 1
+    fi
+    e5c_concurrency_worker_a_pid=""
+
+    if ! grep -Fxq 'E5AC_OUTCOME=00000' "$e5c_concurrency_worker_a_log" \
+      || ! grep -Fxq 'E5AC_WORKER=ok' "$e5c_concurrency_worker_a_log" \
+      || ! grep -Fxq 'E5AC_OUTCOME=PT409' "$e5c_concurrency_worker_b_log" \
+      || ! grep -Fxq 'E5AC_WORKER=ok' "$e5c_concurrency_worker_b_log"; then
+      echo "Migration 128 slot scan race did not serialize to one claim." >&2
+      cat "$e5c_concurrency_worker_a_log" >&2
+      cat "$e5c_concurrency_worker_b_log" >&2
+      exit 1
+    fi
+
+    if ! docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_document_scan_admission_concurrency_assert.sql \
+      >"$e5c_concurrency_assert_log" 2>&1; then
+      echo "Migration 128 scan claim durable-state assertion failed." >&2
+      cat "$e5c_concurrency_assert_log" >&2
+      exit 1
+    fi
+
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_student_document_download.sql

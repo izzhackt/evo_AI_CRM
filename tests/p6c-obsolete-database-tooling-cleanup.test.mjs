@@ -57,10 +57,18 @@ test("P6C removes obsolete executable database tooling, schemas, and fixture E2E
     "tests/e2e/platform-student-portal-polish.spec.ts",
     "tests/e2e/sensitive-permissions.spec.ts",
     "tests/e2e/student-case-lifecycle.spec.ts",
-    "tests/e2e/student-portal.spec.ts",
   ]) {
     missing(path);
   }
+
+  presentFile("tests/e2e/student-portal.spec.ts");
+  const studentPortalGate = source("tests/e2e/student-portal.spec.ts");
+  assert.match(studentPortalGate, /@supabase\/supabase-js/u);
+  assert.doesNotMatch(
+    studentPortalGate,
+    /(?:better-sqlite3|drizzle-orm|src\/db\/|\.sqlite\b)/u,
+    "the replacement Student Portal browser gate must remain Supabase-only",
+  );
 });
 
 test("P6C removes Drizzle and SQLite commands, packages, and lockfile graph", () => {

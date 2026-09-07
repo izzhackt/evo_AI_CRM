@@ -12,6 +12,7 @@ import type { PlatformActorResult } from "../platform-auth.ts";
 import {
   ClamdScanError,
   isClamdMalwareScanProof,
+  MAX_CLAMD_SCAN_TIMEOUT_MS,
   scanBytesWithClamd,
   type ClamdMalwareScanProof,
 } from "./clamd-malware-scanner.ts";
@@ -28,6 +29,8 @@ import {
 const BUCKET_ID = "platform-documents";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_MULTIPART_BYTES = MAX_FILE_BYTES + 1024 * 1024;
+const MAX_STUDENT_SCAN_LEASE_MS = 15 * 60 * 1000;
+const STUDENT_SCAN_START_SAFETY_MS = MAX_CLAMD_SCAN_TIMEOUT_MS + 1000;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OBJECT_NAME_PATTERN = /^[0-9a-f]{2}\/[0-9a-f]{62}$/;
@@ -68,6 +71,11 @@ export type PlatformDocumentStorageRouteDependencies = Readonly<{
   supabaseOrigin(): string;
   requestId(): string;
   now(): number;
+  scheduleTimeout?(
+    callback: () => void,
+    delayMs: number,
+  ): ReturnType<typeof setTimeout>;
+  clearScheduledTimeout?(timeout: ReturnType<typeof setTimeout>): void;
 }>;
 
 type UploadReservation = Readonly<{
@@ -88,6 +96,26 @@ type UploadReservation = Readonly<{
 
 type UploadPreflight = Readonly<{
   studentCaseId: string;
+}>;
+
+type StudentScanAdmission = Readonly<{
+  id: string;
+  requestId: string;
+  bodyDeadlineMs: number;
+  terminalDocument: Readonly<{
+    documentSlotId: string;
+    documentVersionId: string;
+    versionNumber: number;
+    originalFilename: string;
+    declaredMimeType: string;
+    byteSize: number;
+  }> | null;
+}>;
+
+type StudentScanClaim = Readonly<{
+  admissionId: string;
+  requestId: string;
+  scanDeadlineMs: number;
 }>;
 
 type FinalizedUpload = Readonly<{
@@ -361,6 +389,202 @@ function normalizeUploadPreflight(
   return Object.freeze({ studentCaseId });
 }
 
+function normalizeStudentScanAdmission(
+  value: unknown,
+  expected: Readonly<{
+    organizationId: string;
+    documentSlotId: string;
+    requestId: string;
+    rpcStartedAtMs: number;
+  }>,
+): StudentScanAdmission | null {
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, [
+      "admission_id",
+      "organization_id",
+      "student_case_id",
+      "document_slot_id",
+      "request_id",
+      "attempt_no",
+      "admitted_at",
+      "lease_expires_at",
+      "request_retry",
+      "scan_allowed",
+      "terminal_replay",
+      "document_version_id",
+      "version_no",
+      "original_filename",
+      "declared_mime_type",
+      "byte_size",
+    ])
+  ) {
+    return null;
+  }
+  const id = uuid(value.admission_id);
+  const admittedAtMs = typeof value.admitted_at === "string"
+    ? Date.parse(value.admitted_at)
+    : Number.NaN;
+  const leaseExpiresAtMs = typeof value.lease_expires_at === "string"
+    ? Date.parse(value.lease_expires_at)
+    : Number.NaN;
+  const leaseDurationMs = leaseExpiresAtMs - admittedAtMs;
+  if (
+    !id
+    || value.organization_id !== expected.organizationId
+    || !uuid(value.student_case_id)
+    || value.document_slot_id !== expected.documentSlotId
+    || value.request_id !== expected.requestId
+    || !positiveInteger(value.attempt_no)
+    || !timestamp(value.admitted_at)
+    || !timestamp(value.lease_expires_at)
+    || !Number.isFinite(admittedAtMs)
+    || !Number.isFinite(leaseExpiresAtMs)
+    || !Number.isFinite(expected.rpcStartedAtMs)
+    || leaseDurationMs <= 0
+    || leaseDurationMs > MAX_STUDENT_SCAN_LEASE_MS
+    || typeof value.request_retry !== "boolean"
+    || typeof value.terminal_replay !== "boolean"
+  ) {
+    return null;
+  }
+  if (value.terminal_replay === false) {
+    if (
+      value.scan_allowed !== true
+      || value.document_version_id !== null
+      || value.version_no !== null
+      || value.original_filename !== null
+      || value.declared_mime_type !== null
+      || value.byte_size !== null
+    ) {
+      return null;
+    }
+    return Object.freeze({
+      id,
+      requestId: expected.requestId,
+      bodyDeadlineMs: expected.rpcStartedAtMs + leaseDurationMs,
+      terminalDocument: null,
+    });
+  }
+
+  const documentVersionId = uuid(value.document_version_id);
+  const versionNumber = positiveInteger(value.version_no);
+  const originalFilename = typeof value.original_filename === "string"
+    ? safeFilename(value.original_filename)
+    : null;
+  const byteSize = positiveInteger(value.byte_size);
+  if (
+    value.scan_allowed !== false
+    || value.request_retry !== true
+    || !documentVersionId
+    || !versionNumber
+    || !originalFilename
+    || typeof value.declared_mime_type !== "string"
+    || !ACCEPTED_MIME_TYPES.has(value.declared_mime_type)
+    || !byteSize
+    || byteSize > MAX_FILE_BYTES
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    id,
+    requestId: expected.requestId,
+    bodyDeadlineMs: expected.rpcStartedAtMs + leaseDurationMs,
+    terminalDocument: Object.freeze({
+      documentSlotId: expected.documentSlotId,
+      documentVersionId,
+      versionNumber,
+      originalFilename,
+      declaredMimeType: value.declared_mime_type,
+      byteSize,
+    }),
+  });
+}
+
+function normalizeStudentScanClaim(
+  value: unknown,
+  expected: Readonly<{
+    admissionId: string;
+    organizationId: string;
+    requestId: string;
+    rpcStartedAtMs: number;
+  }>,
+): StudentScanClaim | null {
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, [
+      "admission_id",
+      "organization_id",
+      "request_id",
+      "scan_claimed_at",
+      "claim_checked_at",
+      "scan_lease_expires_at",
+      "scan_claim_replay",
+      "scan_allowed",
+    ])
+  ) {
+    return null;
+  }
+  const scanClaimedAtMs = typeof value.scan_claimed_at === "string"
+    ? Date.parse(value.scan_claimed_at)
+    : Number.NaN;
+  const scanLeaseExpiresAtMs = typeof value.scan_lease_expires_at === "string"
+    ? Date.parse(value.scan_lease_expires_at)
+    : Number.NaN;
+  const claimCheckedAtMs = typeof value.claim_checked_at === "string"
+    ? Date.parse(value.claim_checked_at)
+    : Number.NaN;
+  const remainingLeaseMs = scanLeaseExpiresAtMs - claimCheckedAtMs;
+  if (
+    value.admission_id !== expected.admissionId
+    || value.organization_id !== expected.organizationId
+    || value.request_id !== expected.requestId
+    || !timestamp(value.scan_claimed_at)
+    || !timestamp(value.claim_checked_at)
+    || !timestamp(value.scan_lease_expires_at)
+    || !Number.isFinite(expected.rpcStartedAtMs)
+    || !Number.isFinite(scanClaimedAtMs)
+    || !Number.isFinite(claimCheckedAtMs)
+    || !Number.isFinite(scanLeaseExpiresAtMs)
+    || claimCheckedAtMs < scanClaimedAtMs
+    || remainingLeaseMs <= 0
+    || remainingLeaseMs > MAX_STUDENT_SCAN_LEASE_MS
+    || typeof value.scan_claim_replay !== "boolean"
+    || value.scan_allowed !== true
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    admissionId: expected.admissionId,
+    requestId: expected.requestId,
+    scanDeadlineMs: expected.rpcStartedAtMs + remainingLeaseMs,
+  });
+}
+
+function validStudentScanCompletion(
+  value: unknown,
+  expected: Readonly<{
+    admissionId: string;
+    organizationId: string;
+    requestId: string;
+    outcome: "completed" | "rejected" | "failed";
+  }>,
+): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      "admission_id",
+      "organization_id",
+      "request_id",
+      "released_at",
+      "release_outcome",
+    ])
+    && value.admission_id === expected.admissionId
+    && value.organization_id === expected.organizationId
+    && value.request_id === expected.requestId
+    && timestamp(value.released_at) !== null
+    && value.release_outcome === expected.outcome;
+}
+
 function normalizeFinalizedUpload(
   value: unknown,
   reservation: UploadReservation,
@@ -511,7 +735,11 @@ function normalizeDownloadGrant(value: unknown): DownloadGrant | null {
 
 function normalizeDownloadConsumption(
   value: unknown,
-  expectedGrantId: string,
+  expected: Readonly<{
+    grantId: string;
+    organizationId: string;
+    documentVersionId: string;
+  }>,
 ): DownloadConsumption | null {
   if (
     !isRecord(value)
@@ -538,11 +766,11 @@ function normalizeDownloadConsumption(
     value.max_signed_url_expires_in_seconds,
   );
   if (
-    grantId !== expectedGrantId
-    || !uuid(value.organization_id)
+    grantId !== expected.grantId
+    || value.organization_id !== expected.organizationId
     || !uuid(value.student_case_id)
     || !uuid(value.document_slot_id)
-    || !uuid(value.document_version_id)
+    || value.document_version_id !== expected.documentVersionId
     || !uuid(value.document_download_consumption_id)
     || !uuid(value.document_access_event_id)
     || value.bucket_id !== BUCKET_ID
@@ -743,15 +971,21 @@ export function selectPrivateDocumentUploadTransport(
   return byteLength <= MAX_FILE_BYTES ? "resumable" : null;
 }
 
-function safeSignedUrl(value: unknown, supabaseOrigin: string): string | null {
+function safeSignedUrl(
+  value: unknown,
+  supabaseOrigin: string,
+  expectedObjectName: string,
+): string | null {
   if (typeof value !== "string") return null;
   try {
     const parsed = new URL(value);
+    const expectedPath = `/storage/v1/object/sign/${BUCKET_ID}/${expectedObjectName}`;
     if (
       parsed.origin !== supabaseOrigin
-      || !parsed.pathname.startsWith(
-        `/storage/v1/object/sign/${BUCKET_ID}/`,
-      )
+      || parsed.pathname !== expectedPath
+      || parsed.username !== ""
+      || parsed.password !== ""
+      || parsed.hash !== ""
       || !parsed.searchParams.get("token")
     ) {
       return null;
@@ -765,10 +999,17 @@ function safeSignedUrl(value: unknown, supabaseOrigin: string): string | null {
 async function readBoundedMultipartForm(
   request: Request,
   contentType: string,
+  lease?: Readonly<{
+    expiresAtMs: number;
+    now: () => number;
+    scheduleTimeout?: PlatformDocumentStorageRouteDependencies["scheduleTimeout"];
+    clearScheduledTimeout?: PlatformDocumentStorageRouteDependencies["clearScheduledTimeout"];
+  }>,
 ): Promise<
   | Readonly<{ status: "ok"; form: FormData }>
   | Readonly<{ status: "invalid" }>
   | Readonly<{ status: "too_large" }>
+  | Readonly<{ status: "lease_expired" }>
 > {
   if (!request.body) return { status: "invalid" };
 
@@ -778,7 +1019,40 @@ async function readBoundedMultipartForm(
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const remainingMs = lease ? lease.expiresAtMs - lease.now() : null;
+      if (remainingMs !== null && remainingMs <= 0) {
+        await reader.cancel("scan_admission_lease_expired").catch(() => undefined);
+        return { status: "lease_expired" };
+      }
+
+      let timeout: ReturnType<typeof setTimeout> | null = null;
+      let readResult: ReadableStreamReadResult<Uint8Array> | "lease_expired";
+      try {
+        readResult = await (remainingMs === null
+          ? reader.read()
+          : Promise.race([
+              reader.read(),
+              new Promise<"lease_expired">((resolve) => {
+                timeout = (lease?.scheduleTimeout ?? setTimeout)(
+                  () => resolve("lease_expired"),
+                  remainingMs,
+                );
+              }),
+            ]));
+      } finally {
+        if (timeout) {
+          if (lease?.clearScheduledTimeout) {
+            lease.clearScheduledTimeout(timeout);
+          } else {
+            clearTimeout(timeout);
+          }
+        }
+      }
+      if (readResult === "lease_expired") {
+        await reader.cancel("scan_admission_lease_expired").catch(() => undefined);
+        return { status: "lease_expired" };
+      }
+      const { done, value } = readResult;
       if (done) break;
       byteLength += value.byteLength;
       if (byteLength > MAX_MULTIPART_BYTES) {
@@ -810,6 +1084,54 @@ async function readBoundedMultipartForm(
   }
 }
 
+async function completeStudentScanAdmission(
+  dependencies: PlatformDocumentStorageRouteDependencies,
+  actor: DocumentStorageRouteActor,
+  admission: StudentScanAdmission,
+  operation: () => Promise<Response>,
+): Promise<Response> {
+  let operationResponse: Response | null = null;
+  try {
+    operationResponse = await operation();
+  } catch {
+    operationResponse = errorResponse(503, "storage_unavailable");
+  }
+
+  const outcome = operationResponse.status >= 200 && operationResponse.status < 300
+    ? "completed"
+    : operationResponse.status >= 400 && operationResponse.status < 500
+      ? "rejected"
+      : "failed";
+  try {
+    const serviceClient = dependencies.createServiceClient();
+    const completionResponse = await serviceClient.schema("platform").rpc(
+      "complete_student_document_upload_scan_admission",
+      {
+        p_organization_id: actor.organizationId,
+        p_actor_auth_user_id: actor.authUserId,
+        p_admission_id: admission.id,
+        p_request_id: admission.requestId,
+        p_outcome: outcome,
+      },
+    );
+    if (
+      completionResponse.error
+      || !validStudentScanCompletion(completionResponse.data, {
+        admissionId: admission.id,
+        organizationId: actor.organizationId,
+        requestId: admission.requestId,
+        outcome,
+      })
+    ) {
+      return errorResponse(503, "scan_admission_completion_unconfirmed");
+    }
+  } catch {
+    return errorResponse(503, "scan_admission_completion_unavailable");
+  }
+
+  return operationResponse;
+}
+
 function createDocumentUploadHandler(
   dependencies: PlatformDocumentStorageRouteDependencies,
   responseAudience: UploadResponseAudience,
@@ -835,7 +1157,74 @@ function createDocumentUploadHandler(
     const documentSlotId = uuid((await context.params).documentSlotId);
     if (!documentSlotId) return errorResponse(400, "invalid_document_slot");
 
-    const multipart = await readBoundedMultipartForm(request, contentType);
+    const studentRequestId = responseAudience === "student"
+      ? uuid(request.headers.get("idempotency-key"))
+      : null;
+    if (responseAudience === "student" && !studentRequestId) {
+      return errorResponse(400, "invalid_idempotency_key");
+    }
+
+    let admittedUserClient: SupabaseClient | null = null;
+    let studentAdmission: StudentScanAdmission | null = null;
+    if (responseAudience === "student" && studentRequestId) {
+      try {
+        const admissionStartedAtMs = dependencies.now();
+        admittedUserClient = await dependencies.createUserClient();
+        const admissionResponse = await admittedUserClient.schema("platform").rpc(
+          "admit_student_document_upload_scan",
+          {
+            p_organization_id: authorization.actor.organizationId,
+            p_document_slot_id: documentSlotId,
+            p_request_id: studentRequestId,
+          },
+        );
+        if (admissionResponse.error) {
+          return preflightErrorResponse(admissionResponse.error);
+        }
+        studentAdmission = normalizeStudentScanAdmission(
+          admissionResponse.data,
+          {
+            organizationId: authorization.actor.organizationId,
+            documentSlotId,
+            requestId: studentRequestId,
+            rpcStartedAtMs: admissionStartedAtMs,
+          },
+        );
+        if (!studentAdmission) {
+          return errorResponse(503, "scan_admission_unconfirmed");
+        }
+        if (studentAdmission.terminalDocument) {
+          return Response.json(
+            { document: studentAdmission.terminalDocument },
+            { status: 201 },
+          );
+        }
+      } catch {
+        return errorResponse(503, "scan_admission_unavailable");
+      }
+    }
+
+    const processUpload = async (): Promise<Response> => {
+
+    const multipart = await readBoundedMultipartForm(
+      request,
+      contentType,
+      studentAdmission
+          ? {
+            expiresAtMs: studentAdmission.bodyDeadlineMs,
+            now: dependencies.now,
+            ...(dependencies.scheduleTimeout
+              ? { scheduleTimeout: dependencies.scheduleTimeout }
+              : {}),
+            ...(dependencies.clearScheduledTimeout
+              ? { clearScheduledTimeout: dependencies.clearScheduledTimeout }
+              : {}),
+          }
+        : undefined,
+    );
+    if (multipart.status === "lease_expired") {
+      return errorResponse(409, "scan_admission_expired");
+    }
     if (multipart.status === "too_large") {
       return errorResponse(413, "file_too_large");
     }
@@ -855,12 +1244,14 @@ function createDocumentUploadHandler(
     if (!SHA256_PATTERN.test(sha256Hex)) {
       return errorResponse(503, "storage_unavailable");
     }
-    const uploadRequestId = upload.requestId ?? uuid(dependencies.requestId());
+    const uploadRequestId = upload.requestId
+      ?? studentRequestId
+      ?? uuid(dependencies.requestId());
     if (!uploadRequestId) return errorResponse(503, "storage_unavailable");
 
     let userClient: SupabaseClient;
     try {
-      userClient = await dependencies.createUserClient();
+      userClient = admittedUserClient ?? await dependencies.createUserClient();
       const preflightResponse = await userClient.schema("platform").rpc(
         "preflight_document_upload",
         {
@@ -876,7 +1267,7 @@ function createDocumentUploadHandler(
       if (preflightResponse.error) {
         return preflightErrorResponse(preflightResponse.error);
       }
-      if (!normalizeUploadPreflight(preflightResponse.data, {
+    if (!normalizeUploadPreflight(preflightResponse.data, {
         organizationId: authorization.actor.organizationId,
         documentSlotId,
         requestId: uploadRequestId,
@@ -885,6 +1276,54 @@ function createDocumentUploadHandler(
       }
     } catch {
       return errorResponse(503, "upload_preflight_unavailable");
+    }
+
+    if (
+      studentAdmission
+      && dependencies.now() >= studentAdmission.bodyDeadlineMs
+    ) {
+      return errorResponse(409, "scan_admission_expired");
+    }
+
+    let claimedServiceClient: SupabaseClient | null = null;
+    let studentScanClaim: StudentScanClaim | null = null;
+    if (studentAdmission) {
+      try {
+        const claimStartedAtMs = dependencies.now();
+        claimedServiceClient = dependencies.createServiceClient();
+        const claimResponse = await claimedServiceClient.schema("platform").rpc(
+          "claim_student_document_upload_scan",
+          {
+            p_organization_id: authorization.actor.organizationId,
+            p_actor_auth_user_id: authorization.actor.authUserId,
+            p_admission_id: studentAdmission.id,
+            p_request_id: studentAdmission.requestId,
+          },
+        );
+        if (claimResponse.error) {
+          return preflightErrorResponse(claimResponse.error);
+        }
+        studentScanClaim = normalizeStudentScanClaim(
+          claimResponse.data,
+          {
+            admissionId: studentAdmission.id,
+            organizationId: authorization.actor.organizationId,
+            requestId: studentAdmission.requestId,
+            rpcStartedAtMs: claimStartedAtMs,
+          },
+        );
+        if (!studentScanClaim) {
+          return errorResponse(503, "scan_claim_unconfirmed");
+        }
+        if (
+          studentScanClaim.scanDeadlineMs - dependencies.now()
+          <= STUDENT_SCAN_START_SAFETY_MS
+        ) {
+          return errorResponse(409, "scan_claim_expired");
+        }
+      } catch {
+        return errorResponse(503, "scan_claim_unavailable");
+      }
     }
 
     let requestScanProof: ClamdMalwareScanProof;
@@ -901,7 +1340,8 @@ function createDocumentUploadHandler(
     }
 
     try {
-      const serviceClient = dependencies.createServiceClient();
+      const serviceClient = claimedServiceClient
+        ?? dependencies.createServiceClient();
       const reservationResponse = await serviceClient.schema("platform").rpc(
         "reserve_document_upload_after_ingress_scan",
         {
@@ -967,6 +1407,14 @@ function createDocumentUploadHandler(
         return errorResponse(503, "storage_object_mismatch");
       }
 
+      if (
+        studentScanClaim
+        && studentScanClaim.scanDeadlineMs - dependencies.now()
+          <= STUDENT_SCAN_START_SAFETY_MS
+      ) {
+        return errorResponse(409, "scan_claim_expired");
+      }
+
       let scanProof: ClamdMalwareScanProof;
       try {
         scanProof = await dependencies.scanFile(storedObject.bytes);
@@ -1027,6 +1475,16 @@ function createDocumentUploadHandler(
     } catch {
       return errorResponse(503, "storage_unavailable");
     }
+    };
+
+    return studentAdmission
+      ? completeStudentScanAdmission(
+          dependencies,
+          authorization.actor,
+          studentAdmission,
+          processUpload,
+        )
+      : processUpload();
   };
 }
 
@@ -1101,7 +1559,11 @@ function createDocumentDownloadHandler(
       }
       const consumption = normalizeDownloadConsumption(
         consumptionResponse.data,
-        grant.id,
+        {
+          grantId: grant.id,
+          organizationId: authorization.actor.organizationId,
+          documentVersionId: versionId,
+        },
       );
       if (!consumption) return errorResponse(503, "storage_unavailable");
 
@@ -1118,6 +1580,7 @@ function createDocumentDownloadHandler(
       const signedUrl = safeSignedUrl(
         signedResponse.data.signedUrl,
         dependencies.supabaseOrigin(),
+        consumption.objectName,
       );
       if (!signedUrl) return errorResponse(503, "storage_unavailable");
       if (policy.noStore) {

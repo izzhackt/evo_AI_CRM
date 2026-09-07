@@ -1,4 +1,6 @@
 evo-crm.72.62.119.112.sslip.io {
+	@reject_noncanonical_api vars_regexp {http.request.orig_uri} `^/api[^?]*(//|\\|%5[cC]|%2[fF]|%2[eE]|/\.\.?(/|$))`
+	respond @reject_noncanonical_api 404
 	encode zstd gzip
 	reverse_proxy evo-crm-app:3000
 	header {

@@ -5,12 +5,15 @@ import Link from "next/link";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import { taskStatus } from "@/lib/v3/wording";
 
+import { ApplicationDeadlineChip } from "./ApplicationDeadline";
 import {
+  type CalendarApplicationDeadline,
   type CalendarTask,
   type Day,
   dayFullLabel,
   dayLabel,
   dayNumber,
+  hasCalendarAllDayRow,
   isSameMonth,
   taskCountLabel,
   timeLabel,
@@ -208,11 +211,41 @@ function Chips({ tasks, chip }: { tasks: readonly CalendarTask[]; chip: ChipProp
   );
 }
 
+function CalendarItems({
+  tasks,
+  deadlines,
+  chip,
+}: {
+  tasks: readonly CalendarTask[];
+  deadlines: readonly CalendarApplicationDeadline[];
+  chip: ChipProps;
+}) {
+  if (tasks.length === 0 && deadlines.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      {deadlines.map((deadline) => (
+        <ApplicationDeadlineChip key={`application-${deadline.id}`} deadline={deadline} />
+      ))}
+      {tasks.map((task) => (
+        <TaskChip
+          key={task.id}
+          task={task}
+          today={chip.today}
+          selected={task.id === chip.selectedId}
+          panelId={chip.panelId}
+          onSelect={() => chip.onSelect(task.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
 /* --------------------------------------------------------- сетка с часами */
 
 export function TimeGrid({
   days,
   tasks,
+  deadlines,
   hours,
   anchor = null,
   hrefForDay,
@@ -221,6 +254,7 @@ export function TimeGrid({
 }: {
   days: readonly Day[];
   tasks: readonly CalendarTask[];
+  deadlines: readonly CalendarApplicationDeadline[];
   /** Минуты от полуночи: начало каждого часа сетки. */
   hours: readonly number[];
   /** Час, к которому сетка прокручена при открытии. null — не прокручивать. */
@@ -281,9 +315,10 @@ export function TimeGrid({
           </>
         ) : null}
 
-        {/* Строка «весь день»: сюда ложится задача со сроком, но без времени.
-            Пустой строки нет — она появляется вместе с такой задачей. */}
-        {allDay.length > 0 ? (
+        {/* Строка «весь день»: сюда ложатся задача со сроком без времени и
+            дедлайн заявки. Пустой строки нет — она появляется вместе с любым
+            из этих событий. */}
+        {hasCalendarAllDayRow(allDay, deadlines) ? (
           <>
             <span className="border-b border-border px-2 py-2 text-end font-mono text-2xs text-fg-3">
               весь день
@@ -292,7 +327,11 @@ export function TimeGrid({
               // Клетка — блок, а не `span`: внутри лежит список карточек, и
               // блочное содержимое в строчном элементе разметке не разрешено.
               <div key={day} className="border-b border-s border-border p-1">
-                <Chips tasks={allDay.filter((task) => task.day === day)} chip={chip} />
+                <CalendarItems
+                  tasks={allDay.filter((task) => task.day === day)}
+                  deadlines={deadlines.filter((deadline) => deadline.day === day)}
+                  chip={chip}
+                />
               </div>
             ))}
           </>
@@ -366,6 +405,7 @@ const CELL_LIMIT = 3;
 export function MonthGrid({
   days,
   tasks,
+  deadlines,
   anchor,
   hrefForDay,
   label,
@@ -373,6 +413,7 @@ export function MonthGrid({
 }: {
   days: readonly Day[];
   tasks: readonly CalendarTask[];
+  deadlines: readonly CalendarApplicationDeadline[];
   /** Любой день показанного месяца: по нему видно, какие клетки чужие. */
   anchor: Day;
   hrefForDay: (day: Day) => string;
@@ -400,7 +441,13 @@ export function MonthGrid({
           {days.map((day, index) => {
             const last = index >= days.length - 7;
             const dayTasks = tasks.filter((task) => task.day === day);
-            const rest = dayTasks.length - CELL_LIMIT;
+            const dayDeadlines = deadlines.filter((deadline) => deadline.day === day);
+            const visibleDeadlines = dayDeadlines.slice(0, CELL_LIMIT);
+            const visibleTasks = dayTasks.slice(
+              0,
+              Math.max(0, CELL_LIMIT - visibleDeadlines.length),
+            );
+            const rest = dayTasks.length + dayDeadlines.length - CELL_LIMIT;
             return (
               <div
                 key={day}
@@ -416,7 +463,11 @@ export function MonthGrid({
                   href={hrefForDay(day)}
                   muted={!isSameMonth(day, anchor)}
                 />
-                <Chips tasks={dayTasks.slice(0, CELL_LIMIT)} chip={chip} />
+                <CalendarItems
+                  tasks={visibleTasks}
+                  deadlines={visibleDeadlines}
+                  chip={chip}
+                />
                 {rest > 0 ? (
                   <Link
                     href={hrefForDay(day)}

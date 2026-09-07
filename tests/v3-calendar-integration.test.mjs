@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-import { taskDeadlineInputDefaults } from "../src/components/v3/calendar/types.ts";
+import {
+  dayDelta,
+  taskDeadlineInputDefaults,
+} from "../src/components/v3/calendar/types.ts";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -42,7 +45,13 @@ test("deadline-kind conversion preserves the task day instead of the period anch
   assert.match(controls, /value=\{displayDueAt\}/);
 });
 
-test("V3 calendar reads one bounded canonical workspace without a second data path", () => {
+test("deadline day deltas stay date-only across month and year boundaries", () => {
+  assert.equal(dayDelta("2026-09-07", "2026-09-07"), 0);
+  assert.equal(dayDelta("2026-09-07", "2026-09-10"), 3);
+  assert.equal(dayDelta("2027-01-01", "2026-12-30"), -2);
+});
+
+test("V3 calendar exhausts selected ranges and bounds undated history", () => {
   assert.match(page, /requireV3PageActor\("\/v3\/calendar"\)/);
   assert.match(page, /readCalendarWorkspace/);
   assert.match(adapter, /listPlatformAdmissionsTaskQueue/);
@@ -50,19 +59,17 @@ test("V3 calendar reads one bounded canonical workspace without a second data pa
   assert.match(adapter, /getPlatformAdmissionsTaskWorkspace/);
   assert.match(adapter, /const QUEUE_PAGE_SIZE = 100/);
   assert.match(adapter, /const CASE_PAGE_SIZE = 100/);
-  // Обрыв очереди — видимый факт, а не отказ: усечение выражается полями
-  // truncatedAfter/periodComplete, и адаптер не роняет календарь throw-ом
-  // внутри ветки hasNext.
-  assert.match(adapter, /if \(queue\.hasNext\) \{/);
-  assert.match(adapter, /truncatedAfter/);
-  assert.match(adapter, /periodComplete/);
-  assert.doesNotMatch(
-    adapter,
-    /if \(queue\.hasNext\) \{[^}]*throw new Error/,
-  );
+  assert.match(adapter, /dueFrom: from,[\s\S]*dueTo: to/u);
+  assert.match(adapter, /while \(datedCursor !== null\)/u);
+  assert.doesNotMatch(adapter, /while \(undatedCursor !== null\)/u);
+  assert.match(adapter, /undatedNextCursor: undatedPage\.nextCursor/u);
+  assert.match(adapter, /while \(cursor !== null\)/u);
+  assert.doesNotMatch(adapter, /truncatedAfter|periodComplete/u);
   assert.match(adapter, /hasNext: page\.hasNext/);
   assert.match(adapter, /casesHaveMore:\s*cases\.hasNext/);
   assert.match(page, /casesHaveMore=\{workspace\.casesHaveMore\}/);
+  assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
+  assert.match(page, /undatedContinuationPage=\{undatedCursor !== null\}/u);
   assert.match(controls, /Показаны первые 100 активных дел/);
   assert.equal(
     [...adapter.matchAll(/await getPlatformAdmissionsTaskWorkspace\(/g)].length,
@@ -151,7 +158,7 @@ test("V3 calendar writes are role-scoped and remain keyboard-operable", () => {
 
 test("V3 calendar preserves canonical task states and undated tasks", () => {
   assert.match(adapter, /projectPlatformTaskDeadline\(row\.dueOn, row\.dueAt, now\)/);
-  assert.match(adapter, /day !== null && \(day < from \|\| day > to\)/);
+  assert.match(adapter, /task\.day < from \|\|[\s\S]*task\.day > to/u);
   assert.match(adapter, /state: row\.status/);
   assert.match(adapter, /version: row\.version/);
   assert.match(calendar, /tasks\.filter\(\(task\) => task\.day === null\)/);

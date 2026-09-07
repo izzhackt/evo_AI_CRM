@@ -48,6 +48,22 @@ export type CalendarAssigneeOption = Readonly<{
 }>;
 
 /**
+ * An explicit all-day deadline from one canonical university application.
+ * It is deliberately not a task: the calendar may link to the application,
+ * but may not offer task completion, reassignment or deadline controls.
+ */
+export type CalendarApplicationDeadline = Readonly<{
+  kind: "application_deadline";
+  id: string;
+  studentCaseId: string;
+  studentDisplayName: string;
+  universityName: string;
+  programName: string;
+  status: "preparation" | "ready" | "submitted" | "under_review" | "offer";
+  day: Day;
+}>;
+
+/**
  * Задача приёмной кампании.
  *
  * ЧЕГО ЗДЕСЬ НЕТ И НЕ БУДЕТ: длительности. У задачи один срок, а не начало и
@@ -92,6 +108,18 @@ export type CalendarTask = Readonly<{
   /** Decimal BIGINT returned by Supabase without JavaScript precision loss. */
   version: string;
 }>;
+
+/**
+ * Day/week grids share one all-day row between tasks without a time and
+ * application deadlines. A deadline must keep that row visible even when the
+ * selected period has no all-day task.
+ */
+export function hasCalendarAllDayRow(
+  allDayTasks: readonly CalendarTask[],
+  deadlines: readonly CalendarApplicationDeadline[],
+): boolean {
+  return allDayTasks.length > 0 || deadlines.length > 0;
+}
 
 export type CalendarTaskDeadlineInputDefaults = Readonly<{
   dueOn: Day;
@@ -169,6 +197,11 @@ export function yearOf(day: Day): number {
   return new Date(toMs(day)).getUTCFullYear();
 }
 
+/** Signed whole calendar-day distance with no browser/server timezone drift. */
+export function dayDelta(from: Day, to: Day): number {
+  return Math.round((toMs(to) - toMs(from)) / DAY_MS);
+}
+
 /** 0 — понедельник. */
 export function weekdayIndex(day: Day): number {
   return (new Date(toMs(day)).getUTCDay() + 6) % 7;
@@ -200,6 +233,38 @@ export function resolveView(raw: string | undefined): CalendarView {
 export function resolveDay(raw: string | undefined, fallback: Day): Day {
   if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return fallback;
   return toDay(toMs(raw)) === raw ? raw : fallback;
+}
+
+export function calendarUndatedContinuationHref(
+  basePath: string,
+  view: CalendarView,
+  day: Day,
+  cursor: Readonly<{ sortAt: string; caseTaskId: string }>,
+): string {
+  const params = new URLSearchParams({
+    view,
+    date: day,
+    undated_after_sort_at: cursor.sortAt,
+    undated_after_case_task_id: cursor.caseTaskId,
+  });
+  return `${basePath}?${params.toString()}`;
+}
+
+export function calendarUndatedPageNotice(
+  continuationPage: boolean,
+  hasNextPage: boolean,
+  visibleCount: number,
+): string | null {
+  if (continuationPage && hasNextPage) {
+    return `Показана текущая страница (${visibleCount}): предыдущие и следующие задачи без срока находятся на других страницах.`;
+  }
+  if (continuationPage) {
+    return `Показана последняя страница (${visibleCount}): предыдущие задачи без срока не показаны.`;
+  }
+  if (hasNextPage) {
+    return `Показаны не все задачи без срока: на этой странице ${visibleCount}.`;
+  }
+  return null;
 }
 
 /* ------------------------------------------------------- отрезок и шаг */

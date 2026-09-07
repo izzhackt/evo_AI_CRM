@@ -1,19 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { allDayDate } from "@/lib/v3/wording";
 import { useId, useState } from "react";
 
 import { Icon } from "@/components/icons";
 import { Pill } from "@/components/v3/Pill";
 import type { FixedRole } from "@/lib/fixed-role-policy";
 
+import { NearestApplicationDeadline } from "./ApplicationDeadline";
 import { MonthGrid, TaskChip, TimeGrid, statePill, taskStateKey } from "./grids";
 import {
   CalendarCreateTaskForm,
   CalendarTaskControls,
 } from "./TaskControls";
 import {
+  type CalendarApplicationDeadline,
   type CalendarAssigneeOption,
   type CalendarCaseOption,
   type CalendarTask,
@@ -21,6 +22,7 @@ import {
   type CalendarView,
   type Day,
   VIEW_TITLES,
+  calendarUndatedPageNotice,
   dayLabel,
   periodLabel,
   stepDay,
@@ -29,8 +31,9 @@ import {
 } from "./types";
 
 /**
- * Calendar over canonical Admissions tasks. Browser state controls only the
- * open inspector; every business mutation crosses the server action boundary.
+ * Calendar over canonical Admissions tasks and read-only application
+ * deadlines. Browser state controls only the task inspector; every business
+ * mutation crosses the server action boundary.
  */
 const GHOST =
   "inline-flex min-h-11 items-center justify-center rounded-ctl px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg";
@@ -42,8 +45,10 @@ export function Calendar({
   nowMinutes,
   days,
   tasks,
-  tasksTruncatedAfter,
-  periodComplete,
+  undatedContinuationPage,
+  undatedNextHref,
+  applicationDeadlines,
+  nearestApplicationDeadline,
   cases,
   casesHaveMore,
   assignees,
@@ -61,10 +66,10 @@ export function Calendar({
   nowMinutes: number;
   days: readonly Day[];
   tasks: readonly CalendarTask[];
-  /** Очередь отдала первые N задач по сроку; null — прочитаны все. */
-  tasksTruncatedAfter: string | null;
-  /** Видимый отрезок дочитан: пустой период — факт, а не обрыв чтения. */
-  periodComplete: boolean;
+  undatedContinuationPage: boolean;
+  undatedNextHref: string | null;
+  applicationDeadlines: readonly CalendarApplicationDeadline[];
+  nearestApplicationDeadline: CalendarApplicationDeadline | null;
   cases: readonly CalendarCaseOption[];
   casesHaveMore: boolean;
   assignees: readonly CalendarAssigneeOption[];
@@ -95,9 +100,6 @@ export function Calendar({
     ? Math.min(Math.max(Math.floor(nowMinutes / 60) * 60, first), last - 60)
     : null;
 
-  const truncatedAfterLabel =
-    tasksTruncatedAfter !== null ? allDayDate(tasksTruncatedAfter) : null;
-
   const href = (nextView: CalendarView, nextDay: Day) =>
     `${basePath}?view=${nextView}&date=${nextDay}`;
   const chip = {
@@ -107,6 +109,11 @@ export function Calendar({
     onSelect: (id: string) => setSelected((current) => (current === id ? null : id)),
   };
   const unscheduled = tasks.filter((task) => task.day === null);
+  const undatedNotice = calendarUndatedPageNotice(
+    undatedContinuationPage,
+    undatedNextHref !== null,
+    unscheduled.length,
+  );
 
   return (
     <div
@@ -166,6 +173,11 @@ export function Calendar({
         presentationRole={presentationRole}
         requestId={createRequestId}
         day={day}
+      />
+
+      <NearestApplicationDeadline
+        today={today}
+        deadline={nearestApplicationDeadline}
       />
 
       {open ? (
@@ -239,25 +251,13 @@ export function Calendar({
         </aside>
       ) : null}
 
-      {/* «Задач нет» — только когда отрезок дочитан: оборванное чтение не
-          даёт права на это утверждение. */}
-      {tasks.length === 0 && periodComplete ? (
-        <p className="px-1 text-sm text-fg-3">На этот период задач нет.</p>
+      {tasks.length === 0 &&
+      applicationDeadlines.length === 0 &&
+      !undatedContinuationPage ? (
+        <p className="px-1 text-sm text-fg-3">На этот период событий нет.</p>
       ) : null}
 
-      {/* Канонический RPC отдаёт одну страницу очереди без курсора: когда
-          отрезок не дочитан, обрыв — видимый факт, а не тихая потеря хвоста.
-          Обрыв может рассекать день пополам, поэтому граница называется
-          включительно: день границы прочитан не полностью. */}
-      {!periodComplete ? (
-        <p className="px-1 text-xs text-fg-3" role="status">
-          {truncatedAfterLabel !== null
-            ? `Задачи со сроком ${truncatedAfterLabel} и позже прочитаны не полностью.`
-            : "Очередь задач прочитана не до конца."}
-        </p>
-      ) : null}
-
-      {unscheduled.length > 0 ? (
+      {unscheduled.length > 0 || undatedNotice ? (
         <section
           aria-label="Задачи без срока"
           className="rounded-card border border-border bg-surface p-3"
@@ -277,6 +277,23 @@ export function Calendar({
               />
             ))}
           </div>
+          {undatedNotice ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+              <p className="text-sm text-fg-3">{undatedNotice}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {undatedContinuationPage ? (
+                  <Link href={href(view, day)} className={GHOST}>
+                    К началу списка
+                  </Link>
+                ) : null}
+                {undatedNextHref ? (
+                  <Link href={undatedNextHref} className={GHOST}>
+                    Показать следующие
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -285,6 +302,7 @@ export function Calendar({
           <MonthGrid
             days={days}
             tasks={tasks}
+            deadlines={applicationDeadlines}
             anchor={day}
             hrefForDay={(value) => href("day", value)}
             label={`Сетка месяца, ${periodLabel(view, day)}`}
@@ -294,6 +312,7 @@ export function Calendar({
           <TimeGrid
             days={days}
             tasks={tasks}
+            deadlines={applicationDeadlines}
             hours={hours}
             anchor={anchorMinute}
             hrefForDay={(value) => href("day", value)}

@@ -2,7 +2,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { InboxMessageMedia } from "@/components/v3/inbox/InboxMessageMedia";
 import { Pill } from "@/components/v3/Pill";
+import type {
+  V3InboxMediaAttachmentContext,
+  V3InboxMessageMedia,
+} from "@/lib/v3/inbox-media";
 
 export type InboxMessage = Readonly<{
   id: string;
@@ -10,6 +15,7 @@ export type InboxMessage = Readonly<{
   body: string;
   /** `30.08 09:14`; null means the canonical timestamp is unavailable. */
   at: string | null;
+  media: readonly V3InboxMessageMedia[];
 }>;
 
 export type InboxCanonicalContext = Readonly<{
@@ -66,11 +72,13 @@ export function Inbox({
   profileHref,
   workflowControls,
   amoCrmControls,
+  mediaAttachmentContext = null,
 }: Readonly<{
   view: InboxView;
   profileHref: string | null;
   workflowControls?: ReactNode;
   amoCrmControls?: ReactNode;
+  mediaAttachmentContext?: V3InboxMediaAttachmentContext | null;
 }>) {
   const open = view.selected;
 
@@ -301,6 +309,11 @@ export function Inbox({
                     >
                       {message.body}
                     </p>
+                    <InboxMessageMedia
+                      items={message.media}
+                      inbound={message.inbound}
+                      attachmentContext={mediaAttachmentContext}
+                    />
                     {message.at ? (
                       <p
                         className={`mt-1 font-mono text-2xs ${

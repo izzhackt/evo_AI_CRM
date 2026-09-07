@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -38,6 +39,79 @@ function jobStepNames(releaseJob) {
 
 const build = job("build", "deploy");
 const deploy = job("deploy");
+
+function releaseSshArgv(stepName, startMarker, endMarker, env) {
+  const step = namedStep(stepName);
+  const markerIndex = step.indexOf(startMarker);
+  assert.notEqual(markerIndex, -1, `${stepName} SSH setup must exist`);
+  const start = markerIndex + startMarker.length;
+  const end = step.indexOf(endMarker, start);
+  assert.ok(end > start, `${stepName} SSH invocation must be complete`);
+  // Exercise the workflow's actual assembly; omit only its result-file redirection
+  // and failure branch. OpenSSH joins command arguments with spaces before the
+  // remote shell parses them: https://man.openbsd.org/ssh.1#DESCRIPTION
+  const invocation = step.slice(start, end)
+    .replace(/\bif ! ssh /u, "ssh ")
+    .trimEnd()
+    .replace(/\\$/u, "");
+  const result = spawnSync("bash", ["-c", `
+    set -Eeuo pipefail
+    ssh() {
+      [[ "$1" == evo-production ]]
+      shift
+      bash -c "$*"
+    }
+    ${invocation} <<'REMOTE'
+    printf '%s\\0' "$@"
+REMOTE
+  `], { env: { PATH: "/usr/bin:/bin", LC_ALL: "C", ...env }, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+  assert.ok(result.stdout.endsWith("\0"), "remote argv must be NUL-delimited");
+  return result.stdout.slice(0, -1).split("\0");
+}
+
+const deployArgumentNames = [
+  "transfer_dir", "EVO_RELEASE_TRANSFER_ROOT", "EVO_RELEASE_ROOT",
+  "EVO_RELEASE_PROJECT_NAME", "EVO_RELEASE_EVIDENCE_ROOT",
+  "EVO_RELEASE_ROLLBACK_SEED", "EVO_RELEASE_EXTERNAL_HEALTH_URL",
+  "EVO_RELEASE_MIN_FREE_KB", "EVO_WAHA_IMAGE_DIGEST", "EVO_SUPABASE_PROJECT_REF",
+  "EVO_RELEASE_ID", "EVO_RELEASE_REPOSITORY", "EVO_RELEASE_REVISION",
+  "EVO_RELEASE_VERSION", "release_run_id", "EVO_RELEASE_WORKFLOW_RUN_ID",
+  "EVO_RELEASE_WORKFLOW_RUN_ATTEMPT", "EVO_RELEASE_UPSTREAM_CI_RUN_ID",
+  "EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT", "EVO_RELEASE_ARTIFACT_ID",
+  "EVO_RELEASE_ARTIFACT_DIGEST", "archive_sha256", "image_id", "image_config_digest",
+  "compose_sha256", "controller_sha256", "validator_sha256", "env_example_sha256",
+  "manifest_sha256",
+];
+const acceptanceArgumentNames = [
+  "command_name", ...deployArgumentNames.slice(0, 21), "EVO_RELEASE_ACTOR_ID",
+  "EVO_RELEASE_CURRENT_MAIN_REVISION", "receipt_sha256", "controller_sha256",
+];
+
+for (const [seedLabel, rollbackSeed] of [
+  ["absent", ""],
+  ["present", "/opt/evo-crm/release-evidence/previous/rollback-seed.json"],
+  ["shell-sensitive", "/opt/evo-crm/previous release/'seed';$literal.json"],
+]) {
+  for (const commandName of ["deploy", "accept-candidate", "candidate-status"]) {
+    test(`${commandName} preserves every remote argument with ${seedLabel} rollback seed`, () => {
+      const isDeploy = commandName === "deploy";
+      const names = isDeploy ? deployArgumentNames : acceptanceArgumentNames;
+      const env = Object.fromEntries(names.map((name) => [name, name]));
+      env.EVO_RELEASE_ROLLBACK_SEED = rollbackSeed;
+      env.command_name = commandName;
+      const actual = releaseSshArgv(
+        isDeploy ? "Deploy exact candidate as pending" : "Accept exact V3 candidate",
+        isDeploy
+          ? 'release_run_id="release-${EVO_RELEASE_WORKFLOW_RUN_ID}-${EVO_RELEASE_WORKFLOW_RUN_ATTEMPT}"\n'
+          : "output_file=$2\n",
+        isDeploy ? "<<'REMOTE'" : '> "$output_file"',
+        env,
+      );
+      assert.deepEqual(actual, names.map((name) => env[name]));
+    });
+  }
+}
 
 test("the release stays coarse-unarmed and admits only successful manual exact-main CI", () => {
   assert.match(workflow, /^name: EVO fast app release$/mu);

@@ -369,10 +369,12 @@ test("the Student can persist one own notification read through the UI", async (
     hasText: "Загрузите более чёткую копию паспорта.",
   });
   await expect(notification).toBeVisible();
-  await notification.getByRole("button", { name: "Отметить прочитанным" }).click();
-  await expect(notification.getByRole("button", { name: "Отметить прочитанным" })).toHaveCount(
-    0,
-  );
+  // The accessible name changes while the Server Action is pending, so wait
+  // on the stable submit element before asserting the committed database state.
+  const markReadSubmission = notification.locator('form button[type="submit"]');
+  await expect(markReadSubmission).toHaveAccessibleName("Отметить прочитанным");
+  await markReadSubmission.click();
+  await expect(markReadSubmission).toHaveCount(0);
 
   const sql = postgres(localDatabaseUrl(), { max: 1, prepare: false });
   try {

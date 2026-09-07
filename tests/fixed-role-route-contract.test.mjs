@@ -169,6 +169,7 @@ test("retired staff roots are hidden tombstones before auth", () => {
     "/finance",
     "/tasks",
     "/settings",
+    "/portal/legacy",
     "/calls",
     "/chat",
     "/whatsapp",

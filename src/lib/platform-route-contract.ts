@@ -55,6 +55,7 @@ const RETIRED_PLATFORM_ROUTE_ROOTS = [
   "/finance",
   "/tasks",
   "/settings",
+  "/portal/legacy",
   "/calls",
   "/chat",
   "/whatsapp",

@@ -256,6 +256,7 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
   const submit = source(
     "src/components/v3/portal/PortalNotificationReadButton.tsx",
   );
+  const browser = source("tests/e2e/student-portal.spec.ts");
 
   assert.match(action, /^"use server";/u);
   assert.match(action, /const actor = await requireStudentPortalActor\(\)/u);
@@ -278,6 +279,10 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
   assert.match(
     submit,
     /pending \? "Отмечаем…" : "Отметить прочитанным"/u,
+  );
+  assert.match(
+    browser,
+    /const markReadSubmission = notification\.locator\('form button\[type="submit"\]'\);[\s\S]*await markReadSubmission\.click\(\);[\s\S]*await expect\(markReadSubmission\)\.toHaveCount\(0\)/u,
   );
 });
 
@@ -356,6 +361,7 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
     .join("\n");
 
   assert.match(shell, /overflow-x-auto/u);
+  assert.match(shell, /flex w-full max-w-\[1180px\]/u);
   assert.match(shell, /aria-label="Навигация по разделам кабинета"/u);
   assert.match(shell, /tabIndex=\{0\}/u);
   assert.match(shell, /min-h-10/u);

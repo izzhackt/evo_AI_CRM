@@ -93,7 +93,7 @@ export default async function InboxPart({
       : null;
     workflowControls = (
       <InboxProviderWorkflowControls
-        key={`${selected.id}:${
+        key={`${selected.id}:${selected.latestInboundSourceMessageId ?? "no-source"}:${
           provider.proposal?.proposalRequestId ?? "no-proposal"
         }:${
           provider.reviews.find(

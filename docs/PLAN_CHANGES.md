@@ -20032,3 +20032,116 @@ run.
 
 This correction authorizes no managed schema apply, provider call, production
 release or credential use.
+## 2026-09-07 - Freeze the Stage E0 Student Portal cold-handover contract
+
+Block-ID: `EVO-V3-E0-STUDENT-PORTAL-COLD-HANDOVER-2026-09-07`
+
+Change type: plan-freshness, security boundary and ordered delivery contract.
+Affected plan section: current run Stage E after D2 migration 125.
+
+Read-only inspection at exact `origin/main`
+`234f390b2bd19525a60d4d4988b56cb1bfd0ef7d` confirmed that Stage E is not
+started. The repository already owns the Student role/bundles, own-case portal
+RPCs, notifications/overdue worker and private document pipeline, but it has no
+trusted invitation/provisioning seam, V3 Student resolver/callback, active
+portal routes or the few additive read facts required by the five screens.
+
+Decision:
+
+1. Preserve the existing 042/043/044/046/053/068/069/108/110/115/116 Student
+   and document authority. E is a missing-seam and UI restoration, not a second
+   portal schema, second auth path, public bucket or duplicated upload stack.
+2. Reserve migration 126, strictly after D2 migration 125, for private durable
+   provisioning receipts and Admin-only prepare/record/finalize RPCs. Reserve
+   127, strictly after 126, for additive Student-self read models only. Existing
+   `student_portal_*` signatures remain compatible.
+3. Two exact case shapes may be reserved. Normal completed U6 is `active` with
+   non-null Curator and `handoff_at`. Supported legacy pre-handoff is `pending`
+   with null Curator, `handoff_at`, `portal_activated_at` and `closed_at`; it
+   requires an explicitly selected active Curator before invite. Provisioning
+   binds/scopes Student while activation remains null, then the existing
+   `assign_student_case_curator` rotates the case scope and atomically records
+   active/handoff/portal activation. Closed, cross-org and every third or
+   contradictory shape fail before invite; E never invents a Curator or
+   reopens a case.
+4. Finalization compositionally calls `platform.provision_member` for the
+   Student bundle, then `platform.assign_organization_scope` because migration
+   083 `current_actor_authority()` requires that scope for Student too, then
+   grants current exact `student_case` scope through
+   `platform_private.append_scope_event`, binds `student_membership_id` and
+   bumps access version after scope/bind. Normal U6 sets
+   `portal_activated_at` last; legacy pending delegates rotation, Curator grant,
+   state/handoff and activation to existing `assign_student_case_curator` only
+   after Student bind. All are one DB transaction with deterministic child
+   request IDs for distinct audit actions. After read-only Admin preflight it
+   must take migration 117's
+   `lock_student_case_note_assignment_domain(organization_id)` before any
+   receipt/request/participant row lock, then repeat current Admin authority;
+   the nested legacy Curator command cannot reverse the canonical lock order.
+5. One immutable request fingerprint gives exact-result replay. Changed-input,
+   new-request-on-reserved/bound case, cross-org identity, foreign binding and
+   concurrent case/email claims fail deterministically before a second invite.
+   Same-receipt continuation may reuse an already-bound membership only when
+   auth user, organization, role and exact case all match and activation is
+   still null; successful replay adds no rows and does not bump twice.
+   The fingerprint includes explicit `case_shape` plus nullable
+   `legacy_curator_membership_id`: null for normal U6, exact selected active
+   Curator for legacy pending. Replaying with another Curator is a changed-input
+   conflict, never a silent substitution.
+6. Auth invite is an external side effect, so the server follows `prepare ->
+   inviteUserByEmail -> durable Auth result -> DB finalize`. Definite failure,
+   durable success followed by finalize failure, and unknown/lost response are
+   distinct states. Unknown never blind-retries or deletes/duplicates Auth;
+   operator reconciliation by exact normalized email is required. A response
+   claims invite success only after durable `auth_user_id`, and portal success
+   only after atomic authority activation.
+7. Staff and Student resolvers remain disjoint. The staff
+   `isDatabaseStaffRole` filter is not widened; Portal gets a separate Student
+   actor/guard and layout. The only callback is `/auth/callback`; the invite
+   template sends exact `token_hash` + `type=invite`, the callback verifies it
+   server-side, strips it before redirect and has no arbitrary `next`.
+   Successful invite sessions go to auth-only `/auth/set-password`; its
+   session-bound password update rechecks Student authority before `/portal`.
+   This auth route is not a sixth portal screen. E3 must change production and
+   local Auth allowlists to the exact callback URLs, never wildcards. This is a
+   target requirement: current `supabase/config.toml` still has the obsolete
+   `https://127.0.0.1:3000` entry and managed Auth settings are unverified.
+8. The product exposes exactly `/portal`, `/portal/documents`,
+   `/portal/applications`, `/portal/payments` and `/portal/notifications`.
+   Student document traffic uses exactly the private upload/download routes
+   named in the run plan and the existing hash/ClamAV/finalize and one-time
+   download-grant pipeline.
+9. Delivery order is frozen as E0 docs -> E1 migration 126 -> E2 migration 127
+   plus strict V3 adapters -> E3 auth/callback/trusted invite coordinator -> E4
+   five-route Portal UI -> E5 private documents and cumulative closure. Each is
+   a separate scoped PR after the prior merge, with the package-specific
+   replay/tenant/race/data-minimization/browser tests and gates written in
+   `docs/design/v3/run-plan.md`.
+10. Repository/local proof stops at local Supabase/Auth sandbox,
+    Postgres/RLS/Storage/scanner and browser behavior. Live acceptance remains
+    blocked on exact managed-project/schema proof, owner-approved real case and
+    recipient, custom transactional SMTP/from-domain plus SPF/DKIM/DMARC,
+    template/rate-limit review and exact managed Site URL/redirect settings.
+    E0–E5 do not authorize managed apply, SMTP/DNS mutation, live invite,
+    production deployment, provider writes or release arming.
+
+Evidence for the corrected dual-scope/legacy contract: migration 083
+`current_actor_authority()` admits Student but requires both
+`organization.read` and active organization scope; its staff provisioner shows
+the existing deterministic `assign_organization_scope` composition. Migration
+042 `assign_student_case_curator` accepts `pending`, rotates the active
+student-case scope, grants it to both Curator and already-bound Student, bumps
+affected access versions and only then writes `active`, `handoff_at` and
+`portal_activated_at`. Migration 088 preserves that exact pending shape and
+the rule that portal activation requires a non-null Student membership.
+
+Official contract basis:
+[Supabase Users and trusted-server invites](https://supabase.com/docs/guides/auth/users),
+[inviteUserByEmail](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail),
+[Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls),
+[Email Templates](https://supabase.com/docs/guides/auth/auth-email-templates),
+[Custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp),
+[Database functions](https://supabase.com/docs/guides/database/functions),
+[Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security),
+[standard uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads)
+and [resumable uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads).

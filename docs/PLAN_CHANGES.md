@@ -19959,3 +19959,53 @@ This contract authorizes repository work and GitHub PR integration only. It
 does not authorize applying migrations to managed Supabase, enabling providers,
 using owner credentials, writing amoCRM, deploying to Hermes or arming the
 production release.
+
+## 2026-09-07 - Enforce exact Inbox-media case binding at the database boundary
+
+Block-ID: `EVO-V3-D2-MEDIA-EXACT-CASE-2026-09-07`
+
+Change type: security-contract correction and migration-number reservation.
+Affected plan section: current run Stage D2 Media.
+
+The frozen D2 wording requires “В дело студента” to bind media only to the
+exact non-null `student_case_id` stored on that conversation. The existing
+migration 121 application path can enforce this in the V3 UI and Server Action,
+but its authenticated exposed RPC still accepts a case reached through the same
+canonical lead/client. An authorized caller could therefore bypass the normal
+application path and satisfy a broader relation than the frozen D2 contract.
+
+Decision:
+
+1. Reserve migration 125 for a narrow corrective database boundary after the
+   already reserved 122 Inbox, 123 Profile/Pipeline and 124 Calendar migrations.
+2. Migration 125 must require an exact non-null
+   `communication_conversation.student_case_id = p_student_case_id` before a
+   media-to-case attach can begin. Same-canonical lead/client identity is not a
+   substitute for this exact conversation-case relation.
+3. The V3 Server Action independently repeats the exact-case preflight before
+   invoking the RPC. This is defense in depth, not the authority boundary.
+4. The correction must preserve migration 121's actor-bound intent,
+   one-time grant/consume, version-bound reservation, cross-organization and
+   revoked-actor denials, private Storage copy, hash/ClamAV verification,
+   replay handling and failure semantics. It must not broaden supported media
+   types or expose private bucket/object coordinates.
+5. Media remains the final D2 integration package because its UI shares the
+   Inbox hotspot. Its independent route/security files may be prepared in
+   parallel, but 125 cannot be accepted before migrations 122–124 are merged
+   and the branch is refreshed onto their exact `main` head.
+6. Acceptance requires direct authenticated-RPC regression proof for exact
+   match and a four-way bypass matrix: for each of a `canonical_lead_id`-only
+   match and a `canonical_client_id`-only match, deny both when
+   `student_case_id IS NULL` and when it points to a different non-null case.
+   Cross-org, revoked actor and replay/stale paths remain required, together
+   with the full PostgreSQL authorization harness.
+   Application-level tests must additionally prove that NULL or mismatched
+   conversation-case input fails before
+   `reserve_message_media_attachment`, while an exact case plus canonical
+   writable slot reaches that RPC. Sales and Admin-preview-as-Sales must never
+   load document slots or render the attach control.
+
+This correction does not authorize a managed schema apply, a real provider
+call or a production release. A real archived private media object and the
+runtime archival processor are still required before claiming live WhatsApp
+attachment proof.

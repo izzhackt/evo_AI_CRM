@@ -320,7 +320,7 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
   стартовой странице Admissions `/v3/calendar`, а не на закрытом для роли
   `/v3/main`: прошедший срок — «Просрочено N дн», сегодняшний — «Сегодня»,
   будущий — «До дедлайна N дн».
-- **Media, последним и без новой миграции:** пузыри используют уже выданные
+- **Media, последним; corrective-миграция 125 обязательна:** пузыри используют уже выданные
   read-моделью media facts. Просмотр/скачивание идёт через server-only
   `grant_communication_media_download` → одноразовый
   `consume_communication_media_download_grant` → signed URL не дольше 60
@@ -331,12 +331,20 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
   студента» дополнительно требует `documents.write`, exact `student_case_id`
   диалога и явный выбор из доступных для записи слотов того же дела; Sales
   кнопку не видит. Путь переиспользует 121, браузер не переносит source bytes.
+  Проверка только в UI/Server Action недостаточна: публичный authenticated RPC
+  из 121 допускает независимые более широкие совпадения через canonical lead и
+  canonical client. Поэтому
+  125 сужает DB-boundary до exact non-null
+  `communication_conversation.student_case_id = p_student_case_id`; прямой RPC
+  не может обойти этот инвариант. 125 не меняет grant/consume, Storage или
+  read-модель и применяется только после 122–124.
   Cross-org, revoked, expired/consumed grant и quarantined/unavailable media
   закрываются fail-closed.
 
 Номера зарезервированы жёстко: **122 Inbox**, **123 Profile/Pipeline**,
-**124 Calendar**. Порядок интеграции: contract docs → Inbox 122 → snippets →
-Profile/Pipeline 123 → Calendar 124 → Media. Параллельные исполнители не
+**124 Calendar**, **125 Media exact-case corrective**. Порядок интеграции:
+contract docs → Inbox 122 → snippets → Profile/Pipeline 123 → Calendar 124 →
+Media 125. Параллельные исполнители не
 редактируют `docs/**`, `src/lib/v3/wording.ts`,
 `src/lib/fixed-role-policy.ts`, AppShell/route guards, общие test manifests или
 чужой UI hotspot. Inbox владеет 122, communication/inbox read-моделью и queue
@@ -349,7 +357,7 @@ route policy и общий wording сводит интеграционный в�
 
 Каждая пачка получает целевые Node/SQL/component tests, Node 22 typecheck,
 полный ESLint, production build и риск-маршрутизированный foundation gate.
-Миграции 122–124 дополнительно проходят полный
+Миграции 122–125 дополнительно проходят полный
 `scripts/test-postgres-authorization.sh`. После сведения всех пачек — полный
 локальный контур desktop/393px/forced-dark и независимый adversarial review
 точного cumulative diff. D2 не разрешает managed schema apply, provider calls

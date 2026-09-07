@@ -139,7 +139,6 @@ test("missing or malformed identity claims fail before a database authority is a
 test("the runtime uses Supabase SSR cookies and keeps Admin preview presentation-only", async () => {
   const [
     server,
-    browser,
     proxy,
     actions,
     platformAuth,
@@ -152,7 +151,6 @@ test("the runtime uses Supabase SSR cookies and keeps Admin preview presentation
     loginForm,
   ] = await Promise.all([
     readFile(new URL("../src/lib/supabase/server.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/lib/supabase/browser.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/proxy.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/lib/staff-auth-actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/lib/platform-auth.ts", import.meta.url), "utf8"),
@@ -167,7 +165,6 @@ test("the runtime uses Supabase SSR cookies and keeps Admin preview presentation
 
   assert.match(server, /createServerClient/);
   assert.match(server, /cookieStore\.getAll\(\)/);
-  assert.match(browser, /createBrowserClient/);
   assert.match(proxy, /auth\.getClaims\(\)/);
   assert.match(proxy, /readVerifiedPlatformAuthority/);
   assert.doesNotMatch(proxy, /getSession\(/);

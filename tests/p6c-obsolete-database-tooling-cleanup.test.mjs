@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -15,6 +18,35 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const repoRoot = new URL("../", import.meta.url);
+
+const FROZEN_DRIZZLE_HISTORY = Object.freeze({
+  "drizzle/0000_database_foundation.sql":
+    "5fb68b4680594ffb778dc4df6d7591131186724bd3371747545282216649547f",
+  "drizzle/0001_v2_private_documents.sql":
+    "a17441fe950d171f4e24e2019dd77834cce22ae0b475e2169b3c27c09fcf911e",
+  "drizzle/0002_v2_canonical_crm.sql":
+    "8cb1822ec5fdaed3124b9998889c4340a3cae6163d5ffb4481ecba2d7b9d9fa0",
+  "drizzle/0003_v2_whatsapp_outbound.sql":
+    "1418f5c2ab4e97cb8019370157d06573a1afc6395059516928f530b3869517c7",
+  "drizzle/0004_v2_amocrm_canonical_writes.sql":
+    "5fa66e6b1650155ffbb77a9a9ef55e9b4f56297315b5610d56c2f08d890001f4",
+  "drizzle/0005_v2_amocrm_lead_tag_catalog.sql":
+    "e0bf9b70d621853db8b103b20fbf9b5033804a19b0a42adb1fc725669b207d51",
+  "drizzle/meta/0000_snapshot.json":
+    "33f10b8c19a2656e6342ed087c81ea5b58c09a502e7c250fe255eb27bcbebf8d",
+  "drizzle/meta/0001_snapshot.json":
+    "b14f5c617edd1e7b60a19c31810209bf8cf2a8e213318e91f9bffc9b3f01e791",
+  "drizzle/meta/0002_snapshot.json":
+    "b3e3af29f352f4fe5db3dbbbc386c5f457b4c551199fd0d246b7683457294e9e",
+  "drizzle/meta/0003_snapshot.json":
+    "52aa0453193c65f01ce640bd52263ad454c9968250aaeb4d560ac554d171ec43",
+  "drizzle/meta/0004_snapshot.json":
+    "7327bb11b062f7262fd57fd5dbe8e266ab43a45bc9fbd338a7a72f3462da8daa",
+  "drizzle/meta/0005_snapshot.json":
+    "faf069ee8a5b3130005df5f7b326323cde6bc3da73e5c9ea52b0e6fada8f4339",
+  "drizzle/meta/_journal.json":
+    "93293937ab445d080be8a3102ab7ec4e2fc2014eb5aea4c1f7dd5c3933cde7d2",
+});
 
 function source(path) {
   return readFileSync(new URL(path, repoRoot), "utf8");
@@ -32,6 +64,15 @@ function presentFile(path) {
   const url = new URL(path, repoRoot);
   assert.equal(existsSync(url), true, `${path} must remain available`);
   assert.equal(statSync(url).isFile(), true, `${path} must remain a file`);
+}
+
+function filesUnder(directory) {
+  return readdirSync(new URL(directory, repoRoot), { withFileTypes: true })
+    .flatMap((entry) => {
+      const path = `${directory}${entry.name}`;
+      return entry.isDirectory() ? filesUnder(`${path}/`) : [path];
+    })
+    .sort();
 }
 
 test("P6C removes obsolete executable database tooling, schemas, and fixture E2E paths", () => {
@@ -216,15 +257,26 @@ test("P6C foundation harness reports an unrecoverable stale lock without startin
   }
 });
 
-test("P6C preserves frozen Drizzle history and real successor outcome proof", () => {
-  for (const historicalPath of [
-    "drizzle/0000_database_foundation.sql",
-    "drizzle/0005_v2_amocrm_lead_tag_catalog.sql",
-    "drizzle/meta/_journal.json",
-  ]) {
-    presentFile(historicalPath);
-  }
+test("P6C preserves the exact frozen Drizzle history without executing it", () => {
+  const expectedPaths = Object.keys(FROZEN_DRIZZLE_HISTORY).sort();
+  assert.deepEqual(filesUnder("drizzle/"), expectedPaths);
 
+  for (const [historicalPath, expectedSha256] of Object.entries(
+    FROZEN_DRIZZLE_HISTORY,
+  )) {
+    const url = new URL(historicalPath, repoRoot);
+    const stat = lstatSync(url);
+    assert.equal(stat.isSymbolicLink(), false, `${historicalPath} must not be a symlink`);
+    assert.equal(stat.isFile(), true, `${historicalPath} must remain a file`);
+    assert.equal(
+      createHash("sha256").update(readFileSync(url)).digest("hex"),
+      expectedSha256,
+      `${historicalPath} must remain byte-for-byte frozen`,
+    );
+  }
+});
+
+test("P6C retains real successor outcome proof", () => {
   for (const activeSupabaseProof of [
     "supabase/config.toml",
     "supabase/migrations/103_platform_amocrm_command_runtime.sql",

@@ -75,6 +75,7 @@ test("the Docker context excludes secrets, frozen applications and non-runtime e
     "output",
     "agent-lead2-inbox",
     "evo-lead-agent",
+    "drizzle",
     "tests",
     "docs/archive",
     "docs/evidence",

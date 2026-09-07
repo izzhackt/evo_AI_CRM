@@ -20730,3 +20730,22 @@ The resolver is `SECURITY DEFINER SET search_path = ''`, revoked from PUBLIC,
 `record_student_portal_invite_accepted(UUID, BIGINT, BIGINT)` remains available
 for exact coordinator replay/CAS. No broad lookup/list RPC or direct private-
 table grant is added, and E1 still contains no callback or Auth provider code.
+
+## 2026-09-07 - Preserve the bounded reissue continuation key in E1 snapshots
+
+Block-ID: `EVO-V3-E1-REISSUE-CONTINUATION-KEY-2026-09-07`
+
+Change type: downstream recovery contract correction. Affected plan section:
+migration 126 safe receipt result only.
+
+After an authorized reissue ends in definite failure or unknown outcome, the
+next trusted coordinator call must reuse the exact durable
+`reissue_request_id`; accepting a caller-invented replacement would bypass the
+Admin authorization receipt, while hiding the stored value would make safe
+recovery impossible. Therefore
+`platform_private.student_portal_safe_snapshot` includes the nullable UUID
+`reissue_request_id` in every bounded RPC result. This is an idempotency key,
+not PII or provider evidence. The snapshot still excludes normalized email
+except from the service-only claim dispatch envelope, plus all tokens, Auth
+metadata, provider payloads and raw errors. The E1 SQL suite must prove the
+authorized snapshot and its same-request replay return the exact key.

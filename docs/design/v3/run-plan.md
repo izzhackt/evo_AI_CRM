@@ -6,26 +6,40 @@ managed Supabase — единственный Auth/database/Storage. Providers �
 
 ## Текущий статус
 
-- Проверенный `main` до этого docs-only изменения:
-  `6326146009f953d42e7cf6ee5cf2904a14a43ed1` (#681).
-  После merge заморозить **новый** полный `origin/main` SHA, не этот baseline.
+- Последний release candidate: `7d649e95c0268f75dbb5ee015b999fe1515fa232`
+  (#682). Full CI [34161871873](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34161871873)
+  прошёл. После исправления SSH и merge заморозить **новый** полный `origin/main`
+  SHA и выполнить один новый proof: старый CI не доказывает изменённый workflow.
 - Код A, C, D1, D2, E0–E5, F и G0 уже в `main`. Их не переделывать.
-- Остался B/#552: подготовить host, применить подтверждённый хвост миграций,
-  выполнить один релиз с реальным Admin smoke и завершить runtime retirement.
-- Последний schema `check` [34125178856](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34125178856)
-  на `63261460…`: local 128, managed 116, missing 117–128. Это успешное чтение,
-  **не** успешное применение; перед apply нужен свежий `check` на frozen SHA.
-- Последний host snapshot: app и ClamAV отсутствуют, private WAHA container/API
-  healthy, public sslip route даёт 502. Это не WhatsApp connection proof и не
-  разрешение пропустить preflight.
+- B/#552: доступ, host, Auth hook, private buckets и schema подготовлены.
+  Automatic release [34162362531](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34162362531)
+  attempt 1 остановился до controller: SSH потерял пустой rollback-seed argument.
+  App, ClamAV, pending/accepted pointers не созданы; WAHA не изменён.
+  `EVO_PRODUCTION_RELEASE_ARMED=false` после failure подтверждён readback.
+  Остались исправленный релиз, реальный production Admin browser smoke и retirement.
+  Диагностический preflight также выявил multi-operand `unlink` в cleanup;
+  исправление удаляет snapshots по одному. Старые временные snapshots уже удалены,
+  исходные env/Compose сохранены; перед запуском нужен reviewed новый controller.
+- Schema `apply` [34161431038](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34161431038)
+  применил 117–128; отдельный [check 34161695009](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34161695009)
+  подтвердил local 128 = managed 128, missing/extra пусты. Не повторять apply.
+- Host preparation на exact `7d649e95…` выполнена: V3 Compose установлен,
+  bootstrap controller/validator и прежний Compose сохранены под
+  `/opt/evo-crm/release-evidence/bootstrap-7d649e95c0268f75dbb5ee015b999fe1515fa232/`.
+  Failure до deploy не требует rollback отсутствующего приложения или fake V1 seed.
 - `EVO_GITHUB_VARIABLES_READ_TOKEN` уже существует. Чтение Variables этим token
-  ещё не проверено; встроенный release guard выполнит его до transfer и перед
-  acceptance. Это не проверка минимальности PAT permissions. Требование остаётся:
+  доказано встроенным pre-transfer guard run `34162362531`; acceptance guard
+  ещё не выполнялся. Это не проверка минимальности PAT permissions. Требование остаётся:
   fine-grained PAT только для этого repo, `Variables: Read-only`; более широкий
   token не подставлять. Отдельный повторный API probe не нужен.
-- Обе smoke Admin secrets отсутствуют. Auth accounts существуют, но наличие
-  Auth user не доказывает active Admin membership или известный password.
-  Создание нового пользователя владелец отменил.
+- С разрешения владельца пароль существующего smoke Admin сброшен;
+  реальный login и `platform.current_actor_authority()` подтвердили active Admin.
+  Обе smoke secrets сохранены 2026-09-07 20:56 UTC. Роль/пользователь не создавались;
+  canonical Custom Access Token hook включён. Не сбрасывать пароль повторно.
+- Fresh customer/workflow source пуст; шесть Storage buckets, 0 objects/bytes.
+  Три canonical private buckets созданы с exact policy из `supabase/config.toml`.
+  Принятый #551 proof и encrypted export hashes проверены; managed staging отсутствует.
+  Подробные checkpoints — в [#552](https://github.com/izzhackt/evo_AI_CRM/issues/552#issuecomment-5575620604).
 - Последний recovery `crm_primary`: `FAILED → STARTING → SCAN_QR_CODE`.
   Затем владелец сказал «QR не надо»: pairing и новые restart/relink остановлены.
   WhatsApp `WORKING` не доказан; первый app-only cutover этим не блокируется.
@@ -69,23 +83,23 @@ GitHub — источник общего состояния, не локальн
 
 ### 1. Закрыть входные условия и заморозить SHA
 
-- [ ] Получить доступ к **существующему** production Admin с известным password.
+- [x] Получить доступ к **существующему** production Admin с известным password.
   Проверить active Admin authority реальным разрешённым способом, затем безопасно
   заполнить `EVO_PRODUCTION_SMOKE_ADMIN_EMAIL` и
   `EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD`. Если выбранный существующий Auth user
   ещё не Admin, действующий Admin выполняет membership step через
   `provision_pilot_staff_member`. Нельзя выдавать роль через service-role/SQL,
   mint session или подменять smoke. Пароли и tokens не помещать в Git/логи/чат.
-- [ ] После docs merge зафиксировать полный current-main SHA и остановить новые
+- [ ] После SSH-fix merge зафиксировать полный current-main SHA и остановить новые
   merge до окончания релиза. #552 production activation уже разрешён после
   named prerequisites; второе routine approval не требуется.
-- [ ] Параллельно проверить names/shape GitHub vars и secrets и **точное равенство**:
+- [x] Проверить names/shape GitHub vars и secrets и **точное равенство**:
   `EVO_PRODUCTION_RELEASE_ACTOR_ID=72846050`,
   `EVO_SUPABASE_PROJECT_REF=iosckaqtovbbnssqcpde`. Другой actor/project = STOP,
   даже если формат корректный. Проверить host/env permissions, pinned digests, private network,
   RAM ≥ `4,194,304 KiB`, отсутствие staging и второго active runtime authority.
   `EVO_PRODUCTION_RELEASE_ARMED=false` до завершения подготовки.
-- [ ] Один fresh customer rows/Storage inventory перед cutover. При неизменном
+- [x] Fresh customer rows/Storage inventory перед первой попыткой. При неизменном
   empty source и recovery contract использовать принятый #551 proof. При новых
   данных/objects или несовместимом recovery contract — STOP, реальный export и
   isolated restore/forward-migration/Auth/RLS/Storage/scanner rehearsal по
@@ -99,7 +113,9 @@ GitHub/host/source read-only проверки готовить параллел�
 
 Production mutations выполняет один оператор, последовательно.
 
-1. При `arm=false` выполнить one-time #552 preparation из runbook:
+1. One-time #552 preparation уже выполнена при `arm=false`; не повторять
+   неизменные controller/Compose. При новом candidate проверить их exact hashes.
+   Runbook требует:
    exact reviewed controller → rollback seed при необходимости → exact V3
    Compose. Fresh locked preflight должен различить absent app, утверждённый
    frozen V1 или accepted V3; unknown/pending state = STOP. Для absent app
@@ -208,7 +224,7 @@ review exact head → PR/короткие checks → merge. Findings испра�
 - **Custom DNS:** `crm.evoadmissions.com` отложен; работающий sslip — достаточный
   URL для первого релиза, новый домен не prerequisite.
 
-**От владельца прямо сейчас:** доступ к существующему active Admin с известным
-password и заполнение двух smoke secrets. PAT уже добавлен — заново не создавать,
-пока встроенный guard не покажет проблему. Нового Auth user, QR, amoCRM token и
-SMTP для первого app-only запуска не требовать.
+**От владельца прямо сейчас:** новых доступов не требуется. Существующий Admin
+проверен, обе smoke secrets сохранены, Variables-read guard прошёл. Исправление
+SSH и повторный exact-main release выполняет агент. Нового Auth user, QR,
+amoCRM token и SMTP для первого app-only запуска не требовать.

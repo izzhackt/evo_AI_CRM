@@ -1065,8 +1065,8 @@ preflight() {
   rmdir "$preflight_dir" || fail "evidence_create_failed"
   prepare_candidate_generation "$preflight_dir"
   run_preflight_checks
-  unlink "$candidate_app_env_snapshot" "$candidate_compose_file" \
-    || fail "preflight_cleanup_failed"
+  unlink "$candidate_app_env_snapshot" || fail "preflight_cleanup_failed"
+  unlink "$candidate_compose_file" || fail "preflight_cleanup_failed"
   rmdir "$preflight_dir" || fail "preflight_cleanup_failed"
   jq -cn --arg releaseId "$EVO_RELEASE_ID" \
     '{ok:true,command:"preflight",code:"ready",releaseId:$releaseId}'

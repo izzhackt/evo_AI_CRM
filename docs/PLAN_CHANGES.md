@@ -21430,3 +21430,63 @@ project `iosckaqtovbbnssqcpde` equality in the active checklist; distinguish
 Variables API read capability from least-privilege PAT configuration, healthy
 WAHA container/API from connected WhatsApp, and ordinary prose from contract-doc
 PR checks. No release or provider authority changes.
+
+## 2026-09-07 - Preserve optional rollback seed across the release SSH boundary
+
+Block-ID: `EVO-V3-RELEASE-SSH-EMPTY-ARGUMENT-2026-09-07`
+
+Affected contract: #552, the existing absent-app first-release path. The owner
+authorized completion of the lean release plan. No provider or retirement scope
+is added by this correction.
+
+Full CI `34161871873` passed on `7d649e95c0268f75dbb5ee015b999fe1515fa232`.
+Automatic release `34162362531` attempt 1 built and transferred its exact image;
+the GitHub Variables/PAT and managed schema guards passed. Deployment stopped
+before the controller, browser smoke or acceptance. Terminal arm=false was
+written and read back. No candidate app, pending pointer or acceptance record
+was created; WAHA remained unchanged.
+
+A harmless real SSH probe reproduced the transport fault: passing
+`before`, an empty argument, and `after` as separate SSH command arguments
+delivered only two remote arguments. The allowed empty absent-app rollback seed
+therefore shifts the positional deploy and acceptance parameters. Local shell
+quoting alone does not preserve those arguments through SSH command assembly.
+
+Implementation: encode the complete remote command as one shell-safe string at
+both affected workflow call sites, preserving the empty seed and every argument
+boundary. Do not invent a V1 seed, relax admission, manually deploy, or change
+the controller/Compose/schema. Add behavioral regression coverage for empty and
+non-empty seeds at the remote-shell boundary and prove the fix with harmless
+real SSH. Keep the release failure sanitized and retain its artifacts as
+evidence.
+
+Validation: affected workflow tests, shell-boundary regression, independent
+exact-head review and short protected PR checks. After merge, freeze the new
+current-main SHA and run one new full proof because the candidate changed;
+follow its automatic release and disarm/readback on every terminal outcome.
+
+Official SSH behavior: additional command arguments are joined with spaces
+before remote execution, so the caller must preserve shell argument boundaries:
+<https://man.openbsd.org/ssh.1#DESCRIPTION>.
+
+Correction evidence: all 21 workflow tests pass (nine remote-argv cases and 12
+existing release invariants); the nine argv cases also pass through real SSH to
+`hermes-vps` using only a harmless argument-printing receiver, never the deploy
+script. Both complete affected Bash blocks pass syntax validation. The range
+classifier selects contracts and lint, not build or migration-boundary tests.
+
+Preflight follow-up before the next freeze: the unchanged controller passed its
+host/env/network/archive/rollback checks on the retained exact artifact, but
+its final cleanup failed with `preflight_cleanup_failed`: GNU `unlink` accepts
+one operand, while `preflight` supplied both temporary snapshot paths at once.
+Extend this correction only to unlink each owned snapshot individually and
+cover successful preflight cleanup in the existing controller test. Preserve
+the original env/Compose, release evidence, app/WAHA state and all guards. The
+operator removes only the two exact protected temporary files from this failed
+diagnostic under the release lock; this is not runtime retirement.
+
+The new cleanup regression failed against the original multi-operand command
+and passes with real `unlink`/`rmdir` after the two-line correction; the original
+fixture remains byte-identical. The app-only controller invariant and Bash
+syntax checks also pass. The protected diagnostic snapshots were removed under
+the release lock after exact path, ownership/mode and original-hash checks.

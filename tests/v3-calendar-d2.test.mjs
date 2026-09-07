@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  assertCalendarDatedTaskPageOrder,
   CalendarContractError,
   listCalendarApplicationDeadlinePage,
   listCalendarUndatedTaskPage,
@@ -162,6 +163,24 @@ test("D2 application row is an exact discriminated read contract", () => {
   );
   assert.throws(
     () => normalizeCalendarApplicationDeadlineRow({ ...applicationRow(), deadline: null }),
+    CalendarContractError,
+  );
+});
+
+test("D2 dated page ordering fails closed across rows and the supplied cursor", () => {
+  const first = { sortAt: "2026-09-10T03:00:00+00:00", caseTaskId: TASK_ID };
+  const second = { sortAt: "2026-09-10T03:00:00Z", caseTaskId: TASK_ID_2 };
+
+  assert.doesNotThrow(() => assertCalendarDatedTaskPageOrder([first, second], null));
+  assert.throws(
+    () => assertCalendarDatedTaskPageOrder([second, first], null),
+    CalendarContractError,
+  );
+  assert.throws(
+    () => assertCalendarDatedTaskPageOrder(
+      [first],
+      { sortAt: second.sortAt, caseTaskId: second.caseTaskId },
+    ),
     CalendarContractError,
   );
 });

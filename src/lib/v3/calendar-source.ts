@@ -23,6 +23,7 @@ import {
   projectPlatformTaskDeadline,
 } from "@/lib/platform-task-deadline";
 import {
+  assertCalendarDatedTaskPageOrder,
   listCalendarApplicationDeadlinePage,
   listCalendarUndatedTaskPage,
   readNearestCalendarApplicationDeadline,
@@ -111,6 +112,7 @@ export async function readCalendarTasks(
       dueFrom: from,
       dueTo: to,
     });
+    assertCalendarDatedTaskPageOrder(page.rows, datedCursor);
     for (const row of page.rows) {
       const task = calendarTaskFromRow(row, now);
       if (

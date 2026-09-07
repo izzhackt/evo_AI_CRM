@@ -147,6 +147,33 @@ function normalizeApplicationStatus(value: unknown): CalendarApplicationStatus {
     : invalidShape();
 }
 
+/**
+ * Migration 119 owns the dated task projection, while Calendar owns exhausting
+ * it across pages. Recheck the complete keyset boundary here so an out-of-order
+ * or cursor-regressing provider page fails closed before any row is rendered.
+ */
+export function assertCalendarDatedTaskPageOrder(
+  rows: readonly PlatformAdmissionsTaskQueueRow[],
+  cursor: Readonly<{ sortAt: string; caseTaskId: string }> | null,
+): void {
+  let previousSortAt = cursor === null ? null : Date.parse(cursor.sortAt);
+  let previousTaskId = cursor?.caseTaskId ?? null;
+
+  for (const row of rows) {
+    const sortAt = Date.parse(row.sortAt);
+    const afterPrevious = previousSortAt === null ||
+      sortAt > previousSortAt ||
+      (
+        sortAt === previousSortAt &&
+        previousTaskId !== null &&
+        row.caseTaskId > previousTaskId
+      );
+    if (!Number.isFinite(sortAt) || !afterPrevious) return invalidShape();
+    previousSortAt = sortAt;
+    previousTaskId = row.caseTaskId;
+  }
+}
+
 export function normalizeCalendarApplicationDeadlineRow(
   value: unknown,
 ): CalendarApplicationDeadlineRow {

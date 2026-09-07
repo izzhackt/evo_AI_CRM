@@ -48,6 +48,22 @@ export type CalendarAssigneeOption = Readonly<{
 }>;
 
 /**
+ * An explicit all-day deadline from one canonical university application.
+ * It is deliberately not a task: the calendar may link to the application,
+ * but may not offer task completion, reassignment or deadline controls.
+ */
+export type CalendarApplicationDeadline = Readonly<{
+  kind: "application_deadline";
+  id: string;
+  studentCaseId: string;
+  studentDisplayName: string;
+  universityName: string;
+  programName: string;
+  status: "preparation" | "ready" | "submitted" | "under_review" | "offer";
+  day: Day;
+}>;
+
+/**
  * Задача приёмной кампании.
  *
  * ЧЕГО ЗДЕСЬ НЕТ И НЕ БУДЕТ: длительности. У задачи один срок, а не начало и
@@ -167,6 +183,11 @@ export function monthIndex(day: Day): number {
 
 export function yearOf(day: Day): number {
   return new Date(toMs(day)).getUTCFullYear();
+}
+
+/** Signed whole calendar-day distance with no browser/server timezone drift. */
+export function dayDelta(from: Day, to: Day): number {
+  return Math.round((toMs(to) - toMs(from)) / DAY_MS);
 }
 
 /** 0 — понедельник. */

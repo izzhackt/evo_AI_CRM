@@ -1,0 +1,206 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+import {
+  CalendarContractError,
+  listCalendarApplicationDeadlinePage,
+  listCalendarUndatedTaskPage,
+  normalizeCalendarApplicationDeadlineRow,
+  readNearestCalendarApplicationDeadline,
+} from "../src/lib/v3/calendar-contract.ts";
+
+const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+
+const ORGANIZATION_ID = "12400000-0000-4000-8000-000000000001";
+const TASK_ID = "12400000-0000-4000-8000-000000000101";
+const TASK_ID_2 = "12400000-0000-4000-8000-000000000102";
+const CASE_ID = "12400000-0000-4000-8000-000000000201";
+const APPLICATION_ID = "12400000-0000-4000-8000-000000000301";
+const APPLICATION_ID_2 = "12400000-0000-4000-8000-000000000302";
+const SENTINEL = "9999-12-31T00:00:00+00:00";
+
+const actor = Object.freeze({
+  authUserId: "12400000-0000-4000-8000-000000000011",
+  profileId: "12400000-0000-4000-8000-000000000021",
+  membershipId: "12400000-0000-4000-8000-000000000031",
+  organizationId: ORGANIZATION_ID,
+  displayName: "D2 Admissions",
+  email: "d2@example.invalid",
+  platformRole: "admissions",
+  authorityRole: "admissions",
+  platformAccessVersion: 1,
+  platformBundleId: "12400000-0000-4000-8000-000000000041",
+  platformBundleVersion: 1,
+});
+
+function undatedRow(id) {
+  return {
+    sort_at: SENTINEL,
+    organization_id: ORGANIZATION_ID,
+    case_task_id: id,
+    version: "1",
+    student_case_id: CASE_ID,
+    student_display_name: "Алия Садыкова",
+    case_state: "active",
+    task_type: "follow_up",
+    title: "Связаться со студентом",
+    status: "open",
+    priority: "normal",
+    due_at: null,
+    due_on: null,
+    student_visible: false,
+    assignee_membership_id: actor.membershipId,
+    assignee_display_name: actor.displayName,
+    created_at: "2026-09-07T08:00:00+00:00",
+    updated_at: "2026-09-07T08:00:00+00:00",
+  };
+}
+
+function applicationRow(id = APPLICATION_ID, deadline = "2026-09-10") {
+  return {
+    application_id: id,
+    student_case_id: CASE_ID,
+    student_display_name: "Алия Садыкова",
+    university_name: "University of Example",
+    program_name: "Computer Science",
+    application_status: "preparation",
+    deadline,
+  };
+}
+
+function rpcClient(resolver) {
+  return {
+    schema(schemaName) {
+      assert.equal(schemaName, "platform");
+      return {
+        async rpc(name, args, options) {
+          assert.deepEqual(options, { get: true });
+          return resolver(name, args);
+        },
+      };
+    },
+  };
+}
+
+test("D2 undated projection is bounded and advances the canonical sentinel cursor", async () => {
+  let call;
+  const page = await listCalendarUndatedTaskPage(
+    actor,
+    { pageSize: 1 },
+    {
+      client: rpcClient((name, args) => {
+        call = { name, args };
+        return { data: [undatedRow(TASK_ID), undatedRow(TASK_ID_2)], error: null };
+      }),
+    },
+  );
+
+  assert.deepEqual(call, {
+    name: "staff_case_task_undated_page",
+    args: { p_limit: 2 },
+  });
+  assert.deepEqual(page.rows.map((row) => row.caseTaskId), [TASK_ID]);
+  assert.deepEqual(page.nextCursor, { sortAt: SENTINEL, caseTaskId: TASK_ID });
+});
+
+test("D2 deadline projection sends range and (deadline, application_id) cursor", async () => {
+  let call;
+  const page = await listCalendarApplicationDeadlinePage(
+    actor,
+    {
+      pageSize: 1,
+      from: "2026-09-01",
+      to: "2026-09-30",
+      cursor: { deadline: "2026-09-09", applicationId: APPLICATION_ID },
+    },
+    {
+      client: rpcClient((name, args) => {
+        call = { name, args };
+        return {
+          data: [
+            applicationRow(APPLICATION_ID, "2026-09-10"),
+            applicationRow(APPLICATION_ID_2, "2026-09-11"),
+          ],
+          error: null,
+        };
+      }),
+    },
+  );
+
+  assert.deepEqual(call, {
+    name: "staff_application_deadline_page",
+    args: {
+      p_limit: 2,
+      p_due_from: "2026-09-01",
+      p_due_to: "2026-09-30",
+      p_after_deadline: "2026-09-09",
+      p_after_application_id: APPLICATION_ID,
+    },
+  });
+  assert.deepEqual(page.rows.map((row) => row.applicationId), [APPLICATION_ID]);
+  assert.deepEqual(page.nextCursor, {
+    deadline: "2026-09-10",
+    applicationId: APPLICATION_ID,
+  });
+});
+
+test("D2 application row is an exact discriminated read contract", () => {
+  assert.deepEqual(normalizeCalendarApplicationDeadlineRow(applicationRow()), {
+    applicationId: APPLICATION_ID,
+    studentCaseId: CASE_ID,
+    studentDisplayName: "Алия Садыкова",
+    universityName: "University of Example",
+    programName: "Computer Science",
+    status: "preparation",
+    deadline: "2026-09-10",
+  });
+  assert.throws(
+    () => normalizeCalendarApplicationDeadlineRow({ ...applicationRow(), inferred: true }),
+    CalendarContractError,
+  );
+  assert.throws(
+    () => normalizeCalendarApplicationDeadlineRow({ ...applicationRow(), deadline: null }),
+    CalendarContractError,
+  );
+});
+
+test("D2 global nearest deadline is a separate one-row projection", async () => {
+  let call;
+  const deadline = await readNearestCalendarApplicationDeadline(actor, {
+    client: rpcClient((name, args) => {
+      call = { name, args };
+      return { data: [applicationRow()], error: null };
+    }),
+  });
+  assert.deepEqual(call, { name: "staff_nearest_application_deadline", args: {} });
+  assert.equal(deadline?.applicationId, APPLICATION_ID);
+});
+
+test("D2 calendar exhausts dated, undated and application pages without history scan", () => {
+  const adapter = source("src/lib/v3/calendar-source.ts");
+  assert.match(adapter, /dueFrom: from,[\s\S]*dueTo: to/u);
+  assert.match(adapter, /do \{[\s\S]*listPlatformAdmissionsTaskQueue[\s\S]*\} while \(datedCursor !== null\)/u);
+  assert.match(adapter, /do \{[\s\S]*listCalendarUndatedTaskPage[\s\S]*\} while \(undatedCursor !== null\)/u);
+  assert.match(adapter, /do \{[\s\S]*listCalendarApplicationDeadlinePage[\s\S]*\} while \(cursor !== null\)/u);
+  assert.doesNotMatch(adapter, /tasksTruncatedAfter|periodComplete|truncatedAfter/u);
+});
+
+test("application deadlines are read-only calendar items linked to exact Admissions case", () => {
+  const component = source("src/components/v3/calendar/ApplicationDeadline.tsx");
+  const calendar = source("src/components/v3/calendar/Calendar.tsx");
+  assert.match(component, /kind: "application_deadline"|CalendarApplicationDeadline/u);
+  assert.match(component, /\/v3\/profile\?case=.*&tab=overview#applications/u);
+  assert.doesNotMatch(component, /TaskControls|complete|cancel|changePlatform/u);
+  assert.match(calendar, /NearestApplicationDeadline/u);
+  assert.match(calendar, /Без срока/u);
+  assert.doesNotMatch(calendar, /прочитан.*не до конца|tasksTruncatedAfter/u);
+});
+
+test("nearest deadline wording covers overdue, today, future and empty", () => {
+  const component = source("src/components/v3/calendar/ApplicationDeadline.tsx");
+  assert.match(component, /Просрочено \$\{Math\.abs\(delta\)\} дн/u);
+  assert.match(component, /return "Сегодня"/u);
+  assert.match(component, /До дедлайна \$\{delta\} дн/u);
+  assert.match(component, /Активных дедлайнов нет\./u);
+});

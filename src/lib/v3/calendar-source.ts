@@ -1,12 +1,17 @@
 import "server-only";
 
 import type {
+  CalendarApplicationDeadline,
   CalendarAssigneeOption,
   CalendarCaseOption,
   CalendarTask,
   Day,
 } from "@/components/v3/calendar/types";
 import { listPlatformStudentCases } from "@/lib/platform-admissions";
+import type {
+  PlatformAdmissionsTaskQueueCursor,
+  PlatformAdmissionsTaskQueueRow,
+} from "@/lib/platform-admissions-task-contract";
 import {
   getPlatformAdmissionsTaskWorkspace,
   listPlatformAdmissionsTaskQueue,
@@ -17,6 +22,14 @@ import {
   dayInOrganizationTimezone,
   projectPlatformTaskDeadline,
 } from "@/lib/platform-task-deadline";
+import {
+  listCalendarApplicationDeadlinePage,
+  listCalendarUndatedTaskPage,
+  readNearestCalendarApplicationDeadline,
+  type CalendarApplicationDeadlineCursor,
+  type CalendarApplicationDeadlineRow,
+  type CalendarUndatedTaskCursor,
+} from "@/lib/v3/calendar-contract";
 
 const QUEUE_PAGE_SIZE = 100;
 const CASE_PAGE_SIZE = 100;
@@ -47,106 +60,133 @@ export async function readNowMinutes(): Promise<number> {
 
 export type CalendarTasksRead = Readonly<{
   tasks: readonly CalendarTask[];
-  /**
-   * День срока последней прочитанной задачи, когда очередь оборвана внутри
-   * отрезка; обрыв может рассечь этот день пополам, поэтому экран называет
-   * его включительно («{дата} и позже прочитаны не полностью»). null при
-   * periodComplete=false означает обрыв без известной даты (например, при
-   * сломанном порядке очереди) — плашка тогда безадресная. Канонический RPC
-   * читает одну страницу без курсора и без фильтра по датам, добрать хвост
-   * отсюда нечем: обрыв выносится на экран фактом, а не роняет страницу.
-   */
-  truncatedAfter: Day | null;
-  /**
-   * Отрезок [from, to] дочитан до конца: «на этот период задач нет» — правда,
-   * а не обрыв чтения. Очередь отсортирована по сроку, поэтому обрыв на дне
-   * позже `to` (или на задачах без срока — они в самом хвосте) не отнимает
-   * у отрезка ни одной задачи со сроком.
-   */
-  periodComplete: boolean;
 }>;
 
+function calendarTaskFromRow(
+  row: PlatformAdmissionsTaskQueueRow,
+  now: Date,
+): CalendarTask {
+  const deadline = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now);
+  return Object.freeze({
+    id: row.caseTaskId,
+    studentCaseId: row.studentCaseId,
+    taskType: row.taskType,
+    title: row.title,
+    details: null,
+    dueOn: row.dueOn,
+    dueAt: row.dueAt,
+    day: deadline.day,
+    minutes: deadline.minutes,
+    overdue: deadline.overdue,
+    state: row.status,
+    cancelReason: null,
+    person: row.studentDisplayName,
+    priority: row.priority,
+    studentVisible: row.studentVisible,
+    assigneeMembershipId: row.assigneeMembershipId,
+    assigneeDisplayName: row.assigneeDisplayName,
+    caseState: row.caseState,
+    version: row.version,
+  });
+}
+
 /**
- * Read the current actor's canonical Admissions task queue through Supabase.
- * The adapter only narrows it to the calendar interval; it never reads a
- * second database authority or invents task details absent from the RPC.
+ * Exhaust the selected dated task range and the dedicated undated projection.
+ * The adapter never scans dated history to discover NULL deadlines.
  */
 export async function readCalendarTasks(
   actor: ActivePlatformActor,
   from: Day,
   to: Day,
 ): Promise<CalendarTasksRead> {
-  const queue = await listPlatformAdmissionsTaskQueue(actor, {
-    pageSize: QUEUE_PAGE_SIZE,
-  });
-
   const now = new Date();
+  const tasks: CalendarTask[] = [];
+  const seenTaskIds = new Set<string>();
 
-  // Вывод «отрезок дочитан» держится на сортировке очереди по сроку.
-  // Предположение проверяется, а не берётся на веру: сломанный порядок
-  // означает, что по хвосту ничего сказать нельзя, и чтение считается
-  // оборванным (consеrvативно, в пользу честности).
-  let orderedByDeadline = true;
-  let previousDay: Day | null = null;
-  let seenUndated = false;
-  for (const row of queue.rows) {
-    const day = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now).day;
-    if (day === null) {
-      seenUndated = true;
-      continue;
+  let datedCursor: PlatformAdmissionsTaskQueueCursor | null = null;
+  do {
+    const page = await listPlatformAdmissionsTaskQueue(actor, {
+      pageSize: QUEUE_PAGE_SIZE,
+      cursor: datedCursor,
+      dueFrom: from,
+      dueTo: to,
+    });
+    for (const row of page.rows) {
+      const task = calendarTaskFromRow(row, now);
+      if (
+        task.day === null ||
+        task.day < from ||
+        task.day > to ||
+        seenTaskIds.has(task.id)
+      ) {
+        throw new Error("V3 calendar received an invalid dated task page.");
+      }
+      seenTaskIds.add(task.id);
+      tasks.push(task);
     }
-    if (seenUndated || (previousDay !== null && day < previousDay)) {
-      orderedByDeadline = false;
-      break;
+    datedCursor = page.nextCursor;
+  } while (datedCursor !== null);
+
+  let undatedCursor: CalendarUndatedTaskCursor | null = null;
+  do {
+    const page = await listCalendarUndatedTaskPage(actor, {
+      pageSize: QUEUE_PAGE_SIZE,
+      cursor: undatedCursor,
+    });
+    for (const row of page.rows) {
+      const task = calendarTaskFromRow(row, now);
+      if (task.day !== null || seenTaskIds.has(task.id)) {
+        throw new Error("V3 calendar received an invalid undated task page.");
+      }
+      seenTaskIds.add(task.id);
+      tasks.push(task);
     }
-    previousDay = day;
-  }
+    undatedCursor = page.nextCursor;
+  } while (undatedCursor !== null);
 
-  let truncatedAfter: Day | null = null;
-  let periodComplete = true;
-  if (queue.hasNext) {
-    const tail = queue.rows[queue.rows.length - 1];
-    const tailDay = tail
-      ? projectPlatformTaskDeadline(tail.dueOn, tail.dueAt, now).day
-      : null;
-    periodComplete =
-      orderedByDeadline && (tailDay === null || tailDay > to);
-    if (!periodComplete) truncatedAfter = tailDay;
-  }
+  return Object.freeze({ tasks: Object.freeze(tasks) });
+}
 
-  const tasks = queue.rows.flatMap((row) => {
-    const deadline = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now);
-    const day = deadline.day;
-    if (day !== null && (day < from || day > to)) return [];
-
-    return [{
-      id: row.caseTaskId,
-      studentCaseId: row.studentCaseId,
-      taskType: row.taskType,
-      title: row.title,
-      details: null,
-      dueOn: row.dueOn,
-      dueAt: row.dueAt,
-      day,
-      minutes: deadline.minutes,
-      overdue: deadline.overdue,
-      state: row.status,
-      cancelReason: null,
-      person: row.studentDisplayName,
-      priority: row.priority,
-      studentVisible: row.studentVisible,
-      assigneeMembershipId: row.assigneeMembershipId,
-      assigneeDisplayName: row.assigneeDisplayName,
-      caseState: row.caseState,
-      version: row.version,
-    } satisfies CalendarTask];
-  });
-
+function calendarDeadlineFromRow(
+  row: CalendarApplicationDeadlineRow,
+): CalendarApplicationDeadline {
   return Object.freeze({
-    tasks: Object.freeze(tasks),
-    truncatedAfter,
-    periodComplete,
+    kind: "application_deadline",
+    id: row.applicationId,
+    studentCaseId: row.studentCaseId,
+    studentDisplayName: row.studentDisplayName,
+    universityName: row.universityName,
+    programName: row.programName,
+    status: row.status,
+    day: row.deadline,
   });
+}
+
+async function readCalendarApplicationDeadlines(
+  actor: ActivePlatformActor,
+  from: Day,
+  to: Day,
+): Promise<readonly CalendarApplicationDeadline[]> {
+  const deadlines: CalendarApplicationDeadline[] = [];
+  const seenApplicationIds = new Set<string>();
+  let cursor: CalendarApplicationDeadlineCursor | null = null;
+  do {
+    const page = await listCalendarApplicationDeadlinePage(actor, {
+      pageSize: QUEUE_PAGE_SIZE,
+      cursor,
+      from,
+      to,
+    });
+    for (const row of page.rows) {
+      if (seenApplicationIds.has(row.applicationId)) {
+        throw new Error("V3 calendar received a duplicate application deadline.");
+      }
+      seenApplicationIds.add(row.applicationId);
+      deadlines.push(calendarDeadlineFromRow(row));
+    }
+    cursor = page.nextCursor;
+  } while (cursor !== null);
+  return Object.freeze(deadlines);
 }
 
 async function readActiveCases(
@@ -184,10 +224,8 @@ async function readActiveCases(
 
 export type CalendarWorkspace = Readonly<{
   tasks: readonly CalendarTask[];
-  /** Очередь отдала первые N задач по сроку; null — прочитаны все. */
-  tasksTruncatedAfter: Day | null;
-  /** Видимый отрезок дочитан: пустой период — факт, а не обрыв чтения. */
-  periodComplete: boolean;
+  applicationDeadlines: readonly CalendarApplicationDeadline[];
+  nearestApplicationDeadline: CalendarApplicationDeadline | null;
   cases: readonly CalendarCaseOption[];
   casesHaveMore: boolean;
   assignees: readonly CalendarAssigneeOption[];
@@ -203,8 +241,10 @@ export async function readCalendarWorkspace(
   from: Day,
   to: Day,
 ): Promise<CalendarWorkspace> {
-  const [read, cases] = await Promise.all([
+  const [read, applicationDeadlines, nearestDeadline, cases] = await Promise.all([
     readCalendarTasks(actor, from, to),
+    readCalendarApplicationDeadlines(actor, from, to),
+    readNearestCalendarApplicationDeadline(actor),
     readActiveCases(actor),
   ]);
   const workspace = cases.rows[0]
@@ -219,8 +259,10 @@ export async function readCalendarWorkspace(
 
   return Object.freeze({
     tasks: read.tasks,
-    tasksTruncatedAfter: read.truncatedAfter,
-    periodComplete: read.periodComplete,
+    applicationDeadlines,
+    nearestApplicationDeadline: nearestDeadline
+      ? calendarDeadlineFromRow(nearestDeadline)
+      : null,
     cases: cases.rows,
     casesHaveMore: cases.hasNext,
     assignees: Object.freeze(assignees),

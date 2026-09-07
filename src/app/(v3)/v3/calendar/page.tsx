@@ -59,8 +59,8 @@ export default async function CalendarPart({
           nowMinutes={nowMinutes}
           days={days}
           tasks={workspace.tasks}
-          tasksTruncatedAfter={workspace.tasksTruncatedAfter}
-          periodComplete={workspace.periodComplete}
+          applicationDeadlines={workspace.applicationDeadlines}
+          nearestApplicationDeadline={workspace.nearestApplicationDeadline}
           cases={workspace.cases}
           casesHaveMore={workspace.casesHaveMore}
           assignees={workspace.assignees}

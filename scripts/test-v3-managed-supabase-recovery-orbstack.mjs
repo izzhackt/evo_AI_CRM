@@ -7183,6 +7183,77 @@ function assertBrowserUrlPath(urlString, appUrl, path, code) {
   }
 }
 
+async function proveBrowserKnowledgeSurface(
+  page,
+  appUrl,
+  presentationRole,
+  browserStep,
+  operationPrefix,
+) {
+  const documents = await browserStep(
+    async () => page.getByTestId("v3-knowledge-documents"),
+    { operationCode: `${operationPrefix}_documents_locator_failed` },
+  );
+  const snippets = await browserStep(
+    async () => page.getByTestId("v3-knowledge-reply-snippets"),
+    { operationCode: `${operationPrefix}_snippets_locator_failed` },
+  );
+
+  if (presentationRole === "sales") {
+    await browserStep(
+      async () => await snippets.waitFor({ state: "visible", timeout: 45_000 }),
+      { operationCode: `${operationPrefix}_snippets_wait_failed` },
+    );
+    const [documentCount, folderCount] = await browserStep(
+      async () => await Promise.all([
+        documents.count(),
+        page.getByTestId("v3-knowledge-folder-link").count(),
+      ]),
+      { operationCode: `${operationPrefix}_document_absence_check_failed` },
+    );
+    if (documentCount !== 0 || folderCount !== 0) {
+      fail(`${operationPrefix}_documents_exposed`, "browser_proof");
+    }
+    return;
+  }
+
+  await browserStep(
+    async () => await documents.waitFor({ state: "visible", timeout: 45_000 }),
+    { operationCode: `${operationPrefix}_documents_wait_failed` },
+  );
+  if (await browserStep(
+    async () => await snippets.count(),
+    { operationCode: `${operationPrefix}_inactive_snippets_check_failed` },
+  ) !== 0) {
+    fail(`${operationPrefix}_inactive_snippets_rendered`, "browser_proof");
+  }
+  await browserStep(
+    async () => await Promise.all([
+      page.waitForURL(`${appUrl}/v3/knowledge?tab=snippets`, {
+        waitUntil: "domcontentloaded",
+        timeout: 45_000,
+      }),
+      page.getByRole("link", { name: "Шаблоны ответов", exact: true }).click({
+        timeout: 45_000,
+      }),
+    ]),
+    { operationCode: `${operationPrefix}_snippets_navigation_failed` },
+  );
+  await browserStep(
+    async () => await page.getByTestId("v3-knowledge-reply-snippets").waitFor({
+      state: "visible",
+      timeout: 45_000,
+    }),
+    { operationCode: `${operationPrefix}_snippets_navigation_wait_failed` },
+  );
+  if (await browserStep(
+    async () => await page.getByTestId("v3-knowledge-documents").count(),
+    { operationCode: `${operationPrefix}_inactive_documents_check_failed` },
+  ) !== 0) {
+    fail(`${operationPrefix}_inactive_documents_rendered`, "browser_proof");
+  }
+}
+
 async function proveBrowserRouteAllowed(
   page,
   appUrl,
@@ -7206,6 +7277,15 @@ async function proveBrowserRouteAllowed(
   assertBrowserUrlPath(page.url(), appUrl, path, `${operationPrefix}_destination_mismatch`);
   if (expectedPresentationRole && expectedAuthorityRole) {
     await assertBrowserActiveRole(page, expectedPresentationRole, expectedAuthorityRole, browserStep, `${operationPrefix}_role`);
+    if (path === "/v3/knowledge") {
+      await proveBrowserKnowledgeSurface(
+        page,
+        appUrl,
+        expectedPresentationRole,
+        browserStep,
+        `${operationPrefix}_surface`,
+      );
+    }
   }
 }
 
@@ -8660,8 +8740,8 @@ const ADMIN_ROLE_PREVIEW_PRESENTATIONS = Object.freeze({
     role: "sales",
     authorityRole: "admin",
     landingRoute: "/v3/main",
-    allowedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile"]),
-    deniedRoutes: Object.freeze(["/v3/calendar", "/v3/knowledge", "/v3/settings"]),
+    allowedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/knowledge"]),
+    deniedRoutes: Object.freeze(["/v3/calendar", "/v3/settings"]),
   }),
   admissions: Object.freeze({
     role: "admissions",

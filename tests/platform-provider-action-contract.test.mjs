@@ -90,6 +90,15 @@ test("manual send contains no browser recipient and requires exact human confirm
   accepted.set("confirm_send", "1");
   accepted.set("message_text", " trailing ");
   assert.equal(parsePlatformWhatsAppSendForm(accepted), null);
+
+  accepted.set("message_text", "🚀".repeat(3_000));
+  assert.equal(
+    parsePlatformWhatsAppSendForm(accepted)?.messageText,
+    "🚀".repeat(3_000),
+  );
+
+  accepted.set("message_text", "🚀".repeat(3_001));
+  assert.equal(parsePlatformWhatsAppSendForm(accepted), null);
 });
 
 test("reconciliation identifies one attempt and cannot carry provider evidence", () => {

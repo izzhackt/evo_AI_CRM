@@ -52,10 +52,12 @@ test("the active V3 route policy exposes each exact presentation interface", () 
     assert.equal(fixedRoleCanAccessRoute("admissions", route), false, route);
   }
 
-  for (const route of ["/v3/calendar", "/v3/knowledge"]) {
-    assert.equal(fixedRoleCanAccessRoute("admin", route), true, route);
-    assert.equal(fixedRoleCanAccessRoute("admissions", route), true, route);
-    assert.equal(fixedRoleCanAccessRoute("sales", route), false, route);
+  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/calendar"), false);
+
+  for (const role of ["admin", "sales", "admissions"]) {
+    assert.equal(fixedRoleCanAccessRoute(role, "/v3/knowledge"), true, role);
   }
 
   assert.equal(fixedRoleCanAccessRoute("admin", "/v3/settings"), true);

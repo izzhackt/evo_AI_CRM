@@ -30,7 +30,13 @@ const ROLE_ROUTES: Readonly<Record<FixedRole, readonly string[]>> = {
     "/v3/knowledge",
     "/v3/settings",
   ],
-  sales: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile"],
+  sales: [
+    "/v3/main",
+    "/v3/pipeline",
+    "/v3/inbox",
+    "/v3/profile",
+    "/v3/knowledge",
+  ],
   admissions: [
     "/v3/inbox",
     "/v3/profile",
@@ -156,6 +162,18 @@ async function expectNoDocumentOverflow(page: Page, context: string) {
   expect(overflows, `${context}: document scrolls horizontally`).toBe(false);
 }
 
+async function expectRoleKnowledgeSurface(page: Page, role: FixedRole) {
+  await expect(page.getByTestId("v3-knowledge-documents")).toHaveCount(
+    role === "sales" ? 0 : 1,
+  );
+  await expect(page.getByTestId("v3-knowledge-reply-snippets")).toHaveCount(
+    role === "sales" ? 1 : 0,
+  );
+  if (role === "sales") {
+    await expect(page.getByTestId("v3-knowledge-folder-link")).toHaveCount(0);
+  }
+}
+
 for (const role of ["admin", "sales", "admissions"] as const) {
   test(`${role} staff routes meet the automated WCAG A/AA gate`, async ({
     page,
@@ -165,6 +183,9 @@ for (const role of ["admin", "sales", "admissions"] as const) {
     for (const route of ROLE_ROUTES[role]) {
       await page.goto(route);
       await expect(page.locator("main")).toBeVisible();
+      if (route === "/v3/knowledge") {
+        await expectRoleKnowledgeSurface(page, role);
+      }
       const context = `${role} ${route}`;
       await expectExactlyOneMainHeading(page, context);
       await expectNoDocumentOverflow(page, context);

@@ -1,7 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import {
+  ReplySnippetPicker,
+  type ReplySnippetPickerItem,
+} from "@/components/v3/reply-snippets/ReplySnippetPicker";
 
 import {
   reconcilePlatformWhatsAppSendAction,
@@ -103,6 +108,7 @@ type Props = Readonly<{
   proposal: PlatformStaffGeminiProposal | null;
   reviews: readonly PlatformGeminiProposalReview[];
   latestAttempt: PlatformManualWhatsAppSendAttempt | null;
+  replySnippets: readonly ReplySnippetPickerItem[] | null;
   requestIds: RequestIds;
 }>;
 
@@ -175,6 +181,7 @@ export function InboxProviderWorkflowControls({
   proposal,
   reviews,
   latestAttempt,
+  replySnippets,
   requestIds,
 }: Props) {
   const router = useRouter();
@@ -187,6 +194,7 @@ export function InboxProviderWorkflowControls({
     latestReview?.reviewedPayload?.reply_text ?? "",
   );
   const [confirmed, setConfirmed] = useState(false);
+  const messageTextRef = useRef<HTMLTextAreaElement>(null);
   const [geminiState, geminiAction, requesting] = useActionState(
     requestPlatformGeminiProposalAction,
     INITIAL_GEMINI_STATE,
@@ -439,6 +447,18 @@ export function InboxProviderWorkflowControls({
             value={latestInboundSourceMessageId ?? ""}
           />
           <input type="hidden" name="send_request_id" value={requestIds.send} />
+          {replySnippets !== null ? (
+            <ReplySnippetPicker
+              snippets={replySnippets}
+              messageText={messageText}
+              textareaRef={messageTextRef}
+              onMessageTextChange={(value) => {
+                setMessageText(value);
+                setConfirmed(false);
+              }}
+              disabled={sending || sendSettled || unresolvedAttempt}
+            />
+          ) : null}
           <label className="block text-sm font-medium text-fg">
             Финальный текст сотрудника
             <textarea
@@ -446,6 +466,7 @@ export function InboxProviderWorkflowControls({
               required
               maxLength={3_000}
               rows={5}
+              ref={messageTextRef}
               value={messageText}
               onChange={(event) => {
                 setMessageText(event.currentTarget.value);

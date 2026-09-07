@@ -73,11 +73,12 @@ function exactText(
   minimumLength: number,
   maximumLength: number,
 ): string | null {
+  const length = value === undefined ? 0 : Array.from(value).length;
   if (
     value === undefined ||
     value !== value.trim() ||
-    value.length < minimumLength ||
-    value.length > maximumLength ||
+    length < minimumLength ||
+    length > maximumLength ||
     UNSAFE_CONTROL_CHARACTER_PATTERN.test(value)
   ) {
     return null;

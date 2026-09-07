@@ -67,6 +67,18 @@ test("V3 WhatsApp send is one-recipient, confirmed and blocked by unresolved att
   );
 });
 
+test("reply snippets only edit final text and always require renewed send confirmation", () => {
+  assert.match(controls, /replySnippets !== null \? \(/u);
+  assert.match(controls, /<ReplySnippetPicker[\s\S]*name="message_text"/u);
+  assert.match(controls, /textareaRef=\{messageTextRef\}/u);
+  assert.match(controls, /onMessageTextChange=\{\(value\) => \{[\s\S]*setMessageText\(value\);[\s\S]*setConfirmed\(false\);/u);
+  assert.match(controls, /ref=\{messageTextRef\}/u);
+  assert.doesNotMatch(
+    controls.match(/<ReplySnippetPicker[\s\S]*?\/>/u)?.[0] ?? "",
+    /sendAction|sendPlatformWhatsAppMessageAction|type="submit"/u,
+  );
+});
+
 test("unknown delivery exposes readback reconciliation without a resend path", () => {
   assert.match(controls, /useActionState\(\s*reconcilePlatformWhatsAppSendAction/);
   assert.match(controls, /latestAttempt\.reconciliationRequired/);
@@ -87,6 +99,14 @@ test("V3 page reads provider state through the authenticated canonical source", 
   assert.match(page, /requireV3PageActor\("\/v3\/inbox"\)/);
   assert.match(page, /readInbox\(actor/);
   assert.match(page, /<InboxProviderWorkflowControls/);
+  assert.match(
+    page,
+    /if \(view\.selected\)[\s\S]*fixedRoleCan\([\s\S]*actor\.presentationRole,[\s\S]*"messaging\.send",[\s\S]*\)[\s\S]*readV3ReplySnippets\(actor\)/u,
+  );
+  assert.match(
+    page,
+    /\(\{ replySnippetId, title, body \}\) => \(\{ replySnippetId, title, body \}\)/u,
+  );
   assert.match(inboxSource, /readStaffGeminiProposal/);
   assert.match(inboxSource, /listStaffGeminiProposalReviews/);
   assert.match(inboxSource, /readLatestManualWhatsAppSendAttempt/);

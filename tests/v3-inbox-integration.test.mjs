@@ -177,6 +177,35 @@ test("V3 owns human-reviewed Gemini and explicit WhatsApp action controls", () =
   );
 });
 
+test("V3 Inbox loads exact-audience reply snippets only for a selected send-capable conversation", () => {
+  const controls = source(
+    "src/components/v3/InboxProviderWorkflowControls.tsx",
+  );
+  const picker = source(
+    "src/components/v3/reply-snippets/ReplySnippetPicker.tsx",
+  );
+  const page = source("src/app/(v3)/v3/inbox/page.tsx");
+
+  assert.match(
+    page,
+    /if \(view\.selected\)[\s\S]*fixedRoleCan\([\s\S]*actor\.presentationRole,[\s\S]*"messaging\.send",[\s\S]*\)[\s\S]*readV3ReplySnippets\(actor\)/u,
+  );
+  assert.match(
+    page,
+    /\(\{ replySnippetId, title, body \}\) => \(\{ replySnippetId, title, body \}\)/u,
+  );
+  assert.match(page, /replySnippets=\{replySnippets\}/u);
+  assert.match(controls, /replySnippets !== null \? \(/u);
+  assert.match(controls, /<ReplySnippetPicker[\s\S]*name="message_text"/u);
+  assert.match(
+    controls,
+    /onMessageTextChange=\{\(value\) => \{[\s\S]*setMessageText\(value\);[\s\S]*setConfirmed\(false\);/u,
+  );
+  assert.match(picker, /type="button"/u);
+  assert.match(picker, /role="alert"/u);
+  assert.doesNotMatch(picker, /sendPlatform|type="submit"|form action/u);
+});
+
 test("V3 Inbox scopes amoCRM commands to exact canonical EVO identity", () => {
   const page = source("src/app/(v3)/v3/inbox/page.tsx");
   const adapter = source("src/lib/v3/inbox-source.ts");

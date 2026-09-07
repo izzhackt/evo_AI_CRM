@@ -522,8 +522,8 @@ function exactAdminRolePreviewProof() {
         role: "sales",
         authorityRole: "admin",
         landingRoute: "/v3/main",
-        allowedRoutes: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile"],
-        deniedRoutes: ["/v3/calendar", "/v3/knowledge", "/v3/settings"],
+        allowedRoutes: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/knowledge"],
+        deniedRoutes: ["/v3/calendar", "/v3/settings"],
       },
       admissions: {
         role: "admissions",
@@ -2437,6 +2437,28 @@ test("Admin role preview waits for the new server-rendered role before reading i
   );
   assert.match(roleProof, /matchingShell\.waitFor\(\{ state: "visible", timeout: 45_000 \}\)/u);
   assert.match(roleProof, /matchingActiveRole\.waitFor\(\{ state: "visible", timeout: 45_000 \}\)/u);
+});
+
+test("Admin role preview proves the rendered Knowledge capability composition", () => {
+  const start = source.indexOf("async function proveBrowserKnowledgeSurface");
+  const end = source.indexOf("async function proveBrowserRouteAllowed", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const knowledgeProof = source.slice(start, end);
+
+  assert.match(knowledgeProof, /presentationRole === "sales"/u);
+  assert.match(knowledgeProof, /v3-knowledge-reply-snippets/u);
+  assert.match(knowledgeProof, /v3-knowledge-documents/u);
+  assert.match(knowledgeProof, /v3-knowledge-folder-link/u);
+  assert.match(knowledgeProof, /documents_exposed/u);
+  assert.match(knowledgeProof, /getByRole\("link", \{ name: "Шаблоны ответов", exact: true \}\)/u);
+  assert.match(knowledgeProof, /\/v3\/knowledge\?tab=snippets/u);
+
+  const routeStart = source.indexOf("async function proveBrowserRouteAllowed");
+  const routeEnd = source.indexOf("async function proveBrowserRouteDenied", routeStart);
+  const routeProof = source.slice(routeStart, routeEnd);
+  assert.match(routeProof, /path === "\/v3\/knowledge"/u);
+  assert.match(routeProof, /proveBrowserKnowledgeSurface/u);
 });
 
 test("browser login outcomes expose only stable allowlisted failure codes", () => {

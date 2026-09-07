@@ -15,11 +15,14 @@ managed Supabase — единственный Auth/database/Storage. Providers �
 - Последний schema `check` [34125178856](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34125178856)
   на `63261460…`: local 128, managed 116, missing 117–128. Это успешное чтение,
   **не** успешное применение; перед apply нужен свежий `check` на frozen SHA.
-- Последний host snapshot: app и ClamAV отсутствуют, private WAHA работает,
-  public sslip route даёт 502. Это наблюдение, не разрешение пропустить preflight.
-- `EVO_GITHUB_VARIABLES_READ_TOKEN` уже существует. Permissions ещё не доказаны;
-  их проверит встроенный release guard до transfer и перед acceptance.
-  Отдельный PAT probe не нужен; при отказе заменить только этот dedicated token.
+- Последний host snapshot: app и ClamAV отсутствуют, private WAHA container/API
+  healthy, public sslip route даёт 502. Это не WhatsApp connection proof и не
+  разрешение пропустить preflight.
+- `EVO_GITHUB_VARIABLES_READ_TOKEN` уже существует. Чтение Variables этим token
+  ещё не проверено; встроенный release guard выполнит его до transfer и перед
+  acceptance. Это не проверка минимальности PAT permissions. Требование остаётся:
+  fine-grained PAT только для этого repo, `Variables: Read-only`; более широкий
+  token не подставлять. Отдельный повторный API probe не нужен.
 - Обе smoke Admin secrets отсутствуют. Auth accounts существуют, но наличие
   Auth user не доказывает active Admin membership или известный password.
   Создание нового пользователя владелец отменил.
@@ -76,8 +79,10 @@ GitHub — источник общего состояния, не локальн
 - [ ] После docs merge зафиксировать полный current-main SHA и остановить новые
   merge до окончания релиза. #552 production activation уже разрешён после
   named prerequisites; второе routine approval не требуется.
-- [ ] Параллельно проверить names/shape GitHub vars и secrets, owner actor,
-  managed project, host/env permissions, pinned image digests, private network,
+- [ ] Параллельно проверить names/shape GitHub vars и secrets и **точное равенство**:
+  `EVO_PRODUCTION_RELEASE_ACTOR_ID=72846050`,
+  `EVO_SUPABASE_PROJECT_REF=iosckaqtovbbnssqcpde`. Другой actor/project = STOP,
+  даже если формат корректный. Проверить host/env permissions, pinned digests, private network,
   RAM ≥ `4,194,304 KiB`, отсутствие staging и второго active runtime authority.
   `EVO_PRODUCTION_RELEASE_ARMED=false` до завершения подготовки.
 - [ ] Один fresh customer rows/Storage inventory перед cutover. При неизменном
@@ -123,7 +128,7 @@ Production mutations выполняет один оператор, послед�
    checksums; extra, неожиданный gap, известный partial/checksum mismatch = STOP.
    Schema recovery только forward-only.
 3. После всех prerequisite gates выполнить arm/readback `true` **до** CI;
-   actor должен совпасть с `EVO_PRODUCTION_RELEASE_ACTOR_ID`. Запустить ровно
+   actor и `EVO_PRODUCTION_RELEASE_ACTOR_ID` должны быть `72846050`. Запустить ровно
    один полный proof:
 
    ```bash

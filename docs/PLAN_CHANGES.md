@@ -21424,3 +21424,9 @@ Official behavior checked: GitHub `workflow_run` reacts to upstream completion;
 the repository itself enforces success and exact-run admission before secrets
 or production access:
 <https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run>.
+
+Independent-review follow-up: restore exact owner actor `72846050` and managed
+project `iosckaqtovbbnssqcpde` equality in the active checklist; distinguish
+Variables API read capability from least-privilege PAT configuration, healthy
+WAHA container/API from connected WhatsApp, and ordinary prose from contract-doc
+PR checks. No release or provider authority changes.

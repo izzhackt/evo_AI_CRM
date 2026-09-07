@@ -61,7 +61,9 @@ fixtures or a companion application.
 Validation follows the changed scope:
 
 - **Documentation only:** check the changed-file classifier, `git diff --check`
-  and links; product lint, typecheck, build and test suites are skipped.
+  and links. Ordinary prose skips product checks; contract docs also run the
+  short `Release contracts` suite. Lint, typecheck, build and migration-boundary
+  suites are not required for prose-only changes.
 - **Routine PR:** run the affected real tests, obtain independent review of the
   current commit, and pass the protected `Changed range` and `Fast checks` jobs
   with their selected checks.

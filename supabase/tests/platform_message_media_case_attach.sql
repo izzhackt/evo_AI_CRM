@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- Migration 121 boundary proof. Fixtures are synthetic, isolated and removed
+-- Migrations 121/125 boundary proof. Fixtures are synthetic, isolated and removed
 -- after the two-session race; no provider, Storage byte or production state is
 -- touched.
 BEGIN;
@@ -283,6 +283,7 @@ $catalog_contract$;
 \set p121_org_a '59912100-0000-4000-8000-000000000001'
 \set p121_org_b '59912100-0000-4000-8000-000000000002'
 \set p121_case_a '59912100-0000-4000-8000-000000000011'
+\set p121_case_b '59912100-0000-4000-8000-000000000012'
 \set p121_org_scope_a '59912100-0000-4000-8000-000000000021'
 \set p121_org_scope_b '59912100-0000-4000-8000-000000000022'
 \set p121_case_scope_a '59912100-0000-4000-8000-000000000023'
@@ -290,6 +291,7 @@ $catalog_contract$;
 \set p121_conv_scope_1 '59912100-0000-4000-8000-000000000025'
 \set p121_conv_scope_2 '59912100-0000-4000-8000-000000000026'
 \set p121_conv_scope_3 '59912100-0000-4000-8000-000000000027'
+\set p121_case_scope_b '59912100-0000-4000-8000-000000000028'
 
 \set p121_admin_a_user '59912100-0000-4000-8000-000000000101'
 \set p121_sales_a_user '59912100-0000-4000-8000-000000000102'
@@ -315,6 +317,7 @@ $catalog_contract$;
 \set p121_requirement_a '59912100-0000-4000-8000-000000000401'
 \set p121_slot_a '59912100-0000-4000-8000-000000000402'
 \set p121_lead_a '59912100-0000-4000-8000-000000000411'
+\set p121_client_a '59912100-0000-4000-8000-000000000412'
 
 \set p121_event_1 '59912100-0000-4000-8000-000000000501'
 \set p121_conversation_1 '59912100-0000-4000-8000-000000000511'
@@ -542,6 +545,7 @@ VALUES
   (:'p121_org_scope_a', :'p121_org_a', 'organization', :'p121_org_a', 1),
   (:'p121_org_scope_b', :'p121_org_b', 'organization', :'p121_org_b', 1),
   (:'p121_case_scope_a', :'p121_org_a', 'student_case', :'p121_case_a', 1),
+  (:'p121_case_scope_b', :'p121_org_a', 'student_case', :'p121_case_b', 1),
   (
     :'p121_conv_scope_1', :'p121_org_a', 'conversation',
     :'p121_conversation_1', 1
@@ -603,10 +607,20 @@ VALUES
     '59912100-0000-4000-8000-000000000809'
   );
 
-INSERT INTO platform.leads (
-  id, organization_id, stage_key, source_key
+INSERT INTO platform.clients (
+  id, organization_id, display_name, normalized_name
 )
-VALUES (:'p121_lead_a', :'p121_org_a', 'new', 'whatsapp');
+VALUES (
+  :'p121_client_a', :'p121_org_a', 'P121 Client A',
+  platform_private.normalize_person_name('P121 Client A')
+);
+
+INSERT INTO platform.leads (
+  id, organization_id, client_id, stage_key, source_key
+)
+VALUES (
+  :'p121_lead_a', :'p121_org_a', :'p121_client_a', 'new', 'whatsapp'
+);
 
 INSERT INTO platform.student_cases (
   id, organization_id, student_membership_id,
@@ -615,17 +629,27 @@ INSERT INTO platform.student_cases (
   student_display_name, target_country, target_degree, program_direction,
   intake, route_approval_status, operational_stage, state, handoff_at,
   portal_activated_at, closed_at, next_action, current_scope_id,
-  current_scope_version, canonical_lead_id
+  current_scope_version, canonical_client_id, canonical_lead_id
 )
-VALUES (
-  :'p121_case_a', :'p121_org_a', :'p121_student_a_membership',
-  :'p121_sales_a_membership', NULL,
-  'synthetic:p121:case:a', 'synthetic:p121:contract:a', statement_timestamp(),
-  'P121 Student A', 'United Kingdom', 'Bachelor', 'Business',
-  '2027 Fall', 'approved', 'contract_confirmed', 'pending', NULL,
-  NULL, NULL, 'Prepare handoff', :'p121_case_scope_a', 1,
-  :'p121_lead_a'
-);
+VALUES
+  (
+    :'p121_case_a', :'p121_org_a', :'p121_student_a_membership',
+    :'p121_sales_a_membership', NULL,
+    'synthetic:p121:case:a', 'synthetic:p121:contract:a', statement_timestamp(),
+    'P121 Student A', 'United Kingdom', 'Bachelor', 'Business',
+    '2027 Fall', 'approved', 'contract_confirmed', 'pending', NULL,
+    NULL, NULL, 'Prepare handoff', :'p121_case_scope_a', 1,
+    :'p121_client_a', :'p121_lead_a'
+  ),
+  (
+    :'p121_case_b', :'p121_org_a', :'p121_student_a_membership',
+    :'p121_sales_a_membership', NULL,
+    'synthetic:p121:case:b', 'synthetic:p121:contract:b', statement_timestamp(),
+    'P121 Student B', 'United Kingdom', 'Bachelor', 'Business',
+    '2027 Fall', 'approved', 'contract_confirmed', 'pending', NULL,
+    NULL, NULL, 'Prepare alternate case', :'p121_case_scope_b', 1,
+    NULL, NULL
+  );
 
 UPDATE platform.record_scopes AS scope
 SET is_active = FALSE
@@ -1186,7 +1210,110 @@ SELECT pg_temp.p121_assert(
   'a media and conversation mismatch must fail closed'
 );
 
+RESET ROLE;
+RESET request.jwt.claims;
+
+SELECT EXISTS (
+  SELECT 1
+  FROM pg_catalog.pg_constraint AS constraint_row
+  WHERE constraint_row.conrelid =
+      'platform_private.message_media_attachment_intents'::REGCLASS
+    AND constraint_row.conname =
+      'message_media_attachment_intents_exact_case_fkey'
+    AND constraint_row.contype = 'f'
+    AND constraint_row.convalidated
+) AS p121_exact_case_guard_present
+\gset
+
+SELECT pg_temp.p121_assert(
+  NOT :'p121_exact_case_guard_present'::BOOLEAN
+  OR EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_constraint AS constraint_row
+    WHERE constraint_row.conrelid =
+        'platform.communication_conversations'::REGCLASS
+      AND constraint_row.conname =
+        'communication_conversations_exact_case_key'
+      AND constraint_row.contype = 'u'
+      AND constraint_row.convalidated
+  ),
+  'conversation exact-case key must be validated with the intent foreign key'
+);
+
 SET request.jwt.claims TO :'p121_admin_a_claims';
+SET ROLE authenticated;
+
+\if :p121_exact_case_guard_present
+
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
+      :'p121_conversation_2', :'p121_media_c2_pdf', :'p121_case_a',
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000927'
+    ))->>'sqlstate'
+  ) = '42501',
+  'canonical-lead-only NULL conversation case must fail closed'
+);
+
+RESET ROLE;
+RESET request.jwt.claims;
+
+UPDATE platform.communication_conversations AS conversation
+SET student_case_id = :'p121_case_b'
+WHERE conversation.id = :'p121_conversation_2';
+
+UPDATE platform.communication_conversations AS conversation
+SET canonical_client_id = :'p121_client_a'
+WHERE conversation.id = :'p121_conversation_3';
+
+SET request.jwt.claims TO :'p121_admin_a_claims';
+SET ROLE authenticated;
+
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
+      :'p121_conversation_2', :'p121_media_c2_pdf', :'p121_case_a',
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000928'
+    ))->>'sqlstate'
+  ) = '42501',
+  'canonical-lead-only different non-null conversation case must fail closed'
+);
+
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
+      :'p121_conversation_3', :'p121_media_c3_pdf', :'p121_case_a',
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000929'
+    ))->>'sqlstate'
+  ) = '42501',
+  'canonical-client-only NULL conversation case must fail closed'
+);
+
+RESET ROLE;
+RESET request.jwt.claims;
+
+UPDATE platform.communication_conversations AS conversation
+SET student_case_id = :'p121_case_b'
+WHERE conversation.id = :'p121_conversation_3';
+
+SET request.jwt.claims TO :'p121_admin_a_claims';
+SET ROLE authenticated;
+
+SELECT pg_temp.p121_assert(
+  (
+    pg_temp.p121_capture_error(format(
+      'SELECT platform.reserve_message_media_attachment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::bigint,%L::uuid)',
+      :'p121_conversation_3', :'p121_media_c3_pdf', :'p121_case_a',
+      :'p121_slot_a', 1, '59912100-0000-4000-8000-000000000930'
+    ))->>'sqlstate'
+  ) = '42501',
+  'canonical-client-only different non-null conversation case must fail closed'
+);
+
+\else
 
 SELECT platform.reserve_message_media_attachment(
   :'p121_conversation_2', :'p121_media_c2_pdf', :'p121_case_a',
@@ -1201,8 +1328,10 @@ SELECT pg_temp.p121_assert(
     'student_case_id', :'p121_case_a'::UUID,
     'media_file_name', 'lead-offer.pdf'
   ),
-  'admin must attach media from a canonical-lead-linked conversation'
+  'migration 121 historical boundary must retain canonical-lead behavior'
 );
+
+\endif
 
 SELECT pg_temp.p121_assert(
   (
@@ -1645,7 +1774,10 @@ SELECT pg_temp.p121_assert(
     FROM platform.audit_events AS event
     WHERE event.organization_id = :'p121_org_a'
       AND event.action = 'document.media.attach.reserve'
-  ) = 3
+  ) = CASE
+    WHEN :'p121_exact_case_guard_present'::BOOLEAN THEN 2
+    ELSE 3
+  END
   AND (
     SELECT count(*)
     FROM platform.audit_events AS event

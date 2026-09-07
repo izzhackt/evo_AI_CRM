@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 import test from "node:test";
 
 import { ClamdScanError } from "../src/lib/server/clamd-malware-scanner.ts";
@@ -73,6 +74,122 @@ const STORAGE_TUS_ENDPOINT =
   "https://project-ref.storage.supabase.co/storage/v1/upload/resumable";
 const TUS_UPLOAD_URL = `${STORAGE_TUS_ENDPOINT}/upload-1`;
 const SUPABASE_SECRET_KEY = "sb_secret_abcdefghijklmnop";
+
+function dataModule(source) {
+  return `data:text/javascript,${encodeURIComponent(source)}`;
+}
+
+const actionHarness = {
+  actor: Object.freeze({
+    ...ACTOR,
+    authorityRole: "admin",
+  }),
+  capabilityAllowed: true,
+  conversationResponse: { data: { id: IDS.conversation }, error: null },
+  conversationFilters: [],
+  attachCalls: [],
+  attachResult: {
+    status: "attached",
+    documentVersionId: IDS.documentVersion,
+  },
+  revalidated: [],
+};
+globalThis.__platformMediaAttachActionHarness = actionHarness;
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (!context.parentURL?.includes("/platform-media-attach-actions.ts")) {
+      return nextResolve(specifier, context);
+    }
+    if (specifier === "next/cache") {
+      return {
+        shortCircuit: true,
+        url: dataModule(`
+          export function revalidatePath(path) {
+            globalThis.__platformMediaAttachActionHarness.revalidated.push(path);
+          }
+        `),
+      };
+    }
+    if (specifier === "./fixed-role-policy.ts") {
+      return {
+        shortCircuit: true,
+        url: dataModule(`
+          export function fixedRoleCan() {
+            return globalThis.__platformMediaAttachActionHarness.capabilityAllowed;
+          }
+        `),
+      };
+    }
+    if (specifier === "./platform-guards.ts") {
+      return {
+        shortCircuit: true,
+        url: dataModule(`
+          export async function requirePlatformStaffActor() {
+            return globalThis.__platformMediaAttachActionHarness.actor;
+          }
+        `),
+      };
+    }
+    if (specifier === "./server/platform-media-attach.ts") {
+      return {
+        shortCircuit: true,
+        url: dataModule(`
+          export async function attachPlatformMessageMediaToCase(actor, input) {
+            const harness = globalThis.__platformMediaAttachActionHarness;
+            harness.attachCalls.push({
+              rpc: "reserve_message_media_attachment",
+              actor,
+              input,
+            });
+            return harness.attachResult;
+          }
+        `),
+      };
+    }
+    if (specifier === "./supabase/server.ts") {
+      return {
+        shortCircuit: true,
+        url: dataModule(`
+          export async function createSupabaseServerClient() {
+            const harness = globalThis.__platformMediaAttachActionHarness;
+            const query = {
+              select(value) {
+                harness.conversationFilters.push(["select", value]);
+                return query;
+              },
+              eq(column, value) {
+                harness.conversationFilters.push(["eq", column, value]);
+                return query;
+              },
+              async maybeSingle() {
+                harness.conversationFilters.push(["maybeSingle"]);
+                return harness.conversationResponse;
+              },
+            };
+            return {
+              schema(value) {
+                harness.conversationFilters.push(["schema", value]);
+                return {
+                  from(table) {
+                    harness.conversationFilters.push(["from", table]);
+                    return query;
+                  },
+                };
+              },
+            };
+          }
+        `),
+      };
+    }
+    return nextResolve(specifier, context);
+  },
+});
+
+const {
+  attachPlatformMessageMediaToCaseAction,
+  PLATFORM_MEDIA_ATTACH_INITIAL_ACTION_STATE,
+} = await import("../src/lib/platform-media-attach-actions.ts");
 
 function pdfBytes(byteLength = 64) {
   assert.ok(byteLength >= 5);
@@ -417,6 +534,36 @@ function expectedTusMetadata() {
   ].join(",");
 }
 
+function mediaAttachForm(overrides = {}) {
+  const values = {
+    conversation_id: IDS.conversation,
+    communication_media_id: IDS.media,
+    student_case_id: IDS.studentCase,
+    document_slot_id: IDS.documentSlot,
+    expected_version: "1",
+    request_id: IDS.request,
+    ...overrides,
+  };
+  const form = new FormData();
+  for (const [key, value] of Object.entries(values)) form.set(key, value);
+  return form;
+}
+
+function resetActionHarness() {
+  actionHarness.capabilityAllowed = true;
+  actionHarness.conversationResponse = {
+    data: { id: IDS.conversation },
+    error: null,
+  };
+  actionHarness.conversationFilters.length = 0;
+  actionHarness.attachCalls.length = 0;
+  actionHarness.attachResult = {
+    status: "attached",
+    documentVersionId: IDS.documentVersion,
+  };
+  actionHarness.revalidated.length = 0;
+}
+
 test("the browser action and server boundary derive authority instead of accepting it", () => {
   const fieldDeclaration = actionSource.match(
     /const ATTACH_MEDIA_FIELDS = \[([\s\S]*?)\] as const;/,
@@ -441,6 +588,10 @@ test("the browser action and server boundary derive authority instead of accepti
   assert.match(
     actionSource,
     /fixedRoleCan\(actor\.authorityRole, "messaging\.read"\)/,
+  );
+  assert.match(
+    actionSource,
+    /from\("communication_conversations"\)[\s\S]*?\.eq\("organization_id", actor\.organizationId\)[\s\S]*?\.eq\("id", conversationId\)[\s\S]*?\.eq\("student_case_id", studentCaseId\)[\s\S]*?\.maybeSingle\(\)/,
   );
   assert.match(
     actionSource,
@@ -505,6 +656,56 @@ test("the browser action and server boundary derive authority instead of accepti
   ]) {
     assert.match(intentCall[0], new RegExp(`${parameter}:`));
   }
+});
+
+test("the Server Action rejects NULL and mismatched conversation cases before reserve RPC", async (t) => {
+  for (const [name, conversationResponse] of [
+    ["NULL case", { data: null, error: null }],
+    ["mismatched case", {
+      data: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+      error: null,
+    }],
+  ]) {
+    await t.test(name, async () => {
+      resetActionHarness();
+      actionHarness.conversationResponse = conversationResponse;
+
+      const result = await attachPlatformMessageMediaToCaseAction(
+        PLATFORM_MEDIA_ATTACH_INITIAL_ACTION_STATE,
+        mediaAttachForm(),
+      );
+
+      assert.equal(result.status, "unavailable");
+      assert.deepEqual(actionHarness.attachCalls, []);
+      assert.deepEqual(actionHarness.conversationFilters, [
+        ["schema", "platform"],
+        ["from", "communication_conversations"],
+        ["select", "id"],
+        ["eq", "organization_id", IDS.organization],
+        ["eq", "id", IDS.conversation],
+        ["eq", "student_case_id", IDS.studentCase],
+        ["maybeSingle"],
+      ]);
+    });
+  }
+});
+
+test("the Server Action exact case and canonical writable slot reach reserve RPC", async () => {
+  resetActionHarness();
+
+  const result = await attachPlatformMessageMediaToCaseAction(
+    PLATFORM_MEDIA_ATTACH_INITIAL_ACTION_STATE,
+    mediaAttachForm(),
+  );
+
+  assert.equal(result.status, "attached");
+  assert.equal(actionHarness.attachCalls.length, 1);
+  assert.deepEqual(actionHarness.attachCalls[0], {
+    rpc: "reserve_message_media_attachment",
+    actor: actionHarness.actor,
+    input: INPUT,
+  });
+  assert.deepEqual(actionHarness.revalidated, ["/v3/inbox", "/v3/profile"]);
 });
 
 test("the exported orchestration completes the exact clean standard-upload chain", async () => {

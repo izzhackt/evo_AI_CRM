@@ -11,6 +11,7 @@ import {
   type PlatformMediaAttachFailureCode,
 } from "./server/platform-media-attach.ts";
 import { exactActionStringFields } from "./server/action-form-fields.ts";
+import { createSupabaseServerClient } from "./supabase/server.ts";
 
 const ATTACH_MEDIA_FIELDS = [
   "conversation_id",
@@ -118,6 +119,26 @@ export async function attachPlatformMessageMediaToCaseAction(
     || !requestId
   ) {
     return failureState(form, "invalid");
+  }
+
+  try {
+    const client = await createSupabaseServerClient();
+    const conversationResponse = await client
+      .schema("platform")
+      .from("communication_conversations")
+      .select("id")
+      .eq("organization_id", actor.organizationId)
+      .eq("id", conversationId)
+      .eq("student_case_id", studentCaseId)
+      .maybeSingle();
+    if (
+      conversationResponse.error
+      || conversationResponse.data?.id !== conversationId
+    ) {
+      return failureState(form, "unavailable");
+    }
+  } catch {
+    return failureState(form, "unavailable");
   }
 
   const result = await attachPlatformMessageMediaToCase(actor, {

@@ -9,6 +9,8 @@ import { platformTaskDeadlineSortTime } from "../platform-task-deadline.ts";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIMESTAMPTZ_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,6}))?(?:Z|[+-]\d{2}:\d{2})$/;
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 100;
 const UNDATED_SENTINEL_MS = platformTaskDeadlineSortTime(null, null);
@@ -133,6 +135,39 @@ function pageSize(value: number | undefined): number {
     : invalidShape();
 }
 
+type TimestampOrderKey = Readonly<{
+  milliseconds: number;
+  subMillisecondMicroseconds: number;
+}>;
+
+/** Preserve PostgreSQL's six-digit fractional precision without BigInt output. */
+function timestampOrderKey(value: string): TimestampOrderKey {
+  const match = TIMESTAMPTZ_PATTERN.exec(value);
+  const milliseconds = Date.parse(value);
+  if (match === null || !Number.isFinite(milliseconds)) return invalidShape();
+  const microseconds = (match[1] ?? "").padEnd(6, "0");
+  return Object.freeze({
+    milliseconds,
+    subMillisecondMicroseconds: Number(microseconds.slice(3)),
+  });
+}
+
+function compareTimestampKeys(left: TimestampOrderKey, right: TimestampOrderKey): number {
+  if (left.milliseconds !== right.milliseconds) {
+    return left.milliseconds < right.milliseconds ? -1 : 1;
+  }
+  if (left.subMillisecondMicroseconds === right.subMillisecondMicroseconds) {
+    return 0;
+  }
+  return left.subMillisecondMicroseconds < right.subMillisecondMicroseconds ? -1 : 1;
+}
+
+function isUndatedSentinel(value: string): boolean {
+  const key = timestampOrderKey(value);
+  return key.milliseconds === UNDATED_SENTINEL_MS &&
+    key.subMillisecondMicroseconds === 0;
+}
+
 function requireCalendarActor(actor: PlatformActor): string {
   if (actor.platformRole !== "admin" && actor.platformRole !== "admissions") {
     return invalidShape();
@@ -152,7 +187,7 @@ export function parseCalendarUndatedTaskCursor(
   caseTaskId: unknown,
 ): CalendarUndatedTaskCursor | null {
   const cursor = parsePlatformAdmissionsTaskQueueCursor(sortAt, caseTaskId);
-  return cursor !== null && Date.parse(cursor.sortAt) === UNDATED_SENTINEL_MS
+  return cursor !== null && isUndatedSentinel(cursor.sortAt)
     ? Object.freeze({ sortAt: cursor.sortAt, caseTaskId: cursor.caseTaskId })
     : null;
 }
@@ -166,19 +201,22 @@ export function assertCalendarDatedTaskPageOrder(
   rows: readonly PlatformAdmissionsTaskQueueRow[],
   cursor: Readonly<{ sortAt: string; caseTaskId: string }> | null,
 ): void {
-  let previousSortAt = cursor === null ? null : Date.parse(cursor.sortAt);
+  let previousSortAt = cursor === null ? null : timestampOrderKey(cursor.sortAt);
   let previousTaskId = cursor?.caseTaskId ?? null;
 
   for (const row of rows) {
-    const sortAt = Date.parse(row.sortAt);
+    const sortAt = timestampOrderKey(row.sortAt);
+    const timestampOrder = previousSortAt === null
+      ? 1
+      : compareTimestampKeys(sortAt, previousSortAt);
     const afterPrevious = previousSortAt === null ||
-      sortAt > previousSortAt ||
+      timestampOrder > 0 ||
       (
-        sortAt === previousSortAt &&
+        timestampOrder === 0 &&
         previousTaskId !== null &&
         row.caseTaskId > previousTaskId
       );
-    if (!Number.isFinite(sortAt) || !afterPrevious) return invalidShape();
+    if (!afterPrevious) return invalidShape();
     previousSortAt = sortAt;
     previousTaskId = row.caseTaskId;
   }
@@ -261,7 +299,7 @@ export async function listCalendarUndatedTaskPage(
       if (
         row.dueAt !== null ||
         row.dueOn !== null ||
-        Date.parse(row.sortAt) !== UNDATED_SENTINEL_MS ||
+        !isUndatedSentinel(row.sortAt) ||
         (previousTaskId !== null && row.caseTaskId <= previousTaskId) ||
         seen.has(row.caseTaskId)
       ) {
@@ -395,9 +433,8 @@ export async function readNearestCalendarApplicationDeadline(
     ) {
       return invalidShape();
     }
-    return response.data[0]
-      ? normalizeCalendarApplicationDeadlineRow(response.data[0])
-      : null;
+    if (response.data.length === 0) return null;
+    return normalizeCalendarApplicationDeadlineRow(response.data[0]);
   } catch (error) {
     return failClosed(error);
   }

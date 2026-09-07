@@ -150,6 +150,33 @@ test("D2 default undated page is hard capped at 100 rows with continuation", asy
   });
 });
 
+test("D2 undated sentinel equality preserves PostgreSQL microseconds", async () => {
+  const exactWithFraction = "9999-12-31T00:00:00.000000+00:00";
+  const laterByOneMicrosecond = "9999-12-31T00:00:00.000001+00:00";
+
+  assert.deepEqual(parseCalendarUndatedTaskCursor(exactWithFraction, TASK_ID), {
+    sortAt: exactWithFraction,
+    caseTaskId: TASK_ID,
+  });
+  assert.equal(
+    parseCalendarUndatedTaskCursor(laterByOneMicrosecond, TASK_ID),
+    null,
+  );
+  await assert.rejects(
+    listCalendarUndatedTaskPage(
+      actor,
+      {},
+      {
+        client: rpcClient(() => ({
+          data: [{ ...undatedRow(TASK_ID), sort_at: laterByOneMicrosecond }],
+          error: null,
+        })),
+      },
+    ),
+    CalendarContractError,
+  );
+});
+
 test("D2 deadline projection sends range and (deadline, application_id) cursor", async () => {
   let call;
   const page = await listCalendarApplicationDeadlinePage(
@@ -214,6 +241,14 @@ test("D2 application row is an exact discriminated read contract", () => {
 test("D2 dated page ordering fails closed across rows and the supplied cursor", () => {
   const first = { sortAt: "2026-09-10T03:00:00+00:00", caseTaskId: TASK_ID };
   const second = { sortAt: "2026-09-10T03:00:00Z", caseTaskId: TASK_ID_2 };
+  const earlierMicrosecond = {
+    sortAt: "2026-09-10T03:00:00.000100+00:00",
+    caseTaskId: TASK_ID_2,
+  };
+  const laterMicrosecond = {
+    sortAt: "2026-09-10T03:00:00.000900+00:00",
+    caseTaskId: TASK_ID,
+  };
 
   assert.doesNotThrow(() => assertCalendarDatedTaskPageOrder([first, second], null));
   assert.throws(
@@ -227,6 +262,13 @@ test("D2 dated page ordering fails closed across rows and the supplied cursor", 
     ),
     CalendarContractError,
   );
+  assert.throws(
+    () => assertCalendarDatedTaskPageOrder([earlierMicrosecond], laterMicrosecond),
+    CalendarContractError,
+  );
+  assert.doesNotThrow(
+    () => assertCalendarDatedTaskPageOrder([laterMicrosecond], earlierMicrosecond),
+  );
 });
 
 test("D2 global nearest deadline is a separate one-row projection", async () => {
@@ -239,6 +281,20 @@ test("D2 global nearest deadline is a separate one-row projection", async () => 
   });
   assert.deepEqual(call, { name: "staff_nearest_application_deadline", args: {} });
   assert.equal(deadline?.applicationId, APPLICATION_ID);
+});
+
+test("D2 nearest deadline distinguishes an empty result from a malformed row", async () => {
+  const empty = await readNearestCalendarApplicationDeadline(actor, {
+    client: rpcClient(() => ({ data: [], error: null })),
+  });
+  assert.equal(empty, null);
+
+  await assert.rejects(
+    readNearestCalendarApplicationDeadline(actor, {
+      client: rpcClient(() => ({ data: [null], error: null })),
+    }),
+    CalendarContractError,
+  );
 });
 
 test("D2 calendar exhausts bounded ranges but reads only one undated page", () => {

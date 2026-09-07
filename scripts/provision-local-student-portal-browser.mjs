@@ -21,6 +21,18 @@ function fail(code) {
   throw new ProvisioningFailure(code);
 }
 
+function unexpectedFailureCode(error) {
+  if (!error || typeof error !== "object") return "UNEXPECTED_FAILURE";
+  const rawCode = "code" in error ? String(error.code).toUpperCase() : "";
+  const rawConstraint =
+    "constraint_name" in error ? String(error.constraint_name).toUpperCase() : "";
+  const code = /^[A-Z0-9_]{1,32}$/u.test(rawCode) ? rawCode : "UNKNOWN";
+  const constraint = /^[A-Z0-9_]{1,96}$/u.test(rawConstraint)
+    ? `_${rawConstraint}`
+    : "";
+  return `DATABASE_${code}${constraint}`;
+}
+
 function requiredEnvironment(name) {
   const value = process.env[name]?.trim();
   if (!value) fail(`${name}_MISSING`);
@@ -439,7 +451,9 @@ try {
   await main();
 } catch (error) {
   const code =
-    error instanceof ProvisioningFailure ? error.code : "UNEXPECTED_FAILURE";
+    error instanceof ProvisioningFailure
+      ? error.code
+      : unexpectedFailureCode(error);
   console.error(`LOCAL_STUDENT_PORTAL_BROWSER_ERROR:${code}`);
   process.exitCode = 1;
 }

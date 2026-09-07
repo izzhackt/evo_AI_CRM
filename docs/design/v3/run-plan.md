@@ -255,7 +255,7 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
 [Next.js Data Security](https://nextjs.org/docs/app/guides/data-security),
 [PostgreSQL advisory locks](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS).
 
-**Волна D2 (UI поверх D1) — КАНДИДАТ НА ЗАВЕРШЕНИЕ.** Зафиксированная
+**Волна D2 (UI поверх D1) — ГОТОВА К MERGE В PR #673.** Зафиксированная
 последовательность уже находится в `origin/main`:
 
 - контракт D2 — PR #664, `ca71dbc5`;
@@ -268,12 +268,25 @@ standard upload, а диапазон свыше 6 MB D1 переводит на 
 - Media route, attach boundary и corrective migration 125 — PR #672,
   `a6ecd2af`.
 
-Осталась одна closure-пачка: Media UI в Inbox, регистрация всех новых D2
-Node/SQL тестов в канонических harness, browser proof, cumulative local gate и
-независимое exact-head review. Текущая integration-ветка —
-`izzhackt/v3-d2-final-integration`, создана от точного `a6ecd2af`; номер и head
-closure-PR дописываются после его публикации. До его squash-merge D2 не
-называть сделанной.
+Closure-пачка опубликована как PR #673 из ветки
+`izzhackt/v3-d2-final-integration`, созданной от точного `a6ecd2af`.
+Проверенный функциональный head — `e935103a`: Media UI в Inbox, регистрация
+всех новых D2 Node/SQL тестов в канонических harness, browser proof и две
+исправленные только реальным браузером ошибки — недопустимый object export из
+`"use server"` и точное различение отсутствующего private Storage object
+(`unavailable`) от настоящего отказа полномочий (`forbidden`).
+
+Локальное доказательство `e935103a`: canonical Node plan — 106 уникальных
+файлов и 168/168 тестов; focused P4 + D2 Media Chromium — 2/2; полный
+изолированный Postgres/Supabase Auth/RLS/private Storage/Chromium foundation —
+PASS; desktop, 393 px и forced-dark V3 gate — PASS; production build и полный
+ESLint — PASS; независимое adversarial review — APPROVED. Отдельный SQL
+authorization harness был зелёным до последней runtime/test-only поправки;
+после него не менялись migration/SQL/harness-файлы, поэтому дублирующий полный
+локальный rerun не требовался. Защищённые GitHub checks обязаны пройти на
+актуальном `headRefOid` PR #673. До его match-head squash-merge D2 не называть
+сделанной; после merge сразу отметить `СДЕЛАНО` в следующей плановой пачке и
+перейти к E0/PR #669.
 
 Холодный исполнитель сначала проверяет состояние, а не повторяет уже слитые
 пачки:

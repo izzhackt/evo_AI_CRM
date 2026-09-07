@@ -469,7 +469,7 @@ async function provisionExactCaseMediaFixture(): Promise<MediaBrowserFixture> {
           ${effectId}::uuid, ${context.organizationId}::uuid,
           ${workId}::uuid, ${attemptId}::uuid, 'archived', NULL,
           'pdf', 'application/pdf', ${fileName}, 4096, ${sha256Hex},
-          ${sha256Hex}, ${JSON.stringify({ outcome: "archived" })}::jsonb,
+          ${sha256Hex}, jsonb_build_object('outcome', 'archived'),
           ${requestId}::uuid
         )
       `;

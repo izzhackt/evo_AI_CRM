@@ -6,29 +6,41 @@ managed Supabase — единственный Auth/database/Storage. Providers �
 
 ## Текущий статус
 
-- Последний release candidate: `7d649e95c0268f75dbb5ee015b999fe1515fa232`
-  (#682). Full CI [34161871873](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34161871873)
-  прошёл. После исправления SSH и merge заморозить **новый** полный `origin/main`
-  SHA и выполнить один новый proof: старый CI не доказывает изменённый workflow.
+Это checkpoint перед последним freeze, **не live dashboard**. Сначала прочитать
+последние комментарии и состояние [#552](https://github.com/izzhackt/evo_AI_CRM/issues/552)
+и [#553](https://github.com/izzhackt/evo_AI_CRM/issues/553): там записываются terminal
+SHA/run/acceptance и retirement после этого commit. Если там уже приняты exact
+current-main и финальный audit, **не запускать план повторно**. На VPS acceptance
+подтверждают связанный hash `current-v3-accepted.json` и отсутствие pending pointer.
+
+- Последний проверенный candidate: `3ab67a44df232994e274c08b437d2031d98e4661`
+  (#683). Full CI [34163710618](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34163710618)
+  прошёл. После merge image-store correction заморозить новый полный `origin/main`
+  SHA: прежний CI не доказывает изменённый workflow.
 - Код A, C, D1, D2, E0–E5, F и G0 уже в `main`. Их не переделывать.
-- B/#552: доступ, host, Auth hook, private buckets и schema подготовлены.
-  Automatic release [34162362531](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34162362531)
-  attempt 1 остановился до controller: SSH потерял пустой rollback-seed argument.
-  App, ClamAV, pending/accepted pointers не созданы; WAHA не изменён.
-  `EVO_PRODUCTION_RELEASE_ARMED=false` после failure подтверждён readback.
-  Остались исправленный релиз, реальный production Admin browser smoke и retirement.
-  Диагностический preflight также выявил multi-operand `unlink` в cleanup;
-  исправление удаляет snapshots по одному. Старые временные snapshots уже удалены,
-  исходные env/Compose сохранены; перед запуском нужен reviewed новый controller.
+- B/#552: доступ, host, Auth hook, private buckets и schema подготовлены. SSH
+  empty-argument и preflight-cleanup исправления уже merged в #683.
+  Release [34164160455](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34164160455)
+  attempt 1 остановился после загрузки image: GitHub classic-store image ID
+  отличается от OCI manifest ID на VPS Docker 29.4.0/containerd. App, ClamAV и
+  pending/accepted pointers не создавались; WAHA не изменён. Arm=false подтверждён.
+  Исправление выравнивает только ephemeral GitHub runners и отдельно проверяет
+  config digest; controller guard и production Docker daemon не ослабляются.
+  Failed transfer и два protected snapshots сохранить; новый attempt/revision
+  должен иметь новый release ID, не перезаписывать старую evidence directory.
 - Schema `apply` [34161431038](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34161431038)
-  применил 117–128; отдельный [check 34161695009](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34161695009)
+  применил 117–128; [check 34163474083](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34163474083)
   подтвердил local 128 = managed 128, missing/extra пусты. Не повторять apply.
-- Host preparation на exact `7d649e95…` выполнена: V3 Compose установлен,
-  bootstrap controller/validator и прежний Compose сохранены под
-  `/opt/evo-crm/release-evidence/bootstrap-7d649e95c0268f75dbb5ee015b999fe1515fa232/`.
-  Failure до deploy не требует rollback отсутствующего приложения или fake V1 seed.
+- V3 Compose установлен; reviewed bootstrap controller/validator находятся под
+  `/opt/evo-crm/release-evidence/bootstrap-3ab67a44df232994e274c08b437d2031d98e4661/`.
+  Перед следующим freeze сверить hashes, не копировать неизменный controller.
+  Пока app отсутствует, rollback seed пустой; fake V1 seed запрещён.
+- Missing canonical API-path guard из #678 уже установлен на live Caddy:
+  validation, graceful reload и strict-TLS malformed-path 404 подтверждены.
+  Все прежние маршруты сохранены; старый `evo-inbox` удалять только после acceptance.
+  Original backup: `/opt/evo-retired/2026-09-07-v3-edge-3ab67/Caddyfile.before`.
 - `EVO_GITHUB_VARIABLES_READ_TOKEN` уже существует. Чтение Variables этим token
-  доказано встроенным pre-transfer guard run `34162362531`; acceptance guard
+  доказано встроенным pre-transfer guard run `34164160455`; acceptance guard
   ещё не выполнялся. Это не проверка минимальности PAT permissions. Требование остаётся:
   fine-grained PAT только для этого repo, `Variables: Read-only`; более широкий
   token не подставлять. Отдельный повторный API probe не нужен.
@@ -39,7 +51,9 @@ managed Supabase — единственный Auth/database/Storage. Providers �
 - Fresh customer/workflow source пуст; шесть Storage buckets, 0 objects/bytes.
   Три canonical private buckets созданы с exact policy из `supabase/config.toml`.
   Принятый #551 proof и encrypted export hashes проверены; managed staging отсутствует.
-  Подробные checkpoints — в [#552](https://github.com/izzhackt/evo_AI_CRM/issues/552#issuecomment-5575620604).
+  Последний source inventory: 228 tables, только 22 control/config tables непустые;
+  customer/workflow rows и Storage objects отсутствуют. Изменение данных требует
+  нового recovery решения, а не переноса старого empty-source вывода.
 - Последний recovery `crm_primary`: `FAILED → STARTING → SCAN_QR_CODE`.
   Затем владелец сказал «QR не надо»: pairing и новые restart/relink остановлены.
   WhatsApp `WORKING` не доказан; первый app-only cutover этим не блокируется.
@@ -90,7 +104,7 @@ GitHub — источник общего состояния, не локальн
   ещё не Admin, действующий Admin выполняет membership step через
   `provision_pilot_staff_member`. Нельзя выдавать роль через service-role/SQL,
   mint session или подменять smoke. Пароли и tokens не помещать в Git/логи/чат.
-- [ ] После SSH-fix merge зафиксировать полный current-main SHA и остановить новые
+- [ ] После image-store/final-handover merge зафиксировать current-main SHA и остановить новые
   merge до окончания релиза. #552 production activation уже разрешён после
   named prerequisites; второе routine approval не требуется.
 - [x] Проверить names/shape GitHub vars и secrets и **точное равенство**:
@@ -172,12 +186,18 @@ Production mutations выполняет один оператор, послед�
   gates → arm → `Re-run all jobs` того же failed release run на том же frozen SHA
   → terminal disarm. При изменении candidate SHA нужен новый freeze/proof.
 - [ ] Только после accepted V3 завершить scoped retirement в
-  [#552](https://github.com/izzhackt/evo_AI_CRM/issues/552): убрать exact
-  superseded active V1/V2 services/routes/workers, доказать no-fallback и один
-  runtime authority. Не удалять посторонние services/data/volumes.
+  [#552](https://github.com/izzhackt/evo_AI_CRM/issues/552): из live Caddy убрать только
+  `evo-inbox.72.62.119.112.sslip.io → evo-inbox-app:3000`; после свежего exact-ID,
+  project-label и exited-state check удалить только stopped `evo-inbox-app-1`
+  и `evo-inbox-waha` без force/volume removal. Сохранить оба WAHA volumes, images,
+  `/opt/evo-inbox`, историю и активный bind-mounted edge file. Не трогать `inbox`,
+  отдельный EVO Docs, OlympiadAI и другие проекты. Доказать live/source route
+  agreement, no-fallback и один CRM runtime authority; record hashes в #552.
 - [ ] После этого [#553](https://github.com/izzhackt/evo_AI_CRM/issues/553) —
   финальный exact-live authority audit и только затем safe stale refs/comments.
-  #552 не закрывать до acceptance и retirement.
+  #552 не закрывать до acceptance и retirement. #553 требует accepted deployed
+  SHA = exact current `origin/main`; нового commit после freeze не делать.
+  Terminal результат записать в issues, без рекурсивного docs-only redeploy.
 
 ## Какие тесты действительно запускать
 
@@ -199,8 +219,8 @@ boundaries остаются: это не дубли тестов. Workflow/test 
 
 Цикл изменения: scoped diff → соответствующая проверка → независимый adversarial
 review exact head → PR/короткие checks → merge. Findings исправлять по scope и
-перепроверять; не запускать все suites после каждой правки текста. Текущий статус
-держать здесь, sanitized SHA/run evidence — в #552/#553; не дублировать полный
+перепроверять; не запускать все suites после каждой правки текста. До freeze статус
+держать здесь; после freeze — только sanitized checkpoints в #552/#553. Не дублировать полный
 отчёт во всех документах после каждого шага.
 
 ## После первого запуска, не на его критическом пути
@@ -226,5 +246,5 @@ review exact head → PR/короткие checks → merge. Findings испра�
 
 **От владельца прямо сейчас:** новых доступов не требуется. Существующий Admin
 проверен, обе smoke secrets сохранены, Variables-read guard прошёл. Исправление
-SSH и повторный exact-main release выполняет агент. Нового Auth user, QR,
+image-store parity и exact-main release выполняет агент. Нового Auth user, QR,
 amoCRM token и SMTP для первого app-only запуска не требовать.

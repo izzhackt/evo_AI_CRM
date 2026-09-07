@@ -16,6 +16,10 @@ import type {
   PlatformCaseContractWorkspace,
   PlatformContractRetryOperation,
 } from "@/lib/platform-contract-workflow";
+import type {
+  PlatformCaseNotePage,
+  PlatformCaseNoteSubject,
+} from "@/lib/platform-case-notes";
 
 import type { DocumentGroup } from "./document-types";
 
@@ -97,6 +101,11 @@ export type ProfileSalesSnapshot = Readonly<{
   lead: PlatformSalesWorkflowLead;
   gate: PlatformLeadAdmissionsGateSnapshot;
   handoff: PlatformLeadAdmissionsHandoffSnapshot;
+}>;
+
+export type ProfileNotesSnapshot = Readonly<{
+  subject: PlatformCaseNoteSubject;
+  page: PlatformCaseNotePage;
 }>;
 
 export type ProfileAdmissionsRequestIds = Readonly<{

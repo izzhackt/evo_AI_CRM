@@ -130,6 +130,19 @@ function dueState(
   return "later";
 }
 
+function stageAgeDays(stageEnteredAt: string, today: string): number {
+  const enteredOn = organizationDate(new Date(stageEnteredAt));
+  const elapsed = Math.round(
+    (Date.parse(`${today}T00:00:00.000Z`) -
+      Date.parse(`${enteredOn}T00:00:00.000Z`)) /
+      86_400_000,
+  );
+  if (!Number.isSafeInteger(elapsed) || elapsed < 0) {
+    throw new Error("Canonical sales data returned a future stage entry.");
+  }
+  return elapsed;
+}
+
 /**
  * Read every visible canonical lead page. The cursor and lead-id checks make a
  * changing or malformed result fail closed instead of silently duplicating or
@@ -203,29 +216,38 @@ export async function readPipelineLeads(
   const read = await readAllCanonicalSalesLeads(actor, filters);
   const today = organizationDate(new Date());
 
-  const mapped = read.rows.map((row) => ({
-    id: row.leadId,
-    name:
-      row.clientDisplayName ??
-      row.clientEmail ??
-      row.clientPhone ??
-      "Лид без имени",
-    stageKey: row.linkedStudentCaseCount > 0 ? "handed_off" : row.stageKey,
-    source: row.sourceKey,
-    nextAction: row.nextActionText,
-    nextActionAt: formatDueDate(row.nextActionDueDate),
-    due: dueState(row.nextActionDueDate, today),
-    href: `/v3/profile?id=${row.leadId}`,
-    workflow: Object.freeze({
-      leadId: row.leadId,
-      currentOwnerMembershipId: row.currentOwnerMembershipId,
-      currentOwnerDisplayName: row.currentOwnerDisplayName,
-      stageKey: row.stageKey,
-      nextActionText: row.nextActionText,
-      nextActionDueDate: row.nextActionDueDate,
-      workflowVersion: row.workflowVersion,
-    }),
-  } satisfies PipelineLead));
+  const mapped = read.rows.map((row) => {
+    const stageKey = row.linkedStudentCaseCount > 0
+      ? "handed_off" as const
+      : row.stageKey;
+    return {
+      id: row.leadId,
+      name:
+        row.clientDisplayName ??
+        row.clientEmail ??
+        row.clientPhone ??
+        "Лид без имени",
+      stageKey,
+      source: row.sourceKey,
+      nextAction: row.nextActionText,
+      nextActionAt: formatDueDate(row.nextActionDueDate),
+      due: dueState(row.nextActionDueDate, today),
+      stageAgeDays: stageKey === "handed_off"
+        ? null
+        : stageAgeDays(row.stageEnteredAt, today),
+      latestNote: row.latestNote,
+      href: `/v3/profile?id=${row.leadId}`,
+      workflow: Object.freeze({
+        leadId: row.leadId,
+        currentOwnerMembershipId: row.currentOwnerMembershipId,
+        currentOwnerDisplayName: row.currentOwnerDisplayName,
+        stageKey: row.stageKey,
+        nextActionText: row.nextActionText,
+        nextActionDueDate: row.nextActionDueDate,
+        workflowVersion: row.workflowVersion,
+      }),
+    } satisfies PipelineLead;
+  });
 
   // Фильтр стадии сверяется с ПРОИЗВОДНОЙ стадией: переданный лид живёт в
   // колонке «Переданы» независимо от stage_key, и наоборот — фильтр по

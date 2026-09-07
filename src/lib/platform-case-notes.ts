@@ -383,7 +383,6 @@ export async function readCaseNotes(
             }
           : {}),
       },
-      { get: true },
     );
     if (
       response.error ||

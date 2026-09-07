@@ -17,6 +17,10 @@ import {
   parsePlatformContractUuid,
   type PlatformContractMutationOutcome,
 } from "@/lib/platform-contract-workflow";
+import {
+  parsePlatformCaseNoteCursor,
+  type PlatformCaseNoteCursor,
+} from "@/lib/platform-case-notes";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   parseV3ProfileCaseDirectoryParams,
@@ -77,6 +81,21 @@ function parseContractRetry(
     : { requestId, operation };
 }
 
+function buildProfileNotesHref(
+  target: ProfileRouteTarget,
+  cursor: PlatformCaseNoteCursor | null = null,
+): string {
+  const query = new URLSearchParams();
+  if (target.leadId) query.set("id", target.leadId);
+  if (target.studentCaseId) query.set("case", target.studentCaseId);
+  query.set("tab", "overview");
+  if (cursor) {
+    query.set("note_before_at", cursor.createdAt);
+    query.set("note_before_id", cursor.id);
+  }
+  return `/v3/profile?${query.toString()}`;
+}
+
 export default async function ProfilePart({
   searchParams,
 }: {
@@ -93,11 +112,23 @@ export default async function ProfilePart({
   const caseParam = singleSearchParam(params.case);
   const hasLeadParam = params.id !== undefined;
   const hasCaseParam = params.case !== undefined;
+  const hasNoteBeforeAt = params.note_before_at !== undefined;
+  const hasNoteBeforeId = params.note_before_id !== undefined;
+  const noteBeforeAt = singleSearchParam(params.note_before_at);
+  const noteBeforeId = singleSearchParam(params.note_before_id);
+  const noteCursor = noteBeforeAt && noteBeforeId
+    ? parsePlatformCaseNoteCursor(noteBeforeAt, noteBeforeId)
+    : null;
+  const invalidNoteCursor =
+    hasNoteBeforeAt !== hasNoteBeforeId ||
+    ((hasNoteBeforeAt || hasNoteBeforeId) &&
+      (noteCursor === null || (!hasLeadParam && !hasCaseParam)));
   const invalidIdentityShape =
     (hasLeadParam && hasCaseParam) ||
     (hasLeadParam && !leadParam) ||
     (hasCaseParam && !caseParam) ||
-    ((hasLeadParam || hasCaseParam) && directoryParams.active);
+    ((hasLeadParam || hasCaseParam) && directoryParams.active) ||
+    invalidNoteCursor;
   const explicitTarget: ProfileRouteTarget | null = !invalidIdentityShape && leadParam
     ? { leadId: leadParam, studentCaseId: null }
     : !invalidIdentityShape && caseParam
@@ -115,7 +146,7 @@ export default async function ProfilePart({
   const { directory, view } = await loadV3ProfileRoute(routeMode, {
     readDirectory: (nextParams) =>
       readV3ProfileCaseDirectory(actor, nextParams),
-    readTarget: (target) => readProfileTarget(actor, target),
+    readTarget: (target) => readProfileTarget(actor, target, noteCursor),
   });
   const missing = hasExplicitTarget && !view;
   // Вкладка приходит адресом, поэтому её нельзя брать на веру: чужое слово и
@@ -137,6 +168,12 @@ export default async function ProfilePart({
   };
   const contractResult = parseContractResult(params);
   const contractRetry = parseContractRetry(params, contractResult);
+  const notesOlderHref = view?.notes.page.nextCursor
+    ? buildProfileNotesHref(view.details.routeTarget, view.notes.page.nextCursor)
+    : null;
+  const notesLatestHref = view && noteCursor
+    ? buildProfileNotesHref(view.details.routeTarget)
+    : null;
 
   return (
     <PartShell title="Профиль">
@@ -164,6 +201,10 @@ export default async function ProfilePart({
               authorityRole={actor.authorityRole}
               organizationId={actor.organizationId}
               requestIds={requestIds}
+              noteRequestId={randomUUID()}
+              notes={view.notes}
+              notesOlderHref={notesOlderHref}
+              notesLatestHref={notesLatestHref}
               contractResult={contractResult}
               contractRetry={contractRetry}
               tab={tab}

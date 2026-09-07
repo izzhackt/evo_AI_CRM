@@ -11,6 +11,7 @@ import type {
   ProfileAdmissionsWorkspace,
   ProfileContractSnapshot,
   ProfileDraft,
+  ProfileNotesSnapshot,
   ProfileRouteTarget,
   ProfileSalesSnapshot,
 } from "@/components/v3/profile/types";
@@ -28,6 +29,10 @@ import {
   type PlatformStudentCaseState,
 } from "@/lib/platform-admissions";
 import { getPlatformCaseVisa } from "@/lib/platform-case-operations";
+import {
+  readCaseNotes,
+  type PlatformCaseNoteCursor,
+} from "@/lib/platform-case-notes";
 import type { PlatformCaseVisa } from "@/lib/platform-case-operations-contract";
 import {
   getPlatformCaseFinanceControl,
@@ -68,11 +73,15 @@ const FULL_DAY = new Intl.DateTimeFormat("ru-RU", {
   timeZone: "Asia/Bishkek",
 });
 
-export type V3ProfileView = Readonly<{
+type V3ProfileCoreView = Readonly<{
   profile: PersonProfile;
   details: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
 }>;
+
+export type V3ProfileView = Readonly<
+  V3ProfileCoreView & { notes: ProfileNotesSnapshot }
+>;
 
 export type V3ProfileCaseDirectoryParams = Readonly<{
   active: boolean;
@@ -557,7 +566,7 @@ function caseTimeline(studentCase: PlatformStudentCaseSnapshot): PersonProfile["
 async function readCaseProfile(
   actor: ActivePlatformActor,
   studentCaseId: string,
-): Promise<V3ProfileView | null> {
+): Promise<V3ProfileCoreView | null> {
   if (actor.presentationRole !== "admin" && actor.presentationRole !== "admissions") {
     return null;
   }
@@ -624,7 +633,7 @@ async function readLeadProfile(
   leadId: string,
   routeTarget: ProfileRouteTarget,
   expectedStudentCaseId: string | null = null,
-): Promise<V3ProfileView | null> {
+): Promise<V3ProfileCoreView | null> {
   if (actor.presentationRole === "admissions") return null;
   const lead = await getPlatformSalesLead(actor, leadId);
   if (lead === null) return null;
@@ -876,15 +885,31 @@ export async function readV3ProfileCaseDirectory(
  * Compose one profile from exactly one canonical route identity. `id` remains
  * a Sales lead id; Admissions cases use the separate `case` query parameter.
  */
-export function readProfileTarget(
+export async function readProfileTarget(
   actor: ActivePlatformActor,
   target: ProfileRouteTarget,
+  noteCursor: PlatformCaseNoteCursor | null = null,
 ): Promise<V3ProfileView | null> {
-  if (target.leadId !== null) {
-    return readLeadProfile(actor, target.leadId, target);
-  }
-  if (target.studentCaseId === null) {
+  const subject = target.leadId !== null
+    ? Object.freeze({ leadId: target.leadId, studentCaseId: null })
+    : target.studentCaseId !== null
+      ? Object.freeze({ leadId: null, studentCaseId: target.studentCaseId })
+      : null;
+  if (subject === null) {
     throw new Error("V3 profile route target is invalid.");
   }
-  return readCaseProfile(actor, target.studentCaseId);
+
+  const core = target.leadId !== null
+    ? await readLeadProfile(actor, target.leadId, target)
+    : await readCaseProfile(actor, target.studentCaseId);
+  if (core === null) return null;
+
+  const page = await readCaseNotes(actor, subject, {
+    limit: 50,
+    cursor: noteCursor,
+  });
+  return Object.freeze({
+    ...core,
+    notes: Object.freeze({ subject, page }),
+  });
 }

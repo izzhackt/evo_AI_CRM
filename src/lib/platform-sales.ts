@@ -52,8 +52,7 @@ export const PLATFORM_SALES_ASSIGNMENT_FILTERS = [
 const PLATFORM_SALES_CONVERSATION_QUEUES = ["sales", "curator"] as const;
 const PLATFORM_SALES_CONVERSATION_STATUSES = ["open", "closed"] as const;
 
-const QUEUE_ROW_KEYS = [
-  "sort_at",
+const LEAD_CORE_ROW_KEYS = [
   "organization_id",
   "lead_id",
   "client_id",
@@ -74,13 +73,20 @@ const QUEUE_ROW_KEYS = [
   "linked_conversation_count",
   "created_at",
   "updated_at",
+] as const;
+
+const QUEUE_ROW_KEYS = [
+  "sort_at",
+  ...LEAD_CORE_ROW_KEYS,
   "stage_entered_at",
+  "latest_note_id",
+  "latest_note_body",
+  "latest_note_author_display_name",
+  "latest_note_created_at",
 ] as const;
 
 const DETAIL_ROW_KEYS = [
-  ...QUEUE_ROW_KEYS.filter(
-    (key) => key !== "sort_at" && key !== "stage_entered_at",
-  ),
+  ...LEAD_CORE_ROW_KEYS,
   "external_identifiers",
   "provenance",
   "linked_student_cases",
@@ -163,8 +169,16 @@ type PlatformSalesLeadCore = Readonly<{
 export type PlatformSalesLeadRow = Readonly<
   PlatformSalesLeadCore & {
     stageEnteredAt: string;
+    latestNote: PlatformSalesLeadLatestNote | null;
   }
 >;
+
+export type PlatformSalesLeadLatestNote = Readonly<{
+  id: string;
+  body: string;
+  authorDisplayName: string;
+  createdAt: string;
+}>;
 
 export type PlatformSalesLinkedConversation = Readonly<{
   conversationId: string;
@@ -601,6 +615,29 @@ function normalizeLeadCore(
   });
 }
 
+function normalizeLatestLeadNote(
+  value: Record<string, unknown>,
+): PlatformSalesLeadLatestNote | null {
+  const rawValues = [
+    value.latest_note_id,
+    value.latest_note_body,
+    value.latest_note_author_display_name,
+    value.latest_note_created_at,
+  ];
+  if (rawValues.every((candidate) => candidate === null)) return null;
+  if (rawValues.some((candidate) => candidate === null)) return invalidShape();
+
+  return Object.freeze({
+    id: requiredUuid(value.latest_note_id),
+    body: requiredText(value.latest_note_body, 4_000),
+    authorDisplayName: requiredText(
+      value.latest_note_author_display_name,
+      500,
+    ),
+    createdAt: requiredTimestamp(value.latest_note_created_at),
+  });
+}
+
 function requireBoundedRecordArray(value: unknown): readonly Record<string, unknown>[] {
   if (
     !Array.isArray(value) ||
@@ -709,6 +746,7 @@ export async function listPlatformSalesLeads(
       const row: PlatformSalesLeadRow = Object.freeze({
         ...core,
         stageEnteredAt: requiredTimestamp(raw.stage_entered_at),
+        latestNote: normalizeLatestLeadNote(raw),
       });
       const rowCursor = parsePlatformSalesCursor(raw.sort_at, row.leadId);
       if (

@@ -193,7 +193,7 @@ test("readCaseNotes pages newest-first with a verified keyset cursor", async () 
     p_student_case_id: null,
     p_limit: 3,
   });
-  assert.deepEqual(rpcCall.options, { get: true });
+  assert.equal(rpcCall.options, undefined);
 });
 
 test("readCaseNotes sends the cursor and reads a student-case subject", async () => {

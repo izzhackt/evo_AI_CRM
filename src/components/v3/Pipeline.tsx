@@ -8,6 +8,7 @@ import type {
   PlatformSalesStage,
   PlatformSalesWorkflowLead,
 } from "@/lib/platform-sales-contract";
+import type { PlatformSalesLeadLatestNote } from "@/lib/platform-sales";
 
 export type PipelineStageKey = PlatformSalesStage | "handed_off";
 
@@ -26,6 +27,8 @@ export type PipelineLead = Readonly<{
   nextAction: string | null;
   nextActionAt: string | null;
   due: "overdue" | "today" | "later" | "none";
+  stageAgeDays: number | null;
+  latestNote: PlatformSalesLeadLatestNote | null;
   href: string;
   workflow: PlatformSalesWorkflowLead;
 }>;
@@ -42,6 +45,28 @@ const DUE_MARK: Record<PipelineLead["due"], { tone: string; label: string } | nu
   later: null,
   none: { tone: "bg-control-edge", label: "следующее действие не назначено" },
 };
+
+const NOTE_TIME = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Asia/Bishkek",
+});
+
+function stageAgeCopy(days: number): string {
+  if (days === 0) return "На стадии сегодня";
+  const modulo100 = days % 100;
+  const modulo10 = days % 10;
+  const unit = modulo100 >= 11 && modulo100 <= 14
+    ? "дней"
+    : modulo10 === 1
+      ? "день"
+      : modulo10 >= 2 && modulo10 <= 4
+        ? "дня"
+        : "дней";
+  return `На стадии ${days} ${unit}`;
+}
 
 function LeadCard({
   lead,
@@ -88,6 +113,11 @@ function LeadCard({
               {lead.nextActionAt}
             </span>
           ) : null}
+          {!terminal && lead.stageAgeDays !== null ? (
+            <span className="mt-0.5 block text-2xs text-fg-3">
+              {stageAgeCopy(lead.stageAgeDays)}
+            </span>
+          ) : null}
         </p>
 
         {mark ? (
@@ -100,6 +130,24 @@ function LeadCard({
           </>
         ) : null}
       </div>
+
+      {lead.latestNote ? (
+        <div
+          data-note-id={lead.latestNote.id}
+          className="mt-2 rounded-ctl border border-border bg-bg px-2.5 py-2"
+        >
+          <p className="line-clamp-2 whitespace-pre-wrap break-words text-2xs text-fg-2">
+            {lead.latestNote.body}
+          </p>
+          <p className="mt-1 truncate text-[10px] text-fg-3">
+            {lead.latestNote.authorDisplayName}
+            {" · "}
+            <time dateTime={lead.latestNote.createdAt}>
+              {NOTE_TIME.format(new Date(lead.latestNote.createdAt))}
+            </time>
+          </p>
+        </div>
+      ) : null}
 
       {!terminal ? (
         <PipelineDecisionForm

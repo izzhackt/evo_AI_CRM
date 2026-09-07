@@ -21558,3 +21558,12 @@ reviewed correction with the conditional retirement-source/handover preparation
 before the next freeze; no live retirement before named acceptance. Record
 terminal progress in the issues rather than another post-freeze documentation
 commit, then complete #553 on the accepted exact current-main revision.
+
+Correction proof: all 38 workflow tests pass, including 17 new cases; 14 new
+cases failed before the fix. The actual new config-byte derivation also passes
+read-only against the retained VPS artifact and its distinct loaded manifest
+ID. A tiny real Docker 29.4.0/containerd build/save/remove-own-tag/load round-trip
+preserves the engine-native ID while keeping the config digest distinct and
+the saved manifest single-image. The disposable local image/tag was removed.
+The edited shared edge passed the existing pinned Caddy runtime proof. These
+are scoped correction proofs, not production acceptance of a new revision.

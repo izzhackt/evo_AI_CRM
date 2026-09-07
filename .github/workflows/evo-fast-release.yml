@@ -125,6 +125,13 @@ jobs:
           main().catch(fail);
           NODE
 
+      - name: Match production Docker image store for build
+        uses: docker/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5.4.0
+        with:
+          version: v29.4.0
+          daemon-config: |
+            {"features":{"containerd-snapshotter":true}}
+
       - name: Check out exact CI-approved main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -198,15 +205,20 @@ jobs:
           image_source=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "evo-crm:$EVO_RELEASE_REVISION")
           image_revision=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "evo-crm:$EVO_RELEASE_REVISION")
           image_version=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "evo-crm:$EVO_RELEASE_REVISION")
-          image_config_digest=$image_id
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
-          [[ "$image_config_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$image_os" == linux && "$image_arch" == amd64 ]]
           [[ "$image_source" == "$EVO_IMAGE_SOURCE" ]]
           [[ "$image_revision" == "$EVO_RELEASE_REVISION" ]]
           [[ "$image_version" == "$EVO_RELEASE_VERSION" ]]
 
           docker save "evo-crm:$EVO_RELEASE_REVISION" | gzip -1 > "$archive"
+          config_path=$(tar -xOzf "$archive" manifest.json | jq -er --arg tag "evo-crm:$EVO_RELEASE_REVISION" '
+            if type == "array" and length == 1 and .[0].RepoTags == [$tag]
+            then .[0].Config | select(type == "string" and test("^(blobs/sha256/)?[0-9a-f]{64}(\\.json)?\\z"))
+            else error("The saved archive must contain exactly the release image tag") end')
+          config_hash=${config_path##*/}
+          image_config_digest="sha256:$(tar -xOzf "$archive" "$config_path" | sha256sum | awk '{print $1}')"
+          [[ "$image_config_digest" == "sha256:${config_hash%.json}" ]] || exit 1
           archive_sha256=$(sha256sum "$archive" | awk '{print $1}')
           archive_bytes=$(wc -c < "$archive" | tr -d '[:space:]')
           compose_sha256=$(sha256sum docker-compose.prod.yml | awk '{print $1}')
@@ -380,6 +392,13 @@ jobs:
           main().catch(fail);
           NODE
 
+      - name: Match production Docker image store for deploy
+        uses: docker/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5.4.0
+        with:
+          version: v29.4.0
+          daemon-config: |
+            {"features":{"containerd-snapshotter":true}}
+
       - name: Check out exact release controller
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -546,10 +565,18 @@ jobs:
           set -Eeuo pipefail
           manifest=/tmp/evo-production-candidate/evo-production-release-image.json
           archive=/tmp/evo-production-candidate/evo-crm-image.tar.gz
-          docker load --input "$archive" >/tmp/evo-production-docker-load.txt
           expected_image_id=$(jq -r '.imageId' "$manifest")
           expected_config_digest=$(jq -r '.imageConfigDigest' "$manifest")
-          [[ "$expected_image_id" == "$expected_config_digest" ]]
+          config_path=$(tar -xOzf "$archive" manifest.json | jq -er --arg tag "evo-crm:$EVO_RELEASE_REVISION" '
+            if type == "array" and length == 1 and .[0].RepoTags == [$tag]
+            then .[0].Config | select(type == "string" and test("^(blobs/sha256/)?[0-9a-f]{64}(\\.json)?\\z"))
+            else error("The saved archive must contain exactly the release image tag") end')
+          config_hash=${config_path##*/}
+          image_config_digest="sha256:$(tar -xOzf "$archive" "$config_path" | sha256sum | awk '{print $1}')"
+          [[ "$image_config_digest" == "sha256:${config_hash%.json}" ]] || exit 1
+          [[ "$image_config_digest" == "$expected_config_digest" ]] || exit 1
+          docker load --input "$archive" >/tmp/evo-production-docker-load.txt
+          [[ "$(docker image inspect --format '{{.Id}}' "evo-crm:$EVO_RELEASE_REVISION")" == "$expected_image_id" ]] || exit 1
           [[ "$(docker image inspect --format '{{.Id}}' "$expected_image_id")" == "$expected_image_id" ]]
           [[ "$(docker image inspect --format '{{.Os}}' "$expected_image_id")" == linux ]]
           [[ "$(docker image inspect --format '{{.Architecture}}' "$expected_image_id")" == amd64 ]]

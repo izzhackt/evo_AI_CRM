@@ -21638,3 +21638,22 @@ to reflect that explicit separate-plan choice, mark the launch contract's
 older preparation baselines as historical rather than current blockers, and
 keep the non-dense requirement outside the numbered eight UX principles.
 These corrections remove cold-resume ambiguity without expanding product scope.
+
+## 2026-09-08 — Execute the separately approved curator/UX run
+
+After planning PR #686 merged as `61733a15`, the owner explicitly requested:
+“and do the plan as well, this new plan”. This starts implementation of UX-2,
+UX-3, UX-4, UX-6 and UX-8 only, under the existing launch contract and the sole
+detailed checklist `docs/design/v3/curator-ux-run-plan.md`.
+
+Parallel ownership: task permission/UI slice (129), handoff acknowledgment
+slice (130), student overview slice (131 only if needed). The coordinator
+owns unified activity, coverage, migration sequencing and integration review.
+Forward migrations must retain canonical Supabase authority and scoped actor
+checks; no synthetic proof data, production migration apply, provider send,
+QR pairing or broad redesign is authorized by this execution entry.
+
+Verification proceeds with scoped real checks, exact-head independent review
+and the protected short PR workflow. Missing real actors/cases/actions remains
+an explicitly recorded acceptance blocker. The existing localhost:3000 tunnel
+targets production and must not be treated as a disposable local test app.

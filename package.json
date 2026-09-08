@@ -25,6 +25,7 @@
     "test:v3:release:orbstack": "EVO_RUN_V3_RELEASE_ROLLBACK_ORBSTACK=1 node scripts/test-v3-release-rollback-orbstack.mjs",
     "pretest:unit": "node scripts/run-node-test-suite.mjs --suite unit --validate-only",
     "test:unit": "node scripts/run-node-test-suite.mjs --suite unit",
+    "test:sales-register": "node --conditions=react-server --experimental-strip-types --test tests/platform-sales-register.test.mjs",
     "test:unit:supplemental": "node --conditions=react-server --experimental-strip-types --test tests/platform-staff-assistant.test.mjs tests/platform-knowledge-bundle.test.mjs tests/platform-knowledge-import-packaging.test.mjs",
     "pretest:d1": "node scripts/run-node-test-suite.mjs --suite d1 --validate-only",
     "test:d1": "node --conditions=react-server --experimental-strip-types --test tests/platform-case-notes.test.mjs tests/platform-admissions.test.mjs tests/v3-profile-admissions.test.mjs tests/platform-queue-read-extensions.test.mjs tests/platform-reply-snippets.test.mjs tests/platform-message-media-case-attach.test.mjs",

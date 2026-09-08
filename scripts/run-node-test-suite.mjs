@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 export const DEFAULT_ENTRY_SCRIPTS = Object.freeze([
+  "test:sales-register",
   "test:security",
   "test:frontend",
   "test:e3",
@@ -19,6 +20,7 @@ export const DEFAULT_ENTRY_SCRIPTS = Object.freeze([
 ]);
 
 export const UNIT_ENTRY_SCRIPTS = Object.freeze([
+  "test:sales-register",
   "test:frontend",
   "test:e3",
   "test:u1",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import type { FixedRole } from "@/lib/fixed-role-policy";
 import {
@@ -27,7 +27,7 @@ import type {
 import { taskDeadlineInputDefaults } from "./types";
 
 const CONTROL =
-  "mt-1 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
+  "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
 const PRIMARY =
   "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
 const SECONDARY =
@@ -66,7 +66,7 @@ const RESULT_COPY: Record<
   forbidden: "У вашей роли нет прав на это изменение.",
   stale: "Задача уже изменена. Обновите календарь перед повтором.",
   request_conflict: "Команда уже использована. Подготовлен новый безопасный повтор.",
-  unavailable: "Supabase не подтвердил изменение. Задача не изменена.",
+  unavailable: "Не удалось подтвердить сохранение. Обновите календарь перед повтором.",
 };
 
 function Feedback({ state }: Readonly<{ state: PlatformAdmissionsTaskActionState }>) {
@@ -100,6 +100,7 @@ function DeadlineFields({
     task ? taskDeadlineKind(task) : "all_day",
   );
   const defaults = taskDeadlineInputDefaults(task, day);
+  const [dueOn, setDueOn] = useState(defaults.dueOn);
   const [displayDueAt, setDisplayDueAt] = useState(defaults.dueAt);
   const [submittedDueAt, setSubmittedDueAt] = useState(
     task?.dueAt ?? defaults.dueAt,
@@ -127,7 +128,8 @@ function DeadlineFields({
             <input
               name="due_on"
               type="date"
-              defaultValue={defaults.dueOn}
+              value={dueOn}
+              onChange={(event) => setDueOn(event.target.value)}
               required
               className={CONTROL}
             />
@@ -354,6 +356,7 @@ function CanonicalTaskFields({
       <input type="hidden" name="student_visible" value={String(task.studentVisible)} />
       <input type="hidden" name="expected_version" value={task.version} />
       <input type="hidden" name="request_id" value={requestId} />
+      <input type="hidden" name="reason" value={requiredTaskStatusLabel(status)} />
     </>
   );
 }
@@ -413,6 +416,14 @@ function CalendarChangeTaskForm({
   requestId: string;
 }>) {
   const router = useRouter();
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  // Controlled inputs survive a rejected Action's automatic form reset.
+  // https://react.dev/reference/react/useActionState
+  const [status, setStatus] = useState(task.state);
+  const [priority, setPriority] = useState(task.priority);
+  const [assigneeId, setAssigneeId] = useState(task.assigneeMembershipId);
+  const [studentVisible, setStudentVisible] = useState(String(task.studentVisible));
+  const [reason, setReason] = useState("");
   const [state, action, pending] = useActionState(
     changePlatformAdmissionsTaskAction,
     initialState(requestId, task),
@@ -435,23 +446,29 @@ function CalendarChangeTaskForm({
       ];
 
   return (
-    <details className="border-t border-border pt-3">
-      <summary className="min-h-10 cursor-pointer py-2 text-xs font-semibold text-accent">
+    <details ref={detailsRef} className="border-t border-border pt-3">
+      <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-accent">
         Изменить задачу
       </summary>
       <form
         action={action}
         className="grid gap-3 pt-3 sm:grid-cols-2"
         data-testid="v3-calendar-task-change-form"
+        aria-busy={pending}
       >
         <input type="hidden" name="student_case_id" value={task.studentCaseId} />
         <input type="hidden" name="case_task_id" value={task.id} />
         <input type="hidden" name="expected_version" value={task.version} />
         <input type="hidden" name="request_id" value={state.requestId} />
-
+        <fieldset disabled={locked} className="contents">
         <label className="text-xs font-medium text-fg-2">
           Состояние
-          <select name="status" defaultValue={task.state} className={CONTROL}>
+          <select
+            name="status"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as PlatformCaseTaskStatus)}
+            className={CONTROL}
+          >
             {ACTIVE_STATUS_OPTIONS.map((status) => (
               <option key={status} value={status}>
                 {requiredTaskStatusLabel(status)}
@@ -465,7 +482,8 @@ function CalendarChangeTaskForm({
             Ответственный
             <select
               name="assignee_membership_id"
-              defaultValue={task.assigneeMembershipId}
+              value={assigneeId}
+              onChange={(event) => setAssigneeId(event.target.value)}
               className={CONTROL}
             >
               {canonicalAssignees.map((assignee) => (
@@ -483,54 +501,57 @@ function CalendarChangeTaskForm({
           />
         )}
 
+        <label className="text-xs font-medium text-fg-2">
+          Приоритет
+          <select name="priority"
+            value={priority}
+            onChange={(event) => setPriority(event.target.value as PlatformCaseTaskPriority)}
+            className={CONTROL}
+          >
+            {PRIORITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <DeadlineFields day={task.day ?? day} task={task} />
         {adminView ? (
-          <>
-            <label className="text-xs font-medium text-fg-2">
-              Приоритет
-              <select name="priority" defaultValue={task.priority} className={CONTROL}>
-                {PRIORITY_OPTIONS.map((priority) => (
-                  <option key={priority.value} value={priority.value}>
-                    {priority.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <DeadlineFields day={task.day ?? day} task={task} />
             <label className="text-xs font-medium text-fg-2">
               Видимость студенту
               <select
                 name="student_visible"
-                defaultValue={String(task.studentVisible)}
+                value={studentVisible}
+                onChange={(event) => setStudentVisible(event.target.value)}
                 className={CONTROL}
               >
                 <option value="false">Скрыта</option>
                 <option value="true">Видна</option>
               </select>
             </label>
-          </>
         ) : (
-          <>
-            <input type="hidden" name="priority" value={task.priority} />
-            <input
-              type="hidden"
-              name="deadline_kind"
-              value={taskDeadlineKind(task)}
-            />
-            <input type="hidden" name="due_on" value={task.dueOn ?? ""} />
-            <input type="hidden" name="due_at" value={task.dueAt ?? ""} />
             <input
               type="hidden"
               name="student_visible"
               value={String(task.studentVisible)}
             />
-          </>
         )}
-
-        <div className="flex items-end">
+        <label className="text-xs font-medium text-fg-2 sm:col-span-2">
+          Причина изменения
+          <input name="reason" value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            required maxLength={1000} className={CONTROL} autoComplete="off"
+          />
+        </label>
+        <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
           <button type="submit" disabled={locked} className={PRIMARY}>
             {pending ? "Сохраняем…" : "Сохранить"}
           </button>
+          <button type="button" className={SECONDARY}
+            onClick={() => { if (detailsRef.current) detailsRef.current.open = false; }}
+          >
+            Отмена
+          </button>
         </div>
+        </fieldset>
         <div className="sm:col-span-2">
           <Feedback state={state} />
         </div>

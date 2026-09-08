@@ -39,6 +39,7 @@ const GHOST =
   "inline-flex min-h-11 items-center justify-center rounded-ctl px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg";
 
 export function Calendar({
+  initialTaskId = null,
   view,
   day,
   today,
@@ -59,6 +60,7 @@ export function Calendar({
   taskRequestIds,
   basePath,
 }: {
+  initialTaskId?: string | null;
   view: CalendarView;
   day: Day;
   today: Day;
@@ -81,7 +83,7 @@ export function Calendar({
   basePath: string;
 }) {
   const panelId = useId();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialTaskId);
   const open = tasks.find((task) => task.id === selected) ?? null;
 
   const timed = tasks.flatMap((task) => (task.minutes === null ? [] : [task.minutes]));

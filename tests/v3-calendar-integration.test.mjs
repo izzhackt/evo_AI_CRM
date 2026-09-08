@@ -41,7 +41,8 @@ test("deadline-kind conversion preserves the task day instead of the period anch
     { dueOn: "2026-09-01", dueAt: "2026-09-01T09:00" },
   );
   assert.match(controls, /taskDeadlineInputDefaults\(task, day\)/);
-  assert.match(controls, /defaultValue=\{defaults\.dueOn\}/);
+  assert.match(controls, /useState\(defaults\.dueOn\)/);
+  assert.match(controls, /value=\{dueOn\}/);
   assert.match(controls, /value=\{displayDueAt\}/);
 });
 
@@ -73,9 +74,11 @@ test("V3 calendar exhausts selected ranges and bounds undated history", () => {
   assert.match(controls, /Показаны первые 100 активных дел/);
   assert.equal(
     [...adapter.matchAll(/await getPlatformAdmissionsTaskWorkspace\(/g)].length,
-    1,
+    2,
+    "one normal workspace read plus one case-bound deep-link read",
   );
-  assert.equal([...adapter.matchAll(/await listPlatformStudentCases\(/g)].length, 1);
+  assert.equal([...adapter.matchAll(/await listPlatformStudentCases\(/g)].length, 2);
+  assert.match(adapter, /const workspace = !target && cases\.rows\[0\]/);
   assert.doesNotMatch(
     adapter,
     /better-sqlite3|drizzle|@\/lib\/server\/database|\bevo_[a-z0-9_]+\b/i,
@@ -126,7 +129,23 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.match(types, /complete: string/);
   assert.match(types, /cancel: string/);
   assert.ok([...page.matchAll(/randomUUID\(\)/g)].length >= 4);
-  assert.doesNotMatch(controls, /return_to_case|name="reason"/);
+  assert.doesNotMatch(controls, /return_to_case/);
+  assert.match(controls, /name="reason" value=\{reason\}/);
+});
+
+test("calendar links resolve a real case-bound task and preselect it without page duplication", () => {
+  assert.match(page, /hasTarget && \(!caseId \|\| !taskId\)\) notFound\(\)/);
+  assert.match(page, /await readCalendarTaskTarget\(actor, caseId, taskId\)/);
+  assert.match(page, /hasTarget && !target\) notFound\(\)/);
+  assert.match(page, /const day = target\?\.task\.day \?\?/);
+  assert.match(page, /initialTaskId=\{target\?\.task\.id \?\? null\}/);
+  assert.match(adapter, /entry\.access !== "full"/);
+  assert.match(adapter, /entry\.studentCase\.studentCaseId !== studentCaseId/);
+  assert.match(adapter, /getPlatformAdmissionsTaskWorkspace\(actor, studentCaseId\)/);
+  assert.match(adapter, /workspace\.tasks\.find\(\(row\) => row\.caseTaskId === caseTaskId\)/);
+  assert.match(adapter, /if \(!task\) return null/);
+  assert.match(adapter, /read\.tasks\.filter\(\(task\) => task\.id !== target\.task\.id\)/);
+  assert.match(calendar, /useState<string \| null>\(initialTaskId\)/);
 });
 
 test("V3 calendar resolves the page actor before reading Admissions data", () => {

@@ -48,6 +48,7 @@ const CHANGE_TASK_FIELDS = [
   "student_visible",
   "request_id",
   "expected_version",
+  "reason",
 ] as const;
 
 export type PlatformAdmissionsActionStatus =
@@ -311,10 +312,11 @@ export async function changePlatformAdmissionsTaskAction(
     field(fields, "due_at"),
   );
   const studentVisible = booleanValue(field(fields, "student_visible"));
+  const changeReason = text(field(fields, "reason"), 1000);
   if (
     !studentCaseId || !caseTaskId || !requestId || !expectedVersion || !status ||
     !assigneeMembershipId || !priority ||
-    !deadline || studentVisible === null
+    !deadline || studentVisible === null || !changeReason
   ) {
     return failureState(form, "invalid", caseTaskId, requestId);
   }
@@ -332,6 +334,7 @@ export async function changePlatformAdmissionsTaskAction(
       p_student_visible: studentVisible,
       p_expected_version: expectedVersion,
       p_request_id: requestId,
+      p_reason: changeReason,
     });
     if (response.error) {
       return failureState(

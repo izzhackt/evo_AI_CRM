@@ -21710,3 +21710,12 @@ navigation on `http://localhost:3000/v3/profile` (the production SSH tunnel)
 showed all-status directory count 0, no accessible cases and no people;
 calendar also showed no active case and zero task queue. This is fresh UI
 evidence of the real-case acceptance blocker, not proof of the new local UI.
+
+UX-6 post-return guard, identified before coding: the existing task commands
+allow Admin to choose any live curator, so serialization alone does not reject
+an old Admin form submitted after coverage return. In migration133, for a case
+with coverage history only, an open/in-progress/blocked task assigned to a
+curator must target the current case curator. Check under the same assignment
+lock. Admin assignees, terminal tasks and cases without coverage stay unchanged.
+This is the minimum coverage-specific enforcement of the approved no-orphan
+invariant; it does not broaden this run into a general task-assignment redesign.

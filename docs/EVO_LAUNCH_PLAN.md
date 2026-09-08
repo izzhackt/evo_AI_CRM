@@ -83,6 +83,17 @@ The first release and certification are already closed in #552/#553 on
 commit does not redeploy the app or reopen completed launch blocks. Apply the
 current scoped short-PR cadence, not historical full-gate-per-merge wording.
 
+## Current follow-up: sales report in the platform (2026-09-08)
+
+The owner authorizes replacing the supplied monthly sales spreadsheet workflow
+with a year/month report and editable sales register inside V3, importing the
+actual source, and deploying it for owner inspection. The executable contract
+is [sales-report-run-plan.md](design/v3/sales-report-run-plan.md).
+This is reporting data, not automatic contract/payment confirmation or case
+creation. Keep currency-specific totals, source provenance, unresolved values,
+existing identity/finance boundaries and own-record Sales scope. Google remains
+unchanged; after the initial transfer, platform records are edited in EVO.
+
 ## Current authority: V3 becomes the managed-Supabase product
 
 The owner has ended both the self-hosted/no-Supabase direction and the

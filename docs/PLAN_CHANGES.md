@@ -21767,3 +21767,53 @@ Student-self actions/readback, concurrency, desktop/393px acceptance, release
 CI, production migration apply and deployment remain open. A missing-input
 question requests real case/actor identities, not passwords. Keep this branch
 shared on GitHub; PR/merge/release gates must not be presented as completed.
+
+### 2026-09-08 — replace monthly sales spreadsheet workflow with V3 register
+
+Before implementation, the owner explicitly requested the supplied sales
+spreadsheet be replaced by platform entry/reporting, grouped by year/month,
+with practical choices delegated and production deployment for owner inspection.
+See `docs/design/v3/sales-report-run-plan.md` for the executable contract.
+
+The actual exported source has 209 named records across November2025 through
+September2026. Source month and contract date differ in four rows; retain both.
+Paid values are cumulative snapshots without payment dates, sometimes mixed
+currency or free text. Do not create financial evidence, first-payment gates,
+handoffs, cases or fake customer identities from those snapshots. Parse only
+unambiguous amounts; preserve unresolved text and report its exclusion from
+currency-specific money totals. Empty is not zero or unpaid. Manual header
+fact totals differ from row counts in July/August; derive platform facts from
+records, preserve source control discrepancies rather than fabricating a tie-out.
+
+Add one canonical sales-report register/target module in root migration134,
+cookie-bound guarded RPC and V3 adapters. Admin controls organization records;
+Sales owns only explicitly assigned records and server-forced own new records.
+Historical seller labels do not automatically map to staff identities. Keep
+raw snapshot/provenance separate from editable values, idempotent source keys,
+optimistic versions and append-only audit. Archive/restore replaces destructive
+delete. Do not alter existing finance evidence grants or expose a parent module.
+
+One source import, no recurring Google OAuth/sync dependency or source edits.
+Original sensitive source stays private outside Git/AI knowledge. Scoped real
+checks and independent review precede the canonical PR/release path; no synthetic
+business acceptance is claimed. Existing production-release rollback constraints
+remain real prerequisites, independent of the owner's real-case acceptance waiver.
+
+### 2026-09-08 — owner adds pipeline-to-sales-register automation
+
+The owner clarified: import spreadsheet data once, never synchronize Google;
+staff then work in EVO, and the final pipeline step automatically enters the
+report. Before coding this addition, the actual pipeline was inspected:
+`src/lib/v3/pipeline-source.ts` ends in derived `handed_off` ("Переданы").
+The canonical completed event is a `platform.sales_admissions_handoffs` record
+from migration088, not a new stage enum or client-side drag-only side effect.
+
+Extend migration134 with an atomic completed-handoff integration and bounded
+idempotent existing-handoff backfill. Preserve unique organization+lead identity,
+source provenance and manual edits. No automatic duplicate from retry; no
+source-sheet edits; no handoff/gate bypass. Snapshot existing real identity and
+Sales owner, group new pipeline records by actual handoff month in Asia/Bishkek.
+Missing signing date, total service price and cumulative paid amount remain
+unknown; contract confirmation time and first payment are not substitutes.
+Historical import records remain distinct source rows until explicitly linked,
+without fuzzy customer merging. User delegated this minimal implementation.

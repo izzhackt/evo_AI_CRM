@@ -9,10 +9,13 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Current accepted production baseline: `4e6057f0159dba6515ea18b412567b48779cf77f`,
-recorded in closed #552/#553 after CI `34165496188` and release `34165979423`.
-The active next run is the September 8 curator/UX plan below. A documentation
-change does not repeat that accepted deployment.
+Current deployed application: `0cbb2d42d9691fac392864fea72a3f0894826773`, version
+`r27.1-0cbb2d42`, after full CI `34223961358` and release `34224668896` passed.
+Production schema is at 134; the release arm is false. The one-time import of
+209 sales/4 targets is reconciled; owner business acceptance remains deferred.
+The earlier accepted
+`4e6057f0` evidence in closed #552/#553 remains first-release history, not the
+current app revision. A documentation change does not by itself deploy the app.
 
 ## Historical integration and release-preparation checkpoints
 
@@ -68,8 +71,8 @@ and catalog extension) and 13 (new post-arrival scope) are deferred. Items
 The executable scope, unchecked acceptance list and UX criteria are in
 [the separate September 8 run plan](design/v3/curator-ux-run-plan.md),
 with owner wording in [product.md](design/v3/product.md#owner-curator-ux-20260908).
-Implementation was explicitly authorized on September 8 and is prepared on
-`izzhackt/curator-ux-execution`. The owner now explicitly authorizes deployment
+Implementation was explicitly authorized on September 8 and merged with the
+Sales report in PR #688. The owner explicitly authorizes deployment
 although the live Admin directory has no case on which to perform the real
 Curator/Sales/Student workflows before release. That business-case acceptance is
 waived and deferred, not passed, and must not be replaced with synthetic users or
@@ -101,19 +104,68 @@ no platform rebuild, new design system, dense all-in-one screen, extra staff rol
 Auth change or provider activation.
 
 The source-backed Sales report is part of the same deployment objective. Its
-contract is now recorded before implementation in
+contract was recorded before implementation in
 [sales-report-run-plan.md](design/v3/sales-report-run-plan.md) and the append-only
-decision log; the implementation and private import preparation are in
-`izzhackt/sales-report-platform`, together with this reviewed curator wave.
-Neither production import nor deployment has completed.
+decision log. Code is on `main` and deployed; the authorized 209-row/4-target
+import and duplicate-free repeat/readback are complete. Google was not modified.
 
-Release prerequisite correction (September 8): the fresh managed exporter stopped
-before a signed receipt because it assumed physical COPY migration rows were
-ordered. Read-only inventory proves 128 unique valid versions 001–128 with all
-required fields, but physical row order is not monotonic. Correct only exporter
-and recovery-consumer logical ordering, preserving original dump bytes/hashes and
-duplicate/integrity rejection; then independently review, merge and rerun the
-fresh encrypted backup before any production schema/app changes.
+### September 8 release checkpoint
+
+- Merged: [PR688](https://github.com/izzhackt/evo_AI_CRM/pull/688) (curator/Sales),
+  [PR689](https://github.com/izzhackt/evo_AI_CRM/pull/689) (backup ledger ordering),
+  [PR690](https://github.com/izzhackt/evo_AI_CRM/pull/690) (test inventory/reason).
+  Frozen candidate: `0cbb2d42d9691fac392864fea72a3f0894826773`.
+- Fresh signed backup is complete, not the earlier interrupted export. Artifact
+  `evo-v3-managed-export-20260908114631-bf20388b-cd2e-4b94-8810-dfee4ccf576e`
+  resides in the private CRM backup directory; receipt SHA256
+  `2ca18e7ece4042809016011f2f49222831f572e1f96da91770d0683b16a90580`.
+  Source-main `a3c01015`, pre-change ledger 001–128, Auth 2; all 15 checked core
+  business relations empty, Storage 0 objects/bytes. Signature, eight ciphertext
+  hashes and five decrypted SQL hashes passed. #551 remains the old recovery-engine
+  proof under that empty-source condition; no new restore rehearsal is claimed.
+- Production schema [apply 34223314795](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34223314795)
+  and [check 34223577479](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34223577479)
+  passed: exactly 001–134, no missing/extra versions. Read-only catalog/ACL proof
+  covered 27 functions, single 11-argument task RPC, private coverage bodies,
+  five FORCE-RLS private tables and portal v1/v2 grants. Ordinary real Admin
+  JWT → authority RPC → `read_sales_register_v1` returned HTTP 200 and passed
+  the canonical DTO parser. This pre-import read had 0 rows/targets and made no
+  business write; the later authorized import is recorded below.
+- [Full CI 34223961358](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34223961358)
+  passed on that frozen candidate: Node/static/build, real browser/database,
+  dependency audit and final Main CRM gate. [Release 34224668896](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34224668896)
+  also passed, including the normal Admin browser gate and acceptance step.
+  Independent host readback at 12:19:24Z confirms healthy app/ClamAV/WAHA with
+  zero restarts, external health PASS, no pending release and lock 0. This is
+  container health, not live WhatsApp delivery. App/image/OCI revision is `0cbb2d42`,
+  version `r27.1-0cbb2d42`, release `v3-r34224668896-a1-0cbb2d42`.
+  Immutable image: `sha256:de5b625518efc094f7be1437a4188dc713d2f7979cc66b900c6e55026dc20dda`.
+  Accepted pointer SHA256: `bc7275af1d3cbfa3f4c6ef3d95ee75be0a89ed217a842e74bcc6421741c8ec11`;
+  acceptance receipt SHA256: `a40439ca8288d4fde009c75cd59336dbbfc40800445c2d8a0fc0357c5f264f89`.
+  Rollback remains bound to prior `4e6057f0`. Arm=false was read back twice,
+  last at 12:16:19Z. Do not repeat a successful release/schema apply for docs.
+- Real Admin import completed: 209 rows and 4 targets inserted; skipped 0,
+  mismatches 0. Repeating the same source inserted 0 and skipped 209 rows/4 targets,
+  again mismatches 0. Durable readback reconciled all source keys, months,
+  currency-specific totals and unresolved counts: 2025 has 22 sales, 2026 has 187;
+  archived 0. Safe import evidence SHA256:
+  `dffe38b88b391f2ba454ae3153281aae931de253eadcaa42138e61f23e599400`.
+  Details and private evidence locations are in the Sales run plan. Historical
+  imported records deliberately have no invented pipeline/customer links.
+- Owner business acceptance remains DEFERRED. [#687](https://github.com/izzhackt/evo_AI_CRM/issues/687)
+  is OPEN for removal of the temporary portal v1 and Admin omitted-reason
+  exceptions after owner acceptance. The loopback tunnel is ready at
+  `http://127.0.0.1:3000`; local and remote login return HTTP 200 with matching body
+  hashes. A separate headed Chrome proof passed through the ordinary Admin login
+  form: the 2026 report shows 187 populated records, correct currency totals and
+  the Admin-only import control, without a load error. A private screenshot was
+  captured at 12:20:51Z; no cookie/JWT injection or Auth bypass was used.
+  Chrome remains open at `http://localhost:3000/v3/main?view=sales&year=2026&month=all`.
+  The Mac is locked; owner unlock is needed to see the already-loaded window,
+  not to complete technical UI proof. Owner inspection is still deferred.
+  This is production, not local development; recheck the tunnel target after
+  container recreation.
+
 To shorten the release critical path, exact-main isolated CI may run concurrently
 with backup/schema preparation while the release arm stays false. Arm only after
 all backup, schema and host gates pass and only if that same exact-main CI run is

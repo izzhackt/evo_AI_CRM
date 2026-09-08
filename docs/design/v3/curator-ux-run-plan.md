@@ -4,9 +4,10 @@
 
 ## 08.09 — одобренные улучшения кураторов и лёгкий UX/UI
 
-**Статус: код пяти одобренных пунктов подготовлен; владелец разрешил выкладку
-без недоступной сейчас приёмки на реальном деле. Технический release и новый
-Sales-отчёт ещё не готовы.**
+**Статус: пять одобренных пунктов и Sales-отчёт deployed на `0cbb2d42`;
+production schema 134 проверена, arm=false. Перенесены и сверены 209 продаж/4 плана.
+Туннель и настоящий Admin UI проверены; окно открыто, владелец увидит его после разблокировки Mac.
+Приёмка на настоящем деле отложена по решению владельца, не пройдена.**
 Основание — [решение владельца](product.md#owner-curator-ux-20260908).
 Общий контракт — [EVO_LAUNCH_PLAN.md](../../EVO_LAUNCH_PLAN.md), изменения
 границ — [PLAN_CHANGES.md](../../PLAN_CHANGES.md). Сначала читать AGENTS.md,
@@ -56,8 +57,9 @@ Curator reason-required и все ownership/coverage guards сохраняютс
 209 строк и 4 месячных планов отдела проверен; контракт до coding записан в
 [sales-report-run-plan.md](sales-report-run-plan.md). Там же — checksum,
 приватные артефакты, schema/UI, автоматическая запись после handoff, проверки
-и оставшиеся blockers. Общая интеграционная ветка — `izzhackt/sales-report-platform`;
-production import/deployment не закрыты.
+и оставшиеся действия. Общая интеграция merged через PR #688; исправления backup
+и технических gates — PR #689/#690. App deployment, production import и технический
+headed Admin UI proof завершены; содержательная приёмка владельца остаётся отдельно.
 
 ### Точная граница выбора
 
@@ -217,14 +219,28 @@ Pending/error-поведение реализовывать существующ
 
 ### Текущая передача исполнения
 
-- База: `main` `61733a155d3926742144db21e53e6396da249864` (PR #686).
-- Ветка исполнения: `izzhackt/curator-ux-execution`; проверяемый код
-  `c35f8c1a` (последующие docs-only commits не означают новое runtime proof).
-- Интеграционный worktree:
-  `/Users/iskhak.tazhibaev/.codex/worktrees/run-plan-handover/evo_AI_CRM`.
-  Исходный checkout с чужими изменениями не чистили и не переключали.
-- Все части собраны на одной ветке, без второго приложения и без смены Auth.
-  Ни одна migration129–133 не применена к production; новый UI не развёрнут.
+- План принят PR #686 (`61733a15`); реализация пяти частей и Sales-отчёта merged
+  PR #688 (`07ec6991`). PR #689 исправил parser backup, PR #690 — только
+  технические тесты. Исторический `c35f8c1a` не является release SHA.
+- Замороженный release candidate: `0cbb2d42d9691fac392864fea72a3f0894826773`.
+  [Full CI 34223961358](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34223961358)
+  прошёл, включая real browser/database и финальный Main CRM gate.
+  [Release 34224668896](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34224668896)
+  завершён успешно; SSH подтвердил healthy app/0 restarts и image/OCI revision
+  `0cbb2d42`, версия `r27.1-0cbb2d42`. Arm=false подтверждён после release.
+  Независимо сверены accepted pointer/receipt, immutable image, external health,
+  отсутствие pending/lock и связь rollback с прежним `4e6057f0`.
+- Production schema уже точно 001–134: [apply 34223314795](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34223314795)
+  и отдельный [check 34223577479](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34223577479)
+  прошли. Повторять apply без нового расхождения нельзя.
+- Fresh signed pre-change backup и live read-only RPC/ACL proof готовы; точный
+  receipt и границы recovery — в [release checkpoint](../../EVO_LAUNCH_PLAN.md#september-8-release-checkpoint).
+  Новый restore не заявлен. Auth 2, все 15 проверенных core business tables пусты,
+  Storage 0. Это не проверка новых действий Curator/Sales/Student.
+- Для code/import используется чистый worktree
+  `/Users/iskhak.tazhibaev/.codex/worktrees/run-plan-handover/evo_AI_CRM-sales-report`;
+  текущая docs-передача готовится отдельно в `evo_AI_CRM-adapter-inventory`.
+  Не переключать чужие worktrees и не превращать их в источник истины вместо GitHub.
 
 | Часть | Подготовлено в коде | Отложенная проверка на настоящем деле |
 | --- | --- | --- |
@@ -252,11 +268,12 @@ UX-8 exit inventory для review и release:
 - будущая migration удаления v1 не входит в текущую ветку и создаётся только
   после явной приёмки владельца; номер заранее не резервировать.
 
-### Что уже проверено — и чего эти проверки не доказывают
+### Проверки до merge и подтверждённый production readback
 
 - Node `22.23.1`: общий `npm run typecheck`, ESLint изменённых TS/TSX и
   `git diff --check` проходят. Новые Node contracts зарегистрированы по одному
-  разу; реестр `--suite unit --validate-only` содержит 122 уникальных файла.
+  разу; исторический curator-only реестр содержал 122 файла. Общая Sales/curator
+  интеграция и PR #690 используют 128 уникальных Node-файлов.
 - 19 узких source-contract проверок проходят. Они проверяют код/SQL и словарь,
   но не заменяют действие реального пользователя. Не выдавать unit/source
   assertions за реальный RPC, браузер или работу провайдера.
@@ -277,15 +294,19 @@ UX-8 exit inventory для review и release:
   ломавшее историю (`1c6c3c95`), а также недопустимую дату возврата замещения
   (`c35f8c1a`). Исправления независимо одобрены; все пять частей получили
   code approval. Это не acceptance approval. Точные review targets — в ledger.
-- Полный release suite, production migration apply и deployment не запускались.
-  Ошибочно начатый одним исполнителем полный локальный migration harness был
+- При первичной разработке full release suite и production apply ещё не запускали.
+  Теперь PR #688 прошёл шесть gates, включая полный migration-boundary с134;
+  schema apply/check и read-only production catalog/RPC proof прошли. Новый
+  exact-main full CI и application deployment прошли; нормальный Admin browser
+  gate не заменяет отложенную проверку действий Curator/Sales/Student.
+  Исторически ошибочно начатый одним исполнителем полный локальный migration harness был
   остановлен (exit130), его точный disposable container удалён; результата
   приёмки от этого запуска нет. В итоговой schema-only проверке не создавались
   тестовые дела, пользователи или подставные клиентские данные.
 
 ### Что не доказано и точное продолжение
 
-После разблокировки Mac прочитан настоящий Admin UI: `/v3/profile` показывает
+В последней проверке прежнего приложения настоящий Admin UI `/v3/profile` показывал
 0 доступных дел и «В базе нет ни одного человека»; календарь сообщает, что нет
 активного дела для задачи. `http://localhost:3000` — SSH-туннель к production,
 **не** локальный экземпляр изменённого кода. Проверка этого экрана не доказывает
@@ -296,25 +317,24 @@ UX-8 exit inventory для review и release:
 1. Прочитать этот план и ledger, затем `git fetch origin`, проверить ветку,
    HEAD, `git status`, разницу с актуальным `origin/main` и GitHub PR state.
    Не повторять завершённый первый запуск и не терять локальные чужие изменения.
-2. Продолжать из актуального checkpoint [Sales-плана](sales-report-run-plan.md):
-   исходная копия, импортёр и bounded implementation уже подготовлены. Закончить
-   exact-head review и нерешённые release/auth blockers; не повторять экспорт
-   и не создавать synthetic business data.
-3. Выполнить независимое exact-head review, выбранные репозиторием PR/CI gates и
-   merge согласно launch-control. После последней правки заново зафиксировать
-   точный current-main release SHA; старый `c35f8c1a` — только code checkpoint.
-4. До любых production writes прочитать фактическую migration history и
-   подтвердить backup/rollback. Поскольку ledger применяет 129 раньше 131,
-   проверить одобренный Admin-only null-reason guard в canonical body 129/133;
-   portal bridge сам по себе этот риск не закрывает.
-   После применения reviewed schema проверить обе точные overview формы/grants и
-   обновлённый PostgREST schema cache. Старое приложение остаётся на v1, затем
-   выкладывается exact-image нового приложения, которое вызывает лишь v2. При
-   rollback вернуть прежний image: он использует сохранённый v1; общий DB recovery
-   остаётся обязательным release evidence. Не удалять v1 в этой волне.
-5. Для замороженного exact SHA выполнить обязательный технический release path:
-   требуемый full CI, schema/app cutover по утверждённой процедуре, downstream
-   deploy, exact-image и health/readback, а также доказательства rollback.
+2. Сверить текущий CI/release с checkpoint [Sales-плана](sales-report-run-plan.md).
+   Backup, миграции и доступ настоящего Admin уже проверены. Не повторять reset,
+   экспорт или schema apply без нового подтверждённого основания.
+3. Сверить завершённый release `34224668896`, app/image `0cbb2d42`, health и
+   arm=false с последними receipts. Не повторять релиз для docs-передачи. Если
+   нужен новый candidate, следовать exact-current-main gate, не подменять SHA.
+4. Сохранить временные rollback exceptions: старый app использует portal v1 и
+   разрешённый Admin-only omitted-reason вызов единственного task RPC; новый app
+   использует только v2 и всегда передаёт причину. Оба контракта/grants уже
+   проверены в production. Не удалять их в этой волне: [#687](https://github.com/izzhackt/evo_AI_CRM/issues/687)
+   остаётся OPEN до owner acceptance и отдельной reviewed forward migration.
+5. Авторизованный перенос 209 продаж/4 планов, повтор без дублей и source
+   reconciliation уже завершены. Loopback tunnel `http://127.0.0.1:3000` готов:
+   local/remote login HTTP 200 и одинаковый body hash. Headed Chrome прошёл обычную
+   Admin login form и показал 187 продаж 2026, правильные итоги и Admin-only control;
+   скриншот сохранён приватно. Окно уже открыто; после разблокировки Mac владелец
+   сможет увидеть результат. Это technical UI proof, не owner/business acceptance.
+   После пересоздания контейнера проверить приватный target; это production, не dev.
    Реальные provider calls и synthetic production данные не использовать;
    изолированные технические CI fixtures разрешены отдельно.
 6. После deployment владелец проверяет интерфейс. Когда появятся согласованные

@@ -1,7 +1,9 @@
 # Продажи: перенос рабочего отчёта в EVO
 
-Дата: 08.09.2026. Статус: код подготовлен и прошёл независимый CODE/DOC review;
-production apply, перенос и live-приёмка ещё не выполнены.
+Дата: 08.09.2026. Статус: reviewed код deployed на `0cbb2d42`, production schema
+134 проверена, arm=false. Перенос 209 продаж/4 планов и повторная сверка выполнены;
+туннель и настоящий Admin headed UI проверены. Окно уже открыто; владелец увидит
+его после разблокировки Mac. Содержательная бизнес-приёмка не закрыта.
 Это отдельная работа после [улучшений кураторов](curator-ux-run-plan.md).
 Общий контракт: [EVO_LAUNCH_PLAN.md](../../EVO_LAUNCH_PLAN.md).
 
@@ -128,15 +130,21 @@ Pending, success, ошибки и пустое состояние различа
 1. [x] Прочитать реальную книгу, выявить столбцы, месяцы и неоднозначности.
 2. [x] Backend: migration 134, минимальные guarded reads/commands/import,
    строгий source adapter. UI параллельно на зафиксированном DTO без моков.
-3. [ ] Приватный разбор и предварительная сверка всех исходных строк; применить
-   только подготовленный импорт с точным source checksum. Не трогать Google.
-4. [ ] Проверить реальные schema/RPC, повтор импорта, version/tenant/role отказы,
-   source reconciliation; type/lint и изменённые сценарии UI. Пустота не успех.
-5. [ ] Независимый exact-head review, short PR gates, merge, один exact-main
-   release proof. Production apply/deploy только штатным проверенным путём.
-6. [ ] Перенести исходные строки, сверить количество и однозначные суммы с
-   источником, открыть live раздел для владельца. Бизнес-проверку владельца
-   не отмечать выполненной заранее. Записать live SHA/URL/точные ограничения.
+3. [x] Приватный разбор и предварительная сверка всех 209 исходных строк:
+   два исполнителя получили один payload checksum. Применение — отдельный пункт 6.
+4. [ ] Technical subset пройден: schema134, ACL/RLS, настоящее Admin RPC-чтение,
+   import/repeat/readback/reconciliation, type/lint/build и short PR gates.
+   Отдельные реальные manual CRUD/version/tenant/role сценарии и бизнес-приёмка
+   не объявлены пройденными; отсутствие подходящих actors/data не заменять mock proof.
+5. [x] Независимый exact-head review, short PR gates, merge, штатный production
+   schema apply/check, exact-main full CI и release прошли. Exact image/health
+   подтверждены; arm=false. Это техническая выкладка, не приёмка владельца.
+6. [x] Перенесены 209 исходных строк/4 плана; повтор не создал дублей. Количество,
+   месяцы, однозначные суммы по валютам и unresolved counts сверены с источником.
+7. [x] Headed Chrome прошёл обычную Admin login form, показал правильный отчёт
+   2026 с 187 строками и Admin control; screenshot приватный, окно оставлено открытым.
+8. [ ] Владелец после разблокировки Mac осматривает уже загруженный раздел.
+   Его содержательную бизнес-проверку не отмечать выполненной заранее.
 
 Параллельные владельцы: root — контракт/интеграция/UI; отдельный исполнитель —
 SQL/RPC; отдельный — импорт и сверка; независимый reviewer не принимает свой код.
@@ -168,35 +176,85 @@ Invoker wrappers и ограниченные EXECUTE grants не заменяю�
 - Backend: migration 134; cookie-bound source/actions и строгий DTO. Первичная
   версия целиком применена на настоящем изолированном PostgreSQL, затем review
   corrections применены атомарно. Catalog/ACL/no-session отказы и проверки
-  функций прошли. Полный финальный файл134 с чистой133 повторно не применялся:
-  подходящий сохранённый schema-only baseline не найден. Этот gate открыт.
+  функций прошли. Отдельный ручной fresh134 rerun тогда не делали из-за отсутствия
+  сохранённого baseline; впоследствии этот пробел закрыл реальный полный
+  migration-boundary PR #688 [34220988825](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34220988825).
+  Теперь штатный production apply134 и отдельный check также прошли.
   В rehearsal DB нет созданных пользователей, дел или продаж. Проверка формы
   209 исходных записей в SQL не является их импортом.
 - UI: `/v3/main?view=sales`, месяцы/год, собственные записи Sales, полный отчёт
   Admin, сохранение/архив/восстановление и явная сверка stale. TypeScript,
   scoped ESLint, production build, четыре source/scalar checks и регистрация
   128 уникальных Node-файлов прошли. Это не authenticated browser/CRUD proof.
-- Read-only production ledger run
+- Исторический pre-change production ledger run
   [34217342943](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34217342943)
   подтвердил 128 применённых миграций, без недостающих/лишних относительно
-  `main` `61733a155d3926742144db21e53e6396da249864`. Миграции 129–134 не применялись.
+  `main` `61733a155d3926742144db21e53e6396da249864`. Это прежний snapshot;
+  текущий production ledger уже001–134, подтверждение ниже.
 
-### Перед merge / deploy / import
+### Текущий release / import checkpoint
 
-PR [688](https://github.com/izzhackt/evo_AI_CRM/pull/688) уже merged в
-`07ec69916aa61505383e0ac7a09ed48fb2a42c51`; все шесть PR gates прошли.
-Проверка34221604124 подтверждает ровно pending129–134. Текущий blocker до apply —
-fresh backup: exporter/recovery parser ошибочно требует физически отсортированные
-строки COPY при корректных128 уникальных версиях. Исправление ограничено логическим
-порядком и тестами; исходные байты/хеши сохраняются. После reviewed merge повторить
-полный encrypted export; не считать прерванный экспорт готовой копией.
+PR [688](https://github.com/izzhackt/evo_AI_CRM/pull/688) merged в `07ec6991`,
+все шесть PR gates прошли. [PR689](https://github.com/izzhackt/evo_AI_CRM/pull/689)
+исправил логический порядок migration ledger в backup/recovery parser, сохранив
+исходные байты/хеши и rejection дублей. [PR690](https://github.com/izzhackt/evo_AI_CRM/pull/690)
+исправил только exact adapter inventory и reason input существующего browser gate.
+Замороженный current-main release SHA: `0cbb2d42d9691fac392864fea72a3f0894826773`.
 
-1. Независимый CODE/DOC review завершён: продажи и одобренный portal v2 rollback bridge
-   уже собраны в одной ветке `izzhackt/sales-report-platform`. Старый portal v1 разрешён только до проверки
+- Fresh signed export завершён из source-main `a3c01015`, до schema apply:
+  `evo-v3-managed-export-20260908114631-bf20388b-cd2e-4b94-8810-dfee4ccf576e`.
+  Receipt SHA256: `2ca18e7ece4042809016011f2f49222831f572e1f96da91770d0683b16a90580`.
+  Подпись, защищённые права, восемь ciphertext и пять decrypted SQL hashes прошли.
+  Pre-change ledger 001–128, Auth 2, все 15 проверенных business relations пусты,
+  Storage 0 объектов/байт. Полный путь — приватный каталог резервных копий CRM;
+  секреты/дампы в Git не переносить. #551 — прежнее доказательство recovery engine
+  с более старым snapshot; нового restore не было. Его reuse ограничен
+  подтверждённым empty-business/Storage условием, не подменяет fresh export.
+- Production [apply 34223314795](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34223314795)
+  и [check 34223577479](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34223577479)
+  прошли: ledger точно 001–134, без extras/missing. Отдельный read-only audit 27
+  функций и пяти private FORCE-RLS таблиц подтвердил grants, task/coverage guard,
+  portal v1/v2 и включённый handoff trigger. Настоящий Admin JWT и authority RPC
+  дали `read_sales_register_v1` HTTP 200, canonical DTO PASS, rows/targets 0
+  до импорта. Этот read-only checkpoint не является CRUD/import/handoff приёмкой.
+- [Full CI 34223961358](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34223961358)
+  прошёл на `0cbb2d42`: Node/static/build, real browser/database, dependency audit
+  и Main CRM gate. [Release 34224668896](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34224668896)
+  тоже прошёл, включая normal Admin browser и acceptance step. SSH readback:
+  healthy app/0 restarts, image/OCI revision `0cbb2d42`, версия `r27.1-0cbb2d42`.
+  Независимый terminal host proof 12:19:24Z сверил accepted pointer/receipt,
+  immutable image, external health, отсутствие pending/lock и rollback к `4e6057f0`.
+  Arm=false подтверждён дважды, последнее чтение 12:16:19Z.
+- Настоящий Admin выполнил импорт: inserted 209, skipped 0, mismatches 0;
+  targets inserted 4, skipped 0, mismatched 0. Повтор: inserted 0/skipped 209 и
+  targets inserted 0/skipped 4, mismatches 0. Durable readback: 209 активных строк,
+  archived 0, 4 плана; 2025 — 22 продажи, 2026 — 187. Все 209 source keys, месячные
+  количества, валютные суммы и unresolved counts совпали с подготовленным
+  payload. Исторические строки не получили выдуманных ссылок на лид/клиента.
+  Обычный Admin JWT обязателен; диагностический сеанс завершён локально.
+- Safe evidence вне Git: каталог `~/.codex/private-artifacts/evo-sales-20260908`,
+  файлы 0600 `evidence-preflight-2026-09-08T12-17-52-546Z.json`
+  (SHA256 `8aeb3c04da40a44d5489d9209833514016849ab17c230af54c0f418b3aa1232b`)
+  и `evidence-import-2026-09-08T12-19-13-341Z.json`
+  (SHA256 `dffe38b88b391f2ba454ae3153281aae931de253eadcaa42138e61f23e599400`).
+  Source/payload checksums не изменились. Данные не печатать и не копировать в Git.
+- Loopback SSH tunnel `http://127.0.0.1:3000` готов и ведёт в production:
+  local/remote login HTTP 200 с одинаковым body hash. Приватный адрес контейнера
+  после release не изменился, restart туннеля не потребовался. Отдельный настоящий
+  headed Chrome proof прошёл: обычная Admin login form, 187 продаж за 2026, корректные
+  валютные итоги, Admin-only «Начальный перенос данных», без report load error.
+  Auth не обходили и cookie/JWT state не инъецировали. Screenshot
+  `local-sales-report-2026.png` сохранён приватно, 0600, в 12:20:51Z; браузер оставлен
+  открытым на `http://localhost:3000/v3/main?view=sales&year=2026&month=all`.
+  Mac locked — владелец должен разблокировать его, чтобы увидеть готовое окно.
+  Это technical UI read proof, а не его содержательная приёмка.
+
+1. Независимый CODE/DOC review и merge завершены: продажи и одобренный portal v2
+   rollback bridge находятся на `main`. Старый portal v1 разрешён только до проверки
    владельца; новый UI вызывает только v2. Не расширять исключение молча.
-2. Разрешить blocker отката migration 129: старый Admin UI не передаёт обязательную
+2. Blocker отката migration 129 закрыт разрешённым временным исключением: старый Admin UI не передаёт обязательную
    причину изменения задачи. Возврат тела migration 110 ломает вызовы и guards
-   замещения 133, поэтому не является безопасным откатом. Минимальное предлагаемое
+   замещения 133, поэтому не является безопасным откатом. Применённое
    решение — временное Admin-only исключение для отсутствующей причины в том же
    каноническом обработчике, без второй RPC. Владелец подтвердил предложенный путь
    ответом «крче выложи» 8 сентября: только server-resolved Admin может опустить
@@ -207,16 +265,17 @@ fresh backup: exporter/recovery parser ошибочно требует физи�
    Владелец подтвердил предложенный путь: существующие изолированные fixtures
    разрешены для технических gates, не для production/business/provider acceptance.
    В production фиктивные записи и provider sends остаются запрещены.
-4. Проверенный PR → merge/freeze current main → fresh backup/preflight при arm=false →
-   штатный schema apply → schema-cache/readback → arm → exact-main CI и
-   управляемый release → disarm. Для ускорения isolated exact-main CI можно начать
+4. Backup/preflight, штатный schema apply/cache/readback, exact-main CI,
+   управляемый release и disarm завершены. Не повторять их ради docs-передачи. Для следующего
+   запуска сохраняется порядок: reviewed merge/freeze → backup при arm=false →
+   schema/readback → arm → exact-main release → disarm. Isolated CI можно начать
    параллельно backup при arm=false. Включить arm только после всех schema/backup
    gates и если именно этот CI ещё идёт; если он уже завершился unarmed, после
    готовности запустить новый exact-main CI, не считать пропущенный release успешным. Не
    использовать service-role для обхода Admin или пользовательской сессии.
-5. Реальным Admin вызвать существующий `importSalesRegisterAction` с приватным
-   JSON, сверить 209 исходных записей/4 плана и суммы отдельно по валютам, повторить
-   тот же импорт для проверки отсутствия дублей. Отдельно подтвердить настоящий
+5. Перенос через настоящий Admin и canonical import RPC с приватным JSON,
+   сверка 209 записей/4 планов и повтор без дублей уже выполнены. Не повторять
+   импорт ради открытия UI. Отдельно подтвердить настоящий
    permitted CRUD/readback и canonical handoff, только если есть реальные акторы
    и настоящий подходящий кейс. Не создавать фиктивный бизнес-кейс.
    Новая разрешённая диагностическая попытка вернула `invalid_credentials`.
@@ -225,7 +284,8 @@ fresh backup: exporter/recovery parser ошибочно требует физи�
    аккаунта; password-only reset завершён, настоящий вход/JWT/authority прошли,
    оба существующих GitHub smoke-секрета обновлены. Роли не менялись.
    Секреты — только encrypted/process-only; обычный Admin JWT обязателен для импорта.
-6. Зафиксировать accepted SHA, итог импорта и доступный владельцу live URL;
-   показать именно серверную версию через SSH-туннель на `127.0.0.1:3000`,
-   перепроверив target после пересоздания контейнера. Локальный dev не запускать;
-   отложенную проверку владельца не закрывать до его ответа.
+6. Accepted SHA, импорт и технический UI proof записаны выше. Окно на
+   `http://localhost:3000/v3/main?view=sales&year=2026&month=all` уже загружено;
+   после разблокировки Mac владелец может его осмотреть. При новом контейнере
+   перепроверить private target туннеля. Локальный dev не запускать; отложенную
+   проверку владельца не закрывать до его ответа.

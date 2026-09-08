@@ -19,6 +19,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plan = resolveNodeTestPlan({ packageJson, repositoryRoot });
 
   assert.deepEqual(DEFAULT_ENTRY_SCRIPTS, [
+    "test:sales-register",
     "test:security",
     "test:frontend",
     "test:e3",
@@ -34,8 +35,8 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 263);
-  assert.equal(plan.uniqueFileCount, 124);
+  assert.equal(plan.occurrenceCount, 267);
+  assert.equal(plan.uniqueFileCount, 128);
   assert.equal(plan.duplicateCount, 139);
   assert.equal(new Set(plan.files).size, plan.files.length);
   for (const requiredD1Test of [
@@ -62,7 +63,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 102);
+  assert.equal(bounded.files.length, 106);
   assert.equal(serial.files.length, 21);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs"]);
@@ -76,8 +77,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 161);
-  assert.equal(plan.uniqueFileCount, 119);
+  assert.equal(plan.occurrenceCount, 165);
+  assert.equal(plan.uniqueFileCount, 123);
   assert.equal(plan.duplicateCount, 42);
 });
 

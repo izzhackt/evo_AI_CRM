@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import {
   saveSalesRegisterAction, saveSalesTargetAction, importSalesRegisterAction,
@@ -70,7 +70,11 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, isAdmin, ownM
   const status = state.submittedVersion === base.version ? state.status : "idle";
   const fresh = fields(record, reportMonth, ownMembershipId, ownLabel);
   const displayValue = (key: string, value: string) => {
-    if (key === "owner_membership_id") return value ? ownerOptions.find(owner => owner.id === value)?.label ?? "Сотрудник недоступен" : "Не назначен";
+    if (key === "owner_membership_id") {
+      if (!value) return "Не назначен";
+      const owner = ownerOptions.find(option => option.id === value);
+      return owner ? owner.label || "Сотрудник без имени" : "Сотрудник недоступен";
+    }
     if (key === "needs_review") return value === "true" ? "Нужно уточнить" : "Данные уточнены";
     return value || "Не указано";
   };
@@ -113,7 +117,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, isAdmin, ownM
         <p className="text-xs text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми. Это отчётная запись, а не подтверждение платежа.</p>
         <div className="grid gap-4 sm:grid-cols-2">{input("manager_label", "text", false, 300)}
           {isAdmin ? <label><span className={labelCls}>Ответственный в платформе</span><select value={draft.owner_membership_id} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
-            <option value="">Пока не назначен — доступ только Admin</option>{ownerOptions.map(owner => <option value={owner.id} key={owner.id}>{owner.label}</option>)}
+            <option value="">Пока не назначен — доступ только Admin</option>{ownerOptions.map(owner => <option value={owner.id} key={owner.id}>{owner.label || "Сотрудник без имени"}</option>)}
           </select></label> : null}
         </div>
         <details><summary className="cursor-pointer py-3 text-sm font-medium">Программа и договор</summary><div className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -174,7 +178,6 @@ export function SalesTargetForm({ reportMonth, target, requestId, readUnavailabl
   }), { status: "idle", requestId, recordId: target?.id ?? null, submittedVersion: base?.version ?? 0 } as SalesRegisterActionState & { submittedVersion: number });
   const status = state.submittedVersion === (base?.version ?? 0) ? state.status : "idle";
   const changed = !readUnavailable && base?.version !== current?.version;
-  useEffect(() => { if (state.status === "saved") router.refresh(); }, [state.status, router]);
   return <form action={action} aria-busy={pending} className="mt-3 max-w-md space-y-3">
     <input type="hidden" name="request_id" value={state.requestId} /><input type="hidden" name="record_id" value={base?.id ?? ""} />
     <input type="hidden" name="expected_version" value={base?.version ?? 0} /><input type="hidden" name="report_month" value={reportMonth} /><input type="hidden" name="manager_label" value="" />
@@ -190,13 +193,11 @@ export function SalesTargetForm({ reportMonth, target, requestId, readUnavailabl
 }
 
 export function SalesRegisterImport({ requestId }: { requestId: string }) {
-  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [state, action, pending] = useActionState(async (previous: Awaited<ReturnType<typeof importSalesRegisterAction>>, form: FormData) => {
     if (file) form.set("import_file", file);
     return importSalesRegisterAction(previous, form);
   }, { status: "idle", requestId, recordId: null, importResult: null } as Awaited<ReturnType<typeof importSalesRegisterAction>>);
-  useEffect(() => { if (state.status === "saved") router.refresh(); }, [state.status, router]);
   return <form action={action} aria-busy={pending} className="mt-3 max-w-xl space-y-3">
     <input type="hidden" name="request_id" value={state.requestId} />
     <p className="text-sm text-fg-3">Однократная загрузка подготовленной копии. Повтор не добавляет дубли и не заменяет исправления сотрудников. Google-таблица не изменяется.</p>

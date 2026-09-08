@@ -92,11 +92,12 @@ Only a small usability polish of existing V3 surfaces/shared controls is in scop
 no platform rebuild, new design system, dense all-in-one screen, extra staff role,
 Auth change or provider activation.
 
-The owner also requests a Sales report that replaces the current Google Sheet
-workflow, must import a confirmed real source and support year/month periods. This
-is a bounded pending deliverable for the same deployment objective. Its exact
-source contract and implementation scope must be appended before coding; no
-columns, mappings or authority rules are inferred here.
+The source-backed Sales report is part of the same deployment objective. Its
+contract is now recorded before implementation in
+[sales-report-run-plan.md](design/v3/sales-report-run-plan.md) and the append-only
+decision log; the implementation and private import preparation are in
+`izzhackt/sales-report-platform`, together with this reviewed curator wave.
+Neither production import nor deployment has completed.
 
 The first release and certification are already closed in #552/#553 on
 `4e6057f0159dba6515ea18b412567b48779cf77f`. Preserve that evidence; a new plan

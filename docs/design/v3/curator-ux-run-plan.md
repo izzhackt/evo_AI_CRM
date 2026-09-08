@@ -46,14 +46,15 @@ forward migration. Provider calls в эту авторизацию не вход
 reviewed guard этого короткого old-app write window; overload или обход без
 отдельной авторизации не добавлять.
 
-### Новый блок: Sales-отчёт вместо Google Sheet — контракт ожидается
+### Новый блок: Sales-отчёт вместо Google Sheet — отдельный контракт
 
-Владелец также поручил создать и выложить отчёт Sales, который должен заменить
-текущий процесс Google Sheet, использовать подтверждённый реальный source import
-и давать выбор периода по году/месяцу. Остальные разумные продуктовые решения
-делегированы, но до подтверждения и записи точного source contract здесь
-не фиксируются колонки, mapping, маршрут или схема. Статус блока: анализ источника
-и отдельная исполнимая поправка к плану ожидаются до coding.
+Владелец также поручил создать и выложить отчёт Sales вместо Google Sheet:
+один перенос реальных данных, затем работа в платформе, без sync. Источник из
+209 строк и 4 месячных планов отдела проверен; контракт до coding записан в
+[sales-report-run-plan.md](sales-report-run-plan.md). Там же — checksum,
+приватные артефакты, schema/UI, автоматическая запись после handoff, проверки
+и оставшиеся blockers. Общая интеграционная ветка — `izzhackt/sales-report-platform`;
+production import/deployment не закрыты.
 
 ### Точная граница выбора
 
@@ -292,9 +293,10 @@ UX-8 exit inventory для review и release:
 1. Прочитать этот план и ledger, затем `git fetch origin`, проверить ветку,
    HEAD, `git status`, разницу с актуальным `origin/main` и GitHub PR state.
    Не повторять завершённый первый запуск и не терять локальные чужие изменения.
-2. Закончить подтверждённый source contract Sales-отчёта, затем его bounded
-   implementation и проверки. Использовать только подтверждённый реальный import;
-   не придумывать колонки и не создавать synthetic business data.
+2. Продолжать из актуального checkpoint [Sales-плана](sales-report-run-plan.md):
+   исходная копия, импортёр и bounded implementation уже подготовлены. Закончить
+   exact-head review и нерешённые release/auth blockers; не повторять экспорт
+   и не создавать synthetic business data.
 3. Выполнить независимое exact-head review, выбранные репозиторием PR/CI gates и
    merge согласно launch-control. После последней правки заново зафиксировать
    точный current-main release SHA; старый `c35f8c1a` — только code checkpoint.

@@ -21898,3 +21898,26 @@ procedure must close this short old-app write window before schema apply; the
 portal v1 bridge alone does not solve it. Migration 132's old two-argument call
 has no analogous semantic guard, and the accepted application does not call that
 new activity surface. No 129/132 compatibility overload is authorized or added.
+
+### 2026-09-08 — integrated sales/curator checkpoint, release remains unarmed
+
+The reviewed portal bridge and its earlier deployment-waiver documentation were
+integrated into `izzhackt/sales-report-platform`. Earlier pending-source wording
+is retained above as historical evidence; the current source-backed Sales contract
+was recorded before implementation in `docs/design/v3/sales-report-run-plan.md`.
+Current plan headers now link there rather than requesting another source analysis.
+
+The actual fresh spreadsheet preparation has 209 source records and four monthly
+department targets; independently reproduced payload checksum is in the run plan.
+Source/payload/manifest are preserved privately outside Git with owner-only modes.
+No Google edits, provider sends, production migration writes or imports occurred.
+Read-only schema run34217342943 confirmed production migrations001–128, matching
+current main61733a155d3926742144db21e53e6396da249864. One process-only existing
+Admin password sign-in returned HTTP400; no retry/reset or elevated bypass followed.
+
+Release still needs a real Admin session for import, a separate decision on the
+temporary Admin reason exception, and explicit permission for existing isolated
+technical CI fixtures under the current real-only instruction. Do not trigger PR
+automation that would silently run those fixtures, disable required checks, or
+call local source/catalog/build evidence production acceptance. Publishing the
+reviewed branch is not merge, schema apply, deployment or completed source import.

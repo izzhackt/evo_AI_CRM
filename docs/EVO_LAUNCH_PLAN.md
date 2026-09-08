@@ -1,7 +1,7 @@
 # EVO Launch Plan
 
 Status: active V3-on-managed-Supabase production-successor contract
-Date: 2026-09-06 (Asia/Dubai)
+Date: 2026-09-08 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
 0027, this plan and
 the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
@@ -42,6 +42,30 @@ Verified current release-preparation baseline: GitHub `origin/main` at
 `33983142821` remained safely skipped because the production arm was absent.
 Any merged correction changes the candidate SHA and requires exactly one new
 manual full proof after the corrected main is frozen.
+
+## Current follow-up: approved curator and light UX improvements (2026-09-08)
+
+The owner's September 8 selection approves only recommendations **2, 3, 4,
+6 and 8** from the fourteen-item business/product review: own operational-task
+deadline/priority changes; acknowledgment of Sales handoff; one permitted
+student history; curator workload/absence/coverage; and a clearer existing
+student portal. Item 9 (parent/payer feature) is rejected; 10 (offer comparison
+and catalog extension) and 13 (new post-arrival scope) are deferred. Items
+1, 5, 7, 11, 12 and 14 are not approved by this selection.
+
+The executable scope, unchecked acceptance list and UX criteria are in
+[the separate September 8 run plan](design/v3/curator-ux-run-plan.md),
+with owner wording in [product.md](design/v3/product.md#owner-curator-ux-20260908).
+This is a planning amendment, not implementation or production proof. Only a
+small usability polish of existing V3 surfaces/shared controls is in scope;
+no platform rebuild, new design system, dense all-in-one screen, extra staff
+role, Auth change or provider activation. Reuse canonical Supabase contracts;
+new authority/data behavior must be real, server-enforced and reviewed.
+
+The first release and certification are already closed in #552/#553 on
+`4e6057f0159dba6515ea18b412567b48779cf77f`. Preserve that evidence; a new plan
+commit does not redeploy the app or reopen completed launch blocks. Apply the
+current scoped short-PR cadence, not historical full-gate-per-merge wording.
 
 ## Current authority: V3 becomes the managed-Supabase product
 

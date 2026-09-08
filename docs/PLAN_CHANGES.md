@@ -21567,3 +21567,68 @@ preserves the engine-native ID while keeping the config digest distinct and
 the saved manifest single-image. The disposable local image/tag was removed.
 The edited shared edge passed the existing pinned Caddy runtime proof. These
 are scoped correction proofs, not production acceptance of a new revision.
+
+## 2026-09-08 — Owner-selected curator improvements and light UX/UI plan
+
+Date: 2026-09-08 (Asia/Dubai)
+Author: Codex, recording the owner's explicit selection
+Change type: product scope, UX acceptance, work order; documentation only
+
+The owner approved recommendations 2, 3, 4, 6 and 8 from the September 8
+fourteen-item review, rejected 9, and deferred 10 and 13. Record the original
+numbers and names so a successor cannot confuse them with a top-three summary
+or the historical three-stage release checklist. Unmentioned 1, 5, 7, 11, 12
+and 14 are not approved. The proposal itself is not new authority.
+
+Approved scope: allow the assigned curator to change their own operational
+task deadline/priority with audit; acknowledge or clarify an existing Sales
+handoff; connect permitted existing events in one student history; provide
+compact workload and controlled absence/coverage; clarify the current student
+portal next step. No parent/payer product extension, offer-comparison/catalog
+expansion or new post-arrival module in this wave. Existing data/features are
+not deleted because their proposed extensions were rejected or deferred.
+
+The owner asks for good, simple, non-dense UX/UI and a quick, small improvement,
+not a platform rebuild. Record all eight supplied principles in product.md;
+the run plan translates them into observable form states, familiar wording,
+cancel/back behavior, shared components, error prevention, comfortable targets,
+limited simultaneous choices and short understandable paths. Treat three
+clicks as a frequent-task navigation target, not a universal research-backed
+law or permission to remove confirmations. Preserve existing light V3 tokens,
+three staff roles and the deliberately simple document UI.
+
+Implementation bounds: keep atomic handoff and starter tasks; acknowledgment
+does not roll them back. Own operational-task deadlines do not include
+university deadline projections or changes to assignment/student visibility.
+Timeline uses permission-filtered canonical events, not raw audit payloads or
+a second transcript store. Minimal coverage uses one canonical owner and an
+explicit Admin-controlled return, not concurrent deputy authority or a new
+scheduler. Portal explanations require canonical actor/next-step data; no new
+reminder engine, outbound message or provider success claim is implied.
+
+Work order: record this plan first; UX-2 and UX-3 may proceed independently
+after event/visibility contract alignment; UX-4 incorporates their events and
+then UX-6 coverage events; UX-8 may run in parallel once its student projection
+is fixed. Shared UI polish belongs to those small slices. One owner sequences
+forward migrations and merges; no broad rewrite or new business modules.
+
+Validation: docs classifier, whitespace/internal links, focused Release
+contracts and independent exact-head review. Future behavior needs real
+authorized RPC/Auth/browser execution, durable readback, role-denial evidence
+and desktop/mobile checks. No synthetic accounts/cases or mock acceptance;
+missing real actors/data/action permission is an explicit proof blocker, not
+permission to manufacture data. Production migrations, deployment and external
+sends retain their separate gates; the owner's no-QR instruction is unchanged.
+
+The September 8 read of #552/#553 confirms the first release accepted
+4e6057f0 and completed its retirement/certification. Preserve old pre-freeze
+notes as history, do not rerun the closed launch because this docs SHA changes.
+No implementation, live provider proof or new deployment is claimed here.
+
+Owner clarification in the same September 8 planning turn: this is a different
+run and should have its own Markdown plan. Use
+`docs/design/v3/curator-ux-run-plan.md` as its sole detailed execution/status
+list. The first-release `run-plan.md` keeps history plus a pointer only;
+README, launch contract and product decisions link to the new plan. This
+explicit request authorizes the additional plan file despite the historical
+eight-file documentation convention; it does not authorize a second product.

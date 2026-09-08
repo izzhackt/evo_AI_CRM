@@ -33,8 +33,10 @@ GitHub `main` is the shared source of truth. Work through a GitHub Issue and a
 reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
-Resume the current work from the three-stage checklist in
-[`docs/design/v3/run-plan.md`](docs/design/v3/run-plan.md).
+Resume the current work from the approved follow-up scope and acceptance list in
+[`docs/design/v3/curator-ux-run-plan.md`](docs/design/v3/curator-ux-run-plan.md).
+The earlier `run-plan.md` first-launch checklist is retained as history; do not
+repeat a completed release when starting the September 8 curator/UX improvements.
 
 ## Local development
 

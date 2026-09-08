@@ -21952,3 +21952,35 @@ recoverable DB/Auth backup and Storage inventory with arm=false, manual schema
 apply plus ledger/cache readback, then arm and exact-main full CI/downstream
 release, terminal disarm. The localhost URL is an SSH tunnel to the production
 container, not a local app copy; resolve its target again after app recreation.
+
+### 2026-09-08 — fix backup ledger physical-order assumption before release
+
+PR688 merged as 07ec69916aa61505383e0ac7a09ed48fb2a42c51 after all six exact-head
+PR gates passed (34220988825). Formal read-only production ledger check34221604124
+confirms precisely missing129–134, no extra versions. Current accepted app/rollback
+evidence, lock availability and arm=false were independently verified.
+
+The first fresh managed export stopped with migration_ledger_invalid, without a
+final signed receipt; its owned partial files were cleaned by the existing helper.
+Read-only source metadata proves128 unique numeric versions001–128, no null names
+or statements, but physical inversions093→011,103→021,104→035,105→048. The exporter
+and recovery consumer incorrectly require COPY rows to be physically sorted.
+PostgreSQL only guarantees row ordering when explicitly requested:
+https://www.postgresql.org/docs/current/queries-order.html.
+
+Before coding: fix only logical ledger ordering in the existing exporter and
+consumer, retain raw COPY bytes, order-sensitive artifact hashes and exact row
+hashes, and still reject malformed/duplicate versions and content/prefix drift.
+Add a regression at both parser seams using existing isolated technical fixtures;
+verify permutation acceptance and duplicate/integrity rejection. No source DB
+reordering, dump rewrite, weakened backup gate or provider mutation. Independent
+review and exact-head gates precede merge; fresh export then runs from clean
+fixed main. This tooling correction changes the final release SHA, not app/schema
+scope. Production remains on the previous accepted app and128 migrations.
+
+Critical-path optimization: isolated exact-main CI may overlap the fresh backup
+and manual schema preparation with release arm=false. This permits no app release
+until backup/schema/host gates pass. Only then arm if that exact current-main CI
+is still running; if it already completed unarmed, start a fresh exact-main proof
+after readiness instead of claiming/replaying a skipped release. Required checks,
+immutable image binding and terminal disarm remain unchanged.

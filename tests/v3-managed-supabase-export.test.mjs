@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   ManagedSupabaseExportError,
+  analyzeCopyDumpFile,
   assertRedactedReceipt,
   canonicalJson,
   createStorageClientFetch,
@@ -443,6 +444,29 @@ test("COPY parser preserves exact migration rows including statements", () => {
     () => exactMigrationLedger(dump.replace("002", "001")),
     "migration_ledger_invalid",
   );
+});
+
+test("physical ledger order does not change logical bounds or raw COPY integrity", async () => {
+  const header = "COPY supabase_migrations.schema_migrations (version, statements, name) FROM stdin;";
+  const rows = ["001\t{first}\tinitial", "011\t{second}\tsecond", "093\t{third}\tthird"];
+  const dump = (entries) => `${header}\n${entries.join("\n")}\n\\.\n`;
+  const original = dump(rows);
+  const permuted = dump([rows[2], rows[1], rows[0]]);
+  const directory = mkdtempSync(join(tmpdir(), "evo-ledger-order-"));
+  const path = join(directory, "history.sql");
+  try {
+    writeFileSync(path, permuted, { mode: 0o600 });
+    const parsed = exactMigrationLedger(permuted);
+    assert.deepEqual(parsed, { count: 3, min_version: "001", max_version: "093", copy_rows_sha256: sha256(permuted) });
+    assert.notEqual(parsed.copy_rows_sha256, exactMigrationLedger(original).copy_rows_sha256);
+    assert.deepEqual((await analyzeCopyDumpFile(path, true)).ledger, parsed);
+    assert.equal(readFileSync(path, "utf8"), permuted);
+    for (const invalid of [dump([rows[2], rows[0], rows[2]]), dump(["bad\t{first}\tinitial"]), dump(["001\t{first}"])]) {
+      expectCode(() => exactMigrationLedger(invalid), "migration_ledger_invalid");
+      writeFileSync(path, invalid);
+      await assert.rejects(analyzeCopyDumpFile(path, true), (error) => error.code === "migration_ledger_invalid");
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("data aggregates publish counts and a hash, never row contents", () => {

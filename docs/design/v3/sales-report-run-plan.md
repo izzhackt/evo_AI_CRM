@@ -183,6 +183,14 @@ Invoker wrappers и ограниченные EXECUTE grants не заменяю�
 
 ### Перед merge / deploy / import
 
+PR [688](https://github.com/izzhackt/evo_AI_CRM/pull/688) уже merged в
+`07ec69916aa61505383e0ac7a09ed48fb2a42c51`; все шесть PR gates прошли.
+Проверка34221604124 подтверждает ровно pending129–134. Текущий blocker до apply —
+fresh backup: exporter/recovery parser ошибочно требует физически отсортированные
+строки COPY при корректных128 уникальных версиях. Исправление ограничено логическим
+порядком и тестами; исходные байты/хеши сохраняются. После reviewed merge повторить
+полный encrypted export; не считать прерванный экспорт готовой копией.
+
 1. Независимый CODE/DOC review завершён: продажи и одобренный portal v2 rollback bridge
    уже собраны в одной ветке `izzhackt/sales-report-platform`. Старый portal v1 разрешён только до проверки
    владельца; новый UI вызывает только v2. Не расширять исключение молча.

@@ -1275,6 +1275,8 @@ export function extractExactMigrationLedger(historySql) {
     if (index >= lines.length || lines[index] !== "\\." || rows.length === 0) {
       fail("migration_history_copy_unterminated", "artifact_validation");
     }
+    // Canonicalize parsed metadata, never the raw rows or their signed digest.
+    rows.sort((left, right) => left.version.localeCompare(right.version, "en"));
     selected = Object.freeze({
       entries: Object.freeze(rows),
       copyRowsSha256: sha256(`${lines[index - rawRows.length - 1]}\n${rawRows.join("\n")}\n\\.\n`),

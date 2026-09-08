@@ -1477,8 +1477,16 @@ test("exact history parser binds ordered full COPY rows and rejects reconstructi
   assert.equal(verifyLedgerAgainstRoot(ledger, fullyMigratedRoot, summary, { requireComplete: true }).pending.length, 0);
   expectCode(() => verifyLedgerAgainstRoot(ledger, root, summary, { requireComplete: true }), "source_migration_ledger_not_complete");
   expectCode(() => verifyLedgerAgainstRoot({ count: 2, min_version: "001", max_version: "002" }, root, summary), "migration_ledger_reconstruction_forbidden");
-  expectCode(() => extractExactMigrationLedger(historySql([
+  const permutedLedger = extractExactMigrationLedger(historySql([
     "002\t{second}\tadd_students", "001\t{first}\tinitial_schema",
+  ]));
+  assert.deepEqual(permutedLedger.entries, ledger.entries);
+  assert.equal(permutedLedger.orderedLedgerSha256, ledger.orderedLedgerSha256);
+  assert.notEqual(permutedLedger.copyRowsSha256, ledger.copyRowsSha256);
+  const permutedSummary = { ...summary, copy_rows_sha256: permutedLedger.copyRowsSha256 };
+  assert.deepEqual(verifyLedgerAgainstRoot(permutedLedger, root, permutedSummary).pending.map((entry) => entry.version), ["003"]);
+  expectCode(() => extractExactMigrationLedger(historySql([
+    "002\t{second}\tadd_students", "001\t{first}\tinitial_schema", "002\t{second}\tadd_students",
   ])), "migration_history_order_invalid");
   expectCode(() => verifyLedgerAgainstRoot(ledger, { entries: [rootEntry("001", "wrong", "first;")] }, summary), "migration_ledger_root_prefix_mismatch");
   const contentDrift = { entries: [

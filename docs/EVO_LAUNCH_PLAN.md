@@ -107,6 +107,14 @@ decision log; the implementation and private import preparation are in
 `izzhackt/sales-report-platform`, together with this reviewed curator wave.
 Neither production import nor deployment has completed.
 
+Release prerequisite correction (September 8): the fresh managed exporter stopped
+before a signed receipt because it assumed physical COPY migration rows were
+ordered. Read-only inventory proves 128 unique valid versions 001–128 with all
+required fields, but physical row order is not monotonic. Correct only exporter
+and recovery-consumer logical ordering, preserving original dump bytes/hashes and
+duplicate/integrity rejection; then independently review, merge and rerun the
+fresh encrypted backup before any production schema/app changes.
+
 The first release and certification are already closed in #552/#553 on
 `4e6057f0159dba6515ea18b412567b48779cf77f`. Preserve that evidence; a new plan
 commit does not redeploy the app or reopen completed launch blocks. Apply the

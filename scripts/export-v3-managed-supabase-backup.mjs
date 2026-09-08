@@ -557,7 +557,7 @@ export function exactMigrationLedger(text) {
       fail("migration_ledger_invalid");
     }
     return version;
-  });
+  }).sort((left, right) => left.localeCompare(right, "en"));
   for (let index = 1; index < versions.length; index += 1) {
     if (versions[index - 1].localeCompare(versions[index], "en") >= 0) {
       fail("migration_ledger_invalid");
@@ -713,7 +713,7 @@ function artifactMetadata(path, { allowEmpty = false } = {}) {
   });
 }
 
-async function analyzeCopyDumpFile(path, requireLedger = false) {
+export async function analyzeCopyDumpFile(path, requireLedger = false) {
   const counts = {};
   const sectionHashes = {};
   let current = null;
@@ -750,12 +750,15 @@ async function analyzeCopyDumpFile(path, requireLedger = false) {
             !/^\d+$/u.test(version) ||
             cells[current.nameIndex] == null ||
             cells[current.statementsIndex] == null ||
-            (current.maxVersion != null && current.maxVersion.localeCompare(version, "en") >= 0)
+            current.versions.has(version)
           ) {
             fail("migration_ledger_invalid");
           }
-          current.minVersion ??= version;
-          current.maxVersion = version;
+          current.versions.add(version);
+          // COPY keeps physical row order; only the logical ledger has ordering.
+          // Never reorder the bytes fed to the signed COPY digest.
+          if (current.minVersion == null || version.localeCompare(current.minVersion, "en") < 0) current.minVersion = version;
+          if (current.maxVersion == null || version.localeCompare(current.maxVersion, "en") > 0) current.maxVersion = version;
         }
         continue;
       }
@@ -772,6 +775,7 @@ async function analyzeCopyDumpFile(path, requireLedger = false) {
         statementsIndex: columns.indexOf("statements"),
         minVersion: null,
         maxVersion: null,
+        versions: new Set(),
       };
       if (
         table === "supabase_migrations.schema_migrations" &&

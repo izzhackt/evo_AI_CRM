@@ -179,7 +179,7 @@ Pending/error-поведение реализовывать существующ
 
 - База: `main` `61733a155d3926742144db21e53e6396da249864` (PR #686).
 - Ветка исполнения: `izzhackt/curator-ux-execution`; проверяемый код
-  `aab44d73` (последующие docs-only commits не означают новое runtime proof).
+  `c35f8c1a` (последующие docs-only commits не означают новое runtime proof).
 - Интеграционный worktree:
   `/Users/iskhak.tazhibaev/.codex/worktrees/run-plan-handover/evo_AI_CRM`.
   Исходный checkout с чужими изменениями не чистили и не переключали.
@@ -199,7 +199,7 @@ Pending/error-поведение реализовывать существующ
 - Node `22.23.1`: общий `npm run typecheck`, ESLint изменённых TS/TSX и
   `git diff --check` проходят. Новые Node contracts зарегистрированы по одному
   разу; реестр `--suite unit --validate-only` содержит 122 уникальных файла.
-- Узкие source-contract проверки проверяют настоящий код/SQL и словарь,
+- 19 узких source-contract проверок проходят. Они проверяют код/SQL и словарь,
   но не заменяют действие реального пользователя. Не выдавать unit/source
   assertions за реальный RPC, браузер или работу провайдера.
 - На OrbStack создана только отдельная schema-only база
@@ -210,12 +210,15 @@ Pending/error-поведение реализовывать существующ
 - Реальный PostgreSQL выполнил три catalog/no-session boundary файла:
   `platform_handoff_acknowledgement_boundary.sql`,
   `platform_case_activity_boundary.sql`, `platform_curator_coverage_boundary.sql`.
-  Все проходят. `plpgsql_check` новых PL/pgSQL путей не нашёл ошибок; остались
-  предупреждения о неиспользуемых переменных перенесённых старых task bodies
-  и безопасном приведении литерала `'{}'` к `TEXT[]` в coverage read.
-- Независимое code-review нашло и закрыло два дефекта: потерю task draft при
+- Все три проходят, включая реальный RPC-отказ для PostgreSQL дат `infinity`
+  и `10000-01-01`, не поддерживаемых UI. `plpgsql_check` новых PL/pgSQL путей
+  не нашёл ошибок; остались только предупреждения о неиспользуемых переменных
+  перенесённых старых task bodies. Новые coverage routines — без предупреждений.
+- Code-review нашло и закрыло три дефекта: потерю task draft при
   stale (`655cb299`, regression `75bbd8ac`) и отсутствие подписи handoff-события,
-  ломавшее историю (`1c6c3c95`). Результаты финального review фиксируются в ledger.
+  ломавшее историю (`1c6c3c95`), а также недопустимую дату возврата замещения
+  (`c35f8c1a`). Исправления независимо одобрены; все пять частей получили
+  code approval. Это не acceptance approval. Точные review targets — в ledger.
 - Полный release suite, production migration apply и deployment не запускались.
   Ошибочно начатый одним исполнителем полный локальный migration harness был
   остановлен (exit130), его точный disposable container удалён; результата

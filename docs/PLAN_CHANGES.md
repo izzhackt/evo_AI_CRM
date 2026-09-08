@@ -21719,3 +21719,51 @@ curator must target the current case curator. Check under the same assignment
 lock. Admin assignees, terminal tasks and cases without coverage stay unchanged.
 This is the minimum coverage-specific enforcement of the approved no-orphan
 invariant; it does not broaden this run into a general task-assignment redesign.
+
+### 2026-09-08 — curator UX implementation candidate, real acceptance open
+
+The approved five parts are integrated on `izzhackt/curator-ux-execution`.
+Code candidate: `c35f8c1a9caacdd65e53d4b7390667a5b9cae96f`, based on main
+`61733a155d3926742144db21e53e6396da249864`. The separate run plan now contains
+the code/status map, verification limits, live-data blocker and cold-resume steps.
+Implementation is not merged, deployed or accepted by real users.
+
+Independent code reviews, with no remaining confirmed P0–P2 findings:
+
+- UX-2: original `940c455f` required changes for stale draft loss. Fix
+  `655cb299` and its updated source assertion `75bbd8ac` approved independently.
+- UX-3: `e6438993` approved. The Sales excerpt remains limited to an existing
+  exact authorized lead; acknowledgement writes remain current-Curator-only.
+- UX-4: `383f4c7e` required changes for an unlabelled emitted handoff event.
+  `1c6c3c95` approved, including coverage of every actual emitted action label.
+- UX-8: `08ad7403` independently approved. The tiny integration/registry/copy
+  commit `aab44d73` was also reviewed without findings.
+- UX-6: `0fa9a2c0` plus `c35f8c1a` independently approved. The latter rejects
+  PostgreSQL `infinity` and years beyond the displayed four-digit date contract,
+  preventing an otherwise successful direct command from poisoning the strict
+  read projection. Actual PostgreSQL negative-input RPC checks exercise this
+  rejection without creating actors or rows. Official date behavior:
+  [PostgreSQL date/time functions](https://www.postgresql.org/docs/current/functions-datetime.html).
+- Cross-module review of `61733a15..30188b61` found no wiring defect in
+  profile identities, task deep links, audit names or assignment lock ordering.
+  Authors did not self-approve their own feature implementations.
+
+The Admin exact-case coverage read now preserves the selected case across a
+stale curator filter while retaining same-tenant/active-case authority; it
+reports the real owner/scope. The UI preserves the draft and requires an
+explicit updated preview before retry, never a silent command rebase.
+
+Verification: Node22 typecheck, changed-TS/TSX lint and whitespace PASS;
+19 selected source-contract checks PASS; test registry validates 122 unique
+unit files. A faithful schema-only local125 restore (owners/ACL retained,
+no auth users/cases) accepted migrations126–133 in order as `postgres`.
+The130/132/133 catalog/no-session boundary files PASS. New PL/pgSQL paths
+compile without errors; only unchanged unused-variable warnings remain in
+the moved old task bodies. These checks are not real actor/concurrency/UI proof.
+
+The live Admin UI has no accessible cases/tasks/people. No genuine business
+case was invented to bypass that blocker. Real Curator, Sales-owner and
+Student-self actions/readback, concurrency, desktop/393px acceptance, release
+CI, production migration apply and deployment remain open. A missing-input
+question requests real case/actor identities, not passwords. Keep this branch
+shared on GitHub; PR/merge/release gates must not be presented as completed.

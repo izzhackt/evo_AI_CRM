@@ -1,5 +1,6 @@
 "use server";
 import { randomUUID } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { createSupabaseServerClient } from "./supabase/server";
 import { exactActionStringFields } from "./server/action-form-fields";
@@ -72,6 +73,7 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
     if (!data || typeof data !== "object" || Array.isArray(data) || data.organization_id !== actor.organizationId
       || data.operation !== operation || data.request_id !== requestId || !parseSalesUuid(data.record_id)
       || (recordId !== null && data.record_id !== recordId) || parseSalesInteger(data.version) !== version + 1) return outcome(form, "unavailable");
+    revalidatePath("/v3/main");
     return outcome(form, "saved", data.record_id);
   } catch { return outcome(form, "unavailable"); }
 }
@@ -105,6 +107,7 @@ export async function saveSalesTargetAction(_previous: SalesRegisterActionState,
     if (!data || typeof data !== "object" || Array.isArray(data) || data.organization_id !== actor.organizationId
       || data.operation !== "target" || data.request_id !== requestId || !parseSalesUuid(data.record_id)
       || (recordId !== null && data.record_id !== recordId) || parseSalesInteger(data.version) !== version + 1) return outcome(form, "unavailable");
+    revalidatePath("/v3/main");
     return outcome(form, "saved", data.record_id);
   } catch { return outcome(form, "unavailable"); }
 }
@@ -151,6 +154,7 @@ export async function importSalesRegisterAction(_previous: SalesImportActionStat
     const targetsInserted = parseSalesInteger(data.targets_inserted, 120), targetsSkipped = parseSalesInteger(data.targets_skipped, 120), targetsMismatched = parseSalesInteger(data.targets_mismatched, 120);
     if (inserted === null || skipped === null || mismatches === null || targetsInserted === null || targetsSkipped === null || targetsMismatched === null
       || inserted + skipped + mismatches !== input.sales.length || targetsInserted + targetsSkipped + targetsMismatched !== input.targets.length) return result("unavailable");
+    revalidatePath("/v3/main");
     return { ...outcome(form, "saved"), importResult: { sourceSha256: input.source_sha256, inserted, skipped, mismatches, targetsInserted, targetsSkipped, targetsMismatched } };
   } catch { return result("unavailable"); }
 }

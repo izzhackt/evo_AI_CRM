@@ -48,7 +48,9 @@ function exact(value: unknown, keys: readonly string[]): Record<string, unknown>
   return result;
 }
 function str(value: unknown, max = 2000): string {
-  return typeof value === "string" && value.length <= max && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value) ? value : fail();
+  // PostgreSQL/Python source bounds count Unicode code points, not UTF-16 units.
+  return typeof value === "string" && value.length <= max * 2 && [...value].length <= max
+    && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value) ? value : fail();
 }
 function num(value: unknown, max = Number.MAX_SAFE_INTEGER): number { return parseSalesInteger(value, max) ?? fail(); }
 function uuid(value: unknown): string { return parseSalesUuid(value) ?? fail(); }
@@ -81,7 +83,7 @@ export function parseSalesRegisterRow(raw: unknown): SalesRegisterRow {
   const leadId = r.lead_id === null ? null : uuid(r.lead_id);
   const clientId = r.client_id === null ? null : uuid(r.client_id);
   if (sourceKind === "pipeline" ? leadId === null || clientId === null : leadId !== null || clientId !== null) fail();
-  if ((sourceKind === "import") !== (sourceKey !== null) || !str(r.applicant_name, 300).trim()) fail();
+  if ((sourceKind === "import") !== (sourceKey !== null) || (sourceKind !== "pipeline" && !str(r.applicant_name, 300).trim())) fail();
   return {
     id: uuid(r.id), version, reportMonth: monthDate(r.report_month), signingDate: r.signing_date === null ? null : date(r.signing_date),
     applicantName: str(r.applicant_name, 300), phone: str(r.phone, 100), country: str(r.country, 200), university: str(r.university, 500),

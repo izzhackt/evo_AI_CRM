@@ -25,6 +25,7 @@ export async function readSalesRegisterWorkspace(actor: PlatformActor, selection
     || result.rows.some(row => row.archived !== (selection.archived ?? false)
       || !row.reportMonth.startsWith(`${year}-`) || (month !== null && Number(row.reportMonth.slice(5, 7)) !== month)
       || (actor.authorityRole === "sales" && row.ownerMembershipId !== actor.membershipId))
-    || (actor.authorityRole === "sales" && result.selected && result.selected.ownerMembershipId !== actor.membershipId)) throw unavailable();
+    || (actor.authorityRole === "sales" && result.selected && result.selected.ownerMembershipId !== actor.membershipId)
+    || (actor.authorityRole === "sales" && (result.targets.length !== 0 || result.ownerOptions.some(owner => owner.id !== actor.membershipId)))) throw unavailable();
   return result;
 }

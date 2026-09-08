@@ -26,7 +26,7 @@ CREATE TABLE platform_private.sales_register (
   CHECK ((source_kind='import')=(source_key IS NOT NULL)),
   FOREIGN KEY (organization_id,owner_membership_id) REFERENCES platform.organization_memberships(organization_id,id),
   CHECK ((source_key IS NULL AND source_sha256 IS NULL AND source_sheet IS NULL AND source_row IS NULL AND source_fingerprint IS NULL
-      AND ((source_kind='pipeline' AND jsonb_typeof(source_snapshot)='object') OR (source_kind='manual' AND source_snapshot IS NULL)))
+      AND ((source_kind='pipeline' AND source_snapshot IS NOT NULL AND jsonb_typeof(source_snapshot)='object') OR (source_kind='manual' AND source_snapshot IS NULL)))
     OR (source_key IS NOT NULL AND source_sha256 IS NOT NULL AND source_sheet IS NOT NULL AND source_row IS NOT NULL AND source_snapshot IS NOT NULL AND source_fingerprint IS NOT NULL))
 );
 CREATE INDEX sales_register_period ON platform_private.sales_register(organization_id,archived,report_month DESC,id);
@@ -44,6 +44,7 @@ CREATE UNIQUE INDEX sales_register_target_month ON platform_private.sales_regist
 CREATE TABLE platform_private.sales_register_requests (
   organization_id UUID NOT NULL REFERENCES platform.organizations(id), request_id UUID NOT NULL,
   actor_membership_id UUID NOT NULL, fingerprint TEXT NOT NULL, receipt JSONB NOT NULL,
+  reason TEXT NOT NULL CHECK (length(btrim(reason)) BETWEEN 1 AND 1000),
   PRIMARY KEY(organization_id,request_id)
 );
 ALTER TABLE platform_private.sales_register ENABLE ROW LEVEL SECURITY;
@@ -65,7 +66,7 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'sales_register_forbidden' USING ERRCODE='42501'; END IF;
 END $$;
 
-CREATE FUNCTION platform_private.sales_register_fields(p_fields JSONB) RETURNS JSONB
+CREATE FUNCTION platform_private.sales_register_fields(p_fields JSONB,p_allow_unknown_applicant BOOLEAN DEFAULT false) RETURNS JSONB
 LANGUAGE plpgsql STABLE SET search_path='' AS $$
 DECLARE result JSONB:='{}'::JSONB; key TEXT; value TEXT; amount TEXT; currency TEXT; month_value DATE; date_value DATE;
 BEGIN
@@ -94,7 +95,7 @@ BEGIN
     IF length(value)>(CASE key WHEN 'applicant_name' THEN 300 WHEN 'phone' THEN 100 WHEN 'country' THEN 200
       WHEN 'university' THEN 500 WHEN 'program' THEN 500 WHEN 'direction' THEN 500 WHEN 'intake' THEN 200
       WHEN 'contract_number' THEN 200 WHEN 'manager_label' THEN 300 ELSE 2000 END)
-      OR value ~ '[\x01-\x08\x0b\x0c\x0e-\x1f]' OR (key='applicant_name' AND value='') THEN
+      OR value ~ '[\x01-\x08\x0b\x0c\x0e-\x1f]' OR (key='applicant_name' AND value='' AND p_allow_unknown_applicant IS DISTINCT FROM true) THEN
       RAISE EXCEPTION 'sales_register_invalid_text' USING ERRCODE='22023'; END IF;
     result:=result||jsonb_build_object(key,value);
   END LOOP;
@@ -178,7 +179,8 @@ BEGIN
  target_id:=changed.id;
  receipt:=jsonb_build_object('organization_id',p_organization_id,'record_id',target_id,'version',changed.version::TEXT,
    'operation',p_operation,'request_id',p_request_id);
- INSERT INTO platform_private.sales_register_requests VALUES(p_organization_id,p_request_id,actor.membership_id,fingerprint,receipt);
+ -- Preserve the human explanation privately; shared audit projections receive no free text.
+ INSERT INTO platform_private.sales_register_requests VALUES(p_organization_id,p_request_id,actor.membership_id,fingerprint,receipt,btrim(p_reason));
  INSERT INTO platform.audit_events(organization_id,actor_kind,actor_profile_id,actor_principal,action,resource_type,resource_id,before_state,after_state,reason,request_id)
  VALUES(p_organization_id,'user',actor.profile_id,'auth:'||actor.auth_user_id::TEXT,'sales.register.'||p_operation,'sales_register',target_id,
    CASE WHEN p_operation='create' THEN NULL ELSE jsonb_build_object('version',old.version::TEXT,'archived',old.archived) END,
@@ -226,7 +228,7 @@ BEGIN
      'manager_label',t.manager_label,'target_count',t.target_count) ORDER BY t.report_month,t.manager_label),'[]') INTO targets
      FROM platform_private.sales_register_targets t WHERE t.organization_id=p_organization_id AND t.report_month BETWEEN first_month AND last_month;
  ELSE targets:='[]'; END IF;
- SELECT coalesce(jsonb_agg(jsonb_build_object('id',m.id,'label',p.display_name) ORDER BY p.display_name,m.id),'[]') INTO owners
+ SELECT coalesce(jsonb_agg(jsonb_build_object('id',m.id,'label',left(btrim(regexp_replace(coalesce(p.display_name,''),'[[:cntrl:]]',' ','g')),300)) ORDER BY p.display_name,m.id),'[]') INTO owners
  FROM platform.organization_memberships m JOIN platform.profiles p ON p.id=m.profile_id
  WHERE m.organization_id=p_organization_id AND platform_private.is_eligible_sales_owner(p_organization_id,m.id)
    AND (actor.platform_role='admin' OR m.id=actor.membership_id);
@@ -315,7 +317,7 @@ BEGIN
  END LOOP;
  receipt:=jsonb_build_object('organization_id',p_organization_id,'request_id',p_request_id,'operation','import','source_sha256',source_sha,
    'inserted',inserted,'skipped',skipped,'mismatches',mismatches,'targets_inserted',targets_inserted,'targets_skipped',targets_skipped,'targets_mismatched',targets_mismatched);
- INSERT INTO platform_private.sales_register_requests VALUES(p_organization_id,p_request_id,actor.membership_id,fingerprint,receipt);
+ INSERT INTO platform_private.sales_register_requests VALUES(p_organization_id,p_request_id,actor.membership_id,fingerprint,receipt,'Sales source import');
  INSERT INTO platform.audit_events(organization_id,actor_kind,actor_profile_id,actor_principal,action,resource_type,resource_id,after_state,reason,request_id)
  VALUES(p_organization_id,'user',actor.profile_id,'auth:'||actor.auth_user_id::TEXT,'sales.register.import','sales_register_import',p_request_id,receipt,'Sales source import',p_request_id);
  RETURN receipt;
@@ -359,7 +361,7 @@ BEGIN
      version=version+1 WHERE id=p_record_id RETURNING * INTO changed;
  END IF;
  receipt:=jsonb_build_object('organization_id',p_organization_id,'operation','target','record_id',changed.id,'version',changed.version::TEXT,'request_id',p_request_id);
- INSERT INTO platform_private.sales_register_requests VALUES(p_organization_id,p_request_id,actor.membership_id,fingerprint,receipt);
+ INSERT INTO platform_private.sales_register_requests VALUES(p_organization_id,p_request_id,actor.membership_id,fingerprint,receipt,btrim(p_reason));
  INSERT INTO platform.audit_events(organization_id,actor_kind,actor_profile_id,actor_principal,action,resource_type,resource_id,before_state,after_state,reason,request_id)
  VALUES(p_organization_id,'user',actor.profile_id,'auth:'||actor.auth_user_id::TEXT,'sales.register.target','sales_register_target',changed.id,
    jsonb_build_object('version',p_expected_version::TEXT),jsonb_build_object('version',changed.version::TEXT),'Sales monthly target',p_request_id);
@@ -372,6 +374,7 @@ CREATE FUNCTION platform_private.register_completed_sales_handoff(p_handoff_id U
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $$
 DECLARE handoff platform.sales_admissions_handoffs%ROWTYPE; client platform.clients%ROWTYPE;
  original_owner UUID; eligible_owner UUID; manager TEXT; report_month DATE; fields JSONB; sale_id UUID; audit_request UUID;
+ original_applicant TEXT; display_applicant TEXT; display_manager TEXT; display_phone TEXT; normalization_needed BOOLEAN;
 BEGIN
  SELECT * INTO handoff FROM platform.sales_admissions_handoffs WHERE id=p_handoff_id AND handoff_state='completed';
  IF NOT FOUND THEN RAISE EXCEPTION 'sales_register_handoff_missing' USING ERRCODE='22023'; END IF;
@@ -383,13 +386,25 @@ BEGIN
    WHERE m.organization_id=handoff.organization_id AND m.id=original_owner;
  IF original_owner IS NOT NULL AND platform_private.is_eligible_sales_owner(handoff.organization_id,original_owner) THEN eligible_owner:=original_owner; END IF;
  report_month:=date_trunc('month',handoff.handed_off_at AT TIME ZONE 'Asia/Bishkek')::DATE;
+ -- Canonical identity permits longer raw text than this bounded report. Keep
+ -- honest fragments/unknown values, never reject a valid handoff for display length.
+ -- The original is still in its canonical card; no full identity copy is added.
+ original_applicant:=coalesce(NULLIF(handoff.client_context->>'display_name',''),client.display_name);
+ display_applicant:=left(btrim(regexp_replace(original_applicant,'[[:cntrl:]]',' ','g')),300);
+ display_manager:=left(btrim(regexp_replace(coalesce(manager,''),'[[:cntrl:]]',' ','g')),300);
+ display_phone:=CASE WHEN length(client.phone)<=100 AND client.phone !~ '[[:cntrl:]]' THEN client.phone
+   WHEN client.normalized_phone ~ '^\+?[0-9]{7,15}$' THEN client.normalized_phone ELSE NULL END;
+ normalization_needed:=display_applicant IS DISTINCT FROM original_applicant OR display_manager IS DISTINCT FROM coalesce(manager,'')
+   OR display_phone IS DISTINCT FROM client.phone;
  fields:=platform_private.sales_register_fields(jsonb_build_object('report_month',report_month,
-   'applicant_name',coalesce(NULLIF(handoff.client_context->>'display_name',''),client.display_name),
-   'phone',client.phone,'manager_label',manager,'status_raw','Переданы','needs_review',true,
-   'notes','Создано по завершённой передаче. Дату договора, стоимость и сумму оплаты нужно уточнить; первый платёж не заменяет итог оплаты.'));
+   'applicant_name',display_applicant,'phone',display_phone,'manager_label',display_manager,'status_raw','Переданы','needs_review',true,
+   'notes','Создано по завершённой передаче. Дату договора, стоимость и сумму оплаты нужно уточнить; первый платёж не заменяет итог оплаты.'
+     ||CASE WHEN normalization_needed THEN ' Длинные или непригодные для отчёта значения сокращены либо не указаны; оригинал сохранён в карточке.' ELSE '' END),true);
  INSERT INTO platform_private.sales_register(organization_id,report_month,owner_membership_id,source_kind,lead_id,client_id,fields,source_snapshot)
    VALUES(handoff.organization_id,report_month,eligible_owner,'pipeline',handoff.lead_id,handoff.client_id,fields,
-     fields||jsonb_build_object('handoff_id',handoff.id,'handed_off_at',handoff.handed_off_at,'original_owner_membership_id',original_owner)) RETURNING id INTO sale_id;
+     fields||jsonb_build_object('handoff_id',handoff.id,'handed_off_at',handoff.handed_off_at,'original_owner_membership_id',original_owner,
+       'original_applicant_length',length(original_applicant),'original_manager_length',length(manager),'original_phone_length',length(client.phone),
+       'display_normalized',normalization_needed,'phone_normalized_used',display_phone IS DISTINCT FROM client.phone AND display_phone IS NOT NULL)) RETURNING id INTO sale_id;
  audit_request:=public.uuid_generate_v5(handoff.id,'sales-register:pipeline');
  INSERT INTO platform.audit_events(organization_id,actor_kind,actor_profile_id,actor_principal,action,resource_type,resource_id,after_state,reason,request_id)
  VALUES(handoff.organization_id,'user',handoff.actor_profile_id,'handoff:'||handoff.id::TEXT,'sales.register.pipeline','sales_register',sale_id,
@@ -416,7 +431,7 @@ CREATE FUNCTION platform.import_sales_register_v1(p_organization_id UUID,p_reque
 CREATE FUNCTION platform.manage_sales_register_target_v1(p_organization_id UUID,p_record_id UUID,p_expected_version BIGINT,p_report_month DATE,p_manager_label TEXT,p_target_count INTEGER,p_reason TEXT,p_request_id UUID)
  RETURNS JSONB LANGUAGE SQL VOLATILE SECURITY INVOKER SET search_path='' AS $$ SELECT private.manage_sales_register_target_v1(p_organization_id,p_record_id,p_expected_version,p_report_month,p_manager_label,p_target_count,p_reason,p_request_id) $$;
 REVOKE ALL ON FUNCTION platform_private.register_completed_sales_handoff(UUID),platform_private.sales_register_handoff_trigger() FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;
-REVOKE ALL ON FUNCTION platform_private.sales_register_actor(UUID),platform_private.sales_register_fields(JSONB),platform_private.sales_register_row(platform_private.sales_register)
+REVOKE ALL ON FUNCTION platform_private.sales_register_actor(UUID),platform_private.sales_register_fields(JSONB,BOOLEAN),platform_private.sales_register_row(platform_private.sales_register)
  FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;
 REVOKE ALL ON FUNCTION private.manage_sales_register_target_v1(UUID,UUID,BIGINT,DATE,TEXT,INTEGER,TEXT,UUID),platform.manage_sales_register_target_v1(UUID,UUID,BIGINT,DATE,TEXT,INTEGER,TEXT,UUID)
  FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;

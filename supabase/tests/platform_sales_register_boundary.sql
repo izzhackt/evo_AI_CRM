@@ -28,6 +28,18 @@ BEGIN
       IF has_table_privilege(checked_role,relation,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') THEN RAISE EXCEPTION 'Sales private table exposed'; END IF;
     END LOOP;
   END LOOP;
+  IF NOT EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='platform_private.sales_register_requests'::REGCLASS
+    AND attname='reason' AND attnotnull AND NOT attisdropped) THEN RAISE EXCEPTION 'Private command reason missing'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='platform_private.sales_register_requests'::REGCLASS AND contype='c'
+    AND pg_get_constraintdef(oid) LIKE '%length(btrim(reason)) >= 1%' AND pg_get_constraintdef(oid) LIKE '%length(btrim(reason)) <= 1000%') THEN
+    RAISE EXCEPTION 'Private command reason bounds missing'; END IF;
+  IF (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='platform_private' AND p.proname='sales_register_fields')<>1
+    OR to_regprocedure('platform_private.sales_register_fields(jsonb,boolean)') IS NULL THEN
+    RAISE EXCEPTION 'Sales normalization helper must remain one private path'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='platform_private.sales_register'::REGCLASS AND contype='c'
+    AND pg_get_constraintdef(oid) LIKE '%source_kind = ''pipeline''::text) AND (source_snapshot IS NOT NULL)%') THEN
+    RAISE EXCEPTION 'Pipeline source null guard missing'; END IF;
   IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='platform.sales_admissions_handoffs'::REGCLASS AND tgname='sales_register_completed_handoff'
     AND tgfoid='platform_private.sales_register_handoff_trigger()'::REGPROCEDURE AND tgenabled='O' AND NOT tgisinternal) THEN RAISE EXCEPTION 'Canonical handoff trigger missing'; END IF;
 END $$;

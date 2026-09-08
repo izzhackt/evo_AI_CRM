@@ -424,14 +424,23 @@ function CalendarChangeTaskForm({
   const [assigneeId, setAssigneeId] = useState(task.assigneeMembershipId);
   const [studentVisible, setStudentVisible] = useState(String(task.studentVisible));
   const [reason, setReason] = useState("");
+  const [expectedVersion, setExpectedVersion] = useState(task.version);
+  const [staleAcknowledged, setStaleAcknowledged] = useState(false);
   const [state, action, pending] = useActionState(
-    changePlatformAdmissionsTaskAction,
+    async (previous: PlatformAdmissionsTaskActionState, form: FormData) => {
+      setStaleAcknowledged(false);
+      const next = await changePlatformAdmissionsTaskAction(previous, form);
+      if (next.status === "saved" && next.version) setExpectedVersion(next.version);
+      return next;
+    },
     initialState(requestId, task),
   );
   useEffect(() => {
     if (state.status === "saved" || state.status === "stale") router.refresh();
-  }, [router, state.status, state.version]);
-  const locked = pending || state.status === "saved" || state.status === "stale";
+  }, [router, state]);
+  const locked = pending ||
+    (state.status === "saved" && task.version !== state.version) ||
+    (state.status === "stale" && !staleAcknowledged);
   const adminView = presentationRole === "admin";
   const canonicalAssignees = assignees.some(
     (assignee) => assignee.membershipId === task.assigneeMembershipId,
@@ -458,7 +467,7 @@ function CalendarChangeTaskForm({
       >
         <input type="hidden" name="student_case_id" value={task.studentCaseId} />
         <input type="hidden" name="case_task_id" value={task.id} />
-        <input type="hidden" name="expected_version" value={task.version} />
+        <input type="hidden" name="expected_version" value={expectedVersion} />
         <input type="hidden" name="request_id" value={state.requestId} />
         <fieldset disabled={locked} className="contents">
         <label className="text-xs font-medium text-fg-2">
@@ -554,6 +563,20 @@ function CalendarChangeTaskForm({
         </fieldset>
         <div className="sm:col-span-2">
           <Feedback state={state} />
+          {state.status === "stale" && !staleAcknowledged ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-fg-2">
+                Ваши поля сохранены в форме. Сверьте их с обновлённой задачей выше
+                перед повтором: повторное сохранение применит именно ваши значения.
+              </p>
+              <button type="button" className={SECONDARY}
+                disabled={task.version === expectedVersion}
+                onClick={() => { setExpectedVersion(task.version); setStaleAcknowledged(true); }}
+              >
+                Сверил изменения — продолжить
+              </button>
+            </div>
+          ) : null}
         </div>
       </form>
     </details>
@@ -577,11 +600,13 @@ export function CalendarTaskControls({
     <div className="mt-4 space-y-3" data-testid="v3-calendar-task-controls">
       <div className="flex flex-wrap gap-2 border-t border-border pt-4">
         <CalendarTerminalTaskForm
+          key={`${task.id}:${task.version}:done`}
           task={task}
           requestId={requestIds.complete}
           status="done"
         />
         <CalendarTerminalTaskForm
+          key={`${task.id}:${task.version}:cancelled`}
           task={task}
           requestId={requestIds.cancel}
           status="cancelled"

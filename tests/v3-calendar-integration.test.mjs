@@ -199,3 +199,17 @@ test("V3 calendar keeps exactly one active task-control component", () => {
   );
   assert.match(calendar, /\.\/TaskControls/);
 });
+
+test("V3 stale task edits retain their draft and explicitly rebase before retry", () => {
+  assert.match(calendar, /key=\{open\.id\}/);
+  assert.doesNotMatch(calendar, /key=\{`\$\{open\.id\}:\$\{open\.version\}`\}/);
+  assert.match(page, /key=\{target \? target\.task\.id : `\$\{view\}:\$\{day\}`\}/);
+  assert.match(calendar, /params\.set\("case", target\.studentCaseId\)/);
+  assert.match(calendar, /params\.set\("task", target\.id\)/);
+  assert.match(controls, /const \[expectedVersion, setExpectedVersion\] = useState\(task\.version\)/);
+  assert.match(controls, /name="expected_version" value=\{expectedVersion\}/);
+  assert.match(controls, /state\.status === "stale" && !staleAcknowledged/);
+  assert.match(controls, /disabled=\{task\.version === expectedVersion\}/);
+  assert.match(controls, /setExpectedVersion\(task\.version\); setStaleAcknowledged\(true\)/);
+  assert.match(controls, /Ваши поля сохранены в форме/);
+});

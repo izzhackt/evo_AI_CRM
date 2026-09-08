@@ -97,7 +97,7 @@ export default async function CalendarPart({
     <PartShell title="Календарь">
       <div className="space-y-8">
         <Calendar
-          key={`${view}:${day}:${target?.task.id ?? ""}`}
+          key={target ? target.task.id : `${view}:${day}`}
           initialTaskId={target?.task.id ?? null}
           view={view}
           day={day}

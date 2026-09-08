@@ -6,6 +6,7 @@ import type {
   PlatformCaseFinanceControl,
 } from "@/lib/platform-finance-control";
 import type { PlatformSalesWorkflowLead } from "@/lib/platform-sales-contract";
+import type { HandoffAcknowledgement, SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import type {
   PlatformLeadAdmissionsGateSnapshot,
   PlatformLeadAdmissionsHandoffSnapshot,
@@ -192,6 +193,8 @@ export type ProfileDraft = Readonly<{
   admissions: ProfileAdmissionsWorkspace | null;
   /** Full BW6 contract/report workspace; absent for leads and Sales views. */
   contract: ProfileContractSnapshot | null;
+  handoffAcknowledgement: (HandoffAcknowledgement & Readonly<{ requestId: string }>) | null;
+  salesHandoffAcknowledgement: SalesHandoffAcknowledgement | null;
   /**
    * Есть в модели, намеренно не рисуется.
    *

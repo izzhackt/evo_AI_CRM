@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profile-activity-source";
+import { getHandoffAcknowledgement, getSalesHandoffAcknowledgement, type HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 
 import type {
   DocumentCaseLinkTarget,
@@ -130,6 +131,7 @@ type FullCaseData = Readonly<{
   documents: PlatformCaseDocumentWorkspace;
   contract: PlatformCaseContractWorkspace;
   handoff: PlatformStudentCaseHandoffContext;
+  handoffAcknowledgement: HandoffAcknowledgement;
 }>;
 
 type FinanceSummary = Pick<
@@ -473,6 +475,7 @@ async function loadFullCase(
     documents,
     contract,
     handoff,
+    handoffAcknowledgement,
   ] = await Promise.all([
     listPlatformApplicationsForStudentCase(actor, studentCaseId, { pageSize: 100 }),
     getPlatformCaseVisa(actor, studentCaseId),
@@ -481,6 +484,7 @@ async function loadFullCase(
     getPlatformCaseDocumentWorkspace(actor, studentCaseId),
     getPlatformCaseContractWorkspace(actor, studentCaseId),
     getPlatformStudentCaseHandoffContext(actor, studentCaseId),
+    getHandoffAcknowledgement(actor, studentCaseId),
   ]);
   if (applicationsPage.hasNext) {
     throw new Error("V3 profile application list exceeds its canonical read window.");
@@ -510,6 +514,7 @@ async function loadFullCase(
     documents,
     contract,
     handoff,
+    handoffAcknowledgement,
   };
 }
 
@@ -555,6 +560,8 @@ function fullCaseDetails(
     ...money,
     admissions: admissionsWorkspace(data),
     contract,
+    handoffAcknowledgement: { ...data.handoffAcknowledgement, requestId: randomUUID() },
+    salesHandoffAcknowledgement: null,
     contractSignedAt,
   };
 }
@@ -657,6 +664,9 @@ async function readLeadProfile(
   const fullCase = actor.presentationRole === "admin" && studentCase
     ? await loadFullCase(actor, studentCase)
     : null;
+  const salesHandoffAcknowledgement = !fullCase && caseId && handoff.handedOffAt
+    ? await getSalesHandoffAcknowledgement(actor, leadId, caseId)
+    : null;
   if (fullCase && fullCase.handoff.leadId !== lead.leadId) {
     throw new Error("V3 profile handoff lead does not match the requested lead.");
   }
@@ -710,6 +720,8 @@ async function readLeadProfile(
         ...money,
         admissions: null,
         contract: null,
+        handoffAcknowledgement: null,
+        salesHandoffAcknowledgement,
         contractSignedAt: gate.contractConfirmedAt
           ? formatDate(gate.contractConfirmedAt, true)
           : null,

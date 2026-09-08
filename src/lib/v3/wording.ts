@@ -552,3 +552,11 @@ export const journalObject = (v: string | null | undefined) =>
   lookup(JOURNAL_OBJECT_WORD, v);
 export const journalActor = (v: string | null | undefined) =>
   lookup(JOURNAL_ACTOR_WORD, v);
+/** Separate curator response, never the completed Sales handoff lifecycle. */
+export function handoffAcknowledgementLabel(value: string): string | null {
+  const labels: Record<string, string> = {
+    accepted: "Дело принято куратором",
+    clarification_requested: "Нужно уточнение от Sales",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}

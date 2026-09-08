@@ -16,7 +16,7 @@ import {
   ProfileAdmissionsWorkspacePanel,
   ProfileFinanceControls,
 } from "./ProfileAdmissionsWorkspace";
-import { ProfileSalesTransition } from "./ProfileSalesTransition";
+import { ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, ProfileSalesTransition } from "./ProfileSalesTransition";
 import type {
   Fact,
   PersonProfile,
@@ -127,6 +127,12 @@ export function Overview({
             requestIds={requestIds}
           />
         </>
+      ) : null}
+
+      {draft.handoffAcknowledgement ? (
+        <ProfileHandoffAcknowledgement snapshot={draft.handoffAcknowledgement} />
+      ) : draft.salesHandoffAcknowledgement ? (
+        <ProfileSalesHandoffAcknowledgement snapshot={draft.salesHandoffAcknowledgement} />
       ) : null}
 
       <a

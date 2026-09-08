@@ -393,6 +393,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "case.handoff.create": "Передача дела оформлена",
   "case.lifecycle.change": "Состояние дела изменено",
   "case.route.change": "Маршрут дела изменён",
+  "lead.admissions.handoff.completed": "Дело передано в сопровождение",
   "case.update.append": "Запись добавлена в дело",
   "catalog.import.batch.create": "Партия импорта каталога создана",
   "catalog.import.batch.review": "Партия импорта каталога проверена",
@@ -479,7 +480,8 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "workflow.version.retire": "Версия процесса отозвана",
 } satisfies Readonly<Record<PlatformAuditAction |
   "case.handoff.acknowledge" | "case.handoff.clarification" |
-  "case.coverage.start" | "case.coverage.return", string>>;
+  "case.coverage.start" | "case.coverage.return" |
+  "lead.admissions.handoff.completed", string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   ai_draft: "Черновик ИИ",

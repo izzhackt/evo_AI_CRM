@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { journalEvent } from "../src/lib/v3/wording.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = read("supabase/migrations/132_platform_case_activity_timeline.sql");
@@ -8,6 +9,14 @@ const source = read("src/lib/v3/profile-activity-source.ts");
 const page = read("src/app/(v3)/v3/profile/page.tsx");
 
 // Source contracts supplement, never replace, actual DB/Auth/browser acceptance.
+test("every action emitted by the real activity projection has user-facing wording", () => {
+  const actions = new Set([...migration.matchAll(/'((?:case|lead|task|application|visa|document|finance|communication)\.[a-z_.]+)'/gu)]
+    .map((match) => match[1])
+    .filter((action) => action !== "finance.read.summary"));
+  assert.ok(actions.size > 20);
+  for (const action of actions) assert.ok(journalEvent(action), `Missing wording for ${action}`);
+});
+
 test("activity replaces the unused projection and exposes an invoker-only exact-case stream", () => {
   assert.match(migration, /DROP FUNCTION platform\.staff_student_case_activity\(UUID, INTEGER\)/u);
   assert.match(migration, /u7_require_case_workspace_actor\(p_student_case_id\)/u);

@@ -69,8 +69,23 @@ SELECT set_config('request.jwt.claims','{}',true);
 SELECT set_config('request.jwt.claim.sub','',true);
 SET LOCAL ROLE authenticated;
 DO $$
-DECLARE actual_message TEXT;
+DECLARE actual_message TEXT; invalid_end_on DATE;
 BEGIN
+  -- Actual invalid-input RPC execution, before actor lookup; no actor/row is created.
+  FOREACH invalid_end_on IN ARRAY ARRAY['infinity'::DATE, '10000-01-01'::DATE] LOOP
+    BEGIN
+      PERFORM platform.manage_case_coverage('start','00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000003',1,
+        '00000000-0000-4000-8000-000000000004',invalid_end_on,NULL,0,'[]'::JSONB,'Boundary only',
+        '00000000-0000-4000-8000-000000000005');
+      RAISE EXCEPTION 'Out-of-contract return date unexpectedly accepted';
+    EXCEPTION WHEN invalid_parameter_value THEN
+      GET STACKED DIAGNOSTICS actual_message=MESSAGE_TEXT;
+      IF actual_message<>'Invalid coverage start' THEN
+        RAISE EXCEPTION 'Unexpected return-date denial: %',actual_message;
+      END IF;
+    END;
+  END LOOP;
   BEGIN
     PERFORM platform.read_curator_coverage_workspace('00000000-0000-4000-8000-000000000001',NULL,NULL,NULL);
     RAISE EXCEPTION 'Missing session read unexpectedly succeeded';

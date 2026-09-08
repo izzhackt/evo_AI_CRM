@@ -229,6 +229,9 @@ BEGIN
     OR jsonb_array_length(p_tasks) > 1000 OR octet_length(p_tasks::TEXT) > 200000
   THEN RAISE EXCEPTION 'Invalid coverage command' USING ERRCODE = '22023'; END IF;
   IF p_operation = 'start' AND (p_substitute_membership_id IS NULL OR p_planned_end_on IS NULL
+    -- PostgreSQL DATE accepts infinity and >4-digit years; the UI contract does not.
+    -- https://www.postgresql.org/docs/current/functions-datetime.html
+    OR NOT isfinite(p_planned_end_on) OR p_planned_end_on > DATE '9999-12-31'
     OR p_coverage_id IS NOT NULL OR p_expected_coverage_version IS DISTINCT FROM 0)
   THEN RAISE EXCEPTION 'Invalid coverage start' USING ERRCODE = '22023'; END IF;
   IF p_operation = 'return' AND (p_coverage_id IS NULL OR p_expected_coverage_version IS NULL
@@ -406,7 +409,7 @@ DECLARE
   workload JSONB; cases JSONB; preview JSONB := NULL; task_rows JSONB;
   target_case platform.student_cases%ROWTYPE;
   coverage platform_private.case_curator_coverages%ROWTYPE;
-  conflicts TEXT[] := '{}'; next_case UUID; total_tasks BIGINT;
+  conflicts TEXT[] := '{}'::TEXT[]; next_case UUID; total_tasks BIGINT;
 BEGIN
   PERFORM platform_private.require_admin_actor(p_organization_id,'case.curator.assign');
   IF (p_student_case_id IS NOT NULL OR p_after_case_id IS NOT NULL) AND p_curator_membership_id IS NULL THEN

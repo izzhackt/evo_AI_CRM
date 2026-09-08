@@ -103,6 +103,11 @@ test("post-coverage guard is narrow: current Curator only for open covered work"
   assert.doesNotMatch(guard, /returned_at IS NULL|status='active'/);
 });
 
+test("coverage start rejects PostgreSQL dates outside the displayed date contract", () => {
+  assert.match(sql, /NOT isfinite\(p_planned_end_on\)/);
+  assert.match(sql, /p_planned_end_on > DATE '9999-12-31'/);
+});
+
 test("exact snapshot covers all open work, protects manual changes and never transfers completed tasks", () => {
   assert.match(sql, /IF actual <> expected THEN/);
   assert.match(sql, /status IN \('open','in_progress','blocked'\)/);

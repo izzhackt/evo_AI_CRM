@@ -89,6 +89,67 @@ test("every page passes the direct strict E2 result to its view", () => {
   }
 });
 
+test("overview names each actor from the canonical projection and links exact items", () => {
+  const overview = source("src/components/v3/portal/OverviewView.tsx");
+  const documents = source("src/components/v3/portal/DocumentsView.tsx");
+
+  assert.match(overview, /overview\.studentAction/u);
+  assert.match(overview, /overview\.evoAction/u);
+  assert.doesNotMatch(overview, /overview\.nextAction/u);
+  assert.match(overview, /Что требуется от вас/u);
+  assert.match(overview, /Что делает EVO/u);
+  assert.match(
+    overview,
+    /\/portal\/documents#document-\$\{overview\.studentAction\.documentSlotId\}/u,
+  );
+  assert.match(overview, /<details/u);
+  assert.match(overview, /id=\{`evo-task-\$\{overview\.evoAction\.taskId\}`\}/u);
+  assert.match(
+    overview,
+    /Нет документов, которые сейчас нужно загрузить или заменить/u,
+  );
+  assert.match(overview, /Нет опубликованной задачи команды EVO/u);
+  assert.match(overview, /min-h-11/u);
+  assert.match(
+    documents,
+    /id=\{`document-\$\{document\.documentSlotId\}`\}/u,
+  );
+});
+
+test("migration 131 replaces the sole overview RPC with canonical action groups", () => {
+  const migration = source(
+    "supabase/migrations/131_platform_student_portal_next_steps.sql",
+  );
+
+  assert.match(
+    migration,
+    /DROP FUNCTION platform\.student_portal_overview_v1\(\);/u,
+  );
+  assert.match(
+    migration,
+    /CREATE FUNCTION platform\.student_portal_overview_v1\(\)/u,
+  );
+  assert.match(migration, /student_action_kind TEXT/u);
+  assert.match(migration, /student_action_document_slot_id UUID/u);
+  assert.match(migration, /evo_action_task_id UUID/u);
+  assert.match(migration, /evo_action_status platform\.case_task_status/u);
+  assert.match(
+    migration,
+    /slot\.status IN \('required', 'correction_required', 'rejected'\)/u,
+  );
+  assert.match(
+    migration,
+    /assignee_membership\."current_role" IN \('admin', 'sales', 'curator'\)/u,
+  );
+  assert.doesNotMatch(migration, /student_case\.next_action/u);
+  assert.match(migration, /SECURITY DEFINER/u);
+  assert.match(migration, /SET search_path = ''/u);
+  assert.match(
+    migration,
+    /GRANT EXECUTE ON FUNCTION platform\.student_portal_overview_v1\(\)\s+TO authenticated;/u,
+  );
+});
+
 test("views consume the exact E2 DTOs without an invented wrapper", () => {
   assert.equal(
     existsSync(new URL("src/components/v3/portal/types.ts", ROOT)),

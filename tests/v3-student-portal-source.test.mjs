@@ -22,12 +22,19 @@ const SLOT_ID = "44444444-4444-4444-8444-444444444444";
 const VERSION_ID = "55555555-5555-4555-8555-555555555555";
 const NOTIFICATION_ID = "66666666-6666-4666-8666-666666666666";
 const REQUEST_ID = "77777777-7777-4777-8777-777777777777";
+const TASK_ID = "88888888-8888-4888-8888-888888888888";
 
 const OVERVIEW_ROW = Object.freeze({
   operational_stage: "Подготовка документов",
-  next_action: "Загрузить паспорт",
-  next_action_due_at: null,
-  next_action_due_on: "2026-09-12",
+  student_action_kind: "replace_document",
+  student_action_label: "Паспорт",
+  student_action_due_at: "2026-09-12T03:00:00+00:00",
+  student_action_document_slot_id: SLOT_ID,
+  evo_action_task_id: TASK_ID,
+  evo_action_title: "Проверить анкету",
+  evo_action_status: "in_progress",
+  evo_action_due_at: null,
+  evo_action_due_on: "2026-09-13",
   curator_display_name: "Айжан К.",
 });
 
@@ -132,12 +139,24 @@ test("overview decoder preserves nullable facts and rejects invented or internal
   const normalized = normalizeStudentPortalOverview(OVERVIEW_ROW);
   assert.deepEqual(normalized, {
     operationalStage: "Подготовка документов",
-    nextAction: "Загрузить паспорт",
-    nextActionDueAt: null,
-    nextActionDueOn: "2026-09-12",
+    studentAction: {
+      kind: "replace_document",
+      label: "Паспорт",
+      dueAt: "2026-09-12T03:00:00+00:00",
+      documentSlotId: SLOT_ID,
+    },
+    evoAction: {
+      taskId: TASK_ID,
+      title: "Проверить анкету",
+      status: "in_progress",
+      dueAt: null,
+      dueOn: "2026-09-13",
+    },
     curatorDisplayName: "Айжан К.",
   });
   assert.ok(Object.isFrozen(normalized));
+  assert.ok(Object.isFrozen(normalized.studentAction));
+  assert.ok(Object.isFrozen(normalized.evoAction));
 
   expectUnavailable(() => normalizeStudentPortalOverview({
     ...OVERVIEW_ROW,
@@ -145,12 +164,42 @@ test("overview decoder preserves nullable facts and rejects invented or internal
   }));
   expectUnavailable(() => normalizeStudentPortalOverview({
     ...OVERVIEW_ROW,
-    next_action_due_at: "2026-09-12T03:00:00+00:00",
+    student_action_kind: "call_student",
   }));
   expectUnavailable(() => normalizeStudentPortalOverview({
     ...OVERVIEW_ROW,
-    next_action: null,
+    student_action_document_slot_id: null,
   }));
+  expectUnavailable(() => normalizeStudentPortalOverview({
+    ...OVERVIEW_ROW,
+    evo_action_task_id: null,
+  }));
+  expectUnavailable(() => normalizeStudentPortalOverview({
+    ...OVERVIEW_ROW,
+    evo_action_status: "done",
+  }));
+  expectUnavailable(() => normalizeStudentPortalOverview({
+    ...OVERVIEW_ROW,
+    evo_action_due_at: "2026-09-13T03:00:00+00:00",
+  }));
+
+  assert.deepEqual(normalizeStudentPortalOverview({
+    ...OVERVIEW_ROW,
+    student_action_kind: null,
+    student_action_label: null,
+    student_action_due_at: null,
+    student_action_document_slot_id: null,
+    evo_action_task_id: null,
+    evo_action_title: null,
+    evo_action_status: null,
+    evo_action_due_at: null,
+    evo_action_due_on: null,
+  }), {
+    operationalStage: "Подготовка документов",
+    studentAction: null,
+    evoAction: null,
+    curatorDisplayName: "Айжан К.",
+  });
 
   const mock = mockRpc((name) => {
     assert.equal(name, "student_portal_overview_v1");

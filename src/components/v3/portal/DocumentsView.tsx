@@ -36,7 +36,11 @@ export function DocumentsView({
           const submittedLabel = formatPortalTimestamp(document.submittedAt);
 
           return (
-            <li key={document.documentSlotId} className="px-4 py-5 sm:px-5">
+            <li
+              key={document.documentSlotId}
+              id={`document-${document.documentSlotId}`}
+              className="scroll-mt-24 px-4 py-5 sm:px-5"
+            >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h3 className="text-sm font-semibold leading-6 text-fg">

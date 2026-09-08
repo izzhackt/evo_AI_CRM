@@ -26,6 +26,18 @@ import type {
   PlatformDocumentSlotStatus,
 } from "../platform-private-documents.ts";
 
+/** Coverage conflicts are operational instructions, never raw database keys. */
+export function coverageConflictLabel(value: string): string | null {
+  const labels: Record<string, string> = {
+    assignment_changed: "Назначение куратора изменилось. Проверьте актуального владельца дела.",
+    original_curator_unavailable: "Прежний куратор сейчас недоступен для возврата.",
+    task_reassigned: "Исполнителя задачи меняли отдельно. Сначала согласуйте её возврат.",
+    original_assignee_unavailable: "Прежний исполнитель задачи сейчас недоступен.",
+    unrelated_assignee: "Задача назначена другому куратору. Сначала проверьте исполнителя.",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
 /** Каноническая стадия `platform` sales workflow. */
 const LEAD_STAGE: Record<string, string> = {
   new: "новый",

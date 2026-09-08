@@ -75,7 +75,7 @@ export function ProfileCaseDirectory({
       open={initiallyOpen}
     >
       <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-fg marker:text-fg-3">
-        Найти Student Case
+        Найти студента
         <span className="ml-2 font-mono font-normal text-fg-3">
           {params.invalid ? "—" : directory.rows.length}
         </span>
@@ -86,15 +86,15 @@ export function ProfileCaseDirectory({
           action="/v3/profile"
           method="get"
           className="grid gap-3 @3xl:grid-cols-[minmax(260px,1fr)_minmax(180px,0.35fr)_auto]"
-          aria-label="Поиск Student Cases"
+          aria-label="Найти студента"
         >
           <label className="grid gap-1.5 text-xs font-medium text-fg-2">
-            Имя, маршрут, страна или UUID
+            Имя, маршрут или страна
             <input
               className="min-h-11 rounded-nav border border-control-edge bg-surface px-3 text-sm text-fg outline-none focus:border-accent"
               defaultValue={params.query}
               name="case_q"
-              placeholder="Например: Германия или UUID"
+              placeholder="Например: Германия"
             />
           </label>
           <label className="grid gap-1.5 text-xs font-medium text-fg-2">
@@ -223,7 +223,7 @@ export function ProfileCaseDirectory({
         )}
 
         <nav
-          aria-label="Страницы Student Cases"
+          aria-label="Страницы каталога студентов"
           className="flex items-center justify-between gap-3"
         >
           {params.cursor ? (

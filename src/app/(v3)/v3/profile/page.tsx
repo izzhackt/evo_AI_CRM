@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { Suspense } from "react";
 
 import Link from "next/link";
 
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
 import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
+import { CuratorCoveragePanel } from "@/components/v3/profile/CuratorCoveragePanel";
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
 import {
   buildV3ProfileHref,
@@ -212,6 +214,11 @@ export default async function ProfilePart({
             initiallyOpen={directoryParams.active || !view}
             params={directoryParams}
           />
+        ) : null}
+        {directory && actor.authorityRole === "admin" && actor.presentationRole === "admin" ? (
+          <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем нагрузку кураторов…</p>}>
+            <CuratorCoveragePanel actor={actor} params={params} />
+          </Suspense>
         ) : null}
         {view ? (
           <>

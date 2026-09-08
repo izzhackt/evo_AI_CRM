@@ -21697,3 +21697,16 @@ without partial writes. No open task may be stranded on the departing owner.
 An end date is informational with explicit manual return, never an invented
 scheduler. This avoids blocking an ordinary return solely because the deputy
 created necessary work while covering the case.
+
+UX-6 concurrency detail: task creation/change must share the existing 117
+organization assignment lock before request/row locks. Otherwise a task begun
+by a deputy before return could commit after scope revocation. Move the sole
+task function bodies behind invoker/private coordinators rather than duplicating
+them; keep authorization rechecks and one active command path. This is the
+minimum serialization needed for the no-orphan acceptance criterion.
+
+Browser access resumed after the owner unlocked the Mac. Read-only live Admin
+navigation on `http://localhost:3000/v3/profile` (the production SSH tunnel)
+showed all-status directory count 0, no accessible cases and no people;
+calendar also showed no active case and zero task queue. This is fresh UI
+evidence of the real-case acceptance blocker, not proof of the new local UI.

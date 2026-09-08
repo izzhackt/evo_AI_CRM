@@ -22013,3 +22013,76 @@ assertions. Do not add a fabricated receipt, skip the dependent test, weaken the
 required field, or change application/schema behavior. Full Node coverage already
 passes across128 unique test files; the new exact-head CI must exercise the real
 browser path before release.
+
+### 2026-09-08 — fresh recovery input and production schema 134 confirmed
+
+This is an evidence/status update, not expanded scope or business acceptance.
+PR688 merged the curator/sales wave, PR689 corrected logical migration-ledger
+ordering without rewriting dump bytes, and PR690 corrected only the exact adapter
+inventory and existing browser reason input. The frozen release candidate is
+`0cbb2d42d9691fac392864fea72a3f0894826773`. Manual full CI `34223961358` passed:
+Node/static/build, real browser/database, dependency audit and final Main CRM gate.
+Downstream release `34224668896` then passed its immutable build, deployment,
+normal Admin browser and acceptance steps. SSH readback confirms healthy app,
+zero restarts and image/OCI revision `0cbb2d42`, version `r27.1-0cbb2d42`.
+Release arm=false was read back twice, last at 12:16:19Z. Independent host proof
+at 12:19:24Z also verifies the accepted pointer/receipt, immutable image,
+external health, all three healthy containers with zero restarts, no pending
+release/held lock, and rollback bound to prior `4e6057f0`.
+Release ID is `v3-r34224668896-a1-0cbb2d42`;
+image SHA256 `de5b625518efc094f7be1437a4188dc713d2f7979cc66b900c6e55026dc20dda`,
+accepted pointer SHA256 `bc7275af1d3cbfa3f4c6ef3d95ee75be0a89ed217a842e74bcc6421741c8ec11`,
+acceptance receipt SHA256 `a40439ca8288d4fde009c75cd59336dbbfc40800445c2d8a0fc0357c5f264f89`.
+
+Fresh canonical export `evo-v3-managed-export-20260908114631-bf20388b-cd2e-4b94-8810-dfee4ccf576e`
+is complete in the private CRM backup directory, bound to source-main
+`a3c0101567dacaa48abed877bec7452adbe168e3` and the pre-change 001–128 ledger.
+Receipt SHA256 is
+`2ca18e7ece4042809016011f2f49222831f572e1f96da91770d0683b16a90580`.
+The detached signature, protected modes, all eight encrypted-artifact hashes and
+all five decrypted SQL hashes passed independent local verification. The exact
+snapshot contains two Auth users, zero rows in all fifteen checked core business
+relations (clients, leads, cases, tasks/events, document slots/versions/reviews,
+contract drafts/items/reports, payment obligations/events/evidence and handoffs),
+and zero Storage objects/bytes across six buckets. Source data was not changed.
+This fresh export is recovery input, not a new restore rehearsal: accepted #551
+remains the historical engine proof, reused under the recorded empty-business/
+Storage condition. Do not describe its older Auth 1/ledger 79 snapshot as current.
+
+Canonical schema apply `34223314795` and separate schema check `34223577479`
+passed on `a3c01015`; production has exactly 001–134, no missing/extra versions.
+Read-only catalog verification checked 27 functions, the single 11-argument task
+RPC with its approved default, private coverage bodies/locks, five FORCE-RLS
+private tables without direct runtime access, both portal contracts and the
+enabled handoff-report trigger. Ordinary Admin sign-in, verified claims and
+`current_actor_authority` then reached `read_sales_register_v1` through PostgREST:
+HTTP 200, canonical DTO parsed, zero rows/targets before import. That diagnostic
+session closed without a business command. Later the authorized import used a
+normal real Admin JWT, never service-role authority, and inserted 209 source
+records/4 department targets with skipped 0/mismatches 0. The repeat inserted 0,
+skipped 209 records/4 targets and again reported mismatches 0. Readback confirms 209
+active/0 archived, 22 sales in 2025 and 187 in 2026, exact source keys/month counts,
+currency-separated totals and unresolved counts; no synthetic customer/case or
+invented pipeline link was created. Safe evidence is private, mode 0600:
+preflight SHA256 `8aeb3c04da40a44d5489d9209833514016849ab17c230af54c0f418b3aa1232b`,
+import SHA256 `dffe38b88b391f2ba454ae3153281aae931de253eadcaa42138e61f23e599400`.
+The source/payload hashes remain unchanged and the diagnostic session closed.
+
+The loopback SSH tunnel at `http://127.0.0.1:3000` is ready; local/remote login
+return HTTP 200 with matching body hashes. Its private app target was unchanged,
+so no tunnel restart was needed. The separate headed Chrome proof passed through
+the ordinary Admin login form, confirmed the real 187-row 2026 report, correct
+currency totals and Admin-only import control with no report load error, and
+captured a private 0600 screenshot at 12:20:51Z. No Auth bypass or cookie/JWT state
+injection was used. The process-only helper SHA256 is
+`ab3a1c993f58b4c64fdc77ae781029acf39f138ccd9e12886c070248ff614be5`.
+Chrome remains open at `http://localhost:3000/v3/main?view=sales&year=2026&month=all`.
+The Mac is locked; owner unlock is needed only to see that already-loaded window.
+This corrects the interim locked-screen inference: technical UI proof is PASS,
+not blocked; owner/business inspection is still deferred. Do not repeat import
+just to display the report.
+Curator/Sales/Student real-case acceptance remains
+DEFERRED; #687 stays OPEN until owner acceptance permits a separately reviewed
+forward removal of portal v1 and the Admin-only omitted-reason exception.
+The requested localhost view is a loopback SSH tunnel to production, never a
+local-development copy; refresh its private target after container replacement.

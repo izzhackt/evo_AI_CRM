@@ -1725,6 +1725,9 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .click();
   await expect(timedDeadlineInput).toHaveValue("2099-09-12T18:45");
   await timedChangeForm.locator('select[name="priority"]').selectOption("urgent");
+  await timedChangeForm
+    .locator('input[name="reason"]')
+    .fill("Verify exact timed deadline preservation while escalating priority");
   await timedChangeForm.locator('button[type="submit"]').click();
 
   await expect.poll(async () => {

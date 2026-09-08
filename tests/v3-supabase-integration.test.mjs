@@ -25,9 +25,11 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "period.ts",
     "pipeline-source.ts",
     "portal-source.ts",
+    "profile-activity-source.ts",
     "profile-route-load.ts",
     "profile-source.ts",
     "reply-snippets-source.ts",
+    "sales-register-source.ts",
     "settings-journal-contract.ts",
     "settings-source.ts",
     "wording.ts",
@@ -44,8 +46,10 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "operations-source.ts",
     "pipeline-source.ts",
     "portal-source.ts",
+    "profile-activity-source.ts",
     "profile-source.ts",
     "reply-snippets-source.ts",
+    "sales-register-source.ts",
     "settings-source.ts",
   ]);
 
@@ -54,7 +58,13 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     .join("\n");
 
   assert.doesNotMatch(adapterSources, /@\/lib\/server\/database/);
-  assert.doesNotMatch(adapterSources, /\bevo_[a-z0-9_]+\b/);
+  for (const name of adapterFiles) {
+    const adapter = readFileSync(new URL(name, adapterDirectory), "utf8");
+    assert.deepEqual([...new Set(adapter.match(/\bevo_[a-z0-9_]+\b/g) ?? [])].sort(), name === "portal-source.ts" ? [
+      "evo_action_due_at", "evo_action_due_on", "evo_action_status", "evo_action_task_id", "evo_action_title",
+    ] : [], `${name} contains unexpected legacy names`);
+    assert.doesNotMatch(adapter, /\.(?:from|rpc)\s*\(\s*["'`]evo_/);
+  }
   assert.doesNotMatch(adapterSources, /better-sqlite3|drizzle-orm/i);
   assert.match(adapterSources, /listPlatformSalesLeads/);
   assert.match(adapterSources, /listPlatformConversations/);

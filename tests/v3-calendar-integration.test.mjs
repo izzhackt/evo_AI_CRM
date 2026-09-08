@@ -145,7 +145,9 @@ test("calendar links resolve a real case-bound task and preselect it without pag
   assert.match(adapter, /workspace\.tasks\.find\(\(row\) => row\.caseTaskId === caseTaskId\)/);
   assert.match(adapter, /if \(!task\) return null/);
   assert.match(adapter, /read\.tasks\.filter\(\(task\) => task\.id !== target\.task\.id\)/);
-  assert.match(calendar, /useState<string \| null>\(initialTaskId\)/);
+  assert.match(calendar, /tasks\.find\(\(task\) => task\.id === initialTaskId\)/);
+  assert.match(calendar, /params\.set\("case", target\.studentCaseId\)/);
+  assert.match(calendar, /params\.set\("task", target\.id\)/);
 });
 
 test("V3 calendar resolves the page actor before reading Admissions data", () => {

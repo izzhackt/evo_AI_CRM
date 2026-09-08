@@ -21984,3 +21984,32 @@ until backup/schema/host gates pass. Only then arm if that exact current-main CI
 is still running; if it already completed unarmed, start a fresh exact-main proof
 after readiness instead of claiming/replaying a skipped release. Required checks,
 immutable image binding and terminal disarm remain unchanged.
+
+### 2026-09-08 — include reviewed V3 adapters in the exact CI inventory
+
+Unarmed exact-main CI34222440934 found one Node/static failure: the strict V3
+adapter inventory omitted the already-reviewed profile-activity-source.ts and
+sales-register-source.ts from PR688. Both use the canonical Supabase client/RPC
+path; this is stale test inventory, not a request to remove the assertion.
+Before changing the test: add those exact names to both directory/source lists,
+retain strict enumeration and all no-legacy/no-sample assertions, reproduce red
+then green and rerun aggregate Node coverage. No application, migration, provider
+or authorization change. Work in a separate worktree so the fresh encrypted
+backup remains bound to clean source-main a3c01015; its schema128 source remains
+valid for the descendant final release. Release stays unarmed while CI fails.
+
+The same red test then exposed its blanket legacy-name regex matching the five
+approved portal-v2 `evo_action_*` projection fields. Replace that blanket token
+ban with exact per-file enumeration: only those five fields in portal-source.ts,
+no such names in other adapters, and still forbid any evo_-prefixed from/RPC
+target. This does not allow a legacy table, repository or fallback runtime.
+
+The same CI browser proof failed because its existing timed-task priority edit
+never filled the newly required reason field. The browser blocked submission,
+leaving priority normal; the later D2 failure is the missing acceptance receipt
+from that aborted prerequisite. Before editing: fill one technical audit reason
+in that existing change form, preserving all timestamp, priority and authority
+assertions. Do not add a fabricated receipt, skip the dependent test, weaken the
+required field, or change application/schema behavior. Full Node coverage already
+passes across128 unique test files; the new exact-head CI must exercise the real
+browser path before release.

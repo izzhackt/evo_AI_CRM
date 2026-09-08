@@ -1,7 +1,14 @@
+import Link from "next/link";
+
 import { PortalDefinition, PortalEmptyState, PortalSection } from "./PortalPage";
 import { PortalStatus } from "./PortalStatus";
 import type { StudentPortalOverview } from "@/lib/v3/portal-source";
-import { overviewDueLabel, overviewStage } from "./presentation";
+import {
+  evoActionDueLabel,
+  evoActionStatus,
+  overviewStage,
+  studentActionDueLabel,
+} from "./presentation";
 
 export function OverviewView({
   overview,
@@ -18,33 +25,90 @@ export function OverviewView({
   }
 
   const stage = overviewStage(overview);
-  const dueLabel = overviewDueLabel(overview);
+  const studentDueLabel = overview.studentAction
+    ? studentActionDueLabel(overview.studentAction)
+    : null;
+  const evoDueLabel = overview.evoAction
+    ? evoActionDueLabel(overview.evoAction)
+    : null;
+  const evoStatus = overview.evoAction
+    ? evoActionStatus(overview.evoAction)
+    : null;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
       <PortalSection
         title="Что сейчас"
-        description="Актуальный этап и ближайшее действие по вашему поступлению."
+        description="Актуальный этап и ближайшие действия по вашему поступлению."
       >
-        <dl className="grid gap-6 px-4 py-5 sm:grid-cols-2 sm:px-5">
+        <dl className="grid gap-5 px-4 py-5 sm:px-5">
           <PortalDefinition term="Текущий этап">
             <PortalStatus label={stage.label} tone={stage.tone} />
           </PortalDefinition>
 
-          <PortalDefinition term="Следующий шаг">
-            {overview.nextAction ? (
-              <span className="block">
-                {overview.nextAction}
-                {dueLabel ? (
-                  <span className="mt-1 block text-xs font-normal text-fg-3">
-                    Срок: {dueLabel}
+          <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
+            <PortalDefinition term="Что требуется от вас">
+              {overview.studentAction ? (
+                <span className="block">
+                  <span className="block">
+                    {overview.studentAction.kind === "upload_document"
+                      ? "Загрузите документ"
+                      : "Замените документ"}: {overview.studentAction.label}
                   </span>
-                ) : null}
-              </span>
-            ) : (
-              <span className="text-fg-3">Пока не назначен</span>
-            )}
-          </PortalDefinition>
+                  {studentDueLabel ? (
+                    <span className="mt-1 block text-xs font-normal text-fg-3">
+                      Срок: {studentDueLabel}
+                    </span>
+                  ) : null}
+                  <Link
+                    href={`/portal/documents#document-${overview.studentAction.documentSlotId}`}
+                    className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-accent underline decoration-accent/40 underline-offset-4 hover:decoration-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  >
+                    Открыть документ
+                  </Link>
+                </span>
+              ) : (
+                <span className="font-normal text-fg-3">
+                  Нет документов, которые сейчас нужно загрузить или заменить.
+                </span>
+              )}
+            </PortalDefinition>
+
+            <PortalDefinition term="Что делает EVO">
+              {overview.evoAction && evoStatus ? (
+                <details
+                  id={`evo-task-${overview.evoAction.taskId}`}
+                  className="scroll-mt-24"
+                >
+                  <summary className="min-h-11 cursor-pointer list-none rounded-nav py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                    <span className="flex flex-wrap items-start justify-between gap-2">
+                      <span>
+                        <span className="block">{overview.evoAction.title}</span>
+                        {evoDueLabel ? (
+                          <span className="mt-1 block text-xs font-normal text-fg-3">
+                            Срок: {evoDueLabel}
+                          </span>
+                        ) : null}
+                        <span className="mt-1 block text-xs font-normal text-accent">
+                          Подробнее
+                        </span>
+                      </span>
+                      <PortalStatus label={evoStatus.label} tone={evoStatus.tone} />
+                    </span>
+                  </summary>
+                  <div className="mt-2 border-s-2 border-border-strong ps-3">
+                    <p className="text-xs font-normal leading-5 text-fg-3">
+                      Исполнитель этой задачи — команда EVO.
+                    </p>
+                  </div>
+                </details>
+              ) : (
+                <span className="font-normal text-fg-3">
+                  Нет опубликованной задачи команды EVO.
+                </span>
+              )}
+            </PortalDefinition>
+          </div>
         </dl>
       </PortalSection>
 
@@ -56,7 +120,7 @@ export function OverviewView({
             </p>
           ) : (
             <p className="text-sm leading-6 text-fg-3">
-              Куратор пока не назначен. Контакт появится здесь после назначения.
+              Куратор пока не назначен. Его имя появится здесь после назначения.
             </p>
           )}
         </div>

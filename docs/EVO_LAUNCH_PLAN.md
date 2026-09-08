@@ -68,16 +68,60 @@ and catalog extension) and 13 (new post-arrival scope) are deferred. Items
 The executable scope, unchecked acceptance list and UX criteria are in
 [the separate September 8 run plan](design/v3/curator-ux-run-plan.md),
 with owner wording in [product.md](design/v3/product.md#owner-curator-ux-20260908).
-This is a planning amendment, not implementation or production proof. Only a
-small usability polish of existing V3 surfaces/shared controls is in scope;
-no platform rebuild, new design system, dense all-in-one screen, extra staff
-role, Auth change or provider activation. Reuse canonical Supabase contracts;
-new authority/data behavior must be real, server-enforced and reviewed.
+Implementation was explicitly authorized on September 8 and is prepared on
+`izzhackt/curator-ux-execution`. The owner now explicitly authorizes deployment
+although the live Admin directory has no case on which to perform the real
+Curator/Sales/Student workflows before release. That business-case acceptance is
+waived and deferred, not passed, and must not be replaced with synthetic users or
+cases. The owner will inspect the deployed product afterwards.
+
+This authorization does not weaken the technical release contract: exact reviewed
+SHA/current-main binding, required CI, backup, rollback and production health
+readback remain mandatory. By the owner's later explicit decision, migration 131
+adds `student_portal_overview_v2()` and leaves the existing
+`student_portal_overview_v1()` unchanged for one temporary rollback window. The
+new application calls only v2, with no fallback; a rollback to the accepted image
+continues to use v1. After the owner accepts the deployed portal, a separately
+reviewed forward migration must delete v1. The overall 129–133 schema release still
+requires migration-history readback and a reviewed database recovery path. It also
+uses the owner's September 8 approved minimal cutover guard: migration 129's
+canonical task handler permits only a server-resolved Admin to omit `p_reason`,
+as the accepted old application does. Explicit blank reasons still fail; Curator
+reason enforcement and all ownership/coverage locks remain unchanged. Migration
+133 reuses that body; no overload or second runtime is added. After owner
+acceptance a reviewed forward migration removes this temporary exception together
+with the portal rollback window. Existing isolated CI fixtures are authorized only
+for technical checks, never as real business/provider acceptance. The owner also
+authorizes a password-only reset of the existing smoke Admin account
+conditional on read-only proof that it is already an active Admin, and a localhost
+SSH tunnel to the deployed app. This does not authorize new users or role changes.
+See the run plan for the exact order, file inventory and proof still required.
+Only a small usability polish of existing V3 surfaces/shared controls is in scope;
+no platform rebuild, new design system, dense all-in-one screen, extra staff role,
+Auth change or provider activation.
+
+The source-backed Sales report is part of the same deployment objective. Its
+contract is now recorded before implementation in
+[sales-report-run-plan.md](design/v3/sales-report-run-plan.md) and the append-only
+decision log; the implementation and private import preparation are in
+`izzhackt/sales-report-platform`, together with this reviewed curator wave.
+Neither production import nor deployment has completed.
 
 The first release and certification are already closed in #552/#553 on
 `4e6057f0159dba6515ea18b412567b48779cf77f`. Preserve that evidence; a new plan
 commit does not redeploy the app or reopen completed launch blocks. Apply the
 current scoped short-PR cadence, not historical full-gate-per-merge wording.
+
+## Current follow-up: sales report in the platform (2026-09-08)
+
+The owner authorizes replacing the supplied monthly sales spreadsheet workflow
+with a year/month report and editable sales register inside V3, importing the
+actual source, and deploying it for owner inspection. The executable contract
+is [sales-report-run-plan.md](design/v3/sales-report-run-plan.md).
+This is reporting data, not automatic contract/payment confirmation or case
+creation. Keep currency-specific totals, source provenance, unresolved values,
+existing identity/finance boundaries and own-record Sales scope. Google remains
+unchanged; after the initial transfer, platform records are edited in EVO.
 
 ## Current authority: V3 becomes the managed-Supabase product
 

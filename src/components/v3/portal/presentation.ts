@@ -2,6 +2,8 @@ import type { PillTone } from "@/components/v3/Pill";
 import type {
   StudentPortalApplication,
   StudentPortalDocument,
+  StudentPortalDocumentAction,
+  StudentPortalEvoAction,
   StudentPortalOverview,
   StudentPortalPayment,
   StudentPortalVisa,
@@ -14,6 +16,7 @@ import {
   paymentObligationCategory,
   paymentObligationStatus,
   studentOperationalStage,
+  taskStatus,
   visaStatus,
 } from "@/lib/v3/wording";
 
@@ -54,10 +57,29 @@ export function overviewStage(
   };
 }
 
-export function overviewDueLabel(overview: StudentPortalOverview): string | null {
-  return overview.nextActionDueOn !== null
-    ? allDayDate(overview.nextActionDueOn)
-    : formatPortalTimestamp(overview.nextActionDueAt);
+export function studentActionDueLabel(
+  action: StudentPortalDocumentAction,
+): string | null {
+  return formatPortalTimestamp(action.dueAt);
+}
+
+export function evoActionDueLabel(action: StudentPortalEvoAction): string | null {
+  return action.dueOn !== null
+    ? allDayDate(action.dueOn)
+    : formatPortalTimestamp(action.dueAt);
+}
+
+export function evoActionStatus(
+  action: StudentPortalEvoAction,
+): PortalStatusPresentation {
+  return {
+    label: taskStatus(action.status),
+    tone: action.status === "blocked"
+      ? "warn"
+      : action.status === "in_progress"
+        ? "info"
+        : "neutral",
+  };
 }
 
 export function documentStatus(

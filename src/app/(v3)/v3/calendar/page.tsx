@@ -12,14 +12,17 @@ import {
   resolveView,
 } from "@/components/v3/calendar/types";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { parsePlatformAdmissionsUuid } from "@/lib/platform-admissions";
 import { parseCalendarUndatedTaskCursor } from "@/lib/v3/calendar-contract";
-import { readCalendarWorkspace, readNowMinutes, readToday } from "@/lib/v3/calendar-source";
+import { readCalendarTaskTarget, readCalendarWorkspace, readNowMinutes, readToday } from "@/lib/v3/calendar-source";
 import { readV3OperationalDashboard } from "@/lib/v3/operations-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Календарь" };
 
 type CalendarSearchParams = Readonly<{
+  case?: string | string[];
+  task?: string | string[];
   view?: string | string[];
   date?: string | string[];
   undated_after_sort_at?: string | string[];
@@ -62,11 +65,21 @@ export default async function CalendarPart({
   ]);
 
   const view = resolveView(singleValue(params.view));
-  const day = resolveDay(singleValue(params.date), today);
-  const undatedCursor = undatedCursorFromParams(params);
+  const caseParam = singleValue(params.case);
+  const taskParam = singleValue(params.task);
+  const hasTarget = caseParam !== undefined || taskParam !== undefined;
+  const caseId = parsePlatformAdmissionsUuid(caseParam);
+  const taskId = parsePlatformAdmissionsUuid(taskParam);
+  if (hasTarget && (!caseId || !taskId)) notFound();
+  const target = caseId && taskId ? await readCalendarTaskTarget(actor, caseId, taskId) : null;
+  if (hasTarget && !target) notFound();
+  const day = target?.task.day ?? resolveDay(singleValue(params.date), today);
+  // Deep links include their authorized task even beyond the first undated page.
+  const requestedCursor = undatedCursorFromParams(params);
+  const undatedCursor = target ? null : requestedCursor;
   const days = gridDays(view, day);
   const [workspace, operations] = await Promise.all([
-    readCalendarWorkspace(actor, days[0], days[days.length - 1], undatedCursor),
+    readCalendarWorkspace(actor, days[0], days[days.length - 1], undatedCursor, target),
     readV3OperationalDashboard(actor),
   ]);
   const taskRequestIds = Object.fromEntries(
@@ -84,6 +97,8 @@ export default async function CalendarPart({
     <PartShell title="Календарь">
       <div className="space-y-8">
         <Calendar
+          key={target ? target.task.id : `${view}:${day}`}
+          initialTaskId={target?.task.id ?? null}
           view={view}
           day={day}
           today={today}

@@ -77,6 +77,10 @@ test("Student upload reuses a hidden browser idempotency key until success or fi
 
 test("Documents view renders one slot and binds controls to its current version", () => {
   assert.match(documents, /\{documents\.map\(\(document\) =>/u);
+  assert.match(
+    documents,
+    /id=\{`document-\$\{document\.documentSlotId\}`\}/u,
+  );
   assert.doesNotMatch(documents, /selectCurrentPortalDocuments|BigInt\(/u);
   assert.match(documents, /<PortalDocumentControls/u);
   assert.match(documents, /documentSlotId=\{document\.documentSlotId\}/u);

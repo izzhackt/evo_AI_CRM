@@ -16,7 +16,7 @@ export default async function StudentPortalOverviewPage() {
   return (
     <PortalPage
       title="Моё поступление"
-      description="Текущий этап, ближайшее действие и человек, который сопровождает ваше дело."
+      description="Текущий этап, действия с вашей стороны и работа команды EVO."
     >
       <OverviewView overview={overview} />
     </PortalPage>

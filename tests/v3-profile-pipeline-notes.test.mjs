@@ -154,7 +154,7 @@ test("Profile notes preserve exact route subjects and bounded keyset paging", ()
   assert.match(page, /noteCursor === null \|\| \(!hasLeadParam && !hasCaseParam\)/u);
   assert.match(page, /note_before_at/u);
   assert.match(page, /note_before_id/u);
-  assert.match(page, /readProfileTarget\(actor, target, noteCursor\)/u);
+  assert.match(page, /readProfileTarget\(actor, target, noteCursor,/u);
   assert.match(page, /toProfileNotesSnapshot\(view\.notes\.subject, view\.notes\.page\)/u);
 });
 

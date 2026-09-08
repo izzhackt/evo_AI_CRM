@@ -65,7 +65,7 @@ export type CalendarTasksRead = Readonly<{
 }>;
 
 function calendarTaskFromRow(
-  row: PlatformAdmissionsTaskQueueRow,
+  row: Omit<PlatformAdmissionsTaskQueueRow, "sortAt">,
   now: Date,
 ): CalendarTask {
   const deadline = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now);
@@ -236,6 +236,38 @@ export type CalendarWorkspace = Readonly<{
   assignees: readonly CalendarAssigneeOption[];
 }>;
 
+export type CalendarTaskTarget = Readonly<{
+  task: CalendarTask;
+  assignees: readonly CalendarAssigneeOption[];
+}>;
+
+/** A case-bound link reads the real guarded workspace, never a paged task guess. */
+export async function readCalendarTaskTarget(
+  actor: ActivePlatformActor,
+  studentCaseId: string,
+  caseTaskId: string,
+): Promise<CalendarTaskTarget | null> {
+  const page = await listPlatformStudentCases(actor, { studentCaseId, pageSize: 1 });
+  const entry = page.rows[0];
+  if (!entry || entry.access !== "full" ||
+    entry.studentCase.studentCaseId !== studentCaseId ||
+    entry.studentCase.state === "pending") return null;
+  const workspace = await getPlatformAdmissionsTaskWorkspace(actor, studentCaseId);
+  const task = workspace.tasks.find((row) => row.caseTaskId === caseTaskId);
+  if (!task) return null;
+  return Object.freeze({
+    task: calendarTaskFromRow({
+      ...task,
+      studentDisplayName: entry.studentCase.studentDisplayName,
+      caseState: entry.studentCase.state,
+    }, new Date()),
+    assignees: workspace.assignees.filter((row) => row.role !== "sales").map((row) => ({
+      membershipId: row.membershipId,
+      displayName: row.displayName,
+    })),
+  });
+}
+
 /**
  * One write-ready V3 calendar projection. Cases and assignees come from the
  * same authorized Supabase repositories as the task commands; there is no
@@ -246,6 +278,7 @@ export async function readCalendarWorkspace(
   from: Day,
   to: Day,
   undatedCursor: CalendarUndatedTaskCursor | null = null,
+  target: CalendarTaskTarget | null = null,
 ): Promise<CalendarWorkspace> {
   const [read, applicationDeadlines, nearestDeadline, cases] = await Promise.all([
     readCalendarTasks(actor, from, to, undatedCursor),
@@ -253,10 +286,10 @@ export async function readCalendarWorkspace(
     readNearestCalendarApplicationDeadline(actor),
     readActiveCases(actor),
   ]);
-  const workspace = cases.rows[0]
+  const workspace = !target && cases.rows[0]
     ? await getPlatformAdmissionsTaskWorkspace(actor, cases.rows[0].id)
     : null;
-  const assignees = workspace?.assignees
+  const assignees = target?.assignees ?? workspace?.assignees
     .filter((assignee) => assignee.role !== "sales")
     .map((assignee) => ({
       membershipId: assignee.membershipId,
@@ -264,7 +297,9 @@ export async function readCalendarWorkspace(
     } satisfies CalendarAssigneeOption)) ?? [];
 
   return Object.freeze({
-    tasks: read.tasks,
+    tasks: target
+      ? Object.freeze([target.task, ...read.tasks.filter((task) => task.id !== target.task.id)])
+      : read.tasks,
     undatedNextCursor: read.undatedNextCursor,
     applicationDeadlines,
     nearestApplicationDeadline: nearestDeadline

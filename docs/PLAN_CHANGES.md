@@ -21638,3 +21638,317 @@ to reflect that explicit separate-plan choice, mark the launch contract's
 older preparation baselines as historical rather than current blockers, and
 keep the non-dense requirement outside the numbered eight UX principles.
 These corrections remove cold-resume ambiguity without expanding product scope.
+
+## 2026-09-08 — Execute the separately approved curator/UX run
+
+After planning PR #686 merged as `61733a15`, the owner explicitly requested:
+“and do the plan as well, this new plan”. This starts implementation of UX-2,
+UX-3, UX-4, UX-6 and UX-8 only, under the existing launch contract and the sole
+detailed checklist `docs/design/v3/curator-ux-run-plan.md`.
+
+Parallel ownership: task permission/UI slice (129), handoff acknowledgment
+slice (130), student overview slice (131 only if needed). The coordinator
+owns unified activity, coverage, migration sequencing and integration review.
+Forward migrations must retain canonical Supabase authority and scoped actor
+checks; no synthetic proof data, production migration apply, provider send,
+QR pairing or broad redesign is authorized by this execution entry.
+
+Verification proceeds with scoped real checks, exact-head independent review
+and the protected short PR workflow. Missing real actors/cases/actions remains
+an explicitly recorded acceptance blocker. The existing localhost:3000 tunnel
+targets production and must not be treated as a disposable local test app.
+
+Implementation contract detail: UX-2 extends the single task command with a
+validated audit reason and an exact case/task calendar deep link. UX-3 binds
+acknowledgment to the latest canonical assignment event (including away/back),
+not just a membership ID. UX-4 replaces the unused U7 two-array RPC with one
+keyset-paged allowlisted stream: audit for business changes and canonical
+message metadata only when no corresponding record audit exists. Document
+author/time and every raw audit/message payload stay out of the projection.
+UX-8 replaces the sole overview RPC signature in one transaction; no v1/v2
+coexistence. Student action comes from actual missing/correction document slots,
+EVO action from disclosed open staff tasks, not free-text inference. These
+schema/application changes require a coordinated later deployment.
+
+Official implementation references checked September 8:
+[Supabase function privileges and search_path](https://supabase.com/docs/guides/database/functions),
+[React form status](https://react.dev/reference/react-dom/hooks/useFormStatus),
+[PostgreSQL routine validation](https://github.com/okbob/plpgsql_check).
+Schema-only local rehearsal and routine compilation are not actor/workflow
+acceptance. The Mac was locked during browser access; production direct table
+counts through the service key returned 403, so no fresh business-data count
+or positive actor proof is claimed from those checks.
+
+UX-3 clarification must be visible to the Sales owner who can already read the
+exact handed-off lead summary. Add only the current response decision,
+clarification and explicitly agreed contact date to that bounded path; never
+the full Admissions activity, assignments or an acknowledgement write power.
+This completes the approved clarification loop, not a new Sales role scope.
+
+UX-6 forward migration 133 operates on one exact active case per atomic command.
+Admin first previews owner/scope, all affected open tasks and their versions;
+start requires every outgoing-owner open task to be included, then uses the
+existing assignment wrapper and task command in one transaction. Return has an
+equally fresh preview: completed tasks remain unchanged; still-open tracked
+tasks restore their recorded active assignees; new substitute-owned open tasks
+can be explicitly selected and transferred to the original case owner. A
+changed/manual assignment, inactive target or incomplete/stale selection fails
+without partial writes. No open task may be stranded on the departing owner.
+An end date is informational with explicit manual return, never an invented
+scheduler. This avoids blocking an ordinary return solely because the deputy
+created necessary work while covering the case.
+
+UX-6 concurrency detail: task creation/change must share the existing 117
+organization assignment lock before request/row locks. Otherwise a task begun
+by a deputy before return could commit after scope revocation. Move the sole
+task function bodies behind invoker/private coordinators rather than duplicating
+them; keep authorization rechecks and one active command path. This is the
+minimum serialization needed for the no-orphan acceptance criterion.
+
+Browser access resumed after the owner unlocked the Mac. Read-only live Admin
+navigation on `http://localhost:3000/v3/profile` (the production SSH tunnel)
+showed all-status directory count 0, no accessible cases and no people;
+calendar also showed no active case and zero task queue. This is fresh UI
+evidence of the real-case acceptance blocker, not proof of the new local UI.
+
+UX-6 post-return guard, identified before coding: the existing task commands
+allow Admin to choose any live curator, so serialization alone does not reject
+an old Admin form submitted after coverage return. In migration133, for a case
+with coverage history only, an open/in-progress/blocked task assigned to a
+curator must target the current case curator. Check under the same assignment
+lock. Admin assignees, terminal tasks and cases without coverage stay unchanged.
+This is the minimum coverage-specific enforcement of the approved no-orphan
+invariant; it does not broaden this run into a general task-assignment redesign.
+
+### 2026-09-08 — curator UX implementation candidate, real acceptance open
+
+The approved five parts are integrated on `izzhackt/curator-ux-execution`.
+Code candidate: `c35f8c1a9caacdd65e53d4b7390667a5b9cae96f`, based on main
+`61733a155d3926742144db21e53e6396da249864`. The separate run plan now contains
+the code/status map, verification limits, live-data blocker and cold-resume steps.
+Implementation is not merged, deployed or accepted by real users.
+
+Independent code reviews, with no remaining confirmed P0–P2 findings:
+
+- UX-2: original `940c455f` required changes for stale draft loss. Fix
+  `655cb299` and its updated source assertion `75bbd8ac` approved independently.
+- UX-3: `e6438993` approved. The Sales excerpt remains limited to an existing
+  exact authorized lead; acknowledgement writes remain current-Curator-only.
+- UX-4: `383f4c7e` required changes for an unlabelled emitted handoff event.
+  `1c6c3c95` approved, including coverage of every actual emitted action label.
+- UX-8: `08ad7403` independently approved. The tiny integration/registry/copy
+  commit `aab44d73` was also reviewed without findings.
+- UX-6: `0fa9a2c0` plus `c35f8c1a` independently approved. The latter rejects
+  PostgreSQL `infinity` and years beyond the displayed four-digit date contract,
+  preventing an otherwise successful direct command from poisoning the strict
+  read projection. Actual PostgreSQL negative-input RPC checks exercise this
+  rejection without creating actors or rows. Official date behavior:
+  [PostgreSQL date/time functions](https://www.postgresql.org/docs/current/functions-datetime.html).
+- Cross-module review of `61733a15..30188b61` found no wiring defect in
+  profile identities, task deep links, audit names or assignment lock ordering.
+  Authors did not self-approve their own feature implementations.
+
+The Admin exact-case coverage read now preserves the selected case across a
+stale curator filter while retaining same-tenant/active-case authority; it
+reports the real owner/scope. The UI preserves the draft and requires an
+explicit updated preview before retry, never a silent command rebase.
+
+Verification: Node22 typecheck, changed-TS/TSX lint and whitespace PASS;
+19 selected source-contract checks PASS; test registry validates 122 unique
+unit files. A faithful schema-only local125 restore (owners/ACL retained,
+no auth users/cases) accepted migrations126–133 in order as `postgres`.
+The130/132/133 catalog/no-session boundary files PASS. New PL/pgSQL paths
+compile without errors; only unchanged unused-variable warnings remain in
+the moved old task bodies. These checks are not real actor/concurrency/UI proof.
+
+The live Admin UI has no accessible cases/tasks/people. No genuine business
+case was invented to bypass that blocker. Real Curator, Sales-owner and
+Student-self actions/readback, concurrency, desktop/393px acceptance, release
+CI, production migration apply and deployment remain open. A missing-input
+question requests real case/actor identities, not passwords. Keep this branch
+shared on GitHub; PR/merge/release gates must not be presented as completed.
+
+### 2026-09-08 — replace monthly sales spreadsheet workflow with V3 register
+
+Before implementation, the owner explicitly requested the supplied sales
+spreadsheet be replaced by platform entry/reporting, grouped by year/month,
+with practical choices delegated and production deployment for owner inspection.
+See `docs/design/v3/sales-report-run-plan.md` for the executable contract.
+
+The actual exported source has 209 named records across November2025 through
+September2026. Source month and contract date differ in four rows; retain both.
+Paid values are cumulative snapshots without payment dates, sometimes mixed
+currency or free text. Do not create financial evidence, first-payment gates,
+handoffs, cases or fake customer identities from those snapshots. Parse only
+unambiguous amounts; preserve unresolved text and report its exclusion from
+currency-specific money totals. Empty is not zero or unpaid. Manual header
+fact totals differ from row counts in July/August; derive platform facts from
+records, preserve source control discrepancies rather than fabricating a tie-out.
+
+Add one canonical sales-report register/target module in root migration134,
+cookie-bound guarded RPC and V3 adapters. Admin controls organization records;
+Sales owns only explicitly assigned records and server-forced own new records.
+Historical seller labels do not automatically map to staff identities. Keep
+raw snapshot/provenance separate from editable values, idempotent source keys,
+optimistic versions and append-only audit. Archive/restore replaces destructive
+delete. Do not alter existing finance evidence grants or expose a parent module.
+
+One source import, no recurring Google OAuth/sync dependency or source edits.
+Original sensitive source stays private outside Git/AI knowledge. Scoped real
+checks and independent review precede the canonical PR/release path; no synthetic
+business acceptance is claimed. Existing production-release rollback constraints
+remain real prerequisites, independent of the owner's real-case acceptance waiver.
+
+### 2026-09-08 — owner adds pipeline-to-sales-register automation
+
+The owner clarified: import spreadsheet data once, never synchronize Google;
+staff then work in EVO, and the final pipeline step automatically enters the
+report. Before coding this addition, the actual pipeline was inspected:
+`src/lib/v3/pipeline-source.ts` ends in derived `handed_off` ("Переданы").
+The canonical completed event is a `platform.sales_admissions_handoffs` record
+from migration088, not a new stage enum or client-side drag-only side effect.
+
+Extend migration134 with an atomic completed-handoff integration and bounded
+idempotent existing-handoff backfill. Preserve unique organization+lead identity,
+source provenance and manual edits. No automatic duplicate from retry; no
+source-sheet edits; no handoff/gate bypass. Snapshot existing real identity and
+Sales owner, group new pipeline records by actual handoff month in Asia/Bishkek.
+Missing signing date, total service price and cumulative paid amount remain
+unknown; contract confirmation time and first payment are not substitutes.
+Historical import records remain distinct source rows until explicitly linked,
+without fuzzy customer merging. User delegated this minimal implementation.
+
+### 2026-09-08 — sales review clarifies private reasons and total handoff projection
+
+Independent review found that mandatory free-text edit reasons were fingerprinted
+but discarded, and canonical client/profile text may exceed reporting limits.
+Before correction, clarify the existing scope: preserve bounded human reasons in
+the private request history, linked from the constant operation/version audit;
+do not emit arbitrary potential PII into shared audit. No new audit UI or grants.
+
+The reporting trigger must accept every otherwise valid canonical handoff without
+inventing facts. Store a bounded honest display fragment and explicit review/provenance
+when a name/manager label needs limiting; leave an unsuitable phone unknown rather
+than manufacturing a truncated phone number. If canonical text has no usable name,
+pipeline records may keep it unknown and link to the original canonical profile;
+manual/import commands still require an actual name. No placeholder identity is
+persisted. Source IDs and normalization metadata remain private. This corrects the
+one-transaction integration, not a fallback runtime or a second CRM.
+### 2026-09-08 — owner authorizes deployment with real-case acceptance deferred
+
+The owner explicitly requests deployment of the reviewed curator/UX work even
+though production currently has no accessible business case for genuine
+Admin/Curator/Sales/Student pre-deploy acceptance. This is an explicit waiver and
+deferral of that business-case gate, not evidence that it passed. Do not create
+synthetic users, cases or business data to manufacture proof. The owner will
+inspect the product after deployment; genuine role workflows remain recorded as
+post-deploy follow-up when suitable real cases and actors exist.
+
+Technical release controls remain mandatory: reviewed exact-head/current-main
+binding, required CI, migration-history readback, backup, rollback/recovery,
+exact-image deployment and production health/readback. Migration131 replaced the
+sole portal overview RPC shape, so this release requires a reviewed coordinated
+schema/application cutover and a database rollback/recovery path. It is not an
+app-only release. The exact cutover mechanism is still pending and must be
+documented and reviewed before either incompatible side is changed in production.
+No provider call is required or authorized by this decision.
+
+### 2026-09-08 — pending Sales report replacing the Google Sheet workflow
+
+The owner also requests implementation and deployment of a Sales report. It must
+replace the current Google Sheet workflow, import a confirmed real source and
+support year/month period selection. Sensible detailed product choices are
+delegated, but the verified source contract has not yet been written. Until that
+bounded amendment lands, this entry intentionally defines no report columns,
+mapping, route, schema or expanded authority. Coding must use real source data and
+must not introduce synthetic business records or provider-side actions.
+
+### 2026-09-08 — owner authorizes one temporary portal v1 rollback window
+
+This later explicit owner decision supersedes only the preceding statement that
+migration 131 must replace the sole portal overview shape. Migration 131 instead
+adds `platform.student_portal_overview_v2()` with the reviewed UX-8 fields and
+leaves the migration 127 `platform.student_portal_overview_v1()` definition and
+grant unchanged. The new `portal-source.ts` calls v2 only and must fail closed;
+there is no application fallback from v2 to v1.
+
+The bounded release order is now:
+
+1. prove backup/recovery and the exact pre-apply migration ledger;
+2. apply the reviewed schema, reload/read back the PostgREST schema cache and
+   prove both exact overview signatures/grants; the accepted old image remains
+   compatible because it still calls unchanged v1;
+3. deploy the exact reviewed application image, which calls only v2, and retain
+   all normal CI, image, health and rollback evidence;
+4. if application rollback is required, restore the accepted image, which uses
+   v1; do not improvise a UI fallback or delete v1 during this window;
+5. after the owner accepts the deployed portal, create a separate reviewed
+   forward migration to delete v1. No migration number is reserved here.
+
+This is a narrow, time-bounded exception to the usual replace-not-layer rule,
+not authority for a second product path. Migration 129's added `p_reason` and
+migration 132's two cursor parameters are trailing defaults; the official
+[PostgREST RPC contract](https://postgrest.org/en/latest/references/api/functions.html)
+permits defaulted arguments to be omitted, so both old request shapes still
+resolve. That is not full behavioral compatibility: the accepted application
+does not send `p_reason`, while migration 129 rejects a deadline or priority
+change without it. Status-only task changes retain the fixed default reason.
+Because the migration ledger applies 129 before 131, the reviewed production
+procedure must close this short old-app write window before schema apply; the
+portal v1 bridge alone does not solve it. Migration 132's old two-argument call
+has no analogous semantic guard, and the accepted application does not call that
+new activity surface. No 129/132 compatibility overload is authorized or added.
+
+### 2026-09-08 — integrated sales/curator checkpoint, release remains unarmed
+
+The reviewed portal bridge and its earlier deployment-waiver documentation were
+integrated into `izzhackt/sales-report-platform`. Earlier pending-source wording
+is retained above as historical evidence; the current source-backed Sales contract
+was recorded before implementation in `docs/design/v3/sales-report-run-plan.md`.
+Current plan headers now link there rather than requesting another source analysis.
+
+The actual fresh spreadsheet preparation has 209 source records and four monthly
+department targets; independently reproduced payload checksum is in the run plan.
+Source/payload/manifest are preserved privately outside Git with owner-only modes.
+No Google edits, provider sends, production migration writes or imports occurred.
+Read-only schema run34217342943 confirmed production migrations001–128, matching
+current main61733a155d3926742144db21e53e6396da249864. One process-only existing
+Admin password sign-in returned HTTP400; no retry/reset or elevated bypass followed.
+
+Release still needs a real Admin session for import, a separate decision on the
+temporary Admin reason exception, and explicit permission for existing isolated
+technical CI fixtures under the current real-only instruction. Do not trigger PR
+automation that would silently run those fixtures, disable required checks, or
+call local source/catalog/build evidence production acceptance. Publishing the
+reviewed branch is not merge, schema apply, deployment or completed source import.
+
+### 2026-09-08 — owner approves proposed release path and localhost tunnel
+
+Before coding the final compatibility guard, record the owner's reply, "крче
+выложи / и хочу увидеть его локально который как последний делали как туннель",
+to the preceding explicit three-part release proposal. This authorizes the
+existing isolated CI fixtures for technical gates only, the minimal temporary
+Admin omitted-reason exception, and a password-only reset of the existing demo
+Admin conditional on read-only proof of its current active Admin authority.
+No new user, role grant, Auth bypass, synthetic production case or provider action
+is authorized. Real business acceptance remains deferred to the owner.
+
+Exact exception: change only migration129's canonical task-body null-reason guard
+to apply to non-Admin actors. Migration133 moves/reuses this body; do not restore
+migration110, add an overload, weaken locks, or alter ownership checks. Explicit
+blank/overlong reasons remain invalid, Curator deadline/priority edits still
+require a reason, and the new UI always supplies it. Owner acceptance is the
+expiry; a tracked reviewed forward migration removes this guard and the already
+approved portal v1 rollback window after that acceptance.
+Removal is tracked in https://github.com/izzhackt/evo_AI_CRM/issues/687.
+
+Read-only canonical SQL has now confirmed the exact demo account is the existing
+active Admin. Its fresh normal sign-in returned invalid_credentials, so the
+conditional password-only recovery is proceeding with age-encrypted storage and
+ordinary JWT proof. No credential value enters Git, logs or this ledger.
+
+Release order remains reviewed PR/merge and exact current-main freeze, fresh
+recoverable DB/Auth backup and Storage inventory with arm=false, manual schema
+apply plus ledger/cache readback, then arm and exact-main full CI/downstream
+release, terminal disarm. The localhost URL is an SSH tunnel to the production
+container, not a local app copy; resolve its target again after app recreation.

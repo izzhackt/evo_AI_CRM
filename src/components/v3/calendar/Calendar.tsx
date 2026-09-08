@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useId, useTransition } from "react";
 
 import { Icon } from "@/components/icons";
 import { Pill } from "@/components/v3/Pill";
@@ -32,13 +33,14 @@ import {
 
 /**
  * Calendar over canonical Admissions tasks and read-only application
- * deadlines. Browser state controls only the task inspector; every business
+ * deadlines. The URL identifies the task inspector; every business
  * mutation crosses the server action boundary.
  */
 const GHOST =
   "inline-flex min-h-11 items-center justify-center rounded-ctl px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg";
 
 export function Calendar({
+  initialTaskId = null,
   view,
   day,
   today,
@@ -59,6 +61,7 @@ export function Calendar({
   taskRequestIds,
   basePath,
 }: {
+  initialTaskId?: string | null;
   view: CalendarView;
   day: Day;
   today: Day;
@@ -81,8 +84,18 @@ export function Calendar({
   basePath: string;
 }) {
   const panelId = useId();
-  const [selected, setSelected] = useState<string | null>(null);
-  const open = tasks.find((task) => task.id === selected) ?? null;
+  const router = useRouter();
+  const [navigating, startNavigation] = useTransition();
+  const open = tasks.find((task) => task.id === initialTaskId) ?? null;
+  const selectTask = (id: string | null) => {
+    const target = tasks.find((task) => task.id === id);
+    const params = new URLSearchParams({ view, date: day });
+    if (target) {
+      params.set("case", target.studentCaseId);
+      params.set("task", target.id);
+    }
+    startNavigation(() => router.push(`${basePath}?${params}`, { scroll: false }));
+  };
 
   const timed = tasks.flatMap((task) => (task.minutes === null ? [] : [task.minutes]));
   const first = Math.floor(Math.min(8 * 60, ...timed) / 60) * 60;
@@ -106,7 +119,7 @@ export function Calendar({
     today,
     selectedId: open?.id ?? null,
     panelId: open ? panelId : null,
-    onSelect: (id: string) => setSelected((current) => (current === id ? null : id)),
+    onSelect: (id: string) => selectTask(initialTaskId === id ? null : id),
   };
   const unscheduled = tasks.filter((task) => task.day === null);
   const undatedNotice = calendarUndatedPageNotice(
@@ -120,7 +133,9 @@ export function Calendar({
       className="flex flex-col gap-4"
       data-authority-role={authorityRole}
       data-presentation-role={presentationRole}
+      aria-busy={navigating}
     >
+      {navigating ? <p role="status" className="text-sm text-fg-2">Обновляем календарь…</p> : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-border bg-surface p-2">
         <div className="flex shrink-0 items-center gap-1">
           <Link href={href(view, stepDay(view, day, -1))} className={`${GHOST} w-11 px-0`}>
@@ -226,7 +241,7 @@ export function Calendar({
                 (presentationRole === "admissions" &&
                   open.assigneeMembershipId === actorMembershipId)) ? (
                 <CalendarTaskControls
-                  key={`${open.id}:${open.version}`}
+                  key={open.id}
                   task={open}
                   day={day}
                   assignees={assignees}
@@ -240,7 +255,7 @@ export function Calendar({
               className={`${GHOST} w-11 px-0`}
               onClick={() => {
                 const id = open.id;
-                setSelected(null);
+                selectTask(null);
                 requestAnimationFrame(() => document.getElementById(`task-${id}`)?.focus());
               }}
             >

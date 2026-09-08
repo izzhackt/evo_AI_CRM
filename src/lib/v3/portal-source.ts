@@ -5,6 +5,9 @@ import {
   type PlatformApplicationStatus,
 } from "../platform-application-contract.ts";
 import {
+  type PlatformCaseTaskStatus,
+} from "../platform-admissions-task-contract.ts";
+import {
   PLATFORM_OBLIGATION_CATEGORIES,
   PLATFORM_OBLIGATION_STATUSES,
   PLATFORM_VISA_STATUSES,
@@ -40,12 +43,43 @@ const DOCUMENT_MIME_TYPES = [
 
 export type StudentPortalDocumentMimeType = (typeof DOCUMENT_MIME_TYPES)[number];
 
+export const STUDENT_PORTAL_DOCUMENT_ACTION_KINDS = [
+  "upload_document",
+  "replace_document",
+] as const;
+
+export type StudentPortalDocumentActionKind =
+  (typeof STUDENT_PORTAL_DOCUMENT_ACTION_KINDS)[number];
+
+const STUDENT_PORTAL_EVO_ACTION_STATUSES = [
+  "open",
+  "in_progress",
+  "blocked",
+] as const satisfies readonly PlatformCaseTaskStatus[];
+
+type StudentPortalEvoActionStatus =
+  (typeof STUDENT_PORTAL_EVO_ACTION_STATUSES)[number];
+
+export type StudentPortalDocumentAction = Readonly<{
+  kind: StudentPortalDocumentActionKind;
+  label: string;
+  dueAt: string | null;
+  documentSlotId: string;
+}>;
+
+export type StudentPortalEvoAction = Readonly<{
+  taskId: string;
+  title: string;
+  status: StudentPortalEvoActionStatus;
+  dueAt: string | null;
+  dueOn: string | null;
+}>;
+
 export type StudentPortalOverview = Readonly<{
   /** Canonical raw value; UI must map it through the single V3 wording module. */
   operationalStage: string;
-  nextAction: string | null;
-  nextActionDueAt: string | null;
-  nextActionDueOn: string | null;
+  studentAction: StudentPortalDocumentAction | null;
+  evoAction: StudentPortalEvoAction | null;
   curatorDisplayName: string | null;
 }>;
 
@@ -345,25 +379,81 @@ export function normalizeStudentPortalOverview(
 ): StudentPortalOverview {
   const row = exactRecord(value, [
     "operational_stage",
-    "next_action",
-    "next_action_due_at",
-    "next_action_due_on",
+    "student_action_kind",
+    "student_action_label",
+    "student_action_due_at",
+    "student_action_document_slot_id",
+    "evo_action_task_id",
+    "evo_action_title",
+    "evo_action_status",
+    "evo_action_due_at",
+    "evo_action_due_on",
     "curator_display_name",
   ]);
-  const dueAt = optionalTimestamp(row.next_action_due_at);
-  const dueOn = optionalDate(row.next_action_due_on);
-  const nextAction = optionalText(row.next_action, 1000);
-  if (
-    (dueAt !== null && dueOn !== null) ||
-    (nextAction === null && (dueAt !== null || dueOn !== null))
-  ) {
-    return invalidShape();
+
+  const studentActionKind = row.student_action_kind === null
+    ? null
+    : enumValue(row.student_action_kind, STUDENT_PORTAL_DOCUMENT_ACTION_KINDS);
+  const studentActionLabel = optionalText(row.student_action_label, 500);
+  const studentActionDueAt = optionalTimestamp(row.student_action_due_at);
+  const studentActionDocumentSlotId = row.student_action_document_slot_id === null
+    ? null
+    : requiredUuid(row.student_action_document_slot_id);
+  let studentAction: StudentPortalDocumentAction | null = null;
+  if (studentActionKind === null) {
+    if (
+      studentActionLabel !== null ||
+      studentActionDueAt !== null ||
+      studentActionDocumentSlotId !== null
+    ) return invalidShape();
+  } else {
+    if (studentActionLabel === null || studentActionDocumentSlotId === null) {
+      return invalidShape();
+    }
+    studentAction = Object.freeze({
+      kind: studentActionKind,
+      label: studentActionLabel,
+      dueAt: studentActionDueAt,
+      documentSlotId: studentActionDocumentSlotId,
+    });
   }
+
+  const evoActionTaskId = row.evo_action_task_id === null
+    ? null
+    : requiredUuid(row.evo_action_task_id);
+  const evoActionTitle = optionalText(row.evo_action_title, 1000);
+  const evoActionStatus = row.evo_action_status === null
+    ? null
+    : enumValue(row.evo_action_status, STUDENT_PORTAL_EVO_ACTION_STATUSES);
+  const evoActionDueAt = optionalTimestamp(row.evo_action_due_at);
+  const evoActionDueOn = optionalDate(row.evo_action_due_on);
+  let evoAction: StudentPortalEvoAction | null = null;
+  if (evoActionTaskId === null) {
+    if (
+      evoActionTitle !== null ||
+      evoActionStatus !== null ||
+      evoActionDueAt !== null ||
+      evoActionDueOn !== null
+    ) return invalidShape();
+  } else {
+    if (
+      evoActionTitle === null ||
+      evoActionStatus === null ||
+      (evoActionDueAt !== null && evoActionDueOn !== null)
+    ) return invalidShape();
+    evoAction = Object.freeze({
+      taskId: evoActionTaskId,
+      title: evoActionTitle,
+      status: evoActionStatus,
+      dueAt: evoActionDueAt,
+      dueOn: evoActionDueOn,
+    });
+  }
+
   return Object.freeze({
     operationalStage: requiredText(row.operational_stage, 300),
-    nextAction,
-    nextActionDueAt: dueAt,
-    nextActionDueOn: dueOn,
+    studentAction,
+    evoAction,
     curatorDisplayName: optionalText(row.curator_display_name, 200),
   });
 }
@@ -669,7 +759,7 @@ export async function readStudentPortalOverview(
   try {
     const client = await clientFor(dependencies);
     const response = await client.schema("platform").rpc(
-      "student_portal_overview_v1",
+      "student_portal_overview_v2",
       {},
       { get: true },
     );

@@ -6,6 +6,7 @@ import type {
   PlatformCaseFinanceControl,
 } from "@/lib/platform-finance-control";
 import type { PlatformSalesWorkflowLead } from "@/lib/platform-sales-contract";
+import type { HandoffAcknowledgement, SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import type {
   PlatformLeadAdmissionsGateSnapshot,
   PlatformLeadAdmissionsHandoffSnapshot,
@@ -68,7 +69,9 @@ export type ProfileEvent = Readonly<{
   id: string;
   transition: string;
   role: string;
-  at: string;
+  at: string | null;
+  href?: string;
+  changedFields?: readonly string[];
 }>;
 
 /** Настоящие данные. */
@@ -90,6 +93,8 @@ export type PersonProfile = Readonly<{
   visa: readonly ProfileVisaMilestone[];
   financeStop: string | null;
   timeline: readonly ProfileEvent[];
+  timelineOlderHref?: string | null;
+  timelineLatestHref?: string | null;
 }>;
 
 export type ProfileActorRole = FixedRole;
@@ -188,6 +193,8 @@ export type ProfileDraft = Readonly<{
   admissions: ProfileAdmissionsWorkspace | null;
   /** Full BW6 contract/report workspace; absent for leads and Sales views. */
   contract: ProfileContractSnapshot | null;
+  handoffAcknowledgement: (HandoffAcknowledgement & Readonly<{ requestId: string }>) | null;
+  salesHandoffAcknowledgement: SalesHandoffAcknowledgement | null;
   /**
    * Есть в модели, намеренно не рисуется.
    *

@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
   allDayDate,
   applicationStatus,
   eventLabel,
+  journalEvent,
+  taskChangeField,
   leadStage,
   role as roleWord,
   source as sourceWord,
@@ -13,7 +16,7 @@ import {
   ProfileAdmissionsWorkspacePanel,
   ProfileFinanceControls,
 } from "./ProfileAdmissionsWorkspace";
-import { ProfileSalesTransition } from "./ProfileSalesTransition";
+import { ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, ProfileSalesTransition } from "./ProfileSalesTransition";
 import type {
   Fact,
   PersonProfile,
@@ -124,6 +127,12 @@ export function Overview({
             requestIds={requestIds}
           />
         </>
+      ) : null}
+
+      {draft.handoffAcknowledgement ? (
+        <ProfileHandoffAcknowledgement snapshot={draft.handoffAcknowledgement} />
+      ) : draft.salesHandoffAcknowledgement ? (
+        <ProfileSalesHandoffAcknowledgement snapshot={draft.salesHandoffAcknowledgement} />
       ) : null}
 
       <a
@@ -340,16 +349,21 @@ export function History({ profile }: { profile: PersonProfile }) {
         >
           <ol>
             {profile.timeline.map((entry) => {
-              const label = eventLabel(entry.transition);
+              const label = journalEvent(entry.transition) ?? eventLabel(entry.transition);
               // Неизвестное событие пропускается: сырой ключ на экране — это
               // ровно то, что мы убирали.
               if (!label) return null;
               return (
                 <li key={entry.id} className="border-b border-border px-4 py-2.5 last:border-b-0">
-                  <p className="flex items-baseline justify-between gap-2">
-                    <span className="min-w-0 text-sm text-fg">{label}</span>
-                    <span className="shrink-0 font-mono text-2xs text-fg-3">{entry.at}</span>
-                  </p>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    {entry.href ? (
+                      <Link href={entry.href} className="inline-flex min-h-11 min-w-0 items-center text-sm text-fg underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2">{label}</Link>
+                    ) : <span className="min-w-0 text-sm text-fg">{label}</span>}
+                    {entry.at ? <span className="font-mono text-2xs text-fg-3">{entry.at}</span> : null}
+                  </div>
+                  {entry.changedFields?.length ? (
+                    <p className="mt-1 text-xs text-fg-3">Изменено: {[...new Set(entry.changedFields.map(taskChangeField).filter(Boolean))].join(", ")}.</p>
+                  ) : null}
                   {roleWord(entry.role) ? (
                     <p className="mt-0.5 text-2xs text-fg-3">{roleWord(entry.role)}</p>
                   ) : null}
@@ -361,6 +375,12 @@ export function History({ profile }: { profile: PersonProfile }) {
             ) : null}
           </ol>
         </div>
+        {profile.timelineOlderHref || profile.timelineLatestHref ? (
+          <nav aria-label="Страницы истории" className="flex flex-wrap gap-4 border-t border-border px-4 py-2">
+            {profile.timelineOlderHref ? <Link className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" href={profile.timelineOlderHref}>Более ранние события</Link> : null}
+            {profile.timelineLatestHref ? <Link className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" href={profile.timelineLatestHref}>К последним событиям</Link> : null}
+          </nav>
+        ) : null}
       </Card>
 
       {/* Визовых вех здесь больше нет, и номеров при них тоже. Веха — это

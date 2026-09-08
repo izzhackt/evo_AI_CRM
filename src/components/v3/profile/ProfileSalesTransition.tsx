@@ -21,6 +21,9 @@ import type {
 } from "@/lib/platform-student-handoff";
 
 import { Card } from "./Card";
+import type { HandoffAcknowledgement, HandoffDecision, SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
+import { respondToHandoffAction, type HandoffResponseActionState } from "@/lib/platform-handoff-acknowledgement-actions";
+import { handoffAcknowledgementLabel } from "@/lib/v3/wording";
 import type {
   ProfileSalesActorRole,
   ProfileSalesRequestIds,
@@ -553,5 +556,111 @@ export function ProfileSalesTransition({
         requestId={requestIds.handoff}
       />
     </div>
+  );
+}
+
+/** The current owner's response lives alongside the original, completed handoff. */
+function HandoffResponseSummary({ current }: { current: SalesHandoffAcknowledgement["current"] }) {
+  const dateText = current?.agreedContactDate
+    ? current.agreedContactDate.split("-").reverse().join(".") : null;
+  return <>
+    <p className="text-sm font-medium text-fg">
+      {current ? handoffAcknowledgementLabel(current.decision) : "Ожидает ответа куратора"}
+    </p>
+    {current?.clarification ? <p className="whitespace-pre-wrap break-words text-sm text-fg-2">{current.clarification}</p> : null}
+    {dateText ? <p className="text-sm text-fg-2">Согласованный контакт: {dateText}</p> : null}
+  </>;
+}
+
+export function ProfileSalesHandoffAcknowledgement({ snapshot }: { snapshot: SalesHandoffAcknowledgement }) {
+  return <Card title="Приём дела" id="handoff-acknowledgement">
+    <div className="flex flex-col gap-3 p-4" data-testid="v3-sales-handoff-acknowledgement">
+      <HandoffResponseSummary current={snapshot.current} />
+    </div>
+  </Card>;
+}
+
+export function ProfileHandoffAcknowledgement({ snapshot }: {
+  snapshot: HandoffAcknowledgement & Readonly<{ requestId: string }>;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [decision, setDecision] = useState<HandoffDecision>("accepted");
+  const [clarification, setClarification] = useState("");
+  const [contactDate, setContactDate] = useState(snapshot.current?.agreedContactDate ?? "");
+  const [state, action, pending] = useActionState<HandoffResponseActionState, FormData>(
+    respondToHandoffAction,
+    { status: "idle", requestId: snapshot.requestId, acknowledgementId: null, submittedContext: null },
+  );
+  const saved = state.status === "saved";
+  const currentContext = `${snapshot.assignmentEventId ?? ""}:${snapshot.current?.acknowledgementId ?? ""}`;
+  const needsRefresh = state.status === "stale" && state.submittedContext === currentContext;
+  const message = state.status === "invalid" ? "Проверьте уточнение и дату."
+    : state.status === "forbidden" ? "Ответить может только текущий назначенный куратор."
+    : needsRefresh ? "Назначение или ответ изменились. Обновите карточку перед повтором."
+    : state.status === "stale" ? "Карточка обновлена. Проверьте введённые данные и сохраните снова."
+    : state.status === "request_conflict" ? "Этот запрос уже использован. Проверьте карточку перед повтором."
+    : state.status === "unavailable" ? "Не удалось подтвердить сохранение. Введённые данные оставлены."
+    : saved ? "Ответ сохранён." : null;
+  const showResult = pending || message !== null;
+  const current = snapshot.current;
+  const unchanged = current?.decision === decision
+    && current.clarification === (decision === "accepted" ? null : clarification.trim())
+    && current.agreedContactDate === (contactDate || null);
+  return (
+    <Card title="Приём дела" id="handoff-acknowledgement">
+      <div className="flex flex-col gap-3 p-4" data-testid="v3-handoff-acknowledgement">
+        <HandoffResponseSummary current={current} />
+        {snapshot.canRespond && !open ? (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={cn(btnCls, "min-h-11")} onClick={() => { setDecision("accepted"); setOpen(true); }}>
+              Принять дело
+            </button>
+            <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => { setDecision("clarification_requested"); setOpen(true); }}>
+              Нужно уточнить
+            </button>
+          </div>
+        ) : null}
+        {snapshot.canRespond && open && snapshot.assignmentEventId ? (
+          <form action={action} className="flex flex-col gap-3" aria-busy={pending}>
+            <input type="hidden" name="student_case_id" value={snapshot.studentCaseId} />
+            <input type="hidden" name="assignment_event_id" value={snapshot.assignmentEventId} />
+            <input type="hidden" name="expected_acknowledgement_id" value={current?.acknowledgementId ?? ""} />
+            <input type="hidden" name="request_id" value={state.requestId} />
+            <input type="hidden" name="decision" value={decision} />
+            {decision === "clarification_requested" ? (
+              <label className={labelCls}>
+                Что нужно уточнить у Sales
+                <textarea name="clarification" required maxLength={2000} rows={3}
+                  className={cn(inputCls, "mt-1 min-h-24 resize-y")} value={clarification}
+                  onChange={(event) => setClarification(event.target.value)} disabled={pending}
+                  aria-invalid={state.status === "invalid" || undefined} />
+              </label>
+            ) : <input type="hidden" name="clarification" value="" />}
+            <label className={labelCls}>
+              Согласованная дата контакта · необязательно
+              <input type="date" name="agreed_contact_date" className={cn(inputCls, "mt-1 min-h-11")}
+                min="0001-01-01" max="9999-12-31" value={contactDate}
+                onChange={(event) => setContactDate(event.target.value)} disabled={pending} />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button type="submit" disabled={pending || needsRefresh || unchanged} className={cn(btnCls, "min-h-11")}>
+                {pending ? "Сохраняем…" : unchanged ? "Уже сохранено" : decision === "accepted" ? "Подтвердить приём" : "Сохранить уточнение"}
+              </button>
+              <button type="button" disabled={pending} className={cn(btnGhostCls, "min-h-11")}
+                onClick={() => setOpen(false)}>Отмена</button>
+            </div>
+          </form>
+        ) : null}
+        {showResult ? <p role={saved || pending ? "status" : "alert"} className="text-sm text-fg-2">
+          {pending ? "Сохраняем ответ…" : message}
+        </p> : null}
+        {state.status === "stale" || state.status === "request_conflict" ? (
+          <button type="button" className={cn(btnGhostCls, "min-h-11 self-start")} onClick={() => router.refresh()}>
+            Обновить карточку
+          </button>
+        ) : null}
+      </div>
+    </Card>
   );
 }

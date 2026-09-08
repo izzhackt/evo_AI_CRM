@@ -26,6 +26,18 @@ import type {
   PlatformDocumentSlotStatus,
 } from "../platform-private-documents.ts";
 
+/** Coverage conflicts are operational instructions, never raw database keys. */
+export function coverageConflictLabel(value: string): string | null {
+  const labels: Record<string, string> = {
+    assignment_changed: "Назначение куратора изменилось. Проверьте актуального владельца дела.",
+    original_curator_unavailable: "Прежний куратор сейчас недоступен для возврата.",
+    task_reassigned: "Исполнителя задачи меняли отдельно. Сначала согласуйте её возврат.",
+    original_assignee_unavailable: "Прежний исполнитель задачи сейчас недоступен.",
+    unrelated_assignee: "Задача назначена другому куратору. Сначала проверьте исполнителя.",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
 /** Каноническая стадия `platform` sales workflow. */
 const LEAD_STAGE: Record<string, string> = {
   new: "новый",
@@ -386,9 +398,14 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "autonomous.reply.control.set": "Автоответ переключён",
   "case.create": "Дело заведено",
   "case.curator.set": "Куратор дела назначен",
+  "case.handoff.acknowledge": "Куратор принял передачу",
+  "case.handoff.clarification": "Куратор запросил уточнение",
+  "case.coverage.start": "Назначено временное замещение",
+  "case.coverage.return": "Дело возвращено основному куратору",
   "case.handoff.create": "Передача дела оформлена",
   "case.lifecycle.change": "Состояние дела изменено",
   "case.route.change": "Маршрут дела изменён",
+  "lead.admissions.handoff.completed": "Дело передано в сопровождение",
   "case.update.append": "Запись добавлена в дело",
   "catalog.import.batch.create": "Партия импорта каталога создана",
   "catalog.import.batch.review": "Партия импорта каталога проверена",
@@ -473,7 +490,10 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "workflow.version.approve": "Версия процесса утверждена",
   "workflow.version.create": "Версия процесса создана",
   "workflow.version.retire": "Версия процесса отозвана",
-} satisfies Readonly<Record<PlatformAuditAction, string>>;
+} satisfies Readonly<Record<PlatformAuditAction |
+  "case.handoff.acknowledge" | "case.handoff.clarification" |
+  "case.coverage.start" | "case.coverage.return" |
+  "lead.admissions.handoff.completed", string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   ai_draft: "Черновик ИИ",
@@ -536,7 +556,21 @@ const JOURNAL_ACTOR_WORD: Readonly<Record<string, string>> = {
 
 export const journalEvent = (v: string | null | undefined) =>
   lookup(JOURNAL_EVENT_WORD, v);
+
+const TASK_CHANGE_FIELD: Readonly<Record<string, string>> = {
+  status: "статус", priority: "приоритет", due_at: "срок", due_on: "срок",
+  assignee_membership_id: "исполнитель",
+};
+export const taskChangeField = (v: string) => lookup(TASK_CHANGE_FIELD, v);
 export const journalObject = (v: string | null | undefined) =>
   lookup(JOURNAL_OBJECT_WORD, v);
 export const journalActor = (v: string | null | undefined) =>
   lookup(JOURNAL_ACTOR_WORD, v);
+/** Separate curator response, never the completed Sales handoff lifecycle. */
+export function handoffAcknowledgementLabel(value: string): string | null {
+  const labels: Record<string, string> = {
+    accepted: "Дело принято куратором",
+    clarification_requested: "Нужно уточнение от Sales",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}

@@ -3,6 +3,8 @@ import { MainHeader, type PeriodChoice } from "@/components/v3/MainHeader";
 import { MetricCard } from "@/components/v3/MetricCard";
 import { OperationsOverview } from "@/components/v3/OperationsOverview";
 import { TrendChart } from "@/components/v3/TrendChart";
+import { SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
+import { SalesReportNavigation } from "@/components/v3/SalesReportNavigation";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   PERIODS,
@@ -18,10 +20,12 @@ export const metadata = { title: "V3 · Главная" };
 export default async function MainPart({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; view?: string } & SalesReportQuery>;
 }) {
   const actor = await requireV3PageActor("/v3/main");
-  const period = resolvePeriod(await searchParams);
+  const query = await searchParams;
+  if (query.view === "sales") return <SalesRegisterView actor={actor} query={query} />;
+  const period = resolvePeriod(query);
   const [{ figures, trend }, operations] = await Promise.all([
     readPeriodDashboard(actor, period),
     readV3OperationalDashboard(actor),
@@ -44,6 +48,7 @@ export default async function MainPart({
 
   return (
     <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
+      <SalesReportNavigation sales={false} />
       {/*
         Приветствия по имени здесь пока нет.
         Раньше страница здоровалась «С возвращением, Айгерим» и рисовала чип

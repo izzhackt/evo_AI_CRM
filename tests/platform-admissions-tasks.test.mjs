@@ -23,6 +23,47 @@ const taskContractSource = read("src/lib/platform-admissions-task-contract.ts");
 const calendarSource = read("src/components/v3/calendar/Calendar.tsx");
 const controlsSource = read("src/components/v3/calendar/TaskControls.tsx");
 const adapterSource = read("src/lib/v3/calendar-source.ts");
+const curatorTaskMigration = read("supabase/migrations/129_platform_curator_own_task_controls.sql");
+
+test("own-task operational edits retain case authority, protected fields, replay and version checks", () => {
+  assert.match(curatorTaskMigration, /DROP FUNCTION platform\.change_case_task/);
+  assert.match(curatorTaskMigration, /actor\.actor_role <> 'curator'/);
+  assert.match(curatorTaskMigration, /task_row\.assignee_membership_id <> actor\.actor_membership_id/);
+  assert.match(curatorTaskMigration, /p_new_assignee_membership_id <> actor\.actor_membership_id/);
+  assert.match(curatorTaskMigration, /task_row\.student_visible <> p_student_visible/);
+  assert.match(curatorTaskMigration, /require_case_operator\([\s\S]*?task_row\.student_case_id, 'task.manage'/);
+  assert.ok(curatorTaskMigration.indexOf("require_case_operator(") < curatorTaskMigration.indexOf("replay_audit("));
+  assert.match(curatorTaskMigration, /task_row\.version <> p_expected_version/);
+  assert.match(curatorTaskMigration, /student_case\.state = 'active'/);
+  assert.match(curatorTaskMigration, /p_due_at IS NOT NULL AND p_due_on IS NOT NULL/);
+  assert.match(curatorTaskMigration, /p_reason IS NULL AND actor\.actor_role <> 'admin' AND \([\s\S]*?task_row\.priority IS DISTINCT FROM p_priority[\s\S]*?task_row\.due_on IS DISTINCT FROM p_due_on/);
+  assert.match(curatorTaskMigration, /result, change_reason, p_request_id/);
+  assert.match(curatorTaskMigration, /IF task_row\.status IS DISTINCT FROM p_new_status[\s\S]*?INSERT INTO platform\.case_task_events/);
+  assert.equal([...curatorTaskMigration.matchAll(/INSERT INTO platform\.audit_events/g)].length, 1);
+  assert.doesNotMatch(curatorTaskMigration, /university_applications|university_deadline_on|GRANT[\s\S]*TO service_role/);
+  assert.match(actionSource, /const changeReason = text\(field\(fields, "reason"\), 1000\)/);
+  assert.match(actionSource, /p_reason: changeReason/);
+});
+
+test("task edit controls keep retry inputs and do not claim an ambiguous write failed", () => {
+  assert.match(controlsSource, /\[reason, setReason\] = useState\(""\)/);
+  assert.match(controlsSource, /name="reason" value=\{reason\}/);
+  assert.match(controlsSource, /<fieldset disabled=\{locked\} className="contents">/);
+  assert.match(controlsSource, /aria-busy=\{pending\}/);
+  assert.doesNotMatch(controlsSource, /Задача не изменена/);
+});
+
+test("temporary old-Admin rollback exception preserves explicit reason validation and the single coverage body", () => {
+  assert.match(curatorTaskMigration, /p_reason TEXT DEFAULT NULL/);
+  assert.match(curatorTaskMigration, /p_reason IS NOT NULL AND char_length\(btrim\(p_reason\)\) NOT BETWEEN 1 AND 1000/);
+  assert.match(curatorTaskMigration, /change_reason := COALESCE\(btrim\(p_reason\), 'Student case task changed'\)/);
+  assert.equal([...curatorTaskMigration.matchAll(/p_reason IS NULL AND actor\.actor_role <> 'admin'/g)].length, 1);
+  assert.match(curatorTaskMigration, /remove after owner acceptance \(#687\)/);
+  const coverage = read("supabase/migrations/133_platform_curator_workload_coverage.sql");
+  assert.match(coverage, /RENAME TO coverage_change_task_body/);
+  assert.match(coverage, /coverage_change_task_body\([\s\S]*?p_reason/);
+  assert.doesNotMatch(coverage, /CREATE OR REPLACE FUNCTION platform_private\.coverage_change_task_body/);
+});
 
 test("Admissions task commands are exact, versioned Supabase actions", () => {
   assert.match(actionSource, /exactActionStringFields\(form, CREATE_TASK_FIELDS\)/);

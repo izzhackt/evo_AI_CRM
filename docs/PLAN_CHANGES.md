@@ -21632,3 +21632,9 @@ list. The first-release `run-plan.md` keeps history plus a pointer only;
 README, launch contract and product decisions link to the new plan. This
 explicit request authorizes the additional plan file despite the historical
 eight-file documentation convention; it does not authorize a second product.
+
+Independent documentation review correction: update the CLAUDE.md file map
+to reflect that explicit separate-plan choice, mark the launch contract's
+older preparation baselines as historical rather than current blockers, and
+keep the non-dense requirement outside the numbered eight UX principles.
+These corrections remove cold-resume ambiguity without expanding product scope.

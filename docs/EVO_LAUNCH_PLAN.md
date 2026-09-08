@@ -8,6 +8,17 @@ the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
 ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
+
+Current accepted production baseline: `4e6057f0159dba6515ea18b412567b48779cf77f`,
+recorded in closed #552/#553 after CI `34165496188` and release `34165979423`.
+The active next run is the September 8 curator/UX plan below. A documentation
+change does not repeat that accepted deployment.
+
+## Historical integration and release-preparation checkpoints
+
+The following checkpoints describe earlier revisions, not current blockers or
+instructions to rerun the first release. Current follow-up authority follows them.
+
 Verified starting baseline: GitHub `origin/main` at
 `d6fc0f4720fcb6a1d012a4bfb4faa4ea1553f47b`
 Verified V3 merge target: GitHub `origin/claude/v3-frontend` at
@@ -31,17 +42,18 @@ release arm was absent.
 Verified #551 signed-consumer baseline: GitHub `origin/main` at
 `72ce0a4b480ac63c12dca4a25b295ad04c7a7cf9` after PR #640 merged the
 result-v2 signed-artifact, lineage, isolation, exact-image and cleanup
-architecture. That merge is not #551 completion: it was not exercised with
+architecture. That merge was not #551 completion: it was not exercised with
 Docker and a post-merge audit found production-local TLS, real product-route
 malware-scanner, provider-readiness, private Node/buildx and complete role-
-outcome proof still missing. #551 remains open and #552 remains unarmed until
-one corrected exact-head rehearsal records the truthful result.
-Verified current release-preparation baseline: GitHub `origin/main` at
+outcome proof still missing. At that checkpoint #551 remained open and #552
+remained unarmed pending a corrected exact-head rehearsal. Both are now closed.
+Historical release-preparation baseline: GitHub `origin/main` at
 `f3c591ee40a5f76e4279e74adbc2c20a82958077`; manual full-proof run
 `33982734454` succeeded for that exact SHA, while downstream release run
 `33983142821` remained safely skipped because the production arm was absent.
-Any merged correction changes the candidate SHA and requires exactly one new
-manual full proof after the corrected main is frozen.
+For a candidate actually being released, a merged correction changes its SHA
+and requires one new manual full proof after freeze. This is not an instruction
+to redeploy the accepted baseline for a later documentation-only amendment.
 
 ## Current follow-up: approved curator and light UX improvements (2026-09-08)
 

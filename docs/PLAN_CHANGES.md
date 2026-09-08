@@ -21977,3 +21977,10 @@ reordering, dump rewrite, weakened backup gate or provider mutation. Independent
 review and exact-head gates precede merge; fresh export then runs from clean
 fixed main. This tooling correction changes the final release SHA, not app/schema
 scope. Production remains on the previous accepted app and128 migrations.
+
+Critical-path optimization: isolated exact-main CI may overlap the fresh backup
+and manual schema preparation with release arm=false. This permits no app release
+until backup/schema/host gates pass. Only then arm if that exact current-main CI
+is still running; if it already completed unarmed, start a fresh exact-main proof
+after readiness instead of claiming/replaying a skipped release. Required checks,
+immutable image binding and terminal disarm remain unchanged.

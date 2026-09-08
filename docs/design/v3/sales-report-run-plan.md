@@ -209,7 +209,10 @@ fresh backup: exporter/recovery parser ошибочно требует физи�
    В production фиктивные записи и provider sends остаются запрещены.
 4. Проверенный PR → merge/freeze current main → fresh backup/preflight при arm=false →
    штатный schema apply → schema-cache/readback → arm → exact-main CI и
-   управляемый release → disarm. Не
+   управляемый release → disarm. Для ускорения isolated exact-main CI можно начать
+   параллельно backup при arm=false. Включить arm только после всех schema/backup
+   gates и если именно этот CI ещё идёт; если он уже завершился unarmed, после
+   готовности запустить новый exact-main CI, не считать пропущенный release успешным. Не
    использовать service-role для обхода Admin или пользовательской сессии.
 5. Реальным Admin вызвать существующий `importSalesRegisterAction` с приватным
    JSON, сверить 209 исходных записей/4 плана и суммы отдельно по валютам, повторить

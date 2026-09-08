@@ -114,6 +114,11 @@ required fields, but physical row order is not monotonic. Correct only exporter
 and recovery-consumer logical ordering, preserving original dump bytes/hashes and
 duplicate/integrity rejection; then independently review, merge and rerun the
 fresh encrypted backup before any production schema/app changes.
+To shorten the release critical path, exact-main isolated CI may run concurrently
+with backup/schema preparation while the release arm stays false. Arm only after
+all backup, schema and host gates pass and only if that same exact-main CI run is
+still running. If CI already completed while unarmed, do not assume it scheduled a
+release: keep the arm false until ready, then dispatch a new exact-main proof.
 
 The first release and certification are already closed in #552/#553 on
 `4e6057f0159dba6515ea18b412567b48779cf77f`. Preserve that evidence; a new plan

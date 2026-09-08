@@ -68,7 +68,11 @@ and catalog extension) and 13 (new post-arrival scope) are deferred. Items
 The executable scope, unchecked acceptance list and UX criteria are in
 [the separate September 8 run plan](design/v3/curator-ux-run-plan.md),
 with owner wording in [product.md](design/v3/product.md#owner-curator-ux-20260908).
-This is a planning amendment, not implementation or production proof. Only a
+Implementation was explicitly authorized on September 8 and is prepared on
+`izzhackt/curator-ux-execution`; acceptance remains open. The live Admin directory
+has no accessible cases, so real Curator/Student workflow proof is blocked.
+See the run plan for code revisions, completed checks and precise resume steps.
+This is not production proof or deployment authorization. Only a
 small usability polish of existing V3 surfaces/shared controls is in scope;
 no platform rebuild, new design system, dense all-in-one screen, extra staff
 role, Auth change or provider activation. Reuse canonical Supabase contracts;

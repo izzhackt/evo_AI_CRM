@@ -69,14 +69,27 @@ The executable scope, unchecked acceptance list and UX criteria are in
 [the separate September 8 run plan](design/v3/curator-ux-run-plan.md),
 with owner wording in [product.md](design/v3/product.md#owner-curator-ux-20260908).
 Implementation was explicitly authorized on September 8 and is prepared on
-`izzhackt/curator-ux-execution`; acceptance remains open. The live Admin directory
-has no accessible cases, so real Curator/Student workflow proof is blocked.
+`izzhackt/curator-ux-execution`. The owner now explicitly authorizes deployment
+although the live Admin directory has no case on which to perform the real
+Curator/Sales/Student workflows before release. That business-case acceptance is
+waived and deferred, not passed, and must not be replaced with synthetic users or
+cases. The owner will inspect the deployed product afterwards.
+
+This authorization does not weaken the technical release contract: exact reviewed
+SHA/current-main binding, required CI, backup, rollback and production health
+readback remain mandatory. Migration 131 replaces the sole portal overview RPC
+shape, so the pending release must coordinate schema and application cutover and
+retain a reviewed database rollback/recovery path; it is not an app-only deploy.
 See the run plan for code revisions, completed checks and precise resume steps.
-This is not production proof or deployment authorization. Only a
-small usability polish of existing V3 surfaces/shared controls is in scope;
-no platform rebuild, new design system, dense all-in-one screen, extra staff
-role, Auth change or provider activation. Reuse canonical Supabase contracts;
-new authority/data behavior must be real, server-enforced and reviewed.
+Only a small usability polish of existing V3 surfaces/shared controls is in scope;
+no platform rebuild, new design system, dense all-in-one screen, extra staff role,
+Auth change or provider activation.
+
+The owner also requests a Sales report that replaces the current Google Sheet
+workflow, must import a confirmed real source and support year/month periods. This
+is a bounded pending deliverable for the same deployment objective. Its exact
+source contract and implementation scope must be appended before coding; no
+columns, mappings or authority rules are inferred here.
 
 The first release and certification are already closed in #552/#553 on
 `4e6057f0159dba6515ea18b412567b48779cf77f`. Preserve that evidence; a new plan

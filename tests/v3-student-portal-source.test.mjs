@@ -202,7 +202,7 @@ test("overview decoder preserves nullable facts and rejects invented or internal
   });
 
   const mock = mockRpc((name) => {
-    assert.equal(name, "student_portal_overview_v1");
+    assert.equal(name, "student_portal_overview_v2");
     return ok([OVERVIEW_ROW]);
   });
   assert.deepEqual(await readStudentPortalOverview({ client: mock.client }), normalized);
@@ -479,10 +479,14 @@ test("mark-read seam validates action handles and calls only the existing RPC", 
 });
 
 test("every RPC or decode failure remains one bounded portal error", async () => {
-  const rpcFailure = mockRpc(() => ({ data: null, error: { message: "sensitive" } }));
+  const rpcFailure = mockRpc((name) => {
+    assert.equal(name, "student_portal_overview_v2");
+    return { data: null, error: { message: "sensitive" } };
+  });
   await expectUnavailableAsync(() => readStudentPortalOverview({
     client: rpcFailure.client,
   }));
+  assert.equal(rpcFailure.calls.length, 1, "the new UI must not fall back to v1");
 
   const thrownFailure = mockRpc(() => {
     throw new Error("provider details");

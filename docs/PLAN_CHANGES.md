@@ -21862,3 +21862,39 @@ delegated, but the verified source contract has not yet been written. Until that
 bounded amendment lands, this entry intentionally defines no report columns,
 mapping, route, schema or expanded authority. Coding must use real source data and
 must not introduce synthetic business records or provider-side actions.
+
+### 2026-09-08 — owner authorizes one temporary portal v1 rollback window
+
+This later explicit owner decision supersedes only the preceding statement that
+migration 131 must replace the sole portal overview shape. Migration 131 instead
+adds `platform.student_portal_overview_v2()` with the reviewed UX-8 fields and
+leaves the migration 127 `platform.student_portal_overview_v1()` definition and
+grant unchanged. The new `portal-source.ts` calls v2 only and must fail closed;
+there is no application fallback from v2 to v1.
+
+The bounded release order is now:
+
+1. prove backup/recovery and the exact pre-apply migration ledger;
+2. apply the reviewed schema, reload/read back the PostgREST schema cache and
+   prove both exact overview signatures/grants; the accepted old image remains
+   compatible because it still calls unchanged v1;
+3. deploy the exact reviewed application image, which calls only v2, and retain
+   all normal CI, image, health and rollback evidence;
+4. if application rollback is required, restore the accepted image, which uses
+   v1; do not improvise a UI fallback or delete v1 during this window;
+5. after the owner accepts the deployed portal, create a separate reviewed
+   forward migration to delete v1. No migration number is reserved here.
+
+This is a narrow, time-bounded exception to the usual replace-not-layer rule,
+not authority for a second product path. Migration 129's added `p_reason` and
+migration 132's two cursor parameters are trailing defaults; the official
+[PostgREST RPC contract](https://postgrest.org/en/latest/references/api/functions.html)
+permits defaulted arguments to be omitted, so both old request shapes still
+resolve. That is not full behavioral compatibility: the accepted application
+does not send `p_reason`, while migration 129 rejects a deadline or priority
+change without it. Status-only task changes retain the fixed default reason.
+Because the migration ledger applies 129 before 131, the reviewed production
+procedure must close this short old-app write window before schema apply; the
+portal v1 bridge alone does not solve it. Migration 132's old two-argument call
+has no analogous semantic guard, and the accepted application does not call that
+new activity surface. No 129/132 compatibility overload is authorized or added.

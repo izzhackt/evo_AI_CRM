@@ -1,10 +1,12 @@
 -- ============================================================
 -- 131_platform_student_portal_next_steps.sql
 --
--- UX-8: keep one Student-self overview projection while making action
--- ownership explicit. Document lifecycle state proves a Student action; a
--- currently live staff assignee proves an EVO action. Free-text case wording
--- is intentionally not used to guess either owner.
+-- UX-8: add a Student-self v2 overview with explicit action ownership while
+-- preserving the unchanged v1 contract for the owner-approved rollback window.
+-- The new application calls v2 only; v1 is removed by a later reviewed forward
+-- migration after owner acceptance. Document lifecycle state proves a Student
+-- action; a currently live staff assignee proves an EVO action. Free-text case
+-- wording is intentionally not used to guess either owner.
 -- SECURITY DEFINER/search_path and least-privilege grants follow:
 -- https://supabase.com/docs/guides/database/functions
 -- https://www.postgresql.org/docs/current/sql-createfunction.html
@@ -12,9 +14,7 @@
 
 BEGIN;
 
-DROP FUNCTION platform.student_portal_overview_v1();
-
-CREATE FUNCTION platform.student_portal_overview_v1()
+CREATE FUNCTION platform.student_portal_overview_v2()
 RETURNS TABLE (
   operational_stage TEXT,
   student_action_kind TEXT,
@@ -178,12 +178,12 @@ AS $$
   ORDER BY student_case.created_at, student_case.id
 $$;
 
-REVOKE ALL ON FUNCTION platform.student_portal_overview_v1()
+REVOKE ALL ON FUNCTION platform.student_portal_overview_v2()
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
-GRANT EXECUTE ON FUNCTION platform.student_portal_overview_v1()
+GRANT EXECUTE ON FUNCTION platform.student_portal_overview_v2()
   TO authenticated;
 
-COMMENT ON FUNCTION platform.student_portal_overview_v1() IS
+COMMENT ON FUNCTION platform.student_portal_overview_v2() IS
   'Student-self V3 overview with explicit document-backed Student action and live staff-assigned EVO action.';
 
 COMMIT;

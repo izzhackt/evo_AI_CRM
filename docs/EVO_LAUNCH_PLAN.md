@@ -77,10 +77,17 @@ cases. The owner will inspect the deployed product afterwards.
 
 This authorization does not weaken the technical release contract: exact reviewed
 SHA/current-main binding, required CI, backup, rollback and production health
-readback remain mandatory. Migration 131 replaces the sole portal overview RPC
-shape, so the pending release must coordinate schema and application cutover and
-retain a reviewed database rollback/recovery path; it is not an app-only deploy.
-See the run plan for code revisions, completed checks and precise resume steps.
+readback remain mandatory. By the owner's later explicit decision, migration 131
+adds `student_portal_overview_v2()` and leaves the existing
+`student_portal_overview_v1()` unchanged for one temporary rollback window. The
+new application calls only v2, with no fallback; a rollback to the accepted image
+continues to use v1. After the owner accepts the deployed portal, a separately
+reviewed forward migration must delete v1. The overall 129–133 schema release still
+requires migration-history readback and a reviewed database recovery path. It also
+needs an explicit cutover guard for migration 129: the accepted application omits
+its new reason and therefore cannot change task deadline/priority while that schema
+is live. The portal bridge does not waive that separate short write-window blocker.
+See the run plan for the exact order, file inventory and proof still required.
 Only a small usability polish of existing V3 surfaces/shared controls is in scope;
 no platform rebuild, new design system, dense all-in-one screen, extra staff role,
 Auth change or provider activation.

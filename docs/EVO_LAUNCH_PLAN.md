@@ -92,7 +92,7 @@ reason enforcement and all ownership/coverage locks remain unchanged. Migration
 acceptance a reviewed forward migration removes this temporary exception together
 with the portal rollback window. Existing isolated CI fixtures are authorized only
 for technical checks, never as real business/provider acceptance. The owner also
-authorizes a password-only reset of the existing `demo@evoadmissions.com` account
+authorizes a password-only reset of the existing smoke Admin account
 conditional on read-only proof that it is already an active Admin, and a localhost
 SSH tunnel to the deployed app. This does not authorize new users or role changes.
 See the run plan for the exact order, file inventory and proof still required.

@@ -210,7 +210,7 @@ Invoker wrappers и ограниченные EXECUTE grants не заменяю�
    и настоящий подходящий кейс. Не создавать фиктивный бизнес-кейс.
    Новая разрешённая диагностическая попытка вернула `invalid_credentials`.
    Read-only проверка подтвердила единственный существующий активный Admin
-   `demo@evoadmissions.com`. Владелец разрешил password-only reset именно этого
+   (существующий smoke Admin). Владелец разрешил password-only reset именно этого
    аккаунта; password-only reset завершён, настоящий вход/JWT/authority прошли,
    оба существующих GitHub smoke-секрета обновлены. Роли не менялись.
    Секреты — только encrypted/process-only; обычный Admin JWT обязателен для импорта.

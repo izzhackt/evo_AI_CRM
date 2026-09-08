@@ -759,7 +759,7 @@ export async function readStudentPortalOverview(
   try {
     const client = await clientFor(dependencies);
     const response = await client.schema("platform").rpc(
-      "student_portal_overview_v1",
+      "student_portal_overview_v2",
       {},
       { get: true },
     );

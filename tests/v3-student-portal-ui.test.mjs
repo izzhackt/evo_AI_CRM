@@ -116,18 +116,22 @@ test("overview names each actor from the canonical projection and links exact it
   );
 });
 
-test("migration 131 replaces the sole overview RPC with canonical action groups", () => {
+test("migration 131 adds a v2 overview while preserving the rollback v1", () => {
   const migration = source(
     "supabase/migrations/131_platform_student_portal_next_steps.sql",
   );
 
-  assert.match(
+  assert.doesNotMatch(
     migration,
     /DROP FUNCTION platform\.student_portal_overview_v1\(\);/u,
   );
   assert.match(
     migration,
-    /CREATE FUNCTION platform\.student_portal_overview_v1\(\)/u,
+    /CREATE FUNCTION platform\.student_portal_overview_v2\(\)/u,
+  );
+  assert.doesNotMatch(
+    migration,
+    /CREATE(?: OR REPLACE)? FUNCTION platform\.student_portal_overview_v1\(\)/u,
   );
   assert.match(migration, /student_action_kind TEXT/u);
   assert.match(migration, /student_action_document_slot_id UUID/u);
@@ -146,7 +150,7 @@ test("migration 131 replaces the sole overview RPC with canonical action groups"
   assert.match(migration, /SET search_path = ''/u);
   assert.match(
     migration,
-    /GRANT EXECUTE ON FUNCTION platform\.student_portal_overview_v1\(\)\s+TO authenticated;/u,
+    /GRANT EXECUTE ON FUNCTION platform\.student_portal_overview_v2\(\)\s+TO authenticated;/u,
   );
 });
 

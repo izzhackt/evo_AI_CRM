@@ -2332,6 +2332,15 @@ SQL
       exit 1
     fi
   fi
+
+  # Migration 131 adds the explicit next-step v2 projection while preserving
+  # the immutable v1 rollback contract. Prove both catalog shapes and the
+  # no-session denial without creating actors or business data.
+  if [[ "$(basename "$migration")" == 131_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_portal_next_steps_boundary.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

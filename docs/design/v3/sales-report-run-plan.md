@@ -1,6 +1,6 @@
 # Продажи: перенос рабочего отчёта в EVO
 
-Дата: 08.09.2026. Статус: код подготовлен, независимый review в работе;
+Дата: 08.09.2026. Статус: код подготовлен и прошёл независимый CODE/DOC review;
 production apply, перенос и live-приёмка ещё не выполнены.
 Это отдельная работа после [улучшений кураторов](curator-ux-run-plan.md).
 Общий контракт: [EVO_LAUNCH_PLAN.md](../../EVO_LAUNCH_PLAN.md).
@@ -126,7 +126,7 @@ Pending, success, ошибки и пустое состояние различа
 ## Быстрый порядок исполнения
 
 1. [x] Прочитать реальную книгу, выявить столбцы, месяцы и неоднозначности.
-2. [ ] Backend: migration 134, минимальные guarded reads/commands/import,
+2. [x] Backend: migration 134, минимальные guarded reads/commands/import,
    строгий source adapter. UI параллельно на зафиксированном DTO без моков.
 3. [ ] Приватный разбор и предварительная сверка всех исходных строк; применить
    только подготовленный импорт с точным source checksum. Не трогать Google.
@@ -165,13 +165,16 @@ Invoker wrappers и ограниченные EXECUTE grants не заменяю�
   Исходные ссылки/комментарии/вложения остались в приватном оригинале, не
   импортированы как файлы платформы. Ручной «Факт» июля 34 расходится с 35 строками;
   августа 5 — с 9 строками; факт платформы должен следовать реальным строкам.
-- Backend: migration 134; cookie-bound source/actions и строгий DTO. Применение
-  на настоящем изолированном PostgreSQL прошло; catalog/ACL/no-session отказы и
-  проверки функций прошли. В rehearsal DB нет созданных пользователей, дел или
-  продаж. Проверка формы 209 исходных записей в SQL не является их импортом.
+- Backend: migration 134; cookie-bound source/actions и строгий DTO. Первичная
+  версия целиком применена на настоящем изолированном PostgreSQL, затем review
+  corrections применены атомарно. Catalog/ACL/no-session отказы и проверки
+  функций прошли. Полный финальный файл134 с чистой133 повторно не применялся:
+  подходящий сохранённый schema-only baseline не найден. Этот gate открыт.
+  В rehearsal DB нет созданных пользователей, дел или продаж. Проверка формы
+  209 исходных записей в SQL не является их импортом.
 - UI: `/v3/main?view=sales`, месяцы/год, собственные записи Sales, полный отчёт
   Admin, сохранение/архив/восстановление и явная сверка stale. TypeScript,
-  scoped ESLint, production build, три source/scalar checks и регистрация
+  scoped ESLint, production build, четыре source/scalar checks и регистрация
   128 уникальных Node-файлов прошли. Это не authenticated browser/CRUD proof.
 - Read-only production ledger run
   [34217342943](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34217342943)
@@ -180,7 +183,7 @@ Invoker wrappers и ограниченные EXECUTE grants не заменяю�
 
 ### Перед merge / deploy / import
 
-1. Закончить независимый review: продажи и одобренный portal v2 rollback bridge
+1. Независимый CODE/DOC review завершён: продажи и одобренный portal v2 rollback bridge
    уже собраны в одной ветке `izzhackt/sales-report-platform`. Старый portal v1 разрешён только до проверки
    владельца; новый UI вызывает только v2. Не расширять исключение молча.
 2. Разрешить blocker отката migration 129: старый Admin UI не передаёт обязательную

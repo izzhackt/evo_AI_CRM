@@ -386,6 +386,10 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "autonomous.reply.control.set": "Автоответ переключён",
   "case.create": "Дело заведено",
   "case.curator.set": "Куратор дела назначен",
+  "case.handoff.acknowledge": "Куратор принял передачу",
+  "case.handoff.clarification": "Куратор запросил уточнение",
+  "case.coverage.start": "Назначено временное замещение",
+  "case.coverage.return": "Дело возвращено основному куратору",
   "case.handoff.create": "Передача дела оформлена",
   "case.lifecycle.change": "Состояние дела изменено",
   "case.route.change": "Маршрут дела изменён",
@@ -473,7 +477,9 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "workflow.version.approve": "Версия процесса утверждена",
   "workflow.version.create": "Версия процесса создана",
   "workflow.version.retire": "Версия процесса отозвана",
-} satisfies Readonly<Record<PlatformAuditAction, string>>;
+} satisfies Readonly<Record<PlatformAuditAction |
+  "case.handoff.acknowledge" | "case.handoff.clarification" |
+  "case.coverage.start" | "case.coverage.return", string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   ai_draft: "Черновик ИИ",
@@ -536,6 +542,12 @@ const JOURNAL_ACTOR_WORD: Readonly<Record<string, string>> = {
 
 export const journalEvent = (v: string | null | undefined) =>
   lookup(JOURNAL_EVENT_WORD, v);
+
+const TASK_CHANGE_FIELD: Readonly<Record<string, string>> = {
+  status: "статус", priority: "приоритет", due_at: "срок", due_on: "срок",
+  assignee_membership_id: "исполнитель",
+};
+export const taskChangeField = (v: string) => lookup(TASK_CHANGE_FIELD, v);
 export const journalObject = (v: string | null | undefined) =>
   lookup(JOURNAL_OBJECT_WORD, v);
 export const journalActor = (v: string | null | undefined) =>

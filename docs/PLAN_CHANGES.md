@@ -21657,3 +21657,43 @@ Verification proceeds with scoped real checks, exact-head independent review
 and the protected short PR workflow. Missing real actors/cases/actions remains
 an explicitly recorded acceptance blocker. The existing localhost:3000 tunnel
 targets production and must not be treated as a disposable local test app.
+
+Implementation contract detail: UX-2 extends the single task command with a
+validated audit reason and an exact case/task calendar deep link. UX-3 binds
+acknowledgment to the latest canonical assignment event (including away/back),
+not just a membership ID. UX-4 replaces the unused U7 two-array RPC with one
+keyset-paged allowlisted stream: audit for business changes and canonical
+message metadata only when no corresponding record audit exists. Document
+author/time and every raw audit/message payload stay out of the projection.
+UX-8 replaces the sole overview RPC signature in one transaction; no v1/v2
+coexistence. Student action comes from actual missing/correction document slots,
+EVO action from disclosed open staff tasks, not free-text inference. These
+schema/application changes require a coordinated later deployment.
+
+Official implementation references checked September 8:
+[Supabase function privileges and search_path](https://supabase.com/docs/guides/database/functions),
+[React form status](https://react.dev/reference/react-dom/hooks/useFormStatus),
+[PostgreSQL routine validation](https://github.com/okbob/plpgsql_check).
+Schema-only local rehearsal and routine compilation are not actor/workflow
+acceptance. The Mac was locked during browser access; production direct table
+counts through the service key returned 403, so no fresh business-data count
+or positive actor proof is claimed from those checks.
+
+UX-3 clarification must be visible to the Sales owner who can already read the
+exact handed-off lead summary. Add only the current response decision,
+clarification and explicitly agreed contact date to that bounded path; never
+the full Admissions activity, assignments or an acknowledgement write power.
+This completes the approved clarification loop, not a new Sales role scope.
+
+UX-6 forward migration 133 operates on one exact active case per atomic command.
+Admin first previews owner/scope, all affected open tasks and their versions;
+start requires every outgoing-owner open task to be included, then uses the
+existing assignment wrapper and task command in one transaction. Return has an
+equally fresh preview: completed tasks remain unchanged; still-open tracked
+tasks restore their recorded active assignees; new substitute-owned open tasks
+can be explicitly selected and transferred to the original case owner. A
+changed/manual assignment, inactive target or incomplete/stale selection fails
+without partial writes. No open task may be stranded on the departing owner.
+An end date is informational with explicit manual return, never an invented
+scheduler. This avoids blocking an ordinary return solely because the deputy
+created necessary work while covering the case.

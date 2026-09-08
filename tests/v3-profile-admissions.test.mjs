@@ -17,7 +17,7 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   assert.match(page, /loadV3ProfileRoute\(routeMode/u);
   assert.match(
     page,
-    /readTarget: \(target\) => readProfileTarget\(actor, target, noteCursor\)/u,
+    /readTarget: \(target\) => readProfileTarget\(actor, target, noteCursor,/u,
   );
   assert.doesNotMatch(page, /readProfilePicks/u);
   assert.match(page, /actorRole=\{actor\.presentationRole\}/u);

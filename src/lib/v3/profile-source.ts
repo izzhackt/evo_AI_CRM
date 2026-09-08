@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 
 import type {
   DocumentCaseLinkTarget,
@@ -895,6 +896,7 @@ export async function readProfileTarget(
   actor: ActivePlatformActor,
   target: ProfileRouteTarget,
   noteCursor: PlatformCaseNoteCursor | null = null,
+  activity?: Readonly<{ cursor: ProfileActivityCursor | null }>,
 ): Promise<V3ProfileView | null> {
   const subject = target.leadId !== null
     ? Object.freeze({ leadId: target.leadId, studentCaseId: null })
@@ -910,12 +912,28 @@ export async function readProfileTarget(
     : await readCaseProfile(actor, target.studentCaseId);
   if (core === null) return null;
 
-  const page = await readCaseNotes(actor, subject, {
-    limit: 50,
-    cursor: noteCursor,
-  });
+  const caseId = core.details.admissions?.studentCaseId;
+  const [page, history] = await Promise.all([
+    readCaseNotes(actor, subject, { limit: 50, cursor: noteCursor }),
+    activity && caseId && actor.presentationRole !== "sales"
+      ? readProfileActivity(actor, caseId, activity.cursor) : null,
+  ]);
+  const historyHref = (cursor: ProfileActivityCursor | null) => {
+    const params = new URLSearchParams(target.leadId
+      ? { id: target.leadId, tab: "history" } : { case: target.studentCaseId!, tab: "history" });
+    if (cursor) {
+      params.set("activity_before_at", cursor.at);
+      params.set("activity_before_id", cursor.id);
+    }
+    return `/v3/profile?${params}`;
+  };
   return Object.freeze({
     ...core,
+    profile: history ? Object.freeze({
+      ...core.profile, timeline: history.events,
+      timelineOlderHref: history.nextCursor ? historyHref(history.nextCursor) : null,
+      timelineLatestHref: activity?.cursor ? historyHref(null) : null,
+    }) : core.profile,
     notes: Object.freeze({ subject, page }),
   });
 }

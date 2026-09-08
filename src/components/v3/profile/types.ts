@@ -68,7 +68,9 @@ export type ProfileEvent = Readonly<{
   id: string;
   transition: string;
   role: string;
-  at: string;
+  at: string | null;
+  href?: string;
+  changedFields?: readonly string[];
 }>;
 
 /** Настоящие данные. */
@@ -90,6 +92,8 @@ export type PersonProfile = Readonly<{
   visa: readonly ProfileVisaMilestone[];
   financeStop: string | null;
   timeline: readonly ProfileEvent[];
+  timelineOlderHref?: string | null;
+  timelineLatestHref?: string | null;
 }>;
 
 export type ProfileActorRole = FixedRole;

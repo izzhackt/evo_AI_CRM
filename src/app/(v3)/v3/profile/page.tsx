@@ -23,6 +23,7 @@ import {
   type PlatformCaseNoteCursor,
 } from "@/lib/platform-case-notes";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import {
   listStudentPortalActiveCurators,
   type StudentPortalCuratorOption,
@@ -128,12 +129,21 @@ export default async function ProfilePart({
     hasNoteBeforeAt !== hasNoteBeforeId ||
     ((hasNoteBeforeAt || hasNoteBeforeId) &&
       (noteCursor === null || (!hasLeadParam && !hasCaseParam)));
+  const hasActivityAt = params.activity_before_at !== undefined;
+  const hasActivityId = params.activity_before_id !== undefined;
+  const activityAt = singleSearchParam(params.activity_before_at);
+  const activityId = singleSearchParam(params.activity_before_id);
+  const activityCursor = activityAt && activityId
+    ? parseProfileActivityCursor(activityAt, activityId) : null;
+  const invalidActivityCursor = hasActivityAt !== hasActivityId ||
+    ((hasActivityAt || hasActivityId) && (!activityCursor || (!hasLeadParam && !hasCaseParam)
+      || singleSearchParam(params.tab) !== "history" || actor.presentationRole === "sales"));
   const invalidIdentityShape =
     (hasLeadParam && hasCaseParam) ||
     (hasLeadParam && !leadParam) ||
     (hasCaseParam && !caseParam) ||
     ((hasLeadParam || hasCaseParam) && directoryParams.active) ||
-    invalidNoteCursor;
+    invalidNoteCursor || invalidActivityCursor;
   const explicitTarget: ProfileRouteTarget | null = !invalidIdentityShape && leadParam
     ? { leadId: leadParam, studentCaseId: null }
     : !invalidIdentityShape && caseParam
@@ -151,7 +161,8 @@ export default async function ProfilePart({
   const { directory, view } = await loadV3ProfileRoute(routeMode, {
     readDirectory: (nextParams) =>
       readV3ProfileCaseDirectory(actor, nextParams),
-    readTarget: (target) => readProfileTarget(actor, target, noteCursor),
+    readTarget: (target) => readProfileTarget(actor, target, noteCursor,
+      singleSearchParam(params.tab) === "history" ? { cursor: activityCursor } : undefined),
   });
   const missing = hasExplicitTarget && !view;
   // Вкладка приходит адресом, поэтому её нельзя брать на веру: чужое слово и

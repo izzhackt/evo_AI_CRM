@@ -21767,3 +21767,32 @@ Student-self actions/readback, concurrency, desktop/393px acceptance, release
 CI, production migration apply and deployment remain open. A missing-input
 question requests real case/actor identities, not passwords. Keep this branch
 shared on GitHub; PR/merge/release gates must not be presented as completed.
+
+### 2026-09-08 — owner authorizes deployment with real-case acceptance deferred
+
+The owner explicitly requests deployment of the reviewed curator/UX work even
+though production currently has no accessible business case for genuine
+Admin/Curator/Sales/Student pre-deploy acceptance. This is an explicit waiver and
+deferral of that business-case gate, not evidence that it passed. Do not create
+synthetic users, cases or business data to manufacture proof. The owner will
+inspect the product after deployment; genuine role workflows remain recorded as
+post-deploy follow-up when suitable real cases and actors exist.
+
+Technical release controls remain mandatory: reviewed exact-head/current-main
+binding, required CI, migration-history readback, backup, rollback/recovery,
+exact-image deployment and production health/readback. Migration131 replaced the
+sole portal overview RPC shape, so this release requires a reviewed coordinated
+schema/application cutover and a database rollback/recovery path. It is not an
+app-only release. The exact cutover mechanism is still pending and must be
+documented and reviewed before either incompatible side is changed in production.
+No provider call is required or authorized by this decision.
+
+### 2026-09-08 — pending Sales report replacing the Google Sheet workflow
+
+The owner also requests implementation and deployment of a Sales report. It must
+replace the current Google Sheet workflow, import a confirmed real source and
+support year/month period selection. Sensible detailed product choices are
+delegated, but the verified source contract has not yet been written. Until that
+bounded amendment lands, this entry intentionally defines no report columns,
+mapping, route, schema or expanded authority. Coding must use real source data and
+must not introduce synthetic business records or provider-side actions.
